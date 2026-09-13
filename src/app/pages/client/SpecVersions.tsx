@@ -2,7 +2,7 @@ import React, { ReactNode } from 'react';
 import { Box, Dialog, config, Text, Button, Spinner } from 'folds';
 import { SpecVersionsLoader } from '../../components/SpecVersionsLoader';
 import { SpecVersionsProvider } from '../../hooks/useSpecVersions';
-import { SplashScreen } from '../../components/splash-screen';
+import { MindRoomSplashScreen, SplashScreen } from '../../components/splash-screen';
 import { clearAllCacheAndReload, removeSessionAndReload } from '../../../client/initMatrix';
 import { useActiveSession } from '../../hooks/useSessionStore';
 
@@ -26,27 +26,23 @@ export function SpecVersions({ baseUrl, children }: { baseUrl: string; children:
     <SpecVersionsLoader
       baseUrl={baseUrl}
       fallback={() => (
-        <SplashScreen>
-          <Box direction="Column" grow="Yes" alignItems="Center" justifyContent="Center" gap="400">
-            <Spinner variant="Secondary" size="600" />
-            <Text>Connecting to server</Text>
-            <Button
-              variant="Critical"
-              fill="Soft"
-              onClick={() => {
-                if (activeSession) {
-                  removeSessionAndReload(activeSession).catch(() => undefined);
-                  return;
-                }
-                window.location.reload();
-              }}
-            >
-              <Text as="span" size="B400">
-                Cancel and return to sign in
-              </Text>
-            </Button>
-          </Box>
-        </SplashScreen>
+        <MindRoomSplashScreen message="Connecting to server">
+          <Button
+            variant="Critical"
+            fill="Soft"
+            onClick={() => {
+              if (activeSession) {
+                removeSessionAndReload(activeSession).catch(() => undefined);
+                return;
+              }
+              window.location.reload();
+            }}
+          >
+            <Text as="span" size="B400">
+              Cancel and return to sign in
+            </Text>
+          </Button>
+        </MindRoomSplashScreen>
       )}
       error={(err, retry, ignore) => (
         <SplashScreen>

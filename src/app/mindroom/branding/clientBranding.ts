@@ -15,16 +15,15 @@ export const MINDROOM_CLIENT_BRANDING = {
   logoSrc: MINDROOM_LOGO_SRC,
   poweredBy: MINDROOM_DEFAULT_POWERED_BY,
   sourceUrl: MINDROOM_SOURCE_URL,
+  subtitle: 'Your AI is trapped in apps. We set it free.',
 } as const;
 
-export const getMindroomWelcomePageContent = (
-  welcome: ClientConfig['welcome'] | undefined
-) => ({
+export const getMindroomWelcomePageContent = (welcome: ClientConfig['welcome'] | undefined) => ({
   docsLabel: welcome?.docsLabel ?? 'Docs',
   docsUrl: welcome?.docsUrl ?? MINDROOM_CLIENT_BRANDING.docsUrl,
   poweredBy: welcome?.poweredBy ?? MINDROOM_CLIENT_BRANDING.poweredBy,
   sourceLabel: welcome?.sourceLabel ?? 'Source Code',
   sourceUrl: welcome?.sourceUrl ?? MINDROOM_CLIENT_BRANDING.sourceUrl,
-  subtitle: welcome?.subtitle ?? 'Yet another matrix client.',
+  subtitle: welcome?.subtitle ?? MINDROOM_CLIENT_BRANDING.subtitle,
   title: welcome?.title ?? `Welcome to ${MINDROOM_CLIENT_BRANDING.appName}`,
 });

@@ -33,6 +33,10 @@ export type ClientConfig = {
 
   hashRouter?: HashRouterConfig;
 
+  splash?: {
+    loadingMessages?: string[];
+  };
+
   sidebar?: {
     showExploreCommunity?: boolean;
     showAddSpace?: boolean;

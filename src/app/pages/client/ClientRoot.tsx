@@ -28,8 +28,7 @@ import {
   removeSessionAndReload,
   startClient,
 } from '../../../client/initMatrix';
-import { MindRoomParticleBackground } from '../../components/particle-background';
-import { SplashScreen } from '../../components/splash-screen';
+import { MindRoomSplashScreen, SplashScreen } from '../../components/splash-screen';
 import { ServerConfigsLoader } from '../../components/ServerConfigsLoader';
 import { CapabilitiesProvider } from '../../hooks/useCapabilities';
 import { MediaConfigProvider } from '../../hooks/useMediaConfig';
@@ -40,6 +39,7 @@ import { SyncStatus } from './SyncStatus';
 import { AuthMetadataProvider } from '../../hooks/useAuthMetadata';
 import { StoredSession } from '../../state/sessions';
 import { useActiveSession } from '../../hooks/useSessionStore';
+import { useClientConfig } from '../../hooks/useClientConfig';
 import { getLoginPath } from '../pathUtils';
 import { ClientStartupProvider } from './ClientStartupContext';
 import { useSyncState } from '../../hooks/useSyncState';
@@ -60,30 +60,12 @@ type ClientMatrixClient = Awaited<ReturnType<typeof initClient>> & {
   ) => unknown;
 };
 
-type ClientMatrixClientWithCacheState = ClientMatrixClient & {
-  store?: {
-    getSyncToken?: () => string | null;
-  };
-};
-
 export const hasCachedClientShell = (mx: ClientMatrixClient): boolean => {
-  if (mx.getRooms().length > 0) {
-    return true;
-  }
-
-  const syncToken = (mx as ClientMatrixClientWithCacheState).store?.getSyncToken?.();
-  return typeof syncToken === 'string' && syncToken.length > 0;
+  return mx.getRooms().length > 0;
 };
 
-function ClientRootLoading() {
-  return (
-    <SplashScreen background={<MindRoomParticleBackground />}>
-      <Box direction="Column" grow="Yes" alignItems="Center" justifyContent="Center" gap="400">
-        <Spinner variant="Secondary" size="600" />
-        <Text>Heating up</Text>
-      </Box>
-    </SplashScreen>
-  );
+function ClientRootLoading({ loadingMessages }: { loadingMessages?: readonly string[] }) {
+  return <MindRoomSplashScreen loadingMessages={loadingMessages} />;
 }
 
 function ClientRootSyncingStatus() {
@@ -248,6 +230,7 @@ type ClientRootProps = {
   children: ReactNode;
 };
 export function ClientRoot({ children }: ClientRootProps) {
+  const clientConfig = useClientConfig();
   const activeSession = useActiveSession();
   const [retryCount, setRetryCount] = useState(0);
   const [clientState, setClientState] = useState<ClientState>({ status: 'idle' });
@@ -475,7 +458,7 @@ export function ClientRoot({ children }: ClientRootProps) {
         </SplashScreen>
       )}
       {clientState.status !== 'error' && !canRenderReadyContent ? (
-        <ClientRootLoading />
+        <ClientRootLoading loadingMessages={clientConfig.splash?.loadingMessages} />
       ) : (
         readyContent
       )}

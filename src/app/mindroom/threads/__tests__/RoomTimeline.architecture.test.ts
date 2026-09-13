@@ -1805,6 +1805,14 @@ describe('RoomTimeline architecture', () => {
       new URL('../../../components/splash-screen/SplashScreen.tsx', import.meta.url),
       'utf8'
     );
+    const mindRoomSplashScreenSource = readFileSync(
+      new URL('../../../components/splash-screen/MindRoomSplashScreen.tsx', import.meta.url),
+      'utf8'
+    );
+    const specVersionsSource = readFileSync(
+      new URL('../../../pages/client/SpecVersions.tsx', import.meta.url),
+      'utf8'
+    );
     const featureCheckSource = readFileSync(
       new URL('../../../pages/FeatureCheck.tsx', import.meta.url),
       'utf8'
@@ -1858,10 +1866,13 @@ describe('RoomTimeline architecture', () => {
     expect(splashScreenSource).toContain('background ? css.SplashScreenParticle');
     expect(splashScreenSource).toContain('patternsCSS.BackgroundDotPattern');
     expect(splashScreenSource).not.toContain("from '../../pages/auth/AuthParticleBackground'");
-    expect(clientRootSource).toContain("from '../../components/particle-background'");
-    expect(configConfigSource).toContain("from '../components/particle-background'");
-    expect(clientRootSource).toMatch(/<SplashScreen\b[^>]*\bbackground=/);
-    expect(configConfigSource).toMatch(/<SplashScreen\b[^>]*\bbackground=/);
+    expect(mindRoomSplashScreenSource).toContain("from '../particle-background'");
+    expect(mindRoomSplashScreenSource).toContain(
+      '<SplashScreen background={<MindRoomParticleBackground />}'
+    );
+    expect(clientRootSource).toContain('MindRoomSplashScreen');
+    expect(configConfigSource).toContain('MindRoomSplashScreen');
+    expect(specVersionsSource).toContain('MindRoomSplashScreen');
     expect(featureCheckSource).toContain('<SplashScreen>');
     expect(splashScreenSource).not.toContain("from '../../mindroom/branding/branding'");
     expect(aboutSource).toContain("from '../../../mindroom/branding/clientBranding'");
