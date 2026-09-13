@@ -2,6 +2,10 @@ import { expect, test } from '@playwright/test';
 import { getHomeserver, getPrimaryCredentials } from '../env';
 import { loginWithPassword } from '../helpers/auth';
 import {
+  attachBrowserDiagnostics,
+  expectNoUnexpectedBrowserDiagnostics,
+} from '../helpers/browserDiagnostics';
+import {
   createPrivateRoom,
   loginToMatrix,
   sendRoomMessage,
@@ -24,6 +28,7 @@ test.describe('PERF: thread scroll stability under expand-all', () => {
   test.setTimeout(600_000);
 
   test('measure visible jumps during fast upward wheel scrolling', async ({ page }, testInfo) => {
+    const diagnostics = attachBrowserDiagnostics(page);
     const homeserver = getHomeserver();
     const { username, password } = getPrimaryCredentials();
     const session = await loginToMatrix(homeserver, username, password);
@@ -170,5 +175,6 @@ test.describe('PERF: thread scroll stability under expand-all', () => {
     // jump counts — must not pass as a no-op.
     expect(report.frames).toBeGreaterThan(20);
     expect(report.anchoredFrames).toBeGreaterThan(20);
+    await expectNoUnexpectedBrowserDiagnostics(diagnostics, 'perf-thread-scroll-stability');
   });
 });

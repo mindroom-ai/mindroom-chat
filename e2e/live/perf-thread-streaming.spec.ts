@@ -1,6 +1,10 @@
 import { expect, test } from '@playwright/test';
 import { getHomeserver, getPrimaryCredentials } from '../env';
 import { loginWithPassword } from '../helpers/auth';
+import {
+  attachBrowserDiagnostics,
+  expectNoUnexpectedBrowserDiagnostics,
+} from '../helpers/browserDiagnostics';
 import { createPrivateRoom, loginToMatrix, sendRoomMessage } from '../helpers/matrix';
 import { loadAllOlderThreadMessages } from '../helpers/threadTimeline';
 
@@ -59,6 +63,7 @@ test.describe('PERF: large thread with streaming edits', () => {
   test.setTimeout(600_000);
 
   test('measure thread open and streaming edit cost', async ({ page }, testInfo) => {
+    const diagnostics = attachBrowserDiagnostics(page);
     const homeserver = getHomeserver();
     const { username, password } = getPrimaryCredentials();
     const session = await loginToMatrix(homeserver, username, password);
@@ -215,5 +220,6 @@ test.describe('PERF: large thread with streaming edits', () => {
     });
 
     expect(mountedRowsAfterLoadAll).toBeGreaterThan(0);
+    await expectNoUnexpectedBrowserDiagnostics(diagnostics, 'perf-thread-streaming');
   });
 });

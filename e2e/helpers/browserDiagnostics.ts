@@ -18,6 +18,7 @@ const CRITICAL_DIAGNOSTIC_PATTERNS = [
 const CRITICAL_CONSOLE_WARNING_PATTERNS = [
   /Could not create thread object for/i,
   /Tried loading a regular timeline at the position of a thread event/i,
+  /scheduleReconcile rejected[\s\S]*Cannot read properties of undefined[\s\S]*getTs/i,
 ];
 
 const matchesPatterns = (value: string, patterns: RegExp[]): boolean =>
@@ -47,7 +48,9 @@ export const attachBrowserDiagnostics = (page: Page): BrowserDiagnostics => {
   });
 
   page.on('requestfailed', (request) => {
-    diagnostics.requestFailures.push(`${request.method()} ${request.url()} :: ${request.failure()?.errorText ?? 'unknown'}`);
+    diagnostics.requestFailures.push(
+      `${request.method()} ${request.url()} :: ${request.failure()?.errorText ?? 'unknown'}`
+    );
   });
 
   return diagnostics;
