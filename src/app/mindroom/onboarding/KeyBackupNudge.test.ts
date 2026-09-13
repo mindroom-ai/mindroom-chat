@@ -1,6 +1,7 @@
 import React from 'react';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { ClientConfig, ClientConfigProvider } from '../../hooks/useClientConfig';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { dismissKeyBackupNudge, readKeyBackupNudgeDismissed } from './keyBackupNudgeDismissal';
 import { useKeyBackupPresence } from './useKeyBackupPresence';
@@ -34,10 +35,16 @@ const mockClient = () =>
     getSafeUserId: () => USER_ID,
   } as unknown as ReturnType<typeof useMatrixClient>);
 
-const renderNudge = async (): Promise<ReactTestRenderer> => {
+const renderNudge = async (clientConfig: ClientConfig = {}): Promise<ReactTestRenderer> => {
   let renderer: ReactTestRenderer | undefined;
   await act(async () => {
-    renderer = create(React.createElement(KeyBackupNudge));
+    renderer = create(
+      React.createElement(
+        ClientConfigProvider,
+        { value: clientConfig },
+        React.createElement(KeyBackupNudge)
+      )
+    );
   });
   return renderer as ReactTestRenderer;
 };
@@ -70,6 +77,38 @@ describe('KeyBackupNudge visibility gate', () => {
     useKeyBackupPresenceMock.mockReturnValue('absent');
 
     const renderer = await renderNudge();
+
+    expect(renderer.toJSON()).not.toBeNull();
+    expect(renderer.root.findByProps({ 'aria-label': 'Set up secure key backup' })).toBeDefined();
+  });
+
+  it('skips the backup check when room encryption is disabled by policy', async () => {
+    vi.stubGlobal('localStorage', makeMemoryStorage());
+    useMatrixClientMock.mockReturnValue(mockClient());
+    useKeyBackupPresenceMock.mockReturnValue('absent');
+
+    const renderer = await renderNudge({
+      createRoom: {
+        showEncryptionOption: false,
+        defaultEncryption: false,
+      },
+    });
+
+    expect(renderer.toJSON()).toBeNull();
+    expect(useKeyBackupPresenceMock).not.toHaveBeenCalled();
+  });
+
+  it('shows when the encryption control is hidden but encryption is enabled by policy', async () => {
+    vi.stubGlobal('localStorage', makeMemoryStorage());
+    useMatrixClientMock.mockReturnValue(mockClient());
+    useKeyBackupPresenceMock.mockReturnValue('absent');
+
+    const renderer = await renderNudge({
+      createRoom: {
+        showEncryptionOption: false,
+        defaultEncryption: true,
+      },
+    });
 
     expect(renderer.toJSON()).not.toBeNull();
     expect(renderer.root.findByProps({ 'aria-label': 'Set up secure key backup' })).toBeDefined();

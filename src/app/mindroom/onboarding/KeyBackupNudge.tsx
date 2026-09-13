@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Box, Button, Icon, IconButton, Icons, Text, color } from 'folds';
 import { useSetAtom } from 'jotai';
+import { useClientConfig } from '../../hooks/useClientConfig';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { settingsModalAtom } from '../../state/settingsModal';
 import { SettingsPages } from '../../features/settings/settingsPages';
@@ -66,13 +67,18 @@ function KeyBackupNudgeCard() {
 /**
  * First-run onboarding nudge that steers a user into secure key backup so a new
  * device login can still read their encrypted agent history. Renders nothing
- * without crypto, until the server confirms no backup exists, when a backup
- * already exists, or after the user dismisses it.
+ * when room encryption is disabled by policy, without crypto, until the server
+ * confirms no backup exists, when a backup already exists, or after the user
+ * dismisses it.
  */
 export function KeyBackupNudge() {
   const mx = useMatrixClient();
+  const { createRoom } = useClientConfig();
   const crypto = mx.getCrypto();
-  if (!crypto) return null;
+  const encryptionDisabled =
+    createRoom?.showEncryptionOption === false && createRoom?.defaultEncryption === false;
+
+  if (encryptionDisabled || !crypto) return null;
 
   // Key by user id so the per-account dismissal state (read once on mount) is
   // re-evaluated if the active session changes without a full unmount.
