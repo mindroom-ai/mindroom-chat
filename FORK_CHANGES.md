@@ -2,6 +2,28 @@
 
 ## Runbook
 
+### UI component responsibility extraction (2026-09-13)
+
+- Extend the Matrix lifecycle cleanup across three existing UI files with eleven focused modules.
+  Message actions are split into reactions, inspection, copying, and moderation, with timeline event rows in their own component.
+  Composer modules own upload preparation, transport, and synchronous paste handling.
+  Timeline modules own state and fallback event rendering, message interactions, and minimap behavior.
+- The main message file shrinks from 1,444 to 636 lines, composer from 1,688 to 1,415, and timeline from 3,641 to 3,239.
+  Explicit interfaces and imports add 323 lines across the complete source change; the purpose is clearer responsibility boundaries.
+  Send-session and voice-bundle coordination remain in the composer, while cache, pagination, and scroll coordination remain in the timeline.
+- All eighteen existing public exports remain unchanged, as do the upstream compatibility wrappers and existing unit tests.
+  Declaration and renderer audits verify moved bodies and JSX, renderer precedence and fallback order, and minimap state and cleanup.
+  The only callback dependency adjustment adds the parent's stable React state setter to the extracted edit handler.
+  Independent reviews of all three extractions found no defects.
+- Verification: all 481 Vitest files and 3,752 tests pass under pinned Node 24.13.1.
+  Typecheck, production/PWA build with Element Call verification, source-module formatting, and full lint pass with zero errors and the existing seventeen warnings.
+  All fifteen targeted Chromium cases pass against production assets and local Matrix, covering auth, message links, reactions, reply chips, summaries, desktop/mobile sending, unread receipts, and thread view changes.
+  The reply-chip spec identifies reply targets through event IDs because its former development CSS selector does not match production class names.
+  Its existing explicit-reply, failed-target, fallback-suppression, and scroll-cycle assertions remain intact.
+- The upstream rebase guide maps the new module owners and retains the requirement to inspect upstream renderer and composer changes when wrappers merge cleanly.
+  Three focused local refactor commits preserve subsystem boundaries.
+  No push, release, deployment, native app build, or meta-repository submodule update occurred.
+
 ### Feature-oriented rebase onto upstream Cinny v4.12.6 (2026-09-13)
 
 - Source: the latest fork `dev` at `02bbec92`, including all ten commits newer than the starting local checkout.

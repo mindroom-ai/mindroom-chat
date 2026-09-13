@@ -50,6 +50,30 @@ The fork lifecycle modules must not import that startup orchestrator.
 Keep behavioral coverage for initialization and cleanup order, credential removal, shared-account isolation, and browser storage scope.
 Inspect upstream lifecycle changes and port relevant behavior to the owning module; a small integration file does not make upstream changes irrelevant.
 
+Message, composer, and timeline responsibilities also have focused owners:
+
+| Responsibility                                                           | Module under `src/app/mindroom/`              |
+| ------------------------------------------------------------------------ | --------------------------------------------- |
+| Message reactions                                                        | `messages/MessageReactionActions.tsx`         |
+| Read receipts and source inspection                                      | `messages/MessageInspectionActions.tsx`       |
+| Message text and permalink copying                                       | `messages/MessageCopyActions.tsx`             |
+| Pinning, deletion and reporting                                          | `messages/MessageModerationActions.tsx`       |
+| Timeline event row layout and menu                                       | `messages/MindroomTimelineEvent.tsx`          |
+| Attachment preparation and encryption                                    | `room-input/roomInputUploadPreparation.ts`    |
+| Upload transport and voice upload content                                | `room-input/useRoomInputUploadTransport.ts`   |
+| Synchronous paste fallback and large pasted-text attachments             | `room-input/useRoomInputPaste.ts`             |
+| Membership, room changes, call membership and generic event presentation | `threads/roomTimelineStateEventRenderers.tsx` |
+| Profile, mention, reply, reaction and edit interactions                  | `threads/useRoomTimelineMessageActions.ts`    |
+| Pointer eligibility, item derivation and minimap selection               | `threads/useRoomTimelineMinimap.ts`           |
+
+Keep the public exports of `MindroomMessage.tsx`, `MindroomRoomInput.tsx`, and `MindroomRoomTimeline.tsx` compatible.
+Their extracted modules must import their dependencies directly, without importing the parent facade.
+Keep send-session and voice-bundle coordination in the composer, and keep cache, pagination, and scroll coordination in the timeline.
+These components remain substantial because those state transitions are coupled.
+Future extractions should establish a useful interface before moving another block of code.
+Keep the paste handler synchronous: an unhandled paste must return `undefined` so Slate can run its default behavior.
+Inspect corresponding upstream renderer and composer changes even when the compatibility wrappers merge cleanly.
+
 ## Next release
 
 1. Resolve Cinny's latest stable GitHub release and fetch that exact tag.
