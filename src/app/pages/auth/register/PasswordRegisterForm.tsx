@@ -18,8 +18,8 @@ import {
   MatrixError,
   RegisterRequest,
   UIAFlow,
-  createClient,
 } from 'matrix-js-sdk';
+import { createMatrixClient } from '../../../../client/matrixClientFactory';
 import { PasswordInput } from '../../../components/password-input';
 import {
   getLoginTermUrl,
@@ -186,7 +186,7 @@ export function PasswordRegisterForm({
 }: PasswordRegisterFormProps) {
   const serverDiscovery = useAutoDiscoveryInfo();
   const baseUrl = serverDiscovery['m.homeserver'].base_url;
-  const mx = useMemo(() => createClient({ baseUrl }), [baseUrl]);
+  const mx = useMemo(() => createMatrixClient({ baseUrl }), [baseUrl]);
   const params = useUIAParams(authData);
   const termUrl = getLoginTermUrl(params);
   const [formData, setFormData] = useState<FormData>();

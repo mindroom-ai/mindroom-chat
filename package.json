@@ -91,6 +91,7 @@
   },
   "devDependencies": {
     "@element-hq/element-call-embedded": "0.20.1",
+    "@capacitor/cli": "8.1.0",
     "@esbuild-plugins/node-globals-polyfill": "0.2.3",
     "@rollup/plugin-inject": "5.0.3",
     "@rollup/plugin-wasm": "6.1.1",
@@ -103,6 +104,7 @@
     "@types/react-dom": "18.2.17",
     "@types/react-google-recaptcha": "2.1.8",
     "@types/sanitize-html": "2.16.1",
+    "@types/react-test-renderer": "18.3.1",
     "@types/ua-parser-js": "0.7.36",
     "@typescript-eslint/eslint-plugin": "5.46.1",
     "@typescript-eslint/parser": "5.46.1",
@@ -119,6 +121,7 @@
     "husky": "9.1.7",
     "lint-staged": "16.3.2",
     "prettier": "2.8.1",
+    "react-test-renderer": "18.2.0",
     "typescript": "4.9.4",
     "vite": "5.4.19",
     "vite-plugin-pwa": "0.20.5",

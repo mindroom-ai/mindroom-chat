@@ -1,5 +1,6 @@
-import { ReactNode, useCallback, useEffect, useMemo } from 'react';
-import { MatrixError, createClient } from 'matrix-js-sdk';
+import React, { ReactNode, useCallback, useEffect, useMemo } from 'react';
+import { Box, Button, Text, color } from 'folds';
+import { MatrixError } from 'matrix-js-sdk';
 import { AsyncStatus, useAsyncCallback } from '../hooks/useAsyncCallback';
 import { useAutoDiscoveryInfo } from '../hooks/useAutoDiscoveryInfo';
 import { promiseFulfilledResult, promiseRejectedResult } from '../utils/common';
@@ -9,6 +10,7 @@ import {
   RegisterFlowsResponse,
   parseRegisterErrResp,
 } from '../hooks/useAuthFlows';
+import { createMatrixClient } from '../../client/matrixClientFactory';
 
 type AuthFlowsLoaderProps = {
   fallback?: () => ReactNode;
@@ -19,7 +21,7 @@ export function AuthFlowsLoader({ fallback, error, children }: AuthFlowsLoaderPr
   const autoDiscoveryInfo = useAutoDiscoveryInfo();
   const baseUrl = autoDiscoveryInfo['m.homeserver'].base_url;
 
-  const mx = useMemo(() => createClient({ baseUrl }), [baseUrl]);
+  const mx = useMemo(() => createMatrixClient({ baseUrl }), [baseUrl]);
 
   const [state, load] = useAsyncCallback(
     useCallback(async () => {
@@ -33,10 +35,10 @@ export function AuthFlowsLoader({ fallback, error, children }: AuthFlowsLoaderPr
       }
 
       if (!loginFlows) {
-        throw new Error('Missing auth flow!');
+        throw new Error('Login flows unavailable.');
       }
       if ('errcode' in loginFlows) {
-        throw new Error('Failed to load auth flow!');
+        throw new Error('Login flows returned an error.');
       }
 
       const authFlows: AuthFlows = {
@@ -49,7 +51,11 @@ export function AuthFlowsLoader({ fallback, error, children }: AuthFlowsLoaderPr
   );
 
   useEffect(() => {
-    load();
+    load().catch(() => undefined);
+  }, [load]);
+
+  const handleRetry = useCallback(() => {
+    load().catch(() => undefined);
   }, [load]);
 
   if (state.status === AsyncStatus.Idle || state.status === AsyncStatus.Loading) {
@@ -57,7 +63,20 @@ export function AuthFlowsLoader({ fallback, error, children }: AuthFlowsLoaderPr
   }
 
   if (state.status === AsyncStatus.Error) {
-    return error?.(state.error);
+    return (
+      <Box justifyContent="Center" alignItems="Center" direction="Column" gap="200">
+        {error ? (
+          error(state.error)
+        ) : (
+          <Text align="Center" style={{ color: color.Critical.Main }} size="T300">
+            Failed to load authentication flow information.
+          </Text>
+        )}
+        <Button variant="Secondary" size="400" onClick={handleRetry}>
+          Retry
+        </Button>
+      </Box>
+    );
   }
 
   return children(state.data);

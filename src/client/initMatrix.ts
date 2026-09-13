@@ -1,8 +1,8 @@
-import { createClient, MatrixClient, IndexedDBStore, IndexedDBCryptoStore } from 'matrix-js-sdk';
+import { MatrixClient, IndexedDBStore, IndexedDBCryptoStore } from 'matrix-js-sdk';
 
 import { cryptoCallbacks } from './secretStorageKeys';
 import { clearNavToActivePathStore } from '../app/state/navToActivePath';
-import { pushSessionToSW } from '../sw-session';
+import { createMatrixClient } from './matrixClientFactory';
 
 type Session = {
   baseUrl: string;
@@ -20,7 +20,7 @@ export const initClient = async (session: Session): Promise<MatrixClient> => {
 
   const legacyCryptoStore = new IndexedDBCryptoStore(global.indexedDB, 'crypto-store');
 
-  const mx = createClient({
+  const mx = createMatrixClient({
     baseUrl: session.baseUrl,
     accessToken: session.accessToken,
     userId: session.userId,
@@ -54,7 +54,6 @@ export const clearCacheAndReload = async (mx: MatrixClient) => {
 };
 
 export const logoutClient = async (mx: MatrixClient) => {
-  pushSessionToSW();
   mx.stopClient();
   try {
     await mx.logout();
