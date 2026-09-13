@@ -120,9 +120,41 @@ export const useRoomLiveRenderController = ({
 }) => {
   useRoomLocalEchoRefresh(
     room,
-    useCallback(() => {
-      setTimeline((current) => ({ ...current }));
-    }, [setTimeline])
+    useCallback(
+      (mEvt, { initial }) => {
+        const relation = mEvt.getRelation();
+        const relationTargetId = relation?.event_id;
+        const isVisibleThreadActivity =
+          mEvt.getId() === threadId ||
+          eventBelongsToThread(mEvt, threadId ?? '') ||
+          !!(relationTargetId && threadEventIndexMapRef.current.has(relationTargetId));
+        const scrollElement = scrollRef.current;
+
+        if (
+          initial &&
+          threadId &&
+          mEvt.isSending() &&
+          isVisibleThreadActivity &&
+          scrollElement &&
+          shouldAutoScrollThreadOnLiveEvent({
+            relationType: relation?.rel_type,
+            isNearBottom: isScrollNearBottom({
+              scrollHeight: scrollElement.scrollHeight,
+              scrollTop: scrollElement.scrollTop,
+              clientHeight: scrollElement.clientHeight,
+            }),
+            isTimelineAtLiveEnd: atLiveEndRef.current,
+          })
+        ) {
+          // Arm on the SDK's initial local-echo signal, before rendering increases scrollHeight.
+          scrollToBottomRef.current.count += 1;
+          scrollToBottomRef.current.smooth = true;
+        }
+
+        setTimeline((current) => ({ ...current }));
+      },
+      [atLiveEndRef, scrollRef, scrollToBottomRef, setTimeline, threadEventIndexMapRef, threadId]
+    )
   );
 
   useLiveEventArrive(

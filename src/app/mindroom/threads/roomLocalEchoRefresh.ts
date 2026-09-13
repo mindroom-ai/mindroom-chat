@@ -1,10 +1,24 @@
 import { useEffect } from 'react';
-import { Room, RoomEvent, RoomEventHandlerMap } from 'matrix-js-sdk';
+import { type MatrixEvent, Room, RoomEvent, RoomEventHandlerMap } from 'matrix-js-sdk';
 
-export const useRoomLocalEchoRefresh = (room: Room, onRefresh: () => void) => {
+export type RoomLocalEchoRefreshMeta = {
+  initial: boolean;
+};
+
+export const useRoomLocalEchoRefresh = (
+  room: Room,
+  onRefresh: (mEvent: MatrixEvent, meta: RoomLocalEchoRefreshMeta) => void
+) => {
   useEffect(() => {
-    const handleLocalEcho: RoomEventHandlerMap[RoomEvent.LocalEchoUpdated] = () => {
-      onRefresh();
+    const handleLocalEcho: RoomEventHandlerMap[RoomEvent.LocalEchoUpdated] = (
+      mEvent,
+      _eventRoom,
+      oldEventId,
+      oldStatus
+    ) => {
+      onRefresh(mEvent, {
+        initial: oldEventId === undefined && oldStatus === undefined,
+      });
     };
 
     room.on(RoomEvent.LocalEchoUpdated, handleLocalEcho);

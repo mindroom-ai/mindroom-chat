@@ -39,8 +39,9 @@ export const waitForLoggedInShell = async (page: Page) => {
         const activeAccountButtons = await page
           .getByRole('button', { name: activeAccountButtonNamePattern })
           .count();
-        const addAccountButtons = await page.getByRole('button', { name: 'Add account' }).count();
-        return activeAccountButtons > 0 && addAccountButtons > 0;
+        // Simple Mode intentionally hides "Add account". The active account control is the
+        // mode-independent signal that the authenticated shell has mounted.
+        return activeAccountButtons > 0;
       },
       {
         timeout: 30_000,
