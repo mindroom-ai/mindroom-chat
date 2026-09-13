@@ -3,7 +3,6 @@ import {
   createFallbackWaveform,
   normalizeMatrixWaveform,
   timeDomainDataToWaveformPoint,
-  VOICE_WAVEFORM_BAR_COUNT,
 } from '../../utils/audioWaveform';
 import { pauseAllMediaElements } from '../../utils/dom';
 import {
@@ -42,14 +41,6 @@ const WAVEFORM_SAMPLE_INTERVAL_MS = 80;
 const MAX_LIVE_SAMPLES = 1200;
 
 const now = (): number => Date.now();
-
-const createLiveDisplayWaveform = (samples: number[]): number[] => {
-  const visibleSamples = samples.slice(-VOICE_WAVEFORM_BAR_COUNT);
-  const paddingCount = VOICE_WAVEFORM_BAR_COUNT - visibleSamples.length;
-  if (paddingCount <= 0) return visibleSamples;
-
-  return [...Array.from({ length: paddingCount }, () => 0), ...visibleSamples];
-};
 
 const getAudioContextConstructor = (): typeof AudioContext | undefined => {
   if (typeof window === 'undefined') return undefined;
@@ -273,14 +264,11 @@ export function useVoiceRecorder({
     }
 
     displaySampleRef.current.push(sample);
-    if (displaySampleRef.current.length > VOICE_WAVEFORM_BAR_COUNT) {
-      displaySampleRef.current.splice(
-        0,
-        displaySampleRef.current.length - VOICE_WAVEFORM_BAR_COUNT
-      );
+    if (displaySampleRef.current.length > MAX_LIVE_SAMPLES) {
+      displaySampleRef.current.splice(0, displaySampleRef.current.length - MAX_LIVE_SAMPLES);
     }
 
-    safeSetWaveform(createLiveDisplayWaveform(displaySampleRef.current));
+    safeSetWaveform([...displaySampleRef.current]);
   }, [safeSetWaveform]);
 
   const startSampleTimer = useCallback(() => {
