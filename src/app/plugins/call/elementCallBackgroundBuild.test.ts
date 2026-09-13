@@ -23,10 +23,18 @@ describe('Element Call background build', () => {
 
     const source = fs.readFileSync(elementCallIndexPath, 'utf8');
     const html = injectElementCallTransparentBackground(source);
-    const override = '<style>html,body{background-color:transparent!important}</style>';
+    const override = '<style>html,body{background:transparent!important}</style>';
 
     expect(html).toContain(`<head>${override}`);
     expect(html.indexOf(override)).toBeLessThan(html.indexOf('<link rel="stylesheet"'));
+  });
+
+  it('resets the complete Element Call background so its image cannot cover the animation', () => {
+    const source = fs.readFileSync(elementCallIndexPath, 'utf8');
+    const html = injectElementCallTransparentBackground(source);
+
+    expect(html).toContain('<style>html,body{background:transparent!important}</style>');
+    expect(html).not.toContain('html,body{background-color:transparent!important}');
   });
 
   it('fails the build if an upstream index no longer has the expected head', () => {

@@ -57,8 +57,8 @@ import { useLivekitSupport } from '../hooks/useLivekitSupport';
 import { CallAvatarAnimation } from '../styles/Animations.css';
 import { webRTCSupported } from '../utils/rtc';
 import { cleanupMindroomAgentCall } from '../mindroom/calls/agentCall';
-import { particleBackgroundColorVar } from './particle-background/particleBackgroundTheme.css';
-import { CallBackground } from './CallBackground';
+import { CallEmbedHost } from './CallEmbedHost';
+import { CallIframeBackground } from './CallIframeBackground';
 
 type IncomingCallInfo = {
   room: Room;
@@ -396,23 +396,8 @@ export function CallEmbedProvider({ children }: CallEmbedProviderProps) {
         <IncomingCallListener callEmbed={callEmbed} joined={joined} />
         {children}
       </CallEmbedRefContextProvider>
-      <div
-        data-call-embed-container
-        style={{
-          visibility: callVisible ? undefined : 'hidden',
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          width: '100%',
-          height: '50%',
-          isolation: 'isolate',
-          overflow: 'hidden',
-          backgroundColor: particleBackgroundColorVar,
-        }}
-        ref={callEmbedRef}
-      >
-        <CallBackground visible={Boolean(callVisible)} />
-      </div>
+      <CallEmbedHost visible={Boolean(callVisible)} containerRef={callEmbedRef} />
+      <CallIframeBackground callEmbed={callEmbed} visible={Boolean(callVisible)} />
     </CallEmbedContextProvider>
   );
 }

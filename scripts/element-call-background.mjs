@@ -1,5 +1,5 @@
 export const transparentCallBackground =
-  '<style>html,body{background-color:transparent!important}</style>';
+  '<style>html,body{background:transparent!important}</style>';
 
 export const injectElementCallTransparentBackground = (html) => {
   if (!html.includes('<head>')) {
