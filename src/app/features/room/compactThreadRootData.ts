@@ -20,6 +20,16 @@ export type CompactThreadRootPreviewInfo = {
   sourceTs: number;
 };
 
+const getEventActivityTs = (event: MatrixEvent): number => {
+  const replacingEvent = event.replacingEvent();
+  const replacingTs =
+    replacingEvent && replacingEvent.getSender() === event.getSender()
+      ? replacingEvent.getTs()
+      : 0;
+
+  return Math.max(event.getTs(), replacingTs);
+};
+
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   !!value && typeof value === 'object' && !Array.isArray(value);
 
@@ -124,6 +134,40 @@ export const getCompactCachedThreadRootPreviewInfo = ({
     previewText,
     sourceTs: latestEdit?.getTs() ?? targetEvent.getTs(),
   };
+};
+
+export const getCompactCachedThreadActivityTs = ({
+  threadId,
+  cachedPage,
+  mapper,
+}: {
+  threadId: string;
+  cachedPage: Pick<CachedThreadEventPage, 'rootEvent' | 'events'>;
+  mapper: (rawEvent: IEvent) => MatrixEvent;
+}): number | undefined => {
+  const mappedRootEvent = cachedPage.rootEvent
+    ? mapper(cachedPage.rootEvent as IEvent)
+    : undefined;
+  const mappedEvents = cachedPage.events.map((rawEvent) => mapper(rawEvent as IEvent));
+  const allEvents = mappedRootEvent ? [mappedRootEvent, ...mappedEvents] : mappedEvents;
+
+  if (allEvents.length === 0) return undefined;
+
+  applySerializedCachedReplaceRelations(allEvents);
+
+  return allEvents.reduce<number | undefined>((latestTs, event) => {
+    const isRootEvent = event.getId() === threadId;
+    const relationType = event.getRelation()?.rel_type;
+    const isThreadReply = relationType === 'm.thread';
+    const isEdit = relationType === 'm.replace';
+
+    if (!isRootEvent && !isThreadReply && !isEdit) return latestTs;
+    if (event.getType() !== 'm.room.message') return latestTs;
+
+    const activityTs = getEventActivityTs(event);
+    if (latestTs === undefined) return activityTs;
+    return activityTs > latestTs ? activityTs : latestTs;
+  }, undefined);
 };
 
 export const pickPreferredThreadRootPreviewText = ({

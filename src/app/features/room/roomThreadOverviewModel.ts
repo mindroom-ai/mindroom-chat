@@ -578,7 +578,8 @@ export const buildThreadMetadataMap = (
   currentUserId: string,
   readUpToTs: number | undefined,
   absoluteIndexMap: Map<string, number>,
-  eventBodyFallbackMap?: Map<string, string>
+  eventBodyFallbackMap?: Map<string, string>,
+  cachedLastActivityTsMap?: Map<string, number>
 ): Map<string, ThreadOverviewMetadata> => {
   const metadataMap = new Map<string, ThreadOverviewMetadata>();
 
@@ -589,7 +590,9 @@ export const buildThreadMetadataMap = (
     const tags = resolutionState?.tags ? Object.keys(resolutionState.tags) : [];
     const isStreaming = getThreadStreamingState(room, threadRootId);
     const scheduledTaskCount = scheduledTaskCounts.get(threadRootId) ?? 0;
-    const lastActivityTs = getThreadLastActivityTs(room, threadRootId) ?? 0;
+    const liveLastActivityTs = getThreadLastActivityTs(room, threadRootId) ?? 0;
+    const cachedLastActivityTs = cachedLastActivityTsMap?.get(threadRootId) ?? 0;
+    const lastActivityTs = Math.max(liveLastActivityTs, cachedLastActivityTs);
     const absoluteIndex = absoluteIndexMap.get(threadRootId) ?? 0;
     const unread = isThreadUnread(room, threadRootId, currentUserId, readUpToTs);
     const replyEvents = getPreferredThreadReplyEvents(thread);

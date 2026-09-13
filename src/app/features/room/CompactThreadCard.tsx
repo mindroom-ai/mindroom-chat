@@ -199,6 +199,7 @@ export type CompactThreadCardProps = {
   threadRootEvent?: MatrixEvent;
   rootPreviewText?: string;
   summaryInfo?: MindroomThreadSummaryInfo;
+  lastActivityTs?: number;
   onClick: (threadRootId: string) => void;
 };
 
@@ -208,6 +209,7 @@ export function CompactThreadCard({
   threadRootEvent,
   rootPreviewText,
   summaryInfo,
+  lastActivityTs: fallbackLastActivityTs,
   onClick,
 }: CompactThreadCardProps) {
   const mx = useMatrixClient();
@@ -216,7 +218,8 @@ export function CompactThreadCard({
   const displayTags = tags
     ? Object.keys(tags).filter((t) => t !== 'resolved')
     : [];
-  const lastActivityTs = useThreadLastActivityTs(room, threadRootId);
+  const liveLastActivityTs = useThreadLastActivityTs(room, threadRootId);
+  const lastActivityTs = Math.max(liveLastActivityTs ?? 0, fallbackLastActivityTs ?? 0) || undefined;
   const relativeTime = useRelativeTime(lastActivityTs);
   const isStreaming = useThreadStreamingState(room, threadRootId);
   const scheduledTaskCount = useThreadScheduledTasks(room, threadRootId);

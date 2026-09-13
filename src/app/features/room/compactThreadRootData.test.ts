@@ -2,6 +2,7 @@ import { MatrixEvent } from 'matrix-js-sdk';
 import { describe, expect, it } from 'vitest';
 import {
   buildCompactThreadRootData,
+  getCompactCachedThreadActivityTs,
   getCompactCachedThreadRootPreviewInfo,
   pickPreferredThreadRootPreviewText,
 } from './compactThreadRootData';
@@ -264,5 +265,76 @@ describe('buildCompactThreadRootData', () => {
       previewText: 'Edited root',
       sourceTs: 2,
     });
+  });
+
+  it('hydrates latest activity timestamps from cached thread pages', () => {
+    const activityTs = getCompactCachedThreadActivityTs({
+      threadId: '$thread-a',
+      cachedPage: {
+        rootEvent: {
+          event_id: '$thread-a',
+          origin_server_ts: 1,
+          sender: '@bot:mindroom.chat',
+          type: 'm.room.message',
+          content: {
+            body: 'Original root',
+            msgtype: 'm.text',
+          },
+        },
+        events: [
+          {
+            event_id: '$thread-a-reply',
+            origin_server_ts: 3,
+            sender: '@bot:mindroom.chat',
+            type: 'm.room.message',
+            content: {
+              body: 'Reply',
+              msgtype: 'm.text',
+              'm.relates_to': {
+                event_id: '$thread-a',
+                rel_type: 'm.thread',
+                'm.in_reply_to': {
+                  event_id: '$thread-a',
+                },
+              },
+            },
+          },
+          {
+            event_id: '$thread-a-reply-edit',
+            origin_server_ts: 6,
+            sender: '@bot:mindroom.chat',
+            type: 'm.room.message',
+            content: {
+              body: '* Reply edited',
+              msgtype: 'm.text',
+              'm.new_content': {
+                body: 'Reply edited',
+                msgtype: 'm.text',
+              },
+              'm.relates_to': {
+                event_id: '$thread-a-reply',
+                rel_type: 'm.replace',
+              },
+            },
+          },
+          {
+            event_id: '$thread-a-reaction',
+            origin_server_ts: 9,
+            sender: '@bot:mindroom.chat',
+            type: 'm.reaction',
+            content: {
+              'm.relates_to': {
+                event_id: '$thread-a-reply',
+                rel_type: 'm.annotation',
+                key: '👍',
+              },
+            },
+          },
+        ],
+      },
+      mapper: (rawEvent) => new MatrixEvent(rawEvent),
+    });
+
+    expect(activityTs).toBe(6);
   });
 });

@@ -1119,6 +1119,34 @@ describe('roomThreadOverviewModel', () => {
       );
     });
 
+    it('prefers fresher cached last-activity timestamps over live overview timestamps', async () => {
+      const { buildThreadMetadataMap } = await import('./roomThreadOverviewModel');
+      const room = {
+        getThread: () => ({
+          events: [{ getSender: () => '@bob:x', getTs: () => 500 }],
+        }),
+        findEventById: () => undefined,
+        getMember: () => null,
+      };
+
+      const result = buildThreadMetadataMap(
+        room as never,
+        ['$thread-1'],
+        new Map(),
+        new Map(),
+        new Map(),
+        new Map(),
+        new Map(),
+        '@alice:x',
+        undefined,
+        new Map([['$thread-1', 0]]),
+        undefined,
+        new Map([['$thread-1', 1800]])
+      );
+
+      expect(result.get('$thread-1')?.lastActivityTs).toBe(1800);
+    });
+
     it('prefers the room event over a stale thread root event for root preview text', async () => {
       const { buildThreadMetadataMap } = await import('./roomThreadOverviewModel');
       const staleThreadRoot = makeRootPreviewEvent('Thinking...  ⋯');
