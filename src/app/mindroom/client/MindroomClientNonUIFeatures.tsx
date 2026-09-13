@@ -3,17 +3,18 @@ import React, { useCallback, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { PluginListenerHandle } from '@capacitor/core';
 import { PushNotifications } from '@capacitor/push-notifications';
+import type { MatrixClient } from 'matrix-js-sdk';
 import InviteSound from '../../../../public/sound/invite.ogg';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useActiveSession } from '../../hooks/useSessionStore';
 import { useClientConfig } from '../../hooks/useClientConfig';
-import { usePreviousValue } from '../../hooks/usePreviousValue';
 import { getInboxInvitesPath } from '../../pages/pathUtils';
 import { allInvitesAtom } from '../../state/room-list/inviteList';
 import { roomToUnreadAtom } from '../../state/room/roomToUnread';
 import { useSetting } from '../../state/hooks/settings';
 import { settingsAtom } from '../../state/settings';
 import { notificationPermission, setFavicon } from '../../utils/dom';
+import { Membership } from '../../../types/matrix/room';
 import { MINDROOM_FAVICON_SRC } from '../branding/branding';
 import {
   checkIOSPushPermission,
@@ -55,11 +56,39 @@ function MindroomFaviconUpdater() {
   return null;
 }
 
-function MindroomInviteNotifications() {
+const createKnownInviteRoomIdSet = (mx: MatrixClient): Set<string> => {
+  const roomIds = new Set<string>();
+  mx.getRooms().forEach((room) => {
+    if (room.getMyMembership() === Membership.Invite) {
+      roomIds.add(room.roomId);
+    }
+  });
+  return roomIds;
+};
+
+type InviteObservationState = {
+  mx: MatrixClient;
+  knownRoomIds: Set<string>;
+  currentRoomIds: Set<string>;
+  suppressedRoomIds: Set<string>;
+  lastInvites: string[];
+};
+
+export function MindroomInviteNotifications() {
   const audioRef = useRef<HTMLAudioElement>(null);
   const invites = useAtomValue(allInvitesAtom);
-  const perviousInviteLen = usePreviousValue(invites.length, 0);
   const mx = useMatrixClient();
+  const inviteObservationStateRef = useRef<InviteObservationState>();
+  if (!inviteObservationStateRef.current || inviteObservationStateRef.current.mx !== mx) {
+    const knownRoomIds = createKnownInviteRoomIdSet(mx);
+    inviteObservationStateRef.current = {
+      mx,
+      knownRoomIds,
+      currentRoomIds: new Set(invites),
+      suppressedRoomIds: new Set(invites.filter((roomId) => !knownRoomIds.has(roomId))),
+      lastInvites: invites,
+    };
+  }
 
   const navigate = useNavigate();
   const [showNotifications] = useSetting(settingsAtom, 'showNotifications');
@@ -84,24 +113,61 @@ function MindroomInviteNotifications() {
 
   const playSound = useCallback(() => {
     const audioElement = audioRef.current;
-    audioElement?.play();
+    void audioElement?.play().catch(() => undefined);
   }, []);
 
   useEffect(() => {
-    if (invites.length > perviousInviteLen && mx.getSyncState() === 'SYNCING') {
+    const observationState = inviteObservationStateRef.current;
+    if (!observationState) return;
+
+    const currentRoomIds = new Set(invites);
+    const inviteAtomEmitted = observationState.lastInvites !== invites;
+    const enteredInviteRoomIds = invites.filter(
+      (roomId) =>
+        !observationState.knownRoomIds.has(roomId) && !observationState.currentRoomIds.has(roomId)
+    );
+    const reemittedSuppressedRoomId =
+      enteredInviteRoomIds.length === 0 && inviteAtomEmitted
+        ? [...invites]
+            .reverse()
+            .find(
+              (roomId) =>
+                !observationState.knownRoomIds.has(roomId) &&
+                observationState.currentRoomIds.has(roomId) &&
+                observationState.suppressedRoomIds.has(roomId)
+            )
+        : undefined;
+    const newInviteRoomIds = reemittedSuppressedRoomId
+      ? [reemittedSuppressedRoomId]
+      : enteredInviteRoomIds;
+
+    observationState.currentRoomIds.forEach((roomId) => {
+      if (!currentRoomIds.has(roomId)) {
+        observationState.knownRoomIds.delete(roomId);
+        observationState.suppressedRoomIds.delete(roomId);
+      }
+    });
+    newInviteRoomIds.forEach((roomId) => {
+      observationState.knownRoomIds.add(roomId);
+      observationState.suppressedRoomIds.delete(roomId);
+    });
+    observationState.currentRoomIds = currentRoomIds;
+    observationState.lastInvites = invites;
+
+    if (newInviteRoomIds.length > 0 && mx.getSyncState() === 'SYNCING') {
       if (showNotifications && notificationPermission('granted')) {
-        notify(invites.length - perviousInviteLen);
+        notify(newInviteRoomIds.length);
       }
 
       if (notificationSound) {
         playSound();
       }
     }
-  }, [mx, invites, perviousInviteLen, showNotifications, notificationSound, notify, playSound]);
+  }, [mx, invites, showNotifications, notificationSound, notify, playSound]);
 
   return (
     // eslint-disable-next-line jsx-a11y/media-has-caption
-    <audio ref={audioRef} style={{ display: 'none' }}>
+    <audio ref={audioRef} preload="none" style={{ display: 'none' }}>
       <source src={InviteSound} type="audio/ogg" />
     </audio>
   );
