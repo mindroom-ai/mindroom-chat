@@ -201,6 +201,7 @@ import { useThreadSeedPrewarmController } from './threadSeedPrewarmController';
 import { useThreadOpenCacheController } from './threadOpenCacheController';
 import { useThreadAwareTimelineRefresh } from './useThreadAwareTimelineRefresh';
 import { useTimelineScrollLedgerController } from './timelineScrollLedgerController';
+import { useRoomTimelineResetRelink } from './roomTimelineResetRelink';
 import { useThreadOverviewResumeController } from './threadOverviewResumeController';
 import {
   enqueueRoomDeepHistoryJob,
@@ -1596,6 +1597,19 @@ export function RoomTimeline({
     setTimeline,
     threadId,
     threadIdRef,
+  });
+
+  // Limited sync can replace the SDK live timeline with an unlinked chain.
+  // Rebuild only an orphaned room view; thread/event routes own their timelines.
+  useRoomTimelineResetRelink({
+    room,
+    threadId,
+    eventId,
+    timeline,
+    rebuildTimeline: buildRoomCacheHydratedTimeline,
+    setTimeline,
+    isViewportAtBottomNow,
+    scrollToBottomRef,
   });
 
   useThreadAwareTimelineRefresh({
