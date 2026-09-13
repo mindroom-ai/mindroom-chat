@@ -5,15 +5,20 @@ import type { Room } from 'matrix-js-sdk/lib/models/room';
 import { ThreadIndicator } from '../threads/ThreadIndicator';
 import { useRoomEvent } from '../threads/useRoomEvent';
 
+/**
+ * `undefined` means still loading (placeholder), `null` means the event could
+ * not be fetched — Reply renders that as an explicit failure instead of a
+ * placeholder that never resolves.
+ */
 export const useMindroomReplyEvent = (
   room: Room,
   replyEventId: string,
   getFromLocalTimeline: () => MatrixEvent | undefined,
   threadRootId?: string
-): MatrixEvent | undefined =>
+): MatrixEvent | null | undefined =>
   useRoomEvent(room, replyEventId, getFromLocalTimeline, {
     threadId: threadRootId,
-  }) ?? undefined;
+  });
 
 type MindroomReplyThreadIndicatorProps = {
   room: Room;

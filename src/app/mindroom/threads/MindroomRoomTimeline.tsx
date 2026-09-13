@@ -138,6 +138,7 @@ import {
   dedupeThreadRenderEventEntries,
   buildMeasurementScrollCorrectionHook,
   estimateThreadEventRowHeight,
+  isThreadFallbackReply,
   primeTimelineRenderContextBefore,
   shouldAutoPaginateThreadBack,
   shouldSettleLedgerAtBoundary,
@@ -2350,7 +2351,9 @@ export function RoomTimeline({
               !(
                 threadId &&
                 replyEventId &&
-                (replyEventId === prevEvent?.getId() || replyEventId === threadId)
+                (isThreadFallbackReply(mEvent) ||
+                  replyEventId === prevEvent?.getId() ||
+                  replyEventId === threadId)
               ) &&
               replyEventId && (
                 <Reply
@@ -2491,7 +2494,9 @@ export function RoomTimeline({
                 !(
                   threadId &&
                   replyEventId &&
-                  (replyEventId === prevEvent?.getId() || replyEventId === threadId)
+                  (isThreadFallbackReply(mEvent) ||
+                    replyEventId === prevEvent?.getId() ||
+                    replyEventId === threadId)
                 ) &&
                 replyEventId && (
                   <Reply
@@ -2606,7 +2611,9 @@ export function RoomTimeline({
               !(
                 threadId &&
                 replyEventId &&
-                (replyEventId === prevEvent?.getId() || replyEventId === threadId)
+                (isThreadFallbackReply(mEvent) ||
+                  replyEventId === prevEvent?.getId() ||
+                  replyEventId === threadId)
               ) &&
               replyEventId && (
                 <Reply
