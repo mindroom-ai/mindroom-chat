@@ -37,6 +37,10 @@ export type ClientConfig = {
     loadingMessages?: string[];
   };
 
+  mindroom?: {
+    thinkingPlaceholderMessages?: string[];
+  };
+
   sidebar?: {
     showExploreCommunity?: boolean;
     showAddSpace?: boolean;

@@ -11,9 +11,11 @@ import { formatMindroomMessageTextBodyAsHtml } from './blocks';
 import { getMindroomLongTextSource } from './longText';
 import { MindroomLongTextKind, MindroomLongTextText } from './MindroomLongTextText';
 import { MindroomPasteAttachmentContent } from './MindroomPasteAttachmentContent';
+import { MindroomThinkingPlaceholder } from './MindroomThinkingPlaceholder';
 import { MindroomThreadSummaryCard } from './MindroomThreadSummaryCard';
 import { MindroomToolApprovalCard } from './MindroomToolApprovalCard';
 import { renderMindroomStreamingIndicator } from './StreamingIndicator';
+import { isMindroomThinkingPlaceholderBody } from './thinkingPlaceholder';
 import { getMindroomPasteAttachmentFile } from './pasteAttachmentMarker';
 import { MINDROOM_TOOL_APPROVAL_EVENT, parseToolApprovalContent } from './toolApproval';
 import { getMindroomThreadSummaryInfo } from './threadSummary';
@@ -191,6 +193,16 @@ export const renderMindroomMessageContent = ({
 
   if (msgType === MsgType.Text || msgType === MsgType.File) {
     const isStreaming = isMindroomAiRunStreaming(content);
+    if (msgType === MsgType.Text && isStreaming && isMindroomThinkingPlaceholderBody(content)) {
+      return (
+        <MText
+          content={content}
+          renderBody={() => <MindroomThinkingPlaceholder />}
+          renderAfterBody={renderMessageExtras(content)}
+        />
+      );
+    }
+
     const longTextSource = getMindroomLongTextSource(content);
     if (longTextSource) {
       return (

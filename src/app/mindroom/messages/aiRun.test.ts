@@ -131,7 +131,7 @@ describe('isMindroomAiRunStreaming', () => {
   });
 
   it('returns true when io.mindroom.stream_status is active (no ai_run metadata)', () => {
-    const activeStatuses = ['streaming', 'running', 'active'];
+    const activeStatuses = ['pending', 'streaming', 'running', 'active'];
     for (const status of activeStatuses) {
       expect(isMindroomAiRunStreaming({ 'io.mindroom.stream_status': status })).toBe(true);
     }
@@ -153,7 +153,6 @@ describe('isMindroomAiRunStreaming', () => {
   });
 
   it('returns false when io.mindroom.stream_status is unrecognized (no ai_run metadata)', () => {
-    expect(isMindroomAiRunStreaming({ 'io.mindroom.stream_status': 'pending' })).toBe(false);
     expect(isMindroomAiRunStreaming({ 'io.mindroom.stream_status': 'unknown' })).toBe(false);
   });
 
