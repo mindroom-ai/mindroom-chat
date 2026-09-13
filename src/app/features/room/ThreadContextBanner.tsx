@@ -14,6 +14,7 @@ import * as css from './ThreadContextBanner.css';
 export interface ThreadContextBannerProps {
   room: Room;
   threadId: string;
+  summaryText?: string;
   onExitThread: () => void;
 }
 
@@ -60,11 +61,14 @@ function TagPills({
 export function ThreadContextBanner({
   room,
   threadId,
+  summaryText,
   onExitThread,
 }: ThreadContextBannerProps) {
   const rootEventId = useThreadRootEvent(room, threadId);
-  const { summaryText, scheduledTaskCount, nextScheduledTs, scheduledDisplayText } =
-    useThreadHeaderInfo(room, threadId);
+  const { scheduledTaskCount, nextScheduledTs, scheduledDisplayText } = useThreadHeaderInfo(
+    room,
+    threadId
+  );
   const { displayTags, isResolved, canEdit, availableTags } = useThreadTags(
     room,
     rootEventId
@@ -147,15 +151,17 @@ export function ThreadContextBanner({
           {(summaryText || bannerScheduledText) && (
             <div className={css.SubtitleRow}>
               {summaryText && (
-                <Text
-                  className={css.SummaryText}
-                  size="T200"
-                  priority="300"
-                  truncate
-                  title={summaryText}
-                >
-                  {summaryText}
-                </Text>
+                <span data-thread-context-summary="true">
+                  <Text
+                    className={css.SummaryText}
+                    size="T200"
+                    priority="300"
+                    truncate
+                    title={summaryText}
+                  >
+                    {summaryText}
+                  </Text>
+                </span>
               )}
               {bannerScheduledText && scheduledLabel && (
                 <Box as="span" className={css.ScheduledWrap} alignItems="Center" gap="100">

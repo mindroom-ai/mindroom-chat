@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 type MockThreadContextBannerProps = {
   onExitThread?: () => void;
+  summaryText?: string;
 };
 
 const { passthrough, roomTimelineType, navigateRoomFocusEventMock, threadContextBannerState } =
@@ -110,6 +111,7 @@ vi.mock('../../hooks/usePowerLevels', () => ({
 
 vi.mock('../../hooks/useMatrixClient', () => ({
   useMatrixClient: () => ({
+    getHomeserverUrl: () => 'https://mindroom.chat',
     getSafeUserId: () => '@alice:example.org',
   }),
 }));
@@ -206,6 +208,13 @@ vi.mock('./useRoomThreadTags', () => ({
 
 vi.mock('./useThreadRootEvent', () => ({
   useThreadRootEvent: () => undefined,
+}));
+
+vi.mock('./useRoomThreadSummaryState', () => ({
+  useRoomThreadSummaryState: () => ({
+    summaryMap: new Map(),
+    storeThreadSummary: vi.fn(),
+  }),
 }));
 
 const makeRoom = (roomId: string) => ({ roomId });

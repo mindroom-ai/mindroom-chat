@@ -809,6 +809,8 @@ const createControlledRoomTimelineHarness = (
     return React.createElement(RoomTimelineComponent, {
       room,
       threadId,
+      summaryMap: new Map(),
+      onStoreThreadSummary: vi.fn(),
       threadFilterState: defaultThreadFilterState,
       threadSortFreezeState: null,
       onToggle: vi.fn(),

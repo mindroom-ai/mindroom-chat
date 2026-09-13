@@ -1,12 +1,7 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import type { MatrixEvent } from 'matrix-js-sdk/lib/models/event';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
-import { ThreadEvent } from 'matrix-js-sdk/lib/models/thread';
 import { StateEvent } from '../../types/matrix/room';
-import {
-  findLatestThreadSummaryEvent,
-  getLatestThreadSummaryInfo,
-} from '../components/message/mindroomThreadSummary';
 import {
   formatScheduledTime,
   getScheduledTimeUpdateInterval,
@@ -15,29 +10,12 @@ import { useThreadRootEvent } from '../features/room/useThreadRootEvent';
 import { parseScheduledTaskStateEvent } from '../utils/scheduledTaskContract';
 import { useInterval } from './useInterval';
 import { useStateEvents } from './useStateEvents';
-import { useThreadEventRefresh } from './useThreadEventRefresh';
 import { useThreadScheduledTasks } from './useThreadScheduledTasks';
 
-type ThreadLike =
-  | {
-      rootEvent?: MatrixEvent;
-      events?: MatrixEvent[];
-      timeline?: MatrixEvent[];
-    }
-  | null
-  | undefined;
-
 export type ThreadHeaderInfo = {
-  summaryText?: string;
   scheduledTaskCount: number;
   nextScheduledTs?: number;
   scheduledDisplayText?: string;
-};
-
-const getPreferredThreadReplyEvents = (thread: ThreadLike): MatrixEvent[] => {
-  if (thread?.events?.length) return thread.events;
-  if (thread?.timeline?.length) return thread.timeline;
-  return thread?.events ?? thread?.timeline ?? [];
 };
 
 export const getNextThreadScheduledTs = (
@@ -87,41 +65,16 @@ export const useThreadHeaderInfo = (
   const refresh = useCallback(() => {
     setRefreshVersion((version) => version + 1);
   }, []);
-
-  const thread = threadRootId ? room.getThread(threadRootId) ?? undefined : undefined;
-  const replyEvents = getPreferredThreadReplyEvents(thread);
-  const summaryInfo = getLatestThreadSummaryInfo(replyEvents);
-  const summaryEvent = findLatestThreadSummaryEvent(replyEvents);
-
-  const nextScheduledTs = getNextThreadScheduledTs(scheduledTaskEvents, threadRootId);
-  const scheduledDisplayText = getThreadHeaderScheduledDisplayText(
-    scheduledTaskCount,
-    nextScheduledTs
+  const nextScheduledTs = useMemo(
+    () => getNextThreadScheduledTs(scheduledTaskEvents, threadRootId),
+    [scheduledTaskEvents, threadRootId]
   );
+  const scheduledDisplayText = getThreadHeaderScheduledDisplayText(scheduledTaskCount, nextScheduledTs);
   const intervalMs =
     nextScheduledTs === undefined ? -1 : getScheduledTimeUpdateInterval(nextScheduledTs);
-
-  useEffect(() => {
-    if (!threadRootId || thread) return undefined;
-
-    const handleThreadCreate = () => {
-      if (room.getThread(threadRootId)) {
-        refresh();
-      }
-    };
-
-    room.on(ThreadEvent.New, handleThreadCreate);
-
-    return () => {
-      room.removeListener(ThreadEvent.New, handleThreadCreate);
-    };
-  }, [refresh, room, thread, threadRootId]);
-
-  useThreadEventRefresh(thread, [thread?.rootEvent, summaryEvent], refresh);
   useInterval(refresh, intervalMs);
 
   return {
-    summaryText: summaryInfo?.summaryText,
     scheduledTaskCount,
     nextScheduledTs,
     scheduledDisplayText,
