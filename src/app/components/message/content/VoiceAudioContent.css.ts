@@ -5,7 +5,7 @@ export const Capsule = style([
   DefaultReset,
   {
     display: 'grid',
-    gridTemplateColumns: `${toRem(36)} minmax(${toRem(112)}, 1fr) auto`,
+    gridTemplateColumns: `${toRem(36)} minmax(${toRem(112)}, 1fr) auto auto`,
     alignItems: 'center',
     gap: config.space.S200,
     width: `min(100%, ${toRem(320)})`,

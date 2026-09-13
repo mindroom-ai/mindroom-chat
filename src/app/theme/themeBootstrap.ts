@@ -98,11 +98,15 @@ const prefersDarkMode = (): boolean =>
 // CINNY-087: keep in sync with the inline bootstrap in index.html.
 const hasActiveStoredSession = (): boolean => {
   try {
-    if (typeof localStorage === 'undefined' || typeof localStorage.getItem !== 'function') {
+    if (
+      typeof window === 'undefined' ||
+      !window.localStorage ||
+      typeof window.localStorage.getItem !== 'function'
+    ) {
       return false;
     }
 
-    const rawSessionStore = localStorage.getItem(MINDROOM_SESSION_STORE_KEY);
+    const rawSessionStore = window.localStorage.getItem(MINDROOM_SESSION_STORE_KEY);
     if (!rawSessionStore) return false;
 
     const parsed = JSON.parse(rawSessionStore) as {
