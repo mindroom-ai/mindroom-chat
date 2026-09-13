@@ -48,12 +48,75 @@ describe('waitForScrollQuiescence', () => {
     const isSettled = settledFlag(waitForScrollQuiescence(el, { idleMs: 150 }));
     for (let i = 0; i < 5; i += 1) {
       vi.advanceTimersByTime(100);
+      el.scrollTop += 10;
       el.dispatchEvent(new Event('scroll'));
     }
     await flushMicrotasks();
     expect(isSettled()).toBe(false);
     // Momentum ends: no more scroll events → idle window elapses.
     vi.advanceTimersByTime(150);
+    await flushMicrotasks();
+    expect(isSettled()).toBe(true);
+  });
+
+  it('keeps waiting while sampled scrollTop changes without scroll events', async () => {
+    el.scrollTop = 400;
+    const isSettled = settledFlag(
+      waitForScrollQuiescence(el, { idleMs: 100, maxWaitMs: Infinity })
+    );
+
+    // iOS can keep advancing compositor momentum while JavaScript scroll
+    // event delivery pauses. A changed offset at the idle deadline proves
+    // the scroller was not actually quiet, so it must earn a fresh full
+    // idle window before the waiter resolves.
+    vi.advanceTimersByTime(75);
+    el.scrollTop = 320;
+    vi.advanceTimersByTime(25);
+    await flushMicrotasks();
+    expect(isSettled()).toBe(false);
+
+    vi.advanceTimersByTime(75);
+    el.scrollTop = 240;
+    vi.advanceTimersByTime(25);
+    await flushMicrotasks();
+    expect(isSettled()).toBe(false);
+
+    vi.advanceTimersByTime(99);
+    await flushMicrotasks();
+    expect(isSettled()).toBe(false);
+    vi.advanceTimersByTime(1);
+    await flushMicrotasks();
+    expect(isSettled()).toBe(true);
+  });
+
+  it('treats negative iOS rubber-band offsets as sampled movement', async () => {
+    const isSettled = settledFlag(
+      waitForScrollQuiescence(el, { idleMs: 100, maxWaitMs: Infinity })
+    );
+
+    vi.advanceTimersByTime(75);
+    el.scrollTop = -12;
+    vi.advanceTimersByTime(25);
+    await flushMicrotasks();
+    expect(isSettled()).toBe(false);
+
+    vi.advanceTimersByTime(100);
+    await flushMicrotasks();
+    expect(isSettled()).toBe(true);
+  });
+
+  it('does not round away fractional compositor movement', async () => {
+    const isSettled = settledFlag(
+      waitForScrollQuiescence(el, { idleMs: 100, maxWaitMs: Infinity })
+    );
+
+    vi.advanceTimersByTime(75);
+    el.scrollTop = 0.25;
+    vi.advanceTimersByTime(25);
+    await flushMicrotasks();
+    expect(isSettled()).toBe(false);
+
+    vi.advanceTimersByTime(100);
     await flushMicrotasks();
     expect(isSettled()).toBe(true);
   });
@@ -105,6 +168,28 @@ describe('waitForScrollQuiescence', () => {
     await flushMicrotasks();
     expect(isSettled()).toBe(false);
     vi.advanceTimersByTime(100);
+    await flushMicrotasks();
+    expect(isSettled()).toBe(true);
+  });
+
+  it('keeps the finite cap absolute while silent offset progress re-arms idle', async () => {
+    const isSettled = settledFlag(
+      waitForScrollQuiescence(el, { idleMs: 100, maxWaitMs: 250 })
+    );
+
+    vi.advanceTimersByTime(75);
+    el.scrollTop = 100;
+    vi.advanceTimersByTime(25);
+    vi.advanceTimersByTime(75);
+    el.scrollTop = 200;
+    vi.advanceTimersByTime(25);
+    await flushMicrotasks();
+    expect(isSettled()).toBe(false);
+
+    vi.advanceTimersByTime(49);
+    await flushMicrotasks();
+    expect(isSettled()).toBe(false);
+    vi.advanceTimersByTime(1);
     await flushMicrotasks();
     expect(isSettled()).toBe(true);
   });

@@ -5,6 +5,8 @@ import { installRideTraceRecorder } from './rideTraceRecorder';
 
 const mocks = vi.hoisted(() => ({
   copyToClipboard: vi.fn<(text: string) => Promise<boolean>>(),
+  ledgerQuiescenceSettles: 0,
+  ledgerBoundarySettles: 0,
 }));
 
 vi.mock('../../utils/dom', () => ({
@@ -13,6 +15,12 @@ vi.mock('../../utils/dom', () => ({
 
 vi.mock('./cacheProbe', () => ({
   getCacheProbeSnapshot: () => ({}),
+  getCacheProbeCounter: (key: string) =>
+    key === 'ledgerQuiescenceSettles'
+      ? mocks.ledgerQuiescenceSettles
+      : key === 'ledgerBoundarySettles'
+      ? mocks.ledgerBoundarySettles
+      : 0,
 }));
 
 vi.mock('./scrollQuiescence', () => ({
@@ -27,6 +35,8 @@ const clickOverlay = async (overlay: HTMLButtonElement): Promise<void> => {
 
 describe('ride trace clipboard export', () => {
   beforeEach(() => {
+    mocks.ledgerQuiescenceSettles = 0;
+    mocks.ledgerBoundarySettles = 0;
     vi.spyOn(window, 'requestAnimationFrame').mockImplementation(() => 1);
     Object.defineProperty(navigator, 'canShare', {
       configurable: true,
@@ -71,5 +81,45 @@ describe('ride trace clipboard export', () => {
       expect.stringContaining('"kind":"mindroom-ride-trace"')
     );
     cleanup();
+  });
+
+  it('exports per-frame ledger settlement causes in the v3 trace schema', async () => {
+    mocks.copyToClipboard.mockResolvedValue(true);
+    const animationFrames: FrameRequestCallback[] = [];
+    vi.mocked(window.requestAnimationFrame).mockImplementation((callback) => {
+      animationFrames.push(callback);
+      return animationFrames.length;
+    });
+    const scroller = document.createElement('div');
+    document.body.appendChild(scroller);
+    const cleanup = installRideTraceRecorder(scroller, () => null, {
+      roomId: '!room:example.org',
+      threadId: '$thread',
+    });
+
+    animationFrames.shift()?.(16);
+    mocks.ledgerQuiescenceSettles = 1;
+    animationFrames.shift()?.(32);
+    mocks.ledgerBoundarySettles = 2;
+    animationFrames.shift()?.(48);
+    const overlay = document.querySelector<HTMLButtonElement>('[data-ride-trace-overlay]')!;
+    await clickOverlay(overlay);
+
+    const payload = mocks.copyToClipboard.mock.calls.at(-1)?.[0];
+    expect(payload).toBeDefined();
+    const trace = JSON.parse(payload!) as {
+      version: number;
+      frames: Array<{ lq?: number; lb?: number }>;
+    };
+    expect(trace.version).toBe(3);
+    expect(trace.frames).toHaveLength(3);
+    expect(trace.frames.map(({ lq, lb }) => ({ lq, lb }))).toEqual([
+      { lq: 0, lb: 0 },
+      { lq: 1, lb: 0 },
+      { lq: 1, lb: 2 },
+    ]);
+
+    cleanup();
+    scroller.remove();
   });
 });

@@ -8,16 +8,23 @@
  * finger release. Downward scrolling never prepends, which is why it
  * kept its inertia.
  *
- * The fix is to split fetch from commit: data is fetched while the
- * flick is in flight, but the RENDER COMMIT (state writes → offset
- * shift → anchor-restore scroll writes) waits for the scroller to be
- * quiescent — no scroll events for `idleMs` and no active touch. A
- * clamped scroller (momentum slammed into the top edge) stops emitting
- * scroll events, so the edge case resolves through the same idle path.
+ * The original fix split pagination fetch from its render commit: data
+ * is fetched while the flick is in flight, but the commit waits for the
+ * scroller to be quiescent. Current thread/room prepends are compensated
+ * through the offset ledger without a commit-time scroll write; this
+ * waiter also gates the later exactly-cancelling ledger settlement, which
+ * DOES write `scrollTop` and therefore must only run at true rest.
+ * Quiescence means no scroll events for `idleMs`, no sampled `scrollTop`
+ * movement during that window, and no active touch. Sampling matters on
+ * iOS because compositor momentum can keep changing the offset while
+ * JavaScript scroll-event delivery pauses. A clamped scroller (momentum
+ * slammed into the top edge) stops moving, so the edge case resolves
+ * through the same idle path.
  *
- * `maxWaitMs` caps the wait so a pathological continuous scroller
- * still gets content (accepting one momentum kill) instead of being
- * starved; a capped commit is at worst the pre-fix behavior, once.
+ * `maxWaitMs` caps finite pagination waits so a pathological continuous
+ * scroller still gets content instead of being starved. Ledger-settlement
+ * consumers pass Infinity because their coherent margin can remain live
+ * until genuine rest without delaying the fetched content itself.
  */
 
 // The shared "quiet window" used by every scroll-quiescence consumer.
@@ -116,6 +123,7 @@ export const waitForScrollQuiescence = (
     let idleTimer: ReturnType<typeof setTimeout> | undefined;
     let capTimer: ReturnType<typeof setTimeout> | undefined;
     let settled = false;
+    let sampledScrollTop = scrollElement.scrollTop;
 
     const cleanup = () => {
       if (idleTimer !== undefined) clearTimeout(idleTimer);
@@ -138,11 +146,23 @@ export const waitForScrollQuiescence = (
     // and the tracker sees every touch the element would.
     const armIdleTimer = () => {
       if (idleTimer !== undefined) clearTimeout(idleTimer);
+      sampledScrollTop = scrollElement.scrollTop;
       idleTimer = setTimeout(() => {
         // Element unmounted mid-wait: settle rather than ride out the
         // cap (gemini on PR #75).
         if (!scrollElement.isConnected) {
           settle();
+          return;
+        }
+        const currentScrollTop = scrollElement.scrollTop;
+        if (currentScrollTop !== sampledScrollTop) {
+          // iOS may throttle JavaScript scroll events while compositor
+          // momentum keeps advancing the native scroller. The offset is
+          // a stable double at genuine rest, so compare it exactly: a
+          // subpixel tolerance could misclassify slow residual momentum
+          // as quiet and let the consumer's scrollTop write cancel it.
+          sampledScrollTop = currentScrollTop;
+          armIdleTimer();
           return;
         }
         if (windowActiveTouches === 0) {

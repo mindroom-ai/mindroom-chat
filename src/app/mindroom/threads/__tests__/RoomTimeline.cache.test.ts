@@ -696,6 +696,8 @@ describe('RoomTimeline', () => {
           await flushAsyncWork();
         });
 
+        const { getCacheProbeSnapshot } = await import('../cacheProbe');
+        const quiescenceSettlesBefore = getCacheProbeSnapshot().ledgerQuiescenceSettles;
         const loadOlderChip = getClickableByText(renderer!, 'Load Older Messages');
         await act(async () => {
           loadOlderChip.props.onClick();
@@ -787,6 +789,9 @@ describe('RoomTimeline', () => {
         );
         expect(ledgerOps.indexOf('scrollTop')).toBeGreaterThanOrEqual(0);
         expect(ledgerOps.indexOf('scrollTop')).toBeLessThan(ledgerOps.indexOf('setOptions'));
+        expect(getCacheProbeSnapshot().ledgerQuiescenceSettles).toBe(
+          quiescenceSettlesBefore + 1
+        );
 
         // Consumption pin: the fold must consume the pagination anchor at
         // the commit. A further prepend WITHOUT a new Load Older (no

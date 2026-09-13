@@ -1,5 +1,5 @@
 /* eslint-disable no-console */
-import { getCacheProbeSnapshot } from './cacheProbe';
+import { getCacheProbeCounter, getCacheProbeSnapshot } from './cacheProbe';
 import { hasActiveWindowTouches, isIOSWebKitDevice } from './scrollQuiescence';
 import { copyToClipboard } from '../../utils/dom';
 
@@ -9,8 +9,9 @@ import { copyToClipboard } from '../../utils/dom';
  * throttling — cannot reproduce what the phone shows, so the phone
  * itself records the evidence: the SAME per-frame invariants the e2e
  * recorder samples (scrollTop, coverage gap, anchor-vs-scrollTop
- * consistency, thread count, compensation transform, frame time), in a
- * ring buffer with a one-tap export overlay.
+ * consistency, thread count, offset-ledger margin (with legacy transform
+ * fallback), frame time, and settlement cause), in a ring buffer with a
+ * one-tap export overlay.
  *
  * Enable on the device by opening the app once with `?ridetrace=1`
  * (persisted to localStorage; `?ridetrace=0` turns it off). Zero cost
@@ -37,6 +38,10 @@ type RideTraceFrame = {
   tc: number;
   tr: number;
   touch: 0 | 1;
+  // Cumulative ledger-settle cause counters. A change between adjacent
+  // frames attributes the scrollTop/margin rebase in that interval.
+  lq: number;
+  lb: number;
 };
 
 export const bootstrapRideTraceFlagFromUrl = (): void => {
@@ -175,6 +180,8 @@ export const installRideTraceRecorder = (
       tc: readThreadCount(),
       tr: readTransformPx(getInner()),
       touch: hasActiveWindowTouches() ? 1 : 0,
+      lq: getCacheProbeCounter('ledgerQuiescenceSettles'),
+      lb: getCacheProbeCounter('ledgerBoundarySettles'),
     };
     frameWriteIndex += 1;
     lastScrollTop = scrollTop;
@@ -192,7 +199,7 @@ export const installRideTraceRecorder = (
   const buildExport = () =>
     JSON.stringify({
       kind: 'mindroom-ride-trace',
-      version: 2,
+      version: 3,
       capturedAt: new Date().toISOString(),
       formFactor: readFormFactor(),
       viewport: { w: window.innerWidth, h: window.innerHeight },

@@ -1410,30 +1410,34 @@ export function RoomTimeline({
   // reads scrollMargin 0 from the zeroed ref; tile positions are
   // margin-independent (rel coordinates), so the one-render option lag
   // shifts nothing visually.
-  const settleScrollCompensation = useCallback(() => {
-    // The armed flag is NOT cleared here: it tracks the outstanding
-    // quiescence WAIT, not the settle. Clearing it at settle entry (e.g.
-    // from a boundary-guard settle) let a new drop arm a SECOND wait
-    // while the first was still pending (adversarial review 2026-07-07,
-    // periphery F5); each waiter clears the flag in its own resolution.
-    const px = scrollCompensationPxRef.current;
-    const inner = virtualInnerRef.current;
-    const scrollElement = getScrollElement();
-    if (px === 0 || !inner || !scrollElement) return;
-    scrollCompensationPxRef.current = 0;
-    inner.style.marginTop = '';
-    // The option must flip in the SAME synchronous block: tile positions
-    // are margin-independent, but the WINDOW computation is not — at
-    // prepend-fold scale (thousands of px) a one-render stale option
-    // renders a faraway range for a frame (photographed as a 140px
-    // anchor flash by the latency-ride e2e).
-    // scrollTop FIRST: setOptions can notify a synchronous re-render,
-    // which must see the (margin 0, shifted scrollTop) pair — the other
-    // order lets that render compute the window with the old offset.
-    scrollElement.scrollTop += px;
-    const virtualizer = roomTimelineVirtualizerRef.current;
-    virtualizer.setOptions({ ...virtualizer.options, scrollMargin: 0 });
-  }, [getScrollElement]);
+  const settleScrollCompensation = useCallback(
+    (cause: 'quiescence' | 'boundary') => {
+      // The armed flag is NOT cleared here: it tracks the outstanding
+      // quiescence WAIT, not the settle. Clearing it at settle entry (e.g.
+      // from a boundary-guard settle) let a new drop arm a SECOND wait
+      // while the first was still pending (adversarial review 2026-07-07,
+      // periphery F5); each waiter clears the flag in its own resolution.
+      const px = scrollCompensationPxRef.current;
+      const inner = virtualInnerRef.current;
+      const scrollElement = getScrollElement();
+      if (px === 0 || !inner || !scrollElement) return;
+      scrollCompensationPxRef.current = 0;
+      inner.style.marginTop = '';
+      // The option must flip in the SAME synchronous block: tile positions
+      // are margin-independent, but the WINDOW computation is not — at
+      // prepend-fold scale (thousands of px) a one-render stale option
+      // renders a faraway range for a frame (photographed as a 140px
+      // anchor flash by the latency-ride e2e).
+      // scrollTop FIRST: setOptions can notify a synchronous re-render,
+      // which must see the (margin 0, shifted scrollTop) pair — the other
+      // order lets that render compute the window with the old offset.
+      scrollElement.scrollTop += px;
+      countCacheProbe(cause === 'boundary' ? 'ledgerBoundarySettles' : 'ledgerQuiescenceSettles');
+      const virtualizer = roomTimelineVirtualizerRef.current;
+      virtualizer.setOptions({ ...virtualizer.options, scrollMargin: 0 });
+    },
+    [getScrollElement]
+  );
   // Ledger boundary guard: the ledger's exact-cancel contract holds only
   // while the viewport stays inside the content region — accumulated debt
   // is real empty space at the container's edge (the margin), and a long
@@ -1466,7 +1470,7 @@ export function RoomTimeline({
           clientHeight: scrollEl.clientHeight,
         })
       ) {
-        settleScrollCompensation();
+        settleScrollCompensation('boundary');
       }
     };
     scrollEl.addEventListener('scroll', onLedgerBoundaryScroll, { passive: true });
@@ -1495,7 +1499,7 @@ export function RoomTimeline({
         }).then(() => {
           compensationSettleArmedRef.current = false;
           if (!alive() || ledgerGenerationRef.current !== generation) return;
-          settleScrollCompensation();
+          settleScrollCompensation('quiescence');
         });
       }
     },
@@ -1524,7 +1528,7 @@ export function RoomTimeline({
         waitForScrollQuiescence(getScrollElement(), { maxWaitMs: Infinity }).then(() => {
           compensationSettleArmedRef.current = false;
           if (!alive() || ledgerGenerationRef.current !== generation) return;
-          settleScrollCompensation();
+          settleScrollCompensation('quiescence');
         });
       }
     }

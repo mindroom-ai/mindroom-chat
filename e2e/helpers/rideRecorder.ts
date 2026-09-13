@@ -240,7 +240,10 @@ export const runFlickRide = (
         Object.entries(snapshot).filter(
           ([key, value]) =>
             typeof value === 'number' &&
-            (key.startsWith('threadPaginateBack') || key === 'threadAutoPaginateBackFired')
+            (key.startsWith('threadPaginateBack') ||
+              key === 'threadAutoPaginateBackFired' ||
+              key === 'ledgerQuiescenceSettles' ||
+              key === 'ledgerBoundarySettles')
         )
       ) as Record<string, number>;
     };
