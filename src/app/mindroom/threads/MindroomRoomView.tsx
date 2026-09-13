@@ -78,6 +78,7 @@ export function RoomView({
 }) {
   const roomInputRef = useRef<HTMLDivElement>(null);
   const roomViewRef = useRef<HTMLDivElement>(null);
+  const compactRoomScrollStateRef = useRef(new Map<string, number>());
 
   const [hideActivity] = useSetting(settingsAtom, 'hideActivity');
 
@@ -169,6 +170,7 @@ export function RoomView({
           summaryMap={summaryMap}
           onStoreThreadSummary={storeThreadSummary}
           roomInputRef={roomInputRef}
+          compactRoomScrollStateRef={compactRoomScrollStateRef}
           editor={editor}
         />
         <RoomViewTyping room={room} />

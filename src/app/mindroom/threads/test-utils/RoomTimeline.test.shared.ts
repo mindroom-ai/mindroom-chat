@@ -1666,6 +1666,7 @@ const createControlledRoomTimelineHarness = (
   RoomTimelineComponent: (props: Record<string, unknown>) => React.ReactElement | null
 ) => {
   const roomInputRef = createRef<HTMLElement>();
+  const compactRoomScrollStateRef = { current: new Map<string, number>() };
   const editor = {} as Editor;
   const defaultSummaryMap = new Map();
   const defaultOnStoreThreadSummary = vi.fn();
@@ -1766,6 +1767,7 @@ const createControlledRoomTimelineHarness = (
         viewMode,
         onViewModeChange: setViewMode,
         roomInputRef,
+        compactRoomScrollStateRef,
         editor,
       }),
     });

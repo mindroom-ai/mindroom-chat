@@ -1,4 +1,4 @@
-import React, { useCallback, useLayoutEffect, useRef } from 'react';
+import React, { type MutableRefObject, useCallback, useLayoutEffect, useRef } from 'react';
 import { Box, Text } from 'folds';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
 import { useCompactThreadCardViewModels } from './compactThreadCardViewModel';
@@ -11,6 +11,13 @@ export type CompactRoomViewProps = {
   threadRootIds: string[];
   threadRecordMap: ReadonlyMap<string, ThreadRecord>;
   onThreadClick: (threadRootId: string, summaryText?: string) => void;
+  compactRoomScrollStateRef: MutableRefObject<Map<string, number>>;
+};
+
+type ScrollRestoreState = {
+  roomId: string;
+  targetScrollTop: number;
+  lastAppliedScrollTop: number;
 };
 
 export function CompactRoomView({
@@ -18,7 +25,10 @@ export function CompactRoomView({
   threadRootIds,
   threadRecordMap,
   onThreadClick,
+  compactRoomScrollStateRef,
 }: CompactRoomViewProps) {
+  const viewRef = useRef<HTMLDivElement>(null);
+  const scrollRestoreStateRef = useRef<ScrollRestoreState>();
   const cardViewModels = useCompactThreadCardViewModels({
     room,
     threadRootIds,
@@ -43,9 +53,46 @@ export function CompactRoomView({
     onThreadClickRef.current(clickedThreadRootId, viewModel?.recentThreadSummaryText);
   }, []);
 
+  useLayoutEffect(() => {
+    const view = viewRef.current;
+    if (!view || cardViewModels.length === 0) return;
+
+    const restoreState = scrollRestoreStateRef.current;
+    if (restoreState?.roomId === room.roomId) {
+      const restoreWasClamped = restoreState.lastAppliedScrollTop !== restoreState.targetScrollTop;
+      const scrollHasNotMoved = view.scrollTop === restoreState.lastAppliedScrollTop;
+      if (restoreWasClamped && scrollHasNotMoved) {
+        view.scrollTop = restoreState.targetScrollTop;
+        restoreState.lastAppliedScrollTop = view.scrollTop;
+      }
+      return;
+    }
+
+    const savedScrollTop = compactRoomScrollStateRef.current.get(room.roomId);
+    if (savedScrollTop !== undefined) view.scrollTop = savedScrollTop;
+    scrollRestoreStateRef.current = {
+      roomId: room.roomId,
+      targetScrollTop: savedScrollTop ?? view.scrollTop,
+      lastAppliedScrollTop: view.scrollTop,
+    };
+  }, [cardViewModels.length, compactRoomScrollStateRef, room.roomId]);
+
+  useLayoutEffect(() => {
+    const view = viewRef.current;
+    if (!view) return undefined;
+    const scrollState = compactRoomScrollStateRef.current;
+    const roomId = room.roomId;
+
+    return () => {
+      if (scrollRestoreStateRef.current?.roomId === roomId) {
+        scrollState.set(roomId, view.scrollTop);
+      }
+    };
+  }, [compactRoomScrollStateRef, room.roomId]);
+
   if (threadRootIds.length === 0) {
     return (
-      <Box className={css.View} data-compact-room-view="true">
+      <Box ref={viewRef} className={css.View} data-compact-room-view="true">
         <Box className={css.EmptyState}>
           <Text size="T300" priority="300">
             No threads
@@ -56,7 +103,7 @@ export function CompactRoomView({
   }
 
   return (
-    <Box className={css.View} data-compact-room-view="true">
+    <Box ref={viewRef} className={css.View} data-compact-room-view="true">
       {cardViewModels.map((viewModel) => (
         <CompactThreadCard
           key={viewModel.id.threadRootId}
