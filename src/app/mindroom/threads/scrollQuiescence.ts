@@ -27,7 +27,12 @@ export type WaitForScrollQuiescenceOptions = {
   // Quiet window with no scroll events (and no active touch) that
   // counts as quiescent.
   idleMs?: number;
-  // Upper bound on the total wait; the promise always resolves.
+  // Upper bound on the total wait; the promise always resolves. Pass
+  // Infinity for a wait that ONLY resolves on genuine quiescence — a
+  // forced resolve mid-motion is a scroll write mid-momentum for
+  // consumers like the ledger settle. (Never pass huge finite values:
+  // setTimeout clamps int32-overflowing delays to 0, turning the cap
+  // into an immediate fire — a real bug the ios-momentum e2e caught.)
   maxWaitMs?: number;
 };
 
@@ -62,9 +67,30 @@ const installTouchTracker = () => {
 };
 installTouchTracker();
 
-// Consulted by callers that need an instantaneous read of the global
-// touch state (e.g. the thread tile measurement gate).
+// Consulted by callers that need an instantaneous read of the global touch
+// state (currently the measurement-correction hook on the timeline
+// virtualizer, which cannot see virtual-core's private touch flags).
 export const hasActiveWindowTouches = (): boolean => windowActiveTouches > 0;
+
+// Mirrors @tanstack/virtual-core's unexported isIOSWebKit(): every iOS
+// browser is WebKit (UA carries iPhone/iPod/iPad), and iPadOS desktop mode
+// masquerades as MacIntel but exposes touch points.
+let iosWebKitResult: boolean | undefined;
+export const isIOSWebKitDevice = (): boolean => {
+  if (iosWebKitResult !== undefined) return iosWebKitResult;
+  if (typeof navigator === 'undefined') {
+    iosWebKitResult = false;
+    return iosWebKitResult;
+  }
+  if (/iP(hone|od|ad)/.test(navigator.userAgent)) {
+    iosWebKitResult = true;
+    return iosWebKitResult;
+  }
+  const maxTouchPoints = navigator.maxTouchPoints;
+  iosWebKitResult =
+    navigator.platform === 'MacIntel' && maxTouchPoints !== undefined && maxTouchPoints > 0;
+  return iosWebKitResult;
+};
 
 export const waitForScrollQuiescence = (
   scrollElement: HTMLElement | null,
@@ -124,7 +150,9 @@ export const waitForScrollQuiescence = (
 
     scrollElement.addEventListener('scroll', onActivity, { passive: true });
 
-    capTimer = setTimeout(settle, maxWaitMs);
+    if (Number.isFinite(maxWaitMs)) {
+      capTimer = setTimeout(settle, maxWaitMs);
+    }
     armIdleTimer();
   });
 };

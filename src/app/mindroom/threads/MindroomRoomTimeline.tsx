@@ -131,17 +131,22 @@ import {
   consumeLiveExpandOnceId,
   getCollapsibleMessageMeasurementKey,
   getCollapsibleMessageMode,
-  getHydratedLongTextExtrasCollapseKey,
   shouldForceCollapsibleMessageOverflow,
 } from './threadCollapsibleMessages';
 import {
   buildResolveConfirmedEventId,
   dedupeThreadRenderEventEntries,
+  buildMeasurementScrollCorrectionHook,
+  estimateThreadEventRowHeight,
   primeTimelineRenderContextBefore,
   shouldAutoPaginateThreadBack,
-  shouldDeferThreadTileMeasure,
+  shouldSettleLedgerAtBoundary,
 } from './threadRenderUtils';
-import { hasActiveWindowTouches, SCROLL_QUIESCENCE_IDLE_MS } from './scrollQuiescence';
+import { installRideTraceRecorder, isRideTraceEnabled } from './rideTraceRecorder';
+import {
+  isIOSWebKitDevice,
+  waitForScrollQuiescence,
+} from './scrollQuiescence';
 import {
   useTimelineDebugRangeController,
   useTimelineDebugTraceIds,
@@ -406,9 +411,6 @@ export function RoomTimeline({
   const [expandAllOverride, setExpandAllOverride] = useState<boolean | undefined>(undefined);
   const atBottomRef = useRef(atBottom);
   const liveExpandOnceIds = useRef(new Set<string>());
-  const [hydratedLongTextExtrasCollapseKeys, setHydratedLongTextExtrasCollapseKeys] = useState<
-    ReadonlySet<string>
-  >(() => new Set());
   atBottomRef.current = atBottom;
 
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -428,11 +430,14 @@ export function RoomTimeline({
   const [threadPaginatingFront, setThreadPaginatingFront] = useState(false);
   const [threadInitialCacheHydrated, setThreadInitialCacheHydrated] = useState(false);
   const [threadLatestOpenPending, setThreadLatestOpenPending] = useState(false);
-  // Mirrored for callbacks that must keep a stable identity (measureThreadTile
-  // is every VirtualTile's ref; an identity change re-attaches all mounted
-  // rows and double-counts their heights in the row-size stats).
-  const threadLatestOpenPendingRef = useRef(threadLatestOpenPending);
-  threadLatestOpenPendingRef.current = threadLatestOpenPending;
+  // First real scroll gesture in this thread view; also ends the
+  // open-at-latest bottom pin (the reader owns the position from then on).
+  const [threadUserScrolled, setThreadUserScrolled] = useState(false);
+  // Latched once an open-at-latest began for this thread: hydration bands
+  // land long after the open chain completes (background prefetch /
+  // reconciler), and the pin must hold for them until the first gesture.
+  const threadOpenedAtLatestRef = useRef(false);
+  if (threadLatestOpenPending) threadOpenedAtLatestRef.current = true;
   const [threadTimelineTick, setThreadTimelineTick] = useState(0);
   const [pendingThreadOpenTick, setPendingThreadOpenTick] = useState(0);
   const {
@@ -445,6 +450,7 @@ export function RoomTimeline({
     clearPendingAnchor: clearPendingThreadBackPaginationAnchor,
     getPendingAnchorEventId: getPendingThreadBackPaginationAnchorEventId,
     getPendingAnchorSeq: getPendingThreadBackPaginationAnchorSeq,
+    getPendingAnchorClientTop: getPendingThreadBackPaginationAnchorClientTop,
     restorePendingAnchor: restorePendingThreadBackPaginationAnchor,
     recaptureAnchor: recaptureThreadBackPaginationAnchor,
   } = useThreadBackPaginationController();
@@ -504,17 +510,7 @@ export function RoomTimeline({
   const threadResolutionMap = useRoomThreadResolutionMap(room);
   useEffect(() => {
     liveExpandOnceIds.current.clear();
-    setHydratedLongTextExtrasCollapseKeys((current) => (current.size === 0 ? current : new Set()));
   }, [room.roomId, threadId]);
-  const markHydratedLongTextExtrasCollapsedExempt = useCallback((collapseKey: string) => {
-    setHydratedLongTextExtrasCollapseKeys((current) => {
-      if (current.has(collapseKey)) return current;
-
-      const next = new Set(current);
-      next.add(collapseKey);
-      return next;
-    });
-  }, []);
   // CINNY-207 P4.3: the eagerPreloading reset layout-effect is gone.
   // The band-4 deep-history job runs entirely in the engine and does
   // not gate any rendering signal — the skeleton logic below relies on
@@ -1011,6 +1007,27 @@ export function RoomTimeline({
   );
 
   const getScrollElement = useCallback(() => scrollRef.current, []);
+  // Live viewport-bottom reading for SCROLL-BEHAVIOR decisions. Deliberately
+  // not the atBottom state: its false-transition is debounced ~1s for
+  // read-receipt/UI stability, which is exactly wrong for anything that
+  // moves the viewport — a user who just left the bottom must never be
+  // treated as pinned (device round 5 / the ios-momentum-invariants e2e).
+  // `slackPx` lets a caller allow for a layout change it KNOWS just
+  // happened (e.g. the composer growing moves the bottom away by its own
+  // delta for a user who was pinned).
+  const isViewportAtBottomNow = useCallback(
+    (slackPx = 0) => {
+      const scrollElement = getScrollElement();
+      if (!scrollElement) return false;
+      return isScrollNearBottom({
+        scrollHeight: scrollElement.scrollHeight,
+        scrollTop: scrollElement.scrollTop,
+        clientHeight: scrollElement.clientHeight,
+        thresholdPx: 24 + slackPx,
+      });
+    },
+    [getScrollElement]
+  );
   const getTimelineItemElement = useCallback(
     (index: number) =>
       (scrollRef.current?.querySelector(`[data-message-item="${index}"]`) as HTMLElement) ??
@@ -1074,59 +1091,124 @@ export function RoomTimeline({
     shouldSuppressPagination: useCallback(() => suppressFocusPaginationRef.current, []),
   });
   const timelineItems = getItems();
-  // Learned mean of measured row heights for the open thread. A static
-  // estimate is far off for expanded rows (96/144 vs several hundred px), and
-  // every mount-above then corrects offsets by that error — visible as
-  // flicker/jumps during fast upward scrolling. Mechanics on virtual-core
-  // 3.2.0: estimateSize is NOT a virtualizer memo dependency; new estimates
-  // reach unmeasured rows because (i) state guarantees a render (a ref write
-  // from the measure callback might never trigger one) and (ii) the inline
-  // getItemKey arrow below invalidates memoOptions -> getMeasurements every
-  // render — a full rebuild that consults estimateSize for unmeasured items
-  // while measured heights persist in itemSizeCache. Do NOT memoize
-  // getItemKey without keying it on the learned size: a stable identity would
-  // stop new estimates from ever reaching the unvisited region above the
-  // viewport (getMeasurements then only recomputes from the min measured
-  // index up) and silently regress this fix. The rebuild's per-render cost is
-  // one O(count) pass of key/Map lookups — microseconds at current sizes.
-  const threadRowSizeStatsRef = useRef<{ total: number; count: number }>({ total: 0, count: 0 });
-  const [learnedThreadRowSize, setLearnedThreadRowSize] = useState<number | undefined>(undefined);
+  // Per-row estimates from event CONTENT (estimateThreadEventRowHeight).
+  // Thread rows are bimodal — one-liners vs fold-capped long messages — so
+  // any single learned mean mis-sizes every row by hundreds of px, and each
+  // mount then corrects scrollHeight by that error mid-scroll: the shrink
+  // bursts that let the browser clamp a scrolled-up reader back to the
+  // bottom (traced by the ios-momentum-invariants e2e). Content-based
+  // estimates are deterministic and stateless — no learned mean, no
+  // adoption step, nothing to teleport.
+  //
+  // Mechanics on virtual-core 3.17.3: estimateSize is NOT a virtualizer
+  // memo dependency; fresh estimates reach unmeasured rows because the
+  // inline getItemKey arrow below invalidates memoOptions ->
+  // getMeasurements every render — a full rebuild that consults
+  // estimateSize for unmeasured items while measured heights persist in
+  // itemSizeCache. Do NOT memoize getItemKey: a stable identity would stop
+  // estimate updates from reaching the unvisited region above the viewport
+  // (getMeasurements then only recomputes from the min measured index up).
+  // The rebuild's per-render cost is one O(count) pass — microseconds at
+  // current sizes.
   const defaultRowEstimate = messageLayout === MessageLayout.Compact ? 96 : 144;
-  useEffect(() => {
-    threadRowSizeStatsRef.current = { total: 0, count: 0 };
-    setLearnedThreadRowSize(undefined);
-  }, [room.roomId, threadId, defaultRowEstimate]);
-  useEffect(() => {
-    // Expand/collapse-all changes the height regime; re-learn from fresh
-    // measurements (keeping the previous learned value until enough arrive).
-    threadRowSizeStatsRef.current = { total: 0, count: 0 };
-  }, [expandAllOverride]);
+  const compactRowLayout = messageLayout === MessageLayout.Compact;
   const estimateRoomTimelineItemSize = useCallback(
-    () => (threadId ? learnedThreadRowSize ?? defaultRowEstimate : defaultRowEstimate),
-    [defaultRowEstimate, learnedThreadRowSize, threadId]
+    (index?: number) => {
+      if (!threadId) return defaultRowEstimate;
+      const mEvent = index === undefined ? undefined : threadEvents[index];
+      if (!mEvent) return defaultRowEstimate;
+      return estimateThreadEventRowHeight(mEvent, { compact: compactRowLayout });
+    },
+    [compactRowLayout, defaultRowEstimate, threadEvents, threadId]
   );
-  const maybeAdoptLearnedThreadRowSize = useCallback(() => {
-    const stats = threadRowSizeStatsRef.current;
-    if (stats.count < 8) return;
-    // Adopting a new estimate shifts every unmeasured row's offset with no
-    // scroll compensation. That is invisible while pinned at the bottom (the
-    // settle loop re-pins) but teleports a mid-thread reader, so defer
-    // adoption until the view is bottom-anchored again.
-    if (!atBottomRef.current && !threadLatestOpenPendingRef.current) return;
-    const mean = Math.round(stats.total / stats.count);
-    setLearnedThreadRowSize((current) => {
-      const reference = current ?? defaultRowEstimate;
-      // Hysteresis: only adopt when the learned mean is materially different,
-      // so the virtualizer is not recomputed on every measurement.
-      if (Math.abs(mean - reference) / reference < 0.25) return current;
-      return mean;
-    });
-  }, [defaultRowEstimate, threadLatestOpenPendingRef]);
+  // Rows measure immediately (task #128); the momentum question is only
+  // what happens to the compensating scrollTop write for an above-viewport
+  // resize. virtual-core ≥3.17 would natively DEFER those on iOS and replay
+  // them at quiescence — but repeated flicks block the flush, so the replay
+  // accumulates the whole gesture's estimate error and lands as a half-page
+  // lurch when momentum dies (device-tested). The hook below therefore
+  // DROPS above-viewport corrections while an iOS scroll/touch is live
+  // (bounded invisible drift instead), and applies them immediately when
+  // quiet and on every other platform, like the pre-3.17 default.
+  // Offset ledger for corrections dropped mid-scroll (device round 10):
+  // estimate error for a fully-above row would otherwise shift the content
+  // under the reader. The dropped delta is folded into the virtualizer's
+  // OWN coordinate space: the inner container gets a real marginTop of
+  // -px and options.scrollMargin tracks the same value, so the window
+  // math and the painted positions move together — no scrollTop write to
+  // kill iOS momentum, and no paint/window divergence at ANY accumulated
+  // magnitude (the round-8 transform shifted paint only; the on-device
+  // trace measured ±3000px of divergence rendering the viewport blank
+  // for 30% of a 40s ride). The offset-ledger coherence contract in
+  // virtualizerIOSScrollContract.test.ts pins this against the real
+  // virtual-core. The ledger settles into one exactly-cancelling
+  // scrollTop write ONLY at true rest — never via a timeout cap
+  // mid-momentum (the trace's full-screen settle flash): an unsettled
+  // ledger is coherent, so it can wait indefinitely.
+  const scrollCompensationPxRef = useRef(0);
+  const [, setLedgerCommitTick] = useState(0);
+  // Prepend detection state (declared here because the render-time fold
+  // below must run BEFORE the virtualizer reads scrollMargin). A prepend
+  // is detected by the pending anchor's index shifting upward versus its
+  // index captured at begin()/recapture time: the thread root permanently
+  // occupies index 0, so watching the first event id would never fire.
+  const threadVirtualPrependCaptureRef = useRef<
+    | {
+        threadId: string;
+        anchorEventId: string;
+        anchorIndex: number;
+        anchorSeq: number;
+      }
+    | undefined
+  >(undefined);
+  const ledgerSettleWantedRef = useRef(false);
+  // PREPEND COMMITS ARE PURE LEDGER ARITHMETIC — no scroll write at all.
+  // Folding the prepended block's height into the ledger AT RENDER TIME
+  // keeps every quantity in the same commit: options.scrollMargin (read
+  // below) drops by ΔH while every shifted row's start grows by ΔH, so
+  // the rendered window and painted positions are IDENTICAL to the
+  // pre-prepend frame by construction — the reader cannot see the commit,
+  // scrollTop is never touched (nothing for iOS momentum to lose), and
+  // concurrent measurement corrections stay independently ledgered. ΔH is
+  // exact, not approximate: the inserted keys have never been measured,
+  // so virtual-core prices them with the same estimator this sum uses.
+  // (Replaces the coarse-scrollTo + rect-based fine-correction restore,
+  // whose two writes the e2e photographed racing virtual-core's own
+  // quiet-state adjustments inside the commit.)
+  {
+    const prependCapture = threadVirtualPrependCaptureRef.current;
+    if (
+      prependCapture &&
+      threadId &&
+      prependCapture.threadId === threadId &&
+      getPendingThreadBackPaginationAnchorSeq() === prependCapture.anchorSeq
+    ) {
+      const anchorIndexNow = threadEvents.findIndex(
+        (mEvent) => mEvent.getId() === prependCapture.anchorEventId
+      );
+      const prependedCount = anchorIndexNow - prependCapture.anchorIndex;
+      if (anchorIndexNow >= 0 && prependedCount > 0) {
+        // Back-pagination inserts the older block contiguously after the
+        // root (index 0); the shifted-down rows all keep their measured
+        // sizes (keys are event ids), so the anchor's position moves by
+        // exactly the inserted rows' virtualizer sizes.
+        let prependedHeightPx = 0;
+        for (let index = 1; index <= prependedCount; index += 1) {
+          prependedHeightPx += estimateRoomTimelineItemSize(index);
+        }
+        scrollCompensationPxRef.current += prependedHeightPx;
+        threadVirtualPrependCaptureRef.current = undefined;
+        clearPendingThreadBackPaginationAnchor();
+        ledgerSettleWantedRef.current = true;
+      }
+    }
+  }
   const roomTimelineVirtualizer = useVirtualizer({
     count: threadId ? threadEvents.length : timelineItems.length,
     getScrollElement,
     estimateSize: estimateRoomTimelineItemSize,
     overscan: 10,
+    scrollMargin: -scrollCompensationPxRef.current,
     getItemKey: (index) => {
       if (threadId) {
         return threadEvents[index]?.getId() ?? index;
@@ -1135,131 +1217,154 @@ export function RoomTimeline({
       return threadFilteredEventEntries[item]?.event.getId() ?? item ?? index;
     },
   });
-  const performThreadTileMeasure = useCallback(
-    (element: Element) => {
-      roomTimelineVirtualizer.measureElement(element);
-      const height = (element as HTMLElement).offsetHeight;
-      // Null-rendering edit/reaction rows measure 0 and are deliberately
-      // excluded so the mean tracks visible-row height; unmounted zero rows
-      // are therefore overestimated until they mount (accepted — see the
-      // declined renderable-only re-indexing follow-up in FORK_CHANGES.md).
-      if (height > 0) {
-        const stats = threadRowSizeStatsRef.current;
-        stats.total += height;
-        stats.count += 1;
-        maybeAdoptLearnedThreadRowSize();
+  const virtualInnerRef = useRef<HTMLDivElement | null>(null);
+  const compensationSettleArmedRef = useRef(false);
+  // The settle is ONE synchronous JS block: margin removal and the
+  // cancelling scrollTop shift land in the same layout pass, so they are
+  // atomic with respect to paints and rAF samplers (a React-commit-based
+  // settle measured 20x worse on the sustained-ride e2e — the extra
+  // scheduling hop split the pair across paints under CPU throttle). The
+  // scroll event from the write re-renders the virtualizer, which then
+  // reads scrollMargin 0 from the zeroed ref; tile positions are
+  // margin-independent (rel coordinates), so the one-render option lag
+  // shifts nothing visually.
+  const settleScrollCompensation = useCallback(() => {
+    compensationSettleArmedRef.current = false;
+    const px = scrollCompensationPxRef.current;
+    const inner = virtualInnerRef.current;
+    const scrollElement = getScrollElement();
+    if (px === 0 || !inner || !scrollElement) return;
+    scrollCompensationPxRef.current = 0;
+    inner.style.marginTop = '';
+    // The option must flip in the SAME synchronous block: tile positions
+    // are margin-independent, but the WINDOW computation is not — at
+    // prepend-fold scale (thousands of px) a one-render stale option
+    // renders a faraway range for a frame (photographed as a 140px
+    // anchor flash by the latency-ride e2e).
+    // scrollTop FIRST: setOptions can notify a synchronous re-render,
+    // which must see the (margin 0, shifted scrollTop) pair — the other
+    // order lets that render compute the window with the old offset.
+    scrollElement.scrollTop += px;
+    const virtualizer = roomTimelineVirtualizerRef.current;
+    virtualizer.setOptions({ ...virtualizer.options, scrollMargin: 0 });
+  }, [getScrollElement]);
+  // Ledger boundary guard: the ledger's exact-cancel contract holds only
+  // while the viewport stays inside the content region — accumulated debt
+  // is real empty space at the container's edge (the margin), and a long
+  // continuous ride can carry the reader into it before any rest repays
+  // it (device trace ride-trace-1783391256452: 3.0s blank at px=-9356;
+  // pinned by the ledger-boundary e2e). Approaching an edge settles
+  // immediately: one momentum interruption at the extreme of the loaded
+  // window — where scrolling hard-stopped anyway — instead of visible
+  // blank space. The settle pair is visually exact, so the only cost is
+  // momentum, and only at the boundary.
+  useEffect(() => {
+    const scrollEl = scrollRef.current;
+    if (!scrollEl) return undefined;
+    const onLedgerBoundaryScroll = () => {
+      const px = scrollCompensationPxRef.current;
+      // Cheap early exit on the hot path (the predicate re-checks, but
+      // without rect reads the common px=0 case costs nothing).
+      if (px > -48 && px < 48) return;
+      const inner = virtualInnerRef.current;
+      if (!inner) return;
+      const innerRect = inner.getBoundingClientRect();
+      const scrollRect = scrollEl.getBoundingClientRect();
+      if (
+        shouldSettleLedgerAtBoundary({
+          ledgerPx: px,
+          innerTop: innerRect.top,
+          innerBottom: innerRect.bottom,
+          scrollTop: scrollRect.top,
+          scrollBottom: scrollRect.bottom,
+          clientHeight: scrollEl.clientHeight,
+        })
+      ) {
+        settleScrollCompensation();
+      }
+    };
+    scrollEl.addEventListener('scroll', onLedgerBoundaryScroll, { passive: true });
+    return () => scrollEl.removeEventListener('scroll', onLedgerBoundaryScroll);
+  }, [scrollRef, settleScrollCompensation, threadId, threadInitialRenderMode]);
+  const handleDroppedCorrection = useCallback(
+    (deltaPx: number) => {
+      // Accumulate + FORCE a commit. The tiles are absolutely positioned,
+      // so the layout shift this delta cancels only materializes when a
+      // render repositions them — and react-virtual SKIPS its rerender
+      // when the visible range is unchanged, which round 8's "a drop
+      // always rerenders" premise missed (the paired ±140px flashes the
+      // sustained-ride e2e isolated). The tick guarantees the commit; the
+      // margin style (sync effect below), the scrollMargin option (read
+      // at render) and the repositioned tiles then land in ONE paint.
+      scrollCompensationPxRef.current += deltaPx;
+      setLedgerCommitTick((tick) => tick + 1);
+      if (!compensationSettleArmedRef.current) {
+        compensationSettleArmedRef.current = true;
+        // No maxWait cap: a forced settle mid-momentum is a scrollTop
+        // write mid-momentum (the trace's full-screen flash). The ledger
+        // is coherent while unsettled, so only TRUE rest settles it.
+        waitForScrollQuiescence(getScrollElement(), {
+          maxWaitMs: Infinity,
+        }).then(settleScrollCompensation);
       }
     },
-    [maybeAdoptLearnedThreadRowSize, roomTimelineVirtualizer]
+    [getScrollElement, settleScrollCompensation]
   );
-  // Task #125 follow-up 2: measuring a row above the viewport makes the
-  // virtualizer correct scrollTop for the estimate-vs-real height
-  // error — a programmatic scroll write, which iOS answers by killing
-  // flick momentum. Upward flicks through never-measured rows hit this
-  // on every release; revisited regions are already measured and stay
-  // smooth — the reported "smooth only up to where I scrolled before"
-  // boundary. While the scroll is live (per shouldDeferThreadTileMeasure),
-  // measurements are queued and flushed once the scroller goes quiet,
-  // where the single correction lands with no momentum to kill. Rows
-  // keep their estimated size until the flush; transient mis-spacing
-  // during a fast flick is imperceptible next to a dead stop. The gate
-  // requires a real user gesture first, so the open-time pin/settle
-  // (which scrolls programmatically) always measures immediately.
-  const threadLastScrollActivityRef = useRef(0);
-  const threadUserScrolledRef = useRef(false);
-  const pendingThreadMeasuresRef = useRef<Set<Element>>(new Set());
-  const threadMeasureFlushTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  useEffect(
-    () => () => {
-      if (threadMeasureFlushTimerRef.current !== undefined) {
-        clearTimeout(threadMeasureFlushTimerRef.current);
-      }
-    },
-    []
-  );
-  // First-enqueue timestamp of the current deferred batch: caps the
-  // total defer so a touch held anywhere in the window (another pane,
-  // an unrelated control) cannot starve the flush indefinitely
-  // (greptile on PR #76). The cap only defeats the TOUCH condition —
-  // the flush still requires this scroller's own quiet window (see
-  // scheduleThreadMeasureFlush), so it can never land mid-flick.
-  const threadMeasureDeferStartRef = useRef<number | undefined>(undefined);
-  // Thread switch: drop the previous thread's queue, flush timer, and
-  // activity timing at RENDER time (coderabbit on PR #76 — a
-  // [threadId] effect runs after the new thread's first tiles have
-  // already gone through measureThreadTile with stale state). Same
-  // pattern as the threadIdRef render-time assignment above.
-  const threadMeasureResetForThreadRef = useRef(threadId);
-  if (threadMeasureResetForThreadRef.current !== threadId) {
-    threadMeasureResetForThreadRef.current = threadId;
-    pendingThreadMeasuresRef.current.clear();
-    threadMeasureDeferStartRef.current = undefined;
-    threadLastScrollActivityRef.current = 0;
-    if (threadMeasureFlushTimerRef.current !== undefined) {
-      clearTimeout(threadMeasureFlushTimerRef.current);
-      threadMeasureFlushTimerRef.current = undefined;
+  // Sync the ledger margin in the SAME paint as the committed layout
+  // shift (runs on every commit; a string compare when idle). The
+  // matching scrollMargin option is read at render, so both sides of the
+  // ledger land in the same commit.
+  useLayoutEffect(() => {
+    const inner = virtualInnerRef.current;
+    if (!inner) return;
+    const px = scrollCompensationPxRef.current;
+    const marginTop = px === 0 ? '' : `${-px}px`;
+    if (inner.style.marginTop !== marginTop) {
+      inner.style.marginTop = marginTop;
     }
+    // A render-time ledger fold (prepend commit) grows px outside the
+    // dropped-correction path; arm its settle here, in the same commit.
+    if (ledgerSettleWantedRef.current) {
+      ledgerSettleWantedRef.current = false;
+      if (!compensationSettleArmedRef.current) {
+        compensationSettleArmedRef.current = true;
+        waitForScrollQuiescence(getScrollElement(), { maxWaitMs: Infinity }).then(
+          settleScrollCompensation
+        );
+      }
+    }
+  });
+  // On-device ride tracing (`?ridetrace=1`): per-frame invariant recorder
+  // with a one-tap export overlay — the phone captures the same trace the
+  // e2e recorder samples, for the device-only symptom classes the desktop
+  // harness cannot reproduce. Off (one localStorage read) otherwise.
+  useEffect(() => {
+    if (!isRideTraceEnabled()) return undefined;
+    const scrollEl = scrollRef.current;
+    if (!scrollEl) return undefined;
+    return installRideTraceRecorder(scrollEl, () => virtualInnerRef.current, {
+      roomId: room.roomId,
+      threadId,
+    });
+  }, [room.roomId, scrollRef, threadId]);
+  // Thread/room switch drops the pending compensation at RENDER time: the
+  // new view's first tiles measure during the commit, before any effect
+  // could reset stale state (same pattern as the other render-time resets).
+  const compensationResetKeyRef = useRef(`${room.roomId}|${threadId ?? ''}`);
+  if (compensationResetKeyRef.current !== `${room.roomId}|${threadId ?? ''}`) {
+    compensationResetKeyRef.current = `${room.roomId}|${threadId ?? ''}`;
+    scrollCompensationPxRef.current = 0;
+    if (virtualInnerRef.current) virtualInnerRef.current.style.marginTop = '';
   }
-  const isThreadMeasureDeferred = useCallback(
+  // Instance property, not an option (mirrors how virtual-core consults it:
+  // `this.shouldAdjust...`, set on the instance).
+  roomTimelineVirtualizer.shouldAdjustScrollPositionOnItemSizeChange = useMemo(
     () =>
-      shouldDeferThreadTileMeasure({
-        threadId: threadIdRef.current,
-        userScrolled: threadUserScrolledRef.current,
-        msSinceLastScrollActivity: Date.now() - threadLastScrollActivityRef.current,
-        hasActiveTouch: hasActiveWindowTouches(),
-        idleMs: SCROLL_QUIESCENCE_IDLE_MS,
+      buildMeasurementScrollCorrectionHook({
+        isIOSWebKitDevice,
+        onDroppedCorrection: handleDroppedCorrection,
       }),
-    [threadIdRef]
-  );
-  const THREAD_MEASURE_DEFER_CAP_MS = 2500;
-  const scheduleThreadMeasureFlush = useCallback(() => {
-    if (threadMeasureFlushTimerRef.current !== undefined) return;
-    threadMeasureFlushTimerRef.current = setTimeout(() => {
-      threadMeasureFlushTimerRef.current = undefined;
-      if (pendingThreadMeasuresRef.current.size === 0) {
-        threadMeasureDeferStartRef.current = undefined;
-        return;
-      }
-      const deferStart = threadMeasureDeferStartRef.current ?? Date.now();
-      const capped = Date.now() - deferStart >= THREAD_MEASURE_DEFER_CAP_MS;
-      // The cap only overrides GLOBAL-touch starvation (a finger held
-      // on another pane). This scroller's own quiet window is never
-      // bypassed (greptile round 2 on PR #76): a long flick that is
-      // still emitting scroll events when the cap expires must not be
-      // interrupted by a measurement correction.
-      const scrollerQuiet =
-        Date.now() - threadLastScrollActivityRef.current >= SCROLL_QUIESCENCE_IDLE_MS;
-      if ((capped && !scrollerQuiet) || (!capped && isThreadMeasureDeferred())) {
-        scheduleThreadMeasureFlush();
-        return;
-      }
-      threadMeasureDeferStartRef.current = undefined;
-      const pending = Array.from(pendingThreadMeasuresRef.current);
-      pendingThreadMeasuresRef.current.clear();
-      // Disconnected rows are dropped WITHOUT measuring: measuring a
-      // detached element reads height 0 and would poison the learned
-      // row-size stats. A dropped row that later remounts re-enters
-      // this same gated path, so its eventual correction is still
-      // deferred to quiescence — no momentum-killing write can result.
-      pending.forEach((element) => {
-        if (element.isConnected) performThreadTileMeasure(element);
-      });
-    }, SCROLL_QUIESCENCE_IDLE_MS + 10);
-  }, [isThreadMeasureDeferred, performThreadTileMeasure]);
-  const measureThreadTile = useCallback(
-    (element: Element | null) => {
-      if (!element) return;
-      if (isThreadMeasureDeferred()) {
-        if (threadMeasureDeferStartRef.current === undefined) {
-          threadMeasureDeferStartRef.current = Date.now();
-        }
-        pendingThreadMeasuresRef.current.add(element);
-        scheduleThreadMeasureFlush();
-        return;
-      }
-      performThreadTileMeasure(element);
-    },
-    [isThreadMeasureDeferred, performThreadTileMeasure, scheduleThreadMeasureFlush]
+    [handleDroppedCorrection]
   );
   useLayoutEffect(() => {
     const anchor = roomVirtualPrependAnchorRef.current;
@@ -1275,7 +1380,13 @@ export function RoomTimeline({
       virtualIndex * estimateRoomTimelineItemSize() - anchor.viewportOffset,
       0
     );
-    roomTimelineVirtualizer.scrollToOffset(offset, { behavior: 'auto' });
+    // Direct write, NOT roomTimelineVirtualizer.scrollToOffset: since
+    // virtual-core 3.17 every scrollTo* call arms a rAF reconcile loop that
+    // keeps re-asserting its own (estimate-derived, so wrong) target offset
+    // until the actual offset converges within ~1px — which reverts the
+    // DOM-rect delta correction below on its next frame. The library offers
+    // no way to cancel or retarget that loop, so this path must bypass it.
+    scrollRef.current?.scrollTo({ top: offset, behavior: 'instant' });
     roomVirtualPrependAnchorRef.current = undefined;
 
     requestAnimationFrame(() => {
@@ -1429,21 +1540,6 @@ export function RoomTimeline({
   // which can unmount the captured anchor row. Scroll the anchor's new index
   // into view first so the DOM-based restore (which runs after this effect, in
   // useRoomFocusScrollController) can fine-correct against a mounted element.
-  // A prepend is detected by the pending anchor's index shifting upward
-  // versus its index captured at begin() (click) time: the thread root
-  // permanently occupies index 0, so watching the first event id would never
-  // fire, and observing renders/effects for the pre-prepend state is unsafe —
-  // the begin() render does not change threadEvents, so a dep-gated effect
-  // first sees the anchor only in the prepend render itself.
-  const threadVirtualPrependCaptureRef = useRef<
-    | {
-        threadId: string;
-        anchorEventId: string;
-        anchorIndex: number;
-        anchorSeq: number;
-      }
-    | undefined
-  >(undefined);
   const beginThreadBackPaginationWithCapture = useCallback(
     (
       beginThreadId: string | undefined,
@@ -1567,11 +1663,63 @@ export function RoomTimeline({
     if (typeof anchorIndex !== 'number' || anchorIndex <= capture.anchorIndex) return;
     threadVirtualPrependCaptureRef.current = undefined;
 
-    // scrollToIndex exists only to mount an unmounted anchor row so the
+    // The coarse move exists only to mount an unmounted anchor row so the
     // DOM-based restore has an element to align; when the row is already
-    // mounted, the coarse move just adds displacement for the restore to undo.
+    // mounted, it would just add displacement for the restore to undo.
+    // Direct write, NOT scrollToIndex: since virtual-core 3.17 scrollToIndex
+    // arms a rAF reconcile loop that keeps re-asserting align-start for up
+    // to 5s, fighting the fine correction below (which aligns the anchor to
+    // its captured viewport offset, not to the top). getOffsetForIndex gives
+    // the coarse start offset without arming the loop.
+    //
+    // The target subtracts the anchor's CAPTURED viewport offset (its rect
+    // top relative to the scroller at capture time): the write must land
+    // the anchor where the reader had it, not at the viewport top. Without
+    // the term, this frame PAINTS displaced by that offset (up to the
+    // anchor row's own height — 648px on the tallest fixture rows) and the
+    // rect-based fine correction then moves the content back a frame later:
+    // the "short jumps applied again in reverse" device report, measured by
+    // the prepend one-paint e2e. With it, the paint is correct by
+    // construction and the fine pass degenerates to a ≤1px no-write check.
     if (!getEventElementById(scrollRef.current, anchorEventId)) {
-      roomTimelineVirtualizer.scrollToIndex(anchorIndex, { align: 'start' });
+      // No settle needed here (unlike the round-8 transform, which was
+      // invisible to rects): the ledger is a REAL margin, so the live
+      // container rect below and the live options.scrollMargin subtraction
+      // are both ledger-aware — the computation is coherent at any
+      // accumulated value.
+      const coarse = roomTimelineVirtualizer.getOffsetForIndex(anchorIndex, 'start');
+      const scrollElement = scrollRef.current;
+      // The anchor's captured client top cannot be missing here (the
+      // eventId/seq equality above proved the pending anchor exists) —
+      // but a coarse write WITHOUT the offset term would reintroduce the
+      // align-to-viewport-top flash, so bail rather than guess.
+      const anchorClientTop = getPendingThreadBackPaginationAnchorClientTop();
+      if (coarse && scrollElement && anchorClientTop !== undefined) {
+        const scrollElementRect = scrollElement.getBoundingClientRect();
+        const anchorViewportOffset = anchorClientTop - scrollElementRect.top;
+        // getOffsetForIndex is in virtual coordinates: content-relative
+        // plus options.scrollMargin (the ledger, whose OPTION lags the
+        // synchronous settle above by one render — subtract the live
+        // value). The chip/padding block above the container is DYNAMIC,
+        // so convert to scroller space with the container's live offset;
+        // without that term the write is short by exactly that block — a
+        // constant the e2e measured at 72px.
+        const innerElement = virtualInnerRef.current;
+        const containerOffsetTop = innerElement
+          ? innerElement.getBoundingClientRect().top -
+            scrollElementRect.top +
+            scrollElement.scrollTop
+          : 0;
+        scrollElement.scrollTo({
+          top: Math.max(
+            containerOffsetTop +
+              (coarse[0] - roomTimelineVirtualizer.options.scrollMargin) -
+              anchorViewportOffset,
+            0
+          ),
+          behavior: 'instant',
+        });
+      }
     }
 
     // The anchor row mounts on the virtualizer's next render, so the
@@ -1607,6 +1755,7 @@ export function RoomTimeline({
   }, [
     cancelThreadPrependRetry,
     clearPendingThreadBackPaginationAnchor,
+    getPendingThreadBackPaginationAnchorClientTop,
     getPendingThreadBackPaginationAnchorEventId,
     getPendingThreadBackPaginationAnchorSeq,
     restorePendingThreadBackPaginationAnchor,
@@ -1862,22 +2011,31 @@ export function RoomTimeline({
   useResizeObserver(
     useMemo(() => {
       let mounted = false;
+      let previousHeight = 0;
       return (entries) => {
+        if (!roomInputRef.current) return;
+        const editorBaseEntry = getResizeObserverEntry(roomInputRef.current, entries);
+        if (!editorBaseEntry) return;
+        const height = editorBaseEntry.contentRect.height;
+        const growth = Math.max(0, height - previousHeight);
+        previousHeight = height;
         if (!mounted) {
           // skip initial mounting call
           mounted = true;
           return;
         }
-        if (!roomInputRef.current) return;
-        const editorBaseEntry = getResizeObserverEntry(roomInputRef.current, entries);
         const scrollElement = getScrollElement();
-        if (!editorBaseEntry || !scrollElement) return;
+        if (!scrollElement) return;
 
-        if (atBottomRef.current) {
+        // Live reading, not the ~1s-stale atBottom state (a composer resize
+        // right after the user scrolled up must not yank them back down).
+        // The growth slack reconstructs the pre-resize position: a composer
+        // growing by d moves the bottom away by d for a pinned user.
+        if (isViewportAtBottomNow(growth)) {
           scrollToBottom(scrollElement);
         }
       };
-    }, [getScrollElement, roomInputRef]),
+    }, [getScrollElement, isViewportAtBottomNow, roomInputRef]),
     useCallback(() => roomInputRef.current, [roomInputRef])
   );
 
@@ -2005,6 +2163,8 @@ export function RoomTimeline({
     threadId,
     threadInitialRenderMode,
     threadLatestOpenPending,
+    threadOpenedAtLatest: threadOpenedAtLatestRef.current,
+    threadUserScrolled,
     threadTimelineTick,
     timelineAtLiveEnd,
     unreadInfo,
@@ -2182,12 +2342,7 @@ export function RoomTimeline({
         const collapseMode = getCollapsibleMessageMode(
           mEventId,
           resolvedContent,
-          liveExpandOnceIds.current,
-          hydratedLongTextExtrasCollapseKeys
-        );
-        const hydratedLongTextExtrasCollapseKey = getHydratedLongTextExtrasCollapseKey(
-          mEventId,
-          resolvedContent
+          liveExpandOnceIds.current
         );
         const forceCollapsibleOverflow = shouldForceCollapsibleMessageOverflow(resolvedContent);
         const onInitialExpandConsumed =
@@ -2305,14 +2460,6 @@ export function RoomTimeline({
                   linkifyOpts={linkifyOpts}
                   outlineAttachment={messageLayout === MessageLayout.Bubble}
                   hydrateLongText={hydrateLongText}
-                  onLongTextHydratedMessageExtrasRendered={
-                    hydratedLongTextExtrasCollapseKey
-                      ? () =>
-                          markHydratedLongTextExtrasCollapsedExempt(
-                            hydratedLongTextExtrasCollapseKey
-                          )
-                      : undefined
-                  }
                 />
               );
               const content = renderContent();
@@ -2599,12 +2746,7 @@ export function RoomTimeline({
                   const collapseMode = getCollapsibleMessageMode(
                     mEventId,
                     resolvedContent,
-                    liveExpandOnceIds.current,
-                    hydratedLongTextExtrasCollapseKeys
-                  );
-                  const hydratedLongTextExtrasCollapseKey = getHydratedLongTextExtrasCollapseKey(
-                    mEventId,
-                    resolvedContent
+                    liveExpandOnceIds.current
                   );
                   const forceCollapsibleOverflow =
                     shouldForceCollapsibleMessageOverflow(resolvedContent);
@@ -2639,14 +2781,6 @@ export function RoomTimeline({
                       linkifyOpts={linkifyOpts}
                       outlineAttachment={messageLayout === MessageLayout.Bubble}
                       hydrateLongText={hydrateLongText}
-                      onLongTextHydratedMessageExtrasRendered={
-                        hydratedLongTextExtrasCollapseKey
-                          ? () =>
-                              markHydratedLongTextExtrasCollapsedExempt(
-                                hydratedLongTextExtrasCollapseKey
-                              )
-                          : undefined
-                      }
                     />
                   );
                   const messageContent = renderMessageContent();
@@ -3143,7 +3277,6 @@ export function RoomTimeline({
   const threadFirstRenderedIndex = threadId
     ? roomTimelineVirtualizer.getVirtualItems()[0]?.index
     : undefined;
-  const [threadUserScrolled, setThreadUserScrolled] = useState(false);
   // Bumped by a fresh gesture ONLY while a barren-attempt block is
   // armed (see below) — a renewed explicit user gesture is what
   // authorizes retrying after a no-progress attempt. Normal scrolling
@@ -3154,28 +3287,20 @@ export function RoomTimeline({
     // Reset ONLY on thread change (coderabbit on PR #74: resetting on
     // render-mode transitions would wipe real user intent mid-open).
     setThreadUserScrolled(false);
-    threadUserScrolledRef.current = false;
+    threadOpenedAtLatestRef.current = false;
     threadAutoPaginateLastFireRef.current = null;
   }, [threadId]);
   useEffect(() => {
     if (!threadId) return undefined;
     const scrollEl = scrollRef.current;
     if (!scrollEl) return undefined;
-    // Feeds the measurement-deferral gate: any scroll event (user or
-    // momentum) marks the scroller as live for the idle window.
-    const onScrollActivity = () => {
-      threadLastScrollActivityRef.current = Date.now();
-    };
-    scrollEl.addEventListener('scroll', onScrollActivity, { passive: true });
-    // 'touchstart' included (greptile on PR #76): an iOS flick can
-    // produce scroll activity before the first touchmove is seen, and
-    // the measurement-deferral gate must already know a user gesture
-    // began. pointerdown covers this on PointerEvent browsers;
-    // touchstart is the belt for the rest.
+    // 'touchstart' included: an iOS flick can produce scroll activity
+    // before the first touchmove is seen, and user-scroll intent must
+    // already be marked by then. pointerdown covers this on PointerEvent
+    // browsers; touchstart is the belt for the rest.
     const gestureEvents = ['wheel', 'touchstart', 'touchmove', 'pointerdown', 'keydown'] as const;
     const onGesture = () => {
       setThreadUserScrolled(true);
-      threadUserScrolledRef.current = true;
       // Renewed intent clears a barren block (greptile P1 round 2 on
       // PR #74): a no-progress attempt must not strand the user at
       // the edge while older history still exists — but retries are
@@ -3190,7 +3315,6 @@ export function RoomTimeline({
       scrollEl.addEventListener(eventType, onGesture, { passive: true });
     });
     return () => {
-      scrollEl.removeEventListener('scroll', onScrollActivity);
       gestureEvents.forEach((eventType) => {
         scrollEl.removeEventListener(eventType, onGesture);
       });
@@ -3410,6 +3534,7 @@ export function RoomTimeline({
 
     return (
       <div
+        ref={virtualInnerRef}
         style={{
           height: roomTimelineVirtualizer.getTotalSize(),
           position: 'relative',
@@ -3425,6 +3550,15 @@ export function RoomTimeline({
               key={virtualItem.key}
               ref={roomTimelineVirtualizer.measureElement}
               virtualItem={virtualItem}
+              // Content-relative top: virtualItem.start includes the
+              // scrollMargin option (-scrollCompensationPxRef, the offset
+              // ledger), which the container's marginTop already applies in
+              // the DOM — keeping start verbatim would double-count the
+              // ledger and push the painted tiles out from under the
+              // computed window (the sustained-ride e2e's blank bands at
+              // ~2000px accumulation). Adding the ref back subtracts the
+              // same render's margin exactly.
+              style={{ top: virtualItem.start + scrollCompensationPxRef.current }}
             >
               {eventRenderer(item)}
             </VirtualTile>
@@ -3477,6 +3611,8 @@ export function RoomTimeline({
 
     return (
       <div
+        ref={virtualInnerRef}
+        data-thread-count={threadEvents.length}
         style={{
           height: roomTimelineVirtualizer.getTotalSize(),
           position: 'relative',
@@ -3484,7 +3620,13 @@ export function RoomTimeline({
         }}
       >
         {virtualItems.map((virtualItem) => (
-          <VirtualTile key={virtualItem.key} ref={measureThreadTile} virtualItem={virtualItem}>
+          <VirtualTile
+            key={virtualItem.key}
+            ref={roomTimelineVirtualizer.measureElement}
+            virtualItem={virtualItem}
+            // Content-relative top — see renderVirtualRoomTimelineItems.
+            style={{ top: virtualItem.start + scrollCompensationPxRef.current }}
+          >
             {threadEventRenderer(virtualItem.index)}
           </VirtualTile>
         ))}

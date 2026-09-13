@@ -5,13 +5,15 @@ import { getCacheProbeSnapshot, resetCacheProbe } from './cacheProbe';
 import {
   buildResolveConfirmedEventId,
   dedupeThreadRenderEventEntries,
+  estimateThreadEventRowHeight,
   getThreadInitialRenderMode,
   mergeThreadRenderEvents,
   pickPreferredThreadRenderEvent,
   primeTimelineRenderContextBefore,
+  shouldApplyMeasurementScrollCorrection,
   shouldAutoPaginateThreadBack,
-  shouldDeferThreadTileMeasure,
   shouldPinThreadToBottomOnOpen,
+  shouldSettleLedgerAtBoundary,
 } from './threadRenderUtils';
 
 const makeMessageEvent = (eventId: string, ts = 1) =>
@@ -262,41 +264,198 @@ describe('shouldAutoPaginateThreadBack', () => {
   });
 });
 
-describe('shouldDeferThreadTileMeasure', () => {
+describe('estimateThreadEventRowHeight', () => {
+  const modern = { compact: false };
+
+  it('estimates a one-liner at base + one text line', () => {
+    expect(estimateThreadEventRowHeight(makeMessageEvent('$short'), modern)).toBe(30);
+  });
+
+  it('adds a line per newline for short bodies', () => {
+    const event = new MatrixEvent({
+      content: { body: 'a\nb\nc', msgtype: 'm.text' },
+      event_id: '$multi',
+      origin_server_ts: 1,
+      room_id: '!room:example.org',
+      sender: '@alice:example.org',
+      type: 'm.room.message',
+    });
+    expect(estimateThreadEventRowHeight(event, modern)).toBe(70);
+  });
+
+  it('caps anything past the fold at the collapsed height (long body)', () => {
+    const event = new MatrixEvent({
+      content: { body: 'x'.repeat(500), msgtype: 'm.text' },
+      event_id: '$long',
+      origin_server_ts: 1,
+      room_id: '!room:example.org',
+      sender: '@alice:example.org',
+      type: 'm.room.message',
+    });
+    expect(estimateThreadEventRowHeight(event, modern)).toBe(80);
+  });
+
+  it('caps short-but-many-lines bodies at the collapsed height too', () => {
+    const event = new MatrixEvent({
+      content: { body: 'a\nb\nc\nd\ne\nf', msgtype: 'm.text' },
+      event_id: '$lines',
+      origin_server_ts: 1,
+      room_id: '!room:example.org',
+      sender: '@alice:example.org',
+      type: 'm.room.message',
+    });
+    expect(estimateThreadEventRowHeight(event, modern)).toBe(80);
+  });
+
+  it('estimates edit/reaction relations near zero (they render no row)', () => {
+    const edit = new MatrixEvent({
+      content: {
+        body: '* fixed',
+        msgtype: 'm.text',
+        'm.relates_to': { rel_type: 'm.replace', event_id: '$target' },
+      },
+      event_id: '$edit',
+      origin_server_ts: 1,
+      room_id: '!room:example.org',
+      sender: '@alice:example.org',
+      type: 'm.room.message',
+    });
+    expect(estimateThreadEventRowHeight(edit, modern)).toBe(4);
+  });
+
+  it('uses the smaller compact base', () => {
+    expect(estimateThreadEventRowHeight(makeMessageEvent('$compact'), { compact: true })).toBe(
+      26
+    );
+  });
+
+  it('estimates always-expanded extras rows uncapped with section-header allowance', () => {
+    const body = Array.from({ length: 10 }, (_v, line) => `answer line ${line}`).join('\n');
+    const event = new MatrixEvent({
+      content: {
+        body,
+        msgtype: 'm.text',
+        'com.mindroom.message_extras': {
+          version: 2,
+          sections: [
+            { title: 'Tool call 1', content_type: 'text/markdown', content: 'output 1' },
+            { title: 'Tool call 2', content_type: 'text/markdown', content: 'output 2' },
+          ],
+        },
+      },
+      event_id: '$extras',
+      origin_server_ts: 1,
+      room_id: '!room:example.org',
+      sender: '@alice:example.org',
+      type: 'm.room.message',
+    });
+    // 10 physical lines, none wrapping at 48 chars = 10 lines; base 10 +
+    // 10*20 + 2 section headers * 40 (calibrated constants). NOT the
+    // folded 80: these rows never fold, and estimating them small caused
+    // the per-frame jump budget the ride-smoothness e2e pins.
+    expect(estimateThreadEventRowHeight(event, modern)).toBe(10 + 10 * 20 + 2 * 40);
+  });
+
+  it('bounds pathological always-expanded bodies at the line cap', () => {
+    const event = new MatrixEvent({
+      content: {
+        body: 'x\n'.repeat(10_000),
+        msgtype: 'm.text',
+        'com.mindroom.message_extras': {
+          version: 2,
+          sections: [{ title: 'Tool', content_type: 'text/markdown', content: 'y' }],
+        },
+      },
+      event_id: '$huge',
+      origin_server_ts: 1,
+      room_id: '!room:example.org',
+      sender: '@alice:example.org',
+      type: 'm.room.message',
+    });
+    expect(estimateThreadEventRowHeight(event, modern)).toBe(10 + 48 * 20 + 40);
+  });
+});
+
+describe('shouldSettleLedgerAtBoundary', () => {
+  // Viewport 600px tall at client top 0; guard band = 2 viewports.
   const base = {
-    threadId: '$thread',
-    userScrolled: true,
-    msSinceLastScrollActivity: 50,
-    hasActiveTouch: false,
-    idleMs: 150,
+    scrollTop: 0,
+    scrollBottom: 600,
+    clientHeight: 600,
   };
 
-  it('defers while scroll activity is recent (momentum in flight)', () => {
-    expect(shouldDeferThreadTileMeasure(base)).toBe(true);
-  });
-
-  it('defers while a finger is down even if the scroll is still', () => {
+  it('ignores small debts (ordinary rests settle them invisibly)', () => {
     expect(
-      shouldDeferThreadTileMeasure({
-        ...base,
-        msSinceLastScrollActivity: 5_000,
-        hasActiveTouch: true,
-      })
-    ).toBe(true);
-  });
-
-  it('measures immediately once the scroller is quiet', () => {
+      shouldSettleLedgerAtBoundary({ ...base, ledgerPx: -40, innerTop: 100, innerBottom: 5000 })
+    ).toBe(false);
     expect(
-      shouldDeferThreadTileMeasure({ ...base, msSinceLastScrollActivity: 151 })
+      shouldSettleLedgerAtBoundary({ ...base, ledgerPx: 40, innerTop: -5000, innerBottom: 500 })
     ).toBe(false);
   });
 
-  it('never defers before a real user gesture (open-time pin/settle scrolls programmatically)', () => {
-    expect(shouldDeferThreadTileMeasure({ ...base, userScrolled: false })).toBe(false);
+  it('settles shrink-debt when the content start approaches the viewport (top dead zone)', () => {
+    // px<0: positive margin above the content. Content start 800px below
+    // the viewport top is inside the 1200px guard band.
+    expect(
+      shouldSettleLedgerAtBoundary({ ...base, ledgerPx: -5000, innerTop: 800, innerBottom: 60000 })
+    ).toBe(true);
+    // Far from the boundary: no settle, the ride keeps its momentum.
+    expect(
+      shouldSettleLedgerAtBoundary({
+        ...base,
+        ledgerPx: -5000,
+        innerTop: -20000,
+        innerBottom: 60000,
+      })
+    ).toBe(false);
   });
 
-  it('never defers outside a thread', () => {
-    expect(shouldDeferThreadTileMeasure({ ...base, threadId: undefined })).toBe(false);
+  it('settles grow-debt when the content end approaches the viewport (bottom dead zone)', () => {
+    expect(
+      shouldSettleLedgerAtBoundary({
+        ...base,
+        ledgerPx: 5000,
+        innerTop: -60000,
+        innerBottom: 1500,
+      })
+    ).toBe(true);
+    expect(
+      shouldSettleLedgerAtBoundary({
+        ...base,
+        ledgerPx: 5000,
+        innerTop: -60000,
+        innerBottom: 20000,
+      })
+    ).toBe(false);
+  });
+});
+
+describe('shouldApplyMeasurementScrollCorrection', () => {
+  const base = {
+    itemFullyAboveViewport: true,
+    isIOSWebKitDevice: true,
+  };
+
+  it('never applies on iOS — corrections are ledgered, not written', () => {
+    // Mid-scroll writes kill momentum; even quiet applies proved unsafe
+    // (virtual-core's internal bursts clamp near the top edge, silently
+    // under-applying — the prepend e2e photographed a scrollTo(-44)).
+    expect(shouldApplyMeasurementScrollCorrection(base)).toBe(false);
+  });
+
+  it('keeps live-scroll anchoring off iOS (desktop wheel has no momentum to protect)', () => {
+    expect(shouldApplyMeasurementScrollCorrection({ ...base, isIOSWebKitDevice: false })).toBe(
+      true
+    );
+  });
+
+  it('never adjusts for visible (straddling) or below-viewport items', () => {
+    expect(
+      shouldApplyMeasurementScrollCorrection({
+        ...base,
+        itemFullyAboveViewport: false,
+      })
+    ).toBe(false);
   });
 });
 
@@ -306,6 +465,8 @@ describe('shouldPinThreadToBottomOnOpen', () => {
       shouldPinThreadToBottomOnOpen({
         threadId: '$thread',
         threadLatestOpenPending: true,
+        threadOpenedAtLatest: true,
+        hasUserScrollIntent: false,
         threadInitialRenderMode: 'cached',
         threadEventCount: 3,
       })
@@ -317,6 +478,8 @@ describe('shouldPinThreadToBottomOnOpen', () => {
       shouldPinThreadToBottomOnOpen({
         threadId: '$thread',
         threadLatestOpenPending: true,
+        threadOpenedAtLatest: true,
+        hasUserScrollIntent: false,
         threadInitialRenderMode: 'loading',
         threadEventCount: 3,
       })
@@ -328,6 +491,8 @@ describe('shouldPinThreadToBottomOnOpen', () => {
       shouldPinThreadToBottomOnOpen({
         threadId: '$thread',
         threadLatestOpenPending: false,
+        threadOpenedAtLatest: false,
+        hasUserScrollIntent: false,
         threadInitialRenderMode: 'live',
         threadEventCount: 3,
       })
@@ -336,8 +501,36 @@ describe('shouldPinThreadToBottomOnOpen', () => {
       shouldPinThreadToBottomOnOpen({
         threadId: '$thread',
         threadLatestOpenPending: true,
+        threadOpenedAtLatest: true,
+        hasUserScrollIntent: false,
         threadInitialRenderMode: 'live',
         threadEventCount: 0,
+      })
+    ).toBe(false);
+  });
+
+  it('keeps the pin through post-chain hydration bands until the first gesture', () => {
+    // Device symptom (2026-07-06 trace round): open at the bottom, then
+    // history bands landing AFTER the open chain completed dragged the
+    // view to mid-thread. The latch holds the pin; a real gesture ends it.
+    expect(
+      shouldPinThreadToBottomOnOpen({
+        threadId: '$thread',
+        threadLatestOpenPending: false,
+        threadOpenedAtLatest: true,
+        hasUserScrollIntent: false,
+        threadInitialRenderMode: 'live',
+        threadEventCount: 300,
+      })
+    ).toBe(true);
+    expect(
+      shouldPinThreadToBottomOnOpen({
+        threadId: '$thread',
+        threadLatestOpenPending: false,
+        threadOpenedAtLatest: true,
+        hasUserScrollIntent: true,
+        threadInitialRenderMode: 'live',
+        threadEventCount: 300,
       })
     ).toBe(false);
   });

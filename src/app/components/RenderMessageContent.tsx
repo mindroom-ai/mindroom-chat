@@ -50,7 +50,6 @@ type RenderMessageContentProps = {
   linkifyOpts: Opts;
   outlineAttachment?: boolean;
   hydrateLongText?: boolean;
-  onLongTextHydratedMessageExtrasRendered?: () => void;
   pendingSend?: boolean;
 };
 export function RenderMessageContent({
@@ -71,7 +70,6 @@ export function RenderMessageContent({
   linkifyOpts,
   outlineAttachment,
   hydrateLongText = true,
-  onLongTextHydratedMessageExtrasRendered,
   pendingSend,
 }: RenderMessageContentProps) {
   const renderUrlsPreview = (urls: string[]) => {
@@ -166,7 +164,6 @@ export function RenderMessageContent({
     linkifyOpts,
     showMessageExtras,
     hydrateLongText,
-    onLongTextHydratedMessageExtrasRendered,
   });
   if (mindroomContent !== undefined) return mindroomContent;
 

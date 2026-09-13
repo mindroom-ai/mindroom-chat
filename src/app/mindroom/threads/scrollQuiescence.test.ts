@@ -71,6 +71,30 @@ describe('waitForScrollQuiescence', () => {
     expect(isSettled()).toBe(true);
   });
 
+  it('maxWaitMs Infinity never force-resolves — only genuine quiescence settles', async () => {
+    // Regression: passing a huge FINITE cap (Number.MAX_SAFE_INTEGER)
+    // overflowed setTimeout's int32 delay, which browsers clamp to 0 —
+    // the cap fired IMMEDIATELY and every ledger settle landed mid-ride
+    // (the ios-momentum e2e caught it as per-frame settle bursts).
+    // Infinity must mean "no cap timer at all".
+    const isSettled = settledFlag(
+      waitForScrollQuiescence(el, { idleMs: 150, maxWaitMs: Infinity })
+    );
+    await flushMicrotasks();
+    expect(isSettled()).toBe(false);
+    // A continuous stream far beyond any int32-overflow-clamped cap.
+    for (let i = 0; i < 50; i += 1) {
+      vi.advanceTimersByTime(100);
+      el.dispatchEvent(new Event('scroll'));
+    }
+    await flushMicrotasks();
+    expect(isSettled()).toBe(false);
+    // Genuine quiet still resolves.
+    vi.advanceTimersByTime(150);
+    await flushMicrotasks();
+    expect(isSettled()).toBe(true);
+  });
+
   it('caps the total wait so a continuous scroller is never starved', async () => {
     const isSettled = settledFlag(waitForScrollQuiescence(el, { idleMs: 150, maxWaitMs: 1000 }));
     // Scroll events keep arriving faster than the idle window forever.

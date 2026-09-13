@@ -151,6 +151,7 @@ const {
     measureElementMock: vi.fn(),
     scrollToIndexMock: vi.fn(),
     scrollToOffsetMock: vi.fn(),
+    getOffsetForIndexMock: vi.fn(),
   },
 }));
 
@@ -435,6 +436,16 @@ vi.mock('@tanstack/react-virtual', () => {
           roomTimelineVirtualizerState.scrollToIndexMock(...args),
         scrollToOffset: (...args: unknown[]) =>
           roomTimelineVirtualizerState.scrollToOffsetMock(...args),
+        // Mirrors virtual-core's [offset, align] tuple; the spy records the
+        // call, the estimate math supplies a deterministic offset unless a
+        // test overrides the spy's return value.
+        getOffsetForIndex: (index: number, align?: string) => {
+          const spied = roomTimelineVirtualizerState.getOffsetForIndexMock(index, align);
+          if (spied !== undefined) return spied;
+          const opts = optionsRef.current;
+          const estimatedSize = opts.estimateSize?.() ?? 100;
+          return [index * estimatedSize, align ?? 'start'] as const;
+        },
       };
       instances.set(key, instance);
       return instance;

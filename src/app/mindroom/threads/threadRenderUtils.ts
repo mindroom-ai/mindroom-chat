@@ -1,4 +1,9 @@
 import { MatrixEvent, RelationType, Room } from 'matrix-js-sdk';
+import {
+  hasMindroomMessageExtras,
+  parseMindroomMessageExtras,
+} from '../messages/messageExtrasData';
+import { hasMindroomThreadSummary } from '../messages/threadSummary';
 import { getSerializedReplacementEvent, isSameSenderEditEvent } from '../../utils/editEvent';
 import { getLatestEdit, reactionOrEditEvent } from '../../utils/room';
 import { inSameDay } from '../../utils/time';
@@ -13,6 +18,13 @@ type ThreadOpenBottomPinOpts = {
   suppressOpenBottomPin?: boolean;
   threadId?: string;
   threadLatestOpenPending: boolean;
+  // Latched true once an open-at-latest began for this thread; survives
+  // the open chain completing. Hydration bands can land long after the
+  // chain (background prefetch/reconciler) — the pin must hold for them.
+  threadOpenedAtLatest: boolean;
+  // A real scroll gesture ends the pin permanently for this thread view:
+  // from then on the reader owns the position.
+  hasUserScrollIntent: boolean;
   threadInitialRenderMode: ThreadInitialRenderMode;
   threadEventCount: number;
 };
@@ -35,12 +47,14 @@ export const shouldPinThreadToBottomOnOpen = ({
   suppressOpenBottomPin,
   threadId,
   threadLatestOpenPending,
+  threadOpenedAtLatest,
+  hasUserScrollIntent,
   threadInitialRenderMode,
   threadEventCount,
 }: ThreadOpenBottomPinOpts): boolean =>
   !!threadId &&
   !suppressOpenBottomPin &&
-  threadLatestOpenPending &&
+  (threadLatestOpenPending || (threadOpenedAtLatest && !hasUserScrollIntent)) &&
   threadInitialRenderMode !== 'loading' &&
   threadEventCount > 0;
 
@@ -93,36 +107,193 @@ export const shouldAutoPaginateThreadBack = ({
   firstRenderedIndex !== undefined &&
   firstRenderedIndex <= triggerRows;
 
-type ThreadTileMeasureDeferOpts = {
-  threadId?: string;
-  // A real user gesture has happened in this thread view. The
-  // open-time pin/settle performs programmatic scrolls that fire
-  // scroll events; deferral must not engage before the user takes
-  // over, or the settle would run on unmeasured estimates.
-  userScrolled: boolean;
-  msSinceLastScrollActivity: number;
-  hasActiveTouch: boolean;
-  idleMs: number;
+type MeasurementScrollCorrectionOpts = {
+  // item.end <= scrollOffset: only a row ENTIRELY above the viewport needs
+  // a compensating scrollTop write (its growth would silently shift what
+  // the user is reading). virtual-core's default uses item.start instead,
+  // which also compensates rows STRADDLING the viewport top — but those are
+  // visible: a user expanding/collapsing an on-screen tool-call block must
+  // see the content unfold in place, not have the view scrolled by the
+  // block's size delta (device report 2026-07-06).
+  itemFullyAboveViewport: boolean;
+  isIOSWebKitDevice: boolean;
 };
 
-// Task #125 follow-up 2: gate for deferring thread row measurement
-// while the scroll is LIVE. Measuring a row that sits above the
-// viewport makes the virtualizer correct the scroll position for the
-// estimate-vs-real height error — a programmatic scroll write, which
-// iOS answers by killing flick momentum. Upward flicks through
-// never-measured territory triggered this on every release; revisited
-// (already-measured) regions were smooth, which is exactly the
-// reported "smooth only up to where I scrolled before" boundary.
-// Deferred measurements are queued and flushed when the scroller goes
-// quiet, where the single correction lands with no momentum to kill.
-export const shouldDeferThreadTileMeasure = ({
-  threadId,
-  userScrolled,
-  msSinceLastScrollActivity,
-  hasActiveTouch,
-  idleMs,
-}: ThreadTileMeasureDeferOpts): boolean =>
-  !!threadId && userScrolled && (hasActiveTouch || msSinceLastScrollActivity < idleMs);
+// Decides virtual-core's shouldAdjustScrollPositionOnItemSizeChange for the
+// timeline virtualizer. On iOS WebKit, above-viewport corrections NEVER
+// write scrollTop: they are dropped into the offset ledger (container
+// margin + scrollMargin in lockstep, paired with the tile reposition in
+// ONE commit), which cancels them without a write. Mid-scroll writes kill
+// momentum, and even quiet-state applies proved unsafe — virtual-core's
+// internal adjustment bursts can clamp at the top edge (a scrollTo(-44)
+// the prepend one-paint e2e photographed), under-applying silently, and
+// per-call clamp prediction is impossible from the hook (the instance's
+// scrollOffset is stale during a burst). The ledger settles in one
+// exactly-cancelling write at true rest. Off iOS, corrections apply
+// immediately, exactly like the pre-3.17 default.
+export const shouldApplyMeasurementScrollCorrection = ({
+  itemFullyAboveViewport,
+  isIOSWebKitDevice: isIOS,
+}: MeasurementScrollCorrectionOpts): boolean => itemFullyAboveViewport && !isIOS;
+
+type MeasurementScrollCorrectionHookDeps = {
+  // Read lazily per correction: iOS detection is cached module state.
+  isIOSWebKitDevice: () => boolean;
+  // Fired for every fully-above correction that is DROPPED. The delta is
+  // what virtual-core would have added to scrollTop; the caller folds it
+  // into the offset ledger so estimate error never shifts content under
+  // the reader.
+  onDroppedCorrection: (deltaPx: number) => void;
+};
+
+// Builds the exact shouldAdjustScrollPositionOnItemSizeChange closure the
+// timeline installs on its virtualizer instance. Extracted so the iOS
+// scroll contract test (virtualizerIOSScrollContract.test.ts) exercises the
+// production closure against the real, unmocked virtual-core — not a
+// re-implementation that could drift.
+export const buildMeasurementScrollCorrectionHook =
+  ({ isIOSWebKitDevice, onDroppedCorrection }: MeasurementScrollCorrectionHookDeps) =>
+  (
+    item: { end: number },
+    delta: number,
+    instance: { scrollOffset: number | null; isScrolling: boolean }
+  ): boolean => {
+    const itemFullyAboveViewport = item.end <= (instance.scrollOffset ?? 0);
+    const apply = shouldApplyMeasurementScrollCorrection({
+      itemFullyAboveViewport,
+      isIOSWebKitDevice: isIOSWebKitDevice(),
+    });
+    // Only fully-above drops are ledgered: a visible (straddling) row's
+    // resize is SUPPOSED to reflow in place, and non-iOS corrections are
+    // applied by virtual-core itself.
+    if (!apply && itemFullyAboveViewport) {
+      onDroppedCorrection(delta);
+    }
+    return apply;
+  };
+
+type LedgerBoundaryOpts = {
+  // Accumulated offset-ledger pixels (Σ dropped correction deltas;
+  // container marginTop is -px).
+  ledgerPx: number;
+  // Client-coordinate tops/bottoms of the inner virtual container and
+  // the scroll element.
+  innerTop: number;
+  innerBottom: number;
+  scrollTop: number;
+  scrollBottom: number;
+  clientHeight: number;
+};
+
+// Ledger boundary predicate: the ledger's exact-cancel contract holds
+// only while the viewport stays inside the content region — accumulated
+// debt is real empty space at the container's edge, and a continuous
+// ride can carry the reader into it before any rest repays it (device
+// trace ride-trace-1783391256452: 3.0s blank at px=-9356; e2e measured
+// 367px blank bands and a 4968px clamp flash without the guard, 0/0
+// with it). Within two viewports of the debt edge, settle immediately:
+// one momentum interruption at the extreme of the loaded window instead
+// of visible blank space. Small debts settle at ordinary rests and are
+// invisible even if reached.
+export const shouldSettleLedgerAtBoundary = ({
+  ledgerPx,
+  innerTop,
+  innerBottom,
+  scrollTop,
+  scrollBottom,
+  clientHeight,
+}: LedgerBoundaryOpts): boolean => {
+  if (ledgerPx > -48 && ledgerPx < 48) return false;
+  const guardPx = clientHeight * 2;
+  if (ledgerPx < 0) return innerTop > scrollTop - guardPx;
+  return innerBottom < scrollBottom + guardPx;
+};
+
+// Per-row virtualizer estimates from event CONTENT. Thread rows are
+// bimodal — one-liners (~80px) and fold-capped long messages (~150px,
+// CollapsibleMessage caps content at 4.5em ≈ 3 lines) — so any single
+// learned mean is wrong by hundreds of px for every row, and each
+// measurement then shrinks/grows scrollHeight by that error mid-scroll
+// (the −64/−688 quanta the ios-momentum-invariants e2e traced; a big
+// shrink lets the browser clamp a scrolled-up reader back to the bottom).
+// A content heuristic is deterministic, stateless, and per-row-shaped:
+// the residual error drops to tens of px and needs no adoption machinery.
+// CALIBRATED against measured virtualizer tile heights (2026-07-07;
+// device trace ride-trace-1783391256452 measured the previous constants
+// at +50..72px PER ROW for every class — px=-9356 of ledger debt over
+// one ride): one-line row measures 30 (base 10 + line 20), folded long
+// measures 80 (base + 3 lines + banner 10), extras with 2 sections
+// measures 596 (base + 25 wrapped lines + 2 headers = 590). Tile rects
+// exclude inter-row margins, which is exactly what the virtualizer
+// caches. Bias preference: when in doubt, estimate slightly UNDER —
+// grow-debt (negative margin) sits at the bottom boundary where the
+// browser clamp and the boundary guard degrade gracefully, while
+// over-estimates pile blank space at the top the reader scrolls into.
+const THREAD_ROW_BASE_PX = 10;
+const THREAD_ROW_BASE_COMPACT_PX = 6;
+const THREAD_ROW_LINE_PX = 20;
+const THREAD_ROW_FOLD_BANNER_PX = 10;
+// CollapsibleMessage caps collapsed content at 4.5em ≈ 3 text lines.
+const THREAD_ROW_FOLD_CONTENT_LINES = 3;
+const THREAD_ROW_WRAP_CHARS_PER_LINE = 48;
+// Always-expanded rows render their whole body; the estimate is line-based
+// and bounded (a pathological body should not produce a megapixel row).
+const THREAD_ROW_MAX_ESTIMATED_LINES = 48;
+const THREAD_ROW_BODY_SCAN_CHARS = 4096;
+// Extras sections render as collapsed accordion headers.
+const THREAD_ROW_SECTION_HEADER_PX = 40;
+
+const estimateBodyLines = (body: string): number => {
+  const scanned =
+    body.length > THREAD_ROW_BODY_SCAN_CHARS ? body.slice(0, THREAD_ROW_BODY_SCAN_CHARS) : body;
+  // Wrap is counted PER PHYSICAL LINE: the previous newlines-plus-
+  // global-length formula double-counted every wrapped line's newline
+  // (part of the systematic over-estimate the calibration removed).
+  let lines = 0;
+  let lineStart = 0;
+  for (let i = 0; i <= scanned.length; i += 1) {
+    if (i === scanned.length || scanned.charCodeAt(i) === 10) {
+      const lineLength = i - lineStart;
+      lines += Math.max(1, Math.ceil(lineLength / THREAD_ROW_WRAP_CHARS_PER_LINE));
+      lineStart = i + 1;
+      if (lines >= THREAD_ROW_MAX_ESTIMATED_LINES) return THREAD_ROW_MAX_ESTIMATED_LINES;
+    }
+  }
+  if (body.length > scanned.length) return THREAD_ROW_MAX_ESTIMATED_LINES;
+  return Math.min(lines, THREAD_ROW_MAX_ESTIMATED_LINES);
+};
+
+export const estimateThreadEventRowHeight = (
+  mEvent: MatrixEvent,
+  { compact }: { compact: boolean }
+): number => {
+  const base = compact ? THREAD_ROW_BASE_COMPACT_PX : THREAD_ROW_BASE_PX;
+  const relationType = mEvent.getRelation()?.rel_type;
+  // Edits and reactions render no thread row of their own; their tiles
+  // measure ~0. A tiny non-zero keeps virtual-core's math well-behaved.
+  if (relationType === RelationType.Replace || relationType === RelationType.Annotation) {
+    return 4;
+  }
+  const content = mEvent.getContent();
+  const contentRecord = content as Record<string, unknown>;
+  const body = typeof content.body === 'string' ? content.body : '';
+  // Always-expanded rows (agent tool traces / thread summaries) never
+  // fold: the body renders in full and each extras section adds a
+  // collapsed accordion header. Estimating these at the fold cap made
+  // every one of them mount ~hundreds of px small — the per-frame jumps
+  // the ride-smoothness e2e budget now pins.
+  if (hasMindroomThreadSummary(contentRecord) || hasMindroomMessageExtras(contentRecord)) {
+    const sections = parseMindroomMessageExtras(contentRecord)?.sections.length ?? 0;
+    return (
+      base + estimateBodyLines(body) * THREAD_ROW_LINE_PX + sections * THREAD_ROW_SECTION_HEADER_PX
+    );
+  }
+  const lines = estimateBodyLines(body);
+  if (lines > THREAD_ROW_FOLD_CONTENT_LINES) {
+    return base + THREAD_ROW_FOLD_CONTENT_LINES * THREAD_ROW_LINE_PX + THREAD_ROW_FOLD_BANNER_PX;
+  }
+  return base + lines * THREAD_ROW_LINE_PX;
+};
 
 export const isThreadOnlyRoomActivity = (room: Room, mEvt: MatrixEvent): boolean => {
   const mEventId = mEvt.getId();

@@ -174,6 +174,31 @@ describe('useThreadBackPaginationController', () => {
     renderer.unmount();
   });
 
+  it('exposes the captured client top of the pending anchor for the coarse restore target', () => {
+    const { getController, renderer } = renderController();
+    // First row intersecting the viewport (viewport top = 100): partially
+    // scrolled off above, the common capture geometry — the coarse restore
+    // must reproduce this exact viewport offset, not align to the top.
+    const anchor = makeMessageElement('$anchor', -448, 148);
+    const scrollRoot = makeScrollRoot([anchor]);
+
+    expect(getController().getPendingAnchorClientTop()).toBeUndefined();
+
+    act(() => {
+      getController().begin('$thread', scrollRoot, 200);
+    });
+
+    expect(getController().getPendingAnchorClientTop()).toBe(-448);
+
+    act(() => {
+      getController().clearPendingAnchor();
+    });
+
+    expect(getController().getPendingAnchorClientTop()).toBeUndefined();
+
+    renderer.unmount();
+  });
+
   it('clears the pending anchor on demand without touching pagination state', () => {
     const { getController, renderer } = renderController();
     const anchor = makeMessageElement('$anchor', 140, 180);

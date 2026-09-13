@@ -16,6 +16,7 @@ import {
   reconcileThreadBackwardPagination,
 } from './threadPaginationUtils';
 import { createPreferLiveEventMapper, loadThreadCachedPaginationSnapshot } from './eventRepository';
+import { countCacheProbe } from './cacheProbe';
 import { waitForScrollQuiescence } from './scrollQuiescence';
 import type { PersistThreadEventCache } from '../engine/enginePersistFacade';
 
@@ -137,6 +138,7 @@ export const useThreadPaginationCommandController = ({
         // clearing on thread mismatch, so drop the begin-time anchor
         // here — it must not be consumable after returning to the
         // original thread (greptile round 3 on PR #75).
+        countCacheProbe('threadPaginateBackStaleThreadBails');
         clearThreadBackPaginationAnchor();
         return;
       }
@@ -163,17 +165,21 @@ export const useThreadPaginationCommandController = ({
         // finger release.
         await waitForScrollQuiescence(scrollRef.current);
         if (threadIdRef.current !== expectedThreadId) {
+          countCacheProbe('threadPaginateBackStaleThreadBails');
           clearThreadBackPaginationAnchor();
           return;
         }
         if (!(await recaptureAnchorWithRetry(expectedThreadId))) {
           if (threadIdRef.current !== expectedThreadId) {
+            countCacheProbe('threadPaginateBackStaleThreadBails');
             clearThreadBackPaginationAnchor();
+            return;
           }
           // No valid anchor → no commit. This path is truly atomic
           // (the supplemental sink only fires on commit), so skipping
           // is safe: the page stays cached and the next gesture
           // retries as a cache-hit.
+          countCacheProbe('threadPaginateBackCommitSkippedNoAnchor');
           return;
         }
         setSupplementalThreadEvents(expectedThreadId, cachedEvents);
@@ -181,15 +187,23 @@ export const useThreadPaginationCommandController = ({
         forceTimelineUpdate();
         setThreadTimelineTick((val) => val + 1);
         didPaginateBack = true;
+        countCacheProbe('threadPaginateBackCacheCommits');
         return;
       }
 
+      countCacheProbe('threadPaginateBackCacheMisses');
       setThreadHasMoreCachedBack(false);
-      if (!thread) return;
+      if (!thread) {
+        countCacheProbe('threadPaginateBackNoThread');
+        return;
+      }
 
       const currentThreadTimelineSet = thread.getUnfilteredTimelineSet();
       const firstThreadTimeline = getLinkedTimelines(currentThreadTimelineSet.getLiveTimeline())[0];
-      if (!firstThreadTimeline?.getPaginationToken(Direction.Backward)) return;
+      if (!firstThreadTimeline?.getPaginationToken(Direction.Backward)) {
+        countCacheProbe('threadPaginateBackNoToken');
+        return;
+      }
 
       const [err] = await to(
         mx.paginateEventTimeline(firstThreadTimeline, {
@@ -202,6 +216,7 @@ export const useThreadPaginationCommandController = ({
           // Thread switched while the network request was in flight:
           // finish() skips clearing on mismatch, so drop the anchor
           // here (greptile round 5 on PR #75).
+          countCacheProbe('threadPaginateBackStaleThreadBails');
           clearThreadBackPaginationAnchor();
           return;
         }
@@ -216,6 +231,7 @@ export const useThreadPaginationCommandController = ({
         // the cache-hit branch (see comment there).
         await waitForScrollQuiescence(scrollRef.current);
         if (threadIdRef.current !== expectedThreadId) {
+          countCacheProbe('threadPaginateBackStaleThreadBails');
           clearThreadBackPaginationAnchor();
           return;
         }
@@ -231,6 +247,7 @@ export const useThreadPaginationCommandController = ({
         // viewport is imperceptible, and state consistency wins.
         const didRecaptureAnchor = await recaptureAnchorWithRetry(expectedThreadId);
         if (threadIdRef.current !== expectedThreadId) {
+          countCacheProbe('threadPaginateBackStaleThreadBails');
           clearThreadBackPaginationAnchor();
           return;
         }
@@ -248,13 +265,17 @@ export const useThreadPaginationCommandController = ({
         forceTimelineUpdate();
         setThreadTimelineTick((val) => val + 1);
         didPaginateBack = true;
+        countCacheProbe('threadPaginateBackNetworkCommits');
       } else if (threadIdRef.current !== expectedThreadId) {
         // Network error AND the user switched away: finish() skips
         // clearing on mismatch, so the begin-time anchor of this
         // never-committed pagination must be dropped here too
         // (greptile round 6 on PR #75). Same-thread errors are
         // cleared by finish()'s didPaginateBack=false path.
+        countCacheProbe('threadPaginateBackNetworkErrors');
         clearThreadBackPaginationAnchor();
+      } else {
+        countCacheProbe('threadPaginateBackNetworkErrors');
       }
     } finally {
       finishThreadBackPagination({

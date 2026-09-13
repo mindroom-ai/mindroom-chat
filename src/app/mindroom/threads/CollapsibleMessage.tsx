@@ -8,6 +8,7 @@ import React, {
   useCallback,
 } from 'react';
 import { Icon, Icons } from 'folds';
+import { countCacheProbe } from './cacheProbe';
 import * as css from './CollapsibleMessage.css';
 
 const MAX_HEIGHT = '4.5em';
@@ -164,6 +165,9 @@ export function CollapsibleMessage({
   });
   const applyOverflowVerdict = useCallback(
     (verdict: boolean) => {
+      countCacheProbe(
+        verdict ? 'collapsibleVerdictOverflowing' : 'collapsibleVerdictNotOverflowing'
+      );
       rememberOverflowVerdict(measurementKey, verdict);
       setOverflowing(verdict);
     },

@@ -356,6 +356,41 @@ describe('eventRepository cached thread snapshots', () => {
     expect(snapshot.beforeToken).toBe('before-older-reply');
     expect(snapshot.hasMoreCachedBack).toBe(true);
   });
+
+  it('reports a root-only cached page as a cache-miss so the network leg runs', async () => {
+    // The cache-store loaders return the thread root alongside EVERY page —
+    // including an empty one — and normalizeCachedThreadEvents folds it into
+    // the mapped events. The root is always already rendered at index 0, so
+    // judging hit/miss on the mapped list made a root-only page an eternal
+    // barren "cache-hit": each pagination gesture committed nothing new and
+    // the network fetch of genuinely older events never fired (found by the
+    // ios-momentum-invariants prepend one-paint e2e).
+    const earliestLoadedReply = makeEvent('$loaded', {
+      ts: 300,
+      threadRootId: '$root',
+    });
+
+    const snapshot = await loadThreadCachedPaginationSnapshot({
+      sessionId: 'session',
+      roomId: '!room:example.org',
+      threadId: '$root',
+      earliestLoadedReply: earliestLoadedReply as never,
+      limit: 50,
+      mapEvent: (rawEvent) =>
+        makeEvent(rawEvent.event_id ?? '$missing', {
+          ts: rawEvent.origin_server_ts,
+        }),
+      loadBefore: async () => ({
+        rootEvent: { event_id: '$root', origin_server_ts: 100 },
+        events: [],
+        hasMoreBefore: false,
+        beforeToken: 'lingering-token',
+      }),
+    });
+
+    expect(snapshot.status).toBe('cache-miss');
+    expect(snapshot.events.map((event) => event.getId())).toEqual(['$root']);
+  });
 });
 
 describe('eventRepository latest room cache hydration snapshots', () => {

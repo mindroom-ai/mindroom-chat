@@ -1370,8 +1370,12 @@ describe('RoomTimeline collapsible wiring', () => {
     ).toBe('always-expanded');
   });
 
-  it('uses always-expanded mode after hydrated long-text extras are observed', async () => {
-    const { getCollapsibleMessageMode, getHydratedLongTextExtrasCollapseKey } = await import(
+  it('keeps long-text sidecar messages folded — hydration must not auto-expand them', async () => {
+    // Device report 2026-07-06: long-text-replaced messages unfolded by
+    // themselves the moment their attachment hydrated, while every other
+    // long message stayed folded. They now fold like everything else; the
+    // "Show more" affordance is guaranteed by the force-overflow heuristic.
+    const { getCollapsibleMessageMode, shouldForceCollapsibleMessageOverflow } = await import(
       '../threadCollapsibleMessages'
     );
     const longTextContent = {
@@ -1383,13 +1387,9 @@ describe('RoomTimeline collapsible wiring', () => {
         encoding: 'matrix_event_content_json',
       },
     };
-    const collapseKey = getHydratedLongTextExtrasCollapseKey('$long-text', longTextContent);
 
-    expect(collapseKey).toBe(JSON.stringify(['$long-text', 'mxc://server/long-text']));
     expect(getCollapsibleMessageMode('$long-text', longTextContent, new Set())).toBe('default');
-    expect(
-      getCollapsibleMessageMode('$long-text', longTextContent, new Set(), new Set([collapseKey!]))
-    ).toBe('always-expanded');
+    expect(shouldForceCollapsibleMessageOverflow(longTextContent)).toBe(true);
   });
 
   it('marks visible live thread replies for initially-expanded mode', async () => {
