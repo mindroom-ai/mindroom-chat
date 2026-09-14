@@ -44,8 +44,8 @@ export const CollapsiblePill = style({
   padding: `${config.space.S100} ${config.space.S300}`,
   borderRadius: toRem(8),
   border: 'none',
-  backgroundColor: color.SurfaceVariant.ContainerHover,
-  color: color.SurfaceVariant.OnContainer,
+  backgroundColor: `color-mix(in srgb, ${color.SurfaceVariant.Container}, ${color.SurfaceVariant.ContainerHover})`,
+  color: `color-mix(in srgb, ${color.SurfaceVariant.OnContainer} 80%, ${color.SurfaceVariant.Container})`,
   fontSize: toRem(13),
   fontWeight: config.fontWeight.W500,
   lineHeight: 1.4,
@@ -53,7 +53,7 @@ export const CollapsiblePill = style({
   pointerEvents: 'auto',
   cursor: 'pointer',
   selectors: {
-    '&:hover': { backgroundColor: color.SurfaceVariant.ContainerActive },
+    '&:hover': { backgroundColor: color.SurfaceVariant.ContainerHover },
     '&:focus-visible': {
       outline: `2px solid ${color.Primary.Main}`,
       outlineOffset: '2px',
