@@ -20,6 +20,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 // thread's open chain in flight (stale threadLatestOpenPending) while the
 // component switches to another thread.
 const threadOpenGates = new Map<string, Promise<void>>();
+const afterThreadOpenCacheFirst = new Map<string, (requestLatestPin: () => void) => void>();
 vi.mock('../threadOpenCacheFirst', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../threadOpenCacheFirst')>();
   return {
@@ -27,7 +28,9 @@ vi.mock('../threadOpenCacheFirst', async (importOriginal) => {
     runThreadOpenCacheFirst: async (opts: Parameters<typeof actual.runThreadOpenCacheFirst>[0]) => {
       const gate = threadOpenGates.get(opts.threadId);
       if (gate) await gate;
-      return actual.runThreadOpenCacheFirst(opts);
+      const result = await actual.runThreadOpenCacheFirst(opts);
+      afterThreadOpenCacheFirst.get(opts.threadId)?.(opts.pinThreadToBottomOnOpen);
+      return result;
     },
   };
 });
@@ -1069,22 +1072,131 @@ describe('RoomTimeline ledger lifecycle', () => {
     return vi.mocked(domUtils.scrollToBottom);
   };
 
-  const makePinHarnessElements = () => {
+  const makePinHarnessElements = (initialScrollTop = 0) => {
+    let scrollTop = initialScrollTop;
+    const listeners = new Map<string, Set<EventListener>>();
     const scrollElement = {
-      addEventListener: vi.fn(),
-      removeEventListener: vi.fn(),
+      addEventListener: vi.fn((type: string, listener: EventListener) => {
+        const eventListeners = listeners.get(type) ?? new Set<EventListener>();
+        eventListeners.add(listener);
+        listeners.set(type, eventListeners);
+      }),
+      removeEventListener: vi.fn((type: string, listener: EventListener) => {
+        listeners.get(type)?.delete(listener);
+      }),
+      dispatch: (type: string) => {
+        listeners.get(type)?.forEach((listener) => listener(new Event(type)));
+      },
+      setNativeScrollTop: (nextScrollTop: number) => {
+        scrollTop = nextScrollTop;
+      },
       getBoundingClientRect: vi.fn(() => ({ top: 0, bottom: 600 })),
       querySelector: vi.fn(() => undefined),
       querySelectorAll: vi.fn(() => []),
       scrollHeight: 4000,
       clientHeight: 600,
       offsetHeight: 600,
-      scrollTop: 0,
+      get scrollTop() {
+        return scrollTop;
+      },
+      set scrollTop(nextScrollTop: number) {
+        scrollTop = nextScrollTop;
+      },
       scrollTo: vi.fn(),
     };
     const innerElement = { style: {} as Record<string, string> };
     return { scrollElement, innerElement };
   };
+
+  it('keeps the first user wheel movement after focus and session opening pins queue', async () => {
+    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+    const { loadLatestCachedThreadEvents } = await import('../cacheStore');
+    const threadId = '$opening-input-ownership';
+    const thread = buildThread(threadId, '$opening-input-', 0);
+    const room = makeRoom({ liveEvents: [] });
+    room.getThread = (eventId: string) => (eventId === threadId ? (thread.model as never) : null);
+    setThreadEvents(thread.initialEvents);
+    vi.mocked(loadLatestCachedThreadEvents).mockResolvedValueOnce({
+      beforeToken: null,
+      events: [],
+      hasMoreBefore: false,
+      rootEvent: {
+        content: { body: 'root', msgtype: 'm.text' },
+        event_id: threadId,
+        origin_server_ts: 1,
+      },
+      relationSnapshotComplete: true,
+      snapshotComplete: true,
+      tailLoaded: true,
+    } as never);
+
+    let releaseOpen!: () => void;
+    threadOpenGates.set(
+      threadId,
+      new Promise<void>((resolve) => {
+        releaseOpen = resolve;
+      })
+    );
+    const { scrollElement, innerElement } = makePinHarnessElements(3400);
+    const scrollToBottomMock = await getScrollToBottomMock();
+    const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
+    let renderer: ReturnType<typeof create> | undefined;
+    let sessionOpeningPinQueued = false;
+
+    try {
+      await act(async () => {
+        renderer = create(React.createElement(ControlledRoomTimeline, { room, threadId }), {
+          createNodeMock: (element) =>
+            element.type === scrollType
+              ? scrollElement
+              : (element.props as Record<string, unknown>)?.['data-thread-count'] !== undefined
+              ? innerElement
+              : null,
+        });
+        await flushAsyncWork(5);
+      });
+
+      // The focus producer has already pinned the opening band while the
+      // cache-first session producer remains parked at its controlled await.
+      expect(scrollToBottomMock.mock.calls.length).toBeGreaterThan(0);
+      scrollToBottomMock.mockClear();
+      afterThreadOpenCacheFirst.set(threadId, (requestLatestPin) => {
+        requestLatestPin();
+        sessionOpeningPinQueued = true;
+        scrollElement.dispatch('wheel');
+        // Model the browser's trusted default movement without recording an
+        // application scroll write. Consumers run only after this callback.
+        scrollElement.setNativeScrollTop(3320);
+      });
+
+      await act(async () => {
+        releaseOpen();
+        await flushAsyncWork(10);
+      });
+
+      expect(sessionOpeningPinQueued).toBe(true);
+      expect(scrollElement.scrollTop).toBe(3320);
+      expect(scrollToBottomMock.mock.calls).toEqual([]);
+
+      // A late hydration-shaped band must remain reader-owned after the
+      // session open has completed and after later animation frames.
+      await act(async () => {
+        setThreadEvents([
+          ...thread.initialEvents,
+          makeEvent('$opening-input-late-band', { threadRootId: threadId, ts: 999 }),
+        ]);
+        renderer!.update(React.createElement(ControlledRoomTimeline, { room, threadId }));
+        await flushAsyncWork(5);
+      });
+      expect(scrollElement.scrollTop).toBe(3320);
+      expect(scrollToBottomMock.mock.calls).toEqual([]);
+    } finally {
+      releaseOpen();
+      afterThreadOpenCacheFirst.delete(threadId);
+      threadOpenGates.delete(threadId);
+      renderer?.unmount();
+    }
+  });
 
   it('render-time latch keying: a stale open-at-latest latch never pins the next thread', async () => {
     // Pins mutant #11b (latch reset removed from the key-change branch):

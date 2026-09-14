@@ -30,7 +30,7 @@ import { useEventTimelineLoader } from './timelinePaginationController';
 import { resolveRoomEventThreadRedirect } from './roomDeepLink';
 import { getRoomEventFocusTarget } from './threadRoomFocus';
 import { buildVisibleThreadReplyCountMap, eventBelongsToThread } from './threadUtils';
-import type { PendingThreadOpen } from './threadOpenTargetEvent';
+import type { ThreadTargetCommands } from './session/threadSessionTypes';
 import type { ThreadScheduledStatus } from './threadScheduledStatus';
 import type { ThreadResolutionState } from './useRoomThreadTags';
 
@@ -58,7 +58,7 @@ export const useRoomEventOpenController = ({
   mx,
   navigateRoomThread,
   overviewThreadRootIds,
-  pendingThreadOpenRef,
+  threadTargets,
   readUpToTs,
   readUptoEventIdRef,
   recalibrateFilterOptsRef,
@@ -75,8 +75,7 @@ export const useRoomEventOpenController = ({
   scrollToItem,
   searchQuery,
   setFocusItem,
-  setPendingThreadOpenTick,
-  setThreadTimelineTick,
+  notifyThreadEventsChanged,
   setTimeline,
   showHiddenEvents,
   threadEventIndexMapRef,
@@ -105,7 +104,7 @@ export const useRoomEventOpenController = ({
     opts?: NavigateOptions
   ) => void;
   overviewThreadRootIds: string[];
-  pendingThreadOpenRef: MutableRefObject<PendingThreadOpen | undefined>;
+  threadTargets: ThreadTargetCommands;
   readUpToTs: number | undefined;
   readUptoEventIdRef: MutableRefObject<string | undefined>;
   recalibrateFilterOptsRef: MutableRefObject<RecalibrateFilterOpts | undefined>;
@@ -122,8 +121,7 @@ export const useRoomEventOpenController = ({
   scrollToItem: ScrollToItem;
   searchQuery: string;
   setFocusItem: Dispatch<SetStateAction<FocusItemState | undefined>>;
-  setPendingThreadOpenTick: Dispatch<SetStateAction<number>>;
-  setThreadTimelineTick: Dispatch<SetStateAction<number>>;
+  notifyThreadEventsChanged: () => void;
   setTimeline: Dispatch<SetStateAction<Timeline>>;
   showHiddenEvents: boolean;
   threadEventIndexMapRef: MutableRefObject<Map<string, number>>;
@@ -443,16 +441,14 @@ export const useRoomEventOpenController = ({
             if (onScroll) onScroll(false);
             return;
           }
-          pendingThreadOpenRef.current = {
+          threadTargets.queue({
             threadId: expectedThreadId,
             eventId: evtId,
             highlight,
             onScroll,
-            attempts: 0,
-          };
+          });
           setTimeline((currentTimeline) => ({ ...currentTimeline }));
-          setThreadTimelineTick((value) => value + 1);
-          setPendingThreadOpenTick((value) => value + 1);
+          notifyThreadEventsChanged();
           return;
         }
         setTimeline(getEmptyTimeline());
@@ -464,15 +460,14 @@ export const useRoomEventOpenController = ({
       cancelThreadBottomSettle,
       loadEventTimeline,
       mx,
-      pendingThreadOpenRef,
+      threadTargets,
       room,
       scrollRef,
       scrollThreadEventIntoView,
       scrollToElement,
       scrollToItem,
       setFocusItem,
-      setPendingThreadOpenTick,
-      setThreadTimelineTick,
+      notifyThreadEventsChanged,
       setTimeline,
       threadEventIndexMapRef,
       threadFilteredEvents,

@@ -14,14 +14,13 @@ import type {
   ScrollToItem,
 } from '../../hooks/useVirtualPaginator';
 import { getFocusedRoomEventIndex } from './timelinePagination';
-import type { PendingThreadOpen } from './threadOpenTargetEvent';
+import type { ThreadTargetCommands } from './session/threadSessionTypes';
 import { shouldPinThreadToBottomOnOpen, type ThreadInitialRenderMode } from './threadRenderUtils';
 import {
   getEventElementById,
   getRoomFocusScrollOptions,
   getRoomFocusScrollToItemOptions,
   isAnchorVisibleInScroll,
-  isScrollNearBottom,
   ROOM_FOCUS_OBSERVER_HARD_TIMEOUT_MS,
   ROOM_FOCUS_OBSERVER_IDLE_MS,
   setupFocusObserver,
@@ -58,7 +57,7 @@ export type RoomFocusScrollControllerOptions = {
   editId?: string;
   focusItem?: RoomTimelineFocusItem;
   focusScrollResetToken: unknown;
-  pendingThreadOpenRef: MutableRefObject<PendingThreadOpen | undefined>;
+  threadTargets: ThreadTargetCommands;
   pendingThreadOpenTick: number;
   retryPagination: RetryPagination;
   roomId: string;
@@ -69,9 +68,11 @@ export type RoomFocusScrollControllerOptions = {
   scrollToItem: ScrollToItem;
   setAtBottom: Dispatch<SetStateAction<boolean>>;
   setFocusItem: Dispatch<SetStateAction<RoomTimelineFocusItem | undefined>>;
-  setPendingThreadOpenTick: Dispatch<SetStateAction<number>>;
   suppressFocusPaginationRef: MutableRefObject<boolean>;
-  suppressThreadOpenBottomPinRef: MutableRefObject<boolean>;
+  isThreadOpenBottomPinSuppressed: () => boolean;
+  requestThreadOpenBottomPin: () => boolean;
+  cancelThreadOpenBottomPin: () => void;
+  shouldApplyThreadBottomPin: (count: number) => boolean;
   threadEventIndexMapRef: MutableRefObject<Map<string, number>>;
   threadEventsLength: number;
   threadFilteredEvents: MatrixEvent[];
@@ -94,7 +95,7 @@ export const useRoomFocusScrollController = ({
   editId,
   focusItem,
   focusScrollResetToken,
-  pendingThreadOpenRef,
+  threadTargets,
   pendingThreadOpenTick,
   retryPagination,
   roomId,
@@ -105,9 +106,11 @@ export const useRoomFocusScrollController = ({
   scrollToItem,
   setAtBottom,
   setFocusItem,
-  setPendingThreadOpenTick,
   suppressFocusPaginationRef,
-  suppressThreadOpenBottomPinRef,
+  isThreadOpenBottomPinSuppressed,
+  requestThreadOpenBottomPin,
+  cancelThreadOpenBottomPin,
+  shouldApplyThreadBottomPin,
   threadEventIndexMapRef,
   threadEventsLength,
   threadFilteredEvents,
@@ -132,30 +135,16 @@ export const useRoomFocusScrollController = ({
   }, [scrollRef]);
 
   useEffect(() => {
-    if (!threadId || !threadLatestOpenPending) return undefined;
+    if (!threadId) return undefined;
     const scrollEl = scrollRef.current;
     if (!scrollEl) return undefined;
 
-    // Only user-intended scrolls may cancel the open bottom pin. Virtualized
-    // timelines also scroll programmatically (bottom pins and scroll-offset
-    // adjustments when rows above the viewport re-measure), so a bare scroll
-    // event is not evidence of user intent.
-    let lastUserScrollIntentTs = 0;
-    const markUserScrollIntent = () => {
-      lastUserScrollIntentTs = Date.now();
-    };
+    // Cancel on the gesture itself: its sibling listener publishes
+    // threadUserScrolled and can render before the browser delivers the
+    // resulting scroll event. Bare scroll events remain ignored because
+    // virtualized timelines also move programmatically.
     const cancelPendingOpenBottomPin = () => {
-      if (Date.now() - lastUserScrollIntentTs > 400) return;
-      if (
-        isScrollNearBottom({
-          scrollHeight: scrollEl.scrollHeight,
-          scrollTop: scrollEl.scrollTop,
-          clientHeight: scrollEl.clientHeight,
-        })
-      ) {
-        return;
-      }
-      suppressThreadOpenBottomPinRef.current = true;
+      cancelThreadOpenBottomPin();
     };
 
     const userScrollIntentEvents = [
@@ -166,16 +155,14 @@ export const useRoomFocusScrollController = ({
       'keydown',
     ] as const;
     userScrollIntentEvents.forEach((eventType) => {
-      scrollEl.addEventListener(eventType, markUserScrollIntent, { passive: true });
+      scrollEl.addEventListener(eventType, cancelPendingOpenBottomPin, { passive: true });
     });
-    scrollEl.addEventListener('scroll', cancelPendingOpenBottomPin, { passive: true });
     return () => {
       userScrollIntentEvents.forEach((eventType) => {
-        scrollEl.removeEventListener(eventType, markUserScrollIntent);
+        scrollEl.removeEventListener(eventType, cancelPendingOpenBottomPin);
       });
-      scrollEl.removeEventListener('scroll', cancelPendingOpenBottomPin);
     };
-  }, [scrollRef, suppressThreadOpenBottomPinRef, threadId, threadLatestOpenPending]);
+  }, [cancelThreadOpenBottomPin, scrollRef, threadId]);
 
   useLayoutEffect(() => {
     if (threadId) return;
@@ -360,7 +347,7 @@ export const useRoomFocusScrollController = ({
     if (!threadId) return;
     if (
       !shouldPinThreadToBottomOnOpen({
-        suppressOpenBottomPin: suppressThreadOpenBottomPinRef.current,
+        suppressOpenBottomPin: isThreadOpenBottomPinSuppressed(),
         threadId,
         threadLatestOpenPending,
         // Hydration bands land long after the open chain completes
@@ -378,22 +365,19 @@ export const useRoomFocusScrollController = ({
     }
     const scrollEl = scrollRef.current;
     if (!scrollEl) return;
+    if (!requestThreadOpenBottomPin()) return;
     scrollToBottom(scrollEl, 'instant');
     // Arm the gesture-cancellable bottom-settle loop for this band: the
     // freshly-mounted tail rows measure over the next frames and their
     // own estimate error re-opens the gap (self/below resizes are
     // uncompensated by design) — a single write pins to the ESTIMATED
     // bottom only.
-    scrollToBottomRef.current = {
-      count: scrollToBottomRef.current.count + 1,
-      smooth: false,
-    };
     setAtBottom(true);
   }, [
     scrollRef,
-    scrollToBottomRef,
     setAtBottom,
-    suppressThreadOpenBottomPinRef,
+    isThreadOpenBottomPinSuppressed,
+    requestThreadOpenBottomPin,
     threadEventsLength,
     threadId,
     threadInitialRenderMode,
@@ -404,10 +388,10 @@ export const useRoomFocusScrollController = ({
 
   useLayoutEffect(() => {
     if (!threadId) return;
-    const pendingOpen = pendingThreadOpenRef.current;
+    const pendingOpen = threadTargets.getPending();
     if (!pendingOpen) return;
     if (pendingOpen.threadId !== threadId) {
-      pendingThreadOpenRef.current = undefined;
+      threadTargets.discard(pendingOpen.requestId);
       return;
     }
 
@@ -431,14 +415,12 @@ export const useRoomFocusScrollController = ({
         align: 'center',
         stopInView: true,
       });
-      if (pendingOpen.onScroll) pendingOpen.onScroll(true);
-      pendingThreadOpenRef.current = undefined;
+      threadTargets.complete(pendingOpen.requestId, true);
       return;
     }
 
     if (pendingOpen.attempts >= 3) {
-      if (pendingOpen.onScroll) pendingOpen.onScroll(false);
-      pendingThreadOpenRef.current = undefined;
+      threadTargets.complete(pendingOpen.requestId, false);
       return;
     }
 
@@ -446,23 +428,18 @@ export const useRoomFocusScrollController = ({
     // ask the timeline to scroll the virtual index into view before retrying.
     scrollThreadEventIntoView?.(pendingOpen.eventId);
 
-    pendingThreadOpenRef.current = {
-      ...pendingOpen,
-      attempts: pendingOpen.attempts + 1,
-    };
+    threadTargets.advanceAttempt(pendingOpen.requestId);
     requestAnimationFrame(() => {
-      if (!pendingThreadOpenRef.current) return;
-      setPendingThreadOpenTick((val) => val + 1);
+      threadTargets.wakeRetry(pendingOpen.requestId);
     });
   }, [
     cancelThreadBottomSettle,
-    pendingThreadOpenRef,
+    threadTargets,
     pendingThreadOpenTick,
     scrollRef,
     scrollThreadEventIntoView,
     scrollToElement,
     setFocusItem,
-    setPendingThreadOpenTick,
     threadEventIndexMapRef,
     threadId,
     threadTimelineTick,
@@ -470,13 +447,13 @@ export const useRoomFocusScrollController = ({
 
   const scrollToBottomCount = scrollToBottomRef.current.count;
   useLayoutEffect(() => {
-    if (scrollToBottomCount > 0) {
+    if (scrollToBottomCount > 0 && shouldApplyThreadBottomPin(scrollToBottomCount)) {
       const scrollEl = scrollRef.current;
       if (scrollEl) {
         scrollToBottom(scrollEl, scrollToBottomRef.current.smooth ? 'smooth' : 'instant');
       }
     }
-  }, [scrollRef, scrollToBottomCount, scrollToBottomRef]);
+  }, [scrollRef, scrollToBottomCount, scrollToBottomRef, shouldApplyThreadBottomPin]);
 
   useEffect(() => {
     if (!editId) return;

@@ -1,11 +1,10 @@
 import { Direction, type MatrixEvent, type Room } from 'matrix-js-sdk';
-import type { Dispatch, SetStateAction } from 'react';
 import { getLinkedTimelines } from './timelinePagination';
 import { logTimelineDebug } from './timelineDebug';
 import { countCacheProbe } from './cacheProbe';
 import { hasUsableThreadCacheSnapshot, isCompleteThreadCacheCoverage } from './threadCacheCoverage';
 import type { HydratedThreadCachePage } from './types';
-import type { ThreadOpenCacheController } from './threadOpenCacheController';
+import type { hydrateThreadFromCache } from './threadOpenCacheController';
 import type { ReconcileResult, ScheduleReconcileArgs } from '../engine/reconciler';
 
 type ThreadOpenSeedSession = {
@@ -23,8 +22,9 @@ export type ScheduleReconcileFn = (
 
 type RunThreadOpenCacheFirstOptions = {
   debugTraceId: string | undefined;
-  forceTimelineUpdate: () => void;
-  hydrateThreadFromCache: ThreadOpenCacheController['hydrateThreadFromCache'];
+  notifyEventsChanged: () => void;
+  onCacheHydrated: (complete: boolean) => void;
+  hydrateThreadFromCache: (threadId: string) => ReturnType<typeof hydrateThreadFromCache>;
   isCurrentThreadOpen: () => boolean;
   pinThreadToBottomOnOpen: () => void;
   /**
@@ -49,10 +49,6 @@ type RunThreadOpenCacheFirstOptions = {
    * `setSupplementalThreadEvents`).
    */
   setSupplementalThreadEvents: (expectedThreadId: string, events: MatrixEvent[]) => void;
-  setThreadHasMoreCachedBack: Dispatch<SetStateAction<boolean>>;
-  setThreadInitialCacheHydrated: Dispatch<SetStateAction<boolean>>;
-  setThreadTailLoaded: Dispatch<SetStateAction<boolean>>;
-  setThreadTimelineTick: Dispatch<SetStateAction<number>>;
   shouldScrollToLatestOnOpen: boolean;
   threadId: string;
   threadOpenSeedSession: ThreadOpenSeedSession;
@@ -65,17 +61,14 @@ type RunThreadOpenCacheFirstResult = {
 
 export const runThreadOpenCacheFirst = async ({
   debugTraceId,
-  forceTimelineUpdate,
+  notifyEventsChanged,
+  onCacheHydrated,
   hydrateThreadFromCache,
   isCurrentThreadOpen,
   pinThreadToBottomOnOpen,
   scheduleReconcile,
   room,
   setSupplementalThreadEvents,
-  setThreadHasMoreCachedBack,
-  setThreadInitialCacheHydrated,
-  setThreadTailLoaded,
-  setThreadTimelineTick,
   shouldScrollToLatestOnOpen,
   threadId,
   threadOpenSeedSession,
@@ -158,8 +151,7 @@ export const runThreadOpenCacheFirst = async ({
       } else {
         countCacheProbe('supplementalEventsSkippedEmpty');
       }
-      forceTimelineUpdate();
-      setThreadTimelineTick((val) => val + 1);
+      notifyEventsChanged();
     },
   }).catch((err) => {
     // CINNY-207 AC2 review F6 (2026-07-04): the scheduler's own
@@ -184,7 +176,6 @@ export const runThreadOpenCacheFirst = async ({
   if (shouldScrollToLatestOnOpen && !cachedThreadHasLocalSnapshot) {
     threadOpenSeedSession.applyInitialUntargetedThreadSeed();
   }
-  setThreadInitialCacheHydrated(true);
 
   const hasCompleteCachedThreadSnapshot =
     shouldScrollToLatestOnOpen &&
@@ -193,6 +184,8 @@ export const runThreadOpenCacheFirst = async ({
       coverage: hydratedCachedPage.cacheCoverage,
       hasLocalSnapshot: cachedThreadHasLocalSnapshot,
     });
+
+  onCacheHydrated(hasCompleteCachedThreadSnapshot);
 
   if (hasCompleteCachedThreadSnapshot && hydratedCachedPage) {
     const firstThreadLiveTimeline = room
@@ -215,10 +208,7 @@ export const runThreadOpenCacheFirst = async ({
     if (hydratedCachedPage.relationSnapshotComplete === true) {
       firstThreadTimeline?.setPaginationToken(null, Direction.Backward);
     }
-    setThreadHasMoreCachedBack(false);
-    setThreadTailLoaded(true);
-    forceTimelineUpdate();
-    setThreadTimelineTick((val) => val + 1);
+    notifyEventsChanged();
     logTimelineDebug(debugTraceId, 'thread-open-complete-cache-hit', {
       cachedCount: hydratedCachedPage.events.length,
       threadId,

@@ -17,6 +17,115 @@
   Encryption initialization and local database replay still precede the chat view, and physical-device startup timing remains unverified.
 - Next: the iOS release tester should measure cold-launch and background/resume timings on a physical iPhone, recording encryption initialization, local database replay, and chat-view readiness.
 
+### Architecture ownership guards and upstream source footprint (2026-09-14)
+
+- Shared TypeScript AST helpers classify static imports, re-exports, dynamic imports, requires, and import-type queries while preserving type dependencies for existing boundary checks.
+  Runtime cycle detection excludes only explicit type-only edges and currently verifies a 415-module, 917-edge DAG under `src/app/mindroom`.
+- Architecture guards pin the reviewed SDK, thread session, pagination, viewport, voice capture, durable delivery, and React-free engine owners.
+  Negative fixtures prove forbidden imports, dot and bracket member access, browser resource acquisition, and concrete runtime cycles are detected.
+- `.github/upstream-source-base.json` tracks `refs/tags/v4.12.6` for positional and pull request reports.
+  The report resolves refs before whole-tree NUL diff parsing, retains both rename paths, escapes display formats, emits lossless JSON, and keeps footprint size informational.
+- Pull request CI validates and fetches the configured tag from public upstream without forcing an existing tag, compares actual PR base and head commits, appends Markdown to the step summary, and uploads the JSON result.
+  The hosted workflow is reviewed and locally validated; hosted execution remains unverified.
+- Opening requests from the session adapter and focus band share the existing viewport owner.
+  Gesture cancellation marks the exact opening generation, preserves monotonic counts, and gates both focus consumption and parent settling while newer explicit jump and send counts remain valid.
+  The full-component unit harness covers post-input requests and rearming with synchronous rAF and mocked scrolling, so it does not independently prove native delayed frames.
+- Verification: all 494 unit files and 3,923 tests plus all nine isolated Git report tests pass under Node 24.13.1.
+  Typecheck and the production/PWA build with Element Call verification pass, and full lint reports zero errors with 17 existing warnings.
+  The 415-module, 917-runtime-edge production graph is acyclic, and the real repository report records a 541-path upstream-source footprint before and after this task with zero task increment.
+  Task, whole-branch, and both bounded startup integration reviews are approved.
+- All 17 unchanged targeted Chromium cases pass at this source: CINNY070, all four iOS momentum cases, all five latency cases, and all seven virtualization cases.
+  The targeted ledger-boundary case reports zero maximum jump and zero total jump.
+- Final live acceptance at source `a895eb8f` passed all 95 Chromium cases across 52 files with one attempt per case, zero retries, failures, skips, or missing coverage, and the original source, specification, build identity, and default performance limits verified.
+  The full ledger-boundary case reached a minimum top position of zero with zero maximum jump and zero total jump.
+- The separate original 48 px startup movement remains unattributed and did not recur in the final measured boundary case; no speculative layout correction was made.
+- Optional explicit StrictMode effect-replay coverage remains a follow-up, with no current production defect established.
+
+### Durable voice draft delivery ownership (2026-09-14)
+
+- A React-free controller owns initial delivery settlement, retry entry and token settlement, upload error formatting, durable draft writes, and explicit pending discard through one live Jotai store adapter.
+  The voice facade retains start-time callback and origin binding, latest committed option callbacks, capture presentation, and its unchanged public API.
+- Retry ownership is claimed before transport and survives remount through the canonical `{ token, startedAt }` marker.
+  Accepted claims recheck live draft authority after synchronous claim and store callbacks, preserving discarded or replaced drafts and releasing only the accepted composer claim.
+- Facade cleanup compares the accepted start binding after delivery settles, so an older continuation cannot reset a replacement capture started by a committed failure callback.
+  Capture remains independent of React, Matrix, and durable draft state, while the composer retains global initial-send claims, companion ordering, and bundle cleanup.
+- All 492 unit files and 3,903 tests pass under Node 24.13.1, including 209 focused voice, dialog, composer, and send-session tests.
+  Typecheck and changed-source lint/format pass without warnings.
+  Production build and live browser verification remain integration checks.
+
+### Voice capture publication guards (2026-09-14)
+
+- Start claims its generation before notifying subscribers and rejects continuation after synchronous release or reset.
+  Permission acquisition cannot begin after those notifications release ownership.
+- Start and resume recheck generation ownership, accepted stop action, and native recorder state after immediate samples and final recording notifications.
+  Subscriber-driven finish retains processing and finalizes its File once; teardown leaves idle resources and returns false.
+- Eleven new regressions reproduce these publication races before the fix.
+  All 157 focused capture, diagnostics, hook, dialog, and composer tests pass, with typecheck and changed-source lint/format passing without warnings.
+
+### Browser voice capture ownership (2026-09-14)
+
+- A React-free capture session owns browser resources, permission acquisition, elapsed time, waveform samples, and native stop completion.
+  The hook subscribes to immutable snapshots and retains callback/context binding and durable delivery for the next ownership step.
+  Existing public exports, capture settings, error messages, and composer claims remain unchanged.
+- Recorder events retain generation-local data and resources.
+  Ordinary release immediately stops tracks and invalidates pending permission; an accepted finish retains final data and its result resolver through owner release.
+  Released sessions cannot republish diagnostics over another active owner.
+- Resource regressions first reproduced partial analyser setup leaks, mic tracks left live after native stop throws, and delayed old events resetting a fresh recording.
+  Cleanup now registers each acquired resource immediately, releases failed stops, and isolates replacement generations.
+  Focused capture, hook, dialog, and composer tests cover these fixes and accepted sends after unmount.
+- Verification: all 491 unit files and 3,876 tests pass under Node 24.13.1, including 146 focused tests.
+  Typecheck and changed-source lint/format pass with zero warnings.
+  Production build and live browser verification remain integration checks.
+
+### Thread pagination request ownership (2026-09-14)
+
+- Pagination owns backward and forward pending state, duplicate-request guards, and unique request identities.
+  Room/thread changes and unmount reject stale UI work, including A/B/A navigation and reused thread IDs in different rooms.
+  Only the active request can release its pending state or clear its viewport capture.
+  Event-target-only opens retain unrelated pagination leases and active prepend anchors.
+- The viewport owner retains DOM capture, pin suppression, and ledger coordination through request-scoped operations.
+  Pending queries initialize before virtualizer consumers, while runtime and viewport binding retain their later composition points.
+  Cache pages without a visible anchor skip rendering; network pages commit after the existing six 50ms recaptures because the SDK already accepted their events.
+  Successful network persistence precedes quiescence and survives stale UI rejection.
+- Regression tests first reproduced stale backward release and stale A/B/A publication through the original controller API.
+  All 489 unit files and 3,852 tests pass under Node 24.13.1, including 189 focused tests.
+  Typecheck and changed-file lint pass with zero warnings.
+  Production build and live browser verification remain integration checks.
+
+### Thread session review fixes (2026-09-14)
+
+- Latest refresh rechecks its existing room/thread/lifetime predicate after the helper resolves and before publishing UI changes.
+  Navigation, leave, and unmount preserve completed persistence while rejecting stale rendering; explicitly allowed closed-thread refresh still succeeds.
+- Session tests exercise the SDK root-ready path for a confirmed pending root and require tail coverage, one revision increment, one timeline invalidation, and the existing pin/bootstrap behavior.
+  A negative control with owner publication removed fails the new regression.
+- Verification: all 42 tests across six focused suites pass, with typecheck and changed-file lint/format passing without warnings.
+  Complete integration validation remains with the subsequent ownership work.
+
+### Thread session and target ownership (2026-09-13)
+
+- Thread session owns opening, cache coverage, latest-open loading, timeline revisions, and pending targets through snapshots and semantic commands.
+  Opening effects remain at their original late installation point, after route opening and before focus consumers.
+  The parent retains viewport policy, the latest-open latch, render/index ordering, and pagination request state.
+- Cache and bootstrap helpers exchange domain outcomes while preserving hydrated event identity, cache proof/token rules, cancellation checks, and the single reconcile scheduling point.
+  Seed prewarming exposes a wait operation instead of mutable registries.
+  Target commands scope completion and retries to request IDs and keep result callbacks private.
+- Edit backfill owns its attempted-event map and reads the session reset epoch synchronously before selecting repairs.
+  Regression tests prove same-commit reset ordering and prevent stale published epochs from repeating a reset.
+  Pagination submits semantic page commits while retaining its existing request lifecycle for the next ownership step.
+- Verification: all 488 unit files and 3,832 tests pass under Node 24.13.1.
+  Typecheck and changed-file lint/format checks pass with zero warnings.
+  Production build and live browser verification remain integration checks.
+
+### Matrix SDK compatibility ownership (2026-09-13)
+
+- Two focused SDK modules own cached room insertion/prepend and bounded thread bootstrap operations.
+  Controllers retain cancellation, cache access, persistence, loading state, and scrolling.
+  The pure cached-token fallback lives in the token utility with its repository export retained.
+- Real SDK contracts cover event identity and indexes, edit/redaction hydration, relation aggregation, thread placement, neighboring timelines, pagination tokens, and replies racing constructor metadata.
+  The bounded relations request remains one backward `m.thread` page of 50 events, and bootstrap mapping remains after cancellation checks.
+  Thread bootstrap preserves the SDK's existing synchronous prepend order.
+  Bypassing room partitioning still respects SDK timeline placement; classic rendering separately combines thread replies.
+
 ### Finish history loading on first thread open (2026-09-14)
 
 - Status: implemented and validated on current dev; pull-request review is pending.

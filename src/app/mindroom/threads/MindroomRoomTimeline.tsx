@@ -110,9 +110,9 @@ import { countCacheProbe } from './cacheProbe';
 import { sanitizePrefetchDepth, sanitizePrefetchScope } from '../engine/prefetchPolicy';
 import { mindroomSettingsAtom } from '../settings/mindroomSettings';
 import { useThreadBackPaginationController } from './threadBackPaginationController';
-import { type PendingThreadOpen } from './threadOpenTargetEvent';
 import { useThreadSeedPrewarmController } from './threadSeedPrewarmController';
-import { useThreadOpenCacheController } from './threadOpenCacheController';
+import { useThreadSession } from './session/useThreadSession';
+import type { ThreadOpenRuntime } from './session/threadSessionTypes';
 import { useThreadAwareTimelineRefresh } from './useThreadAwareTimelineRefresh';
 import { useTimelineScrollLedgerController } from './timelineScrollLedgerController';
 import { useRoomAutomaticFill } from './roomAutomaticFill';
@@ -126,7 +126,8 @@ import {
 import type { ScheduleReconcileFn } from './threadOpenCacheFirst';
 import { useCompactRootEditBackfillController } from './compactRootEditBackfillController';
 import { useCompactCoverageBackfillController } from './compactCoverageBackfillController';
-import { useThreadPaginationCommandController } from './threadPaginationCommandController';
+import { useThreadPagination } from './session/useThreadPagination';
+import { useThreadPrependViewport } from './useThreadPrependViewport';
 import { useThreadEditBackfillController } from './threadEditBackfillController';
 import { useRoomPaginationCommandController } from './roomPaginationCommandController';
 import { useRoomCachedBackState } from './useRoomCachedBackState';
@@ -300,16 +301,31 @@ export function RoomTimeline({
   });
 
   const [focusItem, setFocusItem] = useState<RoomTimelineFocusItem | undefined>();
-  const [threadLoadError, setThreadLoadError] = useState(false);
+  const threadSession = useThreadSession({ roomId: room.roomId, threadId, eventId });
+  const {
+    commands: threadCommands,
+    targets: threadTargets,
+    snapshot: threadSnapshot,
+  } = threadSession;
+  const {
+    loadError: threadLoadError,
+    initialCacheHydrated: threadInitialCacheHydrated,
+    latestPending: threadLatestOpenPending,
+    editResetEpoch,
+  } = threadSnapshot.open;
+  const { hasMoreCachedBack: threadHasMoreCachedBack, tailLoaded: threadTailLoaded } =
+    threadSnapshot.history;
+  const { timelineRevision: threadTimelineTick, targetRevision: pendingThreadOpenTick } =
+    threadSnapshot;
   const [roomHasMoreCachedBack, setRoomHasMoreCachedBack] = useState(false);
   const [roomInitialCacheHydratedKey, setRoomInitialCacheHydratedKey] = useState<
     string | undefined
   >();
-  const [threadHasMoreCachedBack, setThreadHasMoreCachedBack] = useState(false);
-  const [threadTailLoaded, setThreadTailLoaded] = useState(false);
-  const [threadPaginatingFront, setThreadPaginatingFront] = useState(false);
-  const [threadInitialCacheHydrated, setThreadInitialCacheHydrated] = useState(false);
-  const [threadLatestOpenPending, setThreadLatestOpenPending] = useState(false);
+  const { pagination: threadPagination, bindRuntime: bindThreadPaginationRuntime } =
+    useThreadPagination(threadCommands, { roomId: room.roomId, threadId, eventId });
+  const { isPending: isThreadPaginationPending, reset: resetThreadPagination } = threadPagination;
+  const threadPaginatingBack = threadPagination.snapshot.backward === 'pending';
+  const threadPaginatingFront = threadPagination.snapshot.forward === 'pending';
   // First real scroll gesture in this thread view; also ends the
   // open-at-latest bottom pin (the reader owns the position from then on).
   const [threadUserScrolled, setThreadUserScrolled] = useState(false);
@@ -330,28 +346,25 @@ export function RoomTimeline({
   } else if (threadLatestOpenPending) {
     threadOpenedAtLatestRef.current = true;
   }
-  const [threadTimelineTick, setThreadTimelineTick] = useState(0);
-  const [pendingThreadOpenTick, setPendingThreadOpenTick] = useState(0);
+  const threadBackViewport = useThreadBackPaginationController();
   const {
-    isPaginatingBack: threadPaginatingBack,
-    isPaginatingBackRef: threadPaginatingBackRef,
-    suppressOpenBottomPinRef: suppressThreadOpenBottomPinRef,
     reset: resetThreadBackPagination,
-    begin: beginThreadBackPagination,
-    finish: finishThreadBackPagination,
     clearPendingAnchor: clearPendingThreadBackPaginationAnchor,
-    getPendingAnchorEventId: getPendingThreadBackPaginationAnchorEventId,
     getPendingAnchorSeq: getPendingThreadBackPaginationAnchorSeq,
-    recaptureAnchor: recaptureThreadBackPaginationAnchor,
-  } = useThreadBackPaginationController();
+    isOpenBottomPinSuppressed: isThreadOpenBottomPinSuppressed,
+  } = threadBackViewport;
+  const requestThreadOpenBottomPin = useCallback(
+    () => threadBackViewport.requestOpenBottomPin(scrollToBottomRef),
+    [scrollToBottomRef, threadBackViewport]
+  );
+  const cancelThreadOpenBottomPin = useCallback(
+    () => threadBackViewport.cancelOpenBottomPin(scrollToBottomRef.current.count),
+    [scrollToBottomRef, threadBackViewport]
+  );
   const roomIdRef = useRef(room.roomId);
   const roomPaginatingBackRef = useRef(false);
   const threadIdRef = useRef(threadId);
   const threadFilterStateRef = useRef(requestedThreadFilterState);
-  const threadEditFetchAttemptedRef = useRef<WeakMap<MatrixEvent, number>>(
-    new WeakMap<MatrixEvent, number>()
-  );
-  const pendingThreadOpenRef = useRef<PendingThreadOpen | undefined>();
   const suppressFocusPaginationRef = useRef(false);
   const alive = useAlive();
   roomIdRef.current = room.roomId;
@@ -846,13 +859,7 @@ export function RoomTimeline({
     paginateBack: handleRoomTimelinePagination,
   });
 
-  const {
-    ensureThreadSeedPrewarm,
-    prewarmedThreadSeedIdsRef,
-    prewarmingThreadSeedIdsRef,
-    queuedThreadSeedIdsRef,
-    prewarmingThreadSeedPromisesRef,
-  } = useThreadSeedPrewarmController({
+  const { waitForExistingOrQueued } = useThreadSeedPrewarmController({
     room,
     mx,
     sessionId,
@@ -865,22 +872,6 @@ export function RoomTimeline({
   const forceTimelineUpdate = useCallback(() => {
     setTimeline((ct) => ({ ...ct }));
   }, []);
-
-  const { hydrateThreadFromCache, refreshLatestThreadSlice } = useThreadOpenCacheController({
-    alive,
-    debugTraceId: threadDebugTraceId,
-    forceTimelineUpdate,
-    mx,
-    persistThreadEventCache,
-    room,
-    roomIdRef,
-    sessionId,
-    setSupplementalThreadEvents,
-    setThreadHasMoreCachedBack,
-    setThreadTailLoaded,
-    setThreadTimelineTick,
-    threadIdRef,
-  });
 
   // CINNY-207 P5.1 (D7 / AC9): bound `scheduleReconcile` binding for
   // the thread-open flow. Every open (complete or partial coverage)
@@ -897,6 +888,68 @@ export function RoomTimeline({
         ...args,
       }),
     [mx, syncEngine, threadDebugTraceId]
+  );
+  const threadRender = useMemo(
+    () => ({
+      reset: resetThreadRenderState,
+      append: setSupplementalThreadEvents,
+      invalidateTimeline: forceTimelineUpdate,
+    }),
+    [resetThreadRenderState, setSupplementalThreadEvents, forceTimelineUpdate]
+  );
+  const threadViewport = useMemo(
+    () => ({
+      resetForOpen: () => {
+        setFocusItem(undefined);
+        if (!isThreadPaginationPending('backward')) resetThreadBackPagination();
+      },
+      resetAfterLeave: () => {
+        resetThreadPagination();
+        resetThreadBackPagination();
+      },
+      requestLatestPin: () => {
+        if (!requestThreadOpenBottomPin()) return;
+        setAtBottom(true);
+      },
+    }),
+    [
+      resetThreadBackPagination,
+      isThreadPaginationPending,
+      resetThreadPagination,
+      requestThreadOpenBottomPin,
+      setAtBottom,
+    ]
+  );
+  const threadOpenRuntime = useMemo<ThreadOpenRuntime>(
+    () => ({
+      room,
+      mx,
+      sessionId,
+      persist: persistThreadEventCache,
+      reconcile: scheduleReconcile,
+      seed: { waitForExistingOrQueued },
+      render: threadRender,
+      viewport: threadViewport,
+      debugTraceId: threadDebugTraceId,
+      onThreadLoadError,
+    }),
+    [
+      room,
+      mx,
+      sessionId,
+      persistThreadEventCache,
+      scheduleReconcile,
+      waitForExistingOrQueued,
+      threadRender,
+      threadViewport,
+      threadDebugTraceId,
+      onThreadLoadError,
+    ]
+  );
+  const refreshLatestThreadSlice = useCallback(
+    (expectedThreadId: string, options?: { allowWhenThreadClosed?: boolean }) =>
+      threadCommands.refreshLatest(expectedThreadId, threadOpenRuntime, options),
+    [threadCommands, threadOpenRuntime]
   );
 
   const getScrollElement = useCallback(() => scrollRef.current, []);
@@ -1087,7 +1140,7 @@ export function RoomTimeline({
     threadEvents,
     threadId,
     threadInitialRenderMode,
-    threadPaginatingBack: threadPaginatingBackRef.current,
+    threadPaginatingBack: isThreadPaginationPending('backward'),
     threadPendingAnchorSeq: getPendingThreadBackPaginationAnchorSeq(),
   });
   useThreadApprovalRowMeasurements(
@@ -1147,7 +1200,11 @@ export function RoomTimeline({
   // the bottom, and stop immediately on user scroll intent so streaming
   // re-pins cannot trap the user at the bottom.
   useLayoutEffect(() => {
-    if (!threadId || roomScrollToBottomCount <= 0) {
+    if (
+      !threadId ||
+      roomScrollToBottomCount <= 0 ||
+      !threadBackViewport.shouldApplyBottomPin(roomScrollToBottomCount)
+    ) {
       return undefined;
     }
 
@@ -1222,108 +1279,14 @@ export function RoomTimeline({
     });
     rafId = requestAnimationFrame(settle);
     return stop;
-  }, [roomScrollToBottomCount, scrollRef, scrollToBottomRef, threadId]);
-  // Thread prepend compensation: after back-pagination prepends rows, virtual
-  // item indexes shift while the scroll offset still points at the old offset,
-  // which can unmount the captured anchor row. Scroll the anchor's new index
-  // into view first so the DOM-based restore (which runs after this effect, in
-  // useRoomFocusScrollController) can fine-correct against a mounted element.
-  const beginThreadBackPaginationWithCapture = useCallback(
-    (
-      beginThreadId: string | undefined,
-      scrollRoot: HTMLElement | null | undefined,
-      eventCount?: number
-    ) => {
-      const began = beginThreadBackPagination(beginThreadId, scrollRoot, eventCount);
-      // begin() refuses while a pagination is in flight (the chip stays
-      // clickable showing "Loading..."); a refused call must not wipe the
-      // in-flight pagination's armed capture.
-      if (!began) return began;
-      clearThreadPrependCapture();
-      if (beginThreadId) {
-        const anchorEventId = getPendingThreadBackPaginationAnchorEventId();
-        const anchorSeq = getPendingThreadBackPaginationAnchorSeq();
-        const anchorIndex =
-          anchorEventId === undefined
-            ? undefined
-            : threadEventIndexMapRef.current.get(anchorEventId);
-        if (
-          anchorEventId !== undefined &&
-          anchorSeq !== undefined &&
-          typeof anchorIndex === 'number'
-        ) {
-          captureThreadPrepend({
-            threadId: beginThreadId,
-            anchorEventId,
-            anchorIndex,
-            anchorSeq,
-          });
-        }
-      }
-      return began;
-    },
-    [
-      beginThreadBackPagination,
-      captureThreadPrepend,
-      clearThreadPrependCapture,
-      getPendingThreadBackPaginationAnchorEventId,
-      getPendingThreadBackPaginationAnchorSeq,
-      threadEventIndexMapRef,
-    ]
-  );
-  // Task #125 follow-up: re-capture just before the (quiescence-
-  // deferred) prepend commit, so the restore targets the row the user
-  // actually stopped on rather than where the fire happened. Mirrors
-  // beginThreadBackPaginationWithCapture's controller capture.
-  const recaptureThreadBackPaginationAnchorWithCapture = useCallback(
-    (
-      recaptureThreadId: string | undefined,
-      scrollRoot: HTMLElement | null | undefined,
-      eventCount?: number
-    ): boolean => {
-      if (!recaptureThreadBackPaginationAnchor(recaptureThreadId, scrollRoot, eventCount)) {
-        // Recapture failed (no visible message row — e.g. momentum
-        // settled in a virtualized/loading gap). The begin-time anchor
-        // is stale by definition here; restoring it would teleport the
-        // viewport back to where pagination fired, and committing
-        // WITHOUT a restore would shift the viewport by the prepended
-        // height (greptile rounds 2+3 on PR #75). Drop the anchor and
-        // report failure — the caller skips the commit entirely; the
-        // fetched page is already persisted, so the next gesture
-        // retries as a fast cache-hit once the viewport has rows.
-        clearPendingThreadBackPaginationAnchor();
-        clearThreadPrependCapture();
-        return false;
-      }
-      if (!recaptureThreadId) return true;
-      const anchorEventId = getPendingThreadBackPaginationAnchorEventId();
-      const anchorSeq = getPendingThreadBackPaginationAnchorSeq();
-      const anchorIndex =
-        anchorEventId === undefined ? undefined : threadEventIndexMapRef.current.get(anchorEventId);
-      if (
-        anchorEventId !== undefined &&
-        anchorSeq !== undefined &&
-        typeof anchorIndex === 'number'
-      ) {
-        captureThreadPrepend({
-          threadId: recaptureThreadId,
-          anchorEventId,
-          anchorIndex,
-          anchorSeq,
-        });
-      }
-      return true;
-    },
-    [
-      recaptureThreadBackPaginationAnchor,
-      captureThreadPrepend,
-      clearPendingThreadBackPaginationAnchor,
-      clearThreadPrependCapture,
-      getPendingThreadBackPaginationAnchorEventId,
-      getPendingThreadBackPaginationAnchorSeq,
-      threadEventIndexMapRef,
-    ]
-  );
+  }, [roomScrollToBottomCount, scrollRef, scrollToBottomRef, threadBackViewport, threadId]);
+  const threadPrependViewport = useThreadPrependViewport({
+    controller: threadBackViewport,
+    scrollRef,
+    eventIndex: threadEventIndexMapRef,
+    capture: captureThreadPrepend,
+    clearCapture: clearThreadPrependCapture,
+  });
   const scrollThreadEventIntoView = useCallback(
     (eventId: string) => {
       const eventIndex = threadEventIndexMapRef.current.get(eventId);
@@ -1378,7 +1341,7 @@ export function RoomTimeline({
     room,
     navigateRoomThread,
     overviewThreadRootIds,
-    pendingThreadOpenRef,
+    threadTargets,
     readUpToTs,
     readUptoEventIdRef,
     recalibrateFilterOptsRef,
@@ -1395,8 +1358,7 @@ export function RoomTimeline({
     scrollToItem: scrollToTimelineItem,
     searchQuery: threadIndexSearchQuery,
     setFocusItem,
-    setPendingThreadOpenTick,
-    setThreadTimelineTick,
+    notifyThreadEventsChanged: threadCommands.notifyEventsChanged,
     setTimeline,
     showHiddenEvents,
     threadEventIndexMapRef,
@@ -1430,8 +1392,8 @@ export function RoomTimeline({
     scrollRef,
     scrollToBottomRef,
     setSupplementalThreadEvents,
-    setThreadTailLoaded,
-    setThreadTimelineTick,
+    observeLiveTail: threadCommands.observeLiveTail,
+    notifyThreadEventsChanged: threadCommands.notifyEventsChanged,
     setTimeline,
     setUnreadInfo,
     showHiddenEvents,
@@ -1584,42 +1546,9 @@ export function RoomTimeline({
   });
 
   useThreadOpenLifecycleController({
-    ensureThreadSeedPrewarm,
-    eventId,
-    forceTimelineUpdate,
-    hydrateThreadFromCache,
-    mx,
-    onThreadLoadError,
-    pendingThreadOpenRef,
-    persistThreadEventCache,
-    prewarmedThreadSeedIdsRef,
-    prewarmingThreadSeedIdsRef,
-    prewarmingThreadSeedPromisesRef,
-    queuedThreadSeedIdsRef,
-    refreshLatestThreadSlice,
-    scheduleReconcile,
-    resetThreadBackPagination,
-    resetThreadRenderState,
-    room,
-    roomTimelineSet,
-    scrollToBottomRef,
-    setAtBottom,
-    setFocusItem,
-    setPendingThreadOpenTick,
-    setSupplementalThreadEvents,
-    setThreadHasMoreCachedBack,
-    setThreadInitialCacheHydrated,
-    setThreadLatestOpenPending,
-    setThreadLoadError,
-    setThreadPaginatingFront,
-    setThreadTailLoaded,
-    setThreadTimelineTick,
-    setTimeline,
-    suppressThreadOpenBottomPinRef,
-    threadDebugTraceId,
-    threadEditFetchAttemptedRef,
-    threadId,
-    threadIdRef,
+    route: threadSnapshot.route,
+    commands: threadCommands,
+    runtime: threadOpenRuntime,
   });
 
   useRoomFocusScrollController({
@@ -1629,7 +1558,7 @@ export function RoomTimeline({
     editId: messageFeature.editingEventId,
     focusItem,
     focusScrollResetToken: effectiveThreadFilterState,
-    pendingThreadOpenRef,
+    threadTargets,
     pendingThreadOpenTick,
     retryPagination,
     roomId: room.roomId,
@@ -1640,9 +1569,11 @@ export function RoomTimeline({
     scrollToItem: scrollToTimelineItem,
     setAtBottom,
     setFocusItem,
-    setPendingThreadOpenTick,
     suppressFocusPaginationRef,
-    suppressThreadOpenBottomPinRef,
+    isThreadOpenBottomPinSuppressed,
+    requestThreadOpenBottomPin,
+    cancelThreadOpenBottomPin,
+    shouldApplyThreadBottomPin: threadBackViewport.shouldApplyBottomPin,
     threadEventIndexMapRef,
     threadEventsLength: threadEvents.length,
     threadFilteredEvents,
@@ -1729,37 +1660,27 @@ export function RoomTimeline({
     room,
     scrollRef,
     scrollToBottomRef,
-    setThreadTimelineTick,
-    threadEditFetchAttemptedRef,
+    notifyThreadEventsChanged: threadCommands.notifyEventsChanged,
+    editResetEpoch,
+    readEditResetEpoch: threadCommands.readEditResetEpoch,
     threadEvents,
     threadId,
     threadIdRef,
     threadTailLoaded,
   });
 
-  const { handleThreadPaginateBack, handleThreadPaginateFront } =
-    useThreadPaginationCommandController({
-      beginThreadBackPagination: beginThreadBackPaginationWithCapture,
-      recaptureThreadBackPaginationAnchor: recaptureThreadBackPaginationAnchorWithCapture,
-      clearThreadBackPaginationAnchor: clearPendingThreadBackPaginationAnchor,
-      finishThreadBackPagination,
-      forceTimelineUpdate,
-      mx,
-      persistThreadEventCache,
-      room,
-      scrollRef,
-      sessionId,
-      setSupplementalThreadEvents,
-      setThreadHasMoreCachedBack,
-      setThreadLatestOpenPending,
-      setThreadPaginatingFront,
-      setThreadTailLoaded,
-      setThreadTimelineTick,
-      thread,
-      threadEvents,
-      threadId,
-      threadIdRef,
-    });
+  bindThreadPaginationRuntime({
+    mx,
+    persistThreadEventCache,
+    room,
+    sessionId,
+    thread,
+    threadEvents,
+    threadHasMoreCachedBack,
+    viewport: threadPrependViewport,
+  });
+  const { paginateBack: handleThreadPaginateBack, paginateFront: handleThreadPaginateFront } =
+    threadPagination;
 
   // Scroll-driven thread back-pagination (task #125). Threads bypass
   // useVirtualPaginator (its count is 0 for threads), so unlike the

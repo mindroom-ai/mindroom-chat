@@ -11,15 +11,71 @@ const flushAsyncWork = async (cycles = 5) => {
 };
 
 describe('runThreadOpenSdkBootstrap', () => {
+  it.each(['context', 'missing-thread-relations', 'empty-thread-relations'])(
+    'stops after cancellation during %s without mapping or publishing fetched events',
+    async (phase) => {
+      let finishFetch!: (value: unknown) => void;
+      const pending = new Promise((resolve) => {
+        finishFetch = resolve;
+      });
+      const threadTimeline = {
+        getEvents: () => [],
+        getNeighbouringTimeline: () => null,
+        getPaginationToken: () => null,
+        setPaginationToken: vi.fn(),
+      };
+      const thread = {
+        id: '$root',
+        events: [],
+        addEvents: vi.fn(),
+        getUnfilteredTimelineSet: () => ({ getLiveTimeline: () => threadTimeline }),
+      };
+      const room = makeRoom({
+        liveEvents: [],
+        threads: phase === 'empty-thread-relations' ? [thread as never] : [],
+      });
+      const mx = {
+        getEventTimeline: vi.fn(() => (phase === 'context' ? pending : Promise.resolve())),
+        fetchRelations: vi.fn(() => pending),
+        getThreadTimeline: vi.fn().mockResolvedValue(undefined),
+        getEventMapper: vi.fn(),
+      };
+      let mounted = true;
+      const persistThreadEventCache = vi.fn();
+      const setSupplementalThreadEvents = vi.fn();
+      const onBootstrap = vi.fn();
+      const work = runThreadOpenSdkBootstrap({
+        debugTraceId: 'test',
+        isMounted: () => mounted,
+        mx: mx as never,
+        persistThreadEventCache,
+        pinThreadToBottomOnOpen: vi.fn(),
+        room: room as never,
+        setSupplementalThreadEvents,
+        onBootstrap,
+        shouldScrollToLatestOnOpen: false,
+        threadId: '$root',
+      });
+      await flushAsyncWork();
+      if (phase !== 'context') expect(mx.fetchRelations).toHaveBeenCalledOnce();
+      mounted = false;
+      finishFetch({ chunk: [{ event_id: '$reply' }], next_batch: 'older' });
+
+      expect(await work).toBe(false);
+      expect(mx.getEventMapper).not.toHaveBeenCalled();
+      expect(persistThreadEventCache).not.toHaveBeenCalled();
+      expect(setSupplementalThreadEvents).not.toHaveBeenCalled();
+      expect(onBootstrap).not.toHaveBeenCalledWith({ kind: 'load-error' });
+      expect(thread.events).toEqual([]);
+      expect(thread.addEvents).not.toHaveBeenCalled();
+      expect(threadTimeline.setPaginationToken).not.toHaveBeenCalled();
+    }
+  );
+
   it('creates an initialized SDK thread and runs first-open timeline bootstrap', async () => {
     const root = makeEvent('$root', { isThreadRoot: true, ts: 1 });
     const room = makeRoom({ liveEvents: [root] });
-    const setThreadTailLoaded = vi.fn();
-    const setThreadTimelineTick = vi.fn((updater: (value: number) => number) => updater(0));
-    let timeline = { range: { start: 0, end: 1 } };
-    const setTimeline = vi.fn((updater: (current: typeof timeline) => typeof timeline) => {
-      timeline = updater(timeline);
-    });
+    const onBootstrap = vi.fn();
     const pinThreadToBottomOnOpen = vi.fn();
     const mx = {
       fetchRelations: vi.fn().mockResolvedValue(undefined),
@@ -36,11 +92,7 @@ describe('runThreadOpenSdkBootstrap', () => {
       pinThreadToBottomOnOpen,
       room: room as never,
       setSupplementalThreadEvents: vi.fn(),
-      setThreadHasMoreCachedBack: vi.fn(),
-      setThreadLoadError: vi.fn(),
-      setThreadTailLoaded,
-      setThreadTimelineTick,
-      setTimeline,
+      onBootstrap,
       shouldScrollToLatestOnOpen: true,
       threadId: '$root',
     };
@@ -49,9 +101,7 @@ describe('runThreadOpenSdkBootstrap', () => {
     expect(shouldContinue).toBe(true);
     expect(room.createThread).toHaveBeenCalledOnce();
     expect(room.createThread).toHaveBeenCalledWith('$root', root, [], false);
-    expect(setThreadTailLoaded).toHaveBeenCalledWith(true);
-    expect(setTimeline).toHaveBeenCalledTimes(1);
-    expect(setThreadTimelineTick).toHaveBeenCalledTimes(1);
+    expect(onBootstrap).toHaveBeenCalledWith({ kind: 'root-ready' });
     expect(pinThreadToBottomOnOpen).toHaveBeenCalledTimes(1);
     expect(mx.getEventTimeline).not.toHaveBeenCalled();
     expect(mx.getThreadTimeline).toHaveBeenCalledOnce();
@@ -108,11 +158,7 @@ describe('runThreadOpenSdkBootstrap', () => {
       pinThreadToBottomOnOpen: vi.fn(),
       room: room as never,
       setSupplementalThreadEvents: vi.fn(),
-      setThreadHasMoreCachedBack: vi.fn(),
-      setThreadLoadError: vi.fn(),
-      setThreadTailLoaded: vi.fn(),
-      setThreadTimelineTick: vi.fn(),
-      setTimeline: vi.fn(),
+      onBootstrap: vi.fn(),
       shouldScrollToLatestOnOpen: true,
       threadId: '$root',
     });
@@ -183,11 +229,7 @@ describe('runThreadOpenSdkBootstrap', () => {
         pinThreadToBottomOnOpen: vi.fn(),
         room,
         setSupplementalThreadEvents: vi.fn(),
-        setThreadHasMoreCachedBack: vi.fn(),
-        setThreadLoadError: vi.fn(),
-        setThreadTailLoaded: vi.fn(),
-        setThreadTimelineTick: vi.fn(),
-        setTimeline: vi.fn(),
+        onBootstrap: vi.fn(),
         shouldScrollToLatestOnOpen: true,
         threadId: '$root',
       });

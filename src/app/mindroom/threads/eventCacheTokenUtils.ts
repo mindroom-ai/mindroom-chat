@@ -11,6 +11,11 @@ export type CachedPaginationTokenEntry = {
 
 export type CachedPaginationTokenMap = Record<string, CachedPaginationTokenEntry>;
 
+export const resolveHydratedRoomBeforeToken = (
+  cachedBeforeToken: string | null | undefined,
+  paginationToken: string | null
+): string | null => (cachedBeforeToken !== undefined ? cachedBeforeToken : paginationToken);
+
 export type CachedPaginationAnchor = {
   eventId: string;
   ts: number;

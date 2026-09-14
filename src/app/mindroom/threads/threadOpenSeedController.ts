@@ -1,5 +1,5 @@
 import type { EventTimelineSet, MatrixEvent, Room } from 'matrix-js-sdk';
-import type { MutableRefObject } from 'react';
+import type { ThreadSeedOpenPort } from './session/threadSessionTypes';
 import { hydrateCachedEvents } from './eventCacheEditUtils';
 import { logTimelineDebug } from './timelineDebug';
 import { reactionOrEditEvent } from '../../utils/room';
@@ -16,18 +16,7 @@ type ThreadOpenSeedSource = 'initial' | 'room-prewarm';
 
 type CreateThreadOpenSeedSessionOptions = {
   debugTraceId: string | undefined;
-  ensureThreadSeedPrewarm: (
-    threadId: string,
-    opts?: {
-      allowWhileThreadOpen?: boolean;
-      logPrefix?: string;
-      traceId?: string;
-    }
-  ) => Promise<void>;
-  prewarmedThreadSeedIdsRef: MutableRefObject<Set<string>>;
-  prewarmingThreadSeedIdsRef: MutableRefObject<Set<string>>;
-  queuedThreadSeedIdsRef: MutableRefObject<Set<string>>;
-  prewarmingThreadSeedPromisesRef: MutableRefObject<Map<string, Promise<void>>>;
+  seed: ThreadSeedOpenPort;
   room: Room;
   roomTimelineSet: EventTimelineSet;
   setSupplementalThreadEvents: (threadId: string, events: MatrixEvent[]) => void;
@@ -50,11 +39,7 @@ export type ThreadOpenSeedSession = {
 
 export const createThreadOpenSeedSession = ({
   debugTraceId,
-  ensureThreadSeedPrewarm,
-  prewarmedThreadSeedIdsRef,
-  prewarmingThreadSeedIdsRef,
-  queuedThreadSeedIdsRef,
-  prewarmingThreadSeedPromisesRef,
+  seed,
   room,
   roomTimelineSet,
   setSupplementalThreadEvents,
@@ -162,18 +147,9 @@ export const createThreadOpenSeedSession = ({
   const startUntargetedSeedPrewarmWait = (isCurrentThreadOpen: () => boolean): void => {
     if (!shouldScrollToLatestOnOpen) return;
 
-    const shouldAwaitRoomPrewarm =
-      prewarmedThreadSeedIdsRef.current.has(threadId) ||
-      prewarmingThreadSeedIdsRef.current.has(threadId) ||
-      queuedThreadSeedIdsRef.current.has(threadId);
-    const threadSeedPrewarmPromise = shouldAwaitRoomPrewarm
-      ? prewarmingThreadSeedPromisesRef.current.get(threadId) ??
-        ensureThreadSeedPrewarm(threadId, {
-          allowWhileThreadOpen: true,
-          logPrefix: 'thread-open-room-prewarm',
-          traceId: debugTraceId,
-        })
-      : undefined;
+    const threadSeedPrewarmPromise = seed.waitForExistingOrQueued(threadId, {
+      traceId: debugTraceId,
+    });
 
     if (threadSeedPrewarmPromise) {
       logTimelineDebug(debugTraceId, 'thread-open-awaiting-room-prewarm', {

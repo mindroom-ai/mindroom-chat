@@ -264,6 +264,98 @@ describe('useVoiceRecorder', () => {
     recorderState.current = undefined;
   });
 
+  it('releases partial audio resources when connecting the analyser throws', async () => {
+    const disconnect = vi.fn();
+    const close = vi.fn(async () => undefined);
+    vi.stubGlobal('window', {
+      isSecureContext: true,
+      AudioContext: class {
+        state = 'running';
+
+        close = close;
+
+        createMediaStreamSource() {
+          return {
+            disconnect,
+            connect() {
+              throw new Error('connect failed');
+            },
+          };
+        }
+
+        createAnalyser() {
+          return { fftSize: 4 };
+        }
+      },
+    });
+    const send = vi.fn();
+    await renderHarness({ onSendRecording: send });
+    await act(async () => {
+      await recorderState.current!.start();
+    });
+    expect(disconnect).toHaveBeenCalledOnce();
+    expect(close).toHaveBeenCalledOnce();
+    await act(async () => {
+      vi.advanceTimersByTime(250);
+      await recorderState.current!.send();
+    });
+    expect(send.mock.calls[0][1]).toBe(250);
+    expect(send.mock.calls[0][2]).toBeUndefined();
+  });
+
+  it('releases mic resources after native stop throws', async () => {
+    const failed = vi.fn();
+    await renderHarness({ onSendStopFailure: failed });
+    await act(async () => {
+      await recorderState.current!.start();
+    });
+    MockMediaRecorder.instances[0].stop.mockImplementation(() => {
+      throw new Error('stop failed');
+    });
+    await act(async () => {
+      expect(await recorderState.current!.send()).toBe(false);
+    });
+    expect(failed).toHaveBeenCalledOnce();
+    expect(recorderState.current!.errorMessage).toBe('stop failed');
+    expect(stream.track.stop).toHaveBeenCalledOnce();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('ignores delayed old data and stop after reset starts a fresh recording', async () => {
+    MockMediaRecorder.autoStop = false;
+    const send = vi.fn();
+    await renderHarness({ onSendRecording: send });
+    await act(async () => {
+      await recorderState.current!.start();
+    });
+    const old = MockMediaRecorder.instances[0];
+    await act(async () => {
+      recorderState.current!.reset();
+    });
+    const freshStream = new MockMediaStream();
+    getUserMedia.mockResolvedValue(freshStream);
+    await act(async () => {
+      await recorderState.current!.start();
+    });
+    await act(async () => {
+      old.flushStop();
+      vi.advanceTimersByTime(250);
+    });
+    expect(recorderState.current!.phase).toBe('recording');
+    expect(freshStream.track.stop).not.toHaveBeenCalled();
+    const fresh = MockMediaRecorder.instances[1];
+    let result!: Promise<boolean>;
+    await act(async () => {
+      result = recorderState.current!.send();
+    });
+    await act(async () => {
+      fresh.flushStop();
+      await result;
+    });
+    expect(await send.mock.calls[0][0].text()).toBe('voice');
+    expect(send.mock.calls[0][1]).toBe(250);
+  });
+
   it('pins the compressed speech capture contract', () => {
     expect(VOICE_RECORDER_AUDIO_BITS_PER_SECOND).toBe(32_000);
     expect(VOICE_RECORDER_AUDIO_CONSTRAINTS).toEqual({
@@ -1338,6 +1430,69 @@ describe('useVoiceRecorder', () => {
     expect(recorderState.current?.errorMessage).toBe(
       'Another voice message is still sending. Please wait.'
     );
+
+    renderer.unmount();
+  });
+
+  it('does not resurrect a draft discarded synchronously by an accepted retry claim', async () => {
+    const store = createStore();
+    const onSendStopFailure = vi.fn();
+    const onSendRecording = vi.fn().mockRejectedValueOnce(new Error('initial failure'));
+    const onSendStopRequest = vi
+      .fn<[], boolean | void>()
+      .mockReturnValueOnce(true)
+      .mockImplementationOnce(() => {
+        store.set(pendingVoiceSendDraftAtom, undefined);
+        return true;
+      });
+    const { renderer } = await renderHarness(
+      { onSendRecording, onSendStopFailure, onSendStopRequest },
+      store
+    );
+
+    await act(async () => {
+      await recorderState.current?.start();
+    });
+    await act(async () => {
+      vi.advanceTimersByTime(100);
+      await recorderState.current?.send();
+    });
+
+    let result: boolean | undefined;
+    await act(async () => {
+      result = await recorderState.current?.retry();
+    });
+
+    expect(result).toBe(false);
+    expect(store.get(pendingVoiceSendDraftAtom)).toBeUndefined();
+    expect(onSendRecording).toHaveBeenCalledOnce();
+    expect(onSendStopFailure).toHaveBeenCalledTimes(2);
+
+    renderer.unmount();
+  });
+
+  it('does not reset a replacement capture started from delivery failure settlement', async () => {
+    let replacementStart: boolean | undefined;
+    const onSendStopFailure = vi.fn(async () => {
+      recorderState.current?.discardPending();
+      await Promise.resolve();
+      replacementStart = await recorderState.current?.start();
+    });
+    const onSendRecording = vi.fn().mockRejectedValueOnce(new Error('initial failure'));
+    const { renderer } = await renderHarness({ onSendRecording, onSendStopFailure });
+
+    await act(async () => {
+      await recorderState.current?.start();
+    });
+    await act(async () => {
+      vi.advanceTimersByTime(100);
+      await recorderState.current?.send();
+      await Promise.resolve();
+    });
+
+    expect(replacementStart).toBe(true);
+    expect(MockMediaRecorder.instances).toHaveLength(2);
+    expect(recorderState.current?.phase).toBe('recording');
 
     renderer.unmount();
   });

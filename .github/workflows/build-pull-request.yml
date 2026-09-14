@@ -10,6 +10,8 @@ jobs:
     runs-on: ubuntu-latest
     env:
       PR_NUMBER: ${{github.event.number}}
+      PR_BASE_SHA: ${{github.event.pull_request.base.sha}}
+      PR_HEAD_SHA: ${{github.event.pull_request.head.sha}}
     steps:
       - name: Checkout repository
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -20,6 +22,22 @@ jobs:
         with:
           node-version-file: '.node-version'
           package-manager-cache: false
+      - name: Fetch configured upstream source base
+        run: >-
+          node scripts/report-non-mindroom-source-diff.mjs
+          --fetch-configured-upstream https://github.com/cinnyapp/cinny.git
+      - name: Test upstream source report
+        run: node --test scripts/report-non-mindroom-source-diff.test.mjs
+      - name: Report upstream source footprint
+        run: |
+          node scripts/report-non-mindroom-source-diff.mjs --pr-base "$PR_BASE_SHA" --head "$PR_HEAD_SHA" --format markdown >> "$GITHUB_STEP_SUMMARY"
+          node scripts/report-non-mindroom-source-diff.mjs --pr-base "$PR_BASE_SHA" --head "$PR_HEAD_SHA" --format json > upstream-source-footprint.json
+      - name: Upload upstream source footprint
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: upstream-source-footprint
+          path: upstream-source-footprint.json
+          retention-days: 7
       - name: Install dependencies
         run: npm ci
       - name: Run tests
@@ -30,7 +48,7 @@ jobs:
         run: npm run lint
       - name: Check changed-file formatting
         run: |
-          git diff --name-only --diff-filter=ACMR -z "${{ github.event.pull_request.base.sha }}"...HEAD |
+          git diff --name-only --diff-filter=ACMR -z "$PR_BASE_SHA"...HEAD |
             xargs -0 --no-run-if-empty npx prettier --check --ignore-unknown --
       - name: Build app
         env:

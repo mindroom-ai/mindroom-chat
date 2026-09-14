@@ -1,37 +1,25 @@
 import type { EventTimelineSet, MatrixClient, Room } from 'matrix-js-sdk';
-import type { Dispatch, SetStateAction } from 'react';
 import to from 'await-to-js';
-
-export type PendingThreadOpen = {
-  attempts: number;
-  eventId: string;
-  highlight: boolean;
-  onScroll?: (success: boolean) => void;
-  threadId: string;
-};
+import type { ThreadTargetCommands } from './session/threadSessionTypes';
 
 type RunThreadOpenTargetEventOptions = {
   eventId?: string;
-  forceTimelineUpdate: () => void;
+  notifyEventsChanged: () => void;
   isCurrentThreadOpen: () => boolean;
   mx: MatrixClient;
   room: Room;
-  setPendingThreadOpen: (pending: PendingThreadOpen) => void;
-  setPendingThreadOpenTick: Dispatch<SetStateAction<number>>;
-  setThreadTimelineTick: Dispatch<SetStateAction<number>>;
+  targets: ThreadTargetCommands;
   shouldScrollToLatestOnOpen: boolean;
   threadId: string;
 };
 
 export const runThreadOpenTargetEvent = async ({
   eventId,
-  forceTimelineUpdate,
+  notifyEventsChanged,
   isCurrentThreadOpen,
   mx,
   room,
-  setPendingThreadOpen,
-  setPendingThreadOpenTick,
-  setThreadTimelineTick,
+  targets,
   shouldScrollToLatestOnOpen,
   threadId,
 }: RunThreadOpenTargetEventOptions): Promise<boolean> => {
@@ -46,18 +34,15 @@ export const runThreadOpenTargetEvent = async ({
     const [evtErr] = await to(mx.getEventTimeline(evtThreadTimelineSet, eventId));
     if (!isCurrentThreadOpen()) return false;
     if (!evtErr) {
-      forceTimelineUpdate();
-      setThreadTimelineTick((val) => val + 1);
+      notifyEventsChanged();
     }
   }
 
-  setPendingThreadOpen({
+  targets.queue({
     threadId,
     eventId,
     highlight: true,
     onScroll: undefined,
-    attempts: 0,
   });
-  setPendingThreadOpenTick((val) => val + 1);
   return true;
 };

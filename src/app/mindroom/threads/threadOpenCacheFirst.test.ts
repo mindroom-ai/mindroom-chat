@@ -23,7 +23,7 @@ const makeDefaultOptions = () => {
 
   return {
     debugTraceId: 'test',
-    forceTimelineUpdate: vi.fn(),
+    notifyEventsChanged: vi.fn(),
     hydrateThreadFromCache: vi.fn(),
     isCurrentThreadOpen: vi.fn(() => true),
     pinThreadToBottomOnOpen: vi.fn(),
@@ -44,10 +44,7 @@ const makeDefaultOptions = () => {
     // event state converges even on the complete-coverage path where
     // SDK bootstrap is skipped by design.
     setSupplementalThreadEvents: vi.fn(),
-    setThreadHasMoreCachedBack: vi.fn(),
-    setThreadInitialCacheHydrated: vi.fn(),
-    setThreadTailLoaded: vi.fn(),
-    setThreadTimelineTick: vi.fn((updater: (value: number) => number) => updater(0)),
+    onCacheHydrated: vi.fn(),
     shouldScrollToLatestOnOpen: true,
     threadId: '$root',
     threadOpenSeedSession,
@@ -80,11 +77,10 @@ describe('runThreadOpenCacheFirst', () => {
 
     expect(result).toEqual({ hydratedCachedPage: cachedPage, shouldContinue: false });
     expect(opts.threadOpenSeedSession.applyInitialUntargetedThreadSeed).not.toHaveBeenCalled();
-    expect(opts.setThreadInitialCacheHydrated).toHaveBeenCalledWith(true);
+    expect(opts.onCacheHydrated).toHaveBeenCalled();
     expect(opts.threadTimeline.setPaginationToken).toHaveBeenCalledWith(null, Direction.Backward);
-    expect(opts.setThreadHasMoreCachedBack).toHaveBeenCalledWith(false);
-    expect(opts.setThreadTailLoaded).toHaveBeenCalledWith(true);
-    expect(opts.forceTimelineUpdate).toHaveBeenCalledTimes(1);
+    expect(opts.onCacheHydrated).toHaveBeenCalledWith(true);
+    expect(opts.notifyEventsChanged).toHaveBeenCalledTimes(1);
     // CINNY-207 AC2 revision (2026-07-04): the SINGLE choke-point
     // reconcile schedule at the top of `runThreadOpenCacheFirst` fires
     // on every open that survives the hydrate + post-hydrate guards.
@@ -226,7 +222,7 @@ describe('runThreadOpenCacheFirst', () => {
     // supplemental state (setSupplementalThreadEvents itself updates
     // state, but the additional tick preserves parity with the pre-v3
     // callback and keeps the "one tick per repair" invariant).
-    expect(opts.setThreadTimelineTick).toHaveBeenCalled();
+    expect(opts.notifyEventsChanged).toHaveBeenCalled();
   });
 
   it('does not call setSupplementalThreadEvents for an empty repaired batch (CINNY-207 P5-GATE-FIX v3 cost guarantee)', async () => {
@@ -290,7 +286,7 @@ describe('runThreadOpenCacheFirst', () => {
 
     expect(result).toEqual({ hydratedCachedPage: undefined, shouldContinue: true });
     expect(opts.threadOpenSeedSession.applyInitialUntargetedThreadSeed).toHaveBeenCalledTimes(1);
-    expect(opts.setThreadInitialCacheHydrated).toHaveBeenCalledWith(true);
+    expect(opts.onCacheHydrated).toHaveBeenCalled();
     // CINNY-207 AC2 revision (2026-07-04): STRONGER invariant. The
     // pre-revision code let the no-cache path fall through to the
     // lifecycle controller's partial-coverage schedule site. The

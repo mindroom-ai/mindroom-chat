@@ -1,7 +1,13 @@
-import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
+import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { basename, dirname, extname, join, relative, resolve } from 'node:path';
+import { basename, dirname, extname, join, relative } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import {
+  calledIdentifierNames,
+  memberAccesses,
+  moduleDependencies,
+  resolvedDependencies,
+} from '../../threads/__tests__/architectureTestUtils';
 
 /**
  * CINNY-207 P3.3 architecture guards. Anchor the post-strip boundary
@@ -46,7 +52,8 @@ const isProductionSourceFile = (path: string): boolean =>
   !path.endsWith('.test.ts') &&
   !path.endsWith('.test.tsx') &&
   !path.endsWith('.d.ts') &&
-  !path.includes(`${'/__tests__/'}`);
+  !path.includes(`${'/__tests__/'}`) &&
+  !path.includes(`${'/test-utils/'}`);
 
 const engineModulePaths = () => walk(engineRoot).filter(isProductionSourceFile);
 const mindroomTsFiles = () => walk(mindroomTreeRoot).filter(isProductionSourceFile);
@@ -110,8 +117,7 @@ describe('CINNY-207 P3.3 engine boundary architecture', () => {
   // CINNY-207 P5.1 Commit 2: `/relations` fetch boundary. The
   // engine-owned `fetchAllThreadRelations` helper is the ONLY page-
   // through-relations fetcher; the `mx.fetchRelations` boundary is
-  // reserved for the two limit-50 fallback SDK bootstraps in
-  // threadOpenSdkBootstrap.ts (documented allowlist below).
+  // reserved for the bounded SDK adapter used by the two fallback bootstraps.
   it('fetchAllThreadRelations is defined in engine/, and imported only within engine/**', () => {
     const files = mindroomTsFiles();
     const definers: string[] = [];
@@ -170,26 +176,75 @@ describe('CINNY-207 P3.3 engine boundary architecture', () => {
     expect(nonEngineImporters).toEqual([]);
   });
 
-  // CINNY-207 P5.1 Commit 2: `mx.fetchRelations` file-level allowlist.
-  // After Commit 2 the ONLY non-engine, non-receipts caller is
-  // `threadOpenSdkBootstrap.ts`, which retains exactly TWO limit-50
-  // fallback bootstraps for the SDK thread model. A third fetchRelations
-  // call in that file — or any new caller anywhere else in threads/ —
-  // trips this guard.
-  it('mx.fetchRelations in threads/ is limited to threadOpenSdkBootstrap.ts with exactly 2 occurrences', () => {
+  it('limits thread relation requests to one SDK adapter and two fallback call sites', () => {
     const threadsRoot = join(mindroomTreeRoot, 'threads');
     const files = walk(threadsRoot).filter(isProductionSourceFile);
     const perFileCounts: Record<string, number> = {};
     for (const file of files) {
       const rel = relative(mindroomTreeRoot, file).replace(/\\/g, '/');
-      const source = readFileSync(file, 'utf8');
-      const matches = source.match(/mx\.fetchRelations\(/g) ?? [];
+      const matches = memberAccesses(file).filter(
+        (access) => access.name === 'fetchRelations' && access.kind === 'call'
+      );
       if (matches.length > 0) perFileCounts[rel] = matches.length;
     }
-    // Exactly one file allowed; exactly two occurrences in that file.
     expect(perFileCounts).toEqual({
-      'threads/threadOpenSdkBootstrap.ts': 2,
+      'threads/sdk/threadBootstrapSdk.ts': 1,
     });
+    const callers: Record<string, number> = {};
+    for (const file of files) {
+      const rel = relative(mindroomTreeRoot, file).replace(/\\/g, '/');
+      if (rel === 'threads/sdk/threadBootstrapSdk.ts') continue;
+      const matches = calledIdentifierNames(file).filter(
+        (name) => name === 'fetchThreadBootstrapRelations'
+      );
+      if (matches.length > 0) callers[rel] = matches.length;
+    }
+    expect(callers).toEqual({ 'threads/threadOpenSdkBootstrap.ts': 2 });
+  });
+
+  it('keeps brittle timeline SDK mutations out of the previous controllers', () => {
+    for (const name of ['roomCacheHydrationController', 'roomPaginationCommandController']) {
+      const path = join(mindroomTreeRoot, 'threads', `${name}.ts`);
+      const accessedMembers = memberAccesses(path).map((access) => access.name);
+      const forbiddenCalls = new Set([
+        'addLiveEvents',
+        'addEventsToTimeline',
+        'partitionThreadedEvents',
+        'processAggregatedTimelineEvents',
+        'processThreadRoots',
+      ]);
+      expect(accessedMembers.filter((name) => forbiddenCalls.has(name))).toEqual([]);
+      const source = readFileSync(path, 'utf8');
+      expect(source).not.toMatch(
+        /\b(?:hydrateCachedEvents|reconcileRelationEventsWithAggregation|decryptAllTimelineEvent)\(/
+      );
+    }
+    const forbiddenAccesses = new Set([
+      'createThread',
+      'addEvents',
+      'fetchRelations',
+      'initialEventsFetched',
+      'replayEvents',
+    ]);
+    expect(
+      memberAccesses(join(mindroomTreeRoot, 'threads/threadOpenSdkBootstrap.ts')).filter((access) =>
+        forbiddenAccesses.has(access.name)
+      )
+    ).toEqual([]);
+  });
+
+  it('keeps the SDK compatibility modules free of UI and data-layer ownership', () => {
+    for (const name of ['roomTimelineSdk', 'threadBootstrapSdk']) {
+      const path = join(mindroomTreeRoot, 'threads/sdk', `${name}.ts`);
+      const forbidden = moduleDependencies(path)
+        .map((dependency) => dependency.specifier)
+        .filter((specifier) =>
+          /(?:react|jotai|Controller|cacheStore|eventRepository|cacheProbe|timelineDebug|engine)/.test(
+            specifier
+          )
+        );
+      expect(forbidden).toEqual([]);
+    }
   });
 });
 
@@ -217,62 +272,17 @@ describe('CINNY-207 P3.3 engine boundary architecture', () => {
 describe('engine framework-agnostic boundary (library-extraction guard)', () => {
   const REACT_SEAM_ALLOWLIST = ['engineContext.tsx'];
 
-  // Strip comments first so a docstring citing a controller by name (the
-  // write-through/reconciler headers do this) never registers as an
-  // import. `[^:]` guard leaves `://` inside string URLs alone.
-  const stripComments = (source: string): string =>
-    source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
-
-  // Every module specifier a file depends on, across ALL forms — not a
-  // single hand-rolled `import ... from` regex that a multiline import,
-  // a bare `import 'x'`, an `export { y } from 'x'` re-export, a dynamic
-  // `import('x')`, or a `require('x')` would slip past (greptile P2).
-  const moduleSpecifiers = (source: string): string[] => {
-    const clean = stripComments(source);
-    const specs: string[] = [];
-    const patterns = [
-      /\bfrom\s*['"]([^'"]+)['"]/g, // import ... from 'x' / export ... from 'x' (multiline-safe)
-      /\bimport\s+['"]([^'"]+)['"]/g, // bare side-effect: import 'x'
-      /\bimport\s*\(\s*['"]([^'"]+)['"]\s*\)/g, // dynamic import('x')
-      /\brequire\(\s*['"]([^'"]+)['"]\s*\)/g, // require('x')
-    ];
-    for (const re of patterns) {
-      let m: RegExpExecArray | null;
-      // eslint-disable-next-line no-cond-assign
-      while ((m = re.exec(clean)) !== null) specs.push(m[1]);
-    }
-    return specs;
-  };
-
   const isReactSpecifier = (spec: string): boolean =>
     spec === 'react' ||
     spec === 'react-dom' ||
     spec.startsWith('react/') ||
     spec.startsWith('react-dom/');
 
-  // Resolve a RELATIVE specifier to a real on-disk file so extensionless
-  // imports of a `.tsx` component are caught (greptile P2: the repo's
-  // extensionless style would let `../threads/SomeComponent` — a `.tsx`
-  // — pass a string-only check). Non-relative (package) specs return
-  // undefined; only React packages matter for those, handled above.
-  const resolveRelative = (fromFile: string, spec: string): string | undefined => {
-    if (!spec.startsWith('.')) return undefined;
-    const base = resolve(dirname(fromFile), spec);
-    const candidates = [
-      base,
-      `${base}.ts`,
-      `${base}.tsx`,
-      join(base, 'index.ts'),
-      join(base, 'index.tsx'),
-    ];
-    return candidates.find((c) => existsSync(c) && statSync(c).isFile());
-  };
-
   const engineReactImporters = (): string[] => {
     const importers: string[] = [];
     for (const file of engineModulePaths()) {
       const rel = relative(engineRoot, file).replace(/\\/g, '/');
-      if (moduleSpecifiers(readFileSync(file, 'utf8')).some(isReactSpecifier)) {
+      if (moduleDependencies(file).some(({ specifier }) => isReactSpecifier(specifier))) {
         importers.push(rel);
       }
     }
@@ -303,8 +313,7 @@ describe('engine framework-agnostic boundary (library-extraction guard)', () => 
     const offenders: string[] = [];
     for (const file of engineModulePaths()) {
       const rel = relative(engineRoot, file).replace(/\\/g, '/');
-      for (const spec of moduleSpecifiers(readFileSync(file, 'utf8'))) {
-        const resolved = resolveRelative(file, spec);
+      for (const resolved of resolvedDependencies(file)) {
         // The barrel (index.ts) legitimately re-exports the Provider/hook
         // from the engineContext.tsx seam — allow importing that one
         // allowlisted `.tsx`, forbid every other component.
@@ -312,11 +321,11 @@ describe('engine framework-agnostic boundary (library-extraction guard)', () => 
           ? relative(engineRoot, resolved).replace(/\\/g, '/')
           : undefined;
         const isSeam = resolvedRel !== undefined && REACT_SEAM_ALLOWLIST.includes(resolvedRel);
-        const specBase = basename(spec, extname(spec));
+        const specBase = basename(resolved, extname(resolved));
         const isTsxComponent = (resolved?.endsWith('.tsx') ?? false) && !isSeam;
         const isAdapterHook = adapterName.test(specBase);
         if (isTsxComponent || isAdapterHook) {
-          offenders.push(`${rel}: imports ${spec}`);
+          offenders.push(`${rel}: imports ${relative(mindroomTreeRoot, resolved)}`);
         }
       }
     }

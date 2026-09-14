@@ -1,10 +1,17 @@
 import React from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { describe, expect, it } from 'vitest';
+import type { ThreadPaginationRequest } from './session/threadSessionTypes';
 import {
   useThreadBackPaginationController,
   type ThreadBackPaginationController,
 } from './threadBackPaginationController';
+
+const request: ThreadPaginationRequest = {
+  lease: { roomId: '!room:test', threadId: '$thread', generation: 0 },
+  direction: 'backward',
+  requestId: 1,
+};
 
 type HarnessProps = {
   onRender: (controller: ThreadBackPaginationController) => void;
@@ -66,18 +73,14 @@ describe('useThreadBackPaginationController', () => {
     const scrollRoot = makeScrollRoot([above, anchor]);
 
     act(() => {
-      expect(getController().begin('$thread', scrollRoot)).toBe(true);
+      expect(getController().begin(request, scrollRoot)).toBe(true);
     });
 
-    expect(getController().isPaginatingBack).toBe(true);
-    expect(getController().isPaginatingBackRef.current).toBe(true);
-    expect(getController().suppressOpenBottomPinRef.current).toBe(true);
+    expect(getController().owns(request)).toBe(true);
+    expect(getController().isOpenBottomPinSuppressed()).toBe(true);
 
     renderer.unmount();
   });
-
-
-
 
   it('exposes the pending anchor event id and seq until cleared or reset', () => {
     const { getController, renderer } = renderController();
@@ -87,7 +90,7 @@ describe('useThreadBackPaginationController', () => {
     expect(getController().getPendingAnchorEventId()).toBeUndefined();
 
     act(() => {
-      getController().begin('$thread', scrollRoot, 200);
+      getController().begin(request, scrollRoot, 200);
     });
 
     expect(getController().getPendingAnchorEventId()).toBe('$anchor');
@@ -101,7 +104,7 @@ describe('useThreadBackPaginationController', () => {
     expect(getController().getPendingAnchorEventId()).toBeUndefined();
 
     act(() => {
-      getController().begin('$thread', scrollRoot, 200);
+      getController().begin(request, scrollRoot, 200);
     });
 
     // A fresh begin issues a NEW seq: the render-time ledger fold keys on
@@ -118,14 +121,13 @@ describe('useThreadBackPaginationController', () => {
     renderer.unmount();
   });
 
-
-  it('clears the pending anchor on demand without touching pagination state', () => {
+  it('clears the pending anchor on demand without changing capture ownership', () => {
     const { getController, renderer } = renderController();
     const anchor = makeMessageElement('$anchor', 140, 180);
     const scrollRoot = makeScrollRoot([anchor]);
 
     act(() => {
-      getController().begin('$thread', scrollRoot, 200);
+      getController().begin(request, scrollRoot, 200);
     });
     expect(getController().getPendingAnchorEventId()).toBe('$anchor');
 
@@ -134,29 +136,94 @@ describe('useThreadBackPaginationController', () => {
     });
 
     expect(getController().getPendingAnchorEventId()).toBeUndefined();
-    expect(getController().isPaginatingBackRef.current).toBe(true);
+    expect(getController().owns(request)).toBe(true);
 
     renderer.unmount();
   });
 
-  it('finishes failed pagination by clearing the paginating flag and pending anchor', () => {
+  it('finishes failed pagination by clearing its pending anchor', () => {
     const { getController, renderer } = renderController();
     const anchor = makeMessageElement('$anchor', 140, 180);
     const scrollRoot = makeScrollRoot([anchor]);
 
     act(() => {
-      getController().begin('$thread', scrollRoot);
-      getController().finish({
-        didPaginateBack: false,
-        threadId: '$thread',
-        currentThreadId: '$thread',
-      });
+      getController().begin(request, scrollRoot);
+      getController().finish(request, false);
     });
 
-    expect(getController().isPaginatingBack).toBe(false);
-    expect(getController().isPaginatingBackRef.current).toBe(false);
     expect(getController().getPendingAnchorEventId()).toBeUndefined();
 
+    renderer.unmount();
+  });
+
+  it('cancels the latest opening pin while preserving a newer explicit command', () => {
+    const { getController, renderer } = renderController();
+    const scrollToBottomRef = { current: { count: 4, smooth: true } };
+
+    expect(getController().requestOpenBottomPin(scrollToBottomRef)).toBe(true);
+    expect(scrollToBottomRef.current).toEqual({ count: 5, smooth: false });
+    getController().cancelOpenBottomPin(scrollToBottomRef.current.count);
+    expect(getController().shouldApplyBottomPin(5)).toBe(false);
+
+    scrollToBottomRef.current = { count: 6, smooth: true };
+    expect(getController().shouldApplyBottomPin(6)).toBe(true);
+
+    renderer.unmount();
+  });
+
+  it('clears canceled opening provenance with route reset', () => {
+    const { getController, renderer } = renderController();
+    const scrollToBottomRef = { current: { count: 1, smooth: false } };
+
+    getController().requestOpenBottomPin(scrollToBottomRef);
+    getController().cancelOpenBottomPin(scrollToBottomRef.current.count);
+    expect(getController().shouldApplyBottomPin(2)).toBe(false);
+
+    getController().reset();
+    expect(getController().shouldApplyBottomPin(2)).toBe(true);
+    expect(getController().isOpenBottomPinSuppressed()).toBe(false);
+
+    renderer.unmount();
+  });
+});
+
+describe('prepend capture request fencing', () => {
+  it('refuses duplicate begin without clearing or replacing the active capture', () => {
+    const { getController, renderer } = renderController();
+    const first = makeScrollRoot([makeMessageElement('$first', 140, 180)]);
+    const replacement = makeScrollRoot([makeMessageElement('$replacement', 140, 180)]);
+    getController().begin(request, first);
+    const seq = getController().getPendingAnchorSeq();
+    expect(getController().begin({ ...request, requestId: 2 }, replacement)).toBe(false);
+    expect(getController().getPendingAnchorEventId()).toBe('$first');
+    expect(getController().getPendingAnchorSeq()).toBe(seq);
+    renderer.unmount();
+  });
+  it('old clear, finish, and recapture cannot affect replacement capture with a reused thread ID', () => {
+    const { getController, renderer } = renderController();
+    const first = makeScrollRoot([makeMessageElement('$first', 140, 180)]);
+    const replacement = makeScrollRoot([makeMessageElement('$replacement', 140, 180)]);
+    getController().begin(request, first);
+    getController().reset();
+    const next = { ...request, requestId: 2, lease: { ...request.lease, generation: 2 } };
+    getController().begin(next, replacement);
+    getController().clear(request);
+    getController().finish(request, false);
+    expect(getController().recaptureAnchor(request, first)).toBe(false);
+    expect(getController().owns(next)).toBe(true);
+    expect(getController().getPendingAnchorEventId()).toBe('$replacement');
+    expect(getController().recaptureAnchor(next, replacement)).toBe(true);
+    renderer.unmount();
+  });
+  it('successful finish retains capture for ledger consumption and permits the next begin', () => {
+    const { getController, renderer } = renderController();
+    const root = makeScrollRoot([makeMessageElement('$anchor', 140, 180)]);
+    getController().begin(request, root);
+    const seq = getController().getPendingAnchorSeq();
+    getController().finish(request, true);
+    expect(getController().getPendingAnchorEventId()).toBe('$anchor');
+    expect(getController().begin({ ...request, requestId: 2 }, root)).toBe(true);
+    expect(getController().getPendingAnchorSeq()).not.toBe(seq);
     renderer.unmount();
   });
 });
