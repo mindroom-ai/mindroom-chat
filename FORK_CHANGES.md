@@ -12,6 +12,7 @@
 - Typecheck, production/PWA build with Element Call verification, formatting, and lint pass with zero errors and the existing seventeen warnings.
 - Full Vitest on Node 24.13.1 passes 3,794 tests; three existing Xcode Cloud shell tests fail identically on the unchanged baseline because this host lacks the expected Bash paths.
 - Independent review found no actionable issues and confirmed that edit resolution preserves the voice-echo flag in rendered content.
+- Next steps: merge the reviewed pull request.
 
 ### Refresh long-message expand and collapse controls (2026-09-14)
 
