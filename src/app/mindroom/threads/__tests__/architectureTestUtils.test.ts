@@ -97,6 +97,16 @@ describe('architecture dependency helpers', () => {
     expect(resolvedDependencies(source, { includeTypeOnly: false })).toEqual(new Set([runtime]));
   });
 
+  it('resolves extensionless type-only imports to declaration files', () => {
+    const directory = createFixtureDirectory();
+    const source = join(directory, 'source.ts');
+    const types = join(directory, 'types.d.ts');
+    writeFixture(source, "import type { Value } from './types';");
+    writeFixture(types, 'export type Value = string;');
+
+    expect(resolvedDependencies(source)).toEqual(new Set([types]));
+  });
+
   it('fails visibly for an unresolved extensionless local TypeScript dependency', () => {
     const directory = createFixtureDirectory();
     const source = join(directory, 'source.ts');

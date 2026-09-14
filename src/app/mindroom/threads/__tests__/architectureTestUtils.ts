@@ -126,12 +126,14 @@ const resolveRelativeModule = (fromFile: string, specifier: string): string | un
   const base = resolve(dirname(fromFile), specifier);
   const candidates = [
     base,
+    `${base}.d.ts`,
     `${base}.ts`,
     `${base}.tsx`,
     `${base}.js`,
     `${base}.jsx`,
     `${base}.mjs`,
     `${base}.cjs`,
+    resolve(base, 'index.d.ts'),
     resolve(base, 'index.ts'),
     resolve(base, 'index.tsx'),
     resolve(base, 'index.js'),
