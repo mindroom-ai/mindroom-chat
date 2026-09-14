@@ -2,6 +2,18 @@
 
 ## Runbook
 
+### Hide the thread approval loading banner (2026-09-14)
+
+- Status: the bounded presentation change, local verification, and independent review are complete.
+- Opening a thread checks approval history in the background without displaying a loading-only banner.
+- The approval bar appears for pending calls or a history error, preserving review controls, retry, and progress details for pending calls.
+- Scope is limited to the approval queue rendering condition and its obsolete loading fallback.
+- Validation: typecheck, production/PWA build with Element Call verification, formatting, and lint pass with zero errors and the existing seventeen warnings.
+- Full Vitest on Node 24.13.1 passes 3,794 of 3,797 tests, matching the untouched base; three existing Xcode Cloud shell-script tests fail because this host lacks the expected Bash paths.
+- Live Chromium verification holds approval history open to confirm the loading-only bar stays absent, then checks history error and retry, a live pending approval during loading, successful recovery, and the review dialog.
+- The existing approval-attention browser spec passes against production assets and local Matrix, and independent review passes all thirty focused controls/provider tests with no findings.
+- Next steps: pull-request review and merge.
+
 ### Complete live-test verification (2026-09-13)
 
 - All 95 discovered Chromium cases across 52 live spec files pass against production assets and a dedicated local Matrix fixture.
