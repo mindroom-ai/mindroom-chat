@@ -146,6 +146,11 @@ describe('RenderMessageContent', () => {
     ],
     ['human', {}, true],
     ['human with unrelated metadata', { 'io.mindroom.paste_attachment': { version: 1 } }, true],
+    ['router transcript', { 'com.mindroom.visible_router_voice_echo': true }, false],
+    ['disabled router voice echo', { 'com.mindroom.visible_router_voice_echo': false }, true],
+    ['invalid router voice echo', { 'com.mindroom.visible_router_voice_echo': 'true' }, true],
+    ['human voice transcript', { 'com.mindroom.voice_transcript': true }, true],
+    ['human quoting router status', { body: 'Router agent is transcribing…' }, true],
   ])(
     'passes the edited-label policy for %s messages to the content renderer',
     async (_, metadata, edited) => {
