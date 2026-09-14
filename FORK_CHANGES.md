@@ -2,6 +2,15 @@
 
 ## Runbook
 
+### Thread session review fixes (2026-09-14)
+
+- Latest refresh rechecks its existing room/thread/lifetime predicate after the helper resolves and before publishing UI changes.
+  Navigation, leave, and unmount preserve completed persistence while rejecting stale rendering; explicitly allowed closed-thread refresh still succeeds.
+- Session tests exercise the SDK root-ready path for a confirmed pending root and require tail coverage, one revision increment, one timeline invalidation, and the existing pin/bootstrap behavior.
+  A negative control with owner publication removed fails the new regression.
+- Verification: all 42 tests across six focused suites pass, with typecheck and changed-file lint/format passing without warnings.
+  Complete integration validation remains with the subsequent ownership work.
+
 ### Thread session and target ownership (2026-09-13)
 
 - Thread session owns opening, cache coverage, latest-open loading, timeline revisions, and pending targets through snapshots and semantic commands.

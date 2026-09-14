@@ -1,5 +1,5 @@
 import React, { useLayoutEffect } from 'react';
-import { createClient, MatrixEvent, Room } from 'matrix-js-sdk';
+import { createClient, EventStatus, MatrixEvent, Room } from 'matrix-js-sdk';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import { useThreadSession } from './useThreadSession';
@@ -205,6 +205,61 @@ describe('thread session targets', () => {
 });
 
 describe('thread session opening', () => {
+  it('publishes SDK root-ready tail coverage and one timeline revision/invalidation for a confirmed pending root', async () => {
+    vi.mocked(loadThreadCachedSnapshot).mockReset();
+    const fixture = openFixture();
+    fixture.root.setStatus(EventStatus.SENDING);
+    const cache = deferred<undefined>();
+    vi.mocked(loadThreadCachedSnapshot).mockReturnValue(cache.promise);
+    const view = renderOpen(fixture.runtime, {
+      roomId: fixture.runtime.room.roomId,
+      threadId: '$a',
+    });
+    const revisionBeforeBootstrap = view.session.snapshot.timelineRevision;
+    expect(view.session.snapshot.history.tailLoaded).toBe(false);
+    expect(fixture.runtime.render.invalidateTimeline).not.toHaveBeenCalled();
+    await act(async () => cache.resolve(undefined));
+    expect(view.session.snapshot.history.tailLoaded).toBe(true);
+    expect(view.session.snapshot.timelineRevision - revisionBeforeBootstrap).toBe(1);
+    expect(fixture.runtime.render.invalidateTimeline).toHaveBeenCalledTimes(1);
+    expect(fixture.runtime.viewport.requestLatestPin).toHaveBeenCalledTimes(1);
+    expect(fixture.bootstrap).not.toHaveBeenCalled();
+    expect(fixture.context).not.toHaveBeenCalled();
+    expect(fixture.runtime.reconcile).toHaveBeenCalledTimes(1);
+    expect(view.session.snapshot.open.latestPending).toBe(false);
+    view.unmount();
+  });
+
+  it.each(['navigate', 'leave', 'unmount'] as const)(
+    'rejects latest refresh UI publication after synchronous %s while retaining completed persistence',
+    async (transition) => {
+      const fixture = openFixture();
+      const route = { roomId: fixture.runtime.room.roomId, threadId: '$a' };
+      const view = renderSession(route);
+      let refresh!: Promise<boolean>;
+      act(() => {
+        refresh = view.session.commands.refreshLatest('$a', fixture.runtime);
+        if (transition === 'unmount') view.unmount();
+        else
+          view.rerender(
+            transition === 'leave' ? { roomId: route.roomId } : { ...route, threadId: '$b' }
+          );
+      });
+      // No token means the helper has already persisted, before its owner's continuation.
+      expect(fixture.runtime.persist).toHaveBeenCalledTimes(1);
+      const snapshot = view.session.snapshot;
+      await act(async () => {
+        expect(await refresh).toBe(false);
+      });
+      expect(fixture.runtime.render.append).not.toHaveBeenCalled();
+      expect(fixture.rendered.size).toBe(0);
+      expect(view.session.snapshot.history).toEqual(snapshot.history);
+      expect(view.session.snapshot.timelineRevision).toBe(snapshot.timelineRevision);
+      expect(fixture.runtime.render.invalidateTimeline).not.toHaveBeenCalled();
+      if (transition !== 'unmount') view.unmount();
+    }
+  );
+
   it('commits cache pages by identity and rejects pages from a departed data lifetime', async () => {
     vi.mocked(loadThreadCachedSnapshot).mockReset();
     const fixture = openFixture();

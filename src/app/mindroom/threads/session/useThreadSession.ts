@@ -97,22 +97,23 @@ export const useThreadSession = (route: ThreadRoute): ThreadSession => {
       runtime,
       options
     ) => {
+      const shouldAbortRefresh = () => {
+        const current = routeRef.current;
+        if (!lifetime.current.alive || current.roomId !== runtime.room.roomId) return true;
+        return options?.allowWhenThreadClosed
+          ? !!current.threadId && current.threadId !== threadId
+          : current.threadId !== threadId;
+      };
       const result = await refreshLatestThreadSlice(
         {
           ...runtime,
           persistThreadEventCache: runtime.persist,
-          shouldAbortRefresh: () => {
-            const current = routeRef.current;
-            if (!lifetime.current.alive || current.roomId !== runtime.room.roomId) return true;
-            return options?.allowWhenThreadClosed
-              ? !!current.threadId && current.threadId !== threadId
-              : current.threadId !== threadId;
-          },
+          shouldAbortRefresh,
         },
         threadId,
         options
       );
-      if (!result) return false;
+      if (!result || shouldAbortRefresh()) return false;
       if (result.events.length > 0) runtime.render.append(threadId, result.events);
       publish((current) => ({
         ...current,
