@@ -2,6 +2,21 @@
 
 ## Runbook
 
+### Thread pagination request ownership (2026-09-14)
+
+- Pagination owns backward and forward pending state, duplicate-request guards, and unique request identities.
+  Room/thread changes and unmount reject stale UI work, including A/B/A navigation and reused thread IDs in different rooms.
+  Only the active request can release its pending state or clear its viewport capture.
+  Event-target-only opens retain unrelated pagination leases and active prepend anchors.
+- The viewport owner retains DOM capture, pin suppression, and ledger coordination through request-scoped operations.
+  Pending queries initialize before virtualizer consumers, while runtime and viewport binding retain their later composition points.
+  Cache pages without a visible anchor skip rendering; network pages commit after the existing six 50ms recaptures because the SDK already accepted their events.
+  Successful network persistence precedes quiescence and survives stale UI rejection.
+- Regression tests first reproduced stale backward release and stale A/B/A publication through the original controller API.
+  All 489 unit files and 3,852 tests pass under Node 24.13.1, including 189 focused tests.
+  Typecheck and changed-file lint pass with zero warnings.
+  Production build and live browser verification remain integration checks.
+
 ### Thread session review fixes (2026-09-14)
 
 - Latest refresh rechecks its existing room/thread/lifetime predicate after the helper resolves and before publishing UI changes.

@@ -90,3 +90,27 @@ export type ThreadSession = {
   commands: ThreadSessionCommands;
   targets: ThreadTargetCommands;
 };
+
+export type ThreadPaginationRequest = Readonly<{
+  lease: ThreadOpenLease;
+  direction: 'backward' | 'forward';
+  requestId: number;
+}>;
+export type ThreadPaginationSnapshot = Readonly<{
+  backward: 'idle' | 'pending';
+  forward: 'idle' | 'pending';
+}>;
+export type ThreadPrependViewportPort = {
+  begin(request: ThreadPaginationRequest, eventCount: number): boolean;
+  waitForQuiescence(request: ThreadPaginationRequest): Promise<void>;
+  recapture(request: ThreadPaginationRequest, eventCount: number): boolean;
+  clear(request: ThreadPaginationRequest): void;
+  finish(request: ThreadPaginationRequest, committed: boolean): void;
+};
+export type ThreadPagination = {
+  snapshot: ThreadPaginationSnapshot;
+  paginateBack(): Promise<void>;
+  paginateFront(): Promise<void>;
+  isPending(direction: 'backward' | 'forward'): boolean;
+  reset(): void;
+};

@@ -70,7 +70,8 @@ export type RoomFocusScrollControllerOptions = {
   setAtBottom: Dispatch<SetStateAction<boolean>>;
   setFocusItem: Dispatch<SetStateAction<RoomTimelineFocusItem | undefined>>;
   suppressFocusPaginationRef: MutableRefObject<boolean>;
-  suppressThreadOpenBottomPinRef: MutableRefObject<boolean>;
+  isThreadOpenBottomPinSuppressed: () => boolean;
+  suppressThreadOpenBottomPin: () => void;
   threadEventIndexMapRef: MutableRefObject<Map<string, number>>;
   threadEventsLength: number;
   threadFilteredEvents: MatrixEvent[];
@@ -105,7 +106,8 @@ export const useRoomFocusScrollController = ({
   setAtBottom,
   setFocusItem,
   suppressFocusPaginationRef,
-  suppressThreadOpenBottomPinRef,
+  isThreadOpenBottomPinSuppressed,
+  suppressThreadOpenBottomPin,
   threadEventIndexMapRef,
   threadEventsLength,
   threadFilteredEvents,
@@ -153,7 +155,7 @@ export const useRoomFocusScrollController = ({
       ) {
         return;
       }
-      suppressThreadOpenBottomPinRef.current = true;
+      suppressThreadOpenBottomPin();
     };
 
     const userScrollIntentEvents = [
@@ -173,7 +175,7 @@ export const useRoomFocusScrollController = ({
       });
       scrollEl.removeEventListener('scroll', cancelPendingOpenBottomPin);
     };
-  }, [scrollRef, suppressThreadOpenBottomPinRef, threadId, threadLatestOpenPending]);
+  }, [scrollRef, suppressThreadOpenBottomPin, threadId, threadLatestOpenPending]);
 
   useLayoutEffect(() => {
     if (threadId) return;
@@ -358,7 +360,7 @@ export const useRoomFocusScrollController = ({
     if (!threadId) return;
     if (
       !shouldPinThreadToBottomOnOpen({
-        suppressOpenBottomPin: suppressThreadOpenBottomPinRef.current,
+        suppressOpenBottomPin: isThreadOpenBottomPinSuppressed(),
         threadId,
         threadLatestOpenPending,
         // Hydration bands land long after the open chain completes
@@ -391,7 +393,7 @@ export const useRoomFocusScrollController = ({
     scrollRef,
     scrollToBottomRef,
     setAtBottom,
-    suppressThreadOpenBottomPinRef,
+    isThreadOpenBottomPinSuppressed,
     threadEventsLength,
     threadId,
     threadInitialRenderMode,

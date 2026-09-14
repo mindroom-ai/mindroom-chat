@@ -74,7 +74,10 @@ function Harness({ onSuppressRef, scrollEl, ...overrides }: HarnessProps) {
     setAtBottom: vi.fn(),
     setFocusItem: vi.fn(),
     suppressFocusPaginationRef: { current: false },
-    suppressThreadOpenBottomPinRef,
+    isThreadOpenBottomPinSuppressed: () => suppressThreadOpenBottomPinRef.current,
+    suppressThreadOpenBottomPin: () => {
+      suppressThreadOpenBottomPinRef.current = true;
+    },
     threadEventIndexMapRef: { current: new Map() },
     threadEventsLength: 0,
     threadFilteredEvents: [],
