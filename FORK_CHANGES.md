@@ -2,6 +2,17 @@
 
 ## Runbook
 
+### Keep Compact Resolve actions usable during pending saves (2026-09-14)
+
+- Status: the reported lockout and faded-button state are reproduced, the bounded fix is validated locally, and independent review found no remaining issues.
+- Resolving one Compact thread previously disabled every action through a shared mutation flag, and Folds' disabled-button opacity overrode the hidden action opacity with `!important`.
+- Pending mutations are now tracked per thread, so another thread can resolve while an earlier save waits; duplicate writes to the same pending thread remain blocked.
+- A separate action wrapper owns hover and focus visibility, keeping disabled buttons hidden until their card is revealed without changing card padding, navigation targets, or the existing localized label.
+- Regression coverage holds concurrent saves open, checks same-thread duplicate suppression, success and failure cleanup, retry, and hidden disabled actions after opacity transitions settle.
+- Validation: all 50 focused tests, live desktop and Dutch touch regressions, typecheck, production/PWA build, touched-file formatting, and ESLint pass with zero errors and the existing 17 warnings.
+- Full Vitest passes 3,928 of 3,932 tests with Node 22; all four failures reproduce on the unchanged base in the Xcode Cloud shell fixtures and upload-caption matcher.
+- Native WebKit cannot start on this host because its system libraries are unavailable; physical iOS validation remains outstanding.
+
 ### Restore cached rooms without waiting for relation parents (2026-09-14)
 
 - Status: implemented, locally validated, and independently reviewed with no findings.
@@ -455,7 +466,7 @@
 - The open-card target and Resolve action are sibling buttons, avoiding invalid nested-button markup and preventing resolution from opening the thread.
 - Cards retain their normal symmetric padding while the action overlays the inline edge with a direction-aware background fade, so hidden actions consume no layout space and revealing one does not reflow text.
 - The first fade offset serialized a negated CSS variable as invalid CSS, which let Chromium place the generated fade over the button label; the offset now uses `calc()` and the live test pins the fade immediately outside the button.
-- The action is omitted for resolved cards and users without permission, and it is disabled while a room-level tag mutation is pending.
+- The action is omitted for resolved cards and users without permission, and it is disabled while that thread's tag mutation is pending.
 - Resolution reuses the existing optimistic thread-tag mutation path and its edit-permission check.
 - Failed mutations now emit the same diagnostic signal used by the open-thread resolution surface after the optimistic state rolls back.
 - Focused TDD coverage first failed for the missing action, room wiring, permission and pending-state branches, and failure diagnostic.
