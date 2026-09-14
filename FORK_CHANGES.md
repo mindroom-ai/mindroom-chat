@@ -10,7 +10,7 @@
 - Existing manual choices, account defaults, streaming expansion, and long-text hydration remain authoritative.
 - The virtualized row estimate includes the taller preview and footer.
 - The collapsed footer stays in normal flow so it cannot cover the preview on narrow screens; only the expanded Show less footer is sticky.
-- Live Chromium checks pass for room and thread views in dark Bubble and light Modern layouts, including 390px width, fade and footer geometry, Enter and Space activation, focus retention, complete expansion, recollapse, and short edits.
+- Live Chromium checks pass for room and thread views in the normal Modern layout with dark and light themes, including 390px width, fade and footer geometry, Enter and Space activation, focus retention, complete expansion, recollapse, and short edits.
 - Existing live expand-all, manual expansion across virtualized remounts, and above-viewport scroll-anchor regressions pass.
 - Validation: typecheck, production/PWA build, ESLint with zero errors and the existing 17 warnings, touched-file formatting, and independent review pass.
 - After updating onto current dev and installing fresh dependencies under Node 24.13.1, full Vitest passes 3,789 of 3,792 tests; only the three unchanged Xcode Cloud tests fail because their fixtures hard-code shell paths absent on this Nix host.

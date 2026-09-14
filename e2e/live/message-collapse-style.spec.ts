@@ -51,7 +51,7 @@ for (const surface of ['room', 'thread'] as const) {
             })
           );
         },
-        { themeId: `${theme}-theme`, messageLayout: theme === 'dark' ? 2 : 0 }
+        { themeId: `${theme}-theme`, messageLayout: 0 }
       );
       await loginWithPassword(page, { homeserver, ...credentials });
       await page.setViewportSize(
