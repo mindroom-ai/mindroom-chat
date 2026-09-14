@@ -50,6 +50,7 @@ import { useAlive } from '../../../hooks/useAlive';
 import { BetaNoticeBadge } from '../../../components/BetaNoticeBadge';
 import { getPowerTagIconSrc } from '../../../hooks/useMemberPowerTag';
 import { creatorsSupported } from '../../../utils/matrix';
+import { useStateEvent } from '../../../hooks/useStateEvent';
 
 type EditPowerProps = {
   maxPower: number;
@@ -310,6 +311,7 @@ export function PowersEditor({ powerLevels, requestClose }: PowersEditorProps) {
   }, [powerLevels]);
 
   const powerLevelTags = usePowerLevelTags(room, powerLevels);
+  const powerLevelTagsEvent = useStateEvent(room, StateEvent.PowerLevelTags);
   const [editedPowerTags, setEditedPowerTags] = useState<PowerLevelTags>();
   const [deleted, setDeleted] = useState<Set<number>>(new Set());
 
@@ -327,25 +329,25 @@ export function PowersEditor({ powerLevels, requestClose }: PowersEditorProps) {
     });
   }, []);
 
-  const handleSaveTag = useCallback(
-    (power: number, tag: MemberPowerTag) => {
-      setEditedPowerTags((tags) => {
-        const editedTags = { ...(tags ?? powerLevelTags) };
-        editedTags[power] = tag;
-        return editedTags;
-      });
-    },
-    [powerLevelTags]
-  );
+  const handleSaveTag = useCallback((power: number, tag: MemberPowerTag) => {
+    setEditedPowerTags((tags) => {
+      const editedTags = { ...tags };
+      editedTags[power] = tag;
+      return editedTags;
+    });
+  }, []);
 
   const [applyState, applyChanges] = useAsyncCallback(
     useCallback(async () => {
-      const content: PowerLevelTags = { ...(editedPowerTags ?? powerLevelTags) };
+      const content: PowerLevelTags = {
+        ...powerLevelTagsEvent?.getContent<PowerLevelTags>(),
+        ...editedPowerTags,
+      };
       deleted.forEach((power) => {
         delete content[power];
       });
       await mx.sendStateEvent(room.roomId, StateEvent.PowerLevelTags as any, content);
-    }, [mx, room, powerLevelTags, editedPowerTags, deleted])
+    }, [mx, room, powerLevelTagsEvent, editedPowerTags, deleted])
   );
 
   const resetChanges = useCallback(() => {
@@ -364,7 +366,7 @@ export function PowersEditor({ powerLevels, requestClose }: PowersEditorProps) {
   const applyingChanges = applyState.status === AsyncStatus.Loading;
   const hasChanges = editedPowerTags || deleted.size > 0;
 
-  const powerTags = editedPowerTags ?? powerLevelTags;
+  const powerTags = { ...powerLevelTags, ...editedPowerTags };
   return (
     <Page>
       <PageHeader outlined={false} balance>

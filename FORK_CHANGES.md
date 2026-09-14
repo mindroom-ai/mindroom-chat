@@ -15,7 +15,9 @@
   Source-pair review corrected semantic errors that structural checks cannot detect.
 - Logical layout and directional controls support Arabic; a browser regression verifies that checked and unchecked switch knobs remain within their tracks in both directions.
 - The latest navigation resizing, active-section toggles, and per-thread resolution changes are integrated and independently reviewed.
-- Validation: all 510 unit files and 4,142 tests pass under Node 24.13.1, along with the production/PWA build, typecheck, full ESLint with zero errors and the existing 17 warnings, changed-file formatting, and patch verification.
+- Review corrections keep localized default role labels out of shared room state and retain native push failure diagnostics.
+  Role-tag saves merge explicit edits and deletions into the latest stored event, preserving authored labels and concurrent room updates.
+- Validation: all 511 unit files and 4,145 tests pass under Node 24.13.1, along with the production/PWA build, typecheck, full ESLint with zero errors and the existing 17 warnings, changed-file formatting, and patch verification.
   Both packaged-app browser tests pass against a live Matrix homeserver, covering language switching and persistence, Arabic control geometry, and authored summaries on room overview and thread banners.
   Additional live composer, navigation, cached-summary, resizing, and compact-resolution regressions pass.
 - Native resource contracts pass; an Xcode archive and physical-device permission prompts remain unverified on this Linux host.

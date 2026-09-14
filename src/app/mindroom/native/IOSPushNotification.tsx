@@ -86,7 +86,11 @@ export function IOSPushNotification() {
 
   const handleToggle = (enabled: boolean) => {
     togglePush(enabled)
-      .catch(() => undefined)
+      .catch((error: unknown) => {
+        // Keep the localized UI concise while preserving the original failure and stack.
+        // eslint-disable-next-line no-console
+        console.error('[IOSPushNotification] Failed to update native push settings:', error);
+      })
       .finally(() => {
         refreshPermission();
       });
