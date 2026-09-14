@@ -45,6 +45,13 @@ export type RideReport = {
   threadCountStart: number;
   threadCountEnd: number;
   probes: Record<string, number>;
+  boundaryDriver?: {
+    startTop: number;
+    threadCount: number;
+    cycles: number;
+    distance: number;
+    minTop: number;
+  };
 };
 
 export type RideBudgets = {
@@ -198,6 +205,7 @@ export const runFlickRide = (
     teleportTo?: number;
     teleportSettleMs?: number;
     cycles: FlickCycle[];
+    reachTop?: { maxCycles: number };
     tailSampleMs?: number;
   }
 ): Promise<RideReport> =>
@@ -364,9 +372,25 @@ export const runFlickRide = (
         await raf();
       }
     }
+    const startTop = scroller.scrollTop;
+    let cycles = rideOpts.cycles;
+    if (rideOpts.reachTop) {
+      const cycle = cycles[0];
+      const count = Math.max(cycles.length, Math.ceil(startTop / (cycle.steps * cycle.stepPx)) + 1);
+      if (count > rideOpts.reachTop.maxCycles)
+        throw new Error(`Boundary ride requires ${count} cycles`);
+      cycles = Array.from({ length: count }, () => cycle);
+    }
+    const boundaryDriver = {
+      startTop,
+      threadCount: readThreadCount(),
+      cycles: cycles.length,
+      distance: cycles.reduce((sum, cycle) => sum + cycle.steps * cycle.stepPx, 0),
+      minTop: startTop,
+    };
     sample(0);
 
-    for (const cycle of rideOpts.cycles) {
+    for (const cycle of cycles) {
       scroller.dispatchEvent(new WheelEvent('wheel', { deltaY: -1, bubbles: true }));
       for (let step = 0; step < cycle.steps; step += 1) {
         const prevTop = scroller.scrollTop;
@@ -380,6 +404,7 @@ export const runFlickRide = (
         // expected anchor movement — the anchor tracks USER intent. The
         // immediate read still accounts for clamping at the window edge.
         const driverDelta = prevTop - scroller.scrollTop;
+        boundaryDriver.minTop = Math.min(boundaryDriver.minTop, scroller.scrollTop);
         // eslint-disable-next-line no-await-in-loop
         await raf();
         sample(driverDelta);
@@ -405,6 +430,7 @@ export const runFlickRide = (
 
     return {
       frames,
+      ...(rideOpts.reachTop ? { boundaryDriver } : {}),
       appWrites: writes.slice(writesBefore),
       jumpEvents,
       threadCountStart,
@@ -591,30 +617,81 @@ export const stopRideSampling = (
     };
   });
 
-/**
- * Real inertial flick via CDP: touch drag synthesized on the compositor
- * thread with fling enabled — the scroll continues under momentum after
- * the synthetic finger lifts, like a device, while a throttled main
- * thread races to mount and raster rows.
- */
+/** Native touch strokes with Node-clock delivery, independent of renderer acknowledgements. */
 export const synthesizeFlickUp = async (
   page: Page,
   opts: { x: number; y: number; distance: number; speed: number }
 ): Promise<void> => {
+  const geometry = await page.evaluate(({ x, y, distance: requestedDistance }) => {
+    const scroller = document.querySelector<HTMLElement>('[data-e2e-scroller="1"]');
+    if (!scroller || !scroller.contains(document.elementFromPoint(x, y))) {
+      throw new Error('Touch target is outside the timeline scroller');
+    }
+    const rect = scroller.getBoundingClientRect();
+    const top = Math.max(0, rect.top) + 40;
+    const bottom = Math.min(window.innerHeight, rect.bottom) - 40;
+    const strokeEnd = top + requestedDistance / Math.ceil(requestedDistance / (bottom - top));
+    if (
+      ![top, strokeEnd].every((touchY) => scroller.contains(document.elementFromPoint(x, touchY)))
+    ) {
+      throw new Error(
+        `Touch stroke leaves the timeline scroller: ${JSON.stringify({
+          x,
+          top,
+          bottom,
+          strokeEnd,
+        })}`
+      );
+    }
+    return { top, bottom };
+  }, opts);
+  const available = geometry.bottom - geometry.top;
+  if (available <= 0 || opts.distance <= 0 || opts.speed <= 0)
+    throw new Error('Invalid touch geometry or workload');
+  const strokes = Math.ceil(opts.distance / available);
+  const distance = opts.distance / strokes;
   const session = await page.context().newCDPSession(page);
   try {
-    await session.send('Input.synthesizeScrollGesture', {
-      x: opts.x,
-      y: opts.y,
-      // Positive yDistance scrolls toward older content (finger drags
-      // downward-content upward): CDP treats positive as "scroll up".
-      yDistance: opts.distance,
-      speed: opts.speed,
-      gestureSourceType: 'touch',
-      preventFling: false,
-    });
+    for (let stroke = 0; stroke < strokes; stroke += 1) {
+      // Only the initial contact waits for acknowledgement. Move and release
+      // sends stay ordered but do not wait for the throttled renderer.
+      // eslint-disable-next-line no-await-in-loop
+      await session.send('Input.dispatchTouchEvent', {
+        type: 'touchStart',
+        touchPoints: [{ x: opts.x, y: geometry.top, id: 1 }],
+      });
+      const started = performance.now();
+      const duration = (distance / opts.speed) * 1000;
+      const steps = Math.max(3, Math.ceil(duration / 12));
+      const pending: Promise<unknown>[] = [];
+      for (let step = 1; step <= steps + 1; step += 1) {
+        const deadline = started + (Math.min(step, steps) * duration) / steps;
+        // eslint-disable-next-line no-await-in-loop
+        await new Promise((resolve) => {
+          setTimeout(resolve, Math.max(0, deadline - performance.now()));
+        });
+        const release = step > steps;
+        pending.push(
+          session
+            .send('Input.dispatchTouchEvent', {
+              type: release ? 'touchEnd' : 'touchMove',
+              touchPoints: release
+                ? []
+                : [{ x: opts.x, y: geometry.top + (distance * step) / steps, id: 1 }],
+            })
+            .then(
+              () => undefined,
+              (error: unknown) => error
+            )
+        );
+      }
+      // eslint-disable-next-line no-await-in-loop
+      const acknowledgements = await Promise.all(pending);
+      const failure = acknowledgements.find((result) => result !== undefined);
+      if (failure) throw failure;
+    }
   } finally {
-    await session.detach().catch(() => undefined);
+    await session.detach();
   }
 };
 

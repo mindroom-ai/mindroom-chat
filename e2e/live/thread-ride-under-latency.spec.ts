@@ -216,8 +216,8 @@ test.describe('thread rides under production-shaped latency (iPhone-emulated, CP
     page,
   }, testInfo) => {
     // The closest a desktop harness gets to the phone: REAL inertial
-    // flicks synthesized on the compositor thread (CDP touch gesture
-    // with fling) — dispatching genuine touch events (exercising the
+    // flicks from native CDP touch delivery with post-release inertia,
+    // dispatching genuine touch events (exercising the
     // window touch tracker and the correction hook's touch leg) while a
     // 4x-throttled main thread races to mount and raster rows — plus a
     // screencast so blank bands are measured on PIXELS, not DOM rects.
@@ -276,7 +276,18 @@ test.describe('thread rides under production-shaped latency (iPhone-emulated, CP
       });
     });
     const screencast = await startScreencast(page);
-    await startRideSampling(page);
+    await startRideSampling(page, { measureVisualTravel: true });
+    await page.evaluate(() => {
+      const events: { type: string; t: number; trusted: boolean }[] = [];
+      (window as Window & { __touchDelivery?: typeof events }).__touchDelivery = events;
+      ['touchstart', 'touchmove', 'touchend'].forEach((type) => {
+        window.addEventListener(
+          type,
+          (event) => events.push({ type, t: performance.now(), trusted: event.isTrusted }),
+          { passive: true }
+        );
+      });
+    });
 
     // Flick pattern mirroring a reader chasing history: hard flings with
     // mixed pauses — some below the 150ms quiescence window (commits can
@@ -290,9 +301,52 @@ test.describe('thread rides under production-shaped latency (iPhone-emulated, CP
       // eslint-disable-next-line no-await-in-loop
       await page.waitForTimeout(pauseMs);
     }
+    const gestureEnd = await page.evaluate(() => performance.now());
     await page.waitForTimeout(2_500);
-
     const ride = await stopRideSampling(page);
+    const delivery = await page.evaluate(
+      () =>
+        (
+          window as Window & {
+            __touchDelivery?: { type: string; t: number; trusted: boolean }[];
+          }
+        ).__touchDelivery ?? []
+    );
+    const gestureFrames = ride.frames.filter((frame) => frame.t <= gestureEnd);
+    const intervals = gestureFrames.slice(1);
+    const tracked = intervals.filter((frame) => Number.isFinite(frame.visualDeltaPx));
+    const travelPx = tracked.reduce((sum, frame) => sum + (frame.visualDeltaPx ?? 0), 0);
+    const releases = delivery.filter((event) => event.type === 'touchend');
+    // Both ends of an interval must follow release and precede the next
+    // contact. Ledger folds contribute zero surviving-row displacement.
+    const inertia = releases.map((release) => {
+      const nextStart =
+        delivery.find((event) => event.type === 'touchstart' && event.t > release.t)?.t ??
+        gestureEnd;
+      const framesAfterRelease = gestureFrames.filter(
+        (frame) => frame.t > release.t && frame.t < nextStart
+      );
+      return {
+        release: release.t,
+        nextStart,
+        intervals: Math.max(0, framesAfterRelease.length - 1),
+        travelPx: framesAfterRelease
+          .slice(1)
+          .reduce((sum, frame) => sum + (frame.visualDeltaPx ?? 0), 0),
+      };
+    });
+    const inertiaPx = inertia.reduce((sum, release) => sum + release.travelPx, 0);
+    const movement = {
+      gestureEnd,
+      commandedDistancePx: 7_000,
+      speedPxPerSecond: 4_500,
+      travelPx,
+      trackedIntervals: tracked.length,
+      intervals: intervals.length,
+      inertiaPx,
+      inertia,
+      delivery,
+    };
     const frames = await screencast.stop();
     const blank = await analyzeBlankBands(page, frames);
     const analysis = analyzeRide(
@@ -308,6 +362,7 @@ test.describe('thread rides under production-shaped latency (iPhone-emulated, CP
         threadCountStart: ride.threadCountStart,
         threadCountEnd: ride.threadCountEnd,
         sampledFrames: ride.frames.length,
+        movement,
         screencastFrames: frames.length,
         maxGapPx: analysis.maxGapPx,
         maxJumpPx: analysis.maxJumpPx,
@@ -318,7 +373,7 @@ test.describe('thread rides under production-shaped latency (iPhone-emulated, CP
       })}`
     );
     await testInfo.attach('compositor-ride.json', {
-      body: JSON.stringify({ ride, blank, analysis }, null, 2),
+      body: JSON.stringify({ ride, blank, analysis, movement }, null, 2),
       contentType: 'application/json',
     });
 
@@ -327,12 +382,14 @@ test.describe('thread rides under production-shaped latency (iPhone-emulated, CP
     // frames only as it produces them — a low count is itself evidence
     // of raster starvation, so only a token minimum is required.
     expect(ride.frames.length).toBeGreaterThan(100);
+    expect(tracked.length).toBeGreaterThanOrEqual(intervals.length * 0.9);
+    expect(travelPx).toBeGreaterThanOrEqual(700);
+    expect(inertiaPx).toBeGreaterThan(20);
+    expect(delivery.every((event) => event.trusted)).toBe(true);
+    expect(delivery.filter((event) => event.type === 'touchmove').length).toBeGreaterThan(0);
+    expect(releases.length).toBeGreaterThanOrEqual(10);
     expect(frames.length).toBeGreaterThan(5);
     expect(ride.threadCountStart).toBeGreaterThan(0);
-    test.skip(
-      ride.threadCountStart >= 360,
-      `window full before sampling (threadCountStart=${ride.threadCountStart}) — in-ride pagination not exercised`
-    );
     expect(ride.threadCountStart).toBeLessThan(360);
     expect(ride.threadCountEnd).toBeGreaterThan(ride.threadCountStart);
 
@@ -455,7 +512,9 @@ test.describe('thread rides under production-shaped latency (iPhone-emulated, CP
     await page.setViewportSize(iphone.viewport);
     await page.goto(`/home/${encodeURIComponent(roomId)}?threadId=${encodeURIComponent(rootId)}`);
     await page.waitForSelector('[data-message-item]', { timeout: 60_000 });
-    await page.waitForTimeout(3_000);
+    await expect(page.locator('[data-thread-count]')).toHaveAttribute('data-thread-count', '151', {
+      timeout: 60_000,
+    });
     await throttleCpu(page, 4);
 
     // Continuous ride to the very top of the window: pauses below the
@@ -463,6 +522,7 @@ test.describe('thread rides under production-shaped latency (iPhone-emulated, CP
     // the boundary guard can prevent the viewport from entering it.
     const report = await runFlickRide(page, {
       cycles: Array.from({ length: 40 }, () => ({ steps: 8, stepPx: 90, pauseMs: 80 })),
+      reachTop: { maxCycles: 100 },
       tailSampleMs: 2_000,
     });
 
@@ -473,6 +533,7 @@ test.describe('thread rides under production-shaped latency (iPhone-emulated, CP
     console.log(
       `LEDGER-BOUNDARY ${JSON.stringify({
         frames: report.frames.length,
+        boundaryDriver: report.boundaryDriver,
         topReached,
         maxLedger,
         maxGapPx: analysis.maxGapPx,
@@ -490,18 +551,11 @@ test.describe('thread rides under production-shaped latency (iPhone-emulated, CP
 
     expect(report.error).toBeUndefined();
     expect(report.frames.length).toBeGreaterThan(300);
+    expect(report.boundaryDriver?.threadCount).toBe(151);
+    expect(report.boundaryDriver?.minTop).toBe(0);
     // The ride genuinely reached the top region of the loaded window.
     expect(topReached).toBeLessThan(600);
-    // Degeneration tripwire (mutant audit 2026-07-07, e2e static pass):
-    // post-calibration the estimator keeps the ledger small by design, so
-    // if the ride never accrues past the ±48px arming floor the guard
-    // under test NEVER RUNS and this spec silently becomes a smooth-ride
-    // test. Skip loudly instead of passing vacuously — a skip in CI is a
-    // signal to make the fixture estimator-adversarial again.
-    test.skip(
-      maxLedger <= 48,
-      `ledger never armed (maxLedger=${maxLedger}px) — boundary guard not exercised`
-    );
+    expect(maxLedger).toBeGreaterThan(48);
     expect(report.probes.ledgerBoundarySettles).toBeGreaterThan(0);
     // THE invariant: no blank debt zone, no content shifts - even at the
     // boundary. (Boundary settles are allowed writes; they are visually
