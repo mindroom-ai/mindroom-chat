@@ -2,6 +2,18 @@
 
 ## Runbook
 
+### Durable voice draft delivery ownership (2026-09-14)
+
+- A React-free controller owns initial delivery settlement, retry entry and token settlement, upload error formatting, durable draft writes, and explicit pending discard through one live Jotai store adapter.
+  The voice facade retains start-time callback and origin binding, latest committed option callbacks, capture presentation, and its unchanged public API.
+- Retry ownership is claimed before transport and survives remount through the canonical `{ token, startedAt }` marker.
+  Accepted claims recheck live draft authority after synchronous claim and store callbacks, preserving discarded or replaced drafts and releasing only the accepted composer claim.
+- Facade cleanup compares the accepted start binding after delivery settles, so an older continuation cannot reset a replacement capture started by a committed failure callback.
+  Capture remains independent of React, Matrix, and durable draft state, while the composer retains global initial-send claims, companion ordering, and bundle cleanup.
+- All 492 unit files and 3,903 tests pass under Node 24.13.1, including 209 focused voice, dialog, composer, and send-session tests.
+  Typecheck and changed-source lint/format pass without warnings.
+  Production build and live browser verification remain integration checks.
+
 ### Voice capture publication guards (2026-09-14)
 
 - Start claims its generation before notifying subscribers and rejects continuation after synchronous release or reset.

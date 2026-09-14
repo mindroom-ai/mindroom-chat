@@ -1434,6 +1434,69 @@ describe('useVoiceRecorder', () => {
     renderer.unmount();
   });
 
+  it('does not resurrect a draft discarded synchronously by an accepted retry claim', async () => {
+    const store = createStore();
+    const onSendStopFailure = vi.fn();
+    const onSendRecording = vi.fn().mockRejectedValueOnce(new Error('initial failure'));
+    const onSendStopRequest = vi
+      .fn<[], boolean | void>()
+      .mockReturnValueOnce(true)
+      .mockImplementationOnce(() => {
+        store.set(pendingVoiceSendDraftAtom, undefined);
+        return true;
+      });
+    const { renderer } = await renderHarness(
+      { onSendRecording, onSendStopFailure, onSendStopRequest },
+      store
+    );
+
+    await act(async () => {
+      await recorderState.current?.start();
+    });
+    await act(async () => {
+      vi.advanceTimersByTime(100);
+      await recorderState.current?.send();
+    });
+
+    let result: boolean | undefined;
+    await act(async () => {
+      result = await recorderState.current?.retry();
+    });
+
+    expect(result).toBe(false);
+    expect(store.get(pendingVoiceSendDraftAtom)).toBeUndefined();
+    expect(onSendRecording).toHaveBeenCalledOnce();
+    expect(onSendStopFailure).toHaveBeenCalledTimes(2);
+
+    renderer.unmount();
+  });
+
+  it('does not reset a replacement capture started from delivery failure settlement', async () => {
+    let replacementStart: boolean | undefined;
+    const onSendStopFailure = vi.fn(async () => {
+      recorderState.current?.discardPending();
+      await Promise.resolve();
+      replacementStart = await recorderState.current?.start();
+    });
+    const onSendRecording = vi.fn().mockRejectedValueOnce(new Error('initial failure'));
+    const { renderer } = await renderHarness({ onSendRecording, onSendStopFailure });
+
+    await act(async () => {
+      await recorderState.current?.start();
+    });
+    await act(async () => {
+      vi.advanceTimersByTime(100);
+      await recorderState.current?.send();
+      await Promise.resolve();
+    });
+
+    expect(replacementStart).toBe(true);
+    expect(MockMediaRecorder.instances).toHaveLength(2);
+    expect(recorderState.current?.phase).toBe('recording');
+
+    renderer.unmount();
+  });
+
   it('preserves plain voice send Error messages', async () => {
     const busyMessage =
       'Another voice message is still sending. Please wait before recording again.';

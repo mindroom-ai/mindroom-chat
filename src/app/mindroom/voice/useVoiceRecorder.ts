@@ -1,15 +1,15 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
-import { MatrixError } from 'matrix-js-sdk';
-import { useAtom, useStore } from 'jotai';
+import { useAtomValue, useStore } from 'jotai';
 import { createFallbackWaveform } from '../../utils/audioWaveform';
-import { getMatrixUploadErrorMessage, getMatrixUploadErrorStage } from '../../utils/matrix';
 import {
   pendingVoiceSendDraftAtom,
   type PendingVoiceSendContext,
-  type PendingVoiceSendDraft,
-  type PendingVoiceSendInFlight,
 } from '../../state/room/roomInputDrafts';
 import { createVoiceCaptureSession, type VoiceCapturePhase } from './voiceCaptureSession';
+import {
+  createVoiceSendDraftController,
+  type SendRecordingCallback,
+} from './voiceSendDraftController';
 
 export {
   VOICE_RECORDER_AUDIO_BITS_PER_SECOND,
@@ -17,14 +17,6 @@ export {
   getVoiceRecorderErrorMessage,
 } from './voiceCaptureSession';
 export type VoiceRecorderPhase = VoiceCapturePhase | 'sending';
-const RETRY_BUSY_MESSAGE = 'Another voice message is still sending. Please wait.';
-
-type SendRecordingCallback = (
-  file: File,
-  duration: number,
-  waveform: number[] | undefined,
-  context: PendingVoiceSendContext
-) => Promise<void> | void;
 
 type UseVoiceRecorderOptions = {
   onRecordingStart?: () => void;
@@ -48,13 +40,19 @@ export function useVoiceRecorder({
 }: UseVoiceRecorderOptions) {
   const store = useStore();
   const [capture] = useState(createVoiceCaptureSession);
+  const [draftController] = useState(() =>
+    createVoiceSendDraftController({
+      read: () => store.get(pendingVoiceSendDraftAtom),
+      write: (draft) => store.set(pendingVoiceSendDraftAtom, draft),
+    })
+  );
   const captureSnapshot = useSyncExternalStore(
     capture.subscribe,
     capture.getSnapshot,
     capture.getSnapshot
   );
   const [sending, setSending] = useState(false);
-  const [pendingDraft, setPendingDraft] = useAtom(pendingVoiceSendDraftAtom);
+  const pendingDraft = useAtomValue(pendingVoiceSendDraftAtom);
   const phase: VoiceRecorderPhase =
     pendingDraft?.inFlight || sending ? 'sending' : captureSnapshot.phase;
   const { elapsedMs, waveform, canPause } = captureSnapshot;
@@ -68,19 +66,10 @@ export function useVoiceRecorder({
   const latestOnSendStopFailureRef = useRef(onSendStopFailure);
   const latestOnSendRecordingRef = useRef(onSendRecording);
   const latestGetSendContextRef = useRef(getSendContext);
-  const sendRecordingAtStartRef = useRef<SendRecordingCallback>();
-  const sendContextAtStartRef = useRef<PendingVoiceSendContext>();
-  // Durable delivery stays here until the draft-controller extraction.
-  const pendingDraftRef = useRef<PendingVoiceSendDraft>();
-  const setPendingDraftRef = useRef(setPendingDraft);
-  const retryInFlightRef = useRef(false);
-
-  useEffect(() => {
-    pendingDraftRef.current = pendingDraft;
-  }, [pendingDraft]);
-  useEffect(() => {
-    setPendingDraftRef.current = setPendingDraft;
-  }, [setPendingDraft]);
+  const sendBindingAtStartRef = useRef<{
+    sendRecording: SendRecordingCallback | undefined;
+    context: PendingVoiceSendContext;
+  }>();
   useEffect(() => {
     latestOnRecordingStartRef.current = onRecordingStart;
   }, [onRecordingStart]);
@@ -100,180 +89,117 @@ export function useVoiceRecorder({
   const safeSetPhase = useCallback((next: 'idle' | 'sending') => {
     if (mountedRef.current) setSending(next === 'sending');
   }, []);
-  const writePendingDraft = useCallback((draft: PendingVoiceSendDraft | undefined) => {
-    pendingDraftRef.current = draft;
-    setPendingDraftRef.current(draft);
+  const claimSendStop = useCallback(() => {
+    return latestOnSendStopRequestRef.current?.();
+  }, []);
+  const notifySendStopFailure = useCallback(() => {
+    latestOnSendStopFailureRef.current?.();
   }, []);
   const resetLocalRecorderState = useCallback(() => {
     capture.reset();
-    sendRecordingAtStartRef.current = undefined;
-    sendContextAtStartRef.current = undefined;
-    retryInFlightRef.current = false;
+    sendBindingAtStartRef.current = undefined;
     safeSetPhase('idle');
   }, [capture, safeSetPhase]);
   // Full reset is only for callers that already own the durable draft.
   const reset = useCallback(() => {
     resetLocalRecorderState();
-    writePendingDraft(undefined);
-  }, [resetLocalRecorderState, writePendingDraft]);
+    draftController.discardPending();
+  }, [draftController, resetLocalRecorderState]);
 
   const start = useCallback(async () => {
     if (phase !== 'idle' || capture.getSnapshot().phase !== 'idle' || hasPendingSend) return false;
     latestOnRecordingStartRef.current?.();
-    sendRecordingAtStartRef.current = latestOnSendRecordingRef.current;
-    sendContextAtStartRef.current = latestGetSendContextRef.current();
+    sendBindingAtStartRef.current = {
+      sendRecording: latestOnSendRecordingRef.current,
+      context: latestGetSendContextRef.current(),
+    };
     return capture.start();
   }, [capture, hasPendingSend, phase]);
 
   const send = useCallback(async (): Promise<boolean> => {
     if (!capture.canStop()) return false;
-    if (latestOnSendStopRequestRef.current?.() === false) return false;
-    const recordingContext = sendContextAtStartRef.current;
+    if (claimSendStop() === false) return false;
+    const startBinding = sendBindingAtStartRef.current;
+    const recordingContext = startBinding?.context;
     const currentContext = latestGetSendContextRef.current();
     if (
+      startBinding &&
       recordingContext &&
       currentContext.ownerSessionId === recordingContext.ownerSessionId &&
       currentContext.roomId === recordingContext.roomId
     ) {
-      sendContextAtStartRef.current = {
-        ...recordingContext,
-        threadId: currentContext.threadId,
-        replyDraft: currentContext.replyDraft,
-        threadingEnabled: currentContext.threadingEnabled,
+      sendBindingAtStartRef.current = {
+        ...startBinding,
+        context: {
+          ...recordingContext,
+          threadId: currentContext.threadId,
+          replyDraft: currentContext.replyDraft,
+          threadingEnabled: currentContext.threadingEnabled,
+        },
       };
     }
     // Bind accepted work before native stop or any await can outlive this facade.
-    const sendRecording = sendRecordingAtStartRef.current;
-    const sendContext = sendContextAtStartRef.current;
+    const acceptedBinding = sendBindingAtStartRef.current;
+    const sendRecording = acceptedBinding?.sendRecording;
+    const sendContext = acceptedBinding?.context;
     const result = await capture.finish();
     if (result.status !== 'captured' || !sendRecording || !sendContext) {
       if (result.status === 'captured') capture.reset();
-      latestOnSendStopFailureRef.current?.();
+      notifySendStopFailure();
       return false;
     }
-    const { file, duration, waveform: sampleWaveformData } = result.recording;
     safeSetPhase('sending');
-    try {
-      await sendRecording(file, duration, sampleWaveformData, sendContext);
-      writePendingDraft(undefined);
-      resetLocalRecorderState();
-      return true;
-    } catch (err) {
+    const delivered = await draftController.sendInitial(result.recording, sendContext, {
+      sendRecording,
+      onFailure: notifySendStopFailure,
+    });
+    if (sendBindingAtStartRef.current === acceptedBinding) {
       capture.reset();
       safeSetPhase('idle');
-      const friendlyMessage =
-        err instanceof MatrixError
-          ? getMatrixUploadErrorMessage(err, getMatrixUploadErrorStage(err) ?? 'send')
-          : err instanceof Error
-          ? err.message
-          : 'Failed to send voice message.';
-      writePendingDraft({
-        file,
-        duration,
-        waveform: sampleWaveformData,
-        errorMessage: friendlyMessage,
-        context: sendContext,
-      });
-      latestOnSendStopFailureRef.current?.();
-      return false;
+      if (delivered) sendBindingAtStartRef.current = undefined;
     }
-  }, [capture, resetLocalRecorderState, safeSetPhase, writePendingDraft]);
+    return delivered;
+  }, [capture, claimSendStop, draftController, notifySendStopFailure, safeSetPhase]);
 
   const discard = useCallback(async () => {
     const result = await capture.discard();
     if (capture.getSnapshot().phase === 'idle') {
-      sendRecordingAtStartRef.current = undefined;
-      sendContextAtStartRef.current = undefined;
+      sendBindingAtStartRef.current = undefined;
     }
     return result;
   }, [capture]);
   const { pause, resume, clearError } = capture;
 
   const retry = useCallback(async (): Promise<boolean> => {
-    if (retryInFlightRef.current) {
-      return false;
-    }
-    const draft = pendingDraftRef.current;
-    const sendRecording = sendRecordingAtStartRef.current ?? latestOnSendRecordingRef.current;
-    // Refuse a fresh retry if the atom already has an inFlight marker — a
-    // previous mount's retry is still racing the network. Capsule Discard is
-    // disabled and primary Send is blocked by the synced phase='sending' state
-    // above, but a programmatic call into retry() must also bail.
-    if (
-      !draft ||
-      !sendRecording ||
-      phase === 'sending' ||
-      draft.inFlight ||
-      store.get(pendingVoiceSendDraftAtom)?.inFlight
-    ) {
-      return false;
-    }
+    if (sending || capture.getSnapshot().phase === 'processing') return false;
+    const activeBinding = sendBindingAtStartRef.current;
+    const sendRecording = activeBinding?.sendRecording ?? latestOnSendRecordingRef.current;
+    if (!sendRecording) return false;
 
-    if (latestOnSendStopRequestRef.current?.() === false) {
-      // Surface a dedicated message instead of silently failing the click.
-      writePendingDraft({ ...draft, errorMessage: RETRY_BUSY_MESSAGE });
-      return false;
-    }
-
-    retryInFlightRef.current = true;
-    safeSetPhase('sending');
-    // Stamp this attempt with a token. The token survives a keyed remount
-    // via the atom; a freshly mounted hook reads it and surfaces 'sending'
-    // so the user cannot discard a draft whose request is still in flight.
-    // The token also lets us recognize "another caller took over" on the
-    // resolution paths below.
-    const token = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-    const inFlight: PendingVoiceSendInFlight = { token, startedAt: Date.now() };
-    // Optimistically clear the error while the retry is in flight; failure
-    // path below restores it together with the draft.
-    writePendingDraft({ ...draft, errorMessage: undefined, inFlight });
-    try {
-      await sendRecording(draft.file, draft.duration, draft.waveform, draft.context);
-      // Only clear if this is still our attempt. If a discard or another
-      // operation overwrote the atom, leave that state alone. Note: must
-      // use resetLocalRecorderState() — NOT reset() — below so the local
-      // cleanup never clobbers a newer draft that the token guard just
-      // declined to touch.
-      const liveDraft = store.get(pendingVoiceSendDraftAtom);
-      if (!liveDraft || liveDraft.inFlight?.token === token) {
-        writePendingDraft(undefined);
-      }
+    const delivered = await draftController.retry({
+      claim: claimSendStop,
+      sendRecording,
+      onFailure: notifySendStopFailure,
+    });
+    if (delivered && sendBindingAtStartRef.current === activeBinding) {
       resetLocalRecorderState();
-      return true;
-    } catch (err) {
-      safeSetPhase('idle');
-      // Re-read the live atom directly: pendingDraftRef is synced via a
-      // useEffect (post-commit) and won't reflect a discard that happened
-      // during this same await microtask. Also refuse to clobber a draft
-      // whose token has changed since we started.
-      const liveDraft = store.get(pendingVoiceSendDraftAtom);
-      if (!liveDraft || liveDraft.inFlight?.token !== token) {
-        return false;
-      }
-      const friendlyMessage =
-        err instanceof MatrixError
-          ? getMatrixUploadErrorMessage(err, getMatrixUploadErrorStage(err) ?? 'send')
-          : err instanceof Error
-          ? err.message
-          : 'Failed to send voice message.';
-      writePendingDraft({
-        ...liveDraft,
-        errorMessage: friendlyMessage,
-        inFlight: undefined,
-      });
-      latestOnSendStopFailureRef.current?.();
-      return false;
-    } finally {
-      retryInFlightRef.current = false;
     }
-  }, [phase, resetLocalRecorderState, safeSetPhase, store, writePendingDraft]);
+    return delivered;
+  }, [
+    capture,
+    claimSendStop,
+    draftController,
+    notifySendStopFailure,
+    resetLocalRecorderState,
+    sending,
+  ]);
 
   const discardPending = useCallback(() => {
-    sendRecordingAtStartRef.current = undefined;
-    writePendingDraft(undefined);
+    sendBindingAtStartRef.current = undefined;
+    draftController.discardPending();
     capture.reset();
     safeSetPhase('idle');
-  }, [capture, safeSetPhase, writePendingDraft]);
+  }, [capture, draftController, safeSetPhase]);
 
   useEffect(() => {
     mountedRef.current = true;

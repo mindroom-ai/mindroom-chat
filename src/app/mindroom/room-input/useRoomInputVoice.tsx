@@ -182,8 +182,8 @@ export const useRoomInputVoice = ({
     [mx, getContext]
   );
 
-  // The hook is the canonical owner of pendingVoiceSendDraftAtom — it
-  // writes the draft on failure and clears it on successful send / explicit
+  // The draft controller behind the hook owns pendingVoiceSendDraftAtom.
+  // It writes the draft on failure and clears it on successful send or explicit
   // discard. onClose must NOT clear the draft, or any future caller (a
   // backdrop/Escape dismissal, a click-outside, etc.) would silently lose
   // the parked recording the rest of this PR exists to preserve.
