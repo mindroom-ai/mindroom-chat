@@ -9,7 +9,7 @@ import { MobileFriendlyClientNav } from '../../pages/MobileFriendly';
 import { SidebarNav } from '../../pages/client/SidebarNav';
 import { makeDesktopPageNavCollapsedAtom } from './desktopPageNavState';
 import { useNavToActivePathMapper } from '../../hooks/useNavToActivePathMapper';
-import { useSelectedSpace } from '../../hooks/router/useSelectedSpace';
+import { useSpace } from '../../hooks/useSpace';
 
 type MindroomDesktopPageNavState = {
   canCollapse: boolean;
@@ -113,6 +113,6 @@ export function MindroomPageRoot({ nav, children, navId }: MindroomPageRootProps
 }
 
 export function MindroomSpacePageRoot(props: Omit<MindroomPageRootProps, 'navId'>) {
-  const spaceId = useSelectedSpace();
-  return <MindroomPageRoot {...props} navId={spaceId} />;
+  const space = useSpace();
+  return <MindroomPageRoot {...props} navId={space.roomId} />;
 }

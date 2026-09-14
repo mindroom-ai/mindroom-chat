@@ -1,12 +1,16 @@
 import React from 'react';
 import { act, create } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { Room } from 'matrix-js-sdk';
+import { SpaceProvider } from '../../hooks/useSpace';
+import { useNavToActivePathMapper } from '../../hooks/useNavToActivePathMapper';
 import { getScreenSize, ScreenSizeProvider } from '../../hooks/useScreenSize';
 import { getDesktopPageNavCollapsedStorageKey } from './desktopPageNavState';
 import {
   MindroomNavigationProvider,
   MindroomPageRoot,
   MindroomSidebarNav,
+  MindroomSpacePageRoot,
 } from './MindroomNavigation';
 
 const COLLAPSE_LABEL = 'Collapse navigation panel';
@@ -134,6 +138,7 @@ describe('MindroomNavigation', () => {
   const storageKey = getDesktopPageNavCollapsedStorageKey('@alice:example.org');
 
   beforeEach(() => {
+    vi.mocked(useNavToActivePathMapper).mockClear();
     storageState.clear();
     vi.stubGlobal('localStorage', {
       clear: vi.fn(() => storageState.clear()),
@@ -145,6 +150,25 @@ describe('MindroomNavigation', () => {
       addEventListener: vi.fn(),
       removeEventListener: vi.fn(),
     });
+  });
+
+  it('tracks the already-resolved space from its route provider', () => {
+    let renderer: Renderer;
+    act(() => {
+      renderer = create(
+        <ScreenSizeProvider value={getScreenSize(1280)}>
+          <SpaceProvider value={{ roomId: '!resolved-space:example.org' } as Room}>
+            <MindroomNavigationProvider>
+              <MindroomSpacePageRoot nav={<aside />}>
+                <main />
+              </MindroomSpacePageRoot>
+            </MindroomNavigationProvider>
+          </SpaceProvider>
+        </ScreenSizeProvider>
+      );
+    });
+    expect(useNavToActivePathMapper).toHaveBeenCalledWith('!resolved-space:example.org', true);
+    act(() => renderer.unmount());
   });
 
   afterEach(() => {
