@@ -2,6 +2,20 @@
 
 ## Runbook
 
+### Restore cached rooms without waiting for relation parents (2026-09-14)
+
+- Status: implemented, locally validated, and independently reviewed with no findings.
+- Report: reopening the iOS app shows the particle splash instead of the previously cached chats.
+- Confirmed blocking path: matrix-js-sdk 41.7.0 replays saved sync through `Room.addLiveEvents`, which awaited a network lookup when a cached edit or reaction referenced a parent outside the saved timeline.
+- Cached sync waits for every room before emitting `PREPARED`, so one stalled parent lookup prevented the existing cached chat view from mounting.
+- The existing SDK patch now skips that parent lookup only for cache replay and retains unresolved relations in the SDK's shared room relation collection.
+- Later room or thread hydration attaches those retained edits and reactions to their parent; new live events retain the SDK's parent-fetch behavior.
+- Regression tests persist and reopen a real SDK IndexedDB store, stall all network responses, and verify cached readiness, relation retention, later room and thread hydration, and live-event lookup behavior.
+- Validation: all five new regressions pass, as do typecheck, the production/PWA build, ESLint with zero errors and the existing 17 warnings, touched-file formatting, patch reverse-check, source-map checks, and `git diff --check`.
+- Full Vitest on current dev with Node 24.13.1: 3,802 of 3,805 tests pass; only the three existing Xcode Cloud shell-fixture failures remain on this Nix host.
+- Scope: removes one reproduced network dependency from cached startup.
+  Encryption initialization and local database replay still precede the chat view, and physical-device startup timing remains unverified.
+
 ### Finish history loading on first thread open (2026-09-14)
 
 - Status: implemented and validated on current dev; pull-request review is pending.
