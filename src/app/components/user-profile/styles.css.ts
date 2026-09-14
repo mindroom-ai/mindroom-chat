@@ -4,8 +4,8 @@ import { color, config, toRem } from 'folds';
 export const UserHeader = style({
   position: 'absolute',
   top: 0,
-  left: 0,
-  right: 0,
+  insetInlineStart: 0,
+  insetInlineEnd: 0,
   zIndex: 1,
   padding: config.space.S200,
 });
@@ -32,7 +32,7 @@ export const UserHeroAvatarContainer = style({
 });
 export const UserAvatarContainer = style({
   position: 'absolute',
-  left: config.space.S400,
+  insetInlineStart: config.space.S400,
   top: 0,
   transform: 'translateY(-50%)',
   backgroundColor: color.Surface.Container,

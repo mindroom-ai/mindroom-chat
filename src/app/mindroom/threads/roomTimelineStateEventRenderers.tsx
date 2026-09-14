@@ -1,5 +1,6 @@
 /* eslint-disable react/destructuring-assignment */
 import React from 'react';
+import { Trans } from 'react-i18next';
 import { Box, Icons, Text } from 'folds';
 import { EventTimelineSet, MatrixClient, MatrixEvent, Room } from 'matrix-js-sdk';
 import type { SessionMembershipData } from 'matrix-js-sdk/lib/matrixrtc/membershipData';
@@ -146,8 +147,14 @@ export const createRoomTimelineStateEventRenderers = ({
             content={
               <Box grow="Yes" direction="Column">
                 <Text size="T300" priority="300">
-                  <b>{senderName}</b>
-                  {t('Organisms.RoomCommon.changed_room_name')}
+                  <Trans
+                    t={t}
+                    shouldUnescape
+                    tOptions={{ interpolation: { escapeValue: true } }}
+                    i18nKey="mindroomUi.threads.roomTimelineStateEventRenderers.changedRoomName"
+                    values={{ sender: senderName }}
+                    components={{ sender: <b /> }}
+                  />
                 </Text>
               </Box>
             }
@@ -196,8 +203,14 @@ export const createRoomTimelineStateEventRenderers = ({
             content={
               <Box grow="Yes" direction="Column">
                 <Text size="T300" priority="300">
-                  <b>{senderName}</b>
-                  {' changed room topic'}
+                  <Trans
+                    t={t}
+                    shouldUnescape
+                    tOptions={{ interpolation: { escapeValue: true } }}
+                    i18nKey="mindroomUi.threads.roomTimelineStateEventRenderers.changedRoomTopic"
+                    values={{ sender: senderName }}
+                    components={{ sender: <b /> }}
+                  />
                 </Text>
               </Box>
             }
@@ -246,8 +259,14 @@ export const createRoomTimelineStateEventRenderers = ({
             content={
               <Box grow="Yes" direction="Column">
                 <Text size="T300" priority="300">
-                  <b>{senderName}</b>
-                  {' changed room avatar'}
+                  <Trans
+                    t={t}
+                    shouldUnescape
+                    tOptions={{ interpolation: { escapeValue: true } }}
+                    i18nKey="mindroomUi.threads.roomTimelineStateEventRenderers.changedRoomAvatar"
+                    values={{ sender: senderName }}
+                    components={{ sender: <b /> }}
+                  />
                 </Text>
               </Box>
             }
@@ -304,8 +323,18 @@ export const createRoomTimelineStateEventRenderers = ({
             content={
               <Box grow="Yes" direction="Column">
                 <Text size="T300" priority="300">
-                  <b>{senderName}</b>
-                  {callJoined ? ' joined the call' : ' ended the call'}
+                  <Trans
+                    t={t}
+                    shouldUnescape
+                    tOptions={{ interpolation: { escapeValue: true } }}
+                    i18nKey={
+                      callJoined
+                        ? 'mindroomUi.threads.roomTimelineStateEventRenderers.joinedCall'
+                        : 'mindroomUi.threads.roomTimelineStateEventRenderers.endedCall'
+                    }
+                    values={{ sender: senderName }}
+                    components={{ sender: <b /> }}
+                  />
                 </Text>
               </Box>
             }
@@ -356,10 +385,14 @@ export const createRoomTimelineStateEventRenderers = ({
           content={
             <Box grow="Yes" direction="Column">
               <Text size="T300" priority="300">
-                <b>{senderName}</b>
-                {' sent '}
-                <code className={customHtmlCss.Code}>{mEvent.getType()}</code>
-                {' state event'}
+                <Trans
+                  t={t}
+                  shouldUnescape
+                  tOptions={{ interpolation: { escapeValue: true } }}
+                  i18nKey="mindroomUi.threads.roomTimelineStateEventRenderers.sentStateEvent"
+                  values={{ sender: senderName, eventType: mEvent.getType() }}
+                  components={{ sender: <b />, eventType: <code className={customHtmlCss.Code} /> }}
+                />
               </Text>
             </Box>
           }
@@ -413,10 +446,14 @@ export const createRoomTimelineStateEventRenderers = ({
           content={
             <Box grow="Yes" direction="Column">
               <Text size="T300" priority="300">
-                <b>{senderName}</b>
-                {' sent '}
-                <code className={customHtmlCss.Code}>{mEvent.getType()}</code>
-                {' event'}
+                <Trans
+                  t={t}
+                  shouldUnescape
+                  tOptions={{ interpolation: { escapeValue: true } }}
+                  i18nKey="mindroomUi.threads.roomTimelineStateEventRenderers.sentEvent"
+                  values={{ sender: senderName, eventType: mEvent.getType() }}
+                  components={{ sender: <b />, eventType: <code className={customHtmlCss.Code} /> }}
+                />
               </Text>
             </Box>
           }

@@ -20,6 +20,7 @@ import {
 } from 'folds';
 import { HexColorPicker } from 'react-colorful';
 import { useAtomValue } from 'jotai';
+import { useTranslation } from 'react-i18next';
 import { Page, PageContent, PageHeader } from '../../../components/page';
 import { IPowerLevels } from '../../../hooks/usePowerLevels';
 import { SequenceCard } from '../../../components/sequence-card';
@@ -49,6 +50,7 @@ import { useAlive } from '../../../hooks/useAlive';
 import { BetaNoticeBadge } from '../../../components/BetaNoticeBadge';
 import { getPowerTagIconSrc } from '../../../hooks/useMemberPowerTag';
 import { creatorsSupported } from '../../../utils/matrix';
+import { useStateEvent } from '../../../hooks/useStateEvent';
 
 type EditPowerProps = {
   maxPower: number;
@@ -58,6 +60,7 @@ type EditPowerProps = {
   onClose: () => void;
 };
 function EditPower({ maxPower, power, tag, onSave, onClose }: EditPowerProps) {
+  const { t } = useTranslation();
   const mx = useMatrixClient();
   const room = useRoom();
   const roomToParents = useAtomValue(roomToParentsAtom);
@@ -120,7 +123,7 @@ function EditPower({ maxPower, power, tag, onSave, onClose }: EditPowerProps) {
       <Box direction="Column" gap="300">
         <Box gap="200">
           <Box shrink="No" direction="Column" gap="100">
-            <Text size="L400">Color</Text>
+            <Text size="L400">{t('featureUi.commonSettings.permissions.powersEditor.color')}</Text>
             <Box gap="200">
               <HexColorPickerPopOut
                 picker={<HexColorPicker color={tagColor} onChange={setTagColor} />}
@@ -137,18 +140,20 @@ function EditPower({ maxPower, power, tag, onSave, onClose }: EditPowerProps) {
                     radii="300"
                     before={<PowerColorBadge color={tagColor} />}
                   >
-                    <Text size="B300">Pick</Text>
+                    <Text size="B300">
+                      {t('featureUi.commonSettings.permissions.powersEditor.pick')}
+                    </Text>
                   </Button>
                 )}
               </HexColorPickerPopOut>
             </Box>
           </Box>
           <Box grow="Yes" direction="Column" gap="100">
-            <Text size="L400">Name</Text>
+            <Text size="L400">{t('featureUi.commonSettings.permissions.powersEditor.name')}</Text>
             <Input
               name="nameInput"
               defaultValue={tag?.name}
-              placeholder="Bot"
+              placeholder={t('featureUi.commonSettings.permissions.powersEditor.bot')}
               size="300"
               variant="Secondary"
               radii="300"
@@ -156,7 +161,7 @@ function EditPower({ maxPower, power, tag, onSave, onClose }: EditPowerProps) {
             />
           </Box>
           <Box style={{ maxWidth: toRem(74) }} grow="Yes" direction="Column" gap="100">
-            <Text size="L400">Power</Text>
+            <Text size="L400">{t('featureUi.commonSettings.permissions.powersEditor.power')}</Text>
             <Input
               defaultValue={power}
               name="powerInput"
@@ -174,7 +179,7 @@ function EditPower({ maxPower, power, tag, onSave, onClose }: EditPowerProps) {
         </Box>
       </Box>
       <Box direction="Column" gap="100">
-        <Text size="L400">Icon</Text>
+        <Text size="L400">{t('featureUi.commonSettings.permissions.powersEditor.icon')}</Text>
         {iconUploadAtom && !tagIconSrc ? (
           <CompactUploadCardRenderer
             uploadAtom={iconUploadAtom}
@@ -194,7 +199,9 @@ function EditPower({ maxPower, power, tag, onSave, onClose }: EditPowerProps) {
                   fill="None"
                   radii="300"
                 >
-                  <Text size="B300">Remove</Text>
+                  <Text size="B300">
+                    {t('featureUi.commonSettings.permissions.powersEditor.remove')}
+                  </Text>
                 </Button>
               </>
             ) : (
@@ -238,7 +245,9 @@ function EditPower({ maxPower, power, tag, onSave, onClose }: EditPowerProps) {
                         radii="300"
                         before={<Icon size="50" src={Icons.SmilePlus} />}
                       >
-                        <Text size="B300">Pick</Text>
+                        <Text size="B300">
+                          {t('featureUi.commonSettings.permissions.powersEditor.pick')}
+                        </Text>
                       </Button>
                     </PopOut>
                   )}
@@ -251,7 +260,9 @@ function EditPower({ maxPower, power, tag, onSave, onClose }: EditPowerProps) {
                   fill="None"
                   radii="300"
                 >
-                  <Text size="B300">Import</Text>
+                  <Text size="B300">
+                    {t('featureUi.commonSettings.permissions.powersEditor.import')}
+                  </Text>
                 </Button>
               </>
             )}
@@ -267,7 +278,7 @@ function EditPower({ maxPower, power, tag, onSave, onClose }: EditPowerProps) {
           radii="300"
           disabled={uploadingIcon}
         >
-          <Text size="B300">Save</Text>
+          <Text size="B300">{t('featureUi.commonSettings.permissions.powersEditor.save')}</Text>
         </Button>
         <Button
           type="button"
@@ -277,7 +288,7 @@ function EditPower({ maxPower, power, tag, onSave, onClose }: EditPowerProps) {
           radii="300"
           onClick={onClose}
         >
-          <Text size="B300">Cancel</Text>
+          <Text size="B300">{t('featureUi.commonSettings.permissions.powersEditor.cancel')}</Text>
         </Button>
       </Box>
     </Box>
@@ -289,6 +300,7 @@ type PowersEditorProps = {
   requestClose: () => void;
 };
 export function PowersEditor({ powerLevels, requestClose }: PowersEditorProps) {
+  const { t } = useTranslation();
   const mx = useMatrixClient();
   const useAuthentication = useMediaAuthentication();
   const room = useRoom();
@@ -299,6 +311,7 @@ export function PowersEditor({ powerLevels, requestClose }: PowersEditorProps) {
   }, [powerLevels]);
 
   const powerLevelTags = usePowerLevelTags(room, powerLevels);
+  const powerLevelTagsEvent = useStateEvent(room, StateEvent.PowerLevelTags);
   const [editedPowerTags, setEditedPowerTags] = useState<PowerLevelTags>();
   const [deleted, setDeleted] = useState<Set<number>>(new Set());
 
@@ -316,25 +329,25 @@ export function PowersEditor({ powerLevels, requestClose }: PowersEditorProps) {
     });
   }, []);
 
-  const handleSaveTag = useCallback(
-    (power: number, tag: MemberPowerTag) => {
-      setEditedPowerTags((tags) => {
-        const editedTags = { ...(tags ?? powerLevelTags) };
-        editedTags[power] = tag;
-        return editedTags;
-      });
-    },
-    [powerLevelTags]
-  );
+  const handleSaveTag = useCallback((power: number, tag: MemberPowerTag) => {
+    setEditedPowerTags((tags) => {
+      const editedTags = { ...tags };
+      editedTags[power] = tag;
+      return editedTags;
+    });
+  }, []);
 
   const [applyState, applyChanges] = useAsyncCallback(
     useCallback(async () => {
-      const content: PowerLevelTags = { ...(editedPowerTags ?? powerLevelTags) };
+      const content: PowerLevelTags = {
+        ...powerLevelTagsEvent?.getContent<PowerLevelTags>(),
+        ...editedPowerTags,
+      };
       deleted.forEach((power) => {
         delete content[power];
       });
       await mx.sendStateEvent(room.roomId, StateEvent.PowerLevelTags as any, content);
-    }, [mx, room, powerLevelTags, editedPowerTags, deleted])
+    }, [mx, room, powerLevelTagsEvent, editedPowerTags, deleted])
   );
 
   const resetChanges = useCallback(() => {
@@ -353,7 +366,7 @@ export function PowersEditor({ powerLevels, requestClose }: PowersEditorProps) {
   const applyingChanges = applyState.status === AsyncStatus.Loading;
   const hasChanges = editedPowerTags || deleted.size > 0;
 
-  const powerTags = editedPowerTags ?? powerLevelTags;
+  const powerTags = { ...powerLevelTags, ...editedPowerTags };
   return (
     <Page>
       <PageHeader outlined={false} balance>
@@ -363,9 +376,11 @@ export function PowersEditor({ powerLevels, requestClose }: PowersEditorProps) {
               size="500"
               radii="Pill"
               onClick={requestClose}
-              before={<Icon size="100" src={Icons.ArrowLeft} />}
+              before={<Icon data-directional size="100" src={Icons.ArrowLeft} />}
             >
-              <Text size="T300">Permissions</Text>
+              <Text size="T300">
+                {t('featureUi.commonSettings.permissions.powersEditor.permissions')}
+              </Text>
             </Chip>
           </Box>
           <Box shrink="No">
@@ -381,7 +396,9 @@ export function PowersEditor({ powerLevels, requestClose }: PowersEditorProps) {
             <Box direction="Column" gap="700">
               <Box direction="Column" gap="100">
                 <Box alignItems="Baseline" gap="200" justifyContent="SpaceBetween">
-                  <Text size="L400">Power Levels</Text>
+                  <Text size="L400">
+                    {t('featureUi.commonSettings.permissions.powersEditor.powerLevels')}
+                  </Text>
                   <BetaNoticeBadge />
                 </Box>
                 <SequenceCard
@@ -391,8 +408,10 @@ export function PowersEditor({ powerLevels, requestClose }: PowersEditorProps) {
                   gap="400"
                 >
                   <SettingTile
-                    title="New Power Level"
-                    description="Create a new power level."
+                    title={t('featureUi.commonSettings.permissions.powersEditor.newPowerLevel')}
+                    description={t(
+                      'featureUi.commonSettings.permissions.powersEditor.createANewPowerLevel'
+                    )}
                     after={
                       !createTag && (
                         <Button
@@ -404,7 +423,9 @@ export function PowersEditor({ powerLevels, requestClose }: PowersEditorProps) {
                           outlined
                           disabled={applyingChanges}
                         >
-                          <Text size="B300">Create</Text>
+                          <Text size="B300">
+                            {t('featureUi.commonSettings.permissions.powersEditor.create')}
+                          </Text>
                         </Button>
                       )
                     }
@@ -462,7 +483,9 @@ export function PowersEditor({ powerLevels, requestClose }: PowersEditorProps) {
                                     disabled={applyingChanges}
                                     onClick={() => handleToggleDelete(power)}
                                   >
-                                    <Text size="B300">Undo</Text>
+                                    <Text size="B300">
+                                      {t('featureUi.commonSettings.permissions.powersEditor.undo')}
+                                    </Text>
                                   </Chip>
                                 ) : (
                                   <Box shrink="No" alignItems="Center" gap="200">
@@ -471,13 +494,23 @@ export function PowersEditor({ powerLevels, requestClose }: PowersEditorProps) {
                                         <Tooltip style={{ maxWidth: toRem(200) }}>
                                           {usedPowers.has(power) ? (
                                             <Box direction="Column">
-                                              <Text size="L400">Used Power Level</Text>
+                                              <Text size="L400">
+                                                {t(
+                                                  'featureUi.commonSettings.permissions.powersEditor.usedPowerLevel'
+                                                )}
+                                              </Text>
                                               <Text size="T200">
-                                                You have to remove its use before you can delete it.
+                                                {t(
+                                                  'featureUi.commonSettings.permissions.powersEditor.youHaveToRemoveItsUseBefore'
+                                                )}
                                               </Text>
                                             </Box>
                                           ) : (
-                                            <Text>Delete</Text>
+                                            <Text>
+                                              {t(
+                                                'featureUi.commonSettings.permissions.powersEditor.delete'
+                                              )}
+                                            </Text>
                                           )}
                                         </Tooltip>
                                       }
@@ -506,7 +539,11 @@ export function PowersEditor({ powerLevels, requestClose }: PowersEditorProps) {
                                       disabled={applyingChanges}
                                       onClick={() => setEdit(true)}
                                     >
-                                      <Text size="B300">Edit</Text>
+                                      <Text size="B300">
+                                        {t(
+                                          'featureUi.commonSettings.permissions.powersEditor.edit'
+                                        )}
+                                      </Text>
                                     </Chip>
                                   </Box>
                                 )
@@ -524,7 +561,7 @@ export function PowersEditor({ powerLevels, requestClose }: PowersEditorProps) {
                   style={{
                     position: 'sticky',
                     padding: config.space.S200,
-                    paddingLeft: config.space.S400,
+                    paddingInlineStart: config.space.S400,
                     bottom: config.space.S400,
                     left: config.space.S400,
                     right: 0,
@@ -536,11 +573,19 @@ export function PowersEditor({ powerLevels, requestClose }: PowersEditorProps) {
                     <Box grow="Yes" direction="Column">
                       {applyState.status === AsyncStatus.Error ? (
                         <Text size="T200">
-                          <b>Failed to apply changes! Please try again.</b>
+                          <b>
+                            {t(
+                              'featureUi.commonSettings.permissions.powersEditor.failedToApplyChangesPleaseTryAgain'
+                            )}
+                          </b>
                         </Text>
                       ) : (
                         <Text size="T200">
-                          <b>Changes saved! Apply when ready.</b>
+                          <b>
+                            {t(
+                              'featureUi.commonSettings.permissions.powersEditor.changesSavedApplyWhenReady'
+                            )}
+                          </b>
                         </Text>
                       )}
                     </Box>
@@ -553,7 +598,9 @@ export function PowersEditor({ powerLevels, requestClose }: PowersEditorProps) {
                         disabled={applyingChanges}
                         onClick={resetChanges}
                       >
-                        <Text size="B300">Reset</Text>
+                        <Text size="B300">
+                          {t('featureUi.commonSettings.permissions.powersEditor.reset')}
+                        </Text>
                       </Button>
                       <Button
                         size="300"
@@ -565,7 +612,9 @@ export function PowersEditor({ powerLevels, requestClose }: PowersEditorProps) {
                         }
                         onClick={handleApplyChanges}
                       >
-                        <Text size="B300">Apply Changes</Text>
+                        <Text size="B300">
+                          {t('featureUi.commonSettings.permissions.powersEditor.applyChanges')}
+                        </Text>
                       </Button>
                     </Box>
                   </Box>

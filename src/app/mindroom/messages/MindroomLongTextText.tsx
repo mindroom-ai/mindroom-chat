@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import React, { ReactNode, useEffect, useRef, useState } from 'react';
 import { Box, Spinner, Text as FText, config } from 'folds';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
@@ -171,6 +172,7 @@ export function MindroomLongTextText({
   renderUrlsPreview,
   hydrate = true,
 }: MindroomLongTextTextProps) {
+  const { t } = useTranslation();
   const mx = useMatrixClient();
   const useAuthentication = useMediaAuthentication();
   const { encryptedFile, isV2ContentJson, mxcUri } = longTextSource;
@@ -335,7 +337,9 @@ export function MindroomLongTextText({
       {showLoadingIndicator && (
         <Box alignItems="Center" gap="100" style={{ marginTop: config.space.S100 }}>
           <Spinner size="100" variant="Secondary" />
-          <FText size="T200">Loading full response...</FText>
+          <FText size="T200">
+            {t('mindroomUi.messages.mindroomLongTextText.loadingFullResponse')}
+          </FText>
         </Box>
       )}
     </>

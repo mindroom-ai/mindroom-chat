@@ -1,6 +1,9 @@
 import React from 'react';
+import { createInstance } from 'i18next';
+import { I18nextProvider } from 'react-i18next';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import en from '../../locales/en.json';
 import { ApprovalArguments } from './ApprovalArguments';
 import { parseToolApprovalContent } from './toolApproval';
 
@@ -95,4 +98,43 @@ it('keeps one in-flight download when the same attachment is reparsed during cha
     finish(new Blob([JSON.stringify({ user: 'Jamie' })]));
   });
   expect(renderer.root.findByType('pre').children.join('')).toContain('Jamie');
+});
+
+it('translates a retained failure without downloading again on language changes', async () => {
+  const language = createInstance();
+  await language.init({
+    lng: 'en',
+    fallbackLng: 'en',
+    resources: {
+      en: { translation: en },
+      de: {
+        translation: {
+          mindroomUi: {
+            messages: {
+              approvalArguments: {
+                loadFailed: 'Vollständige Argumente konnten nicht geladen werden.',
+              },
+            },
+          },
+        },
+      },
+    },
+  });
+  mocks.download.mockRejectedValueOnce(new Error('Offline'));
+  act(() => {
+    renderer = create(
+      <I18nextProvider i18n={language}>
+        <ApprovalArguments approval={approval} />
+      </I18nextProvider>
+    );
+  });
+  await toggle(true);
+  expect(JSON.stringify(renderer.toJSON())).toContain('Could not load complete arguments.');
+  await act(async () => {
+    await language.changeLanguage('de');
+  });
+  expect(JSON.stringify(renderer.toJSON())).toContain(
+    'Vollständige Argumente konnten nicht geladen werden.'
+  );
+  expect(mocks.download).toHaveBeenCalledTimes(1);
 });

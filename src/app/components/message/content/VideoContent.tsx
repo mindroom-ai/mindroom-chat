@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import React, { ReactNode, useCallback, useEffect, useState } from 'react';
 import {
   Badge,
@@ -72,6 +73,7 @@ export const VideoContent = as<'div', VideoContentProps>(
     },
     ref
   ) => {
+    const { t } = useTranslation();
     const mx = useMatrixClient();
     const useAuthentication = useMediaAuthentication();
     const blurHash = validBlurHash(info.thumbnail_info?.[MATRIX_BLUR_HASH_PROPERTY_NAME]);
@@ -142,7 +144,7 @@ export const VideoContent = as<'div', VideoContentProps>(
               onClick={loadSrc}
               before={<Icon size="Inherit" src={Icons.Play} filled />}
             >
-              <Text size="B300">Watch</Text>
+              <Text size="B300">{t('sharedUi.videoContent.watch')}</Text>
             </Button>
           </Box>
         )}
@@ -182,7 +184,7 @@ export const VideoContent = as<'div', VideoContentProps>(
                     setBlurred(false);
                   }}
                 >
-                  <Text size="B300">Spoiler</Text>
+                  <Text size="B300">{t('sharedUi.videoContent.spoiler')}</Text>
                 </Chip>
               )}
             </TooltipProvider>
@@ -200,7 +202,7 @@ export const VideoContent = as<'div', VideoContentProps>(
             <TooltipProvider
               tooltip={
                 <Tooltip variant="Critical">
-                  <Text>Failed to load video!</Text>
+                  <Text>{t('sharedUi.videoContent.failedToLoadVideo')}</Text>
                 </Tooltip>
               }
               position="Top"
@@ -217,7 +219,7 @@ export const VideoContent = as<'div', VideoContentProps>(
                   onClick={handleRetry}
                   before={<Icon size="Inherit" src={Icons.Warning} filled />}
                 >
-                  <Text size="B300">Retry</Text>
+                  <Text size="B300">{t('sharedUi.videoContent.retry')}</Text>
                 </Button>
               )}
             </TooltipProvider>

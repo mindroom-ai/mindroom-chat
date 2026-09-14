@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import React, { RefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Text, Box, Icon, Icons, config, Spinner, IconButton, Line, toRem } from 'folds';
 import { useAtomValue } from 'jotai';
@@ -38,10 +39,7 @@ import {
   normalizeMessageSearchRooms,
   shouldDeferImplicitMessageSearch,
 } from './messageSearchScope';
-import {
-  flattenMessageSearchRows,
-  MESSAGE_SEARCH_FALLBACK_ROW_LIMIT,
-} from './messageSearchRows';
+import { flattenMessageSearchRows, MESSAGE_SEARCH_FALLBACK_ROW_LIMIT } from './messageSearchRows';
 import { useSyncState } from '../../hooks/useSyncState';
 
 const useSearchPathSearchParams = (searchParams: URLSearchParams): _SearchPathSearchParams =>
@@ -72,6 +70,7 @@ export function MessageSearch({
   scrollRef,
   renderBody,
 }: MessageSearchProps) {
+  const { t } = useTranslation();
   const mx = useMatrixClient();
   const mDirects = useAtomValue(mDirectAtom);
   const allRooms = useRooms(mx, allRoomsAtom, mDirects);
@@ -107,10 +106,7 @@ export function MessageSearch({
     () => normalizeMessageSearchRooms(searchParamRooms),
     [searchParamRooms]
   );
-  const normalizedDefaultRooms = useMemo(
-    () => normalizeMessageSearchRooms(rooms) ?? [],
-    [rooms]
-  );
+  const normalizedDefaultRooms = useMemo(() => normalizeMessageSearchRooms(rooms) ?? [], [rooms]);
   const normalizedDefaultRoomsKey = useMemo(
     () => normalizedDefaultRooms.join('\n'),
     [normalizedDefaultRooms]
@@ -254,10 +250,7 @@ export function MessageSearch({
       }),
     [msgSearchParams.term, rows.length, status, vItems.length]
   );
-  const fallbackRows = useMemo(
-    () => rows.slice(0, MESSAGE_SEARCH_FALLBACK_ROW_LIMIT),
-    [rows]
-  );
+  const fallbackRows = useMemo(() => rows.slice(0, MESSAGE_SEARCH_FALLBACK_ROW_LIMIT), [rows]);
 
   const handleSearch = (term: string) => {
     setSearchParams((prevParams) => {
@@ -353,7 +346,7 @@ export function MessageSearch({
           radii="Pill"
           outlined
           size="300"
-          aria-label="Scroll to Top"
+          aria-label={t('mindroomUi.message-search.messageSearch.scrollToTop')}
         >
           <Icon src={Icons.ChevronTop} size="300" />
         </IconButton>
@@ -384,8 +377,8 @@ export function MessageSearch({
           <PageHeroSection>
             <PageHero
               icon={<Icon size="600" src={Icons.Message} />}
-              title="Search Messages"
-              subTitle="Find helpful messages in your community by searching with related keywords."
+              title={t('mindroomUi.message-search.messageSearch.searchMessages')}
+              subTitle={t('mindroomUi.message-search.messageSearch.searchDescription')}
             />
           </PageHeroSection>
         </PageHeroEmpty>
@@ -400,7 +393,9 @@ export function MessageSearch({
         >
           <Icon size="200" src={Icons.Info} />
           <Text>
-            No results found for <b>{`"${msgSearchParams.term}"`}</b>
+            {t('mindroomUi.message-search.messageSearch.noResultsFor', {
+              term: msgSearchParams.term,
+            })}
           </Text>
         </Box>
       )}
@@ -416,7 +411,11 @@ export function MessageSearch({
       {renderState.showVirtualizerFallback && (
         <Box direction="Column" gap="300">
           <Box direction="Column" gap="200">
-            <Text size="H5">{`Results for "${msgSearchParams.term}"`}</Text>
+            <Text size="H5">
+              {t('mindroomUi.message-search.messageSearch.resultsFor', {
+                term: msgSearchParams.term,
+              })}
+            </Text>
             <Line size="300" variant="Surface" />
           </Box>
           <Box direction="Column" gap="500">
@@ -454,7 +453,11 @@ export function MessageSearch({
       {renderState.showVirtualizedResults && (
         <Box direction="Column" gap="300">
           <Box direction="Column" gap="200">
-            <Text size="H5">{`Results for "${msgSearchParams.term}"`}</Text>
+            <Text size="H5">
+              {t('mindroomUi.message-search.messageSearch.resultsFor', {
+                term: msgSearchParams.term,
+              })}
+            </Text>
             <Line size="300" variant="Surface" />
           </Box>
           <div

@@ -1,4 +1,6 @@
 import { useMemo, useRef } from 'react';
+import type { TFunction } from 'i18next';
+import { useTranslation } from 'react-i18next';
 import type { MatrixClient } from 'matrix-js-sdk';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
@@ -7,6 +9,7 @@ import { getMxIdLocalPart, mxcUrlToHttp } from '../../utils/matrix';
 import { getMemberAvatarMxc, getMemberDisplayName } from '../../utils/room';
 import { getThreadScheduledDisplayText, getThreadScheduledLabel } from './compactThreadCardUtils';
 import { getThreadPrimarySummaryText } from './threadPresentation';
+import { localizeThreadPreview } from './threadMessagePreview';
 import type {
   CompactThreadAttentionState,
   CompactThreadCardViewModel,
@@ -14,10 +17,8 @@ import type {
   ThreadParticipantViewModel,
 } from './types';
 import { getThreadResolverDisplayName } from './threadResolutionAttribution';
+import { useAppLanguageCode } from '../../hooks/useAppLanguageCode';
 
-const numberFormatter = new Intl.NumberFormat();
-const TITLE_FALLBACK = 'Thread started';
-const LAST_MESSAGE_FALLBACK = 'No replies yet';
 const TITLE_TEXT_LIMIT = 160;
 const PREVIEW_TEXT_LIMIT = 96;
 const MATRIX_USER_ID_CANDIDATE_REGEXP = /@[^\s:]+:\S+/g;
@@ -42,11 +43,21 @@ export const replaceMatrixUserIdsWithDisplayNames = (room: Room, text: string): 
     return candidate;
   });
 
-export const getCompactThreadMessageCountLabel = (messageCount: number): string => {
-  if (messageCount === 0) return '0 replies';
+export const getCompactThreadMessageCountLabel = (
+  messageCount: number,
+  t?: TFunction,
+  locale?: string
+): string => {
+  if (messageCount === 0)
+    return t?.('mindroomUi.threads.compactThreadCardViewModel.noReplies') ?? '0 replies';
 
-  const formattedCount = numberFormatter.format(messageCount);
-  return `${formattedCount} ${messageCount === 1 ? 'msg' : 'msgs'}`;
+  const formattedCount = new Intl.NumberFormat(locale).format(messageCount);
+  return (
+    t?.('mindroomUi.threads.compactThreadCardViewModel.messageCount', {
+      count: messageCount,
+      formattedCount,
+    }) ?? `${formattedCount} ${messageCount === 1 ? 'msg' : 'msgs'}`
+  );
 };
 
 export const getCompactThreadAttentionState = ({
@@ -68,20 +79,28 @@ export const getCompactThreadAttentionState = ({
 };
 
 export const getCompactThreadAttentionStatusText = (
-  attentionState: CompactThreadAttentionState
+  attentionState: CompactThreadAttentionState,
+  t?: TFunction
 ): string => {
   switch (attentionState) {
     case 'needs-attention':
-      return 'Needs attention';
+      return (
+        t?.('mindroomUi.threads.compactThreadCardViewModel.needsAttention') ?? 'Needs attention'
+      );
     case 'waiting':
-      return 'Waiting on response';
+      return (
+        t?.('mindroomUi.threads.compactThreadCardViewModel.waitingOnResponse') ??
+        'Waiting on response'
+      );
     case 'streaming':
-      return 'Agent streaming';
+      return (
+        t?.('mindroomUi.threads.compactThreadCardViewModel.agentStreaming') ?? 'Agent streaming'
+      );
     case 'resolved':
-      return 'Resolved';
+      return t?.('mindroomUi.threads.compactThreadCardViewModel.resolved') ?? 'Resolved';
     case 'idle':
     default:
-      return 'Idle';
+      return t?.('mindroomUi.threads.compactThreadCardViewModel.idle') ?? 'Idle';
   }
 };
 
@@ -115,6 +134,8 @@ type BuildCompactThreadCardViewModelFromRecordOptions = {
   currentUserId?: string;
   mx: MatrixClient;
   useAuthentication: boolean;
+  t?: TFunction;
+  locale?: string;
 };
 
 export const buildCompactThreadCardViewModelFromRecord = ({
@@ -123,17 +144,31 @@ export const buildCompactThreadCardViewModelFromRecord = ({
   currentUserId,
   mx,
   useAuthentication,
+  t,
+  locale,
 }: BuildCompactThreadCardViewModelFromRecordOptions): CompactThreadCardViewModel => {
   const { presentation, status } = record;
   const titleText = replaceMatrixUserIdsWithDisplayNames(
     room,
-    getThreadPrimarySummaryText(presentation) ?? TITLE_FALLBACK
+    getThreadPrimarySummaryText(presentation, t) ??
+      t?.('mindroomUi.threads.compactThreadCardViewModel.threadStarted') ??
+      'Thread started'
   );
   const latestPreviewText = replaceMatrixUserIdsWithDisplayNames(
     room,
-    presentation.latestReplyPreviewText ??
-      presentation.rootPreviewText ??
-      (presentation.messageCount > 0 ? titleText : LAST_MESSAGE_FALLBACK)
+    localizeThreadPreview(
+      presentation.latestReplyPreviewText,
+      presentation.latestReplyPreviewLocalization,
+      t
+    ) ??
+      localizeThreadPreview(
+        presentation.rootPreviewText,
+        presentation.rootPreviewLocalization,
+        t
+      ) ??
+      (presentation.messageCount > 0
+        ? titleText
+        : t?.('mindroomUi.threads.compactThreadCardViewModel.noRepliesYet') ?? 'No replies yet')
   );
   const lastSenderId = presentation.lastSenderId;
   const lastSenderName =
@@ -156,13 +191,16 @@ export const buildCompactThreadCardViewModelFromRecord = ({
   const scheduledDisplayText = getThreadScheduledDisplayText(
     status.scheduledTaskCount,
     status.nextScheduledTs,
-    status.cronDescription
+    status.cronDescription,
+    t,
+    locale
   );
   const scheduledTaskLabel = getThreadScheduledLabel(
     status.scheduledTaskCount,
     status.nextScheduledTs,
     status.cronDescription,
-    scheduledDisplayText
+    scheduledDisplayText,
+    t
   );
   const resolvedByDisplayName = getThreadResolverDisplayName(room, status.resolvedByUserId);
 
@@ -177,9 +215,9 @@ export const buildCompactThreadCardViewModelFromRecord = ({
     primarySummaryText: getThreadPrimarySummaryText(presentation),
     recentThreadSummaryText: presentation.recentThreadSummaryText,
     messageCount: presentation.messageCount,
-    messageCountLabel: getCompactThreadMessageCountLabel(presentation.messageCount),
+    messageCountLabel: getCompactThreadMessageCountLabel(presentation.messageCount, t, locale),
     attentionState,
-    attentionStatusText: getCompactThreadAttentionStatusText(attentionState),
+    attentionStatusText: getCompactThreadAttentionStatusText(attentionState, t),
     participants: getCompactThreadParticipants({
       room,
       mx,
@@ -198,7 +236,7 @@ export const buildCompactThreadCardViewModelFromRecord = ({
     lastActivityTs: status.lastActivityTs,
     lastActivityTitle:
       status.lastActivityTs !== undefined
-        ? new Date(status.lastActivityTs).toLocaleString()
+        ? new Date(status.lastActivityTs).toLocaleString(locale)
         : undefined,
   };
 };
@@ -215,6 +253,8 @@ export const useCompactThreadCardViewModels = ({
   threadRecordMap,
 }: UseCompactThreadCardViewModelsOptions): CompactThreadCardViewModel[] => {
   const mx = useMatrixClient();
+  const { t } = useTranslation();
+  const language = useAppLanguageCode();
   const useAuthentication = useMediaAuthentication();
   const currentUserId = mx.getUserId() ?? undefined;
   // The thread index rebuilds records wholesale on every refresh (e.g. each
@@ -244,6 +284,8 @@ export const useCompactThreadCardViewModels = ({
         currentUserId,
         mx,
         useAuthentication,
+        t,
+        locale: language,
       });
       const signature = JSON.stringify(freshViewModel);
       const cached = previousCache.get(threadRootId);
@@ -254,5 +296,5 @@ export const useCompactThreadCardViewModels = ({
 
     viewModelCacheRef.current = nextCache;
     return viewModels;
-  }, [currentUserId, mx, room, threadRecordMap, threadRootIds, useAuthentication]);
+  }, [currentUserId, language, mx, room, t, threadRecordMap, threadRootIds, useAuthentication]);
 };

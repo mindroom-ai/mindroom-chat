@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import React, {
   ChangeEventHandler,
   KeyboardEventHandler,
@@ -35,6 +36,7 @@ export function ServerPicker({
   allowCustomServer?: boolean;
   onServerChange: (server: string) => void;
 }) {
+  const { t } = useTranslation();
   const [serverMenuAnchor, setServerMenuAnchor] = useState<RectCords>();
   const serverInputRef = useRef<HTMLInputElement>(null);
 
@@ -80,8 +82,8 @@ export function ServerPicker({
   return (
     <Input
       ref={serverInputRef}
-      style={{ paddingRight: config.space.S200 }}
-      aria-label="Server"
+      style={{ paddingInlineEnd: config.space.S200 }}
+      aria-label={t('sharedUi.serverPicker.server')}
       name="serverInput"
       variant={allowCustomServer ? 'Background' : 'Surface'}
       outlined
@@ -111,7 +113,7 @@ export function ServerPicker({
               >
                 <Menu>
                   <Header size="300" style={{ padding: `0 ${config.space.S200}` }}>
-                    <Text size="L400">Server List</Text>
+                    <Text size="L400">{t('sharedUi.serverPicker.serverList')}</Text>
                   </Header>
                   <div style={{ padding: config.space.S100, paddingTop: 0 }}>
                     {serverList?.map((serverName) => (

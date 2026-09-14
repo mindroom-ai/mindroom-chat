@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import React, { useMemo, useRef } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { Box, Button, Icon, Icons, Text } from 'folds';
@@ -22,6 +23,7 @@ type ThreadsViewProps = {
 };
 
 export function ThreadsView({ indexSnapshot, filters, setFilters }: ThreadsViewProps) {
+  const { t } = useTranslation();
   const scrollRef = useRef<HTMLDivElement>(null);
   const eligibleEntries = useMemo(
     () => Array.from(indexSnapshot.entries.values()).filter(isCrossRoomThreadEntryEligible),
@@ -42,7 +44,7 @@ export function ThreadsView({ indexSnapshot, filters, setFilters }: ThreadsViewP
     return (
       <Box className={css.Empty} direction="Column" gap="300">
         <Icon src={Icons.Thread} size="600" />
-        <Text size="H4">Loading threads</Text>
+        <Text size="H4">{t('sharedUi.threadsView.loadingThreads')}</Text>
       </Box>
     );
   }
@@ -51,7 +53,7 @@ export function ThreadsView({ indexSnapshot, filters, setFilters }: ThreadsViewP
     return (
       <Box className={css.Empty} direction="Column" gap="300">
         <Icon src={Icons.Thread} size="600" />
-        <Text size="H4">You have not been involved in any threads yet</Text>
+        <Text size="H4">{t('sharedUi.threadsView.youHaveNotBeenInvolvedInAnyThreadsYet')}</Text>
       </Box>
     );
   }
@@ -60,9 +62,9 @@ export function ThreadsView({ indexSnapshot, filters, setFilters }: ThreadsViewP
     return (
       <Box className={css.Empty} direction="Column" gap="300">
         <Icon src={Icons.Filter} size="600" />
-        <Text size="H4">No threads match your filters</Text>
+        <Text size="H4">{t('sharedUi.threadsView.noThreadsMatchYourFilters')}</Text>
         <Button onClick={() => setFilters(DEFAULT_CROSS_ROOM_THREAD_FILTERS)}>
-          <Text size="B300">Clear filters</Text>
+          <Text size="B300">{t('sharedUi.threadsView.clearFilters')}</Text>
         </Button>
       </Box>
     );
@@ -72,7 +74,10 @@ export function ThreadsView({ indexSnapshot, filters, setFilters }: ThreadsViewP
     <Box className={css.View}>
       <div className={css.Count} aria-live="polite">
         <Text size="T200" priority="300">
-          {entries.length} {entries.length === 1 ? 'thread' : 'threads'}
+          {entries.length}{' '}
+          {entries.length === 1
+            ? t('sharedUi.threadsView.thread')
+            : t('sharedUi.threadsView.threads')}
         </Text>
       </div>
       <div ref={scrollRef} className={css.Scroll}>

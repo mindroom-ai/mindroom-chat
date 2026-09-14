@@ -66,7 +66,7 @@ export function MemberGlance({ room, members, speakers, max = 6 }: MemberGlanceP
         );
       })}
       {remainingCount > 0 && (
-        <Text size="L400" style={{ paddingLeft: config.space.S100 }}>
+        <Text size="L400" style={{ paddingInlineStart: config.space.S100 }}>
           +{remainingCount}
         </Text>
       )}

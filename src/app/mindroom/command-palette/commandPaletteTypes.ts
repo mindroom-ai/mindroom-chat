@@ -1,14 +1,8 @@
 export const COMMAND_PALETTE_PREFIX_HINTS = ['>', '#', '@', 't:', '*'] as const;
 
-export type CommandPalettePrefix = (typeof COMMAND_PALETTE_PREFIX_HINTS)[number];
+export type CommandPalettePrefix = typeof COMMAND_PALETTE_PREFIX_HINTS[number];
 
-export type CommandPaletteMode =
-  | 'all'
-  | 'actions'
-  | 'rooms'
-  | 'spaces'
-  | 'users'
-  | 'threads';
+export type CommandPaletteMode = 'all' | 'actions' | 'rooms' | 'spaces' | 'users' | 'threads';
 
 export type CommandPaletteSectionId = 'actions' | 'threads' | 'rooms' | 'users' | 'messages';
 
@@ -57,6 +51,7 @@ export type CommandPaletteThreadItem = CommandPaletteBaseItem & {
   roomId: string;
   threadId: string;
   summaryText: string;
+  isFallbackSummary?: boolean;
   roomName: string;
   participantNames?: string[];
   tags?: string[];

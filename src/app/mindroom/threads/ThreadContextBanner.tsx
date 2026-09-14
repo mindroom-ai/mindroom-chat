@@ -96,6 +96,7 @@ export function ThreadContextBanner({
     canEdit: canEdit && !!mutableThreadRootId,
     availableTags,
     pickerDisabled,
+    t,
   });
   const resolvedByDisplayName = getThreadResolverDisplayName(
     room,
@@ -139,7 +140,7 @@ export function ThreadContextBanner({
     <div className={headerModel.isResolved ? css.BannerResolved : css.Banner}>
       <div className={css.TitleRow}>
         <IconButton size="300" radii="300" onClick={onExitThread}>
-          <Icon src={Icons.ArrowLeft} />
+          <Icon data-directional src={Icons.ArrowLeft} />
         </IconButton>
         <div className={css.TitleColumn}>
           <Box direction="Row" alignItems="Center" gap="200">

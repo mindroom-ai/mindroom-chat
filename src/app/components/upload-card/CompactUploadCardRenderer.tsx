@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import React, { useEffect } from 'react';
 import { Chip, Icon, IconButton, Icons, Text, color } from 'folds';
 import { UploadCard, UploadCardError, CompactUploadCardProgress } from './UploadCard';
@@ -27,6 +28,7 @@ export function CompactUploadCardRenderer({
   onRemove,
   onComplete,
 }: CompactUploadCardRendererProps) {
+  const { t } = useTranslation();
   const mx = useMatrixClient();
   const mediaConfig = useMediaConfig();
   const allowSize = mediaConfig['m.upload.size'] ?? Infinity;
@@ -63,17 +65,17 @@ export function CompactUploadCardRenderer({
             <Chip
               as="button"
               onClick={startUpload}
-              aria-label="Retry Upload"
+              aria-label={t('sharedUi.compactUploadCardRenderer.retryUpload')}
               variant="Critical"
               radii="Pill"
               outlined
             >
-              <Text size="B300">Retry</Text>
+              <Text size="B300">{t('sharedUi.compactUploadCardRenderer.retry')}</Text>
             </Chip>
           )}
           <IconButton
             onClick={removeUpload}
-            aria-label="Cancel Upload"
+            aria-label={t('sharedUi.compactUploadCardRenderer.cancelUpload')}
             variant="SurfaceVariant"
             radii="Pill"
             size="300"

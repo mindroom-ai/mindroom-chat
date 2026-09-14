@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import React, { ReactNode, useCallback, useRef, useState } from 'react';
 import {
   Avatar,
@@ -22,7 +23,6 @@ import * as css from './style.css';
 import { RoomAvatar } from '../room-avatar';
 import { getMxIdLocalPart, isRoomId, mxcUrlToHttp } from '../../utils/matrix';
 import { nameInitials } from '../../utils/common';
-import { millify } from '../../plugins/millify';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { AsyncStatus } from '../../hooks/useAsyncCallback';
 import { onEnterOrSpace, stopPropagation } from '../../utils/keyboard';
@@ -98,6 +98,7 @@ function ErrorDialog({
   message: string;
   children: (openError: () => void) => ReactNode;
 }) {
+  const { t } = useTranslation();
   const [viewError, setViewError] = useState(false);
   const closeError = () => setViewError(false);
   const openError = () => setViewError(true);
@@ -124,7 +125,7 @@ function ErrorDialog({
                   </Text>
                 </Box>
                 <Button size="400" variant="Secondary" fill="Soft" onClick={closeError}>
-                  <Text size="B400">Cancel</Text>
+                  <Text size="B400">{t('sharedUi.roomCard.cancel')}</Text>
                 </Button>
               </Box>
             </Dialog>
@@ -175,6 +176,7 @@ export const RoomCard = as<'div', RoomCardProps>(
     },
     ref
   ) => {
+    const { t } = useTranslation();
     const mx = useMatrixClient();
     const useAuthentication = useMediaAuthentication();
     const targetRoomId = roomId ?? (isRoomId(roomIdOrAlias) ? roomIdOrAlias : undefined);
@@ -228,13 +230,15 @@ export const RoomCard = as<'div', RoomCardProps>(
       resolvedAccessStatus === AsyncStatus.Loading ? (
         <Button variant="Secondary" size="300" disabled before={<Spinner size="50" />}>
           <Text size="B300" truncate>
-            Checking access
+            {t('sharedUi.roomCard.checkingAccess')}
           </Text>
         </Button>
       ) : (
         <Button onClick={accessRetry} variant="Secondary" size="300" disabled={!accessRetry}>
           <Text size="B300" truncate>
-            {accessRetry ? 'Retry room info' : 'Access unavailable'}
+            {accessRetry
+              ? t('sharedUi.roomCard.retryRoomInfo')
+              : t('sharedUi.roomCard.accessUnavailable')}
           </Text>
         </Button>
       );
@@ -256,7 +260,7 @@ export const RoomCard = as<'div', RoomCardProps>(
           </Avatar>
           {(roomType === RoomType.Space || joinedRoom?.isSpaceRoom()) && (
             <Badge variant="Secondary" fill="Soft" outlined>
-              <Text size="L400">Space</Text>
+              <Text size="L400">{t('sharedUi.roomCard.space')}</Text>
             </Badge>
           )}
         </Box>
@@ -284,7 +288,7 @@ export const RoomCard = as<'div', RoomCardProps>(
         {typeof joinedMemberCount === 'number' && (
           <Box gap="100">
             <Icon size="50" src={Icons.User} />
-            <Text size="T200">{`${millify(joinedMemberCount)} Members`}</Text>
+            <Text size="T200">{t('sharedUi.roomCard.members', { count: joinedMemberCount })}</Text>
           </Box>
         )}
         {typeof joinedRoomId === 'string' && (
@@ -295,7 +299,7 @@ export const RoomCard = as<'div', RoomCardProps>(
             size="300"
           >
             <Text size="B300" truncate>
-              View
+              {t('sharedUi.roomCard.view')}
             </Text>
           </Button>
         )}
@@ -321,12 +325,15 @@ export const RoomCard = as<'div', RoomCardProps>(
                       size="300"
                     >
                       <Text size="B300" truncate>
-                        Retry
+                        {t('sharedUi.roomCard.retry')}
                       </Text>
                     </Button>
                     <ErrorDialog
-                      title="Join Error"
-                      message={access.state.error.message || 'Failed to join. Unknown Error.'}
+                      title={t('sharedUi.roomCard.joinError')}
+                      message={
+                        access.state.error.message ||
+                        t('sharedUi.roomCard.failedToJoinUnknownError')
+                      }
                     >
                       {(openError) => (
                         <Button
@@ -338,7 +345,7 @@ export const RoomCard = as<'div', RoomCardProps>(
                           size="300"
                         >
                           <Text size="B300" truncate>
-                            View Error
+                            {t('sharedUi.roomCard.viewError')}
                           </Text>
                         </Button>
                       )}
@@ -365,13 +372,13 @@ export const RoomCard = as<'div', RoomCardProps>(
                   <Text size="B300" truncate>
                     {access.kind === 'knock'
                       ? access.loading
-                        ? 'Sending request'
+                        ? t('sharedUi.roomCard.sendingRequest')
                         : access.requested
-                        ? 'Request sent'
-                        : 'Request to join'
+                        ? t('sharedUi.roomCard.requestSent')
+                        : t('sharedUi.roomCard.requestToJoin')
                       : joining
-                      ? 'Joining'
-                      : 'Join'}
+                      ? t('sharedUi.roomCard.joining')
+                      : t('sharedUi.roomCard.join')}
                   </Text>
                 </Button>
               );

@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import React, { ReactNode, useCallback, useEffect, useState } from 'react';
 import { useSetAtom } from 'jotai';
 import {
@@ -81,6 +82,7 @@ export const ImageContent = as<'div', ImageContentProps>(
     },
     ref
   ) => {
+    const { t } = useTranslation();
     const mx = useMatrixClient();
     const useAuthentication = useMediaAuthentication();
     const blurHash = validBlurHash(info?.[MATRIX_BLUR_HASH_PROPERTY_NAME]);
@@ -212,7 +214,7 @@ export const ImageContent = as<'div', ImageContentProps>(
               onClick={loadSrc}
               before={<Icon size="Inherit" src={Icons.Photo} filled />}
             >
-              <Text size="B300">View</Text>
+              <Text size="B300">{t('sharedUi.imageContent.view')}</Text>
             </Button>
           </Box>
         )}
@@ -256,7 +258,7 @@ export const ImageContent = as<'div', ImageContentProps>(
                     }
                   }}
                 >
-                  <Text size="B300">Spoiler</Text>
+                  <Text size="B300">{t('sharedUi.imageContent.spoiler')}</Text>
                 </Chip>
               )}
             </TooltipProvider>
@@ -274,7 +276,7 @@ export const ImageContent = as<'div', ImageContentProps>(
             <TooltipProvider
               tooltip={
                 <Tooltip variant="Critical">
-                  <Text>Failed to load image!</Text>
+                  <Text>{t('sharedUi.imageContent.failedToLoadImage')}</Text>
                 </Tooltip>
               }
               position="Top"
@@ -291,7 +293,7 @@ export const ImageContent = as<'div', ImageContentProps>(
                   onClick={handleRetry}
                   before={<Icon size="Inherit" src={Icons.Warning} filled />}
                 >
-                  <Text size="B300">Retry</Text>
+                  <Text size="B300">{t('sharedUi.imageContent.retry')}</Text>
                 </Button>
               )}
             </TooltipProvider>

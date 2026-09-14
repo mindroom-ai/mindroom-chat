@@ -11,8 +11,8 @@ export const PdfViewer = style([
 export const PdfViewerHeader = style([
   DefaultReset,
   {
-    paddingLeft: config.space.S200,
-    paddingRight: config.space.S200,
+    paddingInlineStart: config.space.S200,
+    paddingInlineEnd: config.space.S200,
     borderBottomWidth: config.borderWidth.B300,
     flexShrink: 0,
     gap: config.space.S200,

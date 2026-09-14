@@ -20,6 +20,7 @@ import {
 } from 'folds';
 import FocusTrap from 'focus-trap-react';
 import { CryptoApi, VerificationRequest } from 'matrix-js-sdk/lib/crypto-api';
+import { Trans, useTranslation } from 'react-i18next';
 import { VerificationStatus } from '../../../hooks/useDeviceVerificationStatus';
 import { InfoCard } from '../../../components/info-card';
 import { ManualVerificationTile } from '../../../components/ManualVerification';
@@ -44,6 +45,7 @@ export function VerificationStatusBadge({
   verificationStatus,
   otherUnverifiedCount,
 }: VerificationStatusBadgeProps) {
+  const { t } = useTranslation();
   if (
     verificationStatus === VerificationStatus.Unknown ||
     typeof otherUnverifiedCount !== 'number'
@@ -53,7 +55,7 @@ export function VerificationStatusBadge({
   if (verificationStatus === VerificationStatus.Unverified) {
     return (
       <Badge variant="Critical" fill="Solid" size="500">
-        <Text size="L400">Unverified</Text>
+        <Text size="L400">{t('featureUi.settings.devices.verification.unverified')}</Text>
       </Badge>
     );
   }
@@ -61,14 +63,18 @@ export function VerificationStatusBadge({
   if (otherUnverifiedCount > 0) {
     return (
       <Badge variant="Warning" fill="Solid" size="500">
-        <Text size="L400">{otherUnverifiedCount} Unverified</Text>
+        <Text size="L400">
+          {t('featureUi.settings.devices.verification.unverifiedCount', {
+            count: otherUnverifiedCount,
+          })}
+        </Text>
       </Badge>
     );
   }
 
   return (
     <Badge variant="Success" fill="Solid" size="500">
-      <Text size="L400">Verified</Text>
+      <Text size="L400">{t('featureUi.settings.devices.verification.verified')}</Text>
     </Badge>
   );
 }
@@ -76,21 +82,36 @@ export function VerificationStatusBadge({
 function LearnStartVerificationFromOtherDevice() {
   return (
     <Box direction="Column">
-      <Text size="T200">Steps to verify from other device.</Text>
+      <Text size="T200">
+        <Trans i18nKey="featureUi.settings.devices.verification.stepsFromOtherDevice" />
+      </Text>
       <Text as="div" size="T200">
         <ul style={{ margin: `${config.space.S100} 0` }}>
-          <li>Open your other verified device.</li>
           <li>
-            Open <i>Settings</i>.
+            <Trans i18nKey="featureUi.settings.devices.verification.openVerifiedDevice" />
           </li>
           <li>
-            Find this device in <i>Devices/Sessions</i> section.
+            <Trans
+              i18nKey="featureUi.settings.devices.verification.openSettings"
+              components={{ settings: <i /> }}
+            />
           </li>
-          <li>Initiate verification.</li>
+          <li>
+            <Trans
+              i18nKey="featureUi.settings.devices.verification.findDevice"
+              components={{ section: <i /> }}
+            />
+          </li>
+          <li>
+            <Trans i18nKey="featureUi.settings.devices.verification.initiateVerification" />
+          </li>
         </ul>
       </Text>
       <Text size="T200">
-        If you do not have any verified device press the <i>&quot;Verify Manually&quot;</i> button.
+        <Trans
+          i18nKey="featureUi.settings.devices.verification.manualVerificationHint"
+          components={{ action: <i /> }}
+        />
       </Text>
     </Box>
   );
@@ -104,6 +125,7 @@ export function VerifyCurrentDeviceTile({
   secretStorageKeyId,
   secretStorageKeyContent,
 }: VerifyCurrentDeviceTileProps) {
+  const { t } = useTranslation();
   const [learnMore, setLearnMore] = useState(false);
 
   const [manualVerification, setManualVerification] = useState(false);
@@ -113,14 +135,19 @@ export function VerifyCurrentDeviceTile({
     <>
       <InfoCard
         variant="Critical"
-        title="Unverified"
+        title={t('featureUi.settings.devices.verification.unverified')}
         description={
-          <>
-            Start verification from other device or verify manually.{' '}
-            <Text as="a" size="T200" onClick={() => setLearnMore(!learnMore)}>
-              <b>{learnMore ? 'View Less' : 'Learn More'}</b>
-            </Text>
-          </>
+          <Trans
+            i18nKey={
+              learnMore
+                ? 'featureUi.settings.devices.verification.currentDeviceHelpLess'
+                : 'featureUi.settings.devices.verification.currentDeviceHelpMore'
+            }
+            components={{
+              toggle: <Text as="a" size="T200" onClick={() => setLearnMore(!learnMore)} />,
+              strong: <b />,
+            }}
+          />
         }
         after={
           !manualVerification && (
@@ -133,7 +160,7 @@ export function VerifyCurrentDeviceTile({
               onClick={() => setManualVerification(true)}
             >
               <Text as="span" size="B300">
-                Verify Manually
+                {t('featureUi.settings.devices.verification.verifyManually')}
               </Text>
             </Button>
           )
@@ -167,6 +194,7 @@ type VerifyOtherDeviceTileProps = {
   deviceId: string;
 };
 export function VerifyOtherDeviceTile({ crypto, deviceId }: VerifyOtherDeviceTileProps) {
+  const { t } = useTranslation();
   const mx = useMatrixClient();
   const [requestState, setRequestState] = useState<AsyncState<VerificationRequest, Error>>({
     status: AsyncStatus.Idle,
@@ -190,8 +218,8 @@ export function VerifyOtherDeviceTile({ crypto, deviceId }: VerifyOtherDeviceTil
   return (
     <InfoCard
       variant="Warning"
-      title="Unverified"
-      description="Verify device identity and grant access to encrypted messages."
+      title={t('featureUi.settings.devices.verification.unverified')}
+      description={t('featureUi.settings.devices.verification.verifyDeviceDescription')}
       after={
         <Button
           size="300"
@@ -202,7 +230,7 @@ export function VerifyOtherDeviceTile({ crypto, deviceId }: VerifyOtherDeviceTil
           disabled={requesting}
         >
           <Text as="span" size="B300">
-            Verify
+            {t('featureUi.settings.devices.verification.verify')}
           </Text>
         </Button>
       }
@@ -221,6 +249,7 @@ type EnableVerificationProps = {
   visible: boolean;
 };
 export function EnableVerification({ visible }: EnableVerificationProps) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
 
   const handleCancel = useCallback(() => setOpen(false), []);
@@ -230,7 +259,7 @@ export function EnableVerification({ visible }: EnableVerificationProps) {
       {visible && (
         <Button size="300" radii="300" onClick={() => setOpen(true)}>
           <Text as="span" size="B300">
-            Enable
+            {t('featureUi.settings.devices.verification.enable')}
           </Text>
         </Button>
       )}
@@ -254,6 +283,7 @@ export function EnableVerification({ visible }: EnableVerificationProps) {
 }
 
 export function DeviceVerificationOptions() {
+  const { t } = useTranslation();
   const [menuCords, setMenuCords] = useState<RectCords>();
   const authMetadata = useAuthMetadata();
   const accountManagementActions = useAccountManagementActions();
@@ -324,7 +354,7 @@ export function DeviceVerificationOptions() {
                   fill="None"
                 >
                   <Text as="span" size="T300" truncate>
-                    Reset
+                    {t('featureUi.settings.devices.verification.reset')}
                   </Text>
                 </MenuItem>
               </Box>

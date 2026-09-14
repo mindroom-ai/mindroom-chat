@@ -144,5 +144,5 @@ it('removes individual actions while the submitted call awaits its Matrix decisi
     );
   });
   expect(renderer.root.findAllByType('button')).toHaveLength(0);
-  expect(JSON.stringify(renderer.toJSON())).toContain('submitted');
+  expect(JSON.stringify(renderer.toJSON())).toContain('Submitted');
 });

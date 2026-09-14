@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import React, { useEffect, KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { Editor } from 'slate';
 import { Avatar, Icon, Icons, MenuItem, Text } from 'folds';
@@ -90,6 +91,7 @@ export function UserMentionAutocomplete({
   query,
   requestClose,
 }: UserMentionAutocompleteProps) {
+  const { t } = useTranslation();
   const mx = useMatrixClient();
   const useAuthentication = useMediaAuthentication();
   const roomId: string = room.roomId!;
@@ -137,7 +139,10 @@ export function UserMentionAutocomplete({
     getMemberDisplayName(room, member.userId) ?? getMxIdLocalPart(member.userId) ?? member.userId;
 
   return (
-    <AutocompleteMenu headerContent={<Text size="L400">Mentions</Text>} requestClose={requestClose}>
+    <AutocompleteMenu
+      headerContent={<Text size="L400">{t('sharedUi.userMentionAutocomplete.mentions')}</Text>}
+      requestClose={requestClose}
+    >
       {query.text === 'room' && (
         <UnknownMentionItem
           userId={roomAliasOrId}

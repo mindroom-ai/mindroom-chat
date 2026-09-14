@@ -1,11 +1,13 @@
+import { useTranslation } from 'react-i18next';
 import React, { useMemo } from 'react';
 import { Avatar, Box, Icon, Icons, Text } from 'folds';
+import type { CrossRoomThreadIndexEntry } from '../../../mindroom/cross-room-threads/crossRoomThreadIndex';
+import { useAppLanguageCode } from '../../../hooks/useAppLanguageCode';
 import { useMatrixClient } from '../../../hooks/useMatrixClient';
 import { useMediaAuthentication } from '../../../hooks/useMediaAuthentication';
 import { useRoomNavigate } from '../../../hooks/useRoomNavigate';
 import { CompactThreadCard } from '../../../mindroom/threads/CompactThreadCard';
 import { buildCompactThreadCardViewModelFromRecord } from '../../../mindroom/threads/compactThreadCardViewModel';
-import type { CrossRoomThreadIndexEntry } from '../../../mindroom/cross-room-threads/crossRoomThreadIndex';
 import * as css from './ThreadsView.css';
 
 type ThreadsViewRowProps = {
@@ -13,6 +15,8 @@ type ThreadsViewRowProps = {
 };
 
 export function ThreadsViewRow({ entry }: ThreadsViewRowProps) {
+  const { t } = useTranslation();
+  const language = useAppLanguageCode();
   const mx = useMatrixClient();
   const useAuthentication = useMediaAuthentication();
   const { navigateRoomThread } = useRoomNavigate();
@@ -26,8 +30,10 @@ export function ThreadsViewRow({ entry }: ThreadsViewRowProps) {
       currentUserId: mx.getUserId() ?? undefined,
       mx,
       useAuthentication,
+      t,
+      locale: language,
     });
-  }, [entry.threadRecord, mx, room, useAuthentication]);
+  }, [entry.threadRecord, language, mx, room, t, useAuthentication]);
 
   if (!room || !viewModel) return null;
 

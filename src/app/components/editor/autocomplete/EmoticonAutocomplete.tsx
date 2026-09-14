@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import React, { KeyboardEvent as ReactKeyboardEvent, useEffect, useMemo } from 'react';
 import { Editor } from 'slate';
 import { Box, MenuItem, Text, toRem } from 'folds';
@@ -41,6 +42,7 @@ export function EmoticonAutocomplete({
   query,
   requestClose,
 }: EmoticonAutocompleteProps) {
+  const { t } = useTranslation();
   const mx = useMatrixClient();
   const useAuthentication = useMediaAuthentication();
 
@@ -84,7 +86,10 @@ export function EmoticonAutocomplete({
   });
 
   return autoCompleteEmoticon.length === 0 ? null : (
-    <AutocompleteMenu headerContent={<Text size="L400">Emojis</Text>} requestClose={requestClose}>
+    <AutocompleteMenu
+      headerContent={<Text size="L400">{t('sharedUi.emoticonAutocomplete.emojis')}</Text>}
+      requestClose={requestClose}
+    >
       {autoCompleteEmoticon.map((emoticon) => {
         const isCustomEmoji = 'url' in emoticon;
         const key = isCustomEmoji ? emoticon.url : emoticon.unicode;

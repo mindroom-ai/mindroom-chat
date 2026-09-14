@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { Badge, Box, Icon, IconButton, Icons, Spinner, Text, as, toRem } from 'folds';
 import React, { ReactNode, useCallback, useRef } from 'react';
 import { EncryptedAttachmentInfo } from 'browser-encrypt-attachment';
@@ -22,6 +23,7 @@ type FileDownloadButtonProps = {
   encInfo?: EncryptedAttachmentInfo;
 };
 export function FileDownloadButton({ filename, url, mimeType, encInfo }: FileDownloadButtonProps) {
+  const { t } = useTranslation();
   const mx = useMatrixClient();
   const useAuthentication = useMediaAuthentication();
   const downloadedFileRef = useRef<{
@@ -66,7 +68,7 @@ export function FileDownloadButton({ filename, url, mimeType, encInfo }: FileDow
       variant={hasError ? 'Critical' : 'SurfaceVariant'}
       size="300"
       radii="300"
-      aria-label={`Download ${filename}`}
+      aria-label={t('sharedUi.fileHeader.downloadValue1', { value1: filename })}
     >
       {downloading ? (
         <Spinner size="100" variant={hasError ? 'Critical' : 'Secondary'} />

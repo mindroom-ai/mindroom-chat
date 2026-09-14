@@ -66,6 +66,7 @@ describe('buildCommandPaletteThreadViewModelFromRecord', () => {
         threadRootId: '$thread',
       },
       summaryText: 'Record summary',
+      isFallbackSummary: false,
       roomName: 'General',
       participantNames: ['alice', 'bob'],
       tags: ['urgent'],
@@ -85,6 +86,7 @@ describe('buildCommandPaletteThreadViewModelFromRecord', () => {
     });
 
     expect(viewModel.summaryText).toBe('Stored summary');
+    expect(viewModel.isFallbackSummary).toBe(false);
   });
 
   it('falls back to the generic Thread label as a last resort', () => {
@@ -95,5 +97,6 @@ describe('buildCommandPaletteThreadViewModelFromRecord', () => {
     });
 
     expect(viewModel.summaryText).toBe('Thread');
+    expect(viewModel.isFallbackSummary).toBe(true);
   });
 });

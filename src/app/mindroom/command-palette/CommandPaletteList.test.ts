@@ -7,19 +7,12 @@ import type { CommandPaletteItem } from './commandPaletteTypes';
 vi.mock('folds', async () => {
   const reactModule = await import('react');
   return {
-    Box: ({
-      children,
-      ...props
-    }: React.HTMLAttributes<HTMLDivElement>) => reactModule.createElement('div', props, children),
-    Text: ({
-      children,
-      ...props
-    }: React.HTMLAttributes<HTMLSpanElement>) => reactModule.createElement('span', props, children),
+    Box: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) =>
+      reactModule.createElement('div', props, children),
+    Text: ({ children, ...props }: React.HTMLAttributes<HTMLSpanElement>) =>
+      reactModule.createElement('span', props, children),
     Line: (props: React.HTMLAttributes<HTMLHRElement>) => reactModule.createElement('hr', props),
-    Icon: ({
-      src,
-      ...props
-    }: React.HTMLAttributes<HTMLSpanElement> & { src?: string }) =>
+    Icon: ({ src, ...props }: React.HTMLAttributes<HTMLSpanElement> & { src?: string }) =>
       reactModule.createElement('span', { ...props, 'data-icon-src': src }),
     Icons: {
       Terminal: 'terminal',
@@ -102,13 +95,14 @@ describe('CommandPaletteList', () => {
     expect(badgeContainer.props.style).toMatchObject({
       flex: '0 0 auto',
       alignSelf: 'center',
-      paddingLeft: 12,
+      paddingInlineStart: 12,
       whiteSpace: 'nowrap',
     });
   });
 
   it('truncates long row titles and descriptions so they yield to the category badge', () => {
-    const longTitle = 'A very long command palette row title that should truncate before touching the badge';
+    const longTitle =
+      'A very long command palette row title that should truncate before touching the badge';
     const longDescription =
       'A very long command palette row description that should also truncate before it reaches the badge';
     const renderer = renderList({
@@ -141,7 +135,9 @@ describe('CommandPaletteList', () => {
 
     expect(truncatedTitle.props.truncate).toBe(true);
     expect(truncatedDescription.props.truncate).toBe(true);
-    expect(row.findAll((node) => node.type === 'span' && node.children.join('') === 'Actions')).toHaveLength(1);
+    expect(
+      row.findAll((node) => node.type === 'span' && node.children.join('') === 'Actions')
+    ).toHaveLength(1);
   });
 
   it('falls back cleanly when an item kind has no mapped category presentation', () => {

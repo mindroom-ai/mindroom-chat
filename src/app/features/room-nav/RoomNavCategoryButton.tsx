@@ -11,6 +11,7 @@ export const RoomNavCategoryButton = as<'button', { closed?: boolean }>(
       radii="Pill"
       before={
         <Icon
+          data-directional
           className={css.CategoryButtonIcon}
           size="50"
           src={closed ? Icons.ChevronRight : Icons.ChevronBottom}

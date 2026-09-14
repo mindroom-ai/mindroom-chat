@@ -39,11 +39,11 @@ export const DrawerScrollTop = style({
 });
 
 export const DrawerGroup = style({
-  paddingLeft: config.space.S200,
+  paddingInlineStart: config.space.S200,
 });
 
 export const MembersGroup = style({
-  paddingLeft: config.space.S200,
+  paddingInlineStart: config.space.S200,
 });
 export const MembersGroupLabel = style({
   padding: config.space.S200,
@@ -62,7 +62,7 @@ export const DrawerVirtualItem = style({
 });
 
 export const JoinRequestItem = style({
-  marginRight: config.space.S200,
+  marginInlineEnd: config.space.S200,
   padding: config.space.S200,
   borderRadius: config.radii.R400,
   backgroundColor: color.Surface.Container,

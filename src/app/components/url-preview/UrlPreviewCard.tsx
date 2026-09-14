@@ -69,7 +69,7 @@ export const UrlPreviewCard = as<'div', { url: string; ts: number }>(
               renderViewer={(p) => <ImageViewer {...p} />}
             />
           )}
-          <UrlPreviewContent>
+          <UrlPreviewContent dir="auto">
             <Text
               style={linkStyles}
               truncate
@@ -152,8 +152,9 @@ export const UrlPreviewHolder = as<'div'>(({ children, ...props }, ref) => {
     const scroll = scrollRef.current;
     if (!scroll) return;
     const { offsetWidth, scrollLeft } = scroll;
+    const direction = getComputedStyle(scroll).direction === 'rtl' ? -1 : 1;
     scroll.scrollTo({
-      left: scrollLeft - offsetWidth / 1.3,
+      left: scrollLeft - (direction * offsetWidth) / 1.3,
       behavior: 'smooth',
     });
   };
@@ -161,8 +162,9 @@ export const UrlPreviewHolder = as<'div'>(({ children, ...props }, ref) => {
     const scroll = scrollRef.current;
     if (!scroll) return;
     const { offsetWidth, scrollLeft } = scroll;
+    const direction = getComputedStyle(scroll).direction === 'rtl' ? -1 : 1;
     scroll.scrollTo({
-      left: scrollLeft + offsetWidth / 1.3,
+      left: scrollLeft + (direction * offsetWidth) / 1.3,
       behavior: 'smooth',
     });
   };
@@ -188,7 +190,7 @@ export const UrlPreviewHolder = as<'div'>(({ children, ...props }, ref) => {
                 outlined
                 onClick={handleScrollBack}
               >
-                <Icon size="300" src={Icons.ArrowLeft} />
+                <Icon data-directional size="300" src={Icons.ArrowLeft} />
               </IconButton>
             </>
           )}
@@ -206,7 +208,7 @@ export const UrlPreviewHolder = as<'div'>(({ children, ...props }, ref) => {
                   outlined
                   onClick={handleScrollFront}
                 >
-                  <Icon size="300" src={Icons.ArrowRight} />
+                  <Icon data-directional size="300" src={Icons.ArrowRight} />
                 </IconButton>
               </>
             )}

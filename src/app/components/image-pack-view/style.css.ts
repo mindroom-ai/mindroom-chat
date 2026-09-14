@@ -29,9 +29,9 @@ export const ImagePackImageInputs = style([
 export const UnsavedMenu = style({
   position: 'sticky',
   padding: config.space.S200,
-  paddingLeft: config.space.S400,
+  paddingInlineStart: config.space.S400,
   top: config.space.S400,
-  left: config.space.S400,
-  right: 0,
+  insetInlineStart: config.space.S400,
+  insetInlineEnd: 0,
   zIndex: 1,
 });

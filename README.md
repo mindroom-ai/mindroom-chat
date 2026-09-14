@@ -61,6 +61,12 @@ npm run test
 npm run build
 ```
 
+## Languages
+
+The interface supports 17 languages, including Arabic and both Chinese scripts.
+Choose your language under Settings → General → Language.
+See the [localization guide](./docs/localization.md) for supported languages and contribution guidance.
+
 ## Runtime Configuration
 
 Main runtime config file:

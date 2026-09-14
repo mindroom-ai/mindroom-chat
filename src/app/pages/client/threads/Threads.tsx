@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import React, { useMemo } from 'react';
 import { Box, Icon, Icons, Text } from 'folds';
 import { useAtom, useAtomValue } from 'jotai';
@@ -11,6 +12,7 @@ import { FilterBar } from './FilterBar';
 import { ThreadsView } from './ThreadsView';
 
 export function Threads() {
+  const { t } = useTranslation();
   useNavToActivePathMapper('threads');
   const mx = useMatrixClient();
   const activeSession = useActiveSession();
@@ -25,7 +27,7 @@ export function Threads() {
         <Box grow="Yes" alignItems="Center" gap="200">
           <Icon src={Icons.Thread} size="300" />
           <Text as="h1" size="H3" truncate>
-            Threads
+            {t('sharedUi.threads.threads')}
           </Text>
         </Box>
       </PageHeader>

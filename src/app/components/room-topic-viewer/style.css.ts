@@ -14,7 +14,7 @@ export const ModalScroll = style({
 });
 export const ModalContent = style({
   padding: config.space.S400,
-  paddingRight: config.space.S200,
+  paddingInlineEnd: config.space.S200,
   paddingBottom: config.space.S700,
 });
 export const ModalTopic = style({

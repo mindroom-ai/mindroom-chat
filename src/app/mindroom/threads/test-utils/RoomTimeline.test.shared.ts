@@ -529,11 +529,13 @@ vi.mock('../../../hooks/useKeyDown', () => ({
   useKeyDown: vi.fn(),
 }));
 
-vi.mock('react-i18next', () => ({
-  useTranslation: () => ({
-    t: (value: string) => value,
-  }),
-}));
+vi.mock('react-i18next', async () => {
+  const { translateFromEn } = await import('../../../test-utils/i18n');
+  return {
+    useTranslation: () => ({ t: translateFromEn }),
+    Trans: ({ i18nKey }: { i18nKey: string }) => i18nKey,
+  };
+});
 
 vi.mock('../../../plugins/react-custom-html-parser', () => ({
   LINKIFY_OPTS: {},

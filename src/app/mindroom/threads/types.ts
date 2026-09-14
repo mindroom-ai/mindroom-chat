@@ -1,5 +1,6 @@
 import type { IEvent, MatrixEvent } from 'matrix-js-sdk';
 import type { MindroomThreadSummaryInfo } from '../messages/threadSummary';
+import type { ThreadPreviewLocalization } from './threadMessagePreview';
 
 export type ThreadId = {
   roomId: string;
@@ -11,6 +12,8 @@ export type ThreadPresentationSnapshot = {
   summaryText: string | undefined;
   rootPreviewText: string | undefined;
   latestReplyPreviewText: string | undefined;
+  rootPreviewLocalization?: ThreadPreviewLocalization;
+  latestReplyPreviewLocalization?: ThreadPreviewLocalization;
   lastSenderId: string | undefined;
   lastSenderDisplayName: string | undefined;
   messageCount: number;
@@ -168,6 +171,7 @@ export type RecentThreadViewModel = {
 export type CommandPaletteThreadViewModel = {
   id: ThreadId;
   summaryText: string;
+  isFallbackSummary?: boolean;
   roomName: string;
   participantNames?: string[];
   tags?: string[];

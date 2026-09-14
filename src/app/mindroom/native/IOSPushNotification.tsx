@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Button, color, Spinner, Switch, Text } from 'folds';
 import { SequenceCard } from '../../components/sequence-card';
@@ -22,6 +23,7 @@ import {
 import { useIOSPushEnabled } from './useIOSPushEnabled';
 
 export function IOSPushNotification() {
+  const { t } = useTranslation();
   const mx = useMatrixClient();
   const clientConfig = useClientConfig();
   const activeSession = useActiveSession();
@@ -84,7 +86,11 @@ export function IOSPushNotification() {
 
   const handleToggle = (enabled: boolean) => {
     togglePush(enabled)
-      .catch(() => undefined)
+      .catch((error: unknown) => {
+        // Keep the localized UI concise while preserving the original failure and stack.
+        // eslint-disable-next-line no-console
+        console.error('[IOSPushNotification] Failed to update native push settings:', error);
+      })
       .finally(() => {
         refreshPermission();
       });
@@ -94,47 +100,59 @@ export function IOSPushNotification() {
     <>
       {!iosPushConfig && (
         <Text as="span" style={{ color: color.Critical.Main }} size="T200">
-          Native iOS push is not configured by the deployment. Add `push.ios` settings in
-          `config.json`.
+          {t(
+            'mindroomUi.native.iOSPushNotification.nativeIosPushIsNotConfiguredByTheDeploymentAdd'
+          )}
         </Text>
       )}
       {iosPushConfig && toggleState.status === AsyncStatus.Error && (
         <Text as="span" style={{ color: color.Critical.Main }} size="T200">
-          {toggleState.error instanceof Error
-            ? toggleState.error.message
-            : 'Failed to update native push settings.'}
+          {t('mindroomUi.native.iOSPushNotification.failedToUpdateNativePushSettings')}
         </Text>
       )}
       {iosPushConfig && toggleState.status !== AsyncStatus.Error && permission === 'denied' && (
         <Text as="span" style={{ color: color.Critical.Main }} size="T200">
-          Notification permission is denied. Enable notifications for {MINDROOM_APP_NAME} in iOS
-          Settings.
+          {t('mindroomUi.native.iOSPushNotification.permissionDenied', {
+            appName: MINDROOM_APP_NAME,
+          })}
         </Text>
       )}
       {iosPushConfig && toggleState.status !== AsyncStatus.Error && permission === 'prompt' && (
-        <span>Allow native iOS push notifications for background message alerts.</span>
+        <span>
+          {t(
+            'mindroomUi.native.iOSPushNotification.allowNativeIosPushNotificationsForBackgroundMessageAlerts'
+          )}
+        </span>
       )}
       {iosPushConfig &&
         toggleState.status !== AsyncStatus.Error &&
         permission === 'granted' &&
         nativePushNotifications && (
-          <span>Device registered for native iOS push notifications.</span>
+          <span>
+            {t(
+              'mindroomUi.native.iOSPushNotification.deviceRegisteredForNativeIosPushNotifications'
+            )}
+          </span>
         )}
       {iosPushConfig &&
         toggleState.status !== AsyncStatus.Error &&
         permission === 'granted' &&
-        !nativePushNotifications && <span>Native iOS push is disabled for this device.</span>}
+        !nativePushNotifications && (
+          <span>
+            {t('mindroomUi.native.iOSPushNotification.nativeIosPushIsDisabledForThisDevice')}
+          </span>
+        )}
     </>
   );
 
-  let control = <Text size="T200">Unavailable</Text>;
+  let control = <Text size="T200">{t('mindroomUi.native.iOSPushNotification.unavailable')}</Text>;
   if (toggleState.status === AsyncStatus.Loading) {
     control = <Spinner variant="Secondary" />;
   } else if (iosPushConfig) {
     if (permission === 'prompt' && !nativePushNotifications) {
       control = (
         <Button size="300" radii="300" onClick={() => handleToggle(true)}>
-          <Text size="B300">Enable</Text>
+          <Text size="B300">{t('mindroomUi.native.iOSPushNotification.enable')}</Text>
         </Button>
       );
     } else {
@@ -149,7 +167,11 @@ export function IOSPushNotification() {
       direction="Column"
       gap="400"
     >
-      <SettingTile title="iOS Push Notifications" description={description} after={control} />
+      <SettingTile
+        title={t('mindroomUi.native.iOSPushNotification.iosPushNotifications')}
+        description={description}
+        after={control}
+      />
     </SequenceCard>
   );
 }

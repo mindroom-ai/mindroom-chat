@@ -28,4 +28,49 @@ describe('clientBranding', () => {
       title: 'Custom title',
     });
   });
+
+  it('localizes default copy while preserving configured overrides', () => {
+    const translations: Record<string, string> = {
+      'sharedUi.welcomePage.docs': 'Dokumentation',
+      'sharedUi.welcomePage.sourceCode': 'Quellcode',
+      'sharedUi.welcomePage.subtitle': 'Lokalisierter Untertitel',
+      'sharedUi.welcomePage.title': 'Willkommen bei {{appName}}',
+    };
+    const t = (key: string, options?: Record<string, unknown>) =>
+      (translations[key] ?? key).replace('{{appName}}', String(options?.appName ?? ''));
+
+    expect(
+      getMindroomWelcomePageContent(
+        {
+          docsLabel: 'Docs',
+          sourceLabel: 'Source Code',
+          subtitle: MINDROOM_CLIENT_BRANDING.subtitle,
+          title: `Welcome to ${MINDROOM_CLIENT_BRANDING.appName}`,
+        },
+        t as never
+      )
+    ).toMatchObject({
+      docsLabel: 'Dokumentation',
+      sourceLabel: 'Quellcode',
+      subtitle: 'Lokalisierter Untertitel',
+      title: 'Willkommen bei MindRoom Chat',
+    });
+
+    expect(
+      getMindroomWelcomePageContent(
+        {
+          docsLabel: 'Handbook',
+          sourceLabel: 'Repository',
+          subtitle: 'Custom subtitle',
+          title: 'Custom title',
+        },
+        t as never
+      )
+    ).toMatchObject({
+      docsLabel: 'Handbook',
+      sourceLabel: 'Repository',
+      subtitle: 'Custom subtitle',
+      title: 'Custom title',
+    });
+  });
 });

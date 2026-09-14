@@ -146,9 +146,13 @@ export const getConnectionRevokedAt = (connection: LocalMindroomConnection): str
 export const isConnectionRevoked = (connection: LocalMindroomConnection): boolean =>
   getConnectionRevokedAt(connection) !== undefined;
 
-export const formatLocalTimestamp = (timestamp?: string): string => {
-  if (!timestamp) return 'Unknown';
+export const formatLocalTimestamp = (
+  timestamp?: string,
+  locale?: string,
+  unknownLabel = 'Unknown'
+): string => {
+  if (!timestamp) return unknownLabel;
   const date = new Date(timestamp);
-  if (Number.isNaN(date.valueOf())) return 'Unknown';
-  return date.toLocaleString();
+  if (Number.isNaN(date.valueOf())) return unknownLabel;
+  return date.toLocaleString(locale);
 };

@@ -2,6 +2,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Badge, Box, Button, Chip, config, Icon, Icons, Menu, Spinner, Text } from 'folds';
 import produce from 'immer';
+import { useTranslation } from 'react-i18next';
 import { SequenceCard } from '../../../components/sequence-card';
 import { SequenceCardStyle } from '../styles.css';
 import { SettingTile } from '../../../components/setting-tile';
@@ -34,6 +35,7 @@ export function PermissionGroups({
   permissionGroups,
   canEdit,
 }: PermissionGroupsProps) {
+  const { t } = useTranslation();
   const mx = useMatrixClient();
   const room = useRoom();
   const alive = useAlive();
@@ -109,12 +111,12 @@ export function PermissionGroups({
     const powerUpdate = permissionUpdate.get(USER_DEFAULT_LOCATION);
     const value = powerUpdate ?? power;
 
-    const tag = getPowerLevelTag(powerLevelTags, value);
+    const tag = getPowerLevelTag(powerLevelTags, value, t);
     const powerChanges = value !== power;
 
     return (
       <Box direction="Column" gap="100">
-        <Text size="L400">Users</Text>
+        <Text size="L400">{t('featureUi.commonSettings.permissions.permissionGroups.users')}</Text>
         <SequenceCard
           variant="SurfaceVariant"
           className={SequenceCardStyle}
@@ -122,8 +124,10 @@ export function PermissionGroups({
           gap="400"
         >
           <SettingTile
-            title="Default Power"
-            description="Default power level for all users."
+            title={t('featureUi.commonSettings.permissions.permissionGroups.defaultPower')}
+            description={t(
+              'featureUi.commonSettings.permissions.permissionGroups.defaultPowerLevelForAllUsers'
+            )}
             after={
               <PowerSwitcher
                 powerLevelTags={powerLevelTags}
@@ -174,7 +178,7 @@ export function PermissionGroups({
             const powerUpdate = permissionUpdate.get(item.location);
             const value = powerUpdate ?? power;
 
-            const tag = getPowerLevelTag(powerLevelTags, value);
+            const tag = getPowerLevelTag(powerLevelTags, value, t);
             const powerChanges = value !== power;
 
             return (
@@ -220,7 +224,11 @@ export function PermissionGroups({
                           <Text size="B300" truncate>
                             {tag.name}
                           </Text>
-                          {value < maxPower && <Text size="T200">& Above</Text>}
+                          {value < maxPower && (
+                            <Text size="T200">
+                              {t('featureUi.commonSettings.permissions.permissionGroups.above')}
+                            </Text>
+                          )}
                         </Chip>
                       )}
                     </PowerSwitcher>
@@ -237,7 +245,7 @@ export function PermissionGroups({
           style={{
             position: 'sticky',
             padding: config.space.S200,
-            paddingLeft: config.space.S400,
+            paddingInlineStart: config.space.S400,
             bottom: config.space.S400,
             left: config.space.S400,
             right: 0,
@@ -249,11 +257,19 @@ export function PermissionGroups({
             <Box grow="Yes" direction="Column">
               {applyState.status === AsyncStatus.Error ? (
                 <Text size="T200">
-                  <b>Failed to apply changes! Please try again.</b>
+                  <b>
+                    {t(
+                      'featureUi.commonSettings.permissions.permissionGroups.failedToApplyChangesPleaseTryAgain'
+                    )}
+                  </b>
                 </Text>
               ) : (
                 <Text size="T200">
-                  <b>Changes saved! Apply when ready.</b>
+                  <b>
+                    {t(
+                      'featureUi.commonSettings.permissions.permissionGroups.changesSavedApplyWhenReady'
+                    )}
+                  </b>
                 </Text>
               )}
             </Box>
@@ -266,7 +282,9 @@ export function PermissionGroups({
                 disabled={applyingChanges}
                 onClick={resetChanges}
               >
-                <Text size="B300">Reset</Text>
+                <Text size="B300">
+                  {t('featureUi.commonSettings.permissions.permissionGroups.reset')}
+                </Text>
               </Button>
               <Button
                 size="300"
@@ -276,7 +294,9 @@ export function PermissionGroups({
                 before={applyingChanges && <Spinner variant="Success" fill="Solid" size="100" />}
                 onClick={handleApplyChanges}
               >
-                <Text size="B300">Apply Changes</Text>
+                <Text size="B300">
+                  {t('featureUi.commonSettings.permissions.permissionGroups.applyChanges')}
+                </Text>
               </Button>
             </Box>
           </Box>

@@ -1,19 +1,19 @@
+import type { TFunction } from 'i18next';
 import { MatrixEventEvent } from 'matrix-js-sdk';
 import type { Room } from 'matrix-js-sdk';
 import { ThreadEvent } from 'matrix-js-sdk/lib/models/thread';
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { useRoomName } from '../../hooks/useRoomMeta';
+import { useActiveSession } from '../../hooks/useSessionStore';
 import {
   getRecentThreadFallbackSummary,
   getResolvedRecentThreadRootId,
   shouldPersistRecentThreadSummaryText,
   truncateRecentThreadSummaryText,
 } from '../recent-threads/recentThreadSummaryUtils';
-import {
-  clearThreadSummarySharedState,
-  useThreadSummaryStateMap,
-} from './threadSummaryStore';
-import { useRoomName } from '../../hooks/useRoomMeta';
-import { useActiveSession } from '../../hooks/useSessionStore';
+import { getThreadPrimarySummaryText } from './threadPresentation';
+import { clearThreadSummarySharedState, useThreadSummaryStateMap } from './threadSummaryStore';
 import { buildThreadRecord } from './threadRecord';
 import type { RecentThreadViewModel, ThreadRecord } from './types';
 
@@ -24,13 +24,21 @@ type BuildRecentThreadViewModelFromRecordOptions = {
   storedThreadId: string;
   openedAt: number;
   fallbackSummaryText?: string;
+  t?: TFunction;
 };
 
-const getRecordRecentSummaryText = (record: ThreadRecord): string | undefined =>
-  record.presentation.recentThreadSummaryText ??
-  record.presentation.summaryText ??
-  record.presentation.primarySummaryText ??
-  record.presentation.rootPreviewText;
+const getRecordRecentSummaryText = (record: ThreadRecord, t?: TFunction): string | undefined => {
+  const { presentation } = record;
+  const recent = presentation.recentThreadSummaryText;
+  return (
+    presentation.summaryText ??
+    (recent === presentation.rootPreviewText
+      ? getThreadPrimarySummaryText(presentation, t)
+      : recent) ??
+    getThreadPrimarySummaryText(presentation, t) ??
+    presentation.primarySummaryText
+  );
+};
 
 export const buildRecentThreadViewModelFromRecord = ({
   record,
@@ -39,14 +47,22 @@ export const buildRecentThreadViewModelFromRecord = ({
   storedThreadId,
   openedAt,
   fallbackSummaryText,
+  t,
 }: BuildRecentThreadViewModelFromRecordOptions): RecentThreadViewModel => {
   const rawSummaryText =
-    getRecordRecentSummaryText(record) ??
+    getRecordRecentSummaryText(record, t) ??
     fallbackSummaryText ??
-    getRecentThreadFallbackSummary(room, roomName);
+    getRecentThreadFallbackSummary(room, roomName, t);
   const summaryText = truncateRecentThreadSummaryText(rawSummaryText);
-  const persistableSummaryText = shouldPersistRecentThreadSummaryText(room, roomName, summaryText)
-    ? summaryText
+  const persistableSummaryText = shouldPersistRecentThreadSummaryText(
+    room,
+    roomName,
+    summaryText,
+    t
+  )
+    ? truncateRecentThreadSummaryText(
+        getRecordRecentSummaryText(record) ?? fallbackSummaryText ?? rawSummaryText
+      )
     : undefined;
 
   return {
@@ -130,6 +146,7 @@ export const useRecentThreadViewModel = (
   openedAt: number,
   fallbackSummaryText?: string
 ): RecentThreadViewModel => {
+  const { t } = useTranslation();
   const activeSession = useActiveSession();
   const roomName = useRoomName(room);
   const [, setRefreshVersion] = useState(0);
@@ -176,5 +193,6 @@ export const useRecentThreadViewModel = (
     storedThreadId: threadId,
     openedAt,
     fallbackSummaryText,
+    t,
   });
 };

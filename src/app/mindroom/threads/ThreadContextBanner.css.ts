@@ -51,7 +51,7 @@ export const SubtitleRow = style({
 });
 
 export const ResolveChip = style({
-  marginLeft: 'auto',
+  marginInlineStart: 'auto',
   flexShrink: 0,
   display: 'flex',
   flexDirection: 'column',

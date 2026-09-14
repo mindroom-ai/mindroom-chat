@@ -552,12 +552,12 @@ describe('MindroomToolApprovalCard', () => {
     expect(text).toContain('this thread, requester, agent, and tool');
     expect(text).toContain('Arguments may differ');
     expect(findButtonByText(renderer.root, 'Approve once')).toBeDefined();
-    expect(findButtonByText(renderer.root, 'Auto-approve 5 min')).toBeDefined();
-    expect(findButtonByText(renderer.root, 'Auto-approve 10 min')).toBeDefined();
-    expect(findButtonByText(renderer.root, 'Auto-approve 30 min')).toBeDefined();
+    expect(findButtonByText(renderer.root, 'Auto-approve for 5 minutes')).toBeDefined();
+    expect(findButtonByText(renderer.root, 'Auto-approve for 10 minutes')).toBeDefined();
+    expect(findButtonByText(renderer.root, 'Auto-approve for 30 minutes')).toBeDefined();
 
     await act(async () => {
-      findButtonByText(renderer.root, 'Auto-approve 10 min').props.onClick();
+      findButtonByText(renderer.root, 'Auto-approve for 10 minutes').props.onClick();
       await Promise.resolve();
       await Promise.resolve();
     });
@@ -641,14 +641,14 @@ describe('MindroomToolApprovalCard', () => {
     const renderer = renderCard(timedPendingApproval);
 
     await act(async () => {
-      findButtonByText(renderer.root, 'Auto-approve 5 min').props.onClick();
+      findButtonByText(renderer.root, 'Auto-approve for 5 minutes').props.onClick();
       await Promise.resolve();
       await Promise.resolve();
     });
     expect(getNodeText(renderer.root)).toContain('Matrix send failed');
 
     await act(async () => {
-      findButtonByText(renderer.root, 'Auto-approve 5 min').props.onClick();
+      findButtonByText(renderer.root, 'Auto-approve for 5 minutes').props.onClick();
       await Promise.resolve();
       await Promise.resolve();
     });
@@ -732,7 +732,7 @@ describe('MindroomToolApprovalCard', () => {
     const renderer = renderCard(timedPendingApproval);
 
     await act(async () => {
-      findButtonByText(renderer.root, 'Auto-approve 10 min').props.onClick();
+      findButtonByText(renderer.root, 'Auto-approve for 10 minutes').props.onClick();
       await Promise.resolve();
       await Promise.resolve();
     });
@@ -780,7 +780,7 @@ describe('MindroomToolApprovalCard', () => {
     const renderer = renderCard(timedPendingApproval);
 
     await act(async () => {
-      findButtonByText(renderer.root, 'Auto-approve 10 min').props.onClick();
+      findButtonByText(renderer.root, 'Auto-approve for 10 minutes').props.onClick();
       await Promise.resolve();
     });
 
@@ -822,7 +822,7 @@ describe('MindroomToolApprovalCard', () => {
     const renderer = renderCard(timedPendingApproval);
 
     await act(async () => {
-      findButtonByText(renderer.root, 'Auto-approve 10 min').props.onClick();
+      findButtonByText(renderer.root, 'Auto-approve for 10 minutes').props.onClick();
       await Promise.resolve();
       await Promise.resolve();
     });

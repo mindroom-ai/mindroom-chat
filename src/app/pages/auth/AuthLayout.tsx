@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import React, { useCallback, useEffect } from 'react';
 import { Box, Button, Header, Scroll, Spinner, Text, color } from 'folds';
 import classNames from 'classnames';
@@ -51,6 +52,7 @@ function AuthLayoutError({ message }: { message: string }) {
 }
 
 export function AuthLayout() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
   const { server: urlEncodedServer } = useParams();
@@ -159,13 +161,13 @@ export function AuthLayout() {
                 size="400"
                 onClick={() => navigate(addAccountReturnPath, { replace: true })}
               >
-                Back to current account
+                {t('sharedUi.authLayout.backToCurrentAccount')}
               </Button>
             )}
             {!hideServerPicker && (
               <Box direction="Column" gap="100">
                 <Text as="label" size="L400" priority="300">
-                  Server
+                  {t('sharedUi.authLayout.server')}
                 </Text>
                 <ServerPicker
                   server={server}
@@ -176,21 +178,32 @@ export function AuthLayout() {
               </Box>
             )}
             {discoveryState.status === AsyncStatus.Loading && (
-              <AuthLayoutLoading message="Looking for server..." />
+              <AuthLayoutLoading message={t('sharedUi.authLayout.lookingForServer')} />
             )}
             {discoveryState.status === AsyncStatus.Error && (
-              <AuthLayoutError message="Failed to find server." />
+              <AuthLayoutError message={t('sharedUi.authLayout.failedToFindServer')} />
             )}
             {autoDiscoveryError?.action === AutoDiscoveryAction.FAIL_PROMPT && (
               <AuthLayoutError
-                message={`Failed to connect. Server configuration found with ${autoDiscoveryError.host} appears unusable.`}
+                message={t(
+                  'sharedUi.authLayout.failedToConnectServerConfigurationFoundWithValue1AppearsUnusable',
+                  { value1: autoDiscoveryError.host }
+                )}
               />
             )}
             {autoDiscoveryError?.action === AutoDiscoveryAction.FAIL_ERROR && (
-              <AuthLayoutError message="Failed to connect. Server configuration base_url appears invalid." />
+              <AuthLayoutError
+                message={t(
+                  'sharedUi.authLayout.failedToConnectServerConfigurationBaseUrlAppearsInvalid'
+                )}
+              />
             )}
             {autoDiscoveryError?.action === AutoDiscoveryAction.FAIL_INSECURE && (
-              <AuthLayoutError message="Only HTTPS servers are allowed. HTTP is supported for local-network servers only." />
+              <AuthLayoutError
+                message={t(
+                  'sharedUi.authLayout.onlyHttpsServersAreAllowedHttpIsSupportedForLocalNetworkServers'
+                )}
+              />
             )}
             {discoveryState.status === AsyncStatus.Success && autoDiscoveryInfo && (
               <AuthServerProvider value={discoveryState.data.serverName}>
@@ -199,21 +212,33 @@ export function AuthLayout() {
                     baseUrl={autoDiscoveryInfo['m.homeserver'].base_url}
                     fallback={() => (
                       <AuthLayoutLoading
-                        message={`Connecting to ${autoDiscoveryInfo['m.homeserver'].base_url}`}
+                        message={t('sharedUi.authLayout.connectingToValue1', {
+                          value1: autoDiscoveryInfo['m.homeserver'].base_url,
+                        })}
                       />
                     )}
                     error={() => (
-                      <AuthLayoutError message="Failed to connect. Either server is unavailable at this moment or does not exist." />
+                      <AuthLayoutError
+                        message={t(
+                          'sharedUi.authLayout.failedToConnectEitherServerIsUnavailableAtThisMomentOrDoes'
+                        )}
+                      />
                     )}
                   >
                     {(specVersions) => (
                       <SpecVersionsProvider value={specVersions}>
                         <AuthFlowsLoader
                           fallback={() => (
-                            <AuthLayoutLoading message="Loading authentication flow..." />
+                            <AuthLayoutLoading
+                              message={t('sharedUi.authLayout.loadingAuthenticationFlow')}
+                            />
                           )}
                           error={() => (
-                            <AuthLayoutError message="Failed to get authentication flow information." />
+                            <AuthLayoutError
+                              message={t(
+                                'sharedUi.authLayout.failedToGetAuthenticationFlowInformation'
+                              )}
+                            />
                           )}
                         >
                           {(authFlows) => (

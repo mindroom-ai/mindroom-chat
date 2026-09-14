@@ -1,4 +1,5 @@
 import { createContext, RefObject, useCallback, useContext, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { MatrixClient, Room } from 'matrix-js-sdk';
 import { useAtomValue, useSetAtom, useStore } from 'jotai';
 import {
@@ -14,6 +15,7 @@ import { useResizeObserver } from './useResizeObserver';
 import { CallControlState } from '../plugins/call/CallControlState';
 import { useCallMembersChange, useCallSession } from './useCall';
 import { CallPreferences } from '../state/callPreferences';
+import { useAppLanguageCode } from './useAppLanguageCode';
 
 const CallEmbedContext = createContext<CallEmbed | undefined>(undefined);
 
@@ -40,6 +42,8 @@ export const createCallEmbed = (
   room: Room,
   dm: boolean,
   themeKind: ElementCallThemeKind,
+  language: string,
+  iframeTitle: string,
   container: HTMLElement,
   pref?: CallPreferences
 ): CallEmbed => {
@@ -47,10 +51,10 @@ export const createCallEmbed = (
   const ongoing = rtcSession.memberships.length > 0;
 
   const intent = CallEmbed.getIntent(dm, ongoing, pref?.video);
-  const widget = CallEmbed.getWidget(mx, room, intent, themeKind);
+  const widget = CallEmbed.getWidget(mx, room, intent, themeKind, language);
   const controlState = pref && new CallControlState(pref.microphone, pref.video, pref.sound);
 
-  const embed = new CallEmbed(mx, room, widget, container, controlState);
+  const embed = new CallEmbed(mx, room, widget, container, iframeTitle, controlState);
 
   return embed;
 };
@@ -58,6 +62,9 @@ export const createCallEmbed = (
 export const useCallStart = (dm = false) => {
   const mx = useMatrixClient();
   const theme = useTheme();
+  const language = useAppLanguageCode();
+  const { t } = useTranslation();
+  const iframeTitle = t('mindroomUi.calls.agentCallButton.call');
   const setCallEmbed = useSetAtom(callEmbedAtom);
   // Surfaces like user profiles mount this hook for every rendered user, so a
   // missing CallEmbedRef provider must fail when a call is started (catchable
@@ -70,11 +77,20 @@ export const useCallStart = (dm = false) => {
       if (!container) {
         throw new Error('Failed to start call, No embed container element found!');
       }
-      const callEmbed = createCallEmbed(mx, room, dm, theme.kind, container, pref);
+      const callEmbed = createCallEmbed(
+        mx,
+        room,
+        dm,
+        theme.kind,
+        language,
+        iframeTitle,
+        container,
+        pref
+      );
 
       setCallEmbed(callEmbed);
     },
-    [mx, dm, theme, setCallEmbed, callEmbedRef]
+    [mx, dm, theme, language, iframeTitle, setCallEmbed, callEmbedRef]
   );
 
   return startCall;
@@ -158,6 +174,15 @@ export const useCallThemeSync = (embed: CallEmbed) => {
 
     embed.setTheme(name);
   }, [theme.kind, embed]);
+};
+
+export const useCallEmbedTitleSync = (embed: CallEmbed): void => {
+  const { t } = useTranslation();
+  const iframeTitle = t('mindroomUi.calls.agentCallButton.call');
+
+  useEffect(() => {
+    embed.setTitle(iframeTitle);
+  }, [embed, iframeTitle]);
 };
 
 export const getCallEmbedViewportPlacement = (

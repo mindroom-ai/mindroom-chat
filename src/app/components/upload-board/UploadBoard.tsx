@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import React, { ReactNode } from 'react';
 import { Badge, Box, Chip, Header, Icon, Icons, Spinner, Text, as, percent } from 'folds';
 import classNames from 'classnames';
@@ -37,6 +38,7 @@ export function UploadBoardHeader({
   uploadFamilyObserverAtom,
   onCancel,
 }: UploadBoardHeaderProps) {
+  const { t } = useTranslation();
   const uploads = useAtomValue(uploadFamilyObserverAtom);
 
   const isError = uploads.some((upload) => upload.status === UploadStatus.Error);
@@ -70,13 +72,13 @@ export function UploadBoardHeader({
         grow="Yes"
         gap="100"
       >
-        <Icon src={open ? Icons.ChevronTop : Icons.ChevronRight} size="50" />
-        <Text size="H6">Files</Text>
+        <Icon data-directional src={open ? Icons.ChevronTop : Icons.ChevronRight} size="50" />
+        <Text size="H6">{t('sharedUi.uploadBoard.files')}</Text>
       </Box>
       <Box className={css.UploadBoardHeaderContent} alignItems="Center" gap="100">
         {isError && !open && (
           <Badge variant="Critical" fill="Solid" radii="300">
-            <Text size="L400">Upload Failed</Text>
+            <Text size="L400">{t('sharedUi.uploadBoard.uploadFailed')}</Text>
           </Badge>
         )}
         {!isError && !open && (
@@ -95,7 +97,11 @@ export function UploadBoardHeader({
             radii="Pill"
             after={<Icon src={Icons.Cross} size="50" />}
           >
-            <Text size="B300">{uploads.length === 1 ? 'Remove' : 'Remove All'}</Text>
+            <Text size="B300">
+              {uploads.length === 1
+                ? t('sharedUi.uploadBoard.remove')
+                : t('sharedUi.uploadBoard.removeAll')}
+            </Text>
           </Chip>
         )}
       </Box>

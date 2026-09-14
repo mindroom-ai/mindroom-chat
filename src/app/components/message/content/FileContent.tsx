@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import React, { ComponentProps, ReactNode, useCallback, useRef, useState } from 'react';
 import {
   Box,
@@ -38,11 +39,11 @@ import { useMediaAuthentication } from '../../../hooks/useMediaAuthentication';
 import { saveFile } from '../../../mindroom/native/nativeFileSave';
 import { ModalWide } from '../../../styles/Modal.css';
 
-const renderErrorButton = (retry: () => void, text: string) => (
+const renderErrorButton = (retry: () => void, text: string, errorLabel: string) => (
   <TooltipProvider
     tooltip={
       <Tooltip variant="Critical">
-        <Text>Failed to load file!</Text>
+        <Text>{errorLabel}</Text>
       </Tooltip>
     }
     position="Top"
@@ -90,10 +91,12 @@ export function ReadTextFile({
   url,
   encInfo,
   renderViewer,
-  buttonText = 'Open File',
-  errorButtonText = buttonText,
+  buttonText,
+  errorButtonText,
   buttonSize = '400',
 }: ReadTextFileProps) {
+  const { t } = useTranslation();
+  const resolvedButtonText = buttonText ?? t('sharedUi.fileContent.openFile');
   const mx = useMatrixClient();
   const useAuthentication = useMediaAuthentication();
   const [textViewer, setTextViewer] = useState(false);
@@ -144,7 +147,11 @@ export function ReadTextFile({
         </Overlay>
       )}
       {textState.status === AsyncStatus.Error ? (
-        renderErrorButton(loadText, errorButtonText)
+        renderErrorButton(
+          loadText,
+          errorButtonText ?? resolvedButtonText,
+          t('sharedUi.fileContent.loadFailed')
+        )
       ) : (
         <Button
           variant="Secondary"
@@ -159,12 +166,12 @@ export function ReadTextFile({
             textState.status === AsyncStatus.Loading ? (
               <Spinner fill="Solid" size="100" variant="Secondary" />
             ) : (
-              <Icon size="100" src={Icons.ArrowRight} filled />
+              <Icon data-directional size="100" src={Icons.ArrowRight} filled />
             )
           }
         >
           <Text size="B400" truncate>
-            {buttonText}
+            {resolvedButtonText}
           </Text>
         </Button>
       )}
@@ -185,6 +192,7 @@ export type ReadPdfFileProps = {
   renderViewer: (props: RenderPdfViewerProps) => ReactNode;
 };
 export function ReadPdfFile({ body, mimeType, url, encInfo, renderViewer }: ReadPdfFileProps) {
+  const { t } = useTranslation();
   const mx = useMatrixClient();
   const useAuthentication = useMediaAuthentication();
   const [pdfViewer, setPdfViewer] = useState(false);
@@ -232,7 +240,11 @@ export function ReadPdfFile({ body, mimeType, url, encInfo, renderViewer }: Read
         </Overlay>
       )}
       {pdfState.status === AsyncStatus.Error ? (
-        renderErrorButton(loadPdf, 'Open PDF')
+        renderErrorButton(
+          loadPdf,
+          t('sharedUi.fileContent.openPdf'),
+          t('sharedUi.fileContent.loadFailed')
+        )
       ) : (
         <Button
           variant="Secondary"
@@ -245,12 +257,12 @@ export function ReadPdfFile({ body, mimeType, url, encInfo, renderViewer }: Read
             pdfState.status === AsyncStatus.Loading ? (
               <Spinner fill="Solid" size="100" variant="Secondary" />
             ) : (
-              <Icon size="100" src={Icons.ArrowRight} filled />
+              <Icon data-directional size="100" src={Icons.ArrowRight} filled />
             )
           }
         >
           <Text size="B400" truncate>
-            Open PDF
+            {t('sharedUi.fileContent.openPdf')}
           </Text>
         </Button>
       )}
@@ -278,6 +290,7 @@ export function DownloadFile({
   errorButtonText,
   buttonSize = '400',
 }: DownloadFileProps) {
+  const { t } = useTranslation();
   const mx = useMatrixClient();
   const useAuthentication = useMediaAuthentication();
   const downloadedFileRef = useRef<{
@@ -317,7 +330,9 @@ export function DownloadFile({
   return downloadState.status === AsyncStatus.Error ? (
     renderErrorButton(
       handleDownload,
-      errorButtonText ?? `Retry Download (${bytesToSize(info.size ?? 0)})`
+      errorButtonText ??
+        t('sharedUi.fileContent.retryDownload', { size: bytesToSize(info.size ?? 0) }),
+      t('sharedUi.fileContent.loadFailed')
     )
   ) : (
     <Button
@@ -336,7 +351,8 @@ export function DownloadFile({
       }
     >
       <Text size="B400" truncate>
-        {buttonText ?? `Download (${bytesToSize(info.size ?? 0)})`}
+        {buttonText ??
+          t('sharedUi.fileContent.downloadSize', { size: bytesToSize(info.size ?? 0) })}
       </Text>
     </Button>
   );

@@ -17,6 +17,7 @@ import {
   toRem,
 } from 'folds';
 import FocusTrap from 'focus-trap-react';
+import { useTranslation } from 'react-i18next';
 import { PageHeader } from '../../components/page';
 import { useSetSetting } from '../../state/hooks/settings';
 import { settingsAtom } from '../../state/settings';
@@ -49,6 +50,7 @@ type LobbyMenuProps = {
 };
 const LobbyMenu = forwardRef<HTMLDivElement, LobbyMenuProps>(
   ({ powerLevels, requestClose }, ref) => {
+    const { t } = useTranslation();
     const mx = useMatrixClient();
     const space = useSpace();
     const creators = useRoomCreators(space);
@@ -91,7 +93,7 @@ const LobbyMenu = forwardRef<HTMLDivElement, LobbyMenuProps>(
             disabled={!canInvite}
           >
             <Text style={{ flexGrow: 1 }} as="span" size="T300" truncate>
-              Invite
+              {t('featureUi.lobby.lobbyHeader.invite')}
             </Text>
           </MenuItem>
           <MenuItem
@@ -101,7 +103,7 @@ const LobbyMenu = forwardRef<HTMLDivElement, LobbyMenuProps>(
             radii="300"
           >
             <Text style={{ flexGrow: 1 }} as="span" size="T300" truncate>
-              Space Settings
+              {t('featureUi.lobby.lobbyHeader.spaceSettings')}
             </Text>
           </MenuItem>
         </Box>
@@ -120,7 +122,7 @@ const LobbyMenu = forwardRef<HTMLDivElement, LobbyMenuProps>(
                   aria-pressed={promptLeave}
                 >
                   <Text style={{ flexGrow: 1 }} as="span" size="T300" truncate>
-                    Leave Space
+                    {t('featureUi.lobby.lobbyHeader.leaveSpace')}
                   </Text>
                 </MenuItem>
                 {promptLeave && (
@@ -145,6 +147,7 @@ type LobbyHeaderProps = {
   joinRequestCount?: number;
 };
 export function LobbyHeader({ showProfile, powerLevels, joinRequestCount = 0 }: LobbyHeaderProps) {
+  const { t } = useTranslation();
   const mx = useMatrixClient();
   const useAuthentication = useMediaAuthentication();
   const space = useSpace();
@@ -157,7 +160,11 @@ export function LobbyHeader({ showProfile, powerLevels, joinRequestCount = 0 }: 
   const canReviewJoinRequests =
     permissions.action('invite', myUserId) || permissions.action('kick', myUserId);
   const visibleJoinRequestCount = canReviewJoinRequests ? joinRequestCount : 0;
-  const memberButtonAriaLabel = getPendingJoinRequestLabel('Members', visibleJoinRequestCount);
+  const memberButtonAriaLabel = getPendingJoinRequestLabel(
+    t,
+    t('featureUi.lobby.lobbyHeader.members'),
+    visibleJoinRequestCount
+  );
 
   const name = useRoomName(space);
   const avatarMxc = useRoomAvatar(space);
@@ -178,7 +185,7 @@ export function LobbyHeader({ showProfile, powerLevels, joinRequestCount = 0 }: 
               <BackRouteHandler>
                 {(onBack) => (
                   <IconButton fill="None" onClick={onBack}>
-                    <Icon src={Icons.ArrowLeft} />
+                    <Icon data-directional src={Icons.ArrowLeft} />
                   </IconButton>
                 )}
               </BackRouteHandler>
@@ -225,7 +232,7 @@ export function LobbyHeader({ showProfile, powerLevels, joinRequestCount = 0 }: 
               offset={4}
               tooltip={
                 <Tooltip>
-                  <Text>Members</Text>
+                  <Text>{t('featureUi.lobby.lobbyHeader.members')}</Text>
                 </Tooltip>
               }
             >
@@ -249,7 +256,7 @@ export function LobbyHeader({ showProfile, powerLevels, joinRequestCount = 0 }: 
             offset={4}
             tooltip={
               <Tooltip>
-                <Text>More Options</Text>
+                <Text>{t('featureUi.lobby.lobbyHeader.moreOptions')}</Text>
               </Tooltip>
             }
           >

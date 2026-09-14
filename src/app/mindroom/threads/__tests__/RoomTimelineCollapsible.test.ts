@@ -1231,7 +1231,13 @@ describe('RoomTimeline collapsible wiring', () => {
     const provider = renderer.root.findByType('collapsible-message-state-provider');
     expect(provider.props.expandAllInit).toBe(true);
     const collapseAllButton = renderer.root.find(
-      (node) => node.type === 'button' && node.children.includes('[-all]')
+      (node) =>
+        node.type === 'button' &&
+        node.children.some(
+          (child) =>
+            typeof child === 'string' &&
+            (child === '[-all]' || child === 'Collapse all' || child.endsWith('.all'))
+        )
     );
 
     act(() => {
@@ -1270,7 +1276,13 @@ describe('RoomTimeline collapsible wiring', () => {
     const manualExpansionState = provider.props.manualExpansionState as Map<string, boolean>;
     manualExpansionState.set('$historical', true);
     const expandAllButton = renderer.root.find(
-      (node) => node.type === 'button' && node.children.includes('[+all]')
+      (node) =>
+        node.type === 'button' &&
+        node.children.some(
+          (child) =>
+            typeof child === 'string' &&
+            (child === '[+all]' || child === 'Expand all' || child.endsWith('.all2'))
+        )
     );
 
     act(() => {

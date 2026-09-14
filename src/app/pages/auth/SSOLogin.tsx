@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { Avatar, AvatarImage, Box, Button, Text } from 'folds';
 import { IIdentityProvider, SSOAction } from 'matrix-js-sdk';
 import React, { useMemo, useRef } from 'react';
@@ -30,6 +31,7 @@ type SSOLoginProps = {
   saveScreenSpace?: boolean;
 };
 export function SSOLogin({ providers, redirectUrl, action, saveScreenSpace }: SSOLoginProps) {
+  const { t } = useTranslation();
   const discovery = useAutoDiscoveryInfo();
   const baseUrl = discovery['m.homeserver'].base_url;
   const mx = useMemo(() => createMatrixClient({ baseUrl }), [baseUrl]);
@@ -102,7 +104,7 @@ export function SSOLogin({ providers, redirectUrl, action, saveScreenSpace }: SS
           const ssoUrl = getSSOIdUrl(id);
           const iconUrl = getProviderIconUrl(provider);
           const appleProvider = isAppleIdentityProvider(provider);
-          const buttonTitle = getSSOProviderButtonTitle(provider, action);
+          const buttonTitle = getSSOProviderButtonTitle(provider, t, action);
           const navigationProps = nativeApp ? {} : { as: 'a' as const, href: ssoUrl };
 
           if (renderAsIcons) {
@@ -163,7 +165,7 @@ export function SSOLogin({ providers, redirectUrl, action, saveScreenSpace }: SS
           outlined
         >
           <Text align="Center" size="B500" truncate>
-            Continue with SSO
+            {t('sharedUi.sSOLogin.continueWithSso')}
           </Text>
         </Button>
       )}

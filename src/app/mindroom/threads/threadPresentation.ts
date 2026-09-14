@@ -1,5 +1,11 @@
 import type { MatrixEvent } from 'matrix-js-sdk/lib/models/event';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
+import type { TFunction } from 'i18next';
+import {
+  getThreadPreviewLocalization,
+  localizeThreadPreview,
+  type ThreadPreviewLocalization,
+} from './threadMessagePreview';
 import {
   getLatestThreadSummaryInfoFromEventSources,
   pickLatestThreadSummaryInfo,
@@ -23,6 +29,8 @@ export type ThreadPresentationSnapshot = {
   summaryText: string | undefined;
   rootPreviewText: string | undefined;
   latestReplyPreviewText: string | undefined;
+  rootPreviewLocalization?: ThreadPreviewLocalization;
+  latestReplyPreviewLocalization?: ThreadPreviewLocalization;
   lastSenderId: string | undefined;
   lastSenderDisplayName: string | undefined;
   messageCount: number;
@@ -106,18 +114,30 @@ export const resolveThreadPresentationSnapshot = ({
     thread,
   });
   const visibleMessageCount = getVisibleThreadMessageCount(thread, fallbackMessageCount);
+  const rootPreviewText = resolveThreadRootPreviewText({
+    room,
+    threadRootId,
+    rootEvent,
+    preferredPreviewText: preferredRootPreviewText,
+  });
+  const latestReplyPreviewText =
+    getVisibleThreadEventBodyPreviewText(latestPreviewEvent) ?? fallbackLatestReplyPreviewText;
+  const rootPreviewLocalization = getThreadPreviewLocalization(
+    rootEvent?.getContent?.(),
+    rootPreviewText
+  );
+  const latestReplyPreviewLocalization = getThreadPreviewLocalization(
+    latestPreviewEvent?.getContent?.(),
+    latestReplyPreviewText
+  );
 
   return {
     summaryInfo,
     summaryText: summaryInfo?.summaryText,
-    rootPreviewText: resolveThreadRootPreviewText({
-      room,
-      threadRootId,
-      rootEvent,
-      preferredPreviewText: preferredRootPreviewText,
-    }),
-    latestReplyPreviewText:
-      getVisibleThreadEventBodyPreviewText(latestPreviewEvent) ?? fallbackLatestReplyPreviewText,
+    rootPreviewText,
+    latestReplyPreviewText,
+    ...(rootPreviewLocalization ? { rootPreviewLocalization } : {}),
+    ...(latestReplyPreviewLocalization ? { latestReplyPreviewLocalization } : {}),
     lastSenderId,
     lastSenderDisplayName,
     messageCount:
@@ -127,8 +147,15 @@ export const resolveThreadPresentationSnapshot = ({
   };
 };
 
-export const getThreadPrimarySummaryText = ({
-  summaryText,
-  rootPreviewText,
-}: Pick<ThreadPresentationSnapshot, 'summaryText' | 'rootPreviewText'>): string | undefined =>
-  summaryText ?? rootPreviewText;
+export const getThreadPrimarySummaryText = (
+  {
+    summaryText,
+    rootPreviewText,
+    rootPreviewLocalization,
+  }: Pick<
+    ThreadPresentationSnapshot,
+    'summaryText' | 'rootPreviewText' | 'rootPreviewLocalization'
+  >,
+  t?: TFunction
+): string | undefined =>
+  summaryText ?? localizeThreadPreview(rootPreviewText, rootPreviewLocalization, t);

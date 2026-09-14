@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import React, {
   FormEventHandler,
   MouseEventHandler,
@@ -62,24 +63,26 @@ type RoomTypeFilter = {
   title: string;
   value: string | undefined;
 };
-const useRoomTypeFilters = (): RoomTypeFilter[] =>
-  useMemo(
+const useRoomTypeFilters = (): RoomTypeFilter[] => {
+  const { t } = useTranslation();
+  return useMemo(
     () => [
       {
-        title: 'All',
+        title: t('sharedUi.roomTypes.all'),
         value: undefined,
       },
       {
-        title: 'Spaces',
+        title: t('sharedUi.roomTypes.spaces'),
         value: RoomType.Space,
       },
       {
-        title: 'Rooms',
+        title: t('sharedUi.roomTypes.rooms'),
         value: 'null',
       },
     ],
-    []
+    [t]
   );
+};
 
 const FALLBACK_ROOMS_LIMIT = 24;
 
@@ -91,6 +94,7 @@ type SearchProps = {
   onReset: () => void;
 };
 function Search({ active, loading, searchInputRef, onSearch, onReset }: SearchProps) {
+  const { t } = useTranslation();
   const handleSearchSubmit: FormEventHandler<HTMLFormElement> = (evt) => {
     evt.preventDefault();
     const { searchInput } = evt.target as HTMLFormElement & {
@@ -106,14 +110,14 @@ function Search({ active, loading, searchInputRef, onSearch, onReset }: SearchPr
   return (
     <Box as="form" direction="Column" gap="100" onSubmit={handleSearchSubmit}>
       <span data-spacing-node />
-      <Text size="L400">Search</Text>
+      <Text size="L400">{t('sharedUi.server.search')}</Text>
       <Input
         ref={searchInputRef}
-        style={{ paddingRight: config.space.S300 }}
+        style={{ paddingInlineEnd: config.space.S300 }}
         name="searchInput"
         size="500"
         variant="Background"
-        placeholder="Search for keyword"
+        placeholder={t('sharedUi.server.searchForKeyword')}
         before={
           active && loading ? (
             <Spinner variant="Secondary" size="200" />
@@ -132,11 +136,11 @@ function Search({ active, loading, searchInputRef, onSearch, onReset }: SearchPr
               after={<Icon size="50" src={Icons.Cross} />}
               onClick={onReset}
             >
-              <Text size="B300">Clear</Text>
+              <Text size="B300">{t('sharedUi.server.clear')}</Text>
             </Chip>
           ) : (
             <Chip type="submit" variant="Primary" size="400" radii="Pill" outlined>
-              <Text size="B300">Enter</Text>
+              <Text size="B300">{t('sharedUi.server.enter')}</Text>
             </Chip>
           )
         }
@@ -153,6 +157,7 @@ function ThirdPartyProtocolsSelector({
   instanceId?: string;
   onChange: (instanceId?: string) => void;
 }) {
+  const { t } = useTranslation();
   const mx = useMatrixClient();
   const [menuAnchor, setMenuAnchor] = useState<RectCords>();
 
@@ -196,7 +201,7 @@ function ThirdPartyProtocolsSelector({
               style={{ padding: config.space.S100, minWidth: toRem(100) }}
             >
               <Text style={{ padding: config.space.S100 }} size="L400" truncate>
-                Protocols
+                {t('sharedUi.server.protocols')}
               </Text>
               <Box direction="Column">
                 <MenuItem
@@ -252,6 +257,7 @@ type LimitButtonProps = {
   onLimitChange: (limit: string) => void;
 };
 function LimitButton({ limit, onLimitChange }: LimitButtonProps) {
+  const { t } = useTranslation();
   const [menuAnchor, setMenuAnchor] = useState<RectCords>();
 
   const handleLimitSubmit: FormEventHandler<HTMLFormElement> = (evt) => {
@@ -288,7 +294,7 @@ function LimitButton({ limit, onLimitChange }: LimitButtonProps) {
           <Menu variant="Surface">
             <Box direction="Column" gap="400" style={{ padding: config.space.S300 }}>
               <Box direction="Column" gap="100">
-                <Text size="L400">Presets</Text>
+                <Text size="L400">{t('sharedUi.server.presets')}</Text>
                 <Box gap="100" wrap="Wrap">
                   <Chip variant="SurfaceVariant" onClick={() => setLimit('24')} radii="Pill">
                     <Text size="T200">24</Text>
@@ -303,7 +309,7 @@ function LimitButton({ limit, onLimitChange }: LimitButtonProps) {
               </Box>
               <Box as="form" onSubmit={handleLimitSubmit} direction="Column" gap="300">
                 <Box direction="Column" gap="100">
-                  <Text size="L400">Custom Limit</Text>
+                  <Text size="L400">{t('sharedUi.server.customLimit')}</Text>
                   <Input
                     name="limitInput"
                     size="300"
@@ -314,11 +320,11 @@ function LimitButton({ limit, onLimitChange }: LimitButtonProps) {
                     outlined
                     type="number"
                     radii="400"
-                    aria-label="Per Page Item Limit"
+                    aria-label={t('sharedUi.server.perPageItemLimit')}
                   />
                 </Box>
                 <Button type="submit" size="300" variant="Primary" radii="400">
-                  <Text size="B300">Change Limit</Text>
+                  <Text size="B300">{t('sharedUi.server.changeLimit')}</Text>
                 </Button>
               </Box>
             </Box>
@@ -334,13 +340,16 @@ function LimitButton({ limit, onLimitChange }: LimitButtonProps) {
         variant="SurfaceVariant"
         after={<Icon size="100" src={Icons.ChevronBottom} />}
       >
-        <Text size="T200" truncate>{`Page Limit: ${limit}`}</Text>
+        <Text size="T200" truncate>
+          {t('sharedUi.server.pageLimitValue1', { value1: limit })}
+        </Text>
       </Chip>
     </PopOut>
   );
 }
 
 export function PublicRooms() {
+  const { t } = useTranslation();
   const { server } = useParams();
   const mx = useMatrixClient();
   const userId = mx.getUserId();
@@ -478,7 +487,7 @@ export function PublicRooms() {
                 size="500"
                 variant="Surface"
                 radii="Pill"
-                before={<Icon size="100" src={Icons.ArrowLeft} />}
+                before={<Icon data-directional size="100" src={Icons.ArrowLeft} />}
                 onClick={handleSearchClear}
               >
                 <Text size="T300">{server}</Text>
@@ -488,7 +497,7 @@ export function PublicRooms() {
             <Box grow="No" justifyContent="Center" alignItems="Center" gap="200">
               {screenSize !== ScreenSize.Mobile && <Icon size="400" src={Icons.Search} />}
               <Text size="H3" truncate>
-                Search
+                {t('sharedUi.server.search')}
               </Text>
             </Box>
             <Box grow="Yes" basis="No" />
@@ -500,7 +509,7 @@ export function PublicRooms() {
                 <BackRouteHandler>
                   {(onBack) => (
                     <IconButton onClick={onBack}>
-                      <Icon src={Icons.ArrowLeft} />
+                      <Icon data-directional src={Icons.ArrowLeft} />
                     </IconButton>
                   )}
                 </BackRouteHandler>
@@ -532,9 +541,11 @@ export function PublicRooms() {
                 <Box direction="Column" gap="400">
                   <Box direction="Column" gap="300">
                     {isSearch ? (
-                      <Text size="H4">{`Results for "${serverSearchParams.term}"`}</Text>
+                      <Text size="H4">
+                        {t('sharedUi.server.resultsForValue1', { value1: serverSearchParams.term })}
+                      </Text>
                     ) : (
-                      <Text size="H4">Popular Communities</Text>
+                      <Text size="H4">{t('sharedUi.server.popularCommunities')}</Text>
                     )}
                     <Box gap="200">
                       {roomTypeFilters.map((filter) => (
@@ -627,7 +638,7 @@ export function PublicRooms() {
                               disabled={!data.prev_batch}
                             >
                               <Text size="B300" truncate>
-                                Previous Page
+                                {t('sharedUi.server.previousPage')}
                               </Text>
                             </Button>
                             <Box data-spacing-node grow="Yes" />
@@ -638,7 +649,7 @@ export function PublicRooms() {
                               disabled={!data.next_batch}
                             >
                               <Text size="B300" truncate>
-                                Next Page
+                                {t('sharedUi.server.nextPage')}
                               </Text>
                             </Button>
                           </Box>
@@ -654,7 +665,7 @@ export function PublicRooms() {
                       >
                         <Icon size="400" src={Icons.Info} />
                         <Text size="T300" align="Center">
-                          No communities found!
+                          {t('sharedUi.server.noCommunitiesFound')}
                         </Text>
                       </Box>
                     ))}

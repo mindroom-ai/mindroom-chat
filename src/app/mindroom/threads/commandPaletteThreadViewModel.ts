@@ -1,5 +1,7 @@
+import type { TFunction } from 'i18next';
 import { truncateRecentThreadSummaryText } from '../recent-threads/recentThreadSummaryUtils';
 import type { CommandPaletteThreadViewModel, ThreadRecord } from './types';
+import { getThreadPrimarySummaryText } from './threadPresentation';
 
 type BuildCommandPaletteThreadViewModelFromRecordOptions = {
   record: ThreadRecord;
@@ -8,15 +10,23 @@ type BuildCommandPaletteThreadViewModelFromRecordOptions = {
   fallbackSummaryText?: string;
   sortRank?: number;
   boost?: number;
+  t?: TFunction;
 };
 
 const THREAD_FALLBACK = 'Thread';
 
-const getRecordSummaryText = (record: ThreadRecord): string | undefined =>
-  record.presentation.recentThreadSummaryText ??
-  record.presentation.primarySummaryText ??
-  record.presentation.summaryText ??
-  record.presentation.rootPreviewText;
+const getRecordSummaryText = (record: ThreadRecord, t?: TFunction): string | undefined => {
+  const { presentation } = record;
+  const recent = presentation.recentThreadSummaryText;
+  return (
+    presentation.summaryText ??
+    (recent === presentation.rootPreviewText
+      ? getThreadPrimarySummaryText(presentation, t)
+      : recent) ??
+    getThreadPrimarySummaryText(presentation, t) ??
+    presentation.primarySummaryText
+  );
+};
 
 export const buildCommandPaletteThreadViewModelFromRecord = ({
   record,
@@ -25,11 +35,13 @@ export const buildCommandPaletteThreadViewModelFromRecord = ({
   fallbackSummaryText,
   sortRank,
   boost,
+  t,
 }: BuildCommandPaletteThreadViewModelFromRecordOptions): CommandPaletteThreadViewModel => {
   const participantNames = record.presentation.participantIds.map(getParticipantName);
   const tags = record.status.tags.length > 0 ? record.status.tags : undefined;
+  const sourceSummary = getRecordSummaryText(record, t) ?? fallbackSummaryText;
   const summaryText = truncateRecentThreadSummaryText(
-    getRecordSummaryText(record) ?? fallbackSummaryText ?? THREAD_FALLBACK
+    sourceSummary ?? t?.('mindroomUi.recent-threads.summary.thread') ?? THREAD_FALLBACK
   );
 
   return {
@@ -38,6 +50,7 @@ export const buildCommandPaletteThreadViewModelFromRecord = ({
       threadRootId: record.threadRootId,
     },
     summaryText,
+    isFallbackSummary: sourceSummary === undefined,
     roomName,
     participantNames: participantNames.length > 0 ? participantNames : undefined,
     tags,

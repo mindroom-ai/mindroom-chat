@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import React from 'react';
 import { Box, IconButton, Text, Icon, Icons, Scroll, Chip } from 'folds';
 import { PackAddress } from '../../plugins/custom-emoji';
@@ -11,6 +12,7 @@ type ImagePackViewProps = {
   requestClose: () => void;
 };
 export function ImagePackView({ address, requestClose }: ImagePackViewProps) {
+  const { t } = useTranslation();
   const mx = useMatrixClient();
   const room = address && mx.getRoom(address.roomId);
 
@@ -23,9 +25,9 @@ export function ImagePackView({ address, requestClose }: ImagePackViewProps) {
               size="500"
               radii="Pill"
               onClick={requestClose}
-              before={<Icon size="100" src={Icons.ArrowLeft} />}
+              before={<Icon data-directional size="100" src={Icons.ArrowLeft} />}
             >
-              <Text size="T300">Emojis & Stickers</Text>
+              <Text size="T300">{t('sharedUi.imagePackView.emojisStickers')}</Text>
             </Chip>
           </Box>
           <Box shrink="No">

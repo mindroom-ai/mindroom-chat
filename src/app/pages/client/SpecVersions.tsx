@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import React, { ReactNode } from 'react';
 import { Box, Dialog, config, Text, Button, Spinner } from 'folds';
 import { SpecVersionsLoader } from '../../components/SpecVersionsLoader';
@@ -28,6 +29,7 @@ function LoadedSpecVersions({
 }
 
 export function SpecVersions({ baseUrl, children }: { baseUrl: string; children: ReactNode }) {
+  const { t } = useTranslation();
   const activeSession = useActiveSession();
   const userId = activeSession?.userId;
   const accessToken = activeSession?.accessToken;
@@ -81,7 +83,7 @@ export function SpecVersions({ baseUrl, children }: { baseUrl: string; children:
       baseUrl={baseUrl}
       request={request}
       fallback={() => (
-        <MindRoomSplashScreen message="Connecting to server">
+        <MindRoomSplashScreen message={t('sharedUi.specVersions.connectingToServer')}>
           <Button
             variant="Critical"
             fill="Soft"
@@ -94,7 +96,7 @@ export function SpecVersions({ baseUrl, children }: { baseUrl: string; children:
             }}
           >
             <Text as="span" size="B400">
-              Cancel and return to sign in
+              {t('sharedUi.specVersions.cancelAndReturnToSignIn')}
             </Text>
           </Button>
         </MindRoomSplashScreen>
@@ -105,12 +107,13 @@ export function SpecVersions({ baseUrl, children }: { baseUrl: string; children:
             <Dialog>
               <Box direction="Column" gap="400" style={{ padding: config.space.S400 }}>
                 <Text>
-                  Unable to connect to the homeserver. The homeserver or your internet connection
-                  may be down.
+                  {t(
+                    'sharedUi.specVersions.unableToConnectToTheHomeserverTheHomeserverOrYourInternetConnection'
+                  )}
                 </Text>
                 <Button variant="Critical" onClick={retry}>
                   <Text as="span" size="B400">
-                    Retry
+                    {t('sharedUi.specVersions.retry')}
                   </Text>
                 </Button>
                 <Button
@@ -121,12 +124,14 @@ export function SpecVersions({ baseUrl, children }: { baseUrl: string; children:
                   before={clearing && <Spinner size="200" variant="Secondary" fill="Soft" />}
                 >
                   <Text as="span" size="B400">
-                    {clearing ? 'Clearing...' : 'Clear Cache and Reload'}
+                    {clearing
+                      ? t('sharedUi.specVersions.clearing')
+                      : t('sharedUi.specVersions.clearCacheAndReload')}
                   </Text>
                 </Button>
                 <Button variant="Critical" onClick={ignore} fill="Soft">
                   <Text as="span" size="B400">
-                    Continue
+                    {t('sharedUi.specVersions.continue')}
                   </Text>
                 </Button>
               </Box>

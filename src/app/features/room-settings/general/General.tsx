@@ -1,5 +1,6 @@
 import React from 'react';
 import { Box, Button, Icon, IconButton, Icons, Scroll, Text } from 'folds';
+import { useTranslation } from 'react-i18next';
 import { Page, PageContent, PageHeader } from '../../../components/page';
 import { usePowerLevels } from '../../../hooks/usePowerLevels';
 import { useRoom } from '../../../hooks/useRoom';
@@ -22,13 +23,14 @@ import {
 import { useRoomViewMode } from '../../../mindroom/threads/useRoomViewMode';
 import { useSimpleMode } from '../../../mindroom/settings/useMindroomAccountSettings';
 
-const ROOM_VIEW_MODE_LABELS: Record<RoomViewMode, string> = {
-  compact: 'Compact',
-  threaded: 'Threads',
-  classic: 'Classic',
-};
+const ROOM_VIEW_MODE_LABELS = {
+  compact: 'featureUi.roomSettings.general.compact',
+  threaded: 'featureUi.roomSettings.general.threads',
+  classic: 'featureUi.roomSettings.general.classic',
+} as const satisfies Record<RoomViewMode, string>;
 
 function RoomTimelineMode() {
+  const { t } = useTranslation();
   const room = useRoom();
   const simpleMode = useSimpleMode();
   const { setViewMode, viewMode } = useRoomViewMode(room.roomId);
@@ -36,7 +38,7 @@ function RoomTimelineMode() {
   return (
     <Box direction="Column" gap="200">
       <Text size="T300" priority="400">
-        Timeline
+        {t('featureUi.roomSettings.general.timeline')}
       </Text>
       <Box gap="100" wrap="Wrap">
         {getAvailableRoomViewModes(simpleMode).map((mode) => (
@@ -49,7 +51,7 @@ function RoomTimelineMode() {
             onClick={() => setViewMode(mode)}
             aria-pressed={viewMode === mode}
           >
-            <Text size="B300">{ROOM_VIEW_MODE_LABELS[mode]}</Text>
+            <Text size="B300">{t(ROOM_VIEW_MODE_LABELS[mode])}</Text>
           </Button>
         ))}
       </Box>
@@ -61,6 +63,7 @@ type GeneralProps = {
   requestClose: () => void;
 };
 export function General({ requestClose }: GeneralProps) {
+  const { t } = useTranslation();
   const room = useRoom();
   const powerLevels = usePowerLevels(room);
   const creators = useRoomCreators(room);
@@ -72,7 +75,7 @@ export function General({ requestClose }: GeneralProps) {
         <Box grow="Yes" gap="200">
           <Box grow="Yes" alignItems="Center" gap="200">
             <Text size="H3" truncate>
-              General
+              {t('featureUi.roomSettings.general.general')}
             </Text>
           </Box>
           <Box shrink="No">
@@ -88,7 +91,7 @@ export function General({ requestClose }: GeneralProps) {
             <Box direction="Column" gap="700">
               <RoomProfile permissions={permissions} />
               <Box direction="Column" gap="100">
-                <Text size="L400">Options</Text>
+                <Text size="L400">{t('featureUi.roomSettings.general.options')}</Text>
                 <RoomJoinRules permissions={permissions} />
                 <RoomTimelineMode />
                 <RoomHistoryVisibility permissions={permissions} />
@@ -96,12 +99,12 @@ export function General({ requestClose }: GeneralProps) {
                 <RoomPublish permissions={permissions} />
               </Box>
               <Box direction="Column" gap="100">
-                <Text size="L400">Addresses</Text>
+                <Text size="L400">{t('featureUi.roomSettings.general.addresses')}</Text>
                 <RoomPublishedAddresses permissions={permissions} />
                 <RoomLocalAddresses permissions={permissions} />
               </Box>
               <Box direction="Column" gap="100">
-                <Text size="L400">Advanced Options</Text>
+                <Text size="L400">{t('featureUi.roomSettings.general.advancedOptions')}</Text>
                 <RoomUpgrade permissions={permissions} requestClose={requestClose} />
               </Box>
             </Box>

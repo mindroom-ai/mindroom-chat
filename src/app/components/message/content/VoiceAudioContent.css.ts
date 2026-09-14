@@ -55,7 +55,7 @@ export const Time = style({
   minWidth: 0,
   color: color.SurfaceVariant.OnContainer,
   fontVariantNumeric: 'tabular-nums',
-  textAlign: 'right',
+  textAlign: 'end',
   whiteSpace: 'nowrap',
 });
 

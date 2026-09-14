@@ -1,3 +1,4 @@
+import { Trans, useTranslation } from 'react-i18next';
 import React, { useMemo } from 'react';
 import { Box, Text, color } from 'folds';
 import { Link, Navigate, useSearchParams } from 'react-router-dom';
@@ -32,6 +33,7 @@ const useRegisterSearchParams = (searchParams: URLSearchParams): RegisterPathSea
   );
 
 export function Register() {
+  const { t } = useTranslation();
   const server = useAuthServer();
   const { auth } = useClientConfig();
   const { loginFlows, registerFlows } = useAuthFlows();
@@ -54,38 +56,44 @@ export function Register() {
   }, [addAccount, webSsoRedirectUrl]);
 
   if (!registrationAllowed) {
-    return <Navigate to={addAccount ? withAddAccountSearch(getLoginPath(server)) : getLoginPath(server)} replace />;
+    return (
+      <Navigate
+        to={addAccount ? withAddAccountSearch(getLoginPath(server)) : getLoginPath(server)}
+        replace
+      />
+    );
   }
 
   return (
     <Box direction="Column" gap="500">
       <Text size="H2" priority="400">
-        Register
+        {t('sharedUi.register.register')}
       </Text>
       {requireAppleProvider && !appleProviderAvailable && (
         <Text style={{ color: color.Critical.Main }} size="T300">
-          This client requires Sign in with Apple. Configure the homeserver SSO provider list to
-          include Apple.
+          {t(
+            'sharedUi.register.thisClientRequiresSignInWithAppleConfigureTheHomeserverSsoProvider'
+          )}
         </Text>
       )}
       {ssoOnlyRegistration && (
         <Text style={{ color: color.Warning.Main }} size="T300">
-          This homeserver only allows sign up with Apple, Google, or GitHub.
+          {t('sharedUi.register.thisHomeserverOnlyAllowsSignUpWithAppleGoogleOrGithub')}
         </Text>
       )}
       {registerFlows.status === RegisterFlowStatus.RegistrationDisabled && !sso && (
         <Text style={{ color: color.Critical.Main }} size="T300">
-          Registration has been disabled on this homeserver.
+          {t('sharedUi.register.registrationHasBeenDisabledOnThisHomeserver')}
         </Text>
       )}
       {registerFlows.status === RegisterFlowStatus.RateLimited && !sso && (
         <Text style={{ color: color.Critical.Main }} size="T300">
-          You have been rate-limited! Please try after some time.
+          {t('sharedUi.register.youHaveBeenRateLimitedPleaseTryAfterSomeTime')}
         </Text>
       )}
       {registerFlows.status === RegisterFlowStatus.InvalidRequest && !sso && (
         <Text style={{ color: color.Critical.Main }} size="T300">
-          Invalid Request! Failed to get any registration options.
+          {t('sharedUi.register.invalidRequestFailedToGetAnyRegistrationOptions')}
         </Text>
       )}
       {showPasswordRegistration && (
@@ -97,7 +105,7 @@ export function Register() {
             {(supportedFlows) =>
               supportedFlows.length === 0 ? (
                 <Text style={{ color: color.Critical.Main }} size="T300">
-                  This application does not support registration on this homeserver.
+                  {t('sharedUi.register.thisApplicationDoesNotSupportRegistrationOnThisHomeserver')}
                 </Text>
               ) : (
                 <PasswordRegisterForm
@@ -117,7 +125,7 @@ export function Register() {
       )}
       {ssoOnlyRegistration && !sso && (
         <Text style={{ color: color.Critical.Main }} size="T300">
-          SSO registration is required on this homeserver, but no SSO providers were advertised.
+          {t('sharedUi.register.ssoRegistrationIsRequiredOnThisHomeserverButNoSsoProvidersWere')}
         </Text>
       )}
       {sso && (
@@ -132,10 +140,19 @@ export function Register() {
         </>
       )}
       <Text align="Center">
-        Already have an account?{' '}
-        <Link to={addAccount ? withAddAccountSearch(getLoginPath(server)) : getLoginPath(server)}>
-          Login
-        </Link>
+        <Trans
+          t={t}
+          shouldUnescape
+          tOptions={{ interpolation: { escapeValue: true } }}
+          i18nKey="sharedUi.register.accountLink"
+          components={{
+            link: (
+              <Link
+                to={addAccount ? withAddAccountSearch(getLoginPath(server)) : getLoginPath(server)}
+              />
+            ),
+          }}
+        />
       </Text>
     </Box>
   );

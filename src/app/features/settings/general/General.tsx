@@ -99,7 +99,9 @@ function SelectLanguage() {
         after={<Icon size="300" src={Icons.ChevronBottom} />}
         onClick={handleLanguageMenu}
       >
-        <Text size="T300">{selectedLanguage.nativeName}</Text>
+        <Text size="T300">
+          <bdi dir="auto">{selectedLanguage.nativeName}</bdi>
+        </Text>
       </Button>
       <PopOut
         anchor={menuCords}
@@ -119,19 +121,26 @@ function SelectLanguage() {
               escapeDeactivates: stopPropagation,
             }}
           >
-            <Menu>
-              <Box direction="Column" gap="100" style={{ padding: config.space.S100 }}>
-                {APP_LANGUAGES.map((language) => (
-                  <MenuItem
-                    key={language.code}
-                    size="300"
-                    variant={language.code === selectedLanguage.code ? 'Primary' : 'Surface'}
-                    radii="300"
-                    onClick={() => handleLanguageSelect(language)}
-                  >
-                    <Text size="T300">{language.nativeName}</Text>
-                  </MenuItem>
-                ))}
+            <Menu style={{ display: 'flex', maxHeight: 'min(80dvh, 32rem)' }}>
+              <Box grow="Yes">
+                <Scroll size="300" hideTrack>
+                  <Box direction="Column" gap="100" style={{ padding: config.space.S100 }}>
+                    {APP_LANGUAGES.map((language) => (
+                      <MenuItem
+                        key={language.code}
+                        aria-pressed={language.code === selectedLanguage.code}
+                        size="300"
+                        variant={language.code === selectedLanguage.code ? 'Primary' : 'Surface'}
+                        radii="300"
+                        onClick={() => handleLanguageSelect(language)}
+                      >
+                        <Text size="T300">
+                          <bdi dir="auto">{language.nativeName}</bdi>
+                        </Text>
+                      </MenuItem>
+                    ))}
+                  </Box>
+                </Scroll>
               </Box>
             </Menu>
           </FocusTrap>
@@ -697,7 +706,7 @@ function CustomDateFormat({ value, onChange }: CustomDateFormatProps) {
             autoComplete="off"
             variant="Secondary"
             radii="300"
-            style={{ paddingRight: config.space.S200 }}
+            style={{ paddingInlineEnd: config.space.S200 }}
             after={<DateHint hasChanges={hasChanges} handleReset={handleReset} />}
           />
         </Box>

@@ -153,7 +153,7 @@ export const BubbleContent = style({
 });
 
 export const BubbleContentArrowLeft = style({
-  borderTopLeftRadius: 0,
+  borderStartStartRadius: 0,
 });
 
 export const BubbleLeftArrow = style({
@@ -162,7 +162,7 @@ export const BubbleLeftArrow = style({
 
   position: 'absolute',
   top: 0,
-  left: toRem(-8),
+  insetInlineStart: toRem(-8),
   zIndex: 1,
 });
 

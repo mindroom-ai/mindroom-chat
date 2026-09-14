@@ -2,6 +2,8 @@ import React from 'react';
 import { Provider, createStore } from 'jotai';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, create } from 'react-test-renderer';
+import { createInstance } from 'i18next';
+import { I18nextProvider } from 'react-i18next';
 import { WelcomePage } from './WelcomePage';
 import { useClientConfig } from '../../hooks/useClientConfig';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
@@ -207,6 +209,72 @@ describe('WelcomePage', () => {
     expect(text).toContain('3. Click here to open Local MindRoom and generate a pair code');
     expect(text).toContain('4. Run uvx mindroom connect --pair-code ABCD-EFGH');
     expect(text).toContain('5. Start it with uvx mindroom run');
+  });
+
+  it('updates setup instruction prose when the language changes without changing commands', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-05-15T12:00:00.000Z'));
+    mockClient();
+    mockWelcomeConfig();
+    localStorage.setItem(
+      getWelcomeSetupFirstSeenStorageKey('@alice:mindroom.chat'),
+      Date.parse('2026-05-14T11:59:59.000Z').toString()
+    );
+    getLocalMindroomConnectionsMock.mockResolvedValue({ connections: [] });
+    const language = createInstance();
+    await language.init({
+      lng: 'en',
+      fallbackLng: 'en',
+      interpolation: { escapeValue: false },
+      react: { useSuspense: false },
+      resources: {
+        en: {
+          translation: {
+            sharedUi: {
+              welcomePage: {
+                setupStep1: '1. Run {{command}}',
+                setupStep2: '2. Add model credentials in {{envFile}}, or run {{command}}',
+                setupStep4: '4. Run {{command}}',
+                setupStep5: '5. Start it with {{command}}',
+              },
+            },
+          },
+        },
+        de: {
+          translation: {
+            sharedUi: {
+              welcomePage: {
+                setupStep1: '1. Führe {{command}} aus',
+                setupStep2: '2. Hinterlege Zugangsdaten in {{envFile}} oder führe {{command}} aus',
+                setupStep4: '4. Führe {{command}} aus',
+                setupStep5: '5. Starte es mit {{command}}',
+              },
+            },
+          },
+        },
+      },
+    });
+
+    let renderer: ReturnType<typeof create>;
+    await act(async () => {
+      renderer = create(
+        React.createElement(I18nextProvider, { i18n: language }, React.createElement(WelcomePage))
+      );
+    });
+
+    await act(async () => {
+      await language.changeLanguage('de');
+    });
+
+    const text = renderer!.root.findAllByType('span').map((node) => node.children.join(' '));
+    expect(text).toContain(
+      '1. Führe uvx mindroom config init --provider <anthropic|codex|llama.cpp|ollama|openai|openrouter|vertexai_claude> aus'
+    );
+    expect(text).toContain(
+      '2. Hinterlege Zugangsdaten in ~/.mindroom/.env oder führe codex login aus'
+    );
+    expect(text).toContain('4. Führe uvx mindroom connect --pair-code ABCD-EFGH aus');
+    expect(text).toContain('5. Starte es mit uvx mindroom run');
   });
 
   it('opens Local MindRoom settings from the setup instructions', async () => {

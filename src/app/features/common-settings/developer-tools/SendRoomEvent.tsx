@@ -14,6 +14,7 @@ import {
   TextArea as TextAreaComponent,
   Input,
 } from 'folds';
+import { useTranslation } from 'react-i18next';
 import { Page, PageHeader } from '../../../components/page';
 import { useMatrixClient } from '../../../hooks/useMatrixClient';
 import { useRoom } from '../../../hooks/useRoom';
@@ -31,6 +32,7 @@ export type SendRoomEventProps = {
   requestClose: () => void;
 };
 export function SendRoomEvent({ type, stateKey, requestClose }: SendRoomEventProps) {
+  const { t } = useTranslation();
   const mx = useMatrixClient();
   const room = useRoom();
   const alive = useAlive();
@@ -112,9 +114,11 @@ export function SendRoomEvent({ type, stateKey, requestClose }: SendRoomEventPro
               size="500"
               radii="Pill"
               onClick={requestClose}
-              before={<Icon size="100" src={Icons.ArrowLeft} />}
+              before={<Icon data-directional size="100" src={Icons.ArrowLeft} />}
             >
-              <Text size="T300">Developer Tools</Text>
+              <Text size="T300">
+                {t('featureUi.commonSettings.developerTools.sendRoomEvent.developerTools')}
+              </Text>
             </Chip>
           </Box>
           <Box shrink="No">
@@ -135,7 +139,11 @@ export function SendRoomEvent({ type, stateKey, requestClose }: SendRoomEventPro
           aria-disabled={submitting}
         >
           <Box shrink="No" direction="Column" gap="100">
-            <Text size="L400">{composeStateEvent ? 'State Event Type' : 'Message Event Type'}</Text>
+            <Text size="L400">
+              {composeStateEvent
+                ? t('featureUi.commonSettings.developerTools.sendRoomEvent.stateEventType')
+                : t('featureUi.commonSettings.developerTools.sendRoomEvent.messageEventType')}
+            </Text>
             <Box gap="300">
               <Box grow="Yes" direction="Column">
                 <Input
@@ -156,7 +164,9 @@ export function SendRoomEvent({ type, stateKey, requestClose }: SendRoomEventPro
                 disabled={submitting}
                 before={submitting && <Spinner variant="Primary" fill="Solid" size="300" />}
               >
-                <Text size="B400">Send</Text>
+                <Text size="B400">
+                  {t('featureUi.commonSettings.developerTools.sendRoomEvent.send')}
+                </Text>
               </Button>
             </Box>
 
@@ -168,7 +178,9 @@ export function SendRoomEvent({ type, stateKey, requestClose }: SendRoomEventPro
           </Box>
           {composeStateEvent && (
             <Box shrink="No" direction="Column" gap="100">
-              <Text size="L400">State Key (Optional)</Text>
+              <Text size="L400">
+                {t('featureUi.commonSettings.developerTools.sendRoomEvent.stateKeyOptional')}
+              </Text>
               <Input
                 variant="Background"
                 name="stateKeyInput"
@@ -181,7 +193,9 @@ export function SendRoomEvent({ type, stateKey, requestClose }: SendRoomEventPro
           )}
           <Box grow="Yes" direction="Column" gap="100">
             <Box shrink="No">
-              <Text size="L400">JSON Content</Text>
+              <Text size="L400">
+                {t('featureUi.commonSettings.developerTools.sendRoomEvent.jsonContent')}
+              </Text>
             </Box>
             <TextAreaComponent
               ref={textAreaRef}

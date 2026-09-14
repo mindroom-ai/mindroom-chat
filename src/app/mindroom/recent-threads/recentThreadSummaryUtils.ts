@@ -1,4 +1,5 @@
 import type { MatrixEvent, Room } from 'matrix-js-sdk';
+import type { TFunction } from 'i18next';
 import type { MindroomThreadSummaryInfo } from '../messages/threadSummary';
 import { resolveThreadRootPreviewText } from '../threads/threadPresentation';
 
@@ -19,22 +20,31 @@ export const getResolvedRecentThreadRootId = (room: Room, threadId: string): str
   return threadId;
 };
 
-export const getRecentThreadFallbackSummary = (room: Room, roomName: string): string => {
-  if (room.hasEncryptionStateEvent()) return 'Encrypted thread';
-  if (roomName.trim().length > 0) return `Thread in ${roomName}`;
-  return 'Thread';
+export const getRecentThreadFallbackSummary = (
+  room: Room,
+  roomName: string,
+  t?: TFunction
+): string => {
+  if (room.hasEncryptionStateEvent())
+    return t?.('mindroomUi.recent-threads.summary.encryptedThread') ?? 'Encrypted thread';
+  if (roomName.trim().length > 0)
+    return (
+      t?.('mindroomUi.recent-threads.summary.threadInRoom', { roomName }) ?? `Thread in ${roomName}`
+    );
+  return t?.('mindroomUi.recent-threads.summary.thread') ?? 'Thread';
 };
 
 export const shouldPersistRecentThreadSummaryText = (
   room: Room,
   roomName: string,
-  summaryText: string | undefined
+  summaryText: string | undefined,
+  t?: TFunction
 ): summaryText is string => {
   if (typeof summaryText !== 'string') return false;
   const trimmedSummaryText = summaryText.trim();
   if (trimmedSummaryText.length === 0) return false;
 
-  return trimmedSummaryText !== getRecentThreadFallbackSummary(room, roomName);
+  return trimmedSummaryText !== getRecentThreadFallbackSummary(room, roomName, t);
 };
 
 export const getRecentThreadRootPreviewText = (
@@ -58,6 +68,7 @@ type ResolveRecentThreadSummaryTextOptions = {
   summaryInfo?: MindroomThreadSummaryInfo;
   fallbackSummaryText?: string;
   roomName?: string;
+  t?: TFunction;
 };
 
 export const resolveRecentThreadSummaryText = ({
@@ -67,8 +78,9 @@ export const resolveRecentThreadSummaryText = ({
   summaryInfo,
   fallbackSummaryText,
   roomName,
+  t,
 }: ResolveRecentThreadSummaryTextOptions): string | undefined =>
   (summaryInfo?.summaryText && truncateRecentThreadSummaryText(summaryInfo.summaryText)) ||
   getRecentThreadRootPreviewText(room, threadRootId, rootEvent) ||
   (fallbackSummaryText && truncateRecentThreadSummaryText(fallbackSummaryText)) ||
-  (roomName ? getRecentThreadFallbackSummary(room, roomName) : undefined);
+  (roomName ? getRecentThreadFallbackSummary(room, roomName, t) : undefined);

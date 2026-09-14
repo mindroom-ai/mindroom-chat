@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { RefObject, useCallback, useEffect, useMemo, useState } from 'react';
 import { MatrixEvent } from 'matrix-js-sdk';
 import { useTimelineMinimapInView } from './TimelineMinimap';
@@ -17,6 +18,7 @@ export const useRoomTimelineMinimap = ({
   scrollRef,
   handleOpenEvent,
 }: RoomTimelineMinimapOptions) => {
+  const { t } = useTranslation();
   const [minimapStripMap] = useState(() => new Map<string, HTMLSpanElement>());
   // Fine-pointer only (like the reference implementation): touch devices
   // never see the minimap, so skip deriving items and tracking scroll there.
@@ -33,8 +35,8 @@ export const useRoomTimelineMinimap = ({
   }, []);
   const minimapEnabled = minimapPointerFine && !showCompactRoomView;
   const minimapItems = useMemo(
-    () => (minimapEnabled ? deriveTimelineMinimapItems(minimapEvents) : []),
-    [minimapEnabled, minimapEvents]
+    () => (minimapEnabled ? deriveTimelineMinimapItems(minimapEvents, t) : []),
+    [minimapEnabled, minimapEvents, t]
   );
   useTimelineMinimapInView(scrollRef, minimapItems, minimapStripMap, minimapEnabled);
   const handleMinimapSelect = useCallback(

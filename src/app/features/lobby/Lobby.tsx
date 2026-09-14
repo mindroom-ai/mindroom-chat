@@ -7,6 +7,7 @@ import { JoinRule, RestrictedAllowType, Room } from 'matrix-js-sdk';
 import { RoomJoinRulesEventContent } from 'matrix-js-sdk/lib/types';
 import { IHierarchyRoom } from 'matrix-js-sdk/lib/@types/spaces';
 import produce from 'immer';
+import { useTranslation } from 'react-i18next';
 import { useSpace } from '../../hooks/useSpace';
 import { Page, PageContent, PageContentCenter, PageHeroSection } from '../../components/page';
 import {
@@ -150,6 +151,7 @@ const useCanDropLobbyItem = (
 };
 
 export function Lobby() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const mx = useMatrixClient();
   const mDirects = useAtomValue(mDirectAtom);
@@ -456,7 +458,7 @@ export function Lobby() {
                       radii="Pill"
                       outlined
                       size="300"
-                      aria-label="Scroll to Top"
+                      aria-label={t('featureUi.lobby.scrollToTop')}
                     >
                       <Icon src={Icons.ChevronTop} size="300" />
                     </IconButton>
@@ -532,7 +534,7 @@ export function Lobby() {
                         radii="Pill"
                         before={<Spinner variant="Secondary" fill="Soft" size="100" />}
                       >
-                        <Text size="L400">Reordering</Text>
+                        <Text size="L400">{t('featureUi.lobby.reordering')}</Text>
                       </Chip>
                     </Box>
                   )}

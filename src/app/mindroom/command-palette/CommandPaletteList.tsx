@@ -1,9 +1,6 @@
 import { Box, Icon, Icons, Line, Text, color, type IconSrc } from 'folds';
 import React from 'react';
-import type {
-  CommandPaletteItem,
-  CommandPaletteSectionId,
-} from './commandPaletteTypes';
+import type { CommandPaletteItem, CommandPaletteSectionId } from './commandPaletteTypes';
 
 export type CommandPaletteListSection = {
   id: CommandPaletteSectionId;
@@ -145,8 +142,10 @@ export function CommandPaletteList({
                       borderLeft: itemPresentation
                         ? `4px solid ${itemPresentation.accentColor}`
                         : undefined,
-                      backgroundColor: isSelected ? color.SurfaceVariant.ContainerHover : 'transparent',
-                      textAlign: 'left',
+                      backgroundColor: isSelected
+                        ? color.SurfaceVariant.ContainerHover
+                        : 'transparent',
+                      textAlign: 'start',
                       cursor: 'pointer',
                     }}
                   >
@@ -187,7 +186,7 @@ export function CommandPaletteList({
                       style={{
                         flex: '0 0 auto',
                         alignSelf: 'center',
-                        paddingLeft: 12,
+                        paddingInlineStart: 12,
                         whiteSpace: 'nowrap',
                       }}
                     >

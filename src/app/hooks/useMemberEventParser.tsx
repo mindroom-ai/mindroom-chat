@@ -1,3 +1,4 @@
+import { Trans, useTranslation } from 'react-i18next';
 import React, { ReactNode } from 'react';
 import { IconSrc, Icons } from 'folds';
 import { MatrixEvent } from 'matrix-js-sdk';
@@ -13,6 +14,7 @@ export type ParsedResult = {
 export type MemberEventParser = (mEvent: MatrixEvent) => ParsedResult;
 
 export const useMemberEventParser = (): MemberEventParser => {
+  const { t } = useTranslation();
   const parseMemberEvent: MemberEventParser = (mEvent) => {
     const content = mEvent.getContent<IMemberContent>();
     const prevContent = mEvent.getPrevContent() as IMemberContent;
@@ -23,7 +25,7 @@ export const useMemberEventParser = (): MemberEventParser => {
     if (!senderId || !userId)
       return {
         icon: Icons.User,
-        body: 'Broken membership event',
+        body: t('sharedUi.memberEvents.broken'),
       };
 
     const senderName = getMxIdLocalPart(senderId);
@@ -38,13 +40,14 @@ export const useMemberEventParser = (): MemberEventParser => {
           return {
             icon: Icons.ArrowGoRightPlus,
             body: (
-              <>
-                <b>{senderName}</b>
-                {' accepted '}
-                <b>{userName}</b>
-                {`'s join request `}
-                {reason}
-              </>
+              <Trans
+                t={t}
+                shouldUnescape
+                tOptions={{ interpolation: { escapeValue: true } }}
+                i18nKey="sharedUi.memberEvents.acceptedRequest"
+                values={{ senderName, userName, reason: reason ?? '' }}
+                components={{ b: <b /> }}
+              />
             ),
           };
         }
@@ -52,11 +55,14 @@ export const useMemberEventParser = (): MemberEventParser => {
         return {
           icon: Icons.ArrowGoRightPlus,
           body: (
-            <>
-              <b>{senderName}</b>
-              {' invited '}
-              <b>{userName}</b> {reason}
-            </>
+            <Trans
+              t={t}
+              shouldUnescape
+              tOptions={{ interpolation: { escapeValue: true } }}
+              i18nKey="sharedUi.memberEvents.invited"
+              values={{ senderName, userName, reason: reason ?? '' }}
+              components={{ b: <b /> }}
+            />
           ),
         };
       }
@@ -65,11 +71,14 @@ export const useMemberEventParser = (): MemberEventParser => {
         return {
           icon: Icons.ArrowGoRightPlus,
           body: (
-            <>
-              <b>{userName}</b>
-              {' request to join room '}
-              {reason}
-            </>
+            <Trans
+              t={t}
+              shouldUnescape
+              tOptions={{ interpolation: { escapeValue: true } }}
+              i18nKey="sharedUi.memberEvents.requested"
+              values={{ userName, reason: reason ?? '' }}
+              components={{ b: <b /> }}
+            />
           ),
         };
       }
@@ -78,10 +87,14 @@ export const useMemberEventParser = (): MemberEventParser => {
         return {
           icon: Icons.ArrowGoRight,
           body: (
-            <>
-              <b>{userName}</b>
-              {' joined the room'}
-            </>
+            <Trans
+              t={t}
+              shouldUnescape
+              tOptions={{ interpolation: { escapeValue: true } }}
+              i18nKey="sharedUi.memberEvents.joined"
+              values={{ userName }}
+              components={{ b: <b /> }}
+            />
           ),
         };
       }
@@ -92,19 +105,23 @@ export const useMemberEventParser = (): MemberEventParser => {
             icon: Icons.ArrowGoRightCross,
             body:
               senderId === userId ? (
-                <>
-                  <b>{userName}</b>
-                  {' rejected the invitation '}
-                  {reason}
-                </>
+                <Trans
+                  t={t}
+                  shouldUnescape
+                  tOptions={{ interpolation: { escapeValue: true } }}
+                  i18nKey="sharedUi.memberEvents.rejectedInvitation"
+                  values={{ userName, reason: reason ?? '' }}
+                  components={{ b: <b /> }}
+                />
               ) : (
-                <>
-                  <b>{senderName}</b>
-                  {' rejected '}
-                  <b>{userName}</b>
-                  {`'s join request `}
-                  {reason}
-                </>
+                <Trans
+                  t={t}
+                  shouldUnescape
+                  tOptions={{ interpolation: { escapeValue: true } }}
+                  i18nKey="sharedUi.memberEvents.rejectedRequest"
+                  values={{ senderName, userName, reason: reason ?? '' }}
+                  components={{ b: <b /> }}
+                />
               ),
           };
         }
@@ -114,19 +131,23 @@ export const useMemberEventParser = (): MemberEventParser => {
             icon: Icons.ArrowGoRightCross,
             body:
               senderId === userId ? (
-                <>
-                  <b>{userName}</b>
-                  {' revoked joined request '}
-                  {reason}
-                </>
+                <Trans
+                  t={t}
+                  shouldUnescape
+                  tOptions={{ interpolation: { escapeValue: true } }}
+                  i18nKey="sharedUi.memberEvents.withdrewRequest"
+                  values={{ userName, reason: reason ?? '' }}
+                  components={{ b: <b /> }}
+                />
               ) : (
-                <>
-                  <b>{senderName}</b>
-                  {' revoked '}
-                  <b>{userName}</b>
-                  {`'s invite `}
-                  {reason}
-                </>
+                <Trans
+                  t={t}
+                  shouldUnescape
+                  tOptions={{ interpolation: { escapeValue: true } }}
+                  i18nKey="sharedUi.memberEvents.revokedInvitation"
+                  values={{ senderName, userName, reason: reason ?? '' }}
+                  components={{ b: <b /> }}
+                />
               ),
           };
         }
@@ -135,11 +156,14 @@ export const useMemberEventParser = (): MemberEventParser => {
           return {
             icon: Icons.ArrowGoLeft,
             body: (
-              <>
-                <b>{senderName}</b>
-                {' unbanned '}
-                <b>{userName}</b> {reason}
-              </>
+              <Trans
+                t={t}
+                shouldUnescape
+                tOptions={{ interpolation: { escapeValue: true } }}
+                i18nKey="sharedUi.memberEvents.unbanned"
+                values={{ senderName, userName, reason: reason ?? '' }}
+                components={{ b: <b /> }}
+              />
             ),
           };
         }
@@ -148,17 +172,23 @@ export const useMemberEventParser = (): MemberEventParser => {
           icon: Icons.ArrowGoLeft,
           body:
             senderId === userId ? (
-              <>
-                <b>{userName}</b>
-                {' left the room '}
-                {reason}
-              </>
+              <Trans
+                t={t}
+                shouldUnescape
+                tOptions={{ interpolation: { escapeValue: true } }}
+                i18nKey="sharedUi.memberEvents.left"
+                values={{ userName, reason: reason ?? '' }}
+                components={{ b: <b /> }}
+              />
             ) : (
-              <>
-                <b>{senderName}</b>
-                {' kicked '}
-                <b>{userName}</b> {reason}
-              </>
+              <Trans
+                t={t}
+                shouldUnescape
+                tOptions={{ interpolation: { escapeValue: true } }}
+                i18nKey="sharedUi.memberEvents.kicked"
+                values={{ senderName, userName, reason: reason ?? '' }}
+                components={{ b: <b /> }}
+              />
             ),
         };
       }
@@ -167,11 +197,14 @@ export const useMemberEventParser = (): MemberEventParser => {
         return {
           icon: Icons.ArrowGoLeft,
           body: (
-            <>
-              <b>{senderName}</b>
-              {' banned '}
-              <b>{userName}</b> {reason}
-            </>
+            <Trans
+              t={t}
+              shouldUnescape
+              tOptions={{ interpolation: { escapeValue: true } }}
+              i18nKey="sharedUi.memberEvents.banned"
+              values={{ senderName, userName, reason: reason ?? '' }}
+              components={{ b: <b /> }}
+            />
           ),
         };
       }
@@ -187,16 +220,23 @@ export const useMemberEventParser = (): MemberEventParser => {
         icon: Icons.Mention,
         body:
           typeof content.displayname === 'string' ? (
-            <>
-              <b>{prevUserName}</b>
-              {' changed display name to '}
-              <b>{userName}</b>
-            </>
+            <Trans
+              t={t}
+              shouldUnescape
+              tOptions={{ interpolation: { escapeValue: true } }}
+              i18nKey="sharedUi.memberEvents.changedName"
+              values={{ prevUserName, userName }}
+              components={{ b: <b /> }}
+            />
           ) : (
-            <>
-              <b>{prevUserName}</b>
-              {' removed their display name '}
-            </>
+            <Trans
+              t={t}
+              shouldUnescape
+              tOptions={{ interpolation: { escapeValue: true } }}
+              i18nKey="sharedUi.memberEvents.removedName"
+              values={{ prevUserName }}
+              components={{ b: <b /> }}
+            />
           ),
       };
     }
@@ -205,22 +245,30 @@ export const useMemberEventParser = (): MemberEventParser => {
         icon: Icons.User,
         body:
           content.avatar_url && typeof content.avatar_url === 'string' ? (
-            <>
-              <b>{userName}</b>
-              {' changed their avatar'}
-            </>
+            <Trans
+              t={t}
+              shouldUnescape
+              tOptions={{ interpolation: { escapeValue: true } }}
+              i18nKey="sharedUi.memberEvents.changedAvatar"
+              values={{ userName }}
+              components={{ b: <b /> }}
+            />
           ) : (
-            <>
-              <b>{userName}</b>
-              {' removed their avatar '}
-            </>
+            <Trans
+              t={t}
+              shouldUnescape
+              tOptions={{ interpolation: { escapeValue: true } }}
+              i18nKey="sharedUi.memberEvents.removedAvatar"
+              values={{ userName }}
+              components={{ b: <b /> }}
+            />
           ),
       };
     }
 
     return {
       icon: Icons.User,
-      body: 'Membership event with no changes',
+      body: t('sharedUi.memberEvents.unchanged'),
     };
   };
 

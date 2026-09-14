@@ -1,5 +1,5 @@
 import { Box, config, Icon, IconButton, Icons, Input, Line, Scroll, Text } from 'folds';
-import { useTranslation } from 'react-i18next';
+import { Trans, useTranslation } from 'react-i18next';
 import { type TFunction } from 'i18next';
 import React, {
   ChangeEventHandler,
@@ -291,8 +291,14 @@ export function CommandPalette({ requestClose, source, mobileSheet = false }: Co
             </React.Fragment>
           ))}
           {'. '}
-          {t('commandPalette.shortcut')} <b>{shortcutLabel}</b>{' '}
-          {t('commandPalette.shortcutOpenSuffix')}
+          <Trans
+            t={t}
+            shouldUnescape
+            tOptions={{ interpolation: { escapeValue: true } }}
+            i18nKey="sharedUi.commandPalette.shortcutHint"
+            values={{ shortcut: shortcutLabel }}
+            components={{ shortcut: <b /> }}
+          />
         </Text>
       </Box>
     </Box>

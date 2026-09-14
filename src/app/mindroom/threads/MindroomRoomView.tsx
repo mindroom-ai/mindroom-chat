@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import React, { useCallback, useRef } from 'react';
 import { Box, Text, config } from 'folds';
 import { EventType, Room } from 'matrix-js-sdk';
@@ -80,6 +81,7 @@ export function RoomView({
   threadId?: string;
   onThreadLoadError?: (threadId: string) => void;
 }) {
+  const { t } = useTranslation();
   const roomInputRef = useRef<HTMLDivElement>(null);
   const roomViewRef = useRef<HTMLDivElement>(null);
   const compactRoomScrollStateRef = useRef(new Map<string, number>());
@@ -218,7 +220,11 @@ export function RoomView({
                   alignItems="Center"
                   justifyContent="Center"
                 >
-                  <Text align="Center">Replies are available after this message is confirmed.</Text>
+                  <Text align="Center">
+                    {t(
+                      'mindroomUi.threads.mindroomRoomView.repliesAreAvailableAfterThisMessageIsConfirmed'
+                    )}
+                  </Text>
                 </RoomInputPlaceholder>
               )}
               {!canMessage && (
@@ -230,7 +236,11 @@ export function RoomView({
                   alignItems="Center"
                   justifyContent="Center"
                 >
-                  <Text align="Center">You do not have permission to post in this room</Text>
+                  <Text align="Center">
+                    {t(
+                      'mindroomUi.threads.mindroomRoomView.youDoNotHavePermissionToPostInThisRoom'
+                    )}
+                  </Text>
                 </RoomInputPlaceholder>
               )}
             </>

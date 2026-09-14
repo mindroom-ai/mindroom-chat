@@ -1,3 +1,4 @@
+import { TFunction } from 'i18next';
 import { IIdentityProvider, SSOAction } from 'matrix-js-sdk';
 
 const APPLE_PROVIDER_KEY = 'apple';
@@ -79,19 +80,22 @@ export const sortIdentityProviders = (providers?: IIdentityProvider[]): IIdentit
 
 export const getSSOProviderButtonTitle = (
   provider: IIdentityProvider,
+  t: TFunction,
   action?: SSOAction
 ): string => {
   if (isAppleIdentityProvider(provider)) {
-    return action === SSOAction.REGISTER ? 'Sign up with Apple' : 'Sign in with Apple';
+    return action === SSOAction.REGISTER
+      ? t('sharedUi.ssoProviders.signUpApple')
+      : t('sharedUi.ssoProviders.signInApple');
   }
 
   if (isGoogleIdentityProvider(provider)) {
-    return 'Continue with Google';
+    return t('sharedUi.ssoProviders.continueGoogle');
   }
 
   if (isGitHubIdentityProvider(provider)) {
-    return 'Continue with GitHub';
+    return t('sharedUi.ssoProviders.continueGithub');
   }
 
-  return `Continue with ${provider.name}`;
+  return t('sharedUi.ssoProviders.continueProvider', { provider: provider.name });
 };

@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import React, { useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Box, Icon, IconButton, Icons, Scroll } from 'folds';
@@ -19,6 +20,7 @@ import { MindroomBackRouteHandler as BackRouteHandler } from '../../../mindroom/
 import { CreateChat } from '../../../features/create-chat';
 
 export function DirectCreate() {
+  const { t } = useTranslation();
   const mx = useMatrixClient();
   const screenSize = useScreenSizeContext();
 
@@ -45,7 +47,7 @@ export function DirectCreate() {
             <BackRouteHandler>
               {(onBack) => (
                 <IconButton onClick={onBack}>
-                  <Icon src={Icons.ArrowLeft} />
+                  <Icon data-directional src={Icons.ArrowLeft} />
                 </IconButton>
               )}
             </BackRouteHandler>
@@ -60,8 +62,10 @@ export function DirectCreate() {
                 <Box direction="Column" gap="700">
                   <PageHero
                     icon={<Icon size="600" src={Icons.Mention} />}
-                    title="Create Chat"
-                    subTitle="Start a private, encrypted chat by entering a user ID."
+                    title={t('sharedUi.directCreate.createChat')}
+                    subTitle={t(
+                      'sharedUi.directCreate.startAPrivateEncryptedChatByEnteringAUserId'
+                    )}
                   />
                   <CreateChat defaultUserId={userId} />
                 </Box>

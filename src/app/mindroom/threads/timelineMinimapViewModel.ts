@@ -1,6 +1,11 @@
+import type { TFunction } from 'i18next';
 import { EventType } from 'matrix-js-sdk';
 import { isMindroomAgentMessageEvent, isMindroomAgentUserId } from '../matrix/agentIdentity';
-import { getThreadMessagePreviewText } from './threadMessagePreview';
+import {
+  getThreadMessagePreviewText,
+  getThreadPreviewLocalization,
+  localizeThreadPreview,
+} from './threadMessagePreview';
 
 export const TIMELINE_MINIMAP_ITEM_SPACING = 8;
 export const TIMELINE_MINIMAP_MIN_ITEMS = 2;
@@ -70,8 +75,13 @@ const resolveMinimapSourceKind = (mEvent: TimelineMinimapEvent): MinimapSourceKi
   return isMindroomAgentMessageEvent(mEvent) ? 'agent' : 'user';
 };
 
-const resolveMinimapPreviewText = (mEvent: TimelineMinimapEvent): string | null =>
-  compactMinimapPreview(getThreadMessagePreviewText(mEvent.getContent()));
+const resolveMinimapPreviewText = (mEvent: TimelineMinimapEvent, t?: TFunction): string | null => {
+  const content = mEvent.getContent();
+  const text = getThreadMessagePreviewText(content);
+  return compactMinimapPreview(
+    localizeThreadPreview(text, getThreadPreviewLocalization(content, text), t)
+  );
+};
 
 /**
  * One minimap stripe per rendered message that was NOT sent by a MindRoom
@@ -80,7 +90,8 @@ const resolveMinimapPreviewText = (mEvent: TimelineMinimapEvent): string | null 
  * implementation's user/assistant turn pairing).
  */
 export const deriveTimelineMinimapItems = (
-  events: readonly TimelineMinimapEvent[]
+  events: readonly TimelineMinimapEvent[],
+  t?: TFunction
 ): TimelineMinimapItem[] => {
   const kinds = events.map(resolveMinimapSourceKind);
   const items: TimelineMinimapItem[] = [];
@@ -96,13 +107,13 @@ export const deriveTimelineMinimapItems = (
     for (let cursor = index + 1; cursor < events.length; cursor += 1) {
       if (kinds[cursor] === 'user' || kinds[cursor] === 'redactedUser') break;
       if (kinds[cursor] === 'agent') {
-        agentText = resolveMinimapPreviewText(events[cursor]) ?? agentText;
+        agentText = resolveMinimapPreviewText(events[cursor], t) ?? agentText;
       }
     }
 
     items.push({
       id: eventId,
-      userText: resolveMinimapPreviewText(mEvent),
+      userText: resolveMinimapPreviewText(mEvent, t),
       agentText,
     });
   }

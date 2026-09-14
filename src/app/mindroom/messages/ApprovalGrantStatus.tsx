@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import React from 'react';
 import { Button, Text } from 'folds';
 import {
@@ -6,6 +7,7 @@ import {
   getApprovalGrantState,
 } from './approvalActions';
 import { parseToolApprovalExpiryTimestamp } from './toolApproval';
+import { useAppLanguageCode } from '../../hooks/useAppLanguageCode';
 
 export function ApprovalGrantStatus({
   record,
@@ -15,6 +17,8 @@ export function ApprovalGrantStatus({
   now,
   canSend = true,
 }: ApprovalControlProps) {
+  const { t } = useTranslation();
+  const language = useAppLanguageCode();
   const grant = record.approval.autoApproval;
   const state = getApprovalGrantState(record.approval, now);
   if (!grant || !state) return null;
@@ -24,17 +28,23 @@ export function ApprovalGrantStatus({
     <>
       <p>
         {state === 'active'
-          ? 'Auto-approval active'
+          ? t('mindroomUi.messages.approvalGrantStatus.autoApprovalActive')
           : state === 'revoked'
-          ? 'Auto-approval stopped'
-          : 'Auto-approval expired'}
+          ? t('mindroomUi.messages.approvalGrantStatus.autoApprovalStopped')
+          : t('mindroomUi.messages.approvalGrantStatus.autoApprovalExpired')}
         <br />
-        Fixed expiry: {new Date(expiry).toLocaleString()}
+        {t('mindroomUi.messages.approvalGrantStatus.fixedExpiry', {
+          timestamp: new Date(expiry).toLocaleString(language),
+        })}
       </p>
       {state === 'active' && (
-        <p>Expires in {Math.max(1, Math.ceil((expiry - now) / 60_000))} min</p>
+        <p>
+          {t('mindroomUi.messages.approvalGrantStatus.expiresInMinutes', {
+            count: Math.max(1, Math.ceil((expiry - now) / 60_000)),
+          })}
+        </p>
       )}
-      <small>Arguments may differ between calls.</small>
+      <small>{t('mindroomUi.messages.approvalGrantStatus.argumentsMayDifferBetweenCalls')}</small>
       {canRevoke && (
         <Button
           size="300"
@@ -45,10 +55,14 @@ export function ApprovalGrantStatus({
             if (canSend) void submit(record, { revoke: true });
           }}
         >
-          <Text size="B300">Stop auto-approval</Text>
+          <Text size="B300">{t('mindroomUi.messages.approvalGrantStatus.stopAutoApproval')}</Text>
         </Button>
       )}
-      {action?.status === 'submitted' && <p role="status">Submitted. Waiting for room update.</p>}
+      {action?.status === 'submitted' && (
+        <p role="status">
+          {t('mindroomUi.messages.approvalGrantStatus.submittedWaitingForRoomUpdate')}
+        </p>
+      )}
       {action?.error && <p role="alert">{action.error}</p>}
     </>
   );

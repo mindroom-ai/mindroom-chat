@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import React, { MouseEventHandler, forwardRef, useState } from 'react';
 import FocusTrap from 'focus-trap-react';
 import {
@@ -80,6 +81,7 @@ type RoomMenuProps = {
   requestClose: () => void;
 };
 const RoomMenu = forwardRef<HTMLDivElement, RoomMenuProps>(({ room, requestClose }, ref) => {
+  const { t } = useTranslation();
   const mx = useMatrixClient();
   const powerLevels = usePowerLevelsContext();
   const creators = useRoomCreators(room);
@@ -146,7 +148,7 @@ const RoomMenu = forwardRef<HTMLDivElement, RoomMenuProps>(({ room, requestClose
               onClick={handleOpen}
             >
               <Text style={{ flexGrow: 1 }} as="span" size="T300" truncate>
-                Notifications
+                {t('mindroomUi.threads.mindroomRoomViewHeader.notifications')}
               </Text>
             </MenuItem>
           )}
@@ -162,7 +164,7 @@ const RoomMenu = forwardRef<HTMLDivElement, RoomMenuProps>(({ room, requestClose
           aria-pressed={viewMode === 'compact'}
         >
           <Text style={{ flexGrow: 1 }} as="span" size="T300" truncate>
-            Compact
+            {t('mindroomUi.threads.mindroomRoomViewHeader.compact')}
           </Text>
         </MenuItem>
         <MenuItem
@@ -173,7 +175,7 @@ const RoomMenu = forwardRef<HTMLDivElement, RoomMenuProps>(({ room, requestClose
           aria-pressed={viewMode === 'threaded'}
         >
           <Text style={{ flexGrow: 1 }} as="span" size="T300" truncate>
-            Threads
+            {t('mindroomUi.threads.mindroomRoomViewHeader.threads')}
           </Text>
         </MenuItem>
         {isRoomViewModeAvailable('classic', simpleMode) && (
@@ -185,7 +187,7 @@ const RoomMenu = forwardRef<HTMLDivElement, RoomMenuProps>(({ room, requestClose
             aria-pressed={viewMode === 'classic'}
           >
             <Text style={{ flexGrow: 1 }} as="span" size="T300" truncate>
-              Classic
+              {t('mindroomUi.threads.mindroomRoomViewHeader.classic')}
             </Text>
           </MenuItem>
         )}
@@ -203,7 +205,7 @@ const RoomMenu = forwardRef<HTMLDivElement, RoomMenuProps>(({ room, requestClose
           disabled={!canInvite}
         >
           <Text style={{ flexGrow: 1 }} as="span" size="T300" truncate>
-            Invite
+            {t('mindroomUi.threads.mindroomRoomViewHeader.invite')}
           </Text>
         </MenuItem>
         {!simpleMode && (
@@ -215,7 +217,7 @@ const RoomMenu = forwardRef<HTMLDivElement, RoomMenuProps>(({ room, requestClose
               radii="300"
             >
               <Text style={{ flexGrow: 1 }} as="span" size="T300" truncate>
-                Copy Link
+                {t('mindroomUi.threads.mindroomRoomViewHeader.copyLink')}
               </Text>
             </MenuItem>
             <MenuItem
@@ -225,7 +227,7 @@ const RoomMenu = forwardRef<HTMLDivElement, RoomMenuProps>(({ room, requestClose
               radii="300"
             >
               <Text style={{ flexGrow: 1 }} as="span" size="T300" truncate>
-                Room Settings
+                {t('mindroomUi.threads.mindroomRoomViewHeader.roomSettings')}
               </Text>
             </MenuItem>
             <UseStateProvider initial={false}>
@@ -239,7 +241,7 @@ const RoomMenu = forwardRef<HTMLDivElement, RoomMenuProps>(({ room, requestClose
                     aria-pressed={promptJump}
                   >
                     <Text style={{ flexGrow: 1 }} as="span" size="T300" truncate>
-                      Jump to Time
+                      {t('mindroomUi.threads.mindroomRoomViewHeader.jumpToTime')}
                     </Text>
                   </MenuItem>
                   {promptJump && (
@@ -273,7 +275,7 @@ const RoomMenu = forwardRef<HTMLDivElement, RoomMenuProps>(({ room, requestClose
                 aria-pressed={promptLeave}
               >
                 <Text style={{ flexGrow: 1 }} as="span" size="T300" truncate>
-                  Leave Room
+                  {t('mindroomUi.threads.mindroomRoomViewHeader.leaveRoom')}
                 </Text>
               </MenuItem>
               {promptLeave && (
@@ -300,6 +302,7 @@ export function RoomViewHeader({
   threadId?: string;
   joinRequestCount?: number;
 }) {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const mx = useMatrixClient();
   const useAuthentication = useMediaAuthentication();
@@ -357,8 +360,13 @@ export function RoomViewHeader({
     }
     setPeopleDrawer(!peopleDrawer);
   };
-  const memberButtonLabel = callView ? 'Members' : peopleDrawer ? 'Hide Members' : 'Show Members';
+  const memberButtonLabel = callView
+    ? t('mindroomUi.threads.mindroomRoomViewHeader.members')
+    : peopleDrawer
+    ? t('mindroomUi.threads.mindroomRoomViewHeader.hideMembers')
+    : t('mindroomUi.threads.mindroomRoomViewHeader.showMembers');
   const memberButtonAriaLabel = getPendingJoinRequestLabel(
+    t,
     memberButtonLabel,
     visibleJoinRequestCount
   );
@@ -374,7 +382,7 @@ export function RoomViewHeader({
             {(onBack) => (
               <Box shrink="No" alignItems="Center">
                 <IconButton fill="None" onClick={onBack}>
-                  <Icon src={Icons.ArrowLeft} />
+                  <Icon data-directional src={Icons.ArrowLeft} />
                 </IconButton>
               </Box>
             )}
@@ -445,7 +453,7 @@ export function RoomViewHeader({
               offset={4}
               tooltip={
                 <Tooltip>
-                  <Text>Search</Text>
+                  <Text>{t('mindroomUi.threads.mindroomRoomViewHeader.search')}</Text>
                 </Tooltip>
               }
             >
@@ -463,7 +471,7 @@ export function RoomViewHeader({
                 offset={4}
                 tooltip={
                   <Tooltip>
-                    <Text>Pinned Messages</Text>
+                    <Text>{t('mindroomUi.threads.mindroomRoomViewHeader.pinnedMessages')}</Text>
                   </Tooltip>
                 }
               >
@@ -525,9 +533,13 @@ export function RoomViewHeader({
               tooltip={
                 <Tooltip>
                   {callView ? (
-                    <Text>Members</Text>
+                    <Text>{t('mindroomUi.threads.mindroomRoomViewHeader.members')}</Text>
                   ) : (
-                    <Text>{peopleDrawer ? 'Hide Members' : 'Show Members'}</Text>
+                    <Text>
+                      {peopleDrawer
+                        ? t('mindroomUi.threads.mindroomRoomViewHeader.hideMembers')
+                        : t('mindroomUi.threads.mindroomRoomViewHeader.showMembers')}
+                    </Text>
                   )}
                 </Tooltip>
               }
@@ -553,7 +565,7 @@ export function RoomViewHeader({
             offset={4}
             tooltip={
               <Tooltip>
-                <Text>More Options</Text>
+                <Text>{t('mindroomUi.threads.mindroomRoomViewHeader.moreOptions')}</Text>
               </Tooltip>
             }
           >

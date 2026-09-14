@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { Box, Icon, Icons, Text } from 'folds';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
@@ -75,6 +76,7 @@ function StandaloneToolApprovalCard({
   eventId,
   threadId,
 }: MindroomToolApprovalCardProps) {
+  const { t } = useTranslation();
   const mx = useMatrixClient();
   const requestedTs = getTimestamp(approval.requestedAt);
   const expiresTs = parseToolApprovalExpiryTimestamp(approval.expiresAt);
@@ -156,21 +158,36 @@ function StandaloneToolApprovalCard({
   }
 
   return (
-    <Box className={css.Card} direction="Column" gap="200" aria-label="Tool approval request">
+    <Box
+      className={css.Card}
+      direction="Column"
+      gap="200"
+      aria-label={t('mindroomUi.messages.mindroomToolApprovalCard.toolApprovalRequest')}
+    >
       <Box className={css.Header}>
         <Text size="T300" className={css.ToolName}>
           {approval.toolName}
         </Text>
         <Box as="span" className={css.StatusLabel}>
           <Icon size="50" src={submitted ? Icons.Check : Icons.Code} />
-          <Text size="T200">{submitted ? 'Submitted' : 'Pending approval'}</Text>
+          <Text size="T200">
+            {submitted
+              ? t('mindroomUi.messages.mindroomToolApprovalCard.submitted')
+              : t('mindroomUi.messages.mindroomToolApprovalCard.pendingApproval')}
+          </Text>
         </Box>
       </Box>
 
       <Box className={css.Meta}>
         <Text size="T200">{approval.agentName}</Text>
         {approval.requesterId && <Text className={css.MetaDot}>•</Text>}
-        {approval.requesterId && <Text size="T200">Requested by {approval.requesterId}</Text>}
+        {approval.requesterId && (
+          <Text size="T200">
+            {t('mindroomUi.messages.mindroomToolApprovalCard.requestedBy', {
+              requester: approval.requesterId,
+            })}
+          </Text>
+        )}
         {requestedRelative && <Text className={css.MetaDot}>•</Text>}
         {requestedRelative && <Text size="T200">{requestedRelative}</Text>}
         {!requestedRelative && approval.requestedAt && (
@@ -183,8 +200,14 @@ function StandaloneToolApprovalCard({
 
       {canUseTimedApproval && (
         <Box className={css.Scope} direction="Column" gap="100">
-          <Text size="T200">Auto-approval applies to this thread, requester, agent, and tool.</Text>
-          <Text size="T200">Arguments may differ between calls.</Text>
+          <Text size="T200">
+            {t(
+              'mindroomUi.messages.mindroomToolApprovalCard.autoApprovalAppliesToThisThreadRequesterAgentAndTool'
+            )}
+          </Text>
+          <Text size="T200">
+            {t('mindroomUi.messages.mindroomToolApprovalCard.argumentsMayDifferBetweenCalls')}
+          </Text>
         </Box>
       )}
 

@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 /* eslint-disable jsx-a11y/media-has-caption */
 import React, { ReactNode, useCallback, useEffect, useRef, useState } from 'react';
 import { Badge, Chip, Icon, IconButton, Icons, ProgressBar, Spinner, Text, toRem } from 'folds';
@@ -42,6 +43,7 @@ export function AudioContent({
   encInfo,
   renderMediaControl,
 }: AudioContentProps) {
+  const { t } = useTranslation();
   const [srcState, loadSrc] = useAudioContentSource({ mimeType, url, encInfo });
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -169,7 +171,9 @@ export function AudioContent({
             )
           }
         >
-          <Text size="B300">{playing ? 'Pause' : 'Play'}</Text>
+          <Text size="B300">
+            {playing ? t('sharedUi.audioContent.pause') : t('sharedUi.audioContent.play')}
+          </Text>
         </Chip>
 
         <Text size="T200">{`${secondsToMinutesAndSeconds(

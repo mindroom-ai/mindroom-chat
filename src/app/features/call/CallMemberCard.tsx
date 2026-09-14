@@ -1,6 +1,7 @@
 import { CallMembership } from 'matrix-js-sdk/lib/matrixrtc/CallMembership';
 import React, { useState } from 'react';
 import { Avatar, Box, Icon, Icons, Text } from 'folds';
+import { useTranslation } from 'react-i18next';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useMediaAuthentication } from '../../hooks/useMediaAuthentication';
 import { useOpenUserRoomProfile } from '../../state/hooks/userRoomProfile';
@@ -77,6 +78,7 @@ export function CallMemberRenderer({
   members: CallMembership[];
   max?: number;
 }) {
+  const { t } = useTranslation();
   const [viewMore, setViewMore] = useState(false);
 
   const truncatedMembers = viewMore ? members : members.slice(0, 4);
@@ -98,11 +100,13 @@ export function CallMemberRenderer({
           <Box grow="Yes" gap="300" alignItems="Center">
             {viewMore ? (
               <Text size="L400" truncate>
-                Collapse
+                {t('featureUi.call.callMemberCard.collapse')}
               </Text>
             ) : (
               <Text size="L400" truncate>
-                {remaining === 0 ? `+${remaining} Other` : `+${remaining} Others`}
+                {t('featureUi.call.callMemberCard.additionalParticipants', {
+                  count: remaining,
+                })}
               </Text>
             )}
           </Box>

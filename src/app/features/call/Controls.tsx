@@ -1,6 +1,7 @@
 import React from 'react';
 import { Icon, IconButton, Icons, Line, Text, Tooltip, TooltipProvider } from 'folds';
 import { useAtom } from 'jotai';
+import { useTranslation } from 'react-i18next';
 import * as css from './styles.css';
 import { callChatAtom } from '../../state/callEmbed';
 import { AsyncStatus, useAsyncCallback } from '../../hooks/useAsyncCallback';
@@ -16,16 +17,21 @@ type MicrophoneButtonProps = {
   onToggle: () => Promise<unknown>;
 };
 export function MicrophoneButton({ enabled, onToggle }: MicrophoneButtonProps) {
+  const { t } = useTranslation();
   const [micState, toggleMic] = useAsyncCallback(onToggle);
   const loading = micState.status === AsyncStatus.Loading;
-  
+
   return (
     <TooltipProvider
       position="Top"
       delay={500}
       tooltip={
         <Tooltip>
-          <Text size="T200">{enabled ? 'Turn Off Microphone' : 'Turn On Microphone'}</Text>
+          <Text size="T200">
+            {enabled
+              ? t('featureUi.call.controls.turnOffMicrophone')
+              : t('featureUi.call.controls.turnOnMicrophone')}
+          </Text>
         </Tooltip>
       }
     >
@@ -52,13 +58,18 @@ type SoundButtonProps = {
   onToggle: () => void;
 };
 export function SoundButton({ enabled, onToggle }: SoundButtonProps) {
+  const { t } = useTranslation();
   return (
     <TooltipProvider
       position="Top"
       delay={500}
       tooltip={
         <Tooltip>
-          <Text size="T200">{enabled ? 'Turn Off Sound' : 'Turn On Sound'}</Text>
+          <Text size="T200">
+            {enabled
+              ? t('featureUi.call.controls.turnOffSound')
+              : t('featureUi.call.controls.turnOnSound')}
+          </Text>
         </Tooltip>
       }
     >
@@ -88,6 +99,7 @@ type VideoButtonProps = {
   onToggle: () => Promise<unknown>;
 };
 export function VideoButton({ enabled, onToggle }: VideoButtonProps) {
+  const { t } = useTranslation();
   const [videoState, toggleVideo] = useAsyncCallback(onToggle);
   const loading = videoState.status === AsyncStatus.Loading;
 
@@ -97,7 +109,11 @@ export function VideoButton({ enabled, onToggle }: VideoButtonProps) {
       delay={500}
       tooltip={
         <Tooltip>
-          <Text size="T200">{enabled ? 'Stop Camera' : 'Start Camera'}</Text>
+          <Text size="T200">
+            {enabled
+              ? t('featureUi.call.controls.stopCamera')
+              : t('featureUi.call.controls.startCamera')}
+          </Text>
         </Tooltip>
       }
     >
@@ -128,13 +144,18 @@ type ScreenShareButtonProps = {
   onToggle: () => void;
 };
 export function ScreenShareButton({ enabled, onToggle }: ScreenShareButtonProps) {
+  const { t } = useTranslation();
   return (
     <TooltipProvider
       position="Top"
       delay={500}
       tooltip={
         <Tooltip>
-          <Text size="T200">{enabled ? 'Stop Screenshare' : 'Start Screenshare'}</Text>
+          <Text size="T200">
+            {enabled
+              ? t('featureUi.call.controls.stopScreenshare')
+              : t('featureUi.call.controls.startScreenshare')}
+          </Text>
         </Tooltip>
       }
     >
@@ -156,6 +177,7 @@ export function ScreenShareButton({ enabled, onToggle }: ScreenShareButtonProps)
 }
 
 export function ChatButton() {
+  const { t } = useTranslation();
   const [chat, setChat] = useAtom(callChatAtom);
 
   return (
@@ -164,7 +186,9 @@ export function ChatButton() {
       delay={500}
       tooltip={
         <Tooltip>
-          <Text size="T200">{chat ? 'Close Chat' : 'Open Chat'}</Text>
+          <Text size="T200">
+            {chat ? t('featureUi.call.controls.closeChat') : t('featureUi.call.controls.openChat')}
+          </Text>
         </Tooltip>
       }
     >

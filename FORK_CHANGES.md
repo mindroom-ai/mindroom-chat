@@ -2,6 +2,27 @@
 
 ## Runbook
 
+### Full interface internationalization (2026-09-14)
+
+- Status: implementation, language quality corrections, independent reviews, and local verification are complete; ready PR #249 is open against dev.
+- The typed i18next pipeline now covers application-owned text in 17 locales, including Arabic direction and both Chinese scripts.
+  Each catalog contains all 2,029 logical keys, with the plural forms required by that language.
+- Live language switching preserves the application document, user content, thread records, and authored summaries; English remains bundled with other languages loaded through the configured base path.
+- Dates, message previews, retained errors, email notification registration, accessible labels, and new embedded calls use the selected language.
+  An active embedded call retains its starting language to preserve the connection, while its frame title updates immediately.
+- Native iOS notification templates and permission prompts have matching resources for all 17 locales.
+- Catalog checks cover key and plural parity, interpolation and rich-text binding, command syntax, technical identifiers, and Arabic isolation.
+  Source-pair review corrected semantic errors that structural checks cannot detect.
+- Logical layout and directional controls support Arabic; a browser regression verifies that checked and unchecked switch knobs remain within their tracks in both directions.
+- The latest navigation resizing, active-section toggles, and per-thread resolution changes are integrated and independently reviewed.
+- Review corrections keep localized default role labels out of shared room state and retain native push failure diagnostics.
+  Role-tag saves merge explicit edits and deletions into the latest stored event, preserving authored labels and concurrent room updates.
+- Validation: all 511 unit files and 4,145 tests pass under Node 24.13.1, along with the production/PWA build, typecheck, full ESLint with zero errors and the existing 17 warnings, changed-file formatting, and patch verification.
+  Both packaged-app browser tests pass against a live Matrix homeserver, covering language switching and persistence, Arabic control geometry, and authored summaries on room overview and thread banners.
+  Additional live composer, navigation, cached-summary, resizing, and compact-resolution regressions pass.
+- Native resource contracts pass; an Xcode archive and physical-device permission prompts remain unverified on this Linux host.
+- Next: complete the hosted checks and address confirmed review findings on PR #249.
+
 ### Resize navigation and toggle the active section (2026-09-14)
 
 - Status: implemented, locally validated, and independently reviewed with no remaining findings; PR checks remain.

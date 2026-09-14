@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { useCallback, useMemo } from 'react';
 import { MatrixClient, Room, RoomMember } from 'matrix-js-sdk';
 import { getPowerLevelTag, PowerLevelTags, usePowerLevelTags } from './usePowerLevelTags';
@@ -15,6 +16,7 @@ export const useGetMemberPowerTag = (
   creators: Set<string>,
   powerLevels: IPowerLevels
 ) => {
+  const { t } = useTranslation();
   const creatorsTag = useRoomCreatorsTag();
   const powerLevelTags = usePowerLevelTags(room, powerLevels);
 
@@ -25,9 +27,9 @@ export const useGetMemberPowerTag = (
       }
 
       const power = readPowerLevel.user(powerLevels, userId);
-      return getPowerLevelTag(powerLevelTags, power);
+      return getPowerLevelTag(powerLevelTags, power, t);
     },
-    [creators, creatorsTag, powerLevels, powerLevelTags]
+    [creators, creatorsTag, powerLevels, powerLevelTags, t]
   );
 
   return getMemberPowerTag;

@@ -22,18 +22,18 @@ export const SpaceItemCard = recipe({
   },
 });
 export const HeaderChip = style({
-  paddingLeft: config.space.S200,
+  paddingInlineStart: config.space.S200,
   selectors: {
     [`&[data-ui-before="true"]`]: {
-      paddingLeft: config.space.S100,
+      paddingInlineStart: config.space.S100,
     },
   },
 });
 export const HeaderChipPlaceholder = style([
   {
     borderRadius: config.radii.R400,
-    paddingLeft: config.space.S100,
-    paddingRight: config.space.S300,
+    paddingInlineStart: config.space.S100,
+    paddingInlineEnd: config.space.S300,
     height: toRem(32),
   },
 ]);

@@ -184,7 +184,7 @@ describe('renderMindroomMessageContent', () => {
     const status = placeholder.root.findByProps({ role: 'status' });
 
     expect(status.props['aria-label']).toBe('Router agent is transcribing');
-    expect(JSON.stringify(placeholder.toJSON())).toContain('Router agent is transcribing…');
+    expect(JSON.stringify(placeholder.toJSON())).toContain('Router agent is transcribing');
     expect(ordinaryMessage.root.findAllByProps({ role: 'status' })).toHaveLength(0);
     expect(settledTranscript.root.findAllByProps({ role: 'status' })).toHaveLength(0);
 

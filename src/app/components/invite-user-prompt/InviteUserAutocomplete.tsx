@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import React, {
   ChangeEventHandler,
   ComponentProps,
@@ -73,10 +74,11 @@ export const InviteUserAutocomplete = forwardRef<HTMLInputElement, InviteUserAut
       autoFocus,
       variant = 'Background',
       radii,
-      menuLabel = 'Invite user suggestions',
+      menuLabel,
     },
     ref
   ) => {
+    const { t } = useTranslation();
     const mx = useMatrixClient();
     const useAuthentication = useMediaAuthentication();
     // Per-instance listbox id: the invite dialog and the create-DM page can
@@ -108,11 +110,11 @@ export const InviteUserAutocomplete = forwardRef<HTMLInputElement, InviteUserAut
     }, [reset, suggestions]);
 
     const resultCountLabel = useMemo(() => {
-      if (trimmedInputValue.length === 0) return 'Users';
-      if (isFetching) return 'Searching users';
-      if (suggestions.length === 0) return 'No matching users';
-      return `${suggestions.length} matching user${suggestions.length === 1 ? '' : 's'}`;
-    }, [isFetching, suggestions.length, trimmedInputValue.length]);
+      if (trimmedInputValue.length === 0) return t('sharedUi.inviteUserAutocomplete.users');
+      if (isFetching) return t('sharedUi.inviteUserAutocomplete.searching');
+      if (suggestions.length === 0) return t('sharedUi.inviteUserAutocomplete.noMatches');
+      return t('sharedUi.inviteUserAutocomplete.matchingUsers', { count: suggestions.length });
+    }, [isFetching, suggestions.length, trimmedInputValue.length, t]);
 
     const handleChange: ChangeEventHandler<HTMLInputElement> = (event) => {
       setClosedForValue(undefined);
@@ -210,7 +212,7 @@ export const InviteUserAutocomplete = forwardRef<HTMLInputElement, InviteUserAut
           }
           headerContent={<Text size="L400">{resultCountLabel}</Text>}
           menuId={listboxId}
-          menuLabel={menuLabel}
+          menuLabel={menuLabel ?? t('sharedUi.inviteUserAutocomplete.suggestions')}
         >
           {menuOpen && (
             <>

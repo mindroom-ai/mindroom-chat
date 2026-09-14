@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import React, { KeyboardEventHandler, MouseEventHandler } from 'react';
 import classNames from 'classnames';
 import {
@@ -65,6 +66,7 @@ export function VoiceWaveform({
   label,
   onSeekProgress,
 }: VoiceWaveformProps) {
+  const { t } = useTranslation();
   const bars = compact ? normalizeRecordingWaveform(waveform) : normalizeMatrixWaveform(waveform);
   const compactUnrecordedBarCount = compact ? getCompactUnrecordedBarCount(waveform) : 0;
   const svgWidth = getSvgWidth(bars.length || VOICE_WAVEFORM_BAR_COUNT);
@@ -155,7 +157,7 @@ export function VoiceWaveform({
           dimmed && css.WaveformDimmed
         )}
         type="button"
-        aria-label={label ?? 'Seek voice message'}
+        aria-label={label ?? t('sharedUi.voiceWaveform.seekVoiceMessage')}
         onClick={handleClick}
         onKeyDown={handleKeyDown}
       >

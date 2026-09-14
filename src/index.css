@@ -116,6 +116,21 @@ html {
   background-color: var(--app-bg-color); /* kept in sync with the active app theme */
 }
 
+html[dir='rtl'] [data-directional] {
+  transform: scaleX(-1);
+}
+
+input[type='email'],
+input[type='url'],
+input[name='serverInput'],
+input[name='usernameInput'],
+pre,
+code,
+kbd {
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
 body {
   margin: 0;
   padding: 0;

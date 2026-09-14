@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import React from 'react';
 import { Avatar, Box, Icon, Icons, Text } from 'folds';
 import { useAtomValue } from 'jotai';
@@ -13,6 +14,7 @@ import { useNavToActivePathMapper } from '../../../hooks/useNavToActivePathMappe
 import { PageNav, PageNavContent, PageNavHeader } from '../../../components/page';
 
 function InvitesNavItem() {
+  const { t } = useTranslation();
   const invitesSelected = useInboxInvitesSelected();
   const allInvites = useAtomValue(allInvitesAtom);
   const inviteCount = allInvites.length;
@@ -32,7 +34,7 @@ function InvitesNavItem() {
             </Avatar>
             <Box as="span" grow="Yes">
               <Text as="span" size="Inherit" truncate>
-                Invites
+                {t('sharedUi.inbox.invites')}
               </Text>
             </Box>
             {inviteCount > 0 && <UnreadBadge highlight count={inviteCount} />}
@@ -44,6 +46,7 @@ function InvitesNavItem() {
 }
 
 export function Inbox() {
+  const { t } = useTranslation();
   useNavToActivePathMapper('inbox');
   const notificationsSelected = useInboxNotificationsSelected();
 
@@ -53,7 +56,7 @@ export function Inbox() {
         <Box grow="Yes" gap="300">
           <Box grow="Yes">
             <Text size="H4" truncate>
-              Inbox
+              {t('sharedUi.inbox.inbox')}
             </Text>
           </Box>
         </Box>
@@ -71,7 +74,7 @@ export function Inbox() {
                     </Avatar>
                     <Box as="span" grow="Yes">
                       <Text as="span" size="Inherit" truncate>
-                        Notifications
+                        {t('sharedUi.inbox.notifications')}
                       </Text>
                     </Box>
                   </Box>

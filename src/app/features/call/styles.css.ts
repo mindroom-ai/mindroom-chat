@@ -3,7 +3,7 @@ import { config, toRem } from 'folds';
 
 export const CallViewContent = style({
   padding: config.space.S400,
-  paddingRight: 0,
+  paddingInlineEnd: 0,
   minHeight: '100%',
 });
 

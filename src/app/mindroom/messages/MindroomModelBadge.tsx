@@ -9,6 +9,7 @@ import {
   TablerIcon,
 } from '@tabler/icons-react';
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { MindroomAiRunInfo } from './aiRun';
 import { getMindroomAiRunCompactModelLabel, getMindroomAiRunModelLabel } from './aiRunDisplay';
 import * as css from './MindroomModelBadge.css';
@@ -62,6 +63,7 @@ const getProviderIcon = (provider: string | undefined): TablerIcon => {
 };
 
 export function MindroomModelBadge({ info }: { info: MindroomAiRunInfo }) {
+  const { t } = useTranslation();
   const label = getMindroomAiRunCompactModelLabel(info);
   if (!label) return null;
 
@@ -74,7 +76,11 @@ export function MindroomModelBadge({ info }: { info: MindroomAiRunInfo }) {
   );
 
   return (
-    <span className={css.Badge} title={fullModelLabel} aria-label={`Model: ${fullModelLabel}`}>
+    <span
+      className={css.Badge}
+      title={fullModelLabel}
+      aria-label={t('mindroomUi.messages.mindroomModelBadge.model', { model: fullModelLabel })}
+    >
       {icon}
       <span className={css.Label}>{label}</span>
     </span>

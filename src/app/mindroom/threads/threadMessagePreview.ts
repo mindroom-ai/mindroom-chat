@@ -1,4 +1,5 @@
 import { MsgType } from 'matrix-js-sdk';
+import type { TFunction } from 'i18next';
 import { trimReplyFromBody } from '../../utils/room';
 import { isVoiceMessageContent } from '../../utils/voiceMessage';
 import { hasLikelyIncompleteStreamingBody } from './threadEditBackfill';
@@ -116,4 +117,71 @@ export const getThreadMessagePreviewText = (
   if (bodyPreview) return bodyPreview;
 
   return getMediaFallbackPreviewText(previewContent);
+};
+
+export type ThreadPreviewLocalization =
+  | { kind: 'voice' | 'audio' | 'image' | 'video' | 'file' }
+  | { kind: 'tools'; count: number; prose: string };
+
+/** Carry the origin of generated copy to the UI without translating user text or cached data. */
+export const getThreadPreviewLocalization = (
+  content: Record<string, unknown> | null | undefined,
+  previewText: string | undefined
+): ThreadPreviewLocalization | undefined => {
+  if (!content || !previewText || getThreadMessagePreviewText(content) !== previewText)
+    return undefined;
+  const current = isRecord(content['m.new_content'])
+    ? { ...content, ...content['m.new_content'] }
+    : content;
+  if (current.msgtype === MsgType.Audio && isVoiceMessageContent(current)) return { kind: 'voice' };
+  const body = normalizeBodyPreview(current.body);
+  if (!body) {
+    switch (current.msgtype) {
+      case MsgType.Audio:
+        return { kind: 'audio' };
+      case MsgType.Image:
+        return { kind: 'image' };
+      case MsgType.Video:
+        return { kind: 'video' };
+      case MsgType.File:
+        return { kind: 'file' };
+      default:
+        return undefined;
+    }
+  }
+  const count =
+    typeof current.body === 'string'
+      ? trimReplyFromBody(current.body).match(TOOL_CALL_MARKER_REGEX)?.length ?? 0
+      : 0;
+  const prefix = formatToolCallSummary(count);
+  if (count > 0 && (body === prefix || body.startsWith(`${prefix} · `))) {
+    return { kind: 'tools', count, prose: body.slice(prefix.length + 3) };
+  }
+  return undefined;
+};
+
+export const localizeThreadPreview = (
+  text: string | undefined,
+  localization: ThreadPreviewLocalization | undefined,
+  t?: TFunction
+): string | undefined => {
+  if (!localization || !t) return text;
+  switch (localization.kind) {
+    case 'voice':
+      return t('sharedUi.threadPreviews.voiceMessage');
+    case 'audio':
+      return t('mindroomUi.message-search.searchResultPreview.audio');
+    case 'image':
+      return t('mindroomUi.message-search.searchResultPreview.image');
+    case 'video':
+      return t('mindroomUi.message-search.searchResultPreview.video');
+    case 'file':
+      return t('mindroomUi.message-search.searchResultPreview.file');
+    case 'tools': {
+      const badge = `🔧 ${t('sharedUi.threadPreviews.tools', { count: localization.count })}`;
+      return localization.prose ? `${badge} · ${localization.prose}` : badge;
+    }
+    default:
+      return text;
+  }
 };

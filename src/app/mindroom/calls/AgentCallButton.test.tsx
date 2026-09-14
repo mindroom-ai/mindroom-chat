@@ -1,6 +1,9 @@
 import React from 'react';
+import { createInstance } from 'i18next';
+import { I18nextProvider } from 'react-i18next';
 import { act, create } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import en from '../../locales/en.json';
 import { AgentCallButton } from './AgentCallButton';
 
 const mocks = vi.hoisted(() => ({
@@ -203,7 +206,7 @@ describe('AgentCallButton', () => {
 
     expect(mocks.startCall).toHaveBeenCalledOnce();
     expect(mocks.cleanupCreatedAgentCall).not.toHaveBeenCalled();
-    expect(JSON.stringify(renderer.toJSON())).toContain('router unavailable');
+    expect(JSON.stringify(renderer.toJSON())).toContain('Failed to start the call.');
   });
 
   it('cleans up when call start fails before ownership transfers', async () => {
@@ -250,6 +253,55 @@ describe('AgentCallButton', () => {
       '!call:mindroom.test',
       '@mindroom_helper:mindroom.test'
     );
-    expect(JSON.stringify(renderer.toJSON())).toContain('sync failed');
+    expect(JSON.stringify(renderer.toJSON())).toContain('Failed to start the call.');
   });
+});
+
+it('updates a retained microphone failure when the language changes', async () => {
+  const language = createInstance();
+  await language.init({
+    lng: 'en',
+    fallbackLng: 'en',
+    resources: {
+      en: { translation: en },
+      de: {
+        translation: {
+          mindroomUi: {
+            voice: {
+              errors: {
+                microphoneBlockedIos: 'Mikrofonzugriff in den iPhone-Einstellungen erlauben.',
+              },
+            },
+          },
+        },
+      },
+    },
+  });
+  mocks.requestMicrophoneAccess.mockRejectedValueOnce(
+    new Error(
+      'Microphone access is blocked. Allow microphone access for MindRoom Chat in iPhone settings and try again.'
+    )
+  );
+  let renderer: ReturnType<typeof create>;
+  act(() => {
+    renderer = create(
+      <I18nextProvider i18n={language}>
+        <AgentCallButton
+          userId="@mindroom_helper:mindroom.test"
+          presenceStatus={VOICE_CALLS_STATUS}
+        />
+      </I18nextProvider>
+    );
+  });
+  await act(async () => {
+    await renderer.root.findByType('button').props.onClick();
+  });
+  expect(JSON.stringify(renderer!.toJSON())).toContain('Allow microphone access');
+  await act(async () => {
+    await language.changeLanguage('de');
+  });
+  expect(JSON.stringify(renderer!.toJSON())).toContain(
+    'Mikrofonzugriff in den iPhone-Einstellungen erlauben.'
+  );
+  act(() => renderer!.unmount());
 });

@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import React, { ReactNode, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useAtom } from 'jotai';
 import { MobileFriendlyPageNav } from '../../pages/MobileFriendly';
@@ -31,6 +32,7 @@ type Drag = {
 };
 
 export function ResizablePageNav({ children }: { children: ReactNode }) {
+  const { t } = useTranslation();
   const userId = useMatrixClient().getSafeUserId();
   const widthAtom = useMemo(
     () => atomWithLocalStorage(`mindroom.pageNav.width:${userId}`, readWidth, setLocalStorageItem),
@@ -119,7 +121,7 @@ export function ResizablePageNav({ children }: { children: ReactNode }) {
       <div
         className={css.Handle}
         role="separator"
-        aria-label="Resize navigation panel"
+        aria-label={t('mindroomUi.sidebar.resizeNavigationPanel')}
         aria-orientation="vertical"
         aria-valuemin={Math.min(MIN_WIDTH, maxWidth)}
         aria-valuemax={maxWidth}

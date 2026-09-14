@@ -21,6 +21,7 @@ import {
 import FocusTrap from 'focus-trap-react';
 import { JoinRule, Room } from 'matrix-js-sdk';
 import { IHierarchyRoom } from 'matrix-js-sdk/lib/@types/spaces';
+import { useTranslation } from 'react-i18next';
 import { RoomAvatar, RoomIcon } from '../../components/room-avatar';
 import { SequenceCard } from '../../components/sequence-card';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
@@ -51,6 +52,7 @@ type RoomJoinButtonProps = {
   via?: string[];
 };
 function RoomJoinButton({ roomId, roomName, joinRule, via }: RoomJoinButtonProps) {
+  const { t } = useTranslation();
   return (
     <RoomAccessControl
       roomIdOrAlias={roomId}
@@ -60,7 +62,7 @@ function RoomJoinButton({ roomId, roomName, joinRule, via }: RoomJoinButtonProps
       viaServers={via}
       fallback={
         <Chip variant="Secondary" fill="Soft" size="400" radii="Pill" disabled>
-          <Text size="B300">Access unavailable</Text>
+          <Text size="B300">{t('featureUi.lobby.roomItem.accessUnavailable')}</Text>
         </Chip>
       }
     >
@@ -116,11 +118,11 @@ function RoomJoinButton({ roomId, roomName, joinRule, via }: RoomJoinButtonProps
               <Text size="B300">
                 {access.kind === 'knock'
                   ? access.loading
-                    ? 'Sending request'
+                    ? t('featureUi.lobby.roomItem.sendingRequest')
                     : access.requested
-                    ? 'Request sent'
-                    : 'Request to join'
-                  : 'Join'}
+                    ? t('featureUi.lobby.roomItem.requestSent')
+                    : t('featureUi.lobby.roomItem.requestToJoin')
+                  : t('featureUi.lobby.roomItem.join')}
               </Text>
             </Chip>
           </Box>
@@ -159,6 +161,7 @@ type RoomProfileErrorProps = {
   suggested?: boolean;
 };
 function RoomProfileError({ roomId, suggested, inaccessibleRoom }: RoomProfileErrorProps) {
+  const { t } = useTranslation();
   return (
     <Box grow="Yes" gap="300">
       <Avatar>
@@ -178,12 +181,12 @@ function RoomProfileError({ roomId, suggested, inaccessibleRoom }: RoomProfileEr
       <Box grow="Yes" direction="Column" className={css.ErrorNameContainer}>
         <Box gap="200" alignItems="Center">
           <Text size="H5" truncate>
-            Unknown
+            {t('featureUi.lobby.roomItem.unknown')}
           </Text>
           {suggested && (
             <Box shrink="No" alignItems="Center">
               <Badge variant="Success" fill="Soft" radii="Pill" outlined>
-                <Text size="L400">Suggested</Text>
+                <Text size="L400">{t('featureUi.lobby.roomItem.suggested')}</Text>
               </Badge>
             </Box>
           )}
@@ -191,7 +194,7 @@ function RoomProfileError({ roomId, suggested, inaccessibleRoom }: RoomProfileEr
         <Box gap="200" alignItems="Center">
           {inaccessibleRoom ? (
             <Badge variant="Secondary" fill="Soft" radii="300" size="500">
-              <Text size="L400">Inaccessible</Text>
+              <Text size="L400">{t('featureUi.lobby.roomItem.inaccessible')}</Text>
             </Badge>
           ) : (
             <Text size="T200" truncate>
@@ -202,7 +205,7 @@ function RoomProfileError({ roomId, suggested, inaccessibleRoom }: RoomProfileEr
       </Box>
       {!inaccessibleRoom && (
         <Badge variant="Secondary" fill="Soft" radii="300" size="500">
-          <Text size="L400">Access unavailable</Text>
+          <Text size="L400">{t('featureUi.lobby.roomItem.accessUnavailable')}</Text>
         </Badge>
       )}
     </Box>
@@ -231,6 +234,7 @@ function RoomProfile({
   joinRule,
   options,
 }: RoomProfileProps) {
+  const { t } = useTranslation();
   return (
     <Box grow="Yes" gap="300">
       <Avatar>
@@ -249,7 +253,7 @@ function RoomProfile({
           {suggested && (
             <Box shrink="No" alignItems="Center">
               <Badge variant="Success" fill="Soft" radii="Pill" outlined>
-                <Text size="L400">Suggested</Text>
+                <Text size="L400">{t('featureUi.lobby.roomItem.suggested')}</Text>
               </Badge>
             </Box>
           )}
@@ -257,7 +261,12 @@ function RoomProfile({
         <Box gap="200" alignItems="Center">
           {memberCount && (
             <Box shrink="No" gap="200">
-              <Text size="T200" priority="300">{`${millify(memberCount)} Members`}</Text>
+              <Text size="T200" priority="300">
+                {t('featureUi.lobby.roomItem.memberCount', {
+                  count: memberCount,
+                  formattedCount: millify(memberCount),
+                })}
+              </Text>
             </Box>
           )}
           {memberCount && topic && (
@@ -347,6 +356,7 @@ export const RoomItemCard = as<'div', RoomItemCardProps>(
     },
     ref
   ) => {
+    const { t } = useTranslation();
     const mx = useMatrixClient();
     const useAuthentication = useMediaAuthentication();
     const { roomId, content } = item;
@@ -404,9 +414,9 @@ export const RoomItemCard = as<'div', RoomItemCardProps>(
                           fill="None"
                           size="400"
                           radii="Pill"
-                          aria-label="Open Room"
+                          aria-label={t('featureUi.lobby.roomItem.openRoom')}
                         >
-                          <Icon size="50" src={Icons.ArrowRight} />
+                          <Icon data-directional size="50" src={Icons.ArrowRight} />
                         </Chip>
                       </Box>
                     ) : (

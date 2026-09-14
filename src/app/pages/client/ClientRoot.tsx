@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import {
   Box,
   Button,
@@ -79,6 +80,7 @@ function ClientRootLoading({ loadingMessages }: { loadingMessages?: readonly str
 }
 
 function ClientRootSyncingStatus() {
+  const { t } = useTranslation();
   return (
     <Box
       data-testid="client-sync-status"
@@ -90,7 +92,7 @@ function ClientRootSyncingStatus() {
       style={{ padding: config.space.S100 }}
     >
       <Spinner variant="Secondary" size="100" />
-      <Text size="T300">Catching up...</Text>
+      <Text size="T300">{t('sharedUi.clientRoot.catchingUp')}</Text>
     </Box>
   );
 }
@@ -102,6 +104,7 @@ function ClientRootOptions({
   mx?: ClientMatrixClient;
   activeSession: StoredSession;
 }) {
+  const { t } = useTranslation();
   const [menuAnchor, setMenuAnchor] = useState<RectCords>();
   const [clearing, setClearing] = useState(false);
 
@@ -125,7 +128,7 @@ function ClientRootOptions({
 
   return (
     <IconButton
-      aria-label="Startup recovery options"
+      aria-label={t('sharedUi.clientRoot.startupRecoveryOptions')}
       style={{
         position: 'absolute',
         top: config.space.S100,
@@ -164,7 +167,9 @@ function ClientRootOptions({
                     before={clearing && <Spinner size="100" variant="Secondary" />}
                   >
                     <Text as="span" size="T300" truncate>
-                      {clearing ? 'Clearing...' : 'Clear Cache and Reload'}
+                      {clearing
+                        ? t('sharedUi.clientRoot.clearing')
+                        : t('sharedUi.clientRoot.clearCacheAndReload')}
                     </Text>
                   </MenuItem>
                 )}
@@ -182,7 +187,7 @@ function ClientRootOptions({
                   fill="None"
                 >
                   <Text as="span" size="T300" truncate>
-                    Logout
+                    {t('sharedUi.clientRoot.logout')}
                   </Text>
                 </MenuItem>
               </Box>
@@ -248,6 +253,7 @@ const toClientBootstrapSession = (session: StoredSession): ClientBootstrapSessio
 });
 
 function ClientSessionRoot({ children, activeSession, loadingMessages }: ClientSessionRootProps) {
+  const { t } = useTranslation();
   const getPrefetchConfig = useLivePrefetchConfig();
   const subscribePrefetchConfig = usePrefetchConfigSubscription();
   const [queryClient] = useState(() => new QueryClient());
@@ -471,7 +477,12 @@ function ClientSessionRoot({ children, activeSession, loadingMessages }: ClientS
             >
               <Dialog>
                 <Box direction="Column" gap="400" style={{ padding: config.space.S400 }}>
-                  <Text>{`Failed to start account ${clientState.session.userId}. ${clientState.error.message}`}</Text>
+                  <Text>
+                    {t('sharedUi.clientRoot.failedToStartAccountValue1Value2', {
+                      value1: clientState.session.userId,
+                      value2: clientState.error.message,
+                    })}
+                  </Text>
                   <Button
                     variant="Critical"
                     onClick={() =>
@@ -479,7 +490,7 @@ function ClientSessionRoot({ children, activeSession, loadingMessages }: ClientS
                     }
                   >
                     <Text as="span" size="B400">
-                      Retry
+                      {t('sharedUi.clientRoot.retry')}
                     </Text>
                   </Button>
                   <Button
@@ -492,7 +503,7 @@ function ClientSessionRoot({ children, activeSession, loadingMessages }: ClientS
                     }}
                   >
                     <Text as="span" size="B400">
-                      Clear Cache and Reload
+                      {t('sharedUi.clientRoot.clearCacheAndReload')}
                     </Text>
                   </Button>
                   <Button
@@ -505,7 +516,7 @@ function ClientSessionRoot({ children, activeSession, loadingMessages }: ClientS
                     }}
                   >
                     <Text as="span" size="B400">
-                      Remove Account
+                      {t('sharedUi.clientRoot.removeAccount')}
                     </Text>
                   </Button>
                 </Box>

@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import React from 'react';
 import { Room } from 'matrix-js-sdk';
 import { useSetAtom } from 'jotai';
@@ -24,6 +25,7 @@ export function MindroomCallChatView({
   threadId,
   onThreadLoadError,
 }: MindroomCallChatViewProps) {
+  const { t } = useTranslation();
   const setChat = useSetAtom(callChatAtom);
   const screenSize = useScreenSizeContext();
 
@@ -41,7 +43,7 @@ export function MindroomCallChatView({
         <Box grow="Yes" alignItems="Center" gap="200">
           <Box grow="Yes">
             <Text size="H5" truncate>
-              Chat
+              {t('mindroomUi.threads.mindroomCallChatView.chat')}
             </Text>
           </Box>
           <Box shrink="No" alignItems="Center">
@@ -51,7 +53,7 @@ export function MindroomCallChatView({
               offset={4}
               tooltip={
                 <Tooltip>
-                  <Text>Close</Text>
+                  <Text>{t('mindroomUi.threads.mindroomCallChatView.close')}</Text>
                 </Tooltip>
               }
             >

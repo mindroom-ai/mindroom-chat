@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import React, {
   MouseEventHandler,
   forwardRef,
@@ -123,6 +124,7 @@ type SpaceMenuProps = {
 };
 const SpaceMenu = forwardRef<HTMLDivElement, SpaceMenuProps>(
   ({ room, requestClose, onSpaceRemoved }, ref) => {
+    const { t } = useTranslation();
     const mx = useMatrixClient();
     const [developerTools] = useSetting(settingsAtom, 'developerTools');
     const roomToParents = useAtomValue(roomToParentsAtom);
@@ -190,7 +192,7 @@ const SpaceMenu = forwardRef<HTMLDivElement, SpaceMenuProps>(
             disabled={!canInvite}
           >
             <Text style={{ flexGrow: 1 }} as="span" size="T300" truncate>
-              Invite
+              {t('sharedUi.space.invite')}
             </Text>
           </MenuItem>
           <MenuItem
@@ -200,7 +202,7 @@ const SpaceMenu = forwardRef<HTMLDivElement, SpaceMenuProps>(
             radii="300"
           >
             <Text style={{ flexGrow: 1 }} as="span" size="T300" truncate>
-              Copy Link
+              {t('sharedUi.space.copyLink')}
             </Text>
           </MenuItem>
           <MenuItem
@@ -210,7 +212,7 @@ const SpaceMenu = forwardRef<HTMLDivElement, SpaceMenuProps>(
             radii="300"
           >
             <Text style={{ flexGrow: 1 }} as="span" size="T300" truncate>
-              Space Settings
+              {t('sharedUi.space.spaceSettings')}
             </Text>
           </MenuItem>
           {developerTools && (
@@ -221,7 +223,7 @@ const SpaceMenu = forwardRef<HTMLDivElement, SpaceMenuProps>(
               radii="300"
             >
               <Text style={{ flexGrow: 1 }} as="span" size="T300" truncate>
-                Event Timeline
+                {t('sharedUi.space.eventTimeline')}
               </Text>
             </MenuItem>
           )}
@@ -241,7 +243,7 @@ const SpaceMenu = forwardRef<HTMLDivElement, SpaceMenuProps>(
                   aria-pressed={promptLeave}
                 >
                   <Text style={{ flexGrow: 1 }} as="span" size="T300" truncate>
-                    Leave Space
+                    {t('sharedUi.space.leaveSpace')}
                   </Text>
                 </MenuItem>
                 {promptLeave && (
@@ -376,6 +378,7 @@ function SpaceHeader() {
 
 type SpaceTombstoneProps = { roomId: string; replacementRoomId: string };
 export function SpaceTombstone({ roomId, replacementRoomId }: SpaceTombstoneProps) {
+  const { t } = useTranslation();
   const mx = useMatrixClient();
   const { navigateSpace } = useRoomNavigate();
 
@@ -407,11 +410,11 @@ export function SpaceTombstone({ roomId, replacementRoomId }: SpaceTombstoneProp
       gap="300"
     >
       <Box direction="Column" grow="Yes" gap="100">
-        <Text size="L400">Space Upgraded</Text>
-        <Text size="T200">This space has been replaced and is no longer active.</Text>
+        <Text size="L400">{t('sharedUi.space.spaceUpgraded')}</Text>
+        <Text size="T200">{t('sharedUi.space.thisSpaceHasBeenReplacedAndIsNoLongerActive')}</Text>
         {joinState.status === AsyncStatus.Error && (
           <Text className={BreakWord} style={{ color: color.Critical.Main }} size="T200">
-            {(joinState.error as any)?.message ?? 'Failed to join replacement space!'}
+            {(joinState.error as any)?.message ?? t('sharedUi.space.failedToJoinReplacementSpace')}
           </Text>
         )}
       </Box>
@@ -419,7 +422,7 @@ export function SpaceTombstone({ roomId, replacementRoomId }: SpaceTombstoneProp
         {replacementRoom?.getMyMembership() === Membership.Join ||
         joinState.status === AsyncStatus.Success ? (
           <Button onClick={handleOpen} size="300" variant="Success" fill="Solid" radii="300">
-            <Text size="B300">Open New Space</Text>
+            <Text size="B300">{t('sharedUi.space.openNewSpace')}</Text>
           </Button>
         ) : (
           <Button
@@ -435,7 +438,7 @@ export function SpaceTombstone({ roomId, replacementRoomId }: SpaceTombstoneProp
             }
             disabled={joinState.status === AsyncStatus.Loading}
           >
-            <Text size="B300">Join New Space</Text>
+            <Text size="B300">{t('sharedUi.space.joinNewSpace')}</Text>
           </Button>
         )}
       </Box>
@@ -444,6 +447,7 @@ export function SpaceTombstone({ roomId, replacementRoomId }: SpaceTombstoneProp
 }
 
 export function Space() {
+  const { t } = useTranslation();
   const mx = useMatrixClient();
   const space = useSpace();
   const spaceIdOrAlias = getCanonicalAliasOrRoomId(mx, space.roomId);
@@ -585,7 +589,7 @@ export function Space() {
                     </Avatar>
                     <Box as="span" grow="Yes">
                       <Text as="span" size="Inherit" truncate>
-                        Lobby
+                        {t('sharedUi.space.lobby')}
                       </Text>
                     </Box>
                   </Box>
@@ -601,7 +605,7 @@ export function Space() {
                     </Avatar>
                     <Box as="span" grow="Yes">
                       <Text as="span" size="Inherit" truncate>
-                        Message Search
+                        {t('sharedUi.space.messageSearch')}
                       </Text>
                     </Box>
                   </Box>
@@ -623,7 +627,9 @@ export function Space() {
                     parseRoomSortableId(active.id.toString())?.roomId ??
                     active.id.toString();
                   const label = mx.getRoom(roomId)?.name ?? roomId;
-                  return `Picked up Room ${label}. Use arrow keys to reorder. Press space to drop.`;
+                  return t('sharedUi.space.pickedUpRoomValue1UseArrowKeysToReorderPressSpaceTo', {
+                    value1: label,
+                  });
                 },
                 onDragOver() {
                   return undefined;
@@ -673,7 +679,7 @@ export function Space() {
                               onClick={handleCategoryClick}
                               closed={closedCategories.has(categoryId)}
                             >
-                              {roomId === space.roomId ? 'Rooms' : room?.name}
+                              {roomId === space.roomId ? t('sharedUi.space.rooms') : room?.name}
                             </RoomNavCategoryButton>
                           </NavCategoryHeader>
                         </div>

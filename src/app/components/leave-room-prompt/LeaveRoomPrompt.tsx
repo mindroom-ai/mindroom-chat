@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import React, { useCallback, useEffect } from 'react';
 import FocusTrap from 'focus-trap-react';
 import {
@@ -27,6 +28,7 @@ type LeaveRoomPromptProps = {
   onCancel: () => void;
 };
 export function LeaveRoomPrompt({ roomId, onDone, onCancel }: LeaveRoomPromptProps) {
+  const { t } = useTranslation();
   const mx = useMatrixClient();
 
   const [leaveState, leaveRoom] = useAsyncCallback<undefined, MatrixError, []>(
@@ -66,7 +68,7 @@ export function LeaveRoomPrompt({ roomId, onDone, onCancel }: LeaveRoomPromptPro
               size="500"
             >
               <Box grow="Yes">
-                <Text size="H4">Leave Room</Text>
+                <Text size="H4">{t('sharedUi.leaveRoomPrompt.leaveRoom')}</Text>
               </Box>
               <IconButton size="300" onClick={onCancel} radii="300">
                 <Icon src={Icons.Cross} />
@@ -74,10 +76,12 @@ export function LeaveRoomPrompt({ roomId, onDone, onCancel }: LeaveRoomPromptPro
             </Header>
             <Box style={{ padding: config.space.S400 }} direction="Column" gap="400">
               <Box direction="Column" gap="200">
-                <Text priority="400">Are you sure you want to leave this room?</Text>
+                <Text priority="400">
+                  {t('sharedUi.leaveRoomPrompt.areYouSureYouWantToLeaveThisRoom')}
+                </Text>
                 {leaveState.status === AsyncStatus.Error && (
                   <Text style={{ color: color.Critical.Main }} size="T300">
-                    Failed to leave room! {leaveState.error.message}
+                    {t('sharedUi.leaveRoomPrompt.leaveFailed', { error: leaveState.error.message })}
                   </Text>
                 )}
               </Box>
@@ -96,7 +100,9 @@ export function LeaveRoomPrompt({ roomId, onDone, onCancel }: LeaveRoomPromptPro
                 }
               >
                 <Text size="B400">
-                  {leaveState.status === AsyncStatus.Loading ? 'Leaving...' : 'Leave'}
+                  {leaveState.status === AsyncStatus.Loading
+                    ? t('sharedUi.leaveRoomPrompt.leaving')
+                    : t('sharedUi.leaveRoomPrompt.leave')}
                 </Text>
               </Button>
             </Box>

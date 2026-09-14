@@ -1,3 +1,4 @@
+import { Trans, useTranslation } from 'react-i18next';
 import React, { useMemo } from 'react';
 import { Box, Text, color } from 'folds';
 import { Link, useSearchParams } from 'react-router-dom';
@@ -43,6 +44,7 @@ const useLoginSearchParams = (searchParams: URLSearchParams): LoginPathSearchPar
   );
 
 export function Login() {
+  const { t } = useTranslation();
   const server = useAuthServer();
   const { hashRouter, auth } = useClientConfig();
   const { loginFlows } = useAuthFlows();
@@ -55,7 +57,9 @@ export function Login() {
     return getMindroomAuthSsoRedirectUrl(redirectPath);
   }, [addAccount, webSsoRedirectUrl]);
   const loginTokenForHashRouter = getLoginTokenSearchParam();
-  const absoluteLoginPath = addAccount ? withAddAccountSearch(webSsoRedirectUrl) : webSsoRedirectUrl;
+  const absoluteLoginPath = addAccount
+    ? withAddAccountSearch(webSsoRedirectUrl)
+    : webSsoRedirectUrl;
 
   if (hashRouter?.enabled && loginTokenForHashRouter) {
     const loginTokenUrl = new URL(absoluteLoginPath);
@@ -74,12 +78,11 @@ export function Login() {
   return (
     <Box direction="Column" gap="500">
       <Text size="H2" priority="400">
-        Login
+        {t('sharedUi.login.login')}
       </Text>
       {requireAppleProvider && !appleProviderAvailable && (
         <Text style={{ color: color.Critical.Main }} size="T300">
-          This client requires Sign in with Apple. Configure the homeserver SSO provider list to
-          include Apple.
+          {t('sharedUi.login.thisClientRequiresSignInWithAppleConfigureTheHomeserverSsoProvider')}
         </Text>
       )}
       {parsedFlows.token && loginSearchParams.loginToken && (
@@ -111,18 +114,35 @@ export function Login() {
         <>
           <Text style={{ color: color.Critical.Main }}>
             {disablePasswordLogin
-              ? `Password login is disabled on "${server}". Use SSO to sign in.`
-              : `This client does not support login on "${server}" server. Password and SSO based login method not found.`}
+              ? t('sharedUi.login.passwordLoginIsDisabledOnValue1UseSsoToSignIn', {
+                  value1: server,
+                })
+              : t('sharedUi.login.thisClientDoesNotSupportLoginOnValue1ServerPasswordAndSso', {
+                  value1: server,
+                })}
           </Text>
           <span data-spacing-node />
         </>
       )}
       {registrationAllowed && !isMindroomServer && (
         <Text align="Center">
-          Do not have an account?{' '}
-          <Link to={addAccount ? withAddAccountSearch(getRegisterPath(server)) : getRegisterPath(server)}>
-            Register
-          </Link>
+          <Trans
+            t={t}
+            shouldUnescape
+            tOptions={{ interpolation: { escapeValue: true } }}
+            i18nKey="sharedUi.login.accountLink"
+            components={{
+              link: (
+                <Link
+                  to={
+                    addAccount
+                      ? withAddAccountSearch(getRegisterPath(server))
+                      : getRegisterPath(server)
+                  }
+                />
+              ),
+            }}
+          />
         </Text>
       )}
     </Box>

@@ -15,6 +15,7 @@ import { Room } from 'matrix-js-sdk';
 import classNames from 'classnames';
 import FocusTrap from 'focus-trap-react';
 
+import { Trans, useTranslation } from 'react-i18next';
 import { getMemberDisplayName } from '../../utils/room';
 import { getMxIdLocalPart } from '../../utils/matrix';
 import * as css from './RoomViewFollowing.css';
@@ -33,6 +34,7 @@ export type RoomViewFollowingProps = {
 };
 export const RoomViewFollowing = as<'div', RoomViewFollowingProps>(
   ({ className, room, ...props }, ref) => {
+    const { t } = useTranslation();
     const mx = useMatrixClient();
     const [open, setOpen] = useState(false);
     const latestEvent = useRoomLatestRenderedEvent(room);
@@ -80,60 +82,53 @@ export const RoomViewFollowing = as<'div', RoomViewFollowingProps>(
               <Icon style={{ opacity: config.opacity.P300 }} size="100" src={Icons.CheckTwice} />
               <Text size="T300" truncate>
                 {names.length === 1 && (
-                  <>
-                    <b>{names[0]}</b>
-                    <Text as="span" size="Inherit" priority="300">
-                      {' is following the conversation.'}
-                    </Text>
-                  </>
+                  <Trans
+                    i18nKey="featureUi.room.following.one"
+                    t={t}
+                    shouldUnescape
+                    tOptions={{ interpolation: { escapeValue: true } }}
+                    values={{ name: names[0] }}
+                    components={{ name: <b /> }}
+                  />
                 )}
                 {names.length === 2 && (
-                  <>
-                    <b>{names[0]}</b>
-                    <Text as="span" size="Inherit" priority="300">
-                      {' and '}
-                    </Text>
-                    <b>{names[1]}</b>
-                    <Text as="span" size="Inherit" priority="300">
-                      {' are following the conversation.'}
-                    </Text>
-                  </>
+                  <Trans
+                    i18nKey="featureUi.room.following.two"
+                    t={t}
+                    shouldUnescape
+                    tOptions={{ interpolation: { escapeValue: true } }}
+                    values={{ first: names[0], second: names[1] }}
+                    components={{ first: <b />, second: <b /> }}
+                  />
                 )}
                 {names.length === 3 && (
-                  <>
-                    <b>{names[0]}</b>
-                    <Text as="span" size="Inherit" priority="300">
-                      {', '}
-                    </Text>
-                    <b>{names[1]}</b>
-                    <Text as="span" size="Inherit" priority="300">
-                      {' and '}
-                    </Text>
-                    <b>{names[2]}</b>
-                    <Text as="span" size="Inherit" priority="300">
-                      {' are following the conversation.'}
-                    </Text>
-                  </>
+                  <Trans
+                    i18nKey="featureUi.room.following.three"
+                    t={t}
+                    shouldUnescape
+                    tOptions={{ interpolation: { escapeValue: true } }}
+                    values={{ first: names[0], second: names[1], third: names[2] }}
+                    components={{ first: <b />, second: <b />, third: <b /> }}
+                  />
                 )}
                 {names.length > 3 && (
-                  <>
-                    <b>{names[0]}</b>
-                    <Text as="span" size="Inherit" priority="300">
-                      {', '}
-                    </Text>
-                    <b>{names[1]}</b>
-                    <Text as="span" size="Inherit" priority="300">
-                      {', '}
-                    </Text>
-                    <b>{names[2]}</b>
-                    <Text as="span" size="Inherit" priority="300">
-                      {' and '}
-                    </Text>
-                    <b>{names.length - 3} others</b>
-                    <Text as="span" size="Inherit" priority="300">
-                      {' are following the conversation.'}
-                    </Text>
-                  </>
+                  <Trans
+                    i18nKey={
+                      names.length === 4
+                        ? 'featureUi.room.following.four'
+                        : 'featureUi.room.following.many'
+                    }
+                    t={t}
+                    shouldUnescape
+                    tOptions={{ interpolation: { escapeValue: true } }}
+                    values={{
+                      first: names[0],
+                      second: names[1],
+                      third: names[2],
+                      count: names.length - 3,
+                    }}
+                    components={{ first: <b />, second: <b />, third: <b />, others: <b /> }}
+                  />
                 )}
               </Text>
             </>

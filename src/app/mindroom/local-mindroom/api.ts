@@ -260,7 +260,10 @@ export const revokeLocalMindroomConnection = async (
     }
   );
 
-export const getLocalMindroomErrorMessage = (error: unknown): string => {
+export const getLocalMindroomErrorMessage = (
+  error: unknown,
+  fallback = 'Request failed. Please try again.'
+): string => {
   if (error instanceof Error && error.message) return error.message;
-  return 'Request failed. Please try again.';
+  return fallback;
 };

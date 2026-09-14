@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import React from 'react';
 import { Box, Icon, Icons, Scroll, IconButton } from 'folds';
 import {
@@ -14,6 +15,7 @@ import { CreateRoomForm } from '../../../features/create-room';
 import { useRoomNavigate } from '../../../hooks/useRoomNavigate';
 
 export function HomeCreateRoom() {
+  const { t } = useTranslation();
   const screenSize = useScreenSizeContext();
 
   const { navigateRoom } = useRoomNavigate();
@@ -26,7 +28,7 @@ export function HomeCreateRoom() {
             <BackRouteHandler>
               {(onBack) => (
                 <IconButton onClick={onBack}>
-                  <Icon src={Icons.ArrowLeft} />
+                  <Icon data-directional src={Icons.ArrowLeft} />
                 </IconButton>
               )}
             </BackRouteHandler>
@@ -41,8 +43,8 @@ export function HomeCreateRoom() {
                 <Box direction="Column" gap="700">
                   <PageHero
                     icon={<Icon size="600" src={Icons.Hash} />}
-                    title="Create Room"
-                    subTitle="Build a Room for Real-Time Conversations."
+                    title={t('sharedUi.createRoom.createRoom')}
+                    subTitle={t('sharedUi.createRoom.buildARoomForRealTimeConversations')}
                   />
                   <CreateRoomForm onCreate={navigateRoom} />
                 </Box>

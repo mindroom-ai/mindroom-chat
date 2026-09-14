@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import {
   Box,
   Button,
@@ -50,6 +51,7 @@ type SelfDemoteAlertProps = {
   onChange: (power: number) => void;
 };
 function SelfDemoteAlert({ power, onCancel, onChange }: SelfDemoteAlertProps) {
+  const { t } = useTranslation();
   return (
     <Overlay open backdrop={<OverlayBackdrop />}>
       <OverlayCenter>
@@ -68,7 +70,7 @@ function SelfDemoteAlert({ power, onCancel, onChange }: SelfDemoteAlertProps) {
               size="500"
             >
               <Box grow="Yes">
-                <Text size="H4">Self Demotion</Text>
+                <Text size="H4">{t('sharedUi.powerChip.selfDemotion')}</Text>
               </Box>
               <IconButton size="300" onClick={onCancel} radii="300">
                 <Icon src={Icons.Cross} />
@@ -77,13 +79,12 @@ function SelfDemoteAlert({ power, onCancel, onChange }: SelfDemoteAlertProps) {
             <Box style={{ padding: config.space.S400, paddingTop: 0 }} direction="Column" gap="500">
               <Box direction="Column" gap="200">
                 <Text priority="400">
-                  You are about to demote yourself! You will not be able to regain this power
-                  yourself. Are you sure?
+                  {t('sharedUi.powerChip.youAreAboutToDemoteYourselfYouWillNotBeAbleTo')}
                 </Text>
               </Box>
               <Box direction="Column" gap="200">
                 <Button type="submit" variant="Warning" onClick={() => onChange(power)}>
-                  <Text size="B400">Demote</Text>
+                  <Text size="B400">{t('sharedUi.powerChip.demote')}</Text>
                 </Button>
               </Box>
             </Box>
@@ -100,6 +101,7 @@ type SharedPowerAlertProps = {
   onChange: (power: number) => void;
 };
 function SharedPowerAlert({ power, onCancel, onChange }: SharedPowerAlertProps) {
+  const { t } = useTranslation();
   return (
     <Overlay open backdrop={<OverlayBackdrop />}>
       <OverlayCenter>
@@ -118,7 +120,7 @@ function SharedPowerAlert({ power, onCancel, onChange }: SharedPowerAlertProps) 
               size="500"
             >
               <Box grow="Yes">
-                <Text size="H4">Shared Power</Text>
+                <Text size="H4">{t('sharedUi.powerChip.sharedPower')}</Text>
               </Box>
               <IconButton size="300" onClick={onCancel} radii="300">
                 <Icon src={Icons.Cross} />
@@ -127,13 +129,12 @@ function SharedPowerAlert({ power, onCancel, onChange }: SharedPowerAlertProps) 
             <Box style={{ padding: config.space.S400, paddingTop: 0 }} direction="Column" gap="500">
               <Box direction="Column" gap="200">
                 <Text priority="400">
-                  You are promoting the user to have the same power as yourself! You will not be
-                  able to change their power afterward. Are you sure?
+                  {t('sharedUi.powerChip.youArePromotingTheUserToHaveTheSamePowerAsYourself')}
                 </Text>
               </Box>
               <Box direction="Column" gap="200">
                 <Button type="submit" variant="Warning" onClick={() => onChange(power)}>
-                  <Text size="B400">Promote</Text>
+                  <Text size="B400">{t('sharedUi.powerChip.promote')}</Text>
                 </Button>
               </Box>
             </Box>
@@ -145,6 +146,7 @@ function SharedPowerAlert({ power, onCancel, onChange }: SharedPowerAlertProps) 
 }
 
 export function PowerChip({ userId }: { userId: string }) {
+  const { t } = useTranslation();
   const mx = useMatrixClient();
   const room = useRoom();
   const space = useSpaceOptionally();
@@ -243,7 +245,9 @@ export function PowerChip({ userId }: { userId: string }) {
               >
                 {error && (
                   <CutoutCard style={{ padding: config.space.S200 }} variant="Critical">
-                    <Text size="L400">Error: {powerState.error.name}</Text>
+                    <Text size="L400">
+                      {t('sharedUi.powerChip.errorName', { name: powerState.error.name })}
+                    </Text>
                     <Text className={BreakWord} size="T200">
                       {powerState.error.message}
                     </Text>
@@ -309,7 +313,7 @@ export function PowerChip({ userId }: { userId: string }) {
                     close();
                   }}
                 >
-                  <Text size="B300">Manage Powers</Text>
+                  <Text size="B300">{t('sharedUi.powerChip.managePowers')}</Text>
                 </MenuItem>
               </div>
             </Menu>

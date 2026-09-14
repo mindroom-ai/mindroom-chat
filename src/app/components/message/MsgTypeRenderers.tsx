@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import React, { CSSProperties, ReactNode } from 'react';
 import { Box, Chip, Icon, Icons, Text, toRem } from 'folds';
 import { IContent } from 'matrix-js-sdk';
@@ -332,6 +333,7 @@ type MAudioProps = {
   outlined?: boolean;
 };
 export function MAudio({ content, renderAsFile }: MAudioProps) {
+  const { t } = useTranslation();
   const voiceMessage = isVoiceMessageContent(content as Record<string, unknown>);
   const voiceAudioDetails = getVoiceMessageAudioDetails(content as Record<string, unknown>);
   const audioInfo: IAudioInfo | undefined =
@@ -362,7 +364,11 @@ export function MAudio({ content, renderAsFile }: MAudioProps) {
       encInfo={content.file}
       filename={downloadFilename}
       waveform={voiceAudioDetails?.waveform}
-      label={voiceMessage ? 'voice message' : 'audio'}
+      label={
+        voiceMessage
+          ? t('sharedUi.msgTypeRenderers.voiceMessage')
+          : t('sharedUi.msgTypeRenderers.audio')
+      }
     />
   );
 }
@@ -380,6 +386,7 @@ type MFileProps = {
   outlined?: boolean;
 };
 export function MFile({ content, renderFileContent, outlined }: MFileProps) {
+  const { t } = useTranslation();
   const fileInfo = content?.info;
   const mxcUrl = content.file?.url ?? content.url;
 
@@ -391,14 +398,17 @@ export function MFile({ content, renderFileContent, outlined }: MFileProps) {
     <Attachment outlined={outlined}>
       <AttachmentHeader>
         <FileHeader
-          body={content.filename ?? content.body ?? 'Unnamed File'}
+          body={content.filename ?? content.body ?? t('sharedUi.msgTypeRenderers.unnamedFile')}
           mimeType={fileInfo?.mimetype ?? FALLBACK_MIMETYPE}
         />
       </AttachmentHeader>
       <AttachmentBox>
         <AttachmentContent>
           {renderFileContent({
-            body: content.filename ?? content.body ?? 'File',
+            body:
+              content.filename ??
+              content.body ??
+              t('mindroomUi.message-search.searchResultPreview.file'),
             info: fileInfo ?? {},
             mimeType: fileInfo?.mimetype ?? FALLBACK_MIMETYPE,
             url: mxcUrl,
@@ -414,6 +424,7 @@ type MLocationProps = {
   content: IContent;
 };
 export function MLocation({ content }: MLocationProps) {
+  const { t } = useTranslation();
   const geoUri = content.geo_uri;
   if (typeof geoUri !== 'string') return <BrokenContent />;
   const location = parseGeoUri(geoUri);
@@ -432,7 +443,7 @@ export function MLocation({ content }: MLocationProps) {
         radii="Pill"
         before={<Icon src={Icons.External} size="50" />}
       >
-        <Text size="B300">Open Location</Text>
+        <Text size="B300">{t('sharedUi.msgTypeRenderers.openLocation')}</Text>
       </Chip>
     </Box>
   );

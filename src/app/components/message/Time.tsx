@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import React, { ComponentProps } from 'react';
 import { Text, as } from 'folds';
 import { timeDayMonYear, timeHourMinute, today, yesterday } from '../../utils/time';
@@ -23,6 +24,7 @@ export type TimeProps = {
  */
 export const Time = as<'span', TimeProps & ComponentProps<typeof Text>>(
   ({ compact, hour24Clock, dateFormatString, ts, ...props }, ref) => {
+    const { t } = useTranslation();
     const formattedTime = timeHourMinute(ts, hour24Clock);
 
     let time = '';
@@ -31,7 +33,7 @@ export const Time = as<'span', TimeProps & ComponentProps<typeof Text>>(
     } else if (today(ts)) {
       time = formattedTime;
     } else if (yesterday(ts)) {
-      time = `Yesterday ${formattedTime}`;
+      time = t('sharedUi.time.yesterdayValue1', { value1: formattedTime });
     } else {
       time = `${timeDayMonYear(ts, dateFormatString)} ${formattedTime}`;
     }

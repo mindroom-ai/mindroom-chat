@@ -14,6 +14,7 @@ import {
   config,
   color,
 } from 'folds';
+import { useTranslation } from 'react-i18next';
 import { SequenceCard } from '../../../components/sequence-card';
 import { SequenceCardStyle } from '../styles.css';
 import { getPowers, usePowerLevelTags } from '../../../hooks/usePowerLevelTags';
@@ -108,6 +109,7 @@ type PowersProps = {
   onEdit?: () => void;
 };
 export function Powers({ powerLevels, permissionGroups, onEdit }: PowersProps) {
+  const { t } = useTranslation();
   const mx = useMatrixClient();
   const useAuthentication = useMediaAuthentication();
   const room = useRoom();
@@ -127,8 +129,10 @@ export function Powers({ powerLevels, permissionGroups, onEdit }: PowersProps) {
           gap="400"
         >
           <SettingTile
-            title="Founders"
-            description="Founding members has all permissions and can only be changed during upgrade."
+            title={t('featureUi.commonSettings.permissions.powers.founders')}
+            description={t(
+              'featureUi.commonSettings.permissions.powers.foundingMembersHasAllPermissionsAndCan'
+            )}
           />
 
           <SettingTile>
@@ -155,8 +159,10 @@ export function Powers({ powerLevels, permissionGroups, onEdit }: PowersProps) {
         gap="400"
       >
         <SettingTile
-          title="Power Levels"
-          description="Manage and customize incremental power levels for users."
+          title={t('featureUi.commonSettings.permissions.powers.powerLevels')}
+          description={t(
+            'featureUi.commonSettings.permissions.powers.manageAndCustomizeIncrementalPowerLevelsFor'
+          )}
           after={
             onEdit && (
               <Box gap="200">
@@ -168,7 +174,7 @@ export function Powers({ powerLevels, permissionGroups, onEdit }: PowersProps) {
                   outlined
                   onClick={onEdit}
                 >
-                  <Text size="B300">Edit</Text>
+                  <Text size="B300">{t('featureUi.commonSettings.permissions.powers.edit')}</Text>
                 </Button>
               </Box>
             )

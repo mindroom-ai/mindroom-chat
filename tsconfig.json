@@ -11,7 +11,7 @@
     "resolveJsonModule": true,
     "outDir": "dist",
     "skipLibCheck": true,
-    "lib": ["ES2016", "DOM", "DOM.Iterable"]
+    "lib": ["ES2016", "ES2021.Intl", "DOM", "DOM.Iterable"]
   },
   "exclude": ["node_modules", "dist", "src/**/*.test.ts", "src/**/*.test.tsx"],
   "include": ["src"]

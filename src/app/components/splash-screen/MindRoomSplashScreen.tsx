@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { Box, Spinner, Text } from 'folds';
 import React, { ReactNode, useMemo } from 'react';
 import { useNativeSplashOverlay } from '../../mindroom/native/useNativeSplashOverlay';
@@ -35,11 +36,19 @@ export function MindRoomSplashScreen({
   message,
   random,
 }: MindRoomSplashScreenProps) {
+  const { t } = useTranslation();
   useNativeSplashOverlay();
 
   const selectedMessage = useMemo(
-    () => message ?? pickMindRoomSplashMessage(loadingMessages, random),
-    [loadingMessages, message, random]
+    () =>
+      message ??
+      pickMindRoomSplashMessage(
+        loadingMessages?.some((text) => text.trim())
+          ? loadingMessages
+          : [t('sharedUi.mindRoomSplashScreen.loading')],
+        random
+      ),
+    [loadingMessages, message, random, t]
   );
 
   return (

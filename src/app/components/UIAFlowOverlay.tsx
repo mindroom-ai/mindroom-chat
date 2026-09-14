@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import React, { ReactNode } from 'react';
 import {
   Overlay,
@@ -26,6 +27,7 @@ export function UIAFlowOverlay({
   children,
   onCancel,
 }: UIAFlowOverlayProps) {
+  const { t } = useTranslation();
   return (
     <Overlay open backdrop={<OverlayBackdrop />}>
       <FocusTrap focusTrapOptions={{ initialFocus: false, escapeDeactivates: false }}>
@@ -41,12 +43,17 @@ export function UIAFlowOverlay({
             gap="200"
           >
             <Chip as="div" radii="Pill" outlined>
-              <Text as="span" size="T300">{`Step ${currentStep}/${stepCount}`}</Text>
+              <Text as="span" size="T300">
+                {t('sharedUi.uIAFlowOverlay.stepValue1Value2', {
+                  value1: currentStep,
+                  value2: stepCount,
+                })}
+              </Text>
             </Chip>
             <TooltipProvider
               tooltip={
                 <Tooltip variant="Critical">
-                  <Text>Exit</Text>
+                  <Text>{t('sharedUi.uIAFlowOverlay.exit')}</Text>
                 </Tooltip>
               }
               position="Top"

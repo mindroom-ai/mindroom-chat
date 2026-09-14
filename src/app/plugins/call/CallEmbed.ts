@@ -26,6 +26,11 @@ import {
 import { CallControl } from './CallControl';
 import { CallControlState } from './CallControlState';
 
+const ELEMENT_CALL_LANGUAGE_CODES: Record<string, string> = {
+  zh: 'zh-Hans',
+  'zh-TW': 'zh-Hant',
+};
+
 export class CallEmbed {
   private mx: MatrixClient;
 
@@ -87,7 +92,8 @@ export class CallEmbed {
     mx: MatrixClient,
     room: Room,
     intent: ElementCallIntent,
-    themeKind: ElementCallThemeKind
+    themeKind: ElementCallThemeKind,
+    language: string
   ): Widget {
     const userId = mx.getSafeUserId();
     const deviceId = mx.getDeviceId() ?? '';
@@ -107,7 +113,9 @@ export class CallEmbed {
       confineToRoom: 'true',
       appPrompt: 'false',
       perParticipantE2EE: room.hasEncryptionStateEvent().toString(),
-      lang: 'en-EN',
+      // Element Call names its Chinese catalogs by script.
+      // Other codes pass through so its supportedLngs and English fallback remain authoritative.
+      lang: ELEMENT_CALL_LANGUAGE_CODES[language] ?? language,
       theme: themeKind,
       header: 'none',
     });
@@ -137,10 +145,10 @@ export class CallEmbed {
     return widget;
   }
 
-  static getIframe(url: string): HTMLIFrameElement {
+  static getIframe(url: string, title: string): HTMLIFrameElement {
     const iframe = document.createElement('iframe');
 
-    iframe.title = 'Call Embed';
+    iframe.title = title;
     iframe.setAttribute(
       'sandbox',
       'allow-forms allow-scripts allow-same-origin allow-popups allow-modals allow-downloads'
@@ -163,10 +171,12 @@ export class CallEmbed {
     room: Room,
     widget: Widget,
     container: HTMLElement,
+    iframeTitle: string,
     initialControlState?: CallControlState
   ) {
     const iframe = CallEmbed.getIframe(
-      widget.getCompleteUrl({ currentUserId: mx.getSafeUserId() })
+      widget.getCompleteUrl({ currentUserId: mx.getSafeUserId() }),
+      iframeTitle
     );
     container.append(iframe);
 
@@ -214,6 +224,10 @@ export class CallEmbed {
     return this.call.transport.send(WidgetApiToWidgetAction.ThemeChange, {
       name: theme,
     });
+  }
+
+  public setTitle(title: string): void {
+    this.iframe.title = title;
   }
 
   public hangup() {

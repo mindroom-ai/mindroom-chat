@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { Icon, Icons, MenuItem, Text, as } from 'folds';
 import React from 'react';
 import { MatrixEvent, Room } from 'matrix-js-sdk';
@@ -34,6 +35,7 @@ export const MessageCopyTextItem = as<
     loading?: boolean;
   }
 >(({ room, mEvent, onClose, resolvedLongTextContent, loading, ...props }, ref) => {
+  const { t } = useTranslation();
   const handleCopy = () => {
     const content = getMenuMessageContent(room, mEvent);
     const originalContent = mEvent.getContent();
@@ -60,7 +62,9 @@ export const MessageCopyTextItem = as<
       ref={ref}
     >
       <Text className={css.MessageMenuItemText} as="span" size="T300" truncate>
-        {loading ? 'Copy Text (loading…)' : 'Copy Text'}
+        {loading
+          ? t('mindroomUi.messages.messageCopyActions.copyTextLoading')
+          : t('mindroomUi.messages.messageCopyActions.copyText')}
       </Text>
     </MenuItem>
   );
@@ -74,6 +78,7 @@ export const MessageCopyLinkItem = as<
     onClose?: () => void;
   }
 >(({ room, mEvent, onClose, ...props }, ref) => {
+  const { t } = useTranslation();
   const handleCopy = () => {
     const eventId = mEvent.getId();
     if (!eventId) return;
@@ -91,7 +96,7 @@ export const MessageCopyLinkItem = as<
       ref={ref}
     >
       <Text className={css.MessageMenuItemText} as="span" size="T300" truncate>
-        Copy Link
+        {t('mindroomUi.messages.messageCopyActions.copyLink')}
       </Text>
     </MenuItem>
   );

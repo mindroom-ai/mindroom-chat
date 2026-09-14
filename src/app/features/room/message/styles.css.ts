@@ -20,7 +20,7 @@ export const MessageOptionsBase = style([
   {
     position: 'absolute',
     top: toRem(-30),
-    right: 0,
+    insetInlineEnd: 0,
     zIndex: 1,
   },
 ]);

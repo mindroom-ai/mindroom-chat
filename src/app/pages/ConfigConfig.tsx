@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { Box, Button, Dialog, Text, color, config } from 'folds';
 import React from 'react';
 import { isClientConfigAuthenticationError } from '../components/ClientConfigLoader';
@@ -14,6 +15,7 @@ type ConfigConfigErrorProps = {
   authenticate: () => void;
 };
 export function ConfigConfigError({ error, retry, ignore, authenticate }: ConfigConfigErrorProps) {
+  const { t } = useTranslation();
   const authenticationRequired = isClientConfigAuthenticationError(error);
 
   return (
@@ -24,14 +26,14 @@ export function ConfigConfigError({ error, retry, ignore, authenticate }: Config
             <Box direction="Column" gap="100">
               <Text>
                 {authenticationRequired
-                  ? 'Your web session has expired.'
-                  : 'Failed to load client configuration file.'}
+                  ? t('sharedUi.configConfig.yourWebSessionHasExpired')
+                  : t('sharedUi.configConfig.failedToLoadClientConfigurationFile')}
               </Text>
               {authenticationRequired ? (
                 <Text size="T300">
                   {ignore
-                    ? 'Sign in again to reconnect, or continue in offline mode.'
-                    : 'Sign in again to reconnect.'}
+                    ? t('sharedUi.configConfig.signInAgainToReconnectOrContinueInOfflineMode')
+                    : t('sharedUi.configConfig.signInAgainToReconnect')}
                 </Text>
               ) : (
                 typeof error === 'object' &&
@@ -49,13 +51,15 @@ export function ConfigConfigError({ error, retry, ignore, authenticate }: Config
               onClick={() => (authenticationRequired ? authenticate() : retry())}
             >
               <Text as="span" size="B400">
-                {authenticationRequired ? 'Sign in again' : 'Retry'}
+                {authenticationRequired
+                  ? t('sharedUi.configConfig.signInAgain')
+                  : t('sharedUi.configConfig.retry')}
               </Text>
             </Button>
             {ignore && (
               <Button variant="Critical" onClick={() => ignore()} fill="Soft">
                 <Text as="span" size="B400">
-                  Continue offline
+                  {t('sharedUi.configConfig.continueOffline')}
                 </Text>
               </Button>
             )}

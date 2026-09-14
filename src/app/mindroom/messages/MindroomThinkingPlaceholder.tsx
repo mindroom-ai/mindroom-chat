@@ -1,11 +1,14 @@
+import { useTranslation } from 'react-i18next';
 import React from 'react';
 import { useClientConfig } from '../../hooks/useClientConfig';
 import * as css from './MindroomThinkingPlaceholder.css';
 import { resolveMindroomThinkingPlaceholderMessages } from './thinkingPlaceholder';
+import { MINDROOM_THINKING_PLACEHOLDER_BODY } from './thinkingPlaceholder';
 
 const ROTATION_INTERVAL_MS = 3600;
 
 export function MindroomThinkingPlaceholder() {
+  const { t } = useTranslation();
   const clientConfig = useClientConfig();
   const messages = React.useMemo(
     () =>
@@ -24,10 +27,18 @@ export function MindroomThinkingPlaceholder() {
     return () => globalThis.clearInterval(intervalId);
   }, [messages.length]);
 
-  const message = messages[messageIndex % messages.length];
+  const configuredMessage = messages[messageIndex % messages.length];
+  const message =
+    configuredMessage === MINDROOM_THINKING_PLACEHOLDER_BODY
+      ? t('mindroomUi.messages.mindroomThinkingPlaceholder.thinking')
+      : configuredMessage;
 
   return (
-    <span className={css.Placeholder} role="status" aria-label="AI is responding">
+    <span
+      className={css.Placeholder}
+      role="status"
+      aria-label={t('mindroomUi.messages.mindroomThinkingPlaceholder.aiIsResponding')}
+    >
       <span className={css.Indicator} aria-hidden="true">
         <span className={css.Dot} />
         <span className={css.Dot} />

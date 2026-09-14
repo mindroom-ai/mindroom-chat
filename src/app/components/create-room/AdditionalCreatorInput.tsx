@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import {
   Box,
   Button,
@@ -83,6 +84,7 @@ export function AdditionalCreatorInput({
   onRemove,
   disabled,
 }: AdditionalCreatorInputProps) {
+  const { t } = useTranslation();
   const mx = useMatrixClient();
   const [menuCords, setMenuCords] = useState<RectCords>();
   const directUsers = useDirectUsers();
@@ -150,8 +152,10 @@ export function AdditionalCreatorInput({
 
   return (
     <SettingTile
-      title="Founders"
-      description="Special privileged users can be assigned during creation. These users have elevated control and can only be modified during a upgrade."
+      title={t('sharedUi.additionalCreatorInput.founders')}
+      description={t(
+        'sharedUi.additionalCreatorInput.specialPrivilegedUsersCanBeAssignedDuringCreationTheseUsersHaveElevated'
+      )}
     >
       <Box shrink="No" direction="Column" gap="100">
         <Box gap="200" wrap="Wrap">
@@ -213,7 +217,7 @@ export function AdditionalCreatorInput({
                         onClick={handleEnterClick}
                         disabled={!validUserId}
                       >
-                        <Text size="B400">Enter</Text>
+                        <Text size="B400">{t('sharedUi.additionalCreatorInput.enter')}</Text>
                       </Button>
                     </Box>
                     <Line size="300" />
@@ -224,7 +228,7 @@ export function AdditionalCreatorInput({
                             grow="Yes"
                             direction="Column"
                             gap="100"
-                            style={{ padding: config.space.S200, paddingRight: 0 }}
+                            style={{ padding: config.space.S200, paddingInlineEnd: 0 }}
                           >
                             {suggestionUsers.map((userId) => (
                               <MenuItem
@@ -263,10 +267,10 @@ export function AdditionalCreatorInput({
                           gap="100"
                         >
                           <Text size="H6" align="Center">
-                            No Suggestions
+                            {t('sharedUi.additionalCreatorInput.noSuggestions')}
                           </Text>
                           <Text size="T200" align="Center">
-                            Please provide the user ID and hit Enter.
+                            {t('sharedUi.additionalCreatorInput.pleaseProvideTheUserIdAndHitEnter')}
                           </Text>
                         </Box>
                       )}

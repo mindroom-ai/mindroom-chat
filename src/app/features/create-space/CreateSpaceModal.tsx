@@ -14,6 +14,7 @@ import {
   Text,
 } from 'folds';
 import FocusTrap from 'focus-trap-react';
+import { useTranslation } from 'react-i18next';
 import { useAllJoinedRoomsSet, useGetRoom } from '../../hooks/useGetRoom';
 import { SpaceProvider } from '../../hooks/useSpace';
 import { CreateSpaceForm } from './CreateSpace';
@@ -28,6 +29,7 @@ type CreateSpaceModalProps = {
   state: CreateSpaceModalState;
 };
 function CreateSpaceModal({ state }: CreateSpaceModalProps) {
+  const { t } = useTranslation();
   const { spaceId } = state;
   const closeDialog = useCloseCreateSpaceModal();
 
@@ -53,12 +55,12 @@ function CreateSpaceModal({ state }: CreateSpaceModalProps) {
                   size="500"
                   style={{
                     padding: config.space.S200,
-                    paddingLeft: config.space.S400,
+                    paddingInlineStart: config.space.S400,
                     borderBottomWidth: config.borderWidth.B300,
                   }}
                 >
                   <Box grow="Yes">
-                    <Text size="H4">New Space</Text>
+                    <Text size="H4">{t('featureUi.createSpace.createSpaceModal.newSpace')}</Text>
                   </Box>
                   <Box shrink="No">
                     <IconButton size="300" radii="300" onClick={closeDialog}>
@@ -70,7 +72,7 @@ function CreateSpaceModal({ state }: CreateSpaceModalProps) {
                   <Box
                     style={{
                       padding: config.space.S400,
-                      paddingRight: config.space.S200,
+                      paddingInlineEnd: config.space.S200,
                     }}
                     direction="Column"
                     gap="500"

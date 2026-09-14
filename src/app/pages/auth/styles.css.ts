@@ -13,7 +13,7 @@ export const AuthLayout = style({
   backgroundColor: particleBackgroundColorVar,
   color: color.Background.OnContainer,
   padding: config.space.S400,
-  paddingRight: config.space.S200,
+  paddingInlineEnd: config.space.S200,
   paddingBottom: 0,
   position: 'relative',
   isolation: 'isolate',

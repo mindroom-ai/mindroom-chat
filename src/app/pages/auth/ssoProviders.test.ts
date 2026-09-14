@@ -1,3 +1,4 @@
+import i18next from 'i18next';
 import { describe, expect, it } from 'vitest';
 import { IIdentityProvider, SSOAction } from 'matrix-js-sdk';
 import {
@@ -84,16 +85,22 @@ describe('getSSOProviderButtonTitle', () => {
   it('uses Apple-specific labels', () => {
     const appleProvider = provider('apple', 'Apple', 'apple');
 
-    expect(getSSOProviderButtonTitle(appleProvider, SSOAction.LOGIN)).toBe('Sign in with Apple');
-    expect(getSSOProviderButtonTitle(appleProvider, SSOAction.REGISTER)).toBe('Sign up with Apple');
+    expect(getSSOProviderButtonTitle(appleProvider, i18next.t, SSOAction.LOGIN)).toBe(
+      'Sign in with Apple'
+    );
+    expect(getSSOProviderButtonTitle(appleProvider, i18next.t, SSOAction.REGISTER)).toBe(
+      'Sign up with Apple'
+    );
   });
 
   it('capitalizes known provider button labels', () => {
     const googleProvider = provider('google', 'google', 'google');
     const githubProvider = provider('github', 'github', 'github');
 
-    expect(getSSOProviderButtonTitle(googleProvider, SSOAction.LOGIN)).toBe('Continue with Google');
-    expect(getSSOProviderButtonTitle(githubProvider, SSOAction.LOGIN)).toBe(
+    expect(getSSOProviderButtonTitle(googleProvider, i18next.t, SSOAction.LOGIN)).toBe(
+      'Continue with Google'
+    );
+    expect(getSSOProviderButtonTitle(githubProvider, i18next.t, SSOAction.LOGIN)).toBe(
       'Continue with GitHub'
     );
   });

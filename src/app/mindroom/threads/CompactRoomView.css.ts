@@ -45,7 +45,7 @@ export const Card = style([
     border: `${config.borderWidth.B300} solid ${color.SurfaceVariant.ContainerLine}`,
     backgroundColor: color.SurfaceVariant.Container,
     color: color.SurfaceVariant.OnContainer,
-    textAlign: 'left',
+    textAlign: 'start',
     cursor: 'pointer',
     transition: transition(['background-color', 'border-color']),
     ':hover': {

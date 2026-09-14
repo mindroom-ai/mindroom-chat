@@ -28,6 +28,7 @@ import React, {
 import { isKeyHotkey } from 'is-hotkey';
 import { useAtom, useAtomValue } from 'jotai';
 import { Room } from 'matrix-js-sdk';
+import { Trans, useTranslation } from 'react-i18next';
 import { useDirects, useOrphanSpaces, useRooms, useSpaces } from '../../state/hooks/roomList';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { mDirectAtom } from '../../state/mDirectList';
@@ -136,6 +137,7 @@ type SearchProps = {
   requestClose: () => void;
 };
 export function Search({ requestClose }: SearchProps) {
+  const { t } = useTranslation();
   const mx = useMatrixClient();
   const useAuthentication = useMediaAuthentication();
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -270,7 +272,7 @@ export function Search({ requestClose }: SearchProps) {
                 variant="Background"
                 radii="400"
                 outlined
-                placeholder="Search"
+                placeholder={t('featureUi.search.placeholder')}
                 before={<Icon size="200" src={Icons.Search} />}
                 onChange={handleInputChange}
                 onKeyDown={handleInputKeyDown}
@@ -287,18 +289,18 @@ export function Search({ requestClose }: SearchProps) {
                   gap="100"
                 >
                   <Text size="H6" align="Center">
-                    {result ? 'No Match Found' : 'No Rooms'}
+                    {result ? t('featureUi.search.noMatchFound') : t('featureUi.search.noRooms')}
                   </Text>
                   <Text size="T200" align="Center">
                     {result
-                      ? `No match found for "${result.query}".`
-                      : `You do not have any Rooms to display yet.`}
+                      ? t('featureUi.search.noMatchForQuery', { query: result.query })
+                      : t('featureUi.search.noRoomsDescription')}
                   </Text>
                 </Box>
               )}
               {roomsToRender.length > 0 && (
                 <Scroll ref={scrollRef} size="300" hideTrack>
-                  <div style={{ padding: config.space.S400, paddingRight: config.space.S200 }}>
+                  <div style={{ padding: config.space.S400, paddingInlineEnd: config.space.S200 }}>
                     {roomsToRender.map((roomId, index) => {
                       const room = getRoom(roomId);
                       if (!room) return null;
@@ -410,8 +412,11 @@ export function Search({ requestClose }: SearchProps) {
             <Line size="300" />
             <Box shrink="No" justifyContent="Center" style={{ padding: config.space.S200 }}>
               <Text size="T200" priority="300">
-                Type <b>#</b> for rooms, <b>@</b> for DMs and <b>*</b> for spaces. Hotkey:{' '}
-                <b>{isMacOS() ? KeySymbol.Command : 'Ctrl'} + k</b>
+                <Trans
+                  i18nKey="featureUi.search.syntaxHint"
+                  values={{ modifier: isMacOS() ? KeySymbol.Command : 'Ctrl' }}
+                  components={{ rooms: <b />, directs: <b />, spaces: <b />, hotkey: <b /> }}
+                />
               </Text>
             </Box>
           </Modal>

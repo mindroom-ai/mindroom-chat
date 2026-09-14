@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import React, { useCallback } from 'react';
 import type { Room } from 'matrix-js-sdk';
 import { Icon, Icons, MenuItem, Text } from 'folds';
@@ -12,6 +13,7 @@ type MindroomMarkRoomReadMenuItemProps = {
 };
 
 export function MindroomMarkRoomReadMenuItem({ onClose, room }: MindroomMarkRoomReadMenuItemProps) {
+  const { t } = useTranslation();
   const mx = useMatrixClient();
   const [hideActivity] = useSetting(settingsAtom, 'hideActivity');
 
@@ -28,7 +30,7 @@ export function MindroomMarkRoomReadMenuItem({ onClose, room }: MindroomMarkRoom
       radii="300"
     >
       <Text style={{ flexGrow: 1 }} as="span" size="T300" truncate>
-        Mark as Read
+        {t('mindroomUi.notifications.mindroomMarkRoomReadMenuItem.markAsRead')}
       </Text>
     </MenuItem>
   );

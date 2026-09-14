@@ -12,5 +12,5 @@ export const PickerColumnLabel = style({
 });
 export const PickerColumnContent = style({
   padding: config.space.S200,
-  paddingRight: 0,
+  paddingInlineEnd: 0,
 });

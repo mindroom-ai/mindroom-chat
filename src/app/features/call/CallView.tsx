@@ -1,5 +1,6 @@
 import React, { RefObject, useRef } from 'react';
 import { Badge, Box, color, Header, Icon, IconButton, Icons, Scroll, Text, toRem } from 'folds';
+import { useTranslation } from 'react-i18next';
 import { useCallEmbed, useCallJoined, useCallEmbedPlacementSync } from '../../hooks/useCallEmbed';
 import { ContainerColor } from '../../styles/ContainerColor.css';
 import { PrescreenControls } from './PrescreenControls';
@@ -19,17 +20,19 @@ import { useCallFailureNotice } from '../../mindroom/calls/useCallFailureNotice'
 import { useCallFailureDismissal } from '../../mindroom/calls/useCallFailureDismissal';
 
 function LivekitServerMissingMessage() {
+  const { t } = useTranslation();
   return (
     <Text style={{ margin: 'auto', color: color.Critical.Main }} size="L400" align="Center">
-      Your homeserver does not support calling.
+      {t('featureUi.call.callView.yourHomeserverDoesNotSupportCalling')}
     </Text>
   );
 }
 
 function WebRTCMissingError() {
+  const { t } = useTranslation();
   return (
     <Text style={{ margin: 'auto', color: color.Critical.Main }} size="L400" align="Center">
-      Your browser does not support WebRTC, which is required for calling.
+      {t('featureUi.call.callView.yourBrowserDoesNotSupportWebrtcWhich')}
     </Text>
   );
 }
@@ -43,6 +46,7 @@ function JoinMessage({
   livekitSupported?: boolean;
   rtcSupported?: boolean;
 }) {
+  const { t } = useTranslation();
   if (rtcSupported === false) {
     return <WebRTCMissingError />;
   }
@@ -55,28 +59,31 @@ function JoinMessage({
 
   return (
     <Text style={{ margin: 'auto' }} size="L400" align="Center">
-      Voice chat’s empty — Be the first to hop in!
+      {t('featureUi.call.callView.voiceChatSEmptyBeTheFirst')}
     </Text>
   );
 }
 
 function NoPermissionMessage() {
+  const { t } = useTranslation();
   return (
     <Text style={{ margin: 'auto' }} size="L400" align="Center">
-      You don&#39;t have permission to join!
+      {t('featureUi.call.callView.youDonTHavePermissionToJoin')}
     </Text>
   );
 }
 
 function AlreadyInCallMessage() {
+  const { t } = useTranslation();
   return (
     <Text style={{ margin: 'auto', color: color.Warning.Main }} size="L400" align="Center">
-      Already in another call — End the current call to join!
+      {t('featureUi.call.callView.alreadyInAnotherCallEndTheCurrent')}
     </Text>
   );
 }
 
 function CallPrescreen() {
+  const { t } = useTranslation();
   const mx = useMatrixClient();
   const room = useRoom();
   const livekitSupported = useLivekitSupport();
@@ -107,11 +114,11 @@ function CallPrescreen() {
           {hasParticipant && (
             <Header size="300">
               <Box grow="Yes" alignItems="Center">
-                <Text size="L400">Participant</Text>
+                <Text size="L400">{t('featureUi.call.callView.participant')}</Text>
               </Box>
               <Badge variant="Critical" fill="Solid" size="400">
                 <Text as="span" size="L400" truncate>
-                  {callMembers.length} Live
+                  {t('featureUi.call.liveCount', { count: callMembers.length })}
                 </Text>
               </Badge>
             </Header>
@@ -142,6 +149,7 @@ type CallJoinedProps = {
   joined: boolean;
 };
 function CallJoined({ joined, containerRef }: CallJoinedProps) {
+  const { t } = useTranslation();
   const callEmbed = useCallEmbed();
   const callFailure = useCallFailureNotice(joined);
   const { visibleFailure, dismissFailure } = useCallFailureDismissal(joined, callFailure);
@@ -160,11 +168,11 @@ function CallJoined({ joined, containerRef }: CallJoinedProps) {
           gap="300"
         >
           <Box grow="Yes" direction="Column" gap="100">
-            <Text size="B400">Voice call error</Text>
+            <Text size="B400">{t('featureUi.call.callView.voiceCallError')}</Text>
             <Text size="T300">{visibleFailure.message}</Text>
           </Box>
           <IconButton
-            aria-label="Dismiss voice call error"
+            aria-label={t('featureUi.call.callView.dismissVoiceCallError')}
             size="300"
             radii="300"
             onClick={dismissFailure}

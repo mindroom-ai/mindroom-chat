@@ -14,38 +14,58 @@ const isSameCalendarDay = (leftTs: number, rightTs: number): boolean => {
   );
 };
 
-const formatRelativeDelay = (deltaMs: number): string => {
+const formatRelativeDelay = (deltaMs: number, t?: TFunction): string => {
   const totalSeconds = Math.max(1, Math.round(deltaMs / 1000));
   const seconds = totalSeconds % 60;
   const totalMinutes = Math.floor(totalSeconds / 60);
 
-  if (totalMinutes < 1) return `in ${totalSeconds}s`;
+  if (totalMinutes < 1)
+    return (
+      t?.('mindroomUi.threads.compactThreadCardUtils.inSeconds', { count: totalSeconds }) ??
+      `in ${totalSeconds}s`
+    );
 
   if (totalMinutes < 60) {
-    if (totalMinutes < 10 && seconds > 0) return `in ${totalMinutes}m ${seconds}s`;
-    return `in ${totalMinutes}m`;
+    if (totalMinutes < 10 && seconds > 0)
+      return (
+        t?.('mindroomUi.threads.compactThreadCardUtils.inMinutesSeconds', {
+          minutes: totalMinutes,
+          seconds,
+        }) ?? `in ${totalMinutes}m ${seconds}s`
+      );
+    return (
+      t?.('mindroomUi.threads.compactThreadCardUtils.inMinutes', { count: totalMinutes }) ??
+      `in ${totalMinutes}m`
+    );
   }
 
   const hours = Math.floor(totalMinutes / 60);
   const minutes = totalMinutes % 60;
-  if (minutes === 0) return `in ${hours}h`;
-  return `in ${hours}h ${minutes}m`;
+  if (minutes === 0)
+    return (
+      t?.('mindroomUi.threads.compactThreadCardUtils.inHours', { count: hours }) ?? `in ${hours}h`
+    );
+  return (
+    t?.('mindroomUi.threads.compactThreadCardUtils.inHoursMinutes', { hours, minutes }) ??
+    `in ${hours}h ${minutes}m`
+  );
 };
 
-export const formatScheduledTime = (ts: number): string => {
+export const formatScheduledTime = (ts: number, t?: TFunction, locale?: string): string => {
   const now = Date.now();
   const deltaMs = ts - now;
 
-  if (deltaMs < SIX_HOURS_MS) return formatRelativeDelay(deltaMs);
+  if (deltaMs < SIX_HOURS_MS) return formatRelativeDelay(deltaMs, t);
 
   if (isSameCalendarDay(now, ts)) {
-    return `at ${new Intl.DateTimeFormat(undefined, {
+    const time = new Intl.DateTimeFormat(locale, {
       hour: 'numeric',
       minute: '2-digit',
-    }).format(ts)}`;
+    }).format(ts);
+    return t?.('mindroomUi.threads.compactThreadCardUtils.atTime', { time }) ?? `at ${time}`;
   }
 
-  return new Intl.DateTimeFormat(undefined, {
+  return new Intl.DateTimeFormat(locale, {
     month: 'short',
     day: 'numeric',
     hour: 'numeric',
@@ -56,29 +76,40 @@ export const formatScheduledTime = (ts: number): string => {
 export const getThreadScheduledDisplayText = (
   scheduledTaskCount: number,
   nextScheduledTs: number | undefined,
-  cronDescription?: string
+  cronDescription?: string,
+  t?: TFunction,
+  locale?: string
 ): string | undefined => {
-  if (nextScheduledTs !== undefined) return formatScheduledTime(nextScheduledTs);
+  if (nextScheduledTs !== undefined) return formatScheduledTime(nextScheduledTs, t, locale);
   if (scheduledTaskCount === 1 && cronDescription) return cronDescription;
   if (scheduledTaskCount <= 0) return undefined;
-  return `${scheduledTaskCount} scheduled ${scheduledTaskCount === 1 ? 'task' : 'tasks'}`;
+  return (
+    t?.('mindroomUi.threads.compactThreadCardUtils.scheduledTasks', {
+      count: scheduledTaskCount,
+    }) ?? `${scheduledTaskCount} scheduled ${scheduledTaskCount === 1 ? 'task' : 'tasks'}`
+  );
 };
 
 export const getThreadScheduledLabel = (
   scheduledTaskCount: number,
   nextScheduledTs: number | undefined,
   cronDescription: string | undefined,
-  scheduledDisplayText: string | undefined
+  scheduledDisplayText: string | undefined,
+  t?: TFunction
 ): string | undefined => {
   if (scheduledTaskCount <= 0) return undefined;
 
   const hasScheduleDetail =
     nextScheduledTs !== undefined || (scheduledTaskCount === 1 && !!cronDescription);
-  const taskCopy = `${scheduledTaskCount} pending scheduled ${
-    scheduledTaskCount === 1 ? 'task' : 'tasks'
-  }`;
+  const taskCopy =
+    t?.('mindroomUi.threads.compactThreadCardUtils.pendingScheduledTasks', {
+      count: scheduledTaskCount,
+    }) ?? `${scheduledTaskCount} pending scheduled ${scheduledTaskCount === 1 ? 'task' : 'tasks'}`;
   return hasScheduleDetail && scheduledDisplayText
-    ? `${taskCopy}, ${scheduledDisplayText}`
+    ? t?.('mindroomUi.threads.compactThreadCardUtils.scheduledTasksWithDetail', {
+        tasks: taskCopy,
+        detail: scheduledDisplayText,
+      }) ?? `${taskCopy}, ${scheduledDisplayText}`
     : taskCopy;
 };
 
@@ -91,3 +122,4 @@ export const getScheduledTimeUpdateInterval = (ts: number, now = Date.now()): nu
   if (deltaMs < ONE_HOUR_MS * 24) return FIFTEEN_MINUTES_MS;
   return ONE_HOUR_MS;
 };
+import type { TFunction } from 'i18next';

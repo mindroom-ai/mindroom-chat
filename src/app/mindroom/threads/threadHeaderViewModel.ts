@@ -1,3 +1,4 @@
+import type { TFunction } from 'i18next';
 import type { ThreadHeaderViewModel, ThreadRecord } from './types';
 import { getThreadScheduledLabel } from './compactThreadCardUtils';
 
@@ -7,16 +8,22 @@ type BuildThreadHeaderViewModelOptions = {
   canEdit: boolean;
   availableTags: string[];
   pickerDisabled: boolean;
+  t?: TFunction;
 };
 
 const getBannerScheduledText = (
   summaryText: string | undefined,
   nextScheduledTs: number | undefined,
-  scheduledDisplayText: string | undefined
+  scheduledDisplayText: string | undefined,
+  t?: TFunction
 ): string | undefined => {
   if (!scheduledDisplayText) return undefined;
   if (summaryText || nextScheduledTs === undefined) return scheduledDisplayText;
-  return `Next task ${scheduledDisplayText}`;
+  return (
+    t?.('mindroomUi.threads.threadHeaderViewModel.nextTask', {
+      schedule: scheduledDisplayText,
+    }) ?? `Next task ${scheduledDisplayText}`
+  );
 };
 
 export const buildThreadHeaderViewModelFromRecord = ({
@@ -25,6 +32,7 @@ export const buildThreadHeaderViewModelFromRecord = ({
   canEdit,
   availableTags,
   pickerDisabled,
+  t,
 }: BuildThreadHeaderViewModelOptions): ThreadHeaderViewModel => {
   const { scheduledTaskCount, nextScheduledTs, cronDescription } = record.status;
   const summaryText = record.presentation.summaryText;
@@ -43,8 +51,14 @@ export const buildThreadHeaderViewModelFromRecord = ({
       scheduledTaskCount,
       nextScheduledTs,
       cronDescription,
-      scheduledDisplayText
+      scheduledDisplayText,
+      t
     ),
-    bannerScheduledText: getBannerScheduledText(summaryText, nextScheduledTs, scheduledDisplayText),
+    bannerScheduledText: getBannerScheduledText(
+      summaryText,
+      nextScheduledTs,
+      scheduledDisplayText,
+      t
+    ),
   };
 };

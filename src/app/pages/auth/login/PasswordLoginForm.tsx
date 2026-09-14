@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import React, { FormEventHandler, MouseEventHandler, useCallback, useState } from 'react';
 import {
   Box,
@@ -41,6 +42,7 @@ import { withAddAccountSearchIf } from '../addAccount';
 import { MINDROOM_AUTH_BRANDING } from '../../../mindroom/auth/authUi';
 
 function UsernameHint({ server }: { server: string }) {
+  const { t } = useTranslation();
   const [anchor, setAnchor] = useState<RectCords>();
 
   const handleOpenMenu: MouseEventHandler<HTMLElement> = (evt) => {
@@ -62,7 +64,7 @@ function UsernameHint({ server }: { server: string }) {
         >
           <Menu>
             <Header size="300" style={{ padding: `0 ${config.space.S200}` }}>
-              <Text size="L400">Hint</Text>
+              <Text size="L400">{t('sharedUi.passwordLoginForm.hint')}</Text>
             </Header>
             <Box
               style={{ padding: config.space.S200, paddingTop: 0 }}
@@ -72,19 +74,19 @@ function UsernameHint({ server }: { server: string }) {
             >
               <Text size="T300">
                 <Text as="span" size="Inherit" priority="300">
-                  Username:
+                  {t('sharedUi.passwordLoginForm.username')}
                 </Text>{' '}
                 user123
               </Text>
               <Text size="T300">
                 <Text as="span" size="Inherit" priority="300">
-                  Matrix ID:
+                  {t('sharedUi.passwordLoginForm.matrixId')}
                 </Text>
                 {` @user123:${server}`}
               </Text>
               <Text size="T300">
                 <Text as="span" size="Inherit" priority="300">
-                  Email:
+                  {t('sharedUi.passwordLoginForm.email')}
                 </Text>
                 {` user123@${server}`}
               </Text>
@@ -118,6 +120,7 @@ export function PasswordLoginForm({
   defaultEmail,
   addAccount = false,
 }: PasswordLoginFormProps) {
+  const { t } = useTranslation();
   const server = useAuthServer();
   const clientConfig = useClientConfig();
 
@@ -210,12 +213,12 @@ export function PasswordLoginForm({
     <Box as="form" onSubmit={handleSubmit} direction="Inherit" gap="400">
       <Box direction="Column" gap="100">
         <Text as="label" size="L400" priority="300">
-          Username
+          {t('sharedUi.passwordLoginForm.username2')}
         </Text>
         <Input
-          aria-label="Username"
+          aria-label={t('sharedUi.passwordLoginForm.username2')}
           defaultValue={defaultUsername ?? defaultEmail}
-          style={{ paddingRight: config.space.S300 }}
+          style={{ paddingInlineEnd: config.space.S300 }}
           name="usernameInput"
           variant="Background"
           size="500"
@@ -226,20 +229,26 @@ export function PasswordLoginForm({
         {loginState.status === AsyncStatus.Error && (
           <>
             {loginState.error.errcode === LoginError.ServerNotAllowed && (
-              <FieldError message="Login with custom server not allowed by your client instance." />
+              <FieldError
+                message={t(
+                  'sharedUi.passwordLoginForm.loginWithCustomServerNotAllowedByYourClientInstance'
+                )}
+              />
             )}
             {loginState.error.errcode === LoginError.InvalidServer && (
-              <FieldError message="Failed to find your Matrix ID server." />
+              <FieldError
+                message={t('sharedUi.passwordLoginForm.failedToFindYourMatrixIdServer')}
+              />
             )}
           </>
         )}
       </Box>
       <Box direction="Column" gap="100">
         <Text as="label" size="L400" priority="300">
-          Password
+          {t('sharedUi.passwordLoginForm.password')}
         </Text>
         <PasswordInput
-          aria-label="Password"
+          aria-label={t('sharedUi.passwordLoginForm.password')}
           name="passwordInput"
           variant="Background"
           size="500"
@@ -250,26 +259,36 @@ export function PasswordLoginForm({
           {loginState.status === AsyncStatus.Error && (
             <>
               {loginState.error.errcode === LoginError.Forbidden && (
-                <FieldError message="Invalid Username or Password." />
+                <FieldError message={t('sharedUi.passwordLoginForm.invalidUsernameOrPassword')} />
               )}
               {loginState.error.errcode === LoginError.UserDeactivated && (
-                <FieldError message="This account has been deactivated." />
+                <FieldError
+                  message={t('sharedUi.passwordLoginForm.thisAccountHasBeenDeactivated')}
+                />
               )}
               {loginState.error.errcode === LoginError.InvalidRequest && (
-                <FieldError message="Failed to login. Part of your request data is invalid." />
+                <FieldError
+                  message={t(
+                    'sharedUi.passwordLoginForm.failedToLoginPartOfYourRequestDataIsInvalid'
+                  )}
+                />
               )}
               {loginState.error.errcode === LoginError.RateLimited && (
-                <FieldError message="Failed to login. Your login request has been rate-limited by server, Please try after some time." />
+                <FieldError
+                  message={t(
+                    'sharedUi.passwordLoginForm.failedToLoginYourLoginRequestHasBeenRateLimitedByServer'
+                  )}
+                />
               )}
               {loginState.error.errcode === LoginError.Unknown && (
-                <FieldError message="Failed to login. Unknown reason." />
+                <FieldError message={t('sharedUi.passwordLoginForm.failedToLoginUnknownReason')} />
               )}
             </>
           )}
           <Box grow="Yes" shrink="No" justifyContent="End">
             <Text as="span" size="T200" priority="400" align="Right">
               <Link to={withAddAccountSearchIf(getResetPasswordPath(server), addAccount)}>
-                Forget Password?
+                {t('sharedUi.passwordLoginForm.forgetPassword')}
               </Link>
             </Text>
           </Box>
@@ -277,11 +296,15 @@ export function PasswordLoginForm({
       </Box>
       <Button type="submit" variant="Primary" size="500">
         <Text as="span" size="B500">
-          Login
+          {t('sharedUi.passwordLoginForm.login')}
         </Text>
       </Button>
       {sessionStoreError && (
-        <FieldError message="Login succeeded, but this browser could not save the account. Check storage permissions and try again." />
+        <FieldError
+          message={t(
+            'sharedUi.passwordLoginForm.loginSucceededButThisBrowserCouldNotSaveTheAccountCheckStorage'
+          )}
+        />
       )}
 
       <Overlay

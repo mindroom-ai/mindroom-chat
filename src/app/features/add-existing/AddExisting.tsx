@@ -30,6 +30,7 @@ import React, {
 import { useAtomValue } from 'jotai';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { Room } from 'matrix-js-sdk';
+import { useTranslation } from 'react-i18next';
 import { stopPropagation } from '../../utils/keyboard';
 import { useDirects, useRooms, useSpaces } from '../../state/hooks/roomList';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
@@ -71,6 +72,7 @@ type AddExistingModalProps = {
   requestClose: () => void;
 };
 export function AddExistingModal({ parentId, space, requestClose }: AddExistingModalProps) {
+  const { t } = useTranslation();
   const mx = useMatrixClient();
   const useAuthentication = useMediaAuthentication();
   const alive = useAlive();
@@ -196,11 +198,11 @@ export function AddExistingModal({ parentId, space, requestClose }: AddExistingM
                 size="500"
                 style={{
                   padding: config.space.S200,
-                  paddingLeft: config.space.S400,
+                  paddingInlineStart: config.space.S400,
                 }}
               >
                 <Box grow="Yes">
-                  <Text size="H4">Add Existing</Text>
+                  <Text size="H4">{t('featureUi.addExisting.addExisting')}</Text>
                 </Box>
                 <Box shrink="No">
                   <IconButton size="300" radii="300" onClick={requestClose}>
@@ -211,7 +213,7 @@ export function AddExistingModal({ parentId, space, requestClose }: AddExistingM
               <Box grow="Yes">
                 <Scroll ref={scrollRef} size="300" hideTrack>
                   <Box
-                    style={{ padding: config.space.S300, paddingRight: 0 }}
+                    style={{ padding: config.space.S300, paddingInlineEnd: 0 }}
                     direction="Column"
                     gap="500"
                   >
@@ -222,7 +224,7 @@ export function AddExistingModal({ parentId, space, requestClose }: AddExistingM
                       <Input
                         onChange={handleSearchChange}
                         before={<Icon size="200" src={Icons.Search} />}
-                        placeholder="Search"
+                        placeholder={t('featureUi.addExisting.search')}
                         size="400"
                         variant="Background"
                         outlined
@@ -238,12 +240,20 @@ export function AddExistingModal({ parentId, space, requestClose }: AddExistingM
                         gap="100"
                       >
                         <Text size="H6" align="Center">
-                          {searchResult ? 'No Match Found' : `No ${space ? 'Spaces' : 'Rooms'}`}
+                          {searchResult
+                            ? t('featureUi.addExisting.noMatchFound')
+                            : space
+                            ? t('featureUi.addExisting.noSpaces')
+                            : t('featureUi.addExisting.noRooms')}
                         </Text>
                         <Text size="T200" align="Center">
                           {searchResult
-                            ? `No match found for "${searchResult.query}".`
-                            : `You do not have any ${space ? 'Spaces' : 'Rooms'} to display yet.`}
+                            ? t('featureUi.addExisting.noMatchForQuery', {
+                                query: searchResult.query,
+                              })
+                            : space
+                            ? t('featureUi.addExisting.noSpacesDescription')
+                            : t('featureUi.addExisting.noRoomsDescription')}
                         </Text>
                       </Box>
                     )}
@@ -320,7 +330,7 @@ export function AddExistingModal({ parentId, space, requestClose }: AddExistingM
                         style={{
                           position: 'sticky',
                           padding: config.space.S200,
-                          paddingLeft: config.space.S400,
+                          paddingInlineStart: config.space.S400,
                           bottom: config.space.S400,
                           left: config.space.S400,
                           right: 0,
@@ -332,11 +342,17 @@ export function AddExistingModal({ parentId, space, requestClose }: AddExistingM
                           <Box grow="Yes" direction="Column">
                             {applyState.status === AsyncStatus.Error ? (
                               <Text size="T200">
-                                <b>Failed to apply changes! Please try again.</b>
+                                <b>
+                                  {t('featureUi.addExisting.failedToApplyChangesPleaseTryAgain')}
+                                </b>
                               </Text>
                             ) : (
                               <Text size="T200">
-                                <b>Apply when ready. ({selected.length} Selected)</b>
+                                <b>
+                                  {t('featureUi.addExisting.applyWhenReadySelected', {
+                                    count: selected.length,
+                                  })}
+                                </b>
                               </Text>
                             )}
                           </Box>
@@ -349,7 +365,7 @@ export function AddExistingModal({ parentId, space, requestClose }: AddExistingM
                               disabled={applyingChanges}
                               onClick={resetChanges}
                             >
-                              <Text size="B300">Reset</Text>
+                              <Text size="B300">{t('featureUi.addExisting.reset')}</Text>
                             </Button>
                             <Button
                               size="300"
@@ -363,7 +379,7 @@ export function AddExistingModal({ parentId, space, requestClose }: AddExistingM
                               }
                               onClick={handleApplyChanges}
                             >
-                              <Text size="B300">Apply Changes</Text>
+                              <Text size="B300">{t('featureUi.addExisting.applyChanges')}</Text>
                             </Button>
                           </Box>
                         </Box>

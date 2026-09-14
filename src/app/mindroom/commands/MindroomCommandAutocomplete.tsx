@@ -1,16 +1,49 @@
+import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import React, { KeyboardEvent as ReactKeyboardEvent, useCallback, useEffect } from 'react';
 import { Editor } from 'slate';
 import { Box, config, MenuItem, Text } from 'folds';
-import {
-  AutocompleteMenu,
-  AutocompleteQuery,
-  moveCursor,
-} from '../../components/editor';
+import { AutocompleteMenu, AutocompleteQuery, moveCursor } from '../../components/editor';
 import { insertMindroomCommand } from './mindroomCommandQuery';
 import { UseAsyncSearchOptions, useAsyncSearch } from '../../hooks/useAsyncSearch';
 import { useKeyDown } from '../../hooks/useKeyDown';
 import { onTabPress } from '../../utils/keyboard';
 import { MINDROOM_COMMANDS, MindroomCommandItem } from './mindroomCommands';
+
+const getCommandDescription = (t: TFunction, command: MindroomCommandItem): string => {
+  switch (command.name) {
+    case 'help':
+      return t('mindroomUi.commands.descriptions.help');
+    case 'reload-plugins':
+      return t('mindroomUi.commands.descriptions.reload-plugins');
+    case 'schedule':
+      return t('mindroomUi.commands.descriptions.schedule');
+    case 'list_schedules':
+      return t('mindroomUi.commands.descriptions.list_schedules');
+    case 'cancel_schedule':
+      return t('mindroomUi.commands.descriptions.cancel_schedule');
+    case 'edit_schedule':
+      return t('mindroomUi.commands.descriptions.edit_schedule');
+    case 'config':
+      return t('mindroomUi.commands.descriptions.config');
+    case 'desktop':
+      return t('mindroomUi.commands.descriptions.desktop');
+    case 'model':
+      return t('mindroomUi.commands.descriptions.model');
+    case 'room_model':
+      return t('mindroomUi.commands.descriptions.room_model');
+    case 'thread_mode':
+      return t('mindroomUi.commands.descriptions.thread_mode');
+    case 'encrypt':
+      return t('mindroomUi.commands.descriptions.encrypt');
+    case 'e2ee':
+      return t('mindroomUi.commands.descriptions.e2ee');
+    case 'hi':
+      return t('mindroomUi.commands.descriptions.hi');
+    default:
+      return command.description;
+  }
+};
 
 type MindroomCommandAutocompleteProps = {
   editor: Editor;
@@ -29,6 +62,7 @@ export function MindroomCommandAutocomplete({
   query,
   requestClose,
 }: MindroomCommandAutocompleteProps) {
+  const { t } = useTranslation();
   const [result, search, resetSearch] = useAsyncSearch(
     MINDROOM_COMMANDS,
     useCallback((item: MindroomCommandItem) => item.name, []),
@@ -59,7 +93,9 @@ export function MindroomCommandAutocomplete({
     <AutocompleteMenu
       headerContent={
         <Box grow="Yes" direction="Row" gap="200" justifyContent="SpaceBetween">
-          <Text size="L400">MindRoom Commands</Text>
+          <Text size="L400">
+            {t('mindroomUi.commands.mindroomCommandAutocomplete.mindroomCommands')}
+          </Text>
         </Box>
       }
       requestClose={requestClose}
@@ -86,7 +122,7 @@ export function MindroomCommandAutocomplete({
               {command.syntax}
             </Text>
             <Text truncate priority="300" size="T200">
-              {command.description}
+              {getCommandDescription(t, command)}
             </Text>
           </Box>
         </MenuItem>

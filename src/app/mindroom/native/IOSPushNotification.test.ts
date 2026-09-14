@@ -1,9 +1,14 @@
 import React from 'react';
-import { create } from 'react-test-renderer';
+import { act, create } from 'react-test-renderer';
+import { createInstance } from 'i18next';
+import { I18nextProvider } from 'react-i18next';
 import { describe, expect, it, vi } from 'vitest';
+import en from '../../locales/en.json';
 
-vi.mock('react-i18next', () => ({
-  useTranslation: () => ({ i18n: { language: 'en', resolvedLanguage: 'en' } }),
+const nativeState = vi.hoisted(() => ({
+  native: false,
+  failed: false,
+  toggle: vi.fn<(enabled: boolean) => Promise<void>>(),
 }));
 
 vi.mock('../../components/sequence-card', () => ({
@@ -12,7 +17,8 @@ vi.mock('../../components/sequence-card', () => ({
 }));
 
 vi.mock('../../components/setting-tile', () => ({
-  SettingTile: () => React.createElement('div', { 'data-renderer': 'setting-tile' }),
+  SettingTile: ({ description, after }: { description: React.ReactNode; after: React.ReactNode }) =>
+    React.createElement('div', { 'data-renderer': 'setting-tile' }, description, after),
 }));
 
 vi.mock('../../features/settings/styles.css', () => ({
@@ -36,7 +42,13 @@ vi.mock('../../hooks/useAsyncCallback', () => ({
     Error: 'error',
     Loading: 'loading',
   },
-  useAsyncCallback: () => [{ status: 'idle' }, vi.fn()],
+  useAsyncCallback: () => [
+    {
+      status: nativeState.failed ? 'error' : 'idle',
+      error: new Error('Internal native registration error'),
+    },
+    nativeState.toggle,
+  ],
 }));
 
 vi.mock('./useIOSPushEnabled', () => ({
@@ -46,9 +58,9 @@ vi.mock('./useIOSPushEnabled', () => ({
 vi.mock('./iosPush', () => ({
   checkIOSPushPermission: vi.fn().mockResolvedValue('prompt'),
   disableIOSPushPusher: vi.fn().mockResolvedValue(undefined),
-  isNativeIOSPlatform: () => false,
+  isNativeIOSPlatform: () => nativeState.native,
   requestIOSPushPermission: vi.fn().mockResolvedValue('prompt'),
-  resolveIOSPushConfig: vi.fn(() => undefined),
+  resolveIOSPushConfig: vi.fn(() => (nativeState.native ? {} : undefined)),
   setIOSPushEnabled: vi.fn(),
   unregisterIOSPush: vi.fn().mockResolvedValue(undefined),
 }));
@@ -63,4 +75,89 @@ describe('IOSPushNotification', () => {
 
     renderer.unmount();
   });
+});
+
+it.each([new Error('Native permission registration failed'), 'Matrix pusher request failed'])(
+  'retains the toggle failure for diagnostics without retrying: %s',
+  async (failure) => {
+    const { IOSPushNotification } = await import('./IOSPushNotification');
+    const { checkIOSPushPermission } = await import('./iosPush');
+    const errorLog = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    nativeState.native = true;
+    nativeState.failed = false;
+    nativeState.toggle.mockReset().mockRejectedValueOnce(failure);
+    vi.mocked(checkIOSPushPermission).mockClear();
+    let renderer!: ReturnType<typeof create>;
+    try {
+      await act(async () => {
+        renderer = create(React.createElement(IOSPushNotification));
+      });
+      await act(async () => {
+        renderer.root.findByType('button').props.onClick();
+      });
+
+      expect(nativeState.toggle).toHaveBeenCalledTimes(1);
+      expect(nativeState.toggle).toHaveBeenCalledWith(true);
+      expect(errorLog).toHaveBeenCalledTimes(1);
+      expect(errorLog).toHaveBeenCalledWith(
+        '[IOSPushNotification] Failed to update native push settings:',
+        failure
+      );
+      expect(checkIOSPushPermission).toHaveBeenCalledTimes(2);
+    } finally {
+      act(() => renderer?.unmount());
+      errorLog.mockRestore();
+      nativeState.native = false;
+    }
+  }
+);
+
+it('renders a localized native failure and refreshes it after a language change', async () => {
+  const { IOSPushNotification } = await import('./IOSPushNotification');
+  const language = createInstance();
+  await language.init({
+    lng: 'en',
+    fallbackLng: 'en',
+    resources: {
+      en: { translation: en },
+      de: {
+        translation: {
+          mindroomUi: {
+            native: {
+              iOSPushNotification: {
+                failedToUpdateNativePushSettings:
+                  'Push-Einstellungen konnten nicht aktualisiert werden.',
+              },
+            },
+          },
+        },
+      },
+    },
+  });
+  nativeState.native = true;
+  nativeState.failed = true;
+  let renderer: ReturnType<typeof create>;
+  try {
+    await act(async () => {
+      renderer = create(
+        React.createElement(
+          I18nextProvider,
+          { i18n: language },
+          React.createElement(IOSPushNotification)
+        )
+      );
+    });
+    expect(JSON.stringify(renderer!.toJSON())).toContain('Failed to update native push settings.');
+    expect(JSON.stringify(renderer!.toJSON())).not.toContain('Internal native');
+    await act(async () => {
+      await language.changeLanguage('de');
+    });
+    expect(JSON.stringify(renderer!.toJSON())).toContain(
+      'Push-Einstellungen konnten nicht aktualisiert werden.'
+    );
+    act(() => renderer!.unmount());
+  } finally {
+    nativeState.native = false;
+    nativeState.failed = false;
+  }
 });

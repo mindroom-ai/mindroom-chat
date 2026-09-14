@@ -145,6 +145,7 @@ export const CustomEditor = forwardRef<HTMLDivElement, CustomEditorProps>(
               hideTrack
             >
               <Editable
+                dir="auto"
                 data-editable-name={editableName}
                 className={css.EditorTextarea}
                 placeholder={placeholder}

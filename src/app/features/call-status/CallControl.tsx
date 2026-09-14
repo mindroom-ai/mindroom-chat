@@ -1,5 +1,6 @@
 import { Box, Chip, Icon, IconButton, Icons, Spinner, Text, Tooltip, TooltipProvider } from 'folds';
 import React, { useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { StatusDivider } from './components';
 import { CallEmbed, useCallControlState } from '../../plugins/call';
 import { AsyncStatus, useAsyncCallback } from '../../hooks/useAsyncCallback';
@@ -11,6 +12,7 @@ type MicrophoneButtonProps = {
   disabled?: boolean;
 };
 function MicrophoneButton({ enabled, onToggle, disabled }: MicrophoneButtonProps) {
+  const { t } = useTranslation();
   const [micState, toggleMic] = useAsyncCallback(onToggle);
   const loading = micState.status === AsyncStatus.Loading;
 
@@ -19,7 +21,11 @@ function MicrophoneButton({ enabled, onToggle, disabled }: MicrophoneButtonProps
       position="Top"
       tooltip={
         <Tooltip>
-          <Text size="T200">{enabled ? 'Turn Off Microphone' : 'Turn On Microphone'}</Text>
+          <Text size="T200">
+            {enabled
+              ? t('featureUi.call.controls.turnOffMicrophone')
+              : t('featureUi.call.controls.turnOnMicrophone')}
+          </Text>
         </Tooltip>
       }
     >
@@ -47,12 +53,17 @@ type SoundButtonProps = {
   disabled?: boolean;
 };
 function SoundButton({ enabled, onToggle, disabled }: SoundButtonProps) {
+  const { t } = useTranslation();
   return (
     <TooltipProvider
       position="Top"
       tooltip={
         <Tooltip>
-          <Text size="T200">{enabled ? 'Turn Off Sound' : 'Turn On Sound'}</Text>
+          <Text size="T200">
+            {enabled
+              ? t('featureUi.call.controls.turnOffSound')
+              : t('featureUi.call.controls.turnOnSound')}
+          </Text>
         </Tooltip>
       }
     >
@@ -84,6 +95,7 @@ type VideoButtonProps = {
   disabled?: boolean;
 };
 function VideoButton({ enabled, onToggle, disabled }: VideoButtonProps) {
+  const { t } = useTranslation();
   const [videoState, toggleVideo] = useAsyncCallback(onToggle);
   const loading = videoState.status === AsyncStatus.Loading;
 
@@ -92,7 +104,11 @@ function VideoButton({ enabled, onToggle, disabled }: VideoButtonProps) {
       position="Top"
       tooltip={
         <Tooltip>
-          <Text size="T200">{enabled ? 'Stop Camera' : 'Start Camera'}</Text>
+          <Text size="T200">
+            {enabled
+              ? t('featureUi.call.controls.stopCamera')
+              : t('featureUi.call.controls.startCamera')}
+          </Text>
         </Tooltip>
       }
     >
@@ -124,12 +140,17 @@ type ScreenShareButtonProps = {
   disabled?: boolean;
 };
 function ScreenShareButton({ enabled, onToggle, disabled }: ScreenShareButtonProps) {
+  const { t } = useTranslation();
   return (
     <TooltipProvider
       position="Top"
       tooltip={
         <Tooltip>
-          <Text size="T200">{enabled ? 'Stop Screenshare' : 'Start Screenshare'}</Text>
+          <Text size="T200">
+            {enabled
+              ? t('featureUi.call.controls.stopScreenshare')
+              : t('featureUi.call.controls.startScreenshare')}
+          </Text>
         </Tooltip>
       }
     >
@@ -160,6 +181,7 @@ export function CallControl({
   compact: boolean;
   callJoined: boolean;
 }) {
+  const { t } = useTranslation();
   const { microphone, video, sound, screenshare } = useCallControlState(callEmbed.control);
 
   const handleMicrophoneToggle = useCallback(
@@ -211,7 +233,7 @@ export function CallControl({
       >
         {!compact && (
           <Text as="span" size="L400">
-            End
+            {t('featureUi.callStatus.callControl.end')}
           </Text>
         )}
       </Chip>

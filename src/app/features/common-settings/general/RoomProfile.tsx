@@ -16,6 +16,7 @@ import { useAtomValue } from 'jotai';
 import Linkify from 'linkify-react';
 import classNames from 'classnames';
 import { JoinRule, MatrixError } from 'matrix-js-sdk';
+import { useTranslation } from 'react-i18next';
 import { SequenceCard } from '../../../components/sequence-card';
 import { SequenceCardStyle } from '../../room-settings/styles.css';
 import { useRoom } from '../../../hooks/useRoom';
@@ -59,6 +60,7 @@ export function RoomProfileEdit({
   topic,
   onClose,
 }: RoomProfileEditProps) {
+  const { t } = useTranslation();
   const room = useRoom();
   const mx = useMatrixClient();
   const alive = useAlive();
@@ -140,7 +142,7 @@ export function RoomProfileEdit({
     <Box as="form" onSubmit={handleSubmit} direction="Column" gap="400">
       <Box gap="400">
         <Box grow="Yes" direction="Column" gap="100">
-          <Text size="L400">Avatar</Text>
+          <Text size="L400">{t('featureUi.commonSettings.general.roomProfile.avatar')}</Text>
           {uploadAtom ? (
             <Box gap="200" direction="Column">
               <CompactUploadCardRenderer
@@ -161,7 +163,7 @@ export function RoomProfileEdit({
                 disabled={!canEditAvatar || submitting}
                 onClick={() => pickFile('image/*')}
               >
-                <Text size="B300">Upload</Text>
+                <Text size="B300">{t('featureUi.commonSettings.general.roomProfile.upload')}</Text>
               </Button>
               {!roomAvatar && avatar && (
                 <Button
@@ -173,7 +175,7 @@ export function RoomProfileEdit({
                   disabled={!canEditAvatar || submitting}
                   onClick={() => setRoomAvatar(avatar)}
                 >
-                  <Text size="B300">Reset</Text>
+                  <Text size="B300">{t('featureUi.commonSettings.general.roomProfile.reset')}</Text>
                 </Button>
               )}
               {roomAvatar && (
@@ -186,7 +188,9 @@ export function RoomProfileEdit({
                   disabled={!canEditAvatar || submitting}
                   onClick={() => setRoomAvatar(undefined)}
                 >
-                  <Text size="B300">Remove</Text>
+                  <Text size="B300">
+                    {t('featureUi.commonSettings.general.roomProfile.remove')}
+                  </Text>
                 </Button>
               )}
             </Box>
@@ -211,7 +215,7 @@ export function RoomProfileEdit({
         </Box>
       </Box>
       <Box direction="Inherit" gap="100">
-        <Text size="L400">Name</Text>
+        <Text size="L400">{t('featureUi.commonSettings.general.roomProfile.name')}</Text>
         <Input
           name="nameInput"
           defaultValue={name}
@@ -221,7 +225,7 @@ export function RoomProfileEdit({
         />
       </Box>
       <Box direction="Inherit" gap="100">
-        <Text size="L400">Topic</Text>
+        <Text size="L400">{t('featureUi.commonSettings.general.roomProfile.topic')}</Text>
         <TextArea
           name="topicTextArea"
           defaultValue={topic}
@@ -244,7 +248,7 @@ export function RoomProfileEdit({
           disabled={uploadingAvatar || submitting}
           before={submitting && <Spinner size="100" variant="Success" fill="Solid" />}
         >
-          <Text size="B300">Save</Text>
+          <Text size="B300">{t('featureUi.commonSettings.general.roomProfile.save')}</Text>
         </Button>
         <Button
           type="reset"
@@ -254,7 +258,7 @@ export function RoomProfileEdit({
           size="300"
           radii="300"
         >
-          <Text size="B300">Cancel</Text>
+          <Text size="B300">{t('featureUi.commonSettings.general.roomProfile.cancel')}</Text>
         </Button>
       </Box>
     </Box>
@@ -265,6 +269,7 @@ type RoomProfileProps = {
   permissions: RoomPermissionsAPI;
 };
 export function RoomProfile({ permissions }: RoomProfileProps) {
+  const { t } = useTranslation();
   const mx = useMatrixClient();
   const useAuthentication = useMediaAuthentication();
   const room = useRoom();
@@ -290,7 +295,7 @@ export function RoomProfile({ permissions }: RoomProfileProps) {
 
   return (
     <Box direction="Column" gap="100">
-      <Text size="L400">Profile</Text>
+      <Text size="L400">{t('featureUi.commonSettings.general.roomProfile.profile')}</Text>
       <SequenceCard
         className={SequenceCardStyle}
         variant="SurfaceVariant"
@@ -312,7 +317,7 @@ export function RoomProfile({ permissions }: RoomProfileProps) {
             <Box grow="Yes" direction="Column" gap="300">
               <Box direction="Column" gap="100">
                 <Text className={BreakWord} size="H5">
-                  {name ?? 'Unknown'}
+                  {name ?? t('featureUi.commonSettings.general.roomProfile.unknown')}
                 </Text>
                 {topic && (
                   <Text className={classNames(BreakWord, LineClamp3)} size="T200">
@@ -330,7 +335,9 @@ export function RoomProfile({ permissions }: RoomProfileProps) {
                     onClick={() => setEdit(true)}
                     outlined
                   >
-                    <Text size="B300">Edit</Text>
+                    <Text size="B300">
+                      {t('featureUi.commonSettings.general.roomProfile.edit')}
+                    </Text>
                   </Chip>
                 </Box>
               )}

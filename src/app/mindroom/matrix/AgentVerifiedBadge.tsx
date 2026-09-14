@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import React from 'react';
 import { Box, Icon, Icons, Text, Tooltip, TooltipProvider, color } from 'folds';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
@@ -12,12 +13,15 @@ type AgentVerifiedBadgeProps = {
 };
 
 function AgentVerifiedShield({ size }: { size: ShieldSize }) {
+  const { t } = useTranslation();
   return (
     <TooltipProvider
       position="Top"
       tooltip={
         <Tooltip>
-          <Text size="T200">Verified agent · cross-signed device</Text>
+          <Text size="T200">
+            {t('mindroomUi.matrix.agentVerifiedBadge.verifiedAgentCrossSignedDevice')}
+          </Text>
         </Tooltip>
       }
     >
@@ -28,7 +32,7 @@ function AgentVerifiedShield({ size }: { size: ShieldSize }) {
           shrink="No"
           alignItems="Center"
           role="img"
-          aria-label="Verified agent"
+          aria-label={t('mindroomUi.matrix.agentVerifiedBadge.verifiedAgent')}
         >
           <Icon size={size} src={Icons.ShieldUser} style={{ color: color.Success.Main }} />
         </Box>

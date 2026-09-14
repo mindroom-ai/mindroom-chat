@@ -1,6 +1,7 @@
 import React, { useCallback } from 'react';
 import { Box, Text, Switch, Button, color, Spinner } from 'folds';
 import { IPusherRequest } from 'matrix-js-sdk';
+import { useTranslation } from 'react-i18next';
 import { SequenceCard } from '../../../components/sequence-card';
 import { SequenceCardStyle } from '../styles.css';
 import { SettingTile } from '../../../components/setting-tile';
@@ -10,12 +11,15 @@ import { getNotificationState, usePermissionState } from '../../../hooks/usePerm
 import { useEmailNotifications } from '../../../hooks/useEmailNotifications';
 import { AsyncStatus, useAsyncCallback } from '../../../hooks/useAsyncCallback';
 import { useMatrixClient } from '../../../hooks/useMatrixClient';
+import { useAppLanguageCode } from '../../../hooks/useAppLanguageCode';
 import {
   getMindroomEmailNotificationPusherData,
   MindroomNativeNotificationSettings,
 } from '../../../mindroom/notifications/SystemNotificationMindroomExtensions';
 
 function EmailNotification() {
+  const { t } = useTranslation();
+  const language = useAppLanguageCode();
   const mx = useMatrixClient();
   const [result, refreshResult] = useEmailNotifications();
 
@@ -29,7 +33,7 @@ function EmailNotification() {
             pushkey: email,
             app_display_name: 'Email Notifications',
             device_display_name: email,
-            lang: 'en',
+            lang: language,
             data: getMindroomEmailNotificationPusherData(),
             append: true,
           });
@@ -41,7 +45,7 @@ function EmailNotification() {
           kind: null,
         } as unknown as IPusherRequest);
       },
-      [mx]
+      [language, mx]
     )
   );
 
@@ -55,21 +59,28 @@ function EmailNotification() {
 
   return (
     <SettingTile
-      title="Email Notification"
+      title={t('featureUi.settings.notifications.systemNotification.emailNotification')}
       description={
         <>
           {result && !result.email && (
             <Text as="span" style={{ color: color.Critical.Main }} size="T200">
-              Your account does not have any email attached.
+              {t(
+                'featureUi.settings.notifications.systemNotification.yourAccountDoesNotHaveAnyEmail'
+              )}
             </Text>
           )}
-          {result && result.email && <>Send notification to your email. {`("${result.email}")`}</>}
+          {result &&
+            result.email &&
+            t('featureUi.settings.notifications.systemNotification.sendToEmailAddress', {
+              email: result.email,
+            })}
           {result === null && (
             <Text as="span" style={{ color: color.Critical.Main }} size="T200">
-              Unexpected Error!
+              {t('featureUi.settings.notifications.systemNotification.unexpectedError')}
             </Text>
           )}
-          {result === undefined && 'Send notification to your email.'}
+          {result === undefined &&
+            t('featureUi.settings.notifications.systemNotification.sendToEmail')}
         </>
       }
       after={
@@ -87,6 +98,7 @@ function EmailNotification() {
 }
 
 export function SystemNotification() {
+  const { t } = useTranslation();
   const notifPermission = usePermissionState('notifications', getNotificationState());
   const [showNotifications, setShowNotifications] = useSetting(settingsAtom, 'showNotifications');
   const [isNotificationSounds, setIsNotificationSounds] = useSetting(
@@ -102,7 +114,7 @@ export function SystemNotification() {
 
   return (
     <Box direction="Column" gap="100">
-      <Text size="L400">System</Text>
+      <Text size="L400">{t('featureUi.settings.notifications.systemNotification.system')}</Text>
       <SequenceCard
         className={SequenceCardStyle}
         variant="SurfaceVariant"
@@ -110,22 +122,28 @@ export function SystemNotification() {
         gap="400"
       >
         <SettingTile
-          title="Desktop Notifications"
+          title={t('featureUi.settings.notifications.systemNotification.desktopNotifications')}
           description={
             notifPermission === 'denied' ? (
               <Text as="span" style={{ color: color.Critical.Main }} size="T200">
                 {'Notification' in window
-                  ? 'Notification permission is blocked. Please allow notification permission from browser address bar.'
-                  : 'Notifications are not supported by the system.'}
+                  ? t('featureUi.settings.notifications.systemNotification.permissionBlocked')
+                  : t('featureUi.settings.notifications.systemNotification.notSupported')}
               </Text>
             ) : (
-              <span>Show desktop notifications when message arrive.</span>
+              <span>
+                {t(
+                  'featureUi.settings.notifications.systemNotification.showDesktopNotificationsWhenMessageArrive'
+                )}
+              </span>
             )
           }
           after={
             notifPermission === 'prompt' ? (
               <Button size="300" radii="300" onClick={requestNotificationPermission}>
-                <Text size="B300">Enable</Text>
+                <Text size="B300">
+                  {t('featureUi.settings.notifications.systemNotification.enable')}
+                </Text>
               </Button>
             ) : (
               <Switch
@@ -145,8 +163,10 @@ export function SystemNotification() {
         gap="400"
       >
         <SettingTile
-          title="Notification Sound"
-          description="Play sound when new message arrive."
+          title={t('featureUi.settings.notifications.systemNotification.notificationSound')}
+          description={t(
+            'featureUi.settings.notifications.systemNotification.playSoundWhenNewMessageArrive'
+          )}
           after={<Switch value={isNotificationSounds} onChange={setIsNotificationSounds} />}
         />
       </SequenceCard>

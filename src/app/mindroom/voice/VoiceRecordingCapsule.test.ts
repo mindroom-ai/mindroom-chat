@@ -1,5 +1,7 @@
 import React from 'react';
 import { act, create } from 'react-test-renderer';
+import { createInstance } from 'i18next';
+import { I18nextProvider } from 'react-i18next';
 import { describe, expect, it, vi } from 'vitest';
 import { createFallbackWaveform } from '../../utils/audioWaveform';
 import { VoiceRecordingCapsule } from './VoiceRecordingCapsule';
@@ -51,6 +53,74 @@ vi.mock('../../components/voice/VoiceWaveform.css', () => ({
 }));
 
 describe('VoiceRecordingCapsule', () => {
+  it('updates visible and accessible status when the active language changes', async () => {
+    const language = createInstance();
+    await language.init({
+      lng: 'en',
+      fallbackLng: 'en',
+      initImmediate: false,
+      resources: {
+        en: {
+          translation: {
+            mindroomUi: {
+              voice: {
+                discardRecording: 'Discard voice recording',
+                pauseRecording: 'Pause voice recording',
+                statusActive: 'Voice recording active',
+              },
+            },
+          },
+        },
+        de: {
+          translation: {
+            mindroomUi: {
+              voice: {
+                discardRecording: 'Sprachaufnahme verwerfen',
+                pauseRecording: 'Sprachaufnahme pausieren',
+                statusActive: 'Sprachaufnahme aktiv',
+              },
+            },
+          },
+        },
+      },
+    });
+
+    let renderer: ReturnType<typeof create>;
+    await act(async () => {
+      renderer = create(
+        React.createElement(
+          I18nextProvider,
+          { i18n: language },
+          React.createElement(VoiceRecordingCapsule, {
+            phase: 'recording',
+            elapsedMs: 12000,
+            waveform: createFallbackWaveform(),
+            canPause: true,
+            onDiscard: vi.fn(),
+            onPause: vi.fn(),
+            onResume: vi.fn(),
+          })
+        )
+      );
+    });
+
+    expect(
+      renderer!.root.findAllByType('button').map((button) => button.props['aria-label'])
+    ).toEqual(['Discard voice recording', 'Pause voice recording']);
+    expect(JSON.stringify(renderer!.toJSON())).toContain('Voice recording active');
+
+    await act(async () => {
+      await language.changeLanguage('de');
+    });
+
+    expect(
+      renderer!.root.findAllByType('button').map((button) => button.props['aria-label'])
+    ).toEqual(['Sprachaufnahme verwerfen', 'Sprachaufnahme pausieren']);
+    expect(JSON.stringify(renderer!.toJSON())).toContain('Sprachaufnahme aktiv');
+
+    renderer!.unmount();
+  });
+
   it('renders only discard, waveform, timer, and pause controls', () => {
     const renderer = create(
       React.createElement(VoiceRecordingCapsule, {

@@ -1,6 +1,8 @@
 import React from 'react';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { createInstance, i18n as I18n } from 'i18next';
+import { I18nextProvider } from 'react-i18next';
 import { MatrixClientProvider } from '../../hooks/useMatrixClient';
 import { ClientConfig, ClientConfigProvider } from '../../hooks/useClientConfig';
 import { CreateChat } from './CreateChat';
@@ -70,6 +72,28 @@ const renderChat = (clientConfig: ClientConfig): ReactTestRenderer =>
   );
 
 const textContent = (renderer: ReactTestRenderer): string => JSON.stringify(renderer.toJSON());
+
+const createTestI18n = async (): Promise<I18n> => {
+  const language = createInstance();
+  await language.init({
+    lng: 'en',
+    fallbackLng: 'en',
+    resources: {
+      en: {
+        translation: {
+          featureUi: { createChat: { userId: 'User ID', create: 'Create' } },
+        },
+      },
+      de: {
+        translation: {
+          featureUi: { createChat: { userId: 'Benutzer-ID', create: 'Erstellen' } },
+        },
+      },
+    },
+    interpolation: { escapeValue: false },
+  });
+  return language;
+};
 
 const submitForm = async (
   renderer: ReactTestRenderer,
@@ -141,5 +165,39 @@ describe('CreateChat room policy config', () => {
         ],
       })
     );
+  });
+
+  it('updates visible labels when the active language changes', async () => {
+    const language = await createTestI18n();
+    let renderer: ReactTestRenderer;
+    act(() => {
+      renderer = create(
+        React.createElement(
+          I18nextProvider,
+          { i18n: language },
+          React.createElement(
+            ClientConfigProvider,
+            { value: {} as ClientConfig },
+            React.createElement(
+              MatrixClientProvider,
+              { value: matrixClient },
+              React.createElement(CreateChat)
+            )
+          )
+        )
+      );
+    });
+
+    expect(textContent(renderer!)).toContain('User ID');
+    expect(textContent(renderer!)).toContain('Create');
+
+    await act(async () => {
+      await language.changeLanguage('de');
+    });
+
+    expect(textContent(renderer!)).toContain('Benutzer-ID');
+    expect(textContent(renderer!)).toContain('Erstellen');
+    expect(textContent(renderer!)).not.toContain('User ID');
+    act(() => renderer!.unmount());
   });
 });

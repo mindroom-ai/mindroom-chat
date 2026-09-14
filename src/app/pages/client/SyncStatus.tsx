@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { MatrixClient, SyncState } from 'matrix-js-sdk';
 import React, { useCallback, useState } from 'react';
 import { Box, config, Line, Text } from 'folds';
@@ -13,6 +14,7 @@ type SyncStatusProps = {
   mx: MatrixClient;
 };
 export function SyncStatus({ mx }: SyncStatusProps) {
+  const { t } = useTranslation();
   const [stateData, setStateData] = useState<StateData>({
     current: null,
     previous: undefined,
@@ -44,7 +46,7 @@ export function SyncStatus({ mx }: SyncStatusProps) {
           alignItems="Center"
           justifyContent="Center"
         >
-          <Text size="L400">Catching up...</Text>
+          <Text size="L400">{t('sharedUi.syncStatus.catchingUp')}</Text>
         </Box>
         <Line variant="Success" size="300" />
       </Box>
@@ -60,7 +62,7 @@ export function SyncStatus({ mx }: SyncStatusProps) {
           alignItems="Center"
           justifyContent="Center"
         >
-          <Text size="L400">Connection Lost! Reconnecting...</Text>
+          <Text size="L400">{t('sharedUi.syncStatus.connectionLostReconnecting')}</Text>
         </Box>
         <Line variant="Warning" size="300" />
       </Box>
@@ -76,7 +78,7 @@ export function SyncStatus({ mx }: SyncStatusProps) {
           alignItems="Center"
           justifyContent="Center"
         >
-          <Text size="L400">Connection Lost!</Text>
+          <Text size="L400">{t('sharedUi.syncStatus.connectionLost')}</Text>
         </Box>
         <Line variant="Critical" size="300" />
       </Box>

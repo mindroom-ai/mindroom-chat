@@ -9,10 +9,10 @@ export const PinMenu = style({
 });
 
 export const PinMenuHeader = style({
-  paddingLeft: config.space.S400,
-  paddingRight: config.space.S200,
+  paddingInlineStart: config.space.S400,
+  paddingInlineEnd: config.space.S200,
 });
 
 export const PinMenuContent = style({
-  paddingLeft: config.space.S200,
+  paddingInlineStart: config.space.S200,
 });

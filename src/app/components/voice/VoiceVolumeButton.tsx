@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import FocusTrap from 'focus-trap-react';
 import React, { MouseEventHandler, useRef, useState } from 'react';
 import { Icon, Icons, IconSrc, Menu, PopOut, RectCords } from 'folds';
@@ -24,6 +25,7 @@ const formatVolumePercent = (volume: number): number =>
   Math.round(sanitizeVoiceMessageVolume(volume) * 100);
 
 export function VoiceVolumeButton() {
+  const { t } = useTranslation();
   const [volume, setVolume] = useAtom(voiceMessageVolumeAtom);
   const [anchor, setAnchor] = useState<RectCords>();
   const triggerRef = useRef<HTMLButtonElement | null>(null);
@@ -40,7 +42,9 @@ export function VoiceVolumeButton() {
         ref={triggerRef}
         className={css.Button}
         type="button"
-        aria-label={`Voice volume, currently ${volumePercent}%`}
+        aria-label={t('sharedUi.voiceVolumeButton.voiceVolumeCurrentlyValue1', {
+          value1: volumePercent,
+        })}
         aria-haspopup="dialog"
         aria-expanded={anchor ? true : undefined}
         onClick={handleOpen}
@@ -99,7 +103,7 @@ export function VoiceVolumeButton() {
                 renderThumb={(params) => (
                   <div
                     {...params.props}
-                    aria-label="Voice volume"
+                    aria-label={t('sharedUi.voiceVolumeButton.voiceVolume')}
                     className={css.Thumb}
                     style={{
                       ...params.props.style,

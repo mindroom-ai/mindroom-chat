@@ -10,6 +10,7 @@ type BubbleArrowProps = {
 function BubbleLeftArrow({ variant }: BubbleArrowProps) {
   return (
     <svg
+      data-directional
       className={css.BubbleLeftArrow}
       width="9"
       height="8"

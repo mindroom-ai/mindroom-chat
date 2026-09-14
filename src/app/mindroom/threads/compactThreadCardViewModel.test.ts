@@ -1,8 +1,53 @@
 import { EventStatus, type MatrixClient, type MatrixEvent } from 'matrix-js-sdk';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
 import { describe, expect, it, vi } from 'vitest';
+import { createInstance } from 'i18next';
 import { buildCompactThreadCardViewModelFromRecord } from './compactThreadCardViewModel';
 import { buildThreadRecord } from './threadRecord';
+
+it('updates generated media previews without changing cached records or user-authored summaries', async () => {
+  const i18n = createInstance();
+  await i18n.init({
+    lng: 'de',
+    resources: {
+      de: { translation: { sharedUi: { threadPreviews: { voiceMessage: 'Sprachnachricht' } } } },
+      fr: { translation: { sharedUi: { threadPreviews: { voiceMessage: 'Message vocal' } } } },
+    },
+  });
+  const rootEvent = makeEvent({
+    eventId: '$voice',
+    content: { msgtype: 'm.audio', body: 'recording.ogg', 'org.matrix.msc3245.voice': {} },
+  });
+  const room = makeRoom({ rootEvent });
+  const record = buildThreadRecord({ room, threadRootId: '$voice', threadRootEvent: rootEvent });
+  const before = JSON.stringify(record);
+  const render = () =>
+    buildCompactThreadCardViewModelFromRecord({
+      record,
+      room,
+      mx: makeMx(),
+      useAuthentication: false,
+      t: i18n.getFixedT(i18n.language),
+    });
+  expect(render().titleText).toBe('Sprachnachricht');
+  await i18n.changeLanguage('fr');
+  expect(render().titleText).toBe('Message vocal');
+  expect(JSON.stringify(record)).toBe(before);
+
+  const userSummary = {
+    ...record,
+    presentation: { ...record.presentation, summaryText: 'Voice message' },
+  };
+  expect(
+    buildCompactThreadCardViewModelFromRecord({
+      record: userSummary,
+      room,
+      mx: makeMx(),
+      useAuthentication: false,
+      t: i18n.getFixedT('de'),
+    }).titleText
+  ).toBe('Voice message');
+});
 
 const makeEvent = ({
   eventId,

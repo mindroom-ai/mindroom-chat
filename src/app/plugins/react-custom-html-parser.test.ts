@@ -17,10 +17,6 @@ const clipboardMocks = vi.hoisted(() => ({
   copyToClipboard: vi.fn<(text: string) => Promise<boolean>>(),
 }));
 
-vi.mock('react-i18next', () => ({
-  useTranslation: () => ({ t: (_key: string, fallback: string) => fallback }),
-}));
-
 vi.mock('../utils/dom', async () => {
   const actual = await vi.importActual<typeof import('../utils/dom')>('../utils/dom');
   return {
