@@ -81,7 +81,6 @@ export const runThreadOpenSdkBootstrap = async ({
   }
 
   let threadModel = room.getThread(threadId);
-  let createdZeroReplyThread = false;
   const zeroReplyStandaloneRootEvent = room.findEventById(threadId);
   if (
     !threadModel &&
@@ -89,7 +88,6 @@ export const runThreadOpenSdkBootstrap = async ({
     isZeroReplyStandaloneThreadRootEvent(zeroReplyStandaloneRootEvent)
   ) {
     threadModel = createInitializedThreadForRoot(room, zeroReplyStandaloneRootEvent);
-    createdZeroReplyThread = true;
     onBootstrap({ kind: 'root-ready' });
     logTimelineDebug(debugTraceId, 'thread-open-zero-reply-root-without-thread-model', {
       threadId,
@@ -231,7 +229,9 @@ export const runThreadOpenSdkBootstrap = async ({
     );
   }
 
-  return !createdZeroReplyThread;
+  // Newly created models still need the caller's history refresh to exhaust
+  // fallback pagination cursors and settle the open-thread render state.
+  return true;
 };
 
 const reconcileCachedThreadBackwardToken = ({

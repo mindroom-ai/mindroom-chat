@@ -229,7 +229,7 @@ export function ThreadApprovalQueue() {
   const pendingCount = groups.reduce((sum, group) => sum + group.length, 0);
   return (
     <>
-      {(pendingCount > 0 || context.loading || context.error) && (
+      {(pendingCount > 0 || context.error) && (
         <div className={css.Bar} role="region" aria-label="Thread approvals">
           <small className={css.BarStatus} role="status">
             {pendingCount > 0 && !awaitingOnly && <Icon src={Icons.Pause} size="50" aria-hidden />}
@@ -238,7 +238,7 @@ export function ThreadApprovalQueue() {
                 ? awaitingOnly
                   ? `${pendingCount} ${pendingCount === 1 ? 'call' : 'calls'} awaiting confirmation`
                   : `${pendingCount} ${pendingCount === 1 ? 'call' : 'calls'} paused for approval`
-                : context.error ?? 'Checking approvals…'}
+                : context.error}
               {context.loading && pendingCount > 0 ? ' · Checking history…' : ''}
               {context.error && pendingCount > 0 ? ' · History incomplete' : ''}
             </span>

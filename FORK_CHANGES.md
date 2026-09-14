@@ -111,6 +111,61 @@
   Thread bootstrap preserves the SDK's existing synchronous prepend order.
   Bypassing room partitioning still respects SDK timeline placement; classic rendering separately combines thread replies.
 
+### Finish history loading on first thread open (2026-09-14)
+
+- Status: implemented and validated on current dev; pull-request review is pending.
+- Report: a newly opened thread can show `Load Older Messages` above its first message.
+- Confirmed path: when a standalone root needs an SDK thread model, a failed context request can fall back to a relations page carrying a backward cursor even when it contains the final reply.
+- The bootstrap previously returned early solely because it had created the model, skipping the normal history refresh that exhausts the cursor and reconciles the button state.
+- Newly created models now continue through the existing open lifecycle; pending local echoes, cancellation, error exits, and the metadata initialization race guard retain their existing behavior.
+- Focused component regressions cover an empty terminal page, loading an actual older reply into the render-state sink, and keeping the history button available after a pagination error.
+- The shared SDK thread fixture now supports event-to-timeline lookup and its timeline-set backlink so the first-open component tests exercise a valid render.
+- Validation on Node 24.13.1: production/PWA build, typecheck, full ESLint with zero errors and the existing seventeen warnings, changed-file Prettier, and `git diff --check` pass.
+- Full Vitest passes 3,792 of 3,795 tests with eight workers; only the three existing `xcodeCloudPostClone.test.ts` shell-fixture failures remain on this Nix host.
+- An initial unconstrained run during the production build also hit a ledger-test timeout; the full rerun passes every room and thread test without changing their timeout limits.
+- The regression reproduces a reachable cause; the exact network sequence behind the reported screenshot has not been captured on the device.
+
+### Hide edited labels on router voice transcripts (2026-09-14)
+
+- Router voice echoes retain `com.mindroom.visible_router_voice_echo: true` when transcription replaces the animated placeholder, but do not carry the agent run, stream, or tool metadata used by the edited-label policy.
+- The shared message renderer now suppresses the label for that explicit voice-echo flag, using the same predicate as the transcription placeholder.
+- Ordinary human edits, unrelated voice-transcript metadata, and false or invalid voice-echo flags retain the label.
+- Regression coverage reproduced the completed-transcript failure before the fix; all 45 focused renderer and edit-metadata tests now pass.
+- Chromium verification of the real shared renderer confirms that completing transcription replaces the animated status with the transcript without an edited marker, while a human edit retains its marker and no page errors occur.
+- Typecheck, production/PWA build with Element Call verification, formatting, and lint pass with zero errors and the existing seventeen warnings.
+- Full Vitest on Node 24.13.1 passes 3,794 tests; three existing Xcode Cloud shell tests fail identically on the unchanged baseline because this host lacks the expected Bash paths.
+- Independent review found no actionable issues and confirmed that edit resolution preserves the voice-echo flag in rendered content.
+- Next steps: merge the reviewed pull request.
+
+### Refresh long-message expand and collapse controls (2026-09-14)
+
+- Status: implemented, independently reviewed, and validated locally.
+- Room and thread messages share a taller faded preview with a bottom-right Show full message button and a matching Show less control.
+- The fade masks only message content so the overlaid native button stays opaque and exposes its expanded state.
+- Existing manual choices, account defaults, streaming expansion, and long-text hydration remain authoritative.
+- The virtualized row estimate includes the taller preview, with no extra height for the collapsed control.
+- In Modern and Compact layouts, messages with disclosure controls fill the available row width so both buttons align to its right edge; other message content keeps its existing sizing.
+- The wider fade covers roughly two visible text lines, and Show full message overlays its bottom-right corner without adding a footer row.
+- The expanded Show less footer stays below the full text and remains sticky; the shared grid constrains wide code blocks to the message width.
+- Both disclosure buttons use a quieter fill mixed between normal and hover surfaces and slightly muted text, preserving their shape in Bubble layout while reserving the full hover fill for pointer feedback across themes.
+- Live Chromium checks pass for room and thread views across Modern, Compact, and Bubble layouts, dark and light themes, and 390px width, including right-edge alignment, fade and footer geometry, keyboard focus, full expansion, recollapse, wide code bounds, and restored content sizing after short edits.
+- Existing live expand-all, manual expansion across virtualized remounts, and above-viewport scroll-anchor regressions pass.
+- Validation: typecheck, production/PWA build, ESLint with zero errors and the existing 17 warnings, touched-file formatting, and independent review pass.
+- After updating onto current dev and installing fresh dependencies under Node 24.13.1, full Vitest passes 3,789 of 3,792 tests; only the three unchanged Xcode Cloud tests fail because their fixtures hard-code shell paths absent on this Nix host.
+- Next steps: complete automated and human pull-request review.
+
+### Hide the thread approval loading banner (2026-09-14)
+
+- Status: the bounded presentation change, local verification, and independent review are complete.
+- Opening a thread checks approval history in the background without displaying a loading-only banner.
+- The approval bar appears for pending calls or a history error, preserving review controls, retry, and progress details for pending calls.
+- Scope is limited to the approval queue rendering condition and its obsolete loading fallback.
+- Validation: typecheck, production/PWA build with Element Call verification, formatting, and lint pass with zero errors and the existing seventeen warnings.
+- Full Vitest on Node 24.13.1 passes 3,794 of 3,797 tests, matching the untouched base; three existing Xcode Cloud shell-script tests fail because this host lacks the expected Bash paths.
+- Live Chromium verification holds approval history open to confirm the loading-only bar stays absent, then checks history error and retry, a live pending approval during loading, successful recovery, and the review dialog.
+- The existing approval-attention browser spec passes against production assets and local Matrix, and independent review passes all thirty focused controls/provider tests with no findings.
+- Next steps: pull-request review and merge.
+
 ### Complete live-test verification (2026-09-13)
 
 - All 95 discovered Chromium cases across 52 live spec files pass against production assets and a dedicated local Matrix fixture.

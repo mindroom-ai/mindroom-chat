@@ -86,7 +86,7 @@ describe('MindroomInterfaceSettings', () => {
     const tile = renderer.root.findByProps({
       'data-title': 'Expand long messages by default',
     });
-    expect(tile.props['data-description']).toContain('Show more');
+    expect(tile.props['data-description']).toContain('Show full message');
     expect(tile.findByType('button').props['aria-pressed']).toBe(false);
   });
 

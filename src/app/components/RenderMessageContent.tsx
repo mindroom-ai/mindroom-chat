@@ -32,6 +32,7 @@ import { IImageContent } from '../../types/matrix/common';
 import { renderMindroomMessageContent } from '../mindroom/messages/renderMindroomMessageContent';
 import { getMindroomMessageStateSuffixRenderer } from '../mindroom/messages/messageStateSuffix';
 import { hasMindroomAgentMessageMetadata } from '../mindroom/matrix/agentIdentity';
+import { isMindroomVisibleRouterVoiceEcho } from '../mindroom/messages/transcribingPlaceholder';
 
 type RenderMessageContentProps = {
   displayName: string;
@@ -76,8 +77,11 @@ export function RenderMessageContent({
   failedSend,
 }: RenderMessageContentProps) {
   const content = getContent<Record<string, unknown>>();
-  // Agent streaming uses edits; only ordinary messages need the edited label.
-  const edited = messageEdited && !hasMindroomAgentMessageMetadata(content);
+  // Agent streaming and router transcription use edits to finish their messages.
+  const edited =
+    messageEdited &&
+    !hasMindroomAgentMessageMetadata(content) &&
+    !isMindroomVisibleRouterVoiceEcho(content);
 
   const renderUrlsPreview = (urls: string[]) => {
     const filteredUrls = urls.filter((url) => !testMatrixTo(url));

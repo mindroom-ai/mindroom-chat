@@ -28,6 +28,7 @@ vi.mock('../../../features/room/message/styles.css', () => ({
   MessageAvatarWithModel: 'MessageAvatarWithModel',
   MessageBase: 'MessageBase',
   MessageBaseBubbleCollapsed: 'MessageBaseBubbleCollapsed',
+  MessageContentWithDisclosure: 'MessageContentWithDisclosure',
   MessageMenuGroup: 'MessageMenuGroup',
   MessageMenuItemText: 'MessageMenuItemText',
   MessageOptionsBar: 'MessageOptionsBar',
