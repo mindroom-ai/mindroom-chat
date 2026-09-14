@@ -2,10 +2,15 @@ import { style } from '@vanilla-extract/css';
 import { recipe } from '@vanilla-extract/recipes';
 import { color, config, toRem } from 'folds';
 
-const collapsedMask = 'linear-gradient(to bottom, black calc(100% - 2.5em), transparent)';
+const collapsedMask = 'linear-gradient(to bottom, black calc(100% - 4em), transparent)';
+
+export const CollapsibleContainer = style({
+  display: 'grid',
+  gridTemplateColumns: 'minmax(0, 1fr)',
+});
 
 export const CollapsibleContent = recipe({
-  base: { position: 'relative' },
+  base: { position: 'relative', gridArea: '1 / 1' },
   variants: {
     collapsed: {
       true: { maskImage: collapsedMask, WebkitMaskImage: collapsedMask },
@@ -13,17 +18,21 @@ export const CollapsibleContent = recipe({
   },
 });
 
-export const CollapsibleFooter = style({
+const footerBase = style({
   display: 'flex',
   justifyContent: 'flex-end',
   width: '100%',
-  marginTop: config.space.S200,
   pointerEvents: 'none',
 });
 
+export const CollapsibleFooter = style([
+  footerBase,
+  { gridArea: '1 / 1', alignSelf: 'end', zIndex: 1 },
+]);
+
 export const CollapsibleStickyFooter = style([
-  CollapsibleFooter,
-  { position: 'sticky', bottom: config.space.S200, zIndex: 1 },
+  footerBase,
+  { position: 'sticky', bottom: config.space.S200, marginTop: config.space.S200, zIndex: 1 },
 ]);
 
 export const CollapsiblePill = style({

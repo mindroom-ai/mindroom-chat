@@ -328,13 +328,12 @@ export const isDiscardedSettleWrite = ({
 // Estimate from each message's content rather than a shared average: short
 // messages and folded long messages have substantially different heights.
 // The base and line sizes were calibrated against measured virtualizer tiles;
-// the fold budget tracks CollapsibleMessage's preview and disclosure footer.
+// the fold budget tracks CollapsibleMessage's preview with an overlaid control.
 // Tile rectangles exclude inter-row margins, as does the virtualizer cache.
 const THREAD_ROW_BASE_PX = 10;
 const THREAD_ROW_BASE_COMPACT_PX = 6;
 const THREAD_ROW_LINE_PX = 20;
-const THREAD_ROW_FOLD_BANNER_PX = 40;
-// CollapsibleMessage previews 11em of content, then a 32px button with an 8px gap.
+// CollapsibleMessage previews 11em; its collapsed control adds no row height.
 const THREAD_ROW_FOLD_CONTENT_LINES = 9;
 const THREAD_ROW_WRAP_CHARS_PER_LINE = 48;
 // Always-expanded rows render their whole body; the estimate is line-based
@@ -391,7 +390,7 @@ export const estimateThreadEventRowHeight = (
   }
   const lines = estimateBodyLines(body);
   if (lines > THREAD_ROW_FOLD_CONTENT_LINES) {
-    return base + THREAD_ROW_FOLD_CONTENT_LINES * THREAD_ROW_LINE_PX + THREAD_ROW_FOLD_BANNER_PX;
+    return base + THREAD_ROW_FOLD_CONTENT_LINES * THREAD_ROW_LINE_PX;
   }
   return base + lines * THREAD_ROW_LINE_PX;
 };

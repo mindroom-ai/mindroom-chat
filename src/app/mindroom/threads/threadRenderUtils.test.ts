@@ -293,7 +293,7 @@ describe('estimateThreadEventRowHeight', () => {
       sender: '@alice:example.org',
       type: 'm.room.message',
     });
-    expect(estimateThreadEventRowHeight(event, modern)).toBe(230);
+    expect(estimateThreadEventRowHeight(event, modern)).toBe(190);
   });
 
   it('caps short-but-many-lines bodies at the collapsed height too', () => {
@@ -305,7 +305,7 @@ describe('estimateThreadEventRowHeight', () => {
       sender: '@alice:example.org',
       type: 'm.room.message',
     });
-    expect(estimateThreadEventRowHeight(event, modern)).toBe(230);
+    expect(estimateThreadEventRowHeight(event, modern)).toBe(190);
   });
 
   it('estimates edit/reaction relations near zero (they render no row)', () => {

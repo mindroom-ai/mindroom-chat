@@ -6,6 +6,7 @@ import {
   loginToMatrix,
   seedRoomOverviewState,
   sendMessageEdit,
+  sendRoomMessage,
   setAccountData,
 } from '../helpers/matrix';
 
@@ -111,14 +112,19 @@ for (const surface of ['room', 'thread'] as const) {
           previewHeight: contentRect.height,
           contentWidth: contentRect.width,
           rowWidth: button.closest('[data-message-id]')!.getBoundingClientRect().width,
-          belowContent: buttonRect.top >= contentRect.bottom,
+          withinPreview:
+            buttonRect.top >= contentRect.top && buttonRect.bottom <= contentRect.bottom,
+          bottomGap: Math.abs(contentRect.bottom - buttonRect.bottom),
+          extraHeight: content.parentElement!.getBoundingClientRect().height - contentRect.height,
           rightGap: Math.abs(contentRect.right - buttonRect.right),
           inViewport: buttonRect.left >= 0 && buttonRect.right <= window.innerWidth,
         };
       });
       expect(layout.clipped).toBe(true);
       expect(layout.previewHeight).toBeGreaterThan(140);
-      expect(layout.belowContent).toBe(true);
+      expect(layout.withinPreview).toBe(true);
+      expect(layout.bottomGap).toBeLessThan(2);
+      expect(layout.extraHeight).toBeLessThan(2);
       expect(layout.rightGap).toBeLessThan(2);
       expect(layout.inViewport).toBe(true);
       if (layoutName === 'Bubble') {
@@ -167,6 +173,31 @@ for (const surface of ['room', 'thread'] as const) {
         });
         expect(widthFraction).toBeLessThan(0.5);
       }
+
+      const wideCode = Array.from({ length: 16 }, () => 'x'.repeat(200)).join('\n');
+      await sendRoomMessage(homeserver, session.accessToken, fixture.roomId, {
+        msgtype: 'm.text',
+        body: wideCode,
+        'm.new_content': {
+          msgtype: 'm.text',
+          body: wideCode,
+          format: 'org.matrix.custom.html',
+          formatted_body: `<pre><code>${wideCode}</code></pre>`,
+        },
+        'm.relates_to': { rel_type: 'm.replace', event_id: messageId },
+      });
+      await expect(content.locator('pre')).toBeVisible();
+      await expect(row.getByRole('button', { name: /^Show (full message|less)$/ })).toBeVisible();
+      if (await expand.isVisible()) await expand.click();
+      await expect(collapse).toBeVisible();
+      const codeWidth = await content.evaluate((element) => ({
+        content: element.getBoundingClientRect().width,
+        row: element.closest('[data-message-id]')!.getBoundingClientRect().width,
+      }));
+      expect(codeWidth.content).toBeLessThanOrEqual(codeWidth.row);
+      if (layoutName !== 'Bubble') await expectRightAligned(collapse);
+      await collapse.click();
+      await expect(expand).toBeVisible();
     });
   }
 }

@@ -404,7 +404,7 @@ export function CollapsibleMessage({
       : children;
 
   return (
-    <div>
+    <div className={css.CollapsibleContainer}>
       <div
         id={contentId}
         ref={contentRef}

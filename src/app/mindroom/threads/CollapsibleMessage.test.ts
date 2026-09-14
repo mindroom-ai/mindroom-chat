@@ -3,6 +3,7 @@ import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('./CollapsibleMessage.css', () => ({
+  CollapsibleContainer: 'collapsible-container',
   CollapsibleContent: () => 'collapsible-content',
   CollapsibleFooter: 'collapsible-footer',
   CollapsibleStickyFooter: 'collapsible-sticky-footer',
