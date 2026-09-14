@@ -16,6 +16,18 @@
 - An initial unconstrained run during the production build also hit a ledger-test timeout; the full rerun passes every room and thread test without changing their timeout limits.
 - The regression reproduces a reachable cause; the exact network sequence behind the reported screenshot has not been captured on the device.
 
+### Hide edited labels on router voice transcripts (2026-09-14)
+
+- Router voice echoes retain `com.mindroom.visible_router_voice_echo: true` when transcription replaces the animated placeholder, but do not carry the agent run, stream, or tool metadata used by the edited-label policy.
+- The shared message renderer now suppresses the label for that explicit voice-echo flag, using the same predicate as the transcription placeholder.
+- Ordinary human edits, unrelated voice-transcript metadata, and false or invalid voice-echo flags retain the label.
+- Regression coverage reproduced the completed-transcript failure before the fix; all 45 focused renderer and edit-metadata tests now pass.
+- Chromium verification of the real shared renderer confirms that completing transcription replaces the animated status with the transcript without an edited marker, while a human edit retains its marker and no page errors occur.
+- Typecheck, production/PWA build with Element Call verification, formatting, and lint pass with zero errors and the existing seventeen warnings.
+- Full Vitest on Node 24.13.1 passes 3,794 tests; three existing Xcode Cloud shell tests fail identically on the unchanged baseline because this host lacks the expected Bash paths.
+- Independent review found no actionable issues and confirmed that edit resolution preserves the voice-echo flag in rendered content.
+- Next steps: merge the reviewed pull request.
+
 ### Refresh long-message expand and collapse controls (2026-09-14)
 
 - Status: implemented, independently reviewed, and validated locally.
