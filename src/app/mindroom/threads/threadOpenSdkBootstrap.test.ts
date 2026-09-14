@@ -46,7 +46,7 @@ describe('runThreadOpenSdkBootstrap', () => {
     };
     const shouldContinue = await runThreadOpenSdkBootstrap(options);
 
-    expect(shouldContinue).toBe(false);
+    expect(shouldContinue).toBe(true);
     expect(room.createThread).toHaveBeenCalledOnce();
     expect(room.createThread).toHaveBeenCalledWith('$root', root, [], false);
     expect(setThreadTailLoaded).toHaveBeenCalledWith(true);

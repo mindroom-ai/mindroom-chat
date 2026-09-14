@@ -83,7 +83,6 @@ export const runThreadOpenSdkBootstrap = async <TTimeline extends object>({
   }
 
   let threadModel = room.getThread(threadId);
-  let createdZeroReplyThread = false;
   const zeroReplyStandaloneRootEvent = room.findEventById(threadId);
   if (
     !threadModel &&
@@ -97,7 +96,6 @@ export const runThreadOpenSdkBootstrap = async <TTimeline extends object>({
     // replies that already exist remotely.
     threadModel.initialEventsFetched = true;
     threadModel.replayEvents = null;
-    createdZeroReplyThread = true;
     setThreadTailLoaded(true);
     setTimeline((ct) => ({ ...ct }));
     setThreadTimelineTick((val) => val + 1);
@@ -249,7 +247,9 @@ export const runThreadOpenSdkBootstrap = async <TTimeline extends object>({
     );
   }
 
-  return !createdZeroReplyThread;
+  // Newly created models still need the caller's history refresh to exhaust
+  // fallback pagination cursors and settle the open-thread render state.
+  return true;
 };
 
 const reconcileCachedThreadBackwardToken = ({
