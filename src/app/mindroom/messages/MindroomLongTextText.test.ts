@@ -119,8 +119,7 @@ vi.mock('./MindroomHtmlBlocks.css', () => ({
 }));
 vi.mock('../threads/CollapsibleMessage.css', () => ({
   CollapsibleContent: () => 'collapsible-content',
-  CollapsibleGradientOverlay: 'collapsible-gradient-overlay',
-  CollapsibleShowMore: 'collapsible-show-more',
+  CollapsibleFooter: 'collapsible-footer',
   CollapsibleStickyFooter: 'collapsible-sticky-footer',
   CollapsiblePill: 'collapsible-pill',
 }));

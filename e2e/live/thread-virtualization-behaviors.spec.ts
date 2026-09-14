@@ -351,7 +351,7 @@ test.describe('virtualized thread behaviors', () => {
     expect(await page.locator('[data-message-item] [aria-expanded="false"]').count()).toBe(0);
   });
 
-  test('manual Show more survives scrolling out of and back into the virtual window', async ({
+  test('manual Show full message survives scrolling out of and back into the virtual window', async ({
     page,
   }) => {
     const homeserver = getHomeserver();
@@ -371,8 +371,8 @@ test.describe('virtualized thread behaviors', () => {
 
     const target = page.locator(`[data-message-id="${targetId}"]`);
     await expect(target).toBeVisible({ timeout: 15_000 });
-    await target.getByRole('button', { name: 'Show more' }).click();
-    await expect(target.locator('[aria-expanded="true"]')).toBeVisible();
+    await target.getByRole('button', { name: 'Show full message' }).click();
+    await expect(target.locator('div[aria-expanded="true"]')).toBeVisible();
 
     const timeline = page.locator('[data-message-item]').first();
     await timeline.hover();
@@ -388,7 +388,7 @@ test.describe('virtualized thread behaviors', () => {
 
     await page.getByRole('button', { name: 'Jump to Latest' }).click();
     await expect(target).toBeVisible({ timeout: 15_000 });
-    await expect(target.locator('[aria-expanded="true"]')).toBeVisible();
+    await expect(target.locator('div[aria-expanded="true"]')).toBeVisible();
     await expect(target.getByRole('button', { name: 'Show less' })).toBeVisible();
   });
 
@@ -436,7 +436,7 @@ test.describe('virtualized thread behaviors', () => {
               .filter(
                 (candidate) =>
                   candidate.getBoundingClientRect().bottom <= viewportTop - 120 &&
-                  candidate.querySelector('[aria-label="Show more"]')
+                  candidate.querySelector('[aria-label="Show full message"]')
               )
               .at(0)
               ?.getAttribute('data-message-id') ?? undefined
@@ -586,9 +586,9 @@ test.describe('virtualized thread behaviors', () => {
 
     try {
       await target
-        .locator('[aria-label="Show more"]')
+        .locator('[aria-label="Show full message"]')
         .evaluate((button: HTMLElement) => button.click());
-      await expect(target.locator('[aria-expanded="true"]')).toBeAttached();
+      await expect(target.locator('div[aria-expanded="true"]')).toBeAttached();
       await expect
         .poll(() =>
           target.evaluate((element: HTMLElement) => element.getBoundingClientRect().height)

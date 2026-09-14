@@ -2,6 +2,7 @@
 
 ## Runbook
 
+<<<<<<< HEAD
 ### Complete live-test verification (2026-09-13)
 
 - All 95 discovered Chromium cases across 52 live spec files pass against production assets and a dedicated local Matrix fixture.
@@ -290,6 +291,21 @@
 - The full Vitest run passes 3,611 of 3,615 tests; the same three platform-script failures and one upload-session failure documented on the untouched base remain in two unchanged files.
 - Review: fresh independent review found no Critical, Important, or Minor issues after the fade correction and its rendered-position assertion were added.
 - Next step: complete refreshed PR gates, then hand off for human merge.
+=======
+### Refresh long-message expand and collapse controls (2026-09-14)
+
+- Status: implemented, independently reviewed, and validated locally.
+- Room and thread messages share a taller faded preview with a bottom-right Show full message button and a matching Show less control.
+- The fade uses a content mask so it follows every message background, while the native disclosure button stays outside the clipped content and exposes its expanded state.
+- Existing manual choices, account defaults, streaming expansion, and long-text hydration remain authoritative.
+- The virtualized row estimate includes the taller preview and footer.
+- The collapsed footer stays in normal flow so it cannot cover the preview on narrow screens; only the expanded Show less footer is sticky.
+- Live Chromium checks pass for room and thread views in dark Bubble and light Modern layouts, including 390px width, fade and footer geometry, Enter and Space activation, focus retention, complete expansion, recollapse, and short edits.
+- Existing live expand-all, manual expansion across virtualized remounts, and above-viewport scroll-anchor regressions pass.
+- Validation: typecheck, production/PWA build, ESLint with zero errors and the existing 17 warnings, touched-file formatting, and independent review pass.
+- Full Vitest passes 3,599 of 3,606 tests; all seven failures reproduce on unchanged dev with the same dependencies: three platform-script tests, three SDK thread-reset tests, and one upload-session matcher.
+- Next steps: implementation is complete on the local feature branch.
+>>>>>>> 89967805 (feat: refresh long-message expand and collapse controls)
 
 ### Keep composer paste handler synchronous (2026-09-02)
 

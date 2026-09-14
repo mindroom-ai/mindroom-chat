@@ -6,12 +6,12 @@ import React, {
   useRef,
   useState,
   useCallback,
+  useId,
 } from 'react';
-import { Icon, Icons } from 'folds';
 import { countCacheProbe } from './cacheProbe';
 import * as css from './CollapsibleMessage.css';
 
-const MAX_HEIGHT = '4.5em';
+const MAX_HEIGHT = '11em';
 
 // Global expand/collapse event bus that toggles already-mounted rows.
 type ExpandAllListener = (expand: boolean) => void;
@@ -197,13 +197,12 @@ export function CollapsibleMessage({
 }: CollapsibleMessageProps) {
   const isExempt = collapseMode === 'always-expanded';
   const contentRef = useRef<HTMLDivElement>(null);
-  const gradientRef = useRef<HTMLDivElement>(null);
+  const contentId = useId();
   const initialExpandConsumedRef = useRef(onInitialExpandConsumed);
   const previousCollapseModeRef = useRef<CollapsibleMessageCollapseMode | undefined>(undefined);
   const expandAllInit = useContext(ExpandAllInitContext);
   const onExpansionLayoutChange = useContext(ExpansionLayoutChangeContext);
   const previousExpandAllInitRef = useRef(expandAllInit);
-  const needsFocusOnCollapseRef = useRef(false);
   const manualExpansionState = useContext(ManualExpansionStateContext);
   const [overflowing, setOverflowing] = useState(() => {
     // forceOverflowing is a prop-driven override (lazily-hydrated
@@ -383,53 +382,21 @@ export function CollapsibleMessage({
     [expansionKey, manualExpansionState]
   );
 
-  // Focus management: after collapse, focus the gradient expand control
-  useEffect(() => {
-    if (needsFocusOnCollapseRef.current && !expanded && overflowing && gradientRef.current) {
-      gradientRef.current.focus();
-      needsFocusOnCollapseRef.current = false;
-    }
-  }, [expanded, overflowing]);
-
-  const handleGradientClick = useCallback(() => {
+  const handleExpandClick = useCallback(() => {
     setManualExpanded(true);
   }, [setManualExpanded]);
-
-  const handleGradientKeyDown = useCallback(
-    (e: React.KeyboardEvent) => {
-      if (e.key === 'Enter' || e.key === ' ') {
-        e.preventDefault();
-        setManualExpanded(true);
-      }
-    },
-    [setManualExpanded]
-  );
 
   const handleCollapseClick = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation();
-      needsFocusOnCollapseRef.current = true;
       setManualExpanded(false);
-      setOverflowing(false);
     },
     [setManualExpanded]
   );
 
-  const handleCollapseKeyDown = useCallback(
-    (e: React.KeyboardEvent) => {
-      if (e.key === 'Enter' || e.key === ' ') {
-        e.preventDefault();
-        e.stopPropagation();
-        needsFocusOnCollapseRef.current = true;
-        setManualExpanded(false);
-        setOverflowing(false);
-      }
-    },
-    [setManualExpanded]
-  );
-
-  const showCloseButton = !isExempt && expanded && overflowing;
-  const showGradient = !isExempt && !expanded && overflowing;
+  const showToggle = !isExempt && overflowing;
+  const isCollapsed = showToggle && !expanded;
+  const toggleLabel = expanded ? 'Show less' : 'Show full message';
   const shouldLoadFullContent = effectiveExpanded || loadFullContent;
   const renderedChildren =
     typeof children === 'function'
@@ -439,8 +406,9 @@ export function CollapsibleMessage({
   return (
     <div>
       <div
+        id={contentId}
         ref={contentRef}
-        className={css.CollapsibleContent()}
+        className={css.CollapsibleContent({ collapsed: isCollapsed })}
         aria-expanded={isExempt ? undefined : expanded}
         style={{
           maxHeight: effectiveExpanded ? undefined : MAX_HEIGHT,
@@ -448,38 +416,21 @@ export function CollapsibleMessage({
         }}
       >
         {renderedChildren}
-        {showGradient && (
-          <div
-            ref={gradientRef}
-            className={css.CollapsibleGradientOverlay}
-            role="button"
-            tabIndex={0}
-            aria-label="Show more"
-            onClick={handleGradientClick}
-            onKeyDown={handleGradientKeyDown}
-          >
-            <span className={css.CollapsibleShowMore}>
-              <Icon size="50" src={Icons.ChevronBottom} />
-              <span>Show more</span>
-            </span>
-          </div>
-        )}
-        {showCloseButton && (
-          <div className={css.CollapsibleStickyFooter}>
-            <button
-              type="button"
-              className={css.CollapsiblePill}
-              aria-label="Show less"
-              title="Show less"
-              onClick={handleCollapseClick}
-              onKeyDown={handleCollapseKeyDown}
-            >
-              <Icon size="50" src={Icons.ChevronTop} />
-              <span>Show less</span>
-            </button>
-          </div>
-        )}
       </div>
+      {showToggle && (
+        <div className={expanded ? css.CollapsibleStickyFooter : css.CollapsibleFooter}>
+          <button
+            type="button"
+            className={css.CollapsiblePill}
+            aria-label={toggleLabel}
+            aria-expanded={expanded}
+            aria-controls={contentId}
+            onClick={expanded ? handleCollapseClick : handleExpandClick}
+          >
+            <span>{toggleLabel}</span>
+          </button>
+        </div>
+      )}
     </div>
   );
 }

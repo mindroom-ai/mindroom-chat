@@ -16,7 +16,7 @@ export type MindroomAccountSettings = {
    * non-technical users. Off means the full interface.
    */
   simpleMode: boolean;
-  /** Show long messages in full instead of folding them behind Show more. */
+  /** Show long messages in full instead of folding them behind Show full message. */
   expandLongMessagesByDefault: boolean;
 };
 

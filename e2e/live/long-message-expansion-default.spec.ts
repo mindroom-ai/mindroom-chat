@@ -198,7 +198,7 @@ test.describe('live long-message expansion default', () => {
     await page.waitForSelector('[data-message-item]', { timeout: 60_000 });
     await page.waitForTimeout(3_000);
 
-    const showMore = page.locator('[aria-label="Show more"]');
+    const showMore = page.locator('[aria-label="Show full message"]');
     const showLess = page.locator('[aria-label="Show less"]');
     await expect(showMore.first()).toBeVisible();
     const foldedShowMoreCount = await showMore.count();

@@ -286,26 +286,26 @@ describe('estimateThreadEventRowHeight', () => {
 
   it('caps anything past the fold at the collapsed height (long body)', () => {
     const event = new MatrixEvent({
-      content: { body: 'x'.repeat(500), msgtype: 'm.text' },
+      content: { body: 'x'.repeat(2000), msgtype: 'm.text' },
       event_id: '$long',
       origin_server_ts: 1,
       room_id: '!room:example.org',
       sender: '@alice:example.org',
       type: 'm.room.message',
     });
-    expect(estimateThreadEventRowHeight(event, modern)).toBe(80);
+    expect(estimateThreadEventRowHeight(event, modern)).toBe(230);
   });
 
   it('caps short-but-many-lines bodies at the collapsed height too', () => {
     const event = new MatrixEvent({
-      content: { body: 'a\nb\nc\nd\ne\nf', msgtype: 'm.text' },
+      content: { body: 'a\nb\nc\nd\ne\nf\ng\nh\ni\nj', msgtype: 'm.text' },
       event_id: '$lines',
       origin_server_ts: 1,
       room_id: '!room:example.org',
       sender: '@alice:example.org',
       type: 'm.room.message',
     });
-    expect(estimateThreadEventRowHeight(event, modern)).toBe(80);
+    expect(estimateThreadEventRowHeight(event, modern)).toBe(230);
   });
 
   it('estimates edit/reaction relations near zero (they render no row)', () => {
