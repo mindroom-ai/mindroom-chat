@@ -264,6 +264,98 @@ describe('useVoiceRecorder', () => {
     recorderState.current = undefined;
   });
 
+  it('releases partial audio resources when connecting the analyser throws', async () => {
+    const disconnect = vi.fn();
+    const close = vi.fn(async () => undefined);
+    vi.stubGlobal('window', {
+      isSecureContext: true,
+      AudioContext: class {
+        state = 'running';
+
+        close = close;
+
+        createMediaStreamSource() {
+          return {
+            disconnect,
+            connect() {
+              throw new Error('connect failed');
+            },
+          };
+        }
+
+        createAnalyser() {
+          return { fftSize: 4 };
+        }
+      },
+    });
+    const send = vi.fn();
+    await renderHarness({ onSendRecording: send });
+    await act(async () => {
+      await recorderState.current!.start();
+    });
+    expect(disconnect).toHaveBeenCalledOnce();
+    expect(close).toHaveBeenCalledOnce();
+    await act(async () => {
+      vi.advanceTimersByTime(250);
+      await recorderState.current!.send();
+    });
+    expect(send.mock.calls[0][1]).toBe(250);
+    expect(send.mock.calls[0][2]).toBeUndefined();
+  });
+
+  it('releases mic resources after native stop throws', async () => {
+    const failed = vi.fn();
+    await renderHarness({ onSendStopFailure: failed });
+    await act(async () => {
+      await recorderState.current!.start();
+    });
+    MockMediaRecorder.instances[0].stop.mockImplementation(() => {
+      throw new Error('stop failed');
+    });
+    await act(async () => {
+      expect(await recorderState.current!.send()).toBe(false);
+    });
+    expect(failed).toHaveBeenCalledOnce();
+    expect(recorderState.current!.errorMessage).toBe('stop failed');
+    expect(stream.track.stop).toHaveBeenCalledOnce();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('ignores delayed old data and stop after reset starts a fresh recording', async () => {
+    MockMediaRecorder.autoStop = false;
+    const send = vi.fn();
+    await renderHarness({ onSendRecording: send });
+    await act(async () => {
+      await recorderState.current!.start();
+    });
+    const old = MockMediaRecorder.instances[0];
+    await act(async () => {
+      recorderState.current!.reset();
+    });
+    const freshStream = new MockMediaStream();
+    getUserMedia.mockResolvedValue(freshStream);
+    await act(async () => {
+      await recorderState.current!.start();
+    });
+    await act(async () => {
+      old.flushStop();
+      vi.advanceTimersByTime(250);
+    });
+    expect(recorderState.current!.phase).toBe('recording');
+    expect(freshStream.track.stop).not.toHaveBeenCalled();
+    const fresh = MockMediaRecorder.instances[1];
+    let result!: Promise<boolean>;
+    await act(async () => {
+      result = recorderState.current!.send();
+    });
+    await act(async () => {
+      fresh.flushStop();
+      await result;
+    });
+    expect(await send.mock.calls[0][0].text()).toBe('voice');
+    expect(send.mock.calls[0][1]).toBe(250);
+  });
+
   it('pins the compressed speech capture contract', () => {
     expect(VOICE_RECORDER_AUDIO_BITS_PER_SECOND).toBe(32_000);
     expect(VOICE_RECORDER_AUDIO_CONSTRAINTS).toEqual({

@@ -2,6 +2,21 @@
 
 ## Runbook
 
+### Browser voice capture ownership (2026-09-14)
+
+- A React-free capture session owns browser resources, permission acquisition, elapsed time, waveform samples, and native stop completion.
+  The hook subscribes to immutable snapshots and retains callback/context binding and durable delivery for the next ownership step.
+  Existing public exports, capture settings, error messages, and composer claims remain unchanged.
+- Recorder events retain generation-local data and resources.
+  Ordinary release immediately stops tracks and invalidates pending permission; an accepted finish retains final data and its result resolver through owner release.
+  Released sessions cannot republish diagnostics over another active owner.
+- Resource regressions first reproduced partial analyser setup leaks, mic tracks left live after native stop throws, and delayed old events resetting a fresh recording.
+  Cleanup now registers each acquired resource immediately, releases failed stops, and isolates replacement generations.
+  Focused capture, hook, dialog, and composer tests cover these fixes and accepted sends after unmount.
+- Verification: all 491 unit files and 3,876 tests pass under Node 24.13.1, including 146 focused tests.
+  Typecheck and changed-source lint/format pass with zero warnings.
+  Production build and live browser verification remain integration checks.
+
 ### Thread pagination request ownership (2026-09-14)
 
 - Pagination owns backward and forward pending state, duplicate-request guards, and unique request identities.
