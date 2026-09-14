@@ -4,7 +4,7 @@
 
 ### Full interface internationalization (2026-09-14)
 
-- Status: implementation, language quality corrections, independent reviews, and local verification are complete; PR review is pending.
+- Status: implementation, language quality corrections, independent reviews, and local verification are complete; ready PR #249 is open against dev.
 - The typed i18next pipeline now covers application-owned text in 17 locales, including Arabic direction and both Chinese scripts.
   Each catalog contains all 2,029 logical keys, with the plural forms required by that language.
 - Live language switching preserves the application document, user content, thread records, and authored summaries; English remains bundled with other languages loaded through the configured base path.
@@ -19,7 +19,7 @@
   Both packaged-app browser tests pass against a live Matrix homeserver, covering language switching and persistence, Arabic control geometry, and authored summaries on room overview and thread banners.
   Additional live composer, navigation, cached-summary, resizing, and compact-resolution regressions pass.
 - Native resource contracts pass; an Xcode archive and physical-device permission prompts remain unverified on this Linux host.
-- Next: open a ready PR against dev and address confirmed AI review findings.
+- Next: complete the hosted checks and address confirmed review findings on PR #249.
 
 ### Resize navigation and toggle the active section (2026-09-14)
 
