@@ -111,6 +111,12 @@ export const createVoiceCaptureSession = (): VoiceCaptureSession => {
   let current: Generation | undefined;
   let released = false;
 
+  const owns = (generation: Generation) =>
+    !released && current === generation && generation.acceptsEvents;
+  // A subscriber can accept a stop without replacing the generation.
+  const isRecording = (generation: Generation) =>
+    owns(generation) && !generation.action && generation.recorder?.state === 'recording';
+
   const publish = (changes: Partial<VoiceCaptureSnapshot>) => {
     if (released) return;
     snapshot = freezeSnapshot({ ...snapshot, ...changes });
@@ -282,22 +288,28 @@ export const createVoiceCaptureSession = (): VoiceCaptureSession => {
     resolve?.({ status: 'captured', recording: { file, duration, waveform } });
   };
   const start = async () => {
-    if (!released && snapshot.phase !== 'idle') return false;
+    if (!released && (snapshot.phase !== 'idle' || current?.acceptsEvents)) return false;
     released = false;
+    if (current) retire(current);
+    const generation: Generation = { acceptsEvents: true, chunks: [], samples: [], elapsedMs: 0 };
+    current = generation;
     publish({ errorMessage: undefined });
+    if (!owns(generation)) return false;
     if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
+      current = undefined;
+      retire(generation);
       publish({ errorMessage: 'Voice recording is not supported in this browser.' });
       return false;
     }
     if (typeof window !== 'undefined' && !window.isSecureContext && !isNativeApp()) {
+      current = undefined;
+      retire(generation);
       publish({ errorMessage: getInsecureContextVoiceRecorderMessage() });
       return false;
     }
-    if (current) retire(current);
-    const generation: Generation = { acceptsEvents: true, chunks: [], samples: [], elapsedMs: 0 };
-    current = generation;
     pauseAllMediaElements();
     publish({ ...idleSnapshot(), phase: 'requesting' });
+    if (!owns(generation)) return false;
     try {
       let stream: MediaStream;
       try {
@@ -306,11 +318,11 @@ export const createVoiceCaptureSession = (): VoiceCaptureSession => {
         });
       } catch (err) {
         if (err instanceof DOMException && err.name === 'OverconstrainedError') {
-          if (current !== generation) return false;
+          if (!owns(generation)) return false;
           stream = await navigator.mediaDevices.getUserMedia({ audio: true });
         } else throw err;
       }
-      if (current !== generation) {
+      if (!owns(generation)) {
         stream.getTracks().forEach((track) => track.stop());
         return false;
       }
@@ -325,7 +337,7 @@ export const createVoiceCaptureSession = (): VoiceCaptureSession => {
       publish({
         canPause: typeof recorder.pause === 'function' && typeof recorder.resume === 'function',
       });
-      if (current !== generation) return false;
+      if (!owns(generation)) return false;
       setupAnalyser(generation, stream);
       const onData = (event: BlobEvent) => {
         if (generation.acceptsEvents && event.data.size > 0) generation.chunks.push(event.data);
@@ -340,9 +352,9 @@ export const createVoiceCaptureSession = (): VoiceCaptureSession => {
       recorder.start();
       generation.startedAt = now();
       startTimers(generation);
-      if (current !== generation) return false;
+      if (!isRecording(generation)) return false;
       publish({ phase: 'recording' });
-      return true;
+      return isRecording(generation);
     } catch (err) {
       if (current === generation) {
         current = undefined;
@@ -422,8 +434,9 @@ export const createVoiceCaptureSession = (): VoiceCaptureSession => {
       }
       generation.startedAt = now();
       startTimers(generation);
+      if (!isRecording(generation)) return false;
       publish({ phase: 'recording' });
-      return true;
+      return isRecording(generation);
     },
     finish: () => stop('send'),
     discard: async () => {

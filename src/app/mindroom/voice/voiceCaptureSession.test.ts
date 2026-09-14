@@ -266,6 +266,140 @@ describe('voice capture session', () => {
     }
   );
 
+  it.each([
+    ['initial', 'releaseOwner'],
+    ['initial', 'reset'],
+    ['requesting', 'releaseOwner'],
+    ['requesting', 'reset'],
+  ] as const)(
+    'cancels start on %s notification %s before permission acquisition',
+    async (notification, operation) => {
+      const session = capture();
+      let canceled = false;
+      session.subscribe(() => {
+        if (
+          !canceled &&
+          (notification === 'initial' || session.getSnapshot().phase === 'requesting')
+        ) {
+          canceled = true;
+          session[operation]();
+        }
+      });
+      const started = await session.start();
+      expect(getUserMedia).not.toHaveBeenCalled();
+      expect(Recorder.instances).toHaveLength(0);
+      expect(vi.getTimerCount()).toBe(0);
+      expect(session.getSnapshot().phase).toBe('idle');
+      expect(started).toBe(false);
+      session.releaseOwner();
+      expect(vi.getTimerCount()).toBe(0);
+    }
+  );
+
+  it('does not resurrect recording when an immediate resume sample resets capture', async () => {
+    const session = capture();
+    await session.start();
+    vi.advanceTimersByTime(250);
+    session.pause();
+    const samples = session.getSnapshot().waveform.length;
+    let reset = false;
+    const unsubscribe = session.subscribe(() => {
+      if (!reset && session.getSnapshot().waveform.length > samples) {
+        reset = true;
+        session.reset();
+      }
+    });
+    const resumed = session.resume();
+    expect(session.getSnapshot().phase).toBe('idle');
+    expect(stream.track.stop).toHaveBeenCalledOnce();
+    expect(vi.getTimerCount()).toBe(0);
+    expect(resumed).toBe(false);
+    unsubscribe();
+    expect(await session.start()).toBe(true);
+  });
+
+  it.each(['start', 'resume'] as const)(
+    'preserves accepted finish from the immediate %s sample',
+    async (operation) => {
+      const session = capture();
+      if (operation === 'resume') {
+        await session.start();
+        vi.advanceTimersByTime(250);
+        session.pause();
+        vi.advanceTimersByTime(500);
+      }
+      const sampleCount = operation === 'start' ? 0 : session.getSnapshot().waveform.length;
+      const NativeFile = File;
+      const files: File[] = [];
+      vi.stubGlobal(
+        'File',
+        class extends NativeFile {
+          constructor(bits: BlobPart[], name: string, options?: FilePropertyBag) {
+            super(bits, name, options);
+            files.push(this);
+          }
+        }
+      );
+      let accepted: ReturnType<VoiceCaptureSession['finish']> | undefined;
+      let claimed = false;
+      session.subscribe(() => {
+        if (
+          !claimed &&
+          session.canStop() &&
+          session.getSnapshot().waveform.length === sampleCount + 1
+        ) {
+          claimed = true;
+          accepted = session.finish();
+        }
+      });
+      const started = await session[operation]();
+      expect(accepted).toBeDefined();
+      expect(session.getSnapshot().phase).toBe('processing');
+      expect(started).toBe(false);
+      const recorder = latest();
+      expect(recorder.stop).toHaveBeenCalledOnce();
+      recorder.emitData(new Blob(['accepted-' + operation], { type: 'audio/webm' }));
+      recorder.emitStop();
+      const result = await accepted!;
+      expect(result.status).toBe('captured');
+      if (result.status !== 'captured') throw new Error('missing accepted recording');
+      expect(await result.recording.file.text()).toBe('accepted-' + operation);
+      expect(result.recording.duration).toBe(operation === 'start' ? 1 : 250);
+      recorder.emitData(new Blob(['late']));
+      recorder.emitStop();
+      expect(files).toEqual([result.recording.file]);
+      expect(await session.finish()).toEqual({ status: 'ignored' });
+      expect(stream.track.stop).toHaveBeenCalledOnce();
+      expect(vi.getTimerCount()).toBe(0);
+      expect(session.getSnapshot().phase).toBe('processing');
+    }
+  );
+
+  it.each([
+    ['start', 'releaseOwner'],
+    ['start', 'reset'],
+    ['resume', 'releaseOwner'],
+    ['resume', 'reset'],
+  ] as const)(
+    'reports false when final %s recording notification invokes %s',
+    async (operation, teardown) => {
+      const session = capture();
+      if (operation === 'resume') {
+        await session.start();
+        session.pause();
+      }
+      session.subscribe(() => {
+        if (session.getSnapshot().phase === 'recording') session[teardown]();
+      });
+      const started = await session[operation]();
+      expect(session.getSnapshot().phase).toBe('idle');
+      expect(stream.track.stop).toHaveBeenCalledOnce();
+      expect(Audio.instances[0].close).toHaveBeenCalledOnce();
+      expect(vi.getTimerCount()).toBe(0);
+      expect(started).toBe(false);
+    }
+  );
+
   it.each(['resolve', 'reject', 'overconstrained'] as const)(
     'ignores permission %s after release',
     async (outcome) => {

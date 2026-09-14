@@ -2,6 +2,15 @@
 
 ## Runbook
 
+### Voice capture publication guards (2026-09-14)
+
+- Start claims its generation before notifying subscribers and rejects continuation after synchronous release or reset.
+  Permission acquisition cannot begin after those notifications release ownership.
+- Start and resume recheck generation ownership, accepted stop action, and native recorder state after immediate samples and final recording notifications.
+  Subscriber-driven finish retains processing and finalizes its File once; teardown leaves idle resources and returns false.
+- Eleven new regressions reproduce these publication races before the fix.
+  All 157 focused capture, diagnostics, hook, dialog, and composer tests pass, with typecheck and changed-source lint/format passing without warnings.
+
 ### Browser voice capture ownership (2026-09-14)
 
 - A React-free capture session owns browser resources, permission acquisition, elapsed time, waveform samples, and native stop completion.
