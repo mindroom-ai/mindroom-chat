@@ -9,6 +9,12 @@ export const MessageBaseBubbleCollapsed = style({
   paddingTop: 0,
 });
 
+export const MessageContentWithDisclosure = style({
+  selectors: {
+    '&:has([data-message-disclosure])': { width: '100%' },
+  },
+});
+
 export const MessageOptionsBase = style([
   DefaultReset,
   {

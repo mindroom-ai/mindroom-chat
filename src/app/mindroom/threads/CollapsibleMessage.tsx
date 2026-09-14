@@ -418,7 +418,10 @@ export function CollapsibleMessage({
         {renderedChildren}
       </div>
       {showToggle && (
-        <div className={expanded ? css.CollapsibleStickyFooter : css.CollapsibleFooter}>
+        <div
+          data-message-disclosure=""
+          className={expanded ? css.CollapsibleStickyFooter : css.CollapsibleFooter}
+        >
           <button
             type="button"
             className={css.CollapsiblePill}

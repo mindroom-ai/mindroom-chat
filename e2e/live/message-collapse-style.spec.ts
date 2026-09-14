@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Locator } from '@playwright/test';
 import { getHomeserver, getPrimaryCredentials, hasPrimaryCredentials } from '../env';
 import { loginWithPassword } from '../helpers/auth';
 import {
@@ -9,6 +9,17 @@ import {
   setAccountData,
 } from '../helpers/matrix';
 
+async function expectRightAligned(control: Locator) {
+  const rightGap = await control.evaluate((button) => {
+    const row = button.closest('[data-message-id]');
+    if (!row) throw new Error('Message row missing.');
+    const rowRight =
+      row.getBoundingClientRect().right - parseFloat(getComputedStyle(row).paddingRight);
+    return Math.abs(rowRight - button.getBoundingClientRect().right);
+  });
+  expect(rightGap).toBeLessThan(2);
+}
+
 const body = [
   'See this:',
   ...Array.from(
@@ -18,8 +29,13 @@ const body = [
 ].join('\n\n');
 
 for (const surface of ['room', 'thread'] as const) {
-  for (const theme of ['dark', 'light'] as const) {
-    test(`message disclosure: ${surface}, ${theme}`, async ({ page }, testInfo) => {
+  for (const { theme, messageLayout, layoutName } of [
+    { theme: 'dark', messageLayout: 0, layoutName: 'Modern' },
+    { theme: 'light', messageLayout: 0, layoutName: 'Modern' },
+    { theme: 'dark', messageLayout: 1, layoutName: 'Compact' },
+    { theme: 'dark', messageLayout: 2, layoutName: 'Bubble' },
+  ] as const) {
+    test(`message disclosure: ${surface}, ${theme}, ${layoutName}`, async ({ page }, testInfo) => {
       test.skip(!hasPrimaryCredentials(), 'Matrix test credentials required.');
       const homeserver = getHomeserver();
       const credentials = getPrimaryCredentials();
@@ -51,7 +67,7 @@ for (const surface of ['room', 'thread'] as const) {
             })
           );
         },
-        { themeId: `${theme}-theme`, messageLayout: 0 }
+        { themeId: `${theme}-theme`, messageLayout }
       );
       await loginWithPassword(page, { homeserver, ...credentials });
       await page.setViewportSize(
@@ -93,6 +109,8 @@ for (const surface of ['room', 'thread'] as const) {
         return {
           clipped: content.scrollHeight > content.clientHeight,
           previewHeight: contentRect.height,
+          contentWidth: contentRect.width,
+          rowWidth: button.closest('[data-message-id]')!.getBoundingClientRect().width,
           belowContent: buttonRect.top >= contentRect.bottom,
           rightGap: Math.abs(contentRect.right - buttonRect.right),
           inViewport: buttonRect.left >= 0 && buttonRect.right <= window.innerWidth,
@@ -103,6 +121,11 @@ for (const surface of ['room', 'thread'] as const) {
       expect(layout.belowContent).toBe(true);
       expect(layout.rightGap).toBeLessThan(2);
       expect(layout.inViewport).toBe(true);
+      if (layoutName === 'Bubble') {
+        expect(layout.contentWidth).toBeLessThan(layout.rowWidth / 2);
+      } else {
+        await expectRightAligned(expand);
+      }
       await page.screenshot({ path: testInfo.outputPath('collapsed.png') });
 
       await expand.focus();
@@ -110,6 +133,7 @@ for (const surface of ['room', 'thread'] as const) {
       const collapse = row.getByRole('button', { name: 'Show less', exact: true });
       await expect(collapse).toBeFocused();
       await expect(collapse).toHaveAttribute('aria-expanded', 'true');
+      if (layoutName !== 'Bubble') await expectRightAligned(collapse);
       await expect(content).toHaveCSS('mask-image', 'none');
       await expect
         .poll(() => content.evaluate((element) => element.scrollHeight <= element.clientHeight + 1))
@@ -136,6 +160,13 @@ for (const surface of ['room', 'thread'] as const) {
       );
       await expect(row).toContainText('Edited short message.');
       await expect(row.getByRole('button', { name: /Show (full message|less)/ })).toHaveCount(0);
+      if (theme === 'dark') {
+        const widthFraction = await content.evaluate((element) => {
+          const row = element.closest('[data-message-id]')!;
+          return element.getBoundingClientRect().width / row.getBoundingClientRect().width;
+        });
+        expect(widthFraction).toBeLessThan(0.5);
+      }
     });
   }
 }
