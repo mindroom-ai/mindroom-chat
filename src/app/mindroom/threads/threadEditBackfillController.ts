@@ -1,11 +1,4 @@
-import {
-  useEffect,
-  useRef,
-  type Dispatch,
-  type MutableRefObject,
-  type RefObject,
-  type SetStateAction,
-} from 'react';
+import { useEffect, useRef, type MutableRefObject, type RefObject } from 'react';
 import {
   Direction,
   RelationType,
@@ -40,8 +33,9 @@ export const useThreadEditBackfillController = ({
   room,
   scrollRef,
   scrollToBottomRef,
-  setThreadTimelineTick,
-  threadEditFetchAttemptedRef,
+  notifyThreadEventsChanged,
+  editResetEpoch,
+  readEditResetEpoch,
   threadEvents,
   threadId,
   threadIdRef,
@@ -55,13 +49,16 @@ export const useThreadEditBackfillController = ({
   room: Room;
   scrollRef: RefObject<HTMLDivElement>;
   scrollToBottomRef: MutableRefObject<ScrollToBottomState>;
-  setThreadTimelineTick: Dispatch<SetStateAction<number>>;
-  threadEditFetchAttemptedRef: MutableRefObject<WeakMap<MatrixEvent, number>>;
+  notifyThreadEventsChanged: () => void;
+  editResetEpoch: number;
+  readEditResetEpoch: () => number;
   threadEvents: MatrixEvent[];
   threadId: string | undefined;
   threadIdRef: MutableRefObject<string | undefined>;
   threadTailLoaded: boolean;
 }): void => {
+  const threadEditFetchAttemptedRef = useRef(new WeakMap<MatrixEvent, number>());
+  const resetEpochRef = useRef(editResetEpoch);
   const approvals = useThreadApprovals();
   const approvalRepairOwned = approvals?.roomId === room.roomId && approvals?.threadId === threadId;
   // Task #129: events currently being backfilled, so a re-run of this
@@ -98,6 +95,12 @@ export const useThreadEditBackfillController = ({
     []
   );
   useEffect(() => {
+    // Opening resets before this effect in the same commit, before React publishes its snapshot.
+    const currentEpoch = readEditResetEpoch();
+    if (resetEpochRef.current !== currentEpoch) {
+      resetEpochRef.current = currentEpoch;
+      threadEditFetchAttemptedRef.current = new WeakMap<MatrixEvent, number>();
+    }
     if (!threadId || threadEvents.length === 0) return undefined;
     const targetedOpen = !!eventId;
     const inFlight = inFlightRef.current;
@@ -290,7 +293,7 @@ export const useThreadEditBackfillController = ({
           threadTailLoaded
         );
         forceTimelineUpdate();
-        setThreadTimelineTick((val) => val + 1);
+        notifyThreadEventsChanged();
       } else {
         logEditDebug('threadBackfill:noUpdate', {
           threadId,
@@ -315,8 +318,9 @@ export const useThreadEditBackfillController = ({
     room,
     scrollRef,
     scrollToBottomRef,
-    setThreadTimelineTick,
-    threadEditFetchAttemptedRef,
+    notifyThreadEventsChanged,
+    editResetEpoch,
+    readEditResetEpoch,
     threadEvents,
     threadId,
     threadIdRef,

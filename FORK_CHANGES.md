@@ -2,6 +2,21 @@
 
 ## Runbook
 
+### Thread session and target ownership (2026-09-13)
+
+- Thread session owns opening, cache coverage, latest-open loading, timeline revisions, and pending targets through snapshots and semantic commands.
+  Opening effects remain at their original late installation point, after route opening and before focus consumers.
+  The parent retains viewport policy, the latest-open latch, render/index ordering, and pagination request state.
+- Cache and bootstrap helpers exchange domain outcomes while preserving hydrated event identity, cache proof/token rules, cancellation checks, and the single reconcile scheduling point.
+  Seed prewarming exposes a wait operation instead of mutable registries.
+  Target commands scope completion and retries to request IDs and keep result callbacks private.
+- Edit backfill owns its attempted-event map and reads the session reset epoch synchronously before selecting repairs.
+  Regression tests prove same-commit reset ordering and prevent stale published epochs from repeating a reset.
+  Pagination submits semantic page commits while retaining its existing request lifecycle for the next ownership step.
+- Verification: all 488 unit files and 3,832 tests pass under Node 24.13.1.
+  Typecheck and changed-file lint/format checks pass with zero warnings.
+  Production build and live browser verification remain integration checks.
+
 ### Matrix SDK compatibility ownership (2026-09-13)
 
 - Two focused SDK modules own cached room insertion/prepend and bounded thread bootstrap operations.

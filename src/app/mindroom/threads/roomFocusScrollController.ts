@@ -14,7 +14,7 @@ import type {
   ScrollToItem,
 } from '../../hooks/useVirtualPaginator';
 import { getFocusedRoomEventIndex } from './timelinePagination';
-import type { PendingThreadOpen } from './threadOpenTargetEvent';
+import type { ThreadTargetCommands } from './session/threadSessionTypes';
 import { shouldPinThreadToBottomOnOpen, type ThreadInitialRenderMode } from './threadRenderUtils';
 import {
   getEventElementById,
@@ -58,7 +58,7 @@ export type RoomFocusScrollControllerOptions = {
   editId?: string;
   focusItem?: RoomTimelineFocusItem;
   focusScrollResetToken: unknown;
-  pendingThreadOpenRef: MutableRefObject<PendingThreadOpen | undefined>;
+  threadTargets: ThreadTargetCommands;
   pendingThreadOpenTick: number;
   retryPagination: RetryPagination;
   roomId: string;
@@ -69,7 +69,6 @@ export type RoomFocusScrollControllerOptions = {
   scrollToItem: ScrollToItem;
   setAtBottom: Dispatch<SetStateAction<boolean>>;
   setFocusItem: Dispatch<SetStateAction<RoomTimelineFocusItem | undefined>>;
-  setPendingThreadOpenTick: Dispatch<SetStateAction<number>>;
   suppressFocusPaginationRef: MutableRefObject<boolean>;
   suppressThreadOpenBottomPinRef: MutableRefObject<boolean>;
   threadEventIndexMapRef: MutableRefObject<Map<string, number>>;
@@ -94,7 +93,7 @@ export const useRoomFocusScrollController = ({
   editId,
   focusItem,
   focusScrollResetToken,
-  pendingThreadOpenRef,
+  threadTargets,
   pendingThreadOpenTick,
   retryPagination,
   roomId,
@@ -105,7 +104,6 @@ export const useRoomFocusScrollController = ({
   scrollToItem,
   setAtBottom,
   setFocusItem,
-  setPendingThreadOpenTick,
   suppressFocusPaginationRef,
   suppressThreadOpenBottomPinRef,
   threadEventIndexMapRef,
@@ -404,10 +402,10 @@ export const useRoomFocusScrollController = ({
 
   useLayoutEffect(() => {
     if (!threadId) return;
-    const pendingOpen = pendingThreadOpenRef.current;
+    const pendingOpen = threadTargets.getPending();
     if (!pendingOpen) return;
     if (pendingOpen.threadId !== threadId) {
-      pendingThreadOpenRef.current = undefined;
+      threadTargets.discard(pendingOpen.requestId);
       return;
     }
 
@@ -431,14 +429,12 @@ export const useRoomFocusScrollController = ({
         align: 'center',
         stopInView: true,
       });
-      if (pendingOpen.onScroll) pendingOpen.onScroll(true);
-      pendingThreadOpenRef.current = undefined;
+      threadTargets.complete(pendingOpen.requestId, true);
       return;
     }
 
     if (pendingOpen.attempts >= 3) {
-      if (pendingOpen.onScroll) pendingOpen.onScroll(false);
-      pendingThreadOpenRef.current = undefined;
+      threadTargets.complete(pendingOpen.requestId, false);
       return;
     }
 
@@ -446,23 +442,18 @@ export const useRoomFocusScrollController = ({
     // ask the timeline to scroll the virtual index into view before retrying.
     scrollThreadEventIntoView?.(pendingOpen.eventId);
 
-    pendingThreadOpenRef.current = {
-      ...pendingOpen,
-      attempts: pendingOpen.attempts + 1,
-    };
+    threadTargets.advanceAttempt(pendingOpen.requestId);
     requestAnimationFrame(() => {
-      if (!pendingThreadOpenRef.current) return;
-      setPendingThreadOpenTick((val) => val + 1);
+      threadTargets.wakeRetry(pendingOpen.requestId);
     });
   }, [
     cancelThreadBottomSettle,
-    pendingThreadOpenRef,
+    threadTargets,
     pendingThreadOpenTick,
     scrollRef,
     scrollThreadEventIntoView,
     scrollToElement,
     setFocusItem,
-    setPendingThreadOpenTick,
     threadEventIndexMapRef,
     threadId,
     threadTimelineTick,

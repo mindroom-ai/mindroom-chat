@@ -686,6 +686,18 @@ vi.mock('../threadUtils', () => ({
 }));
 
 vi.mock('../useThreadRenderState', async () => {
+  const setSupplementalThreadEvents = (
+    _threadId: string,
+    events: Array<{ getId: () => string }>
+  ) => {
+    threadRenderStateControl.initialThreadEvents = [
+      ...threadRenderStateControl.initialThreadEvents,
+      ...events,
+    ];
+    threadRenderStateControl.currentThreadEvents = threadRenderStateControl.initialThreadEvents;
+  };
+
+  const resetThreadRenderState = vi.fn();
   return {
     useThreadRenderState: () => {
       const threadEvents = threadRenderStateControl.initialThreadEvents as Array<{
@@ -702,18 +714,8 @@ vi.mock('../useThreadRenderState', async () => {
         threadEventIndexMapRef,
         threadEvents,
         threadInitialRenderMode: threadRenderStateControl.threadInitialRenderMode,
-        setSupplementalThreadEvents: (
-          _threadId: string,
-          events: Array<{ getId: () => string }>
-        ) => {
-          threadRenderStateControl.initialThreadEvents = [
-            ...threadRenderStateControl.initialThreadEvents,
-            ...events,
-          ];
-          threadRenderStateControl.currentThreadEvents =
-            threadRenderStateControl.initialThreadEvents;
-        },
-        resetThreadRenderState: vi.fn(),
+        setSupplementalThreadEvents,
+        resetThreadRenderState,
       };
     },
   };

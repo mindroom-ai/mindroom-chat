@@ -62,7 +62,7 @@ function Harness({ onSuppressRef, scrollEl, ...overrides }: HarnessProps) {
     alive: () => true,
     atBottomAnchorRef: createRef(),
     focusScrollResetToken: 'test',
-    pendingThreadOpenRef: createRef(),
+    threadTargets: { getPending: () => undefined } as never,
     pendingThreadOpenTick: 0,
     restorePendingThreadBackPaginationAnchor: vi.fn(() => false),
     retryPagination: vi.fn(),
@@ -73,7 +73,6 @@ function Harness({ onSuppressRef, scrollEl, ...overrides }: HarnessProps) {
     scrollToItem: vi.fn(),
     setAtBottom: vi.fn(),
     setFocusItem: vi.fn(),
-    setPendingThreadOpenTick: vi.fn(),
     suppressFocusPaginationRef: { current: false },
     suppressThreadOpenBottomPinRef,
     threadEventIndexMapRef: { current: new Map() },
@@ -175,15 +174,19 @@ describe('useRoomFocusScrollController', () => {
       };
       const scrollThreadEventIntoView = vi.fn(() => true);
       const setPendingThreadOpenTick = vi.fn();
+      const advanceAttempt = vi.fn();
 
       act(() => {
         create(
           React.createElement(Harness, {
             scrollEl,
             onSuppressRef: () => undefined,
-            pendingThreadOpenRef,
+            threadTargets: {
+              getPending: () => ({ ...pendingThreadOpenRef.current, requestId: 1 }),
+              advanceAttempt,
+              wakeRetry: setPendingThreadOpenTick,
+            } as never,
             scrollThreadEventIntoView,
-            setPendingThreadOpenTick,
             threadEventIndexMapRef: { current: new Map([['$target', 42]]) },
             threadLatestOpenPending: false,
           })
@@ -191,8 +194,9 @@ describe('useRoomFocusScrollController', () => {
       });
 
       expect(scrollThreadEventIntoView).toHaveBeenCalledWith('$target');
-      expect(pendingThreadOpenRef.current?.attempts).toBe(3);
-      expect(setPendingThreadOpenTick).toHaveBeenCalled();
+      expect(advanceAttempt).toHaveBeenCalledWith(1);
+
+      expect(setPendingThreadOpenTick).toHaveBeenCalledWith(1);
     } finally {
       vi.unstubAllGlobals();
     }
@@ -225,7 +229,10 @@ describe('useRoomFocusScrollController', () => {
         React.createElement(Harness, {
           scrollEl,
           onSuppressRef: () => undefined,
-          pendingThreadOpenRef,
+          threadTargets: {
+            getPending: () => ({ ...pendingThreadOpenRef.current, requestId: 1 }),
+            complete: onScroll,
+          } as never,
           scrollThreadEventIntoView,
           threadLatestOpenPending: false,
         })
@@ -233,7 +240,6 @@ describe('useRoomFocusScrollController', () => {
     });
 
     expect(scrollThreadEventIntoView).not.toHaveBeenCalled();
-    expect(onScroll).toHaveBeenCalledWith(false);
-    expect(pendingThreadOpenRef.current).toBeUndefined();
+    expect(onScroll).toHaveBeenCalledWith(1, false);
   });
 });

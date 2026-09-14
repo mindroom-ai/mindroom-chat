@@ -43,7 +43,7 @@ describe('runThreadOpenSdkBootstrap', () => {
       let mounted = true;
       const persistThreadEventCache = vi.fn();
       const setSupplementalThreadEvents = vi.fn();
-      const setThreadLoadError = vi.fn();
+      const onBootstrap = vi.fn();
       const work = runThreadOpenSdkBootstrap({
         debugTraceId: 'test',
         isMounted: () => mounted,
@@ -52,11 +52,7 @@ describe('runThreadOpenSdkBootstrap', () => {
         pinThreadToBottomOnOpen: vi.fn(),
         room: room as never,
         setSupplementalThreadEvents,
-        setThreadHasMoreCachedBack: vi.fn(),
-        setThreadLoadError,
-        setThreadTailLoaded: vi.fn(),
-        setThreadTimelineTick: vi.fn(),
-        setTimeline: vi.fn(),
+        onBootstrap,
         shouldScrollToLatestOnOpen: false,
         threadId: '$root',
       });
@@ -69,7 +65,7 @@ describe('runThreadOpenSdkBootstrap', () => {
       expect(mx.getEventMapper).not.toHaveBeenCalled();
       expect(persistThreadEventCache).not.toHaveBeenCalled();
       expect(setSupplementalThreadEvents).not.toHaveBeenCalled();
-      expect(setThreadLoadError).not.toHaveBeenCalled();
+      expect(onBootstrap).not.toHaveBeenCalledWith({ kind: 'load-error' });
       expect(thread.events).toEqual([]);
       expect(thread.addEvents).not.toHaveBeenCalled();
       expect(threadTimeline.setPaginationToken).not.toHaveBeenCalled();
@@ -79,12 +75,7 @@ describe('runThreadOpenSdkBootstrap', () => {
   it('creates an initialized SDK thread and runs first-open timeline bootstrap', async () => {
     const root = makeEvent('$root', { isThreadRoot: true, ts: 1 });
     const room = makeRoom({ liveEvents: [root] });
-    const setThreadTailLoaded = vi.fn();
-    const setThreadTimelineTick = vi.fn((updater: (value: number) => number) => updater(0));
-    let timeline = { range: { start: 0, end: 1 } };
-    const setTimeline = vi.fn((updater: (current: typeof timeline) => typeof timeline) => {
-      timeline = updater(timeline);
-    });
+    const onBootstrap = vi.fn();
     const pinThreadToBottomOnOpen = vi.fn();
     const mx = {
       fetchRelations: vi.fn().mockResolvedValue(undefined),
@@ -101,11 +92,7 @@ describe('runThreadOpenSdkBootstrap', () => {
       pinThreadToBottomOnOpen,
       room: room as never,
       setSupplementalThreadEvents: vi.fn(),
-      setThreadHasMoreCachedBack: vi.fn(),
-      setThreadLoadError: vi.fn(),
-      setThreadTailLoaded,
-      setThreadTimelineTick,
-      setTimeline,
+      onBootstrap,
       shouldScrollToLatestOnOpen: true,
       threadId: '$root',
     };
@@ -114,9 +101,7 @@ describe('runThreadOpenSdkBootstrap', () => {
     expect(shouldContinue).toBe(false);
     expect(room.createThread).toHaveBeenCalledOnce();
     expect(room.createThread).toHaveBeenCalledWith('$root', root, [], false);
-    expect(setThreadTailLoaded).toHaveBeenCalledWith(true);
-    expect(setTimeline).toHaveBeenCalledTimes(1);
-    expect(setThreadTimelineTick).toHaveBeenCalledTimes(1);
+    expect(onBootstrap).toHaveBeenCalledWith({ kind: 'root-ready' });
     expect(pinThreadToBottomOnOpen).toHaveBeenCalledTimes(1);
     expect(mx.getEventTimeline).not.toHaveBeenCalled();
     expect(mx.getThreadTimeline).toHaveBeenCalledOnce();
@@ -173,11 +158,7 @@ describe('runThreadOpenSdkBootstrap', () => {
       pinThreadToBottomOnOpen: vi.fn(),
       room: room as never,
       setSupplementalThreadEvents: vi.fn(),
-      setThreadHasMoreCachedBack: vi.fn(),
-      setThreadLoadError: vi.fn(),
-      setThreadTailLoaded: vi.fn(),
-      setThreadTimelineTick: vi.fn(),
-      setTimeline: vi.fn(),
+      onBootstrap: vi.fn(),
       shouldScrollToLatestOnOpen: true,
       threadId: '$root',
     });
@@ -248,11 +229,7 @@ describe('runThreadOpenSdkBootstrap', () => {
         pinThreadToBottomOnOpen: vi.fn(),
         room,
         setSupplementalThreadEvents: vi.fn(),
-        setThreadHasMoreCachedBack: vi.fn(),
-        setThreadLoadError: vi.fn(),
-        setThreadTailLoaded: vi.fn(),
-        setThreadTimelineTick: vi.fn(),
-        setTimeline: vi.fn(),
+        onBootstrap: vi.fn(),
         shouldScrollToLatestOnOpen: true,
         threadId: '$root',
       });

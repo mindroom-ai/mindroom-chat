@@ -73,7 +73,7 @@ const makeRunOptions = () => {
   };
   return {
     debugTraceId: 'test',
-    forceTimelineUpdate: vi.fn(),
+    notifyEventsChanged: vi.fn(),
     hydrateThreadFromCache: vi.fn(),
     isCurrentThreadOpen: vi.fn(() => true),
     pinThreadToBottomOnOpen: vi.fn(),
@@ -85,10 +85,7 @@ const makeRunOptions = () => {
     })),
     room,
     setSupplementalThreadEvents: vi.fn(),
-    setThreadHasMoreCachedBack: vi.fn(),
-    setThreadInitialCacheHydrated: vi.fn(),
-    setThreadTailLoaded: vi.fn(),
-    setThreadTimelineTick: vi.fn((updater: (value: number) => number) => updater(0)),
+    onCacheHydrated: vi.fn(),
     shouldScrollToLatestOnOpen: true,
     threadId: '$root',
     threadOpenSeedSession,

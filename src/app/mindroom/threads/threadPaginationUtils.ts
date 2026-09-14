@@ -1,5 +1,4 @@
 import { Direction, EventTimeline, MatrixEvent } from 'matrix-js-sdk';
-import { Dispatch, SetStateAction } from 'react';
 import { eventBelongsToThread } from './threadUtils';
 
 /**
@@ -72,7 +71,7 @@ export const computeReconciliationToken = (
 export const reconcileThreadBackwardPagination = (
   firstThreadTimeline: EventTimeline | undefined,
   cachedToken: string | null | undefined,
-  setHasMoreCachedBack: Dispatch<SetStateAction<boolean>>
+  setHasMoreCachedBack: (hasMoreCachedBack: boolean) => void
 ): void => {
   if (cachedToken === null) {
     firstThreadTimeline?.setPaginationToken(null, Direction.Backward);

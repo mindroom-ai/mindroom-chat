@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { MatrixEvent } from 'matrix-js-sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -81,9 +81,7 @@ const makeHarness = () => {
 };
 
 const makeProps = (harness: ReturnType<typeof makeHarness>, threadEvents: MatrixEvent[]) => {
-  const attemptedRef = { current: new WeakMap<MatrixEvent, number>() };
   return {
-    attemptedRef,
     props: {
       atLiveEndRef: { current: false },
       eventId: undefined,
@@ -93,8 +91,9 @@ const makeProps = (harness: ReturnType<typeof makeHarness>, threadEvents: Matrix
       room: harness.room,
       scrollRef: { current: null },
       scrollToBottomRef: { current: { count: 0, smooth: false } },
-      setThreadTimelineTick: vi.fn(),
-      threadEditFetchAttemptedRef: attemptedRef,
+      notifyThreadEventsChanged: vi.fn(),
+      editResetEpoch: 0,
+      readEditResetEpoch: () => 0,
       threadEvents,
       threadId: '$thread-root',
       threadIdRef: { current: '$thread-root' },
@@ -119,13 +118,64 @@ describe('useThreadEditBackfillController (task #129)', () => {
   beforeEach(() => vi.useRealTimers());
   afterEach(() => vi.restoreAllMocks());
 
-  it('does NOT mark an event attempted before its fetch resolves', async () => {
+  it('reads a same-commit open reset before choosing edit repairs from previously attempted instances', async () => {
+    const harness = makeHarness();
+    const target = makePlaceholder('$same-commit');
+    const { props } = makeProps(harness, [target]);
+    let epoch = 0;
+    const readEditResetEpoch = () => epoch;
+    function OpeningHarness({ reset, events }: { reset: boolean; events: MatrixEvent[] }) {
+      // Match the late opening effect installed before the repair effect.
+      useEffect(() => {
+        if (reset) epoch += 1;
+      }, [reset]);
+      useThreadEditBackfillController({
+        ...props,
+        threadEvents: events,
+        readEditResetEpoch,
+        // Published snapshot still belongs to the render before the open effect.
+        editResetEpoch: 0,
+      });
+      return null;
+    }
+    let renderer!: ReactTestRenderer;
+    await act(async () => {
+      renderer = create(React.createElement(OpeningHarness, { reset: false, events: [target] }));
+      await flush();
+      harness.deferreds.get('$same-commit')!.resolve();
+      await flush();
+    });
+    target.makeReplaced(null);
+    await act(async () => {
+      renderer.update(React.createElement(OpeningHarness, { reset: false, events: [target] }));
+      await flush();
+    });
+    expect(harness.relations).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      renderer.update(React.createElement(OpeningHarness, { reset: true, events: [target] }));
+      await flush();
+    });
+    expect(harness.relations).toHaveBeenCalledTimes(2);
+    await act(async () => {
+      harness.deferreds.get('$same-commit')!.resolve();
+      await flush();
+    });
+    target.makeReplaced(null);
+    await act(async () => {
+      renderer.update(React.createElement(OpeningHarness, { reset: true, events: [target] }));
+      await flush();
+    });
+    expect(harness.relations).toHaveBeenCalledTimes(2);
+    act(() => renderer.unmount());
+  });
+
+  it('applies the definitive result and does not refetch until the edit epoch resets', async () => {
     // Red-without-fix: the old controller marked attempted synchronously
     // at effect start, so this assertion failed (event already marked
     // while the fetch was still pending).
     const harness = makeHarness();
     const target = makePlaceholder('$t1');
-    const { attemptedRef, props } = makeProps(harness, [target]);
+    const { props } = makeProps(harness, [target]);
 
     let renderer!: ReactTestRenderer;
     await act(async () => {
@@ -135,15 +185,29 @@ describe('useThreadEditBackfillController (task #129)', () => {
 
     // Fetch is in flight (deferred not resolved): must not be marked yet.
     expect(harness.relations).toHaveBeenCalledTimes(1);
-    expect(attemptedRef.current.has(target)).toBe(false);
+    expect(target.replacingEvent()).toBeFalsy();
 
     // Resolve → definitive outcome → now marked, edit applied.
     await act(async () => {
       harness.deferreds.get('$t1')!.resolve();
       await flush();
     });
-    expect(attemptedRef.current.has(target)).toBe(true);
+
     expect(target.replacingEvent()?.getId()).toBe('$edit-$t1');
+    await act(async () => {
+      renderer.update(React.createElement(Harness, { ...props, threadEvents: [target] }));
+      await flush();
+    });
+    expect(harness.relations).toHaveBeenCalledTimes(1);
+    // Reset opens a fresh repair lifetime for the same hydrated instance.
+    target.makeReplaced(null);
+    await act(async () => {
+      renderer.update(
+        React.createElement(Harness, { ...props, editResetEpoch: 1, readEditResetEpoch: () => 1 })
+      );
+      await flush();
+    });
+    expect(harness.relations).toHaveBeenCalledTimes(2);
 
     act(() => renderer.unmount());
   });

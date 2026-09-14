@@ -12,6 +12,8 @@ import { MAX_THREAD_FETCH_ITERATIONS } from './threadBootstrap';
 import { fetchAndPersistThreadContent } from './threadContentPrefetch';
 import { useMindroomSyncEngine } from '../engine';
 
+import type { ThreadSeedOpenPort } from './session/threadSessionTypes';
+
 type ThreadSeedPrewarmTarget = {
   threadId: string;
 };
@@ -23,16 +25,7 @@ type EnsureThreadSeedPrewarmOptions = {
   traceId?: string;
 };
 
-export type ThreadSeedPrewarmController = {
-  ensureThreadSeedPrewarm: (
-    expectedThreadId: string,
-    opts?: EnsureThreadSeedPrewarmOptions
-  ) => Promise<void>;
-  prewarmedThreadSeedIdsRef: MutableRefObject<Set<string>>;
-  prewarmingThreadSeedIdsRef: MutableRefObject<Set<string>>;
-  queuedThreadSeedIdsRef: MutableRefObject<Set<string>>;
-  prewarmingThreadSeedPromisesRef: MutableRefObject<Map<string, Promise<void>>>;
-};
+export type ThreadSeedPrewarmController = ThreadSeedOpenPort;
 
 export const useThreadSeedPrewarmController = ({
   room,
@@ -371,11 +364,23 @@ export const useThreadSeedPrewarmController = ({
     priorityTargets,
   ]);
 
-  return {
-    ensureThreadSeedPrewarm,
-    prewarmedThreadSeedIdsRef,
-    prewarmingThreadSeedIdsRef,
-    queuedThreadSeedIdsRef,
-    prewarmingThreadSeedPromisesRef,
-  };
+  const waitForExistingOrQueued = useCallback<ThreadSeedOpenPort['waitForExistingOrQueued']>(
+    (threadId, options) => {
+      const known =
+        prewarmedThreadSeedIdsRef.current.has(threadId) ||
+        prewarmingThreadSeedIdsRef.current.has(threadId) ||
+        queuedThreadSeedIdsRef.current.has(threadId);
+      if (!known) return undefined;
+      return (
+        prewarmingThreadSeedPromisesRef.current.get(threadId) ??
+        ensureThreadSeedPrewarm(threadId, {
+          allowWhileThreadOpen: true,
+          logPrefix: 'thread-open-room-prewarm',
+          traceId: options.traceId,
+        })
+      );
+    },
+    [ensureThreadSeedPrewarm]
+  );
+  return { waitForExistingOrQueued };
 };

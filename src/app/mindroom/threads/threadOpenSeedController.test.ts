@@ -1,17 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
 import { RelationType } from 'matrix-js-sdk';
-import {
-  makeEvent,
-  makeRoom,
-} from './test-utils/RoomTimeline.test.shared';
+import { makeEvent, makeRoom } from './test-utils/RoomTimeline.test.shared';
 import { createThreadOpenSeedSession } from './threadOpenSeedController';
 import { saveThreadOpenSeedSnapshot } from './threadOpenSeedCache';
 
 const makeRefs = (threadId = '$root') => ({
-  prewarmedThreadSeedIdsRef: { current: new Set<string>() },
-  prewarmingThreadSeedIdsRef: { current: new Set<string>() },
-  queuedThreadSeedIdsRef: { current: new Set<string>() },
-  prewarmingThreadSeedPromisesRef: { current: new Map<string, Promise<void>>() },
+  seed: { waitForExistingOrQueued: vi.fn<() => Promise<void> | undefined>(() => undefined) },
   threadId,
 });
 
@@ -31,7 +25,6 @@ describe('createThreadOpenSeedSession', () => {
 
     const session = createThreadOpenSeedSession({
       debugTraceId: 'test',
-      ensureThreadSeedPrewarm: vi.fn(),
       ...refs,
       room: room as never,
       roomTimelineSet: room.getUnfilteredTimelineSet() as never,
@@ -59,7 +52,6 @@ describe('createThreadOpenSeedSession', () => {
 
     const session = createThreadOpenSeedSession({
       debugTraceId: 'test',
-      ensureThreadSeedPrewarm: vi.fn(),
       ...refs,
       room: room as never,
       roomTimelineSet: room.getUnfilteredTimelineSet() as never,
@@ -87,10 +79,9 @@ describe('createThreadOpenSeedSession', () => {
     const supplemental = vi.fn();
     const refs = makeRefs();
     // Pretend the prewarm is in-flight; the awaited promise below rejects.
-    refs.prewarmingThreadSeedIdsRef.current.add('$root');
     const rejection = new Error('backfill scheduler stopped');
     const rejected = Promise.reject(rejection);
-    refs.prewarmingThreadSeedPromisesRef.current.set('$root', rejected);
+    refs.seed.waitForExistingOrQueued.mockReturnValue(rejected);
 
     const unhandledReasons: unknown[] = [];
     const trackUnhandled = (event: PromiseRejectionEvent) => {
@@ -108,7 +99,6 @@ describe('createThreadOpenSeedSession', () => {
     try {
       const session = createThreadOpenSeedSession({
         debugTraceId: 'test',
-        ensureThreadSeedPrewarm: vi.fn(),
         ...refs,
         room: room as never,
         roomTimelineSet: room.getUnfilteredTimelineSet() as never,

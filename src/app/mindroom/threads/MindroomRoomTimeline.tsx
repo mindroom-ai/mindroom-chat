@@ -110,9 +110,9 @@ import { countCacheProbe } from './cacheProbe';
 import { sanitizePrefetchDepth, sanitizePrefetchScope } from '../engine/prefetchPolicy';
 import { mindroomSettingsAtom } from '../settings/mindroomSettings';
 import { useThreadBackPaginationController } from './threadBackPaginationController';
-import { type PendingThreadOpen } from './threadOpenTargetEvent';
 import { useThreadSeedPrewarmController } from './threadSeedPrewarmController';
-import { useThreadOpenCacheController } from './threadOpenCacheController';
+import { useThreadSession } from './session/useThreadSession';
+import type { ThreadOpenRuntime } from './session/threadSessionTypes';
 import { useThreadAwareTimelineRefresh } from './useThreadAwareTimelineRefresh';
 import { useTimelineScrollLedgerController } from './timelineScrollLedgerController';
 import { useRoomAutomaticFill } from './roomAutomaticFill';
@@ -300,16 +300,27 @@ export function RoomTimeline({
   });
 
   const [focusItem, setFocusItem] = useState<RoomTimelineFocusItem | undefined>();
-  const [threadLoadError, setThreadLoadError] = useState(false);
+  const threadSession = useThreadSession({ roomId: room.roomId, threadId, eventId });
+  const {
+    commands: threadCommands,
+    targets: threadTargets,
+    snapshot: threadSnapshot,
+  } = threadSession;
+  const {
+    loadError: threadLoadError,
+    initialCacheHydrated: threadInitialCacheHydrated,
+    latestPending: threadLatestOpenPending,
+    editResetEpoch,
+  } = threadSnapshot.open;
+  const { hasMoreCachedBack: threadHasMoreCachedBack, tailLoaded: threadTailLoaded } =
+    threadSnapshot.history;
+  const { timelineRevision: threadTimelineTick, targetRevision: pendingThreadOpenTick } =
+    threadSnapshot;
   const [roomHasMoreCachedBack, setRoomHasMoreCachedBack] = useState(false);
   const [roomInitialCacheHydratedKey, setRoomInitialCacheHydratedKey] = useState<
     string | undefined
   >();
-  const [threadHasMoreCachedBack, setThreadHasMoreCachedBack] = useState(false);
-  const [threadTailLoaded, setThreadTailLoaded] = useState(false);
   const [threadPaginatingFront, setThreadPaginatingFront] = useState(false);
-  const [threadInitialCacheHydrated, setThreadInitialCacheHydrated] = useState(false);
-  const [threadLatestOpenPending, setThreadLatestOpenPending] = useState(false);
   // First real scroll gesture in this thread view; also ends the
   // open-at-latest bottom pin (the reader owns the position from then on).
   const [threadUserScrolled, setThreadUserScrolled] = useState(false);
@@ -330,8 +341,6 @@ export function RoomTimeline({
   } else if (threadLatestOpenPending) {
     threadOpenedAtLatestRef.current = true;
   }
-  const [threadTimelineTick, setThreadTimelineTick] = useState(0);
-  const [pendingThreadOpenTick, setPendingThreadOpenTick] = useState(0);
   const {
     isPaginatingBack: threadPaginatingBack,
     isPaginatingBackRef: threadPaginatingBackRef,
@@ -348,10 +357,6 @@ export function RoomTimeline({
   const roomPaginatingBackRef = useRef(false);
   const threadIdRef = useRef(threadId);
   const threadFilterStateRef = useRef(requestedThreadFilterState);
-  const threadEditFetchAttemptedRef = useRef<WeakMap<MatrixEvent, number>>(
-    new WeakMap<MatrixEvent, number>()
-  );
-  const pendingThreadOpenRef = useRef<PendingThreadOpen | undefined>();
   const suppressFocusPaginationRef = useRef(false);
   const alive = useAlive();
   roomIdRef.current = room.roomId;
@@ -846,13 +851,7 @@ export function RoomTimeline({
     paginateBack: handleRoomTimelinePagination,
   });
 
-  const {
-    ensureThreadSeedPrewarm,
-    prewarmedThreadSeedIdsRef,
-    prewarmingThreadSeedIdsRef,
-    queuedThreadSeedIdsRef,
-    prewarmingThreadSeedPromisesRef,
-  } = useThreadSeedPrewarmController({
+  const { waitForExistingOrQueued } = useThreadSeedPrewarmController({
     room,
     mx,
     sessionId,
@@ -865,22 +864,6 @@ export function RoomTimeline({
   const forceTimelineUpdate = useCallback(() => {
     setTimeline((ct) => ({ ...ct }));
   }, []);
-
-  const { hydrateThreadFromCache, refreshLatestThreadSlice } = useThreadOpenCacheController({
-    alive,
-    debugTraceId: threadDebugTraceId,
-    forceTimelineUpdate,
-    mx,
-    persistThreadEventCache,
-    room,
-    roomIdRef,
-    sessionId,
-    setSupplementalThreadEvents,
-    setThreadHasMoreCachedBack,
-    setThreadTailLoaded,
-    setThreadTimelineTick,
-    threadIdRef,
-  });
 
   // CINNY-207 P5.1 (D7 / AC9): bound `scheduleReconcile` binding for
   // the thread-open flow. Every open (complete or partial coverage)
@@ -897,6 +880,64 @@ export function RoomTimeline({
         ...args,
       }),
     [mx, syncEngine, threadDebugTraceId]
+  );
+  const threadRender = useMemo(
+    () => ({
+      reset: resetThreadRenderState,
+      append: setSupplementalThreadEvents,
+      invalidateTimeline: forceTimelineUpdate,
+    }),
+    [resetThreadRenderState, setSupplementalThreadEvents, forceTimelineUpdate]
+  );
+  const threadViewport = useMemo(
+    () => ({
+      resetForOpen: () => {
+        setFocusItem(undefined);
+        resetThreadBackPagination();
+      },
+      resetAfterLeave: () => {
+        setThreadPaginatingFront(false);
+        resetThreadBackPagination();
+      },
+      requestLatestPin: () => {
+        if (suppressThreadOpenBottomPinRef.current) return;
+        scrollToBottomRef.current.count += 1;
+        scrollToBottomRef.current.smooth = false;
+        setAtBottom(true);
+      },
+    }),
+    [resetThreadBackPagination, suppressThreadOpenBottomPinRef, setAtBottom]
+  );
+  const threadOpenRuntime = useMemo<ThreadOpenRuntime>(
+    () => ({
+      room,
+      mx,
+      sessionId,
+      persist: persistThreadEventCache,
+      reconcile: scheduleReconcile,
+      seed: { waitForExistingOrQueued },
+      render: threadRender,
+      viewport: threadViewport,
+      debugTraceId: threadDebugTraceId,
+      onThreadLoadError,
+    }),
+    [
+      room,
+      mx,
+      sessionId,
+      persistThreadEventCache,
+      scheduleReconcile,
+      waitForExistingOrQueued,
+      threadRender,
+      threadViewport,
+      threadDebugTraceId,
+      onThreadLoadError,
+    ]
+  );
+  const refreshLatestThreadSlice = useCallback(
+    (expectedThreadId: string, options?: { allowWhenThreadClosed?: boolean }) =>
+      threadCommands.refreshLatest(expectedThreadId, threadOpenRuntime, options),
+    [threadCommands, threadOpenRuntime]
   );
 
   const getScrollElement = useCallback(() => scrollRef.current, []);
@@ -1378,7 +1419,7 @@ export function RoomTimeline({
     room,
     navigateRoomThread,
     overviewThreadRootIds,
-    pendingThreadOpenRef,
+    threadTargets,
     readUpToTs,
     readUptoEventIdRef,
     recalibrateFilterOptsRef,
@@ -1395,8 +1436,7 @@ export function RoomTimeline({
     scrollToItem: scrollToTimelineItem,
     searchQuery: threadIndexSearchQuery,
     setFocusItem,
-    setPendingThreadOpenTick,
-    setThreadTimelineTick,
+    notifyThreadEventsChanged: threadCommands.notifyEventsChanged,
     setTimeline,
     showHiddenEvents,
     threadEventIndexMapRef,
@@ -1430,8 +1470,8 @@ export function RoomTimeline({
     scrollRef,
     scrollToBottomRef,
     setSupplementalThreadEvents,
-    setThreadTailLoaded,
-    setThreadTimelineTick,
+    observeLiveTail: threadCommands.observeLiveTail,
+    notifyThreadEventsChanged: threadCommands.notifyEventsChanged,
     setTimeline,
     setUnreadInfo,
     showHiddenEvents,
@@ -1584,42 +1624,9 @@ export function RoomTimeline({
   });
 
   useThreadOpenLifecycleController({
-    ensureThreadSeedPrewarm,
-    eventId,
-    forceTimelineUpdate,
-    hydrateThreadFromCache,
-    mx,
-    onThreadLoadError,
-    pendingThreadOpenRef,
-    persistThreadEventCache,
-    prewarmedThreadSeedIdsRef,
-    prewarmingThreadSeedIdsRef,
-    prewarmingThreadSeedPromisesRef,
-    queuedThreadSeedIdsRef,
-    refreshLatestThreadSlice,
-    scheduleReconcile,
-    resetThreadBackPagination,
-    resetThreadRenderState,
-    room,
-    roomTimelineSet,
-    scrollToBottomRef,
-    setAtBottom,
-    setFocusItem,
-    setPendingThreadOpenTick,
-    setSupplementalThreadEvents,
-    setThreadHasMoreCachedBack,
-    setThreadInitialCacheHydrated,
-    setThreadLatestOpenPending,
-    setThreadLoadError,
-    setThreadPaginatingFront,
-    setThreadTailLoaded,
-    setThreadTimelineTick,
-    setTimeline,
-    suppressThreadOpenBottomPinRef,
-    threadDebugTraceId,
-    threadEditFetchAttemptedRef,
-    threadId,
-    threadIdRef,
+    route: threadSnapshot.route,
+    commands: threadCommands,
+    runtime: threadOpenRuntime,
   });
 
   useRoomFocusScrollController({
@@ -1629,7 +1636,7 @@ export function RoomTimeline({
     editId: messageFeature.editingEventId,
     focusItem,
     focusScrollResetToken: effectiveThreadFilterState,
-    pendingThreadOpenRef,
+    threadTargets,
     pendingThreadOpenTick,
     retryPagination,
     roomId: room.roomId,
@@ -1640,7 +1647,6 @@ export function RoomTimeline({
     scrollToItem: scrollToTimelineItem,
     setAtBottom,
     setFocusItem,
-    setPendingThreadOpenTick,
     suppressFocusPaginationRef,
     suppressThreadOpenBottomPinRef,
     threadEventIndexMapRef,
@@ -1729,8 +1735,9 @@ export function RoomTimeline({
     room,
     scrollRef,
     scrollToBottomRef,
-    setThreadTimelineTick,
-    threadEditFetchAttemptedRef,
+    notifyThreadEventsChanged: threadCommands.notifyEventsChanged,
+    editResetEpoch,
+    readEditResetEpoch: threadCommands.readEditResetEpoch,
     threadEvents,
     threadId,
     threadIdRef,
@@ -1743,20 +1750,16 @@ export function RoomTimeline({
       recaptureThreadBackPaginationAnchor: recaptureThreadBackPaginationAnchorWithCapture,
       clearThreadBackPaginationAnchor: clearPendingThreadBackPaginationAnchor,
       finishThreadBackPagination,
-      forceTimelineUpdate,
       mx,
       persistThreadEventCache,
       room,
       scrollRef,
       sessionId,
-      setSupplementalThreadEvents,
-      setThreadHasMoreCachedBack,
-      setThreadLatestOpenPending,
+      session: threadCommands,
       setThreadPaginatingFront,
-      setThreadTailLoaded,
-      setThreadTimelineTick,
       thread,
       threadEvents,
+      threadHasMoreCachedBack,
       threadId,
       threadIdRef,
     });

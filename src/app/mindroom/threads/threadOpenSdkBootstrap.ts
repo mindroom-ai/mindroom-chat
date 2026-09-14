@@ -6,7 +6,6 @@ import {
   type MatrixEvent,
   type Room,
 } from 'matrix-js-sdk';
-import type { Dispatch, SetStateAction } from 'react';
 import to from 'await-to-js';
 import { compareCachedPaginationAnchors } from './eventCacheTokenUtils';
 import { isZeroReplyStandaloneThreadRootEvent } from './compactThreadRootData';
@@ -37,7 +36,11 @@ type PersistThreadEventCache = (
   relationSnapshotComplete?: boolean
 ) => void;
 
-type RunThreadOpenSdkBootstrapOptions<TTimeline extends object> = {
+export type ThreadBootstrapObservation =
+  | { kind: 'root-ready' }
+  | { kind: 'load-error' }
+  | { kind: 'backward-availability'; hasMoreCachedBack: boolean };
+type RunThreadOpenSdkBootstrapOptions = {
   debugTraceId: string | undefined;
   hydratedCachedPage?: HydratedThreadCachePage;
   isMounted: () => boolean;
@@ -47,16 +50,12 @@ type RunThreadOpenSdkBootstrapOptions<TTimeline extends object> = {
   pinThreadToBottomOnOpen: () => void;
   room: Room;
   setSupplementalThreadEvents: (threadId: string, events: MatrixEvent[]) => void;
-  setThreadHasMoreCachedBack: Dispatch<SetStateAction<boolean>>;
-  setThreadLoadError: Dispatch<SetStateAction<boolean>>;
-  setThreadTailLoaded: Dispatch<SetStateAction<boolean>>;
-  setThreadTimelineTick: Dispatch<SetStateAction<number>>;
-  setTimeline: Dispatch<SetStateAction<TTimeline>>;
+  onBootstrap: (observation: ThreadBootstrapObservation) => void;
   shouldScrollToLatestOnOpen: boolean;
   threadId: string;
 };
 
-export const runThreadOpenSdkBootstrap = async <TTimeline extends object>({
+export const runThreadOpenSdkBootstrap = async ({
   debugTraceId,
   hydratedCachedPage,
   isMounted,
@@ -66,18 +65,12 @@ export const runThreadOpenSdkBootstrap = async <TTimeline extends object>({
   pinThreadToBottomOnOpen,
   room,
   setSupplementalThreadEvents,
-  setThreadHasMoreCachedBack,
-  setThreadLoadError,
-  setThreadTailLoaded,
-  setThreadTimelineTick,
-  setTimeline,
+  onBootstrap,
   shouldScrollToLatestOnOpen,
   threadId,
-}: RunThreadOpenSdkBootstrapOptions<TTimeline>): Promise<boolean> => {
+}: RunThreadOpenSdkBootstrapOptions): Promise<boolean> => {
   if (isPendingLocalEchoThreadRoot(room, threadId)) {
-    setThreadTailLoaded(true);
-    setTimeline((ct) => ({ ...ct }));
-    setThreadTimelineTick((val) => val + 1);
+    onBootstrap({ kind: 'root-ready' });
     logTimelineDebug(debugTraceId, 'thread-open-pending-local-echo-root', {
       threadId,
     });
@@ -97,9 +90,7 @@ export const runThreadOpenSdkBootstrap = async <TTimeline extends object>({
   ) {
     threadModel = createInitializedThreadForRoot(room, zeroReplyStandaloneRootEvent);
     createdZeroReplyThread = true;
-    setThreadTailLoaded(true);
-    setTimeline((ct) => ({ ...ct }));
-    setThreadTimelineTick((val) => val + 1);
+    onBootstrap({ kind: 'root-ready' });
     logTimelineDebug(debugTraceId, 'thread-open-zero-reply-root-without-thread-model', {
       threadId,
     });
@@ -117,7 +108,7 @@ export const runThreadOpenSdkBootstrap = async <TTimeline extends object>({
       logTimelineDebug(debugTraceId, 'thread-sdk-bootstrap-context-error', {
         threadId,
       });
-      setThreadLoadError(true);
+      onBootstrap({ kind: 'load-error' });
       if (isThreadNotFoundError(ctxErr)) {
         onThreadLoadError?.(threadId);
       }
@@ -135,7 +126,7 @@ export const runThreadOpenSdkBootstrap = async <TTimeline extends object>({
       logTimelineDebug(debugTraceId, 'thread-sdk-bootstrap-relations-error', {
         threadId,
       });
-      setThreadLoadError(true);
+      onBootstrap({ kind: 'load-error' });
       if (isThreadNotFoundError(relErr)) {
         onThreadLoadError?.(threadId);
       }
@@ -159,7 +150,7 @@ export const runThreadOpenSdkBootstrap = async <TTimeline extends object>({
       reconcileThreadBackwardPagination(
         undefined,
         relData.next_batch ?? null,
-        setThreadHasMoreCachedBack
+        (hasMoreCachedBack) => onBootstrap({ kind: 'backward-availability', hasMoreCachedBack })
       );
       logTimelineDebug(debugTraceId, 'thread-sdk-bootstrap-relations-fallback', {
         mappedCount: mappedEvents.length,
@@ -235,10 +226,8 @@ export const runThreadOpenSdkBootstrap = async <TTimeline extends object>({
 
   if (firstThreadTimeline) {
     const sdkBackwardToken = firstThreadTimeline.getPaginationToken(Direction.Backward) ?? null;
-    reconcileThreadBackwardPagination(
-      firstThreadTimeline,
-      sdkBackwardToken,
-      setThreadHasMoreCachedBack
+    reconcileThreadBackwardPagination(firstThreadTimeline, sdkBackwardToken, (hasMoreCachedBack) =>
+      onBootstrap({ kind: 'backward-availability', hasMoreCachedBack })
     );
   }
 

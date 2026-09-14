@@ -78,8 +78,8 @@ export const useRoomLiveRenderController = ({
   scrollRef,
   scrollToBottomRef,
   setSupplementalThreadEvents,
-  setThreadTailLoaded,
-  setThreadTimelineTick,
+  observeLiveTail,
+  notifyThreadEventsChanged,
   setTimeline,
   setUnreadInfo,
   showHiddenEvents,
@@ -107,8 +107,8 @@ export const useRoomLiveRenderController = ({
   scrollRef: RefObject<HTMLDivElement>;
   scrollToBottomRef: MutableRefObject<ScrollToBottomState>;
   setSupplementalThreadEvents: (expectedThreadId: string, events: MatrixEvent[]) => void;
-  setThreadTailLoaded: Dispatch<SetStateAction<boolean>>;
-  setThreadTimelineTick: Dispatch<SetStateAction<number>>;
+  observeLiveTail: (threadId: string) => void;
+  notifyThreadEventsChanged: () => void;
   setTimeline: Dispatch<SetStateAction<Timeline>>;
   setUnreadInfo: Dispatch<SetStateAction<RoomUnreadInfo>>;
   showHiddenEvents: boolean;
@@ -199,7 +199,7 @@ export const useRoomLiveRenderController = ({
         // pruned content immediately (finding F6-C).
         if (timelineMeta.liveEvent && mEvt.isRedaction()) {
           if (threadId) {
-            setThreadTimelineTick((val) => val + 1);
+            notifyThreadEventsChanged();
           } else {
             setTimeline((ct) => ({ ...ct }));
           }
@@ -211,7 +211,7 @@ export const useRoomLiveRenderController = ({
             if (relation?.rel_type !== RelationType.Replace) {
               setSupplementalThreadEvents(threadId, [mEvt]);
             }
-            setThreadTimelineTick((val) => val + 1);
+            notifyThreadEventsChanged();
             return;
           }
 
@@ -265,10 +265,10 @@ export const useRoomLiveRenderController = ({
               (mEventId === threadId || eventBelongsToThread(mEvt, threadId)) &&
               atLiveEndRef.current
             ) {
-              setThreadTailLoaded(true);
+              observeLiveTail(threadId);
             }
 
-            setThreadTimelineTick((val) => val + 1);
+            notifyThreadEventsChanged();
 
             const scrollElement = scrollRef.current;
             if (scrollElement) {
@@ -389,8 +389,8 @@ export const useRoomLiveRenderController = ({
         scrollRef,
         scrollToBottomRef,
         setSupplementalThreadEvents,
-        setThreadTailLoaded,
-        setThreadTimelineTick,
+        observeLiveTail,
+        notifyThreadEventsChanged,
         setTimeline,
         setUnreadInfo,
         showHiddenEvents,

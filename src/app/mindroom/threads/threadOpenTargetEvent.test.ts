@@ -1,9 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import {
-  makeEvent,
-  makeRoom,
-  makeTimeline,
-} from './test-utils/RoomTimeline.test.shared';
+import { makeEvent, makeRoom, makeTimeline } from './test-utils/RoomTimeline.test.shared';
 import { runThreadOpenTargetEvent } from './threadOpenTargetEvent';
 
 describe('runThreadOpenTargetEvent', () => {
@@ -20,38 +16,31 @@ describe('runThreadOpenTargetEvent', () => {
     };
     const room = makeRoom({ liveEvents: [root], threads: [thread as never] });
     const pending = vi.fn();
-    const setPendingThreadOpenTick = vi.fn((updater: (value: number) => number) => updater(0));
-    const setThreadTimelineTick = vi.fn((updater: (value: number) => number) => updater(0));
-    const forceTimelineUpdate = vi.fn();
+    const notifyEventsChanged = vi.fn();
     const mx = {
       getEventTimeline: vi.fn(async () => threadTimeline),
     };
 
     const shouldContinue = await runThreadOpenTargetEvent({
       eventId: '$reply',
-      forceTimelineUpdate,
+      notifyEventsChanged,
       isCurrentThreadOpen: () => true,
       mx: mx as never,
       room: room as never,
-      setPendingThreadOpen: pending,
-      setPendingThreadOpenTick,
-      setThreadTimelineTick,
+      targets: { queue: pending } as never,
       shouldScrollToLatestOnOpen: false,
       threadId: '$root',
     });
 
     expect(shouldContinue).toBe(true);
     expect(mx.getEventTimeline).toHaveBeenCalledWith(threadTimelineSet, '$reply');
-    expect(forceTimelineUpdate).toHaveBeenCalledTimes(1);
-    expect(setThreadTimelineTick).toHaveBeenCalledTimes(1);
+    expect(notifyEventsChanged).toHaveBeenCalledTimes(1);
     expect(pending).toHaveBeenCalledWith({
       threadId: '$root',
       eventId: '$reply',
       highlight: true,
       onScroll: undefined,
-      attempts: 0,
     });
-    expect(setPendingThreadOpenTick).toHaveBeenCalledTimes(1);
   });
 
   it('does not queue target scroll for latest opens or root-event opens', async () => {
@@ -62,13 +51,11 @@ describe('runThreadOpenTargetEvent', () => {
     await expect(
       runThreadOpenTargetEvent({
         eventId: undefined,
-        forceTimelineUpdate: vi.fn(),
+        notifyEventsChanged: vi.fn(),
         isCurrentThreadOpen: () => true,
         mx: mx as never,
         room: room as never,
-        setPendingThreadOpen: pending,
-        setPendingThreadOpenTick: vi.fn(),
-        setThreadTimelineTick: vi.fn(),
+        targets: { queue: pending } as never,
         shouldScrollToLatestOnOpen: true,
         threadId: '$root',
       })
@@ -77,13 +64,11 @@ describe('runThreadOpenTargetEvent', () => {
     await expect(
       runThreadOpenTargetEvent({
         eventId: '$root',
-        forceTimelineUpdate: vi.fn(),
+        notifyEventsChanged: vi.fn(),
         isCurrentThreadOpen: () => true,
         mx: mx as never,
         room: room as never,
-        setPendingThreadOpen: pending,
-        setPendingThreadOpenTick: vi.fn(),
-        setThreadTimelineTick: vi.fn(),
+        targets: { queue: pending } as never,
         shouldScrollToLatestOnOpen: false,
         threadId: '$root',
       })
@@ -110,13 +95,11 @@ describe('runThreadOpenTargetEvent', () => {
 
     const shouldContinue = await runThreadOpenTargetEvent({
       eventId: '$reply',
-      forceTimelineUpdate: vi.fn(),
+      notifyEventsChanged: vi.fn(),
       isCurrentThreadOpen: () => false,
       mx: mx as never,
       room: room as never,
-      setPendingThreadOpen: pending,
-      setPendingThreadOpenTick: vi.fn(),
-      setThreadTimelineTick: vi.fn(),
+      targets: { queue: pending } as never,
       shouldScrollToLatestOnOpen: false,
       threadId: '$root',
     });

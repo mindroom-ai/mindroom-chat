@@ -20,6 +20,8 @@ import { countCacheProbe } from './cacheProbe';
 import { waitForScrollQuiescence } from './scrollQuiescence';
 import type { PersistThreadEventCache } from '../engine/enginePersistFacade';
 
+import type { ThreadSessionCommands } from './session/threadSessionTypes';
+
 type ThreadBackPaginationFinishOptions = {
   currentThreadId?: string;
   didPaginateBack: boolean;
@@ -31,20 +33,16 @@ export const useThreadPaginationCommandController = ({
   recaptureThreadBackPaginationAnchor,
   clearThreadBackPaginationAnchor,
   finishThreadBackPagination,
-  forceTimelineUpdate,
   mx,
   persistThreadEventCache,
   room,
   scrollRef,
   sessionId,
-  setSupplementalThreadEvents,
-  setThreadHasMoreCachedBack,
-  setThreadLatestOpenPending,
+  session,
   setThreadPaginatingFront,
-  setThreadTailLoaded,
-  setThreadTimelineTick,
   thread,
   threadEvents,
+  threadHasMoreCachedBack,
   threadId,
   threadIdRef,
 }: {
@@ -74,20 +72,16 @@ export const useThreadPaginationCommandController = ({
   // original thread.
   clearThreadBackPaginationAnchor: () => void;
   finishThreadBackPagination: (options: ThreadBackPaginationFinishOptions) => void;
-  forceTimelineUpdate: () => void;
   mx: MatrixClient;
   persistThreadEventCache: PersistThreadEventCache;
   room: Room;
   scrollRef: RefObject<HTMLDivElement>;
   sessionId: string;
-  setSupplementalThreadEvents: (threadId: string, events: MatrixEvent[]) => void;
-  setThreadHasMoreCachedBack: Dispatch<SetStateAction<boolean>>;
-  setThreadLatestOpenPending: Dispatch<SetStateAction<boolean>>;
+  session: ThreadSessionCommands;
   setThreadPaginatingFront: Dispatch<SetStateAction<boolean>>;
-  setThreadTailLoaded: Dispatch<SetStateAction<boolean>>;
-  setThreadTimelineTick: Dispatch<SetStateAction<number>>;
   thread: Thread | null | undefined;
   threadEvents: MatrixEvent[];
+  threadHasMoreCachedBack: boolean;
   threadId: string | undefined;
   threadIdRef: MutableRefObject<string | undefined>;
 }) => {
@@ -117,7 +111,7 @@ export const useThreadPaginationCommandController = ({
       return false;
     };
 
-    setThreadLatestOpenPending(false);
+    session.beginManualHistoryRead();
     let didPaginateBack = false;
     try {
       const earliestThreadReply = findEarliestLoadedThreadReplyByCacheOrder(
@@ -182,10 +176,13 @@ export const useThreadPaginationCommandController = ({
           countCacheProbe('threadPaginateBackCommitSkippedNoAnchor');
           return;
         }
-        setSupplementalThreadEvents(expectedThreadId, cachedEvents);
-        setThreadHasMoreCachedBack(cachedPaginationSnapshot.hasMoreCachedBack);
-        forceTimelineUpdate();
-        setThreadTimelineTick((val) => val + 1);
+        const lease = session.captureLease();
+        if (lease)
+          session.commitPage(lease, {
+            kind: 'back-cache',
+            events: cachedEvents,
+            hasMoreCachedBack: cachedPaginationSnapshot.hasMoreCachedBack,
+          });
         didPaginateBack = true;
         countCacheProbe('threadPaginateBackCacheCommits');
         return;
@@ -216,7 +213,8 @@ export const useThreadPaginationCommandController = ({
         // is honest. Real holes behind this state are healed by the
         // reconciler's shortfall drain on the next open.
         countCacheProbe('threadPaginateBackNoToken');
-        setThreadHasMoreCachedBack(false);
+        const lease = session.captureLease();
+        if (lease) session.markBackwardExhausted(lease);
         return;
       }
 
@@ -272,13 +270,16 @@ export const useThreadPaginationCommandController = ({
           // explicit and idempotent at the call site.
           clearThreadBackPaginationAnchor();
         }
+        let hasMoreCachedBack = threadHasMoreCachedBack;
         reconcileThreadBackwardPagination(
           firstThreadTimeline,
           firstThreadTimeline.getPaginationToken(Direction.Backward),
-          setThreadHasMoreCachedBack
+          (value) => {
+            hasMoreCachedBack = value;
+          }
         );
-        forceTimelineUpdate();
-        setThreadTimelineTick((val) => val + 1);
+        const lease = session.captureLease();
+        if (lease) session.commitPage(lease, { kind: 'back-network', hasMoreCachedBack });
         didPaginateBack = true;
         countCacheProbe('threadPaginateBackNetworkCommits');
       } else if (threadIdRef.current !== expectedThreadId) {
@@ -304,22 +305,20 @@ export const useThreadPaginationCommandController = ({
     recaptureThreadBackPaginationAnchor,
     clearThreadBackPaginationAnchor,
     finishThreadBackPagination,
-    forceTimelineUpdate,
     mx,
     persistThreadEventCache,
     room,
     scrollRef,
     sessionId,
-    setSupplementalThreadEvents,
-    setThreadHasMoreCachedBack,
-    setThreadLatestOpenPending,
-    setThreadTimelineTick,
+    session,
     thread,
     threadEvents,
+    threadHasMoreCachedBack,
     threadId,
     threadIdRef,
   ]);
 
+  // Request lifetime fencing moves into the pagination owner separately.
   const handleThreadPaginateFront = useCallback(async () => {
     if (!threadId || !thread || threadPaginatingFrontRef.current) return;
     const currentThreadTimelineSet = thread.getUnfilteredTimelineSet();
@@ -351,17 +350,14 @@ export const useThreadPaginationCommandController = ({
         undefined,
         tailLoaded
       );
-      setThreadTailLoaded(tailLoaded);
-      forceTimelineUpdate();
-      setThreadTimelineTick((val) => val + 1);
+      const lease = session.captureLease();
+      if (lease) session.commitPage(lease, { kind: 'front-network', tailLoaded });
     }
   }, [
-    forceTimelineUpdate,
     mx,
     persistThreadEventCache,
     setThreadPaginatingFront,
-    setThreadTailLoaded,
-    setThreadTimelineTick,
+    session,
     thread,
     threadId,
     threadIdRef,
