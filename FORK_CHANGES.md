@@ -2,7 +2,20 @@
 
 ## Runbook
 
-<<<<<<< HEAD
+### Finish history loading on first thread open (2026-09-14)
+
+- Status: implemented and validated on current dev; pull-request review is pending.
+- Report: a newly opened thread can show `Load Older Messages` above its first message.
+- Confirmed path: when a standalone root needs an SDK thread model, a failed context request can fall back to a relations page carrying a backward cursor even when it contains the final reply.
+- The bootstrap previously returned early solely because it had created the model, skipping the normal history refresh that exhausts the cursor and reconciles the button state.
+- Newly created models now continue through the existing open lifecycle; pending local echoes, cancellation, error exits, and the metadata initialization race guard retain their existing behavior.
+- Focused component regressions cover an empty terminal page, loading an actual older reply into the render-state sink, and keeping the history button available after a pagination error.
+- The shared SDK thread fixture now supports event-to-timeline lookup and its timeline-set backlink so the first-open component tests exercise a valid render.
+- Validation on Node 24.13.1: production/PWA build, typecheck, full ESLint with zero errors and the existing seventeen warnings, changed-file Prettier, and `git diff --check` pass.
+- Full Vitest passes 3,792 of 3,795 tests with eight workers; only the three existing `xcodeCloudPostClone.test.ts` shell-fixture failures remain on this Nix host.
+- An initial unconstrained run during the production build also hit a ledger-test timeout; the full rerun passes every room and thread test without changing their timeout limits.
+- The regression reproduces a reachable cause; the exact network sequence behind the reported screenshot has not been captured on the device.
+
 ### Refresh long-message expand and collapse controls (2026-09-14)
 
 - Status: implemented, independently reviewed, and validated locally.
@@ -320,20 +333,6 @@
 - The full Vitest run passes 3,611 of 3,615 tests; the same three platform-script failures and one upload-session failure documented on the untouched base remain in two unchanged files.
 - Review: fresh independent review found no Critical, Important, or Minor issues after the fade correction and its rendered-position assertion were added.
 - Next step: complete refreshed PR gates, then hand off for human merge.
-=======
-### Finish history loading on first thread open (2026-09-14)
-
-- Status: implemented, independently reviewed, and verified locally.
-- Report: a newly opened thread can show `Load Older Messages` above its first message.
-- Confirmed path: when a standalone root needs an SDK thread model, a failed context request can fall back to a relations page carrying a backward cursor even when it contains the final reply.
-- The bootstrap previously returned early solely because it had created the model, skipping the normal history refresh that exhausts the cursor and reconciles the button state.
-- Newly created models now continue through the existing open lifecycle; pending local echoes, cancellation, error exits, and the metadata initialization race guard retain their existing behavior.
-- Focused component regressions cover an empty terminal page, loading an actual older reply into the render-state sink, and keeping the history button available after a pagination error.
-- The shared SDK thread fixture now supports event-to-timeline lookup and its timeline-set backlink so the first-open component tests exercise a valid render.
-- Validation: 20 focused tests, typecheck, production/PWA build, touched-file ESLint and Prettier, and `git diff --check` pass.
-- Full Vitest passes 3,607 of 3,614 tests; the same seven failures reproduce on untouched `dev` in `xcodeCloudPostClone.test.ts`, `matrixSdkThreadReset.test.ts`, and `useRoomInputSendSessionController.test.ts`.
-- The regression reproduces a reachable cause; the exact network sequence behind the reported screenshot has not been captured on the device.
->>>>>>> d4eef249 (fix: finish history loading on first thread open)
 
 ### Keep composer paste handler synchronous (2026-09-02)
 
