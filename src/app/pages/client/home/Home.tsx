@@ -49,7 +49,6 @@ import { VirtualTile } from '../../../components/virtualizer';
 import { RoomNavCategoryButton, RoomNavItem } from '../../../features/room-nav';
 import { makeNavCategoryId } from '../../../state/closedNavCategories';
 import { useCategoryHandler } from '../../../hooks/useCategoryHandler';
-import { useNavToActivePathMapper } from '../../../hooks/useNavToActivePathMapper';
 import { PageNav, PageNavHeader, PageNavContent } from '../../../components/page';
 import { useClosedNavCategoriesAtom } from '../../../state/hooks/closedNavCategories';
 import { stopPropagation } from '../../../utils/keyboard';
@@ -214,7 +213,6 @@ const DEFAULT_CATEGORY_ID = makeNavCategoryId('home', 'room');
 export function Home() {
   const { t } = useTranslation();
   const mx = useMatrixClient();
-  useNavToActivePathMapper('home');
   const scrollRef = useRef<HTMLDivElement>(null);
   const rooms = useHomeRooms();
   const notificationPreferences = useRoomsNotificationPreferencesContext();

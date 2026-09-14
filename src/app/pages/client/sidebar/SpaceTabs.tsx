@@ -598,7 +598,7 @@ function ClosedSpaceFolder({
 
 type SpaceTabsProps = {
   scrollRef: RefObject<HTMLDivElement>;
-  onSelect?: () => void;
+  onSelect?: (selected: boolean) => boolean;
 };
 export function SpaceTabs({ scrollRef, onSelect }: SpaceTabsProps) {
   const navigate = useNavigate();
@@ -703,9 +703,9 @@ export function SpaceTabs({ scrollRef, onSelect }: SpaceTabsProps) {
     const targetSpaceId = target.getAttribute('data-id');
     if (!targetSpaceId) return;
 
-    onSelect?.();
+    if (onSelect?.(targetSpaceId === selectedSpaceId)) return;
     const spacePath = getSpacePath(getCanonicalAliasOrRoomId(mx, targetSpaceId));
-    if (screenSize === ScreenSize.Mobile) {
+    if (screenSize === ScreenSize.Mobile && targetSpaceId !== selectedSpaceId) {
       navigate(spacePath);
       return;
     }
@@ -713,6 +713,11 @@ export function SpaceTabs({ scrollRef, onSelect }: SpaceTabsProps) {
     const activePath = navToActivePath.get(targetSpaceId);
     if (activePath && activePath.pathname.startsWith(spacePath)) {
       navigate(joinPathComponent(activePath));
+      return;
+    }
+
+    if (screenSize === ScreenSize.Mobile) {
+      navigate(spacePath);
       return;
     }
 

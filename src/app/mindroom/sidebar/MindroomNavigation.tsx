@@ -8,6 +8,8 @@ import { ScreenSize, useScreenSizeContext } from '../../hooks/useScreenSize';
 import { MobileFriendlyClientNav } from '../../pages/MobileFriendly';
 import { SidebarNav } from '../../pages/client/SidebarNav';
 import { makeDesktopPageNavCollapsedAtom } from './desktopPageNavState';
+import { useNavToActivePathMapper } from '../../hooks/useNavToActivePathMapper';
+import { useSpace } from '../../hooks/useSpace';
 
 type MindroomDesktopPageNavState = {
   canCollapse: boolean;
@@ -83,7 +85,14 @@ export function MindroomSidebarNav() {
   return (
     <MobileFriendlyClientNav>
       <SidebarNav
-        onPageNavSelect={canCollapse ? () => setCollapsed(false) : undefined}
+        onPageNavSelect={
+          canCollapse
+            ? (selected) => {
+                setCollapsed(selected ? !collapsed : false);
+                return selected;
+              }
+            : undefined
+        }
         footer={
           canCollapse ? (
             <PageNavToggleButton collapsed={collapsed} onClick={() => setCollapsed(!collapsed)} />
@@ -94,8 +103,16 @@ export function MindroomSidebarNav() {
   );
 }
 
-export function MindroomPageRoot({ nav, children }: { nav: ReactNode; children: ReactNode }) {
+type MindroomPageRootProps = { nav: ReactNode; children: ReactNode; navId?: string };
+
+export function MindroomPageRoot({ nav, children, navId }: MindroomPageRootProps) {
   const { collapsed } = useMindroomDesktopPageNav();
+  useNavToActivePathMapper(navId, true);
 
   return <PageRoot nav={collapsed ? null : nav}>{children}</PageRoot>;
+}
+
+export function MindroomSpacePageRoot(props: Omit<MindroomPageRootProps, 'navId'>) {
+  const space = useSpace();
+  return <MindroomPageRoot {...props} navId={space.roomId} />;
 }

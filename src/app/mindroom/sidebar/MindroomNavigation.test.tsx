@@ -1,17 +1,23 @@
 import React from 'react';
 import { act, create } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { Room } from 'matrix-js-sdk';
+import { SpaceProvider } from '../../hooks/useSpace';
+import { useNavToActivePathMapper } from '../../hooks/useNavToActivePathMapper';
 import { getScreenSize, ScreenSizeProvider } from '../../hooks/useScreenSize';
 import { getDesktopPageNavCollapsedStorageKey } from './desktopPageNavState';
 import {
   MindroomNavigationProvider,
   MindroomPageRoot,
   MindroomSidebarNav,
+  MindroomSpacePageRoot,
 } from './MindroomNavigation';
 
 const COLLAPSE_LABEL = 'Collapse navigation panel';
 const EXPAND_LABEL = 'Expand navigation panel';
 const storageState = new Map<string, string>();
+
+vi.mock('../../hooks/useNavToActivePathMapper', () => ({ useNavToActivePathMapper: vi.fn() }));
 
 vi.mock('folds', () => ({
   Icon: ({ src }: { src: string }) => React.createElement('span', { 'data-icon-src': src }),
@@ -64,12 +70,19 @@ vi.mock('../../pages/client/SidebarNav', () => ({
     onPageNavSelect,
   }: {
     footer?: React.ReactNode;
-    onPageNavSelect?: () => void;
+    onPageNavSelect?: (selected: boolean) => boolean;
   }) =>
     React.createElement(
       'nav',
       { 'data-testid': 'sidebar-rail' },
-      React.createElement('button', { 'aria-label': 'Select section', onClick: onPageNavSelect }),
+      React.createElement('button', {
+        'aria-label': 'Select section',
+        onClick: () => onPageNavSelect?.(false),
+      }),
+      React.createElement('button', {
+        'aria-label': 'Select current section',
+        onClick: () => onPageNavSelect?.(true),
+      }),
       footer
     ),
 }));
@@ -125,6 +138,7 @@ describe('MindroomNavigation', () => {
   const storageKey = getDesktopPageNavCollapsedStorageKey('@alice:example.org');
 
   beforeEach(() => {
+    vi.mocked(useNavToActivePathMapper).mockClear();
     storageState.clear();
     vi.stubGlobal('localStorage', {
       clear: vi.fn(() => storageState.clear()),
@@ -136,6 +150,25 @@ describe('MindroomNavigation', () => {
       addEventListener: vi.fn(),
       removeEventListener: vi.fn(),
     });
+  });
+
+  it('tracks the already-resolved space from its route provider', () => {
+    let renderer: Renderer;
+    act(() => {
+      renderer = create(
+        <ScreenSizeProvider value={getScreenSize(1280)}>
+          <SpaceProvider value={{ roomId: '!resolved-space:example.org' } as Room}>
+            <MindroomNavigationProvider>
+              <MindroomSpacePageRoot nav={<aside />}>
+                <main />
+              </MindroomSpacePageRoot>
+            </MindroomNavigationProvider>
+          </SpaceProvider>
+        </ScreenSizeProvider>
+      );
+    });
+    expect(useNavToActivePathMapper).toHaveBeenCalledWith('!resolved-space:example.org', true);
+    act(() => renderer.unmount());
   });
 
   afterEach(() => {
@@ -173,6 +206,22 @@ describe('MindroomNavigation', () => {
 
     expectNavigationState(renderer, false);
 
+    act(() => renderer.unmount());
+  });
+
+  it.each([751, 1280])('toggles the current section without navigating at %i px', (width) => {
+    const renderer = renderNavigation(width);
+    let handled: boolean | undefined;
+    act(() => {
+      handled = findButtons(renderer, 'Select current section')[0].props.onClick();
+    });
+    expect(handled).toBe(true);
+    expectNavigationState(renderer, true);
+    act(() => {
+      handled = findButtons(renderer, 'Select current section')[0].props.onClick();
+    });
+    expect(handled).toBe(true);
+    expectNavigationState(renderer, false);
     act(() => renderer.unmount());
   });
 

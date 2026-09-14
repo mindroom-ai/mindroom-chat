@@ -40,7 +40,7 @@ const DirectMenu = forwardRef<HTMLDivElement, DirectMenuProps>(({ requestClose }
   );
 });
 
-export function DirectTab({ onSelect }: { onSelect?: () => void }) {
+export function DirectTab({ onSelect }: { onSelect?: (selected: boolean) => boolean }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const mx = useMatrixClient();
@@ -55,9 +55,9 @@ export function DirectTab({ onSelect }: { onSelect?: () => void }) {
   const directSelected = useDirectSelected();
 
   const handleDirectClick = () => {
-    onSelect?.();
+    if (onSelect?.(directSelected)) return;
     const activePath = navToActivePath.get('direct');
-    if (activePath && screenSize !== ScreenSize.Mobile) {
+    if (activePath && (screenSize !== ScreenSize.Mobile || directSelected)) {
       navigate(joinPathComponent(activePath));
       return;
     }
@@ -79,6 +79,7 @@ export function DirectTab({ onSelect }: { onSelect?: () => void }) {
         {(triggerRef) => (
           <SidebarAvatar
             as="button"
+            aria-label={t('nav.directMessages')}
             ref={triggerRef}
             outlined
             onClick={handleDirectClick}

@@ -2,6 +2,27 @@
 
 ## Runbook
 
+### Resize navigation and toggle the active section (2026-09-14)
+
+- Status: implemented, locally validated, and independently reviewed with no remaining findings; PR checks remain.
+- Home, Direct Messages, and Space panels resize from their content-facing edge using mouse, touch, or pen input.
+  The preferred width is stored per Matrix user on the device, bounded between 200 and 600 px where space permits, and clamped to the available viewport without replacing the saved preference.
+- Desktop and tablet retain at least 320 px for content; narrow phones retain the existing single-pane route flow and leave the resize edge reachable.
+  A focusable separator also supports arrow keys, Home, End, and Enter to reset, with mirrored pointer and keyboard directions in RTL layouts.
+- On split layouts, clicking the active Home, Direct Messages, or Space icon toggles the contextual panel without navigating away from the current room or thread.
+  Clicking a different section opens its panel, and the existing explicit collapse control remains available.
+- On phones, clicking the active section returns to its last content route and hides navigation through the existing mobile route behavior.
+  A section with no previous content keeps its list available.
+- Home, Direct, and Space route tracking now lives in their page containers so it remains mounted while navigation is hidden.
+  Those owners preserve the last content path while opening a mobile list; other mapper callers retain their existing behavior.
+- Regression coverage includes persisted width, viewport bounds, mouse/touch/pen input, cancelled or lost pointer capture, secondary-pointer rejection, keyboard resizing, RTL direction, repeat-click route preservation, and mobile content-path retention.
+- Browser coverage exercises Home, Direct Messages, and Space toggling, width persistence across reloads, room-route layout, and native Chromium touch dragging against a local Matrix server.
+- Validation: all 498 Vitest files and 3,958 tests pass under Node 24.13.1 after current `dev` integration, typecheck passes, and ESLint reports zero errors with the existing 17 warnings.
+  Both desktop and iPhone 13 browser cases pass in Chromium and WebKit; only Chromium provides the native touch-drag injection used by this test.
+  The production/PWA build, changed-file formatting, and `git diff --check` also pass.
+- Independent review identified mobile list routes overwriting the remembered room, over-broad mapping changes, and incorrect RTL geometry; focused regressions reproduce and cover the fixes.
+- Physical iPhone hardware validation remains outside the available environment.
+
 ### Keep Compact Resolve actions usable during pending saves (2026-09-14)
 
 - Status: the reported lockout and faded-button state are reproduced, the bounded fix is validated locally, and independent review found no remaining issues.

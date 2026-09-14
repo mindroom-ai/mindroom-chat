@@ -19,6 +19,7 @@ import {
   SidebarItemTooltip,
 } from '../../../components/sidebar';
 import { useHomeSelected } from '../../../hooks/router/useHomeSelected';
+import { ScreenSize, useScreenSizeContext } from '../../../hooks/useScreenSize';
 import { UnreadBadge } from '../../../components/unread-badge';
 import { useNavToActivePathAtom } from '../../../state/hooks/navToActivePath';
 import { useHomeRooms } from '../home/useHomeRooms';
@@ -40,7 +41,7 @@ const HomeMenu = forwardRef<HTMLDivElement, HomeMenuProps>(({ requestClose }, re
   );
 });
 
-export function HomeTab({ onSelect }: { onSelect?: () => void }) {
+export function HomeTab({ onSelect }: { onSelect?: (selected: boolean) => boolean }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const mx = useMatrixClient();
@@ -51,12 +52,13 @@ export function HomeTab({ onSelect }: { onSelect?: () => void }) {
   const orphanRooms = useOrphanRooms(mx, allRoomsAtom, mDirects, roomToParents);
   const homeUnread = useRoomsUnread(orphanRooms, roomToUnreadAtom);
   const homeSelected = useHomeSelected();
+  const screenSize = useScreenSizeContext();
   const [menuAnchor, setMenuAnchor] = useState<RectCords>();
 
   const handleHomeClick = () => {
-    onSelect?.();
+    if (onSelect?.(homeSelected)) return;
     const activePath = navToActivePath.get('home');
-    if (activePath) {
+    if (activePath && (screenSize !== ScreenSize.Mobile || homeSelected)) {
       navigate(joinPathComponent(activePath));
       return;
     }
@@ -79,6 +81,7 @@ export function HomeTab({ onSelect }: { onSelect?: () => void }) {
         {(triggerRef) => (
           <SidebarAvatar
             as="button"
+            aria-label={t('nav.home')}
             ref={triggerRef}
             outlined
             onClick={handleHomeClick}
