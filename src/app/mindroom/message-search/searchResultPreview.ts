@@ -1,8 +1,7 @@
 import { IEventWithRoomId, MsgType, RelationType } from 'matrix-js-sdk';
+import type { TFunction } from 'i18next';
 import { MessageEvent } from '../../../types/matrix/room';
-import {
-  shouldUseMindroomLightweightSearchResultBody,
-} from '../messages/searchResultPolicy';
+import { shouldUseMindroomLightweightSearchResultBody } from '../messages/searchResultPolicy';
 import { parseBlockMD, parseInlineMD } from '../../plugins/markdown';
 
 const collapseWhitespace = (value: string): string => value.replace(/\s+/g, ' ').trim();
@@ -144,10 +143,11 @@ export const getSearchResultLightweightCustomBody = (
 
 export const getSearchResultPreviewText = (
   event: IEventWithRoomId,
-  highlights: string[] = []
+  highlights: string[] = [],
+  t?: TFunction
 ): string => {
   if (event.unsigned?.redacted_because) {
-    return 'Message was redacted.';
+    return t?.('mindroomUi.message-search.searchResultPreview.redacted') ?? 'Message was redacted.';
   }
 
   const content = getSearchResultEffectiveContent(event);
@@ -162,25 +162,52 @@ export const getSearchResultPreviewText = (
       case MsgType.Text:
       case MsgType.Notice:
       case MsgType.Emote:
-        return previewBody ?? 'Message';
+        return (
+          previewBody ?? t?.('mindroomUi.message-search.searchResultPreview.message') ?? 'Message'
+        );
       case MsgType.Image:
-        return withBody('Image', previewBody);
+        return withBody(
+          t?.('mindroomUi.message-search.searchResultPreview.image') ?? 'Image',
+          previewBody
+        );
       case MsgType.Video:
-        return withBody('Video', previewBody);
+        return withBody(
+          t?.('mindroomUi.message-search.searchResultPreview.video') ?? 'Video',
+          previewBody
+        );
       case MsgType.Audio:
-        return withBody('Audio', previewBody);
+        return withBody(
+          t?.('mindroomUi.message-search.searchResultPreview.audio') ?? 'Audio',
+          previewBody
+        );
       case MsgType.File:
-        return withBody('File', previewBody);
+        return withBody(
+          t?.('mindroomUi.message-search.searchResultPreview.file') ?? 'File',
+          previewBody
+        );
       case MsgType.Location:
-        return withBody('Location', previewBody);
+        return withBody(
+          t?.('mindroomUi.message-search.searchResultPreview.location') ?? 'Location',
+          previewBody
+        );
       default:
-        return collapseWhitespace(previewBody ?? content?.msgtype ?? 'Message');
+        return collapseWhitespace(
+          previewBody ??
+            content?.msgtype ??
+            t?.('mindroomUi.message-search.searchResultPreview.message') ??
+            'Message'
+        );
     }
   }
 
   if (event.type === MessageEvent.Reaction) {
-    return 'Reaction';
+    return t?.('mindroomUi.message-search.searchResultPreview.reaction') ?? 'Reaction';
   }
 
-  return collapseWhitespace(body ?? event.type ?? 'Unsupported event');
+  return collapseWhitespace(
+    body ??
+      event.type ??
+      t?.('mindroomUi.message-search.searchResultPreview.unsupportedEvent') ??
+      'Unsupported event'
+  );
 };

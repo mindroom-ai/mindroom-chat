@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import React, { ReactNode, useCallback, useEffect, useMemo } from 'react';
 import { Box, Button, Text, color } from 'folds';
 import { MatrixError } from 'matrix-js-sdk';
@@ -18,6 +19,7 @@ type AuthFlowsLoaderProps = {
   children: (authFlows: AuthFlows) => ReactNode;
 };
 export function AuthFlowsLoader({ fallback, error, children }: AuthFlowsLoaderProps) {
+  const { t } = useTranslation();
   const autoDiscoveryInfo = useAutoDiscoveryInfo();
   const baseUrl = autoDiscoveryInfo['m.homeserver'].base_url;
 
@@ -69,11 +71,11 @@ export function AuthFlowsLoader({ fallback, error, children }: AuthFlowsLoaderPr
           error(state.error)
         ) : (
           <Text align="Center" style={{ color: color.Critical.Main }} size="T300">
-            Failed to load authentication flow information.
+            {t('sharedUi.authFlowsLoader.failedToLoadAuthenticationFlowInformation')}
           </Text>
         )}
         <Button variant="Secondary" size="400" onClick={handleRetry}>
-          Retry
+          {t('sharedUi.authFlowsLoader.retry')}
         </Button>
       </Box>
     );

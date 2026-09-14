@@ -22,7 +22,7 @@ export const Timer = style({
   minWidth: toRem(36),
   color: color.SurfaceVariant.OnContainer,
   fontVariantNumeric: 'tabular-nums',
-  textAlign: 'right',
+  textAlign: 'end',
   whiteSpace: 'nowrap',
 });
 

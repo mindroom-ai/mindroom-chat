@@ -10,7 +10,7 @@ export const Container = style({
   display: 'inline-flex',
   alignItems: 'center',
   gap: toRem(2),
-  marginLeft: toRem(4),
+  marginInlineStart: toRem(4),
   verticalAlign: 'baseline',
 });
 

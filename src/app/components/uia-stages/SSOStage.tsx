@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { Box, Button, color, config, Dialog, Header, Icon, IconButton, Icons, Text } from 'folds';
 import React, { useCallback, useEffect, useState } from 'react';
 import { StageComponentProps } from './types';
@@ -10,6 +11,7 @@ export function SSOStage({
 }: StageComponentProps & {
   ssoRedirectURL: string;
 }) {
+  const { t } = useTranslation();
   const { errorCode, error, session } = stageData;
   const [ssoWindow, setSSOWindow] = useState<Window>();
 
@@ -54,7 +56,7 @@ export function SSOStage({
         size="500"
       >
         <Box grow="Yes">
-          <Text size="H4">SSO Login</Text>
+          <Text size="H4">{t('sharedUi.sSOStage.ssoLogin')}</Text>
         </Box>
         <IconButton size="300" onClick={onCancel} radii="300">
           <Icon src={Icons.Cross} />
@@ -66,7 +68,7 @@ export function SSOStage({
         gap="400"
       >
         <Text size="T200">
-          To perform this action you need to authenticate yourself by SSO login.
+          {t('sharedUi.sSOStage.toPerformThisActionYouNeedToAuthenticateYourselfBySsoLogin')}
         </Text>
         {errorCode && (
           <Box alignItems="Center" gap="100" style={{ color: color.Critical.Main }}>
@@ -80,13 +82,13 @@ export function SSOStage({
         {ssoWindow ? (
           <Button variant="Primary" onClick={handleSubmit}>
             <Text as="span" size="B400">
-              Continue
+              {t('sharedUi.sSOStage.continue')}
             </Text>
           </Button>
         ) : (
           <Button variant="Primary" onClick={handleContinue}>
             <Text as="span" size="B400">
-              Continue with SSO
+              {t('sharedUi.sSOStage.continueWithSso')}
             </Text>
           </Button>
         )}

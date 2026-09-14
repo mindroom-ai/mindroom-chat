@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import React, { useMemo } from 'react';
 import { IEventWithRoomId, MsgType } from 'matrix-js-sdk';
 import { Text } from 'folds';
@@ -31,6 +32,7 @@ export function MindroomSearchResultBody({
   displayName,
   highlights,
 }: MindroomSearchResultBodyProps) {
+  const { t } = useTranslation();
   const mx = useMatrixClient();
   const useAuthentication = useMediaAuthentication();
   const redactedBecause = event.unsigned?.redacted_because;
@@ -50,19 +52,19 @@ export function MindroomSearchResultBody({
   );
   const needsPreviewText = useLightweightBody || !highlightRegex;
   const previewText = useMemo(
-    () => (needsPreviewText ? getSearchResultPreviewText(event, highlights) : undefined),
-    [event, highlights, needsPreviewText]
+    () => (needsPreviewText ? getSearchResultPreviewText(event, highlights, t) : undefined),
+    [event, highlights, needsPreviewText, t]
   );
   const content = useMemo(() => {
     if (!useLightweightBody) return effectiveContent;
 
-    const nextPreviewText = previewText ?? getSearchResultPreviewText(event, highlights);
+    const nextPreviewText = previewText ?? getSearchResultPreviewText(event, highlights, t);
     return {
       ...effectiveContent,
       body: nextPreviewText,
       formatted_body: getSearchResultLightweightCustomBody(effectiveContent, nextPreviewText),
     };
-  }, [effectiveContent, event, highlights, previewText, useLightweightBody]);
+  }, [effectiveContent, event, highlights, previewText, t, useLightweightBody]);
 
   if (redactedBecause) {
     return <RedactedContent reason={redactedBecause.content.reason} />;
@@ -114,7 +116,7 @@ export function MindroomSearchResultBody({
     return (
       <Text size="T400" style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
         {renderSnippetBody()}
-        {edited && ' (edited)'}
+        {edited && t('mindroomUi.message-search.mindroomSearchResultBody.edited')}
       </Text>
     );
   }
@@ -123,7 +125,7 @@ export function MindroomSearchResultBody({
     return (
       <Text size="T400" style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
         {renderSnippetBody()}
-        {edited && ' (edited)'}
+        {edited && t('mindroomUi.message-search.mindroomSearchResultBody.edited')}
       </Text>
     );
   }

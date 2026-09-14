@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import {
   Avatar,
   Box,
@@ -144,6 +145,7 @@ export const Message = as<'div', MessageProps>(
     },
     ref
   ) => {
+    const { t } = useTranslation();
     const mx = useMatrixClient();
     const useAuthentication = useMediaAuthentication();
     const senderId = mEvent.getSender() ?? '';
@@ -459,7 +461,7 @@ export const Message = as<'div', MessageProps>(
                                   size="T300"
                                   truncate
                                 >
-                                  Add Reaction
+                                  {t('mindroomUi.messages.mindroomMessage.addReaction')}
                                 </Text>
                               </MenuItem>
                             )}
@@ -487,7 +489,7 @@ export const Message = as<'div', MessageProps>(
                                   size="T300"
                                   truncate
                                 >
-                                  Reply
+                                  {t('mindroomUi.messages.mindroomMessage.reply')}
                                 </Text>
                               </MenuItem>
                             )}
@@ -508,7 +510,7 @@ export const Message = as<'div', MessageProps>(
                                   size="T300"
                                   truncate
                                 >
-                                  Reply in Thread
+                                  {t('mindroomUi.messages.mindroomMessage.replyInThread')}
                                 </Text>
                               </MenuItem>
                             )}
@@ -529,7 +531,7 @@ export const Message = as<'div', MessageProps>(
                                   size="T300"
                                   truncate
                                 >
-                                  Edit Message
+                                  {t('mindroomUi.messages.mindroomMessage.editMessage')}
                                 </Text>
                               </MenuItem>
                             )}

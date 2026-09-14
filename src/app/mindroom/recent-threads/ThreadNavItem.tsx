@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Box, Icon, IconButton, Icons, Text, Tooltip, TooltipProvider, toRem } from 'folds';
 import type { Room } from 'matrix-js-sdk';
 import { NavButton, NavItem, NavItemContent, NavItemOptions } from '../../components/nav';
+import { useAppLanguageCode } from '../../hooks/useAppLanguageCode';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useMediaAuthentication } from '../../hooks/useMediaAuthentication';
 import { useRoomNavigate } from '../../hooks/useRoomNavigate';
@@ -80,6 +81,7 @@ function ThreadNavActions({ entry, onTogglePin, pinned, room }: ThreadNavActions
 export const ThreadNavItem = memo(
   ({ entry, onTogglePin, pinned, selected, sidebarScrollRef }: ThreadNavItemProps) => {
     const { t } = useTranslation();
+    const language = useAppLanguageCode();
     const mx = useMatrixClient();
     const useAuthentication = useMediaAuthentication();
     const room = mx.getRoom(entry.roomId);
@@ -92,8 +94,10 @@ export const ThreadNavItem = memo(
         currentUserId: mx.getUserId() ?? undefined,
         mx,
         useAuthentication,
+        t,
+        locale: language,
       });
-    }, [entry.threadRecord, mx, room, useAuthentication]);
+    }, [entry.threadRecord, language, mx, room, t, useAuthentication]);
     const relativeTime = useRelativeTime(entry.lastActivityTs);
     const { navigateRoom, navigateRoomThreadDirect } = useRoomNavigate();
     const { viewMode } = useRoomViewMode(entry.roomId);

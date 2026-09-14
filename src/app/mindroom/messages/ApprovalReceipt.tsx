@@ -1,7 +1,9 @@
+import { useTranslation } from 'react-i18next';
 import React from 'react';
 import { ApprovalArguments } from './ApprovalArguments';
 import { getToolApprovalOperationLabel, ToolApprovalData } from './toolApproval';
 import * as css from './ThreadApprovals.css';
+import { useAppLanguageCode } from '../../hooks/useAppLanguageCode';
 
 export function ApprovalReceipt({
   approval,
@@ -10,15 +12,20 @@ export function ApprovalReceipt({
   approval: ToolApprovalData;
   children?: React.ReactNode;
 }) {
+  const { t } = useTranslation();
+  const language = useAppLanguageCode();
   const provenance = approval.provenance;
   const statusLabel =
     approval.status === 'expired'
-      ? 'Approval expired'
+      ? t('mindroomUi.messages.approvalReceipt.statusExpired')
       : approval.status === 'approved'
-      ? 'Approved'
-      : 'Denied';
+      ? t('mindroomUi.messages.approvalReceipt.statusApproved')
+      : t('mindroomUi.messages.approvalReceipt.statusDenied');
   return (
-    <details className={css.Receipt} aria-label="Resolved tool approval request">
+    <details
+      className={css.Receipt}
+      aria-label={t('mindroomUi.messages.approvalReceipt.resolvedToolApprovalRequest')}
+    >
       <summary>
         <span className={css.ReceiptTool}>
           {approval.status === 'approved' ? '✓' : '–'} {getToolApprovalOperationLabel(approval)}
@@ -27,33 +34,77 @@ export function ApprovalReceipt({
       </summary>
       <div className={css.ReceiptBody}>
         <p>
-          {approval.agentName} · Requested by {approval.requesterId ?? 'unknown'}
+          {t('mindroomUi.messages.approvalReceipt.requestedBy', {
+            agent: approval.agentName,
+            requester: approval.requesterId ?? t('mindroomUi.messages.approvalReceipt.unknown'),
+          })}
         </p>
         <p>
-          {statusLabel} {approval.resolvedBy ? `by ${approval.resolvedBy}` : ''}
-          {approval.resolvedAt ? ` · ${new Date(approval.resolvedAt).toLocaleString()}` : ''}
+          {approval.resolvedBy && approval.resolvedAt
+            ? t('mindroomUi.messages.approvalReceipt.resolvedByAt', {
+                status: statusLabel,
+                resolver: approval.resolvedBy,
+                timestamp: new Date(approval.resolvedAt).toLocaleString(language),
+              })
+            : approval.resolvedBy
+            ? t('mindroomUi.messages.approvalReceipt.resolvedBy', {
+                status: statusLabel,
+                resolver: approval.resolvedBy,
+              })
+            : approval.resolvedAt
+            ? t('mindroomUi.messages.approvalReceipt.resolvedAt', {
+                status: statusLabel,
+                timestamp: new Date(approval.resolvedAt).toLocaleString(language),
+              })
+            : statusLabel}
         </p>
         {provenance?.kind === 'timed_grant' ? (
           <p>
-            Timed permission
-            {provenance.durationSeconds ? ` · ${provenance.durationSeconds / 60} minutes` : ''} ·
-            Granted by {provenance.grantedBy}
-            {provenance.grantedAt && <> · {new Date(provenance.grantedAt).toLocaleString()}</>}
+            {provenance.durationSeconds
+              ? t('mindroomUi.messages.approvalReceipt.timedPermissionMinutes', {
+                  count: provenance.durationSeconds / 60,
+                })
+              : t('mindroomUi.messages.approvalReceipt.timedPermission')}
             <br />
-            Original fixed expiry: {new Date(provenance.expiresAt).toLocaleString()}
+            {provenance.grantedAt
+              ? t('mindroomUi.messages.approvalReceipt.grantedByAt', {
+                  grantor: provenance.grantedBy,
+                  timestamp: new Date(provenance.grantedAt).toLocaleString(language),
+                })
+              : t('mindroomUi.messages.approvalReceipt.grantedBy', {
+                  grantor: provenance.grantedBy,
+                })}
+            <br />
+            {t('mindroomUi.messages.approvalReceipt.originalFixedExpiry', {
+              timestamp: new Date(provenance.expiresAt).toLocaleString(language),
+            })}
           </p>
         ) : (
-          <p>{provenance?.kind === 'once' ? 'Approved once' : 'Decision recorded for this call'}</p>
+          <p>
+            {provenance?.kind === 'once'
+              ? t('mindroomUi.messages.approvalReceipt.approvedOnce')
+              : t('mindroomUi.messages.approvalReceipt.decisionRecordedForThisCall')}
+          </p>
         )}
         {approval.scope && (
           <p>
-            Tool: {approval.scope.operation.toolName}
-            {approval.scope.operation.mcpServerId && (
-              <> · Server: {approval.scope.operation.mcpServerId}</>
-            )}
+            {approval.scope.operation.mcpServerId
+              ? t('mindroomUi.messages.approvalReceipt.toolAndServer', {
+                  tool: approval.scope.operation.toolName,
+                  server: approval.scope.operation.mcpServerId,
+                })
+              : t('mindroomUi.messages.approvalReceipt.tool', {
+                  tool: approval.scope.operation.toolName,
+                })}
           </p>
         )}
-        {approval.resolutionReason && <p>Reason: {approval.resolutionReason}</p>}
+        {approval.resolutionReason && (
+          <p>
+            {t('mindroomUi.messages.approvalReceipt.reason', {
+              reason: approval.resolutionReason,
+            })}
+          </p>
+        )}
         <ApprovalArguments approval={approval} />
         {children}
       </div>

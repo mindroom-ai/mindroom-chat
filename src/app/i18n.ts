@@ -3,7 +3,7 @@ import LanguageDetector from 'i18next-browser-languagedetector';
 import Backend, { HttpBackendOptions } from 'i18next-http-backend';
 import { initReactI18next } from 'react-i18next';
 import { appUrl } from './utils/basePath';
-import { APP_LANGUAGE_CODES } from './i18nLanguages';
+import { APP_LANGUAGE_CODES, normalizeDetectedLanguage } from './i18nLanguages';
 import en from './locales/en.json';
 import { syncDayjsLocale } from './appLocale';
 
@@ -23,10 +23,15 @@ i18n
     debug: false,
     fallbackLng: 'en',
     supportedLngs: APP_LANGUAGE_CODES,
+    detection: {
+      convertDetectedLanguage: normalizeDetectedLanguage,
+    },
     interpolation: {
       escapeValue: false, // not needed for react as it escapes by default
     },
-    load: 'languageOnly',
+    // Detection normalizes ordinary regions to their base catalog while
+    // retaining zh-TW, so i18next must not collapse the canonical variant.
+    load: 'currentOnly',
     // English ships in the bundle so the UI never renders bare keys while the
     // async locale fetch is in flight; other languages load on demand.
     resources: { en: { translation: en } },

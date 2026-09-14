@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import React, {
   CSSProperties,
   MouseEventHandler,
@@ -119,6 +120,7 @@ type SpaceMenuProps = {
 };
 const SpaceMenu = forwardRef<HTMLDivElement, SpaceMenuProps>(
   ({ room, requestClose, onUnpin }, ref) => {
+    const { t } = useTranslation();
     const mx = useMatrixClient();
     const roomToParents = useAtomValue(roomToParentsAtom);
     const powerLevels = usePowerLevels(room);
@@ -178,7 +180,7 @@ const SpaceMenu = forwardRef<HTMLDivElement, SpaceMenuProps>(
               after={<Icon size="100" src={Icons.Pin} />}
             >
               <Text style={{ flexGrow: 1 }} as="span" size="T300" truncate>
-                Unpin
+                {t('sharedUi.spaceTabs.unpin')}
               </Text>
             </MenuItem>
           )}
@@ -196,7 +198,7 @@ const SpaceMenu = forwardRef<HTMLDivElement, SpaceMenuProps>(
             disabled={!canInvite}
           >
             <Text style={{ flexGrow: 1 }} as="span" size="T300" truncate>
-              Invite
+              {t('sharedUi.spaceTabs.invite')}
             </Text>
           </MenuItem>
           <MenuItem
@@ -206,7 +208,7 @@ const SpaceMenu = forwardRef<HTMLDivElement, SpaceMenuProps>(
             radii="300"
           >
             <Text style={{ flexGrow: 1 }} as="span" size="T300" truncate>
-              Copy Link
+              {t('sharedUi.spaceTabs.copyLink')}
             </Text>
           </MenuItem>
           <MenuItem
@@ -216,7 +218,7 @@ const SpaceMenu = forwardRef<HTMLDivElement, SpaceMenuProps>(
             radii="300"
           >
             <Text style={{ flexGrow: 1 }} as="span" size="T300" truncate>
-              Space Settings
+              {t('sharedUi.spaceTabs.spaceSettings')}
             </Text>
           </MenuItem>
         </Box>
@@ -601,6 +603,7 @@ type SpaceTabsProps = {
   onSelect?: (selected: boolean) => boolean;
 };
 export function SpaceTabs({ scrollRef, onSelect }: SpaceTabsProps) {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const mx = useMatrixClient();
   const screenSize = useScreenSizeContext();
@@ -768,7 +771,9 @@ export function SpaceTabs({ scrollRef, onSelect }: SpaceTabsProps) {
                 typeof item === 'string'
                   ? mx.getRoom(item)?.name ?? item
                   : item?.folder.name ?? 'folder';
-              return `Picked up Space ${label}. Use arrow keys to reorder. Press space to drop.`;
+              return t('sharedUi.spaceTabs.pickedUpSpaceValue1UseArrowKeysToReorderPressSpaceTo', {
+                value1: label,
+              });
             },
             onDragOver() {
               return undefined;

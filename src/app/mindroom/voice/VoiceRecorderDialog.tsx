@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import React, {
   type ForwardRefRenderFunction,
   forwardRef,
@@ -19,6 +20,7 @@ import {
   config,
 } from 'folds';
 import FocusTrap from 'focus-trap-react';
+import { localizeVoiceErrorMessage } from './voiceErrorMessage';
 import { VoiceRecordingCapsule } from './VoiceRecordingCapsule';
 import { useVoiceRecorder } from './useVoiceRecorder';
 import { stopPropagation } from '../../utils/keyboard';
@@ -62,6 +64,7 @@ const VoiceRecorderComposerRender: ForwardRefRenderFunction<
   },
   ref
 ) => {
+  const { t } = useTranslation();
   const autoStartTriggeredRef = useRef(false);
   const [discardConfirmationOpen, setDiscardConfirmationOpen] = useState(false);
   // Tracks a deferred (backdrop/Escape-dismissed) failure overlay. The
@@ -101,6 +104,7 @@ const VoiceRecorderComposerRender: ForwardRefRenderFunction<
     onSendRecording,
     getSendContext,
   });
+  const displayErrorMessage = localizeVoiceErrorMessage(t, errorMessage);
 
   const errorMessageRef = useRef(errorMessage);
   useEffect(() => {
@@ -226,17 +230,19 @@ const VoiceRecorderComposerRender: ForwardRefRenderFunction<
                   gap="300"
                   style={{ padding: config.space.S400, maxWidth: 360 }}
                 >
-                  <Text size="H5">Voice send failed</Text>
+                  <Text size="H5">{t('mindroomUi.voice.voiceRecorderDialog.voiceSendFailed')}</Text>
                   <Box direction="Column" gap="100">
-                    <Text size="T300">{errorMessage}</Text>
-                    <Text size="T300">Your recording is still saved.</Text>
+                    <Text size="T300">{displayErrorMessage}</Text>
+                    <Text size="T300">
+                      {t('mindroomUi.voice.voiceRecorderDialog.yourRecordingIsStillSaved')}
+                    </Text>
                   </Box>
                   <Box justifyContent="End" gap="200">
                     <Button variant="Secondary" onClick={() => setDiscardConfirmationOpen(true)}>
-                      Discard
+                      {t('mindroomUi.voice.voiceRecorderDialog.discard')}
                     </Button>
                     <Button variant="Primary" onClick={onRetryRequest}>
-                      Retry
+                      {t('mindroomUi.voice.voiceRecorderDialog.retry')}
                     </Button>
                   </Box>
                 </Box>
@@ -250,14 +256,20 @@ const VoiceRecorderComposerRender: ForwardRefRenderFunction<
         <OverlayCenter>
           <Dialog variant="Surface">
             <Box direction="Column" gap="300" style={{ padding: config.space.S400, maxWidth: 360 }}>
-              <Text size="H5">Discard voice recording?</Text>
-              <Text size="T300">This recording has not been sent. Discard it permanently?</Text>
+              <Text size="H5">
+                {t('mindroomUi.voice.voiceRecorderDialog.discardVoiceRecording')}
+              </Text>
+              <Text size="T300">
+                {t(
+                  'mindroomUi.voice.voiceRecorderDialog.thisRecordingHasNotBeenSentDiscardItPermanently'
+                )}
+              </Text>
               <Box justifyContent="End" gap="200">
                 <Button variant="Secondary" onClick={() => setDiscardConfirmationOpen(false)}>
-                  Cancel
+                  {t('mindroomUi.voice.voiceRecorderDialog.cancel')}
                 </Button>
                 <Button variant="Critical" onClick={confirmDiscardAndClose}>
-                  Discard
+                  {t('mindroomUi.voice.voiceRecorderDialog.discard')}
                 </Button>
               </Box>
             </Box>
@@ -269,11 +281,11 @@ const VoiceRecorderComposerRender: ForwardRefRenderFunction<
         <OverlayCenter>
           <Dialog variant="Surface">
             <Box direction="Column" gap="300" style={{ padding: config.space.S400, maxWidth: 360 }}>
-              <Text size="H5">Voice Recording Error</Text>
-              <Text size="T300">{errorMessage}</Text>
+              <Text size="H5">{t('mindroomUi.voice.voiceRecorderDialog.voiceRecordingError')}</Text>
+              <Text size="T300">{displayErrorMessage}</Text>
               <Box justifyContent="End" gap="200">
                 <Button variant="Primary" onClick={dismissError}>
-                  OK
+                  {t('mindroomUi.voice.voiceRecorderDialog.ok')}
                 </Button>
               </Box>
             </Box>

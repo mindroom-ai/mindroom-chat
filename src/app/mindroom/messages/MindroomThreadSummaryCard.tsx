@@ -1,11 +1,9 @@
+import { useTranslation } from 'react-i18next';
 import React, { ReactNode } from 'react';
 import { Box, Icon, Icons, Text } from 'folds';
 import { MessageEditedContent } from '../../components/message/content';
 import { MessageTextBody } from '../../components/message/layout';
-import {
-  formatMindroomThreadSummaryMessageCount,
-  type MindroomThreadSummaryInfo,
-} from './threadSummary';
+import type { MindroomThreadSummaryInfo } from './threadSummary';
 import * as css from './MindroomThreadSummaryCard.css';
 
 type RenderBodyProps = {
@@ -26,21 +24,19 @@ export function MindroomThreadSummaryCard({
   summaryInfo,
   renderBody,
 }: MindroomThreadSummaryCardProps) {
-  const summaryText = summaryInfo.summaryText ?? 'Thread summary';
-  const messageCountLabel =
+  const { t } = useTranslation();
+  const summaryText = summaryInfo.summaryText ?? t('sharedUi.threadSummary.title');
+  const provenanceLabel =
     typeof summaryInfo.messageCount === 'number'
-      ? formatMindroomThreadSummaryMessageCount(summaryInfo.messageCount)
-      : undefined;
-  const provenanceLabel = messageCountLabel
-    ? `AI summary of last ${messageCountLabel}`
-    : 'AI-generated thread summary';
+      ? t('sharedUi.threadSummary.provenanceCount', { count: summaryInfo.messageCount })
+      : t('sharedUi.threadSummary.provenance');
 
   return (
     <Box
       className={css.ThreadSummaryCard}
       direction="Column"
       gap="100"
-      aria-label="AI thread summary"
+      aria-label={t('mindroomUi.messages.mindroomThreadSummaryCard.aiThreadSummary')}
     >
       <Box className={css.ThreadSummaryHeader}>
         <Box as="span" className={css.ThreadSummaryLabel}>

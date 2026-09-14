@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import React, { useCallback } from 'react';
 import { Chip, Icon, Icons, Text } from 'folds';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
@@ -10,6 +11,7 @@ type MindroomMarkRoomReadChipProps = {
 };
 
 export function MindroomMarkRoomReadChip({ roomId }: MindroomMarkRoomReadChipProps) {
+  const { t } = useTranslation();
   const mx = useMatrixClient();
   const [hideActivity] = useSetting(settingsAtom, 'hideActivity');
 
@@ -24,7 +26,7 @@ export function MindroomMarkRoomReadChip({ roomId }: MindroomMarkRoomReadChipPro
       onClick={handleMarkAsRead}
       before={<Icon size="100" src={Icons.CheckTwice} />}
     >
-      <Text size="T200">Mark as Read</Text>
+      <Text size="T200">{t('mindroomUi.notifications.mindroomMarkRoomReadChip.markAsRead')}</Text>
     </Chip>
   );
 }

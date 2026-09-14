@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { useEffect, useMemo, useState } from 'react';
 import { User, UserEvent, UserEventHandlerMap } from 'matrix-js-sdk';
 import { useMatrixClient } from './useMatrixClient';
@@ -47,12 +48,14 @@ export const useUserPresence = (userId: string): UserPresence | undefined => {
   return presence;
 };
 
-export const usePresenceLabel = (): Record<Presence, string> =>
-  useMemo(
+export const usePresenceLabel = (): Record<Presence, string> => {
+  const { t } = useTranslation();
+  return useMemo(
     () => ({
-      [Presence.Online]: 'Active',
-      [Presence.Unavailable]: 'Busy',
-      [Presence.Offline]: 'Away',
+      [Presence.Online]: t('sharedUi.presence.active'),
+      [Presence.Unavailable]: t('sharedUi.presence.busy'),
+      [Presence.Offline]: t('sharedUi.presence.away'),
     }),
-    []
+    [t]
   );
+};

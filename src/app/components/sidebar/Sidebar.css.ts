@@ -10,7 +10,7 @@ export const Sidebar = style([
   {
     width: toRem(66),
     backgroundColor: color.Background.Container,
-    borderRight: `${config.borderWidth.B300} solid ${color.Background.ContainerLine}`,
+    borderInlineEnd: `${config.borderWidth.B300} solid ${color.Background.ContainerLine}`,
 
     display: 'flex',
     flexDirection: 'column',
@@ -51,7 +51,7 @@ export const DropTarget = style({
       content: '',
       display: 'block',
       position: 'absolute',
-      left: toRem(0),
+      insetInlineStart: toRem(0),
       width: '100%',
       height: config.borderWidth.B700,
       backgroundColor: color.Success.Main,
@@ -101,14 +101,16 @@ export const SidebarItem = recipe({
         '&:hover': {
           transform: `translateX(${toRem(PUSH_X)})`,
         },
+        'html[dir="rtl"] &:hover': { transform: `translateX(${toRem(-PUSH_X)})` },
         '&::before': {
           content: '',
           display: 'none',
           position: 'absolute',
-          left: toRem(-11.5 - PUSH_X),
+          insetInlineStart: toRem(-11.5 - PUSH_X),
           width: toRem(3 + PUSH_X),
           height: toRem(16),
-          borderRadius: `0 ${toRem(4)} ${toRem(4)} 0`,
+          borderStartEndRadius: toRem(4),
+          borderEndEndRadius: toRem(4),
           background: 'CurrentColor',
           transition: transition(['height'], motion.duration.Slow, motion.easing.Linear),
         },
@@ -153,11 +155,11 @@ export const SidebarItemBadge = recipe({
     hasCount: {
       true: {
         top: toRem(-6),
-        left: toRem(-6),
+        insetInlineStart: toRem(-6),
       },
       false: {
         top: toRem(-2),
-        left: toRem(-2),
+        insetInlineStart: toRem(-2),
       },
     },
   },
@@ -235,8 +237,8 @@ export const SidebarFolder = recipe({
         borderRadius: config.radii.R400,
       },
       Open: {
-        paddingLeft: 0,
-        paddingRight: 0,
+        paddingInlineStart: 0,
+        paddingInlineEnd: 0,
         flexDirection: 'column',
         alignItems: 'center',
         gap: config.space.S200,
@@ -255,7 +257,7 @@ export const SidebarFolderDropTarget = recipe({
     width: '100%',
     height: toRem(8),
     position: 'absolute',
-    left: 0,
+    insetInlineStart: 0,
   },
   variants: {
     position: {

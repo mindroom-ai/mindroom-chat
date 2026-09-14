@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import React, { CSSProperties } from 'react';
 import { Badge, Box, Text } from 'folds';
 import { EmojiBoardTab } from '../types';
@@ -13,6 +14,7 @@ export function EmojiBoardTabs({
   tab: EmojiBoardTab;
   onTabChange: (tab: EmojiBoardTab) => void;
 }) {
+  const { t } = useTranslation();
   return (
     <Box gap="100">
       <Badge
@@ -24,7 +26,7 @@ export function EmojiBoardTabs({
         onClick={() => onTabChange(EmojiBoardTab.Sticker)}
       >
         <Text as="span" size="L400">
-          Sticker
+          {t('sharedUi.tabs.sticker')}
         </Text>
       </Badge>
       <Badge
@@ -36,7 +38,7 @@ export function EmojiBoardTabs({
         onClick={() => onTabChange(EmojiBoardTab.Emoji)}
       >
         <Text as="span" size="L400">
-          Emoji
+          {t('sharedUi.tabs.emoji')}
         </Text>
       </Badge>
     </Box>

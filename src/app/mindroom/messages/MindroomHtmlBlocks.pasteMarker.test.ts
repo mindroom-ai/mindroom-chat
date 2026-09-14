@@ -41,7 +41,7 @@ describe('Mindroom paste marker HTML blocks', () => {
     expect(rendered).toContain('data-mindroom-paste-badge');
     expect(rendered).toContain('Pasted text');
     expect(rendered).toContain('paste-a3f19c');
-    expect(rendered).toContain('18,421 chars');
+    expect(rendered).toContain('18,421 characters');
     expect(rendered).toContain('mindroom-paste-a3f19c.txt');
     expect(rendered).toContain('Before');
     expect(rendered).toContain('after');

@@ -16,6 +16,7 @@ import {
 } from 'folds';
 import { MatrixEvent, Room, RoomMember } from 'matrix-js-sdk';
 import { Relations } from 'matrix-js-sdk/lib/models/relations';
+import { useTranslation } from 'react-i18next';
 import { getMemberDisplayName } from '../../../utils/room';
 import { eventWithShortcode, getMxIdLocalPart, mxcUrlToHttp } from '../../../utils/matrix';
 import { getActiveAnnotationsByKey } from '../../../utils/reactionAnnotations';
@@ -38,6 +39,7 @@ export type ReactionViewerProps = {
 };
 export const ReactionViewer = as<'div', ReactionViewerProps>(
   ({ className, room, initialKey, relations, requestClose, ...props }, ref) => {
+    const { t } = useTranslation();
     const mx = useMatrixClient();
     const useAuthentication = useMediaAuthentication();
     const reactions = useRelations(
@@ -99,7 +101,11 @@ export const ReactionViewer = as<'div', ReactionViewerProps>(
         <Box grow="Yes" direction="Column">
           <Header className={css.Header} variant="Surface" size="600">
             <Box grow="Yes">
-              <Text size="H3" truncate>{`Reacted with :${selectedShortcode}:`}</Text>
+              <Text size="H3" truncate>
+                {t('featureUi.room.reactionViewer.reactedWith', {
+                  shortcode: selectedShortcode,
+                })}
+              </Text>
             </Box>
             <IconButton size="300" onClick={requestClose}>
               <Icon src={Icons.Cross} />

@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import React, {
   FormEventHandler,
   ReactNode,
@@ -96,6 +97,7 @@ function RoomAccessSession({
   accessRoomId,
   kind,
 }: RoomAccessSessionProps) {
+  const { t } = useTranslation();
   const mx = useMatrixClient();
   const alive = useAlive();
   const dialogRef = useRef<HTMLDivElement>(null);
@@ -284,18 +286,16 @@ function RoomAccessSession({
                   gap="400"
                 >
                   <Box direction="Column" gap="100">
-                    <Text
-                      as="h2"
-                      id={dialogTitleId}
-                      size="H4"
-                    >{`Request to join ${roomName}`}</Text>
+                    <Text as="h2" id={dialogTitleId} size="H4">
+                      {t('sharedUi.roomAccessControl.requestToJoinValue1', { value1: roomName })}
+                    </Text>
                     <Text size="T300" priority="400">
-                      An admin will review your request.
+                      {t('sharedUi.roomAccessControl.anAdminWillReviewYourRequest')}
                     </Text>
                   </Box>
                   <Box direction="Column" gap="100">
                     <Text as="label" htmlFor={reasonInputId} size="L400">
-                      Message (optional)
+                      {t('sharedUi.roomAccessControl.messageOptional')}
                     </Text>
                     <TextArea
                       ref={reasonInputRef}
@@ -310,7 +310,7 @@ function RoomAccessSession({
                   </Box>
                   {state.status === AsyncStatus.Error && (
                     <Text role="alert" size="T200" style={{ color: color.Critical.Main }}>
-                      {state.error.message || 'Failed to send request.'}
+                      {state.error.message || t('sharedUi.roomAccessControl.failedToSendRequest')}
                     </Text>
                   )}
                   <Box gap="200" justifyContent="End">
@@ -321,14 +321,18 @@ function RoomAccessSession({
                       onClick={closeKnock}
                       disabled={loading}
                     >
-                      <Text size="B400">Cancel</Text>
+                      <Text size="B400">{t('sharedUi.roomAccessControl.cancel')}</Text>
                     </Button>
                     <Button
                       type="submit"
                       disabled={loading}
                       before={loading && <Spinner size="200" variant="Primary" fill="Solid" />}
                     >
-                      <Text size="B400">{loading ? 'Sending request' : 'Send request'}</Text>
+                      <Text size="B400">
+                        {loading
+                          ? t('sharedUi.roomAccessControl.sendingRequest')
+                          : t('sharedUi.roomAccessControl.sendRequest')}
+                      </Text>
                     </Button>
                   </Box>
                 </Box>

@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import React, { useRef } from 'react';
 import { Box, Icon, Icons, Text, Scroll, IconButton } from 'folds';
 import { Page, PageContent, PageContentCenter, PageHeader } from '../../../components/page';
@@ -8,6 +9,7 @@ import { MindroomBackRouteHandler as BackRouteHandler } from '../../../mindroom/
 import { useSpaceSearchRooms } from './useSpaceSearchRooms';
 
 export function SpaceSearch() {
+  const { t } = useTranslation();
   const scrollRef = useRef<HTMLDivElement>(null);
   const space = useSpace();
   const screenSize = useScreenSizeContext();
@@ -22,7 +24,7 @@ export function SpaceSearch() {
               <BackRouteHandler>
                 {(onBack) => (
                   <IconButton onClick={onBack}>
-                    <Icon src={Icons.ArrowLeft} />
+                    <Icon data-directional src={Icons.ArrowLeft} />
                   </IconButton>
                 )}
               </BackRouteHandler>
@@ -31,7 +33,7 @@ export function SpaceSearch() {
           <Box justifyContent="Center" alignItems="Center" gap="200">
             {screenSize !== ScreenSize.Mobile && <Icon size="400" src={Icons.Search} />}
             <Text size="H3" truncate>
-              Message Search
+              {t('sharedUi.search.messageSearch')}
             </Text>
           </Box>
           <Box grow="Yes" basis="No" />

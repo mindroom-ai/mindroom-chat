@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Avatar, Box, Button, color, Icon, Icons, Spinner, Text } from 'folds';
 import { Room, RoomMember } from 'matrix-js-sdk';
+import { useTranslation } from 'react-i18next';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useMediaAuthentication } from '../../hooks/useMediaAuthentication';
 import { useRelativeTime } from '../../hooks/useRelativeTime';
@@ -25,6 +26,7 @@ type JoinRequestItemProps = {
 };
 
 export function JoinRequestItem({ room, member, canApprove, canDecline }: JoinRequestItemProps) {
+  const { t } = useTranslation();
   const mx = useMatrixClient();
   const useAuthentication = useMediaAuthentication();
   const [actionState, setActionState] = useState<JoinRequestActionState>({ status: 'idle' });
@@ -56,17 +58,21 @@ export function JoinRequestItem({ room, member, canApprove, canDecline }: JoinRe
     } catch (error) {
       setActionState({
         action,
-        error: error instanceof Error ? error.message : 'The request could not be updated.',
+        error:
+          error instanceof Error ? error.message : t('featureUi.room.joinRequestItem.updateFailed'),
         status: 'error',
       });
     }
   };
 
-  const loadingLabel = actionState.action === 'approve' ? 'Approving…' : 'Declining…';
+  const loadingLabel =
+    actionState.action === 'approve'
+      ? t('featureUi.room.joinRequestItem.approving')
+      : t('featureUi.room.joinRequestItem.declining');
   const successLabel =
     actionState.action === 'approve'
-      ? 'Approved. Waiting for room sync…'
-      : 'Declined. Waiting for room sync…';
+      ? t('featureUi.room.joinRequestItem.approvedWaitingForSync')
+      : t('featureUi.room.joinRequestItem.declinedWaitingForSync');
 
   return (
     <Box className={css.JoinRequestItem} direction="Column" gap="200" aria-busy={loading}>
@@ -97,7 +103,7 @@ export function JoinRequestItem({ room, member, canApprove, canDecline }: JoinRe
       </Box>
 
       <Text className={css.JoinRequestMessage} size="T300">
-        {message || <i>No message provided.</i>}
+        {message || <i>{t('featureUi.room.joinRequestItem.noMessageProvided')}</i>}
       </Text>
 
       {actionState.status === 'error' && (
@@ -120,7 +126,9 @@ export function JoinRequestItem({ room, member, canApprove, canDecline }: JoinRe
       <Box className={css.JoinRequestActions} gap="100" justifyContent="End">
         {canDecline && (
           <Button
-            aria-label={`Decline join request from ${member.userId}`}
+            aria-label={t('featureUi.room.joinRequestItem.declineFromUser', {
+              userId: member.userId,
+            })}
             size="300"
             variant="Critical"
             fill="Soft"
@@ -133,12 +141,14 @@ export function JoinRequestItem({ room, member, canApprove, canDecline }: JoinRe
             }
             onClick={() => void runAction('decline')}
           >
-            <Text size="B300">Decline</Text>
+            <Text size="B300">{t('featureUi.room.joinRequestItem.decline')}</Text>
           </Button>
         )}
         {canApprove && (
           <Button
-            aria-label={`Approve join request from ${member.userId}`}
+            aria-label={t('featureUi.room.joinRequestItem.approveFromUser', {
+              userId: member.userId,
+            })}
             size="300"
             variant="Primary"
             radii="300"
@@ -152,7 +162,7 @@ export function JoinRequestItem({ room, member, canApprove, canDecline }: JoinRe
             }
             onClick={() => void runAction('approve')}
           >
-            <Text size="B300">Approve</Text>
+            <Text size="B300">{t('featureUi.room.joinRequestItem.approve')}</Text>
           </Button>
         )}
       </Box>

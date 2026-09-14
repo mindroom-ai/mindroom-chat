@@ -3,6 +3,7 @@ import { Box, Icon, IconButton, Icons, Text, as } from 'folds';
 import { Room } from 'matrix-js-sdk';
 import classNames from 'classnames';
 import { useSetAtom } from 'jotai';
+import { Trans, useTranslation } from 'react-i18next';
 import { roomIdToTypingMembersAtom } from '../../state/typingMembers';
 import { TypingIndicator } from '../../components/typing-indicator';
 import { getMemberDisplayName } from '../../utils/room';
@@ -16,6 +17,7 @@ export type RoomViewTypingProps = {
 };
 export const RoomViewTyping = as<'div', RoomViewTypingProps>(
   ({ className, room, ...props }, ref) => {
+    const { t } = useTranslation();
     const setTypingMembers = useSetAtom(roomIdToTypingMembersAtom);
     const mx = useMatrixClient();
     const typingMembers = useRoomTypingMember(room.roomId);
@@ -55,63 +57,61 @@ export const RoomViewTyping = as<'div', RoomViewTypingProps>(
           <TypingIndicator />
           <Text className={css.TypingText} size="T300" truncate>
             {typingNames.length === 1 && (
-              <>
-                <b>{typingNames[0]}</b>
-                <Text as="span" size="Inherit" priority="300">
-                  {' is typing...'}
-                </Text>
-              </>
+              <Trans
+                i18nKey="featureUi.room.typing.one"
+                t={t}
+                shouldUnescape
+                tOptions={{ interpolation: { escapeValue: true } }}
+                values={{ name: typingNames[0] }}
+                components={{ name: <b /> }}
+              />
             )}
             {typingNames.length === 2 && (
-              <>
-                <b>{typingNames[0]}</b>
-                <Text as="span" size="Inherit" priority="300">
-                  {' and '}
-                </Text>
-                <b>{typingNames[1]}</b>
-                <Text as="span" size="Inherit" priority="300">
-                  {' are typing...'}
-                </Text>
-              </>
+              <Trans
+                i18nKey="featureUi.room.typing.two"
+                t={t}
+                shouldUnescape
+                tOptions={{ interpolation: { escapeValue: true } }}
+                values={{ first: typingNames[0], second: typingNames[1] }}
+                components={{ first: <b />, second: <b /> }}
+              />
             )}
             {typingNames.length === 3 && (
-              <>
-                <b>{typingNames[0]}</b>
-                <Text as="span" size="Inherit" priority="300">
-                  {', '}
-                </Text>
-                <b>{typingNames[1]}</b>
-                <Text as="span" size="Inherit" priority="300">
-                  {' and '}
-                </Text>
-                <b>{typingNames[2]}</b>
-                <Text as="span" size="Inherit" priority="300">
-                  {' are typing...'}
-                </Text>
-              </>
+              <Trans
+                i18nKey="featureUi.room.typing.three"
+                t={t}
+                shouldUnescape
+                tOptions={{ interpolation: { escapeValue: true } }}
+                values={{ first: typingNames[0], second: typingNames[1], third: typingNames[2] }}
+                components={{ first: <b />, second: <b />, third: <b /> }}
+              />
             )}
             {typingNames.length > 3 && (
-              <>
-                <b>{typingNames[0]}</b>
-                <Text as="span" size="Inherit" priority="300">
-                  {', '}
-                </Text>
-                <b>{typingNames[1]}</b>
-                <Text as="span" size="Inherit" priority="300">
-                  {', '}
-                </Text>
-                <b>{typingNames[2]}</b>
-                <Text as="span" size="Inherit" priority="300">
-                  {' and '}
-                </Text>
-                <b>{typingNames.length - 3} others</b>
-                <Text as="span" size="Inherit" priority="300">
-                  {' are typing...'}
-                </Text>
-              </>
+              <Trans
+                i18nKey={
+                  typingNames.length === 4
+                    ? 'featureUi.room.typing.four'
+                    : 'featureUi.room.typing.many'
+                }
+                t={t}
+                shouldUnescape
+                tOptions={{ interpolation: { escapeValue: true } }}
+                values={{
+                  first: typingNames[0],
+                  second: typingNames[1],
+                  third: typingNames[2],
+                  count: typingNames.length - 3,
+                }}
+                components={{ first: <b />, second: <b />, third: <b />, others: <b /> }}
+              />
             )}
           </Text>
-          <IconButton title="Drop Typing Status" size="300" radii="Pill" onClick={handleDropAll}>
+          <IconButton
+            title={t('featureUi.room.typing.dropTypingStatus')}
+            size="300"
+            radii="Pill"
+            onClick={handleDropAll}
+          >
             <Icon size="50" src={Icons.Cross} />
           </IconButton>
         </Box>

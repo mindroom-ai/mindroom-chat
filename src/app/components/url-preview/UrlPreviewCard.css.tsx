@@ -14,12 +14,14 @@ export const UrlPreviewHolderGradient = recipe({
   variants: {
     position: {
       Left: {
-        left: 0,
+        insetInlineStart: 0,
         background: `linear-gradient(to right,${color.Surface.Container} , rgba(116,116,116,0))`,
+        selectors: { 'html[dir="rtl"] &': { transform: 'scaleX(-1)' } },
       },
       Right: {
-        right: 0,
+        insetInlineEnd: 0,
         background: `linear-gradient(to left,${color.Surface.Container} , rgba(116,116,116,0))`,
+        selectors: { 'html[dir="rtl"] &': { transform: 'scaleX(-1)' } },
       },
     },
   },
@@ -35,12 +37,14 @@ export const UrlPreviewHolderBtn = recipe({
   variants: {
     position: {
       Left: {
-        left: 0,
+        insetInlineStart: 0,
         transform: 'translateX(-25%)',
+        selectors: { 'html[dir="rtl"] &': { transform: 'translateX(25%)' } },
       },
       Right: {
-        right: 0,
+        insetInlineEnd: 0,
         transform: 'translateX(25%)',
+        selectors: { 'html[dir="rtl"] &': { transform: 'translateX(-25%)' } },
       },
     },
   },

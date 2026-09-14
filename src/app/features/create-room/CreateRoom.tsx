@@ -14,6 +14,7 @@ import {
   Text,
   TextArea,
 } from 'folds';
+import { useTranslation } from 'react-i18next';
 import { SettingTile } from '../../components/setting-tile';
 import { SequenceCard } from '../../components/sequence-card';
 import {
@@ -71,6 +72,7 @@ export function CreateRoomForm({
   space,
   onCreate,
 }: CreateRoomFormProps) {
+  const { t } = useTranslation();
   const mx = useMatrixClient();
   const alive = useAlive();
   const { createRoom: createRoomConfig } = useClientConfig();
@@ -168,7 +170,7 @@ export function CreateRoomForm({
     <Box as="form" onSubmit={handleSubmit} grow="Yes" direction="Column" gap="500">
       {!space && (
         <Box direction="Column" gap="100">
-          <Text size="L400">Type</Text>
+          <Text size="L400">{t('featureUi.createRoom.type')}</Text>
           <CreateRoomTypeSelector
             value={type}
             onSelect={setType}
@@ -178,7 +180,7 @@ export function CreateRoomForm({
         </Box>
       )}
       <Box direction="Column" gap="100">
-        <Text size="L400">Access</Text>
+        <Text size="L400">{t('featureUi.createRoom.access')}</Text>
         <CreateRoomAccessSelector
           value={access}
           onSelect={setAccess}
@@ -188,7 +190,7 @@ export function CreateRoomForm({
         />
       </Box>
       <Box shrink="No" direction="Column" gap="100">
-        <Text size="L400">Name</Text>
+        <Text size="L400">{t('featureUi.createRoom.name')}</Text>
         <Input
           required
           before={<Icon size="100" src={getCreateRoomAccessToIcon(access, type)} />}
@@ -202,7 +204,7 @@ export function CreateRoomForm({
         />
       </Box>
       <Box shrink="No" direction="Column" gap="100">
-        <Text size="L400">Topic (Optional)</Text>
+        <Text size="L400">{t('featureUi.createRoom.topicOptional')}</Text>
         <TextArea
           name="topicTextAria"
           size="500"
@@ -216,7 +218,7 @@ export function CreateRoomForm({
 
       <Box shrink="No" direction="Column" gap="100">
         <Box gap="200" alignItems="End">
-          <Text size="L400">Options</Text>
+          <Text size="L400">{t('featureUi.createRoom.options')}</Text>
           <Box grow="Yes" justifyContent="End">
             <Chip
               radii="Pill"
@@ -224,7 +226,7 @@ export function CreateRoomForm({
               onClick={() => setAdvance(!advance)}
               type="button"
             >
-              <Text size="T200">Advanced Options</Text>
+              <Text size="T200">{t('featureUi.createRoom.advancedOptions')}</Text>
             </Chip>
           </Box>
         </Box>
@@ -252,8 +254,8 @@ export function CreateRoomForm({
                 gap="500"
               >
                 <SettingTile
-                  title="End-to-End Encryption"
-                  description="Once this feature is enabled, it can't be disabled after the room is created."
+                  title={t('featureUi.createRoom.endToEndEncryption')}
+                  description={t('featureUi.createRoom.onceThisFeatureIsEnabledItCan')}
                   after={
                     <Switch
                       variant="Primary"
@@ -273,8 +275,8 @@ export function CreateRoomForm({
                 gap="500"
               >
                 <SettingTile
-                  title="Knock to Join"
-                  description="Anyone can send request to join this room."
+                  title={t('featureUi.createRoom.knockToJoin')}
+                  description={t('featureUi.createRoom.anyoneCanSendRequestToJoinThis')}
                   after={
                     <Switch
                       variant="Primary"
@@ -297,8 +299,8 @@ export function CreateRoomForm({
             gap="500"
           >
             <SettingTile
-              title="Allow Federation"
-              description="Users from other servers can join."
+              title={t('featureUi.createRoom.allowFederation')}
+              description={t('featureUi.createRoom.usersFromOtherServersCanJoin')}
               after={
                 <Switch
                   variant="Primary"
@@ -326,9 +328,11 @@ export function CreateRoomForm({
           <Text size="T300" style={{ color: color.Critical.Main }}>
             <b>
               {error instanceof MatrixError && error.name === ErrorCode.M_LIMIT_EXCEEDED
-                ? `Server rate-limited your request for ${millisecondsToMinutes(
-                    (error.data.retry_after_ms as number | undefined) ?? 0
-                  )} minutes!`
+                ? t('featureUi.createRoom.rateLimited', {
+                    count: Number(
+                      millisecondsToMinutes((error.data.retry_after_ms as number | undefined) ?? 0)
+                    ),
+                  })
                 : error.message}
             </b>
           </Text>
@@ -343,7 +347,7 @@ export function CreateRoomForm({
           disabled={disabled}
           before={loading && <Spinner variant="Primary" fill="Solid" size="200" />}
         >
-          <Text size="B500">Create</Text>
+          <Text size="B500">{t('featureUi.createRoom.create')}</Text>
         </Button>
       </Box>
     </Box>

@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { as, Box, Text, config, Button, Menu, Spinner } from 'folds';
 import {
@@ -32,6 +33,7 @@ export type ImagePackContentProps = {
 
 export const ImagePackContent = as<'div', ImagePackContentProps>(
   ({ imagePack, canEdit, onUpdate, ...props }, ref) => {
+    const { t } = useTranslation();
     const useAuthentication = useMediaAuthentication();
 
     const [metaEditing, setMetaEditing] = useState(false);
@@ -247,11 +249,11 @@ export const ImagePackContent = as<'div', ImagePackContentProps>(
               <Box grow="Yes" direction="Column">
                 {applyState.status === AsyncStatus.Error ? (
                   <Text size="T200">
-                    <b>Failed to apply changes! Please try again.</b>
+                    <b>{t('sharedUi.imagePackContent.failedToApplyChangesPleaseTryAgain')}</b>
                   </Text>
                 ) : (
                   <Text size="T200">
-                    <b>Changes saved! Apply when ready.</b>
+                    <b>{t('sharedUi.imagePackContent.changesSavedApplyWhenReady')}</b>
                   </Text>
                 )}
               </Box>
@@ -264,7 +266,7 @@ export const ImagePackContent = as<'div', ImagePackContentProps>(
                   disabled={!canApplyChanges || applying}
                   onClick={handleResetSavedChanges}
                 >
-                  <Text size="B300">Reset</Text>
+                  <Text size="B300">{t('sharedUi.imagePackContent.reset')}</Text>
                 </Button>
                 <Button
                   size="300"
@@ -274,14 +276,14 @@ export const ImagePackContent = as<'div', ImagePackContentProps>(
                   before={applying && <Spinner variant="Success" fill="Solid" size="100" />}
                   onClick={applyChanges}
                 >
-                  <Text size="B300">Apply Changes</Text>
+                  <Text size="B300">{t('sharedUi.imagePackContent.applyChanges')}</Text>
                 </Button>
               </Box>
             </Box>
           </Menu>
         )}
         <Box direction="Column" gap="100">
-          <Text size="L400">Pack</Text>
+          <Text size="L400">{t('sharedUi.imagePackContent.pack')}</Text>
           <SequenceCard
             style={{ padding: config.space.S300 }}
             variant="SurfaceVariant"
@@ -309,8 +311,10 @@ export const ImagePackContent = as<'div', ImagePackContentProps>(
             gap="400"
           >
             <SettingTile
-              title="Images Usage"
-              description="Select how the images are being used: as emojis, as stickers, or as both."
+              title={t('sharedUi.imagePackContent.imagesUsage')}
+              description={t(
+                'sharedUi.imagePackContent.selectHowTheImagesAreBeingUsedAsEmojisAsStickersOr'
+              )}
               after={
                 <UsageSwitcher
                   usage={currentMeta.usage}
@@ -323,7 +327,7 @@ export const ImagePackContent = as<'div', ImagePackContentProps>(
         </Box>
         {images.length === 0 && !canEdit ? null : (
           <Box direction="Column" gap="100">
-            <Text size="L400">Images</Text>
+            <Text size="L400">{t('sharedUi.imagePackContent.images')}</Text>
             {canEdit && (
               <SequenceCard
                 style={{ padding: config.space.S300 }}
@@ -332,8 +336,10 @@ export const ImagePackContent = as<'div', ImagePackContentProps>(
                 gap="400"
               >
                 <SettingTile
-                  title="Upload Images"
-                  description="Select images from your storage to upload them in pack."
+                  title={t('sharedUi.imagePackContent.uploadImages')}
+                  description={t(
+                    'sharedUi.imagePackContent.selectImagesFromYourStorageToUploadThemInPack'
+                  )}
                   after={
                     <Button
                       variant="Secondary"
@@ -344,7 +350,7 @@ export const ImagePackContent = as<'div', ImagePackContentProps>(
                       outlined
                       onClick={() => pickFiles('image/*')}
                     >
-                      <Text size="B300">Select</Text>
+                      <Text size="B300">{t('sharedUi.imagePackContent.select')}</Text>
                     </Button>
                   }
                 />

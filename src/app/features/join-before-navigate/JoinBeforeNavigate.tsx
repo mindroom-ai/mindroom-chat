@@ -40,7 +40,7 @@ export function JoinBeforeNavigate({
               <BackRouteHandler>
                 {(onBack) => (
                   <IconButton onClick={onBack}>
-                    <Icon src={Icons.ArrowLeft} />
+                    <Icon data-directional src={Icons.ArrowLeft} />
                   </IconButton>
                 )}
               </BackRouteHandler>

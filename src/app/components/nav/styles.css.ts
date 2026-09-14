@@ -104,8 +104,8 @@ export const NavItem = recipe({
 
 export type RoomSelectorVariants = RecipeVariants<typeof NavItem>;
 export const NavItemContent = style({
-  paddingLeft: config.space.S200,
-  paddingRight: config.space.S300,
+  paddingInlineStart: config.space.S200,
+  paddingInlineEnd: config.space.S300,
   height: 'inherit',
   minWidth: 0,
   flexGrow: 1,
@@ -124,5 +124,5 @@ export const NavItemContent = style({
 });
 
 export const NavItemOptions = style({
-  paddingRight: config.space.S200,
+  paddingInlineEnd: config.space.S200,
 });

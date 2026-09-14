@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import React, {
   type ReactNode,
   type RefObject,
@@ -22,6 +23,7 @@ export const useTimelineMessageExpansion = (
   threadId: string | undefined,
   scrollRef: RefObject<HTMLDivElement>
 ) => {
+  const { t } = useTranslation();
   const expandLongMessagesByDefault = useExpandLongMessagesByDefault();
   // The owning timeline is keyed by room:thread; manual choices reset on remount.
   const [expandAllOverride, setExpandAllOverride] = useState<boolean>();
@@ -86,7 +88,9 @@ export const useTimelineMessageExpansion = (
         padding: 0,
       }}
     >
-      {expandAll ? '[-all]' : '[+all]'}
+      {expandAll
+        ? t('mindroomUi.threads.message-rendering.useTimelineMessageExpansion.all')
+        : t('mindroomUi.threads.message-rendering.useTimelineMessageExpansion.all2')}
     </button>
   );
   return { markLiveExpansionCandidate, getExpansion, wrapExpansion, expansionControl };

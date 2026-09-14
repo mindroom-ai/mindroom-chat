@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Box, Menu, MenuItem, PopOut, RectCords, Text, config, color } from 'folds';
 import FocusTrap from 'focus-trap-react';
@@ -29,6 +30,7 @@ const triggerStyle: React.CSSProperties = {
 };
 
 export function ThreadTagPicker({ availableTags, onAddTag, disabled }: ThreadTagPickerProps) {
+  const { t } = useTranslation();
   const [menuCords, setMenuCords] = useState<RectCords>();
   const [filter, setFilter] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
@@ -78,9 +80,7 @@ export function ThreadTagPicker({ availableTags, onAddTag, disabled }: ThreadTag
   }, [menuCords]);
 
   const normalized = normalizeTagName(filter);
-  const filtered = availableTags.filter(
-    (t) => !normalized || t.toLowerCase().includes(normalized)
-  );
+  const filtered = availableTags.filter((t) => !normalized || t.toLowerCase().includes(normalized));
   const showCreate =
     normalized.length > 0 &&
     isValidTagName(normalized) &&
@@ -94,9 +94,9 @@ export function ThreadTagPicker({ availableTags, onAddTag, disabled }: ThreadTag
         style={triggerStyle}
         onClick={handleOpen}
         disabled={disabled}
-        aria-label="Add tag"
+        aria-label={t('mindroomUi.threads.threadTagPicker.addTag')}
       >
-        + tag
+        {t('mindroomUi.threads.threadTagPicker.tag')}
       </button>
       <PopOut
         anchor={menuCords}
@@ -113,18 +113,16 @@ export function ThreadTagPicker({ availableTags, onAddTag, disabled }: ThreadTag
           >
             <Menu style={{ minWidth: '12rem', maxWidth: '16rem' }}>
               <Box direction="Column" gap="0">
-                <div
-                  className={css.TagPickerInputContainer}
-                >
+                <div className={css.TagPickerInputContainer}>
                   <input
                     ref={inputRef}
                     type="text"
-                    placeholder="Filter / new..."
+                    placeholder={t('mindroomUi.threads.threadTagPicker.filterNew')}
                     className={css.TagPickerInput}
                     value={filter}
                     onChange={(e) => setFilter(e.target.value)}
                     onKeyDown={handleKeyDown}
-                    aria-label="Filter or create tag"
+                    aria-label={t('mindroomUi.threads.threadTagPicker.filterOrCreateTag')}
                   />
                 </div>
                 <Box
@@ -167,19 +165,20 @@ export function ThreadTagPicker({ availableTags, onAddTag, disabled }: ThreadTag
                       >
                         <Box grow="Yes">
                           <Text size="T300">
-                            Create &ldquo;{normalized}&rdquo;
+                            {t('mindroomUi.threads.threadTagPicker.createTag', {
+                              tag: normalized,
+                            })}
                           </Text>
                         </Box>
                       </MenuItem>
                     </>
                   )}
                   {filtered.length === 0 && !showCreate && (
-                    <Box
-                      style={{ padding: config.space.S200 }}
-                      justifyContent="Center"
-                    >
+                    <Box style={{ padding: config.space.S200 }} justifyContent="Center">
                       <Text size="T200" priority="300">
-                        {normalized ? 'No matches' : 'Type to create a tag'}
+                        {normalized
+                          ? t('mindroomUi.threads.threadTagPicker.noMatches')
+                          : t('mindroomUi.threads.threadTagPicker.typeToCreateATag')}
                       </Text>
                     </Box>
                   )}

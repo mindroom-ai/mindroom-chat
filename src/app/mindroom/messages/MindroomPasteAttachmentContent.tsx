@@ -1,3 +1,5 @@
+import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import React from 'react';
 import { Box, Text } from 'folds';
 import classNames from 'classnames';
@@ -7,18 +9,23 @@ import { bytesToSize } from '../../utils/common';
 import { FALLBACK_MIMETYPE } from '../../utils/mimeTypes';
 import * as css from './MindroomPasteAttachmentContent.css';
 import type { MindroomPasteAttachmentFile } from './pasteAttachmentMarker';
+import { useAppLanguageCode } from '../../hooks/useAppLanguageCode';
 
 type MindroomPasteAttachmentContentProps = {
   attachment: MindroomPasteAttachmentFile;
   outlined?: boolean;
 };
 
-const getPasteAttachmentDetail = ({
-  chars,
-  size,
-}: Pick<MindroomPasteAttachmentFile, 'chars' | 'size'>): string | undefined => {
+const getPasteAttachmentDetail = (
+  { chars, size }: Pick<MindroomPasteAttachmentFile, 'chars' | 'size'>,
+  t: TFunction,
+  locale: string
+): string | undefined => {
   if (typeof chars === 'number') {
-    return `${chars.toLocaleString()} characters`;
+    return t('mindroomUi.messages.mindroomPasteAttachmentContent.characterCount', {
+      count: chars,
+      formattedCount: chars.toLocaleString(locale),
+    });
   }
   if (typeof size === 'number') {
     return bytesToSize(size);
@@ -30,8 +37,10 @@ export function MindroomPasteAttachmentContent({
   attachment,
   outlined,
 }: MindroomPasteAttachmentContentProps) {
+  const { t } = useTranslation();
+  const language = useAppLanguageCode();
   const { encryptedFile, fileName, mimeType = FALLBACK_MIMETYPE, mxcUri, size } = attachment;
-  const detail = getPasteAttachmentDetail(attachment);
+  const detail = getPasteAttachmentDetail(attachment, t, language);
   const fileInfo = {
     mimetype: mimeType,
     ...(typeof size === 'number' ? { size } : {}),
@@ -41,7 +50,7 @@ export function MindroomPasteAttachmentContent({
     <Box className={classNames(css.Card, outlined && css.Outlined)}>
       <Box className={css.Header}>
         <Text className={css.Title} size="T300">
-          Pasted text
+          {t('mindroomUi.messages.mindroomPasteAttachmentContent.pastedText')}
         </Text>
         {detail && (
           <Text className={css.Meta} size="B300" truncate>
@@ -59,8 +68,8 @@ export function MindroomPasteAttachmentContent({
             mimeType={mimeType}
             url={mxcUri}
             encInfo={encryptedFile}
-            buttonText="Open"
-            errorButtonText="Retry"
+            buttonText={t('mindroomUi.messages.mindroomPasteAttachmentContent.open')}
+            errorButtonText={t('mindroomUi.messages.mindroomPasteAttachmentContent.retry')}
             buttonSize="300"
             renderViewer={(props) => <TextViewer {...props} />}
           />
@@ -70,8 +79,8 @@ export function MindroomPasteAttachmentContent({
             url={mxcUri}
             encInfo={encryptedFile}
             info={fileInfo}
-            buttonText="Download"
-            errorButtonText="Retry"
+            buttonText={t('mindroomUi.messages.mindroomPasteAttachmentContent.download')}
+            errorButtonText={t('mindroomUi.messages.mindroomPasteAttachmentContent.retry')}
             buttonSize="300"
           />
         </Box>

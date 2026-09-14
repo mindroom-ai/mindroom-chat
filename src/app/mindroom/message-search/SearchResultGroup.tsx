@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 /* eslint-disable react/destructuring-assignment */
 import React, { MouseEventHandler } from 'react';
 import { JoinRule, Room } from 'matrix-js-sdk';
@@ -115,6 +116,7 @@ export function SearchResultItemCard({
   dateFormatString,
   renderBody,
 }: SearchResultItemCardProps) {
+  const { t } = useTranslation();
   const handleOpenClick: MouseEventHandler = (evt) => {
     const eventId = evt.currentTarget.getAttribute('data-event-id');
     if (!eventId) return;
@@ -174,13 +176,15 @@ export function SearchResultItemCard({
               variant="Secondary"
               radii="400"
             >
-              <Text size="T200">Open</Text>
+              <Text size="T200">{t('mindroomUi.message-search.searchResultGroup.open')}</Text>
             </Chip>
           </Box>
         </Box>
         {replyEventId && (
           <Text size="T200" priority="300">
-            Reply context hidden in search results. Open the message for full thread context.
+            {t(
+              'mindroomUi.message-search.searchResultGroup.replyContextHiddenInSearchResultsOpenTheMessageFor'
+            )}
           </Text>
         )}
         {renderBody({ roomId: room.roomId, event, displayName, highlights })}

@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import React, { FormEventHandler, useCallback } from 'react';
 import { Box, Text, Button, Spinner, color } from 'folds';
 import { decodeRecoveryKey, deriveRecoveryKeyFromPassphrase } from 'matrix-js-sdk/lib/crypto-api';
@@ -22,6 +23,7 @@ export function SecretStorageRecoveryPassphrase({
   passphraseContent,
   onDecodedRecoveryKey,
 }: SecretStorageRecoveryPassphraseProps) {
+  const { t } = useTranslation();
   const mx = useMatrixClient();
   const alive = useAlive();
 
@@ -77,7 +79,7 @@ export function SecretStorageRecoveryPassphrase({
     <Box as="form" onSubmit={handleSubmit} direction="Column" gap="100">
       <Box gap="200" alignItems="End">
         <Box grow="Yes" direction="Column" gap="100">
-          <Text size="L400">Recovery Passphrase</Text>
+          <Text size="L400">{t('sharedUi.secretStorage.recoveryPassphrase')}</Text>
           <PasswordInput
             name="recoveryPassphraseInput"
             size="400"
@@ -99,14 +101,18 @@ export function SecretStorageRecoveryPassphrase({
             before={loading && <Spinner size="200" variant="Success" fill="Solid" />}
           >
             <Text as="span" size="B400">
-              Verify
+              {t('sharedUi.secretStorage.verify')}
             </Text>
           </Button>
         </Box>
       </Box>
       {driveKeyState.status === AsyncStatus.Error && (
         <Text size="T200" style={{ color: color.Critical.Main }}>
-          <b>{driveKeyState.error.message}</b>
+          <b>
+            {driveKeyState.error.message === 'Invalid recovery passphrase.'
+              ? t('sharedUi.secretStorage.invalidRecoveryPassphrase')
+              : driveKeyState.error.message}
+          </b>
         </Text>
       )}
     </Box>
@@ -123,6 +129,7 @@ export function SecretStorageRecoveryKey({
   keyContent,
   onDecodedRecoveryKey,
 }: SecretStorageRecoveryKeyProps) {
+  const { t } = useTranslation();
   const mx = useMatrixClient();
   const alive = useAlive();
 
@@ -167,7 +174,7 @@ export function SecretStorageRecoveryKey({
     <Box as="form" onSubmit={handleSubmit} direction="Column" gap="100">
       <Box gap="200" alignItems="End">
         <Box grow="Yes" direction="Column" gap="100">
-          <Text size="L400">Recovery Key</Text>
+          <Text size="L400">{t('sharedUi.secretStorage.recoveryKey')}</Text>
           <PasswordInput
             name="recoveryKeyInput"
             size="400"
@@ -189,14 +196,18 @@ export function SecretStorageRecoveryKey({
             before={loading && <Spinner size="200" variant="Success" fill="Solid" />}
           >
             <Text as="span" size="B400">
-              Verify
+              {t('sharedUi.secretStorage.verify')}
             </Text>
           </Button>
         </Box>
       </Box>
       {driveKeyState.status === AsyncStatus.Error && (
         <Text size="T200" style={{ color: color.Critical.Main }}>
-          <b>{driveKeyState.error.message}</b>
+          <b>
+            {driveKeyState.error.message === 'Invalid recovery key.'
+              ? t('sharedUi.secretStorage.invalidRecoveryKey')
+              : driveKeyState.error.message}
+          </b>
         </Text>
       )}
     </Box>

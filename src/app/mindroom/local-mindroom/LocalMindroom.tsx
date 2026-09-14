@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Box, Button, Icon, IconButton, Icons, Scroll, Spinner, Text, color } from 'folds';
 import { Page, PageContent, PageHeader } from '../../components/page';
@@ -7,6 +8,7 @@ import { copyToClipboard } from '../../utils/dom';
 import { useClientConfig } from '../../hooks/useClientConfig';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useTimeoutToggle } from '../../hooks/useTimeoutToggle';
+import { useAppLanguageCode } from '../../hooks/useAppLanguageCode';
 import { SequenceCardStyle } from '../../features/settings/styles.css';
 import {
   LocalMindroomConnection,
@@ -42,6 +44,7 @@ type PairSession = {
 };
 
 export function PairingCommandCopyButton({ command }: { command: string }) {
+  const { t } = useTranslation();
   const [copied, setCopied] = useTimeoutToggle(1600);
 
   const handleCopy = async () => {
@@ -50,12 +53,18 @@ export function PairingCommandCopyButton({ command }: { command: string }) {
 
   return (
     <Button size="300" variant="Secondary" fill="Soft" outlined radii="300" onClick={handleCopy}>
-      <Text size="B300">{copied ? 'Copied' : 'Copy Command'}</Text>
+      <Text size="B300">
+        {copied
+          ? t('mindroomUi.local-mindroom.localMindroom.copied')
+          : t('mindroomUi.local-mindroom.localMindroom.copyCommand')}
+      </Text>
     </Button>
   );
 }
 
 export function LocalMindroom({ requestClose }: LocalMindroomProps) {
+  const { t } = useTranslation();
+  const language = useAppLanguageCode();
   const mx = useMatrixClient();
   const { sidebar } = useClientConfig();
   const docsUrl = getMindroomDocsUrl(sidebar?.mindRoomUrl);
@@ -90,11 +99,16 @@ export function LocalMindroom({ requestClose }: LocalMindroomProps) {
       const result = await getLocalMindroomConnections(browserAccessToken, provisioningUrl);
       setConnections(result.connections.filter((connection) => !isConnectionRevoked(connection)));
     } catch (error) {
-      setConnectionsError(getLocalMindroomErrorMessage(error));
+      setConnectionsError(
+        getLocalMindroomErrorMessage(
+          error,
+          t('mindroomUi.local-mindroom.localMindroom.requestFailed')
+        )
+      );
     } finally {
       setLoadingConnections(false);
     }
-  }, [browserAccessToken, provisioningUrl]);
+  }, [browserAccessToken, provisioningUrl, t]);
 
   useEffect(() => {
     loadConnections();
@@ -148,7 +162,12 @@ export function LocalMindroom({ requestClose }: LocalMindroomProps) {
         loadConnections().catch(() => undefined);
       } catch (error) {
         if (cancelled) return;
-        setPairError(getLocalMindroomErrorMessage(error));
+        setPairError(
+          getLocalMindroomErrorMessage(
+            error,
+            t('mindroomUi.local-mindroom.localMindroom.requestFailed')
+          )
+        );
       }
     };
 
@@ -161,7 +180,7 @@ export function LocalMindroom({ requestClose }: LocalMindroomProps) {
       cancelled = true;
       window.clearInterval(intervalId);
     };
-  }, [pairSession, pairStatus, loadConnections, browserAccessToken, provisioningUrl]);
+  }, [pairSession, pairStatus, loadConnections, browserAccessToken, provisioningUrl, t]);
 
   const handleStartPair = useCallback(async () => {
     setStartingPair(true);
@@ -180,11 +199,16 @@ export function LocalMindroom({ requestClose }: LocalMindroomProps) {
       setPairStatus('pending');
       setNowMs(Date.now());
     } catch (error) {
-      setPairError(getLocalMindroomErrorMessage(error));
+      setPairError(
+        getLocalMindroomErrorMessage(
+          error,
+          t('mindroomUi.local-mindroom.localMindroom.requestFailed')
+        )
+      );
     } finally {
       setStartingPair(false);
     }
-  }, [browserAccessToken, provisioningUrl]);
+  }, [browserAccessToken, provisioningUrl, t]);
 
   const handleRevokeConnection = useCallback(
     async (connectionId: string) => {
@@ -196,20 +220,29 @@ export function LocalMindroom({ requestClose }: LocalMindroomProps) {
         setConfirmRevokeId(undefined);
         await loadConnections();
       } catch (error) {
-        setRevokeError(getLocalMindroomErrorMessage(error));
+        setRevokeError(
+          getLocalMindroomErrorMessage(
+            error,
+            t('mindroomUi.local-mindroom.localMindroom.requestFailed')
+          )
+        );
       } finally {
         setRevokingId(undefined);
       }
     },
-    [loadConnections, browserAccessToken, provisioningUrl]
+    [loadConnections, browserAccessToken, provisioningUrl, t]
   );
 
   const hasConnections = (connections?.length ?? 0) > 0;
   const pairingCommand = pairSession ? getMindroomPairingCommand(pairSession.pairCode) : '';
   const showGenerateNewCode = !pairSession || pairStatus === 'expired';
-  let pairStatusLabel = `${secondsRemaining}s`;
-  if (pairStatus === 'connected') pairStatusLabel = 'Connected';
-  else if (pairStatus === 'expired') pairStatusLabel = 'Expired';
+  let pairStatusLabel = t('mindroomUi.local-mindroom.localMindroom.secondsRemaining', {
+    count: secondsRemaining,
+  });
+  if (pairStatus === 'connected')
+    pairStatusLabel = t('mindroomUi.local-mindroom.localMindroom.connected');
+  else if (pairStatus === 'expired')
+    pairStatusLabel = t('mindroomUi.local-mindroom.localMindroom.expired');
 
   return (
     <Page>
@@ -217,7 +250,7 @@ export function LocalMindroom({ requestClose }: LocalMindroomProps) {
         <Box grow="Yes" gap="200">
           <Box grow="Yes" alignItems="Center" gap="200">
             <Text size="H3" truncate>
-              Local MindRoom
+              {t('mindroomUi.local-mindroom.localMindroom.localMindroom')}
             </Text>
           </Box>
           <Box shrink="No">
@@ -232,7 +265,9 @@ export function LocalMindroom({ requestClose }: LocalMindroomProps) {
           <PageContent>
             <Box direction="Column" gap="700">
               <Box direction="Column" gap="100">
-                <Text size="L400">Connect Local MindRoom</Text>
+                <Text size="L400">
+                  {t('mindroomUi.local-mindroom.localMindroom.connectLocalMindroom')}
+                </Text>
                 <SequenceCard
                   className={SequenceCardStyle}
                   variant="SurfaceVariant"
@@ -240,8 +275,12 @@ export function LocalMindroom({ requestClose }: LocalMindroomProps) {
                   gap="400"
                 >
                   <SettingTile
-                    title="Pair this chat account with your local MindRoom process"
-                    description="Generate a one-time code, run the command locally, then wait for the connection confirmation."
+                    title={t(
+                      'mindroomUi.local-mindroom.localMindroom.pairThisChatAccountWithYourLocalMindroomProcess'
+                    )}
+                    description={t(
+                      'mindroomUi.local-mindroom.localMindroom.generateAOneTimeCodeRunTheCommandLocallyThen'
+                    )}
                   />
 
                   {provisioningRequest.warning && (
@@ -253,7 +292,7 @@ export function LocalMindroom({ requestClose }: LocalMindroomProps) {
                   {pairSession && (
                     <Box direction="Column" gap="300">
                       <SettingTile
-                        title="Pair code"
+                        title={t('mindroomUi.local-mindroom.localMindroom.pairCode')}
                         description={pairSession.pairCode}
                         after={
                           <Text size="B300" style={{ color: color.Secondary.Main }}>
@@ -262,9 +301,11 @@ export function LocalMindroom({ requestClose }: LocalMindroomProps) {
                         }
                       />
                       <SettingTile
-                        title="Command"
+                        title={t('mindroomUi.local-mindroom.localMindroom.command')}
                         description={
-                          <code style={{ fontSize: '0.85em', wordBreak: 'break-word' }}>{pairingCommand}</code>
+                          <code style={{ fontSize: '0.85em', wordBreak: 'break-word' }}>
+                            {pairingCommand}
+                          </code>
                         }
                         after={
                           <PairingCommandCopyButton key={pairingCommand} command={pairingCommand} />
@@ -275,20 +316,34 @@ export function LocalMindroom({ requestClose }: LocalMindroomProps) {
 
                   {pairStatus === 'pending' && (
                     <Text size="T200" priority="300">
-                      Waiting for local connection. Run the command above on your machine.
+                      {t(
+                        'mindroomUi.local-mindroom.localMindroom.waitingForLocalConnectionRunTheCommandAboveOnYour'
+                      )}
                     </Text>
                   )}
 
                   {pairStatus === 'connected' && (
                     <Box direction="Column" gap="100">
                       <Text size="T200" style={{ color: color.Success.Main }}>
-                        Local MindRoom connected successfully.
+                        {t(
+                          'mindroomUi.local-mindroom.localMindroom.localMindroomConnectedSuccessfully'
+                        )}
                       </Text>
                       {pairConnection && (
                         <Text size="T200" priority="300">
-                          {getConnectionName(pairConnection, 0)} | Created:{' '}
-                          {formatLocalTimestamp(getConnectionCreatedAt(pairConnection))} | Last seen:{' '}
-                          {formatLocalTimestamp(getConnectionLastSeenAt(pairConnection))}
+                          {t('mindroomUi.local-mindroom.localMindroom.connectionSummary', {
+                            name: getConnectionName(pairConnection, 0),
+                            created: formatLocalTimestamp(
+                              getConnectionCreatedAt(pairConnection),
+                              language,
+                              t('mindroomUi.local-mindroom.localMindroom.unknown')
+                            ),
+                            lastSeen: formatLocalTimestamp(
+                              getConnectionLastSeenAt(pairConnection),
+                              language,
+                              t('mindroomUi.local-mindroom.localMindroom.unknown')
+                            ),
+                          })}
                         </Text>
                       )}
                     </Box>
@@ -296,7 +351,9 @@ export function LocalMindroom({ requestClose }: LocalMindroomProps) {
 
                   {pairStatus === 'expired' && (
                     <Text size="T200" style={{ color: color.Warning.Main }}>
-                      Pair code expired. Generate a new code to continue.
+                      {t(
+                        'mindroomUi.local-mindroom.localMindroom.pairCodeExpiredGenerateANewCodeToContinue'
+                      )}
                     </Text>
                   )}
 
@@ -316,7 +373,9 @@ export function LocalMindroom({ requestClose }: LocalMindroomProps) {
                       before={startingPair && <Spinner variant="Primary" fill="Solid" size="200" />}
                     >
                       <Text size="B300">
-                        {showGenerateNewCode ? 'Generate Pair Code' : 'Generate New Code'}
+                        {showGenerateNewCode
+                          ? t('mindroomUi.local-mindroom.localMindroom.generatePairCode')
+                          : t('mindroomUi.local-mindroom.localMindroom.generateNewCode')}
                       </Text>
                     </Button>
                     <Button
@@ -327,14 +386,18 @@ export function LocalMindroom({ requestClose }: LocalMindroomProps) {
                       radii="300"
                       onClick={() => window.open(docsUrl, '_blank', 'noopener,noreferrer')}
                     >
-                      <Text size="B300">MindRoom Docs</Text>
+                      <Text size="B300">
+                        {t('mindroomUi.local-mindroom.localMindroom.mindroomDocs')}
+                      </Text>
                     </Button>
                   </Box>
                 </SequenceCard>
               </Box>
 
               <Box direction="Column" gap="100">
-                <Text size="L400">Linked Installations</Text>
+                <Text size="L400">
+                  {t('mindroomUi.local-mindroom.localMindroom.linkedInstallations')}
+                </Text>
                 <SequenceCard
                   className={SequenceCardStyle}
                   variant="SurfaceVariant"
@@ -345,7 +408,7 @@ export function LocalMindroom({ requestClose }: LocalMindroomProps) {
                     <Box alignItems="Center" gap="200">
                       <Spinner variant="Secondary" fill="Soft" size="200" />
                       <Text size="T200" priority="300">
-                        Loading linked installations...
+                        {t('mindroomUi.local-mindroom.localMindroom.loadingLinkedInstallations')}
                       </Text>
                     </Box>
                   )}
@@ -363,21 +426,26 @@ export function LocalMindroom({ requestClose }: LocalMindroomProps) {
                         radii="300"
                         onClick={loadConnections}
                       >
-                        <Text size="B300">Try Again</Text>
+                        <Text size="B300">
+                          {t('mindroomUi.local-mindroom.localMindroom.tryAgain')}
+                        </Text>
                       </Button>
                     </Box>
                   )}
 
                   {!loadingConnections && !connectionsError && !hasConnections && (
                     <Text size="T200" priority="300">
-                      No linked local MindRoom installations yet.
+                      {t(
+                        'mindroomUi.local-mindroom.localMindroom.noLinkedLocalMindroomInstallationsYet'
+                      )}
                     </Text>
                   )}
 
                   {connections?.map((connection, index) => {
                     const connectionId = getConnectionId(connection);
                     const isRevoking = connectionId !== undefined && revokingId === connectionId;
-                    const isConfirming = connectionId !== undefined && confirmRevokeId === connectionId;
+                    const isConfirming =
+                      connectionId !== undefined && confirmRevokeId === connectionId;
 
                     return (
                       <SequenceCard
@@ -392,10 +460,22 @@ export function LocalMindroom({ requestClose }: LocalMindroomProps) {
                           description={
                             <>
                               <div>
-                                Created: {formatLocalTimestamp(getConnectionCreatedAt(connection))}
+                                {t('mindroomUi.local-mindroom.localMindroom.createdAt', {
+                                  timestamp: formatLocalTimestamp(
+                                    getConnectionCreatedAt(connection),
+                                    language,
+                                    t('mindroomUi.local-mindroom.localMindroom.unknown')
+                                  ),
+                                })}
                               </div>
                               <div>
-                                Last seen: {formatLocalTimestamp(getConnectionLastSeenAt(connection))}
+                                {t('mindroomUi.local-mindroom.localMindroom.lastSeenAt', {
+                                  timestamp: formatLocalTimestamp(
+                                    getConnectionLastSeenAt(connection),
+                                    language,
+                                    t('mindroomUi.local-mindroom.localMindroom.unknown')
+                                  ),
+                                })}
                               </div>
                             </>
                           }
@@ -412,7 +492,9 @@ export function LocalMindroom({ requestClose }: LocalMindroomProps) {
                                 radii="300"
                                 onClick={() => setConfirmRevokeId(connectionId)}
                               >
-                                <Text size="B300">Revoke</Text>
+                                <Text size="B300">
+                                  {t('mindroomUi.local-mindroom.localMindroom.revoke')}
+                                </Text>
                               </Button>
                             )}
 
@@ -427,10 +509,14 @@ export function LocalMindroom({ requestClose }: LocalMindroomProps) {
                                   }}
                                   disabled={isRevoking}
                                   before={
-                                    isRevoking && <Spinner variant="Critical" fill="Solid" size="200" />
+                                    isRevoking && (
+                                      <Spinner variant="Critical" fill="Solid" size="200" />
+                                    )
                                   }
                                 >
-                                  <Text size="B300">Confirm Revoke</Text>
+                                  <Text size="B300">
+                                    {t('mindroomUi.local-mindroom.localMindroom.confirmRevoke')}
+                                  </Text>
                                 </Button>
                                 <Button
                                   size="300"
@@ -441,7 +527,9 @@ export function LocalMindroom({ requestClose }: LocalMindroomProps) {
                                   onClick={() => setConfirmRevokeId(undefined)}
                                   disabled={isRevoking}
                                 >
-                                  <Text size="B300">Cancel</Text>
+                                  <Text size="B300">
+                                    {t('mindroomUi.local-mindroom.localMindroom.cancel')}
+                                  </Text>
                                 </Button>
                               </>
                             )}

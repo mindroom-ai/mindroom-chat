@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 /* eslint-disable jsx-a11y/no-noninteractive-element-interactions */
 import React, { ComponentProps, HTMLAttributes, Suspense, forwardRef, lazy } from 'react';
 import classNames from 'classnames';
@@ -40,6 +41,7 @@ export type TextViewerProps = {
 
 export const TextViewer = as<'div', TextViewerProps>(
   ({ className, name, text, langName, requestClose, ...props }, ref) => {
+    const { t } = useTranslation();
     const handleCopy = () => {
       copyToClipboard(text);
     };
@@ -54,7 +56,7 @@ export const TextViewer = as<'div', TextViewerProps>(
         <Header className={css.TextViewerHeader} size="400">
           <Box grow="Yes" alignItems="Center" gap="200">
             <IconButton size="300" radii="300" onClick={requestClose}>
-              <Icon size="50" src={Icons.ArrowLeft} />
+              <Icon data-directional size="50" src={Icons.ArrowLeft} />
             </IconButton>
             <Text size="T300" truncate>
               {name}
@@ -62,7 +64,7 @@ export const TextViewer = as<'div', TextViewerProps>(
           </Box>
           <Box shrink="No" alignItems="Center" gap="200">
             <Chip variant="Primary" radii="300" onClick={handleCopy}>
-              <Text size="B300">Copy All</Text>
+              <Text size="B300">{t('sharedUi.textViewer.copyAll')}</Text>
             </Chip>
           </Box>
         </Header>

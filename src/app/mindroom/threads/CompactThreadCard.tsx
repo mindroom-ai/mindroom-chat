@@ -88,7 +88,11 @@ function CompactThreadCardBase({ viewModel, onClick }: CompactThreadCardProps) {
             title={resolvedByLabel}
             aria-hidden="true"
           />
-          <span className={css.ScreenReaderText}>{`Thread status: ${attentionStatusText}.`}</span>
+          <span className={css.ScreenReaderText}>
+            {t('mindroomUi.threads.compactThreadCard.threadStatus', {
+              status: attentionStatusText,
+            })}
+          </span>
           <Text className={css.TitleText} size="B300" title={titleText}>
             {displayTitleText}
           </Text>
@@ -99,7 +103,13 @@ function CompactThreadCardBase({ viewModel, onClick }: CompactThreadCardProps) {
             size="T200"
             priority="300"
             title={lastActivityTitle}
-            aria-label={lastActivityTitle ? `Last activity ${lastActivityTitle}` : undefined}
+            aria-label={
+              lastActivityTitle
+                ? t('mindroomUi.threads.compactThreadCard.lastActivity', {
+                    timestamp: lastActivityTitle,
+                  })
+                : undefined
+            }
           >
             {relativeTime}
           </Text>
@@ -217,7 +227,7 @@ function CompactThreadCardBase({ viewModel, onClick }: CompactThreadCardProps) {
               <Box as="span" alignItems="Center" gap="100">
                 <span className={threadIndicatorCss.ThreadStreamingDot} aria-hidden="true" />
                 <Text as="span" size="T200">
-                  streaming
+                  {t('mindroomUi.threads.compactThreadCard.streaming')}
                 </Text>
               </Box>
             </Chip>
@@ -227,10 +237,10 @@ function CompactThreadCardBase({ viewModel, onClick }: CompactThreadCardProps) {
               <span
                 className={`${threadIndicatorCss.ThreadUnreadDot} ${css.UnreadDot}`}
                 role="img"
-                aria-label="Unread messages"
+                aria-label={t('mindroomUi.threads.compactThreadCard.unreadMessages')}
               />
               <Text as="span" size="T200" priority="300">
-                unread
+                {t('mindroomUi.threads.compactThreadCard.unread')}
               </Text>
             </Box>
           )}

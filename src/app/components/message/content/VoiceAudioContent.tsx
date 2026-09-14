@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 /* eslint-disable jsx-a11y/media-has-caption */
 import FocusTrap from 'focus-trap-react';
 import React, { MouseEventHandler, useCallback, useEffect, useRef, useState } from 'react';
@@ -58,8 +59,9 @@ export function VoiceAudioContent({
   encInfo,
   filename = 'Audio',
   waveform,
-  label = 'voice message',
+  label,
 }: VoiceAudioContentProps) {
+  const { t } = useTranslation();
   const [srcState, loadSrc] = useAudioContentSource({ mimeType, url, encInfo });
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [audioElement, setAudioElement] = useState<HTMLAudioElement | null>(null);
@@ -243,7 +245,7 @@ export function VoiceAudioContent({
       ? bytesToSize(info.size)
       : undefined;
   const durationText = displayDuration > 0 ? formatVoiceTime(displayDuration) : undefined;
-  const mediaLabel = label || 'audio';
+  const mediaLabel = label || t('sharedUi.voiceAudioContent.voiceMessage');
 
   return (
     <div className={css.Root}>
@@ -255,7 +257,11 @@ export function VoiceAudioContent({
             radii="300"
             onClick={handlePlay}
             disabled={srcState.status === AsyncStatus.Loading}
-            aria-label={playing ? `Pause ${mediaLabel}` : `Play ${mediaLabel}`}
+            aria-label={
+              playing
+                ? t('sharedUi.voiceAudioContent.pauseValue1', { value1: mediaLabel })
+                : t('sharedUi.voiceAudioContent.playValue1', { value1: mediaLabel })
+            }
             aria-pressed={playing}
           >
             {srcState.status === AsyncStatus.Loading || loading ? (
@@ -269,7 +275,7 @@ export function VoiceAudioContent({
           <VoiceWaveform
             waveform={waveform}
             progress={progress}
-            label={`Seek ${mediaLabel}`}
+            label={t('sharedUi.voiceAudioContent.seekValue1', { value1: mediaLabel })}
             onSeekProgress={handleSeekProgress}
           />
         </div>
@@ -288,7 +294,7 @@ export function VoiceAudioContent({
             variant="SurfaceVariant"
             size="300"
             radii="300"
-            aria-label="More audio options"
+            aria-label={t('sharedUi.voiceAudioContent.moreAudioOptions')}
             aria-haspopup="dialog"
             aria-expanded={moreAnchor ? true : undefined}
             onClick={handleMoreOpen}
@@ -327,7 +333,7 @@ export function VoiceAudioContent({
               >
                 <Menu className={css.MoreMenu}>
                   <div className={css.MoreMenuAction}>
-                    <Text size="B300">Download</Text>
+                    <Text size="B300">{t('sharedUi.voiceAudioContent.download')}</Text>
                     <FileDownloadButton
                       filename={filename}
                       url={url}
@@ -337,7 +343,7 @@ export function VoiceAudioContent({
                   </div>
                   <div className={css.MoreMenuMeta}>
                     <Text className={css.MoreMenuMetaLabel} size="L400">
-                      Name
+                      {t('sharedUi.voiceAudioContent.name')}
                     </Text>
                     <Text className={css.MoreMenuMetaValue} size="T200" truncate>
                       {filename}
@@ -345,7 +351,7 @@ export function VoiceAudioContent({
                   </div>
                   <div className={css.MoreMenuMeta}>
                     <Text className={css.MoreMenuMetaLabel} size="L400">
-                      Type
+                      {t('sharedUi.voiceAudioContent.type')}
                     </Text>
                     <Text className={css.MoreMenuMetaValue} size="T200" truncate>
                       {mimeType}
@@ -354,7 +360,7 @@ export function VoiceAudioContent({
                   {sizeText && (
                     <div className={css.MoreMenuMeta}>
                       <Text className={css.MoreMenuMetaLabel} size="L400">
-                        Size
+                        {t('sharedUi.voiceAudioContent.size')}
                       </Text>
                       <Text className={css.MoreMenuMetaValue} size="T200">
                         {sizeText}
@@ -364,7 +370,7 @@ export function VoiceAudioContent({
                   {durationText && (
                     <div className={css.MoreMenuMeta}>
                       <Text className={css.MoreMenuMetaLabel} size="L400">
-                        Duration
+                        {t('sharedUi.voiceAudioContent.duration')}
                       </Text>
                       <Text className={css.MoreMenuMetaValue} size="T200">
                         {durationText}

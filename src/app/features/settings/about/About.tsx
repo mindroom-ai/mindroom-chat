@@ -1,3 +1,4 @@
+/* eslint-disable jsx-a11y/anchor-has-content, jsx-a11y/control-has-associated-label -- Trans supplies each link's accessible text from the localized sentence. */
 import React from 'react';
 import {
   Box,
@@ -12,6 +13,8 @@ import {
   config,
   toRem,
 } from 'folds';
+import { Trans, useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import { Page, PageContent, PageHeader } from '../../../components/page';
 import { SequenceCard } from '../../../components/sequence-card';
 import { SequenceCardStyle } from '../styles.css';
@@ -43,10 +46,12 @@ type AboutProps = {
 type DeepTraceError = 'storage' | 'preference' | undefined;
 
 const getDeepTraceDescription = ({
+  t,
   runtimeStatus,
   enabled,
   error,
 }: {
+  t: TFunction;
   runtimeStatus: DeepTraceRuntimeStatus;
   enabled: boolean;
   error: DeepTraceError;
@@ -55,33 +60,30 @@ const getDeepTraceDescription = ({
 
   if (runtimeStatus === 'unavailable') {
     description = enabled
-      ? 'Enabled, but trace storage is currently unavailable.'
-      : 'Trace storage unavailable.';
+      ? t('featureUi.settings.about.deepTraceEnabledStorageUnavailable')
+      : t('featureUi.settings.about.traceStorageUnavailable');
   } else if (error === 'storage') {
-    description = 'Trace storage unavailable.';
+    description = t('featureUi.settings.about.traceStorageUnavailable');
   } else if (runtimeStatus === 'recording') {
-    description =
-      'Recording a bounded, privacy-safe performance and interaction trace on this device.';
+    description = t('featureUi.settings.about.deepTraceRecording');
   } else if (runtimeStatus === 'starting') {
-    description =
-      'Starting a bounded, privacy-safe performance and interaction trace on this device.';
+    description = t('featureUi.settings.about.deepTraceStarting');
   } else {
-    description =
-      'Off. Enable before reproducing a freeze to record performance, Matrix, network, lifecycle, and interaction timing.';
+    description = t('featureUi.settings.about.deepTraceOff');
   }
 
   if (error === 'preference') {
-    description +=
-      ' Off for this session, but the preference could not be saved and may re-enable after restart.';
+    description = t('featureUi.settings.about.deepTracePreferenceSaveFailed', { description });
   }
 
   return description;
 };
 
 export function About({ requestClose }: AboutProps) {
+  const { t } = useTranslation();
   const mx = useMatrixClient();
   const clientConfig = useClientConfig();
-  const { subtitle } = getMindroomWelcomePageContent(clientConfig.welcome);
+  const { subtitle } = getMindroomWelcomePageContent(clientConfig.welcome, t);
   const [clearing, setClearing] = React.useState(false);
   const [exporting, setExporting] = React.useState(false);
   const [exportError, setExportError] = React.useState(false);
@@ -95,10 +97,16 @@ export function About({ requestClose }: AboutProps) {
   const nativeIOS = isNativeIOS();
   const diagnosticsStatus = getFlightRecorderStatus();
   const diagnosticsDescription = {
-    unexpected: 'Previous session ended unexpectedly; the cause is unknown.',
-    none: 'No unexpected session retained.',
-    unavailable: 'Diagnostics storage unavailable.',
+    unexpected: t('featureUi.settings.about.diagnosticsUnexpected'),
+    none: t('featureUi.settings.about.diagnosticsNone'),
+    unavailable: t('featureUi.settings.about.diagnosticsUnavailable'),
   }[diagnosticsStatus];
+  const diagnosticsFullDescription =
+    exportError && diagnosticsStatus !== 'unavailable'
+      ? t('featureUi.settings.about.diagnosticsExportFailed', {
+          description: diagnosticsDescription,
+        })
+      : diagnosticsDescription;
 
   React.useEffect(
     () =>
@@ -190,7 +198,7 @@ export function About({ requestClose }: AboutProps) {
         <Box grow="Yes" gap="200">
           <Box grow="Yes" alignItems="Center" gap="200">
             <Text size="H3" truncate>
-              About
+              {t('featureUi.settings.about.title')}
             </Text>
           </Box>
           <Box shrink="No">
@@ -233,7 +241,7 @@ export function About({ requestClose }: AboutProps) {
                       radii="300"
                       before={<Icon src={Icons.Code} size="100" filled />}
                     >
-                      <Text size="B300">Source Code</Text>
+                      <Text size="B300">{t('featureUi.settings.about.sourceCode')}</Text>
                     </Button>
                     <Button
                       as="a"
@@ -246,13 +254,13 @@ export function About({ requestClose }: AboutProps) {
                       radii="300"
                       before={<Icon src={Icons.Heart} size="100" filled />}
                     >
-                      <Text size="B300">Support</Text>
+                      <Text size="B300">{t('featureUi.settings.about.support')}</Text>
                     </Button>
                   </Box>
                 </Box>
               </Box>
               <Box direction="Column" gap="100">
-                <Text size="L400">Options</Text>
+                <Text size="L400">{t('featureUi.settings.about.options')}</Text>
                 <SequenceCard
                   className={SequenceCardStyle}
                   variant="SurfaceVariant"
@@ -260,8 +268,8 @@ export function About({ requestClose }: AboutProps) {
                   gap="400"
                 >
                   <SettingTile
-                    title="Clear Cache & Reload"
-                    description="Clears cached data and reloads. You will stay signed in."
+                    title={t('featureUi.settings.about.clearCacheAndReload')}
+                    description={t('featureUi.settings.about.clearCacheDescription')}
                     after={
                       <Button
                         onClick={handleClearCache}
@@ -273,14 +281,19 @@ export function About({ requestClose }: AboutProps) {
                         disabled={clearing}
                         before={clearing && <Spinner size="200" variant="Secondary" fill="Soft" />}
                       >
-                        <Text size="B300">{clearing ? 'Clearing...' : 'Clear Cache'}</Text>
+                        <Text size="B300">
+                          {clearing
+                            ? t('featureUi.settings.about.clearing')
+                            : t('featureUi.settings.about.clearCache')}
+                        </Text>
                       </Button>
                     }
                   />
                   {nativeIOS && (
                     <SettingTile
-                      title="Deep diagnostic tracing"
+                      title={t('featureUi.settings.about.deepDiagnosticTracing')}
                       description={getDeepTraceDescription({
+                        t,
                         runtimeStatus: deepTraceRuntimeStatus,
                         enabled: deepTracing,
                         error: deepTraceError,
@@ -302,7 +315,9 @@ export function About({ requestClose }: AboutProps) {
                             }
                           >
                             <Text size="B300">
-                              {clearingDeepTrace ? 'Clearing...' : 'Clear trace'}
+                              {clearingDeepTrace
+                                ? t('featureUi.settings.about.clearing')
+                                : t('featureUi.settings.about.clearTrace')}
                             </Text>
                           </Button>
                           <Switch
@@ -317,12 +332,8 @@ export function About({ requestClose }: AboutProps) {
                   )}
                   {nativeIOS && (
                     <SettingTile
-                      title="On-device diagnostics"
-                      description={`${diagnosticsDescription}${
-                        exportError && diagnosticsStatus !== 'unavailable'
-                          ? ' Export failed. Try again.'
-                          : ''
-                      }`}
+                      title={t('featureUi.settings.about.onDeviceDiagnostics')}
+                      description={diagnosticsFullDescription}
                       after={
                         <Button
                           onClick={handleExportDiagnostics}
@@ -337,7 +348,9 @@ export function About({ requestClose }: AboutProps) {
                           }
                         >
                           <Text size="B300">
-                            {exporting ? 'Exporting...' : 'Export diagnostics'}
+                            {exporting
+                              ? t('featureUi.settings.about.exporting')
+                              : t('featureUi.settings.about.exportDiagnostics')}
                           </Text>
                         </Button>
                       }
@@ -346,7 +359,7 @@ export function About({ requestClose }: AboutProps) {
                 </SequenceCard>
               </Box>
               <Box direction="Column" gap="100">
-                <Text size="L400">Credits</Text>
+                <Text size="L400">{t('featureUi.settings.about.credits')}</Text>
                 <SequenceCard
                   className={SequenceCardStyle}
                   variant="SurfaceVariant"
@@ -359,115 +372,127 @@ export function About({ requestClose }: AboutProps) {
                     gap="200"
                     style={{
                       margin: 0,
-                      paddingLeft: config.space.S400,
+                      paddingInlineStart: config.space.S400,
                     }}
                   >
                     <li>
                       <Text size="T300">
-                        The{' '}
-                        <a
-                          href="https://github.com/matrix-org/matrix-js-sdk"
-                          rel="noreferrer noopener"
-                          target="_blank"
-                        >
-                          matrix-js-sdk
-                        </a>{' '}
-                        is ©{' '}
-                        <a
-                          href="https://matrix.org/foundation"
-                          rel="noreferrer noopener"
-                          target="_blank"
-                        >
-                          The Matrix.org Foundation C.I.C
-                        </a>{' '}
-                        used under the terms of{' '}
-                        <a
-                          href="http://www.apache.org/licenses/LICENSE-2.0"
-                          rel="noreferrer noopener"
-                          target="_blank"
-                        >
-                          Apache 2.0
-                        </a>
-                        .
+                        <Trans
+                          i18nKey="featureUi.settings.about.matrixSdkCredit"
+                          components={{
+                            sdk: (
+                              <a
+                                href="https://github.com/matrix-org/matrix-js-sdk"
+                                rel="noreferrer noopener"
+                                target="_blank"
+                              />
+                            ),
+                            owner: (
+                              <a
+                                href="https://matrix.org/foundation"
+                                rel="noreferrer noopener"
+                                target="_blank"
+                              />
+                            ),
+                            license: (
+                              <a
+                                href="http://www.apache.org/licenses/LICENSE-2.0"
+                                rel="noreferrer noopener"
+                                target="_blank"
+                              />
+                            ),
+                          }}
+                        />
                       </Text>
                     </li>
                     <li>
                       <Text size="T300">
-                        The{' '}
-                        <a
-                          href="https://github.com/mozilla/twemoji-colr"
-                          target="_blank"
-                          rel="noreferrer noopener"
-                        >
-                          twemoji-colr
-                        </a>{' '}
-                        font is ©{' '}
-                        <a href="https://mozilla.org/" target="_blank" rel="noreferrer noopener">
-                          Mozilla Foundation
-                        </a>{' '}
-                        used under the terms of{' '}
-                        <a
-                          href="http://www.apache.org/licenses/LICENSE-2.0"
-                          target="_blank"
-                          rel="noreferrer noopener"
-                        >
-                          Apache 2.0
-                        </a>
-                        .
+                        <Trans
+                          i18nKey="featureUi.settings.about.emojiFontCredit"
+                          components={{
+                            font: (
+                              <a
+                                href="https://github.com/mozilla/twemoji-colr"
+                                target="_blank"
+                                rel="noreferrer noopener"
+                              />
+                            ),
+                            owner: (
+                              <a
+                                href="https://mozilla.org/"
+                                target="_blank"
+                                rel="noreferrer noopener"
+                              />
+                            ),
+                            license: (
+                              <a
+                                href="http://www.apache.org/licenses/LICENSE-2.0"
+                                target="_blank"
+                                rel="noreferrer noopener"
+                              />
+                            ),
+                          }}
+                        />
                       </Text>
                     </li>
                     <li>
                       <Text size="T300">
-                        The{' '}
-                        <a
-                          href="https://twemoji.twitter.com"
-                          target="_blank"
-                          rel="noreferrer noopener"
-                        >
-                          Twemoji
-                        </a>{' '}
-                        emoji art is ©{' '}
-                        <a
-                          href="https://twemoji.twitter.com"
-                          target="_blank"
-                          rel="noreferrer noopener"
-                        >
-                          Twitter, Inc and other contributors
-                        </a>{' '}
-                        used under the terms of{' '}
-                        <a
-                          href="https://creativecommons.org/licenses/by/4.0/"
-                          target="_blank"
-                          rel="noreferrer noopener"
-                        >
-                          CC-BY 4.0
-                        </a>
-                        .
+                        <Trans
+                          i18nKey="featureUi.settings.about.emojiArtCredit"
+                          components={{
+                            art: (
+                              <a
+                                href="https://twemoji.twitter.com"
+                                target="_blank"
+                                rel="noreferrer noopener"
+                              />
+                            ),
+                            owner: (
+                              <a
+                                href="https://twemoji.twitter.com"
+                                target="_blank"
+                                rel="noreferrer noopener"
+                              />
+                            ),
+                            license: (
+                              <a
+                                href="https://creativecommons.org/licenses/by/4.0/"
+                                target="_blank"
+                                rel="noreferrer noopener"
+                              />
+                            ),
+                          }}
+                        />
                       </Text>
                     </li>
                     <li>
                       <Text size="T300">
-                        The{' '}
-                        <a
-                          href="https://material.io/design/sound/sound-resources.html"
-                          target="_blank"
-                          rel="noreferrer noopener"
-                        >
-                          Material sound resources
-                        </a>{' '}
-                        are ©{' '}
-                        <a href="https://google.com" target="_blank" rel="noreferrer noopener">
-                          Google
-                        </a>{' '}
-                        used under the terms of{' '}
-                        <a
-                          href="https://creativecommons.org/licenses/by/4.0/"
-                          target="_blank"
-                          rel="noreferrer noopener"
-                        >
-                          CC-BY 4.0
-                        </a>
-                        .
+                        <Trans
+                          i18nKey="featureUi.settings.about.soundResourcesCredit"
+                          components={{
+                            resources: (
+                              <a
+                                href="https://material.io/design/sound/sound-resources.html"
+                                target="_blank"
+                                rel="noreferrer noopener"
+                              />
+                            ),
+                            owner: (
+                              <a
+                                href="https://google.com"
+                                target="_blank"
+                                rel="noreferrer noopener"
+                              />
+                            ),
+                            license: (
+                              <a
+                                href="https://creativecommons.org/licenses/by/4.0/"
+                                target="_blank"
+                                rel="noreferrer noopener"
+                              />
+                            ),
+                          }}
+                        />
                       </Text>
                     </li>
                   </Box>

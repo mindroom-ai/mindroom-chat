@@ -31,6 +31,7 @@ import { MatrixClient, Room, RoomMember } from 'matrix-js-sdk';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import classNames from 'classnames';
 
+import { useTranslation } from 'react-i18next';
 import * as css from './MembersDrawer.css';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { UseStateProvider } from '../../components/UseStateProvider';
@@ -80,6 +81,7 @@ type MemberDrawerHeaderProps = {
   canInvite: boolean;
 };
 function MemberDrawerHeader({ room, canInvite }: MemberDrawerHeaderProps) {
+  const { t } = useTranslation();
   const setPeopleDrawer = useSetSetting(settingsAtom, 'isPeopleDrawer');
   const [invitePrompt, setInvitePrompt] = useState(false);
 
@@ -88,8 +90,17 @@ function MemberDrawerHeader({ room, canInvite }: MemberDrawerHeaderProps) {
       {invitePrompt && <InviteUserPrompt room={room} requestClose={() => setInvitePrompt(false)} />}
       <Box grow="Yes" alignItems="Center" gap="200">
         <Box grow="Yes" alignItems="Center" gap="200">
-          <Text title={`${room.getJoinedMemberCount()} Members`} size="H5" truncate>
-            {`${millify(room.getJoinedMemberCount())} Members`}
+          <Text
+            title={t('featureUi.room.membersDrawer.memberCount', {
+              count: room.getJoinedMemberCount(),
+            })}
+            size="H5"
+            truncate
+          >
+            {t('featureUi.room.membersDrawer.formattedMemberCount', {
+              count: room.getJoinedMemberCount(),
+              formattedCount: millify(room.getJoinedMemberCount()),
+            })}
           </Text>
         </Box>
         <Box shrink="No" alignItems="Center" gap="100">
@@ -99,14 +110,14 @@ function MemberDrawerHeader({ room, canInvite }: MemberDrawerHeaderProps) {
             offset={4}
             tooltip={
               <Tooltip>
-                <Text>Invite</Text>
+                <Text>{t('featureUi.room.membersDrawer.invite')}</Text>
               </Tooltip>
             }
           >
             {(triggerRef) => (
               <IconButton
                 ref={triggerRef}
-                aria-label="Invite people"
+                aria-label={t('featureUi.room.membersDrawer.invitePeople')}
                 aria-pressed={invitePrompt}
                 disabled={!canInvite}
                 variant="Background"
@@ -122,7 +133,7 @@ function MemberDrawerHeader({ room, canInvite }: MemberDrawerHeaderProps) {
             offset={4}
             tooltip={
               <Tooltip>
-                <Text>Close</Text>
+                <Text>{t('featureUi.room.membersDrawer.close')}</Text>
               </Tooltip>
             }
           >
@@ -219,6 +230,7 @@ type MembersDrawerProps = {
   members: RoomMember[];
 };
 export function MembersDrawer({ room, members }: MembersDrawerProps) {
+  const { t } = useTranslation();
   const mx = useMatrixClient();
   const useAuthentication = useMediaAuthentication();
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -251,12 +263,14 @@ export function MembersDrawer({ room, members }: MembersDrawerProps) {
         ? [
             ...baseMembershipFilterMenu,
             {
-              name: `Requests (${joinRequestCount})`,
+              name: t('featureUi.room.membersDrawer.requestCount', {
+                count: joinRequestCount,
+              }),
               filterFn: MembershipFilter.filterKnocked,
             },
           ]
         : baseMembershipFilterMenu,
-    [baseMembershipFilterMenu, canReviewJoinRequests, joinRequestCount]
+    [baseMembershipFilterMenu, canReviewJoinRequests, joinRequestCount, t]
   );
   const sortFilterMenu = useMemberSortMenu();
   const [sortFilterIndex, setSortFilterIndex] = useSetting(settingsAtom, 'memberSortFilterIndex');
@@ -423,8 +437,8 @@ export function MembersDrawer({ room, members }: MembersDrawerProps) {
                 <Input
                   ref={searchInputRef}
                   onChange={handleSearchChange}
-                  style={{ paddingRight: config.space.S200 }}
-                  placeholder="Type name..."
+                  style={{ paddingInlineEnd: config.space.S200 }}
+                  placeholder={t('featureUi.room.membersDrawer.typeName')}
                   variant="Surface"
                   size="400"
                   radii="400"
@@ -445,9 +459,13 @@ export function MembersDrawer({ room, members }: MembersDrawerProps) {
                         }}
                         after={<Icon size="50" src={Icons.Cross} />}
                       >
-                        <Text size="B300">{`${result.items.length || 'No'} ${
-                          result.items.length === 1 ? 'Result' : 'Results'
-                        }`}</Text>
+                        <Text size="B300">
+                          {result.items.length === 0
+                            ? t('featureUi.room.membersDrawer.noResults')
+                            : t('featureUi.room.membersDrawer.resultCount', {
+                                count: result.items.length,
+                              })}
+                        </Text>
                       </Chip>
                     )
                   }
@@ -462,7 +480,7 @@ export function MembersDrawer({ room, members }: MembersDrawerProps) {
                 radii="Pill"
                 outlined
                 size="300"
-                aria-label="Scroll to Top"
+                aria-label={t('featureUi.room.membersDrawer.scrollToTop')}
               >
                 <Icon src={Icons.ChevronTop} size="300" />
               </IconButton>
@@ -471,8 +489,10 @@ export function MembersDrawer({ room, members }: MembersDrawerProps) {
             {!fetchingMembers && !result && processMembers.length === 0 && (
               <Text style={{ padding: config.space.S300 }} align="Center">
                 {showingJoinRequests
-                  ? 'No pending join requests'
-                  : `No "${membershipFilter.name}" Members`}
+                  ? t('featureUi.room.membersDrawer.noPendingJoinRequests')
+                  : t('featureUi.room.membersDrawer.noMembersForFilter', {
+                      filter: membershipFilter.name,
+                    })}
               </Text>
             )}
 

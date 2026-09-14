@@ -7,7 +7,7 @@ export const ItemDraggableTarget = style([
   {
     height: '100%',
     position: 'absolute',
-    left: 0,
+    insetInlineStart: 0,
     top: 0,
     zIndex: 1,
     cursor: 'grab',
@@ -29,7 +29,7 @@ const DropTargetLine = style({
       width: '100%',
 
       position: 'absolute',
-      left: 0,
+      insetInlineStart: 0,
       top: '50%',
       zIndex: 1,
       transform: 'translateY(-50%)',
@@ -43,7 +43,7 @@ const DropTargetLine = style({
       height: toRem(LineHeight * 3),
 
       position: 'absolute',
-      left: 0,
+      insetInlineStart: 0,
       top: '50%',
       zIndex: 1,
       transform: 'translate(-50%, -50%)',
@@ -52,6 +52,9 @@ const DropTargetLine = style({
       border: `${toRem(LineHeight)} solid currentColor`,
       borderRadius: '50%',
     },
+    'html[dir=rtl] &[data-hover=true]:after': {
+      transform: 'translate(50%, -50%)',
+    },
   },
 });
 
@@ -59,7 +62,7 @@ const BaseAfterRoomItemDropTarget = style({
   width: '100%',
 
   position: 'absolute',
-  left: 0,
+  insetInlineStart: 0,
   bottom: 0,
   zIndex: 99,
 

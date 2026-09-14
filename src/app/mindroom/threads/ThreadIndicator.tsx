@@ -18,6 +18,7 @@ import { useThreadStreamingState } from './useThreadStreamingState';
 import { getThreadUnread } from './roomThreadList';
 import { getThreadRootReplyCount } from './threadIndicatorViewModel';
 import * as css from './ThreadIndicator.css';
+import { useAppLanguageCode } from '../../hooks/useAppLanguageCode';
 
 type ThreadIndicatorViewProps = {
   className?: string;
@@ -48,6 +49,7 @@ const ThreadIndicatorView = as<'div', ThreadIndicatorViewProps>(
     ref
   ) => {
     const { t } = useTranslation();
+    const language = useAppLanguageCode();
     const mx = useMatrixClient();
     const useAuthentication = useMediaAuthentication();
     const lastActivityTs = useThreadLastActivityTs(room, threadRootId);
@@ -69,15 +71,18 @@ const ThreadIndicatorView = as<'div', ThreadIndicatorViewProps>(
     const pendingScheduledCount = useThreadScheduledTasks(room, threadRootId);
     const resolvedScheduledCount = scheduledCount ?? pendingScheduledCount;
     const lastActivityTitle = useMemo(
-      () => (lastActivityTs !== undefined ? new Date(lastActivityTs).toLocaleString() : undefined),
-      [lastActivityTs]
+      () =>
+        lastActivityTs !== undefined
+          ? new Date(lastActivityTs).toLocaleString(language)
+          : undefined,
+      [language, lastActivityTs]
     );
     const scheduledTaskLabel = useMemo(() => {
       if (resolvedScheduledCount <= 0) return undefined;
-      return `${resolvedScheduledCount} pending scheduled ${
-        resolvedScheduledCount === 1 ? 'task' : 'tasks'
-      }`;
-    }, [resolvedScheduledCount]);
+      return t('mindroomUi.threads.threadIndicator.pendingScheduledTasks', {
+        count: resolvedScheduledCount,
+      });
+    }, [resolvedScheduledCount, t]);
 
     const threadParticipants = useMemo(() => {
       if (!room || !threadParticipantIds?.length) return [];

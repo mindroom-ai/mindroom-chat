@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import React, { useCallback, useState } from 'react';
 import { Avatar, Box, Button, Spinner, Text, as } from 'folds';
 import { Room } from 'matrix-js-sdk';
@@ -23,6 +24,7 @@ export type RoomIntroProps = {
 };
 
 export const RoomIntro = as<'div', RoomIntroProps>(({ room, ...props }, ref) => {
+  const { t } = useTranslation();
   const mx = useMatrixClient();
   const useAuthentication = useMediaAuthentication();
   const { navigateRoom } = useRoomNavigate();
@@ -66,19 +68,24 @@ export const RoomIntro = as<'div', RoomIntroProps>(({ room, ...props }, ref) => 
             {name}
           </Text>
           <Text size="T400" priority="400">
-            {typeof topic === 'string' ? topic : 'This is the beginning of conversation.'}
+            {typeof topic === 'string'
+              ? topic
+              : t('sharedUi.roomIntro.thisIsTheBeginningOfConversation')}
           </Text>
           {creatorName && ts && (
             <Text size="T200" priority="300">
-              {'Created by '}
+              {t('sharedUi.roomIntro.createdBy')}
               <b>@{creatorName}</b>
-              {` on ${timeDayMonthYear(ts)} ${timeHourMinute(ts, hour24Clock)}`}
+              {t('sharedUi.roomIntro.onValue1Value2', {
+                value1: timeDayMonthYear(ts),
+                value2: timeHourMinute(ts, hour24Clock),
+              })}
             </Text>
           )}
         </Box>
         <Box gap="200" wrap="Wrap">
           <Button onClick={() => setInvitePrompt(true)} variant="Secondary" size="300" radii="300">
-            <Text size="B300">Invite Member</Text>
+            <Text size="B300">{t('sharedUi.roomIntro.inviteMember')}</Text>
           </Button>
 
           {invitePrompt && (
@@ -93,7 +100,7 @@ export const RoomIntro = as<'div', RoomIntroProps>(({ room, ...props }, ref) => 
                 fill="Soft"
                 radii="300"
               >
-                <Text size="B300">Open Old Room</Text>
+                <Text size="B300">{t('sharedUi.roomIntro.openOldRoom')}</Text>
               </Button>
             ) : (
               <Button
@@ -109,7 +116,7 @@ export const RoomIntro = as<'div', RoomIntroProps>(({ room, ...props }, ref) => 
                   ) : undefined
                 }
               >
-                <Text size="B300">Join Old Room</Text>
+                <Text size="B300">{t('sharedUi.roomIntro.joinOldRoom')}</Text>
               </Button>
             ))}
         </Box>

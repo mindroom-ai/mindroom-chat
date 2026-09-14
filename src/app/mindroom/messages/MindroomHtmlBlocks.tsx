@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import React, { ReactNode, useState } from 'react';
 import { Element, HTMLReactParserOptions, Text as DOMText, domToReact } from 'html-react-parser';
 import { ChildNode } from 'domhandler';
@@ -11,32 +12,27 @@ import {
   isMindroomToolTraceV2,
 } from './toolTrace';
 import * as css from './MindroomHtmlBlocks.css';
+import { useAppLanguageCode } from '../../hooks/useAppLanguageCode';
 
 type MindroomTagName = 'think' | 'debug' | 'system' | 'plan' | 'analysis' | 'research';
 
-const MINDROOM_BLOCK_META: Record<MindroomTagName, { label: string; icon: IconSrc }> = {
+const MINDROOM_BLOCK_META: Record<MindroomTagName, { icon: IconSrc }> = {
   think: {
-    label: 'AI Thinking Process',
     icon: Icons.Bulb,
   },
   debug: {
-    label: 'Debug Information',
     icon: Icons.Code,
   },
   system: {
-    label: 'System Processing',
     icon: Icons.Server,
   },
   plan: {
-    label: 'Planning & Strategy',
     icon: Icons.OrderList,
   },
   analysis: {
-    label: 'Analysis & Evaluation',
     icon: Icons.Search,
   },
   research: {
-    label: 'Research & Sources',
     icon: Icons.Explore,
   },
 };
@@ -75,9 +71,9 @@ function ToolStatusBadge({ pending }: { pending: boolean }) {
   );
 }
 
-const pasteCharCountFormatter = new Intl.NumberFormat('en-US');
-
 function MindroomPasteMarkerBadge({ marker }: { marker: MindroomPasteMarker }) {
+  const { t } = useTranslation();
+  const language = useAppLanguageCode();
   return (
     <span
       className={css.PasteMarkerBadge}
@@ -87,14 +83,17 @@ function MindroomPasteMarkerBadge({ marker }: { marker: MindroomPasteMarker }) {
     >
       <Icon size="50" src={Icons.File} />
       <Text as="span" size="L400" truncate>
-        Pasted text
+        {t('mindroomUi.messages.mindroomHtmlBlocks.pastedText')}
       </Text>
       <span className={css.PasteMarkerBadgeMeta}>
         <Text as="span" size="T200" truncate>
           {marker.id}
         </Text>
         <Text as="span" size="T200" truncate>
-          {`${pasteCharCountFormatter.format(marker.chars)} chars`}
+          {t('mindroomUi.messages.mindroomHtmlBlocks.characterCount', {
+            count: marker.chars,
+            formattedCount: new Intl.NumberFormat(language).format(marker.chars),
+          })}
         </Text>
         <Text as="span" size="T200" truncate>
           {marker.fileName}
@@ -157,14 +156,34 @@ export const renderMindroomHtmlBlock = (
   if (!Object.prototype.hasOwnProperty.call(MINDROOM_BLOCK_META, name)) return undefined;
 
   const blockName = name as MindroomTagName;
-  const { icon, label } = MINDROOM_BLOCK_META[blockName];
+  const { icon } = MINDROOM_BLOCK_META[blockName];
 
   return (
-    <MindroomCollapsibleBlock icon={icon} label={label}>
+    <MindroomNamedBlock icon={icon} blockName={blockName}>
       {domToReact(children, opts)}
-    </MindroomCollapsibleBlock>
+    </MindroomNamedBlock>
   );
 };
+
+function MindroomNamedBlock({
+  icon,
+  blockName,
+  children,
+}: {
+  icon: IconSrc;
+  blockName: MindroomTagName;
+  children: ReactNode;
+}) {
+  const { t } = useTranslation();
+  return (
+    <MindroomCollapsibleBlock
+      icon={icon}
+      label={t(`mindroomUi.messages.mindroomHtmlBlocks.blocks.${blockName}`)}
+    >
+      {children}
+    </MindroomCollapsibleBlock>
+  );
+}
 
 type MindroomToolBlockStatus = 'pending' | 'completed' | 'completed_with_result';
 
@@ -219,8 +238,12 @@ const buildToolRefRenderData = (
   };
 };
 
-const renderMindroomToolRefGroupItem = (parsedTool: MindroomToolBlockRenderData) => {
-  const prefix = `Tool #${parsedTool.index}: ${parsedTool.command}`;
+function MindroomToolRefGroupItem({ parsedTool }: { parsedTool: MindroomToolBlockRenderData }) {
+  const { t } = useTranslation();
+  const prefix = t('mindroomUi.messages.mindroomHtmlBlocks.toolNumber', {
+    index: parsedTool.index,
+    command: parsedTool.command,
+  });
   const key = `tool-group-item-${parsedTool.index}-${parsedTool.command}`;
 
   if (parsedTool.status === 'pending') {
@@ -247,20 +270,32 @@ const renderMindroomToolRefGroupItem = (parsedTool: MindroomToolBlockRenderData)
       <Text size="T200">{`${prefix} ✓`}</Text>
     </Box>
   );
-};
+}
 
-const renderMindroomToolRefGroupBlock = (parsedTools: MindroomToolBlockRenderData[]) => {
-  const label = parsedTools.length === 1 ? '1 tool call' : `${parsedTools.length} tool calls`;
+function MindroomToolRefGroupBlock({
+  parsedTools,
+}: {
+  parsedTools: MindroomToolBlockRenderData[];
+}) {
+  const { t } = useTranslation();
+  const label = t('mindroomUi.messages.mindroomHtmlBlocks.toolCallCount', {
+    count: parsedTools.length,
+  });
   const pending = parsedTools.length === 1 ? parsedTools[0].status === 'pending' : undefined;
 
   return (
     <MindroomCollapsibleBlock icon={Icons.Terminal} label={label} pending={pending}>
       <Box className={css.ToolGroupList}>
-        {parsedTools.map((parsedTool) => renderMindroomToolRefGroupItem(parsedTool))}
+        {parsedTools.map((parsedTool) => (
+          <MindroomToolRefGroupItem
+            key={`tool-group-item-${parsedTool.index}-${parsedTool.command}`}
+            parsedTool={parsedTool}
+          />
+        ))}
       </Box>
     </MindroomCollapsibleBlock>
   );
-};
+}
 
 type ToolRefElementPrefix = {
   html: string;
@@ -570,7 +605,9 @@ export const withMindroomToolTraceMarkerParserOptions = (
 
           items.forEach((item) => consumedToolIndexes.add(item.data.index));
           groupRootIndexes.add(firstItem.data.index);
-          const toolBlock = renderMindroomToolRefGroupBlock(items.map((item) => item.data));
+          const toolBlock = (
+            <MindroomToolRefGroupBlock parsedTools={items.map((item) => item.data)} />
+          );
           if (trailingElements.length === 0) return toolBlock;
 
           return (

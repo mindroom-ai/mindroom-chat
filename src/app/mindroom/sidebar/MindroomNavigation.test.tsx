@@ -2,6 +2,8 @@ import React from 'react';
 import { act, create } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Room } from 'matrix-js-sdk';
+import { createInstance } from 'i18next';
+import { I18nextProvider } from 'react-i18next';
 import { SpaceProvider } from '../../hooks/useSpace';
 import { useNavToActivePathMapper } from '../../hooks/useNavToActivePathMapper';
 import { getScreenSize, ScreenSizeProvider } from '../../hooks/useScreenSize';
@@ -169,6 +171,53 @@ describe('MindroomNavigation', () => {
     });
     expect(useNavToActivePathMapper).toHaveBeenCalledWith('!resolved-space:example.org', true);
     act(() => renderer.unmount());
+  });
+
+  it('updates the navigation toggle tooltip and accessible name after a language change', async () => {
+    const language = createInstance();
+    await language.init({
+      lng: 'en',
+      fallbackLng: 'en',
+      react: { useSuspense: false },
+      resources: {
+        en: {
+          translation: {
+            sharedUi: {
+              mindroomNavigation: {
+                collapseNavigationPanel: COLLAPSE_LABEL,
+                expandNavigationPanel: EXPAND_LABEL,
+              },
+            },
+          },
+        },
+        de: {
+          translation: {
+            sharedUi: {
+              mindroomNavigation: {
+                collapseNavigationPanel: 'Navigationsleiste einklappen',
+                expandNavigationPanel: 'Navigationsleiste ausklappen',
+              },
+            },
+          },
+        },
+      },
+    });
+    let renderer: Renderer;
+    act(() => {
+      renderer = create(
+        <I18nextProvider i18n={language}>{navigationAtWidth(1280)}</I18nextProvider>
+      );
+    });
+
+    expect(findButtons(renderer!, COLLAPSE_LABEL)).toHaveLength(1);
+    await act(async () => {
+      await language.changeLanguage('de');
+    });
+    expect(findButtons(renderer!, 'Navigationsleiste einklappen')).toHaveLength(1);
+    expect(
+      renderer!.root.findAllByProps({ 'data-tooltip': 'Navigationsleiste einklappen' })
+    ).toHaveLength(1);
+    act(() => renderer!.unmount());
   });
 
   afterEach(() => {

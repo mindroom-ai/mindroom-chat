@@ -212,6 +212,7 @@ function AddTagDropdown({
   activeTags: Map<string, TriState>;
   onAddTag: (tag: string) => void;
 }) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const [focusedIndex, setFocusedIndex] = useState(-1);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -284,15 +285,19 @@ function AddTagDropdown({
         type="button"
         className={css.AddTagButton}
         onClick={handleToggle}
-        aria-label="Add tag filter"
+        aria-label={t('mindroomUi.threads.roomThreadOverview.addTagFilter')}
         aria-expanded={open}
         aria-haspopup="listbox"
         data-add-tag-button="true"
       >
-        <Text size="T200">+ tag</Text>
+        <Text size="T200">{t('mindroomUi.threads.roomThreadOverview.tag')}</Text>
       </button>
       {open && (
-        <div className={css.AddTagDropdown} role="listbox" aria-label="Available tags">
+        <div
+          className={css.AddTagDropdown}
+          role="listbox"
+          aria-label={t('mindroomUi.threads.roomThreadOverview.availableTags')}
+        >
           {unselectedTags.map((tag, index) => (
             <button
               key={tag}
@@ -328,6 +333,45 @@ function ThreadPresetDropdown({
   onApplyPreset: (preset: FilterPreset) => void;
   activePresetLabel: string | null;
 }) {
+  const { t } = useTranslation();
+  const filterPresets = FILTER_PRESETS.map((preset) => {
+    switch (preset.id) {
+      case 'needs-attention':
+        return {
+          ...preset,
+          label: t('mindroomUi.threads.roomThreadOverview.presets.needs-attention.label'),
+          description: t(
+            'mindroomUi.threads.roomThreadOverview.presets.needs-attention.description'
+          ),
+        };
+      case 'working':
+        return {
+          ...preset,
+          label: t('mindroomUi.threads.roomThreadOverview.presets.working.label'),
+          description: t('mindroomUi.threads.roomThreadOverview.presets.working.description'),
+        };
+      case 'review-queue':
+        return {
+          ...preset,
+          label: t('mindroomUi.threads.roomThreadOverview.presets.review-queue.label'),
+          description: t('mindroomUi.threads.roomThreadOverview.presets.review-queue.description'),
+        };
+      case 'archived':
+        return {
+          ...preset,
+          label: t('mindroomUi.threads.roomThreadOverview.presets.archived.label'),
+          description: t('mindroomUi.threads.roomThreadOverview.presets.archived.description'),
+        };
+      case 'all':
+        return {
+          ...preset,
+          label: t('mindroomUi.threads.roomThreadOverview.presets.all.label'),
+          description: t('mindroomUi.threads.roomThreadOverview.presets.all.description'),
+        };
+      default:
+        return preset;
+    }
+  });
   const [open, setOpen] = useState(false);
   const [focusedIndex, setFocusedIndex] = useState(-1);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -361,15 +405,15 @@ function ThreadPresetDropdown({
       switch (e.key) {
         case 'ArrowDown':
           e.preventDefault();
-          setFocusedIndex((prev) => (prev + 1) % FILTER_PRESETS.length);
+          setFocusedIndex((prev) => (prev + 1) % filterPresets.length);
           break;
         case 'ArrowUp':
           e.preventDefault();
-          setFocusedIndex((prev) => (prev - 1 + FILTER_PRESETS.length) % FILTER_PRESETS.length);
+          setFocusedIndex((prev) => (prev - 1 + filterPresets.length) % filterPresets.length);
           break;
         case 'Enter': {
           e.preventDefault();
-          const preset = FILTER_PRESETS[focusedIndex];
+          const preset = filterPresets[focusedIndex];
           if (preset) handleSelect(preset);
           break;
         }
@@ -382,7 +426,7 @@ function ThreadPresetDropdown({
           break;
       }
     },
-    [open, focusedIndex, handleSelect]
+    [filterPresets, open, focusedIndex, handleSelect]
   );
 
   return (
@@ -396,22 +440,24 @@ function ThreadPresetDropdown({
         type="button"
         className={css.PresetButton}
         onClick={handleToggle}
-        aria-label="Filter presets"
+        aria-label={t('mindroomUi.threads.roomThreadOverview.filterPresets')}
         aria-expanded={open}
         aria-haspopup="listbox"
         data-preset-button="true"
       >
-        <Text size="T200">{activePresetLabel ?? 'Preset'}</Text>
+        <Text size="T200">
+          {activePresetLabel ?? t('mindroomUi.threads.roomThreadOverview.preset')}
+        </Text>
         <IconChevronDown size={14} stroke={1.8} aria-hidden="true" />
       </button>
       {open && (
         <div
           className={css.PresetDropdown}
           role="listbox"
-          aria-label="Filter presets"
+          aria-label={t('mindroomUi.threads.roomThreadOverview.filterPresets')}
           data-preset-dropdown="true"
         >
-          {FILTER_PRESETS.map((preset, index) => (
+          {filterPresets.map((preset, index) => (
             <TooltipProvider
               key={preset.id}
               position="Right"
@@ -566,6 +612,7 @@ function ThreadSearchBar({
   searchQuery: string;
   onSearchQueryChange: (query: string) => void;
 }) {
+  const { t } = useTranslation();
   const [expanded, setExpanded] = useState(() => searchQuery.length > 0);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -596,7 +643,7 @@ function ThreadSearchBar({
         align="Center"
         tooltip={
           <Tooltip style={{ maxWidth: toRem(160) }}>
-            <Text size="T200">Search threads</Text>
+            <Text size="T200">{t('mindroomUi.threads.roomThreadOverview.searchThreads')}</Text>
           </Tooltip>
         }
       >
@@ -606,7 +653,7 @@ function ThreadSearchBar({
             type="button"
             className={css.InfoButton}
             onClick={handleToggle}
-            aria-label="Search threads"
+            aria-label={t('mindroomUi.threads.roomThreadOverview.searchThreads')}
             aria-expanded={expanded}
             data-search-toggle="true"
           >
@@ -622,8 +669,8 @@ function ThreadSearchBar({
           value={searchQuery}
           onChange={(e) => onSearchQueryChange(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="Search threads..."
-          aria-label="Search threads"
+          placeholder={t('mindroomUi.threads.roomThreadOverview.searchThreads2')}
+          aria-label={t('mindroomUi.threads.roomThreadOverview.searchThreads')}
           data-search-input="true"
         />
       )}
@@ -656,12 +703,6 @@ export type RoomThreadOverviewProps = {
   onSearchQueryChange: (query: string) => void;
 };
 
-const ROOM_VIEW_MODE_LABELS: Record<RoomViewMode, string> = {
-  compact: 'Compact view',
-  threaded: 'Threaded view',
-  classic: 'Classic view',
-};
-
 function RoomViewModeButton({
   mode,
   active,
@@ -673,7 +714,13 @@ function RoomViewModeButton({
   onChange?: (mode: RoomViewMode) => void;
   children: React.ReactNode;
 }) {
-  const label = ROOM_VIEW_MODE_LABELS[mode];
+  const { t } = useTranslation();
+  const label =
+    mode === 'compact'
+      ? t('mindroomUi.threads.mindroomRoomViewHeader.compact')
+      : mode === 'classic'
+      ? t('mindroomUi.threads.mindroomRoomViewHeader.classic')
+      : t('mindroomUi.threads.mindroomRoomViewHeader.threads');
 
   return (
     <TooltipProvider
@@ -712,8 +759,13 @@ function RoomViewModeControls({
   onViewModeChange?: (mode: RoomViewMode) => void;
   showClassic?: boolean;
 }) {
+  const { t } = useTranslation();
   return (
-    <div className={css.ToggleGroup} role="group" aria-label="Room view mode">
+    <div
+      className={css.ToggleGroup}
+      role="group"
+      aria-label={t('mindroomUi.threads.roomThreadOverview.roomViewMode')}
+    >
       <RoomViewModeButton
         mode="compact"
         active={viewMode === 'compact'}
@@ -750,12 +802,11 @@ function ThreadSortControl({
   active?: boolean;
   onChange: () => void;
 }) {
+  const { t } = useTranslation();
   const sortLabel =
     state.sortBy === 'natural'
-      ? 'Threads in timeline order'
-      : state.sortDirection === 'desc'
-      ? 'Sort threads by last reply, newest first'
-      : 'Sort threads by last reply, oldest first';
+      ? t('mindroomUi.threads.roomThreadOverview.natural')
+      : t('mindroomUi.threads.roomThreadOverview.lastReply');
 
   return (
     <TooltipProvider
@@ -778,10 +829,10 @@ function ThreadSortControl({
           data-sort-direction={state.sortDirection}
         >
           {state.sortBy === 'natural' ? (
-            <Text size="T200">Natural</Text>
+            <Text size="T200">{t('mindroomUi.threads.roomThreadOverview.natural')}</Text>
           ) : (
             <>
-              <Text size="T200">Last Reply</Text>
+              <Text size="T200">{t('mindroomUi.threads.roomThreadOverview.lastReply')}</Text>
               {state.sortDirection === 'desc' ? (
                 <IconSortDescending size={14} stroke={1.8} aria-hidden="true" />
               ) : (
@@ -895,12 +946,31 @@ export function RoomThreadOverview({
   const activeTagEntries = [...state.tags.entries()];
 
   const filterSummary = filtersActive
-    ? `Showing ${threadCount} thread${threadCount !== 1 ? 's' : ''} with active filters.`
-    : `Showing all ${threadCount} thread${threadCount !== 1 ? 's' : ''}.`;
+    ? t('mindroomUi.threads.roomThreadOverview.showingFilteredThreads', {
+        count: threadCount,
+        total: totalThreadCount,
+      })
+    : t('mindroomUi.threads.roomThreadOverview.showingAllThreads', {
+        count: threadCount,
+      });
   const liveSummary = isThreadSortFrozen
-    ? `${filterSummary} Thread sort order locked.`
+    ? t('mindroomUi.threads.roomThreadOverview.sortLockedSummary', {
+        summary: filterSummary,
+      })
     : filterSummary;
-  const freezeLabel = isThreadSortFrozen ? 'Unlock thread sort order' : 'Lock thread sort order';
+  const freezeLabel = isThreadSortFrozen
+    ? t('mindroomUi.threads.roomThreadOverview.unlockSortOrder', {
+        sort:
+          state.sortBy === 'natural'
+            ? t('mindroomUi.threads.roomThreadOverview.natural')
+            : t('mindroomUi.threads.roomThreadOverview.lastReply'),
+      })
+    : t('mindroomUi.threads.roomThreadOverview.lockSortOrder', {
+        sort:
+          state.sortBy === 'natural'
+            ? t('mindroomUi.threads.roomThreadOverview.natural')
+            : t('mindroomUi.threads.roomThreadOverview.lastReply'),
+      });
 
   const liveRegion = (
     <div
@@ -924,7 +994,9 @@ export function RoomThreadOverview({
       align="Center"
       tooltip={
         <Tooltip style={{ maxWidth: toRem(200) }}>
-          <Text size="T200">{`${threadCount} thread${threadCount !== 1 ? 's' : ''}`}</Text>
+          <Text size="T200">
+            {t('mindroomUi.threads.roomThreadOverview.threadCount', { count: threadCount })}
+          </Text>
         </Tooltip>
       }
     >
@@ -939,14 +1011,16 @@ export function RoomThreadOverview({
 
   const emptyFilteredState = threadCount === 0 && filtersActive && (
     <div className={css.EmptyState}>
-      <Text size="T200">No threads match current filters.</Text>
+      <Text size="T200">
+        {t('mindroomUi.threads.roomThreadOverview.noThreadsMatchCurrentFilters')}
+      </Text>
       <button
         type="button"
         className={css.ResetLink}
         onClick={onReset}
-        aria-label="Reset all thread filters"
+        aria-label={t('mindroomUi.threads.roomThreadOverview.resetAllThreadFilters')}
       >
-        <Text size="T200">Reset</Text>
+        <Text size="T200">{t('mindroomUi.threads.roomThreadOverview.reset')}</Text>
       </button>
     </div>
   );
@@ -959,7 +1033,11 @@ export function RoomThreadOverview({
     return (
       <Box className={css.Overview} direction="Column" gap="200" data-room-thread-overview="true">
         {liveRegion}
-        <div className={css.ToolbarHeader} role="toolbar" aria-label="Thread filters">
+        <div
+          className={css.ToolbarHeader}
+          role="toolbar"
+          aria-label={t('mindroomUi.threads.roomThreadOverview.threadFilters')}
+        >
           {hasMindroomAgents && (
             <>
               {countBadge}
@@ -1007,13 +1085,21 @@ export function RoomThreadOverview({
     <Box className={css.Overview} direction="Column" gap="200" data-room-thread-overview="true">
       {liveRegion}
       {/* Single-line toolbar */}
-      <div className={css.ToolbarHeader} role="toolbar" aria-label="Thread filters">
+      <div
+        className={css.ToolbarHeader}
+        role="toolbar"
+        aria-label={t('mindroomUi.threads.roomThreadOverview.threadFilters')}
+      >
         {/* Count */}
         {hasMindroomAgents && countBadge}
 
         {/* Status toggles */}
         {hasMindroomAgents && (
-          <div className={css.ToggleGroup} role="group" aria-label="Status filters">
+          <div
+            className={css.ToggleGroup}
+            role="group"
+            aria-label={t('mindroomUi.threads.roomThreadOverview.statusFilters')}
+          >
             <TriStateIconToggle
               filterKey="resolved"
               state={state.resolved}
@@ -1133,7 +1219,7 @@ export function RoomThreadOverview({
           <div
             className={css.TagRow}
             role="group"
-            aria-label="Tag filters"
+            aria-label={t('mindroomUi.threads.roomThreadOverview.tagFilters')}
             data-tag-filter-row="true"
           >
             <div className={css.TagList}>

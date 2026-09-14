@@ -18,6 +18,7 @@ import {
 import React, { useCallback, useState } from 'react';
 import { MatrixError } from 'matrix-js-sdk';
 import FocusTrap from 'focus-trap-react';
+import { useTranslation } from 'react-i18next';
 import { SequenceCard } from '../../../components/sequence-card';
 import { SequenceCardStyle } from '../../room-settings/styles.css';
 import { SettingTile } from '../../../components/setting-tile';
@@ -35,6 +36,7 @@ type RoomEncryptionProps = {
   permissions: RoomPermissionsAPI;
 };
 export function RoomEncryption({ permissions }: RoomEncryptionProps) {
+  const { t } = useTranslation();
   const mx = useMatrixClient();
   const room = useRoom();
 
@@ -69,16 +71,18 @@ export function RoomEncryption({ permissions }: RoomEncryptionProps) {
       gap="400"
     >
       <SettingTile
-        title="Room Encryption"
+        title={t('featureUi.commonSettings.general.roomEncryption.roomEncryption')}
         description={
           enabled
-            ? 'Messages in this room are protected by end-to-end encryption.'
-            : 'Once enabled, encryption cannot be disabled!'
+            ? t('featureUi.commonSettings.general.roomEncryption.enabledDescription')
+            : t('featureUi.commonSettings.general.roomEncryption.disabledDescription')
         }
         after={
           enabled ? (
             <Badge size="500" variant="Success" fill="Solid" radii="300">
-              <Text size="L400">Enabled</Text>
+              <Text size="L400">
+                {t('featureUi.commonSettings.general.roomEncryption.enabled')}
+              </Text>
             </Badge>
           ) : (
             <Button
@@ -90,7 +94,7 @@ export function RoomEncryption({ permissions }: RoomEncryptionProps) {
               onClick={() => setPrompt(true)}
               before={enabling && <Spinner size="100" variant="Primary" fill="Solid" />}
             >
-              <Text size="B300">Enable</Text>
+              <Text size="B300">{t('featureUi.commonSettings.general.roomEncryption.enable')}</Text>
             </Button>
           )
         }
@@ -121,7 +125,9 @@ export function RoomEncryption({ permissions }: RoomEncryptionProps) {
                     size="500"
                   >
                     <Box grow="Yes">
-                      <Text size="H4">Enable Encryption</Text>
+                      <Text size="H4">
+                        {t('featureUi.commonSettings.general.roomEncryption.enableEncryption')}
+                      </Text>
                     </Box>
                     <IconButton size="300" onClick={() => setPrompt(false)} radii="300">
                       <Icon src={Icons.Cross} />
@@ -129,10 +135,14 @@ export function RoomEncryption({ permissions }: RoomEncryptionProps) {
                   </Header>
                   <Box style={{ padding: config.space.S400 }} direction="Column" gap="400">
                     <Text priority="400">
-                      Are you sure? Once enabled, encryption cannot be disabled!
+                      {t(
+                        'featureUi.commonSettings.general.roomEncryption.areYouSureOnceEnabledEncryptionCannot'
+                      )}
                     </Text>
                     <Button type="submit" variant="Primary" onClick={handleEnable}>
-                      <Text size="B400">Enable E2E Encryption</Text>
+                      <Text size="B400">
+                        {t('featureUi.commonSettings.general.roomEncryption.enableE2eEncryption')}
+                      </Text>
                     </Button>
                   </Box>
                 </Dialog>

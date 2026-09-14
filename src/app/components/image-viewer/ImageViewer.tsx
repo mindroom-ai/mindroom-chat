@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 /* eslint-disable jsx-a11y/no-noninteractive-element-interactions */
 import React, { useCallback, useRef } from 'react';
 import classNames from 'classnames';
@@ -17,6 +18,7 @@ export type ImageViewerProps = {
 
 export const ImageViewer = as<'div', ImageViewerProps>(
   ({ className, alt, src, requestClose, ...props }, ref) => {
+    const { t } = useTranslation();
     const { zoom, zoomIn, zoomOut, setZoom, zoomTargetRef, isZooming } = useZoom(0.2);
     const { pan, cursor, onMouseDown } = usePan(zoom !== 1);
     const downloadedFileRef = useRef<{ src: string; blob: Blob }>();
@@ -48,7 +50,7 @@ export const ImageViewer = as<'div', ImageViewerProps>(
         <Header className={css.ImageViewerHeader} size="400">
           <Box grow="Yes" alignItems="Center" gap="200">
             <IconButton size="300" radii="300" onClick={requestClose}>
-              <Icon size="50" src={Icons.ArrowLeft} />
+              <Icon data-directional size="50" src={Icons.ArrowLeft} />
             </IconButton>
             <Text size="T300" truncate>
               {alt}
@@ -61,7 +63,7 @@ export const ImageViewer = as<'div', ImageViewerProps>(
               size="300"
               radii="Pill"
               onClick={zoomOut}
-              aria-label="Zoom Out"
+              aria-label={t('sharedUi.imageViewer.zoomOut')}
             >
               <Icon size="50" src={Icons.Minus} />
             </IconButton>
@@ -74,7 +76,7 @@ export const ImageViewer = as<'div', ImageViewerProps>(
               size="300"
               radii="Pill"
               onClick={zoomIn}
-              aria-label="Zoom In"
+              aria-label={t('sharedUi.imageViewer.zoomIn')}
             >
               <Icon size="50" src={Icons.Plus} />
             </IconButton>
@@ -92,7 +94,11 @@ export const ImageViewer = as<'div', ImageViewerProps>(
               }
             >
               <Text size="B300">
-                {downloadLoading ? 'Saving...' : downloadError ? 'Retry Download' : 'Download'}
+                {downloadLoading
+                  ? t('sharedUi.imageViewer.saving')
+                  : downloadError
+                  ? t('sharedUi.imageViewer.retryDownload')
+                  : t('sharedUi.imageViewer.download')}
               </Text>
             </Chip>
           </Box>

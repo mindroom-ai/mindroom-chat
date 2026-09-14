@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import React, { useEffect, useCallback, FormEventHandler } from 'react';
 import { Dialog, Text, Box, Button, config, Input, color, Spinner } from 'folds';
 import { AuthType, MatrixError } from 'matrix-js-sdk';
@@ -18,6 +19,7 @@ function EmailErrorDialog({
   onRetry: (email: string) => void;
   onCancel: () => void;
 }) {
+  const { t } = useTranslation();
   const handleFormSubmit: FormEventHandler<HTMLFormElement> = (evt) => {
     evt.preventDefault();
     const { retryEmailInput } = evt.target as HTMLFormElement & {
@@ -40,7 +42,7 @@ function EmailErrorDialog({
           <Text size="H4">{title}</Text>
           <Text>{message}</Text>
           <Text as="label" size="L400" style={{ paddingTop: config.space.S400 }}>
-            Email
+            {t('sharedUi.emailStage.email')}
           </Text>
           <Input
             name="retryEmailInput"
@@ -53,12 +55,12 @@ function EmailErrorDialog({
         </Box>
         <Button variant="Primary" type="submit">
           <Text as="span" size="B400">
-            Send Verification Email
+            {t('sharedUi.emailStage.sendVerificationEmail')}
           </Text>
         </Button>
         <Button variant="Critical" fill="None" outlined type="button" onClick={onCancel}>
           <Text as="span" size="B400">
-            Cancel
+            {t('sharedUi.emailStage.cancel')}
           </Text>
         </Button>
       </Box>
@@ -80,6 +82,7 @@ export function EmailStageDialog({
   emailTokenState: AsyncState<RequestEmailTokenResponse, MatrixError>;
   requestEmailToken: RequestEmailTokenCallback;
 }) {
+  const { t } = useTranslation();
   const { errorCode, error, session } = stageData;
 
   const handleSubmit = useCallback(
@@ -115,7 +118,9 @@ export function EmailStageDialog({
     return (
       <Box direction="Column" alignItems="Center" gap="400">
         <Spinner variant="Secondary" size="600" />
-        <Text style={{ color: color.Secondary.Main }}>Sending verification email...</Text>
+        <Text style={{ color: color.Secondary.Main }}>
+          {t('sharedUi.emailStage.sendingVerificationEmail')}
+        </Text>
       </Box>
     );
   }
@@ -123,11 +128,11 @@ export function EmailStageDialog({
   if (emailTokenState.status === AsyncStatus.Error) {
     return (
       <EmailErrorDialog
-        title={emailTokenState.error.errcode ?? 'Verify Email'}
+        title={emailTokenState.error.errcode ?? t('sharedUi.emailStage.verifyEmail')}
         message={
           emailTokenState.error?.data?.error ??
           emailTokenState.error.message ??
-          'Failed to send verification Email request.'
+          t('sharedUi.emailStage.failedToSendVerificationEmailRequest')
         }
         onRetry={handleEmailSubmit}
         onCancel={onCancel}
@@ -140,8 +145,13 @@ export function EmailStageDialog({
       <Dialog>
         <Box style={{ padding: config.space.S400 }} direction="Column" gap="400">
           <Box direction="Column" gap="100">
-            <Text size="H4">Verification Request Sent</Text>
-            <Text>{`Please check your email "${emailTokenState.data.email}" and validate before continuing further.`}</Text>
+            <Text size="H4">{t('sharedUi.emailStage.verificationRequestSent')}</Text>
+            <Text>
+              {t(
+                'sharedUi.emailStage.pleaseCheckYourEmailValue1AndValidateBeforeContinuingFurther',
+                { value1: emailTokenState.data.email }
+              )}
+            </Text>
 
             {errorCode && (
               <Text style={{ color: color.Critical.Main }}>{`${errorCode}: ${error}`}</Text>
@@ -149,7 +159,7 @@ export function EmailStageDialog({
           </Box>
           <Button variant="Primary" onClick={() => handleSubmit(emailTokenState.data.result.sid)}>
             <Text as="span" size="B400">
-              Continue
+              {t('sharedUi.emailStage.continue')}
             </Text>
           </Button>
         </Box>
@@ -160,8 +170,8 @@ export function EmailStageDialog({
   if (!email) {
     return (
       <EmailErrorDialog
-        title="Provide Email"
-        message="Please provide email to send verification request."
+        title={t('sharedUi.emailStage.provideEmail')}
+        message={t('sharedUi.emailStage.pleaseProvideEmailToSendVerificationRequest')}
         onRetry={handleEmailSubmit}
         onCancel={onCancel}
       />

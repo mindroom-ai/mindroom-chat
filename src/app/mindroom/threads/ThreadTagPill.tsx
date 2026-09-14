@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { motion } from '../../styles/Motion.css';
 import { transition } from '../../styles/transition';
 import { tagColor, TAG_TEXT_COLOR } from './threadTagColor';
@@ -42,6 +43,7 @@ const removeButtonStyle: React.CSSProperties = {
 };
 
 export function ThreadTagPill({ name, onRemove }: ThreadTagPillProps) {
+  const { t } = useTranslation();
   return (
     <span
       style={{ ...pillStyle, backgroundColor: tagColor(name) }}
@@ -58,7 +60,7 @@ export function ThreadTagPill({ name, onRemove }: ThreadTagPillProps) {
             e.stopPropagation();
             onRemove();
           }}
-          aria-label={`Remove tag ${name}`}
+          aria-label={t('mindroomUi.threads.threadTagPill.removeTag', { tag: name })}
         >
           ×
         </button>

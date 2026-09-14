@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 /* eslint-disable no-param-reassign */
 /* eslint-disable jsx-a11y/no-noninteractive-element-interactions */
 import React, {
@@ -43,6 +44,7 @@ export type PdfViewerProps = {
 
 export const PdfViewer = as<'div', PdfViewerProps>(
   ({ className, name, src, requestClose, ...props }, ref) => {
+    const { t } = useTranslation();
     const containerRef = useRef<HTMLDivElement>(null);
     const scrollRef = useRef<HTMLDivElement>(null);
     const { zoom, zoomIn, zoomOut, setZoom } = useZoom(0.2);
@@ -121,7 +123,7 @@ export const PdfViewer = as<'div', PdfViewerProps>(
         <Header className={css.PdfViewerHeader} size="400">
           <Box grow="Yes" alignItems="Center" gap="200">
             <IconButton size="300" radii="300" onClick={requestClose}>
-              <Icon size="50" src={Icons.ArrowLeft} />
+              <Icon data-directional size="50" src={Icons.ArrowLeft} />
             </IconButton>
             <Text size="T300" truncate>
               {name}
@@ -134,7 +136,7 @@ export const PdfViewer = as<'div', PdfViewerProps>(
               size="300"
               radii="Pill"
               onClick={zoomOut}
-              aria-label="Zoom Out"
+              aria-label={t('sharedUi.pdfViewer.zoomOut')}
             >
               <Icon size="50" src={Icons.Minus} />
             </IconButton>
@@ -147,7 +149,7 @@ export const PdfViewer = as<'div', PdfViewerProps>(
               size="300"
               radii="Pill"
               onClick={zoomIn}
-              aria-label="Zoom In"
+              aria-label={t('sharedUi.pdfViewer.zoomIn')}
             >
               <Icon size="50" src={Icons.Plus} />
             </IconButton>
@@ -165,7 +167,11 @@ export const PdfViewer = as<'div', PdfViewerProps>(
               }
             >
               <Text size="B300">
-                {downloadLoading ? 'Saving...' : downloadError ? 'Retry Download' : 'Download'}
+                {downloadLoading
+                  ? t('sharedUi.pdfViewer.saving')
+                  : downloadError
+                  ? t('sharedUi.pdfViewer.retryDownload')
+                  : t('sharedUi.pdfViewer.download')}
               </Text>
             </Chip>
           </Box>
@@ -174,7 +180,7 @@ export const PdfViewer = as<'div', PdfViewerProps>(
           {isLoading && <Spinner variant="Secondary" size="600" />}
           {isError && (
             <>
-              <Text>Failed to load PDF</Text>
+              <Text>{t('sharedUi.pdfViewer.failedToLoadPdf')}</Text>
               <Button
                 variant="Critical"
                 fill="Soft"
@@ -183,7 +189,7 @@ export const PdfViewer = as<'div', PdfViewerProps>(
                 before={<Icon src={Icons.Warning} size="50" />}
                 onClick={loadPdfJS}
               >
-                <Text size="B300">Retry</Text>
+                <Text size="B300">{t('sharedUi.pdfViewer.retry')}</Text>
               </Button>
             </>
           )}
@@ -206,11 +212,11 @@ export const PdfViewer = as<'div', PdfViewerProps>(
             <Chip
               variant="Secondary"
               radii="300"
-              before={<Icon size="50" src={Icons.ChevronLeft} />}
+              before={<Icon data-directional size="50" src={Icons.ChevronLeft} />}
               onClick={handlePrevPage}
               aria-disabled={pageNo <= 1}
             >
-              <Text size="B300">Previous</Text>
+              <Text size="B300">{t('sharedUi.pdfViewer.previous')}</Text>
             </Chip>
             <Box grow="Yes" justifyContent="Center" alignItems="Center" gap="200">
               <PopOut
@@ -245,10 +251,10 @@ export const PdfViewer = as<'div', PdfViewerProps>(
                           outlined
                           type="number"
                           radii="300"
-                          aria-label="Page Number"
+                          aria-label={t('sharedUi.pdfViewer.pageNumber')}
                         />
                         <Button type="submit" size="300" variant="Primary" radii="300">
-                          <Text size="B300">Jump To Page</Text>
+                          <Text size="B300">{t('sharedUi.pdfViewer.jumpToPage')}</Text>
                         </Button>
                       </Box>
                     </Menu>
@@ -268,11 +274,11 @@ export const PdfViewer = as<'div', PdfViewerProps>(
             <Chip
               variant="Primary"
               radii="300"
-              after={<Icon size="50" src={Icons.ChevronRight} />}
+              after={<Icon data-directional size="50" src={Icons.ChevronRight} />}
               onClick={handleNextPage}
               aria-disabled={pageNo >= docState.data.numPages}
             >
-              <Text size="B300">Next</Text>
+              <Text size="B300">{t('sharedUi.pdfViewer.next')}</Text>
             </Chip>
           </Header>
         )}

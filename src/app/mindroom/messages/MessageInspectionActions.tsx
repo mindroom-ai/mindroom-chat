@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import {
   Icon,
   Icons,
@@ -26,6 +27,7 @@ export const MessageReadReceiptItem = as<
     onClose?: () => void;
   }
 >(({ room, eventId, onClose, ...props }, ref) => {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
 
   const handleClose = () => {
@@ -61,7 +63,7 @@ export const MessageReadReceiptItem = as<
         aria-pressed={open}
       >
         <Text className={css.MessageMenuItemText} as="span" size="T300" truncate>
-          Read Receipts
+          {t('mindroomUi.messages.messageInspectionActions.readReceipts')}
         </Text>
       </MenuItem>
     </>
@@ -76,6 +78,7 @@ export const MessageSourceCodeItem = as<
     onClose?: () => void;
   }
 >(({ room, mEvent, onClose, ...props }, ref) => {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
 
   const getContent = (evt: MatrixEvent) =>
@@ -131,7 +134,7 @@ export const MessageSourceCodeItem = as<
           >
             <Modal variant="Surface" size="500">
               <TextViewer
-                name="Source Code"
+                name={t('sharedUi.welcomePage.sourceCode')}
                 langName="json"
                 text={getText()}
                 requestClose={handleClose}
@@ -150,7 +153,7 @@ export const MessageSourceCodeItem = as<
         aria-pressed={open}
       >
         <Text className={css.MessageMenuItemText} as="span" size="T300" truncate>
-          View Source
+          {t('mindroomUi.messages.messageInspectionActions.viewSource')}
         </Text>
       </MenuItem>
     </>

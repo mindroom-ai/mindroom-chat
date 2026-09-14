@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import React, { useCallback } from 'react';
 import { Icon, Icons, MenuItem, Text } from 'folds';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
@@ -14,6 +15,7 @@ export function MindroomMarkRoomsReadMenuItem({
   onClose,
   roomIds,
 }: MindroomMarkRoomsReadMenuItemProps) {
+  const { t } = useTranslation();
   const mx = useMatrixClient();
   const [hideActivity] = useSetting(settingsAtom, 'hideActivity');
 
@@ -34,7 +36,7 @@ export function MindroomMarkRoomsReadMenuItem({
       aria-disabled={roomIds.length === 0}
     >
       <Text style={{ flexGrow: 1 }} as="span" size="T300" truncate>
-        Mark as Read
+        {t('mindroomUi.notifications.mindroomMarkRoomsReadMenuItem.markAsRead')}
       </Text>
     </MenuItem>
   );

@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import React, {
   FormEventHandler,
   KeyboardEventHandler,
@@ -16,6 +17,7 @@ import { AsyncState, AsyncStatus, useAsync } from '../../hooks/useAsyncCallback'
 import { useDebounce } from '../../hooks/useDebounce';
 
 export function CreateRoomAliasInput({ disabled }: { disabled?: boolean }) {
+  const { t } = useTranslation();
   const mx = useMatrixClient();
   const aliasInputRef = useRef<HTMLInputElement>(null);
   const [aliasAvail, setAliasAvail] = useState<AsyncState<boolean, Error>>({
@@ -78,9 +80,9 @@ export function CreateRoomAliasInput({ disabled }: { disabled?: boolean }) {
 
   return (
     <Box shrink="No" direction="Column" gap="100">
-      <Text size="L400">Address (Optional)</Text>
+      <Text size="L400">{t('sharedUi.createRoomAliasInput.addressOptional')}</Text>
       <Text size="T200" priority="300">
-        Pick an unique address to make it discoverable.
+        {t('sharedUi.createRoomAliasInput.pickAnUniqueAddressToMakeItDiscoverable')}
       </Text>
       <Input
         ref={aliasInputRef}
@@ -109,7 +111,11 @@ export function CreateRoomAliasInput({ disabled }: { disabled?: boolean }) {
         <Box style={{ color: color.Critical.Main }} alignItems="Center" gap="100">
           <Icon src={Icons.Warning} filled size="50" />
           <Text size="T200">
-            <b>This address is already taken. Please select a different one.</b>
+            <b>
+              {t(
+                'sharedUi.createRoomAliasInput.thisAddressIsAlreadyTakenPleaseSelectADifferentOne'
+              )}
+            </b>
           </Text>
         </Box>
       )}

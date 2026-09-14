@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import React from 'react';
 import { Box } from 'folds';
 import { MatrixClient } from 'matrix-js-sdk';
@@ -27,6 +28,7 @@ type EmojiItemProps = {
   emoji: IEmoji;
 };
 export function EmojiItem({ emoji }: EmojiItemProps) {
+  const { t } = useTranslation();
   return (
     <Box
       as="button"
@@ -35,7 +37,7 @@ export function EmojiItem({ emoji }: EmojiItemProps) {
       justifyContent="Center"
       className={css.EmojiItem}
       title={emoji.label}
-      aria-label={`${emoji.label} emoji`}
+      aria-label={t('sharedUi.item.value1Emoji', { value1: emoji.label })}
       data-emoji-type={EmojiType.Emoji}
       data-emoji-data={emoji.unicode}
       data-emoji-shortcode={emoji.shortcode}
@@ -51,6 +53,7 @@ type CustomEmojiItemProps = {
   image: PackImageReader;
 };
 export function CustomEmojiItem({ mx, useAuthentication, image }: CustomEmojiItemProps) {
+  const { t } = useTranslation();
   return (
     <Box
       as="button"
@@ -59,7 +62,7 @@ export function CustomEmojiItem({ mx, useAuthentication, image }: CustomEmojiIte
       justifyContent="Center"
       className={css.EmojiItem}
       title={image.body || image.shortcode}
-      aria-label={`${image.body || image.shortcode} emoji`}
+      aria-label={t('sharedUi.item.value1Emoji', { value1: image.body || image.shortcode })}
       data-emoji-type={EmojiType.CustomEmoji}
       data-emoji-data={image.url}
       data-emoji-shortcode={image.shortcode}
@@ -81,6 +84,7 @@ type StickerItemProps = {
 };
 
 export function StickerItem({ mx, useAuthentication, image }: StickerItemProps) {
+  const { t } = useTranslation();
   return (
     <Box
       as="button"
@@ -89,7 +93,7 @@ export function StickerItem({ mx, useAuthentication, image }: StickerItemProps) 
       justifyContent="Center"
       className={css.StickerItem}
       title={image.body || image.shortcode}
-      aria-label={`${image.body || image.shortcode} emoji`}
+      aria-label={t('sharedUi.item.value1Emoji', { value1: image.body || image.shortcode })}
       data-emoji-type={EmojiType.Sticker}
       data-emoji-data={image.url}
       data-emoji-shortcode={image.shortcode}

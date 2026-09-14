@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { useAtomValue } from 'jotai';
 import { Avatar, Box, config, Icon, IconButton, Icons, IconSrc, MenuItem, Text } from 'folds';
 import { JoinRule } from 'matrix-js-sdk';
+import { useTranslation } from 'react-i18next';
 import { PageNav, PageNavContent, PageNavHeader, PageRoot } from '../../components/page';
 import { ScreenSize, useScreenSizeContext } from '../../hooks/useScreenSize';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
@@ -24,37 +25,39 @@ type SpaceSettingsMenuItem = {
   icon: IconSrc;
 };
 
-const useSpaceSettingsMenuItems = (): SpaceSettingsMenuItem[] =>
-  useMemo(
+const useSpaceSettingsMenuItems = (): SpaceSettingsMenuItem[] => {
+  const { t } = useTranslation();
+  return useMemo(
     () => [
       {
         page: SpaceSettingsPage.GeneralPage,
-        name: 'General',
+        name: t('featureUi.spaceSettings.navigation.general'),
         icon: Icons.Setting,
       },
       {
         page: SpaceSettingsPage.MembersPage,
-        name: 'Members',
+        name: t('featureUi.spaceSettings.navigation.members'),
         icon: Icons.User,
       },
       {
         page: SpaceSettingsPage.PermissionsPage,
-        name: 'Permissions',
+        name: t('featureUi.spaceSettings.navigation.permissions'),
         icon: Icons.Lock,
       },
       {
         page: SpaceSettingsPage.EmojisStickersPage,
-        name: 'Emojis & Stickers',
+        name: t('featureUi.spaceSettings.navigation.emojisStickers'),
         icon: Icons.Smile,
       },
       {
         page: SpaceSettingsPage.DeveloperToolsPage,
-        name: 'Developer Tools',
+        name: t('featureUi.spaceSettings.navigation.developerTools'),
         icon: Icons.Terminal,
       },
     ],
-    []
+    [t]
   );
+};
 
 type SpaceSettingsProps = {
   initialPage?: SpaceSettingsPage;

@@ -14,6 +14,7 @@ import {
   Button,
 } from 'folds';
 import { MatrixError } from 'matrix-js-sdk';
+import { useTranslation } from 'react-i18next';
 import { Page, PageHeader } from '../../../components/page';
 import { SequenceCard } from '../../../components/sequence-card';
 import { TextViewerContent } from '../../../components/text-viewer';
@@ -41,6 +42,7 @@ type StateEventEditProps = {
   requestClose: () => void;
 };
 function StateEventEdit({ type, stateKey, content, requestClose }: StateEventEditProps) {
+  const { t } = useTranslation();
   const mx = useMatrixClient();
   const room = useRoom();
   const alive = useAlive();
@@ -118,7 +120,9 @@ function StateEventEdit({ type, stateKey, content, requestClose }: StateEventEdi
       aria-disabled={submitting}
     >
       <Box shrink="No" direction="Column" gap="100">
-        <Text size="L400">State Event</Text>
+        <Text size="L400">
+          {t('featureUi.commonSettings.developerTools.stateEventEditor.stateEvent')}
+        </Text>
         <SequenceCard
           className={SequenceCardStyle}
           variant="SurfaceVariant"
@@ -138,7 +142,9 @@ function StateEventEdit({ type, stateKey, content, requestClose }: StateEventEdi
                   disabled={submitting}
                   before={submitting && <Spinner variant="Primary" fill="Solid" size="300" />}
                 >
-                  <Text size="B300">Save</Text>
+                  <Text size="B300">
+                    {t('featureUi.commonSettings.developerTools.stateEventEditor.save')}
+                  </Text>
                 </Button>
                 <Button
                   variant="Secondary"
@@ -148,7 +154,9 @@ function StateEventEdit({ type, stateKey, content, requestClose }: StateEventEdi
                   onClick={requestClose}
                   disabled={submitting}
                 >
-                  <Text size="B300">Cancel</Text>
+                  <Text size="B300">
+                    {t('featureUi.commonSettings.developerTools.stateEventEditor.cancel')}
+                  </Text>
                 </Button>
               </Box>
             }
@@ -163,7 +171,9 @@ function StateEventEdit({ type, stateKey, content, requestClose }: StateEventEdi
       </Box>
       <Box grow="Yes" direction="Column" gap="100">
         <Box shrink="No">
-          <Text size="L400">JSON Content</Text>
+          <Text size="L400">
+            {t('featureUi.commonSettings.developerTools.stateEventEditor.jsonContent')}
+          </Text>
         </Box>
         <TextAreaComponent
           ref={textAreaRef}
@@ -194,12 +204,15 @@ type StateEventViewProps = {
   onEditContent?: (content: object) => void;
 };
 function StateEventView({ content, eventJSONStr, onEditContent }: StateEventViewProps) {
+  const { t } = useTranslation();
   return (
     <Box direction="Column" style={{ padding: config.space.S400 }} gap="400">
       <Box grow="Yes" direction="Column" gap="100">
         <Box gap="200" alignItems="End">
           <Box grow="Yes">
-            <Text size="L400">State Event</Text>
+            <Text size="L400">
+              {t('featureUi.commonSettings.developerTools.stateEventEditor.stateEvent')}
+            </Text>
           </Box>
           {onEditContent && (
             <Box shrink="No" gap="200">
@@ -210,7 +223,9 @@ function StateEventView({ content, eventJSONStr, onEditContent }: StateEventView
                 outlined
                 onClick={() => onEditContent(content)}
               >
-                <Text size="B300">Edit</Text>
+                <Text size="B300">
+                  {t('featureUi.commonSettings.developerTools.stateEventEditor.edit')}
+                </Text>
               </Chip>
             </Box>
           )}
@@ -241,6 +256,7 @@ export type StateEventEditorProps = StateEventInfo & {
 };
 
 export function StateEventEditor({ type, stateKey, requestClose }: StateEventEditorProps) {
+  const { t } = useTranslation();
   const mx = useMatrixClient();
   const room = useRoom();
   const stateEvent = useStateEvent(room, type as unknown as StateEvent, stateKey);
@@ -269,9 +285,11 @@ export function StateEventEditor({ type, stateKey, requestClose }: StateEventEdi
               size="500"
               radii="Pill"
               onClick={requestClose}
-              before={<Icon size="100" src={Icons.ArrowLeft} />}
+              before={<Icon data-directional size="100" src={Icons.ArrowLeft} />}
             >
-              <Text size="T300">Developer Tools</Text>
+              <Text size="T300">
+                {t('featureUi.commonSettings.developerTools.stateEventEditor.developerTools')}
+              </Text>
             </Chip>
           </Box>
           <Box shrink="No">

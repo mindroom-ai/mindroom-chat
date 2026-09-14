@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { Box, config, Icon, Menu, MenuItem, PopOut, RectCords, Text } from 'folds';
 import React, { MouseEventHandler, ReactNode, useMemo, useState } from 'react';
 import FocusTrap from 'focus-trap-react';
@@ -20,16 +21,18 @@ const useRoomNotificationModes = (): RoomNotificationMode[] =>
     []
   );
 
-const useRoomNotificationModeStr = (): Record<RoomNotificationMode, string> =>
-  useMemo(
+const useRoomNotificationModeStr = (): Record<RoomNotificationMode, string> => {
+  const { t } = useTranslation();
+  return useMemo(
     () => ({
-      [RoomNotificationMode.Unset]: 'Default',
-      [RoomNotificationMode.AllMessages]: 'All Messages',
-      [RoomNotificationMode.SpecialMessages]: 'Mention & Keywords',
-      [RoomNotificationMode.Mute]: 'Mute',
+      [RoomNotificationMode.Unset]: t('sharedUi.roomNotificationSwitcher.option0'),
+      [RoomNotificationMode.AllMessages]: t('sharedUi.roomNotificationSwitcher.option1'),
+      [RoomNotificationMode.SpecialMessages]: t('sharedUi.roomNotificationSwitcher.option2'),
+      [RoomNotificationMode.Mute]: t('sharedUi.roomNotificationSwitcher.option3'),
     }),
-    []
+    [t]
   );
+};
 
 type NotificationModeSwitcherProps = {
   roomId: string;

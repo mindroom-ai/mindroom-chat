@@ -12,7 +12,7 @@ export const StackedAvatar = recipe({
     outlineStyle: 'solid',
     selectors: {
       '&:first-child': {
-        marginLeft: 0,
+        marginInlineStart: 0,
       },
       'button&': {
         cursor: 'pointer',
@@ -23,19 +23,19 @@ export const StackedAvatar = recipe({
   variants: {
     size: {
       '200': {
-        marginLeft: toRem(-6),
+        marginInlineStart: toRem(-6),
         outlineWidth: config.borderWidth.B300,
       },
       '300': {
-        marginLeft: toRem(-9),
+        marginInlineStart: toRem(-9),
         outlineWidth: config.borderWidth.B400,
       },
       '400': {
-        marginLeft: toRem(-10.5),
+        marginInlineStart: toRem(-10.5),
         outlineWidth: config.borderWidth.B500,
       },
       '500': {
-        marginLeft: toRem(-13),
+        marginInlineStart: toRem(-13),
         outlineWidth: config.borderWidth.B600,
       },
     },

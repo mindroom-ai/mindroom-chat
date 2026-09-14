@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 /* eslint-disable jsx-a11y/media-has-caption */
 import React, { ReactNode, useCallback, useEffect, useRef, useState } from 'react';
 import { useAtomValue, useSetAtom, useStore } from 'jotai';
@@ -31,6 +32,7 @@ import {
   CallEmbedRefContextProvider,
   useCallEndLifecycle,
   useCallJoined,
+  useCallEmbedTitleSync,
   useCallThemeSync,
   useCallMemberSoundSync,
   useCallStart,
@@ -77,6 +79,7 @@ type IncomingCallProps = {
   onReject: (room: Room, eventId: string) => void;
 };
 function IncomingCall({ dm, info, onIgnore, onAnswer, onReject }: IncomingCallProps) {
+  const { t } = useTranslation();
   const mx = useMatrixClient();
   const useAuthentication = useMediaAuthentication();
   const livekitSupported = useLivekitSupport();
@@ -156,7 +159,7 @@ function IncomingCall({ dm, info, onIgnore, onAnswer, onReject }: IncomingCallPr
                       {roomName}
                     </Text>
                     <Text size="T300" align="Center">
-                      Incoming Call
+                      {t('sharedUi.callEmbedProvider.incomingCall')}
                     </Text>
                   </Box>
                 </Box>
@@ -166,7 +169,7 @@ function IncomingCall({ dm, info, onIgnore, onAnswer, onReject }: IncomingCallPr
                     size="L400"
                     align="Center"
                   >
-                    Your homeserver does not support calling.
+                    {t('sharedUi.callEmbedProvider.yourHomeserverDoesNotSupportCalling')}
                   </Text>
                 )}
                 {!webRTCSupported && (
@@ -175,7 +178,9 @@ function IncomingCall({ dm, info, onIgnore, onAnswer, onReject }: IncomingCallPr
                     size="L400"
                     align="Center"
                   >
-                    Your browser does not support WebRTC, which is required for calling.
+                    {t(
+                      'sharedUi.callEmbedProvider.yourBrowserDoesNotSupportWebrtcWhichIsRequiredForCalling'
+                    )}
                   </Text>
                 )}
                 <Box direction="Column" gap="300">
@@ -195,7 +200,7 @@ function IncomingCall({ dm, info, onIgnore, onAnswer, onReject }: IncomingCallPr
                     disabled={!canAnswer}
                   >
                     <Text as="span" size="B400">
-                      Answer
+                      {t('sharedUi.callEmbedProvider.answer')}
                     </Text>
                   </Button>
                   <Button
@@ -208,7 +213,9 @@ function IncomingCall({ dm, info, onIgnore, onAnswer, onReject }: IncomingCallPr
                     before={<Icon size="200" src={Icons.Cross} filled />}
                   >
                     <Text as="span" size="B400">
-                      {dm ? 'Reject' : 'Ignore'}
+                      {dm
+                        ? t('sharedUi.callEmbedProvider.reject')
+                        : t('sharedUi.callEmbedProvider.ignore')}
                     </Text>
                   </Button>
                 </Box>
@@ -360,6 +367,7 @@ function CallUtils({ embed }: { embed: CallEmbed }) {
 
   useCallMemberSoundSync(embed);
   useCallThemeSync(embed);
+  useCallEmbedTitleSync(embed);
   const finishCall = useCallback(() => {
     if (store.get(callEmbedAtom) !== embed) return;
     setCallEmbed(undefined);

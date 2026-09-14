@@ -17,6 +17,7 @@ import {
   Menu,
 } from 'folds';
 import { MatrixError } from 'matrix-js-sdk';
+import { useTranslation } from 'react-i18next';
 import { SequenceCard } from '../../../components/sequence-card';
 import {
   ImagePack,
@@ -46,6 +47,7 @@ type CreatePackTileProps = {
   roomId: string;
 };
 function CreatePackTile({ packs, roomId }: CreatePackTileProps) {
+  const { t } = useTranslation();
   const mx = useMatrixClient();
   const alive = useAlive();
 
@@ -97,8 +99,10 @@ function CreatePackTile({ packs, roomId }: CreatePackTileProps) {
       gap="400"
     >
       <SettingTile
-        title="New Pack"
-        description="Add your own emoji and sticker pack to use in room."
+        title={t('featureUi.commonSettings.emojisStickers.roomPacks.newPack')}
+        description={t(
+          'featureUi.commonSettings.emojisStickers.roomPacks.addYourOwnEmojiAndStickerPack'
+        )}
       >
         <Box
           style={{ marginTop: config.space.S200 }}
@@ -108,7 +112,7 @@ function CreatePackTile({ packs, roomId }: CreatePackTileProps) {
           alignItems="End"
         >
           <Box direction="Column" gap="100" grow="Yes">
-            <Text size="L400">Name</Text>
+            <Text size="L400">{t('featureUi.commonSettings.emojisStickers.roomPacks.name')}</Text>
             <Input
               name="nameInput"
               required
@@ -130,7 +134,7 @@ function CreatePackTile({ packs, roomId }: CreatePackTileProps) {
             disabled={creating}
             before={creating && <Spinner size="200" variant="Success" fill="Solid" />}
           >
-            <Text size="B400">Create</Text>
+            <Text size="B400">{t('featureUi.commonSettings.emojisStickers.roomPacks.create')}</Text>
           </Button>
         </Box>
       </SettingTile>
@@ -142,6 +146,7 @@ type RoomPacksProps = {
   onViewPack: (imagePack: ImagePack) => void;
 };
 export function RoomPacks({ onViewPack }: RoomPacksProps) {
+  const { t } = useTranslation();
   const mx = useMatrixClient();
   const useAuthentication = useMediaAuthentication();
   const room = useRoom();
@@ -206,7 +211,7 @@ export function RoomPacks({ onViewPack }: RoomPacksProps) {
         <SettingTile
           title={
             <span style={{ textDecoration: removed ? 'line-through' : undefined }}>
-              {pack.meta.name ?? 'Unknown'}
+              {pack.meta.name ?? t('featureUi.commonSettings.emojisStickers.roomPacks.unknown')}
             </span>
           }
           description={<span className={LineClamp2}>{pack.meta.attribution}</span>}
@@ -255,7 +260,9 @@ export function RoomPacks({ onViewPack }: RoomPacksProps) {
                 outlined
                 onClick={() => onViewPack(pack)}
               >
-                <Text size="B300">View</Text>
+                <Text size="B300">
+                  {t('featureUi.commonSettings.emojisStickers.roomPacks.view')}
+                </Text>
               </Button>
             )
           }
@@ -267,7 +274,7 @@ export function RoomPacks({ onViewPack }: RoomPacksProps) {
   return (
     <>
       <Box direction="Column" gap="100">
-        <Text size="L400">Packs</Text>
+        <Text size="L400">{t('featureUi.commonSettings.emojisStickers.roomPacks.packs')}</Text>
         {canEdit && <CreatePackTile roomId={room.roomId} packs={packs} />}
         {packs.map(renderPack)}
         {packs.length === 0 && (
@@ -288,10 +295,12 @@ export function RoomPacks({ onViewPack }: RoomPacksProps) {
               }}
             >
               <Text size="H5" align="Center">
-                No Packs
+                {t('featureUi.commonSettings.emojisStickers.roomPacks.noPacks')}
               </Text>
               <Text size="T200" align="Center">
-                There are no emoji or sticker packs to display at the moment.
+                {t(
+                  'featureUi.commonSettings.emojisStickers.roomPacks.thereAreNoEmojiOrStickerPacks'
+                )}
               </Text>
             </Box>
           </SequenceCard>
@@ -303,7 +312,7 @@ export function RoomPacks({ onViewPack }: RoomPacksProps) {
           style={{
             position: 'sticky',
             padding: config.space.S200,
-            paddingLeft: config.space.S400,
+            paddingInlineStart: config.space.S400,
             bottom: config.space.S400,
             left: config.space.S400,
             right: 0,
@@ -315,11 +324,19 @@ export function RoomPacks({ onViewPack }: RoomPacksProps) {
             <Box grow="Yes" direction="Column">
               {applyState.status === AsyncStatus.Error ? (
                 <Text size="T200">
-                  <b>Failed to remove packs! Please try again.</b>
+                  <b>
+                    {t(
+                      'featureUi.commonSettings.emojisStickers.roomPacks.failedToRemovePacksPleaseTryAgain'
+                    )}
+                  </b>
                 </Text>
               ) : (
                 <Text size="T200">
-                  <b>Delete selected packs. ({removedPacks.length} selected)</b>
+                  <b>
+                    {t('featureUi.commonSettings.emojisStickers.roomPacks.deleteSelectedPacks', {
+                      count: removedPacks.length,
+                    })}
+                  </b>
                 </Text>
               )}
             </Box>
@@ -332,7 +349,9 @@ export function RoomPacks({ onViewPack }: RoomPacksProps) {
                 disabled={applyingChanges}
                 onClick={handleCancelChanges}
               >
-                <Text size="B300">Cancel</Text>
+                <Text size="B300">
+                  {t('featureUi.commonSettings.emojisStickers.roomPacks.cancel')}
+                </Text>
               </Button>
               <Button
                 size="300"
@@ -342,7 +361,9 @@ export function RoomPacks({ onViewPack }: RoomPacksProps) {
                 before={applyingChanges && <Spinner variant="Critical" fill="Solid" size="100" />}
                 onClick={handleApplyChanges}
               >
-                <Text size="B300">Delete</Text>
+                <Text size="B300">
+                  {t('featureUi.commonSettings.emojisStickers.roomPacks.delete')}
+                </Text>
               </Button>
             </Box>
           </Box>

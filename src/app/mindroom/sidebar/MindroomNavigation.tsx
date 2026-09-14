@@ -1,6 +1,7 @@
 import React, { ReactNode, createContext, useContext, useMemo } from 'react';
 import { Icon, Icons } from 'folds';
 import { useAtom } from 'jotai';
+import { useTranslation } from 'react-i18next';
 import { PageRoot } from '../../components/page';
 import { SidebarAvatar, SidebarItem, SidebarItemTooltip } from '../../components/sidebar';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
@@ -28,14 +29,17 @@ function useMindroomDesktopPageNav(): MindroomDesktopPageNavState {
 }
 
 function PageNavToggleButton({ collapsed, onClick }: { collapsed: boolean; onClick: () => void }) {
-  const label = collapsed ? 'Expand navigation panel' : 'Collapse navigation panel';
+  const { t } = useTranslation();
+  const label = collapsed
+    ? t('sharedUi.mindroomNavigation.expandNavigationPanel')
+    : t('sharedUi.mindroomNavigation.collapseNavigationPanel');
 
   return (
     <SidebarItem>
       <SidebarItemTooltip tooltip={label}>
         {(triggerRef) => (
           <SidebarAvatar as="button" ref={triggerRef} outlined onClick={onClick} aria-label={label}>
-            <Icon src={collapsed ? Icons.ChevronRight : Icons.ChevronLeft} />
+            <Icon data-directional src={collapsed ? Icons.ChevronRight : Icons.ChevronLeft} />
           </SidebarAvatar>
         )}
       </SidebarItemTooltip>

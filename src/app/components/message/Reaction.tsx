@@ -1,3 +1,4 @@
+import { Trans, useTranslation } from 'react-i18next';
 import React from 'react';
 import { Box, Text, as } from 'folds';
 import classNames from 'classnames';
@@ -29,8 +30,7 @@ export const Reaction = as<
       {reaction.startsWith('mxc://') ? (
         <img
           className={css.ReactionImg}
-          src={mxcUrlToHttp(mx, reaction, useAuthentication) ?? reaction
-          }
+          src={mxcUrlToHttp(mx, reaction, useAuthentication) ?? reaction}
           alt={reaction}
         />
       ) : (
@@ -52,6 +52,7 @@ type ReactionTooltipMsgProps = {
 };
 
 export function ReactionTooltipMsg({ room, reaction, events }: ReactionTooltipMsgProps) {
+  const { t, i18n } = useTranslation();
   const shortCodeEvt = events.find(eventWithShortcode);
   const shortcode =
     shortCodeEvt?.getContent().shortcode ??
@@ -64,52 +65,20 @@ export function ReactionTooltipMsg({ room, reaction, events }: ReactionTooltipMs
       'Unknown'
   );
 
+  const listedNames = names.slice(0, 3);
+  if (names.length > 3)
+    listedNames.push(t('sharedUi.reaction.others', { count: names.length - 3 }));
+  const formattedNames = new Intl.ListFormat(i18n.resolvedLanguage ?? i18n.language, {
+    type: 'conjunction',
+  }).format(listedNames);
   return (
-    <>
-      {names.length === 1 && <b>{names[0]}</b>}
-      {names.length === 2 && (
-        <>
-          <b>{names[0]}</b>
-          <Text as="span" size="Inherit" priority="300">
-            {' and '}
-          </Text>
-          <b>{names[1]}</b>
-        </>
-      )}
-      {names.length === 3 && (
-        <>
-          <b>{names[0]}</b>
-          <Text as="span" size="Inherit" priority="300">
-            {', '}
-          </Text>
-          <b>{names[1]}</b>
-          <Text as="span" size="Inherit" priority="300">
-            {' and '}
-          </Text>
-          <b>{names[2]}</b>
-        </>
-      )}
-      {names.length > 3 && (
-        <>
-          <b>{names[0]}</b>
-          <Text as="span" size="Inherit" priority="300">
-            {', '}
-          </Text>
-          <b>{names[1]}</b>
-          <Text as="span" size="Inherit" priority="300">
-            {', '}
-          </Text>
-          <b>{names[2]}</b>
-          <Text as="span" size="Inherit" priority="300">
-            {' and '}
-          </Text>
-          <b>{names.length - 3} others</b>
-        </>
-      )}
-      <Text as="span" size="Inherit" priority="300">
-        {' reacted with '}
-      </Text>
-      :<b>{shortcode}</b>:
-    </>
+    <Trans
+      t={t}
+      shouldUnescape
+      tOptions={{ interpolation: { escapeValue: true } }}
+      i18nKey="sharedUi.reaction.reactionSummary"
+      values={{ names: formattedNames, reaction: shortcode }}
+      components={{ names: <b />, reaction: <b /> }}
+    />
   );
 }

@@ -2,6 +2,7 @@ import { Box, Button, color, config, Icon, Icons, Spinner, Switch, Text } from '
 import React, { FormEventHandler, useCallback, useRef, useState } from 'react';
 import { ICreateRoomStateEvent, MatrixError, Preset, Visibility } from 'matrix-js-sdk';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { SettingTile } from '../../components/setting-tile';
 import { SequenceCard } from '../../components/sequence-card';
 import { addRoomIdToMDirect, isUserId } from '../../utils/matrix';
@@ -19,6 +20,7 @@ type CreateChatProps = {
   defaultUserId?: string;
 };
 export function CreateChat({ defaultUserId }: CreateChatProps) {
+  const { t } = useTranslation();
   const mx = useMatrixClient();
   const alive = useAlive();
   const navigate = useNavigate();
@@ -92,7 +94,7 @@ export function CreateChat({ defaultUserId }: CreateChatProps) {
   return (
     <Box as="form" onSubmit={handleSubmit} grow="Yes" direction="Column" gap="500">
       <Box direction="Column" gap="100">
-        <Text size="L400">User ID</Text>
+        <Text size="L400">{t('featureUi.createChat.userId')}</Text>
         <InviteUserAutocomplete
           ref={inputRef}
           inputValue={inputValue}
@@ -102,20 +104,20 @@ export function CreateChat({ defaultUserId }: CreateChatProps) {
           autoFocus
           variant="SurfaceVariant"
           radii="400"
-          menuLabel="User suggestions"
+          menuLabel={t('featureUi.createChat.userSuggestions')}
         />
         {invalidUserId && (
           <Box style={{ color: color.Critical.Main }} alignItems="Center" gap="100">
             <Icon src={Icons.Warning} filled size="50" />
             <Text size="T200" style={{ color: color.Critical.Main }}>
-              <b>Please enter a valid User ID.</b>
+              <b>{t('featureUi.createChat.pleaseEnterAValidUserId')}</b>
             </Text>
           </Box>
         )}
       </Box>
       {showEncryptionOption && (
         <Box shrink="No" direction="Column" gap="100">
-          <Text size="L400">Options</Text>
+          <Text size="L400">{t('featureUi.createChat.options')}</Text>
           <SequenceCard
             style={{ padding: config.space.S300 }}
             variant="SurfaceVariant"
@@ -123,8 +125,8 @@ export function CreateChat({ defaultUserId }: CreateChatProps) {
             gap="500"
           >
             <SettingTile
-              title="End-to-End Encryption"
-              description="Once this feature is enabled, it can't be disabled after the room is created."
+              title={t('featureUi.createChat.endToEndEncryption')}
+              description={t('featureUi.createChat.onceThisFeatureIsEnabledItCan')}
               after={
                 <Switch
                   variant="Primary"
@@ -143,9 +145,11 @@ export function CreateChat({ defaultUserId }: CreateChatProps) {
           <Text size="T300" style={{ color: color.Critical.Main }}>
             <b>
               {error instanceof MatrixError && error.name === ErrorCode.M_LIMIT_EXCEEDED
-                ? `Server rate-limited your request for ${millisecondsToMinutes(
-                    (error.data.retry_after_ms as number | undefined) ?? 0
-                  )} minutes!`
+                ? t('featureUi.createChat.rateLimited', {
+                    count: Number(
+                      millisecondsToMinutes((error.data.retry_after_ms as number | undefined) ?? 0)
+                    ),
+                  })
                 : error.message}
             </b>
           </Text>
@@ -160,7 +164,7 @@ export function CreateChat({ defaultUserId }: CreateChatProps) {
           disabled={disabled}
           before={loading && <Spinner variant="Primary" fill="Solid" size="200" />}
         >
-          <Text size="B500">Create</Text>
+          <Text size="B500">{t('featureUi.createChat.create')}</Text>
         </Button>
       </Box>
     </Box>

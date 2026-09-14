@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import React, { useEffect, useRef, useState } from 'react';
 import { Box, Button, color, Icon, Icons, Spinner, Text } from 'folds';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
@@ -14,6 +15,7 @@ import {
   hasMindroomVoiceCallsPresence,
   waitForJoinedRoom,
 } from './agentCall';
+import { localizeVoiceErrorMessage } from '../voice/voiceErrorMessage';
 import { requestMicrophoneAccess } from '../voice/microphoneAccess';
 
 type AgentCallButtonProps = {
@@ -23,6 +25,7 @@ type AgentCallButtonProps = {
 };
 
 export function AgentCallButton({ userId, displayName, presenceStatus }: AgentCallButtonProps) {
+  const { t } = useTranslation();
   const mx = useMatrixClient();
   const { createRoom } = useClientConfig();
   const startCall = useCallStart(false);
@@ -51,11 +54,11 @@ export function AgentCallButton({ userId, displayName, presenceStatus }: AgentCa
 
   const unavailable = !livekitSupported || !rtcSupported || !!callEmbed;
   const unavailableReason = !livekitSupported
-    ? 'Your homeserver does not support calling.'
+    ? t('mindroomUi.calls.agentCallButton.homeserverUnsupported')
     : !rtcSupported
-    ? 'Your browser does not support WebRTC.'
+    ? t('mindroomUi.calls.agentCallButton.browserUnsupported')
     : callEmbed
-    ? 'End your current call first.'
+    ? t('mindroomUi.calls.agentCallButton.endCurrentCall')
     : undefined;
 
   const handleCall = async () => {
@@ -115,11 +118,11 @@ export function AgentCallButton({ userId, displayName, presenceStatus }: AgentCa
         disabled={loading || unavailable}
         title={unavailableReason}
       >
-        <Text size="B300">Call</Text>
+        <Text size="B300">{t('mindroomUi.calls.agentCallButton.call')}</Text>
       </Button>
       {error && (
         <Text size="T200" style={{ color: color.Critical.Main }}>
-          {error}
+          {localizeVoiceErrorMessage(t, error, t('mindroomUi.calls.agentCallButton.failedToStart'))}
         </Text>
       )}
     </Box>

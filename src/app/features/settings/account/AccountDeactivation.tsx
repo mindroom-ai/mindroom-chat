@@ -18,6 +18,7 @@ import {
 } from 'folds';
 import FocusTrap from 'focus-trap-react';
 import { AuthDict, MatrixError } from 'matrix-js-sdk';
+import { useTranslation } from 'react-i18next';
 import { SequenceCard } from '../../../components/sequence-card';
 import { SequenceCardStyle } from '../styles.css';
 import { SettingTile } from '../../../components/setting-tile';
@@ -32,6 +33,7 @@ import { ActionUIA, ActionUIAFlowsLoader } from '../../../components/ActionUIA';
 import { logoutClient } from '../../../../client/initMatrix';
 
 export function AccountDeactivation() {
+  const { t } = useTranslation();
   const mx = useMatrixClient();
   const authMetadata = useAuthMetadata();
   const accountManagementActions = useAccountManagementActions();
@@ -91,7 +93,9 @@ export function AccountDeactivation() {
   return (
     <>
       <Box direction="Column" gap="100">
-        <Text size="L400">Account Management</Text>
+        <Text size="L400">
+          {t('featureUi.settings.account.accountDeactivation.accountManagement')}
+        </Text>
         <SequenceCard
           className={SequenceCardStyle}
           variant="SurfaceVariant"
@@ -99,11 +103,11 @@ export function AccountDeactivation() {
           gap="400"
         >
           <SettingTile
-            title="Delete / Deactivate Account"
+            title={t('featureUi.settings.account.accountDeactivation.deleteDeactivateAccount')}
             description={
               hasProviderPortal
-                ? 'Start account deactivation from this client. You can continue in the provider account-management page if required.'
-                : 'Start account deactivation from this client. Some homeservers may require extra authentication steps.'
+                ? t('featureUi.settings.account.accountDeactivation.descriptionWithProvider')
+                : t('featureUi.settings.account.accountDeactivation.descriptionWithoutProvider')
             }
           >
             <Box gap="200" wrap="Wrap">
@@ -114,7 +118,9 @@ export function AccountDeactivation() {
                 onClick={() => setOpen(true)}
                 disabled={busy}
               >
-                <Text size="B300">Delete / Deactivate</Text>
+                <Text size="B300">
+                  {t('featureUi.settings.account.accountDeactivation.deleteDeactivate')}
+                </Text>
               </Button>
               {hasProviderPortal && (
                 <Button
@@ -126,7 +132,9 @@ export function AccountDeactivation() {
                   onClick={openProviderDeactivation}
                   disabled={busy}
                 >
-                  <Text size="B300">Open Provider Portal</Text>
+                  <Text size="B300">
+                    {t('featureUi.settings.account.accountDeactivation.openProviderPortal')}
+                  </Text>
                 </Button>
               )}
             </Box>
@@ -154,7 +162,9 @@ export function AccountDeactivation() {
                 size="500"
               >
                 <Box grow="Yes">
-                  <Text size="H4">Delete / Deactivate Account</Text>
+                  <Text size="H4">
+                    {t('featureUi.settings.account.accountDeactivation.deleteDeactivateAccount')}
+                  </Text>
                 </Box>
                 <IconButton size="300" onClick={handleClose} radii="300" disabled={busy}>
                   <Icon src={Icons.Cross} />
@@ -162,33 +172,43 @@ export function AccountDeactivation() {
               </Header>
               <Box style={{ padding: config.space.S400 }} direction="Column" gap="400">
                 <Text priority="400">
-                  This will request account deactivation on your Matrix homeserver. You may lose
-                  access to your messages and sessions.
+                  {t(
+                    'featureUi.settings.account.accountDeactivation.thisWillRequestAccountDeactivationOnYour'
+                  )}
                 </Text>
                 <SettingTile
-                  title="Erase account data (if supported)"
-                  description="If enabled, the homeserver may permanently erase your account data in addition to deactivation."
+                  title={t(
+                    'featureUi.settings.account.accountDeactivation.eraseAccountDataIfSupported'
+                  )}
+                  description={t(
+                    'featureUi.settings.account.accountDeactivation.ifEnabledTheHomeserverMayPermanentlyErase'
+                  )}
                   after={<Switch variant="Primary" value={eraseData} onChange={setEraseData} />}
                 />
 
                 {deactivateError && (
                   <Text style={{ color: color.Critical.Main }} size="T300">
-                    Failed to deactivate account. {deactivateError.message}
+                    {t('featureUi.settings.account.accountDeactivation.deactivationFailed', {
+                      error: deactivateError.message,
+                    })}
                   </Text>
                 )}
 
                 {authData && (
                   <Box direction="Column" gap="100">
                     <Text size="T200" priority="300">
-                      Additional authentication is required to complete account deactivation.
+                      {t(
+                        'featureUi.settings.account.accountDeactivation.additionalAuthenticationIsRequiredToCompleteAccount'
+                      )}
                     </Text>
                     <ActionUIAFlowsLoader
                       authData={authData}
                       unsupported={() => (
                         <Box direction="Column" gap="100">
                           <Text size="T200" style={{ color: color.Critical.Main }}>
-                            This client does not support the required authentication steps for this
-                            homeserver.
+                            {t(
+                              'featureUi.settings.account.accountDeactivation.thisClientDoesNotSupportTheRequired'
+                            )}
                           </Text>
                           {hasProviderPortal && (
                             <Button
@@ -199,7 +219,11 @@ export function AccountDeactivation() {
                               radii="300"
                               onClick={openProviderDeactivation}
                             >
-                              <Text size="B300">Continue in Provider Portal</Text>
+                              <Text size="B300">
+                                {t(
+                                  'featureUi.settings.account.accountDeactivation.continueInProviderPortal'
+                                )}
+                              </Text>
                             </Button>
                           )}
                         </Box>
@@ -224,7 +248,9 @@ export function AccountDeactivation() {
                     disabled={busy}
                     before={busy && <Spinner variant="Critical" fill="Solid" size="200" />}
                   >
-                    <Text size="B400">Delete / Deactivate</Text>
+                    <Text size="B400">
+                      {t('featureUi.settings.account.accountDeactivation.deleteDeactivate')}
+                    </Text>
                   </Button>
                   {hasProviderPortal && (
                     <Button
@@ -234,16 +260,15 @@ export function AccountDeactivation() {
                       onClick={openProviderDeactivation}
                       disabled={busy}
                     >
-                      <Text size="B400">Open Provider Portal</Text>
+                      <Text size="B400">
+                        {t('featureUi.settings.account.accountDeactivation.openProviderPortal')}
+                      </Text>
                     </Button>
                   )}
-                  <Button
-                    variant="Secondary"
-                    fill="Soft"
-                    onClick={handleClose}
-                    disabled={busy}
-                  >
-                    <Text size="B400">Cancel</Text>
+                  <Button variant="Secondary" fill="Soft" onClick={handleClose} disabled={busy}>
+                    <Text size="B400">
+                      {t('featureUi.settings.account.accountDeactivation.cancel')}
+                    </Text>
                   </Button>
                 </Box>
               </Box>

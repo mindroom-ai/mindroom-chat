@@ -49,7 +49,7 @@ export const BlockHeader = style([
     padding: `${config.space.S200} ${config.space.S300}`,
     cursor: 'pointer',
     color: color.SurfaceVariant.OnContainer,
-    textAlign: 'left',
+    textAlign: 'start',
   },
 ]);
 
@@ -66,7 +66,7 @@ export const BlockBody = style({
 
 export const BlockInlineResult = style({
   color: color.SurfaceVariant.OnContainer,
-  marginLeft: config.space.S200,
+  marginInlineStart: config.space.S200,
 });
 
 export const BlockResult = style([

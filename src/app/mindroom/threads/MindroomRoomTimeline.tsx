@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 /* eslint-disable react/destructuring-assignment */
 import React, {
   Dispatch,
@@ -234,6 +235,7 @@ export function RoomTimeline({
   compactRoomScrollStateRef,
   editor,
 }: RoomTimelineProps) {
+  const { t } = useTranslation();
   const mx = useMatrixClient();
   const initialClientCatchupInProgress = useInitialClientCatchup(mx);
   const sessionId = useMemo(() => createSessionId(mx.getHomeserverUrl(), mx.getSafeUserId()), [mx]);
@@ -1879,7 +1881,7 @@ export function RoomTimeline({
         <MessageBase space={messageSpacing}>
           <TimelineDivider style={{ color: color.Success.Main }} variant="Inherit">
             <Badge as="span" size="500" variant="Success" fill="Solid" radii="300">
-              <Text size="L400">New Messages</Text>
+              <Text size="L400">{t('mindroomUi.threads.mindroomRoomTimeline.newMessages')}</Text>
             </Badge>
           </TimelineDivider>
         </MessageBase>
@@ -1892,8 +1894,10 @@ export function RoomTimeline({
             <Badge as="span" size="500" variant="Secondary" fill="None" radii="300">
               <Text size="L400">
                 {(() => {
-                  if (today(mEvent.getTs())) return 'Today';
-                  if (yesterday(mEvent.getTs())) return 'Yesterday';
+                  if (today(mEvent.getTs()))
+                    return t('mindroomUi.threads.mindroomRoomTimeline.today');
+                  if (yesterday(mEvent.getTs()))
+                    return t('mindroomUi.threads.mindroomRoomTimeline.yesterday');
                   return timeDayMonthYear(mEvent.getTs());
                 })()}
               </Text>
@@ -2137,7 +2141,9 @@ export function RoomTimeline({
                   before={<Icon size="50" src={Icons.MessageUnread} />}
                   onClick={handleJumpToUnread}
                 >
-                  <Text size="L400">Jump to Unread</Text>
+                  <Text size="L400">
+                    {t('mindroomUi.threads.mindroomRoomTimeline.jumpToUnread')}
+                  </Text>
                 </Chip>
 
                 <Chip
@@ -2147,7 +2153,7 @@ export function RoomTimeline({
                   before={<Icon size="50" src={Icons.CheckTwice} />}
                   onClick={handleMarkAsRead}
                 >
-                  <Text size="L400">Mark as Read</Text>
+                  <Text size="L400">{t('mindroomUi.threads.mindroomRoomTimeline.markAsRead')}</Text>
                 </Chip>
               </TimelineFloat>
             )}
@@ -2185,7 +2191,9 @@ export function RoomTimeline({
                   <MessageBase space={messageSpacing}>
                     <TimelineDivider variant="Surface">
                       <Badge as="span" size="500" variant="Critical" fill="None" radii="300">
-                        <Text size="L400">Failed to load this thread.</Text>
+                        <Text size="L400">
+                          {t('mindroomUi.threads.mindroomRoomTimeline.failedToLoadThisThread')}
+                        </Text>
                       </Badge>
                     </TimelineDivider>
                   </MessageBase>
@@ -2201,7 +2209,9 @@ export function RoomTimeline({
                         onClick={handleThreadPaginateBack}
                       >
                         <Text size="L400">
-                          {threadPaginatingBack ? 'Loading...' : 'Load Older Messages'}
+                          {threadPaginatingBack
+                            ? t('mindroomUi.threads.mindroomRoomTimeline.loading')
+                            : t('mindroomUi.threads.mindroomRoomTimeline.loadOlderMessages')}
                         </Text>
                       </Chip>
                     </TimelineDivider>
@@ -2278,7 +2288,9 @@ export function RoomTimeline({
                         onClick={handleThreadPaginateFront}
                       >
                         <Text size="L400">
-                          {threadPaginatingFront ? 'Loading...' : 'Load Newer Messages'}
+                          {threadPaginatingFront
+                            ? t('mindroomUi.threads.mindroomRoomTimeline.loading')
+                            : t('mindroomUi.threads.mindroomRoomTimeline.loadNewerMessages')}
                         </Text>
                       </Chip>
                     </TimelineDivider>
@@ -2335,7 +2347,9 @@ export function RoomTimeline({
                   before={<Icon size="50" src={Icons.ArrowBottom} />}
                   onClick={handleJumpToLatest}
                 >
-                  <Text size="L400">Jump to Latest</Text>
+                  <Text size="L400">
+                    {t('mindroomUi.threads.mindroomRoomTimeline.jumpToLatest')}
+                  </Text>
                 </Chip>
               </TimelineFloat>
             )}

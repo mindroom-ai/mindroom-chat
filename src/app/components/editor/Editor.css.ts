@@ -42,10 +42,10 @@ export const EditorTextarea = style([
     padding: `${toRem(13)} ${toRem(1)}`,
     selectors: {
       [`${EditorTextareaScroll}:first-child &`]: {
-        paddingLeft: toRem(13),
+        paddingInlineStart: toRem(13),
       },
       [`${EditorTextareaScroll}:last-child &`]: {
-        paddingRight: toRem(13),
+        paddingInlineEnd: toRem(13),
       },
       '&:focus': {
         outline: 'none',
@@ -68,7 +68,7 @@ export const EditorPlaceholderTextVisual = style([
   {
     display: 'block',
     paddingTop: toRem(13),
-    paddingLeft: toRem(1),
+    paddingInlineStart: toRem(1),
   },
 ]);
 
@@ -81,5 +81,5 @@ export const EditorToolbar = style({
 });
 
 export const MarkdownBtnBox = style({
-  paddingRight: config.space.S100,
+  paddingInlineEnd: config.space.S100,
 });

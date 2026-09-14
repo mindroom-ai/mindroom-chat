@@ -118,7 +118,7 @@ export function CompactRoomView({
       <Box ref={viewRef} className={css.View} data-compact-room-view="true">
         <Box className={css.EmptyState}>
           <Text size="T300" priority="300">
-            No threads
+            {t('mindroomUi.threads.compactRoomView.noThreads')}
           </Text>
         </Box>
       </Box>

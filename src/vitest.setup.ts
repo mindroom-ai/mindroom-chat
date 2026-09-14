@@ -1,3 +1,17 @@
+import i18next from 'i18next';
+import { initReactI18next } from 'react-i18next';
+import en from './app/locales/en.json';
+
+// Component tests use the real English catalog without browser detection or HTTP.
+void i18next.use(initReactI18next).init({
+  lng: 'en',
+  fallbackLng: 'en',
+  initImmediate: false,
+  resources: { en: { translation: en } },
+  interpolation: { escapeValue: false },
+  react: { useSuspense: false },
+});
+
 class StorageMock implements Storage {
   private values = new Map<string, string>();
 

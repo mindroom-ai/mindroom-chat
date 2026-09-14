@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import {
   Direction,
   EventTimeline,
@@ -170,38 +171,39 @@ export type CommandContent = {
 export type CommandRecord = Record<Command, CommandContent>;
 
 export const useCommands = (mx: MatrixClient, room: Room): CommandRecord => {
+  const { t } = useTranslation();
   const { navigateRoom } = useRoomNavigate();
 
   const commands: CommandRecord = useMemo(
     () => ({
       [Command.Me]: {
         name: Command.Me,
-        description: 'Send action message',
+        description: t('sharedUi.commands.CommandMe'),
         exe: async () => undefined,
       },
       [Command.Notice]: {
         name: Command.Notice,
-        description: 'Send notice message',
+        description: t('sharedUi.commands.CommandNotice'),
         exe: async () => undefined,
       },
       [Command.Shrug]: {
         name: Command.Shrug,
-        description: 'Send ¯\\_(ツ)_/¯ as message',
+        description: t('sharedUi.commands.CommandShrug'),
         exe: async () => undefined,
       },
       [Command.TableFlip]: {
         name: Command.TableFlip,
-        description: `Send ${TABLEFLIP} as message`,
+        description: t('sharedUi.commands.CommandTableFlip', { value1: TABLEFLIP }),
         exe: async () => undefined,
       },
       [Command.UnFlip]: {
         name: Command.UnFlip,
-        description: `Send ${UNFLIP} as message`,
+        description: t('sharedUi.commands.CommandUnFlip', { value1: UNFLIP }),
         exe: async () => undefined,
       },
       [Command.StartDm]: {
         name: Command.StartDm,
-        description: 'Start direct message with user. Example: /startdm userId1',
+        description: t('sharedUi.commands.CommandStartDm'),
         exe: async (payload) => {
           const rawIds = splitWithSpace(payload);
           const userIds = rawIds.filter((id) => isUserId(id) && id !== mx.getSafeUserId());
@@ -226,7 +228,7 @@ export const useCommands = (mx: MatrixClient, room: Room): CommandRecord => {
       },
       [Command.Join]: {
         name: Command.Join,
-        description: 'Join room with address. Example: /join address1 address2',
+        description: t('sharedUi.commands.CommandJoin'),
         exe: async (payload) => {
           const rawIds = splitWithSpace(payload);
           const roomIdOrAliases = rawIds.filter(
@@ -239,7 +241,7 @@ export const useCommands = (mx: MatrixClient, room: Room): CommandRecord => {
       },
       [Command.Leave]: {
         name: Command.Leave,
-        description: 'Leave current room.',
+        description: t('sharedUi.commands.CommandLeave'),
         exe: async (payload) => {
           if (payload.trim() === '') {
             mx.leave(room.roomId);
@@ -252,7 +254,7 @@ export const useCommands = (mx: MatrixClient, room: Room): CommandRecord => {
       },
       [Command.Invite]: {
         name: Command.Invite,
-        description: 'Invite user to room. Example: /invite userId1 userId2 [-r reason]',
+        description: t('sharedUi.commands.CommandInvite'),
         exe: async (payload) => {
           const [content, flags] = splitPayloadContentAndFlags(payload);
           const users = parseUsers(content);
@@ -263,7 +265,7 @@ export const useCommands = (mx: MatrixClient, room: Room): CommandRecord => {
       },
       [Command.DisInvite]: {
         name: Command.DisInvite,
-        description: 'Disinvite user to room. Example: /disinvite userId1 userId2 [-r reason]',
+        description: t('sharedUi.commands.CommandDisInvite'),
         exe: async (payload) => {
           const [content, flags] = splitPayloadContentAndFlags(payload);
           const users = parseUsers(content);
@@ -274,7 +276,7 @@ export const useCommands = (mx: MatrixClient, room: Room): CommandRecord => {
       },
       [Command.Kick]: {
         name: Command.Kick,
-        description: 'Kick user from room. Example: /kick userId1 userId2 servername [-r reason]',
+        description: t('sharedUi.commands.CommandKick'),
         exe: async (payload) => {
           const [content, flags] = splitPayloadContentAndFlags(payload);
           const users = parseUsers(content);
@@ -298,7 +300,7 @@ export const useCommands = (mx: MatrixClient, room: Room): CommandRecord => {
       },
       [Command.Ban]: {
         name: Command.Ban,
-        description: 'Ban user from room. Example: /ban userId1 userId2 servername [-r reason]',
+        description: t('sharedUi.commands.CommandBan'),
         exe: async (payload) => {
           const [content, flags] = splitPayloadContentAndFlags(payload);
           const users = parseUsers(content);
@@ -320,7 +322,7 @@ export const useCommands = (mx: MatrixClient, room: Room): CommandRecord => {
       },
       [Command.UnBan]: {
         name: Command.UnBan,
-        description: 'Unban user from room. Example: /unban userId1 userId2',
+        description: t('sharedUi.commands.CommandUnBan'),
         exe: async (payload) => {
           const rawIds = splitWithSpace(payload);
           const users = rawIds.filter((id) => isUserId(id));
@@ -329,7 +331,7 @@ export const useCommands = (mx: MatrixClient, room: Room): CommandRecord => {
       },
       [Command.Ignore]: {
         name: Command.Ignore,
-        description: 'Ignore user. Example: /ignore userId1 userId2',
+        description: t('sharedUi.commands.CommandIgnore'),
         exe: async (payload) => {
           const rawIds = splitWithSpace(payload);
           const userIds = rawIds.filter((id) => isUserId(id));
@@ -342,7 +344,7 @@ export const useCommands = (mx: MatrixClient, room: Room): CommandRecord => {
       },
       [Command.UnIgnore]: {
         name: Command.UnIgnore,
-        description: 'Unignore user. Example: /unignore userId1 userId2',
+        description: t('sharedUi.commands.CommandUnIgnore'),
         exe: async (payload) => {
           const rawIds = splitWithSpace(payload);
           const userIds = rawIds.filter((id) => isUserId(id));
@@ -354,7 +356,7 @@ export const useCommands = (mx: MatrixClient, room: Room): CommandRecord => {
       },
       [Command.MyRoomNick]: {
         name: Command.MyRoomNick,
-        description: 'Change nick in current room.',
+        description: t('sharedUi.commands.CommandMyRoomNick'),
         exe: async (payload) => {
           const nick = payload.trim();
           if (nick === '') return;
@@ -377,7 +379,7 @@ export const useCommands = (mx: MatrixClient, room: Room): CommandRecord => {
       },
       [Command.MyRoomAvatar]: {
         name: Command.MyRoomAvatar,
-        description: 'Change profile picture in current room. Example /myroomavatar mxc://xyzabc',
+        description: t('sharedUi.commands.CommandMyRoomAvatar'),
         exe: async (payload) => {
           if (payload.match(/^mxc:\/\/\S+$/)) {
             const mEvent = room
@@ -400,7 +402,7 @@ export const useCommands = (mx: MatrixClient, room: Room): CommandRecord => {
       },
       [Command.ConvertToDm]: {
         name: Command.ConvertToDm,
-        description: 'Convert room to direct message',
+        description: t('sharedUi.commands.CommandConvertToDm'),
         exe: async () => {
           const dmUserId = guessDmRoomUserId(room, mx.getSafeUserId());
           await addRoomIdToMDirect(mx, room.roomId, dmUserId);
@@ -408,15 +410,14 @@ export const useCommands = (mx: MatrixClient, room: Room): CommandRecord => {
       },
       [Command.ConvertToRoom]: {
         name: Command.ConvertToRoom,
-        description: 'Convert direct message to room',
+        description: t('sharedUi.commands.CommandConvertToRoom'),
         exe: async () => {
           await removeRoomIdFromMDirect(mx, room.roomId);
         },
       },
       [Command.Delete]: {
         name: Command.Delete,
-        description:
-          'Delete messages from users. Example: /delete userId1 servername -past 1d|2h|5m|30s [-t m.room.message] [-r spam]',
+        description: t('sharedUi.commands.CommandDelete'),
         exe: async (payload) => {
           const [content, flags] = splitPayloadContentAndFlags(payload);
           const users = parseUsers(content);
@@ -482,8 +483,7 @@ export const useCommands = (mx: MatrixClient, room: Room): CommandRecord => {
       },
       [Command.Acl]: {
         name: Command.Acl,
-        description:
-          'Manage server access control list. Example /acl [-a servername1] [-d servername2] [-ra servername1] [-rd servername2]',
+        description: t('sharedUi.commands.CommandAcl'),
         exe: async (payload) => {
           const [, flags] = splitPayloadContentAndFlags(payload);
 
@@ -532,7 +532,7 @@ export const useCommands = (mx: MatrixClient, room: Room): CommandRecord => {
         },
       },
     }),
-    [mx, room, navigateRoom]
+    [mx, room, navigateRoom, t]
   );
 
   return commands;

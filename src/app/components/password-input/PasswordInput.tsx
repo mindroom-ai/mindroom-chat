@@ -7,15 +7,16 @@ type PasswordInputProps = Omit<ComponentProps<typeof Input>, 'type' | 'size'> & 
 };
 export const PasswordInput = forwardRef<HTMLInputElement, PasswordInputProps>(
   ({ variant = 'Background', size, style, after, ...props }, ref) => {
-    const paddingRight: string = size === '500' ? config.space.S300 : config.space.S200;
+    const paddingInlineEnd: string = size === '500' ? config.space.S300 : config.space.S200;
 
     return (
       <UseStateProvider initial={false}>
         {(visible, setVisible) => (
           <Input
             {...props}
+            dir="ltr"
             ref={ref}
-            style={{ paddingRight, ...style }}
+            style={{ paddingInlineEnd, ...style }}
             type={visible ? 'text' : 'password'}
             size={size}
             variant={variant}

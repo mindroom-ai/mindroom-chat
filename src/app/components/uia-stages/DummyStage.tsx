@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import React, { useEffect, useCallback } from 'react';
 import { Dialog, Text, Box, Button, config } from 'folds';
 import { AuthType } from 'matrix-js-sdk';
@@ -14,6 +15,7 @@ function DummyErrorDialog({
   onRetry: () => void;
   onCancel: () => void;
 }) {
+  const { t } = useTranslation();
   return (
     <Dialog>
       <Box style={{ padding: config.space.S400 }} direction="Column" gap="400">
@@ -23,12 +25,12 @@ function DummyErrorDialog({
         </Box>
         <Button variant="Critical" onClick={onRetry}>
           <Text as="span" size="B400">
-            Retry
+            {t('sharedUi.dummyStage.retry')}
           </Text>
         </Button>
         <Button variant="Critical" fill="None" outlined onClick={onCancel}>
           <Text as="span" size="B400">
-            Cancel
+            {t('sharedUi.dummyStage.cancel')}
           </Text>
         </Button>
       </Box>
@@ -37,6 +39,7 @@ function DummyErrorDialog({
 }
 
 export function AutoDummyStageDialog({ stageData, submitAuthDict, onCancel }: StageComponentProps) {
+  const { t } = useTranslation();
   const { errorCode, error, session } = stageData;
 
   const handleSubmit = useCallback(() => {
@@ -54,7 +57,7 @@ export function AutoDummyStageDialog({ stageData, submitAuthDict, onCancel }: St
     return (
       <DummyErrorDialog
         title={errorCode}
-        message={error ?? 'Failed to register.'}
+        message={error ?? t('sharedUi.dummyStage.failedToRegister')}
         onRetry={handleSubmit}
         onCancel={onCancel}
       />

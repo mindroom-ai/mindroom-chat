@@ -1,4 +1,5 @@
 import { useAtom, useAtomValue, useSetAtom } from 'jotai';
+import { useTranslation } from 'react-i18next';
 import type { Room } from 'matrix-js-sdk';
 import {
   type Dispatch,
@@ -86,6 +87,7 @@ export const useRoomViewThreadState = ({
   room,
   threadId,
 }: UseRoomViewThreadStateOptions): RoomViewThreadState => {
+  const { t } = useTranslation();
   const { roomId } = room;
   const mx = useMatrixClient();
   const userId = mx.getSafeUserId();
@@ -138,9 +140,10 @@ export const useRoomViewThreadState = ({
             threadRootId: effectiveThreadId,
             rootEvent: resolvedThreadRootEvent,
             summaryInfo: threadSummaryInfo,
+            t,
           })
         : undefined,
-    [effectiveThreadId, resolvedThreadRootEvent, room, threadSummaryInfo]
+    [effectiveThreadId, resolvedThreadRootEvent, room, t, threadSummaryInfo]
   );
 
   const handleExitThread = useCallback(() => {

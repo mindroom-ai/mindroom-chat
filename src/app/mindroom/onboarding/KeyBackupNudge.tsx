@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import React, { useState } from 'react';
 import { Box, Button, Icon, IconButton, Icons, Text, color } from 'folds';
 import { useSetAtom } from 'jotai';
@@ -10,6 +11,7 @@ import { useKeyBackupPresence } from './useKeyBackupPresence';
 import { WelcomeCardStyle } from './welcomeCard';
 
 function KeyBackupNudgeCard() {
+  const { t } = useTranslation();
   const mx = useMatrixClient();
   const userId = mx.getSafeUserId();
   const setSettingsModal = useSetAtom(settingsModalAtom);
@@ -33,31 +35,30 @@ function KeyBackupNudgeCard() {
       <Box alignItems="Center" gap="200">
         <Icon size="100" src={Icons.ShieldLock} style={{ color: color.Success.Main }} />
         <Text as="span" size="L400">
-          Back up your encrypted history
+          {t('mindroomUi.onboarding.keyBackupNudge.backUpYourEncryptedHistory')}
         </Text>
         <Box grow="Yes" />
         <IconButton
           size="300"
           variant="Background"
-          aria-label="Dismiss backup reminder"
+          aria-label={t('mindroomUi.onboarding.keyBackupNudge.dismissBackupReminder')}
           onClick={onDismiss}
         >
           <Icon size="100" src={Icons.Cross} />
         </IconButton>
       </Box>
       <Text as="span" size="T200" priority="300">
-        Set up secure backup so you can still read your encrypted agent chats after signing in on a
-        new device.
+        {t('mindroomUi.onboarding.keyBackupNudge.setUpSecureBackupSoYouCanStillReadYour')}
       </Text>
       <Button
-        aria-label="Set up secure key backup"
+        aria-label={t('mindroomUi.onboarding.keyBackupNudge.setUpSecureKeyBackup')}
         fill="Soft"
         onClick={openSecuritySettings}
         before={<Icon size="200" src={Icons.ShieldLock} />}
         style={{ justifyContent: 'flex-start' }}
       >
         <Text as="span" size="B300">
-          Set up backup
+          {t('mindroomUi.onboarding.keyBackupNudge.setUpBackup')}
         </Text>
       </Button>
     </Box>

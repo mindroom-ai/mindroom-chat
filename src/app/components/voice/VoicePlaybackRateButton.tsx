@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import React from 'react';
 import { Text } from 'folds';
 import { useAtom } from 'jotai';
@@ -9,6 +10,7 @@ import {
 import * as css from './VoicePlaybackRateButton.css';
 
 export function VoicePlaybackRateButton() {
+  const { t } = useTranslation();
   const [rate, setRate] = useAtom(voiceMessagePlaybackRateAtom);
   const label = formatVoicePlaybackRate(rate);
 
@@ -16,7 +18,9 @@ export function VoicePlaybackRateButton() {
     <button
       className={css.Button}
       type="button"
-      aria-label={`Playback speed, currently ${label}, click to cycle`}
+      aria-label={t('sharedUi.voicePlaybackRateButton.playbackSpeedCurrentlyValue1ClickToCycle', {
+        value1: label,
+      })}
       onClick={() => setRate(cycleVoicePlaybackRate(rate))}
     >
       <Text as="span" className={css.Label} size="B300">

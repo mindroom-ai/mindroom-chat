@@ -5,6 +5,7 @@ export const Waveform = style([
   DefaultReset,
   {
     display: 'block',
+    direction: 'ltr',
     width: '100%',
     minWidth: `min(${toRem(96)}, 100%)`,
     height: toRem(32),

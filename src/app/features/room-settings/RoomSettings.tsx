@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { useAtomValue } from 'jotai';
 import { Avatar, Box, config, Icon, IconButton, Icons, IconSrc, MenuItem, Text } from 'folds';
 import { JoinRule } from 'matrix-js-sdk';
+import { useTranslation } from 'react-i18next';
 import { PageNav, PageNavContent, PageNavHeader, PageRoot } from '../../components/page';
 import { ScreenSize, useScreenSizeContext } from '../../hooks/useScreenSize';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
@@ -24,37 +25,39 @@ type RoomSettingsMenuItem = {
   icon: IconSrc;
 };
 
-const useRoomSettingsMenuItems = (): RoomSettingsMenuItem[] =>
-  useMemo(
+const useRoomSettingsMenuItems = (): RoomSettingsMenuItem[] => {
+  const { t } = useTranslation();
+  return useMemo(
     () => [
       {
         page: RoomSettingsPage.GeneralPage,
-        name: 'General',
+        name: t('featureUi.roomSettings.navigation.general'),
         icon: Icons.Setting,
       },
       {
         page: RoomSettingsPage.MembersPage,
-        name: 'Members',
+        name: t('featureUi.roomSettings.navigation.members'),
         icon: Icons.User,
       },
       {
         page: RoomSettingsPage.PermissionsPage,
-        name: 'Permissions',
+        name: t('featureUi.roomSettings.navigation.permissions'),
         icon: Icons.Lock,
       },
       {
         page: RoomSettingsPage.EmojisStickersPage,
-        name: 'Emojis & Stickers',
+        name: t('featureUi.roomSettings.navigation.emojisStickers'),
         icon: Icons.Smile,
       },
       {
         page: RoomSettingsPage.DeveloperToolsPage,
-        name: 'Developer Tools',
+        name: t('featureUi.roomSettings.navigation.developerTools'),
         icon: Icons.Terminal,
       },
     ],
-    []
+    [t]
   );
+};
 
 type RoomSettingsProps = {
   initialPage?: RoomSettingsPage;

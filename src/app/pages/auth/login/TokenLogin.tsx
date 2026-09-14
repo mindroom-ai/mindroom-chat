@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import {
   Box,
   Icon,
@@ -18,6 +19,7 @@ import { CustomLoginResponse, LoginError, login, useLoginComplete } from './logi
 import { MINDROOM_AUTH_BRANDING } from '../../../mindroom/auth/authUi';
 
 function LoginTokenError({ message }: { message: string }) {
+  const { t } = useTranslation();
   return (
     <Box
       style={{
@@ -32,7 +34,7 @@ function LoginTokenError({ message }: { message: string }) {
     >
       <Icon size="300" filled src={Icons.Warning} />
       <Box direction="Column" gap="100">
-        <Text size="L400">Token Login</Text>
+        <Text size="L400">{t('sharedUi.tokenLogin.tokenLogin')}</Text>
         <Text size="T300">
           <b>{message}</b>
         </Text>
@@ -46,6 +48,7 @@ type TokenLoginProps = {
   addAccount?: boolean;
 };
 export function TokenLogin({ token, addAccount = false }: TokenLoginProps) {
+  const { t } = useTranslation();
   const discovery = useAutoDiscoveryInfo();
   const baseUrl = discovery['m.homeserver'].base_url;
 
@@ -73,24 +76,34 @@ export function TokenLogin({ token, addAccount = false }: TokenLoginProps) {
       {loginState.status === AsyncStatus.Error && (
         <>
           {loginState.error.errcode === LoginError.Forbidden && (
-            <LoginTokenError message="Invalid login token." />
+            <LoginTokenError message={t('sharedUi.tokenLogin.invalidLoginToken')} />
           )}
           {loginState.error.errcode === LoginError.UserDeactivated && (
-            <LoginTokenError message="This account has been deactivated." />
+            <LoginTokenError message={t('sharedUi.tokenLogin.thisAccountHasBeenDeactivated')} />
           )}
           {loginState.error.errcode === LoginError.InvalidRequest && (
-            <LoginTokenError message="Failed to login. Part of your request data is invalid." />
+            <LoginTokenError
+              message={t('sharedUi.tokenLogin.failedToLoginPartOfYourRequestDataIsInvalid')}
+            />
           )}
           {loginState.error.errcode === LoginError.RateLimited && (
-            <LoginTokenError message="Failed to login. Your login request has been rate-limited by server, Please try after some time." />
+            <LoginTokenError
+              message={t(
+                'sharedUi.tokenLogin.failedToLoginYourLoginRequestHasBeenRateLimitedByServer'
+              )}
+            />
           )}
           {loginState.error.errcode === LoginError.Unknown && (
-            <LoginTokenError message="Failed to login. Unknown reason." />
+            <LoginTokenError message={t('sharedUi.tokenLogin.failedToLoginUnknownReason')} />
           )}
         </>
       )}
       {sessionStoreError && (
-        <LoginTokenError message="Login succeeded, but this browser could not save the account. Check storage permissions and try again." />
+        <LoginTokenError
+          message={t(
+            'sharedUi.tokenLogin.loginSucceededButThisBrowserCouldNotSaveTheAccountCheckStorage'
+          )}
+        />
       )}
       <Overlay
         open={loginState.status !== AsyncStatus.Error && !sessionStoreError}

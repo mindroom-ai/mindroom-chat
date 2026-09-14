@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import React, { useCallback, useMemo, useRef } from 'react';
 import parse, { HTMLReactParserOptions } from 'html-react-parser';
 import { parseBlockMD, parseInlineMD } from '../../plugins/markdown';
@@ -95,8 +96,12 @@ export function MindroomMessageExtras({
   extras,
   htmlReactParserOptions,
 }: MindroomMessageExtrasProps) {
+  const { t } = useTranslation();
   return (
-    <div className={css.Extras} aria-label="Message extras">
+    <div
+      className={css.Extras}
+      aria-label={t('mindroomUi.messages.mindroomMessageExtras.messageExtras')}
+    >
       {extras.sections.map((section, index) => {
         const detailsProps: MindroomMessageExtraDetailsProps = {
           className: css.Section,

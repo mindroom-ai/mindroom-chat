@@ -1,5 +1,6 @@
 import React from 'react';
 import { Box, Icon, IconButton, Icons, Spinner, Text } from 'folds';
+import { useTranslation } from 'react-i18next';
 import { millisecondsToMinutesAndSeconds } from '../../utils/common';
 import { VoiceWaveform } from '../../components/voice/VoiceWaveform';
 import { VoiceRecorderPhase } from './useVoiceRecorder';
@@ -19,12 +20,12 @@ type VoiceRecordingCapsuleProps = {
 const isBusyPhase = (phase: VoiceRecorderPhase): boolean =>
   phase === 'requesting' || phase === 'processing' || phase === 'sending';
 
-const getStatusText = (phase: VoiceRecorderPhase): string => {
-  if (phase === 'requesting') return 'Starting voice recording';
-  if (phase === 'paused') return 'Voice recording paused';
-  if (phase === 'processing') return 'Processing voice recording';
-  if (phase === 'sending') return 'Sending voice recording';
-  return 'Voice recording active';
+const getStatusKey = (phase: VoiceRecorderPhase) => {
+  if (phase === 'requesting') return 'mindroomUi.voice.statusStarting' as const;
+  if (phase === 'paused') return 'mindroomUi.voice.statusPaused' as const;
+  if (phase === 'processing') return 'mindroomUi.voice.statusProcessing' as const;
+  if (phase === 'sending') return 'mindroomUi.voice.statusSending' as const;
+  return 'mindroomUi.voice.statusActive' as const;
 };
 
 export function VoiceRecordingCapsule({
@@ -37,12 +38,15 @@ export function VoiceRecordingCapsule({
   onPause,
   onResume,
 }: VoiceRecordingCapsuleProps) {
+  const { t } = useTranslation();
   const busy = isBusyPhase(phase);
   const paused = phase === 'paused';
   const recording = phase === 'recording';
   const pendingReady = hasPendingSend && phase === 'idle';
   const pauseDisabled = pendingReady || busy || (!paused && (!recording || !canPause));
-  const statusText = pendingReady ? 'Voice recording ready to retry' : getStatusText(phase);
+  const statusText = pendingReady
+    ? t('mindroomUi.voice.statusReadyToRetry')
+    : t(getStatusKey(phase));
 
   return (
     <Box className={css.Capsule}>
@@ -52,7 +56,7 @@ export function VoiceRecordingCapsule({
         radii="300"
         onClick={onDiscard}
         disabled={phase === 'processing' || phase === 'sending'}
-        aria-label="Discard voice recording"
+        aria-label={t('mindroomUi.voice.discardRecording')}
       >
         <Icon src={Icons.Delete} size="50" />
       </IconButton>
@@ -66,7 +70,9 @@ export function VoiceRecordingCapsule({
         radii="300"
         onClick={paused ? onResume : onPause}
         disabled={pauseDisabled}
-        aria-label={paused ? 'Resume voice recording' : 'Pause voice recording'}
+        aria-label={
+          paused ? t('mindroomUi.voice.resumeRecording') : t('mindroomUi.voice.pauseRecording')
+        }
         aria-pressed={paused}
       >
         {busy ? (

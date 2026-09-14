@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import React, { ReactNode, useCallback, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { RoomEvent, RoomEventHandlerMap } from 'matrix-js-sdk';
@@ -55,6 +56,7 @@ function PinchToZoomFeature() {
 }
 
 function MessageNotifications() {
+  const { t } = useTranslation();
   const audioRef = useRef<HTMLAudioElement>(null);
   const notifRef = useRef<Notification>();
   const unreadCacheRef = useRef<Map<string, UnreadInfo>>(new Map());
@@ -82,7 +84,9 @@ function MessageNotifications() {
       const noti = new window.Notification(roomName, {
         icon: roomAvatar,
         badge: roomAvatar,
-        body: `New inbox notification from ${username}`,
+        body: t('sharedUi.clientNonUIFeatures.newInboxNotificationFromValue1', {
+          value1: username,
+        }),
         silent: true,
       });
 
@@ -95,7 +99,7 @@ function MessageNotifications() {
       notifRef.current?.close();
       notifRef.current = noti;
     },
-    [navigate]
+    [navigate, t]
   );
 
   const playSound = useCallback(() => {

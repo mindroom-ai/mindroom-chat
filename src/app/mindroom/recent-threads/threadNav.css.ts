@@ -13,7 +13,7 @@ export const RecentlyOpenedPanel = style({
   flex: 'none',
   flexDirection: 'column',
   padding: config.space.S200,
-  paddingRight: 0,
+  paddingInlineEnd: 0,
   borderTop: `${config.borderWidth.B300} solid ${color.Background.ContainerLine}`,
   backgroundColor: color.Background.Container,
   selectors: {
@@ -73,7 +73,7 @@ export const RecentlyOpenedListViewport = style({
   minHeight: 0,
 });
 
-// No paddingRight: Scroll reserves an 8px gutter for its own scrollbar, and
+// No paddingInlineEnd: Scroll reserves an 8px gutter for its own scrollbar, and
 // the room list above pads to 0 on that side for the same reason. Adding more
 // here would step the two lists out of alignment.
 export const RecentlyOpenedList = style({
@@ -100,8 +100,8 @@ export const RecentlyOpenedEntry = style({
       content: '""',
       position: 'absolute',
       top: `calc(-1 * ${config.space.S100} / 2)`,
-      right: config.space.S300,
-      left: config.space.S200,
+      insetInlineEnd: config.space.S300,
+      insetInlineStart: config.space.S200,
       height: config.borderWidth.B300,
       backgroundColor: color.Background.ContainerLine,
       pointerEvents: 'none',
@@ -127,8 +127,9 @@ export const EntryUnreadDot = style({
 
 export const EntryActions = style({
   position: 'absolute',
-  inset: `0 0 0 auto`,
-  paddingLeft: config.space.S600,
+  insetBlock: 0,
+  insetInlineEnd: 0,
+  paddingInlineStart: config.space.S600,
   opacity: 0,
   visibility: 'hidden',
   pointerEvents: 'none',
@@ -144,6 +145,12 @@ export const EntryActions = style({
     },
     [`.${Entry}[aria-selected='true'] &`]: {
       background: `linear-gradient(to right, transparent, ${color.Background.ContainerActive} 45%)`,
+    },
+    'html[dir=rtl] &': {
+      background: `linear-gradient(to left, transparent, ${color.Background.ContainerHover} 45%)`,
+    },
+    [`html[dir=rtl] .${Entry}[aria-selected='true'] &`]: {
+      background: `linear-gradient(to left, transparent, ${color.Background.ContainerActive} 45%)`,
     },
   },
 });

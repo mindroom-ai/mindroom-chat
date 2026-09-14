@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import React, { MouseEvent, RefObject, useCallback, useEffect, useState } from 'react';
 import {
   TIMELINE_MINIMAP_MIN_ITEMS,
@@ -90,6 +91,7 @@ type TimelineMinimapProps = {
 };
 
 export function TimelineMinimap({ items, stripMap, onSelect }: TimelineMinimapProps) {
+  const { t } = useTranslation();
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
 
   const resolvedActiveIndex =
@@ -138,7 +140,7 @@ export function TimelineMinimap({ items, stripMap, onSelect }: TimelineMinimapPr
           className={css.MinimapRail}
           style={{ height: resolveTimelineMinimapHeightStyle(items.length) }}
           role="slider"
-          aria-label="Jump to message"
+          aria-label={t('mindroomUi.threads.timelineMinimap.jumpToMessage')}
           aria-orientation="vertical"
           aria-valuemin={0}
           aria-valuemax={items.length - 1}
@@ -213,7 +215,9 @@ export function TimelineMinimap({ items, stripMap, onSelect }: TimelineMinimapPr
                 transform: `translateY(${activeTooltipTranslate})`,
               }}
             >
-              <span className={css.MinimapPreviewTitle}>{activeItem.userText ?? 'Message'}</span>
+              <span className={css.MinimapPreviewTitle}>
+                {activeItem.userText ?? t('mindroomUi.threads.timelineMinimap.message')}
+              </span>
               {activeItem.agentText && (
                 <span className={css.MinimapPreviewBody}>{activeItem.agentText}</span>
               )}

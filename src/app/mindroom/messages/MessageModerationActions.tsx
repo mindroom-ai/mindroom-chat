@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import {
   Box,
   Button,
@@ -36,6 +37,7 @@ export const MessagePinItem = as<
     onClose?: () => void;
   }
 >(({ room, mEvent, onClose, ...props }, ref) => {
+  const { t } = useTranslation();
   const mx = useMatrixClient();
   const pinnedEvents = useRoomPinnedEvents(room);
   const isPinned = pinnedEvents.includes(mEvent.getId() ?? '');
@@ -62,7 +64,9 @@ export const MessagePinItem = as<
       ref={ref}
     >
       <Text className={css.MessageMenuItemText} as="span" size="T300" truncate>
-        {isPinned ? 'Unpin Message' : 'Pin Message'}
+        {isPinned
+          ? t('mindroomUi.messages.messageModerationActions.unpinMessage')
+          : t('mindroomUi.messages.messageModerationActions.pinMessage')}
       </Text>
     </MenuItem>
   );
@@ -76,6 +80,7 @@ export const MessageDeleteItem = as<
     onClose?: () => void;
   }
 >(({ room, mEvent, onClose, ...props }, ref) => {
+  const { t } = useTranslation();
   const mx = useMatrixClient();
   const [open, setOpen] = useState(false);
 
@@ -129,7 +134,9 @@ export const MessageDeleteItem = as<
                 size="500"
               >
                 <Box grow="Yes">
-                  <Text size="H4">Delete Message</Text>
+                  <Text size="H4">
+                    {t('mindroomUi.messages.messageModerationActions.deleteMessage')}
+                  </Text>
                 </Box>
                 <IconButton size="300" onClick={handleClose} radii="300">
                   <Icon src={Icons.Cross} />
@@ -143,19 +150,23 @@ export const MessageDeleteItem = as<
                 gap="400"
               >
                 <Text priority="400">
-                  This action is irreversible! Are you sure that you want to delete this message?
+                  {t(
+                    'mindroomUi.messages.messageModerationActions.thisActionIsIrreversibleAreYouSureThatYouWant'
+                  )}
                 </Text>
                 <Box direction="Column" gap="100">
                   <Text size="L400">
-                    Reason{' '}
+                    {t('mindroomUi.messages.messageModerationActions.reason')}{' '}
                     <Text as="span" size="T200">
-                      (optional)
+                      {t('mindroomUi.messages.messageModerationActions.optional')}
                     </Text>
                   </Text>
                   <Input name="reasonInput" variant="Background" />
                   {deleteState.status === AsyncStatus.Error && (
                     <Text style={{ color: color.Critical.Main }} size="T300">
-                      Failed to delete message! Please try again.
+                      {t(
+                        'mindroomUi.messages.messageModerationActions.failedToDeleteMessagePleaseTryAgain'
+                      )}
                     </Text>
                   )}
                 </Box>
@@ -170,7 +181,9 @@ export const MessageDeleteItem = as<
                   aria-disabled={deleteState.status === AsyncStatus.Loading}
                 >
                   <Text size="B400">
-                    {deleteState.status === AsyncStatus.Loading ? 'Deleting...' : 'Delete'}
+                    {deleteState.status === AsyncStatus.Loading
+                      ? t('mindroomUi.messages.messageModerationActions.deleting')
+                      : t('mindroomUi.messages.messageModerationActions.delete')}
                   </Text>
                 </Button>
               </Box>
@@ -190,7 +203,7 @@ export const MessageDeleteItem = as<
         ref={ref}
       >
         <Text className={css.MessageMenuItemText} as="span" size="T300" truncate>
-          Delete
+          {t('mindroomUi.messages.messageModerationActions.delete')}
         </Text>
       </Button>
     </>
@@ -205,6 +218,7 @@ export const MessageReportItem = as<
     onClose?: () => void;
   }
 >(({ room, mEvent, onClose, ...props }, ref) => {
+  const { t } = useTranslation();
   const mx = useMatrixClient();
   const [open, setOpen] = useState(false);
 
@@ -259,7 +273,9 @@ export const MessageReportItem = as<
                 size="500"
               >
                 <Box grow="Yes">
-                  <Text size="H4">Report Message</Text>
+                  <Text size="H4">
+                    {t('mindroomUi.messages.messageModerationActions.reportMessage')}
+                  </Text>
                 </Box>
                 <IconButton size="300" onClick={handleClose} radii="300">
                   <Icon src={Icons.Cross} />
@@ -273,20 +289,27 @@ export const MessageReportItem = as<
                 gap="400"
               >
                 <Text priority="400">
-                  Report this message to server, which may then notify the appropriate people to
-                  take action.
+                  {t(
+                    'mindroomUi.messages.messageModerationActions.reportThisMessageToServerWhichMayThenNotifyThe'
+                  )}
                 </Text>
                 <Box direction="Column" gap="100">
-                  <Text size="L400">Reason</Text>
+                  <Text size="L400">
+                    {t('mindroomUi.messages.messageModerationActions.reason')}
+                  </Text>
                   <Input name="reasonInput" variant="Background" required />
                   {reportState.status === AsyncStatus.Error && (
                     <Text style={{ color: color.Critical.Main }} size="T300">
-                      Failed to report message! Please try again.
+                      {t(
+                        'mindroomUi.messages.messageModerationActions.failedToReportMessagePleaseTryAgain'
+                      )}
                     </Text>
                   )}
                   {reportState.status === AsyncStatus.Success && (
                     <Text style={{ color: color.Success.Main }} size="T300">
-                      Message has been reported to server.
+                      {t(
+                        'mindroomUi.messages.messageModerationActions.messageHasBeenReportedToServer'
+                      )}
                     </Text>
                   )}
                 </Box>
@@ -304,7 +327,9 @@ export const MessageReportItem = as<
                   }
                 >
                   <Text size="B400">
-                    {reportState.status === AsyncStatus.Loading ? 'Reporting...' : 'Report'}
+                    {reportState.status === AsyncStatus.Loading
+                      ? t('mindroomUi.messages.messageModerationActions.reporting')
+                      : t('mindroomUi.messages.messageModerationActions.report')}
                   </Text>
                 </Button>
               </Box>
@@ -324,7 +349,7 @@ export const MessageReportItem = as<
         ref={ref}
       >
         <Text className={css.MessageMenuItemText} as="span" size="T300" truncate>
-          Report
+          {t('mindroomUi.messages.messageModerationActions.report')}
         </Text>
       </Button>
     </>

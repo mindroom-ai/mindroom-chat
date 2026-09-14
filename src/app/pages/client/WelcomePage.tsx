@@ -1,3 +1,4 @@
+import { Trans, useTranslation } from 'react-i18next';
 import React from 'react';
 import { Box, Button, Icon, Icons, Text, config, toRem } from 'folds';
 import { useSetAtom } from 'jotai';
@@ -23,15 +24,13 @@ import { getSafeLocalStorage } from '../../utils/safeLocalStorage';
 
 const safeIcon = (icon?: (filled?: boolean) => JSX.Element) => icon ?? Icons.Info;
 
-const WELCOME_SETUP_INITIAL_STEPS = [
-  '1. Run uvx mindroom config init --provider <anthropic|codex|llama.cpp|ollama|openai|openrouter|vertexai_claude>',
-  '2. Add model credentials in ~/.mindroom/.env, or run codex login',
-];
-
-const WELCOME_SETUP_FINAL_STEPS = [
-  '4. Run uvx mindroom connect --pair-code ABCD-EFGH',
-  '5. Start it with uvx mindroom run',
-];
+const WELCOME_SETUP_COMMANDS = {
+  initialize:
+    'uvx mindroom config init --provider <anthropic|codex|llama.cpp|ollama|openai|openrouter|vertexai_claude>',
+  login: 'codex login',
+  connect: 'uvx mindroom connect --pair-code ABCD-EFGH',
+  run: 'uvx mindroom run',
+} as const;
 
 const readFirstSeenAtMs = (storageKey: string): number | undefined => {
   const storage = getSafeLocalStorage();
@@ -79,28 +78,40 @@ type WelcomeSetupInstructionsProps = {
 };
 
 function WelcomeSetupInstructions({ onOpenLocalMindroomSettings }: WelcomeSetupInstructionsProps) {
+  const { t } = useTranslation();
+  const initialSteps = [
+    t('sharedUi.welcomePage.setupStep1', { command: WELCOME_SETUP_COMMANDS.initialize }),
+    t('sharedUi.welcomePage.setupStep2', {
+      envFile: '~/.mindroom/.env',
+      command: WELCOME_SETUP_COMMANDS.login,
+    }),
+  ];
+  const finalSteps = [
+    t('sharedUi.welcomePage.setupStep4', { command: WELCOME_SETUP_COMMANDS.connect }),
+    t('sharedUi.welcomePage.setupStep5', { command: WELCOME_SETUP_COMMANDS.run }),
+  ];
   return (
     <Box direction="Column" gap="200" style={WelcomeCardStyle}>
       <Text as="span" size="L400">
-        Set up Local MindRoom
+        {t('sharedUi.welcomePage.setUpLocalMindroom')}
       </Text>
-      {WELCOME_SETUP_INITIAL_STEPS.map((step) => (
+      {initialSteps.map((step) => (
         <Text key={step} as="span" size="T200" priority="300" style={{ overflowWrap: 'anywhere' }}>
           {step}
         </Text>
       ))}
       <Button
-        aria-label="Open Local MindRoom settings"
+        aria-label={t('sharedUi.welcomePage.openLocalMindroomSettings')}
         fill="Soft"
         onClick={onOpenLocalMindroomSettings}
         before={<Icon size="200" src={safeIcon(Icons.Link)} />}
         style={{ justifyContent: 'flex-start' }}
       >
         <Text as="span" size="B300" style={{ overflowWrap: 'anywhere', whiteSpace: 'normal' }}>
-          3. Click here to open Local MindRoom and generate a pair code
+          {t('sharedUi.welcomePage.3ClickHereToOpenLocalMindroomAndGenerateAPairCode')}
         </Text>
       </Button>
-      {WELCOME_SETUP_FINAL_STEPS.map((step) => (
+      {finalSteps.map((step) => (
         <Text key={step} as="span" size="T200" priority="300" style={{ overflowWrap: 'anywhere' }}>
           {step}
         </Text>
@@ -110,6 +121,7 @@ function WelcomeSetupInstructions({ onOpenLocalMindroomSettings }: WelcomeSetupI
 }
 
 export function WelcomePage() {
+  const { t } = useTranslation();
   const mx = useMatrixClient();
   const setSettingsModal = useSetAtom(settingsModalAtom);
   const { sidebar, welcome } = useClientConfig();
@@ -127,7 +139,7 @@ export function WelcomePage() {
   );
   const [showSetupInstructions, setShowSetupInstructions] = React.useState(false);
   const { docsLabel, docsUrl, poweredBy, sourceLabel, sourceUrl, subtitle, title } =
-    getMindroomWelcomePageContent(welcome);
+    getMindroomWelcomePageContent(welcome, t);
   const openLocalMindroomSettings = React.useCallback(() => {
     setSettingsModal({ initialPage: LOCAL_MINDROOM_SETTINGS_PAGE });
   }, [setSettingsModal]);
@@ -228,15 +240,27 @@ export function WelcomePage() {
                 <KeyBackupNudge />
                 {poweredBy.length > 0 && (
                   <Text size="T300" align="Center">
-                    Powered by{' '}
-                    {poweredBy.map((item, index) => (
-                      <React.Fragment key={item.url}>
-                        <a href={item.url} target="_blank" rel="noreferrer noopener">
-                          {item.label}
-                        </a>
-                        {index < poweredBy.length - 1 && ' \u2022 '}
-                      </React.Fragment>
-                    ))}
+                    <Trans
+                      t={t}
+                      shouldUnescape
+                      tOptions={{ interpolation: { escapeValue: true } }}
+                      i18nKey="sharedUi.welcomePage.poweredBy"
+                      components={{
+                        links: (
+                          <span>
+                            {' '}
+                            {poweredBy.map((item, index) => (
+                              <React.Fragment key={item.url}>
+                                <a href={item.url} target="_blank" rel="noreferrer noopener">
+                                  {item.label}
+                                </a>
+                                {index < poweredBy.length - 1 && ' \u2022 '}
+                              </React.Fragment>
+                            ))}
+                          </span>
+                        ),
+                      }}
+                    />
                   </Text>
                 )}
               </Box>

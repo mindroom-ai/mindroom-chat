@@ -1,3 +1,4 @@
+import { Trans, useTranslation } from 'react-i18next';
 import React, { FormEventHandler, useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Box,
@@ -44,6 +45,7 @@ function ResetPasswordComplete({
   email?: string;
   addAccount?: boolean;
 }) {
+  const { t } = useTranslation();
   const server = useAuthServer();
 
   const navigate = useNavigate();
@@ -64,11 +66,13 @@ function ResetPasswordComplete({
           <Dialog>
             <Box style={{ padding: config.space.S400 }} direction="Column" gap="400">
               <Text>
-                Password has been reset successfully. Please login with your new password.
+                {t(
+                  'sharedUi.passwordResetForm.passwordHasBeenResetSuccessfullyPleaseLoginWithYourNewPassword'
+                )}
               </Text>
               <Button variant="Primary" onClick={handleClick}>
                 <Text size="B400" as="span">
-                  Login
+                  {t('sharedUi.passwordResetForm.login')}
                 </Text>
               </Button>
             </Box>
@@ -84,6 +88,7 @@ type PasswordResetFormProps = {
   addAccount?: boolean;
 };
 export function PasswordResetForm({ defaultEmail, addAccount = false }: PasswordResetFormProps) {
+  const { t } = useTranslation();
   const server = useAuthServer();
 
   const serverDiscovery = useAutoDiscoveryInfo();
@@ -176,11 +181,18 @@ export function PasswordResetForm({ defaultEmail, addAccount = false }: Password
   return (
     <Box as="form" onSubmit={handleSubmit} direction="Inherit" gap="400">
       <Text size="T300" priority="400">
-        Homeserver <strong>{server}</strong> will send you an email to let you reset your password.
+        <Trans
+          t={t}
+          shouldUnescape
+          tOptions={{ interpolation: { escapeValue: true } }}
+          i18nKey="sharedUi.passwordResetForm.resetEmailDescription"
+          values={{ server }}
+          components={{ strong: <strong /> }}
+        />
       </Text>
       <Box direction="Column" gap="100">
         <Text as="label" size="L400" priority="300">
-          Email
+          {t('sharedUi.passwordResetForm.email')}
         </Text>
         <Input
           defaultValue={defaultEmail}
@@ -202,7 +214,7 @@ export function PasswordResetForm({ defaultEmail, addAccount = false }: Password
           <>
             <Box direction="Column" gap="100">
               <Text as="label" size="L400" priority="300">
-                New Password
+                {t('sharedUi.passwordResetForm.newPassword')}
               </Text>
               <PasswordInput
                 ref={passRef}
@@ -216,7 +228,7 @@ export function PasswordResetForm({ defaultEmail, addAccount = false }: Password
             </Box>
             <Box direction="Column" gap="100">
               <Text as="label" size="L400" priority="300">
-                Confirm Password
+                {t('sharedUi.passwordResetForm.confirmPassword')}
               </Text>
               <PasswordInput
                 ref={confPassRef}
@@ -235,14 +247,14 @@ export function PasswordResetForm({ defaultEmail, addAccount = false }: Password
       {resetPasswordError && (
         <FieldError
           message={`${resetPasswordError.errcode}: ${
-            resetPasswordError.data?.error ?? 'Failed to reset password.'
+            resetPasswordError.data?.error ?? t('sharedUi.passwordResetForm.failedToResetPassword')
           }`}
         />
       )}
       <span data-spacing-node />
       <Button type="submit" variant="Primary" size="500">
         <Text as="span" size="B500">
-          Reset Password
+          {t('sharedUi.passwordResetForm.resetPassword')}
         </Text>
       </Button>
 

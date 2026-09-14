@@ -2,6 +2,8 @@ import React from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { act, create } from 'react-test-renderer';
 import { Text } from 'folds';
+import { createInstance } from 'i18next';
+import { I18nextProvider } from 'react-i18next';
 import { AuthFlowsLoader } from './AuthFlowsLoader';
 import { AutoDiscoveryInfoProvider } from '../hooks/useAutoDiscoveryInfo';
 import { createMatrixClient } from '../mindroom/matrix/matrixClientFactory';
@@ -16,6 +18,46 @@ const flushPromises = () =>
   });
 
 describe('AuthFlowsLoader', () => {
+  it('updates the failed authentication screen when language changes without retrying', async () => {
+    const language = createInstance();
+    await language.init({
+      lng: 'en',
+      fallbackLng: 'en',
+      react: { useSuspense: false },
+      resources: {
+        en: { translation: { sharedUi: { authFlowsLoader: { retry: 'Retry' } } } },
+        de: { translation: { sharedUi: { authFlowsLoader: { retry: 'Erneut versuchen' } } } },
+      },
+    });
+    const loginFlows = vi.fn().mockResolvedValue(undefined);
+    vi.mocked(createMatrixClient).mockReturnValue({
+      loginFlows,
+      registerRequest: vi.fn().mockRejectedValue({ httpStatus: 400 }),
+    } as unknown as ReturnType<typeof createMatrixClient>);
+    let renderer: ReturnType<typeof create>;
+    await act(async () => {
+      renderer = create(
+        React.createElement(
+          I18nextProvider,
+          { i18n: language },
+          React.createElement(
+            AutoDiscoveryInfoProvider,
+            { value: { 'm.homeserver': { base_url: 'https://example.com' } } },
+            React.createElement(AuthFlowsLoader, null, () => null)
+          )
+        )
+      );
+      await flushPromises();
+    });
+    expect(JSON.stringify(renderer!.toJSON())).toContain('Retry');
+    await act(async () => {
+      await language.changeLanguage('de');
+    });
+    expect(JSON.stringify(renderer!.toJSON())).toContain('Erneut versuchen');
+    expect(loginFlows).toHaveBeenCalledTimes(1);
+    act(() => renderer!.unmount());
+  });
+
   it('renders a retry state and retries without throwing', async () => {
     const loginFlows = vi
       .fn()
@@ -29,8 +71,9 @@ describe('AuthFlowsLoader', () => {
       registerRequest,
     } as unknown as ReturnType<typeof createMatrixClient>);
 
-    const AuthFlowsLoaderComponent =
-      AuthFlowsLoader as React.ComponentType<React.ComponentProps<typeof AuthFlowsLoader>>;
+    const AuthFlowsLoaderComponent = AuthFlowsLoader as React.ComponentType<
+      React.ComponentProps<typeof AuthFlowsLoader>
+    >;
 
     const renderer = create(
       React.createElement(

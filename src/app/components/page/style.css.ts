@@ -55,19 +55,19 @@ export type PageNavHeaderVariants = RecipeVariants<typeof PageNavHeader>;
 export const PageNavContent = style({
   minHeight: '100%',
   padding: config.space.S200,
-  paddingRight: 0,
+  paddingInlineEnd: 0,
   paddingBottom: config.space.S700,
 });
 
 export const PageHeader = recipe({
   base: {
-    paddingLeft: config.space.S400,
-    paddingRight: config.space.S200,
+    paddingInlineStart: config.space.S400,
+    paddingInlineEnd: config.space.S200,
   },
   variants: {
     balance: {
       true: {
-        paddingLeft: config.space.S200,
+        paddingInlineStart: config.space.S200,
       },
     },
     outlined: {
@@ -86,8 +86,8 @@ export const PageContent = style([
   DefaultReset,
   {
     paddingTop: config.space.S400,
-    paddingLeft: config.space.S400,
-    paddingRight: 0,
+    paddingInlineStart: config.space.S400,
+    paddingInlineEnd: 0,
     paddingBottom: toRem(100),
   },
 ]);
@@ -110,7 +110,6 @@ export const PageHeroSection = style([
     margin: 'auto',
   },
 ]);
-
 
 export const PageContentCenter = style([
   DefaultReset,

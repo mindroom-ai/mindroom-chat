@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import React, { useEffect, useRef, useState } from 'react';
 import { Button, Input, Text } from 'folds';
 import {
@@ -17,6 +18,7 @@ export function ApprovalDecisionControls({
   showDurations = false,
   index,
 }: ApprovalControlProps & { showDurations?: boolean; index?: number }) {
+  const { t } = useTranslation();
   const [denying, setDenying] = useState(false);
   const [reason, setReason] = useState('');
   const reasonInput = useRef<HTMLInputElement>(null);
@@ -43,8 +45,14 @@ export function ApprovalDecisionControls({
   if (!pending) return null;
   return (
     <>
-      {!record.approval.approvable && <p>This request cannot be approved here.</p>}
-      {submitted && <p role="status">Submitted. Waiting for room update.</p>}
+      {!record.approval.approvable && (
+        <p>{t('mindroomUi.messages.approvalDecisionControls.thisRequestCannotBeApprovedHere')}</p>
+      )}
+      {submitted && (
+        <p role="status">
+          {t('mindroomUi.messages.approvalDecisionControls.submittedWaitingForRoomUpdate')}
+        </p>
+      )}
       {eligibility.deny && !submitted && !denying && (
         <>
           <div className={css.Actions}>
@@ -58,7 +66,11 @@ export function ApprovalDecisionControls({
                   if (canSend) void submit(record, { status: 'approved' });
                 }}
               >
-                <Text size="B300">{durations.length > 0 ? 'Approve once' : 'Approve'}</Text>
+                <Text size="B300">
+                  {durations.length > 0
+                    ? t('mindroomUi.messages.approvalDecisionControls.approveOnce')
+                    : t('mindroomUi.messages.approvalDecisionControls.approve')}
+                </Text>
               </Button>
             )}
             <Button
@@ -74,11 +86,15 @@ export function ApprovalDecisionControls({
                 }
               }}
             >
-              <Text size="B300">Deny</Text>
+              <Text size="B300">{t('mindroomUi.messages.approvalDecisionControls.deny')}</Text>
             </Button>
           </div>
           {durations.length > 0 && (
-            <div className={css.Actions} role="group" aria-label="Auto-approval duration">
+            <div
+              className={css.Actions}
+              role="group"
+              aria-label={t('mindroomUi.messages.approvalDecisionControls.autoApprovalDuration')}
+            >
               {durations.map((duration) => (
                 <Button
                   key={duration}
@@ -90,7 +106,11 @@ export function ApprovalDecisionControls({
                     if (canSend) void submit(record, { status: 'approved', duration });
                   }}
                 >
-                  <Text size="B300">Auto-approve {duration / 60} min</Text>
+                  <Text size="B300">
+                    {t('mindroomUi.messages.approvalDecisionControls.autoApproveMinutes', {
+                      count: duration / 60,
+                    })}
+                  </Text>
                 </Button>
               ))}
             </div>
@@ -109,16 +129,22 @@ export function ApprovalDecisionControls({
             ref={reasonInput}
             aria-label={
               index === undefined
-                ? 'Deny reason (optional)'
-                : `Reason for denying call ${index + 1} (optional)`
+                ? t('mindroomUi.messages.approvalDecisionControls.denyReasonOptional')
+                : t('mindroomUi.messages.approvalDecisionControls.denyCallReasonOptional', {
+                    number: index + 1,
+                  })
             }
-            placeholder="Denial reason (optional)"
+            placeholder={t('mindroomUi.messages.approvalDecisionControls.denialReasonOptional')}
             value={reason}
             onChange={(event) => setReason(event.currentTarget.value)}
           />
           <div className={css.Actions}>
             <Button type="submit" size="300" variant="Critical" disabled={disabled}>
-              <Text size="B300">{index === undefined ? 'Confirm Deny' : 'Confirm deny'}</Text>
+              <Text size="B300">
+                {index === undefined
+                  ? t('mindroomUi.messages.approvalDecisionControls.confirmDeny')
+                  : t('mindroomUi.messages.approvalDecisionControls.confirmDeny2')}
+              </Text>
             </Button>
             <Button
               type="button"
@@ -132,7 +158,7 @@ export function ApprovalDecisionControls({
                 setReason('');
               }}
             >
-              <Text size="B300">Cancel</Text>
+              <Text size="B300">{t('mindroomUi.messages.approvalDecisionControls.cancel')}</Text>
             </Button>
           </div>
         </form>

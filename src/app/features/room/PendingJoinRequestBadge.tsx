@@ -1,8 +1,15 @@
 import React from 'react';
 import { Badge, Text, toRem } from 'folds';
+import type { TFunction } from 'i18next';
 
-export const getPendingJoinRequestLabel = (baseLabel: string, count: number): string =>
-  count > 0 ? `${baseLabel}, ${count} pending join request${count === 1 ? '' : 's'}` : baseLabel;
+export const getPendingJoinRequestLabel = (
+  t: TFunction,
+  baseLabel: string,
+  count: number
+): string =>
+  count > 0
+    ? t('featureUi.room.pendingJoinRequests.accessibleLabel', { baseLabel, count })
+    : baseLabel;
 
 type PendingJoinRequestBadgeProps = {
   count: number;
