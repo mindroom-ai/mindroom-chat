@@ -12,6 +12,7 @@
 - In Modern and Compact layouts, messages with disclosure controls fill the available row width so both buttons align to its right edge; other message content keeps its existing sizing.
 - The wider fade covers roughly two visible text lines, and Show full message overlays its bottom-right corner without adding a footer row.
 - The expanded Show less footer stays below the full text and remains sticky; the shared grid constrains wide code blocks to the message width.
+- Both disclosure buttons use a quieter fill mixed between normal and hover surfaces and slightly muted text, preserving their shape in Bubble layout while reserving the full hover fill for pointer feedback across themes.
 - Live Chromium checks pass for room and thread views across Modern, Compact, and Bubble layouts, dark and light themes, and 390px width, including right-edge alignment, fade and footer geometry, keyboard focus, full expansion, recollapse, wide code bounds, and restored content sizing after short edits.
 - Existing live expand-all, manual expansion across virtualized remounts, and above-viewport scroll-anchor regressions pass.
 - Validation: typecheck, production/PWA build, ESLint with zero errors and the existing 17 warnings, touched-file formatting, and independent review pass.
