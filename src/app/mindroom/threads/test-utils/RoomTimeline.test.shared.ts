@@ -1421,7 +1421,10 @@ const makeRoom = ({
       const threadLiveTimeline = makeTimeline(threadEvents);
       const threadTimelineSet = {
         getLiveTimeline: () => threadLiveTimeline,
+        getTimelineForEvent: (eventId: string) =>
+          threadEvents.some((event) => event.getId() === eventId) ? threadLiveTimeline : undefined,
       };
+      Object.assign(threadLiveTimeline, { getTimelineSet: () => threadTimelineSet });
       const thread = {
         id: threadId,
         rootEvent,
