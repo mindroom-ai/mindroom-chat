@@ -69,6 +69,7 @@ Message, composer, and timeline responsibilities also have focused owners:
 | Membership, room changes, call membership and generic event presentation | `threads/roomTimelineStateEventRenderers.tsx` |
 | Profile, mention, reply, reaction and edit interactions                  | `threads/useRoomTimelineMessageActions.ts`    |
 | Pointer eligibility, item derivation and minimap selection               | `threads/useRoomTimelineMinimap.ts`           |
+| Measured classic-room opening and automatic history fill                 | `threads/roomAutomaticFill.ts`                |
 
 Keep the public exports of `MindroomMessage.tsx`, `MindroomRoomInput.tsx`, and `MindroomRoomTimeline.tsx` compatible.
 Their extracted modules must import their dependencies directly, without importing the parent facade.
@@ -92,6 +93,11 @@ Capture each row's previous event ID before advancing the grouping cursor.
 Keep dispatch synchronous because hidden-row results determine grouping and divider behavior.
 Share the message frame while preserving each event kind's editing, reply and thread-badge policy.
 Keep cache, pagination, and scroll coordination in the timeline.
+Classic-room automatic fill waits for committed, measured geometry before retrying visible pagination sentinels.
+Its initial measured reveal happens once; user navigation releases that opening policy.
+Check ownership when an intersection callback runs so inactive or completed opening preserves ordinary forward/backward pagination dispatch.
+The scroll ledger must commit its margin before measurement callbacks read a changed content height, and capture the settlement target before removing that margin can clamp the browser offset.
+Keep real virtualizer regressions and compositor-level live checks when changing these boundaries; animation-frame samples alone missed a painted scroll jump.
 Future extractions should establish a useful interface before moving another block of code.
 Keep the paste handler synchronous: an unhandled paste must return `undefined` so Slate can run its default behavior.
 Inspect corresponding upstream renderer and composer changes even when the compatibility wrappers merge cleanly.
@@ -131,6 +137,8 @@ Inspect corresponding upstream renderer and composer changes even when the compa
   Remove stale nested records after upstream downgrades or consolidates a dependency family.
 - Preserve exact patched versions or deliberately regenerate and validate the corresponding patches.
   Current patches target `matrix-js-sdk@41.7.0`, `@tanstack/virtual-core@3.17.3`, and `folds@2.7.1`.
+  The Matrix SDK patch covers thread reset protection and relation insertion when the parent belongs to another timeline in the same set.
+  Run both actual-SDK regression suites after upgrading, and keep patched runtime JavaScript, TypeScript, and source maps aligned.
   The folds patch adds six scrollbar color fallbacks and must retain upstream's Firefox feature query.
 
 ## Verification
@@ -142,5 +150,9 @@ Inspect `npm ls --all`; distinguish inherited peer-range conflicts from new inva
 For this base, `npm ls workbox-build workbox-precaching workbox-routing --all` must pass.
 Confirm all three patches apply, formatting is clean on integration edits, and the production/PWA build verifies the Element Call background.
 Run targeted Playwright coverage against local Matrix for auth, thread view switching, summaries, sending, and read receipts.
+For comprehensive live verification, exercise every discovered case under `e2e/live` with its required account modes and room, agent, portal, and minimap fixtures.
+Use fresh accounts per spec to isolate persisted settings, retain failures for diagnosis, and treat skipped or missing cases as unverified coverage.
+Update stale setup and selectors only against evidenced product behavior; preserve performance budgets and prove pagination tests actually introduce new history during measurement.
+Derive boundary rides from committed starting geometry, and prove native gesture travel and post-release momentum through visible anchors rather than ledger-sensitive scroll offsets.
 Check the scrollbar patch in a browser when updating folds.
 Preserve source refs and record the exact checked tree before rewriting history.

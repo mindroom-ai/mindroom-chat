@@ -2,6 +2,40 @@
 
 ## Runbook
 
+### Complete live-test verification (2026-09-13)
+
+- All 95 discovered Chromium cases across 52 live spec files pass against production assets and a dedicated local Matrix fixture.
+  Fresh accounts per spec isolate saved settings and keep room lists small.
+  Required room, agent, portal, and minimap fixtures are seeded explicitly.
+  The complete run uses default performance limits with no retries, failures, skips, or missing cases.
+  Its production build and every live spec hash match committed source `b0fd1880`; initial failure evidence remains available for diagnosis.
+- Live scenarios now declare required Full Mode, agent membership, and collapsed-message state.
+  Production sidebar and timeline selectors identify the intended controls without development class names or ambiguous sidebar text.
+  Explicit Home navigation, root startup restoration, and automatic compact-send thread navigation each retain their distinct behavioral coverage.
+  Fixed wall time keeps relative-time labels stable during exact hover geometry checks.
+- Older-thread history controls activate atomically without actionability scrolling.
+  Browser contracts cover offscreen controls, document and nested scroll preservation, loading-state transitions, duplicate controls, and missing controls.
+  The bounded helper does not claim complete history when its iteration guard is reached.
+  The prepend live case now starts with partial history and a visible reading anchor, then verifies newly delivered older event IDs and count growth during continuous sampling through all 451 events.
+  Its original 64px displacement limit remains unchanged.
+- The Matrix SDK insertion patch now handles a relation parent present in another timeline in the same set.
+  The target-local fallback prevents a negative array index while preserving timestamp ordering.
+  Four tests use real SDK timeline objects, and both thread performance specs detect the observed reconcile warning.
+  Runtime JavaScript, TypeScript, and source maps agree; a clean SDK package accepts the patch, and the existing thread-reset changes remain intact.
+- Temporary screenshot destinations use Playwright output paths so evidence stays in the configured output directory.
+  Behavioral assertions and performance thresholds remain the standard for evaluating outdated tests.
+- Latency rides derive a bounded travel budget from the fully loaded fixture at driver start and require the physical boundary guard to settle.
+  Native touch events replace a synthetic gesture command that produced no scrolling in the tested browser.
+  Surviving visible anchors prove real travel and post-release momentum independently of ledger folds, and a no-movement control fails both guards.
+  Fixture sizes, CPU and network load, gesture distance and speed, and existing rendering limits remain intact.
+- Classic-room automatic history fill now waits for measured, committed geometry before retrying pagination.
+  Initial rows reveal once after measurement, and user navigation releases the opening policy.
+  Ledger margins commit before layout reads; settlement captures its target before removing a margin can clamp the native scroll position.
+  The large-room live case checks both original latest and predecessor messages in compositor frames, preserving the 700-message fixture, one-request budget, and cumulative 2px drift limit.
+- All 485 Vitest files and 3,797 tests pass under pinned Node 24.13.1.
+  Typecheck, production/PWA build with Element Call verification, and lint pass with zero errors and the existing seventeen warnings.
+  The final live run records zero latest/predecessor drift during classic-room backfill and 29,420px of native touch travel, including 18,447px after release.
+
 ### Composer and timeline feature ownership (2026-09-13)
 
 - Composer feature owners now include editor controls, reply presentation, attachment staging and enrollment, and voice recording and sending.
