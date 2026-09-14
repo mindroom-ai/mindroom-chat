@@ -96,6 +96,7 @@ function Harness({ onSuppressRef, scrollEl, ...overrides }: HarnessProps) {
 describe('useRoomFocusScrollController', () => {
   it('cancels a pending thread-open bottom pin when the user scrolls before events render', () => {
     const scrollEl = makeScrollElement();
+    const scrollToBottomRef = { current: { count: 0, smooth: false } };
     let renderer: ReactTestRenderer;
     let suppressRef: React.MutableRefObject<boolean> | undefined;
 
@@ -103,6 +104,7 @@ describe('useRoomFocusScrollController', () => {
       renderer = create(
         React.createElement(Harness, {
           scrollEl,
+          scrollToBottomRef,
           onSuppressRef: (ref) => {
             suppressRef = ref;
           },
@@ -122,6 +124,7 @@ describe('useRoomFocusScrollController', () => {
       renderer.update(
         React.createElement(Harness, {
           scrollEl,
+          scrollToBottomRef,
           threadEventsLength: 20,
           onSuppressRef: (ref) => {
             suppressRef = ref;
@@ -131,6 +134,130 @@ describe('useRoomFocusScrollController', () => {
     });
 
     expect(scrollEl.scrollTo).not.toHaveBeenCalled();
+  });
+
+  it('cancels a queued opening pin after several counts and the pending flag clear', () => {
+    const scrollEl = makeScrollElement();
+    const scrollToBottomRef = { current: { count: 0, smooth: false } };
+    let renderer: ReactTestRenderer;
+    let suppressRef: React.MutableRefObject<boolean> | undefined;
+
+    act(() => {
+      renderer = create(
+        React.createElement(Harness, {
+          scrollEl,
+          scrollToBottomRef,
+          threadEventsLength: 20,
+          onSuppressRef: (ref) => {
+            suppressRef = ref;
+          },
+        })
+      );
+    });
+
+    act(() => {
+      renderer.update(
+        React.createElement(Harness, {
+          scrollEl,
+          scrollToBottomRef,
+          threadEventsLength: 21,
+          threadLatestOpenPending: false,
+          threadOpenedAtLatest: true,
+          onSuppressRef: (ref) => {
+            suppressRef = ref;
+          },
+        })
+      );
+    });
+
+    act(() => {
+      renderer.update(
+        React.createElement(Harness, {
+          scrollEl,
+          scrollToBottomRef,
+          threadEventsLength: 22,
+          threadLatestOpenPending: false,
+          threadOpenedAtLatest: true,
+          onSuppressRef: (ref) => {
+            suppressRef = ref;
+          },
+        })
+      );
+    });
+
+    scrollEl.scrollTo.mockClear();
+    act(() => {
+      scrollEl.dispatch('wheel');
+      renderer.update(
+        React.createElement(Harness, {
+          scrollEl,
+          scrollToBottomRef,
+          threadEventsLength: 23,
+          threadLatestOpenPending: false,
+          threadOpenedAtLatest: true,
+          threadUserScrolled: true,
+          onSuppressRef: (ref) => {
+            suppressRef = ref;
+          },
+        })
+      );
+    });
+
+    expect(scrollToBottomRef.current.count).toBe(2);
+    expect(scrollEl.scrollTo).not.toHaveBeenCalled();
+
+    act(() => {
+      scrollEl.dispatchScroll();
+    });
+
+    expect(suppressRef?.current).toBe(true);
+  });
+
+  it.each([
+    ['user-requested jump-to-latest', false],
+    ['live-send', true],
+  ])('preserves a newer %s bottom pin when cancelling the opening pin', (_label, smooth) => {
+    const scrollEl = makeScrollElement();
+    const scrollToBottomRef = { current: { count: 0, smooth: false } };
+    let renderer: ReactTestRenderer;
+
+    act(() => {
+      renderer = create(
+        React.createElement(Harness, {
+          scrollEl,
+          scrollToBottomRef,
+          threadEventsLength: 20,
+          onSuppressRef: () => undefined,
+        })
+      );
+    });
+
+    scrollEl.scrollTo.mockClear();
+    scrollToBottomRef.current.count += 1;
+    scrollToBottomRef.current.smooth = smooth;
+
+    act(() => {
+      scrollEl.dispatch('wheel');
+      renderer.update(
+        React.createElement(Harness, {
+          scrollEl,
+          scrollToBottomRef,
+          threadEventsLength: 21,
+          threadUserScrolled: true,
+          onSuppressRef: () => undefined,
+        })
+      );
+    });
+
+    act(() => {
+      scrollEl.dispatchScroll();
+    });
+
+    expect(scrollToBottomRef.current.count).toBe(2);
+    expect(scrollEl.scrollTo).toHaveBeenCalledWith({
+      top: 600,
+      behavior: smooth ? 'smooth' : 'instant',
+    });
   });
 
   it('does not cancel the open bottom pin on programmatic scrolls without user intent', () => {

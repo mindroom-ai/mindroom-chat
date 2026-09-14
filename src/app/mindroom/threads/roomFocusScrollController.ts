@@ -21,7 +21,6 @@ import {
   getRoomFocusScrollOptions,
   getRoomFocusScrollToItemOptions,
   isAnchorVisibleInScroll,
-  isScrollNearBottom,
   ROOM_FOCUS_OBSERVER_HARD_TIMEOUT_MS,
   ROOM_FOCUS_OBSERVER_IDLE_MS,
   setupFocusObserver,
@@ -123,6 +122,7 @@ export const useRoomFocusScrollController = ({
   unreadScrollAnchorIndex,
 }: RoomFocusScrollControllerOptions): void => {
   const pendingRoomFocusRef = useRef<PendingRoomFocus | undefined>();
+  const pendingThreadOpenBottomPinCountRef = useRef<number | undefined>();
 
   useLayoutEffect(() => {
     const scrollEl = scrollRef.current;
@@ -132,30 +132,24 @@ export const useRoomFocusScrollController = ({
   }, [scrollRef]);
 
   useEffect(() => {
-    if (!threadId || !threadLatestOpenPending) return undefined;
+    if (!threadId) return undefined;
     const scrollEl = scrollRef.current;
     if (!scrollEl) return undefined;
 
-    // Only user-intended scrolls may cancel the open bottom pin. Virtualized
-    // timelines also scroll programmatically (bottom pins and scroll-offset
-    // adjustments when rows above the viewport re-measure), so a bare scroll
-    // event is not evidence of user intent.
-    let lastUserScrollIntentTs = 0;
-    const markUserScrollIntent = () => {
-      lastUserScrollIntentTs = Date.now();
-    };
+    // Cancel on the gesture itself: its sibling listener publishes
+    // threadUserScrolled and can render before the browser delivers the
+    // resulting scroll event. Bare scroll events remain ignored because
+    // virtualized timelines also move programmatically.
     const cancelPendingOpenBottomPin = () => {
-      if (Date.now() - lastUserScrollIntentTs > 400) return;
-      if (
-        isScrollNearBottom({
-          scrollHeight: scrollEl.scrollHeight,
-          scrollTop: scrollEl.scrollTop,
-          clientHeight: scrollEl.clientHeight,
-        })
-      ) {
-        return;
-      }
       suppressThreadOpenBottomPin();
+      const pendingCount = pendingThreadOpenBottomPinCountRef.current;
+      if (pendingCount !== undefined && scrollToBottomRef.current.count === pendingCount) {
+        scrollToBottomRef.current = {
+          ...scrollToBottomRef.current,
+          count: pendingCount - 1,
+        };
+      }
+      pendingThreadOpenBottomPinCountRef.current = undefined;
     };
 
     const userScrollIntentEvents = [
@@ -166,16 +160,14 @@ export const useRoomFocusScrollController = ({
       'keydown',
     ] as const;
     userScrollIntentEvents.forEach((eventType) => {
-      scrollEl.addEventListener(eventType, markUserScrollIntent, { passive: true });
+      scrollEl.addEventListener(eventType, cancelPendingOpenBottomPin, { passive: true });
     });
-    scrollEl.addEventListener('scroll', cancelPendingOpenBottomPin, { passive: true });
     return () => {
       userScrollIntentEvents.forEach((eventType) => {
-        scrollEl.removeEventListener(eventType, markUserScrollIntent);
+        scrollEl.removeEventListener(eventType, cancelPendingOpenBottomPin);
       });
-      scrollEl.removeEventListener('scroll', cancelPendingOpenBottomPin);
     };
-  }, [scrollRef, suppressThreadOpenBottomPin, threadId, threadLatestOpenPending]);
+  }, [scrollRef, scrollToBottomRef, suppressThreadOpenBottomPin, threadId]);
 
   useLayoutEffect(() => {
     if (threadId) return;
@@ -384,10 +376,12 @@ export const useRoomFocusScrollController = ({
     // own estimate error re-opens the gap (self/below resizes are
     // uncompensated by design) — a single write pins to the ESTIMATED
     // bottom only.
+    const nextCount = scrollToBottomRef.current.count + 1;
     scrollToBottomRef.current = {
-      count: scrollToBottomRef.current.count + 1,
+      count: nextCount,
       smooth: false,
     };
+    pendingThreadOpenBottomPinCountRef.current = nextCount;
     setAtBottom(true);
   }, [
     scrollRef,
@@ -467,6 +461,12 @@ export const useRoomFocusScrollController = ({
       const scrollEl = scrollRef.current;
       if (scrollEl) {
         scrollToBottom(scrollEl, scrollToBottomRef.current.smooth ? 'smooth' : 'instant');
+        if (
+          pendingThreadOpenBottomPinCountRef.current !== undefined &&
+          scrollToBottomCount >= pendingThreadOpenBottomPinCountRef.current
+        ) {
+          pendingThreadOpenBottomPinCountRef.current = undefined;
+        }
       }
     }
   }, [scrollRef, scrollToBottomCount, scrollToBottomRef]);
