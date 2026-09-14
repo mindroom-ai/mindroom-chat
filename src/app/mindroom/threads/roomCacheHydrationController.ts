@@ -1,8 +1,6 @@
 import { useEffect, type Dispatch, type MutableRefObject, type SetStateAction } from 'react';
 import { type MatrixClient, type Room } from 'matrix-js-sdk';
-import to from 'await-to-js';
-import { decryptAllTimelineEvent } from '../../utils/room';
-import { hydrateCachedEvents } from './eventCacheEditUtils';
+import { insertCachedRoomTimeline } from './sdk/roomTimelineSdk';
 import { markCacheHydrateEnd, markCacheHydrateStart } from './cacheProbe';
 import { logTimelineDebug } from './timelineDebug';
 import { ROOM_TIMELINE_INTERACTIVE_BATCH_SIZE } from './preloadSettings';
@@ -102,23 +100,11 @@ export const useRoomCacheHydrationController = ({
         return;
       }
 
-      hydrateCachedEvents({
+      const { timelineWasEmpty } = await insertCachedRoomTimeline({
+        mx,
         room,
         events: cachedEvents,
       });
-
-      const liveTimeline = getLiveTimeline(room);
-      const timelineWasEmpty = liveTimeline.getEvents().length === 0;
-      await room.addLiveEvents(cachedEvents, {
-        fromCache: true,
-        timelineWasEmpty,
-        addToState: false,
-      });
-      mx.processAggregatedTimelineEvents(room, cachedEvents);
-
-      if (room.hasEncryptionStateEvent()) {
-        await to(decryptAllTimelineEvent(mx, liveTimeline));
-      }
 
       if (cancelled || !alive() || roomIdRef.current !== room.roomId || threadIdRef.current) return;
       setTimeline(buildInitialTimeline());

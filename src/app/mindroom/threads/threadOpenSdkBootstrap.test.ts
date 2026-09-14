@@ -11,6 +11,71 @@ const flushAsyncWork = async (cycles = 5) => {
 };
 
 describe('runThreadOpenSdkBootstrap', () => {
+  it.each(['context', 'missing-thread-relations', 'empty-thread-relations'])(
+    'stops after cancellation during %s without mapping or publishing fetched events',
+    async (phase) => {
+      let finishFetch!: (value: unknown) => void;
+      const pending = new Promise((resolve) => {
+        finishFetch = resolve;
+      });
+      const threadTimeline = {
+        getEvents: () => [],
+        getNeighbouringTimeline: () => null,
+        getPaginationToken: () => null,
+        setPaginationToken: vi.fn(),
+      };
+      const thread = {
+        id: '$root',
+        events: [],
+        addEvents: vi.fn(),
+        getUnfilteredTimelineSet: () => ({ getLiveTimeline: () => threadTimeline }),
+      };
+      const room = makeRoom({
+        liveEvents: [],
+        threads: phase === 'empty-thread-relations' ? [thread as never] : [],
+      });
+      const mx = {
+        getEventTimeline: vi.fn(() => (phase === 'context' ? pending : Promise.resolve())),
+        fetchRelations: vi.fn(() => pending),
+        getThreadTimeline: vi.fn().mockResolvedValue(undefined),
+        getEventMapper: vi.fn(),
+      };
+      let mounted = true;
+      const persistThreadEventCache = vi.fn();
+      const setSupplementalThreadEvents = vi.fn();
+      const setThreadLoadError = vi.fn();
+      const work = runThreadOpenSdkBootstrap({
+        debugTraceId: 'test',
+        isMounted: () => mounted,
+        mx: mx as never,
+        persistThreadEventCache,
+        pinThreadToBottomOnOpen: vi.fn(),
+        room: room as never,
+        setSupplementalThreadEvents,
+        setThreadHasMoreCachedBack: vi.fn(),
+        setThreadLoadError,
+        setThreadTailLoaded: vi.fn(),
+        setThreadTimelineTick: vi.fn(),
+        setTimeline: vi.fn(),
+        shouldScrollToLatestOnOpen: false,
+        threadId: '$root',
+      });
+      await flushAsyncWork();
+      if (phase !== 'context') expect(mx.fetchRelations).toHaveBeenCalledOnce();
+      mounted = false;
+      finishFetch({ chunk: [{ event_id: '$reply' }], next_batch: 'older' });
+
+      expect(await work).toBe(false);
+      expect(mx.getEventMapper).not.toHaveBeenCalled();
+      expect(persistThreadEventCache).not.toHaveBeenCalled();
+      expect(setSupplementalThreadEvents).not.toHaveBeenCalled();
+      expect(setThreadLoadError).not.toHaveBeenCalled();
+      expect(thread.events).toEqual([]);
+      expect(thread.addEvents).not.toHaveBeenCalled();
+      expect(threadTimeline.setPaginationToken).not.toHaveBeenCalled();
+    }
+  );
+
   it('creates an initialized SDK thread and runs first-open timeline bootstrap', async () => {
     const root = makeEvent('$root', { isThreadRoot: true, ts: 1 });
     const room = makeRoom({ liveEvents: [root] });

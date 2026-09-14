@@ -2,6 +2,16 @@
 
 ## Runbook
 
+### Matrix SDK compatibility ownership (2026-09-13)
+
+- Two focused SDK modules own cached room insertion/prepend and bounded thread bootstrap operations.
+  Controllers retain cancellation, cache access, persistence, loading state, and scrolling.
+  The pure cached-token fallback lives in the token utility with its repository export retained.
+- Real SDK contracts cover event identity and indexes, edit/redaction hydration, relation aggregation, thread placement, neighboring timelines, pagination tokens, and replies racing constructor metadata.
+  The bounded relations request remains one backward `m.thread` page of 50 events, and bootstrap mapping remains after cancellation checks.
+  Thread bootstrap preserves the SDK's existing synchronous prepend order.
+  Bypassing room partitioning still respects SDK timeline placement; classic rendering separately combines thread replies.
+
 ### Complete live-test verification (2026-09-13)
 
 - All 95 discovered Chromium cases across 52 live spec files pass against production assets and a dedicated local Matrix fixture.

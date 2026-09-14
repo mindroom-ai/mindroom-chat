@@ -20,6 +20,11 @@ import { logTimelineDebug } from './timelineDebug';
 import { getThreadCursorAnchor } from './eventRepository';
 import { isThreadNotFoundError } from './threadBootstrap';
 import type { HydratedThreadCachePage } from './types';
+import {
+  appendThreadBootstrapRelations,
+  createInitializedThreadForRoot,
+  fetchThreadBootstrapRelations,
+} from './sdk/threadBootstrapSdk';
 
 type PersistThreadEventCache = (
   expectedThreadId: string,
@@ -90,13 +95,7 @@ export const runThreadOpenSdkBootstrap = async <TTimeline extends object>({
     zeroReplyStandaloneRootEvent &&
     isZeroReplyStandaloneThreadRootEvent(zeroReplyStandaloneRootEvent)
   ) {
-    threadModel = room.createThread(threadId, zeroReplyStandaloneRootEvent, [], false);
-    // Stop the constructor-started metadata request from resetting a reply that
-    // arrives in the meantime. The established timeline bootstrap below still
-    // checks the server on this first open, so a stale local root cannot hide
-    // replies that already exist remotely.
-    threadModel.initialEventsFetched = true;
-    threadModel.replayEvents = null;
+    threadModel = createInitializedThreadForRoot(room, zeroReplyStandaloneRootEvent);
     createdZeroReplyThread = true;
     setThreadTailLoaded(true);
     setTimeline((ct) => ({ ...ct }));
@@ -128,12 +127,7 @@ export const runThreadOpenSdkBootstrap = async <TTimeline extends object>({
   }
 
   if (!threadModel) {
-    const [relErr, relData] = await to(
-      mx.fetchRelations(room.roomId, threadId, 'm.thread' as any, null, {
-        dir: Direction.Backward,
-        limit: 50,
-      })
-    );
+    const [relErr, relData] = await to(fetchThreadBootstrapRelations(mx, room.roomId, threadId));
     if (!isMounted()) {
       return false;
     }
@@ -203,12 +197,7 @@ export const runThreadOpenSdkBootstrap = async <TTimeline extends object>({
   });
 
   if (threadModel.events.length === 0) {
-    const [relErr, relData] = await to(
-      mx.fetchRelations(room.roomId, threadId, 'm.thread' as any, null, {
-        dir: Direction.Backward,
-        limit: 50,
-      })
-    );
+    const [relErr, relData] = await to(fetchThreadBootstrapRelations(mx, room.roomId, threadId));
     if (!isMounted()) {
       return false;
     }
@@ -218,8 +207,12 @@ export const runThreadOpenSdkBootstrap = async <TTimeline extends object>({
         .slice()
         .reverse()
         .map((evt) => mapper(evt));
-      threadModel.addEvents(mappedEvents, true);
-      firstThreadTimeline?.setPaginationToken(relData.next_batch ?? null, Direction.Backward);
+      appendThreadBootstrapRelations({
+        thread: threadModel,
+        events: mappedEvents,
+        firstTimeline: firstThreadTimeline,
+        nextBatch: relData.next_batch,
+      });
       logTimelineDebug(debugTraceId, 'thread-sdk-bootstrap-empty-thread-relations-fill', {
         mappedCount: mappedEvents.length,
         nextBatchPresent: typeof relData.next_batch === 'string',

@@ -56,6 +56,74 @@ const makeTimeline = (events: unknown[]) =>
   } as never);
 
 describe('useRoomPaginationCommandController', () => {
+  it('does not insert a cached page after navigation changes rooms during the read', async () => {
+    const timeline = makeTimeline([makeRoomEvent('$loaded')]);
+    let finishSnapshot!: (snapshot: unknown) => void;
+    loadRoomCachedPaginationSnapshotMock.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finishSnapshot = resolve;
+        })
+    );
+    const roomIdRef = { current: '!room:server' };
+    const roomPaginatingBackRef = { current: false };
+    const room = {
+      roomId: '!room:server',
+      addEventsToTimeline: vi.fn(),
+      partitionThreadedEvents: vi.fn((events) => [events, [], []]),
+      processThreadRoots: vi.fn(),
+      hasEncryptionStateEvent: () => false,
+      relations: {},
+    };
+    const setTimeline = vi.fn();
+    const setRoomHasMoreCachedBack = vi.fn();
+    let callback!: (backwards: boolean) => Promise<void>;
+    let renderer!: ReactTestRenderer;
+    function Harness() {
+      callback = useRoomPaginationCommandController({
+        alive: () => true,
+        handleTimelinePagination: vi.fn(),
+        mx: { getEventMapper: () => (event: unknown) => event } as never,
+        persistRoomEventCache: vi.fn(),
+        recalibrateFilterOptsRef: { current: undefined },
+        room: room as never,
+        roomIdRef,
+        roomPaginatingBackRef,
+        prefetchDepthRef: { current: 50 },
+        sessionId: 'session',
+        setRoomHasMoreCachedBack,
+        setTimeline,
+        threadId: undefined,
+        threadIdRef: { current: undefined },
+        timeline: { linkedTimelines: [timeline], range: { start: 0, end: 1 } },
+      });
+      return null;
+    }
+    await act(async () => {
+      renderer = create(React.createElement(Harness));
+    });
+    try {
+      const work = callback(true);
+      roomIdRef.current = '!other:server';
+      finishSnapshot({
+        status: 'cache-hit',
+        events: [makeRoomEvent('$cached')],
+        beforeToken: null,
+        hasMoreCachedBack: false,
+      });
+      await act(async () => {
+        await work;
+      });
+
+      expect(room.addEventsToTimeline).not.toHaveBeenCalled();
+      expect(setTimeline).not.toHaveBeenCalled();
+      expect(setRoomHasMoreCachedBack).not.toHaveBeenCalled();
+      expect(roomPaginatingBackRef.current).toBe(false);
+    } finally {
+      renderer.unmount();
+    }
+  });
+
   it('joins and clears an active backward pagination', async () => {
     const timeline = makeTimeline([makeRoomEvent('$loaded')]);
     const initialTimeline: Timeline = {

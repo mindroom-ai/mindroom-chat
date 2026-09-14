@@ -110,8 +110,7 @@ describe('CINNY-207 P3.3 engine boundary architecture', () => {
   // CINNY-207 P5.1 Commit 2: `/relations` fetch boundary. The
   // engine-owned `fetchAllThreadRelations` helper is the ONLY page-
   // through-relations fetcher; the `mx.fetchRelations` boundary is
-  // reserved for the two limit-50 fallback SDK bootstraps in
-  // threadOpenSdkBootstrap.ts (documented allowlist below).
+  // reserved for the bounded SDK adapter used by the two fallback bootstraps.
   it('fetchAllThreadRelations is defined in engine/, and imported only within engine/**', () => {
     const files = mindroomTsFiles();
     const definers: string[] = [];
@@ -170,13 +169,7 @@ describe('CINNY-207 P3.3 engine boundary architecture', () => {
     expect(nonEngineImporters).toEqual([]);
   });
 
-  // CINNY-207 P5.1 Commit 2: `mx.fetchRelations` file-level allowlist.
-  // After Commit 2 the ONLY non-engine, non-receipts caller is
-  // `threadOpenSdkBootstrap.ts`, which retains exactly TWO limit-50
-  // fallback bootstraps for the SDK thread model. A third fetchRelations
-  // call in that file — or any new caller anywhere else in threads/ —
-  // trips this guard.
-  it('mx.fetchRelations in threads/ is limited to threadOpenSdkBootstrap.ts with exactly 2 occurrences', () => {
+  it('limits thread relation requests to one SDK adapter and two fallback call sites', () => {
     const threadsRoot = join(mindroomTreeRoot, 'threads');
     const files = walk(threadsRoot).filter(isProductionSourceFile);
     const perFileCounts: Record<string, number> = {};
@@ -186,10 +179,44 @@ describe('CINNY-207 P3.3 engine boundary architecture', () => {
       const matches = source.match(/mx\.fetchRelations\(/g) ?? [];
       if (matches.length > 0) perFileCounts[rel] = matches.length;
     }
-    // Exactly one file allowed; exactly two occurrences in that file.
     expect(perFileCounts).toEqual({
-      'threads/threadOpenSdkBootstrap.ts': 2,
+      'threads/sdk/threadBootstrapSdk.ts': 1,
     });
+    const callers: Record<string, number> = {};
+    for (const file of files) {
+      const rel = relative(mindroomTreeRoot, file).replace(/\\/g, '/');
+      if (rel === 'threads/sdk/threadBootstrapSdk.ts') continue;
+      const matches = readFileSync(file, 'utf8').match(/fetchThreadBootstrapRelations\(/g) ?? [];
+      if (matches.length > 0) callers[rel] = matches.length;
+    }
+    expect(callers).toEqual({ 'threads/threadOpenSdkBootstrap.ts': 2 });
+  });
+
+  it('keeps brittle timeline SDK mutations out of the previous controllers', () => {
+    for (const name of ['roomCacheHydrationController', 'roomPaginationCommandController']) {
+      const source = readFileSync(join(mindroomTreeRoot, 'threads', `${name}.ts`), 'utf8');
+      expect(source).not.toMatch(
+        /\.(?:addLiveEvents|addEventsToTimeline|partitionThreadedEvents|processAggregatedTimelineEvents|processThreadRoots)\(/
+      );
+      expect(source).not.toMatch(
+        /\b(?:hydrateCachedEvents|reconcileRelationEventsWithAggregation|decryptAllTimelineEvent)\(/
+      );
+    }
+    const source = readFileSync(
+      join(mindroomTreeRoot, 'threads/threadOpenSdkBootstrap.ts'),
+      'utf8'
+    );
+    expect(source).not.toMatch(/\.(?:createThread|addEvents|fetchRelations)\(/);
+    expect(source).not.toMatch(/\.(?:initialEventsFetched|replayEvents)\s*=/);
+  });
+
+  it('keeps the SDK compatibility modules free of UI and data-layer ownership', () => {
+    for (const name of ['roomTimelineSdk', 'threadBootstrapSdk']) {
+      const source = readFileSync(join(mindroomTreeRoot, 'threads/sdk', `${name}.ts`), 'utf8');
+      expect(source).not.toMatch(
+        /from\s+['"][^'"]*(?:react|jotai|Controller|cacheStore|eventRepository|cacheProbe|timelineDebug|engine)[^'"]*['"]/
+      );
+    }
   });
 });
 

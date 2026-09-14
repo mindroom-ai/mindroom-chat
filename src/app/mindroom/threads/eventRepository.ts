@@ -52,6 +52,8 @@ import {
 // entry points (single choke point). eventRepository is a serialization
 // seam only — it does NOT wrap the save with its own health gate or
 // catch. Callers still import from here and see the same return shape.
+export { resolveHydratedRoomBeforeToken } from './eventCacheTokenUtils';
+
 export {
   deleteRoomEventsFromCache,
   getRoomCursorAnchor,
@@ -489,11 +491,6 @@ export const getEarliestLoadedRoomEvent = (
   linkedTimelines: EventTimeline[]
 ): MatrixEvent | undefined =>
   findEarliestLoadedRoomEventByCacheOrder(getMainTimelineCacheEvents(room, linkedTimelines));
-
-export const resolveHydratedRoomBeforeToken = (
-  cachedBeforeToken: string | null | undefined,
-  paginationToken: string | null
-): string | null => (cachedBeforeToken !== undefined ? cachedBeforeToken : paginationToken);
 
 export const shouldHydrateLatestRoomCache = (
   loadedLatestEvent: MatrixEvent | undefined,
