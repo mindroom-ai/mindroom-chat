@@ -140,6 +140,7 @@ describe('CompactRoomView', () => {
       canToggle: true,
       setResolved: setResolvedMock,
       updating: false,
+      updatingThreadRootIds: new Set(),
       error: undefined,
     });
   });
@@ -258,27 +259,30 @@ describe('CompactRoomView', () => {
     expect(resolved.root.findAllByProps({ 'data-compact-thread-resolve': 'true' })).toHaveLength(0);
   });
 
-  it('disables the resolve action while a room tag update is pending', () => {
-    useCompactThreadCardViewModelsMock.mockReturnValue([makeViewModel('$thread-pending')]);
+  it('disables only the resolve action whose thread update is pending', () => {
+    useCompactThreadCardViewModelsMock.mockReturnValue([
+      makeViewModel('$thread-pending'),
+      makeViewModel('$thread-idle'),
+    ]);
     useToggleThreadResolutionMock.mockReturnValue({
       canToggle: true,
       setResolved: setResolvedMock,
       updating: true,
+      updatingThreadRootIds: new Set(['$thread-pending']),
       error: undefined,
     });
     const renderer = create(
       React.createElement(CompactRoomView, {
         room: makeRoom(),
-        threadRootIds: ['$thread-pending'],
+        threadRootIds: ['$thread-pending', '$thread-idle'],
         threadRecordMap: new Map(),
         onThreadClick: vi.fn(),
         compactRoomScrollStateRef: { current: new Map() },
       })
     );
 
-    expect(
-      renderer.root.findByProps({ 'data-compact-thread-resolve': 'true' }).props.disabled
-    ).toBe(true);
+    const actions = renderer.root.findAllByProps({ 'data-compact-thread-resolve': 'true' });
+    expect(actions.map((action) => action.props.disabled)).toEqual([true, false]);
   });
 
   it('reports a failed thread resolution mutation', () => {

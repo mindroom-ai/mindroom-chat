@@ -133,7 +133,7 @@ export const useRoomThreadResolutionMap = (room: Room): Map<string, ThreadResolu
 };
 
 export const useToggleThreadResolution = (room: Room) => {
-  const { setResolved, updating, error } = useMutateThreadTags(room);
+  const { setResolved, updating, updatingThreadRootIds, error } = useMutateThreadTags(room);
   const mx = useMatrixClient();
   const powerLevels = usePowerLevels(room);
   const creators = useRoomCreators(room);
@@ -144,6 +144,7 @@ export const useToggleThreadResolution = (room: Room) => {
     canToggle,
     setResolved,
     updating,
+    updatingThreadRootIds,
     error: error ?? undefined,
   };
 };
