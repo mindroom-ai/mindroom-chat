@@ -15,6 +15,7 @@
 - Full Vitest on current dev with Node 24.13.1: 3,802 of 3,805 tests pass; only the three existing Xcode Cloud shell-fixture failures remain on this Nix host.
 - Scope: removes one reproduced network dependency from cached startup.
   Encryption initialization and local database replay still precede the chat view, and physical-device startup timing remains unverified.
+- Next: the iOS release tester should measure cold-launch and background/resume timings on a physical iPhone, recording encryption initialization, local database replay, and chat-view readiness.
 
 ### Finish history loading on first thread open (2026-09-14)
 
