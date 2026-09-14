@@ -28,7 +28,7 @@ export function SidebarNav({
   onPageNavSelect,
 }: {
   footer?: ReactNode;
-  onPageNavSelect?: () => void;
+  onPageNavSelect?: (selected: boolean) => boolean;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const { sidebar } = useClientConfig();

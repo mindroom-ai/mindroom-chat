@@ -68,7 +68,6 @@ import { VirtualTile } from '../../../components/virtualizer';
 import { RoomNavCategoryButton } from '../../../features/room-nav';
 import { makeNavCategoryId } from '../../../state/closedNavCategories';
 import { useCategoryHandler } from '../../../hooks/useCategoryHandler';
-import { useNavToActivePathMapper } from '../../../hooks/useNavToActivePathMapper';
 import { useRoomName } from '../../../hooks/useRoomMeta';
 import {
   HierarchyItem,
@@ -447,7 +446,6 @@ export function SpaceTombstone({ roomId, replacementRoomId }: SpaceTombstoneProp
 export function Space() {
   const mx = useMatrixClient();
   const space = useSpace();
-  useNavToActivePathMapper(space.roomId);
   const spaceIdOrAlias = getCanonicalAliasOrRoomId(mx, space.roomId);
   const scrollRef = useRef<HTMLDivElement>(null);
   const mDirects = useAtomValue(mDirectAtom);

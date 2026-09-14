@@ -43,7 +43,7 @@ import { setAfterLoginRedirectPath } from './afterLoginRedirectPath';
 import { Lobby } from '../features/lobby';
 import { WelcomePage } from './client/WelcomePage';
 import { ScreenSize } from '../hooks/useScreenSize';
-import { MobileFriendlyPageNav } from './MobileFriendly';
+import { MindroomPageNav } from '../mindroom/sidebar/ResizablePageNav';
 import { ClientInitStorageAtom } from './client/ClientInitStorageAtom';
 import { ClientNonUIFeatures } from './client/ClientNonUIFeatures';
 import { AuthRouteThemeManager, UnAuthRouteThemeManager } from './ThemeManager';
@@ -70,6 +70,7 @@ import {
 } from './routeSessionGuards';
 import {
   MindroomPageRoot,
+  MindroomSpacePageRoot,
   MindroomSidebarNav,
   MindroomNavigationProvider,
 } from '../mindroom/sidebar/MindroomNavigation';
@@ -159,10 +160,11 @@ export const createRouter = (clientConfig: ClientConfig, screenSize: ScreenSize)
           path={HOME_PATH}
           element={
             <MindroomPageRoot
+              navId="home"
               nav={
-                <MobileFriendlyPageNav path={HOME_PATH}>
+                <MindroomPageNav path={HOME_PATH}>
                   <Home />
-                </MobileFriendlyPageNav>
+                </MindroomPageNav>
               }
             >
               <Outlet />
@@ -186,10 +188,11 @@ export const createRouter = (clientConfig: ClientConfig, screenSize: ScreenSize)
           path={DIRECT_PATH}
           element={
             <MindroomPageRoot
+              navId="direct"
               nav={
-                <MobileFriendlyPageNav path={DIRECT_PATH}>
+                <MindroomPageNav path={DIRECT_PATH}>
                   <Direct />
-                </MobileFriendlyPageNav>
+                </MindroomPageNav>
               }
             >
               <Outlet />
@@ -212,15 +215,15 @@ export const createRouter = (clientConfig: ClientConfig, screenSize: ScreenSize)
           path={SPACE_PATH}
           element={
             <RouteSpaceProvider>
-              <MindroomPageRoot
+              <MindroomSpacePageRoot
                 nav={
-                  <MobileFriendlyPageNav path={SPACE_PATH}>
+                  <MindroomPageNav path={SPACE_PATH}>
                     <Space />
-                  </MobileFriendlyPageNav>
+                  </MindroomPageNav>
                 }
               >
                 <Outlet />
-              </MindroomPageRoot>
+              </MindroomSpacePageRoot>
             </RouteSpaceProvider>
           }
         >
@@ -253,9 +256,9 @@ export const createRouter = (clientConfig: ClientConfig, screenSize: ScreenSize)
           element={
             <MindroomPageRoot
               nav={
-                <MobileFriendlyPageNav path={EXPLORE_PATH}>
+                <MindroomPageNav path={EXPLORE_PATH}>
                   <Explore />
-                </MobileFriendlyPageNav>
+                </MindroomPageNav>
               }
             >
               <Outlet />
@@ -278,9 +281,9 @@ export const createRouter = (clientConfig: ClientConfig, screenSize: ScreenSize)
           element={
             <MindroomPageRoot
               nav={
-                <MobileFriendlyPageNav path={INBOX_PATH}>
+                <MindroomPageNav path={INBOX_PATH}>
                   <Inbox />
-                </MobileFriendlyPageNav>
+                </MindroomPageNav>
               }
             >
               <Outlet />

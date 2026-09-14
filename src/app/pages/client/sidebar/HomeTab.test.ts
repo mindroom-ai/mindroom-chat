@@ -2,6 +2,13 @@ import React from 'react';
 import { act, create } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { HomeTab } from './HomeTab';
+import { ScreenSize } from '../../../hooks/useScreenSize';
+
+const state = vi.hoisted(() => ({ selected: false, mobile: false }));
+vi.mock('../../../hooks/useScreenSize', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../../hooks/useScreenSize')>()),
+  useScreenSizeContext: () => (state.mobile ? ScreenSize.Mobile : ScreenSize.Desktop),
+}));
 
 const { navigate, navToActivePathAtom, mDirectAtomToken, roomToParentsAtomToken } = vi.hoisted(
   () => ({
@@ -117,11 +124,12 @@ vi.mock('../../../state/hooks/unread', () => ({
 vi.mock('../../../components/sidebar', () => ({
   SidebarItem: ({ children }: { children: React.ReactNode }) =>
     React.createElement('div', null, children),
-  SidebarItemTooltip: ({
-    children,
-  }: {
-    children: (triggerRef: () => void) => React.ReactNode;
-  }) => React.createElement('div', null, children(() => undefined)),
+  SidebarItemTooltip: ({ children }: { children: (triggerRef: () => void) => React.ReactNode }) =>
+    React.createElement(
+      'div',
+      null,
+      children(() => undefined)
+    ),
   SidebarItemBadge: ({ children }: { children: React.ReactNode }) =>
     React.createElement('div', null, children),
   SidebarAvatar: React.forwardRef<
@@ -135,7 +143,7 @@ vi.mock('../../../components/sidebar', () => ({
 }));
 
 vi.mock('../../../hooks/router/useHomeSelected', () => ({
-  useHomeSelected: () => false,
+  useHomeSelected: () => state.selected,
 }));
 
 vi.mock('../../../components/unread-badge', () => ({
@@ -169,6 +177,8 @@ vi.mock('../../../state/settings', () => ({
 describe('HomeTab', () => {
   afterEach(() => {
     navigate.mockReset();
+    state.selected = false;
+    state.mobile = false;
   });
 
   it('restores the saved home path when the home tab is clicked', async () => {
@@ -180,4 +190,25 @@ describe('HomeTab', () => {
 
     expect(navigate).toHaveBeenCalledWith('/home/%23room%3Amindroom.chat?threadId=%24thread');
   });
+
+  it('preserves the current route when the navigation panel handles the click', () => {
+    const renderer = create(React.createElement(HomeTab, { onSelect: () => true }));
+    act(() => renderer.root.findByType('button').props.onClick());
+    expect(navigate).not.toHaveBeenCalled();
+    act(() => renderer.unmount());
+  });
+
+  it.each([false, true])(
+    'shows the home list on mobile unless already selected: %s',
+    (selected) => {
+      state.mobile = true;
+      state.selected = selected;
+      const renderer = create(React.createElement(HomeTab));
+      act(() => renderer.root.findByType('button').props.onClick());
+      expect(navigate).toHaveBeenCalledWith(
+        selected ? '/home/%23room%3Amindroom.chat?threadId=%24thread' : '/home/'
+      );
+      act(() => renderer.unmount());
+    }
+  );
 });

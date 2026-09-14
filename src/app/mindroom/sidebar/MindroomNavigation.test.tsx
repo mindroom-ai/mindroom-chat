@@ -13,6 +13,8 @@ const COLLAPSE_LABEL = 'Collapse navigation panel';
 const EXPAND_LABEL = 'Expand navigation panel';
 const storageState = new Map<string, string>();
 
+vi.mock('../../hooks/useNavToActivePathMapper', () => ({ useNavToActivePathMapper: vi.fn() }));
+
 vi.mock('folds', () => ({
   Icon: ({ src }: { src: string }) => React.createElement('span', { 'data-icon-src': src }),
   Icons: {
@@ -64,12 +66,19 @@ vi.mock('../../pages/client/SidebarNav', () => ({
     onPageNavSelect,
   }: {
     footer?: React.ReactNode;
-    onPageNavSelect?: () => void;
+    onPageNavSelect?: (selected: boolean) => boolean;
   }) =>
     React.createElement(
       'nav',
       { 'data-testid': 'sidebar-rail' },
-      React.createElement('button', { 'aria-label': 'Select section', onClick: onPageNavSelect }),
+      React.createElement('button', {
+        'aria-label': 'Select section',
+        onClick: () => onPageNavSelect?.(false),
+      }),
+      React.createElement('button', {
+        'aria-label': 'Select current section',
+        onClick: () => onPageNavSelect?.(true),
+      }),
       footer
     ),
 }));
@@ -173,6 +182,22 @@ describe('MindroomNavigation', () => {
 
     expectNavigationState(renderer, false);
 
+    act(() => renderer.unmount());
+  });
+
+  it.each([751, 1280])('toggles the current section without navigating at %i px', (width) => {
+    const renderer = renderNavigation(width);
+    let handled: boolean | undefined;
+    act(() => {
+      handled = findButtons(renderer, 'Select current section')[0].props.onClick();
+    });
+    expect(handled).toBe(true);
+    expectNavigationState(renderer, true);
+    act(() => {
+      handled = findButtons(renderer, 'Select current section')[0].props.onClick();
+    });
+    expect(handled).toBe(true);
+    expectNavigationState(renderer, false);
     act(() => renderer.unmount());
   });
 
