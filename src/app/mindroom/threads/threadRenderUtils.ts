@@ -325,32 +325,16 @@ export const isDiscardedSettleWrite = ({
   );
 };
 
-// Per-row virtualizer estimates from event CONTENT. Thread rows are
-// bimodal — one-liners (~80px) and fold-capped long messages (~150px,
-// CollapsibleMessage caps content at 4.5em ≈ 3 lines) — so any single
-// learned mean is wrong by hundreds of px for every row, and each
-// measurement then shrinks/grows scrollHeight by that error mid-scroll
-// (the −64/−688 quanta the ios-momentum-invariants e2e traced; a big
-// shrink lets the browser clamp a scrolled-up reader back to the bottom).
-// A content heuristic is deterministic, stateless, and per-row-shaped:
-// the residual error drops to tens of px and needs no adoption machinery.
-// CALIBRATED against measured virtualizer tile heights (2026-07-07;
-// device trace ride-trace-1783391256452 measured the previous constants
-// at +50..72px PER ROW for every class — px=-9356 of ledger debt over
-// one ride): one-line row measures 30 (base 10 + line 20), folded long
-// measures 80 (base + 3 lines + banner 10), extras with 2 sections
-// measures 596 (base + 25 wrapped lines + 2 headers = 590). Tile rects
-// exclude inter-row margins, which is exactly what the virtualizer
-// caches. Bias preference: when in doubt, estimate slightly UNDER —
-// grow-debt (negative margin) sits at the bottom boundary where the
-// browser clamp and the boundary guard degrade gracefully, while
-// over-estimates pile blank space at the top the reader scrolls into.
+// Estimate from each message's content rather than a shared average: short
+// messages and folded long messages have substantially different heights.
+// The base and line sizes were calibrated against measured virtualizer tiles;
+// the fold budget tracks CollapsibleMessage's preview with an overlaid control.
+// Tile rectangles exclude inter-row margins, as does the virtualizer cache.
 const THREAD_ROW_BASE_PX = 10;
 const THREAD_ROW_BASE_COMPACT_PX = 6;
 const THREAD_ROW_LINE_PX = 20;
-const THREAD_ROW_FOLD_BANNER_PX = 10;
-// CollapsibleMessage caps collapsed content at 4.5em ≈ 3 text lines.
-const THREAD_ROW_FOLD_CONTENT_LINES = 3;
+// CollapsibleMessage previews 11em; its collapsed control adds no row height.
+const THREAD_ROW_FOLD_CONTENT_LINES = 9;
 const THREAD_ROW_WRAP_CHARS_PER_LINE = 48;
 // Always-expanded rows render their whole body; the estimate is line-based
 // and bounded (a pathological body should not produce a megapixel row).
@@ -406,7 +390,7 @@ export const estimateThreadEventRowHeight = (
   }
   const lines = estimateBodyLines(body);
   if (lines > THREAD_ROW_FOLD_CONTENT_LINES) {
-    return base + THREAD_ROW_FOLD_CONTENT_LINES * THREAD_ROW_LINE_PX + THREAD_ROW_FOLD_BANNER_PX;
+    return base + THREAD_ROW_FOLD_CONTENT_LINES * THREAD_ROW_LINE_PX;
   }
   return base + lines * THREAD_ROW_LINE_PX;
 };

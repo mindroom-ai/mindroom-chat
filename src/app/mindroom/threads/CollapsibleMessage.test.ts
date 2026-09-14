@@ -3,9 +3,9 @@ import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('./CollapsibleMessage.css', () => ({
+  CollapsibleContainer: 'collapsible-container',
   CollapsibleContent: () => 'collapsible-content',
-  CollapsibleGradientOverlay: 'collapsible-gradient-overlay',
-  CollapsibleShowMore: 'collapsible-show-more',
+  CollapsibleFooter: 'collapsible-footer',
   CollapsibleStickyFooter: 'collapsible-sticky-footer',
   CollapsiblePill: 'collapsible-pill',
 }));
@@ -20,7 +20,6 @@ import {
 } from './CollapsibleMessage';
 
 type MockContentElement = Pick<HTMLDivElement, 'clientHeight' | 'scrollHeight'>;
-type MockGradientElement = { focus: ReturnType<typeof vi.fn> };
 
 let resizeObserverConstructed: ReturnType<typeof vi.fn>;
 let intersectionObserverConstructed: ReturnType<typeof vi.fn>;
@@ -57,11 +56,15 @@ const getContentContainer = (renderer: ReactTestRenderer) =>
       node.props.className.startsWith('collapsible-content')
   );
 
-const getExpandZone = (renderer: ReactTestRenderer) =>
-  renderer.root.find((node) => node.type === 'div' && node.props.role === 'button');
+const getExpandButton = (renderer: ReactTestRenderer) =>
+  renderer.root.find(
+    (node) => node.type === 'button' && node.props['aria-label'] === 'Show full message'
+  );
 
-const findExpandZones = (renderer: ReactTestRenderer) =>
-  renderer.root.findAll((node) => node.type === 'div' && node.props.role === 'button');
+const findExpandButtons = (renderer: ReactTestRenderer) =>
+  renderer.root.findAll(
+    (node) => node.type === 'button' && node.props['aria-label'] === 'Show full message'
+  );
 
 const getCloseButton = (renderer: ReactTestRenderer) =>
   renderer.root.find((node) => node.type === 'button' && node.props['aria-label'] === 'Show less');
@@ -71,21 +74,12 @@ const findCloseButtons = (renderer: ReactTestRenderer) =>
     (node) => node.type === 'button' && node.props['aria-label'] === 'Show less'
   );
 
-const findGradientOverlays = (renderer: ReactTestRenderer) =>
-  renderer.root.findAll(
-    (node) =>
-      node.type === 'div' &&
-      typeof node.props.className === 'string' &&
-      node.props.className === 'collapsible-gradient-overlay'
-  );
-
 const renderCollapsibleMessage = (
   props: Omit<React.ComponentProps<typeof CollapsibleMessage>, 'children'>,
   contentElement: MockContentElement = {
     clientHeight: 72,
-    scrollHeight: 160,
+    scrollHeight: 320,
   },
-  gradientElement: MockGradientElement = { focus: vi.fn() },
   children: React.ReactNode = React.createElement('span', undefined, 'message'),
   expandAllInit: boolean | undefined = undefined,
   manualExpansionState: Map<string, boolean> | undefined = undefined
@@ -119,14 +113,6 @@ const renderCollapsibleMessage = (
           return contentElement;
         }
 
-        if (
-          element.type === 'div' &&
-          element.props.role === 'button' &&
-          element.props['aria-label'] === 'Show more'
-        ) {
-          return gradientElement;
-        }
-
         return null;
       },
     });
@@ -141,7 +127,7 @@ const createMeasuredContentElement = () => {
     clientHeight: 72,
     get scrollHeight() {
       scrollHeightReads += 1;
-      return 160;
+      return 320;
     },
   };
 
@@ -169,8 +155,7 @@ describe('CollapsibleMessage', () => {
     const states: boolean[] = [];
     const renderer = renderCollapsibleMessage(
       { collapseMode: 'default' },
-      { clientHeight: 72, scrollHeight: 160 },
-      { focus: vi.fn() },
+      { clientHeight: 72, scrollHeight: 320 },
       ({ expanded }: { expanded: boolean }) => {
         states.push(expanded);
         return React.createElement('span', undefined, expanded ? 'expanded' : 'collapsed');
@@ -180,7 +165,7 @@ describe('CollapsibleMessage', () => {
     expect(states[states.length - 1]).toBe(false);
 
     act(() => {
-      getExpandZone(renderer).props.onClick();
+      getExpandButton(renderer).props.onClick();
     });
 
     expect(states[states.length - 1]).toBe(true);
@@ -195,8 +180,7 @@ describe('CollapsibleMessage', () => {
     const states: Array<{ expanded: boolean; loadFullContent: boolean }> = [];
     const renderer = renderCollapsibleMessage(
       { collapseMode: 'default', forceOverflowing: true },
-      { clientHeight: 72, scrollHeight: 160 },
-      { focus: vi.fn() },
+      { clientHeight: 72, scrollHeight: 320 },
       (state: { expanded: boolean; loadFullContent: boolean }) => {
         states.push(state);
         return React.createElement('span', undefined, 'message');
@@ -234,7 +218,7 @@ describe('CollapsibleMessage', () => {
       { clientHeight: 72, scrollHeight: 24 }
     );
 
-    expect(findExpandZones(renderer)).toHaveLength(1);
+    expect(findExpandButtons(renderer)).toHaveLength(1);
     expect(resizeObserverConstructed).not.toHaveBeenCalled();
     expect(intersectionObserverConstructed).not.toHaveBeenCalled();
 
@@ -243,16 +227,16 @@ describe('CollapsibleMessage', () => {
     });
   });
 
-  it('starts collapsed in default mode with gradient expand zone when overflowing', () => {
+  it('starts collapsed in default mode with expand button when overflowing', () => {
     const renderer = renderCollapsibleMessage({ collapseMode: 'default' });
     const content = getContentContainer(renderer);
-    const expandZone = getExpandZone(renderer);
+    const expandButton = getExpandButton(renderer);
 
-    expect(content.props.style.maxHeight).toBe('4.5em');
+    expect(content.props.style.maxHeight).toBe('11em');
     expect(content.props.style.overflow).toBe('hidden');
     expect(content.props['aria-expanded']).toBe(false);
     expect(content.props.role).toBeUndefined();
-    expect(expandZone.props['aria-label']).toBe('Show more');
+    expect(expandButton.props['aria-label']).toBe('Show full message');
     expect(resizeObserverConstructed).toHaveBeenCalledTimes(1);
     expect(findCloseButtons(renderer)).toHaveLength(0);
 
@@ -270,7 +254,7 @@ describe('CollapsibleMessage', () => {
     expect(content.props.role).toBeUndefined();
     expect(content.props['aria-expanded']).toBeUndefined();
     expect(findCloseButtons(renderer)).toHaveLength(0);
-    expect(findExpandZones(renderer)).toHaveLength(0);
+    expect(findExpandButtons(renderer)).toHaveLength(0);
     expect(resizeObserverConstructed).not.toHaveBeenCalled();
 
     act(() => {
@@ -317,10 +301,10 @@ describe('CollapsibleMessage', () => {
     });
 
     const content = getContentContainer(renderer);
-    expect(content.props.style.maxHeight).toBe('4.5em');
+    expect(content.props.style.maxHeight).toBe('11em');
     expect(content.props.style.overflow).toBe('hidden');
     expect(content.props['aria-expanded']).toBe(false);
-    expect(getExpandZone(renderer).props['aria-label']).toBe('Show more');
+    expect(getExpandButton(renderer).props['aria-label']).toBe('Show full message');
 
     act(() => {
       renderer.unmount();
@@ -334,7 +318,7 @@ describe('CollapsibleMessage', () => {
       onInitialExpandConsumed,
     });
 
-    expect(getContentContainer(renderer).props.style.maxHeight).toBe('4.5em');
+    expect(getContentContainer(renderer).props.style.maxHeight).toBe('11em');
 
     act(() => {
       renderer.update(
@@ -358,12 +342,12 @@ describe('CollapsibleMessage', () => {
     });
   });
 
-  it('expands when gradient overlay is clicked', () => {
+  it('expands when expand button is clicked', () => {
     const renderer = renderCollapsibleMessage({ collapseMode: 'default' });
-    const expandZone = getExpandZone(renderer);
+    const expandButton = getExpandButton(renderer);
 
     act(() => {
-      expandZone.props.onClick();
+      expandButton.props.onClick();
     });
 
     const content = getContentContainer(renderer);
@@ -380,7 +364,7 @@ describe('CollapsibleMessage', () => {
     const renderer = renderCollapsibleMessage({ collapseMode: 'default' });
 
     act(() => {
-      getExpandZone(renderer).props.onClick();
+      getExpandButton(renderer).props.onClick();
     });
 
     const closeButton = getCloseButton(renderer);
@@ -391,7 +375,7 @@ describe('CollapsibleMessage', () => {
     });
 
     const content = getContentContainer(renderer);
-    expect(content.props.style.maxHeight).toBe('4.5em');
+    expect(content.props.style.maxHeight).toBe('11em');
     expect(content.props.style.overflow).toBe('hidden');
     expect(content.props['aria-expanded']).toBe(false);
 
@@ -414,100 +398,16 @@ describe('CollapsibleMessage', () => {
     });
   });
 
-  it('expands on Enter key press on gradient', () => {
-    const renderer = renderCollapsibleMessage({ collapseMode: 'default' });
-    const expandZone = getExpandZone(renderer);
-
-    act(() => {
-      expandZone.props.onKeyDown({
-        key: 'Enter',
-        preventDefault: vi.fn(),
-      });
-    });
-
-    expect(getContentContainer(renderer).props.style.maxHeight).toBeUndefined();
-    expect(getContentContainer(renderer).props['aria-expanded']).toBe(true);
-
-    act(() => {
-      renderer.unmount();
-    });
-  });
-
-  it('expands on Space key press on gradient', () => {
-    const renderer = renderCollapsibleMessage({ collapseMode: 'default' });
-    const expandZone = getExpandZone(renderer);
-
-    act(() => {
-      expandZone.props.onKeyDown({
-        key: ' ',
-        preventDefault: vi.fn(),
-      });
-    });
-
-    expect(getContentContainer(renderer).props.style.maxHeight).toBeUndefined();
-
-    act(() => {
-      renderer.unmount();
-    });
-  });
-
-  it('collapses on Enter key press on close button', () => {
-    const renderer = renderCollapsibleMessage({ collapseMode: 'default' });
-
-    act(() => {
-      getExpandZone(renderer).props.onClick();
-    });
-
-    const closeButton = getCloseButton(renderer);
-    act(() => {
-      closeButton.props.onKeyDown({
-        key: 'Enter',
-        preventDefault: vi.fn(),
-        stopPropagation: vi.fn(),
-      });
-    });
-
-    expect(getContentContainer(renderer).props.style.maxHeight).toBe('4.5em');
-
-    act(() => {
-      renderer.unmount();
-    });
-  });
-
-  it('collapses on Space key press on close button', () => {
-    const renderer = renderCollapsibleMessage({ collapseMode: 'default' });
-
-    act(() => {
-      getExpandZone(renderer).props.onClick();
-    });
-
-    const closeButton = getCloseButton(renderer);
-    act(() => {
-      closeButton.props.onKeyDown({
-        key: ' ',
-        preventDefault: vi.fn(),
-        stopPropagation: vi.fn(),
-      });
-    });
-
-    expect(getContentContainer(renderer).props.style.maxHeight).toBe('4.5em');
-
-    act(() => {
-      renderer.unmount();
-    });
-  });
-
-  it('non-overflowing content shows no expand controls, gradient, or close button', () => {
+  it('non-overflowing content shows no expand or collapse button', () => {
     const renderer = renderCollapsibleMessage(
       { collapseMode: 'default' },
       { clientHeight: 40, scrollHeight: 40 }
     );
 
     const content = getContentContainer(renderer);
-    expect(content.props.style.maxHeight).toBe('4.5em');
+    expect(content.props.style.maxHeight).toBe('11em');
     expect(content.props['aria-expanded']).toBe(false);
-    expect(findExpandZones(renderer)).toHaveLength(0);
-    expect(findGradientOverlays(renderer)).toHaveLength(0);
+    expect(findExpandButtons(renderer)).toHaveLength(0);
     expect(findCloseButtons(renderer)).toHaveLength(0);
 
     act(() => {
@@ -518,7 +418,7 @@ describe('CollapsibleMessage', () => {
   it('expandAllMessages expands collapsed content', () => {
     const renderer = renderCollapsibleMessage({ collapseMode: 'default' });
 
-    expect(getContentContainer(renderer).props.style.maxHeight).toBe('4.5em');
+    expect(getContentContainer(renderer).props.style.maxHeight).toBe('11em');
     expect(getContentContainer(renderer).props['aria-expanded']).toBe(false);
 
     act(() => {
@@ -535,31 +435,6 @@ describe('CollapsibleMessage', () => {
     });
   });
 
-  it('moves focus to gradient after collapse', () => {
-    const gradientMock = { focus: vi.fn() };
-    const renderer = renderCollapsibleMessage(
-      { collapseMode: 'default' },
-      { clientHeight: 72, scrollHeight: 160 },
-      gradientMock
-    );
-
-    // Expand via gradient click
-    act(() => {
-      getExpandZone(renderer).props.onClick();
-    });
-
-    // Collapse via close button
-    act(() => {
-      getCloseButton(renderer).props.onClick({ stopPropagation: vi.fn() });
-    });
-
-    expect(gradientMock.focus).toHaveBeenCalled();
-
-    act(() => {
-      renderer.unmount();
-    });
-  });
-
   it('preserves overflowing=true when scrollHeight is 0 (off-screen element)', () => {
     const renderer = renderCollapsibleMessage(
       { collapseMode: 'default' },
@@ -567,12 +442,12 @@ describe('CollapsibleMessage', () => {
     );
 
     // overflowing defaults to true; scrollHeight=0 guard prevents checkOverflow
-    // from setting it to false, so gradient is shown
+    // from setting it to false, so expand button is shown
     const content = getContentContainer(renderer);
-    expect(content.props.style.maxHeight).toBe('4.5em');
+    expect(content.props.style.maxHeight).toBe('11em');
     expect(content.props.style.overflow).toBe('hidden');
-    expect(findExpandZones(renderer)).toHaveLength(1);
-    expect(getExpandZone(renderer).props['aria-label']).toBe('Show more');
+    expect(findExpandButtons(renderer)).toHaveLength(1);
+    expect(getExpandButton(renderer).props['aria-label']).toBe('Show full message');
 
     act(() => {
       renderer.unmount();
@@ -584,12 +459,12 @@ describe('CollapsibleMessage', () => {
     const contentElement = { clientHeight: 0, scrollHeight: 0 };
     const renderer = renderCollapsibleMessage({ collapseMode: 'default' }, contentElement);
 
-    // Gradient is shown (overflowing defaults to true, scrollHeight=0 guard preserves it)
-    expect(findExpandZones(renderer)).toHaveLength(1);
+    // Expand button is shown (overflowing defaults to true, scrollHeight=0 guard preserves it)
+    expect(findExpandButtons(renderer)).toHaveLength(1);
     expect(intersectionObserverConstructed).toHaveBeenCalled();
 
     // Simulate element entering viewport with real dimensions
-    contentElement.scrollHeight = 160;
+    contentElement.scrollHeight = 320;
     contentElement.clientHeight = 72;
     act(() => {
       lastIntersectionCallback!(
@@ -598,9 +473,9 @@ describe('CollapsibleMessage', () => {
       );
     });
 
-    // Overflow confirmed — gradient still shown
-    expect(findExpandZones(renderer)).toHaveLength(1);
-    expect(getContentContainer(renderer).props.style.maxHeight).toBe('4.5em');
+    // Overflow confirmed — expand button still shown
+    expect(findExpandButtons(renderer)).toHaveLength(1);
+    expect(getContentContainer(renderer).props.style.maxHeight).toBe('11em');
 
     act(() => {
       renderer.unmount();
@@ -612,7 +487,7 @@ describe('CollapsibleMessage', () => {
     const contentElement = { clientHeight: 0, scrollHeight: 0 };
     const renderer = renderCollapsibleMessage({ collapseMode: 'default' }, contentElement);
 
-    expect(findExpandZones(renderer)).toHaveLength(1);
+    expect(findExpandButtons(renderer)).toHaveLength(1);
 
     // Simulate element entering viewport — content is short, doesn't overflow
     contentElement.scrollHeight = 40;
@@ -624,9 +499,8 @@ describe('CollapsibleMessage', () => {
       );
     });
 
-    // No overflow — gradient removed
-    expect(findExpandZones(renderer)).toHaveLength(0);
-    expect(findGradientOverlays(renderer)).toHaveLength(0);
+    // No overflow — expand button removed
+    expect(findExpandButtons(renderer)).toHaveLength(0);
     expect(findCloseButtons(renderer)).toHaveLength(0);
 
     act(() => {
@@ -707,46 +581,27 @@ describe('CollapsibleMessage', () => {
     });
   });
 
-  it('collapsed gradient renders a non-interactive Show more pill child', () => {
+  it('keeps the disclosure button outside clipped content and exposes its state', () => {
     const renderer = renderCollapsibleMessage({ collapseMode: 'default' });
-    const expandZone = getExpandZone(renderer);
-
-    // The gradient remains the single tab stop.
-    expect(expandZone.props.tabIndex).toBe(0);
-    expect(expandZone.props.role).toBe('button');
-
-    // The pill child labels the action with "Show more" text.
-    const pill = renderer.root.find(
-      (node) => node.type === 'span' && node.props.className === 'collapsible-show-more'
-    );
-    const pillTextNode = pill.find(
-      (node) =>
-        node.type === 'span' &&
-        typeof node.children?.[0] === 'string' &&
-        node.children[0] === 'Show more'
-    );
-    expect(pillTextNode).toBeDefined();
-
-    // The pill child must not be a button or a second tab stop.
-    expect(pill.type).not.toBe('button');
-    const buttonsInsideGradient = expandZone.findAll(
-      (node) => node.type === 'button' || node.props.role === 'button',
-      { deep: true }
-    );
-    // Only the outer gradient itself qualifies, so no extra interactive descendants.
-    const nestedInteractive = buttonsInsideGradient.filter((node) => node !== expandZone);
-    expect(nestedInteractive).toHaveLength(0);
-
-    act(() => {
-      renderer.unmount();
-    });
+    const content = getContentContainer(renderer);
+    const button = getExpandButton(renderer);
+    expect(button.props.type).toBe('button');
+    expect(button.props['aria-expanded']).toBe(false);
+    expect(button.props['aria-controls']).toBe(content.props.id);
+    expect(content.findAllByType('button')).toHaveLength(0);
+    act(() => button.props.onClick());
+    const close = getCloseButton(renderer);
+    expect(close.props['aria-expanded']).toBe(true);
+    expect(close.props['aria-controls']).toBe(content.props.id);
+    expect(content.findAllByType('button')).toHaveLength(0);
+    act(() => renderer.unmount());
   });
 
   it('expanded close control renders a sticky footer wrapper containing a Show less pill', () => {
     const renderer = renderCollapsibleMessage({ collapseMode: 'default' });
 
     act(() => {
-      getExpandZone(renderer).props.onClick();
+      getExpandButton(renderer).props.onClick();
     });
 
     const closeButton = getCloseButton(renderer);
@@ -793,7 +648,6 @@ describe('CollapsibleMessage', () => {
       { collapseMode: 'default' },
       undefined,
       undefined,
-      undefined,
       true
     );
     const content = getContentContainer(renderer);
@@ -808,7 +662,7 @@ describe('CollapsibleMessage', () => {
   });
 
   it('updates an unmodified message when the default expansion baseline changes', () => {
-    const contentElement = { clientHeight: 72, scrollHeight: 160 };
+    const contentElement = { clientHeight: 72, scrollHeight: 320 };
     const renderWithBaseline = (expanded: boolean) =>
       React.createElement(
         ExpandAllInitContext.Provider,
@@ -852,12 +706,11 @@ describe('CollapsibleMessage', () => {
       { collapseMode: 'default' },
       undefined,
       undefined,
-      undefined,
       false
     );
     const content = getContentContainer(renderer);
 
-    expect(content.props.style.maxHeight).toBe('4.5em');
+    expect(content.props.style.maxHeight).toBe('11em');
     expect(content.props['aria-expanded']).toBe(false);
 
     act(() => {
@@ -870,12 +723,11 @@ describe('CollapsibleMessage', () => {
       { collapseMode: 'default' },
       undefined,
       undefined,
-      undefined,
       undefined
     );
     const content = getContentContainer(renderer);
 
-    expect(content.props.style.maxHeight).toBe('4.5em');
+    expect(content.props.style.maxHeight).toBe('11em');
     expect(content.props['aria-expanded']).toBe(false);
 
     act(() => {
@@ -895,7 +747,6 @@ describe('CollapsibleMessage', () => {
         onInitialExpandConsumed,
       },
       undefined,
-      undefined,
       ({ expanded }: { expanded: boolean }) => {
         renderedStates.push(expanded);
         return React.createElement('span', undefined, 'message');
@@ -912,13 +763,11 @@ describe('CollapsibleMessage', () => {
     });
   });
 
-  it('does not render the sticky footer when collapsed or for always-expanded mode', () => {
+  it('renders the disclosure footer when collapsed but not for always-expanded mode', () => {
     const collapsedRenderer = renderCollapsibleMessage({ collapseMode: 'default' });
     expect(
-      collapsedRenderer.root.findAll(
-        (node) => node.props?.className === 'collapsible-sticky-footer'
-      )
-    ).toHaveLength(0);
+      collapsedRenderer.root.findAll((node) => node.props?.className === 'collapsible-footer')
+    ).toHaveLength(1);
     act(() => {
       collapsedRenderer.unmount();
     });
@@ -942,10 +791,10 @@ describe('CollapsibleMessage', () => {
     const shortContent = { clientHeight: 40, scrollHeight: 40 };
     const key = `verdict-cache-${Date.now()}`;
 
-    // First encounter: initial guess is overflowing (gradient shown),
+    // First encounter: initial guess is overflowing (expand button shown),
     // layout measurement corrects to non-overflowing.
     const first = renderCollapsibleMessage({ measurementKey: key }, shortContent);
-    expect(findExpandZones(first)).toHaveLength(0);
+    expect(findExpandButtons(first)).toHaveLength(0);
     act(() => {
       first.unmount();
     });
@@ -957,8 +806,7 @@ describe('CollapsibleMessage', () => {
     // decide).
     const unmeasured = { clientHeight: 0, scrollHeight: 0 };
     const second = renderCollapsibleMessage({ measurementKey: key }, unmeasured);
-    expect(findExpandZones(second)).toHaveLength(0);
-    expect(findGradientOverlays(second)).toHaveLength(0);
+    expect(findExpandButtons(second)).toHaveLength(0);
     act(() => {
       second.unmount();
     });
@@ -970,7 +818,7 @@ describe('CollapsibleMessage', () => {
 
     // Seed the cache with a non-overflowing verdict for this key.
     const first = renderCollapsibleMessage({ measurementKey: key }, shortContent);
-    expect(findExpandZones(first)).toHaveLength(0);
+    expect(findExpandButtons(first)).toHaveLength(0);
     act(() => {
       first.unmount();
     });
@@ -983,25 +831,25 @@ describe('CollapsibleMessage', () => {
       { measurementKey: key, forceOverflowing: true },
       unmeasured
     );
-    expect(findExpandZones(forced)).toHaveLength(1);
+    expect(findExpandButtons(forced)).toHaveLength(1);
     act(() => {
       forced.unmount();
     });
   });
 
   it('remounts with the remembered overflowing verdict as well', () => {
-    const longContent = { clientHeight: 72, scrollHeight: 160 };
+    const longContent = { clientHeight: 72, scrollHeight: 320 };
     const key = `verdict-cache-long-${Date.now()}`;
 
     const first = renderCollapsibleMessage({ measurementKey: key }, longContent);
-    expect(findExpandZones(first)).toHaveLength(1);
+    expect(findExpandButtons(first)).toHaveLength(1);
     act(() => {
       first.unmount();
     });
 
     const unmeasured = { clientHeight: 0, scrollHeight: 0 };
     const second = renderCollapsibleMessage({ measurementKey: key }, unmeasured);
-    expect(findExpandZones(second)).toHaveLength(1);
+    expect(findExpandButtons(second)).toHaveLength(1);
     act(() => {
       second.unmount();
     });
@@ -1019,12 +867,11 @@ describe('CollapsibleMessage', () => {
       undefined,
       undefined,
       undefined,
-      undefined,
       manualExpansionState
     );
 
     act(() => {
-      getExpandZone(first).props.onClick();
+      getExpandButton(first).props.onClick();
     });
     expect(getContentContainer(first).props['aria-expanded']).toBe(true);
     act(() => {
@@ -1038,7 +885,6 @@ describe('CollapsibleMessage', () => {
         measurementKey: '$manual-expansion|active|$edit-2|default',
       },
       { clientHeight: 0, scrollHeight: 0 },
-      undefined,
       undefined,
       undefined,
       manualExpansionState
@@ -1058,12 +904,11 @@ describe('CollapsibleMessage', () => {
       undefined,
       undefined,
       undefined,
-      undefined,
       manualExpansionState
     );
 
     act(() => {
-      getExpandZone(first).props.onClick();
+      getExpandButton(first).props.onClick();
     });
     act(() => {
       getCloseButton(first).props.onClick({ stopPropagation: vi.fn() });
@@ -1078,7 +923,6 @@ describe('CollapsibleMessage', () => {
       undefined,
       undefined,
       undefined,
-      undefined,
       manualExpansionState
     );
     expect(getContentContainer(sameMessage).props['aria-expanded']).toBe(false);
@@ -1089,7 +933,6 @@ describe('CollapsibleMessage', () => {
     rememberManualExpansionState(manualExpansionState, expansionKey, true);
     const otherMessage = renderCollapsibleMessage(
       { collapseMode: 'default', expansionKey: '$other-message' },
-      undefined,
       undefined,
       undefined,
       undefined,
@@ -1108,7 +951,6 @@ describe('CollapsibleMessage', () => {
       { collapseMode: 'default', expansionKey },
       undefined,
       undefined,
-      undefined,
       false,
       manualExpansionState
     );
@@ -1120,7 +962,6 @@ describe('CollapsibleMessage', () => {
     rememberManualExpansionState(manualExpansionState, expansionKey, false);
     const collapsed = renderCollapsibleMessage(
       { collapseMode: 'default', expansionKey },
-      undefined,
       undefined,
       undefined,
       true,

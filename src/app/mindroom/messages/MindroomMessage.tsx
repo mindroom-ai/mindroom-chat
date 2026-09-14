@@ -210,7 +210,14 @@ export const Message = as<'div', MessageProps>(
     );
 
     const msgContentJSX = (
-      <Box direction="Column" alignSelf="Start" style={{ maxWidth: '100%' }}>
+      <Box
+        direction="Column"
+        alignSelf="Start"
+        className={
+          messageLayout === MessageLayout.Bubble ? undefined : css.MessageContentWithDisclosure
+        }
+        style={{ maxWidth: '100%' }}
+      >
         {reply}
         {serverEventActionsAllowed && edit && onEditId ? (
           <MessageEditor
