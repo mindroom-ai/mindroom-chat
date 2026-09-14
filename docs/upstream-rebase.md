@@ -102,6 +102,64 @@ Future extractions should establish a useful interface before moving another blo
 Keep the paste handler synchronous: an unhandled paste must return `undefined` so Slate can run its default behavior.
 Inspect corresponding upstream renderer and composer changes even when the compatibility wrappers merge cleanly.
 
+## SDK, thread, and voice owners
+
+Matrix SDK compatibility operations have narrow owners under `src/app/mindroom/threads/sdk/`.
+
+| Responsibility                                                                             | Module                  |
+| ------------------------------------------------------------------------------------------ | ----------------------- |
+| Cached room timeline insertion and prepend                                                 | `roomTimelineSdk.ts`    |
+| Initialized thread creation, one bounded bootstrap fetch, and synchronous relation prepend | `threadBootstrapSdk.ts` |
+
+Thread orchestration state and viewport composition have separate owners.
+
+| Responsibility                                                 | Module                                      |
+| -------------------------------------------------------------- | ------------------------------------------- |
+| Opening, cache, latest, target, revision, and data-lease state | `threads/session/useThreadSession.ts`       |
+| Backward and forward request state plus late runtime binding   | `threads/session/useThreadPagination.ts`    |
+| Late opening-effect installation                               | `threads/threadOpenLifecycleController.ts`  |
+| Seed prewarm scheduling from window-derived inputs             | `threads/threadSeedPrewarmController.ts`    |
+| Request-scoped DOM and ledger viewport binding                 | `threads/useThreadPrependViewport.ts`       |
+| Prepend anchor and open-pin suppression commands               | `threads/threadBackPaginationController.ts` |
+| Timeline state, virtualizer, DOM, and ledger composition       | `threads/MindroomRoomTimeline.tsx`          |
+
+The timeline parent may install the opening lifecycle and seed prewarm seams, but migrated opening and pagination algorithms stay behind their session owners.
+Architecture tests analyze runtime dependencies for that parent boundary so its explicit type contracts remain legal.
+
+Voice capture and durable delivery also have separate owners.
+
+| Responsibility                                                                      | Module                              |
+| ----------------------------------------------------------------------------------- | ----------------------------------- |
+| Browser recorder resources, timers, samples, generation events, and capture results | `voice/voiceCaptureSession.ts`      |
+| Durable initial-send settlement, retry claims, token settlement, and draft writes   | `voice/voiceSendDraftController.ts` |
+| React composition and public recorder compatibility API                             | `voice/useVoiceRecorder.ts`         |
+
+The delivery controller may import the capture result type as an explicit type-only dependency.
+It must not acquire microphone resources or own browser cleanup, and capture must not import durable draft or Matrix delivery state.
+
+## Upstream source footprint report
+
+`.github/upstream-source-base.json` tracks the default release tag used by the report.
+Normal report commands read only local Git state and fail clearly when the configured tag is missing.
+
+```bash
+node scripts/report-non-mindroom-source-diff.mjs
+node scripts/report-non-mindroom-source-diff.mjs refs/tags/v4.12.6 HEAD
+node scripts/report-non-mindroom-source-diff.mjs --pr-base BASE --head HEAD --format markdown
+node scripts/report-non-mindroom-source-diff.mjs --pr-base BASE --head HEAD --format json
+```
+
+The explicit fetch command writes the configured public release tag into the local repository.
+It validates a `refs/tags/` ref and refuses to force-update an inconsistent existing tag.
+
+```bash
+node scripts/report-non-mindroom-source-diff.mjs --fetch-configured-upstream https://github.com/cinnyapp/cinny.git
+```
+
+Pull request CI fetches that configured tag before reporting because fork remotes do not necessarily publish upstream release tags.
+The job appends Markdown to its step summary and uploads lossless JSON while treating footprint size as information rather than a failure budget.
+Both before and after footprints use the current configured release tag, while PR increment paths use the merge base of the actual PR base and head commits.
+
 ## Next release
 
 1. Resolve Cinny's latest stable GitHub release and fetch that exact tag.
@@ -109,7 +167,7 @@ Inspect corresponding upstream renderer and composer changes even when the compa
 2. Preserve existing branch tips with local backup refs and create a persistent worktree.
    Confirm the source checkout is clean and account for newer remote commits.
 3. Inspect the released upstream delta, especially files replaced by MindRoom wrappers.
-   Use the ownership reports with an explicit base: `node scripts/report-non-mindroom-source-diff.mjs v4.12.6 HEAD` and `node scripts/report-package-dependency-diff.mjs v4.12.6 HEAD`.
+   Use the ownership reports with an explicit base: `node scripts/report-non-mindroom-source-diff.mjs refs/tags/v4.12.6 HEAD` and `node scripts/report-package-dependency-diff.mjs v4.12.6 HEAD`.
 4. Replay the current stack with `git -c rebase.updateRefs=false -c rebase.autoStash=false rebase --onto <new-release-tag> v4.12.6`.
    Disable automatic ref updates so unrelated feature branches and worktrees stay untouched.
    Resolve mixed upstream/fork files deliberately.

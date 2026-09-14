@@ -2,6 +2,19 @@
 
 ## Runbook
 
+### Architecture ownership guards and upstream source footprint (2026-09-14)
+
+- Shared TypeScript AST helpers classify static imports, re-exports, dynamic imports, requires, and import-type queries while preserving type dependencies for existing boundary checks.
+  Runtime cycle detection excludes only explicit type-only edges and currently verifies a 407-module, 907-edge DAG under `src/app/mindroom`.
+- Architecture guards pin the reviewed SDK, thread session, pagination, viewport, voice capture, durable delivery, and React-free engine owners.
+  Negative fixtures prove forbidden imports, dot and bracket member access, browser resource acquisition, and concrete runtime cycles are detected.
+- `.github/upstream-source-base.json` tracks `refs/tags/v4.12.6` for positional and pull request reports.
+  The report resolves refs before whole-tree NUL diff parsing, retains both rename paths, escapes display formats, emits lossless JSON, and keeps footprint size informational.
+- Pull request CI validates and fetches the configured tag from public upstream without forcing an existing tag, compares actual PR base and head commits, appends Markdown to the step summary, and uploads the JSON result.
+- Verification: all 23 focused architecture tests and all 9 isolated Git report tests pass under Node 24.13.1, including missing-tag fetch, inconsistent-tag rejection, divergent branches, and linked worktrees.
+  Typecheck passes without warnings, and the real repository report resolves the configured upstream and task refs with a 541-path current footprint and zero upstream-source task increment.
+  Full unit, lint, production build, and live browser verification remain final integration checks.
+
 ### Durable voice draft delivery ownership (2026-09-14)
 
 - A React-free controller owns initial delivery settlement, retry entry and token settlement, upload error formatting, durable draft writes, and explicit pending discard through one live Jotai store adapter.
