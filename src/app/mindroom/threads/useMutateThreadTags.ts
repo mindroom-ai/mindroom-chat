@@ -11,10 +11,7 @@ import {
   type ThreadTagsContent,
 } from './threadTags';
 import { getValidThreadRootEvent } from './threadUtils';
-import {
-  clearPendingThreadTagsContent,
-  setPendingThreadTagsContent,
-} from './threadTagPending';
+import { clearPendingThreadTagsContent, setPendingThreadTagsContent } from './threadTagPending';
 import { buildThreadTagSnapshotMap } from './threadTagSnapshots';
 import { getResolvableThreadRootEvent } from './threadResolvableRoot';
 
@@ -25,6 +22,7 @@ export type UseMutateThreadTagsResult = {
   removeTag: (threadRootId: string, tagName: string) => Promise<void>;
   setResolved: (threadRootId: string, resolved: boolean) => Promise<void>;
   updating: boolean;
+  updatingThreadRootIds: ReadonlySet<string>;
   error: Error | null;
 };
 
@@ -55,9 +53,11 @@ const readLiveTagsContent = (room: Room, threadRootId: string) => {
  */
 export const useMutateThreadTags = (room: Room): UseMutateThreadTagsResult => {
   const mx = useMatrixClient();
-  const [updating, setUpdating] = useState(false);
+  const [updatingThreadRootIds, setUpdatingThreadRootIds] = useState<ReadonlySet<string>>(
+    () => new Set()
+  );
   const [error, setError] = useState<Error | null>(null);
-  const pendingRef = useRef(false);
+  const pendingRef = useRef(new Set<string>());
 
   const sendUpdate = useCallback(
     async (
@@ -74,9 +74,9 @@ export const useMutateThreadTags = (room: Room): UseMutateThreadTagsResult => {
       },
       resolveThreadRootEvent: ThreadRootEventResolver = getValidThreadRootEvent
     ) => {
-      if (pendingRef.current) return;
-      pendingRef.current = true;
-      setUpdating(true);
+      if (pendingRef.current.has(threadRootId)) return;
+      pendingRef.current.add(threadRootId);
+      setUpdatingThreadRootIds(new Set(pendingRef.current));
       setError(null);
       try {
         const userId = mx.getSafeUserId();
@@ -108,8 +108,8 @@ export const useMutateThreadTags = (room: Room): UseMutateThreadTagsResult => {
         }
         setError(err instanceof Error ? err : new Error(String(err)));
       } finally {
-        pendingRef.current = false;
-        setUpdating(false);
+        pendingRef.current.delete(threadRootId);
+        setUpdatingThreadRootIds(new Set(pendingRef.current));
       }
     },
     [mx, room]
@@ -153,5 +153,12 @@ export const useMutateThreadTags = (room: Room): UseMutateThreadTagsResult => {
     [sendUpdate]
   );
 
-  return { addTag, removeTag, setResolved, updating, error };
+  return {
+    addTag,
+    removeTag,
+    setResolved,
+    updating: updatingThreadRootIds.size > 0,
+    updatingThreadRootIds,
+    error,
+  };
 };

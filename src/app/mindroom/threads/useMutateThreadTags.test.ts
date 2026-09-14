@@ -85,11 +85,7 @@ const makeLegacyThreadTagsEvent = (
     type: MINDROOM_THREAD_TAGS_EVENT,
   });
 
-const makePerTagEvent = (
-  threadRootId: string,
-  tagName: string,
-  content: Record<string, unknown>
-) =>
+const makePerTagEvent = (threadRootId: string, tagName: string, content: Record<string, unknown>) =>
   new MatrixEvent({
     content,
     event_id: `$per-tag-${threadRootId}-${tagName}`,
@@ -112,7 +108,7 @@ const makeRoom = (events: MatrixEvent[] = [], eventsById: Record<string, MatrixE
           eventType === MINDROOM_THREAD_TAGS_EVENT ? events : [],
       }),
     }),
-  }) as unknown as Room;
+  } as unknown as Room);
 
 describe('useMutateThreadTags', () => {
   const sendStateEvent = vi.fn();
@@ -134,6 +130,71 @@ describe('useMutateThreadTags', () => {
     vi.clearAllMocks();
     vi.useRealTimers();
     resetPendingThreadTagsForTests();
+  });
+
+  it('allows another thread to resolve while suppressing duplicate writes to a pending thread', async () => {
+    let finishFirst!: () => void;
+    let rejectSecond!: (error: Error) => void;
+    sendStateEvent
+      .mockImplementationOnce(
+        () =>
+          new Promise<void>((resolve) => {
+            finishFirst = resolve;
+          })
+      )
+      .mockImplementationOnce(
+        () =>
+          new Promise<void>((_, reject) => {
+            rejectSecond = reject;
+          })
+      );
+    const room = makeRoom([], { $second: makeThreadRootEvent('$second') });
+    let snapshot!: ReturnType<typeof useMutateThreadTags>;
+    const renderer = create(
+      React.createElement(Harness, {
+        room,
+        onRender: (value) => {
+          snapshot = value;
+        },
+      })
+    );
+    let first!: Promise<void>;
+    let second!: Promise<void>;
+    act(() => {
+      first = snapshot.setResolved('$root', true);
+      void snapshot.setResolved('$root', true);
+      second = snapshot.setResolved('$second', true);
+    });
+
+    expect(sendStateEvent).toHaveBeenCalledTimes(2);
+    expect(sendStateEvent.mock.calls.map((call) => call[3])).toEqual([
+      '["$root","resolved"]',
+      '["$second","resolved"]',
+    ]);
+    expect(snapshot.updatingThreadRootIds).toEqual(new Set(['$root', '$second']));
+
+    await act(async () => {
+      finishFirst();
+      await first;
+    });
+    expect(snapshot.updating).toBe(true);
+    expect(snapshot.updatingThreadRootIds).toEqual(new Set(['$second']));
+
+    await act(async () => {
+      rejectSecond(new Error('Save failed'));
+      await second;
+    });
+    expect(snapshot.updating).toBe(false);
+    expect(snapshot.updatingThreadRootIds.size).toBe(0);
+    expect(getPendingThreadTagsContent(room.roomId, '$second')).toBeUndefined();
+    expect(getPendingThreadTagsContent(room.roomId, '$root')?.tags.resolved).toBeDefined();
+
+    await act(async () => {
+      await snapshot.setResolved('$second', true);
+    });
+    expect(sendStateEvent).toHaveBeenCalledTimes(3);
+    expect(snapshot.error).toBeNull();
+    renderer.unmount();
   });
 
   it('writes new tags to canonical per-tag state keys and seeds aggregated pending state', async () => {
@@ -165,16 +226,14 @@ describe('useMutateThreadTags', () => {
       },
       '["$root","bug"]'
     );
-    expect(getPendingThreadTagsContent('!room:example.org', '$root')).toEqual(
-      {
-        tags: {
-          bug: {
-            set_by: '@alice:example.org',
-            set_at: ISO_1,
-          },
+    expect(getPendingThreadTagsContent('!room:example.org', '$root')).toEqual({
+      tags: {
+        bug: {
+          set_by: '@alice:example.org',
+          set_at: ISO_1,
         },
-      }
-    );
+      },
+    });
 
     renderer.unmount();
   });

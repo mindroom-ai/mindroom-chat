@@ -4,7 +4,7 @@
 
 ### Resize navigation and toggle the active section (2026-09-14)
 
-- Status: implemented with focused regression coverage and live browser validation; final review and PR checks remain.
+- Status: implemented, locally validated, and independently reviewed with no remaining findings; PR checks remain.
 - Home, Direct Messages, and Space panels resize from their content-facing edge using mouse, touch, or pen input.
   The preferred width is stored per Matrix user on the device, bounded between 200 and 600 px where space permits, and clamped to the available viewport without replacing the saved preference.
 - Desktop and tablet retain at least 320 px for content; narrow phones retain the existing single-pane route flow and leave the resize edge reachable.
@@ -17,11 +17,22 @@
   Those owners preserve the last content path while opening a mobile list; other mapper callers retain their existing behavior.
 - Regression coverage includes persisted width, viewport bounds, mouse/touch/pen input, cancelled or lost pointer capture, secondary-pointer rejection, keyboard resizing, RTL direction, repeat-click route preservation, and mobile content-path retention.
 - Browser coverage exercises Home, Direct Messages, and Space toggling, width persistence across reloads, room-route layout, and native Chromium touch dragging against a local Matrix server.
-- Validation: all 498 Vitest files and 3,956 tests pass under Node 24.13.1, typecheck passes, and ESLint reports zero errors with the existing 17 warnings.
+- Validation: all 498 Vitest files and 3,958 tests pass under Node 24.13.1 after current `dev` integration, typecheck passes, and ESLint reports zero errors with the existing 17 warnings.
   Both desktop and iPhone 13 browser cases pass in Chromium and WebKit; only Chromium provides the native touch-drag injection used by this test.
   The production/PWA build, changed-file formatting, and `git diff --check` also pass.
 - Independent review identified mobile list routes overwriting the remembered room, over-broad mapping changes, and incorrect RTL geometry; focused regressions reproduce and cover the fixes.
 - Physical iPhone hardware validation remains outside the available environment.
+
+### Keep Compact Resolve actions usable during pending saves (2026-09-14)
+
+- Status: the reported lockout and faded-button state are reproduced, the bounded fix is validated locally, and independent review found no remaining issues.
+- Resolving one Compact thread previously disabled every action through a shared mutation flag, and Folds' disabled-button opacity overrode the hidden action opacity with `!important`.
+- Pending mutations are now tracked per thread, so another thread can resolve while an earlier save waits; duplicate writes to the same pending thread remain blocked.
+- A separate action wrapper owns hover and focus visibility, keeping disabled buttons hidden until their card is revealed without changing card padding, navigation targets, or the existing localized label.
+- Regression coverage holds concurrent saves open, checks same-thread duplicate suppression, success and failure cleanup, retry, and hidden disabled actions after opacity transitions settle.
+- Validation: all 50 focused tests, live desktop and Dutch touch regressions, typecheck, production/PWA build, touched-file formatting, and ESLint pass with zero errors and the existing 17 warnings.
+- Full Vitest passes 3,928 of 3,932 tests with Node 22; all four failures reproduce on the unchanged base in the Xcode Cloud shell fixtures and upload-caption matcher.
+- Native WebKit cannot start on this host because its system libraries are unavailable; physical iOS validation remains outstanding.
 
 ### Restore cached rooms without waiting for relation parents (2026-09-14)
 
@@ -476,7 +487,7 @@
 - The open-card target and Resolve action are sibling buttons, avoiding invalid nested-button markup and preventing resolution from opening the thread.
 - Cards retain their normal symmetric padding while the action overlays the inline edge with a direction-aware background fade, so hidden actions consume no layout space and revealing one does not reflow text.
 - The first fade offset serialized a negated CSS variable as invalid CSS, which let Chromium place the generated fade over the button label; the offset now uses `calc()` and the live test pins the fade immediately outside the button.
-- The action is omitted for resolved cards and users without permission, and it is disabled while a room-level tag mutation is pending.
+- The action is omitted for resolved cards and users without permission, and it is disabled while that thread's tag mutation is pending.
 - Resolution reuses the existing optimistic thread-tag mutation path and its edit-permission check.
 - Failed mutations now emit the same diagnostic signal used by the open-thread resolution surface after the optimistic state rolls back.
 - Focused TDD coverage first failed for the missing action, room wiring, permission and pending-state branches, and failure diagnostic.

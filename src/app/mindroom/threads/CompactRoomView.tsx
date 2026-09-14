@@ -43,7 +43,7 @@ export function CompactRoomView({
     threadRootIds,
     threadRecordMap,
   });
-  const { canToggle, setResolved, updating, error } = useToggleThreadResolution(room);
+  const { canToggle, setResolved, updatingThreadRootIds, error } = useToggleThreadResolution(room);
 
   // A fully stable click handler keeps the memoized cards from re-rendering
   // when unrelated threads update; the per-thread summary text and the latest
@@ -134,22 +134,24 @@ export function CompactRoomView({
           <div key={viewModel.id.threadRootId} className={css.CardShell}>
             <CompactThreadCard viewModel={viewModel} onClick={handleCardClick} />
             {showResolveAction && (
-              <Button
-                className={css.CardAction}
-                type="button"
-                size="300"
-                variant="Secondary"
-                fill="Soft"
-                outlined
-                radii="300"
-                disabled={updating}
-                onClick={() => handleResolve(viewModel.id.threadRootId)}
-                data-compact-thread-resolve="true"
-              >
-                <Text as="span" size="T200">
-                  {t('thread.resolve')}
-                </Text>
-              </Button>
+              // Keep reveal opacity off the button: Folds forces disabled opacity with !important.
+              <div className={css.CardAction}>
+                <Button
+                  type="button"
+                  size="300"
+                  variant="Secondary"
+                  fill="Soft"
+                  outlined
+                  radii="300"
+                  disabled={updatingThreadRootIds.has(viewModel.id.threadRootId)}
+                  onClick={() => handleResolve(viewModel.id.threadRootId)}
+                  data-compact-thread-resolve="true"
+                >
+                  <Text as="span" size="T200">
+                    {t('thread.resolve')}
+                  </Text>
+                </Button>
+              </div>
             )}
           </div>
         );

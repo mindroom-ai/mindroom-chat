@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Locator } from '@playwright/test';
 import { getHomeserver, getPrimaryCredentials } from '../env';
 import { expectLoggedInShellStable, loginWithPassword } from '../helpers/auth';
 import {
@@ -16,6 +16,20 @@ import {
 
 const hasCredentials = !!process.env.E2E_USERNAME;
 
+const expectActionOpacity = async (action: Locator, opacity: number) => {
+  await expect
+    .poll(() =>
+      action.evaluate((element) => {
+        let effectiveOpacity = 1;
+        for (let current: Element | null = element; current; current = current.parentElement) {
+          effectiveOpacity *= Number(getComputedStyle(current).opacity);
+        }
+        return effectiveOpacity;
+      })
+    )
+    .toBe(opacity);
+};
+
 const buildThreadRelation = (rootId: string) => ({
   rel_type: 'm.thread',
   event_id: rootId,
@@ -26,7 +40,10 @@ const buildThreadRelation = (rootId: string) => ({
 test.describe('compact Resolve action', () => {
   test.skip(!hasCredentials, 'E2E_USERNAME / E2E_PASSWORD not set');
 
-  test('overlays on hover without moving text and resolves without opening', async ({ page }) => {
+  test('overlays on hover without moving text and resolves without opening', async ({
+    page,
+    hasTouch,
+  }) => {
     const diagnostics = attachBrowserDiagnostics(page);
     const homeserver = getHomeserver();
     const { username, password } = getPrimaryCredentials();
@@ -81,6 +98,10 @@ test.describe('compact Resolve action', () => {
 
     await loginWithPassword(page, { homeserver, username, password });
     await expectLoggedInShellStable(page);
+    if (hasTouch) {
+      await page.evaluate(() => localStorage.setItem('i18nextLng', 'nl'));
+      await page.reload();
+    }
     await seedRoomOverviewState({
       page,
       roomId,
@@ -99,10 +120,12 @@ test.describe('compact Resolve action', () => {
     const idleThreadCard = page.locator(`[data-thread-root-id="${idleRootId}"]`);
     const idleCardShell = idleThreadCard.locator('xpath=..');
     const idleResolveButton = idleCardShell.locator('[data-compact-thread-resolve="true"]');
+    const activateAction = (action: Locator) => (hasTouch ? action.tap() : action.click());
     await expect(threadCard).toBeVisible({ timeout: 30_000 });
     await expect(idleThreadCard).toBeVisible({ timeout: 30_000 });
-    await expect(resolveButton).toHaveCSS('opacity', '0');
-    await expect(idleResolveButton).toHaveCSS('opacity', '0');
+    await expect(resolveButton).toHaveText(hasTouch ? 'Oplossen' : 'Resolve');
+    await expectActionOpacity(resolveButton, 0);
+    await expectActionOpacity(idleResolveButton, 0);
 
     const titleBeforeHover = await threadCard.getByText(rootBody, { exact: true }).boundingBox();
     expect(titleBeforeHover, 'title bounding box before hover').not.toBeNull();
@@ -116,13 +139,13 @@ test.describe('compact Resolve action', () => {
     expect(restingPadding.inlineEnd).toBe(restingPadding.inlineStart);
 
     await cardShell.hover();
-    await expect(resolveButton).toHaveCSS('opacity', '1');
-    await expect(idleResolveButton).toHaveCSS('opacity', '0');
+    await expectActionOpacity(resolveButton, 1);
+    await expectActionOpacity(idleResolveButton, 0);
     const titleAfterHover = await threadCard.getByText(rootBody, { exact: true }).boundingBox();
     expect(titleAfterHover, 'title bounding box after hover').not.toBeNull();
     expect(titleAfterHover!).toEqual(titleBeforeHover!);
     const actionFade = await resolveButton.evaluate((action) => {
-      const style = getComputedStyle(action, '::before');
+      const style = getComputedStyle(action.parentElement!, '::before');
       return {
         backgroundImage: style.backgroundImage,
         width: Number.parseFloat(style.width),
@@ -140,18 +163,18 @@ test.describe('compact Resolve action', () => {
     }
 
     await page.mouse.move(0, 0);
-    await expect(resolveButton).toHaveCSS('opacity', '0');
+    await expectActionOpacity(resolveButton, 0);
     await threadCard.focus();
     await page.keyboard.press('Tab');
     await expect(resolveButton).toBeFocused();
-    await expect(resolveButton).toHaveCSS('opacity', '1');
+    await expectActionOpacity(resolveButton, 1);
 
     await page.setViewportSize({ width: 420, height: 800 });
     await page.evaluate(() => {
       document.documentElement.dir = 'rtl';
     });
     const rtlFade = await resolveButton.evaluate(
-      (action) => getComputedStyle(action, '::before').backgroundImage
+      (action) => getComputedStyle(action.parentElement!, '::before').backgroundImage
     );
     expect(rtlFade).toContain('to left');
     const layout = await cardShell.evaluate((shell) => {
@@ -186,7 +209,46 @@ test.describe('compact Resolve action', () => {
       layout.shellRight - layout.actionRight
     );
 
-    await resolveButton.click();
+    // Disabled styles must not reveal an idle action, including on touch layouts.
+    await idleResolveButton.evaluate(async (button: HTMLButtonElement) => {
+      button.disabled = true;
+      await Promise.all(button.getAnimations().map((animation) => animation.finished));
+    });
+    await expectActionOpacity(idleResolveButton, 0);
+    await idleResolveButton.evaluate((button: HTMLButtonElement) => {
+      button.disabled = false;
+    });
+
+    // Keep the first save pending while resolving another thread.
+    let releaseSave!: () => void;
+    const saveGate = new Promise<void>((resolve) => {
+      releaseSave = resolve;
+    });
+    const tagWrites: string[] = [];
+    await page.route('**/state/com.mindroom.thread.tags/**', async (route) => {
+      if (route.request().method() !== 'PUT') {
+        await route.continue();
+        return;
+      }
+      const stateKey = decodeURIComponent(
+        new URL(route.request().url()).pathname.split('/').pop()!
+      );
+      tagWrites.push(stateKey);
+      if (stateKey === JSON.stringify([rootId, 'resolved'])) await saveGate;
+      await route.continue();
+    });
+    await activateAction(resolveButton);
+    await expect.poll(() => tagWrites.length).toBe(1);
+    await expectActionOpacity(idleResolveButton, 0);
+    await expect(idleResolveButton).toBeEnabled();
+    if (hasTouch) await idleThreadCard.focus();
+    else await idleCardShell.hover();
+    await expectActionOpacity(idleResolveButton, 1);
+    await activateAction(idleResolveButton);
+    await expect
+      .poll(() => tagWrites)
+      .toEqual([JSON.stringify([rootId, 'resolved']), JSON.stringify([idleRootId, 'resolved'])]);
+    releaseSave();
     await expect.poll(() => new URL(page.url()).searchParams.get('threadId')).toBeNull();
     const resolvedStatePath = `/rooms/${encodeURIComponent(roomId)}/state/${encodeURIComponent(
       'com.mindroom.thread.tags'
@@ -207,7 +269,7 @@ test.describe('compact Resolve action', () => {
       )
       .toBe(session.userId);
     await expect(resolveButton).toHaveCount(0);
-    await expect(threadCard).toHaveAccessibleName(/Resolved by /);
+    await expect(threadCard).toHaveAccessibleName(hasTouch ? /Opgelost door / : /Resolved by /);
 
     await expectNoUnexpectedBrowserDiagnostics(diagnostics, 'compact-resolve-hover');
   });
