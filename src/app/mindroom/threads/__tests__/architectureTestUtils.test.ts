@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
+  calledIdentifierNames,
   findDependencyCycles,
   memberAccesses,
   moduleDependencies,
@@ -141,6 +142,7 @@ describe('architecture dependency helpers', () => {
         'model.initialEventsFetched = true;',
         "model['replayEvents'] = null;",
         'model.initialEventsFetched;',
+        'model.fetchRelations;',
         "model['fetchRelations']();",
         'const text = "model[\'ignored\']";',
         'void text;',
@@ -151,7 +153,27 @@ describe('architecture dependency helpers', () => {
       { name: 'initialEventsFetched', kind: 'write' },
       { name: 'replayEvents', kind: 'write' },
       { name: 'initialEventsFetched', kind: 'read' },
+      { name: 'fetchRelations', kind: 'read' },
       { name: 'fetchRelations', kind: 'call' },
     ]);
+  });
+
+  it('finds direct identifier calls without counting declarations, reads, text, or member calls', () => {
+    const directory = createFixtureDirectory();
+    const source = join(directory, 'source.ts');
+    writeFixture(
+      source,
+      [
+        'function fetchThreadBootstrapRelations() {}',
+        'const read = fetchThreadBootstrapRelations;',
+        'const text = "fetchThreadBootstrapRelations()";',
+        '// fetchThreadBootstrapRelations();',
+        'fetchThreadBootstrapRelations();',
+        'object.fetchThreadBootstrapRelations();',
+        'void read; void text;',
+      ].join('\n')
+    );
+
+    expect(calledIdentifierNames(source)).toEqual(['fetchThreadBootstrapRelations']);
   });
 });

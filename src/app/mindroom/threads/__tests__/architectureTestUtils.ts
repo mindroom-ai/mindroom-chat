@@ -281,6 +281,19 @@ export const calledMemberNames = (path: string): Set<string> => {
   return names;
 };
 
+export const calledIdentifierNames = (path: string): string[] => {
+  const names: string[] = [];
+  const visit = (node: ts.Node) => {
+    if (ts.isCallExpression(node) && ts.isIdentifier(node.expression)) {
+      names.push(node.expression.text);
+    }
+    ts.forEachChild(node, visit);
+  };
+
+  visit(parseSourceFile(path));
+  return names;
+};
+
 export const walkProductionSources = (root: string): string[] => {
   const files: string[] = [];
 

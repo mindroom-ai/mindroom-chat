@@ -124,9 +124,10 @@ test('includes ordinary changes and both sides of moves crossing source ownershi
   assert.equal(inward.oldPath, 'src/app/mindroom/inward.ts');
 });
 
-test('preserves odd filenames in JSON and escapes controls and Markdown delimiters', () => {
+test('preserves odd filenames in JSON and renders all active Markdown syntax literally', () => {
   const { repo, baseline } = createRepository();
-  const oddPath = 'src/app/features/tab\tline\npipe|tick`.ts';
+  const oddPath =
+    'src/app/features/tab\tline\npipe|pair``tick[label](url)*em*_strong_<b>html</b>.ts';
   writeFixture(repo, oddPath, 'export const odd = true;\n');
   const head = commit(repo, 'add odd filename');
 
@@ -135,8 +136,21 @@ test('preserves odd filenames in JSON and escapes controls and Markdown delimite
 
   const markdown = runReport(repo, [baseline, head, '--format', 'markdown']);
   assert.equal(markdown.status, 0, markdown.stderr);
-  assert.match(markdown.stdout, /tab\\tline\\npipe\\\|tick`\.ts/);
+  assert.match(markdown.stdout, /<code>src\/app\/features\//);
   assert.equal(markdown.stdout.includes('tab\tline\npipe'), false);
+  for (const activeSyntax of ['|pair', '``', '[label](url)', '*em*', '_strong_', '<b>html</b>']) {
+    assert.equal(markdown.stdout.includes(activeSyntax), false);
+  }
+  for (const encodedSyntax of [
+    '&#124;pair',
+    '&#96;&#96;',
+    '&#91;label&#93;&#40;url&#41;',
+    '&#42;em&#42;',
+    '&#95;strong&#95;',
+    '&#60;b&#62;html&#60;/b&#62;',
+  ]) {
+    assert.equal(markdown.stdout.includes(encodedSyntax), true);
+  }
 });
 
 test('reports empty comparisons without inventing changes', () => {

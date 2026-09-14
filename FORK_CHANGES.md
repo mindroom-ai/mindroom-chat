@@ -5,7 +5,7 @@
 ### Architecture ownership guards and upstream source footprint (2026-09-14)
 
 - Shared TypeScript AST helpers classify static imports, re-exports, dynamic imports, requires, and import-type queries while preserving type dependencies for existing boundary checks.
-  Runtime cycle detection excludes only explicit type-only edges and currently verifies a 407-module, 907-edge DAG under `src/app/mindroom`.
+  Runtime cycle detection excludes only explicit type-only edges and currently verifies a 415-module, 917-edge DAG under `src/app/mindroom`.
 - Architecture guards pin the reviewed SDK, thread session, pagination, viewport, voice capture, durable delivery, and React-free engine owners.
   Negative fixtures prove forbidden imports, dot and bracket member access, browser resource acquisition, and concrete runtime cycles are detected.
 - `.github/upstream-source-base.json` tracks `refs/tags/v4.12.6` for positional and pull request reports.

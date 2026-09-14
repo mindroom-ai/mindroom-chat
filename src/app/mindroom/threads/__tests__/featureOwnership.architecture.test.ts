@@ -83,7 +83,7 @@ describe('feature ownership architecture', () => {
     ];
     expect(owners.filter((path) => !pathExists(path))).toEqual([]);
 
-    const timelineDependencies = resolvedDependencies(TIMELINE);
+    const timelineDependencies = resolvedDependencies(TIMELINE, { includeTypeOnly: false });
     expect([...timelineDependencies]).toEqual(
       expect.arrayContaining([
         THREAD_SESSION,
@@ -94,9 +94,20 @@ describe('feature ownership architecture', () => {
         THREAD_SEED_SCHEDULER,
       ])
     );
-    expect([...resolvedDependencies(VOICE_FACADE)]).toEqual(
+    expect([...resolvedDependencies(VOICE_FACADE, { includeTypeOnly: false })]).toEqual(
       expect.arrayContaining([CAPTURE_OWNER, DRAFT_OWNER])
     );
+  });
+
+  it('does not accept a type-only edge as runtime owner consumption', () => {
+    const directory = createFixtureDirectory();
+    const owner = join(directory, 'owner.ts');
+    const consumer = join(directory, 'consumer.ts');
+    writeFileSync(owner, 'export type Owner = string;');
+    writeFileSync(consumer, "import type { Owner } from './owner';");
+
+    expect(resolvedDependencies(consumer)).toContain(owner);
+    expect(resolvedDependencies(consumer, { includeTypeOnly: false })).not.toContain(owner);
   });
 
   it('detects a forbidden import fixture and keeps migrated thread internals behind session owners', () => {

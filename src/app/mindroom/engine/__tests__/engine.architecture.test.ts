@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url';
 import { basename, dirname, extname, join, relative } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
+  calledIdentifierNames,
   memberAccesses,
   moduleDependencies,
   resolvedDependencies,
@@ -181,7 +182,9 @@ describe('CINNY-207 P3.3 engine boundary architecture', () => {
     const perFileCounts: Record<string, number> = {};
     for (const file of files) {
       const rel = relative(mindroomTreeRoot, file).replace(/\\/g, '/');
-      const matches = memberAccesses(file).filter((access) => access.name === 'fetchRelations');
+      const matches = memberAccesses(file).filter(
+        (access) => access.name === 'fetchRelations' && access.kind === 'call'
+      );
       if (matches.length > 0) perFileCounts[rel] = matches.length;
     }
     expect(perFileCounts).toEqual({
@@ -191,7 +194,9 @@ describe('CINNY-207 P3.3 engine boundary architecture', () => {
     for (const file of files) {
       const rel = relative(mindroomTreeRoot, file).replace(/\\/g, '/');
       if (rel === 'threads/sdk/threadBootstrapSdk.ts') continue;
-      const matches = readFileSync(file, 'utf8').match(/fetchThreadBootstrapRelations\(/g) ?? [];
+      const matches = calledIdentifierNames(file).filter(
+        (name) => name === 'fetchThreadBootstrapRelations'
+      );
       if (matches.length > 0) callers[rel] = matches.length;
     }
     expect(callers).toEqual({ 'threads/threadOpenSdkBootstrap.ts': 2 });

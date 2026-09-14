@@ -156,7 +156,13 @@ const compare = (base, head) => {
 };
 
 const escapeTextPath = (path) => JSON.stringify(path);
-const escapeMarkdownCell = (value) => JSON.stringify(value).replace(/\|/g, '\\|');
+const escapeMarkdownCell = (value) => {
+  const display = JSON.stringify(value).slice(1, -1);
+  const encoded = Array.from(display, (character) =>
+    /[A-Za-z0-9 ./-]/.test(character) ? character : '&#' + character.codePointAt(0) + ';'
+  ).join('');
+  return '<code>' + encoded + '</code>';
+};
 
 const formatChangesText = (comparison) => {
   const lines = comparison.groups.map(
