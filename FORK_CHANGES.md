@@ -11,9 +11,20 @@
 - `.github/upstream-source-base.json` tracks `refs/tags/v4.12.6` for positional and pull request reports.
   The report resolves refs before whole-tree NUL diff parsing, retains both rename paths, escapes display formats, emits lossless JSON, and keeps footprint size informational.
 - Pull request CI validates and fetches the configured tag from public upstream without forcing an existing tag, compares actual PR base and head commits, appends Markdown to the step summary, and uploads the JSON result.
-- Verification: all 23 focused architecture tests and all 9 isolated Git report tests pass under Node 24.13.1, including missing-tag fetch, inconsistent-tag rejection, divergent branches, and linked worktrees.
-  Typecheck passes without warnings, and the real repository report resolves the configured upstream and task refs with a 541-path current footprint and zero upstream-source task increment.
-  Full unit, lint, production build, and live browser verification remain final integration checks.
+  The hosted workflow is reviewed and locally validated; hosted execution remains unverified.
+- Opening requests from the session adapter and focus band share the existing viewport owner.
+  Gesture cancellation marks the exact opening generation, preserves monotonic counts, and gates both focus consumption and parent settling while newer explicit jump and send counts remain valid.
+  The full-component unit harness covers post-input requests and rearming with synchronous rAF and mocked scrolling, so it does not independently prove native delayed frames.
+- Verification: all 494 unit files and 3,923 tests plus all nine isolated Git report tests pass under Node 24.13.1.
+  Typecheck and the production/PWA build with Element Call verification pass, and full lint reports zero errors with 17 existing warnings.
+  The 415-module, 917-runtime-edge production graph is acyclic, and the real repository report records a 541-path upstream-source footprint before and after this task with zero task increment.
+  Task, whole-branch, and both bounded startup integration reviews are approved.
+- All 17 unchanged targeted Chromium cases pass at this source: CINNY070, all four iOS momentum cases, all five latency cases, and all seven virtualization cases.
+  The targeted ledger-boundary case reports zero maximum jump and zero total jump.
+- Final live acceptance at source `a895eb8f` passed all 95 Chromium cases across 52 files with one attempt per case, zero retries, failures, skips, or missing coverage, and the original source, specification, build identity, and default performance limits verified.
+  The full ledger-boundary case reached a minimum top position of zero with zero maximum jump and zero total jump.
+- The separate original 48 px startup movement remains unattributed and did not recur in the final measured boundary case; no speculative layout correction was made.
+- Optional explicit StrictMode effect-replay coverage remains a follow-up, with no current production defect established.
 
 ### Durable voice draft delivery ownership (2026-09-14)
 
