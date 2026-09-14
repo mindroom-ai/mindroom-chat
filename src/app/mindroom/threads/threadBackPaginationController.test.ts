@@ -155,6 +155,36 @@ describe('useThreadBackPaginationController', () => {
 
     renderer.unmount();
   });
+
+  it('cancels the latest opening pin while preserving a newer explicit command', () => {
+    const { getController, renderer } = renderController();
+    const scrollToBottomRef = { current: { count: 4, smooth: true } };
+
+    expect(getController().requestOpenBottomPin(scrollToBottomRef)).toBe(true);
+    expect(scrollToBottomRef.current).toEqual({ count: 5, smooth: false });
+    getController().cancelOpenBottomPin(scrollToBottomRef.current.count);
+    expect(getController().shouldApplyBottomPin(5)).toBe(false);
+
+    scrollToBottomRef.current = { count: 6, smooth: true };
+    expect(getController().shouldApplyBottomPin(6)).toBe(true);
+
+    renderer.unmount();
+  });
+
+  it('clears canceled opening provenance with route reset', () => {
+    const { getController, renderer } = renderController();
+    const scrollToBottomRef = { current: { count: 1, smooth: false } };
+
+    getController().requestOpenBottomPin(scrollToBottomRef);
+    getController().cancelOpenBottomPin(scrollToBottomRef.current.count);
+    expect(getController().shouldApplyBottomPin(2)).toBe(false);
+
+    getController().reset();
+    expect(getController().shouldApplyBottomPin(2)).toBe(true);
+    expect(getController().isOpenBottomPinSuppressed()).toBe(false);
+
+    renderer.unmount();
+  });
 });
 
 describe('prepend capture request fencing', () => {

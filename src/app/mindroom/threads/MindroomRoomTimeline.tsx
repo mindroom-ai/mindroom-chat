@@ -352,8 +352,15 @@ export function RoomTimeline({
     clearPendingAnchor: clearPendingThreadBackPaginationAnchor,
     getPendingAnchorSeq: getPendingThreadBackPaginationAnchorSeq,
     isOpenBottomPinSuppressed: isThreadOpenBottomPinSuppressed,
-    suppressOpenBottomPin: suppressThreadOpenBottomPin,
   } = threadBackViewport;
+  const requestThreadOpenBottomPin = useCallback(
+    () => threadBackViewport.requestOpenBottomPin(scrollToBottomRef),
+    [scrollToBottomRef, threadBackViewport]
+  );
+  const cancelThreadOpenBottomPin = useCallback(
+    () => threadBackViewport.cancelOpenBottomPin(scrollToBottomRef.current.count),
+    [scrollToBottomRef, threadBackViewport]
+  );
   const roomIdRef = useRef(room.roomId);
   const roomPaginatingBackRef = useRef(false);
   const threadIdRef = useRef(threadId);
@@ -901,9 +908,7 @@ export function RoomTimeline({
         resetThreadBackPagination();
       },
       requestLatestPin: () => {
-        if (isThreadOpenBottomPinSuppressed()) return;
-        scrollToBottomRef.current.count += 1;
-        scrollToBottomRef.current.smooth = false;
+        if (!requestThreadOpenBottomPin()) return;
         setAtBottom(true);
       },
     }),
@@ -911,7 +916,7 @@ export function RoomTimeline({
       resetThreadBackPagination,
       isThreadPaginationPending,
       resetThreadPagination,
-      isThreadOpenBottomPinSuppressed,
+      requestThreadOpenBottomPin,
       setAtBottom,
     ]
   );
@@ -1195,7 +1200,11 @@ export function RoomTimeline({
   // the bottom, and stop immediately on user scroll intent so streaming
   // re-pins cannot trap the user at the bottom.
   useLayoutEffect(() => {
-    if (!threadId || roomScrollToBottomCount <= 0) {
+    if (
+      !threadId ||
+      roomScrollToBottomCount <= 0 ||
+      !threadBackViewport.shouldApplyBottomPin(roomScrollToBottomCount)
+    ) {
       return undefined;
     }
 
@@ -1270,7 +1279,7 @@ export function RoomTimeline({
     });
     rafId = requestAnimationFrame(settle);
     return stop;
-  }, [roomScrollToBottomCount, scrollRef, scrollToBottomRef, threadId]);
+  }, [roomScrollToBottomCount, scrollRef, scrollToBottomRef, threadBackViewport, threadId]);
   const threadPrependViewport = useThreadPrependViewport({
     controller: threadBackViewport,
     scrollRef,
@@ -1562,7 +1571,9 @@ export function RoomTimeline({
     setFocusItem,
     suppressFocusPaginationRef,
     isThreadOpenBottomPinSuppressed,
-    suppressThreadOpenBottomPin,
+    requestThreadOpenBottomPin,
+    cancelThreadOpenBottomPin,
+    shouldApplyThreadBottomPin: threadBackViewport.shouldApplyBottomPin,
     threadEventIndexMapRef,
     threadEventsLength: threadEvents.length,
     threadFilteredEvents,

@@ -5,6 +5,7 @@ import {
   useRoomFocusScrollController,
   type RoomFocusScrollControllerOptions,
 } from './roomFocusScrollController';
+import { useThreadBackPaginationController } from './threadBackPaginationController';
 
 type Listener = () => void;
 
@@ -55,6 +56,9 @@ type HarnessProps = Partial<RoomFocusScrollControllerOptions> & {
 function Harness({ onSuppressRef, scrollEl, ...overrides }: HarnessProps) {
   const suppressThreadOpenBottomPinRef = useRef(false);
   const scrollRef = useRef<HTMLDivElement | null>(scrollEl);
+  const defaultScrollToBottomRef = useRef({ count: 0, smooth: false });
+  const scrollToBottomRef = overrides.scrollToBottomRef ?? defaultScrollToBottomRef;
+  const threadBackViewport = useThreadBackPaginationController();
   scrollRef.current = scrollEl;
   onSuppressRef(suppressThreadOpenBottomPinRef);
 
@@ -68,16 +72,19 @@ function Harness({ onSuppressRef, scrollEl, ...overrides }: HarnessProps) {
     retryPagination: vi.fn(),
     roomId: '!room:test',
     scrollRef,
-    scrollToBottomRef: { current: { count: 0, smooth: false } },
+    scrollToBottomRef,
     scrollToElement: vi.fn(),
     scrollToItem: vi.fn(),
     setAtBottom: vi.fn(),
     setFocusItem: vi.fn(),
     suppressFocusPaginationRef: { current: false },
     isThreadOpenBottomPinSuppressed: () => suppressThreadOpenBottomPinRef.current,
-    suppressThreadOpenBottomPin: () => {
+    requestThreadOpenBottomPin: () => threadBackViewport.requestOpenBottomPin(scrollToBottomRef),
+    cancelThreadOpenBottomPin: () => {
+      threadBackViewport.cancelOpenBottomPin(scrollToBottomRef.current.count);
       suppressThreadOpenBottomPinRef.current = true;
     },
+    shouldApplyThreadBottomPin: threadBackViewport.shouldApplyBottomPin,
     threadEventIndexMapRef: { current: new Map() },
     threadEventsLength: 0,
     threadFilteredEvents: [],
@@ -203,7 +210,7 @@ describe('useRoomFocusScrollController', () => {
       );
     });
 
-    expect(scrollToBottomRef.current.count).toBe(2);
+    expect(scrollToBottomRef.current.count).toBe(3);
     expect(scrollEl.scrollTo).not.toHaveBeenCalled();
 
     act(() => {
