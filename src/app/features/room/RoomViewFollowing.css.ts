@@ -1,6 +1,9 @@
 import { style } from '@vanilla-extract/css';
 import { recipe } from '@vanilla-extract/recipes';
 import { DefaultReset, color, config, toRem } from 'folds';
+import { glassFlat, glassFloating } from '../../styles/Glass.css';
+
+export const FollowingSurface = style([glassFlat, glassFloating]);
 
 export const RoomViewFollowingPlaceholder = style([
   DefaultReset,

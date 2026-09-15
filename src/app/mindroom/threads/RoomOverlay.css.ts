@@ -1,5 +1,4 @@
 import { globalStyle, style } from '@vanilla-extract/css';
-import { color, config } from 'folds';
 import { glassFloating, glassSurface } from '../../styles/Glass.css';
 
 // Measured once per layout change, shared by scroll padding and floating controls.
@@ -17,10 +16,6 @@ export const Footer = style({
   pointerEvents: 'none',
 });
 globalStyle(`${Footer} > *`, { pointerEvents: 'auto' });
-export const Following = style([
-  glassFloating,
-  { borderTop: `${config.borderWidth.B300} solid ${color.Surface.ContainerLine}` },
-]);
 export const Typing = style([glassSurface({ level: 'panel', variant: 'Surface' }), glassFloating]);
 export const Overview = style({
   position: 'absolute',

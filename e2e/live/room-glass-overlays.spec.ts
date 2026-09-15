@@ -115,6 +115,40 @@ for (const width of [390, 1280]) {
         const following = page.locator('[data-room-following="true"]');
         const cards = scroll.locator('button[data-thread-root-id]');
         await expect(cards).toHaveCount(14);
+        await expect(following).toHaveText('');
+        // Empty safe-area space must leave the scrolling conversation unpainted.
+        expect(
+          await following.evaluate((element) =>
+            [element, ...element.querySelectorAll('*')].flatMap((node) => {
+              const css = getComputedStyle(node);
+              const clear =
+                css.backgroundColor === 'rgba(0, 0, 0, 0)' &&
+                css.backgroundImage === 'none' &&
+                css.backdropFilter === 'none' &&
+                css.boxShadow === 'none' &&
+                css.borderTopWidth === '0px';
+              return clear
+                ? []
+                : [
+                    {
+                      tag: node.tagName,
+                      className: node.className,
+                      background: css.backgroundColor,
+                      image: css.backgroundImage,
+                      blur: css.backdropFilter,
+                      shadow: css.boxShadow,
+                      border: css.borderTopWidth,
+                    },
+                  ];
+            })
+          )
+        ).toEqual([]);
+        expect(
+          await header.evaluate((element) => {
+            const css = getComputedStyle(element);
+            return [css.borderTopWidth, css.borderBottomWidth, css.boxShadow, css.backgroundImage];
+          })
+        ).toEqual(['0px', '0px', 'none', 'none']);
         await expect(filters.locator('[data-view-mode="compact"]')).toHaveAttribute(
           'aria-pressed',
           'true'
@@ -174,6 +208,14 @@ for (const width of [390, 1280]) {
           .poll(() => scroll.evaluate((element) => element.scrollTop))
           .toBeCloseTo(savedTop, 0);
 
+        // Returning from a thread reconnects the measured footer on the next frame.
+        await expect
+          .poll(() =>
+            scroll.evaluate((element) =>
+              Number.parseFloat(getComputedStyle(element).scrollPaddingBottom)
+            )
+          )
+          .toBeCloseTo((await footer.boundingBox())!.height, 0);
         await scroll.evaluate((element) => {
           element.scrollTop = element.scrollHeight;
         });
