@@ -2,19 +2,19 @@
 
 ## Runbook
 
-### Compare clearer floating glass (2026-09-15)
+### Reduce native blur on floating glass (2026-09-15)
 
-- Proposal: thread banners and shared floating menus use 50% tint in dark, midnight, and butter themes, down from 72%.
-  A shared modifier covers normal and resolved banners, Menu, and custom overlay Surface components.
-  Blur, refraction, light themes, dimmed settings/approval sheets, and opaque accessibility fallbacks retain their existing policy.
-- Review captures compare 72%, 60%, and 50% in Chromium and WebKit using the same local sample conversation, viewport, and scroll position.
-  Only tint changes between captures; both surfaces overlap message text.
-  Linux headless WebKit does not paint native backdrop blur on this host, so those captures demonstrate tint rather than final iPhone blur appearance.
-- Validation: all 4,427 unit tests across 529 files, typecheck, production/PWA build, and lint pass with zero errors and 17 existing warnings.
-  Opaque accessibility fallback checks pass in both browser engines.
-- Merge blocker: the existing dark-theme white-backdrop contrast check fails at 50%, measuring 2.60:1 in Chromium and 2.57:1 in WebKit against the 4.5:1 requirement.
-  Independent review confirms this blocker and finds no other implementation issues.
-  This comparison proposal needs a readability decision before merging; the contrast requirement has not been weakened.
+- Thread banners and floating menus retain their existing tint, including 72% in dark, midnight, and butter themes.
+  Their native CSS blur is 3 px across themes, reduced from 10 px for banners and 12 px for menus, so background details remain less diffused.
+- A shared blur variable and modifier cover normal and resolved banners, Menu, and custom overlay Surface components.
+  Each material defines its own blur default so nested controls and panels do not inherit the floating override.
+  Chromium keeps its existing 3 px SVG blur and refraction; dimmed sheets, other panels, compact controls, and opaque accessibility fallbacks retain their existing policy.
+- Linux headless WebKit does not paint native backdrop blur on this host.
+  Its checks verify CSS selection, transparency, contrast, layout, and interaction; physical iOS blur appearance requires device validation.
+- Validation: all 4,427 unit tests across 529 files, typecheck, production/PWA build, formatting, and lint pass with zero errors and 17 existing warnings.
+  All 30 shared-surface browser cases pass across Chromium and WebKit, including the unchanged contrast assertions.
+  A Vite dependency reload interrupted the initial WebKit silver-sheet case; it passed three consecutive reruns after dependency optimization completed.
+  Additional browser probes confirm both banner variants and menus use 3 px native blur, nested controls retain 8 px, other panels and modals retain their defaults, and accessibility preferences still disable blur.
 
 ### Recognize Gemini icons behind compatible providers (2026-09-15)
 
