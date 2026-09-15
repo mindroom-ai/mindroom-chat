@@ -104,6 +104,7 @@ const TestHarness = ({
   replyDraft,
   clearReplyDraft,
   restoreComposerFallbackForRoom,
+  threadId,
 }: {
   onReady: (api: HarnessApi) => void;
   onRoomMessageSent?: (eventId: string) => boolean | void;
@@ -117,6 +118,7 @@ const TestHarness = ({
   replyDraft?: IReplyDraft;
   clearReplyDraft: ReturnType<typeof vi.fn>;
   restoreComposerFallbackForRoom: ReturnType<typeof vi.fn>;
+  threadId?: string;
 }) => {
   const selectedFilesRef = useRef<TUploadItem[]>([]);
   const sendSessionFilesRef = useRef<TUploadContent[]>([]);
@@ -169,7 +171,7 @@ const TestHarness = ({
       getMembers: () => [],
     } as never,
     roomId: '!room:example.org',
-    threadId: undefined,
+    threadId,
     replyDraft,
     clearReplyDraft,
     editor: editor as never,
@@ -201,6 +203,7 @@ const TestHarness = ({
 
 const renderHarness = (
   options: {
+    threadId?: string;
     onRoomMessageSent?: (eventId: string) => boolean | void;
     replyDraft?: Parameters<typeof TestHarness>[0]['replyDraft'];
   } = {}
@@ -229,20 +232,25 @@ const renderHarness = (
   const clearReplyDraft = vi.fn();
   const restoreComposerFallbackForRoom = vi.fn();
   let api!: HarnessApi;
+  let renderer!: ReturnType<typeof create>;
+  const props = {
+    mx,
+    editor,
+    sendTypingStatus,
+    replyDraft: options.replyDraft,
+    clearReplyDraft,
+    restoreComposerFallbackForRoom,
+    onRoomMessageSent: options.onRoomMessageSent,
+    onReady: (nextApi: HarnessApi) => {
+      api = nextApi;
+    },
+  };
 
   act(() => {
-    create(
+    renderer = create(
       React.createElement(TestHarness, {
-        mx,
-        editor,
-        sendTypingStatus,
-        replyDraft: options.replyDraft,
-        clearReplyDraft,
-        restoreComposerFallbackForRoom,
-        onRoomMessageSent: options.onRoomMessageSent,
-        onReady: (nextApi) => {
-          api = nextApi;
-        },
+        ...props,
+        threadId: options.threadId,
       })
     );
   });
@@ -255,6 +263,9 @@ const renderHarness = (
     sendTypingStatus,
     clearReplyDraft,
     restoreComposerFallbackForRoom,
+    changeThread: (threadId?: string) => {
+      act(() => renderer.update(React.createElement(TestHarness, { ...props, threadId })));
+    },
   };
 };
 
@@ -531,6 +542,76 @@ describe('useRoomInputSendSessionController prep-error uploads', () => {
 });
 
 describe('useRoomInputSendSessionController caption send failures', () => {
+  it('keeps caption recovery scoped to its composer when retry destination differs', async () => {
+    const { api, mx, restoreComposerFallbackForRoom } = renderHarness({ threadId: '$composer' });
+    const attachment = createFile('retry.txt');
+    const failure = new Error('Offline retry');
+    mx.sendMessage.mockRejectedValueOnce(failure);
+    api.mountedRef.current = false;
+    const composerFallback = [{ type: 'paragraph', children: [{ text: 'New caption' }] }] as never;
+    await act(async () => {
+      await expect(
+        api.startSendSession({
+          textContent: { msgtype: 'm.text', body: 'New caption' },
+          batch: {
+            fileItems: [createUploadItem(attachment)],
+            uploads: [successUpload(attachment)],
+          },
+          context: {
+            roomId: '!room:example.org',
+            room: {} as never,
+            threadId: '$retry',
+            replyDraft: undefined,
+            threadingEnabled: true,
+            signalBridgedRoom: false,
+          },
+          completeWithinCall: true,
+          composerFallback,
+          composerAlreadyReset: true,
+        })
+      ).rejects.toBe(failure);
+    });
+    expect(restoreComposerFallbackForRoom).toHaveBeenCalledWith(
+      '!room:example.org',
+      composerFallback,
+      '$composer'
+    );
+  });
+
+  it('returns a failed caption to its original thread after composer navigation', async () => {
+    const { api, mx, restoreComposerFallbackForRoom, changeThread } = renderHarness({
+      threadId: '$original',
+    });
+    const send = createDeferred<{ event_id: string }>();
+    mx.sendMessage.mockReturnValueOnce(send.promise);
+    const attachment = createFile('attachment.txt');
+    const composerFallback = [
+      { type: 'paragraph', children: [{ text: 'Original caption' }] },
+    ] as never;
+    let sending!: Promise<void>;
+    act(() => {
+      sending = api.startSendSession({
+        textContent: { msgtype: 'm.text', body: 'Original caption' },
+        batch: { fileItems: [createUploadItem(attachment)], uploads: [successUpload(attachment)] },
+        completeWithinCall: true,
+        composerFallback,
+        composerAlreadyReset: true,
+      });
+    });
+    changeThread('$other');
+    const failure = new Error('Offline');
+    await act(async () => {
+      send.reject(failure);
+      await expect(sending).rejects.toBe(failure);
+    });
+    expect(mocks.restoreEditorContent).not.toHaveBeenCalled();
+    expect(restoreComposerFallbackForRoom).toHaveBeenCalledWith(
+      '!room:example.org',
+      composerFallback,
+      '$original'
+    );
+  });
+
   beforeEach(() => {
     mocks.resetEditor.mockReset();
     mocks.resetEditorHistory.mockReset();
@@ -656,7 +737,8 @@ describe('useRoomInputSendSessionController caption send failures', () => {
     expect(mocks.restoreEditorContent).not.toHaveBeenCalled();
     expect(restoreComposerFallbackForRoom).toHaveBeenCalledWith(
       '!room:example.org',
-      composerFallback
+      composerFallback,
+      undefined
     );
   });
 

@@ -10,6 +10,10 @@ export const Panel = style({
 });
 
 globalStyle(`${Panel} > :first-child`, { width: '100%', minWidth: 0 });
+globalStyle(`${Panel}[data-collapse-preview='true'] > :first-child`, {
+  visibility: 'hidden',
+  overflow: 'hidden',
+});
 
 export const Handle = style({
   position: 'absolute',

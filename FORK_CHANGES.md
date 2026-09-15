@@ -12,7 +12,46 @@
 - Regression coverage checks omitted config, an empty sidebar config, explicit `false`, and explicit `true`, the independence of the two mode-specific options, and the other Simple Mode navigation gates.
 - Validation: all seven sidebar tests, typecheck, production/PWA build, and changed-file formatting pass.
   Full ESLint reports zero errors and 17 existing warnings.
-  Full Vitest passes 4,145 tests; three Xcode Cloud shell-fixture tests fail identically on the unchanged base because this Nix host lacks Bash in the fixture's fixed search path.
+  After integrating current `dev`, full Vitest passes all 4,190 tests across 514 files under Node 24.13.1 in the standard Linux container, including the Xcode Cloud shell fixtures.
+
+### Fill mobile navigation and collapse narrow split panes (2026-09-15)
+
+- The resizable navigation wrapper applied saved widths and reserved a drag-handle gap on phones, leaving unused space beside the single-pane room list.
+- Mobile Home, Direct Messages, and Space navigation now fill the available width and omit the resize handle.
+  Saved widths remain available for desktop and tablet layouts without constraining the phone list.
+- Entering the mobile layout cancels any active drag; returning to a split layout resumes measurement and restores the saved width.
+- On desktop and tablet, dragging 40 px below the 200 px minimum previews a collapsed pane; releasing commits the existing collapsed state without replacing the saved width.
+  Dragging back to 180 px reverses the preview, with a 20 px buffer to prevent threshold flicker.
+  Pointer cancellation and mobile transitions discard the preview; reopening restores the prior usable width and keeps the current room.
+  Keyboard resizing retains the usable minimum, and the existing collapse button remains keyboard accessible.
+- Focused regression coverage passes all 41 navigation tests, including mouse, touch, pen, RTL, cancellation, saved widths, and a mid-drag breakpoint change.
+  The phone-width and drag-collapse browser regressions each failed against their previous implementations before the fixes.
+- Typecheck, the production/PWA build, changed-file formatting, and ESLint pass with zero errors and the existing 17 warnings.
+  Full Vitest with four workers passes 4,153 of 4,157 tests; the same four failures reproduce on the unchanged base in the Xcode Cloud shell fixtures and upload-caption matcher on this Node 22/Nix host.
+- Both live Chromium cases pass against the production build, covering desktop resizing, reversible collapse preview, collapse persistence, reopening at the saved width, and room continuity plus full-width phone lists, a saved narrow width, rotation, and Home, Direct Messages, and Space routing.
+- Independent implementation and whole-navigation UX reviews found no introduced defects; the fix is open in ready PR #250.
+  Follow-up state and UX reviews also approve the drag-to-collapse behavior, including native Chromium touch cancellation and RTL preview geometry.
+  Review follow-up adds a passing 844 × 390 browser regression that crosses into the split layout and restores the saved width before returning to portrait.
+  Additional live checks cover RTL, 750/751 px boundaries, room continuity, and interrupted mouse and touch drags across breakpoints.
+  Chromium touch injection can swallow the first subsequent tap after a drag; the same result reproduces on a plain HTML page without application code.
+  Physical iPhone and iPad validation remains unavailable on this Linux host.
+
+### Preserve thread drafts and pending replies across navigation (2026-09-15)
+
+- Status: implementation, local verification, and two independent subagent reviews are complete.
+- Composer text now saves to localStorage while typing, keyed by Matrix account, room, and thread, and restores when that destination reopens or the page reloads.
+- Empty drafts are removed, malformed or unavailable storage falls back safely, and account logout clears only that account's saved drafts and revokes outstanding recovery writes.
+- Draft hydration no longer inserts the stored value on every draft update, and background caption recovery preserves both newer typing and the original composer destination, including voice retries targeting another thread.
+- Pasted-text attachments retain their composer destination through thread changes and asynchronous preparation, stay out of other drafts' send batches, and recover preparation failures into the originating draft.
+- Pending thread replies previously lived only in the SDK transaction map and the mounted view's supplemental state because chronological room timelines reject thread replies.
+- The client sync engine now retains the original pending thread-event objects for the room's lifetime, including before initial sync, and thread rendering includes them after navigation.
+- Confirmation and cancellation remove retained entries; queued, encrypting, sending, failed, and sent-but-unconfirmed events retain their SDK status and transaction identity.
+- Pending-send retention covers navigation within the running client; it does not add a reload-persistent outbox or persist upload files.
+- Regression coverage exercises formatted draft reloads, room/thread/account isolation, clearing, unavailable storage, background caption recovery, logout cleanup, real SDK pending events, confirmation deduplication, cancellation, and engine teardown.
+- Validation: all 4,175 tests across 514 files pass under Node 24.13.1 in the standard Linux container.
+- Native Nix runs reproduce the three existing Xcode shell-fixture failures; the container run covers them successfully.
+- Typecheck, touched-file ESLint and formatting, production/PWA build, and both independent reviews pass.
+- Live Chromium validation against the local Docker Matrix service covers draft exit/reopen, page reload, offline reply visibility after navigation, and delayed-send confirmation without duplication after reload.
 
 ### Full interface internationalization (2026-09-14)
 

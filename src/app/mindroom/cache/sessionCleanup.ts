@@ -1,4 +1,5 @@
 import { clearMindroomLongTextHydrationCache } from '../messages/longText';
+import { clearRoomInputDrafts } from '../../state/room/roomInputDrafts';
 import { clearIOSPushState } from '../native/iosPush';
 import { clearRecentThreadsStore } from '../recent-threads/recentThreads';
 import { clearRecentlyOpenedPanelHeightStore } from '../recent-threads/recentlyOpenedPanelHeight';
@@ -75,6 +76,7 @@ export const deleteMindroomSessionCaches = async (sessionId: string): Promise<vo
 const LEGACY_LAST_OPEN_THREAD_STORE_PREFIX = 'lastOpenThread';
 
 export const clearMindroomUserUiState = (userId: string): void => {
+  clearRoomInputDrafts(userId);
   removeStorageItemSafe(getSafeLocalStorage(), `${LEGACY_LAST_OPEN_THREAD_STORE_PREFIX}${userId}`);
   clearRoomThreadFiltersStore(userId);
   clearCrossRoomThreadFiltersStore(userId);

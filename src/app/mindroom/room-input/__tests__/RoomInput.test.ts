@@ -263,6 +263,7 @@ vi.mock('../../../components/editor', () => ({
 // editor barrel mock above does not cover its calls.
 vi.mock('../../../components/editor/utils', async (importOriginal) => ({
   ...(await importOriginal<object>()),
+  isEmptyEditor: () => true,
   resetEditor: editorMocks.resetEditor,
   resetEditorHistory: editorMocks.resetEditorHistory,
   restoreEditorContent: editorMocks.restoreEditorContent,
