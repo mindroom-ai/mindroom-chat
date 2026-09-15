@@ -1,10 +1,12 @@
-import { Box, config, Icon, IconButton, Icons, Input, Line, Scroll, Text } from 'folds';
-import { Trans, useTranslation } from 'react-i18next';
+import { Icon, Icons } from 'folds';
+import { useTranslation } from 'react-i18next';
 import { type TFunction } from 'i18next';
 import React, {
   ChangeEventHandler,
   KeyboardEventHandler,
   useEffect,
+  useId,
+  useRef,
   useMemo,
   useState,
 } from 'react';
@@ -13,8 +15,13 @@ import { isMacOS } from '../../utils/user-agent';
 import { getCommandPaletteSectionOrder, parseCommandPaletteQuery } from './commandPaletteQuery';
 import type { CommandPaletteSource, ExecutableCommandPaletteItem } from './commandPaletteItems';
 import { commandPaletteSearchConfig, searchCommandPaletteSection } from './commandPaletteSearch';
-import { CommandPaletteList, type CommandPaletteListSection } from './CommandPaletteList';
-import { COMMAND_PALETTE_PREFIX_HINTS } from './commandPaletteTypes';
+import {
+  CommandPaletteList,
+  getCommandPaletteOptionId,
+  type CommandPaletteListSection,
+} from './CommandPaletteList';
+import * as css from './CommandPalette.css';
+import type { CommandPalettePrefix } from './commandPaletteTypes';
 import type { CommandPaletteParsedQuery, CommandPaletteRoomItem } from './commandPaletteTypes';
 
 type CommandPaletteProps = {
@@ -142,18 +149,26 @@ const getResultCountLabel = (
 };
 
 const PREFIX_LABEL_KEYS = {
-  '>': 'commandPalette.prefixes.actions',
-  '#': 'commandPalette.prefixes.rooms',
-  '@': 'commandPalette.prefixes.users',
-  't:': 'commandPalette.prefixes.threads',
-  '*': 'commandPalette.prefixes.spaces',
-} as const satisfies Record<typeof COMMAND_PALETTE_PREFIX_HINTS[number], string>;
+  '>': 'commandPalette.sections.actions',
+  '#': 'commandPalette.sections.rooms',
+  '@': 'commandPalette.sections.users',
+  't:': 'commandPalette.sections.threads',
+  '*': 'commandPalette.sections.spaces',
+} as const satisfies Record<CommandPalettePrefix, string>;
 
 export function CommandPalette({ requestClose, source, mobileSheet = false }: CommandPaletteProps) {
   const { t } = useTranslation();
   const [query, setQuery] = useState('');
+  const [literalSearch, setLiteralSearch] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const resultsRef = useRef<HTMLDivElement>(null);
+  const listId = useId();
   const [selectedIndex, setSelectedIndex] = useState(0);
-  const parsedQuery = useMemo(() => parseCommandPaletteQuery(query), [query]);
+  const parsedQuery = useMemo<CommandPaletteParsedQuery>(() => {
+    if (!literalSearch) return parseCommandPaletteQuery(query);
+    const searchText = query.trim();
+    return { raw: query, mode: 'all', searchText, showMessages: searchText.length > 0 };
+  }, [query, literalSearch]);
   const sectionOrder = useMemo(() => getCommandPaletteSectionOrder(parsedQuery), [parsedQuery]);
   const spaceItems = useMemo(
     () => source.rooms.filter((item) => item.kind === 'space'),
@@ -178,7 +193,8 @@ export function CommandPalette({ requestClose, source, mobileSheet = false }: Co
 
   useEffect(() => {
     setSelectedIndex(0);
-  }, [query]);
+    if (resultsRef.current) resultsRef.current.scrollTop = 0;
+  }, [query, literalSearch]);
 
   useEffect(() => {
     if (selectedIndex < visibleItems.length) return;
@@ -187,8 +203,13 @@ export function CommandPalette({ requestClose, source, mobileSheet = false }: Co
 
   const selectedItem = visibleItems[selectedIndex];
 
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, []);
+
   const handleChange: ChangeEventHandler<HTMLInputElement> = (event) => {
     setQuery(event.currentTarget.value);
+    if (!event.currentTarget.value.trim()) setLiteralSearch(false);
   };
 
   const handleSelect = (item: ExecutableCommandPaletteItem) => {
@@ -198,6 +219,7 @@ export function CommandPalette({ requestClose, source, mobileSheet = false }: Co
   };
 
   const handleKeyDown: KeyboardEventHandler<HTMLInputElement> = (event) => {
+    if (event.nativeEvent?.isComposing || event.keyCode === 229) return;
     if (event.key === 'ArrowDown') {
       event.preventDefault();
       if (visibleItems.length === 0) return;
@@ -220,6 +242,7 @@ export function CommandPalette({ requestClose, source, mobileSheet = false }: Co
 
     if (event.key === 'Escape') {
       event.preventDefault();
+      event.stopPropagation?.();
       setQuery('');
       requestClose();
     }
@@ -227,80 +250,115 @@ export function CommandPalette({ requestClose, source, mobileSheet = false }: Co
 
   const shortcutLabel = isMacOS() ? `${KeySymbol.Command} K` : 'Ctrl + K';
 
+  const changeFilter = (prefix?: CommandPalettePrefix) => {
+    // Keep a pasted Matrix ID literal when removing an explicit category prefix.
+    setLiteralSearch(!prefix && !!parseCommandPaletteQuery(parsedQuery.searchText).prefix);
+    setQuery(prefix ? prefix + ' ' + parsedQuery.searchText : parsedQuery.searchText);
+    inputRef.current?.focus();
+  };
+  const filters = [undefined, 't:', '#', '@', '>', '*'] as const;
+
   return (
-    <Box
-      style={{
-        flex: '1 1 auto',
-        minHeight: 0,
-        paddingInline: config.space.S400,
-        paddingBottom: mobileSheet ? 'env(safe-area-inset-bottom, 0px)' : undefined,
-      }}
-      direction="Column"
-      gap="200"
+    <div
+      className={css.Palette}
+      style={{ paddingBottom: mobileSheet ? 'env(safe-area-inset-bottom, 0px)' : undefined }}
     >
-      <Box direction="Column" gap="200" shrink="No">
-        <Box gap="200" alignItems="Center">
-          <div style={{ flex: '1 1 auto', minWidth: 0 }}>
-            <Input
-              autoFocus
-              aria-label={t('commandPalette.inputAria')}
-              placeholder={t('commandPalette.placeholder')}
-              value={query}
-              onChange={handleChange}
-              onKeyDown={handleKeyDown}
-            />
-          </div>
-          {mobileSheet && (
-            <IconButton
-              aria-label={t('commandPalette.closeAria')}
-              variant="Surface"
-              size="300"
-              radii="300"
-              onClick={requestClose}
+      <div className={css.Search}>
+        <Icon src={Icons.Search} size="300" />
+        <input
+          ref={inputRef}
+          className={css.Input}
+          autoComplete="off"
+          spellCheck={false}
+          role="combobox"
+          aria-expanded="true"
+          aria-autocomplete="list"
+          aria-controls={listId}
+          aria-activedescendant={
+            selectedItem ? getCommandPaletteOptionId(listId, selectedItem.id) : undefined
+          }
+          aria-label={t('commandPalette.inputAria')}
+          placeholder={t('commandPalette.placeholder')}
+          value={query}
+          onChange={handleChange}
+          onKeyDown={handleKeyDown}
+        />
+        <button
+          type="button"
+          className={css.Close}
+          aria-label={t('commandPalette.closeAria')}
+          onClick={requestClose}
+        >
+          {mobileSheet ? <Icon src={Icons.Cross} size="200" /> : <kbd className={css.Key}>esc</kbd>}
+        </button>
+      </div>
+      <div className={css.Filters} role="group" aria-label={t('commandPalette.filterLabel')}>
+        {filters.map((prefix) => (
+          <button
+            type="button"
+            key={prefix ?? 'all'}
+            className={css.Filter}
+            aria-label={prefix ? t(PREFIX_LABEL_KEYS[prefix]) : t('commandPalette.all')}
+            aria-pressed={parsedQuery.prefix === prefix}
+            onClick={() => changeFilter(prefix)}
+          >
+            {prefix ? t(PREFIX_LABEL_KEYS[prefix]) : t('commandPalette.all')}
+            {prefix && (
+              <span className={css.Prefix} aria-hidden="true">
+                {prefix}
+              </span>
+            )}
+          </button>
+        ))}
+      </div>
+      <div ref={resultsRef} className={css.Results}>
+        <CommandPaletteList
+          id={listId}
+          label={t('commandPalette.resultsLabel')}
+          sections={visibleSections}
+          selectedItemId={selectedItem?.id}
+          onHighlight={(itemId) =>
+            setSelectedIndex(visibleItems.findIndex((item) => item.id === itemId))
+          }
+          onSelect={handleSelect}
+        />
+        {visibleSections.length === 0 && (
+          <div className={css.Empty}>
+            <Icon src={Icons.Search} size="400" />
+            <span className={css.EmptyTitle}>{t('commandPalette.noResults')}</span>
+            <span className={css.EmptyDescription}>{t('commandPalette.emptyDescription')}</span>
+            <button
+              type="button"
+              className={css.Filter}
+              aria-label={t('commandPalette.clearSearch')}
+              onClick={() => {
+                setQuery('');
+                setLiteralSearch(false);
+                inputRef.current?.focus();
+              }}
             >
-              <Icon src={Icons.Cross} />
-            </IconButton>
-          )}
-        </Box>
-        <div aria-live="polite">{getResultCountLabel(visibleSections, t)}</div>
-      </Box>
-      <Scroll
-        style={{ flex: '1 1 auto', minHeight: 0, overflowY: 'auto' }}
-        size="300"
-        hideTrack
-        visibility="Hover"
-      >
-        {visibleSections.length > 0 ? (
-          <CommandPaletteList
-            sections={visibleSections}
-            selectedItemId={selectedItem?.id}
-            onSelect={handleSelect}
-          />
-        ) : (
-          <Text size="T300">{t('commandPalette.noResults')}</Text>
+              {t('commandPalette.clearSearch')}
+            </button>
+          </div>
         )}
-      </Scroll>
-      <Box direction="Column" gap="200" shrink="No">
-        <Line variant="SurfaceVariant" size="300" />
-        <Text size="T200" priority="300">
-          {t('commandPalette.prefixes.label')}{' '}
-          {COMMAND_PALETTE_PREFIX_HINTS.map((prefix, index) => (
-            <React.Fragment key={prefix}>
-              {index > 0 && '  '}
-              <b>{prefix}</b> {t(PREFIX_LABEL_KEYS[prefix])}
-            </React.Fragment>
-          ))}
-          {'. '}
-          <Trans
-            t={t}
-            shouldUnescape
-            tOptions={{ interpolation: { escapeValue: true } }}
-            i18nKey="sharedUi.commandPalette.shortcutHint"
-            values={{ shortcut: shortcutLabel }}
-            components={{ shortcut: <b /> }}
-          />
-        </Text>
-      </Box>
-    </Box>
+      </div>
+      <div className={css.Footer}>
+        <div className={css.KeyboardHints}>
+          <span className={css.Hint}>
+            <kbd className={css.Key}>↑</kbd>
+            <kbd className={css.Key}>↓</kbd> {t('commandPalette.navigate')}
+          </span>
+          <span className={css.Hint}>
+            <kbd className={css.Key}>↵</kbd> {t('commandPalette.select')}
+          </span>
+          <span className={css.Hint}>
+            <kbd className={css.Key}>{shortcutLabel}</kbd>
+          </span>
+        </div>
+        <span role="status" aria-live="polite">
+          {getResultCountLabel(visibleSections, t)}
+        </span>
+      </div>
+    </div>
   );
 }

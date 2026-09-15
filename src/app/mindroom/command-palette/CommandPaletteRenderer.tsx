@@ -36,7 +36,11 @@ const MOBILE_SHEET_STYLE: React.CSSProperties = {
   width: '100vw',
 };
 const DESKTOP_MODAL_STYLE: React.CSSProperties = {
-  maxHeight: 'calc(100dvh - 32px)',
+  width: 'min(680px, calc(100vw - 32px))',
+  height: 'min(600px, calc(100dvh - 48px))',
+  maxHeight: 'calc(100dvh - 48px)',
+  borderRadius: config.radii.R400,
+  overflow: 'hidden',
 };
 
 function RenderPalette({ mobileSheet, requestClose, children }: RenderPaletteProps) {

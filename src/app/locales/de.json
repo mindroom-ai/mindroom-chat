@@ -164,7 +164,7 @@
   },
   "commandPalette": {
     "inputAria": "Befehlspalette",
-    "placeholder": "Befehl eingeben oder suchen...",
+    "placeholder": "Suchen oder Befehl ausführen…",
     "closeAria": "Befehlspalette schließen",
     "open": "Befehlspalette öffnen",
     "noResults": "Keine Ergebnisse",
@@ -225,7 +225,14 @@
       "currentSpaceFallback": "aktuellem Space",
       "currentSpaceDescription": "Aktueller Space",
       "globalSearchDescription": "Globale Nachrichtensuche"
-    }
+    },
+    "all": "Alle",
+    "filterLabel": "Ergebnisse filtern",
+    "resultsLabel": "Suchergebnisse",
+    "emptyDescription": "Versuche eine andere Suche oder wähle eine andere Kategorie.",
+    "clearSearch": "Suche löschen",
+    "navigate": "Navigieren",
+    "select": "Öffnen"
   },
   "accountSwitcher": {
     "title": "Konten",

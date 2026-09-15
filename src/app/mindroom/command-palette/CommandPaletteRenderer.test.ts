@@ -171,6 +171,33 @@ vi.mock('react-aria', async () => {
   };
 });
 
+vi.mock('./CommandPalette.css', () => ({
+  Palette: 'Palette',
+  Search: 'Search',
+  Input: 'Input',
+  Close: 'Close',
+  Filters: 'Filters',
+  Filter: 'Filter',
+  Prefix: 'Prefix',
+  Results: 'Results',
+  Group: 'Group',
+  GroupTitle: 'GroupTitle',
+  GroupCount: 'GroupCount',
+  Row: 'Row',
+  RowIcon: 'RowIcon',
+  RowText: 'RowText',
+  RowTitle: 'RowTitle',
+  RowDescription: 'RowDescription',
+  RowEnter: 'RowEnter',
+  Key: 'Key',
+  Footer: 'Footer',
+  KeyboardHints: 'KeyboardHints',
+  Hint: 'Hint',
+  Empty: 'Empty',
+  EmptyTitle: 'EmptyTitle',
+  EmptyDescription: 'EmptyDescription',
+}));
+
 const renderRenderer = (open = true) => {
   const store = createStore();
   store.set(commandPaletteOpenAtom, open);
@@ -204,7 +231,6 @@ describe('CommandPaletteRenderer', () => {
       1
     );
     expect(modal.props.flexHeight).toBe(true);
-    expect(modal.props.style).toEqual({ maxHeight: 'calc(100dvh - 32px)' });
   });
 
   it('uses the mobile bottom-sheet layout with dynamic viewport units on the mobile breakpoint', () => {
