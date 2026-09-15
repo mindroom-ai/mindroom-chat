@@ -1,4 +1,4 @@
-import React, { ReactNode, createContext, useContext, useMemo } from 'react';
+import React, { ReactNode, useMemo } from 'react';
 import { Icon, Icons } from 'folds';
 import { useAtom } from 'jotai';
 import { useTranslation } from 'react-i18next';
@@ -8,25 +8,13 @@ import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { ScreenSize, useScreenSizeContext } from '../../hooks/useScreenSize';
 import { MobileFriendlyClientNav } from '../../pages/MobileFriendly';
 import { SidebarNav } from '../../pages/client/SidebarNav';
-import { makeDesktopPageNavCollapsedAtom } from './desktopPageNavState';
+import {
+  makeDesktopPageNavCollapsedAtom,
+  MindroomDesktopPageNavContext,
+  useMindroomDesktopPageNav,
+} from './desktopPageNavState';
 import { useNavToActivePathMapper } from '../../hooks/useNavToActivePathMapper';
 import { useSpace } from '../../hooks/useSpace';
-
-type MindroomDesktopPageNavState = {
-  canCollapse: boolean;
-  collapsed: boolean;
-  setCollapsed: (collapsed: boolean) => void;
-};
-
-const MindroomDesktopPageNavContext = createContext<MindroomDesktopPageNavState | undefined>(
-  undefined
-);
-
-function useMindroomDesktopPageNav(): MindroomDesktopPageNavState {
-  const value = useContext(MindroomDesktopPageNavContext);
-  if (!value) throw new Error('Mindroom desktop page navigation provider is missing.');
-  return value;
-}
 
 function PageNavToggleButton({ collapsed, onClick }: { collapsed: boolean; onClick: () => void }) {
   const { t } = useTranslation();
