@@ -44,13 +44,17 @@ export function ResizablePageNav({ children }: { children: ReactNode }) {
   const panelRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<Drag>();
   const mobile = useScreenSizeContext() === ScreenSize.Mobile;
-  const maxWidth = Math.max(0, Math.min(MAX_WIDTH, availableWidth - (mobile ? 16 : 320)));
-  const defaultWidth = mobile ? maxWidth : DEFAULT_WIDTH;
-  const width = clamp(previewWidth ?? preferredWidth ?? defaultWidth, maxWidth);
+  const maxWidth = Math.max(0, Math.min(MAX_WIDTH, availableWidth - 320));
+  const width = clamp(previewWidth ?? preferredWidth ?? DEFAULT_WIDTH, maxWidth);
   const resizeDirection = () =>
     panelRef.current && getComputedStyle(panelRef.current).direction === 'rtl' ? -1 : 1;
 
   useLayoutEffect(() => {
+    if (mobile) {
+      dragRef.current = undefined;
+      setPreviewWidth(undefined);
+      return undefined;
+    }
     const parent = panelRef.current?.parentElement;
     if (!parent) return undefined;
     const measure = () => setAvailableWidth(parent.clientWidth);
@@ -58,7 +62,7 @@ export function ResizablePageNav({ children }: { children: ReactNode }) {
     const observer = new ResizeObserver(measure);
     observer.observe(parent);
     return () => observer.disconnect();
-  }, []);
+  }, [mobile]);
 
   const startResize = (event: React.PointerEvent<HTMLDivElement>) => {
     if (event.button !== 0 || !event.isPrimary || dragRef.current) return;
@@ -104,7 +108,7 @@ export function ResizablePageNav({ children }: { children: ReactNode }) {
         next = maxWidth;
         break;
       case 'Enter':
-        next = defaultWidth;
+        next = DEFAULT_WIDTH;
         break;
       default:
         return;
@@ -114,26 +118,33 @@ export function ResizablePageNav({ children }: { children: ReactNode }) {
   };
 
   return (
-    <div ref={panelRef} className={css.Panel} style={{ width }} data-testid="resizable-page-nav">
+    <div
+      ref={panelRef}
+      className={css.Panel}
+      style={{ width: mobile ? '100%' : width }}
+      data-testid="resizable-page-nav"
+    >
       {children}
       {/* A focusable separator implements the adjustable splitter pattern. */}
       {/* eslint-disable jsx-a11y/no-noninteractive-element-interactions, jsx-a11y/no-noninteractive-tabindex */}
-      <div
-        className={css.Handle}
-        role="separator"
-        aria-label={t('mindroomUi.sidebar.resizeNavigationPanel')}
-        aria-orientation="vertical"
-        aria-valuemin={Math.min(MIN_WIDTH, maxWidth)}
-        aria-valuemax={maxWidth}
-        aria-valuenow={width}
-        tabIndex={0}
-        onPointerDown={startResize}
-        onPointerMove={moveResize}
-        onPointerUp={(event) => finishResize(event, true)}
-        onPointerCancel={(event) => finishResize(event, false)}
-        onLostPointerCapture={(event) => finishResize(event, false)}
-        onKeyDown={resizeWithKeyboard}
-      />
+      {!mobile && (
+        <div
+          className={css.Handle}
+          role="separator"
+          aria-label={t('mindroomUi.sidebar.resizeNavigationPanel')}
+          aria-orientation="vertical"
+          aria-valuemin={Math.min(MIN_WIDTH, maxWidth)}
+          aria-valuemax={maxWidth}
+          aria-valuenow={width}
+          tabIndex={0}
+          onPointerDown={startResize}
+          onPointerMove={moveResize}
+          onPointerUp={(event) => finishResize(event, true)}
+          onPointerCancel={(event) => finishResize(event, false)}
+          onLostPointerCapture={(event) => finishResize(event, false)}
+          onKeyDown={resizeWithKeyboard}
+        />
+      )}
       {/* eslint-enable jsx-a11y/no-noninteractive-element-interactions, jsx-a11y/no-noninteractive-tabindex */}
     </div>
   );

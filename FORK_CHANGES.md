@@ -2,6 +2,20 @@
 
 ## Runbook
 
+### Fill the mobile navigation pane (2026-09-15)
+
+- The resizable navigation wrapper applied saved widths and reserved a drag-handle gap on phones, leaving unused space beside the single-pane room list.
+- Mobile Home, Direct Messages, and Space navigation now fill the available width and omit the resize handle.
+  Saved widths remain available for desktop and tablet layouts without constraining the phone list.
+- Entering the mobile layout cancels any active drag; returning to a split layout resumes measurement and restores the saved width.
+- Focused regression coverage passes all 32 navigation tests, including saved widths and a mid-drag breakpoint change.
+  The phone browser regression failed against the original implementation before the fix.
+- Typecheck, the production/PWA build, changed-file formatting, and ESLint pass with zero errors and the existing 17 warnings.
+  Full Vitest passes 4,144 of 4,148 tests; the same four failures reproduce on the unchanged base in the Xcode Cloud shell fixtures and upload-caption matcher on this Node 22/Nix host.
+- Both live Chromium cases pass against the production build, covering desktop resizing and persistence plus full-width phone lists, a saved narrow width, rotation, and Home, Direct Messages, and Space routing.
+- Independent review found no actionable defects.
+  Physical iPhone validation remains unavailable on this Linux host.
+
 ### Full interface internationalization (2026-09-14)
 
 - Status: implementation, language quality corrections, independent reviews, and local verification are complete; ready PR #249 is open against dev.

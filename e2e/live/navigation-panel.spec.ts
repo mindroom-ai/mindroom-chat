@@ -17,10 +17,7 @@ for (const mobile of [false, true]) {
   test.describe(mobile ? 'phone navigation panel' : 'desktop navigation panel', () => {
     test.use(mobile ? phone : { viewport: { width: 1280, height: 900 } });
 
-    test('resizes, remembers width, and handles Home, DM, and Space repeat clicks', async ({
-      page,
-      browserName,
-    }) => {
+    test('sizes navigation and handles Home, DM, and Space repeat clicks', async ({ page }) => {
       const homeserver = getHomeserver();
       const credentials = getPrimaryCredentials();
       const session = await loginToMatrix(homeserver, credentials.username, credentials.password);
@@ -50,38 +47,57 @@ for (const mobile of [false, true]) {
       const panel = page.getByTestId('resizable-page-nav');
       const handle = page.getByRole('separator', { name: 'Resize navigation panel' });
       await expect(panel).toBeVisible();
+      const expectFullWidth = async () => {
+        await expect(panel).toBeVisible();
+        await expect(handle).toHaveCount(0);
+        await expect
+          .poll(async () => {
+            const bounds = await panel.boundingBox();
+            return bounds ? Math.round(bounds.x + bounds.width) : 0;
+          })
+          .toBe(page.viewportSize()!.width);
+        await expect(page.locator('body')).toHaveJSProperty(
+          'scrollWidth',
+          page.viewportSize()!.width
+        );
+      };
       const initial = await panel.boundingBox();
       expect(initial).not.toBeNull();
-      const edge = await handle.boundingBox();
-      if (!edge || !initial) throw new Error('Missing resize geometry');
-      const start = { x: edge.x + edge.width / 2, y: edge.y + 250 };
-      const delta = mobile ? -50 : 100;
-      if (mobile && browserName === 'chromium') {
-        const cdp = await page.context().newCDPSession(page);
-        await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [start] });
-        await cdp.send('Input.dispatchTouchEvent', {
-          type: 'touchMove',
-          touchPoints: [{ ...start, x: start.x + delta }],
-        });
-        await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
-        await cdp.detach();
+      let resizedWidth = 0;
+      if (mobile) {
+        await expectFullWidth();
+        // A width saved by an earlier app version must not narrow the phone list.
+        await page.evaluate((userId) => {
+          localStorage.setItem(`mindroom.pageNav.width:${userId}`, '220');
+        }, session.userId);
+        await page.reload();
+        await waitForLoggedInShell(page);
+        await expectFullWidth();
+        await page.setViewportSize({ width: 750, height: 390 });
+        await expectFullWidth();
+        await page.setViewportSize({ width: 390, height: 844 });
+        await expectFullWidth();
       } else {
+        const edge = await handle.boundingBox();
+        if (!edge || !initial) throw new Error('Missing resize geometry');
+        const start = { x: edge.x + edge.width / 2, y: edge.y + 250 };
+        const delta = 100;
         await page.mouse.move(start.x, start.y);
         await page.mouse.down();
         await page.mouse.move(start.x + delta, start.y, { steps: 8 });
         await page.mouse.up();
+        resizedWidth = Math.round(initial.width + delta);
+        await expect
+          .poll(async () => Math.round((await panel.boundingBox())?.width ?? 0))
+          .toBe(resizedWidth);
+        await expect(handle).toHaveCSS('touch-action', 'none');
+        await page.reload();
+        await waitForLoggedInShell(page);
+        await expect
+          .poll(async () => Math.round((await panel.boundingBox())?.width ?? 0))
+          .toBe(resizedWidth);
       }
-      const resizedWidth = Math.round(initial.width + delta);
-      await expect
-        .poll(async () => Math.round((await panel.boundingBox())?.width ?? 0))
-        .toBe(resizedWidth);
-      await expect(handle).toHaveCSS('touch-action', 'none');
-      await page.screenshot({ path: test.info().outputPath('resized-navigation.png') });
-      await page.reload();
-      await waitForLoggedInShell(page);
-      await expect
-        .poll(async () => Math.round((await panel.boundingBox())?.width ?? 0))
-        .toBe(resizedWidth);
+      await page.screenshot({ path: test.info().outputPath('navigation-panel.png') });
 
       for (const section of [
         {
@@ -122,7 +138,7 @@ for (const mobile of [false, true]) {
           await expect(page.locator('body')).toHaveJSProperty('scrollWidth', 390);
           await page.goto(section.root);
           await waitForLoggedInShell(page);
-          await expect(panel).toBeVisible();
+          await expectFullWidth();
           await section.button.tap();
           await expect(panel).toHaveCount(0);
           await expect(page).toHaveURL(new RegExp(encodeURIComponent(section.room)));

@@ -157,17 +157,44 @@ describe('ResizablePageNav', () => {
     act(() => renderer.unmount());
   });
 
-  it('supports touch resizing within a narrow phone viewport', () => {
-    availableWidth = 309;
-    const { renderer, handle, width } = renderPanel(ScreenSize.Mobile);
-    expect(width()).toBe(293);
-    act(() => handle().props.onPointerDown(pointer(293, 'touch')));
-    act(() => handle().props.onPointerMove(pointer(220, 'touch')));
-    act(() => handle().props.onPointerUp(pointer(220, 'touch')));
-    expect(width()).toBe(220);
-    act(() => handle().props.onPointerDown(pointer(220, 'touch')));
-    act(() => handle().props.onPointerMove(pointer(999, 'touch')));
-    expect(width()).toBe(293);
+  it.each([undefined, '220', '600'])(
+    'has no resize handle on phones with saved width %s',
+    (saved) => {
+      availableWidth = 309;
+      if (saved) storage.set(storageKey, saved);
+      const { renderer } = renderPanel(ScreenSize.Mobile);
+      expect(renderer.root.findAllByProps({ role: 'separator' })).toHaveLength(0);
+      expect(storage.get(storageKey)).toBe(saved);
+      act(() => renderer.unmount());
+    }
+  );
+
+  it('discards a drag when switching to mobile and restores the saved split-layout width', () => {
+    storage.set(storageKey, '300');
+    const { renderer, handle, width } = renderPanel(ScreenSize.Tablet);
+    act(() => handle().props.onPointerDown(pointer(300)));
+    act(() => handle().props.onPointerMove(pointer(400)));
+    expect(width()).toBe(400);
+    const changeScreen = (screenSize: ScreenSize) =>
+      act(() => {
+        renderer.update(
+          <ScreenSizeProvider value={screenSize}>
+            <ResizablePageNav>
+              <span>Room list</span>
+            </ResizablePageNav>
+          </ScreenSizeProvider>
+        );
+      });
+    changeScreen(ScreenSize.Mobile);
+    expect(renderer.root.findAllByProps({ role: 'separator' })).toHaveLength(0);
+    expect(storage.get(storageKey)).toBe('300');
+    changeScreen(ScreenSize.Tablet);
+    expect(width()).toBe(300);
+    act(() => handle().props.onPointerDown(pointer(300)));
+    act(() => handle().props.onPointerMove(pointer(320)));
+    act(() => handle().props.onPointerUp(pointer(320)));
+    expect(width()).toBe(320);
+    expect(storage.get(storageKey)).toBe('320');
     act(() => renderer.unmount());
   });
 
