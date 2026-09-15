@@ -38,6 +38,9 @@
   },
 
   "mindroom": {
+    "computers": {
+      "apiUrl": ""
+    },
     "thinkingPlaceholderMessages": [
       "Thinking",
       "Making progress",

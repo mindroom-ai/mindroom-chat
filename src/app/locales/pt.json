@@ -2681,6 +2681,8 @@
         "youDoNotHavePermissionToPostInThisRoom": "Não tem permissão para publicar nesta sala"
       },
       "mindroomRoomViewHeader": {
+        "showComputer": "Mostrar computador",
+        "hideComputer": "Ocultar computador",
         "notifications": "Notificações",
         "compact": "Compacto",
         "threads": "Tópicos",

@@ -74,6 +74,7 @@ import {
   getPendingJoinRequestLabel,
   PendingJoinRequestBadge,
 } from '../../features/room/PendingJoinRequestBadge';
+import { ComputerHeaderButton } from '../computer/ComputerHeaderButton';
 
 type RoomMenuProps = {
   room: Room;
@@ -294,10 +295,16 @@ const RoomMenu = forwardRef<HTMLDivElement, RoomMenuProps>(({ room, requestClose
 
 export function RoomViewHeader({
   callView,
+  computerAvailable = false,
+  computerOpen = false,
+  onComputerToggle,
   threadId,
   joinRequestCount = 0,
 }: {
   callView?: boolean;
+  computerAvailable?: boolean;
+  computerOpen?: boolean;
+  onComputerToggle?: () => void;
   threadId?: string;
   joinRequestCount?: number;
 }) {
@@ -446,6 +453,16 @@ export function RoomViewHeader({
 
         <Box shrink="No">
           <MindroomCommandPaletteHeaderButton />
+          <ComputerHeaderButton
+            label={t(
+              computerOpen
+                ? 'mindroomUi.threads.mindroomRoomViewHeader.hideComputer'
+                : 'mindroomUi.threads.mindroomRoomViewHeader.showComputer'
+            )}
+            available={computerAvailable && !!onComputerToggle}
+            open={computerOpen}
+            onToggle={onComputerToggle ?? (() => undefined)}
+          />
           {!simpleMode && !encryptedRoom && (
             <TooltipProvider
               position="Bottom"

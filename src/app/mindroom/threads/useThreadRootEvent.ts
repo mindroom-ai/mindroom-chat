@@ -20,14 +20,23 @@ export const useThreadRootEvent = (
   const rootId = resolveCanonicalThreadRootId(room, threadId);
   const rootIdRef = useRef(rootId);
   rootIdRef.current = rootId;
+  const routeKnown =
+    !threadId || !!room.findEventById(threadId) || !!room.getThread(threadId)?.rootEvent;
+  const routeKnownRef = useRef(routeKnown);
+  routeKnownRef.current = routeKnown;
 
   useEffect(() => {
     if (!threadId) return undefined;
 
     const refreshRootId = () => {
       const nextRootId = resolveCanonicalThreadRootId(room, threadId);
-      if (rootIdRef.current === nextRootId) return;
+      const nextRouteKnown =
+        !!room.findEventById(threadId) || !!room.getThread(threadId)?.rootEvent;
+      if (rootIdRef.current === nextRootId && routeKnownRef.current === nextRouteKnown) return;
 
+      // Consumers can safely enable thread actions when a previously unknown
+      // route arrives, even when its canonical ID is unchanged.
+      routeKnownRef.current = nextRouteKnown;
       rootIdRef.current = nextRootId;
       bumpRootIdVersion();
     };

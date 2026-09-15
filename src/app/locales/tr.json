@@ -2635,6 +2635,8 @@
         "youDoNotHavePermissionToPostInThisRoom": "Bu odada mesaj gönderme izniniz yok"
       },
       "mindroomRoomViewHeader": {
+        "showComputer": "Bilgisayarı göster",
+        "hideComputer": "Bilgisayarı gizle",
         "notifications": "Bildirimler",
         "compact": "Kompakt",
         "threads": "Konular",
