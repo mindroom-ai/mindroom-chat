@@ -33,6 +33,7 @@ const {
   encryptionState,
   mediaConfigState,
   mxState,
+  modelPickerState,
   typingState,
   voiceRecorderState,
 } = vi.hoisted(() => ({
@@ -71,6 +72,9 @@ const {
   },
   mediaConfigState: {
     maxUploadSize: Infinity,
+  },
+  modelPickerState: {
+    props: [] as Array<{ room: Room; threadId?: string }>,
   },
   mxState: {
     cancelUpload: vi.fn(),
@@ -237,7 +241,13 @@ vi.mock('../../../components/editor', () => ({
     onPaste?: (evt: { clipboardData: DataTransfer; preventDefault: () => void }) => void;
   }) => {
     customEditorState.props = { onChange, onKeyDown, onKeyUp, onPaste };
-    return React.createElement('div', { style }, top, before, after);
+    return React.createElement(
+      'div',
+      { style },
+      React.createElement('div', { 'data-room-input-slot': 'top' }, top),
+      React.createElement('div', { 'data-room-input-slot': 'before' }, before),
+      after
+    );
   },
   EmoticonAutocomplete: () => null,
   RoomMentionAutocomplete: () => null,
@@ -334,6 +344,14 @@ vi.mock('../../../hooks/useMatrixClient', () => ({
 
 vi.mock('../../../hooks/useTypingStatusUpdater', () => ({
   useTypingStatusUpdater: () => typingState.sendTypingStatus,
+}));
+
+vi.mock('../../models/ModelPicker', () => ({
+  ThreadModelPicker: ({ room, threadId }: { room: Room; threadId?: string }) => {
+    modelPickerState.props.push({ room, threadId });
+    if (!threadId) return null;
+    return React.createElement('button', { 'aria-label': 'Model picker seam' });
+  },
 }));
 
 vi.mock('../../../hooks/useFilePicker', () => ({
@@ -866,6 +884,7 @@ afterEach(() => {
   customEditorState.editor = undefined;
   customEditorState.props = undefined;
   customEditorState.replyContextRenderCount = 0;
+  modelPickerState.props = [];
   editorOutputState.plainText = '';
   editorOutputState.customHtml = '';
   editorOutputState.htmlEqualsPlainText = true;
@@ -920,6 +939,19 @@ afterEach(() => {
 });
 
 describe('RoomInput', () => {
+  it('mounts the thread model picker in the top slot for a thread', async () => {
+    const { renderer } = await renderRoomInput(createStore(), { threadId: '$thread' });
+
+    const top = renderer.root.findByProps({ 'data-room-input-slot': 'top' });
+    const before = renderer.root.findByProps({ 'data-room-input-slot': 'before' });
+
+    expect(modelPickerState.props.at(-1)).toEqual(expect.objectContaining({ threadId: '$thread' }));
+    expect(top.findAllByProps({ 'aria-label': 'Model picker seam' })).toHaveLength(1);
+    expect(before.findAllByProps({ 'aria-label': 'Model picker seam' })).toHaveLength(0);
+
+    renderer.unmount();
+  });
+
   it('extends the composer surface into the bottom safe area', async () => {
     const { renderer } = await renderRoomInput();
 

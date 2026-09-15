@@ -209,3 +209,94 @@ index 871875d..2d5c0ed 100644
                  Direction.Backward,
              );
              oldForward = res.start;
+diff --git a/node_modules/matrix-js-sdk/lib/rust-crypto/rust-crypto.js b/node_modules/matrix-js-sdk/lib/rust-crypto/rust-crypto.js
+index 217e159..d8b0c26 100644
+--- a/node_modules/matrix-js-sdk/lib/rust-crypto/rust-crypto.js
++++ b/node_modules/matrix-js-sdk/lib/rust-crypto/rust-crypto.js
+@@ -34 +34 @@
+-import { deviceKeysToDeviceMap, rustDeviceToJsDevice } from "./device-converter.js";
++import { rustDeviceToJsDevice } from "./device-converter.js";
+@@ -450 +450,4 @@
+-      rustTrackedUsers.forEach(rustUserId => trackedUsers.add(rustUserId.toString()));
++      rustTrackedUsers.forEach(rustUserId => {
++        trackedUsers.add(rustUserId.toString());
++        rustUserId.free();
++      });
+@@ -452 +455 @@
+-      // Keep untracked user to download their keys after
++      // Keep users which need a key query before their devices can be read from the Rust store.
+@@ -453,0 +457 @@
++      var usersNeedingQuery = new Set();
+@@ -459 +463,5 @@
+-          deviceMapByUserId.set(_userId, yield _this13.getUserDevices(_userId));
++          var devices = yield _this13.getUserDevices(_userId);
++          deviceMapByUserId.set(_userId, devices);
++          if (downloadUncached && devices.size === 0) {
++            usersNeedingQuery.add(_userId);
++          }
+@@ -465,2 +473,2 @@
+-      // for any users whose device lists we are not tracking, fall back to downloading the device list
+-      // over HTTP.
++      // Tracking a new user queues a key query in the Rust SDK. Processing that query through the Rust SDK is
++      // important: it verifies the response and persists the devices for later trust checks and encryption.
+@@ -468,7 +476,8 @@
+-        var queryResult = yield _this13.downloadDeviceList(untrackedUsers);
+-        Object.entries(queryResult.device_keys).forEach(_ref => {
+-          var _ref2 = _slicedToArray(_ref, 2),
+-            userId = _ref2[0],
+-            deviceKeys = _ref2[1];
+-          return deviceMapByUserId.set(userId, deviceKeysToDeviceMap(deviceKeys));
+-        });
++        yield _this13.olmMachine.updateTrackedUsers(Array.from(untrackedUsers, userId => new RustSdkCryptoJs.UserId(userId)));
++        untrackedUsers.forEach(userId => usersNeedingQuery.add(userId));
++      }
++      if (usersNeedingQuery.size >= 1) {
++        yield _this13.outgoingRequestsManager.doProcessOutgoingRequests();
++        for (var userId of usersNeedingQuery) {
++          deviceMapByUserId.set(userId, yield _this13.getUserDevices(userId));
++        }
+diff --git a/node_modules/matrix-js-sdk/src/rust-crypto/rust-crypto.ts b/node_modules/matrix-js-sdk/src/rust-crypto/rust-crypto.ts
+index fa3b8f0..52c1311 100644
+--- a/node_modules/matrix-js-sdk/src/rust-crypto/rust-crypto.ts
++++ b/node_modules/matrix-js-sdk/src/rust-crypto/rust-crypto.ts
+@@ -75 +75 @@
+-import { deviceKeysToDeviceMap, rustDeviceToJsDevice } from "./device-converter.ts";
++import { rustDeviceToJsDevice } from "./device-converter.ts";
+@@ -560 +560,4 @@
+-        rustTrackedUsers.forEach((rustUserId) => trackedUsers.add(rustUserId.toString()));
++        rustTrackedUsers.forEach((rustUserId) => {
++            trackedUsers.add(rustUserId.toString());
++            rustUserId.free();
++        });
+@@ -562 +565 @@
+-        // Keep untracked user to download their keys after
++        // Keep users which need a key query before their devices can be read from the Rust store.
+@@ -563,0 +567 @@
++        const usersNeedingQuery: Set<string> = new Set();
+@@ -570 +574,5 @@
+-                deviceMapByUserId.set(userId, await this.getUserDevices(userId));
++                const devices = await this.getUserDevices(userId);
++                deviceMapByUserId.set(userId, devices);
++                if (downloadUncached && devices.size === 0) {
++                    usersNeedingQuery.add(userId);
++                }
+@@ -576,2 +584,2 @@
+-        // for any users whose device lists we are not tracking, fall back to downloading the device list
+-        // over HTTP.
++        // Tracking a new user queues a key query in the Rust SDK. Processing that query through the Rust SDK is
++        // important: it verifies the response and persists the devices for later trust checks and encryption.
+@@ -579,3 +587,2 @@
+-            const queryResult = await this.downloadDeviceList(untrackedUsers);
+-            Object.entries(queryResult.device_keys).forEach(([userId, deviceKeys]) =>
+-                deviceMapByUserId.set(userId, deviceKeysToDeviceMap(deviceKeys)),
++            await this.olmMachine.updateTrackedUsers(
++                Array.from(untrackedUsers, (userId) => new RustSdkCryptoJs.UserId(userId)),
+@@ -582,0 +590,8 @@
++            untrackedUsers.forEach((userId) => usersNeedingQuery.add(userId));
++        }
++
++        if (usersNeedingQuery.size >= 1) {
++            await this.outgoingRequestsManager.doProcessOutgoingRequests();
++            for (const userId of usersNeedingQuery) {
++                deviceMapByUserId.set(userId, await this.getUserDevices(userId));
++            }
