@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import React from 'react';
+import thinkingMark from './thinking-mark.svg';
 import { useClientConfig } from '../../hooks/useClientConfig';
 import * as css from './MindroomThinkingPlaceholder.css';
 import { resolveMindroomThinkingPlaceholderMessages } from './thinkingPlaceholder';
@@ -40,10 +41,15 @@ export function MindroomThinkingPlaceholder() {
       aria-label={t('mindroomUi.messages.mindroomThinkingPlaceholder.aiIsResponding')}
     >
       <span className={css.Indicator} aria-hidden="true">
-        <span className={css.Dot} />
-        <span className={css.Dot} />
-        <span className={css.Dot} />
-        <span className={css.Dot} />
+        <span className={css.Aura} />
+        <span className={css.Rotor}>
+          <svg className={css.Mark} viewBox="152 112 720 720" focusable="false">
+            <use href={`${thinkingMark}#outer-frame`} />
+            <use href={`${thinkingMark}#left-rooms`} />
+            <use href={`${thinkingMark}#right-rooms`} />
+            <use className={css.Core} href={`${thinkingMark}#central-cube`} />
+          </svg>
+        </span>
       </span>
       <span className={css.Text} aria-hidden="true">
         {message}
