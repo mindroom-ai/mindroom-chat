@@ -18,6 +18,8 @@
   The full Node 24 suite passes 4,144 of 4,147 tests; only the three unchanged Xcode Cloud shell fixtures that assume standard Unix executable paths fail on this Nix host.
 - Independent review found and verified fixes for query scroll recovery and literal All-mode searches.
   Integration review also verified the 17-language catalogs and Arabic navigation.
+  Automated review prompted a shared prefix declaration and removal of unreachable option keyboard handling.
+  A category-roundtrip regression disproves the reported literal-mode reset issue: selecting a category already resets that state.
   Screenshots use local sample data and remain outside version control.
 
 ### Full interface internationalization (2026-09-14)

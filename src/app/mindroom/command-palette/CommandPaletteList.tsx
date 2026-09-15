@@ -105,6 +105,8 @@ export function CommandPaletteList({
             const icon = getItemIcon(item);
             const isSelected = selectedItemId === item.id;
             return (
+              // Keyboard activation belongs to the combobox, which retains DOM focus.
+              // eslint-disable-next-line jsx-a11y/click-events-have-key-events
               <div
                 key={item.id}
                 id={getCommandPaletteOptionId(id, item.id)}
@@ -121,12 +123,6 @@ export function CommandPaletteList({
                 }}
                 onMouseDown={(event) => event.preventDefault()}
                 onClick={() => onSelect(item)}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter' || event.key === ' ') {
-                    event.preventDefault();
-                    onSelect(item);
-                  }
-                }}
               >
                 {icon && (
                   <span className={css.RowIcon} aria-hidden="true">

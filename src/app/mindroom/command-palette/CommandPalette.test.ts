@@ -253,6 +253,17 @@ describe('CommandPalette', () => {
     expect(JSON.stringify(renderer.toJSON())).toContain(
       'Search \\"@alice:example.org\\" across all rooms'
     );
+    const usersFilter = renderer.root.find(
+      (node) => node.type === 'button' && node.props['aria-label'] === 'Users'
+    );
+    await act(async () => usersFilter.props.onClick());
+    expect(getInput(renderer).props.value).toBe('@ @alice:example.org');
+    expect(usersFilter.props['aria-pressed']).toBe(true);
+    expect(allFilter.props['aria-pressed']).toBe(false);
+    expect(
+      new Set(renderer.root.findAllByProps({ role: 'option' }).map((row) => row.props['data-kind']))
+    ).toEqual(new Set(['user']));
+    await act(async () => allFilter.props.onClick());
     await act(async () => {
       getInput(renderer).props.onChange({ currentTarget: { value: '@alice' } });
     });

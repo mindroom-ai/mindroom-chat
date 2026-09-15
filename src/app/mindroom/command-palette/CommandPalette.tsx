@@ -21,7 +21,7 @@ import {
   type CommandPaletteListSection,
 } from './CommandPaletteList';
 import * as css from './CommandPalette.css';
-import type { CommandPalettePrefix } from './commandPaletteTypes';
+import { COMMAND_PALETTE_PREFIX_HINTS, type CommandPalettePrefix } from './commandPaletteTypes';
 import type { CommandPaletteParsedQuery, CommandPaletteRoomItem } from './commandPaletteTypes';
 
 type CommandPaletteProps = {
@@ -256,7 +256,7 @@ export function CommandPalette({ requestClose, source, mobileSheet = false }: Co
     setQuery(prefix ? prefix + ' ' + parsedQuery.searchText : parsedQuery.searchText);
     inputRef.current?.focus();
   };
-  const filters = [undefined, 't:', '#', '@', '>', '*'] as const;
+  const filters = [undefined, ...COMMAND_PALETTE_PREFIX_HINTS] as const;
 
   return (
     <div
