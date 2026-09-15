@@ -80,8 +80,21 @@ Notable options:
 - splash loading copy via `splash.loadingMessages`,
 - MindRoom placeholder copy via `mindroom.thinkingPlaceholderMessages`,
 - additional application-link schemes via `messageRendering.additionalAllowedUriSchemes`,
-- sidebar entry points including `sidebar.showThreads`,
+- sidebar entry points including `sidebar.showThreads` and `sidebar.showExploreCommunity`,
 - welcome-page behavior.
+
+Explorer is hidden from the sidebar by default in both Simple Mode and the full interface.
+To show it, set `sidebar.showExploreCommunity` to `true` in `config.json`:
+
+```json
+{
+  "sidebar": {
+    "showExploreCommunity": true
+  }
+}
+```
+
+Setting it to `false` or omitting it keeps Explorer hidden.
 
 Formatted message links can allow additional desktop application URI schemes:
 

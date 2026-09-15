@@ -2,6 +2,17 @@
 
 ## Runbook
 
+### Configure Explorer sidebar visibility (2026-09-15)
+
+- Status: implemented, locally validated, and independently reviewed with no findings.
+- Explorer is hidden from the sidebar by default in both Simple Mode and the full interface.
+  Set `sidebar.showExploreCommunity` to `true` in `config.json` to show it in either mode.
+  Other optional navigation entries retain their existing Simple Mode behavior.
+- Regression coverage checks omitted config, an empty sidebar config, explicit `false`, and explicit `true` in both modes, plus the other Simple Mode navigation gates.
+- Validation: all seven sidebar tests, typecheck, production/PWA build, and changed-file formatting pass.
+  Full ESLint reports zero errors and 17 existing warnings.
+  Full Vitest passes 4,145 tests; three Xcode Cloud shell-fixture tests fail identically on the unchanged base because this Nix host lacks Bash in the fixture's fixed search path.
+
 ### Full interface internationalization (2026-09-14)
 
 - Status: implementation, language quality corrections, independent reviews, and local verification are complete; ready PR #249 is open against dev.
