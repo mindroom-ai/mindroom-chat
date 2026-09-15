@@ -44,6 +44,7 @@ import { useRoomInputVoice } from './useRoomInputVoice';
 import { useRoomInputDraft } from './useRoomInputDraft';
 import { RoomInputEditor } from './RoomInputEditor';
 import { RoomInputReplyPreview } from './RoomInputReplyPreview';
+import { ThreadModelPicker } from '../models/ModelPicker';
 
 export { createMindroomRoomUploadItems } from './roomInputUploadPreparation';
 
@@ -327,17 +328,22 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     }, [saveMsgDraft, handleAttachmentEditorChange]);
 
     const recorder = voice.renderRecorder(submit);
-    const composerContext = (replyDraft || (!!threadId && submitPending) || recorder) && (
-      <div>
-        <RoomInputReplyPreview
-          room={room}
-          replyDraft={replyDraft}
-          threadId={threadId}
-          submitPending={submitPending}
-          onCancel={() => setReplyDraft(undefined)}
-        />
-        {recorder}
-      </div>
+    const composerContext = (
+      <>
+        <ThreadModelPicker room={room} threadId={threadId} />
+        {(replyDraft || (!!threadId && submitPending) || recorder) && (
+          <div>
+            <RoomInputReplyPreview
+              room={room}
+              replyDraft={replyDraft}
+              threadId={threadId}
+              submitPending={submitPending}
+              onCancel={() => setReplyDraft(undefined)}
+            />
+            {recorder}
+          </div>
+        )}
+      </>
     );
 
     const composerFeatureButtons = (

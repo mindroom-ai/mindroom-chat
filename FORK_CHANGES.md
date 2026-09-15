@@ -2,6 +2,20 @@
 
 ## Runbook
 
+### Add the responsive thread model picker (2026-09-15)
+
+- Existing eligible thread composers now show a compact model row above the writing controls.
+  The row consumes the client-scoped controller hook, and the presentation sends no Matrix traffic.
+- Desktop uses an anchored Folds pop-out while mobile uses a safe-area-aware bottom sheet.
+  Search matches display name, stable key, and provider; results group by provider and retain the same visual and keyboard order.
+- Room-default reset is a distinct action from every configured model key, including `default` and `room-default`.
+  Multiple authenticated runtimes require a readable account-and-device choice before mutations become available.
+- Pending commands survive dismissal, refresh remains available during recovery, errors keep the readable `!model` fallback visible, and delayed completion cannot steal focus after dismissal.
+- Custom catalog icons use authenticated Matrix media conversion and fall back to the shared provider or generic icon on load failure.
+  Historical message badges use the same provider icon owner without changing their labels or semantics.
+- Focused component coverage passes all 17 picker cases plus composer top-slot and historical badge regressions.
+  Live browser checks pass plain and encrypted set/reset, draft preservation, ineligible-room gates, desktop and mobile layouts, and 320 px fit.
+
 ### Preserve model-picker ownership through stop and delayed sends (2026-09-15)
 
 - The controller now retains one identity per Matrix client across stopped state, explicit remount, and React StrictMode effect replay.
@@ -49,8 +63,8 @@
 - The versioned package patch updates both the TypeScript source and distributed JavaScript without changing existing source maps.
   When upgrading `matrix-js-sdk`, check whether upstream explicit discovery hydrates the Rust store and preserves failed-query retry; retain this regression and refresh or remove both patch sections together.
 - Validation: all 35 focused SDK, device-trust, and to-device call tests pass, along with typecheck, targeted ESLint, changed-file formatting, patch reverse/apply, and whitespace checks.
-  A fresh plain-room browser probe against the distributed SDK passes the owner-signed Rust-store gate that failed before this patch.
-  The later echo response times out in both plain and encrypted control rooms, so receiver integration remains unresolved independently of explicit device hydration.
+  Fresh real plain and encrypted controller round trips pass the owner-signed Rust-store gate and request/reply delivery.
+  Actual backend checks then pass catalog discovery, Matrix icon metadata, set/reset acknowledgement, and refreshed selection.
 
 ### Propose a model picker with Matrix-only discovery (2026-09-15)
 

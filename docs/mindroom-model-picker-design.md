@@ -1,13 +1,11 @@
 # Model picker over Matrix
 
-Status: design proposal with a standalone prototype.
-The application and runtime do not implement this proposal yet.
-Open [the interactive preview](previews/model-picker.html) locally in a browser to try the proposed desktop popover and mobile bottom sheet.
-The preview embeds illustrative model data and simulates acknowledgements; it does not contact Matrix or a model provider.
+Status: implemented in the runtime and MindRoom Chat.
+The client controller, responsive composer picker, authenticated discovery, structured selection results, and Matrix media icons are now the final architecture described here.
 
 ## User experience
 
-A small chip beside the thread composer shows the selected model's icon and display name.
+A compact row above the thread composer shows the selected model's icon and display name without reducing writing width.
 Opening it reveals a searchable list grouped by provider, with a checkmark beside the current selection.
 Each row shows the friendly display name above the stable configuration key and provider.
 Search matches the display name, configuration key, and provider.
@@ -17,16 +15,16 @@ The chip shows **Room default** when no thread override exists, since inherited 
 The desktop picker is an anchored popover; narrow screens use a bottom sheet.
 Changes affect future replies and do not interrupt an active generation or rewrite historical model badges.
 A pending selection remains pending until the runtime confirms it, and changing the selection preserves the message draft.
-Typing `!model ` should eventually open the same picker.
+The existing command autocomplete remains unchanged and readable `!model` commands remain available as the fallback.
 
-The first implementation should support existing threads, matching the current `!model` mutation scope.
+The implementation supports existing threads, matching the current `!model` mutation scope.
 Choosing a model before a thread's first message is a separate extension: carry the selection on that first message and persist it before model resolution and dispatch.
 Sending the first message and then sending a model command would race with the first response.
 Room-wide model changes remain separate and preserve the existing `!room_model` admin requirement.
 
 ## Optional model display metadata
 
-Add `display_name` and `icon` to the runtime's model configuration and configuration editor.
+The runtime model configuration and configuration editor support `display_name` and `icon`.
 These fields describe presentation and must not be forwarded as model-provider arguments.
 For an existing model entry, the proposed additions are:
 
@@ -67,13 +65,13 @@ Hiding a custom room event in Chat does not suppress homeserver notifications fo
 See Matrix's [default push rules](https://spec.matrix.org/v1.19/client-server-api/#default-underride-rules).
 To-device signalling does not grant room access and is not a substitute for backend authorization.
 
-## Proposed discovery exchange
+## Discovery exchange
 
 Use namespaced event types `io.mindroom.models.request` and `io.mindroom.models.response`, both inside encrypted to-device messages.
 
-1. Identify the runtime's router account and active device through Matrix membership and capability metadata from that account.
-   The router already owns model commands.
-   A username prefix or self-declared payload is only a discovery hint; bind capabilities to the actual authenticated sender and apply the client's Matrix device-trust policy.
+1. Identify joined runtime-router candidates through the viewer-scoped Matrix agent identity rules, then authenticate active devices through owner-signed Matrix device keys.
+   A catalog qualifies only when it also names a separate joined actual agent for the room.
+   A username prefix or self-declared payload is insufficient; bind the reply to the authenticated sender and apply the client's Matrix device-trust policy.
    When multiple runtimes are present, select an explicit runtime and keep their catalogs separate.
 2. The client installs a response listener before sending a versioned request with `request_id`, `room_id`, and optional `thread_id`.
    Resolve the router device using Matrix device keys; do not add a separate device-discovery service.
@@ -85,7 +83,7 @@ Use namespaced event types `io.mindroom.models.request` and `io.mindroom.models.
    An `icon_url` is a Matrix media reference.
    The catalog lists configured models; it does not promise that provider credentials, billing, or model availability are healthy.
 5. Accept replies only from the expected runtime/device and only for the matching request, room, and thread.
-   Render cached data while refreshing, visibly mark stale data, and offer retry after timeout.
+   Render cached eligibility while refreshing and offer retry after timeout.
    Bound request lifetimes and response sizes; discard late responses after navigation or request expiry.
 
 Cache catalogs by runtime identity and room, with thread selection stored separately.
@@ -108,15 +106,21 @@ The backend reply includes structured result metadata correlated to the command 
 Before updating a chip, validate the expected runtime sender and the room's Matrix trust/encryption requirements, the room and thread scope, and the referenced command's target runtime and operation.
 In encrypted rooms, validate the sending device through the Matrix encryption metadata; content that merely claims a runtime identity is insufficient.
 Ignore forged, mismatched, duplicate, or older results so a delayed acknowledgement cannot overwrite a newer confirmed selection.
-Every Chat client can update its chip from that reply, while older clients show the readable response.
+Only the current client's own pending command consumes its matching acknowledgement.
+External changes and readable command results appear after refresh instead of globally changing every open picker.
 Rejected commands, removed models, permission changes, and timeouts must not appear as successful selection.
 Successfully storing an override does not guarantee provider health.
 A queued SDK send is not a runtime acknowledgement.
 
 ## Implementation boundaries and validation
 
-Runtime work includes the optional configuration fields, editor support, icon upload/cache, router capability advertisement, authenticated discovery handler, and structured command/result metadata.
-Client work includes discovery and scoped caching, Matrix media rendering, the shared picker, command autocomplete integration, and confirmed selection updates.
+Runtime work includes the optional configuration fields, editor support, icon upload/cache, authenticated discovery handler, and structured command/result metadata.
+Client work includes one client-scoped controller for discovery and commands, scoped caching, Matrix media rendering, and the shared picker.
+The `useModelPicker` hook exposes controller snapshots and actions while the presentation sends no Matrix traffic itself.
+Only existing thread composers subscribe, and the authenticated controller snapshot decides whether the compact row renders.
+Desktop uses an anchored Folds pop-out and mobile uses a safe-area-aware bottom sheet.
+Search, listbox keyboard navigation, provider grouping, runtime choice, pending recovery, and focus restoration stay inside the presentation layer.
+Dismissal never cancels a pending command, and a later acknowledgement closes or restores focus only while the same picker remains open.
 Reuse existing model override persistence and provider-logo rendering.
 No implementation should require direct client HTTP requests to the runtime.
 
@@ -125,10 +129,9 @@ Before release, validate:
 - Interoperability between the actual client SDK and runtime's encrypted to-device transport.
 - Device-key rotation, untrusted devices, wrong senders, wrong request IDs, room membership loss, and multiple runtimes.
 - Catalog refresh, stale data, reconnects, old backends, removed model keys, duplicate display names, and malformed metadata.
-- Set/reset semantics, duplicate deliveries, shared updates, and unchanged room-admin rules.
+- Set/reset semantics, duplicate deliveries, refresh-based external updates, and unchanged room-admin rules.
 - Matrix-only icon loading, missing custom icons, and built-in fallbacks.
 - Keyboard use, mobile layout, pending/error feedback, and draft preservation.
 - Existing commands remain usable in other Matrix clients.
 
-The prototype verifies only the visual interaction concept.
-It does not verify the protocol, authorization, persistence, provider execution, or icon-upload implementation.
+Focused controller, component, composer, and live Matrix checks verify protocol ownership, authorization gates, selection persistence, keyboard behavior, responsive layout, draft preservation, and icon fallback.
