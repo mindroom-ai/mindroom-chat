@@ -75,6 +75,12 @@ for (const mobile of [false, true]) {
         await expectFullWidth();
         await page.setViewportSize({ width: 750, height: 390 });
         await expectFullWidth();
+        await page.setViewportSize({ width: 844, height: 390 });
+        await expect(handle).toBeVisible();
+        await expect
+          .poll(async () => Math.round((await panel.boundingBox())?.width ?? 0))
+          .toBe(220);
+        await expect(page.locator('body')).toHaveJSProperty('scrollWidth', 844);
         await page.setViewportSize({ width: 390, height: 844 });
         await expectFullWidth();
       } else {

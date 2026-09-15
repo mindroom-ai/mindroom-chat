@@ -13,7 +13,9 @@
 - Typecheck, the production/PWA build, changed-file formatting, and ESLint pass with zero errors and the existing 17 warnings.
   Full Vitest passes 4,144 of 4,148 tests; the same four failures reproduce on the unchanged base in the Xcode Cloud shell fixtures and upload-caption matcher on this Node 22/Nix host.
 - Both live Chromium cases pass against the production build, covering desktop resizing and persistence plus full-width phone lists, a saved narrow width, rotation, and Home, Direct Messages, and Space routing.
-- Independent review found no actionable defects.
+- Independent implementation and whole-navigation UX reviews found no introduced defects; the fix is open in ready PR #250.
+  Review follow-up adds a passing 844 × 390 browser regression that crosses into the split layout and restores the saved width before returning to portrait.
+  Additional live checks cover RTL, 750/751 px boundaries, room continuity, and interrupted mouse and touch drags across breakpoints.
   Physical iPhone validation remains unavailable on this Linux host.
 
 ### Full interface internationalization (2026-09-14)
