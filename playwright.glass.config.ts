@@ -3,5 +3,5 @@ import config from './playwright.config';
 
 export default defineConfig(config, {
   testMatch: 'glass-surfaces.spec.ts',
-  projects: [...(config.projects ?? []), { name: 'webkit', use: { ...devices['Desktop Safari'] } }],
+  projects: [...config.projects!, { name: 'webkit', use: { ...devices['Desktop Safari'] } }],
 });
