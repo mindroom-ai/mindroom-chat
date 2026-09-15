@@ -2,6 +2,28 @@
 
 ## Runbook
 
+### Add the shared Matrix model-picker controller (2026-09-15)
+
+- Status: controller, protocol validation, transport, and React subscription hook are implemented and locally validated; composer presentation is the next step.
+- One client-scoped owner handles encrypted catalog discovery, signed runtime-device authentication, thread selection, command acknowledgements, cache invalidation, and explicit teardown.
+  Lazy room membership is hydrated before joined same-server candidates are considered, and advertised agents must independently qualify as joined members.
+- Discovery collects authenticated runtime responses for 12 seconds before automatically choosing a sole runtime.
+  Multiple runtimes require an explicit choice, including when a second runtime appears after an earlier automatic single-runtime choice.
+  Unanswered catalog requests use bounded retries with the same request ID, and encrypted batches retain exact signed recipients.
+- Room capability and model catalogs are cached separately from thread selection.
+  Membership and device changes invalidate cached eligibility and trigger coalesced rediscovery for active subscribers; logout also clears catalogs whose thread scopes were already evicted.
+- Selections use readable threaded room commands with explicit set/reset metadata and the selected runtime user and device.
+  Confirmed state changes only after a matching own acknowledgement, including when the acknowledgement arrives before the send promise resolves.
+  Encrypted acknowledgements authenticate the actual sender key; plaintext acknowledgements authenticate the Matrix sender account and use device metadata only for correlation.
+- Pending commands survive picker dismissal and composer navigation.
+  Transport retry reuses the SDK local event and original transaction ID, while uncertainty requires fresh discovery before another mutation.
+  Earlier catalog replies cannot replace a later confirmed selection.
+- Validation: all 127 focused protocol, controller, hook, SDK discovery, device-trust, encrypted-call transport, and composer-send tests pass under Node 24.13.1.
+  Typecheck, targeted ESLint, formatting, and whitespace checks pass.
+  Native Node 22 reproduces the unchanged caption-upload matcher failure; the same test passes in the Node 24 container.
+  Actual controller probes against Matrix also pass discovery, set, reserved-key selection, reset, and refreshed selection in both plain and encrypted rooms.
+
+
 ### Hydrate explicit device discovery through Rust crypto (2026-09-15)
 
 - Status: the SDK patch and focused behavioral regression are implemented and locally validated.
