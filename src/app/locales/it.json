@@ -2176,7 +2176,7 @@
         "chooseModel": "Choose model",
         "roomDefault": "Room default",
         "modelForThread": "Model for this thread",
-        "appliesToThread": "Applies to future replies in this thread.",
+        "appliesToThread": "Applies to all agents and teams for future replies in this thread.",
         "search": "Search models",
         "close": "Close model picker",
         "useRoomDefault": "Use room default",

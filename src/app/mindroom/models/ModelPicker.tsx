@@ -387,6 +387,7 @@ export function ModelPicker({ state }: { state: ModelPickerState }) {
   const mobile = useScreenSizeContext() === ScreenSize.Mobile;
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const triggerDescriptionId = useId();
   const commandStartedRef = useRef(false);
   const sawPendingRef = useRef(false);
   const selectedModel = state.models.find((model) => model.key === state.override);
@@ -394,6 +395,8 @@ export function ModelPicker({ state }: { state: ModelPickerState }) {
     selectedModel?.display_name ?? state.override ?? t('mindroomUi.models.modelPicker.roomDefault');
 
   const close = () => {
+    commandStartedRef.current = false;
+    sawPendingRef.current = false;
     setOpen(false);
     triggerRef.current?.focus();
   };
@@ -421,6 +424,7 @@ export function ModelPicker({ state }: { state: ModelPickerState }) {
       type="button"
       className={css.Trigger}
       aria-label={t('mindroomUi.models.modelPicker.chooseModel')}
+      aria-describedby={triggerDescriptionId}
       aria-haspopup="dialog"
       aria-expanded={open}
       onClick={openPicker}
@@ -432,7 +436,9 @@ export function ModelPicker({ state }: { state: ModelPickerState }) {
         size={15}
         className={css.TriggerIcon}
       />
-      <span className={css.TriggerLabel}>{label}</span>
+      <span id={triggerDescriptionId} className={css.TriggerLabel}>
+        {label}
+      </span>
       <IconChevronDown size={14} aria-hidden="true" />
     </button>
   );

@@ -64,7 +64,7 @@ vi.mock('react-i18next', () => ({
         'mindroomUi.models.modelPicker.roomDefault': 'Room default',
         'mindroomUi.models.modelPicker.modelForThread': 'Model for this thread',
         'mindroomUi.models.modelPicker.appliesToThread':
-          'Applies to future replies in this thread.',
+          'Applies to all agents and teams for future replies in this thread.',
         'mindroomUi.models.modelPicker.search': 'Search models',
         'mindroomUi.models.modelPicker.close': 'Close model picker',
         'mindroomUi.models.modelPicker.useRoomDefault': 'Use room default',
@@ -423,6 +423,63 @@ describe('responsive model picker', () => {
     act(() => root.render(<ModelPicker state={{ ...state, pending: false }} />));
 
     expect(document.activeElement).toBe(outside);
+  });
+
+  it('does not let a command acknowledged while dismissed close a later opening', () => {
+    const state = createState();
+    act(() => root.render(<ModelPicker state={state} />));
+    click(container.querySelector('button[aria-label="Choose model"]')!);
+    click(
+      [...container.querySelectorAll('[role="option"]')].find((option) =>
+        option.textContent?.includes('Quick helper')
+      )!
+    );
+
+    act(() => root.render(<ModelPicker state={{ ...state, pending: true }} />));
+    click(container.querySelector('button[aria-label="Close model picker"]')!);
+    act(() => root.render(<ModelPicker state={{ ...state, pending: false }} />));
+    click(container.querySelector('button[aria-label="Choose model"]')!);
+
+    expect(container.querySelector('input[role="searchbox"]')).not.toBeNull();
+  });
+
+  it('does not let a dismissed command close a reopening when its acknowledgement arrives', () => {
+    const state = createState();
+    act(() => root.render(<ModelPicker state={state} />));
+    click(container.querySelector('button[aria-label="Choose model"]')!);
+    click(
+      [...container.querySelectorAll('[role="option"]')].find((option) =>
+        option.textContent?.includes('Quick helper')
+      )!
+    );
+
+    act(() => root.render(<ModelPicker state={{ ...state, pending: true }} />));
+    click(container.querySelector('button[aria-label="Close model picker"]')!);
+    click(container.querySelector('button[aria-label="Choose model"]')!);
+    expect(container.querySelector('input[role="searchbox"]')).not.toBeNull();
+
+    act(() => root.render(<ModelPicker state={{ ...state, pending: false }} />));
+
+    expect(container.querySelector('input[role="searchbox"]')).not.toBeNull();
+  });
+
+  it('exposes the current visible model label as the trigger description', () => {
+    act(() => root.render(<ModelPicker state={createState({ override: 'reset' })} />));
+
+    const trigger = container.querySelector('button[aria-label="Choose model"]')!;
+    const descriptionId = trigger.getAttribute('aria-describedby');
+
+    expect(descriptionId).toBeTruthy();
+    expect(document.getElementById(descriptionId!)?.textContent).toBe('Deep reasoning');
+  });
+
+  it('states that future thread replies use the selection for all agents and teams', () => {
+    act(() => root.render(<ModelPicker state={createState()} />));
+    click(container.querySelector('button[aria-label="Choose model"]')!);
+
+    expect(container.textContent).toContain(
+      'Applies to all agents and teams for future replies in this thread.'
+    );
   });
 
   it('uses a bottom sheet presentation on mobile', () => {

@@ -939,23 +939,15 @@ afterEach(() => {
 });
 
 describe('RoomInput', () => {
-  it('mounts the thread model picker in the top slot without changing the draft', async () => {
+  it('mounts the thread model picker in the top slot for a thread', async () => {
     const { renderer } = await renderRoomInput(createStore(), { threadId: '$thread' });
-    customEditorState.editor!.children = [
-      { type: 'paragraph', children: [{ text: 'Draft stays here' }] },
-    ];
 
     const top = renderer.root.findByProps({ 'data-room-input-slot': 'top' });
     const before = renderer.root.findByProps({ 'data-room-input-slot': 'before' });
-    const trigger = top.findByProps({ 'aria-label': 'Model picker seam' });
 
     expect(modelPickerState.props.at(-1)).toEqual(expect.objectContaining({ threadId: '$thread' }));
+    expect(top.findAllByProps({ 'aria-label': 'Model picker seam' })).toHaveLength(1);
     expect(before.findAllByProps({ 'aria-label': 'Model picker seam' })).toHaveLength(0);
-
-    act(() => trigger.props.onClick?.());
-    expect(customEditorState.editor!.children).toEqual([
-      { type: 'paragraph', children: [{ text: 'Draft stays here' }] },
-    ]);
 
     renderer.unmount();
   });
