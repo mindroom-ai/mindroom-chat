@@ -2,6 +2,18 @@
 
 ## Runbook
 
+### Configure Explorer sidebar visibility in Simple Mode (2026-09-15)
+
+- Status: implemented, locally validated, and independently reviewed with no findings.
+- Explorer stays hidden from the sidebar by default in Simple Mode.
+  Set `sidebar.showExploreCommunityInSimpleMode` to `true` in `config.json` to show it in Simple Mode.
+  The full interface keeps Explorer visible by default and retains the existing `sidebar.showExploreCommunity` control.
+  Other optional navigation entries retain their existing Simple Mode behavior.
+- Regression coverage checks omitted config, an empty sidebar config, explicit `false`, and explicit `true`, the independence of the two mode-specific options, and the other Simple Mode navigation gates.
+- Validation: all seven sidebar tests, typecheck, production/PWA build, and changed-file formatting pass.
+  Full ESLint reports zero errors and 17 existing warnings.
+  After integrating current `dev`, full Vitest passes all 4,190 tests across 514 files under Node 24.13.1 in the standard Linux container, including the Xcode Cloud shell fixtures.
+
 ### Fill mobile navigation and collapse narrow split panes (2026-09-15)
 
 - The resizable navigation wrapper applied saved widths and reserved a drag-handle gap on phones, leaving unused space beside the single-pane room list.
