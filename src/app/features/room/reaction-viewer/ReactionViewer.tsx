@@ -3,7 +3,6 @@ import classNames from 'classnames';
 import {
   Avatar,
   Box,
-  Header,
   Icon,
   IconButton,
   Icons,
@@ -17,6 +16,7 @@ import {
 import { MatrixEvent, Room, RoomMember } from 'matrix-js-sdk';
 import { Relations } from 'matrix-js-sdk/lib/models/relations';
 import { useTranslation } from 'react-i18next';
+import { Header } from '../../../components/glass/GlassPrimitives';
 import { getMemberDisplayName } from '../../../utils/room';
 import { eventWithShortcode, getMxIdLocalPart, mxcUrlToHttp } from '../../../utils/matrix';
 import { getActiveAnnotationsByKey } from '../../../utils/reactionAnnotations';

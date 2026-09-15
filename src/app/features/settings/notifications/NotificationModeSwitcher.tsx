@@ -4,7 +4,6 @@ import {
   config,
   Icon,
   Icons,
-  Menu,
   MenuItem,
   PopOut,
   RectCords,
@@ -15,6 +14,7 @@ import { IPushRule } from 'matrix-js-sdk';
 import React, { MouseEventHandler, useMemo, useState } from 'react';
 import FocusTrap from 'focus-trap-react';
 import { useTranslation } from 'react-i18next';
+import { Menu } from '../../../components/glass/GlassPrimitives';
 import { NotificationMode, useNotificationActionsMode } from '../../../hooks/useNotificationMode';
 import { stopPropagation } from '../../../utils/keyboard';
 import { AsyncStatus, useAsyncCallback } from '../../../hooks/useAsyncCallback';

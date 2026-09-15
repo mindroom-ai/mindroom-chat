@@ -6,7 +6,6 @@ import { isKeyHotkey } from 'is-hotkey';
 import { Room } from 'matrix-js-sdk';
 import {
   PopOut,
-  Menu,
   MenuItem,
   config,
   Text,
@@ -21,6 +20,7 @@ import {
   Scroll,
   Avatar,
 } from 'folds';
+import { Menu } from '../glass/GlassPrimitives';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { getMxIdServer } from '../../utils/matrix';
 import { useCloseUserRoomProfile } from '../../state/hooks/userRoomProfile';

@@ -1,40 +1,17 @@
 import { style } from '@vanilla-extract/css';
 import { color, config } from 'folds';
+import { glassSurface } from '../../styles/Glass.css';
 
-export const Shell = style({
-  // Override the modal's opaque variant without depending on stylesheet order.
-  selectors: {
-    '&&': {
-      background: color.Surface.Container,
-      border: `1px solid color-mix(in srgb, ${color.Surface.OnContainer} 14%, transparent)`,
-      boxShadow:
-        '0 24px 80px rgb(0 0 0 / 24%), 0 8px 24px rgb(0 0 0 / 12%), inset 0 1px 0 rgb(255 255 255 / 16%)',
-    },
-  },
-  '@supports': {
-    '(backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))': {
-      selectors: {
-        '&&': {
-          background: `linear-gradient(135deg, rgb(255 255 255 / 8%), transparent 45%), color-mix(in srgb, ${color.Surface.Container} 74%, transparent)`,
-          backdropFilter: 'blur(28px) saturate(140%)',
-          WebkitBackdropFilter: 'blur(28px) saturate(140%)',
-        },
+export const Shell = style([
+  glassSurface({ level: 'overlay', variant: 'Surface' }),
+  {
+    selectors: {
+      '&&': {
+        border: `1px solid color-mix(in srgb, ${color.Surface.OnContainer} 14%, transparent)`,
       },
     },
   },
-  '@media': {
-    '(prefers-reduced-transparency: reduce), (prefers-contrast: more), (forced-colors: active)': {
-      selectors: {
-        // Preference overrides must outrank @supports regardless of emitted at-rule order.
-        '&&&': {
-          background: color.Surface.Container,
-          backdropFilter: 'none',
-          WebkitBackdropFilter: 'none',
-        },
-      },
-    },
-  },
-});
+]);
 
 export const Backdrop = style({
   selectors: {

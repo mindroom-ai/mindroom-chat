@@ -3,7 +3,6 @@ import React, { FormEventHandler, useCallback, useEffect, useMemo, useState } fr
 import {
   Box,
   Button,
-  Dialog,
   Input,
   Overlay,
   OverlayBackdrop,
@@ -16,6 +15,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import FocusTrap from 'focus-trap-react';
 import { AuthDict, AuthType, MatrixError } from 'matrix-js-sdk';
+import { Dialog } from '../../../components/glass/GlassPrimitives';
 import { createMatrixClient } from '../../../mindroom/matrix/matrixClientFactory';
 import { useAutoDiscoveryInfo } from '../../../hooks/useAutoDiscoveryInfo';
 import { AsyncStatus, useAsyncCallback } from '../../../hooks/useAsyncCallback';

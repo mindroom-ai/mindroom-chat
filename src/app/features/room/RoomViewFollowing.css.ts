@@ -1,6 +1,7 @@
 import { style } from '@vanilla-extract/css';
 import { recipe } from '@vanilla-extract/recipes';
 import { DefaultReset, color, config, toRem } from 'folds';
+import { glassSurface } from '../../styles/Glass.css';
 
 export const RoomViewFollowingPlaceholder = style([
   DefaultReset,
@@ -12,6 +13,7 @@ export const RoomViewFollowingPlaceholder = style([
 export const RoomViewFollowing = recipe({
   base: [
     DefaultReset,
+    glassSurface({ level: 'panel', variant: 'Surface' }),
     {
       minHeight: toRem(28),
       padding: `0 ${config.space.S400}`,

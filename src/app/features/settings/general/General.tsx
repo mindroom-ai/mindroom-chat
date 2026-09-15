@@ -13,12 +13,10 @@ import {
   Button,
   Chip,
   config,
-  Header,
   Icon,
   IconButton,
   Icons,
   Input,
-  Menu,
   MenuItem,
   PopOut,
   RectCords,
@@ -30,6 +28,7 @@ import {
 import { isKeyHotkey } from 'is-hotkey';
 import FocusTrap from 'focus-trap-react';
 import { useTranslation } from 'react-i18next';
+import { Menu, Header } from '../../../components/glass/GlassPrimitives';
 import { Page, PageContent, PageHeader } from '../../../components/page';
 import { SequenceCard } from '../../../components/sequence-card';
 import { useSetting } from '../../../state/hooks/settings';

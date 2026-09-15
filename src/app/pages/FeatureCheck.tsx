@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import React, { ReactNode, useEffect } from 'react';
-import { Box, Dialog, Text, config } from 'folds';
+import { Box, Text, config } from 'folds';
+import { Dialog } from '../components/glass/GlassPrimitives';
 import { AsyncStatus, useAsyncCallback } from '../hooks/useAsyncCallback';
 import { checkIndexedDBSupport } from '../utils/featureCheck';
 import { SplashScreen } from '../components/splash-screen';

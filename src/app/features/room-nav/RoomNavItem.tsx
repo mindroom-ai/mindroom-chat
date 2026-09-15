@@ -7,7 +7,6 @@ import {
   IconButton,
   Icons,
   Text,
-  Menu,
   MenuItem,
   config,
   PopOut,
@@ -21,6 +20,7 @@ import { useFocusWithin, useHover } from 'react-aria';
 import FocusTrap from 'focus-trap-react';
 import { useAtom, useAtomValue } from 'jotai';
 import { useTranslation } from 'react-i18next';
+import { Menu } from '../../components/glass/GlassPrimitives';
 import { NavItem, NavItemContent, NavItemOptions, NavLink } from '../../components/nav';
 import { UnreadBadge, UnreadBadgeCenter } from '../../components/unread-badge';
 import { RoomAvatar, RoomIcon } from '../../components/room-avatar';

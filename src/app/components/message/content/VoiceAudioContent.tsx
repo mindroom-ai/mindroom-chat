@@ -2,10 +2,11 @@
 import { useTranslation } from 'react-i18next';
 import FocusTrap from 'focus-trap-react';
 import React, { MouseEventHandler, useCallback, useEffect, useRef, useState } from 'react';
-import { Icon, IconButton, Icons, Menu, PopOut, RectCords, Spinner, Text } from 'folds';
+import { Icon, IconButton, Icons, PopOut, RectCords, Spinner, Text } from 'folds';
 import { EncryptedAttachmentInfo } from 'browser-encrypt-attachment';
 import { useAtomValue } from 'jotai';
 import { IconPlayerPauseFilled, IconPlayerPlayFilled } from '@tabler/icons-react';
+import { Menu } from '../../glass/GlassPrimitives';
 import { IAudioInfo } from '../../../../types/matrix/common';
 import { AsyncStatus } from '../../../hooks/useAsyncCallback';
 import {

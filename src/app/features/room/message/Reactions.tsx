@@ -1,7 +1,6 @@
 import React, { MouseEventHandler, useCallback, useState } from 'react';
 import {
   Box,
-  Modal,
   Overlay,
   OverlayBackdrop,
   OverlayCenter,
@@ -15,6 +14,7 @@ import classNames from 'classnames';
 import { MatrixEvent, Room } from 'matrix-js-sdk';
 import { type Relations } from 'matrix-js-sdk/lib/models/relations';
 import FocusTrap from 'focus-trap-react';
+import { Modal } from '../../../components/glass/GlassPrimitives';
 import { useMatrixClient } from '../../../hooks/useMatrixClient';
 import { factoryEventSentBy } from '../../../utils/matrix';
 import { getRenderableAnnotationsByKey } from '../../../mindroom/messages/stopReaction';

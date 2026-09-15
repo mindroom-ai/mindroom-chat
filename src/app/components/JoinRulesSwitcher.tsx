@@ -10,12 +10,12 @@ import {
   IconSrc,
   RectCords,
   PopOut,
-  Menu,
   Button,
   Spinner,
 } from 'folds';
 import { JoinRule } from 'matrix-js-sdk';
 import FocusTrap from 'focus-trap-react';
+import { Menu } from './glass/GlassPrimitives';
 import { stopPropagation } from '../utils/keyboard';
 import { getRoomIconSrc } from '../utils/room';
 

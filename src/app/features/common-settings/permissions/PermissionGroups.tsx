@@ -1,8 +1,9 @@
 /* eslint-disable react/no-array-index-key */
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Badge, Box, Button, Chip, config, Icon, Icons, Menu, Spinner, Text } from 'folds';
+import { Badge, Box, Button, Chip, config, Icon, Icons, Spinner, Text } from 'folds';
 import produce from 'immer';
 import { useTranslation } from 'react-i18next';
+import { Menu } from '../../../components/glass/GlassPrimitives';
 import { SequenceCard } from '../../../components/sequence-card';
 import { SequenceCardStyle } from '../styles.css';
 import { SettingTile } from '../../../components/setting-tile';

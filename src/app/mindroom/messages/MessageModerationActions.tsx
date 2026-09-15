@@ -2,8 +2,6 @@ import { useTranslation } from 'react-i18next';
 import {
   Box,
   Button,
-  Dialog,
-  Header,
   Icon,
   IconButton,
   Icons,
@@ -22,6 +20,7 @@ import React, { FormEventHandler, useCallback, useState } from 'react';
 import FocusTrap from 'focus-trap-react';
 import { MatrixEvent, Room } from 'matrix-js-sdk';
 import { RoomPinnedEventsEventContent } from 'matrix-js-sdk/lib/types';
+import { Dialog, Header } from '../../components/glass/GlassPrimitives';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import * as css from '../../features/room/message/styles.css';
 import { AsyncStatus, useAsyncCallback } from '../../hooks/useAsyncCallback';

@@ -6,7 +6,6 @@ import {
   IconButton,
   Icons,
   Line,
-  Menu,
   MenuItem,
   PopOut,
   RectCords,
@@ -19,6 +18,7 @@ import { useHover, useFocusWithin } from 'react-aria';
 import { MatrixEvent, Room } from 'matrix-js-sdk';
 import { Relations } from 'matrix-js-sdk/lib/models/relations';
 import classNames from 'classnames';
+import { Menu } from '../../components/glass/GlassPrimitives';
 import {
   AvatarBase,
   BubbleLayout,

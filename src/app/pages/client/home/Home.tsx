@@ -7,7 +7,6 @@ import {
   Icon,
   IconButton,
   Icons,
-  Menu,
   PopOut,
   RectCords,
   Text,
@@ -18,6 +17,7 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import { useAtom } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import FocusTrap from 'focus-trap-react';
+import { Menu } from '../../../components/glass/GlassPrimitives';
 import { factoryRoomIdByAtoZ } from '../../../utils/sort';
 import {
   NavButton,

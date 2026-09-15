@@ -6,7 +6,6 @@ import {
   Icon,
   Icons,
   PopOut,
-  Menu,
   MenuItem,
   Text,
   RectCords,
@@ -16,6 +15,7 @@ import {
   toRem,
 } from 'folds';
 import { useTranslation } from 'react-i18next';
+import { Menu } from '../../components/glass/GlassPrimitives';
 import { HierarchyItem } from '../../hooks/useSpaceHierarchy';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { MSpaceChildContent, StateEvent } from '../../../types/matrix/room';

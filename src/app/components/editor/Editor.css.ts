@@ -1,9 +1,11 @@
 import { style } from '@vanilla-extract/css';
 import { color, config, DefaultReset, toRem } from 'folds';
 import { transition } from '../../styles/transition';
+import { glassSurface } from '../../styles/Glass.css';
 
 export const Editor = style([
   DefaultReset,
+  glassSurface({ level: 'control', variant: 'SurfaceVariant' }),
   {
     backgroundColor: color.SurfaceVariant.Container,
     color: color.SurfaceVariant.OnContainer,

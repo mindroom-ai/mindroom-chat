@@ -1,6 +1,7 @@
 import React from 'react';
-import { Menu, PopOut, toRem } from 'folds';
+import { PopOut, toRem } from 'folds';
 import FocusTrap from 'focus-trap-react';
+import { Menu } from './glass/GlassPrimitives';
 import { useCloseUserRoomProfile, useUserRoomProfileState } from '../state/hooks/userRoomProfile';
 import { UserRoomProfile } from './user-profile';
 import { UserRoomProfileState } from '../state/userRoomProfile';

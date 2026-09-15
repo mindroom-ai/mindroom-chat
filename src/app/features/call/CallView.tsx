@@ -1,6 +1,7 @@
 import React, { RefObject, useRef } from 'react';
-import { Badge, Box, color, Header, Icon, IconButton, Icons, Scroll, Text, toRem } from 'folds';
+import { Badge, Box, color, Icon, IconButton, Icons, Scroll, Text, toRem } from 'folds';
 import { useTranslation } from 'react-i18next';
+import { Header } from '../../components/glass/GlassPrimitives';
 import { useCallEmbed, useCallJoined, useCallEmbedPlacementSync } from '../../hooks/useCallEmbed';
 import { ContainerColor } from '../../styles/ContainerColor.css';
 import { PrescreenControls } from './PrescreenControls';

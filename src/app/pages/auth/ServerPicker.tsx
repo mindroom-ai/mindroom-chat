@@ -7,20 +7,9 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import {
-  Header,
-  Icon,
-  IconButton,
-  Icons,
-  Input,
-  Menu,
-  MenuItem,
-  PopOut,
-  RectCords,
-  Text,
-  config,
-} from 'folds';
+import { Icon, IconButton, Icons, Input, MenuItem, PopOut, RectCords, Text, config } from 'folds';
 import FocusTrap from 'focus-trap-react';
+import { Menu, Header } from '../../components/glass/GlassPrimitives';
 
 import { useDebounce } from '../../hooks/useDebounce';
 import { stopPropagation } from '../../utils/keyboard';

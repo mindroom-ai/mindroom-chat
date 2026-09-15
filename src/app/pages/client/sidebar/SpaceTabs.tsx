@@ -17,7 +17,6 @@ import {
   IconButton,
   Icons,
   Line,
-  Menu,
   MenuItem,
   PopOut,
   RectCords,
@@ -50,6 +49,7 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import FocusTrap from 'focus-trap-react';
+import { Menu } from '../../../components/glass/GlassPrimitives';
 import {
   useOrphanSpaces,
   useRecursiveChildScopeFactory,

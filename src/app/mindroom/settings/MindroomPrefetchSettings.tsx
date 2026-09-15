@@ -11,7 +11,6 @@ import {
   Icon,
   Icons,
   Input,
-  Menu,
   MenuItem,
   PopOut,
   RectCords,
@@ -22,6 +21,7 @@ import {
 import FocusTrap from 'focus-trap-react';
 import { isKeyHotkey } from 'is-hotkey';
 import { useTranslation } from 'react-i18next';
+import { Menu } from '../../components/glass/GlassPrimitives';
 import { SequenceCard } from '../../components/sequence-card';
 import { SettingTile } from '../../components/setting-tile';
 import { useSetting } from '../../state/hooks/settings';

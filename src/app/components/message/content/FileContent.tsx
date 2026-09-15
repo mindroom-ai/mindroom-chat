@@ -5,7 +5,6 @@ import {
   Button,
   Icon,
   Icons,
-  Modal,
   Overlay,
   OverlayBackdrop,
   OverlayCenter,
@@ -17,6 +16,7 @@ import {
 } from 'folds';
 import { EncryptedAttachmentInfo } from 'browser-encrypt-attachment';
 import FocusTrap from 'focus-trap-react';
+import { Modal } from '../../glass/GlassPrimitives';
 import { IFileInfo } from '../../../../types/matrix/common';
 import { AsyncStatus, useAsyncCallback } from '../../../hooks/useAsyncCallback';
 import { revokeBlobUrl, useBlobUrlCleanup } from '../../../hooks/useBlobUrlCleanup';

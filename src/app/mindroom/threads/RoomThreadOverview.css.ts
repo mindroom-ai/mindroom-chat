@@ -2,15 +2,19 @@ import { style } from '@vanilla-extract/css';
 import { color, config, toRem } from 'folds';
 import { motion } from '../../styles/Motion.css';
 import { transition } from '../../styles/transition';
+import { glassSurface } from '../../styles/Glass.css';
 
-export const Overview = style({
-  margin: `${config.space.S200} ${config.space.S300}`,
-  padding: config.space.S200,
-  borderRadius: config.radii.R400,
-  border: `${config.borderWidth.B300} solid ${color.SurfaceVariant.ContainerLine}`,
-  backgroundColor: color.SurfaceVariant.Container,
-  flexShrink: 0,
-});
+export const Overview = style([
+  glassSurface({ level: 'panel', variant: 'SurfaceVariant' }),
+  {
+    margin: `${config.space.S200} ${config.space.S300}`,
+    padding: config.space.S200,
+    borderRadius: config.radii.R400,
+    border: `${config.borderWidth.B300} solid ${color.SurfaceVariant.ContainerLine}`,
+    backgroundColor: color.SurfaceVariant.Container,
+    flexShrink: 0,
+  },
+]);
 
 export const ToolbarHeader = style({
   display: 'flex',

@@ -1,6 +1,7 @@
 import React, { ComponentProps, MutableRefObject, ReactNode } from 'react';
-import { Box, Header, Line, Scroll, Text, as } from 'folds';
+import { Box, Line, Scroll, Text, as } from 'folds';
 import classNames from 'classnames';
+import { Header } from '../glass/GlassPrimitives';
 import { ContainerColor } from '../../styles/ContainerColor.css';
 import * as css from './style.css';
 import { ScreenSize, useScreenSizeContext } from '../../hooks/useScreenSize';

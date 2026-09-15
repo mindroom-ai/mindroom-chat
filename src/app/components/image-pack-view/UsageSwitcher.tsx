@@ -1,7 +1,8 @@
 import { useTranslation } from 'react-i18next';
 import React, { MouseEventHandler, useMemo, useState } from 'react';
-import { Box, Button, config, Icon, Icons, Menu, MenuItem, PopOut, RectCords, Text } from 'folds';
+import { Box, Button, config, Icon, Icons, MenuItem, PopOut, RectCords, Text } from 'folds';
 import FocusTrap from 'focus-trap-react';
+import { Menu } from '../glass/GlassPrimitives';
 import { ImageUsage } from '../../plugins/custom-emoji';
 import { stopPropagation } from '../../utils/keyboard';
 

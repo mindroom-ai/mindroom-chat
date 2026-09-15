@@ -2,6 +2,23 @@
 
 ## Runbook
 
+### Roll out shared glass materials (2026-09-15)
+
+- Status: implementation, local validation, and independent review are complete; ready for review.
+- A shared vanilla-extract recipe now provides overlay, panel, and control materials using existing theme and semantic container colors.
+- Overlay surfaces use translucent theme fills, blur, directional sheen, and depth shadows.
+  Panel and repeated control surfaces add a low-cost directional sheen over their existing background and state colors without per-control blur.
+- App-owned polymorphic Menu, Modal, Dialog, and Header wrappers preserve refs, `as` props, semantic variants, and the Folds Surface defaults.
+  Production consumers now use these wrappers.
+- The material family covers the command palette, menus and dialogs, headers, sidebar shell and controls, composer, shared audio player, recording capsule, thread filter surfaces, and the following control.
+- Reduced transparency, increased contrast, forced colors, and unsupported backdrop filtering retain opaque surfaces and remove blur or decorative gradients.
+- Browser coverage uses real components and validates all five themes, text contrast, preference fallbacks, focus, editing, playback, and 320 px layout.
+- Validation: all seven shared-material browser cases and all six existing audio browser cases pass.
+  Typecheck, the production/PWA build, changed-file formatting, and ESLint pass with zero errors and the existing 17 warnings.
+  The full Node 24 suite passes all 4,191 tests across 513 files.
+- Production-build live Chromium checks pass for desktop light and dark at 1440 px and mobile at 390 px, including authenticated audio playback, composer editing, the nested volume menu with keyboard and Escape handling, the command palette, page errors, and overflow.
+- Independent code and test-boundary reviews approve the rollout.
+
 ### Refine command palette presentation and navigation (2026-09-15)
 
 - Status: implementation is in ready PR #254; hosted checks and review results are recorded on the pull request.

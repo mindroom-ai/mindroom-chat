@@ -1,8 +1,9 @@
 import { useTranslation } from 'react-i18next';
-import { Chip, config, Icon, Icons, Menu, MenuItem, PopOut, RectCords, Text } from 'folds';
+import { Chip, config, Icon, Icons, MenuItem, PopOut, RectCords, Text } from 'folds';
 import React, { MouseEventHandler, useState } from 'react';
 import FocusTrap from 'focus-trap-react';
 import { isKeyHotkey } from 'is-hotkey';
+import { Menu } from '../glass/GlassPrimitives';
 import { useRoomCreatorsTag } from '../../hooks/useRoomCreatorsTag';
 import { PowerColorBadge, PowerIcon } from '../power';
 import { getPowerTagIconSrc } from '../../hooks/useMemberPowerTag';

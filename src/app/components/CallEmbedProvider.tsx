@@ -9,7 +9,6 @@ import {
   Button,
   color,
   config,
-  Dialog,
   Icon,
   Icons,
   Overlay,
@@ -27,6 +26,7 @@ import {
 } from 'matrix-js-sdk';
 import { IRTCNotificationContent, RTCNotificationType } from 'matrix-js-sdk/lib/matrixrtc/types';
 import { CryptoBackend } from 'matrix-js-sdk/lib/common-crypto/CryptoBackend';
+import { Dialog } from './glass/GlassPrimitives';
 import {
   CallEmbedContextProvider,
   CallEmbedRefContextProvider,

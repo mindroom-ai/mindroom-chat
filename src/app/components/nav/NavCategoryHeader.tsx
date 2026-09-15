@@ -1,6 +1,7 @@
 import React, { ReactNode } from 'react';
 import classNames from 'classnames';
-import { Header, as } from 'folds';
+import { as } from 'folds';
+import { Header } from '../glass/GlassPrimitives';
 import * as css from './styles.css';
 
 export type NavCategoryHeaderProps = {

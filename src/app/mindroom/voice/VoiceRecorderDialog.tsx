@@ -8,18 +8,9 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import {
-  Box,
-  Button,
-  Dialog,
-  Line,
-  Overlay,
-  OverlayBackdrop,
-  OverlayCenter,
-  Text,
-  config,
-} from 'folds';
+import { Box, Button, Line, Overlay, OverlayBackdrop, OverlayCenter, Text, config } from 'folds';
 import FocusTrap from 'focus-trap-react';
+import { Dialog } from '../../components/glass/GlassPrimitives';
 import { localizeVoiceErrorMessage } from './voiceErrorMessage';
 import { VoiceRecordingCapsule } from './VoiceRecordingCapsule';
 import { useVoiceRecorder } from './useVoiceRecorder';
