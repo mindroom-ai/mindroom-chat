@@ -7,6 +7,7 @@
 - Approval review and active-permission dialogs use the shared glass tint for a dimmed backdrop, matching settings sheets while preserving their focus trap and close behavior.
 - Tool-call blocks, approval histories, and resolved approval receipts share one disclosure style for spacing, full-width surfaces, corner radii, keyboard focus, and trailing chevrons.
   Expanded receipts wrap long operation names; nested argument disclosures keep their native behavior.
+  Approval histories have a 4 px gap after message content so adjacent tool and approval bars do not touch; nested receipts retain their compact separators.
   Inline rows retain a quiet surface without additional backdrop filters, animation loops, or observers.
 - Live coverage uses local sample Matrix events to check matching phone/desktop geometry, keyboard expansion, nested receipts, dialog tint, focus restoration, and horizontal bounds in Chromium and WebKit.
 - Validation: all 4,317 unit tests across 522 files, typecheck, production/PWA build, and ESLint pass with zero errors and 17 existing warnings.

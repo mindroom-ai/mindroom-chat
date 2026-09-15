@@ -55,7 +55,10 @@ export const Chip = style({
   fontSize: 12,
   whiteSpace: 'nowrap',
 });
-export const Receipt = disclosure.Surface;
+export const Receipt = style([
+  disclosure.Surface,
+  { selectors: { '&:not(:first-child)': { marginBlockStart: config.space.S100 } } },
+]);
 export const ReceiptTool = style([
   disclosure.Label,
   {
@@ -79,6 +82,7 @@ export const HistoryBody = style([
 globalStyle(`${HistoryBody} > ${Receipt}`, {
   width: '100%',
   maxWidth: '100%',
+  marginBlockStart: 0,
   background: 'transparent',
   border: 0,
   borderRadius: 0,
