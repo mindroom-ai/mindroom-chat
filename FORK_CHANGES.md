@@ -2,6 +2,18 @@
 
 ## Runbook
 
+### Recognize Gemini icons behind compatible providers (2026-09-15)
+
+- The shared model icon now recognizes Gemini model IDs before falling back to the transport provider's glyph.
+  Plain and provider-prefixed IDs use the existing Google glyph, including mixed-case IDs.
+- Boundary matching preserves other provider icons for unrelated names containing similar text.
+  Model configuration, provider grouping, routing, and custom-media precedence are unchanged.
+- Focused model and historical-badge coverage passes 111 tests, including six Gemini regressions that failed before the change.
+  All 4,427 tests pass after integrating the latest development changes in a standard Node 24 Linux container; three shell-path tests cannot run on the host's nonstandard filesystem layout.
+  Typecheck, lint, production/PWA build, and the Element Call output check pass.
+  The build used a separate output directory because existing build artifacts were not writable.
+  Independent source review found no blocker.
+
 ### Match approval sheets and inline tool controls (2026-09-15)
 
 - Approval review and active-permission dialogs use the shared glass tint for a dimmed backdrop, matching settings sheets while preserving their focus trap and close behavior.
