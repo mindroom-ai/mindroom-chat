@@ -38,7 +38,7 @@ type VoiceComposerAdapter = {
   >;
   snapshotText: () => Descendant[];
   resetText: () => void;
-  restoreText: (roomId: string, fragment: Descendant[]) => void;
+  restoreText: (roomId: string, fragment: Descendant[], threadId?: string) => void;
   clearConsumedReply: (context: Pick<MindroomVoiceSendContext, 'roomId' | 'replyDraft'>) => void;
 };
 
@@ -67,6 +67,7 @@ type VoiceFeature = {
 
 type PendingVoiceComposerBundle = {
   roomId: string;
+  composerThreadId?: string;
   relationContext?: Pick<MindroomVoiceSendContext, 'threadId' | 'replyDraft' | 'threadingEnabled'>;
   textContent?: IContent;
   composerFallback?: Descendant[];
@@ -209,7 +210,7 @@ export const useRoomInputVoice = ({
 
     const bundle = pendingVoiceComposerBundleRef.current;
     if (bundle?.composerReset && !bundle.handedOff && bundle.composerFallback) {
-      restoreText(bundle.roomId, bundle.composerFallback);
+      restoreText(bundle.roomId, bundle.composerFallback, bundle.composerThreadId);
     }
     bundle?.releasePasteProtection();
     pendingVoiceComposerBundleRef.current = undefined;
@@ -371,6 +372,9 @@ export const useRoomInputVoice = ({
               context: liveContext,
               completeWithinCall: true,
               composerFallback: composerBundle?.composerFallback,
+              composerContext: composerBundle
+                ? { roomId: composerBundle.roomId, threadId: composerBundle.composerThreadId }
+                : undefined,
               composerAlreadyReset: composerBundle?.composerReset,
               onUploadSent: (sentFile) => {
                 if (sentFile === fileItem.file) {
@@ -447,6 +451,7 @@ export const useRoomInputVoice = ({
       const companionItems = attachmentAccess.snapshot().staged;
       pendingVoiceComposerBundleRef.current = {
         roomId,
+        composerThreadId: context.threadId,
         // A live recording follows the reply/thread visible when primary Send is pressed.
         // A parked retry keeps the durable context captured with the failed recording.
         relationContext: ownsPendingVoiceDraft

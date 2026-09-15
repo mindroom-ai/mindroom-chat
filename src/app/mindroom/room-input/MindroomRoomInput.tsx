@@ -9,7 +9,7 @@ import React, {
 } from 'react';
 import { useAtom, useStore } from 'jotai';
 import { IContent, MsgType, Room } from 'matrix-js-sdk';
-import { Descendant, Editor, Transforms } from 'slate';
+import { Descendant, Editor } from 'slate';
 
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import {
@@ -19,13 +19,14 @@ import {
   resetEditorHistory,
   customHtmlEqualsPlainText,
   trimCustomHtml,
-  isEmptyEditor,
   getBeginCommand,
   trimCommand,
   getMentions,
 } from '../../components/editor';
 import { useTypingStatusUpdater } from '../../hooks/useTypingStatusUpdater';
 import {
+  getRoomInputDraftKey,
+  captureRoomInputDraftGuard,
   roomIdToMsgDraftAtomFamily,
   roomIdToReplyDraftAtomFamily,
 } from '../../state/room/roomInputDrafts';
@@ -40,6 +41,7 @@ import { hasMatchingReplyDraft } from '../threads/roomInputSendSession';
 import { useRoomInputAttachments } from './useRoomInputAttachments';
 import { useRoomInputUploadTransport } from './useRoomInputUploadTransport';
 import { useRoomInputVoice } from './useRoomInputVoice';
+import { useRoomInputDraft } from './useRoomInputDraft';
 import { RoomInputEditor } from './RoomInputEditor';
 import { RoomInputReplyPreview } from './RoomInputReplyPreview';
 
@@ -70,10 +72,14 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
   ) => {
     const mx = useMatrixClient();
     const store = useStore();
+    const canRestoreDraft = useMemo(
+      () => captureRoomInputDraftGuard(getRoomInputDraftKey(mx.getUserId() ?? '', '')),
+      [mx]
+    );
     const [isMarkdown] = useSetting(settingsAtom, 'isMarkdown');
     const commands = useCommands(mx, room);
 
-    const [msgDraft, setMsgDraft] = useAtom(roomIdToMsgDraftAtomFamily(roomId));
+    const saveMsgDraft = useRoomInputDraft(editor, mx.getUserId() ?? '', roomId, threadId);
     const [replyDraft, setReplyDraft] = useAtom(roomIdToReplyDraftAtomFamily(roomId));
     const mountedRef = useRef(true);
     const roomRef = useRef(room);
@@ -108,26 +114,9 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       fileDropContainerRef,
       isMarkdown,
       createUploadItems,
+      draftKey: getRoomInputDraftKey(mx.getUserId() ?? '', roomId, threadId),
     });
     const attachmentAccess = attachments.access;
-
-    useEffect(() => {
-      Transforms.insertFragment(editor, msgDraft);
-    }, [editor, msgDraft]);
-
-    useEffect(
-      () => () => {
-        if (!isEmptyEditor(editor)) {
-          const parsedDraft = JSON.parse(JSON.stringify(editor.children));
-          setMsgDraft(parsedDraft);
-        } else {
-          setMsgDraft([]);
-        }
-        resetEditor(editor);
-        resetEditorHistory(editor);
-      },
-      [roomId, editor, setMsgDraft]
-    );
 
     const clearReplyDraftForSendContext = useCallback(
       (context: RoomInputReplyDraftContext) => {
@@ -141,11 +130,14 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     );
 
     const restoreComposerFallbackForRoom = useCallback(
-      (ownerRoomId: string, fragment: Descendant[]) => {
-        const msgDraftAtom = roomIdToMsgDraftAtomFamily(ownerRoomId);
+      (ownerRoomId: string, fragment: Descendant[], ownerThreadId?: string) => {
+        if (!canRestoreDraft()) return;
+        const msgDraftAtom = roomIdToMsgDraftAtomFamily(
+          getRoomInputDraftKey(mx.getUserId() ?? '', ownerRoomId, ownerThreadId)
+        );
         store.set(msgDraftAtom, [...fragment, ...store.get(msgDraftAtom)]);
       },
-      [store]
+      [mx, store, canRestoreDraft]
     );
 
     const sessions = useRoomInputSendSessionController({
@@ -181,11 +173,16 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
           resetEditorHistory(editor);
           sendTypingStatus(false);
         },
-        restoreText: (ownerRoomId: string, fragment: Descendant[]) => {
-          if (mountedRef.current && ownerRoomId === roomIdRef.current) {
+        restoreText: (ownerRoomId: string, fragment: Descendant[], ownerThreadId?: string) => {
+          if (!canRestoreDraft()) return;
+          if (
+            mountedRef.current &&
+            ownerRoomId === roomIdRef.current &&
+            ownerThreadId === threadIdRef.current
+          ) {
             restoreEditorContent(editor, fragment);
           } else {
-            restoreComposerFallbackForRoom(ownerRoomId, fragment);
+            restoreComposerFallbackForRoom(ownerRoomId, fragment, ownerThreadId);
           }
         },
         clearConsumedReply: clearReplyDraftForSendContext,
@@ -195,6 +192,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
         threadingEnabled,
         sendTypingStatus,
         restoreComposerFallbackForRoom,
+        canRestoreDraft,
         clearReplyDraftForSendContext,
       ]
     );
@@ -322,6 +320,12 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       submitIfActive,
     ]);
 
+    const { onEditorChange: handleAttachmentEditorChange } = attachments;
+    const handleEditorChange = useCallback(() => {
+      saveMsgDraft();
+      handleAttachmentEditorChange();
+    }, [saveMsgDraft, handleAttachmentEditorChange]);
+
     const recorder = voice.renderRecorder(submit);
     const composerContext = (replyDraft || (!!threadId && submitPending) || recorder) && (
       <div>
@@ -354,7 +358,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
           onSubmit={submit}
           onCancelReply={() => setReplyDraft(undefined)}
           onPaste={attachments.onPaste}
-          onChange={attachments.onEditorChange}
+          onChange={handleEditorChange}
           sendTypingStatus={sendTypingStatus}
           top={composerContext}
           before={composerFeatureButtons}

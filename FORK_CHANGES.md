@@ -24,6 +24,23 @@
   Chromium touch injection can swallow the first subsequent tap after a drag; the same result reproduces on a plain HTML page without application code.
   Physical iPhone and iPad validation remains unavailable on this Linux host.
 
+### Preserve thread drafts and pending replies across navigation (2026-09-15)
+
+- Status: implementation, local verification, and two independent subagent reviews are complete.
+- Composer text now saves to localStorage while typing, keyed by Matrix account, room, and thread, and restores when that destination reopens or the page reloads.
+- Empty drafts are removed, malformed or unavailable storage falls back safely, and account logout clears only that account's saved drafts and revokes outstanding recovery writes.
+- Draft hydration no longer inserts the stored value on every draft update, and background caption recovery preserves both newer typing and the original composer destination, including voice retries targeting another thread.
+- Pasted-text attachments retain their composer destination through thread changes and asynchronous preparation, stay out of other drafts' send batches, and recover preparation failures into the originating draft.
+- Pending thread replies previously lived only in the SDK transaction map and the mounted view's supplemental state because chronological room timelines reject thread replies.
+- The client sync engine now retains the original pending thread-event objects for the room's lifetime, including before initial sync, and thread rendering includes them after navigation.
+- Confirmation and cancellation remove retained entries; queued, encrypting, sending, failed, and sent-but-unconfirmed events retain their SDK status and transaction identity.
+- Pending-send retention covers navigation within the running client; it does not add a reload-persistent outbox or persist upload files.
+- Regression coverage exercises formatted draft reloads, room/thread/account isolation, clearing, unavailable storage, background caption recovery, logout cleanup, real SDK pending events, confirmation deduplication, cancellation, and engine teardown.
+- Validation: all 4,175 tests across 514 files pass under Node 24.13.1 in the standard Linux container.
+- Native Nix runs reproduce the three existing Xcode shell-fixture failures; the container run covers them successfully.
+- Typecheck, touched-file ESLint and formatting, production/PWA build, and both independent reviews pass.
+- Live Chromium validation against the local Docker Matrix service covers draft exit/reopen, page reload, offline reply visibility after navigation, and delayed-send confirmation without duplication after reload.
+
 ### Full interface internationalization (2026-09-14)
 
 - Status: implementation, language quality corrections, independent reviews, and local verification are complete; ready PR #249 is open against dev.

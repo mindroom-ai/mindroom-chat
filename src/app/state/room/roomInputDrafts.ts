@@ -6,6 +6,13 @@ import type { IEventRelation, MatrixError, Room } from 'matrix-js-sdk';
 import { createUploadAtomFamily } from '../upload';
 import { TUploadContent } from '../../utils/matrix';
 import { createListAtom } from '../list';
+import {
+  getSafeLocalStorage,
+  getStorageKeysSafe,
+  getStorageItemSafe,
+  removeStorageItemSafe,
+  setStorageItemSafe,
+} from '../../utils/safeLocalStorage';
 
 export type TUploadMetadata = {
   markedAsSpoiler: boolean;
@@ -21,6 +28,8 @@ export type TUploadMetadata = {
 };
 
 export type TUploadItem = {
+  /** Composer owning a paste attachment; ordinary uploads remain room-scoped. */
+  composerDraftKey?: string;
   file: TUploadContent;
   originalFile: TUploadContent;
   metadata: TUploadMetadata;
@@ -86,11 +95,77 @@ export type RoomIdToMsgAction =
       roomId: string;
     };
 
-const createMsgDraftAtom = () => atom<Descendant[]>([]);
+export const getRoomInputDraftKey = (userId: string, roomId: string, threadId?: string): string =>
+  JSON.stringify([userId, roomId, threadId ?? null]);
+
+const COMPOSER_DRAFT_STORAGE_PREFIX = 'mindroom_composer_draft::';
+const accountDraftVersions = new Map<string, number>();
+
+/** Capture before asynchronous work so explicit account cleanup revokes its draft writes. */
+export const captureRoomInputDraftGuard = (draftKey: string): (() => boolean) => {
+  let userId = draftKey;
+  try {
+    const scope: unknown = JSON.parse(draftKey);
+    if (Array.isArray(scope) && typeof scope[0] === 'string') [userId] = scope;
+  } catch {
+    /* Legacy unscoped callers use their key as the owner. */
+  }
+  const version = accountDraftVersions.get(userId) ?? 0;
+  return () => (accountDraftVersions.get(userId) ?? 0) === version;
+};
+
+const isDraftNode = (node: unknown): boolean => {
+  if (typeof node !== 'object' || node === null) return false;
+  if ('text' in node) return typeof node.text === 'string';
+  return (
+    'type' in node &&
+    typeof node.type === 'string' &&
+    'children' in node &&
+    Array.isArray(node.children) &&
+    node.children.length > 0 &&
+    node.children.every(isDraftNode)
+  );
+};
+
+const readMsgDraft = (key: string): Descendant[] => {
+  try {
+    const value: unknown = JSON.parse(getStorageItemSafe(getSafeLocalStorage(), key) ?? '[]');
+    return Array.isArray(value) && value.every((node) => isDraftNode(node) && 'children' in node)
+      ? value
+      : [];
+  } catch {
+    return [];
+  }
+};
+
+const createMsgDraftAtom = (draftKey: string) => {
+  const canWrite = captureRoomInputDraftGuard(draftKey);
+  const storageKey = `${COMPOSER_DRAFT_STORAGE_PREFIX}${draftKey}`;
+  const baseAtom = atom<Descendant[]>(readMsgDraft(storageKey));
+  return atom(
+    (get) => get(baseAtom),
+    (_get, set, value: Descendant[]) => {
+      if (!canWrite()) return;
+      const serialized = JSON.stringify(value);
+      set(baseAtom, JSON.parse(serialized) as Descendant[]);
+      if (value.length === 0) removeStorageItemSafe(getSafeLocalStorage(), storageKey);
+      else setStorageItemSafe(getSafeLocalStorage(), storageKey, serialized);
+    }
+  );
+};
 export type TMsgDraftAtom = ReturnType<typeof createMsgDraftAtom>;
-export const roomIdToMsgDraftAtomFamily = atomFamily<string, TMsgDraftAtom>(() =>
-  createMsgDraftAtom()
-);
+export const roomIdToMsgDraftAtomFamily = atomFamily<string, TMsgDraftAtom>(createMsgDraftAtom);
+
+export const clearRoomInputDrafts = (userId: string): void => {
+  accountDraftVersions.set(userId, (accountDraftVersions.get(userId) ?? 0) + 1);
+  const userPrefix = `[${JSON.stringify(userId)},`;
+  const storage = getSafeLocalStorage();
+  getStorageKeysSafe(storage)
+    .filter((key) => key.startsWith(`${COMPOSER_DRAFT_STORAGE_PREFIX}${userPrefix}`))
+    .forEach((key) => removeStorageItemSafe(storage, key));
+  roomIdToMsgDraftAtomFamily.setShouldRemove((_createdAt, key) => key.startsWith(userPrefix));
+  roomIdToMsgDraftAtomFamily.setShouldRemove(null);
+};
 
 export type IReplyDraft = {
   userId: string;

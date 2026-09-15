@@ -29,6 +29,7 @@ import {
 import { eventBelongsToThread } from './threadUtils';
 import { logTimelineDebug } from './timelineDebug';
 import { isLocalEchoEventId } from './threadRouteUtils';
+import { getPendingThreadEvents } from './pendingThreadEvents';
 
 type UseThreadRenderStateOpts = {
   room: Room;
@@ -112,6 +113,8 @@ const buildThreadEvents = ({
   if (fallbackEvents.length > 0) {
     fallbackEvents.forEach((mEvent) => addThreadEvent(mEvent, false));
   }
+
+  getPendingThreadEvents(room, threadId).forEach((event) => addThreadEvent(event));
 
   const resolveConfirmedId = buildResolveConfirmedEventId(room, collectedEvents);
   const sortedEvents = mergeThreadRenderEvents([], collectedEvents, resolveConfirmedId);
@@ -325,7 +328,8 @@ export const useThreadRenderState = ({
   const threadInitialRenderMode = getThreadRenderStateInitialMode({
     threadId,
     initialCacheHydrated: threadInitialCacheHydrated,
-    fallbackEventCount: fallbackEvents.length,
+    fallbackEventCount:
+      fallbackEvents.length + (threadId ? getPendingThreadEvents(room, threadId).length : 0),
   });
 
   useEffect(() => {
