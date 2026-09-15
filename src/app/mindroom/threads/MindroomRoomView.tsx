@@ -161,14 +161,6 @@ export function RoomView({
           threadId={effectiveThreadId}
           joinRequestCount={joinRequestCount}
         />
-        {effectiveThreadId && (
-          <ThreadContextBanner
-            room={room}
-            threadId={effectiveThreadId}
-            summaryInfo={threadSummaryInfo}
-            onExitThread={handleExitThread}
-          />
-        )}
         <Box grow="Yes" direction="Column">
           <RoomTimeline
             key={`${roomId}:${effectiveThreadId ?? ''}`}
@@ -177,6 +169,16 @@ export function RoomView({
             eventId={eventId}
             focusEventInRoom={focusEventInRoom}
             threadId={effectiveThreadId}
+            threadHeader={
+              effectiveThreadId && (
+                <ThreadContextBanner
+                  room={room}
+                  threadId={effectiveThreadId}
+                  summaryInfo={threadSummaryInfo}
+                  onExitThread={handleExitThread}
+                />
+              )
+            }
             threadFilterState={threadFilterState}
             threadSortFreezeState={threadSortFreezeState}
             onToggle={handleToggle}

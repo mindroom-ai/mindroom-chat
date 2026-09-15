@@ -204,7 +204,115 @@ describe('useVirtualPaginator', () => {
   beforeEach(() => {
     intersectionState.callback = undefined;
     vi.unstubAllGlobals();
+    vi.stubGlobal('getComputedStyle', () => ({
+      scrollPaddingTop: 'auto',
+      scrollPaddingBottom: 'auto',
+    }));
   });
+
+  it.each([
+    { name: 'start below the header', align: 'start', expectedTop: 180 },
+    { name: 'center within the usable viewport', align: 'center', expectedTop: 300 },
+    { name: 'end above the footer', align: 'end', expectedTop: 420 },
+    { name: 'start with an additional offset', align: 'start', offset: 12, expectedTop: 192 },
+    { name: 'oversized centered message', align: 'center', height: 320, expectedTop: 180 },
+    { name: 'oversized end-aligned message', align: 'end', height: 300, expectedTop: 180 },
+    {
+      name: 'message covered by the header',
+      align: 'center',
+      top: 120,
+      stopInView: true,
+      expectedTop: 300,
+    },
+    {
+      name: 'message covered by the footer',
+      align: 'center',
+      top: 450,
+      stopInView: true,
+      expectedTop: 300,
+    },
+    {
+      name: 'visible message at the top edge',
+      align: 'center',
+      top: 180,
+      stopInView: true,
+      expectedTop: 180,
+      expectedScroll: false,
+    },
+    {
+      name: 'visible message at the bottom edge',
+      align: 'center',
+      top: 420,
+      stopInView: true,
+      expectedTop: 420,
+      expectedScroll: false,
+    },
+    {
+      name: 'default automatic padding',
+      align: 'center',
+      paddingTop: 'auto',
+      paddingBottom: 'auto',
+      expectedTop: 280,
+    },
+  ])(
+    'honors scroll padding for $name',
+    ({
+      align,
+      expectedTop,
+      offset,
+      height = 40,
+      top = 350,
+      stopInView = false,
+      expectedScroll = true,
+      paddingTop = '80px',
+      paddingBottom = '40px',
+    }) => {
+      vi.stubGlobal('getComputedStyle', () => ({
+        scrollPaddingTop: paddingTop,
+        scrollPaddingBottom: paddingBottom,
+      }));
+      vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+        callback(0);
+        return 1;
+      });
+      let elementTop = top;
+      const scrollElement = {
+        getBoundingClientRect: () => makeRect(100, 400),
+        querySelector: () => null,
+        scrollBy: ({ top: delta }: { top: number }) => {
+          elementTop -= delta;
+        },
+      } as unknown as HTMLElement;
+      const targetElement = {
+        getBoundingClientRect: () => makeRect(elementTop, height),
+      } as unknown as HTMLElement;
+      let paginator: ReturnType<typeof useVirtualPaginator> | undefined;
+      let renderer: ReturnType<typeof create>;
+      act(() => {
+        renderer = create(
+          React.createElement(PaginatorHarness, {
+            getScrollElement: () => scrollElement,
+            onApi: (api) => {
+              paginator = api;
+            },
+          })
+        );
+      });
+
+      act(() => {
+        expect(
+          paginator?.scrollToElement(targetElement, {
+            align: align as 'start' | 'center' | 'end',
+            offset,
+            stopInView,
+          })
+        ).toBe(expectedScroll);
+      });
+
+      expect(elementTop).toBe(expectedTop);
+      act(() => renderer.unmount());
+    }
+  );
 
   it('retries visible-anchor pagination after suppression is cleared without needing a rerender', () => {
     const suppressRef = { current: true };

@@ -32,6 +32,7 @@ import {
 } from 'folds';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useVirtualPaginator } from '../../hooks/useVirtualPaginator';
+import { ThreadTimelineHeader } from './ThreadTimelineHeader';
 import { useAlive } from '../../hooks/useAlive';
 import { scrollToBottom } from '../../utils/dom';
 import { DefaultPlaceholder, CompactPlaceholder, MessageBase } from '../../components/message';
@@ -184,6 +185,7 @@ export type RoomTimelineProps = {
   eventId?: string;
   focusEventInRoom?: boolean;
   threadId?: string;
+  threadHeader?: React.ReactNode;
   summaryMap: Map<string, MindroomThreadSummaryInfo>;
   onStoreThreadSummary: (threadRootId: string, info: MindroomThreadSummaryInfo | undefined) => void;
   threadFilterState: ThreadFilterState;
@@ -213,6 +215,7 @@ export function RoomTimeline({
   eventId,
   focusEventInRoom,
   threadId,
+  threadHeader,
   summaryMap,
   onStoreThreadSummary,
   threadFilterState,
@@ -2157,7 +2160,7 @@ export function RoomTimeline({
                 </Chip>
               </TimelineFloat>
             )}
-            {messageFeature.expansionControl}
+            {!threadHeader && messageFeature.expansionControl}
             <Scroll
               ref={scrollRef}
               visibility="Hover"
@@ -2168,10 +2171,18 @@ export function RoomTimeline({
                 justifyContent={threadId ? 'Start' : 'End'}
                 style={{
                   minHeight: '100%',
-                  padding: `${config.space.S600} 0`,
+                  padding: threadHeader ? `0 0 ${config.space.S600}` : `${config.space.S600} 0`,
                   position: 'relative',
                 }}
               >
+                {threadHeader && (
+                  <ThreadTimelineHeader
+                    scrollRef={scrollRef}
+                    expansionControl={messageFeature.expansionControl}
+                  >
+                    {threadHeader}
+                  </ThreadTimelineHeader>
+                )}
                 {!threadId &&
                   !roomHasMoreCachedBack &&
                   !canPaginateBack &&
