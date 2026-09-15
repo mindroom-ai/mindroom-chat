@@ -5,20 +5,20 @@
 ### Animate the thinking marker with the M logo (2026-09-15)
 
 - Status: the selected Flip, glow, flip sequence replaces the four-dot indicator in `MindroomThinkingPlaceholder`.
-- The marker uses a decorative inline SVG with references to the cached `thinking-mark.svg` asset; native CSS plays a horizontal flip, six seconds of the glowing core, then a vertical flip, and repeats.
-- The marker scales with text at 1.5 em (24 px beside 16 px text), keeps the existing rotating text and accessible responding status, and disappears through the existing message renderer when the answer starts or the run finishes.
+- The marker uses a decorative inline SVG with references to the cached `thinking-mark.svg` asset; native CSS plays a horizontal flip, the glowing core, then a vertical flip, and repeats.
+- The marker scales with text at 2 em (32 px beside 16 px text; 28 px beside compact 14 px text), keeps the existing rotating text and accessible responding status, and disappears through the existing message renderer when the answer starts or the run finishes.
 - Vite emits the artwork as a separate asset with a content hash in its name, and the service worker precaches it for offline rendering.
 - `e2e/thinking-marker.spec.ts` exercises the real component, resolved SVG parts, sequential phases, loop boundary, text sizing, both themes, and reduced motion.
 - The four exploratory concepts remain available in `docs/previews/thinking-indicator.html` as design references.
 - Open that standalone HTML file in a browser to compare Tilt & turn, Gyroscope, Glowing core, and Flip, glow, flip using the detailed illuminated glass M from MindRoom’s `assets/logo/logo-mark.svg` (`main` at `d733862764de`).
 - Each concept includes an enlarged motion study and a chat-size example, with size, theme, pause, half-speed, text-shimmer, and reduced-motion controls.
 - Motion uses short wind-ups, quick flips, overshoot, rebound, and unequal pauses; Glowing core keeps the outer M still while the gold cube moves.
-- Flip, glow, flip places the six-second Glowing core between the two original Tilt & turn flips, on a repeating 15-second cycle: 4.5 seconds horizontal flip, six seconds core, 4.5 seconds vertical flip. The cube and glow hold still during the turns; the M holds still during the core animation.
+- Flip, glow, flip places Glowing core between the two original Tilt & turn flips on a repeating nine-second cycle. The original wind-ups, flips, and rebounds keep their speed; the resting gaps shrink to roughly half a second. The cube and glow hold still during the turns; the M holds still during the core animation.
 - The preview honors the operating system's reduced-motion preference.
 - The original geometry, gradients, masks, and layer order are preserved in one shared SVG definition set; Glowing core animates the original central cube.
 - Fidelity checks verify byte-identical source artwork, resolved SVG references, and pixel-identical rendering at 256 px. Chromium checks cover all controls, both reduced-motion modes, SVG rendering, mobile layout, and script errors.
 - Typecheck, lint, build, and changed-file formatting pass. All 4,192 tests pass under Node 24 in the standard Linux container; all six thinking-marker browser cases pass across Chromium, Firefox, and WebKit.
-- Next steps: review the updated sequence in PR #255 and merge once the visual choice is confirmed.
+- Next steps: review the selected 32 px marker and shorter pauses in PR #255, then merge when final checks are complete.
 - The comparison HTML is a design reference; the application uses the selected sequence from `MindroomThinkingPlaceholder.css.ts` and the shared production artwork.
 
 ### Refine command palette presentation and navigation (2026-09-15)
