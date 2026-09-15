@@ -2,6 +2,20 @@
 
 ## Runbook
 
+### Reproduce worker computer integration (2026-09-15)
+
+- Status: fixture/spec implementation and live desktop/mobile acceptance are validated; independent task and final feature review follow.
+- `e2e/worker-computer.spec.ts` requires `E2E_COMPUTER_FIXTURE` from the backend's `scripts/test-worker-computer.py --serve` and rejects non-loopback services.
+- The backend fixture can create its own disposable Matrix server, test users, room/thread, public computer gateway, and dedicated Docker worker; no default homeserver or real account is used.
+- The spec verifies the real noVNC framebuffer, native keyboard typing with agent-tool readback, exactly one user-authored continuation in the originating thread, desktop side-panel and mobile fullscreen bounds, close/reopen, and stop/start.
+- Reproduction: start the backend fixture with `--chat-origin http://127.0.0.1:4173`, then run `E2E_COMPUTER_FIXTURE=<fixture-output>/chat-fixture.json E2E_BASE_URL=http://127.0.0.1:4173 npm run test:e2e -- e2e/worker-computer.spec.ts`.
+- See the backend's `docs/tools/worker-computer.md` for worker image, local Matrix image, opt-in environment, exact cleanup ownership, and trusted API/WSS routing.
+- Live desktop/mobile acceptance passes with no page errors (one Playwright test, 13.1 seconds).
+- Full Vitest passes 3,645 tests and retains the same four clean-baseline failures: three Xcode Cloud Homebrew tests on non-macOS and one caption-restoration test.
+- Typecheck, production/PWA build, and focused spec ESLint/Prettier pass.
+- Full ESLint has zero errors and 17 existing warnings.
+- Full Prettier reports 213 existing formatting warnings: 212 files are byte-identical to the clean feature baseline, plus the local skill alias; no changed feature file is flagged.
+
 ### Show dedicated agent computers in Chat (2026-09-15)
 
 - Status: implemented and validated with focused behavioral coverage, typecheck, changed-file formatting and lint, a production build, the full Vitest comparison, and live native noVNC acceptance.
