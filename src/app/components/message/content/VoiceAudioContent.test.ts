@@ -74,7 +74,6 @@ vi.mock('../../voice/VoiceVolumeButton.css', () => ({
 vi.mock('../../voice/VoicePlaybackRateButton.css', () => ({
   Button: 'Button',
   Label: 'Label',
-  Placeholder: 'Placeholder',
 }));
 
 vi.mock('../../voice/VoiceWaveform.css', () => ({

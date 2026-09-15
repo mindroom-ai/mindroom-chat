@@ -15,7 +15,6 @@ vi.mock('folds', () => ({
 vi.mock('./VoicePlaybackRateButton.css', () => ({
   Button: 'Button',
   Label: 'Label',
-  Placeholder: 'Placeholder',
 }));
 
 const renderButton = (store = createStore()): ReactTestRenderer => {
@@ -23,11 +22,7 @@ const renderButton = (store = createStore()): ReactTestRenderer => {
 
   act(() => {
     renderer = create(
-      React.createElement(
-        Provider,
-        { store },
-        React.createElement(VoicePlaybackRateButton)
-      )
+      React.createElement(Provider, { store }, React.createElement(VoicePlaybackRateButton))
     );
   });
 

@@ -59,7 +59,6 @@ vi.mock('./VoiceAudioContent.css', () => ({
 
 vi.mock('../../voice/VoicePlaybackRateButton', () => ({
   VoicePlaybackRateButton: () => React.createElement('button', { 'aria-label': 'Playback speed' }),
-  VoicePlaybackRatePlaceholder: () => React.createElement('span', null, '1.5x'),
 }));
 
 vi.mock('../../voice/VoiceVolumeButton', () => ({

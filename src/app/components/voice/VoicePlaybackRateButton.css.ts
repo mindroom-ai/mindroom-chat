@@ -35,11 +35,3 @@ export const Label = style({
   fontVariantNumeric: 'tabular-nums',
   whiteSpace: 'nowrap',
 });
-
-export const Placeholder = style([
-  Button,
-  {
-    visibility: 'hidden',
-    pointerEvents: 'none',
-  },
-]);

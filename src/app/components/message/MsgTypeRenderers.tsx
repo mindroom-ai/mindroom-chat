@@ -320,16 +320,9 @@ export function MVideo({ content, renderAsFile, renderVideoContent, outlined }: 
   );
 }
 
-type RenderAudioContentProps = {
-  info: IAudioInfo;
-  mimeType: string;
-  url: string;
-  encInfo?: IEncryptedFile;
-};
 type MAudioProps = {
   content: IAudioContent;
   renderAsFile: () => ReactNode;
-  renderAudioContent: (props: RenderAudioContentProps) => ReactNode;
   outlined?: boolean;
 };
 export function MAudio({ content, renderAsFile }: MAudioProps) {

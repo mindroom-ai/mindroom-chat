@@ -55,7 +55,6 @@ createRoot(document.getElementById('root')!).render(
                     : content
                 }
                 renderAsFile={() => <div>Unsupported audio</div>}
-                renderAudioContent={() => <div>Legacy audio player</div>}
               />
             </section>
           ))}
