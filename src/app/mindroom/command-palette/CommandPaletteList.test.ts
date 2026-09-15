@@ -2,164 +2,80 @@ import React from 'react';
 import { create } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import { CommandPaletteList, type CommandPaletteListSection } from './CommandPaletteList';
-import type { CommandPaletteItem } from './commandPaletteTypes';
 
-vi.mock('folds', async () => {
-  const reactModule = await import('react');
-  return {
-    Box: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) =>
-      reactModule.createElement('div', props, children),
-    Text: ({ children, ...props }: React.HTMLAttributes<HTMLSpanElement>) =>
-      reactModule.createElement('span', props, children),
-    Line: (props: React.HTMLAttributes<HTMLHRElement>) => reactModule.createElement('hr', props),
-    Icon: ({ src, ...props }: React.HTMLAttributes<HTMLSpanElement> & { src?: string }) =>
-      reactModule.createElement('span', { ...props, 'data-icon-src': src }),
-    Icons: {
-      Terminal: 'terminal',
-      Message: 'message',
-      Hash: 'hash',
-      Space: 'space',
-      User: 'user',
-      Search: 'search',
-    },
-    color: {
-      Warning: { Main: 'warning-main' },
-      Primary: { Main: 'primary-main' },
-      Success: { Main: 'success-main' },
-      Secondary: { Main: 'secondary-main' },
-      SurfaceVariant: {
-        OnContainer: 'surface-variant-on-container',
-        ContainerHover: 'surface-variant-container-hover',
-      },
-    },
-  };
-});
+vi.mock('./CommandPalette.css', () => ({
+  Palette: 'Palette',
+  Search: 'Search',
+  Input: 'Input',
+  Close: 'Close',
+  Filters: 'Filters',
+  Filter: 'Filter',
+  Prefix: 'Prefix',
+  Results: 'Results',
+  Group: 'Group',
+  GroupTitle: 'GroupTitle',
+  GroupCount: 'GroupCount',
+  Row: 'Row',
+  RowIcon: 'RowIcon',
+  RowText: 'RowText',
+  RowTitle: 'RowTitle',
+  RowDescription: 'RowDescription',
+  RowEnter: 'RowEnter',
+  Key: 'Key',
+  Footer: 'Footer',
+  KeyboardHints: 'KeyboardHints',
+  Hint: 'Hint',
+  Empty: 'Empty',
+  EmptyTitle: 'EmptyTitle',
+  EmptyDescription: 'EmptyDescription',
+}));
+
+vi.mock('folds', () => ({ Icon: () => null, Icons: { Hash: 'hash', Terminal: 'terminal' } }));
 
 const ROOM_SECTION: CommandPaletteListSection = {
   id: 'rooms',
   title: 'Rooms',
-  items: [
-    {
-      id: '!general:example.org',
-      kind: 'room',
-      name: 'General',
-      topic: 'Team chat',
-    },
-  ],
+  items: [{ id: '!general:example.org', kind: 'room', name: 'General', topic: 'Team chat' }],
 };
-
 const renderList = (props: Partial<React.ComponentProps<typeof CommandPaletteList>> = {}) =>
   create(
     React.createElement(CommandPaletteList, {
+      id: 'results',
+      label: 'Search results',
       sections: [ROOM_SECTION],
       onSelect: vi.fn(),
+      onHighlight: vi.fn(),
       ...props,
     })
   );
 
 describe('CommandPaletteList', () => {
-  it('labels room rows with the shared rooms category metadata', () => {
+  it('gives each result group a visible accessible category label', () => {
     const renderer = renderList();
-    const row = renderer.root.findByProps({ 'data-item-id': '!general:example.org' });
-    const icon = renderer.root.findByProps({ 'data-icon-src': 'hash' });
-
-    expect(row.props['data-category']).toBe('rooms');
-    expect(row.props.style.borderLeft).toBe('4px solid success-main');
-    expect(icon.props['data-icon-src']).toBe('hash');
+    const group = renderer.root.findByProps({ role: 'group' });
+    const label = renderer.root.findByProps({ id: group.props['aria-labelledby'] });
+    expect(label.children).toContain('Rooms');
+    expect(JSON.stringify(renderer.toJSON())).toContain('Team chat');
   });
 
-  it('keeps the selected-row background while preserving the category accent', () => {
+  it('exposes selection without putting every result in the Tab order', () => {
     const renderer = renderList({ selectedItemId: '!general:example.org' });
-    const row = renderer.root.findByProps({ 'data-item-id': '!general:example.org' });
-
-    expect(row.props['data-selected']).toBe(true);
-    expect(row.props.style.backgroundColor).toBe('surface-variant-container-hover');
-    expect(row.props.style.borderLeft).toBe('4px solid success-main');
-    expect(row.props.style.justifyContent).toBe('space-between');
-    expect(row.props.style.gap).toBe(12);
+    const row = renderer.root.findByProps({ role: 'option' });
+    expect(row.props['aria-selected']).toBe(true);
+    expect(row.props.tabIndex).toBe(-1);
   });
 
-  it('keeps the group header removed while restoring the per-row category badge', () => {
-    const renderer = renderList();
-    const badges = renderer.root.findAll(
-      (node) => node.type === 'span' && node.children.join('') === 'Rooms'
-    );
-    const badgeContainer = renderer.root.find(
-      (node) => node.type === 'span' && node.props.style?.whiteSpace === 'nowrap'
-    );
-    const text = JSON.stringify(renderer.toJSON());
-
-    expect(text).toContain('General');
-    expect(text).toContain('Team chat');
-    expect(badges).toHaveLength(1);
-    expect(badgeContainer.props.style).toMatchObject({
-      flex: '0 0 auto',
-      alignSelf: 'center',
-      paddingInlineStart: 12,
-      whiteSpace: 'nowrap',
-    });
+  it('opens the clicked result', () => {
+    const onSelect = vi.fn();
+    const renderer = renderList({ onSelect });
+    renderer.root.findByProps({ role: 'option' }).props.onClick();
+    expect(onSelect).toHaveBeenCalledWith(ROOM_SECTION.items[0]);
   });
 
-  it('truncates long row titles and descriptions so they yield to the category badge', () => {
-    const longTitle =
-      'A very long command palette row title that should truncate before touching the badge';
-    const longDescription =
-      'A very long command palette row description that should also truncate before it reaches the badge';
-    const renderer = renderList({
-      sections: [
-        {
-          id: 'actions',
-          title: 'Actions',
-          items: [
-            {
-              id: 'long-action',
-              kind: 'action',
-              title: longTitle,
-              description: longDescription,
-            },
-          ],
-        },
-      ],
-    });
-    const row = renderer.root.findByProps({ 'data-item-id': 'long-action' });
-    const truncatedTitle = renderer.root.find(
-      (node) =>
-        node.type === 'span' && node.props.truncate === true && node.children.join('') === longTitle
-    );
-    const truncatedDescription = renderer.root.find(
-      (node) =>
-        node.type === 'span' &&
-        node.props.truncate === true &&
-        node.children.join('') === longDescription
-    );
-
-    expect(truncatedTitle.props.truncate).toBe(true);
-    expect(truncatedDescription.props.truncate).toBe(true);
-    expect(
-      row.findAll((node) => node.type === 'span' && node.children.join('') === 'Actions')
-    ).toHaveLength(1);
-  });
-
-  it('falls back cleanly when an item kind has no mapped category presentation', () => {
-    const unknownItem = {
-      id: 'custom-item',
-      kind: 'custom',
-      title: 'Custom row',
-      description: 'Fallback rendering',
-    } as unknown as CommandPaletteItem;
-    const renderer = renderList({
-      sections: [
-        {
-          id: 'actions',
-          title: 'Actions',
-          items: [unknownItem],
-        },
-      ],
-    });
-    const row = renderer.root.findByProps({ 'data-item-id': 'custom-item' });
-
-    expect(row.props['data-category']).toBe('unknown');
-    expect(row.props.style.borderLeft).toBeUndefined();
-    expect(renderer.root.findAllByProps({ 'data-category-icon': 'custom' })).toHaveLength(0);
+  it('does not change keyboard selection when a touch pointer scrolls the list', () => {
+    const onHighlight = vi.fn();
+    const renderer = renderList({ onHighlight });
+    renderer.root.findByProps({ role: 'option' }).props.onPointerMove({ pointerType: 'touch' });
+    expect(onHighlight).not.toHaveBeenCalled();
   });
 });

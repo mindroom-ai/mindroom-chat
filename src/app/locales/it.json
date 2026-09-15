@@ -164,7 +164,7 @@
   },
   "commandPalette": {
     "inputAria": "Tavolozza dei comandi",
-    "placeholder": "Digita un comando o cerca...",
+    "placeholder": "Cerca o esegui un comando…",
     "closeAria": "Chiudi la tavolozza dei comandi",
     "open": "Apri la tavolozza dei comandi",
     "noResults": "Nessun risultato",
@@ -226,7 +226,14 @@
       "currentSpaceDescription": "Spazio attuale",
       "globalSearchDescription": "Ricerca globale dei messaggi"
     },
-    "resultCount_many": "{{count}} risultati"
+    "resultCount_many": "{{count}} risultati",
+    "all": "Tutto",
+    "filterLabel": "Filtra risultati",
+    "resultsLabel": "Risultati di ricerca",
+    "emptyDescription": "Prova un’altra ricerca o scegli un’altra categoria.",
+    "clearSearch": "Cancella ricerca",
+    "navigate": "Naviga",
+    "select": "Apri"
   },
   "accountSwitcher": {
     "title": "Account",

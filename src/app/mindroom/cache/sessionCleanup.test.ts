@@ -1,4 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { createStore } from 'jotai';
+import { getRoomInputDraftKey, roomIdToMsgDraftAtomFamily } from '../../state/room/roomInputDrafts';
 import { clearMindroomLongTextHydrationCache } from '../messages/longText';
 import { clearIOSPushState } from '../native/iosPush';
 import { clearRecentThreadsStore } from '../recent-threads/recentThreads';
@@ -29,6 +31,32 @@ import {
 vi.mock('../messages/longText', () => ({
   clearMindroomLongTextHydrationCache: vi.fn(),
 }));
+
+it('removes only the logged-out account composer drafts from storage and memory', () => {
+  const values = new Map<string, string>();
+  vi.stubGlobal('localStorage', {
+    getItem: (key: string) => values.get(key) ?? null,
+    setItem: (key: string, value: string) => values.set(key, value),
+    removeItem: (key: string) => values.delete(key),
+    key: (index: number) => [...values.keys()][index] ?? null,
+    get length() {
+      return values.size;
+    },
+  });
+  const aliceKey = getRoomInputDraftKey('@draft-alice:example.org', '!room:example.org', '$root');
+  const bobKey = getRoomInputDraftKey('@draft-bob:example.org', '!room:example.org', '$root');
+  const store = createStore();
+  const draft = [{ type: 'paragraph' as const, children: [{ text: 'Private draft' }] }];
+  store.set(roomIdToMsgDraftAtomFamily(aliceKey), draft);
+  store.set(roomIdToMsgDraftAtomFamily(bobKey), draft);
+  clearMindroomUserUiState('@draft-alice:example.org');
+  expect(values.size).toBe(1);
+  expect(store.get(roomIdToMsgDraftAtomFamily(aliceKey))).toEqual([]);
+  expect(store.get(roomIdToMsgDraftAtomFamily(bobKey))).toEqual(draft);
+  roomIdToMsgDraftAtomFamily.remove(aliceKey);
+  expect(createStore().get(roomIdToMsgDraftAtomFamily(aliceKey))).toEqual([]);
+  vi.unstubAllGlobals();
+});
 
 vi.mock('../native/iosPush', () => ({
   IOS_PUSH_LOCAL_STORAGE_KEY_PREFIX: 'mindroom_ios_push_',

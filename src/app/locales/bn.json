@@ -63,7 +63,7 @@
     },
     "noResults": "কোনো ফলাফল নেই",
     "open": "কমান্ড প্যালেট খুলুন",
-    "placeholder": "একটি কমান্ড টাইপ করুন বা অনুসন্ধান করুন...",
+    "placeholder": "অনুসন্ধান করুন বা কমান্ড চালান…",
     "prefixes": {
       "actions": "কাজ",
       "label": "উপসর্গ:",
@@ -83,7 +83,14 @@
       "users": "ব্যবহারকারী"
     },
     "shortcut": "শর্টকাট:",
-    "shortcutOpenSuffix": "খুলুন।"
+    "shortcutOpenSuffix": "খুলুন।",
+    "all": "সব",
+    "filterLabel": "ফলাফল ফিল্টার করুন",
+    "resultsLabel": "অনুসন্ধানের ফলাফল",
+    "emptyDescription": "অন্যভাবে অনুসন্ধান করুন বা অন্য বিভাগ বেছে নিন।",
+    "clearSearch": "অনুসন্ধান মুছুন",
+    "navigate": "নেভিগেট করুন",
+    "select": "খুলুন"
   },
   "composer": {
     "dropFiles": "ফাইলগুলি \"{{roomName}}\" এ ড্রপ করুন",

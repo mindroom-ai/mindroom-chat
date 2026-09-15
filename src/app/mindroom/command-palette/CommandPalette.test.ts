@@ -74,17 +74,36 @@ vi.mock('folds', async () => {
   };
 });
 
-const getInput = (renderer: ReturnType<typeof create>) => renderer.root.findByType('input');
-const getButtons = (renderer: ReturnType<typeof create>) =>
-  renderer.root.findAll((node) => node.type === 'button');
-const getContentWrapper = (renderer: ReturnType<typeof create>) =>
-  renderer.root.find(
-    (node) =>
-      node.type === 'div' &&
-      node.props.style?.flex === '1 1 auto' &&
-      node.props.style?.paddingInline === '16px'
-  );
+vi.mock('./CommandPalette.css', () => ({
+  Palette: 'Palette',
+  Search: 'Search',
+  Input: 'Input',
+  Close: 'Close',
+  Filters: 'Filters',
+  Filter: 'Filter',
+  Prefix: 'Prefix',
+  Results: 'Results',
+  Group: 'Group',
+  GroupTitle: 'GroupTitle',
+  GroupCount: 'GroupCount',
+  Row: 'Row',
+  RowIcon: 'RowIcon',
+  RowText: 'RowText',
+  RowTitle: 'RowTitle',
+  RowDescription: 'RowDescription',
+  RowEnter: 'RowEnter',
+  Key: 'Key',
+  Footer: 'Footer',
+  KeyboardHints: 'KeyboardHints',
+  Hint: 'Hint',
+  Empty: 'Empty',
+  EmptyTitle: 'EmptyTitle',
+  EmptyDescription: 'EmptyDescription',
+}));
 
+const getInput = (renderer: ReturnType<typeof create>) => renderer.root.findByType('input');
+const getOptions = (renderer: ReturnType<typeof create>) =>
+  renderer.root.findAll((node) => node.props.role === 'option');
 const FIXTURE_SOURCE: CommandPaletteSource = {
   actions: [
     {
@@ -220,6 +239,133 @@ const renderPalette = (props: Partial<React.ComponentProps<typeof CommandPalette
   );
 
 describe('CommandPalette', () => {
+  it('keeps a prefix-leading search literal when switching to All', async () => {
+    const renderer = renderPalette();
+    await act(async () => {
+      getInput(renderer).props.onChange({ currentTarget: { value: '@ @alice:example.org' } });
+    });
+    const allFilter = renderer.root.find(
+      (node) => node.type === 'button' && node.props['aria-label'] === 'All'
+    );
+    await act(async () => allFilter.props.onClick());
+    expect(getInput(renderer).props.value).toBe('@alice:example.org');
+    expect(allFilter.props['aria-pressed']).toBe(true);
+    expect(JSON.stringify(renderer.toJSON())).toContain(
+      'Search \\"@alice:example.org\\" across all rooms'
+    );
+    const usersFilter = renderer.root.find(
+      (node) => node.type === 'button' && node.props['aria-label'] === 'Users'
+    );
+    await act(async () => usersFilter.props.onClick());
+    expect(getInput(renderer).props.value).toBe('@ @alice:example.org');
+    expect(usersFilter.props['aria-pressed']).toBe(true);
+    expect(allFilter.props['aria-pressed']).toBe(false);
+    expect(
+      new Set(renderer.root.findAllByProps({ role: 'option' }).map((row) => row.props['data-kind']))
+    ).toEqual(new Set(['user']));
+    await act(async () => allFilter.props.onClick());
+    await act(async () => {
+      getInput(renderer).props.onChange({ currentTarget: { value: '@alice' } });
+    });
+    expect(allFilter.props['aria-pressed']).toBe(true);
+    await act(async () => {
+      getInput(renderer).props.onChange({ currentTarget: { value: '' } });
+    });
+    await act(async () => {
+      getInput(renderer).props.onChange({ currentTarget: { value: '@alice' } });
+    });
+    expect(allFilter.props['aria-pressed']).toBe(false);
+  });
+
+  it('switches category filters without losing the search text', async () => {
+    const renderer = renderPalette();
+    await act(async () => {
+      getInput(renderer).props.onChange({ currentTarget: { value: 'General' } });
+    });
+    const roomsFilter = renderer.root.find(
+      (node) => node.type === 'button' && node.props['aria-label'] === 'Rooms'
+    );
+    await act(async () => roomsFilter.props.onClick());
+    expect(getInput(renderer).props.value).toBe('# General');
+    expect(roomsFilter.props['aria-pressed']).toBe(true);
+    expect(
+      renderer.root.findAll(
+        (node) => node.props['data-item-id'] && node.props['data-kind'] !== 'room'
+      )
+    ).toHaveLength(0);
+
+    const allFilter = renderer.root.find(
+      (node) => node.type === 'button' && node.props['aria-label'] === 'All'
+    );
+    await act(async () => allFilter.props.onClick());
+    expect(getInput(renderer).props.value).toBe('General');
+    expect(allFilter.props['aria-pressed']).toBe(true);
+  });
+
+  it('exposes the keyboard selection to assistive technology', async () => {
+    const renderer = renderPalette();
+    await act(async () => {
+      await Promise.resolve();
+    });
+    const input = getInput(renderer);
+    expect(input.props.role).toBe('combobox');
+    const list = renderer.root.findByProps({ role: 'listbox' });
+    expect(input.props['aria-controls']).toBe(list.props.id);
+    const selected = () => renderer.root.findByProps({ role: 'option', 'aria-selected': true });
+    expect(input.props['aria-activedescendant']).toBe(selected().props.id);
+    const firstId = selected().props.id;
+    await act(async () => input.props.onKeyDown({ key: 'ArrowDown', preventDefault: vi.fn() }));
+    expect(selected().props.id).not.toBe(firstId);
+    expect(input.props['aria-activedescendant']).toBe(selected().props.id);
+  });
+
+  it('executes the hovered result when Enter is pressed', async () => {
+    const onSelect = vi.fn();
+    const renderer = renderPalette({
+      source: {
+        ...FIXTURE_SOURCE,
+        actions: [{ id: 'hover-action', kind: 'action', title: 'Hover me', onSelect }],
+      },
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+    const row = renderer.root.findByProps({ 'data-item-id': 'hover-action' });
+    await act(async () => row.props.onPointerMove({ pointerType: 'mouse' }));
+    await act(async () =>
+      getInput(renderer).props.onKeyDown({ key: 'Enter', preventDefault: vi.fn() })
+    );
+    expect(onSelect).toHaveBeenCalledOnce();
+  });
+
+  it('does not execute a result while confirming composed text', async () => {
+    const requestClose = vi.fn();
+    const renderer = renderPalette({ requestClose });
+    await act(async () =>
+      getInput(renderer).props.onKeyDown({
+        key: 'Enter',
+        nativeEvent: { isComposing: true },
+        preventDefault: vi.fn(),
+      })
+    );
+    expect(requestClose).not.toHaveBeenCalled();
+  });
+
+  it('clears an empty search back to the starter results', async () => {
+    const renderer = renderPalette();
+    await act(async () =>
+      getInput(renderer).props.onChange({ currentTarget: { value: '> zxqnotfound' } })
+    );
+    expect(renderer.root.findAllByProps({ role: 'option' })).toHaveLength(0);
+    expect(getInput(renderer).props['aria-activedescendant']).toBeUndefined();
+    const clear = renderer.root.find(
+      (node) => node.type === 'button' && node.props['aria-label'] === 'Clear search'
+    );
+    await act(async () => clear.props.onClick());
+    expect(getInput(renderer).props.value).toBe('');
+    expect(renderer.root.findAllByProps({ role: 'option' }).length).toBeGreaterThan(0);
+  });
+
   it('renders the starter sections for an empty query', () => {
     vi.mocked(FIXTURE_SOURCE.getUsers).mockClear();
     const renderer = renderPalette();
@@ -328,7 +474,7 @@ describe('CommandPalette', () => {
       await Promise.resolve();
     });
 
-    expect(getButtons(renderer)[0].props['data-selected']).toBe(true);
+    expect(getOptions(renderer)[0].props['data-selected']).toBe(true);
 
     await act(async () => {
       getInput(renderer).props.onKeyDown({
@@ -337,62 +483,23 @@ describe('CommandPalette', () => {
       });
     });
 
-    const selectedButtons = getButtons(renderer).filter((button) => button.props['data-selected']);
+    const selectedButtons = getOptions(renderer).filter((button) => button.props['data-selected']);
 
     expect(selectedButtons).toHaveLength(1);
     expect(selectedButtons[0].props['data-item-id']).toBe(
-      getButtons(renderer)[1].props['data-item-id']
+      getOptions(renderer)[1].props['data-item-id']
     );
   });
 
-  it('documents every supported prefix and the open shortcut in the footer', () => {
+  it('keeps typed prefixes in sync with the category buttons', async () => {
     const renderer = renderPalette();
-    const text = JSON.stringify(renderer.toJSON());
-
-    expect(text).toContain('Prefixes:');
-    expect(text).toContain('>');
-    expect(text).toContain('actions');
-    expect(text).toContain('#');
-    expect(text).toContain('rooms');
-    expect(text).toContain('@');
-    expect(text).toContain('users');
-    expect(text).toContain('t:');
-    expect(text).toContain('threads');
-    expect(text).toContain('*');
-    expect(text).toContain('spaces');
-    expect(text).toContain('Ctrl + K');
-  });
-
-  it('keeps the results region as the internal scroll container', () => {
-    const renderer = renderPalette();
-    const scroll = renderer.root.findByProps({ 'data-testid': 'scroll' });
-
-    expect(scroll.props.style).toEqual({
-      flex: '1 1 auto',
-      minHeight: 0,
-      overflowY: 'auto',
-    });
-  });
-
-  it('adds a shared inner gutter so content is not flush against the dialog edge', () => {
-    const renderer = renderPalette();
-    const contentWrapper = getContentWrapper(renderer);
-
-    expect(contentWrapper.props.style).toMatchObject({
-      flex: '1 1 auto',
-      minHeight: 0,
-      paddingInline: '16px',
-    });
-    expect(contentWrapper.props.style.paddingBottom).toBeUndefined();
-  });
-
-  it('keeps the same horizontal gutter on the mobile sheet while preserving safe-area padding', () => {
-    const renderer = renderPalette({ mobileSheet: true });
-    const contentWrapper = getContentWrapper(renderer);
-
-    expect(contentWrapper.props.style).toMatchObject({
-      paddingInline: '16px',
-      paddingBottom: 'env(safe-area-inset-bottom, 0px)',
-    });
+    await act(async () =>
+      getInput(renderer).props.onChange({ currentTarget: { value: 't: release' } })
+    );
+    const activeFilter = renderer.root.find(
+      (node) => node.type === 'button' && node.props['aria-pressed'] === true
+    );
+    expect(activeFilter.props['aria-label']).toBe('Threads');
+    expect(JSON.stringify(renderer.toJSON())).toContain('Ship release checklist');
   });
 });
