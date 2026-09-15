@@ -1,5 +1,6 @@
-import React, { useMemo } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Box, Line } from 'folds';
+import { KnownMembership } from 'matrix-js-sdk';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { useAtomValue } from 'jotai';
 import { RoomView } from './MindroomRoomView';
@@ -19,8 +20,12 @@ import { getRoomSearchParams } from '../../pages/pathSearchParam';
 import { useRoomThreadRouteGuards } from './useRoomThreadRouteGuards';
 import { useRoomEscapeReadReceipts } from './useRoomEscapeReadReceipts';
 import { useRoomViewMode } from './useRoomViewMode';
-import { hasActiveMindroomAgent } from '../matrix/agentIdentity';
+import { hasActiveMindroomAgent, isMindroomAgentUserId } from '../matrix/agentIdentity';
 import { MembershipFilter } from '../../hooks/useMemberFilter';
+import { useClientConfig } from '../../hooks/useClientConfig';
+import { resolveComputerApiUrl } from '../computer/api';
+import { ComputerPanel } from '../computer/ComputerPanel';
+import type { ComputerAgent } from '../computer/types';
 
 export function Room() {
   const { eventId } = useParams();
@@ -30,11 +35,27 @@ export function Room() {
   const roomSearchParams = useMemo(() => getRoomSearchParams(searchParams), [searchParams]);
   const { focusEvent, threadId } = roomSearchParams;
 
-  const [isDrawer] = useSetting(settingsAtom, 'isPeopleDrawer');
+  const [isDrawer, setPeopleDrawer] = useSetting(settingsAtom, 'isPeopleDrawer');
   const [hideActivity] = useSetting(settingsAtom, 'hideActivity');
   const screenSize = useScreenSizeContext();
   const powerLevels = usePowerLevels(room);
   const members = useRoomMembers(mx, room.roomId);
+  const clientConfig = useClientConfig();
+  const computerApiUrl = resolveComputerApiUrl(clientConfig.mindroom?.computers?.apiUrl);
+  const computerAgents = useMemo<ComputerAgent[]>(
+    () =>
+      members
+        .filter(
+          (member) =>
+            member.membership === KnownMembership.Join && isMindroomAgentUserId(member.userId)
+        )
+        .map((member) => ({
+          userId: member.userId,
+          name: member.name?.trim() || member.userId,
+        })),
+    [members]
+  );
+  const [computerOpen, setComputerOpen] = useState(false);
   const hasMindroomAgents = hasActiveMindroomAgent(members);
   const joinRequestCount = useMemo(
     () => members.filter(MembershipFilter.filterKnocked).length,
@@ -43,6 +64,17 @@ export function Room() {
   const chat = useAtomValue(callChatAtom);
   const { viewMode } = useRoomViewMode(room.roomId);
   const routedThreadId = viewMode === 'classic' ? undefined : threadId;
+  useEffect(() => {
+    setComputerOpen(false);
+  }, [mx, room.roomId, routedThreadId]);
+
+  const handleComputerToggle = useCallback(() => {
+    setComputerOpen((open) => {
+      const nextOpen = !open;
+      if (nextOpen) setPeopleDrawer(false);
+      return nextOpen;
+    });
+  }, [setPeopleDrawer]);
   const handleThreadLoadError = useRoomThreadRouteGuards({
     eventId,
     roomId: room.roomId,
@@ -69,6 +101,9 @@ export function Room() {
             <Box grow="Yes">
               <RoomView
                 room={room}
+                computerAvailable={!!computerApiUrl && computerAgents.length > 0}
+                computerOpen={computerOpen}
+                onComputerToggle={handleComputerToggle}
                 hasMindroomAgents={hasMindroomAgents}
                 joinRequestCount={joinRequestCount}
                 eventId={eventId}
@@ -95,7 +130,22 @@ export function Room() {
             />
           </>
         )}
-        {!callView && screenSize === ScreenSize.Desktop && isDrawer && (
+        {!callView && computerOpen && computerApiUrl && computerAgents.length > 0 && (
+          <>
+            {screenSize === ScreenSize.Desktop && (
+              <Line variant="Background" direction="Vertical" size="300" />
+            )}
+            <ComputerPanel
+              agents={computerAgents}
+              apiUrl={computerApiUrl}
+              mx={mx}
+              roomId={room.roomId}
+              threadId={routedThreadId}
+              onClose={() => setComputerOpen(false)}
+            />
+          </>
+        )}
+        {!callView && screenSize === ScreenSize.Desktop && isDrawer && !computerOpen && (
           <>
             <Line variant="Background" direction="Vertical" size="300" />
             <MembersDrawer key={room.roomId} room={room} members={members} />

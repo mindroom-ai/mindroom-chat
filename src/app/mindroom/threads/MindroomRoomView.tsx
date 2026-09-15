@@ -32,6 +32,7 @@ import { useRoomViewThreadState } from './useRoomViewThreadState';
 import { isLocalEchoEventId } from './threadRouteUtils';
 import { ThreadApprovalProvider } from '../messages/ThreadApprovalProvider';
 import { ThreadApprovalQueue } from '../messages/ThreadApprovalControls';
+import { computerOwnsKeyboardEvent, computerOwnsKeyboardFocus } from '../computer/computerFocus';
 
 const FN_KEYS_REGEX = /^F\d+$/;
 const shouldFocusMessageField = (evt: KeyboardEvent): boolean => {
@@ -66,6 +67,9 @@ const shouldFocusMessageField = (evt: KeyboardEvent): boolean => {
 
 export function RoomView({
   room,
+  computerAvailable = false,
+  computerOpen = false,
+  onComputerToggle,
   hasMindroomAgents = true,
   joinRequestCount = 0,
   eventId,
@@ -74,6 +78,9 @@ export function RoomView({
   onThreadLoadError,
 }: {
   room: Room;
+  computerAvailable?: boolean;
+  computerOpen?: boolean;
+  onComputerToggle?: () => void;
   hasMindroomAgents?: boolean;
   joinRequestCount?: number;
   eventId?: string;
@@ -129,6 +136,7 @@ export function RoomView({
     useCallback(
       (evt) => {
         if (pendingThreadRoot) return;
+        if (computerOwnsKeyboardEvent(evt) || computerOwnsKeyboardFocus()) return;
         if (editableActiveElement()) return;
         if (hasBlockingPortalOverlay()) return;
         if (shouldFocusMessageField(evt) || isKeyHotkey('mod+v', evt)) {
@@ -146,7 +154,13 @@ export function RoomView({
         threadId={pendingThreadRoot ? undefined : effectiveThreadId}
         focusConversation={focusConversation}
       >
-        <RoomViewHeader threadId={effectiveThreadId} joinRequestCount={joinRequestCount} />
+        <RoomViewHeader
+          computerAvailable={computerAvailable}
+          computerOpen={computerOpen}
+          onComputerToggle={onComputerToggle}
+          threadId={effectiveThreadId}
+          joinRequestCount={joinRequestCount}
+        />
         {effectiveThreadId && (
           <ThreadContextBanner
             room={room}

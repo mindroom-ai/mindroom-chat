@@ -3,23 +3,34 @@ import { act, create } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 type MockRoomViewProps = {
+  computerAvailable?: boolean;
+  computerOpen?: boolean;
   hasMindroomAgents?: boolean;
   joinRequestCount?: number;
   eventId?: string;
   focusEventInRoom?: boolean;
   threadId?: string;
   onThreadLoadError?: (threadId: string) => void;
+  onComputerToggle?: () => void;
+};
+
+type MockComputerPanelProps = {
+  agents: Array<{ userId: string; name: string }>;
+  apiUrl: string;
+  roomId: string;
+  threadId?: string;
 };
 
 type MockCallChatViewProps = MockRoomViewProps & {
   room: { roomId: string; isCallRoom: () => boolean };
 };
 
-const { navigateRoomMock, navigateRoomThreadMock, removeRecentThreadMock, room, roomState } =
+const { mx, navigateRoomMock, navigateRoomThreadMock, removeRecentThreadMock, room, roomState } =
   vi.hoisted(() => ({
     navigateRoomMock: vi.fn(),
     navigateRoomThreadMock: vi.fn(),
     removeRecentThreadMock: vi.fn(),
+    mx: { getSafeUserId: () => '@alice:example.org' },
     room: {
       roomId: '!room:example.org',
       isCallRoom: () => roomState.callRoom,
@@ -29,10 +40,13 @@ const { navigateRoomMock, navigateRoomThreadMock, removeRecentThreadMock, room, 
       callChat: false,
       callChatViewProps: undefined as MockCallChatViewProps | undefined,
       callRoom: false,
+      clientConfig: { mindroom: {} } as { mindroom?: { computers?: { apiUrl?: string } } },
+      computerPanelProps: undefined as MockComputerPanelProps | undefined,
       eventId: undefined as string | undefined,
       members: [] as Array<{ membership: string; userId: string }>,
       search: '',
       roomViewProps: undefined as MockRoomViewProps | undefined,
+      setPeopleDrawer: vi.fn(),
     },
   }));
 
@@ -89,7 +103,7 @@ vi.mock('../../../state/hooks/settings', () => ({
   useSetting: (_atom: unknown, key: string) => {
     switch (key) {
       case 'isPeopleDrawer':
-        return [false];
+        return [false, roomState.setPeopleDrawer];
       case 'hideActivity':
         return [false];
       default:
@@ -122,7 +136,18 @@ vi.mock('../../notifications/readReceipts', () => ({
 }));
 
 vi.mock('../../../hooks/useMatrixClient', () => ({
-  useMatrixClient: () => ({}),
+  useMatrixClient: () => mx,
+}));
+
+vi.mock('../../../hooks/useClientConfig', () => ({
+  useClientConfig: () => roomState.clientConfig,
+}));
+
+vi.mock('../../computer/ComputerPanel', () => ({
+  ComputerPanel: (props: MockComputerPanelProps) => {
+    roomState.computerPanelProps = props;
+    return React.createElement('mock-computer-panel');
+  },
 }));
 
 vi.mock('../useRoomViewMode', () => ({
@@ -178,10 +203,13 @@ describe('Room', () => {
     roomState.callChat = false;
     roomState.callChatViewProps = undefined;
     roomState.callRoom = false;
+    roomState.clientConfig = { mindroom: {} };
+    roomState.computerPanelProps = undefined;
     roomState.eventId = undefined;
     roomState.members = [];
     roomState.search = '';
     roomState.roomViewProps = undefined;
+    roomState.setPeopleDrawer.mockReset();
     navigateRoomMock.mockReset();
     navigateRoomThreadMock.mockReset();
     removeRecentThreadMock.mockReset();
@@ -230,6 +258,58 @@ describe('Room', () => {
     });
 
     expect(roomState.roomViewProps?.joinRequestCount).toBe(2);
+  });
+
+  it('opens the configured computer panel only for exact joined agent identities', async () => {
+    roomState.clientConfig = {
+      mindroom: { computers: { apiUrl: 'https://computer.example.org' } },
+    };
+    roomState.members = [
+      { membership: 'join', userId: '@mindroom_helper:example.org', name: 'Helper' },
+      { membership: 'invite', userId: '@mindroom_invited:example.org', name: 'Invited' },
+      { membership: 'join', userId: '@alice:example.org', name: 'Alice' },
+    ] as never;
+    roomState.search = '?threadId=%24thread';
+    const { Room } = await import('../../../features/room/Room');
+    let renderer: ReturnType<typeof create>;
+
+    await act(async () => {
+      renderer = create(React.createElement(Room));
+    });
+    expect(roomState.roomViewProps?.computerAvailable).toBe(true);
+
+    await act(async () => roomState.roomViewProps?.onComputerToggle?.());
+
+    expect(renderer!.root.findAllByType('mock-computer-panel')).toHaveLength(1);
+    expect(roomState.setPeopleDrawer).toHaveBeenCalledWith(false);
+    expect(roomState.computerPanelProps).toMatchObject({
+      agents: [{ userId: '@mindroom_helper:example.org', name: 'Helper' }],
+      apiUrl: 'https://computer.example.org',
+      roomId: '!room:example.org',
+      threadId: '$thread',
+    });
+  });
+
+  it('closes an open computer panel when the routed thread changes', async () => {
+    roomState.clientConfig = {
+      mindroom: { computers: { apiUrl: 'https://computer.example.org' } },
+    };
+    roomState.members = [
+      { membership: 'join', userId: '@mindroom_helper:example.org', name: 'Helper' },
+    ] as never;
+    const { Room } = await import('../../../features/room/Room');
+    let renderer: ReturnType<typeof create>;
+
+    await act(async () => {
+      renderer = create(React.createElement(Room));
+    });
+    await act(async () => roomState.roomViewProps?.onComputerToggle?.());
+    expect(renderer!.root.findAllByType('mock-computer-panel')).toHaveLength(1);
+
+    roomState.search = '?threadId=%24new-thread';
+    await act(async () => renderer!.update(React.createElement(Room)));
+
+    expect(renderer!.root.findAllByType('mock-computer-panel')).toHaveLength(0);
   });
 
   it('leaves an explicit thread in the URL untouched', async () => {
