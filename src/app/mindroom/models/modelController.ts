@@ -44,6 +44,7 @@ export type ModelPickerSnapshot = {
   inherited: ModelInheritedEntry[];
   loading: boolean;
   pending: boolean;
+  canMutate: boolean;
   error?: string;
 };
 type Catalog = { runtime: ModelRuntime; response: ModelCatalogResponse };
@@ -93,6 +94,7 @@ const emptySnapshot = (): ModelPickerSnapshot => ({
   inherited: [],
   loading: false,
   pending: false,
+  canMutate: false,
 });
 const scopeKey = (room: Room, threadId?: string): string => JSON.stringify([room.roomId, threadId]);
 const controllers = new WeakMap<MatrixClient, ModelController>();
@@ -199,6 +201,7 @@ export class ModelController {
 
   private publish(scope: Scope, patch: Partial<ModelPickerSnapshot>): void {
     scope.snapshot = { ...scope.snapshot, ...patch };
+    scope.snapshot.canMutate = this.canMutate(scope);
     scope.listeners.forEach((listener) => listener());
   }
 
@@ -408,21 +411,28 @@ export class ModelController {
     this.mutate(this.scope(room, threadId), 'reset');
   };
 
-  private mutate(scope: Scope, operation: 'set' | 'reset', model?: string): void {
+  private canMutate(scope: Scope): boolean {
     const { runtime } = scope.snapshot;
     const catalog = runtime && scope.catalogs.get(runtime.id);
+    return !!(
+      this.active() &&
+      scope.threadId &&
+      catalog &&
+      runtime &&
+      !scope.command &&
+      !scope.send &&
+      !scope.needsRefresh &&
+      hasJoinedModelAgent(this.mx, scope.room, runtime, catalog.response.agent_user_ids)
+    );
+  }
+
+  private mutate(scope: Scope, operation: 'set' | 'reset', model?: string): void {
     if (
-      !this.active() ||
-      !scope.threadId ||
-      !catalog ||
-      !runtime ||
-      scope.command ||
-      scope.send ||
-      scope.needsRefresh ||
-      !hasJoinedModelAgent(this.mx, scope.room, runtime, catalog.response.agent_user_ids) ||
+      !this.canMutate(scope) ||
       (operation === 'set' && !scope.snapshot.models.some((m) => m.key === model))
     )
       return;
+    const runtime = scope.snapshot.runtime!;
     this.cancelQuery(scope);
     scope.generation += 1;
     const command: Command = {

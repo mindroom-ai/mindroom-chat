@@ -427,6 +427,40 @@ describe('shared model discovery', () => {
 });
 
 describe('model mutation acknowledgement', () => {
+  it('exposes recovery-blocked mutation availability after a settled send loses its acknowledgement', async () => {
+    const h = setup();
+    await h.discover();
+    expect(h.snapshot().canMutate).toBe(true);
+    h.controller.refresh(h.room, '$root');
+    await flush();
+    expect(h.snapshot().canMutate).toBe(true);
+    h.controller.selectModel(h.room, '$root', 'fast');
+    await flush();
+    expect(h.send).toHaveBeenCalledTimes(1);
+    expect(h.snapshot().canMutate).toBe(false);
+    await vi.advanceTimersByTimeAsync(12000);
+    expect(h.snapshot().pending).toBe(false);
+    expect(h.snapshot().loading).toBe(true);
+    expect(h.snapshot().canMutate).toBe(false);
+    await vi.advanceTimersByTimeAsync(12000);
+    expect(h.snapshot().pending).toBe(false);
+    expect(h.snapshot().loading).toBe(false);
+    expect(h.snapshot().error).toBeDefined();
+    expect(h.snapshot().canMutate).toBe(false);
+    h.controller.selectModel(h.room, '$root', 'fast');
+    h.controller.resetToRoomDefault(h.room, '$root');
+    await flush();
+    expect(h.send).toHaveBeenCalledTimes(1);
+    h.controller.refresh(h.room, '$root');
+    await flush();
+    h.response(h.request());
+    await flush();
+    await vi.advanceTimersByTimeAsync(12000);
+    expect(h.snapshot().canMutate).toBe(true);
+    h.controller.resetToRoomDefault(h.room, '$root');
+    await flush();
+    expect(h.send).toHaveBeenCalledTimes(2);
+  });
   it.each([
     ['timeout', 'resolve'],
     ['timeout', 'reject'],

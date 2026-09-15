@@ -76,7 +76,7 @@ function ModelPickerPanel({ state, mobile, requestClose, onCommand }: ModelPicke
     [defaultVisible, groups]
   );
   const activeItem = items[activeIndex];
-  const mutationsDisabled = state.pending || !state.runtime;
+  const mutationsDisabled = !state.canMutate;
   const inheritedModels = useMemo(() => {
     const labels = new Map(state.models.map((model) => [model.key, model.display_name]));
     return state.inherited

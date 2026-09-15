@@ -25,10 +25,12 @@
 - SDK send ownership is separate from the acknowledgement deadline.
   Timeout, membership/device invalidation, navigation, and cache eviction cannot release the mutation barrier while the original send is unresolved.
   After settlement, any earlier discovery is discarded and a new selection query must succeed before another command is accepted.
-- The picker hook API is unchanged.
-  Pending remains true while an unresolved send and its subsequent recovery discovery keep mutations blocked; refresh remains available for uncertain outcomes.
+- Pending remains true while the SDK send is unresolved; recovery can still block mutations after pending and loading have cleared.
+  The controller exposes `canMutate` through the picker hook, and model/reset options use it for both pointer and keyboard activation.
+  Refresh and dismissal remain available when recovery fails; authenticated discovery restores mutation availability.
 - Validation: all 135 scoped tests pass under Node 24.13.1, including actual React StrictMode replay, stopped-owner reads/remount, delayed send success/failure after timeout or invalidation, and combined remount/cache-pressure recovery.
   Typecheck, targeted ESLint, formatting, and whitespace checks pass.
+- Recovery availability validation: all 163 scoped tests pass under Node 24.13.1, including a settled send with a lost acknowledgement, failed recovery, disabled picker activation, and successful rediscovery.
 
 
 ### Add the shared Matrix model-picker controller (2026-09-15)

@@ -171,6 +171,7 @@ const createState = (patch: Partial<ModelPickerState> = {}): ModelPickerState =>
   inherited: [{ entity: 'assistant', model: 'fast' }],
   loading: false,
   pending: false,
+  canMutate: true,
   refresh: vi.fn(),
   chooseRuntime: vi.fn(),
   selectModel: vi.fn(),
@@ -346,6 +347,7 @@ describe('responsive model picker', () => {
     const state = createState({
       runtimes: [runtime, secondRuntime],
       runtime: undefined,
+      canMutate: false,
       models: [],
     });
     act(() => root.render(<ModelPicker state={state} />));
@@ -363,7 +365,7 @@ describe('responsive model picker', () => {
   });
 
   it('keeps refresh and dismissal available while a command is pending', () => {
-    const state = createState({ pending: true, loading: true });
+    const state = createState({ pending: true, loading: true, canMutate: false });
     act(() => root.render(<ModelPicker state={state} />));
     click(container.querySelector('button[aria-label="Choose model"]')!);
 
@@ -376,6 +378,45 @@ describe('responsive model picker', () => {
 
     click(container.querySelector('button[aria-label="Close model picker"]')!);
     expect(container.querySelector('input[role="searchbox"]')).toBeNull();
+  });
+
+  it('uses controller availability for model and reset activation while recovery is blocked', () => {
+    const state = createState({
+      canMutate: false,
+      pending: false,
+      loading: false,
+      error: 'Recovery unavailable.',
+    });
+    act(() => root.render(<ModelPicker state={state} />));
+    click(container.querySelector('button[aria-label="Choose model"]')!);
+    const options = [...container.querySelectorAll('[role="option"]')];
+    expect(options.every((option) => option.getAttribute('aria-disabled') === 'true')).toBe(true);
+    expect(container.querySelector('[role="progressbar"]')).toBeNull();
+    options.forEach(click);
+    let search = container.querySelector('input[role="searchbox"]')!;
+    keyDown(search, 'Enter');
+    keyDown(search, 'ArrowDown');
+    keyDown(search, 'Enter');
+    expect(state.selectModel).not.toHaveBeenCalled();
+    expect(state.resetToRoomDefault).not.toHaveBeenCalled();
+    click(container.querySelector('button[aria-label="Refresh models"]')!);
+    click(container.querySelector('button[aria-label="Retry"]')!);
+    expect(state.refresh).toHaveBeenCalledTimes(3);
+    keyDown(search, 'Escape');
+    expect(container.querySelector('input[role="searchbox"]')).toBeNull();
+    click(container.querySelector('button[aria-label="Choose model"]')!);
+    act(() => root.render(<ModelPicker state={{ ...state, canMutate: true }} />));
+    expect(
+      [...container.querySelectorAll('[role="option"]')].every(
+        (option) => option.getAttribute('aria-disabled') === 'false'
+      )
+    ).toBe(true);
+    search = container.querySelector('input[role="searchbox"]')!;
+    keyDown(search, 'Enter');
+    keyDown(search, 'ArrowDown');
+    keyDown(search, 'Enter');
+    expect(state.resetToRoomDefault).toHaveBeenCalledOnce();
+    expect(state.selectModel).toHaveBeenCalledWith('fast');
   });
 
   it('keeps an error open with retry and readable command fallback', () => {
@@ -417,7 +458,7 @@ describe('responsive model picker', () => {
       )!
     );
 
-    act(() => root.render(<ModelPicker state={{ ...state, pending: true }} />));
+    act(() => root.render(<ModelPicker state={{ ...state, pending: true, canMutate: false }} />));
     click(container.querySelector('button[aria-label="Close model picker"]')!);
     outside.focus();
     act(() => root.render(<ModelPicker state={{ ...state, pending: false }} />));
@@ -435,7 +476,7 @@ describe('responsive model picker', () => {
       )!
     );
 
-    act(() => root.render(<ModelPicker state={{ ...state, pending: true }} />));
+    act(() => root.render(<ModelPicker state={{ ...state, pending: true, canMutate: false }} />));
     click(container.querySelector('button[aria-label="Close model picker"]')!);
     act(() => root.render(<ModelPicker state={{ ...state, pending: false }} />));
     click(container.querySelector('button[aria-label="Choose model"]')!);
@@ -453,7 +494,7 @@ describe('responsive model picker', () => {
       )!
     );
 
-    act(() => root.render(<ModelPicker state={{ ...state, pending: true }} />));
+    act(() => root.render(<ModelPicker state={{ ...state, pending: true, canMutate: false }} />));
     click(container.querySelector('button[aria-label="Close model picker"]')!);
     click(container.querySelector('button[aria-label="Choose model"]')!);
     expect(container.querySelector('input[role="searchbox"]')).not.toBeNull();
