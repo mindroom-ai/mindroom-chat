@@ -1,11 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { OnIntersectionCallback, useIntersectionObserver } from './useIntersectionObserver';
-import {
-  canFitInScrollView,
-  getScrollInfo,
-  isInScrollView,
-  isIntersectingScrollView,
-} from '../utils/dom';
+import { getScrollInfo, isIntersectingScrollView } from '../utils/dom';
 
 const PAGINATOR_ANCHOR_ATTR = 'data-paginator-anchor';
 
@@ -158,18 +153,28 @@ const getRestoreScrollData = (restoreAnchorData: RestoreAnchorData) => {
   };
 };
 
+// Explicit jumps use the area left visible by sticky headers and footers.
+// Pagination still observes the physical viewport through the shared DOM helpers.
+const getScrollTargetBounds = (scrollElement: HTMLElement) => {
+  const rect = scrollElement.getBoundingClientRect();
+  const style = getComputedStyle(scrollElement);
+  const top = rect.top + (Number.parseFloat(style.scrollPaddingTop) || 0);
+  const bottom = rect.bottom - (Number.parseFloat(style.scrollPaddingBottom) || 0);
+  return { top, bottom, height: Math.max(0, bottom - top) };
+};
+
 const getDesiredElementTop = (
   scrollElement: HTMLElement,
   element: HTMLElement,
   opts?: ScrollToOptions
 ): number => {
-  const containerRect = scrollElement.getBoundingClientRect();
+  const containerRect = getScrollTargetBounds(scrollElement);
   const elementRect = element.getBoundingClientRect();
   let desiredTop = containerRect.top;
 
-  if (opts?.align === 'center' && canFitInScrollView(scrollElement, element)) {
+  if (opts?.align === 'center' && elementRect.height < containerRect.height) {
     desiredTop = containerRect.top + containerRect.height / 2 - elementRect.height / 2;
-  } else if (opts?.align === 'end' && canFitInScrollView(scrollElement, element)) {
+  } else if (opts?.align === 'end' && elementRect.height < containerRect.height) {
     desiredTop = containerRect.bottom - elementRect.height;
   }
 
@@ -246,8 +251,10 @@ export const useVirtualPaginator = <TScrollElement extends HTMLElement>(
       const scrollElement = getScrollElement();
       if (!scrollElement) return false;
 
-      if (opts?.stopInView && isInScrollView(scrollElement, element)) {
-        return false;
+      if (opts?.stopInView) {
+        const bounds = getScrollTargetBounds(scrollElement);
+        const elementRect = element.getBoundingClientRect();
+        if (elementRect.top >= bounds.top && elementRect.bottom <= bounds.bottom) return false;
       }
 
       const delta =

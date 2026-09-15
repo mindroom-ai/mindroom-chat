@@ -9,6 +9,7 @@ type MockThreadContextBannerProps = {
 };
 
 type MockRoomTimelineProps = {
+  threadHeader?: React.ReactNode;
   hasMindroomAgents?: boolean;
   summaryMap: Map<string, { summaryText?: string; generatedTs?: number; messageCount?: number }>;
   onStoreThreadSummary: (
@@ -112,8 +113,9 @@ vi.mock('../../../features/room/RoomInputPlaceholder', () => ({
 
 vi.mock('../MindroomRoomTimeline', () => ({
   RoomTimeline: (props: MockRoomTimelineProps) => {
+    const { threadHeader } = props;
     roomTimelineState.props = props;
-    return React.createElement('div');
+    return React.createElement('div', null, threadHeader);
   },
 }));
 

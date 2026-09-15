@@ -2,6 +2,31 @@
 
 ## Runbook
 
+### Match approval sheets and inline tool controls (2026-09-15)
+
+- Approval review and active-permission dialogs use the shared glass tint for a dimmed backdrop, matching settings sheets while preserving their focus trap and close behavior.
+- Tool-call blocks, approval histories, and resolved approval receipts share one disclosure style for spacing, full-width surfaces, corner radii, keyboard focus, and trailing chevrons.
+  Expanded receipts wrap long operation names; nested argument disclosures keep their native behavior.
+  Approval histories have a 4 px gap after message content so adjacent tool and approval bars do not touch; nested receipts retain their compact separators.
+  Inline rows retain a quiet surface without additional backdrop filters, animation loops, or observers.
+- Live coverage uses local sample Matrix events to check matching phone/desktop geometry, keyboard expansion, nested receipts, dialog tint, focus restoration, and horizontal bounds in Chromium and WebKit.
+- Validation: all 4,317 unit tests across 522 files, typecheck, production/PWA build, and ESLint pass with zero errors and 17 existing warnings.
+  Two Chromium and two WebKit live cases pass against the production build; independent review approved the final changes.
+  Physical iOS blur appearance remains unverified.
+
+### Float thread controls and round the mobile palette (2026-09-15)
+
+- The thread summary and Resolve controls sit in a sticky header inside the message scroll area, allowing messages to pass behind the existing glass material.
+  The header keeps its natural layout space so the first message remains readable at the top; expand/collapse stays reachable below the banner.
+- Header resize observation sets native scroll padding after the parent scroll ref attaches.
+  Explicit message jumps use the unobscured area for alignment and visibility checks, while the virtualizer offset ledger and pagination viewport remain unchanged.
+- The mobile command palette uses the shared radius on all four corners, including its footer above the keyboard.
+- Live browser coverage checks pinned geometry, messages behind the banner, first-message visibility, native scroll targets, Resolve, expansion, exit, shorter phone viewports, and palette corner radii.
+  The thread fixture uses a real Matrix room and removes it after each test; only the unrelated provisioning endpoint is stubbed.
+- Validation: all 4,317 unit tests across 522 files, typecheck, production/PWA build, and ESLint pass with zero errors and 17 existing warnings.
+  Five Chromium and five WebKit live cases pass against the production build; independent review approved the final changes.
+  Physical iOS appearance remains unverified; the Linux WebKit blur limitation documented below still applies.
+
 ### Refine glass sheets and compact controls (2026-09-15)
 
 - Dark settings sheets combined a 70% dimming backdrop with a 72% material tint, leaving only about 8% of the original backdrop color visible.

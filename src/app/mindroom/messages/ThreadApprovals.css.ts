@@ -1,5 +1,6 @@
 import { style, globalStyle, keyframes } from '@vanilla-extract/css';
 import { color, config } from 'folds';
+import * as disclosure from './MessageDisclosure.css';
 
 export const Bar = style({
   display: 'flex',
@@ -54,47 +55,20 @@ export const Chip = style({
   fontSize: 12,
   whiteSpace: 'nowrap',
 });
-export const Receipt = style({
-  width: 'fit-content',
-  maxWidth: 'min(100%, 42rem)',
-  minWidth: 0,
-  fontSize: 12,
-  lineHeight: 1.5,
-  color: color.SurfaceVariant.OnContainer,
-  background: color.SurfaceVariant.Container,
-  border: `1px solid ${color.Surface.ContainerLine}`,
-  borderRadius: 6,
-  selectors: { '&[open]': { width: '100%' } },
-});
-globalStyle(`${Receipt} > summary`, {
-  display: 'flex',
-  alignItems: 'center',
-  gap: 6,
-  cursor: 'pointer',
-  padding: '4px 8px',
-  fontWeight: 500,
-  listStyle: 'none',
-});
-globalStyle(`${Receipt} > summary::-webkit-details-marker`, { display: 'none' });
-globalStyle(`${Receipt} > summary::before`, { content: '"›"' });
-globalStyle(`${Receipt}[open] > summary::before`, { content: '"⌄"' });
-globalStyle(`${Receipt} > summary > span:first-of-type`, {
-  flex: 1,
-  minWidth: 0,
-  overflowWrap: 'anywhere',
-});
-globalStyle(`${Receipt} > summary > span:last-of-type`, {
-  whiteSpace: 'nowrap',
-  fontWeight: 400,
-  opacity: 0.7,
-});
-export const ReceiptTool = style({ fontFamily: 'var(--font-mono)' });
-export const ReceiptBody = style({
-  padding: '6px 8px 8px',
-  borderTop: `1px solid ${color.Surface.ContainerLine}`,
-  fontSize: 13,
-  overflowWrap: 'anywhere',
-});
+export const Receipt = style([
+  disclosure.Surface,
+  { selectors: { '&:not(:first-child)': { marginBlockStart: config.space.S100 } } },
+]);
+export const ReceiptTool = style([
+  disclosure.Label,
+  {
+    fontFamily: 'var(--font-mono)',
+    selectors: {
+      'details[open] > summary &': { whiteSpace: 'normal', overflowWrap: 'anywhere' },
+    },
+  },
+]);
+export const ReceiptBody = style([disclosure.Body, { fontSize: 13, overflowWrap: 'anywhere' }]);
 globalStyle(`${ReceiptBody} p`, { margin: '0 0 6px' });
 export const Stack = style({ display: 'flex', flexDirection: 'column', gap: 8, minWidth: 0 });
 export const HistoryBody = style([
@@ -108,6 +82,7 @@ export const HistoryBody = style([
 globalStyle(`${HistoryBody} > ${Receipt}`, {
   width: '100%',
   maxWidth: '100%',
+  marginBlockStart: 0,
   background: 'transparent',
   border: 0,
   borderRadius: 0,
@@ -143,3 +118,10 @@ export const Call = style({
   padding: '8px 0',
   borderBottom: `1px solid ${color.Surface.ContainerLine}`,
 });
+
+export {
+  Header as ReceiptHeader,
+  Label as ReceiptLabel,
+  Meta as ReceiptMeta,
+  Chevron as ReceiptChevron,
+} from './MessageDisclosure.css';

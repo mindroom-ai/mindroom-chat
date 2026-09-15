@@ -263,13 +263,15 @@ vi.mock('../MindroomRoomTimeline', async () => {
     compactRoomScrollStateRef: React.MutableRefObject<Map<string, number>>;
     room: { roomId: string };
     threadId?: string;
+    threadHeader?: React.ReactNode;
   };
 
   return {
-    RoomTimeline: (props: MockRoomTimelineProps) =>
+    RoomTimeline: ({ threadHeader, ...props }: MockRoomTimelineProps) =>
       ReactModule.createElement(
         roomTimelineType,
         props,
+        threadHeader,
         compactRoomTimelineState.enabled && !props.threadId
           ? ReactModule.createElement(CompactRoomView, {
               compactRoomScrollStateRef: props.compactRoomScrollStateRef,

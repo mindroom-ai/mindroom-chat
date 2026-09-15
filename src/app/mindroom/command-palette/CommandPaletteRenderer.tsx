@@ -31,7 +31,7 @@ const MOBILE_SHEET_CONTAINER_STYLE: React.CSSProperties = {
   width: '100vw',
 };
 const MOBILE_SHEET_STYLE: React.CSSProperties = {
-  borderRadius: `${config.radii.R400} ${config.radii.R400} 0 0`,
+  borderRadius: config.radii.R400,
   height: MOBILE_SHEET_HEIGHT,
   maxHeight: MOBILE_SHEET_HEIGHT,
   maxWidth: '100vw',

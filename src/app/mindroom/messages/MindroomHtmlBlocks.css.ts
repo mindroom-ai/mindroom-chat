@@ -1,5 +1,6 @@
 import { style } from '@vanilla-extract/css';
 import { color, config, DefaultReset } from 'folds';
+import * as disclosure from './MessageDisclosure.css';
 
 const BlockSpacing = style({
   marginBottom: config.space.S200,
@@ -25,44 +26,18 @@ const CodeFont = style({
   fontFamily: 'var(--font-mono)',
 });
 
-export const Block = style([
-  DefaultReset,
-  BlockSpacing,
-  {
-    borderRadius: config.radii.R300,
-    border: `${config.borderWidth.B300} solid ${color.SurfaceVariant.ContainerLine}`,
-    backgroundColor: color.SurfaceVariant.Container,
-    overflow: 'hidden',
-  },
-]);
+export const Block = style([DefaultReset, BlockSpacing, disclosure.Surface]);
 
-export const BlockHeader = style([
-  DefaultReset,
-  {
-    width: '100%',
-    border: 'none',
-    background: 'transparent',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: config.space.S200,
-    padding: `${config.space.S200} ${config.space.S300}`,
-    cursor: 'pointer',
-    color: color.SurfaceVariant.OnContainer,
-    textAlign: 'start',
-  },
-]);
+export const BlockHeader = disclosure.Header;
 
 export const BlockHeaderMeta = style({
   display: 'flex',
   alignItems: 'center',
   gap: config.space.S200,
+  minWidth: 0,
 });
 
-export const BlockBody = style({
-  borderTop: `${config.borderWidth.B300} solid ${color.SurfaceVariant.ContainerLine}`,
-  padding: `${config.space.S200} ${config.space.S300}`,
-});
+export const BlockBody = disclosure.Body;
 
 export const BlockInlineResult = style({
   color: color.SurfaceVariant.OnContainer,
@@ -117,3 +92,5 @@ export const PasteMarkerBadgeMeta = style({
   gap: config.space.S100,
   color: color.SurfaceVariant.OnContainer,
 });
+
+export { Chevron as BlockChevron } from './MessageDisclosure.css';
