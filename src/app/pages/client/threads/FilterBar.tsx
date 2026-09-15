@@ -10,6 +10,7 @@ import {
   type CrossRoomThreadScope,
 } from '../../../mindroom/cross-room-threads/crossRoomThreadFilters';
 import { FilterBarMobileSheet } from './FilterBarMobileSheet';
+import { useLiquidGlass } from '../../../components/glass/liquid/useLiquidGlass';
 import * as css from './FilterBar.css';
 
 type FilterBarProps = {
@@ -217,6 +218,7 @@ function FilterControls({ filters, setFilters, resetFilters }: FilterControlsPro
 }
 
 export function FilterBar({ filters, setFilters }: FilterBarProps) {
+  const glassRef = useLiquidGlass<HTMLDivElement>();
   const { t } = useTranslation();
   const [query, setQuery] = useState(filters.query);
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -240,7 +242,7 @@ export function FilterBar({ filters, setFilters }: FilterBarProps) {
   }, [filters.query, query, setFilters]);
 
   return (
-    <Box className={css.Bar} data-testid="threads-filter-bar">
+    <Box ref={glassRef} className={css.Bar} data-testid="threads-filter-bar">
       <div className={css.Search}>
         <Input
           aria-label={t('thread.filters.search')}

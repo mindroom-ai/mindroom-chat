@@ -1,8 +1,8 @@
 import { useTranslation } from 'react-i18next';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Box, MenuItem, PopOut, RectCords, Text, config, color } from 'folds';
+import { Box, PopOut, RectCords, Text, config, color } from 'folds';
 import FocusTrap from 'focus-trap-react';
-import { Menu } from '../../components/glass/GlassPrimitives';
+import { Menu, MenuItem } from '../../components/glass/GlassPrimitives';
 import { stopPropagation } from '../../utils/keyboard';
 import { isValidTagName, normalizeTagName } from './threadTags';
 import * as css from './ThreadContextBanner.css';

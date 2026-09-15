@@ -13,7 +13,6 @@ import {
   Icons,
   Tooltip,
   TooltipProvider,
-  MenuItem,
   toRem,
   config,
   Line,
@@ -24,7 +23,7 @@ import {
 } from 'folds';
 import { useNavigate } from 'react-router-dom';
 import { Room } from 'matrix-js-sdk';
-import { Menu } from '../../components/glass/GlassPrimitives';
+import { Menu, MenuItem } from '../../components/glass/GlassPrimitives';
 import { useStateEvent } from '../../hooks/useStateEvent';
 import { PageHeader } from '../../components/page';
 import { RoomAvatar, RoomIcon } from '../../components/room-avatar';

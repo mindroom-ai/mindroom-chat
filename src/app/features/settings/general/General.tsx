@@ -17,7 +17,6 @@ import {
   IconButton,
   Icons,
   Input,
-  MenuItem,
   PopOut,
   RectCords,
   Scroll,
@@ -28,7 +27,7 @@ import {
 import { isKeyHotkey } from 'is-hotkey';
 import FocusTrap from 'focus-trap-react';
 import { useTranslation } from 'react-i18next';
-import { Menu, Header } from '../../../components/glass/GlassPrimitives';
+import { Menu, Header, MenuItem } from '../../../components/glass/GlassPrimitives';
 import { Page, PageContent, PageHeader } from '../../../components/page';
 import { SequenceCard } from '../../../components/sequence-card';
 import { useSetting } from '../../../state/hooks/settings';

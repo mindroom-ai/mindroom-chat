@@ -1,6 +1,6 @@
 import { style } from '@vanilla-extract/css';
 import { DefaultReset, color, config, toRem } from 'folds';
-import { glassSurface } from '../../styles/Glass.css';
+import { glassShadow, glassSurface } from '../../styles/Glass.css';
 
 export const Capsule = style([
   DefaultReset,
@@ -16,7 +16,7 @@ export const Capsule = style([
     borderRadius: config.radii.R400,
     backgroundColor: color.SurfaceVariant.Container,
     color: color.SurfaceVariant.OnContainer,
-    boxShadow: `inset 0 0 0 ${config.borderWidth.B300} ${color.SurfaceVariant.ContainerLine}`,
+    boxShadow: `inset 0 0 0 ${config.borderWidth.B300} ${color.SurfaceVariant.ContainerLine}, ${glassShadow}`,
   },
 ]);
 

@@ -7,7 +7,6 @@ import {
   config,
   Icon,
   Icons,
-  MenuItem,
   PopOut,
   RectCords,
   Scroll,
@@ -18,7 +17,7 @@ import { CallMembership } from 'matrix-js-sdk/lib/matrixrtc/CallMembership';
 import FocusTrap from 'focus-trap-react';
 import { Room } from 'matrix-js-sdk';
 import { useTranslation } from 'react-i18next';
-import { Menu } from '../../components/glass/GlassPrimitives';
+import { Menu, MenuItem } from '../../components/glass/GlassPrimitives';
 import * as css from './styles.css';
 import { stopPropagation } from '../../utils/keyboard';
 import { getMemberAvatarMxc, getMemberDisplayName } from '../../utils/room';

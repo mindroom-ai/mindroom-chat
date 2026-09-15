@@ -1,36 +1,56 @@
-import { ComplexStyleRule, createVar } from '@vanilla-extract/css';
-import { RecipeVariants, recipe } from '@vanilla-extract/recipes';
+import { createVar, StyleRule } from '@vanilla-extract/css';
+import { recipe } from '@vanilla-extract/recipes';
 import { ContainerColor, color } from 'folds';
 
 const surfaceContainer = createVar();
-const surfaceContainerLine = createVar();
-const surfaceOnContainer = createVar();
+const surfaceHover = createVar();
+const surfaceActive = createVar();
+const surfaceTint = createVar();
+const highlight = createVar();
+export const glassShadow = createVar();
 
-const variantStyle = (variant: ContainerColor): ComplexStyleRule => ({
+const variantStyle = (variant: ContainerColor): StyleRule => ({
   vars: {
     [surfaceContainer]: color[variant].Container,
-    [surfaceContainerLine]: color[variant].ContainerLine,
-    [surfaceOnContainer]: color[variant].OnContainer,
+    [surfaceHover]: color[variant].ContainerHover,
+    [surfaceActive]: color[variant].ContainerActive,
   },
 });
 
-const overlayMaterial: ComplexStyleRule = {
+const material = (tint: number, blur: number, shadow: string): StyleRule => ({
+  vars: {
+    [glassShadow]: '0 0 0 transparent',
+    [surfaceTint]: `${tint}%`,
+    [highlight]: 'rgb(255 255 255 / 22%)',
+  },
   selectors: {
     '&&': {
-      background: surfaceContainer,
-      borderColor: surfaceContainerLine,
-      color: surfaceOnContainer,
+      backgroundColor: surfaceContainer,
+      backgroundImage: 'none',
+    },
+    ':is(.dark-theme, .midnight-theme, .butter-theme) &&': {
+      vars: { [surfaceTint]: '72%', [highlight]: 'rgb(255 255 255 / 4%)' },
+    },
+    'button&&:hover, button&&:focus-visible': {
+      vars: { [surfaceContainer]: surfaceHover },
+    },
+    'button&&:active, button&&[aria-pressed="true"]': {
+      vars: { [surfaceContainer]: surfaceActive },
     },
   },
   '@supports': {
     '(backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))': {
+      vars: { [glassShadow]: shadow },
       selectors: {
         '&&': {
-          background: `linear-gradient(135deg, rgb(255 255 255 / 12%), transparent 42%), color-mix(in srgb, ${surfaceContainer} 76%, transparent)`,
-          backdropFilter: 'blur(28px) saturate(145%)',
-          WebkitBackdropFilter: 'blur(28px) saturate(145%)',
-          boxShadow:
-            '0 24px 80px rgb(0 0 0 / 24%), 0 8px 24px rgb(0 0 0 / 12%), inset 0 1px 0 rgb(255 255 255 / 18%)',
+          backgroundColor: `color-mix(in srgb, ${surfaceContainer} ${surfaceTint}, transparent)`,
+          backgroundImage: `radial-gradient(ellipse 32% 12% at var(--liquid-glass-light-x, 25%) var(--liquid-glass-light-y, 0%), ${highlight}, transparent)`,
+          backdropFilter: `blur(${blur}px) saturate(160%)`,
+          WebkitBackdropFilter: `blur(${blur}px) saturate(160%)`,
+        },
+        '&&[data-liquid-glass="active"]': {
+          backdropFilter: 'var(--liquid-glass-filter) saturate(145%)',
+          WebkitBackdropFilter: 'var(--liquid-glass-filter) saturate(145%)',
         },
       },
     },
@@ -39,30 +59,8 @@ const overlayMaterial: ComplexStyleRule = {
     '(prefers-reduced-transparency: reduce), (prefers-contrast: more), (forced-colors: active)': {
       selectors: {
         '&&&': {
-          background: surfaceContainer,
-          backgroundImage: 'none',
-          borderColor: surfaceContainerLine,
-          backdropFilter: 'none',
-          WebkitBackdropFilter: 'none',
-          color: surfaceOnContainer,
-        },
-      },
-    },
-  },
-};
-
-const materialSheen = (backgroundImage: string): ComplexStyleRule => ({
-  '@supports': {
-    '(backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))': {
-      selectors: {
-        '&&': { backgroundImage },
-      },
-    },
-  },
-  '@media': {
-    '(prefers-reduced-transparency: reduce), (prefers-contrast: more), (forced-colors: active)': {
-      selectors: {
-        '&&&': {
+          vars: { [glassShadow]: '0 0 0 transparent' },
+          backgroundColor: surfaceContainer,
           backgroundImage: 'none',
           backdropFilter: 'none',
           WebkitBackdropFilter: 'none',
@@ -73,15 +71,34 @@ const materialSheen = (backgroundImage: string): ComplexStyleRule => ({
 });
 
 export const glassSurface = recipe({
-  base: [],
+  base: {
+    boxShadow: glassShadow,
+    selectors: {
+      'button&': { transition: 'scale 180ms cubic-bezier(0.2, 0.8, 0.2, 1)' },
+      'button&:hover:not(:disabled)': { scale: '1.025' },
+      'button&:active:not(:disabled)': { scale: '0.98' },
+    },
+    '@media': {
+      '(prefers-reduced-motion: reduce)': {
+        selectors: { 'button&&': { scale: 'none', transition: 'none' } },
+      },
+    },
+  },
   variants: {
     level: {
-      overlay: overlayMaterial,
-      panel: materialSheen(
-        'linear-gradient(145deg, rgb(255 255 255 / 11%), transparent 48%, rgb(0 0 0 / 4%))'
-      ),
-      control: materialSheen(
-        'linear-gradient(145deg, rgb(255 255 255 / 13%), transparent 52%, rgb(0 0 0 / 5%))'
+      overlay: [
+        material(
+          60,
+          12,
+          'inset 0 1px 0 rgb(255 255 255 / 48%), inset 0 -1px 0 rgb(255 255 255 / 10%), 0 16px 48px rgb(0 0 0 / 18%), 0 2px 8px rgb(0 0 0 / 8%)'
+        ),
+        { selectors: { '&&': { boxShadow: glassShadow } } },
+      ],
+      panel: material(60, 10, 'inset 0 1px 0 rgb(255 255 255 / 16%)'),
+      control: material(
+        58,
+        8,
+        'inset 0 1px 0 rgb(255 255 255 / 52%), inset 0 -1px 0 rgb(255 255 255 / 8%), 0 2px 8px rgb(0 0 0 / 7%)'
       ),
     },
     variant: {
@@ -95,10 +112,5 @@ export const glassSurface = recipe({
       Critical: variantStyle('Critical'),
     },
   },
-  defaultVariants: {
-    level: 'panel',
-    variant: 'Surface',
-  },
+  defaultVariants: { level: 'panel', variant: 'Surface' },
 });
-
-export type GlassSurfaceVariants = RecipeVariants<typeof glassSurface>;

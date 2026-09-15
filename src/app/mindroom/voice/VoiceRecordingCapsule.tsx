@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { millisecondsToMinutesAndSeconds } from '../../utils/common';
 import { VoiceWaveform } from '../../components/voice/VoiceWaveform';
 import { VoiceRecorderPhase } from './useVoiceRecorder';
+import { useLiquidGlass } from '../../components/glass/liquid/useLiquidGlass';
 import * as css from './VoiceRecordingCapsule.css';
 
 type VoiceRecordingCapsuleProps = {
@@ -39,6 +40,7 @@ export function VoiceRecordingCapsule({
   onResume,
 }: VoiceRecordingCapsuleProps) {
   const { t } = useTranslation();
+  const glassRef = useLiquidGlass<HTMLDivElement>();
   const busy = isBusyPhase(phase);
   const paused = phase === 'paused';
   const recording = phase === 'recording';
@@ -49,7 +51,7 @@ export function VoiceRecordingCapsule({
     : t(getStatusKey(phase));
 
   return (
-    <Box className={css.Capsule}>
+    <Box ref={glassRef} className={css.Capsule}>
       <IconButton
         variant="SurfaceVariant"
         size="300"

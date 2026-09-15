@@ -16,7 +16,6 @@ import {
   Line,
   config,
   PopOut,
-  MenuItem,
   toRem,
   Scroll,
   Button,
@@ -27,7 +26,7 @@ import {
 import { SearchOrderBy } from 'matrix-js-sdk';
 import FocusTrap from 'focus-trap-react';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { Menu, Header } from '../../components/glass/GlassPrimitives';
+import { Menu, Header, MenuItem } from '../../components/glass/GlassPrimitives';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { getRoomIconSrc } from '../../utils/room';
 import { factoryRoomIdByAtoZ } from '../../utils/sort';

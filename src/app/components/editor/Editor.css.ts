@@ -1,7 +1,7 @@
 import { style } from '@vanilla-extract/css';
 import { color, config, DefaultReset, toRem } from 'folds';
 import { transition } from '../../styles/transition';
-import { glassSurface } from '../../styles/Glass.css';
+import { glassShadow, glassSurface } from '../../styles/Glass.css';
 
 export const Editor = style([
   DefaultReset,
@@ -9,7 +9,7 @@ export const Editor = style([
   {
     backgroundColor: color.SurfaceVariant.Container,
     color: color.SurfaceVariant.OnContainer,
-    boxShadow: `inset 0 0 0 ${config.borderWidth.B300} ${color.SurfaceVariant.ContainerLine}`,
+    boxShadow: `inset 0 0 0 ${config.borderWidth.B300} ${color.SurfaceVariant.ContainerLine}, ${glassShadow}`,
     borderRadius: config.radii.R400,
     overflow: 'hidden',
     transition: transition(['box-shadow']),
@@ -21,7 +21,7 @@ export const Editor = style([
       // clipped by an ancestor and cannot move anything, which matters because
       // the composer shares a column with a virtualized timeline.
       '&:focus-within': {
-        boxShadow: `inset 0 0 0 ${config.borderWidth.B400} ${color.Primary.Main}`,
+        boxShadow: `inset 0 0 0 ${config.borderWidth.B400} ${color.Primary.Main}, ${glassShadow}`,
       },
     },
   },

@@ -2,8 +2,8 @@ import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { createClient, MsgType } from 'matrix-js-sdk';
 import { Provider } from 'jotai';
-import { AvatarFallback, MenuItem, Text, config } from 'folds';
-import { Header, Menu, Modal } from '../../src/app/components/glass/GlassPrimitives';
+import { AvatarFallback, Text, config } from 'folds';
+import { Header, Menu, MenuItem, Modal } from '../../src/app/components/glass/GlassPrimitives';
 import 'folds/dist/style.css';
 import '@fontsource/inter/variable.css';
 import '../../src/index.css';
@@ -21,6 +21,7 @@ import { SpecVersionsProvider } from '../../src/app/hooks/useSpecVersions';
 import { CustomEditor, useEditor } from '../../src/app/components/editor';
 import { SidebarAvatar } from '../../src/app/components/sidebar';
 import { MAudio } from '../../src/app/components/message/MsgTypeRenderers';
+import { glassShadow } from '../../src/app/styles/Glass.css';
 
 const themes = {
   light: LightTheme,
@@ -45,6 +46,7 @@ function Fixture() {
 
   return (
     <main
+      data-glass-shadow-property={glassShadow.slice(4, -1)}
       style={{
         boxSizing: 'border-box',
         width: '100%',
@@ -74,9 +76,14 @@ function Fixture() {
       >
         <Modal data-testid="glass-modal" size="500" style={{ width: '100%', maxWidth: '100%' }}>
           <Header data-testid="glass-header" variant="Critical" size="400">
-            <Text size="H4">Review controls</Text>
+            <Text data-testid="header-copy" size="H4">
+              Review controls
+            </Text>
           </Header>
           <div style={{ display: 'grid', gap: 12, padding: config.space.S400 }}>
+            <Text data-testid="modal-copy" size="T300">
+              Message tools
+            </Text>
             <SidebarAvatar as="button" aria-label="Open workspace" outlined>
               <AvatarFallback>MR</AvatarFallback>
             </SidebarAvatar>
@@ -94,7 +101,11 @@ function Fixture() {
         </Modal>
 
         <Menu data-testid="glass-menu" aria-label="Message actions">
-          <MenuItem>Reply</MenuItem>
+          <MenuItem>
+            <Text data-testid="menu-copy" size="B300">
+              Reply
+            </Text>
+          </MenuItem>
           <MenuItem>Copy link</MenuItem>
         </Menu>
       </div>

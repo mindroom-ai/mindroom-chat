@@ -30,6 +30,7 @@ import { bytesToSize } from '../../../utils/common';
 import { stopPropagation } from '../../../utils/keyboard';
 import { FileDownloadButton } from '../FileHeader';
 import { getAudioContentSourceIdentity, useAudioContentSource } from './useAudioContentSource';
+import { useLiquidGlass } from '../../glass/liquid/useLiquidGlass';
 import * as css from './VoiceAudioContent.css';
 
 const PLAY_TIME_THROTTLE_OPS = {
@@ -62,6 +63,7 @@ export function VoiceAudioContent({
   isVoiceMessage = true,
 }: VoiceAudioContentProps) {
   const { t } = useTranslation();
+  const glassRef = useLiquidGlass<HTMLDivElement>();
   const [srcState, loadSrc] = useAudioContentSource({ mimeType, url, encInfo });
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [audioElement, setAudioElement] = useState<HTMLAudioElement | null>(null);
@@ -256,7 +258,7 @@ export function VoiceAudioContent({
           {filename}
         </Text>
       )}
-      <div className={css.Capsule} data-playing={playing || undefined}>
+      <div ref={glassRef} className={css.Capsule} data-playing={playing || undefined}>
         <div className={css.PlayCell}>
           <IconButton
             className={css.PlayButton}

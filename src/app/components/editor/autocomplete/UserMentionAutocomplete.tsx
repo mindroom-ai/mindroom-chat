@@ -1,8 +1,9 @@
 import { useTranslation } from 'react-i18next';
 import React, { useEffect, KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { Editor } from 'slate';
-import { Avatar, Icon, Icons, MenuItem, Text } from 'folds';
+import { Avatar, Icon, Icons, Text } from 'folds';
 import { MatrixClient, Room, RoomMember } from 'matrix-js-sdk';
+import { MenuItem } from '../../glass/GlassPrimitives';
 
 import { AutocompleteQuery } from './autocompleteQuery';
 import { AutocompleteMenu } from './AutocompleteMenu';

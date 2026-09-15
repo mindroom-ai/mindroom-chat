@@ -1,22 +1,10 @@
 import React, { useCallback, useState } from 'react';
 import classNames from 'classnames';
-import {
-  Avatar,
-  Box,
-  Icon,
-  IconButton,
-  Icons,
-  Line,
-  MenuItem,
-  Scroll,
-  Text,
-  as,
-  config,
-} from 'folds';
+import { Avatar, Box, Icon, IconButton, Icons, Line, Scroll, Text, as, config } from 'folds';
 import { MatrixEvent, Room, RoomMember } from 'matrix-js-sdk';
 import { Relations } from 'matrix-js-sdk/lib/models/relations';
 import { useTranslation } from 'react-i18next';
-import { Header } from '../../../components/glass/GlassPrimitives';
+import { Header, MenuItem } from '../../../components/glass/GlassPrimitives';
 import { getMemberDisplayName } from '../../../utils/room';
 import { eventWithShortcode, getMxIdLocalPart, mxcUrlToHttp } from '../../../utils/matrix';
 import { getActiveAnnotationsByKey } from '../../../utils/reactionAnnotations';

@@ -2,22 +2,18 @@
 
 ## Runbook
 
-### Roll out shared glass materials (2026-09-15)
+### Roll out isolated liquid glass materials (2026-09-15)
 
-- Status: implementation, local validation, and independent review are complete; ready for review.
-- A shared vanilla-extract recipe now provides overlay, panel, and control materials using existing theme and semantic container colors.
-- Overlay surfaces use translucent theme fills, blur, directional sheen, and depth shadows.
-  Panel and repeated control surfaces add a low-cost directional sheen over their existing background and state colors without per-control blur.
-- App-owned polymorphic Menu, Modal, Dialog, and Header wrappers preserve refs, `as` props, semantic variants, and the Folds Surface defaults.
-  Production consumers now use these wrappers.
-- The material family covers the command palette, menus and dialogs, headers, sidebar shell and controls, composer, shared audio player, recording capsule, thread filter surfaces, and the following control.
-- Reduced transparency, increased contrast, forced colors, and unsupported backdrop filtering retain opaque surfaces and remove blur or decorative gradients.
-- Browser coverage uses real components and validates all five themes, text contrast, preference fallbacks, focus, editing, playback, and 320 px layout.
-- Validation: all seven shared-material browser cases and all six existing audio browser cases pass.
-  Typecheck, the production/PWA build, changed-file formatting, and ESLint pass with zero errors and the existing 17 warnings.
-  The full Node 24 suite passes all 4,191 tests across 513 files.
-- Production-build live Chromium checks pass for desktop light and dark at 1440 px and mobile at 390 px, including authenticated audio playback, composer editing, the nested volume menu with keyboard and Escape handling, the command palette, page errors, and overflow.
-- Independent code and test-boundary reviews approve the rollout.
+- A shared material family covers the command palette, menus, dialogs, headers, sidebar controls, composer, audio player, recording capsule, and thread controls.
+- The isolated `src/app/components/glass/liquid/` module implements rounded-edge refraction with a Snell-law displacement map and a native SVG backdrop filter, subtle RGB separation, and pointer-following highlights. It adds no dependencies.
+- Components opt in through a callback-ref hook. The runtime owns its observers, listeners, filter definitions, and cleanup; it never scans the DOM or updates React state on pointer movement.
+- Maps are generated on size changes, bounded to 262,144 pixels, and cached in a 32-entry LRU. Offscreen surfaces release their filters. Pointer movement reuses the map and updates two CSS variables.
+- Chromium receives the SVG refraction path. Safari and Firefox retain native translucent blur and highlights because they do not render SVG backdrop filters. Browsers without backdrop filtering retain an opaque surface.
+- App-owned polymorphic Menu, Modal, Dialog, and Header wrappers preserve forwarded refs, semantic variants, and Folds defaults. MenuItem defaults to a transparent fill so rows reveal the shared material; explicit selection fills remain supported.
+- Theme-aware tint and highlight strength protect text over bright and dark backdrops. Reduced transparency, increased contrast, and forced colors remove decorative effects and restore opaque surfaces. Reduced motion disables moving highlights and button scaling.
+- Browser coverage checks rendered edge distortion, backdrop response, five-theme text contrast, accessibility preferences, focus, editing, playback, and narrow layouts. Optical unit tests cover geometry, browser gating, resizing, visibility, ref ownership, StrictMode, and cleanup.
+- Validation: the full Node 24 suite passes all 4,209 tests across 516 files. Typecheck and the production/PWA build pass; full ESLint reports zero errors and the existing 17 warnings.
+- Review screenshots and the motion study use local sample data and remain outside version control.
 
 ### Refine command palette presentation and navigation (2026-09-15)
 

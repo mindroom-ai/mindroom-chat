@@ -11,7 +11,6 @@ import {
   toRem,
   Spinner,
   PopOut,
-  MenuItem,
   RectCords,
   config,
 } from 'folds';
@@ -20,7 +19,7 @@ import classNames from 'classnames';
 import { Room } from 'matrix-js-sdk';
 import { IHierarchyRoom } from 'matrix-js-sdk/lib/@types/spaces';
 import { useTranslation } from 'react-i18next';
-import { Menu } from '../../components/glass/GlassPrimitives';
+import { Menu, MenuItem } from '../../components/glass/GlassPrimitives';
 import { Membership } from '../../../types/matrix/room';
 import { HierarchyItem } from '../../hooks/useSpaceHierarchy';
 import { useMatrixClient } from '../../hooks/useMatrixClient';

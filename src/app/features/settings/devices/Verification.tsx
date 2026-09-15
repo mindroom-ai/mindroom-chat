@@ -15,12 +15,11 @@ import {
   IconButton,
   RectCords,
   PopOut,
-  MenuItem,
 } from 'folds';
 import FocusTrap from 'focus-trap-react';
 import { CryptoApi, VerificationRequest } from 'matrix-js-sdk/lib/crypto-api';
 import { Trans, useTranslation } from 'react-i18next';
-import { Menu } from '../../../components/glass/GlassPrimitives';
+import { Menu, MenuItem } from '../../../components/glass/GlassPrimitives';
 import { VerificationStatus } from '../../../hooks/useDeviceVerificationStatus';
 import { InfoCard } from '../../../components/info-card';
 import { ManualVerificationTile } from '../../../components/ManualVerification';

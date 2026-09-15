@@ -8,7 +8,6 @@ import {
   IconButton,
   Icons,
   Input,
-  MenuItem,
   Overlay,
   OverlayBackdrop,
   OverlayCenter,
@@ -28,7 +27,7 @@ import { useAtomValue } from 'jotai';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { Room } from 'matrix-js-sdk';
 import { useTranslation } from 'react-i18next';
-import { Menu, Modal, Header } from '../../components/glass/GlassPrimitives';
+import { Menu, Modal, Header, MenuItem } from '../../components/glass/GlassPrimitives';
 import { stopPropagation } from '../../utils/keyboard';
 import { useDirects, useRooms, useSpaces } from '../../state/hooks/roomList';
 import { useMatrixClient } from '../../hooks/useMatrixClient';

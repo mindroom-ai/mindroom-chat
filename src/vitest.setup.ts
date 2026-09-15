@@ -6,6 +6,7 @@ import en from './app/locales/en.json';
 // Component tests do not transform vanilla-extract files. Browser coverage
 // exercises the real material recipe; unit tests only need its composed class.
 vi.mock('./app/styles/Glass.css', () => ({
+  glassShadow: '--glass-shadow',
   glassSurface: () => 'glass-surface',
 }));
 
@@ -15,7 +16,7 @@ vi.mock('./app/styles/Glass.css', () => ({
 vi.mock('./app/components/glass/GlassPrimitives', async () => {
   const folds = await import('folds');
   const wrappers: Record<string, unknown> = {};
-  (['Menu', 'Modal', 'Dialog', 'Header'] as const).forEach((name) => {
+  (['Menu', 'MenuItem', 'Modal', 'Dialog', 'Header'] as const).forEach((name) => {
     Object.defineProperty(wrappers, name, {
       enumerable: true,
       get: () => folds[name],

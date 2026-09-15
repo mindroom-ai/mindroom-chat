@@ -11,19 +11,7 @@ import React, {
   useState,
 } from 'react';
 import { useNavigate } from 'react-router-dom';
-import {
-  Box,
-  Icon,
-  IconButton,
-  Icons,
-  Line,
-  MenuItem,
-  PopOut,
-  RectCords,
-  Text,
-  config,
-  toRem,
-} from 'folds';
+import { Box, Icon, IconButton, Icons, Line, PopOut, RectCords, Text, config, toRem } from 'folds';
 import { useAtom, useAtomValue } from 'jotai';
 import { Room } from 'matrix-js-sdk';
 import {
@@ -49,7 +37,7 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import FocusTrap from 'focus-trap-react';
-import { Menu } from '../../../components/glass/GlassPrimitives';
+import { Menu, MenuItem } from '../../../components/glass/GlassPrimitives';
 import {
   useOrphanSpaces,
   useRecursiveChildScopeFactory,

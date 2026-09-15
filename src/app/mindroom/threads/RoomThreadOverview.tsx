@@ -16,6 +16,7 @@ import {
   IconZzz,
 } from '@tabler/icons-react';
 import classNames from 'classnames';
+import { useLiquidGlass } from '../../components/glass/liquid/useLiquidGlass';
 import * as css from './RoomThreadOverview.css';
 import * as threadIndicatorCss from './ThreadIndicator.css';
 import type {
@@ -870,6 +871,7 @@ export function RoomThreadOverview({
 }: RoomThreadOverviewProps) {
   const [lastAppliedPreset, setLastAppliedPreset] = useState<string | null>(null);
   const simpleMode = useSimpleMode();
+  const glassRef = useLiquidGlass<HTMLDivElement>();
   const { t } = useTranslation();
   const filtersActive = hasActiveThreadFilters(state);
   const canonicalSearchQuery = serializeThreadFilterQuery(state);
@@ -1031,7 +1033,13 @@ export function RoomThreadOverview({
   if (simpleMode) {
     const unresolvedOnly = state.resolved === 'exclude';
     return (
-      <Box className={css.Overview} direction="Column" gap="200" data-room-thread-overview="true">
+      <Box
+        ref={glassRef}
+        className={css.Overview}
+        direction="Column"
+        gap="200"
+        data-room-thread-overview="true"
+      >
         {liveRegion}
         <div
           className={css.ToolbarHeader}
@@ -1082,7 +1090,13 @@ export function RoomThreadOverview({
   }
 
   return (
-    <Box className={css.Overview} direction="Column" gap="200" data-room-thread-overview="true">
+    <Box
+      ref={glassRef}
+      className={css.Overview}
+      direction="Column"
+      gap="200"
+      data-room-thread-overview="true"
+    >
       {liveRegion}
       {/* Single-line toolbar */}
       <div

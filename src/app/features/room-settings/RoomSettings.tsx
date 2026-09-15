@@ -1,8 +1,9 @@
 import React, { useMemo, useState } from 'react';
 import { useAtomValue } from 'jotai';
-import { Avatar, Box, config, Icon, IconButton, Icons, IconSrc, MenuItem, Text } from 'folds';
+import { Avatar, Box, config, Icon, IconButton, Icons, IconSrc, Text } from 'folds';
 import { JoinRule } from 'matrix-js-sdk';
 import { useTranslation } from 'react-i18next';
+import { MenuItem } from '../../components/glass/GlassPrimitives';
 import { PageNav, PageNavContent, PageNavHeader, PageRoot } from '../../components/page';
 import { ScreenSize, useScreenSizeContext } from '../../hooks/useScreenSize';
 import { useMatrixClient } from '../../hooks/useMatrixClient';

@@ -1,6 +1,6 @@
 import { style } from '@vanilla-extract/css';
 import { DefaultReset, color, config, toRem } from 'folds';
-import { glassSurface } from '../../../styles/Glass.css';
+import { glassShadow, glassSurface } from '../../../styles/Glass.css';
 
 export const Root = style({
   width: toRem(400),
@@ -24,10 +24,10 @@ export const Capsule = style([
     borderRadius: toRem(16),
     backgroundColor: color.SurfaceVariant.Container,
     color: color.SurfaceVariant.OnContainer,
-    boxShadow: `inset 0 0 0 ${config.borderWidth.B300} ${color.SurfaceVariant.ContainerLine}`,
+    boxShadow: `inset 0 0 0 ${config.borderWidth.B300} ${color.SurfaceVariant.ContainerLine}, ${glassShadow}`,
     selectors: {
       '&[data-playing="true"]': {
-        boxShadow: `inset 0 0 0 ${config.borderWidth.B300} ${color.Primary.Main}`,
+        boxShadow: `inset 0 0 0 ${config.borderWidth.B300} ${color.Primary.Main}, ${glassShadow}`,
       },
     },
   },
@@ -75,7 +75,6 @@ export const Time = style({
   direction: 'ltr',
   whiteSpace: 'nowrap',
   fontSize: toRem(12),
-  opacity: 0.65,
 });
 
 export const RateCell = style({ gridArea: 'rate', display: 'flex', alignItems: 'center' });

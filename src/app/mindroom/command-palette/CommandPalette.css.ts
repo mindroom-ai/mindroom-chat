@@ -15,7 +15,7 @@ export const Shell = style([
 
 export const Backdrop = style({
   selectors: {
-    '&&': { background: `color-mix(in srgb, ${color.Other.Overlay} 65%, transparent)` },
+    '&&': { background: `color-mix(in srgb, ${color.Other.Overlay} 25%, transparent)` },
   },
 });
 
@@ -99,7 +99,7 @@ export const Filter = style({
   selectors: {
     '&[aria-pressed="true"]': {
       color: color.Primary.OnContainer,
-      background: `linear-gradient(135deg, rgb(255 255 255 / 8%), transparent), color-mix(in srgb, ${color.Primary.Container} 88%, transparent)`,
+      background: `color-mix(in srgb, ${color.Primary.Container} 88%, transparent)`,
       borderColor: color.Primary.ContainerLine,
       boxShadow: 'inset 0 1px 0 rgb(255 255 255 / 10%)',
     },
@@ -152,7 +152,7 @@ export const Row = style({
   outline: 'none',
   selectors: {
     '&[data-selected="true"]': {
-      background: `linear-gradient(120deg, rgb(255 255 255 / 6%), transparent 70%), color-mix(in srgb, ${color.Primary.Container} 88%, transparent)`,
+      background: `color-mix(in srgb, ${color.Primary.Container} 88%, transparent)`,
       boxShadow: `inset 0 0 0 1px ${color.Primary.ContainerLine}, inset 0 1px 0 rgb(255 255 255 / 10%), 0 2px 8px rgb(0 0 0 / 4%)`,
     },
   },

@@ -5,7 +5,6 @@ import {
   IconButton,
   Icons,
   Line,
-  MenuItem,
   Overlay,
   OverlayBackdrop,
   OverlayCenter,
@@ -17,7 +16,7 @@ import React, { useState } from 'react';
 import FocusTrap from 'focus-trap-react';
 import { Room } from 'matrix-js-sdk';
 import { Relations } from 'matrix-js-sdk/lib/models/relations';
-import { Modal } from '../../components/glass/GlassPrimitives';
+import { Modal, MenuItem } from '../../components/glass/GlassPrimitives';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useRecentEmoji } from '../../hooks/useRecentEmoji';
 import * as css from '../../features/room/message/styles.css';

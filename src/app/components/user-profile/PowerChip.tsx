@@ -8,7 +8,6 @@ import {
   IconButton,
   Icons,
   Line,
-  MenuItem,
   Overlay,
   OverlayBackdrop,
   OverlayCenter,
@@ -21,7 +20,7 @@ import {
 import React, { MouseEventHandler, useCallback, useState } from 'react';
 import FocusTrap from 'focus-trap-react';
 import { isKeyHotkey } from 'is-hotkey';
-import { Menu, Dialog, Header } from '../glass/GlassPrimitives';
+import { Menu, Dialog, Header, MenuItem } from '../glass/GlassPrimitives';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useMediaAuthentication } from '../../hooks/useMediaAuthentication';
 import { PowerColorBadge, PowerIcon } from '../power';
