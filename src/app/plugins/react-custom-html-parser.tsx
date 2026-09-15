@@ -16,10 +16,11 @@ import {
 } from 'html-react-parser';
 import { MatrixClient } from 'matrix-js-sdk';
 import classNames from 'classnames';
-import { Box, Chip, config, Header, Icon, IconButton, Icons, Scroll, Text, toRem } from 'folds';
+import { Box, Chip, config, Icon, IconButton, Icons, Scroll, Text, toRem } from 'folds';
 import { IntermediateRepresentation, Opts as LinkifyOpts, OptFn } from 'linkifyjs';
 import { ErrorBoundary } from 'react-error-boundary';
 import { ChildNode } from 'domhandler';
+import { Header } from '../components/glass/GlassPrimitives';
 import * as css from '../styles/CustomHtml.css';
 import { renderMindroomCustomHtmlElement } from '../mindroom/html/customHtmlRenderers';
 import { renderTextWithMatrixMath } from '../mindroom/html/matrixMath';

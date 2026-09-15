@@ -6,8 +6,6 @@ import {
   Avatar,
   Box,
   Button,
-  Dialog,
-  Header,
   Icon,
   IconButton,
   Icons,
@@ -19,6 +17,7 @@ import {
   color,
   config,
 } from 'folds';
+import { Dialog, Header } from '../../../components/glass/GlassPrimitives';
 import {
   NavCategory,
   NavCategoryHeader,

@@ -1,6 +1,7 @@
 import React, { forwardRef, MouseEventHandler, ReactNode, useState } from 'react';
 import FocusTrap from 'focus-trap-react';
-import { Box, config, Menu, MenuItem, PopOut, Scroll, Text, toRem, RectCords } from 'folds';
+import { Box, config, PopOut, Scroll, Text, toRem, RectCords } from 'folds';
+import { Menu, MenuItem } from '../glass/GlassPrimitives';
 import { getPowers, PowerLevelTags } from '../../hooks/usePowerLevelTags';
 import { PowerColorBadge } from './PowerColorBadge';
 import { stopPropagation } from '../../utils/keyboard';

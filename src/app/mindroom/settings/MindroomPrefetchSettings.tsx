@@ -5,23 +5,11 @@ import React, {
   useEffect,
   useState,
 } from 'react';
-import {
-  Box,
-  Button,
-  Icon,
-  Icons,
-  Input,
-  Menu,
-  MenuItem,
-  PopOut,
-  RectCords,
-  Text,
-  config,
-  toRem,
-} from 'folds';
+import { Box, Button, Icon, Icons, Input, PopOut, RectCords, Text, config, toRem } from 'folds';
 import FocusTrap from 'focus-trap-react';
 import { isKeyHotkey } from 'is-hotkey';
 import { useTranslation } from 'react-i18next';
+import { Menu, MenuItem } from '../../components/glass/GlassPrimitives';
 import { SequenceCard } from '../../components/sequence-card';
 import { SettingTile } from '../../components/setting-tile';
 import { useSetting } from '../../state/hooks/settings';

@@ -1,24 +1,12 @@
 import { useTranslation } from 'react-i18next';
-import {
-  Avatar,
-  Box,
-  Icon,
-  IconButton,
-  Icons,
-  Line,
-  Menu,
-  MenuItem,
-  PopOut,
-  RectCords,
-  Text,
-  as,
-} from 'folds';
+import { Avatar, Box, Icon, IconButton, Icons, Line, PopOut, RectCords, Text, as } from 'folds';
 import React, { MouseEventHandler, ReactNode, useState } from 'react';
 import FocusTrap from 'focus-trap-react';
 import { useHover, useFocusWithin } from 'react-aria';
 import { MatrixEvent, Room } from 'matrix-js-sdk';
 import { Relations } from 'matrix-js-sdk/lib/models/relations';
 import classNames from 'classnames';
+import { Menu, MenuItem } from '../../components/glass/GlassPrimitives';
 import {
   AvatarBase,
   BubbleLayout,

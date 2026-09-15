@@ -1,6 +1,7 @@
 import FocusTrap from 'focus-trap-react';
-import { as, Modal, Overlay, OverlayBackdrop, OverlayCenter } from 'folds';
+import { as, Overlay, OverlayBackdrop, OverlayCenter } from 'folds';
 import React, { ReactNode } from 'react';
+import { Modal } from './glass/GlassPrimitives';
 import { ModalWide } from '../styles/Modal.css';
 import { stopPropagation } from '../utils/keyboard';
 

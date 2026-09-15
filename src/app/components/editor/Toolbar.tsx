@@ -9,7 +9,6 @@ import {
   Icons,
   IconSrc,
   Line,
-  Menu,
   PopOut,
   RectCords,
   Scroll,
@@ -20,6 +19,7 @@ import {
 } from 'folds';
 import React, { MouseEventHandler, ReactNode, useState } from 'react';
 import { ReactEditor, useSlate } from 'slate-react';
+import { Menu } from '../glass/GlassPrimitives';
 import {
   headingLevel,
   isAnyMarkActive,

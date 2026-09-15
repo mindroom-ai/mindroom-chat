@@ -12,12 +12,10 @@ import {
   Badge,
   Box,
   Chip,
-  Header,
   Icon,
   IconButton,
   Icons,
   Input,
-  MenuItem,
   PopOut,
   RectCords,
   Scroll,
@@ -32,6 +30,7 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import classNames from 'classnames';
 
 import { useTranslation } from 'react-i18next';
+import { Header, MenuItem } from '../../components/glass/GlassPrimitives';
 import * as css from './MembersDrawer.css';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { UseStateProvider } from '../../components/UseStateProvider';

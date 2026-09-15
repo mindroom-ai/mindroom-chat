@@ -4,9 +4,11 @@ import { color, config, DefaultReset, Disabled, FocusOutline, toRem } from 'fold
 import { ContainerColor } from '../../styles/ContainerColor.css';
 import { motion } from '../../styles/Motion.css';
 import { transition } from '../../styles/transition';
+import { glassSurface } from '../../styles/Glass.css';
 
 export const Sidebar = style([
   DefaultReset,
+  glassSurface({ level: 'panel', variant: 'Background' }),
   {
     width: toRem(66),
     backgroundColor: color.Background.Container,
@@ -171,6 +173,7 @@ export type SidebarItemBadgeVariants = RecipeVariants<typeof SidebarItemBadge>;
 
 export const SidebarAvatar = recipe({
   base: [
+    glassSurface({ level: 'control', variant: 'Background' }),
     {
       selectors: {
         'button&': {
@@ -212,6 +215,7 @@ export type SidebarAvatarVariants = RecipeVariants<typeof SidebarAvatar>;
 export const SidebarFolder = recipe({
   base: [
     ContainerColor({ variant: 'Background' }),
+    glassSurface({ level: 'control', variant: 'Background' }),
     {
       padding: config.space.S100,
       width: toRem(42),

@@ -1,7 +1,8 @@
 import React, { useCallback, useState } from 'react';
-import { Box, Button, config, Menu, Spinner, Text } from 'folds';
+import { Box, Button, config, Spinner, Text } from 'folds';
 import { AuthDict, IMyDevice, MatrixError } from 'matrix-js-sdk';
 import { useTranslation } from 'react-i18next';
+import { Menu } from '../../../components/glass/GlassPrimitives';
 import { SequenceCard } from '../../../components/sequence-card';
 import { SequenceCardStyle } from '../styles.css';
 import { ActionUIA, ActionUIAFlowsLoader } from '../../../components/ActionUIA';

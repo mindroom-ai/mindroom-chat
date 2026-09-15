@@ -1,7 +1,8 @@
 import { useTranslation } from 'react-i18next';
-import { Box, config, Icon, Menu, MenuItem, PopOut, RectCords, Text } from 'folds';
+import { Box, config, Icon, PopOut, RectCords, Text } from 'folds';
 import React, { MouseEventHandler, ReactNode, useMemo, useState } from 'react';
 import FocusTrap from 'focus-trap-react';
+import { Menu, MenuItem } from './glass/GlassPrimitives';
 import { stopPropagation } from '../utils/keyboard';
 import {
   getRoomNotificationModeIcon,

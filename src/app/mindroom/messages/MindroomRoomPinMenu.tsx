@@ -9,11 +9,9 @@ import {
   Chip,
   color,
   config,
-  Header,
   Icon,
   IconButton,
   Icons,
-  Menu,
   Scroll,
   Spinner,
   Text,
@@ -22,6 +20,7 @@ import {
 import { Opts as LinkifyOpts } from 'linkifyjs';
 import { HTMLReactParserOptions } from 'html-react-parser';
 import { useVirtualizer } from '@tanstack/react-virtual';
+import { Menu, Header } from '../../components/glass/GlassPrimitives';
 import { useRoomPinnedEvents } from '../../hooks/useRoomPinnedEvents';
 import * as css from './MindroomRoomPinMenu.css';
 import { SequenceCard } from '../../components/sequence-card';

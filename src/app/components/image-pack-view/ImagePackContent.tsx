@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { as, Box, Text, config, Button, Menu, Spinner } from 'folds';
+import { as, Box, Text, config, Button, Spinner } from 'folds';
+import { Menu } from '../glass/GlassPrimitives';
 import {
   ImagePack,
   ImageUsage,

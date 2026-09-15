@@ -1,22 +1,10 @@
 import { Trans, useTranslation } from 'react-i18next';
 import React, { FormEventHandler, forwardRef, useCallback, useState } from 'react';
-import {
-  Dialog,
-  Header,
-  Box,
-  Text,
-  IconButton,
-  Icon,
-  Icons,
-  config,
-  Button,
-  Chip,
-  color,
-  Spinner,
-} from 'folds';
+import { Box, Text, IconButton, Icon, Icons, config, Button, Chip, color, Spinner } from 'folds';
 import FileSaver from 'file-saver';
 import to from 'await-to-js';
 import { AuthDict, IAuthData, MatrixError, UIAuthCallback } from 'matrix-js-sdk';
+import { Dialog, Header } from './glass/GlassPrimitives';
 import { PasswordInput } from './password-input';
 import { ContainerColor } from '../styles/ContainerColor.css';
 import { copyToClipboard } from '../utils/dom';

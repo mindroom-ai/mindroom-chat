@@ -6,8 +6,6 @@ import {
   IconButton,
   Icons,
   Line,
-  Menu,
-  MenuItem,
   PopOut,
   RectCords,
   Text,
@@ -18,6 +16,7 @@ import {
 } from 'folds';
 import FocusTrap from 'focus-trap-react';
 import { useTranslation } from 'react-i18next';
+import { Menu, MenuItem } from '../../components/glass/GlassPrimitives';
 import { PageHeader } from '../../components/page';
 import { useSetSetting } from '../../state/hooks/settings';
 import { settingsAtom } from '../../state/settings';

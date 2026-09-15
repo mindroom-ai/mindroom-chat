@@ -1,7 +1,8 @@
 import { useTranslation } from 'react-i18next';
 import React, { useEffect, useCallback, FormEventHandler } from 'react';
-import { Dialog, Text, Box, Button, config, Input } from 'folds';
+import { Text, Box, Button, config, Input } from 'folds';
 import { AuthType } from 'matrix-js-sdk';
+import { Dialog } from '../glass/GlassPrimitives';
 import { StageComponentProps } from './types';
 
 function RegistrationTokenErrorDialog({

@@ -1,17 +1,8 @@
 import React, { useState } from 'react';
-import {
-  Avatar,
-  Box,
-  Icon,
-  Icons,
-  Modal,
-  Overlay,
-  OverlayBackdrop,
-  OverlayCenter,
-  Text,
-} from 'folds';
+import { Avatar, Box, Icon, Icons, Overlay, OverlayBackdrop, OverlayCenter, Text } from 'folds';
 import classNames from 'classnames';
 import FocusTrap from 'focus-trap-react';
+import { Modal } from '../glass/GlassPrimitives';
 import * as css from './styles.css';
 import { UserAvatar } from '../user-avatar';
 import colorMXID from '../../../util/colorMXID';

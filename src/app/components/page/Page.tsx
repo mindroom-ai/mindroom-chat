@@ -1,6 +1,9 @@
 import React, { ComponentProps, MutableRefObject, ReactNode } from 'react';
-import { Box, Header, Line, Scroll, Text, as } from 'folds';
+import { Box, Line, Scroll, Text, as } from 'folds';
 import classNames from 'classnames';
+import { Header } from '../glass/GlassPrimitives';
+import { useSurfaceContext } from '../glass/SurfaceContext';
+import { inheritSurface } from '../glass/Surface.css';
 import { ContainerColor } from '../../styles/ContainerColor.css';
 import * as css from './style.css';
 import { ScreenSize, useScreenSizeContext } from '../../hooks/useScreenSize';
@@ -12,9 +15,16 @@ type PageRootProps = {
 
 export function PageRoot({ nav, children }: PageRootProps) {
   const screenSize = useScreenSizeContext();
+  const enclosingSurface = useSurfaceContext();
 
   return (
-    <Box grow="Yes" className={ContainerColor({ variant: 'Background' })}>
+    <Box
+      grow="Yes"
+      className={classNames(
+        ContainerColor({ variant: 'Background' }),
+        enclosingSurface && inheritSurface
+      )}
+    >
       {nav}
       {nav && screenSize !== ScreenSize.Mobile && (
         <Line variant="Background" size="300" direction="Vertical" />
@@ -79,15 +89,22 @@ export function PageNavContent({
   );
 }
 
-export const Page = as<'div'>(({ className, ...props }, ref) => (
-  <Box
-    grow="Yes"
-    direction="Column"
-    className={classNames(ContainerColor({ variant: 'Surface' }), className)}
-    {...props}
-    ref={ref}
-  />
-));
+export const Page = as<'div'>(({ className, ...props }, ref) => {
+  const enclosingSurface = useSurfaceContext();
+  return (
+    <Box
+      grow="Yes"
+      direction="Column"
+      className={classNames(
+        ContainerColor({ variant: 'Surface' }),
+        enclosingSurface && inheritSurface,
+        className
+      )}
+      {...props}
+      ref={ref}
+    />
+  );
+});
 
 export const PageHeader = as<'div', css.PageHeaderVariants>(
   ({ className, outlined, balance, ...props }, ref) => (

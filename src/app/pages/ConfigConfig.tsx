@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next';
-import { Box, Button, Dialog, Text, color, config } from 'folds';
+import { Box, Button, Text, color, config } from 'folds';
 import React from 'react';
+import { Dialog } from '../components/glass/GlassPrimitives';
 import { isClientConfigAuthenticationError } from '../components/ClientConfigLoader';
 import { MindRoomSplashScreen, SplashScreen } from '../components/splash-screen';
 
