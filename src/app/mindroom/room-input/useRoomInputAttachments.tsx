@@ -40,6 +40,7 @@ type UseRoomInputAttachmentsOptions = {
   mx: MatrixClient;
   room: Room;
   roomId: string;
+  draftKey?: string;
   editor: Editor;
   fileDropContainerRef: RefObject<HTMLElement>;
   isMarkdown: boolean;
@@ -53,6 +54,7 @@ export const useRoomInputAttachments = ({
   mx,
   room,
   roomId,
+  draftKey,
   editor,
   fileDropContainerRef,
   isMarkdown,
@@ -62,6 +64,8 @@ export const useRoomInputAttachments = ({
   const store = useStore();
   const roomIdRef = useRef(roomId);
   roomIdRef.current = roomId;
+  const draftKeyRef = useRef(draftKey);
+  draftKeyRef.current = draftKey;
   const mountedRef = useRef(true);
   useEffect(() => {
     mountedRef.current = true;
@@ -70,7 +74,11 @@ export const useRoomInputAttachments = ({
     };
   }, []);
   const [uploadBoard, setUploadBoard] = useState(true);
-  const selectedFiles = useAtomValue(roomIdToUploadItemsAtomFamily(roomId));
+  const roomFiles = useAtomValue(roomIdToUploadItemsAtomFamily(roomId));
+  const selectedFiles = useMemo(
+    () => roomFiles.filter((item) => !item.composerDraftKey || item.composerDraftKey === draftKey),
+    [roomFiles, draftKey]
+  );
   const enrolledRef = useRef<TUploadItem[]>([]);
   const [enrolledItems, setEnrolledItems] = useState<TUploadItem[]>([]);
   const protectedFilesRef = useRef(new Map<TUploadContent, number>());
@@ -103,10 +111,20 @@ export const useRoomInputAttachments = ({
       if (mountedRef.current) setEnrolledItems(enrolledRef.current);
     };
     return {
-      snapshot: (ownerRoomId = roomIdRef.current) => {
+      snapshot: (ownerRoomId) => {
         // Read the store directly: consumers can append, replace metadata, remove, or send
         // before React commits the render caused by the atom update.
-        const staged = store.get(roomIdToUploadItemsAtomFamily(ownerRoomId));
+        const roomItems = store.get(
+          roomIdToUploadItemsAtomFamily(ownerRoomId ?? roomIdRef.current)
+        );
+        // New sends and the board see only this draft's paste files. In-flight sessions
+        // explicitly name their room so navigation cannot hide their enrolled files.
+        const staged =
+          ownerRoomId === undefined
+            ? roomItems.filter(
+                (item) => !item.composerDraftKey || item.composerDraftKey === draftKeyRef.current
+              )
+            : roomItems;
         const enrolled = enrolledRef.current;
         const files = new Set([...staged, ...enrolled].map((item) => item.file));
         return {
@@ -118,7 +136,12 @@ export const useRoomInputAttachments = ({
       append: (ownerRoomId, items) => {
         if (items.length === 0) return;
         if (mountedRef.current && ownerRoomId === roomIdRef.current) setUploadBoard(true);
-        store.set(roomIdToUploadItemsAtomFamily(ownerRoomId), { type: 'PUT', item: items });
+        const scopedItems = items.map((item) =>
+          item.metadata.mindroomPasteAttachment && draftKeyRef.current && !item.composerDraftKey
+            ? { ...item, composerDraftKey: draftKeyRef.current }
+            : item
+        );
+        store.set(roomIdToUploadItemsAtomFamily(ownerRoomId), { type: 'PUT', item: scopedItems });
         items.forEach((item) => {
           if (item.prepError) store.set(roomUploadAtomFamily(item.file), { error: item.prepError });
         });
@@ -158,8 +181,16 @@ export const useRoomInputAttachments = ({
   }, [store]);
 
   const appendUploadItems = useCallback(
-    (items: TUploadItem[]) => access.append(roomIdRef.current, items),
-    [access]
+    (items: TUploadItem[]) =>
+      access.append(
+        roomId,
+        items.map((item) =>
+          item.metadata.mindroomPasteAttachment && draftKey
+            ? { ...item, composerDraftKey: draftKey }
+            : item
+        )
+      ),
+    [access, roomId, draftKey]
   );
   const handleFiles = useCallback(
     async (files: File[]) => {
@@ -170,6 +201,7 @@ export const useRoomInputAttachments = ({
   const pickFile = useFilePicker(handleFiles, true);
   const onPaste = useRoomInputPaste({
     editor,
+    draftKey,
     isMarkdown,
     handleFiles,
     createUploadItems,
