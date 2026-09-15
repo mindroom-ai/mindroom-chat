@@ -2,6 +2,21 @@
 
 ## Runbook
 
+### Hydrate explicit device discovery through Rust crypto (2026-09-15)
+
+- Status: the SDK patch and focused behavioral regression are implemented and locally validated.
+- `getUserDeviceInfo(userIds, true)` now starts tracking previously untracked users, processes the resulting key query through Rust crypto, and returns the validated devices from the Rust store.
+  Raw HTTP device records no longer bypass Rust signature validation or appear as usable trust data.
+- Explicit discovery intentionally leaves newly requested users tracked so later verification and to-device encryption read the same persisted device records.
+  The default `downloadUncached=false` behavior and the fast path for populated tracked users remain unchanged.
+- A failed key query leaves the Rust-backed result empty and therefore unavailable for trust or encryption.
+  A later explicit lookup for an empty tracked user reprocesses pending outgoing requests before reading the store again.
+- The versioned package patch updates both the TypeScript source and distributed JavaScript without changing existing source maps.
+  When upgrading `matrix-js-sdk`, check whether upstream explicit discovery hydrates the Rust store and preserves failed-query retry; retain this regression and refresh or remove both patch sections together.
+- Validation: all 35 focused SDK, device-trust, and to-device call tests pass, along with typecheck, targeted ESLint, changed-file formatting, patch reverse/apply, and whitespace checks.
+  A fresh plain-room browser probe against the distributed SDK passes the owner-signed Rust-store gate that failed before this patch.
+  The later echo response times out in both plain and encrypted control rooms, so receiver integration remains unresolved independently of explicit device hydration.
+
 ### Propose a model picker with Matrix-only discovery (2026-09-15)
 
 - Status: design proposal and standalone prototype; application behavior is unchanged.
