@@ -1,5 +1,6 @@
 import React, { ReactNode, RefObject, useEffect, useRef } from 'react';
 import { config } from 'folds';
+import { headerInset } from './RoomOverlay.css';
 
 /** Keep the banner in the scrollable content so messages can pass behind its glass. */
 export function ThreadTimelineHeader({
@@ -20,7 +21,11 @@ export function ThreadTimelineHeader({
     if (!header || !scroll) return undefined;
     const previousPadding = scroll.style.scrollPaddingTop;
     const updatePadding = () => {
-      scroll.style.scrollPaddingTop = `${header.offsetHeight}px`;
+      scroll.style.scrollPaddingTop = `calc(${headerInset} + ${header.offsetHeight}px)`;
+      scroll.parentElement?.style.setProperty(
+        '--room-thread-header-height',
+        `${header.offsetHeight}px`
+      );
     };
     updatePadding();
     const observer = new ResizeObserver(updatePadding);
@@ -28,6 +33,7 @@ export function ThreadTimelineHeader({
     return () => {
       observer.disconnect();
       scroll.style.scrollPaddingTop = previousPadding;
+      scroll.parentElement?.style.removeProperty('--room-thread-header-height');
     };
   }, [scrollRef]);
 
@@ -36,7 +42,7 @@ export function ThreadTimelineHeader({
       ref={headerRef}
       style={{
         position: 'sticky',
-        top: 0,
+        top: headerInset,
         zIndex: 3,
         flexShrink: 0,
         display: 'flow-root',

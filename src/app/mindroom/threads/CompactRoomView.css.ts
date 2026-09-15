@@ -1,6 +1,7 @@
 import { globalStyle, style } from '@vanilla-extract/css';
 import { recipe } from '@vanilla-extract/recipes';
 import { DefaultReset, color, config } from 'folds';
+import { footerInset, topInset } from './RoomOverlay.css';
 import { transition } from '../../styles/transition';
 
 export const View = style({
@@ -9,7 +10,9 @@ export const View = style({
   flex: '1 1 auto',
   gap: config.space.S100,
   minWidth: 0,
-  padding: `0 ${config.space.S300} ${config.space.S300}`,
+  padding: `${topInset} ${config.space.S300} calc(${footerInset} + ${config.space.S300})`,
+  scrollPaddingTop: topInset,
+  scrollPaddingBottom: footerInset,
   overflowY: 'auto',
   overflowX: 'hidden',
   width: '100%',

@@ -1,4 +1,5 @@
 import { useTranslation } from 'react-i18next';
+import classNames from 'classnames';
 import React, { MouseEventHandler, forwardRef, useState } from 'react';
 import FocusTrap from 'focus-trap-react';
 import {
@@ -25,6 +26,7 @@ import { useNavigate } from 'react-router-dom';
 import { Room } from 'matrix-js-sdk';
 import { Menu, MenuItem } from '../../components/glass/GlassPrimitives';
 import { useStateEvent } from '../../hooks/useStateEvent';
+import { glassFloating } from '../../styles/Glass.css';
 import { PageHeader } from '../../components/page';
 import { RoomAvatar, RoomIcon } from '../../components/room-avatar';
 import { UseStateProvider } from '../../components/UseStateProvider';
@@ -379,7 +381,7 @@ export function RoomViewHeader({
 
   return (
     <PageHeader
-      className={ContainerColor({ variant: 'Surface' })}
+      className={classNames(ContainerColor({ variant: 'Surface' }), glassFloating)}
       balance={screenSize === ScreenSize.Mobile}
     >
       <Box grow="Yes" gap="300">

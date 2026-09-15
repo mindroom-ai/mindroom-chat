@@ -5,7 +5,8 @@ import { DefaultReset, color, config, toRem } from 'folds';
 export const RoomViewFollowingPlaceholder = style([
   DefaultReset,
   {
-    height: toRem(28),
+    minHeight: toRem(28),
+    paddingBottom: 'env(safe-area-inset-bottom, 0px)',
   },
 ]);
 
@@ -17,7 +18,7 @@ export const RoomViewFollowing = recipe({
       padding: `0 ${config.space.S400}`,
       paddingBottom: 'env(safe-area-inset-bottom, 0px)',
       width: '100%',
-      backgroundColor: color.Surface.Container,
+      backgroundColor: 'transparent',
       color: color.Surface.OnContainer,
       outline: 'none',
     },

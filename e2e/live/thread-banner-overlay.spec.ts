@@ -74,10 +74,28 @@ for (const viewport of [
       const scroll = page.locator('[data-thread-count]').locator('xpath=../..');
       await expect(banner).toBeVisible();
       await expect(page.getByText('Design note 16:', { exact: false })).toBeInViewport();
+      await expect
+        .poll(() =>
+          scroll.evaluate(
+            (element) => element.scrollHeight - element.scrollTop - element.clientHeight
+          )
+        )
+        .toBeLessThan(2);
       const initialBanner = await banner.boundingBox();
       const viewportBox = await scroll.boundingBox();
+      const roomHeader = page.locator('header').filter({ hasText: 'Design review' });
+      const roomHeaderBox = (await roomHeader.boundingBox())!;
+      const composer = page.locator('[data-slate-editor="true"]');
+      const composerBox = (await composer.boundingBox())!;
       expect(initialBanner).not.toBeNull();
       expect(viewportBox).not.toBeNull();
+      expect(viewportBox!.y, 'messages extend behind the room header').toBeLessThanOrEqual(
+        roomHeaderBox.y
+      );
+      expect(
+        viewportBox!.y + viewportBox!.height,
+        'messages extend behind the composer and receipt footer'
+      ).toBeGreaterThan(composerBox.y + composerBox.height);
       expect(viewportBox!.y, 'the message viewport extends behind the summary').toBeLessThan(
         initialBanner!.y
       );
@@ -102,8 +120,20 @@ for (const viewport of [
         initialBanner!.y + initialBanner!.height
       );
 
-      await page.mouse.wheel(0, 380);
-      await expect.poll(() => scroll.evaluate((element) => element.scrollTop)).toBeGreaterThan(250);
+      const historyTarget = await scroll.evaluate((element) =>
+        Math.min(380, (element.scrollHeight - element.clientHeight) / 2)
+      );
+      await page.mouse.wheel(0, historyTarget);
+      await expect
+        .poll(() => scroll.evaluate((element) => element.scrollTop))
+        .toBeGreaterThan(historyTarget - 2);
+      await expect
+        .poll(() =>
+          scroll.evaluate(
+            (element) => element.scrollHeight - element.scrollTop - element.clientHeight
+          )
+        )
+        .toBeGreaterThan(100);
       await expect
         .poll(async () => (await banner.boundingBox())!.y)
         .toBeCloseTo(initialBanner!.y, 0);
@@ -116,8 +146,62 @@ for (const viewport of [
         initialBanner!
       );
       expect(rowsBehindBanner, 'rendered messages continue behind the glass').toBeGreaterThan(0);
+      const footer = page.locator('[data-room-footer]');
+      const emptyFooterHeight = (await footer.boundingBox())!.height;
+      const clearComposer = async () => {
+        // Let selectionchange reach Slate before deleting the selected text.
+        await composer.press('ControlOrMeta+A', { delay: 80 });
+        await composer.press('Backspace');
+        await expect
+          .poll(async () => (await footer.boundingBox())!.height)
+          .toBeCloseTo(emptyFooterHeight, 0);
+      };
+      const growComposer = async () => {
+        const previousHeight = (await footer.boundingBox())!.height;
+        await composer.fill('Draft line one\nDraft line two\nDraft line three\nDraft line four');
+        await expect
+          .poll(async () => (await footer.boundingBox())!.height)
+          .toBeGreaterThan(previousHeight);
+        await expect
+          .poll(async () => {
+            const padding = await scroll.evaluate((element) =>
+              Number.parseFloat(getComputedStyle(element).scrollPaddingBottom)
+            );
+            return padding - (await footer.boundingBox())!.height;
+          })
+          .toBeCloseTo(0, 0);
+      };
+      const historyTop = await scroll.evaluate((element) => element.scrollTop);
+      await growComposer();
+      await expect
+        .poll(() => scroll.evaluate((element) => element.scrollTop))
+        .toBeCloseTo(historyTop, 0);
+      await clearComposer();
       await page.mouse.move(viewport.width - 2, viewport.height - 2);
       await page.screenshot({ path: testInfo.outputPath('thread-overlay.png') });
+
+      await page.getByRole('button', { name: 'Jump to Latest', exact: true }).click();
+      await expect
+        .poll(() =>
+          scroll.evaluate(
+            (element) => element.scrollHeight - element.scrollTop - element.clientHeight
+          )
+        )
+        .toBeLessThan(2);
+      await growComposer();
+      await expect
+        .poll(() =>
+          scroll.evaluate(
+            (element) => element.scrollHeight - element.scrollTop - element.clientHeight
+          )
+        )
+        .toBeLessThan(2);
+      const lastMessage = page.getByText('Design note 16:', { exact: false });
+      const lastBox = (await lastMessage.boundingBox())!;
+      expect(lastBox.y + lastBox.height).toBeLessThanOrEqual(
+        (await page.locator('[data-room-footer]').boundingBox())!.y
+      );
+      await clearComposer();
 
       const expansionButton = page.getByRole('button', { name: /^\[[+-]all\]$/ });
       const expansionLabel = await expansionButton.textContent();
