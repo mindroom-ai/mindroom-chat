@@ -22,6 +22,28 @@
   A category-roundtrip regression disproves the reported literal-mode reset issue: selecting a category already resets that state.
   Screenshots use local sample data and remain outside version control.
 
+### Fill mobile navigation and collapse narrow split panes (2026-09-15)
+
+- The resizable navigation wrapper applied saved widths and reserved a drag-handle gap on phones, leaving unused space beside the single-pane room list.
+- Mobile Home, Direct Messages, and Space navigation now fill the available width and omit the resize handle.
+  Saved widths remain available for desktop and tablet layouts without constraining the phone list.
+- Entering the mobile layout cancels any active drag; returning to a split layout resumes measurement and restores the saved width.
+- On desktop and tablet, dragging 40 px below the 200 px minimum previews a collapsed pane; releasing commits the existing collapsed state without replacing the saved width.
+  Dragging back to 180 px reverses the preview, with a 20 px buffer to prevent threshold flicker.
+  Pointer cancellation and mobile transitions discard the preview; reopening restores the prior usable width and keeps the current room.
+  Keyboard resizing retains the usable minimum, and the existing collapse button remains keyboard accessible.
+- Focused regression coverage passes all 41 navigation tests, including mouse, touch, pen, RTL, cancellation, saved widths, and a mid-drag breakpoint change.
+  The phone-width and drag-collapse browser regressions each failed against their previous implementations before the fixes.
+- Typecheck, the production/PWA build, changed-file formatting, and ESLint pass with zero errors and the existing 17 warnings.
+  Full Vitest with four workers passes 4,153 of 4,157 tests; the same four failures reproduce on the unchanged base in the Xcode Cloud shell fixtures and upload-caption matcher on this Node 22/Nix host.
+- Both live Chromium cases pass against the production build, covering desktop resizing, reversible collapse preview, collapse persistence, reopening at the saved width, and room continuity plus full-width phone lists, a saved narrow width, rotation, and Home, Direct Messages, and Space routing.
+- Independent implementation and whole-navigation UX reviews found no introduced defects; the fix is open in ready PR #250.
+  Follow-up state and UX reviews also approve the drag-to-collapse behavior, including native Chromium touch cancellation and RTL preview geometry.
+  Review follow-up adds a passing 844 × 390 browser regression that crosses into the split layout and restores the saved width before returning to portrait.
+  Additional live checks cover RTL, 750/751 px boundaries, room continuity, and interrupted mouse and touch drags across breakpoints.
+  Chromium touch injection can swallow the first subsequent tap after a drag; the same result reproduces on a plain HTML page without application code.
+  Physical iPhone and iPad validation remains unavailable on this Linux host.
+
 ### Full interface internationalization (2026-09-14)
 
 - Status: implementation, language quality corrections, independent reviews, and local verification are complete; ready PR #249 is open against dev.
