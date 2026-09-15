@@ -3,8 +3,9 @@ import { act, create } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ScreenSize, ScreenSizeProvider } from '../../hooks/useScreenSize';
 import { ResizablePageNav } from './ResizablePageNav';
+import { ResizablePanel } from './ResizablePanel';
 
-vi.mock('./ResizablePageNav.css', () => ({ Panel: 'panel', Handle: 'handle' }));
+vi.mock('./ResizablePanel.css', () => ({ Panel: 'panel', Handle: 'handle' }));
 vi.mock('../../components/page', () => ({
   PageNav: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }));
@@ -13,6 +14,7 @@ vi.mock('../../hooks/useMatrixClient', () => ({
 }));
 
 const storageKey = 'mindroom.pageNav.width:@alice:example.org';
+const membersStorageKey = 'mindroom.members.width:@alice:example.org';
 const storage = new Map<string, string>();
 let availableWidth = 1000;
 let direction = 'ltr';
@@ -33,14 +35,29 @@ const pointer = (x: number, pointerType = 'mouse', pointerId = 1) => ({
   preventDefault: vi.fn(),
 });
 
-const renderPanel = (screenSize = ScreenSize.Desktop, onCollapse?: () => void) => {
+const renderPanel = (screenSize = ScreenSize.Desktop, onCollapse?: () => void, members = false) => {
   let renderer: ReturnType<typeof create>;
   act(() => {
     renderer = create(
       <ScreenSizeProvider value={screenSize}>
-        <ResizablePageNav onCollapse={onCollapse}>
-          <span>Room list</span>
-        </ResizablePageNav>
+        {members ? (
+          <ResizablePanel
+            side="end"
+            storageKey={membersStorageKey}
+            defaultWidth={266}
+            minContentWidth={screenSize === ScreenSize.Mobile ? 0 : 200}
+            resizeLabel="Resize member panel"
+            collapseLabel="Hide Members"
+            testId="resizable-members-panel"
+            onCollapse={onCollapse}
+          >
+            <span>Members</span>
+          </ResizablePanel>
+        ) : (
+          <ResizablePageNav onCollapse={onCollapse}>
+            <span>Room list</span>
+          </ResizablePageNav>
+        )}
       </ScreenSizeProvider>,
       {
         createNodeMock: () => ({
@@ -55,7 +72,9 @@ const renderPanel = (screenSize = ScreenSize.Desktop, onCollapse?: () => void) =
   });
   const handle = () => renderer!.root.findByProps({ role: 'separator' });
   const width = () =>
-    renderer!.root.findByProps({ 'data-testid': 'resizable-page-nav' }).props.style.width;
+    renderer!.root.findByProps({
+      'data-testid': members ? 'resizable-members-panel' : 'resizable-page-nav',
+    }).props.style.width;
   return { renderer: renderer!, handle, width };
 };
 
@@ -82,6 +101,76 @@ beforeEach(() => {
       disconnect() {}
     }
   );
+});
+
+describe('ResizablePanel at the member edge', () => {
+  it.each([
+    { layout: 'ltr', endX: 600, arrow: 'ArrowLeft' },
+    { layout: 'rtl', endX: 800, arrow: 'ArrowRight' },
+  ])(
+    'grows toward the conversation in $layout and saves an independent width',
+    ({ layout, endX, arrow }) => {
+      direction = layout;
+      storage.set(storageKey, '420');
+      const { renderer, handle, width } = renderPanel(ScreenSize.Tablet, undefined, true);
+      expect(width()).toBe(266);
+      act(() => handle().props.onPointerDown(pointer(700)));
+      act(() => handle().props.onPointerMove(pointer(endX)));
+      expect(width()).toBe(366);
+      expect(storage.has(membersStorageKey)).toBe(false);
+      act(() => handle().props.onPointerUp(pointer(endX)));
+      expect(storage.get(membersStorageKey)).toBe('366');
+      act(() => handle().props.onKeyDown({ key: arrow, preventDefault: vi.fn() }));
+      expect(width()).toBe(386);
+      expect(storage.get(storageKey)).toBe('420');
+      act(() => renderer.unmount());
+      const reopened = renderPanel(ScreenSize.Tablet, undefined, true);
+      expect(reopened.width()).toBe(386);
+      act(() => reopened.renderer.unmount());
+    }
+  );
+
+  it.each(['mouse', 'touch', 'pen'])(
+    'collapses with %s and reopens at the last usable width',
+    (pointerType) => {
+      storage.set(membersStorageKey, '366');
+      const onCollapse = vi.fn();
+      const { renderer, handle, width } = renderPanel(ScreenSize.Tablet, onCollapse, true);
+      act(() => handle().props.onPointerDown(pointer(700, pointerType)));
+      act(() => handle().props.onPointerMove(pointer(906, pointerType)));
+      expect(width()).toBe(0);
+      expect(handle().props['aria-valuetext']).toBe('Hide Members');
+      expect(onCollapse).not.toHaveBeenCalled();
+      act(() => handle().props.onPointerUp(pointer(906, pointerType)));
+      expect(onCollapse).toHaveBeenCalledTimes(1);
+      expect(storage.get(membersStorageKey)).toBe('366');
+      act(() => renderer.unmount());
+      const reopened = renderPanel(ScreenSize.Tablet, onCollapse, true);
+      expect(reopened.width()).toBe(366);
+      act(() => reopened.renderer.unmount());
+    }
+  );
+
+  it('keeps the member panel usable in a narrow split layout', () => {
+    availableWidth = 360;
+    const { renderer, width } = renderPanel(ScreenSize.Tablet, undefined, true);
+    expect(width()).toBe(200);
+    expect(storage.has(membersStorageKey)).toBe(false);
+    act(() => renderer.unmount());
+  });
+
+  it('resizes the phone overlay within its viewport', () => {
+    availableWidth = 375;
+    storage.set(membersStorageKey, '500');
+    const { renderer, handle, width } = renderPanel(ScreenSize.Mobile, undefined, true);
+    expect(width()).toBe(375);
+    act(() => handle().props.onPointerDown(pointer(0, 'touch')));
+    act(() => handle().props.onPointerMove(pointer(100, 'touch')));
+    expect(width()).toBe(275);
+    act(() => handle().props.onPointerUp(pointer(100, 'touch')));
+    expect(storage.get(membersStorageKey)).toBe('275');
+    act(() => renderer.unmount());
+  });
 });
 afterEach(() => vi.unstubAllGlobals());
 

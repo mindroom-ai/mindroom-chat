@@ -2626,7 +2626,8 @@
       "mindroomTab": {
         "localMindroom": "Local MindRoom"
       },
-      "resizeNavigationPanel": "ナビゲーションパネルのサイズを変更"
+      "resizeNavigationPanel": "ナビゲーションパネルのサイズを変更",
+      "resizeMemberPanel": "メンバーパネルのサイズを変更"
     },
     "threads": {
       "compactRoomView": {

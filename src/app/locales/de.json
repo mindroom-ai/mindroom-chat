@@ -2626,7 +2626,8 @@
       "mindroomTab": {
         "localMindroom": "Lokales MindRoom"
       },
-      "resizeNavigationPanel": "Größe der Navigationsleiste ändern"
+      "resizeNavigationPanel": "Größe der Navigationsleiste ändern",
+      "resizeMemberPanel": "Größe des Mitgliederbereichs ändern"
     },
     "threads": {
       "compactRoomView": {

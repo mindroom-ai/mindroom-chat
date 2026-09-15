@@ -1,5 +1,5 @@
 import React, { MouseEventHandler, useCallback, useMemo, useRef, useState } from 'react';
-import { Box, Chip, Icon, IconButton, Icons, Line, Scroll, Spinner, Text, config } from 'folds';
+import { Box, Chip, Icon, IconButton, Icons, Scroll, Spinner, Text, config } from 'folds';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useAtom, useAtomValue } from 'jotai';
 import { useNavigate } from 'react-router-dom';
@@ -18,9 +18,8 @@ import {
 import { VirtualTile } from '../../components/virtualizer';
 import { spaceRoomsAtom } from '../../state/spaceRooms';
 import { MembersDrawer } from '../room/MembersDrawer';
-import { useSetting } from '../../state/hooks/settings';
-import { ScreenSize, useScreenSizeContext } from '../../hooks/useScreenSize';
-import { settingsAtom } from '../../state/settings';
+import { useMembersDrawer } from '../../mindroom/sidebar/useMembersDrawer';
+import { ResizableMembersPanel } from '../../mindroom/sidebar/ResizableMembersPanel';
 import { LobbyHeader } from './LobbyHeader';
 import { LobbyHero } from './LobbyHero';
 import { ScrollTopContainer } from '../../components/scroll-top-container';
@@ -170,8 +169,7 @@ export function Lobby() {
   const heroSectionRef = useRef<HTMLDivElement>(null);
   const [heroSectionHeight, setHeroSectionHeight] = useState<number>();
   const [spaceRooms, setSpaceRooms] = useAtom(spaceRoomsAtom);
-  const [isDrawer] = useSetting(settingsAtom, 'isPeopleDrawer');
-  const screenSize = useScreenSizeContext();
+  const [isDrawer, setPeopleDrawer] = useMembersDrawer();
   const [onTop, setOnTop] = useState(true);
   const [closedCategories, setClosedCategories] = useAtom(useClosedLobbyCategoriesAtom());
   const [sidebarItems] = useSidebarItems(
@@ -543,11 +541,10 @@ export function Lobby() {
             </Scroll>
           </Box>
         </Page>
-        {screenSize === ScreenSize.Desktop && isDrawer && (
-          <>
-            <Line variant="Background" direction="Vertical" size="300" />
+        {isDrawer && (
+          <ResizableMembersPanel key={space.roomId} onClose={() => setPeopleDrawer(false)}>
             <MembersDrawer room={space} members={members} />
-          </>
+          </ResizableMembersPanel>
         )}
       </Box>
     </PowerLevelsContextProvider>

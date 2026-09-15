@@ -2626,7 +2626,8 @@
       "mindroomTab": {
         "localMindroom": "Local MindRoom"
       },
-      "resizeNavigationPanel": "調整導覽面板大小"
+      "resizeNavigationPanel": "調整導覽面板大小",
+      "resizeMemberPanel": "調整成員面板大小"
     },
     "threads": {
       "compactRoomView": {

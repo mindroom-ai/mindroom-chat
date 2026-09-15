@@ -1377,7 +1377,8 @@
       "mindroomTab": {
         "localMindroom": "स्थानीय MindRoom"
       },
-      "resizeNavigationPanel": "नेविगेशन पैनल का आकार बदलें"
+      "resizeNavigationPanel": "नेविगेशन पैनल का आकार बदलें",
+      "resizeMemberPanel": "सदस्य पैनल का आकार बदलें"
     },
     "threads": {
       "compactRoomView": {

@@ -6,6 +6,7 @@ export const Panel = style({
   display: 'flex',
   flexShrink: 0,
   minWidth: 0,
+  minHeight: 0,
   maxWidth: '100%',
 });
 
@@ -29,6 +30,10 @@ export const Handle = style({
   WebkitTouchCallout: 'none',
   outline: 'none',
   selectors: {
+    [`${Panel}[data-side='end'] &`]: {
+      insetInlineEnd: 'auto',
+      insetInlineStart: -8,
+    },
     '&::after': {
       content: '""',
       position: 'absolute',
@@ -46,7 +51,10 @@ export const Handle = style({
     '(pointer: coarse)': {
       width: 24,
       insetInlineEnd: -12,
-      selectors: { '&::after': { left: 11 } },
+      selectors: {
+        '&::after': { left: 11 },
+        [`${Panel}[data-side='end'] &`]: { insetInlineEnd: 'auto', insetInlineStart: -12 },
+      },
     },
   },
 });

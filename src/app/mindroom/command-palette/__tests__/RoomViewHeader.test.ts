@@ -162,21 +162,8 @@ vi.mock('../../../hooks/useRoom', () => ({
   useIsDirectRoom: () => false,
 }));
 
-vi.mock('../../../state/hooks/settings', () => ({
-  useSetting: (_atom: unknown, key: string) => {
-    switch (key) {
-      case 'isPeopleDrawer':
-        return [false, vi.fn()];
-      case 'hideActivity':
-        return [false];
-      default:
-        return [false, vi.fn()];
-    }
-  },
-}));
-
-vi.mock('../../../state/settings', () => ({
-  settingsAtom: {},
+vi.mock('../../sidebar/useMembersDrawer', () => ({
+  useMembersDrawer: () => [false, vi.fn()],
 }));
 
 vi.mock('../../../hooks/useSpace', () => ({
@@ -344,29 +331,33 @@ describe('RoomViewHeader', () => {
     );
   });
 
-  it('shows pending join requests on the desktop Members button only to moderators', async () => {
-    const { renderer } = await renderHeader(2);
+  it.each(['Desktop', 'Tablet', 'Mobile'])(
+    'shows pending join requests on the %s Members button only to moderators',
+    async (screenSize) => {
+      screenSizeState.value = screenSize;
+      const { renderer } = await renderHeader(2);
 
-    expect(
-      renderer.root.findByProps({
-        'aria-label': 'Show Members, 2 pending join requests',
-      })
-    ).toBeDefined();
-    expect(renderer.root.findAllByProps({ children: 2 }).length).toBeGreaterThan(0);
+      expect(
+        renderer.root.findByProps({
+          'aria-label': 'Show Members, 2 pending join requests',
+        })
+      ).toBeDefined();
+      expect(renderer.root.findAllByProps({ children: 2 }).length).toBeGreaterThan(0);
 
-    permissionState.canInvite = false;
-    permissionState.canKick = false;
-    const { renderer: unauthorizedRenderer } = await renderHeader(2);
+      permissionState.canInvite = false;
+      permissionState.canKick = false;
+      const { renderer: unauthorizedRenderer } = await renderHeader(2);
 
-    expect(
-      unauthorizedRenderer.root.findAllByProps({
-        'aria-label': 'Show Members, 2 pending join requests',
-      })
-    ).toHaveLength(0);
-    expect(
-      unauthorizedRenderer.root.findByProps({
-        'aria-label': 'Show Members',
-      })
-    ).toBeDefined();
-  });
+      expect(
+        unauthorizedRenderer.root.findAllByProps({
+          'aria-label': 'Show Members, 2 pending join requests',
+        })
+      ).toHaveLength(0);
+      expect(
+        unauthorizedRenderer.root.findByProps({
+          'aria-label': 'Show Members',
+        })
+      ).toBeDefined();
+    }
+  );
 });
