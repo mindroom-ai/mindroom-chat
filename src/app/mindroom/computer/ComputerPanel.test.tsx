@@ -198,6 +198,7 @@ describe('ComputerPanel', () => {
     );
 
     expect(container.textContent).toContain('Control released');
+    expect(container.textContent).toContain('The agent was asked to continue.');
     expect(screenConnections).toHaveLength(2);
     expect(screenConnections[0].protocols[1]).toBe('mindroom-ticket.ticket-1');
     expect(screenConnections[1].protocols[1]).toBe('mindroom-ticket.ticket-2');
@@ -216,6 +217,10 @@ describe('ComputerPanel', () => {
         },
       })
     );
+    await click(findButton(container, 'Take control'));
+    await waitFor(() => expect(container.textContent).toContain('You have control'));
+    expect(container.textContent).not.toContain('Control released');
+    expect(container.textContent).not.toContain('The agent was asked to continue.');
   });
 
   it('ignores the retired control stream closing while continuation delivery is pending', async () => {
@@ -233,6 +238,8 @@ describe('ComputerPanel', () => {
     await click(findButton(container, 'Resume agent'));
     await waitFor(() => expect(screenConnections).toHaveLength(2));
 
+    expect(container.textContent).toContain('Control released');
+    expect(container.textContent).not.toContain('The agent was asked to continue.');
     act(() => screenConnections[0].onDisconnected('Retired control stream closed.'));
 
     expect(container.textContent).not.toContain('Retired control stream closed.');
@@ -367,6 +374,8 @@ describe('ComputerPanel', () => {
       )
     );
     expect(findButton(container, 'Take control')).toBeInstanceOf(HTMLButtonElement);
+    expect(container.textContent).toContain('Control released');
+    expect(container.textContent).not.toContain('The agent was asked to continue.');
     expect(mx.sendMessage).toHaveBeenCalledOnce();
     act(() => screenConnections.at(-1)?.onDisconnected());
     await waitFor(() => findButton(container, 'Reconnect'));

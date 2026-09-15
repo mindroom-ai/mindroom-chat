@@ -2,6 +2,20 @@
 
 ## Runbook
 
+### Integrate current worker computer bases and accurate resume notices (2026-09-15)
+
+- Replayed only the computer feature series onto current dev, preserving the thread approval provider and queue around the computer-aware header.
+- Resume immediately reports released control, and reports that the agent was asked to continue only after Matrix message delivery succeeds.
+- Retaking control clears obsolete release and continuation notices.
+- Behavioral regression coverage catches premature success while delivery is pending or failed and stale success after retake; all 70 computer and RoomView tests pass.
+- Full Vitest passes 4,225 tests with four failures reproduced independently on the pinned current dev base: three Xcode Cloud Homebrew cases on non-macOS and one upload-caption restoration case.
+- Typecheck and production/PWA build pass; full ESLint has zero errors and 17 existing warnings.
+- Changed-file formatting passes; all 172 tracked files flagged by full Prettier are byte-identical to current dev, plus one existing local skill alias.
+- Fresh real Matrix/Chat acceptance passes desktop watch/control, completed native input and agent snapshot readback, exactly one originating-thread continuation, mobile fullscreen, close/reopen, and stop/start with no page errors.
+- The current backend worker image includes matching locked dependencies, source, runtime scripts, and logo assets.
+- Final screenshots show completed input and accurate watch/control notices; disposable Matrix and worker cleanup is independently verified.
+- Next: independent integration and full-feature review, followed by ready pull requests.
+
 ### Reproduce worker computer integration (2026-09-15)
 
 - Status: fixture/spec implementation and live desktop/mobile acceptance are validated; independent task and final feature review follow.

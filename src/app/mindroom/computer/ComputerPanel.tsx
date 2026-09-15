@@ -75,7 +75,7 @@ export function ComputerPanel({
   const [connected, setConnected] = useState(false);
   const [error, setError] = useState<string>();
   const [sendError, setSendError] = useState<string>();
-  const [releaseNotice, setReleaseNotice] = useState(false);
+  const [releaseNotice, setReleaseNotice] = useState<'released' | 'sent'>();
   const sessionRef = useRef<ComputerSessionClient>();
   const lifecycleRef = useRef(0);
   const activeStreamTicketRef = useRef<string>();
@@ -138,7 +138,7 @@ export function ComputerPanel({
     setConnected(false);
     setError(undefined);
     setSendError(undefined);
-    setReleaseNotice(false);
+    setReleaseNotice(undefined);
     setOperation(undefined);
 
     if (!selectedAgentUserId) {
@@ -207,6 +207,8 @@ export function ComputerPanel({
       const nextStatus = await session.control('take');
       if (lifecycleRef.current !== lifecycle || sessionRef.current !== session) return;
       setStatus(nextStatus);
+      setReleaseNotice(undefined);
+      setSendError(undefined);
     } catch (controlError) {
       if (lifecycleRef.current === lifecycle) {
         setError(getErrorMessage(controlError));
@@ -224,7 +226,7 @@ export function ComputerPanel({
     setOperation('resume');
     setError(undefined);
     setSendError(undefined);
-    setReleaseNotice(false);
+    setReleaseNotice(undefined);
     try {
       const nextStatus = await session.control('release');
       if (lifecycleRef.current !== lifecycle || sessionRef.current !== session) return;
@@ -232,7 +234,7 @@ export function ComputerPanel({
       activeStreamTicketRef.current = undefined;
       setStream(undefined);
       setConnected(false);
-      setReleaseNotice(true);
+      setReleaseNotice('released');
 
       const continuation = sendComputerContinuation(mx, roomId, threadId, selectedAgentUserId);
       const reconnect = connectStream(session, lifecycle, false);
@@ -243,6 +245,8 @@ export function ComputerPanel({
       if (lifecycleRef.current !== lifecycle || sessionRef.current !== session) return;
       if (continuationResult.status === 'rejected') {
         setSendError('Control was released, but the continuation message could not be sent.');
+      } else {
+        setReleaseNotice('sent');
       }
       if (reconnectResult.status === 'rejected') {
         setError(getErrorMessage(reconnectResult.reason));
@@ -401,7 +405,9 @@ export function ComputerPanel({
           {statusText}
         </Text>
         {releaseNotice && (
-          <Text size="T300">Control released. The agent was asked to continue.</Text>
+          <Text size="T300">
+            Control released.{releaseNotice === 'sent' && ' The agent was asked to continue.'}
+          </Text>
         )}
         {error && (
           <Text className={css.Error} size="T300" role="alert">
