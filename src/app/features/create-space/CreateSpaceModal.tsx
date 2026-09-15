@@ -2,11 +2,9 @@ import React from 'react';
 import {
   Box,
   config,
-  Header,
   Icon,
   IconButton,
   Icons,
-  Modal,
   Overlay,
   OverlayBackdrop,
   OverlayCenter,
@@ -15,6 +13,7 @@ import {
 } from 'folds';
 import FocusTrap from 'focus-trap-react';
 import { useTranslation } from 'react-i18next';
+import { Modal, Header } from '../../components/glass/GlassPrimitives';
 import { useAllJoinedRoomsSet, useGetRoom } from '../../hooks/useGetRoom';
 import { SpaceProvider } from '../../hooks/useSpace';
 import { CreateSpaceForm } from './CreateSpace';

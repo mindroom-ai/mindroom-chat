@@ -8,7 +8,6 @@ import {
   Icon,
   IconButton,
   Icons,
-  Menu,
   PopOut,
   RectCords,
   Text,
@@ -18,6 +17,7 @@ import {
 import { useVirtualizer } from '@tanstack/react-virtual';
 import FocusTrap from 'focus-trap-react';
 import { useNavigate } from 'react-router-dom';
+import { Menu } from '../../../components/glass/GlassPrimitives';
 import { useMatrixClient } from '../../../hooks/useMatrixClient';
 import { factoryRoomIdByActivity } from '../../../utils/sort';
 import {

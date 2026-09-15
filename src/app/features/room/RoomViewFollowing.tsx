@@ -1,21 +1,11 @@
 import React, { useState } from 'react';
-import {
-  Box,
-  Icon,
-  Icons,
-  Modal,
-  Overlay,
-  OverlayBackdrop,
-  OverlayCenter,
-  Text,
-  as,
-  config,
-} from 'folds';
+import { Box, Icon, Icons, Overlay, OverlayBackdrop, OverlayCenter, Text, as, config } from 'folds';
 import { Room } from 'matrix-js-sdk';
 import classNames from 'classnames';
 import FocusTrap from 'focus-trap-react';
 
 import { Trans, useTranslation } from 'react-i18next';
+import { Modal } from '../../components/glass/GlassPrimitives';
 import { getMemberDisplayName } from '../../utils/room';
 import { getMxIdLocalPart } from '../../utils/matrix';
 import * as css from './RoomViewFollowing.css';

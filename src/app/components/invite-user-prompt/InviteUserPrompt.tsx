@@ -5,7 +5,6 @@ import {
   OverlayBackdrop,
   OverlayCenter,
   Box,
-  Header,
   config,
   Text,
   IconButton,
@@ -15,11 +14,11 @@ import {
   Spinner,
   color,
   TextArea,
-  Dialog,
   toRem,
 } from 'folds';
 import { Room } from 'matrix-js-sdk';
 import FocusTrap from 'focus-trap-react';
+import { Dialog, Header } from '../glass/GlassPrimitives';
 import { stopPropagation } from '../../utils/keyboard';
 import { isUserId } from '../../utils/matrix';
 import { AsyncStatus, useAsyncCallback } from '../../hooks/useAsyncCallback';

@@ -7,8 +7,6 @@ import {
   Icons,
   Input,
   Line,
-  MenuItem,
-  Modal,
   Overlay,
   OverlayCenter,
   Scroll,
@@ -29,6 +27,7 @@ import { isKeyHotkey } from 'is-hotkey';
 import { useAtom, useAtomValue } from 'jotai';
 import { Room } from 'matrix-js-sdk';
 import { Trans, useTranslation } from 'react-i18next';
+import { Modal, MenuItem } from '../../components/glass/GlassPrimitives';
 import { useDirects, useOrphanSpaces, useRooms, useSpaces } from '../../state/hooks/roomList';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { mDirectAtom } from '../../state/mDirectList';

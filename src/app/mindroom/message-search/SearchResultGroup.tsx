@@ -2,7 +2,8 @@ import { useTranslation } from 'react-i18next';
 /* eslint-disable react/destructuring-assignment */
 import React, { MouseEventHandler } from 'react';
 import { JoinRule, Room } from 'matrix-js-sdk';
-import { Avatar, Box, Chip, Header, Text, config } from 'folds';
+import { Avatar, Box, Chip, Text, config } from 'folds';
+import { Header } from '../../components/glass/GlassPrimitives';
 import { getMxIdLocalPart } from '../../utils/matrix';
 import { AvatarBase, ModernLayout, Time, Username, UsernameBold } from '../../components/message';
 import { RoomAvatar, RoomIcon } from '../../components/room-avatar';

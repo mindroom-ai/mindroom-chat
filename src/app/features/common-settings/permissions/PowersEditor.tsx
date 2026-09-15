@@ -11,7 +11,6 @@ import {
   Input,
   RectCords,
   PopOut,
-  Menu,
   config,
   Spinner,
   toRem,
@@ -21,6 +20,7 @@ import {
 import { HexColorPicker } from 'react-colorful';
 import { useAtomValue } from 'jotai';
 import { useTranslation } from 'react-i18next';
+import { Menu } from '../../../components/glass/GlassPrimitives';
 import { Page, PageContent, PageHeader } from '../../../components/page';
 import { IPowerLevels } from '../../../hooks/usePowerLevels';
 import { SequenceCard } from '../../../components/sequence-card';

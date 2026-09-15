@@ -1,21 +1,9 @@
 import { useTranslation } from 'react-i18next';
 import React, { MouseEventHandler, useCallback, useMemo, useState } from 'react';
-import {
-  config,
-  Box,
-  MenuItem,
-  Text,
-  Icon,
-  Icons,
-  IconSrc,
-  RectCords,
-  PopOut,
-  Menu,
-  Button,
-  Spinner,
-} from 'folds';
+import { config, Box, Text, Icon, Icons, IconSrc, RectCords, PopOut, Button, Spinner } from 'folds';
 import { JoinRule } from 'matrix-js-sdk';
 import FocusTrap from 'focus-trap-react';
+import { Menu, MenuItem } from './glass/GlassPrimitives';
 import { stopPropagation } from '../utils/keyboard';
 import { getRoomIconSrc } from '../utils/room';
 

@@ -11,8 +11,6 @@ import {
   Box,
   Button,
   config,
-  Dialog,
-  Header,
   Icon,
   IconButton,
   Icons,
@@ -23,6 +21,7 @@ import {
   Text,
 } from 'folds';
 import FocusTrap from 'focus-trap-react';
+import { Dialog, Header } from './glass/GlassPrimitives';
 import {
   useVerificationRequestPhase,
   useVerificationRequestReceived,

@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import React, { ReactNode } from 'react';
-import { Box, Dialog, config, Text, Button, Spinner } from 'folds';
+import { Box, config, Text, Button, Spinner } from 'folds';
+import { Dialog } from '../../components/glass/GlassPrimitives';
 import { SpecVersionsLoader } from '../../components/SpecVersionsLoader';
 import { SpecVersionsProvider } from '../../hooks/useSpecVersions';
 import { MindRoomSplashScreen, SplashScreen } from '../../components/splash-screen';

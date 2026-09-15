@@ -1,8 +1,9 @@
 import { useTranslation } from 'react-i18next';
 import React from 'react';
-import { Dialog, Text, Box, Button, config } from 'folds';
+import { Text, Box, Button, config } from 'folds';
 import { AuthType } from 'matrix-js-sdk';
 import ReCAPTCHA from 'react-google-recaptcha';
+import { Dialog } from '../glass/GlassPrimitives';
 import { StageComponentProps } from './types';
 
 function ReCaptchaErrorDialog({
