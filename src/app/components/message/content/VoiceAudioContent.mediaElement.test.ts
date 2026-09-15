@@ -59,6 +59,7 @@ vi.mock('./VoiceAudioContent.css', () => ({
   MoreMenuMetaValue: 'MoreMenuMetaValue',
   PlayCell: 'PlayCell',
   PlayButton: 'PlayButton',
+  PlayIcon: 'PlayIcon',
   RateCell: 'RateCell',
   Root: 'Root',
   Time: 'Time',

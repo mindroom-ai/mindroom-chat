@@ -87,12 +87,20 @@ for (const theme of ['light', 'dark']) {
       const voice = (await region.getAttribute('aria-label')) === 'Voice message';
       expect.soft(bounds.height).toBeLessThanOrEqual(voice ? 68 : 88);
       const playBounds = await region.getByRole('button', { name: /^Play / }).boundingBox();
-      const seekBounds = await region.getByRole('slider', { name: /^Seek / }).boundingBox();
-      if (!playBounds || !seekBounds) throw new Error('Playback controls have no bounds');
+      const capsuleBounds = await region.locator('audio').locator('..').boundingBox();
+      if (!playBounds || !capsuleBounds) throw new Error('Playback controls have no bounds');
       expect.soft(Math.abs(playBounds.width - playBounds.height)).toBeLessThan(1);
-      expect
-        .soft(Math.abs(playBounds.y + playBounds.height / 2 - seekBounds.y - seekBounds.height / 2))
-        .toBeLessThan(1);
+      for (const button of await region.getByRole('button').all()) {
+        const buttonBounds = await button.boundingBox();
+        if (!buttonBounds) throw new Error('Audio button has no bounds');
+        expect
+          .soft(
+            Math.abs(
+              buttonBounds.y + buttonBounds.height / 2 - capsuleBounds.y - capsuleBounds.height / 2
+            )
+          )
+          .toBeLessThan(1);
+      }
       for (const control of await region.locator('button, input[type="range"]').all()) {
         const controlBounds = await control.boundingBox();
         if (!controlBounds) throw new Error('Audio control has no bounds');

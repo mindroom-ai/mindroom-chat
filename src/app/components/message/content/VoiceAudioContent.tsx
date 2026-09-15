@@ -276,7 +276,7 @@ export function VoiceAudioContent({
             ) : playing ? (
               <IconPlayerPauseFilled size={22} aria-hidden="true" />
             ) : (
-              <IconPlayerPlayFilled size={22} aria-hidden="true" />
+              <IconPlayerPlayFilled className={css.PlayIcon} size={22} aria-hidden="true" />
             )}
           </IconButton>
         </div>

@@ -5,7 +5,8 @@
 ### Shared audio player refresh (2026-09-15)
 
 - Status: implemented and validated on `feat/shared-audio-player`; ready PR #251 includes light/dark screenshots.
-- Voice messages and normal audio attachments share a compact player with a fixed 44px circular play/pause control centered on the waveform and playback speed available before interaction.
+- Voice messages and normal audio attachments share a compact player with a fixed 44px circular play/pause control and playback speed available before interaction.
+- Play, speed, and menu controls center against the complete waveform-and-time block, giving the card equal top and bottom spacing; a quieter timer and plain speed label reduce visual clutter.
 - The initial 118px card made the padded play button oval and placed it above the waveform; browser geometry checks now cover both defects.
 - The revised player is 64px tall for voice messages and 86px including the filename for audio attachments; volume and downloads live in the options menu.
 - Native range input adds drag/touch scrubbing, keyboard control, and an accessible time value while retaining the recorded waveform.

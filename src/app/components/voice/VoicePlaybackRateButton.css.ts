@@ -29,9 +29,7 @@ export const Label = style({
   alignItems: 'center',
   justifyContent: 'center',
   minWidth: '3ch',
-  padding: `0 ${config.space.S100}`,
-  borderRadius: config.radii.R300,
-  backgroundColor: color.SurfaceVariant.ContainerLine,
+  fontWeight: config.fontWeight.W500,
   fontVariantNumeric: 'tabular-nums',
   whiteSpace: 'nowrap',
 });
