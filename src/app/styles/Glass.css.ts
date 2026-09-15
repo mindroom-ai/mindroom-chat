@@ -44,7 +44,7 @@ const material = (tint: number, blur: number, shadow: string): StyleRule => ({
       selectors: {
         '&&': {
           backgroundColor: `color-mix(in srgb, ${surfaceContainer} ${surfaceTint}, transparent)`,
-          backgroundImage: `radial-gradient(ellipse 32% 12% at var(--liquid-glass-light-x, 25%) var(--liquid-glass-light-y, 0%), ${highlight}, transparent)`,
+          backgroundImage: `radial-gradient(circle 90px at var(--liquid-glass-light-x, 0%) var(--liquid-glass-light-y, 0%), ${highlight}, transparent)`,
           backdropFilter: `blur(${blur}px) saturate(160%)`,
           WebkitBackdropFilter: `blur(${blur}px) saturate(160%)`,
         },
@@ -87,18 +87,19 @@ export const glassSurface = recipe({
   variants: {
     level: {
       overlay: [
+        // Equal horizontal/vertical offsets light the rim from the upper left at 45°.
         material(
           60,
           12,
-          'inset 0 1px 0 rgb(255 255 255 / 48%), inset 0 -1px 0 rgb(255 255 255 / 10%), 0 16px 48px rgb(0 0 0 / 18%), 0 2px 8px rgb(0 0 0 / 8%)'
+          'inset 1px 1px 0 rgb(255 255 255 / 48%), inset -1px -1px 0 rgb(255 255 255 / 10%), 0 16px 48px rgb(0 0 0 / 18%), 0 2px 8px rgb(0 0 0 / 8%)'
         ),
         { selectors: { '&&': { boxShadow: glassShadow } } },
       ],
-      panel: material(60, 10, 'inset 0 1px 0 rgb(255 255 255 / 16%)'),
+      panel: material(60, 10, 'inset 1px 1px 0 rgb(255 255 255 / 16%)'),
       control: material(
         58,
         8,
-        'inset 0 1px 0 rgb(255 255 255 / 52%), inset 0 -1px 0 rgb(255 255 255 / 8%), 0 2px 8px rgb(0 0 0 / 7%)'
+        'inset 1px 1px 0 rgb(255 255 255 / 52%), inset -1px -1px 0 rgb(255 255 255 / 8%), 0 2px 8px rgb(0 0 0 / 7%)'
       ),
     },
     variant: {

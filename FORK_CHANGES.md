@@ -11,6 +11,7 @@
 - Chromium receives the SVG refraction path. Safari and Firefox retain native translucent blur and highlights because they do not render SVG backdrop filters. Browsers without backdrop filtering retain an opaque surface.
 - App-owned polymorphic Menu, Modal, Dialog, and Header wrappers preserve forwarded refs, semantic variants, and Folds defaults. MenuItem defaults to a transparent fill so rows reveal the shared material; explicit selection fills remain supported.
 - Inline navigation category headings retain their plain surface so the Recently opened panel has one divider instead of a second inset glass edge.
+- Equal horizontal and vertical rim highlights establish 45-degree lighting from the upper left; a circular pointer glint keeps wide controls from stretching the highlight into a horizontal streak.
 - Theme-aware tint and highlight strength protect text over bright and dark backdrops. Reduced transparency, increased contrast, and forced colors remove decorative effects and restore opaque surfaces. Reduced motion disables moving highlights and button scaling.
 - Browser coverage checks rendered edge distortion, backdrop response, five-theme text contrast, accessibility preferences, focus, editing, playback, and narrow layouts. Optical unit tests cover geometry, browser gating, resizing, visibility, ref ownership, StrictMode, and cleanup.
 - Validation: the full Node 24 suite passes all 4,209 tests across 516 files. Typecheck and the production/PWA build pass; full ESLint reports zero errors and the existing 17 warnings.
