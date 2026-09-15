@@ -2819,6 +2819,8 @@
         "youDoNotHavePermissionToPostInThisRoom": "ليست لديك صلاحية النشر في هذه الغرفة"
       },
       "mindroomRoomViewHeader": {
+        "showComputer": "إظهار الكمبيوتر",
+        "hideComputer": "إخفاء الكمبيوتر",
         "notifications": "الإشعارات",
         "compact": "مدمج",
         "threads": "سلاسل المحادثات",

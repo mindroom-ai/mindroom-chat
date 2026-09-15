@@ -111,7 +111,10 @@ const TestScreen = (screenProps: ComputerScreenProps) => {
   const { mode, url } = screenProps;
   useEffect(() => {
     const connection = screenPropsRef.current;
-    screenConnections.push(connection);
+    screenConnections.push({
+      ...connection,
+      onDisconnected: (message) => screenPropsRef.current.onDisconnected(message),
+    });
     connection.onConnected();
     return () => screenDisposals();
   }, [url]);
@@ -308,6 +311,59 @@ describe('ComputerPanel', () => {
     await click(findButton(container, 'Reconnect'));
     await waitFor(() => findButton(container, 'Take control'));
     expect(props.mx.sendMessage).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(['failure', 'success'])('handles disconnect before Stop %s settles', async (outcome) => {
+    const gateway = createGateway();
+    let settle!: (response: Response) => void;
+    const pending = new Promise<Response>((resolve) => {
+      settle = resolve;
+    });
+    const request: typeof fetch = (input, init) => {
+      if (init?.body && JSON.parse(init.body as string).action === 'stop') return pending;
+      return gateway(input, init);
+    };
+    renderPanel({ request });
+    await waitFor(() => findButton(container, 'Take control'));
+    const old = screenConnections.at(-1)!;
+    await click(findButton(container, 'Stop'));
+    act(() => old.onDisconnected('Stream closed during stop.'));
+    await act(async () =>
+      settle(
+        outcome === 'failure'
+          ? jsonResponse(503, { detail: 'Stop unavailable.' })
+          : jsonResponse(200, { ...makeStatus('session-1'), state: 'stopped' })
+      )
+    );
+    expect(container.querySelector('[data-testid="computer-screen"]')).toBeNull();
+    expect(container.textContent).not.toContain('Take control');
+    if (outcome === 'failure') {
+      expect(container.textContent).toContain('Computer disconnected');
+      expect(findButton(container, 'Reconnect').disabled).toBe(false);
+      await click(findButton(container, 'Reconnect'));
+      await waitFor(() => findButton(container, 'Take control'));
+      expect(screenConnections.at(-1)!.protocols).not.toEqual(old.protocols);
+    } else {
+      expect(container.textContent).toContain('Computer stopped');
+      expect(container.textContent).not.toContain('Stream closed during stop.');
+    }
+  });
+
+  it('waits for a resolved thread before allowing continuation', async () => {
+    const props = renderPanel({ continuationReady: false });
+    await waitFor(() => findButton(container, 'Take control'));
+    await click(findButton(container, 'Take control'));
+    await waitFor(() => findButton(container, 'Resume agent'));
+    expect(findButton(container, 'Resume agent').disabled).toBe(true);
+    expect(props.mx.sendMessage).not.toHaveBeenCalled();
+    act(() => root.render(<ComputerPanel {...props} continuationReady threadId="$root" />));
+    await waitFor(() => findButton(container, 'Take control'));
+    await click(findButton(container, 'Take control'));
+    await click(findButton(container, 'Resume agent'));
+    await waitFor(() => expect(props.mx.sendMessage).toHaveBeenCalledOnce());
+    expect(vi.mocked(props.mx.sendMessage).mock.calls[0][1]).toMatchObject({
+      'm.relates_to': { event_id: '$root', 'm.in_reply_to': { event_id: '$root' } },
+    });
   });
 
   it('creates a fresh public session after stop', async () => {

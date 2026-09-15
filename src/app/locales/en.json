@@ -2635,6 +2635,8 @@
         "youDoNotHavePermissionToPostInThisRoom": "You do not have permission to post in this room"
       },
       "mindroomRoomViewHeader": {
+        "showComputer": "Show Computer",
+        "hideComputer": "Hide Computer",
         "notifications": "Notifications",
         "compact": "Compact",
         "threads": "Threads",

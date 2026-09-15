@@ -20,6 +20,7 @@ import { getRoomSearchParams } from '../../pages/pathSearchParam';
 import { useRoomThreadRouteGuards } from './useRoomThreadRouteGuards';
 import { useRoomEscapeReadReceipts } from './useRoomEscapeReadReceipts';
 import { useRoomViewMode } from './useRoomViewMode';
+import { useThreadRootEvent } from './useThreadRootEvent';
 import { hasActiveMindroomAgent, isMindroomAgentUserId } from '../matrix/agentIdentity';
 import { MembershipFilter } from '../../hooks/useMemberFilter';
 import { useClientConfig } from '../../hooks/useClientConfig';
@@ -56,6 +57,8 @@ export function Room() {
     [members]
   );
   const [computerOpen, setComputerOpen] = useState(false);
+  const computerAvailable = !!computerApiUrl && computerAgents.length > 0;
+  const effectiveComputerOpen = computerOpen && computerAvailable;
   const hasMindroomAgents = hasActiveMindroomAgent(members);
   const joinRequestCount = useMemo(
     () => members.filter(MembershipFilter.filterKnocked).length,
@@ -64,6 +67,15 @@ export function Room() {
   const chat = useAtomValue(callChatAtom);
   const { viewMode } = useRoomViewMode(room.roomId);
   const routedThreadId = viewMode === 'classic' ? undefined : threadId;
+  const computerThreadId = useThreadRootEvent(room, routedThreadId);
+  const continuationReady =
+    !routedThreadId ||
+    computerThreadId !== routedThreadId ||
+    !!room.findEventById(routedThreadId) ||
+    !!room.getThread(routedThreadId)?.rootEvent;
+  useEffect(() => {
+    if (!computerAvailable) setComputerOpen(false);
+  }, [computerAvailable]);
   useEffect(() => {
     setComputerOpen(false);
   }, [mx, room.roomId, routedThreadId]);
@@ -101,8 +113,8 @@ export function Room() {
             <Box grow="Yes">
               <RoomView
                 room={room}
-                computerAvailable={!!computerApiUrl && computerAgents.length > 0}
-                computerOpen={computerOpen}
+                computerAvailable={computerAvailable}
+                computerOpen={effectiveComputerOpen}
                 onComputerToggle={handleComputerToggle}
                 hasMindroomAgents={hasMindroomAgents}
                 joinRequestCount={joinRequestCount}
@@ -130,7 +142,7 @@ export function Room() {
             />
           </>
         )}
-        {!callView && computerOpen && computerApiUrl && computerAgents.length > 0 && (
+        {!callView && effectiveComputerOpen && computerApiUrl && (
           <>
             {screenSize === ScreenSize.Desktop && (
               <Line variant="Background" direction="Vertical" size="300" />
@@ -140,12 +152,13 @@ export function Room() {
               apiUrl={computerApiUrl}
               mx={mx}
               roomId={room.roomId}
-              threadId={routedThreadId}
+              threadId={computerThreadId}
+              continuationReady={continuationReady}
               onClose={() => setComputerOpen(false)}
             />
           </>
         )}
-        {!callView && screenSize === ScreenSize.Desktop && isDrawer && !computerOpen && (
+        {!callView && screenSize === ScreenSize.Desktop && isDrawer && !effectiveComputerOpen && (
           <>
             <Line variant="Background" direction="Vertical" size="300" />
             <MembersDrawer key={room.roomId} room={room} members={members} />

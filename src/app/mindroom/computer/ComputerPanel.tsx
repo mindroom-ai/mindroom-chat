@@ -27,6 +27,7 @@ export type ComputerPanelProps = {
   mx: MatrixClient;
   roomId: string;
   threadId?: string;
+  continuationReady?: boolean;
   onClose: () => void;
   request?: typeof fetch;
   ScreenComponent?: ComponentType<ComputerScreenProps>;
@@ -61,6 +62,7 @@ export function ComputerPanel({
   mx,
   roomId,
   threadId,
+  continuationReady = true,
   onClose,
   request,
   ScreenComponent = LazyComputerScreen,
@@ -112,6 +114,7 @@ export function ComputerPanel({
         setStatus(nextStatus);
         setStream(undefined);
         setConnected(false);
+        setError(undefined);
         setPhase('stopped');
         return;
       }
@@ -221,7 +224,7 @@ export function ComputerPanel({
 
   const handleResumeAgent = async () => {
     const session = sessionRef.current;
-    if (!session || operation || !selectedAgentUserId) return;
+    if (!session || operation || !selectedAgentUserId || !continuationReady) return;
     const lifecycle = lifecycleRef.current;
     setOperation('resume');
     setError(undefined);
@@ -277,11 +280,12 @@ export function ComputerPanel({
       activeStreamTicketRef.current = undefined;
       setStream(undefined);
       setConnected(false);
+      setError(undefined);
       setPhase('stopped');
     } catch (stopError) {
       if (lifecycleRef.current === lifecycle) {
         setError(getErrorMessage(stopError));
-        setPhase('ready');
+        setPhase(activeStreamTicketRef.current ? 'ready' : 'disconnected');
       }
     } finally {
       if (lifecycleRef.current === lifecycle) setOperation(undefined);
@@ -327,7 +331,7 @@ export function ComputerPanel({
 
   const handleDisconnected = (streamTicket: string, message?: string) => {
     if (activeStreamTicketRef.current !== streamTicket) return;
-    if (!sessionRef.current || operation === 'stop') return;
+    if (!sessionRef.current) return;
     activeStreamTicketRef.current = undefined;
     setConnected(false);
     setStream(undefined);
@@ -439,7 +443,12 @@ export function ComputerPanel({
             </Button>
           )}
           {status?.mode === 'control' && phase === 'ready' && (
-            <Button disabled={!!operation} onClick={handleResumeAgent} size="300" variant="Primary">
+            <Button
+              disabled={!!operation || !continuationReady}
+              onClick={handleResumeAgent}
+              size="300"
+              variant="Primary"
+            >
               <Text>{operation === 'resume' ? 'Releasing…' : 'Resume agent'}</Text>
             </Button>
           )}

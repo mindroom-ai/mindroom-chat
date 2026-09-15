@@ -455,6 +455,11 @@ export function RoomViewHeader({
         <Box shrink="No">
           <MindroomCommandPaletteHeaderButton />
           <ComputerHeaderButton
+            label={t(
+              computerOpen
+                ? 'mindroomUi.threads.mindroomRoomViewHeader.hideComputer'
+                : 'mindroomUi.threads.mindroomRoomViewHeader.showComputer'
+            )}
             available={computerAvailable && !!onComputerToggle}
             open={computerOpen}
             onToggle={onComputerToggle ?? (() => undefined)}

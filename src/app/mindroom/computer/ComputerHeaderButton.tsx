@@ -2,16 +2,17 @@ import React from 'react';
 import { Icon, IconButton, Icons, Text, Tooltip, TooltipProvider } from 'folds';
 
 export function ComputerHeaderButton({
+  label,
   available,
   open,
   onToggle,
 }: {
+  label: string;
   available: boolean;
   open: boolean;
   onToggle: () => void;
 }) {
   if (!available) return null;
-  const label = open ? 'Hide Computer' : 'Show Computer';
 
   return (
     <TooltipProvider

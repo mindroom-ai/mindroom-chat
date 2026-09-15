@@ -2635,6 +2635,8 @@
         "youDoNotHavePermissionToPostInThisRoom": "このルームに投稿する権限がありません"
       },
       "mindroomRoomViewHeader": {
+        "showComputer": "コンピューターを表示",
+        "hideComputer": "コンピューターを非表示",
         "notifications": "通知",
         "compact": "コンパクト",
         "threads": "スレッド",

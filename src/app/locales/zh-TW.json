@@ -2635,6 +2635,8 @@
         "youDoNotHavePermissionToPostInThisRoom": "您沒有在此房間傳送訊息的權限"
       },
       "mindroomRoomViewHeader": {
+        "showComputer": "顯示電腦",
+        "hideComputer": "隱藏電腦",
         "notifications": "通知",
         "compact": "緊湊",
         "threads": "討論串",

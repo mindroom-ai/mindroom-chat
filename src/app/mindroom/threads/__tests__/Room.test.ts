@@ -16,6 +16,7 @@ type MockRoomViewProps = {
 
 type MockComputerPanelProps = {
   agents: Array<{ userId: string; name: string }>;
+  continuationReady?: boolean;
   apiUrl: string;
   roomId: string;
   threadId?: string;
@@ -35,8 +36,19 @@ const { mx, navigateRoomMock, navigateRoomThreadMock, removeRecentThreadMock, ro
       roomId: '!room:example.org',
       isCallRoom: () => roomState.callRoom,
       getMembers: () => roomState.members,
+      getThread: () => undefined,
+      findEventById: () => roomState.routedEvent,
+      on: (name: string, handler: (...args: unknown[]) => void) =>
+        roomState.listeners.set(name, handler),
+      removeListener: (name: string) => roomState.listeners.delete(name),
     },
     roomState: {
+      listeners: new Map<string, (...args: unknown[]) => void>(),
+      drawer: false,
+      panelDisposals: 0,
+      routedEvent: undefined as
+        | undefined
+        | { getId: () => string; threadRootId?: string; isSending: () => boolean },
       callChat: false,
       callChatViewProps: undefined as MockCallChatViewProps | undefined,
       callRoom: false,
@@ -88,7 +100,7 @@ vi.mock('../MindroomRoomView', () => ({
 }));
 
 vi.mock('../../../features/room/MembersDrawer', () => ({
-  MembersDrawer: () => React.createElement('div'),
+  MembersDrawer: () => React.createElement('aside', { 'aria-label': 'Members' }),
 }));
 
 vi.mock('../../../hooks/useScreenSize', () => ({
@@ -103,7 +115,7 @@ vi.mock('../../../state/hooks/settings', () => ({
   useSetting: (_atom: unknown, key: string) => {
     switch (key) {
       case 'isPeopleDrawer':
-        return [false, roomState.setPeopleDrawer];
+        return [roomState.drawer, roomState.setPeopleDrawer];
       case 'hideActivity':
         return [false];
       default:
@@ -145,6 +157,12 @@ vi.mock('../../../hooks/useClientConfig', () => ({
 
 vi.mock('../../computer/ComputerPanel', () => ({
   ComputerPanel: (props: MockComputerPanelProps) => {
+    React.useEffect(
+      () => () => {
+        roomState.panelDisposals += 1;
+      },
+      []
+    );
     roomState.computerPanelProps = props;
     return React.createElement('mock-computer-panel');
   },
@@ -200,6 +218,10 @@ describe('Room', () => {
   });
 
   afterEach(() => {
+    roomState.listeners.clear();
+    roomState.drawer = false;
+    roomState.panelDisposals = 0;
+    roomState.routedEvent = undefined;
     roomState.callChat = false;
     roomState.callChatViewProps = undefined;
     roomState.callRoom = false;
@@ -289,6 +311,71 @@ describe('Room', () => {
       threadId: '$thread',
     });
   });
+
+  it.each(['$root', '$reply'])(
+    'routes continuation after canonical root %s resolves',
+    async (resolvedRoot) => {
+      roomState.clientConfig = {
+        mindroom: { computers: { apiUrl: 'https://computer.example.org' } },
+      };
+      roomState.members = [{ membership: 'join', userId: '@mindroom_helper:example.org' }];
+      roomState.search = '?threadId=%24reply';
+      const { Room } = await import('../../../features/room/Room');
+      let renderer: ReturnType<typeof create>;
+      await act(async () => {
+        renderer = create(React.createElement(Room));
+      });
+      await act(async () => roomState.roomViewProps?.onComputerToggle?.());
+      expect(roomState.computerPanelProps?.continuationReady).toBe(false);
+      roomState.routedEvent = {
+        getId: () => '$reply',
+        threadRootId: resolvedRoot,
+        isSending: () => false,
+      };
+      const { RoomEvent } = await import('matrix-js-sdk');
+      await act(async () =>
+        roomState.listeners.get(RoomEvent.Timeline)?.(roomState.routedEvent, room, false, false)
+      );
+      expect(roomState.computerPanelProps?.threadId).toBe(resolvedRoot);
+      expect(roomState.computerPanelProps?.continuationReady).toBe(true);
+      await act(async () => renderer!.unmount());
+    }
+  );
+
+  it.each(['agent', 'api'])(
+    'restores Members and disposes Computer when %s availability vanishes',
+    async (cause) => {
+      roomState.drawer = true;
+      roomState.clientConfig = {
+        mindroom: { computers: { apiUrl: 'https://computer.example.org' } },
+      };
+      const members = [{ membership: 'join', userId: '@mindroom_helper:example.org' }];
+      roomState.members = members;
+      const { Room } = await import('../../../features/room/Room');
+      let renderer: ReturnType<typeof create>;
+      await act(async () => {
+        renderer = create(React.createElement(Room));
+      });
+      await act(async () => roomState.roomViewProps?.onComputerToggle?.());
+      expect(renderer!.root.findAllByProps({ 'aria-label': 'Members' })).toHaveLength(0);
+      if (cause === 'agent') roomState.members = [];
+      else
+        roomState.clientConfig = {
+          mindroom: { computers: { apiUrl: 'http://remote.example.org' } },
+        };
+      await act(async () => renderer!.update(React.createElement(Room)));
+      expect(roomState.roomViewProps?.computerOpen).toBe(false);
+      expect(roomState.panelDisposals).toBe(1);
+      expect(renderer!.root.findAllByProps({ 'aria-label': 'Members' })).toHaveLength(1);
+      roomState.members = members;
+      roomState.clientConfig = {
+        mindroom: { computers: { apiUrl: 'https://computer.example.org' } },
+      };
+      await act(async () => renderer!.update(React.createElement(Room)));
+      expect(roomState.roomViewProps?.computerOpen).toBe(false);
+      await act(async () => renderer!.unmount());
+    }
+  );
 
   it('closes an open computer panel when the routed thread changes', async () => {
     roomState.clientConfig = {

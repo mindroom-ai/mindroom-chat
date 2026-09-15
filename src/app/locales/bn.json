@@ -1417,6 +1417,8 @@
         "youDoNotHavePermissionToPostInThisRoom": "আপনার এই রুমে পোস্ট করার অনুমতি নেই"
       },
       "mindroomRoomViewHeader": {
+        "showComputer": "কম্পিউটার দেখান",
+        "hideComputer": "কম্পিউটার লুকান",
         "classic": "ক্লাসিক",
         "compact": "কমপ্যাক্ট",
         "copyLink": "লিংক কপি করুন",

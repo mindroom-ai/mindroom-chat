@@ -2,6 +2,17 @@
 
 ## Runbook
 
+### Recover Computer sessions after revocation and disconnects (2026-09-15)
+
+- Resume uses the same canonical thread root as the composer, including reply-event deep links, and waits until the routed event is known.
+- A disconnect while Stop is pending removes the dead screen; failed Stop exposes Reconnect with a fresh ticket, while successful Stop clears the transient disconnect error.
+- Losing the API configuration or final eligible agent disposes the panel and restores Members; restored availability leaves Computer closed.
+- The header's Show Computer and Hide Computer labels use the existing translator across all 17 catalogs.
+- The gateway admits up to eight concurrent viewer sessions per verified requester and 256 globally; closing a viewer or reaching its one-hour expiry frees its slot.
+- Focused behavior and locale coverage pass 217 tests; the final thread-root change passes another 55 affected tests, and typecheck, lint, formatting, and production/PWA build pass.
+- Fresh acceptance against the production preview passes real Matrix login, desktop watch/control, native typing with agent readback, one originating-thread continuation, mobile fullscreen, close/reopen, and stop/start in 13.4 seconds with no page errors.
+- Final desktop watch/control and mobile screenshots are captured; the exact disposable Matrix and worker containers are removed.
+
 ### Integrate current worker computer bases and accurate resume notices (2026-09-15)
 
 - Replayed only the computer feature series onto current dev, preserving the thread approval provider and queue around the computer-aware header.

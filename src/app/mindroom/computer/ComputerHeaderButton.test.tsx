@@ -23,7 +23,12 @@ vi.mock('folds', () => ({
 describe('ComputerHeaderButton', () => {
   it('is absent when the room is not eligible', () => {
     const renderer = create(
-      <ComputerHeaderButton available={false} open={false} onToggle={() => undefined} />
+      <ComputerHeaderButton
+        label="Toon computer"
+        available={false}
+        open={false}
+        onToggle={() => undefined}
+      />
     );
 
     expect(renderer.toJSON()).toBeNull();
@@ -31,16 +36,22 @@ describe('ComputerHeaderButton', () => {
 
   it('opens the computer panel and exposes its current state', () => {
     const onToggle = vi.fn();
-    const renderer = create(<ComputerHeaderButton available open={false} onToggle={onToggle} />);
+    const renderer = create(
+      <ComputerHeaderButton label="Toon computer" available open={false} onToggle={onToggle} />
+    );
     const button = renderer.root.findByType(buttonType as never);
 
-    expect(button.props['aria-label']).toBe('Show Computer');
+    expect(button.props['aria-label']).toBe('Toon computer');
     expect(button.props['aria-pressed']).toBe(false);
     act(() => button.props.onClick());
     expect(onToggle).toHaveBeenCalledOnce();
 
-    renderer.update(<ComputerHeaderButton available open onToggle={onToggle} />);
-    expect(renderer.root.findByType(buttonType as never).props['aria-label']).toBe('Hide Computer');
+    renderer.update(
+      <ComputerHeaderButton label="Verberg computer" available open onToggle={onToggle} />
+    );
+    expect(renderer.root.findByType(buttonType as never).props['aria-label']).toBe(
+      'Verberg computer'
+    );
     expect(renderer.root.findByType(buttonType as never).props['aria-pressed']).toBe(true);
   });
 });
