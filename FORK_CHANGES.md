@@ -17,13 +17,25 @@
 - Focused coverage includes category changes, literal searches, composition, accessible selection, pointer activation, and empty-result recovery.
   Live Chromium checks cover room navigation, scroll recovery, and mobile layouts at 390 and 320 px.
 - Validation: 63 palette tests and all three browser cases pass, along with typecheck, production/PWA build, formatting, and ESLint with zero errors and the existing 17 warnings.
-  The full Node 24 suite passes 4,156 of 4,159 tests; only the three unchanged Xcode Cloud shell fixtures that assume standard Unix executable paths fail on this Nix host.
+  The full Node 24 suite passes 4,189 of 4,192 tests; only the three unchanged Xcode Cloud shell fixtures that assume standard Unix executable paths fail on this Nix host.
 - Independent review found and verified fixes for query scroll recovery and literal All-mode searches.
   Integration review also verified the 17-language catalogs and Arabic navigation.
   Automated review prompted a shared prefix declaration and removal of unreachable option keyboard handling.
   A category-roundtrip regression disproves the reported literal-mode reset issue: selecting a category already resets that state.
   Glass review corrected preference-rule precedence and strengthened muted labels over varying backdrops.
   Screenshots use local sample data and remain outside version control.
+
+### Configure Explorer sidebar visibility in Simple Mode (2026-09-15)
+
+- Status: implemented, locally validated, and independently reviewed with no findings.
+- Explorer stays hidden from the sidebar by default in Simple Mode.
+  Set `sidebar.showExploreCommunityInSimpleMode` to `true` in `config.json` to show it in Simple Mode.
+  The full interface keeps Explorer visible by default and retains the existing `sidebar.showExploreCommunity` control.
+  Other optional navigation entries retain their existing Simple Mode behavior.
+- Regression coverage checks omitted config, an empty sidebar config, explicit `false`, and explicit `true`, the independence of the two mode-specific options, and the other Simple Mode navigation gates.
+- Validation: all seven sidebar tests, typecheck, production/PWA build, and changed-file formatting pass.
+  Full ESLint reports zero errors and 17 existing warnings.
+  After integrating current `dev`, full Vitest passes all 4,190 tests across 514 files under Node 24.13.1 in the standard Linux container, including the Xcode Cloud shell fixtures.
 
 ### Fill mobile navigation and collapse narrow split panes (2026-09-15)
 
@@ -46,6 +58,23 @@
   Additional live checks cover RTL, 750/751 px boundaries, room continuity, and interrupted mouse and touch drags across breakpoints.
   Chromium touch injection can swallow the first subsequent tap after a drag; the same result reproduces on a plain HTML page without application code.
   Physical iPhone and iPad validation remains unavailable on this Linux host.
+
+### Preserve thread drafts and pending replies across navigation (2026-09-15)
+
+- Status: implementation, local verification, and two independent subagent reviews are complete.
+- Composer text now saves to localStorage while typing, keyed by Matrix account, room, and thread, and restores when that destination reopens or the page reloads.
+- Empty drafts are removed, malformed or unavailable storage falls back safely, and account logout clears only that account's saved drafts and revokes outstanding recovery writes.
+- Draft hydration no longer inserts the stored value on every draft update, and background caption recovery preserves both newer typing and the original composer destination, including voice retries targeting another thread.
+- Pasted-text attachments retain their composer destination through thread changes and asynchronous preparation, stay out of other drafts' send batches, and recover preparation failures into the originating draft.
+- Pending thread replies previously lived only in the SDK transaction map and the mounted view's supplemental state because chronological room timelines reject thread replies.
+- The client sync engine now retains the original pending thread-event objects for the room's lifetime, including before initial sync, and thread rendering includes them after navigation.
+- Confirmation and cancellation remove retained entries; queued, encrypting, sending, failed, and sent-but-unconfirmed events retain their SDK status and transaction identity.
+- Pending-send retention covers navigation within the running client; it does not add a reload-persistent outbox or persist upload files.
+- Regression coverage exercises formatted draft reloads, room/thread/account isolation, clearing, unavailable storage, background caption recovery, logout cleanup, real SDK pending events, confirmation deduplication, cancellation, and engine teardown.
+- Validation: all 4,175 tests across 514 files pass under Node 24.13.1 in the standard Linux container.
+- Native Nix runs reproduce the three existing Xcode shell-fixture failures; the container run covers them successfully.
+- Typecheck, touched-file ESLint and formatting, production/PWA build, and both independent reviews pass.
+- Live Chromium validation against the local Docker Matrix service covers draft exit/reopen, page reload, offline reply visibility after navigation, and delayed-send confirmation without duplication after reload.
 
 ### Full interface internationalization (2026-09-14)
 

@@ -1,20 +1,28 @@
 import React, { createRef } from 'react';
 import { Provider, createStore } from 'jotai';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
-import { createEditor } from 'slate';
+import { createEditor, Transforms } from 'slate';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Room } from 'matrix-js-sdk';
 import { resetEditor } from '../../components/editor/utils';
-import { TUploadItem, roomUploadAtomFamily } from '../../state/room/roomInputDrafts';
+import {
+  TUploadItem,
+  roomUploadAtomFamily,
+  getRoomInputDraftKey,
+  clearRoomInputDrafts,
+  roomIdToMsgDraftAtomFamily,
+} from '../../state/room/roomInputDrafts';
 import { UploadStatus } from '../../state/upload';
 import { toMatrixUploadError } from '../../utils/matrix';
 import { UploadBoardHeader } from '../../components/upload-board';
 import { UploadCardRenderer } from '../../components/upload-card';
 import { createMindroomRoomInputPasteMarkerElement } from './RoomInputMindroomExtensions';
 import { useRoomInputAttachments } from './useRoomInputAttachments';
+import { useRoomInputDraft } from './useRoomInputDraft';
 
 vi.mock('../../components/editor', async () => ({
   ...(await import('../../components/editor/utils')),
+  ...(await import('../../components/editor/output')),
 }));
 vi.mock('../commands/MindroomCommandAutocomplete', () => ({
   MindroomCommandAutocomplete: () => null,
@@ -65,7 +73,9 @@ afterEach(() => {
   });
 });
 
-const renderHarness = () => {
+const renderHarness = (
+  prepare: Parameters<typeof useRoomInputAttachments>[0]['createUploadItems'] = async () => []
+) => {
   const store = createStore();
   const editor = createEditor();
   editor.children = [{ type: 'paragraph', children: [{ text: '' }] }];
@@ -76,15 +86,20 @@ const renderHarness = () => {
     hasEncryptionStateEvent: () => false,
   } as Room;
   let feature!: ReturnType<typeof useRoomInputAttachments>;
-  const Harness = () => {
+  let saveDraft!: () => void;
+  const Harness = ({ threadId }: { threadId?: string }) => {
+    saveDraft = useRoomInputDraft(editor, '@tester:example.org', ROOM_ID, threadId);
     feature = useRoomInputAttachments({
       mx: mx as never,
       room,
       roomId: ROOM_ID,
+      draftKey: threadId
+        ? getRoomInputDraftKey('@tester:example.org', ROOM_ID, threadId)
+        : undefined,
       editor,
       isMarkdown: true,
       fileDropContainerRef: createRef<HTMLElement>(),
-      createUploadItems: async () => [],
+      createUploadItems: prepare,
     });
     return feature.board;
   };
@@ -101,10 +116,155 @@ const renderHarness = () => {
     editor,
     renderer,
     mx,
+    changeThread: (threadId: string) => {
+      act(() =>
+        renderer.update(
+          React.createElement(Provider, { store }, React.createElement(Harness, { threadId }))
+        )
+      );
+    },
+    onEditorChange: () => {
+      saveDraft();
+      feature.onEditorChange();
+    },
   };
 };
 
 describe('attachment staging ownership', () => {
+  it.each([false, true])(
+    'does not recover a delayed paste after logout (preparation failure: %s)',
+    async (fails) => {
+      let finish!: (items: TUploadItem[]) => void;
+      let prepared!: TUploadItem[];
+      const harness = renderHarness((files, getMetadata) => {
+        prepared = files.map((file, index) => ({
+          file,
+          originalFile: file,
+          encInfo: undefined,
+          metadata: getMetadata!(file, index),
+          prepError: fails
+            ? toMatrixUploadError(new Error('Preparation failed'), 'create')
+            : undefined,
+        }));
+        return new Promise((resolve) => {
+          finish = resolve;
+        });
+      });
+      harness.changeThread('$logout');
+      act(() => {
+        harness.feature.onPaste({
+          clipboardData: {
+            files: [],
+            types: ['text/plain'],
+            getData: (type: string) => (type === 'text/plain' ? 'large paste\n'.repeat(6000) : ''),
+          },
+          preventDefault: vi.fn(),
+        } as never);
+        harness.renderer.unmount();
+        clearRoomInputDrafts('@tester:example.org');
+      });
+      await act(async () => {
+        finish(prepared);
+        await Promise.resolve();
+      });
+      expect(
+        harness.store.get(
+          roomIdToMsgDraftAtomFamily(
+            getRoomInputDraftKey('@tester:example.org', ROOM_ID, '$logout')
+          )
+        )
+      ).toEqual([]);
+      expect(harness.feature.access.snapshot(ROOM_ID).staged).toHaveLength(0);
+    }
+  );
+
+  it.each([false, true])(
+    'returns a delayed paste to its starting thread (preparation failure: %s)',
+    async (fails) => {
+      let finish!: (items: TUploadItem[]) => void;
+      let prepared!: TUploadItem[];
+      const harness = renderHarness((files, getMetadata) => {
+        prepared = files.map((file, index) => ({
+          file,
+          originalFile: file,
+          encInfo: undefined,
+          metadata: getMetadata!(file, index),
+          prepError: fails
+            ? toMatrixUploadError(new Error('Preparation failed'), 'create')
+            : undefined,
+        }));
+        return new Promise((resolve) => {
+          finish = resolve;
+        });
+      });
+      harness.changeThread('$paste-source');
+      const text = 'large paste\n'.repeat(6000);
+      act(() => {
+        harness.feature.onPaste({
+          clipboardData: {
+            files: [],
+            types: ['text/plain'],
+            getData: (type: string) => (type === 'text/plain' ? text : ''),
+          },
+          preventDefault: vi.fn(),
+        } as never);
+      });
+      harness.changeThread('$paste-other');
+      await act(async () => {
+        Transforms.insertText(harness.editor, 'Keep this draft');
+        harness.onEditorChange();
+        finish(prepared);
+        await Promise.resolve();
+      });
+      expect(harness.editor.children).toEqual([
+        { type: 'paragraph', children: [{ text: 'Keep this draft' }] },
+      ]);
+      expect(harness.feature.access.snapshot().staged).toHaveLength(0);
+      harness.changeThread('$paste-source');
+      expect(harness.feature.access.snapshot().staged.map((item) => item.file)).toEqual(
+        prepared.map((item) => item.file)
+      );
+      expect(JSON.stringify(harness.editor.children)).toContain(
+        fails ? 'large paste' : prepared[0].metadata.mindroomPasteAttachment!.fileName
+      );
+    }
+  );
+
+  it('preserves paste files with their thread draft and excludes them from another thread', async () => {
+    const harness = renderHarness();
+    harness.changeThread('$first');
+    const item = createPasteItem();
+    await act(async () => {
+      Transforms.insertNodes(
+        harness.editor,
+        createMindroomRoomInputPasteMarkerElement(pasteMarker)
+      );
+      harness.feature.access.append(ROOM_ID, [item]);
+      harness.onEditorChange();
+    });
+    harness.changeThread('$second');
+    await act(async () => {
+      Transforms.insertText(harness.editor, 'Another draft');
+      harness.onEditorChange();
+    });
+    expect(harness.feature.access.snapshot().staged).toHaveLength(0);
+    expect(harness.feature.access.snapshot(ROOM_ID).staged.map((entry) => entry.file)).toEqual([
+      item.file,
+    ]);
+    expect(harness.renderer.root.findAllByType(UploadCardRenderer)).toHaveLength(0);
+    harness.changeThread('$first');
+    expect(JSON.stringify(harness.editor.children)).toContain(pasteMarker.fileName);
+    expect(harness.feature.access.snapshot().staged.map((entry) => entry.file)).toEqual([
+      item.file,
+    ]);
+    expect(harness.renderer.root.findAllByType(UploadCardRenderer)).toHaveLength(1);
+    await act(async () => {
+      resetEditor(harness.editor);
+      harness.onEditorChange();
+    });
+    expect(harness.feature.access.snapshot(ROOM_ID).staged).toHaveLength(0);
+  });
+
   it('defers change listeners until publication completes and honors unsubscribe', async () => {
     const harness = renderHarness();
     const { access } = harness.feature;

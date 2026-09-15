@@ -52,6 +52,7 @@ import {
   type PrefetchConfig,
 } from './prefetchPolicy';
 import type { EngineLiveEventMeta, MindroomSyncEngine } from './types';
+import { trackPendingThreadEvent } from '../threads/pendingThreadEvents';
 
 const LIVE_SYNC_STATES: ReadonlySet<string> = new Set(['PREPARED', 'SYNCING', 'CATCHUP']);
 
@@ -273,6 +274,7 @@ export const createMindroomSyncEngine = ({
     mx.on(RoomEvent.Timeline, handleTimelineEvent);
     mx.on(RoomEvent.Redaction, handleRedaction);
     mx.on(RoomEvent.TimelineReset, handleTimelineReset);
+    mx.on(RoomEvent.LocalEchoUpdated, trackPendingThreadEvent);
 
     bindableWindow?.addEventListener('pagehide', handlePageHide);
     bindableDocument?.addEventListener('visibilitychange', handleVisibilityChange);
@@ -296,6 +298,7 @@ export const createMindroomSyncEngine = ({
       mx.removeListener(RoomEvent.Timeline, handleTimelineEvent);
       mx.removeListener(RoomEvent.Redaction, handleRedaction);
       mx.removeListener(RoomEvent.TimelineReset, handleTimelineReset);
+      mx.removeListener(RoomEvent.LocalEchoUpdated, trackPendingThreadEvent);
 
       bindableWindow?.removeEventListener('pagehide', handlePageHide);
       bindableDocument?.removeEventListener('visibilitychange', handleVisibilityChange);

@@ -9,6 +9,7 @@ export type AttachmentSnapshot = {
 };
 
 export type RoomInputAttachmentAccess = {
+  /** Without a room, returns the active composer; explicit rooms include all staged drafts. */
   snapshot: (roomId?: string) => AttachmentSnapshot;
   append: (roomId: string, items: TUploadItem[]) => void;
   remove: (roomId: string, files: TUploadContent[]) => void;
