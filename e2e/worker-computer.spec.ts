@@ -90,16 +90,24 @@ test('watch, type, resume in the originating thread, and recover on desktop/mobi
   );
   await page.keyboard.press('Control+a');
   await page.keyboard.type('typed-through-chat');
-  await page.screenshot({ path: testInfo.outputPath('desktop-control.png') });
   await panel.getByRole('button', { name: 'Resume agent', exact: true }).click();
   await expect(panel.getByText('Watch mode', { exact: true })).toBeVisible();
   await expect
     .poll(async () => {
       const response = await request.get(fixture.api_origin + '/fixture/text');
       expect(response.ok()).toBe(true);
-      return (await response.json()).value;
+      const readback = await response.json();
+      return {
+        value: readback.value,
+        snapshotHasTypedValue: readback.snapshot.includes('typed-through-chat'),
+      };
     })
-    .toBe('typed-through-chat');
+    .toEqual({ value: 'typed-through-chat', snapshotHasTypedValue: true });
+  // Capture the completed native input after the agent sees it and Watch reconnects.
+  await page.screenshot({ path: testInfo.outputPath('desktop-resumed.png') });
+  await panel.getByRole('button', { name: 'Take control', exact: true }).click();
+  await expect(panel.getByText('You have control', { exact: true })).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath('desktop-control.png') });
   await expect.poll(() => continuations.length).toBe(1);
   const continuation = continuations[0];
   expect(continuation.content['m.mentions']).toEqual({ user_ids: [fixture.agent_user_id] });
