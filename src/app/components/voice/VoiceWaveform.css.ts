@@ -26,9 +26,10 @@ export const WaveformSeek = style({
 // Native range supplies pointer capture, touch scrubbing and slider semantics.
 export const SeekInput = style({
   position: 'absolute',
-  inset: 0,
+  inset: '50% 0 auto',
   width: '100%',
-  height: '100%',
+  height: toRem(44),
+  transform: 'translateY(-50%)',
   margin: 0,
   opacity: 0,
   cursor: 'pointer',

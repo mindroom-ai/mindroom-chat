@@ -14,7 +14,6 @@ const mocks = vi.hoisted(() => ({
   loadSrc: vi.fn(() => Promise.resolve('blob:voice')),
   playing: false,
   setPlaying: vi.fn(),
-  seek: vi.fn(),
   playTimeCallback: undefined as ((duration: number, currentTime: number) => void) | undefined,
 }));
 
@@ -176,7 +175,6 @@ vi.mock('../../../hooks/media', () => ({
   ) => {
     mocks.playTimeCallback = callback;
   },
-  useMediaSeek: () => ({ seek: mocks.seek }),
 }));
 
 vi.mock('../../../hooks/useThrottle', () => ({
@@ -194,6 +192,7 @@ const createAudioMock = (): AudioMock =>
   ({
     currentTime: 0,
     duration: 10,
+    readyState: 1,
     muted: false,
     playbackRate: 1,
     preservesPitch: false,
@@ -247,7 +246,6 @@ describe('VoiceAudioContent', () => {
     mocks.loadSrc.mockResolvedValue('blob:voice');
     mocks.playing = false;
     mocks.setPlaying.mockReset();
-    mocks.seek.mockReset();
     mocks.playTimeCallback = undefined;
     storageListeners.clear();
     vi.stubGlobal('window', {
@@ -468,11 +466,14 @@ describe('VoiceAudioContent', () => {
   });
 
   it('seeks through waveform click progress', () => {
+    const audio = createAudioMock();
     mocks.srcState = {
       status: AsyncStatus.Success,
       data: 'blob:voice',
     };
-    renderer = create(renderVoiceAudio());
+    renderer = create(renderVoiceAudio(), {
+      createNodeMock: (element) => (element.type === 'audio' ? audio : null),
+    });
 
     act(() => {
       renderer.root
@@ -480,7 +481,7 @@ describe('VoiceAudioContent', () => {
         .props.onChange({ currentTarget: { value: '25' } });
     });
 
-    expect(mocks.seek).toHaveBeenCalledWith(2.5);
+    expect(audio.currentTime).toBe(2.5);
     expect(
       renderer.root.findByProps({ 'aria-label': 'Playback speed, currently 1×, click to cycle' })
     ).toBeTruthy();
@@ -517,9 +518,11 @@ describe('VoiceAudioContent', () => {
     });
   });
 
-  it('loads and applies a pending seek before first playback', async () => {
+  it('keeps the latest pending seek until metadata is ready before first playback', async () => {
+    const audio = createAudioMock();
+    Object.defineProperty(audio, 'readyState', { configurable: true, value: 0 });
     renderer = create(renderVoiceAudio(), {
-      createNodeMock: (element) => (element.type === 'audio' ? createAudioMock() : null),
+      createNodeMock: (element) => (element.type === 'audio' ? audio : null),
     });
 
     await act(async () => {
@@ -539,7 +542,20 @@ describe('VoiceAudioContent', () => {
       renderer.update(renderVoiceAudio());
     });
 
-    expect(mocks.seek).toHaveBeenCalledWith(5);
+    expect(audio.currentTime).toBe(0);
+
+    act(() => {
+      renderer.root
+        .findByProps({ 'aria-label': 'Seek voice message' })
+        .props.onChange({ currentTarget: { value: '75' } });
+    });
+    expect(audio.currentTime).toBe(0);
+
+    Object.defineProperty(audio, 'readyState', { configurable: true, value: 1 });
+    act(() => {
+      renderer.root.findByType('audio').props.onLoadedMetadata();
+    });
+    expect(audio.currentTime).toBe(7.5);
 
     act(() => {
       renderer.root.findByProps({ 'aria-label': 'Play voice message' }).props.onClick();
@@ -554,7 +570,10 @@ describe('VoiceAudioContent', () => {
 
   it('clears current time and pending seek when the media identity changes', async () => {
     const store = createStore();
-    renderer = create(renderVoiceAudio(store, { url: 'mxc://mindroom/voice-a' }));
+    const audio = createAudioMock();
+    renderer = create(renderVoiceAudio(store, { url: 'mxc://mindroom/voice-a' }), {
+      createNodeMock: (element) => (element.type === 'audio' ? audio : null),
+    });
 
     await act(async () => {
       renderer.root
@@ -589,7 +608,10 @@ describe('VoiceAudioContent', () => {
       );
     });
 
-    expect(mocks.seek).not.toHaveBeenCalled();
+    act(() => {
+      renderer.root.findByType('audio').props.onLoadedMetadata();
+    });
+    expect(audio.currentTime).toBe(0);
 
     act(() => {
       renderer.unmount();
@@ -1060,11 +1082,14 @@ describe('VoiceAudioContent', () => {
   });
 
   it('preserves Matrix duration when browser duration is invalid', () => {
+    const audio = createAudioMock();
     mocks.srcState = {
       status: AsyncStatus.Success,
       data: 'blob:voice',
     };
-    renderer = create(renderVoiceAudio());
+    renderer = create(renderVoiceAudio(), {
+      createNodeMock: (element) => (element.type === 'audio' ? audio : null),
+    });
 
     act(() => {
       mocks.playTimeCallback?.(Number.NaN, 0);
@@ -1079,7 +1104,7 @@ describe('VoiceAudioContent', () => {
         .props.onChange({ currentTarget: { value: '50' } });
     });
 
-    expect(mocks.seek).toHaveBeenCalledWith(5);
+    expect(audio.currentTime).toBe(5);
 
     act(() => {
       renderer.unmount();
@@ -1136,7 +1161,7 @@ describe('VoiceAudioContent', () => {
         .props.onChange({ currentTarget: { value: '100' } });
     });
 
-    expect(mocks.seek).toHaveBeenCalledWith(8.52);
+    expect(audio.currentTime).toBe(8.52);
 
     act(() => {
       renderer.unmount();
@@ -1195,7 +1220,7 @@ describe('VoiceAudioContent', () => {
         .props.onChange({ currentTarget: { value: '100' } });
     });
 
-    expect(mocks.seek).toHaveBeenCalledWith(8.52);
+    expect(audio.currentTime).toBe(8.52);
 
     act(() => {
       renderer.unmount();

@@ -151,3 +151,54 @@ test('audio controls fit a narrow panel on a wide screen', async ({ page }) => {
     }
   }
 });
+
+test.describe('mobile audio seeking', () => {
+  test.use({ isMobile: true, hasTouch: true });
+
+  for (const width of [320, 390]) {
+    test(`first touch seeks through loading and dragging works at ${width}px`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 844 });
+      await page.goto('/e2e/fixtures/audio-player.html');
+      const touch = await page.context().newCDPSession(page);
+
+      for (const name of ['Audio attachment', 'Voice message']) {
+        const player = page.getByRole('region', { name, exact: true });
+        const slider = player.getByRole('slider');
+        await expect(slider).toBeEnabled();
+        const bounds = await slider.boundingBox();
+        if (!bounds) throw new Error('Seek slider has no bounds');
+        expect.soft(bounds.height).toBeGreaterThanOrEqual(44);
+
+        await page.touchscreen.tap(bounds.x + bounds.width * 0.75, bounds.y + 2);
+        await expect
+          .poll(() => player.locator('audio').evaluate((el: HTMLAudioElement) => el.currentTime))
+          .toBeGreaterThan(8);
+        await expect(player.getByRole('button', { name: /^Play / })).toBeVisible();
+
+        const point = (progress: number) => ({
+          x: bounds.x + bounds.width * progress,
+          y: bounds.y + bounds.height / 2,
+          id: 1,
+        });
+        await touch.send('Input.dispatchTouchEvent', {
+          type: 'touchStart',
+          touchPoints: [point(0.2)],
+        });
+        await expect
+          .poll(() => player.locator('audio').evaluate((el: HTMLAudioElement) => el.currentTime))
+          .toBeLessThan(3);
+        for (const progress of [0.3, 0.4, 0.5, 0.6, 0.7, 0.8]) {
+          await touch.send('Input.dispatchTouchEvent', {
+            type: 'touchMove',
+            touchPoints: [point(progress)],
+          });
+        }
+        await touch.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+        await expect
+          .poll(() => player.locator('audio').evaluate((el: HTMLAudioElement) => el.currentTime))
+          .toBeGreaterThan(9);
+      }
+      await touch.detach();
+    });
+  }
+});

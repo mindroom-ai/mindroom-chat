@@ -13,7 +13,6 @@ import {
   useMediaLoading,
   useMediaPlay,
   useMediaPlayTimeCallback,
-  useMediaSeek,
 } from '../../../hooks/media';
 import { useThrottle } from '../../../hooks/useThrottle';
 import { secondsToMinutesAndSeconds } from '../../../utils/common';
@@ -90,7 +89,6 @@ export function VoiceAudioContent({
   const getAudioRef = useCallback(() => audioElement, [audioElement]);
   const { loading, error: mediaError } = useMediaLoading(getAudioRef);
   const { playing, setPlaying } = useMediaPlay(getAudioRef);
-  const { seek } = useMediaSeek(getAudioRef);
   const handlePlayTimeCallback: PlayTimeCallback = useCallback((d, ct) => {
     if (Number.isFinite(d) && d > 0) {
       browserMeasuredDurationRef.current = true;
@@ -153,16 +151,17 @@ export function VoiceAudioContent({
   const applyPendingSeek = useCallback(() => {
     const pendingSeekTime = pendingSeekTimeRef.current;
     const audio = audioRef.current;
-    if (pendingSeekTime === undefined || !audio) return;
+    // A loaded URL can remount the audio element before its metadata is available.
+    if (pendingSeekTime === undefined || !audio || audio.readyState < 1) return;
 
     try {
-      seek(pendingSeekTime);
+      audio.currentTime = pendingSeekTime;
       pendingSeekTimeRef.current = undefined;
       setCurrentTime(pendingSeekTime);
     } catch {
-      // Some browsers reject currentTime before metadata is available; keep it pending.
+      // Keep the target pending if the browser cannot seek yet.
     }
-  }, [seek]);
+  }, []);
 
   useEffect(() => {
     if (srcState.status === AsyncStatus.Success) {
@@ -223,14 +222,13 @@ export function VoiceAudioContent({
 
     setShowElapsedTime(true);
     const nextTime = progress * duration;
-    pendingSeekTimeRef.current = undefined;
+    pendingSeekTimeRef.current = nextTime;
     setCurrentTime(nextTime);
     if (srcState.status === AsyncStatus.Success) {
-      seek(nextTime);
+      applyPendingSeek();
       return;
     }
 
-    pendingSeekTimeRef.current = nextTime;
     if (srcState.status !== AsyncStatus.Loading) {
       const loadIntent = createLoadIntent();
       void loadSrc().catch(() => {
