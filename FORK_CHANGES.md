@@ -5,10 +5,10 @@
 ### Compare M-logo thinking animations (2026-09-15)
 
 - Status: four working animation concepts are available in `docs/previews/thinking-indicator.html` for visual selection.
-- Open that standalone HTML file in a browser to compare Tilt & turn, Gyroscope, Glowing core, and Tilt & glowing core using the detailed illuminated glass M from MindRoom’s `assets/logo/logo-mark.svg` (`main` at `d733862764de`).
+- Open that standalone HTML file in a browser to compare Tilt & turn, Gyroscope, Glowing core, and Tilt, then glowing core using the detailed illuminated glass M from MindRoom’s `assets/logo/logo-mark.svg` (`main` at `d733862764de`).
 - Each concept includes an enlarged motion study and a chat-size example, with size, theme, pause, half-speed, text-shimmer, and reduced-motion controls.
 - Motion uses short wind-ups, quick flips, overshoot, rebound, and unequal pauses; Glowing core keeps the outer M still while the gold cube moves.
-- Tilt & glowing core shares the nine-second flip timing across the whole M, cube, and aura: the core brightens during wind-up, pops just after each landing, then rebounds and rests.
+- Tilt, then glowing core plays the original nine-second Tilt & turn first, then the six-second Glowing core, on a repeating 15-second cycle. The cube and glow hold still during the turns; the M holds still during the core animation.
 - The preview honors the operating system's reduced-motion preference.
 - The original geometry, gradients, masks, and layer order are preserved in one shared SVG definition set; Glowing core animates the original central cube.
 - Fidelity checks verify byte-identical source artwork, resolved SVG references, and pixel-identical rendering at 256 px. Chromium checks cover all controls, both reduced-motion modes, SVG rendering, mobile layout, and script errors.

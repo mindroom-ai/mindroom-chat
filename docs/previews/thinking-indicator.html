@@ -335,93 +335,110 @@
       .core .aura {
         animation: core-glow calc(6s * var(--speed)) ease-in-out infinite;
       }
-      /* Keep the cube and aura on the same clock as the whole-M flip. */
+      /* Tilt & turn fills the first 9 seconds; Glowing core fills the next 6. */
+      .combined .rotor,
+      .combined .core,
+      .combined .aura {
+        animation-duration: calc(15s * var(--speed));
+      }
+      .combined .rotor {
+        animation-name: combined-turn;
+      }
       .combined .core {
         animation-name: combined-core;
-        animation-duration: calc(9s * var(--speed));
       }
       .combined .aura {
         animation-name: combined-glow;
-        animation-duration: calc(9s * var(--speed));
+      }
+      @keyframes combined-turn {
+        0%,
+        6% {
+          transform: translateY(0%) rotateX(0deg) rotateY(0deg) rotateZ(0deg);
+        }
+        9% {
+          transform: translateY(2%) rotateX(-5deg) rotateY(-24deg) rotateZ(-3deg);
+        }
+        13.2% {
+          transform: translateY(-7%) rotateX(5deg) rotateY(382deg) rotateZ(3deg);
+        }
+        16.2% {
+          transform: translateY(2%) rotateX(0deg) rotateY(350deg) rotateZ(-1.3deg);
+        }
+        19.2%,
+        35.4% {
+          transform: translateY(0%) rotateX(0deg) rotateY(360deg) rotateZ(0deg);
+        }
+        38.4% {
+          transform: translateY(3%) rotateX(-22deg) rotateY(360deg) rotateZ(2deg);
+        }
+        43.2% {
+          transform: translateY(-5%) rotateX(381deg) rotateY(360deg) rotateZ(-2deg);
+        }
+        46.2% {
+          transform: translateY(1%) rotateX(351deg) rotateY(360deg) rotateZ(1deg);
+        }
+        49.8%,
+        60%,
+        100% {
+          transform: translateY(0%) rotateX(360deg) rotateY(360deg) rotateZ(0deg);
+        }
       }
       @keyframes combined-core {
         0%,
-        10% {
-          transform: translateY(0px) rotateY(0deg) scale(1);
+        60%,
+        65.6% {
+          transform: translateY(0px) rotateY(0deg) scale(1, 1);
           filter: drop-shadow(0 0 9px #ffe39b30);
         }
-        15% {
-          transform: translateY(13.5px) rotateY(-16deg) scale(1.02, 0.96);
-          filter: drop-shadow(0 0 27px #ffe39b90);
+        68.8% {
+          transform: translateY(18px) rotateY(-22deg) scale(1.03, 0.93);
+          filter: drop-shadow(0 0 9px #ffe39b45);
         }
-        25% {
-          transform: translateY(-36px) rotateY(382deg) scale(0.98, 1.04);
+        73.6% {
+          transform: translateY(-54px) rotateY(385deg) scale(0.97, 1.05);
           filter: drop-shadow(0 0 36px #ffe39bb0);
         }
-        30% {
-          transform: translateY(13.5px) rotateY(352deg) scale(1.025, 0.96);
+        76.8% {
+          transform: translateY(13.5px) rotateY(350deg) scale(1.025, 0.96);
           filter: drop-shadow(0 0 18px #ffe39b75);
         }
-        34% {
-          transform: translateY(-9px) rotateY(363deg) scale(0.99, 1.015);
+        80.4% {
+          transform: translateY(-9px) rotateY(364deg) scale(0.99, 1.015);
           filter: drop-shadow(0 0 18px #ffe39b60);
         }
-        39%,
-        59% {
-          transform: translateY(0px) rotateY(360deg) scale(1);
-          filter: drop-shadow(0 0 9px #ffe39b30);
-        }
-        64% {
-          transform: translateY(13.5px) rotateY(345deg) scale(1.02, 0.96);
-          filter: drop-shadow(0 0 27px #ffe39b90);
-        }
-        75% {
-          transform: translateY(-27px) rotateY(739deg) scale(0.98, 1.03);
-          filter: drop-shadow(0 0 36px #ffe39ba0);
-        }
-        80% {
-          transform: translateY(9px) rotateY(713deg) scale(1.02, 0.97);
-          filter: drop-shadow(0 0 18px #ffe39b70);
-        }
-        85% {
-          transform: translateY(-4.5px) rotateY(722deg) scale(0.995, 1.01);
-          filter: drop-shadow(0 0 18px #ffe39b50);
-        }
-        90%,
+        84.8%,
         100% {
-          transform: translateY(0px) rotateY(720deg) scale(1);
+          transform: translateY(0px) rotateY(360deg) scale(1, 1);
           filter: drop-shadow(0 0 9px #ffe39b30);
         }
       }
       @keyframes combined-glow {
         0%,
-        10%,
-        39%,
-        59%,
-        90%,
+        60%,
+        65.6%,
         100% {
           opacity: 0.2;
           transform: scale(1.2);
         }
-        15%,
-        64% {
-          opacity: 0.7;
-          transform: scale(1.4);
+        68.8% {
+          opacity: 0.35;
+          transform: scale(1.1);
         }
-        25%,
-        75% {
-          opacity: 0.95;
-          transform: scale(1.75);
+        73.6% {
+          opacity: 1;
+          transform: scale(1.8);
         }
-        30%,
-        80% {
+        78.4% {
           opacity: 0.4;
           transform: scale(1.3);
         }
-        34%,
-        85% {
-          opacity: 0.5;
-          transform: scale(1.4);
+        81.6% {
+          opacity: 0.55;
+          transform: scale(1.45);
+        }
+        86.8% {
+          opacity: 0.2;
+          transform: scale(1.2);
         }
       }
       @keyframes turn {
@@ -869,13 +886,13 @@
             ><span class="stage-caption">ENLARGED MOTION STUDY</span>
           </div>
           <div class="description">
-            <h2>Tilt & glowing core</h2>
-            <p class="intro">Charge up. Flip. Let the core bounce.</p>
+            <h2>Tilt, then glowing core</h2>
+            <p class="intro">Flip first. Let the core take its turn.</p>
             <p>
-              The M winds up and flips as the core brightens. The cube pops and rebounds just after
-              each landing, then both settle into a quiet pause.
+              The M winds up, flips and settles. Then it stays still while the gold cube glows, pops
+              and rebounds. A quiet pause closes the loop.
             </p>
-            <div class="rhythm">9-second sequence · shared rhythm, two layers</div>
+            <div class="rhythm">15-second sequence · 9 seconds turn, 6 seconds core</div>
           </div>
           <div class="chat-sample">
             <div class="sender">
@@ -895,15 +912,15 @@
               ><span class="thinking">Thinking…</span>
             </div>
           </div>
-          <footer>Springy flips with a warm, living center</footer>
+          <footer>Springy flips, followed by a glowing center</footer>
         </article>
       </section>
       <section class="notes">
         <div>
           <h2>Choose a direction</h2>
           <p>
-            Compare each animation at 24 px beside the message. Tilt & glowing core combines the
-            springy flips and illuminated cube in one shared rhythm.
+            Compare each animation at 24 px beside the message. Tilt, then glowing core combines the
+            springy flips and illuminated cube in two separate phases.
           </p>
         </div>
         <div>
