@@ -7,7 +7,7 @@ async function sample(page: Page, time: number) {
       animation.currentTime = currentTime;
     });
     const svg = document.querySelector('[role="status"] svg')!;
-    const core = svg.querySelector('use[href$="#central-cube"]')!;
+    const core = svg.querySelector('use[href$="-central-cube"]')!;
     const rotor = svg.parentElement!;
     const aura = rotor.previousElementSibling!;
     const styles = [rotor, core, aura].map((element) => {
@@ -74,5 +74,39 @@ test('thinking marker fits chat text and honors reduced motion in both themes', 
     expect(
       await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)
     ).toBe(true);
+  }
+});
+
+test('thinking marker paints its glass faces and gold core', async ({ page }) => {
+  await page.goto('/e2e/fixtures/thinking-marker.html?dark');
+  const markers = page.getByRole('status', { name: 'AI is responding' }).locator('svg');
+  await expect(markers).toHaveCount(2);
+  await sample(page, 0);
+
+  for (const marker of await markers.all()) {
+    const screenshot = await marker.screenshot();
+    const paint = await page.evaluate(async (png) => {
+      const image = new window.Image();
+      image.src = 'data:image/png;base64,' + png;
+      await image.decode();
+      const canvas = document.createElement('canvas');
+      canvas.width = image.width;
+      canvas.height = image.height;
+      const context = canvas.getContext('2d')!;
+      context.drawImage(image, 0, 0);
+      const { data } = context.getImageData(0, 0, image.width, image.height);
+      let glass = 0;
+      let gold = 0;
+      for (let index = 0; index < data.length; index += 4) {
+        const [red, green, blue, alpha] = data.slice(index, index + 4);
+        if (alpha > 128 && blue > red + 20 && green > red + 15) glass += 1;
+        if (alpha > 128 && red > 100 && red > green * 1.08 && green > blue * 1.15) gold += 1;
+      }
+      return { glass, gold, area: image.width * image.height };
+    }, screenshot.toString('base64'));
+    expect(paint.glass, 'the blue glass faces must visibly paint').toBeGreaterThan(
+      paint.area * 0.12
+    );
+    expect(paint.gold, 'the gold cube must visibly paint').toBeGreaterThan(paint.area * 0.02);
   }
 });

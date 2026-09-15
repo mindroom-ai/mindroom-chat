@@ -8,12 +8,14 @@ import '../../src/app/i18n';
 import { darkTheme, lightTheme } from '../../src/colors.css';
 import { ClientConfigProvider } from '../../src/app/hooks/useClientConfig';
 import { MindroomThinkingPlaceholder } from '../../src/app/mindroom/messages/MindroomThinkingPlaceholder';
+import { MindroomThinkingDefinitions } from '../../src/app/mindroom/messages/MindroomThinkingDefinitions';
 
 const dark = new URLSearchParams(window.location.search).has('dark');
 document.documentElement.className = `${configClass} ${varsClass} ${dark ? darkTheme : lightTheme}`;
 
 createRoot(document.getElementById('root')!).render(
   <ClientConfigProvider value={{ mindroom: { thinkingPlaceholderMessages: ['Thinking...'] } }}>
+    <MindroomThinkingDefinitions />
     <main style={{ padding: 24, color: color.Surface.OnContainer, lineHeight: 1.5 }}>
       <p style={{ fontSize: 16 }}>
         <MindroomThinkingPlaceholder />
