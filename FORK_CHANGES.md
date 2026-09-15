@@ -2,6 +2,19 @@
 
 ## Runbook
 
+### Adopt the iOS scene lifecycle (2026-09-15)
+
+- iOS 27 traps at native startup when an app built with the new SDK has no scene configuration.
+  The app now declares one window scene and creates its existing custom bridge from SceneDelegate.
+  Legacy storyboard startup is disabled so authentication and file-save plugins register on a single bridge.
+- Capacitor core, iOS, and CLI use 8.5.2, including the upstream scene proxy that defers cold-start URLs until plugins load.
+  Warm URLs and universal links use the same proxy; APNs registration remains in AppDelegate.
+  Existing plugins and Android retain their versions.
+- Validation: all 4,431 tests across 531 files, typecheck, production/PWA build, App Store preflight, and lint pass with zero errors and 17 existing warnings.
+  The launch-manifest regression fails against the legacy configuration and now verifies the scene delegate is compiled into the app target.
+  Capacitor asset sync and CocoaPods 1.16.2 dependency resolution pass; an independent reviewer approves the source and passes 40 focused native integration-contract tests.
+  Native compilation, launch, cold/warm links, notification taps, and foreground/background transitions remain unverified because this workspace has no Xcode or iOS simulator.
+
 ### Reduce native blur on floating glass (2026-09-15)
 
 - Thread banners and floating menus retain their existing tint, including 72% in dark, midnight, and butter themes.
