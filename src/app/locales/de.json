@@ -2635,6 +2635,8 @@
         "youDoNotHavePermissionToPostInThisRoom": "Du hast keine Berechtigung, in diesem Raum zu schreiben"
       },
       "mindroomRoomViewHeader": {
+        "showComputer": "Computer anzeigen",
+        "hideComputer": "Computer ausblenden",
         "notifications": "Benachrichtigungen",
         "compact": "Kompakt",
         "threads": "Threads",

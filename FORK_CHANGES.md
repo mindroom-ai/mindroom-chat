@@ -2,6 +2,68 @@
 
 ## Runbook
 
+### Recover Computer sessions after revocation and disconnects (2026-09-15)
+
+- Resume uses the same canonical thread root as the composer, including reply-event deep links, and waits until the routed event is known.
+- A disconnect while Stop is pending removes the dead screen; failed Stop exposes Reconnect with a fresh ticket, while successful Stop clears the transient disconnect error.
+- Losing the API configuration or final eligible agent disposes the panel and restores Members; restored availability leaves Computer closed.
+- The header's Show Computer and Hide Computer labels use the existing translator across all 17 catalogs.
+- The gateway admits up to eight concurrent viewer sessions per verified requester and 256 globally; closing a viewer or reaching its one-hour expiry frees its slot.
+- Focused behavior and locale coverage pass 217 tests; the final thread-root change passes another 55 affected tests, and typecheck, lint, formatting, and production/PWA build pass.
+- Fresh acceptance against the production preview passes real Matrix login, desktop watch/control, native typing with agent readback, one originating-thread continuation, mobile fullscreen, close/reopen, and stop/start in 13.4 seconds with no page errors.
+- Final desktop watch/control and mobile screenshots are captured; the exact disposable Matrix and worker containers are removed.
+
+### Integrate current worker computer bases and accurate resume notices (2026-09-15)
+
+- Replayed only the computer feature series onto current dev, preserving the thread approval provider and queue around the computer-aware header.
+- Resume immediately reports released control, and reports that the agent was asked to continue only after Matrix message delivery succeeds.
+- Retaking control clears obsolete release and continuation notices.
+- Behavioral regression coverage catches premature success while delivery is pending or failed and stale success after retake; all 70 computer and RoomView tests pass.
+- Full Vitest passes 4,225 tests with four failures reproduced independently on the pinned current dev base: three Xcode Cloud Homebrew cases on non-macOS and one upload-caption restoration case.
+- Typecheck and production/PWA build pass; full ESLint has zero errors and 17 existing warnings.
+- Changed-file formatting passes; all 172 tracked files flagged by full Prettier are byte-identical to current dev, plus one existing local skill alias.
+- Fresh real Matrix/Chat acceptance passes desktop watch/control, completed native input and agent snapshot readback, exactly one originating-thread continuation, mobile fullscreen, close/reopen, and stop/start with no page errors.
+- The current backend worker image includes matching locked dependencies, source, runtime scripts, and logo assets.
+- Final screenshots show completed input and accurate watch/control notices; disposable Matrix and worker cleanup is independently verified.
+- Next: independent integration and full-feature review, followed by ready pull requests.
+
+### Reproduce worker computer integration (2026-09-15)
+
+- Status: fixture/spec implementation and live desktop/mobile acceptance are validated; independent task and final feature review follow.
+- `e2e/worker-computer.spec.ts` requires `E2E_COMPUTER_FIXTURE` from the backend's `scripts/test-worker-computer.py --serve` and rejects non-loopback services.
+- The backend fixture can create its own disposable Matrix server, test users, room/thread, public computer gateway, and dedicated Docker worker; no default homeserver or real account is used.
+- The spec verifies the real noVNC framebuffer, native keyboard typing with DOM readback and an actual agent page snapshot of the visible input echo, exactly one user-authored continuation in the originating thread, desktop side-panel and mobile fullscreen bounds, close/reopen, and stop/start.
+- Screenshots wait for completed text readback; the control screenshot retakes control after that readback, and closing releases it without sending another continuation.
+- Run the live browser check without concurrent Docker container creation/removal: host network-interface changes can interrupt Chromium asset requests.
+- Reproduction: start the backend fixture with `--chat-origin http://127.0.0.1:4173`, then run `E2E_COMPUTER_FIXTURE=<fixture-output>/chat-fixture.json E2E_BASE_URL=http://127.0.0.1:4173 npm run test:e2e -- e2e/worker-computer.spec.ts`.
+- See the backend's `docs/tools/worker-computer.md` for worker image, local Matrix image, opt-in environment, exact cleanup ownership, and trusted API/WSS routing.
+- Live desktop/mobile acceptance passes with no page errors (one Playwright test, 17.9 seconds).
+- Full Vitest passes 3,645 tests and retains the same four clean-baseline failures: three Xcode Cloud Homebrew tests on non-macOS and one caption-restoration test.
+- Typecheck, production/PWA build, and focused spec ESLint/Prettier pass.
+- Full ESLint has zero errors and 17 existing warnings.
+- Full Prettier reports 213 existing formatting warnings: 212 files are byte-identical to the clean feature baseline, plus the local skill alias; no changed feature file is flagged.
+
+### Show dedicated agent computers in Chat (2026-09-15)
+
+- Status: implemented and validated with focused behavioral coverage, typecheck, changed-file formatting and lint, a production build, the full Vitest comparison, and live native noVNC acceptance.
+- The feature is opt-in through the exact trusted origin at `mindroom.computers.apiUrl`; the shipped value is empty, remote origins require HTTPS, and loopback HTTP remains available for local development.
+- Operator example: `"mindroom": { "computers": { "apiUrl": "https://computer.example.org" } }`.
+- Eligible rooms expose a Computer header action only when the configured origin is valid and at least one MindRoom agent is joined.
+- The room owns the panel so account, room, routed-thread, and selected-agent changes dispose the old viewer and invalidate late responses.
+- Multiple joined agents require an explicit selection and Watch action, and the exact Matrix user ID is sent for authorization.
+- Session bearer tokens remain inside the active in-memory client, every display connection uses a new single-use ticket in the `mindroom-ticket.<ticket>` WebSocket subprotocol, and request credentials are omitted.
+- Server status is authoritative for view and control mode; the native noVNC screen scales to its viewport, updates `viewOnly` from that status, and disposes its single RFB instance and callbacks on replacement or unmount.
+- Resume agent releases control first, reconnects the same public session in watch mode with a fresh ticket, and independently sends one ordinary thread-aware continuation mentioning the selected agent.
+- A failed watch reconnect does not suppress or duplicate the continuation message. A replacement watch-stream failure remains recoverable while continuation delivery is pending, while callbacks from the retired control stream are ignored. A continuation-send failure leaves control released and reports the send failure separately.
+- Stop revokes the current session, and Start computer obtains a fresh Matrix OpenID token and creates a new public session.
+- Closing the panel deletes only the viewer session and never sends a continuation message or stops the persistent worker computer.
+- Desktop uses a side panel that closes the Members drawer, while mobile uses a full-screen surface with a clear close action.
+- Computer keyboard and paste events remain inside the RFB surface, and composer focus plus the global command palette defer while that surface owns input.
+- The client uses native `@novnc/novnc` 1.7.0 through its package export and supplies only `binary` plus the single-use ticket protocol.
+- Focused coverage passes 84 tests across the Computer API, panel, screen, header, room ownership, composer focus, and command-palette suites.
+- Live acceptance passed watch, takeover, typing into the worker browser, release with a continuation in the originating thread, desktop side-panel placement, and mobile full-screen placement with no page errors.
+- `npm run build` passes. The full suite passes 3,643 tests and retains the four known baseline failures: three Xcode Cloud Homebrew tests on non-macOS and one caption-restoration test.
+
 ### Roll out isolated liquid glass materials (2026-09-15)
 
 - A shared material family covers the command palette, menus, dialogs, headers, sidebar controls, composer, audio player, recording capsule, and thread controls.
