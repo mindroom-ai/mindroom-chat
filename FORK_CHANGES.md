@@ -2,86 +2,24 @@
 
 ## Runbook
 
-### Add the responsive thread model picker (2026-09-15)
+### Refine glass sheets and compact controls (2026-09-15)
 
-- Existing eligible thread composers now show a compact model row above the writing controls.
-  The row consumes the client-scoped controller hook, and the presentation sends no Matrix traffic.
-- Desktop uses an anchored Folds pop-out while mobile uses a safe-area-aware bottom sheet.
-  Search matches display name, stable key, and provider; results group by provider and retain the same visual and keyboard order.
-- Desktop and mobile picker panels use the shared glass surface owners without overriding their material paint.
-- Room-default reset is a distinct action from every configured model key, including `default` and `room-default`.
-  Multiple authenticated runtimes require a readable account-and-device choice before mutations become available.
-- Pending commands survive dismissal, refresh remains available during recovery, errors keep the readable `!model` fallback visible, and delayed completion cannot steal focus after dismissal.
-- Dismissal clears popup-local completion ownership, so an earlier command cannot close a later opening before or after its acknowledgement arrives.
-- The visible subtitle states that future replies use the selection for all agents and teams in the thread, and the stable trigger name exposes the current visible model as its accessible description.
-- Custom catalog icons use authenticated Matrix media conversion and fall back to the shared provider or generic icon on load failure.
-  Historical message badges use the same provider icon owner without changing their labels or semantics.
-- Focused component coverage passes all 23 picker cases plus composer top-slot and historical badge regressions.
-  Live browser checks pass plain and encrypted set/reset, draft preservation, ineligible-room gates, desktop and mobile layouts, and 320 px fit.
-
-### Preserve model-picker ownership through stop and delayed sends (2026-09-15)
-
-- The controller now retains one identity per Matrix client across stopped state, explicit remount, and React StrictMode effect replay.
-  Snapshot reads are inert; the client lifetime hook acquires and releases an explicit controller lease, and stopped controllers restart only through that lifecycle after the SDK is running again.
-- SDK send ownership is separate from the acknowledgement deadline.
-  Timeout, membership/device invalidation, navigation, and cache eviction cannot release the mutation barrier while the original send is unresolved.
-  After settlement, any earlier discovery is discarded and a new selection query must succeed before another command is accepted.
-- Pending remains true while the SDK send is unresolved; recovery can still block mutations after pending and loading have cleared.
-  The controller exposes `canMutate` through the picker hook, and model/reset options use it for both pointer and keyboard activation.
-  Refresh and dismissal remain available when recovery fails; authenticated discovery restores mutation availability.
-- Validation: all 135 scoped tests pass under Node 24.13.1, including actual React StrictMode replay, stopped-owner reads/remount, delayed send success/failure after timeout or invalidation, and combined remount/cache-pressure recovery.
-  Typecheck, targeted ESLint, formatting, and whitespace checks pass.
-- Recovery availability validation: all 163 scoped tests pass under Node 24.13.1, including a settled send with a lost acknowledgement, failed recovery, disabled picker activation, and successful rediscovery.
-
-
-### Add the shared Matrix model-picker controller (2026-09-15)
-
-- Status: controller, protocol validation, transport, and React subscription hook are implemented and locally validated; composer presentation is the next step.
-- One client-scoped owner handles encrypted catalog discovery, signed runtime-device authentication, thread selection, command acknowledgements, cache invalidation, and explicit teardown.
-  Lazy room membership is hydrated before joined same-server candidates are considered, and advertised agents must independently qualify as joined members.
-- Discovery collects authenticated runtime responses for 12 seconds before automatically choosing a sole runtime.
-  Multiple runtimes require an explicit choice, including when a second runtime appears after an earlier automatic single-runtime choice.
-  Unanswered catalog requests use bounded retries with the same request ID, and encrypted batches retain exact signed recipients.
-- Room capability and model catalogs are cached separately from thread selection.
-  Membership and device changes invalidate cached eligibility and trigger coalesced rediscovery for active subscribers; logout also clears catalogs whose thread scopes were already evicted.
-- Selections use readable threaded room commands with explicit set/reset metadata and the selected runtime user and device.
-  Confirmed state changes only after a matching own acknowledgement, including when the acknowledgement arrives before the send promise resolves.
-  Encrypted acknowledgements authenticate the actual sender key; plaintext acknowledgements authenticate the Matrix sender account and use device metadata only for correlation.
-- Pending commands survive picker dismissal and composer navigation.
-  Transport retry reuses the SDK local event and original transaction ID, while uncertainty requires fresh discovery before another mutation.
-  Earlier catalog replies cannot replace a later confirmed selection.
-- Validation: all 127 focused protocol, controller, hook, SDK discovery, device-trust, encrypted-call transport, and composer-send tests pass under Node 24.13.1.
-  Typecheck, targeted ESLint, formatting, and whitespace checks pass.
-  Native Node 22 reproduces the unchanged caption-upload matcher failure; the same test passes in the Node 24 container.
-  Actual controller probes against Matrix also pass discovery, set, reserved-key selection, reset, and refreshed selection in both plain and encrypted rooms.
-
-
-### Hydrate explicit device discovery through Rust crypto (2026-09-15)
-
-- Status: the SDK patch and focused behavioral regression are implemented and locally validated.
-- `getUserDeviceInfo(userIds, true)` now starts tracking previously untracked users, processes the resulting key query through Rust crypto, and returns the validated devices from the Rust store.
-  Raw HTTP device records no longer bypass Rust signature validation or appear as usable trust data.
-- Explicit discovery intentionally leaves newly requested users tracked so later verification and to-device encryption read the same persisted device records.
-  The default `downloadUncached=false` behavior and the fast path for populated tracked users remain unchanged.
-- A failed key query leaves the Rust-backed result empty and therefore unavailable for trust or encryption.
-  A later explicit lookup for an empty tracked user reprocesses pending outgoing requests before reading the store again.
-- The versioned package patch updates both the TypeScript source and distributed JavaScript without changing existing source maps.
-  When upgrading `matrix-js-sdk`, check whether upstream explicit discovery hydrates the Rust store and preserves failed-query retry; retain this regression and refresh or remove both patch sections together.
-- Validation: all 35 focused SDK, device-trust, and to-device call tests pass, along with typecheck, targeted ESLint, changed-file formatting, patch reverse/apply, and whitespace checks.
-  Fresh real plain and encrypted controller round trips pass the owner-signed Rust-store gate and request/reply delivery.
-  Actual backend checks then pass catalog discovery, Matrix icon metadata, set/reset acknowledgement, and refreshed selection.
-
-### Propose a model picker with Matrix-only discovery (2026-09-15)
-
-- Status: design proposal and standalone prototype; application behavior is unchanged.
-- `docs/mindroom-model-picker-design.md` describes encrypted to-device catalog discovery, existing room-command mutations, runtime/device validation, and implementation acceptance criteria.
-- Optional model `display_name` and `icon` fields preserve stable command keys; local icons are uploaded through Matrix and discovery returns Matrix media references.
-- `docs/previews/model-picker.html` demonstrates searchable names, provider grouping, custom logos, thread scope, default reset, pending acknowledgements, and desktop/mobile layouts with simulated data.
-- Screenshots are attached to the pull request with GitHub CLI's `--attach` flag.
-- Validation: all 4,191 tests pass under Node 24.13.1 in the standard Linux container; typecheck, build, lint (zero errors, 17 existing warnings), and changed-file formatting pass.
-- Chromium checks cover display-name/key/provider search, stable keys, custom logos, pending selection, reset, draft preservation, keyboard dismissal, and mobile bounds.
-- Independent review identified and corrected delayed-acknowledgement focus theft after picker dismissal and clarified runtime authentication for structured mutation results.
-- Next step: review the design, then implement and verify the runtime and client protocol together.
+- Dark settings sheets combined a 70% dimming backdrop with a 72% material tint, leaving only about 8% of the original backdrop color visible.
+  The shared Modal500 shell now uses a 28% tint over that dimmed backdrop in dark themes; floating menus retain their stronger tint over undimmed content.
+  Silver sheets use a 64% tint to preserve text contrast over dark content.
+- Small controls and overlay rims use theme-aware highlights, with a softer 14% white rim in dark themes and equal horizontal/vertical offsets for 45-degree lighting.
+- The thread banner uses the shared panel material with inset spacing and rounded corners, including its resolved state.
+  The audio play disc is 32 px with an 18 px glyph inside the existing 44 px touch target.
+- The dependency-free optical engine and browser fallback policy are unchanged: Chromium uses SVG refraction and WebKit uses native backdrop blur and tint.
+  Composer spacing and its plain footer remain unchanged.
+- The real Modal500 browser regression fails on the previous dark tint and passes after the change, measuring painted backdrop response and text contrast across all five themes.
+  Run shared-surface coverage in Chromium and WebKit with `npm run test:e2e -- --config=playwright.glass.config.ts`.
+- Validation: all 4,261 unit tests across 518 files pass, along with typecheck, production/PWA build, and ESLint with zero errors and the existing 17 warnings.
+  All 23 Chromium optical, shared-surface, and audio cases pass; all 15 WebKit shared-surface cases pass.
+  Independent review found no actionable source issues.
+- Linux headless WebKit does not paint native backdrop blur even in a standalone inline-CSS probe on this host.
+  Its tests verify transparency, contrast, layout, and interaction; actual iOS blur appearance still requires device validation.
+  Review screenshots use local sample data and remain outside version control.
 
 ### Recover Computer sessions after revocation and disconnects (2026-09-15)
 
@@ -173,6 +111,87 @@
   Typecheck and the production/PWA build pass; full ESLint reports zero errors and the existing 17 warnings.
   Ten shared-surface browser cases and eight optical/audio cases pass, including nested layouts, portal menus, custom popovers, accessibility preferences, and five-theme contrast.
 - Review screenshots and the motion study use local sample data and remain outside version control.
+
+### Add the responsive thread model picker (2026-09-15)
+
+- Existing eligible thread composers now show a compact model row above the writing controls.
+  The row consumes the client-scoped controller hook, and the presentation sends no Matrix traffic.
+- Desktop uses an anchored Folds pop-out while mobile uses a safe-area-aware bottom sheet.
+  Search matches display name, stable key, and provider; results group by provider and retain the same visual and keyboard order.
+- Desktop and mobile picker panels use the shared glass surface owners without overriding their material paint.
+- Room-default reset is a distinct action from every configured model key, including `default` and `room-default`.
+  Multiple authenticated runtimes require a readable account-and-device choice before mutations become available.
+- Pending commands survive dismissal, refresh remains available during recovery, errors keep the readable `!model` fallback visible, and delayed completion cannot steal focus after dismissal.
+- Dismissal clears popup-local completion ownership, so an earlier command cannot close a later opening before or after its acknowledgement arrives.
+- The visible subtitle states that future replies use the selection for all agents and teams in the thread, and the stable trigger name exposes the current visible model as its accessible description.
+- Custom catalog icons use authenticated Matrix media conversion and fall back to the shared provider or generic icon on load failure.
+  Historical message badges use the same provider icon owner without changing their labels or semantics.
+- Focused component coverage passes all 23 picker cases plus composer top-slot and historical badge regressions.
+  Live browser checks pass plain and encrypted set/reset, draft preservation, ineligible-room gates, desktop and mobile layouts, and 320 px fit.
+
+### Preserve model-picker ownership through stop and delayed sends (2026-09-15)
+
+- The controller now retains one identity per Matrix client across stopped state, explicit remount, and React StrictMode effect replay.
+  Snapshot reads are inert; the client lifetime hook acquires and releases an explicit controller lease, and stopped controllers restart only through that lifecycle after the SDK is running again.
+- SDK send ownership is separate from the acknowledgement deadline.
+  Timeout, membership/device invalidation, navigation, and cache eviction cannot release the mutation barrier while the original send is unresolved.
+  After settlement, any earlier discovery is discarded and a new selection query must succeed before another command is accepted.
+- Pending remains true while the SDK send is unresolved; recovery can still block mutations after pending and loading have cleared.
+  The controller exposes `canMutate` through the picker hook, and model/reset options use it for both pointer and keyboard activation.
+  Refresh and dismissal remain available when recovery fails; authenticated discovery restores mutation availability.
+- Validation: all 135 scoped tests pass under Node 24.13.1, including actual React StrictMode replay, stopped-owner reads/remount, delayed send success/failure after timeout or invalidation, and combined remount/cache-pressure recovery.
+  Typecheck, targeted ESLint, formatting, and whitespace checks pass.
+- Recovery availability validation: all 163 scoped tests pass under Node 24.13.1, including a settled send with a lost acknowledgement, failed recovery, disabled picker activation, and successful rediscovery.
+
+
+### Add the shared Matrix model-picker controller (2026-09-15)
+
+- Status: controller, protocol validation, transport, and React subscription hook are implemented and locally validated; composer presentation is the next step.
+- One client-scoped owner handles encrypted catalog discovery, signed runtime-device authentication, thread selection, command acknowledgements, cache invalidation, and explicit teardown.
+  Lazy room membership is hydrated before joined same-server candidates are considered, and advertised agents must independently qualify as joined members.
+- Discovery collects authenticated runtime responses for 12 seconds before automatically choosing a sole runtime.
+  Multiple runtimes require an explicit choice, including when a second runtime appears after an earlier automatic single-runtime choice.
+  Unanswered catalog requests use bounded retries with the same request ID, and encrypted batches retain exact signed recipients.
+- Room capability and model catalogs are cached separately from thread selection.
+  Membership and device changes invalidate cached eligibility and trigger coalesced rediscovery for active subscribers; logout also clears catalogs whose thread scopes were already evicted.
+- Selections use readable threaded room commands with explicit set/reset metadata and the selected runtime user and device.
+  Confirmed state changes only after a matching own acknowledgement, including when the acknowledgement arrives before the send promise resolves.
+  Encrypted acknowledgements authenticate the actual sender key; plaintext acknowledgements authenticate the Matrix sender account and use device metadata only for correlation.
+- Pending commands survive picker dismissal and composer navigation.
+  Transport retry reuses the SDK local event and original transaction ID, while uncertainty requires fresh discovery before another mutation.
+  Earlier catalog replies cannot replace a later confirmed selection.
+- Validation: all 127 focused protocol, controller, hook, SDK discovery, device-trust, encrypted-call transport, and composer-send tests pass under Node 24.13.1.
+  Typecheck, targeted ESLint, formatting, and whitespace checks pass.
+  Native Node 22 reproduces the unchanged caption-upload matcher failure; the same test passes in the Node 24 container.
+  Actual controller probes against Matrix also pass discovery, set, reserved-key selection, reset, and refreshed selection in both plain and encrypted rooms.
+
+
+### Hydrate explicit device discovery through Rust crypto (2026-09-15)
+
+- Status: the SDK patch and focused behavioral regression are implemented and locally validated.
+- `getUserDeviceInfo(userIds, true)` now starts tracking previously untracked users, processes the resulting key query through Rust crypto, and returns the validated devices from the Rust store.
+  Raw HTTP device records no longer bypass Rust signature validation or appear as usable trust data.
+- Explicit discovery intentionally leaves newly requested users tracked so later verification and to-device encryption read the same persisted device records.
+  The default `downloadUncached=false` behavior and the fast path for populated tracked users remain unchanged.
+- A failed key query leaves the Rust-backed result empty and therefore unavailable for trust or encryption.
+  A later explicit lookup for an empty tracked user reprocesses pending outgoing requests before reading the store again.
+- The versioned package patch updates both the TypeScript source and distributed JavaScript without changing existing source maps.
+  When upgrading `matrix-js-sdk`, check whether upstream explicit discovery hydrates the Rust store and preserves failed-query retry; retain this regression and refresh or remove both patch sections together.
+- Validation: all 35 focused SDK, device-trust, and to-device call tests pass, along with typecheck, targeted ESLint, changed-file formatting, patch reverse/apply, and whitespace checks.
+  Fresh real plain and encrypted controller round trips pass the owner-signed Rust-store gate and request/reply delivery.
+  Actual backend checks then pass catalog discovery, Matrix icon metadata, set/reset acknowledgement, and refreshed selection.
+
+### Propose a model picker with Matrix-only discovery (2026-09-15)
+
+- Status: design proposal and standalone prototype; application behavior is unchanged.
+- `docs/mindroom-model-picker-design.md` describes encrypted to-device catalog discovery, existing room-command mutations, runtime/device validation, and implementation acceptance criteria.
+- Optional model `display_name` and `icon` fields preserve stable command keys; local icons are uploaded through Matrix and discovery returns Matrix media references.
+- `docs/previews/model-picker.html` demonstrates searchable names, provider grouping, custom logos, thread scope, default reset, pending acknowledgements, and desktop/mobile layouts with simulated data.
+- Screenshots are attached to the pull request with GitHub CLI's `--attach` flag.
+- Validation: all 4,191 tests pass under Node 24.13.1 in the standard Linux container; typecheck, build, lint (zero errors, 17 existing warnings), and changed-file formatting pass.
+- Chromium checks cover display-name/key/provider search, stable keys, custom logos, pending selection, reset, draft preservation, keyboard dismissal, and mobile bounds.
+- Independent review identified and corrected delayed-acknowledgement focus theft after picker dismissal and clarified runtime authentication for structured mutation results.
+- Next step: review the design, then implement and verify the runtime and client protocol together.
 
 ### Restore the thinking marker's glass M in WebKit (2026-09-15)
 

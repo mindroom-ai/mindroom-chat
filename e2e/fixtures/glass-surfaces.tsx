@@ -29,6 +29,7 @@ import { ScreenSizeProvider, useScreenSize } from '../../src/app/hooks/useScreen
 import { RoomThreadOverview } from '../../src/app/mindroom/threads/RoomThreadOverview';
 import type { ThreadFilterState } from '../../src/app/mindroom/threads/roomThreadOverviewModel';
 import { mindroomAccountSettingsAtom } from '../../src/app/mindroom/settings/useMindroomAccountSettings';
+import { Modal500 } from '../../src/app/components/Modal500';
 
 const themes = {
   light: LightTheme,
@@ -52,6 +53,7 @@ function Fixture() {
   const editor = useEditor();
   const screenSize = useScreenSize();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [sheetOpen, setSheetOpen] = useState(false);
   const [threadAction, setThreadAction] = useState('No filter selected');
   const threadState: ThreadFilterState = {
     resolved: 'any',
@@ -80,6 +82,19 @@ function Fixture() {
           'radial-gradient(circle at 18% 12%, rgb(93 123 255 / 32%), transparent 30%), radial-gradient(circle at 82% 72%, rgb(185 111 255 / 24%), transparent 35%), var(--cpd-color-background-container)',
       }}
     >
+      <button type="button" onClick={() => setSheetOpen(true)}>
+        Open settings sheet
+      </button>
+      {sheetOpen && (
+        <Modal500 requestClose={() => setSheetOpen(false)}>
+          <div data-testid="settings-sheet" style={{ padding: 24 }}>
+            <Text data-testid="settings-sheet-copy">Account preferences stay readable.</Text>
+            <button type="button" onClick={() => setSheetOpen(false)}>
+              Close settings sheet
+            </button>
+          </div>
+        </Modal500>
+      )}
       <div
         aria-hidden="true"
         style={{ display: 'grid', gap: 8, margin: '0 auto 18px', maxWidth: 680, opacity: 0.75 }}
