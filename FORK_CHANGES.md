@@ -17,7 +17,7 @@
 - The preview honors the operating system's reduced-motion preference.
 - The original geometry, gradients, masks, and layer order are preserved in one shared SVG definition set; Glowing core animates the original central cube.
 - Fidelity checks verify byte-identical source artwork, resolved SVG references, and pixel-identical rendering at 256 px. Chromium checks cover all controls, both reduced-motion modes, SVG rendering, mobile layout, and script errors.
-- Typecheck, lint, build, and changed-file formatting pass; the full Node 24 suite passes 4,189 tests, with three existing Nix shell-fixture failures caused by hard-coded system shell paths.
+- Typecheck, lint, build, and changed-file formatting pass. All 4,192 tests pass under Node 24 in the standard Linux container; all six thinking-marker browser cases pass across Chromium, Firefox, and WebKit.
 - The comparison HTML is a design reference; the application uses the selected sequence from `MindroomThinkingPlaceholder.css.ts` and the shared production artwork.
 
 ### Refine command palette presentation and navigation (2026-09-15)
