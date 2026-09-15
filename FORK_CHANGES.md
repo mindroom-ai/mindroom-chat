@@ -2,6 +2,25 @@
 
 ## Runbook
 
+### Refine glass sheets and compact controls (2026-09-15)
+
+- Dark settings sheets combined a 70% dimming backdrop with a 72% material tint, leaving only about 8% of the original backdrop color visible.
+  The shared Modal500 shell now uses a 28% tint over that dimmed backdrop in dark themes; floating menus retain their stronger tint over undimmed content.
+  Silver sheets use a 64% tint to preserve text contrast over dark content.
+- Small controls and overlay rims use theme-aware highlights, with a softer 14% white rim in dark themes and equal horizontal/vertical offsets for 45-degree lighting.
+- The thread banner uses the shared panel material with inset spacing and rounded corners, including its resolved state.
+  The audio play disc is 32 px with an 18 px glyph inside the existing 44 px touch target.
+- The dependency-free optical engine and browser fallback policy are unchanged: Chromium uses SVG refraction and WebKit uses native backdrop blur and tint.
+  Composer spacing and its plain footer remain unchanged.
+- The real Modal500 browser regression fails on the previous dark tint and passes after the change, measuring painted backdrop response and text contrast across all five themes.
+  Run shared-surface coverage in Chromium and WebKit with `npm run test:e2e -- --config=playwright.glass.config.ts`.
+- Validation: all 4,261 unit tests across 518 files pass, along with typecheck, production/PWA build, and ESLint with zero errors and the existing 17 warnings.
+  All 23 Chromium optical, shared-surface, and audio cases pass; all 15 WebKit shared-surface cases pass.
+  Independent review found no actionable source issues.
+- Linux headless WebKit does not paint native backdrop blur even in a standalone inline-CSS probe on this host.
+  Its tests verify transparency, contrast, layout, and interaction; actual iOS blur appearance still requires device validation.
+  Review screenshots use local sample data and remain outside version control.
+
 ### Roll out isolated liquid glass materials (2026-09-15)
 
 - A shared material family covers the command palette, menus, dialogs, headers, sidebar controls, composer, audio player, recording capsule, and thread controls.

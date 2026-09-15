@@ -1,5 +1,38 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { contrastRatio, pixelDifference, sampleScreenshot, type Rgba } from './helpers/glassVisual';
+for (const theme of ['light', 'silver', 'dark', 'midnight', 'butter']) {
+  test(`settings sheet reveals its dimmed backdrop and retains contrast in ${theme}`, async ({
+    page,
+  }) => {
+    await page.goto(`/e2e/fixtures/glass-surfaces.html?theme=${theme}`);
+    await page.getByRole('button', { name: 'Open settings sheet', exact: true }).click();
+    const samples = [
+      {
+        boundaryTestId: 'settings-sheet',
+        name: 'settings sheet',
+        text: page.getByTestId('settings-sheet-copy'),
+      },
+    ];
+    const backgrounds: Rgba[] = [];
+    // Change every layer behind the real portal, including the fixture's cards.
+    const backdrop = await page.addStyleTag({
+      content: 'main { background: black !important; } main > * { visibility: hidden; }',
+    });
+    for (const color of ['black', 'white']) {
+      await backdrop.evaluate((element, value) => {
+        element.textContent = `main { background: ${value} !important; } main > * { visibility: hidden; }`;
+      }, color);
+      await expectRenderedContrast(page, theme, color, samples);
+      backgrounds.push((await renderedBackgrounds(page, samples))[0]);
+    }
+    expect(
+      pixelDifference(backgrounds[0], backgrounds[1]),
+      'visible backdrop response through the settings sheet'
+    ).toBeGreaterThan(120);
+    await page.keyboard.press('Escape');
+    await expect(page.getByTestId('settings-sheet')).toHaveCount(0);
+  });
+}
 
 // Twelve seconds of silent PCM keeps the real audio component self-contained.
 const audio = Buffer.alloc(192044);
@@ -272,19 +305,25 @@ test('shared materials reveal changes in the backdrop', async ({ page }) => {
   });
 });
 
-test('accessibility preferences use opaque materials without blur', async ({ page }) => {
-  const client = await page.context().newCDPSession(page);
-  await client.send('Emulation.setEmulatedMedia', {
-    features: [{ name: 'prefers-reduced-transparency', value: 'reduce' }],
-  });
+test('accessibility preferences use opaque materials without blur', async ({
+  page,
+  browserName,
+}) => {
+  // Playwright exposes reduced-transparency emulation through Chromium's CDP only.
+  if (browserName === 'chromium') {
+    const client = await page.context().newCDPSession(page);
+    await client.send('Emulation.setEmulatedMedia', {
+      features: [{ name: 'prefers-reduced-transparency', value: 'reduce' }],
+    });
+    await page.goto('/e2e/fixtures/glass-surfaces.html?theme=midnight');
+    await expectOpaqueFallback(page);
+    await client.send('Emulation.setEmulatedMedia', { features: [] });
+  }
+  await page.emulateMedia({ contrast: 'more' });
   await page.goto('/e2e/fixtures/glass-surfaces.html?theme=midnight');
   await expectOpaqueFallback(page);
 
-  await client.send('Emulation.setEmulatedMedia', {
-    features: [{ name: 'prefers-contrast', value: 'more' }],
-  });
-  await expectOpaqueFallback(page);
-
+  await page.emulateMedia({ contrast: 'no-preference' });
   await page.emulateMedia({ forcedColors: 'active' });
   await expectOpaqueFallback(page);
 });
@@ -294,6 +333,7 @@ test('real controls keep focus, editing, playback, and narrow layout', async ({ 
   await page.goto('/e2e/fixtures/glass-surfaces.html?theme=silver');
 
   const workspace = page.getByRole('button', { name: 'Open workspace' });
+  await page.getByRole('button', { name: 'Open settings sheet', exact: true }).focus();
   await page.keyboard.press('Tab');
   await expect(workspace).toBeFocused();
   expect(await workspace.evaluate((element) => getComputedStyle(element).outlineStyle)).not.toBe(

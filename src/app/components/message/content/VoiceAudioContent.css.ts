@@ -53,6 +53,9 @@ export const PlayButton = style({
   flexShrink: 0,
   padding: 0,
   borderRadius: '50%',
+  // Keep the 44 px touch target around a quieter 32 px visible disc.
+  border: `${toRem(6)} solid transparent`,
+  backgroundClip: 'padding-box',
 });
 
 export const PlayIcon = style({
