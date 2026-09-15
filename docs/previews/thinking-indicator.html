@@ -1,0 +1,816 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>MindRoom · Thinking in motion</title>
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+      :root {
+        color-scheme: dark;
+        --bg: #101719;
+        --panel: #172124;
+        --stage: #121c1f;
+        --text: #e7efea;
+        --muted: #a0b2b2;
+        --border: #304144;
+        --gold: #efd083;
+        --teal: #79b7b5;
+        --inline-size: 24px;
+        --speed: 1;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font: 15px/1.5 ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI',
+          sans-serif;
+      }
+      body.light {
+        color-scheme: light;
+        --bg: #f5f6f1;
+        --panel: #fffefa;
+        --stage: #edf2ed;
+        --text: #18353b;
+        --muted: #51676b;
+        --border: #d6e1da;
+        --gold: #95650e;
+        --teal: #2e767d;
+      }
+      main {
+        max-width: 1240px;
+        margin: auto;
+        padding: 44px 32px 30px;
+      }
+      .eyebrow {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        color: var(--teal);
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 2px;
+        text-transform: uppercase;
+      }
+      .eyebrow i {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: var(--gold);
+      }
+      h1 {
+        font-size: clamp(30px, 4vw, 45px);
+        line-height: 1.12;
+        letter-spacing: -1.6px;
+        font-weight: 600;
+        margin: 14px 0 12px;
+      }
+      .lead {
+        max-width: 710px;
+        color: var(--muted);
+        margin: 0;
+        font-size: 16px;
+      }
+      .controls {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 12px 20px;
+        margin: 26px 0 24px;
+        padding: 15px 0;
+        border-top: 1px solid var(--border);
+        border-bottom: 1px solid var(--border);
+      }
+      .controls label {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 12px;
+        color: var(--muted);
+      }
+      button {
+        background: var(--panel);
+        color: var(--text);
+        border: 1px solid var(--border);
+        border-radius: 7px;
+        font: inherit;
+        font-size: 12px;
+        padding: 7px 10px;
+        cursor: pointer;
+      }
+      button:hover {
+        border-color: var(--teal);
+      }
+      button:focus-visible,
+      input:focus-visible {
+        outline: 2px solid var(--gold);
+        outline-offset: 4px;
+      }
+      input {
+        accent-color: var(--teal);
+      }
+      input[type='range'] {
+        width: 100px;
+      }
+      output {
+        font-variant-numeric: tabular-nums;
+        min-width: 32px;
+      }
+      .cards {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 18px;
+      }
+      .concept {
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        overflow: hidden;
+        background: var(--panel);
+      }
+      .concept:last-child {
+        border-color: #729283;
+      }
+      .card-heading {
+        padding: 18px 20px 0;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+      .number {
+        color: var(--muted);
+        font-size: 12px;
+        font-variant-numeric: tabular-nums;
+      }
+      .tag {
+        color: var(--gold);
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.6px;
+        text-transform: uppercase;
+        background: color-mix(in srgb, var(--gold) 8%, transparent);
+        padding: 4px 8px;
+        border-radius: 20px;
+      }
+      .stage {
+        height: 204px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        position: relative;
+        background: radial-gradient(
+          ellipse at center,
+          color-mix(in srgb, var(--teal) 7%, transparent),
+          transparent 68%
+        );
+      }
+      .stage-caption {
+        position: absolute;
+        bottom: 12px;
+        font-size: 9px;
+        letter-spacing: 1.4px;
+        color: var(--muted);
+      }
+      .description {
+        padding: 9px 20px 19px;
+      }
+      h2 {
+        font-size: 21px;
+        font-weight: 600;
+        letter-spacing: -0.5px;
+        margin: 0 0 7px;
+      }
+      .description p {
+        font-size: 12px;
+        color: var(--muted);
+        margin: 0 0 12px;
+        min-height: 54px;
+      }
+      .description p.intro {
+        color: var(--text);
+        font-size: 13px;
+        margin-bottom: 10px;
+        min-height: 40px;
+      }
+      .rhythm {
+        font-size: 10px;
+        color: var(--teal);
+        margin-top: 15px;
+      }
+      .chat-sample {
+        padding: 16px 20px;
+        background: var(--stage);
+        border-top: 1px solid var(--border);
+        border-bottom: 1px solid var(--border);
+      }
+      .sender {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 12px;
+      }
+      .avatar {
+        width: 23px;
+        height: 23px;
+        display: inline-grid;
+        place-items: center;
+        border-radius: 7px;
+        background: #2c5155;
+        color: #d4e4dc;
+        font-size: 11px;
+      }
+      .agent-tag {
+        color: var(--muted);
+        font-size: 9px;
+        border: 1px solid var(--border);
+        padding: 0 4px;
+        border-radius: 3px;
+      }
+      .message {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin: 13px 0 0 31px;
+        min-height: 34px;
+      }
+      .thinking {
+        font-size: 16px;
+        font-weight: 650;
+        color: var(--teal);
+      }
+      .concept footer {
+        font-size: 10px;
+        color: var(--muted);
+        padding: 11px 20px;
+      }
+      .emblem {
+        --size: 108px;
+        display: inline-block;
+        width: var(--size);
+        height: var(--size);
+        position: relative;
+        flex: none;
+        perspective: 480px;
+        isolation: isolate;
+      }
+      .emblem.small {
+        --size: var(--inline-size);
+        perspective: 110px;
+      }
+      .rotor {
+        position: absolute;
+        inset: 0;
+        transform-origin: 50% 50%;
+        backface-visibility: visible;
+      }
+      .geometric,
+      .geometric svg {
+        display: block;
+        width: 100%;
+        height: 100%;
+      }
+      .aura {
+        position: absolute;
+        inset: 16%;
+        border-radius: 50%;
+        background: radial-gradient(ellipse, #ffcf6740, transparent 72%);
+        transform: scale(1.5);
+        opacity: 0.55;
+        animation: glow calc(4.5s * var(--speed)) ease-in-out infinite;
+        pointer-events: none;
+      }
+      .small .aura {
+        inset: -12%;
+      }
+      .turn .rotor {
+        animation: turn calc(9s * var(--speed)) cubic-bezier(0.2, 0.7, 0.3, 1) infinite;
+      }
+      .turn .aura {
+        animation-duration: calc(9s * var(--speed));
+      }
+      .gyro .rotor {
+        animation: gyro calc(10s * var(--speed)) cubic-bezier(0.2, 0.7, 0.3, 1) infinite;
+      }
+      .gyro .orbit {
+        position: absolute;
+        inset: -15%;
+        border: 1px solid color-mix(in srgb, var(--gold) 32%, transparent);
+        border-radius: 50%;
+        transform: rotate(-28deg) scaleY(0.4);
+        animation: orbit calc(10s * var(--speed)) cubic-bezier(0.2, 0.7, 0.3, 1) infinite;
+      }
+      .gyro .orbit:after {
+        content: '';
+        position: absolute;
+        width: 4px;
+        height: 4px;
+        top: 50%;
+        left: -2px;
+        border-radius: 50%;
+        background: var(--gold);
+        box-shadow: 0 0 8px #f4c667;
+      }
+      .small.gyro .orbit {
+        inset: -10%;
+        opacity: 0.6;
+      }
+      .small.gyro .orbit:after {
+        width: 2px;
+        height: 2px;
+        left: -1px;
+      }
+      .core .core {
+        transform-box: fill-box;
+        transform-origin: center;
+        animation: core calc(6s * var(--speed)) cubic-bezier(0.2, 0.7, 0.3, 1) infinite;
+      }
+      .core .edges {
+        stroke-dasharray: 18 70;
+        animation: signal calc(6s * var(--speed)) ease-in-out infinite;
+      }
+      .core .aura {
+        animation: core-glow calc(6s * var(--speed)) ease-in-out infinite;
+      }
+      @keyframes turn {
+        0%,
+        10% {
+          transform: translateY(0%) rotateX(0deg) rotateY(0deg) rotateZ(0deg);
+        }
+        15% {
+          transform: translateY(2%) rotateX(-5deg) rotateY(-24deg) rotateZ(-3deg);
+        }
+        22% {
+          transform: translateY(-7%) rotateX(5deg) rotateY(382deg) rotateZ(3deg);
+        }
+        27% {
+          transform: translateY(2%) rotateX(0deg) rotateY(350deg) rotateZ(-1.3deg);
+        }
+        32%,
+        59% {
+          transform: translateY(0%) rotateX(0deg) rotateY(360deg) rotateZ(0deg);
+        }
+        64% {
+          transform: translateY(3%) rotateX(-22deg) rotateY(360deg) rotateZ(2deg);
+        }
+        72% {
+          transform: translateY(-5%) rotateX(381deg) rotateY(360deg) rotateZ(-2deg);
+        }
+        77% {
+          transform: translateY(1%) rotateX(351deg) rotateY(360deg) rotateZ(1deg);
+        }
+        83%,
+        100% {
+          transform: translateY(0%) rotateX(360deg) rotateY(360deg) rotateZ(0deg);
+        }
+      }
+      @keyframes gyro {
+        0%,
+        12% {
+          transform: translateY(0%) rotateZ(-10deg) rotateX(12deg) rotateY(0deg);
+        }
+        18% {
+          transform: translateY(1%) rotateZ(-16deg) rotateX(18deg) rotateY(-28deg);
+        }
+        25% {
+          transform: translateY(-6%) rotateZ(8deg) rotateX(-14deg) rotateY(395deg);
+        }
+        32% {
+          transform: translateY(2%) rotateZ(-4deg) rotateX(8deg) rotateY(350deg);
+        }
+        40%,
+        50% {
+          transform: translateY(0%) rotateZ(-10deg) rotateX(12deg) rotateY(360deg);
+        }
+        56% {
+          transform: translateY(0%) rotateZ(-5deg) rotateX(0deg) rotateY(370deg);
+        }
+        61% {
+          transform: translateY(2%) rotateZ(-18deg) rotateX(18deg) rotateY(338deg);
+        }
+        68% {
+          transform: translateY(-5%) rotateZ(13deg) rotateX(-18deg) rotateY(752deg);
+        }
+        75% {
+          transform: translateY(1%) rotateZ(-4deg) rotateX(4deg) rotateY(710deg);
+        }
+        85%,
+        100% {
+          transform: translateY(0%) rotateZ(-10deg) rotateX(12deg) rotateY(720deg);
+        }
+      }
+      @keyframes orbit {
+        0%,
+        12% {
+          transform: rotate(-28deg) scaleY(0.4) rotate(0deg);
+        }
+        18% {
+          transform: rotate(-28deg) scaleY(0.4) rotate(-20deg);
+        }
+        25% {
+          transform: rotate(-28deg) scaleY(0.4) rotate(410deg);
+        }
+        32% {
+          transform: rotate(-28deg) scaleY(0.4) rotate(355deg);
+        }
+        40%,
+        50% {
+          transform: rotate(-28deg) scaleY(0.4) rotate(360deg);
+        }
+        61% {
+          transform: rotate(-28deg) scaleY(0.4) rotate(338deg);
+        }
+        68% {
+          transform: rotate(-28deg) scaleY(0.4) rotate(770deg);
+        }
+        75% {
+          transform: rotate(-28deg) scaleY(0.4) rotate(710deg);
+        }
+        85%,
+        100% {
+          transform: rotate(-28deg) scaleY(0.4) rotate(720deg);
+        }
+      }
+      @keyframes glow {
+        0%,
+        100% {
+          opacity: 0.25;
+          transform: scale(1.2);
+        }
+        45% {
+          opacity: 0.85;
+          transform: scale(1.7);
+        }
+      }
+      @keyframes core {
+        0%,
+        14% {
+          transform: translateY(0px) rotateY(0deg) scale(1, 1);
+          filter: drop-shadow(0 0 1px #ffe39b30);
+        }
+        22% {
+          transform: translateY(2px) rotateY(-22deg) scale(1.03, 0.93);
+          filter: drop-shadow(0 0 1px #ffe39b45);
+        }
+        34% {
+          transform: translateY(-6px) rotateY(385deg) scale(0.97, 1.05);
+          filter: drop-shadow(0 0 4px #ffe39bb0);
+        }
+        42% {
+          transform: translateY(1.5px) rotateY(350deg) scale(1.025, 0.96);
+          filter: drop-shadow(0 0 2px #ffe39b75);
+        }
+        51% {
+          transform: translateY(-1px) rotateY(364deg) scale(0.99, 1.015);
+          filter: drop-shadow(0 0 2px #ffe39b60);
+        }
+        62%,
+        100% {
+          transform: translateY(0px) rotateY(360deg) scale(1, 1);
+          filter: drop-shadow(0 0 1px #ffe39b30);
+        }
+      }
+      @keyframes core-glow {
+        0%,
+        14%,
+        100% {
+          opacity: 0.2;
+          transform: scale(1.2);
+        }
+        22% {
+          opacity: 0.35;
+          transform: scale(1.1);
+        }
+        34% {
+          opacity: 1;
+          transform: scale(1.8);
+        }
+        46% {
+          opacity: 0.4;
+          transform: scale(1.3);
+        }
+        54% {
+          opacity: 0.55;
+          transform: scale(1.45);
+        }
+        67% {
+          opacity: 0.2;
+          transform: scale(1.2);
+        }
+      }
+      @keyframes signal {
+        0%,
+        18% {
+          stroke-dashoffset: 88;
+        }
+        50%,
+        100% {
+          stroke-dashoffset: 0;
+        }
+      }
+      @keyframes shimmer {
+        from {
+          background-position: 180% 50%;
+        }
+        to {
+          background-position: -80% 50%;
+        }
+      }
+      body.shimmer .thinking {
+        color: transparent;
+        background: linear-gradient(
+          100deg,
+          var(--teal),
+          var(--gold),
+          var(--text),
+          var(--gold),
+          var(--teal)
+        );
+        background-size: 220% 100%;
+        background-clip: text;
+        animation: shimmer calc(2.2s * var(--speed)) linear infinite;
+      }
+      body.paused *,
+      body.paused *:after {
+        animation-play-state: paused !important;
+      }
+      body.reduced .emblem *,
+      body.reduced .emblem *:after {
+        animation: none !important;
+        transform: none !important;
+      }
+      body.reduced .orbit {
+        display: none;
+      }
+      body.reduced .aura {
+        opacity: 0.2;
+      }
+      body.reduced .thinking {
+        animation: none !important;
+        color: var(--teal) !important;
+        background: none !important;
+      }
+      .notes {
+        display: grid;
+        grid-template-columns: 1.2fr 1fr;
+        gap: 40px;
+        margin-top: 24px;
+        padding-top: 20px;
+      }
+      .notes h2 {
+        font-size: 12px;
+        color: var(--text);
+        margin: 0 0 7px;
+      }
+      .notes p {
+        font-size: 12px;
+        color: var(--muted);
+        margin: 0;
+      }
+      .prototype {
+        border-top: 1px solid var(--border);
+        margin-top: 25px;
+        padding-top: 14px;
+        font-size: 10px;
+        color: var(--muted);
+      }
+      @media (max-width: 800px) {
+        main {
+          padding: 25px 18px;
+        }
+        .cards {
+          grid-template-columns: 1fr;
+        }
+        .stage {
+          height: 185px;
+        }
+        .description p,
+        .description p.intro {
+          min-height: 0;
+        }
+        .notes {
+          grid-template-columns: 1fr;
+          gap: 18px;
+        }
+        .controls {
+          gap: 12px;
+        }
+        .concept {
+          max-width: 540px;
+          width: 100%;
+          margin: auto;
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .emblem *,
+        .emblem *:after,
+        .thinking {
+          animation: none !important;
+          transform: none !important;
+        }
+        .orbit {
+          display: none;
+        }
+        .aura {
+          opacity: 0.2;
+        }
+        body.shimmer .thinking {
+          color: var(--teal);
+          background: none;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <div class="eyebrow"><i></i>MindRoom / Motion studies</div>
+      <h1>A little room for thought.</h1>
+      <p class="lead">
+        Three ways to bring the thinking indicator to life. Watch the large study, then judge the
+        small version where it belongs: beside a message.
+      </p>
+      <div class="controls">
+        <label
+          >Chat size <input id="size" type="range" min="14" max="32" value="24" step="2" /><output
+            id="size-value"
+            >24 px</output
+          ></label
+        ><button id="theme" type="button">Light theme</button
+        ><button id="pause" type="button">Pause</button
+        ><label><input id="slow" type="checkbox" />Half speed</label
+        ><label><input id="shimmer" type="checkbox" />Text shimmer</label
+        ><label><input id="reduced" type="checkbox" />Reduced motion</label>
+      </div>
+      <section class="cards" aria-label="Animation concepts">
+        <article class="concept">
+          <header class="card-heading">
+            <span class="number">01</span><span class="tag">Playful</span>
+          </header>
+          <div class="stage">
+            <span class="emblem turn" aria-hidden="true"
+              ><span class="aura"></span><span class="orbit"></span
+              ><span class="rotor"><span class="geometric"> </span></span></span
+            ><span class="stage-caption">ENLARGED MOTION STUDY</span>
+          </div>
+          <div class="description">
+            <h2>Tilt & turn</h2>
+            <p class="intro">Wind up. Snap around. Bounce into place.</p>
+            <p>
+              A quick sideways flip overshoots and settles. After a longer pause, a forward tumble
+              adds a second burst of momentum.
+            </p>
+            <div class="rhythm">9-second sequence · two springy bursts</div>
+          </div>
+          <div class="chat-sample">
+            <div class="sender">
+              <span class="avatar">M</span><strong>MindRoom</strong
+              ><span class="agent-tag">Agent</span>
+            </div>
+            <div class="message" role="status" aria-label="AI is responding">
+              <span class="emblem turn small" aria-hidden="true"
+                ><span class="aura"></span><span class="orbit"></span
+                ><span class="rotor"><span class="geometric"> </span></span></span
+              ><span class="thinking">Thinking…</span>
+            </div>
+          </div>
+          <footer>Playful, with room to breathe</footer>
+        </article>
+        <article class="concept">
+          <header class="card-heading">
+            <span class="number">02</span><span class="tag">More geek</span>
+          </header>
+          <div class="stage">
+            <span class="emblem gyro" aria-hidden="true"
+              ><span class="aura"></span><span class="orbit"></span
+              ><span class="rotor"><span class="geometric"> </span></span></span
+            ><span class="stage-caption">ENLARGED MOTION STUDY</span>
+          </div>
+          <div class="description">
+            <h2>Gyroscope</h2>
+            <p class="intro">A tiny machine with a little momentum.</p>
+            <p>
+              Short spins accelerate, overshoot and wobble to a stop. The orbital ring follows the
+              same bursts, with a little drift between them.
+            </p>
+            <div class="rhythm">10-second sequence · uneven spin and settle</div>
+          </div>
+          <div class="chat-sample">
+            <div class="sender">
+              <span class="avatar">M</span><strong>MindRoom</strong
+              ><span class="agent-tag">Agent</span>
+            </div>
+            <div class="message" role="status" aria-label="AI is responding">
+              <span class="emblem gyro small" aria-hidden="true"
+                ><span class="aura"></span><span class="orbit"></span
+                ><span class="rotor"><span class="geometric"> </span></span></span
+              ><span class="thinking">Thinking…</span>
+            </div>
+          </div>
+          <footer>Sci-fi, lively, more noticeable</footer>
+        </article>
+        <article class="concept">
+          <header class="card-heading">
+            <span class="number">03</span><span class="tag">Early favorite</span>
+          </header>
+          <div class="stage">
+            <span class="emblem core" aria-hidden="true"
+              ><span class="aura"></span><span class="orbit"></span
+              ><span class="rotor"><span class="geometric"> </span></span></span
+            ><span class="stage-caption">ENLARGED MOTION STUDY</span>
+          </div>
+          <div class="description">
+            <h2>Glowing core</h2>
+            <p class="intro">The room stays still. The idea wakes up.</p>
+            <p>
+              The gold cube dips, pops up, snaps through a flip and bounces home. A warm glow
+              follows the burst while the M stays steady.
+            </p>
+            <div class="rhythm">6-second sequence · glowing pop and settle</div>
+          </div>
+          <div class="chat-sample">
+            <div class="sender">
+              <span class="avatar">M</span><strong>MindRoom</strong
+              ><span class="agent-tag">Agent</span>
+            </div>
+            <div class="message" role="status" aria-label="AI is responding">
+              <span class="emblem core small" aria-hidden="true"
+                ><span class="aura"></span><span class="orbit"></span
+                ><span class="rotor"><span class="geometric"> </span></span></span
+              ><span class="thinking">Thinking…</span>
+            </div>
+          </div>
+          <footer>Focused, calm, good for long waits</footer>
+        </article>
+      </section>
+      <section class="notes">
+        <div>
+          <h2>Choose a direction</h2>
+          <p>
+            Compare each animation at 24 px beside the message. Glowing core is the early favorite.
+            The final choice is still open.
+          </p>
+        </div>
+        <div>
+          <h2>Polish that matters</h2>
+          <p>
+            Keep the row steady. Respect reduced motion. Stop as soon as the answer arrives. Test
+            the small version first; the enlarged view can make tiny details look more useful than
+            they are.
+          </p>
+        </div>
+      </section>
+      <div class="prototype">
+        Design comparison prototype. Motion and timings are exploratory. Source: MindRoom's
+        teal-and-gold M from logo-inline.svg.
+      </div>
+    </main>
+    <template id="mindroom-mark">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80" aria-hidden="true">
+        <g stroke="#062631" stroke-width="1.5" stroke-linejoin="round">
+          <path d="M3 12 18 3l22 13-11 7Z" fill="#6fa8aa" />
+          <path d="M3 12 17 18v41l12 7-12 9-14-7Z" fill="#0d4558" />
+          <path d="m17 18 12 5v43l-12-7Z" fill="#2f7882" />
+
+          <path d="m77 12-15-9-22 13 11 7Z" fill="#6fa8aa" />
+          <path d="M77 12 63 18v41l-12 7 12 9 14-7Z" fill="#0d4558" />
+          <path d="m63 18-12 5v43l12-7Z" fill="#2f7882" />
+
+          <g class="core">
+            <path d="m40 22 14 8-14 9-14-9Z" fill="#ffe69a" />
+            <path d="m26 30 14 9v17l-14-9Z" fill="#d99b36" />
+            <path d="m54 30-14 9v17l14-9Z" fill="#f0c45e" />
+          </g>
+        </g>
+
+        <g class="edges" fill="none" stroke-linecap="round" stroke-linejoin="round">
+          <path d="m9 13 9-5 16 9" stroke="#bee2d9" stroke-width="2.5" />
+          <path d="m71 13-9-5-16 9" stroke="#bee2d9" stroke-width="2.5" />
+          <path d="M20 25v31l6 4" stroke="#edb957" stroke-width="2.5" />
+          <path d="M60 25v31l-6 4" stroke="#edb957" stroke-width="2.5" />
+        </g>
+      </svg>
+    </template>
+    <script>
+      const $ = (id) => document.getElementById(id);
+      for (const element of document.querySelectorAll('.geometric')) {
+        element.append($('mindroom-mark').content.cloneNode(true));
+      }
+      $('size').oninput = (e) => {
+        document.documentElement.style.setProperty('--inline-size', e.target.value + 'px');
+        $('size-value').textContent = e.target.value + ' px';
+      };
+      $('theme').onclick = () => {
+        const light = document.body.classList.toggle('light');
+        $('theme').textContent = light ? 'Dark theme' : 'Light theme';
+      };
+      $('pause').onclick = () => {
+        const paused = document.body.classList.toggle('paused');
+        $('pause').textContent = paused ? 'Resume' : 'Pause';
+      };
+      $('slow').onchange = (e) =>
+        document.documentElement.style.setProperty('--speed', e.target.checked ? '2' : '1');
+      $('shimmer').onchange = (e) => document.body.classList.toggle('shimmer', e.target.checked);
+      $('reduced').onchange = (e) => document.body.classList.toggle('reduced', e.target.checked);
+    </script>
+  </body>
+</html>

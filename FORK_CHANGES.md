@@ -2,6 +2,17 @@
 
 ## Runbook
 
+### Compare M-logo thinking animations (2026-09-15)
+
+- Status: three working animation concepts are available in `docs/previews/thinking-indicator.html` for visual selection.
+- Open that standalone HTML file in a browser to compare Tilt & turn, Gyroscope, and Glowing core using the teal-and-gold M.
+- Each concept includes an enlarged motion study and a chat-size example, with size, theme, pause, half-speed, text-shimmer, and reduced-motion controls.
+- Motion uses short wind-ups, quick flips, overshoot, rebound, and unequal pauses; Glowing core keeps the outer M still while the gold cube moves.
+- The preview honors the operating system's reduced-motion preference.
+- Chromium checks cover all controls, both reduced-motion modes, SVG rendering, mobile layout, and script errors.
+- Typecheck, lint, build, and changed-file formatting pass; the full Node 24 suite passes 4,154 tests, with three existing Nix shell-fixture failures caused by hard-coded system shell paths.
+- The comparison is a design prototype; choosing and integrating the final chat indicator is a follow-up after visual selection.
+
 ### Fill mobile navigation and collapse narrow split panes (2026-09-15)
 
 - The resizable navigation wrapper applied saved widths and reserved a drag-handle gap on phones, leaving unused space beside the single-pane room list.
