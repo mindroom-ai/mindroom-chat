@@ -398,9 +398,16 @@ describe('shared model discovery', () => {
   it('retries omitted encrypted recipients without dropping or widening target set', async () => {
     const h = setup();
     h.devices.get(router)!.set('SECOND', h.device(router, 'SECOND', 'curve2'));
-    h.crypto.encryptToDeviceMessages.mockImplementationOnce(async (_type, recipients, content) => ({
+    let omitted = false;
+    h.crypto.encryptToDeviceMessages.mockImplementation(async (_type, recipients, content) => ({
       eventType: 'm.room.encrypted',
-      batch: [{ ...recipients[0], payload: { encrypted: content } }],
+      batch: recipients
+        .filter((recipient: { deviceId: string }) => {
+          if (recipient.deviceId !== 'SECOND' || omitted) return true;
+          omitted = true;
+          return false;
+        })
+        .map((recipient: object) => ({ ...recipient, payload: { encrypted: content } })),
     }));
     h.controller.subscribe(h.room, '$root', () => {});
     await flush();
@@ -409,6 +416,29 @@ describe('shared model discovery', () => {
       'DEVICE',
       'SECOND',
     ]);
+  });
+  it('shows the model picker after discovery succeeds beside a stale signed device', async () => {
+    const h = setup();
+    h.devices.get(router)!.set('STALE', h.device(router, 'STALE', 'stale-curve'));
+    h.crypto.encryptToDeviceMessages.mockImplementation(async (_type, recipients, content) => {
+      if (recipients.some((recipient: { deviceId: string }) => recipient.deviceId === 'STALE')) {
+        throw new Error('Device has no Olm session');
+      }
+      return {
+        eventType: 'm.room.encrypted',
+        batch: recipients.map((recipient: object) => ({
+          ...recipient,
+          payload: { encrypted: content },
+        })),
+      };
+    });
+    h.controller.subscribe(h.room, '$root', () => {});
+    await flush();
+    expect(h.queued).toHaveLength(1);
+    h.response(h.request());
+    await vi.advanceTimersByTimeAsync(12000);
+    expect(h.snapshot().eligible).toBe(true);
+    expect(h.snapshot().canMutate).toBe(true);
   });
   it('retransmits unanswered discovery with the same request ID and stops after authenticated response', async () => {
     const h = setup();
