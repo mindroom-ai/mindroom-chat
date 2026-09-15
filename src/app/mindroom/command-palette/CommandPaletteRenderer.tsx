@@ -9,6 +9,7 @@ import { LogoutDialog } from '../../components/LogoutDialog';
 import { ScreenSize, useScreenSizeContext } from '../../hooks/useScreenSize';
 import { stopPropagation } from '../../utils/keyboard';
 import { CommandPalette } from './CommandPalette';
+import * as css from './CommandPalette.css';
 import { commandPaletteOpenAtom } from './commandPaletteState';
 import { useCommandPaletteSource } from './commandPaletteItems';
 import { useCommandPaletteHotkey } from './useCommandPaletteHotkey';
@@ -66,6 +67,7 @@ function RenderPalette({ mobileSheet, requestClose, children }: RenderPalettePro
   const modal = (
     <FocusScope contain restoreFocus autoFocus>
       <Modal
+        className={css.Shell}
         size="500"
         flexHeight
         variant="Background"
@@ -83,7 +85,7 @@ function RenderPalette({ mobileSheet, requestClose, children }: RenderPalettePro
   );
 
   return (
-    <Overlay open backdrop={<OverlayBackdrop />}>
+    <Overlay open backdrop={<OverlayBackdrop className={css.Backdrop} />}>
       {mobileSheet ? (
         <div style={MOBILE_SHEET_CONTAINER_STYLE}>{modal}</div>
       ) : (

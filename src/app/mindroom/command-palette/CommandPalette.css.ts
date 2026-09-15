@@ -1,13 +1,53 @@
 import { style } from '@vanilla-extract/css';
 import { color, config } from 'folds';
 
+export const Shell = style({
+  // Override the modal's opaque variant without depending on stylesheet order.
+  selectors: {
+    '&&': {
+      background: color.Surface.Container,
+      border: `1px solid color-mix(in srgb, ${color.Surface.OnContainer} 14%, transparent)`,
+      boxShadow:
+        '0 24px 80px rgb(0 0 0 / 24%), 0 8px 24px rgb(0 0 0 / 12%), inset 0 1px 0 rgb(255 255 255 / 16%)',
+    },
+  },
+  '@supports': {
+    '(backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))': {
+      selectors: {
+        '&&': {
+          background: `linear-gradient(135deg, rgb(255 255 255 / 8%), transparent 45%), color-mix(in srgb, ${color.Surface.Container} 74%, transparent)`,
+          backdropFilter: 'blur(28px) saturate(140%)',
+          WebkitBackdropFilter: 'blur(28px) saturate(140%)',
+        },
+      },
+    },
+  },
+  '@media': {
+    '(prefers-reduced-transparency: reduce), (prefers-contrast: more), (forced-colors: active)': {
+      selectors: {
+        // Preference overrides must outrank @supports regardless of emitted at-rule order.
+        '&&&': {
+          background: color.Surface.Container,
+          backdropFilter: 'none',
+          WebkitBackdropFilter: 'none',
+        },
+      },
+    },
+  },
+});
+
+export const Backdrop = style({
+  selectors: {
+    '&&': { background: `color-mix(in srgb, ${color.Other.Overlay} 65%, transparent)` },
+  },
+});
+
 export const Palette = style({
   display: 'flex',
   flexDirection: 'column',
   flex: '1 1 auto',
   minHeight: 0,
   color: color.Surface.OnContainer,
-  background: color.Surface.Container,
 });
 
 export const Search = style({
@@ -82,8 +122,9 @@ export const Filter = style({
   selectors: {
     '&[aria-pressed="true"]': {
       color: color.Primary.OnContainer,
-      background: color.Primary.Container,
+      background: `linear-gradient(135deg, rgb(255 255 255 / 8%), transparent), color-mix(in srgb, ${color.Primary.Container} 88%, transparent)`,
       borderColor: color.Primary.ContainerLine,
+      boxShadow: 'inset 0 1px 0 rgb(255 255 255 / 10%)',
     },
   },
   '@media': { '(max-width: 480px)': { minHeight: 44 } },
@@ -92,7 +133,7 @@ export const Filter = style({
 export const Prefix = style({
   fontFamily: 'monospace',
   fontSize: 11,
-  opacity: 0.65,
+  opacity: 0.8,
   direction: 'ltr',
   unicodeBidi: 'isolate',
 });
@@ -121,7 +162,7 @@ export const GroupTitle = style({
   letterSpacing: '0.04em',
 });
 
-export const GroupCount = style({ fontWeight: 400, opacity: 0.65 });
+export const GroupCount = style({ fontWeight: 400, opacity: 0.8 });
 
 export const Row = style({
   display: 'flex',
@@ -134,8 +175,8 @@ export const Row = style({
   outline: 'none',
   selectors: {
     '&[data-selected="true"]': {
-      background: color.Primary.Container,
-      boxShadow: `inset 0 0 0 1px ${color.Primary.ContainerLine}`,
+      background: `linear-gradient(120deg, rgb(255 255 255 / 6%), transparent 70%), color-mix(in srgb, ${color.Primary.Container} 88%, transparent)`,
+      boxShadow: `inset 0 0 0 1px ${color.Primary.ContainerLine}, inset 0 1px 0 rgb(255 255 255 / 10%), 0 2px 8px rgb(0 0 0 / 4%)`,
     },
   },
   ':focus-visible': { outline: `2px solid ${color.Primary.Main}`, outlineOffset: -2 },
@@ -149,12 +190,13 @@ export const RowIcon = style({
   width: 34,
   height: 34,
   borderRadius: config.radii.R300,
-  background: color.SurfaceVariant.Container,
+  background: `color-mix(in srgb, ${color.SurfaceVariant.Container} 65%, transparent)`,
+  boxShadow: 'inset 0 1px 0 rgb(255 255 255 / 8%)',
   color: color.SurfaceVariant.OnContainer,
   selectors: {
     [`${Row}[data-selected="true"] &`]: {
       color: color.Primary.OnContainer,
-      background: color.Primary.ContainerHover,
+      background: `color-mix(in srgb, ${color.Primary.ContainerHover} 75%, transparent)`,
     },
   },
 });
@@ -207,7 +249,8 @@ export const Key = style({
   fontFamily: 'inherit',
   fontSize: 11,
   lineHeight: 1,
-  background: color.Surface.Container,
+  background: `color-mix(in srgb, ${color.Surface.Container} 50%, transparent)`,
+  boxShadow: 'inset 0 1px 0 rgb(255 255 255 / 6%)',
 });
 
 export const Footer = style({
@@ -220,6 +263,7 @@ export const Footer = style({
   minHeight: 46,
   padding: '10px 20px',
   borderTop: `1px solid ${color.Surface.ContainerLine}`,
+  background: `color-mix(in srgb, ${color.Surface.Container} 20%, transparent)`,
   color: color.SurfaceVariant.OnContainer,
   fontSize: 11,
 });

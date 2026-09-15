@@ -172,6 +172,8 @@ vi.mock('react-aria', async () => {
 });
 
 vi.mock('./CommandPalette.css', () => ({
+  Shell: 'Shell',
+  Backdrop: 'Backdrop',
   Palette: 'Palette',
   Search: 'Search',
   Input: 'Input',
