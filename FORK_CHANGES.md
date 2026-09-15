@@ -2,6 +2,25 @@
 
 ## Runbook
 
+### Scroll conversations behind room controls (2026-09-15)
+
+- The room header, thread filters, composer, and following strip overlay the full-height conversation viewport.
+  Thread filters share the same measured wrapper in simple and full mode, including compact cards and the message list.
+  Room headers, filters, and following strips use the shared floating glass material with 3 px native blur.
+- Measured header, filter, and footer insets reserve readable space at the start and end of each scroller and guide native focus scrolling and explicit message jumps.
+  The thread banner remains sticky beneath the room header; jump controls and the minimap respect the same insets.
+- Footer measurement includes approvals, typing, uploads, and the bottom safe area.
+  Its observer publishes the new inset before preserving a previously pinned bottom position.
+  The bottom sentinel follows the footer spacer so covered messages do not trigger read receipts early.
+- The composer remains outside the thread-keyed approval provider to preserve uploads during navigation.
+  The approval queue uses a portal into the measured footer while retaining its thread context.
+  Compact scroll restoration retries a clamped position after inset measurement only while the reader has not moved.
+  Scroll observers reconnect when switching from compact cards to messages, preserving history loading and Jump to Latest.
+- Validation: all 4,433 tests across 531 files, typecheck, production/PWA build, formatting, and lint pass with zero errors and 17 existing warnings after integrating the native startup fix.
+  All 12 production Chromium/WebKit phone and desktop cases pass across simple/full mode, compact cards, message modes, thread banners, composer resizing, and scroll restoration.
+  Independent source review approves the final changes and passes all 51 focused room, compact, and upload-lifecycle tests.
+  Screenshots use local sample data; Linux WebKit validates layout and transparency but does not paint native backdrop blur on this host.
+
 ### Adopt the iOS scene lifecycle (2026-09-15)
 
 - iOS 27 traps at native startup when an app built with the new SDK has no scene configuration.

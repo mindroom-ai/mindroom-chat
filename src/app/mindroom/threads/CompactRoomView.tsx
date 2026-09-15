@@ -80,24 +80,33 @@ export function CompactRoomView({
     const view = viewRef.current;
     if (!view || cardViewModels.length === 0) return;
 
-    const restoreState = scrollRestoreStateRef.current;
-    if (restoreState?.roomId === room.roomId) {
-      const restoreWasClamped = restoreState.lastAppliedScrollTop !== restoreState.targetScrollTop;
-      const scrollHasNotMoved = view.scrollTop === restoreState.lastAppliedScrollTop;
-      if (restoreWasClamped && scrollHasNotMoved) {
-        view.scrollTop = restoreState.targetScrollTop;
-        restoreState.lastAppliedScrollTop = view.scrollTop;
+    const restore = () => {
+      const restoreState = scrollRestoreStateRef.current;
+      if (restoreState?.roomId === room.roomId) {
+        const restoreWasClamped =
+          restoreState.lastAppliedScrollTop !== restoreState.targetScrollTop;
+        const scrollHasNotMoved = view.scrollTop === restoreState.lastAppliedScrollTop;
+        if (restoreWasClamped && scrollHasNotMoved) {
+          view.scrollTop = restoreState.targetScrollTop;
+          restoreState.lastAppliedScrollTop = view.scrollTop;
+        }
+        return;
       }
-      return;
-    }
 
-    const savedScrollTop = compactRoomScrollStateRef.current.get(room.roomId);
-    if (savedScrollTop !== undefined) view.scrollTop = savedScrollTop;
-    scrollRestoreStateRef.current = {
-      roomId: room.roomId,
-      targetScrollTop: savedScrollTop ?? view.scrollTop,
-      lastAppliedScrollTop: view.scrollTop,
+      const savedScrollTop = compactRoomScrollStateRef.current.get(room.roomId);
+      if (savedScrollTop !== undefined) view.scrollTop = savedScrollTop;
+      scrollRestoreStateRef.current = {
+        roomId: room.roomId,
+        targetScrollTop: savedScrollTop ?? view.scrollTop,
+        lastAppliedScrollTop: view.scrollTop,
+      };
     };
+    restore();
+    // Overlay measurements can increase padding after the initial restore.
+    // Retry only a clamped restore, and never after the reader has moved.
+    const observer = new ResizeObserver(restore);
+    observer.observe(view);
+    return () => observer.disconnect();
   }, [cardViewModels.length, compactRoomScrollStateRef, room.roomId]);
 
   useLayoutEffect(() => {

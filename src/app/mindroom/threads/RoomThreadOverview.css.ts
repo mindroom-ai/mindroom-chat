@@ -2,16 +2,16 @@ import { style } from '@vanilla-extract/css';
 import { color, config, toRem } from 'folds';
 import { motion } from '../../styles/Motion.css';
 import { transition } from '../../styles/transition';
-import { glassSurface } from '../../styles/Glass.css';
+import { glassFloating, glassSurface } from '../../styles/Glass.css';
 
 export const Overview = style([
   glassSurface({ level: 'panel', variant: 'SurfaceVariant' }),
+  glassFloating,
   {
     margin: `${config.space.S200} ${config.space.S300}`,
     padding: config.space.S200,
     borderRadius: config.radii.R400,
     border: `${config.borderWidth.B300} solid ${color.SurfaceVariant.ContainerLine}`,
-    backgroundColor: color.SurfaceVariant.Container,
     flexShrink: 0,
   },
 ]);

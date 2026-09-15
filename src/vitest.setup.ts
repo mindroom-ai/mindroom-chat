@@ -13,6 +13,18 @@ vi.mock('./app/styles/Glass.css', () => ({
 vi.mock('./app/components/glass/Surface.css', () => ({
   inheritSurface: 'surface-inherit',
 }));
+vi.mock('./app/mindroom/threads/RoomOverlay.css', () => ({
+  Header: 'room-header',
+  Footer: 'room-footer',
+  Following: 'room-following',
+  Typing: 'room-typing',
+  Overview: 'room-overview',
+  Scroll: 'room-scroll',
+  headerInset: 'var(--room-header-height, 0px)',
+  footerInset: 'var(--room-footer-height, 0px)',
+  topInset: '0px',
+  controlsTopInset: '0px',
+}));
 
 // Existing component tests replace Folds primitives with focused doubles.
 // Keep those doubles in place without requiring every factory to implement

@@ -454,7 +454,16 @@ const getTimeline = (renderer: ReturnType<typeof create>) =>
   };
 
 describe('RoomView', () => {
+  const originalResizeObserver = globalThis.ResizeObserver;
   beforeEach(() => {
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        observe() {}
+
+        disconnect() {}
+      }
+    );
     vi.useRealTimers();
     storageState.clear();
     bumpRecentThreadMock.mockReset();
@@ -486,6 +495,7 @@ describe('RoomView', () => {
   });
 
   afterEach(() => {
+    vi.stubGlobal('ResizeObserver', originalResizeObserver);
     vi.useRealTimers();
   });
 
@@ -530,7 +540,7 @@ describe('RoomView', () => {
     let scrollElement = { scrollTop: 0 };
     const createNodeMock = (element: React.ReactElement) => {
       if (element.props['data-compact-room-view'] === 'true') return scrollElement;
-      return {};
+      return null;
     };
     let renderer: ReturnType<typeof create> | undefined;
 
@@ -584,7 +594,7 @@ describe('RoomView', () => {
     let scrollElement = { scrollTop: 0 };
     const createNodeMock = (element: React.ReactElement) => {
       if (element.props['data-compact-room-view'] === 'true') return scrollElement;
-      return {};
+      return null;
     };
     let renderer: ReturnType<typeof create> | undefined;
 
@@ -633,7 +643,7 @@ describe('RoomView', () => {
     let scrollElement = { scrollTop: 0 };
     const createNodeMock = (element: React.ReactElement) => {
       if (element.props['data-compact-room-view'] === 'true') return scrollElement;
-      return {};
+      return null;
     };
     let renderer: ReturnType<typeof create> | undefined;
 
