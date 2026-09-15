@@ -30,6 +30,7 @@ type SendSession = RoomInputSendSessionState & {
   threadingEnabled: boolean;
   textContent?: IContent;
   composerFallback?: Descendant[];
+  composerContext: Pick<RoomInputSendContext, 'roomId' | 'threadId'>;
   textTimelineOwned?: boolean;
   replyCleared: boolean;
   signalBridgedRoom: boolean;
@@ -56,6 +57,7 @@ export type StartRoomInputSendSessionOptions = {
   context?: RoomInputSendContext;
   completeWithinCall?: boolean;
   composerFallback?: Descendant[];
+  composerContext?: Pick<RoomInputSendContext, 'roomId' | 'threadId'>;
   composerAlreadyReset?: boolean;
   onUploadSent?: (file: TUploadContent) => void;
 };
@@ -79,7 +81,11 @@ type UseRoomInputSendSessionControllerOptions = {
     mxc: string,
     signalBridgedRoom: boolean
   ) => Promise<IContent>;
-  restoreComposerFallbackForRoom?: (roomId: string, fragment: Descendant[]) => void;
+  restoreComposerFallbackForRoom?: (
+    roomId: string,
+    fragment: Descendant[],
+    threadId?: string
+  ) => void;
   onRoomMessageSent?: (eventId: string) => boolean | void;
 };
 
@@ -140,6 +146,8 @@ export const useRoomInputSendSessionController = ({
 } => {
   const sendSessionRef = useRef<SendSession | undefined>();
   const processingSendSessionRef = useRef(false);
+  const composerContextRef = useRef({ roomId, threadId });
+  composerContextRef.current = { roomId, threadId };
 
   const clearReplyDraftForSession = useCallback(
     (session: SendSession) => {
@@ -246,10 +254,17 @@ export const useRoomInputSendSessionController = ({
       session.textPending = false;
       const fragment = session.composerFallback;
       session.composerFallback = undefined;
-      if (fragment && (mountedRef?.current ?? true)) {
+      const sameComposer =
+        composerContextRef.current.roomId === session.composerContext.roomId &&
+        composerContextRef.current.threadId === session.composerContext.threadId;
+      if (fragment && (mountedRef?.current ?? true) && sameComposer) {
         restoreEditorContent(editor, fragment);
       } else if (fragment) {
-        restoreComposerFallbackForRoom?.(session.roomId, fragment);
+        restoreComposerFallbackForRoom?.(
+          session.composerContext.roomId,
+          fragment,
+          session.composerContext.threadId
+        );
       }
     },
     [editor, mountedRef, restoreComposerFallbackForRoom]
@@ -330,6 +345,7 @@ export const useRoomInputSendSessionController = ({
       context,
       completeWithinCall = false,
       composerFallback,
+      composerContext,
       composerAlreadyReset = false,
       onUploadSent,
     }: StartRoomInputSendSessionOptions = {}) => {
@@ -366,6 +382,7 @@ export const useRoomInputSendSessionController = ({
       const signalBridgedRoom = context ? context.signalBridgedRoom : isSignalBridgeRoom(room);
 
       sendSessionRef.current = {
+        composerContext: composerContext ?? { roomId, threadId },
         room: sessionRoom,
         roomId: sessionRoomId,
         threadId: sessionThreadId,
