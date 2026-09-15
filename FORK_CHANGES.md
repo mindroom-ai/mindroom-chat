@@ -2,6 +2,19 @@
 
 ## Runbook
 
+### Clear the empty following strip and flatten room chrome (2026-09-15)
+
+- The bottom following strip adds floating glass only while it displays other readers' names.
+  Empty, self-only, and hidden-activity states retain their layout and safe-area space without tint, blur, rim, or shadow, leaving the conversation visible beneath them.
+  The text-owning component selects the existing shared Surface appearance, so the optical effect attaches and cleans up with the displayed text.
+- The room header and populated following strip share a flat glass modifier that removes borders, inset rims, and highlight gradients while preserving tint and blur.
+- Validation: all 4,433 unit tests, typecheck, production/PWA build, formatting, and lint pass with zero errors and 17 existing warnings.
+  All 14 Chromium/WebKit cases pass across receipt transitions, the reader dialog, hidden activity, simple/full room modes, and thread scrolling.
+  The committed `playwright.glass.config.ts` includes these live cases; they require local Matrix credentials, including a second account for receipt transitions.
+  Both live strip suites use one shared transparency assertion with computed-style failure diagnostics.
+  Empty-strip and borderless-header regressions fail against the previous implementation; independent source review approves the final changes.
+  Linux WebKit captures verify layout and transparency but do not paint native backdrop blur on this host.
+
 ### Scroll conversations behind room controls (2026-09-15)
 
 - The room header, thread filters, composer, and following strip overlay the full-height conversation viewport.

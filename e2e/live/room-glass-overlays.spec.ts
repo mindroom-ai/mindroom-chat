@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { getHomeserver, getPrimaryCredentials, hasPrimaryCredentials } from '../env';
 import { loginWithPassword } from '../helpers/auth';
+import { expectClearStrip } from '../helpers/glassVisual';
 import {
   createDefaultThreadFilterState,
   createPrivateRoom,
@@ -115,6 +116,13 @@ for (const width of [390, 1280]) {
         const following = page.locator('[data-room-following="true"]');
         const cards = scroll.locator('button[data-thread-root-id]');
         await expect(cards).toHaveCount(14);
+        await expectClearStrip(following);
+        expect(
+          await header.evaluate((element) => {
+            const css = getComputedStyle(element);
+            return [css.borderTopWidth, css.borderBottomWidth, css.boxShadow, css.backgroundImage];
+          })
+        ).toEqual(['0px', '0px', 'none', 'none']);
         await expect(filters.locator('[data-view-mode="compact"]')).toHaveAttribute(
           'aria-pressed',
           'true'
@@ -174,6 +182,14 @@ for (const width of [390, 1280]) {
           .poll(() => scroll.evaluate((element) => element.scrollTop))
           .toBeCloseTo(savedTop, 0);
 
+        // Returning from a thread reconnects the measured footer on the next frame.
+        await expect
+          .poll(() =>
+            scroll.evaluate((element) =>
+              Number.parseFloat(getComputedStyle(element).scrollPaddingBottom)
+            )
+          )
+          .toBeCloseTo((await footer.boundingBox())!.height, 0);
         await scroll.evaluate((element) => {
           element.scrollTop = element.scrollHeight;
         });

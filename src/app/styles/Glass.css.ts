@@ -87,6 +87,17 @@ export const glassFloating = style({
   },
 });
 
+// Full-width room chrome keeps the material without raised edges or highlights.
+export const glassFlat = style({
+  selectors: {
+    '&&&': {
+      border: 0,
+      boxShadow: 'none',
+      backgroundImage: 'none',
+    },
+  },
+});
+
 // Modal500 already dims the page through OverlayBackdrop. Its glass needs less
 // tint than a floating menu over an undimmed page, especially in dark themes.
 export const glassOverBackdrop = style({

@@ -35,7 +35,6 @@ import { ThreadApprovalProvider } from '../messages/ThreadApprovalProvider';
 import { ThreadApprovalQueue } from '../messages/ThreadApprovalControls';
 import { computerOwnsKeyboardEvent, computerOwnsKeyboardFocus } from '../computer/computerFocus';
 
-import { Surface } from '../../components/glass/GlassPrimitives';
 import * as overlay from './RoomOverlay.css';
 
 const FN_KEYS_REGEX = /^F\d+$/;
@@ -290,9 +289,9 @@ export function RoomView({
             </>
           )}
         </div>
-        <Surface level="panel" className={overlay.Following} data-room-following="true">
+        <div data-room-following="true">
           {hideActivity ? <RoomViewFollowingPlaceholder /> : <RoomViewFollowing room={room} />}
-        </Surface>
+        </div>
       </Box>
     </Page>
   );

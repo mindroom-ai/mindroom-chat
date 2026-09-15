@@ -26,7 +26,7 @@ import { useNavigate } from 'react-router-dom';
 import { Room } from 'matrix-js-sdk';
 import { Menu, MenuItem } from '../../components/glass/GlassPrimitives';
 import { useStateEvent } from '../../hooks/useStateEvent';
-import { glassFloating } from '../../styles/Glass.css';
+import { glassFlat, glassFloating } from '../../styles/Glass.css';
 import { PageHeader } from '../../components/page';
 import { RoomAvatar, RoomIcon } from '../../components/room-avatar';
 import { UseStateProvider } from '../../components/UseStateProvider';
@@ -381,7 +381,7 @@ export function RoomViewHeader({
 
   return (
     <PageHeader
-      className={classNames(ContainerColor({ variant: 'Surface' }), glassFloating)}
+      className={classNames(ContainerColor({ variant: 'Surface' }), glassFloating, glassFlat)}
       balance={screenSize === ScreenSize.Mobile}
     >
       <Box grow="Yes" gap="300">

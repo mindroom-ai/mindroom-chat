@@ -8,6 +8,7 @@ import en from './app/locales/en.json';
 vi.mock('./app/styles/Glass.css', () => ({
   glassShadow: '--glass-shadow',
   glassFloating: 'glass-floating',
+  glassFlat: 'glass-flat',
   glassSurface: () => 'glass-surface',
 }));
 vi.mock('./app/components/glass/Surface.css', () => ({
@@ -16,7 +17,6 @@ vi.mock('./app/components/glass/Surface.css', () => ({
 vi.mock('./app/mindroom/threads/RoomOverlay.css', () => ({
   Header: 'room-header',
   Footer: 'room-footer',
-  Following: 'room-following',
   Typing: 'room-typing',
   Overview: 'room-overview',
   Scroll: 'room-scroll',
