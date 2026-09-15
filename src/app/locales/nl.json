@@ -164,7 +164,7 @@
   },
   "commandPalette": {
     "inputAria": "Commandopalet",
-    "placeholder": "Typ een commando of zoek...",
+    "placeholder": "Zoek of voer een opdracht uit…",
     "closeAria": "Commandopalet sluiten",
     "open": "Commandopalet openen",
     "noResults": "Geen resultaten",
@@ -225,7 +225,14 @@
       "currentSpaceFallback": "huidige space",
       "currentSpaceDescription": "Huidige space",
       "globalSearchDescription": "Globaal zoeken in berichten"
-    }
+    },
+    "all": "Alles",
+    "filterLabel": "Resultaten filteren",
+    "resultsLabel": "Zoekresultaten",
+    "emptyDescription": "Probeer een andere zoekopdracht of kies een andere categorie.",
+    "clearSearch": "Zoekopdracht wissen",
+    "navigate": "Navigeren",
+    "select": "Openen"
   },
   "accountSwitcher": {
     "title": "Accounts",

@@ -63,7 +63,7 @@
     },
     "noResults": "कोई परिणाम नहीं",
     "open": "कमांड पैलेट खोलें",
-    "placeholder": "एक कमांड टाइप करें या खोजें...",
+    "placeholder": "खोजें या कमांड चलाएँ…",
     "prefixes": {
       "actions": "कार्रवाइयाँ",
       "label": "उपसर्ग:",
@@ -83,7 +83,14 @@
       "users": "उपयोगकर्ता"
     },
     "shortcut": "शॉर्टकट:",
-    "shortcutOpenSuffix": "खोलें।"
+    "shortcutOpenSuffix": "खोलें।",
+    "all": "सभी",
+    "filterLabel": "परिणाम फ़िल्टर करें",
+    "resultsLabel": "खोज परिणाम",
+    "emptyDescription": "कोई दूसरी खोज आज़माएँ या दूसरी श्रेणी चुनें।",
+    "clearSearch": "खोज साफ़ करें",
+    "navigate": "नेविगेट करें",
+    "select": "खोलें"
   },
   "composer": {
     "dropFiles": "\"{{roomName}}\" में फ़ाइलें छोड़ें",

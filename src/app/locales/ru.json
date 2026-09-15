@@ -164,7 +164,7 @@
   },
   "commandPalette": {
     "inputAria": "Палитра команд",
-    "placeholder": "Введите команду или поисковый запрос…",
+    "placeholder": "Поиск или выполнение команды…",
     "closeAria": "Закрыть палитру команд",
     "open": "Открыть палитру команд",
     "noResults": "Нет результатов",
@@ -227,7 +227,14 @@
       "globalSearchDescription": "Глобальный поиск сообщений"
     },
     "resultCount_few": "{{count}} результатов",
-    "resultCount_many": "{{count}} результатов"
+    "resultCount_many": "{{count}} результатов",
+    "all": "Все",
+    "filterLabel": "Фильтр результатов",
+    "resultsLabel": "Результаты поиска",
+    "emptyDescription": "Попробуйте другой запрос или выберите другую категорию.",
+    "clearSearch": "Очистить поиск",
+    "navigate": "Навигация",
+    "select": "Открыть"
   },
   "accountSwitcher": {
     "title": "Учётные записи",

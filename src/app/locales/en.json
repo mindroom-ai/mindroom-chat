@@ -164,7 +164,7 @@
   },
   "commandPalette": {
     "inputAria": "Command palette",
-    "placeholder": "Type a command or search...",
+    "placeholder": "Search or run a command…",
     "closeAria": "Close command palette",
     "open": "Open command palette",
     "noResults": "No results",
@@ -225,7 +225,14 @@
       "currentSpaceFallback": "current space",
       "currentSpaceDescription": "Current space",
       "globalSearchDescription": "Global message search"
-    }
+    },
+    "all": "All",
+    "filterLabel": "Filter results",
+    "resultsLabel": "Search results",
+    "emptyDescription": "Try a different search or choose another category.",
+    "clearSearch": "Clear search",
+    "navigate": "Navigate",
+    "select": "Open"
   },
   "accountSwitcher": {
     "title": "Accounts",

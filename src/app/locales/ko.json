@@ -164,7 +164,7 @@
   },
   "commandPalette": {
     "inputAria": "명령 팔레트",
-    "placeholder": "명령을 입력하거나 검색하세요...",
+    "placeholder": "검색하거나 명령 실행…",
     "closeAria": "명령 팔레트 닫기",
     "open": "명령 팔레트 열기",
     "noResults": "결과 없음",
@@ -225,7 +225,14 @@
       "currentSpaceFallback": "현재 스페이스",
       "currentSpaceDescription": "현재 스페이스",
       "globalSearchDescription": "전체 메시지 검색"
-    }
+    },
+    "all": "전체",
+    "filterLabel": "결과 필터링",
+    "resultsLabel": "검색 결과",
+    "emptyDescription": "다른 검색어를 입력하거나 다른 카테고리를 선택하세요.",
+    "clearSearch": "검색 지우기",
+    "navigate": "이동",
+    "select": "열기"
   },
   "accountSwitcher": {
     "title": "계정",

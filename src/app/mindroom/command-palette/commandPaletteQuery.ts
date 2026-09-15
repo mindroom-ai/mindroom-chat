@@ -1,10 +1,9 @@
 import {
+  COMMAND_PALETTE_PREFIX_HINTS,
   type CommandPaletteParsedQuery,
   type CommandPalettePrefix,
   type CommandPaletteSectionId,
 } from './commandPaletteTypes';
-
-const QUERY_PREFIXES: readonly CommandPalettePrefix[] = ['t:', '>', '#', '@', '*'];
 
 const EMPTY_UNIFIED_SECTION_ORDER: readonly CommandPaletteSectionId[] = [
   'threads',
@@ -21,7 +20,9 @@ const TYPED_UNIFIED_SECTION_ORDER: readonly CommandPaletteSectionId[] = [
   'actions',
 ];
 
-const resolveQueryMode = (prefix: CommandPalettePrefix | undefined): CommandPaletteParsedQuery['mode'] => {
+const resolveQueryMode = (
+  prefix: CommandPalettePrefix | undefined
+): CommandPaletteParsedQuery['mode'] => {
   if (prefix === '>') return 'actions';
   if (prefix === '#') return 'rooms';
   if (prefix === '@') return 'users';
@@ -31,7 +32,7 @@ const resolveQueryMode = (prefix: CommandPalettePrefix | undefined): CommandPale
 };
 
 const getPrefix = (value: string): CommandPalettePrefix | undefined =>
-  QUERY_PREFIXES.find((prefix) => value.startsWith(prefix));
+  COMMAND_PALETTE_PREFIX_HINTS.find((prefix) => value.startsWith(prefix));
 
 export const parseCommandPaletteQuery = (value: string): CommandPaletteParsedQuery => {
   const leadingTrimmedValue = value.trimStart();

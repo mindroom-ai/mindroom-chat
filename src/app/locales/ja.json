@@ -164,7 +164,7 @@
   },
   "commandPalette": {
     "inputAria": "コマンドパレット",
-    "placeholder": "コマンドを入力するか検索...",
+    "placeholder": "検索またはコマンドを実行…",
     "closeAria": "コマンドパレットを閉じる",
     "open": "コマンドパレットを開く",
     "noResults": "結果はありません",
@@ -225,7 +225,14 @@
       "currentSpaceFallback": "現在のスペース",
       "currentSpaceDescription": "現在のスペース",
       "globalSearchDescription": "グローバルメッセージ検索"
-    }
+    },
+    "all": "すべて",
+    "filterLabel": "結果を絞り込む",
+    "resultsLabel": "検索結果",
+    "emptyDescription": "別のキーワードで検索するか、別のカテゴリを選んでください。",
+    "clearSearch": "検索をクリア",
+    "navigate": "移動",
+    "select": "開く"
   },
   "accountSwitcher": {
     "title": "アカウント",

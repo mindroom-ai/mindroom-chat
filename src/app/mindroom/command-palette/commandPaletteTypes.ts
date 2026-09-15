@@ -1,4 +1,4 @@
-export const COMMAND_PALETTE_PREFIX_HINTS = ['>', '#', '@', 't:', '*'] as const;
+export const COMMAND_PALETTE_PREFIX_HINTS = ['t:', '#', '@', '>', '*'] as const;
 
 export type CommandPalettePrefix = typeof COMMAND_PALETTE_PREFIX_HINTS[number];
 

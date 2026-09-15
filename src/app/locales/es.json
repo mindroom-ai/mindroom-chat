@@ -164,7 +164,7 @@
   },
   "commandPalette": {
     "inputAria": "Paleta de comandos",
-    "placeholder": "Escribe un comando o busca...",
+    "placeholder": "Busca o ejecuta un comando…",
     "closeAria": "Cerrar la paleta de comandos",
     "open": "Abrir la paleta de comandos",
     "noResults": "No hay resultados",
@@ -226,7 +226,14 @@
       "currentSpaceDescription": "Espacio actual",
       "globalSearchDescription": "Búsqueda global de mensajes"
     },
-    "resultCount_many": "{{count}} resultados"
+    "resultCount_many": "{{count}} resultados",
+    "all": "Todo",
+    "filterLabel": "Filtrar resultados",
+    "resultsLabel": "Resultados de búsqueda",
+    "emptyDescription": "Prueba otra búsqueda o elige otra categoría.",
+    "clearSearch": "Borrar búsqueda",
+    "navigate": "Navegar",
+    "select": "Abrir"
   },
   "accountSwitcher": {
     "title": "Cuentas",

@@ -2,6 +2,29 @@
 
 ## Runbook
 
+### Refine command palette presentation and navigation (2026-09-15)
+
+- Status: implementation is in ready PR #254; hosted checks and review results are recorded on the pull request.
+- The palette has a compact search header, clickable category filters, labeled result groups, quiet icon tiles, a rounded selection, and a keyboard footer.
+  Desktop height remains stable while searching, and the mobile sheet retains safe-area padding, a visible close control, and touch-sized filters.
+- Category changes retain the search text and return focus to the input.
+  Choosing All preserves prefix-leading literal searches such as full Matrix IDs, while clearing the input restores typed-prefix detection.
+- Mouse and keyboard share one active result through the combobox/listbox relationship.
+  Query changes reset the results scroll position, arrow navigation reveals the active option, and composition confirmation does not execute a command.
+- All 17 catalogs include the new labels, with isolated shortcut and prefix symbols for RTL layouts.
+- The glass finish uses a translucent theme-tinted shell, backdrop blur, soft highlights, and layered shadows, with translucent selected rows and icon tiles.
+  Reduced transparency, increased contrast, and forced colors use an opaque shell without blur; browsers without backdrop-filter support also retain the opaque shell.
+- Focused coverage includes category changes, literal searches, composition, accessible selection, pointer activation, and empty-result recovery.
+  Live Chromium checks cover room navigation, scroll recovery, and mobile layouts at 390 and 320 px.
+- Validation: 63 palette tests and all three browser cases pass, along with typecheck, production/PWA build, formatting, and ESLint with zero errors and the existing 17 warnings.
+  The full Node 24 suite passes 4,189 of 4,192 tests; only the three unchanged Xcode Cloud shell fixtures that assume standard Unix executable paths fail on this Nix host.
+- Independent review found and verified fixes for query scroll recovery and literal All-mode searches.
+  Integration review also verified the 17-language catalogs and Arabic navigation.
+  Automated review prompted a shared prefix declaration and removal of unreachable option keyboard handling.
+  A category-roundtrip regression disproves the reported literal-mode reset issue: selecting a category already resets that state.
+  Glass review corrected preference-rule precedence and strengthened muted labels over varying backdrops.
+  Screenshots use local sample data and remain outside version control.
+
 ### Configure Explorer sidebar visibility in Simple Mode (2026-09-15)
 
 - Status: implemented, locally validated, and independently reviewed with no findings.
