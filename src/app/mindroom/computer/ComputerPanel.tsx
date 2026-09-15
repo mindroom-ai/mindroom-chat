@@ -323,7 +323,7 @@ export function ComputerPanel({
 
   const handleDisconnected = (streamTicket: string, message?: string) => {
     if (activeStreamTicketRef.current !== streamTicket) return;
-    if (!sessionRef.current || operation === 'resume' || operation === 'stop') return;
+    if (!sessionRef.current || operation === 'stop') return;
     activeStreamTicketRef.current = undefined;
     setConnected(false);
     setStream(undefined);

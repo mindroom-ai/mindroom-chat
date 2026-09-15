@@ -218,6 +218,64 @@ describe('ComputerPanel', () => {
     );
   });
 
+  it('ignores the retired control stream closing while continuation delivery is pending', async () => {
+    let resolveContinuation: ((value: { event_id: string }) => void) | undefined;
+    const continuation = new Promise<{ event_id: string }>((resolve) => {
+      resolveContinuation = resolve;
+    });
+    const mx = makeMatrixClient();
+    vi.mocked(mx.sendMessage).mockReturnValue(continuation);
+    renderPanel({ mx });
+
+    await waitFor(() => findButton(container, 'Take control'));
+    await click(findButton(container, 'Take control'));
+    await waitFor(() => findButton(container, 'Resume agent'));
+    await click(findButton(container, 'Resume agent'));
+    await waitFor(() => expect(screenConnections).toHaveLength(2));
+
+    act(() => screenConnections[0].onDisconnected('Retired control stream closed.'));
+
+    expect(container.textContent).not.toContain('Retired control stream closed.');
+    expect(container.textContent).not.toContain('Computer disconnected');
+    expect(container.querySelector('[data-testid="computer-screen"]')).not.toBeNull();
+
+    await act(async () => resolveContinuation?.({ event_id: '$continuation' }));
+    expect(mx.sendMessage).toHaveBeenCalledOnce();
+  });
+
+  it('reconnects a failed replacement watch stream while continuation delivery is pending', async () => {
+    let resolveContinuation: ((value: { event_id: string }) => void) | undefined;
+    const continuation = new Promise<{ event_id: string }>((resolve) => {
+      resolveContinuation = resolve;
+    });
+    const mx = makeMatrixClient();
+    vi.mocked(mx.sendMessage).mockReturnValue(continuation);
+    renderPanel({ mx });
+
+    await waitFor(() => findButton(container, 'Take control'));
+    await click(findButton(container, 'Take control'));
+    await waitFor(() => findButton(container, 'Resume agent'));
+    await click(findButton(container, 'Resume agent'));
+    await waitFor(() => expect(screenConnections).toHaveLength(2));
+
+    act(() => screenConnections[1].onDisconnected('Replacement watch stream closed.'));
+
+    await waitFor(() => findButton(container, 'Reconnect'));
+    expect(container.textContent).toContain('Replacement watch stream closed.');
+    await act(async () => resolveContinuation?.({ event_id: '$continuation' }));
+    await waitFor(() => expect(findButton(container, 'Reconnect').disabled).toBe(false));
+    expect(mx.sendMessage).toHaveBeenCalledOnce();
+
+    await click(findButton(container, 'Reconnect'));
+    await waitFor(() => expect(screenConnections).toHaveLength(3));
+    expect(screenConnections.map(({ protocols }) => protocols[1])).toEqual([
+      'mindroom-ticket.ticket-1',
+      'mindroom-ticket.ticket-2',
+      'mindroom-ticket.ticket-3',
+    ]);
+    expect(mx.sendMessage).toHaveBeenCalledOnce();
+  });
+
   it('sends the continuation exactly once even when watch reconnect fails', async () => {
     const gateway = createGateway();
     const request = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {

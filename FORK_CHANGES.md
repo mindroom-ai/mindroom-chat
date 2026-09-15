@@ -13,13 +13,13 @@
 - Session bearer tokens remain inside the active in-memory client, every display connection uses a new single-use ticket in the `mindroom-ticket.<ticket>` WebSocket subprotocol, and request credentials are omitted.
 - Server status is authoritative for view and control mode; the native noVNC screen scales to its viewport, updates `viewOnly` from that status, and disposes its single RFB instance and callbacks on replacement or unmount.
 - Resume agent releases control first, reconnects the same public session in watch mode with a fresh ticket, and independently sends one ordinary thread-aware continuation mentioning the selected agent.
-- A failed watch reconnect does not suppress or duplicate the continuation message, and a continuation-send failure leaves control released and reports the send failure separately.
+- A failed watch reconnect does not suppress or duplicate the continuation message. A replacement watch-stream failure remains recoverable while continuation delivery is pending, while callbacks from the retired control stream are ignored. A continuation-send failure leaves control released and reports the send failure separately.
 - Stop revokes the current session, and Start computer obtains a fresh Matrix OpenID token and creates a new public session.
 - Closing the panel deletes only the viewer session and never sends a continuation message or stops the persistent worker computer.
 - Desktop uses a side panel that closes the Members drawer, while mobile uses a full-screen surface with a clear close action.
 - Computer keyboard and paste events remain inside the RFB surface, and composer focus plus the global command palette defer while that surface owns input.
 - The client uses native `@novnc/novnc` 1.7.0 through its package export and supplies only `binary` plus the single-use ticket protocol.
-- Focused coverage passes 82 tests across the Computer API, panel, screen, header, room ownership, composer focus, and command-palette suites.
+- Focused coverage passes 84 tests across the Computer API, panel, screen, header, room ownership, composer focus, and command-palette suites.
 - Live acceptance passed watch, takeover, typing into the worker browser, release with a continuation in the originating thread, desktop side-panel placement, and mobile full-screen placement with no page errors.
 - `npm run build` passes. The full suite passes 3,643 tests and retains the four known baseline failures: three Xcode Cloud Homebrew tests on non-macOS and one caption-restoration test.
 
