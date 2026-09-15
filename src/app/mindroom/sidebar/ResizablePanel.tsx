@@ -83,7 +83,12 @@ export function ResizablePanel({
     }
     const parent = panelRef.current?.parentElement;
     if (!parent) return undefined;
-    const measure = () => setAvailableWidth(parent.clientWidth);
+    const measure = () => {
+      const style = getComputedStyle(parent);
+      const padding =
+        (Number.parseFloat(style.paddingLeft) || 0) + (Number.parseFloat(style.paddingRight) || 0);
+      setAvailableWidth(Math.max(0, parent.clientWidth - padding));
+    };
     measure();
     const observer = new ResizeObserver(measure);
     observer.observe(parent);

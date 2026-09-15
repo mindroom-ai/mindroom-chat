@@ -11,10 +11,12 @@
   Dragging to 160 px or less previews closure; releasing closes it while retaining the last usable width for reopening.
 - Member overlays preserve the current conversation or lobby and support the close button, Escape, and backdrop dismissal.
   Opening moves focus into the member controls, and closing returns it to the trigger.
-- Validation: all 69 focused tests and all 4,455 tests across 532 files pass, along with typecheck, the production/PWA build, and changed-file formatting.
+  Physical safe-area padding keeps controls clear of screen cutouts in both layout directions and constrains the maximum panel width.
+  Opening Members also closes the Computer panel so the member list appears immediately.
+- Validation: all 77 focused tests and all 4,463 tests across 532 files pass, along with typecheck, the production/PWA build, and changed-file formatting.
   Full ESLint reports zero errors and the 17 existing warnings.
-  All 12 Chromium/WebKit cases in `playwright.sidebar.config.ts` pass against the production build and a local Matrix fixture, covering both sidebars, rooms, space lobbies, phone overlays, native Chromium touch resizing and collapse, keyboard focus, and reopening.
-  The narrow-screen controls, independent phone visibility, and initial dialog focus regressions fail before their fixes.
+  All 12 Chromium/WebKit cases in `playwright.sidebar.config.ts` pass against the production build and a local Matrix fixture, covering both sidebars, rooms, space lobbies, phone overlays, native Chromium touch resizing and collapse, screen cutouts in both layout directions, keyboard focus, and reopening.
+  The narrow-screen controls, independent phone visibility, initial dialog focus, safe-area sizing, and switching from Computer regressions fail before their fixes.
 
 ### Toggle Explorer navigation from its active sidebar icon (2026-09-15)
 

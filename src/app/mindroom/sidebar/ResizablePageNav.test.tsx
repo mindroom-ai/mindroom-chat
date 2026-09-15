@@ -18,6 +18,8 @@ const membersStorageKey = 'mindroom.members.width:@alice:example.org';
 const storage = new Map<string, string>();
 let availableWidth = 1000;
 let direction = 'ltr';
+let paddingLeft = 0;
+let paddingRight = 0;
 let resizeObserver: () => void;
 const capture = new Set<number>();
 const pointerTarget = {
@@ -83,7 +85,13 @@ beforeEach(() => {
   capture.clear();
   availableWidth = 1000;
   direction = 'ltr';
-  vi.stubGlobal('getComputedStyle', () => ({ direction }));
+  paddingLeft = 0;
+  paddingRight = 0;
+  vi.stubGlobal('getComputedStyle', () => ({
+    direction,
+    paddingLeft: `${paddingLeft}px`,
+    paddingRight: `${paddingRight}px`,
+  }));
   vi.stubGlobal('localStorage', {
     getItem: (key: string) => storage.get(key) ?? null,
     setItem: (key: string, value: string) => storage.set(key, value),
@@ -104,6 +112,21 @@ beforeEach(() => {
 });
 
 describe('ResizablePanel at the member edge', () => {
+  it.each(['ltr', 'rtl'])('keeps the maximum width inside safe-area padding in %s', (layout) => {
+    direction = layout;
+    availableWidth = 390;
+    paddingLeft = 44;
+    paddingRight = 32;
+    storage.set(membersStorageKey, '500');
+    const { renderer, handle, width } = renderPanel(ScreenSize.Mobile, undefined, true);
+    expect(width()).toBe(314);
+    expect(handle().props['aria-valuemax']).toBe(314);
+    paddingLeft = 0;
+    act(() => resizeObserver());
+    expect(width()).toBe(358);
+    act(() => renderer.unmount());
+  });
+
   it.each([
     { layout: 'ltr', endX: 600, arrow: 'ArrowLeft' },
     { layout: 'rtl', endX: 800, arrow: 'ArrowRight' },

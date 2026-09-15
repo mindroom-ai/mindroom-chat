@@ -339,6 +339,7 @@ export function RoomViewHeader({
     : undefined;
 
   const [peopleDrawer, setPeopleDrawer] = useMembersDrawer();
+  const membersOpen = peopleDrawer && !computerOpen;
 
   const handleSearchClick = () => {
     const searchParams: _SearchPathSearchParams = {
@@ -365,11 +366,12 @@ export function RoomViewHeader({
       openSettings(room.roomId, parentSpace?.roomId, RoomSettingsPage.MembersPage);
       return;
     }
-    setPeopleDrawer(!peopleDrawer);
+    if (computerOpen) onComputerToggle?.();
+    setPeopleDrawer(!membersOpen);
   };
   const memberButtonLabel = callView
     ? t('mindroomUi.threads.mindroomRoomViewHeader.members')
-    : peopleDrawer
+    : membersOpen
     ? t('mindroomUi.threads.mindroomRoomViewHeader.hideMembers')
     : t('mindroomUi.threads.mindroomRoomViewHeader.showMembers');
   const memberButtonAriaLabel = getPendingJoinRequestLabel(
@@ -552,7 +554,7 @@ export function RoomViewHeader({
                   <Text>{t('mindroomUi.threads.mindroomRoomViewHeader.members')}</Text>
                 ) : (
                   <Text>
-                    {peopleDrawer
+                    {membersOpen
                       ? t('mindroomUi.threads.mindroomRoomViewHeader.hideMembers')
                       : t('mindroomUi.threads.mindroomRoomViewHeader.showMembers')}
                   </Text>

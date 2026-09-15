@@ -131,6 +131,7 @@ test.describe('phone member overlay', () => {
 
   test('opens over the conversation, resizes, and closes without changing the room', async ({
     page,
+    browserName,
   }) => {
     await openRoom(page);
     const roomUrl = page.url();
@@ -177,6 +178,37 @@ test.describe('phone member overlay', () => {
     await expect.poll(() => widthOf(editor)).toBe(editorWidth);
     await expect(page).toHaveURL(roomUrl);
     await expect(page.locator('body')).toHaveJSProperty('scrollWidth', 390);
+    if (browserName === 'chromium') {
+      const session = await page.context().newCDPSession(page);
+      try {
+        await session.send('Emulation.setSafeAreaInsetsOverride', {
+          insets: { left: 44, right: 32 },
+        });
+        for (const direction of ['ltr', 'rtl']) {
+          await page.evaluate(
+            (dir) => document.documentElement.setAttribute('dir', dir),
+            direction
+          );
+          await show.focus();
+          await page.keyboard.press('Enter');
+          await expect(dialog).toHaveCSS('padding-left', '44px');
+          await expect(dialog).toHaveCSS('padding-right', '32px');
+          await handle.focus();
+          await page.keyboard.press('End');
+          await expect(handle).toHaveAttribute('aria-valuemax', '314');
+          await expect.poll(() => widthOf(panel)).toBe(314);
+          expect(Math.round((await panel.boundingBox())!.x)).toBe(44);
+          await page.keyboard.press('Home');
+          await expect.poll(() => widthOf(panel)).toBe(200);
+          expect(Math.round((await panel.boundingBox())!.x)).toBe(direction === 'ltr' ? 158 : 44);
+          await page.keyboard.press('Escape');
+          await expect(dialog).toHaveCount(0);
+        }
+      } finally {
+        await session.send('Emulation.setSafeAreaInsetsOverride', { insets: {} });
+        await session.detach();
+      }
+    }
     expect(errors).toEqual([]);
   });
 });
