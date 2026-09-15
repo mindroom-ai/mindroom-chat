@@ -6,7 +6,7 @@ const shimmer = keyframes({
   '100%': { backgroundPosition: '-80% 50%' },
 });
 
-// First 9 seconds: whole-M flips. Last 6 seconds: the core takes its turn.
+// Horizontal flip (4.5s), glowing core (6s), then vertical flip (4.5s).
 const turn = keyframes({
   '0%, 6%': {
     transform: 'translateY(0%) rotateX(0deg) rotateY(0deg) rotateZ(0deg)',
@@ -20,70 +20,70 @@ const turn = keyframes({
   '16.2%': {
     transform: 'translateY(2%) rotateX(0deg) rotateY(350deg) rotateZ(-1.3deg)',
   },
-  '19.2%, 35.4%': {
+  '19.2%, 75.4%': {
     transform: 'translateY(0%) rotateX(0deg) rotateY(360deg) rotateZ(0deg)',
   },
-  '38.4%': {
+  '78.4%': {
     transform: 'translateY(3%) rotateX(-22deg) rotateY(360deg) rotateZ(2deg)',
   },
-  '43.2%': {
+  '83.2%': {
     transform: 'translateY(-5%) rotateX(381deg) rotateY(360deg) rotateZ(-2deg)',
   },
-  '46.2%': {
+  '86.2%': {
     transform: 'translateY(1%) rotateX(351deg) rotateY(360deg) rotateZ(1deg)',
   },
-  '49.8%, 60%, 100%': {
+  '89.8%, 100%': {
     transform: 'translateY(0%) rotateX(360deg) rotateY(360deg) rotateZ(0deg)',
   },
 });
 const core = keyframes({
-  '0%, 60%, 65.6%': {
+  '0%, 30%, 35.6%': {
     transform: 'translateY(0px) rotateY(0deg) scale(1, 1)',
     filter: 'drop-shadow(0 0 9px #ffe39b30)',
   },
-  '68.8%': {
+  '38.8%': {
     transform: 'translateY(18px) rotateY(-22deg) scale(1.03, 0.93)',
     filter: 'drop-shadow(0 0 9px #ffe39b45)',
   },
-  '73.6%': {
+  '43.6%': {
     transform: 'translateY(-54px) rotateY(385deg) scale(0.97, 1.05)',
     filter: 'drop-shadow(0 0 36px #ffe39bb0)',
   },
-  '76.8%': {
+  '46.8%': {
     transform: 'translateY(13.5px) rotateY(350deg) scale(1.025, 0.96)',
     filter: 'drop-shadow(0 0 18px #ffe39b75)',
   },
-  '80.4%': {
+  '50.4%': {
     transform: 'translateY(-9px) rotateY(364deg) scale(0.99, 1.015)',
     filter: 'drop-shadow(0 0 18px #ffe39b60)',
   },
-  '84.8%, 100%': {
+  '54.8%, 100%': {
     transform: 'translateY(0px) rotateY(360deg) scale(1, 1)',
     filter: 'drop-shadow(0 0 9px #ffe39b30)',
   },
 });
 const glow = keyframes({
-  '0%, 60%, 65.6%, 100%': {
+  '0%, 30%, 35.6%, 100%': {
     opacity: '0.2',
     transform: 'scale(1.2)',
   },
-  '68.8%': {
+  '38.8%': {
     opacity: '0.35',
     transform: 'scale(1.1)',
   },
-  '73.6%': {
+  '43.6%': {
     opacity: '1',
     transform: 'scale(1.8)',
   },
-  '78.4%': {
+  '48.4%': {
     opacity: '0.4',
     transform: 'scale(1.3)',
   },
-  '81.6%': {
+  '51.6%': {
     opacity: '0.55',
     transform: 'scale(1.45)',
   },
-  '86.8%': {
+  '56.8%': {
     opacity: '0.2',
     transform: 'scale(1.2)',
   },

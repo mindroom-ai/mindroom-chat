@@ -18,7 +18,9 @@ async function sample(page: Page, time: number) {
   }, time);
 }
 
-test('thinking marker plays the whole-M flips before the glowing core', async ({ page }) => {
+test('thinking marker plays the glowing core between the horizontal and vertical flips', async ({
+  page,
+}) => {
   await page.goto('/e2e/fixtures/thinking-marker.html');
   const status = page.getByRole('status', { name: 'AI is responding' }).first();
   await expect(status.locator('svg')).toHaveCount(1);
@@ -28,18 +30,25 @@ test('thinking marker plays the whole-M flips before the glowing core', async ({
       .toBeGreaterThan(0);
   }
   const initial = await sample(page, 0);
-  for (const time of [1350, 1980, 2430, 5760, 6480, 6930]) {
+  for (const time of [1350, 1980, 2430]) {
     const frame = await sample(page, time);
     expect(frame.rotor).not.toEqual(initial.rotor);
     expect(frame.core).toEqual(initial.core);
     expect(frame.aura).toEqual(initial.aura);
   }
-  const settled = await sample(page, 9000);
-  for (const time of [10320, 11040, 11520, 12060]) {
+  const settled = await sample(page, 4500);
+  for (const time of [5820, 6540, 7020, 7560]) {
     const frame = await sample(page, time);
     expect(frame.rotor).toEqual(settled.rotor);
     expect(frame.core).not.toEqual(settled.core);
     expect(frame.aura).not.toEqual(settled.aura);
+  }
+  const coreSettled = await sample(page, 10500);
+  for (const time of [11760, 12480, 12930]) {
+    const frame = await sample(page, time);
+    expect(frame.rotor).not.toEqual(coreSettled.rotor);
+    expect(frame.core).toEqual(coreSettled.core);
+    expect(frame.aura).toEqual(coreSettled.aura);
   }
   expect(await sample(page, 15000)).toEqual(initial);
 });
@@ -60,10 +69,10 @@ test('thinking marker fits chat text and honors reduced motion in both themes', 
       await expect(svg).toHaveAttribute('focusable', 'false');
     }
     expect(await page.getByRole('img').count()).toBe(0);
-    expect(await page.evaluate(() => document.getAnimations().length)).toBe(0);
-    expect(await sample(page, 11040)).toEqual(await sample(page, 0));
-    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
-      true
-    );
+    await expect.poll(() => page.evaluate(() => document.getAnimations().length)).toBe(0);
+    expect(await sample(page, 6540)).toEqual(await sample(page, 0));
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)
+    ).toBe(true);
   }
 });
