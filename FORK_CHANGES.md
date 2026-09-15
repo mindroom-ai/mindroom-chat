@@ -20,6 +20,8 @@
 - ESLint enforces shared static imports, including aliases, re-exports, namespaces, and deep module paths; only the adapter may import the raw Folds surface components.
   Ordinary primitives and the Folds stylesheet remain available from the package.
   Dynamic module loading is outside this static rule; the source inventory found no production dynamic Folds imports.
+- The read-receipt strip below the composer uses the conversation background without a glass rim, highlight, or refraction filter.
+  Its existing 28 px minimum height and safe-area padding leave breathing room beneath the floating composer.
 - Inline navigation category headings retain their plain surface so the Recently opened panel has one divider instead of a second inset glass edge.
 - Equal horizontal and vertical rim highlights establish 45-degree lighting from the upper left; a circular pointer glint keeps wide controls from stretching the highlight into a horizontal streak.
 - Theme-aware tint and highlight strength protect text over bright and dark backdrops. Reduced transparency, increased contrast, and forced colors remove decorative effects and restore opaque surfaces. Reduced motion disables moving highlights and button scaling.

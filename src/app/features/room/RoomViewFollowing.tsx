@@ -8,7 +8,6 @@ import { Trans, useTranslation } from 'react-i18next';
 import { Modal } from '../../components/glass/GlassPrimitives';
 import { getMemberDisplayName } from '../../utils/room';
 import { getMxIdLocalPart } from '../../utils/matrix';
-import { useLiquidGlass } from '../../components/glass/liquid/useLiquidGlass';
 import * as css from './RoomViewFollowing.css';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useRoomLatestRenderedEvent } from '../../hooks/useRoomLatestRenderedEvent';
@@ -25,7 +24,6 @@ export type RoomViewFollowingProps = {
 };
 export const RoomViewFollowing = as<'div', RoomViewFollowingProps>(
   ({ className, room, ...props }, ref) => {
-    const glassRef = useLiquidGlass(ref);
     const { t } = useTranslation();
     const mx = useMatrixClient();
     const [open, setOpen] = useState(false);
@@ -67,7 +65,7 @@ export const RoomViewFollowing = as<'div', RoomViewFollowingProps>(
           justifyContent="End"
           gap="200"
           {...props}
-          ref={glassRef}
+          ref={ref}
         >
           {names.length > 0 && (
             <>
