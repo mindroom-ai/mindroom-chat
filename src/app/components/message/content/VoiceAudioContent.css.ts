@@ -11,14 +11,15 @@ export const Capsule = style([
   DefaultReset,
   {
     display: 'grid',
-    gridTemplateColumns: `${toRem(48)} minmax(0, 1fr)`,
-    gridTemplateAreas: '"play title" "play wave" "controls controls" "error error"',
+    gridTemplateColumns: `${toRem(44)} minmax(0, 1fr) ${toRem(44)} ${toRem(24)}`,
+    gridTemplateRows: `${toRem(32)} ${toRem(16)} auto`,
+    gridTemplateAreas: '"play wave rate more" ". time . ." "error error error error"',
     alignItems: 'center',
-    columnGap: config.space.S300,
+    columnGap: config.space.S200,
     width: '100%',
     minWidth: 0,
-    padding: `${config.space.S300} ${config.space.S300} ${config.space.S100}`,
-    borderRadius: toRem(20),
+    padding: config.space.S200,
+    borderRadius: toRem(16),
     backgroundColor: color.SurfaceVariant.Container,
     color: color.SurfaceVariant.OnContainer,
     boxShadow: `inset 0 0 0 ${config.borderWidth.B300} ${color.SurfaceVariant.ContainerLine}`,
@@ -31,10 +32,10 @@ export const Capsule = style([
 ]);
 
 export const Title = style({
-  gridArea: 'title',
   minWidth: 0,
   fontWeight: config.fontWeight.W500,
-  paddingBlockEnd: config.space.S100,
+  marginBlockEnd: config.space.S100,
+  marginInline: config.space.S200,
 });
 
 export const PlayCell = style({
@@ -44,37 +45,38 @@ export const PlayCell = style({
   justifyContent: 'center',
 });
 
+export const PlayButton = style({
+  width: toRem(44),
+  height: toRem(44),
+  flexShrink: 0,
+  padding: 0,
+  borderRadius: '50%',
+});
+
 export const WaveformCell = style({
   gridArea: 'wave',
   minWidth: 0,
 });
 
 export const Controls = style({
-  gridArea: 'controls',
-  display: 'flex',
-  alignItems: 'center',
-  flexWrap: 'wrap',
-  minWidth: 0,
-  paddingBlockStart: config.space.S100,
+  display: 'contents',
 });
 
 export const Time = style({
-  flex: '1 0 auto',
-  marginInlineEnd: config.space.S200,
+  gridArea: 'time',
   color: color.SurfaceVariant.OnContainer,
   fontVariantNumeric: 'tabular-nums',
   whiteSpace: 'nowrap',
   fontSize: toRem(12),
 });
 
-export const VolumeCell = style({ display: 'flex', alignItems: 'center' });
-export const RateCell = style({ display: 'flex', alignItems: 'center' });
-export const MoreCell = style({ display: 'flex', alignItems: 'center' });
+export const RateCell = style({ gridArea: 'rate', display: 'flex', alignItems: 'center' });
+export const MoreCell = style({ gridArea: 'more', display: 'flex', alignItems: 'center' });
 
 export const Error = style({
   gridArea: 'error',
   color: color.Critical.Main,
-  paddingBlockEnd: config.space.S200,
+  paddingBlockStart: config.space.S200,
 });
 
 export const MoreMenu = style({

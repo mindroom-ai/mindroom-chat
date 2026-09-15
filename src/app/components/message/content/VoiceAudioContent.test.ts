@@ -56,10 +56,10 @@ vi.mock('./VoiceAudioContent.css', () => ({
   MoreMenuMetaLabel: 'MoreMenuMetaLabel',
   MoreMenuMetaValue: 'MoreMenuMetaValue',
   PlayCell: 'PlayCell',
+  PlayButton: 'PlayButton',
   RateCell: 'RateCell',
   Root: 'Root',
   Time: 'Time',
-  VolumeCell: 'VolumeCell',
   WaveformCell: 'WaveformCell',
 }));
 
@@ -223,6 +223,19 @@ const renderVoiceAudio = (
   props?: Partial<React.ComponentProps<typeof VoiceAudioContent>>
 ) => React.createElement(Provider, { store }, renderVoiceAudioContent(props));
 
+const openAudioOptions = (renderer: ReactTestRenderer, index = 0) => {
+  act(() => {
+    renderer.root
+      .findAllByType('button')
+      .filter((button) => button.props['aria-label'] === 'More audio options')
+      [index].props.onClick({
+        currentTarget: {
+          getBoundingClientRect: () => ({ left: 0, top: 0, width: 24, height: 24 }),
+        },
+      });
+  });
+};
+
 describe('VoiceAudioContent', () => {
   let renderer: ReactTestRenderer;
   const storageListeners = new Set<StorageListener>();
@@ -251,7 +264,7 @@ describe('VoiceAudioContent', () => {
     storageListeners.clear();
   });
 
-  it('renders play, waveform seek, timer, and volume controls before interaction', () => {
+  it('renders play, waveform seek, timer, and speed before interaction', () => {
     renderer = create(renderVoiceAudio());
 
     expect(renderer.root.findByProps({ className: 'Root' })).toBeTruthy();
@@ -259,7 +272,6 @@ describe('VoiceAudioContent', () => {
     const buttons = renderer.root.findAllByType('button');
     expect(buttons.map((button) => button.props['aria-label'])).toEqual([
       'Play voice message',
-      'Voice volume, currently 100%',
       'Playback speed, currently 1×, click to cycle',
       'More audio options',
     ]);
@@ -273,7 +285,7 @@ describe('VoiceAudioContent', () => {
     });
   });
 
-  it('keeps download and attachment metadata in the More menu', () => {
+  it('keeps volume, download, and attachment metadata in the More menu', () => {
     renderer = create(renderVoiceAudio(createStore(), { filename: 'clip.ogg' }));
 
     act(() => {
@@ -284,6 +296,9 @@ describe('VoiceAudioContent', () => {
       });
     });
 
+    expect(
+      renderer.root.findByProps({ 'aria-label': 'Voice volume, currently 100%' })
+    ).toBeTruthy();
     expect(renderer.root.findByProps({ 'data-download-filename': 'clip.ogg' })).toBeTruthy();
     expect(JSON.stringify(renderer.toJSON())).toContain('clip.ogg');
     expect(JSON.stringify(renderer.toJSON())).toContain('audio/ogg');
@@ -328,6 +343,8 @@ describe('VoiceAudioContent', () => {
   it('reopens volume during deactivation without reading a cleared event target', () => {
     renderer = create(renderVoiceAudio());
 
+    openAudioOptions(renderer);
+
     const volumeTriggerTarget = {
       getBoundingClientRect: () => ({ left: 0, top: 0, width: 44, height: 44 }),
     };
@@ -338,7 +355,7 @@ describe('VoiceAudioContent', () => {
         .props.onClick({ currentTarget: volumeTriggerTarget });
     });
 
-    const focusTrapOptions = renderer.root.findByProps({ 'data-focus-trap': true }).props
+    const focusTrapOptions = renderer.root.findAllByProps({ 'data-focus-trap': true })[1].props
       .focusTrapOptions as {
       onDeactivate: () => void;
     };
@@ -359,7 +376,7 @@ describe('VoiceAudioContent', () => {
       });
     }).not.toThrow();
 
-    expect(renderer.root.findAllByProps({ 'data-popout': 'true' })).toHaveLength(1);
+    expect(renderer.root.findAllByProps({ 'data-popout': 'true' })).toHaveLength(2);
 
     act(() => {
       renderer.unmount();
@@ -694,6 +711,9 @@ describe('VoiceAudioContent', () => {
       );
     });
 
+    openAudioOptions(renderer);
+    openAudioOptions(renderer, 1);
+
     act(() => {
       renderer.root
         .findAllByProps({ 'aria-label': 'Voice volume, currently 100%' })[0]
@@ -747,14 +767,16 @@ describe('VoiceAudioContent', () => {
       },
     });
 
+    openAudioOptions(renderer);
+
     act(() => {
       renderer.root.findByProps({ 'aria-label': 'Voice volume, currently 100%' }).props.onClick({
         currentTarget: volumeTriggerNode,
       });
     });
 
-    expect(renderer.root.findAllByProps({ 'data-popout': 'true' })).toHaveLength(1);
-    const focusTrapOptions = renderer.root.findByProps({ 'data-focus-trap': true }).props
+    expect(renderer.root.findAllByProps({ 'data-popout': 'true' })).toHaveLength(2);
+    const focusTrapOptions = renderer.root.findAllByProps({ 'data-focus-trap': true })[1].props
       .focusTrapOptions as {
       clickOutsideDeactivates: (event: Pick<MouseEvent, 'target'>) => boolean;
       allowOutsideClick: (event: Pick<MouseEvent, 'target'>) => boolean;
@@ -768,7 +790,7 @@ describe('VoiceAudioContent', () => {
       });
     });
 
-    expect(renderer.root.findAllByProps({ 'data-popout': 'true' })).toHaveLength(0);
+    expect(renderer.root.findAllByProps({ 'data-popout': 'true' })).toHaveLength(1);
 
     act(() => {
       renderer.unmount();
@@ -777,6 +799,8 @@ describe('VoiceAudioContent', () => {
 
   it('centers the volume slider thumb on the track centerline', () => {
     renderer = create(renderVoiceAudio());
+
+    openAudioOptions(renderer);
 
     act(() => {
       renderer.root.findByProps({ 'aria-label': 'Voice volume, currently 100%' }).props.onClick({

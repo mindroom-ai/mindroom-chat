@@ -50,10 +50,10 @@ vi.mock('./VoiceAudioContent.css', () => ({
   MoreMenuMetaLabel: 'MoreMenuMetaLabel',
   MoreMenuMetaValue: 'MoreMenuMetaValue',
   PlayCell: 'PlayCell',
+  PlayButton: 'PlayButton',
   RateCell: 'RateCell',
   Root: 'Root',
   Time: 'Time',
-  VolumeCell: 'VolumeCell',
   WaveformCell: 'WaveformCell',
 }));
 

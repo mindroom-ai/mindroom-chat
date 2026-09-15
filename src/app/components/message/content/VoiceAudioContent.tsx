@@ -249,15 +249,18 @@ export function VoiceAudioContent({
 
   return (
     <div className={css.Root}>
-      <div className={css.Capsule} data-playing={playing || undefined}>
+      {!isVoiceMessage && (
         <Text className={css.Title} size="T200" truncate title={filename}>
-          {isVoiceMessage ? t('sharedUi.threadPreviews.voiceMessage') : filename}
+          {filename}
         </Text>
+      )}
+      <div className={css.Capsule} data-playing={playing || undefined}>
         <div className={css.PlayCell}>
           <IconButton
+            className={css.PlayButton}
             variant="Primary"
             fill="Soft"
-            size="600"
+            size="400"
             radii="Pill"
             onClick={handlePlay}
             disabled={srcState.status === AsyncStatus.Loading || hasPlaybackError}
@@ -294,9 +297,6 @@ export function VoiceAudioContent({
           <Text className={css.Time} size="B300">
             {`${formatVoiceTime(displayCurrentTime)} / ${formatVoiceTime(displayDuration)}`}
           </Text>
-          <div className={css.VolumeCell}>
-            <VoiceVolumeButton />
-          </div>
           <div className={css.RateCell}>
             <VoicePlaybackRateButton />
           </div>
@@ -344,6 +344,10 @@ export function VoiceAudioContent({
                   }}
                 >
                   <Menu className={css.MoreMenu}>
+                    <div className={css.MoreMenuAction}>
+                      <Text size="B300">{t('sharedUi.voiceVolumeButton.voiceVolume')}</Text>
+                      <VoiceVolumeButton />
+                    </div>
                     <div className={css.MoreMenuAction}>
                       <Text size="B300">{t('sharedUi.voiceAudioContent.download')}</Text>
                       <FileDownloadButton

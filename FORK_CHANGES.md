@@ -5,12 +5,15 @@
 ### Shared audio player refresh (2026-09-15)
 
 - Status: implemented and validated on `feat/shared-audio-player`; ready PR #251 includes light/dark screenshots.
-- Voice messages and normal audio attachments share a responsive card with visible titles, a 48px play/pause control, and playback speed available before interaction.
+- Voice messages and normal audio attachments share a compact player with a fixed 44px circular play/pause control centered on the waveform and playback speed available before interaction.
+- The initial 118px card made the padded play button oval and placed it above the waveform; browser geometry checks now cover both defects.
+- The revised player is 64px tall for voice messages and 86px including the filename for audio attachments; volume and downloads live in the options menu.
 - Native range input adds drag/touch scrubbing, keyboard control, and an accessible time value while retaining the recorded waveform.
 - Loading failures offer retry; browser decode/source failures show a download suggestion and disable unavailable playback controls.
 - New messages are translated into all 17 supported languages, including isolated time values in Arabic.
 - Independent review found the media-element error gap; real audio/source error-event tests cover the fix, and follow-up review approved the final change.
 - Qodo's review identified unused speed-placeholder and legacy-renderer code; both are removed, including the unused callback, wrapper, exports, and stale test mocks.
+- Independent review approved the compact revision; browser coverage also verifies nested volume-menu adjustment and Escape behavior.
 - Validation: focused audio/localization coverage and four Chromium tests pass, covering real WAV playback, scrubbing, speed, menus, light/dark mobile layouts, and 220px panels.
 - Typecheck, ESLint (17 existing warnings), production build, formatting, and whitespace checks pass.
 - Full `npm test`: 4140 pass; four pre-existing failures in `xcodeCloudPostClone.test.ts` and `useRoomInputSendSessionController.test.ts` reproduce on unchanged current `dev` with the same dependencies.
