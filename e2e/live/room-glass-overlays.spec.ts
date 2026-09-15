@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { getHomeserver, getPrimaryCredentials, hasPrimaryCredentials } from '../env';
 import { loginWithPassword } from '../helpers/auth';
+import { expectClearStrip } from '../helpers/glassVisual';
 import {
   createDefaultThreadFilterState,
   createPrivateRoom,
@@ -115,34 +116,7 @@ for (const width of [390, 1280]) {
         const following = page.locator('[data-room-following="true"]');
         const cards = scroll.locator('button[data-thread-root-id]');
         await expect(cards).toHaveCount(14);
-        await expect(following).toHaveText('');
-        // Empty safe-area space must leave the scrolling conversation unpainted.
-        expect(
-          await following.evaluate((element) =>
-            [element, ...element.querySelectorAll('*')].flatMap((node) => {
-              const css = getComputedStyle(node);
-              const clear =
-                css.backgroundColor === 'rgba(0, 0, 0, 0)' &&
-                css.backgroundImage === 'none' &&
-                css.backdropFilter === 'none' &&
-                css.boxShadow === 'none' &&
-                css.borderTopWidth === '0px';
-              return clear
-                ? []
-                : [
-                    {
-                      tag: node.tagName,
-                      className: node.className,
-                      background: css.backgroundColor,
-                      image: css.backgroundImage,
-                      blur: css.backdropFilter,
-                      shadow: css.boxShadow,
-                      border: css.borderTopWidth,
-                    },
-                  ];
-            })
-          )
-        ).toEqual([]);
+        await expectClearStrip(following);
         expect(
           await header.evaluate((element) => {
             const css = getComputedStyle(element);

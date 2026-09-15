@@ -6,6 +6,7 @@ import {
   hasPrimaryCredentials,
 } from '../env';
 import { loginWithPassword } from '../helpers/auth';
+import { expectClearStrip } from '../helpers/glassVisual';
 import {
   createPrivateRoom,
   joinRoom,
@@ -117,26 +118,7 @@ test('following glass appears only while another reader follows the latest messa
     await expect(page.getByText('Catching up...', { exact: true })).toHaveCount(0);
 
     const following = page.locator('[data-room-following="true"]');
-    const expectTransparent = async () => {
-      await expect(following).toHaveText('');
-      await expect
-        .poll(() =>
-          following.evaluate((element) =>
-            [element, ...element.querySelectorAll('*')].every((node) => {
-              const css = getComputedStyle(node);
-              return (
-                css.backgroundColor === 'rgba(0, 0, 0, 0)' &&
-                css.backgroundImage === 'none' &&
-                css.backdropFilter === 'none' &&
-                css.boxShadow === 'none' &&
-                css.borderTopWidth === '0px'
-              );
-            })
-          )
-        )
-        .toBe(true);
-    };
-    await expectTransparent();
+    await expectClearStrip(following);
     const emptyHeight = (await following.boundingBox())!.height;
     expect(emptyHeight).toBeGreaterThanOrEqual(28);
     const scroll = page.getByTestId('room-virtual-inner').locator('xpath=../..');
@@ -224,7 +206,7 @@ test('following glass appears only while another reader follows the latest messa
       msgtype: 'm.text',
       body: nextBody,
     });
-    await expectTransparent();
+    await expectClearStrip(following);
     await jumpToLatest.click();
     await expect(page.getByText(nextBody, { exact: true })).toBeVisible();
     await markRead(reader.accessToken, nextEvent);
@@ -236,7 +218,7 @@ test('following glass appears only while another reader follows the latest messa
     });
     await page.reload();
     await expect(page.getByText(nextBody, { exact: true })).toBeVisible();
-    await expectTransparent();
+    await expectClearStrip(following);
     expect((await following.boundingBox())!.height).toBeCloseTo(emptyHeight, 0);
   } finally {
     const sessions = readerJoined ? [reader, author] : [author];
