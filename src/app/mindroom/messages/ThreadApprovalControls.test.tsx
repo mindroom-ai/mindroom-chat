@@ -13,6 +13,7 @@ vi.mock('../../hooks/useMatrixClient', () => ({
   useMatrixClient: () => ({ getUserId: () => '@alice:example.org' }),
 }));
 vi.mock('./ApprovalArguments', () => ({ ApprovalArguments: () => null }));
+vi.mock('../../styles/Glass.css', () => ({ glassOverBackdrop: 'glass-over-backdrop' }));
 vi.mock('./ThreadApprovals.css', () => ({
   Bar: 'Bar',
   BarStatus: 'BarStatus',
@@ -20,6 +21,10 @@ vi.mock('./ThreadApprovals.css', () => ({
   ReviewButtonPending: 'ReviewButtonPending',
   ReviewPulse: 'ReviewPulse',
   Chip: 'Chip',
+  ReceiptHeader: 'ReceiptHeader',
+  ReceiptLabel: 'ReceiptLabel',
+  ReceiptMeta: 'ReceiptMeta',
+  ReceiptChevron: 'ReceiptChevron',
   Receipt: 'Receipt',
   ReceiptTool: 'ReceiptTool',
   ReceiptBody: 'ReceiptBody',

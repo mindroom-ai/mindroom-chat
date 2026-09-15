@@ -113,8 +113,9 @@ vi.mock('../../../features/room/RoomInputPlaceholder', () => ({
 
 vi.mock('../MindroomRoomTimeline', () => ({
   RoomTimeline: (props: MockRoomTimelineProps) => {
+    const { threadHeader } = props;
     roomTimelineState.props = props;
-    return React.createElement('div', null, props.threadHeader);
+    return React.createElement('div', null, threadHeader);
   },
 }));
 
