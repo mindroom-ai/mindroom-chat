@@ -47,8 +47,10 @@ export type ClientConfig = {
 
   sidebar?: {
     showThreads?: boolean;
-    /** Show Explorer in both interface modes. Defaults to false. */
+    /** Show Explorer in the full interface. Defaults to true. */
     showExploreCommunity?: boolean;
+    /** Show Explorer in Simple Mode. Defaults to false. */
+    showExploreCommunityInSimpleMode?: boolean;
     showAddSpace?: boolean;
     showMindRoom?: boolean;
     mindRoomUrl?: string;

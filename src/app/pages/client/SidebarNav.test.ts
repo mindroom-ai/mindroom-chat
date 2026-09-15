@@ -95,31 +95,49 @@ describe('SidebarNav', () => {
     renderer.unmount();
   });
 
-  it.each([false, true])(
-    'controls Explorer through client config with Simple Mode=%s',
-    (simpleMode) => {
-      mocks.simpleMode = simpleMode;
+  it('keeps Explorer visible in the full interface regardless of the Simple Mode option', () => {
+    const cases: [ClientConfig, boolean][] = [
+      [{}, true],
+      [{ sidebar: {} }, true],
+      [{ sidebar: { showExploreCommunityInSimpleMode: false } }, true],
+      [{ sidebar: { showExploreCommunityInSimpleMode: true } }, true],
+      [{ sidebar: { showExploreCommunity: false } }, false],
+      [{ sidebar: { showExploreCommunity: true } }, true],
+    ];
 
-      const cases: [ClientConfig, boolean][] = [
-        [{}, false],
-        [{ sidebar: {} }, false],
-        [{ sidebar: { showExploreCommunity: false } }, false],
-        [{ sidebar: { showExploreCommunity: true } }, true],
-      ];
+    cases.forEach(([config, visible]) => {
+      const renderer = renderSidebarNav(config);
 
-      cases.forEach(([config, visible]) => {
-        const renderer = renderSidebarNav(config);
+      expect(hasTab(renderer, 'explore')).toBe(visible);
 
-        expect(hasTab(renderer, 'explore')).toBe(visible);
+      renderer.unmount();
+    });
+  });
 
-        renderer.unmount();
-      });
-    }
-  );
+  it('only shows Explorer in Simple Mode when its dedicated option is enabled', () => {
+    mocks.simpleMode = true;
+    const cases: [ClientConfig, boolean][] = [
+      [{}, false],
+      [{ sidebar: {} }, false],
+      [{ sidebar: { showExploreCommunityInSimpleMode: false } }, false],
+      [{ sidebar: { showExploreCommunityInSimpleMode: true } }, true],
+      [{ sidebar: { showExploreCommunity: false } }, false],
+      [{ sidebar: { showExploreCommunity: true } }, false],
+      [{ sidebar: { showExploreCommunity: false, showExploreCommunityInSimpleMode: true } }, true],
+    ];
+
+    cases.forEach(([config, visible]) => {
+      const renderer = renderSidebarNav(config);
+
+      expect(hasTab(renderer, 'explore')).toBe(visible);
+
+      renderer.unmount();
+    });
+  });
 
   it('keeps other advanced navigation hidden when Explorer is enabled in Simple Mode', () => {
     mocks.simpleMode = true;
-    const renderer = renderSidebarNav({ sidebar: { showExploreCommunity: true } });
+    const renderer = renderSidebarNav({ sidebar: { showExploreCommunityInSimpleMode: true } });
 
     expect(hasTab(renderer, 'explore')).toBe(true);
     expect(hasTab(renderer, 'threads')).toBe(false);
