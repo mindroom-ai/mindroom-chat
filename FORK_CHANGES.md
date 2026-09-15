@@ -2,6 +2,20 @@
 
 ## Runbook
 
+### Compare clearer floating glass (2026-09-15)
+
+- Proposal: thread banners and shared floating menus use 50% tint in dark, midnight, and butter themes, down from 72%.
+  A shared modifier covers normal and resolved banners, Menu, and custom overlay Surface components.
+  Blur, refraction, light themes, dimmed settings/approval sheets, and opaque accessibility fallbacks retain their existing policy.
+- Review captures compare 72%, 60%, and 50% in Chromium and WebKit using the same local sample conversation, viewport, and scroll position.
+  Only tint changes between captures; both surfaces overlap message text.
+  Linux headless WebKit does not paint native backdrop blur on this host, so those captures demonstrate tint rather than final iPhone blur appearance.
+- Validation: all 4,427 unit tests across 529 files, typecheck, production/PWA build, and lint pass with zero errors and 17 existing warnings.
+  Opaque accessibility fallback checks pass in both browser engines.
+- Merge blocker: the existing dark-theme white-backdrop contrast check fails at 50%, measuring 2.60:1 in Chromium and 2.57:1 in WebKit against the 4.5:1 requirement.
+  Independent review confirms this blocker and finds no other implementation issues.
+  This comparison proposal needs a readability decision before merging; the contrast requirement has not been weakened.
+
 ### Recognize Gemini icons behind compatible providers (2026-09-15)
 
 - The shared model icon now recognizes Gemini model IDs before falling back to the transport provider's glyph.

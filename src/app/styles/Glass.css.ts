@@ -76,6 +76,15 @@ const material = (tint: number, blur: number, shadow: string): StyleRule => ({
   },
 });
 
+// Floating chrome reveals the conversation beneath it in dark themes.
+export const glassFloating = style({
+  selectors: {
+    ':is(.dark-theme, .midnight-theme, .butter-theme) &&&': {
+      vars: { [surfaceTint]: '50%' },
+    },
+  },
+});
+
 // Modal500 already dims the page through OverlayBackdrop. Its glass needs less
 // tint than a floating menu over an undimmed page, especially in dark themes.
 export const glassOverBackdrop = style({

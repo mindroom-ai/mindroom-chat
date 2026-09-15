@@ -7,6 +7,7 @@ import en from './app/locales/en.json';
 // exercises the real material recipe; unit tests only need its composed class.
 vi.mock('./app/styles/Glass.css', () => ({
   glassShadow: '--glass-shadow',
+  glassFloating: 'glass-floating',
   glassSurface: () => 'glass-surface',
 }));
 vi.mock('./app/components/glass/Surface.css', () => ({
