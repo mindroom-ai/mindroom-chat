@@ -60,6 +60,7 @@ type Scope = {
   refreshScheduled?: boolean;
   query?: Query;
   command?: Command;
+  send?: Command;
 };
 type Query = {
   id: string;
@@ -81,6 +82,7 @@ type Command = {
   txnId: string;
   generation: number;
   early: ModelSelectionResult[];
+  acknowledged?: boolean;
   timer: ReturnType<typeof setTimeout>;
 };
 const emptySnapshot = (): ModelPickerSnapshot => ({
@@ -107,8 +109,37 @@ export class ModelController {
 
   private disposed = false;
 
+  private started = false;
+
+  private owners = 0;
+
   constructor(private readonly mx: MatrixClient) {
     this.userId = mx.getUserId();
+  }
+
+  /** Restart is explicit; snapshot reads and actions never replace a stopped owner. */
+  retain = (): (() => void) => {
+    this.owners += 1;
+    this.start();
+    let released = false;
+    return () => {
+      if (released) return;
+      released = true;
+      this.owners -= 1;
+      if (this.owners === 0) this.dispose();
+    };
+  };
+
+  private start(): void {
+    if (
+      (this.started && !this.disposed) ||
+      this.mx.getSyncState() === SyncState.Stopped ||
+      this.mx.getUserId() !== this.userId
+    )
+      return;
+    this.started = true;
+    this.disposed = false;
+    const mx = this.mx;
     mx.on(ClientEvent.ReceivedToDeviceMessage, this.onResponse);
     mx.on(ClientEvent.Event, this.onEvent);
     mx.on(RoomEvent.LocalEchoUpdated, this.onLocalEcho);
@@ -116,10 +147,13 @@ export class ModelController {
     mx.on(RoomMemberEvent.Membership, this.onMembership);
     mx.on(CryptoEvent.DevicesUpdated, this.onDevices);
     mx.on(ClientEvent.Sync, this.onSync);
+    this.scopes.forEach((scope) => {
+      if (scope.listeners.size) this.refresh(scope.room, scope.threadId);
+    });
   }
 
   private active(): boolean {
-    return !this.disposed && this.mx.getUserId() === this.userId;
+    return this.started && !this.disposed && this.mx.getUserId() === this.userId;
   }
 
   private scope(room: Room, threadId?: string): Scope {
@@ -128,7 +162,9 @@ export class ModelController {
     if (!scope) {
       // Keep inactive scope caches bounded without evicting subscriptions or pending commands.
       if (this.scopes.size >= 64) {
-        const stale = [...this.scopes.entries()].find(([, s]) => !s.listeners.size && !s.command);
+        const stale = [...this.scopes.entries()].find(
+          ([, s]) => !s.listeners.size && !s.command && !s.send
+        );
         if (stale) {
           this.cancelQuery(stale[1]);
           this.scopes.delete(stale[0]);
@@ -167,6 +203,7 @@ export class ModelController {
   }
 
   subscribe = (room: Room, threadId: string | undefined, listener: () => void): (() => void) => {
+    if (!this.started && !this.disposed) this.start();
     const scope = this.scope(room, threadId);
     scope.listeners.add(listener);
     if (scope.listeners.size === 1 && !scope.command) this.refresh(room, threadId);
@@ -288,12 +325,19 @@ export class ModelController {
         agentUserIds: catalog.response.agent_user_ids,
       }))
     );
-    scope.needsRefresh = false;
+    scope.needsRefresh = !!scope.send;
     const runtimes = [...scope.catalogs.values()].map((c) => c.runtime);
     const runtime =
       runtimes.find((r) => r.id === scope.chosenRuntimeId) ??
       (runtimes.length === 1 ? runtimes[0] : undefined);
-    this.publish(scope, { eligible: true, runtimes, runtime, loading: false, error: undefined });
+    this.publish(scope, {
+      eligible: true,
+      runtimes,
+      runtime,
+      loading: false,
+      pending: !!scope.send,
+      error: scope.send ? scope.snapshot.error : undefined,
+    });
     this.showRuntime(scope, runtime);
   }
 
@@ -373,6 +417,7 @@ export class ModelController {
       !catalog ||
       !runtime ||
       scope.command ||
+      scope.send ||
       scope.needsRefresh ||
       !hasJoinedModelAgent(this.mx, scope.room, runtime, catalog.response.agent_user_ids) ||
       (operation === 'set' && !scope.snapshot.models.some((m) => m.key === model))
@@ -391,6 +436,7 @@ export class ModelController {
       timer: setTimeout(() => this.uncertain(command), MODEL_TIMEOUT),
     };
     scope.command = command;
+    scope.send = command;
     this.publish(scope, { pending: true, loading: false, error: undefined });
     void this.sendCommand(command);
   }
@@ -444,7 +490,27 @@ export class ModelController {
       command.early = [];
     } catch {
       if (this.currentCommand(command)) this.uncertain(command);
+    } finally {
+      this.settleSend(command);
     }
+  }
+
+  private settleSend(command: Command): void {
+    const { scope } = command;
+    if (scope.send !== command) return;
+    scope.send = undefined;
+    if (command.acknowledged) {
+      this.publish(scope, { pending: false });
+      return;
+    }
+    if (this.currentCommand(command)) return;
+    // A query completed before settlement can precede the delayed server mutation.
+    // Keep the barrier until a new query, started after settlement, confirms selection.
+    scope.needsRefresh = true;
+    this.cancelQuery(scope);
+    scope.generation += 1;
+    this.publish(scope, { pending: this.active() });
+    if (this.active()) this.refresh(scope.room, scope.threadId);
   }
 
   private onEvent = (event: MatrixEvent): void => {
@@ -453,7 +519,7 @@ export class ModelController {
 
   private onLocalEcho = (event: MatrixEvent, room: Room): void => {
     this.scopes.forEach((scope) => {
-      const command = scope.command;
+      const command = scope.send ?? scope.command;
       if (command && scope.room.roomId === room.roomId && event.getTxnId() === command.txnId) {
         command.localEvent = event;
       }
@@ -511,6 +577,7 @@ export class ModelController {
     if (!this.currentCommand(command) || command.eventId !== result.command_event_id) return;
     const { scope } = command;
     clearTimeout(command.timer);
+    command.acknowledged = true;
     scope.command = undefined;
     if (result.status === 'applied') {
       const override = result.override ?? null;
@@ -520,10 +587,10 @@ export class ModelController {
           ...catalog.response,
           selection: { ...catalog.response.selection, override },
         };
-      this.publish(scope, { pending: false, override, error: undefined });
+      this.publish(scope, { pending: !!scope.send, override, error: undefined });
     } else {
       this.publish(scope, {
-        pending: false,
+        pending: !!scope.send,
         error: result.error ?? 'Model selection rejected. Refresh or use !model.',
       });
     }
@@ -536,7 +603,7 @@ export class ModelController {
     scope.command = undefined;
     scope.needsRefresh = true;
     this.publish(scope, {
-      pending: false,
+      pending: !!scope.send,
       error: 'Model selection unconfirmed. Refresh before trying again.',
     });
     this.refresh(scope.room, scope.threadId);
@@ -550,7 +617,7 @@ export class ModelController {
     scope.catalogs.clear();
     this.roomCatalogs.delete(scope.room.roomId);
     scope.needsRefresh = true;
-    scope.snapshot = emptySnapshot();
+    scope.snapshot = { ...emptySnapshot(), pending: !!scope.send };
     scope.listeners.forEach((listener) => listener());
   }
 
@@ -603,7 +670,6 @@ export class ModelController {
     this.mx.removeListener(RoomMemberEvent.Membership, this.onMembership);
     this.mx.removeListener(CryptoEvent.DevicesUpdated, this.onDevices);
     this.mx.removeListener(ClientEvent.Sync, this.onSync);
-    controllers.delete(this.mx);
   };
 }
 

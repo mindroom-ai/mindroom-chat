@@ -427,6 +427,103 @@ describe('shared model discovery', () => {
 });
 
 describe('model mutation acknowledgement', () => {
+  it.each([
+    ['timeout', 'resolve'],
+    ['timeout', 'reject'],
+    ['device invalidation', 'resolve'],
+    ['device invalidation', 'reject'],
+  ])(
+    'retains unresolved SDK send ownership after %s until %s and fresh discovery',
+    async (cause, settlement) => {
+      const h = setup();
+      await h.discover();
+      let resolve!: (value: { event_id: string }) => void;
+      let reject!: (error: Error) => void;
+      h.send.mockImplementationOnce(
+        () =>
+          new Promise((done, fail) => {
+            resolve = done;
+            reject = fail;
+          })
+      );
+      h.controller.selectModel(h.room, '$root', 'fast');
+      await flush();
+      const initialRequestId = h.request().request_id;
+      if (cause === 'timeout') await vi.advanceTimersByTimeAsync(12000);
+      else {
+        h.mx.emit(CryptoEvent.DevicesUpdated, [router]);
+        await flush();
+      }
+      expect(h.request().request_id).not.toBe(initialRequestId);
+      h.response(h.request(), { selection: { override: 'reset', inherited: [] } });
+      await flush();
+      await vi.advanceTimersByTimeAsync(12000);
+      expect(h.snapshot().override).toBe('reset');
+      expect(h.snapshot().loading).toBe(false);
+      h.controller.resetToRoomDefault(h.room, '$root');
+      await flush();
+      expect(h.send).toHaveBeenCalledTimes(1);
+      expect(h.snapshot().pending).toBe(true);
+      const requestBeforeSettlement = h.request().request_id;
+      if (settlement === 'resolve') resolve({ event_id: '$command' });
+      else reject(new Error('transport failed'));
+      await flush();
+      expect(h.snapshot().loading).toBe(true);
+      expect(h.request().request_id).not.toBe(requestBeforeSettlement);
+      h.controller.resetToRoomDefault(h.room, '$root');
+      await flush();
+      expect(h.send).toHaveBeenCalledTimes(1);
+      h.response(h.request(), { selection: { override: 'fast', inherited: [] } });
+      await flush();
+      await vi.advanceTimersByTimeAsync(12000);
+      expect(h.snapshot().override).toBe('fast');
+      expect(h.snapshot().pending).toBe(false);
+      h.controller.resetToRoomDefault(h.room, '$root');
+      await flush();
+      expect(h.send).toHaveBeenCalledTimes(2);
+    }
+  );
+  it('retains the transport barrier through client remount and inactive cache eviction', async () => {
+    const h = setup();
+    const leave = await h.discover();
+    let resolve!: (value: { event_id: string }) => void;
+    h.send.mockImplementationOnce(
+      () =>
+        new Promise((done) => {
+          resolve = done;
+        })
+    );
+    h.controller.selectModel(h.room, '$root', 'fast');
+    await flush();
+    leave();
+    h.mx.emit(ClientEvent.Sync, SyncState.Stopped, SyncState.Syncing);
+    const release = h.controller.retain();
+    for (let index = 0; index < 65; index += 1) {
+      h.controller.getSnapshot(new Room('!cache' + index + ':test', h.mx, viewer), '$root');
+    }
+    h.controller.subscribe(h.room, '$root', () => {});
+    await flush();
+    const beforeSettlement = h.request();
+    resolve({ event_id: '$command' });
+    await flush();
+    const afterSettlement = h.request();
+    expect(afterSettlement.request_id).not.toBe(beforeSettlement.request_id);
+    h.response(beforeSettlement);
+    await flush();
+    h.controller.resetToRoomDefault(h.room, '$root');
+    await flush();
+    expect(h.send).toHaveBeenCalledTimes(1);
+    expect(h.snapshot().pending).toBe(true);
+    h.response(afterSettlement, { selection: { override: 'fast', inherited: [] } });
+    await flush();
+    await vi.advanceTimersByTimeAsync(12000);
+    expect(h.snapshot().override).toBe('fast');
+    expect(h.snapshot().pending).toBe(false);
+    h.controller.resetToRoomDefault(h.room, '$root');
+    await flush();
+    expect(h.send).toHaveBeenCalledTimes(2);
+    release();
+  });
   it.each(['valid', 'wrong-key', 'unsigned', 'plaintext'])(
     'authenticates encrypted room acknowledgement: %s',
     async (kind) => {

@@ -2,6 +2,19 @@
 
 ## Runbook
 
+### Preserve model-picker ownership through stop and delayed sends (2026-09-15)
+
+- The controller now retains one identity per Matrix client across stopped state, explicit remount, and React StrictMode effect replay.
+  Snapshot reads are inert; the client lifetime hook acquires and releases an explicit controller lease, and stopped controllers restart only through that lifecycle after the SDK is running again.
+- SDK send ownership is separate from the acknowledgement deadline.
+  Timeout, membership/device invalidation, navigation, and cache eviction cannot release the mutation barrier while the original send is unresolved.
+  After settlement, any earlier discovery is discarded and a new selection query must succeed before another command is accepted.
+- The picker hook API is unchanged.
+  Pending remains true while an unresolved send and its subsequent recovery discovery keep mutations blocked; refresh remains available for uncertain outcomes.
+- Validation: all 135 scoped tests pass under Node 24.13.1, including actual React StrictMode replay, stopped-owner reads/remount, delayed send success/failure after timeout or invalidation, and combined remount/cache-pressure recovery.
+  Typecheck, targeted ESLint, formatting, and whitespace checks pass.
+
+
 ### Add the shared Matrix model-picker controller (2026-09-15)
 
 - Status: controller, protocol validation, transport, and React subscription hook are implemented and locally validated; composer presentation is the next step.
