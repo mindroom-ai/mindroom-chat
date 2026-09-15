@@ -216,6 +216,7 @@ const renderVoiceAudioContent = (props?: Partial<React.ComponentProps<typeof Voi
     waveform: props?.waveform ?? [0, 512, 1024],
     encInfo: props?.encInfo,
     label: props?.label,
+    isVoiceMessage: props?.isVoiceMessage,
   });
 
 const renderVoiceAudio = (
@@ -383,7 +384,11 @@ describe('VoiceAudioContent', () => {
 
   it('shows an audio filename without opening the options menu', () => {
     renderer = create(
-      renderVoiceAudio(createStore(), { filename: 'Interview.mp3', label: 'audio' })
+      renderVoiceAudio(createStore(), {
+        filename: 'Interview.mp3',
+        label: 'audio',
+        isVoiceMessage: false,
+      })
     );
     expect(JSON.stringify(renderer.toJSON())).toContain('Interview.mp3');
     renderer.unmount();

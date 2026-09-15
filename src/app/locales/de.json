@@ -652,6 +652,9 @@
       "retry": "Erneut versuchen"
     },
     "voiceAudioContent": {
+      "loadError": "Audio konnte nicht geladen werden. Zum erneuten Versuch auf Wiedergabe drücken.",
+      "playbackError": "Dieses Audio kann hier nicht abgespielt werden. Versuche, es herunterzuladen.",
+      "playbackPosition": "{{current}} von {{duration}}",
       "moreAudioOptions": "Weitere Audiooptionen",
       "download": "Herunterladen",
       "name": "Name",

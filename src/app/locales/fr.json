@@ -655,6 +655,9 @@
       "retry": "Réessayer"
     },
     "voiceAudioContent": {
+      "loadError": "Impossible de charger le fichier audio. Appuyez sur lecture pour réessayer.",
+      "playbackError": "Ce fichier audio ne peut pas être lu ici. Essayez de le télécharger.",
+      "playbackPosition": "{{current}} sur {{duration}}",
       "moreAudioOptions": "Plus d'options audio",
       "download": "Télécharger",
       "name": "Nom",

@@ -652,6 +652,9 @@
       "retry": "重试"
     },
     "voiceAudioContent": {
+      "loadError": "无法加载音频。点击播放以重试。",
+      "playbackError": "无法在此播放该音频。请尝试下载。",
+      "playbackPosition": "{{current}}，共 {{duration}}",
       "moreAudioOptions": "更多音频选项",
       "download": "下载",
       "name": "名称",

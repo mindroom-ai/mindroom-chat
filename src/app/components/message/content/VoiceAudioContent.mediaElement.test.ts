@@ -143,6 +143,27 @@ describe('VoiceAudioContent media element', () => {
     container.remove();
   });
 
+  it.each(['audio', 'source'])(
+    'shows %s playback failures and prevents repeated failed playback',
+    (target) => {
+      act(() => {
+        root.render(renderVoiceAudioContent('mxc://mindroom/voice-a'));
+      });
+      act(() => {
+        container.querySelector(target)!.dispatchEvent(new Event('error'));
+      });
+      expect(container.querySelector('[role="status"]')?.textContent).toContain(
+        'This audio cannot be played here'
+      );
+      expect(
+        container.querySelector<HTMLButtonElement>('[aria-label="Play voice message"]')?.disabled
+      ).toBe(true);
+      expect(
+        container.querySelector<HTMLButtonElement>('[aria-label="More audio options"]')?.disabled
+      ).toBe(false);
+    }
+  );
+
   it('remounts the audio element when the loaded media source changes', () => {
     act(() => {
       root.render(renderVoiceAudioContent('mxc://mindroom/voice-a'));

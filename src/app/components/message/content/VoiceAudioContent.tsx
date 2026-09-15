@@ -68,6 +68,7 @@ export function VoiceAudioContent({
   const pendingSeekTimeRef = useRef<number>();
   const moreTriggerRef = useRef<HTMLButtonElement | null>(null);
   const [autoPlayOnLoad, setAutoPlayOnLoad] = useState(false);
+  const [failedSource, setFailedSource] = useState<string>();
   const [currentTime, setCurrentTime] = useState(0);
   const [moreAnchor, setMoreAnchor] = useState<RectCords>();
   const playbackRate = useAtomValue(voiceMessagePlaybackRateAtom);
@@ -86,7 +87,7 @@ export function VoiceAudioContent({
     setAudioElement(element);
   }, []);
   const getAudioRef = useCallback(() => audioElement, [audioElement]);
-  const { loading } = useMediaLoading(getAudioRef);
+  const { loading, error: mediaError } = useMediaLoading(getAudioRef);
   const { playing, setPlaying } = useMediaPlay(getAudioRef);
   const { seek } = useMediaSeek(getAudioRef);
   const handlePlayTimeCallback: PlayTimeCallback = useCallback((d, ct) => {
@@ -169,6 +170,8 @@ export function VoiceAudioContent({
 
   const sourceValue = srcState.status === AsyncStatus.Success ? srcState.data : undefined;
   const audioMediaKey = `${mediaIdentity}:${sourceValue ?? ''}`;
+  const hasPlaybackError =
+    mediaError || (sourceValue !== undefined && failedSource === sourceValue);
 
   useEffect(() => {
     const audio = audioRef.current;
@@ -257,7 +260,7 @@ export function VoiceAudioContent({
             size="600"
             radii="Pill"
             onClick={handlePlay}
-            disabled={srcState.status === AsyncStatus.Loading}
+            disabled={srcState.status === AsyncStatus.Loading || hasPlaybackError}
             aria-label={
               playing
                 ? t('sharedUi.voiceAudioContent.pauseValue1', { value1: mediaLabel })
@@ -265,7 +268,7 @@ export function VoiceAudioContent({
             }
             aria-pressed={playing}
           >
-            {srcState.status === AsyncStatus.Loading || loading ? (
+            {!hasPlaybackError && (srcState.status === AsyncStatus.Loading || loading) ? (
               <Spinner variant="Secondary" size="50" />
             ) : playing ? (
               <IconPlayerPauseFilled size={22} aria-hidden="true" />
@@ -283,7 +286,7 @@ export function VoiceAudioContent({
               current: formatVoiceTime(displayCurrentTime),
               duration: formatVoiceTime(displayDuration),
             })}
-            disabled={!duration}
+            disabled={!duration || hasPlaybackError}
             onSeekProgress={handleSeekProgress}
           />
         </div>
@@ -392,9 +395,11 @@ export function VoiceAudioContent({
             />
           </div>
         </div>
-        {srcState.status === AsyncStatus.Error && (
+        {(srcState.status === AsyncStatus.Error || hasPlaybackError) && (
           <Text className={css.Error} size="T200" role="status">
-            {t('sharedUi.voiceAudioContent.loadError')}
+            {hasPlaybackError
+              ? t('sharedUi.voiceAudioContent.playbackError')
+              : t('sharedUi.voiceAudioContent.loadError')}
           </Text>
         )}
         <audio
@@ -412,7 +417,11 @@ export function VoiceAudioContent({
           }}
         >
           {srcState.status === AsyncStatus.Success && (
-            <source src={srcState.data} type={mimeType} />
+            <source
+              src={srcState.data}
+              type={mimeType}
+              onError={() => setFailedSource(srcState.data)}
+            />
           )}
         </audio>
       </div>

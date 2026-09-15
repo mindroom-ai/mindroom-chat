@@ -83,7 +83,7 @@ for (const theme of ['light', 'dark']) {
         );
       }
     }
-    await page.locator('#root').screenshot({ path: testInfo.outputPath(`audio-${theme}.png`) });
+    await page.locator('#root > div').screenshot({ path: testInfo.outputPath(`audio-${theme}.png`) });
   });
 }
 

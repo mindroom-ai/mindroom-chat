@@ -655,6 +655,9 @@
       "retry": "Tentar novamente"
     },
     "voiceAudioContent": {
+      "loadError": "Não foi possível carregar o áudio. Pressione reproduzir para tentar novamente.",
+      "playbackError": "Este áudio não pode ser reproduzido aqui. Tente baixá-lo.",
+      "playbackPosition": "{{current}} de {{duration}}",
       "moreAudioOptions": "Mais opções de áudio",
       "download": "Transferir",
       "name": "Nome",

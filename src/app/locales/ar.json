@@ -664,6 +664,9 @@
       "retry": "إعادة المحاولة"
     },
     "voiceAudioContent": {
+      "loadError": "تعذر تحميل الصوت. اضغط على التشغيل لإعادة المحاولة.",
+      "playbackError": "لا يمكن تشغيل هذا الصوت هنا. جرّب تنزيله.",
+      "playbackPosition": "⁨{{current}}⁩ من ⁨{{duration}}⁩",
       "moreAudioOptions": "المزيد من خيارات الصوت",
       "download": "تنزيل",
       "name": "الاسم",

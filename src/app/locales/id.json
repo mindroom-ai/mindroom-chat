@@ -652,6 +652,9 @@
       "retry": "Coba lagi"
     },
     "voiceAudioContent": {
+      "loadError": "Audio tidak dapat dimuat. Tekan putar untuk mencoba lagi.",
+      "playbackError": "Audio ini tidak dapat diputar di sini. Coba unduh audio tersebut.",
+      "playbackPosition": "{{current}} dari {{duration}}",
       "moreAudioOptions": "Opsi audio lainnya",
       "download": "Unduh",
       "name": "Nama",

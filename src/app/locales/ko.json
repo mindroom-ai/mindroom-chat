@@ -652,6 +652,9 @@
       "retry": "다시 시도"
     },
     "voiceAudioContent": {
+      "loadError": "오디오를 불러올 수 없습니다. 재생을 눌러 다시 시도하세요.",
+      "playbackError": "이 오디오는 여기서 재생할 수 없습니다. 다운로드해 보세요.",
+      "playbackPosition": "{{duration}} 중 {{current}}",
       "moreAudioOptions": "오디오 추가 옵션",
       "download": "다운로드",
       "name": "이름",

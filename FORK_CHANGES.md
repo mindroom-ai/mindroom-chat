@@ -4,14 +4,15 @@
 
 ### Shared audio player refresh (2026-09-15)
 
-- Status: implemented and validated locally on `feat/shared-audio-player`; independent review pending.
-- The existing shared player now shows attachment filenames or a voice-message title, a 48px play/pause control, playback speed before interaction, and a visible message when loading fails.
-- Waveform seeking uses a native range input for drag and touch scrubbing, keyboard control, and an accessible time value.
-- The card fits both mobile messages and narrow panels on wide screens, while keeping volume and the download/metadata menu available.
-- Validation: 51 focused tests and four Chromium browser tests pass, including real WAV playback, scrubbing, speed changes, menus, light/dark mobile layouts, and 220px panels.
-- Typecheck, lint, production build, formatting, and whitespace checks pass.
-- Full `npm test`: 3605 pass, seven fail across `xcodeCloudPostClone.test.ts`, `matrixSdkThreadReset.test.ts`, and `useRoomInputSendSessionController.test.ts`.
-- All seven failures reproduce on unchanged `dev` with the same dependencies; they are outside this player change.
+- Status: implemented and validated locally on `feat/shared-audio-player`, based on current `dev`.
+- Voice messages and normal audio attachments share a responsive card with visible titles, a 48px play/pause control, and playback speed available before interaction.
+- Native range input adds drag/touch scrubbing, keyboard control, and an accessible time value while retaining the recorded waveform.
+- Loading failures offer retry; browser decode/source failures show a download suggestion and disable unavailable playback controls.
+- New messages are translated into all 17 supported languages, including isolated time values in Arabic.
+- Independent review found the media-element error gap; real audio/source error-event tests now cover the fix, and follow-up review is pending.
+- Validation: 169 focused audio/localization tests and four Chromium tests pass, covering real WAV playback, scrubbing, speed, menus, light/dark mobile layouts, and 220px panels.
+- Typecheck, ESLint (17 existing warnings), production build, formatting, and whitespace checks pass.
+- Full `npm test`: 4144 pass; four pre-existing failures in `xcodeCloudPostClone.test.ts` and `useRoomInputSendSessionController.test.ts` reproduce on unchanged current `dev` with the same dependencies.
 
 ### Full interface internationalization (2026-09-14)
 

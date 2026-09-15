@@ -652,6 +652,9 @@
       "retry": "Retry"
     },
     "voiceAudioContent": {
+      "loadError": "Unable to load audio. Press play to retry.",
+      "playbackError": "This audio cannot be played here. Try downloading it.",
+      "playbackPosition": "{{current}} of {{duration}}",
       "moreAudioOptions": "More audio options",
       "download": "Download",
       "name": "Name",

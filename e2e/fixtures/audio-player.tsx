@@ -5,6 +5,7 @@ import { Provider } from 'jotai';
 import 'folds/dist/style.css';
 import '@fontsource/inter/variable.css';
 import '../../src/index.css';
+import '../../src/app/i18n';
 import { DarkTheme, LightTheme } from '../../src/app/hooks/useTheme';
 import { applyThemeToDom } from '../../src/app/theme/themeBootstrap';
 import { MatrixClientProvider } from '../../src/app/hooks/useMatrixClient';
