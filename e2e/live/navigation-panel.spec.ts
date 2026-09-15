@@ -103,6 +103,37 @@ for (const mobile of [false, true]) {
         await expect
           .poll(async () => Math.round((await panel.boundingBox())?.width ?? 0))
           .toBe(resizedWidth);
+        const roomPath = `/home/${encodeURIComponent(roomId)}/`;
+        await page.goto(roomPath);
+        await expect(page.getByRole('button', { name: 'Send message', exact: true })).toBeVisible();
+        const resizeEdge = await handle.boundingBox();
+        if (!resizeEdge) throw new Error('Missing collapse drag target');
+        const dragX = resizeEdge.x + resizeEdge.width / 2;
+        const dragY = resizeEdge.y + 250;
+        await page.mouse.move(dragX, dragY);
+        await page.mouse.down();
+        await page.mouse.move(dragX - resizedWidth + 150, dragY, { steps: 8 });
+        await expect.poll(async () => (await panel.boundingBox())?.width).toBe(0);
+        await expect(panel).toHaveCount(1);
+        await expect(page.getByRole('button', { name: 'Expand navigation panel' })).toHaveCount(0);
+        await expect(page.getByRole('button', { name: 'Send message', exact: true })).toBeVisible();
+        await page.screenshot({ path: test.info().outputPath('collapse-preview.png') });
+        // Dragging back reverses the preview without losing the current room.
+        await page.mouse.move(dragX, dragY, { steps: 8 });
+        await expect
+          .poll(async () => Math.round((await panel.boundingBox())?.width ?? 0))
+          .toBe(resizedWidth);
+        await page.mouse.move(dragX - resizedWidth + 150, dragY, { steps: 8 });
+        await page.mouse.up();
+        await expect(panel).toHaveCount(0);
+        await expect(page).toHaveURL(new RegExp(encodeURIComponent(roomId)));
+        await page.reload();
+        await expect(page.getByRole('button', { name: 'Send message', exact: true })).toBeVisible();
+        await expect(panel).toHaveCount(0);
+        await page.getByRole('button', { name: 'Expand navigation panel' }).click();
+        await expect
+          .poll(async () => Math.round((await panel.boundingBox())?.width ?? 0))
+          .toBe(resizedWidth);
       }
       await page.screenshot({ path: test.info().outputPath('navigation-panel.png') });
 

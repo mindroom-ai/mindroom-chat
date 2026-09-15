@@ -10,10 +10,13 @@ import {
   setLocalStorageItem,
 } from '../../state/utils/atomWithLocalStorage';
 import * as css from './ResizablePageNav.css';
+import { useMindroomDesktopPageNav } from './desktopPageNavState';
 
 const MIN_WIDTH = 200;
 const MAX_WIDTH = 600;
 const DEFAULT_WIDTH = 256;
+const COLLAPSE_WIDTH = MIN_WIDTH - 40;
+const COLLAPSE_HYSTERESIS = 20;
 const clamp = (width: number, max: number) =>
   Math.min(Math.max(Math.min(MIN_WIDTH, max), width), max);
 const readWidth = (key: string): number | undefined => {
@@ -29,9 +32,16 @@ type Drag = {
   startWidth: number;
   width: number;
   direction: number;
+  collapse: boolean;
 };
 
-export function ResizablePageNav({ children }: { children: ReactNode }) {
+export function ResizablePageNav({
+  children,
+  onCollapse,
+}: {
+  children: ReactNode;
+  onCollapse?: () => void;
+}) {
   const { t } = useTranslation();
   const userId = useMatrixClient().getSafeUserId();
   const widthAtom = useMemo(
@@ -44,8 +54,11 @@ export function ResizablePageNav({ children }: { children: ReactNode }) {
   const panelRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<Drag>();
   const mobile = useScreenSizeContext() === ScreenSize.Mobile;
+  const collapsePreview = !mobile && !!onCollapse && previewWidth === 0;
   const maxWidth = Math.max(0, Math.min(MAX_WIDTH, availableWidth - 320));
-  const width = clamp(previewWidth ?? preferredWidth ?? DEFAULT_WIDTH, maxWidth);
+  const width = collapsePreview
+    ? 0
+    : clamp(previewWidth ?? preferredWidth ?? DEFAULT_WIDTH, maxWidth);
   const resizeDirection = () =>
     panelRef.current && getComputedStyle(panelRef.current).direction === 'rtl' ? -1 : 1;
 
@@ -74,22 +87,32 @@ export function ResizablePageNav({ children }: { children: ReactNode }) {
       startWidth: width,
       width,
       direction: resizeDirection(),
+      collapse: false,
     };
   };
   const moveResize = (event: React.PointerEvent<HTMLDivElement>) => {
     const drag = dragRef.current;
     if (!drag || drag.pointerId !== event.pointerId) return;
-    drag.width = clamp(drag.startWidth + (event.clientX - drag.startX) * drag.direction, maxWidth);
-    setPreviewWidth(drag.width);
+    const requestedWidth = drag.startWidth + (event.clientX - drag.startX) * drag.direction;
+    drag.collapse =
+      !!onCollapse &&
+      (drag.collapse
+        ? requestedWidth < COLLAPSE_WIDTH + COLLAPSE_HYSTERESIS
+        : requestedWidth <= COLLAPSE_WIDTH);
+    drag.width = clamp(requestedWidth, maxWidth);
+    setPreviewWidth(drag.collapse ? 0 : drag.width);
   };
   const finishResize = (event: React.PointerEvent<HTMLDivElement>, commit: boolean) => {
     const drag = dragRef.current;
     if (!drag || drag.pointerId !== event.pointerId) return;
     dragRef.current = undefined;
     setPreviewWidth(undefined);
-    if (commit) setPreferredWidth(Math.round(clamp(drag.width, maxWidth)));
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    if (commit) {
+      if (drag.collapse) onCollapse?.();
+      else setPreferredWidth(Math.round(clamp(drag.width, maxWidth)));
     }
   };
   const resizeWithKeyboard = (event: React.KeyboardEvent<HTMLDivElement>) => {
@@ -123,6 +146,7 @@ export function ResizablePageNav({ children }: { children: ReactNode }) {
       className={css.Panel}
       style={{ width: mobile ? '100%' : width }}
       data-testid="resizable-page-nav"
+      data-collapse-preview={collapsePreview || undefined}
     >
       {children}
       {/* A focusable separator implements the adjustable splitter pattern. */}
@@ -133,9 +157,12 @@ export function ResizablePageNav({ children }: { children: ReactNode }) {
           role="separator"
           aria-label={t('mindroomUi.sidebar.resizeNavigationPanel')}
           aria-orientation="vertical"
-          aria-valuemin={Math.min(MIN_WIDTH, maxWidth)}
+          aria-valuemin={collapsePreview ? 0 : Math.min(MIN_WIDTH, maxWidth)}
           aria-valuemax={maxWidth}
           aria-valuenow={width}
+          aria-valuetext={
+            collapsePreview ? t('sharedUi.mindroomNavigation.collapseNavigationPanel') : undefined
+          }
           tabIndex={0}
           onPointerDown={startResize}
           onPointerMove={moveResize}
@@ -151,9 +178,12 @@ export function ResizablePageNav({ children }: { children: ReactNode }) {
 }
 
 export function MindroomPageNav({ path, children }: { path: string; children: ReactNode }) {
+  const { canCollapse, setCollapsed } = useMindroomDesktopPageNav();
   return (
     <MobileFriendlyPageNav path={path}>
-      <ResizablePageNav>{children}</ResizablePageNav>
+      <ResizablePageNav onCollapse={canCollapse ? () => setCollapsed(true) : undefined}>
+        {children}
+      </ResizablePageNav>
     </MobileFriendlyPageNav>
   );
 }

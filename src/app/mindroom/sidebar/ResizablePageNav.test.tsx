@@ -33,12 +33,12 @@ const pointer = (x: number, pointerType = 'mouse', pointerId = 1) => ({
   preventDefault: vi.fn(),
 });
 
-const renderPanel = (screenSize = ScreenSize.Desktop) => {
+const renderPanel = (screenSize = ScreenSize.Desktop, onCollapse?: () => void) => {
   let renderer: ReturnType<typeof create>;
   act(() => {
     renderer = create(
       <ScreenSizeProvider value={screenSize}>
-        <ResizablePageNav>
+        <ResizablePageNav onCollapse={onCollapse}>
           <span>Room list</span>
         </ResizablePageNav>
       </ScreenSizeProvider>,
@@ -86,6 +86,87 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe('ResizablePageNav', () => {
+  it.each(['mouse', 'touch', 'pen'])(
+    'previews collapse with %s, commits on release, and preserves the previous width',
+    (pointerType) => {
+      storage.set(storageKey, '356');
+      const onCollapse = vi.fn();
+      const { renderer, handle, width } = renderPanel(ScreenSize.Tablet, onCollapse);
+      act(() => handle().props.onPointerDown(pointer(356, pointerType)));
+      act(() => handle().props.onPointerMove(pointer(190, pointerType)));
+      expect(width()).toBe(200);
+      act(() => handle().props.onPointerMove(pointer(160, pointerType)));
+      expect(width()).toBe(0);
+      expect(handle().props['aria-valuenow']).toBe(0);
+      expect(handle().props['aria-valuetext']).toBe('Collapse navigation panel');
+      expect(onCollapse).not.toHaveBeenCalled();
+      expect(storage.get(storageKey)).toBe('356');
+      act(() => handle().props.onPointerUp(pointer(160, pointerType)));
+      expect(onCollapse).toHaveBeenCalledTimes(1);
+      expect(storage.get(storageKey)).toBe('356');
+      expect(capture.size).toBe(0);
+      act(() => renderer.unmount());
+      const reopened = renderPanel(ScreenSize.Tablet, onCollapse);
+      expect(reopened.width()).toBe(356);
+      act(() => reopened.renderer.unmount());
+    }
+  );
+
+  it('lets a drag leave the collapse preview without flickering near the threshold', () => {
+    const onCollapse = vi.fn();
+    const { renderer, handle, width } = renderPanel(ScreenSize.Desktop, onCollapse);
+    act(() => handle().props.onPointerDown(pointer(256)));
+    act(() => handle().props.onPointerMove(pointer(160)));
+    expect(width()).toBe(0);
+    act(() => handle().props.onPointerMove(pointer(170)));
+    expect(width()).toBe(0);
+    act(() => handle().props.onPointerMove(pointer(180)));
+    expect(width()).toBe(200);
+    act(() => handle().props.onPointerUp(pointer(180)));
+    expect(onCollapse).not.toHaveBeenCalled();
+    expect(storage.get(storageKey)).toBe('200');
+    act(() => renderer.unmount());
+  });
+
+  it.each(['onPointerCancel', 'onLostPointerCapture'])(
+    'cancels a collapse preview on %s without saving a tiny width',
+    (event) => {
+      const onCollapse = vi.fn();
+      const { renderer, handle, width } = renderPanel(ScreenSize.Desktop, onCollapse);
+      act(() => handle().props.onPointerDown(pointer(256)));
+      act(() => handle().props.onPointerMove(pointer(150)));
+      expect(width()).toBe(0);
+      act(() => handle().props[event](pointer(150)));
+      expect(width()).toBe(256);
+      expect(onCollapse).not.toHaveBeenCalled();
+      expect(storage.has(storageKey)).toBe(false);
+      act(() => renderer.unmount());
+    }
+  );
+
+  it('previews collapse when dragging inward in RTL', () => {
+    direction = 'rtl';
+    const onCollapse = vi.fn();
+    const { renderer, handle, width } = renderPanel(ScreenSize.Desktop, onCollapse);
+    act(() => handle().props.onPointerDown(pointer(800)));
+    act(() => handle().props.onPointerMove(pointer(906)));
+    expect(width()).toBe(0);
+    act(() => handle().props.onPointerUp(pointer(906)));
+    expect(onCollapse).toHaveBeenCalledTimes(1);
+    expect(storage.has(storageKey)).toBe(false);
+    act(() => renderer.unmount());
+  });
+
+  it('keeps resizing bounded when the owner does not support collapse', () => {
+    const { renderer, handle, width } = renderPanel();
+    act(() => handle().props.onPointerDown(pointer(256)));
+    act(() => handle().props.onPointerMove(pointer(100)));
+    expect(width()).toBe(200);
+    act(() => handle().props.onPointerUp(pointer(100)));
+    expect(storage.get(storageKey)).toBe('200');
+    act(() => renderer.unmount());
+  });
+
   it('expands toward the content in right-to-left layouts', () => {
     direction = 'rtl';
     const { renderer, handle, width } = renderPanel();
@@ -169,37 +250,46 @@ describe('ResizablePageNav', () => {
     }
   );
 
-  it('discards a drag when switching to mobile and restores the saved split-layout width', () => {
-    storage.set(storageKey, '300');
-    const { renderer, handle, width } = renderPanel(ScreenSize.Tablet);
-    act(() => handle().props.onPointerDown(pointer(300)));
-    act(() => handle().props.onPointerMove(pointer(400)));
-    expect(width()).toBe(400);
-    const changeScreen = (screenSize: ScreenSize) =>
-      act(() => {
-        renderer.update(
-          <ScreenSizeProvider value={screenSize}>
-            <ResizablePageNav>
-              <span>Room list</span>
-            </ResizablePageNav>
-          </ScreenSizeProvider>
-        );
-      });
-    changeScreen(ScreenSize.Mobile);
-    expect(renderer.root.findAllByProps({ role: 'separator' })).toHaveLength(0);
-    expect(storage.get(storageKey)).toBe('300');
-    changeScreen(ScreenSize.Tablet);
-    expect(width()).toBe(300);
-    act(() => handle().props.onPointerDown(pointer(300)));
-    act(() => handle().props.onPointerMove(pointer(320)));
-    act(() => handle().props.onPointerUp(pointer(320)));
-    expect(width()).toBe(320);
-    expect(storage.get(storageKey)).toBe('320');
-    act(() => renderer.unmount());
-  });
+  it.each([
+    { pointerX: 400, preview: 400 },
+    { pointerX: 150, preview: 0 },
+  ])(
+    'discards the $preview px preview on mobile and restores the saved width',
+    ({ pointerX, preview }) => {
+      storage.set(storageKey, '300');
+      const onCollapse = vi.fn();
+      const { renderer, handle, width } = renderPanel(ScreenSize.Tablet, onCollapse);
+      act(() => handle().props.onPointerDown(pointer(300)));
+      act(() => handle().props.onPointerMove(pointer(pointerX)));
+      expect(width()).toBe(preview);
+      const changeScreen = (screenSize: ScreenSize) =>
+        act(() => {
+          renderer.update(
+            <ScreenSizeProvider value={screenSize}>
+              <ResizablePageNav onCollapse={onCollapse}>
+                <span>Room list</span>
+              </ResizablePageNav>
+            </ScreenSizeProvider>
+          );
+        });
+      changeScreen(ScreenSize.Mobile);
+      expect(renderer.root.findAllByProps({ role: 'separator' })).toHaveLength(0);
+      expect(storage.get(storageKey)).toBe('300');
+      changeScreen(ScreenSize.Tablet);
+      expect(width()).toBe(300);
+      act(() => handle().props.onPointerDown(pointer(300)));
+      act(() => handle().props.onPointerMove(pointer(320)));
+      act(() => handle().props.onPointerUp(pointer(320)));
+      expect(width()).toBe(320);
+      expect(storage.get(storageKey)).toBe('320');
+      expect(onCollapse).not.toHaveBeenCalled();
+      act(() => renderer.unmount());
+    }
+  );
 
   it('supports bounded keyboard resizing and reset', () => {
-    const { renderer, handle, width } = renderPanel();
+    const onCollapse = vi.fn();
+    const { renderer, handle, width } = renderPanel(ScreenSize.Desktop, onCollapse);
     const key = (value: string) =>
       act(() => handle().props.onKeyDown({ key: value, preventDefault: vi.fn() }));
     key('ArrowRight');
@@ -214,6 +304,7 @@ describe('ResizablePageNav', () => {
     key('Enter');
     expect(width()).toBe(256);
     expect(storage.get(storageKey)).toBe('256');
+    expect(onCollapse).not.toHaveBeenCalled();
     act(() => renderer.unmount());
   });
 
