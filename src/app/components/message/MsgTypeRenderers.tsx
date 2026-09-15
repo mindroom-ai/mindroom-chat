@@ -320,16 +320,9 @@ export function MVideo({ content, renderAsFile, renderVideoContent, outlined }: 
   );
 }
 
-type RenderAudioContentProps = {
-  info: IAudioInfo;
-  mimeType: string;
-  url: string;
-  encInfo?: IEncryptedFile;
-};
 type MAudioProps = {
   content: IAudioContent;
   renderAsFile: () => ReactNode;
-  renderAudioContent: (props: RenderAudioContentProps) => ReactNode;
   outlined?: boolean;
 };
 export function MAudio({ content, renderAsFile }: MAudioProps) {
@@ -364,6 +357,7 @@ export function MAudio({ content, renderAsFile }: MAudioProps) {
       encInfo={content.file}
       filename={downloadFilename}
       waveform={voiceAudioDetails?.waveform}
+      isVoiceMessage={voiceMessage}
       label={
         voiceMessage
           ? t('sharedUi.msgTypeRenderers.voiceMessage')

@@ -4,7 +4,6 @@ import { HTMLReactParserOptions } from 'html-react-parser';
 import { Opts } from 'linkifyjs';
 import { config } from 'folds';
 import {
-  AudioContent,
   DownloadFile,
   FileContent,
   ImageContent,
@@ -23,7 +22,7 @@ import {
   VideoContent,
 } from './message';
 import { UrlPreviewCard, UrlPreviewHolder } from './url-preview';
-import { Image, MediaControl, Video } from './media';
+import { Image, Video } from './media';
 import { ImageViewer } from './image-viewer';
 import { PdfViewer } from './Pdf-viewer';
 import { TextViewer } from './text-viewer';
@@ -235,14 +234,7 @@ export function RenderMessageContent({
   if (msgType === MsgType.Audio) {
     return (
       <>
-        <MAudio
-          content={getContent()}
-          renderAsFile={renderFile}
-          renderAudioContent={(props) => (
-            <AudioContent {...props} renderMediaControl={(p) => <MediaControl {...p} />} />
-          )}
-          outlined={outlineAttachment}
-        />
+        <MAudio content={getContent()} renderAsFile={renderFile} outlined={outlineAttachment} />
         {renderCaption()}
       </>
     );

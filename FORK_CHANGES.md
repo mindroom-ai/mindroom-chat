@@ -76,6 +76,28 @@
 - Typecheck, touched-file ESLint and formatting, production/PWA build, and both independent reviews pass.
 - Live Chromium validation against the local Docker Matrix service covers draft exit/reopen, page reload, offline reply visibility after navigation, and delayed-send confirmation without duplication after reload.
 
+### Shared audio player refresh (2026-09-15)
+
+- Status: implemented and validated on `feat/shared-audio-player`; ready PR #251 includes light/dark screenshots.
+- Voice messages and normal audio attachments share a compact player with a fixed 44px circular play/pause control and playback speed available before interaction.
+- Play, waveform, time, speed, and menu share one horizontal row and centerline; the quieter timer sits beside the waveform.
+- The timer shows duration before playback and elapsed time while playing or after seeking; full elapsed/total time remains available on hover and in the seek control's accessible value.
+- The initial 118px card made the padded play button oval and placed it above the waveform; browser geometry checks now cover both defects.
+- The revised player is 60px tall for voice messages and 82px including the filename for audio attachments; volume and downloads live in the options menu.
+- Native range input adds drag/touch scrubbing, keyboard control, and an accessible time value while retaining the recorded waveform.
+- Mobile touch checks exposed a first-seek race during source loading; seeking now waits for metadata on the current audio element and preserves the latest requested position across the source remount.
+- The invisible scrubber target is 44px tall while the waveform remains 32px and the player remains 60px tall.
+- Loading failures offer retry; browser decode/source failures show a download suggestion and disable unavailable playback controls.
+- New messages are translated into all 17 supported languages, including isolated time values in Arabic.
+- Independent review found the media-element error gap; real audio/source error-event tests cover the fix, and follow-up review approved the final change.
+- Qodo's review identified unused speed-placeholder and legacy-renderer code; both are removed, including the unused callback, wrapper, exports, and stale test mocks.
+- Independent review approved the compact revision; browser coverage also verifies nested volume-menu adjustment and Escape behavior.
+- Review of the single-row revision caught the paused seek-to-zero timer edge case; explicit play/seek tracking keeps `0:00` visible and resets to duration for a different audio source.
+- Validation: focused audio/localization coverage and six Chromium tests pass, covering real WAV playback, scrubbing, speed, menus, light/dark mobile layouts, and 220px panels.
+- Native touch emulation at 320px and 390px verifies first-tap seeking before playback, backward and forward dragging, and the enlarged touch target for both audio types; physical iPhone testing remains unavailable.
+- Typecheck, ESLint (17 existing warnings), production build, formatting, and whitespace checks pass.
+- The full local test suite retains the same four known Nix/Node 22 failures in `xcodeCloudPostClone.test.ts` and `useRoomInputSendSessionController.test.ts`.
+
 ### Full interface internationalization (2026-09-14)
 
 - Status: implementation, language quality corrections, independent reviews, and local verification are complete; ready PR #249 is open against dev.

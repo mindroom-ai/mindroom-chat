@@ -659,6 +659,9 @@
       "retry": "重試"
     },
     "voiceAudioContent": {
+      "loadError": "無法載入音訊。點擊播放以重試。",
+      "playbackError": "無法在此播放此音訊。請嘗試下載。",
+      "playbackPosition": "{{current}}，共 {{duration}}",
       "moreAudioOptions": "更多音訊選項",
       "download": "下載",
       "name": "名稱",

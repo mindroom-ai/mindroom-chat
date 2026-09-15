@@ -106,13 +106,11 @@ describe('MAudio voice branch', () => {
           },
         },
         renderAsFile: () => React.createElement('div', { 'data-renderer': 'file' }),
-        renderAudioContent: () => React.createElement('div', { 'data-renderer': 'generic-audio' }),
       })
     );
 
     const rendered = JSON.stringify(renderer.toJSON());
     expect(rendered).toContain('voice-audio');
-    expect(rendered).not.toContain('generic-audio');
     expect(rendered).not.toContain('Download file');
 
     renderer.unmount();
@@ -132,14 +130,12 @@ describe('MAudio voice branch', () => {
           },
         },
         renderAsFile: () => React.createElement('div', { 'data-renderer': 'file' }),
-        renderAudioContent: () => React.createElement('div', { 'data-renderer': 'generic-audio' }),
       })
     );
 
     const rendered = JSON.stringify(renderer.toJSON());
     expect(rendered).toContain('voice-audio');
     expect(rendered).toContain('clip.ogg');
-    expect(rendered).not.toContain('generic-audio');
     expect(rendered).not.toContain('Download file');
 
     renderer.unmount();

@@ -12,7 +12,6 @@ const mocks = vi.hoisted(() => ({
   }),
   playing: false,
   setPlaying: vi.fn(),
-  seek: vi.fn(),
 }));
 
 vi.mock('folds', () => ({
@@ -39,6 +38,9 @@ vi.mock('folds', () => ({
 
 vi.mock('./VoiceAudioContent.css', () => ({
   Audio: 'Audio',
+  Title: 'Title',
+  Controls: 'Controls',
+  Error: 'Error',
   Capsule: 'Capsule',
   MoreCell: 'MoreCell',
   MoreMenu: 'MoreMenu',
@@ -47,16 +49,16 @@ vi.mock('./VoiceAudioContent.css', () => ({
   MoreMenuMetaLabel: 'MoreMenuMetaLabel',
   MoreMenuMetaValue: 'MoreMenuMetaValue',
   PlayCell: 'PlayCell',
+  PlayButton: 'PlayButton',
+  PlayIcon: 'PlayIcon',
   RateCell: 'RateCell',
   Root: 'Root',
   Time: 'Time',
-  VolumeCell: 'VolumeCell',
   WaveformCell: 'WaveformCell',
 }));
 
 vi.mock('../../voice/VoicePlaybackRateButton', () => ({
   VoicePlaybackRateButton: () => React.createElement('button', { 'aria-label': 'Playback speed' }),
-  VoicePlaybackRatePlaceholder: () => React.createElement('span', null, '1.5x'),
 }));
 
 vi.mock('../../voice/VoiceVolumeButton', () => ({
@@ -89,7 +91,6 @@ vi.mock('../../../hooks/media', () => ({
   useMediaLoading: () => ({ loading: false }),
   useMediaPlay: () => ({ playing: mocks.playing, setPlaying: mocks.setPlaying }),
   useMediaPlayTimeCallback: () => undefined,
-  useMediaSeek: () => ({ seek: mocks.seek }),
 }));
 
 vi.mock('../../../hooks/useThrottle', () => ({
@@ -158,7 +159,6 @@ describe('VoiceAudioContent media identity', () => {
     });
     mocks.playing = false;
     mocks.setPlaying.mockReset();
-    mocks.seek.mockReset();
     createObjectURL = vi.fn(() => `blob:${mocks.downloadedMediaUrls.at(-1)}`);
     revokeObjectURL = vi.fn();
     vi.stubGlobal('window', {
@@ -242,13 +242,13 @@ describe('VoiceAudioContent media identity', () => {
       'https://media.example/mxc://mindroom/voice-a',
       'https://media.example/mxc://mindroom/voice-b',
     ]);
-    expect(mocks.seek).not.toHaveBeenCalled();
     expect(renderer.root.findByType('source').props.src).toBe(
       'blob:https://media.example/mxc://mindroom/voice-b'
     );
   });
 
   it('keeps the new media play and seek intent when a stale source load rejects', async () => {
+    const audioElements: { currentTime: number; duration: number; readyState: number }[] = [];
     const voiceA = createDeferred<Blob>();
     const voiceB = createDeferred<Blob>();
     mocks.downloadMedia.mockImplementation((mediaUrl: string) => {
@@ -260,13 +260,12 @@ describe('VoiceAudioContent media identity', () => {
 
     await act(async () => {
       renderer = create(renderVoiceAudioContent('mxc://mindroom/voice-a'), {
-        createNodeMock: (element) =>
-          element.type === 'audio'
-            ? {
-                currentTime: 0,
-                duration: 10,
-              }
-            : null,
+        createNodeMock: (element) => {
+          if (element.type !== 'audio') return null;
+          const audio = { currentTime: 0, duration: 10, readyState: 0 };
+          audioElements.push(audio);
+          return audio;
+        },
       });
     });
 
@@ -296,7 +295,14 @@ describe('VoiceAudioContent media identity', () => {
     });
 
     expect(renderer.root.findByType('audio').props.autoPlay).toBe(true);
-    expect(mocks.seek).toHaveBeenCalledWith(2.5);
+    const currentAudio = audioElements[audioElements.length - 1];
+    expect(currentAudio.currentTime).toBe(0);
+    currentAudio.readyState = 1;
+    act(() => {
+      renderer.root.findByType('audio').props.onLoadedMetadata();
+    });
+    expect(currentAudio.currentTime).toBe(2.5);
+    expect(audioElements.slice(0, -1).every((audio) => audio.currentTime === 0)).toBe(true);
     expect(renderer.root.findByType('source').props.src).toBe(
       'blob:https://media.example/mxc://mindroom/voice-b'
     );

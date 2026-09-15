@@ -2634,6 +2634,9 @@
       "watch": "দেখুন"
     },
     "voiceAudioContent": {
+      "loadError": "অডিও লোড করা যায়নি। আবার চেষ্টা করতে প্লে চাপুন।",
+      "playbackError": "এই অডিও এখানে চালানো যাচ্ছে না। ডাউনলোড করে দেখুন।",
+      "playbackPosition": "{{duration}}-এর মধ্যে {{current}}",
       "download": "ডাউনলোড করুন",
       "duration": "সময়কাল",
       "moreAudioOptions": "আরও অডিও বিকল্প",

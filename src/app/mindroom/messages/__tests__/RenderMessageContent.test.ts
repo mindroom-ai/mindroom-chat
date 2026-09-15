@@ -34,7 +34,6 @@ vi.mock('folds', () => ({
 }));
 
 vi.mock('../../../components/message', () => ({
-  AudioContent: () => null,
   DownloadFile: () => null,
   FileContent: () => null,
   ImageContent: () => null,
@@ -71,7 +70,6 @@ vi.mock('../../../components/url-preview', () => ({
 
 vi.mock('../../../components/media', () => ({
   Image: () => null,
-  MediaControl: () => null,
   Video: () => null,
 }));
 

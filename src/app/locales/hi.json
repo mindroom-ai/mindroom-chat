@@ -2634,6 +2634,9 @@
       "watch": "देखें"
     },
     "voiceAudioContent": {
+      "loadError": "ऑडियो लोड नहीं हो सका। फिर से कोशिश करने के लिए प्ले दबाएँ।",
+      "playbackError": "यह ऑडियो यहाँ नहीं चलाया जा सकता। इसे डाउनलोड करके देखें।",
+      "playbackPosition": "{{duration}} में से {{current}}",
       "download": "डाउनलोड करें",
       "duration": "अवधि",
       "moreAudioOptions": "अधिक ऑडियो विकल्प",

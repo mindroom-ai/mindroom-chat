@@ -659,6 +659,9 @@
       "retry": "再試行"
     },
     "voiceAudioContent": {
+      "loadError": "音声を読み込めませんでした。再生を押して再試行してください。",
+      "playbackError": "この音声はここでは再生できません。ダウンロードをお試しください。",
+      "playbackPosition": "{{duration}} 中 {{current}}",
       "moreAudioOptions": "さらなるオーディオオプション",
       "download": "ダウンロード",
       "name": "名前",

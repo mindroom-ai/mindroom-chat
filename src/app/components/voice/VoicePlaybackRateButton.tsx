@@ -29,13 +29,3 @@ export function VoicePlaybackRateButton() {
     </button>
   );
 }
-
-export function VoicePlaybackRatePlaceholder() {
-  return (
-    <div className={css.Placeholder} aria-hidden="true">
-      <Text as="span" className={css.Label} size="B300">
-        1.5×
-      </Text>
-    </div>
-  );
-}

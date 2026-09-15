@@ -35,12 +35,21 @@ vi.mock('folds', () => ({
   PopOut: ({ anchor, content }: { anchor?: unknown; content: React.ReactNode }) =>
     anchor ? React.createElement('div', { 'data-popout': 'true' }, content) : null,
   Spinner: (props: Record<string, unknown>) => React.createElement('span', props),
-  Text: ({ children, ...props }: { children?: React.ReactNode }) =>
-    React.createElement('span', props, children),
+  Text: ({
+    children,
+    truncate: _truncate,
+    ...props
+  }: {
+    children?: React.ReactNode;
+    truncate?: boolean;
+  }) => React.createElement('span', props, children),
 }));
 
 vi.mock('./VoiceAudioContent.css', () => ({
   Audio: 'Audio',
+  Title: 'Title',
+  Controls: 'Controls',
+  Error: 'Error',
   Capsule: 'Capsule',
   MoreCell: 'MoreCell',
   MoreMenu: 'MoreMenu',
@@ -49,16 +58,16 @@ vi.mock('./VoiceAudioContent.css', () => ({
   MoreMenuMetaLabel: 'MoreMenuMetaLabel',
   MoreMenuMetaValue: 'MoreMenuMetaValue',
   PlayCell: 'PlayCell',
+  PlayButton: 'PlayButton',
+  PlayIcon: 'PlayIcon',
   RateCell: 'RateCell',
   Root: 'Root',
   Time: 'Time',
-  VolumeCell: 'VolumeCell',
   WaveformCell: 'WaveformCell',
 }));
 
 vi.mock('../../voice/VoicePlaybackRateButton', () => ({
   VoicePlaybackRateButton: () => React.createElement('button', { 'aria-label': 'Playback speed' }),
-  VoicePlaybackRatePlaceholder: () => React.createElement('span', null, '1x'),
 }));
 
 vi.mock('../../voice/VoiceVolumeButton', () => ({
@@ -134,6 +143,27 @@ describe('VoiceAudioContent media element', () => {
     container.remove();
   });
 
+  it.each(['audio', 'source'])(
+    'shows %s playback failures and prevents repeated failed playback',
+    (target) => {
+      act(() => {
+        root.render(renderVoiceAudioContent('mxc://mindroom/voice-a'));
+      });
+      act(() => {
+        container.querySelector(target)!.dispatchEvent(new Event('error'));
+      });
+      expect(container.querySelector('[role="status"]')?.textContent).toContain(
+        'This audio cannot be played here'
+      );
+      expect(
+        container.querySelector<HTMLButtonElement>('[aria-label="Play voice message"]')?.disabled
+      ).toBe(true);
+      expect(
+        container.querySelector<HTMLButtonElement>('[aria-label="More audio options"]')?.disabled
+      ).toBe(false);
+    }
+  );
+
   it('remounts the audio element when the loaded media source changes', () => {
     act(() => {
       root.render(renderVoiceAudioContent('mxc://mindroom/voice-a'));
@@ -184,7 +214,7 @@ describe('VoiceAudioContent media element', () => {
       await Promise.resolve();
     });
 
-    expect(container.textContent).toContain('0:00 / 0:10');
+    expect(container.querySelector('[title="0:00 / 0:10"]')?.textContent).toBe('0:10');
     expect(container.querySelector('[aria-label="Play voice message"]')).not.toBeNull();
 
     Object.defineProperty(audioB, 'duration', { configurable: true, value: 12 });
@@ -196,7 +226,7 @@ describe('VoiceAudioContent media element', () => {
       await Promise.resolve();
     });
 
-    expect(container.textContent).toContain('0:04 / 0:12');
+    expect(container.querySelector('[title="0:04 / 0:12"]')?.textContent).toBe('0:04');
     expect(container.querySelector('[aria-label="Pause voice message"]')).not.toBeNull();
 
     Object.defineProperty(audioB, 'paused', { configurable: true, value: true });

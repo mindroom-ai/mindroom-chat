@@ -659,6 +659,9 @@
       "retry": "Opnieuw proberen"
     },
     "voiceAudioContent": {
+      "loadError": "Audio kon niet worden geladen. Druk op afspelen om opnieuw te proberen.",
+      "playbackError": "Deze audio kan hier niet worden afgespeeld. Probeer het te downloaden.",
+      "playbackPosition": "{{current}} van {{duration}}",
       "moreAudioOptions": "Meer audio-opties",
       "download": "Downloaden",
       "name": "Naam",

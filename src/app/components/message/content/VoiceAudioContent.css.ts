@@ -2,7 +2,7 @@ import { style } from '@vanilla-extract/css';
 import { DefaultReset, color, config, toRem } from 'folds';
 
 export const Root = style({
-  width: '100%',
+  width: toRem(400),
   maxWidth: '100%',
   minWidth: 0,
 });
@@ -11,38 +11,50 @@ export const Capsule = style([
   DefaultReset,
   {
     display: 'grid',
-    gridTemplateColumns: `${toRem(36)} minmax(${toRem(96)}, 1fr) auto auto auto auto`,
-    gridTemplateAreas: '"play wave time volume rate more"',
+    gridTemplateColumns: `${toRem(44)} minmax(0, 1fr) auto ${toRem(44)} ${toRem(24)}`,
+    gridTemplateRows: 'auto auto',
+    gridTemplateAreas: '"play wave time rate more" "error error error error error"',
     alignItems: 'center',
-    gap: config.space.S200,
+    columnGap: config.space.S200,
     width: '100%',
-    maxWidth: '100%',
     minWidth: 0,
-    minHeight: toRem(44),
-    padding: `${config.space.S100} ${config.space.S200}`,
-    borderRadius: config.radii.R400,
+    padding: config.space.S200,
+    borderRadius: toRem(16),
     backgroundColor: color.SurfaceVariant.Container,
     color: color.SurfaceVariant.OnContainer,
     boxShadow: `inset 0 0 0 ${config.borderWidth.B300} ${color.SurfaceVariant.ContainerLine}`,
-    '@media': {
-      '(max-width: 360px)': {
-        gridTemplateColumns: `${toRem(36)} minmax(${toRem(96)}, 1fr) auto auto auto`,
-        gridTemplateAreas: '"play wave volume rate more" ". time time time time"',
-        rowGap: config.space.S100,
-      },
-      '(max-width: 300px)': {
-        gridTemplateColumns: `${toRem(36)} minmax(0, 1fr) auto auto`,
-        gridTemplateAreas: '"play wave volume more" ". time rate rate"',
+    selectors: {
+      '&[data-playing="true"]': {
+        boxShadow: `inset 0 0 0 ${config.borderWidth.B300} ${color.Primary.Main}`,
       },
     },
   },
 ]);
 
+export const Title = style({
+  minWidth: 0,
+  fontWeight: config.fontWeight.W500,
+  marginBlockEnd: config.space.S100,
+  marginInline: config.space.S200,
+});
+
 export const PlayCell = style({
   gridArea: 'play',
   display: 'flex',
   alignItems: 'center',
-  minWidth: 0,
+  justifyContent: 'center',
+});
+
+export const PlayButton = style({
+  width: toRem(44),
+  height: toRem(44),
+  flexShrink: 0,
+  padding: 0,
+  borderRadius: '50%',
+});
+
+export const PlayIcon = style({
+  transform: 'translateX(1px)',
 });
 
 export const WaveformCell = style({
@@ -50,37 +62,27 @@ export const WaveformCell = style({
   minWidth: 0,
 });
 
+export const Controls = style({
+  display: 'contents',
+});
+
 export const Time = style({
   gridArea: 'time',
-  minWidth: 0,
   color: color.SurfaceVariant.OnContainer,
   fontVariantNumeric: 'tabular-nums',
-  textAlign: 'end',
+  direction: 'ltr',
   whiteSpace: 'nowrap',
+  fontSize: toRem(12),
+  opacity: 0.65,
 });
 
-export const VolumeCell = style({
-  gridArea: 'volume',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  minWidth: 0,
-});
+export const RateCell = style({ gridArea: 'rate', display: 'flex', alignItems: 'center' });
+export const MoreCell = style({ gridArea: 'more', display: 'flex', alignItems: 'center' });
 
-export const RateCell = style({
-  gridArea: 'rate',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  minWidth: 0,
-});
-
-export const MoreCell = style({
-  gridArea: 'more',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  minWidth: 0,
+export const Error = style({
+  gridArea: 'error',
+  color: color.Critical.Main,
+  paddingBlockStart: config.space.S200,
 });
 
 export const MoreMenu = style({

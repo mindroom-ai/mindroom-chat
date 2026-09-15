@@ -659,6 +659,9 @@
       "retry": "Tekrar dene"
     },
     "voiceAudioContent": {
+      "loadError": "Ses yüklenemedi. Yeniden denemek için oynat düğmesine basın.",
+      "playbackError": "Bu ses burada oynatılamıyor. İndirmeyi deneyin.",
+      "playbackPosition": "{{current}} / {{duration}}",
       "moreAudioOptions": "Diğer ses seçenekleri",
       "download": "İndir",
       "name": "Ad",

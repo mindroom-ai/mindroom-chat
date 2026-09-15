@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next';
-import React, { KeyboardEventHandler, MouseEventHandler } from 'react';
+import React, { KeyboardEventHandler } from 'react';
 import classNames from 'classnames';
 import {
   clampWaveformPoint,
@@ -18,7 +18,8 @@ const RECORDING_WAVEFORM_SPEECH_BOOST = 0.9;
 const getSvgWidth = (barCount: number): number =>
   Math.max(BAR_WIDTH, barCount * (BAR_WIDTH + BAR_GAP) - BAR_GAP);
 
-const clampProgress = (value: number): number => Math.min(1, Math.max(0, value));
+const clampProgress = (value: number): number =>
+  Number.isFinite(value) ? Math.min(1, Math.max(0, value)) : 0;
 
 const normalizeRecordingWaveform = (waveform: number[] | undefined): number[] => {
   if (!Array.isArray(waveform) || waveform.length === 0) return createFallbackWaveform();
@@ -55,6 +56,8 @@ type VoiceWaveformProps = {
   dimmed?: boolean;
   compact?: boolean;
   label?: string;
+  valueText?: string;
+  disabled?: boolean;
   onSeekProgress?: (progress: number) => void;
 };
 
@@ -64,6 +67,8 @@ export function VoiceWaveform({
   dimmed,
   compact,
   label,
+  valueText,
+  disabled,
   onSeekProgress,
 }: VoiceWaveformProps) {
   const { t } = useTranslation();
@@ -73,18 +78,8 @@ export function VoiceWaveform({
   const normalizedProgress = clampProgress(progress);
   const activeBars = Math.round(normalizedProgress * bars.length);
 
-  const seekFromClientX = (currentTarget: HTMLElement, clientX: number) => {
-    const rect = currentTarget.getBoundingClientRect();
-    const width = rect.width || 1;
-    onSeekProgress?.(clampProgress((clientX - rect.left) / width));
-  };
-
-  const handleClick: MouseEventHandler<HTMLElement> = (event) => {
-    seekFromClientX(event.currentTarget, event.clientX);
-  };
-
   const handleKeyDown: KeyboardEventHandler<HTMLElement> = (event) => {
-    if (!onSeekProgress) return;
+    if (!onSeekProgress || disabled) return;
 
     if (event.key === 'Home') {
       event.preventDefault();
@@ -98,10 +93,12 @@ export function VoiceWaveform({
       return;
     }
 
-    if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+    if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) {
       event.preventDefault();
       onSeekProgress(
-        clampProgress(normalizedProgress + (event.key === 'ArrowRight' ? 0.05 : -0.05))
+        clampProgress(
+          normalizedProgress + (['ArrowRight', 'ArrowUp'].includes(event.key) ? 0.05 : -0.05)
+        )
       );
     }
   };
@@ -149,20 +146,31 @@ export function VoiceWaveform({
 
   if (onSeekProgress) {
     return (
-      <button
+      <div
         className={classNames(
           css.Waveform,
           compact && css.WaveformCompact,
           css.WaveformSeek,
           dimmed && css.WaveformDimmed
         )}
-        type="button"
-        aria-label={label ?? t('sharedUi.voiceWaveform.seekVoiceMessage')}
-        onClick={handleClick}
-        onKeyDown={handleKeyDown}
       >
         {content}
-      </button>
+        <input
+          className={css.SeekInput}
+          type="range"
+          min={0}
+          max={100}
+          step={0.1}
+          value={normalizedProgress * 100}
+          disabled={disabled}
+          aria-label={label ?? t('sharedUi.voiceWaveform.seekVoiceMessage')}
+          aria-valuetext={valueText ?? `${Math.round(normalizedProgress * 100)}%`}
+          onChange={(event) =>
+            onSeekProgress(clampProgress(Number(event.currentTarget.value) / 100))
+          }
+          onKeyDown={handleKeyDown}
+        />
+      </div>
     );
   }
 
