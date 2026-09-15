@@ -53,9 +53,10 @@ for (const mobile of [false, true]) {
         await expect
           .poll(async () => {
             const bounds = await panel.boundingBox();
-            return bounds ? Math.round(bounds.x + bounds.width) : 0;
+            return bounds ? { x: Math.round(bounds.x), width: Math.round(bounds.width) } : null;
           })
-          .toBe(page.viewportSize()!.width);
+          // The persistent icon rail occupies the first 66 px of the phone viewport.
+          .toEqual({ x: 66, width: page.viewportSize()!.width - 66 });
         await expect(page.locator('body')).toHaveJSProperty(
           'scrollWidth',
           page.viewportSize()!.width
