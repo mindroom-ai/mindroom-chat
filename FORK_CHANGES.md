@@ -2,6 +2,18 @@
 
 ## Runbook
 
+### Propose a model picker with Matrix-only discovery (2026-09-15)
+
+- Status: design proposal and standalone prototype; application behavior is unchanged.
+- `docs/mindroom-model-picker-design.md` describes encrypted to-device catalog discovery, existing room-command mutations, runtime/device validation, and implementation acceptance criteria.
+- Optional model `display_name` and `icon` fields preserve stable command keys; local icons are uploaded through Matrix and discovery returns Matrix media references.
+- `docs/previews/model-picker.html` demonstrates searchable names, provider grouping, custom logos, thread scope, default reset, pending acknowledgements, and desktop/mobile layouts with simulated data.
+- Screenshots are attached to the pull request with GitHub CLI's `--attach` flag.
+- Validation: all 4,191 tests pass under Node 24.13.1 in the standard Linux container; typecheck, build, lint (zero errors, 17 existing warnings), and changed-file formatting pass.
+- Chromium checks cover display-name/key/provider search, stable keys, custom logos, pending selection, reset, draft preservation, keyboard dismissal, and mobile bounds.
+- Independent review identified and corrected delayed-acknowledgement focus theft after picker dismissal and clarified runtime authentication for structured mutation results.
+- Next step: review the design, then implement and verify the runtime and client protocol together.
+
 ### Animate the thinking marker with the M logo (2026-09-15)
 
 - Status: the selected Flip, glow, flip sequence replaces the four-dot indicator in `MindroomThinkingPlaceholder`.
