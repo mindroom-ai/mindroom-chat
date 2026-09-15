@@ -16,6 +16,17 @@
   A Vite dependency reload interrupted the initial WebKit silver-sheet case; it passed three consecutive reruns after dependency optimization completed.
   Additional browser probes confirm both banner variants and menus use 3 px native blur, nested controls retain 8 px, other panels and modals retain their defaults, and accessibility preferences still disable blur.
 
+### Keep model discovery working beside stale devices (2026-09-15)
+
+- Model discovery now encrypts and queues each signed recipient independently.
+  A historical device without an Olm session no longer blocks requests to healthy devices.
+  Exact-recipient filtering, encrypted-only delivery, cancellation, and bounded retries remain enforced.
+- A regression using the installed Matrix SDK and real Rust Olm machines fails before the fix and passes afterward with one healthy device and one device whose one-time keys are exhausted.
+  Controller coverage also verifies picker eligibility in this case and preserves the omitted-recipient retry regression.
+- All 4,429 tests across 530 files pass in the standard Node 24 container.
+  Typecheck, changed-file lint, the production/PWA build, and the Element Call output check pass.
+  Independent review found no blocking issues.
+
 ### Recognize Gemini icons behind compatible providers (2026-09-15)
 
 - The shared model icon now recognizes Gemini model IDs before falling back to the transport provider's glyph.
