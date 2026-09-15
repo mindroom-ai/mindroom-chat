@@ -50,9 +50,7 @@ export const Panel = style({
   overflow: 'hidden',
   border: `1px solid ${color.Surface.ContainerLine}`,
   borderRadius: config.radii.R400,
-  background: color.Surface.Container,
   color: color.Surface.OnContainer,
-  boxShadow: '0 16px 48px rgb(0 0 0 / 22%), 0 4px 12px rgb(0 0 0 / 10%)',
 });
 export const MobileContainer = style({
   display: 'flex',

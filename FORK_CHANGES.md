@@ -8,6 +8,7 @@
   The row consumes the client-scoped controller hook, and the presentation sends no Matrix traffic.
 - Desktop uses an anchored Folds pop-out while mobile uses a safe-area-aware bottom sheet.
   Search matches display name, stable key, and provider; results group by provider and retain the same visual and keyboard order.
+- Desktop and mobile picker panels use the shared glass surface owners without overriding their material paint.
 - Room-default reset is a distinct action from every configured model key, including `default` and `room-default`.
   Multiple authenticated runtimes require a readable account-and-device choice before mutations become available.
 - Pending commands survive dismissal, refresh remains available during recovery, errors keep the readable `!model` fallback visible, and delayed completion cannot steal focus after dismissal.
@@ -15,7 +16,7 @@
 - The visible subtitle states that future replies use the selection for all agents and teams in the thread, and the stable trigger name exposes the current visible model as its accessible description.
 - Custom catalog icons use authenticated Matrix media conversion and fall back to the shared provider or generic icon on load failure.
   Historical message badges use the same provider icon owner without changing their labels or semantics.
-- Focused component coverage passes all 21 picker cases plus composer top-slot and historical badge regressions.
+- Focused component coverage passes all 23 picker cases plus composer top-slot and historical badge regressions.
   Live browser checks pass plain and encrypted set/reset, draft preservation, ineligible-room gates, desktop and mobile layouts, and 320 px fit.
 
 ### Preserve model-picker ownership through stop and delayed sends (2026-09-15)

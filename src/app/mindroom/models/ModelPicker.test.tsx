@@ -109,6 +109,52 @@ vi.mock('folds', async (importOriginal) => ({
   Spinner: () => <span role="progressbar" aria-label="Loading" />,
 }));
 
+vi.mock('../../components/glass/GlassPrimitives', () => ({
+  Surface: ({
+    children,
+    appearance = 'glass',
+    level = 'overlay',
+    variant = 'Surface',
+    ...props
+  }: React.HTMLAttributes<HTMLDivElement> & {
+    appearance?: string;
+    level?: string;
+    variant?: string;
+  }) => (
+    <div
+      data-shared-surface={appearance}
+      data-surface-level={level}
+      data-surface-variant={variant}
+      {...props}
+    >
+      {children}
+    </div>
+  ),
+  Modal: ({
+    children,
+    appearance = 'glass',
+    variant = 'Surface',
+    size,
+    flexHeight,
+    ...props
+  }: React.HTMLAttributes<HTMLDivElement> & {
+    appearance?: string;
+    variant?: string;
+    size?: string;
+    flexHeight?: boolean;
+  }) => (
+    <div
+      data-shared-modal={appearance}
+      data-modal-variant={variant}
+      data-modal-size={size}
+      data-modal-flex-height={flexHeight ? 'true' : undefined}
+      {...props}
+    >
+      {children}
+    </div>
+  ),
+}));
+
 vi.mock('focus-trap-react', () => ({
   default: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
@@ -523,12 +569,26 @@ describe('responsive model picker', () => {
     );
   });
 
+  it('uses the shared glass surface owner for the desktop panel', () => {
+    act(() => root.render(<ModelPicker state={createState()} />));
+    click(container.querySelector('button[aria-label="Choose model"]')!);
+
+    const panel = container.querySelector('[data-model-picker-sheet="desktop"]')!;
+    expect(panel.getAttribute('data-shared-surface')).toBe('glass');
+    expect(panel.getAttribute('data-surface-level')).toBe('overlay');
+    expect(panel.getAttribute('data-surface-variant')).toBe('Surface');
+  });
+
   it('uses a bottom sheet presentation on mobile', () => {
     mocks.screenSize = ScreenSize.Mobile;
     act(() => root.render(<ModelPicker state={createState()} />));
     click(container.querySelector('button[aria-label="Choose model"]')!);
 
     expect(container.querySelector('[data-model-picker-sheet="mobile"]')).not.toBeNull();
+    expect(container.querySelector('[data-shared-modal="glass"]')).not.toBeNull();
+    expect(
+      container.querySelector('[data-model-picker-sheet="mobile"][data-shared-surface="inherit"]')
+    ).not.toBeNull();
   });
 
   it('loads custom icons through authenticated Matrix media and falls back on image error', () => {

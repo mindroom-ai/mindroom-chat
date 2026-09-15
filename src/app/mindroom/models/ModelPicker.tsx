@@ -1,5 +1,5 @@
 import FocusTrap from 'focus-trap-react';
-import { Modal, Overlay, OverlayBackdrop, PopOut, Spinner } from 'folds';
+import { Overlay, OverlayBackdrop, PopOut, Spinner } from 'folds';
 import { Room } from 'matrix-js-sdk';
 import {
   IconCheck,
@@ -22,6 +22,7 @@ import { useTranslation } from 'react-i18next';
 import { usePreventScroll } from 'react-aria';
 import { ScreenSize, useScreenSizeContext } from '../../hooks/useScreenSize';
 import { stopPropagation } from '../../utils/keyboard';
+import { Modal, Surface } from '../../components/glass/GlassPrimitives';
 import type { ModelCatalogEntry } from './modelProtocol';
 import { ModelIcon } from './ModelIcon';
 import { useModelPicker, type ModelPickerState } from './useModelPicker';
@@ -140,7 +141,10 @@ function ModelPickerPanel({ state, mobile, requestClose, onCommand }: ModelPicke
   };
 
   return (
-    <div
+    <Surface
+      appearance={mobile ? 'inherit' : 'glass'}
+      level="overlay"
+      variant="Surface"
       className={`${css.Panel} ${mobile ? css.MobilePanel : ''}`}
       role="dialog"
       aria-labelledby={`${listId}-title`}
@@ -336,7 +340,7 @@ function ModelPickerPanel({ state, mobile, requestClose, onCommand }: ModelPicke
             : t('mindroomUi.models.modelPicker.futureReplies')}
         </span>
       </div>
-    </div>
+    </Surface>
   );
 }
 
@@ -374,7 +378,13 @@ function MobileSurface({ state, requestClose, onCommand }: Omit<SurfaceProps, 'm
   return (
     <Overlay open backdrop={<OverlayBackdrop />}>
       <div className={css.MobileContainer}>
-        <Modal size="500" flexHeight variant="Background" className={css.MobilePanel}>
+        <Modal
+          appearance="glass"
+          size="500"
+          flexHeight
+          variant="Background"
+          className={css.MobilePanel}
+        >
           <TrappedPanel state={state} mobile requestClose={requestClose} onCommand={onCommand} />
         </Modal>
       </div>
