@@ -7,6 +7,7 @@ const BannerLayout = style({
   padding: config.space.S300,
   borderRadius: config.radii.R400,
   flexShrink: 0,
+  pointerEvents: 'auto',
 });
 
 export const Banner = style([

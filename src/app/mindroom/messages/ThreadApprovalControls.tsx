@@ -16,6 +16,7 @@ import {
 } from 'folds';
 import { Dialog, Header } from '../../components/glass/GlassPrimitives';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
+import { glassOverBackdrop } from '../../styles/Glass.css';
 import { useThreadApprovals } from './ThreadApprovalProvider';
 import { groupApprovalRecords, ThreadApprovalRecord } from './threadApprovalModel';
 import { getToolApprovalOperationLabel } from './toolApproval';
@@ -52,7 +53,8 @@ function ApprovalDialog({
           }}
         >
           <Dialog
-            variant="Surface"
+            className={glassOverBackdrop}
+            variant="Background"
             role="dialog"
             aria-modal="true"
             style={{ width: '40rem', maxWidth: 'calc(100vw - 24px)' }}
@@ -412,16 +414,17 @@ export function ApprovalHistory({ records }: { records: readonly ThreadApprovalR
   const approved = records.filter((record) => record.approval.status === 'approved').length;
   return (
     <details className={css.Receipt} onToggle={(event) => setOpen(event.currentTarget.open)}>
-      <summary>
+      <summary className={css.ReceiptHeader}>
         <Icon src={Icons.Terminal} size="50" aria-hidden />
-        <span>
+        <span className={css.ReceiptLabel}>
           {t('mindroomUi.messages.threadApprovalControls.toolApprovalCount', {
             count: records.length,
           })}
         </span>
-        <span>
+        <span className={css.ReceiptMeta}>
           {t('mindroomUi.messages.threadApprovalControls.approvedCount', { count: approved })}
         </span>
+        <Icon src={Icons.ChevronBottom} size="50" className={css.ReceiptChevron} aria-hidden />
       </summary>
       {open && (
         <div className={css.HistoryBody}>
