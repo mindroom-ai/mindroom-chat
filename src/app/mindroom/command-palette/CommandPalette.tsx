@@ -267,6 +267,7 @@ export function CommandPalette({ requestClose, source, mobileSheet = false }: Co
         <Icon src={Icons.Search} size="300" />
         <input
           ref={inputRef}
+          dir={query ? 'auto' : undefined}
           className={css.Input}
           autoComplete="off"
           spellCheck={false}

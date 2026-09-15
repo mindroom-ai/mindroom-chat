@@ -164,7 +164,7 @@
   },
   "commandPalette": {
     "inputAria": "命令面板",
-    "placeholder": "輸入命令或搜尋...",
+    "placeholder": "搜尋或執行指令…",
     "closeAria": "關閉命令面板",
     "open": "開啟命令面板",
     "noResults": "沒有結果",
@@ -225,7 +225,14 @@
       "currentSpaceFallback": "目前空間",
       "currentSpaceDescription": "目前空間",
       "globalSearchDescription": "全球訊息搜尋"
-    }
+    },
+    "all": "全部",
+    "filterLabel": "篩選結果",
+    "resultsLabel": "搜尋結果",
+    "emptyDescription": "請嘗試其他搜尋字詞或選擇其他類別。",
+    "clearSearch": "清除搜尋",
+    "navigate": "導覽",
+    "select": "開啟"
   },
   "accountSwitcher": {
     "title": "帳戶",

@@ -164,7 +164,7 @@
   },
   "commandPalette": {
     "inputAria": "لوحة الأوامر",
-    "placeholder": "اكتب أمرًا أو ابحث...",
+    "placeholder": "ابحث أو نفّذ أمرًا…",
     "closeAria": "إغلاق لوحة الأوامر",
     "open": "فتح لوحة الأوامر",
     "noResults": "لا توجد نتائج",
@@ -229,7 +229,14 @@
     "resultCount_few": "⁨{{count}}⁩ نتيجة",
     "resultCount_many": "⁨{{count}}⁩ نتيجة",
     "resultCount_two": "⁨{{count}}⁩ نتيجة",
-    "resultCount_zero": "⁨{{count}}⁩ نتيجة"
+    "resultCount_zero": "⁨{{count}}⁩ نتيجة",
+    "all": "الكل",
+    "filterLabel": "تصفية النتائج",
+    "resultsLabel": "نتائج البحث",
+    "emptyDescription": "جرّب بحثًا مختلفًا أو اختر فئة أخرى.",
+    "clearSearch": "مسح البحث",
+    "navigate": "التنقل",
+    "select": "فتح"
   },
   "accountSwitcher": {
     "title": "الحسابات",

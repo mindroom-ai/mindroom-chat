@@ -2,6 +2,24 @@
 
 ## Runbook
 
+### Refine command palette presentation and navigation (2026-09-15)
+
+- Status: implemented, locally verified, and independently reviewed; pull-request checks remain.
+- The palette has a compact search header, clickable category filters, labeled result groups, quiet icon tiles, a rounded selection, and a keyboard footer.
+  Desktop height remains stable while searching, and the mobile sheet retains safe-area padding, a visible close control, and touch-sized filters.
+- Category changes retain the search text and return focus to the input.
+  Choosing All preserves prefix-leading literal searches such as full Matrix IDs, while clearing the input restores typed-prefix detection.
+- Mouse and keyboard share one active result through the combobox/listbox relationship.
+  Query changes reset the results scroll position, arrow navigation reveals the active option, and composition confirmation does not execute a command.
+- All 17 catalogs include the new labels, with isolated shortcut and prefix symbols for RTL layouts.
+- Focused coverage includes category changes, literal searches, composition, accessible selection, pointer activation, and empty-result recovery.
+  Live Chromium checks cover room navigation, scroll recovery, and mobile layouts at 390 and 320 px.
+- Validation: 63 palette tests and all three browser cases pass, along with typecheck, production/PWA build, formatting, and ESLint with zero errors and the existing 17 warnings.
+  The full Node 24 suite passes 4,144 of 4,147 tests; only the three unchanged Xcode Cloud shell fixtures that assume standard Unix executable paths fail on this Nix host.
+- Independent review found and verified fixes for query scroll recovery and literal All-mode searches.
+  Integration review also verified the 17-language catalogs and Arabic navigation.
+  Screenshots use local sample data and remain outside version control.
+
 ### Full interface internationalization (2026-09-14)
 
 - Status: implementation, language quality corrections, independent reviews, and local verification are complete; ready PR #249 is open against dev.

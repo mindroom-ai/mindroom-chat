@@ -164,7 +164,7 @@
   },
   "commandPalette": {
     "inputAria": "Palet perintah",
-    "placeholder": "Ketik perintah atau cari...",
+    "placeholder": "Cari atau jalankan perintah…",
     "closeAria": "Tutup palet perintah",
     "open": "Buka palet perintah",
     "noResults": "Tidak ada hasil",
@@ -225,7 +225,14 @@
       "currentSpaceFallback": "space saat ini",
       "currentSpaceDescription": "Space saat ini",
       "globalSearchDescription": "Pencarian pesan global"
-    }
+    },
+    "all": "Semua",
+    "filterLabel": "Filter hasil",
+    "resultsLabel": "Hasil pencarian",
+    "emptyDescription": "Coba pencarian lain atau pilih kategori lain.",
+    "clearSearch": "Hapus pencarian",
+    "navigate": "Navigasi",
+    "select": "Buka"
   },
   "accountSwitcher": {
     "title": "Akun",

@@ -89,7 +89,13 @@ export const Filter = style({
   '@media': { '(max-width: 480px)': { minHeight: 44 } },
 });
 
-export const Prefix = style({ fontFamily: 'monospace', fontSize: 11, opacity: 0.65 });
+export const Prefix = style({
+  fontFamily: 'monospace',
+  fontSize: 11,
+  opacity: 0.65,
+  direction: 'ltr',
+  unicodeBidi: 'isolate',
+});
 
 export const Results = style({
   flex: '1 1 auto',
@@ -188,6 +194,8 @@ export const RowEnter = style({
 });
 
 export const Key = style({
+  direction: 'ltr',
+  unicodeBidi: 'isolate',
   display: 'inline-flex',
   justifyContent: 'center',
   alignItems: 'center',

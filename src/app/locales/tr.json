@@ -164,7 +164,7 @@
   },
   "commandPalette": {
     "inputAria": "Komut paleti",
-    "placeholder": "Bir komut yazın veya arayın...",
+    "placeholder": "Arayın veya bir komut çalıştırın…",
     "closeAria": "Komut paletini kapat",
     "open": "Komut paletini aç",
     "noResults": "Sonuç yok",
@@ -225,7 +225,14 @@
       "currentSpaceFallback": "geçerli alan",
       "currentSpaceDescription": "Geçerli alan",
       "globalSearchDescription": "Genel mesaj araması"
-    }
+    },
+    "all": "Tümü",
+    "filterLabel": "Sonuçları filtrele",
+    "resultsLabel": "Arama sonuçları",
+    "emptyDescription": "Farklı bir arama deneyin veya başka bir kategori seçin.",
+    "clearSearch": "Aramayı temizle",
+    "navigate": "Gezin",
+    "select": "Aç"
   },
   "accountSwitcher": {
     "title": "Hesaplar",
