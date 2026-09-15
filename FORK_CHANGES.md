@@ -2,6 +2,17 @@
 
 ## Runbook
 
+### Toggle Explorer navigation from its active sidebar icon (2026-09-15)
+
+- Explorer passes its current selection to the shared sidebar handler, matching Home and Direct Messages.
+  Clicking the active Explorer icon collapses or reopens navigation on desktop and tablet while preserving the page, search query, fragment, and browser history entry.
+- Selecting Explorer from another section opens navigation and retains its existing destination selection.
+  Mobile clicks retain the single-pane Explorer list flow and the saved desktop collapse preference.
+- Regression coverage exercises the real Explorer tab and shared navigation state at 751 and 1280 px, plus mobile navigation at 375 and 750 px.
+  The desktop and tablet cases fail against the old handler and pass with the fix.
+- Validation: all 4,439 tests across 531 files, typecheck, production/PWA build, and changed-file formatting pass.
+  Full ESLint reports zero errors and the 17 existing warnings.
+
 ### Clear the empty following strip and flatten room chrome (2026-09-15)
 
 - The bottom following strip adds floating glass only while it displays other readers' names.
