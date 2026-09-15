@@ -134,6 +134,12 @@ test.beforeEach(async ({ page }) => {
 });
 
 const materialText = (page: Page): VisualSample[] => [
+  { boundaryTestId: 'settings-modal', name: 'settings', text: page.getByTestId('settings-copy') },
+  {
+    boundaryTestId: 'settings-modal',
+    name: 'settings heading',
+    text: page.getByTestId('settings-heading-copy'),
+  },
   { boundaryTestId: 'glass-menu', name: 'menu', text: page.getByTestId('menu-copy') },
   { boundaryTestId: 'glass-modal', name: 'modal', text: page.getByTestId('modal-copy') },
   { boundaryTestId: 'glass-header', name: 'header', text: page.getByTestId('header-copy') },
@@ -156,6 +162,7 @@ const expectOpaqueFallback = async (page: Page) => {
     ['menu', page.getByTestId('glass-menu')],
     ['modal', page.getByTestId('glass-modal')],
     ['header', page.getByTestId('glass-header')],
+    ['settings', page.getByTestId('settings-modal')],
     ['editor', page.getByTestId('editor-host').locator(':scope > div')],
     ['audio', page.getByTestId('audio-host').locator(':scope > div > div').last()],
   ] as const) {
@@ -185,6 +192,10 @@ const expectOpaqueFallback = async (page: Page) => {
         `${name} glass shadow fallback`
       ).toContain('transparent');
     }
+  }
+  for (const surface of [page.getByTestId('settings-page'), page.getByTestId('settings-header')]) {
+    await expect(surface).toHaveCSS('background-color', /rgba\(\d+, \d+, \d+, 0\)/);
+    await expect(surface).toHaveCSS('backdrop-filter', 'none');
   }
 };
 
@@ -231,7 +242,7 @@ test('shared materials reveal changes in the backdrop', async ({ page }) => {
   const editor = page.locator('[contenteditable="true"][data-editable-name="Message"]');
   await editor.fill('A readable message');
   const samples = materialText(page).filter(({ name }) =>
-    ['menu', 'modal', 'editor'].includes(name)
+    ['menu', 'modal', 'editor', 'settings', 'settings heading'].includes(name)
   );
   const main = page.locator('main');
   const editorHost = page.getByTestId('editor-host');
@@ -297,10 +308,84 @@ test('real controls keep focus, editing, playback, and narrow layout', async ({ 
   await player.getByRole('button', { name: 'Play audio', exact: true }).click();
   await expect(player.getByRole('button', { name: 'Pause audio', exact: true })).toBeVisible();
 
-  for (const surface of [page.getByTestId('glass-modal'), page.getByTestId('glass-menu'), player]) {
+  for (const surface of [
+    page.getByTestId('glass-modal'),
+    page.getByTestId('glass-menu'),
+    page.getByTestId('settings-modal'),
+    player,
+  ]) {
     const bounds = await surface.boundingBox();
     if (!bounds) throw new Error('Glass surface has no bounds');
     expect(bounds.x).toBeGreaterThanOrEqual(0);
     expect(bounds.x + bounds.width).toBeLessThanOrEqual(320);
   }
+});
+
+test('nested page layouts share the outer material while portal menus own a surface', async ({
+  page,
+}) => {
+  await page.goto('/e2e/fixtures/glass-surfaces.html');
+  for (const surface of [
+    page.getByTestId('settings-modal').locator(':scope > div'),
+    page.getByTestId('settings-page'),
+    page.getByTestId('settings-header'),
+  ]) {
+    await expect(surface).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
+    await expect(surface).toHaveCSS('backdrop-filter', 'none');
+    await expect(surface).not.toHaveAttribute('data-liquid-glass');
+  }
+  await expect(page.getByTestId('standalone-page')).not.toHaveCSS(
+    'background-color',
+    'rgba(0, 0, 0, 0)'
+  );
+  await expect(page.getByTestId('plain-heading')).toHaveCSS('backdrop-filter', 'none');
+  await expect(page.getByTestId('plain-heading')).not.toHaveAttribute('data-liquid-glass');
+  await page.getByRole('button', { name: 'Open nested menu' }).click();
+  const menu = page.getByTestId('settings-menu');
+  await expect(menu).toBeVisible();
+  await expect(menu).not.toHaveCSS('backdrop-filter', 'none');
+  expect(await menu.evaluate((element) => element.parentElement === document.body)).toBe(true);
+  await expect(page.getByTestId('settings-menu-header')).toHaveCSS('backdrop-filter', 'none');
+  await expect(page.getByRole('button', { name: 'Close nested menu' })).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(menu).toHaveCount(0);
+});
+
+test('custom thread popups receive shared material and retain keyboard actions', async ({
+  page,
+}) => {
+  await page.goto('/e2e/fixtures/glass-surfaces.html');
+  const overview = page.getByTestId('thread-overview');
+  await overview.locator('[data-info-button]').click();
+  const stats = overview.getByRole('dialog');
+  await expect(stats).toBeVisible();
+  expect(await stats.evaluate((element) => getComputedStyle(element).backdropFilter)).not.toBe(
+    'none'
+  );
+  await overview.locator('[data-info-button]').click();
+  await expect(stats).toHaveCount(0);
+
+  await overview.locator('[data-add-tag-button]').click();
+  expect(
+    await overview
+      .getByRole('listbox')
+      .evaluate((element) => getComputedStyle(element).backdropFilter)
+  ).not.toBe('none');
+  await page.keyboard.press('ArrowDown');
+  await page.keyboard.press('Enter');
+  await expect(overview.locator('output')).toHaveText('Tag: priority');
+  await expect(overview.getByRole('listbox')).toHaveCount(0);
+
+  await overview.locator('[data-preset-button]').click();
+  expect(
+    await overview
+      .getByRole('listbox')
+      .evaluate((element) => getComputedStyle(element).backdropFilter)
+  ).not.toBe('none');
+  await expect(overview.locator('[data-preset-option="needs-attention"]')).toBeFocused();
+  await page.keyboard.press('ArrowDown');
+  await expect(overview.locator('[data-preset-option="working"]')).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect(overview.locator('output')).toHaveText('Preset: working');
+  await expect(overview.getByRole('listbox')).toHaveCount(0);
 });

@@ -1,17 +1,22 @@
 import { Ref, RefCallback, useCallback, useEffect, useRef } from 'react';
 import { attachLiquidGlass } from './liquidGlass';
 
-export const useLiquidGlass = <T extends HTMLElement>(forwardedRef?: Ref<T>): RefCallback<T> => {
+export const useLiquidGlass = <T extends HTMLElement>(
+  forwardedRef?: Ref<T>,
+  enabled = true
+): RefCallback<T> => {
   const element = useRef<T | null>(null);
   const cleanup = useRef<(() => void) | undefined>();
   useEffect(() => {
     // React 18 StrictMode replays effects without replaying DOM refs.
-    if (element.current && !cleanup.current) cleanup.current = attachLiquidGlass(element.current);
+    if (enabled && element.current && !cleanup.current) {
+      cleanup.current = attachLiquidGlass(element.current);
+    }
     return () => {
       cleanup.current?.();
       cleanup.current = undefined;
     };
-  }, []);
+  }, [enabled]);
 
   return useCallback(
     (node: T | null) => {
@@ -20,8 +25,8 @@ export const useLiquidGlass = <T extends HTMLElement>(forwardedRef?: Ref<T>): Re
       element.current = node;
       if (typeof forwardedRef === 'function') forwardedRef(node);
       else if (forwardedRef) (forwardedRef as { current: T | null }).current = node;
-      if (node) cleanup.current = attachLiquidGlass(node);
+      if (enabled && node) cleanup.current = attachLiquidGlass(node);
     },
-    [forwardedRef]
+    [enabled, forwardedRef]
   );
 };

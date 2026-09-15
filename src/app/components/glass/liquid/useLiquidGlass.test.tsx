@@ -104,6 +104,32 @@ describe('liquid glass element lifecycle', () => {
     expect(element.style.getPropertyValue('--liquid-glass-light-x')).toBe('75%');
   });
 
+  it('skips disabled surfaces and releases listeners when toggled under StrictMode', () => {
+    const ref = createRef<HTMLDivElement>();
+    const Surface = ({ enabled }: { enabled: boolean }) => (
+      <div ref={useLiquidGlass(ref, enabled)}>Clear text</div>
+    );
+    let element: HTMLDivElement | null = null;
+    for (const enabled of [false, true, false, true]) {
+      act(() =>
+        root.render(
+          <StrictMode>
+            <Surface enabled={enabled} />
+          </StrictMode>
+        )
+      );
+      element ??= ref.current;
+      expect(ref.current).toBe(element);
+      pointAt(element!, 150, 25);
+      expect(element!.style.getPropertyValue('--liquid-glass-light-x')).toBe(enabled ? '75%' : '');
+      if (enabled) expect(preferenceListeners.size).toBeGreaterThan(0);
+      else expect(preferenceListeners.size).toBe(0);
+    }
+    act(() => root.render(null));
+    expect(ref.current).toBeNull();
+    expect(preferenceListeners.size).toBe(0);
+  });
+
   it('moves the effect and forwarded callback cleanly when React replaces the node', () => {
     const nodes: Array<HTMLElement | null> = [];
     const forwardedRef = (node: HTMLElement | null) => {

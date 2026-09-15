@@ -1,6 +1,7 @@
-import React, { ComponentProps } from 'react';
+import React, { ComponentProps, Ref } from 'react';
 import classNames from 'classnames';
 import {
+  ContainerColor,
   Dialog as FoldsDialog,
   Header as FoldsHeader,
   Menu as FoldsMenu,
@@ -8,61 +9,135 @@ import {
   Modal as FoldsModal,
   as,
 } from 'folds';
+import { ContainerColor as containerColor } from '../../styles/ContainerColor.css';
 import { glassSurface } from '../../styles/Glass.css';
 import { useLiquidGlass } from './liquid/useLiquidGlass';
+import { SurfaceProvider, useSurfaceContext } from './SurfaceContext';
+import { inheritSurface } from './Surface.css';
 
-type MenuProps = Pick<ComponentProps<typeof FoldsMenu>, 'variant'>;
-export const Menu = as<'div', MenuProps>(({ className, variant = 'Surface', ...props }, ref) => {
-  const glassRef = useLiquidGlass(ref);
-  return (
-    <FoldsMenu
-      {...props}
-      ref={glassRef}
-      variant={variant}
-      className={classNames(glassSurface({ level: 'overlay', variant }), className)}
-    />
-  );
-});
+export type SurfaceAppearance = 'glass' | 'plain' | 'inherit';
+type AppearanceProps = { appearance?: SurfaceAppearance };
+type SurfaceLevel = 'overlay' | 'panel' | 'control';
 
-type ModalProps = Pick<ComponentProps<typeof FoldsModal>, 'variant' | 'size' | 'flexHeight'>;
-export const Modal = as<'div', ModalProps>(({ className, variant = 'Surface', ...props }, ref) => {
-  const glassRef = useLiquidGlass(ref);
-  return (
-    <FoldsModal
-      {...props}
-      ref={glassRef}
-      variant={variant}
-      className={classNames(glassSurface({ level: 'overlay', variant }), className)}
-    />
-  );
-});
+const useSurface = (
+  ref: Ref<HTMLElement> | undefined,
+  appearance: SurfaceAppearance,
+  level: SurfaceLevel,
+  variant: ContainerColor
+) => {
+  const enclosingSurface = useSurfaceContext();
+  const glass = appearance === 'glass';
+  return {
+    ref: useLiquidGlass(ref, glass),
+    className: classNames(
+      glass && glassSurface({ level, variant }),
+      appearance === 'inherit' && inheritSurface
+    ),
+    context: glass || (appearance === 'inherit' && enclosingSurface),
+  };
+};
 
-type DialogProps = Pick<ComponentProps<typeof FoldsDialog>, 'variant'>;
-export const Dialog = as<'div', DialogProps>(
-  ({ className, variant = 'Surface', ...props }, ref) => {
-    const glassRef = useLiquidGlass(ref);
+type SurfaceProps = AppearanceProps & { level?: SurfaceLevel; variant?: ContainerColor };
+
+/** Shared material for custom floating panels; preserves the caller's DOM element. */
+export const Surface = as<'div', SurfaceProps>(
+  (
+    {
+      as: As = 'div',
+      appearance = 'glass',
+      level = 'overlay',
+      variant = 'Surface',
+      className,
+      ...props
+    },
+    ref
+  ) => {
+    const surface = useSurface(ref, appearance, level, variant);
     return (
-      <FoldsDialog
-        {...props}
-        ref={glassRef}
-        variant={variant}
-        className={classNames(glassSurface({ level: 'overlay', variant }), className)}
-      />
+      <SurfaceProvider value={surface.context}>
+        <As
+          {...props}
+          ref={surface.ref}
+          className={classNames(containerColor({ variant }), surface.className, className)}
+        />
+      </SurfaceProvider>
     );
   }
 );
 
-type HeaderProps = Pick<ComponentProps<typeof FoldsHeader>, 'variant' | 'size'>;
-export const Header = as<'header', HeaderProps>(
-  ({ className, variant = 'Surface', ...props }, ref) => {
-    const glassRef = useLiquidGlass(ref);
+type MenuProps = Pick<ComponentProps<typeof FoldsMenu>, 'variant'> & AppearanceProps;
+export const Menu = as<'div', MenuProps>(
+  ({ className, variant = 'Surface', appearance = 'glass', ...props }, ref) => {
+    const surface = useSurface(ref, appearance, 'overlay', variant);
     return (
-      <FoldsHeader
-        {...props}
-        ref={glassRef}
-        variant={variant}
-        className={classNames(glassSurface({ level: 'panel', variant }), className)}
-      />
+      <SurfaceProvider value={surface.context}>
+        <FoldsMenu
+          {...props}
+          ref={surface.ref}
+          variant={variant}
+          className={classNames(surface.className, className)}
+        />
+      </SurfaceProvider>
+    );
+  }
+);
+
+type ModalProps = Pick<ComponentProps<typeof FoldsModal>, 'variant' | 'size' | 'flexHeight'> &
+  AppearanceProps;
+export const Modal = as<'div', ModalProps>(
+  ({ className, variant = 'Surface', appearance = 'glass', ...props }, ref) => {
+    const surface = useSurface(ref, appearance, 'overlay', variant);
+    return (
+      <SurfaceProvider value={surface.context}>
+        <FoldsModal
+          {...props}
+          ref={surface.ref}
+          variant={variant}
+          className={classNames(surface.className, className)}
+        />
+      </SurfaceProvider>
+    );
+  }
+);
+
+type DialogProps = Pick<ComponentProps<typeof FoldsDialog>, 'variant'> & AppearanceProps;
+export const Dialog = as<'div', DialogProps>(
+  ({ className, variant = 'Surface', appearance = 'glass', ...props }, ref) => {
+    const surface = useSurface(ref, appearance, 'overlay', variant);
+    return (
+      <SurfaceProvider value={surface.context}>
+        <FoldsDialog
+          {...props}
+          ref={surface.ref}
+          variant={variant}
+          className={classNames(surface.className, className)}
+        />
+      </SurfaceProvider>
+    );
+  }
+);
+
+type HeaderProps = Pick<ComponentProps<typeof FoldsHeader>, 'variant' | 'size'> & AppearanceProps;
+export const Header = as<'header', HeaderProps>(
+  ({ className, variant = 'Surface', appearance, ...props }, ref) => {
+    const enclosingSurface = useSurfaceContext();
+    // Semantic foregrounds need their matching fill to retain text contrast.
+    const neutral = ['Background', 'Surface', 'SurfaceVariant'].includes(variant);
+    const surface = useSurface(
+      ref,
+      appearance ?? (enclosingSurface && neutral ? 'inherit' : 'glass'),
+      'panel',
+      variant
+    );
+    return (
+      <SurfaceProvider value={surface.context}>
+        <FoldsHeader
+          {...props}
+          ref={surface.ref}
+          variant={variant}
+          className={classNames(surface.className, className)}
+        />
+      </SurfaceProvider>
     );
   }
 );

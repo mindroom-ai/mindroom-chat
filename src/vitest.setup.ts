@@ -9,6 +9,9 @@ vi.mock('./app/styles/Glass.css', () => ({
   glassShadow: '--glass-shadow',
   glassSurface: () => 'glass-surface',
 }));
+vi.mock('./app/components/glass/Surface.css', () => ({
+  inheritSurface: 'surface-inherit',
+}));
 
 // Existing component tests replace Folds primitives with focused doubles.
 // Keep those doubles in place without requiring every factory to implement
@@ -21,6 +24,10 @@ vi.mock('./app/components/glass/GlassPrimitives', async () => {
       enumerable: true,
       get: () => folds[name],
     });
+  });
+  Object.defineProperty(wrappers, 'Surface', {
+    enumerable: true,
+    get: () => folds.Box,
   });
   return wrappers;
 });

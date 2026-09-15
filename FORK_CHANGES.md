@@ -6,15 +6,27 @@
 
 - A shared material family covers the command palette, menus, dialogs, headers, sidebar controls, composer, audio player, recording capsule, and thread controls.
 - The isolated `src/app/components/glass/liquid/` module implements rounded-edge refraction with a Snell-law displacement map and a native SVG backdrop filter, subtle RGB separation, and pointer-following highlights. It adds no dependencies.
-- Components opt in through a callback-ref hook. The runtime owns its observers, listeners, filter definitions, and cleanup; it never scans the DOM or updates React state on pointer movement.
+- Shared primitives and component families own the callback-ref hook, so their callers receive the material by default.
+  The runtime owns its observers, listeners, filter definitions, and cleanup; it never scans the DOM or updates React state on pointer movement.
 - Maps are generated on size changes, bounded to 262,144 pixels, and cached in a 32-entry LRU. Offscreen surfaces release their filters. Pointer movement reuses the map and updates two CSS variables.
 - Chromium receives the SVG refraction path. Safari and Firefox retain native translucent blur and highlights because they do not render SVG backdrop filters. Browsers without backdrop filtering retain an opaque surface.
-- App-owned polymorphic Menu, Modal, Dialog, and Header wrappers preserve forwarded refs, semantic variants, and Folds defaults. MenuItem defaults to a transparent fill so rows reveal the shared material; explicit selection fills remain supported.
+- App-owned polymorphic Menu, Modal, Dialog, and Header wrappers preserve forwarded refs, semantic variants, and Folds defaults.
+  MenuItem defaults to a transparent fill so rows reveal the shared material; explicit selection fills remain supported.
+- Shared surfaces support `appearance="glass"`, `"plain"`, and `"inherit"`.
+  Menus and dialogs default to glass; neutral nested headers and PageRoot/Page layouts reveal the enclosing material, including application, room, and space settings.
+  Headers with semantic colors keep their matching material by default so warning, error, and accent text retains contrast.
+  A plain surface restores the ordinary fill and starts a separate layout context.
+  Custom floating panels use the same polymorphic Surface primitive, including thread presets, tag selection, and statistics.
+- ESLint enforces shared static imports, including aliases, re-exports, namespaces, and deep module paths; only the adapter may import the raw Folds surface components.
+  Ordinary primitives and the Folds stylesheet remain available from the package.
+  Dynamic module loading is outside this static rule; the source inventory found no production dynamic Folds imports.
 - Inline navigation category headings retain their plain surface so the Recently opened panel has one divider instead of a second inset glass edge.
 - Equal horizontal and vertical rim highlights establish 45-degree lighting from the upper left; a circular pointer glint keeps wide controls from stretching the highlight into a horizontal streak.
 - Theme-aware tint and highlight strength protect text over bright and dark backdrops. Reduced transparency, increased contrast, and forced colors remove decorative effects and restore opaque surfaces. Reduced motion disables moving highlights and button scaling.
 - Browser coverage checks rendered edge distortion, backdrop response, five-theme text contrast, accessibility preferences, focus, editing, playback, and narrow layouts. Optical unit tests cover geometry, browser gating, resizing, visibility, ref ownership, StrictMode, and cleanup.
-- Validation: the full Node 24 suite passes all 4,209 tests across 516 files. Typecheck and the production/PWA build pass; full ESLint reports zero errors and the existing 17 warnings.
+- Validation: the full Node 24 suite passes all 4,261 tests across 518 files.
+  Typecheck and the production/PWA build pass; full ESLint reports zero errors and the existing 17 warnings.
+  Ten shared-surface browser cases and eight optical/audio cases pass, including nested layouts, portal menus, custom popovers, accessibility preferences, and five-theme contrast.
 - Review screenshots and the motion study use local sample data and remain outside version control.
 
 ### Animate the thinking marker with the M logo (2026-09-15)

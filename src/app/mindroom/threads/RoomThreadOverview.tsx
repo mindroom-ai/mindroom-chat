@@ -16,6 +16,7 @@ import {
   IconZzz,
 } from '@tabler/icons-react';
 import classNames from 'classnames';
+import { Surface } from '../../components/glass/GlassPrimitives';
 import { useLiquidGlass } from '../../components/glass/liquid/useLiquidGlass';
 import * as css from './RoomThreadOverview.css';
 import * as threadIndicatorCss from './ThreadIndicator.css';
@@ -294,7 +295,9 @@ function AddTagDropdown({
         <Text size="T200">{t('mindroomUi.threads.roomThreadOverview.tag')}</Text>
       </button>
       {open && (
-        <div
+        <Surface
+          level="overlay"
+          variant="SurfaceVariant"
           className={css.AddTagDropdown}
           role="listbox"
           aria-label={t('mindroomUi.threads.roomThreadOverview.availableTags')}
@@ -319,7 +322,7 @@ function AddTagDropdown({
               <Text size="T200">{tag}</Text>
             </button>
           ))}
-        </div>
+        </Surface>
       )}
     </div>
   );
@@ -452,7 +455,9 @@ function ThreadPresetDropdown({
         <IconChevronDown size={14} stroke={1.8} aria-hidden="true" />
       </button>
       {open && (
-        <div
+        <Surface
+          level="overlay"
+          variant="SurfaceVariant"
           className={css.PresetDropdown}
           role="listbox"
           aria-label={t('mindroomUi.threads.roomThreadOverview.filterPresets')}
@@ -491,7 +496,7 @@ function ThreadPresetDropdown({
               )}
             </TooltipProvider>
           ))}
-        </div>
+        </Surface>
       )}
     </div>
   );
@@ -566,7 +571,9 @@ function ThreadInfoPopover({
         )}
       </TooltipProvider>
       {open && (
-        <div
+        <Surface
+          level="overlay"
+          variant="SurfaceVariant"
           className={css.InfoPopover}
           role="dialog"
           aria-label={t('thread.stats.aria')}
@@ -598,7 +605,7 @@ function ThreadInfoPopover({
               ))}
             </>
           )}
-        </div>
+        </Surface>
       )}
     </div>
   );

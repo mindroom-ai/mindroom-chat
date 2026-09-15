@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { createRoot } from 'react-dom/client';
 import { createClient, MsgType } from 'matrix-js-sdk';
-import { Provider } from 'jotai';
+import { Provider, createStore } from 'jotai';
 import { AvatarFallback, Text, config } from 'folds';
 import { Header, Menu, MenuItem, Modal } from '../../src/app/components/glass/GlassPrimitives';
 import 'folds/dist/style.css';
@@ -22,6 +23,12 @@ import { CustomEditor, useEditor } from '../../src/app/components/editor';
 import { SidebarAvatar } from '../../src/app/components/sidebar';
 import { MAudio } from '../../src/app/components/message/MsgTypeRenderers';
 import { glassShadow } from '../../src/app/styles/Glass.css';
+import { Page, PageHeader, PageRoot } from '../../src/app/components/page/Page';
+import { NavCategoryHeader } from '../../src/app/components/nav/NavCategoryHeader';
+import { ScreenSizeProvider, useScreenSize } from '../../src/app/hooks/useScreenSize';
+import { RoomThreadOverview } from '../../src/app/mindroom/threads/RoomThreadOverview';
+import type { ThreadFilterState } from '../../src/app/mindroom/threads/roomThreadOverviewModel';
+import { mindroomAccountSettingsAtom } from '../../src/app/mindroom/settings/useMindroomAccountSettings';
 
 const themes = {
   light: LightTheme,
@@ -43,6 +50,22 @@ const audioContent = {
 
 function Fixture() {
   const editor = useEditor();
+  const screenSize = useScreenSize();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [threadAction, setThreadAction] = useState('No filter selected');
+  const threadState: ThreadFilterState = {
+    resolved: 'any',
+    streaming: 'any',
+    scheduled: 'any',
+    unread: 'any',
+    idle: 'any',
+    sortBy: 'natural',
+    sortDirection: 'desc',
+    tags: new Map(),
+    freeText: '',
+    unsupportedQuery: '',
+    statusMode: 'and',
+  };
 
   return (
     <main
@@ -108,13 +131,86 @@ function Fixture() {
           </MenuItem>
           <MenuItem>Copy link</MenuItem>
         </Menu>
+
+        <ScreenSizeProvider value={screenSize}>
+          <Modal
+            data-testid="settings-modal"
+            size="500"
+            style={{ width: '100%', maxWidth: '100%' }}
+          >
+            <PageRoot nav={null}>
+              <Page data-testid="settings-page">
+                <PageHeader data-testid="settings-header">
+                  <Text data-testid="settings-heading-copy" size="H4">
+                    Settings
+                  </Text>
+                </PageHeader>
+                <div style={{ padding: 16 }}>
+                  <Text data-testid="settings-copy">Account preferences stay readable.</Text>
+                  <button type="button" onClick={() => setMenuOpen(true)}>
+                    Open nested menu
+                  </button>
+                  {menuOpen &&
+                    createPortal(
+                      <Menu
+                        data-testid="settings-menu"
+                        aria-label="Settings actions"
+                        style={{ position: 'fixed', top: 20, left: 20, zIndex: 1000 }}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Escape') setMenuOpen(false);
+                        }}
+                      >
+                        <Header data-testid="settings-menu-header">Menu preferences</Header>
+                        <MenuItem autoFocus onClick={() => setMenuOpen(false)}>
+                          Close nested menu
+                        </MenuItem>
+                      </Menu>,
+                      document.body
+                    )}
+                </div>
+              </Page>
+            </PageRoot>
+          </Modal>
+          <PageRoot nav={null}>
+            <Page data-testid="standalone-page">
+              <NavCategoryHeader data-testid="plain-heading">Recently opened</NavCategoryHeader>
+              <Text>Standalone page</Text>
+            </Page>
+          </PageRoot>
+        </ScreenSizeProvider>
+
+        <section data-testid="thread-overview">
+          <RoomThreadOverview
+            hasMindroomAgents
+            threadCount={5}
+            totalThreadCount={5}
+            state={threadState}
+            availableTags={['priority']}
+            isThreadSortFrozen={false}
+            viewMode="threaded"
+            onToggle={() => {}}
+            onSortDirectionChange={() => {}}
+            onToggleThreadSortFreeze={() => {}}
+            onReset={() => {}}
+            onCycleTag={() => {}}
+            onRemoveTag={() => {}}
+            onAddTag={(tag) => setThreadAction(`Tag: ${tag}`)}
+            onApplyPreset={(preset) => setThreadAction(`Preset: ${preset.id}`)}
+            onSearchQueryChange={() => {}}
+            onViewModeChange={() => {}}
+          />
+          <output>{threadAction}</output>
+        </section>
       </div>
     </main>
   );
 }
 
+const store = createStore();
+store.set(mindroomAccountSettingsAtom, { simpleMode: false, expandLongMessagesByDefault: true });
+
 createRoot(document.getElementById('root')!).render(
-  <Provider>
+  <Provider store={store}>
     <MatrixClientProvider value={createClient({ baseUrl: window.location.origin })}>
       <SpecVersionsProvider value={{ versions: ['v1.10'] }}>
         <Fixture />
