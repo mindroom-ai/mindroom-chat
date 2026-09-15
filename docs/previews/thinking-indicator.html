@@ -40,7 +40,7 @@
         --teal: #2e767d;
       }
       main {
-        max-width: 1240px;
+        max-width: 1480px;
         margin: auto;
         padding: 44px 32px 30px;
       }
@@ -120,7 +120,7 @@
       }
       .cards {
         display: grid;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
+        grid-template-columns: repeat(4, minmax(0, 1fr));
         gap: 18px;
       }
       .concept {
@@ -334,6 +334,95 @@
       }
       .core .aura {
         animation: core-glow calc(6s * var(--speed)) ease-in-out infinite;
+      }
+      /* Keep the cube and aura on the same clock as the whole-M flip. */
+      .combined .core {
+        animation-name: combined-core;
+        animation-duration: calc(9s * var(--speed));
+      }
+      .combined .aura {
+        animation-name: combined-glow;
+        animation-duration: calc(9s * var(--speed));
+      }
+      @keyframes combined-core {
+        0%,
+        10% {
+          transform: translateY(0px) rotateY(0deg) scale(1);
+          filter: drop-shadow(0 0 9px #ffe39b30);
+        }
+        15% {
+          transform: translateY(13.5px) rotateY(-16deg) scale(1.02, 0.96);
+          filter: drop-shadow(0 0 27px #ffe39b90);
+        }
+        25% {
+          transform: translateY(-36px) rotateY(382deg) scale(0.98, 1.04);
+          filter: drop-shadow(0 0 36px #ffe39bb0);
+        }
+        30% {
+          transform: translateY(13.5px) rotateY(352deg) scale(1.025, 0.96);
+          filter: drop-shadow(0 0 18px #ffe39b75);
+        }
+        34% {
+          transform: translateY(-9px) rotateY(363deg) scale(0.99, 1.015);
+          filter: drop-shadow(0 0 18px #ffe39b60);
+        }
+        39%,
+        59% {
+          transform: translateY(0px) rotateY(360deg) scale(1);
+          filter: drop-shadow(0 0 9px #ffe39b30);
+        }
+        64% {
+          transform: translateY(13.5px) rotateY(345deg) scale(1.02, 0.96);
+          filter: drop-shadow(0 0 27px #ffe39b90);
+        }
+        75% {
+          transform: translateY(-27px) rotateY(739deg) scale(0.98, 1.03);
+          filter: drop-shadow(0 0 36px #ffe39ba0);
+        }
+        80% {
+          transform: translateY(9px) rotateY(713deg) scale(1.02, 0.97);
+          filter: drop-shadow(0 0 18px #ffe39b70);
+        }
+        85% {
+          transform: translateY(-4.5px) rotateY(722deg) scale(0.995, 1.01);
+          filter: drop-shadow(0 0 18px #ffe39b50);
+        }
+        90%,
+        100% {
+          transform: translateY(0px) rotateY(720deg) scale(1);
+          filter: drop-shadow(0 0 9px #ffe39b30);
+        }
+      }
+      @keyframes combined-glow {
+        0%,
+        10%,
+        39%,
+        59%,
+        90%,
+        100% {
+          opacity: 0.2;
+          transform: scale(1.2);
+        }
+        15%,
+        64% {
+          opacity: 0.7;
+          transform: scale(1.4);
+        }
+        25%,
+        75% {
+          opacity: 0.95;
+          transform: scale(1.75);
+        }
+        30%,
+        80% {
+          opacity: 0.4;
+          transform: scale(1.3);
+        }
+        34%,
+        85% {
+          opacity: 0.5;
+          transform: scale(1.4);
+        }
       }
       @keyframes turn {
         0%,
@@ -567,6 +656,11 @@
         font-size: 10px;
         color: var(--muted);
       }
+      @media (max-width: 1199px) {
+        .cards {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+      }
       @media (max-width: 800px) {
         main {
           padding: 25px 18px;
@@ -619,7 +713,7 @@
       <div class="eyebrow"><i></i>MindRoom / Motion studies</div>
       <h1>A little room for thought.</h1>
       <p class="lead">
-        Three ways to bring the thinking indicator to life. Watch the large study, then judge the
+        Four ways to bring the thinking indicator to life. Watch the large study, then judge the
         small version where it belongs: beside a message.
       </p>
       <div class="controls">
@@ -758,13 +852,58 @@
           </div>
           <footer>Focused, calm, good for long waits</footer>
         </article>
+        <article class="concept">
+          <header class="card-heading">
+            <span class="number">04</span><span class="tag">Combined</span>
+          </header>
+          <div class="stage">
+            <span class="emblem turn core combined" aria-hidden="true"
+              ><span class="aura"></span><span class="orbit"></span
+              ><span class="rotor"
+                ><span class="geometric"
+                  ><svg viewBox="152 112 720 720" aria-hidden="true">
+                    <use href="#outer-frame" />
+                    <use href="#left-rooms" />
+                    <use href="#right-rooms" />
+                    <use href="#central-cube" class="core" /></svg></span></span></span
+            ><span class="stage-caption">ENLARGED MOTION STUDY</span>
+          </div>
+          <div class="description">
+            <h2>Tilt & glowing core</h2>
+            <p class="intro">Charge up. Flip. Let the core bounce.</p>
+            <p>
+              The M winds up and flips as the core brightens. The cube pops and rebounds just after
+              each landing, then both settle into a quiet pause.
+            </p>
+            <div class="rhythm">9-second sequence · shared rhythm, two layers</div>
+          </div>
+          <div class="chat-sample">
+            <div class="sender">
+              <span class="avatar">M</span><strong>MindRoom</strong
+              ><span class="agent-tag">Agent</span>
+            </div>
+            <div class="message" role="status" aria-label="AI is responding">
+              <span class="emblem turn core combined small" aria-hidden="true"
+                ><span class="aura"></span><span class="orbit"></span
+                ><span class="rotor"
+                  ><span class="geometric"
+                    ><svg viewBox="152 112 720 720" aria-hidden="true">
+                      <use href="#outer-frame" />
+                      <use href="#left-rooms" />
+                      <use href="#right-rooms" />
+                      <use href="#central-cube" class="core" /></svg></span></span></span
+              ><span class="thinking">Thinking…</span>
+            </div>
+          </div>
+          <footer>Springy flips with a warm, living center</footer>
+        </article>
       </section>
       <section class="notes">
         <div>
           <h2>Choose a direction</h2>
           <p>
-            Compare each animation at 24 px beside the message. Glowing core is the early favorite.
-            The final choice is still open.
+            Compare each animation at 24 px beside the message. Tilt & glowing core combines the
+            springy flips and illuminated cube in one shared rhythm.
           </p>
         </div>
         <div>
