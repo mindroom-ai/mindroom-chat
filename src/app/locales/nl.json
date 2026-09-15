@@ -2660,6 +2660,8 @@
         "youDoNotHavePermissionToPostInThisRoom": "Je hebt geen toestemming om in deze kamer te schrijven"
       },
       "mindroomRoomViewHeader": {
+        "showComputer": "Toon computer",
+        "hideComputer": "Verberg computer",
         "notifications": "Meldingen",
         "compact": "Compact",
         "threads": "Threads",

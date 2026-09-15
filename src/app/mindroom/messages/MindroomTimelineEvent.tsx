@@ -1,9 +1,10 @@
-import { Box, Icon, IconButton, Icons, Line, Menu, PopOut, RectCords, as } from 'folds';
+import { Box, Icon, IconButton, Icons, Line, PopOut, RectCords, as } from 'folds';
 import React, { MouseEventHandler, useState } from 'react';
 import FocusTrap from 'focus-trap-react';
 import { useFocusWithin, useHover } from 'react-aria';
 import { MatrixEvent, Room } from 'matrix-js-sdk';
 import classNames from 'classnames';
+import { Menu } from '../../components/glass/GlassPrimitives';
 import { MessageBase } from '../../components/message';
 import { MessageSpacing } from '../../state/settings';
 import { useMatrixClient } from '../../hooks/useMatrixClient';

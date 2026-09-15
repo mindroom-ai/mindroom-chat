@@ -1,7 +1,8 @@
 import { useTranslation } from 'react-i18next';
 import FocusTrap from 'focus-trap-react';
-import { Box, Button, config, Menu, PopOut, RectCords, Text } from 'folds';
+import { Box, Button, config, PopOut, RectCords, Text } from 'folds';
 import React, { MouseEventHandler, ReactNode, useState } from 'react';
+import { Menu } from './glass/GlassPrimitives';
 import { stopPropagation } from '../utils/keyboard';
 
 type HexColorPickerPopOutProps = {

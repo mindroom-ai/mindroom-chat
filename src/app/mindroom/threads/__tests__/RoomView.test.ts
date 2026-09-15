@@ -19,6 +19,7 @@ const {
   compactRoomTimelineState,
   edgeSwipeBackState,
   edgeSwipeForwardState,
+  editorFocusMock,
   historyBackMock,
   historyForwardMock,
   isIOSStandaloneWebAppMock,
@@ -31,6 +32,7 @@ const {
   navigateRoomFocusEventMock,
   navigateRoomThreadMock,
   threadContextBannerState,
+  useKeyDownMock,
   useThreadRootEventMock,
 } = vi.hoisted(() => ({
   bumpRecentThreadMock: vi.fn(),
@@ -47,6 +49,7 @@ const {
     enabled: undefined as boolean | undefined,
     onForward: undefined as (() => void) | undefined,
   },
+  editorFocusMock: vi.fn(),
   historyBackMock: vi.fn(),
   historyForwardMock: vi.fn(),
   isIOSStandaloneWebAppMock: vi.fn(() => false),
@@ -63,6 +66,7 @@ const {
   threadContextBannerState: {
     props: undefined as MockThreadContextBannerProps | undefined,
   },
+  useKeyDownMock: vi.fn(),
   useThreadRootEventMock: vi.fn(() => undefined),
 }));
 
@@ -172,7 +176,7 @@ vi.mock('react-i18next', async () => {
 
 vi.mock('slate-react', () => ({
   ReactEditor: {
-    focus: vi.fn(),
+    focus: editorFocusMock,
   },
 }));
 
@@ -319,7 +323,7 @@ vi.mock('../ThreadContextBanner', () => ({
 }));
 
 vi.mock('../../../hooks/useKeyDown', () => ({
-  useKeyDown: vi.fn(),
+  useKeyDown: useKeyDownMock,
 }));
 
 vi.mock('../../../utils/dom', () => ({
@@ -459,6 +463,7 @@ describe('RoomView', () => {
     edgeSwipeBackState.onBack = undefined;
     edgeSwipeForwardState.enabled = undefined;
     edgeSwipeForwardState.onForward = undefined;
+    editorFocusMock.mockReset();
     historyBackMock.mockReset();
     historyForwardMock.mockReset();
     isIOSStandaloneWebAppMock.mockReset();
@@ -471,6 +476,7 @@ describe('RoomView', () => {
     pageState.props = undefined;
     simpleModeState.enabled = false;
     threadContextBannerState.props = undefined;
+    useKeyDownMock.mockClear();
     useThreadRootEventMock.mockReset();
     useThreadRootEventMock.mockReturnValue(undefined);
     window.history.state = null;
@@ -1418,6 +1424,36 @@ describe('RoomView', () => {
     // #root is the visual-viewport follower; a second --app-height authority
     // here is what left a gap between the composer and the iOS keyboard.
     expect(JSON.stringify(pageState.props?.style ?? {})).not.toContain('--app-height');
+  });
+
+  it('does not move computer keyboard input into the room composer', async () => {
+    const { RoomView } = await import('../../../features/room/RoomView');
+    const room = makeRoom('!computer-focus:example.org');
+
+    await act(async () => {
+      create(React.createElement(RoomView, { room: room as never }));
+    });
+    const keyDown = useKeyDownMock.mock.calls[0]?.[1] as
+      | ((event: KeyboardEvent) => void)
+      | undefined;
+    const computerSurface = {
+      closest: (selector: string) =>
+        selector === '[data-mindroom-computer-input]' ? computerSurface : null,
+    };
+
+    keyDown?.({
+      code: 'KeyA',
+      composedPath: () => [computerSurface],
+      target: computerSurface,
+    } as unknown as KeyboardEvent);
+    expect(editorFocusMock).not.toHaveBeenCalled();
+
+    keyDown?.({
+      code: 'KeyA',
+      composedPath: () => [],
+      target: null,
+    } as unknown as KeyboardEvent);
+    expect(editorFocusMock).toHaveBeenCalledOnce();
   });
 
   it('canonicalizes resolved thread ids and passes them through the thread view', async () => {

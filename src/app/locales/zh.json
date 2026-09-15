@@ -2660,6 +2660,8 @@
         "youDoNotHavePermissionToPostInThisRoom": "您没有在此房间发送消息的权限"
       },
       "mindroomRoomViewHeader": {
+        "showComputer": "显示计算机",
+        "hideComputer": "隐藏计算机",
         "notifications": "通知",
         "compact": "紧凑",
         "threads": "讨论串",

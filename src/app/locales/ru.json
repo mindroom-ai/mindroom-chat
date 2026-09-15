@@ -2752,6 +2752,8 @@
         "youDoNotHavePermissionToPostInThisRoom": "У вас нет разрешения писать в этой комнате"
       },
       "mindroomRoomViewHeader": {
+        "showComputer": "Показать компьютер",
+        "hideComputer": "Скрыть компьютер",
         "notifications": "Уведомления",
         "compact": "Компактный",
         "threads": "Ветки",

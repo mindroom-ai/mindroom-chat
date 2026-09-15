@@ -3,12 +3,9 @@ import {
   Box,
   Button,
   config,
-  Dialog,
   Icon,
   IconButton,
   Icons,
-  Menu,
-  MenuItem,
   PopOut,
   RectCords,
   Spinner,
@@ -20,6 +17,7 @@ import { Navigate } from 'react-router-dom';
 import { HttpApiEvent } from 'matrix-js-sdk/lib/http-api/interface';
 import type { HttpApiEventHandlerMap } from 'matrix-js-sdk/lib/http-api/interface';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { Menu, Dialog, MenuItem } from '../../components/glass/GlassPrimitives';
 import {
   ClientBootstrapSession,
   clearAllCacheAndReload,

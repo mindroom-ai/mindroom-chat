@@ -2660,6 +2660,8 @@
         "youDoNotHavePermissionToPostInThisRoom": "이 방에 게시할 권한이 없습니다"
       },
       "mindroomRoomViewHeader": {
+        "showComputer": "컴퓨터 표시",
+        "hideComputer": "컴퓨터 숨기기",
         "notifications": "알림",
         "compact": "간결",
         "threads": "스레드",

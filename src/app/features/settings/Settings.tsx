@@ -7,7 +7,6 @@ import {
   Icon,
   IconButton,
   Icons,
-  MenuItem,
   Overlay,
   OverlayBackdrop,
   OverlayCenter,
@@ -15,6 +14,7 @@ import {
 } from 'folds';
 import FocusTrap from 'focus-trap-react';
 import { useTranslation } from 'react-i18next';
+import { MenuItem } from '../../components/glass/GlassPrimitives';
 import { General } from './general';
 import { PageNav, PageNavContent, PageNavHeader, PageRoot } from '../../components/page';
 import { ScreenSize, useScreenSizeContext } from '../../hooks/useScreenSize';

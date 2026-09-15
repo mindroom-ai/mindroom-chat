@@ -6,11 +6,11 @@ import {
   IconButton,
   Icons,
   Line,
-  Modal,
   Overlay,
   OverlayBackdrop,
   OverlayCenter,
 } from 'folds';
+import { Modal } from '../glass/GlassPrimitives';
 
 import { CustomEditor, useEditor } from './Editor';
 import { Toolbar } from './Toolbar';

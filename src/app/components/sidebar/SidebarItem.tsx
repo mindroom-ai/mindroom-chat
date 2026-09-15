@@ -1,6 +1,7 @@
 import classNames from 'classnames';
 import { as, Avatar, Text, Tooltip, TooltipProvider, toRem } from 'folds';
 import React, { ComponentProps, ReactNode, RefCallback } from 'react';
+import { useLiquidGlass } from '../glass/liquid/useLiquidGlass';
 import * as css from './Sidebar.css';
 
 export const SidebarItem = as<'div', css.SidebarItemVariants>(
@@ -50,24 +51,30 @@ export function SidebarItemTooltip({
 }
 
 export const SidebarAvatar = as<'div', css.SidebarAvatarVariants & ComponentProps<typeof Avatar>>(
-  ({ className, size, outlined, radii, ...props }, ref) => (
-    <Avatar
-      className={classNames(css.SidebarAvatar({ size, outlined }), className)}
-      radii={radii}
-      {...props}
-      ref={ref}
-    />
-  )
+  ({ className, size, outlined, radii, ...props }, ref) => {
+    const glassRef = useLiquidGlass(ref);
+    return (
+      <Avatar
+        className={classNames(css.SidebarAvatar({ size, outlined }), className)}
+        radii={radii}
+        {...props}
+        ref={glassRef}
+      />
+    );
+  }
 );
 
 export const SidebarFolder = as<'div', css.SidebarFolderVariants>(
-  ({ as: AsSidebarFolder = 'div', className, state, ...props }, ref) => (
-    <AsSidebarFolder
-      className={classNames(css.SidebarFolder({ state }), className)}
-      {...props}
-      ref={ref}
-    />
-  )
+  ({ as: AsSidebarFolder = 'div', className, state, ...props }, ref) => {
+    const glassRef = useLiquidGlass(ref);
+    return (
+      <AsSidebarFolder
+        className={classNames(css.SidebarFolder({ state }), className)}
+        {...props}
+        ref={glassRef}
+      />
+    );
+  }
 );
 
 export const SidebarFolderDropTarget = as<'div', css.SidebarFolderDropTargetVariants>(

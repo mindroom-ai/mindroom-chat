@@ -1442,6 +1442,8 @@
         "youDoNotHavePermissionToPostInThisRoom": "आपको इस रूम में पोस्ट करने की अनुमति नहीं है"
       },
       "mindroomRoomViewHeader": {
+        "showComputer": "कंप्यूटर दिखाएँ",
+        "hideComputer": "कंप्यूटर छिपाएँ",
         "classic": "क्लासिक",
         "compact": "सघन",
         "copyLink": "लिंक की प्रतिलिपि करें",

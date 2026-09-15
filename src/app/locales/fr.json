@@ -2706,6 +2706,8 @@
         "youDoNotHavePermissionToPostInThisRoom": "Vous n’avez pas l’autorisation de publier dans ce salon"
       },
       "mindroomRoomViewHeader": {
+        "showComputer": "Afficher l’ordinateur",
+        "hideComputer": "Masquer l’ordinateur",
         "notifications": "Notifications",
         "compact": "Compact",
         "threads": "Fils",

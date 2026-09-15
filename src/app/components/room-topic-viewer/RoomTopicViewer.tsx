@@ -1,7 +1,8 @@
 import React from 'react';
-import { as, Box, Header, Icon, IconButton, Icons, Modal, Scroll, Text } from 'folds';
+import { as, Box, Icon, IconButton, Icons, Scroll, Text } from 'folds';
 import classNames from 'classnames';
 import Linkify from 'linkify-react';
+import { Modal, Header } from '../glass/GlassPrimitives';
 import * as css from './style.css';
 import { LINKIFY_OPTS, scaleSystemEmoji } from '../../plugins/react-custom-html-parser';
 

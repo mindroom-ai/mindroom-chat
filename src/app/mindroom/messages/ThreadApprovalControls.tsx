@@ -5,8 +5,6 @@ import FocusTrap from 'focus-trap-react';
 import {
   Box,
   Button,
-  Dialog,
-  Header,
   Icon,
   IconButton,
   Icons,
@@ -16,6 +14,7 @@ import {
   OverlayCenter,
   Text,
 } from 'folds';
+import { Dialog, Header } from '../../components/glass/GlassPrimitives';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useThreadApprovals } from './ThreadApprovalProvider';
 import { groupApprovalRecords, ThreadApprovalRecord } from './threadApprovalModel';

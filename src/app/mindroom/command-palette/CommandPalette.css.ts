@@ -1,44 +1,21 @@
 import { style } from '@vanilla-extract/css';
 import { color, config } from 'folds';
+import { glassSurface } from '../../styles/Glass.css';
 
-export const Shell = style({
-  // Override the modal's opaque variant without depending on stylesheet order.
-  selectors: {
-    '&&': {
-      background: color.Surface.Container,
-      border: `1px solid color-mix(in srgb, ${color.Surface.OnContainer} 14%, transparent)`,
-      boxShadow:
-        '0 24px 80px rgb(0 0 0 / 24%), 0 8px 24px rgb(0 0 0 / 12%), inset 0 1px 0 rgb(255 255 255 / 16%)',
-    },
-  },
-  '@supports': {
-    '(backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))': {
-      selectors: {
-        '&&': {
-          background: `linear-gradient(135deg, rgb(255 255 255 / 8%), transparent 45%), color-mix(in srgb, ${color.Surface.Container} 74%, transparent)`,
-          backdropFilter: 'blur(28px) saturate(140%)',
-          WebkitBackdropFilter: 'blur(28px) saturate(140%)',
-        },
+export const Shell = style([
+  glassSurface({ level: 'overlay', variant: 'Surface' }),
+  {
+    selectors: {
+      '&&': {
+        border: `1px solid color-mix(in srgb, ${color.Surface.OnContainer} 14%, transparent)`,
       },
     },
   },
-  '@media': {
-    '(prefers-reduced-transparency: reduce), (prefers-contrast: more), (forced-colors: active)': {
-      selectors: {
-        // Preference overrides must outrank @supports regardless of emitted at-rule order.
-        '&&&': {
-          background: color.Surface.Container,
-          backdropFilter: 'none',
-          WebkitBackdropFilter: 'none',
-        },
-      },
-    },
-  },
-});
+]);
 
 export const Backdrop = style({
   selectors: {
-    '&&': { background: `color-mix(in srgb, ${color.Other.Overlay} 65%, transparent)` },
+    '&&': { background: `color-mix(in srgb, ${color.Other.Overlay} 25%, transparent)` },
   },
 });
 
@@ -122,7 +99,7 @@ export const Filter = style({
   selectors: {
     '&[aria-pressed="true"]': {
       color: color.Primary.OnContainer,
-      background: `linear-gradient(135deg, rgb(255 255 255 / 8%), transparent), color-mix(in srgb, ${color.Primary.Container} 88%, transparent)`,
+      background: `color-mix(in srgb, ${color.Primary.Container} 88%, transparent)`,
       borderColor: color.Primary.ContainerLine,
       boxShadow: 'inset 0 1px 0 rgb(255 255 255 / 10%)',
     },
@@ -175,7 +152,7 @@ export const Row = style({
   outline: 'none',
   selectors: {
     '&[data-selected="true"]': {
-      background: `linear-gradient(120deg, rgb(255 255 255 / 6%), transparent 70%), color-mix(in srgb, ${color.Primary.Container} 88%, transparent)`,
+      background: `color-mix(in srgb, ${color.Primary.Container} 88%, transparent)`,
       boxShadow: `inset 0 0 0 1px ${color.Primary.ContainerLine}, inset 0 1px 0 rgb(255 255 255 / 10%), 0 2px 8px rgb(0 0 0 / 4%)`,
     },
   },

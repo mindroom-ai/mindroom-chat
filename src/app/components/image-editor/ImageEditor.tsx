@@ -1,7 +1,8 @@
 import { useTranslation } from 'react-i18next';
 import React from 'react';
 import classNames from 'classnames';
-import { Box, Chip, Header, Icon, IconButton, Icons, Text, as } from 'folds';
+import { Box, Chip, Icon, IconButton, Icons, Text, as } from 'folds';
+import { Header } from '../glass/GlassPrimitives';
 import * as css from './ImageEditor.css';
 
 export type ImageEditorProps = {

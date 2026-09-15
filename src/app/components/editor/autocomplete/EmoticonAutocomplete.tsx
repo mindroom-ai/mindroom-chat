@@ -1,8 +1,9 @@
 import { useTranslation } from 'react-i18next';
 import React, { KeyboardEvent as ReactKeyboardEvent, useEffect, useMemo } from 'react';
 import { Editor } from 'slate';
-import { Box, MenuItem, Text, toRem } from 'folds';
+import { Box, Text, toRem } from 'folds';
 import { Room } from 'matrix-js-sdk';
+import { MenuItem } from '../../glass/GlassPrimitives';
 
 import { AutocompleteQuery } from './autocompleteQuery';
 import { AutocompleteMenu } from './AutocompleteMenu';

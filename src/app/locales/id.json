@@ -2660,6 +2660,8 @@
         "youDoNotHavePermissionToPostInThisRoom": "Anda tidak memiliki izin untuk mengirim pesan di ruang ini"
       },
       "mindroomRoomViewHeader": {
+        "showComputer": "Tampilkan komputer",
+        "hideComputer": "Sembunyikan komputer",
         "notifications": "Notifikasi",
         "compact": "Ringkas",
         "threads": "Utas",

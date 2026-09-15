@@ -13,8 +13,6 @@ import {
   Icons,
   Tooltip,
   TooltipProvider,
-  Menu,
-  MenuItem,
   toRem,
   config,
   Line,
@@ -25,6 +23,7 @@ import {
 } from 'folds';
 import { useNavigate } from 'react-router-dom';
 import { Room } from 'matrix-js-sdk';
+import { Menu, MenuItem } from '../../components/glass/GlassPrimitives';
 import { useStateEvent } from '../../hooks/useStateEvent';
 import { PageHeader } from '../../components/page';
 import { RoomAvatar, RoomIcon } from '../../components/room-avatar';
@@ -75,6 +74,7 @@ import {
   getPendingJoinRequestLabel,
   PendingJoinRequestBadge,
 } from '../../features/room/PendingJoinRequestBadge';
+import { ComputerHeaderButton } from '../computer/ComputerHeaderButton';
 
 type RoomMenuProps = {
   room: Room;
@@ -295,10 +295,16 @@ const RoomMenu = forwardRef<HTMLDivElement, RoomMenuProps>(({ room, requestClose
 
 export function RoomViewHeader({
   callView,
+  computerAvailable = false,
+  computerOpen = false,
+  onComputerToggle,
   threadId,
   joinRequestCount = 0,
 }: {
   callView?: boolean;
+  computerAvailable?: boolean;
+  computerOpen?: boolean;
+  onComputerToggle?: () => void;
   threadId?: string;
   joinRequestCount?: number;
 }) {
@@ -447,6 +453,16 @@ export function RoomViewHeader({
 
         <Box shrink="No">
           <MindroomCommandPaletteHeaderButton />
+          <ComputerHeaderButton
+            label={t(
+              computerOpen
+                ? 'mindroomUi.threads.mindroomRoomViewHeader.hideComputer'
+                : 'mindroomUi.threads.mindroomRoomViewHeader.showComputer'
+            )}
+            available={computerAvailable && !!onComputerToggle}
+            open={computerOpen}
+            onToggle={onComputerToggle ?? (() => undefined)}
+          />
           {!simpleMode && !encryptedRoom && (
             <TooltipProvider
               position="Bottom"

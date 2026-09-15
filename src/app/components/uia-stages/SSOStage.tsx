@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next';
-import { Box, Button, color, config, Dialog, Header, Icon, IconButton, Icons, Text } from 'folds';
+import { Box, Button, color, config, Icon, IconButton, Icons, Text } from 'folds';
 import React, { useCallback, useEffect, useState } from 'react';
+import { Dialog, Header } from '../glass/GlassPrimitives';
 import { StageComponentProps } from './types';
 
 export function SSOStage({

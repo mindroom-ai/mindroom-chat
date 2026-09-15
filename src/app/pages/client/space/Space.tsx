@@ -17,8 +17,6 @@ import {
   IconButton,
   Icons,
   Line,
-  Menu,
-  MenuItem,
   PopOut,
   RectCords,
   Spinner,
@@ -48,6 +46,7 @@ import {
 import { JoinRule, Room } from 'matrix-js-sdk';
 import { RoomJoinRulesEventContent } from 'matrix-js-sdk/lib/types';
 import FocusTrap from 'focus-trap-react';
+import { Menu, MenuItem } from '../../../components/glass/GlassPrimitives';
 import { useMatrixClient } from '../../../hooks/useMatrixClient';
 import { mDirectAtom } from '../../../state/mDirectList';
 import {
