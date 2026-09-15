@@ -574,6 +574,7 @@ describe('VoiceAudioContent', () => {
     });
 
     expect(JSON.stringify(renderer.toJSON())).toContain('0:00 / 0:04');
+    expect(renderer.root.findByProps({ title: '0:00 / 0:04' }).props.children).toBe('0:04');
 
     mocks.srcState = {
       status: AsyncStatus.Success,

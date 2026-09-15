@@ -214,7 +214,7 @@ describe('VoiceAudioContent media element', () => {
       await Promise.resolve();
     });
 
-    expect(container.textContent).toContain('0:00 / 0:10');
+    expect(container.querySelector('[title="0:00 / 0:10"]')?.textContent).toBe('0:10');
     expect(container.querySelector('[aria-label="Play voice message"]')).not.toBeNull();
 
     Object.defineProperty(audioB, 'duration', { configurable: true, value: 12 });
@@ -226,7 +226,7 @@ describe('VoiceAudioContent media element', () => {
       await Promise.resolve();
     });
 
-    expect(container.textContent).toContain('0:04 / 0:12');
+    expect(container.querySelector('[title="0:04 / 0:12"]')?.textContent).toBe('0:04');
     expect(container.querySelector('[aria-label="Pause voice message"]')).not.toBeNull();
 
     Object.defineProperty(audioB, 'paused', { configurable: true, value: true });

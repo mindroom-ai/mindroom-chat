@@ -70,6 +70,7 @@ export function VoiceAudioContent({
   const [autoPlayOnLoad, setAutoPlayOnLoad] = useState(false);
   const [failedSource, setFailedSource] = useState<string>();
   const [currentTime, setCurrentTime] = useState(0);
+  const [showElapsedTime, setShowElapsedTime] = useState(false);
   const [moreAnchor, setMoreAnchor] = useState<RectCords>();
   const playbackRate = useAtomValue(voiceMessagePlaybackRateAtom);
   const volume = useAtomValue(voiceMessageVolumeAtom);
@@ -123,6 +124,7 @@ export function VoiceAudioContent({
     pendingSeekTimeRef.current = undefined;
     setAutoPlayOnLoad(false);
     setCurrentTime(0);
+    setShowElapsedTime(false);
     setDuration(infoDuration / 1000);
   }, [infoDuration, mediaIdentity]);
 
@@ -219,6 +221,7 @@ export function VoiceAudioContent({
   const handleSeekProgress = (progress: number) => {
     if (!duration) return;
 
+    setShowElapsedTime(true);
     const nextTime = progress * duration;
     pendingSeekTimeRef.current = undefined;
     setCurrentTime(nextTime);
@@ -294,8 +297,16 @@ export function VoiceAudioContent({
           />
         </div>
         <div className={css.Controls}>
-          <Text className={css.Time} size="B300">
-            {`${formatVoiceTime(displayCurrentTime)} / ${formatVoiceTime(displayDuration)}`}
+          <Text
+            className={css.Time}
+            size="B300"
+            title={`${formatVoiceTime(displayCurrentTime)} / ${formatVoiceTime(displayDuration)}`}
+          >
+            {formatVoiceTime(
+              showElapsedTime || playing || displayCurrentTime > 0
+                ? displayCurrentTime
+                : displayDuration
+            )}
           </Text>
           <div className={css.RateCell}>
             <VoicePlaybackRateButton />
@@ -414,6 +425,7 @@ export function VoiceAudioContent({
           ref={setAudioRef}
           onLoadedMetadata={handleLoadedMetadata}
           onPlay={() => {
+            setShowElapsedTime(true);
             applyCurrentVoiceSettings();
             updatePlayTimeFromAudio();
             applyPendingSeek();

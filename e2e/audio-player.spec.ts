@@ -28,6 +28,7 @@ test('shared audio controls play, scrub, change speed and expose downloads', asy
   for (const name of ['Audio attachment', 'Voice message']) {
     const player = page.getByRole('region', { name, exact: true });
     const label = name === 'Voice message' ? 'voice message' : 'audio';
+    await expect(player.getByTitle('0:00 / 0:12', { exact: true })).toHaveText('0:12');
     await expect(player.getByRole('button', { name: /Playback speed/ })).toBeVisible();
     await player.getByRole('button', { name: `Play ${label}`, exact: true }).click();
     await expect(player.getByRole('button', { name: `Pause ${label}`, exact: true })).toBeVisible();
@@ -45,8 +46,10 @@ test('shared audio controls play, scrub, change speed and expose downloads', asy
     await expect
       .poll(() => player.locator('audio').evaluate((el: HTMLAudioElement) => el.currentTime))
       .toBeGreaterThan(8);
+    await expect(player.getByTitle(/0:0[89] \/ 0:12/)).toHaveText(/0:0[89]/);
     await slider.press('Home');
     await expect(slider).toHaveValue('0');
+    await expect(player.getByTitle('0:00 / 0:12', { exact: true })).toHaveText('0:00');
     await slider.press('ArrowRight');
     await expect(slider).toHaveValue('5');
     await expect(slider).toHaveAttribute('aria-valuetext', '0:00 of 0:12');
@@ -85,18 +88,27 @@ for (const theme of ['light', 'dark']) {
       expect(bounds.width).toBeGreaterThan(240);
       expect(bounds.x + bounds.width).toBeLessThanOrEqual(320);
       const voice = (await region.getAttribute('aria-label')) === 'Voice message';
-      expect.soft(bounds.height).toBeLessThanOrEqual(voice ? 68 : 88);
+      expect.soft(bounds.height).toBeLessThanOrEqual(voice ? 60 : 82);
       const playBounds = await region.getByRole('button', { name: /^Play / }).boundingBox();
       const capsuleBounds = await region.locator('audio').locator('..').boundingBox();
       if (!playBounds || !capsuleBounds) throw new Error('Playback controls have no bounds');
       expect.soft(Math.abs(playBounds.width - playBounds.height)).toBeLessThan(1);
-      for (const button of await region.getByRole('button').all()) {
-        const buttonBounds = await button.boundingBox();
-        if (!buttonBounds) throw new Error('Audio button has no bounds');
+      const waveform = region.getByRole('slider');
+      const timer = region.getByTitle('0:00 / 0:12', { exact: true });
+      const waveformBounds = await waveform.boundingBox();
+      const timerBounds = await timer.boundingBox();
+      if (!waveformBounds || !timerBounds) throw new Error('Waveform or timer has no bounds');
+      expect.soft(timerBounds.x).toBeGreaterThanOrEqual(waveformBounds.x + waveformBounds.width);
+      for (const control of [...(await region.getByRole('button').all()), waveform, timer]) {
+        const controlBounds = await control.boundingBox();
+        if (!controlBounds) throw new Error('Audio control has no bounds');
         expect
           .soft(
             Math.abs(
-              buttonBounds.y + buttonBounds.height / 2 - capsuleBounds.y - capsuleBounds.height / 2
+              controlBounds.y +
+                controlBounds.height / 2 -
+                capsuleBounds.y -
+                capsuleBounds.height / 2
             )
           )
           .toBeLessThan(1);
