@@ -39,6 +39,9 @@ vi.mock('folds', () => ({
 
 vi.mock('./VoiceAudioContent.css', () => ({
   Audio: 'Audio',
+  Title: 'Title',
+  Controls: 'Controls',
+  Error: 'Error',
   Capsule: 'Capsule',
   MoreCell: 'MoreCell',
   MoreMenu: 'MoreMenu',

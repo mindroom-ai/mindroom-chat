@@ -1,5 +1,4 @@
 import React from 'react';
-import { readFileSync } from 'node:fs';
 import { Provider, createStore, type Store } from 'jotai';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -46,6 +45,9 @@ vi.mock('folds', () => ({
 
 vi.mock('./VoiceAudioContent.css', () => ({
   Audio: 'Audio',
+  Title: 'Title',
+  Controls: 'Controls',
+  Error: 'Error',
   Capsule: 'Capsule',
   MoreCell: 'MoreCell',
   MoreMenu: 'MoreMenu',
@@ -83,6 +85,7 @@ vi.mock('../../voice/VoiceWaveform.css', () => ({
   Waveform: 'Waveform',
   WaveformDimmed: 'WaveformDimmed',
   WaveformSeek: 'WaveformSeek',
+  SeekInput: 'SeekInput',
 }));
 
 vi.mock('focus-trap-react', () => ({
@@ -212,6 +215,7 @@ const renderVoiceAudioContent = (props?: Partial<React.ComponentProps<typeof Voi
     filename: (props as { filename?: string } | undefined)?.filename ?? 'voice.ogg',
     waveform: props?.waveform ?? [0, 512, 1024],
     encInfo: props?.encInfo,
+    label: props?.label,
   });
 
 const renderVoiceAudio = (
@@ -255,14 +259,14 @@ describe('VoiceAudioContent', () => {
     const buttons = renderer.root.findAllByType('button');
     expect(buttons.map((button) => button.props['aria-label'])).toEqual([
       'Play voice message',
-      'Seek voice message',
       'Voice volume, currently 100%',
+      'Playback speed, currently 1×, click to cycle',
       'More audio options',
     ]);
     expect(renderer.root.findAllByType('rect')).toHaveLength(48);
     const rendered = JSON.stringify(renderer.toJSON());
     expect(rendered).toContain('0:00 / 0:10');
-    expect(rendered).not.toMatch(/download|mute|speed/i);
+    expect(rendered).not.toMatch(/download|mute/i);
 
     act(() => {
       renderer.unmount();
@@ -362,32 +366,43 @@ describe('VoiceAudioContent', () => {
     });
   });
 
-  it('keeps the posted voice-player CSS from collapsing in shrink-wrapped bubbles', () => {
-    const cssSource = readFileSync(new URL('./VoiceAudioContent.css.ts', import.meta.url), 'utf8');
-
-    expect(cssSource).not.toContain('createContainer');
-    expect(cssSource).not.toContain('containerType');
-    expect(cssSource).not.toContain('globalStyle');
-    expect(cssSource).toMatch(/minmax\(\$\{toRem\(96\)\}, 1fr\)/);
-    expect(cssSource).toContain('gridTemplateAreas');
-    expect(cssSource).toContain('max-width');
-    expect(cssSource).not.toContain('toRem(112)');
+  it('lets listeners set playback speed before loading audio', () => {
+    const store = createStore();
+    renderer = create(renderVoiceAudio(store));
+    act(() => {
+      renderer.root
+        .findByProps({
+          'aria-label': 'Playback speed, currently 1×, click to cycle',
+        })
+        .props.onClick();
+    });
+    expect(store.get(voiceMessagePlaybackRateAtom)).toBe(1.5);
+    expect(mocks.loadSrc).not.toHaveBeenCalled();
+    renderer.unmount();
   });
 
-  it('hides the playback speed pill initially with a placeholder occupying the rate column', () => {
+  it('shows an audio filename without opening the options menu', () => {
+    renderer = create(
+      renderVoiceAudio(createStore(), { filename: 'Interview.mp3', label: 'audio' })
+    );
+    expect(JSON.stringify(renderer.toJSON())).toContain('Interview.mp3');
+    renderer.unmount();
+  });
+
+  it('explains source loading failures and allows another play attempt', () => {
+    mocks.srcState = { status: AsyncStatus.Error };
     renderer = create(renderVoiceAudio());
-
-    expect(renderer.root.findAllByProps({ 'aria-hidden': 'true' })).toHaveLength(2);
     expect(
-      renderer.root.findAllByProps({
-        'aria-label': 'Playback speed, currently 1×, click to cycle',
-      })
-    ).toHaveLength(0);
-    expect(JSON.stringify(renderer.toJSON())).toContain('1.5×');
-
+      renderer.root
+        .findAllByType('span')
+        .find((node) => node.props.role === 'status')
+        ?.children.join('')
+    ).toContain('Unable to load audio');
     act(() => {
-      renderer.unmount();
+      renderer.root.findByProps({ 'aria-label': 'Play voice message' }).props.onClick();
     });
+    expect(mocks.loadSrc).toHaveBeenCalledOnce();
+    renderer.unmount();
   });
 
   it('lazily loads media on first play and autoplays once loaded', () => {
@@ -438,12 +453,9 @@ describe('VoiceAudioContent', () => {
     renderer = create(renderVoiceAudio());
 
     act(() => {
-      renderer.root.findByProps({ 'aria-label': 'Seek voice message' }).props.onClick({
-        clientX: 25,
-        currentTarget: {
-          getBoundingClientRect: () => ({ left: 0, width: 100 }),
-        },
-      });
+      renderer.root
+        .findByProps({ 'aria-label': 'Seek voice message' })
+        .props.onChange({ currentTarget: { value: '25' } });
     });
 
     expect(mocks.seek).toHaveBeenCalledWith(2.5);
@@ -489,12 +501,9 @@ describe('VoiceAudioContent', () => {
     });
 
     await act(async () => {
-      renderer.root.findByProps({ 'aria-label': 'Seek voice message' }).props.onClick({
-        clientX: 50,
-        currentTarget: {
-          getBoundingClientRect: () => ({ left: 0, width: 100 }),
-        },
-      });
+      renderer.root
+        .findByProps({ 'aria-label': 'Seek voice message' })
+        .props.onChange({ currentTarget: { value: '50' } });
     });
 
     expect(mocks.loadSrc).toHaveBeenCalledOnce();
@@ -526,12 +535,9 @@ describe('VoiceAudioContent', () => {
     renderer = create(renderVoiceAudio(store, { url: 'mxc://mindroom/voice-a' }));
 
     await act(async () => {
-      renderer.root.findByProps({ 'aria-label': 'Seek voice message' }).props.onClick({
-        clientX: 50,
-        currentTarget: {
-          getBoundingClientRect: () => ({ left: 0, width: 100 }),
-        },
-      });
+      renderer.root
+        .findByProps({ 'aria-label': 'Seek voice message' })
+        .props.onChange({ currentTarget: { value: '50' } });
     });
 
     expect(JSON.stringify(renderer.toJSON())).toContain('0:05 / 0:10');
@@ -921,7 +927,9 @@ describe('VoiceAudioContent', () => {
       status: AsyncStatus.Success,
       data: 'blob:voice',
     };
-    renderer = create(renderVoiceAudio(store));
+    act(() => {
+      renderer = create(renderVoiceAudio(store));
+    });
 
     act(() => {
       renderer.root.findByProps({ 'aria-label': 'Play voice message' }).props.onClick();
@@ -929,7 +937,7 @@ describe('VoiceAudioContent', () => {
 
     act(() => {
       renderer.root
-        .findByProps({ 'aria-label': 'Playback speed, currently 1×, click to cycle' })
+        .findAllByProps({ 'aria-label': 'Playback speed, currently 1×, click to cycle' })[0]
         .props.onClick();
     });
     expect(store.get(voiceMessagePlaybackRateAtom)).toBe(1.5);
@@ -994,20 +1002,17 @@ describe('VoiceAudioContent', () => {
     });
     act(() => {
       renderer.root
-        .findByProps({ 'aria-label': 'Playback speed, currently 1×, click to cycle' })
+        .findAllByProps({ 'aria-label': 'Playback speed, currently 1×, click to cycle' })[0]
         .props.onClick();
     });
 
     expect(audioA.playbackRate).toBe(1.5);
     expect(audioB.playbackRate).toBe(1.5);
     expect(
-      renderer.root.findByProps({ 'aria-label': 'Playback speed, currently 1.5×, click to cycle' })
-    ).toBeTruthy();
-    expect(
       renderer.root.findAllByProps({
         'aria-label': 'Playback speed, currently 1.5×, click to cycle',
       })
-    ).toHaveLength(1);
+    ).toHaveLength(2);
 
     act(() => {
       renderer.root.findAllByType('audio')[1].props.onPlay();
@@ -1039,12 +1044,9 @@ describe('VoiceAudioContent', () => {
     expect(JSON.stringify(renderer.toJSON())).toContain('0:00 / 0:10');
 
     act(() => {
-      renderer.root.findByProps({ 'aria-label': 'Seek voice message' }).props.onClick({
-        clientX: 50,
-        currentTarget: {
-          getBoundingClientRect: () => ({ left: 0, width: 100 }),
-        },
-      });
+      renderer.root
+        .findByProps({ 'aria-label': 'Seek voice message' })
+        .props.onChange({ currentTarget: { value: '50' } });
     });
 
     expect(mocks.seek).toHaveBeenCalledWith(5);
@@ -1099,12 +1101,9 @@ describe('VoiceAudioContent', () => {
     expect(JSON.stringify(renderer.toJSON())).toContain('0:02 / 0:08');
 
     act(() => {
-      renderer.root.findByProps({ 'aria-label': 'Seek voice message' }).props.onClick({
-        clientX: 100,
-        currentTarget: {
-          getBoundingClientRect: () => ({ left: 0, width: 100 }),
-        },
-      });
+      renderer.root
+        .findByProps({ 'aria-label': 'Seek voice message' })
+        .props.onChange({ currentTarget: { value: '100' } });
     });
 
     expect(mocks.seek).toHaveBeenCalledWith(8.52);
@@ -1161,12 +1160,9 @@ describe('VoiceAudioContent', () => {
 
     expect(JSON.stringify(renderer.toJSON())).toContain('0:00 / 0:08');
     act(() => {
-      renderer.root.findByProps({ 'aria-label': 'Seek voice message' }).props.onClick({
-        clientX: 100,
-        currentTarget: {
-          getBoundingClientRect: () => ({ left: 0, width: 100 }),
-        },
-      });
+      renderer.root
+        .findByProps({ 'aria-label': 'Seek voice message' })
+        .props.onChange({ currentTarget: { value: '100' } });
     });
 
     expect(mocks.seek).toHaveBeenCalledWith(8.52);

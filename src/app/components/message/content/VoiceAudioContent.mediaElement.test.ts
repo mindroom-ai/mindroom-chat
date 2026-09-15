@@ -35,12 +35,21 @@ vi.mock('folds', () => ({
   PopOut: ({ anchor, content }: { anchor?: unknown; content: React.ReactNode }) =>
     anchor ? React.createElement('div', { 'data-popout': 'true' }, content) : null,
   Spinner: (props: Record<string, unknown>) => React.createElement('span', props),
-  Text: ({ children, ...props }: { children?: React.ReactNode }) =>
-    React.createElement('span', props, children),
+  Text: ({
+    children,
+    truncate: _truncate,
+    ...props
+  }: {
+    children?: React.ReactNode;
+    truncate?: boolean;
+  }) => React.createElement('span', props, children),
 }));
 
 vi.mock('./VoiceAudioContent.css', () => ({
   Audio: 'Audio',
+  Title: 'Title',
+  Controls: 'Controls',
+  Error: 'Error',
   Capsule: 'Capsule',
   MoreCell: 'MoreCell',
   MoreMenu: 'MoreMenu',

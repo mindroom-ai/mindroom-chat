@@ -1,10 +1,11 @@
-import { useTranslation } from 'react-i18next';
 /* eslint-disable jsx-a11y/media-has-caption */
+import { useTranslation } from 'react-i18next';
 import FocusTrap from 'focus-trap-react';
 import React, { MouseEventHandler, useCallback, useEffect, useRef, useState } from 'react';
 import { Icon, IconButton, Icons, Menu, PopOut, RectCords, Spinner, Text } from 'folds';
 import { EncryptedAttachmentInfo } from 'browser-encrypt-attachment';
 import { useAtomValue } from 'jotai';
+import { IconPlayerPauseFilled, IconPlayerPlayFilled } from '@tabler/icons-react';
 import { IAudioInfo } from '../../../../types/matrix/common';
 import { AsyncStatus } from '../../../hooks/useAsyncCallback';
 import {
@@ -22,10 +23,7 @@ import {
   voiceMessagePlaybackRateAtom,
   voiceMessageVolumeAtom,
 } from '../../../mindroom/settings/voiceMessageSettings';
-import {
-  VoicePlaybackRateButton,
-  VoicePlaybackRatePlaceholder,
-} from '../../voice/VoicePlaybackRateButton';
+import { VoicePlaybackRateButton } from '../../voice/VoicePlaybackRateButton';
 import { VoiceVolumeButton } from '../../voice/VoiceVolumeButton';
 import { VoiceWaveform } from '../../voice/VoiceWaveform';
 import { bytesToSize } from '../../../utils/common';
@@ -48,6 +46,7 @@ export type VoiceAudioContentProps = {
   info: IAudioInfo;
   encInfo?: EncryptedAttachmentInfo;
   filename?: string;
+  isVoiceMessage?: boolean;
   waveform?: number[];
   label?: string;
 };
@@ -60,6 +59,7 @@ export function VoiceAudioContent({
   filename = 'Audio',
   waveform,
   label,
+  isVoiceMessage = true,
 }: VoiceAudioContentProps) {
   const { t } = useTranslation();
   const [srcState, loadSrc] = useAudioContentSource({ mimeType, url, encInfo });
@@ -68,7 +68,6 @@ export function VoiceAudioContent({
   const pendingSeekTimeRef = useRef<number>();
   const moreTriggerRef = useRef<HTMLButtonElement | null>(null);
   const [autoPlayOnLoad, setAutoPlayOnLoad] = useState(false);
-  const [interacted, setInteracted] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [moreAnchor, setMoreAnchor] = useState<RectCords>();
   const playbackRate = useAtomValue(voiceMessagePlaybackRateAtom);
@@ -194,7 +193,6 @@ export function VoiceAudioContent({
   }, [applyCurrentVoiceSettings, applyPendingSeek, updatePlayTimeFromAudio]);
 
   const handlePlay = () => {
-    setInteracted(true);
     applyCurrentVoiceSettings();
 
     if (srcState.status === AsyncStatus.Success) {
@@ -218,7 +216,6 @@ export function VoiceAudioContent({
   const handleSeekProgress = (progress: number) => {
     if (!duration) return;
 
-    setInteracted(true);
     const nextTime = progress * duration;
     pendingSeekTimeRef.current = undefined;
     setCurrentTime(nextTime);
@@ -249,12 +246,16 @@ export function VoiceAudioContent({
 
   return (
     <div className={css.Root}>
-      <div className={css.Capsule}>
+      <div className={css.Capsule} data-playing={playing || undefined}>
+        <Text className={css.Title} size="T200" truncate title={filename}>
+          {isVoiceMessage ? t('sharedUi.threadPreviews.voiceMessage') : filename}
+        </Text>
         <div className={css.PlayCell}>
           <IconButton
-            variant="SurfaceVariant"
-            size="300"
-            radii="300"
+            variant="Primary"
+            fill="Soft"
+            size="600"
+            radii="Pill"
             onClick={handlePlay}
             disabled={srcState.status === AsyncStatus.Loading}
             aria-label={
@@ -266,8 +267,10 @@ export function VoiceAudioContent({
           >
             {srcState.status === AsyncStatus.Loading || loading ? (
               <Spinner variant="Secondary" size="50" />
+            ) : playing ? (
+              <IconPlayerPauseFilled size={22} aria-hidden="true" />
             ) : (
-              <Icon src={playing ? Icons.Pause : Icons.Play} size="50" filled={playing} />
+              <IconPlayerPlayFilled size={22} aria-hidden="true" />
             )}
           </IconButton>
         </div>
@@ -276,112 +279,124 @@ export function VoiceAudioContent({
             waveform={waveform}
             progress={progress}
             label={t('sharedUi.voiceAudioContent.seekValue1', { value1: mediaLabel })}
+            valueText={t('sharedUi.voiceAudioContent.playbackPosition', {
+              current: formatVoiceTime(displayCurrentTime),
+              duration: formatVoiceTime(displayDuration),
+            })}
+            disabled={!duration}
             onSeekProgress={handleSeekProgress}
           />
         </div>
-        <Text className={css.Time} size="B300">
-          {`${formatVoiceTime(displayCurrentTime)} / ${formatVoiceTime(displayDuration)}`}
-        </Text>
-        <div className={css.VolumeCell}>
-          <VoiceVolumeButton />
-        </div>
-        <div className={css.RateCell}>
-          {interacted ? <VoicePlaybackRateButton /> : <VoicePlaybackRatePlaceholder />}
-        </div>
-        <div className={css.MoreCell}>
-          <IconButton
-            ref={moreTriggerRef}
-            variant="SurfaceVariant"
-            size="300"
-            radii="300"
-            aria-label={t('sharedUi.voiceAudioContent.moreAudioOptions')}
-            aria-haspopup="dialog"
-            aria-expanded={moreAnchor ? true : undefined}
-            onClick={handleMoreOpen}
-          >
-            <Icon src={Icons.VerticalDots} size="50" />
-          </IconButton>
-          <PopOut
-            anchor={moreAnchor}
-            position="Bottom"
-            align="End"
-            offset={5}
-            content={
-              <FocusTrap
-                focusTrapOptions={{
-                  initialFocus: false,
-                  returnFocusOnDeactivate: false,
-                  onDeactivate: () => setMoreAnchor(undefined),
-                  clickOutsideDeactivates: (event) => {
-                    const target = event.target;
-                    return !(
-                      typeof Node !== 'undefined' &&
-                      target instanceof Node &&
-                      moreTriggerRef.current?.contains(target)
-                    );
-                  },
-                  allowOutsideClick: (event) => {
-                    const target = event.target;
-                    return (
-                      typeof Node !== 'undefined' &&
-                      target instanceof Node &&
-                      !!moreTriggerRef.current?.contains(target)
-                    );
-                  },
-                  escapeDeactivates: stopPropagation,
-                }}
-              >
-                <Menu className={css.MoreMenu}>
-                  <div className={css.MoreMenuAction}>
-                    <Text size="B300">{t('sharedUi.voiceAudioContent.download')}</Text>
-                    <FileDownloadButton
-                      filename={filename}
-                      url={url}
-                      mimeType={mimeType}
-                      encInfo={encInfo}
-                    />
-                  </div>
-                  <div className={css.MoreMenuMeta}>
-                    <Text className={css.MoreMenuMetaLabel} size="L400">
-                      {t('sharedUi.voiceAudioContent.name')}
-                    </Text>
-                    <Text className={css.MoreMenuMetaValue} size="T200" truncate>
-                      {filename}
-                    </Text>
-                  </div>
-                  <div className={css.MoreMenuMeta}>
-                    <Text className={css.MoreMenuMetaLabel} size="L400">
-                      {t('sharedUi.voiceAudioContent.type')}
-                    </Text>
-                    <Text className={css.MoreMenuMetaValue} size="T200" truncate>
-                      {mimeType}
-                    </Text>
-                  </div>
-                  {sizeText && (
+        <div className={css.Controls}>
+          <Text className={css.Time} size="B300">
+            {`${formatVoiceTime(displayCurrentTime)} / ${formatVoiceTime(displayDuration)}`}
+          </Text>
+          <div className={css.VolumeCell}>
+            <VoiceVolumeButton />
+          </div>
+          <div className={css.RateCell}>
+            <VoicePlaybackRateButton />
+          </div>
+          <div className={css.MoreCell}>
+            <IconButton
+              ref={moreTriggerRef}
+              variant="SurfaceVariant"
+              size="300"
+              radii="300"
+              aria-label={t('sharedUi.voiceAudioContent.moreAudioOptions')}
+              aria-haspopup="dialog"
+              aria-expanded={moreAnchor ? true : undefined}
+              onClick={handleMoreOpen}
+            >
+              <Icon src={Icons.VerticalDots} size="50" />
+            </IconButton>
+            <PopOut
+              anchor={moreAnchor}
+              position="Bottom"
+              align="End"
+              offset={5}
+              content={
+                <FocusTrap
+                  focusTrapOptions={{
+                    initialFocus: false,
+                    returnFocusOnDeactivate: false,
+                    onDeactivate: () => setMoreAnchor(undefined),
+                    clickOutsideDeactivates: (event) => {
+                      const target = event.target;
+                      return !(
+                        typeof Node !== 'undefined' &&
+                        target instanceof Node &&
+                        moreTriggerRef.current?.contains(target)
+                      );
+                    },
+                    allowOutsideClick: (event) => {
+                      const target = event.target;
+                      return (
+                        typeof Node !== 'undefined' &&
+                        target instanceof Node &&
+                        !!moreTriggerRef.current?.contains(target)
+                      );
+                    },
+                    escapeDeactivates: stopPropagation,
+                  }}
+                >
+                  <Menu className={css.MoreMenu}>
+                    <div className={css.MoreMenuAction}>
+                      <Text size="B300">{t('sharedUi.voiceAudioContent.download')}</Text>
+                      <FileDownloadButton
+                        filename={filename}
+                        url={url}
+                        mimeType={mimeType}
+                        encInfo={encInfo}
+                      />
+                    </div>
                     <div className={css.MoreMenuMeta}>
                       <Text className={css.MoreMenuMetaLabel} size="L400">
-                        {t('sharedUi.voiceAudioContent.size')}
+                        {t('sharedUi.voiceAudioContent.name')}
                       </Text>
-                      <Text className={css.MoreMenuMetaValue} size="T200">
-                        {sizeText}
+                      <Text className={css.MoreMenuMetaValue} size="T200" truncate>
+                        {filename}
                       </Text>
                     </div>
-                  )}
-                  {durationText && (
                     <div className={css.MoreMenuMeta}>
                       <Text className={css.MoreMenuMetaLabel} size="L400">
-                        {t('sharedUi.voiceAudioContent.duration')}
+                        {t('sharedUi.voiceAudioContent.type')}
                       </Text>
-                      <Text className={css.MoreMenuMetaValue} size="T200">
-                        {durationText}
+                      <Text className={css.MoreMenuMetaValue} size="T200" truncate>
+                        {mimeType}
                       </Text>
                     </div>
-                  )}
-                </Menu>
-              </FocusTrap>
-            }
-          />
+                    {sizeText && (
+                      <div className={css.MoreMenuMeta}>
+                        <Text className={css.MoreMenuMetaLabel} size="L400">
+                          {t('sharedUi.voiceAudioContent.size')}
+                        </Text>
+                        <Text className={css.MoreMenuMetaValue} size="T200">
+                          {sizeText}
+                        </Text>
+                      </div>
+                    )}
+                    {durationText && (
+                      <div className={css.MoreMenuMeta}>
+                        <Text className={css.MoreMenuMetaLabel} size="L400">
+                          {t('sharedUi.voiceAudioContent.duration')}
+                        </Text>
+                        <Text className={css.MoreMenuMetaValue} size="T200">
+                          {durationText}
+                        </Text>
+                      </div>
+                    )}
+                  </Menu>
+                </FocusTrap>
+              }
+            />
+          </div>
         </div>
+        {srcState.status === AsyncStatus.Error && (
+          <Text className={css.Error} size="T200" role="status">
+            {t('sharedUi.voiceAudioContent.loadError')}
+          </Text>
+        )}
         <audio
           key={audioMediaKey}
           className={css.Audio}
@@ -390,7 +405,6 @@ export function VoiceAudioContent({
           ref={setAudioRef}
           onLoadedMetadata={handleLoadedMetadata}
           onPlay={() => {
-            setInteracted(true);
             applyCurrentVoiceSettings();
             updatePlayTimeFromAudio();
             applyPendingSeek();

@@ -14,12 +14,25 @@ export const Waveform = style([
 ]);
 
 export const WaveformSeek = style({
+  position: 'relative',
   cursor: 'pointer',
   borderRadius: config.radii.R300,
-  ':focus-visible': {
+  ':focus-within': {
     outline: `${config.borderWidth.B300} solid ${color.Primary.Main}`,
     outlineOffset: config.space.S100,
   },
+});
+
+// Native range supplies pointer capture, touch scrubbing and slider semantics.
+export const SeekInput = style({
+  position: 'absolute',
+  inset: 0,
+  width: '100%',
+  height: '100%',
+  margin: 0,
+  opacity: 0,
+  cursor: 'pointer',
+  ':disabled': { cursor: 'default' },
 });
 
 export const WaveformDimmed = style({

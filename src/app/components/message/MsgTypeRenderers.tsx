@@ -364,6 +364,7 @@ export function MAudio({ content, renderAsFile }: MAudioProps) {
       encInfo={content.file}
       filename={downloadFilename}
       waveform={voiceAudioDetails?.waveform}
+      isVoiceMessage={voiceMessage}
       label={
         voiceMessage
           ? t('sharedUi.msgTypeRenderers.voiceMessage')

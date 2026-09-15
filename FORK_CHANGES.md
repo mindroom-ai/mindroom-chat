@@ -2,6 +2,17 @@
 
 ## Runbook
 
+### Shared audio player refresh (2026-09-15)
+
+- Status: implemented and validated locally on `feat/shared-audio-player`; independent review pending.
+- The existing shared player now shows attachment filenames or a voice-message title, a 48px play/pause control, playback speed before interaction, and a visible message when loading fails.
+- Waveform seeking uses a native range input for drag and touch scrubbing, keyboard control, and an accessible time value.
+- The card fits both mobile messages and narrow panels on wide screens, while keeping volume and the download/metadata menu available.
+- Validation: 51 focused tests and four Chromium browser tests pass, including real WAV playback, scrubbing, speed changes, menus, light/dark mobile layouts, and 220px panels.
+- Typecheck, lint, production build, formatting, and whitespace checks pass.
+- Full `npm test`: 3605 pass, seven fail across `xcodeCloudPostClone.test.ts`, `matrixSdkThreadReset.test.ts`, and `useRoomInputSendSessionController.test.ts`.
+- All seven failures reproduce on unchanged `dev` with the same dependencies; they are outside this player change.
+
 ### Full interface internationalization (2026-09-14)
 
 - Status: implementation, language quality corrections, independent reviews, and local verification are complete; ready PR #249 is open against dev.

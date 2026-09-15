@@ -15,6 +15,7 @@ vi.mock('./VoiceWaveform.css', () => ({
   WaveformCompact: 'WaveformCompact',
   WaveformDimmed: 'WaveformDimmed',
   WaveformSeek: 'WaveformSeek',
+  SeekInput: 'SeekInput',
 }));
 
 describe('VoiceWaveform', () => {
@@ -43,7 +44,7 @@ describe('VoiceWaveform', () => {
     renderer.unmount();
   });
 
-  it('maps click and keyboard input to seek progress', () => {
+  it('maps native slider scrubbing and keyboard input to seek progress', () => {
     const onSeekProgress = vi.fn();
     const renderer = create(
       React.createElement(VoiceWaveform, {
@@ -53,15 +54,13 @@ describe('VoiceWaveform', () => {
       })
     );
 
-    const button = renderer.root.findByType('button');
+    const button = renderer.root.findByType('input');
+    expect(button.props.type).toBe('range');
+    expect(button.props.value).toBe(50);
+    expect(button.props['aria-valuetext']).toBe('50%');
 
     act(() => {
-      button.props.onClick({
-        clientX: 25,
-        currentTarget: {
-          getBoundingClientRect: () => ({ left: 0, width: 100 }),
-        },
-      });
+      button.props.onChange({ currentTarget: { value: '25' } });
     });
     act(() => {
       button.props.onKeyDown({
