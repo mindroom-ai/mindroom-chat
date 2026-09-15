@@ -2,9 +2,14 @@
 
 ## Runbook
 
-### Compare M-logo thinking animations (2026-09-15)
+### Animate the thinking marker with the M logo (2026-09-15)
 
-- Status: four working animation concepts are available in `docs/previews/thinking-indicator.html` for visual selection.
+- Status: the selected Tilt, then glowing core sequence replaces the four-dot indicator in `MindroomThinkingPlaceholder`.
+- The marker uses a decorative inline SVG with references to the cached `thinking-mark.svg` asset; native CSS animates the whole M for nine seconds, then the central cube for six seconds, and repeats.
+- The marker scales with text at 1.5 em (24 px beside 16 px text), keeps the existing rotating text and accessible responding status, and disappears through the existing message renderer when the answer starts or the run finishes.
+- Vite emits the artwork as a separate asset with a content hash in its name, and the service worker precaches it for offline rendering.
+- `e2e/thinking-marker.spec.ts` exercises the real component, resolved SVG parts, sequential phases, loop boundary, text sizing, both themes, and reduced motion.
+- The four exploratory concepts remain available in `docs/previews/thinking-indicator.html` as design references.
 - Open that standalone HTML file in a browser to compare Tilt & turn, Gyroscope, Glowing core, and Tilt, then glowing core using the detailed illuminated glass M from MindRoom’s `assets/logo/logo-mark.svg` (`main` at `d733862764de`).
 - Each concept includes an enlarged motion study and a chat-size example, with size, theme, pause, half-speed, text-shimmer, and reduced-motion controls.
 - Motion uses short wind-ups, quick flips, overshoot, rebound, and unequal pauses; Glowing core keeps the outer M still while the gold cube moves.
@@ -13,7 +18,7 @@
 - The original geometry, gradients, masks, and layer order are preserved in one shared SVG definition set; Glowing core animates the original central cube.
 - Fidelity checks verify byte-identical source artwork, resolved SVG references, and pixel-identical rendering at 256 px. Chromium checks cover all controls, both reduced-motion modes, SVG rendering, mobile layout, and script errors.
 - Typecheck, lint, build, and changed-file formatting pass; the full Node 24 suite passes 4,154 tests, with three existing Nix shell-fixture failures caused by hard-coded system shell paths.
-- The comparison is a design prototype; choosing and integrating the final chat indicator is a follow-up after visual selection.
+- The comparison HTML is a design reference; the application uses the selected sequence from `MindroomThinkingPlaceholder.css.ts` and the shared production artwork.
 
 ### Fill mobile navigation and collapse narrow split panes (2026-09-15)
 

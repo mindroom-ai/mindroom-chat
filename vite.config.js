@@ -248,6 +248,7 @@ export default defineConfig({
       injectManifest: {
         injectionPoint: 'self.__WB_MANIFEST',
         maximumFileSizeToCacheInBytes: 6 * 1024 * 1024,
+        globPatterns: ['**/*.{js,wasm,css,html}', 'assets/thinking-mark-*.svg'],
         globIgnores: ['public/element-call/**', 'runtime-config.js', 'version.json'],
       },
       devOptions: {

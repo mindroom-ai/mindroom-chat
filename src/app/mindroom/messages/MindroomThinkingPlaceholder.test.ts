@@ -9,9 +9,12 @@ import {
 } from './thinkingPlaceholder';
 
 vi.mock('./MindroomThinkingPlaceholder.css', () => ({
-  Dot: 'Dot',
+  Aura: 'Aura',
+  Core: 'Core',
   Indicator: 'Indicator',
+  Mark: 'Mark',
   Placeholder: 'Placeholder',
+  Rotor: 'Rotor',
   Text: 'Text',
 }));
 
@@ -48,7 +51,7 @@ describe('resolveMindroomThinkingPlaceholderMessages', () => {
 });
 
 describe('MindroomThinkingPlaceholder', () => {
-  it('renders a compact decorative thought orbit inside the responding status', () => {
+  it('keeps the SVG artwork decorative inside the responding status', () => {
     const renderer = renderPlaceholder(['Working']);
 
     const status = renderer.root.findByProps({ role: 'status' });
@@ -56,7 +59,8 @@ describe('MindroomThinkingPlaceholder', () => {
 
     expect(status.props['aria-label']).toBe('AI is responding');
     expect(indicator.props['aria-hidden']).toBe('true');
-    expect(indicator.findAllByProps({ className: 'Dot' })).toHaveLength(4);
+    expect(indicator.findAllByType('svg')).toHaveLength(1);
+    expect(indicator.findByType('svg').props.focusable).toBe('false');
     expect(JSON.stringify(renderer.toJSON())).toContain('Working');
 
     renderer.unmount();
