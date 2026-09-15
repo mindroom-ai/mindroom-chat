@@ -2,22 +2,17 @@
 
 ## Runbook
 
-### Shared audio player refresh (2026-09-15)
+### Configure Explorer sidebar visibility in Simple Mode (2026-09-15)
 
-- Status: implemented and validated on `feat/shared-audio-player`; ready PR #251 includes light/dark screenshots.
-- Voice messages and normal audio attachments share a compact player with a fixed 44px circular play/pause control and playback speed available before interaction.
-- Play, speed, and menu controls center against the complete waveform-and-time block, giving the card equal top and bottom spacing; a quieter timer and plain speed label reduce visual clutter.
-- The initial 118px card made the padded play button oval and placed it above the waveform; browser geometry checks now cover both defects.
-- The revised player is 64px tall for voice messages and 86px including the filename for audio attachments; volume and downloads live in the options menu.
-- Native range input adds drag/touch scrubbing, keyboard control, and an accessible time value while retaining the recorded waveform.
-- Loading failures offer retry; browser decode/source failures show a download suggestion and disable unavailable playback controls.
-- New messages are translated into all 17 supported languages, including isolated time values in Arabic.
-- Independent review found the media-element error gap; real audio/source error-event tests cover the fix, and follow-up review approved the final change.
-- Qodo's review identified unused speed-placeholder and legacy-renderer code; both are removed, including the unused callback, wrapper, exports, and stale test mocks.
-- Independent review approved the compact revision; browser coverage also verifies nested volume-menu adjustment and Escape behavior.
-- Validation: focused audio/localization coverage and four Chromium tests pass, covering real WAV playback, scrubbing, speed, menus, light/dark mobile layouts, and 220px panels.
-- Typecheck, ESLint (17 existing warnings), production build, formatting, and whitespace checks pass.
-- Full `npm test` after current `dev` integration: 4182 pass; the same four known Nix/Node 22 failures remain in `xcodeCloudPostClone.test.ts` and `useRoomInputSendSessionController.test.ts`.
+- Status: implemented, locally validated, and independently reviewed with no findings.
+- Explorer stays hidden from the sidebar by default in Simple Mode.
+  Set `sidebar.showExploreCommunityInSimpleMode` to `true` in `config.json` to show it in Simple Mode.
+  The full interface keeps Explorer visible by default and retains the existing `sidebar.showExploreCommunity` control.
+  Other optional navigation entries retain their existing Simple Mode behavior.
+- Regression coverage checks omitted config, an empty sidebar config, explicit `false`, and explicit `true`, the independence of the two mode-specific options, and the other Simple Mode navigation gates.
+- Validation: all seven sidebar tests, typecheck, production/PWA build, and changed-file formatting pass.
+  Full ESLint reports zero errors and 17 existing warnings.
+  After integrating current `dev`, full Vitest passes all 4,190 tests across 514 files under Node 24.13.1 in the standard Linux container, including the Xcode Cloud shell fixtures.
 
 ### Fill mobile navigation and collapse narrow split panes (2026-09-15)
 
@@ -57,6 +52,23 @@
 - Native Nix runs reproduce the three existing Xcode shell-fixture failures; the container run covers them successfully.
 - Typecheck, touched-file ESLint and formatting, production/PWA build, and both independent reviews pass.
 - Live Chromium validation against the local Docker Matrix service covers draft exit/reopen, page reload, offline reply visibility after navigation, and delayed-send confirmation without duplication after reload.
+
+### Shared audio player refresh (2026-09-15)
+
+- Status: implemented and validated on `feat/shared-audio-player`; ready PR #251 includes light/dark screenshots.
+- Voice messages and normal audio attachments share a compact player with a fixed 44px circular play/pause control and playback speed available before interaction.
+- Play, speed, and menu controls center against the complete waveform-and-time block, giving the card equal top and bottom spacing; a quieter timer and plain speed label reduce visual clutter.
+- The initial 118px card made the padded play button oval and placed it above the waveform; browser geometry checks now cover both defects.
+- The revised player is 64px tall for voice messages and 86px including the filename for audio attachments; volume and downloads live in the options menu.
+- Native range input adds drag/touch scrubbing, keyboard control, and an accessible time value while retaining the recorded waveform.
+- Loading failures offer retry; browser decode/source failures show a download suggestion and disable unavailable playback controls.
+- New messages are translated into all 17 supported languages, including isolated time values in Arabic.
+- Independent review found the media-element error gap; real audio/source error-event tests cover the fix, and follow-up review approved the final change.
+- Qodo's review identified unused speed-placeholder and legacy-renderer code; both are removed, including the unused callback, wrapper, exports, and stale test mocks.
+- Independent review approved the compact revision; browser coverage also verifies nested volume-menu adjustment and Escape behavior.
+- Validation: focused audio/localization coverage and four Chromium tests pass, covering real WAV playback, scrubbing, speed, menus, light/dark mobile layouts, and 220px panels.
+- Typecheck, ESLint (17 existing warnings), production build, formatting, and whitespace checks pass.
+- The full local test suite retains the same four known Nix/Node 22 failures in `xcodeCloudPostClone.test.ts` and `useRoomInputSendSessionController.test.ts`.
 
 ### Full interface internationalization (2026-09-14)
 

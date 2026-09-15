@@ -37,7 +37,9 @@ export function SidebarNav({
   const simpleMode = useSimpleMode();
   // Allow deployments to hide optional sidebar entry points.
   const showThreads = !simpleMode && (sidebar?.showThreads ?? true);
-  const showExploreCommunity = !simpleMode && (sidebar?.showExploreCommunity ?? true);
+  const showExploreCommunity = simpleMode
+    ? sidebar?.showExploreCommunityInSimpleMode ?? false
+    : sidebar?.showExploreCommunity ?? true;
   const showAddSpace = !simpleMode && (sidebar?.showAddSpace ?? true);
   const showMindRoom = !simpleMode && (sidebar?.showMindRoom ?? true);
   const showSecondStack = showExploreCommunity || showMindRoom || showAddSpace;
