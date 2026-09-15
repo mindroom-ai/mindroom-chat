@@ -1,4 +1,4 @@
-import { createVar, StyleRule } from '@vanilla-extract/css';
+import { createVar, style, StyleRule } from '@vanilla-extract/css';
 import { recipe } from '@vanilla-extract/recipes';
 import { ContainerColor, color } from 'folds';
 
@@ -7,6 +7,7 @@ const surfaceHover = createVar();
 const surfaceActive = createVar();
 const surfaceTint = createVar();
 const highlight = createVar();
+const rimHighlight = createVar();
 export const glassShadow = createVar();
 
 const variantStyle = (variant: ContainerColor): StyleRule => ({
@@ -22,6 +23,7 @@ const material = (tint: number, blur: number, shadow: string): StyleRule => ({
     [glassShadow]: '0 0 0 transparent',
     [surfaceTint]: `${tint}%`,
     [highlight]: 'rgb(255 255 255 / 22%)',
+    [rimHighlight]: 'rgb(255 255 255 / 32%)',
   },
   selectors: {
     '&&': {
@@ -29,7 +31,11 @@ const material = (tint: number, blur: number, shadow: string): StyleRule => ({
       backgroundImage: 'none',
     },
     ':is(.dark-theme, .midnight-theme, .butter-theme) &&': {
-      vars: { [surfaceTint]: '72%', [highlight]: 'rgb(255 255 255 / 4%)' },
+      vars: {
+        [surfaceTint]: '72%',
+        [highlight]: 'rgb(255 255 255 / 4%)',
+        [rimHighlight]: 'rgb(255 255 255 / 14%)',
+      },
     },
     'button&&:hover, button&&:focus-visible': {
       vars: { [surfaceContainer]: surfaceHover },
@@ -70,6 +76,17 @@ const material = (tint: number, blur: number, shadow: string): StyleRule => ({
   },
 });
 
+// Modal500 already dims the page through OverlayBackdrop. Its glass needs less
+// tint than a floating menu over an undimmed page, especially in dark themes.
+export const glassOverBackdrop = style({
+  selectors: {
+    '.silver-theme &&&': { vars: { [surfaceTint]: '64%' } },
+    ':is(.dark-theme, .midnight-theme, .butter-theme) &&&': {
+      vars: { [surfaceTint]: '28%' },
+    },
+  },
+});
+
 export const glassSurface = recipe({
   base: {
     boxShadow: glassShadow,
@@ -91,16 +108,12 @@ export const glassSurface = recipe({
         material(
           60,
           12,
-          'inset 1px 1px 0 rgb(255 255 255 / 48%), inset -1px -1px 0 rgb(255 255 255 / 10%), 0 16px 48px rgb(0 0 0 / 18%), 0 2px 8px rgb(0 0 0 / 8%)'
+          `inset 1px 1px 0 ${rimHighlight}, inset -1px -1px 0 rgb(255 255 255 / 6%), 0 16px 48px rgb(0 0 0 / 18%), 0 2px 8px rgb(0 0 0 / 8%)`
         ),
         { selectors: { '&&': { boxShadow: glassShadow } } },
       ],
       panel: material(60, 10, 'inset 1px 1px 0 rgb(255 255 255 / 16%)'),
-      control: material(
-        58,
-        8,
-        'inset 1px 1px 0 rgb(255 255 255 / 52%), inset -1px -1px 0 rgb(255 255 255 / 8%), 0 2px 8px rgb(0 0 0 / 7%)'
-      ),
+      control: material(58, 8, `inset 1px 1px 0 ${rimHighlight}, 0 2px 8px rgb(0 0 0 / 5%)`),
     },
     variant: {
       Background: variantStyle('Background'),

@@ -1,11 +1,18 @@
 import { style } from '@vanilla-extract/css';
 import { config, color } from 'folds';
+import { glassSurface } from '../../styles/Glass.css';
 
-export const Banner = style({
-  padding: `${config.space.S400} ${config.space.S400}`,
-  backgroundColor: color.SurfaceVariant.Container,
-  borderBottom: `${config.borderWidth.B300} solid ${color.SurfaceVariant.ContainerLine}`,
+const BannerLayout = style({
+  margin: `${config.space.S200} ${config.space.S300}`,
+  padding: config.space.S300,
+  borderRadius: config.radii.R400,
+  flexShrink: 0,
 });
+
+export const Banner = style([
+  BannerLayout,
+  glassSurface({ level: 'panel', variant: 'SurfaceVariant' }),
+]);
 
 // "Thread View" is chrome, not content: it says the same thing on every
 // thread the user opens. It reads as an eyebrow over the title below, using
@@ -147,12 +154,11 @@ export const ScheduledIndicator = style({
   whiteSpace: 'nowrap',
 });
 
-export const BannerResolved = style({
-  padding: `${config.space.S400} ${config.space.S400}`,
-  backgroundColor: color.Success.Container,
-  borderBottom: `${config.borderWidth.B300} solid ${color.Success.ContainerLine}`,
-  color: color.Success.OnContainer,
-});
+export const BannerResolved = style([
+  BannerLayout,
+  glassSurface({ level: 'panel', variant: 'Success' }),
+  { color: color.Success.OnContainer },
+]);
 
 export const BannerDisabled = style({
   opacity: 0.6,
