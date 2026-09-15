@@ -10,7 +10,7 @@ import {
   as,
 } from 'folds';
 import { ContainerColor as containerColor } from '../../styles/ContainerColor.css';
-import { glassSurface } from '../../styles/Glass.css';
+import { glassFloating, glassSurface } from '../../styles/Glass.css';
 import { useLiquidGlass } from './liquid/useLiquidGlass';
 import { SurfaceProvider, useSurfaceContext } from './SurfaceContext';
 import { inheritSurface } from './Surface.css';
@@ -58,7 +58,12 @@ export const Surface = as<'div', SurfaceProps>(
         <As
           {...props}
           ref={surface.ref}
-          className={classNames(containerColor({ variant }), surface.className, className)}
+          className={classNames(
+            containerColor({ variant }),
+            surface.className,
+            appearance === 'glass' && level === 'overlay' && glassFloating,
+            className
+          )}
         />
       </SurfaceProvider>
     );
@@ -75,7 +80,11 @@ export const Menu = as<'div', MenuProps>(
           {...props}
           ref={surface.ref}
           variant={variant}
-          className={classNames(surface.className, className)}
+          className={classNames(
+            surface.className,
+            appearance === 'glass' && glassFloating,
+            className
+          )}
         />
       </SurfaceProvider>
     );

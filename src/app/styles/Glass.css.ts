@@ -6,6 +6,7 @@ const surfaceContainer = createVar();
 const surfaceHover = createVar();
 const surfaceActive = createVar();
 const surfaceTint = createVar();
+const surfaceBlur = createVar();
 const highlight = createVar();
 const rimHighlight = createVar();
 export const glassShadow = createVar();
@@ -22,6 +23,7 @@ const material = (tint: number, blur: number, shadow: string): StyleRule => ({
   vars: {
     [glassShadow]: '0 0 0 transparent',
     [surfaceTint]: `${tint}%`,
+    [surfaceBlur]: `${blur}px`,
     [highlight]: 'rgb(255 255 255 / 22%)',
     [rimHighlight]: 'rgb(255 255 255 / 32%)',
   },
@@ -51,8 +53,8 @@ const material = (tint: number, blur: number, shadow: string): StyleRule => ({
         '&&': {
           backgroundColor: `color-mix(in srgb, ${surfaceContainer} ${surfaceTint}, transparent)`,
           backgroundImage: `radial-gradient(circle 90px at var(--liquid-glass-light-x, 0%) var(--liquid-glass-light-y, 0%), ${highlight}, transparent)`,
-          backdropFilter: `blur(${blur}px) saturate(160%)`,
-          WebkitBackdropFilter: `blur(${blur}px) saturate(160%)`,
+          backdropFilter: `blur(${surfaceBlur}) saturate(160%)`,
+          WebkitBackdropFilter: `blur(${surfaceBlur}) saturate(160%)`,
         },
         '&&[data-liquid-glass="active"]': {
           backdropFilter: 'var(--liquid-glass-filter) saturate(145%)',
@@ -72,6 +74,15 @@ const material = (tint: number, blur: number, shadow: string): StyleRule => ({
           WebkitBackdropFilter: 'none',
         },
       },
+    },
+  },
+});
+
+// Keep floating chrome as lightly blurred as the Chromium optical filter.
+export const glassFloating = style({
+  selectors: {
+    '&&&': {
+      vars: { [surfaceBlur]: '3px' },
     },
   },
 });

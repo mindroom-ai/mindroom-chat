@@ -1,6 +1,6 @@
 import { style } from '@vanilla-extract/css';
 import { config, color } from 'folds';
-import { glassSurface } from '../../styles/Glass.css';
+import { glassFloating, glassSurface } from '../../styles/Glass.css';
 
 const BannerLayout = style({
   margin: `${config.space.S200} ${config.space.S300}`,
@@ -13,6 +13,7 @@ const BannerLayout = style({
 export const Banner = style([
   BannerLayout,
   glassSurface({ level: 'panel', variant: 'SurfaceVariant' }),
+  glassFloating,
 ]);
 
 // "Thread View" is chrome, not content: it says the same thing on every
@@ -158,6 +159,7 @@ export const ScheduledIndicator = style({
 export const BannerResolved = style([
   BannerLayout,
   glassSurface({ level: 'panel', variant: 'Success' }),
+  glassFloating,
   { color: color.Success.OnContainer },
 ]);
 

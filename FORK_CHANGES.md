@@ -2,6 +2,20 @@
 
 ## Runbook
 
+### Reduce native blur on floating glass (2026-09-15)
+
+- Thread banners and floating menus retain their existing tint, including 72% in dark, midnight, and butter themes.
+  Their native CSS blur is 3 px across themes, reduced from 10 px for banners and 12 px for menus, so background details remain less diffused.
+- A shared blur variable and modifier cover normal and resolved banners, Menu, and custom overlay Surface components.
+  Each material defines its own blur default so nested controls and panels do not inherit the floating override.
+  Chromium keeps its existing 3 px SVG blur and refraction; dimmed sheets, other panels, compact controls, and opaque accessibility fallbacks retain their existing policy.
+- Linux headless WebKit does not paint native backdrop blur on this host.
+  Its checks verify CSS selection, transparency, contrast, layout, and interaction; physical iOS blur appearance requires device validation.
+- Validation: all 4,427 unit tests across 529 files, typecheck, production/PWA build, formatting, and lint pass with zero errors and 17 existing warnings.
+  All 30 shared-surface browser cases pass across Chromium and WebKit, including the unchanged contrast assertions.
+  A Vite dependency reload interrupted the initial WebKit silver-sheet case; it passed three consecutive reruns after dependency optimization completed.
+  Additional browser probes confirm both banner variants and menus use 3 px native blur, nested controls retain 8 px, other panels and modals retain their defaults, and accessibility preferences still disable blur.
+
 ### Keep model discovery working beside stale devices (2026-09-15)
 
 - Model discovery now encrypts and queues each signed recipient independently.
