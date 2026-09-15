@@ -2,6 +2,22 @@
 
 ## Runbook
 
+### Resize member sidebars at every screen width (2026-09-15)
+
+- Room and space-lobby member controls remain available on desktop, tablet, and phone.
+  Desktop and tablet use a resizable side panel; phones use a dismissible overlay that opens explicitly without changing the saved desktop visibility preference.
+- Both sidebars share pointer capture, keyboard resizing, viewport clamping, right-to-left support, and drag-to-collapse behavior.
+  The member panel starts at 266 px and remembers its width per account independently of navigation.
+  Dragging to 160 px or less previews closure; releasing closes it while retaining the last usable width for reopening.
+- Member overlays preserve the current conversation or lobby and support the close button, Escape, and backdrop dismissal.
+  Opening moves focus into the member controls, and closing returns it to the trigger.
+  Physical safe-area padding keeps controls clear of screen cutouts in both layout directions and constrains the maximum panel width.
+  Opening Members also closes the Computer panel so the member list appears immediately.
+- Validation: all 77 focused tests and all 4,463 tests across 532 files pass, along with typecheck, the production/PWA build, and changed-file formatting.
+  Full ESLint reports zero errors and the 17 existing warnings.
+  All 12 Chromium/WebKit cases in `playwright.sidebar.config.ts` pass against the production build and a local Matrix fixture, covering both sidebars, rooms, space lobbies, phone overlays, native Chromium touch resizing and collapse, screen cutouts in both layout directions, keyboard focus, and reopening.
+  The narrow-screen controls, independent phone visibility, initial dialog focus, safe-area sizing, and switching from Computer regressions fail before their fixes.
+
 ### Toggle Explorer navigation from its active sidebar icon (2026-09-15)
 
 - Explorer passes its current selection to the shared sidebar handler, matching Home and Direct Messages.

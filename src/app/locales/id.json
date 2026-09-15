@@ -2626,7 +2626,8 @@
       "mindroomTab": {
         "localMindroom": "MindRoom lokal"
       },
-      "resizeNavigationPanel": "Ubah ukuran panel navigasi"
+      "resizeNavigationPanel": "Ubah ukuran panel navigasi",
+      "resizeMemberPanel": "Ubah ukuran panel anggota"
     },
     "threads": {
       "compactRoomView": {

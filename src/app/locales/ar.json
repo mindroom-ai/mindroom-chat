@@ -2810,7 +2810,8 @@
       "mindroomTab": {
         "localMindroom": "Local MindRoom"
       },
-      "resizeNavigationPanel": "تغيير حجم لوحة التنقل"
+      "resizeNavigationPanel": "تغيير حجم لوحة التنقل",
+      "resizeMemberPanel": "تغيير حجم لوحة الأعضاء"
     },
     "threads": {
       "compactRoomView": {

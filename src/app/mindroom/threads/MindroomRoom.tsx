@@ -27,6 +27,8 @@ import { useClientConfig } from '../../hooks/useClientConfig';
 import { resolveComputerApiUrl } from '../computer/api';
 import { ComputerPanel } from '../computer/ComputerPanel';
 import type { ComputerAgent } from '../computer/types';
+import { ResizableMembersPanel } from '../sidebar/ResizableMembersPanel';
+import { useMembersDrawer } from '../sidebar/useMembersDrawer';
 
 export function Room() {
   const { eventId } = useParams();
@@ -36,7 +38,7 @@ export function Room() {
   const roomSearchParams = useMemo(() => getRoomSearchParams(searchParams), [searchParams]);
   const { focusEvent, threadId } = roomSearchParams;
 
-  const [isDrawer, setPeopleDrawer] = useSetting(settingsAtom, 'isPeopleDrawer');
+  const [isDrawer, setPeopleDrawer] = useMembersDrawer();
   const [hideActivity] = useSetting(settingsAtom, 'hideActivity');
   const screenSize = useScreenSizeContext();
   const powerLevels = usePowerLevels(room);
@@ -158,11 +160,10 @@ export function Room() {
             />
           </>
         )}
-        {!callView && screenSize === ScreenSize.Desktop && isDrawer && !effectiveComputerOpen && (
-          <>
-            <Line variant="Background" direction="Vertical" size="300" />
-            <MembersDrawer key={room.roomId} room={room} members={members} />
-          </>
+        {!callView && isDrawer && !effectiveComputerOpen && (
+          <ResizableMembersPanel key={room.roomId} onClose={() => setPeopleDrawer(false)}>
+            <MembersDrawer room={room} members={members} />
+          </ResizableMembersPanel>
         )}
       </Box>
     </PowerLevelsContextProvider>

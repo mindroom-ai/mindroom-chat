@@ -2626,7 +2626,8 @@
       "mindroomTab": {
         "localMindroom": "Yerel MindRoom"
       },
-      "resizeNavigationPanel": "Gezinme panelini yeniden boyutlandır"
+      "resizeNavigationPanel": "Gezinme panelini yeniden boyutlandır",
+      "resizeMemberPanel": "Üye panelini yeniden boyutlandır"
     },
     "threads": {
       "compactRoomView": {
