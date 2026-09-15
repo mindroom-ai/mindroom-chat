@@ -35,19 +35,29 @@ const sendBatch = async (
       if (signal.aborted) return;
       remaining = remaining.filter((d) => current.some((known) => known.id === d.id));
       if (!remaining.length) return;
-      const encrypted = await crypto.encryptToDeviceMessages(MODEL_REQUEST, remaining, content);
-      if (signal.aborted || encrypted.eventType !== 'm.room.encrypted') continue;
-      const wanted = new Set(remaining.map(recipientKey));
-      const seen = new Set<string>();
-      const batch = encrypted.batch.filter((r) => {
-        const key = recipientKey(r);
-        if (!wanted.has(key) || seen.has(key)) return false;
-        seen.add(key);
-        return true;
-      });
-      if (batch.length === 0) continue;
-      await mx.queueToDevice({ eventType: encrypted.eventType, batch });
-      remaining = remaining.filter((r) => !seen.has(recipientKey(r)));
+      // The SDK rejects a whole encryption batch if any device has no Olm session.
+      // Queue each successful recipient independently so stale devices cannot block it.
+      const delivered = await Promise.all(
+        remaining.map(async (device) => {
+          try {
+            const encrypted = await crypto.encryptToDeviceMessages(
+              MODEL_REQUEST,
+              [device],
+              content
+            );
+            if (signal.aborted || encrypted.eventType !== 'm.room.encrypted') return undefined;
+            const key = recipientKey(device);
+            const recipient = encrypted.batch.find((item) => recipientKey(item) === key);
+            if (!recipient) return undefined;
+            await mx.queueToDevice({ eventType: encrypted.eventType, batch: [recipient] });
+            return key;
+          } catch {
+            return undefined;
+          }
+        })
+      );
+      const sent = new Set(delivered);
+      remaining = remaining.filter((device) => !sent.has(recipientKey(device)));
     } catch {
       // Olm session creation or transport may race device discovery. The deadline owns failure.
     }
