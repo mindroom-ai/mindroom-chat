@@ -115,6 +115,7 @@ import {
   SortableRoomNavItem,
   SortableRoomNavItemData,
 } from '../../../features/room-nav/SortableRoomNavItem';
+import * as css from './Space.css';
 
 type SpaceMenuProps = {
   room: Room;
@@ -329,7 +330,7 @@ function SpaceHeader() {
 
   return (
     <>
-      <PageNavHeader>
+      <PageNavHeader className={css.Header} appearance="plain" outlined={false}>
         <Box alignItems="Center" grow="Yes" gap="300">
           <Box grow="Yes" alignItems="Center" gap="100">
             <Text size="H4" truncate>
@@ -569,8 +570,7 @@ export function Space() {
 
   return (
     <PageNav>
-      <SpaceHeader />
-      <PageNavContent scrollRef={scrollRef}>
+      <PageNavContent scrollRef={scrollRef} header={<SpaceHeader />}>
         <Box direction="Column" gap="300">
           {tombstoneEvent && (
             <SpaceTombstone

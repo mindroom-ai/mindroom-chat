@@ -2,6 +2,20 @@
 
 ## Runbook
 
+### Let rooms scroll behind the space navigation header (2026-09-16)
+
+- The space title stays at the top while rooms scroll behind its translucent background.
+  It uses the shared flat material with native blur in both engines, without borders, highlight gradients, shadows, or a refractive rim.
+- The space header lives inside the existing navigation scroller.
+  Initial content and native scroll-to-item alignment reserve the header height, while short or collapsed lists avoid extra blank scrolling.
+  Other navigation headers retain their existing layout.
+- Validation: the live regression reproduces the previous clipping boundary below the header.
+  All four Chromium/WebKit cases pass for phone simple mode, desktop full mode, header layering, menu access, long-list scrolling, item alignment, and collapsed lists.
+  All 4,463 unit tests, typecheck, production/PWA build, formatting, and lint pass with zero errors and 17 existing warnings.
+  Independent source review passes 36 focused tests and finds no remaining issues.
+  Linux headless WebKit validates transparency and layout but does not paint native backdrop blur on this host.
+- Next step: Verify the borderless space header, blur, scrolling, and menu access on a physical iOS device and record the visual result.
+
 ### Match composer controls and typing status to glass (2026-09-15)
 
 - Attachment, microphone, formatting, sticker, emoji, and send buttons use the shared compact glass material.

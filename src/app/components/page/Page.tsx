@@ -54,36 +54,44 @@ export function PageNav({ size, children }: ClientDrawerLayoutProps & css.PageNa
   );
 }
 
-export const PageNavHeader = as<'header', css.PageNavHeaderVariants>(
-  ({ className, outlined, ...props }, ref) => (
-    <Header
-      className={classNames(css.PageNavHeader({ outlined }), className)}
-      variant="Background"
-      size="600"
-      {...props}
-      ref={ref}
-    />
-  )
-);
+export const PageNavHeader = as<
+  'header',
+  css.PageNavHeaderVariants & Pick<ComponentProps<typeof Header>, 'appearance'>
+>(({ className, outlined, ...props }, ref) => (
+  <Header
+    className={classNames(css.PageNavHeader({ outlined }), className)}
+    variant="Background"
+    size="600"
+    {...props}
+    ref={ref}
+  />
+));
 
 export function PageNavContent({
   scrollRef,
+  header,
   children,
 }: {
   children: ReactNode;
+  /** A sticky PageNavHeader that rooms can scroll behind. */
+  header?: ReactNode;
   scrollRef?: MutableRefObject<HTMLDivElement | null>;
 }) {
   return (
     <Box grow="Yes" direction="Column">
       <Scroll
         ref={scrollRef}
+        className={header ? css.PageNavHeaderScroll : undefined}
         variant="Background"
         direction="Vertical"
         size="300"
         hideTrack
         visibility="Hover"
       >
-        <div className={css.PageNavContent}>{children}</div>
+        {header}
+        <div className={classNames(css.PageNavContent, header && css.PageNavContentBelowHeader)}>
+          {children}
+        </div>
       </Scroll>
     </Box>
   );
