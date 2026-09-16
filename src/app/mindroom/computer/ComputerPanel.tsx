@@ -96,8 +96,10 @@ export function ComputerPanel({
   );
   const selectedAgent = useMemo(
     () =>
-      agents.length === 1 ? agents[0] : agents.find((agent) => agent.userId === activeAgentId),
-    [activeAgentId, agents]
+      !activeAgentId && !requestedAgent && agents.length === 1
+        ? agents[0]
+        : agents.find((agent) => agent.userId === activeAgentId),
+    [activeAgentId, agents, requestedAgent]
   );
   const selectedAgentUserId = selectedAgent?.userId;
 
@@ -378,7 +380,7 @@ export function ComputerPanel({
       </div>
 
       <div className={css.Body}>
-        {agents.length > 1 && (
+        {(agents.length > 1 || !selectedAgent) && (
           <label htmlFor="mindroom-computer-agent">
             <Text size="L400">Agent</Text>
             <select

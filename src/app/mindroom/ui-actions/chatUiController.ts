@@ -62,7 +62,13 @@ export const listenForChatUiActions = ({
   };
   const decrypted = (event: MatrixEvent) => {
     const id = event.getId();
-    if (!id || pending.get(id) !== event || event.getType() === 'm.room.encrypted') return;
+    if (
+      !id ||
+      pending.get(id) !== event ||
+      event.getType() === 'm.room.encrypted' ||
+      event.isDecryptionFailure()
+    )
+      return;
     pending.delete(id);
     deliver(event);
   };
@@ -75,7 +81,7 @@ export const listenForChatUiActions = ({
   ) => {
     const id = event.getId();
     if (!active || eventRoom?.roomId !== room.roomId || !id || removed) return;
-    const encrypted = event.getType() === 'm.room.encrypted';
+    const encrypted = event.isEncrypted();
     if (!encrypted && !event.getOriginalContent()[CHAT_UI_ACTION_KEY]) return;
 
     const cutoff = now() - LIVE_WINDOW_MS;

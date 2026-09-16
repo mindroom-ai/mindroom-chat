@@ -90,7 +90,7 @@ export function Room() {
     [members]
   );
   const chat = useAtomValue(callChatAtom);
-  const { viewMode } = useRoomViewMode(room.roomId);
+  const { viewMode, setViewMode } = useRoomViewMode(room.roomId);
   const routedThreadId = viewMode === 'classic' ? undefined : threadId;
   const computerThreadId = useThreadRootEvent(room, routedThreadId);
   const continuationReady =
@@ -173,10 +173,12 @@ export function Room() {
   );
   const navigateUiAction = useCallback(
     (targetThreadId?: string) => {
-      if (targetThreadId) navigateRoomThread(room.roomId, targetThreadId);
-      else navigateRoom(room.roomId);
+      if (targetThreadId) {
+        if (viewMode === 'classic') setViewMode('threaded');
+        navigateRoomThread(room.roomId, targetThreadId);
+      } else navigateRoom(room.roomId);
     },
-    [navigateRoom, navigateRoomThread, room.roomId]
+    [navigateRoom, navigateRoomThread, room.roomId, setViewMode, viewMode]
   );
   // Keep this after the room/thread cleanup effect so an explicit routed click opens last.
   const uiActions = useChatUiActions({

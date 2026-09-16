@@ -1,4 +1,5 @@
 import { MatrixEvent, MatrixEventEvent, RoomEvent, SyncState } from 'matrix-js-sdk';
+import { logger } from 'matrix-js-sdk/lib/logger';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { listenForChatUiActions } from './chatUiController';
 import { agentId, makeUiEvent, makeUiRoom, roomId } from './testUtils';
@@ -118,9 +119,47 @@ describe('live Chat UI action delivery', () => {
     expect(fixture.onAction.mock.calls.map(([action]) => action.eventId)).toEqual(['$encrypted']);
   });
 
+  it.each([false, true])(
+    'waits through missing-key decryption (failed before timeline: %s)',
+    async (failedBeforeTimeline) => {
+      const fixture = setup();
+      const encrypted = new MatrixEvent({
+        event_id: '$missing-key',
+        room_id: roomId,
+        sender: agentId,
+        type: 'm.room.encrypted',
+        origin_server_ts: 100_000,
+        content: {},
+      });
+      vi.spyOn(logger, 'warn').mockImplementation(() => undefined);
+      const decryptEvent = vi.fn().mockRejectedValue(new Error('Missing room key'));
+      const crypto = { decryptEvent } as unknown as Parameters<MatrixEvent['attemptDecryption']>[0];
+      encrypted.on(MatrixEventEvent.Decrypted, (event, error) =>
+        fixture.mx.emit(MatrixEventEvent.Decrypted, event, error)
+      );
+      vi.spyOn(fixture.mx, 'decryptEventIfNeeded').mockImplementation((event) =>
+        event.attemptDecryption(crypto)
+      );
+      if (failedBeforeTimeline) await encrypted.attemptDecryption(crypto);
+      fixture.emit(encrypted);
+      await encrypted.getDecryptionPromise();
+      expect(fixture.onAction).not.toHaveBeenCalled();
+      expect(encrypted.isDecryptionFailure()).toBe(true);
+      decryptEvent.mockResolvedValue({
+        clearEvent: { type: 'm.room.message', content: makeUiEvent().getContent() },
+      });
+      await encrypted.attemptDecryption(crypto);
+      expect(fixture.onAction).toHaveBeenCalledTimes(1);
+      expect(fixture.onAction).toHaveBeenCalledWith(
+        expect.objectContaining({ eventId: '$missing-key' })
+      );
+    }
+  );
+
   it('abandons delayed decryption after navigation or expiry', async () => {
     const fixture = setup();
     const event = makeUiEvent();
+    vi.spyOn(event, 'isEncrypted').mockReturnValue(true);
     vi.spyOn(event, 'getType').mockReturnValue('m.room.encrypted');
     vi.spyOn(fixture.mx, 'decryptEventIfNeeded').mockResolvedValue();
     fixture.emit(event);

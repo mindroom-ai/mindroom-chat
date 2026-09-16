@@ -215,6 +215,31 @@ describe('ComputerPanel', () => {
     expect(screenDisposals).not.toHaveBeenCalled();
   });
 
+  it('does not switch to the remaining agent when the requested agent leaves', async () => {
+    const agents = [
+      { userId: '@mindroom_first:example.org', name: 'First' },
+      { userId: '@mindroom_second:example.org', name: 'Second' },
+    ];
+    const props = renderPanel({ agents, requestedAgent: { userId: agents[0].userId } });
+    await waitFor(() => expect(container.textContent).toContain('Watch mode'));
+    renderPanel({ ...props, agents: [agents[1]] });
+    await waitFor(() => expect(container.textContent).toContain('Choose an agent'));
+    const sessions = vi
+      .mocked(props.request!)
+      .mock.calls.filter(
+        ([url, init]) => url.toString().endsWith('/sessions') && init?.method === 'POST'
+      );
+    expect(sessions).toHaveLength(1);
+    const select = container.querySelector('select')!;
+    expect(select).not.toBeNull();
+    await act(async () => {
+      select.value = agents[1].userId;
+      select.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    await click(findButton(container, 'Watch computer'));
+    await waitFor(() => expect(container.textContent).toContain('Watch mode'));
+  });
+
   it('moves from watch through control and release, reconnecting before showing watch again', async () => {
     const props = renderPanel();
 

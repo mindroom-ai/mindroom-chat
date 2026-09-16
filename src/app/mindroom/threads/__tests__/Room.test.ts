@@ -55,6 +55,12 @@ const { mx, navigateRoomMock, navigateRoomThreadMock, removeRecentThreadMock, ro
       removeListener: (name: string) => roomState.listeners.delete(name),
     },
     roomState: {
+      viewMode: 'threaded',
+      setViewMode: vi.fn((mode: string) => {
+        roomState.viewMode = mode;
+      }),
+      activateUiAction: undefined as undefined | ((event: MatrixEvent) => void),
+      uiProbe: undefined as React.ComponentType | undefined,
       mxListeners: new Map<string, (...args: unknown[]) => void>(),
       listeners: new Map<string, (...args: unknown[]) => void>(),
       drawer: false,
@@ -119,7 +125,11 @@ vi.mock('../../../features/room/RoomView', () => ({
 vi.mock('../MindroomRoomView', () => ({
   RoomView: (props: MockRoomViewProps) => {
     roomState.roomViewProps = props;
-    return React.createElement('mock-room-view');
+    return React.createElement(
+      'mock-room-view',
+      null,
+      roomState.uiProbe && React.createElement(roomState.uiProbe)
+    );
   },
 }));
 
@@ -196,7 +206,7 @@ vi.mock('../../computer/ComputerPanel', () => ({
 }));
 
 vi.mock('../useRoomViewMode', () => ({
-  useRoomViewMode: () => ({ viewMode: 'threaded' }),
+  useRoomViewMode: () => ({ viewMode: roomState.viewMode, setViewMode: roomState.setViewMode }),
 }));
 
 vi.mock('../../../hooks/useRoomMembers', () => ({
@@ -245,6 +255,10 @@ describe('Room', () => {
   });
 
   afterEach(() => {
+    roomState.viewMode = 'threaded';
+    roomState.setViewMode.mockClear();
+    roomState.activateUiAction = undefined;
+    roomState.uiProbe = undefined;
     roomState.mxListeners.clear();
     roomState.listeners.clear();
     roomState.drawer = false;
@@ -519,6 +533,40 @@ describe('Room', () => {
     await act(async () => renderer!.update(React.createElement(Room)));
 
     expect(renderer!.root.findAllByType('mock-computer-panel')).toHaveLength(0);
+  });
+
+  it('opens a historical UI action from classic view in its originating thread', async () => {
+    roomState.viewMode = 'classic';
+    roomState.clientConfig = {
+      mindroom: { computers: { apiUrl: 'https://computer.example.org' } },
+    };
+    roomState.members = [
+      { membership: 'join', userId: '@alice:example.org' },
+      { membership: 'join', userId: '@mindroom_helper:example.org' },
+    ];
+    const { Room } = await import('../../../features/room/Room');
+    const { makeUiEvent } = await import('../../ui-actions/testUtils');
+    const { ChatUiActionContext } = await import('../../ui-actions/ChatUiActionProvider');
+    roomState.uiProbe = function UiProbe() {
+      roomState.activateUiAction = React.useContext(ChatUiActionContext)?.activate;
+      return null;
+    };
+    let renderer: ReturnType<typeof create>;
+    await act(async () => {
+      renderer = create(React.createElement(Room));
+    });
+    await act(async () => roomState.activateUiAction?.(makeUiEvent()));
+    expect(roomState.setViewMode).toHaveBeenCalledWith('threaded');
+    expect(navigateRoomThreadMock).toHaveBeenCalledWith(room.roomId, '$thread');
+    roomState.search = '?threadId=%24thread';
+    roomState.routedEvent = { getId: () => '$thread', isSending: () => false };
+    await act(async () => renderer!.update(React.createElement(Room)));
+    expect(navigateRoomMock).not.toHaveBeenCalled();
+    expect(roomState.computerPanelProps).toMatchObject({
+      requestedAgent: { userId: '@mindroom_helper:example.org' },
+      threadId: '$thread',
+    });
+    await act(async () => renderer!.unmount());
   });
 
   it('leaves an explicit thread in the URL untouched', async () => {

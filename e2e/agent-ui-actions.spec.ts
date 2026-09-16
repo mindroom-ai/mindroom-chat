@@ -123,15 +123,23 @@ test('agent requests open the active conversation and leave passive history butt
   await expect(panel).toBeVisible();
   await expect(panel.getByText('Local fixture computer unavailable')).toBeVisible();
   await panel.getByRole('button', { name: 'Close computer', exact: true }).click();
+  const liveSync = page.waitForRequest((request) => {
+    const url = new URL(request.url());
+    return url.pathname.endsWith('/sync') && url.searchParams.get('timeout') === '30000';
+  });
   await page.reload();
+  // Cached buttons render before initial sync ends; wait for steady-state live delivery.
+  await liveSync;
   await expect(viewComputer).toBeVisible();
   await expect(panel).toHaveCount(0);
   expect(sessions).toHaveLength(2);
+  await expect.poll(() => page.evaluate(() => document.hasFocus())).toBe(true);
 
   await sendAction(otherRoot, { action: 'open_settings', section: 'about' }, 'Open About settings');
-  await expect(page.getByRole('heading', { name: 'About', exact: true })).toBeVisible();
+  const about = page.getByRole('banner').getByText('About', { exact: true });
+  await expect(about).toBeVisible();
   await page.keyboard.press('Escape');
-  await expect(page.getByRole('heading', { name: 'About', exact: true })).toHaveCount(0);
+  await expect(about).toHaveCount(0);
 
   await page.setViewportSize({ width: 390, height: 844 });
   await sendAction(otherRoot, { action: 'open_panel', panel: 'members' }, 'Show Members');
