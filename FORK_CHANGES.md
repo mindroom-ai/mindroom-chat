@@ -2,6 +2,16 @@
 
 ## Runbook
 
+### Match the approval banner to floating glass (2026-09-16)
+
+- The approval banner above the composer uses the same shared panel material and shallow native blur as the typing strip.
+  Its opaque fill and outline are replaced by translucent tint and the shared soft highlight, with theme-matched text and the existing rounded corners and spacing.
+  Reduced-transparency and high-contrast preferences retain the shared opaque fallback.
+- Validation: all four production Chromium/WebKit checks pass at phone and desktop widths, including translucent tint, blur selection, spacing, the high-contrast fallback, and review dialog interaction.
+  All 4,463 unit tests, typecheck, production/PWA build, and formatting pass; lint reports zero errors and 17 existing warnings.
+  Independent review approves the fix and passes both focused approval tests.
+  Linux headless WebKit validates transparency and layout but does not paint native backdrop blur on this host; physical iOS rendering remains unverified.
+
 ### Let rooms scroll behind the space navigation header (2026-09-16)
 
 - The space title stays at the top while rooms scroll behind its translucent background.
