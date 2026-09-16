@@ -2718,7 +2718,8 @@
       "mindroomTab": {
         "localMindroom": "Local MindRoom"
       },
-      "resizeNavigationPanel": "Изменить размер панели навигации"
+      "resizeNavigationPanel": "Изменить размер панели навигации",
+      "resizeMemberPanel": "Изменить размер панели участников"
     },
     "threads": {
       "compactRoomView": {

@@ -45,6 +45,7 @@ const { mx, navigateRoomMock, navigateRoomThreadMock, removeRecentThreadMock, ro
     roomState: {
       listeners: new Map<string, (...args: unknown[]) => void>(),
       drawer: false,
+      screenSize: 'Desktop',
       panelDisposals: 0,
       routedEvent: undefined as
         | undefined
@@ -65,7 +66,17 @@ const { mx, navigateRoomMock, navigateRoomThreadMock, removeRecentThreadMock, ro
 vi.mock('folds', () => ({
   Box: ({ children }: { children: React.ReactNode }) => React.createElement('div', null, children),
   Line: () => React.createElement('div'),
+  Overlay: ({ children }: { children: React.ReactNode }) =>
+    React.createElement(React.Fragment, null, children),
+  OverlayBackdrop: () => React.createElement('div'),
 }));
+
+vi.mock('focus-trap-react', () => ({
+  default: ({ children }: { children: React.ReactNode }) =>
+    React.createElement(React.Fragment, null, children),
+}));
+vi.mock('../../sidebar/ResizablePanel.css', () => ({ Panel: 'panel', Handle: 'handle' }));
+vi.mock('../../sidebar/ResizableMembersPanel.css', () => ({ MobileOverlay: 'mobile-overlay' }));
 
 vi.mock('is-hotkey', () => ({
   isKeyHotkey: () => false,
@@ -106,22 +117,25 @@ vi.mock('../../../features/room/MembersDrawer', () => ({
 vi.mock('../../../hooks/useScreenSize', () => ({
   ScreenSize: {
     Desktop: 'Desktop',
+    Tablet: 'Tablet',
     Mobile: 'Mobile',
   },
-  useScreenSizeContext: () => 'Desktop',
+  useScreenSizeContext: () => roomState.screenSize,
 }));
 
 vi.mock('../../../state/hooks/settings', () => ({
   useSetting: (_atom: unknown, key: string) => {
     switch (key) {
-      case 'isPeopleDrawer':
-        return [roomState.drawer, roomState.setPeopleDrawer];
       case 'hideActivity':
         return [false];
       default:
         return [false];
     }
   },
+}));
+
+vi.mock('../../sidebar/useMembersDrawer', () => ({
+  useMembersDrawer: () => [roomState.drawer, roomState.setPeopleDrawer],
 }));
 
 vi.mock('../../../state/settings', () => ({
@@ -210,7 +224,7 @@ vi.mock('../../../state/callEmbed', () => ({
   callChatAtom: {},
 }));
 
-vi.stubGlobal('window', {});
+vi.stubGlobal('window', { addEventListener: vi.fn(), removeEventListener: vi.fn() });
 
 describe('Room', () => {
   beforeEach(() => {
@@ -220,6 +234,7 @@ describe('Room', () => {
   afterEach(() => {
     roomState.listeners.clear();
     roomState.drawer = false;
+    roomState.screenSize = 'Desktop';
     roomState.panelDisposals = 0;
     roomState.routedEvent = undefined;
     roomState.callChat = false;
@@ -247,6 +262,21 @@ describe('Room', () => {
     expect(navigateRoomThreadMock).not.toHaveBeenCalled();
     expect(navigateRoomMock).not.toHaveBeenCalled();
   });
+
+  it.each(['Desktop', 'Tablet', 'Mobile'])(
+    'shows the requested member sidebar on %s',
+    async (size) => {
+      roomState.screenSize = size;
+      roomState.drawer = true;
+      const { Room } = await import('../../../features/room/Room');
+      let renderer: ReturnType<typeof create>;
+      await act(async () => {
+        renderer = create(React.createElement(Room));
+      });
+      expect(renderer!.root.findAllByType('aside')).toHaveLength(1);
+      await act(async () => renderer!.unmount());
+    }
+  );
 
   it('passes live agent membership to the room toolbar surface', async () => {
     const { Room } = await import('../../../features/room/Room');

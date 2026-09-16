@@ -34,8 +34,7 @@ import { RoomTopicViewer } from '../../components/room-topic-viewer';
 import { StateEvent } from '../../../types/matrix/room';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useIsDirectRoom, useRoom } from '../../hooks/useRoom';
-import { useSetting } from '../../state/hooks/settings';
-import { settingsAtom } from '../../state/settings';
+import { useMembersDrawer } from '../sidebar/useMembersDrawer';
 import { useSpaceOptionally } from '../../hooks/useSpace';
 import { getHomeSearchPath, getSpaceSearchPath, withSearchParam } from '../../pages/pathUtils';
 import { getCanonicalAliasOrRoomId, isRoomAlias, mxcUrlToHttp } from '../../utils/matrix';
@@ -339,7 +338,8 @@ export function RoomViewHeader({
     ? mxcUrlToHttp(mx, avatarMxc, useAuthentication, 96, 96, 'crop') ?? undefined
     : undefined;
 
-  const [peopleDrawer, setPeopleDrawer] = useSetting(settingsAtom, 'isPeopleDrawer');
+  const [peopleDrawer, setPeopleDrawer] = useMembersDrawer();
+  const membersOpen = peopleDrawer && !computerOpen;
 
   const handleSearchClick = () => {
     const searchParams: _SearchPathSearchParams = {
@@ -366,11 +366,12 @@ export function RoomViewHeader({
       openSettings(room.roomId, parentSpace?.roomId, RoomSettingsPage.MembersPage);
       return;
     }
-    setPeopleDrawer(!peopleDrawer);
+    if (computerOpen) onComputerToggle?.();
+    setPeopleDrawer(!membersOpen);
   };
   const memberButtonLabel = callView
     ? t('mindroomUi.threads.mindroomRoomViewHeader.members')
-    : peopleDrawer
+    : membersOpen
     ? t('mindroomUi.threads.mindroomRoomViewHeader.hideMembers')
     : t('mindroomUi.threads.mindroomRoomViewHeader.showMembers');
   const memberButtonAriaLabel = getPendingJoinRequestLabel(
@@ -544,38 +545,36 @@ export function RoomViewHeader({
             </>
           )}
 
-          {screenSize === ScreenSize.Desktop && (
-            <TooltipProvider
-              position="Bottom"
-              offset={4}
-              tooltip={
-                <Tooltip>
-                  {callView ? (
-                    <Text>{t('mindroomUi.threads.mindroomRoomViewHeader.members')}</Text>
-                  ) : (
-                    <Text>
-                      {peopleDrawer
-                        ? t('mindroomUi.threads.mindroomRoomViewHeader.hideMembers')
-                        : t('mindroomUi.threads.mindroomRoomViewHeader.showMembers')}
-                    </Text>
-                  )}
-                </Tooltip>
-              }
-            >
-              {(triggerRef) => (
-                <IconButton
-                  fill="None"
-                  style={{ position: 'relative' }}
-                  ref={triggerRef}
-                  onClick={handleMemberToggle}
-                  aria-label={memberButtonAriaLabel}
-                >
-                  {!callView && <PendingJoinRequestBadge count={visibleJoinRequestCount} />}
-                  <Icon size="400" src={Icons.User} />
-                </IconButton>
-              )}
-            </TooltipProvider>
-          )}
+          <TooltipProvider
+            position="Bottom"
+            offset={4}
+            tooltip={
+              <Tooltip>
+                {callView ? (
+                  <Text>{t('mindroomUi.threads.mindroomRoomViewHeader.members')}</Text>
+                ) : (
+                  <Text>
+                    {membersOpen
+                      ? t('mindroomUi.threads.mindroomRoomViewHeader.hideMembers')
+                      : t('mindroomUi.threads.mindroomRoomViewHeader.showMembers')}
+                  </Text>
+                )}
+              </Tooltip>
+            }
+          >
+            {(triggerRef) => (
+              <IconButton
+                fill="None"
+                style={{ position: 'relative' }}
+                ref={triggerRef}
+                onClick={handleMemberToggle}
+                aria-label={memberButtonAriaLabel}
+              >
+                {!callView && <PendingJoinRequestBadge count={visibleJoinRequestCount} />}
+                <Icon size="400" src={Icons.User} />
+              </IconButton>
+            )}
+          </TooltipProvider>
 
           <TooltipProvider
             position="Bottom"

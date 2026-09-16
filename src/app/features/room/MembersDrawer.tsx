@@ -43,7 +43,8 @@ import { useDebounce } from '../../hooks/useDebounce';
 import { TypingIndicator } from '../../components/typing-indicator';
 import { getMemberDisplayName, getMemberSearchStr } from '../../utils/room';
 import { getMxIdLocalPart, mxcUrlToHttp } from '../../utils/matrix';
-import { useSetSetting, useSetting } from '../../state/hooks/settings';
+import { useSetting } from '../../state/hooks/settings';
+import { useMembersDrawer } from '../../mindroom/sidebar/useMembersDrawer';
 import { settingsAtom } from '../../state/settings';
 import { millify } from '../../plugins/millify';
 import { ScrollTopContainer } from '../../components/scroll-top-container';
@@ -81,7 +82,7 @@ type MemberDrawerHeaderProps = {
 };
 function MemberDrawerHeader({ room, canInvite }: MemberDrawerHeaderProps) {
   const { t } = useTranslation();
-  const setPeopleDrawer = useSetSetting(settingsAtom, 'isPeopleDrawer');
+  const [, setPeopleDrawer] = useMembersDrawer();
   const [invitePrompt, setInvitePrompt] = useState(false);
 
   return (
@@ -141,6 +142,7 @@ function MemberDrawerHeader({ room, canInvite }: MemberDrawerHeaderProps) {
                 ref={triggerRef}
                 variant="Background"
                 onClick={() => setPeopleDrawer(false)}
+                aria-label={t('featureUi.room.membersDrawer.close')}
               >
                 <Icon src={Icons.Cross} />
               </IconButton>

@@ -2626,7 +2626,8 @@
       "mindroomTab": {
         "localMindroom": "Lokale MindRoom"
       },
-      "resizeNavigationPanel": "Navigatiepaneel vergroten of verkleinen"
+      "resizeNavigationPanel": "Navigatiepaneel vergroten of verkleinen",
+      "resizeMemberPanel": "Ledenpaneel vergroten of verkleinen"
     },
     "threads": {
       "compactRoomView": {

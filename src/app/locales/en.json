@@ -2626,7 +2626,8 @@
       "mindroomTab": {
         "localMindroom": "Local MindRoom"
       },
-      "resizeNavigationPanel": "Resize navigation panel"
+      "resizeNavigationPanel": "Resize navigation panel",
+      "resizeMemberPanel": "Resize member panel"
     },
     "threads": {
       "compactRoomView": {
