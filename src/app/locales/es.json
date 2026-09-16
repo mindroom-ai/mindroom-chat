@@ -2860,5 +2860,35 @@
       "openConversation": "Abre esta solicitud desde la conversación de la sala.",
       "settingsUnavailable": "Desactiva el modo simple para abrir esta sección de ajustes."
     }
+  },
+  "roomSchedules": {
+    "title": "Tareas programadas",
+    "openLabel": "Tareas programadas ({{total}})",
+    "empty": "No hay tareas programadas en esta sala.",
+    "emptyHint": "Pide a un agente de MindRoom que programe una tarea aquí.",
+    "prompt": "Instrucción",
+    "promptUnavailable": "Instrucción no disponible",
+    "once": "Una vez",
+    "recurring": "Periódica",
+    "executionTime": "Hora de ejecución",
+    "unknownTime": "Hora de ejecución no disponible",
+    "awaitingExecution": "Pendiente de ejecución",
+    "recurrence": "Recurrencia",
+    "silent": "Silenciosa",
+    "conditional": "Condicional",
+    "newThread": "Nuevo hilo",
+    "roomTimeline": "Cronología de la sala",
+    "openThread": "Abrir hilo",
+    "owner": "Propietario de la tarea",
+    "createdAt": "Creada",
+    "updatedAt": "Actualizada",
+    "model": "Modelo",
+    "inheritedModel": "De los ajustes del agente, la sala o el hilo",
+    "taskId": "ID de tarea",
+    "historyLimit": "Límite del historial",
+    "fullHistory": "Historial completo",
+    "noHistory": "Sin historial",
+    "recentMessages": "Mensajes recientes: {{total}}",
+    "close": "Cerrar"
   }
 }

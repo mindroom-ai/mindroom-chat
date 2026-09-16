@@ -1,5 +1,5 @@
 import type { MatrixEvent } from 'matrix-js-sdk/lib/models/event';
-import { parseScheduledTaskStateEvent } from './scheduledTaskContract';
+import { parseScheduleTimestamp, parseScheduledTaskStateEvent } from './scheduledTaskContract';
 
 export type ThreadScheduledStatus = {
   scheduledTaskCount: number;
@@ -25,14 +25,8 @@ export const buildRoomThreadScheduledStatusMap = (
     if (parsedTask.newThread) return;
     if (!parsedTask.threadId) return;
 
-    let executeAtTs: number | undefined;
-    if (parsedTask.executeAt) {
-      const parsedExecuteAtTs = Date.parse(parsedTask.executeAt);
-      if (Number.isFinite(parsedExecuteAtTs)) {
-        if (parsedExecuteAtTs <= now) return;
-        executeAtTs = parsedExecuteAtTs;
-      }
-    }
+    const executeAtTs = parseScheduleTimestamp(parsedTask.executeAt);
+    if (executeAtTs !== undefined && executeAtTs <= now) return;
 
     const current = statusMap.get(parsedTask.threadId) ?? EMPTY_THREAD_SCHEDULED_STATUS;
     const previousTimestampsComplete =

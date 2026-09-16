@@ -3019,5 +3019,35 @@
       "openConversation": "افتح هذا الطلب من محادثة الغرفة.",
       "settingsUnavailable": "أوقف الوضع البسيط لفتح هذا القسم من الإعدادات."
     }
+  },
+  "roomSchedules": {
+    "title": "المهام المجدولة",
+    "openLabel": "المهام المجدولة (⁨{{total}}⁩)",
+    "empty": "لا توجد مهام مجدولة في هذه الغرفة.",
+    "emptyHint": "اطلب من وكيل MindRoom جدولة مهمة هنا.",
+    "prompt": "الموجّه",
+    "promptUnavailable": "الموجّه غير متاح",
+    "once": "لمرة واحدة",
+    "recurring": "متكررة",
+    "executionTime": "وقت التنفيذ",
+    "unknownTime": "وقت التنفيذ غير متاح",
+    "awaitingExecution": "في انتظار التنفيذ",
+    "recurrence": "التكرار",
+    "silent": "صامتة",
+    "conditional": "مشروطة",
+    "newThread": "سلسلة محادثة جديدة",
+    "roomTimeline": "الخط الزمني للغرفة",
+    "openThread": "فتح سلسلة المحادثة",
+    "owner": "مالك المهمة",
+    "createdAt": "تاريخ الإنشاء",
+    "updatedAt": "تم التحديث",
+    "model": "النموذج",
+    "inheritedModel": "من إعدادات الوكيل أو الغرفة أو سلسلة المحادثة",
+    "taskId": "معرّف المهمة",
+    "historyLimit": "حد السجل",
+    "fullHistory": "السجل الكامل",
+    "noHistory": "بدون سجل",
+    "recentMessages": "الرسائل الأخيرة: ⁨{{total}}⁩",
+    "close": "إغلاق"
   }
 }

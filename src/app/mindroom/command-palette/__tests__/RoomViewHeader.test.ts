@@ -181,6 +181,20 @@ vi.mock('../../../features/room/RoomViewHeader.css', () => ({
   HeaderTopic: 'HeaderTopic',
 }));
 
+vi.mock('../../schedules/roomSchedules.css', () => ({
+  Trigger: 'Trigger',
+  Count: 'Count',
+}));
+
+// The schedules browser tests exercise the dialog and its mention/profile UI.
+vi.mock('../../schedules/RoomSchedulesDialog', () => ({
+  RoomSchedulesDialog: () => null,
+}));
+
+vi.mock('../../threads/useStateEvents', () => ({
+  useStateEvents: () => [],
+}));
+
 vi.mock('../../../state/hooks/unread', () => ({
   useRoomUnread: () => false,
 }));
@@ -269,6 +283,7 @@ vi.mock('../../../features/room/jump-to-time', () => ({
 vi.mock('../../../hooks/useRoomNavigate', () => ({
   useRoomNavigate: () => ({
     navigateRoom: vi.fn(),
+    navigateRoomThread: vi.fn(),
   }),
 }));
 
@@ -285,7 +300,9 @@ vi.mock('../../../hooks/useRoomPermissions', () => ({
 
 const renderHeader = async (
   joinRequestCount = 0,
-  computerProps: {
+  headerProps: {
+    hasMindroomAgents?: boolean;
+    callView?: boolean;
     computerAvailable?: boolean;
     computerOpen?: boolean;
     onComputerToggle?: () => void;
@@ -301,7 +318,11 @@ const renderHeader = async (
     React.createElement(
       Provider,
       { store },
-      React.createElement(RoomViewHeader, { joinRequestCount, ...computerProps })
+      React.createElement(RoomViewHeader, {
+        hasMindroomAgents: true,
+        joinRequestCount,
+        ...headerProps,
+      })
     )
   );
 
@@ -318,6 +339,32 @@ afterEach(() => {
 });
 
 describe('RoomViewHeader', () => {
+  it.each([false, true])('hides schedules without agents when callView is %s', async (callView) => {
+    const { renderer, store } = await renderHeader(0, { hasMindroomAgents: false, callView });
+    expect(renderer.root.findAllByProps({ 'aria-label': 'Scheduled tasks (0)' })).toHaveLength(0);
+    act(() => {
+      store.set(mindroomAccountSettingsAtom, {
+        simpleMode: true,
+        expandLongMessagesByDefault: true,
+      });
+    });
+    expect(renderer.root.findAllByProps({ 'aria-label': 'Scheduled tasks (0)' })).toHaveLength(0);
+    act(() => renderer.unmount());
+  });
+
+  it('keeps schedules accessible in simple mode on phones', async () => {
+    screenSizeState.value = 'Mobile';
+    const { renderer, store } = await renderHeader();
+    act(() => {
+      store.set(mindroomAccountSettingsAtom, {
+        simpleMode: true,
+        expandLongMessagesByDefault: true,
+      });
+    });
+    expect(renderer.root.findByProps({ 'aria-label': 'Scheduled tasks (0)' })).toBeDefined();
+    act(() => renderer.unmount());
+  });
+
   it.each(
     ['Desktop', 'Tablet', 'Mobile'].flatMap((screen) =>
       [false, true].map((storedOpen) => ({ screen, storedOpen }))

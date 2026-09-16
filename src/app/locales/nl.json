@@ -2807,5 +2807,35 @@
       "openConversation": "Open dit verzoek vanuit het gesprek in de kamer.",
       "settingsUnavailable": "Schakel de eenvoudige modus uit om dit onderdeel van de instellingen te openen."
     }
+  },
+  "roomSchedules": {
+    "title": "Geplande taken",
+    "openLabel": "Geplande taken ({{total}})",
+    "empty": "Geen geplande taken in deze ruimte.",
+    "emptyHint": "Vraag een MindRoom-agent om hier een taak te plannen.",
+    "prompt": "Prompt",
+    "promptUnavailable": "Prompt niet beschikbaar",
+    "once": "Eenmalig",
+    "recurring": "Terugkerend",
+    "executionTime": "Uitvoeringstijd",
+    "unknownTime": "Uitvoeringstijd niet beschikbaar",
+    "awaitingExecution": "In afwachting van uitvoering",
+    "recurrence": "Herhaling",
+    "silent": "Stil",
+    "conditional": "Voorwaardelijk",
+    "newThread": "Nieuwe thread",
+    "roomTimeline": "Ruimtetijdlijn",
+    "openThread": "Thread openen",
+    "owner": "Taakeigenaar",
+    "createdAt": "Gemaakt",
+    "updatedAt": "Bijgewerkt",
+    "model": "Model",
+    "inheritedModel": "Uit agent-, ruimte- of threadinstellingen",
+    "taskId": "Taak-ID",
+    "historyLimit": "Geschiedenislimiet",
+    "fullHistory": "Volledige geschiedenis",
+    "noHistory": "Geen geschiedenis",
+    "recentMessages": "Recente berichten: {{total}}",
+    "close": "Sluiten"
   }
 }

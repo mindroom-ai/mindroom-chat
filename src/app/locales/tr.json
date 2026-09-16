@@ -2807,5 +2807,35 @@
       "openConversation": "Bu isteği oda sohbetinden açın.",
       "settingsUnavailable": "Bu Ayarlar bölümünü açmak için Basit Modu kapatın."
     }
+  },
+  "roomSchedules": {
+    "title": "Zamanlanmış görevler",
+    "openLabel": "Zamanlanmış görevler ({{total}})",
+    "empty": "Bu odada zamanlanmış görev yok.",
+    "emptyHint": "Bir MindRoom ajanından burada bir görev zamanlamasını isteyin.",
+    "prompt": "İstem",
+    "promptUnavailable": "İstem kullanılamıyor",
+    "once": "Tek seferlik",
+    "recurring": "Yinelenen",
+    "executionTime": "Yürütme zamanı",
+    "unknownTime": "Yürütme zamanı kullanılamıyor",
+    "awaitingExecution": "Yürütülmeyi bekliyor",
+    "recurrence": "Yineleme",
+    "silent": "Sessiz",
+    "conditional": "Koşullu",
+    "newThread": "Yeni konu",
+    "roomTimeline": "Oda zaman çizelgesi",
+    "openThread": "Konuyu aç",
+    "owner": "Görev sahibi",
+    "createdAt": "Oluşturulma",
+    "updatedAt": "Güncellendi",
+    "model": "Model",
+    "inheritedModel": "Ajan, oda veya konu ayarlarından",
+    "taskId": "Görev kimliği",
+    "historyLimit": "Geçmiş sınırı",
+    "fullHistory": "Tüm geçmiş",
+    "noHistory": "Geçmiş yok",
+    "recentMessages": "Son mesajlar: {{total}}",
+    "close": "Kapat"
   }
 }

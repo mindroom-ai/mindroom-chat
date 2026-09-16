@@ -173,6 +173,7 @@ export function RoomView({
       >
         <div ref={headerRef} className={overlay.Header}>
           <RoomViewHeader
+            hasMindroomAgents={hasMindroomAgents}
             computerAvailable={computerAvailable}
             computerOpen={computerOpen}
             onComputerToggle={onComputerToggle}
