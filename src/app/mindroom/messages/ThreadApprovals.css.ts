@@ -1,19 +1,23 @@
 import { style, globalStyle, keyframes } from '@vanilla-extract/css';
 import { color, config } from 'folds';
+import { glassFloating, glassSurface } from '../../styles/Glass.css';
 import * as disclosure from './MessageDisclosure.css';
 
-export const Bar = style({
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  gap: 8,
-  padding: '8px 12px',
-  margin: `0 ${config.space.S400} ${config.space.S200}`,
-  borderRadius: config.radii.R400,
-  background: color.SurfaceVariant.Container,
-  boxShadow: `inset 0 0 0 ${config.borderWidth.B300} ${color.SurfaceVariant.ContainerLine}`,
-  flexShrink: 0,
-});
+export const Bar = style([
+  glassSurface({ level: 'panel', variant: 'SurfaceVariant' }),
+  glassFloating,
+  {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+    padding: '8px 12px',
+    margin: `0 ${config.space.S400} ${config.space.S200}`,
+    borderRadius: config.radii.R400,
+    color: color.SurfaceVariant.OnContainer,
+    flexShrink: 0,
+  },
+]);
 export const BarStatus = style({
   display: 'flex',
   alignItems: 'center',
