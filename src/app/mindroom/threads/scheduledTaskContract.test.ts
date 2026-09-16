@@ -104,6 +104,20 @@ describe('parseScheduledTaskStateEvent', () => {
     });
   });
 
+  it.each([true, false])('keeps an explicit room destination over workflow data (%s)', (json) => {
+    const workflow = { thread_id: '$legacy-thread', new_thread: false };
+    const task = parseScheduledTaskStateEvent(
+      makeScheduledTaskEvent({
+        status: 'pending',
+        thread_id: null,
+        workflow: json ? JSON.stringify(workflow) : workflow,
+      })
+    );
+
+    expect(task?.threadId).toBeNull();
+    expect(task?.newThread).toBe(false);
+  });
+
   it('parses the backend-owned cron description', () => {
     const event = makeScheduledTaskEvent({
       status: 'pending',

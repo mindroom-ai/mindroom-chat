@@ -2,8 +2,8 @@ import React, { forwardRef, useEffect, useId, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Badge, Box, Button, Icon, IconButton, Icons, Scroll, Text } from 'folds';
 import { Header, Modal } from '../../components/glass/GlassPrimitives';
-import type { ParsedScheduledTask } from '../threads/scheduledTaskContract';
-import { getScheduleTimestamp, parseScheduleTimestamp } from './roomSchedules';
+import { parseScheduleTimestamp, type ParsedScheduledTask } from '../threads/scheduledTaskContract';
+import { getScheduleTimestamp } from './roomSchedules';
 import * as css from './roomSchedules.css';
 
 function ScheduleCard({

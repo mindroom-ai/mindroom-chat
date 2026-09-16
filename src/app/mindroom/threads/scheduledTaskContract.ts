@@ -46,6 +46,17 @@ export type ParsedScheduledTask = ScheduledTaskDetails & {
   cronDescription?: string;
 };
 
+export const parseScheduleTimestamp = (value: string | null | undefined): number | undefined => {
+  if (!value) return undefined;
+  // The scheduler treats offset-free ISO datetimes as UTC.
+  const iso = value.replace(' ', 'T');
+  const normalized = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?$/.test(iso)
+    ? `${iso}Z`
+    : iso;
+  const timestamp = Date.parse(normalized);
+  return Number.isFinite(timestamp) ? timestamp : undefined;
+};
+
 const parseThreadId = (value: unknown): string | null | undefined => {
   if (typeof value === 'string') return value;
   if (value === null) return null;
@@ -174,7 +185,10 @@ export const parseScheduledTaskStateEvent = (event: MatrixEvent): ParsedSchedule
     ...parseDetails(content),
     taskId,
     status,
-    threadId: parsedTopLevelThreadId ?? parsedWorkflow?.threadId ?? null,
+    threadId:
+      parsedTopLevelThreadId !== undefined
+        ? parsedTopLevelThreadId
+        : parsedWorkflow?.threadId ?? null,
     newThread: parsedTopLevelNewThread ?? parsedWorkflow?.newThread ?? false,
     executeAt: parsedTopLevelExecuteAt ?? parsedWorkflow?.executeAt ?? null,
     ...(cronDescription ? { cronDescription } : {}),

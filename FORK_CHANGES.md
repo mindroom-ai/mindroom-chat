@@ -12,16 +12,20 @@
   Existing-thread tasks include an Open thread action.
   Cron state does not contain a next-run timestamp, so the dialog displays the stored recurrence and expression.
 - Schedule details extend the existing state-event parser for both workflow JSON strings and objects.
-  Room-list normalization recognizes the legacy `main` destination and offset-free UTC timestamps without changing existing thread schedule badges.
+  Room-list normalization recognizes the legacy `main` destination, and explicit room destinations override stale workflow thread IDs.
+  Room and thread views share the scheduler's UTC policy for offset-free timestamps; thread badges still exclude expired tasks.
+  Regressions cover explicit room destinations in both workflow formats and timestamp handling in Los Angeles and Tokyo.
 - Keyboard dismissal stops Escape before the room read-receipt shortcut, restores focus, and resets on room navigation.
   Browser regressions cover the real room Escape handler, live state changes, empty rooms, local times, all history modes, long prompts and cron fields, phone layouts, and RTL.
   A separate local-Matrix browser case verifies the actual room header, thread navigation, and cancellation through sync.
 - All new UI labels are translated across the 17 supported languages.
 - The dialog uses the shared glass components and preserves the current room-header controls.
-- Validation: all 4,475 tests across 533 files pass under Node 24 in the standard Linux container after a fresh dependency install with repository patches.
+- Validation: all 4,479 tests across 533 files pass under Node 24 in the standard Linux container after a fresh dependency install with repository patches.
   All five Chromium cases pass, including the local-Matrix integration case, and typecheck, the production/PWA build, changed-file formatting, and whitespace checks pass.
   ESLint reports zero errors and the existing 17 warnings.
   Independent review has no remaining actionable findings.
+- Risks: recurring tasks have no published next-run timestamp, so their exact next execution cannot be displayed.
+- Next step: Merge after the PR's required checks and reviews pass.
 
 ### Match the approval banner to floating glass (2026-09-16)
 
