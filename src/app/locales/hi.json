@@ -1579,6 +1579,13 @@
         "voiceSendFailed": "ध्वनि भेजना विफल रहा",
         "yourRecordingIsStillSaved": "आपकी रिकॉर्डिंग अभी भी सहेजी गई है."
       }
+    },
+    "uiActions": {
+      "viewComputer": "कंप्यूटर देखें",
+      "openMembers": "सदस्य खोलें",
+      "computerUnavailable": "इस एजेंट का कंप्यूटर उपलब्ध नहीं है।",
+      "releaseControl": "दूसरा दृश्य खोलने से पहले कंप्यूटर का नियंत्रण छोड़ें।",
+      "openConversation": "यह अनुरोध कमरे की बातचीत से खोलें।"
     }
   },
   "nav": {

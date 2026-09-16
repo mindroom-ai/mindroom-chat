@@ -2798,6 +2798,13 @@
         "threadInRoom": "Thread in {{roomName}}",
         "thread": "Thread"
       }
+    },
+    "uiActions": {
+      "viewComputer": "Computer ansehen",
+      "openMembers": "Mitglieder öffnen",
+      "computerUnavailable": "Der Computer dieses Agenten ist nicht verfügbar.",
+      "releaseControl": "Gib die Computersteuerung frei, bevor du eine andere Ansicht öffnest.",
+      "openConversation": "Öffne diese Anfrage über das Gespräch im Raum."
     }
   }
 }

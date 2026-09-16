@@ -2,6 +2,17 @@
 
 ## Runbook
 
+### Let agents open conversation controls (2026-09-16)
+
+- Agents can request the Computer, Settings, or Members panel through versioned `io.mindroom.ui_action` metadata on ordinary Matrix notices.
+  Fresh requests open automatically only for the addressed user viewing the active conversation in a focused client.
+  History, background conversations, initial sync, and replay retain explicit buttons without reopening panels.
+- Computer requests select the sending agent and reuse the existing authenticated viewer flow.
+  Human control and pending computer operations prevent requests from switching computers or replacing the panel.
+  Settings accepts named existing sections; Members uses the existing responsive drawer.
+- Validation in progress: 100 focused protocol, lifecycle, rendering, room, and computer tests pass, along with typecheck and the production/PWA build.
+  Full suite, browser verification, and independent review are pending.
+
 ### Match the approval banner to floating glass (2026-09-16)
 
 - The approval banner above the composer uses the same shared panel material and shallow native blur as the typing strip.

@@ -1,5 +1,5 @@
 import React, { type ReactNode } from 'react';
-import { MsgType } from 'matrix-js-sdk';
+import { MsgType, type MatrixEvent } from 'matrix-js-sdk';
 import { HTMLReactParserOptions } from 'html-react-parser';
 import { Opts } from 'linkifyjs';
 import { BrokenContent, MEmote, MNotice, MText, RenderBody } from '../../components/message';
@@ -26,8 +26,11 @@ import { getMindroomPasteAttachmentFile } from './pasteAttachmentMarker';
 import { MINDROOM_TOOL_APPROVAL_EVENT, parseToolApprovalContent } from './toolApproval';
 import { getMindroomThreadSummaryInfo } from './threadSummary';
 import { getMindroomMessageStateSuffixRenderer } from './messageStateSuffix';
+import { ChatUiActionButton } from '../ui-actions/ChatUiActionButton';
+import { CHAT_UI_ACTION_KEY } from '../ui-actions/chatUiProtocol';
 
 export type RenderMindroomMessageContentOptions = {
+  mEvent?: MatrixEvent;
   displayName: string;
   eventType?: string;
   roomId?: string;
@@ -63,6 +66,7 @@ function MindroomMessageExtrasRenderNotice({
 }
 
 export const renderMindroomMessageContent = ({
+  mEvent,
   displayName,
   eventType,
   roomId,
@@ -353,6 +357,15 @@ export const renderMindroomMessageContent = ({
   }
 
   if (msgType === MsgType.Notice) {
+    if (mEvent && !edited && content[CHAT_UI_ACTION_KEY]) {
+      return (
+        <MNotice
+          content={content}
+          renderBody={renderBody(content)}
+          renderAfterBody={<ChatUiActionButton event={mEvent} />}
+        />
+      );
+    }
     const isStreaming = isMindroomAiRunStreaming(content);
     const longTextSource = getRenderableLongTextSource(content);
     if (longTextSource) {

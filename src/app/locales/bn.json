@@ -1579,6 +1579,13 @@
         "voiceSendFailed": "ভয়েস পাঠানো ব্যর্থ হয়েছে",
         "yourRecordingIsStillSaved": "আপনার রেকর্ডিং এখনও সংরক্ষিত আছে."
       }
+    },
+    "uiActions": {
+      "viewComputer": "কম্পিউটার দেখুন",
+      "openMembers": "সদস্যদের খুলুন",
+      "computerUnavailable": "এই এজেন্টের কম্পিউটার উপলব্ধ নেই।",
+      "releaseControl": "অন্য দৃশ্য খোলার আগে কম্পিউটারের নিয়ন্ত্রণ ছেড়ে দিন।",
+      "openConversation": "রুমের কথোপকথন থেকে এই অনুরোধটি খুলুন।"
     }
   },
   "nav": {

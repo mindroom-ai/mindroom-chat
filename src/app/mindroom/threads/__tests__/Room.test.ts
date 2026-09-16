@@ -1,6 +1,7 @@
 import React from 'react';
 import { act, create } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { MatrixEvent } from 'matrix-js-sdk';
 
 type MockRoomViewProps = {
   computerAvailable?: boolean;
@@ -15,6 +16,9 @@ type MockRoomViewProps = {
 };
 
 type MockComputerPanelProps = {
+  requestedAgent?: { userId: string };
+  onInteractionChange?: (interaction: { agentUserId?: string; locked: boolean }) => void;
+  onClose?: () => void;
   agents: Array<{ userId: string; name: string }>;
   continuationReady?: boolean;
   apiUrl: string;
@@ -31,11 +35,19 @@ const { mx, navigateRoomMock, navigateRoomThreadMock, removeRecentThreadMock, ro
     navigateRoomMock: vi.fn(),
     navigateRoomThreadMock: vi.fn(),
     removeRecentThreadMock: vi.fn(),
-    mx: { getSafeUserId: () => '@alice:example.org' },
+    mx: {
+      getSafeUserId: () => '@alice:example.org',
+      isInitialSyncComplete: () => true,
+      getSyncState: () => 'SYNCING',
+      on: (name: string, handler: (...args: unknown[]) => void) =>
+        roomState.mxListeners.set(name, handler),
+      removeListener: (name: string) => roomState.mxListeners.delete(name),
+    },
     room: {
       roomId: '!room:example.org',
       isCallRoom: () => roomState.callRoom,
       getMembers: () => roomState.members,
+      getMember: (userId: string) => roomState.members.find((member) => member.userId === userId),
       getThread: () => undefined,
       findEventById: () => roomState.routedEvent,
       on: (name: string, handler: (...args: unknown[]) => void) =>
@@ -43,6 +55,7 @@ const { mx, navigateRoomMock, navigateRoomThreadMock, removeRecentThreadMock, ro
       removeListener: (name: string) => roomState.listeners.delete(name),
     },
     roomState: {
+      mxListeners: new Map<string, (...args: unknown[]) => void>(),
       listeners: new Map<string, (...args: unknown[]) => void>(),
       drawer: false,
       screenSize: 'Desktop',
@@ -232,6 +245,7 @@ describe('Room', () => {
   });
 
   afterEach(() => {
+    roomState.mxListeners.clear();
     roomState.listeners.clear();
     roomState.drawer = false;
     roomState.screenSize = 'Desktop';
@@ -310,6 +324,84 @@ describe('Room', () => {
     });
 
     expect(roomState.roomViewProps?.joinRequestCount).toBe(2);
+  });
+
+  it('applies live UI requests through the existing room controls and preserves human control', async () => {
+    vi.stubGlobal('document', { visibilityState: 'visible', hasFocus: () => true });
+    roomState.clientConfig = {
+      mindroom: { computers: { apiUrl: 'https://computer.example.org' } },
+    };
+    roomState.members = [
+      { membership: 'join', userId: '@mindroom_helper:example.org' },
+      { membership: 'join', userId: '@alice:example.org' },
+    ];
+    roomState.search = '?threadId=%24thread';
+    roomState.routedEvent = { getId: () => '$thread', isSending: () => false };
+    const { Room } = await import('../../../features/room/Room');
+    const { getDefaultStore } = await import('jotai');
+    const { settingsModalAtom } = await import('../../../state/settingsModal');
+    const { SettingsPages } = await import('../../../features/settings/settingsPages');
+    let renderer: ReturnType<typeof create>;
+    await act(async () => {
+      renderer = create(React.createElement(Room));
+    });
+    let serial = 0;
+    const emitAction = (action: string, extra: Record<string, unknown> = {}) => {
+      const event = new MatrixEvent({
+        event_id: `$ui-${serial++}`,
+        room_id: room.roomId,
+        sender: '@mindroom_helper:example.org',
+        type: 'm.room.message',
+        origin_server_ts: Date.now(),
+        content: {
+          msgtype: 'm.notice',
+          body: 'Open this view.',
+          'm.relates_to': { rel_type: 'm.thread', event_id: '$thread' },
+          'io.mindroom.ui_action': {
+            version: 1,
+            action,
+            requester_id: '@alice:example.org',
+            agent_user_id: '@mindroom_helper:example.org',
+            room_id: room.roomId,
+            thread_id: '$thread',
+            ...extra,
+          },
+        },
+      });
+      roomState.mxListeners.get('Room.timeline')?.(event, room, false, false, { liveEvent: true });
+      return event;
+    };
+    await act(async () => {
+      emitAction('show_computer');
+    });
+    expect(roomState.roomViewProps?.computerOpen).toBe(true);
+    expect(roomState.computerPanelProps?.requestedAgent?.userId).toBe(
+      '@mindroom_helper:example.org'
+    );
+    await act(async () =>
+      roomState.computerPanelProps?.onInteractionChange?.({
+        agentUserId: '@mindroom_helper:example.org',
+        locked: true,
+      })
+    );
+    await act(async () => {
+      emitAction('open_panel', { panel: 'members' });
+    });
+    expect(roomState.roomViewProps?.computerOpen).toBe(true);
+    await act(async () => roomState.computerPanelProps?.onInteractionChange?.({ locked: false }));
+    await act(async () => {
+      emitAction('open_panel', { panel: 'members' });
+    });
+    expect(roomState.roomViewProps?.computerOpen).toBe(false);
+    expect(roomState.setPeopleDrawer).toHaveBeenCalledWith(true);
+    await act(async () => {
+      emitAction('open_settings', { section: 'account' });
+    });
+    expect(getDefaultStore().get(settingsModalAtom)).toEqual({
+      initialPage: SettingsPages.AccountPage,
+    });
+    await act(async () => renderer!.unmount());
+    vi.stubGlobal('document', undefined);
   });
 
   it('opens the configured computer panel only for exact joined agent identities', async () => {

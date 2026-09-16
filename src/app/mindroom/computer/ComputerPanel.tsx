@@ -21,6 +21,8 @@ const LazyComputerScreen = lazy(() => import('./ComputerScreen'));
 type PanelPhase = 'selecting' | 'connecting' | 'ready' | 'disconnected' | 'stopped' | 'error';
 type PanelOperation = 'take' | 'resume' | 'stop' | 'reconnect';
 
+export type ComputerInteraction = { agentUserId?: string; locked: boolean };
+
 export type ComputerPanelProps = {
   agents: readonly ComputerAgent[];
   apiUrl: string;
@@ -31,6 +33,8 @@ export type ComputerPanelProps = {
   onClose: () => void;
   request?: typeof fetch;
   ScreenComponent?: ComponentType<ComputerScreenProps>;
+  requestedAgent?: { userId: string };
+  onInteractionChange?: (interaction: ComputerInteraction) => void;
 };
 
 const getErrorMessage = (error: unknown): string => {
@@ -66,9 +70,12 @@ export function ComputerPanel({
   onClose,
   request,
   ScreenComponent = LazyComputerScreen,
+  requestedAgent,
+  onInteractionChange,
 }: ComputerPanelProps) {
-  const [chosenAgentId, setChosenAgentId] = useState<string>();
-  const [activeAgentId, setActiveAgentId] = useState<string>();
+  const [chosenAgentId, setChosenAgentId] = useState<string | undefined>(requestedAgent?.userId);
+  const [activeAgentId, setActiveAgentId] = useState<string | undefined>(requestedAgent?.userId);
+  const handledRequestRef = useRef(requestedAgent);
   const [restart, setRestart] = useState(0);
   const [phase, setPhase] = useState<PanelPhase>('selecting');
   const [operation, setOperation] = useState<PanelOperation>();
@@ -93,6 +100,22 @@ export function ComputerPanel({
     [activeAgentId, agents]
   );
   const selectedAgentUserId = selectedAgent?.userId;
+
+  useEffect(() => {
+    onInteractionChange?.({
+      agentUserId: selectedAgentUserId,
+      locked: status?.mode === 'control' || !!operation,
+    });
+  }, [onInteractionChange, selectedAgentUserId, status?.mode, operation]);
+
+  useEffect(() => {
+    if (!requestedAgent || handledRequestRef.current === requestedAgent) return;
+    handledRequestRef.current = requestedAgent;
+    if (status?.mode === 'control' || operation) return;
+    if (!agents.some((agent) => agent.userId === requestedAgent.userId)) return;
+    setChosenAgentId(requestedAgent.userId);
+    setActiveAgentId(requestedAgent.userId);
+  }, [requestedAgent, agents, status?.mode, operation]);
 
   const disposeSession = useCallback((session: ComputerSessionClient) => {
     if (disposedSessionsRef.current.has(session)) return;

@@ -2851,6 +2851,13 @@
         "threadInRoom": "Fil dans {{roomName}}",
         "thread": "Fil"
       }
+    },
+    "uiActions": {
+      "viewComputer": "Voir l’ordinateur",
+      "openMembers": "Ouvrir les membres",
+      "computerUnavailable": "L’ordinateur de cet agent est indisponible.",
+      "releaseControl": "Relâchez le contrôle de l’ordinateur avant d’ouvrir une autre vue.",
+      "openConversation": "Ouvrez cette demande depuis la conversation du salon."
     }
   }
 }

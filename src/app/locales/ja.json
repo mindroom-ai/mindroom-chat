@@ -2798,6 +2798,13 @@
         "threadInRoom": "{{roomName}} のスレッド",
         "thread": "スレッド"
       }
+    },
+    "uiActions": {
+      "viewComputer": "コンピューターを表示",
+      "openMembers": "メンバーを開く",
+      "computerUnavailable": "このエージェントのコンピューターは利用できません。",
+      "releaseControl": "別の画面を開く前にコンピューターの操作権を手放してください。",
+      "openConversation": "ルームの会話からこのリクエストを開いてください。"
     }
   }
 }
