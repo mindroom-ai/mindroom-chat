@@ -186,6 +186,11 @@ vi.mock('../../schedules/roomSchedules.css', () => ({
   Count: 'Count',
 }));
 
+// The schedules browser tests exercise the dialog and its mention/profile UI.
+vi.mock('../../schedules/RoomSchedulesDialog', () => ({
+  RoomSchedulesDialog: () => null,
+}));
+
 vi.mock('../../threads/useStateEvents', () => ({
   useStateEvents: () => [],
 }));

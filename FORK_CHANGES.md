@@ -9,6 +9,8 @@
   Its dialog lists pending tasks across the room timeline, existing threads, and new-thread destinations, and updates from Matrix room state as schedules change.
   Overdue pending tasks remain visible until the backend changes their status.
 - Each task shows its description, full prompt, one-time execution date in the viewer's local timezone or recurring schedule in UTC, and available creator, creation date, history limit, silent/conditional flags, and task ID.
+  Creators use the same clickable mention styling and room display names as chat messages, with the full Matrix ID on hover.
+  Mouse and keyboard activation open the standard user profile, and dismissing that profile keeps the schedules dialog open.
   Existing-thread tasks include an Open thread action.
   Cron state does not contain a next-run timestamp, so the dialog displays the stored recurrence and expression.
 - Schedule details extend the existing state-event parser for both workflow JSON strings and objects.
@@ -18,6 +20,7 @@
 - Keyboard dismissal stops Escape before the room read-receipt shortcut, restores focus, and resets on room navigation.
   Browser regressions cover the real room Escape handler, live state changes, empty rooms, local times, all history modes, long prompts and cron fields, phone layouts, and RTL.
   A separate local-Matrix browser case verifies the actual room header, thread navigation, and cancellation through sync.
+  It also verifies creator profiles on desktop and phone, keyboard activation, and focus restoration after closing the profile.
 - All new UI labels are translated across the 17 supported languages.
 - The dialog uses the shared glass components and preserves the current room-header controls.
 - Validation: all 4,479 tests across 533 files pass under Node 24 in the standard Linux container after a fresh dependency install with repository patches.

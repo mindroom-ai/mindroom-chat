@@ -25,6 +25,10 @@ test.describe('room schedules in the chat header', () => {
       name: `Room schedules ${Date.now()}`,
       topic: 'Schedule viewer integration test',
     });
+    await sendStateEvent(homeserver, accessToken, roomId, 'm.room.member', userId, {
+      membership: 'join',
+      displayname: 'Schedule creator',
+    });
     const rootId = await sendRoomMessage(homeserver, accessToken, roomId, {
       msgtype: 'm.text',
       body: 'Plan the weekly report',
@@ -56,6 +60,23 @@ test.describe('room schedules in the chat header', () => {
     await trigger.click();
     const dialog = page.getByRole('dialog', { name: 'Scheduled tasks', exact: true });
     await expect(dialog.getByText('Summarize the weekly report', { exact: true })).toBeVisible();
+    const creator = dialog.getByRole('link', { name: '@Schedule creator', exact: true });
+    await expect(creator).toHaveAttribute('title', userId);
+    await expect(creator).toHaveAttribute('href', `https://matrix.to/#/${userId}`);
+    const shareProfile = page.getByRole('button', { name: 'Share', exact: true });
+    await creator.click();
+    await expect(shareProfile).toBeVisible();
+    await shareProfile.focus();
+    await expect(shareProfile).toBeFocused();
+    await page.keyboard.press('Escape');
+    await expect(shareProfile).toHaveCount(0);
+    await expect(dialog).toBeVisible();
+    await expect(creator).toBeFocused();
+    await creator.press('Enter');
+    await expect(shareProfile).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(shareProfile).toHaveCount(0);
+    await expect(dialog).toBeVisible();
     await dialog.getByRole('button', { name: 'Open thread', exact: true }).click();
     await expect(dialog).toHaveCount(0);
     await expect.poll(() => new URL(page.url()).searchParams.get('threadId')).toBe(rootId);
@@ -64,6 +85,11 @@ test.describe('room schedules in the chat header', () => {
     await expect(trigger).toBeInViewport();
     await trigger.click();
     await expect(dialog.getByText('Weekly report', { exact: true })).toBeVisible();
+    await creator.click();
+    await expect(shareProfile).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(shareProfile).toHaveCount(0);
+    await expect(dialog).toBeVisible();
     const bounds = await dialog.boundingBox();
     expect(bounds!.x).toBeGreaterThanOrEqual(0);
     expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(320);

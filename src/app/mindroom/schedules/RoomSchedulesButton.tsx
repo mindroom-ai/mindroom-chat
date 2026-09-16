@@ -84,6 +84,7 @@ export function RoomSchedulesButton({
               }}
             >
               <RoomSchedulesDialog
+                roomId={room.roomId}
                 tasks={tasks}
                 onClose={() => setOpen(false)}
                 onOpenThread={(threadId) => {

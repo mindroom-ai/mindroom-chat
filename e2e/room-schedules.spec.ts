@@ -33,7 +33,9 @@ test('room schedule list shows every destination and follows live state updates'
   await expect(dialog.locator('time[datetime="2099-01-01T12:00:00.000Z"]')).toHaveText(
     'Jan 1, 2099, 4:00:00 AM PST'
   );
-  await expect(dialog.getByText('@alice:example.org', { exact: true })).toHaveCount(3);
+  const creators = dialog.getByRole('link', { name: '@Alice', exact: true });
+  await expect(creators).toHaveCount(3);
+  await expect(creators.first()).toHaveAttribute('title', '@alice:example.org');
   await expect(dialog.getByText('No history', { exact: true })).toBeVisible();
   await expect(dialog.getByText('Full history', { exact: true })).toBeVisible();
   await expect(dialog.getByText('Recent messages: 12', { exact: true })).toBeVisible();

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
+import { MemoryRouter } from 'react-router-dom';
 import { createClient, MatrixEvent, Room } from 'matrix-js-sdk';
 import { color, configClass, varsClass } from 'folds';
 import '@fontsource/inter/variable.css';
@@ -57,6 +58,15 @@ const schedule = (
     },
   });
 room.currentState.setStateEvents([
+  new MatrixEvent({
+    type: 'm.room.member',
+    room_id: room.roomId,
+    state_key: '@alice:example.org',
+    content: {
+      membership: 'join',
+      displayname: params.has('stress') ? 'Long display name '.repeat(20) : 'Alice',
+    },
+  }),
   schedule(
     'morning',
     {
@@ -129,6 +139,8 @@ function Fixture() {
 }
 createRoot(document.getElementById('root')!).render(
   <MatrixClientProvider value={client}>
-    <Fixture />
+    <MemoryRouter>
+      <Fixture />
+    </MemoryRouter>
   </MatrixClientProvider>
 );

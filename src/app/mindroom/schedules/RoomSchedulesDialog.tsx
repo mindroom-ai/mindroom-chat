@@ -2,22 +2,41 @@ import React, { forwardRef, useEffect, useId, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Badge, Box, Button, Icon, IconButton, Icons, Scroll, Text } from 'folds';
 import { Header, Modal } from '../../components/glass/GlassPrimitives';
+import { useMatrixClient } from '../../hooks/useMatrixClient';
+import { useMentionClickHandler } from '../../hooks/useMentionClickHandler';
+import { getMatrixToUser } from '../../plugins/matrix-to';
+import {
+  makeMentionCustomProps,
+  renderMatrixMention,
+} from '../../plugins/react-custom-html-parser';
+import { isUserId } from '../../utils/matrix';
 import { parseScheduleTimestamp, type ParsedScheduledTask } from '../threads/scheduledTaskContract';
 import { getScheduleTimestamp } from './roomSchedules';
 import * as css from './roomSchedules.css';
 
 function ScheduleCard({
+  roomId,
   task,
   now,
   formatter,
   onOpenThread,
 }: {
+  roomId: string;
   task: ParsedScheduledTask;
   now: number;
   formatter: Intl.DateTimeFormat;
   onOpenThread: (threadId: string) => void;
 }) {
   const { t } = useTranslation();
+  const mx = useMatrixClient();
+  const mentionClickHandler = useMentionClickHandler(roomId);
+  const creatorMention =
+    task.createdBy && isUserId(task.createdBy)
+      ? renderMatrixMention(mx, roomId, getMatrixToUser(task.createdBy), {
+          ...makeMentionCustomProps(mentionClickHandler),
+          title: task.createdBy,
+        })
+      : undefined;
   const executionTime = getScheduleTimestamp(task);
   const createdTime = parseScheduleTimestamp(task.createdAt);
   const recurring = task.scheduleType === 'cron' || !!task.cronExpression || !!task.cronDescription;
@@ -99,7 +118,7 @@ function ScheduleCard({
               {t('roomSchedules.createdBy')}
             </Text>
             <Text as="dd" size="T200" className={css.Wrap}>
-              <bdi>{task.createdBy}</bdi>
+              <bdi>{creatorMention ?? task.createdBy}</bdi>
             </Text>
           </>
         )}
@@ -164,11 +183,12 @@ function ScheduleCard({
 export const RoomSchedulesDialog = forwardRef<
   HTMLDivElement,
   {
+    roomId: string;
     tasks: readonly ParsedScheduledTask[];
     onClose: () => void;
     onOpenThread: (threadId: string) => void;
   }
->(({ tasks, onClose, onOpenThread }, ref) => {
+>(({ roomId, tasks, onClose, onOpenThread }, ref) => {
   const { t, i18n } = useTranslation();
   const titleId = useId();
   const [now, setNow] = useState(Date.now);
@@ -220,6 +240,7 @@ export const RoomSchedulesDialog = forwardRef<
             tasks.map((task) => (
               <ScheduleCard
                 key={task.taskId}
+                roomId={roomId}
                 task={task}
                 now={now}
                 formatter={formatter}
