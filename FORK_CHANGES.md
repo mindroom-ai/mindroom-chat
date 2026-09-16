@@ -10,8 +10,12 @@
 - Computer requests select the sending agent and reuse the existing authenticated viewer flow.
   Human control and pending computer operations prevent requests from switching computers or replacing the panel.
   Settings accepts named existing sections; Members uses the existing responsive drawer.
-- Validation in progress: 100 focused protocol, lifecycle, rendering, room, and computer tests pass, along with typecheck and the production/PWA build.
-  Full suite, browser verification, and independent review are pending.
+- Historical thread buttons switch Classic view to a thread before opening the requested surface.
+  Settings sections hidden by Simple Mode retain a translated unavailable explanation until that mode is disabled.
+- Validation: all 4,509 unit tests, typecheck, production/PWA build, and formatting pass.
+  Full lint reports zero errors and the 17 existing warnings.
+  Production Chromium coverage uses real local Matrix delivery and a stub computer gateway to verify desktop/mobile opening, exact-agent authenticated requests, inactive threads, historical buttons, reload, Settings, and Members.
+  Independent task review approves the changes after regressions covering missing-key retry, Classic routing, requested-agent departure, and preservation of a manually opened computer under human control.
 
 ### Match the approval banner to floating glass (2026-09-16)
 
