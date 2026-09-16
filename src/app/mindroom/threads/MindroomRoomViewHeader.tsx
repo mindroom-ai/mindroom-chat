@@ -56,6 +56,7 @@ import { useRoomPinnedEvents } from '../../hooks/useRoomPinnedEvents';
 import { RoomPinMenu } from '../messages/MindroomRoomPinMenu';
 import { useOpenRoomSettings } from '../../state/hooks/roomSettings';
 import { MindroomCommandPaletteHeaderButton } from '../command-palette/MindroomCommandPaletteHeaderButton';
+import { RoomSchedulesButton } from '../schedules/RoomSchedulesButton';
 import { RoomNotificationModeSwitcher } from '../../components/RoomNotificationSwitcher';
 import {
   getRoomNotificationMode,
@@ -296,6 +297,7 @@ const RoomMenu = forwardRef<HTMLDivElement, RoomMenuProps>(({ room, requestClose
 
 export function RoomViewHeader({
   callView,
+  hasMindroomAgents,
   computerAvailable = false,
   computerOpen = false,
   onComputerToggle,
@@ -303,6 +305,7 @@ export function RoomViewHeader({
   joinRequestCount = 0,
 }: {
   callView?: boolean;
+  hasMindroomAgents: boolean;
   computerAvailable?: boolean;
   computerOpen?: boolean;
   onComputerToggle?: () => void;
@@ -315,6 +318,7 @@ export function RoomViewHeader({
   const useAuthentication = useMediaAuthentication();
   const screenSize = useScreenSizeContext();
   const room = useRoom();
+  const { navigateRoomThread } = useRoomNavigate();
   const space = useSpaceOptionally();
   const [menuAnchor, setMenuAnchor] = useState<RectCords>();
   const [pinMenuAnchor, setPinMenuAnchor] = useState<RectCords>();
@@ -455,6 +459,13 @@ export function RoomViewHeader({
         </Box>
 
         <Box shrink="No">
+          {hasMindroomAgents && (
+            <RoomSchedulesButton
+              key={room.roomId}
+              room={room}
+              onOpenThread={(rootId) => navigateRoomThread(room.roomId, rootId)}
+            />
+          )}
           <MindroomCommandPaletteHeaderButton />
           <ComputerHeaderButton
             label={t(

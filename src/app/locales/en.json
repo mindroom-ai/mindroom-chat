@@ -2799,5 +2799,35 @@
         "thread": "Thread"
       }
     }
+  },
+  "roomSchedules": {
+    "title": "Scheduled tasks",
+    "openLabel": "Scheduled tasks ({{total}})",
+    "empty": "No scheduled tasks in this room.",
+    "emptyHint": "Ask a MindRoom agent to schedule a task here.",
+    "prompt": "Prompt",
+    "promptUnavailable": "Prompt unavailable",
+    "once": "One-time",
+    "recurring": "Recurring",
+    "executionTime": "Execution time",
+    "unknownTime": "Execution time unavailable",
+    "awaitingExecution": "Awaiting execution",
+    "recurrence": "Recurrence",
+    "silent": "Silent",
+    "conditional": "Conditional",
+    "newThread": "New thread",
+    "roomTimeline": "Room timeline",
+    "openThread": "Open thread",
+    "owner": "Owner",
+    "createdAt": "Created",
+    "updatedAt": "Updated",
+    "model": "Model",
+    "inheritedModel": "From agent, room, or thread settings",
+    "taskId": "Task ID",
+    "historyLimit": "History limit",
+    "fullHistory": "Full history",
+    "noHistory": "No history",
+    "recentMessages": "Recent messages: {{total}}",
+    "close": "Close"
   }
 }

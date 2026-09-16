@@ -2905,5 +2905,35 @@
         "thread": "Ветка"
       }
     }
+  },
+  "roomSchedules": {
+    "title": "Запланированные задачи",
+    "openLabel": "Запланированные задачи ({{total}})",
+    "empty": "В этой комнате нет запланированных задач.",
+    "emptyHint": "Попросите агента MindRoom запланировать здесь задачу.",
+    "prompt": "Промпт",
+    "promptUnavailable": "Промпт недоступен",
+    "once": "Однократная",
+    "recurring": "Повторяющаяся",
+    "executionTime": "Время выполнения",
+    "unknownTime": "Время выполнения недоступно",
+    "awaitingExecution": "Ожидает выполнения",
+    "recurrence": "Повторение",
+    "silent": "Без уведомлений",
+    "conditional": "Условная",
+    "newThread": "Новая ветка",
+    "roomTimeline": "Хронология комнаты",
+    "openThread": "Открыть ветку",
+    "owner": "Владелец задачи",
+    "createdAt": "Создано",
+    "updatedAt": "Обновлено",
+    "model": "Модель",
+    "inheritedModel": "Из настроек агента, комнаты или ветки",
+    "taskId": "ID задачи",
+    "historyLimit": "Лимит истории",
+    "fullHistory": "Полная история",
+    "noHistory": "Без истории",
+    "recentMessages": "Недавние сообщения: {{total}}",
+    "close": "Закрыть"
   }
 }

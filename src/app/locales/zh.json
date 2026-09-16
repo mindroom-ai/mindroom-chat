@@ -2799,5 +2799,35 @@
         "thread": "讨论串"
       }
     }
+  },
+  "roomSchedules": {
+    "title": "计划任务",
+    "openLabel": "计划任务（{{total}}）",
+    "empty": "此房间中没有计划任务。",
+    "emptyHint": "请让 MindRoom 智能体在此安排任务。",
+    "prompt": "提示词",
+    "promptUnavailable": "提示词不可用",
+    "once": "一次性",
+    "recurring": "重复",
+    "executionTime": "执行时间",
+    "unknownTime": "执行时间不可用",
+    "awaitingExecution": "等待执行",
+    "recurrence": "重复规则",
+    "silent": "静默",
+    "conditional": "条件式",
+    "newThread": "新讨论串",
+    "roomTimeline": "房间时间线",
+    "openThread": "打开讨论串",
+    "owner": "任务所有者",
+    "createdAt": "创建时间",
+    "updatedAt": "更新时间",
+    "model": "模型",
+    "inheritedModel": "来自智能体、房间或讨论串设置",
+    "taskId": "任务 ID",
+    "historyLimit": "历史记录上限",
+    "fullHistory": "完整历史记录",
+    "noHistory": "无历史记录",
+    "recentMessages": "最近消息：{{total}} 条",
+    "close": "关闭"
   }
 }

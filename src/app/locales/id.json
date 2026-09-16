@@ -2799,5 +2799,35 @@
         "thread": "Utas"
       }
     }
+  },
+  "roomSchedules": {
+    "title": "Tugas terjadwal",
+    "openLabel": "Tugas terjadwal ({{total}})",
+    "empty": "Tidak ada tugas terjadwal di ruang ini.",
+    "emptyHint": "Minta agen MindRoom untuk menjadwalkan tugas di sini.",
+    "prompt": "Prompt",
+    "promptUnavailable": "Prompt tidak tersedia",
+    "once": "Sekali",
+    "recurring": "Berulang",
+    "executionTime": "Waktu eksekusi",
+    "unknownTime": "Waktu eksekusi tidak tersedia",
+    "awaitingExecution": "Menunggu eksekusi",
+    "recurrence": "Perulangan",
+    "silent": "Senyap",
+    "conditional": "Bersyarat",
+    "newThread": "Utas baru",
+    "roomTimeline": "Linimasa ruang",
+    "openThread": "Buka utas",
+    "owner": "Pemilik tugas",
+    "createdAt": "Dibuat",
+    "updatedAt": "Diperbarui",
+    "model": "Model",
+    "inheritedModel": "Dari pengaturan agen, ruang, atau utas",
+    "taskId": "ID tugas",
+    "historyLimit": "Batas riwayat",
+    "fullHistory": "Riwayat lengkap",
+    "noHistory": "Tanpa riwayat",
+    "recentMessages": "Pesan terbaru: {{total}}",
+    "close": "Tutup"
   }
 }
