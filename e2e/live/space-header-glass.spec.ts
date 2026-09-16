@@ -173,26 +173,32 @@ for (const [themeId, width, simpleMode] of [
         .toBeLessThanOrEqual(1);
       await expect(panel.getByRole('link', { name: 'Lobby', exact: true })).toBeVisible();
     } finally {
-      await setAccountData(
-        homeserver,
-        session.accessToken,
-        session.userId,
-        'io.mindroom.settings',
-        savedSettings
+      const cleanup = await Promise.allSettled([
+        setAccountData(
+          homeserver,
+          session.accessToken,
+          session.userId,
+          'io.mindroom.settings',
+          savedSettings
+        ),
+        ...createdRooms.map(async (roomId) => {
+          await matrixFetch(homeserver, `/rooms/${encodeURIComponent(roomId)}/leave`, {
+            method: 'POST',
+            accessToken: session.accessToken,
+            body: '{}',
+          });
+          await matrixFetch(homeserver, `/rooms/${encodeURIComponent(roomId)}/forget`, {
+            method: 'POST',
+            accessToken: session.accessToken,
+            body: '{}',
+          });
+        }),
+      ]);
+      const failures = cleanup.flatMap((result) =>
+        result.status === 'rejected' ? [result.reason] : []
       );
-      for (const roomId of createdRooms.reverse()) {
-        // eslint-disable-next-line no-await-in-loop
-        await matrixFetch(homeserver, `/rooms/${encodeURIComponent(roomId)}/leave`, {
-          method: 'POST',
-          accessToken: session.accessToken,
-          body: '{}',
-        });
-        // eslint-disable-next-line no-await-in-loop
-        await matrixFetch(homeserver, `/rooms/${encodeURIComponent(roomId)}/forget`, {
-          method: 'POST',
-          accessToken: session.accessToken,
-          body: '{}',
-        });
+      if (failures.length > 0) {
+        throw new AggregateError(failures, 'Could not clean up the space header fixture');
       }
     }
   });
