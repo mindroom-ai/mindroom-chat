@@ -57,6 +57,13 @@ test.describe('room schedules in the chat header', () => {
     await loginWithPassword(page, { homeserver, ...credentials });
     await page.goto(`/home/${encodeURIComponent(roomId)}`);
     const trigger = page.getByRole('button', { name: 'Scheduled tasks (1)', exact: true });
+    await expect(page.getByText('Schedule viewer integration test', { exact: true })).toBeVisible();
+    await expect(trigger).toHaveCount(0);
+    const agentId = `@mindroom_schedule_fixture:${userId.slice(userId.indexOf(':') + 1)}`;
+    await sendStateEvent(homeserver, accessToken, roomId, 'm.room.member', agentId, {
+      membership: 'invite',
+      displayname: 'Schedule assistant',
+    });
     await trigger.click();
     const dialog = page.getByRole('dialog', { name: 'Scheduled tasks', exact: true });
     await expect(dialog.getByText('Summarize the weekly report', { exact: true })).toBeVisible();
@@ -108,5 +115,11 @@ test.describe('room schedules in the chat header', () => {
     await expect(
       page.getByRole('button', { name: 'Scheduled tasks (0)', exact: true })
     ).toBeVisible();
+    await page.getByRole('button', { name: 'Scheduled tasks (0)', exact: true }).click();
+    await sendStateEvent(homeserver, accessToken, roomId, 'm.room.member', agentId, {
+      membership: 'leave',
+    });
+    await expect(page.getByRole('button', { name: /^Scheduled tasks \(/ })).toHaveCount(0);
+    await expect(dialog).toHaveCount(0);
   });
 });

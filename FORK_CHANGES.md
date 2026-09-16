@@ -6,6 +6,8 @@
 
 - Status: implemented, validated, and independently reviewed on `feat/room-schedules`.
 - The room header has a clock button with the pending schedule count, available in Simple Mode and the full interface.
+  The button appears only in rooms with joined or invited MindRoom agents, using the room's existing live membership check for room and call headers.
+  Agent rooms keep the button when no schedules are pending; removing the last agent hides it and closes any open schedules dialog.
   Its dialog lists pending tasks across the room timeline, existing threads, and new-thread destinations, and updates from Matrix room state as schedules change.
   Overdue pending tasks remain visible until the backend changes their status.
 - Each task shows its description, full prompt, one-time execution date in the viewer's local timezone or recurring schedule in UTC, and available creator, creation date, history limit, silent/conditional flags, and task ID.
@@ -21,9 +23,10 @@
   Browser regressions cover the real room Escape handler, live state changes, empty rooms, local times, all history modes, long prompts and cron fields, phone layouts, and RTL.
   A separate local-Matrix browser case verifies the actual room header, thread navigation, and cancellation through sync.
   It also verifies creator profiles on desktop and phone, keyboard activation, and focus restoration after closing the profile.
+  Membership regressions verify hidden schedules in rooms without agents, live appearance after inviting an agent, and button/dialog removal when the final agent leaves.
 - All new UI labels are translated across the 17 supported languages.
 - The dialog uses the shared glass components and preserves the current room-header controls.
-- Validation: all 4,479 tests across 533 files pass under Node 24 in the standard Linux container after a fresh dependency install with repository patches.
+- Validation: all 4,481 tests across 533 files pass under Node 24 in the standard Linux container after a fresh dependency install with repository patches.
   All five Chromium cases pass, including the local-Matrix integration case, and typecheck, the production/PWA build, changed-file formatting, and whitespace checks pass.
   ESLint reports zero errors and the existing 17 warnings.
   Independent review has no remaining actionable findings.

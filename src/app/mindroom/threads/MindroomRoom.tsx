@@ -104,7 +104,7 @@ export function Room() {
       <Box grow="Yes">
         {callView && (screenSize === ScreenSize.Desktop || !chat) && (
           <Box grow="Yes" direction="Column">
-            <RoomViewHeader callView />
+            <RoomViewHeader callView hasMindroomAgents={hasMindroomAgents} />
             <Box grow="Yes">
               <CallView />
             </Box>

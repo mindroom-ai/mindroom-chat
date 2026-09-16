@@ -297,6 +297,7 @@ const RoomMenu = forwardRef<HTMLDivElement, RoomMenuProps>(({ room, requestClose
 
 export function RoomViewHeader({
   callView,
+  hasMindroomAgents,
   computerAvailable = false,
   computerOpen = false,
   onComputerToggle,
@@ -304,6 +305,7 @@ export function RoomViewHeader({
   joinRequestCount = 0,
 }: {
   callView?: boolean;
+  hasMindroomAgents: boolean;
   computerAvailable?: boolean;
   computerOpen?: boolean;
   onComputerToggle?: () => void;
@@ -457,11 +459,13 @@ export function RoomViewHeader({
         </Box>
 
         <Box shrink="No">
-          <RoomSchedulesButton
-            key={room.roomId}
-            room={room}
-            onOpenThread={(rootId) => navigateRoomThread(room.roomId, rootId)}
-          />
+          {hasMindroomAgents && (
+            <RoomSchedulesButton
+              key={room.roomId}
+              room={room}
+              onOpenThread={(rootId) => navigateRoomThread(room.roomId, rootId)}
+            />
+          )}
           <MindroomCommandPaletteHeaderButton />
           <ComputerHeaderButton
             label={t(
