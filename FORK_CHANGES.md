@@ -21,12 +21,13 @@
   Pinned plain and decrypted messages now pass their source Matrix event into the shared content renderer, preserving passive historical UI-action buttons in the pin menu.
 - Computer view state belongs to one conversation instance through `computer/useRoomComputerState.ts`.
   Account, room, route, or availability changes clear the view before children render, so opening a routed request does not depend on effect ordering and old panel callbacks cannot affect a later visit.
+  UI-action callbacks become current only after React commits, so suspended or abandoned renders cannot affect the live listener.
 - `ui-actions/chatUiBackendContract.test.ts` parses 18 notices emitted by the real backend toolkit, covering every action and Settings section in room and thread scope.
   The dedicated `chat-ui-backend-contract.yml` workflow regenerates the committed fixture from its pinned backend revision and tests the generated output directly.
   When changing the wire contract, update the backend revision in that workflow and regenerate `ui-actions/__fixtures__/chatUiBackendContract.json` using `uv run -m tests.chat_ui_contract_fixture --output <fixture-path>` from the backend checkout.
-- Validation: all 4,543 unit tests, typecheck, production/PWA build, and changed-file formatting pass.
+- Validation: all 4,545 unit tests, typecheck, production/PWA build, and changed-file formatting pass.
   Full lint reports zero errors and the 17 existing warnings.
-  Production Chromium coverage uses real local Matrix delivery and a stub computer gateway to verify desktop/mobile opening, exact-agent authenticated requests, inactive threads, historical buttons, reload, successive and repeated Settings section requests, Members, and passive requests after deployment trust is removed.
+  Production Chromium coverage uses real local Matrix delivery and a stub computer gateway to verify desktop/mobile opening, exact-agent authenticated requests, inactive threads, historical buttons, reload, successive and repeated Settings section requests, Members, room-overview requests, and passive requests after deployment trust is removed.
   Independent task review approves the changes after regressions covering missing-key retry, Classic routing, requested-agent departure, and preservation of a manually opened computer under human control.
 
 ### Match the approval banner to floating glass (2026-09-16)

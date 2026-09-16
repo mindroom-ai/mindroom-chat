@@ -74,7 +74,13 @@ describe('Chat UI request buttons', () => {
     };
     const render = (overrides: Partial<HarnessProps> = {}) => {
       props = { ...props, ...overrides };
-      act(() => root.render(<Harness {...props} />));
+      act(() =>
+        root.render(
+          <React.Suspense fallback={<span>Loading</span>}>
+            <Harness {...props} />
+          </React.Suspense>
+        )
+      );
     };
     render();
     return { mx, room, perform, navigate, render };
@@ -160,4 +166,41 @@ describe('Chat UI request buttons', () => {
     render();
     expect(perform).toHaveBeenCalledTimes(1);
   });
+
+  it.each([false, true])(
+    'uses committed callbacks while a replacement render suspends (blocked: %s)',
+    async (blocked) => {
+      const event = makeUiEvent();
+      const { mx, room, perform, render } = setup(event);
+      const uncommittedPerform = vi.fn();
+      const suspended = new Promise<void>(() => {
+        // Keep the replacement render suspended while the committed listener receives an event.
+      });
+      let attemptedReplacement = false;
+      function Suspend(): never {
+        attemptedReplacement = true;
+        throw suspended;
+      }
+      await act(async () => {
+        React.startTransition(() => {
+          render({
+            perform: uncommittedPerform,
+            unavailable: () => (blocked ? 'Replacement view is blocked' : undefined),
+            children: <Suspend />,
+          });
+        });
+      });
+      expect(attemptedReplacement).toBe(true);
+      expect(container.textContent).toContain('View computer');
+      event.event.origin_server_ts = Date.now();
+      act(() =>
+        mx.emit(RoomEvent.Timeline, event, room, false, false, {
+          liveEvent: true,
+          timeline: room.getLiveTimeline(),
+        })
+      );
+      expect(perform).toHaveBeenCalledTimes(1);
+      expect(uncommittedPerform).not.toHaveBeenCalled();
+    }
+  );
 });

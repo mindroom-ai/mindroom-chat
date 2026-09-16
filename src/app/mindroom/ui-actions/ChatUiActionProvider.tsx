@@ -1,4 +1,12 @@
-import { createContext, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  createContext,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { type MatrixClient, type MatrixEvent, type Room } from 'matrix-js-sdk';
 import { listenForChatUiActions } from './chatUiController';
 import { type ChatUiAction, readChatUiAction } from './chatUiProtocol';
@@ -34,7 +42,9 @@ export function useChatUiActions({
 }: ChatUiActionOptions): ChatUiActions {
   const [pending, setPending] = useState<{ event: MatrixEvent; clickedAt: number }>();
   const latest = useRef({ perform, unavailable });
-  latest.current = { perform, unavailable };
+  useLayoutEffect(() => {
+    latest.current = { perform, unavailable };
+  }, [perform, unavailable]);
   const read = useCallback(
     (event: MatrixEvent) => readChatUiAction(event, mx.getSafeUserId(), room),
     [mx, room]

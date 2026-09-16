@@ -47,7 +47,7 @@ test('agent requests open the active conversation and leave passive history butt
     'm.relates_to': { rel_type: 'm.thread', event_id: otherRoot },
   });
   const sendAction = (
-    threadId: string,
+    threadId: string | null,
     action: Record<string, string>,
     body: string,
     sender = agent
@@ -55,7 +55,7 @@ test('agent requests open the active conversation and leave passive history butt
     sendRoomMessage(homeserver!, sender.access_token, fixture.roomId, {
       msgtype: 'm.notice',
       body,
-      'm.relates_to': { rel_type: 'm.thread', event_id: threadId },
+      ...(threadId ? { 'm.relates_to': { rel_type: 'm.thread', event_id: threadId } } : {}),
       'io.mindroom.ui_action': {
         version: 1,
         requester_id: viewer.user_id,
@@ -96,6 +96,11 @@ test('agent requests open the active conversation and leave passive history butt
   await loginWithPassword(page, { homeserver: homeserver!, username, password });
   const threadPath = (id: string) =>
     `/home/${encodeURIComponent(fixture.roomId)}?threadId=${encodeURIComponent(id)}`;
+  const waitForLiveSync = () =>
+    page.waitForRequest((request) => {
+      const url = new URL(request.url());
+      return url.pathname.endsWith('/sync') && url.searchParams.get('timeout') === '30000';
+    });
   await page.goto(threadPath(fixture.rootId));
   await expect(page.getByText(fixture.replyBody, { exact: true })).toBeVisible();
   await page.bringToFront();
@@ -128,10 +133,7 @@ test('agent requests open the active conversation and leave passive history butt
   await expect(panel).toBeVisible();
   await expect(panel.getByText('Local fixture computer unavailable')).toBeVisible();
   await panel.getByRole('button', { name: 'Close computer', exact: true }).click();
-  const liveSync = page.waitForRequest((request) => {
-    const url = new URL(request.url());
-    return url.pathname.endsWith('/sync') && url.searchParams.get('timeout') === '30000';
-  });
+  const liveSync = waitForLiveSync();
   await page.reload();
   // Cached buttons render before initial sync ends; wait for steady-state live delivery.
   await liveSync;
@@ -178,10 +180,7 @@ test('agent requests open the active conversation and leave passive history butt
   // Removing deployment trust keeps a fresh request passive, with its button still usable.
   await panel.getByRole('button', { name: 'Close computer', exact: true }).click();
   autoOpenFromHomeservers = [];
-  const untrustedSync = page.waitForRequest((request) => {
-    const url = new URL(request.url());
-    return url.pathname.endsWith('/sync') && url.searchParams.get('timeout') === '30000';
-  });
+  const untrustedSync = waitForLiveSync();
   await page.reload();
   await untrustedSync;
   await expect.poll(() => page.evaluate(() => document.hasFocus())).toBe(true);
@@ -193,5 +192,34 @@ test('agent requests open the active conversation and leave passive history butt
   await expect(panel).toBeVisible();
   await expect(panel.getByText('Local fixture computer unavailable')).toBeVisible();
   expect(sessions).toHaveLength(4);
+
+  // Room-level requests stay passive in a thread, then work from their room overview.
+  await panel.getByRole('button', { name: 'Close computer', exact: true }).click();
+  autoOpenFromHomeservers = [viewer.user_id.slice(viewer.user_id.indexOf(':') + 1)];
+  const restoredSync = waitForLiveSync();
+  await page.reload();
+  await restoredSync;
+  await sendAction(null, { action: 'show_computer' }, 'Historical room computer');
+  await sendRoomMessage(homeserver!, agent.access_token, fixture.roomId, {
+    msgtype: 'm.text',
+    body: 'Sync reached the room request',
+    'm.relates_to': { rel_type: 'm.thread', event_id: otherRoot },
+  });
+  await expect(page.getByText('Sync reached the room request', { exact: true })).toBeVisible();
+  await expect(panel).toHaveCount(0);
+  const overviewUrl = new URL(`/home/${encodeURIComponent(fixture.roomId)}`, page.url()).href;
+  const overviewSync = waitForLiveSync();
+  await page.goto(overviewUrl);
+  await overviewSync;
+  await expect(page.getByRole('toolbar', { name: 'Thread filters' })).toBeVisible();
+  await expect(page).toHaveURL(overviewUrl);
+  await expect(panel).toHaveCount(0);
+  expect(sessions).toHaveLength(4);
+  await sendAction(null, { action: 'show_computer' }, 'Live room computer');
+  await expect(panel).toBeVisible();
+  await expect(panel.getByText('Local fixture computer unavailable')).toBeVisible();
+  expect(sessions).toHaveLength(5);
+  expect(sessions[4]).toMatchObject({ agent_user_id: agent.user_id, room_id: fixture.roomId });
+  await expect(page).toHaveURL(overviewUrl);
   expect(pageErrors).toEqual([]);
 });
