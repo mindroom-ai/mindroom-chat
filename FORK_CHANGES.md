@@ -2,6 +2,20 @@
 
 ## Runbook
 
+### Match composer controls and typing status to glass (2026-09-15)
+
+- Attachment, microphone, formatting, sticker, emoji, and send buttons use the shared compact glass material.
+  Formatting toolbar controls share the same adapter, preserving their existing variants, pressed states, focus, and disabled behavior.
+  These small controls use CSS blur and highlights without adding optical filters, observers, or animation loops per button.
+- The typing indicator owns its inset, rounded glass surface and a small gap above the composer.
+  Smaller dots and text match the compact controls, and the strip remains in the measured footer flow when it appears or disappears.
+  Its entrance animation respects reduced motion; glass retains the shared reduced-transparency and contrast fallbacks.
+- Validation: all 4,463 unit tests, typecheck, and the production/PWA build pass.
+  Full ESLint reports zero errors and 17 existing warnings.
+  All four live Chromium/WebKit phone/desktop cases pass for typing updates and dismissal, glass materials, spacing, expanded formatting controls, and sending a message.
+  Independent review approves the changes and passes 96 focused tests.
+  Linux WebKit screenshots verify transparency and layout but do not paint native backdrop blur on this host; physical iOS appearance remains unverified.
+
 ### Resize member sidebars at every screen width (2026-09-15)
 
 - Room and space-lobby member controls remain available on desktop, tablet, and phone.

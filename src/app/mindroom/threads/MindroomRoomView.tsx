@@ -231,7 +231,7 @@ export function RoomView({
         direction="Column"
         data-room-footer="true"
       >
-        <RoomViewTyping room={room} className={overlay.Typing} style={{ position: 'static' }} />
+        <RoomViewTyping room={room} />
         <div ref={setApprovalQueueHost} />
         <div style={{ padding: `0 ${config.space.S400}` }}>
           {tombstoneEvent ? (

@@ -5,7 +5,6 @@ import {
   Box,
   config,
   Icon,
-  IconButton,
   Icons,
   IconSrc,
   Line,
@@ -19,7 +18,7 @@ import {
 } from 'folds';
 import React, { MouseEventHandler, ReactNode, useState } from 'react';
 import { ReactEditor, useSlate } from 'slate-react';
-import { Menu } from '../glass/GlassPrimitives';
+import { Menu, IconButton } from '../glass/GlassPrimitives';
 import {
   headingLevel,
   isAnyMarkActive,
