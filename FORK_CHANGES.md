@@ -15,6 +15,7 @@
   All four live Chromium/WebKit phone/desktop cases pass for typing updates and dismissal, glass materials, spacing, expanded formatting controls, and sending a message.
   Independent review approves the changes and passes 96 focused tests.
   Linux WebKit screenshots verify transparency and layout but do not paint native backdrop blur on this host; physical iOS appearance remains unverified.
+- Next step: Check composer buttons, typing status, and scrolling on a physical iOS device and record the visual result.
 
 ### Resize member sidebars at every screen width (2026-09-15)
 
