@@ -2798,6 +2798,14 @@
         "threadInRoom": "Utas di {{roomName}}",
         "thread": "Utas"
       }
+    },
+    "uiActions": {
+      "viewComputer": "Lihat komputer",
+      "openMembers": "Buka anggota",
+      "computerUnavailable": "Komputer agen ini tidak tersedia.",
+      "releaseControl": "Lepaskan kendali komputer sebelum membuka tampilan lain.",
+      "openConversation": "Buka permintaan ini dari percakapan ruangan.",
+      "settingsUnavailable": "Nonaktifkan Mode Sederhana untuk membuka bagian Pengaturan ini."
     }
   },
   "roomSchedules": {

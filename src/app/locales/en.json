@@ -2798,6 +2798,14 @@
         "threadInRoom": "Thread in {{roomName}}",
         "thread": "Thread"
       }
+    },
+    "uiActions": {
+      "viewComputer": "View computer",
+      "openMembers": "Open Members",
+      "computerUnavailable": "This agent’s computer is unavailable.",
+      "releaseControl": "Release computer control before opening another view.",
+      "openConversation": "Open this request from the room conversation.",
+      "settingsUnavailable": "Turn off Simple Mode to open this Settings section."
     }
   },
   "roomSchedules": {

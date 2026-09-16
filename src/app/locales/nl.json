@@ -2798,6 +2798,14 @@
         "threadInRoom": "Thread in {{roomName}}",
         "thread": "Thread"
       }
+    },
+    "uiActions": {
+      "viewComputer": "Computer bekijken",
+      "openMembers": "Leden openen",
+      "computerUnavailable": "De computer van deze agent is niet beschikbaar.",
+      "releaseControl": "Geef de computerbediening vrij voordat je een andere weergave opent.",
+      "openConversation": "Open dit verzoek vanuit het gesprek in de kamer.",
+      "settingsUnavailable": "Schakel de eenvoudige modus uit om dit onderdeel van de instellingen te openen."
     }
   },
   "roomSchedules": {

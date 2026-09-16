@@ -3010,6 +3010,14 @@
         "threadInRoom": "سلسلة محادثة في ⁨{{roomName}}⁩",
         "thread": "سلسلة المحادثة"
       }
+    },
+    "uiActions": {
+      "viewComputer": "عرض الكمبيوتر",
+      "openMembers": "فتح الأعضاء",
+      "computerUnavailable": "كمبيوتر هذا الوكيل غير متاح.",
+      "releaseControl": "اترك التحكم في الكمبيوتر قبل فتح عرض آخر.",
+      "openConversation": "افتح هذا الطلب من محادثة الغرفة.",
+      "settingsUnavailable": "أوقف الوضع البسيط لفتح هذا القسم من الإعدادات."
     }
   },
   "roomSchedules": {

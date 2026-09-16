@@ -2851,6 +2851,14 @@
         "threadInRoom": "Thread in {{roomName}}",
         "thread": "Thread"
       }
+    },
+    "uiActions": {
+      "viewComputer": "Visualizza computer",
+      "openMembers": "Apri membri",
+      "computerUnavailable": "Il computer di questo agente non è disponibile.",
+      "releaseControl": "Rilascia il controllo del computer prima di aprire un’altra vista.",
+      "openConversation": "Apri questa richiesta dalla conversazione della stanza.",
+      "settingsUnavailable": "Disattiva la modalità semplice per aprire questa sezione delle impostazioni."
     }
   },
   "roomSchedules": {

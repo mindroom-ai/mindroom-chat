@@ -1,5 +1,5 @@
 import React from 'react';
-import { MsgType } from 'matrix-js-sdk';
+import { MsgType, type MatrixEvent } from 'matrix-js-sdk';
 import { HTMLReactParserOptions } from 'html-react-parser';
 import { Opts } from 'linkifyjs';
 import { config } from 'folds';
@@ -34,6 +34,7 @@ import { hasMindroomAgentMessageMetadata } from '../mindroom/matrix/agentIdentit
 import { isMindroomVisibleRouterVoiceEcho } from '../mindroom/messages/transcribingPlaceholder';
 
 type RenderMessageContentProps = {
+  mEvent?: MatrixEvent;
   displayName: string;
   eventType?: string;
   roomId?: string;
@@ -55,6 +56,7 @@ type RenderMessageContentProps = {
   failedSend?: boolean;
 };
 export function RenderMessageContent({
+  mEvent,
   displayName,
   eventType,
   roomId,
@@ -159,6 +161,7 @@ export function RenderMessageContent({
   );
 
   const mindroomContent = renderMindroomMessageContent({
+    mEvent,
     displayName,
     eventType,
     roomId,

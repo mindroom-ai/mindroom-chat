@@ -181,6 +181,83 @@ describe('ComputerPanel', () => {
     return props;
   };
 
+  it('opens the requested agent directly in a multi-agent room', async () => {
+    const request = createGateway();
+    renderPanel({
+      agents: [
+        { userId: '@mindroom_first:example.org', name: 'First' },
+        { userId: '@mindroom_second:example.org', name: 'Second' },
+      ],
+      requestedAgent: { userId: '@mindroom_second:example.org' },
+      request,
+    });
+    await waitFor(() => expect(container.textContent).toContain('Watch mode'));
+    const [input, init] = vi.mocked(request).mock.calls[0];
+    expect(input).toBe('https://computer.example.org/api/computers/sessions');
+    expect(JSON.parse(init!.body as string).agent_user_id).toBe('@mindroom_second:example.org');
+    expect(container.querySelector('select')!.value).toBe('@mindroom_second:example.org');
+  });
+
+  it('preserves the same viewer and human control when another reveal is requested', async () => {
+    const agents = [
+      { userId: '@mindroom_first:example.org', name: 'First' },
+      { userId: '@mindroom_second:example.org', name: 'Second' },
+    ];
+    const props = renderPanel({ agents, requestedAgent: { userId: agents[0].userId } });
+    await waitFor(() => expect(container.textContent).toContain('Watch mode'));
+    await click(findButton(container, 'Take control'));
+    renderPanel({ ...props, requestedAgent: { userId: agents[1].userId } });
+    expect(container.textContent).toContain('You have control');
+    expect(container.querySelector('select')!.value).toBe(agents[0].userId);
+    expect(screenDisposals).not.toHaveBeenCalled();
+    renderPanel({ ...props, requestedAgent: { userId: agents[0].userId } });
+    expect(container.textContent).toContain('You have control');
+    expect(screenDisposals).not.toHaveBeenCalled();
+  });
+
+  it.each([false, true])(
+    'preserves a manually opened singleton on a same-agent request (control: %s)',
+    async (control) => {
+      const props = renderPanel();
+      await waitFor(() => expect(container.textContent).toContain('Watch mode'));
+      if (control) await click(findButton(container, 'Take control'));
+      renderPanel({ ...props, requestedAgent: { userId: props.agents[0].userId } });
+      expect(container.textContent).toContain(control ? 'You have control' : 'Watch mode');
+      expect(screenDisposals).not.toHaveBeenCalled();
+      const sessions = vi
+        .mocked(props.request!)
+        .mock.calls.filter(
+          ([url, init]) => url.toString().endsWith('/sessions') && init?.method === 'POST'
+        );
+      expect(sessions).toHaveLength(1);
+    }
+  );
+
+  it('does not switch to the remaining agent when the requested agent leaves', async () => {
+    const agents = [
+      { userId: '@mindroom_first:example.org', name: 'First' },
+      { userId: '@mindroom_second:example.org', name: 'Second' },
+    ];
+    const props = renderPanel({ agents, requestedAgent: { userId: agents[0].userId } });
+    await waitFor(() => expect(container.textContent).toContain('Watch mode'));
+    renderPanel({ ...props, agents: [agents[1]] });
+    await waitFor(() => expect(container.textContent).toContain('Choose an agent'));
+    const sessions = vi
+      .mocked(props.request!)
+      .mock.calls.filter(
+        ([url, init]) => url.toString().endsWith('/sessions') && init?.method === 'POST'
+      );
+    expect(sessions).toHaveLength(1);
+    const select = container.querySelector('select')!;
+    expect(select).not.toBeNull();
+    await act(async () => {
+      select.value = agents[1].userId;
+      select.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    await click(findButton(container, 'Watch computer'));
+    await waitFor(() => expect(container.textContent).toContain('Watch mode'));
+  });
+
   it('moves from watch through control and release, reconnecting before showing watch again', async () => {
     const props = renderPanel();
 

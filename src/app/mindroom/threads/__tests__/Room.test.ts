@@ -1,6 +1,8 @@
 import React from 'react';
 import { act, create } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { MatrixEvent } from 'matrix-js-sdk';
+import type { ClientConfig } from '../../../hooks/useClientConfig';
 
 type MockRoomViewProps = {
   computerAvailable?: boolean;
@@ -15,6 +17,9 @@ type MockRoomViewProps = {
 };
 
 type MockComputerPanelProps = {
+  requestedAgent?: { userId: string };
+  onInteractionChange?: (interaction: { agentUserId?: string; locked: boolean }) => void;
+  onClose?: () => void;
   agents: Array<{ userId: string; name: string }>;
   continuationReady?: boolean;
   apiUrl: string;
@@ -31,11 +36,19 @@ const { mx, navigateRoomMock, navigateRoomThreadMock, removeRecentThreadMock, ro
     navigateRoomMock: vi.fn(),
     navigateRoomThreadMock: vi.fn(),
     removeRecentThreadMock: vi.fn(),
-    mx: { getSafeUserId: () => '@alice:example.org' },
+    mx: {
+      getSafeUserId: () => '@alice:example.org',
+      isInitialSyncComplete: () => true,
+      getSyncState: () => 'SYNCING',
+      on: (name: string, handler: (...args: unknown[]) => void) =>
+        roomState.mxListeners.set(name, handler),
+      removeListener: (name: string) => roomState.mxListeners.delete(name),
+    },
     room: {
       roomId: '!room:example.org',
       isCallRoom: () => roomState.callRoom,
       getMembers: () => roomState.members,
+      getMember: (userId: string) => roomState.members.find((member) => member.userId === userId),
       getThread: () => undefined,
       findEventById: () => roomState.routedEvent,
       on: (name: string, handler: (...args: unknown[]) => void) =>
@@ -43,17 +56,26 @@ const { mx, navigateRoomMock, navigateRoomThreadMock, removeRecentThreadMock, ro
       removeListener: (name: string) => roomState.listeners.delete(name),
     },
     roomState: {
+      viewMode: 'threaded',
+      simpleMode: false,
+      setViewMode: vi.fn((mode: string) => {
+        roomState.viewMode = mode;
+      }),
+      activateUiAction: undefined as undefined | ((event: MatrixEvent) => void),
+      uiProbe: undefined as React.ComponentType | undefined,
+      mxListeners: new Map<string, (...args: unknown[]) => void>(),
       listeners: new Map<string, (...args: unknown[]) => void>(),
       drawer: false,
       screenSize: 'Desktop',
       panelDisposals: 0,
+      computerPanelThreads: [] as Array<string | undefined>,
       routedEvent: undefined as
         | undefined
         | { getId: () => string; threadRootId?: string; isSending: () => boolean },
       callChat: false,
       callChatViewProps: undefined as MockCallChatViewProps | undefined,
       callRoom: false,
-      clientConfig: { mindroom: {} } as { mindroom?: { computers?: { apiUrl?: string } } },
+      clientConfig: { mindroom: {} } as ClientConfig,
       computerPanelProps: undefined as MockComputerPanelProps | undefined,
       eventId: undefined as string | undefined,
       members: [] as Array<{ membership: string; userId: string }>,
@@ -106,7 +128,11 @@ vi.mock('../../../features/room/RoomView', () => ({
 vi.mock('../MindroomRoomView', () => ({
   RoomView: (props: MockRoomViewProps) => {
     roomState.roomViewProps = props;
-    return React.createElement('mock-room-view');
+    return React.createElement(
+      'mock-room-view',
+      null,
+      roomState.uiProbe && React.createElement(roomState.uiProbe)
+    );
   },
 }));
 
@@ -171,6 +197,10 @@ vi.mock('../../../hooks/useClientConfig', () => ({
 
 vi.mock('../../computer/ComputerPanel', () => ({
   ComputerPanel: (props: MockComputerPanelProps) => {
+    const { threadId } = props;
+    React.useEffect(() => {
+      roomState.computerPanelThreads.push(threadId);
+    }, [threadId]);
     React.useEffect(
       () => () => {
         roomState.panelDisposals += 1;
@@ -183,7 +213,11 @@ vi.mock('../../computer/ComputerPanel', () => ({
 }));
 
 vi.mock('../useRoomViewMode', () => ({
-  useRoomViewMode: () => ({ viewMode: 'threaded' }),
+  useRoomViewMode: () => ({ viewMode: roomState.viewMode, setViewMode: roomState.setViewMode }),
+}));
+
+vi.mock('../../settings/useMindroomAccountSettings', () => ({
+  useSimpleMode: () => roomState.simpleMode,
 }));
 
 vi.mock('../../../hooks/useRoomMembers', () => ({
@@ -232,10 +266,17 @@ describe('Room', () => {
   });
 
   afterEach(() => {
+    roomState.viewMode = 'threaded';
+    roomState.simpleMode = false;
+    roomState.setViewMode.mockClear();
+    roomState.activateUiAction = undefined;
+    roomState.uiProbe = undefined;
+    roomState.mxListeners.clear();
     roomState.listeners.clear();
     roomState.drawer = false;
     roomState.screenSize = 'Desktop';
     roomState.panelDisposals = 0;
+    roomState.computerPanelThreads = [];
     roomState.routedEvent = undefined;
     roomState.callChat = false;
     roomState.callChatViewProps = undefined;
@@ -310,6 +351,88 @@ describe('Room', () => {
     });
 
     expect(roomState.roomViewProps?.joinRequestCount).toBe(2);
+  });
+
+  it('applies live UI requests through the existing room controls and preserves human control', async () => {
+    vi.stubGlobal('document', { visibilityState: 'visible', hasFocus: () => true });
+    roomState.clientConfig = {
+      mindroom: {
+        computers: { apiUrl: 'https://computer.example.org' },
+        uiActions: { autoOpenFromHomeservers: ['example.org'] },
+      },
+    };
+    roomState.members = [
+      { membership: 'join', userId: '@mindroom_helper:example.org' },
+      { membership: 'join', userId: '@alice:example.org' },
+    ];
+    roomState.search = '?threadId=%24thread';
+    roomState.routedEvent = { getId: () => '$thread', isSending: () => false };
+    const { Room } = await import('../../../features/room/Room');
+    const { getDefaultStore } = await import('jotai');
+    const { settingsModalAtom } = await import('../../../state/settingsModal');
+    const { SettingsPages } = await import('../../../features/settings/settingsPages');
+    let renderer: ReturnType<typeof create>;
+    await act(async () => {
+      renderer = create(React.createElement(Room));
+    });
+    let serial = 0;
+    const emitAction = (action: string, extra: Record<string, unknown> = {}) => {
+      const event = new MatrixEvent({
+        event_id: `$ui-${serial++}`,
+        room_id: room.roomId,
+        sender: '@mindroom_helper:example.org',
+        type: 'm.room.message',
+        origin_server_ts: Date.now(),
+        content: {
+          msgtype: 'm.notice',
+          body: 'Open this view.',
+          'm.relates_to': { rel_type: 'm.thread', event_id: '$thread' },
+          'io.mindroom.ui_action': {
+            version: 1,
+            action,
+            requester_id: '@alice:example.org',
+            agent_user_id: '@mindroom_helper:example.org',
+            room_id: room.roomId,
+            thread_id: '$thread',
+            ...extra,
+          },
+        },
+      });
+      roomState.mxListeners.get('Room.timeline')?.(event, room, false, false, { liveEvent: true });
+      return event;
+    };
+    await act(async () => {
+      emitAction('show_computer');
+    });
+    expect(roomState.roomViewProps?.computerOpen).toBe(true);
+    expect(roomState.computerPanelProps?.requestedAgent?.userId).toBe(
+      '@mindroom_helper:example.org'
+    );
+    await act(async () =>
+      roomState.computerPanelProps?.onInteractionChange?.({
+        agentUserId: '@mindroom_helper:example.org',
+        locked: true,
+      })
+    );
+    await act(async () => {
+      emitAction('open_panel', { panel: 'members' });
+    });
+    expect(roomState.roomViewProps?.computerOpen).toBe(true);
+    await act(async () => roomState.computerPanelProps?.onInteractionChange?.({ locked: false }));
+    await act(async () => {
+      emitAction('open_panel', { panel: 'members' });
+    });
+    expect(roomState.roomViewProps?.computerOpen).toBe(false);
+    expect(roomState.setPeopleDrawer).toHaveBeenCalledWith(true);
+    await act(async () => {
+      emitAction('open_settings', { section: 'account' });
+    });
+    expect(getDefaultStore().get(settingsModalAtom)).toEqual({
+      initialPage: SettingsPages.AccountPage,
+      requestId: '$ui-3',
+    });
+    await act(async () => renderer!.unmount());
+    vi.stubGlobal('document', undefined);
   });
 
   it('opens the configured computer panel only for exact joined agent identities', async () => {
@@ -427,6 +550,124 @@ describe('Room', () => {
     await act(async () => renderer!.update(React.createElement(Room)));
 
     expect(renderer!.root.findAllByType('mock-computer-panel')).toHaveLength(0);
+    expect(roomState.computerPanelThreads).toEqual([undefined]);
+    await act(async () => renderer!.unmount());
+  });
+
+  it('ignores computer callbacks from a previous visit to the same conversation', async () => {
+    roomState.clientConfig = {
+      mindroom: { computers: { apiUrl: 'https://computer.example.org' } },
+    };
+    roomState.search = '?threadId=%24thread';
+    roomState.routedEvent = { getId: () => '$thread', isSending: () => false };
+    roomState.members = [
+      { membership: 'join', userId: '@alice:example.org' },
+      { membership: 'join', userId: '@mindroom_helper:example.org' },
+    ];
+    const { Room } = await import('../../../features/room/Room');
+    const { makeUiEvent } = await import('../../ui-actions/testUtils');
+    const { ChatUiActionContext } = await import('../../ui-actions/ChatUiActionProvider');
+    roomState.uiProbe = function UiProbe() {
+      roomState.activateUiAction = React.useContext(ChatUiActionContext)?.activate;
+      return null;
+    };
+    let renderer: ReturnType<typeof create>;
+    await act(async () => {
+      renderer = create(React.createElement(Room));
+    });
+    await act(async () => roomState.roomViewProps?.onComputerToggle?.());
+    const previousInteractionChange = roomState.computerPanelProps?.onInteractionChange;
+    roomState.search = '?threadId=%24other';
+    await act(async () => renderer!.update(React.createElement(Room)));
+    roomState.search = '?threadId=%24thread';
+    await act(async () => renderer!.update(React.createElement(Room)));
+    expect(roomState.roomViewProps?.computerOpen).toBe(false);
+    await act(async () => roomState.roomViewProps?.onComputerToggle?.());
+    await act(async () =>
+      previousInteractionChange?.({ agentUserId: '@mindroom_helper:example.org', locked: true })
+    );
+    await act(async () =>
+      roomState.activateUiAction?.(makeUiEvent({ action: 'open_panel', panel: 'members' }))
+    );
+    expect(roomState.roomViewProps?.computerOpen).toBe(false);
+    expect(roomState.setPeopleDrawer).toHaveBeenCalledWith(true);
+    await act(async () => renderer!.unmount());
+  });
+
+  it('opens a historical UI action from classic view in its originating thread', async () => {
+    roomState.viewMode = 'classic';
+    roomState.clientConfig = {
+      mindroom: { computers: { apiUrl: 'https://computer.example.org' } },
+    };
+    roomState.members = [
+      { membership: 'join', userId: '@alice:example.org' },
+      { membership: 'join', userId: '@mindroom_helper:example.org' },
+    ];
+    const { Room } = await import('../../../features/room/Room');
+    const { makeUiEvent } = await import('../../ui-actions/testUtils');
+    const { ChatUiActionContext } = await import('../../ui-actions/ChatUiActionProvider');
+    roomState.uiProbe = function UiProbe() {
+      roomState.activateUiAction = React.useContext(ChatUiActionContext)?.activate;
+      return null;
+    };
+    let renderer: ReturnType<typeof create>;
+    await act(async () => {
+      renderer = create(React.createElement(Room));
+    });
+    await act(async () => roomState.activateUiAction?.(makeUiEvent()));
+    expect(roomState.setViewMode).toHaveBeenCalledWith('threaded');
+    expect(navigateRoomThreadMock).toHaveBeenCalledWith(room.roomId, '$thread');
+    roomState.search = '?threadId=%24thread';
+    roomState.routedEvent = { getId: () => '$thread', isSending: () => false };
+    await act(async () => renderer!.update(React.createElement(Room)));
+    expect(navigateRoomMock).not.toHaveBeenCalled();
+    expect(roomState.computerPanelProps).toMatchObject({
+      requestedAgent: { userId: '@mindroom_helper:example.org' },
+      threadId: '$thread',
+    });
+    await act(async () => renderer!.unmount());
+  });
+
+  it('keeps hidden Settings sections unavailable in Simple Mode', async () => {
+    roomState.simpleMode = true;
+    roomState.search = '?threadId=%24thread';
+    roomState.routedEvent = { getId: () => '$thread', isSending: () => false };
+    roomState.members = [
+      { membership: 'join', userId: '@alice:example.org' },
+      { membership: 'join', userId: '@mindroom_helper:example.org' },
+    ];
+    const { Room } = await import('../../../features/room/Room');
+    const { makeUiEvent } = await import('../../ui-actions/testUtils');
+    const { ChatUiActionContext } = await import('../../ui-actions/ChatUiActionProvider');
+    const { settingsModalAtom } = await import('../../../state/settingsModal');
+    const { getDefaultStore } = await import('jotai');
+    getDefaultStore().set(settingsModalAtom, undefined);
+    roomState.uiProbe = function UiProbe() {
+      roomState.activateUiAction = React.useContext(ChatUiActionContext)?.activate;
+      return null;
+    };
+    let renderer: ReturnType<typeof create>;
+    await act(async () => {
+      renderer = create(React.createElement(Room));
+    });
+    await act(async () =>
+      roomState.activateUiAction?.(makeUiEvent({ action: 'open_settings', section: 'developer' }))
+    );
+    expect(getDefaultStore().get(settingsModalAtom)).toBeUndefined();
+    await act(async () =>
+      roomState.activateUiAction?.(
+        makeUiEvent({ action: 'open_settings', section: 'emojis-stickers' })
+      )
+    );
+    expect(getDefaultStore().get(settingsModalAtom)).toBeUndefined();
+    roomState.simpleMode = false;
+    await act(async () => renderer!.update(React.createElement(Room)));
+    await act(async () =>
+      roomState.activateUiAction?.(makeUiEvent({ action: 'open_settings', section: 'developer' }))
+    );
+    expect(getDefaultStore().get(settingsModalAtom)).toBeDefined();
+    getDefaultStore().set(settingsModalAtom, undefined);
+    await act(async () => renderer!.unmount());
   });
 
   it('leaves an explicit thread in the URL untouched', async () => {

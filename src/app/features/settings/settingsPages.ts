@@ -9,3 +9,8 @@ export enum SettingsPages {
 }
 
 export type SettingsPage = SettingsPages | string;
+
+export const SIMPLE_MODE_HIDDEN_SETTINGS_PAGES: SettingsPage[] = [
+  SettingsPages.DeveloperToolsPage,
+  SettingsPages.EmojisStickersPage,
+];
