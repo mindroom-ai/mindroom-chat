@@ -67,6 +67,7 @@ const { mx, navigateRoomMock, navigateRoomThreadMock, removeRecentThreadMock, ro
       drawer: false,
       screenSize: 'Desktop',
       panelDisposals: 0,
+      computerPanelThreads: [] as Array<string | undefined>,
       routedEvent: undefined as
         | undefined
         | { getId: () => string; threadRootId?: string; isSending: () => boolean },
@@ -195,6 +196,10 @@ vi.mock('../../../hooks/useClientConfig', () => ({
 
 vi.mock('../../computer/ComputerPanel', () => ({
   ComputerPanel: (props: MockComputerPanelProps) => {
+    const { threadId } = props;
+    React.useEffect(() => {
+      roomState.computerPanelThreads.push(threadId);
+    }, [threadId]);
     React.useEffect(
       () => () => {
         roomState.panelDisposals += 1;
@@ -270,6 +275,7 @@ describe('Room', () => {
     roomState.drawer = false;
     roomState.screenSize = 'Desktop';
     roomState.panelDisposals = 0;
+    roomState.computerPanelThreads = [];
     roomState.routedEvent = undefined;
     roomState.callChat = false;
     roomState.callChatViewProps = undefined;
@@ -540,6 +546,48 @@ describe('Room', () => {
     await act(async () => renderer!.update(React.createElement(Room)));
 
     expect(renderer!.root.findAllByType('mock-computer-panel')).toHaveLength(0);
+    expect(roomState.computerPanelThreads).toEqual([undefined]);
+    await act(async () => renderer!.unmount());
+  });
+
+  it('ignores computer callbacks from a previous visit to the same conversation', async () => {
+    roomState.clientConfig = {
+      mindroom: { computers: { apiUrl: 'https://computer.example.org' } },
+    };
+    roomState.search = '?threadId=%24thread';
+    roomState.routedEvent = { getId: () => '$thread', isSending: () => false };
+    roomState.members = [
+      { membership: 'join', userId: '@alice:example.org' },
+      { membership: 'join', userId: '@mindroom_helper:example.org' },
+    ];
+    const { Room } = await import('../../../features/room/Room');
+    const { makeUiEvent } = await import('../../ui-actions/testUtils');
+    const { ChatUiActionContext } = await import('../../ui-actions/ChatUiActionProvider');
+    roomState.uiProbe = function UiProbe() {
+      roomState.activateUiAction = React.useContext(ChatUiActionContext)?.activate;
+      return null;
+    };
+    let renderer: ReturnType<typeof create>;
+    await act(async () => {
+      renderer = create(React.createElement(Room));
+    });
+    await act(async () => roomState.roomViewProps?.onComputerToggle?.());
+    const previousInteractionChange = roomState.computerPanelProps?.onInteractionChange;
+    roomState.search = '?threadId=%24other';
+    await act(async () => renderer!.update(React.createElement(Room)));
+    roomState.search = '?threadId=%24thread';
+    await act(async () => renderer!.update(React.createElement(Room)));
+    expect(roomState.roomViewProps?.computerOpen).toBe(false);
+    await act(async () => roomState.roomViewProps?.onComputerToggle?.());
+    await act(async () =>
+      previousInteractionChange?.({ agentUserId: '@mindroom_helper:example.org', locked: true })
+    );
+    await act(async () =>
+      roomState.activateUiAction?.(makeUiEvent({ action: 'open_panel', panel: 'members' }))
+    );
+    expect(roomState.roomViewProps?.computerOpen).toBe(false);
+    expect(roomState.setPeopleDrawer).toHaveBeenCalledWith(true);
+    await act(async () => renderer!.unmount());
   });
 
   it('opens a historical UI action from classic view in its originating thread', async () => {

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useMemo } from 'react';
 import { Box, Line } from 'folds';
 import { KnownMembership } from 'matrix-js-sdk';
 import { useParams, useSearchParams } from 'react-router-dom';
@@ -26,7 +26,8 @@ import { hasActiveMindroomAgent, isMindroomAgentUserId } from '../matrix/agentId
 import { MembershipFilter } from '../../hooks/useMemberFilter';
 import { useClientConfig } from '../../hooks/useClientConfig';
 import { resolveComputerApiUrl } from '../computer/api';
-import { ComputerPanel, type ComputerInteraction } from '../computer/ComputerPanel';
+import { ComputerPanel } from '../computer/ComputerPanel';
+import { useRoomComputerState } from '../computer/useRoomComputerState';
 import type { ComputerAgent } from '../computer/types';
 import { ResizableMembersPanel } from '../sidebar/ResizableMembersPanel';
 import { useMembersDrawer } from '../sidebar/useMembersDrawer';
@@ -80,15 +81,9 @@ export function Room() {
         })),
     [members]
   );
-  const [computerOpen, setComputerOpen] = useState(false);
-  const [requestedAgent, setRequestedAgent] = useState<{ userId: string }>();
-  const [computerInteraction, setComputerInteraction] = useState<ComputerInteraction>({
-    locked: false,
-  });
   const setSettingsModal = useSetAtom(settingsModalAtom);
   const { navigateRoom, navigateRoomThread } = useRoomNavigate();
   const computerAvailable = !!computerApiUrl && computerAgents.length > 0;
-  const effectiveComputerOpen = computerOpen && computerAvailable;
   const hasMindroomAgents = hasActiveMindroomAgent(members);
   const joinRequestCount = useMemo(
     () => members.filter(MembershipFilter.filterKnocked).length,
@@ -97,29 +92,30 @@ export function Room() {
   const chat = useAtomValue(callChatAtom);
   const { viewMode, setViewMode } = useRoomViewMode(room.roomId);
   const routedThreadId = viewMode === 'classic' ? undefined : threadId;
+  const {
+    open: effectiveComputerOpen,
+    requestedAgent,
+    interaction: computerInteraction,
+    toggle: toggleComputer,
+    show: showComputer,
+    close: closeComputer,
+    reportInteraction,
+  } = useRoomComputerState({
+    mx,
+    roomId: room.roomId,
+    threadId: routedThreadId,
+    available: computerAvailable,
+  });
   const computerThreadId = useThreadRootEvent(room, routedThreadId);
   const continuationReady =
     !routedThreadId ||
     computerThreadId !== routedThreadId ||
     !!room.findEventById(routedThreadId) ||
     !!room.getThread(routedThreadId)?.rootEvent;
-  useEffect(() => {
-    if (!computerAvailable) setComputerOpen(false);
-  }, [computerAvailable]);
-  useEffect(() => {
-    setComputerOpen(false);
-    setRequestedAgent(undefined);
-    setComputerInteraction({ locked: false });
-  }, [mx, room.roomId, routedThreadId]);
-
   const handleComputerToggle = useCallback(() => {
-    setRequestedAgent(undefined);
-    setComputerOpen((open) => {
-      const nextOpen = !open;
-      if (nextOpen) setPeopleDrawer(false);
-      return nextOpen;
-    });
-  }, [setPeopleDrawer]);
+    if (!effectiveComputerOpen) setPeopleDrawer(false);
+    toggleComputer();
+  }, [effectiveComputerOpen, setPeopleDrawer, toggleComputer]);
   const handleThreadLoadError = useRoomThreadRouteGuards({
     eventId,
     roomId: room.roomId,
@@ -172,20 +168,19 @@ export function Room() {
   const performUiAction = useCallback(
     (action: ChatUiAction) => {
       if (action.action === 'show_computer') {
-        setRequestedAgent({ userId: action.agentUserId });
         setPeopleDrawer(false);
-        setComputerOpen(true);
+        showComputer(action.agentUserId);
       } else if (action.action === 'open_settings') {
         setSettingsModal({
           initialPage: UI_SETTINGS_PAGES[action.section],
           requestId: action.eventId,
         });
       } else {
-        setComputerOpen(false);
+        closeComputer();
         setPeopleDrawer(true);
       }
     },
-    [setPeopleDrawer, setSettingsModal]
+    [closeComputer, setPeopleDrawer, setSettingsModal, showComputer]
   );
   const navigateUiAction = useCallback(
     (targetThreadId?: string) => {
@@ -196,7 +191,6 @@ export function Room() {
     },
     [navigateRoom, navigateRoomThread, room.roomId, setViewMode, viewMode]
   );
-  // Keep this after the room/thread cleanup effect so an explicit routed click opens last.
   const uiActions = useChatUiActions({
     mx,
     room,
@@ -266,8 +260,8 @@ export function Room() {
                 threadId={computerThreadId}
                 continuationReady={continuationReady}
                 requestedAgent={requestedAgent}
-                onInteractionChange={setComputerInteraction}
-                onClose={() => setComputerOpen(false)}
+                onInteractionChange={reportInteraction}
+                onClose={closeComputer}
               />
             </>
           )}

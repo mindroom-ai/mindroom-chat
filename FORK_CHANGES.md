@@ -15,7 +15,12 @@
 - Each accepted Settings request carries its Matrix event identity into the modal renderer, so a new request selects its named section even while Settings is already open or after the user navigates elsewhere.
   Ordinary Settings navigation and viewport changes retain the current page because only a new request remounts the Settings view.
   Pinned plain and decrypted messages now pass their source Matrix event into the shared content renderer, preserving passive historical UI-action buttons in the pin menu.
-- Validation: all 4,511 unit tests, typecheck, production/PWA build, and changed-file formatting pass.
+- Computer view state belongs to one conversation instance through `computer/useRoomComputerState.ts`.
+  Account, room, route, or availability changes clear the view before children render, so opening a routed request does not depend on effect ordering and old panel callbacks cannot affect a later visit.
+- `ui-actions/chatUiBackendContract.test.ts` parses 18 notices emitted by the real backend toolkit, covering every action and Settings section in room and thread scope.
+  The dedicated `chat-ui-backend-contract.yml` workflow regenerates the committed fixture from its pinned backend revision and tests the generated output directly.
+  When changing the wire contract, update the backend revision in that workflow and regenerate `ui-actions/__fixtures__/chatUiBackendContract.json` using `uv run -m tests.chat_ui_contract_fixture --output <fixture-path>` from the backend checkout.
+- Validation: all 4,531 unit tests, typecheck, production/PWA build, and changed-file formatting pass.
   Full lint reports zero errors and the 17 existing warnings.
   Production Chromium coverage uses real local Matrix delivery and a stub computer gateway to verify desktop/mobile opening, exact-agent authenticated requests, inactive threads, historical buttons, reload, successive and repeated Settings section requests, and Members.
   Independent task review approves the changes after regressions covering missing-key retry, Classic routing, requested-agent departure, and preservation of a manually opened computer under human control.
