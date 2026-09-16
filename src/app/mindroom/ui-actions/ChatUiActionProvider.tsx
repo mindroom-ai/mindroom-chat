@@ -15,6 +15,7 @@ export type ChatUiActionOptions = {
   mx: MatrixClient;
   room: Room;
   threadId?: string;
+  autoOpenFromHomeservers?: readonly string[];
   ready: boolean;
   perform: (action: ChatUiAction) => void;
   unavailable: (action: ChatUiAction) => string | undefined;
@@ -25,6 +26,7 @@ export function useChatUiActions({
   mx,
   room,
   threadId,
+  autoOpenFromHomeservers,
   ready,
   perform,
   unavailable,
@@ -69,12 +71,13 @@ export function useChatUiActions({
       mx,
       room,
       threadId,
+      autoOpenFromHomeservers,
       isForeground: () => document.visibilityState === 'visible' && document.hasFocus(),
       onAction: (action) => {
         if (!latest.current.unavailable(action)) latest.current.perform(action);
       },
     });
-  }, [mx, room, threadId, ready]);
+  }, [mx, room, threadId, ready, autoOpenFromHomeservers]);
 
   return useMemo(() => ({ read, activate, unavailable }), [read, activate, unavailable]);
 }

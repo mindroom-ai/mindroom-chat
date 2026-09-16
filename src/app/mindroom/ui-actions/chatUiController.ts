@@ -8,6 +8,7 @@ import {
   SyncState,
 } from 'matrix-js-sdk';
 import { CHAT_UI_ACTION_KEY, type ChatUiAction, readChatUiAction } from './chatUiProtocol';
+import { getMxIdServer } from '../../utils/matrix';
 
 const LIVE_WINDOW_MS = 60_000;
 // Survives room remounts, but cannot leak action identity between Matrix clients/accounts.
@@ -17,6 +18,7 @@ export type ChatUiListenerOptions = {
   mx: MatrixClient;
   room: Room;
   threadId?: string;
+  autoOpenFromHomeservers?: readonly string[];
   onAction: (action: ChatUiAction) => void;
   isForeground: () => boolean;
   now?: () => number;
@@ -27,6 +29,7 @@ export const listenForChatUiActions = ({
   mx,
   room,
   threadId,
+  autoOpenFromHomeservers,
   onAction,
   isForeground,
   now = Date.now,
@@ -58,7 +61,15 @@ export const listenForChatUiActions = ({
   const deliver = (event: MatrixEvent) => {
     if (!ready() || !fresh(event)) return;
     const action = readChatUiAction(event, mx.getSafeUserId(), room);
-    if (action && action.threadId === threadId) onAction(action);
+    if (!action || action.threadId !== threadId) return;
+    const senderServer = getMxIdServer(action.agentUserId);
+    if (
+      senderServer &&
+      Array.isArray(autoOpenFromHomeservers) &&
+      autoOpenFromHomeservers.includes(senderServer)
+    ) {
+      onAction(action);
+    }
   };
   const decrypted = (event: MatrixEvent) => {
     const id = event.getId();

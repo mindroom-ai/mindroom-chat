@@ -38,6 +38,9 @@
   },
 
   "mindroom": {
+    "uiActions": {
+      "autoOpenFromHomeservers": ["mindroom.chat"]
+    },
     "computers": {
       "apiUrl": ""
     },

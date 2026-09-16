@@ -65,6 +65,7 @@ describe('Chat UI request buttons', () => {
       mx,
       room,
       threadId: '$thread',
+      autoOpenFromHomeservers: ['example.org'],
       ready: true,
       perform,
       navigate,
@@ -126,6 +127,23 @@ describe('Chat UI request buttons', () => {
   it('never offers another user an action button', () => {
     setup(makeUiEvent({ requester_id: '@bob:example.org' }));
     expect(container.querySelector('button')).toBeNull();
+  });
+
+  it('keeps an unlisted homeserver passive while allowing the explicit button', async () => {
+    const event = makeUiEvent();
+    const { mx, room, perform, render } = setup(event);
+    render({ autoOpenFromHomeservers: ['elsewhere.org'] });
+    event.event.origin_server_ts = Date.now();
+    act(() =>
+      mx.emit(RoomEvent.Timeline, event, room, false, false, {
+        liveEvent: true,
+        timeline: room.getLiveTimeline(),
+      })
+    );
+    expect(perform).not.toHaveBeenCalled();
+    expect(container.querySelector('button')!.disabled).toBe(false);
+    await act(async () => container.querySelector('button')!.click());
+    expect(perform).toHaveBeenCalledWith(expect.objectContaining({ action: 'show_computer' }));
   });
 
   it('executes a fresh request once without executing the card during rerender', () => {

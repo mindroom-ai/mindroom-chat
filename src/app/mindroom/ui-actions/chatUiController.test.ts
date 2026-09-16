@@ -10,14 +10,25 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-const setup = (threadId: string | undefined = '$thread') => {
+const setup = (
+  threadId: string | undefined = '$thread',
+  autoOpenFromHomeservers: readonly string[] | undefined = ['example.org']
+) => {
   const { mx, room } = makeUiRoom();
   let now = 100_000;
   let foreground = true;
   const onAction = vi.fn();
   vi.spyOn(mx, 'isInitialSyncComplete').mockReturnValue(true);
   vi.spyOn(mx, 'getSyncState').mockReturnValue(SyncState.Syncing);
-  const options = { mx, room, threadId, onAction, now: () => now, isForeground: () => foreground };
+  const options = {
+    mx,
+    room,
+    threadId,
+    autoOpenFromHomeservers,
+    onAction,
+    now: () => now,
+    isForeground: () => foreground,
+  };
   const stop = listenForChatUiActions(options);
   cleanups.push(stop);
   const emit = (event = makeUiEvent(), liveEvent = true, toStart = false, removed = false) =>
@@ -39,6 +50,41 @@ const setup = (threadId: string | undefined = '$thread') => {
 };
 
 describe('live Chat UI action delivery', () => {
+  it.each([
+    { servers: [] },
+    { servers: ['elsewhere.org'] },
+    { servers: ['org'] },
+    { servers: ['*.example.org'] },
+    { servers: ['sub.example.org'] },
+    { servers: ['example.org:8448'] },
+    { servers: ['https://example.org'] },
+    { servers: 'example.org' as unknown as string[] },
+  ])(
+    'keeps same-server requests passive without an exact allowlist match: $servers',
+    ({ servers }) => {
+      const fixture = setup('$thread', servers);
+      fixture.emit();
+      expect(fixture.onAction).not.toHaveBeenCalled();
+    }
+  );
+
+  it('defaults to passive when no homeserver allowlist is configured', () => {
+    const fixture = setup();
+    fixture.stop();
+    cleanups.push(listenForChatUiActions({ ...fixture, autoOpenFromHomeservers: undefined }));
+    fixture.emit();
+    expect(fixture.onAction).not.toHaveBeenCalled();
+  });
+
+  it.each([agentId.replace('example.org', 'elsewhere.org'), '@alice:example.org'])(
+    'does not let the allowlist bypass existing agent identity checks: %s',
+    (sender) => {
+      const fixture = setup('$thread', ['example.org', 'elsewhere.org']);
+      fixture.emit(makeUiEvent({ agent_user_id: sender }, { sender }));
+      expect(fixture.onAction).not.toHaveBeenCalled();
+    }
+  );
+
   it('delivers one new request in the foreground conversation exactly once', () => {
     const fixture = setup();
     fixture.emit();

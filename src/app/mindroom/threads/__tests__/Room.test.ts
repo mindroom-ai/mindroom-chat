@@ -2,6 +2,7 @@ import React from 'react';
 import { act, create } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MatrixEvent } from 'matrix-js-sdk';
+import type { ClientConfig } from '../../../hooks/useClientConfig';
 
 type MockRoomViewProps = {
   computerAvailable?: boolean;
@@ -74,7 +75,7 @@ const { mx, navigateRoomMock, navigateRoomThreadMock, removeRecentThreadMock, ro
       callChat: false,
       callChatViewProps: undefined as MockCallChatViewProps | undefined,
       callRoom: false,
-      clientConfig: { mindroom: {} } as { mindroom?: { computers?: { apiUrl?: string } } },
+      clientConfig: { mindroom: {} } as ClientConfig,
       computerPanelProps: undefined as MockComputerPanelProps | undefined,
       eventId: undefined as string | undefined,
       members: [] as Array<{ membership: string; userId: string }>,
@@ -355,7 +356,10 @@ describe('Room', () => {
   it('applies live UI requests through the existing room controls and preserves human control', async () => {
     vi.stubGlobal('document', { visibilityState: 'visible', hasFocus: () => true });
     roomState.clientConfig = {
-      mindroom: { computers: { apiUrl: 'https://computer.example.org' } },
+      mindroom: {
+        computers: { apiUrl: 'https://computer.example.org' },
+        uiActions: { autoOpenFromHomeservers: ['example.org'] },
+      },
     };
     roomState.members = [
       { membership: 'join', userId: '@mindroom_helper:example.org' },

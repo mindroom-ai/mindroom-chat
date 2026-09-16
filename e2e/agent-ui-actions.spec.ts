@@ -27,6 +27,7 @@ test('agent requests open the active conversation and leave passive history butt
   const viewer = await register(username);
   const agent = await register(`mindroom_ui_${suffix}`);
   const otherAgent = await register(`mindroom_other_${suffix}`);
+  let autoOpenFromHomeservers = [viewer.user_id.slice(viewer.user_id.indexOf(':') + 1)];
   const fixture = await createThreadFixture(homeserver!, viewer.access_token, {
     name: 'Agent UI requests',
     topic: 'Local UI action regression',
@@ -83,7 +84,11 @@ test('agent requests open the active conversation and leave passive history butt
         allowCustomHomeservers: true,
         hashRouter: { enabled: false },
         auth: { allowRegistration: false, disablePasswordLogin: false },
-        mindroom: { ...config.mindroom, computers: { apiUrl: computerApi } },
+        mindroom: {
+          ...config.mindroom,
+          computers: { apiUrl: computerApi },
+          uiActions: { autoOpenFromHomeservers },
+        },
       },
     });
   });
@@ -169,5 +174,24 @@ test('agent requests open the active conversation and leave passive history butt
   const bounds = await panel.boundingBox();
   expect(bounds).toMatchObject({ x: 0, y: 0, width: 390, height: 844 });
   await page.screenshot({ path: testInfo.outputPath('mobile-agent-computer.png') });
+
+  // Removing deployment trust keeps a fresh request passive, with its button still usable.
+  await panel.getByRole('button', { name: 'Close computer', exact: true }).click();
+  autoOpenFromHomeservers = [];
+  const untrustedSync = page.waitForRequest((request) => {
+    const url = new URL(request.url());
+    return url.pathname.endsWith('/sync') && url.searchParams.get('timeout') === '30000';
+  });
+  await page.reload();
+  await untrustedSync;
+  await expect.poll(() => page.evaluate(() => document.hasFocus())).toBe(true);
+  await sendAction(otherRoot, { action: 'show_computer' }, 'Unlisted server request');
+  await expect(page.getByText('Unlisted server request', { exact: true })).toBeVisible();
+  await expect(panel).toHaveCount(0);
+  expect(sessions).toHaveLength(3);
+  await page.getByRole('button', { name: 'View computer', exact: true }).last().click();
+  await expect(panel).toBeVisible();
+  await expect(panel.getByText('Local fixture computer unavailable')).toBeVisible();
+  expect(sessions).toHaveLength(4);
   expect(pageErrors).toEqual([]);
 });

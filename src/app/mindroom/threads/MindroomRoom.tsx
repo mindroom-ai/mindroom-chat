@@ -195,6 +195,7 @@ export function Room() {
     mx,
     room,
     threadId: computerThreadId,
+    autoOpenFromHomeservers: clientConfig.mindroom?.uiActions?.autoOpenFromHomeservers,
     ready: !callView && continuationReady,
     perform: performUiAction,
     unavailable: uiUnavailable,

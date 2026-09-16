@@ -7,6 +7,10 @@
 - Agents can request the Computer, Settings, or Members panel through versioned `io.mindroom.ui_action` metadata on ordinary Matrix notices.
   Fresh requests open automatically only for the addressed user viewing the active conversation in a focused client.
   History, background conversations, initial sync, and replay retain explicit buttons without reopening panels.
+- Automatic opening additionally requires the agent's exact Matrix server name in the deployment's `mindroom.uiActions.autoOpenFromHomeservers` list.
+  The shipped MindRoom config lists `mindroom.chat`; an absent or empty list leaves requests passive with explicit buttons.
+  This policy narrows the existing joined-agent, same-homeserver checks without changing agent recognition elsewhere.
+  Operators must reserve agent usernames on any server they trust; wildcard, URL, suffix, and implicit subdomain matching are unsupported.
 - Computer requests select the sending agent and reuse the existing authenticated viewer flow.
   Human control and pending computer operations prevent requests from switching computers or replacing the panel.
   Settings accepts named existing sections; Members uses the existing responsive drawer.
@@ -20,9 +24,9 @@
 - `ui-actions/chatUiBackendContract.test.ts` parses 18 notices emitted by the real backend toolkit, covering every action and Settings section in room and thread scope.
   The dedicated `chat-ui-backend-contract.yml` workflow regenerates the committed fixture from its pinned backend revision and tests the generated output directly.
   When changing the wire contract, update the backend revision in that workflow and regenerate `ui-actions/__fixtures__/chatUiBackendContract.json` using `uv run -m tests.chat_ui_contract_fixture --output <fixture-path>` from the backend checkout.
-- Validation: all 4,531 unit tests, typecheck, production/PWA build, and changed-file formatting pass.
+- Validation: all 4,543 unit tests, typecheck, production/PWA build, and changed-file formatting pass.
   Full lint reports zero errors and the 17 existing warnings.
-  Production Chromium coverage uses real local Matrix delivery and a stub computer gateway to verify desktop/mobile opening, exact-agent authenticated requests, inactive threads, historical buttons, reload, successive and repeated Settings section requests, and Members.
+  Production Chromium coverage uses real local Matrix delivery and a stub computer gateway to verify desktop/mobile opening, exact-agent authenticated requests, inactive threads, historical buttons, reload, successive and repeated Settings section requests, Members, and passive requests after deployment trust is removed.
   Independent task review approves the changes after regressions covering missing-key retry, Classic routing, requested-agent departure, and preservation of a manually opened computer under human control.
 
 ### Match the approval banner to floating glass (2026-09-16)
