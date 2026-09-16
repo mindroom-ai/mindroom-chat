@@ -2771,5 +2771,32 @@
         "thread": "Konu"
       }
     }
+  },
+  "roomSchedules": {
+    "title": "Zamanlanmış görevler",
+    "openLabel": "Zamanlanmış görevler ({{total}})",
+    "empty": "Bu odada zamanlanmış görev yok.",
+    "emptyHint": "Bir MindRoom ajanından burada bir görev zamanlamasını isteyin.",
+    "prompt": "İstem",
+    "promptUnavailable": "İstem kullanılamıyor",
+    "once": "Tek seferlik",
+    "recurring": "Yinelenen",
+    "executionTime": "Yürütme zamanı",
+    "unknownTime": "Yürütme zamanı kullanılamıyor",
+    "awaitingExecution": "Yürütülmeyi bekliyor",
+    "recurrence": "Yineleme",
+    "silent": "Sessiz",
+    "conditional": "Koşullu",
+    "newThread": "Yeni konu",
+    "roomTimeline": "Oda zaman çizelgesi",
+    "openThread": "Konuyu aç",
+    "createdBy": "Oluşturan",
+    "createdAt": "Oluşturulma",
+    "taskId": "Görev kimliği",
+    "historyLimit": "Geçmiş sınırı",
+    "fullHistory": "Tüm geçmiş",
+    "noHistory": "Geçmiş yok",
+    "recentMessages": "Son mesajlar: {{total}}",
+    "close": "Kapat"
   }
 }

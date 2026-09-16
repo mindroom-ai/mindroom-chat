@@ -2824,5 +2824,32 @@
         "thread": "Hilo"
       }
     }
+  },
+  "roomSchedules": {
+    "title": "Tareas programadas",
+    "openLabel": "Tareas programadas ({{total}})",
+    "empty": "No hay tareas programadas en esta sala.",
+    "emptyHint": "Pide a un agente de MindRoom que programe una tarea aquí.",
+    "prompt": "Instrucción",
+    "promptUnavailable": "Instrucción no disponible",
+    "once": "Una vez",
+    "recurring": "Periódica",
+    "executionTime": "Hora de ejecución",
+    "unknownTime": "Hora de ejecución no disponible",
+    "awaitingExecution": "Pendiente de ejecución",
+    "recurrence": "Recurrencia",
+    "silent": "Silenciosa",
+    "conditional": "Condicional",
+    "newThread": "Nuevo hilo",
+    "roomTimeline": "Cronología de la sala",
+    "openThread": "Abrir hilo",
+    "createdBy": "Creada por",
+    "createdAt": "Creada",
+    "taskId": "ID de tarea",
+    "historyLimit": "Límite del historial",
+    "fullHistory": "Historial completo",
+    "noHistory": "Sin historial",
+    "recentMessages": "Mensajes recientes: {{total}}",
+    "close": "Cerrar"
   }
 }

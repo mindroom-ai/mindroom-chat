@@ -2771,5 +2771,32 @@
     "title": "थ्रेड",
     "unknownActivity": "अज्ञात",
     "unpin": "थ्रेड को अनपिन करें"
+  },
+  "roomSchedules": {
+    "title": "निर्धारित कार्य",
+    "openLabel": "निर्धारित कार्य ({{total}})",
+    "empty": "इस रूम में कोई निर्धारित कार्य नहीं है।",
+    "emptyHint": "MindRoom एजेंट से यहाँ कोई कार्य निर्धारित करने के लिए कहें।",
+    "prompt": "प्रॉम्प्ट",
+    "promptUnavailable": "प्रॉम्प्ट उपलब्ध नहीं है",
+    "once": "एक बार",
+    "recurring": "आवर्ती",
+    "executionTime": "निष्पादन समय",
+    "unknownTime": "निष्पादन समय उपलब्ध नहीं है",
+    "awaitingExecution": "निष्पादन की प्रतीक्षा में",
+    "recurrence": "पुनरावृत्ति",
+    "silent": "मौन",
+    "conditional": "सशर्त",
+    "newThread": "नया थ्रेड",
+    "roomTimeline": "रूम टाइमलाइन",
+    "openThread": "थ्रेड खोलें",
+    "createdBy": "इसके द्वारा बनाया गया",
+    "createdAt": "बनाया गया",
+    "taskId": "कार्य ID",
+    "historyLimit": "इतिहास सीमा",
+    "fullHistory": "पूरा इतिहास",
+    "noHistory": "कोई इतिहास नहीं",
+    "recentMessages": "हाल के संदेश: {{total}}",
+    "close": "बंद करें"
   }
 }

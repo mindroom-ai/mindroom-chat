@@ -2824,5 +2824,32 @@
         "thread": "Thread"
       }
     }
+  },
+  "roomSchedules": {
+    "title": "Attività pianificate",
+    "openLabel": "Attività pianificate ({{total}})",
+    "empty": "Nessuna attività pianificata in questa stanza.",
+    "emptyHint": "Chiedi a un agente MindRoom di pianificare un’attività qui.",
+    "prompt": "Prompt",
+    "promptUnavailable": "Prompt non disponibile",
+    "once": "Una tantum",
+    "recurring": "Ricorrente",
+    "executionTime": "Ora di esecuzione",
+    "unknownTime": "Ora di esecuzione non disponibile",
+    "awaitingExecution": "In attesa di esecuzione",
+    "recurrence": "Ricorrenza",
+    "silent": "Silenziosa",
+    "conditional": "Condizionale",
+    "newThread": "Nuovo thread",
+    "roomTimeline": "Cronologia della stanza",
+    "openThread": "Apri thread",
+    "createdBy": "Creata da",
+    "createdAt": "Creata",
+    "taskId": "ID attività",
+    "historyLimit": "Limite cronologia",
+    "fullHistory": "Cronologia completa",
+    "noHistory": "Nessuna cronologia",
+    "recentMessages": "Messaggi recenti: {{total}}",
+    "close": "Chiudi"
   }
 }

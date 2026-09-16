@@ -2824,5 +2824,32 @@
         "thread": "Fil"
       }
     }
+  },
+  "roomSchedules": {
+    "title": "Tâches planifiées",
+    "openLabel": "Tâches planifiées ({{total}})",
+    "empty": "Aucune tâche planifiée dans ce salon.",
+    "emptyHint": "Demandez à un agent MindRoom de planifier une tâche ici.",
+    "prompt": "Instruction",
+    "promptUnavailable": "Instruction indisponible",
+    "once": "Ponctuelle",
+    "recurring": "Récurrente",
+    "executionTime": "Heure d’exécution",
+    "unknownTime": "Heure d’exécution indisponible",
+    "awaitingExecution": "En attente d’exécution",
+    "recurrence": "Récurrence",
+    "silent": "Silencieuse",
+    "conditional": "Conditionnelle",
+    "newThread": "Nouveau fil",
+    "roomTimeline": "Chronologie du salon",
+    "openThread": "Ouvrir le fil",
+    "createdBy": "Créée par",
+    "createdAt": "Créée",
+    "taskId": "ID de la tâche",
+    "historyLimit": "Limite de l’historique",
+    "fullHistory": "Historique complet",
+    "noHistory": "Aucun historique",
+    "recentMessages": "Messages récents : {{total}}",
+    "close": "Fermer"
   }
 }

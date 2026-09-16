@@ -2771,5 +2771,32 @@
         "thread": "Thread"
       }
     }
+  },
+  "roomSchedules": {
+    "title": "Geplande taken",
+    "openLabel": "Geplande taken ({{total}})",
+    "empty": "Geen geplande taken in deze ruimte.",
+    "emptyHint": "Vraag een MindRoom-agent om hier een taak te plannen.",
+    "prompt": "Prompt",
+    "promptUnavailable": "Prompt niet beschikbaar",
+    "once": "Eenmalig",
+    "recurring": "Terugkerend",
+    "executionTime": "Uitvoeringstijd",
+    "unknownTime": "Uitvoeringstijd niet beschikbaar",
+    "awaitingExecution": "In afwachting van uitvoering",
+    "recurrence": "Herhaling",
+    "silent": "Stil",
+    "conditional": "Voorwaardelijk",
+    "newThread": "Nieuwe thread",
+    "roomTimeline": "Ruimtetijdlijn",
+    "openThread": "Thread openen",
+    "createdBy": "Gemaakt door",
+    "createdAt": "Gemaakt",
+    "taskId": "Taak-ID",
+    "historyLimit": "Geschiedenislimiet",
+    "fullHistory": "Volledige geschiedenis",
+    "noHistory": "Geen geschiedenis",
+    "recentMessages": "Recente berichten: {{total}}",
+    "close": "Sluiten"
   }
 }

@@ -56,6 +56,7 @@ import { useRoomPinnedEvents } from '../../hooks/useRoomPinnedEvents';
 import { RoomPinMenu } from '../messages/MindroomRoomPinMenu';
 import { useOpenRoomSettings } from '../../state/hooks/roomSettings';
 import { MindroomCommandPaletteHeaderButton } from '../command-palette/MindroomCommandPaletteHeaderButton';
+import { RoomSchedulesButton } from '../schedules/RoomSchedulesButton';
 import { RoomNotificationModeSwitcher } from '../../components/RoomNotificationSwitcher';
 import {
   getRoomNotificationMode,
@@ -308,6 +309,7 @@ export function RoomViewHeader({
   const useAuthentication = useMediaAuthentication();
   const screenSize = useScreenSizeContext();
   const room = useRoom();
+  const { navigateRoomThread } = useRoomNavigate();
   const space = useSpaceOptionally();
   const [menuAnchor, setMenuAnchor] = useState<RectCords>();
   const [pinMenuAnchor, setPinMenuAnchor] = useState<RectCords>();
@@ -446,6 +448,11 @@ export function RoomViewHeader({
         </Box>
 
         <Box shrink="No">
+          <RoomSchedulesButton
+            key={room.roomId}
+            room={room}
+            onOpenThread={(rootId) => navigateRoomThread(room.roomId, rootId)}
+          />
           <MindroomCommandPaletteHeaderButton />
           {!simpleMode && !encryptedRoom && (
             <TooltipProvider

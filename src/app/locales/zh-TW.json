@@ -2771,5 +2771,32 @@
         "thread": "討論串"
       }
     }
+  },
+  "roomSchedules": {
+    "title": "排程任務",
+    "openLabel": "排程任務（{{total}}）",
+    "empty": "此房間中沒有排程任務。",
+    "emptyHint": "請讓 MindRoom AI 代理在此排程任務。",
+    "prompt": "提示詞",
+    "promptUnavailable": "提示詞無法使用",
+    "once": "單次",
+    "recurring": "重複",
+    "executionTime": "執行時間",
+    "unknownTime": "執行時間無法使用",
+    "awaitingExecution": "等待執行",
+    "recurrence": "重複規則",
+    "silent": "靜默",
+    "conditional": "條件式",
+    "newThread": "新討論串",
+    "roomTimeline": "房間時間軸",
+    "openThread": "開啟討論串",
+    "createdBy": "建立者",
+    "createdAt": "建立時間",
+    "taskId": "任務 ID",
+    "historyLimit": "歷程記錄上限",
+    "fullHistory": "完整歷程記錄",
+    "noHistory": "無歷程記錄",
+    "recentMessages": "最近訊息：{{total}} 則",
+    "close": "關閉"
   }
 }

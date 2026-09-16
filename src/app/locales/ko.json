@@ -2771,5 +2771,32 @@
         "thread": "스레드"
       }
     }
+  },
+  "roomSchedules": {
+    "title": "예약된 작업",
+    "openLabel": "예약된 작업 ({{total}}개)",
+    "empty": "이 방에는 예약된 작업이 없습니다.",
+    "emptyHint": "MindRoom 에이전트에게 이 방에서 작업을 예약하도록 요청하세요.",
+    "prompt": "프롬프트",
+    "promptUnavailable": "프롬프트를 사용할 수 없음",
+    "once": "일회성",
+    "recurring": "반복",
+    "executionTime": "실행 시간",
+    "unknownTime": "실행 시간을 알 수 없음",
+    "awaitingExecution": "실행 대기 중",
+    "recurrence": "반복 주기",
+    "silent": "조용히 실행",
+    "conditional": "조건부",
+    "newThread": "새 스레드",
+    "roomTimeline": "방 타임라인",
+    "openThread": "스레드 열기",
+    "createdBy": "생성자",
+    "createdAt": "생성됨",
+    "taskId": "작업 ID",
+    "historyLimit": "기록 한도",
+    "fullHistory": "전체 기록",
+    "noHistory": "기록 없음",
+    "recentMessages": "최근 메시지: {{total}}개",
+    "close": "닫기"
   }
 }

@@ -2771,5 +2771,32 @@
         "thread": "Thread"
       }
     }
+  },
+  "roomSchedules": {
+    "title": "Geplante Aufgaben",
+    "openLabel": "Geplante Aufgaben ({{total}})",
+    "empty": "Keine geplanten Aufgaben in diesem Raum.",
+    "emptyHint": "Bitte einen MindRoom-Agenten, hier eine Aufgabe zu planen.",
+    "prompt": "Prompt",
+    "promptUnavailable": "Prompt nicht verfügbar",
+    "once": "Einmalig",
+    "recurring": "Wiederkehrend",
+    "executionTime": "Ausführungszeit",
+    "unknownTime": "Ausführungszeit nicht verfügbar",
+    "awaitingExecution": "Ausführung ausstehend",
+    "recurrence": "Wiederholung",
+    "silent": "Lautlos",
+    "conditional": "Bedingt",
+    "newThread": "Neuer Thread",
+    "roomTimeline": "Raumverlauf",
+    "openThread": "Thread öffnen",
+    "createdBy": "Erstellt von",
+    "createdAt": "Erstellt",
+    "taskId": "Aufgaben-ID",
+    "historyLimit": "Verlaufslimit",
+    "fullHistory": "Gesamter Verlauf",
+    "noHistory": "Kein Verlauf",
+    "recentMessages": "Letzte Nachrichten: {{total}}",
+    "close": "Schließen"
   }
 }
