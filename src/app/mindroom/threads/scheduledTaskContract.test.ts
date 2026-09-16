@@ -33,6 +33,7 @@ describe('parseScheduledTaskStateEvent', () => {
       cron_schedule: { minute: '30', hour: '9', weekday: '1-5' },
       message: 'Check the inbox.\nSummarize urgent messages.',
       description: 'Morning inbox',
+      model: 'cheap',
       created_by: '@alice:example.org',
       thread_id: '$thread',
       silent: true,
@@ -43,6 +44,7 @@ describe('parseScheduledTaskStateEvent', () => {
       makeScheduledTaskEvent({
         status: 'pending',
         created_at: '2026-09-15T12:00:00Z',
+        updated_at: '2026-09-16T12:00:00Z',
         workflow: json ? JSON.stringify(workflow) : workflow,
       })
     );
@@ -53,10 +55,24 @@ describe('parseScheduledTaskStateEvent', () => {
       description: 'Morning inbox',
       createdBy: '@alice:example.org',
       createdAt: '2026-09-15T12:00:00Z',
+      updatedAt: '2026-09-16T12:00:00Z',
+      model: 'cheap',
       silent: true,
       isConditional: true,
       historyLimit: 0,
     });
+  });
+
+  it.each([
+    { model: ' premium ', expected: 'premium' },
+    { model: null, expected: null },
+    { model: ' ', expected: null },
+    { model: 42, expected: 'cheap' },
+  ])('resolves the top-level model choice $model over workflow data', ({ model, expected }) => {
+    const task = parseScheduledTaskStateEvent(
+      makeScheduledTaskEvent({ status: 'pending', model, workflow: { model: 'cheap' } })
+    );
+    expect(task?.model).toBe(expected);
   });
 
   it('uses normalized details before workflow values and rejects malformed optional fields', () => {
@@ -72,6 +88,8 @@ describe('parseScheduledTaskStateEvent', () => {
           cron_schedule: [],
           description: { bad: true },
           history_limit: -1,
+          model: { bad: true },
+          updated_at: 123,
           created_by: 42,
         },
       })
@@ -81,6 +99,8 @@ describe('parseScheduledTaskStateEvent', () => {
     expect(task?.cronExpression).toBeUndefined();
     expect(task?.description).toBeUndefined();
     expect(task?.historyLimit).toBeUndefined();
+    expect(task?.model).toBeUndefined();
+    expect(task?.updatedAt).toBeUndefined();
     expect(task?.createdBy).toBeUndefined();
   });
 

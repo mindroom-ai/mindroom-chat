@@ -10,11 +10,15 @@
   Agent rooms keep the button when no schedules are pending; removing the last agent hides it and closes any open schedules dialog.
   Its dialog lists pending tasks across the room timeline, existing threads, and new-thread destinations, and updates from Matrix room state as schedules change.
   Overdue pending tasks remain visible until the backend changes their status.
-- Each task shows its description, full prompt, one-time execution date in the viewer's local timezone or recurring schedule in UTC, and available creator, creation date, history limit, silent/conditional flags, and task ID.
-  Creators use the same clickable mention styling and room display names as chat messages, with the full Matrix ID on hover.
+- Each task shows its description, full prompt, one-time execution date in the viewer's local timezone or recurring schedule in UTC, model selection, and available owner, creation/update dates, history limit, silent/conditional flags, and task ID.
+  Owners use the same clickable mention styling and room display names as chat messages, with the full Matrix ID on hover.
   Mouse and keyboard activation open the standard user profile, and dismissing that profile keeps the schedules dialog open.
+  The owner is labeled explicitly because upstream tool edits can replace `created_by` while preserving the original creation date.
+  Model selection shows the configured alias saved for each run, or explains that the agent, room, and thread settings apply when no override is saved.
+  Explicit null or blank model resets clear stale legacy aliases, and invalid update timestamps are omitted.
   Existing-thread tasks include an Open thread action.
   Cron state does not contain a next-run timestamp, so the dialog displays the stored recurrence and expression.
+  The upstream workflow, scheduler tool, executor, and state writer were audited at MindRoom revision `859eda8e`; model and update time complete the useful published task metadata.
 - Schedule details extend the existing state-event parser for both workflow JSON strings and objects.
   Room-list normalization recognizes the legacy `main` destination, and explicit room destinations override stale workflow thread IDs.
   Room and thread views share the scheduler's UTC policy for offset-free timestamps; thread badges still exclude expired tasks.
@@ -22,11 +26,12 @@
 - Keyboard dismissal stops Escape before the room read-receipt shortcut, restores focus, and resets on room navigation.
   Browser regressions cover the real room Escape handler, live state changes, empty rooms, local times, all history modes, long prompts and cron fields, phone layouts, and RTL.
   A separate local-Matrix browser case verifies the actual room header, thread navigation, and cancellation through sync.
-  It also verifies creator profiles on desktop and phone, keyboard activation, and focus restoration after closing the profile.
+  It also verifies owner profiles on desktop and phone, keyboard activation, and focus restoration after closing the profile.
   Membership regressions verify hidden schedules in rooms without agents, live appearance after inviting an agent, and button/dialog removal when the final agent leaves.
+  Model regressions cover workflow JSON and objects, normalized overrides and resets, malformed metadata, long aliases on phones, and live model edits/reset through Matrix sync.
 - All new UI labels are translated across the 17 supported languages.
 - The dialog uses the shared glass components and preserves the current room-header controls.
-- Validation: all 4,481 tests across 533 files pass under Node 24 in the standard Linux container after a fresh dependency install with repository patches.
+- Validation: all 4,485 tests across 533 files pass under Node 24 in the standard Linux container after a fresh dependency install with repository patches.
   All five Chromium cases pass, including the local-Matrix integration case, and typecheck, the production/PWA build, changed-file formatting, and whitespace checks pass.
   ESLint reports zero errors and the existing 17 warnings.
   Independent review has no remaining actionable findings.

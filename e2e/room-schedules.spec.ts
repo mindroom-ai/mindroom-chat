@@ -39,6 +39,15 @@ test('room schedule list shows every destination and follows live state updates'
   await expect(dialog.getByText('No history', { exact: true })).toBeVisible();
   await expect(dialog.getByText('Full history', { exact: true })).toBeVisible();
   await expect(dialog.getByText('Recent messages: 12', { exact: true })).toBeVisible();
+  await expect(dialog.getByText('Model', { exact: true })).toHaveCount(3);
+  await expect(dialog.getByText('cheap', { exact: true })).toBeVisible();
+  await expect(
+    dialog.getByText('From agent, room, or thread settings', { exact: true })
+  ).toHaveCount(2);
+  await expect(dialog.getByText('Updated', { exact: true })).toHaveCount(1);
+  await expect(dialog.locator('time[datetime="2026-09-16T12:00:00.000Z"]')).toHaveText(
+    'Sep 16, 2026, 5:00:00 AM PDT'
+  );
   await expect(dialog.getByRole('button', { name: 'Open thread', exact: true })).toHaveCount(1);
   await expect(dialog.getByText('Cancelled reminder', { exact: true })).toHaveCount(0);
   await expect(dialog.getByText('Completed reminder', { exact: true })).toHaveCount(0);

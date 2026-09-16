@@ -41,6 +41,7 @@ test.describe('room schedules in the chat header', () => {
         execute_at: '2099-01-01T12:00:00Z',
         message: 'Summarize the weekly report',
         description: 'Weekly report',
+        model: 'cheap',
         thread_id: rootId,
         new_thread: false,
         created_by: userId,
@@ -67,6 +68,7 @@ test.describe('room schedules in the chat header', () => {
     await trigger.click();
     const dialog = page.getByRole('dialog', { name: 'Scheduled tasks', exact: true });
     await expect(dialog.getByText('Summarize the weekly report', { exact: true })).toBeVisible();
+    await expect(dialog.getByText('cheap', { exact: true })).toBeVisible();
     const creator = dialog.getByRole('link', { name: '@Schedule creator', exact: true });
     await expect(creator).toHaveAttribute('title', userId);
     await expect(creator).toHaveAttribute('href', `https://matrix.to/#/${userId}`);
@@ -100,6 +102,34 @@ test.describe('room schedules in the chat header', () => {
     const bounds = await dialog.boundingBox();
     expect(bounds!.x).toBeGreaterThanOrEqual(0);
     expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(320);
+    const workflow = JSON.parse(content.workflow);
+    await sendStateEvent(
+      homeserver,
+      accessToken,
+      roomId,
+      'com.mindroom.scheduled.task',
+      'weekly-report',
+      {
+        ...content,
+        workflow: JSON.stringify({ ...workflow, model: 'premium' }),
+        updated_at: '2026-09-16T12:00:00Z',
+      }
+    );
+    await expect(dialog.getByText('premium', { exact: true })).toBeVisible();
+    await expect(dialog.getByText('cheap', { exact: true })).toHaveCount(0);
+    await expect(dialog.locator('time[datetime="2026-09-16T12:00:00.000Z"]')).toBeVisible();
+    await sendStateEvent(
+      homeserver,
+      accessToken,
+      roomId,
+      'com.mindroom.scheduled.task',
+      'weekly-report',
+      { ...content, workflow: JSON.stringify({ ...workflow, model: null }) }
+    );
+    await expect(
+      dialog.getByText('From agent, room, or thread settings', { exact: true })
+    ).toBeVisible();
+    await expect(dialog.getByText('premium', { exact: true })).toHaveCount(0);
     await sendStateEvent(
       homeserver,
       accessToken,

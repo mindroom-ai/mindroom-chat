@@ -26,6 +26,8 @@ type ScheduledTaskDetails = {
   cronExpression?: string;
   createdBy?: string;
   createdAt?: string;
+  updatedAt?: string;
+  model?: string | null;
   silent?: boolean;
   isConditional?: boolean;
   historyLimit?: number | null;
@@ -85,6 +87,7 @@ const parseDetails = (value: Record<string, unknown>): ScheduledTaskDetails => {
     description: 'description',
     createdBy: 'created_by',
     createdAt: 'created_at',
+    updatedAt: 'updated_at',
   } as const;
   (Object.keys(strings) as (keyof typeof strings)[]).forEach((key) => {
     const field = value[strings[key]];
@@ -95,6 +98,8 @@ const parseDetails = (value: Record<string, unknown>): ScheduledTaskDetails => {
   }
   if (typeof value.silent === 'boolean') details.silent = value.silent;
   if (typeof value.is_conditional === 'boolean') details.isConditional = value.is_conditional;
+  if (value.model === null) details.model = null;
+  if (typeof value.model === 'string') details.model = value.model.trim() || null;
   if (value.history_limit === null) details.historyLimit = null;
   if (
     typeof value.history_limit === 'number' &&

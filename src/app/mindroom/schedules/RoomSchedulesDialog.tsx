@@ -39,6 +39,7 @@ function ScheduleCard({
       : undefined;
   const executionTime = getScheduleTimestamp(task);
   const createdTime = parseScheduleTimestamp(task.createdAt);
+  const updatedTime = parseScheduleTimestamp(task.updatedAt);
   const recurring = task.scheduleType === 'cron' || !!task.cronExpression || !!task.cronDescription;
 
   return (
@@ -112,10 +113,16 @@ function ScheduleCard({
         </Text>
       </Box>
       <dl className={css.Metadata}>
+        <Text as="dt" size="T200" priority="300">
+          {t('roomSchedules.model')}
+        </Text>
+        <Text as="dd" size="T200" className={css.Wrap}>
+          {task.model ? <bdi>{task.model}</bdi> : t('roomSchedules.inheritedModel')}
+        </Text>
         {task.createdBy && (
           <>
             <Text as="dt" size="T200" priority="300">
-              {t('roomSchedules.createdBy')}
+              {t('roomSchedules.owner')}
             </Text>
             <Text as="dd" size="T200" className={css.Wrap}>
               <bdi>{creatorMention ?? task.createdBy}</bdi>
@@ -130,6 +137,18 @@ function ScheduleCard({
             <Text as="dd" size="T200">
               <time dateTime={new Date(createdTime).toISOString()}>
                 {formatter.format(createdTime)}
+              </time>
+            </Text>
+          </>
+        )}
+        {updatedTime !== undefined && (
+          <>
+            <Text as="dt" size="T200" priority="300">
+              {t('roomSchedules.updatedAt')}
+            </Text>
+            <Text as="dd" size="T200">
+              <time dateTime={new Date(updatedTime).toISOString()}>
+                {formatter.format(updatedTime)}
               </time>
             </Text>
           </>

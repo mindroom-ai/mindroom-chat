@@ -53,6 +53,8 @@ const schedule = (
     content: {
       status,
       created_at: '2026-09-15T12:00:00Z',
+      updated_at:
+        id === 'morning' ? '2026-09-16T12:00:00Z' : id === 'future' ? 'invalid' : undefined,
       cron_description: cron,
       workflow: JSON.stringify({ created_by: '@alice:example.org', ...workflow }),
     },
@@ -73,6 +75,7 @@ room.currentState.setStateEvents([
       schedule_type: 'cron',
       message: 'Check the inbox.\nSummarize urgent messages.',
       description: 'Morning inbox',
+      model: params.has('stress') ? 'custom-model-'.repeat(40) : 'cheap',
       cron_schedule: {
         minute: params.has('stress') ? Array.from({ length: 60 }, (_, i) => i).join(',') : '30',
         hour: '9',
