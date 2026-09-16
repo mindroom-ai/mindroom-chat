@@ -1,5 +1,4 @@
 import { globalStyle, style } from '@vanilla-extract/css';
-import { glassFloating, glassSurface } from '../../styles/Glass.css';
 
 // Measured once per layout change, shared by scroll padding and floating controls.
 export const headerInset = 'var(--room-header-height, 0px)';
@@ -16,7 +15,6 @@ export const Footer = style({
   pointerEvents: 'none',
 });
 globalStyle(`${Footer} > *`, { pointerEvents: 'auto' });
-export const Typing = style([glassSurface({ level: 'panel', variant: 'Surface' }), glassFloating]);
 export const Overview = style({
   position: 'absolute',
   insetInline: 0,

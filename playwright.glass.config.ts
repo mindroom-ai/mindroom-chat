@@ -5,6 +5,7 @@ export default defineConfig(config, {
   testMatch: [
     '**/glass-surfaces.spec.ts',
     '**/live/following-glass.spec.ts',
+    '**/live/composer-glass.spec.ts',
     '**/live/room-glass-overlays.spec.ts',
     '**/live/thread-banner-overlay.spec.ts',
   ],

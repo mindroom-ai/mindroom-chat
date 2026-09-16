@@ -4,6 +4,7 @@ import {
   ContainerColor,
   Dialog as FoldsDialog,
   Header as FoldsHeader,
+  IconButton as FoldsIconButton,
   Menu as FoldsMenu,
   MenuItem as FoldsMenuItem,
   Modal as FoldsModal,
@@ -38,6 +39,23 @@ const useSurface = (
 };
 
 type SurfaceProps = AppearanceProps & { level?: SurfaceLevel; variant?: ContainerColor };
+
+type IconButtonProps = Pick<
+  ComponentProps<typeof FoldsIconButton>,
+  'variant' | 'size' | 'radii' | 'outlined'
+>;
+
+// Small controls share the material without an optical filter or observer per button.
+export const IconButton = as<'button', IconButtonProps>(
+  ({ className, variant = 'SurfaceVariant', ...props }, ref) => (
+    <FoldsIconButton
+      {...props}
+      ref={ref}
+      variant={variant}
+      className={classNames(glassSurface({ level: 'control', variant }), className)}
+    />
+  )
+);
 
 /** Shared material for custom floating panels; preserves the caller's DOM element. */
 export const Surface = as<'div', SurfaceProps>(

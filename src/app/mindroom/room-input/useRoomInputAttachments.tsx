@@ -6,7 +6,6 @@ import { Editor } from 'slate';
 import {
   Box,
   Icon,
-  IconButton,
   Icons,
   Overlay,
   OverlayBackdrop,
@@ -15,7 +14,7 @@ import {
   Text,
   toRem,
 } from 'folds';
-import { Dialog } from '../../components/glass/GlassPrimitives';
+import { Dialog, IconButton } from '../../components/glass/GlassPrimitives';
 import { useFilePicker } from '../../hooks/useFilePicker';
 import { useFileDropZone } from '../../hooks/useFileDrop';
 import {

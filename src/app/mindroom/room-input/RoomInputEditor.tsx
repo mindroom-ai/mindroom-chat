@@ -13,7 +13,8 @@ import { isKeyHotkey } from 'is-hotkey';
 import { EventType, Room } from 'matrix-js-sdk';
 import { Editor } from 'slate';
 import { ReactEditor } from 'slate-react';
-import { Icon, IconButton, Icons, Line, PopOut } from 'folds';
+import { Icon, Icons, Line, PopOut } from 'folds';
+import { IconButton } from '../../components/glass/GlassPrimitives';
 
 import {
   AUTOCOMPLETE_PREFIXES,
