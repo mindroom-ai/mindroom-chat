@@ -138,8 +138,23 @@ test('agent requests open the active conversation and leave passive history butt
   await sendAction(otherRoot, { action: 'open_settings', section: 'about' }, 'Open About settings');
   const about = page.getByRole('banner').getByText('About', { exact: true });
   await expect(about).toBeVisible();
+  const account = page.getByRole('banner').getByText('Account', { exact: true });
+  await sendAction(
+    otherRoot,
+    { action: 'open_settings', section: 'account' },
+    'Open Account settings'
+  );
+  await expect(account).toBeVisible();
+  await page.getByRole('button', { name: 'About', exact: true }).click();
+  await expect(about).toBeVisible();
+  await sendAction(
+    otherRoot,
+    { action: 'open_settings', section: 'account' },
+    'Open Account settings again'
+  );
+  await expect(account).toBeVisible();
   await page.keyboard.press('Escape');
-  await expect(about).toHaveCount(0);
+  await expect(account).toHaveCount(0);
 
   await page.setViewportSize({ width: 390, height: 844 });
   await sendAction(otherRoot, { action: 'open_panel', panel: 'members' }, 'Show Members');

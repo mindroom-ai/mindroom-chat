@@ -176,7 +176,10 @@ export function Room() {
         setPeopleDrawer(false);
         setComputerOpen(true);
       } else if (action.action === 'open_settings') {
-        setSettingsModal({ initialPage: UI_SETTINGS_PAGES[action.section] });
+        setSettingsModal({
+          initialPage: UI_SETTINGS_PAGES[action.section],
+          requestId: action.eventId,
+        });
       } else {
         setComputerOpen(false);
         setPeopleDrawer(true);

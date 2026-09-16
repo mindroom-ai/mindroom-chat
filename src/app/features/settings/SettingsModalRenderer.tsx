@@ -13,7 +13,11 @@ export function SettingsModalRenderer() {
 
   return (
     <Modal500 requestClose={closeSettings}>
-      <Settings initialPage={state.initialPage} requestClose={closeSettings} />
+      <Settings
+        key={state.requestId}
+        initialPage={state.initialPage}
+        requestClose={closeSettings}
+      />
     </Modal500>
   );
 }

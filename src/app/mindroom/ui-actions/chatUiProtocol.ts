@@ -16,9 +16,7 @@ export type ChatUiSettingsSection = typeof SETTINGS_SECTIONS[number];
 
 type ChatUiTarget = {
   eventId: string;
-  requesterId: string;
   agentUserId: string;
-  roomId: string;
   threadId?: string;
 };
 
@@ -85,9 +83,7 @@ export const readChatUiAction = (
 
   const target: ChatUiTarget = {
     eventId,
-    requesterId: viewerId,
     agentUserId: sender,
-    roomId: room.roomId,
     threadId,
   };
   if (data.action === 'show_computer') return { ...target, action: 'show_computer' };

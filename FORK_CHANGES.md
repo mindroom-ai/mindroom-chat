@@ -12,9 +12,12 @@
   Settings accepts named existing sections; Members uses the existing responsive drawer.
 - Historical thread buttons switch Classic view to a thread before opening the requested surface.
   Settings sections hidden by Simple Mode retain a translated unavailable explanation until that mode is disabled.
-- Validation: all 4,509 unit tests, typecheck, production/PWA build, and formatting pass.
+- Each accepted Settings request carries its Matrix event identity into the modal renderer, so a new request selects its named section even while Settings is already open or after the user navigates elsewhere.
+  Ordinary Settings navigation and viewport changes retain the current page because only a new request remounts the Settings view.
+  Pinned plain and decrypted messages now pass their source Matrix event into the shared content renderer, preserving passive historical UI-action buttons in the pin menu.
+- Validation: all 4,511 unit tests, typecheck, production/PWA build, and changed-file formatting pass.
   Full lint reports zero errors and the 17 existing warnings.
-  Production Chromium coverage uses real local Matrix delivery and a stub computer gateway to verify desktop/mobile opening, exact-agent authenticated requests, inactive threads, historical buttons, reload, Settings, and Members.
+  Production Chromium coverage uses real local Matrix delivery and a stub computer gateway to verify desktop/mobile opening, exact-agent authenticated requests, inactive threads, historical buttons, reload, successive and repeated Settings section requests, and Members.
   Independent task review approves the changes after regressions covering missing-key retry, Classic routing, requested-agent departure, and preservation of a manually opened computer under human control.
 
 ### Match the approval banner to floating glass (2026-09-16)

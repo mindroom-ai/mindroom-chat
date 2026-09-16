@@ -419,6 +419,7 @@ describe('Room', () => {
     });
     expect(getDefaultStore().get(settingsModalAtom)).toEqual({
       initialPage: SettingsPages.AccountPage,
+      requestId: '$ui-3',
     });
     await act(async () => renderer!.unmount());
     vi.stubGlobal('document', undefined);

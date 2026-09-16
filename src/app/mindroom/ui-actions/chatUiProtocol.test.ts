@@ -1,16 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { readChatUiAction } from './chatUiProtocol';
-import { agentId, makeUiEvent, makeUiRoom, roomId, viewerId } from './testUtils';
+import { agentId, makeUiEvent, makeUiRoom, viewerId } from './testUtils';
 
 describe('readChatUiAction', () => {
-  it('binds a computer request to its actual sender, viewer, room, and canonical thread', () => {
+  it('binds a computer request to its event, actual sender, and canonical thread', () => {
     const { room } = makeUiRoom();
     expect(readChatUiAction(makeUiEvent(), viewerId, room)).toEqual({
       eventId: '$request',
       action: 'show_computer',
-      requesterId: viewerId,
       agentUserId: agentId,
-      roomId,
       threadId: '$thread',
     });
   });
