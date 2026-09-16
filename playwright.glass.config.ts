@@ -6,6 +6,7 @@ export default defineConfig(config, {
     '**/glass-surfaces.spec.ts',
     '**/live/following-glass.spec.ts',
     '**/live/composer-glass.spec.ts',
+    '**/live/space-header-glass.spec.ts',
     '**/live/room-glass-overlays.spec.ts',
     '**/live/thread-banner-overlay.spec.ts',
   ],

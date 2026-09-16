@@ -2,6 +2,9 @@ import { style } from '@vanilla-extract/css';
 import { recipe, RecipeVariants } from '@vanilla-extract/recipes';
 import { DefaultReset, color, config, toRem } from 'folds';
 
+// Match the size-600 navigation header and its native focus-scroll inset.
+const pageNavHeaderHeight = toRem(54);
+
 export const PageNav = recipe({
   variants: {
     size: {
@@ -21,6 +24,7 @@ export type PageNavVariants = RecipeVariants<typeof PageNav>;
 
 export const PageNavHeader = recipe({
   base: {
+    height: pageNavHeaderHeight,
     padding: `0 ${config.space.S200} 0 ${config.space.S300}`,
     flexShrink: 0,
     selectors: {
@@ -57,6 +61,14 @@ export const PageNavContent = style({
   padding: config.space.S200,
   paddingInlineEnd: 0,
   paddingBottom: config.space.S700,
+});
+
+export const PageNavHeaderScroll = style({
+  scrollPaddingBlockStart: pageNavHeaderHeight,
+});
+
+export const PageNavContentBelowHeader = style({
+  minHeight: `calc(100% - ${pageNavHeaderHeight})`,
 });
 
 export const PageHeader = recipe({
