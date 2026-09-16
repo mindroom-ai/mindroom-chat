@@ -56,6 +56,7 @@ const { mx, navigateRoomMock, navigateRoomThreadMock, removeRecentThreadMock, ro
     },
     roomState: {
       viewMode: 'threaded',
+      simpleMode: false,
       setViewMode: vi.fn((mode: string) => {
         roomState.viewMode = mode;
       }),
@@ -209,6 +210,10 @@ vi.mock('../useRoomViewMode', () => ({
   useRoomViewMode: () => ({ viewMode: roomState.viewMode, setViewMode: roomState.setViewMode }),
 }));
 
+vi.mock('../../settings/useMindroomAccountSettings', () => ({
+  useSimpleMode: () => roomState.simpleMode,
+}));
+
 vi.mock('../../../hooks/useRoomMembers', () => ({
   useRoomMembers: () => roomState.members,
 }));
@@ -256,6 +261,7 @@ describe('Room', () => {
 
   afterEach(() => {
     roomState.viewMode = 'threaded';
+    roomState.simpleMode = false;
     roomState.setViewMode.mockClear();
     roomState.activateUiAction = undefined;
     roomState.uiProbe = undefined;
@@ -566,6 +572,48 @@ describe('Room', () => {
       requestedAgent: { userId: '@mindroom_helper:example.org' },
       threadId: '$thread',
     });
+    await act(async () => renderer!.unmount());
+  });
+
+  it('keeps hidden Settings sections unavailable in Simple Mode', async () => {
+    roomState.simpleMode = true;
+    roomState.search = '?threadId=%24thread';
+    roomState.routedEvent = { getId: () => '$thread', isSending: () => false };
+    roomState.members = [
+      { membership: 'join', userId: '@alice:example.org' },
+      { membership: 'join', userId: '@mindroom_helper:example.org' },
+    ];
+    const { Room } = await import('../../../features/room/Room');
+    const { makeUiEvent } = await import('../../ui-actions/testUtils');
+    const { ChatUiActionContext } = await import('../../ui-actions/ChatUiActionProvider');
+    const { settingsModalAtom } = await import('../../../state/settingsModal');
+    const { getDefaultStore } = await import('jotai');
+    getDefaultStore().set(settingsModalAtom, undefined);
+    roomState.uiProbe = function UiProbe() {
+      roomState.activateUiAction = React.useContext(ChatUiActionContext)?.activate;
+      return null;
+    };
+    let renderer: ReturnType<typeof create>;
+    await act(async () => {
+      renderer = create(React.createElement(Room));
+    });
+    await act(async () =>
+      roomState.activateUiAction?.(makeUiEvent({ action: 'open_settings', section: 'developer' }))
+    );
+    expect(getDefaultStore().get(settingsModalAtom)).toBeUndefined();
+    await act(async () =>
+      roomState.activateUiAction?.(
+        makeUiEvent({ action: 'open_settings', section: 'emojis-stickers' })
+      )
+    );
+    expect(getDefaultStore().get(settingsModalAtom)).toBeUndefined();
+    roomState.simpleMode = false;
+    await act(async () => renderer!.update(React.createElement(Room)));
+    await act(async () =>
+      roomState.activateUiAction?.(makeUiEvent({ action: 'open_settings', section: 'developer' }))
+    );
+    expect(getDefaultStore().get(settingsModalAtom)).toBeDefined();
+    getDefaultStore().set(settingsModalAtom, undefined);
     await act(async () => renderer!.unmount());
   });
 

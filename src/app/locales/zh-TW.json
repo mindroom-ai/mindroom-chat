@@ -2804,7 +2804,8 @@
       "openMembers": "開啟成員清單",
       "computerUnavailable": "此代理的電腦無法使用。",
       "releaseControl": "開啟其他檢視前，請先釋放電腦控制權。",
-      "openConversation": "請從聊天室對話中開啟此請求。"
+      "openConversation": "請從聊天室對話中開啟此請求。",
+      "settingsUnavailable": "關閉簡易模式以開啟此設定區段。"
     }
   }
 }

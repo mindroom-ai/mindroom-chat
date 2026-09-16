@@ -2804,7 +2804,8 @@
       "openMembers": "Mitglieder öffnen",
       "computerUnavailable": "Der Computer dieses Agenten ist nicht verfügbar.",
       "releaseControl": "Gib die Computersteuerung frei, bevor du eine andere Ansicht öffnest.",
-      "openConversation": "Öffne diese Anfrage über das Gespräch im Raum."
+      "openConversation": "Öffne diese Anfrage über das Gespräch im Raum.",
+      "settingsUnavailable": "Deaktiviere den einfachen Modus, um diesen Einstellungsbereich zu öffnen."
     }
   }
 }

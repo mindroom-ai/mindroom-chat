@@ -215,6 +215,24 @@ describe('ComputerPanel', () => {
     expect(screenDisposals).not.toHaveBeenCalled();
   });
 
+  it.each([false, true])(
+    'preserves a manually opened singleton on a same-agent request (control: %s)',
+    async (control) => {
+      const props = renderPanel();
+      await waitFor(() => expect(container.textContent).toContain('Watch mode'));
+      if (control) await click(findButton(container, 'Take control'));
+      renderPanel({ ...props, requestedAgent: { userId: props.agents[0].userId } });
+      expect(container.textContent).toContain(control ? 'You have control' : 'Watch mode');
+      expect(screenDisposals).not.toHaveBeenCalled();
+      const sessions = vi
+        .mocked(props.request!)
+        .mock.calls.filter(
+          ([url, init]) => url.toString().endsWith('/sessions') && init?.method === 'POST'
+        );
+      expect(sessions).toHaveLength(1);
+    }
+  );
+
   it('does not switch to the remaining agent when the requested agent leaves', async () => {
     const agents = [
       { userId: '@mindroom_first:example.org', name: 'First' },

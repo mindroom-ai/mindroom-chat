@@ -39,16 +39,9 @@ import {
   resolveSettingsInitialPage,
   type SettingsMenuItem,
 } from './settingsMenu';
-import { SettingsPage, SettingsPages } from './settingsPages';
+import { SettingsPage, SettingsPages, SIMPLE_MODE_HIDDEN_SETTINGS_PAGES } from './settingsPages';
 import { renderMindroomSettingsPage } from '../../mindroom/settings/settingsExtensions';
 import { useSimpleMode } from '../../mindroom/settings/useMindroomAccountSettings';
-
-// Kept out of the menu in simple mode; General (hosting the Simple Mode
-// switch itself), Account, Notifications, Devices, and About stay.
-const SIMPLE_MODE_HIDDEN_PAGES: SettingsPage[] = [
-  SettingsPages.DeveloperToolsPage,
-  SettingsPages.EmojisStickersPage,
-];
 
 const useSettingsMenuItems = (
   showLocalMindRoom: boolean,
@@ -59,7 +52,7 @@ const useSettingsMenuItems = (
   return useMemo(() => {
     const items = getSettingsMenuItems(showLocalMindRoom, t);
     return simpleMode
-      ? items.filter((item) => !SIMPLE_MODE_HIDDEN_PAGES.includes(item.page))
+      ? items.filter((item) => !SIMPLE_MODE_HIDDEN_SETTINGS_PAGES.includes(item.page))
       : items;
   }, [showLocalMindRoom, simpleMode, t]);
 };

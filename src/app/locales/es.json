@@ -2857,7 +2857,8 @@
       "openMembers": "Abrir miembros",
       "computerUnavailable": "El ordenador de este agente no está disponible.",
       "releaseControl": "Libera el control del ordenador antes de abrir otra vista.",
-      "openConversation": "Abre esta solicitud desde la conversación de la sala."
+      "openConversation": "Abre esta solicitud desde la conversación de la sala.",
+      "settingsUnavailable": "Desactiva el modo simple para abrir esta sección de ajustes."
     }
   }
 }

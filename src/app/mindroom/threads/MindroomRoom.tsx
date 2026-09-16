@@ -31,10 +31,14 @@ import type { ComputerAgent } from '../computer/types';
 import { ResizableMembersPanel } from '../sidebar/ResizableMembersPanel';
 import { useMembersDrawer } from '../sidebar/useMembersDrawer';
 import { settingsModalAtom } from '../../state/settingsModal';
-import { SettingsPages } from '../../features/settings/settingsPages';
+import {
+  SettingsPages,
+  SIMPLE_MODE_HIDDEN_SETTINGS_PAGES,
+} from '../../features/settings/settingsPages';
 import { useRoomNavigate } from '../../hooks/useRoomNavigate';
 import { ChatUiActionContext, useChatUiActions } from '../ui-actions/ChatUiActionProvider';
 import type { ChatUiAction, ChatUiSettingsSection } from '../ui-actions/chatUiProtocol';
+import { useSimpleMode } from '../settings/useMindroomAccountSettings';
 
 const UI_SETTINGS_PAGES: Record<ChatUiSettingsSection, SettingsPages> = {
   general: SettingsPages.GeneralPage,
@@ -48,6 +52,7 @@ const UI_SETTINGS_PAGES: Record<ChatUiSettingsSection, SettingsPages> = {
 
 export function Room() {
   const { t } = useTranslation();
+  const simpleMode = useSimpleMode();
   const { eventId } = useParams();
   const [searchParams] = useSearchParams();
   const room = useRoom();
@@ -128,6 +133,13 @@ export function Room() {
     (action: ChatUiAction): string | undefined => {
       if (callView) return t('mindroomUi.uiActions.openConversation');
       if (
+        action.action === 'open_settings' &&
+        simpleMode &&
+        SIMPLE_MODE_HIDDEN_SETTINGS_PAGES.includes(UI_SETTINGS_PAGES[action.section])
+      ) {
+        return t('mindroomUi.uiActions.settingsUnavailable');
+      }
+      if (
         effectiveComputerOpen &&
         computerInteraction.locked &&
         !(
@@ -148,6 +160,7 @@ export function Room() {
     },
     [
       callView,
+      simpleMode,
       effectiveComputerOpen,
       computerInteraction,
       computerApiUrl,

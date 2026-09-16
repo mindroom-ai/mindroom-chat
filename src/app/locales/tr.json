@@ -2804,7 +2804,8 @@
       "openMembers": "Üyeleri aç",
       "computerUnavailable": "Bu ajanın bilgisayarı kullanılamıyor.",
       "releaseControl": "Başka bir görünüm açmadan önce bilgisayarın kontrolünü bırakın.",
-      "openConversation": "Bu isteği oda sohbetinden açın."
+      "openConversation": "Bu isteği oda sohbetinden açın.",
+      "settingsUnavailable": "Bu Ayarlar bölümünü açmak için Basit Modu kapatın."
     }
   }
 }

@@ -96,7 +96,9 @@ export function ComputerPanel({
   );
   const selectedAgent = useMemo(
     () =>
-      !activeAgentId && !requestedAgent && agents.length === 1
+      !activeAgentId &&
+      agents.length === 1 &&
+      (!requestedAgent || requestedAgent.userId === agents[0].userId)
         ? agents[0]
         : agents.find((agent) => agent.userId === activeAgentId),
     [activeAgentId, agents, requestedAgent]
@@ -113,11 +115,12 @@ export function ComputerPanel({
   useEffect(() => {
     if (!requestedAgent || handledRequestRef.current === requestedAgent) return;
     handledRequestRef.current = requestedAgent;
-    if (status?.mode === 'control' || operation) return;
+    if ((status?.mode === 'control' || operation) && requestedAgent.userId !== selectedAgentUserId)
+      return;
     if (!agents.some((agent) => agent.userId === requestedAgent.userId)) return;
     setChosenAgentId(requestedAgent.userId);
     setActiveAgentId(requestedAgent.userId);
-  }, [requestedAgent, agents, status?.mode, operation]);
+  }, [requestedAgent, agents, status?.mode, operation, selectedAgentUserId]);
 
   const disposeSession = useCallback((session: ComputerSessionClient) => {
     if (disposedSessionsRef.current.has(session)) return;
