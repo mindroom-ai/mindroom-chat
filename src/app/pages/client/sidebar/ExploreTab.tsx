@@ -28,7 +28,7 @@ export function ExploreTab({ onSelect }: { onSelect?: (selected: boolean) => boo
   const exploreSelected = useExploreSelected();
 
   const handleExploreClick = () => {
-    onSelect?.(false);
+    if (onSelect?.(exploreSelected)) return;
     if (screenSize === ScreenSize.Mobile) {
       navigate(getExplorePath());
       return;

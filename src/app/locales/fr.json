@@ -2171,6 +2171,31 @@
     }
   },
   "mindroomUi": {
+    "models": {
+      "modelPicker": {
+        "chooseModel": "Choose model",
+        "roomDefault": "Room default",
+        "modelForThread": "Model for this thread",
+        "appliesToThread": "Applies to all agents and teams for future replies in this thread.",
+        "search": "Search models",
+        "close": "Close model picker",
+        "useRoomDefault": "Use room default",
+        "roomDefaultDescription": "Let each agent use its configured model.",
+        "models": "Models",
+        "runtime": "Runtime",
+        "chooseRuntime": "Choose a runtime",
+        "runtimeLabel": "{{userId}} on {{deviceId}}",
+        "refresh": "Refresh models",
+        "retry": "Retry",
+        "loading": "Loading models",
+        "pending": "Waiting for model change",
+        "noResults": "No matching models",
+        "commandFallback": "You can still send !model with a model key in this thread.",
+        "inheritedModels": "Room defaults by agent: {{models}}",
+        "futureReplies": "Changes apply to future replies.",
+        "threadModel": "Thread model"
+      }
+    },
     "voice": {
       "discardRecording": "Supprimer l'enregistrement vocal",
       "pauseRecording": "Mettre l'enregistrement vocal en pause",
@@ -2647,7 +2672,8 @@
       "mindroomTab": {
         "localMindroom": "MindRoom local"
       },
-      "resizeNavigationPanel": "Redimensionner le panneau de navigation"
+      "resizeNavigationPanel": "Redimensionner le panneau de navigation",
+      "resizeMemberPanel": "Redimensionner le panneau des membres"
     },
     "threads": {
       "compactRoomView": {
@@ -2681,6 +2707,8 @@
         "youDoNotHavePermissionToPostInThisRoom": "Vous n’avez pas l’autorisation de publier dans ce salon"
       },
       "mindroomRoomViewHeader": {
+        "showComputer": "Afficher l’ordinateur",
+        "hideComputer": "Masquer l’ordinateur",
         "notifications": "Notifications",
         "compact": "Compact",
         "threads": "Fils",

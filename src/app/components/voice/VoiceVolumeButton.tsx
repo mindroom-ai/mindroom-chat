@@ -1,9 +1,10 @@
 import { useTranslation } from 'react-i18next';
 import FocusTrap from 'focus-trap-react';
 import React, { MouseEventHandler, useRef, useState } from 'react';
-import { Icon, Icons, IconSrc, Menu, PopOut, RectCords } from 'folds';
+import { Icon, Icons, IconSrc, PopOut, RectCords } from 'folds';
 import { Range } from 'react-range';
 import { useAtom } from 'jotai';
+import { Menu } from '../glass/GlassPrimitives';
 import {
   sanitizeVoiceMessageVolume,
   voiceMessageVolumeAtom,

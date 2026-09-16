@@ -2144,6 +2144,31 @@
     }
   },
   "mindroomUi": {
+    "models": {
+      "modelPicker": {
+        "chooseModel": "Choose model",
+        "roomDefault": "Room default",
+        "modelForThread": "Model for this thread",
+        "appliesToThread": "Applies to all agents and teams for future replies in this thread.",
+        "search": "Search models",
+        "close": "Close model picker",
+        "useRoomDefault": "Use room default",
+        "roomDefaultDescription": "Let each agent use its configured model.",
+        "models": "Models",
+        "runtime": "Runtime",
+        "chooseRuntime": "Choose a runtime",
+        "runtimeLabel": "{{userId}} on {{deviceId}}",
+        "refresh": "Refresh models",
+        "retry": "Retry",
+        "loading": "Loading models",
+        "pending": "Waiting for model change",
+        "noResults": "No matching models",
+        "commandFallback": "You can still send !model with a model key in this thread.",
+        "inheritedModels": "Room defaults by agent: {{models}}",
+        "futureReplies": "Changes apply to future replies.",
+        "threadModel": "Thread model"
+      }
+    },
     "voice": {
       "discardRecording": "Sprachaufnahme verwerfen",
       "pauseRecording": "Sprachaufnahme pausieren",
@@ -2601,7 +2626,8 @@
       "mindroomTab": {
         "localMindroom": "Lokales MindRoom"
       },
-      "resizeNavigationPanel": "Größe der Navigationsleiste ändern"
+      "resizeNavigationPanel": "Größe der Navigationsleiste ändern",
+      "resizeMemberPanel": "Größe des Mitgliederbereichs ändern"
     },
     "threads": {
       "compactRoomView": {
@@ -2635,6 +2661,8 @@
         "youDoNotHavePermissionToPostInThisRoom": "Du hast keine Berechtigung, in diesem Raum zu schreiben"
       },
       "mindroomRoomViewHeader": {
+        "showComputer": "Computer anzeigen",
+        "hideComputer": "Computer ausblenden",
         "notifications": "Benachrichtigungen",
         "compact": "Kompakt",
         "threads": "Threads",

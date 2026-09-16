@@ -1,6 +1,6 @@
 import React from 'react';
 import { act, create } from 'react-test-renderer';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CompactThreadCardViewModel, ThreadRecord } from './types';
 import { CompactRoomView } from './CompactRoomView';
 
@@ -133,7 +133,26 @@ const makeRoom = () =>
   } as never);
 
 describe('CompactRoomView', () => {
+  const resizeCallbacks = new Set<() => void>();
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    resizeCallbacks.clear();
+  });
   beforeEach(() => {
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        constructor(private callback: () => void) {}
+
+        observe() {
+          resizeCallbacks.add(this.callback);
+        }
+
+        disconnect() {
+          resizeCallbacks.delete(this.callback);
+        }
+      }
+    );
     vi.clearAllMocks();
     useCompactThreadCardViewModelsMock.mockReturnValue([]);
     useToggleThreadResolutionMock.mockReturnValue({
@@ -336,6 +355,44 @@ describe('CompactRoomView', () => {
 
     expect(onThreadClick).toHaveBeenCalledWith('$thread-3', 'Recent sidebar summary');
   });
+
+  it.each([false, true])(
+    'retries a restore after inset resizing only before the reader moves (moved=%s)',
+    (moved) => {
+      const room = makeRoom();
+      useCompactThreadCardViewModelsMock.mockReturnValue([makeViewModel('$thread-1')]);
+      let maxScrollTop = 100;
+      let currentScrollTop = 0;
+      const scrollElement = {
+        get scrollTop() {
+          return currentScrollTop;
+        },
+        set scrollTop(value: number) {
+          currentScrollTop = Math.min(value, maxScrollTop);
+        },
+      };
+      let renderer: ReturnType<typeof create>;
+      act(() => {
+        renderer = create(
+          React.createElement(CompactRoomView, {
+            room,
+            threadRootIds: ['$thread-1'],
+            threadRecordMap: new Map([['$thread-1', makeThreadRecord('$thread-1')]]),
+            onThreadClick: vi.fn(),
+            compactRoomScrollStateRef: { current: new Map([[room.roomId, 418]]) },
+          }),
+          { createNodeMock: () => scrollElement }
+        );
+      });
+      expect(currentScrollTop).toBe(100);
+      if (moved) scrollElement.scrollTop = 50;
+      maxScrollTop = 500;
+      act(() => resizeCallbacks.forEach((callback) => callback()));
+      expect(currentScrollTop).toBe(moved ? 50 : 418);
+      act(() => renderer.unmount());
+      expect(resizeCallbacks.size).toBe(0);
+    }
+  );
 
   it('restores the room scroll position after the compact view remounts', () => {
     const room = makeRoom();

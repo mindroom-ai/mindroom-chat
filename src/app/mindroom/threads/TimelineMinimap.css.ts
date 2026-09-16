@@ -1,6 +1,7 @@
 import { style, styleVariants } from '@vanilla-extract/css';
 import { color, config, toRem } from 'folds';
 import { motion } from '../../styles/Motion.css';
+import { controlsTopInset, footerInset } from './RoomOverlay.css';
 import { transition } from '../../styles/transition';
 
 /**
@@ -11,8 +12,8 @@ import { transition } from '../../styles/transition';
  */
 export const MinimapContainer = style({
   position: 'absolute',
-  top: 0,
-  bottom: 0,
+  top: controlsTopInset,
+  bottom: footerInset,
   insetInlineStart: 0,
   width: toRem(72),
   zIndex: 3,

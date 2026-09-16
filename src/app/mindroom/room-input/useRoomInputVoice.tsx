@@ -3,7 +3,8 @@ import { useAtomValue, useSetAtom, useStore } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import { IContent, MatrixClient } from 'matrix-js-sdk';
 import type { Descendant } from 'slate';
-import { Icon, IconButton, Icons } from 'folds';
+import { Icon, Icons } from 'folds';
+import { IconButton } from '../../components/glass/GlassPrimitives';
 import { useMediaConfig } from '../../hooks/useMediaConfig';
 import {
   TUploadItem,

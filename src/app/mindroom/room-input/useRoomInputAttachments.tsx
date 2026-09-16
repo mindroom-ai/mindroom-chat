@@ -5,9 +5,7 @@ import { MatrixClient, Room } from 'matrix-js-sdk';
 import { Editor } from 'slate';
 import {
   Box,
-  Dialog,
   Icon,
-  IconButton,
   Icons,
   Overlay,
   OverlayBackdrop,
@@ -16,6 +14,7 @@ import {
   Text,
   toRem,
 } from 'folds';
+import { Dialog, IconButton } from '../../components/glass/GlassPrimitives';
 import { useFilePicker } from '../../hooks/useFilePicker';
 import { useFileDropZone } from '../../hooks/useFileDrop';
 import {

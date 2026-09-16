@@ -1,4 +1,5 @@
 import { useTranslation } from 'react-i18next';
+import classNames from 'classnames';
 import React, { MouseEventHandler, forwardRef, useState } from 'react';
 import FocusTrap from 'focus-trap-react';
 import {
@@ -13,8 +14,6 @@ import {
   Icons,
   Tooltip,
   TooltipProvider,
-  Menu,
-  MenuItem,
   toRem,
   config,
   Line,
@@ -25,7 +24,9 @@ import {
 } from 'folds';
 import { useNavigate } from 'react-router-dom';
 import { Room } from 'matrix-js-sdk';
+import { Menu, MenuItem } from '../../components/glass/GlassPrimitives';
 import { useStateEvent } from '../../hooks/useStateEvent';
+import { glassFlat, glassFloating } from '../../styles/Glass.css';
 import { PageHeader } from '../../components/page';
 import { RoomAvatar, RoomIcon } from '../../components/room-avatar';
 import { UseStateProvider } from '../../components/UseStateProvider';
@@ -33,8 +34,7 @@ import { RoomTopicViewer } from '../../components/room-topic-viewer';
 import { StateEvent } from '../../../types/matrix/room';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useIsDirectRoom, useRoom } from '../../hooks/useRoom';
-import { useSetting } from '../../state/hooks/settings';
-import { settingsAtom } from '../../state/settings';
+import { useMembersDrawer } from '../sidebar/useMembersDrawer';
 import { useSpaceOptionally } from '../../hooks/useSpace';
 import { getHomeSearchPath, getSpaceSearchPath, withSearchParam } from '../../pages/pathUtils';
 import { getCanonicalAliasOrRoomId, isRoomAlias, mxcUrlToHttp } from '../../utils/matrix';
@@ -76,6 +76,7 @@ import {
   getPendingJoinRequestLabel,
   PendingJoinRequestBadge,
 } from '../../features/room/PendingJoinRequestBadge';
+import { ComputerHeaderButton } from '../computer/ComputerHeaderButton';
 
 type RoomMenuProps = {
   room: Room;
@@ -296,10 +297,16 @@ const RoomMenu = forwardRef<HTMLDivElement, RoomMenuProps>(({ room, requestClose
 
 export function RoomViewHeader({
   callView,
+  computerAvailable = false,
+  computerOpen = false,
+  onComputerToggle,
   threadId,
   joinRequestCount = 0,
 }: {
   callView?: boolean;
+  computerAvailable?: boolean;
+  computerOpen?: boolean;
+  onComputerToggle?: () => void;
   threadId?: string;
   joinRequestCount?: number;
 }) {
@@ -333,7 +340,8 @@ export function RoomViewHeader({
     ? mxcUrlToHttp(mx, avatarMxc, useAuthentication, 96, 96, 'crop') ?? undefined
     : undefined;
 
-  const [peopleDrawer, setPeopleDrawer] = useSetting(settingsAtom, 'isPeopleDrawer');
+  const [peopleDrawer, setPeopleDrawer] = useMembersDrawer();
+  const membersOpen = peopleDrawer && !computerOpen;
 
   const handleSearchClick = () => {
     const searchParams: _SearchPathSearchParams = {
@@ -360,11 +368,12 @@ export function RoomViewHeader({
       openSettings(room.roomId, parentSpace?.roomId, RoomSettingsPage.MembersPage);
       return;
     }
-    setPeopleDrawer(!peopleDrawer);
+    if (computerOpen) onComputerToggle?.();
+    setPeopleDrawer(!membersOpen);
   };
   const memberButtonLabel = callView
     ? t('mindroomUi.threads.mindroomRoomViewHeader.members')
-    : peopleDrawer
+    : membersOpen
     ? t('mindroomUi.threads.mindroomRoomViewHeader.hideMembers')
     : t('mindroomUi.threads.mindroomRoomViewHeader.showMembers');
   const memberButtonAriaLabel = getPendingJoinRequestLabel(
@@ -375,7 +384,7 @@ export function RoomViewHeader({
 
   return (
     <PageHeader
-      className={ContainerColor({ variant: 'Surface' })}
+      className={classNames(ContainerColor({ variant: 'Surface' }), glassFloating, glassFlat)}
       balance={screenSize === ScreenSize.Mobile}
     >
       <Box grow="Yes" gap="300">
@@ -454,6 +463,16 @@ export function RoomViewHeader({
             onOpenThread={(rootId) => navigateRoomThread(room.roomId, rootId)}
           />
           <MindroomCommandPaletteHeaderButton />
+          <ComputerHeaderButton
+            label={t(
+              computerOpen
+                ? 'mindroomUi.threads.mindroomRoomViewHeader.hideComputer'
+                : 'mindroomUi.threads.mindroomRoomViewHeader.showComputer'
+            )}
+            available={computerAvailable && !!onComputerToggle}
+            open={computerOpen}
+            onToggle={onComputerToggle ?? (() => undefined)}
+          />
           {!simpleMode && !encryptedRoom && (
             <TooltipProvider
               position="Bottom"
@@ -533,38 +552,36 @@ export function RoomViewHeader({
             </>
           )}
 
-          {screenSize === ScreenSize.Desktop && (
-            <TooltipProvider
-              position="Bottom"
-              offset={4}
-              tooltip={
-                <Tooltip>
-                  {callView ? (
-                    <Text>{t('mindroomUi.threads.mindroomRoomViewHeader.members')}</Text>
-                  ) : (
-                    <Text>
-                      {peopleDrawer
-                        ? t('mindroomUi.threads.mindroomRoomViewHeader.hideMembers')
-                        : t('mindroomUi.threads.mindroomRoomViewHeader.showMembers')}
-                    </Text>
-                  )}
-                </Tooltip>
-              }
-            >
-              {(triggerRef) => (
-                <IconButton
-                  fill="None"
-                  style={{ position: 'relative' }}
-                  ref={triggerRef}
-                  onClick={handleMemberToggle}
-                  aria-label={memberButtonAriaLabel}
-                >
-                  {!callView && <PendingJoinRequestBadge count={visibleJoinRequestCount} />}
-                  <Icon size="400" src={Icons.User} />
-                </IconButton>
-              )}
-            </TooltipProvider>
-          )}
+          <TooltipProvider
+            position="Bottom"
+            offset={4}
+            tooltip={
+              <Tooltip>
+                {callView ? (
+                  <Text>{t('mindroomUi.threads.mindroomRoomViewHeader.members')}</Text>
+                ) : (
+                  <Text>
+                    {membersOpen
+                      ? t('mindroomUi.threads.mindroomRoomViewHeader.hideMembers')
+                      : t('mindroomUi.threads.mindroomRoomViewHeader.showMembers')}
+                  </Text>
+                )}
+              </Tooltip>
+            }
+          >
+            {(triggerRef) => (
+              <IconButton
+                fill="None"
+                style={{ position: 'relative' }}
+                ref={triggerRef}
+                onClick={handleMemberToggle}
+                aria-label={memberButtonAriaLabel}
+              >
+                {!callView && <PendingJoinRequestBadge count={visibleJoinRequestCount} />}
+                <Icon size="400" src={Icons.User} />
+              </IconButton>
+            )}
+          </TooltipProvider>
 
           <TooltipProvider
             position="Bottom"

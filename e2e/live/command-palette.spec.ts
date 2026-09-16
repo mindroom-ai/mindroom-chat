@@ -70,7 +70,9 @@ test.describe('command palette', () => {
     { width: 390, height: 844 },
     { width: 320, height: 568 },
   ]) {
-    test(`keeps mobile search and dismissal visible at ${viewport.width}px`, async ({ page }) => {
+    test(`keeps mobile search and dismissal visible at ${viewport.width}px`, async ({
+      page,
+    }, testInfo) => {
       await page.setViewportSize(viewport);
       await loginWithPassword(page, { homeserver: getHomeserver(), ...getPrimaryCredentials() });
       await page.keyboard.press('Control+k');
@@ -82,6 +84,22 @@ test.describe('command palette', () => {
       const bounds = await dialog.boundingBox();
       expect(bounds!.x).toBeGreaterThanOrEqual(0);
       expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(viewport.width);
+      const shellCornerRadii = await dialog.evaluate((element) => {
+        const shell = element.parentElement;
+        if (!shell) throw new Error('Command palette shell is missing');
+        const style = getComputedStyle(shell);
+        return {
+          topLeft: Number.parseFloat(style.borderTopLeftRadius),
+          topRight: Number.parseFloat(style.borderTopRightRadius),
+          bottomLeft: Number.parseFloat(style.borderBottomLeftRadius),
+          bottomRight: Number.parseFloat(style.borderBottomRightRadius),
+        };
+      });
+      expect(shellCornerRadii.bottomLeft).toBeGreaterThan(0);
+      expect(shellCornerRadii.bottomRight).toBeGreaterThan(0);
+      expect(shellCornerRadii.bottomLeft).toBe(shellCornerRadii.topLeft);
+      expect(shellCornerRadii.bottomRight).toBe(shellCornerRadii.topRight);
+      await page.screenshot({ path: testInfo.outputPath('rounded-command-palette.png') });
 
       await dialog.getByRole('button', { name: 'Spaces', exact: true }).click();
       await expect(input).toHaveValue('* ');

@@ -2,8 +2,6 @@ import React, { useCallback, useState } from 'react';
 import {
   Box,
   Button,
-  Dialog,
-  Header,
   Icon,
   IconButton,
   Icons,
@@ -19,6 +17,7 @@ import {
 import FocusTrap from 'focus-trap-react';
 import { AuthDict, MatrixError } from 'matrix-js-sdk';
 import { useTranslation } from 'react-i18next';
+import { Dialog, Header } from '../../../components/glass/GlassPrimitives';
 import { SequenceCard } from '../../../components/sequence-card';
 import { SequenceCardStyle } from '../styles.css';
 import { SettingTile } from '../../../components/setting-tile';

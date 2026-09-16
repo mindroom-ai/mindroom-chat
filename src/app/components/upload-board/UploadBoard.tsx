@@ -1,8 +1,9 @@
 import { useTranslation } from 'react-i18next';
 import React, { ReactNode } from 'react';
-import { Badge, Box, Chip, Header, Icon, Icons, Spinner, Text, as, percent } from 'folds';
+import { Badge, Box, Chip, Icon, Icons, Spinner, Text, as, percent } from 'folds';
 import classNames from 'classnames';
 import { useAtomValue } from 'jotai';
+import { Header } from '../glass/GlassPrimitives';
 
 import * as css from './UploadBoard.css';
 import { TUploadFamilyObserverAtom, Upload, UploadStatus } from '../../state/upload';

@@ -1,7 +1,8 @@
 import { useTranslation } from 'react-i18next';
 import React, { useEffect, useCallback, FormEventHandler } from 'react';
-import { Dialog, Text, Box, Button, config, Input, color, Spinner } from 'folds';
+import { Text, Box, Button, config, Input, color, Spinner } from 'folds';
 import { AuthType, MatrixError } from 'matrix-js-sdk';
+import { Dialog } from '../glass/GlassPrimitives';
 import { StageComponentProps } from './types';
 import { AsyncState, AsyncStatus } from '../../hooks/useAsyncCallback';
 import { RequestEmailTokenCallback, RequestEmailTokenResponse } from '../../hooks/types';

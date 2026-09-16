@@ -1,9 +1,10 @@
 import React, { MouseEventHandler, forwardRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Box, Icon, Icons, Menu, PopOut, RectCords, config, toRem } from 'folds';
+import { Box, Icon, Icons, PopOut, RectCords, config, toRem } from 'folds';
 import { useAtomValue } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import FocusTrap from 'focus-trap-react';
+import { Menu } from '../../../components/glass/GlassPrimitives';
 import { useOrphanRooms } from '../../../state/hooks/roomList';
 import { useMatrixClient } from '../../../hooks/useMatrixClient';
 import { mDirectAtom } from '../../../state/mDirectList';

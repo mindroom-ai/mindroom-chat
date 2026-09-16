@@ -32,6 +32,8 @@ import {
 } from 'folds';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useVirtualPaginator } from '../../hooks/useVirtualPaginator';
+import * as overlay from './RoomOverlay.css';
+import { ThreadTimelineHeader } from './ThreadTimelineHeader';
 import { useAlive } from '../../hooks/useAlive';
 import { scrollToBottom } from '../../utils/dom';
 import { DefaultPlaceholder, CompactPlaceholder, MessageBase } from '../../components/message';
@@ -184,6 +186,7 @@ export type RoomTimelineProps = {
   eventId?: string;
   focusEventInRoom?: boolean;
   threadId?: string;
+  threadHeader?: React.ReactNode;
   summaryMap: Map<string, MindroomThreadSummaryInfo>;
   onStoreThreadSummary: (threadRootId: string, info: MindroomThreadSummaryInfo | undefined) => void;
   threadFilterState: ThreadFilterState;
@@ -203,6 +206,7 @@ export type RoomTimelineProps = {
   onViewModeChange?: (viewMode: RoomViewMode) => void;
   onThreadLoadError?: (threadId: string) => void;
   roomInputRef: RefObject<HTMLElement>;
+  roomFooterRef?: RefObject<HTMLElement>;
   compactRoomScrollStateRef: MutableRefObject<Map<string, number>>;
   editor: Editor;
 };
@@ -213,6 +217,7 @@ export function RoomTimeline({
   eventId,
   focusEventInRoom,
   threadId,
+  threadHeader,
   summaryMap,
   onStoreThreadSummary,
   threadFilterState,
@@ -232,6 +237,7 @@ export function RoomTimeline({
   onViewModeChange,
   onThreadLoadError,
   roomInputRef,
+  roomFooterRef,
   compactRoomScrollStateRef,
   editor,
 }: RoomTimelineProps) {
@@ -284,6 +290,8 @@ export function RoomTimeline({
   atBottomRef.current = atBottom;
 
   const scrollRef = useRef<HTMLDivElement>(null);
+  const overlayRootRef = useRef<HTMLDivElement>(null);
+  const overviewRef = useRef<HTMLDivElement>(null);
   const messageFeature = useTimelineMessageFeature({
     room,
     editor,
@@ -954,7 +962,11 @@ export function RoomTimeline({
     [threadCommands, threadOpenRuntime]
   );
 
-  const getScrollElement = useCallback(() => scrollRef.current, []);
+  // Reattach viewport observers when cards are replaced by the message scroller.
+  const getScrollElement = useCallback(
+    () => (showCompactRoomView ? null : scrollRef.current),
+    [showCompactRoomView]
+  );
   // Live viewport-bottom reading for SCROLL-BEHAVIOR decisions. Deliberately
   // not the atBottom state: its false-transition is debounced ~1s for
   // read-receipt/UI stability, which is exactly wrong for anything that
@@ -1484,16 +1496,41 @@ export function RoomTimeline({
     ]),
   });
 
-  // Stay at bottom when room editor resize
+  // Both toolbar variants share this wrapper, including its outside margins.
+  useEffect(() => {
+    const root = overlayRootRef.current;
+    const overview = overviewRef.current;
+    if (!root || !overview) return undefined;
+    const measure = () =>
+      root.style.setProperty('--room-overview-height', overview.offsetHeight + 'px');
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(overview);
+    return () => {
+      observer.disconnect();
+      root.style.removeProperty('--room-overview-height');
+    };
+  }, [shouldShowRoomThreadOverviewControls]);
+
+  // Publish the whole footer inset before correcting bottom pinning. The
+  // viewport stays full height, so its old bottom distance is still valid.
+  // Observing the footer also covers approvals, uploads, and the safe area.
   useResizeObserver(
     useMemo(() => {
       let mounted = false;
       let previousHeight = 0;
       return (entries) => {
-        if (!roomInputRef.current) return;
-        const editorBaseEntry = getResizeObserverEntry(roomInputRef.current, entries);
+        const target = roomFooterRef?.current ?? roomInputRef.current;
+        if (!target) return;
+        const editorBaseEntry = getResizeObserverEntry(target, entries);
         if (!editorBaseEntry) return;
-        const height = editorBaseEntry.contentRect.height;
+        const height = roomFooterRef ? target.offsetHeight : editorBaseEntry.contentRect.height;
+        const wasPinned = isViewportAtBottomNow();
+        if (roomFooterRef) {
+          overlayRootRef.current?.style.setProperty('--room-footer-height', height + 'px');
+          if (wasPinned && scrollRef.current) scrollToBottom(scrollRef.current);
+          return;
+        }
         const growth = Math.max(0, height - previousHeight);
         previousHeight = height;
         if (!mounted) {
@@ -1512,8 +1549,8 @@ export function RoomTimeline({
           scrollToBottom(scrollElement);
         }
       };
-    }, [getScrollElement, isViewportAtBottomNow, roomInputRef]),
-    useCallback(() => roomInputRef.current, [roomInputRef])
+    }, [getScrollElement, isViewportAtBottomNow, roomInputRef, roomFooterRef]),
+    useCallback(() => roomFooterRef?.current ?? roomInputRef.current, [roomFooterRef, roomInputRef])
   );
 
   const { handleMarkAsRead } = useTimelineReadReceiptController({
@@ -2090,36 +2127,40 @@ export function RoomTimeline({
   };
 
   return messageFeature.wrapExpansion(
-    <Box grow="Yes" direction="Column">
+    <Box ref={overlayRootRef} grow="Yes" direction="Column" style={{ position: 'relative' }}>
       {shouldShowRoomThreadOverviewControls && (
-        <RoomThreadOverview
-          hasMindroomAgents={hasMindroomAgents}
-          threadCount={
-            showCompactRoomView ? compactFilteredThreadRootIds.length : filteredThreadRootIds.length
-          }
-          totalThreadCount={
-            showCompactRoomView
-              ? compactThreadRootData.ids.length
-              : visibleThreadRootData.ids.length
-          }
-          statusCounts={statusCounts}
-          tagCounts={tagCounts}
-          state={liveThreadFilterState}
-          availableTags={availableRoomTags}
-          viewMode={viewMode}
-          onViewModeChange={onViewModeChange}
-          isThreadSortFrozen={threadSortFreezeState !== null}
-          onToggle={onToggle}
-          onSortDirectionChange={onSortDirectionChange}
-          onToggleThreadSortFreeze={onToggleThreadSortFreeze}
-          onToggleUnresolvedOnly={onToggleUnresolvedOnly}
-          onReset={onReset}
-          onCycleTag={onCycleTag}
-          onAddTag={onAddTag}
-          onRemoveTag={onRemoveTag}
-          onApplyPreset={onApplyPreset}
-          onSearchQueryChange={onSearchQueryChange}
-        />
+        <div ref={overviewRef} className={overlay.Overview}>
+          <RoomThreadOverview
+            hasMindroomAgents={hasMindroomAgents}
+            threadCount={
+              showCompactRoomView
+                ? compactFilteredThreadRootIds.length
+                : filteredThreadRootIds.length
+            }
+            totalThreadCount={
+              showCompactRoomView
+                ? compactThreadRootData.ids.length
+                : visibleThreadRootData.ids.length
+            }
+            statusCounts={statusCounts}
+            tagCounts={tagCounts}
+            state={liveThreadFilterState}
+            availableTags={availableRoomTags}
+            viewMode={viewMode}
+            onViewModeChange={onViewModeChange}
+            isThreadSortFrozen={threadSortFreezeState !== null}
+            onToggle={onToggle}
+            onSortDirectionChange={onSortDirectionChange}
+            onToggleThreadSortFreeze={onToggleThreadSortFreeze}
+            onToggleUnresolvedOnly={onToggleUnresolvedOnly}
+            onReset={onReset}
+            onCycleTag={onCycleTag}
+            onAddTag={onAddTag}
+            onRemoveTag={onRemoveTag}
+            onApplyPreset={onApplyPreset}
+            onSearchQueryChange={onSearchQueryChange}
+          />
+        </div>
       )}
       <Box grow="Yes" style={{ position: 'relative' }}>
         {showCompactRoomView ? (
@@ -2157,9 +2198,16 @@ export function RoomTimeline({
                 </Chip>
               </TimelineFloat>
             )}
-            {messageFeature.expansionControl}
+            {!threadHeader && (
+              <div
+                style={{ position: 'absolute', top: overlay.topInset, insetInline: 0, zIndex: 2 }}
+              >
+                {messageFeature.expansionControl}
+              </div>
+            )}
             <Scroll
               ref={scrollRef}
+              className={overlay.Scroll}
               visibility="Hover"
               style={{ overflowAnchor: threadId ? 'none' : 'auto' }}
             >
@@ -2168,10 +2216,20 @@ export function RoomTimeline({
                 justifyContent={threadId ? 'Start' : 'End'}
                 style={{
                   minHeight: '100%',
-                  padding: `${config.space.S600} 0`,
+                  paddingTop: threadHeader
+                    ? overlay.topInset
+                    : `calc(${overlay.topInset} + ${config.space.S600})`,
                   position: 'relative',
                 }}
               >
+                {threadHeader && (
+                  <ThreadTimelineHeader
+                    scrollRef={scrollRef}
+                    expansionControl={messageFeature.expansionControl}
+                  >
+                    {threadHeader}
+                  </ThreadTimelineHeader>
+                )}
                 {!threadId &&
                   !roomHasMoreCachedBack &&
                   !canPaginateBack &&
@@ -2330,6 +2388,13 @@ export function RoomTimeline({
                       </MessageBase>
                     </>
                   ))}
+                <div
+                  aria-hidden="true"
+                  style={{
+                    height: `calc(${overlay.footerInset} + ${config.space.S600})`,
+                    flexShrink: 0,
+                  }}
+                />
                 <span ref={atBottomAnchorRef} />
               </Box>
             </Scroll>

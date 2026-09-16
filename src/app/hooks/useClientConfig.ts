@@ -39,6 +39,9 @@ export type ClientConfig = {
 
   mindroom?: {
     thinkingPlaceholderMessages?: string[];
+    computers?: {
+      apiUrl?: string;
+    };
   };
 
   messageRendering?: {

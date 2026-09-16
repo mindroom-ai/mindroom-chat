@@ -1,8 +1,10 @@
 import { style } from '@vanilla-extract/css';
 import { color, config, DefaultReset, toRem } from 'folds';
+import { glassSurface } from '../../../styles/Glass.css';
 
 export const Bar = style([
   DefaultReset,
+  glassSurface({ level: 'panel', variant: 'Surface' }),
   {
     position: 'sticky',
     top: 0,

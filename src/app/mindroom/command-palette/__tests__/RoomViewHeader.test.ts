@@ -5,7 +5,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { commandPaletteOpenAtom } from '../commandPaletteState';
 import { mindroomAccountSettingsAtom } from '../../settings/useMindroomAccountSettings';
 
-const { encryptionState, permissionState, screenSizeState } = vi.hoisted(() => ({
+const { encryptionState, permissionState, screenSizeState, membersState } = vi.hoisted(() => ({
+  membersState: { open: false, setOpen: vi.fn() },
   encryptionState: {
     value: undefined as unknown,
   },
@@ -162,21 +163,8 @@ vi.mock('../../../hooks/useRoom', () => ({
   useIsDirectRoom: () => false,
 }));
 
-vi.mock('../../../state/hooks/settings', () => ({
-  useSetting: (_atom: unknown, key: string) => {
-    switch (key) {
-      case 'isPeopleDrawer':
-        return [false, vi.fn()];
-      case 'hideActivity':
-        return [false];
-      default:
-        return [false, vi.fn()];
-    }
-  },
-}));
-
-vi.mock('../../../state/settings', () => ({
-  settingsAtom: {},
+vi.mock('../../sidebar/useMembersDrawer', () => ({
+  useMembersDrawer: () => [membersState.open, membersState.setOpen],
 }));
 
 vi.mock('../../../hooks/useSpace', () => ({
@@ -305,7 +293,14 @@ vi.mock('../../../hooks/useRoomPermissions', () => ({
   }),
 }));
 
-const renderHeader = async (joinRequestCount = 0) => {
+const renderHeader = async (
+  joinRequestCount = 0,
+  computerProps: {
+    computerAvailable?: boolean;
+    computerOpen?: boolean;
+    onComputerToggle?: () => void;
+  } = {}
+) => {
   const store = createStore();
   store.set(mindroomAccountSettingsAtom, {
     simpleMode: false,
@@ -316,7 +311,7 @@ const renderHeader = async (joinRequestCount = 0) => {
     React.createElement(
       Provider,
       { store },
-      React.createElement(RoomViewHeader, { joinRequestCount })
+      React.createElement(RoomViewHeader, { joinRequestCount, ...computerProps })
     )
   );
 
@@ -324,6 +319,8 @@ const renderHeader = async (joinRequestCount = 0) => {
 };
 
 afterEach(() => {
+  membersState.open = false;
+  membersState.setOpen.mockClear();
   encryptionState.value = undefined;
   screenSizeState.value = 'Desktop';
   permissionState.canInvite = true;
@@ -343,6 +340,29 @@ describe('RoomViewHeader', () => {
     expect(renderer.root.findByProps({ 'aria-label': 'Scheduled tasks (0)' })).toBeDefined();
     act(() => renderer.unmount());
   });
+
+  it.each(
+    ['Desktop', 'Tablet', 'Mobile'].flatMap((screen) =>
+      [false, true].map((storedOpen) => ({ screen, storedOpen }))
+    )
+  )(
+    'opens Members over Computer on $screen with stored visibility $storedOpen',
+    async ({ screen, storedOpen }) => {
+      screenSizeState.value = screen;
+      membersState.open = storedOpen;
+      const onComputerToggle = vi.fn();
+      const { renderer } = await renderHeader(0, {
+        computerAvailable: true,
+        computerOpen: true,
+        onComputerToggle,
+      });
+      const button = renderer.root.findByProps({ 'aria-label': 'Show Members' });
+      await act(async () => button.props.onClick());
+      expect(onComputerToggle).toHaveBeenCalledTimes(1);
+      expect(membersState.setOpen).toHaveBeenCalledWith(true);
+      act(() => renderer.unmount());
+    }
+  );
 
   it('opens the shared command palette atom from the new top-bar button', async () => {
     const { renderer, store } = await renderHeader();
@@ -367,29 +387,33 @@ describe('RoomViewHeader', () => {
     );
   });
 
-  it('shows pending join requests on the desktop Members button only to moderators', async () => {
-    const { renderer } = await renderHeader(2);
+  it.each(['Desktop', 'Tablet', 'Mobile'])(
+    'shows pending join requests on the %s Members button only to moderators',
+    async (screenSize) => {
+      screenSizeState.value = screenSize;
+      const { renderer } = await renderHeader(2);
 
-    expect(
-      renderer.root.findByProps({
-        'aria-label': 'Show Members, 2 pending join requests',
-      })
-    ).toBeDefined();
-    expect(renderer.root.findAllByProps({ children: 2 }).length).toBeGreaterThan(0);
+      expect(
+        renderer.root.findByProps({
+          'aria-label': 'Show Members, 2 pending join requests',
+        })
+      ).toBeDefined();
+      expect(renderer.root.findAllByProps({ children: 2 }).length).toBeGreaterThan(0);
 
-    permissionState.canInvite = false;
-    permissionState.canKick = false;
-    const { renderer: unauthorizedRenderer } = await renderHeader(2);
+      permissionState.canInvite = false;
+      permissionState.canKick = false;
+      const { renderer: unauthorizedRenderer } = await renderHeader(2);
 
-    expect(
-      unauthorizedRenderer.root.findAllByProps({
-        'aria-label': 'Show Members, 2 pending join requests',
-      })
-    ).toHaveLength(0);
-    expect(
-      unauthorizedRenderer.root.findByProps({
-        'aria-label': 'Show Members',
-      })
-    ).toBeDefined();
-  });
+      expect(
+        unauthorizedRenderer.root.findAllByProps({
+          'aria-label': 'Show Members, 2 pending join requests',
+        })
+      ).toHaveLength(0);
+      expect(
+        unauthorizedRenderer.root.findByProps({
+          'aria-label': 'Show Members',
+        })
+      ).toBeDefined();
+    }
+  );
 });

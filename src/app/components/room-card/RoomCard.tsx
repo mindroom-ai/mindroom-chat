@@ -5,7 +5,6 @@ import {
   Badge,
   Box,
   Button,
-  Dialog,
   Icon,
   Icons,
   Overlay,
@@ -19,6 +18,7 @@ import {
 } from 'folds';
 import classNames from 'classnames';
 import FocusTrap from 'focus-trap-react';
+import { Dialog } from '../glass/GlassPrimitives';
 import * as css from './style.css';
 import { RoomAvatar } from '../room-avatar';
 import { getMxIdLocalPart, isRoomId, mxcUrlToHttp } from '../../utils/matrix';

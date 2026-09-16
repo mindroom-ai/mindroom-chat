@@ -1,20 +1,9 @@
 import { useTranslation } from 'react-i18next';
 import React from 'react';
 import classNames from 'classnames';
-import {
-  Avatar,
-  Box,
-  Header,
-  Icon,
-  IconButton,
-  Icons,
-  MenuItem,
-  Scroll,
-  Text,
-  as,
-  config,
-} from 'folds';
+import { Avatar, Box, Icon, IconButton, Icons, Scroll, Text, as, config } from 'folds';
 import { Room } from 'matrix-js-sdk';
+import { Header, MenuItem } from '../glass/GlassPrimitives';
 import { useRoomEventReaders } from '../../hooks/useRoomEventReaders';
 import { getMemberDisplayName } from '../../utils/room';
 import { getMxIdLocalPart, mxcUrlToHttp } from '../../utils/matrix';

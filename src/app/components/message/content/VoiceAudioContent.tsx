@@ -2,10 +2,11 @@
 import { useTranslation } from 'react-i18next';
 import FocusTrap from 'focus-trap-react';
 import React, { MouseEventHandler, useCallback, useEffect, useRef, useState } from 'react';
-import { Icon, IconButton, Icons, Menu, PopOut, RectCords, Spinner, Text } from 'folds';
+import { Icon, IconButton, Icons, PopOut, RectCords, Spinner, Text } from 'folds';
 import { EncryptedAttachmentInfo } from 'browser-encrypt-attachment';
 import { useAtomValue } from 'jotai';
 import { IconPlayerPauseFilled, IconPlayerPlayFilled } from '@tabler/icons-react';
+import { Menu } from '../../glass/GlassPrimitives';
 import { IAudioInfo } from '../../../../types/matrix/common';
 import { AsyncStatus } from '../../../hooks/useAsyncCallback';
 import {
@@ -29,6 +30,7 @@ import { bytesToSize } from '../../../utils/common';
 import { stopPropagation } from '../../../utils/keyboard';
 import { FileDownloadButton } from '../FileHeader';
 import { getAudioContentSourceIdentity, useAudioContentSource } from './useAudioContentSource';
+import { useLiquidGlass } from '../../glass/liquid/useLiquidGlass';
 import * as css from './VoiceAudioContent.css';
 
 const PLAY_TIME_THROTTLE_OPS = {
@@ -61,6 +63,7 @@ export function VoiceAudioContent({
   isVoiceMessage = true,
 }: VoiceAudioContentProps) {
   const { t } = useTranslation();
+  const glassRef = useLiquidGlass<HTMLDivElement>();
   const [srcState, loadSrc] = useAudioContentSource({ mimeType, url, encInfo });
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [audioElement, setAudioElement] = useState<HTMLAudioElement | null>(null);
@@ -255,7 +258,7 @@ export function VoiceAudioContent({
           {filename}
         </Text>
       )}
-      <div className={css.Capsule} data-playing={playing || undefined}>
+      <div ref={glassRef} className={css.Capsule} data-playing={playing || undefined}>
         <div className={css.PlayCell}>
           <IconButton
             className={css.PlayButton}
@@ -275,9 +278,9 @@ export function VoiceAudioContent({
             {!hasPlaybackError && (srcState.status === AsyncStatus.Loading || loading) ? (
               <Spinner variant="Secondary" size="50" />
             ) : playing ? (
-              <IconPlayerPauseFilled size={22} aria-hidden="true" />
+              <IconPlayerPauseFilled size={18} aria-hidden="true" />
             ) : (
-              <IconPlayerPlayFilled className={css.PlayIcon} size={22} aria-hidden="true" />
+              <IconPlayerPlayFilled className={css.PlayIcon} size={18} aria-hidden="true" />
             )}
           </IconButton>
         </div>

@@ -8,6 +8,10 @@ import { MINDROOM_TOOL_APPROVAL_RESPONSE_EVENT, ToolApprovalData } from './toolA
 
 const sendEventMock = vi.fn();
 vi.mock('./ThreadApprovals.css', () => ({
+  ReceiptHeader: 'ReceiptHeader',
+  ReceiptLabel: 'ReceiptLabel',
+  ReceiptMeta: 'ReceiptMeta',
+  ReceiptChevron: 'ReceiptChevron',
   Receipt: 'Receipt',
   ReceiptBody: 'ReceiptBody',
   ReceiptTool: 'ReceiptTool',

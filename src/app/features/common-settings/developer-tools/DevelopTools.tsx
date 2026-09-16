@@ -1,18 +1,7 @@
 import React, { useCallback, useState } from 'react';
-import {
-  Box,
-  Text,
-  IconButton,
-  Icon,
-  Icons,
-  Scroll,
-  Switch,
-  Button,
-  MenuItem,
-  config,
-  color,
-} from 'folds';
+import { Box, Text, IconButton, Icon, Icons, Scroll, Switch, Button, config, color } from 'folds';
 import { useTranslation } from 'react-i18next';
+import { MenuItem } from '../../../components/glass/GlassPrimitives';
 import { Page, PageContent, PageHeader } from '../../../components/page';
 import { SequenceCard } from '../../../components/sequence-card';
 import { SequenceCardStyle } from '../styles.css';

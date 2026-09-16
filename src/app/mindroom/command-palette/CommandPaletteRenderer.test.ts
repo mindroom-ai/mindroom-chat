@@ -235,7 +235,7 @@ describe('CommandPaletteRenderer', () => {
     expect(modal.props.flexHeight).toBe(true);
   });
 
-  it('uses the mobile bottom-sheet layout with dynamic viewport units on the mobile breakpoint', () => {
+  it('uses a rounded mobile bottom-sheet layout with dynamic viewport units', () => {
     screenSizeState.value = 'Mobile';
     const { renderer } = renderRenderer(true);
     const modal = renderer.root.findByProps({ 'data-testid': 'modal' });
@@ -247,7 +247,7 @@ describe('CommandPaletteRenderer', () => {
     );
 
     expect(modal.props.style).toEqual({
-      borderRadius: '0.75rem 0.75rem 0 0',
+      borderRadius: '0.75rem',
       height: 'min(85svh, 700px)',
       maxHeight: 'min(85svh, 700px)',
       maxWidth: '100vw',

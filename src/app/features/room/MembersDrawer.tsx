@@ -12,12 +12,10 @@ import {
   Badge,
   Box,
   Chip,
-  Header,
   Icon,
   IconButton,
   Icons,
   Input,
-  MenuItem,
   PopOut,
   RectCords,
   Scroll,
@@ -32,6 +30,7 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import classNames from 'classnames';
 
 import { useTranslation } from 'react-i18next';
+import { Header, MenuItem } from '../../components/glass/GlassPrimitives';
 import * as css from './MembersDrawer.css';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { UseStateProvider } from '../../components/UseStateProvider';
@@ -44,7 +43,8 @@ import { useDebounce } from '../../hooks/useDebounce';
 import { TypingIndicator } from '../../components/typing-indicator';
 import { getMemberDisplayName, getMemberSearchStr } from '../../utils/room';
 import { getMxIdLocalPart, mxcUrlToHttp } from '../../utils/matrix';
-import { useSetSetting, useSetting } from '../../state/hooks/settings';
+import { useSetting } from '../../state/hooks/settings';
+import { useMembersDrawer } from '../../mindroom/sidebar/useMembersDrawer';
 import { settingsAtom } from '../../state/settings';
 import { millify } from '../../plugins/millify';
 import { ScrollTopContainer } from '../../components/scroll-top-container';
@@ -82,7 +82,7 @@ type MemberDrawerHeaderProps = {
 };
 function MemberDrawerHeader({ room, canInvite }: MemberDrawerHeaderProps) {
   const { t } = useTranslation();
-  const setPeopleDrawer = useSetSetting(settingsAtom, 'isPeopleDrawer');
+  const [, setPeopleDrawer] = useMembersDrawer();
   const [invitePrompt, setInvitePrompt] = useState(false);
 
   return (
@@ -142,6 +142,7 @@ function MemberDrawerHeader({ room, canInvite }: MemberDrawerHeaderProps) {
                 ref={triggerRef}
                 variant="Background"
                 onClick={() => setPeopleDrawer(false)}
+                aria-label={t('featureUi.room.membersDrawer.close')}
               >
                 <Icon src={Icons.Cross} />
               </IconButton>
