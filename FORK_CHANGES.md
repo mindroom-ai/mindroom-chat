@@ -2,6 +2,19 @@
 
 ## Runbook
 
+### Share floating headers across every navigation sidebar (2026-09-17)
+
+- Home, Direct Messages, Inbox, Explorer, spaces, and account/room/space settings share one borderless native-glass navigation header.
+  Titles stay fixed while list items scroll behind them, with the existing shallow blur and accessibility fallbacks.
+  The shared content component requires a header inside its scrolling viewport, replacing the former space-only styling and optional placement.
+- Empty Home and Direct Messages lists keep the same header and centered actions.
+  Initial content and native focus scrolling reserve the title height; recently opened items and settings footer actions remain outside the main list scroller.
+- Validation: eight production Chromium/WebKit phone/desktop cases pass across all eight sidebars, including empty states, scrolling, settings access, header menus, and native focus alignment.
+  Independent review approves the implementation and tests; focused E2E TypeScript checks also pass.
+  Fault injection confirms browser assertions and fixture cleanup failures are both reported when they fail together.
+  Linux headless WebKit verifies computed blur, transparency, and layout but does not paint native backdrop blur on this host; physical iOS appearance remains unverified.
+  All 4,567 unit tests, typecheck, production/PWA build, and lint pass with zero errors and 17 existing warnings.
+
 ### Recover iOS room routes after WebContent termination (2026-09-17)
 
 - Capacitor's bundled-file router treats the server suffix in a room URL such as `/home/!example%3Amindroom.chat` as a file extension.

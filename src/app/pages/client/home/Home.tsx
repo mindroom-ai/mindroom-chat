@@ -242,11 +242,10 @@ export function Home() {
 
   return (
     <PageNav>
-      <HomeHeader />
-      {noRoomToDisplay ? (
-        <HomeEmpty />
-      ) : (
-        <PageNavContent scrollRef={scrollRef}>
+      <PageNavContent scrollRef={scrollRef} header={<HomeHeader />}>
+        {noRoomToDisplay ? (
+          <HomeEmpty />
+        ) : (
           <Box direction="Column" gap="300">
             <NavCategory>
               <NavItem variant="Background" radii="400" aria-selected={createRoomSelected}>
@@ -367,8 +366,8 @@ export function Home() {
             </NavCategory>
             <ThreadNavCategory sidebarScrollRef={scrollRef} />
           </Box>
-        </PageNavContent>
-      )}
+        )}
+      </PageNavContent>
       <RecentlyOpenedNavCategory />
     </PageNav>
   );

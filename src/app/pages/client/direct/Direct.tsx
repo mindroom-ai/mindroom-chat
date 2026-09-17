@@ -179,11 +179,10 @@ export function Direct() {
 
   return (
     <PageNav>
-      <DirectHeader />
-      {noRoomToDisplay ? (
-        <DirectEmpty />
-      ) : (
-        <PageNavContent scrollRef={scrollRef}>
+      <PageNavContent scrollRef={scrollRef} header={<DirectHeader />}>
+        {noRoomToDisplay ? (
+          <DirectEmpty />
+        ) : (
           <Box direction="Column" gap="300">
             <NavCategory>
               <NavItem variant="Background" radii="400" aria-selected={createDirectSelected}>
@@ -248,8 +247,8 @@ export function Direct() {
               </div>
             </NavCategory>
           </Box>
-        </PageNavContent>
-      )}
+        )}
+      </PageNavContent>
       <RecentlyOpenedNavCategory />
     </PageNav>
   );

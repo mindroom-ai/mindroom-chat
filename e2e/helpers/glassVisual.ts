@@ -103,3 +103,39 @@ export const sampleScreenshot = async (
     }
   );
 };
+
+// Catch a header outside its scrolling viewport, an opaque material, or raised
+// edges reappearing when switching between navigation sections.
+export async function expectFloatingNavHeader(header: Locator) {
+  await expect(header).toBeVisible();
+  const scroll = header.locator('xpath=ancestor::*[@data-y-scrollbar-width][1]');
+  await expect(scroll).toHaveCount(1);
+  const geometry = () =>
+    header.evaluate((element) => {
+      const viewport = element.closest('[data-y-scrollbar-width]')!;
+      const css = getComputedStyle(element);
+      return {
+        offset: element.getBoundingClientRect().top - viewport.getBoundingClientRect().top,
+        border: [
+          css.borderTopWidth,
+          css.borderRightWidth,
+          css.borderBottomWidth,
+          css.borderLeftWidth,
+        ],
+        shadow: css.boxShadow,
+        highlight: css.backgroundImage,
+        filter: css.backdropFilter,
+        alpha: Number(css.backgroundColor.split('/')[1]?.replace(')', '').trim()),
+      };
+    });
+  await expect.poll(async () => (await geometry()).offset).toBeCloseTo(0, 0);
+  const material = await geometry();
+  expect(material.border).toEqual(['0px', '0px', '0px', '0px']);
+  expect(material.shadow).toBe('none');
+  expect(material.highlight).toBe('none');
+  expect(material.filter).toContain('blur(');
+  expect(material.filter).not.toContain('url(');
+  expect(material.alpha).toBeGreaterThan(0);
+  expect(material.alpha).toBeLessThan(1);
+  return scroll;
+}

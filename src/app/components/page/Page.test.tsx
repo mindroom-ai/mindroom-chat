@@ -26,7 +26,8 @@ vi.mock('./style.css', () => ({
   PageHeroSection: '',
   PageNav: () => '',
   PageNavContent: '',
-  PageNavHeader: () => '',
+  PageNavHeader: '',
+  PageNavHeaderScroll: '',
 }));
 
 vi.mock('../../hooks/useScreenSize', () => ({

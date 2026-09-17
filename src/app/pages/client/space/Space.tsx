@@ -115,7 +115,6 @@ import {
   SortableRoomNavItem,
   SortableRoomNavItemData,
 } from '../../../features/room-nav/SortableRoomNavItem';
-import * as css from './Space.css';
 
 type SpaceMenuProps = {
   room: Room;
@@ -330,7 +329,7 @@ function SpaceHeader() {
 
   return (
     <>
-      <PageNavHeader className={css.Header} appearance="plain" outlined={false}>
+      <PageNavHeader>
         <Box alignItems="Center" grow="Yes" gap="300">
           <Box grow="Yes" alignItems="Center" gap="100">
             <Text size="H4" truncate>
