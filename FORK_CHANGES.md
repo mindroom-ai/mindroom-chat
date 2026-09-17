@@ -15,12 +15,14 @@
   Together these changes preserve the current route and origin while serving the app document as HTML, even when a server or event ID ends in `.js` or `.mp4`.
 - `bash scripts/test-ios-routing.sh` generates an isolated XCTest host using the shipping scene, bridge, plugins, and installed Capacitor sources with a tiny web fixture.
   It requires macOS, Xcode, CocoaPods, installed npm dependencies, and the `xcodeproj` Ruby gem.
-  The tests compare page boot identities after ordinary reload and real WebContent-process termination, assert the current URL, native plugin round trips, and localStorage/IndexedDB persistence, and retain screenshots in `.xcresult` artifacts.
+  The tests compare page boot identities after ordinary reload and real WebContent-process termination, assert the current URL, native plugin round trips, and localStorage/IndexedDB persistence, and verify that the native view visibly repaints.
+  Screenshots remain in `.xcresult` artifacts.
   Handler tests cover route families, asset bytes/MIME, missing files, and native media range responses.
   The private WebKit termination selector exists only in the test bundle.
-- Validation so far: the native baseline reproduction is confirmed, and all 4,567 baseline unit tests pass.
-  Typecheck and lint pass with the existing 17 lint warnings; test-project generation, Ruby/shell syntax, and changed-file formatting pass locally.
-  Post-fix native and full regression validation is in progress.
+- Validation: [native CI run 35257424880](https://github.com/mindroom-ai/mindroom-chat/actions/runs/35257424880) passes all seven tests, including visible recovery after real WebContent termination.
+  All 4,567 unit tests, typecheck, production/PWA build, and changed-file formatting pass.
+  Lint reports zero errors and the 17 existing warnings; workflow validation, test-project generation, Ruby/shell syntax, and patch checks pass.
+  Independent implementation review has no blocking findings.
 
 ### Let agents open conversation controls (2026-09-16)
 

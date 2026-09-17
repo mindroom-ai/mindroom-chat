@@ -1,12 +1,11 @@
 name: iOS routing
 
 on:
-  push:
-    branches: [fix/ios-room-route-reload]
   pull_request:
     paths:
       - 'ios/**'
       - 'patches/@capacitor+ios+*.patch'
+      - 'package.json'
       - 'package-lock.json'
       - 'scripts/*ios-routing*'
       - '.github/workflows/ios-routing.yml'
