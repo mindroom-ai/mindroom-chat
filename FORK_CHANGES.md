@@ -2,6 +2,18 @@
 
 ## Runbook
 
+### Reproduce iOS room-route reload failures (2026-09-17)
+
+- Investigation: Capacitor's bundled-file router treats the server suffix in a room URL such as `/home/!example%3Amindroom.chat` as a file extension.
+  Its WebContent-termination handler reloads that URL, while a cold launch loads the bundle root.
+  Native reproduction is required before implementing the proposed routing fix; the exported JavaScript diagnostics do not establish the original termination event.
+- `bash scripts/test-ios-routing.sh` generates an isolated XCTest host using the shipping scene, bridge, plugins, and installed Capacitor sources with a tiny web fixture.
+  It requires macOS, Xcode, CocoaPods, installed npm dependencies, and the `xcodeproj` Ruby gem.
+  The tests compare page boot identities after ordinary reload and real WebContent-process termination, preserve the current URL, and retain screenshots in `.xcresult` artifacts.
+  The private WebKit termination selector exists only in the test bundle.
+- Validation so far: all 4,567 baseline unit tests pass; test-project generation, Ruby/shell syntax, and changed-file formatting pass locally.
+  The `iOS routing` workflow runs the native reproduction on an iPhone simulator; production code is unchanged pending the failing native run.
+
 ### Let agents open conversation controls (2026-09-16)
 
 - Agents can request the Computer, Settings, or Members panel through versioned `io.mindroom.ui_action` metadata on ordinary Matrix notices.

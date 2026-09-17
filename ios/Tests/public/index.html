@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>MindRoom native routing fixture</title>
+    <style>
+      body {
+        background: #153e35;
+        color: white;
+        font: 24px system-ui;
+        padding: 32px;
+      }
+    </style>
+  </head>
+  <body>
+    <main id="app">MindRoom routing fixture loaded</main>
+    <script>
+      window.routingBootId = crypto.randomUUID();
+      document.querySelector('#app').append(` at ${location.pathname}`);
+    </script>
+  </body>
+</html>
