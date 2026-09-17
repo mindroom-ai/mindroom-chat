@@ -2,6 +2,16 @@
 
 ## Runbook
 
+### Inset the Recently Opened divider (2026-09-17)
+
+- The shared Recently Opened panel uses a 1px divider inset 16px from both sides, replacing its full-width top border.
+  It retains the theme's muted separator color and has no specular treatment.
+  The decorative line ignores pointer events so the full-width resize handle remains usable.
+- Validation: all 4,567 unit tests, typecheck, production/PWA build, and changed-file formatting pass.
+  Lint reports zero errors and the 17 existing warnings.
+  Independent review approves the change; all nine Recently Opened component tests pass, including resize and collapse behavior.
+  Physical iOS appearance remains unverified.
+
 ### Flatten the shared icon rail (2026-09-17)
 
 - The shared sidebar uses the same borderless native-glass material as navigation headers, with shallow blur and no raised rim, shadow, or specular gradient.

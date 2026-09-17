@@ -14,9 +14,17 @@ export const RecentlyOpenedPanel = style({
   flexDirection: 'column',
   padding: config.space.S200,
   paddingInlineEnd: 0,
-  borderTop: `${config.borderWidth.B300} solid ${color.Background.ContainerLine}`,
   backgroundColor: color.Background.Container,
   selectors: {
+    '&::before': {
+      content: '""',
+      position: 'absolute',
+      top: 0,
+      insetInline: config.space.S400,
+      height: config.borderWidth.B300,
+      backgroundColor: color.Background.ContainerLine,
+      pointerEvents: 'none',
+    },
     '&[data-collapsed=true]': {
       maxHeight: 'none',
     },
