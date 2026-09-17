@@ -18,6 +18,8 @@
   The tests compare page boot identities after ordinary reload and real WebContent-process termination, assert the current URL, native plugin round trips, and localStorage/IndexedDB persistence, and verify that the native view visibly repaints.
   Screenshots remain in `.xcresult` artifacts.
   Handler tests cover route families, asset bytes/MIME, missing files, and native media range responses.
+  A separate handler contract test uses paths generated from `src/app/pages/paths.ts` with the web router's `generatePath`, including dotted parameters, Matrix aliases, and omitted optional parameters.
+  Changes to the web route definitions trigger native CI so a new route family cannot silently bypass recovery.
   The private WebKit termination selector exists only in the test bundle.
 - Validation: [native CI run 35257424880](https://github.com/mindroom-ai/mindroom-chat/actions/runs/35257424880) passes all seven tests, including visible recovery after real WebContent termination.
   All 4,567 unit tests, typecheck, production/PWA build, and changed-file formatting pass.

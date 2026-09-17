@@ -47,6 +47,9 @@ end
 Dir[File.join(repo, 'ios/Tests/*.swift')].sort.each do |path|
   tests.source_build_phase.add_file_reference(project.main_group.new_file(path))
 end
+routes_path = File.join(output, 'web-routes.json')
+system('node', File.join(repo, 'scripts/ios-routing-test-routes.mjs'), out: routes_path, exception: true)
+tests.resources_build_phase.add_file_reference(project.main_group.new_file(routes_path))
 public_folder = project.main_group.new_file(File.join(repo, 'ios/Tests/public'))
 public_folder.last_known_file_type = 'folder'
 host.resources_build_phase.add_file_reference(public_folder)

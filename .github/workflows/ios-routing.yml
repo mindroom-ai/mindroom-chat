@@ -8,6 +8,8 @@ on:
       - 'package.json'
       - 'package-lock.json'
       - 'scripts/*ios-routing*'
+      - 'src/app/pages/paths.ts'
+      - 'src/app/pages/Router.tsx'
       - '.github/workflows/ios-routing.yml'
 
 permissions:

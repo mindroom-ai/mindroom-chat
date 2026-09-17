@@ -84,6 +84,21 @@ final class AssetRoutingTests: XCTestCase {
         }
     }
 
+    func testWebRouteDefinitionsResolveThroughNativeHandler() throws {
+        let url = try XCTUnwrap(Bundle(for: AssetRoutingTests.self).url(forResource: "web-routes", withExtension: "json"))
+        let routes = try JSONDecoder().decode([String].self, from: Data(contentsOf: url))
+        XCTAssertFalse(routes.isEmpty)
+        try withHandler { handler, _ in
+            for route in routes {
+                let task = load(route, with: handler)
+                XCTAssertNil(task.error, route)
+                XCTAssertTrue(task.finished, route)
+                XCTAssertEqual(task.data, index, route)
+                XCTAssertEqual(task.response?.mimeType, "text/html", route)
+            }
+        }
+    }
+
     func testNativeMediaRangeAndMissingFileArePreserved() throws {
         try withHandler { handler, directory in
             let mediaURL = directory.appendingPathComponent("clip.mp4")

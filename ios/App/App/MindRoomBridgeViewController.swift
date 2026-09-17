@@ -70,6 +70,7 @@ private struct MindRoomRouter: Router {
         let firstComponent = path.split(separator: "/").first ?? ""
         // BrowserRouter parameters include Matrix IDs/aliases and server names.
         // Their dots are part of a route, even when WebKit reloads after a crash.
+        // Native CI checks these against routes generated from pages/paths.ts.
         let routeRoots: Set<Substring> = ["home", "direct", "explore", "login", "register", "reset-password"]
         if routeRoots.contains(firstComponent) || firstComponent.hasPrefix("!") || firstComponent.hasPrefix("#") {
             return bundleRouter.route(for: "/")
