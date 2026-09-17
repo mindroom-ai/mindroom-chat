@@ -47,11 +47,40 @@ final class RoomRouteReloadTests: XCTestCase {
         _ = try await webView.evaluateJavaScript("history.pushState({}, '', \(json)[0]); null;")
     }
 
-    private func attachScreenshot(_ webView: WKWebView, name: String) {
+    private func showsFixtureBackground(_ image: UIImage) -> Bool {
+        guard let cgImage = image.cgImage,
+              let center = cgImage.cropping(to: CGRect(x: cgImage.width / 2, y: cgImage.height / 2, width: 1, height: 1)) else {
+            return false
+        }
+        var pixel = [UInt8](repeating: 0, count: 4)
+        return pixel.withUnsafeMutableBytes { bytes in
+            guard let context = CGContext(
+                data: bytes.baseAddress, width: 1, height: 1, bitsPerComponent: 8, bytesPerRow: 4,
+                space: CGColorSpace(name: CGColorSpace.sRGB)!,
+                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue | CGBitmapInfo.byteOrder32Big.rawValue
+            ) else { return false }
+            context.draw(center, in: CGRect(x: 0, y: 0, width: 1, height: 1))
+            let rgba = bytes.bindMemory(to: UInt8.self)
+            return abs(Int(rgba[0]) - 21) <= 5 && abs(Int(rgba[1]) - 62) <= 5 && abs(Int(rgba[2]) - 53) <= 5
+        }
+    }
+
+    private func attachScreenshot(_ webView: WKWebView, name: String, expectRendered: Bool = true) async {
         // Draw the actual native view, including the blank view after process death.
-        let renderer = UIGraphicsImageRenderer(bounds: webView.bounds)
-        let image = renderer.image { _ in
-            webView.drawHierarchy(in: webView.bounds, afterScreenUpdates: true)
+        // A new JS context can report ready before WebKit presents its first frame.
+        func capture() -> UIImage {
+            UIGraphicsImageRenderer(bounds: webView.bounds).image { _ in
+                webView.drawHierarchy(in: webView.bounds, afterScreenUpdates: true)
+            }
+        }
+        var image = capture()
+        if expectRendered {
+            let deadline = Date().addingTimeInterval(5)
+            while !showsFixtureBackground(image) && Date() < deadline {
+                try? await Task.sleep(nanoseconds: 100_000_000)
+                image = capture()
+            }
+            XCTAssertTrue(showsFixtureBackground(image), "\(name): native view must visibly paint the fixture")
         }
         let attachment = XCTAttachment(image: image)
         attachment.name = name
@@ -110,10 +139,10 @@ final class RoomRouteReloadTests: XCTestCase {
         try await moveTo("/home/!example%3Amindroom.chat?threadId=%24thread#reply", in: webView)
         let previous = await bootId(webView)
         let originalURL = webView.url
-        attachScreenshot(webView, name: "room-before-reload")
+        await attachScreenshot(webView, name: "room-before-reload")
         webView.reload()
         let recovered = await waitForBoot(webView, after: previous)
-        attachScreenshot(webView, name: "room-after-reload")
+        await attachScreenshot(webView, name: "room-after-reload", expectRendered: recovered)
         XCTAssertTrue(recovered, "Reload must boot a new JS context at a dot-suffixed Matrix room URL")
         XCTAssertEqual(webView.url, originalURL)
     }
@@ -152,7 +181,7 @@ final class RoomRouteReloadTests: XCTestCase {
         try await checkNativePlugins(webView)
         let initialSession = try await storedSession(webView, write: true)
         XCTAssertEqual(initialSession, "preserved")
-        attachScreenshot(webView, name: "room-before-process-termination")
+        await attachScreenshot(webView, name: "room-before-process-termination")
 
         // WebKit's testing API kills the real WebContent process. This is confined
         // to the test bundle; the shipping Capacitor navigation delegate handles it.
@@ -162,7 +191,7 @@ final class RoomRouteReloadTests: XCTestCase {
         webView.perform(terminate)
 
         let recovered = await waitForBoot(webView, after: previous)
-        attachScreenshot(webView, name: "room-after-process-termination")
+        await attachScreenshot(webView, name: "room-after-process-termination", expectRendered: recovered)
         XCTAssertTrue(recovered, "Capacitor's process-termination reload must restore the room document")
         XCTAssertEqual(webView.url, originalURL)
         if recovered {
