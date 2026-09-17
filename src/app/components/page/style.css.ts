@@ -23,10 +23,6 @@ export const PageNav = recipe({
 });
 export type PageNavVariants = RecipeVariants<typeof PageNav>;
 
-export const PageNavViewport = style({
-  position: 'relative',
-});
-
 // Navigation chrome shares native blur without borders or a refractive rim.
 export const PageNavHeader = style([
   glassSurface({ level: 'panel', variant: 'Background' }),
@@ -62,12 +58,11 @@ export const PageNavContent = style({
   minHeight: `calc(100% - ${pageNavHeaderHeight})`,
   padding: config.space.S200,
   paddingInlineEnd: 0,
-  paddingBottom: `calc(${config.space.S700} + var(--page-nav-footer-height, 0px))`,
+  paddingBottom: config.space.S700,
 });
 
 export const PageNavHeaderScroll = style({
   scrollPaddingBlockStart: pageNavHeaderHeight,
-  scrollPaddingBlockEnd: 'var(--page-nav-footer-height, 0px)',
 });
 
 export const PageHeader = recipe({

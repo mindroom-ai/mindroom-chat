@@ -1,33 +1,35 @@
 import { style } from '@vanilla-extract/css';
 import { color, config } from 'folds';
 import { transition } from '../../styles/transition';
-import { glassFlat, glassFloating, glassSurface } from '../../styles/Glass.css';
 
 export const CategoryState = style({
   padding: `${config.space.S200} ${config.space.S300}`,
   color: color.Background.OnContainer,
 });
 
-export const RecentlyOpenedPanel = style([
-  glassSurface({ level: 'panel', variant: 'Background' }),
-  glassFlat,
-  glassFloating,
-  {
-    position: 'absolute',
-    bottom: 0,
-    insetInline: 0,
-    zIndex: 2,
-    display: 'flex',
-    flexDirection: 'column',
-    padding: config.space.S200,
-    paddingInlineEnd: 0,
-    selectors: {
-      '&[data-collapsed=true]': {
-        maxHeight: 'none',
-      },
+export const RecentlyOpenedPanel = style({
+  position: 'relative',
+  display: 'flex',
+  flex: 'none',
+  flexDirection: 'column',
+  padding: config.space.S200,
+  paddingInlineEnd: 0,
+  backgroundColor: color.Background.Container,
+  selectors: {
+    '&::before': {
+      content: '""',
+      position: 'absolute',
+      top: 0,
+      insetInline: config.space.S400,
+      height: config.borderWidth.B300,
+      backgroundColor: color.Background.ContainerLine,
+      pointerEvents: 'none',
+    },
+    '&[data-collapsed=true]': {
+      maxHeight: 'none',
     },
   },
-]);
+});
 
 export const RecentlyOpenedResizeHandle = style({
   position: 'absolute',
