@@ -21,7 +21,7 @@
   A separate handler contract test uses paths generated from `src/app/pages/paths.ts` with the web router's `generatePath`, including dotted parameters, Matrix aliases, and omitted optional parameters.
   Changes to the web route definitions trigger native CI so a new route family cannot silently bypass recovery.
   The private WebKit termination selector exists only in the test bundle.
-- Validation: [native CI run 35257424880](https://github.com/mindroom-ai/mindroom-chat/actions/runs/35257424880) passes all seven tests, including visible recovery after real WebContent termination.
+- Validation: [native CI run 35260447516](https://github.com/mindroom-ai/mindroom-chat/actions/runs/35260447516) passes all eight tests, including visible recovery after real WebContent termination and all 41 generated web routes.
   All 4,567 unit tests, typecheck, production/PWA build, and changed-file formatting pass.
   Lint reports zero errors and the 17 existing warnings; workflow validation, test-project generation, Ruby/shell syntax, and patch checks pass.
   Independent implementation review has no blocking findings.
