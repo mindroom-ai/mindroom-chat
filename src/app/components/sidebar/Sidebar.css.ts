@@ -4,16 +4,15 @@ import { color, config, DefaultReset, Disabled, FocusOutline, toRem } from 'fold
 import { ContainerColor } from '../../styles/ContainerColor.css';
 import { motion } from '../../styles/Motion.css';
 import { transition } from '../../styles/transition';
-import { glassSurface } from '../../styles/Glass.css';
+import { glassFlat, glassFloating, glassSurface } from '../../styles/Glass.css';
 
 export const Sidebar = style([
   DefaultReset,
   glassSurface({ level: 'panel', variant: 'Background' }),
+  glassFlat,
+  glassFloating,
   {
     width: toRem(66),
-    backgroundColor: color.Background.Container,
-    borderInlineEnd: `${config.borderWidth.B300} solid ${color.Background.ContainerLine}`,
-
     display: 'flex',
     flexDirection: 'column',
     color: color.Background.OnContainer,
