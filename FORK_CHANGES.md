@@ -2,6 +2,17 @@
 
 ## Runbook
 
+### Flatten the shared icon rail (2026-09-17)
+
+- The shared sidebar uses the same borderless native-glass material as navigation headers, with shallow blur and no raised rim, shadow, or specular gradient.
+  The full-height rail no longer registers an optical refraction surface.
+  Icon buttons, avatars, badges, selection markers, and keyboard focus indicators retain their existing treatment.
+- Validation: all 4,567 unit tests, typecheck, production/PWA build, and changed-file formatting pass.
+  Lint reports zero errors and the 17 existing warnings.
+  Existing production navigation checks pass in Chromium and WebKit for dark phone and light desktop layouts, before and after the change.
+  Independent review approves the change, including 62 focused tests.
+  Before/after screenshots confirm the rail edges are removed; physical iOS appearance remains unverified.
+
 ### Share floating headers across every navigation sidebar (2026-09-17)
 
 - Home, Direct Messages, Inbox, Explorer, spaces, and account/room/space settings share one borderless native-glass navigation header.
