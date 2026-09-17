@@ -2,15 +2,17 @@
 
 ## Runbook
 
-### Inset the Recently Opened divider (2026-09-17)
+### Float Recently Opened over the room lists (2026-09-17)
 
-- The shared Recently Opened panel uses a 1px divider inset 16px from both sides, replacing its full-width top border.
-  It retains the theme's muted separator color and has no specular treatment.
-  The decorative line ignores pointer events so the full-width resize handle remains usable.
+- Home, Direct Messages, and spaces share a borderless glass Recently Opened panel, with the same shallow native blur as their navigation headers.
+  The room list scrolls underneath both the collapsed bar and expanded panel; the top divider and specular edges are removed.
+  The expanded recent list keeps its independent scrollbar and pointer/keyboard resize controls.
+- The panel publishes its measured height to the navigation viewport with a ResizeObserver.
+  Shared content padding and native focus-scroll padding reserve that height so the last room remains reachable after collapse, resize, or content changes.
+  Sidebars without Recently Opened retain their normal layout.
 - Validation: all 4,567 unit tests, typecheck, production/PWA build, and changed-file formatting pass.
   Lint reports zero errors and the 17 existing warnings.
-  Independent review approves the change; all nine Recently Opened component tests pass, including resize and collapse behavior.
-  Physical iOS appearance remains unverified.
+  Browser coverage and independent review are in progress.
 
 ### Flatten the shared icon rail (2026-09-17)
 

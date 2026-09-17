@@ -8,6 +8,7 @@ export default defineConfig(config, {
     '**/live/composer-glass.spec.ts',
     '**/live/space-header-glass.spec.ts',
     '**/live/navigation-header-glass.spec.ts',
+    '**/live/recently-opened-glass.spec.ts',
     '**/live/room-glass-overlays.spec.ts',
     '**/live/thread-banner-overlay.spec.ts',
   ],

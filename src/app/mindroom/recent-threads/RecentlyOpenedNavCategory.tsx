@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useAtom, useAtomValue } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import { Scroll, Text } from 'folds';
@@ -77,6 +77,27 @@ export function RecentlyOpenedNavCategory({
   const [preferredPanelHeight, setPreferredPanelHeight] = useAtom(panelHeightAtom);
   const [previewPanelHeight, setPreviewPanelHeight] = useState<number>();
   const dragStateRef = useRef<DragState>();
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  useLayoutEffect(() => {
+    const panel = panelRef.current;
+    const viewport = panel?.parentElement;
+    if (!panel || !viewport) return undefined;
+
+    // Reserve the actual height, including collapse, content, and viewport changes,
+    // so the last room and keyboard-focused links can scroll clear of the overlay.
+    const updateHeight = () => {
+      viewport.style.setProperty('--page-nav-footer-height', `${panel.offsetHeight}px`);
+    };
+    updateHeight();
+    const observer = new ResizeObserver(updateHeight);
+    observer.observe(panel);
+    return () => {
+      observer.disconnect();
+      viewport.style.removeProperty('--page-nav-footer-height');
+    };
+  }, []);
+
   const panelHeight = previewPanelHeight ?? preferredPanelHeight;
   const closed = closedCategories.has(RECENTLY_OPENED_NAV_CATEGORY_ID);
   const handleCategoryClick = useCategoryHandler(setClosedCategories, (categoryId) =>
@@ -178,6 +199,7 @@ export function RecentlyOpenedNavCategory({
 
   return (
     <div
+      ref={panelRef}
       className={css.RecentlyOpenedPanel}
       data-collapsed={closed}
       data-testid="recently-opened-nav-panel"
