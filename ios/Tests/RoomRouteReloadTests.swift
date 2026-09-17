@@ -23,7 +23,7 @@ final class RoomRouteReloadTests: XCTestCase {
     private func waitForBoot(_ webView: WKWebView, after previous: String? = nil) async -> Bool {
         let deadline = Date().addingTimeInterval(15)
         while Date() < deadline {
-            if let current = await bootId(webView), current != previous {
+            if let current = await bootId(webView), current != previous, !webView.isLoading {
                 return true
             }
             try? await Task.sleep(nanoseconds: 100_000_000)
@@ -45,6 +45,14 @@ final class RoomRouteReloadTests: XCTestCase {
     private func moveTo(_ route: String, in webView: WKWebView) async throws {
         let json = String(data: try JSONSerialization.data(withJSONObject: [route]), encoding: .utf8)!
         _ = try await webView.evaluateJavaScript("history.pushState({}, '', \(json)[0]); null;")
+        // WKWebView.url can lag behind the completed JavaScript callback.
+        // Observe the requested native URL before capturing it or reloading.
+        let expectedURL = URL(string: "capacitor://localhost\(route)")!
+        let deadline = Date().addingTimeInterval(5)
+        while webView.url != expectedURL && Date() < deadline {
+            try? await Task.sleep(nanoseconds: 100_000_000)
+        }
+        XCTAssertEqual(webView.url, expectedURL, "pushState must reach the native view before reload")
     }
 
     private func showsFixtureBackground(_ image: UIImage) -> Bool {
