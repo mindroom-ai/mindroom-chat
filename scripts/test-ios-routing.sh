@@ -20,6 +20,18 @@ device_id=$(xcrun simctl list devices available --json | node --input-type=commo
   });
 ')
 
+# Finish simulator startup explicitly; Xcode can otherwise stall before XCTest
+# starts on a fresh CI runner. Keep a failed boot visible and bounded.
+node --input-type=commonjs - "$device_id" <<'NODE'
+const { spawnSync } = require('node:child_process');
+const result = spawnSync('xcrun', ['simctl', 'bootstatus', process.argv[2], '-b'], {
+  stdio: 'inherit',
+  timeout: 180_000,
+});
+if (result.error) throw result.error;
+process.exit(result.status ?? 1);
+NODE
+
 # Keep every run, including the failing baseline, as an inspectable result bundle.
 result_name="Routing-$(date -u +%Y%m%dT%H%M%SZ).xcresult"
 xcodebuild test \
@@ -28,6 +40,9 @@ xcodebuild test \
   -configuration Debug \
   -destination "platform=iOS Simulator,id=$device_id" \
   -parallel-testing-enabled NO \
+  -test-timeouts-enabled YES \
+  -default-test-execution-time-allowance 60 \
+  -maximum-test-execution-time-allowance 120 \
   -derivedDataPath DerivedData \
   -resultBundlePath "$result_name" \
   CODE_SIGNING_ALLOWED=NO 2>&1 | tee xcodebuild.log
