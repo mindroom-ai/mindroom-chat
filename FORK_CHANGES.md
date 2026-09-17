@@ -11,6 +11,7 @@
   Initial content and native focus scrolling reserve the title height; recently opened items and settings footer actions remain outside the main list scroller.
 - Validation: eight production Chromium/WebKit phone/desktop cases pass across all eight sidebars, including empty states, scrolling, settings access, header menus, and native focus alignment.
   Independent review approves the implementation and tests; focused E2E TypeScript checks also pass.
+  Fault injection confirms browser assertions and fixture cleanup failures are both reported when they fail together.
   Linux headless WebKit verifies computed blur, transparency, and layout but does not paint native backdrop blur on this host; physical iOS appearance remains unverified.
   All 4,567 unit tests, typecheck, production/PWA build, and lint pass with zero errors and 17 existing warnings.
 

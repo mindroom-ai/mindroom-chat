@@ -211,11 +211,8 @@ for (const [themeId, width, simpleMode] of [
       const failures = cleanup.flatMap((result) =>
         result.status === 'rejected' ? [result.reason] : []
       );
-      if (failures.length > 0) {
-        // Report fixture cleanup failures even when a browser assertion failed.
-        // eslint-disable-next-line no-unsafe-finally
-        throw new AggregateError(failures, 'Could not clean up the space header fixture');
-      }
+      // Record cleanup failures without replacing a browser assertion already in flight.
+      expect.soft(failures, 'Could not clean up the space header fixture').toEqual([]);
     }
   });
 }
