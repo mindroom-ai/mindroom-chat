@@ -1,6 +1,7 @@
 import { style } from '@vanilla-extract/css';
 import { recipe, RecipeVariants } from '@vanilla-extract/recipes';
 import { DefaultReset, color, config, toRem } from 'folds';
+import { glassFlat, glassFloating, glassSurface } from '../../styles/Glass.css';
 
 // Match the size-600 navigation header and its native focus-scroll inset.
 const pageNavHeaderHeight = toRem(54);
@@ -22,8 +23,15 @@ export const PageNav = recipe({
 });
 export type PageNavVariants = RecipeVariants<typeof PageNav>;
 
-export const PageNavHeader = recipe({
-  base: {
+// Navigation chrome shares native blur without borders or a refractive rim.
+export const PageNavHeader = style([
+  glassSurface({ level: 'panel', variant: 'Background' }),
+  glassFlat,
+  glassFloating,
+  {
+    position: 'sticky',
+    top: 0,
+    zIndex: 1,
     height: pageNavHeaderHeight,
     padding: `0 ${config.space.S200} 0 ${config.space.S300}`,
     flexShrink: 0,
@@ -42,22 +50,12 @@ export const PageNavHeader = recipe({
       },
     },
   },
-
-  variants: {
-    outlined: {
-      true: {
-        borderBottomWidth: 1,
-      },
-    },
-  },
-  defaultVariants: {
-    outlined: true,
-  },
-});
-export type PageNavHeaderVariants = RecipeVariants<typeof PageNavHeader>;
+]);
 
 export const PageNavContent = style({
-  minHeight: '100%',
+  display: 'flex',
+  flexDirection: 'column',
+  minHeight: `calc(100% - ${pageNavHeaderHeight})`,
   padding: config.space.S200,
   paddingInlineEnd: 0,
   paddingBottom: config.space.S700,
@@ -65,10 +63,6 @@ export const PageNavContent = style({
 
 export const PageNavHeaderScroll = style({
   scrollPaddingBlockStart: pageNavHeaderHeight,
-});
-
-export const PageNavContentBelowHeader = style({
-  minHeight: `calc(100% - ${pageNavHeaderHeight})`,
 });
 
 export const PageHeader = recipe({

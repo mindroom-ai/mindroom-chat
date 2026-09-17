@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { getHomeserver, getPrimaryCredentials, hasPrimaryCredentials } from '../env';
 import { loginWithPassword } from '../helpers/auth';
+import { expectFloatingNavHeader } from '../helpers/glassVisual';
 import {
   addRoomToSpace,
   createPrivateRoom,
@@ -42,6 +43,7 @@ for (const [themeId, width, simpleMode] of [
       );
       const spaceId = await createPrivateSpace(homeserver, session.accessToken, {
         name: 'MindRoom',
+        topic: 'Local navigation glass fixture',
       });
       createdRooms.push(spaceId);
       for (let index = 1; index <= 32; index += 1) {
@@ -50,6 +52,7 @@ for (const [themeId, width, simpleMode] of [
           name: `${String(index).padStart(2, '0')} · ${
             ['🌿 Garden plans', '🎨 Design studio', '📚 Reading room', '💡 New ideas'][index % 4]
           }`,
+          topic: 'Local navigation glass fixture',
         });
         createdRooms.push(roomId);
         // eslint-disable-next-line no-await-in-loop
@@ -147,7 +150,18 @@ for (const [themeId, width, simpleMode] of [
       ).toBe(true);
       await page.screenshot({ path: testInfo.outputPath('space-header-scrolled.png') });
       await header.getByRole('button').click();
-      await expect(page.getByRole('button', { name: 'Space Settings', exact: true })).toBeVisible();
+      await page.getByRole('button', { name: 'Space Settings', exact: true }).click();
+      await expect(page.getByRole('button', { name: 'General', exact: true })).toBeVisible();
+      await expectFloatingNavHeader(
+        page
+          .getByRole('button', { name: 'General', exact: true })
+          .locator('xpath=ancestor::*[@data-y-scrollbar-width][1]')
+          .locator('header')
+      );
+      await page.screenshot({
+        path: testInfo.outputPath('space-settings-header.png'),
+        scale: 'css',
+      });
       await page.keyboard.press('Escape');
 
       // Use an interior row so bottom clamping cannot hide a missing header inset.
@@ -198,6 +212,8 @@ for (const [themeId, width, simpleMode] of [
         result.status === 'rejected' ? [result.reason] : []
       );
       if (failures.length > 0) {
+        // Report fixture cleanup failures even when a browser assertion failed.
+        // eslint-disable-next-line no-unsafe-finally
         throw new AggregateError(failures, 'Could not clean up the space header fixture');
       }
     }
