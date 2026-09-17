@@ -2,6 +2,30 @@
 
 ## Runbook
 
+### Recover iOS room routes after WebContent termination (2026-09-17)
+
+- Capacitor's bundled-file router treats the server suffix in a room URL such as `/home/!example%3Amindroom.chat` as a file extension.
+  Its WebContent-termination handler reloads that URL, while a cold launch loads the bundle root.
+  Before implementing the fix, [native CI run 35253583128](https://github.com/mindroom-ai/mindroom-chat/actions/runs/35253583128) reproduced the failure on the unchanged shipping code: the extensionless control passed, but dotted-route reload and real WebContent termination both failed with a missing-file error.
+  The captured native view was entirely white after the failed recovery.
+  This establishes a matching failure mechanism; the exported JavaScript diagnostics do not establish the original device's termination event.
+- `MindRoomBridgeViewController.router()` now maps the app's parameterized route roots and Matrix space IDs/aliases to the bundled app document.
+  Other requests retain Capacitor's bundle routing, including missing-asset errors.
+  `patches/@capacitor+ios+8.5.2.patch` makes the asset handler derive MIME and media handling from the resolved file, and limits its empty Cordova-script response to the resolved `cordova.js` filename.
+  Together these changes preserve the current route and origin while serving the app document as HTML, even when a server or event ID ends in `.js` or `.mp4`.
+- `bash scripts/test-ios-routing.sh` generates an isolated XCTest host using the shipping scene, bridge, plugins, and installed Capacitor sources with a tiny web fixture.
+  It requires macOS, Xcode, CocoaPods, installed npm dependencies, and the `xcodeproj` Ruby gem.
+  The tests compare page boot identities after ordinary reload and real WebContent-process termination, assert the current URL, native plugin round trips, and localStorage/IndexedDB persistence, and verify that the native view visibly repaints.
+  Screenshots remain in `.xcresult` artifacts.
+  Handler tests cover route families, asset bytes/MIME, missing files, and native media range responses.
+  A separate handler contract test uses paths generated from `src/app/pages/paths.ts` with the web router's `generatePath`, including dotted parameters, Matrix aliases, and omitted optional parameters.
+  Changes to the web route definitions trigger native CI so a new route family cannot silently bypass recovery.
+  The private WebKit termination selector exists only in the test bundle.
+- Validation: [native CI run 35260447516](https://github.com/mindroom-ai/mindroom-chat/actions/runs/35260447516) passes all eight tests, including visible recovery after real WebContent termination and all 41 generated web routes.
+  All 4,567 unit tests, typecheck, production/PWA build, and changed-file formatting pass.
+  Lint reports zero errors and the 17 existing warnings; workflow validation, test-project generation, Ruby/shell syntax, and patch checks pass.
+  Independent implementation review has no blocking findings.
+
 ### Let agents open conversation controls (2026-09-16)
 
 - Agents can request the Computer, Settings, or Members panel through versioned `io.mindroom.ui_action` metadata on ordinary Matrix notices.
