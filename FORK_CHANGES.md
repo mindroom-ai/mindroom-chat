@@ -2,17 +2,25 @@
 
 ## Runbook
 
-### Reproduce iOS room-route reload failures (2026-09-17)
+### Recover iOS room routes after WebContent termination (2026-09-17)
 
-- Investigation: Capacitor's bundled-file router treats the server suffix in a room URL such as `/home/!example%3Amindroom.chat` as a file extension.
+- Capacitor's bundled-file router treats the server suffix in a room URL such as `/home/!example%3Amindroom.chat` as a file extension.
   Its WebContent-termination handler reloads that URL, while a cold launch loads the bundle root.
-  Native reproduction is required before implementing the proposed routing fix; the exported JavaScript diagnostics do not establish the original termination event.
+  Before implementing the fix, [native CI run 35253583128](https://github.com/mindroom-ai/mindroom-chat/actions/runs/35253583128) reproduced the failure on the unchanged shipping code: the extensionless control passed, but dotted-route reload and real WebContent termination both failed with a missing-file error.
+  The captured native view was entirely white after the failed recovery.
+  This establishes a matching failure mechanism; the exported JavaScript diagnostics do not establish the original device's termination event.
+- `MindRoomBridgeViewController.router()` now maps the app's parameterized route roots and Matrix space IDs/aliases to the bundled app document.
+  Other requests retain Capacitor's bundle routing, including missing-asset errors.
+  `patches/@capacitor+ios+8.5.2.patch` makes the asset handler derive MIME and media handling from the resolved file, and limits its empty Cordova-script response to the resolved `cordova.js` filename.
+  Together these changes preserve the current route and origin while serving the app document as HTML, even when a server or event ID ends in `.js` or `.mp4`.
 - `bash scripts/test-ios-routing.sh` generates an isolated XCTest host using the shipping scene, bridge, plugins, and installed Capacitor sources with a tiny web fixture.
   It requires macOS, Xcode, CocoaPods, installed npm dependencies, and the `xcodeproj` Ruby gem.
-  The tests compare page boot identities after ordinary reload and real WebContent-process termination, preserve the current URL, and retain screenshots in `.xcresult` artifacts.
+  The tests compare page boot identities after ordinary reload and real WebContent-process termination, assert the current URL, native plugin round trips, and localStorage/IndexedDB persistence, and retain screenshots in `.xcresult` artifacts.
+  Handler tests cover route families, asset bytes/MIME, missing files, and native media range responses.
   The private WebKit termination selector exists only in the test bundle.
-- Validation so far: all 4,567 baseline unit tests pass; test-project generation, Ruby/shell syntax, and changed-file formatting pass locally.
-  The `iOS routing` workflow runs the native reproduction on an iPhone simulator; production code is unchanged pending the failing native run.
+- Validation so far: the native baseline reproduction is confirmed, and all 4,567 baseline unit tests pass.
+  Typecheck and lint pass with the existing 17 lint warnings; test-project generation, Ruby/shell syntax, and changed-file formatting pass locally.
+  Post-fix native and full regression validation is in progress.
 
 ### Let agents open conversation controls (2026-09-16)
 

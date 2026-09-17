@@ -37,6 +37,8 @@ final class RoomRouteReloadTests: XCTestCase {
         webView.load(URLRequest(url: URL(string: "capacitor://localhost/")!))
         let loaded = await waitForBoot(webView, after: previous)
         XCTAssertTrue(loaded, "Control: bundled index.html must load before testing reload")
+        let background = try await webView.evaluateJavaScript("getComputedStyle(document.body).backgroundColor") as? String
+        XCTAssertEqual(background, "rgb(21, 62, 53)", "The fixture stylesheet must load")
         return webView
     }
 
@@ -55,6 +57,43 @@ final class RoomRouteReloadTests: XCTestCase {
         attachment.name = name
         attachment.lifetime = .keepAlways
         add(attachment)
+    }
+
+    private func checkNativePlugins(_ webView: WKWebView) async throws {
+        // Invalid arguments return immediately without showing authentication or
+        // file-save UI, while exercising a real JS -> Swift -> JS round trip.
+        let errors = try await webView.callAsyncJavaScript("""
+            return await Promise.all([
+              ['MindRoomAuth', 'authenticate'],
+              ['MindRoomFileSave', 'beginSave'],
+            ].map(async ([plugin, method]) => {
+              try { await window.Capacitor.nativePromise(plugin, method, {}); }
+              catch (error) { return error.code; }
+              return 'unexpected success';
+            }));
+            """, arguments: [:], in: nil, contentWorld: .page) as? [String]
+        XCTAssertEqual(errors, ["INVALID_URL", "INVALID_PAGE"])
+    }
+
+    private func storedSession(_ webView: WKWebView, write: Bool) async throws -> String? {
+        try await webView.callAsyncJavaScript("""
+            const db = await new Promise((resolve, reject) => {
+              const request = indexedDB.open('routing-session', 1);
+              request.onupgradeneeded = () => request.result.createObjectStore('session');
+              request.onsuccess = () => resolve(request.result);
+              request.onerror = () => reject(request.error);
+            });
+            try {
+              return await new Promise((resolve, reject) => {
+                const transaction = db.transaction('session', write ? 'readwrite' : 'readonly');
+                const store = transaction.objectStore('session');
+                const request = write ? store.put('preserved', 'token') : store.get('token');
+                transaction.oncomplete = () => resolve(write ? 'preserved' : request.result);
+                transaction.onerror = () => reject(transaction.error);
+                transaction.onabort = () => reject(transaction.error);
+              });
+            } finally { db.close(); }
+            """, arguments: ["write": write], in: nil, contentWorld: .page) as? String
     }
 
     func testExtensionlessRoomReloadControl() async throws {
@@ -79,12 +118,40 @@ final class RoomRouteReloadTests: XCTestCase {
         XCTAssertEqual(webView.url, originalURL)
     }
 
+    func testDottedRouteFamiliesReloadAsHTML() async throws {
+        let routes = [
+            "/direct/!room%3Amatrix.org", "/%23space%3Amindroom.chat",
+            "/!space%3Amindroom.chat/!room%3Amatrix.org",
+            "/home/!room%3Amindroom.chat/%24event%3Amatrix.org",
+            "/explore/mindroom.chat", "/login/mindroom.chat",
+            "/home/!room%3Aexample.mp4", "/home/!room%3Acordova.js"
+        ]
+        let webView = try await openFixture()
+        for route in routes {
+            try await moveTo(route, in: webView)
+            let previous = await bootId(webView)
+            let originalURL = webView.url
+            webView.reload()
+            let recovered = await waitForBoot(webView, after: previous)
+            XCTAssertTrue(recovered, route)
+            guard recovered else { return }
+            XCTAssertEqual(webView.url, originalURL, route)
+            let contentType = try await webView.evaluateJavaScript("document.contentType") as? String
+            XCTAssertEqual(contentType, "text/html", route)
+            let background = try await webView.evaluateJavaScript("getComputedStyle(document.body).backgroundColor") as? String
+            XCTAssertEqual(background, "rgb(21, 62, 53)", route)
+        }
+    }
+
     func testWebContentTerminationRecoversAtRoomURL() async throws {
         let webView = try await openFixture()
         try await moveTo("/home/!example%3Amindroom.chat?threadId=%24thread", in: webView)
         _ = try await webView.evaluateJavaScript("localStorage.setItem('routing-session', 'preserved'); null;")
         let previous = await bootId(webView)
         let originalURL = webView.url
+        try await checkNativePlugins(webView)
+        let initialSession = try await storedSession(webView, write: true)
+        XCTAssertEqual(initialSession, "preserved")
         attachScreenshot(webView, name: "room-before-process-termination")
 
         // WebKit's testing API kills the real WebContent process. This is confined
@@ -103,6 +170,9 @@ final class RoomRouteReloadTests: XCTestCase {
             XCTAssertEqual(session, "preserved")
             let contentType = try await webView.evaluateJavaScript("document.contentType") as? String
             XCTAssertEqual(contentType, "text/html")
+            try await checkNativePlugins(webView)
+            let restoredSession = try await storedSession(webView, write: false)
+            XCTAssertEqual(restoredSession, "preserved")
         }
     }
 }
