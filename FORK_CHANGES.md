@@ -12,7 +12,9 @@
   Sidebars without Recently Opened retain their normal layout.
 - Validation: all 4,567 unit tests, typecheck, production/PWA build, and changed-file formatting pass.
   Lint reports zero errors and the 17 existing warnings.
-  Browser coverage and independent review are in progress.
+  All 12 production Chromium/WebKit phone and desktop cases pass, including overlap, independent scrolling, resizing, collapse, native focus alignment, and existing navigation/settings behavior.
+  Independent review approves the implementation and regression tests.
+  Linux headless WebKit verifies transparency and layout but does not paint native backdrop blur on this host; physical iOS appearance remains unverified.
 
 ### Flatten the shared icon rail (2026-09-17)
 
