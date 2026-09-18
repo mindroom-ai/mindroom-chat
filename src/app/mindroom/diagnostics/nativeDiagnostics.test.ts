@@ -1,4 +1,5 @@
 import { Capacitor, registerPlugin } from '@capacitor/core';
+import { readFileSync } from 'node:fs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const nativePlugin = vi.hoisted(() => ({
@@ -15,6 +16,23 @@ vi.mock('@capacitor/core', () => ({
 }));
 
 const sessionId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+
+const readSwiftEventNames = (): string[] => {
+  const source = readFileSync(
+    new URL('../../../../ios/App/App/MindRoomDiagnosticsStore.swift', import.meta.url),
+    'utf8'
+  );
+  const enumBody = source.match(
+    /enum MindRoomDiagnosticEventName: String, Codable \{([\s\S]*?)\n\}/
+  )?.[1];
+  if (!enumBody) throw new Error('MindRoomDiagnosticEventName enum was not found');
+
+  const declarations = [...enumBody.matchAll(/^\s*case\s+\w+(?:\s*=\s*"([^"]+)")?\s*$/gm)];
+  if (declarations.length === 0 || declarations.some((declaration) => !declaration[1])) {
+    throw new Error('MindRoomDiagnosticEventName must use fixed string raw values');
+  }
+  return declarations.map((declaration) => declaration[1] as string);
+};
 
 const readDiagnostics = async () => {
   const diagnostics = await import('./nativeDiagnostics');
@@ -102,6 +120,31 @@ describe('native diagnostics reader', () => {
       ],
       droppedEventCount: 3,
     });
+  });
+
+  it('accepts every event name declared by the Swift diagnostics store', async () => {
+    vi.mocked(Capacitor.getPlatform).mockReturnValue('ios');
+    vi.mocked(Capacitor.isNativePlatform).mockReturnValue(true);
+    vi.mocked(Capacitor.isPluginAvailable).mockReturnValue(true);
+    const swiftEventNames = readSwiftEventNames();
+    nativePlugin.read.mockResolvedValue({
+      schemaVersion: 1,
+      status: 'available',
+      currentSessionId: sessionId,
+      events: swiftEventNames.map((name, sequence) => ({
+        at: sequence,
+        monotonicMs: sequence,
+        sequence,
+        sessionId,
+        name,
+      })),
+      droppedEventCount: 0,
+    });
+
+    const snapshot = await readDiagnostics();
+
+    expect(snapshot.status).toBe('available');
+    expect(snapshot.events.map((event) => event.name)).toEqual(swiftEventNames);
   });
 
   it('reports invalid for malformed native output', async () => {

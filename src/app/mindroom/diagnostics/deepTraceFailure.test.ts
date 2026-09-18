@@ -187,4 +187,32 @@ describe('deep diagnostic trace storage failure', () => {
     await trace.setDeepTraceEnabled(false, storage);
     dispose();
   });
+
+  it('retains failure evidence when clearing a closed IndexedDB connection fails', async () => {
+    const actual = await vi.importActual<typeof import('idb')>('idb');
+    let database: Awaited<ReturnType<typeof actual.openDB>> | undefined;
+    mocks.openDB.mockImplementation(async (...args: Parameters<typeof actual.openDB>) => {
+      database = await actual.openDB(...args);
+      return database;
+    });
+    const storage = window.localStorage;
+    storage.clear();
+    const failure = {
+      at: 123,
+      stage: 'flush',
+      errorName: 'InvalidStateError',
+    };
+    storage.setItem(trace.DEEP_TRACE_FAILURE_KEY, JSON.stringify(failure));
+    const dispose = trace.initializeDeepTraceRecorder(storage);
+
+    expect(await trace.setDeepTraceEnabled(true, storage)).toBe(true);
+    database?.close();
+
+    await expect(trace.clearDeepTrace()).rejects.toMatchObject({ name: 'InvalidStateError' });
+    expect(trace.getDeepTraceHealthSnapshot().lastFailure).toEqual(failure);
+    expect(storage.getItem(trace.DEEP_TRACE_FAILURE_KEY)).toBe(JSON.stringify(failure));
+
+    await trace.setDeepTraceEnabled(false, storage);
+    dispose();
+  });
 });

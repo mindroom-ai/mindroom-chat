@@ -76,7 +76,7 @@ type MindRoomDiagnosticsPlugin = {
 
 let mindRoomDiagnosticsPlugin: MindRoomDiagnosticsPlugin | undefined;
 
-const emptySnapshot = (
+export const createEmptyNativeDiagnosticsSnapshot = (
   status: Extract<
     NativeDiagnosticsSnapshot['status'],
     'unsupported' | 'timeout' | 'invalid' | 'unavailable'
@@ -88,13 +88,6 @@ const emptySnapshot = (
   events: [],
   droppedEventCount: 0,
 });
-
-export const createEmptyNativeDiagnosticsSnapshot = (
-  status: Extract<
-    NativeDiagnosticsSnapshot['status'],
-    'unsupported' | 'timeout' | 'invalid' | 'unavailable'
-  >
-): NativeDiagnosticsSnapshot => emptySnapshot(status);
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -207,16 +200,18 @@ const getMindRoomDiagnosticsPlugin = (): MindRoomDiagnosticsPlugin => {
 };
 
 export const readNativeDiagnostics = async (): Promise<NativeDiagnosticsSnapshot> => {
-  if (!isNativeIOSDiagnosticsAvailable()) return emptySnapshot('unsupported');
+  if (!isNativeIOSDiagnosticsAvailable()) {
+    return createEmptyNativeDiagnosticsSnapshot('unsupported');
+  }
   let value: unknown;
   try {
     value = await getMindRoomDiagnosticsPlugin().read();
   } catch {
-    return emptySnapshot('unavailable');
+    return createEmptyNativeDiagnosticsSnapshot('unavailable');
   }
   try {
     return normalizeSnapshot(value);
   } catch {
-    return emptySnapshot('invalid');
+    return createEmptyNativeDiagnosticsSnapshot('invalid');
   }
 };

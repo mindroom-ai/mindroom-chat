@@ -902,16 +902,13 @@ export const clearDeepTrace = async (): Promise<void> => {
     if (target.flushPromise) await target.flushPromise;
     resetPendingState(target);
   }
-  try {
-    const db = await getDatabase();
-    const tx = db.transaction([EVENT_STORE, META_STORE], 'readwrite');
-    await tx.objectStore(EVENT_STORE).clear();
-    await tx.objectStore(META_STORE).put({ ...EMPTY_STATS }, STATS_KEY);
-    await tx.done;
-  } finally {
-    removeStorageItemSafe(storage, DEEP_TRACE_FAILURE_KEY);
-    if (target) target.lastFailure = null;
-  }
+  const db = await getDatabase();
+  const tx = db.transaction([EVENT_STORE, META_STORE], 'readwrite');
+  await tx.objectStore(EVENT_STORE).clear();
+  await tx.objectStore(META_STORE).put({ ...EMPTY_STATS }, STATS_KEY);
+  await tx.done;
+  removeStorageItemSafe(storage, DEEP_TRACE_FAILURE_KEY);
+  if (target) target.lastFailure = null;
 };
 
 export const readDeepTraceSnapshot = async (): Promise<DeepTraceSnapshot> => {

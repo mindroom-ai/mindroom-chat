@@ -18,7 +18,7 @@
   This establishes the missing diagnostic evidence before implementation; it does not reproduce the September 18 production black screen.
 - Validation: [native CI run 35355640764](https://github.com/mindroom-ai/mindroom-chat/actions/runs/35355640764) passes all 22 cases with zero failures, including 21 native unit/integration cases and one real background/resume/terminate/relaunch XCUITest.
   The shipping Swift sources compile under Xcode, and the tests cover bounded history, corrupt and failed storage, blocked I/O, occurrence-time capture, session-relative timing, the app-bundled privacy manifest, real WebContent termination and recovery, failed bundled navigation, foreground view state, and prior-session history after relaunch.
-  All 4,584 web tests, typecheck, production/PWA build, changed diagnostics formatting and lint, workflow validation, shipping-project membership checks, and Capacitor patch checks pass; full lint reports zero errors and the 17 existing warnings.
+  All 4,586 web tests, typecheck, production/PWA build, changed diagnostics formatting and lint, workflow validation, shipping-project membership checks, and Capacitor patch checks pass; full lint reports zero errors and the 17 existing warnings.
   Independent reviews approve the diagnostics implementation, concurrency corrections, view-state coverage, and timing/privacy follow-up.
 - Native history requires installing a new iOS build.
   The change is passive diagnostics only and adds no reload, watchdog, or recovery behavior; the cause of the September 18 production black screen remains unknown.
