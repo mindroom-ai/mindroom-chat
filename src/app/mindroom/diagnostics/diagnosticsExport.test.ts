@@ -69,11 +69,7 @@ describe('combined diagnostics export', () => {
       pendingEventCount: 0,
       pendingBytes: 0,
       flushing: false,
-      lastFailure: {
-        at: 1_784_513_600_000,
-        stage: 'flush',
-        errorName: 'InvalidStateError',
-      },
+      lastFailure: null,
     });
     mocks.readNativeDiagnostics.mockResolvedValue({
       schemaVersion: 1,
@@ -119,11 +115,7 @@ describe('combined diagnostics export', () => {
       pendingEventCount: 0,
       pendingBytes: 0,
       flushing: false,
-      lastFailure: {
-        at: 1_784_513_600_000,
-        stage: 'flush',
-        errorName: 'InvalidStateError',
-      },
+      lastFailure: null,
     });
     expect(payload.nativeDiagnostics).toMatchObject({
       status: 'available',
@@ -133,7 +125,28 @@ describe('combined diagnostics export', () => {
   });
 
   it('still exports the flight record when deep trace storage is unavailable', async () => {
-    mocks.readDeepTraceSnapshot.mockRejectedValue(new Error('IndexedDB blocked'));
+    let health = {
+      status: 'recording',
+      pendingEventCount: 1,
+      pendingBytes: 100,
+      flushing: false,
+      lastFailure: null as null | { at: number; stage: string; errorName: string },
+    };
+    mocks.getDeepTraceHealthSnapshot.mockImplementation(() => health);
+    mocks.readDeepTraceSnapshot.mockImplementation(async () => {
+      health = {
+        status: 'unavailable',
+        pendingEventCount: 0,
+        pendingBytes: 0,
+        flushing: false,
+        lastFailure: {
+          at: 1_784_513_628_415,
+          stage: 'flush',
+          errorName: 'InvalidStateError',
+        },
+      };
+      throw new Error('IndexedDB blocked');
+    });
     mocks.getDeepTraceEnabled.mockReturnValue(true);
 
     const payload = JSON.parse(await (await buildDiagnosticsExport()).blob.text());
@@ -151,6 +164,17 @@ describe('combined diagnostics export', () => {
         newestAt: null,
       },
       events: [],
+    });
+    expect(payload.deepTraceHealth).toEqual({
+      status: 'unavailable',
+      pendingEventCount: 0,
+      pendingBytes: 0,
+      flushing: false,
+      lastFailure: {
+        at: 1_784_513_628_415,
+        stage: 'flush',
+        errorName: 'InvalidStateError',
+      },
     });
   });
 
@@ -197,14 +221,37 @@ describe('combined diagnostics export', () => {
 
   it('times out a hung deep trace while retaining native and flight evidence', async () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
-    mocks.readDeepTraceSnapshot.mockReturnValue(new Promise(() => {}));
+    let health = {
+      status: 'recording',
+      pendingEventCount: 1,
+      pendingBytes: 100,
+      flushing: false,
+      lastFailure: null,
+    };
+    mocks.getDeepTraceHealthSnapshot.mockImplementation(() => health);
+    mocks.readDeepTraceSnapshot.mockImplementation(() => {
+      health = {
+        status: 'recording',
+        pendingEventCount: 0,
+        pendingBytes: 0,
+        flushing: true,
+        lastFailure: null,
+      };
+      return new Promise(() => {});
+    });
 
     const exportPromise = buildDiagnosticsExport();
     await vi.advanceTimersByTimeAsync(5_001);
     const payload = JSON.parse(await (await exportPromise).blob.text());
 
     expect(payload.deepTrace).toMatchObject({ status: 'timeout', events: [] });
-    expect(payload.deepTraceHealth.lastFailure.errorName).toBe('InvalidStateError');
+    expect(payload.deepTraceHealth).toEqual({
+      status: 'recording',
+      pendingEventCount: 0,
+      pendingBytes: 0,
+      flushing: true,
+      lastFailure: null,
+    });
     expect(payload.nativeDiagnostics).toMatchObject({
       status: 'available',
       events: [{ name: 'app.launch' }],

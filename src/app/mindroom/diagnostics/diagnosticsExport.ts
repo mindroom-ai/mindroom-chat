@@ -84,11 +84,11 @@ export const buildDiagnosticsExport = async (): Promise<{ fileName: string; blob
     };
   }
 
-  const deepTraceHealth = getDeepTraceHealthSnapshot();
   const [deepTrace, nativeDiagnostics] = await Promise.all([
     collectDeepTrace(),
     collectNativeDiagnostics(),
   ]);
+  const deepTraceHealth = getDeepTraceHealthSnapshot();
 
   const payload = {
     ...flightRecorderPayload,

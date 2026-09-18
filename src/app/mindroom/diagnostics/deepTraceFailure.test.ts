@@ -151,4 +151,40 @@ describe('deep diagnostic trace storage failure', () => {
 
     dispose();
   });
+
+  it('does not restore a failure marker when an in-flight flush rejects during clearing', async () => {
+    const actual = await vi.importActual<typeof import('idb')>('idb');
+    let database: Awaited<ReturnType<typeof actual.openDB>> | undefined;
+    mocks.openDB.mockImplementation(async (...args: Parameters<typeof actual.openDB>) => {
+      database = await actual.openDB(...args);
+      return database;
+    });
+    const storage = window.localStorage;
+    storage.clear();
+    const dispose = trace.initializeDeepTraceRecorder(storage);
+    expect(await trace.setDeepTraceEnabled(true, storage)).toBe(true);
+
+    let rejectAppend: ((reason: Error) => void) | undefined;
+    const append = new Promise<never>((_resolve, reject) => {
+      rejectAppend = reject;
+    });
+    const transaction = {
+      objectStore: (name: string) =>
+        name === 'events' ? { add: () => append } : { get: async () => undefined },
+      done: Promise.resolve(),
+    };
+    vi.spyOn(database!, 'transaction').mockReturnValueOnce(transaction as never);
+    trace.recordDeepTraceEvent('test.clear_race', undefined, { flush: true });
+    await vi.waitFor(() => expect(trace.getDeepTraceHealthSnapshot().flushing).toBe(true));
+
+    const clearing = trace.clearDeepTrace();
+    rejectAppend?.(new DOMException('private failure detail', 'InvalidStateError'));
+    await clearing;
+
+    expect(trace.getDeepTraceHealthSnapshot().lastFailure).toBeNull();
+    expect(storage.getItem(trace.DEEP_TRACE_FAILURE_KEY)).toBeNull();
+
+    await trace.setDeepTraceEnabled(false, storage);
+    dispose();
+  });
 });
