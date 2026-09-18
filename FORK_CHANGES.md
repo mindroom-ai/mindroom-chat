@@ -2,6 +2,18 @@
 
 ## Runbook
 
+### Keep room scrollbars between floating controls (2026-09-18)
+
+- Room, thread, and compact overview scrollbars use the existing measured header, filters, thread banner, and footer heights to stay inside the unobscured reading area.
+  Messages and cards still scroll natively behind the glass, including the composer and following footer.
+- A shared, dependency-free `InsetScrollbar` replaces only these native scrollbar indicators because native track insets are not portable across browser engines.
+  It remains a DOM child of the static scroll viewport but is positioned against its outer wrapper, preserving native wheel/touch scrolling and the timeline's existing user-intent listeners.
+  Thumb updates are coalesced into animation frames without React renders; ResizeObserver tracks content, viewport, and control-size changes.
+  Pointer dragging, keyboard navigation, screen-reader range metadata, RTL positioning, and no-overflow hiding share one implementation.
+- Validation in progress: independent review approves the implementation and focused unit tests pass.
+  Production Chromium phone checks pass for simple and full room modes; thread, WebKit, desktop, and final project gates are being checked.
+  Physical iOS behavior remains unverified.
+
 ### Inset the Recently Opened divider (2026-09-17)
 
 - The shared Recently Opened panel uses a 1px divider inset 16px from both sides, replacing its full-width top border.

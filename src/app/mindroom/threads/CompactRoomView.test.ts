@@ -4,6 +4,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CompactThreadCardViewModel, ThreadRecord } from './types';
 import { CompactRoomView } from './CompactRoomView';
 
+vi.mock('../../components/inset-scrollbar/InsetScrollbar', () => ({
+  InsetScrollbar: () => null,
+}));
+
 const {
   passthrough,
   renderedCardProps,
