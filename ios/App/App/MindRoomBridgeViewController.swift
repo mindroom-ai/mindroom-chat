@@ -14,6 +14,7 @@ class MindRoomBridgeViewController: CAPBridgeViewController {
         super.capacitorDidLoad()
         bridge?.registerPluginInstance(MindRoomAuthPlugin())
         bridge?.registerPluginInstance(MindRoomFileSavePlugin())
+        bridge?.registerPluginInstance(MindRoomDiagnosticsPlugin())
     }
 
 #if DEBUG
