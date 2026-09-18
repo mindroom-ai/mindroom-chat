@@ -119,4 +119,24 @@ final class AssetRoutingTests: XCTestCase {
             XCTAssertTrue(missing.data.isEmpty)
         }
     }
+
+    func testAppBundleDeclaresSystemBootTimePrivacyReason() throws {
+        let manifestURL = try XCTUnwrap(
+            Bundle.main.url(forResource: "PrivacyInfo", withExtension: "xcprivacy"),
+            "The shipping app bundle must contain its privacy manifest"
+        )
+        let manifest = try XCTUnwrap(
+            PropertyListSerialization.propertyList(
+                from: Data(contentsOf: manifestURL),
+                options: [],
+                format: nil
+            ) as? [String: Any]
+        )
+        let accessedAPITypes = try XCTUnwrap(manifest["NSPrivacyAccessedAPITypes"] as? [[String: Any]])
+        let systemBootTime = try XCTUnwrap(accessedAPITypes.first {
+            $0["NSPrivacyAccessedAPIType"] as? String == "NSPrivacyAccessedAPICategorySystemBootTime"
+        })
+
+        XCTAssertEqual(systemBootTime["NSPrivacyAccessedAPITypeReasons"] as? [String], ["35F9.1"])
+    }
 }

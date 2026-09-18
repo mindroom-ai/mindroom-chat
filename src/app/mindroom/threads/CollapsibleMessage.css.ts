@@ -1,6 +1,7 @@
 import { style } from '@vanilla-extract/css';
 import { recipe } from '@vanilla-extract/recipes';
 import { color, config, toRem } from 'folds';
+import { footerInset } from './RoomOverlay.css';
 
 const collapsedMask = 'linear-gradient(to bottom, black calc(100% - 4em), transparent)';
 
@@ -32,7 +33,12 @@ export const CollapsibleFooter = style([
 
 export const CollapsibleStickyFooter = style([
   footerBase,
-  { position: 'sticky', bottom: config.space.S200, marginTop: config.space.S200, zIndex: 1 },
+  {
+    position: 'sticky',
+    bottom: `calc(${footerInset} + ${config.space.S200})`,
+    marginTop: config.space.S200,
+    zIndex: 1,
+  },
 ]);
 
 export const CollapsiblePill = style({

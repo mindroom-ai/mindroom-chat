@@ -28,10 +28,20 @@ export function ThreadTimelineHeader({
       );
     };
     updatePadding();
-    const observer = new ResizeObserver(updatePadding);
+    let frame = 0;
+    const observer = new ResizeObserver(() => {
+      // The inset resizes the shallower scrollbar track. Write next frame so
+      // its observer can run without violating ResizeObserver's depth ordering.
+      if (frame) return;
+      frame = requestAnimationFrame(() => {
+        frame = 0;
+        updatePadding();
+      });
+    });
     observer.observe(header);
     return () => {
       observer.disconnect();
+      cancelAnimationFrame(frame);
       scroll.style.scrollPaddingTop = previousPadding;
       scroll.parentElement?.style.removeProperty('--room-thread-header-height');
     };

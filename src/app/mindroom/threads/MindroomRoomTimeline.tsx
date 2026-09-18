@@ -33,6 +33,7 @@ import {
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useVirtualPaginator } from '../../hooks/useVirtualPaginator';
 import * as overlay from './RoomOverlay.css';
+import { InsetScrollbar } from '../../components/inset-scrollbar/InsetScrollbar';
 import { ThreadTimelineHeader } from './ThreadTimelineHeader';
 import { useAlive } from '../../hooks/useAlive';
 import { scrollToBottom } from '../../utils/dom';
@@ -291,6 +292,7 @@ export function RoomTimeline({
   atBottomRef.current = atBottom;
 
   const scrollRef = useRef<HTMLDivElement>(null);
+  const scrollContentRef = useRef<HTMLDivElement>(null);
   const overlayRootRef = useRef<HTMLDivElement>(null);
   const overviewRef = useRef<HTMLDivElement>(null);
   const messageFeature = useTimelineMessageFeature({
@@ -2223,6 +2225,7 @@ export function RoomTimeline({
               style={{ overflowAnchor: threadId ? 'none' : 'auto' }}
             >
               <Box
+                ref={scrollContentRef}
                 direction="Column"
                 justifyContent={threadId ? 'Start' : 'End'}
                 style={{
@@ -2408,6 +2411,12 @@ export function RoomTimeline({
                 />
                 <span ref={atBottomAnchorRef} />
               </Box>
+              <InsetScrollbar
+                scrollRef={scrollRef}
+                contentRef={scrollContentRef}
+                className={overlay.Scrollbar}
+                label={t('threadNav.messages')}
+              />
             </Scroll>
             <TimelineMinimap
               items={minimapItems}

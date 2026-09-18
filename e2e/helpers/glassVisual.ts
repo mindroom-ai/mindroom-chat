@@ -1,4 +1,5 @@
 import { expect, type Locator, type Page } from '@playwright/test';
+import { expectScrollbarBounds } from './insetScrollbar';
 
 export const expectClearStrip = async (strip: Locator) => {
   await expect(strip).toHaveText('');
@@ -137,5 +138,13 @@ export async function expectFloatingNavHeader(header: Locator) {
   expect(material.filter).not.toContain('url(');
   expect(material.alpha).toBeGreaterThan(0);
   expect(material.alpha).toBeLessThan(1);
+  const scrollbar = scroll.getByRole('scrollbar', { includeHidden: true });
+  await expect(scrollbar).toHaveCount(1);
+  expect(await scroll.evaluate((el) => getComputedStyle(el).scrollbarWidth)).toBe('none');
+  if (await scroll.evaluate((el) => el.scrollHeight > el.clientHeight)) {
+    await expectScrollbarBounds(scroll, header);
+  } else {
+    await expect(scrollbar).toBeHidden();
+  }
   return scroll;
 }

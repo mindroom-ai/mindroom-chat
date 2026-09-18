@@ -13,10 +13,54 @@
   Shared requests survive navigation, and a newly received receipt queues any reply omitted by an earlier in-flight batch.
   Late results remain scoped to their original thread and cannot append to a different open conversation.
 - Validation: 15 new behavioral tests exercise real SDK events, threads, and render state, including bundled edits, cache-only views, reopen, resume, navigation races, partial failures, and invalid references.
-  All 4,582 unit tests and typecheck pass; the production/PWA build passes.
+  All 4,601 unit tests and typecheck pass after integrating the current base; the production/PWA build passes.
   Changed-file lint and formatting pass; full lint has no errors and the 17 existing warnings.
   Independent review has no blocking findings.
   The change repairs an incomplete approval/reply view; it does not establish the cause of an earlier missed live update.
+
+### Preserve evidence for iOS blank screens (2026-09-18)
+
+- The September 18 device export confirms the previous route fix was installed, but contains no native lifecycle/navigation history and loses detailed trace events before the incident.
+  The separate lightweight background/resume probe passes; the new black-screen cause remains unknown.
+- Diagnostics exports now preserve bounded deep-trace failure health and collect the deep trace and native history independently with separate deadlines, so a failed or hung collector does not discard the other available evidence.
+  Web and older native builds report native history as unsupported while exporting the remaining collectors.
+- The iOS app records sanitized lifecycle, view-state, navigation, memory-warning, and WebContent-termination events in bounded Application Support history.
+  Events contain only typed state, numeric metrics, allowlisted error domains, and codes; they exclude URLs and free-form error text.
+  History survives app termination and relaunch, reports corrupt or unavailable storage explicitly, and retains in-memory evidence after a write failure.
+- Native `monotonicMs` values are elapsed milliseconds within each diagnostic session.
+  The raw system-uptime baseline remains private, and the shipping app declares the SystemBootTime `35F9.1` required reason in its bundled privacy manifest.
+- [Native missing-evidence baseline 35347107215](https://github.com/mindroom-ai/mindroom-chat/actions/runs/35347107215) kept all seven existing routing and recovery cases green while the new assertions found native evidence unavailable after real WebContent termination and failed bundled navigation.
+  The UI case stopped at its initial unsupported guard before exercising background or relaunch.
+  This establishes the missing diagnostic evidence before implementation; it does not reproduce the September 18 production black screen.
+- Validation: [native CI run 35355640764](https://github.com/mindroom-ai/mindroom-chat/actions/runs/35355640764) passes all 22 cases with zero failures, including 21 native unit/integration cases and one real background/resume/terminate/relaunch XCUITest.
+  The shipping Swift sources compile under Xcode, and the tests cover bounded history, corrupt and failed storage, blocked I/O, occurrence-time capture, session-relative timing, the app-bundled privacy manifest, real WebContent termination and recovery, failed bundled navigation, foreground view state, and prior-session history after relaunch.
+  All 4,586 web tests, typecheck, production/PWA build, changed diagnostics formatting and lint, workflow validation, shipping-project membership checks, and Capacitor patch checks pass; full lint reports zero errors and the 17 existing warnings.
+  Independent reviews approve the diagnostics implementation, concurrency corrections, view-state coverage, and timing/privacy follow-up.
+- Native history requires installing a new iOS build.
+  The change is passive diagnostics only and adds no reload, watchdog, or recovery behavior; the cause of the September 18 production black screen remains unknown.
+
+### Keep room and navigation scrollbars below floating controls (2026-09-18)
+
+- Room, thread, and compact overview scrollbars use the existing measured header, filters, thread banner, and footer heights to stay inside the unobscured reading area.
+  Messages and cards still scroll natively behind the glass, including the composer and following footer.
+- `PageNavContent` applies the same scrollbar to Home, Direct Messages, spaces, Inbox/Invites, Explorer, and account/room/space settings without per-page changes.
+  Its track shares the existing navigation header height and ends inside the content wrapper, above fixed footer actions and Recently Opened.
+  Empty lists keep the scrollbar hidden.
+  Resizable panels expose their existing splitter inset to the shared scrollbar and content gutter, keeping scrollbar dragging, panel resizing, and row menus separate for mouse and touch layouts.
+- Expanded messages pin their Show less control above the same measured footer, including changes to composer height and viewport size.
+- A shared, dependency-free `InsetScrollbar` replaces only these native scrollbar indicators because native track insets are not portable across browser engines.
+  It remains a DOM child of the static scroll viewport but is positioned against its outer wrapper, preserving native wheel/touch scrolling and the timeline's existing user-intent listeners.
+  Thumb updates are coalesced into animation frames without React renders; ResizeObserver tracks content, viewport, and control-size changes.
+  Pointer dragging, keyboard navigation, screen-reader range metadata, RTL positioning, and no-overflow hiding share one implementation.
+- Thread-header resize measurements publish their insets on the next animation frame, preventing a WebKit ResizeObserver warning when the changed inset resizes the shallower scrollbar track.
+- Validation: all 4,571 unit tests, typecheck, production/PWA build, changed-file formatting, and focused E2E TypeScript checks pass.
+  Lint reports zero errors and the 17 existing warnings.
+  All 12 production Chromium/WebKit phone/desktop cases pass across compact, threaded, classic, and Simple Mode views, including scrolling behind glass, scrollbar endpoints, dragging, composer growth, and reduced viewport height.
+  The navigation/disclosure follow-up passes 18 additional browser scenarios across both engines, including all eight sidebar types, mouse/touch layouts, separate splitter and row-menu hit areas, and message controls above growing composers.
+  Browser regressions reproduced missing navigation indicators, intercepted desktop scrollbar dragging, and Show less appearing 68px below the footer before their fixes.
+  The desktop WebKit thread regression failed three consecutive runs before the deferred inset update and passes three consecutive runs afterward; all other thread cases were rerun after that fix.
+  Independent review approves the implementation, resize fix, shared navigation coverage, splitter clearance, and message-control inset.
+  Physical iOS behavior remains unverified.
 
 ### Inset the Recently Opened divider (2026-09-17)
 

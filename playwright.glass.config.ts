@@ -10,6 +10,7 @@ export default defineConfig(config, {
     '**/live/navigation-header-glass.spec.ts',
     '**/live/room-glass-overlays.spec.ts',
     '**/live/thread-banner-overlay.spec.ts',
+    '**/live/message-disclosure-overlay.spec.ts',
   ],
   projects: [...config.projects!, { name: 'webkit', use: { ...devices['Desktop Safari'] } }],
 });

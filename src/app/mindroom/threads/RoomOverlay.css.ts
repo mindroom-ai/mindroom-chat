@@ -1,4 +1,5 @@
 import { globalStyle, style } from '@vanilla-extract/css';
+import { Viewport } from '../../components/inset-scrollbar/InsetScrollbar.css';
 
 // Measured once per layout change, shared by scroll padding and floating controls.
 export const headerInset = 'var(--room-header-height, 0px)';
@@ -22,7 +23,11 @@ export const Overview = style({
   zIndex: 5,
   display: 'flow-root',
 });
-export const Scroll = style({
-  scrollPaddingTop: topInset,
-  scrollPaddingBottom: footerInset,
-});
+export const Scroll = style([
+  Viewport,
+  {
+    scrollPaddingTop: topInset,
+    scrollPaddingBottom: footerInset,
+  },
+]);
+export const Scrollbar = style({ top: controlsTopInset, bottom: footerInset, zIndex: 3 });

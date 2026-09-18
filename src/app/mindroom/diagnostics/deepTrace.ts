@@ -2,6 +2,7 @@ import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
 import { APP_BUILD_VERSION } from '../../../appVersion';
 import {
   getSafeLocalStorage,
+  getStorageItemSafe,
   removeStorageItemSafe,
   setStorageItemSafe,
 } from '../../utils/safeLocalStorage';
@@ -13,6 +14,7 @@ import {
 
 export const DEEP_TRACE_SCHEMA_VERSION = 1;
 export const DEEP_TRACE_ENABLED_KEY = 'mindroom.diagnostics.deepTrace.enabled.v1';
+export const DEEP_TRACE_FAILURE_KEY = 'mindroom.diagnostics.deepTrace.failure.v1';
 export const DEEP_TRACE_DB_NAME = 'mindroom-diagnostics-deep-trace-v1';
 export const DEEP_TRACE_MAX_EVENTS = 5_000;
 export const DEEP_TRACE_MAX_BYTES = 2 * 1024 * 1024;
@@ -63,9 +65,23 @@ export type DeepTraceStats = {
 export type DeepTraceSnapshot = {
   schemaVersion: typeof DEEP_TRACE_SCHEMA_VERSION;
   enabled: boolean;
-  status: 'recording' | 'disabled' | 'unavailable';
+  status: 'recording' | 'disabled' | 'unavailable' | 'timeout';
   stats: DeepTraceStats;
   events: DeepTraceEvent[];
+};
+
+export type DeepTraceFailure = {
+  at: number;
+  stage: 'activation' | 'flush';
+  errorName: string;
+};
+
+export type DeepTraceHealthSnapshot = {
+  status: DeepTraceRuntimeStatus;
+  pendingEventCount: number;
+  pendingBytes: number;
+  flushing: boolean;
+  lastFailure: DeepTraceFailure | null;
 };
 
 interface DeepTraceDB extends DBSchema {
@@ -97,6 +113,7 @@ type Runtime = {
   loopTimer?: number;
   lastLoopTick: number;
   lastRoute?: string;
+  lastFailure: DeepTraceFailure | null;
   removeListeners: () => void;
 };
 
@@ -119,6 +136,71 @@ type TracedFetch = typeof globalThis.fetch & {
 };
 
 export type DeepTraceRuntimeStatus = 'starting' | 'recording' | 'disabled' | 'unavailable';
+
+const SAFE_FAILURE_NAMES = new Set([
+  'AbortError',
+  'ConstraintError',
+  'DataCloneError',
+  'DataError',
+  'Error',
+  'InvalidAccessError',
+  'InvalidStateError',
+  'NotAllowedError',
+  'NotFoundError',
+  'NotReadableError',
+  'QuotaExceededError',
+  'ReadOnlyError',
+  'TransactionInactiveError',
+  'TypeError',
+  'UnknownError',
+  'VersionError',
+]);
+
+const sanitizeFailureName = (value: unknown): string => {
+  const name =
+    value instanceof Error
+      ? value.name
+      : typeof value === 'object' && value !== null && 'name' in value
+      ? (value as { name?: unknown }).name
+      : undefined;
+  return typeof name === 'string' && SAFE_FAILURE_NAMES.has(name) ? name : 'UnknownError';
+};
+
+const readPersistedFailure = (storage: Storage | undefined): DeepTraceFailure | null => {
+  const stored = getStorageItemSafe(storage, DEEP_TRACE_FAILURE_KEY);
+  if (!stored || stored.length > 256) return null;
+  try {
+    const parsed: unknown = JSON.parse(stored);
+    if (!parsed || typeof parsed !== 'object') return null;
+    const { at, stage, errorName } = parsed as Record<string, unknown>;
+    if (
+      typeof at !== 'number' ||
+      !Number.isFinite(at) ||
+      at < 0 ||
+      (stage !== 'activation' && stage !== 'flush')
+    ) {
+      return null;
+    }
+    const sanitizedName = sanitizeFailureName({ name: errorName });
+    return {
+      at: at as number,
+      stage,
+      errorName: sanitizedName,
+    };
+  } catch {
+    return null;
+  }
+};
+
+const retainFailure = (target: Runtime, stage: DeepTraceFailure['stage'], error: unknown): void => {
+  const failure: DeepTraceFailure = {
+    at: Date.now(),
+    stage,
+    errorName: sanitizeFailureName(error),
+  };
+  target.lastFailure = failure;
+  setStorageItemSafe(target.storage, DEEP_TRACE_FAILURE_KEY, JSON.stringify(failure));
+};
 
 const createSessionId = (): string =>
   globalThis.crypto?.randomUUID?.() ??
@@ -278,10 +360,11 @@ const flush = async (target: Runtime): Promise<void> => {
       target.droppedQueueEvents = 0;
       await appendStoredEvents(batch, droppedEventCount);
     }
-  })().catch(() => {
+  })().catch((error: unknown) => {
     if (runtime !== target || target.disposed || target.activationSequence !== flushSequence) {
       return;
     }
+    retainFailure(target, 'flush', error);
     markUnavailable(target);
   });
   target.flushPromise = drain;
@@ -620,6 +703,18 @@ const notifyStatus = (target: Runtime): void => {
 
 export const getDeepTraceRuntimeStatus = (): DeepTraceRuntimeStatus => getRuntimeStatus(runtime);
 
+export const getDeepTraceHealthSnapshot = (): DeepTraceHealthSnapshot => {
+  const target = runtime;
+  const storage = target?.storage ?? getSafeLocalStorage();
+  return {
+    status: getRuntimeStatus(target),
+    pendingEventCount: target?.queue.length ?? 0,
+    pendingBytes: target?.queueBytes ?? 0,
+    flushing: target?.flushPromise !== undefined,
+    lastFailure: target ? target.lastFailure : readPersistedFailure(storage),
+  };
+};
+
 export const subscribeDeepTraceStatus = (
   listener: (status: DeepTraceRuntimeStatus) => void
 ): (() => void) => {
@@ -714,10 +809,11 @@ const activate = (target: Runtime): Promise<boolean> => {
       }
       notifyStatus(target);
       return true;
-    } catch {
+    } catch (error: unknown) {
       if (!ownsActivation(target, activationSequence)) {
         return false;
       }
+      retainFailure(target, 'activation', error);
       markUnavailable(target);
       return false;
     }
@@ -758,6 +854,7 @@ export const initializeDeepTraceRecorder = (
     droppedQueueEvents: 0,
     activationSequence: 0,
     lastLoopTick: 0,
+    lastFailure: readPersistedFailure(storage),
     removeListeners: () => undefined,
   };
   runtime = target;
@@ -799,6 +896,7 @@ const resetPendingState = (target: Runtime): void => {
 
 export const clearDeepTrace = async (): Promise<void> => {
   const target = runtime;
+  const storage = target?.storage ?? getSafeLocalStorage();
   if (target) {
     resetPendingState(target);
     if (target.flushPromise) await target.flushPromise;
@@ -809,6 +907,8 @@ export const clearDeepTrace = async (): Promise<void> => {
   await tx.objectStore(EVENT_STORE).clear();
   await tx.objectStore(META_STORE).put({ ...EMPTY_STATS }, STATS_KEY);
   await tx.done;
+  removeStorageItemSafe(storage, DEEP_TRACE_FAILURE_KEY);
+  if (target) target.lastFailure = null;
 };
 
 export const readDeepTraceSnapshot = async (): Promise<DeepTraceSnapshot> => {
