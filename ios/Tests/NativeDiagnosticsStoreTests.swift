@@ -164,6 +164,45 @@ final class NativeDiagnosticsStoreTests: XCTestCase {
         XCTAssertEqual(snapshot.events.map(\.sequence), [1, 2, 1])
     }
 
+    func testMonotonicTimeIsRelativeToEachDiagnosticSession() throws {
+        let directory = try temporaryDirectory()
+        let clocks = LockedDiagnosticClocks(wallClock: 1_750_000_000_000, monotonic: 9_876_543)
+        let firstStore = MindRoomDiagnosticsStore(
+            directoryURL: directory,
+            currentSessionId: firstSession,
+            wallClockMilliseconds: clocks.wallClock,
+            monotonicMilliseconds: clocks.monotonic
+        )
+
+        clocks.set(wallClock: 1_750_000_000_250, monotonic: 9_876_793)
+        firstStore.record(name: .appLaunch)
+        let firstSnapshot = firstStore.read()
+        XCTAssertEqual(firstSnapshot.events.first?.at, 1_750_000_000_250)
+        XCTAssertEqual(firstSnapshot.events.first?.monotonicMs, 250)
+        let historyFile = try XCTUnwrap(
+            FileManager.default.enumerator(at: directory, includingPropertiesForKeys: nil)?
+                .compactMap { $0 as? URL }
+                .first { $0.pathExtension == "json" }
+        )
+        let persistedHistory = String(decoding: try Data(contentsOf: historyFile), as: UTF8.self)
+        XCTAssertFalse(persistedHistory.contains("9876543"), "The raw boot-time baseline must remain in memory")
+
+        clocks.set(wallClock: 1_750_000_001_000, monotonic: 5_000_000)
+        let secondStore = MindRoomDiagnosticsStore(
+            directoryURL: directory,
+            currentSessionId: secondSession,
+            wallClockMilliseconds: clocks.wallClock,
+            monotonicMilliseconds: clocks.monotonic
+        )
+        clocks.set(wallClock: 1_750_000_001_025, monotonic: 5_000_025)
+        secondStore.record(name: .appLaunch)
+        let secondSnapshot = secondStore.read()
+
+        XCTAssertEqual(secondSnapshot.events.map(\.sessionId), [firstSession, secondSession])
+        XCTAssertEqual(secondSnapshot.events.map(\.monotonicMs), [250, 25])
+        XCTAssertEqual(secondSnapshot.events.map(\.at), [1_750_000_000_250, 1_750_000_001_025])
+    }
+
     func testEventClocksAreCapturedBeforeAnEarlierWriteBacklogClears() throws {
         let clocks = LockedDiagnosticClocks(wallClock: 100, monotonic: 10)
         let writer = BlockingAtomicWriter()
@@ -186,7 +225,7 @@ final class NativeDiagnosticsStoreTests: XCTestCase {
         let foreground = try XCTUnwrap(store.read().events.last)
         XCTAssertEqual(foreground.name, .sceneForeground)
         XCTAssertEqual(foreground.at, 200, "A queued event must retain its occurrence wall clock")
-        XCTAssertEqual(foreground.monotonicMs, 20, "A queued event must retain its occurrence monotonic clock")
+        XCTAssertEqual(foreground.monotonicMs, 10, "A queued event must retain its occurrence interval")
     }
 
     func testInitializationReturnsWhileDirectoryIOIsBlocked() throws {
