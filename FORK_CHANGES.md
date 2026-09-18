@@ -13,7 +13,8 @@
   History survives app termination and relaunch, reports corrupt or unavailable storage explicitly, and retains in-memory evidence after a write failure.
 - Native `monotonicMs` values are elapsed milliseconds within each diagnostic session.
   The raw system-uptime baseline remains private, and the shipping app declares the SystemBootTime `35F9.1` required reason in its bundled privacy manifest.
-- [Native missing-evidence baseline 35347107215](https://github.com/mindroom-ai/mindroom-chat/actions/runs/35347107215) kept all seven existing routing and recovery cases green while the new assertions failed because native evidence was unavailable after real WebContent termination, failed bundled navigation, and app relaunch.
+- [Native missing-evidence baseline 35347107215](https://github.com/mindroom-ai/mindroom-chat/actions/runs/35347107215) kept all seven existing routing and recovery cases green while the new assertions found native evidence unavailable after real WebContent termination and failed bundled navigation.
+  The UI case stopped at its initial unsupported guard before exercising background or relaunch.
   This establishes the missing diagnostic evidence before implementation; it does not reproduce the September 18 production black screen.
 - Validation: [native CI run 35355640764](https://github.com/mindroom-ai/mindroom-chat/actions/runs/35355640764) passes all 22 cases with zero failures, including 21 native unit/integration cases and one real background/resume/terminate/relaunch XCUITest.
   The shipping Swift sources compile under Xcode, and the tests cover bounded history, corrupt and failed storage, blocked I/O, occurrence-time capture, session-relative timing, the app-bundled privacy manifest, real WebContent termination and recovery, failed bundled navigation, foreground view state, and prior-session history after relaunch.
