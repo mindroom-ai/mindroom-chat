@@ -112,6 +112,14 @@ final class RoomRouteReloadTests: XCTestCase {
         XCTAssertEqual(errors, ["INVALID_URL", "INVALID_PAGE"])
     }
 
+    private func nativeDiagnostics(_ webView: WKWebView) async throws -> [String: Any] {
+        let value = try await webView.callAsyncJavaScript("""
+            try { return await window.Capacitor.nativePromise('MindRoomDiagnostics', 'read', {}); }
+            catch { return {status: 'unavailable', events: []}; }
+            """, arguments: [:], in: nil, contentWorld: .page)
+        return try XCTUnwrap(value as? [String: Any])
+    }
+
     private func storedSession(_ webView: WKWebView, write: Bool) async throws -> String? {
         try await webView.callAsyncJavaScript("""
             const db = await new Promise((resolve, reject) => {
@@ -190,6 +198,11 @@ final class RoomRouteReloadTests: XCTestCase {
         let initialSession = try await storedSession(webView, write: true)
         XCTAssertEqual(initialSession, "preserved")
         await attachScreenshot(webView, name: "room-before-process-termination")
+        let beforeTermination = try await nativeDiagnostics(webView)
+        let nativeSession = beforeTermination["currentSessionId"] as? String
+        let sequenceBefore = (beforeTermination["events"] as? [[String: Any]] ?? [])
+            .filter { $0["sessionId"] as? String == nativeSession }
+            .compactMap { $0["sequence"] as? Int }.max() ?? 0
 
         // WebKit's testing API kills the real WebContent process. This is confined
         // to the test bundle; the shipping Capacitor navigation delegate handles it.
@@ -210,6 +223,42 @@ final class RoomRouteReloadTests: XCTestCase {
             try await checkNativePlugins(webView)
             let restoredSession = try await storedSession(webView, write: false)
             XCTAssertEqual(restoredSession, "preserved")
+            let snapshot = try await nativeDiagnostics(webView)
+            XCTAssertEqual(snapshot["status"] as? String, "available", "The export must retain native process-termination evidence")
+            XCTAssertFalse(nativeSession?.isEmpty ?? true, "Native evidence must identify its process session")
+            let events = (snapshot["events"] as? [[String: Any]] ?? []).filter {
+                $0["sessionId"] as? String == nativeSession && ($0["sequence"] as? Int ?? 0) > sequenceBefore
+            }
+            let termination = events.first { $0["name"] as? String == "webview.terminated" }
+            XCTAssertNotNil(termination)
+            let terminationSequence = termination?["sequence"] as? Int ?? Int.max
+            XCTAssertTrue(events.contains {
+                $0["name"] as? String == "navigation.finished" && ($0["sequence"] as? Int ?? 0) > terminationSequence
+            })
         }
+    }
+
+    func testFailedNavigationIsRetainedWithoutLeakingItsURL() async throws {
+        let webView = try await openFixture()
+        let failedAfter = Date().timeIntervalSince1970 * 1_000
+        let secret = "private-room-and-token-never-export"
+        webView.load(URLRequest(url: URL(string: "capacitor://localhost/assets/missing-\(secret).js?token=\(secret)")!))
+        let deadline = Date().addingTimeInterval(10)
+        repeat {
+            try await Task.sleep(nanoseconds: 100_000_000)
+        } while webView.isLoading && Date() < deadline
+        _ = try await openFixture()
+        let snapshot = try await nativeDiagnostics(webView)
+        XCTAssertEqual(snapshot["status"] as? String, "available")
+        let events = (snapshot["events"] as? [[String: Any]] ?? []).filter {
+            ($0["at"] as? Double ?? 0) >= failedAfter
+        }
+        let failure = events.first { ["navigation.failed", "navigation.provisional_failed"].contains($0["name"] as? String ?? "") }
+        XCTAssertNotNil(failure, "A failed bundle load must leave evidence after the next successful navigation")
+        let data = failure?["data"] as? [String: Any]
+        XCTAssertNotNil(data?["errorCode"] as? Int)
+        let json = String(data: try JSONSerialization.data(withJSONObject: snapshot), encoding: .utf8)!
+        XCTAssertFalse(json.contains(secret))
+        XCTAssertFalse(json.contains("capacitor://"))
     }
 }

@@ -12,8 +12,11 @@ project = Xcodeproj::Project.new(File.join(output, 'Routing.xcodeproj'))
 host = project.new_target(:application, 'RoutingHost', :ios, '16.4')
 tests = project.new_target(:unit_test_bundle, 'RoutingTests', :ios, '16.4')
 tests.add_dependency(host)
+ui_tests = project.new_target(:ui_test_bundle, 'NativeDiagnosticsTests', :ios, '16.4')
+ui_tests.add_dependency(host)
+project.root_object.attributes['TargetAttributes'] = { ui_tests.uuid => { 'TestTargetID' => host.uuid } }
 
-[host, tests].each do |target|
+[host, tests, ui_tests].each do |target|
   target.build_configurations.each do |config|
     config.build_settings.merge!(
       'PRODUCT_BUNDLE_IDENTIFIER' => "chat.mindroom.#{target.name}",
@@ -40,12 +43,18 @@ tests.build_configurations.each do |config|
     'BUNDLE_LOADER' => '$(TEST_HOST)'
   )
 end
+ui_tests.build_configurations.each do |config|
+  config.build_settings['TEST_TARGET_NAME'] = host.name
+end
 
 Dir[File.join(repo, 'ios/App/App/*.swift')].sort.each do |path|
   host.source_build_phase.add_file_reference(project.main_group.new_file(path))
 end
 Dir[File.join(repo, 'ios/Tests/*.swift')].sort.each do |path|
   tests.source_build_phase.add_file_reference(project.main_group.new_file(path))
+end
+Dir[File.join(repo, 'ios/Tests/UI/*.swift')].sort.each do |path|
+  ui_tests.source_build_phase.add_file_reference(project.main_group.new_file(path))
 end
 routes_path = File.join(output, 'web-routes.json')
 system('node', File.join(repo, 'scripts/ios-routing-test-routes.mjs'), out: routes_path, exception: true)
@@ -62,6 +71,8 @@ project.save
 
 scheme = Xcodeproj::XCScheme.new
 scheme.configure_with_targets(host, tests, launch_target: true)
+scheme.add_build_target(ui_tests, false)
+scheme.add_test_target(ui_tests)
 scheme.save_as(project.path, 'Routing', true)
 
 capacitor_path = File.join(repo, 'node_modules/@capacitor/ios')

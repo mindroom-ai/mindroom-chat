@@ -2,6 +2,14 @@
 
 ## Runbook
 
+### Preserve evidence for iOS blank screens (2026-09-18)
+
+- The September 18 device export confirms the previous route fix was installed, but contains no native lifecycle/navigation history and loses detailed trace events before the incident.
+  The separate lightweight background/resume probe passes; the new black-screen cause remains unknown.
+- Diagnostics work first adds native regressions for exported WebContent-termination evidence, failed-navigation evidence without URL leakage, and history retained through native app termination/relaunch.
+  These tests exercise the shipping native app sources through the real Capacitor bridge.
+  A test-only CI baseline is pending before native implementation.
+
 ### Keep room and navigation scrollbars below floating controls (2026-09-18)
 
 - Room, thread, and compact overview scrollbars use the existing measured header, filters, thread banner, and footer heights to stay inside the unobscured reading area.
