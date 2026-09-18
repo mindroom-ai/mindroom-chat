@@ -11,7 +11,9 @@ const refresh = async () => {
   result.textContent = 'Reading native diagnostics';
   let snapshot;
   try {
-    snapshot = await window.Capacitor.nativePromise('MindRoomDiagnostics', 'read', {});
+    snapshot = window.Capacitor.isPluginAvailable('MindRoomDiagnostics')
+      ? await window.Capacitor.nativePromise('MindRoomDiagnostics', 'read', {})
+      : { status: 'unsupported', events: [] };
   } catch {
     snapshot = { status: 'unavailable', events: [] };
   }

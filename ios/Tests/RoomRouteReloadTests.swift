@@ -114,6 +114,9 @@ final class RoomRouteReloadTests: XCTestCase {
 
     private func nativeDiagnostics(_ webView: WKWebView) async throws -> [String: Any] {
         let value = try await webView.callAsyncJavaScript("""
+            if (!window.Capacitor.isPluginAvailable('MindRoomDiagnostics')) {
+              return {status: 'unsupported', events: []};
+            }
             try { return await window.Capacitor.nativePromise('MindRoomDiagnostics', 'read', {}); }
             catch { return {status: 'unavailable', events: []}; }
             """, arguments: [:], in: nil, contentWorld: .page)
