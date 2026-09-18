@@ -59,6 +59,7 @@ async function report() {
       path: location.pathname,
       threadId: new URLSearchParams(location.search).get('threadId'),
       visible: document.visibilityState === 'visible',
+      dark: matchMedia('(prefers-color-scheme: dark)').matches,
       token,
       localToken: localStorage.getItem('background-resume-token'),
       databaseToken: await storedToken(false),

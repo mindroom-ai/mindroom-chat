@@ -11,6 +11,7 @@ final class BackgroundResumeTests: XCTestCase {
         let path: String
         let threadId: String
         let visible: Bool
+        let dark: Bool
         let token: String
         let localToken: String?
         let databaseToken: String?
@@ -45,13 +46,14 @@ final class BackgroundResumeTests: XCTestCase {
         return pids
     }
 
-    private func assertSession(_ state: State, token: String) {
+    private func assertSession(_ state: State, token: String, dark: Bool) {
         XCTAssertEqual(state.token, token)
         XCTAssertEqual(state.localToken, token)
         XCTAssertEqual(state.databaseToken, token)
         XCTAssertEqual(state.path, "/!space%3Amindroom.chat/!room%3Amindroom.chat")
         XCTAssertEqual(state.threadId, "$thread:mindroom.chat")
         XCTAssertTrue(state.visible)
+        XCTAssertEqual(state.dark, dark, "The requested native appearance must reach WebKit")
         XCTAssertEqual(state.plugins, ["INVALID_URL", "INVALID_PAGE"])
     }
 
@@ -94,7 +96,7 @@ final class BackgroundResumeTests: XCTestCase {
         var state = try await readState(app)
         let token = state.token
         let hostPID = try processes(app)[0]
-        assertSession(state, token: token)
+        assertSession(state, token: token, dark: dark)
         try await assertPainted(app, name: "before-background")
 
         for cycle in 1...3 {
@@ -105,6 +107,7 @@ final class BackgroundResumeTests: XCTestCase {
             // Deliberate dwell time: let iOS suspend the host before injecting a
             // real process death from the separate test runner on Simulator.
             try await Task.sleep(nanoseconds: 5_000_000_000)
+            XCTAssertTrue(app.wait(for: .runningBackgroundSuspended, timeout: 20), "The host must actually suspend before this probe can test its recovery")
             if terminateWebContent {
                 XCTAssertNotEqual(webPID, hostPID)
                 XCTAssertEqual(kill(webPID, SIGKILL), 0, "WebContent kill failed: \(String(cString: strerror(errno)))")
@@ -121,7 +124,7 @@ final class BackgroundResumeTests: XCTestCase {
             if !terminateWebContent {
                 XCTAssertEqual(state.bootId, bootBefore, "Ordinary resume should retain the running page")
             }
-            assertSession(state, token: token)
+            assertSession(state, token: token, dark: dark)
             try await assertPainted(app, name: "resume-\(cycle)-\(dark ? "dark" : "light")-\(terminateWebContent ? "terminated" : "normal")")
         }
     }
