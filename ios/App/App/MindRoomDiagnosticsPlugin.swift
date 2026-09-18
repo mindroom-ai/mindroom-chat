@@ -20,7 +20,9 @@ public final class MindRoomDiagnosticsPlugin: CAPPlugin, CAPBridgedPlugin {
     }
 
     @objc func read(_ call: CAPPluginCall) {
-        call.resolve(recorder.read().capacitorValue)
+        recorder.read { snapshot in
+            call.resolve(snapshot.capacitorValue)
+        }
     }
 }
 

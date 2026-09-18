@@ -166,6 +166,42 @@ final class MindRoomDiagnosticsStore {
         self.monotonicMilliseconds = monotonicMilliseconds
         self.atomicWrite = atomicWrite
 
+        queue.async { [self] in
+            initialize()
+        }
+    }
+
+    func record(name: MindRoomDiagnosticEventName, data: MindRoomDiagnosticState? = nil) {
+        let safeData = data?.isEmpty == false && data?.isValid == true ? data : nil
+        let at = wallClockMilliseconds()
+        let monotonicMs = monotonicMilliseconds()
+        queue.async { [self] in
+            let event = MindRoomDiagnosticEvent(
+                at: at,
+                monotonicMs: monotonicMs,
+                sequence: nextSequence,
+                sessionId: currentSessionId,
+                name: name,
+                data: safeData
+            )
+            nextSequence += 1
+            events.append(event)
+            enforceBounds()
+            persist()
+        }
+    }
+
+    func read() -> MindRoomDiagnosticsSnapshot {
+        queue.sync { snapshot() }
+    }
+
+    func read(completion: @escaping (MindRoomDiagnosticsSnapshot) -> Void) {
+        queue.async { [self] in
+            completion(snapshot())
+        }
+    }
+
+    private func initialize() {
         do {
             try prepareDirectory()
             try loadHistory()
@@ -185,34 +221,14 @@ final class MindRoomDiagnosticsStore {
         }
     }
 
-    func record(name: MindRoomDiagnosticEventName, data: MindRoomDiagnosticState? = nil) {
-        let safeData = data?.isEmpty == false && data?.isValid == true ? data : nil
-        queue.async { [self] in
-            let event = MindRoomDiagnosticEvent(
-                at: wallClockMilliseconds(),
-                monotonicMs: monotonicMilliseconds(),
-                sequence: nextSequence,
-                sessionId: currentSessionId,
-                name: name,
-                data: safeData
-            )
-            nextSequence += 1
-            events.append(event)
-            enforceBounds()
-            persist()
-        }
-    }
-
-    func read() -> MindRoomDiagnosticsSnapshot {
-        queue.sync {
-            MindRoomDiagnosticsSnapshot(
-                schemaVersion: 1,
-                status: status,
-                currentSessionId: currentSessionId,
-                droppedEventCount: droppedEventCount,
-                events: events
-            )
-        }
+    private func snapshot() -> MindRoomDiagnosticsSnapshot {
+        MindRoomDiagnosticsSnapshot(
+            schemaVersion: 1,
+            status: status,
+            currentSessionId: currentSessionId,
+            droppedEventCount: droppedEventCount,
+            events: events
+        )
     }
 
     private enum HistoryValidationError: Error, Equatable {

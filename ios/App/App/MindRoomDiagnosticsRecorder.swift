@@ -43,18 +43,12 @@ final class MindRoomDiagnosticsRecorder {
 
     func recordScene(_ name: MindRoomDiagnosticEventName, scene: UIScene) {
         onMain { [self] in
-            store.record(
-                name: name,
-                data: MindRoomDiagnosticState(
-                    applicationState: UIApplication.shared.applicationState.rawValue,
-                    sceneState: scene.activationState.rawValue
-                )
-            )
+            store.record(name: name, data: webViewState(bridgeWebView(in: scene), scene: scene))
         }
     }
 
-    func read() -> MindRoomDiagnosticsSnapshot {
-        store.read()
+    func read(completion: @escaping (MindRoomDiagnosticsSnapshot) -> Void) {
+        store.read(completion: completion)
     }
 
     private func observe(_ notificationName: Notification.Name, as eventName: MindRoomDiagnosticEventName) {
@@ -82,20 +76,31 @@ final class MindRoomDiagnosticsRecorder {
         }
     }
 
-    private func webViewState(_ webView: WKWebView?) -> MindRoomDiagnosticState {
+    private func bridgeWebView(in scene: UIScene) -> WKWebView? {
+        guard let windowScene = scene as? UIWindowScene else { return nil }
+        return windowScene.windows
+            .compactMap { $0.rootViewController as? MindRoomBridgeViewController }
+            .compactMap(\.webView)
+            .first
+    }
+
+    private func webViewState(_ webView: WKWebView?, scene: UIScene? = nil) -> MindRoomDiagnosticState {
         guard let webView else {
-            return MindRoomDiagnosticState(applicationState: UIApplication.shared.applicationState.rawValue)
+            return MindRoomDiagnosticState(
+                applicationState: UIApplication.shared.applicationState.rawValue,
+                sceneState: scene?.activationState.rawValue
+            )
         }
         let backgroundAlpha = webView.backgroundColor?.cgColor.alpha ?? 0
         return MindRoomDiagnosticState(
             applicationState: UIApplication.shared.applicationState.rawValue,
-            sceneState: webView.window?.windowScene?.activationState.rawValue,
+            sceneState: scene?.activationState.rawValue ?? webView.window?.windowScene?.activationState.rawValue,
             loading: webView.isLoading,
             progress: webView.estimatedProgress,
             attached: webView.window != nil,
             hidden: webView.isHidden,
             opaque: webView.isOpaque,
-            transparent: !webView.isOpaque || backgroundAlpha < 1,
+            transparent: !webView.isOpaque || webView.alpha < 1 || backgroundAlpha < 1,
             emptyBounds: webView.bounds.isEmpty
         )
     }
