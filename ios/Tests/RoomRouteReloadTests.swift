@@ -264,4 +264,34 @@ final class RoomRouteReloadTests: XCTestCase {
         XCTAssertFalse(json.contains(secret))
         XCTAssertFalse(json.contains("capacitor://"))
     }
+
+    func testSceneForegroundCapturesWebViewStateIncludingOwnAlpha() async throws {
+        let webView = try await openFixture()
+        let scene = try XCTUnwrap(webView.window?.windowScene)
+        let sceneDelegate = try XCTUnwrap(scene.delegate as? SceneDelegate)
+        let before = try await nativeDiagnostics(webView)
+        let currentSession = try XCTUnwrap(before["currentSessionId"] as? String)
+        let sequenceBefore = (before["events"] as? [[String: Any]] ?? [])
+            .filter { $0["sessionId"] as? String == currentSession }
+            .compactMap { $0["sequence"] as? Int }.max() ?? 0
+        let originalAlpha = webView.alpha
+        defer { webView.alpha = originalAlpha }
+
+        webView.alpha = 0
+        sceneDelegate.sceneWillEnterForeground(scene)
+        let snapshot = try await nativeDiagnostics(webView)
+        let foreground = try XCTUnwrap((snapshot["events"] as? [[String: Any]] ?? []).first {
+            $0["name"] as? String == "scene.foreground" &&
+                $0["sessionId"] as? String == currentSession &&
+                ($0["sequence"] as? Int ?? 0) > sequenceBefore
+        })
+        let data = try XCTUnwrap(foreground["data"] as? [String: Any])
+
+        XCTAssertEqual(data["attached"] as? Bool, true)
+        XCTAssertEqual(data["hidden"] as? Bool, false)
+        XCTAssertEqual(data["emptyBounds"] as? Bool, false)
+        XCTAssertNotNil(data["loading"] as? Bool)
+        XCTAssertNotNil(data["opaque"] as? Bool)
+        XCTAssertEqual(data["transparent"] as? Bool, true, "A zero-alpha WebView is transparent")
+    }
 }

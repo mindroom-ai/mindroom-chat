@@ -2,12 +2,22 @@ import XCTest
 
 @MainActor
 final class NativeDiagnosticsTests: XCTestCase {
+    private struct State: Decodable {
+        let loading: Bool?
+        let attached: Bool?
+        let hidden: Bool?
+        let opaque: Bool?
+        let transparent: Bool?
+        let emptyBounds: Bool?
+    }
     private struct Event: Decodable {
         let name: String
         let sessionId: String
         let sequence: Int
+        let data: State?
     }
     private struct Snapshot: Decodable {
+        let readCount: Int
         let status: String
         let currentSessionId: String?
         let events: [Event]
@@ -36,6 +46,7 @@ final class NativeDiagnosticsTests: XCTestCase {
         app.launch()
         defer { app.terminate() }
         let initial = try await snapshot(app)
+        XCTAssertEqual(initial.readCount, 1)
         XCTAssertEqual(initial.status, "available", "Native evidence must be exportable before testing retention")
         guard initial.status == "available" else { return }
         let firstSession = try XCTUnwrap(initial.currentSessionId)
@@ -46,15 +57,31 @@ final class NativeDiagnosticsTests: XCTestCase {
         XCUIDevice.shared.press(.home)
         XCTAssertTrue(app.wait(for: .runningBackground, timeout: 10) || app.state == .runningBackgroundSuspended)
         app.activate()
-        app.buttons["Read native diagnostics"].tap()
+        let readButton = app.buttons["Read native diagnostics"]
+        XCTAssertTrue(readButton.waitForExistence(timeout: 5))
+        XCTAssertTrue(readButton.isHittable)
+        readButton.tap()
         let resumed = try await snapshot(app, after: previousLabel)
+        XCTAssertEqual(resumed.readCount, initial.readCount + 1)
         XCTAssertEqual(resumed.currentSessionId, firstSession)
         let background = try XCTUnwrap(resumed.events.first {
             $0.name == "scene.background" && $0.sessionId == firstSession && $0.sequence > sequenceBefore
         })
-        XCTAssertTrue(resumed.events.contains {
+        XCTAssertNotNil(background.data?.attached)
+        XCTAssertNotNil(background.data?.hidden)
+        XCTAssertNotNil(background.data?.emptyBounds)
+        XCTAssertNotNil(background.data?.loading)
+        XCTAssertNotNil(background.data?.opaque)
+        XCTAssertNotNil(background.data?.transparent)
+        let active = try XCTUnwrap(resumed.events.first {
             $0.name == "scene.active" && $0.sessionId == firstSession && $0.sequence > background.sequence
         })
+        XCTAssertEqual(active.data?.attached, true)
+        XCTAssertEqual(active.data?.hidden, false)
+        XCTAssertEqual(active.data?.emptyBounds, false)
+        XCTAssertNotNil(active.data?.loading)
+        XCTAssertNotNil(active.data?.opaque)
+        XCTAssertNotNil(active.data?.transparent)
 
         // The completed plugin read is a persistence barrier for these events.
         app.terminate()

@@ -1,6 +1,79 @@
+import Capacitor
 import Foundation
 import XCTest
 @testable import RoutingHost
+
+private final class LockedDiagnosticClocks {
+    private let lock = NSLock()
+    private var wallClockValue: Double
+    private var monotonicValue: Double
+
+    init(wallClock: Double, monotonic: Double) {
+        wallClockValue = wallClock
+        monotonicValue = monotonic
+    }
+
+    func set(wallClock: Double, monotonic: Double) {
+        lock.lock()
+        wallClockValue = wallClock
+        monotonicValue = monotonic
+        lock.unlock()
+    }
+
+    func wallClock() -> Double {
+        lock.lock()
+        defer { lock.unlock() }
+        return wallClockValue
+    }
+
+    func monotonic() -> Double {
+        lock.lock()
+        defer { lock.unlock() }
+        return monotonicValue
+    }
+}
+
+private final class BlockingAtomicWriter {
+    private let lock = NSLock()
+    private var writeCount = 0
+    let blocked = DispatchSemaphore(value: 0)
+    let release = DispatchSemaphore(value: 0)
+
+    func write(_ data: Data, to url: URL) throws {
+        try MindRoomDiagnosticsStore.defaultAtomicWrite(data, url)
+        lock.lock()
+        writeCount += 1
+        let shouldBlock = writeCount == 1
+        lock.unlock()
+        if shouldBlock {
+            blocked.signal()
+            _ = release.wait(timeout: .now() + 5)
+        }
+    }
+}
+
+private final class BlockingDirectoryFileManager: FileManager {
+    let started = DispatchSemaphore(value: 0)
+    let release = DispatchSemaphore(value: 0)
+    let finished = DispatchSemaphore(value: 0)
+
+    override func createDirectory(
+        at url: URL,
+        withIntermediateDirectories createIntermediates: Bool,
+        attributes: [FileAttributeKey: Any]? = nil
+    ) throws {
+        started.signal()
+        defer { finished.signal() }
+        guard release.wait(timeout: .now() + 5) == .success else {
+            throw CocoaError(.fileWriteUnknown)
+        }
+        try super.createDirectory(
+            at: url,
+            withIntermediateDirectories: createIntermediates,
+            attributes: attributes
+        )
+    }
+}
 
 final class NativeDiagnosticsStoreTests: XCTestCase {
     private let firstSession = UUID(uuidString: "11111111-1111-4111-8111-111111111111")!
@@ -47,9 +120,22 @@ final class NativeDiagnosticsStoreTests: XCTestCase {
 
     func testRetainsNewest128EventsAndCountsDroppedEvents() throws {
         let store = makeStore(directory: try temporaryDirectory(), sessionId: firstSession)
+        let maximalState = MindRoomDiagnosticState(
+            applicationState: Int.max,
+            sceneState: Int.min,
+            loading: true,
+            progress: Double.greatestFiniteMagnitude,
+            attached: true,
+            hidden: true,
+            opaque: true,
+            transparent: true,
+            emptyBounds: true,
+            errorDomain: .other,
+            errorCode: Int.min
+        )
 
         for _ in 0..<130 {
-            store.record(name: .memoryWarning)
+            store.record(name: .memoryWarning, data: maximalState)
         }
         let snapshot = store.read()
 
@@ -76,6 +162,89 @@ final class NativeDiagnosticsStoreTests: XCTestCase {
         XCTAssertEqual(snapshot.currentSessionId, secondSession)
         XCTAssertEqual(snapshot.events.map(\.sessionId), [firstSession, firstSession, secondSession])
         XCTAssertEqual(snapshot.events.map(\.sequence), [1, 2, 1])
+    }
+
+    func testEventClocksAreCapturedBeforeAnEarlierWriteBacklogClears() throws {
+        let clocks = LockedDiagnosticClocks(wallClock: 100, monotonic: 10)
+        let writer = BlockingAtomicWriter()
+        let store = MindRoomDiagnosticsStore(
+            directoryURL: try temporaryDirectory(),
+            currentSessionId: firstSession,
+            wallClockMilliseconds: clocks.wallClock,
+            monotonicMilliseconds: clocks.monotonic,
+            atomicWrite: writer.write
+        )
+        defer { writer.release.signal() }
+
+        store.record(name: .appLaunch)
+        XCTAssertEqual(writer.blocked.wait(timeout: .now() + 2), .success)
+        clocks.set(wallClock: 200, monotonic: 20)
+        store.record(name: .sceneForeground)
+        clocks.set(wallClock: 300, monotonic: 30)
+        writer.release.signal()
+
+        let foreground = try XCTUnwrap(store.read().events.last)
+        XCTAssertEqual(foreground.name, .sceneForeground)
+        XCTAssertEqual(foreground.at, 200, "A queued event must retain its occurrence wall clock")
+        XCTAssertEqual(foreground.monotonicMs, 20, "A queued event must retain its occurrence monotonic clock")
+    }
+
+    func testInitializationReturnsWhileDirectoryIOIsBlocked() throws {
+        let fileManager = BlockingDirectoryFileManager()
+        let initializerReturned = DispatchSemaphore(value: 0)
+        let directory = try temporaryDirectory()
+
+        DispatchQueue(label: "chat.mindroom.native-diagnostics-init-test").async {
+            _ = MindRoomDiagnosticsStore(directoryURL: directory, fileManager: fileManager)
+            initializerReturned.signal()
+        }
+
+        XCTAssertEqual(fileManager.started.wait(timeout: .now() + 2), .success)
+        let returnedBeforeIOReleased = initializerReturned.wait(timeout: .now() + 1)
+        XCTAssertEqual(returnedBeforeIOReleased, .success, "Diagnostics initialization must not block its caller on file I/O")
+        fileManager.release.signal()
+        if returnedBeforeIOReleased == .timedOut {
+            XCTAssertEqual(initializerReturned.wait(timeout: .now() + 2), .success)
+        }
+        XCTAssertEqual(fileManager.finished.wait(timeout: .now() + 2), .success)
+    }
+
+    func testPluginReadDoesNotOccupyCallingSerialQueueWhilePersistenceIsBlocked() throws {
+        let writer = BlockingAtomicWriter()
+        let store = makeStore(
+            directory: try temporaryDirectory(),
+            sessionId: firstSession,
+            atomicWrite: writer.write
+        )
+        let plugin = MindRoomDiagnosticsPlugin(recorder: MindRoomDiagnosticsRecorder(store: store))
+        let resolved = DispatchSemaphore(value: 0)
+        let rejected = DispatchSemaphore(value: 0)
+        let followingBridgeTask = DispatchSemaphore(value: 0)
+        let call = try XCTUnwrap(
+            CAPPluginCall(
+                callbackId: "native-diagnostics-read-test",
+                methodName: "read",
+                options: [:],
+                success: { _, _ in resolved.signal() },
+                error: { _ in rejected.signal() }
+            )
+        )
+        let simulatedBridgeQueue = DispatchQueue(label: "chat.mindroom.native-diagnostics-bridge-test")
+        defer { writer.release.signal() }
+
+        store.record(name: .appLaunch)
+        XCTAssertEqual(writer.blocked.wait(timeout: .now() + 2), .success)
+        simulatedBridgeQueue.async { plugin.read(call) }
+        simulatedBridgeQueue.async { followingBridgeTask.signal() }
+
+        XCTAssertEqual(
+            followingBridgeTask.wait(timeout: .now() + 1),
+            .success,
+            "A pending persistence barrier must not occupy Capacitor's serial bridge queue"
+        )
+        writer.release.signal()
+        XCTAssertEqual(resolved.wait(timeout: .now() + 2), .success)
+        XCTAssertEqual(rejected.wait(timeout: .now()), .timedOut)
     }
 
     func testCorruptHistoryIsReportedWithoutExportingUntrustedBytes() throws {

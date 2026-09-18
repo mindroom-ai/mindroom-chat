@@ -7,9 +7,20 @@ public final class MindRoomDiagnosticsPlugin: CAPPlugin, CAPBridgedPlugin {
     public let pluginMethods: [CAPPluginMethod] = [
         CAPPluginMethod(name: "read", returnType: CAPPluginReturnPromise)
     ]
+    private let recorder: MindRoomDiagnosticsRecorder
+
+    public override init() {
+        recorder = .shared
+        super.init()
+    }
+
+    init(recorder: MindRoomDiagnosticsRecorder) {
+        self.recorder = recorder
+        super.init()
+    }
 
     @objc func read(_ call: CAPPluginCall) {
-        call.resolve(MindRoomDiagnosticsRecorder.shared.read().capacitorValue)
+        call.resolve(recorder.read().capacitorValue)
     }
 }
 
