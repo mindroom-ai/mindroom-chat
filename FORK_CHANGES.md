@@ -10,8 +10,12 @@
   It remains a DOM child of the static scroll viewport but is positioned against its outer wrapper, preserving native wheel/touch scrolling and the timeline's existing user-intent listeners.
   Thumb updates are coalesced into animation frames without React renders; ResizeObserver tracks content, viewport, and control-size changes.
   Pointer dragging, keyboard navigation, screen-reader range metadata, RTL positioning, and no-overflow hiding share one implementation.
-- Validation in progress: independent review approves the implementation and focused unit tests pass.
-  Production Chromium phone checks pass for simple and full room modes; thread, WebKit, desktop, and final project gates are being checked.
+- Thread-header resize measurements publish their insets on the next animation frame, preventing a WebKit ResizeObserver warning when the changed inset resizes the shallower scrollbar track.
+- Validation: all 4,571 unit tests, typecheck, production/PWA build, changed-file formatting, and focused E2E TypeScript checks pass.
+  Lint reports zero errors and the 17 existing warnings.
+  All 12 production Chromium/WebKit phone/desktop cases pass across compact, threaded, classic, and Simple Mode views, including scrolling behind glass, scrollbar endpoints, dragging, composer growth, and reduced viewport height.
+  The desktop WebKit thread regression failed three consecutive runs before the deferred inset update and passes three consecutive runs afterward; all other thread cases were rerun after that fix.
+  Independent review approves the implementation and the resize fix.
   Physical iOS behavior remains unverified.
 
 ### Inset the Recently Opened divider (2026-09-17)
