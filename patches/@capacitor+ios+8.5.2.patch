@@ -32,3 +32,65 @@ index 2e5961d..dce1340 100644
                      urlSchemeTask.didReceive(urlResponse)
                  } else {
                      urlSchemeTask.didReceive(httpResponse!)
+diff --git a/node_modules/@capacitor/ios/Capacitor/Capacitor/CAPNotifications.swift b/node_modules/@capacitor/ios/Capacitor/Capacitor/CAPNotifications.swift
+--- a/node_modules/@capacitor/ios/Capacitor/Capacitor/CAPNotifications.swift
++++ b/node_modules/@capacitor/ios/Capacitor/Capacitor/CAPNotifications.swift
+@@ -23,3 +23,13 @@ extension Notification.Name {
+     public static let capacitorSceneOpenUniversalLink =
+         Notification.Name(rawValue: "CapacitorSceneOpenUniversalLinkNotification")
++    public static let capacitorWebViewNavigationStarted =
++        Notification.Name(rawValue: "CapacitorWebViewNavigationStartedNotification")
++    public static let capacitorWebViewNavigationFinished =
++        Notification.Name(rawValue: "CapacitorWebViewNavigationFinishedNotification")
++    public static let capacitorWebViewNavigationFailed =
++        Notification.Name(rawValue: "CapacitorWebViewNavigationFailedNotification")
++    public static let capacitorWebViewNavigationProvisionalFailed =
++        Notification.Name(rawValue: "CapacitorWebViewNavigationProvisionalFailedNotification")
++    public static let capacitorWebViewTerminated =
++        Notification.Name(rawValue: "CapacitorWebViewTerminatedNotification")
+ }
+diff --git a/node_modules/@capacitor/ios/Capacitor/Capacitor/WebViewDelegationHandler.swift b/node_modules/@capacitor/ios/Capacitor/Capacitor/WebViewDelegationHandler.swift
+--- a/node_modules/@capacitor/ios/Capacitor/Capacitor/WebViewDelegationHandler.swift
++++ b/node_modules/@capacitor/ios/Capacitor/Capacitor/WebViewDelegationHandler.swift
+@@ -43,5 +43,6 @@ open class WebViewDelegationHandler: NSObject, WKNavigationDelegate, WKUIDelegat
+     // swiftlint:disable:next implicitly_unwrapped_optional
+     open func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
++        NotificationCenter.default.post(name: .capacitorWebViewNavigationStarted, object: webView)
+         // Reset the bridge on each navigation
+         bridge?.reset()
+     }
+@@ -128,5 +129,6 @@ open class WebViewDelegationHandler: NSObject, WKNavigationDelegate, WKUIDelegat
+     // swiftlint:disable:next implicitly_unwrapped_optional
+     open func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
++        NotificationCenter.default.post(name: .capacitorWebViewNavigationFinished, object: webView)
+         if case .initialLoad(let isOpaque) = webViewLoadingState {
+             webView.isOpaque = isOpaque
+             webViewLoadingState = .subsequentLoad
+@@ -138,5 +140,10 @@ open class WebViewDelegationHandler: NSObject, WKNavigationDelegate, WKUIDelegat
+     // swiftlint:disable:next implicitly_unwrapped_optional
+     open func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
++        NotificationCenter.default.post(
++            name: .capacitorWebViewNavigationFailed,
++            object: webView,
++            userInfo: ["error": error]
++        )
+         if case .initialLoad(let isOpaque) = webViewLoadingState {
+             webView.isOpaque = isOpaque
+             webViewLoadingState = .subsequentLoad
+@@ -154,5 +161,10 @@ open class WebViewDelegationHandler: NSObject, WKNavigationDelegate, WKUIDelegat
+     // swiftlint:disable:next implicitly_unwrapped_optional
+     open func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
++        NotificationCenter.default.post(
++            name: .capacitorWebViewNavigationProvisionalFailed,
++            object: webView,
++            userInfo: ["error": error]
++        )
+         if let errorURL = bridge?.config.errorPathURL {
+             webView.load(URLRequest(url: errorURL))
+         }
+@@ -164,4 +176,5 @@ open class WebViewDelegationHandler: NSObject, WKNavigationDelegate, WKUIDelegat
+     open func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
++        NotificationCenter.default.post(name: .capacitorWebViewTerminated, object: webView)
+         CAPLog.print("⚡️  WebView process terminated")
+         bridge?.reset()
+         webView.reload()

@@ -23,4 +23,24 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     func scene(_ scene: UIScene, continue userActivity: NSUserActivity) {
         SceneDelegateProxy.shared.scene(scene, continue: userActivity)
     }
+
+    func sceneWillEnterForeground(_ scene: UIScene) {
+        MindRoomDiagnosticsRecorder.shared.recordScene(.sceneForeground, scene: scene)
+    }
+
+    func sceneDidBecomeActive(_ scene: UIScene) {
+        MindRoomDiagnosticsRecorder.shared.recordScene(.sceneActive, scene: scene)
+    }
+
+    func sceneWillResignActive(_ scene: UIScene) {
+        MindRoomDiagnosticsRecorder.shared.recordScene(.sceneInactive, scene: scene)
+    }
+
+    func sceneDidEnterBackground(_ scene: UIScene) {
+        MindRoomDiagnosticsRecorder.shared.recordScene(.sceneBackground, scene: scene)
+    }
+
+    func sceneDidDisconnect(_ scene: UIScene) {
+        MindRoomDiagnosticsRecorder.shared.recordScene(.sceneDisconnected, scene: scene)
+    }
 }

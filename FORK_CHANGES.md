@@ -2,6 +2,27 @@
 
 ## Runbook
 
+### Preserve evidence for iOS blank screens (2026-09-18)
+
+- The September 18 device export confirms the previous route fix was installed, but contains no native lifecycle/navigation history and loses detailed trace events before the incident.
+  The separate lightweight background/resume probe passes; the new black-screen cause remains unknown.
+- Diagnostics exports now preserve bounded deep-trace failure health and collect the deep trace and native history independently with separate deadlines, so a failed or hung collector does not discard the other available evidence.
+  Web and older native builds report native history as unsupported while exporting the remaining collectors.
+- The iOS app records sanitized lifecycle, view-state, navigation, memory-warning, and WebContent-termination events in bounded Application Support history.
+  Events contain only typed state, numeric metrics, allowlisted error domains, and codes; they exclude URLs and free-form error text.
+  History survives app termination and relaunch, reports corrupt or unavailable storage explicitly, and retains in-memory evidence after a write failure.
+- Native `monotonicMs` values are elapsed milliseconds within each diagnostic session.
+  The raw system-uptime baseline remains private, and the shipping app declares the SystemBootTime `35F9.1` required reason in its bundled privacy manifest.
+- [Native missing-evidence baseline 35347107215](https://github.com/mindroom-ai/mindroom-chat/actions/runs/35347107215) kept all seven existing routing and recovery cases green while the new assertions found native evidence unavailable after real WebContent termination and failed bundled navigation.
+  The UI case stopped at its initial unsupported guard before exercising background or relaunch.
+  This establishes the missing diagnostic evidence before implementation; it does not reproduce the September 18 production black screen.
+- Validation: [native CI run 35355640764](https://github.com/mindroom-ai/mindroom-chat/actions/runs/35355640764) passes all 22 cases with zero failures, including 21 native unit/integration cases and one real background/resume/terminate/relaunch XCUITest.
+  The shipping Swift sources compile under Xcode, and the tests cover bounded history, corrupt and failed storage, blocked I/O, occurrence-time capture, session-relative timing, the app-bundled privacy manifest, real WebContent termination and recovery, failed bundled navigation, foreground view state, and prior-session history after relaunch.
+  All 4,586 web tests, typecheck, production/PWA build, changed diagnostics formatting and lint, workflow validation, shipping-project membership checks, and Capacitor patch checks pass; full lint reports zero errors and the 17 existing warnings.
+  Independent reviews approve the diagnostics implementation, concurrency corrections, view-state coverage, and timing/privacy follow-up.
+- Native history requires installing a new iOS build.
+  The change is passive diagnostics only and adds no reload, watchdog, or recovery behavior; the cause of the September 18 production black screen remains unknown.
+
 ### Keep room and navigation scrollbars below floating controls (2026-09-18)
 
 - Room, thread, and compact overview scrollbars use the existing measured header, filters, thread banner, and footer heights to stay inside the unobscured reading area.
