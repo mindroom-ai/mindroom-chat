@@ -15,7 +15,11 @@
   The generated test host alone uses a scene subclass to expose process identities; private WebKit APIs and process termination remain confined to tests.
 - The initial native run passes all eight existing regression tests, but its four new UI probes stop on an unmet natural-suspension precondition.
   The revised probe records the observed background state and uses a separately labelled injected scheduler pause.
-  Revised native CI results are pending.
+  [Native CI run 35337852566](https://github.com/mindroom-ai/mindroom-chat/actions/runs/35337852566) passes all eight existing tests and all four new UI cases.
+  The UI cases complete twelve background/resume cycles, including six WebContent terminations and two successful host-pause injections.
+  The fixture recovers its route, stored session token, native plugin responses, and painted screen in every cycle; the new black screen is not reproduced.
+  This lightweight fixture does not cover the full Matrix UI, real-device memory pressure, or natural iOS suspension, so the incident's cause remains unknown.
+  Local validation passes all 4,567 unit tests, typecheck, production/PWA build, and changed-file formatting; lint reports zero errors and the 17 existing warnings.
   No production recovery changes have been made for this incident.
 
 ### Inset the Recently Opened divider (2026-09-17)
