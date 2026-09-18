@@ -62,6 +62,7 @@ export type BackfillJobKind =
   | 'room-deep-history'
   | 'thread-backfill'
   | 'thread-approvals'
+  | 'thread-responses'
   | 'thread-seed'
   | 'reconcile';
 

@@ -156,6 +156,7 @@ import {
   useThreadApprovalTimeline,
   useThreadApprovalRowMeasurements,
 } from './useThreadApprovalTimeline';
+import { useThreadApprovalResponseRecovery } from './useThreadApprovalResponseRecovery';
 
 const TimelineFloat = as<'div', css.TimelineFloatVariants>(
   ({ position, className, ...props }, ref) => (
@@ -742,6 +743,16 @@ export function RoomTimeline({
   // room-bound persist facade off the engine and hands the fns down
   // to the fetch controllers (same shapes as the pre-strip props).
   const syncEngine = useMindroomSyncEngine();
+  useThreadApprovalResponseRecovery({
+    mx,
+    room,
+    threadId,
+    scheduler: syncEngine.scheduler,
+    persist: syncEngine.persist.persistThreadEventCache,
+    events: threadEvents,
+    fallbackGroups: approvalTimeline.fallbackGroupsByEventId,
+    onRecovered: setSupplementalThreadEvents,
+  });
   const enginePersistForRoom = useMemo(() => syncEngine.persist.forRoom(room), [syncEngine, room]);
   const { persistRoomEventCache, persistThreadEventCache, queueRoomThreadCachePersist } =
     enginePersistForRoom;

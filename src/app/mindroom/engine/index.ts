@@ -78,4 +78,5 @@ export {
 export type { ThreadRelationPageResult } from './threadRelationsFetcher';
 export { enqueueThreadBackfillJob } from './threadBackfillJob';
 export { enqueueThreadApprovalBackfill } from './threadApprovalBackfill';
+export { enqueueThreadResponseBackfill } from './threadResponseBackfill';
 export type { EnqueueThreadBackfillArgs, ThreadBackfillResult } from './threadBackfillJob';

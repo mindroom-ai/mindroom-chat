@@ -2,6 +2,22 @@
 
 ## Runbook
 
+### Recover replies referenced by approval receipts (2026-09-18)
+
+- A visible resolved approval can reference a reply missing from the open thread's in-memory timeline.
+  The approval-only fallback now requests that reply by event ID through the shared backfill scheduler, without reloading the page or scanning the entire thread.
+  Recovery validates the event's identity, room, message type, and original thread relation before accepting it.
+  Existing hydration applies bundled final edits before the recovered message reaches the cache, SDK thread, and render fallback.
+- Recovery skips replies already present, including redacted or intentionally hidden replies.
+  Failed requests retry on thread reopen or page resume/reconnect, while normal renders do not repeatedly request unavailable events.
+  Shared requests survive navigation, and a newly received receipt queues any reply omitted by an earlier in-flight batch.
+  Late results remain scoped to their original thread and cannot append to a different open conversation.
+- Validation: 15 new behavioral tests exercise real SDK events, threads, and render state, including bundled edits, cache-only views, reopen, resume, navigation races, partial failures, and invalid references.
+  All 4,582 unit tests and typecheck pass; the production/PWA build passes.
+  Changed-file lint and formatting pass; full lint has no errors and the 17 existing warnings.
+  Independent review has no blocking findings.
+  The change repairs an incomplete approval/reply view; it does not establish the cause of an earlier missed live update.
+
 ### Inset the Recently Opened divider (2026-09-17)
 
 - The shared Recently Opened panel uses a 1px divider inset 16px from both sides, replacing its full-width top border.
