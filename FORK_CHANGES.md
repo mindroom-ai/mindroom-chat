@@ -10,9 +10,12 @@
   These records do not establish WebContent termination, a renderer hang, or a failed reload.
 - Investigation branch `test/ios-background-resume` adds a separate XCUITest runner around the existing native fixture.
   It performs real Home/activate cycles in both appearances, with ordinary resume and targeted WebContent termination while backgrounded.
+  One termination cycle explicitly pauses the host with `SIGSTOP` until after WebContent dies, then resumes it with `SIGCONT`; this approximates delayed termination handling without claiming natural iOS suspension.
   Assertions cover native process continuity, JavaScript boot identity, current room/thread route, localStorage/IndexedDB, native plugin calls, and painted screen pixels.
   The generated test host alone uses a scene subclass to expose process identities; private WebKit APIs and process termination remain confined to tests.
-- Status: reproduction probe prepared; native CI results pending.
+- The initial native run passes all eight existing regression tests, but its four new UI probes stop on an unmet natural-suspension precondition.
+  The revised probe records the observed background state and uses a separately labelled injected scheduler pause.
+  Revised native CI results are pending.
   No production recovery changes have been made for this incident.
 
 ### Inset the Recently Opened divider (2026-09-17)

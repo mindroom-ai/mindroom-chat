@@ -2,9 +2,18 @@ import Darwin
 import UIKit
 import XCTest
 
-/// Runs outside RoutingHost so Home really backgrounds/suspends the app under test.
+/// Runs outside RoutingHost and uses real Home/activate without relaunching it.
 @MainActor
 final class BackgroundResumeTests: XCTestCase {
+    private enum ProbeError: Error { case failed(String) }
+
+    private func require(_ condition: Bool, _ message: String, file: StaticString = #filePath, line: UInt = #line) throws {
+        guard condition else {
+            XCTFail(message, file: file, line: line)
+            throw ProbeError.failed(message)
+        }
+    }
+
     private struct State: Decodable {
         let bootId: String
         let checks: Int
@@ -38,12 +47,47 @@ final class BackgroundResumeTests: XCTestCase {
 
     private func processes(_ app: XCUIApplication) throws -> [pid_t] {
         let probe = app.staticTexts["native-process-probe"]
-        XCTAssertTrue(probe.waitForExistence(timeout: 10))
+        try require(probe.waitForExistence(timeout: 10), "Native process probe must exist")
         let value = try XCTUnwrap(probe.value as? String)
         let pids = value.split(separator: ",").compactMap { pid_t($0) }
-        XCTAssertEqual(pids.count, 2)
-        XCTAssertTrue(pids.allSatisfy { $0 > 1 && $0 != getpid() })
+        try require(pids.count == 2 && pids.allSatisfy { $0 > 1 && $0 != getpid() }, "Only valid host/WebContent process identities may be signalled")
         return pids
+    }
+
+    private func terminateWebContent(_ webPID: pid_t, pausing hostPID: pid_t?) async throws {
+        var stopped: Int32 = 0
+        var terminated: Int32 = -1
+        var continued: Int32 = 0
+        var signalErrors = ""
+        if let hostPID {
+            stopped = kill(hostPID, SIGSTOP)
+            let stopError = stopped == 0 ? 0 : errno
+            signalErrors += "stop=\(stopped), errno=\(stopError); "
+            if stopped == 0 {
+                // No XCTest assertion or UI query is allowed inside this pause.
+                // Always unpause, including if the short dwell is cancelled.
+                defer { _ = kill(hostPID, SIGCONT) }
+                try await Task.sleep(nanoseconds: 100_000_000)
+                terminated = kill(webPID, SIGKILL)
+                let killError = terminated == 0 ? 0 : errno
+                signalErrors += "kill=\(terminated), errno=\(killError); "
+                try await Task.sleep(nanoseconds: 100_000_000)
+                continued = kill(hostPID, SIGCONT)
+                let continueError = continued == 0 ? 0 : errno
+                signalErrors += "continue=\(continued), errno=\(continueError)"
+            }
+        } else {
+            terminated = kill(webPID, SIGKILL)
+            let killError = terminated == 0 ? 0 : errno
+            signalErrors = "kill=\(terminated), errno=\(killError)"
+        }
+        let injection = "Injected host pause: \(hostPID != nil). \(signalErrors)"
+        print(injection)
+        let attachment = XCTAttachment(string: injection)
+        attachment.name = "process-injection"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+        try require(stopped == 0 && terminated == 0 && continued == 0, "Process injection failed: \(signalErrors)")
     }
 
     private func assertSession(_ state: State, token: String, dark: Bool) {
@@ -86,7 +130,6 @@ final class BackgroundResumeTests: XCTestCase {
     }
 
     private func exerciseResume(dark: Bool, terminateWebContent: Bool) async throws {
-        continueAfterFailure = false
         executionTimeAllowance = 120
         let app = XCUIApplication(bundleIdentifier: "chat.mindroom.RoutingHost")
         app.launchEnvironment["MINDROOM_BACKGROUND_PROBE"] = "1"
@@ -103,14 +146,24 @@ final class BackgroundResumeTests: XCTestCase {
             let bootBefore = state.bootId
             let webPID = try processes(app)[1]
             XCUIDevice.shared.press(.home)
-            XCTAssertTrue(app.wait(for: .runningBackground, timeout: 10) || app.state == .runningBackgroundSuspended)
-            // Deliberate dwell time: let iOS suspend the host before injecting a
-            // real process death from the separate test runner on Simulator.
+            try require(app.wait(for: .runningBackground, timeout: 10) || app.state == .runningBackgroundSuspended, "Home must background the host")
+            let beforeDwell = app.state
+            // Simulator/XCUITest may keep a backgrounded app running. Record
+            // the observed state instead of claiming natural iOS suspension.
             try await Task.sleep(nanoseconds: 5_000_000_000)
-            XCTAssertTrue(app.wait(for: .runningBackgroundSuspended, timeout: 20), "The host must actually suspend before this probe can test its recovery")
+            let afterDwell = app.state
+            let observation = "Before dwell: \(beforeDwell). After dwell: \(afterDwell). Injected scheduler pause: \(terminateWebContent && cycle == 2)."
+            print(observation)
+            let lifecycle = XCTAttachment(string: observation)
+            lifecycle.name = "background-state-\(cycle)"
+            lifecycle.lifetime = .keepAlways
+            add(lifecycle)
+            try require(afterDwell == .runningBackground || afterDwell == .runningBackgroundSuspended, "Host must remain backgrounded during the probe; observed \(afterDwell)")
             if terminateWebContent {
-                XCTAssertNotEqual(webPID, hostPID)
-                XCTAssertEqual(kill(webPID, SIGKILL), 0, "WebContent kill failed: \(String(cString: strerror(errno)))")
+                try require(webPID != hostPID, "WebContent must be separate from the host")
+                // One cycle explicitly pauses every host thread while WebContent
+                // dies. This is fault injection, not natural iOS suspension.
+                try await self.terminateWebContent(webPID, pausing: cycle == 2 ? hostPID : nil)
             }
             app.activate()
             XCTAssertEqual(try processes(app)[0], hostPID, "Resume must not silently cold-launch the native app")

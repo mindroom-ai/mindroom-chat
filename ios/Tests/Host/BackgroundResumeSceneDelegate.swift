@@ -2,7 +2,7 @@ import UIKit
 import WebKit
 
 /// Test host only: retain the shipping scene/bridge and expose process identities
-/// to an external UI-test runner, which stays alive while this app is suspended.
+/// to an external UI-test runner, which stays alive while this app is backgrounded.
 final class BackgroundResumeSceneDelegate: SceneDelegate {
     override func scene(_ scene: UIScene, willConnectTo session: UISceneSession, options connectionOptions: UIScene.ConnectionOptions) {
         super.scene(scene, willConnectTo: session, options: connectionOptions)
