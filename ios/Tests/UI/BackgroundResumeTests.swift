@@ -144,7 +144,10 @@ final class BackgroundResumeTests: XCTestCase {
 
         for cycle in 1...3 {
             let bootBefore = state.bootId
-            let webPID = try processes(app)[1]
+            let currentProcesses = try processes(app)
+            try require(currentProcesses[0] == hostPID, "Native host must not restart between cycles")
+            let webPID = currentProcesses[1]
+            try require(webPID != hostPID, "WebContent must be separate from the host")
             XCUIDevice.shared.press(.home)
             try require(app.wait(for: .runningBackground, timeout: 10) || app.state == .runningBackgroundSuspended, "Home must background the host")
             let beforeDwell = app.state
@@ -160,13 +163,12 @@ final class BackgroundResumeTests: XCTestCase {
             add(lifecycle)
             try require(afterDwell == .runningBackground || afterDwell == .runningBackgroundSuspended, "Host must remain backgrounded during the probe; observed \(afterDwell)")
             if terminateWebContent {
-                try require(webPID != hostPID, "WebContent must be separate from the host")
                 // One cycle explicitly pauses every host thread while WebContent
                 // dies. This is fault injection, not natural iOS suspension.
                 try await self.terminateWebContent(webPID, pausing: cycle == 2 ? hostPID : nil)
             }
             app.activate()
-            XCTAssertEqual(try processes(app)[0], hostPID, "Resume must not silently cold-launch the native app")
+            try require(try processes(app)[0] == hostPID, "Resume must not silently cold-launch the native app")
             if terminateWebContent {
                 state = try await readState(app, afterBoot: bootBefore)
                 XCTAssertNotEqual(state.bootId, bootBefore, "WebContent termination must cause a real JS reboot")
