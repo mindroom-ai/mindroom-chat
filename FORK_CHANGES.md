@@ -2,6 +2,19 @@
 
 ## Runbook
 
+### Investigate iOS black screen after background resume (2026-09-18)
+
+- The new device report identifies build `08fd3d9e`, which includes the previous room-route recovery fix, and the user confirms installing a new native build.
+  The lightweight recorder persisted a visible event at 10:11:24 UTC and another heartbeat two seconds later, then a new launch at 10:18:34 UTC.
+  The detailed trace ends before the first background transition at 09:49 UTC; it does not cover the later failure.
+  These records do not establish WebContent termination, a renderer hang, or a failed reload.
+- Investigation branch `test/ios-background-resume` adds a separate XCUITest runner around the existing native fixture.
+  It performs real Home/activate cycles in both appearances, with ordinary resume and targeted WebContent termination while backgrounded.
+  Assertions cover native process continuity, JavaScript boot identity, current room/thread route, localStorage/IndexedDB, native plugin calls, and painted screen pixels.
+  The generated test host alone uses a scene subclass to expose process identities; private WebKit APIs and process termination remain confined to tests.
+- Status: reproduction probe prepared; native CI results pending.
+  No production recovery changes have been made for this incident.
+
 ### Inset the Recently Opened divider (2026-09-17)
 
 - The shared Recently Opened panel uses a 1px divider inset 16px from both sides, replacing its full-width top border.

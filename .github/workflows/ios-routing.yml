@@ -1,6 +1,9 @@
 name: iOS routing
 
 on:
+  push:
+    branches:
+      - 'test/ios-background-resume'
   pull_request:
     paths:
       - 'ios/**'
