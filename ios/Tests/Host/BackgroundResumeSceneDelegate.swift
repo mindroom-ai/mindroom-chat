@@ -18,10 +18,12 @@ final class BackgroundResumeSceneDelegate: SceneDelegate {
         probe.font = .systemFont(ofSize: 10)
         probe.accessibilityIdentifier = "native-process-probe"
         probe.translatesAutoresizingMaskIntoConstraints = false
-        controller.view.addSubview(probe)
+        // The controller's root view is WKWebView. Keep this native test label
+        // outside its accessibility subtree so process inspection survives a crash.
+        window.addSubview(probe)
         NSLayoutConstraint.activate([
-            probe.leadingAnchor.constraint(equalTo: controller.view.leadingAnchor, constant: 8),
-            probe.bottomAnchor.constraint(equalTo: controller.view.safeAreaLayoutGuide.bottomAnchor, constant: -8)
+            probe.leadingAnchor.constraint(equalTo: window.leadingAnchor, constant: 8),
+            probe.bottomAnchor.constraint(equalTo: window.safeAreaLayoutGuide.bottomAnchor, constant: -8)
         ])
         webView.load(URLRequest(url: URL(string: "capacitor://localhost/?resumeProbe=\(UUID().uuidString)")!))
     }

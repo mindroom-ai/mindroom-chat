@@ -78,6 +78,7 @@ project.save
 
 scheme = Xcodeproj::XCScheme.new
 scheme.configure_with_targets(host, tests, launch_target: true)
+scheme.add_build_target(ui_tests, false)
 scheme.add_test_target(ui_tests)
 scheme.save_as(project.path, 'Routing', true)
 
