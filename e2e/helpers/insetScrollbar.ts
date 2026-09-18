@@ -1,13 +1,18 @@
 import { expect, type Locator, type Page } from '@playwright/test';
 
-export async function expectScrollbarBounds(scroll: Locator, topControl: Locator, footer: Locator) {
+export async function expectScrollbarBounds(
+  scroll: Locator,
+  topControl: Locator,
+  footer?: Locator
+) {
   const bar = scroll.getByRole('scrollbar');
   await expect(bar).toBeVisible();
   const track = (await bar.boundingBox())!;
   const top = (await topControl.boundingBox())!;
-  const bottom = (await footer.boundingBox())!;
+  const viewport = (await scroll.boundingBox())!;
+  const bottom = footer ? (await footer.boundingBox())!.y : viewport.y + viewport.height;
   expect(track.y).toBeGreaterThanOrEqual(top.y + top.height - 1);
-  expect(track.y + track.height).toBeLessThanOrEqual(bottom.y + 1);
+  expect(track.y + track.height).toBeLessThanOrEqual(bottom + 1);
   expect(track.height).toBeGreaterThan(20);
   await expect(bar).toHaveAttribute('aria-controls', (await scroll.getAttribute('id'))!);
   expect(await scroll.evaluate((el) => getComputedStyle(el).scrollbarWidth)).toBe('none');
@@ -17,7 +22,7 @@ export async function expectInsetScrollbar(
   page: Page,
   scroll: Locator,
   topControl: Locator,
-  footer: Locator
+  footer?: Locator
 ) {
   await expectScrollbarBounds(scroll, topControl, footer);
   const bar = scroll.getByRole('scrollbar');

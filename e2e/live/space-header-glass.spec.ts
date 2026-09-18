@@ -2,6 +2,7 @@ import { expect, test } from '@playwright/test';
 import { getHomeserver, getPrimaryCredentials, hasPrimaryCredentials } from '../env';
 import { loginWithPassword } from '../helpers/auth';
 import { expectFloatingNavHeader } from '../helpers/glassVisual';
+import { expectInsetScrollbar } from '../helpers/insetScrollbar';
 import {
   addRoomToSpace,
   createPrivateRoom,
@@ -17,6 +18,8 @@ for (const [themeId, width, simpleMode] of [
 ] as const) {
   test(`space header overlays scrolling rooms in ${themeId}`, async ({ page }, testInfo) => {
     test.skip(!hasPrimaryCredentials(), 'Local Matrix credentials required');
+    const errors: string[] = [];
+    page.on('pageerror', (error) => errors.push(error.message));
     const homeserver = getHomeserver();
     test.skip(
       !['localhost', '127.0.0.1', '[::1]'].includes(new URL(homeserver).hostname),
@@ -124,6 +127,11 @@ for (const [themeId, width, simpleMode] of [
       expect(material.translucent).toBe(true);
       expect(material.blur).not.toBe('none');
       expect(material.blur).not.toContain('url(');
+      await expectFloatingNavHeader(header);
+      await expectInsetScrollbar(page, scroller, header);
+      await scroller.getByRole('scrollbar').press('Home');
+      await scroller.getByRole('scrollbar').evaluate((el) => (el as HTMLElement).blur());
+      await scroller.getByRole('scrollbar').hover();
       await page.screenshot({ path: testInfo.outputPath('space-header-top.png') });
 
       await scroller.evaluate((element) => {
@@ -148,21 +156,26 @@ for (const [themeId, width, simpleMode] of [
           return element.contains(document.elementFromPoint(bounds.x + 20, bounds.y + 20));
         })
       ).toBe(true);
+      await scroller.getByRole('scrollbar').hover();
       await page.screenshot({ path: testInfo.outputPath('space-header-scrolled.png') });
       await header.getByRole('button').click();
       await page.getByRole('button', { name: 'Space Settings', exact: true }).click();
       await expect(page.getByRole('button', { name: 'General', exact: true })).toBeVisible();
-      await expectFloatingNavHeader(
-        page
-          .getByRole('button', { name: 'General', exact: true })
-          .locator('xpath=ancestor::*[@data-y-scrollbar-width][1]')
-          .locator('header')
-      );
+      const settingsHeader = page
+        .getByRole('button', { name: 'General', exact: true })
+        .locator('xpath=ancestor::*[@data-y-scrollbar-width][1]')
+        .locator('header');
+      await expectFloatingNavHeader(settingsHeader);
+      await page.setViewportSize({ width, height: 240 });
+      const settingsScroll = await expectFloatingNavHeader(settingsHeader);
+      await expectInsetScrollbar(page, settingsScroll, settingsHeader);
+      await settingsScroll.getByRole('scrollbar').hover();
       await page.screenshot({
         path: testInfo.outputPath('space-settings-header.png'),
         scale: 'css',
       });
       await page.keyboard.press('Escape');
+      await page.setViewportSize({ width, height: 844 });
 
       // Use an interior row so bottom clamping cannot hide a missing header inset.
       const interiorRoom = panel.getByRole('link', { name: '05 · 🎨 Design studio', exact: true });
@@ -186,6 +199,7 @@ for (const [themeId, width, simpleMode] of [
         .poll(() => scroller.evaluate((element) => element.scrollHeight - element.clientHeight))
         .toBeLessThanOrEqual(1);
       await expect(panel.getByRole('link', { name: 'Lobby', exact: true })).toBeVisible();
+      expect(errors).toEqual([]);
     } finally {
       const cleanup = await Promise.allSettled([
         setAccountData(

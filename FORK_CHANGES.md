@@ -2,10 +2,15 @@
 
 ## Runbook
 
-### Keep room scrollbars between floating controls (2026-09-18)
+### Keep room and navigation scrollbars below floating controls (2026-09-18)
 
 - Room, thread, and compact overview scrollbars use the existing measured header, filters, thread banner, and footer heights to stay inside the unobscured reading area.
   Messages and cards still scroll natively behind the glass, including the composer and following footer.
+- `PageNavContent` applies the same scrollbar to Home, Direct Messages, spaces, Inbox/Invites, Explorer, and account/room/space settings without per-page changes.
+  Its track shares the existing navigation header height and ends inside the content wrapper, above fixed footer actions and Recently Opened.
+  Empty lists keep the scrollbar hidden.
+  Resizable panels expose their existing splitter inset to the shared scrollbar and content gutter, keeping scrollbar dragging, panel resizing, and row menus separate for mouse and touch layouts.
+- Expanded messages pin their Show less control above the same measured footer, including changes to composer height and viewport size.
 - A shared, dependency-free `InsetScrollbar` replaces only these native scrollbar indicators because native track insets are not portable across browser engines.
   It remains a DOM child of the static scroll viewport but is positioned against its outer wrapper, preserving native wheel/touch scrolling and the timeline's existing user-intent listeners.
   Thumb updates are coalesced into animation frames without React renders; ResizeObserver tracks content, viewport, and control-size changes.
@@ -14,8 +19,10 @@
 - Validation: all 4,571 unit tests, typecheck, production/PWA build, changed-file formatting, and focused E2E TypeScript checks pass.
   Lint reports zero errors and the 17 existing warnings.
   All 12 production Chromium/WebKit phone/desktop cases pass across compact, threaded, classic, and Simple Mode views, including scrolling behind glass, scrollbar endpoints, dragging, composer growth, and reduced viewport height.
+  The navigation/disclosure follow-up passes 18 additional browser scenarios across both engines, including all eight sidebar types, mouse/touch layouts, separate splitter and row-menu hit areas, and message controls above growing composers.
+  Browser regressions reproduced missing navigation indicators, intercepted desktop scrollbar dragging, and Show less appearing 68px below the footer before their fixes.
   The desktop WebKit thread regression failed three consecutive runs before the deferred inset update and passes three consecutive runs afterward; all other thread cases were rerun after that fix.
-  Independent review approves the implementation and the resize fix.
+  Independent review approves the implementation, resize fix, shared navigation coverage, splitter clearance, and message-control inset.
   Physical iOS behavior remains unverified.
 
 ### Inset the Recently Opened divider (2026-09-17)

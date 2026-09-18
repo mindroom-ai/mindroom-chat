@@ -2,6 +2,7 @@ import { expect, test } from '@playwright/test';
 import { getHomeserver, getPrimaryCredentials, hasPrimaryCredentials } from '../env';
 import { loginWithPassword } from '../helpers/auth';
 import { expectFloatingNavHeader } from '../helpers/glassVisual';
+import { expectInsetScrollbar } from '../helpers/insetScrollbar';
 import { createPrivateRoom, loginToMatrix, matrixFetch, setAccountData } from '../helpers/matrix';
 
 for (const [themeId, width] of [
@@ -11,6 +12,8 @@ for (const [themeId, width] of [
   test('all navigation headers share floating glass in ' + themeId, async ({ page }, testInfo) => {
     test.setTimeout(240_000);
     test.skip(!hasPrimaryCredentials(), 'Local Matrix credentials required');
+    const errors: string[] = [];
+    page.on('pageerror', (error) => errors.push(error.message));
     const homeserver = getHomeserver();
     test.skip(
       !['localhost', '127.0.0.1', '[::1]'].includes(new URL(homeserver).hostname),
@@ -84,6 +87,32 @@ for (const [themeId, width] of [
         const scroll = await expectFloatingNavHeader(header);
         if (path === '/home/' || path === '/direct/') {
           // eslint-disable-next-line no-await-in-loop
+          await expectInsetScrollbar(page, scroll, header);
+          if (path === '/home/' && width >= 750) {
+            const splitter = panel.getByRole('separator', { name: 'Resize navigation panel' });
+            // eslint-disable-next-line no-await-in-loop
+            const handle = (await splitter.boundingBox())!;
+            // eslint-disable-next-line no-await-in-loop
+            const track = (await scroll.getByRole('scrollbar').boundingBox())!;
+            expect(track.x + track.width).toBeLessThanOrEqual(handle.x);
+            // eslint-disable-next-line no-await-in-loop
+            const before = (await panel.boundingBox())!.width;
+            const x = handle.x + handle.width / 2;
+            const y = handle.y + handle.height / 2;
+            // eslint-disable-next-line no-await-in-loop
+            await page.mouse.move(x, y);
+            // eslint-disable-next-line no-await-in-loop
+            await page.mouse.down();
+            // eslint-disable-next-line no-await-in-loop
+            await page.mouse.move(x + 30, y, { steps: 5 });
+            // eslint-disable-next-line no-await-in-loop
+            await page.mouse.up();
+            // eslint-disable-next-line no-await-in-loop
+            await expect
+              .poll(async () => (await panel.boundingBox())!.width)
+              .toBeCloseTo(before + 30, 0);
+          }
+          // eslint-disable-next-line no-await-in-loop
           await scroll.evaluate((el) => {
             el.scrollTop = 180;
           });
@@ -103,6 +132,8 @@ for (const [themeId, width] of [
           // eslint-disable-next-line no-await-in-loop
           await expectFloatingNavHeader(header);
           // eslint-disable-next-line no-await-in-loop
+          await scroll.getByRole('scrollbar').hover();
+          // eslint-disable-next-line no-await-in-loop
           await page.screenshot({
             path: testInfo.outputPath(path.split('/')[1] + '-header-scrolled.png'),
             scale: 'css',
@@ -111,6 +142,20 @@ for (const [themeId, width] of [
           await header.getByRole('button').click();
           // eslint-disable-next-line no-await-in-loop
           await expect(page.getByRole('button', { name: /Mark.*read/i })).toBeVisible();
+          // eslint-disable-next-line no-await-in-loop
+          await page.keyboard.press('Escape');
+          const row = panel
+            .getByRole('link')
+            .filter({ hasText: path === '/home/' ? '02 · Design studio' : '18 · Design studio' })
+            .locator('..');
+          // eslint-disable-next-line no-await-in-loop
+          await row.hover();
+          // eslint-disable-next-line no-await-in-loop
+          await row.getByRole('button', { name: 'More Options', exact: true }).click();
+          // eslint-disable-next-line no-await-in-loop
+          await expect(
+            page.getByRole('button', { name: 'Room Settings', exact: true })
+          ).toBeVisible();
           // eslint-disable-next-line no-await-in-loop
           await page.keyboard.press('Escape');
         }
@@ -159,13 +204,22 @@ for (const [themeId, width] of [
       ).toBeVisible();
       await page.getByRole('button', { name: /Open settings for / }).click();
       await expect(page.getByRole('button', { name: 'General', exact: true })).toBeVisible();
-      await expectFloatingNavHeader(
-        page
-          .getByRole('button', { name: 'General', exact: true })
-          .locator('xpath=ancestor::*[@data-y-scrollbar-width][1]')
-          .locator('header')
-      );
+      const settingsHeader = page
+        .getByRole('button', { name: 'General', exact: true })
+        .locator('xpath=ancestor::*[@data-y-scrollbar-width][1]')
+        .locator('header');
+      await expectFloatingNavHeader(settingsHeader);
+      await page.setViewportSize({ width, height: 360 });
+      const settingsScroll = await expectFloatingNavHeader(settingsHeader);
+      await expectInsetScrollbar(page, settingsScroll, settingsHeader);
+      const logout = (await page
+        .getByRole('button', { name: 'Logout', exact: true })
+        .boundingBox())!;
+      const settingsTrack = (await settingsScroll.getByRole('scrollbar').boundingBox())!;
+      expect(settingsTrack.y + settingsTrack.height).toBeLessThanOrEqual(logout.y);
+      await settingsScroll.getByRole('scrollbar').hover();
       await page.screenshot({ path: testInfo.outputPath('settings-header.png'), scale: 'css' });
+      await page.setViewportSize({ width, height: 640 });
       await page.keyboard.press('Escape');
       // Room settings uses the same navigation primitive inside the glass modal.
       await navigate('/home/' + encodeURIComponent(rooms[0]));
@@ -173,17 +227,21 @@ for (const [themeId, width] of [
       await roomHeader.getByRole('button').last().click();
       await page.getByRole('button', { name: 'Room Settings', exact: true }).click();
       await expect(page.getByRole('button', { name: 'General', exact: true })).toBeVisible();
-      await expectFloatingNavHeader(
-        page
-          .getByRole('button', { name: 'General', exact: true })
-          .locator('xpath=ancestor::*[@data-y-scrollbar-width][1]')
-          .locator('header')
-      );
+      const roomSettingsHeader = page
+        .getByRole('button', { name: 'General', exact: true })
+        .locator('xpath=ancestor::*[@data-y-scrollbar-width][1]')
+        .locator('header');
+      await expectFloatingNavHeader(roomSettingsHeader);
+      await page.setViewportSize({ width, height: 240 });
+      const roomSettingsScroll = await expectFloatingNavHeader(roomSettingsHeader);
+      await expectInsetScrollbar(page, roomSettingsScroll, roomSettingsHeader);
+      await roomSettingsScroll.getByRole('scrollbar').hover();
       await page.screenshot({
         path: testInfo.outputPath('room-settings-header.png'),
         scale: 'css',
       });
       await page.keyboard.press('Escape');
+      expect(errors).toEqual([]);
     } finally {
       const cleanup = await Promise.allSettled([
         setAccountData(

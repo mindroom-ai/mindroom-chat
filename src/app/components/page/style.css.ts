@@ -2,6 +2,7 @@ import { style } from '@vanilla-extract/css';
 import { recipe, RecipeVariants } from '@vanilla-extract/recipes';
 import { DefaultReset, color, config, toRem } from 'folds';
 import { glassFlat, glassFloating, glassSurface } from '../../styles/Glass.css';
+import { Viewport } from '../inset-scrollbar/InsetScrollbar.css';
 
 // Match the size-600 navigation header and its native focus-scroll inset.
 const pageNavHeaderHeight = toRem(54);
@@ -57,12 +58,20 @@ export const PageNavContent = style({
   flexDirection: 'column',
   minHeight: `calc(100% - ${pageNavHeaderHeight})`,
   padding: config.space.S200,
-  paddingInlineEnd: 0,
+  paddingInlineEnd: 'calc(var(--mr-scrollbar-inset-end, 0px) + 12px)',
   paddingBottom: config.space.S700,
 });
 
-export const PageNavHeaderScroll = style({
-  scrollPaddingBlockStart: pageNavHeaderHeight,
+export const PageNavHeaderScroll = style([
+  Viewport,
+  { scrollPaddingBlockStart: pageNavHeaderHeight },
+]);
+
+export const PageNavScrollbar = style({
+  top: pageNavHeaderHeight,
+  bottom: 0,
+  insetInlineEnd: 'var(--mr-scrollbar-inset-end, 0px)',
+  zIndex: 1,
 });
 
 export const PageHeader = recipe({
