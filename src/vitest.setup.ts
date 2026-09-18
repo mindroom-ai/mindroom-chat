@@ -19,6 +19,7 @@ vi.mock('./app/mindroom/threads/RoomOverlay.css', () => ({
   Footer: 'room-footer',
   Overview: 'room-overview',
   Scroll: 'room-scroll',
+  Scrollbar: 'room-scrollbar',
   headerInset: 'var(--room-header-height, 0px)',
   footerInset: 'var(--room-footer-height, 0px)',
   topInset: '0px',
@@ -43,6 +44,11 @@ vi.mock('./app/components/glass/GlassPrimitives', async () => {
   });
   return wrappers;
 });
+vi.mock('./app/components/inset-scrollbar/InsetScrollbar.css', () => ({
+  Viewport: 'inset-viewport',
+  Track: 'inset-track',
+  Thumb: 'inset-thumb',
+}));
 
 // Component tests use the real English catalog without browser detection or HTTP.
 void i18next.use(initReactI18next).init({

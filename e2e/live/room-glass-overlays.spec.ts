@@ -2,6 +2,7 @@ import { expect, test } from '@playwright/test';
 import { getHomeserver, getPrimaryCredentials, hasPrimaryCredentials } from '../env';
 import { loginWithPassword } from '../helpers/auth';
 import { expectClearStrip } from '../helpers/glassVisual';
+import { expectInsetScrollbar } from '../helpers/insetScrollbar';
 import {
   createDefaultThreadFilterState,
   createPrivateRoom,
@@ -138,6 +139,7 @@ for (const width of [390, 1280]) {
         expect((await cards.first().boundingBox())!.y).toBeGreaterThanOrEqual(
           filtersBox.y + filtersBox.height
         );
+        await expectInsetScrollbar(page, scroll, filters, footer);
         // Scroll beyond the first cards: content must exist behind every surface.
         await scroll.evaluate((element) => {
           element.scrollTop = 400;
@@ -160,6 +162,7 @@ for (const width of [390, 1280]) {
         expect((await footer.boundingBox())!.y).toBeCloseTo(footerBox.y, 0);
         await page.mouse.move(0, 0);
         await expect(page.getByRole('tooltip')).toHaveCount(0);
+        await scroll.getByRole('scrollbar').hover();
         await page.screenshot({ path: testInfo.outputPath('room-overlays.png') });
 
         // Opening a thread and going back preserves the overview's reading position.
@@ -226,6 +229,13 @@ for (const width of [390, 1280]) {
           // eslint-disable-next-line no-await-in-loop
           await expect(messages).toBeVisible();
           // eslint-disable-next-line no-await-in-loop
+          await expectInsetScrollbar(
+            page,
+            messageScroll,
+            mode === 'classic' ? header : filters,
+            footer
+          );
+          // eslint-disable-next-line no-await-in-loop
           expect((await messageScroll.boundingBox())!.y).toBeLessThanOrEqual(headerBox.y);
           if (mode === 'classic') {
             // eslint-disable-next-line no-await-in-loop
@@ -239,6 +249,8 @@ for (const width of [390, 1280]) {
           await page.mouse.move(0, 0);
           // eslint-disable-next-line no-await-in-loop
           await expect(page.getByRole('tooltip')).toHaveCount(0);
+          // eslint-disable-next-line no-await-in-loop
+          await messageScroll.getByRole('scrollbar').hover();
           // eslint-disable-next-line no-await-in-loop
           await page.screenshot({ path: testInfo.outputPath(`${mode}-overlays.png`) });
           // eslint-disable-next-line no-await-in-loop

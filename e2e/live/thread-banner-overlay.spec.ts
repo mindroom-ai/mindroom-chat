@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { getHomeserver, getPrimaryCredentials, hasPrimaryCredentials } from '../env';
 import { loginWithPassword } from '../helpers/auth';
+import { expectInsetScrollbar, expectScrollbarBounds } from '../helpers/insetScrollbar';
 import { createPrivateRoom, loginToMatrix, matrixFetch, sendRoomMessage } from '../helpers/matrix';
 
 for (const viewport of [
@@ -107,6 +108,8 @@ for (const viewport of [
         )
         .toBeGreaterThan(initialBanner!.height);
 
+      await expectInsetScrollbar(page, scroll, banner, page.locator('[data-room-footer]'));
+
       await page.mouse.move(
         viewportBox!.x + viewportBox!.width / 2,
         initialBanner!.y + initialBanner!.height + 60
@@ -118,6 +121,12 @@ for (const viewport of [
       const firstBox = await firstMessage.boundingBox();
       expect(firstBox!.y, 'the first message can be read below the summary').toBeGreaterThanOrEqual(
         initialBanner!.y + initialBanner!.height
+      );
+      await scroll.getByRole('scrollbar').hover();
+      await page.screenshot({ path: testInfo.outputPath('scrollbar-top.png') });
+      await page.mouse.move(
+        viewportBox!.x + viewportBox!.width / 2,
+        initialBanner!.y + initialBanner!.height + 60
       );
 
       const historyTarget = await scroll.evaluate((element) =>
@@ -173,11 +182,14 @@ for (const viewport of [
       };
       const historyTop = await scroll.evaluate((element) => element.scrollTop);
       await growComposer();
+      await expectScrollbarBounds(scroll, banner, footer);
       await expect
         .poll(() => scroll.evaluate((element) => element.scrollTop))
         .toBeCloseTo(historyTop, 0);
       await clearComposer();
+      await expectScrollbarBounds(scroll, banner, footer);
       await page.mouse.move(viewport.width - 2, viewport.height - 2);
+      await scroll.getByRole('scrollbar').hover();
       await page.screenshot({ path: testInfo.outputPath('thread-overlay.png') });
 
       await page.getByRole('button', { name: 'Jump to Latest', exact: true }).click();
@@ -204,6 +216,8 @@ for (const viewport of [
       await clearComposer();
 
       const expansionButton = page.getByRole('button', { name: /^\[[+-]all\]$/ });
+      await scroll.getByRole('scrollbar').hover();
+      await page.screenshot({ path: testInfo.outputPath('scrollbar-bottom.png') });
       const expansionLabel = await expansionButton.textContent();
       await expansionButton.click();
       await expect(expansionButton).not.toHaveText(expansionLabel!);
@@ -214,6 +228,7 @@ for (const viewport of [
         await expect(
           banner.getByRole('button', { name: 'Resolved', exact: true })
         ).toBeInViewport();
+        await expectScrollbarBounds(scroll, banner, footer);
       }
       await page.mouse.move(viewportBox!.x + viewportBox!.width / 2, 300);
       await page.mouse.wheel(0, -10000);

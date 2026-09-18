@@ -1,12 +1,14 @@
-import React, { ComponentProps, MutableRefObject, ReactNode } from 'react';
+import React, { ComponentProps, MutableRefObject, ReactNode, useRef } from 'react';
 import { Box, Line, Scroll, Text, as } from 'folds';
 import classNames from 'classnames';
+import { useTranslation } from 'react-i18next';
 import { Header } from '../glass/GlassPrimitives';
 import { useSurfaceContext } from '../glass/SurfaceContext';
 import { inheritSurface } from '../glass/Surface.css';
 import { ContainerColor } from '../../styles/ContainerColor.css';
 import * as css from './style.css';
 import { ScreenSize, useScreenSizeContext } from '../../hooks/useScreenSize';
+import { InsetScrollbar } from '../inset-scrollbar/InsetScrollbar';
 
 type PageRootProps = {
   nav: ReactNode;
@@ -75,10 +77,15 @@ export function PageNavContent({
   header: ReactNode;
   scrollRef?: MutableRefObject<HTMLDivElement | null>;
 }) {
+  const { t } = useTranslation();
+  const fallbackScrollRef = useRef<HTMLDivElement>(null);
+  const viewportRef = scrollRef ?? fallbackScrollRef;
+  const contentRef = useRef<HTMLDivElement>(null);
+
   return (
-    <Box grow="Yes" direction="Column">
+    <Box grow="Yes" direction="Column" style={{ position: 'relative' }}>
       <Scroll
-        ref={scrollRef}
+        ref={viewportRef}
         className={css.PageNavHeaderScroll}
         variant="Background"
         direction="Vertical"
@@ -87,7 +94,15 @@ export function PageNavContent({
         visibility="Hover"
       >
         {header}
-        <div className={css.PageNavContent}>{children}</div>
+        <div ref={contentRef} className={css.PageNavContent}>
+          {children}
+        </div>
+        <InsetScrollbar
+          scrollRef={viewportRef}
+          contentRef={contentRef}
+          className={css.PageNavScrollbar}
+          label={t('commandPalette.navigate')}
+        />
       </Scroll>
     </Box>
   );
