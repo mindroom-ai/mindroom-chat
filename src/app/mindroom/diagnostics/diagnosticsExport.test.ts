@@ -3,6 +3,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({
   buildFlightRecorderPayload: vi.fn(),
   getDeepTraceEnabled: vi.fn(),
+  getDeepTraceHealthSnapshot: vi.fn(),
+  readNativeDiagnostics: vi.fn(),
   readDeepTraceSnapshot: vi.fn(),
 }));
 
@@ -15,13 +17,27 @@ vi.mock('./flightRecorder', () => ({
 vi.mock('./deepTrace', () => ({
   DEEP_TRACE_SCHEMA_VERSION: 1,
   getDeepTraceEnabled: mocks.getDeepTraceEnabled,
+  getDeepTraceHealthSnapshot: mocks.getDeepTraceHealthSnapshot,
   readDeepTraceSnapshot: mocks.readDeepTraceSnapshot,
+}));
+
+vi.mock('./nativeDiagnostics', () => ({
+  NATIVE_DIAGNOSTICS_SCHEMA_VERSION: 1,
+  createEmptyNativeDiagnosticsSnapshot: (status: string) => ({
+    schemaVersion: 1,
+    status,
+    currentSessionId: null,
+    events: [],
+    droppedEventCount: 0,
+  }),
+  readNativeDiagnostics: mocks.readNativeDiagnostics,
 }));
 
 import { buildDiagnosticsExport } from './diagnosticsExport';
 
 describe('combined diagnostics export', () => {
   beforeEach(() => {
+    vi.useRealTimers();
     vi.clearAllMocks();
     vi.spyOn(Date, 'now').mockReturnValue(1_784_513_628_415);
     mocks.buildFlightRecorderPayload.mockReturnValue({
@@ -48,17 +64,45 @@ describe('combined diagnostics export', () => {
       events: [{ name: 'thread_resume.visibility.start' }],
     });
     mocks.getDeepTraceEnabled.mockReturnValue(false);
+    mocks.getDeepTraceHealthSnapshot.mockReturnValue({
+      status: 'recording',
+      pendingEventCount: 0,
+      pendingBytes: 0,
+      flushing: false,
+      lastFailure: {
+        at: 1_784_513_600_000,
+        stage: 'flush',
+        errorName: 'InvalidStateError',
+      },
+    });
+    mocks.readNativeDiagnostics.mockResolvedValue({
+      schemaVersion: 1,
+      status: 'available',
+      currentSessionId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      events: [
+        {
+          at: 1_784_513_600_000,
+          monotonicMs: 120.5,
+          sequence: 1,
+          sessionId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+          name: 'app.launch',
+        },
+      ],
+      droppedEventCount: 0,
+    });
   });
 
   it('exports flight evidence and the retained deep trace under a versioned envelope', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
     const { blob, fileName } = await buildDiagnosticsExport();
     const payload = JSON.parse(await blob.text());
 
     expect(fileName).toBe('mindroom-diagnostics-2026-07-20T02-13-48-415Z.json');
     expect(payload.metadata).toEqual({
-      exportSchemaVersion: 2,
+      exportSchemaVersion: 3,
       flightRecorderSchemaVersion: 1,
       deepTraceSchemaVersion: 1,
+      nativeDiagnosticsSchemaVersion: 1,
       buildVersion: 'build-sha',
       exportedAt: 1_784_513_628_415,
     });
@@ -70,6 +114,22 @@ describe('combined diagnostics export', () => {
       status: 'recording',
       events: [{ name: 'thread_resume.visibility.start' }],
     });
+    expect(payload.deepTraceHealth).toEqual({
+      status: 'recording',
+      pendingEventCount: 0,
+      pendingBytes: 0,
+      flushing: false,
+      lastFailure: {
+        at: 1_784_513_600_000,
+        stage: 'flush',
+        errorName: 'InvalidStateError',
+      },
+    });
+    expect(payload.nativeDiagnostics).toMatchObject({
+      status: 'available',
+      events: [{ name: 'app.launch' }],
+    });
+    expect(vi.getTimerCount()).toBe(0);
   });
 
   it('still exports the flight record when deep trace storage is unavailable', async () => {
@@ -108,5 +168,62 @@ describe('combined diagnostics export', () => {
       status: 'recording',
       events: [{ name: 'thread_resume.visibility.start' }],
     });
+  });
+
+  it.each([
+    ['unsupported', 'unsupported'],
+    ['rejected', 'unavailable'],
+  ])('retains other evidence when native diagnostics are %s', async (mode, expectedStatus) => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    if (mode === 'unsupported') {
+      mocks.readNativeDiagnostics.mockResolvedValue({
+        schemaVersion: 1,
+        status: 'unsupported',
+        currentSessionId: null,
+        events: [],
+        droppedEventCount: 0,
+      });
+    } else {
+      mocks.readNativeDiagnostics.mockRejectedValue(new Error('native read rejected'));
+    }
+
+    const payload = JSON.parse(await (await buildDiagnosticsExport()).blob.text());
+
+    expect(payload.nativeDiagnostics).toMatchObject({ status: expectedStatus, events: [] });
+    expect(payload.abnormalSession).toEqual({ sessionId: 'abnormal' });
+    expect(payload.deepTrace.status).toBe('recording');
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('times out a hung deep trace while retaining native and flight evidence', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    mocks.readDeepTraceSnapshot.mockReturnValue(new Promise(() => {}));
+
+    const exportPromise = buildDiagnosticsExport();
+    await vi.advanceTimersByTimeAsync(5_001);
+    const payload = JSON.parse(await (await exportPromise).blob.text());
+
+    expect(payload.deepTrace).toMatchObject({ status: 'timeout', events: [] });
+    expect(payload.deepTraceHealth.lastFailure.errorName).toBe('InvalidStateError');
+    expect(payload.nativeDiagnostics).toMatchObject({
+      status: 'available',
+      events: [{ name: 'app.launch' }],
+    });
+    expect(payload.abnormalSession).toEqual({ sessionId: 'abnormal' });
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('times out a hung native read while retaining deep trace and flight evidence', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    mocks.readNativeDiagnostics.mockReturnValue(new Promise(() => {}));
+
+    const exportPromise = buildDiagnosticsExport();
+    await vi.advanceTimersByTimeAsync(5_001);
+    const payload = JSON.parse(await (await exportPromise).blob.text());
+
+    expect(payload.nativeDiagnostics).toMatchObject({ status: 'timeout', events: [] });
+    expect(payload.deepTrace.status).toBe('recording');
+    expect(payload.abnormalSession).toEqual({ sessionId: 'abnormal' });
+    expect(vi.getTimerCount()).toBe(0);
   });
 });
