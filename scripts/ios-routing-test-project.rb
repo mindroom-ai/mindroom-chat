@@ -64,6 +64,8 @@ public_folder.last_known_file_type = 'folder'
 host.resources_build_phase.add_file_reference(public_folder)
 launch_screen = project.main_group.new_file(File.join(repo, 'ios/App/App/Base.lproj/LaunchScreen.storyboard'))
 host.resources_build_phase.add_file_reference(launch_screen)
+privacy_manifest = project.main_group.new_file(File.join(repo, 'ios/App/App/PrivacyInfo.xcprivacy'))
+host.resources_build_phase.add_file_reference(privacy_manifest)
 config_path = File.join(output, 'capacitor.config.json')
 File.write(config_path, JSON.generate({ appId: 'chat.mindroom.RoutingHost', loggingBehavior: 'production' }))
 host.resources_build_phase.add_file_reference(project.main_group.new_file(config_path))

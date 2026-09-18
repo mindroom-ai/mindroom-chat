@@ -144,6 +144,7 @@ final class MindRoomDiagnosticsStore {
     private let currentSessionId: UUID
     private let wallClockMilliseconds: () -> Double
     private let monotonicMilliseconds: () -> Double
+    private let monotonicBaselineMilliseconds: Double
     private let atomicWrite: AtomicWrite
     private var status: MindRoomDiagnosticStatus = .available
     private var droppedEventCount = 0
@@ -164,6 +165,7 @@ final class MindRoomDiagnosticsStore {
         self.currentSessionId = currentSessionId
         self.wallClockMilliseconds = wallClockMilliseconds
         self.monotonicMilliseconds = monotonicMilliseconds
+        monotonicBaselineMilliseconds = monotonicMilliseconds()
         self.atomicWrite = atomicWrite
 
         queue.async { [self] in
@@ -174,7 +176,7 @@ final class MindRoomDiagnosticsStore {
     func record(name: MindRoomDiagnosticEventName, data: MindRoomDiagnosticState? = nil) {
         let safeData = data?.isEmpty == false && data?.isValid == true ? data : nil
         let at = wallClockMilliseconds()
-        let monotonicMs = monotonicMilliseconds()
+        let monotonicMs = max(0, monotonicMilliseconds() - monotonicBaselineMilliseconds)
         queue.async { [self] in
             let event = MindRoomDiagnosticEvent(
                 at: at,
