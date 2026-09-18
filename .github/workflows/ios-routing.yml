@@ -1,9 +1,6 @@
 name: iOS routing
 
 on:
-  push:
-    branches:
-      - 'fix/ios-diagnostic-evidence'
   pull_request:
     paths:
       - 'ios/**'
