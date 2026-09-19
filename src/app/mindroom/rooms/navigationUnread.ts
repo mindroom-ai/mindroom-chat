@@ -1,7 +1,7 @@
 import { atom } from 'jotai';
 import { RoomToUnread } from '../../../types/matrix/room';
 import { roomToUnreadAtom } from '../../state/room/roomToUnread';
-import { archivedRoomsAtom } from './archivedRooms';
+import { archivedRoomsAtom, isRoomVisible } from './archivedRooms';
 
 // Space aggregates track the leaf rooms contributing their counts. Exclude
 // archives only for navigation; notification state and read receipts stay intact.
@@ -11,7 +11,7 @@ export const navigationRoomToUnreadAtom = atom((get): RoomToUnread => {
   if (archived.size === 0) return source;
   const visible: RoomToUnread = new Map();
   source.forEach((unread, roomId) => {
-    if (archived.has(roomId)) return;
+    if (!isRoomVisible(roomId, archived)) return;
     if (!unread.from) {
       visible.set(roomId, unread);
       return;
@@ -19,7 +19,7 @@ export const navigationRoomToUnreadAtom = atom((get): RoomToUnread => {
     const from = new Set(unread.from);
     let { total, highlight } = unread;
     unread.from.forEach((childId) => {
-      if (!archived.has(childId)) return;
+      if (isRoomVisible(childId, archived)) return;
       from.delete(childId);
       const child = source.get(childId);
       total -= child?.total ?? 0;

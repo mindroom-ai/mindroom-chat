@@ -11,6 +11,25 @@ import {
   setDirectAccountData,
 } from '../helpers/matrix';
 
+const setArchived = (
+  homeserver: string,
+  accessToken: string,
+  userId: string,
+  roomId: string,
+  archived: boolean
+) =>
+  matrixFetch(
+    homeserver,
+    `/user/${encodeURIComponent(userId)}/rooms/${encodeURIComponent(
+      roomId
+    )}/account_data/io.mindroom.archived`,
+    {
+      method: 'PUT',
+      accessToken,
+      body: JSON.stringify({ archived }),
+    }
+  );
+
 test.skip(!hasPrimaryCredentials(), 'Requires a local Matrix test account.');
 
 for (const mobile of [false, true]) {
@@ -61,12 +80,14 @@ for (const mobile of [false, true]) {
       await expect(page).toHaveURL(new RegExp(encodeURIComponent(roomId)));
       await expect(page.getByRole('button', { name: 'Close archived rooms' })).toHaveCount(0);
       await expect(roomHeader).toBeVisible();
-      const content = await matrixFetch<{ rooms: string[] }>(
+      const content = await matrixFetch<{ archived: boolean }>(
         homeserver,
-        `/user/${encodeURIComponent(session.userId)}/account_data/io.mindroom.archived_rooms`,
+        `/user/${encodeURIComponent(session.userId)}/rooms/${encodeURIComponent(
+          roomId
+        )}/account_data/io.mindroom.archived`,
         { accessToken: session.accessToken }
       );
-      expect(content.rooms).toContain(roomId);
+      expect(content.archived).toBe(true);
       const membership = await matrixFetch<{ membership: string }>(
         homeserver,
         `/rooms/${encodeURIComponent(roomId)}/state/m.room.member/${encodeURIComponent(
@@ -119,13 +140,8 @@ test('hides archived direct and space rooms and follows remote restore', async (
   await setAccountData(homeserver, session.accessToken, session.userId, 'io.mindroom.settings', {
     simpleMode: false,
   });
-  await setAccountData(
-    homeserver,
-    session.accessToken,
-    session.userId,
-    'io.mindroom.archived_rooms',
-    { rooms: [roomId, directId] }
-  );
+  await setArchived(homeserver, session.accessToken, session.userId, roomId, true);
+  await setArchived(homeserver, session.accessToken, session.userId, directId, true);
   await loginWithPassword(page, { homeserver, ...credentials });
   await page.goto('/direct/');
   await waitForLoggedInShell(page);
@@ -133,13 +149,8 @@ test('hides archived direct and space rooms and follows remote restore', async (
   await page.goto(`/${encodeURIComponent(spaceId)}/`);
   await waitForLoggedInShell(page);
   await expect(page.getByRole('link', { name, exact: true })).toHaveCount(0);
-  await setAccountData(
-    homeserver,
-    session.accessToken,
-    session.userId,
-    'io.mindroom.archived_rooms',
-    { rooms: [] }
-  );
+  await setArchived(homeserver, session.accessToken, session.userId, roomId, false);
+  await setArchived(homeserver, session.accessToken, session.userId, directId, false);
   await expect(page.getByRole('link', { name, exact: true })).toBeVisible();
   await page.goto('/direct/');
   await expect(page.getByRole('link', { name: directName })).toBeVisible();

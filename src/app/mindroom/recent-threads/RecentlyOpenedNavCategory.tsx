@@ -3,7 +3,7 @@ import { useAtom, useAtomValue } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import { Scroll, Text } from 'folds';
 import type { Room } from 'matrix-js-sdk';
-import { archivedRoomsAtom } from '../rooms/archivedRooms';
+import { archivedRoomsAtom, isRoomVisible } from '../rooms/archivedRooms';
 import { NavCategory, NavCategoryHeader } from '../../components/nav';
 import { RoomNavCategoryButton } from '../../features/room-nav';
 import { useCategoryHandler } from '../../hooks/useCategoryHandler';
@@ -91,7 +91,10 @@ export function RecentlyOpenedNavCategory({
     // allRoomsAtom makes joined-room membership changes reactive; mx.getRoom alone is not.
     void allRoomIds;
     return recentThreads.reduce<VisibleRecentThreadItem[]>((visibleEntries, recentThread) => {
-      if (visibleEntries.length >= visibleLimit || archivedRooms.has(recentThread.roomId))
+      if (
+        visibleEntries.length >= visibleLimit ||
+        !isRoomVisible(recentThread.roomId, archivedRooms)
+      )
         return visibleEntries;
 
       const room = mx.getRoom(recentThread.roomId);

@@ -3,7 +3,7 @@ import { useAtom, useAtomValue } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useSearchParams } from 'react-router-dom';
 import { Text } from 'folds';
-import { archivedRoomsAtom } from '../rooms/archivedRooms';
+import { archivedRoomsAtom, isRoomVisible } from '../rooms/archivedRooms';
 import { NavCategory, NavCategoryHeader } from '../../components/nav';
 import { RoomNavCategoryButton } from '../../features/room-nav';
 import { useCategoryHandler } from '../../hooks/useCategoryHandler';
@@ -51,7 +51,7 @@ export function ThreadNavCategory({ sidebarScrollRef, spaceId }: ThreadNavCatego
       : indexSnapshot.entries.values();
 
     return buildSidebarThreadEntries(
-      Array.from(scopedEntries).filter((entry) => !archivedRooms.has(entry.roomId)),
+      Array.from(scopedEntries).filter((entry) => isRoomVisible(entry.roomId, archivedRooms)),
       preferences.pinnedThreadKeys,
       directRoomIds
     );
