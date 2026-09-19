@@ -16,7 +16,7 @@ import {
 } from 'html-react-parser';
 import { MatrixClient } from 'matrix-js-sdk';
 import classNames from 'classnames';
-import { Box, Chip, config, Header, Icon, IconButton, Icons, Scroll, Text, toRem } from 'folds';
+import { Box, Chip, config, Header, Icon, IconButton, Icons, Text, toRem } from 'folds';
 import { IntermediateRepresentation, Opts as LinkifyOpts, OptFn } from 'linkifyjs';
 import { ErrorBoundary } from 'react-error-boundary';
 import { ChildNode } from 'domhandler';
@@ -324,21 +324,22 @@ export function CodeBlock({
           )}
         </Box>
       </Header>
-      <Scroll
+      {/* eslint-disable jsx-a11y/no-noninteractive-tabindex -- Native scroll regions need keyboard focus. */}
+      <div
+        className={css.CodeBlockScroll}
+        role="group"
+        aria-label={customLabel ?? language ?? 'Code'}
+        tabIndex={0}
         style={{
           maxHeight: largeCodeBlock && !expanded ? toRem(300) : undefined,
           paddingBottom: largeCodeBlock ? config.space.S400 : undefined,
         }}
-        direction="Both"
-        variant="SurfaceVariant"
-        size="300"
-        visibility="Hover"
-        hideTrack
       >
         <div id="code-block-content" className={css.CodeBlockInternal}>
           {domToReact(children, opts)}
         </div>
-      </Scroll>
+      </div>
+      {/* eslint-enable jsx-a11y/no-noninteractive-tabindex */}
       {largeCodeBlock && !expanded && <Box className={css.CodeBlockBottomShadow} />}
     </Text>
   );

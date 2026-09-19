@@ -2,8 +2,8 @@ import { keyframes, style } from '@vanilla-extract/css';
 import { color, config } from 'folds';
 
 const shimmer = keyframes({
-  '0%': { backgroundPosition: '180% 50%' },
-  '100%': { backgroundPosition: '-80% 50%' },
+  '0%, 100%': { opacity: 1 },
+  '50%': { opacity: 0.8 },
 });
 
 // Horizontal flip, glowing core, vertical flip; rest about 0.5s between phases.
@@ -38,28 +38,28 @@ const turn = keyframes({
 });
 const core = keyframes({
   '0%, 31%': {
-    transform: 'translateY(0px) rotateY(0deg) scale(1, 1)',
-    filter: 'drop-shadow(0 0 9px #ffe39b30)',
+    transform: 'translateY(0%) rotateY(0deg) scale(1, 1)',
+    filter: 'drop-shadow(0 0 0.025em #ffe39b30)',
   },
   '36.333%': {
-    transform: 'translateY(18px) rotateY(-22deg) scale(1.03, 0.93)',
-    filter: 'drop-shadow(0 0 9px #ffe39b45)',
+    transform: 'translateY(2.5%) rotateY(-22deg) scale(1.03, 0.93)',
+    filter: 'drop-shadow(0 0 0.025em #ffe39b45)',
   },
   '44.333%': {
-    transform: 'translateY(-54px) rotateY(385deg) scale(0.97, 1.05)',
-    filter: 'drop-shadow(0 0 36px #ffe39bb0)',
+    transform: 'translateY(-7.5%) rotateY(385deg) scale(0.97, 1.05)',
+    filter: 'drop-shadow(0 0 0.1em #ffe39bb0)',
   },
   '49.667%': {
-    transform: 'translateY(13.5px) rotateY(350deg) scale(1.025, 0.96)',
-    filter: 'drop-shadow(0 0 18px #ffe39b75)',
+    transform: 'translateY(1.875%) rotateY(350deg) scale(1.025, 0.96)',
+    filter: 'drop-shadow(0 0 0.05em #ffe39b75)',
   },
   '55.667%': {
-    transform: 'translateY(-9px) rotateY(364deg) scale(0.99, 1.015)',
-    filter: 'drop-shadow(0 0 18px #ffe39b60)',
+    transform: 'translateY(-1.25%) rotateY(364deg) scale(0.99, 1.015)',
+    filter: 'drop-shadow(0 0 0.05em #ffe39b60)',
   },
   '63%, 100%': {
-    transform: 'translateY(0px) rotateY(360deg) scale(1, 1)',
-    filter: 'drop-shadow(0 0 9px #ffe39b30)',
+    transform: 'translateY(0%) rotateY(360deg) scale(1, 1)',
+    filter: 'drop-shadow(0 0 0.025em #ffe39b30)',
   },
 });
 const glow = keyframes({
@@ -144,8 +144,13 @@ export const Mark = style({
 });
 
 export const Core = style({
-  transformBox: 'fill-box',
-  transformOrigin: 'center',
+  // Animate an HTML layer containing static SVG artwork. Animating the SVG
+  // <use> itself forces layout and repaint throughout each core movement.
+  position: 'absolute',
+  inset: 0,
+  // Center of the cube's bounds in the shared 720-unit viewBox.
+  transformOrigin: '50% 47.5%',
+  willChange: 'transform, filter',
   animation: `${core} 9s cubic-bezier(0.2, 0.7, 0.3, 1) infinite`,
   '@media': reducedMotion,
 });
@@ -158,7 +163,9 @@ export const Text = style({
   backgroundSize: '220% 100%',
   backgroundClip: 'text',
   WebkitBackgroundClip: 'text',
-  animation: `${shimmer} 2.2s linear infinite`,
+  // Opacity can composite the existing gradient; moving its background
+  // position repaints the text every frame, even in an otherwise idle chat.
+  animation: `${shimmer} 2.2s ease-in-out infinite`,
   '@media': {
     '(prefers-reduced-motion: reduce)': {
       animation: 'none',

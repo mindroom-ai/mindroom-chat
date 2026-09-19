@@ -2,6 +2,32 @@
 
 ## Runbook
 
+### Reduce UI layout and repaint work (2026-09-19)
+
+- Status: local performance changes cover shared message rendering, room/thread virtualization, and thinking indicators.
+- Profiling used a production build, a local Matrix room with 120 formatted replies and six concurrently edited responses, and Chromium at 390 × 844 with device scale factor 3 and 4× CPU throttling.
+  These browser measurements do not establish native iPhone frame rates.
+- Code blocks now use native CSS overflow with keyboard focus, themed thin scrollbars, and the existing copy/expand controls.
+  Mounting 12 code blocks performs zero synchronous scrollbar geometry reads, down from 48.
+- Expanded streaming messages measure overflow through ResizeObserver after layout instead of forcing a layout during every edited-message commit.
+  Initial mounts, collapse transitions, collapsed edits, and browsers without ResizeObserver retain synchronous checks.
+  Every edited key receives a fresh observation so same-height edits retain the warm-start verdict used during virtualized remounts.
+- Timeline ref cleanup batches detached-node scans in a microtask after React removes the DOM nodes.
+  Mount measurements remain synchronous; a 20-row removal burst now performs one cache scan instead of 20, including correct same-key replacement and whole-timeline disposal.
+  Samples attributed to the repeated cleanup callback fell from 196 to 3 in the production streaming profiles.
+- Thinking markers keep the flip/core/flip motion and shared artwork, but animate an HTML graphics layer around the static SVG core.
+  The text gradient pulses opacity instead of repainting a moving background.
+  In a 9.5-second isolated two-marker trace, Paint events fell from 1,498 to 12, observed paint time from about 666 ms to 1.4 ms, and animation-induced layouts from 175 to zero.
+- Regression checks: `npx playwright test e2e/message-rendering-performance.spec.ts e2e/thinking-marker.spec.ts` exercises the real components.
+  The thinking-marker paint gate uses Chromium tracing; layout, motion phases, resolved SVG geometry, mobile sizing, and reduced-motion checks also pass in Firefox and WebKit.
+  The live informational probes remain `e2e/live/perf-thread-streaming.spec.ts` and `e2e/live/perf-thread-scroll-stability.spec.ts` with local test credentials.
+- Validation: all 4,198 tests across 514 files pass under Node 24, production/PWA build and typecheck pass, and 16 browser cases pass across Chromium, Firefox, and WebKit (two Chromium-only tracing cases skipped on the other engines).
+  ESLint has zero errors and the existing 17 warnings; changed-file formatting passes.
+  Independent review checked observer timing, same-height cache behavior, virtualizer disposal, animation geometry, and accessibility.
+- Remaining work: capture native iPhone scrolling, concurrent streaming, and pinch traces with the same room before claiming an on-device frame-rate improvement.
+  The full six-response replay still drops frames under CPU throttling; the isolated component gains are not an end-to-end frame-rate guarantee.
+  Pinch still changes root font size during the gesture; this pass reduces shared rendering costs without changing the zoom interaction.
+
 ### Animate the thinking marker with the M logo (2026-09-15)
 
 - Status: the selected Flip, glow, flip sequence replaces the four-dot indicator in `MindroomThinkingPlaceholder`.

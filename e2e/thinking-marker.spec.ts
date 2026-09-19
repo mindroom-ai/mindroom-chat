@@ -7,7 +7,8 @@ async function sample(page: Page, time: number) {
       animation.currentTime = currentTime;
     });
     const svg = document.querySelector('[role="status"] svg')!;
-    const core = svg.querySelector('use[href$="#central-cube"]')!;
+    const core = document.querySelector('use[href$="#central-cube"]')!.parentElement!
+      .parentElement!;
     const rotor = svg.parentElement!;
     const aura = rotor.previousElementSibling!;
     const styles = [rotor, core, aura].map((element) => {
@@ -23,7 +24,7 @@ test('thinking marker plays the glowing core between the horizontal and vertical
 }) => {
   await page.goto('/e2e/fixtures/thinking-marker.html');
   const status = page.getByRole('status', { name: 'AI is responding' }).first();
-  await expect(status.locator('svg')).toHaveCount(1);
+  await expect(status.locator('svg')).toHaveCount(2);
   for (const part of await status.locator('use').all()) {
     await expect
       .poll(() => part.evaluate((element) => (element as SVGGraphicsElement).getBBox().width))
@@ -63,10 +64,11 @@ test('thinking marker fits chat text and honors reduced motion in both themes', 
     const statuses = page.getByRole('status', { name: 'AI is responding' });
     await expect(statuses).toHaveCount(2);
     for (const [index, size] of [32, 28].entries()) {
-      const svg = statuses.nth(index).locator('svg');
-      await expect(svg).toHaveCSS('width', `${size}px`);
-      await expect(svg).toHaveCSS('height', `${size}px`);
-      await expect(svg).toHaveAttribute('focusable', 'false');
+      for (const svg of await statuses.nth(index).locator('svg').all()) {
+        await expect(svg).toHaveCSS('width', `${size}px`);
+        await expect(svg).toHaveCSS('height', `${size}px`);
+        await expect(svg).toHaveAttribute('focusable', 'false');
+      }
     }
     expect(await page.getByRole('img').count()).toBe(0);
     await expect.poll(() => page.evaluate(() => document.getAnimations().length)).toBe(0);
@@ -75,4 +77,35 @@ test('thinking marker fits chat text and honors reduced motion in both themes', 
       await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)
     ).toBe(true);
   }
+});
+
+test('thinking motion does not continuously repaint the artwork or text', async ({
+  page,
+  browserName,
+}) => {
+  test.skip(browserName !== 'chromium', 'Paint tracing uses the Chromium protocol');
+  await page.goto('/e2e/fixtures/thinking-marker.html');
+  await expect(page.getByRole('status')).toHaveCount(2);
+  await page.evaluate(() => document.fonts.ready);
+  await page.waitForTimeout(1000);
+  const cdp = await page.context().newCDPSession(page);
+  let paintCount = 0;
+  cdp.on('Tracing.dataCollected', ({ value }) => {
+    paintCount += value.filter(
+      (event: { name: string; ph: string }) => event.name === 'Paint' && event.ph === 'X'
+    ).length;
+  });
+  await cdp.send('Tracing.start', {
+    categories: 'devtools.timeline',
+    transferMode: 'ReportEvents',
+  });
+  // Cover a complete flip / glowing-core / flip cycle.
+  await page.waitForTimeout(9500);
+  const complete = new Promise<void>((resolve) => {
+    cdp.once('Tracing.tracingComplete', resolve);
+  });
+  await cdp.send('Tracing.end');
+  await complete;
+  await cdp.detach();
+  expect(paintCount).toBeLessThan(60);
 });

@@ -71,6 +71,7 @@ vi.mock('../styles/CustomHtml.css', () => ({
   MarginSpaced: 'MarginSpaced',
   CodeBlock: 'CodeBlock',
   CodeBlockHeader: 'CodeBlockHeader',
+  CodeBlockScroll: 'CodeBlockScroll',
   CodeBlockInternal: 'CodeBlockInternal',
   CodeBlockBottomShadow: 'CodeBlockBottomShadow',
   Code: 'Code',

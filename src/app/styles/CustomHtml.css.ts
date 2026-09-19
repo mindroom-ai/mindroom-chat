@@ -104,6 +104,36 @@ export const CodeBlockHeader = style([
     gap: config.space.S200,
   },
 ]);
+// Virtualized messages mount many code blocks in one commit. Native overflow
+// avoids measuring scrollbar geometry (and invalidating layout) for every block.
+export const CodeBlockScroll = style({
+  overflow: 'scroll',
+  paddingBottom: config.space.S200,
+  scrollbarWidth: 'thin',
+  scrollbarColor: `var(--mr-scrollbar-thumb-color, ${color.SurfaceVariant.ContainerLine}) transparent`,
+  selectors: {
+    '&:focus-visible': {
+      outline: `2px solid ${color.Primary.Main}`,
+      outlineOffset: '-2px',
+    },
+  },
+  '::-webkit-scrollbar': {
+    width: toRem(8),
+    height: toRem(8),
+  },
+  '::-webkit-scrollbar-thumb': {
+    backgroundColor: `var(--mr-scrollbar-thumb-color, ${color.SurfaceVariant.ContainerLine})`,
+    borderRadius: config.radii.R300,
+    border: '2px solid transparent',
+    backgroundClip: 'padding-box',
+  },
+  '::-webkit-scrollbar-corner': {
+    backgroundColor: 'transparent',
+  },
+  '::-webkit-scrollbar-track': {
+    backgroundColor: 'transparent',
+  },
+});
 export const CodeBlockInternal = style([
   CodeFont,
   {

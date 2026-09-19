@@ -59,8 +59,9 @@ describe('MindroomThinkingPlaceholder', () => {
 
     expect(status.props['aria-label']).toBe('AI is responding');
     expect(indicator.props['aria-hidden']).toBe('true');
-    expect(indicator.findAllByType('svg')).toHaveLength(1);
-    expect(indicator.findByType('svg').props.focusable).toBe('false');
+    const artwork = indicator.findAllByType('svg');
+    expect(artwork).toHaveLength(2);
+    artwork.forEach((svg) => expect(svg.props.focusable).toBe('false'));
     expect(JSON.stringify(renderer.toJSON())).toContain('Working');
 
     renderer.unmount();

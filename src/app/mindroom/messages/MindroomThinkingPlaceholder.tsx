@@ -47,8 +47,12 @@ export function MindroomThinkingPlaceholder() {
             <use href={`${thinkingMark}#outer-frame`} />
             <use href={`${thinkingMark}#left-rooms`} />
             <use href={`${thinkingMark}#right-rooms`} />
-            <use className={css.Core} href={`${thinkingMark}#central-cube`} />
           </svg>
+          <span className={css.Core}>
+            <svg className={css.Mark} viewBox="152 112 720 720" focusable="false">
+              <use href={`${thinkingMark}#central-cube`} />
+            </svg>
+          </span>
         </span>
       </span>
       <span className={css.Text} aria-hidden="true">
