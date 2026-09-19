@@ -56,7 +56,12 @@ export function MindroomThinkingPlaceholder() {
         </span>
       </span>
       <span className={css.Text} aria-hidden="true">
-        {message}
+        <span className={css.TextBase}>{message}</span>
+        <span className={css.TextSweep} aria-hidden="true">
+          <span className={css.TextCounter}>
+            <span className={css.TextHighlight}>{message}</span>
+          </span>
+        </span>
       </span>
     </span>
   );

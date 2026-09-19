@@ -2,6 +2,23 @@
 
 ## Runbook
 
+### Restore the moving thinking shimmer without continuous repainting (2026-09-19)
+
+- Status: the moving text highlight is restored locally, validated, and independently reviewed.
+- The implementation follows the paired-transform technique in [T3 Code's thinking shimmer](https://github.com/pingdotgg/t3code/blob/b44c1ce5d25ee0d5a5be82e380618a886c19ea96/apps/web/src/index.css#L467-L541).
+  A static gradient mask moves across a decorative text copy that moves the same distance in the opposite direction, keeping the letters aligned with the original label.
+  The logo's flip/core/flip choreography stays unchanged and its artwork is not duplicated by the text overlay.
+- The original text determines layout, both copies receive each rotating message, and the existing responding status remains the only accessible label.
+  Reduced motion and forced colors show static readable text; symmetric margins preserve alignment in right-to-left layouts and wrapped labels.
+- A controlled 9.5-second Chromium comparison with two markers, a 390 × 844 viewport, device scale factor 3, and 4× CPU throttling recorded 1,148 Paint events and about 367 ms painting for the previous moving-background text effect, versus 12 events and about 1.8 ms for the masked prototype.
+  The integrated component recorded 12 Paint events, about 2.6 ms painting, and zero layouts in the same isolated workload.
+  These measurements establish reduced repaint work, not native iPhone frame rates or a whole-app speedup.
+- Regression coverage checks the moving highlight, stationary text at multiple animation phases, wrapped RTL labels, reduced motion, forced colors, and the existing paint-count gate.
+- Validation: all 4,198 tests across 514 files pass under Node 24, along with typecheck, the production/PWA build, formatting, and ESLint with zero errors and the existing 17 warnings.
+  All 24 applicable browser cases pass across Chromium, Firefox, and WebKit; three protocol/emulation-specific cases are skipped.
+  Independent review found no remaining correctness, accessibility, or alignment issues after the RTL margin fix.
+- Native iPhone profiling and potential offscreen animation pausing remain follow-up work.
+
 ### Reduce UI layout and repaint work (2026-09-19)
 
 - Status: local performance changes cover shared message rendering, room/thread virtualization, and thinking indicators.
@@ -16,7 +33,7 @@
   Mount measurements remain synchronous; a 20-row removal burst now performs one cache scan instead of 20, including correct same-key replacement and whole-timeline disposal.
   Samples attributed to the repeated cleanup callback fell from 196 to 3 in the production streaming profiles.
 - Thinking markers keep the flip/core/flip motion and shared artwork, but animate an HTML graphics layer around the static SVG core.
-  The text gradient pulses opacity instead of repainting a moving background.
+  This first pass used an opacity pulse for the text; the follow-up above restores the moving shimmer with a masked overlay.
   In a 9.5-second isolated two-marker trace, Paint events fell from 1,498 to 12, observed paint time from about 666 ms to 1.4 ms, and animation-induced layouts from 175 to zero.
 - Regression checks: `npx playwright test e2e/message-rendering-performance.spec.ts e2e/thinking-marker.spec.ts` exercises the real components.
   The thinking-marker paint gate uses Chromium tracing; layout, motion phases, resolved SVG geometry, mobile sizing, and reduced-motion checks also pass in Firefox and WebKit.

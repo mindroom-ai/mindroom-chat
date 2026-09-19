@@ -16,6 +16,10 @@ vi.mock('./MindroomThinkingPlaceholder.css', () => ({
   Placeholder: 'Placeholder',
   Rotor: 'Rotor',
   Text: 'Text',
+  TextBase: 'TextBase',
+  TextSweep: 'TextSweep',
+  TextCounter: 'TextCounter',
+  TextHighlight: 'TextHighlight',
 }));
 
 const renderPlaceholder = (messages?: string[]) =>

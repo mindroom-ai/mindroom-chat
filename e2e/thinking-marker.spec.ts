@@ -71,6 +71,9 @@ test('thinking marker fits chat text and honors reduced motion in both themes', 
       }
     }
     expect(await page.getByRole('img').count()).toBe(0);
+    const text = statuses.first().locator(':scope > span').last();
+    await expect(text.locator(':scope > span').first()).toBeVisible();
+    await expect(text.locator(':scope > span').last()).toBeHidden();
     await expect.poll(() => page.evaluate(() => document.getAnimations().length)).toBe(0);
     expect(await sample(page, 3990)).toEqual(await sample(page, 0));
     expect(
@@ -108,4 +111,76 @@ test('thinking motion does not continuously repaint the artwork or text', async 
   await complete;
   await cdp.detach();
   expect(paintCount).toBeLessThan(60);
+});
+
+for (const { label, query } of [
+  { label: 'Thinking…', query: '?dark' },
+  {
+    label: 'Processing several messages and checking the details before replying...',
+    query: '?rtl',
+  },
+]) {
+  test(`a highlight sweeps across aligned text: ${label}`, async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto(
+      `/e2e/fixtures/thinking-marker.html${query}&label=${encodeURIComponent(label)}`
+    );
+    await page.evaluate(() => document.fonts.ready);
+    const status = page.getByRole('status').first();
+    const text = status.locator(':scope > span').last();
+    // Base text plus a decorative, masked copy, without duplicating the logo.
+    await expect(text.locator(':scope > span')).toHaveCount(2);
+    await expect(status.locator('svg')).toHaveCount(2);
+    const frames = [];
+    for (const time of [0, 550, 1100, 2000]) {
+      const frame = await text.evaluate((host, currentTime) => {
+        document.getAnimations().forEach((animation) => {
+          animation.pause();
+          animation.currentTime = currentTime;
+        });
+        const base = host.firstElementChild!;
+        const sweep = host.lastElementChild!;
+        const highlight = sweep.firstElementChild!.firstElementChild!;
+        const a = base.getBoundingClientRect();
+        const b = highlight.getBoundingClientRect();
+        return {
+          offsetX: b.x - a.x,
+          offsetY: b.y - a.y,
+          widthDifference: b.width - a.width,
+          heightDifference: b.height - a.height,
+          transform: getComputedStyle(sweep).transform,
+          mask: getComputedStyle(sweep).maskImage,
+          text: [base.textContent, highlight.textContent],
+          hidden: sweep.getAttribute('aria-hidden'),
+        };
+      }, time);
+      expect(Math.abs(frame.offsetX)).toBeLessThan(0.1);
+      expect(Math.abs(frame.offsetY)).toBeLessThan(0.1);
+      expect(Math.abs(frame.widthDifference)).toBeLessThan(0.1);
+      expect(Math.abs(frame.heightDifference)).toBeLessThan(0.1);
+      expect(frame.mask).toContain('linear-gradient');
+      expect(frame.text).toEqual([label, label]);
+      expect(frame.hidden).toBe('true');
+      frames.push(frame);
+    }
+    expect(new Set(frames.map((frame) => frame.transform)).size).toBe(4);
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)
+    ).toBe(true);
+  });
+}
+
+test('forced colors retain readable text without a shimmer overlay', async ({
+  page,
+  browserName,
+}) => {
+  test.skip(browserName === 'webkit', 'WebKit does not emulate forced colors');
+  await page.emulateMedia({ forcedColors: 'active' });
+  await page.goto('/e2e/fixtures/thinking-marker.html');
+  const text = page.getByRole('status').first().locator(':scope > span').last();
+  const base = text.locator(':scope > span').first();
+  await expect(base).toBeVisible();
+  await expect(base).toHaveCSS('background-image', 'none');
+  await expect(base).not.toHaveCSS('color', 'rgba(0, 0, 0, 0)');
+  await expect(text.locator(':scope > span').last()).toBeHidden();
 });
