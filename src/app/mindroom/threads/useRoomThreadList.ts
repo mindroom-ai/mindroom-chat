@@ -73,9 +73,6 @@ export const useRoomThreadList = (room: Room, enabled = true) => {
       },
       abortController.signal
     )
-      .then(() => {
-        if (abortController.signal.aborted) return;
-      })
       .catch((err: unknown) => {
         if (abortController.signal.aborted) return;
         setError(err as Error);

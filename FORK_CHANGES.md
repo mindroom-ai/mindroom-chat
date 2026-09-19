@@ -12,12 +12,16 @@
 - Thread edit repair now claims at most four concurrent repair operations from its existing in-flight registry across streaming renders.
   A regression reproduced 24 simultaneous repair operations from five rerenders before the fix; each SDK operation can issue both a root request and a relations request.
   A released slot wakes candidates waiting for capacity, even if another operation stalls, and queued candidates are rechecked before claiming a slot.
+  Releasing capacity belongs to the mounted controller, while applying and persisting results still requires the request's thread to remain current.
   Failed operations do not retry merely because their own slot was released, and unmounting stops queued work.
 - Overview thread-list loads cooperatively stop requesting new pages when their last consumer leaves.
   Shared consumers retain the existing complete-list behavior, and in-flight SDK requests may still finish.
   The mounted edit-repair controller owns its candidates, attempted state, and operation slots; the room-scoped shared loader owns consumer accounting and pagination continuation.
   View hooks release their interest on navigation without cancelling another consumer's work.
-- Validation: all 4,610 unit tests pass under Node 24 after integration with the current thread-gap recovery changes, along with typecheck, production/PWA build, and changed-file formatting.
+- Overview resume refreshes release their apply ownership and stop later targets and counter updates when either overview mode is left.
+  The engine keeps ownership of already-shared relation jobs so surviving consumers can still receive their results.
+  Regression tests use the real content helper and scheduler with a second consumer to cover both directions between overview modes.
+- Validation: all 4,613 unit tests pass under Node 24 after integration with the current thread-gap recovery changes, along with typecheck, production/PWA build, and changed-file formatting.
   Full lint reports zero errors and the 17 existing warnings.
   Independent reviews found no actionable issues in either fix or its lifecycle regression coverage.
   Four production Chromium/WebKit desktop and phone-sized checks pass for thread-send route and scroll stability.

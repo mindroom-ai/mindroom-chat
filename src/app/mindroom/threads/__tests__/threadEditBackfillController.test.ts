@@ -231,6 +231,55 @@ describe('useThreadEditBackfillController (task #129)', () => {
     }
   );
 
+  it('wakes the current thread when a stale request releases controller capacity', async () => {
+    const harness = makeHarness();
+    const previous = Array.from({ length: 4 }, (_, index) => makePlaceholder(`$previous-${index}`));
+    const current = makePlaceholder('$current');
+    const { props } = makeProps(harness, previous);
+    let renderer!: ReactTestRenderer;
+    await act(async () => {
+      renderer = create(React.createElement(Harness, props));
+    });
+    try {
+      props.threadIdRef.current = '$current-thread';
+      await act(async () => {
+        renderer.update(
+          React.createElement(Harness, {
+            ...props,
+            threadEvents: [current],
+            threadId: '$current-thread',
+          })
+        );
+      });
+      expect(harness.relations).toHaveBeenCalledTimes(4);
+      await act(async () => {
+        harness.deferreds.get(previous[0].getId()!)!.resolve();
+        await flush();
+      });
+      expect(harness.relations).toHaveBeenCalledTimes(5);
+      expect(previous[0].getContent().body).toBe('Thinking...');
+      expect(props.persistThreadEventCache).not.toHaveBeenCalled();
+      await act(async () => {
+        harness.deferreds.get('$current')!.resolve();
+        await flush();
+      });
+      expect(current.getContent().body).toBe('resolved');
+      expect(props.persistThreadEventCache).toHaveBeenCalledWith(
+        '$current-thread',
+        [current],
+        undefined,
+        undefined,
+        true
+      );
+    } finally {
+      act(() => renderer.unmount());
+      await act(async () => {
+        harness.deferreds.forEach(({ resolve }) => resolve());
+        await flush();
+      });
+    }
+  });
+
   it('repairs newly arrived candidates after a busy batch returns no edits', async () => {
     const harness = makeHarness();
     let release!: () => void;

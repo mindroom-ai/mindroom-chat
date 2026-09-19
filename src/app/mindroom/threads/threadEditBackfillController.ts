@@ -180,7 +180,8 @@ export const useThreadEditBackfillController = ({
           const release = () => {
             if (inFlight.get(targetEventId) !== token) return;
             inFlight.delete(targetEventId);
-            if (rescanRequestedRef.current && !isStale()) {
+            // Capacity belongs to the mounted controller, even for stale results.
+            if (rescanRequestedRef.current && !unmountedRef.current) {
               rescanRequestedRef.current = false;
               setSlotRevision((value) => value + 1);
             }

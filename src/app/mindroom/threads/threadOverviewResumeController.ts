@@ -80,7 +80,7 @@ export const useThreadOverviewResumeController = ({
   // (kind: 'thread-backfill'), and the resume trigger is naturally
   // rate-limited by the 1s window below plus the scheduler's dedup.
   const lastOverviewResumeRefreshTsRef = useRef(0);
-  const roomThreadListAbortControllerRef = useRef<AbortController>();
+  const overviewRefreshAbortControllerRef = useRef<AbortController>();
   const { overviewResumeRefreshIds: targetThreadIds } = useMemo(
     () =>
       resolveThreadOverviewRefreshTargets({
@@ -114,17 +114,17 @@ export const useThreadOverviewResumeController = ({
   }, [room.roomId]);
 
   useEffect(() => {
-    if (threadId || compactViewRequested) {
-      roomThreadListAbortControllerRef.current = undefined;
+    if (threadId) {
+      overviewRefreshAbortControllerRef.current = undefined;
       return undefined;
     }
 
     const abortController = new AbortController();
-    roomThreadListAbortControllerRef.current = abortController;
+    overviewRefreshAbortControllerRef.current = abortController;
     return () => {
       abortController.abort();
-      if (roomThreadListAbortControllerRef.current === abortController) {
-        roomThreadListAbortControllerRef.current = undefined;
+      if (overviewRefreshAbortControllerRef.current === abortController) {
+        overviewRefreshAbortControllerRef.current = undefined;
       }
     };
   }, [compactViewRequested, room, threadId]);
@@ -161,7 +161,7 @@ export const useThreadOverviewResumeController = ({
   // and the thread-seed prewarm band (cold-start content prefetch)
   // stay one implementation. Behavior here is unchanged.
   const refreshOverviewThreadCacheFromRelations = useCallback(
-    async (expectedThreadId: string): Promise<void> => {
+    async (expectedThreadId: string, shouldApply: () => boolean): Promise<void> => {
       await fetchAndPersistThreadContent({
         mx,
         scheduler: syncEngine.scheduler,
@@ -172,25 +172,15 @@ export const useThreadOverviewResumeController = ({
         // so it beats prewarm (band 3) but yields to the current
         // room's own gap-fill (band 0-1).
         priority: 2,
-        shouldContinue: () =>
-          alive() && (!threadIdRef.current || threadIdRef.current === expectedThreadId),
-        shouldApply: () =>
-          alive() && (!threadIdRef.current || threadIdRef.current === expectedThreadId),
+        // This scheduler job may be shared with another consumer. Let the
+        // engine own its cancellation and release only this view's apply path.
+        shouldApply,
         persistThreadEventCache,
         onApplyThreadRelations,
         onStoreThreadSummary,
       });
     },
-    [
-      alive,
-      mx,
-      onApplyThreadRelations,
-      onStoreThreadSummary,
-      persistThreadEventCache,
-      room,
-      syncEngine,
-      threadIdRef,
-    ]
+    [mx, onApplyThreadRelations, onStoreThreadSummary, persistThreadEventCache, room, syncEngine]
   );
 
   const refreshOverviewThreadsOnResume = useCallback(
@@ -210,6 +200,9 @@ export const useThreadOverviewResumeController = ({
       // burst-fire from stacked resume signals (visibility + focus
       // firing in quick succession).
       const runRefresh = async () => {
+        const signal = overviewRefreshAbortControllerRef.current?.signal;
+        if (!signal || signal.aborted) return;
+        const shouldContinueRefresh = () => !signal.aborted && alive() && !threadIdRef.current;
         logTimelineDebug(debugTraceId, 'overview-thread-resume-refresh-start', {
           compactViewRequested,
           reason,
@@ -220,20 +213,19 @@ export const useThreadOverviewResumeController = ({
           if (compactViewRequested) {
             await refreshCompactThreadList();
           } else {
-            const signal = roomThreadListAbortControllerRef.current?.signal;
-            if (!signal || signal.aborted) return;
             await loadRoomThreads(room, undefined, signal);
-            if (signal.aborted) return;
           }
 
-          if (!alive() || threadIdRef.current) return;
+          if (!shouldContinueRefresh()) return;
 
           for (const expectedThreadId of targetThreadIds) {
-            if (!alive() || threadIdRef.current) return;
+            if (!shouldContinueRefresh()) return;
             // eslint-disable-next-line no-await-in-loop
-            await refreshOverviewThreadCacheFromRelations(expectedThreadId);
+            await refreshOverviewThreadCacheFromRelations(expectedThreadId, shouldContinueRefresh);
+            if (!shouldContinueRefresh()) return;
           }
 
+          if (!shouldContinueRefresh()) return;
           setOverviewRefreshCounter((value) => value + 1);
           logTimelineDebug(debugTraceId, 'overview-thread-resume-refresh-complete', {
             compactViewRequested,
