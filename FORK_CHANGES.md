@@ -2,6 +2,24 @@
 
 ## Runbook
 
+### Coalesce untouched thread sync gaps (2026-09-19)
+
+- Limited room syncs retain one pending gap per initialized dormant thread instead of allocating another empty timeline each time.
+  The pending gap keeps its earliest forward boundary and newest backward boundary, with shared token conversions started immediately.
+- New live events, cache insertion, remote echoes, history insertion, pagination, and explicit thread opening materialize the gap before using it.
+  Common timeline reads and duplicate rehydration remain lazy.
+  Historical insertion and pagination retain the caller’s original timeline object; existing timelines and event lookup remain registered.
+- Reset-all calls and threads with active pagination retain immediate reset behavior.
+  Threads still fetching initial metadata also reset immediately.
+  Pagination waits for conversion, cancels if a destructive reset removed its target, and observes conversion failures without retaining a stuck wait.
+- The selected thread observes room gaps after the SDK reset loop.
+  Both cache-first opening and SDK bootstrap await conversion before capturing the live chain; navigation removes the active subscription and suppresses stale callbacks.
+- Real-SDK regressions cover 200 initialized threads across 20 gaps, touched-thread insertion, token boundaries, both pagination directions, concurrent resets, failed conversions, historical identity, duplicate cache data, and active-thread switching.
+- Validation: all 4,674 tests across 552 files pass under Node 24, along with application typecheck, production/PWA build, and changed-file formatting.
+  ESLint reports zero errors and the 17 existing warnings.
+- Status: implementation and local validation complete; independent review and production replay are in progress.
+  This change addresses measured SDK timeline retention and does not establish a browser crash cause or native-device frame-rate improvement.
+
 ### Keep content ready during fast scrolling (2026-09-19)
 
 - Status: implemented, validated with the full unit suite and production profiles, and independently reviewed.

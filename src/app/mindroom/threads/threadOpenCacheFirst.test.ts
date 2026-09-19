@@ -53,6 +53,27 @@ const makeDefaultOptions = () => {
 };
 
 describe('runThreadOpenCacheFirst', () => {
+  it.each([true, false])(
+    'awaits pending SDK gaps before cache hydration (still open=%s)',
+    async (stillOpen) => {
+      const opts = makeDefaultOptions();
+      let finish!: () => void;
+      const pending = new Promise<void>((resolve) => {
+        finish = resolve;
+      });
+      Object.assign(opts.room.getThread('$root')!, {
+        flushPendingTimelineReset: vi.fn().mockReturnValueOnce(pending),
+      });
+      const opening = runThreadOpenCacheFirst(opts as never);
+      await Promise.resolve();
+      expect(opts.hydrateThreadFromCache).not.toHaveBeenCalled();
+      opts.isCurrentThreadOpen.mockReturnValue(stillOpen);
+      finish();
+      await opening;
+      expect(opts.hydrateThreadFromCache).toHaveBeenCalledTimes(stillOpen ? 1 : 0);
+    }
+  );
+
   it('short-circuits network bootstrap when cached thread coverage is complete', async () => {
     const opts = makeDefaultOptions();
     const cachedPage = {
