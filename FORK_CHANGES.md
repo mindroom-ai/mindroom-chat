@@ -2,6 +2,15 @@
 
 ## Runbook
 
+### Investigate iOS 27 resume termination (2026-09-19)
+
+- Investigation-only branch based on the installed `e03d8873` build; shipping application sources are unchanged.
+- The device export records a trace-persistence failure immediately after resume, followed six seconds later by WebContent termination and a completed automatic reload.
+  The user confirms an iPhone 15 on iOS 27 and a blank screen which recovered without force-closing.
+- The throwaway CI probe compares ordinary resume, targeted background Networking termination, and targeted background WebContent termination on iOS 27.
+  Process identities, JavaScript boot continuity, storage outcomes, native callbacks, and eventual screenshot painting distinguish observations from assumptions.
+  Deliberately terminating a process does not reproduce the cause of the device's termination; CI results are pending.
+
 ### Restore the moving thinking shimmer without continuous repainting (2026-09-19)
 
 - Status: the moving text highlight is restored locally, validated, and independently reviewed.

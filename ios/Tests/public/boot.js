@@ -32,3 +32,7 @@ const refresh = async () => {
 read.addEventListener('click', refresh);
 document.body.append(read, result);
 void refresh();
+
+if (new URLSearchParams(location.search).has('storageProbe')) {
+  void import('./resume-storage.js');
+}

@@ -28,9 +28,13 @@ project.root_object.attributes['TargetAttributes'] = { ui_tests.uuid => { 'TestT
     )
   end
 end
+info_path = File.join(output, 'Info.plist')
+info = Xcodeproj::Plist.read_from_path(File.join(repo, 'ios/App/App/Info.plist'))
+info['UIApplicationSceneManifest']['UISceneConfigurations']['UIWindowSceneSessionRoleApplication'][0]['UISceneDelegateClassName'] = '$(PRODUCT_MODULE_NAME).ResumeStorageSceneDelegate'
+Xcodeproj::Plist.write_to_path(info, info_path)
 host.build_configurations.each do |config|
   config.build_settings.merge!(
-    'INFOPLIST_FILE' => File.join(repo, 'ios/App/App/Info.plist'),
+    'INFOPLIST_FILE' => info_path,
     'MARKETING_VERSION' => '1.0',
     'CURRENT_PROJECT_VERSION' => '1',
     'ENABLE_TESTABILITY' => 'YES',
@@ -48,6 +52,9 @@ ui_tests.build_configurations.each do |config|
 end
 
 Dir[File.join(repo, 'ios/App/App/*.swift')].sort.each do |path|
+  host.source_build_phase.add_file_reference(project.main_group.new_file(path))
+end
+Dir[File.join(repo, 'ios/Tests/Host/*.swift')].sort.each do |path|
   host.source_build_phase.add_file_reference(project.main_group.new_file(path))
 end
 Dir[File.join(repo, 'ios/Tests/*.swift')].sort.each do |path|

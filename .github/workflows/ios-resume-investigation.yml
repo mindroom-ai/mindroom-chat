@@ -1,0 +1,39 @@
+name: iOS 27 resume investigation
+
+on:
+  push:
+    branches: ['investigate/ios27-resume-termination']
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: xcode-27
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+        with:
+          node-version-file: '.node-version'
+          package-manager-cache: false
+      - run: npm ci
+      - run: npm test
+      - name: Record actual Xcode and simulator versions
+        run: |
+          xcodebuild -version
+          xcrun simctl list runtimes
+          xcrun simctl list devices available
+      - run: gem install --user-install --no-document xcodeproj -v 1.27.0
+      - name: Run unchanged routing coverage and resume fault probes
+        run: bash scripts/test-ios-routing.sh
+      - name: Preserve native evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: ios27-resume-investigation
+          path: |
+            .claude/evidence/ios-routing/*.xcresult
+            .claude/evidence/ios-routing/xcodebuild.log
+          include-hidden-files: true
+          retention-days: 14
