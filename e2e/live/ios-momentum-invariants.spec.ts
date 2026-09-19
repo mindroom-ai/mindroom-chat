@@ -28,7 +28,7 @@ const hasCredentials = !!process.env.E2E_USERNAME;
 const REPLY_COUNT = Number(process.env.IOS_INVARIANT_REPLY_COUNT ?? 220);
 const iphone = devices['iPhone 14'];
 
-type AppScrollWrite = { kind: string; value: number; t: number };
+type AppScrollWrite = { kind: string; value: number; t: number; stack?: string };
 
 type StreamReport = {
   error?: string;
@@ -74,6 +74,7 @@ test.describe('iOS momentum invariants (iPhone-emulated)', () => {
     const session = await loginToMatrix(homeserver, username, password);
     const roomId = await createPrivateRoom(homeserver, session.accessToken, {
       name: `iOS momentum invariants ${Date.now()}`,
+      topic: 'Synthetic fast-scroll coverage regression',
     });
     const rootId = await sendRoomMessage(homeserver, session.accessToken, roomId, {
       msgtype: 'm.text',
@@ -139,7 +140,7 @@ test.describe('iOS momentum invariants (iPhone-emulated)', () => {
         __appScrollWrites?: AppScrollWrite[];
         __driverDepth?: number;
       };
-      type AppScrollWrite = { kind: string; value: number; t: number };
+      type AppScrollWrite = { kind: string; value: number; t: number; stack?: string };
       w.__appScrollWrites = [];
       w.__driverDepth = 0;
       const record = (kind: string, el: unknown, value: number) => {
@@ -261,8 +262,8 @@ test.describe('iOS momentum invariants (iPhone-emulated)', () => {
       };
 
       // Per-frame visual-jump sampler: with the driver moving scrollTop by
-      // exactly -90 per frame, a persisting anchor's viewport top must move
-      // by exactly +90. Any residual is content shifting under the reader —
+      // exactly -240 per frame, a persisting anchor's viewport top must move
+      // by exactly +240. Any residual is content shifting under the reader —
       // the "small jumps opposite to the scroll direction" a rider feels.
       let jumpAnchor: Element | null = null;
       let jumpAnchorTop = 0;
@@ -272,8 +273,10 @@ test.describe('iOS momentum invariants (iPhone-emulated)', () => {
         Array.from(scroller.querySelectorAll('[data-index]')).map((tile) => ({
           i: tile.getAttribute('data-index'),
           id:
-            tile.querySelector('[data-message-id]')?.getAttribute('data-message-id')?.slice(0, 12) ??
-            null,
+            tile
+              .querySelector('[data-message-id]')
+              ?.getAttribute('data-message-id')
+              ?.slice(0, 12) ?? null,
           top: Math.round((tile as HTMLElement).offsetTop),
           h: Math.round(tile.getBoundingClientRect().height),
         }));
@@ -305,11 +308,11 @@ test.describe('iOS momentum invariants (iPhone-emulated)', () => {
       for (let flick = 0; flick < 3; flick += 1) {
         for (let step = 0; step < 14; step += 1) {
           w.__driverDepth! += 1;
-          scroller.scrollTop -= 90;
+          scroller.scrollTop -= 240;
           w.__driverDepth! -= 1;
           // eslint-disable-next-line no-await-in-loop
           await raf();
-          sampleJump(90);
+          sampleJump(240);
         }
         // eslint-disable-next-line no-await-in-loop
         await wait(80);
@@ -371,7 +374,7 @@ test.describe('iOS momentum invariants (iPhone-emulated)', () => {
 
     expect(report.error).toBeUndefined();
     // The stream really moved through fresh territory and was sampled.
-    expect(report.travel).toBeGreaterThan(2_500);
+    expect(report.travel).toBeGreaterThan(8_000);
     expect(report.gapFrames).toBeGreaterThan(40);
 
     // 1. Momentum invariant: the app wrote nothing to the scroller while
@@ -417,6 +420,7 @@ test.describe('iOS momentum invariants (iPhone-emulated)', () => {
     const session = await loginToMatrix(homeserver, username, password);
     const roomId = await createPrivateRoom(homeserver, session.accessToken, {
       name: `iOS snap-back repro ${Date.now()}`,
+      topic: 'Synthetic scroll-position regression',
     });
     const rootId = await sendRoomMessage(homeserver, session.accessToken, roomId, {
       msgtype: 'm.text',
@@ -610,8 +614,7 @@ test.describe('iOS momentum invariants (iPhone-emulated)', () => {
         steps,
         scrollTopAfterUp: scroller.scrollTop,
         scrollHeightAfterUp: scroller.scrollHeight,
-        distFromBottomAfterUp:
-          scroller.scrollHeight - scroller.clientHeight - scroller.scrollTop,
+        distFromBottomAfterUp: scroller.scrollHeight - scroller.clientHeight - scroller.scrollTop,
       };
     });
     // Diagnostic detail on failure: did scrollTop get written back down, or
@@ -654,8 +657,7 @@ test.describe('iOS momentum invariants (iPhone-emulated)', () => {
       w.__snapSampling = false;
       const scroller = w.__snapScroller!;
       return {
-        finalDistFromBottom:
-          scroller.scrollHeight - scroller.clientHeight - scroller.scrollTop,
+        finalDistFromBottom: scroller.scrollHeight - scroller.clientHeight - scroller.scrollTop,
         minDistAfterLeavingBottom: Math.min(
           ...w.__snapSamples!.slice(20).map((s) => s.distFromBottom),
           Infinity
@@ -688,6 +690,7 @@ test.describe('iOS momentum invariants (iPhone-emulated)', () => {
     const session = await loginToMatrix(homeserver, username, password);
     const roomId = await createPrivateRoom(homeserver, session.accessToken, {
       name: `Composer re-pin repro ${Date.now()}`,
+      topic: 'Synthetic composer scroll-position regression',
     });
     const rootId = await sendRoomMessage(homeserver, session.accessToken, roomId, {
       msgtype: 'm.text',
@@ -791,8 +794,7 @@ test.describe('iOS momentum invariants (iPhone-emulated)', () => {
       return {
         scrollTopBefore,
         steps,
-        distFromBottomAfterUp:
-          scroller.scrollHeight - scroller.clientHeight - scroller.scrollTop,
+        distFromBottomAfterUp: scroller.scrollHeight - scroller.clientHeight - scroller.scrollTop,
       };
     });
     // eslint-disable-next-line no-console
@@ -806,9 +808,9 @@ test.describe('iOS momentum invariants (iPhone-emulated)', () => {
     // Same invariant as the snap-back test: the app never moves the user's
     // scroll position (estimate-drift erodes scrollHeight, never scrollTop).
     upPhase.steps.forEach((step, index) => {
-      expect(
-        Math.abs(step.scrollTop - (upPhase.scrollTopBefore - 80 * (index + 1)))
-      ).toBeLessThan(4);
+      expect(Math.abs(step.scrollTop - (upPhase.scrollTopBefore - 80 * (index + 1)))).toBeLessThan(
+        4
+      );
     });
     expect(upPhase.distFromBottomAfterUp).toBeGreaterThan(300);
 
@@ -823,8 +825,7 @@ test.describe('iOS momentum invariants (iPhone-emulated)', () => {
     const outcome = await page.evaluate(() => {
       const scroller = (window as Window & { __repinScroller?: HTMLElement }).__repinScroller!;
       return {
-        finalDistFromBottom:
-          scroller.scrollHeight - scroller.clientHeight - scroller.scrollTop,
+        finalDistFromBottom: scroller.scrollHeight - scroller.clientHeight - scroller.scrollTop,
       };
     });
     await testInfo.attach('composer-repin.json', {
@@ -855,6 +856,7 @@ test.describe('iOS momentum invariants (iPhone-emulated)', () => {
     const session = await loginToMatrix(homeserver, username, password);
     const roomId = await createPrivateRoom(homeserver, session.accessToken, {
       name: `iOS prepend one-paint ${Date.now()}`,
+      topic: 'Synthetic history-prepend regression',
     });
     const rootId = await sendRoomMessage(homeserver, session.accessToken, roomId, {
       msgtype: 'm.text',
@@ -923,7 +925,7 @@ test.describe('iOS momentum invariants (iPhone-emulated)', () => {
         __appScrollWrites?: AppScrollWrite[];
         __driverDepth?: number;
       };
-      type AppScrollWrite = { kind: string; value: number; t: number };
+      type AppScrollWrite = { kind: string; value: number; t: number; stack?: string };
       w.__appScrollWrites = [];
       w.__driverDepth = 0;
       const record = (kind: string, el: unknown, value: number) => {
@@ -1083,8 +1085,10 @@ test.describe('iOS momentum invariants (iPhone-emulated)', () => {
         Array.from(scroller.querySelectorAll('[data-index]')).map((tile) => ({
           i: tile.getAttribute('data-index'),
           id:
-            tile.querySelector('[data-message-id]')?.getAttribute('data-message-id')?.slice(0, 12) ??
-            null,
+            tile
+              .querySelector('[data-message-id]')
+              ?.getAttribute('data-message-id')
+              ?.slice(0, 12) ?? null,
           top: Math.round((tile as HTMLElement).offsetTop),
           h: Math.round(tile.getBoundingClientRect().height),
         }));

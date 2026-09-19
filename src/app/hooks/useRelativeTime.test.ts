@@ -1,11 +1,15 @@
 import React from 'react';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { daysToMs, hoursToMs, minutesToMs, secondsToMs } from '../utils/time';
+import { daysToMs, formatRelativeTime, hoursToMs, minutesToMs, secondsToMs } from '../utils/time';
 import { getRelativeTimeUpdateInterval, useRelativeTime } from './useRelativeTime';
 
+const languageState = vi.hoisted(() => ({ value: 'en' }));
+
 vi.mock('react-i18next', () => ({
-  useTranslation: () => ({ i18n: { language: 'en', resolvedLanguage: 'en' } }),
+  useTranslation: () => ({
+    i18n: { language: languageState.value, resolvedLanguage: languageState.value },
+  }),
 }));
 
 type HarnessProps = {
@@ -19,7 +23,9 @@ function Harness({ ts, onRender }: HarnessProps) {
   return null;
 }
 
-const renderHookHarness = (ts: number | undefined): {
+const renderHookHarness = (
+  ts: number | undefined
+): {
   getSnapshot: () => string;
   renderer: ReactTestRenderer;
 } => {
@@ -48,6 +54,7 @@ describe('useRelativeTime', () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-03-23T12:00:00.000Z'));
     vi.stubGlobal('window', globalThis);
+    languageState.value = 'en';
   });
 
   afterEach(() => {
@@ -160,5 +167,59 @@ describe('useRelativeTime', () => {
     });
 
     expect(clearIntervalSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not rerender cards on clock ticks when their displayed time is unchanged', () => {
+    const onRender = vi.fn();
+    let renderer: ReactTestRenderer;
+    act(() => {
+      renderer = create(
+        React.createElement(Harness, { ts: Date.now() - minutesToMs(10), onRender })
+      );
+    });
+    onRender.mockClear();
+    for (let tick = 0; tick < 5; tick += 1) {
+      act(() => vi.advanceTimersByTime(secondsToMs(10)));
+    }
+    expect(onRender).not.toHaveBeenCalled();
+    act(() => vi.advanceTimersByTime(secondsToMs(10)));
+    expect(onRender).toHaveBeenCalledTimes(1);
+    expect(onRender).toHaveBeenLastCalledWith('11m ago');
+    act(() => renderer!.unmount());
+  });
+
+  it('updates immediately when the timestamp changes without waiting for a clock tick', () => {
+    const onRender = vi.fn();
+    let renderer!: ReactTestRenderer;
+    const firstTs = Date.now() - minutesToMs(10);
+    const nextTs = Date.now() - hoursToMs(2);
+    act(() => {
+      renderer = create(React.createElement(Harness, { ts: firstTs, onRender }));
+    });
+    expect(onRender).toHaveBeenLastCalledWith('10m ago');
+
+    act(() => {
+      renderer.update(React.createElement(Harness, { ts: nextTs, onRender }));
+    });
+    expect(onRender).toHaveBeenLastCalledWith('2h ago');
+    act(() => renderer.unmount());
+  });
+
+  it('updates immediately when the application language changes', () => {
+    const onRender = vi.fn();
+    const ts = Date.now() - minutesToMs(10);
+    let renderer!: ReactTestRenderer;
+    act(() => {
+      renderer = create(React.createElement(Harness, { ts, onRender }));
+    });
+    const english = onRender.mock.lastCall?.[0];
+
+    languageState.value = 'de';
+    act(() => {
+      renderer.update(React.createElement(Harness, { ts, onRender }));
+    });
+    expect(onRender).toHaveBeenLastCalledWith(formatRelativeTime(ts, 'de'));
+    expect(onRender.mock.lastCall?.[0]).not.toBe(english);
+    act(() => renderer.unmount());
   });
 });
