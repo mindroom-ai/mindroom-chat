@@ -2444,7 +2444,6 @@ export function RoomTimeline({
           </>
         )}
       </Box>
-    </Box>,
-    threadId !== undefined && roomTimelineVirtualizer.isScrolling
+    </Box>
   );
 }
