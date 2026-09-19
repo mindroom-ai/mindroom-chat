@@ -2,7 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { type TFunction } from 'i18next';
 import { ScreenSize } from '../../hooks/useScreenSize';
 import { SettingsPages } from '../../features/settings/settingsPages';
-import { getSettingsMenuItems, resolveSettingsInitialPage } from '../../features/settings/settingsMenu';
+import {
+  getSettingsMenuItems,
+  resolveSettingsInitialPage,
+} from '../../features/settings/settingsMenu';
 import { translateFromEn } from '../../test-utils/i18n';
 import { LOCAL_MINDROOM_SETTINGS_PAGE } from './settingsPage';
 
@@ -32,6 +35,7 @@ describe('getSettingsMenuItems', () => {
       'Notifications',
       'Devices',
       'Emojis & Stickers',
+      'Archived Rooms',
       'Developer Tools',
       'About',
     ]);
@@ -40,18 +44,14 @@ describe('getSettingsMenuItems', () => {
 
 describe('resolveSettingsInitialPage', () => {
   it('preserves an explicit General page request', () => {
-    expect(
-      resolveSettingsInitialPage(SettingsPages.GeneralPage, ScreenSize.Desktop, false)
-    ).toBe(SettingsPages.GeneralPage);
+    expect(resolveSettingsInitialPage(SettingsPages.GeneralPage, ScreenSize.Desktop, false)).toBe(
+      SettingsPages.GeneralPage
+    );
   });
 
   it('falls back to General when Local MindRoom is requested but disabled', () => {
     expect(
-      resolveSettingsInitialPage(
-        LOCAL_MINDROOM_SETTINGS_PAGE,
-        ScreenSize.Desktop,
-        false
-      )
+      resolveSettingsInitialPage(LOCAL_MINDROOM_SETTINGS_PAGE, ScreenSize.Desktop, false)
     ).toBe(SettingsPages.GeneralPage);
   });
 

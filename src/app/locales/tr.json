@@ -2837,5 +2837,15 @@
     "noHistory": "Geçmiş yok",
     "recentMessages": "Son mesajlar: {{total}}",
     "close": "Kapat"
+  },
+  "archivedRooms": {
+    "title": "Arşivlenmiş odalar",
+    "archive": "Odayı arşivle",
+    "restore": "Odayı geri yükle",
+    "restoreNamed": "{{room}} odasını geri yükle",
+    "failed": "Değişiklikler kaydedilemedi. Tekrar deneyin.",
+    "close": "Arşivlenmiş odaları kapat",
+    "description": "Odalardan ayrılmadan onları kenar çubuğundan gizleyin. Buradan açın veya geri yükleyin.",
+    "empty": "Arşivlenmiş oda yok."
   }
 }

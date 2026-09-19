@@ -2837,5 +2837,15 @@
     "noHistory": "Tanpa riwayat",
     "recentMessages": "Pesan terbaru: {{total}}",
     "close": "Tutup"
+  },
+  "archivedRooms": {
+    "title": "Ruang yang diarsipkan",
+    "archive": "Arsipkan ruang",
+    "restore": "Pulihkan ruang",
+    "restoreNamed": "Pulihkan {{room}}",
+    "failed": "Tidak dapat menyimpan perubahan. Coba lagi.",
+    "close": "Tutup ruang yang diarsipkan",
+    "description": "Sembunyikan ruang dari bilah samping tanpa meninggalkannya. Buka atau pulihkan di sini.",
+    "empty": "Tidak ada ruang yang diarsipkan."
   }
 }

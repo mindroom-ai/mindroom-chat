@@ -1,4 +1,5 @@
 import React from 'react';
+import { ArchivedRooms, ARCHIVED_ROOMS_SETTINGS_PAGE } from '../rooms/ArchivedRooms';
 import { type SettingsPage } from '../../features/settings/settingsPages';
 import { renderLocalMindroomSettingsPage } from '../local-mindroom/settingsRenderer';
 import { MindroomPrefetchSettings } from './MindroomPrefetchSettings';
@@ -12,8 +13,14 @@ type MindroomGeneralMessageSettingsProps = {
 export const renderMindroomSettingsPage = (
   activePage: SettingsPage | undefined,
   enabled: boolean,
-  requestClose: () => void
-): React.ReactNode => renderLocalMindroomSettingsPage(activePage, enabled, requestClose);
+  requestClose: () => void,
+  onNavigate: () => void
+): React.ReactNode =>
+  activePage === ARCHIVED_ROOMS_SETTINGS_PAGE ? (
+    <ArchivedRooms requestClose={requestClose} onNavigate={onNavigate} />
+  ) : (
+    renderLocalMindroomSettingsPage(activePage, enabled, requestClose)
+  );
 
 export function MindroomGeneralMessageSettings({ className }: MindroomGeneralMessageSettingsProps) {
   return <MindroomPrefetchSettings className={className} />;

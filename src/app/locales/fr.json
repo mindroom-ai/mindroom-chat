@@ -2890,5 +2890,15 @@
     "noHistory": "Aucun historique",
     "recentMessages": "Messages récents : {{total}}",
     "close": "Fermer"
+  },
+  "archivedRooms": {
+    "title": "Salons archivés",
+    "archive": "Archiver le salon",
+    "restore": "Restaurer le salon",
+    "restoreNamed": "Restaurer {{room}}",
+    "failed": "Impossible d’enregistrer les modifications. Réessayez.",
+    "close": "Fermer les salons archivés",
+    "description": "Masquez des salons dans la barre latérale sans les quitter. Ouvrez-les ou restaurez-les ici.",
+    "empty": "Aucun salon archivé."
   }
 }

@@ -2,6 +2,23 @@
 
 ## Runbook
 
+### Archive rooms without leaving them (2026-09-19)
+
+- Archive Room appears beside Leave Room in room navigation, room headers, and joined-room lobby menus.
+  Restore Room reverses the action; spaces do not expose it.
+- Settings includes Archived Rooms in both interface modes.
+  Selecting a room opens it and closes settings on desktop and mobile while keeping it archived.
+- Archive preferences use account data and follow the signed-in account across devices.
+  Writes are serialized per client, failed writes remain retryable, and account switches reset the in-memory list.
+- Home, Direct Messages, Space navigation, pinned/recent thread links, Recently Opened, and navigation unread badges exclude archived rooms.
+  Membership, room routing, thread history, read receipts, and notification preferences remain intact.
+- Regression coverage exercises persistence, restoration, failed writes, duplicate clicks, account switching, hidden thread links, nested-space unread counts, and all 17 language catalogs.
+  Live browser coverage exercises archive/open/restore on desktop and phone plus Direct Messages, Spaces, and remote restoration.
+- Validation: all 4,630 tests pass under Node 24 on standard Linux; typecheck, production/PWA build, formatting, and ESLint pass with zero errors and 17 existing warnings.
+  All three live Chromium cases pass, including desktop sidebar and mobile header actions, opening without restoring, persistence, Direct Messages, Spaces, and remote restoration.
+  Independent review findings for thread shortcuts, space/folder unread badges, and the developer space timeline were addressed and rechecked.
+- Status: implemented, locally validated, and independently reviewed; hosted checks and automated review are tracked on the pull request.
+
 ### Restore the moving thinking shimmer without continuous repainting (2026-09-19)
 
 - Status: the moving text highlight is restored locally, validated, and independently reviewed.

@@ -3,6 +3,7 @@ import { createStore, Provider } from 'jotai';
 import { enableMapSet } from 'immer';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { archivedRoomsAtom } from '../rooms/archivedRooms';
 import { makeClosedNavCategoriesAtom } from '../../state/closedNavCategories';
 import { ClosedNavCategoriesProvider } from '../../state/hooks/closedNavCategories';
 import { clearRecentThreadsStore, makeRecentThreadsAtom } from './recentThreads';
@@ -211,6 +212,16 @@ describe('RecentlyOpenedNavCategory', () => {
         (_, index) => `$thread-${DEFAULT_RECENTLY_OPENED_THREAD_LIMIT + 1 - index}`
       )
     );
+  });
+
+  it('filters archives before applying the recent limit and keeps history for restore', () => {
+    seedJoinedThreads(3);
+    renderCategory(2);
+    const lastRoomId = [...rooms.keys()][2];
+    act(() => store.set(archivedRoomsAtom, new Set([lastRoomId])));
+    expect(renderedThreadIds()).toEqual(['$thread-1', '$thread-0']);
+    act(() => store.set(archivedRoomsAtom, new Set<string>()));
+    expect(renderedThreadIds()).toEqual(['$thread-2', '$thread-1']);
   });
 
   it('accepts a custom visible entry limit', () => {

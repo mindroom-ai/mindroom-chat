@@ -17,6 +17,7 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import { useAtom } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import FocusTrap from 'focus-trap-react';
+import { useVisibleRooms } from '../../../mindroom/rooms/archivedRooms';
 import { Menu } from '../../../components/glass/GlassPrimitives';
 import { factoryRoomIdByAtoZ } from '../../../utils/sort';
 import {
@@ -67,7 +68,7 @@ type HomeMenuProps = {
   requestClose: () => void;
 };
 const HomeMenu = forwardRef<HTMLDivElement, HomeMenuProps>(({ requestClose }, ref) => {
-  const orphanRooms = useHomeRooms();
+  const orphanRooms = useVisibleRooms(useHomeRooms());
 
   return (
     <Menu ref={ref} style={{ maxWidth: toRem(160), width: '100vw' }}>
@@ -214,7 +215,7 @@ export function Home() {
   const { t } = useTranslation();
   const mx = useMatrixClient();
   const scrollRef = useRef<HTMLDivElement>(null);
-  const rooms = useHomeRooms();
+  const rooms = useVisibleRooms(useHomeRooms());
   const notificationPreferences = useRoomsNotificationPreferencesContext();
   const navigate = useNavigate();
 

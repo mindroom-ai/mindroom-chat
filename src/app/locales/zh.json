@@ -2837,5 +2837,15 @@
     "noHistory": "无历史记录",
     "recentMessages": "最近消息：{{total}} 条",
     "close": "关闭"
+  },
+  "archivedRooms": {
+    "title": "已归档房间",
+    "archive": "归档房间",
+    "restore": "恢复房间",
+    "restoreNamed": "恢复 {{room}}",
+    "failed": "无法保存更改。请重试。",
+    "close": "关闭已归档房间",
+    "description": "从侧边栏隐藏房间而不退出。可在此打开或恢复房间。",
+    "empty": "没有已归档的房间。"
   }
 }

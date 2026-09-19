@@ -75,7 +75,7 @@ import {
   HierarchyItemSpace,
   useSpaceJoinedHierarchy,
 } from '../../../hooks/useSpaceHierarchy';
-import { allRoomsAtom } from '../../../state/room-list/roomList';
+import { navigationRoomsAtom } from '../../../mindroom/rooms/archivedRooms';
 import { PageNav, PageNavContent, PageNavHeader } from '../../../components/page';
 import { usePowerLevels } from '../../../hooks/usePowerLevels';
 import { useRecursiveChildScopeFactory, useSpaceChildren } from '../../../state/hooks/roomList';
@@ -138,7 +138,7 @@ const SpaceMenu = forwardRef<HTMLDivElement, SpaceMenuProps>(
     const [invitePrompt, setInvitePrompt] = useState(false);
 
     const allChild = useSpaceChildren(
-      allRoomsAtom,
+      navigationRoomsAtom,
       room.roomId,
       useRecursiveChildScopeFactory(mx, roomToParents)
     );
@@ -452,7 +452,7 @@ export function Space() {
   const spaceIdOrAlias = getCanonicalAliasOrRoomId(mx, space.roomId);
   const scrollRef = useRef<HTMLDivElement>(null);
   const mDirects = useAtomValue(mDirectAtom);
-  const allRooms = useAtomValue(allRoomsAtom);
+  const allRooms = useAtomValue(navigationRoomsAtom);
   const allJoinedRooms = useMemo(() => new Set(allRooms), [allRooms]);
   const notificationPreferences = useRoomsNotificationPreferencesContext();
   const [roomOrderBySpace, setRoomOrderBySpace] = useAtom(useRoomOrderBySpaceAtom());

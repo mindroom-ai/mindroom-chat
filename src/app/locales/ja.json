@@ -2837,5 +2837,15 @@
     "noHistory": "履歴なし",
     "recentMessages": "最近のメッセージ：{{total}}",
     "close": "閉じる"
+  },
+  "archivedRooms": {
+    "title": "アーカイブ済みのルーム",
+    "archive": "ルームをアーカイブ",
+    "restore": "ルームを復元",
+    "restoreNamed": "{{room}} を復元",
+    "failed": "変更を保存できませんでした。もう一度お試しください。",
+    "close": "アーカイブ済みのルームを閉じる",
+    "description": "退出せずにサイドバーからルームを非表示にします。ここで開くか復元できます。",
+    "empty": "アーカイブ済みのルームはありません。"
   }
 }

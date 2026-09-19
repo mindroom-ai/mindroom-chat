@@ -21,6 +21,7 @@ import { MSpaceChildContent, StateEvent } from '../../../types/matrix/room';
 import { AsyncStatus, useAsyncCallback } from '../../hooks/useAsyncCallback';
 import { UseStateProvider } from '../../components/UseStateProvider';
 import { LeaveSpacePrompt } from '../../components/leave-space-prompt';
+import { ArchiveRoomMenuItem } from '../../mindroom/rooms/ArchiveRoomMenuItem';
 import { LeaveRoomPrompt } from '../../components/leave-room-prompt';
 import { stopPropagation } from '../../utils/keyboard';
 import { useOpenRoomSettings } from '../../state/hooks/roomSettings';
@@ -293,6 +294,9 @@ export function HierarchyItemMenu({
                       disabled={!canInvite()}
                     />
                     <SettingsMenuItem item={item} requestClose={handleRequestClose} />
+                    {!('space' in item) && (
+                      <ArchiveRoomMenuItem roomId={item.roomId} onClose={handleRequestClose} />
+                    )}
                     <UseStateProvider initial={false}>
                       {(promptLeave, setPromptLeave) => (
                         <>

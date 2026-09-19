@@ -2837,5 +2837,15 @@
     "noHistory": "Kein Verlauf",
     "recentMessages": "Letzte Nachrichten: {{total}}",
     "close": "Schließen"
+  },
+  "archivedRooms": {
+    "title": "Archivierte Räume",
+    "archive": "Raum archivieren",
+    "restore": "Raum wiederherstellen",
+    "restoreNamed": "{{room}} wiederherstellen",
+    "failed": "Änderungen konnten nicht gespeichert werden. Versuche es erneut.",
+    "close": "Archivierte Räume schließen",
+    "description": "Blende Räume in der Seitenleiste aus, ohne sie zu verlassen. Öffne sie hier oder stelle sie wieder her.",
+    "empty": "Keine archivierten Räume."
   }
 }
