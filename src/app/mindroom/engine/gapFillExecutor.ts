@@ -101,6 +101,8 @@ export type GapFillExecutorOptions = {
   readonly loadCachedTail?: typeof loadLatestCachedRoomEvents;
   /** Test hook for failing or controlling the durable marker read. */
   readonly loadDiscontinuity?: typeof loadRoomTailDiscontinuity;
+  /** Cache invalidation for mounted readers; never fired before a successful commit. */
+  readonly onRoomRecovered?: (roomId: string) => void;
 };
 
 /**
@@ -279,6 +281,8 @@ export const createGapFillExecutor = (
         } catch {
           return;
         }
+        options.onRoomRecovered?.(room.roomId);
+        if (signal.aborted || stopped) return;
       }
       // The overlap page must commit before the marker is cleared. It
       // is safe (and useful for edit/redaction healing) to persist the

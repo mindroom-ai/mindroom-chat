@@ -1055,6 +1055,7 @@ const harnessSyncEngine: MindroomSyncEngine = {
   // to pass but the real object lacks the field.
   scheduler: createBackfillScheduler(),
   noteRoomFocused: () => undefined,
+  subscribeRoomRecovery: () => () => undefined,
 };
 
 const findCollapseModeForEvent = (renderer: ReactTestRenderer, eventId: string) =>

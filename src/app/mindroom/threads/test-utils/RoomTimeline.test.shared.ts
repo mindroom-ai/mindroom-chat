@@ -1682,6 +1682,7 @@ const harnessSyncEngine: MindroomSyncEngine = {
   // to `engine.noteRoomFocused(...)` don't blow up. The mock cacheStore
   // in the harness would ignore the writes anyway.
   noteRoomFocused: () => undefined,
+  subscribeRoomRecovery: () => () => undefined,
 };
 
 // Pass children as a prop rather than positionally: this file is .ts, not

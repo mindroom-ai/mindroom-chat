@@ -9,18 +9,39 @@
   The detailed recorder dropped 2,631 events from that session and contains no viewport measurements, so the precise scroll-to-top trigger remains unproven.
 - Thread discovery eagerly materializes server thread roots, whose SDK constructors start root and relation requests outside the application's background-job scheduler.
   Continuing overview pagination after leaving that view is a supported explanation for excess background work; it is not a confirmed attribution of the device's scroll jump.
-- Thread edit repair now shares one four-worker batch across streaming renders and coalesces changes that arrive while it runs into a subsequent pass.
-  A regression reproduced 24 simultaneous requests from five rerenders before the fix.
-  Candidates arriving during a no-edit batch still get repaired, and unmounting stops queued work.
+- Thread edit repair now claims at most four concurrent repair operations from its existing in-flight registry across streaming renders.
+  A regression reproduced 24 simultaneous repair operations from five rerenders before the fix; each SDK operation can issue both a root request and a relations request.
+  A released slot wakes candidates waiting for capacity, even if another operation stalls, and queued candidates are rechecked before claiming a slot.
+  Failed operations do not retry merely because their own slot was released, and unmounting stops queued work.
 - Overview thread-list loads cooperatively stop requesting new pages when their last consumer leaves.
   Shared consumers retain the existing complete-list behavior, and in-flight SDK requests may still finish.
-- Validation: all 4,595 unit tests pass under Node 24, along with typecheck, production/PWA build, and changed-file formatting.
+  The mounted edit-repair controller owns its candidates, attempted state, and operation slots; the room-scoped shared loader owns consumer accounting and pagination continuation.
+  View hooks release their interest on navigation without cancelling another consumer's work.
+- Validation: all 4,610 unit tests pass under Node 24 after integration with the current thread-gap recovery changes, along with typecheck, production/PWA build, and changed-file formatting.
   Full lint reports zero errors and the 17 existing warnings.
   Independent reviews found no actionable issues in either fix or its lifecycle regression coverage.
   Four production Chromium/WebKit desktop and phone-sized checks pass for thread-send route and scroll stability.
   Both WebKit cases also pass a traced repeat with an orderly browser exit; an unexplained WPE process dump from the first Linux run remains a harness caveat.
   The unchanged desktop probe with 400 replies and 30 streamed edits did not reproduce the device freeze; its largest measured long task was 63 ms.
   Physical iOS reproduction and confirmation of the scroll trigger remain outstanding.
+
+### Recover open threads after timeline gaps and stalled requests (2026-09-19)
+
+- Limited-sync gap fills previously committed recovered replies to IndexedDB without updating the mounted thread.
+  The engine now publishes a room-scoped invalidation after each committed page, and the open thread reuses cache hydration and supplemental rendering to display recovered replies and bundled edits.
+  Reads coalesce while preserving a later invalidation, including when the earlier read fails; navigation cancels the old observer.
+  Background history remains cache-only.
+- A stalled reconciliation request previously held its scheduler job indefinitely, so repeated thread opens kept sharing the same unresolved request.
+  Each reconciliation page now has a 15-second HTTP deadline and one timeout retry.
+  Scheduler cancellation aborts the actual request without retrying, and exhausted retries release the slot so a later open can try again.
+- The SDK patch exposes transport controls on `fetchRelations` without putting them in the Matrix query and keeps cancellation listeners attached until the response body has finished downloading.
+  When upgrading the SDK, retain the transport regression tests and remove these patch sections once upstream provides equivalent behavior.
+- Validation: all 4,598 unit tests, application and focused test typechecks, production/PWA build, and changed-file formatting pass.
+  Full lint reports zero errors and the 17 existing warnings.
+  The SDK patch applies through `patch-package` to a fresh published package and reproduces the tested dependency files.
+  Four local Matrix browser cases pass in Chromium and WebKit: a genuine limited sync repairs the mounted thread, and a held reconciliation request recovers after repeated thread opens without reloading the document.
+  The browser stays visible throughout both cases.
+  Independent review found no blocking defects; its lifecycle, invalidation-race, and saved-cursor test findings are addressed.
 
 ### Preserve evidence for iOS blank screens (2026-09-18)
 
