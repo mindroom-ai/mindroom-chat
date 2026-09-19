@@ -153,6 +153,7 @@ import {
 } from './roomFocusScrollController';
 import { useRoomTimelineNavigationController } from './roomTimelineNavigationController';
 import { useThreadTimelineState } from './useThreadTimelineState';
+import { useThreadGapRecovery } from './useThreadGapRecovery';
 import {
   useThreadApprovalTimeline,
   useThreadApprovalRowMeasurements,
@@ -744,6 +745,7 @@ export function RoomTimeline({
   // room-bound persist facade off the engine and hands the fns down
   // to the fetch controllers (same shapes as the pre-strip props).
   const syncEngine = useMindroomSyncEngine();
+  useThreadGapRecovery({ engine: syncEngine, room, threadId, append: setSupplementalThreadEvents });
   const enginePersistForRoom = useMemo(() => syncEngine.persist.forRoom(room), [syncEngine, room]);
   const { persistRoomEventCache, persistThreadEventCache, queueRoomThreadCachePersist } =
     enginePersistForRoom;

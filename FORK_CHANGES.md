@@ -2,6 +2,24 @@
 
 ## Runbook
 
+### Recover open threads after timeline gaps and stalled requests (2026-09-19)
+
+- Limited-sync gap fills previously committed recovered replies to IndexedDB without updating the mounted thread.
+  The engine now publishes a room-scoped invalidation after each committed page, and the open thread reuses cache hydration and supplemental rendering to display recovered replies and bundled edits.
+  Reads coalesce while preserving a later invalidation, including when the earlier read fails; navigation cancels the old observer.
+  Background history remains cache-only.
+- A stalled reconciliation request previously held its scheduler job indefinitely, so repeated thread opens kept sharing the same unresolved request.
+  Each reconciliation page now has a 15-second HTTP deadline and one timeout retry.
+  Scheduler cancellation aborts the actual request without retrying, and exhausted retries release the slot so a later open can try again.
+- The SDK patch exposes transport controls on `fetchRelations` without putting them in the Matrix query and keeps cancellation listeners attached until the response body has finished downloading.
+  When upgrading the SDK, retain the transport regression tests and remove these patch sections once upstream provides equivalent behavior.
+- Validation: all 4,598 unit tests, application and focused test typechecks, production/PWA build, and changed-file formatting pass.
+  Full lint reports zero errors and the 17 existing warnings.
+  The SDK patch applies through `patch-package` to a fresh published package and reproduces the tested dependency files.
+  Four local Matrix browser cases pass in Chromium and WebKit: a genuine limited sync repairs the mounted thread, and a held reconciliation request recovers after repeated thread opens without reloading the document.
+  The browser stays visible throughout both cases.
+  Independent review found no blocking defects; its lifecycle, invalidation-race, and saved-cursor test findings are addressed.
+
 ### Preserve evidence for iOS blank screens (2026-09-18)
 
 - The September 18 device export confirms the previous route fix was installed, but contains no native lifecycle/navigation history and loses detailed trace events before the incident.
