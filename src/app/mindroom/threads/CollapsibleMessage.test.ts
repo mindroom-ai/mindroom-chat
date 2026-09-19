@@ -15,6 +15,7 @@ import {
   expandAllMessages,
   ExpandAllInitContext,
   CollapsibleMessage,
+  CollapsibleMessageStateProvider,
   ManualExpansionStateContext,
   rememberManualExpansionState,
 } from './CollapsibleMessage';
@@ -84,7 +85,8 @@ const renderCollapsibleMessage = (
   },
   children: React.ReactNode = React.createElement('span', undefined, 'message'),
   expandAllInit: boolean | undefined = undefined,
-  manualExpansionState: Map<string, boolean> | undefined = undefined
+  manualExpansionState: Map<string, boolean> | undefined = undefined,
+  deferOverflowMeasurement = false
 ) => {
   let renderer!: ReactTestRenderer;
 
@@ -100,6 +102,17 @@ const renderCollapsibleMessage = (
     tree = React.createElement(
       ManualExpansionStateContext.Provider,
       { value: manualExpansionState },
+      tree
+    );
+  }
+  if (deferOverflowMeasurement) {
+    tree = React.createElement(
+      CollapsibleMessageStateProvider,
+      {
+        expandAllInit,
+        manualExpansionState: manualExpansionState ?? new Map(),
+        deferOverflowMeasurement: true,
+      },
       tree
     );
   }
@@ -154,6 +167,253 @@ afterEach(() => {
 });
 
 describe('CollapsibleMessage', () => {
+  it('defers collapsed layout reads during virtualizer scrolling and accepts the observer verdict', () => {
+    let scrollHeight = 40;
+    let scrollHeightReads = 0;
+    const contentElement = {
+      clientHeight: 40,
+      get scrollHeight() {
+        scrollHeightReads += 1;
+        return scrollHeight;
+      },
+    };
+    let renderer!: ReactTestRenderer;
+
+    act(() => {
+      renderer = create(
+        React.createElement(
+          CollapsibleMessageStateProvider,
+          {
+            expandAllInit: undefined,
+            manualExpansionState: new Map(),
+            deferOverflowMeasurement: true,
+          },
+          React.createElement(
+            CollapsibleMessage,
+            { collapseMode: 'default', measurementKey: '$deferred-scroll|active||default' },
+            React.createElement('span', undefined, 'short message')
+          )
+        ),
+        {
+          createNodeMock: (element) =>
+            element.type === 'div' &&
+            typeof element.props.className === 'string' &&
+            element.props.className.startsWith('collapsible-content')
+              ? contentElement
+              : null,
+        }
+      );
+    });
+
+    expect(scrollHeightReads).toBe(0);
+    expect(findExpandButtons(renderer)).toHaveLength(1);
+
+    act(() => {
+      lastResizeCallback!([], {} as ResizeObserver);
+    });
+    expect(scrollHeightReads).toBe(1);
+    expect(findExpandButtons(renderer)).toHaveLength(0);
+
+    scrollHeight = 320;
+    act(() => {
+      lastResizeCallback!([], {} as ResizeObserver);
+    });
+    expect(findExpandButtons(renderer)).toHaveLength(1);
+
+    act(() => renderer.unmount());
+  });
+
+  it('uses a conservative verdict for an uncached edit while measurement is deferred', () => {
+    const previousKey = `$deferred-edit-before-${Date.now()}`;
+    const nextKey = `$deferred-edit-after-${Date.now()}`;
+    const shortContent = { clientHeight: 40, scrollHeight: 40 };
+    const seeded = renderCollapsibleMessage(
+      { collapseMode: 'default', measurementKey: previousKey },
+      shortContent
+    );
+    expect(findExpandButtons(seeded)).toHaveLength(0);
+    act(() => seeded.unmount());
+
+    const measured = createMeasuredContentElement();
+    const manualExpansionState = new Map<string, boolean>();
+    const renderDeferred = (measurementKey: string) =>
+      React.createElement(
+        CollapsibleMessageStateProvider,
+        {
+          expandAllInit: undefined,
+          manualExpansionState,
+          deferOverflowMeasurement: true,
+        },
+        React.createElement(
+          CollapsibleMessage,
+          { collapseMode: 'default', measurementKey },
+          React.createElement('span', undefined, 'edited message')
+        )
+      );
+    let renderer!: ReactTestRenderer;
+    act(() => {
+      renderer = create(renderDeferred(previousKey), {
+        createNodeMock: (element) =>
+          element.type === 'div' &&
+          typeof element.props.className === 'string' &&
+          element.props.className.startsWith('collapsible-content')
+            ? measured.contentElement
+            : null,
+      });
+    });
+    expect(measured.getScrollHeightReads()).toBe(0);
+    expect(findExpandButtons(renderer)).toHaveLength(0);
+
+    act(() => renderer.update(renderDeferred(nextKey)));
+    expect(measured.getScrollHeightReads()).toBe(0);
+    expect(findExpandButtons(renderer)).toHaveLength(1);
+
+    act(() => renderer.unmount());
+  });
+
+  it('keeps the previous verdict for idle expanded same-height edits until ResizeObserver runs', () => {
+    const shortContent = { clientHeight: 40, scrollHeight: 40 };
+    const renderer = renderCollapsibleMessage(
+      { collapseMode: 'initially-expanded', measurementKey: '$idle-stream-before' },
+      shortContent
+    );
+    expect(findCloseButtons(renderer)).toHaveLength(0);
+
+    act(() => {
+      renderer.update(
+        React.createElement(
+          CollapsibleMessage,
+          { collapseMode: 'initially-expanded', measurementKey: '$idle-stream-after' },
+          'same-height streaming text'
+        )
+      );
+    });
+
+    expect(findCloseButtons(renderer)).toHaveLength(0);
+    act(() => renderer.unmount());
+  });
+
+  it('resumes synchronous overflow measurement when virtualizer scrolling stops', () => {
+    const measured = createMeasuredContentElement();
+    const manualExpansionState = new Map<string, boolean>();
+    const renderWithDeferredMeasurement = (deferOverflowMeasurement: boolean) =>
+      React.createElement(
+        CollapsibleMessageStateProvider,
+        { expandAllInit: undefined, manualExpansionState, deferOverflowMeasurement },
+        React.createElement(
+          CollapsibleMessage,
+          { collapseMode: 'default', measurementKey: '$scroll-stop|active||default' },
+          'message'
+        )
+      );
+    let renderer!: ReactTestRenderer;
+    act(() => {
+      renderer = create(renderWithDeferredMeasurement(true), {
+        createNodeMock: (element) =>
+          element.type === 'div' &&
+          typeof element.props.className === 'string' &&
+          element.props.className.startsWith('collapsible-content')
+            ? measured.contentElement
+            : null,
+      });
+    });
+    expect(measured.getScrollHeightReads()).toBe(0);
+
+    act(() => renderer.update(renderWithDeferredMeasurement(false)));
+    expect(measured.getScrollHeightReads()).toBeGreaterThan(0);
+    act(() => renderer.unmount());
+  });
+
+  it('falls back to synchronous measurement when ResizeObserver is unavailable', () => {
+    vi.stubGlobal('ResizeObserver', undefined);
+    const measured = createMeasuredContentElement();
+    let renderer!: ReactTestRenderer;
+    act(() => {
+      renderer = create(
+        React.createElement(
+          CollapsibleMessageStateProvider,
+          {
+            expandAllInit: undefined,
+            manualExpansionState: new Map(),
+            deferOverflowMeasurement: true,
+          },
+          React.createElement(
+            CollapsibleMessage,
+            { collapseMode: 'default', measurementKey: '$no-resize-observer|active||default' },
+            'message'
+          )
+        ),
+        {
+          createNodeMock: (element) =>
+            element.type === 'div' &&
+            typeof element.props.className === 'string' &&
+            element.props.className.startsWith('collapsible-content')
+              ? measured.contentElement
+              : null,
+        }
+      );
+    });
+    expect(measured.getScrollHeightReads()).toBeGreaterThan(0);
+    act(() => renderer.unmount());
+  });
+
+  it('applies a same-key forced overflow verdict while geometry measurement is deferred', () => {
+    const manualExpansionState = new Map<string, boolean>();
+    const renderForced = (forceOverflowing: boolean) =>
+      React.createElement(
+        CollapsibleMessageStateProvider,
+        { expandAllInit: undefined, manualExpansionState, deferOverflowMeasurement: true },
+        React.createElement(
+          CollapsibleMessage,
+          {
+            collapseMode: 'default',
+            forceOverflowing,
+            measurementKey: '$forced-transition|active||default',
+          },
+          'short message'
+        )
+      );
+    const shortContent = { clientHeight: 40, scrollHeight: 40 };
+    let renderer!: ReactTestRenderer;
+    act(() => {
+      renderer = create(renderForced(false), {
+        createNodeMock: (element) =>
+          element.type === 'div' &&
+          typeof element.props.className === 'string' &&
+          element.props.className.startsWith('collapsible-content')
+            ? shortContent
+            : null,
+      });
+    });
+    act(() => lastResizeCallback!([], {} as ResizeObserver));
+    expect(findExpandButtons(renderer)).toHaveLength(0);
+
+    act(() => renderer.update(renderForced(true)));
+    expect(findExpandButtons(renderer)).toHaveLength(1);
+    act(() => renderer.unmount());
+  });
+
+  it('restores a forced overflow affordance after Collapse All while measurement is deferred', () => {
+    const renderer = renderCollapsibleMessage(
+      {
+        collapseMode: 'default',
+        forceOverflowing: true,
+        measurementKey: '$forced-collapse-all|active||default',
+      },
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      true
+    );
+    act(() => getExpandButton(renderer).props.onClick());
+    expect(findCloseButtons(renderer)).toHaveLength(1);
+
+    act(() => collapseAllMessages());
+    expect(findExpandButtons(renderer)).toHaveLength(1);
+    act(() => renderer.unmount());
+  });
+
   it('lets the browser lay out expanded streaming edits before measuring overflow', () => {
     const measured = createMeasuredContentElement();
     const renderer = renderCollapsibleMessage(

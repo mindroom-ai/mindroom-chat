@@ -32,6 +32,7 @@ export const ManualExpansionStateContext = React.createContext<Map<string, boole
   undefined
 );
 const ExpansionLayoutChangeContext = React.createContext<(() => void) | undefined>(undefined);
+const DeferOverflowMeasurementContext = React.createContext(false);
 export const MANUAL_EXPANSION_STATE_LIMIT = 4000;
 
 export const rememberManualExpansionState = (
@@ -55,18 +56,22 @@ export function CollapsibleMessageStateProvider({
   expandAllInit,
   manualExpansionState,
   onExpansionLayoutChange,
+  deferOverflowMeasurement = false,
 }: {
   children: ReactNode;
   expandAllInit: boolean | undefined;
   manualExpansionState: Map<string, boolean>;
   onExpansionLayoutChange?: () => void;
+  deferOverflowMeasurement?: boolean;
 }) {
   return (
     <ManualExpansionStateContext.Provider value={manualExpansionState}>
       <ExpansionLayoutChangeContext.Provider value={onExpansionLayoutChange}>
-        <ExpandAllInitContext.Provider value={expandAllInit}>
-          {children}
-        </ExpandAllInitContext.Provider>
+        <DeferOverflowMeasurementContext.Provider value={deferOverflowMeasurement}>
+          <ExpandAllInitContext.Provider value={expandAllInit}>
+            {children}
+          </ExpandAllInitContext.Provider>
+        </DeferOverflowMeasurementContext.Provider>
       </ExpansionLayoutChangeContext.Provider>
     </ManualExpansionStateContext.Provider>
   );
@@ -144,12 +149,12 @@ const isContentOverflowing = (el: HTMLDivElement, expanded: boolean): boolean | 
 // Values are booleans keyed by string — no element/event retention.
 //
 // The cache is a WARM-START HINT for the initial render only; it is
-// never the source of truth. Every mount still runs the layout check,
-// the ResizeObserver, and the viewport-entry IntersectionObserver,
-// each of which re-measures the real DOM and calls
-// `applyOverflowVerdict` — so a stale hint (e.g. the same message
-// rendered at a different container width) self-corrects within a
-// layout pass and updates the cache. `measurementKey` already varies
+// never the source of truth. Idle mounts run the layout check, and all
+// mounts install the ResizeObserver and viewport-entry IntersectionObserver.
+// During thread scrolling the observers correct a stale hint without forcing
+// layout per mounted row; the synchronous check resumes when scrolling ends.
+// Each path re-measures the real DOM, calls `applyOverflowVerdict`, and updates
+// the cache. `measurementKey` already varies
 // by event id, redaction state, edit event id, and collapse mode
 // (see getCollapsibleMessageMeasurementKey), so content edits and
 // redactions produce a fresh key rather than a stale hit.
@@ -204,6 +209,7 @@ export function CollapsibleMessage({
   const previousCollapseModeRef = useRef<CollapsibleMessageCollapseMode | undefined>(undefined);
   const expandAllInit = useContext(ExpandAllInitContext);
   const onExpansionLayoutChange = useContext(ExpansionLayoutChangeContext);
+  const deferOverflowMeasurement = useContext(DeferOverflowMeasurementContext);
   const previousExpandAllInitRef = useRef(expandAllInit);
   const manualExpansionState = useContext(ManualExpansionStateContext);
   const [overflowing, setOverflowing] = useState(() => {
@@ -219,8 +225,17 @@ export function CollapsibleMessage({
     return true;
   });
   useLayoutEffect(() => {
+    const keyChanged = measurementKeyRef.current !== measurementKey;
     measurementKeyRef.current = measurementKey;
-  }, [measurementKey]);
+    if (!keyChanged || !deferOverflowMeasurement) return;
+    if (forceOverflowing) {
+      setOverflowing(true);
+      return;
+    }
+    const remembered =
+      measurementKey === undefined ? undefined : overflowVerdictCache.get(measurementKey);
+    setOverflowing(remembered ?? true);
+  }, [deferOverflowMeasurement, forceOverflowing, measurementKey]);
   const applyOverflowVerdict = useCallback((verdict: boolean) => {
     countCacheProbe(verdict ? 'collapsibleVerdictOverflowing' : 'collapsibleVerdictNotOverflowing');
     rememberOverflowVerdict(measurementKeyRef.current, verdict);
@@ -320,10 +335,15 @@ export function CollapsibleMessage({
 
   // Expanded streaming rows have natural height. Let ResizeObserver measure
   // their edits after layout instead of forcing layout during every React commit.
-  // Mounts, collapse transitions, and capped rows still need a synchronous check.
+  // Idle mounts and collapse transitions still check synchronously. During
+  // thread scrolling the observers batch these reads after browser layout.
   const synchronousMeasurementKey =
     expanded && typeof ResizeObserver !== 'undefined' ? undefined : measurementKey;
-  useLayoutEffect(checkOverflow, [checkOverflow, synchronousMeasurementKey]);
+  useLayoutEffect(() => {
+    if (deferOverflowMeasurement && !forceOverflowing && typeof ResizeObserver !== 'undefined')
+      return;
+    checkOverflow();
+  }, [checkOverflow, deferOverflowMeasurement, forceOverflowing, synchronousMeasurementKey]);
 
   // ResizeObserver for async layout shifts (lazy images, font loading, etc.).
   // Re-observe edits even when height stays unchanged: the initial entry warms

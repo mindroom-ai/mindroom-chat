@@ -30,7 +30,11 @@ const rowFor = (event: MatrixEvent, index = 0, previousEventId?: string): Timeli
   highlighted: true,
 });
 
-const mountFeature = async (rows: TimelineMessageRow[], threadId?: string) => {
+const mountFeature = async (
+  rows: TimelineMessageRow[],
+  threadId?: string,
+  deferOverflowMeasurement = false
+) => {
   const { useTimelineMessageFeature } = await import('./useTimelineMessageFeature');
   const room = makeRoom({ liveEvents: [] }) as unknown as Room;
   const editor = createEditor();
@@ -60,7 +64,10 @@ const mountFeature = async (rows: TimelineMessageRow[], threadId?: string) => {
       hideNickAvatarEvents: false,
       showHiddenEvents: false,
     });
-    return feature.wrapExpansion(<>{rows.map((row) => feature.renderEvent(row, data))}</>);
+    return feature.wrapExpansion(
+      <>{rows.map((row) => feature.renderEvent(row, data))}</>,
+      deferOverflowMeasurement
+    );
   };
   let renderer!: ReturnType<typeof create>;
   act(() => {
@@ -75,6 +82,14 @@ const mountFeature = async (rows: TimelineMessageRow[], threadId?: string) => {
 };
 
 describe('timeline message feature', () => {
+  it('forwards deferred overflow measurement through the expansion provider', async () => {
+    const { CollapsibleMessageStateProvider } = await import('../CollapsibleMessage');
+    const { renderer } = await mountFeature([], '$root', true);
+    expect(renderer.root.findByType(CollapsibleMessageStateProvider).props).toMatchObject({
+      deferOverflowMeasurement: true,
+    });
+  });
+
   it('shares framing while retaining message, approval and sticker edit/reply policy', async () => {
     const events = [
       MessageEvent.RoomMessage,

@@ -50,11 +50,12 @@ export const useTimelineMessageExpansion = (
           : undefined,
     } as const;
   };
-  const wrapExpansion = (children: ReactNode) => (
+  const wrapExpansion = (children: ReactNode, deferOverflowMeasurement = false) => (
     <CollapsibleMessageStateProvider
       expandAllInit={expandAll}
       manualExpansionState={manualExpansionState.current}
       onExpansionLayoutChange={restoreBulkExpansionAnchor}
+      deferOverflowMeasurement={deferOverflowMeasurement}
     >
       {children}
     </CollapsibleMessageStateProvider>
