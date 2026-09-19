@@ -76,7 +76,7 @@ export const runThreadOpenCacheFirst = async ({
 }: RunThreadOpenCacheFirstOptions): Promise<RunThreadOpenCacheFirstResult> => {
   let hydratedCachedPage;
   try {
-    const pendingReset = flushThreadSyncGap(room.getThread(threadId));
+    const pendingReset = flushThreadSyncGap(room.getThread(threadId), isCurrentThreadOpen);
     if (pendingReset) {
       await pendingReset;
       if (!isCurrentThreadOpen()) {

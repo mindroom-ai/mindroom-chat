@@ -2,6 +2,8 @@ import { createClient, Direction, Room } from 'matrix-js-sdk';
 import { FeatureSupport, Thread } from 'matrix-js-sdk/lib/models/thread';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { flushThreadSyncGap, observeActiveThreadSyncGaps } from './activeThreadSyncGaps';
+import { runThreadOpenCacheFirst } from './threadOpenCacheFirst';
+import { runThreadOpenSdkBootstrap } from './threadOpenSdkBootstrap';
 
 const settle = async () => {
   for (let i = 0; i < 30; i += 1) await Promise.resolve();
@@ -105,4 +107,89 @@ describe('active thread sync gaps', () => {
     expect(changed).not.toHaveBeenCalled();
     stop();
   });
+  it('leaves later gaps dormant after switching away during an earlier conversion', async () => {
+    const { room, threads, client } = fixture();
+    let finish!: (value: any) => void;
+    const conversion = new Promise<any>((resolve) => {
+      finish = resolve;
+    });
+    vi.mocked(client.createMessagesRequest)
+      .mockReturnValueOnce(conversion)
+      .mockReturnValueOnce(conversion);
+    room.resetLiveTimeline('back', 'forward');
+    const changed = vi.fn();
+    const stop = observeActiveThreadSyncGaps(room, threads[0], changed);
+    await settle();
+    expect(threads[0].timelineSet.getTimelines()).toHaveLength(2);
+    stop();
+    const stopNext = observeActiveThreadSyncGaps(room, threads[1], vi.fn());
+    room.resetLiveTimeline('back-2', 'forward-2');
+    expect(threads[0].timelineSet.getTimelines()).toHaveLength(2);
+    finish({ chunk: [], start: 'converted-forward', end: 'converted-back' });
+    await settle();
+    expect(threads[0].timelineSet.getTimelines()).toHaveLength(2);
+    expect(changed).not.toHaveBeenCalled();
+    stopNext();
+    await flushThreadSyncGap(threads[0]);
+    expect(threads[0].timelineSet.getTimelines()).toHaveLength(3);
+    expect(threads[0].liveTimeline.getPaginationToken(Direction.Backward)).toBe('converted:back-2');
+  });
+
+  it.each(['cache', 'sdk'])(
+    'stops draining later gaps when an explicit %s open closes during conversion',
+    async (mode) => {
+      const { room, threads, client } = fixture();
+      let finish!: (value: any) => void;
+      const conversion = new Promise<any>((resolve) => {
+        finish = resolve;
+      });
+      vi.mocked(client.createMessagesRequest)
+        .mockReturnValueOnce(conversion)
+        .mockReturnValueOnce(conversion);
+      room.resetLiveTimeline('back', 'forward');
+      let current = true;
+      const hydrate = vi.fn();
+      const getThreadTimeline = vi.spyOn(client, 'getThreadTimeline').mockResolvedValue(undefined);
+      const notify = vi.fn();
+      const opening =
+        mode === 'cache'
+          ? runThreadOpenCacheFirst({
+              room,
+              threadId: threads[0].id,
+              isCurrentThreadOpen: () => current,
+              debugTraceId: undefined,
+              hydrateThreadFromCache: hydrate,
+              notifyEventsChanged: notify,
+              onCacheHydrated: vi.fn(),
+              pinThreadToBottomOnOpen: vi.fn(),
+              scheduleReconcile: vi.fn(),
+              setSupplementalThreadEvents: vi.fn(),
+              shouldScrollToLatestOnOpen: false,
+              threadOpenSeedSession: { applyInitialUntargetedThreadSeed: vi.fn() },
+            })
+          : runThreadOpenSdkBootstrap({
+              room,
+              mx: client,
+              threadId: threads[0].id,
+              isMounted: () => current,
+              debugTraceId: undefined,
+              onBootstrap: notify,
+              persistThreadEventCache: vi.fn(),
+              pinThreadToBottomOnOpen: vi.fn(),
+              setSupplementalThreadEvents: vi.fn(),
+              shouldScrollToLatestOnOpen: false,
+            });
+      expect(threads[0].timelineSet.getTimelines()).toHaveLength(2);
+      current = false;
+      room.resetLiveTimeline('back-2', 'forward-2');
+      finish({ chunk: [], start: 'converted-forward', end: 'converted-back' });
+      await opening;
+      expect(threads[0].timelineSet.getTimelines()).toHaveLength(2);
+      expect(hydrate).not.toHaveBeenCalled();
+      expect(getThreadTimeline).not.toHaveBeenCalled();
+      expect(notify).not.toHaveBeenCalled();
+      await flushThreadSyncGap(threads[0]);
+      expect(threads[0].timelineSet.getTimelines()).toHaveLength(3);
+    }
+  );
 });

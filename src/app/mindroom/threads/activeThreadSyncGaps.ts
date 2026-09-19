@@ -3,12 +3,14 @@ import type { Thread } from 'matrix-js-sdk/lib/models/thread';
 
 /** Explicit open boundary: conversions must finish before callers capture the live chain. */
 export const flushThreadSyncGap = (
-  thread: Thread | null | undefined
+  thread: Thread | null | undefined,
+  isCurrent: () => boolean = () => true
 ): Promise<void> | undefined => {
+  if (!isCurrent()) return undefined;
   const pending = thread?.flushPendingTimelineReset?.();
   // Retain synchronous cache hydration when there is no gap. Recheck after waiting,
   // since another room sync may have queued a newer boundary during conversion.
-  return pending?.then(() => flushThreadSyncGap(thread));
+  return pending?.then(() => flushThreadSyncGap(thread, isCurrent));
 };
 
 /** Subscribe only for the selected thread; room reset events precede the SDK's thread loop. */
@@ -25,7 +27,7 @@ export const observeActiveThreadSyncGaps = (
     queueMicrotask(() => {
       queued = false;
       if (!alive) return;
-      const pending = flushThreadSyncGap(thread);
+      const pending = flushThreadSyncGap(thread, () => alive);
       if (!pending) return;
       void pending.then(
         () => {

@@ -166,7 +166,7 @@ export const runThreadOpenSdkBootstrap = async ({
     return true;
   }
 
-  const pendingReset = flushThreadSyncGap(threadModel);
+  const pendingReset = flushThreadSyncGap(threadModel, isMounted);
   if (pendingReset) {
     const [resetError] = await to(pendingReset);
     if (!isMounted()) return false;
