@@ -2837,5 +2837,15 @@
     "noHistory": "기록 없음",
     "recentMessages": "최근 메시지: {{total}}개",
     "close": "닫기"
+  },
+  "archivedRooms": {
+    "title": "보관된 방",
+    "archive": "방 보관",
+    "restore": "방 복원",
+    "restoreNamed": "{{room}} 복원",
+    "failed": "변경 사항을 저장하지 못했습니다. 다시 시도하세요.",
+    "close": "보관된 방 닫기",
+    "description": "방을 나가지 않고 사이드바에서 숨깁니다. 여기에서 열거나 복원할 수 있습니다.",
+    "empty": "보관된 방이 없습니다."
   }
 }

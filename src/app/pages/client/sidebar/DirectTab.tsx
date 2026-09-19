@@ -8,7 +8,7 @@ import { Menu } from '../../../components/glass/GlassPrimitives';
 import { useDirects } from '../../../state/hooks/roomList';
 import { useMatrixClient } from '../../../hooks/useMatrixClient';
 import { mDirectAtom } from '../../../state/mDirectList';
-import { allRoomsAtom } from '../../../state/room-list/roomList';
+import { navigationRoomsAtom } from '../../../mindroom/rooms/archivedRooms';
 import { roomToUnreadAtom } from '../../../state/room/roomToUnread';
 import { getDirectPath, joinPathComponent } from '../../pathUtils';
 import { useRoomsUnread } from '../../../state/hooks/unread';
@@ -49,7 +49,7 @@ export function DirectTab({ onSelect }: { onSelect?: (selected: boolean) => bool
   const navToActivePath = useAtomValue(useNavToActivePathAtom());
 
   const mDirects = useAtomValue(mDirectAtom);
-  const directs = useDirects(mx, allRoomsAtom, mDirects);
+  const directs = useDirects(mx, navigationRoomsAtom, mDirects);
   const directUnread = useRoomsUnread(directs, roomToUnreadAtom);
   const [menuAnchor, setMenuAnchor] = useState<RectCords>();
 

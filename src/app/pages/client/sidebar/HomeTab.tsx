@@ -9,7 +9,7 @@ import { useOrphanRooms } from '../../../state/hooks/roomList';
 import { useMatrixClient } from '../../../hooks/useMatrixClient';
 import { mDirectAtom } from '../../../state/mDirectList';
 import { roomToParentsAtom } from '../../../state/room/roomToParents';
-import { allRoomsAtom } from '../../../state/room-list/roomList';
+import { navigationRoomsAtom } from '../../../mindroom/rooms/archivedRooms';
 import { roomToUnreadAtom } from '../../../state/room/roomToUnread';
 import { getHomePath, joinPathComponent } from '../../pathUtils';
 import { useRoomsUnread } from '../../../state/hooks/unread';
@@ -50,7 +50,7 @@ export function HomeTab({ onSelect }: { onSelect?: (selected: boolean) => boolea
 
   const mDirects = useAtomValue(mDirectAtom);
   const roomToParents = useAtomValue(roomToParentsAtom);
-  const orphanRooms = useOrphanRooms(mx, allRoomsAtom, mDirects, roomToParents);
+  const orphanRooms = useOrphanRooms(mx, navigationRoomsAtom, mDirects, roomToParents);
   const homeUnread = useRoomsUnread(orphanRooms, roomToUnreadAtom);
   const homeSelected = useHomeSelected();
   const screenSize = useScreenSizeContext();

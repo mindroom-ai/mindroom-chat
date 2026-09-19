@@ -2837,5 +2837,15 @@
     "noHistory": "No history",
     "recentMessages": "Recent messages: {{total}}",
     "close": "Close"
+  },
+  "archivedRooms": {
+    "title": "Archived Rooms",
+    "archive": "Archive Room",
+    "restore": "Restore Room",
+    "restoreNamed": "Restore {{room}}",
+    "failed": "Could not save changes. Try again.",
+    "close": "Close archived rooms",
+    "description": "Hide rooms from the sidebar without leaving them. Open or restore them here.",
+    "empty": "No archived rooms."
   }
 }

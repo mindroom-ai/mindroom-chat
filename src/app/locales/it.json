@@ -2890,5 +2890,15 @@
     "noHistory": "Nessuna cronologia",
     "recentMessages": "Messaggi recenti: {{total}}",
     "close": "Chiudi"
+  },
+  "archivedRooms": {
+    "title": "Stanze archiviate",
+    "archive": "Archivia stanza",
+    "restore": "Ripristina stanza",
+    "restoreNamed": "Ripristina {{room}}",
+    "failed": "Impossibile salvare le modifiche. Riprova.",
+    "close": "Chiudi stanze archiviate",
+    "description": "Nascondi le stanze dalla barra laterale senza abbandonarle. Aprile o ripristinale qui.",
+    "empty": "Nessuna stanza archiviata."
   }
 }

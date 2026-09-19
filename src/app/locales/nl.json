@@ -2837,5 +2837,15 @@
     "noHistory": "Geen geschiedenis",
     "recentMessages": "Recente berichten: {{total}}",
     "close": "Sluiten"
+  },
+  "archivedRooms": {
+    "title": "Gearchiveerde kamers",
+    "archive": "Kamer archiveren",
+    "restore": "Kamer herstellen",
+    "restoreNamed": "{{room}} herstellen",
+    "failed": "Wijzigingen opslaan mislukt. Probeer opnieuw.",
+    "close": "Gearchiveerde kamers sluiten",
+    "description": "Verberg kamers in de zijbalk zonder ze te verlaten. Open of herstel ze hier.",
+    "empty": "Geen gearchiveerde kamers."
   }
 }

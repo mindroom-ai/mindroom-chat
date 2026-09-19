@@ -3,6 +3,7 @@ import { useAtom, useAtomValue } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useSearchParams } from 'react-router-dom';
 import { Text } from 'folds';
+import { archivedRoomsAtom, isRoomVisible } from '../rooms/archivedRooms';
 import { NavCategory, NavCategoryHeader } from '../../components/nav';
 import { RoomNavCategoryButton } from '../../features/room-nav';
 import { useCategoryHandler } from '../../hooks/useCategoryHandler';
@@ -35,6 +36,7 @@ export function ThreadNavCategory({ sidebarScrollRef, spaceId }: ThreadNavCatego
   const location = useLocation();
   const selectedThreadId = searchParams.get('threadId');
   const indexSnapshot = useAtomValue(crossRoomThreadIndexAtom);
+  const archivedRooms = useAtomValue(archivedRoomsAtom);
   const directRoomIds = useAtomValue(mDirectAtom);
   const roomToParents = useAtomValue(roomToParentsAtom);
   const [closedCategories, setClosedCategories] = useAtom(useClosedNavCategoriesAtom());
@@ -48,8 +50,19 @@ export function ThreadNavCategory({ sidebarScrollRef, spaceId }: ThreadNavCatego
         )
       : indexSnapshot.entries.values();
 
-    return buildSidebarThreadEntries(scopedEntries, preferences.pinnedThreadKeys, directRoomIds);
-  }, [directRoomIds, indexSnapshot.entries, preferences.pinnedThreadKeys, roomToParents, spaceId]);
+    return buildSidebarThreadEntries(
+      Array.from(scopedEntries).filter((entry) => isRoomVisible(entry.roomId, archivedRooms)),
+      preferences.pinnedThreadKeys,
+      directRoomIds
+    );
+  }, [
+    archivedRooms,
+    directRoomIds,
+    indexSnapshot.entries,
+    preferences.pinnedThreadKeys,
+    roomToParents,
+    spaceId,
+  ]);
 
   useLayoutEffect(() => {
     const scrollTop = getThreadNavScrollTop(location.state);

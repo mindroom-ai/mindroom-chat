@@ -13,10 +13,7 @@ export type SettingsMenuItem = {
   icon: IconSrc;
 };
 
-const getBaseSettingsMenuItems = (
-  showLocalMindRoom: boolean,
-  t: TFunction
-): SettingsMenuItem[] => [
+const getBaseSettingsMenuItems = (showLocalMindRoom: boolean, t: TFunction): SettingsMenuItem[] => [
   {
     page: SettingsPages.GeneralPage,
     name: t('settings.nav.general'),
@@ -42,7 +39,7 @@ const getBaseSettingsMenuItems = (
     name: t('settings.nav.emojisStickers'),
     icon: Icons.Smile,
   },
-  ...getMindroomSettingsMenuItems(showLocalMindRoom),
+  ...getMindroomSettingsMenuItems(showLocalMindRoom, t),
   {
     page: SettingsPages.DeveloperToolsPage,
     name: t('settings.nav.developerTools'),
