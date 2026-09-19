@@ -19,7 +19,10 @@ final class ResumeStorageSceneDelegate: SceneDelegate {
             label.leadingAnchor.constraint(equalTo: window.leadingAnchor, constant: 8),
             label.bottomAnchor.constraint(equalTo: window.safeAreaLayoutGuide.bottomAnchor, constant: -8)
         ])
-        webView.load(URLRequest(url: URL(string: "capacitor://localhost/?storageProbe=1")!))
+        let route = ProcessInfo.processInfo.environment["MINDROOM_STORAGE_DOTTED"] == "1"
+            ? "/home/!example%3Amindroom.chat?storageProbe=1&threadId=%24thread#reply"
+            : "/?storageProbe=1"
+        webView.load(URLRequest(url: URL(string: "capacitor://localhost\(route)")!))
     }
 }
 

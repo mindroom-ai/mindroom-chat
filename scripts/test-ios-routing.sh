@@ -45,4 +45,4 @@ xcodebuild test \
   -maximum-test-execution-time-allowance 120 \
   -derivedDataPath DerivedData \
   -resultBundlePath "$result_name" \
-  CODE_SIGNING_ALLOWED=NO 2>&1 | tee xcodebuild.log
+  CODE_SIGNING_ALLOWED=NO "$@" 2>&1 | tee xcodebuild.log

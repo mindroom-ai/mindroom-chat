@@ -9,7 +9,12 @@
   The user confirms an iPhone 15 on iOS 27 and a blank screen which recovered without force-closing.
 - The throwaway CI probe compares ordinary resume, targeted background Networking termination, and targeted background WebContent termination on iOS 27.
   Process identities, JavaScript boot continuity, storage outcomes, native callbacks, and eventual screenshot painting distinguish observations from assumptions.
-  Deliberately terminating a process does not reproduce the cause of the device's termination; CI results are pending.
+  Deliberately terminating a process does not reproduce the cause of the device's termination.
+- The first iOS 27.0 simulator run completed all three new probes: ordinary resume stayed healthy; Networking loss closed IndexedDB with `InvalidStateError` but preserved JavaScript and painting; WebContent loss produced one termination event and a successful reload.
+  The unchanged web suite passed all 4,620 tests, while two of 21 older native integration tests failed; four external UI tests passed.
+  The run was cancelled after test completion while Xcode remained running, so it is not a green full-suite result.
+- A focused follow-up tests external WebContent termination at a dotted room URL and checks that recovery preserves the full URL.
+  It avoids relying on the older private kill API, which logged permission errors, and bounds the native step to leave time for artifact upload.
 
 ### Restore the moving thinking shimmer without continuous repainting (2026-09-19)
 

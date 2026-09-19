@@ -10,6 +10,7 @@ final class ResumeStorageTests: XCTestCase {
     private struct StorageError: Decodable { let name: String; let message: String }
     private struct State: Decodable {
         let bootId: String
+        let url: String
         let reads: Int
         let ticks: Int
         let writes: Int
@@ -77,14 +78,18 @@ final class ResumeStorageTests: XCTestCase {
             return abs(Int(rgba[0]) - 21) <= 5 && abs(Int(rgba[1]) - 62) <= 5 && abs(Int(rgba[2]) - 53) <= 5
         }
     }
-    private func exercise(target: Int?) async throws {
+    private func exercise(target: Int?, dottedRoute: Bool = false) async throws {
         executionTimeAllowance = 120
         let app = XCUIApplication(bundleIdentifier: "chat.mindroom.RoutingHost")
         app.launchEnvironment["MINDROOM_STORAGE_PROBE"] = "1"
+        if dottedRoute { app.launchEnvironment["MINDROOM_STORAGE_DOTTED"] = "1" }
         app.launch()
         defer { app.terminate() }
         let initial = try await read(app)
         try require(initial.writes > 0 && initial.error == nil, "Control database writes must succeed")
+        if dottedRoute {
+            XCTAssertEqual(initial.url, "capacitor://localhost/home/!example%3Amindroom.chat?storageProbe=1&threadId=%24thread#reply")
+        }
         let pids = try processes(app)
         XCUIDevice.shared.press(.home)
         try require(app.wait(for: .runningBackground, timeout: 10) || app.state == .runningBackgroundSuspended,
@@ -106,6 +111,7 @@ final class ResumeStorageTests: XCTestCase {
         add(screenshot)
         XCTAssertTrue(showsFixture(screen.image), "The native screenshot must paint the fixture after resume")
         XCTAssertEqual(settled.nativeSession, initial.nativeSession)
+        XCTAssertEqual(settled.url, initial.url, "Recovery must preserve the full room URL")
         let terminationsBefore = initial.nativeEvents.filter { $0.name == "webview.terminated" }.count
         let terminations = settled.nativeEvents.filter { $0.name == "webview.terminated" }.count - terminationsBefore
         if target == nil {
@@ -125,4 +131,7 @@ final class ResumeStorageTests: XCTestCase {
     func testOrdinaryBackgroundResume() async throws { try await exercise(target: nil) }
     func testNetworkingLossDuringBackground() async throws { try await exercise(target: 2) }
     func testWebContentLossDuringBackground() async throws { try await exercise(target: 1) }
+    func testWebContentLossAtDottedRouteDuringBackground() async throws {
+        try await exercise(target: 1, dottedRoute: true)
+    }
 }

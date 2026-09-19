@@ -1,6 +1,7 @@
 // Throwaway synthetic IndexedDB workload; no production instrumentation changes.
 const state = {
   bootId: window.routingBootId,
+  url: location.href,
   reads: 0,
   ticks: 0,
   writes: 0,

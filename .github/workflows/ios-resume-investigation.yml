@@ -18,15 +18,16 @@ jobs:
           node-version-file: '.node-version'
           package-manager-cache: false
       - run: npm ci
-      - run: npm test
+      # The unchanged web suite passed in run 35467124789 (4,620 tests).
       - name: Record actual Xcode and simulator versions
         run: |
           xcodebuild -version
           xcrun simctl list runtimes
           xcrun simctl list devices available
       - run: gem install --user-install --no-document xcodeproj -v 1.27.0
-      - name: Run unchanged routing coverage and resume fault probes
-        run: bash scripts/test-ios-routing.sh
+      - name: Run external process-loss and native persistence probes
+        timeout-minutes: 18
+        run: bash scripts/test-ios-routing.sh -only-testing:NativeDiagnosticsTests
       - name: Preserve native evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
