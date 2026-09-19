@@ -18,6 +18,7 @@
   All 27 applicable browser cases pass across Chromium, Firefox, and WebKit; three protocol/emulation-specific cases are skipped.
   The shared local SVG definitions remain intact, and the visible-artwork regression covers both animation layers in every browser.
   The code-scrollbar measurement probe excludes the glass header's separate refraction sizing.
+  Automated review corrected native overflow to `auto`, so short code snippets do not request inactive scrollbar tracks.
   Independent review found no remaining correctness, accessibility, or alignment issues after the RTL margin fix.
 - Native iPhone profiling and potential offscreen animation pausing remain follow-up work.
 
