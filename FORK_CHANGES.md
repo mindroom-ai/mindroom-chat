@@ -14,10 +14,32 @@
   Membership, room routing, thread history, read receipts, and notification preferences remain intact.
 - Regression coverage exercises persistence, restoration, failed writes, duplicate clicks, account switching, hidden thread links, nested-space unread counts, and all 17 language catalogs.
   Live browser coverage exercises archive/open/restore on desktop and phone plus Direct Messages, Spaces, and remote restoration.
-- Validation: all 4,630 tests pass under Node 24 on standard Linux; typecheck, production/PWA build, formatting, and ESLint pass with zero errors and 17 existing warnings.
+- Validation: all 4,633 tests pass under Node 24 on standard Linux; typecheck, production/PWA build, formatting, and ESLint pass with zero errors and 17 existing warnings.
   All three live Chromium cases pass, including desktop sidebar and mobile header actions, opening without restoring, persistence, Direct Messages, Spaces, and remote restoration.
   Independent review findings for thread shortcuts, space/folder unread badges, and the developer space timeline were addressed and rechecked.
 - Status: implemented, locally validated, and independently reviewed; hosted checks and automated review are tracked on the pull request.
+
+### Avoid empty thread tiles for streaming edits and reactions (2026-09-19)
+
+- Status: implemented, validated, and independently reviewed.
+- Streaming replacement and reaction events retain their timeline indices and sequential grouping/day-divider context, but no longer mount empty virtual tiles once their height is zero.
+  The zero estimate avoids accumulating placeholder scroll height before measurement.
+  A decrypted relation with a cached nonzero height keeps its tile until ResizeObserver measures zero; an event that becomes renderable again mounts even with a cached zero.
+- The live Matrix regression reproduces 81 empty tiles after 80 edits and one reaction before the fix.
+  It passes in Chromium, Firefox, and WebKit after the fix, including scrolling up during streaming, Jump to Latest, and a following reply.
+  Unit coverage also preserves original indices, same-day grouping, midnight divider carry, and mutable-event measurement transitions.
+- A production comparison seeds 120 formatted replies, six response targets, and 600 historical edits, then sends 40 rounds of six concurrent edits at 100 ms intervals.
+  Two runs per build use a 390 × 844 Chromium viewport, device scale factor 3, and 4× CPU throttling.
+  Mounted tiles fall from 711–721 to 11, with no remaining empty relation tiles.
+  Paint time falls from 803–848 ms to 280–318 ms; total main-thread task time falls from 5.20–5.23 s to 4.84–4.91 s.
+  The p95 frame gap remains about 133 ms, so this removes avoidable rendering work without resolving the remaining streaming stalls or establishing native iPhone frame rates.
+  With 1,800 historical edits, two further runs per build reduce mounted tiles from 1,724–1,754 to 11, paint time from 1.33–1.41 s to 260–271 ms, and p95 frame gaps from 200–233 ms to about 150 ms.
+  The heavier replay demonstrates improved frame timing as edit history grows, with substantial stalls still remaining.
+- Validation: all 4,623 tests across 546 files, application and browser-test typechecks, production/PWA build, and changed-file formatting pass.
+  ESLint reports zero errors and the existing 17 warnings.
+  Independent review found no remaining correctness or scroll-accounting issues.
+- Follow-up: profile the remaining event processing and zero-size virtual-item enumeration separately; pinch still performs root-font layout during the gesture.
+
 
 ### Restore the moving thinking shimmer without continuous repainting (2026-09-19)
 
