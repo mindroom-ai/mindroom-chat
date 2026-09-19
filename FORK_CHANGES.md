@@ -2,6 +2,34 @@
 
 ## Runbook
 
+### Keep content ready during fast scrolling (2026-09-19)
+
+- Status: implemented, validated with the full unit suite and production profiles, and independently reviewed.
+- Thread virtualization prepares two viewport heights on either side of visible content using measured or estimated pixel positions.
+  Invisible streaming edits cannot consume the buffer, and contiguous event indices preserve render context and ledger accounting.
+  A same-row viewport resize refreshes coverage through the existing observer, including room/thread navigation on a shared scroller.
+- Collapsible-message mounts retain synchronous overflow measurement.
+  An observer-only scrolling experiment produced delayed row-height corrections and uncovered samples without improving frame timing, so it was discarded.
+- Relative-time clocks rerender compact cards only when their displayed label or clock cadence changes.
+  All cards remain mounted, so this adds no list-window placeholders.
+- A 400-card compact-room probe traverses 20,000 CSS pixels without sampled coverage gaps.
+  Paint containment experiments did not improve total work or frame timing enough to retain.
+- Cold-history profiling also identified repeated bundled-edit cloning in approval bookkeeping for ordinary chat messages.
+  The guard preserves original observations and approval, encrypted-event, and retained-identity handling.
+  A regression with three scans of 600 edited chat messages reduces unpack/clone calls from 1,800 to zero.
+- Production replay uses a synthetic room with 400 thread cards, 600 long-thread replies, four historical edits per reply, a 390 × 844 Chromium viewport, device scale factor 3, and 4× CPU throttling.
+  Native wheel gestures run at 12,000 CSS pixels/second.
+  Compact traversals cover 20,000 pixels with only the normal 4px card spacing; observed maximum frame gaps fall from 283–300 ms to 33–50 ms across the recorded runs.
+  Warm-thread p95 frame gaps remain about 133 ms, so the larger render buffer is a coverage improvement, not a claim of smooth frame rates.
+  The final warm-thread replay has zero sampled uncovered space.
+  A cold-history replay reduces the largest observed frame gap from 4,533 ms to 267 ms, with zero sampled uncovered space after the change.
+  Preloading progresses differently: the old run ends with 2,713 events and eight requests during scrolling, while the new run has 2,927 events and no requests during scrolling after the same fixed warm-up.
+  These are user-flow observations rather than an isolated equal-work benchmark or native iPhone measurements.
+- Validation: all 4,641 tests across 548 files, application and changed-browser-test typechecks, production/PWA build, and changed-file formatting pass.
+  ESLint has zero errors and the existing 17 warnings.
+  The fast-scroll browser invariant now drives 240 pixels/frame and requires over 8,000 pixels of travel.
+- Follow-up: measure on a native iPhone and profile synchronous message-mount geometry and remaining whole-history scans separately.
+
 ### Avoid empty thread tiles for streaming edits and reactions (2026-09-19)
 
 - Status: implemented, validated, and independently reviewed.
