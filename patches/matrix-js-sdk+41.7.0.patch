@@ -300,3 +300,255 @@ index fa3b8f0..52c1311 100644
 +            for (const userId of usersNeedingQuery) {
 +                deviceMapByUserId.set(userId, await this.getUserDevices(userId));
 +            }
+diff --git a/node_modules/matrix-js-sdk/src/@types/requests.ts b/node_modules/matrix-js-sdk/src/@types/requests.ts
+--- a/node_modules/matrix-js-sdk/src/@types/requests.ts
++++ b/node_modules/matrix-js-sdk/src/@types/requests.ts
+@@ -283,6 +283,10 @@
+ }
+ 
+ export interface IRelationsRequestOpts {
++    /** Cancel the underlying HTTP request, including its response body. */
++    abortSignal?: AbortSignal;
++    /** Deadline for this request, in milliseconds. */
++    localTimeoutMs?: number;
+     from?: string;
+     to?: string;
+     limit?: number;
+diff --git a/node_modules/matrix-js-sdk/lib/@types/requests.d.ts b/node_modules/matrix-js-sdk/lib/@types/requests.d.ts
+--- a/node_modules/matrix-js-sdk/lib/@types/requests.d.ts
++++ b/node_modules/matrix-js-sdk/lib/@types/requests.d.ts
+@@ -212,6 +212,10 @@
+     sid: string;
+ }
+ export interface IRelationsRequestOpts {
++    /** Cancel the underlying HTTP request, including its response body. */
++    abortSignal?: AbortSignal;
++    /** Deadline for this request, in milliseconds. */
++    localTimeoutMs?: number;
+     from?: string;
+     to?: string;
+     limit?: number;
+diff --git a/node_modules/matrix-js-sdk/src/client.ts b/node_modules/matrix-js-sdk/src/client.ts
+--- a/node_modules/matrix-js-sdk/src/client.ts
++++ b/node_modules/matrix-js-sdk/src/client.ts
+@@ -6877,7 +6877,8 @@
+         eventType?: EventType | string | null,
+         opts: IRelationsRequestOpts = { dir: Direction.Backward },
+     ): Promise<IRelationsResponse> {
+-        let params = opts as QueryDict;
++        const { abortSignal, localTimeoutMs, ...relationOpts } = opts;
++        let params = relationOpts as QueryDict;
+         if (Thread.hasServerSideFwdPaginationSupport === FeatureSupport.Experimental) {
+             params = replaceParam("dir", "org.matrix.msc3715.dir", params);
+         }
+@@ -6906,6 +6907,8 @@
+         });
+         return this.http.authedRequest(Method.Get, path, undefined, undefined, {
+             prefix: ClientPrefix.V1,
++            abortSignal,
++            localTimeoutMs,
+         });
+     }
+ 
+diff --git a/node_modules/matrix-js-sdk/lib/client.js b/node_modules/matrix-js-sdk/lib/client.js
+--- a/node_modules/matrix-js-sdk/lib/client.js
++++ b/node_modules/matrix-js-sdk/lib/client.js
+@@ -5476,7 +5476,8 @@
+     var opts = arguments.length > 4 && arguments[4] !== undefined ? arguments[4] : {
+       dir: Direction.Backward
+     };
+-    var params = opts;
++    const { abortSignal, localTimeoutMs, ...relationOpts } = opts;
++    var params = relationOpts;
+     if (Thread.hasServerSideFwdPaginationSupport === FeatureSupport.Experimental) {
+       params = replaceParam("dir", "org.matrix.msc3715.dir", params);
+     }
+@@ -5501,7 +5502,9 @@
+       $eventType: eventType
+     });
+     return this.http.authedRequest(Method.Get, path, undefined, undefined, {
+-      prefix: ClientPrefix.V1
++      prefix: ClientPrefix.V1,
++      abortSignal,
++      localTimeoutMs
+     });
+   }
+ 
+diff --git a/node_modules/matrix-js-sdk/src/http-api/fetch.ts b/node_modules/matrix-js-sdk/src/http-api/fetch.ts
+--- a/node_modules/matrix-js-sdk/src/http-api/fetch.ts
++++ b/node_modules/matrix-js-sdk/src/http-api/fetch.ts
+@@ -286,47 +286,49 @@
+         // when there is no Authorization header.
+         const cacheMode = "Authorization" in headers ? undefined : "no-cache";
+ 
+-        let res: Response;
+-        const start = Date.now();
+         try {
+-            res = await this.fetch(url, {
+-                signal,
+-                method,
+-                body: data,
+-                headers,
+-                mode: "cors",
+-                redirect: "follow",
+-                referrer: "",
+-                referrerPolicy: "no-referrer",
+-                cache: cacheMode,
+-                credentials: "omit", // we send credentials via headers
+-                keepalive: keepAlive,
+-                priority: opts.priority,
+-            });
+-
+-            this.opts.logger?.debug(
+-                `FetchHttpApi: <-- ${method} ${urlForLogs} [${Date.now() - start}ms ${res.status}]`,
+-            );
+-        } catch (e) {
+-            this.opts.logger?.debug(`FetchHttpApi: <-- ${method} ${urlForLogs} [${Date.now() - start}ms ${e}]`);
+-            if ((<Error>e).name === "AbortError") {
+-                throw e;
+-            }
+-            throw new ConnectionError("fetch failed", <Error>e);
++            let res: Response;
++            const start = Date.now();
++            try {
++                res = await this.fetch(url, {
++                    signal,
++                    method,
++                    body: data,
++                    headers,
++                    mode: "cors",
++                    redirect: "follow",
++                    referrer: "",
++                    referrerPolicy: "no-referrer",
++                    cache: cacheMode,
++                    credentials: "omit", // we send credentials via headers
++                    keepalive: keepAlive,
++                    priority: opts.priority,
++                });
++
++                this.opts.logger?.debug(
++                    `FetchHttpApi: <-- ${method} ${urlForLogs} [${Date.now() - start}ms ${res.status}]`,
++                );
++            } catch (e) {
++                this.opts.logger?.debug(`FetchHttpApi: <-- ${method} ${urlForLogs} [${Date.now() - start}ms ${e}]`);
++                if ((<Error>e).name === "AbortError") {
++                    throw e;
++                }
++                throw new ConnectionError("fetch failed", <Error>e);
++            }
++
++            if (!res.ok) {
++                throw parseErrorResponse(res, await res.text());
++            }
++
++            if (opts.rawResponseBody) {
++                return (await res.blob()) as T;
++            } else if (jsonResponse) {
++                return await res.json();
++            } else {
++                return (await res.text()) as T;
++            }
+         } finally {
+             cleanup();
+-        }
+-
+-        if (!res.ok) {
+-            throw parseErrorResponse(res, await res.text());
+-        }
+-
+-        if (opts.rawResponseBody) {
+-            return (await res.blob()) as T;
+-        } else if (jsonResponse) {
+-            return await res.json();
+-        } else {
+-            return (await res.text()) as T;
+         }
+     }
+ 
+diff --git a/node_modules/matrix-js-sdk/lib/http-api/fetch.js b/node_modules/matrix-js-sdk/lib/http-api/fetch.js
+--- a/node_modules/matrix-js-sdk/lib/http-api/fetch.js
++++ b/node_modules/matrix-js-sdk/lib/http-api/fetch.js
+@@ -245,45 +245,47 @@
+       // of preflight requests in CORS scenarios. As such, we only set "no-cache"
+       // when there is no Authorization header.
+       var cacheMode = "Authorization" in headers ? undefined : "no-cache";
+-      var res;
+-      var start = Date.now();
+       try {
+-        var _this2$opts$logger2;
+-        res = yield _this2.fetch(url, {
+-          signal,
+-          method,
+-          body: data,
+-          headers,
+-          mode: "cors",
+-          redirect: "follow",
+-          referrer: "",
+-          referrerPolicy: "no-referrer",
+-          cache: cacheMode,
+-          credentials: "omit",
+-          // we send credentials via headers
+-          keepalive: keepAlive,
+-          priority: opts.priority
+-        });
+-        (_this2$opts$logger2 = _this2.opts.logger) === null || _this2$opts$logger2 === void 0 || _this2$opts$logger2.debug("FetchHttpApi: <-- ".concat(method, " ").concat(urlForLogs, " [").concat(Date.now() - start, "ms ").concat(res.status, "]"));
+-      } catch (e) {
+-        var _this2$opts$logger3;
+-        (_this2$opts$logger3 = _this2.opts.logger) === null || _this2$opts$logger3 === void 0 || _this2$opts$logger3.debug("FetchHttpApi: <-- ".concat(method, " ").concat(urlForLogs, " [").concat(Date.now() - start, "ms ").concat(e, "]"));
+-        if (e.name === "AbortError") {
+-          throw e;
+-        }
+-        throw new ConnectionError("fetch failed", e);
++        var res;
++        var start = Date.now();
++        try {
++          var _this2$opts$logger2;
++          res = yield _this2.fetch(url, {
++            signal,
++            method,
++            body: data,
++            headers,
++            mode: "cors",
++            redirect: "follow",
++            referrer: "",
++            referrerPolicy: "no-referrer",
++            cache: cacheMode,
++            credentials: "omit",
++            // we send credentials via headers
++            keepalive: keepAlive,
++            priority: opts.priority
++          });
++          (_this2$opts$logger2 = _this2.opts.logger) === null || _this2$opts$logger2 === void 0 || _this2$opts$logger2.debug("FetchHttpApi: <-- ".concat(method, " ").concat(urlForLogs, " [").concat(Date.now() - start, "ms ").concat(res.status, "]"));
++        } catch (e) {
++          var _this2$opts$logger3;
++          (_this2$opts$logger3 = _this2.opts.logger) === null || _this2$opts$logger3 === void 0 || _this2$opts$logger3.debug("FetchHttpApi: <-- ".concat(method, " ").concat(urlForLogs, " [").concat(Date.now() - start, "ms ").concat(e, "]"));
++          if (e.name === "AbortError") {
++            throw e;
++          }
++          throw new ConnectionError("fetch failed", e);
++        }
++        if (!res.ok) {
++          throw parseErrorResponse(res, yield res.text());
++        }
++        if (opts.rawResponseBody) {
++          return yield res.blob();
++        } else if (jsonResponse) {
++          return yield res.json();
++        } else {
++          return yield res.text();
++        }
+       } finally {
+         cleanup();
+-      }
+-      if (!res.ok) {
+-        throw parseErrorResponse(res, yield res.text());
+-      }
+-      if (opts.rawResponseBody) {
+-        return yield res.blob();
+-      } else if (jsonResponse) {
+-        return yield res.json();
+-      } else {
+-        return yield res.text();
+       }
+     })();
+   }

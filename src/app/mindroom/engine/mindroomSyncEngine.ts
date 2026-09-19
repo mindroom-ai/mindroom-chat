@@ -135,6 +135,16 @@ export const createMindroomSyncEngine = ({
   const effectiveScheduler = scheduler ?? createBackfillScheduler({ mx });
   const effectiveGapTracker = gapTracker ?? createEngineGapTracker({ mx, sessionId });
   const effectivePersist = persist ?? createEnginePersistFacade({ sessionId });
+  const recoveryListeners = new Map<string, Set<() => void>>();
+  const subscribeRoomRecovery = (roomId: string, listener: () => void): (() => void) => {
+    const listeners = recoveryListeners.get(roomId) ?? new Set();
+    listeners.add(listener);
+    recoveryListeners.set(roomId, listeners);
+    return () => {
+      listeners.delete(listener);
+      if (listeners.size === 0) recoveryListeners.delete(roomId);
+    };
+  };
 
   // CINNY-207 P7.2 audit finding #5: focused room tracker. Populated
   // by `noteRoomFocused`; the gap-fill executor consults it via
@@ -160,6 +170,16 @@ export const createMindroomSyncEngine = ({
           // rooms) and `all-rooms` (admit federated tiers).
           getPrefetchConfig: effectiveGetPrefetchConfig,
           getFocusedRoomId,
+          onRoomRecovered: (roomId) => {
+            Array.from(recoveryListeners.get(roomId) ?? []).forEach((notify) => {
+              try {
+                notify();
+              } catch {
+                // A reader must not prevent another reader's refresh or undo
+                // the executor's successful cache commit and cursor advance.
+              }
+            });
+          },
         },
         effectiveGapTracker.scheduler
       );
@@ -368,6 +388,7 @@ export const createMindroomSyncEngine = ({
     isLiveMode: () => liveMode,
     persist: effectivePersist,
     scheduler: effectiveScheduler,
+    subscribeRoomRecovery,
     noteRoomFocused,
   };
 };

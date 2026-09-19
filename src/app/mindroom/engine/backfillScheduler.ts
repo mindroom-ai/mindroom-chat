@@ -27,12 +27,11 @@
  * and the scheduler drives them. That way P4.1 lands the invariant
  * before P4.2 wires the first real fetch path.
  *
- * Cooperative abort v1 (see plan §8 Deviations): the SDK's
- * `mx.fetchRelations` and `mx.createMessagesRequest` do NOT accept an
- * AbortSignal today. Executors receive the signal and MUST check
- * `signal.aborted` between batches (typically every 200 events) —
- * cancellation between requests, not mid-request. An `mx.http.
- * authedRequest({abortSignal})` migration is a recorded follow-up.
+ * Executors must check cancellation between batches and pass the signal
+ * to requests that support it. Reconciliation uses the patched
+ * `mx.fetchRelations` transport cancellation; `mx.createMessagesRequest`
+ * still cancels cooperatively between pages. A running slot stays owned
+ * until its executor settles, including the underlying HTTP request.
  *
  * The observability counters (`schedulerEnqueued`, `schedulerDeduped`,
  * `schedulerAborted`, `schedulerCompleted`, `schedulerFailed`) on
@@ -62,7 +61,6 @@ export type BackfillJobKind =
   | 'room-deep-history'
   | 'thread-backfill'
   | 'thread-approvals'
-  | 'thread-responses'
   | 'thread-seed'
   | 'reconcile';
 

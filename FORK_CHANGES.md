@@ -2,21 +2,23 @@
 
 ## Runbook
 
-### Recover replies referenced by approval receipts (2026-09-18)
+### Recover open threads after timeline gaps and stalled requests (2026-09-19)
 
-- A visible resolved approval can reference a reply missing from the open thread's in-memory timeline.
-  The approval-only fallback now requests that reply by event ID through the shared backfill scheduler, without reloading the page or scanning the entire thread.
-  Recovery validates the event's identity, room, message type, and original thread relation before accepting it.
-  Existing hydration applies bundled final edits before the recovered message reaches the cache, SDK thread, and render fallback.
-- Recovery skips replies already present, including redacted or intentionally hidden replies.
-  Failed requests retry on thread reopen or page resume/reconnect, while normal renders do not repeatedly request unavailable events.
-  Shared requests survive navigation, and a newly received receipt queues any reply omitted by an earlier in-flight batch.
-  Late results remain scoped to their original thread and cannot append to a different open conversation.
-- Validation: 15 new behavioral tests exercise real SDK events, threads, and render state, including bundled edits, cache-only views, reopen, resume, navigation races, partial failures, and invalid references.
-  All 4,601 unit tests and typecheck pass after integrating the current base; the production/PWA build passes.
-  Changed-file lint and formatting pass; full lint has no errors and the 17 existing warnings.
-  Independent review has no blocking findings.
-  The change repairs an incomplete approval/reply view; it does not establish the cause of an earlier missed live update.
+- Limited-sync gap fills previously committed recovered replies to IndexedDB without updating the mounted thread.
+  The engine now publishes a room-scoped invalidation after each committed page, and the open thread reuses cache hydration and supplemental rendering to display recovered replies and bundled edits.
+  Reads coalesce while preserving a later invalidation, including when the earlier read fails; navigation cancels the old observer.
+  Background history remains cache-only.
+- A stalled reconciliation request previously held its scheduler job indefinitely, so repeated thread opens kept sharing the same unresolved request.
+  Each reconciliation page now has a 15-second HTTP deadline and one timeout retry.
+  Scheduler cancellation aborts the actual request without retrying, and exhausted retries release the slot so a later open can try again.
+- The SDK patch exposes transport controls on `fetchRelations` without putting them in the Matrix query and keeps cancellation listeners attached until the response body has finished downloading.
+  When upgrading the SDK, retain the transport regression tests and remove these patch sections once upstream provides equivalent behavior.
+- Validation: all 4,598 unit tests, application and focused test typechecks, production/PWA build, and changed-file formatting pass.
+  Full lint reports zero errors and the 17 existing warnings.
+  The SDK patch applies through `patch-package` to a fresh published package and reproduces the tested dependency files.
+  Four local Matrix browser cases pass in Chromium and WebKit: a genuine limited sync repairs the mounted thread, and a held reconciliation request recovers after repeated thread opens without reloading the document.
+  The browser stays visible throughout both cases.
+  Independent review found no blocking defects; its lifecycle, invalidation-race, and saved-cursor test findings are addressed.
 
 ### Preserve evidence for iOS blank screens (2026-09-18)
 
