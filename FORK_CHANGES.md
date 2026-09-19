@@ -13,8 +13,13 @@
 - The first iOS 27.0 simulator run completed all three new probes: ordinary resume stayed healthy; Networking loss closed IndexedDB with `InvalidStateError` but preserved JavaScript and painting; WebContent loss produced one termination event and a successful reload.
   The unchanged web suite passed all 4,620 tests, while two of 21 older native integration tests failed; four external UI tests passed.
   The run was cancelled after test completion while Xcode remained running, so it is not a green full-suite result.
-- A focused follow-up tests external WebContent termination at a dotted room URL and checks that recovery preserves the full URL.
-  It avoids relying on the older private kill API, which logged permission errors, and bounds the native step to leave time for artifact upload.
+- The [focused follow-up](https://github.com/mindroom-ai/mindroom-chat/actions/runs/35468644110) passes all five external UI cases on Xcode 27.0 / iOS 27.0 (24A434), using the iPhone 18 Pro simulator.
+  External WebContent termination at a dotted room URL produces one recorded termination, a fresh JavaScript boot in the same native session, preserved full URL, working storage, and a visibly painted fixture.
+  Networking loss again closes the database with `InvalidStateError` while JavaScript and painting remain alive, without a WebContent termination during the probe's observation window.
+  The native step is bounded to leave time for artifact upload.
+- The spontaneous iPhone 15 failure remains unreproduced, and the termination reason remains unknown.
+  The simulator controls validate recovery and distinguish storage failure from renderer termination; they do not reproduce the physical device's conditions or its approximately five-minute background interval.
+  A matching device WebKit crash report, JetsamEvent, or sysdiagnose is the next evidence needed before selecting a production fix.
 
 ### Restore the moving thinking shimmer without continuous repainting (2026-09-19)
 
