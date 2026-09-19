@@ -22,6 +22,7 @@ import {
 type MockContentElement = Pick<HTMLDivElement, 'clientHeight' | 'scrollHeight'>;
 
 let resizeObserverConstructed: ReturnType<typeof vi.fn>;
+let lastResizeCallback: ResizeObserverCallback | null;
 let intersectionObserverConstructed: ReturnType<typeof vi.fn>;
 let lastIntersectionCallback: IntersectionObserverCallback | null;
 
@@ -30,8 +31,9 @@ class MockResizeObserver {
 
   public disconnect = vi.fn();
 
-  public constructor(_callback: ResizeObserverCallback) {
+  public constructor(callback: ResizeObserverCallback) {
     resizeObserverConstructed();
+    lastResizeCallback = callback;
   }
 }
 
@@ -139,6 +141,7 @@ const createMeasuredContentElement = () => {
 
 beforeEach(() => {
   resizeObserverConstructed = vi.fn();
+  lastResizeCallback = null;
   intersectionObserverConstructed = vi.fn();
   lastIntersectionCallback = null;
   vi.stubGlobal('ResizeObserver', MockResizeObserver);
@@ -151,6 +154,111 @@ afterEach(() => {
 });
 
 describe('CollapsibleMessage', () => {
+  it('lets the browser lay out expanded streaming edits before measuring overflow', () => {
+    const measured = createMeasuredContentElement();
+    const renderer = renderCollapsibleMessage(
+      { collapseMode: 'initially-expanded', measurementKey: 'stream-before' },
+      measured.contentElement
+    );
+    const initialReads = measured.getScrollHeightReads();
+    expect(initialReads).toBeGreaterThan(0);
+
+    act(() => {
+      renderer.update(
+        React.createElement(
+          CollapsibleMessage,
+          { collapseMode: 'initially-expanded', measurementKey: 'stream-after' },
+          'updated streaming text'
+        )
+      );
+    });
+
+    expect(measured.getScrollHeightReads()).toBe(initialReads);
+    expect(resizeObserverConstructed).toHaveBeenCalledTimes(2);
+    act(() => {
+      lastResizeCallback!([], {} as ResizeObserver);
+    });
+    expect(measured.getScrollHeightReads()).toBeGreaterThan(initialReads);
+    expect(findCloseButtons(renderer)).toHaveLength(1);
+    act(() => renderer.unmount());
+  });
+
+  it('updates the expanded disclosure when streamed content shrinks or grows', () => {
+    const contentElement = { clientHeight: 320, scrollHeight: 320 };
+    const renderer = renderCollapsibleMessage(
+      { collapseMode: 'initially-expanded', measurementKey: 'stream-resize' },
+      contentElement
+    );
+    expect(findCloseButtons(renderer)).toHaveLength(1);
+    expect(lastResizeCallback).not.toBeNull();
+
+    act(() => {
+      contentElement.scrollHeight = 80;
+      lastResizeCallback!([], {} as ResizeObserver);
+    });
+    expect(findCloseButtons(renderer)).toHaveLength(0);
+
+    act(() => {
+      contentElement.scrollHeight = 320;
+      lastResizeCallback!([], {} as ResizeObserver);
+    });
+    expect(findCloseButtons(renderer)).toHaveLength(1);
+    act(() => getCloseButton(renderer).props.onClick({ stopPropagation: vi.fn() }));
+    expect(findExpandButtons(renderer)).toHaveLength(1);
+    expect(getContentContainer(renderer).props.style.maxHeight).toBe('11em');
+    act(() => renderer.unmount());
+  });
+
+  it('warms the remount cache after an expanded edit that keeps the same height', () => {
+    const renderer = renderCollapsibleMessage(
+      { collapseMode: 'initially-expanded', measurementKey: 'same-height-before' },
+      { clientHeight: 40, scrollHeight: 40 }
+    );
+    const previousCallback = lastResizeCallback;
+    act(() => {
+      renderer.update(
+        React.createElement(
+          CollapsibleMessage,
+          { collapseMode: 'initially-expanded', measurementKey: 'same-height-after' },
+          'another short response'
+        )
+      );
+    });
+    // With unchanged height, only a fresh observation will deliver an entry.
+    expect(lastResizeCallback).not.toBe(previousCallback);
+    act(() => {
+      lastResizeCallback!([], {} as ResizeObserver);
+      renderer.unmount();
+    });
+    const remounted = renderCollapsibleMessage(
+      { measurementKey: 'same-height-after' },
+      { clientHeight: 0, scrollHeight: 0 }
+    );
+    expect(findExpandButtons(remounted)).toHaveLength(0);
+    act(() => remounted.unmount());
+  });
+
+  it('still measures expanded edits synchronously without ResizeObserver', () => {
+    vi.stubGlobal('ResizeObserver', undefined);
+    const measured = createMeasuredContentElement();
+    const renderer = renderCollapsibleMessage(
+      { collapseMode: 'initially-expanded', measurementKey: 'fallback-before' },
+      measured.contentElement
+    );
+    const initialReads = measured.getScrollHeightReads();
+    act(() => {
+      renderer.update(
+        React.createElement(
+          CollapsibleMessage,
+          { collapseMode: 'initially-expanded', measurementKey: 'fallback-after' },
+          'updated streaming text'
+        )
+      );
+    });
+    expect(measured.getScrollHeightReads()).toBeGreaterThan(initialReads);
+    act(() => renderer.unmount());
+  });
+
   it('passes collapsed and expanded state to render-prop children', () => {
     const states: boolean[] = [];
     const renderer = renderCollapsibleMessage(

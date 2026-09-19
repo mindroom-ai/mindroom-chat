@@ -1135,6 +1135,7 @@ export function RoomTimeline({
     captureThreadPrepend,
     clearThreadPrependCapture,
     ledgerPxAtRender,
+    measureElement: measureTimelineElement,
     virtualInnerRef,
     virtualizer: roomTimelineVirtualizer,
   } = useTimelineScrollLedgerController({
@@ -2039,7 +2040,7 @@ export function RoomTimeline({
           return (
             <VirtualTile
               key={virtualItem.key}
-              ref={roomTimelineVirtualizer.measureElement}
+              ref={measureTimelineElement}
               virtualItem={virtualItem}
               // Content-relative top: virtualItem.start includes the
               // scrollMargin option (the negative offset-ledger snapshot),
@@ -2118,7 +2119,7 @@ export function RoomTimeline({
           .map((virtualItem) => (
             <VirtualTile
               key={virtualItem.key}
-              ref={roomTimelineVirtualizer.measureElement}
+              ref={measureTimelineElement}
               virtualItem={virtualItem}
               // Content-relative top — see renderVirtualRoomTimelineItems.
               style={{ top: virtualItem.start + ledgerPxAtRender }}

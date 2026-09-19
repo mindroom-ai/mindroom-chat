@@ -2,6 +2,52 @@
 
 ## Runbook
 
+### Restore the moving thinking shimmer without continuous repainting (2026-09-19)
+
+- Status: the moving text highlight is restored locally, validated, and independently reviewed.
+- The implementation follows the paired-transform technique in [T3 Code's thinking shimmer](https://github.com/pingdotgg/t3code/blob/b44c1ce5d25ee0d5a5be82e380618a886c19ea96/apps/web/src/index.css#L467-L541).
+  A static gradient mask moves across a decorative text copy that moves the same distance in the opposite direction, keeping the letters aligned with the original label.
+  The logo's flip/core/flip choreography stays unchanged and its artwork is not duplicated by the text overlay.
+- The original text determines layout, both copies receive each rotating message, and the existing responding status remains the only accessible label.
+  Reduced motion and forced colors show static readable text; symmetric margins preserve alignment in right-to-left layouts and wrapped labels.
+- A controlled 9.5-second Chromium comparison with two markers, a 390 × 844 viewport, device scale factor 3, and 4× CPU throttling recorded 1,148 Paint events and about 367 ms painting for the previous moving-background text effect, versus 12 events and about 1.8 ms for the masked prototype.
+  The integrated component recorded 12 Paint events, about 2.6 ms painting, and zero layouts in the same isolated workload.
+  These measurements establish reduced repaint work, not native iPhone frame rates or a whole-app speedup.
+- Regression coverage checks the moving highlight, stationary text at multiple animation phases, wrapped RTL labels, reduced motion, forced colors, and the existing paint-count gate.
+- Validation after integrating current dev: all 4,620 tests across 545 files pass under Node 24, along with typecheck, the production/PWA build, formatting, and ESLint with zero errors and the existing 17 warnings.
+  All 27 applicable browser cases pass across Chromium, Firefox, and WebKit; three protocol/emulation-specific cases are skipped.
+  The shared local SVG definitions remain intact, and the visible-artwork regression covers both animation layers in every browser.
+  The code-scrollbar measurement probe excludes the glass header's separate refraction sizing.
+  Automated review corrected native overflow to `auto`, so short code snippets do not request inactive scrollbar tracks.
+  Independent review found no remaining correctness, accessibility, or alignment issues after the RTL margin fix.
+- Native iPhone profiling and potential offscreen animation pausing remain follow-up work.
+
+### Reduce UI layout and repaint work (2026-09-19)
+
+- Status: local performance changes cover shared message rendering, room/thread virtualization, and thinking indicators.
+- Profiling used a production build, a local Matrix room with 120 formatted replies and six concurrently edited responses, and Chromium at 390 × 844 with device scale factor 3 and 4× CPU throttling.
+  These browser measurements do not establish native iPhone frame rates.
+- Code blocks now use native CSS overflow with keyboard focus, themed thin scrollbars, and the existing copy/expand controls.
+  Mounting 12 code blocks performs zero synchronous scrollbar geometry reads, down from 48.
+- Expanded streaming messages measure overflow through ResizeObserver after layout instead of forcing a layout during every edited-message commit.
+  Initial mounts, collapse transitions, collapsed edits, and browsers without ResizeObserver retain synchronous checks.
+  Every edited key receives a fresh observation so same-height edits retain the warm-start verdict used during virtualized remounts.
+- Timeline ref cleanup batches detached-node scans in a microtask after React removes the DOM nodes.
+  Mount measurements remain synchronous; a 20-row removal burst now performs one cache scan instead of 20, including correct same-key replacement and whole-timeline disposal.
+  Samples attributed to the repeated cleanup callback fell from 196 to 3 in the production streaming profiles.
+- Thinking markers keep the flip/core/flip motion and shared artwork, but animate an HTML graphics layer around the static SVG core.
+  This first pass used an opacity pulse for the text; the follow-up above restores the moving shimmer with a masked overlay.
+  In a 9.5-second isolated two-marker trace, Paint events fell from 1,498 to 12, observed paint time from about 666 ms to 1.4 ms, and animation-induced layouts from 175 to zero.
+- Regression checks: `npx playwright test e2e/message-rendering-performance.spec.ts e2e/thinking-marker.spec.ts` exercises the real components.
+  The thinking-marker paint gate uses Chromium tracing; layout, motion phases, resolved SVG geometry, mobile sizing, and reduced-motion checks also pass in Firefox and WebKit.
+  The live informational probes remain `e2e/live/perf-thread-streaming.spec.ts` and `e2e/live/perf-thread-scroll-stability.spec.ts` with local test credentials.
+- Validation: all 4,198 tests across 514 files pass under Node 24, production/PWA build and typecheck pass, and 16 browser cases pass across Chromium, Firefox, and WebKit (two Chromium-only tracing cases skipped on the other engines).
+  ESLint has zero errors and the existing 17 warnings; changed-file formatting passes.
+  Independent review checked observer timing, same-height cache behavior, virtualizer disposal, animation geometry, and accessibility.
+- Remaining work: capture native iPhone scrolling, concurrent streaming, and pinch traces with the same room before claiming an on-device frame-rate improvement.
+  The full six-response replay still drops frames under CPU throttling; the isolated component gains are not an end-to-end frame-rate guarantee.
+  Pinch still changes root font size during the gesture; this pass reduces shared rendering costs without changing the zoom interaction.
+
 ### Bound background thread work during streaming (2026-09-19)
 
 - A device diagnostics export records foreground event-loop stalls of 6,146 ms and 1,561 ms, a 7,505 ms heartbeat gap, and 1,833 request starts within approximately one minute.

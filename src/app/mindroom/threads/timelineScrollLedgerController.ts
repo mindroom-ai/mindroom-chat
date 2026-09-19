@@ -11,6 +11,7 @@ import {
 } from 'react';
 import { useVirtualizer, type ReactVirtualizer } from '@tanstack/react-virtual';
 import { countCacheProbe } from './cacheProbe';
+import { createBatchedMeasurementRef } from './batchedMeasurementRef';
 import { installRideTraceRecorder, isRideTraceEnabled } from './rideTraceRecorder';
 import {
   hasActiveWindowTouches,
@@ -68,6 +69,7 @@ export type TimelineScrollLedgerController = {
   captureThreadPrepend: (capture: ThreadPrependLedgerCapture) => void;
   clearThreadPrependCapture: () => void;
   ledgerPxAtRender: number;
+  measureElement: (node: Element | null) => void;
   virtualInnerRef: RefObject<HTMLDivElement>;
   virtualizer: ReactVirtualizer<HTMLDivElement, Element>;
 };
@@ -272,6 +274,10 @@ export const useTimelineScrollLedgerController = ({
     getItemKey,
   });
   const virtualizerRef = useRef(virtualizer);
+  const measureElement = useMemo(
+    () => createBatchedMeasurementRef(virtualizer.measureElement),
+    [virtualizer]
+  );
 
   useLayoutEffect(() => {
     ledgerFoldSizeCacheRef.current = virtualizer.itemSizeCache;
@@ -579,6 +585,7 @@ export const useTimelineScrollLedgerController = ({
     captureThreadPrepend,
     clearThreadPrependCapture,
     ledgerPxAtRender,
+    measureElement,
     virtualInnerRef,
     virtualizer,
   };

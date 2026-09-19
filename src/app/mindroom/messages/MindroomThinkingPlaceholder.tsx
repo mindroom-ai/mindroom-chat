@@ -46,12 +46,21 @@ export function MindroomThinkingPlaceholder() {
             <use href="#mindroom-thinking-outer-frame" />
             <use href="#mindroom-thinking-left-rooms" />
             <use href="#mindroom-thinking-right-rooms" />
-            <use className={css.Core} href="#mindroom-thinking-central-cube" />
           </svg>
+          <span className={css.Core}>
+            <svg className={css.Mark} viewBox="152 112 720 720" focusable="false">
+              <use href="#mindroom-thinking-central-cube" />
+            </svg>
+          </span>
         </span>
       </span>
       <span className={css.Text} aria-hidden="true">
-        {message}
+        <span className={css.TextBase}>{message}</span>
+        <span className={css.TextSweep} aria-hidden="true">
+          <span className={css.TextCounter}>
+            <span className={css.TextHighlight}>{message}</span>
+          </span>
+        </span>
       </span>
     </span>
   );
