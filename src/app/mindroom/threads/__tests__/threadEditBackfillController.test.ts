@@ -153,6 +153,84 @@ describe('useThreadEditBackfillController (task #129)', () => {
     }
   });
 
+  it('uses available repair slots for new candidates while an older request is stalled', async () => {
+    const harness = makeHarness();
+    const initial = Array.from({ length: 4 }, (_, index) => makePlaceholder(`$initial-${index}`));
+    const arrival = makePlaceholder('$arrival');
+    const { props } = makeProps(harness, initial);
+    let renderer!: ReactTestRenderer;
+    await act(async () => {
+      renderer = create(React.createElement(Harness, props));
+    });
+    try {
+      expect(harness.relations).toHaveBeenCalledTimes(4);
+      await act(async () => {
+        initial.slice(1).forEach((event) => harness.deferreds.get(event.getId()!)!.resolve());
+        await flush();
+      });
+      await act(async () => {
+        renderer.update(
+          React.createElement(Harness, { ...props, threadEvents: [...initial, arrival] })
+        );
+        await flush();
+      });
+      expect(harness.relations).toHaveBeenCalledTimes(5);
+      await act(async () => {
+        harness.deferreds.get('$arrival')!.resolve();
+        await flush();
+      });
+      expect(arrival.getContent().body).toBe('resolved');
+      expect(initial[0].getContent().body).toBe('Thinking...');
+    } finally {
+      act(() => renderer.unmount());
+      await act(async () => {
+        harness.deferreds.forEach(({ resolve }) => resolve());
+        await flush();
+      });
+    }
+  });
+
+  it.each([false, true])(
+    'uses a released slot for a queued arrival without retrying its failure (fails: %s)',
+    async (fails) => {
+      const harness = makeHarness();
+      const initial = Array.from({ length: 4 }, (_, index) => makePlaceholder(`$held-${index}`));
+      const arrival = makePlaceholder('$queued-arrival');
+      if (fails) harness.failOnce.add('$queued-arrival');
+      const { props } = makeProps(harness, initial);
+      let renderer!: ReactTestRenderer;
+      await act(async () => {
+        renderer = create(React.createElement(Harness, props));
+      });
+      try {
+        await act(async () => {
+          renderer.update(
+            React.createElement(Harness, { ...props, threadEvents: [...initial, arrival] })
+          );
+        });
+        expect(harness.relations).toHaveBeenCalledTimes(4);
+        await act(async () => {
+          harness.deferreds.get(initial[1].getId()!)!.resolve();
+          await flush();
+        });
+        expect(harness.relations).toHaveBeenCalledTimes(5);
+        await act(async () => {
+          harness.deferreds.get('$queued-arrival')?.resolve();
+          await flush();
+        });
+        expect(arrival.getContent().body).toBe(fails ? 'Thinking...' : 'resolved');
+        expect(initial[0].getContent().body).toBe('Thinking...');
+        expect(harness.relations).toHaveBeenCalledTimes(5);
+      } finally {
+        act(() => renderer.unmount());
+        await act(async () => {
+          harness.deferreds.forEach(({ resolve }) => resolve());
+          await flush();
+        });
+      }
+    }
+  );
+
   it('repairs newly arrived candidates after a busy batch returns no edits', async () => {
     const harness = makeHarness();
     let release!: () => void;
