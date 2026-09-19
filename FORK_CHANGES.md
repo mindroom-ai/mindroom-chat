@@ -14,8 +14,9 @@
   Pagination waits for conversion, cancels if a destructive reset removed its target, and observes conversion failures without retaining a stuck wait.
 - The selected thread observes room gaps after the SDK reset loop.
   Both cache-first opening and SDK bootstrap await conversion before capturing the live chain; navigation removes the active subscription and suppresses stale callbacks.
+  Conversion failures retain a diagnostic while their owner is current; failed cache-first resets continue through SDK bootstrap.
 - Real-SDK regressions cover 200 initialized threads across 20 gaps, touched-thread insertion, token boundaries, both pagination directions, concurrent resets, failed conversions, historical identity, duplicate cache data, and active-thread switching.
-- Validation: all 4,677 tests across 552 files pass under Node 24, along with application typecheck, production/PWA build, and changed-file formatting.
+- Validation: all 4,682 tests across 552 files pass under Node 24, along with application typecheck, production/PWA build, and changed-file formatting.
   ESLint reports zero errors and the 17 existing warnings.
 - An isolated SDK probe with 200 untouched initialized threads and 200 room resets retains 200 thread timelines instead of 40,200.
   Post-GC heap growth falls from 119.1 MiB to 0.8 MiB in that isolated case; room timelines remain preserved.

@@ -328,4 +328,36 @@ describe('runThreadOpenCacheFirst', () => {
       })
     );
   });
+  it('reports reset conversion failure and continues SDK bootstrap without using a complete cache snapshot', async () => {
+    const opts = makeDefaultOptions();
+    const error = new Error('token conversion unavailable');
+    const warning = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    Object.assign(opts.room.getThread('$root')!, {
+      flushPendingTimelineReset: vi.fn().mockRejectedValueOnce(error),
+    });
+    opts.hydrateThreadFromCache.mockResolvedValue({
+      cacheCoverage: buildThreadCacheCoverage({
+        eventCount: 2,
+        backwardToken: null,
+        hasMoreBackward: false,
+        relationSnapshotComplete: true,
+        snapshotComplete: true,
+        tailLoaded: true,
+      }),
+      events: [{ event_id: '$reply', origin_server_ts: 2 }],
+      hasMoreBefore: false,
+      beforeToken: null,
+      relationSnapshotComplete: true,
+    });
+    try {
+      const result = await runThreadOpenCacheFirst(opts as never);
+      expect(result).toEqual({ shouldContinue: true, hydratedCachedPage: undefined });
+      expect(opts.hydrateThreadFromCache).not.toHaveBeenCalled();
+      expect(opts.onCacheHydrated).toHaveBeenCalledWith(false);
+      expect(opts.scheduleReconcile).toHaveBeenCalledOnce();
+      expect(warning).toHaveBeenCalledWith('[thread-sync-gap] token conversion failed', error);
+    } finally {
+      warning.mockRestore();
+    }
+  });
 });

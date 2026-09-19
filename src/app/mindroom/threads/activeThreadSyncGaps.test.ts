@@ -192,4 +192,50 @@ describe('active thread sync gaps', () => {
       expect(threads[0].timelineSet.getTimelines()).toHaveLength(3);
     }
   );
+  it.each([null, 'back'])(
+    'publishes a destructive room reset after its synchronous replacement (back=%s)',
+    async (back) => {
+      const { room, threads } = fixture();
+      const changed = vi.fn();
+      const stop = observeActiveThreadSyncGaps(room, threads[0], changed);
+      await settle();
+      expect(changed).not.toHaveBeenCalled();
+      const old = threads[0].liveTimeline;
+      room.resetLiveTimeline(back, null);
+      expect(threads[0].liveTimeline === old).toBe(false);
+      expect(changed).not.toHaveBeenCalled();
+      await settle();
+      expect(changed).toHaveBeenCalledOnce();
+      expect(threads[0].flushPendingTimelineReset()).toBeUndefined();
+      stop();
+    }
+  );
+
+  it.each([true, false])(
+    'reports a failed selected-thread conversion only while its owner is current (current=%s)',
+    async (current) => {
+      const { room, threads, client } = fixture();
+      const warning = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+      let reject!: (error: Error) => void;
+      const conversion = new Promise<any>((_resolve, no) => {
+        reject = no;
+      });
+      vi.mocked(client.createMessagesRequest).mockReturnValue(conversion);
+      room.resetLiveTimeline('back', 'forward');
+      const changed = vi.fn();
+      const stop = observeActiveThreadSyncGaps(room, threads[0], changed);
+      await settle();
+      if (!current) stop();
+      const error = new Error('token conversion unavailable');
+      reject(error);
+      await settle();
+      expect(changed).toHaveBeenCalledTimes(current ? 1 : 0);
+      if (current) {
+        expect(warning).toHaveBeenCalledWith('[thread-sync-gap] token conversion failed', error);
+      } else {
+        expect(warning).not.toHaveBeenCalled();
+      }
+      stop();
+    }
+  );
 });

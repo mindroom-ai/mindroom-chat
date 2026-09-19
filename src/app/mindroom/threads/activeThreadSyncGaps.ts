@@ -10,7 +10,16 @@ export const flushThreadSyncGap = (
   const pending = thread?.flushPendingTimelineReset?.();
   // Retain synchronous cache hydration when there is no gap. Recheck after waiting,
   // since another room sync may have queued a newer boundary during conversion.
-  return pending?.then(() => flushThreadSyncGap(thread, isCurrent));
+  return pending?.then(
+    () => flushThreadSyncGap(thread, isCurrent),
+    (error: unknown) => {
+      if (isCurrent()) {
+        // eslint-disable-next-line no-console
+        console.warn('[thread-sync-gap] token conversion failed', error);
+      }
+      throw error;
+    }
+  );
 };
 
 /** Subscribe only for the selected thread; room reset events precede the SDK's thread loop. */
