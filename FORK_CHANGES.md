@@ -28,6 +28,9 @@
 - Validation: all 4,641 tests across 548 files, application and changed-browser-test typechecks, production/PWA build, and changed-file formatting pass.
   ESLint has zero errors and the existing 17 warnings.
   The fast-scroll browser invariant now drives 240 pixels/frame and requires over 8,000 pixels of travel.
+  Live opening, streaming, history navigation, quote jumps, and expansion checks pass in Chromium and Firefox; seven of eight checks pass in phone-sized desktop WebKit.
+  WebKit's loader-trigger assertion also fails on the merged baseline: background requests finish loading all 461 fixture events before the first wheel, so the scroll-triggered loader correctly stays idle.
+  The opening test bounds mounted pixel distance instead of assuming a fixed row count.
 - Follow-up: measure on a native iPhone and profile synchronous message-mount geometry and remaining whole-history scans separately.
 
 ### Avoid empty thread tiles for streaming edits and reactions (2026-09-19)
