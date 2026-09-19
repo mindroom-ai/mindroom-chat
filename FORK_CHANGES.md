@@ -2,6 +2,33 @@
 
 ## Runbook
 
+### Bound background thread work during streaming (2026-09-19)
+
+- A device diagnostics export records foreground event-loop stalls of 6,146 ms and 1,561 ms, a 7,505 ms heartbeat gap, and 1,833 request starts within approximately one minute.
+  No native termination or reload was recorded during that session.
+  The detailed recorder dropped 2,631 events from that session and contains no viewport measurements, so the precise scroll-to-top trigger remains unproven.
+- Thread discovery eagerly materializes server thread roots, whose SDK constructors start root and relation requests outside the application's background-job scheduler.
+  Continuing overview pagination after leaving that view is a supported explanation for excess background work; it is not a confirmed attribution of the device's scroll jump.
+- Thread edit repair now claims at most four concurrent repair operations from its existing in-flight registry across streaming renders.
+  A regression reproduced 24 simultaneous repair operations from five rerenders before the fix; each SDK operation can issue both a root request and a relations request.
+  A released slot wakes candidates waiting for capacity, even if another operation stalls, and queued candidates are rechecked before claiming a slot.
+  Releasing capacity belongs to the mounted controller, while applying and persisting results still requires the request's thread to remain current.
+  Failed operations do not retry merely because their own slot was released, and unmounting stops queued work.
+- Overview thread-list loads cooperatively stop requesting new pages when their last consumer leaves.
+  Shared consumers retain the existing complete-list behavior, and in-flight SDK requests may still finish.
+  The mounted edit-repair controller owns its candidates, attempted state, and operation slots; the room-scoped shared loader owns consumer accounting and pagination continuation.
+  View hooks release their interest on navigation without cancelling another consumer's work.
+- Overview resume refreshes release their apply ownership and stop later targets and counter updates when either overview mode is left.
+  The engine keeps ownership of already-shared relation jobs so surviving consumers can still receive their results.
+  Regression tests use the real content helper and scheduler with a second consumer to cover both directions between overview modes.
+- Validation: all 4,613 unit tests pass under Node 24 after integration with the current thread-gap recovery changes, along with typecheck, production/PWA build, and changed-file formatting.
+  Full lint reports zero errors and the 17 existing warnings.
+  Independent reviews found no actionable issues in either fix or its lifecycle regression coverage.
+  Four production Chromium/WebKit desktop and phone-sized checks pass for thread-send route and scroll stability.
+  Both WebKit cases also pass a traced repeat with an orderly browser exit; an unexplained WPE process dump from the first Linux run remains a harness caveat.
+  The unchanged desktop probe with 400 replies and 30 streamed edits did not reproduce the device freeze; its largest measured long task was 63 ms.
+  Physical iOS reproduction and confirmation of the scroll trigger remain outstanding.
+
 ### Recover open threads after timeline gaps and stalled requests (2026-09-19)
 
 - Limited-sync gap fills previously committed recovered replies to IndexedDB without updating the mounted thread.

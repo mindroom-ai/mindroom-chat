@@ -121,8 +121,8 @@ export const sortThreadsByActivity = (
 const getAllThreadsLiveTimeline = (room: Room) => room.threadsTimelineSets[0]?.getLiveTimeline();
 
 type RoomThreadListLoad = {
+  consumers: Map<symbol, (() => void) | undefined>;
   promise: Promise<void>;
-  progressListeners: Set<() => void>;
 };
 
 const roomThreadListLoads = new WeakMap<Room, RoomThreadListLoad>();
@@ -160,10 +160,13 @@ export const roomThreadListIsComplete = (room: Room): boolean => {
 const loadRoomThreadsOnce = async (
   room: Room,
   onProgress: () => void,
-  onSettled: () => void
+  onSettled: () => void,
+  shouldContinue: () => boolean
 ): Promise<void> => {
   try {
+    if (!shouldContinue()) return;
     await ensureThreadTimelineSets(room);
+    if (!shouldContinue()) return;
     try {
       await room.fetchRoomThreads();
     } catch (err) {
@@ -178,6 +181,7 @@ const loadRoomThreadsOnce = async (
     if (!allThreadsLiveTimeline) return;
 
     for (;;) {
+      if (!shouldContinue()) return;
       const currentToken = allThreadsLiveTimeline.getPaginationToken(Direction.Backward);
       if (currentToken === null) return;
 
@@ -196,16 +200,23 @@ const loadRoomThreadsOnce = async (
   }
 };
 
-export const loadRoomThreads = (room: Room, onProgress?: () => void): Promise<void> => {
+export const loadRoomThreads = (
+  room: Room,
+  onProgress?: () => void,
+  signal?: AbortSignal
+): Promise<void> => {
+  if (signal?.aborted) return Promise.resolve();
+
   let load = roomThreadListLoads.get(room);
   if (!load) {
-    const progressListeners = new Set<() => void>();
+    const consumers = new Map<symbol, (() => void) | undefined>();
     let activeLoad: RoomThreadListLoad;
     const promise = Promise.resolve().then(() =>
       loadRoomThreadsOnce(
         room,
         () => {
-          progressListeners.forEach((listener) => {
+          consumers.forEach((listener) => {
+            if (!listener) return;
             try {
               listener();
             } catch (err) {
@@ -217,21 +228,27 @@ export const loadRoomThreads = (room: Room, onProgress?: () => void): Promise<vo
           if (roomThreadListLoads.get(room) === activeLoad) {
             roomThreadListLoads.delete(room);
           }
-        }
+        },
+        () => consumers.size > 0
       )
     );
     activeLoad = {
-      progressListeners,
+      consumers,
       promise,
     };
     load = activeLoad;
     roomThreadListLoads.set(room, activeLoad);
   }
 
-  const progressListener = onProgress ? () => onProgress() : undefined;
-  if (progressListener) load.progressListeners.add(progressListener);
+  const consumerId = Symbol('room-thread-list-consumer');
+  load.consumers.set(consumerId, onProgress);
+  const removeConsumer = () => {
+    load.consumers.delete(consumerId);
+  };
+  signal?.addEventListener('abort', removeConsumer, { once: true });
 
   return load.promise.finally(() => {
-    if (progressListener) load.progressListeners.delete(progressListener);
+    signal?.removeEventListener('abort', removeConsumer);
+    removeConsumer();
   });
 };
