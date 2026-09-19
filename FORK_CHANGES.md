@@ -15,10 +15,21 @@
 - The selected thread observes room gaps after the SDK reset loop.
   Both cache-first opening and SDK bootstrap await conversion before capturing the live chain; navigation removes the active subscription and suppresses stale callbacks.
 - Real-SDK regressions cover 200 initialized threads across 20 gaps, touched-thread insertion, token boundaries, both pagination directions, concurrent resets, failed conversions, historical identity, duplicate cache data, and active-thread switching.
-- Validation: all 4,674 tests across 552 files pass under Node 24, along with application typecheck, production/PWA build, and changed-file formatting.
+- Validation: all 4,677 tests across 552 files pass under Node 24, along with application typecheck, production/PWA build, and changed-file formatting.
   ESLint reports zero errors and the 17 existing warnings.
-- Status: implementation and local validation complete; independent review and production replay are in progress.
-  This change addresses measured SDK timeline retention and does not establish a browser crash cause or native-device frame-rate improvement.
+- An isolated SDK probe with 200 untouched initialized threads and 200 room resets retains 200 thread timelines instead of 40,200.
+  Post-GC heap growth falls from 119.1 MiB to 0.8 MiB in that isolated case; room timelines remain preserved.
+- A production Chromium replay uses 200 initialized threads, 8,000 short streaming edits in 40 rounds, a 1440 × 1000 viewport, and 4× CPU throttling against local Tuwunel.
+  Both builds exclude the separate offscreen-animation change.
+  Retained SDK timelines fall from 7,236 to 1,054 despite 35 baseline versus 40 candidate room resets.
+  Post-GC heap growth falls from 19.4 MiB to 10.8 MiB (45%); peak renderer RSS falls from 825 MiB to 746 MiB (10%).
+  These are single-run observations, with different sync delivery, not an equal-event throughput benchmark.
+  Both builds miss the 30-second all-threads-latest SDK revision deadline, and p95 frame gaps remain about 217 ms.
+- A separate 2,000-edit browser replay opens a dormant thread after repeated sync gaps, displays its final reply, and scrolls back through 120 older replies to the oldest message.
+  Both baseline and candidate pass this history check; all 200 threads reach the final SDK revision in these shorter runs.
+- Status: implementation, local validation, and production replay complete.
+  Neither browser replay crashes, so this addresses measured timeline retention without establishing the reported Chrome crash cause or resolution.
+  Remaining streaming catch-up and frame timing need separate work; no native-device improvement is claimed.
 
 ### Keep content ready during fast scrolling (2026-09-19)
 
