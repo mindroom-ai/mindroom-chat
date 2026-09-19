@@ -205,7 +205,12 @@ export function Settings({ initialPage, requestClose }: SettingsProps) {
       {activePage === SettingsPages.EmojisStickersPage && (
         <EmojisStickers requestClose={handlePageRequestClose} />
       )}
-      {renderMindroomSettingsPage(activePage, showLocalMindRoom, handlePageRequestClose)}
+      {renderMindroomSettingsPage(
+        activePage,
+        showLocalMindRoom,
+        handlePageRequestClose,
+        requestClose
+      )}
       {activePage === SettingsPages.DeveloperToolsPage && (
         <DeveloperTools requestClose={handlePageRequestClose} />
       )}

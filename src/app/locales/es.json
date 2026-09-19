@@ -2890,5 +2890,15 @@
     "noHistory": "Sin historial",
     "recentMessages": "Mensajes recientes: {{total}}",
     "close": "Cerrar"
+  },
+  "archivedRooms": {
+    "title": "Salas archivadas",
+    "archive": "Archivar sala",
+    "restore": "Restaurar sala",
+    "restoreNamed": "Restaurar {{room}}",
+    "failed": "No se pudieron guardar los cambios. Inténtalo de nuevo.",
+    "close": "Cerrar salas archivadas",
+    "description": "Oculta salas de la barra lateral sin salir de ellas. Ábrelas o restáuralas aquí.",
+    "empty": "No hay salas archivadas."
   }
 }

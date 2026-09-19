@@ -24,6 +24,7 @@ import {
 } from 'folds';
 import { useNavigate } from 'react-router-dom';
 import { Room } from 'matrix-js-sdk';
+import { ArchiveRoomMenuItem } from '../rooms/ArchiveRoomMenuItem';
 import { Menu, MenuItem } from '../../components/glass/GlassPrimitives';
 import { useStateEvent } from '../../hooks/useStateEvent';
 import { glassFlat, glassFloating } from '../../styles/Glass.css';
@@ -264,6 +265,7 @@ const RoomMenu = forwardRef<HTMLDivElement, RoomMenuProps>(({ room, requestClose
       </Box>
       <Line variant="Surface" size="300" />
       <Box direction="Column" gap="100" style={{ padding: config.space.S100 }}>
+        {!room.isSpaceRoom() && <ArchiveRoomMenuItem roomId={room.roomId} onClose={requestClose} />}
         <UseStateProvider initial={false}>
           {(promptLeave, setPromptLeave) => (
             <>

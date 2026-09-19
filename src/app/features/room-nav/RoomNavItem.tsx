@@ -19,6 +19,7 @@ import { useFocusWithin, useHover } from 'react-aria';
 import FocusTrap from 'focus-trap-react';
 import { useAtom, useAtomValue } from 'jotai';
 import { useTranslation } from 'react-i18next';
+import { ArchiveRoomMenuItem } from '../../mindroom/rooms/ArchiveRoomMenuItem';
 import { Menu, MenuItem } from '../../components/glass/GlassPrimitives';
 import { NavItem, NavItemContent, NavItemOptions, NavLink } from '../../components/nav';
 import { UnreadBadge, UnreadBadgeCenter } from '../../components/unread-badge';
@@ -169,6 +170,7 @@ const RoomNavItemMenu = forwardRef<HTMLDivElement, RoomNavItemMenuProps>(
         </Box>
         <Line variant="Surface" size="300" />
         <Box direction="Column" gap="100" style={{ padding: config.space.S100 }}>
+          <ArchiveRoomMenuItem roomId={room.roomId} onClose={requestClose} />
           <UseStateProvider initial={false}>
             {(promptLeave, setPromptLeave) => (
               <>

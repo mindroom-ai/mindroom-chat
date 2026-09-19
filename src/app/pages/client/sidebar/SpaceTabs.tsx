@@ -45,7 +45,8 @@ import {
 } from '../../../state/hooks/roomList';
 import { useMatrixClient } from '../../../hooks/useMatrixClient';
 import { roomToParentsAtom } from '../../../state/room/roomToParents';
-import { allRoomsAtom } from '../../../state/room-list/roomList';
+import { navigationRoomToUnreadAtom } from '../../../mindroom/rooms/navigationUnread';
+import { navigationRoomsAtom } from '../../../mindroom/rooms/archivedRooms';
 import { getSpaceLobbyPath, getSpacePath, joinPathComponent } from '../../pathUtils';
 import {
   SidebarAvatar,
@@ -121,7 +122,7 @@ const SpaceMenu = forwardRef<HTMLDivElement, SpaceMenuProps>(
     const [invitePrompt, setInvitePrompt] = useState(false);
 
     const allChild = useSpaceChildren(
-      allRoomsAtom,
+      navigationRoomsAtom,
       room.roomId,
       useRecursiveChildScopeFactory(mx, roomToParents)
     );
@@ -364,7 +365,7 @@ function SpaceTab({
   };
 
   return (
-    <RoomUnreadProvider roomId={space.roomId}>
+    <RoomUnreadProvider roomId={space.roomId} unreadAtom={navigationRoomToUnreadAtom}>
       {(unread) => (
         <SidebarItem
           active={selected}
@@ -528,7 +529,7 @@ function ClosedSpaceFolder({
     folder.name ?? folder.content.map((i) => mx.getRoom(i)?.name ?? '').join(', ') ?? 'Unnamed';
 
   return (
-    <RoomsUnreadProvider rooms={folder.content}>
+    <RoomsUnreadProvider rooms={folder.content} unreadAtom={navigationRoomToUnreadAtom}>
       {(unread) => (
         <SidebarItem
           active={selected}
@@ -596,7 +597,7 @@ export function SpaceTabs({ scrollRef, onSelect }: SpaceTabsProps) {
   const mx = useMatrixClient();
   const screenSize = useScreenSizeContext();
   const roomToParents = useAtomValue(roomToParentsAtom);
-  const orphanSpaces = useOrphanSpaces(mx, allRoomsAtom, roomToParents);
+  const orphanSpaces = useOrphanSpaces(mx, navigationRoomsAtom, roomToParents);
   const [baseSidebarItems, localEchoSidebarItem] = useSidebarItems(orphanSpaces);
   const [spaceOrder, setSpaceOrder] = useAtom(useSpaceOrderAtom());
   const sidebarItems = useMemo(

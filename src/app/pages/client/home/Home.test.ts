@@ -54,6 +54,10 @@ vi.mock('@tanstack/react-virtual', () => ({
   }),
 }));
 
+vi.mock('../../../mindroom/rooms/archivedRooms', () => ({
+  useVisibleRooms: (rooms: string[]) => rooms,
+}));
+
 vi.mock('jotai', () => ({
   useAtom: () => [new Set<string>(), vi.fn()],
   useAtomValue: () => new Map<string, unknown>(),

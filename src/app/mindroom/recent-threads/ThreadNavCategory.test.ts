@@ -4,6 +4,7 @@ import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { MemoryRouter } from 'react-router-dom';
 import { enableMapSet } from 'immer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { archivedRoomsAtom } from '../rooms/archivedRooms';
 import { makeClosedNavCategoriesAtom } from '../../state/closedNavCategories';
 import { ClosedNavCategoriesProvider } from '../../state/hooks/closedNavCategories';
 import { mDirectAtom } from '../../state/mDirectList';
@@ -187,6 +188,19 @@ describe('ThreadNavCategory', () => {
         .findAll((node) => node.props['data-thread-key'])
         .map((node) => node.props['data-thread-key'])
     ).toEqual([older.key, newer.key]);
+  });
+
+  it('hides archived threads and restores their pin preference', () => {
+    renderCategory();
+    act(() => renderer!.root.findByProps({ 'aria-label': `pin-${older.key}` }).props.onClick());
+    act(() => store.set(archivedRoomsAtom, new Set([older.roomId])));
+    const visibleKeys = () =>
+      renderer!.root
+        .findAll((node) => node.props['data-thread-key'])
+        .map((node) => node.props['data-thread-key']);
+    expect(visibleKeys()).toEqual([newer.key]);
+    act(() => store.set(archivedRoomsAtom, new Set<string>()));
+    expect(visibleKeys()).toEqual([older.key, newer.key]);
   });
 
   it('does not render threads from direct-message rooms', () => {
