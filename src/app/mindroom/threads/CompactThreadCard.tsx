@@ -8,6 +8,7 @@ import { useRelativeTime } from '../../hooks/useRelativeTime';
 import type { CompactThreadCardViewModel } from './types';
 import * as css from './CompactRoomView.css';
 import { FailedSendIndicator, PendingSendIndicator } from '../messages/pendingSendIndicator';
+import { ThreadStreamingDot } from './ThreadStreamingDot';
 
 const tagColor = (tagName: string): string => {
   let hash = 0;
@@ -225,7 +226,7 @@ function CompactThreadCardBase({ viewModel, onClick }: CompactThreadCardProps) {
           {isStreaming && (
             <Chip as="span" className={css.StatusChip} variant="Primary" fill="Soft" radii="Pill">
               <Box as="span" alignItems="Center" gap="100">
-                <span className={threadIndicatorCss.ThreadStreamingDot} aria-hidden="true" />
+                <ThreadStreamingDot aria-hidden="true" />
                 <Text as="span" size="T200">
                   {t('mindroomUi.threads.compactThreadCard.streaming')}
                 </Text>

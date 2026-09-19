@@ -2,6 +2,25 @@
 
 ## Runbook
 
+### Pause offscreen thread streaming pulses (2026-09-19)
+
+- A 200-thread stress investigation found sustained style/frame work from streaming dots outside the viewport, including after message traffic stopped.
+  Compact cards and expanded-thread indicators now share one visibility observer that pauses offscreen pulses and resumes the same CSS animation on entry.
+  All cards remain mounted, accessibility labels and reduced-motion behavior stay intact, and environments without IntersectionObserver retain their existing animation.
+  The observer releases detached dots and disconnects after its last consumer leaves.
+- Matched production builds display the same settled 200-thread room at 1440 × 1000 with 4× CPU throttling.
+  Two eight-second samples per build retain 200 cards and 30,886 DOM nodes.
+  Running animations fall from 200 to 10; p95 frame gaps fall from 33.4 ms to 16.8 ms.
+  Style recalculation falls from 3.79–3.82 seconds to 0.46–0.50 seconds per sample; total main-thread time falls from 7.80–7.81 seconds to 2.01–5.37 seconds.
+  These are rendering measurements with streaming markers active, not proof of sustained delivery of 200 live streams or a fix for browser-tab crashes.
+- Validation: all 4,653 unit tests, application and browser-test typechecks, production/PWA build, and changed-file formatting pass.
+  ESLint has zero errors and the existing 17 warnings.
+  All nine browser cases pass across Chromium, Firefox, and phone-sized desktop WebKit, covering offscreen pausing, large scroll jumps, remounts, reduced motion, and the missing-observer fallback.
+  The offscreen-animation regression fails on the merged baseline; independent review found no actionable issues.
+- Follow-up: the broader stress run reached 1.4 GB renderer RSS without reproducing a crash.
+  Its fixed warm-up did not establish full reply readiness, and final previews did not catch up, so it cannot support an end-to-end throughput claim.
+  Partial SDK thread timelines can expose a bundled reply to streaming detection while presentation reports only the root and zero replies; sustained-load comparisons need to distinguish this presentation gap from ingestion backlog.
+
 ### Keep content ready during fast scrolling (2026-09-19)
 
 - Status: implemented, validated with the full unit suite and production profiles, and independently reviewed.
