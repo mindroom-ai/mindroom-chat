@@ -93,6 +93,7 @@ vi.mock('../mindroom/html/ScrollableTable.css', () => ({
 vi.mock('../mindroom/messages/MindroomHtmlBlocks.css', () => ({
   Block: 'MindroomBlock',
   BlockBody: 'MindroomBlockBody',
+  BlockChevron: 'MindroomBlockChevron',
   BlockHeader: 'MindroomBlockHeader',
   BlockHeaderMeta: 'MindroomBlockHeaderMeta',
   BlockInlineResult: 'MindroomBlockInlineResult',

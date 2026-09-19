@@ -13,7 +13,8 @@ test('mounting code blocks does not synchronously measure scrollbar geometry', a
         Object.defineProperty(prototype, property, {
           ...descriptor,
           get(this: HTMLElement) {
-            if (this.closest('pre')) state.reads += 1;
+            // Glass headers measure their own refraction; count the code scroller.
+            if (this.closest('pre') && !this.closest('header')) state.reads += 1;
             return descriptor.get!.call(this);
           },
         });

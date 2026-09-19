@@ -2144,6 +2144,31 @@
     }
   },
   "mindroomUi": {
+    "models": {
+      "modelPicker": {
+        "chooseModel": "Choose model",
+        "roomDefault": "Room default",
+        "modelForThread": "Model for this thread",
+        "appliesToThread": "Applies to all agents and teams for future replies in this thread.",
+        "search": "Search models",
+        "close": "Close model picker",
+        "useRoomDefault": "Use room default",
+        "roomDefaultDescription": "Let each agent use its configured model.",
+        "models": "Models",
+        "runtime": "Runtime",
+        "chooseRuntime": "Choose a runtime",
+        "runtimeLabel": "{{userId}} on {{deviceId}}",
+        "refresh": "Refresh models",
+        "retry": "Retry",
+        "loading": "Loading models",
+        "pending": "Waiting for model change",
+        "noResults": "No matching models",
+        "commandFallback": "You can still send !model with a model key in this thread.",
+        "inheritedModels": "Room defaults by agent: {{models}}",
+        "futureReplies": "Changes apply to future replies.",
+        "threadModel": "Thread model"
+      }
+    },
     "voice": {
       "discardRecording": "Ses kaydını sil",
       "pauseRecording": "Ses kaydını duraklat",
@@ -2601,7 +2626,8 @@
       "mindroomTab": {
         "localMindroom": "Yerel MindRoom"
       },
-      "resizeNavigationPanel": "Gezinme panelini yeniden boyutlandır"
+      "resizeNavigationPanel": "Gezinme panelini yeniden boyutlandır",
+      "resizeMemberPanel": "Üye panelini yeniden boyutlandır"
     },
     "threads": {
       "compactRoomView": {
@@ -2635,6 +2661,8 @@
         "youDoNotHavePermissionToPostInThisRoom": "Bu odada mesaj gönderme izniniz yok"
       },
       "mindroomRoomViewHeader": {
+        "showComputer": "Bilgisayarı göster",
+        "hideComputer": "Bilgisayarı gizle",
         "notifications": "Bildirimler",
         "compact": "Kompakt",
         "threads": "Konular",
@@ -2770,6 +2798,44 @@
         "threadInRoom": "{{roomName}} odasındaki konu",
         "thread": "Konu"
       }
+    },
+    "uiActions": {
+      "viewComputer": "Bilgisayarı görüntüle",
+      "openMembers": "Üyeleri aç",
+      "computerUnavailable": "Bu ajanın bilgisayarı kullanılamıyor.",
+      "releaseControl": "Başka bir görünüm açmadan önce bilgisayarın kontrolünü bırakın.",
+      "openConversation": "Bu isteği oda sohbetinden açın.",
+      "settingsUnavailable": "Bu Ayarlar bölümünü açmak için Basit Modu kapatın."
     }
+  },
+  "roomSchedules": {
+    "title": "Zamanlanmış görevler",
+    "openLabel": "Zamanlanmış görevler ({{total}})",
+    "empty": "Bu odada zamanlanmış görev yok.",
+    "emptyHint": "Bir MindRoom ajanından burada bir görev zamanlamasını isteyin.",
+    "prompt": "İstem",
+    "promptUnavailable": "İstem kullanılamıyor",
+    "once": "Tek seferlik",
+    "recurring": "Yinelenen",
+    "executionTime": "Yürütme zamanı",
+    "unknownTime": "Yürütme zamanı kullanılamıyor",
+    "awaitingExecution": "Yürütülmeyi bekliyor",
+    "recurrence": "Yineleme",
+    "silent": "Sessiz",
+    "conditional": "Koşullu",
+    "newThread": "Yeni konu",
+    "roomTimeline": "Oda zaman çizelgesi",
+    "openThread": "Konuyu aç",
+    "owner": "Görev sahibi",
+    "createdAt": "Oluşturulma",
+    "updatedAt": "Güncellendi",
+    "model": "Model",
+    "inheritedModel": "Ajan, oda veya konu ayarlarından",
+    "taskId": "Görev kimliği",
+    "historyLimit": "Geçmiş sınırı",
+    "fullHistory": "Tüm geçmiş",
+    "noHistory": "Geçmiş yok",
+    "recentMessages": "Son mesajlar: {{total}}",
+    "close": "Kapat"
   }
 }

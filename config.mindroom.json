@@ -38,6 +38,12 @@
   },
 
   "mindroom": {
+    "uiActions": {
+      "autoOpenFromHomeservers": ["mindroom.chat"]
+    },
+    "computers": {
+      "apiUrl": ""
+    },
     "thinkingPlaceholderMessages": [
       "Thinking",
       "Making progress",

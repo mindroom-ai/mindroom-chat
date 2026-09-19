@@ -6,8 +6,6 @@ import {
   IconButton,
   Icons,
   Line,
-  Menu,
-  MenuItem,
   PopOut,
   RectCords,
   Text,
@@ -18,9 +16,9 @@ import {
 } from 'folds';
 import FocusTrap from 'focus-trap-react';
 import { useTranslation } from 'react-i18next';
+import { Menu, MenuItem } from '../../components/glass/GlassPrimitives';
 import { PageHeader } from '../../components/page';
-import { useSetSetting } from '../../state/hooks/settings';
-import { settingsAtom } from '../../state/settings';
+import { useMembersDrawer } from '../../mindroom/sidebar/useMembersDrawer';
 import { useRoomAvatar, useRoomName } from '../../hooks/useRoomMeta';
 import { useSpace } from '../../hooks/useSpace';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
@@ -151,7 +149,7 @@ export function LobbyHeader({ showProfile, powerLevels, joinRequestCount = 0 }: 
   const mx = useMatrixClient();
   const useAuthentication = useMediaAuthentication();
   const space = useSpace();
-  const setPeopleDrawer = useSetSetting(settingsAtom, 'isPeopleDrawer');
+  const [peopleDrawer, setPeopleDrawer] = useMembersDrawer();
   const [menuAnchor, setMenuAnchor] = useState<RectCords>();
   const screenSize = useScreenSizeContext();
   const creators = useRoomCreators(space);
@@ -226,30 +224,29 @@ export function LobbyHeader({ showProfile, powerLevels, joinRequestCount = 0 }: 
           basis={screenSize === ScreenSize.Mobile ? 'Yes' : 'No'}
           justifyContent="End"
         >
-          {screenSize !== ScreenSize.Mobile && (
-            <TooltipProvider
-              position="Bottom"
-              offset={4}
-              tooltip={
-                <Tooltip>
-                  <Text>{t('featureUi.lobby.lobbyHeader.members')}</Text>
-                </Tooltip>
-              }
-            >
-              {(triggerRef) => (
-                <IconButton
-                  fill="None"
-                  style={{ position: 'relative' }}
-                  ref={triggerRef}
-                  onClick={() => setPeopleDrawer((drawer) => !drawer)}
-                  aria-label={memberButtonAriaLabel}
-                >
-                  <PendingJoinRequestBadge count={visibleJoinRequestCount} />
-                  <Icon size="400" src={Icons.User} />
-                </IconButton>
-              )}
-            </TooltipProvider>
-          )}
+          <TooltipProvider
+            position="Bottom"
+            offset={4}
+            tooltip={
+              <Tooltip>
+                <Text>{t('featureUi.lobby.lobbyHeader.members')}</Text>
+              </Tooltip>
+            }
+          >
+            {(triggerRef) => (
+              <IconButton
+                fill="None"
+                style={{ position: 'relative' }}
+                ref={triggerRef}
+                onClick={() => setPeopleDrawer((drawer) => !drawer)}
+                aria-label={memberButtonAriaLabel}
+                aria-pressed={peopleDrawer}
+              >
+                <PendingJoinRequestBadge count={visibleJoinRequestCount} />
+                <Icon size="400" src={Icons.User} />
+              </IconButton>
+            )}
+          </TooltipProvider>
           <TooltipProvider
             position="Bottom"
             align="End"

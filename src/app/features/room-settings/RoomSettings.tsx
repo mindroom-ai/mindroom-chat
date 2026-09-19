@@ -1,8 +1,9 @@
 import React, { useMemo, useState } from 'react';
 import { useAtomValue } from 'jotai';
-import { Avatar, Box, config, Icon, IconButton, Icons, IconSrc, MenuItem, Text } from 'folds';
+import { Avatar, Box, config, Icon, IconButton, Icons, IconSrc, Text } from 'folds';
 import { JoinRule } from 'matrix-js-sdk';
 import { useTranslation } from 'react-i18next';
+import { MenuItem } from '../../components/glass/GlassPrimitives';
 import { PageNav, PageNavContent, PageNavHeader, PageRoot } from '../../components/page';
 import { ScreenSize, useScreenSizeContext } from '../../hooks/useScreenSize';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
@@ -97,37 +98,40 @@ export function RoomSettings({ initialPage, requestClose }: RoomSettingsProps) {
       nav={
         screenSize === ScreenSize.Mobile && activePage !== undefined ? undefined : (
           <PageNav size="300">
-            <PageNavHeader outlined={false}>
-              <Box grow="Yes" gap="200">
-                <Avatar size="200" radii="300">
-                  <RoomAvatar
-                    roomId={room.roomId}
-                    src={avatarUrl}
-                    alt={roomName}
-                    renderFallback={() => (
-                      <RoomIcon
-                        size="50"
-                        roomType={room.getType()}
-                        joinRule={joinRuleContent?.join_rule ?? JoinRule.Invite}
-                        filled
-                      />
-                    )}
-                  />
-                </Avatar>
-                <Text size="H4" truncate>
-                  {roomName}
-                </Text>
-              </Box>
-              <Box shrink="No">
-                {screenSize === ScreenSize.Mobile && (
-                  <IconButton onClick={requestClose} variant="Background">
-                    <Icon src={Icons.Cross} />
-                  </IconButton>
-                )}
-              </Box>
-            </PageNavHeader>
             <Box grow="Yes" direction="Column">
-              <PageNavContent>
+              <PageNavContent
+                header={
+                  <PageNavHeader>
+                    <Box grow="Yes" gap="200">
+                      <Avatar size="200" radii="300">
+                        <RoomAvatar
+                          roomId={room.roomId}
+                          src={avatarUrl}
+                          alt={roomName}
+                          renderFallback={() => (
+                            <RoomIcon
+                              size="50"
+                              roomType={room.getType()}
+                              joinRule={joinRuleContent?.join_rule ?? JoinRule.Invite}
+                              filled
+                            />
+                          )}
+                        />
+                      </Avatar>
+                      <Text size="H4" truncate>
+                        {roomName}
+                      </Text>
+                    </Box>
+                    <Box shrink="No">
+                      {screenSize === ScreenSize.Mobile && (
+                        <IconButton onClick={requestClose} variant="Background">
+                          <Icon src={Icons.Cross} />
+                        </IconButton>
+                      )}
+                    </Box>
+                  </PageNavHeader>
+                }
+              >
                 <div style={{ flexGrow: 1 }}>
                   {menuItems.map((item) => (
                     <MenuItem

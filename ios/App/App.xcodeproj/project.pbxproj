@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		C0DEC0DE000000000000000B /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DEC0DE000000000000000A /* SceneDelegate.swift */; };
 		2FAD9763203C412B000D30F8 /* config.xml in Resources */ = {isa = PBXBuildFile; fileRef = 2FAD9762203C412B000D30F8 /* config.xml */; };
 		50379B232058CBB4000EE86E /* capacitor.config.json in Resources */ = {isa = PBXBuildFile; fileRef = 50379B222058CBB4000EE86E /* capacitor.config.json */; };
 		504EC3081FED79650016851F /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 504EC3071FED79650016851F /* AppDelegate.swift */; };
@@ -19,10 +20,15 @@
 		C0DEC0DE0000000000000004 /* MindRoomBridgeViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DEC0DE0000000000000003 /* MindRoomBridgeViewController.swift */; };
 		C0DEC0DE0000000000000007 /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = C0DEC0DE0000000000000006 /* Localizable.strings */; };
 		C0DEC0DE0000000000000009 /* MindRoomFileSavePlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DEC0DE0000000000000008 /* MindRoomFileSavePlugin.swift */; };
+		D1A600000000000000000002 /* MindRoomDiagnosticsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1A600000000000000000001 /* MindRoomDiagnosticsStore.swift */; };
+		D1A600000000000000000004 /* MindRoomDiagnosticsRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1A600000000000000000003 /* MindRoomDiagnosticsRecorder.swift */; };
+		D1A600000000000000000006 /* MindRoomDiagnosticsPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1A600000000000000000005 /* MindRoomDiagnosticsPlugin.swift */; };
+		D1A600000000000000000008 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = D1A600000000000000000007 /* PrivacyInfo.xcprivacy */; };
 		A18A00000000000000000002 /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = A18A00000000000000000001 /* InfoPlist.strings */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		C0DEC0DE000000000000000A /* SceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneDelegate.swift; sourceTree = "<group>"; };
 		2FAD9762203C412B000D30F8 /* config.xml */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = config.xml; sourceTree = "<group>"; };
 		50379B222058CBB4000EE86E /* capacitor.config.json */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.json; path = capacitor.config.json; sourceTree = "<group>"; };
 		504EC3041FED79650016851F /* MindRoom.chat.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MindRoom.chat.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -38,6 +44,10 @@
 		C0DEC0DE0000000000000003 /* MindRoomBridgeViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MindRoomBridgeViewController.swift; sourceTree = "<group>"; };
 		C0DEC0DE0000000000000005 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = "en.lproj/Localizable.strings"; sourceTree = "<group>"; };
 		C0DEC0DE0000000000000008 /* MindRoomFileSavePlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MindRoomFileSavePlugin.swift; sourceTree = "<group>"; };
+		D1A600000000000000000001 /* MindRoomDiagnosticsStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MindRoomDiagnosticsStore.swift; sourceTree = "<group>"; };
+		D1A600000000000000000003 /* MindRoomDiagnosticsRecorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MindRoomDiagnosticsRecorder.swift; sourceTree = "<group>"; };
+		D1A600000000000000000005 /* MindRoomDiagnosticsPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MindRoomDiagnosticsPlugin.swift; sourceTree = "<group>"; };
+		D1A600000000000000000007 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		FC68EB0AF532CFC21C3344DD /* Pods-App.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-App.debug.xcconfig"; path = "Pods/Target Support Files/Pods-App/Pods-App.debug.xcconfig"; sourceTree = "<group>"; };
 		A18A000000000000000000C8 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "en"; path = "en.lproj/InfoPlist.strings"; sourceTree = "<group>"; };
 		A18A00000000000000000065 /* de */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "de"; path = "de.lproj/Localizable.strings"; sourceTree = "<group>"; };
@@ -117,9 +127,14 @@
 			children = (
 				50379B222058CBB4000EE86E /* capacitor.config.json */,
 				504EC3071FED79650016851F /* AppDelegate.swift */,
+				C0DEC0DE000000000000000A /* SceneDelegate.swift */,
 				C0DEC0DE0000000000000003 /* MindRoomBridgeViewController.swift */,
 				C0DEC0DE0000000000000001 /* MindRoomAuthPlugin.swift */,
 				C0DEC0DE0000000000000008 /* MindRoomFileSavePlugin.swift */,
+				D1A600000000000000000001 /* MindRoomDiagnosticsStore.swift */,
+				D1A600000000000000000003 /* MindRoomDiagnosticsRecorder.swift */,
+				D1A600000000000000000005 /* MindRoomDiagnosticsPlugin.swift */,
+				D1A600000000000000000007 /* PrivacyInfo.xcprivacy */,
 				504EC30B1FED79650016851F /* Main.storyboard */,
 				504EC30E1FED79650016851F /* Assets.xcassets */,
 				504EC3101FED79650016851F /* LaunchScreen.storyboard */,
@@ -233,6 +248,7 @@
 				2FAD9763203C412B000D30F8 /* config.xml in Resources */,
 				C0DEC0DE0000000000000007 /* Localizable.strings in Resources */,
 				A18A00000000000000000002 /* InfoPlist.strings in Resources */,
+				D1A600000000000000000008 /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -280,9 +296,13 @@
 			buildActionMask = 2147483647;
 			files = (
 				504EC3081FED79650016851F /* AppDelegate.swift in Sources */,
+				C0DEC0DE000000000000000B /* SceneDelegate.swift in Sources */,
 				C0DEC0DE0000000000000004 /* MindRoomBridgeViewController.swift in Sources */,
 				C0DEC0DE0000000000000002 /* MindRoomAuthPlugin.swift in Sources */,
 				C0DEC0DE0000000000000009 /* MindRoomFileSavePlugin.swift in Sources */,
+				D1A600000000000000000002 /* MindRoomDiagnosticsStore.swift in Sources */,
+				D1A600000000000000000004 /* MindRoomDiagnosticsRecorder.swift in Sources */,
+				D1A600000000000000000006 /* MindRoomDiagnosticsPlugin.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

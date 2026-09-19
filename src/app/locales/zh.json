@@ -2144,6 +2144,31 @@
     }
   },
   "mindroomUi": {
+    "models": {
+      "modelPicker": {
+        "chooseModel": "Choose model",
+        "roomDefault": "Room default",
+        "modelForThread": "Model for this thread",
+        "appliesToThread": "Applies to all agents and teams for future replies in this thread.",
+        "search": "Search models",
+        "close": "Close model picker",
+        "useRoomDefault": "Use room default",
+        "roomDefaultDescription": "Let each agent use its configured model.",
+        "models": "Models",
+        "runtime": "Runtime",
+        "chooseRuntime": "Choose a runtime",
+        "runtimeLabel": "{{userId}} on {{deviceId}}",
+        "refresh": "Refresh models",
+        "retry": "Retry",
+        "loading": "Loading models",
+        "pending": "Waiting for model change",
+        "noResults": "No matching models",
+        "commandFallback": "You can still send !model with a model key in this thread.",
+        "inheritedModels": "Room defaults by agent: {{models}}",
+        "futureReplies": "Changes apply to future replies.",
+        "threadModel": "Thread model"
+      }
+    },
     "voice": {
       "discardRecording": "放弃录音",
       "pauseRecording": "暂停录音",
@@ -2601,7 +2626,8 @@
       "mindroomTab": {
         "localMindroom": "Local MindRoom"
       },
-      "resizeNavigationPanel": "调整导航面板大小"
+      "resizeNavigationPanel": "调整导航面板大小",
+      "resizeMemberPanel": "调整成员面板大小"
     },
     "threads": {
       "compactRoomView": {
@@ -2635,6 +2661,8 @@
         "youDoNotHavePermissionToPostInThisRoom": "您没有在此房间发送消息的权限"
       },
       "mindroomRoomViewHeader": {
+        "showComputer": "显示计算机",
+        "hideComputer": "隐藏计算机",
         "notifications": "通知",
         "compact": "紧凑",
         "threads": "讨论串",
@@ -2770,6 +2798,44 @@
         "threadInRoom": "{{roomName}} 中的讨论串",
         "thread": "讨论串"
       }
+    },
+    "uiActions": {
+      "viewComputer": "查看电脑",
+      "openMembers": "打开成员列表",
+      "computerUnavailable": "此代理的电脑不可用。",
+      "releaseControl": "打开其他视图前，请先释放电脑控制权。",
+      "openConversation": "请从房间对话中打开此请求。",
+      "settingsUnavailable": "关闭简单模式以打开此设置部分。"
     }
+  },
+  "roomSchedules": {
+    "title": "计划任务",
+    "openLabel": "计划任务（{{total}}）",
+    "empty": "此房间中没有计划任务。",
+    "emptyHint": "请让 MindRoom 智能体在此安排任务。",
+    "prompt": "提示词",
+    "promptUnavailable": "提示词不可用",
+    "once": "一次性",
+    "recurring": "重复",
+    "executionTime": "执行时间",
+    "unknownTime": "执行时间不可用",
+    "awaitingExecution": "等待执行",
+    "recurrence": "重复规则",
+    "silent": "静默",
+    "conditional": "条件式",
+    "newThread": "新讨论串",
+    "roomTimeline": "房间时间线",
+    "openThread": "打开讨论串",
+    "owner": "任务所有者",
+    "createdAt": "创建时间",
+    "updatedAt": "更新时间",
+    "model": "模型",
+    "inheritedModel": "来自智能体、房间或讨论串设置",
+    "taskId": "任务 ID",
+    "historyLimit": "历史记录上限",
+    "fullHistory": "完整历史记录",
+    "noHistory": "无历史记录",
+    "recentMessages": "最近消息：{{total}} 条",
+    "close": "关闭"
   }
 }

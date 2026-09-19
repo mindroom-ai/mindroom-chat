@@ -2198,6 +2198,31 @@
     }
   },
   "mindroomUi": {
+    "models": {
+      "modelPicker": {
+        "chooseModel": "Choose model",
+        "roomDefault": "Room default",
+        "modelForThread": "Model for this thread",
+        "appliesToThread": "Applies to all agents and teams for future replies in this thread.",
+        "search": "Search models",
+        "close": "Close model picker",
+        "useRoomDefault": "Use room default",
+        "roomDefaultDescription": "Let each agent use its configured model.",
+        "models": "Models",
+        "runtime": "Runtime",
+        "chooseRuntime": "Choose a runtime",
+        "runtimeLabel": "{{userId}} on {{deviceId}}",
+        "refresh": "Refresh models",
+        "retry": "Retry",
+        "loading": "Loading models",
+        "pending": "Waiting for model change",
+        "noResults": "No matching models",
+        "commandFallback": "You can still send !model with a model key in this thread.",
+        "inheritedModels": "Room defaults by agent: {{models}}",
+        "futureReplies": "Changes apply to future replies.",
+        "threadModel": "Thread model"
+      }
+    },
     "voice": {
       "discardRecording": "Удалить голосовую запись",
       "pauseRecording": "Приостановить запись",
@@ -2693,7 +2718,8 @@
       "mindroomTab": {
         "localMindroom": "Local MindRoom"
       },
-      "resizeNavigationPanel": "Изменить размер панели навигации"
+      "resizeNavigationPanel": "Изменить размер панели навигации",
+      "resizeMemberPanel": "Изменить размер панели участников"
     },
     "threads": {
       "compactRoomView": {
@@ -2727,6 +2753,8 @@
         "youDoNotHavePermissionToPostInThisRoom": "У вас нет разрешения писать в этой комнате"
       },
       "mindroomRoomViewHeader": {
+        "showComputer": "Показать компьютер",
+        "hideComputer": "Скрыть компьютер",
         "notifications": "Уведомления",
         "compact": "Компактный",
         "threads": "Ветки",
@@ -2876,6 +2904,44 @@
         "threadInRoom": "Ветка в {{roomName}}",
         "thread": "Ветка"
       }
+    },
+    "uiActions": {
+      "viewComputer": "Посмотреть компьютер",
+      "openMembers": "Открыть участников",
+      "computerUnavailable": "Компьютер этого агента недоступен.",
+      "releaseControl": "Отпустите управление компьютером, прежде чем открывать другое представление.",
+      "openConversation": "Откройте этот запрос из беседы в комнате.",
+      "settingsUnavailable": "Отключите простой режим, чтобы открыть этот раздел настроек."
     }
+  },
+  "roomSchedules": {
+    "title": "Запланированные задачи",
+    "openLabel": "Запланированные задачи ({{total}})",
+    "empty": "В этой комнате нет запланированных задач.",
+    "emptyHint": "Попросите агента MindRoom запланировать здесь задачу.",
+    "prompt": "Промпт",
+    "promptUnavailable": "Промпт недоступен",
+    "once": "Однократная",
+    "recurring": "Повторяющаяся",
+    "executionTime": "Время выполнения",
+    "unknownTime": "Время выполнения недоступно",
+    "awaitingExecution": "Ожидает выполнения",
+    "recurrence": "Повторение",
+    "silent": "Без уведомлений",
+    "conditional": "Условная",
+    "newThread": "Новая ветка",
+    "roomTimeline": "Хронология комнаты",
+    "openThread": "Открыть ветку",
+    "owner": "Владелец задачи",
+    "createdAt": "Создано",
+    "updatedAt": "Обновлено",
+    "model": "Модель",
+    "inheritedModel": "Из настроек агента, комнаты или ветки",
+    "taskId": "ID задачи",
+    "historyLimit": "Лимит истории",
+    "fullHistory": "Полная история",
+    "noHistory": "Без истории",
+    "recentMessages": "Недавние сообщения: {{total}}",
+    "close": "Закрыть"
   }
 }

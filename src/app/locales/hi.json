@@ -925,6 +925,31 @@
     "scrollHint": "क्षैतिज रूप से स्क्रॉल करें"
   },
   "mindroomUi": {
+    "models": {
+      "modelPicker": {
+        "chooseModel": "Choose model",
+        "roomDefault": "Room default",
+        "modelForThread": "Model for this thread",
+        "appliesToThread": "Applies to all agents and teams for future replies in this thread.",
+        "search": "Search models",
+        "close": "Close model picker",
+        "useRoomDefault": "Use room default",
+        "roomDefaultDescription": "Let each agent use its configured model.",
+        "models": "Models",
+        "runtime": "Runtime",
+        "chooseRuntime": "Choose a runtime",
+        "runtimeLabel": "{{userId}} on {{deviceId}}",
+        "refresh": "Refresh models",
+        "retry": "Retry",
+        "loading": "Loading models",
+        "pending": "Waiting for model change",
+        "noResults": "No matching models",
+        "commandFallback": "You can still send !model with a model key in this thread.",
+        "inheritedModels": "Room defaults by agent: {{models}}",
+        "futureReplies": "Changes apply to future replies.",
+        "threadModel": "Thread model"
+      }
+    },
     "calls": {
       "agentCallButton": {
         "browserUnsupported": "आपका ब्राउज़र WebRTC का समर्थन नहीं करता।",
@@ -1352,7 +1377,8 @@
       "mindroomTab": {
         "localMindroom": "स्थानीय MindRoom"
       },
-      "resizeNavigationPanel": "नेविगेशन पैनल का आकार बदलें"
+      "resizeNavigationPanel": "नेविगेशन पैनल का आकार बदलें",
+      "resizeMemberPanel": "सदस्य पैनल का आकार बदलें"
     },
     "threads": {
       "compactRoomView": {
@@ -1417,6 +1443,8 @@
         "youDoNotHavePermissionToPostInThisRoom": "आपको इस रूम में पोस्ट करने की अनुमति नहीं है"
       },
       "mindroomRoomViewHeader": {
+        "showComputer": "कंप्यूटर दिखाएँ",
+        "hideComputer": "कंप्यूटर छिपाएँ",
         "classic": "क्लासिक",
         "compact": "सघन",
         "copyLink": "लिंक की प्रतिलिपि करें",
@@ -1551,6 +1579,14 @@
         "voiceSendFailed": "ध्वनि भेजना विफल रहा",
         "yourRecordingIsStillSaved": "आपकी रिकॉर्डिंग अभी भी सहेजी गई है."
       }
+    },
+    "uiActions": {
+      "viewComputer": "कंप्यूटर देखें",
+      "openMembers": "सदस्य खोलें",
+      "computerUnavailable": "इस एजेंट का कंप्यूटर उपलब्ध नहीं है।",
+      "releaseControl": "दूसरा दृश्य खोलने से पहले कंप्यूटर का नियंत्रण छोड़ें।",
+      "openConversation": "यह अनुरोध कमरे की बातचीत से खोलें।",
+      "settingsUnavailable": "सेटिंग का यह अनुभाग खोलने के लिए सरल मोड बंद करें।"
     }
   },
   "nav": {
@@ -2771,5 +2807,35 @@
     "title": "थ्रेड",
     "unknownActivity": "अज्ञात",
     "unpin": "थ्रेड को अनपिन करें"
+  },
+  "roomSchedules": {
+    "title": "निर्धारित कार्य",
+    "openLabel": "निर्धारित कार्य ({{total}})",
+    "empty": "इस रूम में कोई निर्धारित कार्य नहीं है।",
+    "emptyHint": "MindRoom एजेंट से यहाँ कोई कार्य निर्धारित करने के लिए कहें।",
+    "prompt": "प्रॉम्प्ट",
+    "promptUnavailable": "प्रॉम्प्ट उपलब्ध नहीं है",
+    "once": "एक बार",
+    "recurring": "आवर्ती",
+    "executionTime": "निष्पादन समय",
+    "unknownTime": "निष्पादन समय उपलब्ध नहीं है",
+    "awaitingExecution": "निष्पादन की प्रतीक्षा में",
+    "recurrence": "पुनरावृत्ति",
+    "silent": "मौन",
+    "conditional": "सशर्त",
+    "newThread": "नया थ्रेड",
+    "roomTimeline": "रूम टाइमलाइन",
+    "openThread": "थ्रेड खोलें",
+    "owner": "कार्य का मालिक",
+    "createdAt": "बनाया गया",
+    "updatedAt": "अपडेट किया गया",
+    "model": "मॉडल",
+    "inheritedModel": "एजेंट, रूम या थ्रेड की सेटिंग से",
+    "taskId": "कार्य ID",
+    "historyLimit": "इतिहास सीमा",
+    "fullHistory": "पूरा इतिहास",
+    "noHistory": "कोई इतिहास नहीं",
+    "recentMessages": "हाल के संदेश: {{total}}",
+    "close": "बंद करें"
   }
 }

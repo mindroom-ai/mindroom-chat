@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import React, { useCallback } from 'react';
-import { Icon, Icons, MenuItem, Text } from 'folds';
+import { Icon, Icons, Text } from 'folds';
+import { MenuItem } from '../../components/glass/GlassPrimitives';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useSetting } from '../../state/hooks/settings';
 import { settingsAtom } from '../../state/settings';

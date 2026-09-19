@@ -2,7 +2,8 @@ import { useTranslation } from 'react-i18next';
 /* eslint-disable jsx-a11y/no-noninteractive-element-interactions */
 import React, { useCallback, useRef } from 'react';
 import classNames from 'classnames';
-import { Box, Chip, Header, Icon, IconButton, Icons, Spinner, Text, as } from 'folds';
+import { Box, Chip, Icon, IconButton, Icons, Spinner, Text, as } from 'folds';
+import { Header } from '../glass/GlassPrimitives';
 import * as css from './ImageViewer.css';
 import { useZoom } from '../../hooks/useZoom';
 import { usePan } from '../../hooks/usePan';

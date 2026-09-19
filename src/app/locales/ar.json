@@ -2252,6 +2252,31 @@
     }
   },
   "mindroomUi": {
+    "models": {
+      "modelPicker": {
+        "chooseModel": "Choose model",
+        "roomDefault": "Room default",
+        "modelForThread": "Model for this thread",
+        "appliesToThread": "Applies to all agents and teams for future replies in this thread.",
+        "search": "Search models",
+        "close": "Close model picker",
+        "useRoomDefault": "Use room default",
+        "roomDefaultDescription": "Let each agent use its configured model.",
+        "models": "Models",
+        "runtime": "Runtime",
+        "chooseRuntime": "Choose a runtime",
+        "runtimeLabel": "⁨{{userId}}⁩ on ⁨{{deviceId}}⁩",
+        "refresh": "Refresh models",
+        "retry": "Retry",
+        "loading": "Loading models",
+        "pending": "Waiting for model change",
+        "noResults": "No matching models",
+        "commandFallback": "You can still send !model with a model key in this thread.",
+        "inheritedModels": "Room defaults by agent: ⁨{{models}}⁩",
+        "futureReplies": "Changes apply to future replies.",
+        "threadModel": "Thread model"
+      }
+    },
     "voice": {
       "discardRecording": "تجاهل التسجيل الصوتي",
       "pauseRecording": "إيقاف التسجيل الصوتي مؤقتًا",
@@ -2785,7 +2810,8 @@
       "mindroomTab": {
         "localMindroom": "Local MindRoom"
       },
-      "resizeNavigationPanel": "تغيير حجم لوحة التنقل"
+      "resizeNavigationPanel": "تغيير حجم لوحة التنقل",
+      "resizeMemberPanel": "تغيير حجم لوحة الأعضاء"
     },
     "threads": {
       "compactRoomView": {
@@ -2819,6 +2845,8 @@
         "youDoNotHavePermissionToPostInThisRoom": "ليست لديك صلاحية النشر في هذه الغرفة"
       },
       "mindroomRoomViewHeader": {
+        "showComputer": "إظهار الكمبيوتر",
+        "hideComputer": "إخفاء الكمبيوتر",
         "notifications": "الإشعارات",
         "compact": "مدمج",
         "threads": "سلاسل المحادثات",
@@ -2982,6 +3010,44 @@
         "threadInRoom": "سلسلة محادثة في ⁨{{roomName}}⁩",
         "thread": "سلسلة المحادثة"
       }
+    },
+    "uiActions": {
+      "viewComputer": "عرض الكمبيوتر",
+      "openMembers": "فتح الأعضاء",
+      "computerUnavailable": "كمبيوتر هذا الوكيل غير متاح.",
+      "releaseControl": "اترك التحكم في الكمبيوتر قبل فتح عرض آخر.",
+      "openConversation": "افتح هذا الطلب من محادثة الغرفة.",
+      "settingsUnavailable": "أوقف الوضع البسيط لفتح هذا القسم من الإعدادات."
     }
+  },
+  "roomSchedules": {
+    "title": "المهام المجدولة",
+    "openLabel": "المهام المجدولة (⁨{{total}}⁩)",
+    "empty": "لا توجد مهام مجدولة في هذه الغرفة.",
+    "emptyHint": "اطلب من وكيل MindRoom جدولة مهمة هنا.",
+    "prompt": "الموجّه",
+    "promptUnavailable": "الموجّه غير متاح",
+    "once": "لمرة واحدة",
+    "recurring": "متكررة",
+    "executionTime": "وقت التنفيذ",
+    "unknownTime": "وقت التنفيذ غير متاح",
+    "awaitingExecution": "في انتظار التنفيذ",
+    "recurrence": "التكرار",
+    "silent": "صامتة",
+    "conditional": "مشروطة",
+    "newThread": "سلسلة محادثة جديدة",
+    "roomTimeline": "الخط الزمني للغرفة",
+    "openThread": "فتح سلسلة المحادثة",
+    "owner": "مالك المهمة",
+    "createdAt": "تاريخ الإنشاء",
+    "updatedAt": "تم التحديث",
+    "model": "النموذج",
+    "inheritedModel": "من إعدادات الوكيل أو الغرفة أو سلسلة المحادثة",
+    "taskId": "معرّف المهمة",
+    "historyLimit": "حد السجل",
+    "fullHistory": "السجل الكامل",
+    "noHistory": "بدون سجل",
+    "recentMessages": "الرسائل الأخيرة: ⁨{{total}}⁩",
+    "close": "إغلاق"
   }
 }

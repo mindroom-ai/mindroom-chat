@@ -62,9 +62,9 @@
     "@capacitor/app-launcher": "8.0.1",
     "@capacitor/browser": "8.0.1",
     "@capacitor/clipboard": "8.0.1",
-    "@capacitor/core": "8.1.0",
+    "@capacitor/core": "8.5.2",
     "@capacitor/haptics": "8.0.0",
-    "@capacitor/ios": "8.1.0",
+    "@capacitor/ios": "8.5.2",
     "@capacitor/keyboard": "8.0.0",
     "@capacitor/push-notifications": "8.0.1",
     "@capacitor/splash-screen": "8.0.1",
@@ -73,6 +73,7 @@
     "@dnd-kit/sortable": "10.0.0",
     "@dnd-kit/utilities": "3.2.2",
     "@fontsource/inter": "4.5.14",
+    "@novnc/novnc": "1.7.0",
     "@tabler/icons-react": "3.40.0",
     "@tanstack/react-query": "5.24.1",
     "@tanstack/react-query-devtools": "5.24.1",
@@ -131,7 +132,7 @@
     "patch-package": "8.0.1"
   },
   "devDependencies": {
-    "@capacitor/cli": "8.1.0",
+    "@capacitor/cli": "8.5.2",
     "@element-hq/element-call-embedded": "0.20.3",
     "@esbuild-plugins/node-globals-polyfill": "0.2.3",
     "@playwright/test": "1.58.2",

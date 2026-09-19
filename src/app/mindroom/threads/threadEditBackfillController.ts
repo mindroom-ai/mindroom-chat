@@ -1,4 +1,4 @@
-import { useEffect, useRef, type MutableRefObject, type RefObject } from 'react';
+import { useEffect, useRef, useState, type MutableRefObject, type RefObject } from 'react';
 import {
   Direction,
   RelationType,
@@ -23,6 +23,8 @@ type ScrollToBottomState = {
   count: number;
   smooth: boolean;
 };
+
+const MAX_CONCURRENT_THREAD_EDIT_REPAIRS = 4;
 
 export const useThreadEditBackfillController = ({
   atLiveEndRef,
@@ -80,6 +82,10 @@ export const useThreadEditBackfillController = ({
   // deletes its entry only if the map still holds its own token, so
   // ownership is unambiguous and cross-run deletion is impossible.
   const inFlightRef = useRef<Map<string, symbol>>(new Map());
+  // The in-flight registry owns capacity across renders. A render blocked
+  // by capacity is retried when a slot opens, without waiting for its peers.
+  const rescanRequestedRef = useRef(false);
+  const [slotRevision, setSlotRevision] = useState(0);
   // A `threadEvents` churn (which is frequent) must NOT cancel an
   // in-flight fetch — its result is still valid for the same thread, and
   // cancelling was what stranded the placeholder band. So work is bound
@@ -102,11 +108,12 @@ export const useThreadEditBackfillController = ({
       threadEditFetchAttemptedRef.current = new WeakMap<MatrixEvent, number>();
     }
     if (!threadId || threadEvents.length === 0) return undefined;
+    rescanRequestedRef.current = false;
     const targetedOpen = !!eventId;
     const inFlight = inFlightRef.current;
     const isStale = () => unmountedRef.current || threadIdRef.current !== threadId;
 
-    const missingEditEvents = threadEvents.filter((mEvent) => {
+    const needsRepair = (mEvent: MatrixEvent) => {
       const id = mEvent.getId();
       return (
         !!id &&
@@ -119,7 +126,8 @@ export const useThreadEditBackfillController = ({
           targetedOpen
         )
       );
-    });
+    };
+    const missingEditEvents = threadEvents.filter(needsRepair);
     if (missingEditEvents.length === 0) {
       logEditDebug('threadBackfill:noneMissing', {
         targetedOpen,
@@ -127,6 +135,11 @@ export const useThreadEditBackfillController = ({
         threadEventCount: threadEvents.length,
         threadTailLoaded,
       });
+      return undefined;
+    }
+
+    if (inFlight.size >= MAX_CONCURRENT_THREAD_EDIT_REPAIRS) {
+      rescanRequestedRef.current = true;
       return undefined;
     }
 
@@ -141,20 +154,23 @@ export const useThreadEditBackfillController = ({
     const loadMissingThreadEdits = async () => {
       let didUpdate = false;
       let updatedCount = 0;
-      const concurrency = 4;
+      const concurrency = MAX_CONCURRENT_THREAD_EDIT_REPAIRS - inFlight.size;
       let cursor = 0;
 
       const worker = async () => {
         while (!isStale() && cursor < missingEditEvents.length) {
+          if (inFlight.size >= MAX_CONCURRENT_THREAD_EDIT_REPAIRS) {
+            rescanRequestedRef.current = true;
+            return;
+          }
           const currentIndex = cursor;
           cursor += 1;
 
           const mEvent = missingEditEvents[currentIndex];
           const targetEventId = mEvent.getId();
           if (!targetEventId) continue;
-          // Another still-running effect run already owns this id's
-          // fetch (its token is in the map) — don't duplicate it.
-          if (inFlight.has(targetEventId)) continue;
+          // Another pass may have claimed or completed this queued candidate.
+          if (!needsRepair(mEvent)) continue;
 
           // Claim ownership with a unique token; release only if the map
           // still holds OUR token, so a concurrent run's entry is never
@@ -162,7 +178,13 @@ export const useThreadEditBackfillController = ({
           const token = Symbol(targetEventId);
           inFlight.set(targetEventId, token);
           const release = () => {
-            if (inFlight.get(targetEventId) === token) inFlight.delete(targetEventId);
+            if (inFlight.get(targetEventId) !== token) return;
+            inFlight.delete(targetEventId);
+            // Capacity belongs to the mounted controller, even for stale results.
+            if (rescanRequestedRef.current && !unmountedRef.current) {
+              rescanRequestedRef.current = false;
+              setSlotRevision((value) => value + 1);
+            }
           };
 
           const [relErr, relData] = await to(
@@ -301,7 +323,7 @@ export const useThreadEditBackfillController = ({
       }
     };
 
-    loadMissingThreadEdits();
+    void loadMissingThreadEdits();
 
     // No cleanup cancellation: a threadEvents churn must let in-flight
     // fetches finish and apply (cancelling them stranded the band). Stale
@@ -318,6 +340,7 @@ export const useThreadEditBackfillController = ({
     room,
     scrollRef,
     scrollToBottomRef,
+    slotRevision,
     notifyThreadEventsChanged,
     editResetEpoch,
     readEditResetEpoch,

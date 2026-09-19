@@ -16,6 +16,7 @@ import {
   resetCacheStoreForTesting,
 } from '../../threads/cacheStore';
 import { getCacheProbeSnapshot, resetCacheProbe } from '../../threads/cacheProbe';
+import { persistRoomChunkWithPreferLive } from '../../threads/eventRepository';
 
 const SESSION_ID = 'session-p42';
 
@@ -569,7 +570,43 @@ describe('gapFillExecutor (CINNY-207 P4.2)', () => {
     expect(await loadRoomTailDiscontinuity(SESSION_ID, '!room:mindroom.chat')).toBeUndefined();
   });
 
+  it('publishes a committed page even when cancellation races its completion', async () => {
+    const roomId = '!room:mindroom.chat';
+    const mx = createMockClient('mindroom.chat', () => ({ chunk: [rawEvent('$committed', 1)] }));
+    mx.__rooms.set(roomId, makeRoomStub(roomId, '@alice:mindroom.chat'));
+    const scheduler = createBackfillScheduler({ mx });
+    const gapFillScheduler = createInMemoryGapFillScheduler();
+    const onRoomRecovered = vi.fn();
+    createGapFillExecutor(
+      {
+        mx,
+        sessionId: SESSION_ID,
+        scheduler,
+        onRoomRecovered,
+        persistChunk: async (args) => {
+          const committed = await persistRoomChunkWithPreferLive(args);
+          scheduler.abortAll();
+          return committed;
+        },
+      },
+      gapFillScheduler
+    );
+    gapFillScheduler.enqueueGapFill({
+      roomId,
+      reason: 'limited-sync',
+      markedAt: 1,
+      prevBatch: 'gap',
+    });
+    await waitForCondition(() => getCacheProbeSnapshot().schedulerAborted === 1);
+    expect(await loadCachedRoomEvent(SESSION_ID, roomId, '$committed')).toMatchObject({
+      event_id: '$committed',
+    });
+    expect(onRoomRecovered).toHaveBeenCalledTimes(1);
+    expect(onRoomRecovered).toHaveBeenCalledWith(roomId);
+  });
+
   it('does not advance or clear the durable cursor when a cache write fails', async () => {
+    const onRoomRecovered = vi.fn();
     const mx = createMockClient('mindroom.chat', () => ({
       end: 'tok-1',
       chunk: [rawEvent('$uncommitted', 1)],
@@ -592,6 +629,7 @@ describe('gapFillExecutor (CINNY-207 P4.2)', () => {
         sessionId: SESSION_ID,
         scheduler,
         persistChunk: vi.fn().mockRejectedValue(new Error('quota')),
+        onRoomRecovered,
       },
       gapFillScheduler
     );
@@ -610,6 +648,7 @@ describe('gapFillExecutor (CINNY-207 P4.2)', () => {
       generation: 'write-failure',
       nextToken: 'tok-0',
     });
+    expect(onRoomRecovered).not.toHaveBeenCalled();
   });
 
   it('stops at a committed overlap with the pre-gap cached tail instead of crawling to room genesis', async () => {

@@ -14,8 +14,10 @@
   The integrated component recorded 12 Paint events, about 2.6 ms painting, and zero layouts in the same isolated workload.
   These measurements establish reduced repaint work, not native iPhone frame rates or a whole-app speedup.
 - Regression coverage checks the moving highlight, stationary text at multiple animation phases, wrapped RTL labels, reduced motion, forced colors, and the existing paint-count gate.
-- Validation: all 4,198 tests across 514 files pass under Node 24, along with typecheck, the production/PWA build, formatting, and ESLint with zero errors and the existing 17 warnings.
-  All 24 applicable browser cases pass across Chromium, Firefox, and WebKit; three protocol/emulation-specific cases are skipped.
+- Validation after integrating current dev: all 4,620 tests across 545 files pass under Node 24, along with typecheck, the production/PWA build, formatting, and ESLint with zero errors and the existing 17 warnings.
+  All 27 applicable browser cases pass across Chromium, Firefox, and WebKit; three protocol/emulation-specific cases are skipped.
+  The shared local SVG definitions remain intact, and the visible-artwork regression covers both animation layers in every browser.
+  The code-scrollbar measurement probe excludes the glass header's separate refraction sizing.
   Independent review found no remaining correctness, accessibility, or alignment issues after the RTL margin fix.
 - Native iPhone profiling and potential offscreen animation pausing remain follow-up work.
 
@@ -45,12 +47,603 @@
   The full six-response replay still drops frames under CPU throttling; the isolated component gains are not an end-to-end frame-rate guarantee.
   Pinch still changes root font size during the gesture; this pass reduces shared rendering costs without changing the zoom interaction.
 
+### Bound background thread work during streaming (2026-09-19)
+
+- A device diagnostics export records foreground event-loop stalls of 6,146 ms and 1,561 ms, a 7,505 ms heartbeat gap, and 1,833 request starts within approximately one minute.
+  No native termination or reload was recorded during that session.
+  The detailed recorder dropped 2,631 events from that session and contains no viewport measurements, so the precise scroll-to-top trigger remains unproven.
+- Thread discovery eagerly materializes server thread roots, whose SDK constructors start root and relation requests outside the application's background-job scheduler.
+  Continuing overview pagination after leaving that view is a supported explanation for excess background work; it is not a confirmed attribution of the device's scroll jump.
+- Thread edit repair now claims at most four concurrent repair operations from its existing in-flight registry across streaming renders.
+  A regression reproduced 24 simultaneous repair operations from five rerenders before the fix; each SDK operation can issue both a root request and a relations request.
+  A released slot wakes candidates waiting for capacity, even if another operation stalls, and queued candidates are rechecked before claiming a slot.
+  Releasing capacity belongs to the mounted controller, while applying and persisting results still requires the request's thread to remain current.
+  Failed operations do not retry merely because their own slot was released, and unmounting stops queued work.
+- Overview thread-list loads cooperatively stop requesting new pages when their last consumer leaves.
+  Shared consumers retain the existing complete-list behavior, and in-flight SDK requests may still finish.
+  The mounted edit-repair controller owns its candidates, attempted state, and operation slots; the room-scoped shared loader owns consumer accounting and pagination continuation.
+  View hooks release their interest on navigation without cancelling another consumer's work.
+- Overview resume refreshes release their apply ownership and stop later targets and counter updates when either overview mode is left.
+  The engine keeps ownership of already-shared relation jobs so surviving consumers can still receive their results.
+  Regression tests use the real content helper and scheduler with a second consumer to cover both directions between overview modes.
+- Validation: all 4,613 unit tests pass under Node 24 after integration with the current thread-gap recovery changes, along with typecheck, production/PWA build, and changed-file formatting.
+  Full lint reports zero errors and the 17 existing warnings.
+  Independent reviews found no actionable issues in either fix or its lifecycle regression coverage.
+  Four production Chromium/WebKit desktop and phone-sized checks pass for thread-send route and scroll stability.
+  Both WebKit cases also pass a traced repeat with an orderly browser exit; an unexplained WPE process dump from the first Linux run remains a harness caveat.
+  The unchanged desktop probe with 400 replies and 30 streamed edits did not reproduce the device freeze; its largest measured long task was 63 ms.
+  Physical iOS reproduction and confirmation of the scroll trigger remain outstanding.
+
+### Recover open threads after timeline gaps and stalled requests (2026-09-19)
+
+- Limited-sync gap fills previously committed recovered replies to IndexedDB without updating the mounted thread.
+  The engine now publishes a room-scoped invalidation after each committed page, and the open thread reuses cache hydration and supplemental rendering to display recovered replies and bundled edits.
+  Reads coalesce while preserving a later invalidation, including when the earlier read fails; navigation cancels the old observer.
+  Background history remains cache-only.
+- A stalled reconciliation request previously held its scheduler job indefinitely, so repeated thread opens kept sharing the same unresolved request.
+  Each reconciliation page now has a 15-second HTTP deadline and one timeout retry.
+  Scheduler cancellation aborts the actual request without retrying, and exhausted retries release the slot so a later open can try again.
+- The SDK patch exposes transport controls on `fetchRelations` without putting them in the Matrix query and keeps cancellation listeners attached until the response body has finished downloading.
+  When upgrading the SDK, retain the transport regression tests and remove these patch sections once upstream provides equivalent behavior.
+- Validation: all 4,598 unit tests, application and focused test typechecks, production/PWA build, and changed-file formatting pass.
+  Full lint reports zero errors and the 17 existing warnings.
+  The SDK patch applies through `patch-package` to a fresh published package and reproduces the tested dependency files.
+  Four local Matrix browser cases pass in Chromium and WebKit: a genuine limited sync repairs the mounted thread, and a held reconciliation request recovers after repeated thread opens without reloading the document.
+  The browser stays visible throughout both cases.
+  Independent review found no blocking defects; its lifecycle, invalidation-race, and saved-cursor test findings are addressed.
+
+### Preserve evidence for iOS blank screens (2026-09-18)
+
+- The September 18 device export confirms the previous route fix was installed, but contains no native lifecycle/navigation history and loses detailed trace events before the incident.
+  The separate lightweight background/resume probe passes; the new black-screen cause remains unknown.
+- Diagnostics exports now preserve bounded deep-trace failure health and collect the deep trace and native history independently with separate deadlines, so a failed or hung collector does not discard the other available evidence.
+  Web and older native builds report native history as unsupported while exporting the remaining collectors.
+- The iOS app records sanitized lifecycle, view-state, navigation, memory-warning, and WebContent-termination events in bounded Application Support history.
+  Events contain only typed state, numeric metrics, allowlisted error domains, and codes; they exclude URLs and free-form error text.
+  History survives app termination and relaunch, reports corrupt or unavailable storage explicitly, and retains in-memory evidence after a write failure.
+- Native `monotonicMs` values are elapsed milliseconds within each diagnostic session.
+  The raw system-uptime baseline remains private, and the shipping app declares the SystemBootTime `35F9.1` required reason in its bundled privacy manifest.
+- [Native missing-evidence baseline 35347107215](https://github.com/mindroom-ai/mindroom-chat/actions/runs/35347107215) kept all seven existing routing and recovery cases green while the new assertions found native evidence unavailable after real WebContent termination and failed bundled navigation.
+  The UI case stopped at its initial unsupported guard before exercising background or relaunch.
+  This establishes the missing diagnostic evidence before implementation; it does not reproduce the September 18 production black screen.
+- Validation: [native CI run 35355640764](https://github.com/mindroom-ai/mindroom-chat/actions/runs/35355640764) passes all 22 cases with zero failures, including 21 native unit/integration cases and one real background/resume/terminate/relaunch XCUITest.
+  The shipping Swift sources compile under Xcode, and the tests cover bounded history, corrupt and failed storage, blocked I/O, occurrence-time capture, session-relative timing, the app-bundled privacy manifest, real WebContent termination and recovery, failed bundled navigation, foreground view state, and prior-session history after relaunch.
+  All 4,586 web tests, typecheck, production/PWA build, changed diagnostics formatting and lint, workflow validation, shipping-project membership checks, and Capacitor patch checks pass; full lint reports zero errors and the 17 existing warnings.
+  Independent reviews approve the diagnostics implementation, concurrency corrections, view-state coverage, and timing/privacy follow-up.
+- Native history requires installing a new iOS build.
+  The change is passive diagnostics only and adds no reload, watchdog, or recovery behavior; the cause of the September 18 production black screen remains unknown.
+
+### Keep room and navigation scrollbars below floating controls (2026-09-18)
+
+- Room, thread, and compact overview scrollbars use the existing measured header, filters, thread banner, and footer heights to stay inside the unobscured reading area.
+  Messages and cards still scroll natively behind the glass, including the composer and following footer.
+- `PageNavContent` applies the same scrollbar to Home, Direct Messages, spaces, Inbox/Invites, Explorer, and account/room/space settings without per-page changes.
+  Its track shares the existing navigation header height and ends inside the content wrapper, above fixed footer actions and Recently Opened.
+  Empty lists keep the scrollbar hidden.
+  Resizable panels expose their existing splitter inset to the shared scrollbar and content gutter, keeping scrollbar dragging, panel resizing, and row menus separate for mouse and touch layouts.
+- Expanded messages pin their Show less control above the same measured footer, including changes to composer height and viewport size.
+- A shared, dependency-free `InsetScrollbar` replaces only these native scrollbar indicators because native track insets are not portable across browser engines.
+  It remains a DOM child of the static scroll viewport but is positioned against its outer wrapper, preserving native wheel/touch scrolling and the timeline's existing user-intent listeners.
+  Thumb updates are coalesced into animation frames without React renders; ResizeObserver tracks content, viewport, and control-size changes.
+  Pointer dragging, keyboard navigation, screen-reader range metadata, RTL positioning, and no-overflow hiding share one implementation.
+- Thread-header resize measurements publish their insets on the next animation frame, preventing a WebKit ResizeObserver warning when the changed inset resizes the shallower scrollbar track.
+- Validation: all 4,571 unit tests, typecheck, production/PWA build, changed-file formatting, and focused E2E TypeScript checks pass.
+  Lint reports zero errors and the 17 existing warnings.
+  All 12 production Chromium/WebKit phone/desktop cases pass across compact, threaded, classic, and Simple Mode views, including scrolling behind glass, scrollbar endpoints, dragging, composer growth, and reduced viewport height.
+  The navigation/disclosure follow-up passes 18 additional browser scenarios across both engines, including all eight sidebar types, mouse/touch layouts, separate splitter and row-menu hit areas, and message controls above growing composers.
+  Browser regressions reproduced missing navigation indicators, intercepted desktop scrollbar dragging, and Show less appearing 68px below the footer before their fixes.
+  The desktop WebKit thread regression failed three consecutive runs before the deferred inset update and passes three consecutive runs afterward; all other thread cases were rerun after that fix.
+  Independent review approves the implementation, resize fix, shared navigation coverage, splitter clearance, and message-control inset.
+  Physical iOS behavior remains unverified.
+
+### Inset the Recently Opened divider (2026-09-17)
+
+- The shared Recently Opened panel uses a 1px divider inset 16px from both sides, replacing its full-width top border.
+  It retains the theme's muted separator color and has no specular treatment.
+  The decorative line ignores pointer events so the full-width resize handle remains usable.
+- Validation: all 4,567 unit tests, typecheck, production/PWA build, and changed-file formatting pass.
+  Lint reports zero errors and the 17 existing warnings.
+  Independent review approves the change; all nine Recently Opened component tests pass, including resize and collapse behavior.
+  Physical iOS appearance remains unverified.
+
+### Flatten the shared icon rail (2026-09-17)
+
+- The shared sidebar uses the same borderless native-glass material as navigation headers, with shallow blur and no raised rim, shadow, or specular gradient.
+  The full-height rail no longer registers an optical refraction surface.
+  Icon buttons, avatars, badges, selection markers, and keyboard focus indicators retain their existing treatment.
+- Validation: all 4,567 unit tests, typecheck, production/PWA build, and changed-file formatting pass.
+  Lint reports zero errors and the 17 existing warnings.
+  Existing production navigation checks pass in Chromium and WebKit for dark phone and light desktop layouts, before and after the change.
+  Independent review approves the change, including 62 focused tests.
+  Before/after screenshots confirm the rail edges are removed; physical iOS appearance remains unverified.
+
+### Share floating headers across every navigation sidebar (2026-09-17)
+
+- Home, Direct Messages, Inbox, Explorer, spaces, and account/room/space settings share one borderless native-glass navigation header.
+  Titles stay fixed while list items scroll behind them, with the existing shallow blur and accessibility fallbacks.
+  The shared content component requires a header inside its scrolling viewport, replacing the former space-only styling and optional placement.
+- Empty Home and Direct Messages lists keep the same header and centered actions.
+  Initial content and native focus scrolling reserve the title height; recently opened items and settings footer actions remain outside the main list scroller.
+- Validation: eight production Chromium/WebKit phone/desktop cases pass across all eight sidebars, including empty states, scrolling, settings access, header menus, and native focus alignment.
+  Independent review approves the implementation and tests; focused E2E TypeScript checks also pass.
+  Fault injection confirms browser assertions and fixture cleanup failures are both reported when they fail together.
+  Linux headless WebKit verifies computed blur, transparency, and layout but does not paint native backdrop blur on this host; physical iOS appearance remains unverified.
+  All 4,567 unit tests, typecheck, production/PWA build, and lint pass with zero errors and 17 existing warnings.
+
+### Recover iOS room routes after WebContent termination (2026-09-17)
+
+- Capacitor's bundled-file router treats the server suffix in a room URL such as `/home/!example%3Amindroom.chat` as a file extension.
+  Its WebContent-termination handler reloads that URL, while a cold launch loads the bundle root.
+  Before implementing the fix, [native CI run 35253583128](https://github.com/mindroom-ai/mindroom-chat/actions/runs/35253583128) reproduced the failure on the unchanged shipping code: the extensionless control passed, but dotted-route reload and real WebContent termination both failed with a missing-file error.
+  The captured native view was entirely white after the failed recovery.
+  This establishes a matching failure mechanism; the exported JavaScript diagnostics do not establish the original device's termination event.
+- `MindRoomBridgeViewController.router()` now maps the app's parameterized route roots and Matrix space IDs/aliases to the bundled app document.
+  Other requests retain Capacitor's bundle routing, including missing-asset errors.
+  `patches/@capacitor+ios+8.5.2.patch` makes the asset handler derive MIME and media handling from the resolved file, and limits its empty Cordova-script response to the resolved `cordova.js` filename.
+  Together these changes preserve the current route and origin while serving the app document as HTML, even when a server or event ID ends in `.js` or `.mp4`.
+- `bash scripts/test-ios-routing.sh` generates an isolated XCTest host using the shipping scene, bridge, plugins, and installed Capacitor sources with a tiny web fixture.
+  It requires macOS, Xcode, CocoaPods, installed npm dependencies, and the `xcodeproj` Ruby gem.
+  The tests compare page boot identities after ordinary reload and real WebContent-process termination, assert the current URL, native plugin round trips, and localStorage/IndexedDB persistence, and verify that the native view visibly repaints.
+  Screenshots remain in `.xcresult` artifacts.
+  Handler tests cover route families, asset bytes/MIME, missing files, and native media range responses.
+  A separate handler contract test uses paths generated from `src/app/pages/paths.ts` with the web router's `generatePath`, including dotted parameters, Matrix aliases, and omitted optional parameters.
+  Changes to the web route definitions trigger native CI so a new route family cannot silently bypass recovery.
+  The private WebKit termination selector exists only in the test bundle.
+- Validation: [native CI run 35260447516](https://github.com/mindroom-ai/mindroom-chat/actions/runs/35260447516) passes all eight tests, including visible recovery after real WebContent termination and all 41 generated web routes.
+  All 4,567 unit tests, typecheck, production/PWA build, and changed-file formatting pass.
+  Lint reports zero errors and the 17 existing warnings; workflow validation, test-project generation, Ruby/shell syntax, and patch checks pass.
+  Independent implementation review has no blocking findings.
+
+### Let agents open conversation controls (2026-09-16)
+
+- Agents can request the Computer, Settings, or Members panel through versioned `io.mindroom.ui_action` metadata on ordinary Matrix notices.
+  Fresh requests open automatically only for the addressed user viewing the active conversation in a focused client.
+  History, background conversations, initial sync, and replay retain explicit buttons without reopening panels.
+- Automatic opening additionally requires the agent's exact Matrix server name in the deployment's `mindroom.uiActions.autoOpenFromHomeservers` list.
+  The shipped MindRoom config lists `mindroom.chat`; an absent or empty list leaves requests passive with explicit buttons.
+  This policy narrows the existing joined-agent, same-homeserver checks without changing agent recognition elsewhere.
+  Operators must reserve agent usernames on any server they trust; wildcard, URL, suffix, and implicit subdomain matching are unsupported.
+- Computer requests select the sending agent and reuse the existing authenticated viewer flow.
+  Human control and pending computer operations prevent requests from switching computers or replacing the panel.
+  Settings accepts named existing sections; Members uses the existing responsive drawer.
+- Historical thread buttons switch Classic view to a thread before opening the requested surface.
+  Settings sections hidden by Simple Mode retain a translated unavailable explanation until that mode is disabled.
+- Each accepted Settings request carries its Matrix event identity into the modal renderer, so a new request selects its named section even while Settings is already open or after the user navigates elsewhere.
+  Ordinary Settings navigation and viewport changes retain the current page because only a new request remounts the Settings view.
+  Pinned plain and decrypted messages now pass their source Matrix event into the shared content renderer, preserving passive historical UI-action buttons in the pin menu.
+- Computer view state belongs to one conversation instance through `computer/useRoomComputerState.ts`.
+  Account, room, route, or availability changes clear the view before children render, so opening a routed request does not depend on effect ordering and old panel callbacks cannot affect a later visit.
+  UI-action callbacks become current only after React commits, so suspended or abandoned renders cannot affect the live listener.
+- `ui-actions/chatUiBackendContract.test.ts` parses 18 notices emitted by the real backend toolkit, covering every action and Settings section in room and thread scope.
+  The dedicated `chat-ui-backend-contract.yml` workflow regenerates the committed fixture from its pinned backend revision and tests the generated output directly.
+  When changing the wire contract, update the backend revision in that workflow and regenerate `ui-actions/__fixtures__/chatUiBackendContract.json` using `uv run -m tests.chat_ui_contract_fixture --output <fixture-path>` from the backend checkout.
+- Validation: all 4,567 unit tests, typecheck, production/PWA build, and changed-file formatting pass.
+  Full lint reports zero errors and the 17 existing warnings.
+  Production Chromium coverage uses real local Matrix delivery and a stub computer gateway to verify desktop/mobile opening, exact-agent authenticated requests, inactive threads, historical buttons, reload, successive and repeated Settings section requests, Members, room-overview requests, and passive requests after deployment trust is removed.
+  Independent task review approves the changes after regressions covering missing-key retry, Classic routing, requested-agent departure, and preservation of a manually opened computer under human control.
+
+### Show scheduled tasks in each room (2026-09-16)
+
+- Status: implemented, validated, and independently reviewed on `feat/room-schedules`.
+- The room header has a clock button with the pending schedule count, available in Simple Mode and the full interface.
+  The button appears only in rooms with joined or invited MindRoom agents, using the room's existing live membership check for room and call headers.
+  Agent rooms keep the button when no schedules are pending; removing the last agent hides it and closes any open schedules dialog.
+  Its dialog lists pending tasks across the room timeline, existing threads, and new-thread destinations, and updates from Matrix room state as schedules change.
+  Overdue pending tasks remain visible until the backend changes their status.
+- Each task shows its description, full prompt, one-time execution date in the viewer's local timezone or recurring schedule in UTC, model selection, and available owner, creation/update dates, history limit, silent/conditional flags, and task ID.
+  Owners use the same clickable mention styling and room display names as chat messages, with the full Matrix ID on hover.
+  Mouse and keyboard activation open the standard user profile, and dismissing that profile keeps the schedules dialog open.
+  The owner is labeled explicitly because upstream tool edits can replace `created_by` while preserving the original creation date.
+  Model selection shows the configured alias saved for each run, or explains that the agent, room, and thread settings apply when no override is saved.
+  Explicit null or blank model resets clear stale legacy aliases, and invalid update timestamps are omitted.
+  Existing-thread tasks include an Open thread action.
+  Cron state does not contain a next-run timestamp, so the dialog displays the stored recurrence and expression.
+  The upstream workflow, scheduler tool, executor, and state writer were audited at MindRoom revision `859eda8e`; model and update time complete the useful published task metadata.
+- Schedule details extend the existing state-event parser for both workflow JSON strings and objects.
+  Room-list normalization recognizes the legacy `main` destination, and explicit room destinations override stale workflow thread IDs.
+  Room and thread views share the scheduler's UTC policy for offset-free timestamps; thread badges still exclude expired tasks.
+  Regressions cover explicit room destinations in both workflow formats and timestamp handling in Los Angeles and Tokyo.
+- Keyboard dismissal stops Escape before the room read-receipt shortcut, restores focus, and resets on room navigation.
+  Browser regressions cover the real room Escape handler, live state changes, empty rooms, local times, all history modes, long prompts and cron fields, phone layouts, and RTL.
+  A separate local-Matrix browser case verifies the actual room header, thread navigation, and cancellation through sync.
+  It also verifies owner profiles on desktop and phone, keyboard activation, and focus restoration after closing the profile.
+  Membership regressions verify hidden schedules in rooms without agents, live appearance after inviting an agent, and button/dialog removal when the final agent leaves.
+  Model regressions cover workflow JSON and objects, normalized overrides and resets, malformed metadata, long aliases on phones, and live model edits/reset through Matrix sync.
+- All new UI labels are translated across the 17 supported languages.
+- The dialog uses the shared glass components and preserves the current room-header controls.
+- Validation: all 4,485 tests across 533 files pass under Node 24 in the standard Linux container after a fresh dependency install with repository patches.
+  All five Chromium cases pass, including the local-Matrix integration case, and typecheck, the production/PWA build, changed-file formatting, and whitespace checks pass.
+  ESLint reports zero errors and the existing 17 warnings.
+  Independent review has no remaining actionable findings.
+- Risks: recurring tasks have no published next-run timestamp, so their exact next execution cannot be displayed.
+- Next step: Merge after the PR's required checks and reviews pass.
+
+### Match the approval banner to floating glass (2026-09-16)
+
+- The approval banner above the composer uses the same shared panel material and shallow native blur as the typing strip.
+  Its opaque fill and outline are replaced by translucent tint and the shared soft highlight, with theme-matched text and the existing rounded corners and spacing.
+  Reduced-transparency and high-contrast preferences retain the shared opaque fallback.
+- Validation: all four production Chromium/WebKit checks pass at phone and desktop widths, including translucent tint, blur selection, spacing, the high-contrast fallback, and review dialog interaction.
+  All 4,463 unit tests, typecheck, production/PWA build, and formatting pass; lint reports zero errors and 17 existing warnings.
+  Independent review approves the fix and passes both focused approval tests.
+  Linux headless WebKit validates transparency and layout but does not paint native backdrop blur on this host; physical iOS rendering remains unverified.
+
+### Let rooms scroll behind the space navigation header (2026-09-16)
+
+- The space title stays at the top while rooms scroll behind its translucent background.
+  It uses the shared flat material with native blur in both engines, without borders, highlight gradients, shadows, or a refractive rim.
+- The space header lives inside the existing navigation scroller.
+  Initial content and native scroll-to-item alignment reserve the header height, while short or collapsed lists avoid extra blank scrolling.
+  Other navigation headers retain their existing layout.
+- Validation: the live regression reproduces the previous clipping boundary below the header.
+  All four Chromium/WebKit cases pass for phone simple mode, desktop full mode, header layering, menu access, long-list scrolling, item alignment, and collapsed lists.
+  All 4,463 unit tests, typecheck, production/PWA build, formatting, and lint pass with zero errors and 17 existing warnings.
+  Independent source review passes 36 focused tests and finds no remaining issues.
+  Linux headless WebKit validates transparency and layout but does not paint native backdrop blur on this host.
+- Next step: Verify the borderless space header, blur, scrolling, and menu access on a physical iOS device and record the visual result.
+
+### Match composer controls and typing status to glass (2026-09-15)
+
+- Attachment, microphone, formatting, sticker, emoji, and send buttons use the shared compact glass material.
+  Formatting toolbar controls share the same adapter, preserving their existing variants, pressed states, focus, and disabled behavior.
+  These small controls use CSS blur and highlights without adding optical filters, observers, or animation loops per button.
+- The typing indicator owns its inset, rounded glass surface and a small gap above the composer.
+  Smaller dots and text match the compact controls, and the strip remains in the measured footer flow when it appears or disappears.
+  Its entrance animation respects reduced motion; glass retains the shared reduced-transparency and contrast fallbacks.
+- Validation: all 4,463 unit tests, typecheck, and the production/PWA build pass.
+  Full ESLint reports zero errors and 17 existing warnings.
+  All four live Chromium/WebKit phone/desktop cases pass for typing updates and dismissal, glass materials, spacing, expanded formatting controls, and sending a message.
+  Independent review approves the changes and passes 96 focused tests.
+  Linux WebKit screenshots verify transparency and layout but do not paint native backdrop blur on this host; physical iOS appearance remains unverified.
+- Next step: Check composer buttons, typing status, and scrolling on a physical iOS device and record the visual result.
+
+### Resize member sidebars at every screen width (2026-09-15)
+
+- Room and space-lobby member controls remain available on desktop, tablet, and phone.
+  Desktop and tablet use a resizable side panel; phones use a dismissible overlay that opens explicitly without changing the saved desktop visibility preference.
+- Both sidebars share pointer capture, keyboard resizing, viewport clamping, right-to-left support, and drag-to-collapse behavior.
+  The member panel starts at 266 px and remembers its width per account independently of navigation.
+  Dragging to 160 px or less previews closure; releasing closes it while retaining the last usable width for reopening.
+- Member overlays preserve the current conversation or lobby and support the close button, Escape, and backdrop dismissal.
+  Opening moves focus into the member controls, and closing returns it to the trigger.
+  Physical safe-area padding keeps controls clear of screen cutouts in both layout directions and constrains the maximum panel width.
+  Opening Members also closes the Computer panel so the member list appears immediately.
+- Validation: all 77 focused tests and all 4,463 tests across 532 files pass, along with typecheck, the production/PWA build, and changed-file formatting.
+  Full ESLint reports zero errors and the 17 existing warnings.
+  All 12 Chromium/WebKit cases in `playwright.sidebar.config.ts` pass against the production build and a local Matrix fixture, covering both sidebars, rooms, space lobbies, phone overlays, native Chromium touch resizing and collapse, screen cutouts in both layout directions, keyboard focus, and reopening.
+  The narrow-screen controls, independent phone visibility, initial dialog focus, safe-area sizing, and switching from Computer regressions fail before their fixes.
+
+### Toggle Explorer navigation from its active sidebar icon (2026-09-15)
+
+- Explorer passes its current selection to the shared sidebar handler, matching Home and Direct Messages.
+  Clicking the active Explorer icon collapses or reopens navigation on desktop and tablet while preserving the page, search query, fragment, and browser history entry.
+- Selecting Explorer from another section opens navigation and retains its existing destination selection.
+  Mobile clicks retain the single-pane Explorer list flow and the saved desktop collapse preference.
+- Regression coverage exercises the real Explorer tab and shared navigation state at 751 and 1280 px, plus mobile navigation at 375 and 750 px.
+  The desktop and tablet cases fail against the old handler and pass with the fix.
+- Validation: all 4,439 tests across 531 files, typecheck, production/PWA build, and changed-file formatting pass.
+  Full ESLint reports zero errors and the 17 existing warnings.
+
+### Clear the empty following strip and flatten room chrome (2026-09-15)
+
+- The bottom following strip adds floating glass only while it displays other readers' names.
+  Empty, self-only, and hidden-activity states retain their layout and safe-area space without tint, blur, rim, or shadow, leaving the conversation visible beneath them.
+  The text-owning component selects the existing shared Surface appearance, so the optical effect attaches and cleans up with the displayed text.
+- The room header and populated following strip share a flat glass modifier that removes borders, inset rims, and highlight gradients while preserving tint and blur.
+- Validation: all 4,433 unit tests, typecheck, production/PWA build, formatting, and lint pass with zero errors and 17 existing warnings.
+  All 14 Chromium/WebKit cases pass across receipt transitions, the reader dialog, hidden activity, simple/full room modes, and thread scrolling.
+  The committed `playwright.glass.config.ts` includes these live cases; they require local Matrix credentials, including a second account for receipt transitions.
+  Both live strip suites use one shared transparency assertion with computed-style failure diagnostics.
+  Empty-strip and borderless-header regressions fail against the previous implementation; independent source review approves the final changes.
+  Linux WebKit captures verify layout and transparency but do not paint native backdrop blur on this host.
+
+### Scroll conversations behind room controls (2026-09-15)
+
+- The room header, thread filters, composer, and following strip overlay the full-height conversation viewport.
+  Thread filters share the same measured wrapper in simple and full mode, including compact cards and the message list.
+  Room headers, filters, and following strips use the shared floating glass material with 3 px native blur.
+- Measured header, filter, and footer insets reserve readable space at the start and end of each scroller and guide native focus scrolling and explicit message jumps.
+  The thread banner remains sticky beneath the room header; jump controls and the minimap respect the same insets.
+- Footer measurement includes approvals, typing, uploads, and the bottom safe area.
+  Its observer publishes the new inset before preserving a previously pinned bottom position.
+  The bottom sentinel follows the footer spacer so covered messages do not trigger read receipts early.
+- The composer remains outside the thread-keyed approval provider to preserve uploads during navigation.
+  The approval queue uses a portal into the measured footer while retaining its thread context.
+  Compact scroll restoration retries a clamped position after inset measurement only while the reader has not moved.
+  Scroll observers reconnect when switching from compact cards to messages, preserving history loading and Jump to Latest.
+- Validation: all 4,433 tests across 531 files, typecheck, production/PWA build, formatting, and lint pass with zero errors and 17 existing warnings after integrating the native startup fix.
+  All 12 production Chromium/WebKit phone and desktop cases pass across simple/full mode, compact cards, message modes, thread banners, composer resizing, and scroll restoration.
+  Independent source review approves the final changes and passes all 51 focused room, compact, and upload-lifecycle tests.
+  Screenshots use local sample data; Linux WebKit validates layout and transparency but does not paint native backdrop blur on this host.
+
+### Adopt the iOS scene lifecycle (2026-09-15)
+
+- iOS 27 traps at native startup when an app built with the new SDK has no scene configuration.
+  The app now declares one window scene and creates its existing custom bridge from SceneDelegate.
+  Legacy storyboard startup is disabled so authentication and file-save plugins register on a single bridge.
+- Capacitor core, iOS, and CLI use 8.5.2, including the upstream scene proxy that defers cold-start URLs until plugins load.
+  Warm URLs and universal links use the same proxy; APNs registration remains in AppDelegate.
+  Existing plugins and Android retain their versions.
+- Validation: all 4,431 tests across 531 files, typecheck, production/PWA build, App Store preflight, and lint pass with zero errors and 17 existing warnings.
+  The launch-manifest regression fails against the legacy configuration and now verifies the scene delegate is compiled into the app target.
+  Capacitor asset sync and CocoaPods 1.16.2 dependency resolution pass; an independent reviewer approves the source and passes 40 focused native integration-contract tests.
+  Native compilation, launch, cold/warm links, notification taps, and foreground/background transitions remain unverified because this workspace has no Xcode or iOS simulator.
+
+### Reduce native blur on floating glass (2026-09-15)
+
+- Thread banners and floating menus retain their existing tint, including 72% in dark, midnight, and butter themes.
+  Their native CSS blur is 3 px across themes, reduced from 10 px for banners and 12 px for menus, so background details remain less diffused.
+- A shared blur variable and modifier cover normal and resolved banners, Menu, and custom overlay Surface components.
+  Each material defines its own blur default so nested controls and panels do not inherit the floating override.
+  Chromium keeps its existing 3 px SVG blur and refraction; dimmed sheets, other panels, compact controls, and opaque accessibility fallbacks retain their existing policy.
+- Linux headless WebKit does not paint native backdrop blur on this host.
+  Its checks verify CSS selection, transparency, contrast, layout, and interaction; physical iOS blur appearance requires device validation.
+- Validation: all 4,427 unit tests across 529 files, typecheck, production/PWA build, formatting, and lint pass with zero errors and 17 existing warnings.
+  All 30 shared-surface browser cases pass across Chromium and WebKit, including the unchanged contrast assertions.
+  A Vite dependency reload interrupted the initial WebKit silver-sheet case; it passed three consecutive reruns after dependency optimization completed.
+  Additional browser probes confirm both banner variants and menus use 3 px native blur, nested controls retain 8 px, other panels and modals retain their defaults, and accessibility preferences still disable blur.
+
+### Keep model discovery working beside stale devices (2026-09-15)
+
+- Model discovery now encrypts and queues each signed recipient independently.
+  A historical device without an Olm session no longer blocks requests to healthy devices.
+  Exact-recipient filtering, encrypted-only delivery, cancellation, and bounded retries remain enforced.
+- A regression using the installed Matrix SDK and real Rust Olm machines fails before the fix and passes afterward with one healthy device and one device whose one-time keys are exhausted.
+  Controller coverage also verifies picker eligibility in this case and preserves the omitted-recipient retry regression.
+- All 4,429 tests across 530 files pass in the standard Node 24 container.
+  Typecheck, changed-file lint, the production/PWA build, and the Element Call output check pass.
+  Independent review found no blocking issues.
+
+### Recognize Gemini icons behind compatible providers (2026-09-15)
+
+- The shared model icon now recognizes Gemini model IDs before falling back to the transport provider's glyph.
+  Plain and provider-prefixed IDs use the existing Google glyph, including mixed-case IDs.
+- Boundary matching preserves other provider icons for unrelated names containing similar text.
+  Model configuration, provider grouping, routing, and custom-media precedence are unchanged.
+- Focused model and historical-badge coverage passes 111 tests, including six Gemini regressions that failed before the change.
+  All 4,427 tests pass after integrating the latest development changes in a standard Node 24 Linux container; three shell-path tests cannot run on the host's nonstandard filesystem layout.
+  Typecheck, lint, production/PWA build, and the Element Call output check pass.
+  The build used a separate output directory because existing build artifacts were not writable.
+  Independent source review found no blocker.
+
+### Match approval sheets and inline tool controls (2026-09-15)
+
+- Approval review and active-permission dialogs use the shared glass tint for a dimmed backdrop, matching settings sheets while preserving their focus trap and close behavior.
+- Tool-call blocks, approval histories, and resolved approval receipts share one disclosure style for spacing, full-width surfaces, corner radii, keyboard focus, and trailing chevrons.
+  Expanded receipts wrap long operation names; nested argument disclosures keep their native behavior.
+  Approval histories have a 4 px gap after message content so adjacent tool and approval bars do not touch; nested receipts retain their compact separators.
+  Inline rows retain a quiet surface without additional backdrop filters, animation loops, or observers.
+- Live coverage uses local sample Matrix events to check matching phone/desktop geometry, keyboard expansion, nested receipts, dialog tint, focus restoration, and horizontal bounds in Chromium and WebKit.
+- Validation: all 4,317 unit tests across 522 files, typecheck, production/PWA build, and ESLint pass with zero errors and 17 existing warnings.
+  Two Chromium and two WebKit live cases pass against the production build; independent review approved the final changes.
+  Physical iOS blur appearance remains unverified.
+
+### Float thread controls and round the mobile palette (2026-09-15)
+
+- The thread summary and Resolve controls sit in a sticky header inside the message scroll area, allowing messages to pass behind the existing glass material.
+  The header keeps its natural layout space so the first message remains readable at the top; expand/collapse stays reachable below the banner.
+- Header resize observation sets native scroll padding after the parent scroll ref attaches.
+  Explicit message jumps use the unobscured area for alignment and visibility checks, while the virtualizer offset ledger and pagination viewport remain unchanged.
+- The mobile command palette uses the shared radius on all four corners, including its footer above the keyboard.
+- Live browser coverage checks pinned geometry, messages behind the banner, first-message visibility, native scroll targets, Resolve, expansion, exit, shorter phone viewports, and palette corner radii.
+  The thread fixture uses a real Matrix room and removes it after each test; only the unrelated provisioning endpoint is stubbed.
+- Validation: all 4,317 unit tests across 522 files, typecheck, production/PWA build, and ESLint pass with zero errors and 17 existing warnings.
+  Five Chromium and five WebKit live cases pass against the production build; independent review approved the final changes.
+  Physical iOS appearance remains unverified; the Linux WebKit blur limitation documented below still applies.
+
+### Refine glass sheets and compact controls (2026-09-15)
+
+- Dark settings sheets combined a 70% dimming backdrop with a 72% material tint, leaving only about 8% of the original backdrop color visible.
+  The shared Modal500 shell now uses a 28% tint over that dimmed backdrop in dark themes; floating menus retain their stronger tint over undimmed content.
+  Silver sheets use a 64% tint to preserve text contrast over dark content.
+- Small controls and overlay rims use theme-aware highlights, with a softer 14% white rim in dark themes and equal horizontal/vertical offsets for 45-degree lighting.
+- The thread banner uses the shared panel material with inset spacing and rounded corners, including its resolved state.
+  The audio play disc is 32 px with an 18 px glyph inside the existing 44 px touch target.
+- The dependency-free optical engine and browser fallback policy are unchanged: Chromium uses SVG refraction and WebKit uses native backdrop blur and tint.
+  Composer spacing and its plain footer remain unchanged.
+- The real Modal500 browser regression fails on the previous dark tint and passes after the change, measuring painted backdrop response and text contrast across all five themes.
+  Run shared-surface coverage in Chromium and WebKit with `npm run test:e2e -- --config=playwright.glass.config.ts`.
+- Validation: all 4,261 unit tests across 518 files pass, along with typecheck, production/PWA build, and ESLint with zero errors and the existing 17 warnings.
+  All 23 Chromium optical, shared-surface, and audio cases pass; all 15 WebKit shared-surface cases pass.
+  Independent review found no actionable source issues.
+- Linux headless WebKit does not paint native backdrop blur even in a standalone inline-CSS probe on this host.
+  Its tests verify transparency, contrast, layout, and interaction; actual iOS blur appearance still requires device validation.
+  Review screenshots use local sample data and remain outside version control.
+
+### Recover Computer sessions after revocation and disconnects (2026-09-15)
+
+- Resume uses the same canonical thread root as the composer, including reply-event deep links, and waits until the routed event is known.
+- A disconnect while Stop is pending removes the dead screen; failed Stop exposes Reconnect with a fresh ticket, while successful Stop clears the transient disconnect error.
+- Losing the API configuration or final eligible agent disposes the panel and restores Members; restored availability leaves Computer closed.
+- The header's Show Computer and Hide Computer labels use the existing translator across all 17 catalogs.
+- The gateway admits up to eight concurrent viewer sessions per verified requester and 256 globally; closing a viewer or reaching its one-hour expiry frees its slot.
+- Focused behavior and locale coverage pass 217 tests; the final thread-root change passes another 55 affected tests, and typecheck, lint, formatting, and production/PWA build pass.
+- Fresh acceptance against the production preview passes real Matrix login, desktop watch/control, native typing with agent readback, one originating-thread continuation, mobile fullscreen, close/reopen, and stop/start in 13.4 seconds with no page errors.
+- Final desktop watch/control and mobile screenshots are captured; the exact disposable Matrix and worker containers are removed.
+
+### Integrate current worker computer bases and accurate resume notices (2026-09-15)
+
+- Replayed only the computer feature series onto current dev, preserving the thread approval provider and queue around the computer-aware header.
+- Resume immediately reports released control, and reports that the agent was asked to continue only after Matrix message delivery succeeds.
+- Retaking control clears obsolete release and continuation notices.
+- Behavioral regression coverage catches premature success while delivery is pending or failed and stale success after retake; all 70 computer and RoomView tests pass.
+- Full Vitest passes 4,225 tests with four failures reproduced independently on the pinned current dev base: three Xcode Cloud Homebrew cases on non-macOS and one upload-caption restoration case.
+- Typecheck and production/PWA build pass; full ESLint has zero errors and 17 existing warnings.
+- Changed-file formatting passes; all 172 tracked files flagged by full Prettier are byte-identical to current dev, plus one existing local skill alias.
+- Fresh real Matrix/Chat acceptance passes desktop watch/control, completed native input and agent snapshot readback, exactly one originating-thread continuation, mobile fullscreen, close/reopen, and stop/start with no page errors.
+- The current backend worker image includes matching locked dependencies, source, runtime scripts, and logo assets.
+- Final screenshots show completed input and accurate watch/control notices; disposable Matrix and worker cleanup is independently verified.
+- Next: independent integration and full-feature review, followed by ready pull requests.
+
+### Reproduce worker computer integration (2026-09-15)
+
+- Status: fixture/spec implementation and live desktop/mobile acceptance are validated; independent task and final feature review follow.
+- `e2e/worker-computer.spec.ts` requires `E2E_COMPUTER_FIXTURE` from the backend's `scripts/test-worker-computer.py --serve` and rejects non-loopback services.
+- The backend fixture can create its own disposable Matrix server, test users, room/thread, public computer gateway, and dedicated Docker worker; no default homeserver or real account is used.
+- The spec verifies the real noVNC framebuffer, native keyboard typing with DOM readback and an actual agent page snapshot of the visible input echo, exactly one user-authored continuation in the originating thread, desktop side-panel and mobile fullscreen bounds, close/reopen, and stop/start.
+- Screenshots wait for completed text readback; the control screenshot retakes control after that readback, and closing releases it without sending another continuation.
+- Run the live browser check without concurrent Docker container creation/removal: host network-interface changes can interrupt Chromium asset requests.
+- Reproduction: start the backend fixture with `--chat-origin http://127.0.0.1:4173`, then run `E2E_COMPUTER_FIXTURE=<fixture-output>/chat-fixture.json E2E_BASE_URL=http://127.0.0.1:4173 npm run test:e2e -- e2e/worker-computer.spec.ts`.
+- See the backend's `docs/tools/worker-computer.md` for worker image, local Matrix image, opt-in environment, exact cleanup ownership, and trusted API/WSS routing.
+- Live desktop/mobile acceptance passes with no page errors (one Playwright test, 17.9 seconds).
+- Full Vitest passes 3,645 tests and retains the same four clean-baseline failures: three Xcode Cloud Homebrew tests on non-macOS and one caption-restoration test.
+- Typecheck, production/PWA build, and focused spec ESLint/Prettier pass.
+- Full ESLint has zero errors and 17 existing warnings.
+- Full Prettier reports 213 existing formatting warnings: 212 files are byte-identical to the clean feature baseline, plus the local skill alias; no changed feature file is flagged.
+
+### Show dedicated agent computers in Chat (2026-09-15)
+
+- Status: implemented and validated with focused behavioral coverage, typecheck, changed-file formatting and lint, a production build, the full Vitest comparison, and live native noVNC acceptance.
+- The feature is opt-in through the exact trusted origin at `mindroom.computers.apiUrl`; the shipped value is empty, remote origins require HTTPS, and loopback HTTP remains available for local development.
+- Operator example: `"mindroom": { "computers": { "apiUrl": "https://computer.example.org" } }`.
+- Eligible rooms expose a Computer header action only when the configured origin is valid and at least one MindRoom agent is joined.
+- The room owns the panel so account, room, routed-thread, and selected-agent changes dispose the old viewer and invalidate late responses.
+- Multiple joined agents require an explicit selection and Watch action, and the exact Matrix user ID is sent for authorization.
+- Session bearer tokens remain inside the active in-memory client, every display connection uses a new single-use ticket in the `mindroom-ticket.<ticket>` WebSocket subprotocol, and request credentials are omitted.
+- Server status is authoritative for view and control mode; the native noVNC screen scales to its viewport, updates `viewOnly` from that status, and disposes its single RFB instance and callbacks on replacement or unmount.
+- Resume agent releases control first, reconnects the same public session in watch mode with a fresh ticket, and independently sends one ordinary thread-aware continuation mentioning the selected agent.
+- A failed watch reconnect does not suppress or duplicate the continuation message. A replacement watch-stream failure remains recoverable while continuation delivery is pending, while callbacks from the retired control stream are ignored. A continuation-send failure leaves control released and reports the send failure separately.
+- Stop revokes the current session, and Start computer obtains a fresh Matrix OpenID token and creates a new public session.
+- Closing the panel deletes only the viewer session and never sends a continuation message or stops the persistent worker computer.
+- Desktop uses a side panel that closes the Members drawer, while mobile uses a full-screen surface with a clear close action.
+- Computer keyboard and paste events remain inside the RFB surface, and composer focus plus the global command palette defer while that surface owns input.
+- The client uses native `@novnc/novnc` 1.7.0 through its package export and supplies only `binary` plus the single-use ticket protocol.
+- Focused coverage passes 84 tests across the Computer API, panel, screen, header, room ownership, composer focus, and command-palette suites.
+- Live acceptance passed watch, takeover, typing into the worker browser, release with a continuation in the originating thread, desktop side-panel placement, and mobile full-screen placement with no page errors.
+- `npm run build` passes. The full suite passes 3,643 tests and retains the four known baseline failures: three Xcode Cloud Homebrew tests on non-macOS and one caption-restoration test.
+
+### Roll out isolated liquid glass materials (2026-09-15)
+
+- A shared material family covers the command palette, menus, dialogs, headers, sidebar controls, composer, audio player, recording capsule, and thread controls.
+- The isolated `src/app/components/glass/liquid/` module implements rounded-edge refraction with a Snell-law displacement map and a native SVG backdrop filter, subtle RGB separation, and pointer-following highlights. It adds no dependencies.
+- Shared primitives and component families own the callback-ref hook, so their callers receive the material by default.
+  The runtime owns its observers, listeners, filter definitions, and cleanup; it never scans the DOM or updates React state on pointer movement.
+- Maps are generated on size changes, bounded to 262,144 pixels, and cached in a 32-entry LRU. Offscreen surfaces release their filters. Pointer movement reuses the map and updates two CSS variables.
+- Chromium receives the SVG refraction path. Safari and Firefox retain native translucent blur and highlights because they do not render SVG backdrop filters. Browsers without backdrop filtering retain an opaque surface.
+- App-owned polymorphic Menu, Modal, Dialog, and Header wrappers preserve forwarded refs, semantic variants, and Folds defaults.
+  MenuItem defaults to a transparent fill so rows reveal the shared material; explicit selection fills remain supported.
+- Shared surfaces support `appearance="glass"`, `"plain"`, and `"inherit"`.
+  Menus and dialogs default to glass; neutral nested headers and PageRoot/Page layouts reveal the enclosing material, including application, room, and space settings.
+  Headers with semantic colors keep their matching material by default so warning, error, and accent text retains contrast.
+  A plain surface restores the ordinary fill and starts a separate layout context.
+  Custom floating panels use the same polymorphic Surface primitive, including thread presets, tag selection, and statistics.
+- ESLint enforces shared static imports, including aliases, re-exports, namespaces, and deep module paths; only the adapter may import the raw Folds surface components.
+  Ordinary primitives and the Folds stylesheet remain available from the package.
+  Dynamic module loading is outside this static rule; the source inventory found no production dynamic Folds imports.
+- The read-receipt strip below the composer uses the conversation background without a glass rim, highlight, or refraction filter.
+  Its existing 28 px minimum height and safe-area padding leave breathing room beneath the floating composer.
+- Inline navigation category headings retain their plain surface so the Recently opened panel has one divider instead of a second inset glass edge.
+- Equal horizontal and vertical rim highlights establish 45-degree lighting from the upper left; a circular pointer glint keeps wide controls from stretching the highlight into a horizontal streak.
+- Theme-aware tint and highlight strength protect text over bright and dark backdrops. Reduced transparency, increased contrast, and forced colors remove decorative effects and restore opaque surfaces. Reduced motion disables moving highlights and button scaling.
+- Browser coverage checks rendered edge distortion, backdrop response, five-theme text contrast, accessibility preferences, focus, editing, playback, and narrow layouts. Optical unit tests cover geometry, browser gating, resizing, visibility, ref ownership, StrictMode, and cleanup.
+- Validation: the full Node 24 suite passes all 4,261 tests across 518 files.
+  Typecheck and the production/PWA build pass; full ESLint reports zero errors and the existing 17 warnings.
+  Ten shared-surface browser cases and eight optical/audio cases pass, including nested layouts, portal menus, custom popovers, accessibility preferences, and five-theme contrast.
+- Review screenshots and the motion study use local sample data and remain outside version control.
+
+### Add the responsive thread model picker (2026-09-15)
+
+- Existing eligible thread composers now show a compact model row above the writing controls.
+  The row consumes the client-scoped controller hook, and the presentation sends no Matrix traffic.
+- Desktop uses an anchored Folds pop-out while mobile uses a safe-area-aware bottom sheet.
+  Search matches display name, stable key, and provider; results group by provider and retain the same visual and keyboard order.
+- Desktop and mobile picker panels use the shared glass surface owners without overriding their material paint.
+- Room-default reset is a distinct action from every configured model key, including `default` and `room-default`.
+  Multiple authenticated runtimes require a readable account-and-device choice before mutations become available.
+- Pending commands survive dismissal, refresh remains available during recovery, errors keep the readable `!model` fallback visible, and delayed completion cannot steal focus after dismissal.
+- Dismissal clears popup-local completion ownership, so an earlier command cannot close a later opening before or after its acknowledgement arrives.
+- The visible subtitle states that future replies use the selection for all agents and teams in the thread, and the stable trigger name exposes the current visible model as its accessible description.
+- Custom catalog icons use authenticated Matrix media conversion and fall back to the shared provider or generic icon on load failure.
+  Historical message badges use the same provider icon owner without changing their labels or semantics.
+- Focused component coverage passes all 23 picker cases plus composer top-slot and historical badge regressions.
+  Live browser checks pass plain and encrypted set/reset, draft preservation, ineligible-room gates, desktop and mobile layouts, and 320 px fit.
+
+### Preserve model-picker ownership through stop and delayed sends (2026-09-15)
+
+- The controller now retains one identity per Matrix client across stopped state, explicit remount, and React StrictMode effect replay.
+  Snapshot reads are inert; the client lifetime hook acquires and releases an explicit controller lease, and stopped controllers restart only through that lifecycle after the SDK is running again.
+- SDK send ownership is separate from the acknowledgement deadline.
+  Timeout, membership/device invalidation, navigation, and cache eviction cannot release the mutation barrier while the original send is unresolved.
+  After settlement, any earlier discovery is discarded and a new selection query must succeed before another command is accepted.
+- Pending remains true while the SDK send is unresolved; recovery can still block mutations after pending and loading have cleared.
+  The controller exposes `canMutate` through the picker hook, and model/reset options use it for both pointer and keyboard activation.
+  Refresh and dismissal remain available when recovery fails; authenticated discovery restores mutation availability.
+- Validation: all 135 scoped tests pass under Node 24.13.1, including actual React StrictMode replay, stopped-owner reads/remount, delayed send success/failure after timeout or invalidation, and combined remount/cache-pressure recovery.
+  Typecheck, targeted ESLint, formatting, and whitespace checks pass.
+- Recovery availability validation: all 163 scoped tests pass under Node 24.13.1, including a settled send with a lost acknowledgement, failed recovery, disabled picker activation, and successful rediscovery.
+
+
+### Add the shared Matrix model-picker controller (2026-09-15)
+
+- Status: controller, protocol validation, transport, and React subscription hook are implemented and locally validated; composer presentation is the next step.
+- One client-scoped owner handles encrypted catalog discovery, signed runtime-device authentication, thread selection, command acknowledgements, cache invalidation, and explicit teardown.
+  Lazy room membership is hydrated before joined same-server candidates are considered, and advertised agents must independently qualify as joined members.
+- Discovery collects authenticated runtime responses for 12 seconds before automatically choosing a sole runtime.
+  Multiple runtimes require an explicit choice, including when a second runtime appears after an earlier automatic single-runtime choice.
+  Unanswered catalog requests use bounded retries with the same request ID, and encrypted batches retain exact signed recipients.
+- Room capability and model catalogs are cached separately from thread selection.
+  Membership and device changes invalidate cached eligibility and trigger coalesced rediscovery for active subscribers; logout also clears catalogs whose thread scopes were already evicted.
+- Selections use readable threaded room commands with explicit set/reset metadata and the selected runtime user and device.
+  Confirmed state changes only after a matching own acknowledgement, including when the acknowledgement arrives before the send promise resolves.
+  Encrypted acknowledgements authenticate the actual sender key; plaintext acknowledgements authenticate the Matrix sender account and use device metadata only for correlation.
+- Pending commands survive picker dismissal and composer navigation.
+  Transport retry reuses the SDK local event and original transaction ID, while uncertainty requires fresh discovery before another mutation.
+  Earlier catalog replies cannot replace a later confirmed selection.
+- Validation: all 127 focused protocol, controller, hook, SDK discovery, device-trust, encrypted-call transport, and composer-send tests pass under Node 24.13.1.
+  Typecheck, targeted ESLint, formatting, and whitespace checks pass.
+  Native Node 22 reproduces the unchanged caption-upload matcher failure; the same test passes in the Node 24 container.
+  Actual controller probes against Matrix also pass discovery, set, reserved-key selection, reset, and refreshed selection in both plain and encrypted rooms.
+
+
+### Hydrate explicit device discovery through Rust crypto (2026-09-15)
+
+- Status: the SDK patch and focused behavioral regression are implemented and locally validated.
+- `getUserDeviceInfo(userIds, true)` now starts tracking previously untracked users, processes the resulting key query through Rust crypto, and returns the validated devices from the Rust store.
+  Raw HTTP device records no longer bypass Rust signature validation or appear as usable trust data.
+- Explicit discovery intentionally leaves newly requested users tracked so later verification and to-device encryption read the same persisted device records.
+  The default `downloadUncached=false` behavior and the fast path for populated tracked users remain unchanged.
+- A failed key query leaves the Rust-backed result empty and therefore unavailable for trust or encryption.
+  A later explicit lookup for an empty tracked user reprocesses pending outgoing requests before reading the store again.
+- The versioned package patch updates both the TypeScript source and distributed JavaScript without changing existing source maps.
+  When upgrading `matrix-js-sdk`, check whether upstream explicit discovery hydrates the Rust store and preserves failed-query retry; retain this regression and refresh or remove both patch sections together.
+- Validation: all 35 focused SDK, device-trust, and to-device call tests pass, along with typecheck, targeted ESLint, changed-file formatting, patch reverse/apply, and whitespace checks.
+  Fresh real plain and encrypted controller round trips pass the owner-signed Rust-store gate and request/reply delivery.
+  Actual backend checks then pass catalog discovery, Matrix icon metadata, set/reset acknowledgement, and refreshed selection.
+
+### Propose a model picker with Matrix-only discovery (2026-09-15)
+
+- Status: design proposal and standalone prototype; application behavior is unchanged.
+- `docs/mindroom-model-picker-design.md` describes encrypted to-device catalog discovery, existing room-command mutations, runtime/device validation, and implementation acceptance criteria.
+- Optional model `display_name` and `icon` fields preserve stable command keys; local icons are uploaded through Matrix and discovery returns Matrix media references.
+- `docs/previews/model-picker.html` demonstrates searchable names, provider grouping, custom logos, thread scope, default reset, pending acknowledgements, and desktop/mobile layouts with simulated data.
+- Screenshots are attached to the pull request with GitHub CLI's `--attach` flag.
+- Validation: all 4,191 tests pass under Node 24.13.1 in the standard Linux container; typecheck, build, lint (zero errors, 17 existing warnings), and changed-file formatting pass.
+- Chromium checks cover display-name/key/provider search, stable keys, custom logos, pending selection, reset, draft preservation, keyboard dismissal, and mobile bounds.
+- Independent review identified and corrected delayed-acknowledgement focus theft after picker dismissal and clarified runtime authentication for structured mutation results.
+- Next step: review the design, then implement and verify the runtime and client protocol together.
+
+### Restore the thinking marker's glass M in WebKit (2026-09-15)
+
+- Status: the missing artwork is reproduced and fixed, with local validation and independent review complete.
+- WebKit resolved the external SVG geometry but failed to paint its referenced gradients, leaving only solid-colored particles and the CSS glow.
+- One app-level `MindroomThinkingDefinitions` sheet now owns the bundled artwork, with namespaced IDs and local fragment references shared by every marker.
+  The sheet stays mounted outside routing and loading branches and avoids `display: none`, which also prevents referenced gradients from painting in WebKit.
+- The artwork lives in a separate JavaScript chunk so it and the main app chunk both stay below the service worker's 6 MiB precache limit.
+- The pixel regression failed on the old implementation with zero blue glass pixels, then passed with the fix in Chromium, Firefox, and WebKit.
+  It checks both chat sizes without an unrelated inline SVG masking the failure; the fixture also includes the application's base URL element.
+- Validation: all nine thinking-marker browser cases and all 4,191 unit tests pass.
+  Run the focused cross-browser suite with `npm run test:e2e -- --config=playwright.thinking-marker.config.ts` after installing the Playwright browsers.
+  Typecheck, production/PWA build, changed-file formatting, and ESLint pass with zero errors and the 17 existing warnings.
+  Independent review also verified the core's animated phase, unique IDs, resolved references, shared ownership, and precache entries.
+  The production app paints the M in WebKit at a nested route.
+- The 32 px size, nine-second flip/glow/flip sequence, and reduced-motion behavior remain as selected.
+
 ### Animate the thinking marker with the M logo (2026-09-15)
 
 - Status: the selected Flip, glow, flip sequence replaces the four-dot indicator in `MindroomThinkingPlaceholder`.
-- The marker uses a decorative inline SVG with references to the cached `thinking-mark.svg` asset; native CSS plays a horizontal flip, the glowing core, then a vertical flip, and repeats.
+- The marker uses a decorative inline SVG with references to shared in-page artwork definitions; native CSS plays a horizontal flip, the glowing core, then a vertical flip, and repeats.
 - The marker scales with text at 2 em (32 px beside 16 px text; 28 px beside compact 14 px text), keeps the existing rotating text and accessible responding status, and disappears through the existing message renderer when the answer starts or the run finishes.
-- Vite emits the artwork as a separate asset with a content hash in its name, and the service worker precaches it for offline rendering.
+- Vite bundles `thinking-mark.svg` in a separate JavaScript chunk with a content hash in its name, and the service worker precaches it for offline rendering.
 - `e2e/thinking-marker.spec.ts` exercises the real component, resolved SVG parts, sequential phases, loop boundary, text sizing, both themes, and reduced motion.
 - The four exploratory concepts remain available in `docs/previews/thinking-indicator.html` as design references.
 - Open that standalone HTML file in a browser to compare Tilt & turn, Gyroscope, Glowing core, and Flip, glow, flip using the detailed illuminated glass M from MindRoom’s `assets/logo/logo-mark.svg` (`main` at `d733862764de`).
@@ -59,9 +652,9 @@
 - Flip, glow, flip places Glowing core between the two original Tilt & turn flips on a repeating nine-second cycle. The original wind-ups, flips, and rebounds keep their speed; the resting gaps shrink to roughly half a second. The cube and glow hold still during the turns; the M holds still during the core animation.
 - The preview honors the operating system's reduced-motion preference.
 - The original geometry, gradients, masks, and layer order are preserved in one shared SVG definition set; Glowing core animates the original central cube.
-- Fidelity checks verify byte-identical source artwork, resolved SVG references, and pixel-identical rendering at 256 px. Chromium checks cover all controls, both reduced-motion modes, SVG rendering, mobile layout, and script errors.
-- Typecheck, lint, build, and changed-file formatting pass. All 4,192 tests pass under Node 24 in the standard Linux container; all six thinking-marker browser cases pass across Chromium, Firefox, and WebKit.
-- Next steps: review the selected 32 px marker and shorter pauses in PR #255, then merge when final checks are complete.
+- Initial fidelity checks verified source artwork and geometry, but the comparison page's inline definitions masked the WebKit external-gradient failure.
+  The follow-up above adds isolated painted-pixel coverage in the real component fixture.
+- PR #255 merged the selected 32 px marker and shorter pauses; the rendering fix is tracked above.
 - The comparison HTML is a design reference; the application uses the selected sequence from `MindroomThinkingPlaceholder.css.ts` and the shared production artwork.
 
 ### Refine command palette presentation and navigation (2026-09-15)

@@ -2144,6 +2144,31 @@
     }
   },
   "mindroomUi": {
+    "models": {
+      "modelPicker": {
+        "chooseModel": "Choose model",
+        "roomDefault": "Room default",
+        "modelForThread": "Model for this thread",
+        "appliesToThread": "Applies to all agents and teams for future replies in this thread.",
+        "search": "Search models",
+        "close": "Close model picker",
+        "useRoomDefault": "Use room default",
+        "roomDefaultDescription": "Let each agent use its configured model.",
+        "models": "Models",
+        "runtime": "Runtime",
+        "chooseRuntime": "Choose a runtime",
+        "runtimeLabel": "{{userId}} on {{deviceId}}",
+        "refresh": "Refresh models",
+        "retry": "Retry",
+        "loading": "Loading models",
+        "pending": "Waiting for model change",
+        "noResults": "No matching models",
+        "commandFallback": "You can still send !model with a model key in this thread.",
+        "inheritedModels": "Room defaults by agent: {{models}}",
+        "futureReplies": "Changes apply to future replies.",
+        "threadModel": "Thread model"
+      }
+    },
     "voice": {
       "discardRecording": "Discard voice recording",
       "pauseRecording": "Pause voice recording",
@@ -2601,7 +2626,8 @@
       "mindroomTab": {
         "localMindroom": "Local MindRoom"
       },
-      "resizeNavigationPanel": "Resize navigation panel"
+      "resizeNavigationPanel": "Resize navigation panel",
+      "resizeMemberPanel": "Resize member panel"
     },
     "threads": {
       "compactRoomView": {
@@ -2635,6 +2661,8 @@
         "youDoNotHavePermissionToPostInThisRoom": "You do not have permission to post in this room"
       },
       "mindroomRoomViewHeader": {
+        "showComputer": "Show Computer",
+        "hideComputer": "Hide Computer",
         "notifications": "Notifications",
         "compact": "Compact",
         "threads": "Threads",
@@ -2770,6 +2798,44 @@
         "threadInRoom": "Thread in {{roomName}}",
         "thread": "Thread"
       }
+    },
+    "uiActions": {
+      "viewComputer": "View computer",
+      "openMembers": "Open Members",
+      "computerUnavailable": "This agent’s computer is unavailable.",
+      "releaseControl": "Release computer control before opening another view.",
+      "openConversation": "Open this request from the room conversation.",
+      "settingsUnavailable": "Turn off Simple Mode to open this Settings section."
     }
+  },
+  "roomSchedules": {
+    "title": "Scheduled tasks",
+    "openLabel": "Scheduled tasks ({{total}})",
+    "empty": "No scheduled tasks in this room.",
+    "emptyHint": "Ask a MindRoom agent to schedule a task here.",
+    "prompt": "Prompt",
+    "promptUnavailable": "Prompt unavailable",
+    "once": "One-time",
+    "recurring": "Recurring",
+    "executionTime": "Execution time",
+    "unknownTime": "Execution time unavailable",
+    "awaitingExecution": "Awaiting execution",
+    "recurrence": "Recurrence",
+    "silent": "Silent",
+    "conditional": "Conditional",
+    "newThread": "New thread",
+    "roomTimeline": "Room timeline",
+    "openThread": "Open thread",
+    "owner": "Owner",
+    "createdAt": "Created",
+    "updatedAt": "Updated",
+    "model": "Model",
+    "inheritedModel": "From agent, room, or thread settings",
+    "taskId": "Task ID",
+    "historyLimit": "History limit",
+    "fullHistory": "Full history",
+    "noHistory": "No history",
+    "recentMessages": "Recent messages: {{total}}",
+    "close": "Close"
   }
 }

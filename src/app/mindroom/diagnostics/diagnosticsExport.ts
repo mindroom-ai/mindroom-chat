@@ -4,15 +4,69 @@ import {
   FLIGHT_RECORDER_SCHEMA_VERSION,
   normalizeFlightRecorderBuildVersion,
 } from './flightRecorder';
-import { DEEP_TRACE_SCHEMA_VERSION, getDeepTraceEnabled, readDeepTraceSnapshot } from './deepTrace';
+import {
+  DEEP_TRACE_SCHEMA_VERSION,
+  getDeepTraceEnabled,
+  getDeepTraceHealthSnapshot,
+  readDeepTraceSnapshot,
+  type DeepTraceSnapshot,
+} from './deepTrace';
+import {
+  createEmptyNativeDiagnosticsSnapshot,
+  NATIVE_DIAGNOSTICS_SCHEMA_VERSION,
+  readNativeDiagnostics,
+} from './nativeDiagnostics';
 
-export const DIAGNOSTICS_EXPORT_SCHEMA_VERSION = 2;
+export const DIAGNOSTICS_EXPORT_SCHEMA_VERSION = 3;
+
+const COLLECTOR_TIMEOUT_MS = 5_000;
+
+const emptyDeepTraceSnapshot = (
+  status: Extract<DeepTraceSnapshot['status'], 'unavailable' | 'timeout'>
+): DeepTraceSnapshot => ({
+  schemaVersion: DEEP_TRACE_SCHEMA_VERSION,
+  enabled: getDeepTraceEnabled(),
+  status,
+  stats: {
+    eventCount: 0,
+    byteCount: 0,
+    droppedEventCount: 0,
+    oldestAt: null,
+    newestAt: null,
+  },
+  events: [],
+});
+
+const withDeadline = async <T>(collector: Promise<T>, timeoutValue: T): Promise<T> => {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      collector,
+      new Promise<T>((resolve) => {
+        timer = setTimeout(() => resolve(timeoutValue), COLLECTOR_TIMEOUT_MS);
+      }),
+    ]);
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+  }
+};
+
+const collectDeepTrace = (): Promise<DeepTraceSnapshot> =>
+  withDeadline(
+    readDeepTraceSnapshot().catch(() => emptyDeepTraceSnapshot('unavailable')),
+    emptyDeepTraceSnapshot('timeout')
+  );
+
+const collectNativeDiagnostics = () =>
+  withDeadline(
+    readNativeDiagnostics().catch(() => createEmptyNativeDiagnosticsSnapshot('unavailable')),
+    createEmptyNativeDiagnosticsSnapshot('timeout')
+  );
 
 export const buildDiagnosticsExport = async (): Promise<{ fileName: string; blob: Blob }> => {
   const exportedAt = Date.now();
   let flightRecorderPayload: ReturnType<typeof buildFlightRecorderPayload>;
   let flightRecorderStatus: 'available' | 'unavailable' = 'available';
-  let deepTrace: Awaited<ReturnType<typeof readDeepTraceSnapshot>>;
 
   try {
     flightRecorderPayload = buildFlightRecorderPayload();
@@ -30,23 +84,11 @@ export const buildDiagnosticsExport = async (): Promise<{ fileName: string; blob
     };
   }
 
-  try {
-    deepTrace = await readDeepTraceSnapshot();
-  } catch {
-    deepTrace = {
-      schemaVersion: DEEP_TRACE_SCHEMA_VERSION,
-      enabled: getDeepTraceEnabled(),
-      status: 'unavailable',
-      stats: {
-        eventCount: 0,
-        byteCount: 0,
-        droppedEventCount: 0,
-        oldestAt: null,
-        newestAt: null,
-      },
-      events: [],
-    };
-  }
+  const [deepTrace, nativeDiagnostics] = await Promise.all([
+    collectDeepTrace(),
+    collectNativeDiagnostics(),
+  ]);
+  const deepTraceHealth = getDeepTraceHealthSnapshot();
 
   const payload = {
     ...flightRecorderPayload,
@@ -56,9 +98,12 @@ export const buildDiagnosticsExport = async (): Promise<{ fileName: string; blob
       exportSchemaVersion: DIAGNOSTICS_EXPORT_SCHEMA_VERSION,
       flightRecorderSchemaVersion: FLIGHT_RECORDER_SCHEMA_VERSION,
       deepTraceSchemaVersion: DEEP_TRACE_SCHEMA_VERSION,
+      nativeDiagnosticsSchemaVersion: NATIVE_DIAGNOSTICS_SCHEMA_VERSION,
       exportedAt,
     },
     deepTrace,
+    deepTraceHealth,
+    nativeDiagnostics,
   };
   const timestamp = new Date(exportedAt).toISOString().replace(/[:.]/g, '-');
   return {

@@ -99,6 +99,7 @@ export function TimelineMessageBody({
     const senderId = event.getSender() ?? '';
     const common = {
       ...contentPolicy,
+      mEvent: event,
       displayName: getMemberDisplayName(room, senderId) ?? getMxIdLocalPart(senderId) ?? senderId,
       eventType: event.getType(),
       ts: event.getTs(),

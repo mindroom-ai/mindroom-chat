@@ -1,19 +1,7 @@
 import { useTranslation } from 'react-i18next';
 /* eslint-disable react/destructuring-assignment */
 import React, { MouseEventHandler, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import {
-  Avatar,
-  Box,
-  Chip,
-  Header,
-  Icon,
-  IconButton,
-  Icons,
-  Scroll,
-  Text,
-  config,
-  toRem,
-} from 'folds';
+import { Avatar, Box, Chip, Icon, IconButton, Icons, Scroll, Text, config, toRem } from 'folds';
 import { useSearchParams } from 'react-router-dom';
 import {
   INotification,
@@ -28,6 +16,7 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import { HTMLReactParserOptions } from 'html-react-parser';
 import { Opts as LinkifyOpts } from 'linkifyjs';
 import { useAtomValue } from 'jotai';
+import { Header } from '../../../components/glass/GlassPrimitives';
 import { Page, PageContent, PageContentCenter, PageHeader } from '../../../components/page';
 import { useMatrixClient } from '../../../hooks/useMatrixClient';
 import { getMxIdLocalPart, mxcUrlToHttp } from '../../../utils/matrix';

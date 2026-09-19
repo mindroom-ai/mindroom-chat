@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { MatrixEvent } from 'matrix-js-sdk/lib/models/event';
 import {
   buildRoomThreadScheduledStatusMap,
@@ -62,6 +62,29 @@ describe('threadScheduledStatus', () => {
     });
     expect(statusMap.has('$thread-3')).toBe(false);
   });
+
+  it.each(['America/Los_Angeles', 'Asia/Tokyo'])(
+    'uses scheduler UTC timing outside UTC (%s)',
+    (timezone) => {
+      vi.stubEnv('TZ', timezone);
+      try {
+        const statusMap = buildRoomThreadScheduledStatusMap(
+          [
+            makeScheduledEvent({ stateKey: 'future', executeAt: '2026-09-16T09:30:00' }),
+            makeScheduledEvent({ stateKey: 'expired', executeAt: '2026-09-16 08:30:00' }),
+          ],
+          Date.parse('2026-09-16T09:00:00Z')
+        );
+
+        expect(getThreadScheduledStatus(statusMap, '$thread')).toEqual({
+          scheduledTaskCount: 1,
+          nextScheduledTs: 1789551000000,
+        });
+      } finally {
+        vi.unstubAllEnvs();
+      }
+    }
+  );
 
   it('uses count fallback when any task lacks a trustworthy timestamp', () => {
     const statusMap = buildRoomThreadScheduledStatusMap(

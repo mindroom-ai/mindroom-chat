@@ -12,8 +12,9 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import { Avatar, Icon, Icons, Input, MenuItem, Text } from 'folds';
+import { Avatar, Icon, Icons, Input, Text } from 'folds';
 import type { Room } from 'matrix-js-sdk';
+import { MenuItem } from '../glass/GlassPrimitives';
 
 import { useInviteUserSearch } from '../../hooks/useInviteUserSearch';
 import { useListFocusIndex } from '../../hooks/useListFocusIndex';

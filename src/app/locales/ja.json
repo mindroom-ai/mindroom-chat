@@ -2144,6 +2144,31 @@
     }
   },
   "mindroomUi": {
+    "models": {
+      "modelPicker": {
+        "chooseModel": "Choose model",
+        "roomDefault": "Room default",
+        "modelForThread": "Model for this thread",
+        "appliesToThread": "Applies to all agents and teams for future replies in this thread.",
+        "search": "Search models",
+        "close": "Close model picker",
+        "useRoomDefault": "Use room default",
+        "roomDefaultDescription": "Let each agent use its configured model.",
+        "models": "Models",
+        "runtime": "Runtime",
+        "chooseRuntime": "Choose a runtime",
+        "runtimeLabel": "{{userId}} on {{deviceId}}",
+        "refresh": "Refresh models",
+        "retry": "Retry",
+        "loading": "Loading models",
+        "pending": "Waiting for model change",
+        "noResults": "No matching models",
+        "commandFallback": "You can still send !model with a model key in this thread.",
+        "inheritedModels": "Room defaults by agent: {{models}}",
+        "futureReplies": "Changes apply to future replies.",
+        "threadModel": "Thread model"
+      }
+    },
     "voice": {
       "discardRecording": "音声録音を破棄する",
       "pauseRecording": "音声録音を一時停止する",
@@ -2601,7 +2626,8 @@
       "mindroomTab": {
         "localMindroom": "Local MindRoom"
       },
-      "resizeNavigationPanel": "ナビゲーションパネルのサイズを変更"
+      "resizeNavigationPanel": "ナビゲーションパネルのサイズを変更",
+      "resizeMemberPanel": "メンバーパネルのサイズを変更"
     },
     "threads": {
       "compactRoomView": {
@@ -2635,6 +2661,8 @@
         "youDoNotHavePermissionToPostInThisRoom": "このルームに投稿する権限がありません"
       },
       "mindroomRoomViewHeader": {
+        "showComputer": "コンピューターを表示",
+        "hideComputer": "コンピューターを非表示",
         "notifications": "通知",
         "compact": "コンパクト",
         "threads": "スレッド",
@@ -2770,6 +2798,44 @@
         "threadInRoom": "{{roomName}} のスレッド",
         "thread": "スレッド"
       }
+    },
+    "uiActions": {
+      "viewComputer": "コンピューターを表示",
+      "openMembers": "メンバーを開く",
+      "computerUnavailable": "このエージェントのコンピューターは利用できません。",
+      "releaseControl": "別の画面を開く前にコンピューターの操作権を手放してください。",
+      "openConversation": "ルームの会話からこのリクエストを開いてください。",
+      "settingsUnavailable": "この設定項目を開くには、シンプルモードをオフにしてください。"
     }
+  },
+  "roomSchedules": {
+    "title": "スケジュールされたタスク",
+    "openLabel": "スケジュールされたタスク（{{total}}）",
+    "empty": "このルームにはスケジュールされたタスクがありません。",
+    "emptyHint": "MindRoom AIエージェントに、このルームでタスクをスケジュールするよう依頼してください。",
+    "prompt": "プロンプト",
+    "promptUnavailable": "プロンプトを利用できません",
+    "once": "一回限り",
+    "recurring": "繰り返し",
+    "executionTime": "実行時刻",
+    "unknownTime": "実行時刻を利用できません",
+    "awaitingExecution": "実行待ち",
+    "recurrence": "繰り返し",
+    "silent": "サイレント",
+    "conditional": "条件付き",
+    "newThread": "新しいスレッド",
+    "roomTimeline": "ルームのタイムライン",
+    "openThread": "スレッドを開く",
+    "owner": "タスク所有者",
+    "createdAt": "作成日時",
+    "updatedAt": "更新日時",
+    "model": "モデル",
+    "inheritedModel": "エージェント、ルーム、またはスレッドの設定から",
+    "taskId": "タスク ID",
+    "historyLimit": "履歴の上限",
+    "fullHistory": "すべての履歴",
+    "noHistory": "履歴なし",
+    "recentMessages": "最近のメッセージ：{{total}}",
+    "close": "閉じる"
   }
 }

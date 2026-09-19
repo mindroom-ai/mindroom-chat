@@ -2171,6 +2171,31 @@
     }
   },
   "mindroomUi": {
+    "models": {
+      "modelPicker": {
+        "chooseModel": "Choose model",
+        "roomDefault": "Room default",
+        "modelForThread": "Model for this thread",
+        "appliesToThread": "Applies to all agents and teams for future replies in this thread.",
+        "search": "Search models",
+        "close": "Close model picker",
+        "useRoomDefault": "Use room default",
+        "roomDefaultDescription": "Let each agent use its configured model.",
+        "models": "Models",
+        "runtime": "Runtime",
+        "chooseRuntime": "Choose a runtime",
+        "runtimeLabel": "{{userId}} on {{deviceId}}",
+        "refresh": "Refresh models",
+        "retry": "Retry",
+        "loading": "Loading models",
+        "pending": "Waiting for model change",
+        "noResults": "No matching models",
+        "commandFallback": "You can still send !model with a model key in this thread.",
+        "inheritedModels": "Room defaults by agent: {{models}}",
+        "futureReplies": "Changes apply to future replies.",
+        "threadModel": "Thread model"
+      }
+    },
     "voice": {
       "discardRecording": "Scarta registrazione vocale",
       "pauseRecording": "Metti in pausa la registrazione vocale",
@@ -2647,7 +2672,8 @@
       "mindroomTab": {
         "localMindroom": "MindRoom locale"
       },
-      "resizeNavigationPanel": "Ridimensiona il pannello di navigazione"
+      "resizeNavigationPanel": "Ridimensiona il pannello di navigazione",
+      "resizeMemberPanel": "Ridimensiona il pannello dei membri"
     },
     "threads": {
       "compactRoomView": {
@@ -2681,6 +2707,8 @@
         "youDoNotHavePermissionToPostInThisRoom": "Non hai l’autorizzazione per scrivere in questa stanza"
       },
       "mindroomRoomViewHeader": {
+        "showComputer": "Mostra computer",
+        "hideComputer": "Nascondi computer",
         "notifications": "Notifiche",
         "compact": "Compatto",
         "threads": "Thread",
@@ -2823,6 +2851,44 @@
         "threadInRoom": "Thread in {{roomName}}",
         "thread": "Thread"
       }
+    },
+    "uiActions": {
+      "viewComputer": "Visualizza computer",
+      "openMembers": "Apri membri",
+      "computerUnavailable": "Il computer di questo agente non è disponibile.",
+      "releaseControl": "Rilascia il controllo del computer prima di aprire un’altra vista.",
+      "openConversation": "Apri questa richiesta dalla conversazione della stanza.",
+      "settingsUnavailable": "Disattiva la modalità semplice per aprire questa sezione delle impostazioni."
     }
+  },
+  "roomSchedules": {
+    "title": "Attività pianificate",
+    "openLabel": "Attività pianificate ({{total}})",
+    "empty": "Nessuna attività pianificata in questa stanza.",
+    "emptyHint": "Chiedi a un agente MindRoom di pianificare un’attività qui.",
+    "prompt": "Prompt",
+    "promptUnavailable": "Prompt non disponibile",
+    "once": "Una tantum",
+    "recurring": "Ricorrente",
+    "executionTime": "Ora di esecuzione",
+    "unknownTime": "Ora di esecuzione non disponibile",
+    "awaitingExecution": "In attesa di esecuzione",
+    "recurrence": "Ricorrenza",
+    "silent": "Silenziosa",
+    "conditional": "Condizionale",
+    "newThread": "Nuovo thread",
+    "roomTimeline": "Cronologia della stanza",
+    "openThread": "Apri thread",
+    "owner": "Proprietario dell’attività",
+    "createdAt": "Creata",
+    "updatedAt": "Aggiornata",
+    "model": "Modello",
+    "inheritedModel": "Dalle impostazioni dell’agente, della stanza o del thread",
+    "taskId": "ID attività",
+    "historyLimit": "Limite cronologia",
+    "fullHistory": "Cronologia completa",
+    "noHistory": "Nessuna cronologia",
+    "recentMessages": "Messaggi recenti: {{total}}",
+    "close": "Chiudi"
   }
 }

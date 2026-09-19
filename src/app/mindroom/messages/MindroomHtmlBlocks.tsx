@@ -122,7 +122,12 @@ function MindroomCollapsibleBlock({
 
   return (
     <Text as="div" size="T300" className={css.Block}>
-      <button type="button" className={css.BlockHeader} onClick={() => setExpanded((v) => !v)}>
+      <button
+        type="button"
+        className={css.BlockHeader}
+        aria-expanded={expanded}
+        onClick={() => setExpanded((v) => !v)}
+      >
         <Box grow="Yes" className={css.BlockHeaderMeta}>
           <Icon size="50" src={icon} />
           {pending !== undefined && <ToolStatusBadge pending={pending} />}
@@ -141,7 +146,12 @@ function MindroomCollapsibleBlock({
             </Text>
           )}
         </Box>
-        <Icon size="50" src={expanded ? Icons.ChevronTop : Icons.ChevronBottom} />
+        <Icon
+          size="50"
+          className={css.BlockChevron}
+          src={expanded ? Icons.ChevronTop : Icons.ChevronBottom}
+          aria-hidden
+        />
       </button>
       {expanded && <Box className={css.BlockBody}>{children}</Box>}
     </Text>

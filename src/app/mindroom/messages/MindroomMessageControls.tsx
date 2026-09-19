@@ -1,12 +1,9 @@
 import { useTranslation } from 'react-i18next';
 import {
   Box,
-  Dialog,
-  Header,
   Icon,
   IconButton,
   Icons,
-  MenuItem,
   Overlay,
   OverlayBackdrop,
   OverlayCenter,
@@ -17,6 +14,7 @@ import {
 } from 'folds';
 import React, { ReactNode, useCallback, useMemo, useRef, useState } from 'react';
 import FocusTrap from 'focus-trap-react';
+import { Dialog, Header, MenuItem } from '../../components/glass/GlassPrimitives';
 import { AsyncStatus, useAsyncCallback } from '../../hooks/useAsyncCallback';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useMediaAuthentication } from '../../hooks/useMediaAuthentication';

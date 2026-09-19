@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next';
-import React, { useCallback, useRef } from 'react';
+import React, { useCallback, useLayoutEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Box, Text, config } from 'folds';
 import { EventType, Room } from 'matrix-js-sdk';
 import { ReactEditor } from 'slate-react';
@@ -32,6 +33,9 @@ import { useRoomViewThreadState } from './useRoomViewThreadState';
 import { isLocalEchoEventId } from './threadRouteUtils';
 import { ThreadApprovalProvider } from '../messages/ThreadApprovalProvider';
 import { ThreadApprovalQueue } from '../messages/ThreadApprovalControls';
+import { computerOwnsKeyboardEvent, computerOwnsKeyboardFocus } from '../computer/computerFocus';
+
+import * as overlay from './RoomOverlay.css';
 
 const FN_KEYS_REGEX = /^F\d+$/;
 const shouldFocusMessageField = (evt: KeyboardEvent): boolean => {
@@ -66,6 +70,9 @@ const shouldFocusMessageField = (evt: KeyboardEvent): boolean => {
 
 export function RoomView({
   room,
+  computerAvailable = false,
+  computerOpen = false,
+  onComputerToggle,
   hasMindroomAgents = true,
   joinRequestCount = 0,
   eventId,
@@ -74,6 +81,9 @@ export function RoomView({
   onThreadLoadError,
 }: {
   room: Room;
+  computerAvailable?: boolean;
+  computerOpen?: boolean;
+  onComputerToggle?: () => void;
   hasMindroomAgents?: boolean;
   joinRequestCount?: number;
   eventId?: string;
@@ -84,6 +94,9 @@ export function RoomView({
   const { t } = useTranslation();
   const roomInputRef = useRef<HTMLDivElement>(null);
   const roomViewRef = useRef<HTMLDivElement>(null);
+  const headerRef = useRef<HTMLDivElement>(null);
+  const footerRef = useRef<HTMLDivElement>(null);
+  const [approvalQueueHost, setApprovalQueueHost] = useState<HTMLDivElement | null>(null);
   const compactRoomScrollStateRef = useRef(new Map<string, number>());
 
   const [hideActivity] = useSetting(settingsAtom, 'hideActivity');
@@ -122,6 +135,17 @@ export function RoomView({
     threadSummaryInfo,
     viewMode,
   } = useRoomViewThreadState({ eventId, hasMindroomAgents, room, threadId });
+  useLayoutEffect(() => {
+    const root = roomViewRef.current;
+    const header = headerRef.current;
+    if (!root || !header) return undefined;
+    const measure = () =>
+      root.style.setProperty('--room-header-height', header.offsetHeight + 'px');
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(header);
+    return () => observer.disconnect();
+  }, [roomId, effectiveThreadId]);
   const pendingThreadRoot = isLocalEchoEventId(effectiveThreadId);
 
   useKeyDown(
@@ -129,6 +153,7 @@ export function RoomView({
     useCallback(
       (evt) => {
         if (pendingThreadRoot) return;
+        if (computerOwnsKeyboardEvent(evt) || computerOwnsKeyboardFocus()) return;
         if (editableActiveElement()) return;
         if (hasBlockingPortalOverlay()) return;
         if (shouldFocusMessageField(evt) || isKeyHotkey('mod+v', evt)) {
@@ -140,21 +165,22 @@ export function RoomView({
   );
 
   return (
-    <Page ref={roomViewRef}>
+    <Page ref={roomViewRef} style={{ position: 'relative' }}>
       <ThreadApprovalProvider
         room={room}
         threadId={pendingThreadRoot ? undefined : effectiveThreadId}
         focusConversation={focusConversation}
       >
-        <RoomViewHeader threadId={effectiveThreadId} joinRequestCount={joinRequestCount} />
-        {effectiveThreadId && (
-          <ThreadContextBanner
-            room={room}
+        <div ref={headerRef} className={overlay.Header}>
+          <RoomViewHeader
+            hasMindroomAgents={hasMindroomAgents}
+            computerAvailable={computerAvailable}
+            computerOpen={computerOpen}
+            onComputerToggle={onComputerToggle}
             threadId={effectiveThreadId}
-            summaryInfo={threadSummaryInfo}
-            onExitThread={handleExitThread}
+            joinRequestCount={joinRequestCount}
           />
-        )}
+        </div>
         <Box grow="Yes" direction="Column">
           <RoomTimeline
             key={`${roomId}:${effectiveThreadId ?? ''}`}
@@ -163,6 +189,16 @@ export function RoomView({
             eventId={eventId}
             focusEventInRoom={focusEventInRoom}
             threadId={effectiveThreadId}
+            threadHeader={
+              effectiveThreadId && (
+                <ThreadContextBanner
+                  room={room}
+                  threadId={effectiveThreadId}
+                  summaryInfo={threadSummaryInfo}
+                  onExitThread={handleExitThread}
+                />
+              )
+            }
             threadFilterState={threadFilterState}
             threadSortFreezeState={threadSortFreezeState}
             onToggle={handleToggle}
@@ -182,14 +218,22 @@ export function RoomView({
             summaryMap={summaryMap}
             onStoreThreadSummary={storeThreadSummary}
             roomInputRef={roomInputRef}
+            roomFooterRef={footerRef}
             compactRoomScrollStateRef={compactRoomScrollStateRef}
             editor={editor}
           />
-          <RoomViewTyping room={room} />
         </Box>
-        <ThreadApprovalQueue />
+        {approvalQueueHost && createPortal(<ThreadApprovalQueue />, approvalQueueHost)}
       </ThreadApprovalProvider>
-      <Box shrink="No" direction="Column">
+      <Box
+        ref={footerRef}
+        className={overlay.Footer}
+        shrink="No"
+        direction="Column"
+        data-room-footer="true"
+      >
+        <RoomViewTyping room={room} />
+        <div ref={setApprovalQueueHost} />
         <div style={{ padding: `0 ${config.space.S400}` }}>
           {tombstoneEvent ? (
             <RoomTombstone
@@ -246,7 +290,9 @@ export function RoomView({
             </>
           )}
         </div>
-        {hideActivity ? <RoomViewFollowingPlaceholder /> : <RoomViewFollowing room={room} />}
+        <div data-room-following="true">
+          {hideActivity ? <RoomViewFollowingPlaceholder /> : <RoomViewFollowing room={room} />}
+        </div>
       </Box>
     </Page>
   );

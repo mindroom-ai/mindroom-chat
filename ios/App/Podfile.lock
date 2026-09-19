@@ -1,5 +1,5 @@
 PODS:
-  - Capacitor (8.1.0):
+  - Capacitor (8.5.2):
     - CapacitorCordova
   - CapacitorApp (8.0.1):
     - Capacitor
@@ -9,7 +9,7 @@ PODS:
     - Capacitor
   - CapacitorClipboard (8.0.1):
     - Capacitor
-  - CapacitorCordova (8.1.0)
+  - CapacitorCordova (8.5.2)
   - CapacitorHaptics (8.0.0):
     - Capacitor
   - CapacitorKeyboard (8.0.0):
@@ -59,12 +59,12 @@ EXTERNAL SOURCES:
     :path: "../../node_modules/@capacitor/status-bar"
 
 SPEC CHECKSUMS:
-  Capacitor: 830fc6ff88e99bb5ba48350f02c01ab01ba3b2b8
+  Capacitor: 59aea4e8bd98b24b798919b4c55ae90c6ded1b0d
   CapacitorApp: fcd990168c3249d2c5a7ae94920a031d05789e73
   CapacitorAppLauncher: fc7c313549920528d0f28493b60d20de679deba4
   CapacitorBrowser: 6a7fed906d5f7cc58bc09d145bdb57c8243a235a
   CapacitorClipboard: 1ba60616f1b2d3df52417000217ec810216bbbaf
-  CapacitorCordova: e8b76fd95fc1e157775abc484c59cc0de464095d
+  CapacitorCordova: 5bec5648cbd09a176ce34ce5e7b6cdabb2c8a327
   CapacitorHaptics: 7a77ce744c4b516b3ffd7f8c96d3de574d77b898
   CapacitorKeyboard: 0a2e7c0635ccf3db60abed14bd6f35147ce25942
   CapacitorPushNotifications: 3f34fa7041f65ffb6d1aed24d7f3d5a8abf53db2

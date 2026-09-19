@@ -11,7 +11,6 @@ import {
   Icon,
   IconButton,
   Icons,
-  Menu,
   percent,
   PopOut,
   ProgressBar,
@@ -20,6 +19,7 @@ import {
   Text,
 } from 'folds';
 import FocusTrap from 'focus-trap-react';
+import { Menu } from './glass/GlassPrimitives';
 import { BackupProgressStatus, backupRestoreProgressAtom } from '../state/backupRestore';
 import { InfoCard } from './info-card';
 import { AsyncStatus, useAsyncCallback } from '../hooks/useAsyncCallback';
