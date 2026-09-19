@@ -16,6 +16,8 @@
   Mounted tiles fall from 711–721 to 11, with no remaining empty relation tiles.
   Paint time falls from 803–848 ms to 280–318 ms; total main-thread task time falls from 5.20–5.23 s to 4.84–4.91 s.
   The p95 frame gap remains about 133 ms, so this removes avoidable rendering work without resolving the remaining streaming stalls or establishing native iPhone frame rates.
+  With 1,800 historical edits, two further runs per build reduce mounted tiles from 1,724–1,754 to 11, paint time from 1.33–1.41 s to 260–271 ms, and p95 frame gaps from 200–233 ms to about 150 ms.
+  The heavier replay demonstrates improved frame timing as edit history grows, with substantial stalls still remaining.
 - Validation: all 4,623 tests across 546 files, application and browser-test typechecks, production/PWA build, and changed-file formatting pass.
   ESLint reports zero errors and the existing 17 warnings.
   Independent review found no remaining correctness or scroll-accounting issues.
