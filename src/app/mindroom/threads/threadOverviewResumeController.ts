@@ -80,6 +80,7 @@ export const useThreadOverviewResumeController = ({
   // (kind: 'thread-backfill'), and the resume trigger is naturally
   // rate-limited by the 1s window below plus the scheduler's dedup.
   const lastOverviewResumeRefreshTsRef = useRef(0);
+  const roomThreadListAbortControllerRef = useRef<AbortController>();
   const { overviewResumeRefreshIds: targetThreadIds } = useMemo(
     () =>
       resolveThreadOverviewRefreshTargets({
@@ -111,6 +112,22 @@ export const useThreadOverviewResumeController = ({
   useEffect(() => {
     lastOverviewResumeRefreshTsRef.current = 0;
   }, [room.roomId]);
+
+  useEffect(() => {
+    if (threadId || compactViewRequested) {
+      roomThreadListAbortControllerRef.current = undefined;
+      return undefined;
+    }
+
+    const abortController = new AbortController();
+    roomThreadListAbortControllerRef.current = abortController;
+    return () => {
+      abortController.abort();
+      if (roomThreadListAbortControllerRef.current === abortController) {
+        roomThreadListAbortControllerRef.current = undefined;
+      }
+    };
+  }, [compactViewRequested, room, threadId]);
 
   // CINNY-207 P4.4: route each per-thread refresh through the engine
   // scheduler as a `thread-backfill` job. AC8 dedup means a resume
@@ -203,7 +220,10 @@ export const useThreadOverviewResumeController = ({
           if (compactViewRequested) {
             await refreshCompactThreadList();
           } else {
-            await loadRoomThreads(room);
+            const signal = roomThreadListAbortControllerRef.current?.signal;
+            if (!signal || signal.aborted) return;
+            await loadRoomThreads(room, undefined, signal);
+            if (signal.aborted) return;
           }
 
           if (!alive() || threadIdRef.current) return;

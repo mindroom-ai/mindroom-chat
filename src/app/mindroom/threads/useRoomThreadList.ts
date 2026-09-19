@@ -1,5 +1,5 @@
 import { Room, ThreadEvent } from 'matrix-js-sdk';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   getRoomThreadsUnread,
   loadRoomThreads,
@@ -14,6 +14,7 @@ export const useRoomThreadList = (room: Room, enabled = true) => {
   const [loadedSuccessfully, setLoadedSuccessfully] = useState(false);
   const [error, setError] = useState<Error>();
   const [version, setVersion] = useState(0);
+  const lifecycleAbortControllerRef = useRef<AbortController>();
 
   const handleThreadListProgress = useCallback(() => {
     setLoadedSuccessfully(true);
@@ -26,16 +27,26 @@ export const useRoomThreadList = (room: Room, enabled = true) => {
       setLoadedSuccessfully(false);
       return;
     }
+    const signal = lifecycleAbortControllerRef.current?.signal;
+    if (!signal || signal.aborted) return;
+
     setLoading(true);
     setLoadedSuccessfully(false);
     setError(undefined);
 
     try {
-      await loadRoomThreads(room, handleThreadListProgress);
+      await loadRoomThreads(
+        room,
+        () => {
+          if (!signal.aborted) handleThreadListProgress();
+        },
+        signal
+      );
     } catch (err) {
+      if (signal.aborted) return;
       setError(err as Error);
     } finally {
-      setLoading(false);
+      if (!signal.aborted) setLoading(false);
     }
   }, [enabled, handleThreadListProgress, room]);
 
@@ -47,30 +58,38 @@ export const useRoomThreadList = (room: Room, enabled = true) => {
       return undefined;
     }
 
-    let mounted = true;
+    const abortController = new AbortController();
+    lifecycleAbortControllerRef.current = abortController;
 
     setLoading(true);
     setLoadedSuccessfully(false);
     setError(undefined);
 
-    loadRoomThreads(room, () => {
-      if (!mounted) return;
-      handleThreadListProgress();
-    })
+    loadRoomThreads(
+      room,
+      () => {
+        if (abortController.signal.aborted) return;
+        handleThreadListProgress();
+      },
+      abortController.signal
+    )
       .then(() => {
-        if (!mounted) return;
+        if (abortController.signal.aborted) return;
       })
       .catch((err: unknown) => {
-        if (!mounted) return;
+        if (abortController.signal.aborted) return;
         setError(err as Error);
       })
       .finally(() => {
-        if (!mounted) return;
+        if (abortController.signal.aborted) return;
         setLoading(false);
       });
 
     return () => {
-      mounted = false;
+      abortController.abort();
+      if (lifecycleAbortControllerRef.current === abortController) {
+        lifecycleAbortControllerRef.current = undefined;
+      }
     };
   }, [enabled, handleThreadListProgress, room]);
 

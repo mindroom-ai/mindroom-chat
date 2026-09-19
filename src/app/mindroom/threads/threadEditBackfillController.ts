@@ -1,4 +1,4 @@
-import { useEffect, useRef, type MutableRefObject, type RefObject } from 'react';
+import { useEffect, useRef, useState, type MutableRefObject, type RefObject } from 'react';
 import {
   Direction,
   RelationType,
@@ -80,6 +80,10 @@ export const useThreadEditBackfillController = ({
   // deletes its entry only if the map still holds its own token, so
   // ownership is unambiguous and cross-run deletion is impossible.
   const inFlightRef = useRef<Map<string, symbol>>(new Map());
+  // The four-worker limit belongs to the mounted controller, not to each
+  // effect run. Streaming renders must not start overlapping worker pools.
+  const activeBatchRef = useRef<{ rerunRequested: boolean }>();
+  const [batchCompletion, setBatchCompletion] = useState(0);
   // A `threadEvents` churn (which is frequent) must NOT cancel an
   // in-flight fetch — its result is still valid for the same thread, and
   // cancelling was what stranded the placeholder band. So work is bound
@@ -102,6 +106,12 @@ export const useThreadEditBackfillController = ({
       threadEditFetchAttemptedRef.current = new WeakMap<MatrixEvent, number>();
     }
     if (!threadId || threadEvents.length === 0) return undefined;
+    if (activeBatchRef.current) {
+      // Re-read the latest committed candidates once this batch completes,
+      // including when all its requests succeed without finding an edit.
+      activeBatchRef.current.rerunRequested = true;
+      return undefined;
+    }
     const targetedOpen = !!eventId;
     const inFlight = inFlightRef.current;
     const isStale = () => unmountedRef.current || threadIdRef.current !== threadId;
@@ -301,7 +311,14 @@ export const useThreadEditBackfillController = ({
       }
     };
 
-    loadMissingThreadEdits();
+    const batch = { rerunRequested: false };
+    activeBatchRef.current = batch;
+    void loadMissingThreadEdits().finally(() => {
+      activeBatchRef.current = undefined;
+      if (batch.rerunRequested && !unmountedRef.current) {
+        setBatchCompletion((value) => value + 1);
+      }
+    });
 
     // No cleanup cancellation: a threadEvents churn must let in-flight
     // fetches finish and apply (cancelling them stranded the band). Stale
@@ -311,6 +328,7 @@ export const useThreadEditBackfillController = ({
   }, [
     approvalRepairOwned,
     atLiveEndRef,
+    batchCompletion,
     eventId,
     forceTimelineUpdate,
     mx,

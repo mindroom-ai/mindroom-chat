@@ -118,6 +118,99 @@ describe('useThreadEditBackfillController (task #129)', () => {
   beforeEach(() => vi.useRealTimers());
   afterEach(() => vi.restoreAllMocks());
 
+  it('keeps the repair request limit across streaming renders and drains every placeholder', async () => {
+    const harness = makeHarness();
+    const targets = Array.from({ length: 24 }, (_, index) => makePlaceholder(`$burst-${index}`));
+    const { props } = makeProps(harness, targets);
+    let renderer!: ReactTestRenderer;
+    await act(async () => {
+      renderer = create(React.createElement(Harness, props));
+    });
+    try {
+      expect(harness.relations).toHaveBeenCalledTimes(4);
+      for (let render = 0; render < 5; render += 1) {
+        // Streaming and cache hydration both replace the event-array identity.
+        // eslint-disable-next-line no-await-in-loop
+        await act(async () => {
+          renderer.update(React.createElement(Harness, { ...props, threadEvents: [...targets] }));
+        });
+      }
+      expect(harness.relations).toHaveBeenCalledTimes(4);
+
+      for (let start = 0; start < targets.length; start += 4) {
+        // eslint-disable-next-line no-await-in-loop
+        await act(async () => {
+          targets.slice(start, start + 4).forEach((event) => {
+            harness.deferreds.get(event.getId()!)!.resolve();
+          });
+          await flush();
+        });
+      }
+      expect(targets.every((event) => event.getContent().body === 'resolved')).toBe(true);
+      expect(harness.relations).toHaveBeenCalledTimes(targets.length);
+    } finally {
+      act(() => renderer.unmount());
+    }
+  });
+
+  it('repairs newly arrived candidates after a busy batch returns no edits', async () => {
+    const harness = makeHarness();
+    let release!: () => void;
+    const pending = new Promise<{ events: MatrixEvent[] }>((resolve) => {
+      release = () => resolve({ events: [] });
+    });
+    for (let index = 0; index < 4; index += 1) harness.relations.mockReturnValueOnce(pending);
+    const initial = Array.from({ length: 4 }, (_, index) => makePlaceholder(`$empty-${index}`));
+    const arrival = makePlaceholder('$arrival');
+    const { props } = makeProps(harness, initial);
+    let renderer!: ReactTestRenderer;
+    await act(async () => {
+      renderer = create(React.createElement(Harness, props));
+    });
+    try {
+      await act(async () => {
+        renderer.update(
+          React.createElement(Harness, { ...props, threadEvents: [...initial, arrival] })
+        );
+      });
+      expect(harness.relations).toHaveBeenCalledTimes(4);
+      await act(async () => {
+        release();
+        await flush();
+      });
+      expect(harness.relations).toHaveBeenCalledTimes(5);
+      await act(async () => {
+        harness.deferreds.get('$arrival')!.resolve();
+        await flush();
+      });
+      expect(arrival.getContent().body).toBe('resolved');
+      expect(harness.relations).toHaveBeenCalledTimes(5);
+    } finally {
+      act(() => renderer.unmount());
+    }
+  });
+
+  it('does not drain queued repairs after leaving the thread', async () => {
+    const harness = makeHarness();
+    const targets = Array.from({ length: 12 }, (_, index) => makePlaceholder(`$leave-${index}`));
+    const { props } = makeProps(harness, targets);
+    let renderer!: ReactTestRenderer;
+    await act(async () => {
+      renderer = create(React.createElement(Harness, props));
+    });
+    await act(async () => {
+      renderer.update(React.createElement(Harness, { ...props, threadEvents: [...targets] }));
+    });
+    act(() => renderer.unmount());
+    await act(async () => {
+      harness.deferreds.forEach(({ resolve }) => resolve());
+      await flush();
+    });
+    expect(harness.relations).toHaveBeenCalledTimes(4);
+    expect(targets.every((event) => event.getContent().body === 'Thinking...')).toBe(true);
+    expect(props.persistThreadEventCache).not.toHaveBeenCalled();
+  });
+
   it('reads a same-commit open reset before choosing edit repairs from previously attempted instances', async () => {
     const harness = makeHarness();
     const target = makePlaceholder('$same-commit');

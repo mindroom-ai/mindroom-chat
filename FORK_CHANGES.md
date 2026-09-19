@@ -2,6 +2,26 @@
 
 ## Runbook
 
+### Bound background thread work during streaming (2026-09-19)
+
+- A device diagnostics export records foreground event-loop stalls of 6,146 ms and 1,561 ms, a 7,505 ms heartbeat gap, and 1,833 request starts within approximately one minute.
+  No native termination or reload was recorded during that session.
+  The detailed recorder dropped 2,631 events from that session and contains no viewport measurements, so the precise scroll-to-top trigger remains unproven.
+- Thread discovery eagerly materializes server thread roots, whose SDK constructors start root and relation requests outside the application's background-job scheduler.
+  Continuing overview pagination after leaving that view is a supported explanation for excess background work; it is not a confirmed attribution of the device's scroll jump.
+- Thread edit repair now shares one four-worker batch across streaming renders and coalesces changes that arrive while it runs into a subsequent pass.
+  A regression reproduced 24 simultaneous requests from five rerenders before the fix.
+  Candidates arriving during a no-edit batch still get repaired, and unmounting stops queued work.
+- Overview thread-list loads cooperatively stop requesting new pages when their last consumer leaves.
+  Shared consumers retain the existing complete-list behavior, and in-flight SDK requests may still finish.
+- Validation: all 4,595 unit tests pass under Node 24, along with typecheck, production/PWA build, and changed-file formatting.
+  Full lint reports zero errors and the 17 existing warnings.
+  Independent reviews found no actionable issues in either fix or its lifecycle regression coverage.
+  Four production Chromium/WebKit desktop and phone-sized checks pass for thread-send route and scroll stability.
+  Both WebKit cases also pass a traced repeat with an orderly browser exit; an unexplained WPE process dump from the first Linux run remains a harness caveat.
+  The unchanged desktop probe with 400 replies and 30 streamed edits did not reproduce the device freeze; its largest measured long task was 63 ms.
+  Physical iOS reproduction and confirmation of the scroll trigger remain outstanding.
+
 ### Preserve evidence for iOS blank screens (2026-09-18)
 
 - The September 18 device export confirms the previous route fix was installed, but contains no native lifecycle/navigation history and loses detailed trace events before the incident.
