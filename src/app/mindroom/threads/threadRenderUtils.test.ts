@@ -308,12 +308,12 @@ describe('estimateThreadEventRowHeight', () => {
     expect(estimateThreadEventRowHeight(event, modern)).toBe(190);
   });
 
-  it('estimates edit/reaction relations near zero (they render no row)', () => {
+  it.each(['m.replace', 'm.annotation'])('reserves no scroll space for %s relations', (relType) => {
     const edit = new MatrixEvent({
       content: {
         body: '* fixed',
         msgtype: 'm.text',
-        'm.relates_to': { rel_type: 'm.replace', event_id: '$target' },
+        'm.relates_to': { rel_type: relType, event_id: '$target' },
       },
       event_id: '$edit',
       origin_server_ts: 1,
@@ -321,7 +321,7 @@ describe('estimateThreadEventRowHeight', () => {
       sender: '@alice:example.org',
       type: 'm.room.message',
     });
-    expect(estimateThreadEventRowHeight(edit, modern)).toBe(4);
+    expect(estimateThreadEventRowHeight(edit, modern)).toBe(0);
   });
 
   it('uses the smaller compact base', () => {

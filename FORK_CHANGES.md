@@ -2,6 +2,26 @@
 
 ## Runbook
 
+### Avoid empty thread tiles for streaming edits and reactions (2026-09-19)
+
+- Status: implemented, validated, and independently reviewed.
+- Streaming replacement and reaction events retain their timeline indices and sequential grouping/day-divider context, but no longer mount empty virtual tiles once their height is zero.
+  The zero estimate avoids accumulating placeholder scroll height before measurement.
+  A decrypted relation with a cached nonzero height keeps its tile until ResizeObserver measures zero; an event that becomes renderable again mounts even with a cached zero.
+- The live Matrix regression reproduces 81 empty tiles after 80 edits and one reaction before the fix.
+  It passes in Chromium, Firefox, and WebKit after the fix, including scrolling up during streaming, Jump to Latest, and a following reply.
+  Unit coverage also preserves original indices, same-day grouping, midnight divider carry, and mutable-event measurement transitions.
+- A production comparison seeds 120 formatted replies, six response targets, and 600 historical edits, then sends 40 rounds of six concurrent edits at 100 ms intervals.
+  Two runs per build use a 390 × 844 Chromium viewport, device scale factor 3, and 4× CPU throttling.
+  Mounted tiles fall from 711–721 to 11, with no remaining empty relation tiles.
+  Paint time falls from 803–848 ms to 280–318 ms; total main-thread task time falls from 5.20–5.23 s to 4.84–4.91 s.
+  The p95 frame gap remains about 133 ms, so this removes avoidable rendering work without resolving the remaining streaming stalls or establishing native iPhone frame rates.
+- Validation: all 4,623 tests across 546 files, application and browser-test typechecks, production/PWA build, and changed-file formatting pass.
+  ESLint reports zero errors and the existing 17 warnings.
+  Independent review found no remaining correctness or scroll-accounting issues.
+- Follow-up: profile the remaining event processing and zero-size virtual-item enumeration separately; pinch still performs root-font layout during the gesture.
+
+
 ### Restore the moving thinking shimmer without continuous repainting (2026-09-19)
 
 - Status: the moving text highlight is restored locally, validated, and independently reviewed.

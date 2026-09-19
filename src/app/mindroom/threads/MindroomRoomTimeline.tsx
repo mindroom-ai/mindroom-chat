@@ -2116,17 +2116,28 @@ export function RoomTimeline({
           .filter(
             (item) => !approvalTimeline.hiddenEventIds.has(threadEvents[item.index]?.getId() ?? '')
           )
-          .map((virtualItem) => (
-            <VirtualTile
-              key={virtualItem.key}
-              ref={measureTimelineElement}
-              virtualItem={virtualItem}
-              // Content-relative top — see renderVirtualRoomTimelineItems.
-              style={{ top: virtualItem.start + ledgerPxAtRender }}
-            >
-              {threadEventRenderer(virtualItem.index)}
-            </VirtualTile>
-          ))}
+          .map((virtualItem) => {
+            // Advance grouping/day-divider context even for null-rendering
+            // relations, but do not mount and measure an empty tile for every
+            // streaming edit. Their size estimate is already exactly zero.
+            const content = threadEventRenderer(virtualItem.index);
+            const event = threadEvents[virtualItem.index];
+            // A decrypted relation can retain an encrypted row's cached
+            // height. Keep that tile until ResizeObserver corrects it to zero.
+            if (event && reactionOrEditEvent(event) && virtualItem.size === 0) return null;
+
+            return (
+              <VirtualTile
+                key={virtualItem.key}
+                ref={measureTimelineElement}
+                virtualItem={virtualItem}
+                // Content-relative top — see renderVirtualRoomTimelineItems.
+                style={{ top: virtualItem.start + ledgerPxAtRender }}
+              >
+                {content}
+              </VirtualTile>
+            );
+          })}
       </div>
     );
   };

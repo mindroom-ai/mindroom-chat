@@ -137,7 +137,7 @@ const {
     lastOptions: undefined as
       | {
           count: number;
-          estimateSize?: () => number;
+          estimateSize?: (index?: number) => number;
           getItemKey?: (index: number) => unknown;
           scrollMargin?: number;
         }
@@ -405,7 +405,7 @@ vi.mock('@tanstack/react-virtual', () => {
   return {
     useVirtualizer: (options: {
       count: number;
-      estimateSize?: () => number;
+      estimateSize?: (index?: number) => number;
       getItemKey?: (index: number) => unknown;
       scrollMargin?: number;
     }) => {
@@ -456,7 +456,12 @@ vi.mock('@tanstack/react-virtual', () => {
               index,
               key: opts.getItemKey?.(index) ?? index,
               lane: 0,
-              size: estimatedSize,
+              size:
+                (instance!.itemSizeCache as Map<unknown, number>).get(
+                  opts.getItemKey?.(index) ?? index
+                ) ??
+                opts.estimateSize?.(index) ??
+                100,
               start: index * estimatedSize,
             }));
         },
