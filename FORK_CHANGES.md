@@ -11,8 +11,9 @@
 - Live write-through compaction now owns canonical persistence and publishes saved batches to attachment work.
   Captured thread scope survives SDK pruning without assigning unrelated pending relations to that thread.
 - Compacted-edit redaction recovery inspects detached serialized data without using the live SDK mapper, preserving live unsigned state and future SDK event delivery.
-  Known ordinary roots skip the retained scan.
-- Validation: 563 files / 4,844 tests pass, including deterministic checks for one event write, one body fetch and one room-reference scan across a 20-edit burst.
+  Cached wire relations identify ordinary roots after SDK redaction pruning, including encrypted roots, so they skip the retained scan.
+  Encrypted standalone edits still recover their compacted owner and retire the correct attachment revision.
+- Validation: 563 files / 4,847 tests pass, including deterministic checks for one event write, one body fetch and one room-reference scan across a 20-edit burst.
   Typecheck, production/PWA build and ESLint pass with the existing 17 warnings and zero errors.
 
 ### Close offline storage and hydration review gaps (2026-09-20)

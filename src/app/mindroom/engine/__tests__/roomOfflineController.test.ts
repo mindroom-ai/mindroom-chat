@@ -1176,3 +1176,148 @@ it('keeps captured thread scope when a compacted target loses its live relation'
     vi.useRealTimers();
   }
 });
+
+it.each([false, true])(
+  'SDK-pruned ordinary roots skip retained snapshots (encrypted=%s)',
+  async (encrypted) => {
+    const f = fixture();
+    const engine = f.make();
+    const root = new MatrixEvent(
+      encrypted
+        ? {
+            ...raw('$pruned-root'),
+            type: 'm.room.encrypted',
+            content: { ciphertext: 'saved ciphertext' },
+          }
+        : raw('$pruned-root')
+    );
+    if (encrypted)
+      root.setClearData({
+        clearEvent: {
+          type: 'm.room.message',
+          content: { msgtype: 'm.text', body: 'decrypted root' },
+        },
+      });
+    f.room.findEventById = (id) => (id === root.getId() ? root : undefined);
+    await saveRoomEventsToCacheCommitted(engine.sessionId, roomId, [root.event]);
+    const redaction = new MatrixEvent({
+      ...raw('$prune-root'),
+      type: 'm.room.redaction',
+      redacts: root.getId(),
+      content: {},
+    });
+    root.makeRedacted(redaction, f.room);
+    expect(root.isRedacted()).toBe(true);
+    expect(root.getContent()).toEqual({});
+    const scans: string[] = [];
+    const original = IDBIndex.prototype.openCursor;
+    const spy = vi
+      .spyOn(IDBIndex.prototype, 'openCursor')
+      .mockImplementation(function countScans(...args) {
+        scans.push(this.name);
+        return original.apply(this, args);
+      });
+    try {
+      await persistRoomChunkWithPreferLive({
+        mx: f.mx,
+        sessionId: engine.sessionId,
+        room: f.room,
+        chunk: [redaction.event],
+        mappedEvents: [redaction],
+      });
+      expect(scans.filter((name) => name === 'by_room_event')).toEqual([]);
+      expect(
+        (await loadCachedRoomEvent(engine.sessionId, roomId, '$pruned-root'))?.unsigned
+          ?.redacted_because?.event_id
+      ).toBe('$prune-root');
+    } finally {
+      spy.mockRestore();
+    }
+  }
+);
+
+it('SDK-pruned encrypted standalone edits still recover their compacted owner', async () => {
+  const f = fixture();
+  const engine = f.make();
+  const original = new MatrixEvent({
+    ...raw('$original-encrypted-edit'),
+    content: {
+      msgtype: 'm.text',
+      body: 'original',
+      url: 'mxc://test/original-edit-body',
+      'io.mindroom.long_text': { version: 2, encoding: 'matrix_event_content_json' },
+    },
+  });
+  const relation = { rel_type: 'm.replace', event_id: original.getId()! };
+  const edit = new MatrixEvent({
+    ...raw('$encrypted-edit'),
+    origin_server_ts: 2,
+    type: 'm.room.encrypted',
+    content: { ciphertext: 'edit ciphertext', 'm.relates_to': relation },
+  });
+  edit.setClearData({
+    clearEvent: {
+      type: 'm.room.message',
+      content: {
+        'm.relates_to': relation,
+        'm.new_content': { ...original.getContent(), url: 'mxc://test/latest-edit-body' },
+      },
+    },
+  });
+  f.room.findEventById = (id) =>
+    id === original.getId() ? original : id === edit.getId() ? edit : undefined;
+  await persistRoomChunkWithPreferLive({
+    mx: f.mx,
+    sessionId: engine.sessionId,
+    room: f.room,
+    chunk: [original.event, edit.event],
+    mappedEvents: [original, edit],
+  });
+  // A standalone ciphertext copy may coexist with the compacted owner's embedded edit.
+  await saveRoomEventsToCacheCommitted(engine.sessionId, roomId, [edit.event]);
+  await replaceCachedAttachmentReferences(
+    engine.sessionId,
+    roomId,
+    original.getId()!,
+    2,
+    [{ mxcUri: 'mxc://test/latest-edit-body', essential: true }],
+    undefined,
+    { revisionId: edit.getId() }
+  );
+  const redaction = new MatrixEvent({
+    ...raw('$redact-encrypted-edit'),
+    type: 'm.room.redaction',
+    redacts: edit.getId(),
+    content: {},
+  });
+  edit.makeRedacted(redaction, f.room);
+  expect(edit.getRelation()).toBeNull();
+  await persistRoomChunkWithPreferLive({
+    mx: f.mx,
+    sessionId: engine.sessionId,
+    room: f.room,
+    chunk: [redaction.event],
+    mappedEvents: [redaction],
+  });
+  expect(
+    await replaceCachedAttachmentReferences(engine.sessionId, roomId, original.getId()!, 1, [
+      { mxcUri: 'mxc://test/original-edit-body', essential: true },
+    ])
+  ).toBe('committed');
+  expect(
+    await replaceCachedAttachmentReferences(
+      engine.sessionId,
+      roomId,
+      original.getId()!,
+      2,
+      [{ mxcUri: 'mxc://test/latest-edit-body', essential: true }],
+      undefined,
+      { revisionId: edit.getId() }
+    )
+  ).toBe('revoked');
+  expect(
+    (await loadCachedRoomEvent(engine.sessionId, roomId, original.getId()!))?.unsigned?.[
+      'm.relations'
+    ]?.['m.replace']
+  ).toBeUndefined();
+});

@@ -1157,12 +1157,13 @@ export const persistRoomChunkWithPreferLive = async ({
     const rawTarget = target?.isRedacted()
       ? await loadCachedEventAcrossRoomScopes(sessionId, room.roomId, targetId)
       : undefined;
+    // Wire relations survive encryption; a saved non-edit identifies the target
+    // even after the SDK has pruned its live content before emitting Redaction.
     const knownOrdinary =
       target &&
       !target.getRelation() &&
       (!target.isRedacted() ||
-        (typeof rawTarget?.content?.body === 'string' &&
-          rawTarget.content['m.relates_to']?.rel_type !== RelationType.Replace));
+        (rawTarget && rawTarget.content?.['m.relates_to']?.rel_type !== RelationType.Replace));
     if (event.isRedaction() && !knownOrdinary && (!target || !target.getRelation())) {
       let after: string | undefined;
       do {
