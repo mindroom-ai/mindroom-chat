@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { getRequiredEnv, hasRequiredEnv } from './env';
 import { expectLoggedInShellStable, loginWithPassword } from './helpers/auth';
-import { openSettingsFromAccountRail } from './helpers/accounts';
+import { getStoredSessionByUsername, openSettingsFromAccountRail } from './helpers/accounts';
 import {
   attachBrowserDiagnostics,
   expectNoUnexpectedBrowserDiagnostics,
@@ -14,7 +14,7 @@ const hasDeployedFixtureEnv =
   hasRequiredEnv('E2E_DEPLOYED_PASSWORD');
 
 const DEPLOYED_BASE_URL = process.env.E2E_DEPLOYED_BASE_URL ?? 'http://127.0.0.1:8090';
-const TEST_STORAGE_KEY = 'cinny-test-key';
+const TEST_STORAGE_KEY = 'cinny_test_key';
 const TEST_STORAGE_VALUE = 'test-value';
 
 test.use({ baseURL: DEPLOYED_BASE_URL });
@@ -39,6 +39,8 @@ test('clears app cache from Settings > About without signing the user out', asyn
   });
   await expect(page).toHaveURL(/\/home\/?$/);
   await expectLoggedInShellStable(page, { durationMs: 6_000, sampleIntervalMs: 300 });
+  const originalSession = await getStoredSessionByUsername(page, username);
+  expect(originalSession?.deviceId).toBeTruthy();
 
   await openSettingsFromAccountRail(page);
   await expect(page.getByText('Settings', { exact: true })).toBeVisible();
@@ -92,6 +94,8 @@ test('clears app cache from Settings > About without signing the user out', asyn
   console.log(`[state] after-clear-cache-localStorage:${TEST_STORAGE_KEY}=${postReloadValue}`);
 
   expect(postReloadValue).toBeNull();
+  const restoredSession = await getStoredSessionByUsername(page, username);
+  expect(restoredSession?.deviceId).toBe(originalSession?.deviceId);
 
   await expectNoUnexpectedBrowserDiagnostics(diagnostics, 'cinny-021 clear cache live test');
 });

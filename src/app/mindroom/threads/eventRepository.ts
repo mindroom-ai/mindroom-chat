@@ -3,7 +3,7 @@ import {
   type EventTimeline,
   type IEvent,
   type MatrixClient,
-  type MatrixEvent,
+  MatrixEvent,
   type Room,
 } from 'matrix-js-sdk';
 import {
@@ -799,7 +799,7 @@ const sanitizeAuthoritativeRawEvents = (
   const redactedEventIds = collectKnownRedactedEventIds(room, authoritativeRawEvents);
   redactedEventById.forEach((_event, eventId) => redactedEventIds.add(eventId));
 
-  return authoritativeRawEvents.map((rawEvent) => {
+  const sanitizedRawEvents = authoritativeRawEvents.map((rawEvent) => {
     const eventId = rawEvent.event_id;
     const redactedEvent = eventId ? redactedEventById.get(eventId) : undefined;
     if (!redactedEvent) {
@@ -815,6 +815,15 @@ const sanitizeAuthoritativeRawEvents = (
       redactedEventIds
     );
   });
+
+  // Reconciliation owns the authoritative server snapshot, but it still
+  // must pass through the same edit-compaction boundary as live writes.
+  // Otherwise a repair that arrives before every streamed edit is observed
+  // live stores each same-sender replacement as an independent record.
+  return serializeEventsForCache(
+    room,
+    sanitizedRawEvents.map((rawEvent) => new MatrixEvent(rawEvent as IEvent))
+  );
 };
 
 export const persistThreadEventCacheSnapshot = ({

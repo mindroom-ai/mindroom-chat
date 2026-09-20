@@ -5,7 +5,12 @@ import {
   removeInactiveStoredUsername,
   switchToStoredUsername,
 } from './helpers/accounts';
-import { accountRailButtonSelector, expectLoggedInShellStable, loginWithPassword } from './helpers/auth';
+import {
+  accountRailButtonSelector,
+  expectLoggedInShellStable,
+  loginWithPassword,
+  setFullInterfaceModeForCredentials,
+} from './helpers/auth';
 import {
   attachBrowserDiagnostics,
   expectNoUnexpectedBrowserDiagnostics,
@@ -15,6 +20,7 @@ test('restores per-account routes, survives reload, and removes an inactive acco
   page,
 }) => {
   const secondaryCredentials = getSecondaryCredentials();
+  test.slow();
   test.skip(
     !secondaryCredentials,
     'Set E2E_SECOND_USERNAME and E2E_SECOND_PASSWORD to run the multi-account e2e flow.'
@@ -23,6 +29,11 @@ test('restores per-account routes, survives reload, and removes an inactive acco
   const diagnostics = attachBrowserDiagnostics(page);
   const homeserver = getHomeserver();
   const primaryCredentials = getPrimaryCredentials();
+
+  await Promise.all([
+    setFullInterfaceModeForCredentials(homeserver, primaryCredentials),
+    setFullInterfaceModeForCredentials(homeserver, secondaryCredentials),
+  ]);
 
   await loginWithPassword(page, {
     homeserver,

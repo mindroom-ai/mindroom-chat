@@ -885,7 +885,7 @@
       "login": "Login",
       "thisClientRequiresSignInWithAppleConfigureTheHomeserverSsoProvider": "This client requires Sign in with Apple. Configure the homeserver SSO provider list to include Apple.",
       "register": "Register",
-      "accountLink": "Do not have an account? <link>Register</link>",
+      "accountLink": "Do not have an account? <authLink>Register</authLink>",
       "passwordLoginIsDisabledOnValue1UseSsoToSignIn": "Password login is disabled on \"{{value1}}\". Use SSO to sign in.",
       "thisClientDoesNotSupportLoginOnValue1ServerPasswordAndSso": "This client does not support login on \"{{value1}}\" server. Password and SSO based login method not found."
     },
@@ -948,7 +948,7 @@
       "thisApplicationDoesNotSupportRegistrationOnThisHomeserver": "This application does not support registration on this homeserver.",
       "ssoRegistrationIsRequiredOnThisHomeserverButNoSsoProvidersWere": "SSO registration is required on this homeserver, but no SSO providers were advertised.",
       "login": "Login",
-      "accountLink": "Already have an account? <link>Login</link>"
+      "accountLink": "Already have an account? <authLink>Login</authLink>"
     },
     "passwordResetForm": {
       "passwordHasBeenResetSuccessfullyPleaseLoginWithYourNewPassword": "Password has been reset successfully. Please login with your new password.",
@@ -963,7 +963,7 @@
     "resetPassword": {
       "resetPassword": "Reset Password",
       "login": "Login",
-      "accountLink": "Remember your password? <link>Login</link>"
+      "accountLink": "Remember your password? <authLink>Login</authLink>"
     },
     "clientRoot": {
       "catchingUp": "Catching up...",

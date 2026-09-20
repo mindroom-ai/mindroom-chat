@@ -2161,7 +2161,7 @@
       "leaving": "ছেড়ে যাওয়া হচ্ছে..."
     },
     "login": {
-      "accountLink": "অ্যাকাউন্ট নেই? <link>নিবন্ধন করুন</link>",
+      "accountLink": "অ্যাকাউন্ট নেই? <authLink>নিবন্ধন করুন</authLink>",
       "login": "লগইন করুন",
       "passwordLoginIsDisabledOnValue1UseSsoToSignIn": "\"{{value1}}\" এ পাসওয়ার্ড লগইন নিষ্ক্রিয় করা হয়েছে। সাইন ইন করতে SSO ব্যবহার করুন৷",
       "register": "নিবন্ধন করুন",
@@ -2365,7 +2365,7 @@
       "pleaseCheckTheBoxBelowToProceed": "এগিয়ে যেতে নিচের বাক্সে চেক করুন."
     },
     "register": {
-      "accountLink": "আগেই অ্যাকাউন্ট আছে? <link>লগইন করুন</link>",
+      "accountLink": "আগেই অ্যাকাউন্ট আছে? <authLink>লগইন করুন</authLink>",
       "invalidRequestFailedToGetAnyRegistrationOptions": "অবৈধ অনুরোধ! কোনো নিবন্ধন বিকল্প পেতে ব্যর্থ.",
       "login": "লগইন করুন",
       "register": "নিবন্ধন করুন",
@@ -2384,7 +2384,7 @@
       "retry": "আবার চেষ্টা করুন"
     },
     "resetPassword": {
-      "accountLink": "পাসওয়ার্ড মনে আছে? <link>লগইন করুন</link>",
+      "accountLink": "পাসওয়ার্ড মনে আছে? <authLink>লগইন করুন</authLink>",
       "login": "লগইন করুন",
       "resetPassword": "পাসওয়ার্ড রিসেট করুন"
     },

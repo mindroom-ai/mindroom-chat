@@ -1,15 +1,16 @@
 import { expect, test } from '@playwright/test';
-import {
-  getDeactivationCredentials,
-  getHomeserver,
-  getPrimaryCredentials,
-} from './env';
+import { getDeactivationCredentials, getHomeserver, getPrimaryCredentials } from './env';
 import {
   deactivateActiveAccount,
   expectActiveStoredUsername,
   readSessionStore,
 } from './helpers/accounts';
-import { accountRailButtonSelector, expectLoggedInShellStable, loginWithPassword } from './helpers/auth';
+import {
+  accountRailButtonSelector,
+  expectLoggedInShellStable,
+  loginWithPassword,
+  setFullInterfaceModeForCredentials,
+} from './helpers/auth';
 import {
   attachBrowserDiagnostics,
   expectNoUnexpectedBrowserDiagnostics,
@@ -19,6 +20,7 @@ test('deactivating the active account removes only that account and leaves the o
   page,
 }) => {
   const deactivationCredentials = getDeactivationCredentials();
+  test.slow();
   test.skip(
     !deactivationCredentials,
     'Set E2E_DEACTIVATE_USERNAME and E2E_DEACTIVATE_PASSWORD to run the deactivation e2e flow.'
@@ -27,6 +29,11 @@ test('deactivating the active account removes only that account and leaves the o
   const diagnostics = attachBrowserDiagnostics(page);
   const homeserver = getHomeserver();
   const primaryCredentials = getPrimaryCredentials();
+
+  await Promise.all([
+    setFullInterfaceModeForCredentials(homeserver, primaryCredentials),
+    setFullInterfaceModeForCredentials(homeserver, deactivationCredentials),
+  ]);
 
   await loginWithPassword(page, {
     homeserver,

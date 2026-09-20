@@ -885,7 +885,7 @@
       "login": "Login",
       "thisClientRequiresSignInWithAppleConfigureTheHomeserverSsoProvider": "Klien ini memerlukan Masuk dengan Apple. Konfigurasikan daftar penyedia SSO homeserver agar mencakup Apple.",
       "register": "Daftar",
-      "accountLink": "Belum punya akun? <link>Daftar</link>",
+      "accountLink": "Belum punya akun? <authLink>Daftar</authLink>",
       "passwordLoginIsDisabledOnValue1UseSsoToSignIn": "Login dengan kata sandi dinonaktifkan di \"{{value1}}\". Gunakan SSO untuk masuk.",
       "thisClientDoesNotSupportLoginOnValue1ServerPasswordAndSso": "Klien ini tidak mendukung login di server \"{{value1}}\". Metode login dengan kata sandi maupun SSO tidak ditemukan."
     },
@@ -948,7 +948,7 @@
       "thisApplicationDoesNotSupportRegistrationOnThisHomeserver": "Aplikasi ini tidak mendukung pendaftaran di homeserver ini.",
       "ssoRegistrationIsRequiredOnThisHomeserverButNoSsoProvidersWere": "Pendaftaran melalui SSO diwajibkan di homeserver ini, tetapi tidak ada penyedia SSO yang diumumkan.",
       "login": "Login",
-      "accountLink": "Sudah punya akun? <link>Login</link>"
+      "accountLink": "Sudah punya akun? <authLink>Login</authLink>"
     },
     "passwordResetForm": {
       "passwordHasBeenResetSuccessfullyPleaseLoginWithYourNewPassword": "Kata sandi berhasil direset. Login dengan kata sandi baru Anda.",
@@ -963,7 +963,7 @@
     "resetPassword": {
       "resetPassword": "Reset kata sandi",
       "login": "Login",
-      "accountLink": "Ingat kata sandi Anda? <link>Login</link>"
+      "accountLink": "Ingat kata sandi Anda? <authLink>Login</authLink>"
     },
     "clientRoot": {
       "catchingUp": "Memperbarui...",
