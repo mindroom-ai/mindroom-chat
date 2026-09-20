@@ -168,7 +168,7 @@ describe('OfflineRoomSettings', () => {
     expect(text).toContain('Missing essential message bodies: 2');
     expect(text).toContain('Attachments: 4 saved, 5 missing.');
     expect(text).toContain('Saved history entries: 37');
-    expect(text).toContain('Storage used: 1.2 MB');
+    expect(text).toContain('Attachment storage used: 1.2 MB');
   });
 
   it('sends download, include-all, cancel, and pin intents to the room controller', async () => {

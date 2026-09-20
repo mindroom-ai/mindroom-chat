@@ -1736,7 +1736,7 @@
           "missingEssential": "Missing essential message bodies: {{count}}",
           "historyEntries": "Saved history entries: {{count}}",
           "attachments": "Attachments: {{saved}} saved, {{missing}} missing.",
-          "storageUsed": "Storage used: {{size}}",
+          "storageUsed": "Attachment storage used: {{size}}",
           "pinFailed": "Keep offline could not be updated.",
           "includeAllMedia": "Include all media",
           "keepOffline": "Keep offline",
