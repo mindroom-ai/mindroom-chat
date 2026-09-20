@@ -64,8 +64,8 @@ if (precachesAppShell) {
     })
   );
 }
-// Navigation must be registered first so explicit reloads and visits check the
-// network before Workbox's cache-first precache route matches index.html.
+// Navigation must be registered first so app routes receive the cached shell
+// and the explicit authentication marker can bypass it once.
 registerRoute(new PrecacheRoute(precacheController));
 
 type SessionInfo = {

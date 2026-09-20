@@ -9,6 +9,7 @@ import {
   readCachedClientConfig,
   reloadForInteractiveAuthentication,
 } from './ClientConfigLoader';
+import { AUTHENTICATION_RECOVERY_NAVIGATION_PARAM } from '../../serviceWorkerNavigation';
 
 const originalFetch = globalThis.fetch;
 
@@ -333,12 +334,50 @@ describe('client configuration loading', () => {
     expect(continueOffline).toBeUndefined();
   });
 
-  it('uses a document reload for interactive authentication', () => {
-    const reload = vi.fn();
-    vi.stubGlobal('window', { location: { reload } });
+  it('uses a one-shot network navigation for interactive authentication', () => {
+    const assign = vi.fn();
+    vi.stubGlobal('window', {
+      location: {
+        assign,
+        href: 'https://chat.example.com/home/room?tab=members#event',
+      },
+    });
 
     reloadForInteractiveAuthentication();
 
-    expect(reload).toHaveBeenCalledOnce();
+    expect(assign).toHaveBeenCalledWith(
+      `https://chat.example.com/home/room?tab=members&${AUTHENTICATION_RECOVERY_NAVIGATION_PARAM}=1#event`
+    );
+  });
+
+  it('removes only the authentication recovery marker on normal startup', async () => {
+    const historyState = { route: 'thread', unsentDraft: true };
+    const replaceState = vi.fn();
+    vi.stubGlobal('window', {
+      history: { replaceState, state: historyState },
+      location: {
+        href: `https://chat.example.com/home/room?tab=members&${AUTHENTICATION_RECOVERY_NAVIGATION_PARAM}=1#event`,
+      },
+    });
+    globalThis.fetch = vi.fn(
+      () =>
+        new Promise<Response>(() => {
+          // Held configuration request.
+        })
+    );
+    let renderer!: ReturnType<typeof create>;
+
+    await act(async () => {
+      renderer = create(
+        React.createElement(
+          ClientConfigLoader,
+          { fallback: () => React.createElement('span', null, 'Loading') },
+          () => React.createElement('span', null, 'Chats')
+        )
+      );
+    });
+
+    expect(replaceState).toHaveBeenCalledWith(historyState, '', '/home/room?tab=members#event');
+    act(() => renderer.unmount());
   });
 });

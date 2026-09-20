@@ -7,6 +7,7 @@ import {
   getStorageItemSafe,
   setStorageItemSafe,
 } from '../utils/safeLocalStorage';
+import { AUTHENTICATION_RECOVERY_NAVIGATION_PARAM } from '../../serviceWorkerNavigation';
 
 const CLIENT_CONFIG_STORAGE_PREFIX = 'io.cinny.client-config:';
 
@@ -78,7 +79,29 @@ export const fetchClientConfig = async (
   return config;
 };
 
-export const reloadForInteractiveAuthentication = (): void => window.location.reload();
+const clearAuthenticationRecoveryNavigation = (): void => {
+  if (typeof window === 'undefined') return;
+
+  try {
+    const url = new URL(window.location.href);
+    if (!url.searchParams.has(AUTHENTICATION_RECOVERY_NAVIGATION_PARAM)) return;
+
+    url.searchParams.delete(AUTHENTICATION_RECOVERY_NAVIGATION_PARAM);
+    window.history.replaceState(
+      window.history.state,
+      '',
+      `${url.pathname}${url.search}${url.hash}`
+    );
+  } catch {
+    // URL cleanup must not block application startup.
+  }
+};
+
+export const reloadForInteractiveAuthentication = (): void => {
+  const url = new URL(window.location.href);
+  url.searchParams.set(AUTHENTICATION_RECOVERY_NAVIGATION_PARAM, '1');
+  window.location.assign(url.href);
+};
 
 type ClientConfigLoaderProps = {
   fallback?: () => ReactNode;
@@ -106,6 +129,7 @@ export function ClientConfigLoader({ fallback, error, children }: ClientConfigLo
   }, [load]);
 
   useEffect(() => {
+    clearAuthenticationRecoveryNavigation();
     void load().catch(() => undefined);
   }, [load]);
 

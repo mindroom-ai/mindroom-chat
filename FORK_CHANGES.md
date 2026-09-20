@@ -2,6 +2,17 @@
 
 ## Runbook
 
+### Open the cached web shell before network navigation (2026-09-20)
+
+- Eligible app, room and thread navigations return the valid precached document immediately without starting a network request.
+  A missing or unusable shell falls through to a no-store network navigation and preserves opaque authentication redirects.
+- Interactive configuration authentication adds the one-shot `authentication-recovery-navigation=1` query marker so the navigation reaches a reverse proxy.
+  Normal startup removes only that marker while preserving the path, other query parameters, hash and current history state.
+- The existing server, SSO, static and deployment-configured navigation exclusions remain in place.
+  Service worker installation, activation and non-disruptive update behavior are unchanged.
+- Validation: 30 focused navigation, configuration, registration and lifecycle tests pass, along with application typecheck and the production/PWA build.
+  ESLint reports zero errors and the existing 17 warnings.
+
 ### Control room offline content from General settings (2026-09-20)
 
 - Room General settings now reports saved history entries, combined attachment coverage, storage use, inaccessible history, unresolved relations, missing keys and essential bodies through the client-scoped offline controller snapshot.
