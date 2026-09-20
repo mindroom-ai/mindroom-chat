@@ -328,7 +328,7 @@ export const renderMindroomMessageContent = ({
             isStreaming ? renderMindroomStreamingIndicator : undefined
           )}
           content={longTextSource.previewContent}
-          longTextSource={longTextSource}
+          longTextSource={{ ...longTextSource, owner: getEventAttachmentOwner(mEvent) }}
           hydrate={hydrateLongText}
           renderBody={(resolvedContent, props) => (
             <RenderBody
@@ -383,7 +383,7 @@ export const renderMindroomMessageContent = ({
             isStreaming ? renderMindroomStreamingIndicator : undefined
           )}
           content={longTextSource.previewContent}
-          longTextSource={longTextSource}
+          longTextSource={{ ...longTextSource, owner: getEventAttachmentOwner(mEvent) }}
           hydrate={hydrateLongText}
           renderBody={(resolvedContent, props) => (
             <RenderBody

@@ -319,6 +319,26 @@ export const replaceCachedAttachmentReferences = async (
     const entries: AttachmentReferenceInput[] = merged.size
       ? [...merged.values()]
       : [{ mxcUri: '', essential: false }];
+    // An unchanged validated owner needs no payload read or reference rewrite.
+    if (
+      !revision.retractedRevisionIds?.length &&
+      owned.length === entries.length &&
+      entries.every((input) =>
+        owned.some(
+          (row) =>
+            row.mxcUri === input.mxcUri &&
+            row.revisionTs === revisionTs &&
+            (row.revisionId ?? '') === (revision.revisionId ?? '') &&
+            !!row.redacted === !!revision.redacted &&
+            row.essential === input.essential &&
+            row.maxBytes === input.maxBytes &&
+            (!input.validated || row.status === 'cached')
+        )
+      )
+    ) {
+      await done;
+      return 'committed';
+    }
     const legacy = await Promise.all(
       entries.map(
         (entry) =>
@@ -369,7 +389,9 @@ export const replaceCachedAttachmentReferences = async (
         refs.index(ATTACHMENT_REFERENCES_BY_ATTACHMENT_INDEX).getAll(mxcUri)
       )) as CachedAttachmentReferenceRecord[];
       if (!remaining.length) blobs.delete(mxcUri);
-      else
+      else if (
+        cached.essential !== remaining.some((row) => row.essential && row.status === 'cached')
+      )
         blobs.put({
           ...cached,
           essential: remaining.some((row) => row.essential && row.status === 'cached'),
@@ -459,4 +481,27 @@ export const setRoomAttachmentPinned = async (
     lastActivityTs: previous?.lastActivityTs ?? 0,
   });
   await done;
+};
+
+/** Pending owners only; descriptors are reconstructed from their saved event. */
+export const readRoomMissingAttachmentEventIds = async (
+  sessionId: string,
+  roomId: string
+): Promise<string[]> => {
+  const db = await openCacheStore(sessionId);
+  if (!db) return [];
+  const transaction = db.transaction(ATTACHMENT_REFERENCES_STORE, 'readonly');
+  const rows = (await requestResult(
+    transaction
+      .objectStore(ATTACHMENT_REFERENCES_STORE)
+      .index(ATTACHMENT_REFERENCES_BY_ROOM_INDEX)
+      .getAll(roomId)
+  )) as CachedAttachmentReferenceRecord[];
+  return [
+    ...new Set(
+      rows
+        .filter((row) => row.mxcUri && row.status === 'missing' && row.eventId)
+        .map((row) => row.eventId!)
+    ),
+  ];
 };

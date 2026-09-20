@@ -50,6 +50,7 @@ export type CachedAttachmentDownloadOptions = {
 type RawAttachment = {
   bytes: ArrayBuffer;
   mimeType: string;
+  cached?: boolean;
 };
 
 type SharedAttachmentOperation = {
@@ -149,7 +150,7 @@ const acquireAttachment = (
   if (!operation) {
     let created: SharedAttachmentOperation | undefined;
     const promise = loadCachedAttachment(sessionId, source.mxcUri).then((cached) => {
-      if (cached) return { bytes: cached.bytes, mimeType: cached.mimeType };
+      if (cached) return { bytes: cached.bytes, mimeType: cached.mimeType, cached: true };
       if (!created || created.consumers === 0) throw abortError();
       return fetchRawAttachment(
         mx,
@@ -249,16 +250,33 @@ export const downloadCachedAttachment = async (
     ) {
       throw new Error('Invalid long-text body JSON');
     }
-    await awaitWithSignal(
-      putCachedAttachment(
-        sessionId,
-        { bytes: raw.bytes, mimeType: raw.mimeType, mxcUri: source.mxcUri },
-        { ...options, writeLease }
-      ),
-      options.signal
-    );
-    if (options.signal?.aborted) throw abortError();
-    maybeScheduleEvictionCheck(sessionId);
+    const metadata = raw.cached
+      ? await getCachedAttachmentMetadata(sessionId, source.mxcUri)
+      : undefined;
+    const satisfied =
+      metadata &&
+      (!options.essential || metadata.essential) &&
+      (!options.roomId ||
+        metadata.references.some(
+          (row) =>
+            row.roomId === options.roomId &&
+            row.eventId === options.eventId &&
+            row.revisionTs === options.revisionTs &&
+            (row.revisionId ?? '') === (options.revisionId ?? '') &&
+            row.status === 'cached'
+        ));
+    if ((!options.essential || (options.roomId && options.eventId)) && !satisfied) {
+      await awaitWithSignal(
+        putCachedAttachment(
+          sessionId,
+          { bytes: raw.bytes, mimeType: raw.mimeType, mxcUri: source.mxcUri },
+          { ...options, writeLease }
+        ),
+        options.signal
+      );
+      if (options.signal?.aborted) throw abortError();
+      maybeScheduleEvictionCheck(sessionId);
+    }
     return consumerBlob;
   } finally {
     attachment.release();
@@ -321,7 +339,17 @@ export const prefetchEventAttachments = async (
       if (options.signal?.aborted) throw abortError();
       const writeLease = leases.get(message.roomId)!;
       if (!isCacheStoreWriteLeaseCurrent(writeLease)) continue;
+      const cached = await getCachedAttachmentMetadata(sessionId, attachment.mxcUri);
+      const satisfied = cached?.references.some(
+        (row) =>
+          row.roomId === message.roomId &&
+          row.eventId === message.eventId &&
+          row.revisionTs === message.revisionTs &&
+          (row.revisionId ?? '') === (message.revisionId ?? '') &&
+          row.status === 'cached'
+      );
       if (
+        !satisfied &&
         (attachment.autoDownload || options.includeAllMedia) &&
         (!options.canDownload || (await options.canDownload()))
       ) {

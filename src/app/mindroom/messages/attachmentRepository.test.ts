@@ -26,6 +26,7 @@ import {
 
 const BASE_URL = 'https://matrix.example.org';
 const SOURCE: MindroomLongTextSource = {
+  owner: { roomId: '!room:matrix.example.org', eventId: '$body', revisionTs: 1 },
   previewContent: {
     body: 'Preview response',
     msgtype: 'm.text',
@@ -167,6 +168,7 @@ describe('persistent attachment repository', () => {
     const consumerBlob = await downloadCachedAttachment(
       alice,
       {
+        owner: SOURCE.owner,
         mxcUri: encryptedFile.url,
         encryptedFile,
         mimeType: 'text/plain',
@@ -212,10 +214,18 @@ describe('persistent attachment repository', () => {
     const alice = createAccountClient('@alice:matrix.example.org');
     const source = { mxcUri: 'mxc://matrix.example.org/shared', mimeType: 'text/plain' };
 
-    const essential = downloadCachedAttachment(alice, source, false, {
-      essential: true,
-      roomId: '!essential:matrix.example.org',
-    });
+    const essential = downloadCachedAttachment(
+      alice,
+      {
+        ...source,
+        owner: { roomId: '!essential:matrix.example.org', eventId: '$essential', revisionTs: 1 },
+      },
+      false,
+      {
+        essential: true,
+        roomId: '!essential:matrix.example.org',
+      }
+    );
     const ordinary = downloadCachedAttachment(alice, source, false, {
       roomId: '!ordinary:matrix.example.org',
     });
@@ -265,7 +275,7 @@ describe('persistent attachment repository', () => {
     await downloadCachedAttachment(alice, source, false);
     expect((await getCachedAttachmentCacheMetadata(alice, source.mxcUri))?.essential).toBe(false);
 
-    await downloadCachedAttachment(alice, source, false, {
+    await downloadCachedAttachment(alice, { ...source, owner: SOURCE.owner }, false, {
       essential: true,
       roomId: '!room:matrix.example.org',
     });
@@ -763,4 +773,55 @@ it('keeps an original sidecar file incomplete until body validation even without
     missingEssential: 1,
   });
   vi.unstubAllGlobals();
+});
+
+it('ownerless essential hydration renders without protected persistent bytes', async () => {
+  const { hydrateCachedMindroomLongText } = await import('./attachmentRepository');
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(
+      async () => new Response(JSON.stringify({ msgtype: 'm.text', body: 'unowned full body' }))
+    )
+  );
+  const mx = createAccountClient('@unowned:test');
+  const source = { ...SOURCE, owner: undefined, mxcUri: 'mxc://matrix.example.org/unowned' };
+  expect((await hydrateCachedMindroomLongText(mx, source, false)).body).toBe('unowned full body');
+  expect(
+    await loadCachedAttachment(
+      createSessionId(mx.getHomeserverUrl(), mx.getSafeUserId()),
+      source.mxcUri
+    )
+  ).toBeUndefined();
+  vi.unstubAllGlobals();
+});
+
+it('validated owned cache hits do not rewrite attachment payloads', async () => {
+  const { hydrateCachedMindroomLongText } = await import('./attachmentRepository');
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async () => new Response(JSON.stringify({ msgtype: 'm.text', body: 'owned body' })))
+  );
+  const mx = createAccountClient('@cache-hit:test');
+  const source = {
+    ...SOURCE,
+    mxcUri: 'mxc://matrix.example.org/cache-hit',
+    owner: { roomId: '!hit:test', eventId: '$hit', revisionTs: 1, revisionId: '' },
+  };
+  await hydrateCachedMindroomLongText(mx, source, false);
+  clearMindroomLongTextHydrationCache();
+  const writes: string[] = [];
+  const original = IDBObjectStore.prototype.put;
+  const spy = vi
+    .spyOn(IDBObjectStore.prototype, 'put')
+    .mockImplementation(function countWrites(value, key) {
+      writes.push(this.name);
+      return original.call(this, value, key);
+    });
+  try {
+    expect((await hydrateCachedMindroomLongText(mx, source, false)).body).toBe('owned body');
+    expect(writes.filter((name) => name === 'attachments')).toHaveLength(0);
+  } finally {
+    spy.mockRestore();
+    vi.unstubAllGlobals();
+  }
 });
