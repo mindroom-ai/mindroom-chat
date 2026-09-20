@@ -128,11 +128,7 @@ export function ClientConfigLoader({ fallback, error, children }: ClientConfigLo
 
   if (resolvedConfig !== undefined) return readyContent;
 
-  if (state.status === AsyncStatus.Idle || state.status === AsyncStatus.Loading) {
-    return fallback?.();
-  }
-
-  if (!ignoreError && state.status === AsyncStatus.Error) {
+  if (state.status === AsyncStatus.Error) {
     return error?.(
       state.error,
       retryCallback,
@@ -141,5 +137,5 @@ export function ClientConfigLoader({ fallback, error, children }: ClientConfigLo
     );
   }
 
-  return undefined;
+  return fallback?.();
 }

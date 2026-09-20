@@ -18,6 +18,7 @@
 - Validation: all 4,701 tests across 553 files pass under Node 24, along with application/browser-test typechecks, production/PWA build, formatting, and ESLint with zero errors and the existing 17 warnings.
   Startup and room/message cache scenarios pass against the production build in phone-sized Chromium and WebKit.
   Independent implementation review found no blocking issues.
+  Automated review found no bugs; its confirmed unreachable-return cleanup simplifies the loading/error branches and passed a second independent review.
   Physical iPhone startup timing remains unmeasured; local encryption and database work still precede chat rendering.
 
 ### Restore cached room threads and paint cached replies before network waits (2026-09-20)
