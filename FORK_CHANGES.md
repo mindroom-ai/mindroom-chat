@@ -21,6 +21,20 @@
   Independent review found no remaining issues.
   Native compilation and physical iPhone checks remain unverified; check the cutout, sync banner, keyboard, and status icons before and after dismissing native screens on an Apple build.
 
+### Drag zoomed images with touch (2026-09-20)
+
+- The image viewer previously handled pinch zoom on touchscreens but only accepted mouse input for panning.
+  Pointer events now support touch, mouse, and pen dragging on the viewer surface, including continuing with one finger after a pinch.
+- Drag movement stays in screen pixels at every zoom level, and transform animation is disabled while dragging.
+  Pointer capture keeps drags active outside the image, while cancellation and lost capture end tracking and returning to 100% resets the offset.
+- Regression coverage checks pinch handoff, repeated drags, cancellation, normal-size reset, and secondary mouse buttons.
+  Chromium browser coverage exercises real injected touch gestures and desktop dragging against the production viewer.
+- Validation: all 4,746 tests across 557 files, typecheck, production/PWA build, and both browser cases pass.
+  ESLint reports zero errors and the existing 17 warnings; independent review found no actionable issues.
+  Physical iPhone validation remains unavailable on this Linux host.
+- Review follow-up preserves the remaining finger when only one pointer is canceled.
+  The new cancellation-handoff regression fails before the fix and passes afterward; independent follow-up review found no issues.
+
 ### Refresh and run the full live browser suite (2026-09-20)
 
 - Rebased validation work onto current `dev` (`12d3245f`), including cached-thread startup, diagnostic storage fallback, the iOS import fix, and grouped-tool table rendering.
