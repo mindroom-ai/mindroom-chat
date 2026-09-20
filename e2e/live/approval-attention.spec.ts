@@ -75,6 +75,7 @@ test('approval attention settles, stops on review, and respects actionability an
   await sendApproval('first');
   const bar = page.getByRole('region', { name: 'Thread approvals' });
   const review = bar.getByRole('button', { name: /^Review/ });
+  const reviewDialog = page.getByRole('dialog', { name: 'Review tool calls' });
   await expect(review).toBeVisible();
   const animations = () => review.evaluate((el) => el.getAnimations({ subtree: true }).length);
   await expect.poll(animations).toBe(1);
@@ -91,7 +92,7 @@ test('approval attention settles, stops on review, and respects actionability an
   expect(await review.boundingBox()).toEqual(bounds);
 
   await review.click();
-  await page.getByRole('button', { name: 'Close', exact: true }).click();
+  await reviewDialog.getByRole('button', { name: 'Close', exact: true }).click();
   await expect.poll(animations).toBe(0);
   await expect(review).toHaveCSS('box-shadow', halo);
 
@@ -103,14 +104,14 @@ test('approval attention settles, stops on review, and respects actionability an
   // Requests arriving during review must not animate when the dialog closes.
   await sendApproval('third');
   await expect(review).toHaveText('Review 3');
-  await page.getByRole('button', { name: 'Close', exact: true }).click();
+  await reviewDialog.getByRole('button', { name: 'Close', exact: true }).click();
   await expect.poll(animations).toBe(0);
   await expect(review).toHaveCSS('box-shadow', halo);
 
   await review.click();
   await page.getByRole('button', { name: 'Approve all 3 once', exact: true }).click();
   await expect(bar).toContainText('3 calls awaiting confirmation');
-  await page.getByRole('button', { name: 'Close', exact: true }).click();
+  await reviewDialog.getByRole('button', { name: 'Close', exact: true }).click();
   await expect(review).not.toHaveCSS('box-shadow', halo);
   await expect.poll(animations).toBe(0);
 

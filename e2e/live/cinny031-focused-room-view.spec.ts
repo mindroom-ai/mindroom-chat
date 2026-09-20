@@ -26,9 +26,15 @@ const waitForOverviewToolbar = async (page: Page) => {
   await expect(page.getByText('Unexpected Application Error!')).toHaveCount(0);
 };
 
+const getRoomViewModeButton = (page: Page, mode: 'compact' | 'threaded') =>
+  page.getByRole('group', { name: 'Room view mode' }).locator(`button[data-view-mode="${mode}"]`);
+
+const getSortButton = (page: Page) =>
+  page.locator('[data-room-thread-overview="true"] button[data-sort-by]');
+
 const expectExpandedFocusedTimeline = async (page: Page, rootBody: string) => {
   await waitForOverviewToolbar(page);
-  await expect(page.getByRole('button', { name: 'Threaded view' })).toBeVisible();
+  await expect(getRoomViewModeButton(page, 'threaded')).toHaveAttribute('aria-pressed', 'true');
   await expect(
     page.getByTestId('room-virtual-inner').getByText(rootBody, { exact: true })
   ).toBeVisible({ timeout: 30_000 });
@@ -129,13 +135,13 @@ test.describe('live cinny-031 focused room view', () => {
     await page.goto(getFocusedRoomPath(fixture.roomId, fixture.rootId));
     await expectExpandedFocusedTimeline(page, fixture.rootBody);
 
-    await page.getByRole('button', { name: 'Compact view' }).click();
-    await expect(page.getByRole('button', { name: 'Compact view' })).toBeVisible();
+    await getRoomViewModeButton(page, 'compact').click();
+    await expect(getRoomViewModeButton(page, 'compact')).toHaveAttribute('aria-pressed', 'true');
     await expect(page.locator('[data-compact-room-view="true"]')).toBeVisible();
     await expect(page.locator(`[data-thread-root-id="${fixture.rootId}"]`)).toBeVisible();
     await expect(page.locator('[data-message-item]', { hasText: fixture.rootBody })).toHaveCount(0);
 
-    await page.getByRole('button', { name: 'Threaded view' }).click();
+    await getRoomViewModeButton(page, 'threaded').click();
     await expectExpandedFocusedTimeline(page, fixture.rootBody);
 
     await expectNoUnexpectedBrowserDiagnostics(diagnostics, 'cinny-031-focused-toggle');
@@ -203,9 +209,10 @@ test.describe('live cinny-031 focused room view', () => {
 
     await page.goto(getFocusedRoomPath(roomId, secondRootId));
     await waitForOverviewToolbar(page);
-    await expect(page.getByRole('button', { name: 'Threaded view' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Threads in timeline order' })).toBeVisible();
-    await expect(page.getByText('Showing all 3 threads.')).toBeVisible();
+    await expect(getRoomViewModeButton(page, 'threaded')).toHaveAttribute('aria-pressed', 'true');
+    await expect(getSortButton(page)).toHaveAttribute('data-sort-by', 'natural');
+    await expect(getSortButton(page)).toHaveAttribute('data-sort-direction', 'desc');
+    await expect(page.getByText('Showing 3 threads', { exact: true })).toBeVisible();
     await expect(page.getByText(fillerBody)).toBeVisible({ timeout: 30_000 });
     await expect(page.getByText(firstRootBody)).toBeVisible({ timeout: 30_000 });
     await expect(page.getByText(secondRootBody)).toBeVisible({ timeout: 30_000 });
@@ -216,10 +223,9 @@ test.describe('live cinny-031 focused room view', () => {
     expect(naturalFillerIndex).toBeLessThan(naturalFirstIndex);
     expect(naturalFirstIndex).toBeLessThan(naturalSecondIndex);
 
-    await page.getByRole('button', { name: 'Threads in timeline order' }).click();
-    await expect(
-      page.getByRole('button', { name: 'Sort threads by last reply, newest first' })
-    ).toBeVisible();
+    await getSortButton(page).click();
+    await expect(getSortButton(page)).toHaveAttribute('data-sort-by', 'lastReply');
+    await expect(getSortButton(page)).toHaveAttribute('data-sort-direction', 'desc');
 
     const descFillerIndex = await getMessageOrderIndex(page, fillerBody);
     const descFirstIndex = await getMessageOrderIndex(page, firstRootBody);
@@ -227,10 +233,9 @@ test.describe('live cinny-031 focused room view', () => {
     expect(descSecondIndex).toBeLessThan(descFirstIndex);
     expect(descFirstIndex).toBeLessThan(descFillerIndex);
 
-    await page.getByRole('button', { name: 'Sort threads by last reply, newest first' }).click();
-    await expect(
-      page.getByRole('button', { name: 'Sort threads by last reply, oldest first' })
-    ).toBeVisible();
+    await getSortButton(page).click();
+    await expect(getSortButton(page)).toHaveAttribute('data-sort-by', 'lastReply');
+    await expect(getSortButton(page)).toHaveAttribute('data-sort-direction', 'asc');
 
     const ascFillerIndex = await getMessageOrderIndex(page, fillerBody);
     const ascFirstIndex = await getMessageOrderIndex(page, firstRootBody);
@@ -238,8 +243,9 @@ test.describe('live cinny-031 focused room view', () => {
     expect(ascFillerIndex).toBeLessThan(ascFirstIndex);
     expect(ascFirstIndex).toBeLessThan(ascSecondIndex);
 
-    await page.getByRole('button', { name: 'Sort threads by last reply, oldest first' }).click();
-    await expect(page.getByRole('button', { name: 'Threads in timeline order' })).toBeVisible();
+    await getSortButton(page).click();
+    await expect(getSortButton(page)).toHaveAttribute('data-sort-by', 'natural');
+    await expect(getSortButton(page)).toHaveAttribute('data-sort-direction', 'desc');
 
     const naturalAgainFillerIndex = await getMessageOrderIndex(page, fillerBody);
     const naturalAgainFirstIndex = await getMessageOrderIndex(page, firstRootBody);

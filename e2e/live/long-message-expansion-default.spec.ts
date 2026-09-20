@@ -385,11 +385,25 @@ test.describe('live long-message expansion default', () => {
     await expect.poll(() => showMore.count()).toBeGreaterThan(1);
     await page.keyboard.press('Escape');
     await expect(settingTitle).toHaveCount(0);
-    const anchorTopAfterCollapse = await readAnchorTop(page, anchorBeforeCollapse.messageId);
-    expect(anchorTopAfterCollapse).toBeDefined();
-    const collapseAnchorDriftPx = Math.abs(
-      (anchorTopAfterCollapse as number) - anchorBeforeCollapse.top
-    );
+    const collapseAnchorSamples: number[] = [];
+    // Folding restores the anchor across animation frames while the virtualizer
+    // measures the shorter rows. Wait for that bounded stabilization to finish.
+    await expect
+      .poll(
+        async () => {
+          const top = await readAnchorTop(page, anchorBeforeCollapse.messageId);
+          const drift = Math.abs((top ?? Infinity) - anchorBeforeCollapse.top);
+          collapseAnchorSamples.push(drift);
+          return drift;
+        },
+        { timeout: 3_000 }
+      )
+      .toBeLessThan(ANCHOR_DRIFT_BUDGET_PX);
+    const collapseAnchorDriftPx = collapseAnchorSamples[collapseAnchorSamples.length - 1];
+    await testInfo.attach('collapse-anchor.json', {
+      body: JSON.stringify({ anchorBeforeCollapse, collapseAnchorSamples }),
+      contentType: 'application/json',
+    });
     expect(collapseAnchorDriftPx).toBeLessThan(ANCHOR_DRIFT_BUDGET_PX);
     const collapsedSettings = await matrixFetch<Record<string, unknown>>(
       homeserver,

@@ -110,9 +110,8 @@ const runThreadSendStabilityAssertions = async (page: Page) => {
   );
 
   await expect(page.getByText('Thread View')).toBeVisible({ timeout: 30_000 });
-  await expect(page.locator(`[data-message-id="${fixture.rootId}"]`)).toBeVisible({
-    timeout: 30_000,
-  });
+  // The root can be outside the virtualized window while viewing the latest reply.
+  await expect.poll(() => new URL(page.url()).searchParams.get('threadId')).toBe(fixture.rootId);
   await expect(page.getByText(lastSeededReplyBody)).toBeVisible({ timeout: 30_000 });
   await expect
     .poll(async () => {
@@ -150,9 +149,6 @@ const runThreadSendStabilityAssertions = async (page: Page) => {
       return state.scrollHeight - state.scrollTop - state.clientHeight;
     })
     .toBeLessThanOrEqual(48);
-  await expect(page.locator(`[data-message-id="${fixture.rootId}"]`)).toBeVisible({
-    timeout: 30_000,
-  });
   await expect(page.getByText('Failed to load this thread')).toHaveCount(0);
   await expect
     .poll(() => new URL(page.url()).searchParams.get('threadId'), {
