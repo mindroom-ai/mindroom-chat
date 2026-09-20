@@ -109,6 +109,10 @@ export const sampleScreenshot = async (
 // A diagonal highlight, missing rim, or uniform outline must fail this check.
 export const expectVerticalGlassRim = async (page: Page, surface: Locator) => {
   const box = (await surface.boundingBox())!;
+  // boundingBox is viewport-relative; full-page screenshots use document coordinates.
+  const scroll = await page.evaluate(() => ({ x: window.scrollX, y: window.scrollY }));
+  box.x += scroll.x;
+  box.y += scroll.y;
   const points = [
     // Sum adjacent pixels to account for fractional one-pixel rim coverage.
     { x: box.x + box.width / 2, y: Math.floor(box.y) },

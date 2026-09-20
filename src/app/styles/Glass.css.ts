@@ -53,7 +53,8 @@ const material = (tint: number, blur: number, shadow: string, elevation: string)
     [highlight]: 'rgb(255 255 255 / 22%)',
     [rimHighlight]: 'rgb(255 255 255 / 32%)',
     [rimShade]: 'rgb(65 70 90 / 24%)',
-    [rimReflection]: 'rgb(255 255 255 / 90%)',
+    // Let the shaded rim show through so the top stays visible on white backgrounds.
+    [rimReflection]: 'rgb(255 255 255 / 50%)',
   },
   selectors: {
     '&&': {

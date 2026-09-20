@@ -9,11 +9,12 @@
 - File/media attachment shells, link previews, pasted-text cards, uploads, and message extras use the shared panel material.
   Existing outlines remain available when masked rims are unsupported or transparency is disabled, including CanvasText boundaries in forced colors.
   Progress/error colors, focus, and content rendering remain intact; dense inline reactions and status badges keep their existing treatment.
-- Thread banners use the composer's control material, including its soft outer shadow around the shared directional rim.
+- Thread banners use the shared panel material and directional rim, without an outer shadow.
   Floating blur stays at 3 px, dark tint stays at 72%, and resolved banners retain their success color.
-  Light tint follows the composer at 58% instead of the panel's 60%.
+  Light tint remains at the panel's 60%.
 - Shared glass rims use vertical lighting: a stronger top highlight, softer bottom reflection, and quiet side edges.
   The masked gradient uses 180 degrees, and inset-shadow fallbacks follow the same top/bottom orientation.
+  Light themes reduce the top reflection's white opacity so the shaded edge remains visible against white backgrounds; dark reflections are unchanged.
   Existing flat chrome and accessibility modes remain rimless.
 - A real-component gallery captures every changed style before and after in Chromium/WebKit and light/dark themes.
   Eight new browser checks pass, including rim sampling, pause/resume, disclosure, keyboard activation, and high contrast; all four rim cases fail against the previous styles.

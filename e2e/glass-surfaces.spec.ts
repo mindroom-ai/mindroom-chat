@@ -177,6 +177,15 @@ for (const theme of ['light', 'silver', 'dark', 'midnight', 'butter']) {
       await expect(surface).toBeInViewport({ ratio: 1 });
       await expectVerticalGlassRim(page, surface);
     }
+    if (theme === 'light' || theme === 'silver') {
+      const top = await page.getByTestId('thread-banner').evaluate((element) => {
+        const box = element.getBoundingClientRect();
+        return { x: box.x + box.width / 2 + window.scrollX, y: box.y + window.scrollY };
+      });
+      // The gap above this banner is plain page background, without overlapping text.
+      const [edge, backdrop] = await sampleScreenshot(page, [top, { ...top, y: top.y - 2 }]);
+      expect(pixelDifference(edge, backdrop), 'top rim stays visible on white').toBeGreaterThan(24);
+    }
   });
 }
 
