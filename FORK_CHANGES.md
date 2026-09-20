@@ -12,6 +12,9 @@
 - Thread banners use the composer's control material, including its soft outer shadow around the shared directional rim.
   Floating blur stays at 3 px, dark tint stays at 72%, and resolved banners retain their success color.
   Light tint follows the composer at 58% instead of the panel's 60%.
+- Shared glass rims use vertical lighting: a stronger top highlight, softer bottom reflection, and quiet side edges.
+  The masked gradient uses 180 degrees, and inset-shadow fallbacks follow the same top/bottom orientation.
+  Existing flat chrome and accessibility modes remain rimless.
 - A real-component gallery captures every changed style before and after in Chromium/WebKit and light/dark themes.
   Eight new browser checks pass, including rim sampling, pause/resume, disclosure, keyboard activation, and high contrast; all four rim cases fail against the previous styles.
   All 4,741 unit tests, typecheck, production/PWA build, and lint pass with the existing 17 warnings.

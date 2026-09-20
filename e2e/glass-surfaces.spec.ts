@@ -1,8 +1,16 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { contrastRatio, pixelDifference, sampleScreenshot, type Rgba } from './helpers/glassVisual';
+import {
+  contrastRatio,
+  expectVerticalGlassRim,
+  pixelDifference,
+  sampleScreenshot,
+  type Rgba,
+} from './helpers/glassVisual';
 
 for (const theme of ['light', 'dark']) {
-  test(`chat controls and attachment shells have fading rims in ${theme}`, async ({ page }) => {
+  test(`chat controls and attachment shells have top and bottom rim highlights in ${theme}`, async ({
+    page,
+  }) => {
     await page.setViewportSize({ width: 390, height: 1800 });
     await page.goto(`/e2e/fixtures/glass-surfaces.html?controls&theme=${theme}`);
     await page.evaluate(() => Promise.all([...document.fonts].map((font) => font.load())));
@@ -17,15 +25,7 @@ for (const theme of ['light', 'dark']) {
     ];
     for (const surface of surfaces) {
       await expect(surface).toBeInViewport({ ratio: 1 });
-      const box = (await surface.boundingBox())!;
-      const radius = await surface.evaluate((element) =>
-        parseFloat(getComputedStyle(element).borderTopLeftRadius)
-      );
-      const [lit, faded] = await sampleScreenshot(page, [
-        { x: box.x + Math.min(radius, box.height / 2) + 2, y: box.y },
-        { x: box.x + box.width / 2, y: box.y },
-      ]);
-      expect.soft(pixelDifference(lit, faded), `${surface} has a fading rim`).toBeGreaterThan(18);
+      await expectVerticalGlassRim(page, surface);
       expect
         .soft(await surface.evaluate((element) => getComputedStyle(element).boxShadow))
         .not.toContain('inset');
@@ -95,7 +95,7 @@ for (const theme of ['light', 'dark']) {
 }
 
 for (const theme of ['light', 'dark']) {
-  test(`message cards share directional glass rims in ${theme}`, async ({ page }) => {
+  test(`message cards share top and bottom rim highlights in ${theme}`, async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 1400 });
     await page.goto(`/e2e/fixtures/glass-surfaces.html?messages&theme=${theme}`);
     await page.evaluate(() => document.fonts.ready);
@@ -113,15 +113,7 @@ for (const theme of ['light', 'dark']) {
         ? host
         : host.locator(':scope > *').first();
       await expect(surface).toBeInViewport({ ratio: 1 });
-      const box = (await surface.boundingBox())!;
-      const radius = await surface.evaluate((element) =>
-        parseFloat(getComputedStyle(element).borderTopLeftRadius)
-      );
-      const [lit, faded] = await sampleScreenshot(page, [
-        { x: box.x + radius + 2, y: box.y },
-        { x: box.x + box.width / 2, y: box.y },
-      ]);
-      expect.soft(pixelDifference(lit, faded), `${id} has a fading reflection`).toBeGreaterThan(36);
+      await expectVerticalGlassRim(page, surface);
       expect
         .soft(
           await surface.evaluate((element) => getComputedStyle(element).boxShadow),
@@ -173,7 +165,7 @@ for (const theme of ['light', 'dark']) {
 }
 
 for (const theme of ['light', 'silver', 'dark', 'midnight', 'butter']) {
-  test(`thread and audio rims have visible directional contrast in ${theme}`, async ({ page }) => {
+  test(`thread and audio rims highlight the top and bottom in ${theme}`, async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 1600 });
     await page.goto(`/e2e/fixtures/glass-surfaces.html?theme=${theme}`);
     // The fixture uses the real, plain chat background so colors cannot hide a missing rim.
@@ -183,28 +175,7 @@ for (const theme of ['light', 'silver', 'dark', 'midnight', 'butter']) {
     ]) {
       await expect(surface).toBeVisible();
       await expect(surface).toBeInViewport({ ratio: 1 });
-      const box = (await surface.boundingBox())!;
-      const radius = await surface.evaluate((element) =>
-        Number.parseFloat(getComputedStyle(element).borderTopLeftRadius)
-      );
-      const [lit, faded] = await sampleScreenshot(page, [
-        { x: box.x + radius + 2, y: box.y },
-        { x: box.x + box.width / 2, y: box.y },
-      ]);
-      // Sample along one straight edge: a uniform outline, two differently
-      // colored sides, and a white-on-white highlight must all fail.
-      expect.soft(pixelDifference(lit, faded)).toBeGreaterThan(36);
-      // The mask must leave the center clear; a full-surface gradient would
-      // satisfy the edge assertion while washing out content and transparency.
-      const interior = { x: box.x + box.width / 2, y: box.y + box.height - 6 };
-      const [withRim] = await sampleScreenshot(page, [interior]);
-      await surface.evaluate((element) => element.setAttribute('data-rim-probe', ''));
-      const hideRim = await page.addStyleTag({
-        content: '[data-rim-probe]::before { display: none !important; }',
-      });
-      expect(await sampleScreenshot(page, [interior])).toEqual([withRim]);
-      await hideRim.evaluate((element) => element.remove());
-      await surface.evaluate((element) => element.removeAttribute('data-rim-probe'));
+      await expectVerticalGlassRim(page, surface);
     }
   });
 }

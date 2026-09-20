@@ -91,7 +91,7 @@ const material = (tint: number, blur: number, shadow: string, elevation: string)
           padding: 1,
           pointerEvents: 'none',
           backgroundColor: rimShade,
-          backgroundImage: `linear-gradient(135deg, ${rimReflection}, transparent 45%, transparent 65%, ${rimHighlight})`,
+          backgroundImage: `linear-gradient(180deg, ${rimReflection}, transparent 45%, transparent 65%, ${rimHighlight})`,
           WebkitMask: 'linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)',
           mask: 'linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)',
           WebkitMaskComposite: 'xor',
@@ -180,20 +180,25 @@ export const glassSurface = recipe({
   variants: {
     level: {
       overlay: [
-        // Equal horizontal/vertical offsets light the rim from the upper left at 45°.
+        // Vertical lighting catches the top and bottom while the sides recede.
         material(
           60,
           12,
-          `inset 1px 1px 0 ${rimHighlight}, inset -1px -1px 0 rgb(255 255 255 / 6%), 0 16px 48px rgb(0 0 0 / 18%), 0 2px 8px rgb(0 0 0 / 8%)`,
+          `inset 0 1px 0 ${rimHighlight}, inset 0 -1px 0 rgb(255 255 255 / 6%), 0 16px 48px rgb(0 0 0 / 18%), 0 2px 8px rgb(0 0 0 / 8%)`,
           '0 16px 48px rgb(0 0 0 / 18%), 0 2px 8px rgb(0 0 0 / 8%)'
         ),
         { selectors: { '&&': { boxShadow: glassShadow } } },
       ],
-      panel: material(60, 10, 'inset 1px 1px 0 rgb(255 255 255 / 16%)', '0 0 0 transparent'),
+      panel: material(
+        60,
+        10,
+        'inset 0 1px 0 rgb(255 255 255 / 16%), inset 0 -1px 0 rgb(255 255 255 / 6%)',
+        '0 0 0 transparent'
+      ),
       control: material(
         58,
         8,
-        `inset 1px 1px 0 ${rimHighlight}, 0 2px 8px rgb(0 0 0 / 5%)`,
+        `inset 0 1px 0 ${rimHighlight}, inset 0 -1px 0 rgb(255 255 255 / 6%), 0 2px 8px rgb(0 0 0 / 5%)`,
         '0 2px 8px rgb(0 0 0 / 5%)'
       ),
     },
