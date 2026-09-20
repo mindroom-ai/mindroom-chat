@@ -2,6 +2,16 @@
 
 ## Runbook
 
+### Reopen downloaded historical thread content without Matrix access (2026-09-20)
+
+- The production browser regression creates a thread root, long-text v2 sidecar and one-pixel PNG before 24 newer room events.
+  It proves a real 20-event SDK sync excludes the historical events, drives Download entire room through General settings, and waits for the production event and attachment stores to commit before restart.
+- The saved SDK sync is replaced with a real one-event tail after navigating to an inert service-worker-denylisted document, so the historical root, full body and decoded image can only reopen from the dedicated persistent cache.
+- Chromium closes the warm page, enables browser offline mode and opens a new page through the installed service worker.
+  WebKit closes and reopens the same persistent profile with workers blocked and every Matrix/media request held; this profile flow is used because Playwright WebKit cannot navigate offline even through a minimal standalone service worker.
+- Final integration corrected the service-worker source contract after the cache-only shell lookup change and added required bidi isolates around the new Arabic offline-setting interpolation values.
+  Physical iPhone, macOS and Xcode execution remain unavailable; CocoaPods dependency integration does not establish an archive or on-device result.
+
 ### Open the cached web shell before network navigation (2026-09-20)
 
 - Eligible app, room and thread navigations return the valid precached document immediately without starting a network request.
