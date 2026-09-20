@@ -49,6 +49,35 @@ const hydrate = (mx: MatrixClient) =>
     mx
   );
 
+const pauseAttachmentLookup = (mxcUri: string) => {
+  const originalGet = IDBObjectStore.prototype.get;
+  let request: IDBRequest | undefined;
+  vi.spyOn(IDBObjectStore.prototype, 'get').mockImplementation(function pausedGet(query) {
+    if (query !== mxcUri) return originalGet.call(this, query);
+    request = {
+      error: null,
+      onerror: null,
+      onsuccess: null,
+      result: undefined,
+    } as unknown as IDBRequest;
+    return request;
+  });
+
+  return {
+    waitUntilStarted: (timeout = 1000) =>
+      vi.waitFor(
+        () => {
+          expect(request).toBeDefined();
+        },
+        { timeout }
+      ),
+    finish: () => {
+      expect(request).toBeDefined();
+      request?.onsuccess?.call(request, new Event('success'));
+    },
+  };
+};
+
 describe('persistent attachment repository', () => {
   beforeEach(() => {
     (globalThis as { indexedDB: IDBFactory }).indexedDB = new IDBFactory();
@@ -58,6 +87,7 @@ describe('persistent attachment repository', () => {
   });
 
   afterEach(() => {
+    vi.restoreAllMocks();
     vi.unstubAllGlobals();
     resetCacheStoreForTesting();
     clearMindroomLongTextHydrationCache();
@@ -408,5 +438,79 @@ describe('persistent attachment repository', () => {
     await expect(
       downloadCachedAttachment(alice, source, false, { signal: controller.signal })
     ).rejects.toMatchObject({ name: 'AbortError' });
+  });
+
+  it('does not start lookup or transport for an already-aborted uncached request', async () => {
+    const fetchMock = vi.fn(async () => new Response('unused body', { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+    const alice = createAccountClient('@alice:matrix.example.org');
+    const source = {
+      mxcUri: 'mxc://matrix.example.org/pre-aborted-uncached',
+      mimeType: 'text/plain',
+    };
+    const sessionId = createSessionId(BASE_URL, '@alice:matrix.example.org');
+    await openCacheStore(sessionId);
+    const lookup = pauseAttachmentLookup(source.mxcUri);
+    const controller = new AbortController();
+    controller.abort();
+
+    await expect(
+      downloadCachedAttachment(alice, source, false, { signal: controller.signal })
+    ).rejects.toMatchObject({ name: 'AbortError' });
+    expect(fetchMock).not.toHaveBeenCalled();
+    await expect(lookup.waitUntilStarted(30)).rejects.toThrow();
+  });
+
+  it('does not start transport after its only consumer aborts during cache lookup', async () => {
+    const fetchMock = vi.fn(async () => new Response('unused body', { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+    const alice = createAccountClient('@alice:matrix.example.org');
+    const source = {
+      mxcUri: 'mxc://matrix.example.org/abort-during-lookup',
+      mimeType: 'text/plain',
+    };
+    const sessionId = createSessionId(BASE_URL, '@alice:matrix.example.org');
+    await openCacheStore(sessionId);
+    const lookup = pauseAttachmentLookup(source.mxcUri);
+    const controller = new AbortController();
+    const pending = downloadCachedAttachment(alice, source, false, {
+      signal: controller.signal,
+    });
+    await lookup.waitUntilStarted();
+
+    controller.abort();
+    await expect(pending).rejects.toMatchObject({ name: 'AbortError' });
+    lookup.finish();
+    await new Promise((resolve) => {
+      setTimeout(resolve, 0);
+    });
+
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('starts transport after cache lookup when another shared consumer remains', async () => {
+    const fetchMock = vi.fn(async () => new Response('surviving body', { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+    const alice = createAccountClient('@alice:matrix.example.org');
+    const source = {
+      mxcUri: 'mxc://matrix.example.org/survive-lookup-abort',
+      mimeType: 'text/plain',
+    };
+    const sessionId = createSessionId(BASE_URL, '@alice:matrix.example.org');
+    await openCacheStore(sessionId);
+    const lookup = pauseAttachmentLookup(source.mxcUri);
+    const controller = new AbortController();
+    const canceled = downloadCachedAttachment(alice, source, false, {
+      signal: controller.signal,
+    });
+    await lookup.waitUntilStarted();
+    const remaining = downloadCachedAttachment(alice, source, false);
+
+    controller.abort();
+    await expect(canceled).rejects.toMatchObject({ name: 'AbortError' });
+    lookup.finish();
+
+    await expect((await remaining).text()).resolves.toBe('surviving body');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });

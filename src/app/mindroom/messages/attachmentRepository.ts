@@ -89,12 +89,13 @@ const acquireAttachment = (
   const key = getInflightKey(sessionId, source.mxcUri);
   let operation = inflightDownloads.get(key);
   if (!operation) {
-    const promise = loadCachedAttachment(sessionId, source.mxcUri).then((cached) =>
-      cached
-        ? { bytes: cached.bytes, mimeType: cached.mimeType }
-        : fetchRawAttachment(mx, source, useAuthentication)
-    );
-    const created = { promise, consumers: 0, settled: false };
+    let created: SharedAttachmentOperation | undefined;
+    const promise = loadCachedAttachment(sessionId, source.mxcUri).then((cached) => {
+      if (cached) return { bytes: cached.bytes, mimeType: cached.mimeType };
+      if (!created || created.consumers === 0) throw abortError();
+      return fetchRawAttachment(mx, source, useAuthentication);
+    });
+    created = { promise, consumers: 0, settled: false };
     operation = created;
     inflightDownloads.set(key, created);
     const markSettled = () => {
@@ -137,6 +138,7 @@ export const downloadCachedAttachment = async (
   useAuthentication: boolean,
   options: CachedAttachmentDownloadOptions = {}
 ): Promise<Blob> => {
+  if (options.signal?.aborted) throw abortError();
   const sessionId = getSessionId(mx);
   const writeLease = captureCacheStoreWriteLease(sessionId);
   const attachment = acquireAttachment(mx, sessionId, source, useAuthentication);
