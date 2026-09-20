@@ -885,7 +885,7 @@
       "login": "로그인",
       "thisClientRequiresSignInWithAppleConfigureTheHomeserverSsoProvider": "이 클라이언트는 Apple 로그인이 필요합니다. 홈서버 SSO 공급자 목록에 Apple을 추가하세요.",
       "register": "가입",
-      "accountLink": "계정이 없나요? <link>가입</link>",
+      "accountLink": "계정이 없나요? <authLink>가입</authLink>",
       "passwordLoginIsDisabledOnValue1UseSsoToSignIn": "\"{{value1}}\"에서는 비밀번호 로그인이 비활성화되어 있습니다. SSO로 로그인하세요.",
       "thisClientDoesNotSupportLoginOnValue1ServerPasswordAndSso": "이 클라이언트는 \"{{value1}}\" 서버 로그인을 지원하지 않습니다. 비밀번호 또는 SSO 로그인 방식을 찾지 못했습니다."
     },
@@ -948,7 +948,7 @@
       "thisApplicationDoesNotSupportRegistrationOnThisHomeserver": "이 애플리케이션은 이 홈서버에서의 등록을 지원하지 않습니다.",
       "ssoRegistrationIsRequiredOnThisHomeserverButNoSsoProvidersWere": "이 홈서버에서는 SSO 등록이 필요하지만 사용 가능한 SSO 공급자가 없습니다.",
       "login": "로그인",
-      "accountLink": "이미 계정이 있나요? <link>로그인</link>"
+      "accountLink": "이미 계정이 있나요? <authLink>로그인</authLink>"
     },
     "passwordResetForm": {
       "passwordHasBeenResetSuccessfullyPleaseLoginWithYourNewPassword": "비밀번호를 재설정했습니다. 새 비밀번호로 로그인하세요.",
@@ -963,7 +963,7 @@
     "resetPassword": {
       "resetPassword": "비밀번호 재설정",
       "login": "로그인",
-      "accountLink": "비밀번호가 기억났나요? <link>로그인</link>"
+      "accountLink": "비밀번호가 기억났나요? <authLink>로그인</authLink>"
     },
     "clientRoot": {
       "catchingUp": "동기화하는 중...",

@@ -40,7 +40,7 @@ export function ResetPassword() {
           tOptions={{ interpolation: { escapeValue: true } }}
           i18nKey="sharedUi.resetPassword.accountLink"
           components={{
-            link: <Link to={withAddAccountSearchIf(getLoginPath(server), addAccount)} />,
+            authLink: <Link to={withAddAccountSearchIf(getLoginPath(server), addAccount)} />,
           }}
         />
       </Text>

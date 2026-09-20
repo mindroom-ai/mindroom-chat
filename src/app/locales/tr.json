@@ -885,7 +885,7 @@
       "login": "Giriş yap",
       "thisClientRequiresSignInWithAppleConfigureTheHomeserverSsoProvider": "Bu istemci Apple ile giriş yapılmasını gerektirir. Ana sunucunun SSO sağlayıcı listesine Apple'ı ekleyin.",
       "register": "Kayıt ol",
-      "accountLink": "Hesabınız yok mu? <link>Kayıt olun</link>",
+      "accountLink": "Hesabınız yok mu? <authLink>Kayıt olun</authLink>",
       "passwordLoginIsDisabledOnValue1UseSsoToSignIn": "\"{{value1}}\" sunucusunda parolayla giriş kapalıdır. Giriş yapmak için SSO kullanın.",
       "thisClientDoesNotSupportLoginOnValue1ServerPasswordAndSso": "Bu istemci \"{{value1}}\" sunucusuna girişi desteklemiyor. Parola veya SSO tabanlı giriş yöntemi bulunamadı."
     },
@@ -948,7 +948,7 @@
       "thisApplicationDoesNotSupportRegistrationOnThisHomeserver": "Bu uygulama bu ana sunucuda kaydı desteklemiyor.",
       "ssoRegistrationIsRequiredOnThisHomeserverButNoSsoProvidersWere": "Bu ana sunucuda SSO ile kayıt gerekiyor, ancak hiçbir SSO sağlayıcısı bildirilmedi.",
       "login": "Giriş yap",
-      "accountLink": "Zaten hesabınız var mı? <link>Giriş yapın</link>"
+      "accountLink": "Zaten hesabınız var mı? <authLink>Giriş yapın</authLink>"
     },
     "passwordResetForm": {
       "passwordHasBeenResetSuccessfullyPleaseLoginWithYourNewPassword": "Parola başarıyla sıfırlandı. Lütfen yeni parolanızla giriş yapın.",
@@ -963,7 +963,7 @@
     "resetPassword": {
       "resetPassword": "Parolayı sıfırla",
       "login": "Giriş yap",
-      "accountLink": "Parolanızı hatırladınız mı? <link>Giriş yapın</link>"
+      "accountLink": "Parolanızı hatırladınız mı? <authLink>Giriş yapın</authLink>"
     },
     "clientRoot": {
       "catchingUp": "Güncelleniyor...",

@@ -890,7 +890,7 @@
       "login": "Iniciar sessão",
       "thisClientRequiresSignInWithAppleConfigureTheHomeserverSsoProvider": "Este cliente requer Iniciar sessão com a Apple. Configure a lista de fornecedores SSO do servidor doméstico para incluir a Apple.",
       "register": "Registar",
-      "accountLink": "Não tem uma conta? <link>Registe-se</link>",
+      "accountLink": "Não tem uma conta? <authLink>Registe-se</authLink>",
       "passwordLoginIsDisabledOnValue1UseSsoToSignIn": "O início de sessão com palavra-passe está desativado em “{{value1}}”. Use SSO para iniciar sessão.",
       "thisClientDoesNotSupportLoginOnValue1ServerPasswordAndSso": "Este cliente não permite iniciar sessão no servidor “{{value1}}”. Não foi encontrado um método de início de sessão por palavra-passe ou SSO."
     },
@@ -953,7 +953,7 @@
       "thisApplicationDoesNotSupportRegistrationOnThisHomeserver": "Esta aplicação não suporta o registo neste servidor doméstico.",
       "ssoRegistrationIsRequiredOnThisHomeserverButNoSsoProvidersWere": "Este servidor doméstico requer registo por SSO, mas não anunciou fornecedores SSO.",
       "login": "Iniciar sessão",
-      "accountLink": "Já tem uma conta? <link>Inicie sessão</link>"
+      "accountLink": "Já tem uma conta? <authLink>Inicie sessão</authLink>"
     },
     "passwordResetForm": {
       "passwordHasBeenResetSuccessfullyPleaseLoginWithYourNewPassword": "A palavra-passe foi reposta. Inicie sessão com a nova palavra-passe.",
@@ -968,7 +968,7 @@
     "resetPassword": {
       "resetPassword": "Repor palavra-passe",
       "login": "Iniciar sessão",
-      "accountLink": "Lembra-se da sua palavra-passe? <link>Inicie sessão</link>"
+      "accountLink": "Lembra-se da sua palavra-passe? <authLink>Inicie sessão</authLink>"
     },
     "clientRoot": {
       "catchingUp": "A atualizar...",

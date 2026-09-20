@@ -2161,7 +2161,7 @@
       "leaving": "छोड़ा जा रहा है..."
     },
     "login": {
-      "accountLink": "खाता नहीं है? <link>पंजीकरण करें</link>",
+      "accountLink": "खाता नहीं है? <authLink>पंजीकरण करें</authLink>",
       "login": "लॉग इन करें",
       "passwordLoginIsDisabledOnValue1UseSsoToSignIn": "\"{{value1}}\" पर पासवर्ड लॉगिन अक्षम है। साइन इन करने के लिए SSO का उपयोग करें।",
       "register": "पंजीकरण करें",
@@ -2365,7 +2365,7 @@
       "pleaseCheckTheBoxBelowToProceed": "कृपया आगे बढ़ने के लिए नीचे दिए गए बॉक्स को चेक करें।"
     },
     "register": {
-      "accountLink": "पहले से खाता है? <link>लॉगिन करें</link>",
+      "accountLink": "पहले से खाता है? <authLink>लॉगिन करें</authLink>",
       "invalidRequestFailedToGetAnyRegistrationOptions": "अमान्य अनुरोध! कोई भी पंजीकरण विकल्प प्राप्त करने में विफल.",
       "login": "लॉग इन करें",
       "register": "पंजीकरण करें",
@@ -2384,7 +2384,7 @@
       "retry": "पुन: प्रयास करें"
     },
     "resetPassword": {
-      "accountLink": "पासवर्ड याद है? <link>लॉगिन करें</link>",
+      "accountLink": "पासवर्ड याद है? <authLink>लॉगिन करें</authLink>",
       "login": "लॉग इन करें",
       "resetPassword": "पासवर्ड रीसेट करें"
     },

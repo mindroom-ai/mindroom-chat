@@ -885,7 +885,7 @@
       "login": "Anmelden",
       "thisClientRequiresSignInWithAppleConfigureTheHomeserverSsoProvider": "Dieser Client erfordert „Mit Apple anmelden“. Konfiguriere die SSO-Anbieterliste des Homeservers so, dass Apple enthalten ist.",
       "register": "Registrieren",
-      "accountLink": "Du hast noch kein Konto? <link>Registrieren</link>",
+      "accountLink": "Du hast noch kein Konto? <authLink>Registrieren</authLink>",
       "passwordLoginIsDisabledOnValue1UseSsoToSignIn": "Die Passwortanmeldung ist auf „{{value1}}“ deaktiviert. Melde dich mit SSO an.",
       "thisClientDoesNotSupportLoginOnValue1ServerPasswordAndSso": "Dieser Client unterstützt die Anmeldung am Server „{{value1}}“ nicht. Es wurde keine Anmeldemethode per Passwort oder SSO gefunden."
     },
@@ -948,7 +948,7 @@
       "thisApplicationDoesNotSupportRegistrationOnThisHomeserver": "Diese Anwendung unterstützt die Registrierung auf diesem Homeserver nicht.",
       "ssoRegistrationIsRequiredOnThisHomeserverButNoSsoProvidersWere": "Auf diesem Homeserver ist eine SSO-Registrierung erforderlich, aber es wurden keine SSO-Anbieter angekündigt.",
       "login": "Anmelden",
-      "accountLink": "Du hast bereits ein Konto? <link>Anmelden</link>"
+      "accountLink": "Du hast bereits ein Konto? <authLink>Anmelden</authLink>"
     },
     "passwordResetForm": {
       "passwordHasBeenResetSuccessfullyPleaseLoginWithYourNewPassword": "Das Passwort wurde erfolgreich zurückgesetzt. Melde dich mit deinem neuen Passwort an.",
@@ -963,7 +963,7 @@
     "resetPassword": {
       "resetPassword": "Passwort zurücksetzen",
       "login": "Anmelden",
-      "accountLink": "Du erinnerst dich an dein Passwort? <link>Anmelden</link>"
+      "accountLink": "Du erinnerst dich an dein Passwort? <authLink>Anmelden</authLink>"
     },
     "clientRoot": {
       "catchingUp": "Wird aktualisiert...",
