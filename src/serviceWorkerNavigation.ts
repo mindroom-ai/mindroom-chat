@@ -59,7 +59,7 @@ export const navigationFallbackExcludePathPattern = (path: string): RegExp => {
 
 export const fetchNavigationWithShellFallback = async (
   request: Request,
-  loadCachedShell: () => Promise<Response>
+  loadCachedShell: () => Promise<Response | undefined>
 ): Promise<Response> => {
   if (isAuthenticationRecoveryNavigation(request.url)) {
     return fetch(request, { cache: 'no-store' });
@@ -67,7 +67,7 @@ export const fetchNavigationWithShellFallback = async (
 
   try {
     const cachedShell = await loadCachedShell();
-    if (cachedShell.ok) return cachedShell;
+    if (cachedShell?.ok) return cachedShell;
   } catch {
     // A missing precache falls through to the network navigation.
   }

@@ -10,7 +10,7 @@
   Normal startup removes only that marker while preserving the path, other query parameters, hash and current history state.
 - The existing server, SSO, static and deployment-configured navigation exclusions remain in place.
   Service worker installation, activation and non-disruptive update behavior are unchanged.
-- Validation: 30 focused navigation, configuration, registration and lifecycle tests pass, along with application typecheck and the production/PWA build.
+- Validation: 31 focused navigation, configuration, registration and lifecycle tests pass, along with application typecheck and the production/PWA build.
   ESLint reports zero errors and the existing 17 warnings.
 
 ### Control room offline content from General settings (2026-09-20)

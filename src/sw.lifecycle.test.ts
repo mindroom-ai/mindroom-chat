@@ -4,7 +4,9 @@ const precacheSpies = vi.hoisted(() => ({
   activate: vi.fn().mockResolvedValue(undefined),
   addToCacheList: vi.fn(),
   install: vi.fn().mockResolvedValue(undefined),
+  matchPrecache: vi.fn(),
 }));
+const routingSpies = vi.hoisted(() => ({ registerRoute: vi.fn() }));
 
 vi.mock('workbox-precaching', () => ({
   cleanupOutdatedCaches: vi.fn(),
@@ -15,16 +17,24 @@ vi.mock('workbox-precaching', () => ({
 
     addToCacheList = precacheSpies.addToCacheList;
 
-    createHandlerBoundToURL = vi.fn(() => vi.fn());
+    createHandlerBoundToURL = vi.fn(() => () => fetch('index.html'));
 
     install = precacheSpies.install;
+
+    matchPrecache = precacheSpies.matchPrecache;
   },
   PrecacheRoute: class PrecacheRoute {},
 }));
 
 vi.mock('workbox-routing', () => ({
-  NavigationRoute: class NavigationRoute {},
-  registerRoute: vi.fn(),
+  NavigationRoute: class NavigationRoute {
+    handler: unknown;
+
+    constructor(handler: unknown) {
+      this.handler = handler;
+    }
+  },
+  registerRoute: routingSpies.registerRoute,
 }));
 
 const APP_ORIGIN = 'https://app.example';
@@ -63,6 +73,7 @@ const loadServiceWorker = async ({
 }: LoadOptions) => {
   vi.resetModules();
   Object.values(precacheSpies).forEach((spy) => spy.mockClear());
+  routingSpies.registerRoute.mockClear();
   const listeners = new Map<string, CapturedListener>();
   const predecessorWorker = Object.assign(new EventTarget(), {
     state: 'installing',
@@ -186,5 +197,27 @@ describe('service worker upgrade lifecycle', () => {
     await dispatchExtendableEvent('activate');
     expect(precacheSpies.activate).toHaveBeenCalledOnce();
     expect(clients.claim).toHaveBeenCalledOnce();
+  });
+
+  it('uses the original no-store navigation when the precached shell is missing', async () => {
+    await loadServiceWorker({
+      hasActiveWorker: true,
+      supportsNonDisruptiveUpdates: true,
+    });
+    precacheSpies.matchPrecache.mockResolvedValue(undefined);
+    const request = new Request(`${APP_ORIGIN}/home/room`);
+    const networkResponse = { ok: false, type: 'opaqueredirect' } as Response;
+    const fetchMock = vi.fn((input: RequestInfo | URL) =>
+      Promise.resolve(input === 'index.html' ? new Response('network index') : networkResponse)
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    const navigationRoute = routingSpies.registerRoute.mock.calls[0][0] as {
+      handler: (options: { request: Request }) => Promise<Response>;
+    };
+
+    await expect(navigationRoute.handler({ request })).resolves.toBe(networkResponse);
+    expect(precacheSpies.matchPrecache).toHaveBeenCalledWith('index.html');
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(fetchMock).toHaveBeenCalledWith(request, { cache: 'no-store' });
   });
 });

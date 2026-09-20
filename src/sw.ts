@@ -46,18 +46,16 @@ const navigationFallbackDenylist = [
   ),
 ];
 
-// createHandlerBoundToURL throws for non-precached URLs, which would fail
-// the whole service worker evaluation (the dev server injects an empty
-// manifest; a misconfigured build could omit the shell). Register the
-// navigation fallback only when its precondition — a precached index.html —
-// actually holds. The media-auth fetch handler below works without it.
+// Register the navigation fallback only when the manifest includes the shell.
+// The media-auth fetch handler below works without it.
 const precachesAppShell = precacheManifest.some(
   (entry) => (typeof entry === 'string' ? entry : entry.url) === 'index.html'
 );
 if (precachesAppShell) {
-  const loadCachedAppShell = precacheController.createHandlerBoundToURL('index.html');
   const navigationHandler: RouteHandlerCallback = (options) =>
-    fetchNavigationWithShellFallback(options.request, () => loadCachedAppShell(options));
+    fetchNavigationWithShellFallback(options.request, () =>
+      precacheController.matchPrecache('index.html')
+    );
   registerRoute(
     new NavigationRoute(navigationHandler, {
       denylist: navigationFallbackDenylist,
