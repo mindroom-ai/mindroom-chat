@@ -561,21 +561,21 @@ export const withMindroomToolTraceMarkerParserOptions = (
           return { data, trailingElement };
         };
 
-        // Render only the first marker in a consecutive run; later markers are
-        // consumed by the first marker's grouped render.
-        let previousSibling: ChildNode | null = domNode.prev;
-        while (isDomTextNode(previousSibling) && !previousSibling.data.trim()) {
-          previousSibling = previousSibling.prev;
-        }
-        const previousItem = isDomElementNode(previousSibling)
-          ? buildItem(previousSibling)
-          : undefined;
-        if (previousItem && !previousItem.trailingElement) {
-          return null;
-        }
-
         const firstItem = buildItem(domNode);
         if (firstItem) {
+          // Render only the first marker in a consecutive run; later markers are
+          // consumed by the first marker's grouped render.
+          let previousSibling: ChildNode | null = domNode.prev;
+          while (isDomTextNode(previousSibling) && !previousSibling.data.trim()) {
+            previousSibling = previousSibling.prev;
+          }
+          const previousItem = isDomElementNode(previousSibling)
+            ? buildItem(previousSibling)
+            : undefined;
+          if (previousItem && !previousItem.trailingElement) {
+            return null;
+          }
+
           const items: ToolRefItem[] = [firstItem];
           const trailingElements: Element[] = [];
           if (firstItem.trailingElement) trailingElements.push(firstItem.trailingElement);

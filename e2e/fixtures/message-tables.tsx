@@ -14,6 +14,7 @@ import {
   LINKIFY_OPTS,
 } from '../../src/app/plugins/react-custom-html-parser';
 import { sanitizeCustomHtml } from '../../src/app/utils/sanitize';
+import { withMindroomToolTraceMarkerParserOptions } from '../../src/app/mindroom/messages/MindroomHtmlBlocks';
 
 const params = new URLSearchParams(window.location.search);
 const dark = params.has('dark');
@@ -43,6 +44,15 @@ function Fixture() {
     .join('')}</tr></thead><tbody>${[0, 1]
     .map(() => `<tr>${cells.map((cell) => `<td>${cell}</td>`).join('')}</tr>`)
     .join('')}</tbody></table>`;
+  const toolPrefix = params.has('tools')
+    ? ['<p>🔧 <code>first_tool</code> [1]</p>', '<p>🔧 <code>second_tool</code> [2]</p>', ''].join(
+        params.has('whitespace') ? '\n  ' : ''
+      )
+    : '';
+  const formattedBody = toolPrefix + html;
+  const options = withMindroomToolTraceMarkerParserOptions(parser, {
+    formatted_body: formattedBody,
+  });
 
   return (
     <main style={{ padding: 16, color: color.Surface.OnContainer, fontSize: 16, lineHeight: 1.5 }}>
@@ -51,7 +61,7 @@ function Fixture() {
       </button>
       <div style={{ display: 'flex', marginTop: 16 }}>
         <div className={BreakWord} style={{ minWidth: 0, flex: 1, whiteSpace: 'pre-wrap' }}>
-          {parse(sanitizeCustomHtml(html), parser)}
+          {parse(sanitizeCustomHtml(formattedBody), options)}
         </div>
       </div>
     </main>
