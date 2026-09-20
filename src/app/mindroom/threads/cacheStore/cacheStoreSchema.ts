@@ -198,6 +198,7 @@ export type CachedAttachmentReferenceRecord = {
   eventId?: string;
   revisionTs?: number;
   revisionId?: string;
+  retractedRevisionIds?: string[];
   redacted?: boolean;
   maxBytes?: number;
   status: 'cached' | 'missing';

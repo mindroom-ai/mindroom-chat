@@ -311,9 +311,10 @@ export const prefetchEventAttachments = async (
     );
     if (status !== 'revoked') current.push(message);
   }
-  const counted = new Set<string>();
-  let saved = 0;
-  let missing = 0;
+  const requirements = new Map<
+    string,
+    { roomId: string; mxcUri: string; owners: typeof messages }
+  >();
   for (const message of current) {
     for (const attachment of message.attachments) {
       if (options.signal?.aborted) throw abortError();
@@ -342,23 +343,36 @@ export const prefetchEventAttachments = async (
         }
       }
       const key = JSON.stringify([message.roomId, attachment.mxcUri]);
-      if (counted.has(key)) continue;
-      counted.add(key);
-      // eslint-disable-next-line no-await-in-loop
-      const metadata = await getCachedAttachmentMetadata(sessionId, attachment.mxcUri);
-      if (
-        metadata &&
-        (!attachment.essential ||
-          metadata.references.some(
-            (reference) =>
-              reference.roomId === message.roomId &&
-              reference.eventId === message.eventId &&
-              reference.status === 'cached'
-          ))
-      )
-        saved += 1;
-      else missing += 1;
+      const required = requirements.get(key) ?? {
+        roomId: message.roomId,
+        mxcUri: attachment.mxcUri,
+        owners: [],
+      };
+      required.owners.push(message);
+      requirements.set(key, required);
     }
+  }
+  // Read after every consumer has validated: raw bytes alone do not satisfy an essential body.
+  let saved = 0;
+  let missing = 0;
+  for (const { roomId, mxcUri, owners } of requirements.values()) {
+    // eslint-disable-next-line no-await-in-loop
+    const metadata = await getCachedAttachmentMetadata(sessionId, mxcUri);
+    if (
+      metadata &&
+      owners.every((owner) =>
+        metadata.references.some(
+          (reference) =>
+            reference.roomId === roomId &&
+            reference.eventId === owner.eventId &&
+            reference.revisionTs === owner.revisionTs &&
+            (reference.revisionId ?? '') === (owner.revisionId ?? '') &&
+            reference.status === 'cached'
+        )
+      )
+    )
+      saved += 1;
+    else missing += 1;
   }
   return { saved, missing };
 };

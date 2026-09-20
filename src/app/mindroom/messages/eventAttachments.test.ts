@@ -229,3 +229,114 @@ it('ignores foreign-sender and unresolved edits when tracking essential ownershi
   );
   expect(collectEventAttachments([foreign])).toEqual([]);
 });
+
+it.each([false, true])(
+  'counts mixed optional/essential shared bytes after all validation (reverse=%s)',
+  async (reverse) => {
+    const body = event('$body', {
+      msgtype: 'm.text',
+      body: 'preview',
+      url: 'mxc://test/shared',
+      'io.mindroom.long_text': { version: 2, encoding: 'matrix_event_content_json' },
+    });
+    const file = event('$file', {
+      msgtype: 'm.file',
+      url: 'mxc://test/shared',
+      info: { size: 12 },
+    });
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response('invalid json'))
+    );
+    const events = reverse ? [body, file] : [file, body];
+    expect(await prefetchEventAttachments(mx, events, false)).toEqual({ saved: 0, missing: 1 });
+    expect(await readRoomAttachmentStorage(sessionId, '!room')).toMatchObject({
+      bytes: 12,
+      missingEssential: 1,
+    });
+  }
+);
+
+it.each([false, true])(
+  'hydrates surviving canonical body offline after edit retraction and restart (earlierEdit=%s)',
+  async (earlierEdit) => {
+    const { replaceCachedAttachmentReferences } = await import('../threads/cacheStore');
+    const { hydrateCachedMindroomLongText } = await import('./attachmentRepository');
+    const { getMindroomLongTextSource, clearMindroomLongTextHydrationCache } = await import(
+      './longText'
+    );
+    const { getEventAttachmentOwner } = await import('./eventAttachments');
+    const content = (name: string) => ({
+      msgtype: 'm.text',
+      body: `${name} preview`,
+      url: `mxc://test/${name}`,
+      'io.mindroom.long_text': { version: 2, encoding: 'matrix_event_content_json' },
+    });
+    const root = event('$root', content('original'));
+    const edit = (id: string, name: string, ts: number) =>
+      event(
+        id,
+        {
+          'm.relates_to': { rel_type: 'm.replace', event_id: '$root' },
+          'm.new_content': content(name),
+        },
+        ts
+      );
+    const previous = edit('$earlier', 'earlier', 2);
+    const latest = edit('$latest', 'latest', 3);
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        async (url: string) =>
+          new Response(
+            JSON.stringify({
+              msgtype: 'm.text',
+              body: url.endsWith('latest')
+                ? 'latest body'
+                : url.endsWith('earlier')
+                ? 'earlier body'
+                : 'original body',
+            })
+          )
+      )
+    );
+    await prefetchEventAttachments(mx, [root], false);
+    if (earlierEdit) {
+      root.makeReplaced(previous);
+      await prefetchEventAttachments(mx, [root], false);
+    }
+    root.makeReplaced(latest);
+    await prefetchEventAttachments(mx, [root], false);
+    // Task 3's existing relation repair resolves this canonical event after the edit redaction.
+    root.makeReplaced(earlierEdit ? previous : undefined);
+    const [survivor] = collectEventAttachments([root]);
+    expect(
+      await replaceCachedAttachmentReferences(
+        sessionId,
+        survivor.roomId,
+        survivor.eventId,
+        survivor.revisionTs,
+        survivor.attachments,
+        undefined,
+        { ...survivor, retractedRevisionIds: ['$latest'] }
+      )
+    ).toBe('committed');
+    expect(await prefetchEventAttachments(mx, [root], false)).toEqual({ saved: 1, missing: 0 });
+    expect(await loadCachedAttachment(sessionId, 'mxc://test/latest')).toBeUndefined();
+    clearMindroomLongTextHydrationCache();
+    clearAttachmentRepositoryMemory();
+    resetCacheStoreForTesting();
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('offline')));
+    const source = {
+      ...getMindroomLongTextSource(root.getContent())!,
+      owner: getEventAttachmentOwner(root),
+    };
+    expect(await hydrateCachedMindroomLongText(mx, source, false)).toMatchObject({
+      body: earlierEdit ? 'earlier body' : 'original body',
+    });
+    root.makeReplaced(latest);
+    expect(await prefetchEventAttachments(mx, [root], false)).toEqual({ saved: 0, missing: 0 });
+    expect(await loadCachedAttachment(sessionId, 'mxc://test/latest')).toBeUndefined();
+    clearMindroomLongTextHydrationCache();
+  }
+);

@@ -233,7 +233,13 @@ export const replaceCachedAttachmentReferences = async (
   revisionTs: number,
   inputs: readonly AttachmentReferenceInput[],
   writeLease = captureCacheStoreWriteLease(sessionId, roomId),
-  revision: { revisionId?: string; redacted?: boolean; merge?: boolean } = {}
+  revision: {
+    revisionId?: string;
+    redacted?: boolean;
+    merge?: boolean;
+    /** Verified edit redactions supplied only after canonical relation repair. */
+    retractedRevisionIds?: readonly string[];
+  } = {}
 ): Promise<CacheAttachmentWriteStatus> => {
   if (!isCacheStoreWriteLeaseCurrent(writeLease)) return 'revoked';
   if (!isCacheWritable()) return 'unavailable';
@@ -251,11 +257,19 @@ export const replaceCachedAttachmentReferences = async (
       refs.index(ATTACHMENT_REFERENCES_BY_ROOM_INDEX).getAll(roomId)
     )) as CachedAttachmentReferenceRecord[];
     const owned = previous.filter((row) => row.eventId === eventId);
+    const retractedRevisionIds = new Set(
+      [
+        ...owned.flatMap((row) => row.retractedRevisionIds ?? []),
+        ...(revision.retractedRevisionIds ?? []),
+      ].filter(Boolean)
+    );
     if (
+      (!revision.redacted && retractedRevisionIds.has(revision.revisionId ?? '')) ||
       owned.some(
         (row) =>
           row.redacted ||
           (!revision.redacted &&
+            !(row.revisionId && revision.retractedRevisionIds?.includes(row.revisionId)) &&
             ((row.revisionTs ?? 0) > revisionTs ||
               (row.revisionTs === revisionTs &&
                 (row.revisionId ?? '') > (revision.revisionId ?? ''))))
@@ -312,6 +326,7 @@ export const replaceCachedAttachmentReferences = async (
         eventId,
         revisionTs,
         revisionId: revision.revisionId,
+        retractedRevisionIds: [...retractedRevisionIds],
         redacted: revision.redacted,
         mxcUri: input.mxcUri,
         essential: input.essential,
@@ -372,19 +387,27 @@ export const readRoomAttachmentStorage = async (sessionId: string, roomId: strin
       CachedRoomLedgerRecord | undefined
     >,
   ]);
-  const byUri = new Map<string, CachedAttachmentReferenceRecord>();
+  const byUri = new Map<
+    string,
+    { byteLength: number; saved: boolean; missingEssential: boolean }
+  >();
   references
     .filter((row) => row.mxcUri)
     .forEach((row) => {
       const previous = byUri.get(row.mxcUri);
-      byUri.set(row.mxcUri, { ...row, essential: row.essential || previous?.essential === true });
+      byUri.set(row.mxcUri, {
+        byteLength: Math.max(row.byteLength, previous?.byteLength ?? 0),
+        saved: row.status === 'cached' && previous?.saved !== false,
+        missingEssential:
+          (row.essential && row.status === 'missing') || previous?.missingEssential === true,
+      });
     });
   const rows = [...byUri.values()];
   return {
-    bytes: rows.reduce((sum, row) => sum + (row.status === 'cached' ? row.byteLength : 0), 0),
-    saved: rows.filter((row) => row.status === 'cached').length,
-    missing: rows.filter((row) => row.status === 'missing').length,
-    missingEssential: rows.filter((row) => row.status === 'missing' && row.essential).length,
+    bytes: rows.reduce((sum, row) => sum + row.byteLength, 0),
+    saved: rows.filter((row) => row.saved).length,
+    missing: rows.filter((row) => !row.saved).length,
+    missingEssential: rows.filter((row) => row.missingEssential).length,
     pinned: ledger?.pinned === true,
   };
 };

@@ -14,6 +14,8 @@
 - Attachment references use stable room/message ownership, timestamp and edit-id ordering, and permanent redaction tombstones.
   Detached edits await existing relation repair; only a known same-room target with matching sender can authorize a raw replacement.
   Replacing a streamed body removes obsolete unshared bytes while shared room/message bytes survive.
+  Verified edit retractions can restore the surviving canonical body; retired edit IDs persist and reject stale replay after restart.
+  Shared-MXC coverage requires every owner to be readable, so an optional file cannot hide a missing essential body.
 - Media rendering, file controls and long-text prewarming pass message ownership through the same repository.
   Individual consumers merge sibling references within one revision; canonical batches replace the complete reference set.
   Warm parsed bodies still register every owner, and shared hydration preserves each owner's independent persistence lease.

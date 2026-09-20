@@ -172,3 +172,70 @@ it('rejects an older equal-time revision and keeps a redacted owner retired', as
     ])
   ).toBe('revoked');
 });
+
+it.each([
+  ['$a-body', '$z-file'],
+  ['$z-body', '$a-file'],
+])(
+  'keeps missing essential coverage independent of optional owner order (%s)',
+  async (bodyId, fileId) => {
+    const mxcUri = 'mxc://test/shared';
+    await store.replaceCachedAttachmentReferences(session, 'room-a', bodyId, 1, [
+      { mxcUri, essential: true },
+    ]);
+    await store.putCachedAttachment(session, {
+      mxcUri,
+      bytes: new TextEncoder().encode('invalid json').buffer,
+      mimeType: 'application/json',
+    });
+    await store.replaceCachedAttachmentReferences(session, 'room-a', fileId, 1, [
+      { mxcUri, essential: false },
+    ]);
+    expect(await store.readRoomAttachmentStorage(session, 'room-a')).toMatchObject({
+      bytes: 12,
+      saved: 0,
+      missing: 1,
+      missingEssential: 1,
+    });
+  }
+);
+
+it('authoritatively retracts edits while preserving durable retired IDs and root tombstones', async () => {
+  const refs = (name: string) => [{ mxcUri: `mxc://test/${name}`, essential: true }];
+  const register = (ts: number, revisionId: string, retractedRevisionIds?: string[]) =>
+    store.replaceCachedAttachmentReferences(
+      session,
+      'room-a',
+      '$root',
+      ts,
+      refs(revisionId || 'root'),
+      undefined,
+      { revisionId, retractedRevisionIds }
+    );
+  expect(await register(1, '')).toBe('committed');
+  expect(await register(0, '', [''])).toBe('revoked');
+  expect(await register(2, '$edit-a')).toBe('committed');
+  expect(await register(3, '$edit-b')).toBe('committed');
+  expect(await register(2, '$edit-a')).toBe('revoked');
+  expect(await register(2, '$edit-a', ['$unrelated'])).toBe('revoked');
+  expect(await register(2, '$edit-a', ['$edit-b'])).toBe('committed');
+  await store.putCachedAttachment(
+    session,
+    { mxcUri: 'mxc://test/$edit-b', bytes: new ArrayBuffer(1), mimeType: 'text/plain' },
+    { roomId: 'room-a', eventId: '$root', revisionTs: 3, revisionId: '$edit-b', essential: true }
+  );
+  expect(await store.loadCachedAttachment(session, 'mxc://test/$edit-b')).toBeUndefined();
+  store.resetCacheStoreForTesting();
+  expect(await register(3, '$edit-b')).toBe('revoked');
+  expect(await register(1, '', ['$edit-a'])).toBe('committed');
+  expect(await register(4, '$edit-c')).toBe('committed');
+  expect(await register(1, '', ['$edit-c'])).toBe('committed');
+  store.resetCacheStoreForTesting();
+  expect(await register(2, '$edit-a')).toBe('revoked');
+  expect(await register(3, '$edit-b')).toBe('revoked');
+  expect(await register(4, '$edit-c')).toBe('revoked');
+  await store.replaceCachedAttachmentReferences(session, 'room-a', '$root', 5, [], undefined, {
+    redacted: true,
+  });
+  expect(await register(1, '', ['$edit-c'])).toBe('revoked');
+});
