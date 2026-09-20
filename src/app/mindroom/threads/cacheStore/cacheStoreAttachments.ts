@@ -23,8 +23,11 @@ export type CacheAttachmentWriteStatus = 'committed' | 'failed' | 'revoked' | 'u
 export type CacheAttachmentWriteOptions = {
   essential?: boolean;
   roomId?: string;
+  signal?: AbortSignal;
   writeLease?: CacheStoreWriteLease;
 };
+
+const abortError = (): DOMException => new DOMException('The operation was aborted', 'AbortError');
 
 const requestResult = <T>(request: IDBRequest<T>): Promise<T> =>
   new Promise<T>((resolve, reject) => {
@@ -58,12 +61,25 @@ export const loadCachedAttachment = async (
 const putAttachmentTransaction = async (
   db: IDBDatabase,
   input: Pick<CachedAttachmentRecord, 'bytes' | 'mimeType' | 'mxcUri'>,
-  options: Pick<CacheAttachmentWriteOptions, 'essential' | 'roomId'>
+  options: Pick<CacheAttachmentWriteOptions, 'essential' | 'roomId' | 'signal'>
 ): Promise<void> => {
   const storeNames = options.roomId
     ? [ATTACHMENTS_STORE, ATTACHMENT_REFERENCES_STORE]
     : [ATTACHMENTS_STORE];
   const transaction = db.transaction(storeNames, 'readwrite');
+  const abortTransaction = () => {
+    try {
+      transaction.abort();
+    } catch {
+      // The transaction already completed or aborted.
+    }
+  };
+  options.signal?.addEventListener('abort', abortTransaction, { once: true });
+  if (options.signal?.aborted) {
+    abortTransaction();
+    options.signal.removeEventListener('abort', abortTransaction);
+    throw abortError();
+  }
   const attachmentStore = transaction.objectStore(ATTACHMENTS_STORE);
   const previousAttachmentRequest = attachmentStore.get(input.mxcUri);
   previousAttachmentRequest.onsuccess = () => {
@@ -100,7 +116,12 @@ const putAttachmentTransaction = async (
       referenceStore.put(reference);
     };
   };
-  await transactionComplete(transaction);
+  try {
+    await transactionComplete(transaction);
+    if (options.signal?.aborted) throw abortError();
+  } finally {
+    options.signal?.removeEventListener('abort', abortTransaction);
+  }
 };
 
 export const putCachedAttachment = async (
@@ -109,17 +130,22 @@ export const putCachedAttachment = async (
   options: CacheAttachmentWriteOptions = {}
 ): Promise<CacheAttachmentWriteStatus> => {
   const writeLease = options.writeLease ?? captureCacheStoreWriteLease(sessionId);
+  if (options.signal?.aborted) throw abortError();
   if (!isCacheStoreWriteLeaseCurrent(writeLease)) return 'revoked';
   if (!isCacheWritable()) return 'unavailable';
 
   try {
     const db = await openCacheStore(sessionId);
     if (!db) return 'unavailable';
+    if (options.signal?.aborted) throw abortError();
     if (!isCacheStoreWriteLeaseCurrent(writeLease)) return 'revoked';
 
     await putAttachmentTransaction(db, input, options);
     return 'committed';
   } catch (error) {
+    if (options.signal?.aborted || (error instanceof DOMException && error.name === 'AbortError')) {
+      throw abortError();
+    }
     reportCacheWriteError('attachment.save', error);
     return 'failed';
   }

@@ -8,6 +8,7 @@ import type { IEncryptedFile } from '../../../types/matrix/common';
 import {
   deleteCacheStoreDb,
   loadCachedAttachment,
+  openCacheStore,
   resetCacheStoreForTesting,
 } from '../threads/cacheStore';
 import {
@@ -203,6 +204,25 @@ describe('persistent attachment repository', () => {
     );
   });
 
+  it('shares lookup and transport when a concurrent fetch resolves immediately', async () => {
+    const fetchMock = vi.fn(async () => new Response('shared body', { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+    const alice = createAccountClient('@alice:matrix.example.org');
+    const source = {
+      mxcUri: 'mxc://matrix.example.org/immediate-shared',
+      mimeType: 'text/plain',
+    };
+
+    const blobs = await Promise.all(
+      Array.from({ length: 10 }, () => downloadCachedAttachment(alice, source, false))
+    );
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    await expect(Promise.all(blobs.map((blob) => blob.text()))).resolves.toEqual(
+      Array.from({ length: 10 }, () => 'shared body')
+    );
+  });
+
   it('promotes an existing cached attachment to essential without another fetch', async () => {
     const fetchMock = vi.fn(async () => new Response('cached body', { status: 200 }));
     vi.stubGlobal('fetch', fetchMock);
@@ -302,6 +322,76 @@ describe('persistent attachment repository', () => {
     await vi.waitFor(async () => {
       expect(await getCachedAttachmentCacheMetadata(alice, source.mxcUri)).toBeUndefined();
     });
+  });
+
+  it('lets an independent consumer persist after another shared caller aborts', async () => {
+    let resolveFetch: ((response: Response) => void) | undefined;
+    const fetchMock = vi.fn(
+      () =>
+        new Promise<Response>((resolve) => {
+          resolveFetch = resolve;
+        })
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    const alice = createAccountClient('@alice:matrix.example.org');
+    const source = {
+      mxcUri: 'mxc://matrix.example.org/partially-aborted',
+      mimeType: 'text/plain',
+    };
+    const controller = new AbortController();
+    const canceled = downloadCachedAttachment(alice, source, false, {
+      essential: true,
+      roomId: '!canceled:matrix.example.org',
+      signal: controller.signal,
+    });
+    const remaining = downloadCachedAttachment(alice, source, false, {
+      roomId: '!remaining:matrix.example.org',
+    });
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+
+    controller.abort();
+    await expect(canceled).rejects.toMatchObject({ name: 'AbortError' });
+    resolveFetch?.(new Response('shared survivor body', { status: 200 }));
+
+    await expect((await remaining).text()).resolves.toBe('shared survivor body');
+    const metadata = await getCachedAttachmentCacheMetadata(alice, source.mxcUri);
+    expect(metadata?.essential).toBe(false);
+    expect(metadata?.references).toEqual([
+      expect.objectContaining({
+        roomId: '!remaining:matrix.example.org',
+        essential: false,
+        status: 'cached',
+      }),
+    ]);
+  });
+
+  it('aborts persistence when cancellation follows transport completion', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response('unused body', { status: 200 }))
+    );
+    const alice = createAccountClient('@alice:matrix.example.org');
+    const source = {
+      mxcUri: 'mxc://matrix.example.org/abort-persistence',
+      mimeType: 'text/plain',
+    };
+    const sessionId = createSessionId(BASE_URL, '@alice:matrix.example.org');
+    const db = await openCacheStore(sessionId);
+    const controller = new AbortController();
+    const transaction = db?.transaction.bind(db);
+    expect(transaction).toBeTypeOf('function');
+    vi.spyOn(db as IDBDatabase, 'transaction').mockImplementation(
+      (...args: Parameters<IDBDatabase['transaction']>) => {
+        const result = transaction?.(...args) as IDBTransaction;
+        if (args[1] === 'readwrite') controller.abort();
+        return result;
+      }
+    );
+
+    await expect(
+      downloadCachedAttachment(alice, source, false, { signal: controller.signal })
+    ).rejects.toMatchObject({ name: 'AbortError' });
+    expect(await getCachedAttachmentCacheMetadata(alice, source.mxcUri)).toBeUndefined();
   });
 
   it('honors an already-aborted caller even when the bytes are cached', async () => {

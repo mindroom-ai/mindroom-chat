@@ -29,7 +29,13 @@ type RawAttachment = {
   mimeType: string;
 };
 
-const inflightDownloads = new Map<string, Promise<RawAttachment>>();
+type SharedAttachmentOperation = {
+  promise: Promise<RawAttachment>;
+  consumers: number;
+  settled: boolean;
+};
+
+const inflightDownloads = new Map<string, SharedAttachmentOperation>();
 
 const getSessionId = (mx: MatrixClient): string =>
   createSessionId(mx.getHomeserverUrl(), mx.getSafeUserId());
@@ -74,20 +80,46 @@ const fetchRawAttachment = async (
   };
 };
 
-const getOrCreateTransport = (
+const acquireAttachment = (
   mx: MatrixClient,
   sessionId: string,
   source: CachedAttachmentSource,
   useAuthentication: boolean
-): Promise<RawAttachment> => {
+): { promise: Promise<RawAttachment>; release: () => void } => {
   const key = getInflightKey(sessionId, source.mxcUri);
-  const current = inflightDownloads.get(key);
-  if (current) return current;
-  const pending = fetchRawAttachment(mx, source, useAuthentication).finally(() => {
-    if (inflightDownloads.get(key) === pending) inflightDownloads.delete(key);
-  });
-  inflightDownloads.set(key, pending);
-  return pending;
+  let operation = inflightDownloads.get(key);
+  if (!operation) {
+    const promise = loadCachedAttachment(sessionId, source.mxcUri).then((cached) =>
+      cached
+        ? { bytes: cached.bytes, mimeType: cached.mimeType }
+        : fetchRawAttachment(mx, source, useAuthentication)
+    );
+    const created = { promise, consumers: 0, settled: false };
+    operation = created;
+    inflightDownloads.set(key, created);
+    const markSettled = () => {
+      created.settled = true;
+      if (created.consumers === 0 && inflightDownloads.get(key) === created) {
+        inflightDownloads.delete(key);
+      }
+    };
+    promise.then(markSettled, markSettled);
+  }
+
+  const acquired = operation;
+  acquired.consumers += 1;
+  let released = false;
+  return {
+    promise: acquired.promise,
+    release: () => {
+      if (released) return;
+      released = true;
+      acquired.consumers -= 1;
+      if (acquired.settled && acquired.consumers === 0 && inflightDownloads.get(key) === acquired) {
+        inflightDownloads.delete(key);
+      }
+    },
+  };
 };
 
 const toConsumerBlob = async (
@@ -107,31 +139,24 @@ export const downloadCachedAttachment = async (
 ): Promise<Blob> => {
   const sessionId = getSessionId(mx);
   const writeLease = captureCacheStoreWriteLease(sessionId);
-  const cached = await awaitWithSignal(
-    loadCachedAttachment(sessionId, source.mxcUri),
-    options.signal
-  );
-  if (cached) {
-    enforceMaxBytes(cached.byteLength, options.maxBytes);
-    await putCachedAttachment(
-      sessionId,
-      { bytes: cached.bytes, mimeType: cached.mimeType, mxcUri: source.mxcUri },
-      { ...options, writeLease }
+  const attachment = acquireAttachment(mx, sessionId, source, useAuthentication);
+  try {
+    const raw = await awaitWithSignal(attachment.promise, options.signal);
+    enforceMaxBytes(raw.bytes.byteLength, options.maxBytes);
+    const consumerBlob = await awaitWithSignal(toConsumerBlob(raw, source), options.signal);
+    await awaitWithSignal(
+      putCachedAttachment(
+        sessionId,
+        { bytes: raw.bytes, mimeType: raw.mimeType, mxcUri: source.mxcUri },
+        { ...options, writeLease }
+      ),
+      options.signal
     );
-    return toConsumerBlob({ bytes: cached.bytes, mimeType: cached.mimeType }, source);
+    if (options.signal?.aborted) throw abortError();
+    return consumerBlob;
+  } finally {
+    attachment.release();
   }
-
-  const raw = await awaitWithSignal(
-    getOrCreateTransport(mx, sessionId, source, useAuthentication),
-    options.signal
-  );
-  enforceMaxBytes(raw.bytes.byteLength, options.maxBytes);
-  await putCachedAttachment(
-    sessionId,
-    { bytes: raw.bytes, mimeType: raw.mimeType, mxcUri: source.mxcUri },
-    { ...options, writeLease }
-  );
-  return toConsumerBlob(raw, source);
 };
 
 export const getCachedAttachmentCacheMetadata = (
