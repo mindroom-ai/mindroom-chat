@@ -34,12 +34,12 @@ Rules:
 
 ## Cache Layers
 
-| Layer | Owner | Purpose | Persistence |
-| --- | --- | --- | --- |
-| `cacheStore/` (unified) | `src/app/mindroom/threads/cacheStore/` — one module with schema v3 (`events`, `meta`, `room_ledger`, `thread_summaries`) | Persist main-room timeline events, thread events, per-room byte/activity ledger, thread AI summaries. Single write path, single DB, single eviction budget. | IndexedDB, session-scoped (`mindroom-cache::<sessionId>`). D8 wipes the six legacy DBs on first v3 open. |
-| Thread open seed cache | `src/app/mindroom/threads/threadOpenSeedCache.ts` | Fast-open seed for recently opened or room-derived threads. | In-memory weak map keyed by `Room`. |
-| Overview cached metadata | `src/app/mindroom/threads/threadOverviewCacheMetadata.ts` | Transient cached preview/activity/count/coverage facts used by the current-room index. | React state, reset per room. |
-| Current-room thread index | `src/app/mindroom/threads/useMindroomThreadIndex.ts` plus lower selectors | Build normal and compact `ThreadRecord` maps from live events, cached metadata, tags, summaries, and scheduled status. | Derived in memory. |
+| Layer                     | Owner                                                                                                                    | Purpose                                                                                                                                                     | Persistence                                                                                              |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `cacheStore/` (unified)   | `src/app/mindroom/threads/cacheStore/` — one module with schema v3 (`events`, `meta`, `room_ledger`, `thread_summaries`) | Persist main-room timeline events, thread events, per-room byte/activity ledger, thread AI summaries. Single write path, single DB, single eviction budget. | IndexedDB, session-scoped (`mindroom-cache::<sessionId>`). D8 wipes the six legacy DBs on first v3 open. |
+| Thread open seed cache    | `src/app/mindroom/threads/threadOpenSeedCache.ts`                                                                        | Fast-open seed for recently opened or room-derived threads.                                                                                                 | In-memory weak map keyed by `Room`.                                                                      |
+| Overview cached metadata  | `src/app/mindroom/threads/threadOverviewCacheMetadata.ts`                                                                | Transient cached preview/activity/count/coverage facts used by the current-room index.                                                                      | React state, reset per room.                                                                             |
+| Current-room thread index | `src/app/mindroom/threads/useMindroomThreadIndex.ts` plus lower selectors                                                | Build normal and compact `ThreadRecord` maps from live events, cached metadata, tags, summaries, and scheduled status.                                      | Derived in memory.                                                                                       |
 
 ## Write Owners
 
@@ -72,14 +72,14 @@ consume read APIs and, where necessary, invoke the engine via
 
 ## Read Owners
 
-| Consumer | Allowed cache input |
-| --- | --- |
-| `useMindroomThreadIndex` | Cached overview metadata and summary store output. |
-| `ThreadRecord` builders | `ThreadCacheCoverage` and record-level presentation/status snapshots. |
-| Compact cards, badges, headers, recent threads, command palette | `ThreadRecord` or a view model derived from `ThreadRecord`. |
-| Thread open | `threadOpenCacheController` + `threadOpenCacheFirst` for the paint, `engine.reconciler.scheduleReconcile(...)` for convergence. |
-| Room open | Cache-hydration seed via `roomCacheHydrationController`; `engine.noteRoomFocused` for scope stamping, protection registry, and scheduled reconcile. |
-| Room and thread pagination commands | Cached pagination snapshots via `eventRepository.ts`. |
+| Consumer                                                        | Allowed cache input                                                                                                                                 |
+| --------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `useMindroomThreadIndex`                                        | Cached overview metadata and summary store output.                                                                                                  |
+| `ThreadRecord` builders                                         | `ThreadCacheCoverage` and record-level presentation/status snapshots.                                                                               |
+| Compact cards, badges, headers, recent threads, command palette | `ThreadRecord` or a view model derived from `ThreadRecord`.                                                                                         |
+| Thread open                                                     | `threadOpenCacheController` + `threadOpenCacheFirst` for the paint, `engine.reconciler.scheduleReconcile(...)` for convergence.                     |
+| Room open                                                       | Cache-hydration seed via `roomCacheHydrationController`; `engine.noteRoomFocused` for scope stamping, protection registry, and scheduled reconcile. |
+| Room and thread pagination commands                             | Cached pagination snapshots via `eventRepository.ts`.                                                                                               |
 
 Any production UI surface that wants summary text, latest reply preview,
 message count, tags, scheduled state, or resolved state should consume a
@@ -90,19 +90,19 @@ message count, tags, scheduled state, or resolved state should consume a
 `ThreadCacheCoverage` lives in `src/app/mindroom/threads/types.ts` and is
 interpreted by `threadCacheCoverage.ts`.
 
-| Field | Meaning |
-| --- | --- |
-| `eventCount` | Number of cached events represented by the snapshot or record input. |
-| `oldestTs` / `newestTs` | Timestamp bounds for cached facts when known. |
-| `backwardToken` | `string` means an older cached/network page may exist; `null` means the start is known; `undefined` means not proven. |
-| `hasMoreBackward` | Explicit older-page fact. Defaults to true when `backwardToken` is a string. |
-| `snapshotComplete` | The cached thread snapshot appears complete for the expected local event set. |
-| `relationSnapshotComplete` | Relation/reply metadata has been fetched or reconstructed for the cached snapshot. |
-| `tailLoaded` | The latest/tail side of the thread has been loaded. |
-| `expectedReplyCount` | Best known reply count from root relation metadata, SDK thread state, or cache metadata. |
+| Field                      | Meaning                                                                                                               |
+| -------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `eventCount`               | Number of cached events represented by the snapshot or record input.                                                  |
+| `oldestTs` / `newestTs`    | Timestamp bounds for cached facts when known.                                                                         |
+| `backwardToken`            | `string` means an older cached/network page may exist; `null` means the start is known; `undefined` means not proven. |
+| `hasMoreBackward`          | Explicit older-page fact. Defaults to true when `backwardToken` is a string.                                          |
+| `snapshotComplete`         | The cached thread snapshot appears complete for the expected local event set.                                         |
+| `relationSnapshotComplete` | Relation/reply metadata has been fetched or reconstructed for the cached snapshot.                                    |
+| `tailLoaded`               | The latest/tail side of the thread has been loaded.                                                                   |
+| `expectedReplyCount`       | Best known reply count from root relation metadata, SDK thread state, or cache metadata.                              |
 
 **D7 — coverage decides painting, not revalidation.** Complete coverage means
-the reconcile is *expected* to be a cheap no-op, not that the reconcile is
+the reconcile is _expected_ to be a cheap no-op, not that the reconcile is
 skipped. Every thread open and every room open schedules a
 `'reconcile'` job through the engine's scheduler; the reconciler diffs the
 network response against the cached page and only calls `onRepaired` when
@@ -169,7 +169,7 @@ The reconcile / gap-fill / deep-history jobs run through the scheduler without b
 2. `threadOpenCacheController.hydrateThreadFromCache` paints the thread
    from cached thread pages.
 3. `engine.reconciler.scheduleReconcile({reason:'open-complete-coverage'|
-   'open-partial-coverage', roomId, threadId, cachedPage, onRepaired})`
+'open-partial-coverage', roomId, threadId, cachedPage, onRepaired})`
    ALWAYS runs — coverage decides paint, D7 forbids skipping the network
    verify.
 4. When coverage is partial, the SDK bootstrap + a `'thread-backfill'`
