@@ -2,6 +2,13 @@
 
 ## Runbook
 
+### Complete explicit offline scans from the retained room head (2026-09-20)
+
+- Explicit Download scans the entire retained room, including essential bodies and include-all media before the automatic retry cursor.
+  A Download requested during an automatic scan keeps a pending full-scan intent; the existing controller reruns from the head after the current batch, including after navigation. Cancel and clear discard that pending intent.
+- Automatic scans keep their bounded durable cursor and later-run wrapping. No public API or cache schema changes.
+- Validation: all 24 offline-controller tests pass, including three new real-store regressions for prefix bodies, prefix optional media and promotion during a held attachment fetch. Typecheck, formatting and ESLint pass with the existing 17 warnings.
+
 ### Fence offline callbacks and resume retained work (2026-09-20)
 
 - Late SDK decryption keeps the event's original room write lease. Clearing then reopening cannot authorize an old callback.

@@ -86,6 +86,7 @@ type RoomIntent = {
   reserved: number;
   visit: number;
   explicit: boolean;
+  fullScanPending: boolean;
   includeAllMedia: boolean;
   canceled: boolean;
   running: boolean;
@@ -126,6 +127,7 @@ export const createRoomOfflineController = ({
         reserved: 0,
         visit: 0,
         explicit: false,
+        fullScanPending: false,
         includeAllMedia: false,
         canceled: false,
         running: false,
@@ -311,7 +313,10 @@ export const createRoomOfflineController = ({
       }
       // Rebuild transient encrypted descriptors from retained ciphertext. This
       // scan retries missing bodies without changing the server history cursor.
-      let after = (await readRoomOfflineProgress(sessionId, roomId)).retryAfterEventId ?? undefined;
+      const retryProgress = await readRoomOfflineProgress(sessionId, roomId);
+      // Each explicit request covers the prefix skipped by automatic continuation.
+      let after = intent.explicit ? undefined : retryProgress.retryAfterEventId ?? undefined;
+      intent.fullScanPending = false;
       let retried = 0;
       do {
         if (!current() || pauseReason(roomId)) break;
@@ -336,6 +341,9 @@ export const createRoomOfflineController = ({
           ))
         )
           return;
+        // Download may have promoted this in-flight pass. The existing rerun
+        // starts its full scan before this pass can finish the new intent.
+        if (intent.fullScanPending) return;
         retried += batch.events.length;
       } while (
         after &&
@@ -359,6 +367,7 @@ export const createRoomOfflineController = ({
 
         await refresh(roomId, lease);
         onChanged(roomId);
+        if (intent.fullScanPending) return;
         if (page.exhausted) {
           intent.explicit = intent.explicit && intent.snapshot.hasGap;
           publish(roomId, { status: 'ready' });
@@ -408,6 +417,7 @@ export const createRoomOfflineController = ({
     download: (roomId, options) => {
       const intent = state(roomId);
       intent.explicit = true;
+      intent.fullScanPending = true;
       intent.canceled = false;
       intent.includeAllMedia = options?.includeAllMedia === true;
       onPolicyChange?.();
@@ -416,6 +426,7 @@ export const createRoomOfflineController = ({
     cancel: (roomId) => {
       const intent = state(roomId);
       intent.explicit = false;
+      intent.fullScanPending = false;
       intent.canceled = true;
       intent.dirty = false;
       scheduler

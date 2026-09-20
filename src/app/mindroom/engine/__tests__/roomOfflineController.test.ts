@@ -727,3 +727,100 @@ it('explicit download wakes deferred gaps and keeps pages running away from focu
   );
   expect(await loadRoomTailDiscontinuity(engine.sessionId, roomId)).toBeUndefined();
 });
+
+it.each([true, false])(
+  'explicit download includes retained prefix before retry cursor (essential: %s)',
+  async (essential) => {
+    const f = fixture();
+    f.setNetwork({ connected: true, unmetered: false });
+    const engine = f.make();
+    const prefix = {
+      ...raw('$a-prefix'),
+      content: essential
+        ? {
+            msgtype: 'm.text',
+            body: 'preview',
+            url: 'mxc://test/prefix',
+            'io.mindroom.long_text': { version: 2, encoding: 'matrix_event_content_json' },
+          }
+        : { msgtype: 'm.file', body: 'file', url: 'mxc://test/prefix' },
+    };
+    await saveRoomEventsToCacheCommitted(engine.sessionId, roomId, [prefix, raw('$z-plain')]);
+    await replaceCachedAttachmentReferences(engine.sessionId, roomId, '$a-prefix', 1, [
+      { mxcUri: 'mxc://test/prefix', essential },
+    ]);
+    await updateRoomOfflineProgress(engine.sessionId, roomId, {
+      opened: true,
+      exhausted: true,
+      retryAfterEventId: '$a-prefix',
+    });
+    const fetch = vi.fn(
+      async () => new Response(JSON.stringify({ msgtype: 'm.text', body: 'full body' }))
+    );
+    vi.stubGlobal('fetch', fetch);
+    engine.offline.download(roomId, { includeAllMedia: !essential });
+    await vi.waitFor(() =>
+      expect(engine.offline.getSnapshot(roomId)).toMatchObject({
+        status: 'ready',
+        downloading: false,
+        saved: 1,
+        missing: 0,
+      })
+    );
+    expect(fetch).toHaveBeenCalledOnce();
+    expect(f.request).not.toHaveBeenCalled();
+    expect((await readRoomOfflineProgress(engine.sessionId, roomId)).retryAfterEventId).toBeNull();
+  }
+);
+
+it('promotion of a running automatic scan completes a full include-all pass after navigation', async () => {
+  const f = fixture();
+  f.setNetwork({ connected: true, unmetered: false });
+  const engine = f.make();
+  await saveRoomEventsToCacheCommitted(engine.sessionId, roomId, [
+    { ...raw('$a-prefix'), content: { msgtype: 'm.file', body: 'file', url: 'mxc://test/prefix' } },
+    {
+      ...raw('$z-held'),
+      content: {
+        msgtype: 'm.text',
+        body: 'preview',
+        url: 'mxc://test/held',
+        'io.mindroom.long_text': { version: 2, encoding: 'matrix_event_content_json' },
+      },
+    },
+  ]);
+  await replaceCachedAttachmentReferences(engine.sessionId, roomId, '$a-prefix', 1, [
+    { mxcUri: 'mxc://test/prefix', essential: false },
+  ]);
+  await updateRoomOfflineProgress(engine.sessionId, roomId, {
+    opened: true,
+    exhausted: true,
+    retryAfterEventId: '$a-prefix',
+  });
+  let release!: (response: Response) => void;
+  const fetch = vi
+    .fn()
+    .mockImplementationOnce(
+      () =>
+        new Promise<Response>((resolve) => {
+          release = resolve;
+        })
+    )
+    .mockImplementation(async () => new Response('optional file'));
+  vi.stubGlobal('fetch', fetch);
+  engine.noteRoomFocused(roomId);
+  await vi.waitFor(() => expect(fetch).toHaveBeenCalledOnce());
+  engine.offline.download(roomId, { includeAllMedia: true });
+  engine.clearRoomFocus(roomId);
+  release(new Response(JSON.stringify({ msgtype: 'm.text', body: 'full held body' })));
+  await vi.waitFor(() =>
+    expect(engine.offline.getSnapshot(roomId)).toMatchObject({
+      status: 'ready',
+      downloading: false,
+      saved: 2,
+      missing: 0,
+    })
+  );
+  expect(fetch).toHaveBeenCalledTimes(2);
+  expect(f.request).not.toHaveBeenCalled();
+});
