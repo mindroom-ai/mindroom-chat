@@ -10,6 +10,18 @@ class MindRoomBridgeViewController: CAPBridgeViewController {
         MindRoomRouter()
     }
 
+    override func instanceDescriptor() -> InstanceDescriptor {
+        let descriptor = super.instanceDescriptor()
+        var plugins = descriptor.pluginConfigurations as? [String: Any] ?? [:]
+        var statusBar = plugins["StatusBar"] as? [String: Any] ?? [:]
+        // iOS uses the web safe area for both the app and its modal backdrops.
+        // Keep this in native config so viewDidAppear cannot restore a separate strip.
+        statusBar["overlaysWebView"] = true
+        plugins["StatusBar"] = statusBar
+        descriptor.pluginConfigurations = plugins
+        return descriptor
+    }
+
     override func capacitorDidLoad() {
         super.capacitorDidLoad()
         bridge?.registerPluginInstance(MindRoomAuthPlugin())
@@ -17,10 +29,16 @@ class MindRoomBridgeViewController: CAPBridgeViewController {
         bridge?.registerPluginInstance(MindRoomDiagnosticsPlugin())
     }
 
-#if DEBUG
     override func viewDidAppear(_ animated: Bool) {
+        let activeStatusBarStyle = statusBarStyle
         super.viewDidAppear(animated)
+        // The plugin queues its configured startup style on every appearance.
+        // Restore the web theme's current style after that queued update.
+        if activeStatusBarStyle != .default {
+            bridge?.statusBarStyle = activeStatusBarStyle
+        }
 
+#if DEBUG
         guard ProcessInfo.processInfo.environment["MINDROOM_FILE_SAVE_ACCEPTANCE"] == "1",
               !didStartFileSaveAcceptanceFixture else {
             return
@@ -55,8 +73,8 @@ class MindRoomBridgeViewController: CAPBridgeViewController {
                 }
             }
         }
-    }
 #endif
+    }
 }
 
 private struct MindRoomRouter: Router {
