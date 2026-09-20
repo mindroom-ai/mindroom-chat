@@ -237,6 +237,34 @@ describe('eventRepository same-id revision merge', () => {
     expect(JSON.stringify(snapshot.rawEvents)).not.toContain('secret');
   });
 
+  it('compacts an authoritative same-sender replace into its target record', () => {
+    const target = makeRawMessage('$target', 'original', { ts: 100 });
+    const replace = makeRawEdit('$edit-v2', '$target', 'final content', { ts: 200 });
+    const room = makeRoom({ liveEvents: [] });
+
+    const snapshot = persistThreadEventCacheSnapshot({
+      sessionId: 'session',
+      room: room as never,
+      threadId: '$root',
+      events: [mapRawEvent(target), mapRawEvent(replace)],
+      authoritativeRawEvents: [target, replace],
+      save: vi.fn().mockResolvedValue(true),
+    });
+
+    expect(snapshot.rawEvents).toHaveLength(1);
+    expect(snapshot.rawEvents[0]).toMatchObject({
+      event_id: '$target',
+      unsigned: {
+        'm.relations': {
+          [RelationType.Replace]: {
+            event_id: '$edit-v2',
+            content: { 'm.new_content': { body: 'final content' } },
+          },
+        },
+      },
+    });
+  });
+
   it('clears a known-redacted live replacement even when the incoming target has no bundle', () => {
     const live = mapRawEvent(makeRawMessage('$target', 'original'));
     const edit = mapRawEvent(makeRawEdit('$edit-v2', '$target', 'secret'));
