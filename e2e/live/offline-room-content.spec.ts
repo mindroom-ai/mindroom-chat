@@ -249,7 +249,8 @@ const warmHistoricalContent = async (
     userId: fixture.session.userId,
     viewMode: 'compact',
   });
-  await page.getByRole('link', { name: fixture.roomName, exact: true }).first().click();
+  // The fixture can be outside the virtualized room list on a reused test account.
+  await page.goto(`/home/${encodeURIComponent(fixture.roomId)}`);
   await expect(page.getByRole('button', { name: 'Send message', exact: true })).toBeVisible();
 
   await openRoomSettings(page, fixture.roomName);

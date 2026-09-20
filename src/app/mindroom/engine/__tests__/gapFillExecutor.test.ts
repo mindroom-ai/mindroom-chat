@@ -547,7 +547,8 @@ describe('gapFillExecutor (CINNY-207 P4.2)', () => {
     });
 
     resolveFirst({ end: 'old-next', chunk: [rawEvent('$recovered-prefix', 20)] });
-    await waitForCompleted(2);
+    // The superseded request and both successor pages each release a scheduler slot.
+    await waitForCompleted(3);
 
     expect(requestedTokens).toEqual(['old-token', 'new-token', 'new-next']);
     expect(await loadRoomTailDiscontinuity(SESSION_ID, '!room:mindroom.chat')).toBeUndefined();

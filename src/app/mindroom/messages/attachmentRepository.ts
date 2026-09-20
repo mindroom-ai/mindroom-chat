@@ -66,8 +66,8 @@ const inflightDownloads = new Map<string, SharedAttachmentOperation>();
 const getSessionId = (mx: MatrixClient): string =>
   createSessionId(mx.getHomeserverUrl(), mx.getSafeUserId());
 
-const getInflightKey = (sessionId: string, mxcUri: string): string =>
-  JSON.stringify([sessionId, mxcUri]);
+const getInflightKey = (sessionId: string, mxcUri: string, useAuthentication: boolean): string =>
+  JSON.stringify([sessionId, mxcUri, useAuthentication]);
 
 const abortError = (): DOMException => new DOMException('The operation was aborted', 'AbortError');
 
@@ -86,6 +86,19 @@ const enforceMaxBytes = (byteLength: number, maxBytes?: number): void => {
     throw new Error(`Attachment exceeds the ${maxBytes} byte limit`);
   }
 };
+
+const hasCachedReference = (
+  metadata: CachedAttachmentMetadata | undefined,
+  owner: Partial<EventAttachmentOwner>
+): boolean =>
+  metadata?.references.some(
+    (row) =>
+      row.roomId === owner.roomId &&
+      row.eventId === owner.eventId &&
+      row.revisionTs === owner.revisionTs &&
+      (row.revisionId ?? '') === (owner.revisionId ?? '') &&
+      row.status === 'cached'
+  ) ?? false;
 
 const fetchRawAttachment = async (
   mx: MatrixClient,
@@ -145,7 +158,7 @@ const acquireAttachment = (
   useAuthentication: boolean,
   maxBytes?: number
 ): { promise: Promise<RawAttachment>; release: () => void } => {
-  const key = getInflightKey(sessionId, source.mxcUri);
+  const key = getInflightKey(sessionId, source.mxcUri, useAuthentication);
   let operation = inflightDownloads.get(key);
   if (!operation) {
     let created: SharedAttachmentOperation | undefined;
@@ -256,15 +269,7 @@ export const downloadCachedAttachment = async (
     const satisfied =
       metadata &&
       (!options.essential || metadata.essential) &&
-      (!options.roomId ||
-        metadata.references.some(
-          (row) =>
-            row.roomId === options.roomId &&
-            row.eventId === options.eventId &&
-            row.revisionTs === options.revisionTs &&
-            (row.revisionId ?? '') === (options.revisionId ?? '') &&
-            row.status === 'cached'
-        ));
+      (!options.roomId || hasCachedReference(metadata, options));
     if ((!options.essential || (options.roomId && options.eventId)) && !satisfied) {
       await awaitWithSignal(
         putCachedAttachment(
@@ -290,6 +295,9 @@ export const getCachedAttachmentCacheMetadata = (
   getCachedAttachmentMetadata(getSessionId(mx), mxcUri);
 
 export const clearAttachmentRepositoryMemory = (): void => {
+  inflightDownloads.forEach(({ controller, settled }) => {
+    if (!settled) controller.abort();
+  });
   inflightDownloads.clear();
 };
 
@@ -340,14 +348,7 @@ export const prefetchEventAttachments = async (
       const writeLease = leases.get(message.roomId)!;
       if (!isCacheStoreWriteLeaseCurrent(writeLease)) continue;
       const cached = await getCachedAttachmentMetadata(sessionId, attachment.mxcUri);
-      const satisfied = cached?.references.some(
-        (row) =>
-          row.roomId === message.roomId &&
-          row.eventId === message.eventId &&
-          row.revisionTs === message.revisionTs &&
-          (row.revisionId ?? '') === (message.revisionId ?? '') &&
-          row.status === 'cached'
-      );
+      const satisfied = hasCachedReference(cached, message);
       if (
         !satisfied &&
         (attachment.autoDownload || options.includeAllMedia) &&
@@ -387,23 +388,10 @@ export const prefetchEventAttachments = async (
   // Read after every consumer has validated: raw bytes alone do not satisfy an essential body.
   let saved = 0;
   let missing = 0;
-  for (const { roomId, mxcUri, owners } of requirements.values()) {
+  for (const { mxcUri, owners } of requirements.values()) {
     // eslint-disable-next-line no-await-in-loop
     const metadata = await getCachedAttachmentMetadata(sessionId, mxcUri);
-    if (
-      metadata &&
-      owners.every((owner) =>
-        metadata.references.some(
-          (reference) =>
-            reference.roomId === roomId &&
-            reference.eventId === owner.eventId &&
-            reference.revisionTs === owner.revisionTs &&
-            (reference.revisionId ?? '') === (owner.revisionId ?? '') &&
-            reference.status === 'cached'
-        )
-      )
-    )
-      saved += 1;
+    if (metadata && owners.every((owner) => hasCachedReference(metadata, owner))) saved += 1;
     else missing += 1;
   }
   return { saved, missing };

@@ -247,6 +247,74 @@ describe('persistent attachment repository', () => {
     );
   });
 
+  it('keeps authenticated transport separate from a pending unauthenticated download', async () => {
+    let finishUnauthenticated!: (response: Response) => void;
+    const fetchMock = vi.fn((url: string, init: RequestInit) => {
+      if (init.headers) return Promise.resolve(new Response('authenticated body'));
+      return new Promise<Response>((resolve) => {
+        finishUnauthenticated = resolve;
+      });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const alice = createClient({
+      baseUrl: BASE_URL,
+      userId: '@alice:matrix.example.org',
+      accessToken: 'test-token',
+    });
+    const source = { mxcUri: 'mxc://matrix.example.org/auth-transition' };
+    const previous = downloadCachedAttachment(alice, source, false).catch((error) => error);
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    const current = downloadCachedAttachment(alice, source, true);
+    try {
+      await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+      expect(fetchMock.mock.calls[0][0]).toContain('/_matrix/media/v3/download/');
+      expect(fetchMock.mock.calls[0][1].headers).toBeUndefined();
+      expect(fetchMock.mock.calls[1][0]).toContain('/_matrix/client/v1/media/download/');
+      expect(fetchMock.mock.calls[1][1].headers).toEqual({ Authorization: 'Bearer test-token' });
+    } finally {
+      finishUnauthenticated(new Response('unauthorized', { status: 401 }));
+      await Promise.allSettled([previous, current]);
+    }
+    expect(await previous).toBeInstanceOf(Error);
+    await expect((await current).text()).resolves.toBe('authenticated body');
+  });
+
+  it('aborts active transport on memory cleanup and allows a shared fresh download', async () => {
+    let signal!: AbortSignal;
+    let finish!: (response: Response) => void;
+    const fetchMock = vi.fn(
+      (_url: string, init: RequestInit) =>
+        new Promise<Response>((resolve, reject) => {
+          signal = init.signal as AbortSignal;
+          signal.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')));
+          finish = resolve;
+        })
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    const alice = createAccountClient('@alice:matrix.example.org');
+    const source = { mxcUri: 'mxc://matrix.example.org/cleanup' };
+    const pending = downloadCachedAttachment(alice, source, false).catch((error) => error);
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    clearAttachmentRepositoryMemory();
+    try {
+      expect(signal.aborted).toBe(true);
+    } finally {
+      finish(new Response('stale body'));
+      await pending;
+    }
+    expect(await pending).toMatchObject({ name: 'AbortError' });
+    expect(await getCachedAttachmentCacheMetadata(alice, source.mxcUri)).toBeUndefined();
+    const fresh = Promise.all([
+      downloadCachedAttachment(alice, source, false),
+      downloadCachedAttachment(alice, source, false),
+    ]);
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    finish(new Response('fresh body'));
+    await expect(
+      fresh.then((blobs) => Promise.all(blobs.map((blob) => blob.text())))
+    ).resolves.toEqual(['fresh body', 'fresh body']);
+  });
+
   it('shares lookup and transport when a concurrent fetch resolves immediately', async () => {
     const fetchMock = vi.fn(async () => new Response('shared body', { status: 200 }));
     vi.stubGlobal('fetch', fetchMock);

@@ -2,6 +2,21 @@
 
 ## Runbook
 
+### Close attachment transport review findings (2026-09-20)
+
+- In-flight attachment downloads now distinguish authentication modes and abort during global in-memory cleanup.
+  Persistent bytes retain their account-scoped MXC identity, and one shared predicate checks cached message ownership.
+  Removed the unused media-auth helper re-export.
+- Browser offline fixtures navigate directly to their room, avoiding offscreen entries in a virtualized room list.
+  The gap-fill successor regression waits for all three page jobs before inspecting the committed marker.
+- Cache guarantees remain deliberately bounded: validated blob reads do not rewrite payloads for exact per-file recency.
+  Eviction protects focused, recently opened and pinned rooms plus essential bodies; other optional media uses coarse recency.
+  After clear or restart revokes an event's original lease, late decryption cannot regain write authority merely by reusing that event.
+  A current room activation or explicit Download repairs tracked missing keys through its own persistence operation.
+- Independent review approved the scoped fixes; both new transport regressions failed before their fixes and passed afterward.
+  All 564 files / 4,864 unit tests, typecheck, production/PWA build and formatting pass; ESLint retains 17 existing warnings and no errors.
+  The WebKit historical body/image profile-restart regression passes with Matrix requests held.
+
 ### Retry missing offline content and share live cache writes (2026-09-20)
 
 - Notice and Emote long-text renderers now carry the same event/revision ownership as Text and File.

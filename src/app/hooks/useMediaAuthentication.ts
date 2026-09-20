@@ -5,8 +5,6 @@ import { useSpecVersions } from './useSpecVersions';
 
 import { supportsAuthenticatedMedia } from '../utils/mediaUrl';
 
-export { supportsAuthenticatedMedia } from '../utils/mediaUrl';
-
 const hasServiceWorkerMediaAuthSupport = (): boolean =>
   typeof navigator !== 'undefined' &&
   'serviceWorker' in navigator &&
