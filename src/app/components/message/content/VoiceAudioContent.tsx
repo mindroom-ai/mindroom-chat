@@ -6,6 +6,7 @@ import { Icon, IconButton, Icons, PopOut, RectCords, Spinner, Text } from 'folds
 import { EncryptedAttachmentInfo } from 'browser-encrypt-attachment';
 import { useAtomValue } from 'jotai';
 import { IconPlayerPauseFilled, IconPlayerPlayFilled } from '@tabler/icons-react';
+import type { EventAttachmentOwner } from '../../../mindroom/messages/eventAttachments';
 import { Menu } from '../../glass/GlassPrimitives';
 import { IAudioInfo } from '../../../../types/matrix/common';
 import { AsyncStatus } from '../../../hooks/useAsyncCallback';
@@ -42,6 +43,7 @@ const formatVoiceTime = (seconds: number) =>
   secondsToMinutesAndSeconds(Number.isFinite(seconds) && seconds > 0 ? seconds : 0);
 
 export type VoiceAudioContentProps = {
+  owner?: EventAttachmentOwner;
   mimeType: string;
   url: string;
   info: IAudioInfo;
@@ -53,6 +55,7 @@ export type VoiceAudioContentProps = {
 };
 
 export function VoiceAudioContent({
+  owner,
   mimeType,
   url,
   info,
@@ -64,7 +67,7 @@ export function VoiceAudioContent({
 }: VoiceAudioContentProps) {
   const { t } = useTranslation();
   const glassRef = useLiquidGlass<HTMLDivElement>();
-  const [srcState, loadSrc] = useAudioContentSource({ mimeType, url, encInfo });
+  const [srcState, loadSrc] = useAudioContentSource({ mimeType, url, encInfo, owner });
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [audioElement, setAudioElement] = useState<HTMLAudioElement | null>(null);
   const pendingSeekTimeRef = useRef<number>();
@@ -80,7 +83,7 @@ export function VoiceAudioContent({
     Number.isFinite(info.duration) && info.duration && info.duration > 0 ? info.duration : 0;
   const hasInfoDuration = infoDuration > 0;
   const [duration, setDuration] = useState(infoDuration / 1000);
-  const mediaIdentity = getAudioContentSourceIdentity({ mimeType, url, encInfo });
+  const mediaIdentity = getAudioContentSourceIdentity({ mimeType, url, encInfo, owner });
   const mediaIdentityRef = useRef(mediaIdentity);
   const loadIntentRef = useRef(0);
   const browserMeasuredDurationRef = useRef(false);
@@ -363,6 +366,7 @@ export function VoiceAudioContent({
                     <div className={css.MoreMenuAction}>
                       <Text size="B300">{t('sharedUi.voiceAudioContent.download')}</Text>
                       <FileDownloadButton
+                        owner={owner}
                         filename={filename}
                         url={url}
                         mimeType={mimeType}

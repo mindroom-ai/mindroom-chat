@@ -166,6 +166,7 @@ export type CachedRoomLedgerRecord = {
   eventCount: number;
   lastActivityTs: number;
   federated?: boolean;
+  pinned?: boolean;
 };
 
 export type CachedThreadSummaryRecord = {
@@ -194,7 +195,12 @@ export type CachedAttachmentReferenceRecord = {
   roomId: string;
   byteLength: number;
   essential: boolean;
-  status: 'cached';
+  eventId?: string;
+  revisionTs?: number;
+  revisionId?: string;
+  redacted?: boolean;
+  maxBytes?: number;
+  status: 'cached' | 'missing';
   updatedAt: number;
 };
 
@@ -208,8 +214,11 @@ export const buildMetaKey = (roomId: string, scope: string): string => `${roomId
 export const buildSummaryCacheKey = (roomId: string, threadRootId: string): string =>
   `${roomId}|${threadRootId}`;
 
-export const buildAttachmentReferenceKey = (roomId: string, mxcUri: string): string =>
-  JSON.stringify([roomId, mxcUri]);
+export const buildAttachmentReferenceKey = (
+  roomId: string,
+  mxcUri: string,
+  eventId?: string
+): string => JSON.stringify(eventId ? [roomId, mxcUri, eventId] : [roomId, mxcUri]);
 
 // Approximate size of an event's on-disk footprint. Uses JSON serialization
 // length as a fast, deterministic proxy; the ledger's job in P2.2 is

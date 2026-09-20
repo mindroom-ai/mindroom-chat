@@ -2,27 +2,30 @@ import { useTranslation } from 'react-i18next';
 import { Badge, Box, Icon, IconButton, Icons, Spinner, Text, as, toRem } from 'folds';
 import React, { ReactNode, useCallback, useRef } from 'react';
 import { EncryptedAttachmentInfo } from 'browser-encrypt-attachment';
+import type { EventAttachmentOwner } from '../../mindroom/messages/eventAttachments';
 import { mimeTypeToExt } from '../../utils/mimeTypes';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useMediaAuthentication } from '../../hooks/useMediaAuthentication';
 import { AsyncStatus, useAsyncCallback } from '../../hooks/useAsyncCallback';
 import { saveFile } from '../../mindroom/native/nativeFileSave';
-import {
-  decryptFile,
-  downloadEncryptedMedia,
-  downloadMedia,
-  mxcUrlToHttp,
-} from '../../utils/matrix';
+import { downloadCachedAttachment } from '../../mindroom/messages/attachmentRepository';
 
 const badgeStyles = { maxWidth: toRem(100) };
 
 type FileDownloadButtonProps = {
+  owner?: EventAttachmentOwner;
   filename: string;
   url: string;
   mimeType: string;
   encInfo?: EncryptedAttachmentInfo;
 };
-export function FileDownloadButton({ filename, url, mimeType, encInfo }: FileDownloadButtonProps) {
+export function FileDownloadButton({
+  owner,
+  filename,
+  url,
+  mimeType,
+  encInfo,
+}: FileDownloadButtonProps) {
   const { t } = useTranslation();
   const mx = useMatrixClient();
   const useAuthentication = useMediaAuthentication();
@@ -30,6 +33,7 @@ export function FileDownloadButton({ filename, url, mimeType, encInfo }: FileDow
     url: string;
     mimeType: string;
     encInfo?: EncryptedAttachmentInfo;
+    ownerKey: string;
     blob: Blob;
   }>();
 
@@ -39,22 +43,32 @@ export function FileDownloadButton({ filename, url, mimeType, encInfo }: FileDow
       let fileContent =
         cachedFile?.url === url &&
         cachedFile.mimeType === mimeType &&
-        cachedFile.encInfo === encInfo
+        cachedFile.encInfo === encInfo &&
+        cachedFile.ownerKey === JSON.stringify(owner)
           ? cachedFile.blob
           : undefined;
       if (!fileContent) {
-        const mediaUrl = mxcUrlToHttp(mx, url, useAuthentication);
-        if (!mediaUrl) throw new Error('Invalid media URL');
-        fileContent = encInfo
-          ? await downloadEncryptedMedia(mediaUrl, (encBuf) =>
-              decryptFile(encBuf, mimeType, encInfo)
-            )
-          : await downloadMedia(mediaUrl);
-        downloadedFileRef.current = { url, mimeType, encInfo, blob: fileContent };
+        fileContent = await downloadCachedAttachment(
+          mx,
+          {
+            owner,
+            mxcUri: url,
+            mimeType,
+            encryptedFile: encInfo ? { ...encInfo, url } : undefined,
+          },
+          useAuthentication
+        );
+        downloadedFileRef.current = {
+          url,
+          mimeType,
+          encInfo,
+          ownerKey: JSON.stringify(owner),
+          blob: fileContent,
+        };
       }
 
       await saveFile(fileContent, filename);
-    }, [mx, url, useAuthentication, mimeType, encInfo, filename])
+    }, [owner, mx, url, useAuthentication, mimeType, encInfo, filename])
   );
   const downloading = downloadState.status === AsyncStatus.Loading;
   const hasError = downloadState.status === AsyncStatus.Error;

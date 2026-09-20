@@ -199,16 +199,40 @@ const writeGenerationBySession = new Map<string, number>();
 export type CacheStoreWriteLease = {
   readonly sessionId: string;
   readonly generation: number;
+  readonly roomId?: string;
+  readonly roomGeneration?: number;
 };
 
-export const captureCacheStoreWriteLease = (sessionId: string): CacheStoreWriteLease => {
+const writeGenerationByRoom = new Map<string, number>();
+const roomLeaseKey = (sessionId: string, roomId: string): string =>
+  JSON.stringify([sessionId, roomId]);
+
+export const captureCacheStoreWriteLease = (
+  sessionId: string,
+  roomId?: string
+): CacheStoreWriteLease => {
   const generation = writeGenerationBySession.get(sessionId) ?? 0;
   writeGenerationBySession.set(sessionId, generation);
-  return { sessionId, generation };
+  return {
+    sessionId,
+    generation,
+    roomId,
+    roomGeneration: roomId
+      ? writeGenerationByRoom.get(roomLeaseKey(sessionId, roomId)) ?? 0
+      : undefined,
+  };
 };
 
 export const isCacheStoreWriteLeaseCurrent = (lease: CacheStoreWriteLease): boolean =>
-  (writeGenerationBySession.get(lease.sessionId) ?? 0) === lease.generation;
+  (writeGenerationBySession.get(lease.sessionId) ?? 0) === lease.generation &&
+  (!lease.roomId ||
+    (writeGenerationByRoom.get(roomLeaseKey(lease.sessionId, lease.roomId)) ?? 0) ===
+      lease.roomGeneration);
+
+export const revokeRoomCacheStoreWrites = (sessionId: string, roomId: string): void => {
+  const key = roomLeaseKey(sessionId, roomId);
+  writeGenerationByRoom.set(key, (writeGenerationByRoom.get(key) ?? 0) + 1);
+};
 
 export const revokeCacheStoreWrites = (sessionId: string): void => {
   writeGenerationBySession.set(sessionId, (writeGenerationBySession.get(sessionId) ?? 0) + 1);
@@ -227,6 +251,7 @@ export const revokeAllCacheStoreWrites = (): void => {
 export const resetCacheStoreForTesting = (): void => {
   dbPromiseByName.clear();
   writeGenerationBySession.clear();
+  writeGenerationByRoom.clear();
 };
 
 // Re-exported so the wipe hook (P2.1 commit 3) can iterate stored

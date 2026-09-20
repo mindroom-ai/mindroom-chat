@@ -7,6 +7,9 @@ import {
 } from './cacheStoreDb';
 import {
   ATTACHMENT_REFERENCES_BY_ATTACHMENT_INDEX,
+  ATTACHMENT_REFERENCES_BY_ROOM_INDEX,
+  ROOM_LEDGER_STORE,
+  type CachedRoomLedgerRecord,
   ATTACHMENT_REFERENCES_STORE,
   ATTACHMENTS_STORE,
   buildAttachmentReferenceKey,
@@ -23,6 +26,9 @@ export type CacheAttachmentWriteStatus = 'committed' | 'failed' | 'revoked' | 'u
 export type CacheAttachmentWriteOptions = {
   essential?: boolean;
   roomId?: string;
+  eventId?: string;
+  revisionTs?: number;
+  revisionId?: string;
   signal?: AbortSignal;
   writeLease?: CacheStoreWriteLease;
 };
@@ -61,64 +67,92 @@ export const loadCachedAttachment = async (
 const putAttachmentTransaction = async (
   db: IDBDatabase,
   input: Pick<CachedAttachmentRecord, 'bytes' | 'mimeType' | 'mxcUri'>,
-  options: Pick<CacheAttachmentWriteOptions, 'essential' | 'roomId' | 'signal'>
+  options: CacheAttachmentWriteOptions
 ): Promise<void> => {
-  const storeNames = options.roomId
-    ? [ATTACHMENTS_STORE, ATTACHMENT_REFERENCES_STORE]
-    : [ATTACHMENTS_STORE];
-  const transaction = db.transaction(storeNames, 'readwrite');
+  const transaction = db.transaction([ATTACHMENTS_STORE, ATTACHMENT_REFERENCES_STORE], 'readwrite');
+  const done = transactionComplete(transaction);
   const abortTransaction = () => {
     try {
       transaction.abort();
     } catch {
-      // The transaction already completed or aborted.
+      /* Already completed. */
     }
   };
   options.signal?.addEventListener('abort', abortTransaction, { once: true });
-  if (options.signal?.aborted) {
-    abortTransaction();
-    options.signal.removeEventListener('abort', abortTransaction);
-    throw abortError();
-  }
-  const attachmentStore = transaction.objectStore(ATTACHMENTS_STORE);
-  const previousAttachmentRequest = attachmentStore.get(input.mxcUri);
-  previousAttachmentRequest.onsuccess = () => {
-    const previous = previousAttachmentRequest.result as CachedAttachmentRecord | undefined;
-    const now = Date.now();
-    const record: CachedAttachmentRecord = {
-      mxcUri: input.mxcUri,
-      bytes: previous?.bytes ?? input.bytes,
-      mimeType: previous?.mimeType || input.mimeType,
-      byteLength: previous?.byteLength ?? input.bytes.byteLength,
-      essential: previous?.essential === true || options.essential === true,
-      storedAt: previous?.storedAt ?? now,
-      lastAccessedAt: now,
-    };
-    attachmentStore.put(record);
-
-    if (!options.roomId) return;
-    const referenceStore = transaction.objectStore(ATTACHMENT_REFERENCES_STORE);
-    const referenceKey = buildAttachmentReferenceKey(options.roomId, input.mxcUri);
-    const previousReferenceRequest = referenceStore.get(referenceKey);
-    previousReferenceRequest.onsuccess = () => {
-      const previousReference = previousReferenceRequest.result as
-        | CachedAttachmentReferenceRecord
-        | undefined;
-      const reference: CachedAttachmentReferenceRecord = {
-        referenceKey,
-        mxcUri: input.mxcUri,
-        roomId: options.roomId as string,
-        byteLength: record.byteLength,
-        essential: previousReference?.essential === true || options.essential === true,
-        status: 'cached',
-        updatedAt: now,
-      };
-      referenceStore.put(reference);
-    };
-  };
   try {
-    await transactionComplete(transaction);
     if (options.signal?.aborted) throw abortError();
+    const blobs = transaction.objectStore(ATTACHMENTS_STORE);
+    const refs = transaction.objectStore(ATTACHMENT_REFERENCES_STORE);
+    const [previous, references] = await Promise.all([
+      requestResult(blobs.get(input.mxcUri)) as Promise<CachedAttachmentRecord | undefined>,
+      requestResult(
+        refs.index(ATTACHMENT_REFERENCES_BY_ATTACHMENT_INDEX).getAll(input.mxcUri)
+      ) as Promise<CachedAttachmentReferenceRecord[]>,
+    ]);
+    if (options.signal?.aborted) throw abortError();
+    if (
+      !options.eventId ||
+      references.some(
+        (row) =>
+          row.roomId === options.roomId &&
+          row.eventId === options.eventId &&
+          row.revisionTs === options.revisionTs &&
+          (row.revisionId ?? '') === (options.revisionId ?? '') &&
+          !row.redacted
+      )
+    ) {
+      const now = Date.now();
+      const record: CachedAttachmentRecord = {
+        mxcUri: input.mxcUri,
+        bytes: previous?.bytes ?? input.bytes,
+        mimeType: previous?.mimeType || input.mimeType,
+        byteLength: previous?.byteLength ?? input.bytes.byteLength,
+        storedAt: previous?.storedAt ?? now,
+        lastAccessedAt: now,
+        essential: previous?.essential === true || options.essential === true,
+      };
+      const updated = references.map(
+        (row): CachedAttachmentReferenceRecord => ({
+          ...row,
+          byteLength: record.byteLength,
+          updatedAt: now,
+          status:
+            record.byteLength <= (row.maxBytes ?? Infinity) &&
+            (!row.essential || options.essential || row.status === 'cached')
+              ? 'cached'
+              : 'missing',
+        })
+      );
+      updated.forEach((row) => refs.put(row));
+      if (references.length)
+        record.essential = updated.some((row) => row.essential && row.status === 'cached');
+      if (
+        options.roomId &&
+        !options.eventId &&
+        !references.some((row) => row.roomId === options.roomId && row.eventId)
+      ) {
+        const referenceKey = buildAttachmentReferenceKey(options.roomId, input.mxcUri);
+        const essential =
+          references.some((row) => row.referenceKey === referenceKey && row.essential) ||
+          options.essential === true;
+        refs.put({
+          referenceKey,
+          roomId: options.roomId,
+          mxcUri: input.mxcUri,
+          byteLength: record.byteLength,
+          essential,
+          status: 'cached',
+          updatedAt: now,
+        });
+        record.essential ||= essential;
+      }
+      blobs.put(record);
+    }
+    await done;
+  } catch (error) {
+    abortTransaction();
+    await done.catch(() => undefined);
+    throw error;
   } finally {
     options.signal?.removeEventListener('abort', abortTransaction);
   }
@@ -129,7 +163,7 @@ export const putCachedAttachment = async (
   input: Pick<CachedAttachmentRecord, 'bytes' | 'mimeType' | 'mxcUri'>,
   options: CacheAttachmentWriteOptions = {}
 ): Promise<CacheAttachmentWriteStatus> => {
-  const writeLease = options.writeLease ?? captureCacheStoreWriteLease(sessionId);
+  const writeLease = options.writeLease ?? captureCacheStoreWriteLease(sessionId, options.roomId);
   if (options.signal?.aborted) throw abortError();
   if (!isCacheStoreWriteLeaseCurrent(writeLease)) return 'revoked';
   if (!isCacheWritable()) return 'unavailable';
@@ -143,7 +177,7 @@ export const putCachedAttachment = async (
     await putAttachmentTransaction(db, input, options);
     return 'committed';
   } catch (error) {
-    if (options.signal?.aborted || (error instanceof DOMException && error.name === 'AbortError')) {
+    if (options.signal?.aborted) {
       throw abortError();
     }
     reportCacheWriteError('attachment.save', error);
@@ -180,4 +214,199 @@ export const getCachedAttachmentMetadata = async (
   } catch {
     return undefined;
   }
+};
+
+export type AttachmentReferenceInput = {
+  mxcUri: string;
+  essential: boolean;
+  maxBytes?: number;
+  validated?: boolean;
+};
+
+/** Replace one message's current references, including a tombstone after redaction.
+ * Only identity and retention metadata enter this store; encryption keys stay in events.
+ */
+export const replaceCachedAttachmentReferences = async (
+  sessionId: string,
+  roomId: string,
+  eventId: string,
+  revisionTs: number,
+  inputs: readonly AttachmentReferenceInput[],
+  writeLease = captureCacheStoreWriteLease(sessionId, roomId),
+  revision: { revisionId?: string; redacted?: boolean; merge?: boolean } = {}
+): Promise<CacheAttachmentWriteStatus> => {
+  if (!isCacheStoreWriteLeaseCurrent(writeLease)) return 'revoked';
+  if (!isCacheWritable()) return 'unavailable';
+  let transaction: IDBTransaction | undefined;
+  let done: Promise<void> | undefined;
+  try {
+    const db = await openCacheStore(sessionId);
+    if (!db) return 'unavailable';
+    if (!isCacheStoreWriteLeaseCurrent(writeLease)) return 'revoked';
+    transaction = db.transaction([ATTACHMENTS_STORE, ATTACHMENT_REFERENCES_STORE], 'readwrite');
+    done = transactionComplete(transaction);
+    const refs = transaction.objectStore(ATTACHMENT_REFERENCES_STORE);
+    const blobs = transaction.objectStore(ATTACHMENTS_STORE);
+    const previous = (await requestResult(
+      refs.index(ATTACHMENT_REFERENCES_BY_ROOM_INDEX).getAll(roomId)
+    )) as CachedAttachmentReferenceRecord[];
+    const owned = previous.filter((row) => row.eventId === eventId);
+    if (
+      owned.some(
+        (row) =>
+          row.redacted ||
+          (!revision.redacted &&
+            ((row.revisionTs ?? 0) > revisionTs ||
+              (row.revisionTs === revisionTs &&
+                (row.revisionId ?? '') > (revision.revisionId ?? ''))))
+      )
+    ) {
+      await done;
+      return 'revoked';
+    }
+    // Individual consumers add sibling media only within the same authoritative revision.
+    const merged = new Map<string, AttachmentReferenceInput>();
+    if (revision.merge) {
+      owned
+        .filter(
+          (row) =>
+            row.mxcUri &&
+            row.revisionTs === revisionTs &&
+            (row.revisionId ?? '') === (revision.revisionId ?? '')
+        )
+        .forEach((row) => {
+          merged.set(row.mxcUri, {
+            mxcUri: row.mxcUri,
+            essential: row.essential,
+            maxBytes: row.maxBytes,
+            validated: row.status === 'cached',
+          });
+        });
+    }
+    inputs.forEach((input) => {
+      const previousInput = merged.get(input.mxcUri);
+      merged.set(input.mxcUri, {
+        ...input,
+        essential: input.essential || previousInput?.essential === true,
+        maxBytes: previousInput?.essential ? previousInput.maxBytes : input.maxBytes,
+        validated: input.validated || previousInput?.validated,
+      });
+    });
+    const entries: AttachmentReferenceInput[] = merged.size
+      ? [...merged.values()]
+      : [{ mxcUri: '', essential: false }];
+    const removed = previous.filter(
+      (row) =>
+        row.eventId === eventId ||
+        (!row.eventId && entries.some((entry) => entry.mxcUri === row.mxcUri))
+    );
+    removed.forEach((row) => refs.delete(row.referenceKey));
+    for (const input of entries) {
+      // eslint-disable-next-line no-await-in-loop
+      const cached = (await requestResult(blobs.get(input.mxcUri))) as
+        | CachedAttachmentRecord
+        | undefined;
+      refs.put({
+        referenceKey: buildAttachmentReferenceKey(roomId, input.mxcUri, eventId),
+        roomId,
+        eventId,
+        revisionTs,
+        revisionId: revision.revisionId,
+        redacted: revision.redacted,
+        mxcUri: input.mxcUri,
+        essential: input.essential,
+        maxBytes: input.maxBytes,
+        byteLength: cached?.byteLength ?? 0,
+        status:
+          cached &&
+          (!input.essential || input.validated) &&
+          cached.byteLength <= (input.maxBytes ?? Infinity)
+            ? 'cached'
+            : 'missing',
+        updatedAt: Date.now(),
+      } satisfies CachedAttachmentReferenceRecord);
+    }
+    for (const mxcUri of new Set(
+      [...removed, ...entries].map((row) => row.mxcUri).filter(Boolean)
+    )) {
+      // eslint-disable-next-line no-await-in-loop
+      const cached = (await requestResult(blobs.get(mxcUri))) as CachedAttachmentRecord | undefined;
+      if (!cached) continue;
+      // eslint-disable-next-line no-await-in-loop
+      const remaining = (await requestResult(
+        refs.index(ATTACHMENT_REFERENCES_BY_ATTACHMENT_INDEX).getAll(mxcUri)
+      )) as CachedAttachmentReferenceRecord[];
+      if (!remaining.length) blobs.delete(mxcUri);
+      else
+        blobs.put({
+          ...cached,
+          essential: remaining.some((row) => row.essential && row.status === 'cached'),
+        });
+    }
+    await done;
+    return 'committed';
+  } catch (error) {
+    try {
+      transaction?.abort();
+    } catch {
+      /* Already completed. */
+    }
+    await done?.catch(() => undefined);
+    reportCacheWriteError('attachment.references', error);
+    return 'failed';
+  }
+};
+
+export const readRoomAttachmentStorage = async (sessionId: string, roomId: string) => {
+  const db = await openCacheStore(sessionId);
+  if (!db) return { bytes: 0, saved: 0, missing: 0, missingEssential: 0, pinned: false };
+  const transaction = db.transaction([ATTACHMENT_REFERENCES_STORE, ROOM_LEDGER_STORE], 'readonly');
+  const [references, ledger] = await Promise.all([
+    requestResult(
+      transaction
+        .objectStore(ATTACHMENT_REFERENCES_STORE)
+        .index(ATTACHMENT_REFERENCES_BY_ROOM_INDEX)
+        .getAll(roomId)
+    ) as Promise<CachedAttachmentReferenceRecord[]>,
+    requestResult(transaction.objectStore(ROOM_LEDGER_STORE).get(roomId)) as Promise<
+      CachedRoomLedgerRecord | undefined
+    >,
+  ]);
+  const byUri = new Map<string, CachedAttachmentReferenceRecord>();
+  references
+    .filter((row) => row.mxcUri)
+    .forEach((row) => {
+      const previous = byUri.get(row.mxcUri);
+      byUri.set(row.mxcUri, { ...row, essential: row.essential || previous?.essential === true });
+    });
+  const rows = [...byUri.values()];
+  return {
+    bytes: rows.reduce((sum, row) => sum + (row.status === 'cached' ? row.byteLength : 0), 0),
+    saved: rows.filter((row) => row.status === 'cached').length,
+    missing: rows.filter((row) => row.status === 'missing').length,
+    missingEssential: rows.filter((row) => row.status === 'missing' && row.essential).length,
+    pinned: ledger?.pinned === true,
+  };
+};
+
+export const setRoomAttachmentPinned = async (
+  sessionId: string,
+  roomId: string,
+  pinned: boolean
+): Promise<void> => {
+  const db = await openCacheStore(sessionId);
+  if (!db) return;
+  const transaction = db.transaction(ROOM_LEDGER_STORE, 'readwrite');
+  const done = transactionComplete(transaction);
+  const ledger = transaction.objectStore(ROOM_LEDGER_STORE);
+  const previous = (await requestResult(ledger.get(roomId))) as CachedRoomLedgerRecord | undefined;
+  ledger.put({
+    ...previous,
+    roomId,
+    pinned,
+    approxBytes: previous?.approxBytes ?? 0,
+    eventCount: previous?.eventCount ?? 0,
+    lastActivityTs: previous?.lastActivityTs ?? 0,
+  });
+  await done;
 };

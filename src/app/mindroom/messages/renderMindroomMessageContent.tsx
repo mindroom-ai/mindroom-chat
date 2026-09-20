@@ -2,6 +2,7 @@ import React, { type ReactNode } from 'react';
 import { MsgType, type MatrixEvent } from 'matrix-js-sdk';
 import { HTMLReactParserOptions } from 'html-react-parser';
 import { Opts } from 'linkifyjs';
+import { getEventAttachmentOwner } from './eventAttachments';
 import { BrokenContent, MEmote, MNotice, MText, RenderBody } from '../../components/message';
 import { trimReplyFromBody } from '../../utils/room';
 import { MindroomMessageExtras } from './MindroomMessageExtras';
@@ -267,7 +268,7 @@ export const renderMindroomMessageContent = ({
             isStreaming ? renderMindroomStreamingIndicator : undefined
           )}
           content={longTextSource.previewContent}
-          longTextSource={longTextSource}
+          longTextSource={{ ...longTextSource, owner: getEventAttachmentOwner(mEvent) }}
           hydrate={hydrateLongText}
           renderBody={(resolvedContent, props) => (
             <RenderBody
@@ -288,7 +289,12 @@ export const renderMindroomMessageContent = ({
     if (msgType === MsgType.File) {
       const pasteAttachment = getMindroomPasteAttachmentFile(content);
       if (pasteAttachment) {
-        return <MindroomPasteAttachmentContent attachment={pasteAttachment} />;
+        return (
+          <MindroomPasteAttachmentContent
+            owner={getEventAttachmentOwner(mEvent)}
+            attachment={pasteAttachment}
+          />
+        );
       }
     }
 

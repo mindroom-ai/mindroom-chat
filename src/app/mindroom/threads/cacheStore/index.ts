@@ -37,6 +37,8 @@ export {
   resetCacheStoreForTesting,
   revokeAllCacheStoreWrites,
   revokeCacheStoreWrites,
+  revokeRoomCacheStoreWrites,
+  isCacheStoreWriteLeaseCurrent,
   type CacheStoreWriteLease,
 } from './cacheStoreDb';
 
@@ -44,6 +46,9 @@ export {
   getCachedAttachmentMetadata,
   loadCachedAttachment,
   putCachedAttachment,
+  replaceCachedAttachmentReferences,
+  readRoomAttachmentStorage,
+  setRoomAttachmentPinned,
   type CacheAttachmentWriteOptions,
   type CacheAttachmentWriteStatus,
   type CachedAttachmentMetadata,
@@ -87,6 +92,7 @@ export { noteRoomFederated, readLedgerSnapshot } from './cacheStoreLedger';
 
 export {
   runCacheEvictionIfOverBudget,
+  clearRoomCachedContent,
   maybeScheduleEvictionCheck,
   setEvictionProtectedRoomIds,
   getEvictionProtectedRoomIds,

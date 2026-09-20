@@ -1,20 +1,39 @@
-import type { MatrixClient } from 'matrix-js-sdk';
+import type { MatrixEvent, MatrixClient } from 'matrix-js-sdk';
 import type { IEncryptedFile } from '../../../types/matrix/common';
 import { createSessionId } from '../../state/sessions';
 import { validMediaRequest } from '../../../swMediaAuth';
-import { decryptFile, downloadMedia, mxcUrlToHttp } from '../../utils/matrix';
+import { decryptFile, mxcUrlToHttp } from '../../utils/matrix';
 import {
   captureCacheStoreWriteLease,
   getCachedAttachmentMetadata,
   loadCachedAttachment,
   putCachedAttachment,
   type CachedAttachmentMetadata,
+  type CacheStoreWriteLease,
+  replaceCachedAttachmentReferences,
+  isCacheStoreWriteLeaseCurrent,
+  maybeScheduleEvictionCheck,
 } from '../threads/cacheStore';
 
+import {
+  parseMindroomLongTextJsonSidecar,
+  getCachedMindroomLongTextContent,
+  hydrateMindroomLongTextSource,
+  type MindroomLongTextSource,
+} from './longText';
+import {
+  collectEventAttachments,
+  AUTO_MEDIA_MAX_BYTES,
+  ESSENTIAL_BODY_MAX_BYTES,
+  type EventAttachmentOwner,
+} from './eventAttachments';
+
 export type CachedAttachmentSource = {
+  owner?: EventAttachmentOwner;
   mxcUri: string;
   encryptedFile?: IEncryptedFile;
   mimeType?: string;
+  isV2ContentJson?: boolean;
 };
 
 export type CachedAttachmentDownloadOptions = {
@@ -22,6 +41,10 @@ export type CachedAttachmentDownloadOptions = {
   essential?: boolean;
   signal?: AbortSignal;
   maxBytes?: number;
+  eventId?: string;
+  revisionTs?: number;
+  revisionId?: string;
+  writeLease?: CacheStoreWriteLease;
 };
 
 type RawAttachment = {
@@ -32,6 +55,8 @@ type RawAttachment = {
 type SharedAttachmentOperation = {
   promise: Promise<RawAttachment>;
   consumers: number;
+  limits: Map<object, number>;
+  controller: AbortController;
   settled: boolean;
 };
 
@@ -64,7 +89,9 @@ const enforceMaxBytes = (byteLength: number, maxBytes?: number): void => {
 const fetchRawAttachment = async (
   mx: MatrixClient,
   source: CachedAttachmentSource,
-  useAuthentication: boolean
+  useAuthentication: boolean,
+  getLimit: () => number,
+  signal: AbortSignal
 ): Promise<RawAttachment> => {
   const url = mxcUrlToHttp(mx, source.mxcUri, useAuthentication);
   if (!url) throw new Error('Unable to resolve sidecar URL');
@@ -73,10 +100,40 @@ const fetchRawAttachment = async (
     token && validMediaRequest(url, mx.getHomeserverUrl())
       ? { headers: { Authorization: `Bearer ${token}` } }
       : undefined;
-  const blob = requestInit ? await downloadMedia(url, requestInit) : await downloadMedia(url);
+  const response = await fetch(url, { ...requestInit, method: 'GET', signal });
+  if (!response.ok) throw new Error(`Unable to download media (${response.status})`);
+  const reader = response.body?.getReader();
+  if (!reader) {
+    // Native fetch implementations without streams cannot enforce an automatic byte bound.
+    if (Number.isFinite(getLimit())) throw new Error('Bounded media response requires a stream');
+    return {
+      bytes: await response.arrayBuffer(),
+      mimeType:
+        source.mimeType || response.headers.get('Content-Type') || 'application/octet-stream',
+    };
+  }
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  try {
+    const length = Number(response.headers.get('Content-Length'));
+    enforceMaxBytes(length, getLimit());
+    for (;;) {
+      // eslint-disable-next-line no-await-in-loop
+      const { done, value } = await reader.read();
+      if (done) break;
+      size += value.byteLength;
+      enforceMaxBytes(size, getLimit());
+      chunks.push(value);
+    }
+  } catch (error) {
+    await reader.cancel().catch(() => undefined);
+    throw error;
+  } finally {
+    reader.releaseLock();
+  }
   return {
-    bytes: await blob.arrayBuffer(),
-    mimeType: source.mimeType || blob.type || 'application/octet-stream',
+    bytes: await new Blob(chunks).arrayBuffer(),
+    mimeType: source.mimeType || response.headers.get('Content-Type') || 'application/octet-stream',
   };
 };
 
@@ -84,7 +141,8 @@ const acquireAttachment = (
   mx: MatrixClient,
   sessionId: string,
   source: CachedAttachmentSource,
-  useAuthentication: boolean
+  useAuthentication: boolean,
+  maxBytes?: number
 ): { promise: Promise<RawAttachment>; release: () => void } => {
   const key = getInflightKey(sessionId, source.mxcUri);
   let operation = inflightDownloads.get(key);
@@ -93,9 +151,21 @@ const acquireAttachment = (
     const promise = loadCachedAttachment(sessionId, source.mxcUri).then((cached) => {
       if (cached) return { bytes: cached.bytes, mimeType: cached.mimeType };
       if (!created || created.consumers === 0) throw abortError();
-      return fetchRawAttachment(mx, source, useAuthentication);
+      return fetchRawAttachment(
+        mx,
+        source,
+        useAuthentication,
+        () => Math.max(0, ...(created?.limits.values() ?? [])),
+        created.controller.signal
+      );
     });
-    created = { promise, consumers: 0, settled: false };
+    created = {
+      promise,
+      consumers: 0,
+      limits: new Map(),
+      controller: new AbortController(),
+      settled: false,
+    };
     operation = created;
     inflightDownloads.set(key, created);
     const markSettled = () => {
@@ -109,6 +179,8 @@ const acquireAttachment = (
 
   const acquired = operation;
   acquired.consumers += 1;
+  const consumer = {};
+  acquired.limits.set(consumer, maxBytes ?? Infinity);
   let released = false;
   return {
     promise: acquired.promise,
@@ -116,6 +188,11 @@ const acquireAttachment = (
       if (released) return;
       released = true;
       acquired.consumers -= 1;
+      acquired.limits.delete(consumer);
+      if (acquired.consumers === 0 && !acquired.settled) {
+        acquired.controller.abort();
+        if (inflightDownloads.get(key) === acquired) inflightDownloads.delete(key);
+      }
       if (acquired.settled && acquired.consumers === 0 && inflightDownloads.get(key) === acquired) {
         inflightDownloads.delete(key);
       }
@@ -139,13 +216,39 @@ export const downloadCachedAttachment = async (
   options: CachedAttachmentDownloadOptions = {}
 ): Promise<Blob> => {
   if (options.signal?.aborted) throw abortError();
+  options = { ...source.owner, ...options };
   const sessionId = getSessionId(mx);
-  const writeLease = captureCacheStoreWriteLease(sessionId);
-  const attachment = acquireAttachment(mx, sessionId, source, useAuthentication);
+  const writeLease = options.writeLease ?? captureCacheStoreWriteLease(sessionId, options.roomId);
+  if (source.owner) {
+    await replaceCachedAttachmentReferences(
+      sessionId,
+      source.owner.roomId,
+      source.owner.eventId,
+      source.owner.revisionTs,
+      [
+        {
+          mxcUri: source.mxcUri,
+          essential: options.essential === true || source.isV2ContentJson !== undefined,
+          maxBytes:
+            source.isV2ContentJson !== undefined ? ESSENTIAL_BODY_MAX_BYTES : options.maxBytes,
+        },
+      ],
+      writeLease,
+      { ...source.owner, merge: true }
+    );
+  }
+  const attachment = acquireAttachment(mx, sessionId, source, useAuthentication, options.maxBytes);
   try {
     const raw = await awaitWithSignal(attachment.promise, options.signal);
     enforceMaxBytes(raw.bytes.byteLength, options.maxBytes);
     const consumerBlob = await awaitWithSignal(toConsumerBlob(raw, source), options.signal);
+    if (
+      options.essential &&
+      source.isV2ContentJson &&
+      !parseMindroomLongTextJsonSidecar(await consumerBlob.text())
+    ) {
+      throw new Error('Invalid long-text body JSON');
+    }
     await awaitWithSignal(
       putCachedAttachment(
         sessionId,
@@ -155,6 +258,7 @@ export const downloadCachedAttachment = async (
       options.signal
     );
     if (options.signal?.aborted) throw abortError();
+    maybeScheduleEvictionCheck(sessionId);
     return consumerBlob;
   } finally {
     attachment.release();
@@ -169,4 +273,143 @@ export const getCachedAttachmentCacheMetadata = (
 
 export const clearAttachmentRepositoryMemory = (): void => {
   inflightDownloads.clear();
+};
+
+export type PrefetchEventAttachmentsOptions = {
+  includeAllMedia?: boolean;
+  signal?: AbortSignal;
+  writeLease?: CacheStoreWriteLease;
+};
+
+/** One bounded batch, with no worker queue. Registration precedes all transport. */
+export const prefetchEventAttachments = async (
+  mx: MatrixClient,
+  events: readonly MatrixEvent[],
+  useAuthentication: boolean,
+  options: PrefetchEventAttachmentsOptions = {}
+): Promise<{ saved: number; missing: number }> => {
+  const sessionId = getSessionId(mx);
+  const messages = collectEventAttachments(events);
+  const leases = new Map(
+    messages.map((message) => [
+      message.roomId,
+      options.writeLease ?? captureCacheStoreWriteLease(sessionId, message.roomId),
+    ])
+  );
+  const current = [] as typeof messages;
+  for (const message of messages) {
+    if (options.signal?.aborted) throw abortError();
+    // eslint-disable-next-line no-await-in-loop
+    const status = await replaceCachedAttachmentReferences(
+      sessionId,
+      message.roomId,
+      message.eventId,
+      message.revisionTs,
+      message.attachments,
+      leases.get(message.roomId),
+      message
+    );
+    if (status !== 'revoked') current.push(message);
+  }
+  const counted = new Set<string>();
+  let saved = 0;
+  let missing = 0;
+  for (const message of current) {
+    for (const attachment of message.attachments) {
+      if (options.signal?.aborted) throw abortError();
+      const writeLease = leases.get(message.roomId)!;
+      if (!isCacheStoreWriteLeaseCurrent(writeLease)) continue;
+      if (attachment.autoDownload || options.includeAllMedia) {
+        try {
+          // eslint-disable-next-line no-await-in-loop
+          await downloadCachedAttachment(mx, attachment, useAuthentication, {
+            roomId: message.roomId,
+            eventId: message.eventId,
+            revisionTs: message.revisionTs,
+            revisionId: message.revisionId,
+            essential: attachment.essential,
+            signal: options.signal,
+            writeLease,
+            maxBytes: attachment.essential
+              ? ESSENTIAL_BODY_MAX_BYTES
+              : options.includeAllMedia
+              ? undefined
+              : AUTO_MEDIA_MAX_BYTES,
+          });
+        } catch (error) {
+          if (options.signal?.aborted) throw error;
+          // Missing/failed bytes remain registered for retry and storage reporting.
+        }
+      }
+      const key = JSON.stringify([message.roomId, attachment.mxcUri]);
+      if (counted.has(key)) continue;
+      counted.add(key);
+      // eslint-disable-next-line no-await-in-loop
+      const metadata = await getCachedAttachmentMetadata(sessionId, attachment.mxcUri);
+      if (
+        metadata &&
+        (!attachment.essential ||
+          metadata.references.some(
+            (reference) =>
+              reference.roomId === message.roomId &&
+              reference.eventId === message.eventId &&
+              reference.status === 'cached'
+          ))
+      )
+        saved += 1;
+      else missing += 1;
+    }
+  }
+  return { saved, missing };
+};
+
+/** Register each message owner even when parsed-memory/inflight hydration shares a body. */
+export const hydrateCachedMindroomLongText = async (
+  mx: MatrixClient,
+  source: MindroomLongTextSource,
+  useAuthentication: boolean
+): Promise<Record<string, unknown>> => {
+  const owner = source.owner;
+  const sessionId = owner ? getSessionId(mx) : undefined;
+  const writeLease = sessionId ? captureCacheStoreWriteLease(sessionId, owner?.roomId) : undefined;
+  const register = (validated: boolean) =>
+    owner && sessionId
+      ? replaceCachedAttachmentReferences(
+          sessionId,
+          owner.roomId,
+          owner.eventId,
+          owner.revisionTs,
+          [
+            {
+              mxcUri: source.mxcUri,
+              essential: true,
+              maxBytes: ESSENTIAL_BODY_MAX_BYTES,
+              validated,
+            },
+          ],
+          writeLease,
+          { ...owner, merge: true }
+        )
+      : Promise.resolve();
+  const load = async (nextSource: MindroomLongTextSource) => {
+    const blob = await downloadCachedAttachment(
+      mx,
+      { ...nextSource, owner: undefined, mimeType: 'application/json' },
+      useAuthentication,
+      { ...owner, essential: true, maxBytes: ESSENTIAL_BODY_MAX_BYTES, writeLease }
+    );
+    return blob.text();
+  };
+  if (!owner) return hydrateMindroomLongTextSource(source, load, mx);
+  const cached = getCachedMindroomLongTextContent(source, mx);
+  const status = await register(!!cached);
+  if (cached) return cached;
+  if (status === 'revoked') return source.previewContent;
+  try {
+    // Every owner participates in raw transport/persistence before parsed hydration can coalesce.
+    const text = await load(source);
+    return await hydrateMindroomLongTextSource(source, async () => text, mx);
+  } catch {
+    return source.previewContent;
+  }
 };

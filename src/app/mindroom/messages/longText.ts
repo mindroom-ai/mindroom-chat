@@ -1,3 +1,4 @@
+import type { EventAttachmentOwner } from './eventAttachments';
 import { IEncryptedFile } from '../../../types/matrix/common';
 
 const LONG_TEXT_TAG = 'io.mindroom.long_text';
@@ -16,6 +17,7 @@ let mindroomLongTextHydrationCache = new WeakMap<object, Map<string, Record<stri
 let mindroomLongTextInflight = new WeakMap<object, Map<string, Promise<Record<string, unknown>>>>();
 
 export type MindroomLongTextSource = {
+  owner?: EventAttachmentOwner;
   previewContent: Record<string, unknown>;
   mxcUri: string;
   encryptedFile?: IEncryptedFile;

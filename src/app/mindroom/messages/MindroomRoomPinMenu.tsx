@@ -20,6 +20,7 @@ import {
 import { Opts as LinkifyOpts } from 'linkifyjs';
 import { HTMLReactParserOptions } from 'html-react-parser';
 import { useVirtualizer } from '@tanstack/react-virtual';
+import { getEventAttachmentOwner } from './eventAttachments';
 import { Menu, Header } from '../../components/glass/GlassPrimitives';
 import { useRoomPinnedEvents } from '../../hooks/useRoomPinnedEvents';
 import * as css from './MindroomRoomPinMenu.css';
@@ -386,6 +387,7 @@ export const RoomPinMenu = forwardRef<HTMLDivElement, RoomPinMenuProps>(
                       content={mEvent.getContent()}
                       renderImageContent={(props) => (
                         <ImageContent
+                          owner={getEventAttachmentOwner(mEvent)}
                           {...props}
                           autoPlay={mediaAutoLoad}
                           renderImage={(p) => <Image {...p} loading="lazy" />}
@@ -455,6 +457,7 @@ export const RoomPinMenu = forwardRef<HTMLDivElement, RoomPinMenuProps>(
               content={getContent()}
               renderImageContent={(props) => (
                 <ImageContent
+                  owner={getEventAttachmentOwner(event)}
                   {...props}
                   autoPlay={mediaAutoLoad}
                   renderImage={(p) => <Image {...p} loading="lazy" />}

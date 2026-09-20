@@ -2,6 +2,30 @@
 
 ## Runbook
 
+### Cache message media and retain room text under storage pressure (2026-09-20)
+
+- Message images, thumbnails, video, audio, file previews and file downloads share the authenticated persistent attachment repository.
+  Components still own and revoke their Blob URLs; the image viewer saves the source Blob URL it receives.
+- Automatic batches register current message references before downloading, then fetch sequentially.
+  Optional media with known size at most 5 MiB is automatic; unknown or larger media waits for explicit open or include-all mode.
+  Streaming transport enforces each consumer's limit without canceling another consumer that still needs the same download.
+- Essential long-text body input is capped at 32 MiB and validated before claiming readable coverage.
+  Failed, malformed, oversized and uncommitted bodies remain incomplete; original-file download remains available separately.
+- Attachment references use stable room/message ownership, timestamp and edit-id ordering, and permanent redaction tombstones.
+  Detached edits await existing relation repair; only a known same-room target with matching sender can authorize a raw replacement.
+  Replacing a streamed body removes obsolete unshared bytes while shared room/message bytes survive.
+- Media rendering, file controls and long-text prewarming pass message ownership through the same repository.
+  Individual consumers merge sibling references within one revision; canonical batches replace the complete reference set.
+  Warm parsed bodies still register every owner, and shared hydration preserves each owner's independent persistence lease.
+- Automatic eviction now reclaims old optional media, preserving message text, essential bodies, pinned rooms and recent/focused rooms.
+  Budget results expose remaining pressure when protected content alone exceeds the budget.
+  Explicit room clear removes that room's events, metadata, summaries, pin and attachment references, retaining shared blobs.
+- Room write leases extend the existing session lease boundary.
+  Background jobs must capture their room lease before network work and pass it into later writes so clear prevents stale resurrection.
+  Quota failures preserve interactive bytes and degrade persistent writes to origin-wide read-only mode until page restart; clear and reclamation remain available, without automatic write retries.
+- Validation: the full Node 24 suite passes 560 files and 4,766 tests; focused media/message/cache coverage passes 77 files and 689 tests.
+  Typecheck and production/PWA build pass; ESLint reports zero errors and the existing 17 warnings.
+
 ### Persist essential message bodies for offline restart (2026-09-20)
 
 - The existing session-scoped `mindroom-cache` database is schema v4. It adds immutable raw attachment payloads plus indexed room references while preserving all four v3 stores and their data.

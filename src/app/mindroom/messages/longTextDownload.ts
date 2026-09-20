@@ -1,4 +1,5 @@
 import { MatrixClient } from 'matrix-js-sdk';
+import { ESSENTIAL_BODY_MAX_BYTES } from './eventAttachments';
 import { MindroomLongTextSource } from './longText';
 import { downloadMindroomSidecarBlob } from './sidecarDownload';
 
@@ -37,14 +38,15 @@ const getLongTextMimeType = (content: Record<string, unknown>): string => {
 export const downloadMindroomLongTextSidecarBlob = async (
   mx: MatrixClient,
   source: MindroomLongTextSource,
-  useAuthentication: boolean
+  useAuthentication: boolean,
+  originalFile = false
 ): Promise<Blob> => {
   return downloadMindroomSidecarBlob(
     mx,
     source,
     useAuthentication,
     getLongTextMimeType(source.previewContent),
-    { essential: true }
+    originalFile ? {} : { essential: true, maxBytes: ESSENTIAL_BODY_MAX_BYTES }
   );
 };
 

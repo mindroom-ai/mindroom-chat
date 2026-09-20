@@ -4,6 +4,7 @@ import React, { MouseEventHandler, useCallback, useEffect, useMemo, useRef, useS
 import { Avatar, Box, Chip, Icon, IconButton, Icons, Scroll, Text, config, toRem } from 'folds';
 import { useSearchParams } from 'react-router-dom';
 import {
+  MatrixEvent,
   INotification,
   INotificationsResponse,
   IRoomEvent,
@@ -16,6 +17,7 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import { HTMLReactParserOptions } from 'html-react-parser';
 import { Opts as LinkifyOpts } from 'linkifyjs';
 import { useAtomValue } from 'jotai';
+import { getEventAttachmentOwner } from '../../../mindroom/messages/eventAttachments';
 import { Header } from '../../../components/glass/GlassPrimitives';
 import { Page, PageContent, PageContentCenter, PageHeader } from '../../../components/page';
 import { useMatrixClient } from '../../../hooks/useMatrixClient';
@@ -252,12 +254,15 @@ function RoomNotificationsGroupComp({
   const renderMatrixEvent = useMatrixEventRenderer<[IRoomEvent, string, GetContentCallback]>(
     {
       [MessageEvent.RoomMessage]: (event, displayName, getContent) => {
+        const mEvent =
+          room.findEventById(event.event_id) ?? new MatrixEvent({ ...event, room_id: room.roomId });
         if (event.unsigned?.redacted_because) {
           return <RedactedContent reason={event.unsigned?.redacted_because.content.reason} />;
         }
 
         return (
           <RenderMessageContent
+            mEvent={mEvent}
             displayName={displayName}
             msgType={event.content.msgtype ?? ''}
             ts={event.origin_server_ts}
@@ -296,6 +301,7 @@ function RoomNotificationsGroupComp({
                     content={mEvent.getContent()}
                     renderImageContent={(props) => (
                       <ImageContent
+                        owner={getEventAttachmentOwner(mEvent)}
                         {...props}
                         autoPlay={mediaAutoLoad}
                         renderImage={(p) => <Image {...p} loading="lazy" />}
@@ -316,6 +322,7 @@ function RoomNotificationsGroupComp({
 
                 return (
                   <RenderMessageContent
+                    mEvent={mEvent}
                     displayName={displayName}
                     msgType={mEvent.getContent().msgtype ?? ''}
                     ts={mEvent.getTs()}
@@ -344,6 +351,8 @@ function RoomNotificationsGroupComp({
         );
       },
       [MessageEvent.Sticker]: (event, displayName, getContent) => {
+        const mEvent =
+          room.findEventById(event.event_id) ?? new MatrixEvent({ ...event, room_id: room.roomId });
         if (event.unsigned?.redacted_because) {
           return <RedactedContent reason={event.unsigned?.redacted_because.content.reason} />;
         }
@@ -352,6 +361,7 @@ function RoomNotificationsGroupComp({
             content={getContent()}
             renderImageContent={(props) => (
               <ImageContent
+                owner={getEventAttachmentOwner(mEvent)}
                 {...props}
                 autoPlay={mediaAutoLoad}
                 renderImage={(p) => <Image {...p} loading="lazy" />}

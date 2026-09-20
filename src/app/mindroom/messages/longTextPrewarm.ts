@@ -6,10 +6,10 @@ import {
   getCachedMindroomLongTextContent,
   getMindroomLongTextSource,
   getMindroomLongTextSourceIdentity,
-  hydrateMindroomLongTextSource,
   type MindroomLongTextSource,
 } from './longText';
-import { downloadMindroomLongTextSidecarText } from './longTextDownload';
+import { hydrateCachedMindroomLongText } from './attachmentRepository';
+import { getEventAttachmentOwner } from './eventAttachments';
 
 const PREWARM_CONCURRENCY = 3;
 
@@ -34,10 +34,11 @@ export const prewarmMindroomLongTextSidecars = async (
     const content = mEvent.getContent() as Record<string, unknown>;
     const source = getMindroomLongTextSource(content);
     if (!source) return;
-    const identity = getMindroomLongTextSourceIdentity(source);
+    source.owner = getEventAttachmentOwner(mEvent);
+    const identity = JSON.stringify([getMindroomLongTextSourceIdentity(source), source.owner]);
     if (seenIdentities.has(identity)) return;
     seenIdentities.add(identity);
-    if (getCachedMindroomLongTextContent(source, mx)) return;
+    if (!source.owner && getCachedMindroomLongTextContent(source, mx)) return;
     pending.push(source);
   });
   if (pending.length === 0) return;
@@ -48,11 +49,7 @@ export const prewarmMindroomLongTextSidecars = async (
       const source = pending[nextIndex];
       nextIndex += 1;
       // eslint-disable-next-line no-await-in-loop
-      await hydrateMindroomLongTextSource(
-        source,
-        (nextSource) => downloadMindroomLongTextSidecarText(mx, nextSource, useAuthentication),
-        mx
-      ).catch(() => undefined);
+      await hydrateCachedMindroomLongText(mx, source, useAuthentication).catch(() => undefined);
     }
   };
   await Promise.all(

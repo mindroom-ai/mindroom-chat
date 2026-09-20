@@ -52,16 +52,18 @@ const hydrate = (mx: MatrixClient) =>
 const pauseAttachmentLookup = (mxcUri: string) => {
   const originalGet = IDBObjectStore.prototype.get;
   let request: IDBRequest | undefined;
-  vi.spyOn(IDBObjectStore.prototype, 'get').mockImplementation(function pausedGet(query) {
-    if (query !== mxcUri) return originalGet.call(this, query);
-    request = {
-      error: null,
-      onerror: null,
-      onsuccess: null,
-      result: undefined,
-    } as unknown as IDBRequest;
-    return request;
-  });
+  const spy = vi
+    .spyOn(IDBObjectStore.prototype, 'get')
+    .mockImplementation(function pausedGet(query) {
+      if (query !== mxcUri) return originalGet.call(this, query);
+      request = {
+        error: null,
+        onerror: null,
+        onsuccess: null,
+        result: undefined,
+      } as unknown as IDBRequest;
+      return request;
+    });
 
   return {
     waitUntilStarted: (timeout = 1000) =>
@@ -72,6 +74,7 @@ const pauseAttachmentLookup = (mxcUri: string) => {
         { timeout }
       ),
     finish: () => {
+      spy.mockRestore();
       expect(request).toBeDefined();
       request?.onsuccess?.call(request, new Event('success'));
     },
@@ -511,6 +514,250 @@ describe('persistent attachment repository', () => {
     lookup.finish();
 
     await expect((await remaining).text()).resolves.toBe('surviving body');
+    expect(await getCachedAttachmentCacheMetadata(alice, source.mxcUri)).toBeDefined();
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
+});
+
+describe('bounded attachment transport', () => {
+  beforeEach(() => {
+    globalThis.indexedDB = new IDBFactory();
+    resetCacheStoreForTesting();
+    clearAttachmentRepositoryMemory();
+  });
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('stops reading an unknown-size response once the only consumer exceeds its limit', async () => {
+    let reads = 0;
+    const cancel = vi.fn();
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        async () =>
+          new Response(
+            new ReadableStream({
+              pull(controller) {
+                reads += 1;
+                if (reads <= 20) controller.enqueue(new Uint8Array(1024));
+                else controller.close();
+              },
+              cancel,
+            })
+          )
+      )
+    );
+    await expect(
+      downloadCachedAttachment(
+        createAccountClient('@alice:matrix.example.org'),
+        { mxcUri: 'mxc://test/bounded' },
+        false,
+        { maxBytes: 2048 }
+      )
+    ).rejects.toThrow('limit');
+    expect(reads).toBeLessThan(20);
+    expect(cancel).toHaveBeenCalledOnce();
+  });
+
+  it('keeps an explicit reader alive when a bounded reader shares a larger attachment', async () => {
+    const fetchMock = vi.fn(async () => new Response(new Uint8Array(4096)));
+    vi.stubGlobal('fetch', fetchMock);
+    const mx = createAccountClient('@alice:matrix.example.org');
+    const source = { mxcUri: 'mxc://test/shared-limit' };
+    const [automatic, explicit] = await Promise.allSettled([
+      downloadCachedAttachment(mx, source, false, { maxBytes: 2048 }),
+      downloadCachedAttachment(mx, source, false),
+    ]);
+    expect(automatic.status).toBe('rejected');
+    expect(explicit.status === 'fulfilled' && explicit.value.size).toBe(4096);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+it('cancels shared HTTP transport when its last consumer leaves', async () => {
+  globalThis.indexedDB = new IDBFactory();
+  resetCacheStoreForTesting();
+  clearAttachmentRepositoryMemory();
+  let transportSignal: AbortSignal | undefined;
+  vi.stubGlobal(
+    'fetch',
+    vi.fn((_url, init) => {
+      transportSignal = init.signal;
+      return new Promise<Response>((_resolve, reject) => {
+        transportSignal?.addEventListener('abort', () =>
+          reject(new DOMException('Aborted', 'AbortError'))
+        );
+      });
+    })
+  );
+  const first = new AbortController();
+  const second = new AbortController();
+  const mx = createAccountClient('@alice:matrix.example.org');
+  const source = { mxcUri: 'mxc://test/all-canceled' };
+  const one = downloadCachedAttachment(mx, source, false, { signal: first.signal });
+  const two = downloadCachedAttachment(mx, source, false, { signal: second.signal });
+  await vi.waitFor(() => expect(fetch).toHaveBeenCalledOnce());
+  first.abort();
+  await expect(one).rejects.toMatchObject({ name: 'AbortError' });
+  expect(transportSignal?.aborted).toBe(false);
+  second.abort();
+  await expect(two).rejects.toMatchObject({ name: 'AbortError' });
+  expect(transportSignal?.aborted).toBe(true);
+  vi.unstubAllGlobals();
+});
+
+it('registers a second warm-memory owner and keeps its body after clearing the first room', async () => {
+  const repository = await import('./attachmentRepository');
+  const { clearRoomCachedContent, readRoomAttachmentStorage } = await import(
+    '../threads/cacheStore'
+  );
+  globalThis.indexedDB = new IDBFactory();
+  resetCacheStoreForTesting();
+  clearAttachmentRepositoryMemory();
+  clearMindroomLongTextHydrationCache();
+  const mx = createAccountClient('@alice:matrix.example.org');
+  const session = createSessionId(BASE_URL, '@alice:matrix.example.org');
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(
+      async () => new Response(JSON.stringify({ msgtype: 'm.text', body: 'shared complete body' }))
+    )
+  );
+  const first = { ...SOURCE, owner: { roomId: 'room-a', eventId: '$a', revisionTs: 1 } };
+  const second = { ...SOURCE, owner: { roomId: 'room-b', eventId: '$b', revisionTs: 1 } };
+  await repository.hydrateCachedMindroomLongText(mx, first, false);
+  await repository.hydrateCachedMindroomLongText(mx, second, false);
+  expect(await readRoomAttachmentStorage(session, 'room-b')).toMatchObject({
+    saved: 1,
+    missingEssential: 0,
+  });
+  await clearRoomCachedContent(session, 'room-a');
+  clearAttachmentRepositoryMemory();
+  clearMindroomLongTextHydrationCache();
+  vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('offline')));
+  expect(await repository.hydrateCachedMindroomLongText(mx, second, false)).toMatchObject({
+    body: 'shared complete body',
+  });
+  vi.unstubAllGlobals();
+});
+
+it('does not resurrect a retired interactive long-text body after delayed transport', async () => {
+  const { replaceCachedAttachmentReferences } = await import('../threads/cacheStore');
+  globalThis.indexedDB = new IDBFactory();
+  resetCacheStoreForTesting();
+  clearAttachmentRepositoryMemory();
+  const mx = createAccountClient('@alice:matrix.example.org');
+  const session = createSessionId(BASE_URL, '@alice:matrix.example.org');
+  let finish!: (response: Response) => void;
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(
+      () =>
+        new Promise<Response>((resolve) => {
+          finish = resolve;
+        })
+    )
+  );
+  const pending = downloadMindroomLongTextSidecarText(
+    mx,
+    { ...SOURCE, owner: { roomId: 'room-a', eventId: '$stream', revisionTs: 1 } },
+    false
+  );
+  await vi.waitFor(() => expect(finish).toBeDefined());
+  await replaceCachedAttachmentReferences(session, 'room-a', '$stream', 2, []);
+  finish(new Response(JSON.stringify({ msgtype: 'm.text', body: 'obsolete' })));
+  await pending;
+  expect(await getCachedAttachmentCacheMetadata(mx, SOURCE.mxcUri)).toBeUndefined();
+  vi.unstubAllGlobals();
+});
+
+it('persists for a surviving shared hydration owner after the first room is cleared', async () => {
+  const { hydrateCachedMindroomLongText } = await import('./attachmentRepository');
+  const { clearRoomCachedContent, readRoomAttachmentStorage } = await import(
+    '../threads/cacheStore'
+  );
+  globalThis.indexedDB = new IDBFactory();
+  resetCacheStoreForTesting();
+  clearAttachmentRepositoryMemory();
+  clearMindroomLongTextHydrationCache();
+  const mx = createAccountClient('@alice:matrix.example.org');
+  const session = createSessionId(BASE_URL, '@alice:matrix.example.org');
+  let finish!: (response: Response) => void;
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(
+      () =>
+        new Promise<Response>((resolve) => {
+          finish = resolve;
+        })
+    )
+  );
+  const first = hydrateCachedMindroomLongText(
+    mx,
+    { ...SOURCE, owner: { roomId: 'room-a', eventId: '$a', revisionTs: 1 } },
+    false
+  );
+  await vi.waitFor(() => expect(finish).toBeDefined());
+  const second = hydrateCachedMindroomLongText(
+    mx,
+    { ...SOURCE, owner: { roomId: 'room-b', eventId: '$b', revisionTs: 1 } },
+    false
+  );
+  await vi.waitFor(async () =>
+    expect(await readRoomAttachmentStorage(session, 'room-b')).toMatchObject({
+      missingEssential: 1,
+    })
+  );
+  await clearRoomCachedContent(session, 'room-a');
+  finish(new Response(JSON.stringify({ msgtype: 'm.text', body: 'surviving body' })));
+  await Promise.all([first, second]);
+  expect(await readRoomAttachmentStorage(session, 'room-b')).toMatchObject({
+    saved: 1,
+    missingEssential: 0,
+  });
+  vi.unstubAllGlobals();
+});
+
+it('registers full media and its thumbnail together without engine preregistration', async () => {
+  const { readRoomAttachmentStorage } = await import('../threads/cacheStore');
+  globalThis.indexedDB = new IDBFactory();
+  resetCacheStoreForTesting();
+  clearAttachmentRepositoryMemory();
+  const mx = createAccountClient('@alice:matrix.example.org');
+  const session = createSessionId(BASE_URL, '@alice:matrix.example.org');
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async () => new Response('image bytes'))
+  );
+  const owner = { roomId: 'room-a', eventId: '$image', revisionTs: 1 };
+  await Promise.all([
+    downloadCachedAttachment(mx, { owner, mxcUri: 'mxc://test/image' }, false),
+    downloadCachedAttachment(mx, { owner, mxcUri: 'mxc://test/thumb' }, false),
+  ]);
+  expect(await readRoomAttachmentStorage(session, 'room-a')).toMatchObject({
+    saved: 2,
+    missing: 0,
+  });
+  vi.unstubAllGlobals();
+});
+
+it('keeps an original sidecar file incomplete until body validation even without a batch', async () => {
+  const { readRoomAttachmentStorage } = await import('../threads/cacheStore');
+  const { downloadMindroomLongTextSidecarBlob } = await import('./longTextDownload');
+  globalThis.indexedDB = new IDBFactory();
+  resetCacheStoreForTesting();
+  const mx = createAccountClient('@alice:matrix.example.org');
+  const session = createSessionId(BASE_URL, '@alice:matrix.example.org');
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async () => new Response('invalid json'))
+  );
+  const source = { ...SOURCE, owner: { roomId: 'room-a', eventId: '$body', revisionTs: 1 } };
+  expect(await (await downloadMindroomLongTextSidecarBlob(mx, source, false, true)).text()).toBe(
+    'invalid json'
+  );
+  expect(await readRoomAttachmentStorage(session, 'room-a')).toMatchObject({
+    saved: 0,
+    missingEssential: 1,
+  });
+  vi.unstubAllGlobals();
 });
