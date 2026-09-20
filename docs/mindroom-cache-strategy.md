@@ -144,6 +144,10 @@ When two surfaces disagree, fix the selector, cache metadata update, or
 
 1. `roomCacheHydrationController` paints the room timeline from cached
    events.
+   The bounded page can extend both ends of the restored SDK timeline.
+   An equal or newer SDK tail does not prove that older cached roots are loaded.
+   Older events are prepended together when the page overlaps the oldest loaded event; an unknown gap remains for reconciliation.
+   A timeline reset or concurrent pagination invalidates the captured prepend boundary and token.
 2. `useMindroomThreadIndex` derives room surface entries and `ThreadRecord`
    maps from the painted set.
 3. `engine.noteRoomFocused(roomId)` stamps the tier ledger, adds the room
@@ -155,8 +159,8 @@ When two surfaces disagree, fix the selector, cache metadata update, or
    further backward pages via `mx.createMessagesRequest`. Depth is bounded
    by the user's `prefetchDepth` setting (D4).
 
-Paint is synchronous from cache; the reconcile / gap-fill / deep-history
-jobs are fire-and-forget through the scheduler.
+The cache page is read asynchronously and applied before initial room hydration completes.
+The reconcile / gap-fill / deep-history jobs run through the scheduler without blocking cached paint.
 
 ### Thread Open
 

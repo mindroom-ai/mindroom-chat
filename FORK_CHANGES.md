@@ -2,6 +2,21 @@
 
 ## Runbook
 
+### Restore the cached room page when its newest event is already loaded (2026-09-20)
+
+- Room startup previously treated an equal or newer SDK tail as proof that the cached page was already loaded, discarding missing older roots and leaving later pagination to reveal them.
+- The hydration snapshot now separates overlapping older history from newer tail events and revision updates.
+  The room controller prepends the older events, retains live event identity, and publishes the combined timeline once.
+- Unknown gaps remain unjoined, cached pagination tokens retain their existing semantics, and timeline resets or concurrent history loads invalidate stale prepend decisions.
+- Seven real IndexedDB/SDK regressions cover equal and newer live tails, mixed history/edit/tail hydration, unknown gaps, reset and pagination races, and thread roots whose metadata requests remain stalled.
+- Validation: all 4,689 tests across 553 files pass under Node 24, as do application typecheck, the production/PWA build, and ESLint with zero errors and the existing 17 warnings.
+  Independent review found no blocking issues.
+- The phone-sized browser regression receives three roots through live sync, verifies their persistence, reduces the saved SDK sync to its newest root, and holds every Matrix response during reopen.
+  The production build restores all three roots through initial hydration in Chromium and WebKit; unchanged `dev` fails the hydration assertion and relies on later cache pagination instead.
+  Changed-source formatting, browser-test typecheck, and whitespace checks also pass.
+- The initial cache read remains bounded to 200 room events; this fix does not promise that all room history appears in the first browser frame.
+  Physical iPhone startup timing remains unverified.
+
 ### Coalesce untouched thread sync gaps (2026-09-19)
 
 - Limited room syncs retain one pending gap per initialized dormant thread instead of allocating another empty timeline each time.
