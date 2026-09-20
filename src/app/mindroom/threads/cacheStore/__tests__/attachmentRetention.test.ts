@@ -20,6 +20,44 @@ beforeEach(() => {
   store.resetCacheStoreForTesting();
   store.__resetEvictionForTests();
 });
+
+it('rejects delayed event writes carrying a cleared room lease', async () => {
+  const lease = store.captureCacheStoreWriteLease(session, 'room-a');
+  await store.clearRoomCachedContent(session, 'room-a');
+  const events = [
+    { event_id: '$late', type: 'm.room.message', origin_server_ts: 1, content: { body: 'late' } },
+  ];
+  expect(
+    await store.saveRoomEventsToCacheCommitted(
+      session,
+      'room-a',
+      events,
+      undefined,
+      'partial',
+      lease
+    )
+  ).toBe(false);
+  expect(
+    await store.saveThreadEventsToCacheCommitted(
+      session,
+      'room-a',
+      '$root',
+      events,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      'partial',
+      lease
+    )
+  ).toBe(false);
+  expect(await store.loadCachedRoomEvent(session, 'room-a', '$late')).toBeUndefined();
+  expect((await store.loadLatestCachedThreadEvents(session, 'room-a', '$root', 10)).events).toEqual(
+    []
+  );
+});
 afterEach(() => store.__setCacheStoreByteBudgetForTests(undefined));
 
 it('reclaims optional bytes while retaining room text and essential bodies', async () => {

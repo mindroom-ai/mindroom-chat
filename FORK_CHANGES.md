@@ -2,6 +2,29 @@
 
 ## Runbook
 
+### Resume opened-room offline downloads (2026-09-20)
+
+- The client engine owns opened-room history and attachment work through its existing scheduler.
+  Each history page and each message's attachment batch releases its scheduler slot before continuation; foreground work keeps priority.
+  Automatic work shares a per-room visit allowance of 10,000 events on reported Wi-Fi, or 200 on unknown/metered connections.
+  Explicit room download overrides that allowance; hidden or offline pages pause, and connection/visibility changes resume eligible work.
+- Schema v5 adds one room/event lookup index in place, preserving v3/v4 data.
+  Reserved room metadata retains committed history cursors, unresolved relations and undecrypted IDs.
+  Room exhaustion, limited-sync gaps, thread relation proofs and missing essential bodies remain separate coverage facts.
+  SDK decryption precedes grouping, retained encrypted events stay ciphertext, and later keys trigger engine repair.
+  Verified edit retractions restore canonical attachment ownership before body publication.
+- Room clear revokes the shared room write lease before deleting data. Async pagination, bootstrap and edit repair capture a fresh engine persistence operation before fetching, so old requests cannot restore cleared content and new requests in the same view can save.
+  Pin/clear/download/cancel and stable coverage snapshots are exposed by engine.offline for room settings.
+  Snapshots distinguish unread, unopened and unavailable storage; saved/missing counts include all attachment categories.
+  Soft storage pressure pauses history without deleting text; quota read-only mode still requires app restart to resume writes.
+- Default scope is current-room-only; v1 homeserver-wide preferences migrate to it, while explicit all-rooms preferences remain visible.
+  The obsolete depth input, React history loop and long-text prewarm batch are removed; interactive pagination stays bounded at 200.
+- Official @capacitor/network 8.0.1 supplies native status, with generated Android linkage and a real iOS CocoaPods lock update.
+  Native Wi-Fi reporting does not expose every metering/Low Data Mode setting. Browser unknown connections remain bounded; persistent-storage permission is requested nonblocking.
+  Native compilation and device network transitions were not available in this environment.
+- Validation: full Node 24 suite passes 561 files / 4,789 tests, plus 324 focused tests after the operation-bound persistence and gap-cycle corrections.
+  Typecheck and ESLint pass after those corrections; the production/PWA build passed before them. ESLint retains the existing 17 warnings and zero errors.
+
 ### Cache message media and retain room text under storage pressure (2026-09-20)
 
 - Message images, thumbnails, video, audio, file previews and file downloads share the authenticated persistent attachment repository.

@@ -29,6 +29,9 @@ import {
   loadLatestCachedRoomEvents,
   loadRoomTailDiscontinuity,
   markRoomTailDiscontinuity,
+  captureCacheStoreWriteLease,
+  isCacheStoreWriteLeaseCurrent,
+  type CacheStoreWriteLease,
 } from '../threads/cacheStore';
 
 export type GapFillReason = 'limited-sync' | 'startup';
@@ -125,6 +128,7 @@ export const collectOverlapEventIds = (events: readonly { event_id?: unknown }[]
 ];
 
 type PendingGapMark = {
+  writeLease: CacheStoreWriteLease;
   job: GapFillJob;
   marker: {
     markedAt: number;
@@ -174,7 +178,12 @@ export const createEngineGapTracker = (options?: EngineGapTrackerOptions): Engin
 
     void pending.overlapEventIds
       .then((overlapEventIds) => {
-        if (stopped || pendingMarks.get(roomId) !== pending) return undefined;
+        if (
+          stopped ||
+          pendingMarks.get(roomId) !== pending ||
+          !isCacheStoreWriteLeaseCurrent(pending.writeLease)
+        )
+          return undefined;
         return markDiscontinuity(options?.sessionId ?? '', roomId, {
           ...pending.marker,
           overlapEventIds,
@@ -192,7 +201,12 @@ export const createEngineGapTracker = (options?: EngineGapTrackerOptions): Engin
         });
       })
       .catch((error: unknown) => {
-        if (stopped || pendingMarks.get(roomId) !== pending) return;
+        if (
+          stopped ||
+          pendingMarks.get(roomId) !== pending ||
+          !isCacheStoreWriteLeaseCurrent(pending.writeLease)
+        )
+          return;
         pending.failureCount += 1;
         reportPersistenceError(error, pending);
         const retryDelay = Math.min(
@@ -250,6 +264,7 @@ export const createEngineGapTracker = (options?: EngineGapTrackerOptions): Engin
           // intact, if that read fails too).
           .catch(() => undefined);
       pendingMarks.set(room.roomId, {
+        writeLease: captureCacheStoreWriteLease(options.sessionId, room.roomId),
         job,
         marker: {
           ...marker,

@@ -68,19 +68,7 @@ const renderPrewarm = async (mx: MatrixClient, room: Room, engine: MindroomSyncE
   });
 };
 
-const waitFor = async (predicate: () => boolean): Promise<void> => {
-  for (let i = 0; i < 80; i += 1) {
-    if (predicate()) return;
-    // eslint-disable-next-line no-await-in-loop
-    await act(async () => {
-      await new Promise((resolve) => {
-        setTimeout(resolve, 5);
-      });
-    });
-  }
-};
-
-describe('threadSeedPrewarmController network content prefetch (2026-07-06 eager cache)', () => {
+describe('threadSeedPrewarmController cache-only seeds', () => {
   beforeEach(() => {
     resetCacheStoreForTesting();
     clearThreadOpenSeedSnapshotsForTests();
@@ -103,9 +91,8 @@ describe('threadSeedPrewarmController network content prefetch (2026-07-06 eager
       next_batch: undefined,
     }));
     const mx = {
-      getEventMapper:
-        () => (raw: Partial<IEvent>) =>
-          new MatrixEvent(raw as ConstructorParameters<typeof MatrixEvent>[0]),
+      getEventMapper: () => (raw: Partial<IEvent>) =>
+        new MatrixEvent(raw as ConstructorParameters<typeof MatrixEvent>[0]),
       fetchRelations,
       getRoom: () => room,
     } as unknown as MatrixClient;
@@ -118,27 +105,11 @@ describe('threadSeedPrewarmController network content prefetch (2026-07-06 eager
     return { mx, room, engine, fetchRelations, persistThreadEventCache };
   };
 
-  it('downloads full thread content for a priority target with no complete cached snapshot', async () => {
+  it('leaves cold-cache networking to the engine', async () => {
     const { mx, room, engine, fetchRelations, persistThreadEventCache } = setup();
-
     await renderPrewarm(mx, room, engine);
-    await waitFor(() => persistThreadEventCache.mock.calls.length > 0);
-
-    // Cold cache → the prewarm band fetched the thread's relations …
-    expect(fetchRelations).toHaveBeenCalled();
-    // … and persisted an honest, relations-proven snapshot through the
-    // engine persist facade (room-bound signature).
-    expect(persistThreadEventCache).toHaveBeenCalledTimes(1);
-    const [persistRoom, threadId, events, , beforeToken, tailLoaded, , , relationSnapshotComplete] =
-      persistThreadEventCache.mock.calls[0];
-    expect(persistRoom).toBe(room);
-    expect(threadId).toBe(THREAD_ID);
-    expect((events as MatrixEvent[]).map((event) => event.getId())).toEqual([
-      '$reply-1',
-    ]);
-    expect(beforeToken).toBeNull();
-    expect(tailLoaded).toBe(true);
-    expect(relationSnapshotComplete).toBe(true);
+    expect(fetchRelations).not.toHaveBeenCalled();
+    expect(persistThreadEventCache).not.toHaveBeenCalled();
   });
 
   it('skips the network entirely when the cached snapshot is already relations-proven complete', async () => {
@@ -158,7 +129,6 @@ describe('threadSeedPrewarmController network content prefetch (2026-07-06 eager
 
     await renderPrewarm(mx, room, engine);
     // Give the drain loop time to (incorrectly) fire if it were going to.
-    await waitFor(() => fetchRelations.mock.calls.length > 0);
 
     expect(fetchRelations).not.toHaveBeenCalled();
     expect(persistThreadEventCache).not.toHaveBeenCalled();
@@ -177,7 +147,6 @@ describe('threadSeedPrewarmController network content prefetch (2026-07-06 eager
     } as unknown as Room;
 
     await renderPrewarm(mx, rootlessRoom, engine);
-    await waitFor(() => fetchRelations.mock.calls.length > 0);
 
     expect(fetchRelations).not.toHaveBeenCalled();
     expect(persistThreadEventCache).not.toHaveBeenCalled();
@@ -203,7 +172,6 @@ describe('threadSeedPrewarmController network content prefetch (2026-07-06 eager
     );
 
     await renderPrewarm(mx, room, engine);
-    await waitFor(() => fetchRelations.mock.calls.length > 0);
 
     expect(fetchRelations).not.toHaveBeenCalled();
     expect(persistThreadEventCache).not.toHaveBeenCalled();

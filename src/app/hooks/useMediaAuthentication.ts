@@ -3,15 +3,9 @@ import type { SpecVersions } from '../cs-api';
 import { isServiceWorkerEnabled } from '../utils/runtimeConfig';
 import { useSpecVersions } from './useSpecVersions';
 
-const AUTHENTICATED_MEDIA_SPEC_VERSION = 'v1.11';
-const AUTHENTICATED_MEDIA_UNSTABLE_FEATURE = 'org.matrix.msc3916.stable';
+import { supportsAuthenticatedMedia } from '../utils/mediaUrl';
 
-export const supportsAuthenticatedMedia = ({
-  versions,
-  unstable_features: unstableFeatures,
-}: SpecVersions): boolean =>
-  unstableFeatures?.[AUTHENTICATED_MEDIA_UNSTABLE_FEATURE] === true ||
-  versions.includes(AUTHENTICATED_MEDIA_SPEC_VERSION);
+export { supportsAuthenticatedMedia } from '../utils/mediaUrl';
 
 const hasServiceWorkerMediaAuthSupport = (): boolean =>
   typeof navigator !== 'undefined' &&

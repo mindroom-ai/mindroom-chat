@@ -1,10 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import 'fake-indexeddb/auto';
+import { IDBFactory } from 'fake-indexeddb';
 import { Direction } from 'matrix-js-sdk';
 import type { IEvent, MatrixClient, Room } from 'matrix-js-sdk';
 import { STARTUP_SYNC_TIMELINE_LIMIT } from '../../../../client/initMatrix';
 import { createBackfillScheduler } from '../backfillScheduler';
-import { createGapFillExecutor } from '../gapFillExecutor';
+import { createGapFillExecutor as createExecutor } from '../gapFillExecutor';
 import { createInMemoryGapFillScheduler, GAP_FILL_OVERLAP_TAIL_LIMIT } from '../engineGapTracker';
 import { StateEvent } from '../../../../types/matrix/room';
 import {
@@ -19,6 +20,15 @@ import { getCacheProbeSnapshot, resetCacheProbe } from '../../threads/cacheProbe
 import { persistRoomChunkWithPreferLive } from '../../threads/eventRepository';
 
 const SESSION_ID = 'session-p42';
+// Legacy homeserver-policy cases opt in explicitly; production now defaults to focused rooms.
+const createGapFillExecutor: typeof createExecutor = (options, queue) =>
+  createExecutor(
+    {
+      getPrefetchConfig: () => ({ scope: 'my-server' }),
+      ...options,
+    },
+    queue
+  );
 
 const makeMatrixEvent = (senderId: string) =>
   ({
@@ -163,11 +173,39 @@ const waitForCondition = async (condition: () => boolean): Promise<void> => {
 };
 
 describe('gapFillExecutor (CINNY-207 P4.2)', () => {
+  it('retains the gap and stops a multi-token cycle under explicit allowance', async () => {
+    const roomId = '!room:mindroom.chat';
+    const mx = createMockClient('mindroom.chat', (call) => {
+      if (call >= 3) throw new Error('test cycle limit');
+      return { end: call % 2 === 0 ? 'b' : 'a', chunk: [] };
+    });
+    mx.__rooms.set(roomId, makeRoomStub(roomId, '@alice:mindroom.chat'));
+    await markRoomTailDiscontinuity(SESSION_ID, roomId, {
+      markedAt: 1,
+      prevBatch: 'a',
+      overlapEventIds: [],
+    });
+    const scheduler = createBackfillScheduler({ mx });
+    const queue = createInMemoryGapFillScheduler();
+    const executor = createGapFillExecutor(
+      { mx, sessionId: SESSION_ID, scheduler, pageAllowance: () => 200 },
+      queue
+    );
+    queue.enqueueGapFill({ roomId, markedAt: 1, prevBatch: 'a', reason: 'limited-sync' });
+    await waitForCompleted(3);
+    expect(mx.__messages).toHaveLength(2);
+    expect(await loadRoomTailDiscontinuity(SESSION_ID, roomId)).toBeDefined();
+    executor.stop();
+    scheduler.abortAll();
+  });
+
   it('keeps enough cached-tail ids to cover ten configured sync windows', () => {
     expect(GAP_FILL_OVERLAP_TAIL_LIMIT).toBeGreaterThanOrEqual(STARTUP_SYNC_TIMELINE_LIMIT * 10);
   });
 
   beforeEach(async () => {
+    globalThis.indexedDB = new IDBFactory();
+    resetCacheStoreForTesting();
     await clearRoomTailDiscontinuity(SESSION_ID, '!room:mindroom.chat');
     await clearRoomTailDiscontinuity(SESSION_ID, '!fed:example.org');
     await clearRoomTailDiscontinuity(SESSION_ID, '!e2e:mindroom.chat');
@@ -320,7 +358,7 @@ describe('gapFillExecutor (CINNY-207 P4.2)', () => {
     expect(marker).toBeDefined();
   });
 
-  it('skips encrypted own-server rooms (unusable ciphertext without decryption context)', async () => {
+  it('fetches encrypted room history before clearing an exhausted gap', async () => {
     const mx = createMockClient('mindroom.chat', () => ({ chunk: [] }));
     mx.__rooms.set(
       '!e2e:mindroom.chat',
@@ -347,7 +385,7 @@ describe('gapFillExecutor (CINNY-207 P4.2)', () => {
     await flushMicrotasks();
     await waitForCompleted();
 
-    expect(mx.__messages.length).toBe(0);
+    expect(mx.__messages.length).toBe(1);
     const marker = await loadRoomTailDiscontinuity(SESSION_ID, '!e2e:mindroom.chat');
     expect(marker).toBeUndefined();
   });
@@ -772,7 +810,8 @@ describe('gapFillExecutor (CINNY-207 P4.2)', () => {
     await flushMicrotasks();
     await waitForCompleted();
 
-    // The executor stopped at GAP_FILL_MAX_ITERATIONS (20) because
+    await waitForCompleted(20);
+    // Twenty page-sized scheduler turns reached the fallback cap because
     // /messages kept returning a next-token. The marker MUST still
     // be present so a later run picks up from where we left off.
     const marker = await loadRoomTailDiscontinuity(SESSION_ID, '!room:mindroom.chat');
@@ -783,7 +822,7 @@ describe('gapFillExecutor (CINNY-207 P4.2)', () => {
     // Sanity: we did hit the cap.
     expect(mx.__messages.length).toBe(20);
     const snapshot = getCacheProbeSnapshot();
-    expect(snapshot.schedulerCompleted).toBe(1);
+    expect(snapshot.schedulerCompleted).toBe(20);
     expect(snapshot.schedulerFailed).toBe(0);
 
     // A focus recheck in the same runtime resumes the retained job from the
@@ -792,6 +831,7 @@ describe('gapFillExecutor (CINNY-207 P4.2)', () => {
     await flushMicrotasks();
     await waitForCompleted(2);
 
+    await waitForCompleted(21);
     expect(mx.__messages[20].fromToken).toBe('tok-20');
     expect(mx.__messages).toHaveLength(21);
     expect(await loadRoomTailDiscontinuity(SESSION_ID, '!room:mindroom.chat')).toBeUndefined();

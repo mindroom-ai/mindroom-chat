@@ -54,6 +54,7 @@ import {
   removeAggregatedReactionByEventId,
 } from './redactionCacheLifecycle';
 import type { EngineLiveEventHandler, EngineLiveEventMeta } from './types';
+import { captureCacheStoreWriteLease, isCacheStoreWriteLeaseCurrent } from '../threads/cacheStore';
 
 export type EngineWriteThroughOptions = {
   sessionId: string;
@@ -182,10 +183,12 @@ export const createEngineWriteThrough = (
         ? previousReplace
         : replaceEvent;
     pendingCompactionReplace.set(key, capturedReplace);
+    const lease = captureCacheStoreWriteLease(sessionId, room.roomId);
 
     scheduler.scheduleTargetUpsert(key, () => {
       const pendingReplace = pendingCompactionReplace.get(key) ?? capturedReplace;
       pendingCompactionReplace.delete(key);
+      if (!isCacheStoreWriteLeaseCurrent(lease)) return;
       const targetEvent = room.findEventById(targetEventId);
       countCacheProbe('editCompactions');
       if (!targetEvent) {
@@ -203,6 +206,7 @@ export const createEngineWriteThrough = (
   };
 
   const handleRedactionLive = (event: MatrixEvent, room: Room, meta: EngineLiveEventMeta) => {
+    const lease = captureCacheStoreWriteLease(sessionId, room.roomId);
     const sdkThreadIdHint = meta.kind === 'redaction' ? meta.sdkThreadId : undefined;
     const cleanupPlan = planRedactionCacheCleanup({
       room,
@@ -246,13 +250,10 @@ export const createEngineWriteThrough = (
 
     if (cleanupPlan.deleteRecords && !cleanupPlan.threadCacheTargetId) {
       // Layer 1: cache-derived attribution.
-      void deleteThreadEventFromCacheByEventId(
-        sessionId,
-        room.roomId,
-        cleanupPlan.redactedEventId
-      )
+      void deleteThreadEventFromCacheByEventId(sessionId, room.roomId, cleanupPlan.redactedEventId)
         .catch(() => [] as string[])
         .then((scopes) => {
+          if (!isCacheStoreWriteLeaseCurrent(lease)) return;
           if (scopes.length > 0) {
             scopes.forEach((threadId) => {
               persistThreadEvents(
@@ -274,12 +275,9 @@ export const createEngineWriteThrough = (
     }
 
     if (cleanupPlan.deleteRecords && cleanupPlan.threadCacheTargetId) {
-      deleteThreadEventsFromCache(
-        sessionId,
-        room.roomId,
-        cleanupPlan.threadCacheTargetId,
-        [cleanupPlan.redactedEventId]
-      ).catch(() => undefined);
+      deleteThreadEventsFromCache(sessionId, room.roomId, cleanupPlan.threadCacheTargetId, [
+        cleanupPlan.redactedEventId,
+      ]).catch(() => undefined);
     }
 
     // Persist the redaction event itself. Every case: homeservers can
@@ -315,8 +313,7 @@ export const createEngineWriteThrough = (
               relationTargetId,
               event,
               room,
-              (events) =>
-                persistThreadEvents(sessionId, room, threadCacheTargetId, events, true)
+              (events) => persistThreadEvents(sessionId, room, threadCacheTargetId, events, true)
             )
           : false;
       if (!scheduled) {

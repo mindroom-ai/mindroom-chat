@@ -11,6 +11,7 @@
 import type { MatrixClient, MatrixEvent, Room } from 'matrix-js-sdk';
 import type { EnginePersistFacade } from './enginePersistFacade';
 import type { BackfillScheduler } from './backfillScheduler';
+import type { OfflineRoomController } from './roomOffline';
 
 /**
  * Live event dispatch metadata as observed by the engine. This is a
@@ -55,6 +56,9 @@ export type EngineLifecycle = {
 };
 
 export type MindroomSyncEngine = EngineLifecycle & {
+  readonly offline: OfflineRoomController;
+  clearRoomFocus(roomId: string): void;
+  backgroundPageAllowance(roomId: string): number;
   /**
    * The Matrix client this engine wraps. Kept on the instance so
    * downstream layers can call SDK helpers without an extra prop.

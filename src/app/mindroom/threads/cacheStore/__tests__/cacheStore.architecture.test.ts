@@ -140,6 +140,10 @@ describe('CacheStore boundary architecture (CINNY-207 P2.3)', () => {
         path.resolve(MINDROOM_ROOT, 'engine', 'gapFillExecutor.ts'),
         path.resolve(MINDROOM_ROOT, 'engine', 'deepHistoryJob.ts'),
         path.resolve(MINDROOM_ROOT, 'engine', 'mindroomSyncEngine.ts'),
+        path.resolve(MINDROOM_ROOT, 'engine', 'roomOffline.ts'),
+        path.resolve(MINDROOM_ROOT, 'engine', 'engineWriteThrough.ts'),
+        path.resolve(MINDROOM_ROOT, 'engine', 'enginePersistFacade.ts'),
+        path.resolve(MINDROOM_ROOT, 'engine', 'reconciler.ts'),
         path.resolve(MINDROOM_ROOT, 'engine', 'reconcilerScan.ts'),
       ].map((absPath) => absPath)
     );

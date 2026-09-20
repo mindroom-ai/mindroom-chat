@@ -335,7 +335,7 @@ describe('RoomTimeline', () => {
       let renderer: ReturnType<typeof create> | undefined;
 
       settingsState.prefetchDepth = 10000;
-      roomTimelineVirtualizerState.virtualIndexes = [295, 296, 297, 298, 299];
+      roomTimelineVirtualizerState.virtualIndexes = [195, 196, 197, 198, 199];
 
       try {
         await act(async () => {
@@ -367,8 +367,8 @@ describe('RoomTimeline', () => {
           await flushAsyncWork();
         });
 
-        expect(virtualPaginatorState.lastOptions?.range).toEqual({ start: 0, end: 300 });
-        expect(roomTimelineVirtualizerState.lastOptions?.count).toBe(300);
+        expect(virtualPaginatorState.lastOptions?.range).toEqual({ start: 100, end: 300 });
+        expect(roomTimelineVirtualizerState.lastOptions?.count).toBe(200);
         expect(getRenderedEventIds(renderer!)).toEqual([
           '$event-295',
           '$event-296',
@@ -791,9 +791,7 @@ describe('RoomTimeline', () => {
         );
         expect(ledgerOps.indexOf('scrollTop')).toBeGreaterThanOrEqual(0);
         expect(ledgerOps.indexOf('scrollTop')).toBeLessThan(ledgerOps.indexOf('setOptions'));
-        expect(getCacheProbeSnapshot().ledgerQuiescenceSettles).toBe(
-          quiescenceSettlesBefore + 1
-        );
+        expect(getCacheProbeSnapshot().ledgerQuiescenceSettles).toBe(quiescenceSettlesBefore + 1);
 
         // Consumption pin: the fold must consume the pagination anchor at
         // the commit. A further prepend WITHOUT a new Load Older (no

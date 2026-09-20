@@ -374,7 +374,15 @@ export const replaceCachedAttachmentReferences = async (
 
 export const readRoomAttachmentStorage = async (sessionId: string, roomId: string) => {
   const db = await openCacheStore(sessionId);
-  if (!db) return { bytes: 0, saved: 0, missing: 0, missingEssential: 0, pinned: false };
+  if (!db)
+    return {
+      storageAvailable: false,
+      bytes: 0,
+      saved: 0,
+      missing: 0,
+      missingEssential: 0,
+      pinned: false,
+    };
   const transaction = db.transaction([ATTACHMENT_REFERENCES_STORE, ROOM_LEDGER_STORE], 'readonly');
   const [references, ledger] = await Promise.all([
     requestResult(
@@ -404,6 +412,7 @@ export const readRoomAttachmentStorage = async (sessionId: string, roomId: strin
     });
   const rows = [...byUri.values()];
   return {
+    storageAvailable: true,
     bytes: rows.reduce((sum, row) => sum + row.byteLength, 0),
     saved: rows.filter((row) => row.saved).length,
     missing: rows.filter((row) => !row.saved).length,
@@ -417,8 +426,9 @@ export const setRoomAttachmentPinned = async (
   roomId: string,
   pinned: boolean
 ): Promise<void> => {
+  const lease = captureCacheStoreWriteLease(sessionId, roomId);
   const db = await openCacheStore(sessionId);
-  if (!db) return;
+  if (!db || !isCacheStoreWriteLeaseCurrent(lease)) return;
   const transaction = db.transaction(ROOM_LEDGER_STORE, 'readwrite');
   const done = transactionComplete(transaction);
   const ledger = transaction.objectStore(ROOM_LEDGER_STORE);

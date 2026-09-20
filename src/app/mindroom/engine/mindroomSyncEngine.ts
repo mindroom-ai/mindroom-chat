@@ -25,7 +25,7 @@
  * equivalent per event, just wider in coverage.
  */
 
-import { ClientEvent, RoomEvent } from 'matrix-js-sdk';
+import { ClientEvent, RoomEvent, MatrixEventEvent } from 'matrix-js-sdk';
 import type {
   ClientEventHandlerMap,
   MatrixClient,
@@ -40,6 +40,9 @@ import {
   noteRoomOpened,
   noteThreadOpened,
   setEvictionProtectedRoomIds,
+  revokeCacheStoreWrites,
+  captureCacheStoreWriteLease,
+  isCacheStoreWriteLeaseCurrent,
 } from '../threads/cacheStore';
 import { createEngineWriteThrough, type EngineWriteThrough } from './engineWriteThrough';
 import { createEngineGapTracker, type EngineGapTracker } from './engineGapTracker';
@@ -53,6 +56,8 @@ import {
 } from './prefetchPolicy';
 import type { EngineLiveEventMeta, MindroomSyncEngine } from './types';
 import { trackPendingThreadEvent } from '../threads/pendingThreadEvents';
+import { createRoomOfflineController } from './roomOffline';
+import type { OfflineConnection } from './offlineConnection';
 
 const LIVE_SYNC_STATES: ReadonlySet<string> = new Set(['PREPARED', 'SYNCING', 'CATCHUP']);
 
@@ -83,6 +88,7 @@ const getBindableDocument = (): BindableDocument | undefined => {
 };
 
 export type CreateMindroomSyncEngineOptions = {
+  connection?: OfflineConnection;
   mx: MatrixClient;
   /**
    * Optional write-through override for tests. Production always uses
@@ -129,6 +135,7 @@ export const createMindroomSyncEngine = ({
   scheduler,
   getPrefetchConfig,
   subscribePrefetchConfig,
+  connection,
 }: CreateMindroomSyncEngineOptions): MindroomSyncEngine => {
   const sessionId = createSessionId(mx.getHomeserverUrl(), mx.getSafeUserId());
   const effectiveWriteThrough = writeThrough ?? createEngineWriteThrough({ sessionId });
@@ -152,6 +159,15 @@ export const createMindroomSyncEngine = ({
   let focusedRoomId: string | undefined;
   const getFocusedRoomId = (): string | undefined => focusedRoomId;
   const effectiveGetPrefetchConfig = getPrefetchConfig ?? (() => DEFAULT_PREFETCH_CONFIG);
+  const offline = createRoomOfflineController({
+    mx,
+    sessionId,
+    scheduler: effectiveScheduler,
+    connection,
+    getPrefetchConfig: effectiveGetPrefetchConfig,
+    onChanged: (roomId) => recoveryListeners.get(roomId)?.forEach((notify) => notify()),
+    onPolicyChange: () => gapFillExecutor?.recheckDeferred(),
+  });
 
   // CINNY-207 P4.2: wire the executor over the gap tracker's queue so
   // limited-sync / startup jobs actually drain. Test overrides can pass
@@ -170,7 +186,11 @@ export const createMindroomSyncEngine = ({
           // rooms) and `all-rooms` (admit federated tiers).
           getPrefetchConfig: effectiveGetPrefetchConfig,
           getFocusedRoomId,
+          pageAllowance: offline.allowance,
+          reservePage: offline.reservePage,
+          canSavePage: offline.canSavePage,
           onRoomRecovered: (roomId) => {
+            offline.recheck();
             Array.from(recoveryListeners.get(roomId) ?? []).forEach((notify) => {
               try {
                 notify();
@@ -199,6 +219,7 @@ export const createMindroomSyncEngine = ({
 
   const handlePageHide = () => flushForVisibility();
   const handleVisibilityChange = () => {
+    offline.recheck();
     if (
       bindableDocument &&
       (bindableDocument as unknown as Document).visibilityState === 'hidden'
@@ -239,7 +260,29 @@ export const createMindroomSyncEngine = ({
       liveEvent: true,
       toStartOfTimeline: false,
     };
-    effectiveWriteThrough.handleLiveEvent(event, room, meta);
+    if (event.isRedaction()) {
+      const lease = captureCacheStoreWriteLease(sessionId, room.roomId);
+      void offline.observe(event, room.roomId).then(() => {
+        if (started && isCacheStoreWriteLeaseCurrent(lease))
+          effectiveWriteThrough.handleLiveEvent(event, room, meta);
+      });
+    } else {
+      effectiveWriteThrough.handleLiveEvent(event, room, meta);
+      void offline.observe(event, room.roomId);
+    }
+  };
+
+  const handleDecrypted = (event: MatrixEvent) => {
+    const roomId = event.getRoomId();
+    const room = roomId ? mx.getRoom(roomId) : undefined;
+    if (!room || !started) return;
+    effectiveWriteThrough.handleLiveEvent(event, room, {
+      kind: 'timeline',
+      roomId: room.roomId,
+      liveEvent: true,
+      toStartOfTimeline: false,
+    });
+    void offline.observe(event, room.roomId);
   };
 
   const handleRedaction: RoomEventHandlerMap[RoomEvent.Redaction] = (
@@ -265,7 +308,11 @@ export const createMindroomSyncEngine = ({
       toStartOfTimeline: false,
       sdkThreadId: threadId,
     };
-    effectiveWriteThrough.handleLiveEvent(event, room, meta);
+    const lease = captureCacheStoreWriteLease(sessionId, room.roomId);
+    void offline.observe(event, room.roomId).then(() => {
+      if (started && isCacheStoreWriteLeaseCurrent(lease))
+        effectiveWriteThrough.handleLiveEvent(event, room, meta);
+    });
   };
 
   const handleTimelineReset: RoomEventHandlerMap[RoomEvent.TimelineReset] = (
@@ -282,6 +329,7 @@ export const createMindroomSyncEngine = ({
     if (previousStop && previousStop !== stop) previousStop();
     activeEngineStops.set(mx, stop);
     started = true;
+    offline.start();
 
     // Prime liveMode against the current sync state so an engine that
     // starts after a warm client (e.g. hot reload) doesn't have to
@@ -295,11 +343,13 @@ export const createMindroomSyncEngine = ({
     mx.on(RoomEvent.Redaction, handleRedaction);
     mx.on(RoomEvent.TimelineReset, handleTimelineReset);
     mx.on(RoomEvent.LocalEchoUpdated, trackPendingThreadEvent);
+    mx.on(MatrixEventEvent.Decrypted, handleDecrypted);
 
     bindableWindow?.addEventListener('pagehide', handlePageHide);
     bindableDocument?.addEventListener('visibilitychange', handleVisibilityChange);
     unsubscribePrefetchConfig = subscribePrefetchConfig?.(() => {
       gapFillExecutor?.recheckDeferred();
+      offline.recheck();
     });
   };
 
@@ -319,6 +369,9 @@ export const createMindroomSyncEngine = ({
       mx.removeListener(RoomEvent.Redaction, handleRedaction);
       mx.removeListener(RoomEvent.TimelineReset, handleTimelineReset);
       mx.removeListener(RoomEvent.LocalEchoUpdated, trackPendingThreadEvent);
+      mx.removeListener(MatrixEventEvent.Decrypted, handleDecrypted);
+      offline.stop();
+      revokeCacheStoreWrites(sessionId);
 
       bindableWindow?.removeEventListener('pagehide', handlePageHide);
       bindableDocument?.removeEventListener('visibilitychange', handleVisibilityChange);
@@ -365,6 +418,7 @@ export const createMindroomSyncEngine = ({
     // unconditionally — a room the user actively opens is always
     // eligible for a foreground fetch.
     focusedRoomId = roomId;
+    offline.focus(roomId);
     gapFillExecutor?.recheckDeferred(roomId);
     const tier = resolveRoomPrefetchTier(mx, room);
     // `background` (create event missing) is treated as federated for
@@ -390,5 +444,12 @@ export const createMindroomSyncEngine = ({
     scheduler: effectiveScheduler,
     subscribeRoomRecovery,
     noteRoomFocused,
+    offline: offline.controller,
+    backgroundPageAllowance: offline.allowance,
+    clearRoomFocus: (roomId) => {
+      if (focusedRoomId === roomId) focusedRoomId = undefined;
+      offline.blur(roomId);
+      setEvictionProtectedRoomIds([]);
+    },
   };
 };

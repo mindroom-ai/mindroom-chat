@@ -254,7 +254,7 @@ describe('MindroomSyncEngine (CINNY-207 P3.1)', () => {
     engine.stop();
   });
 
-  it('dispatches redactions through the write-through layer once live', () => {
+  it('dispatches redactions through the write-through layer once live', async () => {
     const mx = createMockClient(SyncState.Syncing);
     const engine = createMindroomSyncEngine({ mx });
     engine.start();
@@ -269,7 +269,7 @@ describe('MindroomSyncEngine (CINNY-207 P3.1)', () => {
     engine2.start();
 
     mx.__emit(RoomEvent.Redaction, makeEvent(), makeRoom('!r1'));
-    expect(writeThrough.handleLiveEvent).toHaveBeenCalledTimes(1);
+    await vi.waitFor(() => expect(writeThrough.handleLiveEvent).toHaveBeenCalledTimes(1));
     expect(writeThrough.handleLiveEvent.mock.calls[0][2].kind).toBe('redaction');
 
     // Redaction without a room is a no-op.

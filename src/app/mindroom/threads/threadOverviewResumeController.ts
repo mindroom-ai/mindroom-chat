@@ -7,7 +7,7 @@ import {
   type MutableRefObject,
   type SetStateAction,
 } from 'react';
-import { type MatrixClient, type MatrixEvent, type Room } from 'matrix-js-sdk';
+import { type MatrixClient, type Room } from 'matrix-js-sdk';
 import { usePageResume } from './usePageResume';
 import { loadRoomThreads } from './roomThreadList';
 import { logTimelineDebug } from './timelineDebug';
@@ -19,16 +19,7 @@ import type { Timeline } from './timelinePagination';
 import type { FetchedRelationOverviewUpdateOptions } from './threadOverviewCacheHydration';
 import { useMindroomSyncEngine } from '../engine';
 
-type PersistThreadEventCache = (
-  expectedThreadId: string,
-  events: MatrixEvent[],
-  rootEvent?: MatrixEvent | null,
-  beforeTokenForEarliest?: string | null,
-  tailLoaded?: boolean,
-  snapshotComplete?: boolean,
-  expectedReplyCount?: number,
-  relationSnapshotComplete?: boolean
-) => void;
+import type { PersistThreadEventCache } from '../engine/enginePersistFacade';
 
 export const useThreadOverviewResumeController = ({
   alive,
@@ -41,7 +32,7 @@ export const useThreadOverviewResumeController = ({
   mx,
   onStoreThreadSummary,
   onApplyThreadRelations,
-  persistThreadEventCache,
+  beginThreadCacheWrite,
   refreshCompactThreadList,
   room,
   setOverviewRefreshCounter,
@@ -62,7 +53,7 @@ export const useThreadOverviewResumeController = ({
   mx: MatrixClient;
   onStoreThreadSummary: (threadRootId: string, info: MindroomThreadSummaryInfo | undefined) => void;
   onApplyThreadRelations: (options: FetchedRelationOverviewUpdateOptions) => void;
-  persistThreadEventCache: PersistThreadEventCache;
+  beginThreadCacheWrite: () => PersistThreadEventCache;
   refreshCompactThreadList: () => Promise<void>;
   room: Room;
   setOverviewRefreshCounter: Dispatch<SetStateAction<number>>;
@@ -175,12 +166,12 @@ export const useThreadOverviewResumeController = ({
         // This scheduler job may be shared with another consumer. Let the
         // engine own its cancellation and release only this view's apply path.
         shouldApply,
-        persistThreadEventCache,
+        beginThreadCacheWrite,
         onApplyThreadRelations,
         onStoreThreadSummary,
       });
     },
-    [mx, onApplyThreadRelations, onStoreThreadSummary, persistThreadEventCache, room, syncEngine]
+    [mx, onApplyThreadRelations, onStoreThreadSummary, beginThreadCacheWrite, room, syncEngine]
   );
 
   const refreshOverviewThreadsOnResume = useCallback(

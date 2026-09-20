@@ -6,6 +6,7 @@ import {
   ATTACHMENTS_STORE,
   CACHE_STORE_DB_VERSION,
   EVENTS_BY_SCOPE_TS_INDEX,
+  EVENTS_BY_ROOM_EVENT_INDEX,
   EVENTS_STORE,
   META_STORE,
   MINDROOM_CACHE_DB_BASE_NAME,
@@ -59,7 +60,7 @@ const deleteIndexedDb = async (dbName: string): Promise<void> => {
   });
 };
 
-const applyUpgrade = (db: IDBDatabase): void => {
+const applyUpgrade = (db: IDBDatabase, transaction: IDBTransaction): void => {
   if (!db.objectStoreNames.contains(ATTACHMENTS_STORE)) {
     db.createObjectStore(ATTACHMENTS_STORE, { keyPath: 'mxcUri' });
   }
@@ -82,6 +83,10 @@ const applyUpgrade = (db: IDBDatabase): void => {
   }
   if (!db.objectStoreNames.contains(META_STORE)) {
     db.createObjectStore(META_STORE, { keyPath: 'metaKey' });
+  }
+  const events = transaction.objectStore(EVENTS_STORE);
+  if (!events.indexNames.contains(EVENTS_BY_ROOM_EVENT_INDEX)) {
+    events.createIndex(EVENTS_BY_ROOM_EVENT_INDEX, ['roomId', 'eventId'], { unique: false });
   }
   if (!db.objectStoreNames.contains(ROOM_LEDGER_STORE)) {
     // CINNY-207 P2.2 preparation: created empty in v3. Filled by the
@@ -120,7 +125,7 @@ export const openCacheStore = (
     let blocked = false;
 
     request.onupgradeneeded = () => {
-      applyUpgrade(request.result);
+      applyUpgrade(request.result, request.transaction!);
     };
 
     request.onsuccess = () => {

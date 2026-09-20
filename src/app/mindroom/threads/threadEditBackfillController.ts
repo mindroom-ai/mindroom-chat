@@ -31,7 +31,7 @@ export const useThreadEditBackfillController = ({
   eventId,
   forceTimelineUpdate,
   mx,
-  persistThreadEventCache,
+  beginThreadCacheWrite,
   room,
   scrollRef,
   scrollToBottomRef,
@@ -47,7 +47,7 @@ export const useThreadEditBackfillController = ({
   eventId?: string;
   forceTimelineUpdate: () => void;
   mx: MatrixClient;
-  persistThreadEventCache: PersistThreadEventCache;
+  beginThreadCacheWrite: () => PersistThreadEventCache;
   room: Room;
   scrollRef: RefObject<HTMLDivElement>;
   scrollToBottomRef: MutableRefObject<ScrollToBottomState>;
@@ -152,6 +152,7 @@ export const useThreadEditBackfillController = ({
     });
 
     const loadMissingThreadEdits = async () => {
+      const persistThreadEventCache = beginThreadCacheWrite();
       let didUpdate = false;
       let updatedCount = 0;
       const concurrency = MAX_CONCURRENT_THREAD_EDIT_REPAIRS - inFlight.size;
@@ -336,7 +337,7 @@ export const useThreadEditBackfillController = ({
     eventId,
     forceTimelineUpdate,
     mx,
-    persistThreadEventCache,
+    beginThreadCacheWrite,
     room,
     scrollRef,
     scrollToBottomRef,

@@ -1,0 +1,485 @@
+import 'fake-indexeddb/auto';
+import { IDBFactory } from 'fake-indexeddb';
+import { EventEmitter } from 'node:events';
+import {
+  MatrixEvent,
+  MatrixEventEvent,
+  RoomEvent,
+  type MatrixClient,
+  type Room,
+} from 'matrix-js-sdk';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { createMindroomSyncEngine } from '../mindroomSyncEngine';
+import {
+  loadCachedRoomEvent,
+  loadLatestCachedThreadEvents,
+  resetCacheStoreForTesting,
+} from '../../threads/cacheStore';
+import {
+  __setCacheStoreByteBudgetForTests,
+  __resetEvictionForTests,
+  saveRoomEventsToCacheCommitted,
+} from '../../threads/cacheStore';
+import { reportCacheWriteError, resetCacheHealthForTesting } from '../../threads/cacheHealth';
+import { readRoomOfflineProgress } from '../../threads/cacheStore/cacheStoreMeta';
+
+const roomId = '!opened:test';
+const raw = (id: string) => ({
+  event_id: id,
+  room_id: roomId,
+  sender: '@alice:test',
+  type: 'm.room.message',
+  origin_server_ts: 1,
+  content: { msgtype: 'm.text', body: id },
+});
+const engines: ReturnType<typeof createMindroomSyncEngine>[] = [];
+beforeEach(() => {
+  globalThis.indexedDB = new IDBFactory();
+  resetCacheStoreForTesting();
+  resetCacheHealthForTesting();
+  __resetEvictionForTests();
+});
+afterEach(() => {
+  engines.forEach((engine) => engine.stop());
+  engines.length = 0;
+  vi.unstubAllGlobals();
+  __setCacheStoreByteBudgetForTests(undefined);
+  resetCacheHealthForTesting();
+});
+const fixture = (request = vi.fn().mockResolvedValue({ chunk: [] })) => {
+  const timelineSet = {};
+  const room = {
+    getUnfilteredTimelineSet: () => timelineSet,
+    roomId,
+    findEventById: () => undefined,
+    getThread: () => undefined,
+    getLiveTimeline: () => ({
+      getEvents: () => [],
+      getPaginationToken: () => null,
+      getState: () => ({ getStateEvents: () => undefined }),
+    }),
+    getLastActiveTimestamp: () => 0,
+  } as unknown as Room;
+  const emitter = new EventEmitter();
+  const mx = Object.assign(emitter, {
+    getHomeserverUrl: () => 'https://test',
+    getSafeUserId: () => '@alice:test',
+    getRoom: (id: string) => ({ ...room, roomId: id }),
+    getRooms: () => [room, { ...room, roomId: '!unopened:test' }],
+    getSyncState: () => 'SYNCING',
+    getEventMapper: () => (event: object) => new MatrixEvent(event),
+    decryptEventIfNeeded: async () => undefined,
+    createMessagesRequest: request,
+    getVersions: async () => ({ versions: ['v1.11'] }),
+    getDomain: () => 'test',
+    getAccessToken: () => 'test-token',
+    mxcUrlToHttp: () => 'https://test/_matrix/client/v1/media/download/test/body',
+  }) as unknown as MatrixClient;
+  let network = { connected: true, unmetered: true };
+  const listeners = new Set<() => void>();
+  const connection = {
+    getSnapshot: () => network,
+    subscribe: (fn: () => void) => {
+      listeners.add(fn);
+      return () => listeners.delete(fn);
+    },
+  };
+  const make = (realGap = false) => {
+    const engine = createMindroomSyncEngine({
+      mx,
+      connection,
+      gapTracker: realGap
+        ? undefined
+        : ({
+            stop: () => undefined,
+            handleSyncPrepared: async () => undefined,
+            handleTimelineReset: () => undefined,
+          } as never),
+    });
+    engines.push(engine);
+    engine.start();
+    return engine;
+  };
+  return {
+    make,
+    request,
+    mx,
+    room,
+    timelineSet,
+    setNetwork: (next: typeof network) => {
+      network = next;
+      listeners.forEach((fn) => fn());
+    },
+  };
+};
+
+it('new engine resumes committed history without fetching unopened rooms', async () => {
+  const request = vi
+    .fn()
+    .mockResolvedValueOnce({ chunk: [raw('$one')], end: 'older-1' })
+    .mockRejectedValueOnce(new Error('offline'))
+    .mockResolvedValue({ chunk: [] });
+  const f = fixture(request);
+  const first = f.make();
+  expect(first.offline).toBeDefined();
+  first.noteRoomFocused(roomId);
+  await vi.waitFor(() => expect(first.offline.getSnapshot(roomId).status).toBe('error'));
+  expect(await loadCachedRoomEvent(first.sessionId, roomId, '$one')).toBeDefined();
+  first.stop();
+  resetCacheStoreForTesting();
+  const next = f.make();
+  next.noteRoomFocused(roomId);
+  await vi.waitFor(() => expect(next.offline.getSnapshot(roomId).historyExhausted).toBe(true));
+  expect(request.mock.calls.map((call) => call[1])).toEqual([null, 'older-1', 'older-1']);
+  expect(request.mock.calls.every((call) => call[0] === roomId)).toBe(true);
+});
+
+it('clear rejects pending event and cursor writes', async () => {
+  let resolve!: (value: unknown) => void;
+  const f = fixture(
+    vi.fn(
+      () =>
+        new Promise((done) => {
+          resolve = done;
+        })
+    )
+  );
+  const engine = f.make();
+  expect(engine.offline).toBeDefined();
+  engine.noteRoomFocused(roomId);
+  await vi.waitFor(() => expect(f.request).toHaveBeenCalledOnce());
+  await engine.offline.clear(roomId);
+  resolve({ chunk: [raw('$late')], end: 'late-token' });
+  await vi.waitFor(() => expect(engine.scheduler.pendingJobs()).toHaveLength(0));
+  expect(await loadCachedRoomEvent(engine.sessionId, roomId, '$late')).toBeUndefined();
+  expect(await readRoomOfflineProgress(engine.sessionId, roomId)).toEqual({});
+  expect(engine.offline.getSnapshot(roomId).status).toBe('idle');
+});
+
+it('unknown connections stop after 200 events; explicit download continues', async () => {
+  const f = fixture(
+    vi
+      .fn()
+      .mockResolvedValueOnce({
+        chunk: Array.from({ length: 200 }, (_, i) => raw('$' + i)),
+        end: 'older',
+      })
+      .mockResolvedValue({ chunk: [] })
+  );
+  f.setNetwork({ connected: true, unmetered: false });
+  const engine = f.make();
+  expect(engine.offline).toBeDefined();
+  engine.noteRoomFocused(roomId);
+  await vi.waitFor(() => expect(engine.offline.getSnapshot(roomId).status).toBe('limited'));
+  expect(f.request).toHaveBeenCalledOnce();
+  engine.offline.download(roomId);
+  await vi.waitFor(() => expect(engine.offline.getSnapshot(roomId).historyExhausted).toBe(true));
+  expect(f.request.mock.calls.map((call) => call[1])).toEqual([null, 'older']);
+});
+
+it('offline pauses and reconnect resumes focused intent', async () => {
+  const f = fixture();
+  f.setNetwork({ connected: false, unmetered: false });
+  const engine = f.make();
+  expect(engine.offline).toBeDefined();
+  engine.noteRoomFocused(roomId);
+  await vi.waitFor(() => expect(engine.offline.getSnapshot(roomId).status).toBe('offline'));
+  expect(f.request).not.toHaveBeenCalled();
+  f.setNetwork({ connected: true, unmetered: true });
+  await vi.waitFor(() => expect(engine.offline.getSnapshot(roomId).historyExhausted).toBe(true));
+});
+
+it('keeps failed body coverage separate and retries it after history exhaustion', async () => {
+  const message = {
+    ...raw('$body'),
+    content: {
+      msgtype: 'm.text',
+      body: 'preview',
+      url: 'mxc://test/body',
+      'io.mindroom.long_text': { version: 2, encoding: 'matrix_event_content_json' },
+    },
+  };
+  const fetch = vi
+    .fn()
+    .mockRejectedValueOnce(new Error('offline'))
+    .mockImplementation(
+      async () => new Response(JSON.stringify({ msgtype: 'm.text', body: 'complete saved body' }))
+    );
+  vi.stubGlobal('fetch', fetch);
+  const f = fixture(vi.fn().mockResolvedValue({ chunk: [message] }));
+  const first = f.make();
+  first.noteRoomFocused(roomId);
+  await vi.waitFor(() =>
+    expect(first.offline.getSnapshot(roomId)).toMatchObject({
+      historyExhausted: true,
+      missingEssential: 1,
+    })
+  );
+  first.stop();
+  resetCacheStoreForTesting();
+  const next = f.make();
+  next.noteRoomFocused(roomId);
+  await vi.waitFor(() =>
+    expect(next.offline.getSnapshot(roomId)).toMatchObject({
+      historyExhausted: true,
+      missingEssential: 0,
+      saved: 1,
+    })
+  );
+  expect(f.request).toHaveBeenCalledOnce();
+  expect(fetch).toHaveBeenCalledTimes(2);
+});
+
+it('awaits SDK decryption before grouping and retains ciphertext for late keys', async () => {
+  const encrypted = {
+    ...raw('$encrypted'),
+    type: 'm.room.encrypted',
+    content: {
+      ciphertext: 'ciphertext-at-rest',
+      'm.relates_to': { rel_type: 'm.thread', event_id: '$root' },
+    },
+  };
+  const f = fixture(vi.fn().mockResolvedValue({ chunk: [encrypted] }));
+  let observed: MatrixEvent | undefined;
+  f.mx.decryptEventIfNeeded = async (event) => {
+    observed = event;
+  };
+  const engine = f.make();
+  engine.noteRoomFocused(roomId);
+  await vi.waitFor(() =>
+    expect(engine.offline.getSnapshot(roomId)).toMatchObject({
+      historyExhausted: true,
+      undecryptedEvents: 1,
+    })
+  );
+  expect(
+    (await loadLatestCachedThreadEvents(engine.sessionId, roomId, '$root', 10)).events[0]?.content
+  ).toMatchObject({ ciphertext: 'ciphertext-at-rest' });
+  observed!.setClearData({
+    clearEvent: { type: 'm.room.message', content: { msgtype: 'm.text', body: 'decoded' } },
+  });
+  f.mx.emit(MatrixEventEvent.Decrypted, observed!);
+  await vi.waitFor(() => expect(engine.offline.getSnapshot(roomId).undecryptedEvents).toBe(0));
+  const page = await loadLatestCachedThreadEvents(engine.sessionId, roomId, '$root', 10);
+  expect(page.events[0]).toMatchObject({
+    event_id: '$encrypted',
+    type: 'm.room.encrypted',
+    content: { ciphertext: 'ciphertext-at-rest' },
+  });
+});
+
+it('releases a scheduler slot for foreground work between two explicit downloads', async () => {
+  const resolvers: Array<(value: object) => void> = [];
+  const order: string[] = [];
+  const f = fixture(
+    vi.fn(() => {
+      order.push('history');
+      return new Promise((resolve) => {
+        resolvers.push(resolve);
+      });
+    })
+  );
+  const engine = f.make();
+  engine.offline.download(roomId);
+  engine.offline.download('!second:test');
+  await vi.waitFor(() => expect(resolvers).toHaveLength(2));
+  const foreground = engine.scheduler.enqueue({
+    roomId,
+    kind: 'reconcile',
+    priority: 0,
+    execute: async () => {
+      order.push('foreground');
+    },
+  });
+  resolvers[0]({ chunk: [raw('$first')], end: 'next' });
+  await foreground;
+  expect(order.slice(0, 3)).toEqual(['history', 'history', 'foreground']);
+  engine.offline.cancel(roomId);
+  engine.offline.cancel('!second:test');
+  resolvers.forEach((resolve) => resolve({ chunk: [] }));
+});
+
+it('distinguishes unread, unopened, and unavailable storage from known zero counts', async () => {
+  const f = fixture();
+  const engine = f.make();
+  expect(engine.offline.getSnapshot(roomId)).toMatchObject({ loaded: false, opened: false });
+  const stop = engine.offline.subscribe(roomId, () => undefined);
+  await vi.waitFor(() =>
+    expect(engine.offline.getSnapshot(roomId)).toMatchObject({
+      loaded: true,
+      opened: false,
+      storageAvailable: true,
+      missingEssential: 0,
+    })
+  );
+  stop();
+  engine.stop();
+  resetCacheStoreForTesting();
+  vi.stubGlobal('indexedDB', undefined);
+  const next = f.make();
+  const unsubscribe = next.offline.subscribe(roomId, () => undefined);
+  await vi.waitFor(() =>
+    expect(next.offline.getSnapshot(roomId)).toMatchObject({
+      loaded: true,
+      storageAvailable: false,
+    })
+  );
+  unsubscribe();
+});
+
+it('shares the 200-event allowance with a concurrent limited-sync gap', async () => {
+  let resolve!: (response: object) => void;
+  const f = fixture(
+    vi.fn(
+      () =>
+        new Promise((done) => {
+          resolve = done;
+        })
+    )
+  );
+  f.setNetwork({ connected: true, unmetered: false });
+  const engine = f.make(true);
+  engine.noteRoomFocused(roomId);
+  await vi.waitFor(() => expect(f.request).toHaveBeenCalledOnce());
+  f.mx.emit(RoomEvent.TimelineReset, f.room, f.timelineSet as never, false);
+  await vi.waitFor(() =>
+    expect(engine.scheduler.pendingJobs().filter((job) => job.kind === 'gap-fill')).toHaveLength(0)
+  );
+  resolve({ chunk: Array.from({ length: 200 }, (_, i) => raw('$budget' + i)), end: 'older' });
+  await vi.waitFor(() => expect(engine.offline.getSnapshot(roomId).status).toBe('limited'));
+  expect(f.request).toHaveBeenCalledOnce();
+  engine.clearRoomFocus(roomId);
+  engine.noteRoomFocused(roomId);
+  await vi.waitFor(() => expect(f.request).toHaveBeenCalledTimes(2));
+  engine.offline.cancel(roomId);
+  resolve({ chunk: [] });
+});
+
+it('cancel rejects a pending page and a later intent can retry', async () => {
+  let resolve!: (response: object) => void;
+  const f = fixture(
+    vi
+      .fn()
+      .mockImplementationOnce(
+        () =>
+          new Promise((done) => {
+            resolve = done;
+          })
+      )
+      .mockResolvedValue({ chunk: [] })
+  );
+  f.setNetwork({ connected: true, unmetered: false });
+  const engine = f.make();
+  engine.noteRoomFocused(roomId);
+  await vi.waitFor(() => expect(f.request).toHaveBeenCalledOnce());
+  engine.offline.cancel(roomId);
+  resolve({ chunk: [raw('$canceled')], end: 'wrong' });
+  await vi.waitFor(() => expect(engine.scheduler.pendingJobs()).toHaveLength(0));
+  expect(await loadCachedRoomEvent(engine.sessionId, roomId, '$canceled')).toBeUndefined();
+  engine.offline.download(roomId);
+  await vi.waitFor(() => expect(engine.offline.getSnapshot(roomId).historyExhausted).toBe(true));
+  await engine.offline.setPinned(roomId, true);
+  expect(engine.offline.getSnapshot(roomId).pinned).toBe(true);
+  await engine.offline.clear(roomId);
+  expect(engine.offline.getSnapshot(roomId).pinned).toBe(false);
+});
+
+it('releases failed-page allowance and resumes on connection change', async () => {
+  const f = fixture(
+    vi.fn().mockRejectedValueOnce(new Error('transport')).mockResolvedValue({ chunk: [] })
+  );
+  f.setNetwork({ connected: true, unmetered: false });
+  const engine = f.make();
+  engine.noteRoomFocused(roomId);
+  await vi.waitFor(() => expect(engine.offline.getSnapshot(roomId).status).toBe('error'));
+  f.setNetwork({ connected: false, unmetered: false });
+  f.setNetwork({ connected: true, unmetered: false });
+  await vi.waitFor(() => expect(engine.offline.getSnapshot(roomId).historyExhausted).toBe(true));
+  expect(f.request).toHaveBeenCalledTimes(2);
+});
+it('retains text and distinguishes soft pressure from quota read-only', async () => {
+  const f = fixture();
+  const engine = f.make();
+  await saveRoomEventsToCacheCommitted(engine.sessionId, roomId, [raw('$retained')]);
+  __setCacheStoreByteBudgetForTests(1);
+  engine.noteRoomFocused(roomId);
+  await vi.waitFor(() => expect(engine.offline.getSnapshot(roomId).status).toBe('space'));
+  expect(f.request).not.toHaveBeenCalled();
+  expect(await loadCachedRoomEvent(engine.sessionId, roomId, '$retained')).toBeDefined();
+  reportCacheWriteError('test', new DOMException('quota', 'QuotaExceededError'));
+  engine.offline.download(roomId);
+  await vi.waitFor(() => expect(engine.offline.getSnapshot(roomId).status).toBe('read-only'));
+  await engine.offline.clear(roomId);
+  engine.offline.download(roomId);
+  await vi.waitFor(() => expect(engine.offline.getSnapshot(roomId).status).toBe('read-only'));
+});
+it('hidden pages pause and logout revokes a pending page', async () => {
+  const document = new EventTarget();
+  Object.defineProperty(document, 'visibilityState', { value: 'hidden', writable: true });
+  vi.stubGlobal('document', document);
+  let resolve!: (response: object) => void;
+  const f = fixture(
+    vi.fn(
+      () =>
+        new Promise((done) => {
+          resolve = done;
+        })
+    )
+  );
+  const engine = f.make();
+  engine.noteRoomFocused(roomId);
+  await vi.waitFor(() => expect(engine.offline.getSnapshot(roomId).status).toBe('hidden'));
+  expect(f.request).not.toHaveBeenCalled();
+  Object.assign(document, { visibilityState: 'visible' });
+  document.dispatchEvent(new Event('visibilitychange'));
+  await vi.waitFor(() => expect(f.request).toHaveBeenCalledOnce());
+  engine.stop();
+  resolve({ chunk: [raw('$after-stop')], end: 'late' });
+  await vi.waitFor(() => expect(engine.scheduler.pendingJobs()).toHaveLength(0));
+  expect(await loadCachedRoomEvent(engine.sessionId, roomId, '$after-stop')).toBeUndefined();
+});
+
+it('attachment turns yield to foreground work with two downloads active', async () => {
+  const bodies: Array<(response: Response) => void> = [];
+  const fetch = vi.fn(
+    () =>
+      new Promise<Response>((resolve) => {
+        bodies.push(resolve);
+      })
+  );
+  vi.stubGlobal('fetch', fetch);
+  const f = fixture(
+    vi.fn(async (id: string) => ({
+      chunk: [0, 1].map((i) => ({
+        ...raw(id + i),
+        room_id: id,
+        content: {
+          msgtype: 'm.text',
+          body: 'preview',
+          url: 'mxc://test/' + encodeURIComponent(id + i),
+          'io.mindroom.long_text': { version: 2, encoding: 'matrix_event_content_json' },
+        },
+      })),
+    }))
+  );
+  const engine = f.make();
+  engine.offline.download(roomId);
+  engine.offline.download('!second:test');
+  await vi.waitFor(() => expect(bodies).toHaveLength(2));
+  let foregroundRan = false;
+  const foreground = engine.scheduler.enqueue({
+    roomId,
+    kind: 'reconcile',
+    priority: 0,
+    execute: async () => {
+      foregroundRan = true;
+    },
+  });
+  bodies[0](new Response(JSON.stringify({ msgtype: 'm.text', body: 'saved' })));
+  await foreground;
+  expect(foregroundRan).toBe(true);
+  expect(fetch).toHaveBeenCalledTimes(2);
+  engine.offline.cancel(roomId);
+  engine.offline.cancel('!second:test');
+  bodies.forEach((resolve) => resolve(new Response('{}')));
+});

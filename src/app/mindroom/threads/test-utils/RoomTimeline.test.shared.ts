@@ -1672,6 +1672,9 @@ const threadFilterStateFromLegacy = (
 // ClientRoot, out of scope here).
 const HARNESS_TEST_SESSION_ID = 'test-session';
 const harnessSyncEngine: MindroomSyncEngine = {
+  offline: {} as MindroomSyncEngine['offline'],
+  clearRoomFocus: () => undefined,
+  backgroundPageAllowance: () => 200,
   mx: matrixClientMock as unknown as MindroomSyncEngine['mx'],
   sessionId: HARNESS_TEST_SESSION_ID,
   start: () => undefined,

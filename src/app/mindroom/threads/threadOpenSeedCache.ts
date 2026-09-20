@@ -1,6 +1,9 @@
 import { MatrixEvent, Room } from 'matrix-js-sdk';
 
 let threadOpenSeedSnapshots = new WeakMap<Room, Map<string, MatrixEvent[]>>();
+export const clearRoomThreadOpenSeedSnapshots = (room: Room): void => {
+  threadOpenSeedSnapshots.delete(room);
+};
 
 const getRoomThreadOpenSeedStore = (room: Room): Map<string, MatrixEvent[]> => {
   let roomStore = threadOpenSeedSnapshots.get(room);

@@ -59,6 +59,7 @@ import { countCacheProbe } from '../threads/cacheProbe';
 export type BackfillJobKind =
   | 'gap-fill'
   | 'room-deep-history'
+  | 'room-attachments'
   | 'thread-backfill'
   | 'thread-approvals'
   | 'thread-seed'

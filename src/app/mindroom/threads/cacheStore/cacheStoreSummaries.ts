@@ -1,6 +1,10 @@
 import type { MindroomThreadSummaryInfo } from '../../messages/threadSummary';
 import { isCacheWritable, reportCacheWriteError } from '../cacheHealth';
-import { openCacheStore } from './cacheStoreDb';
+import {
+  openCacheStore,
+  captureCacheStoreWriteLease,
+  isCacheStoreWriteLeaseCurrent,
+} from './cacheStoreDb';
 import {
   THREAD_SUMMARIES_BY_ROOM_INDEX,
   THREAD_SUMMARIES_STORE,
@@ -17,6 +21,7 @@ export const saveCachedThreadSummary = async (
   threadRootId: string,
   info: MindroomThreadSummaryInfo
 ): Promise<void> => {
+  const lease = captureCacheStoreWriteLease(sessionId, roomId);
   // CINNY-207 P2.3: cache health gate — same choke-point pattern as
   // saveRoomEventsToCache / saveThreadEventsToCache.
   if (!isCacheWritable()) return;
@@ -27,7 +32,7 @@ export const saveCachedThreadSummary = async (
   // never trip the health gate.
   try {
     const db = await openCacheStore(sessionId);
-    if (!db || !info.summaryText) return;
+    if (!db || !info.summaryText || !isCacheStoreWriteLeaseCurrent(lease)) return;
 
     await new Promise<void>((resolve, reject) => {
       const transaction = db.transaction(THREAD_SUMMARIES_STORE, 'readwrite');

@@ -17,6 +17,7 @@
  */
 
 import { type MatrixEvent, type Room } from 'matrix-js-sdk';
+import { captureCacheStoreWriteLease, isCacheStoreWriteLeaseCurrent } from '../threads/cacheStore';
 import {
   persistRoomEventCacheSnapshot,
   persistThreadCacheFromRoomEventsSnapshot,
@@ -77,7 +78,11 @@ export type PersistThreadCacheFromRoomEvents = (
 export type QueueRoomThreadCachePersist = (mEvent: MatrixEvent) => void;
 
 export type EnginePersistFacade = {
-  persistRoomEventCache(room: Room, events: MatrixEvent[], beforeTokenForEarliest?: string | null): void;
+  persistRoomEventCache(
+    room: Room,
+    events: MatrixEvent[],
+    beforeTokenForEarliest?: string | null
+  ): void;
   persistThreadEventCache(
     room: Room,
     expectedThreadId: string,
@@ -163,18 +168,15 @@ export const createEnginePersistFacade = (
     });
   };
 
-  const persistThreadCacheFromRoomEvents: EnginePersistFacade['persistThreadCacheFromRoomEvents'] = (
-    room,
-    events,
-    opts
-  ) => {
-    persistThreadCacheFromRoomEventsSnapshot({
-      sessionId,
-      room,
-      events,
-      opts,
-    });
-  };
+  const persistThreadCacheFromRoomEvents: EnginePersistFacade['persistThreadCacheFromRoomEvents'] =
+    (room, events, opts) => {
+      persistThreadCacheFromRoomEventsSnapshot({
+        sessionId,
+        room,
+        events,
+        opts,
+      });
+    };
 
   // Microtask-batched queue: preserves the pre-strip
   // `queueRoomThreadCachePersist` semantics. Buffer is per-room (one
@@ -196,30 +198,23 @@ export const createEnginePersistFacade = (
     if (!existing) roomQueues.set(room.roomId, state);
     if (state.flushQueued) return;
     state.flushQueued = true;
+    const lease = captureCacheStoreWriteLease(sessionId, room.roomId);
     queueMicrotask(() => {
       state.flushQueued = false;
       const queuedEvents = state.events;
       state.events = [];
-      if (queuedEvents.length === 0) return;
+      if (queuedEvents.length === 0 || !isCacheStoreWriteLeaseCurrent(lease)) return;
       persistThreadCacheFromRoomEvents(room, queuedEvents);
     });
   };
 
-  const forRoom: EnginePersistFacade['forRoom'] = (room) => ({
-    persistRoomEventCache: (events, beforeTokenForEarliest) =>
-      persistRoomEventCache(room, events, beforeTokenForEarliest),
-    persistThreadEventCache: (
-      expectedThreadId,
-      events,
-      rootEvent,
-      beforeTokenForEarliest,
-      tailLoaded,
-      snapshotComplete,
-      expectedReplyCount,
-      relationSnapshotComplete
-    ) =>
-      persistThreadEventCache(
-        room,
+  const forRoom: EnginePersistFacade['forRoom'] = (room) => {
+    const lease = captureCacheStoreWriteLease(sessionId, room.roomId);
+    return {
+      persistRoomEventCache: (events, beforeTokenForEarliest) =>
+        isCacheStoreWriteLeaseCurrent(lease) &&
+        persistRoomEventCache(room, events, beforeTokenForEarliest),
+      persistThreadEventCache: (
         expectedThreadId,
         events,
         rootEvent,
@@ -228,11 +223,27 @@ export const createEnginePersistFacade = (
         snapshotComplete,
         expectedReplyCount,
         relationSnapshotComplete
-      ),
-    persistThreadCacheFromRoomEvents: (events, opts) =>
-      persistThreadCacheFromRoomEvents(room, events, opts),
-    queueRoomThreadCachePersist: (mEvent) => queueRoomThreadCachePersist(room, mEvent),
-  });
+      ) =>
+        isCacheStoreWriteLeaseCurrent(lease) &&
+        persistThreadEventCache(
+          room,
+          expectedThreadId,
+          events,
+          rootEvent,
+          beforeTokenForEarliest,
+          tailLoaded,
+          snapshotComplete,
+          expectedReplyCount,
+          relationSnapshotComplete
+        ),
+      persistThreadCacheFromRoomEvents: (events, opts) =>
+        isCacheStoreWriteLeaseCurrent(lease) &&
+        persistThreadCacheFromRoomEvents(room, events, opts),
+      queueRoomThreadCachePersist: (mEvent) => {
+        if (isCacheStoreWriteLeaseCurrent(lease)) queueRoomThreadCachePersist(room, mEvent);
+      },
+    };
+  };
 
   return {
     persistRoomEventCache,

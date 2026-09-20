@@ -1,7 +1,16 @@
 import React from 'react';
+import 'fake-indexeddb/auto';
+import { IDBFactory } from 'fake-indexeddb';
+import { createClient, Room, MatrixEvent } from 'matrix-js-sdk';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import { Direction } from 'matrix-js-sdk';
+import { createEnginePersistFacade } from '../engine/enginePersistFacade';
+import {
+  clearRoomCachedContent,
+  loadCachedRoomEvent,
+  resetCacheStoreForTesting,
+} from './cacheStore';
 import { useRoomPaginationCommandController } from './roomPaginationCommandController';
 import type { Timeline } from './timelinePagination';
 
@@ -84,7 +93,7 @@ describe('useRoomPaginationCommandController', () => {
         alive: () => true,
         handleTimelinePagination: vi.fn(),
         mx: { getEventMapper: () => (event: unknown) => event } as never,
-        persistRoomEventCache: vi.fn(),
+        beginRoomCacheWrite: () => vi.fn(),
         recalibrateFilterOptsRef: { current: undefined },
         room: room as never,
         roomIdRef,
@@ -159,7 +168,7 @@ describe('useRoomPaginationCommandController', () => {
         alive: () => true,
         handleTimelinePagination: vi.fn(),
         mx,
-        persistRoomEventCache: vi.fn(),
+        beginRoomCacheWrite: () => vi.fn(),
         recalibrateFilterOptsRef: { current: undefined },
         room,
         roomIdRef: { current: '!room:server' },
@@ -244,7 +253,7 @@ describe('useRoomPaginationCommandController', () => {
         alive: () => true,
         handleTimelinePagination: vi.fn(),
         mx,
-        persistRoomEventCache: vi.fn(),
+        beginRoomCacheWrite: () => vi.fn(),
         recalibrateFilterOptsRef: {
           current: {
             room,
@@ -326,7 +335,7 @@ describe('useRoomPaginationCommandController', () => {
         alive: () => true,
         handleTimelinePagination: vi.fn(),
         mx,
-        persistRoomEventCache: vi.fn(),
+        beginRoomCacheWrite: () => vi.fn(),
         recalibrateFilterOptsRef: {
           current: {
             room,
@@ -407,7 +416,7 @@ describe('useRoomPaginationCommandController', () => {
         alive: () => true,
         handleTimelinePagination: vi.fn(),
         mx,
-        persistRoomEventCache: vi.fn(),
+        beginRoomCacheWrite: () => vi.fn(),
         recalibrateFilterOptsRef: {
           current: {
             room,
@@ -504,7 +513,7 @@ describe('network back-pagination persist point (CINNY-207 P3.3)', () => {
         alive: () => true,
         handleTimelinePagination,
         mx,
-        persistRoomEventCache,
+        beginRoomCacheWrite: () => persistRoomEventCache,
         recalibrateFilterOptsRef: { current: undefined },
         room,
         roomIdRef: { current: '!room:server' },
@@ -538,4 +547,74 @@ describe('network back-pagination persist point (CINNY-207 P3.3)', () => {
     ]);
     expect(token).toBe('deeper-before-token');
   });
+});
+
+it('fences an old page after clear and saves a new page in the same mounted view', async () => {
+  globalThis.indexedDB = new IDBFactory();
+  resetCacheStoreForTesting();
+  const sessionId = 'pagination-clear';
+  const mx = createClient({ baseUrl: 'https://example.org', userId: '@alice:example.org' });
+  const room = new Room('!room:example.org', mx, '@alice:example.org');
+  const message = (id: string) =>
+    new MatrixEvent({
+      event_id: id,
+      room_id: room.roomId,
+      sender: '@alice:example.org',
+      type: 'm.room.message',
+      origin_server_ts: 1,
+      content: { msgtype: 'm.text', body: id },
+    });
+  const events = [message('$root')];
+  const first = makeTimeline(events);
+  const timeline = { linkedTimelines: [first], range: { start: 0, end: 1 } };
+  const facade = createEnginePersistFacade({ sessionId });
+  let release!: () => void;
+  let nextId = '$old';
+  const paginate = vi.fn(async () => {
+    await new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    events.unshift(message(nextId));
+  });
+  loadRoomCachedPaginationSnapshotMock.mockResolvedValue({ status: 'cache-miss' });
+  let callback!: (backwards: boolean) => Promise<void>;
+  let renderer!: ReactTestRenderer;
+  function Harness() {
+    callback = useRoomPaginationCommandController({
+      alive: () => true,
+      handleTimelinePagination: paginate,
+      mx,
+      beginRoomCacheWrite: () => facade.forRoom(room).persistRoomEventCache,
+      recalibrateFilterOptsRef: { current: undefined },
+      room,
+      roomIdRef: { current: room.roomId },
+      roomPaginatingBackRef: { current: false },
+      prefetchDepthRef: { current: 200 },
+      sessionId,
+      setRoomHasMoreCachedBack: vi.fn(),
+      setTimeline: vi.fn(),
+      threadId: undefined,
+      threadIdRef: { current: undefined },
+      timeline,
+    });
+    return null;
+  }
+  await act(async () => {
+    renderer = create(React.createElement(Harness));
+  });
+  const old = callback(true);
+  await vi.waitFor(() => expect(paginate).toHaveBeenCalledOnce());
+  await clearRoomCachedContent(sessionId, room.roomId);
+  release();
+  await old;
+  expect(await loadCachedRoomEvent(sessionId, room.roomId, '$old')).toBeUndefined();
+  nextId = '$new';
+  const next = callback(true);
+  await vi.waitFor(() => expect(paginate).toHaveBeenCalledTimes(2));
+  release();
+  await next;
+  await vi.waitFor(async () =>
+    expect(await loadCachedRoomEvent(sessionId, room.roomId, '$new')).toBeDefined()
+  );
+  act(() => renderer.unmount());
 });

@@ -13,7 +13,8 @@ import type { CachedPaginationTokenMap } from '../eventCacheTokenUtils';
 // `getCacheStoreDbName` in `cacheStoreDb.ts` via `getSessionScopedStorageKey`.
 
 export const MINDROOM_CACHE_DB_BASE_NAME = 'mindroom-cache';
-export const CACHE_STORE_DB_VERSION = 4;
+export const CACHE_STORE_DB_VERSION = 5;
+export const EVENTS_BY_ROOM_EVENT_INDEX = 'by_room_event';
 
 export const ATTACHMENTS_STORE = 'attachments';
 export const ATTACHMENT_REFERENCES_STORE = 'attachment_references';
@@ -98,6 +99,7 @@ export type CachedEventRecord = {
 };
 
 export type CachedMetaRecord = {
+  offline?: RoomOfflineProgress;
   // `${roomId}|${scope}` — one meta row per (room, scope). Room-timeline
   // rows use scope=='' and thread rows use scope==threadId.
   metaKey: string;
@@ -143,6 +145,16 @@ export type CachedMetaRecord = {
     /** Event ids from the cache before the first partial page was stored. */
     overlapEventIds: string[];
   };
+};
+
+export type RoomOfflineProgress = {
+  opened?: boolean;
+  nextToken?: string | null;
+  exhausted?: boolean;
+  savedEvents?: number;
+  recentTokens?: string[];
+  undecryptedEventIds?: string[];
+  unresolvedRelationIds?: string[];
 };
 
 // CINNY-207 P2.2: per-room byte + activity ledger used by the eviction

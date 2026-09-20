@@ -7,8 +7,19 @@
  * removes ~60 lines of hand-repeated boilerplate and gives every caller
  * a single error surface with an "unavailable" substring.
  */
-import { openCacheStore } from './cacheStoreDb';
-import { buildMetaKey, META_STORE, type CachedMetaRecord } from './cacheStoreSchema';
+import {
+  openCacheStore,
+  captureCacheStoreWriteLease,
+  isCacheStoreWriteLeaseCurrent,
+  type CacheStoreWriteLease,
+} from './cacheStoreDb';
+import { isCacheWritable, reportCacheWriteError } from '../cacheHealth';
+import {
+  buildMetaKey,
+  META_STORE,
+  type CachedMetaRecord,
+  type RoomOfflineProgress,
+} from './cacheStoreSchema';
 
 const CACHE_STORE_UNAVAILABLE_MESSAGE = 'Cache store meta storage is unavailable.';
 
@@ -30,6 +41,7 @@ export const updateMetaRecord = async <T>(
   scope: string,
   update: (existing: CachedMetaRecord | undefined, store: IDBObjectStore) => T
 ): Promise<T> => {
+  const lease = captureCacheStoreWriteLease(sessionId, roomId);
   const db = await openCacheStore(sessionId);
   if (!db) throw new CacheStoreMetaUnavailableError();
   const metaKey = buildMetaKey(roomId, scope);
@@ -40,6 +52,10 @@ export const updateMetaRecord = async <T>(
     const store = transaction.objectStore(META_STORE);
     const request = store.get(metaKey);
     request.onsuccess = () => {
+      if (!isCacheStoreWriteLeaseCurrent(lease)) {
+        transaction.abort();
+        return;
+      }
       result = update(request.result as CachedMetaRecord | undefined, store);
     };
     request.onerror = () => reject(request.error);
@@ -71,4 +87,38 @@ export const readMetaRecord = async (
     request.onsuccess = () => resolve(request.result as CachedMetaRecord | undefined);
     request.onerror = () => reject(request.error);
   });
+};
+
+// Ordinary room/thread writers rebuild their metadata. Keep durable offline
+// progress in its own scope, removed by the existing whole-room clear.
+const OFFLINE_SCOPE = '__offline';
+export const readRoomOfflineProgress = async (
+  sessionId: string,
+  roomId: string
+): Promise<RoomOfflineProgress> =>
+  (await readMetaRecord(sessionId, roomId, OFFLINE_SCOPE))?.offline ?? {};
+
+export const updateRoomOfflineProgress = async (
+  sessionId: string,
+  roomId: string,
+  patch: Partial<RoomOfflineProgress>,
+  lease: CacheStoreWriteLease = captureCacheStoreWriteLease(sessionId, roomId)
+): Promise<boolean> => {
+  if (!isCacheWritable() || !isCacheStoreWriteLeaseCurrent(lease)) return false;
+  try {
+    return await updateMetaRecord(sessionId, roomId, OFFLINE_SCOPE, (existing, store) => {
+      if (!isCacheStoreWriteLeaseCurrent(lease)) return false;
+      store.put({
+        metaKey: buildMetaKey(roomId, OFFLINE_SCOPE),
+        roomId,
+        scope: OFFLINE_SCOPE,
+        updatedAt: Date.now(),
+        offline: { ...existing?.offline, ...patch },
+      } satisfies CachedMetaRecord);
+      return true;
+    });
+  } catch (error) {
+    reportCacheWriteError('offline.progress', error);
+    return false;
+  }
 };

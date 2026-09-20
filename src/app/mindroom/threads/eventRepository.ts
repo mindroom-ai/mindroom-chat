@@ -24,9 +24,20 @@ import {
   type CachedRoomEventPage,
   type CachedThreadEvent,
   type CachedThreadEventPage,
+  captureCacheStoreWriteLease,
+  isCacheStoreWriteLeaseCurrent,
+  type CacheStoreWriteLease,
 } from './cacheStore';
 import { compareCachedPaginationAnchors } from './eventCacheTokenUtils';
-import { serializeEventsForCache } from './eventCacheEditUtils';
+import { hydrateCachedEvents, serializeEventsForCache } from './eventCacheEditUtils';
+import {
+  loadCachedEventAcrossRoomScopes,
+  loadRoomOfflineEventBatch,
+} from './cacheStore/cacheStoreEvents';
+import { readRoomOfflineProgress, updateRoomOfflineProgress } from './cacheStore/cacheStoreMeta';
+import { collectEventAttachments } from '../messages/eventAttachments';
+import { replaceCachedAttachmentReferences } from './cacheStore';
+import { getSerializedRelationEvent, isSameSenderEditEvent } from '../../utils/editEvent';
 import { isThreadOnlyRoomActivity } from './threadRenderUtils';
 import { buildThreadReplyCountMap } from './threadUtils';
 import { getKnownThreadReplyCount } from './threadRecord';
@@ -770,6 +781,7 @@ export type ThreadEventCacheSnapshotWrite = {
 };
 
 export type PersistThreadEventCacheSnapshotArgs = {
+  writeLease?: CacheStoreWriteLease;
   sessionId: string;
   room: Room;
   threadId: string;
@@ -830,6 +842,7 @@ export const persistThreadEventCacheSnapshot = ({
   relationSnapshotComplete,
   relationSnapshotMode,
   authoritativeRawEvents,
+  writeLease,
   save = saveThreadEventsToCacheToStorage,
 }: PersistThreadEventCacheSnapshotArgs): ThreadEventCacheSnapshotWrite => {
   const resolvedRootEvent = rootEvent ?? undefined;
@@ -863,10 +876,11 @@ export const persistThreadEventCacheSnapshot = ({
     persistedExpectedReplyCount,
     relationSnapshotComplete,
   ] as const;
-  const write =
-    relationSnapshotMode === undefined
-      ? save(...saveArgs)
-      : save(...saveArgs, relationSnapshotMode);
+  const write = writeLease
+    ? save(...saveArgs, relationSnapshotMode ?? 'partial', writeLease)
+    : relationSnapshotMode === undefined
+    ? save(...saveArgs)
+    : save(...saveArgs, relationSnapshotMode);
 
   return {
     rawEvents,
@@ -1070,31 +1084,148 @@ export const persistRoomChunkWithPreferLive = async ({
   room,
   chunk,
   beforeTokenForEarliest,
+  roomTailLoaded = true,
+  mappedEvents,
+  writeLease = captureCacheStoreWriteLease(sessionId, room.roomId),
 }: {
   mx: MatrixClient;
   sessionId: string;
   room: Room;
   chunk: Partial<IEvent>[];
   beforeTokenForEarliest?: string | null;
-}): Promise<RoomEventCacheSnapshotWrite | undefined> => {
+  roomTailLoaded?: boolean;
+  writeLease?: CacheStoreWriteLease;
+  mappedEvents?: MatrixEvent[];
+}): Promise<(RoomEventCacheSnapshotWrite & { events: MatrixEvent[] }) | undefined> => {
   if (chunk.length === 0) return undefined;
-  const mapper = mx.getEventMapper();
+  const mapper = mx.getEventMapper({ decrypt: false });
   const preferLive = createPreferLiveEventMapper(room, mapper);
-  const mapped = chunk.map(preferLive);
+  const mapped = mappedEvents ?? chunk.map((raw) => preferLive({ ...raw, room_id: room.roomId }));
+  await Promise.allSettled(
+    mapped
+      .filter((event) => event.getType() === 'm.room.encrypted')
+      .map((event) => mx.decryptEventIfNeeded?.(event))
+  );
+  if (!isCacheStoreWriteLeaseCurrent(writeLease)) throw new Error('cache room write revoked');
+  const progress = await readRoomOfflineProgress(sessionId, room.roomId);
+  const byId = new Map(mapped.map((event) => [event.getId(), event]));
+  const resolve = async (id: string): Promise<MatrixEvent | undefined> => {
+    const known = byId.get(id);
+    if (known) return known;
+    const raw = await loadCachedEventAcrossRoomScopes(sessionId, room.roomId, id);
+    if (!raw) return undefined;
+    const event = preferLive({ ...raw, room_id: room.roomId });
+    await mx.decryptEventIfNeeded?.(event).catch(() => undefined);
+    byId.set(id, event);
+    return event;
+  };
+  await Promise.all((progress.unresolvedRelationIds ?? []).map(resolve));
+  const unresolved = new Set<string>();
+  const retractedByOwner = new Map<string, string[]>();
+  // Compaction embeds same-sender edits in their owner. For a redacted edit
+  // absent as a standalone row, recover that verified ownership before scrub.
+  for (const event of [...byId.values()]) {
+    const targetId = event.getAssociatedId() ?? event.getRelation()?.event_id;
+    if (!targetId || event.getRelation()?.rel_type === RelationType.Thread) continue;
+    let target = await resolve(targetId);
+    if (event.isRedaction() && (!target || !target.getRelation())) {
+      let after: string | undefined;
+      do {
+        const batch = await loadRoomOfflineEventBatch(sessionId, room.roomId, after);
+        const ownerRaw = batch.events.find(
+          (raw) =>
+            getSerializedRelationEvent(mapper(raw), RelationType.Replace)?.getId() === targetId
+        );
+        if (ownerRaw) {
+          const owner = await resolve(ownerRaw.event_id!);
+          const replacement = getSerializedRelationEvent(mapper(ownerRaw), RelationType.Replace);
+          if (owner && replacement) {
+            target = mapper({ ...replacement.event, room_id: room.roomId });
+            byId.set(targetId, target);
+          }
+          break;
+        }
+        after = batch.nextEventId;
+      } while (after && isCacheStoreWriteLeaseCurrent(writeLease));
+    }
+    if (!target) {
+      if (event.getId()) unresolved.add(event.getId()!);
+      continue;
+    }
+    if (event.isRedaction() && target.getRelation()?.rel_type === RelationType.Replace) {
+      const ownerId = target.getRelation()?.event_id;
+      const owner = ownerId ? await resolve(ownerId) : undefined;
+      if (owner && isSameSenderEditEvent(owner, target)) {
+        const ids = retractedByOwner.get(owner.getId()!) ?? [];
+        ids.push(targetId);
+        retractedByOwner.set(owner.getId()!, ids);
+      }
+    }
+  }
+  const resolvedEvents = [...byId.values()];
+  // A detached relation uses the same grouping/serialization as SDK-resident
+  // events. This lookup facade adds no events to the SDK's live timelines.
+  const lookupRoom = Object.create(room) as Room;
+  lookupRoom.findEventById = (id) => byId.get(id) ?? room.findEventById(id);
+  hydrateCachedEvents({ room: lookupRoom, events: resolvedEvents });
+  for (const [ownerId, ids] of retractedByOwner) {
+    const owner = byId.get(ownerId);
+    if (!owner) continue;
+    const [message] = collectEventAttachments([owner]);
+    if (!message) continue;
+    const status = await replaceCachedAttachmentReferences(
+      sessionId,
+      room.roomId,
+      message.eventId,
+      message.revisionTs,
+      message.attachments,
+      writeLease,
+      { ...message, retractedRevisionIds: ids }
+    );
+    if (status !== 'committed') throw new Error('Canonical attachment repair did not commit');
+  }
+  if (!isCacheStoreWriteLeaseCurrent(writeLease)) throw new Error('cache room write revoked');
   const threadWrites = persistThreadCacheFromRoomEventsSnapshot({
     sessionId,
-    room,
-    events: mapped,
-    opts: { roomTailLoaded: true },
+    room: lookupRoom,
+    events: resolvedEvents,
+    opts: { roomTailLoaded },
     saveSeedSnapshot: () => undefined,
-    saveThreadSnapshot: saveThreadEventsToCacheCommitted,
+    saveThreadSnapshot: (
+      session,
+      id,
+      thread,
+      events,
+      root,
+      token,
+      tail,
+      complete,
+      count,
+      relations,
+      mode
+    ) =>
+      saveThreadEventsToCacheCommitted(
+        session,
+        id,
+        thread,
+        events,
+        root,
+        token,
+        tail,
+        complete,
+        count,
+        relations,
+        mode,
+        writeLease
+      ),
   });
   const roomWrite = persistRoomEventCacheSnapshot({
     sessionId,
-    room,
-    events: mapped,
+    room: lookupRoom,
+    events: resolvedEvents,
     beforeTokenForEarliest,
-    save: saveRoomEventsToCacheCommitted,
+    save: (session, id, events, token, mode) =>
+      saveRoomEventsToCacheCommitted(session, id, events, token, mode, writeLease),
   });
   const commitResults = await Promise.all([
     roomWrite.write,
@@ -1103,5 +1234,24 @@ export const persistRoomChunkWithPreferLive = async ({
   if (commitResults.some((committed) => committed !== true)) {
     throw new Error('cache chunk did not commit');
   }
-  return roomWrite;
+  const undecrypted = new Set(progress.undecryptedEventIds);
+  resolvedEvents.forEach((event) => {
+    const id = event.getId();
+    if (!id) return;
+    if (event.getType() === 'm.room.encrypted') undecrypted.add(id);
+    else undecrypted.delete(id);
+  });
+  if (
+    !(await updateRoomOfflineProgress(
+      sessionId,
+      room.roomId,
+      {
+        unresolvedRelationIds: [...unresolved],
+        undecryptedEventIds: [...undecrypted],
+      },
+      writeLease
+    ))
+  )
+    throw new Error('Cache coverage did not commit');
+  return { ...roomWrite, events: resolvedEvents };
 };

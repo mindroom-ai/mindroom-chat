@@ -1,12 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import 'fake-indexeddb/auto';
-import { Direction } from 'matrix-js-sdk';
+import { IDBFactory } from 'fake-indexeddb';
+import { Direction, MatrixEvent } from 'matrix-js-sdk';
 import type { IEvent, MatrixClient, Room } from 'matrix-js-sdk';
 import { createBackfillScheduler } from '../backfillScheduler';
 import { enqueueRoomDeepHistoryJob } from '../deepHistoryJob';
 import { StateEvent } from '../../../../types/matrix/room';
 import {
   loadCachedRoomEvent,
+  replaceCachedAttachmentReferences,
   loadLatestCachedThreadEvents,
   resetCacheStoreForTesting,
 } from '../../threads/cacheStore';
@@ -46,7 +48,7 @@ const makeRoom = (
       getPaginationToken: (dir: Direction) => (dir === Direction.Backward ? liveBackToken : null),
     }),
     getLastActiveTimestamp: () => 0,
-  }) as unknown as Room;
+  } as unknown as Room);
 
 type MockClient = MatrixClient & {
   __rooms: Map<string, Room>;
@@ -132,6 +134,7 @@ const createMockClient = (
 
 describe('enqueueRoomDeepHistoryJob (CINNY-207 P4.3)', () => {
   beforeEach(() => {
+    globalThis.indexedDB = new IDBFactory();
     resetCacheStoreForTesting();
     resetCacheProbe();
     clearThreadOpenSeedSnapshotsForTests();
@@ -156,7 +159,12 @@ describe('enqueueRoomDeepHistoryJob (CINNY-207 P4.3)', () => {
       sessionId: SESSION_ID,
       scheduler,
       roomId: '!room:mindroom.chat',
-      targetEventCount: 3,
+    });
+    await enqueueRoomDeepHistoryJob({
+      mx,
+      sessionId: SESSION_ID,
+      scheduler,
+      roomId: '!room:mindroom.chat',
     });
 
     // Target reached after chunk 2 (2 + 1 = 3), loop terminates.
@@ -166,7 +174,7 @@ describe('enqueueRoomDeepHistoryJob (CINNY-207 P4.3)', () => {
       const row = await loadCachedRoomEvent(SESSION_ID, '!room:mindroom.chat', id);
       expect(row?.event_id).toBe(id);
     }
-    expect(getCacheProbeSnapshot().schedulerCompleted).toBe(1);
+    expect(getCacheProbeSnapshot().schedulerCompleted).toBe(2);
   });
 
   it('persists thread replies from swept chunks into their thread cache scopes (2026-07-06 eager-cache fix)', async () => {
@@ -192,7 +200,6 @@ describe('enqueueRoomDeepHistoryJob (CINNY-207 P4.3)', () => {
       sessionId: SESSION_ID,
       scheduler,
       roomId: '!room:mindroom.chat',
-      targetEventCount: 3,
     });
 
     // Thread scope holds the replies, with the tail claim recorded (the
@@ -221,7 +228,7 @@ describe('enqueueRoomDeepHistoryJob (CINNY-207 P4.3)', () => {
     expect(getThreadOpenSeedSnapshot(room, '$root')).toHaveLength(0);
   });
 
-  it('skips encrypted rooms without touching the network', async () => {
+  it('allows encrypted history through SDK mapping', async () => {
     const mx = createMockClient(() => ({ chunk: [] }));
     mx.__rooms.set(
       '!e2e:mindroom.chat',
@@ -236,10 +243,10 @@ describe('enqueueRoomDeepHistoryJob (CINNY-207 P4.3)', () => {
       roomId: '!e2e:mindroom.chat',
     });
 
-    expect(mx.__calls.length).toBe(0);
+    expect(mx.__calls.length).toBe(1);
   });
 
-  it('skips a federated room under the default my-server scope (historical gate)', async () => {
+  it('fetches a federated room admitted by the controller', async () => {
     const mx = createMockClient(() => ({ chunk: [] }));
     mx.__rooms.set('!fed:example.org', makeRoom('!fed:example.org', '@carol:example.org'));
     const scheduler = createBackfillScheduler({ mx });
@@ -251,7 +258,7 @@ describe('enqueueRoomDeepHistoryJob (CINNY-207 P4.3)', () => {
       roomId: '!fed:example.org',
     });
 
-    expect(mx.__calls.length).toBe(0);
+    expect(mx.__calls.length).toBe(1);
   });
 
   it('sweeps a federated focused room under all-rooms scope (PR #72 greptile: deep history skipped scope)', async () => {
@@ -264,7 +271,6 @@ describe('enqueueRoomDeepHistoryJob (CINNY-207 P4.3)', () => {
       sessionId: SESSION_ID,
       scheduler,
       roomId: '!fed:example.org',
-      scope: 'all-rooms',
     });
 
     // Gate passes -> at least one backward /messages request fires.
@@ -281,7 +287,6 @@ describe('enqueueRoomDeepHistoryJob (CINNY-207 P4.3)', () => {
       sessionId: SESSION_ID,
       scheduler,
       roomId: '!fed:example.org',
-      scope: 'current-room-only',
     });
 
     expect(mx.__calls.length).toBeGreaterThan(0);
@@ -335,9 +340,126 @@ describe('enqueueRoomDeepHistoryJob (CINNY-207 P4.3)', () => {
       sessionId: SESSION_ID,
       scheduler,
       roomId: '!room:mindroom.chat',
-      targetEventCount: 1,
     });
 
     expect(mx.__calls[0]?.fromToken).toBe('live-back-token');
+  });
+
+  it('resumes from the committed page after failure with a new scheduler', async () => {
+    const mx = createMockClient((call) => {
+      if (call === 0) return { end: 'older-1', chunk: [rawEvent('$saved', 1)] };
+      if (call === 1) throw new Error('offline');
+      return { chunk: [] };
+    });
+    mx.__rooms.set('!room:mindroom.chat', makeRoom('!room:mindroom.chat', '@alice:mindroom.chat'));
+    const args = { mx, sessionId: SESSION_ID, roomId: '!room:mindroom.chat' };
+    await enqueueRoomDeepHistoryJob({ ...args, scheduler: createBackfillScheduler({ mx }) });
+    await expect(
+      enqueueRoomDeepHistoryJob({ ...args, scheduler: createBackfillScheduler({ mx }) })
+    ).rejects.toThrow('offline');
+    expect(await loadCachedRoomEvent(SESSION_ID, args.roomId, '$saved')).toBeDefined();
+    resetCacheStoreForTesting();
+    await enqueueRoomDeepHistoryJob({ ...args, scheduler: createBackfillScheduler({ mx }) });
+    expect(mx.__calls.map((call) => call.fromToken)).toEqual([null, 'older-1', 'older-1']);
+  });
+
+  it('attributes an edit to a reply first encountered on a later history page', async () => {
+    const edit = {
+      ...rawEvent('$edit', 30),
+      content: {
+        'm.relates_to': { rel_type: 'm.replace', event_id: '$reply' },
+        'm.new_content': { msgtype: 'm.text', body: 'edited historical reply' },
+      },
+    };
+    const mx = createMockClient((call) =>
+      call === 0
+        ? { chunk: [edit], end: 'older' }
+        : { chunk: [rawThreadReply('$reply', 20, '$root')], end: 'oldest' }
+    );
+    mx.getEventMapper = () => (raw) => new MatrixEvent(raw);
+    mx.__rooms.set('!room:mindroom.chat', makeRoom('!room:mindroom.chat', '@alice:mindroom.chat'));
+    const args = {
+      mx,
+      sessionId: SESSION_ID,
+      scheduler: createBackfillScheduler({ mx }),
+      roomId: '!room:mindroom.chat',
+    };
+    await enqueueRoomDeepHistoryJob(args);
+    await enqueueRoomDeepHistoryJob(args);
+    const page = await loadLatestCachedThreadEvents(SESSION_ID, args.roomId, '$root', 20);
+    expect(
+      page.events.find((event) => event.event_id === '$reply')?.unsigned?.['m.relations']?.[
+        'm.replace'
+      ]
+    ).toMatchObject({
+      event_id: '$edit',
+      content: { 'm.new_content': { body: 'edited historical reply' } },
+    });
+  });
+
+  it('retracts a compacted edit before accepting the surviving original attachment', async () => {
+    const original = {
+      ...rawEvent('$original', 10),
+      content: {
+        msgtype: 'm.text',
+        body: 'original',
+        url: 'mxc://test/original',
+        'io.mindroom.long_text': { version: 2, encoding: 'matrix_event_content_json' },
+      },
+    };
+    const edit = {
+      ...rawEvent('$edit', 30),
+      content: {
+        'm.relates_to': { rel_type: 'm.replace', event_id: '$original' },
+        'm.new_content': { ...original.content, url: 'mxc://test/edited' },
+      },
+    };
+    const redaction = {
+      ...rawEvent('$redaction', 40),
+      type: 'm.room.redaction',
+      redacts: '$edit',
+      content: { redacts: '$edit' },
+    };
+    const mx = createMockClient((call) =>
+      call === 0 ? { chunk: [original, edit], end: 'older' } : { chunk: [redaction] }
+    );
+    mx.getEventMapper = () => (raw) => new MatrixEvent(raw);
+    const room = makeRoom('!room:mindroom.chat', '@alice:mindroom.chat');
+    mx.__rooms.set(room.roomId, room);
+    const args = {
+      mx,
+      sessionId: SESSION_ID,
+      scheduler: createBackfillScheduler({ mx }),
+      roomId: room.roomId,
+    };
+    await enqueueRoomDeepHistoryJob(args);
+    await replaceCachedAttachmentReferences(
+      SESSION_ID,
+      room.roomId,
+      '$original',
+      30,
+      [{ mxcUri: 'mxc://test/edited', essential: true }],
+      undefined,
+      { revisionId: '$edit' }
+    );
+    await enqueueRoomDeepHistoryJob(args);
+    expect(
+      await replaceCachedAttachmentReferences(SESSION_ID, room.roomId, '$original', 10, [
+        { mxcUri: 'mxc://test/original', essential: true },
+      ])
+    ).toBe('committed');
+    expect(
+      await replaceCachedAttachmentReferences(
+        SESSION_ID,
+        room.roomId,
+        '$original',
+        30,
+        [{ mxcUri: 'mxc://test/edited', essential: true }],
+        undefined,
+        { revisionId: '$edit' }
+      )
+    ).toBe('revoked');
+    const cached = await loadCachedRoomEvent(SESSION_ID, room.roomId, '$original');
+    expect(cached?.unsigned?.['m.relations']?.['m.replace']).toBeUndefined();
   });
 });
