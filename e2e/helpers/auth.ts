@@ -1,6 +1,6 @@
 import { expect, Page } from '@playwright/test';
 import { buildLoginPath } from '../env';
-import { loginToMatrix, matrixFetch, setAccountData } from './matrix';
+import { loginToMatrix, matrixFetch, setAccountData, type MatrixSession } from './matrix';
 
 type LoginOptions = {
   homeserver: string;
@@ -97,11 +97,11 @@ export const loginWithPassword = async (page: Page, options: LoginOptions) => {
   await waitForLoggedInShell(page);
 };
 
-export const setFullInterfaceModeForCredentials = async (
+/** Preserve all account preferences and return a teardown that restores the snapshot. */
+export const setFullInterfaceModeForSession = async (
   homeserver: string,
-  credentials: Credentials
+  session: MatrixSession
 ) => {
-  const session = await loginToMatrix(homeserver, credentials.username, credentials.password);
   const settings = await matrixFetch<Record<string, unknown>>(
     homeserver,
     '/user/' +
@@ -121,4 +121,21 @@ export const setFullInterfaceModeForCredentials = async (
     mindroomAccountSettingsEventType,
     { ...settings, simpleMode: false }
   );
+
+  return () =>
+    setAccountData(
+      homeserver,
+      session.accessToken,
+      session.userId,
+      mindroomAccountSettingsEventType,
+      settings
+    );
+};
+
+export const setFullInterfaceModeForCredentials = async (
+  homeserver: string,
+  credentials: Credentials
+) => {
+  const session = await loginToMatrix(homeserver, credentials.username, credentials.password);
+  await setFullInterfaceModeForSession(homeserver, session);
 };

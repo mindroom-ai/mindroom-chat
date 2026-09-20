@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { expect, test, type Page } from '@playwright/test';
 import { getHomeserver, getPrimaryCredentials } from '../env';
-import { loginWithPassword } from '../helpers/auth';
+import { loginWithPassword, setFullInterfaceModeForSession } from '../helpers/auth';
 import {
   addRoomToSpace,
   createPrivateRoom,
@@ -9,7 +9,6 @@ import {
   joinRoom,
   loginToMatrix,
   matrixFetch,
-  setAccountData,
 } from '../helpers/matrix';
 
 /**
@@ -127,12 +126,6 @@ const seedPortalFixture = async (
   });
   await addRoomToSpace(homeserver, viewer.accessToken, spaceId, childId);
 
-  // The account default is Simple Mode, which intentionally omits the
-  // navigation surfaces exercised below.
-  await setAccountData(homeserver, viewer.accessToken, viewer.userId, 'io.mindroom.settings', {
-    simpleMode: false,
-  });
-
   return { roomName, spaceName, spaceId, childName, mindQuery };
 };
 
@@ -194,12 +187,22 @@ async function verifyPortaledInviteMenu(page: Page, surface: string, mindQuery: 
 
 test.describe('CINNY-217 invite menu portal', () => {
   test.skip(!hasCredentials, 'E2E_USERNAME / E2E_PASSWORD not set');
+  let restoreSettings: (() => Promise<void>) | undefined;
+
+  test.afterEach(async () => {
+    const restore = restoreSettings;
+    restoreSettings = undefined;
+    await restore?.();
+  });
 
   test('menu escapes host clipping on each invite surface', async ({ page }) => {
     const homeserver = getHomeserver();
     const { username, password } = getPrimaryCredentials();
     const viewer = await loginToMatrix(homeserver, username, password);
     const fixture = await seedPortalFixture(homeserver, viewer);
+
+    // Full navigation is required here, but the shared account's preferences survive the run.
+    restoreSettings = await setFullInterfaceModeForSession(homeserver, viewer);
 
     await loginWithPassword(page, { homeserver, username, password });
 
