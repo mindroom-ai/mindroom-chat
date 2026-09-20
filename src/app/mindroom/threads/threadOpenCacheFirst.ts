@@ -76,6 +76,14 @@ export const runThreadOpenCacheFirst = async ({
 }: RunThreadOpenCacheFirstOptions): Promise<RunThreadOpenCacheFirstResult> => {
   let hydratedCachedPage;
   try {
+    // Cached messages paint through supplemental render state, independently of
+    // the SDK timeline. Token conversion can need the network; only subsequent
+    // SDK work must wait for it, never the cache read and its first paint.
+    hydratedCachedPage = await hydrateThreadFromCache(threadId);
+    if (!isCurrentThreadOpen()) {
+      countCacheProbe('threadOpenSkipCacheFirstPostHydrateGuard');
+      return { shouldContinue: false };
+    }
     const pendingReset = flushThreadSyncGap(room.getThread(threadId), isCurrentThreadOpen);
     if (pendingReset) {
       await pendingReset;
@@ -84,7 +92,6 @@ export const runThreadOpenCacheFirst = async ({
         return { shouldContinue: false };
       }
     }
-    hydratedCachedPage = await hydrateThreadFromCache(threadId);
   } catch {
     if (!isCurrentThreadOpen()) {
       // AC2 STEP 4 iter 2 (2026-07-04): hydrate threw and the guard

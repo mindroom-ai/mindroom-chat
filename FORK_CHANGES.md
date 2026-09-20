@@ -2,6 +2,26 @@
 
 ## Runbook
 
+### Restore cached room threads and paint cached replies before network waits (2026-09-20)
+
+- Room startup previously treated an equal or newer SDK tail as proof that the cached page was already loaded, discarding missing older roots and leaving later pagination to reveal them.
+- The hydration snapshot now separates overlapping older history from newer tail events and revision updates.
+  The room controller prepends the older events, retains live event identity, and publishes the combined timeline once.
+- Unknown gaps remain unjoined, cached pagination tokens retain their existing semantics, and timeline resets or concurrent history loads invalidate stale prepend decisions.
+- Cached thread messages now hydrate into supplemental render state before waiting for SDK sync-gap token conversion, which can require network responses.
+  Subsequent SDK work still waits for conversion and checks thread ownership.
+- Ten real IndexedDB/SDK regressions cover equal and newer live tails, mixed history/edit/tail hydration, unknown gaps, reset and pagination races, and thread roots whose metadata requests remain stalled.
+  Review exposed a live-tail advance during encrypted prepend; hydration now rechecks pending appends and remaps same-ID arrivals to retain cached edits on live instances.
+  A session regression proves cached replies paint while token conversion remains stalled, with no replies present in SDK memory.
+- Validation: all 4,693 tests across 553 files pass under Node 24, as do application typecheck, the production/PWA build, and ESLint with zero errors and the existing 17 warnings.
+  Independent review found no remaining blocking issues.
+- The phone-sized browser regression receives three roots and two thread replies through live sync, verifies their persistence, reduces the saved SDK sync to its newest root, and holds every Matrix response during reopen.
+  The production build restores all three roots through initial hydration and shows cached replies when opening a thread in Chromium and WebKit.
+  Unchanged `dev` fails the room hydration assertion and relies on later cache pagination instead.
+  Changed-source formatting, browser-test typecheck, and whitespace checks also pass.
+- The initial cache read remains bounded to 200 room events; this fix does not promise that all room history appears in the first browser frame.
+  Physical iPhone startup timing remains unverified.
+
 ### Coalesce untouched thread sync gaps (2026-09-19)
 
 - Limited room syncs retain one pending gap per initialized dormant thread instead of allocating another empty timeline each time.
