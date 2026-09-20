@@ -29,9 +29,9 @@ test('tracks light without rebuilding the filter and releases it for accessibili
   // Let that layout and its ResizeObserver update settle before testing pointer motion.
   await page.evaluate(async () => {
     await document.fonts.ready;
-    await new Promise<void>((resolve) =>
-      requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
-    );
+    await new Promise<void>((resolve) => {
+      requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+    });
   });
   const filter = await menu.evaluate((element) =>
     element.style.getPropertyValue('--liquid-glass-filter')
