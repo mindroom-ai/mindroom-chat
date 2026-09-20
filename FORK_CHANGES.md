@@ -9,6 +9,9 @@
 - File/media attachment shells, link previews, pasted-text cards, uploads, and message extras use the shared panel material.
   Existing outlines remain available when masked rims are unsupported or transparency is disabled, including CanvasText boundaries in forced colors.
   Progress/error colors, focus, and content rendering remain intact; dense inline reactions and status badges keep their existing treatment.
+- Thread banners use the composer's control material, including its soft outer shadow around the shared directional rim.
+  Floating blur stays at 3 px, dark tint stays at 72%, and resolved banners retain their success color.
+  Light tint follows the composer at 58% instead of the panel's 60%.
 - A real-component gallery captures every changed style before and after in Chromium/WebKit and light/dark themes.
   Eight new browser checks pass, including rim sampling, pause/resume, disclosure, keyboard activation, and high contrast; all four rim cases fail against the previous styles.
   All 4,741 unit tests, typecheck, production/PWA build, and lint pass with the existing 17 warnings.
