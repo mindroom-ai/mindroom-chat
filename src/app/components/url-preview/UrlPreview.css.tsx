@@ -1,14 +1,14 @@
 import { style } from '@vanilla-extract/css';
 import { DefaultReset, color, config, toRem } from 'folds';
+import { glassSurface } from '../../styles/Glass.css';
 
 export const UrlPreview = style([
   DefaultReset,
+  glassSurface({ level: 'panel', variant: 'SurfaceVariant' }),
   {
     width: toRem(400),
     minHeight: toRem(102),
-    backgroundColor: color.SurfaceVariant.Container,
     color: color.SurfaceVariant.OnContainer,
-    border: `${config.borderWidth.B300} solid ${color.SurfaceVariant.ContainerLine}`,
     borderRadius: config.radii.R300,
     overflow: 'hidden',
   },

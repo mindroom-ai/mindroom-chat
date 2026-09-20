@@ -2,6 +2,19 @@
 
 ## Runbook
 
+### Match remaining chat controls and attachment shells (2026-09-20)
+
+- Recording controls, message expansion buttons, and timeline navigation/pagination chips reuse the shared glass control material and directional rim.
+  Floating message buttons use the existing lighter blur preset; recording retains its existing optical filter.
+- File/media attachment shells, link previews, pasted-text cards, uploads, and message extras use the shared panel material.
+  Optional outlines remain available when masked rims are unsupported, without stacking a uniform line over normal glass.
+  Progress/error colors, focus, and content rendering remain intact; dense inline reactions and status badges keep their existing treatment.
+- A real-component gallery captures every changed style before and after in Chromium/WebKit and light/dark themes.
+  Eight new browser checks pass, including rim sampling, pause/resume, disclosure, keyboard activation, and high contrast; all four rim cases fail against the previous styles.
+  Typecheck and production/PWA build pass.
+  All 4,741 unit tests pass; the shared glass suite and independent review are being finalized.
+  Linux WebKit captures do not reproduce native iOS backdrop blur; physical iPhone checks remain unavailable.
+
 ### Match message and approval glass rims (2026-09-20)
 
 - Inline AI summaries, tool disclosures, approval receipts, standalone requests, and review groups reuse the shared panel material and directional specular rim.

@@ -5,6 +5,7 @@ import { ContainerColor, color } from 'folds';
 const surfaceContainer = createVar();
 const surfaceHover = createVar();
 const surfaceActive = createVar();
+const surfaceLine = createVar();
 const surfaceTint = createVar();
 const surfaceBlur = createVar();
 const highlight = createVar();
@@ -21,6 +22,15 @@ const variantStyle = (variant: ContainerColor): StyleRule => ({
     [surfaceContainer]: color[variant].Container,
     [surfaceHover]: color[variant].ContainerHover,
     [surfaceActive]: color[variant].ContainerActive,
+    [surfaceLine]: color[variant].ContainerLine,
+  },
+});
+
+// Preserve optional outlines without painting over the directional glass rim.
+export const glassOutline = style({
+  selectors: { '&&': { boxShadow: `inset 0 0 0 1px ${surfaceLine}` } },
+  '@supports': {
+    [maskedRimSupport]: { selectors: { '&&': { boxShadow: glassShadow } } },
   },
 });
 

@@ -2,6 +2,72 @@ import { expect, test, type Locator, type Page } from '@playwright/test';
 import { contrastRatio, pixelDifference, sampleScreenshot, type Rgba } from './helpers/glassVisual';
 
 for (const theme of ['light', 'dark']) {
+  test(`chat controls and attachment shells have fading rims in ${theme}`, async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 1800 });
+    await page.goto(`/e2e/fixtures/glass-surfaces.html?controls&theme=${theme}`);
+    await page.evaluate(() => Promise.all([...document.fonts].map((font) => font.load())));
+    const surfaces = [
+      ...['recording', 'attachment', 'paste', 'upload', 'upload-error'].map((id) =>
+        page.getByTestId(id).locator(':scope > *')
+      ),
+      page.getByTestId('link'),
+      page.getByTestId('card-shells').locator('details'),
+      page.getByRole('button', { name: 'Show full message', exact: true }),
+      page.getByRole('button', { name: 'Jump to Latest', exact: true }),
+    ];
+    for (const surface of surfaces) {
+      await expect(surface).toBeInViewport({ ratio: 1 });
+      const box = (await surface.boundingBox())!;
+      const radius = await surface.evaluate((element) =>
+        parseFloat(getComputedStyle(element).borderTopLeftRadius)
+      );
+      const [lit, faded] = await sampleScreenshot(page, [
+        { x: box.x + Math.min(radius, box.height / 2) + 2, y: box.y },
+        { x: box.x + box.width / 2, y: box.y },
+      ]);
+      expect.soft(pixelDifference(lit, faded), `${surface} has a fading rim`).toBeGreaterThan(18);
+      expect
+        .soft(await surface.evaluate((element) => getComputedStyle(element).boxShadow))
+        .not.toContain('inset');
+    }
+  });
+
+  test(`chat glass keeps controls usable and respects high contrast in ${theme}`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 390, height: 1800 });
+    await page.goto(`/e2e/fixtures/glass-surfaces.html?controls&theme=${theme}`);
+    await page.getByRole('button', { name: 'Pause voice recording' }).click();
+    await expect(page.getByRole('button', { name: 'Resume voice recording' })).toBeEnabled();
+    await page.getByRole('button', { name: 'Resume voice recording' }).click();
+    await expect(page.getByRole('button', { name: 'Pause voice recording' })).toBeEnabled();
+    const disclosure = page.getByTestId('disclosure').getByRole('button');
+    await disclosure.click();
+    await expect(disclosure).toHaveAttribute('aria-expanded', 'true');
+    await disclosure.click();
+    await expect(disclosure).toHaveAttribute('aria-expanded', 'false');
+    const jump = page.getByRole('button', { name: 'Jump to Latest', exact: true });
+    await jump.focus();
+    await page.keyboard.press('Enter');
+    await expect(page.getByRole('status')).toHaveText('Jump to Latest');
+    const extras = page.getByTestId('card-shells').locator('details');
+    await extras.locator('summary').click();
+    await expect(extras.locator('pre')).toBeHidden();
+    await extras.locator('summary').click();
+    await expect(extras.locator('pre')).toBeVisible();
+    await expect(extras.locator('pre')).toHaveCSS('filter', 'none');
+    await expect(extras.locator('pre')).toHaveCSS('backdrop-filter', 'none');
+    await page.emulateMedia({ contrast: 'more' });
+    for (const surface of [page.getByTestId('link'), extras, jump, disclosure]) {
+      await expect(surface).toHaveCSS('backdrop-filter', 'none');
+      expect(
+        await surface.evaluate((element) => getComputedStyle(element, '::before').display)
+      ).toBe('none');
+    }
+  });
+}
+
+for (const theme of ['light', 'dark']) {
   test(`message cards share directional glass rims in ${theme}`, async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 1400 });
     await page.goto(`/e2e/fixtures/glass-surfaces.html?messages&theme=${theme}`);

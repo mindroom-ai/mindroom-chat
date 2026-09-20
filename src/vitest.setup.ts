@@ -9,6 +9,7 @@ vi.mock('./app/styles/Glass.css', () => ({
   glassShadow: '--glass-shadow',
   glassFloating: 'glass-floating',
   glassFlat: 'glass-flat',
+  glassOutline: 'glass-outline',
   glassSurface: () => 'glass-surface',
 }));
 vi.mock('./app/components/glass/Surface.css', () => ({
@@ -32,7 +33,7 @@ vi.mock('./app/mindroom/threads/RoomOverlay.css', () => ({
 vi.mock('./app/components/glass/GlassPrimitives', async () => {
   const folds = await import('folds');
   const wrappers: Record<string, unknown> = {};
-  (['Menu', 'MenuItem', 'Modal', 'Dialog', 'Header', 'IconButton'] as const).forEach((name) => {
+  (['Menu', 'MenuItem', 'Modal', 'Dialog', 'Header', 'IconButton', 'Chip'] as const).forEach((name) => {
     Object.defineProperty(wrappers, name, {
       enumerable: true,
       get: () => folds[name],
