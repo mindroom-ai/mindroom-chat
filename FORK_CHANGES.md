@@ -2,6 +2,25 @@
 
 ## Runbook
 
+### Match settings glass and iOS safe-area painting (2026-09-20)
+
+- Settings navigation headers inherit the enclosing modal material, matching settings subpages and removing the separate fill beside the scrollbar gutter.
+  Standalone navigation retains its sticky glass header.
+- The iOS bridge overrides the StatusBar plugin configuration to let the WebView paint behind the status bar.
+  Existing `viewport-fit=cover` and root safe-area padding keep navigation below the cutout, while modal backdrops cover the whole screen and the residual native status-bar inset no longer leaves a gap above sync banners.
+  The shared Android inset configuration stays unchanged.
+- Splash screens no longer toggle native WebView geometry when mounting or unmounting.
+  Native status icons follow the active web theme; the bridge preserves an already resolved icon style when Capacitor reapplies startup settings after native screens close.
+- The earlier native-inset workaround predates `viewport-fit=cover`.
+  Browser coverage checks transparent settings navigation in light and dark themes, a 59 px safe-area inset, matching background pixels across that inset, and backdrop restoration after closing settings.
+  Native plugin boundary tests cover both icon schemes and browser isolation.
+- Validation: all 4,731 tests across 555 files pass under Node 24 with limited worker concurrency, along with typecheck, production/PWA build, App Store preflight, formatting, and whitespace checks.
+  ESLint reports zero errors and the existing 17 warnings.
+  All 19 Chromium and 17 WebKit glass fixture cases pass across the suite and isolated reruns; the two CDP safe-area cases are skipped on WebKit.
+  Browser reruns resolved a Chromium click timeout and WebKit screenshot failures accompanied by a browser-process crash.
+  Independent review found no remaining issues.
+  Native compilation and physical iPhone checks remain unverified; check the cutout, sync banner, keyboard, and status icons before and after dismissing native screens on an Apple build.
+
 ### Drag zoomed images with touch (2026-09-20)
 
 - The image viewer previously handled pinch zoom on touchscreens but only accepted mouse input for panning.
