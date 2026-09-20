@@ -18,7 +18,11 @@ const longTextMocks = vi.hoisted(() => ({
   hydrateMindroomLongTextSource: vi.fn(),
 }));
 const hookMocks = vi.hoisted(() => ({
-  mx: {},
+  mx: {
+    getAccessToken: vi.fn(() => undefined),
+    getHomeserverUrl: vi.fn(() => 'https://example.org'),
+    getSafeUserId: vi.fn(() => '@alice:example.org'),
+  },
 }));
 
 vi.mock('../../utils/matrix', () => ({
@@ -414,10 +418,11 @@ describe('downloadMindroomLongTextSidecarText', () => {
     expect(matrixMocks.downloadMedia).toHaveBeenCalledWith(
       'https://example.org/_matrix/media/v3/download/server/content'
     );
-    expect(downloadedBlob).toBe(blob);
+    expect(downloadedBlob.type).toBe(blob.type);
+    expect(await downloadedBlob.text()).toBe('raw-content');
   });
 
-  it('downloads encrypted sidecar content using downloadEncryptedMedia + decryptFile', async () => {
+  it('downloads encrypted sidecar cipher bytes and decrypts only the consumer blob', async () => {
     const downloadMindroomLongTextSidecarText = await getDownloadMindroomLongTextSidecarText();
     const encryptedFile: IEncryptedFile = {
       url: 'mxc://server/encrypted',
@@ -438,9 +443,8 @@ describe('downloadMindroomLongTextSidecarText', () => {
         type: 'application/json',
       })
     );
-    matrixMocks.downloadEncryptedMedia.mockImplementation(
-      async (_url: string, decryptContent: (buf: ArrayBuffer) => Promise<Blob>) =>
-        decryptContent(new ArrayBuffer(32))
+    matrixMocks.downloadMedia.mockResolvedValue(
+      new Blob([new Uint8Array(32)], { type: 'application/octet-stream' })
     );
 
     const text = await downloadMindroomLongTextSidecarText(
@@ -457,17 +461,15 @@ describe('downloadMindroomLongTextSidecarText', () => {
       true
     );
 
-    expect(matrixMocks.downloadEncryptedMedia).toHaveBeenCalledWith(
-      mediaUrl,
-      expect.any(Function),
-      { headers: { Authorization: 'Bearer access-token' } }
-    );
+    expect(matrixMocks.downloadMedia).toHaveBeenCalledWith(mediaUrl, {
+      headers: { Authorization: 'Bearer access-token' },
+    });
     expect(matrixMocks.decryptFile).toHaveBeenCalledWith(
       expect.any(ArrayBuffer),
       'application/json',
       encryptedFile
     );
-    expect(matrixMocks.downloadMedia).not.toHaveBeenCalled();
+    expect(matrixMocks.downloadEncryptedMedia).not.toHaveBeenCalled();
     expect(text).toContain('"body":"decrypted response"');
   });
 });

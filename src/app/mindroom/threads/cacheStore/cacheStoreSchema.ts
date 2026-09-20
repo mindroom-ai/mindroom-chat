@@ -1,7 +1,10 @@
 import type { IEvent } from 'matrix-js-sdk';
 import type { CachedPaginationTokenMap } from '../eventCacheTokenUtils';
 
-// CINNY-207 P2.1: single-DB schema v3 for the unified CacheStore. The
+// The unified CacheStore originated at schema v3 with event, metadata,
+// ledger, and summary stores. Schema v4 adds raw attachment payloads and
+// per-room references without replacing any v3 data.
+//
 // per-domain caches (`roomEventCache`, `threadEventCache`,
 // `threadSummaryCache`) collapse into one IDB database with three data
 // stores plus a per-room ledger store prepared for P2.2 eviction.
@@ -10,8 +13,10 @@ import type { CachedPaginationTokenMap } from '../eventCacheTokenUtils';
 // `getCacheStoreDbName` in `cacheStoreDb.ts` via `getSessionScopedStorageKey`.
 
 export const MINDROOM_CACHE_DB_BASE_NAME = 'mindroom-cache';
-export const CACHE_STORE_DB_VERSION = 3;
+export const CACHE_STORE_DB_VERSION = 4;
 
+export const ATTACHMENTS_STORE = 'attachments';
+export const ATTACHMENT_REFERENCES_STORE = 'attachment_references';
 export const EVENTS_STORE = 'events';
 export const META_STORE = 'meta';
 export const ROOM_LEDGER_STORE = 'room_ledger';
@@ -23,6 +28,8 @@ export const THREAD_SUMMARIES_STORE = 'thread_summaries';
 // indexes with a single shared shape so both cursors reuse the same core.
 export const EVENTS_BY_SCOPE_TS_INDEX = 'by_scope_ts';
 export const THREAD_SUMMARIES_BY_ROOM_INDEX = 'by_room';
+export const ATTACHMENT_REFERENCES_BY_ROOM_INDEX = 'by_room';
+export const ATTACHMENT_REFERENCES_BY_ATTACHMENT_INDEX = 'by_attachment';
 
 // Scope constant used by the room timeline (empty string sorts before any
 // thread id). Callers pass a threadId (which starts with `$` in Matrix
@@ -171,6 +178,26 @@ export type CachedThreadSummaryRecord = {
   updatedAt: number;
 };
 
+export type CachedAttachmentRecord = {
+  mxcUri: string;
+  bytes: ArrayBuffer;
+  mimeType: string;
+  byteLength: number;
+  essential: boolean;
+  storedAt: number;
+  lastAccessedAt: number;
+};
+
+export type CachedAttachmentReferenceRecord = {
+  referenceKey: string;
+  mxcUri: string;
+  roomId: string;
+  byteLength: number;
+  essential: boolean;
+  status: 'cached';
+  updatedAt: number;
+};
+
 // --- Key builders ---
 
 export const buildEventCacheKey = (roomId: string, scope: string, eventId: string): string =>
@@ -180,6 +207,9 @@ export const buildMetaKey = (roomId: string, scope: string): string => `${roomId
 
 export const buildSummaryCacheKey = (roomId: string, threadRootId: string): string =>
   `${roomId}|${threadRootId}`;
+
+export const buildAttachmentReferenceKey = (roomId: string, mxcUri: string): string =>
+  JSON.stringify([roomId, mxcUri]);
 
 // Approximate size of an event's on-disk footprint. Uses JSON serialization
 // length as a fast, deterministic proxy; the ledger's job in P2.2 is

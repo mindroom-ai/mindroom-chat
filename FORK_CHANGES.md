@@ -2,6 +2,16 @@
 
 ## Runbook
 
+### Persist essential message bodies for offline restart (2026-09-20)
+
+- The existing session-scoped `mindroom-cache` database is schema v4. It adds immutable raw attachment payloads plus indexed room references while preserving all four v3 stores and their data.
+- `downloadCachedAttachment(mx, source, useAuthentication, options?)` owns authenticated media transport, one-fetch concurrency, persistent raw-byte reads and writes, size limits, caller aborts, and consumer-time decryption. Its storage identity is the account-scoped MXC URI; encryption keys remain in message metadata and stored encrypted payloads remain cipher bytes.
+- `getCachedAttachmentCacheMetadata(mx, mxcUri)` reports committed payload and room-reference metadata. A successful interactive download does not imply offline coverage when IndexedDB is unavailable or a write fails.
+- Room references record MXC URI, room id, byte length, essential flag, `cached` status, and update time. Essential promotion is monotonic across cached hits and concurrent callers. Registering absent references and optional-media eviction remain follow-up policy work.
+- Generic sidecars persist as ordinary attachments. Long-text message bodies explicitly request essential retention and can hydrate after the parsed in-memory cache is discarded and network transport is unavailable.
+- Session cache deletion and app-wide in-memory cleanup revoke outstanding attachment write leases before clearing state, so a transport completion from an old session cannot recreate deleted payloads.
+- Validation: the full Node 24 suite passes (`557` files, `4,737` tests), including focused cache/message coverage (`22` files, `173` tests); `npm run typecheck` and `npm run build` pass; `npm run lint` passes with the existing `17` warnings and no errors.
+
 ### Restore iOS archives after archived-room module collision (2026-09-20)
 
 - Xcode Cloud build 254 failed during the web build in `ci_pre_xcodebuild.sh` because `ARCHIVED_ROOMS_SETTINGS_PAGE` was resolved from the state module instead of the settings component.

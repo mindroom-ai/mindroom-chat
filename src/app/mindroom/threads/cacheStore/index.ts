@@ -4,6 +4,10 @@
 // in commit 4 of the P2.1 stack.
 
 export {
+  ATTACHMENTS_STORE,
+  ATTACHMENT_REFERENCES_STORE,
+  ATTACHMENT_REFERENCES_BY_ROOM_INDEX,
+  ATTACHMENT_REFERENCES_BY_ATTACHMENT_INDEX,
   MINDROOM_CACHE_DB_BASE_NAME,
   CACHE_STORE_DB_VERSION,
   MAX_CACHE_BEFORE_TOKENS,
@@ -19,16 +23,31 @@ export {
   THREAD_SUMMARIES_BY_ROOM_INDEX,
   LEGACY_WIPE_MARKER_META_KEY,
   type CachedEventRecord,
+  type CachedAttachmentRecord,
+  type CachedAttachmentReferenceRecord,
   type CachedMetaRecord,
   type CachedRoomLedgerRecord,
 } from './cacheStoreSchema';
 
 export {
+  captureCacheStoreWriteLease,
   getCacheStoreDbName,
   deleteCacheStoreDb,
   openCacheStore,
   resetCacheStoreForTesting,
+  revokeAllCacheStoreWrites,
+  revokeCacheStoreWrites,
+  type CacheStoreWriteLease,
 } from './cacheStoreDb';
+
+export {
+  getCachedAttachmentMetadata,
+  loadCachedAttachment,
+  putCachedAttachment,
+  type CacheAttachmentWriteOptions,
+  type CacheAttachmentWriteStatus,
+  type CachedAttachmentMetadata,
+} from './cacheStoreAttachments';
 
 export {
   filterPageableCachedThreadEvents,

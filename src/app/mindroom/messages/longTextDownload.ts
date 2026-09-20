@@ -43,7 +43,8 @@ export const downloadMindroomLongTextSidecarBlob = async (
     mx,
     source,
     useAuthentication,
-    getLongTextMimeType(source.previewContent)
+    getLongTextMimeType(source.previewContent),
+    { essential: true }
   );
 };
 
