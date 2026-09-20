@@ -2,6 +2,18 @@
 
 ## Runbook
 
+### Drag zoomed images with touch (2026-09-20)
+
+- The image viewer previously handled pinch zoom on touchscreens but only accepted mouse input for panning.
+  Pointer events now support touch, mouse, and pen dragging on the viewer surface, including continuing with one finger after a pinch.
+- Drag movement stays in screen pixels at every zoom level, and transform animation is disabled while dragging.
+  Pointer capture keeps drags active outside the image, while cancellation and lost capture end tracking and returning to 100% resets the offset.
+- Regression coverage checks pinch handoff, repeated drags, cancellation, normal-size reset, and secondary mouse buttons.
+  Chromium browser coverage exercises real injected touch gestures and desktop dragging against the production viewer.
+- Validation: all 4,738 tests across 556 files, typecheck, production/PWA build, and both browser cases pass.
+  ESLint reports zero errors and the existing 17 warnings; independent review found no actionable issues.
+  Physical iPhone validation remains unavailable on this Linux host.
+
 ### Preserve custom HTML rendering after grouped tool markers (2026-09-20)
 
 - Status: fixed, locally validated, and independently reviewed with no findings.
