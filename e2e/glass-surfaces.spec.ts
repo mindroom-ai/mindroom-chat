@@ -1,7 +1,54 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { contrastRatio, pixelDifference, sampleScreenshot, type Rgba } from './helpers/glassVisual';
 
+for (const theme of ['light', 'silver', 'dark', 'midnight', 'butter']) {
+  test(`thread and audio rims have visible directional contrast in ${theme}`, async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 1600 });
+    await page.goto(`/e2e/fixtures/glass-surfaces.html?theme=${theme}`);
+    // The fixture uses the real, plain chat background so colors cannot hide a missing rim.
+    for (const surface of [
+      page.getByTestId('thread-banner'),
+      page.getByTestId('audio-host').locator(':scope > div > div').last(),
+    ]) {
+      await expect(surface).toBeVisible();
+      await expect(surface).toBeInViewport({ ratio: 1 });
+      const box = (await surface.boundingBox())!;
+      const radius = await surface.evaluate((element) =>
+        Number.parseFloat(getComputedStyle(element).borderTopLeftRadius)
+      );
+      const [lit, faded] = await sampleScreenshot(page, [
+        { x: box.x + radius + 2, y: box.y },
+        { x: box.x + box.width / 2, y: box.y },
+      ]);
+      // Sample along one straight edge: a uniform outline, two differently
+      // colored sides, and a white-on-white highlight must all fail.
+      expect.soft(pixelDifference(lit, faded)).toBeGreaterThan(36);
+      // The mask must leave the center clear; a full-surface gradient would
+      // satisfy the edge assertion while washing out content and transparency.
+      const interior = { x: box.x + box.width / 2, y: box.y + box.height - 6 };
+      const [withRim] = await sampleScreenshot(page, [interior]);
+      await surface.evaluate((element) => element.setAttribute('data-rim-probe', ''));
+      const hideRim = await page.addStyleTag({
+        content: '[data-rim-probe]::before { display: none !important; }',
+      });
+      expect(await sampleScreenshot(page, [interior])).toEqual([withRim]);
+      await hideRim.evaluate((element) => element.remove());
+      await surface.evaluate((element) => element.removeAttribute('data-rim-probe'));
+    }
+  });
+}
+
 for (const theme of ['light', 'dark']) {
+  test(`flat navigation stays rimless in ${theme}`, async ({ page }) => {
+    await page.goto(`/e2e/fixtures/glass-surfaces.html?theme=${theme}`);
+    const header = page.getByTestId('standalone-nav-header');
+    await expect(header).not.toHaveCSS('backdrop-filter', 'none');
+    await expect(header).toHaveCSS('box-shadow', 'none');
+    expect(await header.evaluate((element) => getComputedStyle(element, '::before').display)).toBe(
+      'none'
+    );
+  });
+
   test(`safe area shares the app and modal backdrop in ${theme}`, async ({ page, browserName }) => {
     test.skip(browserName !== 'chromium', 'Safe-area emulation requires CDP');
     await page.setViewportSize({ width: 390, height: 844 });
@@ -262,6 +309,13 @@ const expectOpaqueFallback = async (page: Page) => {
     ['audio', page.getByTestId('audio-host').locator(':scope > div > div').last()],
   ] as const) {
     await expect(surface).toHaveCSS('backdrop-filter', 'none');
+    expect(
+      await surface.evaluate((element) => {
+        const rim = getComputedStyle(element, '::before');
+        return rim.display === 'none' || rim.content === 'none';
+      }),
+      `${name} has no specular rim in opaque mode`
+    ).toBe(true);
     expect(await surface.evaluate((element) => getComputedStyle(element).backgroundImage)).toBe(
       'none'
     );
