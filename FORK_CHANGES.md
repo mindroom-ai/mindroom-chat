@@ -2,6 +2,19 @@
 
 ## Runbook
 
+### Run browser specs in parallel (2026-09-20)
+
+- Use `npm run test:e2e:parallel -- --jobs 8`; `--list` shows all configured spec/project jobs.
+  `docs/testing.md` gives explicit Matrix, preview, Vite, and optional integration setup; `AGENTS.md` points to it.
+- One scheduler reuses the existing account and fixture scripts, isolates accounts and output per job, and runs timing-sensitive specs after the parallel queue.
+  It preserves failures and skips, reports missing external fixtures as blocked, and stops child process groups on interruption.
+  The caller owns infrastructure; Linux hosts can run the whole scheduler in the official Playwright image.
+- Validation: four scheduler tests, all 4,741 unit tests, typecheck, production/PWA build, and focused lint/format checks pass.
+  Discovery lists 111 spec/project jobs and 276 cases; container checks verify blocked integrations and interruption without stopping caller-owned services.
+  The browser smoke run passed seven cases and reported four settings-header failures; direct Playwright execution reproduced the same blur assertion without the scheduler.
+  The full slow suite was not rerun; settings-header, fold-anchor, and software-compositor failures remain strict and documented.
+  Next validation: run the full slow suite with the documented prerequisites and record its outcome.
+
 ### Match settings glass and iOS safe-area painting (2026-09-20)
 
 - Settings navigation headers inherit the enclosing modal material, matching settings subpages and removing the separate fill beside the scrollbar gutter.

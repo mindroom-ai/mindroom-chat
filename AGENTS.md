@@ -35,6 +35,11 @@ Treat the Runbook section in `FORK_CHANGES.md` as a living document and keep it 
 
 ## Testing notes
 
+- Run the full browser suite with `npm run test:e2e:parallel -- --jobs 8`.
+  Start with `npm run test:e2e:parallel -- --list` to inspect coverage without starting services.
+  Read `docs/testing.md` for prerequisites, external worker/SSO fixtures, reports, reruns, and Linux browser containers.
+  The runner isolates accounts and artifacts per spec and runs timing-sensitive probes sequentially after the parallel queue.
+  Do not replace this with Playwright `--workers=8`: tests within a spec share mutable accounts.
 - For room/thread behavior, prefer dedicated behavioral tests over growing `RoomTimeline.test.ts` further.
   Route, filter, compact/expanded, and cache interactions regress across surfaces and are easier to verify in focused unit files plus live Playwright specs.
 - When changing thread summaries, deep links, or room view mode behavior, verify both room overview and thread banner surfaces.
