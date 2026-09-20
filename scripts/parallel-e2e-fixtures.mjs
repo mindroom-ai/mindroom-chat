@@ -214,12 +214,10 @@ export const provisionSpec = async ({
   runId,
   index,
   productionURL,
-  developmentURL,
   runSeed,
   signal,
 }) => {
   if (typeof runSeed !== 'function') throw new Error('A fixture seed callback is required.');
-  void developmentURL;
   throwIfCancelled(signal);
 
   const unique = `${jobPart(runId)}${jobPart(index)}${randomBytes(6).toString('hex')}`;

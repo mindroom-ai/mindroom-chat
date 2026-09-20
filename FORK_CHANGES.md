@@ -15,8 +15,12 @@
   Cleanup targets only this invocation's processes, browser containers, Matrix project, and disposable volume.
 - Runner behavioral tests cover discovery, scheduling, cancellation, process cleanup, account isolation, special fixtures, and failure reporting; PR CI runs these fast checks through `npm run test:e2e:runner`.
   The slow browser suite remains explicitly invoked.
-- Validation: all 28 runner tests and a 32-case browser smoke run passed, covering isolated account storage, Chromium/WebKit source fixtures, and the sequential minimap fixture.
-  Typecheck, runner ESLint, and changed-file formatting passed; independent review found no blocking issues.
+- Validation: all 37 runner tests and 4,746 application unit tests passed on current `dev`.
+  A 32-case browser smoke run covered isolated account storage, Chromium/WebKit source fixtures, and the sequential minimap fixture; both newly discovered image-viewer cases also passed through the build-from-scratch path.
+  Missing external prerequisites produced two blocked jobs/four unrun cases and exit 1; interrupting two active browser containers produced exit 130 and removed the owned containers, network, and volume.
+  Review follow-ups remove an unused fixture parameter, reject native Windows before spawning, retry port collisions, wait for the owned Vite listener, and report failed browser-container cleanup.
+  All three cases in the post-review production/Vite smoke run passed.
+  Typecheck, production/PWA build, runner ESLint, and changed-file formatting passed; independent review found no blocking issues.
   The complete slow suite was not repeated for this runner change; the strict fold-anchor and software-compositor failures from the preceding validation remain visible and unchanged.
 
 ### Drag zoomed images with touch (2026-09-20)

@@ -3,7 +3,6 @@
 
 import { randomUUID } from 'node:crypto';
 import { access, cp, mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
-import { createServer } from 'node:net';
 import { dirname, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
@@ -13,9 +12,11 @@ import {
   runJobs,
   summarizeJob,
   usesDevelopmentServer,
+  cleanupContainers,
 } from './parallel-e2e.mjs';
 import { createProcessManager } from './parallel-e2e-process.mjs';
 import { provisionSpec } from './parallel-e2e-fixtures.mjs';
+import { bindCollisionError, waitForServer, withAvailablePort } from './parallel-e2e-ports.mjs';
 
 const repo = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const cli = resolve(repo, 'node_modules/@playwright/test/cli.js');
@@ -25,6 +26,7 @@ const help = `Usage: npm run test:e2e:parallel -- [options] [e2e/file.spec.ts ..
 Discover all Playwright configurations, run isolated specs concurrently, then
 run timing-sensitive specs alone. Requires Node 22+, Docker Compose, npm ci,
 and installed Playwright browsers (npx playwright install --with-deps).
+Supported hosts: Linux, macOS, or WSL; native Windows is not supported.
 
   --jobs N                 Concurrent spec processes (default: up to 8)
   --list                   Print the complete plan without starting services
@@ -41,46 +43,6 @@ Missing external fixtures, failed specs, missing reports, or interrupted work
 produce a nonzero exit. Platform skips remain visible in summary.json.
 See docs/testing.md for setup, complete coverage, reruns, and known failures.
 `;
-
-const unusedPort = () =>
-  new Promise((resolvePort, reject) => {
-    const server = createServer();
-    server.on('error', reject);
-    server.listen(0, '127.0.0.1', () => {
-      const { port } = server.address();
-      server.close((error) => (error ? reject(error) : resolvePort(port)));
-    });
-  });
-
-const waitForServer = async (url, handle, signal) => {
-  let exited = false;
-  handle?.exited.then(
-    () => {
-      exited = true;
-    },
-    () => {
-      exited = true;
-    }
-  );
-  const deadline = Date.now() + 120_000;
-  while (Date.now() < deadline) {
-    signal.throwIfAborted();
-    if (exited) throw new Error(`Server exited before becoming ready: ${url}`);
-    try {
-      const response = await fetch(url, {
-        signal: AbortSignal.any([signal, AbortSignal.timeout(3000)]),
-      });
-      await response.body?.cancel();
-      if (response.ok) return;
-    } catch (error) {
-      if (signal.aborted) throw error;
-    }
-    await new Promise((done) => {
-      setTimeout(done, 250);
-    });
-  }
-  throw new Error(`Server did not become ready: ${url}`);
-};
 
 async function main(options) {
   const runId = `${Date.now().toString(36)}-${randomUUID().slice(0, 8)}`;
@@ -108,6 +70,23 @@ async function main(options) {
       );
     return result;
   };
+  const startApp = (label, args) =>
+    withAvailablePort(async (port, attempt) => {
+      const url = `http://127.0.0.1:${port}`;
+      const logFile = resolve(directory, `${label}${attempt ? `-${attempt}` : ''}.log`);
+      const handle = manager.start(
+        process.execPath,
+        [vite, ...args, '--host', '127.0.0.1', '--port', String(port), '--strictPort'],
+        { logFile }
+      );
+      try {
+        await waitForServer(url, handle, abort.signal);
+        return url;
+      } catch (error) {
+        await handle.stop();
+        throw bindCollisionError(error, await readFile(logFile, 'utf8').catch(() => ''));
+      }
+    });
   let composeStarted = false;
   let composeArgs;
   let composeEnv;
@@ -187,13 +166,6 @@ async function main(options) {
         });
     }
 
-    const matrixPort = await unusedPort();
-    const homeserver = `http://127.0.0.1:${matrixPort}`;
-    composeEnv = {
-      E2E_MATRIX_PORT: `127.0.0.1:${matrixPort}`,
-      E2E_MATRIX_SERVER_NAME: 'matrix.localhost',
-      E2E_HOMESERVER_PUBLIC_URL: homeserver,
-    };
     composeArgs = [
       'compose',
       '-p',
@@ -202,11 +174,22 @@ async function main(options) {
       resolve(repo, 'e2e/docker-compose.matrix.yaml'),
     ];
     composeStarted = true;
-    await checked('docker', [...composeArgs, 'up', '-d'], {
-      env: composeEnv,
-      logFile: resolve(directory, 'matrix.log'),
+    const homeserver = await withAvailablePort(async (port, attempt) => {
+      const url = `http://127.0.0.1:${port}`;
+      composeEnv = {
+        E2E_MATRIX_PORT: `127.0.0.1:${port}`,
+        E2E_MATRIX_SERVER_NAME: 'matrix.localhost',
+        E2E_HOMESERVER_PUBLIC_URL: url,
+      };
+      const logFile = resolve(directory, `matrix${attempt ? `-${attempt}` : ''}.log`);
+      try {
+        await checked('docker', [...composeArgs, 'up', '-d'], { env: composeEnv, logFile });
+        await waitForServer(`${url}/_matrix/client/versions`, null, abort.signal);
+        return url;
+      } catch (error) {
+        throw bindCollisionError(error, await readFile(logFile, 'utf8').catch(() => ''));
+      }
     });
-    await waitForServer(`${homeserver}/_matrix/client/versions`, null, abort.signal);
 
     let productionURL = options.productionURL;
     if (!productionURL) {
@@ -215,34 +198,10 @@ async function main(options) {
       await access(resolve(repo, 'dist/index.html'));
       const site = resolve(directory, 'site');
       await cp(resolve(repo, 'dist'), site, { recursive: true });
-      const port = await unusedPort();
-      productionURL = `http://127.0.0.1:${port}`;
-      const preview = manager.start(
-        process.execPath,
-        [
-          vite,
-          'preview',
-          '--host',
-          '127.0.0.1',
-          '--port',
-          String(port),
-          '--strictPort',
-          '--outDir',
-          site,
-        ],
-        { logFile: resolve(directory, 'preview.log') }
-      );
-      await waitForServer(productionURL, preview, abort.signal);
+      productionURL = await startApp('preview', ['preview', '--outDir', site]);
     } else await waitForServer(productionURL, null, abort.signal);
 
-    const developmentPort = await unusedPort();
-    const developmentURL = `http://127.0.0.1:${developmentPort}`;
-    const development = manager.start(
-      process.execPath,
-      [vite, '--host', '127.0.0.1', '--port', String(developmentPort), '--strictPort'],
-      { logFile: resolve(directory, 'vite.log') }
-    );
-    await waitForServer(developmentURL, development, abort.signal);
+    const developmentURL = await startApp('vite', []);
 
     const execute = async (job) => {
       const index = jobs.indexOf(job);
@@ -289,7 +248,6 @@ async function main(options) {
             runId,
             index,
             productionURL,
-            developmentURL,
             signal: abort.signal,
             runSeed: async (script, seedEnv) =>
               checked(process.execPath, [resolve(repo, script)], {
@@ -362,7 +320,6 @@ async function main(options) {
             ],
             { env, logFile: resolve(jobDirectory, 'playwright.log'), timeoutMs: 45 * 60_000 }
           );
-          containers.delete(name);
         } else {
           outcome = await jobManager.run(process.execPath, args, {
             env,
@@ -446,7 +403,20 @@ async function main(options) {
   } finally {
     await Promise.all(managers.map((item) => item.stopAll()));
     const cleanup = createProcessManager({ cwd: repo });
-    for (const name of containers) await cleanup.run('docker', ['rm', '-f', name]).catch(() => {});
+    const containerFailures = await cleanupContainers(containers, (name) =>
+      cleanup.run('docker', ['rm', '-f', name], {
+        logFile: resolve(directory, `${name}-cleanup.log`),
+        timeoutMs: 30_000,
+      })
+    );
+    if (containerFailures.length) {
+      summary.containerCleanupFailures = containerFailures;
+      summary.cleanupError = `Browser container cleanup failed: ${containerFailures
+        .map(({ name }) => name)
+        .join(', ')}. See the container cleanup logs in ${directory}.`;
+      console.error(summary.cleanupError);
+      await writeSummary();
+    }
     if (composeStarted) {
       const result = await cleanup
         .run('docker', [...composeArgs, 'down', '--volumes'], {
@@ -455,11 +425,9 @@ async function main(options) {
         })
         .catch(() => null);
       if (!result || result.code !== 0) {
-        summary.cleanupError = `Matrix cleanup failed; see ${resolve(
-          directory,
-          'matrix-cleanup.log'
-        )}`;
-        console.error(summary.cleanupError);
+        const error = `Matrix cleanup failed; see ${resolve(directory, 'matrix-cleanup.log')}`;
+        summary.cleanupError = [summary.cleanupError, error].filter(Boolean).join('\n');
+        console.error(error);
         await writeSummary();
       }
     }

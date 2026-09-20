@@ -98,7 +98,6 @@ const optionsFor = (stub, overrides = {}) => ({
   runId: 'run-42',
   index: 1,
   productionURL: 'http://127.0.0.1:28204',
-  developmentURL: 'http://127.0.0.1:4188',
   runSeed: async () => {},
   ...overrides,
 });

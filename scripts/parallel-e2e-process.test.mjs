@@ -49,6 +49,20 @@ afterEach(async () => {
   await rm(artifactRoot, { recursive: true, force: true });
 });
 
+test('rejects Windows before creating a manager or child process', async () => {
+  const platform = Object.getOwnPropertyDescriptor(process, 'platform');
+  Object.defineProperty(process, 'platform', { configurable: true, value: 'win32' });
+  try {
+    const module = new URL('./parallel-e2e-process.mjs', import.meta.url);
+    module.searchParams.set('platform-test', String(Date.now()));
+    const { createProcessManager: createWindowsManager } = await import(module.href);
+
+    assert.throws(() => createWindowsManager({ cwd: process.cwd() }), /Linux, macOS, or WSL/i);
+  } finally {
+    Object.defineProperty(process, 'platform', platform);
+  }
+});
+
 test('captures a nonzero exit without treating it as a spawn error', async () => {
   const processes = manager();
   const [command, args] = child("process.stdout.write('stdout'); process.exit(7);");

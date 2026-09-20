@@ -16,6 +16,23 @@ export const requireLoopback = (value) => {
   return url.origin;
 };
 
+export const cleanupContainers = async (names, remove) => {
+  const failures = [];
+  for (const name of names) {
+    try {
+      const result = await remove(name);
+      if (result.code !== 0)
+        failures.push({
+          name,
+          error: `Removal exited with status ${result.code ?? result.signal}`,
+        });
+    } catch (error) {
+      failures.push({ name, error: String(error.message ?? error) });
+    }
+  }
+  return failures;
+};
+
 export const parseArguments = (args) => {
   const options = {
     jobs: Math.min(8, Math.max(1, Math.floor(availableParallelism() / 2))),

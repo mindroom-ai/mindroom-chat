@@ -28,6 +28,9 @@ const settleLog = (stream) => {
 };
 
 export const createProcessManager = ({ cwd = process.cwd(), signal } = {}) => {
+  if (process.platform === 'win32') {
+    throw new Error('Parallel E2E process management requires Linux, macOS, or WSL.');
+  }
   const handles = new Set();
   let aborted = signal?.aborted ?? false;
   const onAbort = () => {
@@ -51,7 +54,7 @@ export const createProcessManager = ({ cwd = process.cwd(), signal } = {}) => {
     try {
       child = spawn(command, args, {
         cwd,
-        detached: process.platform !== 'win32',
+        detached: true,
         env: { ...process.env, ...env },
         shell: false,
         stdio: ['ignore', 'pipe', 'pipe'],
@@ -93,7 +96,7 @@ export const createProcessManager = ({ cwd = process.cwd(), signal } = {}) => {
     });
 
     const groupAlive = () => {
-      if (process.platform === 'win32' || !child.pid) return !settled;
+      if (!child.pid) return !settled;
       try {
         process.kill(-child.pid, 0);
         return true;
@@ -105,8 +108,7 @@ export const createProcessManager = ({ cwd = process.cwd(), signal } = {}) => {
 
     const signalChild = (childSignal) => {
       try {
-        if (process.platform === 'win32') child.kill(childSignal);
-        else if (child.pid) process.kill(-child.pid, childSignal);
+        if (child.pid) process.kill(-child.pid, childSignal);
       } catch (error) {
         if (error.code !== 'ESRCH') throw error;
       }
@@ -126,23 +128,7 @@ export const createProcessManager = ({ cwd = process.cwd(), signal } = {}) => {
           return;
         }
         signalChild('SIGTERM');
-        if (process.platform === 'win32') {
-          let timer;
-          try {
-            const stopped = await Promise.race([
-              exited.then(
-                () => true,
-                () => true
-              ),
-              new Promise((resolve) => {
-                timer = setTimeout(() => resolve(false), STOP_GRACE_MS);
-              }),
-            ]);
-            if (!stopped) signalChild('SIGKILL');
-          } finally {
-            clearTimeout(timer);
-          }
-        } else if (!(await waitForGroup())) {
+        if (!(await waitForGroup())) {
           signalChild('SIGKILL');
         }
         await exited.catch(() => {});

@@ -9,9 +9,11 @@ npm run test:e2e:parallel -- --jobs 8
 ```
 
 Use the Node version in `.node-version` and a running Docker daemon with Docker Compose.
+Supported hosts are Linux, macOS, and WSL; native Windows is rejected because cleanup requires POSIX process groups.
 The runner uses Node built-ins; it needs no Python, SSH access, fixed ports, or existing Matrix accounts.
 It starts a disposable local Matrix server, builds the application once, copies the build into the run directory, and starts a production preview plus a fresh Vite server.
 Matrix ports bind only to loopback.
+Startup retries port collisions up to three times and waits for the owned app server before accepting HTTP readiness.
 All services and the Matrix volume created by the runner are removed when it exits, including after Ctrl-C.
 Reports and the build snapshot remain available.
 
@@ -123,6 +125,7 @@ This mode requires Linux host networking and downloads the image matching the in
 It runs browser jobs with the current user's UID/GID and preserves reports on the host.
 `E2E_PLAYWRIGHT_IMAGE` can select an already prepared compatible image.
 Browser containers are separate from the disposable Matrix Compose project and are removed on completion or interruption.
+Failed cleanup records the affected container names and logs in `summary.json` and exits nonzero.
 
 ## Known unresolved browser checks
 

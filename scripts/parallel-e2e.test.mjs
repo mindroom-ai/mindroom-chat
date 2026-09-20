@@ -9,7 +9,22 @@ import {
   parseArguments,
   requireLoopback,
   usesDevelopmentServer,
+  cleanupContainers,
 } from './parallel-e2e.mjs';
+
+test('container cleanup retains every failed name and still attempts remaining removals', async () => {
+  const removed = [];
+  const failures = await cleanupContainers(['nonzero', 'throws', 'gone'], async (name) => {
+    removed.push(name);
+    if (name === 'throws') throw new Error('Docker unavailable');
+    return { code: name === 'nonzero' ? 1 : 0 };
+  });
+  assert.deepEqual(removed, ['nonzero', 'throws', 'gone']);
+  assert.deepEqual(failures, [
+    { name: 'nonzero', error: 'Removal exited with status 1' },
+    { name: 'throws', error: 'Docker unavailable' },
+  ]);
+});
 
 const report = (file, project, statuses = ['passed']) => ({
   config: { rootDir: '/repo/e2e' },
