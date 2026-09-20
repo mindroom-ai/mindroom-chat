@@ -404,7 +404,7 @@ test.describe('persisted historical room content', () => {
     serviceWorkers: 'allow',
   });
 
-  for (const change of ['edit', 'delete'] as const) {
+  for (const change of ['edit', 'inline', 'delete'] as const) {
     test(`keeps the server ${change} after older cached bodies and image downloads finish last`, async ({
       context,
       page,
@@ -447,47 +447,55 @@ test.describe('persisted historical room content', () => {
         const nextUris: string[] = [];
         const revisionIds: string[] = [];
         const eventIds = [fixture.bodyId, fixture.imageId];
-        if (change === 'edit') {
-          nextUris.push(
-            await uploadMedia(
-              homeserver,
-              fixture.session.accessToken,
-              Buffer.from(
-                JSON.stringify({
-                  msgtype: 'm.text',
-                  body: nextBody,
-                  format: 'org.matrix.custom.html',
-                  formatted_body: `<p>${nextBody}</p>`,
-                })
-              ),
-              'application/json'
-            )
-          );
-          nextUris.push(
-            await uploadMedia(
-              homeserver,
-              fixture.session.accessToken,
-              Buffer.from(
-                'iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAEUlEQVR4nGP4z8DwH4QZYAwAR8oH+WdZbrcAAAAASUVORK5CYII=',
-                'base64'
-              ),
-              'image/png'
-            )
-          );
-          const contents = [
-            {
-              msgtype: 'm.text',
-              body: 'Updated short preview',
-              url: nextUris[0],
-              'io.mindroom.long_text': { version: 2, encoding: 'matrix_event_content_json' },
-            },
-            {
-              msgtype: 'm.image',
-              body: 'Updated image',
-              url: nextUris[1],
-              info: { mimetype: 'image/png', w: 2, h: 2 },
-            },
-          ];
+        if (change !== 'delete') {
+          if (change === 'edit') {
+            nextUris.push(
+              await uploadMedia(
+                homeserver,
+                fixture.session.accessToken,
+                Buffer.from(
+                  JSON.stringify({
+                    msgtype: 'm.text',
+                    body: nextBody,
+                    format: 'org.matrix.custom.html',
+                    formatted_body: `<p>${nextBody}</p>`,
+                  })
+                ),
+                'application/json'
+              )
+            );
+            nextUris.push(
+              await uploadMedia(
+                homeserver,
+                fixture.session.accessToken,
+                Buffer.from(
+                  'iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAEUlEQVR4nGP4z8DwH4QZYAwAR8oH+WdZbrcAAAAASUVORK5CYII=',
+                  'base64'
+                ),
+                'image/png'
+              )
+            );
+          }
+          const contents =
+            change === 'inline'
+              ? [
+                  { msgtype: 'm.text', body: nextBody },
+                  { msgtype: 'm.text', body: 'Image replaced by plain text' },
+                ]
+              : [
+                  {
+                    msgtype: 'm.text',
+                    body: 'Updated short preview',
+                    url: nextUris[0],
+                    'io.mindroom.long_text': { version: 2, encoding: 'matrix_event_content_json' },
+                  },
+                  {
+                    msgtype: 'm.image',
+                    body: 'Updated image',
+                    url: nextUris[1],
+                    info: { mimetype: 'image/png', w: 2, h: 2 },
+                  },
+                ];
           for (const [index, content] of contents.entries()) {
             revisionIds.push(
               await sendRoomMessage(
@@ -521,7 +529,7 @@ test.describe('persisted historical room content', () => {
 
         const expectedCache = {
           oldBytes: 0,
-          liveEventIds: change === 'edit' ? [...eventIds].sort() : [],
+          liveEventIds: change !== 'delete' ? [...eventIds].sort() : [],
           mediaUris: [...nextUris].sort(),
           references: eventIds
             .map((eventId, index) => ({
@@ -541,19 +549,23 @@ test.describe('persisted historical room content', () => {
           await expect(currentPage.locator(`[data-message-id="${fixture!.rootId}"]`)).toBeVisible();
           await expect(currentPage.getByText(fullBody, { exact: true })).toHaveCount(0);
           const image = currentPage.locator(`[data-message-id="${fixture!.imageId}"] img`).last();
-          if (change === 'edit') {
-            await expect(
-              currentPage
-                .locator(`[data-message-id="${fixture!.bodyId}"]`)
-                .getByText(nextBody, { exact: true })
-            ).toBeVisible();
-            await expect
-              .poll(() =>
-                image.evaluate(
-                  (element: HTMLImageElement) => element.complete && element.naturalWidth
+          if (change !== 'delete') {
+            const body = currentPage.locator(`[data-message-id="${fixture!.bodyId}"]`);
+            await expect(body).toBeVisible();
+            await expect(body).toContainText(nextBody);
+            if (change === 'inline') {
+              await expect(image).toHaveCount(0);
+              await expect(
+                currentPage.locator(`[data-message-id="${fixture!.imageId}"]`)
+              ).toContainText('Image replaced by plain text');
+            } else
+              await expect
+                .poll(() =>
+                  image.evaluate(
+                    (element: HTMLImageElement) => element.complete && element.naturalWidth
+                  )
                 )
-              )
-              .toBe(2);
+                .toBe(2);
           } else {
             await expect(
               currentPage

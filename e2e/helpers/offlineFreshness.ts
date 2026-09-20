@@ -141,10 +141,12 @@ export const readOfflineFreshness = (
           liveEventIds: [...new Set(liveEvents.map((row) => row.eventId))].sort(),
           mediaUris: [
             ...new Set(
-              liveEvents.map((row) => {
-                const replacement = row.rawEvent.unsigned?.['m.relations']?.['m.replace'];
-                return (replacement?.content?.['m.new_content'] ?? row.rawEvent.content)?.url;
-              })
+              liveEvents
+                .map((row) => {
+                  const replacement = row.rawEvent.unsigned?.['m.relations']?.['m.replace'];
+                  return (replacement?.content?.['m.new_content'] ?? row.rawEvent.content)?.url;
+                })
+                .filter((uri): uri is string => typeof uri === 'string')
             ),
           ].sort(),
           references: references

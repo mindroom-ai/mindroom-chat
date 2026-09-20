@@ -904,14 +904,59 @@ export const persistThreadEventCacheSnapshot = ({
   };
 };
 
+/** Ownership follows canonical event persistence; transport admission must not delay retirement. */
+const registerCanonicalAttachmentOwners = async (
+  sessionId: string,
+  events: readonly MatrixEvent[],
+  writeLease: CacheStoreWriteLease
+): Promise<void> => {
+  for (const message of collectEventAttachments(events)) {
+    // Terminal redactions are already handled by CacheStore, including raw-only observations.
+    // Ordinary text without a replacement has no attachment ownership to update.
+    if (message.redacted || (!message.attachments.length && !message.revisionId)) continue;
+    const status = await replaceCachedAttachmentReferences(
+      sessionId,
+      message.roomId,
+      message.eventId,
+      message.revisionTs,
+      message.attachments,
+      writeLease,
+      message
+    );
+    if (status !== 'committed' && status !== 'revoked') {
+      throw new Error('Canonical attachment ownership did not commit');
+    }
+  }
+};
+
 /** Snapshot writer whose result distinguishes a committed transaction from a skipped/failed write. */
 export const persistThreadEventCacheSnapshotCommitted = (
   args: Omit<PersistThreadEventCacheSnapshotArgs, 'save'>
-): ThreadEventCacheSnapshotWrite =>
-  persistThreadEventCacheSnapshot({
+): ThreadEventCacheSnapshotWrite => {
+  const writeLease =
+    args.writeLease ?? captureCacheStoreWriteLease(args.sessionId, args.room.roomId);
+  const snapshot = persistThreadEventCacheSnapshot({
     ...args,
+    writeLease,
     save: saveThreadEventsToCacheCommitted,
   });
+  return {
+    ...snapshot,
+    write: snapshot.write.then(async (committed) => {
+      if (committed !== true) return committed;
+      try {
+        await registerCanonicalAttachmentOwners(
+          args.sessionId,
+          args.rootEvent ? [...args.events, args.rootEvent] : args.events,
+          writeLease
+        );
+        return isCacheStoreWriteLeaseCurrent(writeLease);
+      } catch {
+        return false;
+      }
+    }),
+  };
+};
 
 type ThreadCacheFromRoomEventsOptions = {
   threadScope?: { threadId: string; events: MatrixEvent[] };
@@ -1283,6 +1328,7 @@ export const persistRoomChunkWithPreferLive = async ({
   if (commitResults.some((committed) => committed !== true)) {
     throw new Error('cache chunk did not commit');
   }
+  await registerCanonicalAttachmentOwners(sessionId, resolvedEvents, writeLease);
   const undecrypted = new Set<string>();
   const processed = new Set<string>();
   resolvedEvents.forEach((event) => {

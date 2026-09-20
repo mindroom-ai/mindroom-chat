@@ -85,6 +85,7 @@ const identityMapper = (raw: Partial<IEvent>) => {
     | undefined;
   return {
     getId: () => raw.event_id ?? '',
+    getRoomId: () => raw.room_id,
     getType: () => raw.type,
     getTs: () => (raw.origin_server_ts as number) ?? 0,
     isRedaction: () => raw.type === 'm.room.redaction',

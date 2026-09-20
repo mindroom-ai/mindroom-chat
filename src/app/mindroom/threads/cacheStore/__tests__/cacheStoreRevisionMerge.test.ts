@@ -181,6 +181,39 @@ describe('cache storage same-ID revision merge', () => {
     }
   );
 
+  it('keeps shared attachment bytes until every message owner is deleted', async () => {
+    const payload = {
+      mxcUri: 'mxc://example.org/shared',
+      mimeType: 'text/plain',
+      bytes: new TextEncoder().encode('shared body').buffer,
+    };
+    const owners = [
+      { roomId: ROOM_ID, eventId: '$one' },
+      { roomId: ROOM_ID, eventId: '$two' },
+      { roomId: '!other:example.org', eventId: '$three' },
+    ];
+    for (const owner of owners) {
+      await replaceCachedAttachmentReferences(SESSION_ID, owner.roomId, owner.eventId, 100, [
+        { mxcUri: payload.mxcUri, essential: true },
+      ]);
+      await putCachedAttachment(SESSION_ID, payload, {
+        ...owner,
+        revisionTs: 100,
+        essential: true,
+      });
+    }
+    for (const [index, owner] of owners.entries()) {
+      const deletion = redaction(`$delete-${index}`, owner.eventId, 300);
+      await saveRoomEventsToCache(SESSION_ID, owner.roomId, [deletion]);
+      // Re-observing an already marked deletion must preserve the same surviving owners.
+      await saveRoomEventsToCache(SESSION_ID, owner.roomId, [deletion]);
+      const saved = await loadCachedAttachment(SESSION_ID, payload.mxcUri);
+      if (index < owners.length - 1) {
+        expect(new TextDecoder().decode(saved?.bytes)).toBe('shared body');
+      } else expect(saved).toBeUndefined();
+    }
+  });
+
   it('does not overwrite a redacted room event with stale plaintext', async () => {
     await saveRoomEventsToCache(SESSION_ID, ROOM_ID, [redacted('$room-event')]);
     await saveRoomEventsToCache(SESSION_ID, ROOM_ID, [message('$room-event', 'secret')]);

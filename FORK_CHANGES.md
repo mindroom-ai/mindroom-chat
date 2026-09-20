@@ -2,6 +2,23 @@
 
 ## Runbook
 
+### Cover overlapping streams and attachment ownership transitions (2026-09-20)
+
+- Real engine and IndexedDB regressions hold an old body download across two later edits, then check the latest saved body and removal of obsolete bytes without refocusing the room.
+  Both attachment-to-attachment and attachment-to-inline cases failed before the fix.
+- Canonical event persistence now updates attachment ownership independently of background download admission, including inline edits received through thread reconciliation.
+  Live attachment work uses the existing scheduler's abort-and-replace behavior so newer revisions are retained behind draining jobs.
+  Scheduler cancellation uses `AbortError`; a mixed-owner queued-batch regression proves superseding one owner does not discard other messages in that batch.
+- Browser freshness races now also replace long-text bodies and images with inline text, checking current rendering, retired bytes, late old work, and another offline reopen.
+  Shared-MXC deletion coverage goes through the real event-save boundary and preserves bytes until the last owner is deleted.
+- A cold-client repair regression restores an earlier attachment when the server supplies the surviving edit after the newest edit is redacted, rejects stale replay, and hydrates the saved canonical row offline without fetching.
+  Intermediate edits remain compacted away; recovering a discarded survivor requires server history.
+- Latest `dev` is integrated; all 565 files / 4,871 unit tests, application and browser-test typechecks, and production/PWA build pass.
+  ESLint has no errors and the existing 17 warnings.
+  Independent review found and verified the queued-cancellation fix, with no remaining findings.
+  The offline-content browser spec passes eight cases with two expected engine-specific skips, including six delayed-work freshness races across Chromium and WebKit.
+  Formatting and whitespace checks pass; physical iPhone lifecycle validation remains unavailable.
+
 ### Match message and approval glass rims (2026-09-20)
 
 - Inline AI summaries, tool disclosures, approval receipts, standalone requests, and review groups reuse the shared panel material and directional specular rim.

@@ -10,6 +10,10 @@ import {
 } from 'matrix-js-sdk';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { createMindroomSyncEngine } from '../mindroomSyncEngine';
+import { createSessionId } from '../../../state/sessions';
+import { createRoomOfflineController } from '../roomOffline';
+import { createBackfillScheduler } from '../backfillScheduler';
+import { resolvePrefetchConfig } from '../prefetchPolicy';
 import {
   loadCachedRoomEvent,
   loadRoomTailDiscontinuity,
@@ -1058,6 +1062,168 @@ it('streamed replacements persist and hydrate only the latest compacted body', a
     vi.useRealTimers();
     spy.mockRestore();
     scan.mockRestore();
+  }
+});
+
+it.each(['attachment', 'inline'] as const)(
+  'keeps the latest streamed %s revision when an older body download finishes last',
+  async (latestKind) => {
+    const { getCachedAttachmentMetadata, loadCachedAttachment, readRoomAttachmentStorage } =
+      await import('../../threads/cacheStore');
+    const f = fixture();
+    const engine = f.make();
+    const root = new MatrixEvent(raw('$overlapping-stream'));
+    f.room.findEventById = (id) => (id === root.getId() ? root : undefined);
+    f.mx.mxcUrlToHttp = (uri) => `https://test/${uri.split('/').pop()}`;
+    await saveRoomEventsToCacheCommitted(engine.sessionId, roomId, [root.event]);
+    engine.noteRoomFocused(roomId);
+    await vi.waitFor(() => expect(engine.offline.getSnapshot(roomId).status).toBe('ready'));
+    let releaseOld!: (response: Response) => void;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: string) =>
+        url.endsWith('/overlap-1')
+          ? new Promise<Response>((resolve) => {
+              releaseOld = resolve;
+            })
+          : Promise.resolve(
+              new Response(JSON.stringify({ msgtype: 'm.text', body: `full ${url}` }))
+            )
+      )
+    );
+    const emitEdit = (revision: number, inline = false) => {
+      const content = {
+        msgtype: 'm.text',
+        body: `revision ${revision}`,
+        ...(!inline && {
+          url: `mxc://test/overlap-${revision}`,
+          'io.mindroom.long_text': { version: 2, encoding: 'matrix_event_content_json' },
+        }),
+      };
+      const edit = new MatrixEvent({
+        ...raw(`$overlap-edit-${revision}`),
+        origin_server_ts: revision + 1,
+        content: {
+          ...content,
+          'm.new_content': content,
+          'm.relates_to': { rel_type: 'm.replace', event_id: root.getId()! },
+        },
+      });
+      root.makeReplaced(edit);
+      f.mx.emit(RoomEvent.Timeline, edit, f.room, false, false, { liveEvent: true } as never);
+    };
+    try {
+      emitEdit(1);
+      await vi.waitFor(() => expect(releaseOld).toBeDefined(), { timeout: 3000 });
+      for (const revision of [2, 3]) {
+        emitEdit(revision, revision === 3 && latestKind === 'inline');
+        await vi.waitFor(
+          async () => {
+            const cached = await loadCachedRoomEvent(engine.sessionId, roomId, root.getId()!);
+            expect(cached?.unsigned?.['m.relations']?.['m.replace']?.event_id).toBe(
+              `$overlap-edit-${revision}`
+            );
+          },
+          { timeout: 3000 }
+        );
+      }
+      releaseOld(new Response(JSON.stringify({ msgtype: 'm.text', body: 'old body' })));
+      await vi.waitFor(() => expect(engine.scheduler.pendingJobs()).toHaveLength(0));
+      await vi.waitFor(async () => {
+        if (latestKind === 'attachment') {
+          const latest = await getCachedAttachmentMetadata(
+            engine.sessionId,
+            'mxc://test/overlap-3'
+          );
+          expect(latest?.references).toEqual([
+            expect.objectContaining({
+              eventId: '$overlapping-stream',
+              revisionId: '$overlap-edit-3',
+              status: 'cached',
+            }),
+          ]);
+          const saved = await loadCachedAttachment(engine.sessionId, 'mxc://test/overlap-3');
+          expect(new TextDecoder().decode(saved!.bytes)).toContain('full https://test/overlap-3');
+        } else {
+          expect(await readRoomAttachmentStorage(engine.sessionId, roomId)).toMatchObject({
+            bytes: 0,
+            saved: 0,
+            missingEssential: 0,
+          });
+        }
+        expect(
+          await loadCachedAttachment(engine.sessionId, 'mxc://test/overlap-1')
+        ).toBeUndefined();
+        expect(
+          await loadCachedAttachment(engine.sessionId, 'mxc://test/overlap-2')
+        ).toBeUndefined();
+      });
+    } finally {
+      releaseOld?.(new Response(JSON.stringify({ msgtype: 'm.text', body: 'old body' })));
+    }
+  }
+);
+
+it('superseding a queued live owner still downloads the other owners in its batch', async () => {
+  const { loadCachedAttachment } = await import('../../threads/cacheStore');
+  const f = fixture();
+  const sessionId = createSessionId(f.mx.getHomeserverUrl(), f.mx.getSafeUserId());
+  const scheduler = createBackfillScheduler({ maxConcurrent: 1 });
+  const offline = createRoomOfflineController({
+    mx: f.mx,
+    sessionId,
+    scheduler,
+    connection: {
+      getSnapshot: () => ({ connected: true, unmetered: true }),
+      subscribe: () => () => undefined,
+    },
+    getPrefetchConfig: () => resolvePrefetchConfig({}),
+    onChanged: () => undefined,
+  });
+  await updateRoomOfflineProgress(sessionId, roomId, () => ({ opened: true }));
+  offline.start();
+  let release!: () => void;
+  const busy = scheduler.enqueue({
+    roomId,
+    kind: 'reconcile',
+    priority: 0,
+    execute: () =>
+      new Promise<void>((resolve) => {
+        release = resolve;
+      }),
+  });
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async () => new Response(JSON.stringify({ msgtype: 'm.text', body: 'saved body' })))
+  );
+  const events = ['$first', '$other'].map(
+    (id) =>
+      new MatrixEvent({
+        ...raw(id),
+        content: {
+          msgtype: 'm.text',
+          body: 'preview',
+          url: `mxc://test/${id}`,
+          'io.mindroom.long_text': { version: 2, encoding: 'matrix_event_content_json' },
+        },
+      })
+  );
+  try {
+    const older = offline.observe(events, roomId);
+    await vi.waitFor(() =>
+      expect(scheduler.pendingJobs().some((job) => job.threadId === '$first')).toBe(true)
+    );
+    const replacement = offline.observe([events[0]], roomId);
+    await vi.waitFor(() =>
+      expect(scheduler.pendingJobs().some((job) => job.threadId === '$other')).toBe(true)
+    );
+    release();
+    await Promise.all([busy, older, replacement]);
+    expect(await loadCachedAttachment(sessionId, 'mxc://test/$other')).toBeDefined();
+  } finally {
+    release?.();
+    offline.stop();
+    scheduler.abortAll();
   }
 });
 

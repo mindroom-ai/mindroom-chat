@@ -257,24 +257,31 @@ export const createRoomOfflineController = ({
     );
     for (const event of ordered) {
       if (paused() || !isCacheStoreWriteLeaseCurrent(lease)) return;
-      await scheduler.enqueue({
-        roomId,
-        threadId: live ? event.getId() : undefined,
-        kind: 'room-attachments',
-        priority: 4,
-        execute: async (signal) => {
-          if (paused() || !isCacheStoreWriteLeaseCurrent(lease)) return;
-          await prefetchEventAttachments(mx, [event], auth, {
-            signal,
-            writeLease: lease,
-            includeAllMedia: state(roomId).includeAllMedia,
-            canDownload: async () => {
-              admitted = await canSavePage(roomId, lease);
-              return admitted && !paused() && isCacheStoreWriteLeaseCurrent(lease);
-            },
-          });
-        },
-      });
+      // The scheduler retains one replacement behind a draining job with the same key.
+      // Superseding live work must not join an older revision's download and lose this update.
+      if (live) scheduler.abort(roomId, event.getId(), 'room-attachments');
+      await scheduler
+        .enqueue({
+          roomId,
+          threadId: live ? event.getId() : undefined,
+          kind: 'room-attachments',
+          priority: 4,
+          execute: async (signal) => {
+            if (paused() || !isCacheStoreWriteLeaseCurrent(lease)) return;
+            await prefetchEventAttachments(mx, [event], auth, {
+              signal,
+              writeLease: lease,
+              includeAllMedia: state(roomId).includeAllMedia,
+              canDownload: async () => {
+                admitted = await canSavePage(roomId, lease);
+                return admitted && !paused() && isCacheStoreWriteLeaseCurrent(lease);
+              },
+            });
+          },
+        })
+        .catch((error: unknown) => {
+          if (!live || !(error instanceof Error) || error.name !== 'AbortError') throw error;
+        });
       if (
         !admitted ||
         (owners.some((owner) => owner.eventId === event.getId() && owner.attachments.length) &&
