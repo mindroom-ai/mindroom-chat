@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { makeEvent, makeRoom, makeTimeline } from './test-utils/RoomTimeline.test.shared';
 import { buildThreadCacheCoverage } from './threadCacheCoverage';
 import { runThreadOpenCacheFirst } from './threadOpenCacheFirst';
+import * as timelineDebug from './timelineDebug';
 
 const makeDefaultOptions = () => {
   const root = makeEvent('$root', { isThreadRoot: true, ts: 1 });
@@ -54,7 +55,7 @@ const makeDefaultOptions = () => {
 
 describe('runThreadOpenCacheFirst', () => {
   it.each([true, false])(
-    'awaits pending SDK gaps before cache hydration (still open=%s)',
+    'hydrates cache before waiting for pending SDK gaps (still open=%s)',
     async (stillOpen) => {
       const opts = makeDefaultOptions();
       let finish!: () => void;
@@ -66,11 +67,12 @@ describe('runThreadOpenCacheFirst', () => {
       });
       const opening = runThreadOpenCacheFirst(opts as never);
       await Promise.resolve();
-      expect(opts.hydrateThreadFromCache).not.toHaveBeenCalled();
+      expect(opts.hydrateThreadFromCache).toHaveBeenCalledOnce();
       opts.isCurrentThreadOpen.mockReturnValue(stillOpen);
       finish();
       await opening;
-      expect(opts.hydrateThreadFromCache).toHaveBeenCalledTimes(stillOpen ? 1 : 0);
+      expect(opts.hydrateThreadFromCache).toHaveBeenCalledOnce();
+      expect(opts.scheduleReconcile).toHaveBeenCalledTimes(stillOpen ? 1 : 0);
     }
   );
 
@@ -332,6 +334,7 @@ describe('runThreadOpenCacheFirst', () => {
     const opts = makeDefaultOptions();
     const error = new Error('token conversion unavailable');
     const warning = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const trace = vi.spyOn(timelineDebug, 'logTimelineDebug');
     Object.assign(opts.room.getThread('$root')!, {
       flushPendingTimelineReset: vi.fn().mockRejectedValueOnce(error),
     });
@@ -352,12 +355,17 @@ describe('runThreadOpenCacheFirst', () => {
     try {
       const result = await runThreadOpenCacheFirst(opts as never);
       expect(result).toEqual({ shouldContinue: true, hydratedCachedPage: undefined });
-      expect(opts.hydrateThreadFromCache).not.toHaveBeenCalled();
+      expect(opts.hydrateThreadFromCache).toHaveBeenCalledOnce();
       expect(opts.onCacheHydrated).toHaveBeenCalledWith(false);
       expect(opts.scheduleReconcile).toHaveBeenCalledOnce();
       expect(warning).toHaveBeenCalledWith('[thread-sync-gap] token conversion failed', error);
+      expect(trace).toHaveBeenCalledWith(opts.debugTraceId, 'thread-cache-hydrate-finished', {
+        cacheHit: true,
+      });
+      expect(trace).not.toHaveBeenCalledWith(opts.debugTraceId, 'thread-cache-hydrate-error');
     } finally {
       warning.mockRestore();
+      trace.mockRestore();
     }
   });
 });

@@ -22,6 +22,7 @@
   Only explicitly allowed phase names and numeric, boolean, or null metrics are exported; room/event IDs, message text, raw errors, and arbitrary debug fields are excluded.
   Diagnostic intent, retention, and manual export remain device-scoped across Matrix account switches, matching the existing recorder and logout policy.
   Local-echo thread opens emit completion, settled, and close stages without adding network work.
+  Cache completion is recorded before SDK gap conversion; a later conversion failure does not report a failed cache read.
 - While deep tracing is enabled and a thread is mounted, a once-per-second sampler compares fresh SDK model counts, committed React reply counts, and reply IDs mounted in that timeline's DOM.
   The live model is read independently of React updates, so missed UI updates can leave distinguishable evidence.
   Both collections use the existing shared per-root reply classification and event-ID deduplication policy.
@@ -30,10 +31,30 @@
   Mounted counts describe virtualized DOM rows, not whether pixels were painted or every loaded reply should be visible.
 - Regression tests reproduce recorder shutdown after failed persistence before the fix and cover bounded retention, activation stalls, late failures after opt-out, export deadlines, clear boundaries, shared reconciliation jobs, and stale React data.
   A Chromium fault-injection check closes an actual IndexedDB connection, then rejects persistent export reads, and confirms that thread and network evidence still exports from memory.
-  Validation passes all 4,707 tests across 554 files in Debian Node 24, application typecheck, production/PWA build, and changed-file formatting.
+  Validation after integrating the latest cache-first paint changes passes all 4,718 tests across 555 files in Debian Node 24, application typecheck, production/PWA build, and changed-file formatting.
   ESLint reports zero errors and the 17 existing warnings; independent code review has no remaining findings.
 - This improves the next incident's evidence.
   It does not establish or fix the cause of the reported blank screen or root-only thread view, and no native iPhone reproduction is claimed.
+
+### Restore cached room threads and paint cached replies before network waits (2026-09-20)
+
+- Room startup previously treated an equal or newer SDK tail as proof that the cached page was already loaded, discarding missing older roots and leaving later pagination to reveal them.
+- The hydration snapshot now separates overlapping older history from newer tail events and revision updates.
+  The room controller prepends the older events, retains live event identity, and publishes the combined timeline once.
+- Unknown gaps remain unjoined, cached pagination tokens retain their existing semantics, and timeline resets or concurrent history loads invalidate stale prepend decisions.
+- Cached thread messages now hydrate into supplemental render state before waiting for SDK sync-gap token conversion, which can require network responses.
+  Subsequent SDK work still waits for conversion and checks thread ownership.
+- Ten real IndexedDB/SDK regressions cover equal and newer live tails, mixed history/edit/tail hydration, unknown gaps, reset and pagination races, and thread roots whose metadata requests remain stalled.
+  Review exposed a live-tail advance during encrypted prepend; hydration now rechecks pending appends and remaps same-ID arrivals to retain cached edits on live instances.
+  A session regression proves cached replies paint while token conversion remains stalled, with no replies present in SDK memory.
+- Validation: all 4,693 tests across 553 files pass under Node 24, as do application typecheck, the production/PWA build, and ESLint with zero errors and the existing 17 warnings.
+  Independent review found no remaining blocking issues.
+- The phone-sized browser regression receives three roots and two thread replies through live sync, verifies their persistence, reduces the saved SDK sync to its newest root, and holds every Matrix response during reopen.
+  The production build restores all three roots through initial hydration and shows cached replies when opening a thread in Chromium and WebKit.
+  Unchanged `dev` fails the room hydration assertion and relies on later cache pagination instead.
+  Changed-source formatting, browser-test typecheck, and whitespace checks also pass.
+- The initial cache read remains bounded to 200 room events; this fix does not promise that all room history appears in the first browser frame.
+  Physical iPhone startup timing remains unverified.
 
 ### Coalesce untouched thread sync gaps (2026-09-19)
 

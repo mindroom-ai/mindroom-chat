@@ -75,7 +75,20 @@ export const runThreadOpenCacheFirst = async ({
   threadOpenSeedSession,
 }: RunThreadOpenCacheFirstOptions): Promise<RunThreadOpenCacheFirstResult> => {
   let hydratedCachedPage;
+  let cacheHydrationFinished = false;
   try {
+    // Cached messages paint through supplemental render state, independently of
+    // the SDK timeline. Token conversion can need the network; only subsequent
+    // SDK work must wait for it, never the cache read and its first paint.
+    hydratedCachedPage = await hydrateThreadFromCache(threadId);
+    cacheHydrationFinished = true;
+    logTimelineDebug(debugTraceId, 'thread-cache-hydrate-finished', {
+      cacheHit: !!hydratedCachedPage,
+    });
+    if (!isCurrentThreadOpen()) {
+      countCacheProbe('threadOpenSkipCacheFirstPostHydrateGuard');
+      return { shouldContinue: false };
+    }
     const pendingReset = flushThreadSyncGap(room.getThread(threadId), isCurrentThreadOpen);
     if (pendingReset) {
       await pendingReset;
@@ -84,12 +97,8 @@ export const runThreadOpenCacheFirst = async ({
         return { shouldContinue: false };
       }
     }
-    hydratedCachedPage = await hydrateThreadFromCache(threadId);
-    logTimelineDebug(debugTraceId, 'thread-cache-hydrate-finished', {
-      cacheHit: !!hydratedCachedPage,
-    });
   } catch {
-    logTimelineDebug(debugTraceId, 'thread-cache-hydrate-error');
+    if (!cacheHydrationFinished) logTimelineDebug(debugTraceId, 'thread-cache-hydrate-error');
     if (!isCurrentThreadOpen()) {
       // AC2 STEP 4 iter 2 (2026-07-04): hydrate threw and the guard
       // says the thread has been closed/re-navigated in the meantime.

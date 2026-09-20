@@ -551,6 +551,7 @@ type LoadLatestRoomCacheHydrationSnapshotOptions = {
 export type LatestRoomCacheHydrationSnapshot = {
   cachedPage: CachedRoomEventPage;
   events: MatrixEvent[];
+  prependEvents: MatrixEvent[];
   loadedRoomCount: number;
   status: 'already-loaded' | 'empty-after-filter' | 'hydrate';
 };
@@ -567,16 +568,30 @@ export const loadLatestRoomCacheHydrationSnapshot = async ({
   const loadedLatestEvent = loadedEvents[loadedEvents.length - 1];
   const cachedLatestEvent = cachedPage.events[cachedPage.events.length - 1];
   const cachedTailIsNewer = shouldHydrateLatestRoomCache(loadedLatestEvent, cachedLatestEvent);
+  // A restored SDK tail can already contain the newest event while missing
+  // the rest of the cached page. Overlap at its oldest event proves where
+  // cached history can be prepended without joining across an unknown gap.
+  const earliestLoadedId = findEarliestLoadedRoomEventByCacheOrder(loadedEvents)?.getId();
+  const overlapIndex = cachedPage.events.findIndex(
+    (rawEvent) => rawEvent.event_id === earliestLoadedId
+  );
+  const loadedIds = new Set(loadedEvents.map((event) => event.getId()));
+  const rawPrependEvents =
+    overlapIndex > 0
+      ? cachedPage.events.slice(0, overlapIndex).filter((event) => !loadedIds.has(event.event_id))
+      : [];
+  const prependIds = new Set<string | undefined>(rawPrependEvents.map((event) => event.event_id));
   const rawEventsToHydrate = filterLatestRoomCacheHydrationEvents(
     cachedPage.events,
     loadedEvents,
     cachedTailIsNewer
-  );
+  ).filter((event) => !prependIds.has(event.event_id));
 
-  if (!cachedTailIsNewer && rawEventsToHydrate.length === 0) {
+  if (!cachedTailIsNewer && rawEventsToHydrate.length === 0 && rawPrependEvents.length === 0) {
     return {
       cachedPage,
       events: [],
+      prependEvents: [],
       loadedRoomCount: loadedEvents.length,
       status: 'already-loaded',
     };
@@ -585,12 +600,16 @@ export const loadLatestRoomCacheHydrationSnapshot = async ({
   const events = normalizeCachedRoomEvents(rawEventsToHydrate).map((rawEvent) =>
     mapEvent(rawEvent)
   );
+  const prependEvents = normalizeCachedRoomEvents(rawPrependEvents).map((rawEvent) =>
+    mapEvent(rawEvent)
+  );
 
   return {
     cachedPage,
     events,
+    prependEvents,
     loadedRoomCount: loadedEvents.length,
-    status: events.length > 0 ? 'hydrate' : 'empty-after-filter',
+    status: events.length > 0 || prependEvents.length > 0 ? 'hydrate' : 'empty-after-filter',
   };
 };
 

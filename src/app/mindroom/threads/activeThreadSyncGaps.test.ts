@@ -162,7 +162,7 @@ describe('active thread sync gaps', () => {
               notifyEventsChanged: notify,
               onCacheHydrated: vi.fn(),
               pinThreadToBottomOnOpen: vi.fn(),
-              scheduleReconcile: vi.fn(),
+              scheduleReconcile: vi.fn().mockResolvedValue(undefined),
               setSupplementalThreadEvents: vi.fn(),
               shouldScrollToLatestOnOpen: false,
               threadOpenSeedSession: { applyInitialUntargetedThreadSeed: vi.fn() },
@@ -179,13 +179,14 @@ describe('active thread sync gaps', () => {
               setSupplementalThreadEvents: vi.fn(),
               shouldScrollToLatestOnOpen: false,
             });
+      await settle();
       expect(threads[0].timelineSet.getTimelines()).toHaveLength(2);
       current = false;
       room.resetLiveTimeline('back-2', 'forward-2');
       finish({ chunk: [], start: 'converted-forward', end: 'converted-back' });
       await opening;
       expect(threads[0].timelineSet.getTimelines()).toHaveLength(2);
-      expect(hydrate).not.toHaveBeenCalled();
+      expect(hydrate).toHaveBeenCalledTimes(mode === 'cache' ? 1 : 0);
       expect(getThreadTimeline).not.toHaveBeenCalled();
       expect(notify).not.toHaveBeenCalled();
       await flushThreadSyncGap(threads[0]);

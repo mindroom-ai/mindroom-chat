@@ -206,6 +206,31 @@ describe('thread session targets', () => {
 });
 
 describe('thread session opening', () => {
+  it('paints cached replies while the SDK is still converting a sync gap token', async () => {
+    const fixture = openFixture();
+    const reset = deferred<void>();
+    Object.assign(fixture.runtime.room.getThread('$a')!, {
+      events: [],
+      flushPendingTimelineReset: vi.fn().mockReturnValueOnce(reset.promise),
+    });
+    vi.mocked(loadThreadCachedSnapshot).mockReset().mockResolvedValue(fixture.cache());
+    const view = renderOpen(fixture.runtime, {
+      roomId: fixture.runtime.room.roomId,
+      threadId: '$a',
+    });
+    try {
+      await act(async () => undefined);
+      expect(fixture.rendered.get('$reply')).toBe(fixture.reply);
+      expect(fixture.bootstrap).not.toHaveBeenCalled();
+      await act(async () => reset.resolve());
+      expect(view.session.snapshot.open.initialCacheHydrated).toBe(true);
+      expect(fixture.runtime.reconcile).toHaveBeenCalledTimes(1);
+    } finally {
+      view.unmount();
+      await act(async () => reset.resolve());
+    }
+  });
+
   it('publishes SDK root-ready tail coverage and one timeline revision/invalidation for a confirmed pending root', async () => {
     vi.mocked(loadThreadCachedSnapshot).mockReset();
     const fixture = openFixture();
