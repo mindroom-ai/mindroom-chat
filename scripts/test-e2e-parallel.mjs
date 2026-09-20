@@ -12,6 +12,21 @@ const cli = resolve(repo, 'node_modules/@playwright/test/cli.js');
 const serialSpec =
   /(?:^|\/)(?:perf-|ios-momentum-invariants|thread-ride-under-latency|message-rendering-performance|thinking-marker|long-message-expansion-default|app-store-screenshots|minimap-verify|worker-computer|deployed-auth-shell)/;
 
+export function reportPassed({ stats, errors }, code, cases) {
+  const total = ['expected', 'unexpected', 'flaky', 'skipped'].reduce(
+    (n, key) => n + (stats[key] ?? 0),
+    0
+  );
+  return (
+    code === 0 &&
+    total === cases &&
+    stats.expected > 0 &&
+    !errors?.length &&
+    !stats.unexpected &&
+    !stats.flaky
+  );
+}
+
 export function plan(reports, root = repo) {
   const jobs = new Map();
   for (const { config, report } of reports) {
@@ -131,6 +146,7 @@ async function main() {
     return;
   }
   if (process.platform === 'win32') throw new Error('Use Linux, macOS, or WSL.');
+  if (!AbortSignal.any) throw new Error('Use Node from .node-version (see docs/testing.md).');
   const homeserver = loopback(process.env.E2E_HOMESERVER);
   const production = loopback(process.env.E2E_BASE_URL);
   const development = loopback(process.env.E2E_DEV_BASE_URL);
@@ -296,15 +312,7 @@ async function main() {
     );
     const report = JSON.parse(readFileSync(env.PLAYWRIGHT_JSON_OUTPUT_FILE, 'utf8'));
     const stats = report.stats;
-    const complete =
-      ['expected', 'unexpected', 'flaky', 'skipped'].reduce(
-        (n, key) => n + (stats[key] ?? 0),
-        0
-      ) === job.cases;
-    const status =
-      code === 0 && complete && !report.errors?.length && !stats.unexpected && !stats.flaky
-        ? 'passed'
-        : 'failed';
+    const status = reportPassed(report, code, job.cases) ? 'passed' : 'failed';
     console.log(`${status.toUpperCase()} ${job.project} ${job.file}`);
     return { status, stats, output };
   });

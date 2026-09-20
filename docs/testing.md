@@ -41,7 +41,7 @@ One Playwright worker runs per spec with zero retries; timing-sensitive and spec
 Avoid heavy competing workloads during that phase; use separate checkouts for simultaneous builds and restart Vite after changing branches.
 
 Results and legacy screenshots stay under `test-results/parallel/<run>/`; `E2E_ARTIFACTS` overrides the parent directory.
-Read `summary.json` and each job's `report.json`: platform skips remain explicit, and failed setup/tests, missing reports/cases, or blocked integrations cause a nonzero exit.
+Read `summary.json` and each job's `report.json`: platform skips remain explicit, and failed setup/tests, missing reports/cases, all-skipped jobs, or blocked integrations cause a nonzero exit.
 Ctrl-C stops child process groups and exits 130; app servers and Matrix remain caller-owned.
 Stop the two server terminals and run `docker compose -f e2e/docker-compose.matrix.yaml down --volumes` in the first terminal to remove its Matrix project.
 Artifacts can contain disposable credentials; keep them local.
@@ -62,7 +62,7 @@ Run the same scheduler inside the matching official Playwright image; keep the h
 image=mcr.microsoft.com/playwright:v$(node -p 'require("@playwright/test/package.json").version')-noble
 docker run --rm --init --network host --ipc host --user "$(id -u):$(id -g)" \
   -v "$PWD:$PWD" -w "$PWD" -e E2E_HOMESERVER -e E2E_BASE_URL -e E2E_DEV_BASE_URL \
-  -e E2E_SSO_HOMESERVER -e E2E_COMPUTER_FIXTURE "$image" npm run test:e2e:parallel -- --jobs 8
+  -e E2E_SSO_HOMESERVER -e E2E_COMPUTER_FIXTURE "$image" node scripts/test-e2e-parallel.mjs --jobs 8
 ```
 
 Keep an external worker fixture JSON inside the mounted checkout or mount its path too.

@@ -1,6 +1,14 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { plan, runJobs } from './test-e2e-parallel.mjs';
+import { plan, reportPassed, runJobs } from './test-e2e-parallel.mjs';
+
+test('requires executed passing cases and complete reports', () => {
+  const report = { stats: { expected: 1, unexpected: 0, flaky: 0, skipped: 1 }, errors: [] };
+  assert.equal(reportPassed(report, 0, 2), true);
+  assert.equal(reportPassed(report, 1, 2), false);
+  assert.equal(reportPassed(report, 0, 3), false);
+  assert.equal(reportPassed({ ...report, stats: { ...report.stats, expected: 0 } }, 0, 1), false);
+});
 
 const discovery = (config, project, file = 'chat.spec.ts') => ({
   config,
