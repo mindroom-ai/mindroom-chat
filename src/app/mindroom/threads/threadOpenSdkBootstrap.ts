@@ -7,6 +7,7 @@ import {
   type Room,
 } from 'matrix-js-sdk';
 import to from 'await-to-js';
+import { flushThreadSyncGap } from './activeThreadSyncGaps';
 import { compareCachedPaginationAnchors } from './eventCacheTokenUtils';
 import { isZeroReplyStandaloneThreadRootEvent } from './compactThreadRootData';
 import { isPendingLocalEchoThreadRoot } from './threadRouteUtils';
@@ -165,6 +166,15 @@ export const runThreadOpenSdkBootstrap = async ({
     return true;
   }
 
+  const pendingReset = flushThreadSyncGap(threadModel, isMounted);
+  if (pendingReset) {
+    const [resetError] = await to(pendingReset);
+    if (!isMounted()) return false;
+    if (resetError) {
+      onBootstrap({ kind: 'load-error' });
+      return false;
+    }
+  }
   const loadedThreadTimelineSet = threadModel.getUnfilteredTimelineSet();
   const [err] = await to(mx.getThreadTimeline(loadedThreadTimelineSet, threadId));
   if (!isMounted()) {

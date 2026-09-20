@@ -1,4 +1,5 @@
 import { Direction, type MatrixEvent, type Room } from 'matrix-js-sdk';
+import { flushThreadSyncGap } from './activeThreadSyncGaps';
 import { getLinkedTimelines } from './timelinePagination';
 import { logTimelineDebug } from './timelineDebug';
 import { countCacheProbe } from './cacheProbe';
@@ -75,6 +76,14 @@ export const runThreadOpenCacheFirst = async ({
 }: RunThreadOpenCacheFirstOptions): Promise<RunThreadOpenCacheFirstResult> => {
   let hydratedCachedPage;
   try {
+    const pendingReset = flushThreadSyncGap(room.getThread(threadId), isCurrentThreadOpen);
+    if (pendingReset) {
+      await pendingReset;
+      if (!isCurrentThreadOpen()) {
+        countCacheProbe('threadOpenSkipCacheFirstPostHydrateGuard');
+        return { shouldContinue: false };
+      }
+    }
     hydratedCachedPage = await hydrateThreadFromCache(threadId);
   } catch {
     if (!isCurrentThreadOpen()) {
