@@ -9,7 +9,7 @@ export const Editor = style([
   {
     backgroundColor: color.SurfaceVariant.Container,
     color: color.SurfaceVariant.OnContainer,
-    boxShadow: `inset 0 0 0 ${config.borderWidth.B300} ${color.SurfaceVariant.ContainerLine}, ${glassShadow}`,
+    boxShadow: glassShadow,
     borderRadius: config.radii.R400,
     overflow: 'hidden',
     transition: transition(['box-shadow']),
