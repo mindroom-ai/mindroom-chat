@@ -1035,6 +1035,20 @@ export const persistRoomEventCacheSnapshot = ({
   };
 };
 
+// SDK mapper objects can emit Decrypted long after their originating operation.
+// Keep provenance, not another generation: CacheStore owns revocation.
+const eventWriteLeases = new WeakMap<MatrixEvent, CacheStoreWriteLease>();
+export const rememberEventCacheWriteLease = (
+  event: MatrixEvent,
+  lease: CacheStoreWriteLease
+): void => {
+  if (!eventWriteLeases.has(event)) eventWriteLeases.set(event, lease);
+};
+export const canPersistDecryptedEvent = (event: MatrixEvent, sessionId: string): boolean => {
+  const lease = eventWriteLeases.get(event);
+  return !!lease && lease.sessionId === sessionId && isCacheStoreWriteLeaseCurrent(lease);
+};
+
 /**
  * CINNY-207 P7.2 audit finding #3: gap-fill and deep-history paths
  * fetch raw `/messages` chunks and persist them to the room cache. Per
@@ -1101,6 +1115,7 @@ export const persistRoomChunkWithPreferLive = async ({
   const mapper = mx.getEventMapper({ decrypt: false });
   const preferLive = createPreferLiveEventMapper(room, mapper);
   const mapped = mappedEvents ?? chunk.map((raw) => preferLive({ ...raw, room_id: room.roomId }));
+  mapped.forEach((event) => rememberEventCacheWriteLease(event, writeLease));
   await Promise.allSettled(
     mapped
       .filter((event) => event.getType() === 'm.room.encrypted')
@@ -1115,6 +1130,7 @@ export const persistRoomChunkWithPreferLive = async ({
     const raw = await loadCachedEventAcrossRoomScopes(sessionId, room.roomId, id);
     if (!raw) return undefined;
     const event = preferLive({ ...raw, room_id: room.roomId });
+    rememberEventCacheWriteLease(event, writeLease);
     await mx.decryptEventIfNeeded?.(event).catch(() => undefined);
     byId.set(id, event);
     return event;
@@ -1234,20 +1250,47 @@ export const persistRoomChunkWithPreferLive = async ({
   if (commitResults.some((committed) => committed !== true)) {
     throw new Error('cache chunk did not commit');
   }
-  const undecrypted = new Set(progress.undecryptedEventIds);
+  const undecrypted = new Set<string>();
+  const processed = new Set<string>();
   resolvedEvents.forEach((event) => {
     const id = event.getId();
     if (!id) return;
+    processed.add(id);
     if (event.getType() === 'm.room.encrypted') undecrypted.add(id);
-    else undecrypted.delete(id);
   });
   if (
     !(await updateRoomOfflineProgress(
       sessionId,
       room.roomId,
-      {
-        unresolvedRelationIds: [...unresolved],
-        undecryptedEventIds: [...undecrypted],
+      (current) => {
+        // Apply only this pass's observations to current metadata. An unresolved
+        // ID seen in the starting snapshot must not re-add another pass's repair.
+        const merge = (
+          latest: string[] | undefined,
+          pending: Set<string>,
+          before: string[] | undefined
+        ) => {
+          const result = new Set(latest);
+          processed.forEach((id) => {
+            if (!pending.has(id)) result.delete(id);
+          });
+          pending.forEach((id) => {
+            if (!before?.includes(id)) result.add(id);
+          });
+          return [...result];
+        };
+        return {
+          unresolvedRelationIds: merge(
+            current.unresolvedRelationIds,
+            unresolved,
+            progress.unresolvedRelationIds
+          ),
+          undecryptedEventIds: merge(
+            current.undecryptedEventIds,
+            undecrypted,
+            progress.undecryptedEventIds
+          ),
+        };
       },
       writeLease
     ))

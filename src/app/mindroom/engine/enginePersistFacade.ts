@@ -1,24 +1,14 @@
 /**
- * CINNY-207 P3.3: engine persist facade.
- *
- * The three functions the pre-strip `threadCachePersistenceController`
- * used to expose (`persistThreadEventCache`,
- * `persistThreadCacheFromRoomEvents`, `queueRoomThreadCachePersist`)
- * live here now as engine-side pure functions. Signatures are
- * preserved so the eight fetch controllers that consumed them are
- * rewired without prop-shape changes — the component just reads
- * `engine.persist.*` and hands the fns down.
- *
- * The pre-strip controller's staleness guards
- * (`alive()`/`roomIdRef`/`threadIdRef`) drop here: the engine is a
- * client-level singleton that is never stale, and every persist call
- * takes an explicit `room` argument, so a stale UI cannot accidentally
- * mis-route a write to a room that unmounted.
+ * Engine-owned room/thread persistence. Async fetch owners capture forRoom()
+ * before starting work; its shared CacheStore lease fences writes after clear.
+ * Direct room persistence also projects thread replies, avoiding a second
+ * writer attached to SDK pagination emissions.
  */
 
 import { type MatrixEvent, type Room } from 'matrix-js-sdk';
 import { captureCacheStoreWriteLease, isCacheStoreWriteLeaseCurrent } from '../threads/cacheStore';
 import {
+  rememberEventCacheWriteLease,
   persistRoomEventCacheSnapshot,
   persistThreadCacheFromRoomEventsSnapshot,
   persistThreadEventCacheSnapshot,
@@ -69,14 +59,6 @@ export type PersistThreadCacheFromRoomEvents = (
   }
 ) => void;
 
-/**
- * Microtask-batched room-derived thread persistence for events
- * arriving off the room live timeline (paginated appends). Preserves
- * the pre-strip `queueRoomThreadCachePersist` semantics: single
- * flush per microtask boundary.
- */
-export type QueueRoomThreadCachePersist = (mEvent: MatrixEvent) => void;
-
 export type EnginePersistFacade = {
   persistRoomEventCache(
     room: Room,
@@ -105,19 +87,18 @@ export type EnginePersistFacade = {
       tailLoaded?: boolean;
     }
   ): void;
-  queueRoomThreadCachePersist(room: Room, mEvent: MatrixEvent): void;
   /**
    * Bind the facade to a specific room, returning fn shapes the fetch
    * controllers already consume (`PersistRoomEventCache`,
    * `PersistThreadEventCache`, `PersistThreadCacheFromRoomEvents`,
-   * `QueueRoomThreadCachePersist`). Convenience for the
+   * grouped thread persistence). Convenience for the
    * MindroomRoomTimeline wiring which knows the mounted room.
    */
   forRoom(room: Room): {
+    isCurrent(): boolean;
     persistRoomEventCache: PersistRoomEventCache;
     persistThreadEventCache: PersistThreadEventCache;
     persistThreadCacheFromRoomEvents: PersistThreadCacheFromRoomEvents;
-    queueRoomThreadCachePersist: QueueRoomThreadCachePersist;
   };
 };
 
@@ -135,6 +116,10 @@ export const createEnginePersistFacade = (
     events,
     beforeTokenForEarliest
   ) => {
+    const lease = captureCacheStoreWriteLease(sessionId, room.roomId);
+    events.forEach((event) => rememberEventCacheWriteLease(event, lease));
+    // Room pagination can include thread replies; the same operation owns both writes.
+    persistThreadCacheFromRoomEventsSnapshot({ sessionId, room, events });
     persistRoomEventCacheSnapshot({
       sessionId,
       room,
@@ -154,6 +139,8 @@ export const createEnginePersistFacade = (
     expectedReplyCount,
     relationSnapshotComplete
   ) => {
+    const lease = captureCacheStoreWriteLease(sessionId, room.roomId);
+    events.forEach((event) => rememberEventCacheWriteLease(event, lease));
     persistThreadEventCacheSnapshot({
       sessionId,
       room,
@@ -178,39 +165,10 @@ export const createEnginePersistFacade = (
       });
     };
 
-  // Microtask-batched queue: preserves the pre-strip
-  // `queueRoomThreadCachePersist` semantics. Buffer is per-room (one
-  // pending set + one queued microtask per roomId) so unrelated rooms
-  // do not interfere with each other's batching.
-  type RoomQueueState = {
-    events: MatrixEvent[];
-    flushQueued: boolean;
-  };
-  const roomQueues = new Map<string, RoomQueueState>();
-
-  const queueRoomThreadCachePersist: EnginePersistFacade['queueRoomThreadCachePersist'] = (
-    room,
-    mEvent
-  ) => {
-    const existing = roomQueues.get(room.roomId);
-    const state: RoomQueueState = existing ?? { events: [], flushQueued: false };
-    state.events.push(mEvent);
-    if (!existing) roomQueues.set(room.roomId, state);
-    if (state.flushQueued) return;
-    state.flushQueued = true;
-    const lease = captureCacheStoreWriteLease(sessionId, room.roomId);
-    queueMicrotask(() => {
-      state.flushQueued = false;
-      const queuedEvents = state.events;
-      state.events = [];
-      if (queuedEvents.length === 0 || !isCacheStoreWriteLeaseCurrent(lease)) return;
-      persistThreadCacheFromRoomEvents(room, queuedEvents);
-    });
-  };
-
   const forRoom: EnginePersistFacade['forRoom'] = (room) => {
     const lease = captureCacheStoreWriteLease(sessionId, room.roomId);
     return {
+      isCurrent: () => isCacheStoreWriteLeaseCurrent(lease),
       persistRoomEventCache: (events, beforeTokenForEarliest) =>
         isCacheStoreWriteLeaseCurrent(lease) &&
         persistRoomEventCache(room, events, beforeTokenForEarliest),
@@ -239,9 +197,6 @@ export const createEnginePersistFacade = (
       persistThreadCacheFromRoomEvents: (events, opts) =>
         isCacheStoreWriteLeaseCurrent(lease) &&
         persistThreadCacheFromRoomEvents(room, events, opts),
-      queueRoomThreadCachePersist: (mEvent) => {
-        if (isCacheStoreWriteLeaseCurrent(lease)) queueRoomThreadCachePersist(room, mEvent);
-      },
     };
   };
 
@@ -249,7 +204,6 @@ export const createEnginePersistFacade = (
     persistRoomEventCache,
     persistThreadEventCache,
     persistThreadCacheFromRoomEvents,
-    queueRoomThreadCachePersist,
     forRoom,
   };
 };

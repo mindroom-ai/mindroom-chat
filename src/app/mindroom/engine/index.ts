@@ -35,7 +35,6 @@ export type {
   PersistRoomEventCache,
   PersistThreadEventCache,
   PersistThreadCacheFromRoomEvents,
-  QueueRoomThreadCachePersist,
 } from './enginePersistFacade';
 export {
   MAX_CONCURRENT_BACKFILL_JOBS,

@@ -5063,7 +5063,7 @@ describe('RoomTimeline', () => {
     //   - 'persists root-targeted relations into the thread cache during room cache persistence'
     //   - 'persists redactions targeting thread replies into the thread cache during room cache persistence'
 
-    it('persists paginated thread-only room events into the thread cache', async () => {
+    it('leaves paginated event persistence to its captured operation', async () => {
       const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
       const { saveThreadEventsToCache } = await import('../cacheStore');
       const threadId = '$thread-root';
@@ -5103,22 +5103,20 @@ describe('RoomTimeline', () => {
           await flushAsyncWork(10);
         });
 
-        await waitForCondition(
-          () =>
-            vi
-              .mocked(saveThreadEventsToCache)
-              .mock.calls.some(
-                ([, , expectedThreadId, rawEvents]) =>
-                  expectedThreadId === threadId &&
-                  Array.isArray(rawEvents) &&
-                  rawEvents.some(
-                    (rawEvent) =>
-                      typeof rawEvent?.event_id === 'string' &&
-                      rawEvent.event_id === '$thread-reply-paginated'
-                  )
-              ),
-          50
-        );
+        expect(
+          vi
+            .mocked(saveThreadEventsToCache)
+            .mock.calls.some(
+              ([, , expectedThreadId, rawEvents]) =>
+                expectedThreadId === threadId &&
+                Array.isArray(rawEvents) &&
+                rawEvents.some(
+                  (rawEvent) =>
+                    typeof rawEvent?.event_id === 'string' &&
+                    rawEvent.event_id === '$thread-reply-paginated'
+                )
+            )
+        ).toBe(false);
       } finally {
         await act(async () => {
           renderer?.unmount();

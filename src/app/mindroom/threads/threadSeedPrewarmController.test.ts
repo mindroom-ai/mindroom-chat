@@ -1,13 +1,25 @@
 import React from 'react';
 import 'fake-indexeddb/auto';
-import { MatrixEvent } from 'matrix-js-sdk';
+import { MatrixEvent, createClient, Room as SdkRoom } from 'matrix-js-sdk';
 import type { IEvent, MatrixClient, Room } from 'matrix-js-sdk';
-import { act, create } from 'react-test-renderer';
+import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createBackfillScheduler, MindroomSyncEngineProvider } from '../engine';
+import { createEnginePersistFacade } from '../engine/enginePersistFacade';
+import {
+  createMindroomSyncEngine,
+  createBackfillScheduler,
+  MindroomSyncEngineProvider,
+} from '../engine';
 import type { MindroomSyncEngine } from '../engine';
-import { resetCacheStoreForTesting, saveThreadEventsToCache } from './cacheStore';
-import { clearThreadOpenSeedSnapshotsForTests } from './threadOpenSeedCache';
+import {
+  resetCacheStoreForTesting,
+  saveThreadEventsToCache,
+  loadLatestCachedThreadEvents,
+} from './cacheStore';
+import {
+  clearThreadOpenSeedSnapshotsForTests,
+  getThreadOpenSeedSnapshot,
+} from './threadOpenSeedCache';
 import { useThreadSeedPrewarmController } from './threadSeedPrewarmController';
 
 const SESSION_ID = 'session-prewarm-test';
@@ -99,7 +111,7 @@ describe('threadSeedPrewarmController cache-only seeds', () => {
     const persistThreadEventCache = vi.fn();
     const engine = {
       scheduler: createBackfillScheduler({ mx }),
-      persist: { persistThreadEventCache },
+      persist: { ...createEnginePersistFacade({ sessionId: SESSION_ID }), persistThreadEventCache },
       sessionId: SESSION_ID,
     } as unknown as MindroomSyncEngine;
     return { mx, room, engine, fetchRelations, persistThreadEventCache };
@@ -176,4 +188,54 @@ describe('threadSeedPrewarmController cache-only seeds', () => {
     expect(fetchRelations).not.toHaveBeenCalled();
     expect(persistThreadEventCache).not.toHaveBeenCalled();
   });
+});
+
+it('does not publish a held seed read after room clear', async () => {
+  const mx = createClient({
+    baseUrl: 'https://seed.example.org',
+    userId: '@alice:seed.example.org',
+  });
+  const room = new SdkRoom(ROOM_ID, mx, '@alice:seed.example.org');
+  mx.store.storeRoom(room);
+  const engine = createMindroomSyncEngine({ mx });
+  await saveThreadEventsToCache(engine.sessionId, ROOM_ID, THREAD_ID, [rawReply('$held-seed', 1)]);
+  let release!: () => void;
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const load = vi.fn(async () => {
+    const page = await loadLatestCachedThreadEvents(engine.sessionId, ROOM_ID, THREAD_ID, 10);
+    await held;
+    return page.events.map((raw) => new MatrixEvent(raw));
+  });
+  let controller!: ReturnType<typeof useThreadSeedPrewarmController>;
+  function HeldHarness() {
+    controller = useThreadSeedPrewarmController({
+      room,
+      mx,
+      sessionId: engine.sessionId,
+      prefetchDepthRef: { current: 200 },
+      activeThreadId: undefined,
+      priorityTargets: [{ threadId: THREAD_ID }],
+      loadThreadOpenSeedSnapshotFromCache: load,
+      debugTraceId: 'clear-held-seed',
+    });
+    return null;
+  }
+  let renderer!: ReactTestRenderer;
+  await act(async () => {
+    renderer = create(
+      React.createElement(MindroomSyncEngineProvider, { engine }, React.createElement(HeldHarness))
+    );
+  });
+  await vi.waitFor(() => expect(load).toHaveBeenCalledOnce());
+  const pending = controller.waitForExistingOrQueued(THREAD_ID, {});
+  await engine.offline.clear(ROOM_ID);
+  await act(async () => {
+    release();
+    await pending;
+  });
+  expect(getThreadOpenSeedSnapshot(room, THREAD_ID)).toEqual([]);
+  act(() => renderer.unmount());
+  engine.stop();
 });

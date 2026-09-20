@@ -746,10 +746,6 @@ export function RoomTimeline({
     () => syncEngine.persist.forRoom(room).persistThreadEventCache,
     [syncEngine, room]
   );
-  const queueRoomThreadCachePersist = useCallback(
-    (event: MatrixEvent) => syncEngine.persist.queueRoomThreadCachePersist(room, event),
-    [syncEngine, room]
-  );
 
   // CINNY-207 P4.2: whenever the mounted room (or the currently open
   // thread) changes, tell the engine so it can stamp the ledger
@@ -1391,9 +1387,7 @@ export function RoomTimeline({
     mx,
     normalThreadRecordMap,
     onStoreThreadSummary,
-    queueRoomThreadCachePersist,
     room,
-    roomDebugTraceId,
     roomThreadFilterActive,
     scrollRef,
     scrollToBottomRef,

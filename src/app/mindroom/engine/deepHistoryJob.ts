@@ -82,13 +82,6 @@ export const enqueueRoomDeepHistoryJob = ({
         if (next && (next === from || progress.recentTokens?.includes(next))) {
           throw new Error('History pagination did not advance');
         }
-        const undecrypted = new Set(progress.undecryptedEventIds);
-        events.forEach((event) => {
-          const id = event.getId();
-          if (!id) return;
-          if (event.getType() === 'm.room.encrypted') undecrypted.add(id);
-          else undecrypted.delete(id);
-        });
         const committed = await updateRoomOfflineProgress(
           sessionId,
           roomId,
@@ -98,7 +91,6 @@ export const enqueueRoomDeepHistoryJob = ({
             exhausted: !next,
             savedEvents: (progress.savedEvents ?? 0) + (response.chunk?.length ?? 0),
             recentTokens: next ? [...(progress.recentTokens ?? []), next] : [],
-            undecryptedEventIds: [...undecrypted],
           },
           writeLease
         );

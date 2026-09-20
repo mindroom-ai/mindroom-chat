@@ -37,6 +37,7 @@ const GAP_FILL_BATCH_SIZE = GAP_FILL_OVERLAP_TAIL_LIMIT;
 const GAP_FILL_MAX_ITERATIONS = 1;
 
 export type GapFillExecutorOptions = {
+  /** When supplied, the controller owns eligibility as well as bandwidth. */
   readonly pageAllowance?: (roomId: string) => number;
   readonly reservePage?: ReserveHistoryPage;
   readonly canSavePage?: (roomId: string) => Promise<boolean>;
@@ -138,7 +139,7 @@ export const createGapFillExecutor = (
       } catch {
         // Without a trustworthy boundary, preserve the marker and retry
         // instead of risking an unnecessary crawl to room genesis.
-        return;
+        return 'continuation-deferred';
       }
       overlapEventIds = collectOverlapEventIds(cachedTail.events);
       if (durableMarker) {
@@ -149,19 +150,20 @@ export const createGapFillExecutor = (
           fromToken,
           overlapEventIds
         );
-        if (!boundaryCheckpointed) return;
+        if (!boundaryCheckpointed) return 'continuation-deferred';
       }
     }
 
     const scope = getPrefetchConfig ? getPrefetchConfig().scope : DEFAULT_PREFETCH_SCOPE;
     if (
-      !isRoomEligibleForBackgroundPrefetch({
-        mx,
-        room,
-        scope,
-        focusedRoomId: getFocusedRoomId(),
-      }) ||
-      options.pageAllowance?.(job.roomId) === 0
+      options.pageAllowance
+        ? options.pageAllowance(job.roomId) === 0
+        : !isRoomEligibleForBackgroundPrefetch({
+            mx,
+            room,
+            scope,
+            focusedRoomId: getFocusedRoomId(),
+          })
     )
       return 'policy-deferred';
 
@@ -191,9 +193,8 @@ export const createGapFillExecutor = (
             Direction.Backward
           );
         } catch (error) {
-          // Homeserver error — bail without clearing the marker so the
-          // next boot re-attempts. Swallow so the scheduler slot frees.
-          return;
+          // Keep intent for the next connection/focus change, without looping.
+          return 'continuation-deferred';
         }
         if (signal.aborted) return 'policy-deferred';
         const chunk: Partial<IEvent>[] = Array.isArray(response?.chunk)
@@ -228,7 +229,7 @@ export const createGapFillExecutor = (
               roomTailLoaded: true,
             });
           } catch {
-            return;
+            return 'continuation-deferred';
           }
           committedCount = chunk.length;
           onCommitted();
@@ -250,7 +251,7 @@ export const createGapFillExecutor = (
         // Same token twice is not proof of exhaustion. Preserve the
         // marker at its last committed cursor for a later retry.
         if (response.end === fromToken) {
-          return;
+          return 'continuation-deferred';
         }
         // The marker may have been superseded by a newer TimelineReset
         // while this request was in flight. Stop instead of overwriting
@@ -262,7 +263,7 @@ export const createGapFillExecutor = (
           generation,
           response.end
         );
-        if (durableMarker && !checkpointed) return;
+        if (durableMarker && !checkpointed) return 'continuation-deferred';
         fromToken = response.end;
       } finally {
         reservation?.settle(committedCount);
@@ -270,8 +271,11 @@ export const createGapFillExecutor = (
     }
 
     if (reachedBoundary) {
-      await clearRoomTailDiscontinuity(sessionId, job.roomId, generation).catch(() => undefined);
-      return;
+      const cleared = await clearRoomTailDiscontinuity(sessionId, job.roomId, generation).catch(
+        () => false
+      );
+      if (cleared) onCommitted();
+      return cleared ? undefined : 'continuation-deferred';
     }
     return 'page-committed';
   };

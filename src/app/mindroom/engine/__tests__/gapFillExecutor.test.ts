@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import 'fake-indexeddb/auto';
-import { IDBFactory } from 'fake-indexeddb';
+import { IDBFactory, IDBDatabase } from 'fake-indexeddb';
 import { Direction } from 'matrix-js-sdk';
 import type { IEvent, MatrixClient, Room } from 'matrix-js-sdk';
 import { STARTUP_SYNC_TIMELINE_LIMIT } from '../../../../client/initMatrix';
@@ -198,6 +198,58 @@ describe('gapFillExecutor (CINNY-207 P4.2)', () => {
     executor.stop();
     scheduler.abortAll();
   });
+
+  it.each(['transport', 'commit', 'same-token'])(
+    'retries a %s failure only after recheck',
+    async (failure) => {
+      const roomId = '!room:mindroom.chat';
+      const mx = createMockClient('mindroom.chat', (call) => {
+        if (!call && failure === 'transport') throw new Error('offline');
+        return {
+          chunk: [rawEvent('$retry', 10)],
+          ...(!call && failure === 'same-token' ? { end: 'before' } : {}),
+        };
+      });
+      mx.__rooms.set(roomId, makeRoomStub(roomId, '@alice:mindroom.chat'));
+      await markRoomTailDiscontinuity(SESSION_ID, roomId, {
+        markedAt: 1,
+        prevBatch: 'before',
+        overlapEventIds: [],
+      });
+      const transaction = IDBDatabase.prototype.transaction;
+      let aborted = false;
+      const fault = vi
+        .spyOn(IDBDatabase.prototype, 'transaction')
+        .mockImplementation(function abortFirstWrite(...args) {
+          const result = transaction.apply(this, args);
+          if (
+            failure === 'commit' &&
+            !aborted &&
+            args[1] === 'readwrite' &&
+            result.objectStoreNames.contains('events')
+          ) {
+            aborted = true;
+            queueMicrotask(() => result.abort());
+          }
+          return result;
+        });
+      const scheduler = createBackfillScheduler({ mx });
+      const queue = createInMemoryGapFillScheduler();
+      const executor = createGapFillExecutor({ mx, sessionId: SESSION_ID, scheduler }, queue);
+      queue.enqueueGapFill({ roomId, markedAt: 1, prevBatch: 'before', reason: 'limited-sync' });
+      await waitForCompleted(1);
+      expect(mx.__messages).toHaveLength(1);
+      expect(await loadRoomTailDiscontinuity(SESSION_ID, roomId)).toBeDefined();
+      executor.recheckDeferred(roomId);
+      await vi.waitFor(() => expect(mx.__messages).toHaveLength(2));
+      await waitForCompleted(2);
+      expect(await loadRoomTailDiscontinuity(SESSION_ID, roomId)).toBeUndefined();
+      expect(aborted).toBe(failure === 'commit');
+      fault.mockRestore();
+      executor.stop();
+      scheduler.abortAll();
+    }
+  );
 
   it('keeps enough cached-tail ids to cover ten configured sync windows', () => {
     expect(GAP_FILL_OVERLAP_TAIL_LIMIT).toBeGreaterThanOrEqual(STARTUP_SYNC_TIMELINE_LIMIT * 10);

@@ -311,7 +311,7 @@ export const createRoomOfflineController = ({
       }
       // Rebuild transient encrypted descriptors from retained ciphertext. This
       // scan retries missing bodies without changing the server history cursor.
-      let after: string | undefined;
+      let after = (await readRoomOfflineProgress(sessionId, roomId)).retryAfterEventId ?? undefined;
       let retried = 0;
       do {
         if (!current() || pauseReason(roomId)) break;
@@ -325,7 +325,17 @@ export const createRoomOfflineController = ({
           writeLease: lease,
         });
         if (saved) await bodyBatch(roomId, saved.events, lease);
+        if (!current() || pauseReason(roomId, false)) return;
         after = batch.nextEventId;
+        if (
+          !(await updateRoomOfflineProgress(
+            sessionId,
+            roomId,
+            { retryAfterEventId: after ?? null },
+            lease
+          ))
+        )
+          return;
         retried += batch.events.length;
       } while (
         after &&
@@ -350,7 +360,7 @@ export const createRoomOfflineController = ({
         await refresh(roomId, lease);
         onChanged(roomId);
         if (page.exhausted) {
-          intent.explicit = false;
+          intent.explicit = intent.explicit && intent.snapshot.hasGap;
           publish(roomId, { status: 'ready' });
           return;
         }
@@ -400,6 +410,7 @@ export const createRoomOfflineController = ({
       intent.explicit = true;
       intent.canceled = false;
       intent.includeAllMedia = options?.includeAllMedia === true;
+      onPolicyChange?.();
       void run(roomId);
     },
     cancel: (roomId) => {

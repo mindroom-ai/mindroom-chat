@@ -101,7 +101,9 @@ export const readRoomOfflineProgress = async (
 export const updateRoomOfflineProgress = async (
   sessionId: string,
   roomId: string,
-  patch: Partial<RoomOfflineProgress>,
+  patch:
+    | Partial<RoomOfflineProgress>
+    | ((current: RoomOfflineProgress) => Partial<RoomOfflineProgress>),
   lease: CacheStoreWriteLease = captureCacheStoreWriteLease(sessionId, roomId)
 ): Promise<boolean> => {
   if (!isCacheWritable() || !isCacheStoreWriteLeaseCurrent(lease)) return false;
@@ -113,7 +115,10 @@ export const updateRoomOfflineProgress = async (
         roomId,
         scope: OFFLINE_SCOPE,
         updatedAt: Date.now(),
-        offline: { ...existing?.offline, ...patch },
+        offline: {
+          ...existing?.offline,
+          ...(typeof patch === 'function' ? patch(existing?.offline ?? {}) : patch),
+        },
       } satisfies CachedMetaRecord);
       return true;
     });

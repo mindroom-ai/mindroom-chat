@@ -12,6 +12,8 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { createMindroomSyncEngine } from '../mindroomSyncEngine';
 import {
   loadCachedRoomEvent,
+  loadRoomTailDiscontinuity,
+  replaceCachedAttachmentReferences,
   loadLatestCachedThreadEvents,
   resetCacheStoreForTesting,
 } from '../../threads/cacheStore';
@@ -21,7 +23,11 @@ import {
   saveRoomEventsToCacheCommitted,
 } from '../../threads/cacheStore';
 import { reportCacheWriteError, resetCacheHealthForTesting } from '../../threads/cacheHealth';
-import { readRoomOfflineProgress } from '../../threads/cacheStore/cacheStoreMeta';
+import { persistRoomChunkWithPreferLive } from '../../threads/eventRepository';
+import {
+  readRoomOfflineProgress,
+  updateRoomOfflineProgress,
+} from '../../threads/cacheStore/cacheStoreMeta';
 
 const roomId = '!opened:test';
 const raw = (id: string) => ({
@@ -406,7 +412,17 @@ it('retains text and distinguishes soft pressure from quota read-only', async ()
   await vi.waitFor(() => expect(engine.offline.getSnapshot(roomId).status).toBe('space'));
   expect(f.request).not.toHaveBeenCalled();
   expect(await loadCachedRoomEvent(engine.sessionId, roomId, '$retained')).toBeDefined();
-  reportCacheWriteError('test', new DOMException('quota', 'QuotaExceededError'));
+  const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+  const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+  try {
+    reportCacheWriteError('test', new DOMException('quota', 'QuotaExceededError'));
+    expect(warn).toHaveBeenCalledOnce();
+    expect(error).toHaveBeenCalledOnce();
+    expect(error.mock.calls[0][0]).toContain('cache degraded to read-only');
+  } finally {
+    warn.mockRestore();
+    error.mockRestore();
+  }
   engine.offline.download(roomId);
   await vi.waitFor(() => expect(engine.offline.getSnapshot(roomId).status).toBe('read-only'));
   await engine.offline.clear(roomId);
@@ -482,4 +498,232 @@ it('attachment turns yield to foreground work with two downloads active', async 
   engine.offline.cancel(roomId);
   engine.offline.cancel('!second:test');
   bodies.forEach((resolve) => resolve(new Response('{}')));
+});
+
+it.each([false, true])(
+  'does not revive an old decrypted event after clear (reopened: %s)',
+  async (reopen) => {
+    let old!: MatrixEvent;
+    const encrypted = {
+      ...raw('$old-key'),
+      type: 'm.room.encrypted',
+      content: { ciphertext: 'old cipher' },
+    };
+    const f = fixture(
+      vi
+        .fn()
+        .mockResolvedValueOnce({ chunk: [encrypted] })
+        .mockResolvedValue({ chunk: [] })
+    );
+    f.mx.decryptEventIfNeeded = async (event) => {
+      old = event;
+    };
+    const engine = f.make();
+    engine.noteRoomFocused(roomId);
+    await vi.waitFor(() => expect(engine.offline.getSnapshot(roomId).historyExhausted).toBe(true));
+    await engine.offline.clear(roomId);
+    if (reopen) {
+      engine.offline.download(roomId);
+      await vi.waitFor(() =>
+        expect(engine.offline.getSnapshot(roomId).historyExhausted).toBe(true)
+      );
+    }
+    old.setClearData({
+      clearEvent: { type: 'm.room.message', content: { msgtype: 'm.text', body: 'late decoded' } },
+    });
+    f.mx.emit(MatrixEventEvent.Decrypted, old);
+    await new Promise((resolve) => {
+      setTimeout(resolve, 25);
+    });
+    expect(await loadCachedRoomEvent(engine.sessionId, roomId, '$old-key')).toBeUndefined();
+  }
+);
+
+it('checkpoint retains missing keys added while its history request is pending', async () => {
+  let release!: (response: object) => void;
+  const f = fixture(
+    vi.fn(
+      () =>
+        new Promise((resolve) => {
+          release = resolve;
+        })
+    )
+  );
+  const engine = f.make();
+  engine.noteRoomFocused(roomId);
+  await vi.waitFor(() => expect(f.request).toHaveBeenCalledOnce());
+  await persistRoomChunkWithPreferLive({
+    mx: f.mx,
+    sessionId: engine.sessionId,
+    room: f.room,
+    chunk: [{ ...raw('$live-key'), type: 'm.room.encrypted', content: { ciphertext: 'live' } }],
+  });
+  release({ chunk: [raw('$plain')] });
+  await vi.waitFor(() => expect(engine.offline.getSnapshot(roomId).historyExhausted).toBe(true));
+  expect((await readRoomOfflineProgress(engine.sessionId, roomId)).undecryptedEventIds).toContain(
+    '$live-key'
+  );
+});
+
+it('concurrent repository coverage additions preserve each other', async () => {
+  const f = fixture();
+  const engine = f.make();
+  await Promise.all(
+    ['a', 'b'].map((id) =>
+      persistRoomChunkWithPreferLive({
+        mx: f.mx,
+        sessionId: engine.sessionId,
+        room: f.room,
+        chunk: [
+          { ...raw('$key-' + id), type: 'm.room.encrypted', content: { ciphertext: id } },
+          {
+            ...raw('$relation-' + id),
+            type: 'm.reaction',
+            content: {
+              'm.relates_to': { rel_type: 'm.annotation', event_id: '$missing-' + id, key: 'x' },
+            },
+          },
+        ],
+      })
+    )
+  );
+  const progress = await readRoomOfflineProgress(engine.sessionId, roomId);
+  expect(progress.undecryptedEventIds?.sort()).toEqual(['$key-a', '$key-b']);
+  expect(progress.unresolvedRelationIds?.sort()).toEqual(['$relation-a', '$relation-b']);
+});
+
+it('bounded automatic body retries advance past a failed prefix and survive restart', async () => {
+  const f = fixture();
+  f.setNetwork({ connected: true, unmetered: false });
+  const first = f.make();
+  const body = {
+    ...raw('$z-body'),
+    content: {
+      msgtype: 'm.text',
+      body: 'preview',
+      url: 'mxc://test/body',
+      'io.mindroom.long_text': { version: 2, encoding: 'matrix_event_content_json' },
+    },
+  };
+  await saveRoomEventsToCacheCommitted(first.sessionId, roomId, [
+    ...Array.from({ length: 200 }, (_, i) => raw('$a' + String(i).padStart(3, '0'))),
+    body,
+  ]);
+  await replaceCachedAttachmentReferences(first.sessionId, roomId, '$z-body', 1, [
+    { mxcUri: 'mxc://test/body', essential: true },
+  ]);
+  await updateRoomOfflineProgress(first.sessionId, roomId, { opened: true, exhausted: true });
+  const fetch = vi
+    .fn()
+    .mockRejectedValueOnce(new Error('body transport'))
+    .mockImplementation(
+      async () => new Response(JSON.stringify({ msgtype: 'm.text', body: 'saved' }))
+    );
+  vi.stubGlobal('fetch', fetch);
+  first.noteRoomFocused(roomId);
+  await vi.waitFor(() => expect(first.offline.getSnapshot(roomId).status).toBe('ready'));
+  expect(fetch).not.toHaveBeenCalled();
+  first.stop();
+  resetCacheStoreForTesting();
+  const next = f.make();
+  next.noteRoomFocused(roomId);
+  await vi.waitFor(() =>
+    expect(next.offline.getSnapshot(roomId)).toMatchObject({ status: 'ready', missingEssential: 1 })
+  );
+  expect(fetch).toHaveBeenCalledOnce();
+  next.clearRoomFocus(roomId);
+  next.noteRoomFocused(roomId);
+  await vi.waitFor(() => expect(next.offline.getSnapshot(roomId).status).toBe('ready'));
+  next.clearRoomFocus(roomId);
+  next.noteRoomFocused(roomId);
+  await vi.waitFor(() =>
+    expect(next.offline.getSnapshot(roomId)).toMatchObject({
+      status: 'ready',
+      saved: 1,
+      missingEssential: 0,
+    })
+  );
+  expect(fetch).toHaveBeenCalledTimes(2);
+});
+
+it('concurrent coverage repairs remove only processed IDs and retain newer additions', async () => {
+  const f = fixture();
+  const engine = f.make();
+  const key = (id: string) => ({
+    ...raw(id),
+    type: 'm.room.encrypted',
+    content: { ciphertext: id },
+  });
+  const relation = (id: string, target: string) => ({
+    ...raw(id),
+    type: 'm.reaction',
+    content: { 'm.relates_to': { rel_type: 'm.annotation', event_id: target, key: 'x' } },
+  });
+  const persist = (chunk: object[]) =>
+    persistRoomChunkWithPreferLive({ mx: f.mx, sessionId: engine.sessionId, room: f.room, chunk });
+  await persist([
+    key('$key-remove'),
+    key('$key-keep'),
+    relation('$rel-remove', '$target'),
+    relation('$rel-keep', '$unavailable'),
+  ]);
+  await Promise.all([
+    (() => {
+      const decrypted = new MatrixEvent(key('$key-remove'));
+      decrypted.setClearData({
+        clearEvent: { type: 'm.room.message', content: { msgtype: 'm.text', body: 'clear' } },
+      });
+      return persistRoomChunkWithPreferLive({
+        mx: f.mx,
+        sessionId: engine.sessionId,
+        room: f.room,
+        chunk: [decrypted.event, raw('$target')],
+        mappedEvents: [decrypted, new MatrixEvent(raw('$target'))],
+      });
+    })(),
+    persist([key('$key-new'), relation('$rel-new', '$absent')]),
+  ]);
+  const progress = await readRoomOfflineProgress(engine.sessionId, roomId);
+  expect(progress.undecryptedEventIds?.sort()).toEqual(['$key-keep', '$key-new']);
+  expect(progress.unresolvedRelationIds?.sort()).toEqual(['$rel-keep', '$rel-new']);
+});
+
+it('explicit download wakes deferred gaps and keeps pages running away from focus', async () => {
+  let release!: (response: object) => void;
+  const f = fixture(
+    vi
+      .fn()
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            release = resolve;
+          })
+      )
+      .mockResolvedValue({ chunk: [] })
+  );
+  const engine = f.make(true);
+  await updateRoomOfflineProgress(engine.sessionId, roomId, { opened: true, exhausted: true });
+  f.mx.emit(RoomEvent.TimelineReset, f.room, f.timelineSet as never, false);
+  await vi.waitFor(async () =>
+    expect(await loadRoomTailDiscontinuity(engine.sessionId, roomId)).toBeDefined()
+  );
+  await vi.waitFor(() => expect(engine.scheduler.pendingJobs()).toHaveLength(0));
+  expect(f.request).not.toHaveBeenCalled();
+  engine.offline.download(roomId);
+  await vi.waitFor(() => expect(f.request).toHaveBeenCalledOnce());
+  await vi.waitFor(() =>
+    expect(engine.offline.getSnapshot(roomId)).toMatchObject({
+      historyExhausted: true,
+      downloading: true,
+    })
+  );
+  release({ chunk: [raw('$gap')], end: 'next-gap' });
+  await vi.waitFor(() => expect(f.request).toHaveBeenCalledTimes(2));
+  await vi.waitFor(() =>
+    expect(engine.offline.getSnapshot(roomId)).toMatchObject({
+      historyComplete: true,
+      downloading: false,
+    })
+  );
+  expect(await loadRoomTailDiscontinuity(engine.sessionId, roomId)).toBeUndefined();
 });

@@ -2,6 +2,17 @@
 
 ## Runbook
 
+### Fence offline callbacks and resume retained work (2026-09-20)
+
+- Late SDK decryption keeps the event's original room write lease. Clearing then reopening cannot authorize an old callback.
+  Captured pagination operations own room and thread writes; duplicate SDK timeline writes are removed. Held seed reads check that same operation before publication.
+- Repository coverage applies transactional additions/removals to current metadata; history checkpoints update only pagination facts.
+  Attachment/decryption repair keeps its own durable scan cursor, resumes beyond bounded prefixes, and wraps only on a later run.
+- Failed gap transport, cache commits and stalled cursors retain deferred intent for a meaningful retry.
+  Explicit Download wakes deferred gaps and remains authorized across navigation until both history and the gap finish; the controller owns shared eligibility and allowance.
+- Validation: 498 focused tests cover these interleavings using real IndexedDB and production owners, including a deliberately aborted write transaction.
+  Typecheck, formatting and ESLint pass; existing ESLint warnings remain. Full-suite, production-build and native evidence below predates this fix round.
+
 ### Resume opened-room offline downloads (2026-09-20)
 
 - The client engine owns opened-room history and attachment work through its existing scheduler.

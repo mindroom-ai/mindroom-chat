@@ -56,6 +56,7 @@ import {
 } from './prefetchPolicy';
 import type { EngineLiveEventMeta, MindroomSyncEngine } from './types';
 import { trackPendingThreadEvent } from '../threads/pendingThreadEvents';
+import { rememberEventCacheWriteLease, canPersistDecryptedEvent } from '../threads/eventRepository';
 import { createRoomOfflineController } from './roomOffline';
 import type { OfflineConnection } from './offlineConnection';
 
@@ -153,11 +154,8 @@ export const createMindroomSyncEngine = ({
     };
   };
 
-  // CINNY-207 P7.2 audit finding #5: focused room tracker. Populated
-  // by `noteRoomFocused`; the gap-fill executor consults it via
-  // `getFocusedRoomId` when `prefetchScope === 'current-room-only'`.
+  // Focus lifecycle also drives the shared offline controller policy.
   let focusedRoomId: string | undefined;
-  const getFocusedRoomId = (): string | undefined => focusedRoomId;
   const effectiveGetPrefetchConfig = getPrefetchConfig ?? (() => DEFAULT_PREFETCH_CONFIG);
   const offline = createRoomOfflineController({
     mx,
@@ -180,12 +178,7 @@ export const createMindroomSyncEngine = ({
           mx,
           sessionId,
           scheduler: effectiveScheduler,
-          // CINNY-207 P7.2 audit finding #5: thread scope + focus into
-          // the executor so the runtime gate can honor
-          // `current-room-only` (suppress background bands on non-focused
-          // rooms) and `all-rooms` (admit federated tiers).
-          getPrefetchConfig: effectiveGetPrefetchConfig,
-          getFocusedRoomId,
+          // One controller owns automatic and explicit-download eligibility.
           pageAllowance: offline.allowance,
           reservePage: offline.reservePage,
           canSavePage: offline.canSavePage,
@@ -254,6 +247,7 @@ export const createMindroomSyncEngine = ({
     if (!data?.liveEvent) return;
     if (!liveMode) return;
 
+    rememberEventCacheWriteLease(event, captureCacheStoreWriteLease(sessionId, room.roomId));
     const meta: EngineLiveEventMeta = {
       kind: 'timeline',
       roomId: room.roomId,
@@ -275,7 +269,7 @@ export const createMindroomSyncEngine = ({
   const handleDecrypted = (event: MatrixEvent) => {
     const roomId = event.getRoomId();
     const room = roomId ? mx.getRoom(roomId) : undefined;
-    if (!room || !started) return;
+    if (!room || !started || !canPersistDecryptedEvent(event, sessionId)) return;
     effectiveWriteThrough.handleLiveEvent(event, room, {
       kind: 'timeline',
       roomId: room.roomId,

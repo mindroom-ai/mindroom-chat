@@ -153,6 +153,7 @@ export type RoomOfflineProgress = {
   exhausted?: boolean;
   savedEvents?: number;
   recentTokens?: string[];
+  retryAfterEventId?: string | null;
   undecryptedEventIds?: string[];
   unresolvedRelationIds?: string[];
 };

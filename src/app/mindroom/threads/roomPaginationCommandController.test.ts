@@ -4,11 +4,14 @@ import { IDBFactory } from 'fake-indexeddb';
 import { createClient, Room, MatrixEvent } from 'matrix-js-sdk';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
-import { Direction } from 'matrix-js-sdk';
+import { Direction, RoomEvent } from 'matrix-js-sdk';
+import { useRoomLiveRenderController } from './roomLiveRenderController';
+import { createDefaultThreadFilterState } from './roomThreadOverviewModel';
 import { createEnginePersistFacade } from '../engine/enginePersistFacade';
 import {
   clearRoomCachedContent,
   loadCachedRoomEvent,
+  loadLatestCachedThreadEvents,
   resetCacheStoreForTesting,
 } from './cacheStore';
 import { useRoomPaginationCommandController } from './roomPaginationCommandController';
@@ -574,12 +577,52 @@ it('fences an old page after clear and saves a new page in the same mounted view
     await new Promise<void>((resolve) => {
       release = resolve;
     });
-    events.unshift(message(nextId));
+    const reply = new MatrixEvent({
+      ...message(nextId + '-reply').event,
+      content: {
+        msgtype: 'm.text',
+        body: nextId,
+        'm.relates_to': { rel_type: 'm.thread', event_id: '$root' },
+      },
+    });
+    events.unshift(message(nextId), reply);
+    room.emit(RoomEvent.Timeline, reply, room, true, false, {
+      liveEvent: false,
+      timeline: first,
+    } as never);
   });
   loadRoomCachedPaginationSnapshotMock.mockResolvedValue({ status: 'cache-miss' });
   let callback!: (backwards: boolean) => Promise<void>;
   let renderer!: ReactTestRenderer;
   function Harness() {
+    useRoomLiveRenderController({
+      atBottomRef: { current: true },
+      atLiveEndRef: { current: true },
+      effectiveThreadFilterState: createDefaultThreadFilterState(),
+      hideActivity: false,
+      hideMembershipEvents: false,
+      hideNickAvatarEvents: false,
+      ignoredUsersSet: new Set(),
+      markLiveExpansionCandidate: vi.fn(),
+      mx,
+      normalThreadRecordMap: new Map(),
+      onStoreThreadSummary: vi.fn(),
+      room,
+      roomThreadFilterActive: false,
+      scrollRef: { current: null },
+      scrollToBottomRef: { current: { count: 0, smooth: false } },
+      setSupplementalThreadEvents: vi.fn(),
+      observeLiveTail: vi.fn(),
+      notifyThreadEventsChanged: vi.fn(),
+      setTimeline: vi.fn(),
+      setUnreadInfo: vi.fn(),
+      showHiddenEvents: false,
+      threadEventIndexMapRef: { current: new Map() },
+      threadId: undefined,
+      threadResolutionMap: new Map(),
+      timelineAtLiveEnd: true,
+      unreadInfo: undefined,
+    });
     callback = useRoomPaginationCommandController({
       alive: () => true,
       handleTimelinePagination: paginate,
@@ -608,6 +651,9 @@ it('fences an old page after clear and saves a new page in the same mounted view
   release();
   await old;
   expect(await loadCachedRoomEvent(sessionId, room.roomId, '$old')).toBeUndefined();
+  expect((await loadLatestCachedThreadEvents(sessionId, room.roomId, '$root', 10)).events).toEqual(
+    []
+  );
   nextId = '$new';
   const next = callback(true);
   await vi.waitFor(() => expect(paginate).toHaveBeenCalledTimes(2));
@@ -615,6 +661,13 @@ it('fences an old page after clear and saves a new page in the same mounted view
   await next;
   await vi.waitFor(async () =>
     expect(await loadCachedRoomEvent(sessionId, room.roomId, '$new')).toBeDefined()
+  );
+  await vi.waitFor(async () =>
+    expect(
+      (
+        await loadLatestCachedThreadEvents(sessionId, room.roomId, '$root', 10)
+      ).events.map((event) => event.event_id)
+    ).toContain('$new-reply')
   );
   act(() => renderer.unmount());
 });

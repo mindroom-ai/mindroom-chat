@@ -113,6 +113,7 @@ export const useThreadSeedPrewarmController = ({
         threadId: expectedThreadId,
       });
 
+      const operation = syncEngine.persist.forRoom(room);
       const prewarmPromise = syncEngine.scheduler.enqueue<void>({
         roomId: room.roomId,
         threadId: expectedThreadId,
@@ -121,10 +122,15 @@ export const useThreadSeedPrewarmController = ({
         // band-4 jobs yield to us so a room-open makes thread-open
         // fast even if a room-deep-history sweep is running.
         priority: 3,
-        execute: async () => {
+        execute: async (signal) => {
           try {
             const cachedSeedEvents = await loadThreadOpenSeedSnapshotFromCache(expectedThreadId);
-            if (generation !== threadSeedPrewarmGenerationRef.current) return;
+            if (
+              signal.aborted ||
+              !operation.isCurrent() ||
+              generation !== threadSeedPrewarmGenerationRef.current
+            )
+              return;
             if (!opts?.allowWhileThreadOpen && activeThreadIdRef.current) return;
 
             if (cachedSeedEvents.length > 0) {
@@ -190,11 +196,13 @@ export const useThreadSeedPrewarmController = ({
     if (threadSeedPrewarmRunningRef.current) return undefined;
     threadSeedPrewarmRunningRef.current = true;
     const generation = threadSeedPrewarmGenerationRef.current;
+    const operation = syncEngine.persist.forRoom(room);
 
     const prewarmThreadSeeds = async () => {
       try {
         while (threadSeedPrewarmQueueRef.current.length > 0) {
-          if (generation !== threadSeedPrewarmGenerationRef.current) return;
+          if (!operation.isCurrent() || generation !== threadSeedPrewarmGenerationRef.current)
+            return;
           if (activeThreadIdRef.current) return;
 
           const expectedThreadId = threadSeedPrewarmQueueRef.current.shift();
@@ -227,6 +235,7 @@ export const useThreadSeedPrewarmController = ({
           threadSeedPrewarmRunningRef.current = false;
         }
         if (
+          operation.isCurrent() &&
           generation === threadSeedPrewarmGenerationRef.current &&
           !activeThreadIdRef.current &&
           threadSeedPrewarmQueueRef.current.length > 0
@@ -243,7 +252,7 @@ export const useThreadSeedPrewarmController = ({
     void prewarmThreadSeeds().catch(() => undefined);
 
     return undefined;
-  }, [activeThreadId, debugTraceId, ensureThreadSeedPrewarm, priorityTargets]);
+  }, [activeThreadId, debugTraceId, ensureThreadSeedPrewarm, priorityTargets, room, syncEngine]);
 
   const waitForExistingOrQueued = useCallback<ThreadSeedOpenPort['waitForExistingOrQueued']>(
     (threadId, options) => {
