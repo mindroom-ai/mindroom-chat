@@ -1,271 +1,286 @@
 #!/usr/bin/env node
 /* eslint-disable no-console */
-
+import { spawn, spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { access, cp, mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
-import { dirname, resolve, sep } from 'node:path';
+import { closeSync, mkdirSync, openSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import { dirname, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import {
-  parseArguments,
-  planJobs,
-  requireLoopback,
-  runJobs,
-  summarizeJob,
-  usesDevelopmentServer,
-  cleanupContainers,
-} from './parallel-e2e.mjs';
-import { createProcessManager } from './parallel-e2e-process.mjs';
-import { provisionSpec } from './parallel-e2e-fixtures.mjs';
-import { bindCollisionError, waitForServer, withAvailablePort } from './parallel-e2e-ports.mjs';
+import { parseArgs } from 'node:util';
 
 const repo = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const cli = resolve(repo, 'node_modules/@playwright/test/cli.js');
-const vite = resolve(repo, 'node_modules/vite/bin/vite.js');
-const help = `Usage: npm run test:e2e:parallel -- [options] [e2e/file.spec.ts ...]
+const serialSpec =
+  /(?:^|\/)(?:perf-|ios-momentum-invariants|thread-ride-under-latency|message-rendering-performance|thinking-marker|long-message-expansion-default|app-store-screenshots|minimap-verify|worker-computer|deployed-auth-shell)/;
 
-Discover all Playwright configurations, run isolated specs concurrently, then
-run timing-sensitive specs alone. Requires Node 22+, Docker Compose, npm ci,
-and installed Playwright browsers (npx playwright install --with-deps).
-Supported hosts: Linux, macOS, or WSL; native Windows is not supported.
-
-  --jobs N                 Concurrent spec processes (default: up to 8)
-  --list                   Print the complete plan without starting services
-  --phase all|parallel|serial  Run all cases or an explicitly selected queue
-  --artifacts DIRECTORY    Parent for a new run directory (default: test-results/parallel)
-  --skip-build             Use an existing dist/ build; copy it into this run
-  --docker-browsers        Use the matching Playwright image (Linux host networking)
-  --production-url URL     Use an existing loopback app server instead of building
-  --computer-fixture FILE  Isolated worker gateway JSON (or E2E_COMPUTER_FIXTURE)
-  --sso-homeserver URL     Hosted SSO server (or E2E_SSO_HOMESERVER)
-  --help                   Show this help
-
-Missing external fixtures, failed specs, missing reports, or interrupted work
-produce a nonzero exit. Platform skips remain visible in summary.json.
-See docs/testing.md for setup, complete coverage, reruns, and known failures.
-`;
-
-async function main(options) {
-  const runId = `${Date.now().toString(36)}-${randomUUID().slice(0, 8)}`;
-  const directory = resolve(options.artifacts ?? resolve(repo, 'test-results/parallel'), runId);
-  const abort = new AbortController();
-  const interrupt = () => abort.abort(new Error('Browser run interrupted'));
-  process.once('SIGINT', interrupt);
-  process.once('SIGTERM', interrupt);
-  const manager = createProcessManager({ cwd: repo, signal: abort.signal });
-  const managers = [manager];
-  // Unrelated E2E credentials must never leak into fresh local fixture jobs.
-  const cleanEnv = Object.fromEntries(
-    Object.keys(process.env)
-      .filter((key) => key.startsWith('E2E_'))
-      .map((key) => [key, undefined])
-  );
-  Object.assign(cleanEnv, { CI: '1', E2E_NO_WEB_SERVER: '1', FORCE_COLOR: '0' });
-  const checked = async (command, args, settings) => {
-    const result = await manager.run(command, args, settings);
-    if (result.code !== 0)
-      throw new Error(
-        `${command} failed (${result.code ?? result.signal}); see ${
-          settings?.logFile ?? 'command output'
-        }`
-      );
-    return result;
-  };
-  const startApp = (label, args) =>
-    withAvailablePort(async (port, attempt) => {
-      const url = `http://127.0.0.1:${port}`;
-      const logFile = resolve(directory, `${label}${attempt ? `-${attempt}` : ''}.log`);
-      const handle = manager.start(
-        process.execPath,
-        [vite, ...args, '--host', '127.0.0.1', '--port', String(port), '--strictPort'],
-        { logFile }
-      );
-      try {
-        await waitForServer(url, handle, abort.signal);
-        return url;
-      } catch (error) {
-        await handle.stop();
-        throw bindCollisionError(error, await readFile(logFile, 'utf8').catch(() => ''));
+export function plan(reports, root = repo) {
+  const jobs = new Map();
+  for (const { config, report } of reports) {
+    if (report.errors?.length) throw new Error(`Discovery failed: ${config}`);
+    const visit = (suite, titles = []) => {
+      for (const spec of suite.specs ?? []) {
+        const file = relative(root, resolve(report.config.rootDir, spec.file));
+        for (const { projectName: project } of spec.tests) {
+          const key = `${file}:${project}`;
+          if (!jobs.has(key)) jobs.set(key, { file, project, config, titles: new Set() });
+          const job = jobs.get(key);
+          const title = [...titles, spec.title].join(' / ');
+          if (job.config !== config && !job.titles.has(title))
+            throw new Error(`Conflicting configuration subsets: ${key}`);
+          job.titles.add(title);
+        }
       }
-    });
-  let composeStarted = false;
-  let composeArgs;
-  let composeEnv;
-  const containers = new Set();
-  let exitCode = 1;
-  const summary = {
-    runId,
-    startedAt: new Date().toISOString(),
-    scope: { phase: options.phase, files: options.files },
-    jobs: [],
-    results: [],
-  };
-  let reportWrites = Promise.resolve();
-  const writeSummary = () => {
-    reportWrites = reportWrites.then(() =>
-      writeFile(resolve(directory, 'summary.json'), JSON.stringify(summary, null, 2) + '\n', {
-        mode: 0o600,
+      for (const child of suite.suites ?? []) visit(child, [...titles, child.title]);
+    };
+    visit(report);
+  }
+  return [...jobs.values()].map(({ titles, ...job }) => ({
+    ...job,
+    cases: titles.size,
+    serial: serialSpec.test(job.file),
+  }));
+}
+
+export async function runJobs(jobs, concurrency, execute) {
+  const results = [];
+  for (const serial of [false, true]) {
+    const queue = jobs.filter((job) => !!job.serial === serial);
+    let next = 0;
+    await Promise.all(
+      Array.from({ length: Math.min(serial ? 1 : concurrency, queue.length) }, async () => {
+        while (next < queue.length) {
+          const job = queue[next++];
+          try {
+            results.push({ ...job, ...(await execute(job)) });
+          } catch (error) {
+            results.push({ ...job, status: 'failed', error: error.message });
+          }
+        }
       })
     );
-    return reportWrites;
-  };
+  }
+  return results;
+}
 
-  try {
-    const configs = (await readdir(repo)).filter((name) =>
-      /^playwright(?:\.[\w-]+)?\.config\.(?:ts|js|mjs)$/.test(name)
-    );
-    configs.sort((a, b) =>
-      a === 'playwright.config.ts' ? -1 : b === 'playwright.config.ts' ? 1 : a.localeCompare(b)
-    );
-    const reports = [];
-    for (const config of configs) {
-      const result = await checked(
-        process.execPath,
-        [cli, 'test', '--config', resolve(repo, config), '--list', '--reporter=json'],
-        { env: cleanEnv, capture: true }
-      );
-      reports.push({ config, report: JSON.parse(result.stdout) });
-    }
-    const jobs = planJobs(reports, { repo, files: options.files }).filter(
-      (job) => options.phase === 'all' || job.exclusive === (options.phase === 'serial')
-    );
-    if (!jobs.length) throw new Error('The selected queue contains no specs.');
-    summary.jobs = jobs;
-    summary.expectedCases = jobs.reduce((sum, job) => sum + job.cases.length, 0);
+const loopback = (value) => {
+  const url = new URL(value);
+  if (
+    url.protocol !== 'http:' ||
+    !['127.0.0.1', 'localhost', '[::1]'].includes(url.hostname) ||
+    url.username ||
+    url.password ||
+    url.pathname !== '/' ||
+    url.search ||
+    url.hash
+  )
+    throw new Error('Use HTTP loopback origins for local fixture services.');
+  return url.origin;
+};
+
+async function main() {
+  const { values, positionals } = parseArgs({
+    options: {
+      jobs: { type: 'string', default: '8' },
+      list: { type: 'boolean' },
+      help: { type: 'boolean' },
+    },
+    allowPositionals: true,
+  });
+  if (values.help) {
     console.log(
-      `${jobs.length} spec/project jobs, ${summary.expectedCases} cases: ${
-        jobs.filter((job) => !job.exclusive).length
-      } parallel, ${jobs.filter((job) => job.exclusive).length} exclusive.`
+      'Usage: npm run test:e2e:parallel -- [--jobs 8] [--list] [e2e/file.spec.ts ...]\nSetup: docs/testing.md'
     );
-    if (options.list) {
-      for (const job of jobs)
-        console.log(
-          `${job.exclusive ? 'serial  ' : 'parallel'} ${job.project.padEnd(8)} ${job.file} (${
-            job.cases.length
-          })`
-        );
-      return 0;
+    return;
+  }
+  const concurrency = Number(values.jobs);
+  if (!Number.isInteger(concurrency) || concurrency < 1 || concurrency > 64)
+    throw new Error('--jobs must be an integer from 1 to 64.');
+  const baseEnv = Object.fromEntries(
+    Object.entries(process.env).filter(([name]) => !name.startsWith('E2E_'))
+  );
+  Object.assign(baseEnv, { CI: '1', E2E_NO_WEB_SERVER: '1' });
+  const configs = readdirSync(repo).filter((file) =>
+    /^playwright(?:\.[\w-]+)?\.config\.[cm]?[jt]s$/.test(file)
+  );
+  configs.sort((a, b) =>
+    a === 'playwright.config.ts' ? -1 : b === 'playwright.config.ts' ? 1 : a.localeCompare(b)
+  );
+  const jobs = plan(
+    configs.map((config) => {
+      const listed = spawnSync(
+        process.execPath,
+        [cli, 'test', '-c', config, '--list', '--reporter=json'],
+        { cwd: repo, env: baseEnv, encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 }
+      );
+      if (listed.status !== 0) throw new Error(`Discovery failed: ${config}\n${listed.stderr}`);
+      return { config, report: JSON.parse(listed.stdout) };
+    })
+  );
+  const files = positionals.map((file) => file.replace(/^\.\//, ''));
+  for (const file of files)
+    if (!jobs.some((job) => job.file === file)) throw new Error(`Unknown spec: ${file}`);
+  const selected = jobs.filter((job) => !files.length || files.includes(job.file));
+  if (!selected.length) throw new Error('No tests discovered.');
+  console.log(
+    `${selected.length} spec/project jobs, ${selected.reduce((n, job) => n + job.cases, 0)} cases`
+  );
+  if (values.list) {
+    for (const job of selected)
+      console.log(
+        `${job.serial ? 'serial' : 'parallel'} ${job.project} ${job.file} (${job.cases})`
+      );
+    return;
+  }
+  if (process.platform === 'win32') throw new Error('Use Linux, macOS, or WSL.');
+  const homeserver = loopback(process.env.E2E_HOMESERVER);
+  const production = loopback(process.env.E2E_BASE_URL);
+  const development = loopback(process.env.E2E_DEV_BASE_URL);
+  const directory = resolve(process.env.E2E_ARTIFACTS ?? 'test-results/parallel', randomUUID());
+  mkdirSync(directory, { recursive: true, mode: 0o700 });
+  console.log(`Artifacts: ${directory}`);
+  const abort = new AbortController();
+  const children = new Set();
+  let shutdown;
+  const kill = (pid, signal) => {
+    try {
+      process.kill(-pid, signal);
+    } catch (error) {
+      if (error.code !== 'ESRCH') throw error;
     }
-    await mkdir(directory, { recursive: true, mode: 0o700 });
-    await writeSummary();
-    console.log(`Artifacts: ${directory}`);
-
-    if (options.dockerBrowsers && process.platform !== 'linux')
-      throw new Error('--docker-browsers requires Linux host networking.');
-    const version = JSON.parse(
-      await readFile(resolve(repo, 'node_modules/@playwright/test/package.json'), 'utf8')
-    ).version;
-    const browserImage =
-      process.env.E2E_PLAYWRIGHT_IMAGE ?? `mcr.microsoft.com/playwright:v${version}-noble`;
-    if (options.dockerBrowsers) {
-      const image = await manager.run('docker', ['image', 'inspect', browserImage], {
-        logFile: resolve(directory, 'browser-image.log'),
-      });
-      if (image.code !== 0)
-        await checked('docker', ['pull', browserImage], {
-          logFile: resolve(directory, 'browser-image.log'),
-        });
-    }
-
-    composeArgs = [
-      'compose',
-      '-p',
-      `mindroom-e2e-${runId}`,
-      '-f',
-      resolve(repo, 'e2e/docker-compose.matrix.yaml'),
-    ];
-    composeStarted = true;
-    const homeserver = await withAvailablePort(async (port, attempt) => {
-      const url = `http://127.0.0.1:${port}`;
-      composeEnv = {
-        E2E_MATRIX_PORT: `127.0.0.1:${port}`,
-        E2E_MATRIX_SERVER_NAME: 'matrix.localhost',
-        E2E_HOMESERVER_PUBLIC_URL: url,
-      };
-      const logFile = resolve(directory, `matrix${attempt ? `-${attempt}` : ''}.log`);
-      try {
-        await checked('docker', [...composeArgs, 'up', '-d'], { env: composeEnv, logFile });
-        await waitForServer(`${url}/_matrix/client/versions`, null, abort.signal);
-        return url;
-      } catch (error) {
-        throw bindCollisionError(error, await readFile(logFile, 'utf8').catch(() => ''));
-      }
+  };
+  const interrupt = () => {
+    abort.abort();
+    const pids = [...children];
+    pids.forEach((pid) => kill(pid, 'SIGTERM'));
+    shutdown = new Promise((done) => {
+      setTimeout(() => {
+        pids.forEach((pid) => kill(pid, 'SIGKILL'));
+        done();
+      }, 2000);
     });
-
-    let productionURL = options.productionURL;
-    if (!productionURL) {
-      if (!options.skipBuild)
-        await checked('npm', ['run', 'build'], { logFile: resolve(directory, 'build.log') });
-      await access(resolve(repo, 'dist/index.html'));
-      const site = resolve(directory, 'site');
-      await cp(resolve(repo, 'dist'), site, { recursive: true });
-      productionURL = await startApp('preview', ['preview', '--outDir', site]);
-    } else await waitForServer(productionURL, null, abort.signal);
-
-    const developmentURL = await startApp('vite', []);
-
-    const execute = async (job) => {
-      const index = jobs.indexOf(job);
-      const label = `${String(index + 1).padStart(3, '0')}-${job.file.replace(
-        /[^a-zA-Z0-9_-]/g,
-        '_'
-      )}-${job.project}`;
-      const jobDirectory = resolve(directory, label);
-      await mkdir(jobDirectory, { recursive: true, mode: 0o700 });
-      const start = Date.now();
-      console.log(`START ${index + 1}/${jobs.length} ${job.project} ${job.file}`);
-      const env = { ...cleanEnv, E2E_BASE_URL: productionURL };
-      if (job.file === 'e2e/worker-computer.spec.ts') {
-        if (!options.computerFixture)
-          return {
-            status: 'blocked',
-            reason: 'Supply --computer-fixture and its matching --production-url.',
-            directory: jobDirectory,
-          };
-        const fixturePath = resolve(options.computerFixture);
-        const fixture = JSON.parse(await readFile(fixturePath, 'utf8'));
-        for (const key of ['api_origin', 'ui_origin', 'homeserver']) requireLoopback(fixture[key]);
-        if (new URL(fixture.ui_origin).origin !== productionURL)
-          return {
-            status: 'blocked',
-            reason: 'Worker fixture ui_origin must match --production-url.',
-            directory: jobDirectory,
-          };
-        env.E2E_COMPUTER_FIXTURE = fixturePath;
-      } else if (job.file === 'e2e/deployed-auth-shell.spec.ts') {
-        if (!options.ssoHomeserver)
-          return {
-            status: 'blocked',
-            reason: 'Supply --sso-homeserver for the hosted SSO shell checks.',
-            directory: jobDirectory,
-          };
-        env.E2E_HOMESERVER = options.ssoHomeserver;
-      } else {
-        Object.assign(
-          env,
-          await provisionSpec({
-            file: job.file,
-            homeserver,
-            runId,
-            index,
-            productionURL,
-            signal: abort.signal,
-            runSeed: async (script, seedEnv) =>
-              checked(process.execPath, [resolve(repo, script)], {
-                env: { ...cleanEnv, ...seedEnv },
-                logFile: resolve(jobDirectory, 'setup.log'),
-              }),
-          })
-        );
+  };
+  process.once('SIGINT', interrupt);
+  process.once('SIGTERM', interrupt);
+  const run = (command, args, env, cwd, log) =>
+    new Promise((done, reject) => {
+      abort.signal.throwIfAborted();
+      const fd = openSync(log, 'a', 0o600);
+      const child = spawn(command, args, { cwd, env, detached: true, stdio: ['ignore', fd, fd] });
+      closeSync(fd);
+      if (child.pid) children.add(child.pid);
+      child.once('error', reject);
+      child.once('close', (code) => {
+        children.delete(child.pid);
+        done(code);
+      });
+    });
+  const api = async (path, token, body) => {
+    const response = await fetch(`${homeserver}/_matrix/client/v3${path}`, {
+      method: body ? 'POST' : 'GET',
+      headers: {
+        'content-type': 'application/json',
+        ...(token ? { authorization: `Bearer ${token}` } : {}),
+      },
+      body: body ? JSON.stringify(body) : undefined,
+      signal: AbortSignal.any([abort.signal, AbortSignal.timeout(10_000)]),
+    });
+    if (!response.ok) throw new Error(`Matrix fixture request failed (${response.status})`);
+    return response.json();
+  };
+  const results = await runJobs(selected, concurrency, async (job) => {
+    if (abort.signal.aborted) return { status: 'interrupted' };
+    const id = randomUUID().replaceAll('-', '');
+    const output = resolve(directory, `${job.file.replaceAll('/', '_')}-${job.project}`);
+    mkdirSync(output, { recursive: true });
+    console.log(`START ${job.project} ${job.file}`);
+    const env = { ...baseEnv, E2E_BASE_URL: production, E2E_HOMESERVER: homeserver };
+    const setup = async (command, args) => {
+      if ((await run(command, args, env, repo, resolve(output, 'setup.log'))) !== 0)
+        throw new Error(`Fixture setup failed; see ${output}/setup.log`);
+    };
+    if (job.file === 'e2e/worker-computer.spec.ts') {
+      if (!process.env.E2E_COMPUTER_FIXTURE)
+        return { status: 'blocked', reason: 'Set E2E_COMPUTER_FIXTURE.' };
+      env.E2E_COMPUTER_FIXTURE = resolve(process.env.E2E_COMPUTER_FIXTURE);
+      const fixture = JSON.parse(readFileSync(env.E2E_COMPUTER_FIXTURE, 'utf8'));
+      for (const key of ['ui_origin', 'api_origin', 'homeserver']) loopback(fixture[key]);
+      if (new URL(fixture.ui_origin).origin !== production)
+        throw new Error('Worker fixture UI origin must match E2E_BASE_URL.');
+    } else if (job.file === 'e2e/deployed-auth-shell.spec.ts') {
+      if (!process.env.E2E_SSO_HOMESERVER)
+        return { status: 'blocked', reason: 'Set E2E_SSO_HOMESERVER.' };
+      env.E2E_HOMESERVER = process.env.E2E_SSO_HOMESERVER;
+    } else {
+      for (const suffix of ['', '_SECOND', '_THIRD', '_DEACTIVATE', '_AGENT']) {
+        const prefix = `E2E${suffix}`;
+        env[`${prefix}_USERNAME`] = `${
+          suffix === '_AGENT' ? 'mindroom_' : ''
+        }lv${id}${suffix.toLowerCase()}`;
+        env[`${prefix}_PASSWORD`] = randomUUID();
+        await setup('bash', [
+          resolve(repo, 'scripts/ensure-e2e-account.sh'),
+          prefix,
+          env[`${prefix}_USERNAME`],
+          env[`${prefix}_PASSWORD`],
+        ]);
       }
-      const source = await readFile(resolve(repo, job.file), 'utf8');
-      if (usesDevelopmentServer(job.file, source)) env.E2E_BASE_URL = developmentURL;
-      env.PLAYWRIGHT_JSON_OUTPUT_FILE = resolve(jobDirectory, 'report.json');
-      const pattern = resolve(repo, job.file).replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '$';
-      const args = [
+      const login = (username, password) =>
+        api('/login', null, {
+          type: 'm.login.password',
+          identifier: { type: 'm.id.user', user: username },
+          password,
+        });
+      const primary = await login(env.E2E_USERNAME, env.E2E_PASSWORD);
+      const server = primary.user_id.slice(primary.user_id.indexOf(':') + 1);
+      Object.assign(env, {
+        E2E_AGENT_USER_ID: `@${env.E2E_AGENT_USERNAME}:${server}`,
+        E2E_FIXTURE_ROOM_ALIAS: `#lv${id}:${server}`,
+        E2E_UI_ACTIONS_HOMESERVER: homeserver,
+        E2E_DEPLOYED_BASE_URL: production,
+        E2E_DEPLOYED_HOMESERVER: homeserver,
+        E2E_DEPLOYED_USERNAME: env.E2E_USERNAME,
+        E2E_DEPLOYED_PASSWORD: env.E2E_PASSWORD,
+        SHOT_PREFIX: id,
+        APPSTORE_FIXTURE_SET_PRIMARY_PROFILE: '1',
+      });
+      await setup(process.execPath, [
+        resolve(
+          repo,
+          job.file.includes('app-store-screenshots')
+            ? 'scripts/seed-appstore-screenshot-room.mjs'
+            : 'e2e/live/seed-fixture-room.mjs'
+        ),
+      ]);
+      const { room_id: room } = await api(
+        `/directory/room/${encodeURIComponent(env.E2E_FIXTURE_ROOM_ALIAS)}`
+      );
+      if (!room) throw new Error('Fixture room lookup returned no room ID.');
+      env.E2E_FIXTURE_ROOM_ID = room;
+      env.E2E_ROOM_ID = room;
+      if (job.file.includes('narrow-toolbar')) {
+        await api(`/rooms/${encodeURIComponent(room)}/invite`, primary.access_token, {
+          user_id: env.E2E_AGENT_USER_ID,
+        });
+        const agent = await login(env.E2E_AGENT_USERNAME, env.E2E_AGENT_PASSWORD);
+        await api(`/join/${encodeURIComponent(room)}`, agent.access_token, {});
+      }
+      if (job.file.includes('minimap-verify'))
+        await setup('bash', [resolve(repo, 'e2e/live/fixtures/minimap-fixture.sh')]);
+    }
+    const source = readFileSync(resolve(repo, job.file), 'utf8');
+    if (
+      source.includes('/e2e/fixtures/') ||
+      /diagnostics-storage-fallback|cinny124-flight-recorder/.test(job.file)
+    )
+      env.E2E_BASE_URL = development;
+    env.PLAYWRIGHT_JSON_OUTPUT_FILE = resolve(output, 'report.json');
+    const pattern = resolve(repo, job.file).replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '$';
+    const code = await run(
+      process.execPath,
+      [
         cli,
         'test',
         pattern,
-        '--config',
+        '-c',
         resolve(repo, job.config),
         '--project',
         job.project,
@@ -273,182 +288,46 @@ async function main(options) {
         '--retries=0',
         '--reporter=list,json',
         '--output',
-        resolve(jobDirectory, 'test-results'),
-      ];
-      // Legacy relative screenshot paths, including release captures, stay inside this job.
-      const jobManager = createProcessManager({ cwd: jobDirectory, signal: abort.signal });
-      managers.push(jobManager);
-      let outcome;
-      let containerName;
-      try {
-        if (options.dockerBrowsers) {
-          const name = `mindroom-e2e-browser-${runId}-${index}`;
-          containerName = name;
-          containers.add(name);
-          const mountArgs = ['-v', `${repo}:${repo}`];
-          if (!directory.startsWith(repo + sep)) mountArgs.push('-v', `${directory}:${directory}`);
-          if (
-            env.E2E_COMPUTER_FIXTURE &&
-            !env.E2E_COMPUTER_FIXTURE.startsWith(repo + sep) &&
-            !env.E2E_COMPUTER_FIXTURE.startsWith(directory + sep)
-          ) {
-            mountArgs.push('-v', `${env.E2E_COMPUTER_FIXTURE}:${env.E2E_COMPUTER_FIXTURE}:ro`);
-          }
-          outcome = await jobManager.run(
-            'docker',
-            [
-              'run',
-              '--rm',
-              '--init',
-              '--name',
-              name,
-              '--network',
-              'host',
-              '--ipc',
-              'host',
-              '--user',
-              `${process.getuid()}:${process.getgid()}`,
-              ...mountArgs,
-              '-w',
-              jobDirectory,
-              ...Object.keys(env)
-                .filter((key) => env[key] !== undefined)
-                .flatMap((key) => ['-e', key]),
-              browserImage,
-              'node',
-              ...args,
-            ],
-            { env, logFile: resolve(jobDirectory, 'playwright.log'), timeoutMs: 45 * 60_000 }
-          );
-        } else {
-          outcome = await jobManager.run(process.execPath, args, {
-            env,
-            logFile: resolve(jobDirectory, 'playwright.log'),
-            timeoutMs: 45 * 60_000,
-          });
-        }
-      } finally {
-        await jobManager.stopAll();
-        managers.splice(managers.indexOf(jobManager), 1);
-        if (containerName && containers.has(containerName)) {
-          const cleanup = createProcessManager({ cwd: repo });
-          const stopped = await cleanup
-            .run('docker', ['rm', '-f', containerName], {
-              logFile: resolve(jobDirectory, 'container-cleanup.log'),
-              timeoutMs: 30_000,
-            })
-            .catch(() => null);
-          if (stopped?.code === 0) containers.delete(containerName);
-          await cleanup.stopAll();
-        }
-      }
-      let report;
-      try {
-        report = JSON.parse(await readFile(env.PLAYWRIGHT_JSON_OUTPUT_FILE, 'utf8'));
-      } catch {
-        /* Missing or invalid reports fail below. */
-      }
-      return {
-        ...summarizeJob(job, report, outcome.code),
-        exitCode: outcome.code,
-        seconds: Math.round((Date.now() - start) / 1000),
-        directory: jobDirectory,
-      };
-    };
-    await runJobs(jobs, {
-      concurrency: options.jobs,
-      execute,
-      signal: abort.signal,
-      onResult: async (result) => {
-        summary.results.push(result);
-        console.log(
-          `${result.status.toUpperCase()} ${result.project} ${result.file}${
-            result.reason ? `: ${result.reason}` : ''
-          }`
-        );
-        await writeSummary();
-      },
-    });
-    summary.counts = summary.results.reduce((counts, result) => {
-      counts[result.status] = (counts[result.status] ?? 0) + 1;
-      return counts;
-    }, {});
-    summary.caseCounts = summary.results.reduce(
-      (counts, result) => {
-        for (const [key, count] of Object.entries(result.counts ?? {}))
-          counts[key] = (counts[key] ?? 0) + count;
-        if (!result.counts) counts.unrun += jobs.find((job) => job.id === result.id).cases.length;
-        return counts;
-      },
-      { passed: 0, failed: 0, skipped: 0, missing: 0, unrun: 0 }
+        resolve(output, 'results'),
+      ],
+      env,
+      output,
+      resolve(output, 'playwright.log')
     );
-    summary.finishedAt = new Date().toISOString();
-    await writeSummary();
-    console.log(
-      `Cases: ${JSON.stringify(summary.caseCounts)}. Jobs: ${JSON.stringify(summary.counts)}`
+    const report = JSON.parse(readFileSync(env.PLAYWRIGHT_JSON_OUTPUT_FILE, 'utf8'));
+    const stats = report.stats;
+    const complete =
+      ['expected', 'unexpected', 'flaky', 'skipped'].reduce(
+        (n, key) => n + (stats[key] ?? 0),
+        0
+      ) === job.cases;
+    const status =
+      code === 0 && complete && !report.errors?.length && !stats.unexpected && !stats.flaky
+        ? 'passed'
+        : 'failed';
+    console.log(`${status.toUpperCase()} ${job.project} ${job.file}`);
+    return { status, stats, output };
+  });
+  await shutdown;
+  process.removeListener('SIGINT', interrupt);
+  process.removeListener('SIGTERM', interrupt);
+  writeFileSync(resolve(directory, 'summary.json'), JSON.stringify(results, null, 2) + '\n', {
+    mode: 0o600,
+  });
+  for (const result of results.filter(({ status }) => status !== 'passed'))
+    console.error(
+      `${result.status}: ${result.file}: ${result.reason ?? result.error ?? result.output}`
     );
-    exitCode = abort.signal.aborted
-      ? 130
-      : summary.results.every((result) => result.status === 'passed')
-      ? 0
-      : 1;
-  } catch (error) {
-    if (!options.list) {
-      summary.error = String(error.message ?? error);
-      await mkdir(directory, { recursive: true, mode: 0o700 });
-      await writeSummary();
-    }
-    console.error(error.message ?? error);
-    exitCode = abort.signal.aborted ? 130 : 1;
-  } finally {
-    await Promise.all(managers.map((item) => item.stopAll()));
-    const cleanup = createProcessManager({ cwd: repo });
-    const containerFailures = await cleanupContainers(containers, (name) =>
-      cleanup.run('docker', ['rm', '-f', name], {
-        logFile: resolve(directory, `${name}-cleanup.log`),
-        timeoutMs: 30_000,
-      })
-    );
-    if (containerFailures.length) {
-      summary.containerCleanupFailures = containerFailures;
-      summary.cleanupError = `Browser container cleanup failed: ${containerFailures
-        .map(({ name }) => name)
-        .join(', ')}. See the container cleanup logs in ${directory}.`;
-      console.error(summary.cleanupError);
-      await writeSummary();
-    }
-    if (composeStarted) {
-      const result = await cleanup
-        .run('docker', [...composeArgs, 'down', '--volumes'], {
-          env: composeEnv,
-          logFile: resolve(directory, 'matrix-cleanup.log'),
-        })
-        .catch(() => null);
-      if (!result || result.code !== 0) {
-        const error = `Matrix cleanup failed; see ${resolve(directory, 'matrix-cleanup.log')}`;
-        summary.cleanupError = [summary.cleanupError, error].filter(Boolean).join('\n');
-        console.error(error);
-        await writeSummary();
-      }
-    }
-    await cleanup.stopAll();
-    process.removeListener('SIGINT', interrupt);
-    process.removeListener('SIGTERM', interrupt);
-    if (summary.cleanupError) exitCode = 1;
-  }
-  return exitCode;
+  process.exitCode = abort.signal.aborted
+    ? 130
+    : results.every(({ status }) => status === 'passed')
+    ? 0
+    : 1;
 }
 
-let options;
-try {
-  const args = process.argv.slice(2);
-  if (process.env.E2E_SSO_HOMESERVER && !args.includes('--sso-homeserver'))
-    args.push('--sso-homeserver', process.env.E2E_SSO_HOMESERVER);
-  options = parseArguments(args);
-  options.computerFixture ??= process.env.E2E_COMPUTER_FIXTURE;
-} catch (error) {
-  console.error(error.message);
-  process.exitCode = 64;
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  main().catch((error) => {
+    console.error(error.message);
+    process.exitCode = 1;
+  });
 }
-if (options?.help) console.log(help);
-else if (options) process.exitCode = await main(options);

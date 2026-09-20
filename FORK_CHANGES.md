@@ -2,26 +2,17 @@
 
 ## Runbook
 
-### Make parallel browser validation reproducible (2026-09-20)
+### Run browser specs in parallel (2026-09-20)
 
-- `npm run test:e2e:parallel` discovers every Playwright configuration, deduplicates shared Chromium cases, and includes supplemental Firefox/WebKit coverage.
-  `--list` prints the complete plan without starting infrastructure; `docs/testing.md` documents setup, external fixtures, focused reruns, and reports.
-  `AGENTS.md` points directly to the command and guide.
-- The runner owns a disposable loopback Matrix Compose project, fresh accounts and rooms per spec/project, a production build snapshot, and a fresh Vite server for source-import fixtures.
-  Bounded concurrent jobs finish before timing-sensitive and special-fixture jobs run sequentially.
-  Each Playwright process has one worker, zero retries, and its own working/output directory, including legacy and release screenshots.
-- Per-job reports and the aggregate `summary.json` retain failures, missing cases, explicit platform skips, and blocked external worker/SSO prerequisites.
-  Failed setup does not stop unrelated specs, and missing prerequisites cannot silently produce a successful full run.
-  Cleanup targets only this invocation's processes, browser containers, Matrix project, and disposable volume.
-- Runner behavioral tests cover discovery, scheduling, cancellation, process cleanup, account isolation, special fixtures, and failure reporting; PR CI runs these fast checks through `npm run test:e2e:runner`.
-  The slow browser suite remains explicitly invoked.
-- Validation: all 37 runner tests and 4,741 application unit tests passed on current `dev`.
-  A 32-case browser smoke run covered isolated account storage, Chromium/WebKit source fixtures, and the sequential minimap fixture; both newly discovered image-viewer cases also passed through the build-from-scratch path.
-  Missing external prerequisites produced two blocked jobs/four unrun cases and exit 1; interrupting two active browser containers produced exit 130 and removed the owned containers, network, and volume.
-  Review follow-ups remove an unused fixture parameter, reject native Windows before spawning, retry port collisions, wait for the owned Vite listener, and report failed browser-container cleanup.
-  All three cases in the post-review production/Vite smoke run passed.
-  Typecheck, production/PWA build, runner ESLint, and changed-file formatting passed; independent review found no blocking issues.
-  The complete slow suite was not repeated for this runner change; the strict fold-anchor and software-compositor failures from the preceding validation remain visible and unchanged.
+- Use `npm run test:e2e:parallel -- --jobs 8`; `--list` shows all configured spec/project jobs.
+  `docs/testing.md` gives explicit Matrix, preview, Vite, and optional integration setup; `AGENTS.md` points to it.
+- One scheduler reuses the existing account and fixture scripts, isolates accounts and output per job, and runs timing-sensitive specs after the parallel queue.
+  It preserves failures and skips, reports missing external fixtures as blocked, and stops child process groups on interruption.
+  The caller owns infrastructure; Linux hosts can run the whole scheduler in the official Playwright image.
+- Validation: three scheduler tests, all 4,741 unit tests, typecheck, production/PWA build, and focused lint/format checks pass.
+  Discovery lists 111 spec/project jobs and 276 cases; container checks verify blocked integrations and interruption without stopping caller-owned services.
+  The browser smoke run passed seven cases and reported four settings-header failures; direct Playwright execution reproduced the same blur assertion without the scheduler.
+  The full slow suite was not rerun; settings-header, fold-anchor, and software-compositor failures remain strict and documented.
 
 ### Match settings glass and iOS safe-area painting (2026-09-20)
 

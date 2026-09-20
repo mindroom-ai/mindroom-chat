@@ -1,0 +1,66 @@
+import assert from 'node:assert/strict';
+import { test } from 'node:test';
+import { plan, runJobs } from './test-e2e-parallel.mjs';
+
+const discovery = (config, project, file = 'chat.spec.ts') => ({
+  config,
+  report: {
+    config: { rootDir: '/repo/e2e' },
+    suites: [{ specs: [{ file, title: 'works', tests: [{ projectName: project }] }] }],
+  },
+});
+
+test('deduplicates shared Chromium coverage while retaining other browsers and serial specs', () => {
+  const jobs = plan(
+    [
+      discovery('default', 'chromium'),
+      discovery('extra', 'chromium'),
+      discovery('extra', 'webkit'),
+      discovery('default', 'chromium', 'live/perf-scroll.spec.ts'),
+    ],
+    '/repo'
+  );
+  assert.deepEqual(
+    jobs.map(({ file, project, cases, serial }) => [file, project, cases, serial]),
+    [
+      ['e2e/chat.spec.ts', 'chromium', 1, false],
+      ['e2e/chat.spec.ts', 'webkit', 1, false],
+      ['e2e/live/perf-scroll.spec.ts', 'chromium', 1, true],
+    ]
+  );
+});
+
+test('rejects discovery errors and incompatible subsets instead of dropping cases', () => {
+  assert.throws(() => plan([{ config: 'broken', report: { errors: ['failed'] } }], '/repo'));
+  const extra = discovery('filtered', 'chromium');
+  extra.report.suites[0].specs[0].title = 'another case';
+  assert.throws(() => plan([discovery('default', 'chromium'), extra], '/repo'));
+});
+
+test('bounds concurrency, continues after failure, and runs serial jobs only after the pool', async () => {
+  const jobs = [{ file: 'a' }, { file: 'b' }, { file: 'c' }, { file: 'serial', serial: true }];
+  let active = 0;
+  let peak = 0;
+  const started = [];
+  const release = [];
+  const running = runJobs(jobs, 2, async ({ file, serial }) => {
+    started.push(file);
+    if (serial) assert.equal(active, 0);
+    active += 1;
+    peak = Math.max(peak, active);
+    if (file === 'a' || file === 'b')
+      await new Promise((resolve) => {
+        release.push(resolve);
+      });
+    active -= 1;
+    if (file === 'b') throw new Error('fixture failed');
+    return { status: 'passed' };
+  });
+  assert.deepEqual(started, ['a', 'b']);
+  release.forEach((resolve) => resolve());
+  const results = await running;
+  assert.equal(peak, 2);
+  assert.equal(started.at(-1), 'serial');
+  assert.equal(results.find(({ file }) => file === 'b').status, 'failed');
+  assert.equal(results.filter(({ status }) => status === 'passed').length, 3);
+});

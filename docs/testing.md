@@ -1,139 +1,72 @@
-# Running browser tests
+# Parallel browser tests
 
-Use the repository runner for the complete Playwright suite:
+Use a small scheduler plus explicit service setup.
+Agents should run these commands rather than recreate scheduling logic.
+Prerequisites: Node from `.node-version`, Bash, Python 3, curl, Docker Compose, `npm ci`, and Playwright browsers (`npx playwright install --with-deps`).
+Use Linux, macOS, or WSL; existing shell helpers need Python (`uv run --no-project` can supply it).
 
-```bash
-npm ci
-npx playwright install --with-deps chromium firefox webkit
-npm run test:e2e:parallel -- --jobs 8
-```
+Start a disposable Matrix stack on an unused local port:
 
-Use the Node version in `.node-version` and a running Docker daemon with Docker Compose.
-Supported hosts are Linux, macOS, and WSL; native Windows is rejected because cleanup requires POSIX process groups.
-The runner uses Node built-ins; it needs no Python, SSH access, fixed ports, or existing Matrix accounts.
-It starts a disposable local Matrix server, builds the application once, copies the build into the run directory, and starts a production preview plus a fresh Vite server.
-Matrix ports bind only to loopback.
-Startup retries port collisions up to three times and waits for the owned app server before accepting HTTP readiness.
-All services and the Matrix volume created by the runner are removed when it exits, including after Ctrl-C.
-Reports and the build snapshot remain available.
-
-The default command includes every spec discovered by every `playwright*.config.*` file.
-Shared Chromium cases run once; supplemental Firefox and WebKit cases remain included.
-Unit tests remain a separate command: `npm test`.
-
-Two browser integrations require external prerequisites described below.
-Without them, the command still runs the remaining tests, records those integrations as **blocked**, and exits nonzero.
-A completed process is not evidence that every requested case passed: check `summary.json` for failed, skipped, missing, and unrun cases.
-
-## Execution and isolation
-
-The default concurrency is half the available CPUs, capped at eight spec processes.
-Override it with `--jobs N`; each process always uses one Playwright worker and zero retries.
-Each spec/project job receives fresh primary, secondary, third, deactivation, and agent accounts plus its own fixture room.
-Inherited account credentials are not reused.
-The standard, App Store, minimap, and narrow-toolbar fixtures are seeded automatically.
-The runner never changes test assertions or expected interface defaults.
-
-Performance, native momentum, long-message folding, thinking-marker, screenshot, and external integration jobs run sequentially after the parallel queue finishes.
-Avoid unrelated heavy workloads during this phase.
-Source-import fixtures use Vite; application checks use the production preview.
-
-Every Playwright process has its own working directory and output directory.
-This also keeps legacy `ui-audit/` screenshots and App Store release captures inside the run's artifacts rather than changing repository release images.
-Separate complete runs use separate Docker Compose projects, ports, accounts, and report directories.
-Use separate checkouts for simultaneous builds, since `npm run build` writes the checkout's shared `dist/` directory before the runner copies it.
-
-## External integrations
-
-### Hosted SSO shell
-
-The deployed authentication shell checks real provider links on an SSO-enabled homeserver.
-Supply its URL explicitly:
-
-```bash
-npm run test:e2e:parallel -- --sso-homeserver https://mindroom.chat
-```
-
-`E2E_SSO_HOMESERVER` is the equivalent environment setting.
-These tests inspect authentication routes; the runner does not provision accounts on that server.
-
-### Worker computer
-
-The real worker-computer test needs the MindRoom backend's isolated gateway fixture.
-Follow the backend's `docs/tools/worker-computer.md` and start `scripts/test-worker-computer.py --serve` with `--chat-origin` set to the local Chat preview URL.
-Start all backend fixture containers before the browser run; Docker network changes during browser startup can interrupt requests.
-The fixture provides `chat-fixture.json`, including its loopback API, UI, and Matrix origins.
-
-Build and serve the Chat checkout being tested, then point both the backend fixture and runner at that same preview:
-
-```bash
+```sh
+export COMPOSE_PROJECT_NAME=chat-e2e-$USER-$$
+export E2E_MATRIX_PORT=127.0.0.1:28108
+export E2E_HOMESERVER=http://127.0.0.1:28108
+export E2E_HOMESERVER_PUBLIC_URL=$E2E_HOMESERVER
+npm run e2e:matrix:up
 npm run build
+```
+
+Keep these servers running in separate terminals from the same checkout:
+
+```sh
 npm run preview -- --host 127.0.0.1 --port 4173 --strictPort
+npm run start -- --host 127.0.0.1 --port 4188 --strictPort
 ```
 
-From another shell, after starting the backend fixture for that origin:
+Back in the first terminal:
 
-```bash
-npm run test:e2e:parallel -- \
-  --production-url http://127.0.0.1:4173 \
-  --computer-fixture ./test-results/worker/chat-fixture.json \
-  --sso-homeserver https://mindroom.chat \
-  --jobs 8
-```
-
-Replace the fixture path with the actual output from the backend setup.
-`E2E_COMPUTER_FIXTURE` is also supported.
-The fixture's `ui_origin` must match `--production-url`; the runner rejects non-loopback fixture services.
-With `--production-url`, the runner uses that existing build instead of building or starting its own production preview.
-It still starts a fresh Vite server and disposable Matrix stack for other tests.
-The external preview and backend fixture remain owned by whoever started them; shut them down using their own cleanup instructions.
-
-## Inspecting coverage and rerunning
-
-```bash
-# Discovery only: no builds, containers, account creation, or browser launches.
+```sh
+export E2E_BASE_URL=http://127.0.0.1:4173
+export E2E_DEV_BASE_URL=http://127.0.0.1:4188
 npm run test:e2e:parallel -- --list
-
-# Select specific files; all configured projects for those files are included.
-npm run test:e2e:parallel -- --jobs 2 \
-  e2e/account-storage.spec.ts e2e/live/cinny031-focused-room-view.spec.ts
-
-# Select a queue explicitly; this is a partial run.
-npm run test:e2e:parallel -- --phase parallel
-npm run test:e2e:parallel -- --phase serial
-
-# Reuse a known-current dist/ build for a focused rerun.
-npm run test:e2e:parallel -- --skip-build e2e/account-storage.spec.ts
+npm run test:e2e:parallel -- --jobs 8
+# Focused rerun: append exact repository-relative spec paths.
+# npm run test:e2e:parallel -- --jobs 2 e2e/account-storage.spec.ts
 ```
 
-The default artifact parent is `test-results/parallel/`; `--artifacts DIRECTORY` selects another parent.
-Each invocation creates a unique run directory containing `summary.json`, startup/build logs, the production snapshot, and per-spec setup logs, Playwright JSON reports, traces, videos, and screenshots.
-The summary records the selected scope, every discovered case, each job outcome, and aggregate case counts.
-It is updated as jobs finish, including when another job fails.
-A missing report, missing expected case, failed repeat, setup error, blocked integration, or interruption cannot turn into a successful exit.
-Browser traces may contain disposable fixture credentials; keep artifacts local unless reviewed for publication.
+The scheduler discovers every Playwright config, deduplicates shared Chromium cases, and includes supplemental Firefox/WebKit cases.
+Each spec/project gets fresh accounts, a fixture room, and its own working/output directory; it reuses the existing account and seed scripts.
+App Store captures intentionally reuse their existing fixed display agents, so use one suite per disposable Matrix stack.
+One Playwright worker runs per spec with zero retries; timing-sensitive and special-fixture specs run sequentially after the parallel pool.
+Avoid heavy competing workloads during that phase; use separate checkouts for simultaneous builds and restart Vite after changing branches.
 
-### Linux browser containers
+Results and legacy screenshots stay under `test-results/parallel/<run>/`; `E2E_ARTIFACTS` overrides the parent directory.
+Read `summary.json` and each job's `report.json`: platform skips remain explicit, and failed setup/tests, missing reports/cases, or blocked integrations cause a nonzero exit.
+Ctrl-C stops child process groups and exits 130; app servers and Matrix remain caller-owned.
+Stop the two server terminals and run `docker compose -f e2e/docker-compose.matrix.yaml down --volumes` in the first terminal to remove its Matrix project.
+Artifacts can contain disposable credentials; keep them local.
 
-On hosts where Playwright's browser dependencies are unavailable, use the matching official Playwright image:
+## External prerequisites
 
-```bash
-npm run test:e2e:parallel -- --docker-browsers --jobs 8
+Set `E2E_SSO_HOMESERVER=https://mindroom.chat` for hosted SSO route checks.
+For worker-computer coverage, follow the backend's `docs/tools/worker-computer.md` and run `scripts/test-worker-computer.py --serve --chat-origin http://127.0.0.1:4173`.
+Set `E2E_COMPUTER_FIXTURE` to its `chat-fixture.json`; its loopback `ui_origin` must equal `E2E_BASE_URL`.
+Start backend fixture containers before browser jobs; network changes during tests can disrupt requests.
+Without these prerequisites, those jobs are reported as blocked while the rest continue.
+
+## Linux without native browser dependencies
+
+Run the same scheduler inside the matching official Playwright image; keep the host services above running:
+
+```sh
+image=mcr.microsoft.com/playwright:v$(node -p 'require("@playwright/test/package.json").version')-noble
+docker run --rm --init --network host --ipc host --user "$(id -u):$(id -g)" \
+  -v "$PWD:$PWD" -w "$PWD" -e E2E_HOMESERVER -e E2E_BASE_URL -e E2E_DEV_BASE_URL \
+  -e E2E_SSO_HOMESERVER -e E2E_COMPUTER_FIXTURE "$image" npm run test:e2e:parallel -- --jobs 8
 ```
 
-This mode requires Linux host networking and downloads the image matching the installed Playwright version if necessary.
-It runs browser jobs with the current user's UID/GID and preserves reports on the host.
-`E2E_PLAYWRIGHT_IMAGE` can select an already prepared compatible image.
-Browser containers are separate from the disposable Matrix Compose project and are removed on completion or interruption.
-Failed cleanup records the affected container names and logs in `summary.json` and exits nonzero.
-
-## Known unresolved browser checks
-
-The long-message fold-anchor check remains strict: isolated validation observed 634px of displacement against its original 40px limit.
-Waiting for eventual recovery can hide a visible jump, so the runner does not add settling waits or retries.
-The native momentum pixel check also fails intermittently on software graphics; the same blank frames reproduce on a static page.
-That control identifies an environment confound and does not establish that application scrolling is correct.
-Neither case is skipped or treated as an expected pass by the runner.
-
-For runner changes, use `npm run test:e2e:runner` plus a real run covering account isolation, source fixtures, and the sequential queue.
-The runner's fast behavioral tests also run in PR CI; CI does not automatically start the full slow browser suite.
+Keep an external worker fixture JSON inside the mounted checkout or mount its path too.
+Known unresolved checks remain strict: immediate fold-anchor displacement and native momentum blank frames on software graphics (also reproduced on static HTML).
+The settings-header live check also expects its own blur although settings now inherit the modal material; direct Playwright execution reproduces this failure without the scheduler.
+The scheduler does not relax assertions or add retries.
+Unit tests remain `npm test`; the scheduler's focused tests run through `npm run test:e2e:runner` in PR CI.
