@@ -27,7 +27,7 @@ import { Room } from 'matrix-js-sdk';
 import { ArchiveRoomMenuItem } from '../rooms/ArchiveRoomMenuItem';
 import { Menu, MenuItem } from '../../components/glass/GlassPrimitives';
 import { useStateEvent } from '../../hooks/useStateEvent';
-import { glassFlat, glassFloating } from '../../styles/Glass.css';
+import { glassFlat, glassFloating, glassSurface } from '../../styles/Glass.css';
 import { PageHeader } from '../../components/page';
 import { RoomAvatar, RoomIcon } from '../../components/room-avatar';
 import { UseStateProvider } from '../../components/UseStateProvider';
@@ -388,7 +388,13 @@ export function RoomViewHeader({
 
   return (
     <PageHeader
-      className={classNames(ContainerColor({ variant: 'Surface' }), glassFloating, glassFlat)}
+      appearance="plain"
+      className={classNames(
+        ContainerColor({ variant: 'Surface' }),
+        glassSurface({ level: 'panel', variant: 'Surface' }),
+        glassFloating,
+        glassFlat
+      )}
       balance={screenSize === ScreenSize.Mobile}
     >
       <Box grow="Yes" gap="300">

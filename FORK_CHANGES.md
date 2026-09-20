@@ -9,9 +9,11 @@
 - File/media attachment shells, link previews, pasted-text cards, uploads, and message extras use the shared panel material.
   Existing outlines remain available when masked rims are unsupported or transparency is disabled, including CanvasText boundaries in forced colors.
   Progress/error colors, focus, and content rendering remain intact; dense inline reactions and status badges keep their existing treatment.
-- Thread banners use the shared panel material and directional rim, without an outer shadow.
+- The topmost room header uses flat native glass instead of Chromium's refractive filter, which painted a shadow-like edge despite `box-shadow: none`.
+  Its 3 px blur, tint, controls, and rimless treatment remain intact in room and thread views.
+- Lower thread banners retain the composer's control material, directional rim, and soft outer shadow.
   Floating blur stays at 3 px, dark tint stays at 72%, and resolved banners retain their success color.
-  Light tint remains at the panel's 60%.
+  Light tint follows the composer at 58%.
 - Shared glass rims use vertical lighting: a stronger top highlight, softer bottom reflection, and quiet side edges.
   The masked gradient uses 180 degrees, and inset-shadow fallbacks follow the same top/bottom orientation.
   Light themes reduce the top reflection's white opacity so the shaded edge remains visible against white backgrounds; dark reflections are unchanged.
@@ -20,6 +22,7 @@
   Eight new browser checks pass, including rim sampling, pause/resume, disclosure, keyboard activation, and high contrast; all four rim cases fail against the previous styles.
   All 4,741 unit tests, typecheck, production/PWA build, and lint pass with the existing 17 warnings.
   The shared glass suite passes 66 cases with two WebKit-only CDP skips, and four live room/thread checks keep disclosure controls above growing composers at phone width.
+  Twelve live Chromium/WebKit checks verify native room-header blur, underlying scrolling, and room/thread controls at phone and desktop widths in simple/full modes.
   Independent and PR review findings about accessibility boundaries are addressed and covered by failing-before/passing-after checks.
   Linux WebKit captures do not reproduce native iOS backdrop blur; physical iPhone checks remain unavailable.
 

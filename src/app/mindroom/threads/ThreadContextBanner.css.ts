@@ -12,7 +12,7 @@ const BannerLayout = style({
 
 export const Banner = style([
   BannerLayout,
-  glassSurface({ level: 'panel', variant: 'SurfaceVariant' }),
+  glassSurface({ level: 'control', variant: 'SurfaceVariant' }),
   glassFloating,
 ]);
 
@@ -158,7 +158,7 @@ export const ScheduledIndicator = style({
 
 export const BannerResolved = style([
   BannerLayout,
-  glassSurface({ level: 'panel', variant: 'Success' }),
+  glassSurface({ level: 'control', variant: 'Success' }),
   glassFloating,
   { color: color.Success.OnContainer },
 ]);

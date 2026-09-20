@@ -124,6 +124,7 @@ for (const width of [390, 1280]) {
             return [css.borderTopWidth, css.borderBottomWidth, css.boxShadow, css.backgroundImage];
           })
         ).toEqual(['0px', '0px', 'none', 'none']);
+        await expect(header).toHaveCSS('backdrop-filter', /^blur\(3px\)/);
         await expect(filters.locator('[data-view-mode="compact"]')).toHaveAttribute(
           'aria-pressed',
           'true'
