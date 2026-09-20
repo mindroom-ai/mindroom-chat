@@ -2,6 +2,40 @@
 
 ## Runbook
 
+### Refresh and run the full live browser suite (2026-09-20)
+
+- Rebased validation work onto current `dev` (`e1de7c4d`), including cached-thread startup, diagnostic storage fallback, and the iOS import fix.
+- Run eight independent spec processes against a disposable local Matrix server, each with one Playwright worker and separate primary, secondary, third, deactivation, and agent accounts plus fixture rooms.
+  Keep timing-sensitive scroll and performance probes in a sequential queue on separate CPU cores.
+  Use a production preview for application tests and a fresh Vite instance for specs that import source modules or load `e2e/fixtures/` pages.
+  Restart Vite after rebasing to avoid stale module singletons.
+  The 83-file main queue took 15m54s versus 116m30s of combined spec runtime; this measures concurrent execution, not a separate serial benchmark.
+  Start all fixture containers before browser tests: container network changes can interrupt browser requests during page startup.
+- Clear Cache preserves encryption identity stores together with saved logins.
+  Sync and application caches still clear; account removal retains its separate crypto cleanup.
+  Regression coverage checks stored crypto data with and without database enumeration and verifies the same Matrix device after browser reload.
+- Refresh live fixtures for the default Simple Mode and current view, sort, dialog, and command-palette controls.
+  Invite-menu coverage creates its own rooms, space, and directory users.
+  Scroll checks distinguish visible rows from virtualizer overscan and wait for the existing bounded anchor-restoration cycle after folding messages.
+- Auth translations use a named component tag so login, registration, and password-reset actions render inside their links.
+- Recently Opened timestamps cannot shrink or wrap, preserving the two-line row height as relative timestamps age.
+  A fixed-clock live regression reproduces the previous 18px height increase.
+- Authoritative thread-cache repairs use the same edit compaction as live writes, preventing standalone streamed replacement records from accumulating.
+- Members actions choose their drawer state from the current viewport when invoked, including callbacks queued before a resize commits.
+  The regression opens the phone overlay without changing the saved desktop preference.
+  Agent-action fixtures wait for initial live sync and clear only cached deployment config before explicitly changing trust policy; all behavior assertions remain intact.
+- Glass filter checks wait for font layout to settle before asserting pointer motion preserves filter identity.
+  Native-touch bounds account for floating overlays using a bounded hit-test search; pixel evidence uses compositor timestamps and attaches the first five failing frames.
+- Final application checks: 4,733 unit tests across 556 files passed, along with typecheck and the production/PWA build.
+  ESLint reports zero errors and the existing 17 warnings.
+  Independent review found no blocking issues in the five product fixes or refreshed fixtures.
+  Agent-action validation passed three complete repeats, and the separate non-native performance queue passed all 22 cases.
+- Browser status: 211 of 212 default cases passed, plus 49 additional browser cases; three existing platform-specific skips remain.
+  The unresolved case is `compositor momentum flicks under latency` in `e2e/live/thread-ride-under-latency.spec.ts`.
+  Blank pixels also reproduce in a static long page with no application code, on both installed Chromium versions.
+  Headed SwiftShader rendering improves results but remains flaky (one of three repeated application runs passed); disabling partial rasterization worsens the static control.
+  No reliable compositor result is available from this software-rendered host, and no speculative virtualizer changes or relaxed pixel assertions are retained.
+
 ### Restore iOS archives after archived-room module collision (2026-09-20)
 
 - Xcode Cloud build 254 failed during the web build in `ci_pre_xcodebuild.sh` because `ARCHIVED_ROOMS_SETTINGS_PAGE` was resolved from the state module instead of the settings component.
