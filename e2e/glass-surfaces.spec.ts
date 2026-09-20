@@ -1,5 +1,67 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { contrastRatio, pixelDifference, sampleScreenshot, type Rgba } from './helpers/glassVisual';
+
+for (const theme of ['light', 'dark']) {
+  test(`safe area shares the app and modal backdrop in ${theme}`, async ({ page, browserName }) => {
+    test.skip(browserName !== 'chromium', 'Safe-area emulation requires CDP');
+    await page.setViewportSize({ width: 390, height: 844 });
+    const session = await page.context().newCDPSession(page);
+    await session.send('Emulation.setSafeAreaInsetsOverride', { insets: { top: 59 } });
+    await page.goto(`/e2e/fixtures/glass-surfaces.html?theme=${theme}`);
+    const open = page.getByRole('button', { name: 'Open settings sheet', exact: true });
+    await expect(open).toBeVisible();
+    await expect(page.locator('#root')).toHaveCSS('padding-top', '59px');
+    expect((await open.boundingBox())!.y).toBeGreaterThanOrEqual(59);
+    await page.addStyleTag({ content: 'main { background: var(--app-bg-color) !important; }' });
+    const points = [
+      { x: 5, y: 20 },
+      { x: 5, y: 62 },
+    ];
+    const normal = await sampleScreenshot(page, points);
+    expect(normal[0]).toEqual(normal[1]);
+    await open.click();
+    await expect(page.getByTestId('settings-sheet')).toBeVisible();
+    await expect
+      .poll(async () => {
+        const dimmed = await sampleScreenshot(page, points);
+        return pixelDifference(dimmed[0], normal[0]);
+      })
+      .toBeGreaterThan(10);
+    const dimmed = await sampleScreenshot(page, points);
+    // Separate compositor layers can round the same alpha blend by one channel value.
+    dimmed[0].slice(0, 3).forEach((channel, index) => {
+      expect(Math.abs(channel - dimmed[1][index])).toBeLessThanOrEqual(1);
+    });
+    await page.keyboard.press('Escape');
+    await expect(page.getByTestId('settings-sheet')).toHaveCount(0);
+    expect(await sampleScreenshot(page, points)).toEqual(normal);
+    await session.detach();
+  });
+
+  test(`settings navigation shares the modal surface in ${theme}`, async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto(`/e2e/fixtures/glass-surfaces.html?theme=${theme}`);
+    const header = page.getByTestId('settings-nav-header');
+    await expect(header).toBeVisible();
+    expect(
+      await header.evaluate((element) => {
+        const style = getComputedStyle(element);
+        return {
+          background: style.backgroundColor,
+          image: style.backgroundImage,
+          filter: style.backdropFilter,
+          shadow: style.boxShadow,
+        };
+      })
+    ).toEqual({
+      background: 'rgba(0, 0, 0, 0)',
+      image: 'none',
+      filter: 'none',
+      shadow: 'none',
+    });
+  });
+}
+
 for (const theme of ['light', 'silver', 'dark', 'midnight', 'butter']) {
   test(`settings sheet reveals its dimmed backdrop and retains contrast in ${theme}`, async ({
     page,

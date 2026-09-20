@@ -139,6 +139,105 @@
 - Session cache deletion and app-wide in-memory cleanup revoke outstanding attachment write leases before clearing state, so a transport completion from an old session cannot recreate deleted payloads.
 - Validation: the full Node 24 suite passes (`557` files, `4,737` tests), including focused cache/message coverage (`22` files, `173` tests); `npm run typecheck` and `npm run build` pass; `npm run lint` passes with the existing `17` warnings and no errors.
 
+### Run browser specs in parallel (2026-09-20)
+
+- Use `npm run test:e2e:parallel -- --jobs 8`; `--list` shows all configured spec/project jobs.
+  `docs/testing.md` gives explicit Matrix, preview, Vite, and optional integration setup; `AGENTS.md` points to it.
+- One scheduler reuses the existing account and fixture scripts, isolates accounts and output per job, and runs timing-sensitive specs after the parallel queue.
+  It preserves failures and skips, reports missing external fixtures as blocked, and stops child process groups on interruption.
+  The caller owns infrastructure; Linux hosts can run the whole scheduler in the official Playwright image.
+- Validation: four scheduler tests, all 4,741 unit tests, typecheck, production/PWA build, and focused lint/format checks pass.
+  Discovery lists 111 spec/project jobs and 276 cases; container checks verify blocked integrations and interruption without stopping caller-owned services.
+  The browser smoke run passed seven cases and reported four settings-header failures; direct Playwright execution reproduced the same blur assertion without the scheduler.
+  The full slow suite was not rerun; settings-header, fold-anchor, and software-compositor failures remain strict and documented.
+  Next validation: run the full slow suite with the documented prerequisites and record its outcome.
+
+### Match settings glass and iOS safe-area painting (2026-09-20)
+
+- Settings navigation headers inherit the enclosing modal material, matching settings subpages and removing the separate fill beside the scrollbar gutter.
+  Standalone navigation retains its sticky glass header.
+- The iOS bridge overrides the StatusBar plugin configuration to let the WebView paint behind the status bar.
+  Existing `viewport-fit=cover` and root safe-area padding keep navigation below the cutout, while modal backdrops cover the whole screen and the residual native status-bar inset no longer leaves a gap above sync banners.
+  The shared Android inset configuration stays unchanged.
+- Splash screens no longer toggle native WebView geometry when mounting or unmounting.
+  Native status icons follow the active web theme; the bridge preserves an already resolved icon style when Capacitor reapplies startup settings after native screens close.
+- The earlier native-inset workaround predates `viewport-fit=cover`.
+  Browser coverage checks transparent settings navigation in light and dark themes, a 59 px safe-area inset, matching background pixels across that inset, and backdrop restoration after closing settings.
+  Native plugin boundary tests cover both icon schemes and browser isolation.
+- Validation: all 4,731 tests across 555 files pass under Node 24 with limited worker concurrency, along with typecheck, production/PWA build, App Store preflight, formatting, and whitespace checks.
+  ESLint reports zero errors and the existing 17 warnings.
+  All 19 Chromium and 17 WebKit glass fixture cases pass across the suite and isolated reruns; the two CDP safe-area cases are skipped on WebKit.
+  Browser reruns resolved a Chromium click timeout and WebKit screenshot failures accompanied by a browser-process crash.
+  Independent review found no remaining issues.
+  Native compilation and physical iPhone checks remain unverified; check the cutout, sync banner, keyboard, and status icons before and after dismissing native screens on an Apple build.
+
+### Drag zoomed images with touch (2026-09-20)
+
+- The image viewer previously handled pinch zoom on touchscreens but only accepted mouse input for panning.
+  Pointer events now support touch, mouse, and pen dragging on the viewer surface, including continuing with one finger after a pinch.
+- Drag movement stays in screen pixels at every zoom level, and transform animation is disabled while dragging.
+  Pointer capture keeps drags active outside the image, while cancellation and lost capture end tracking and returning to 100% resets the offset.
+- Regression coverage checks pinch handoff, repeated drags, cancellation, normal-size reset, and secondary mouse buttons.
+  Chromium browser coverage exercises real injected touch gestures and desktop dragging against the production viewer.
+- Validation: all 4,746 tests across 557 files, typecheck, production/PWA build, and both browser cases pass.
+  ESLint reports zero errors and the existing 17 warnings; independent review found no actionable issues.
+  Physical iPhone validation remains unavailable on this Linux host.
+- Review follow-up preserves the remaining finger when only one pointer is canceled.
+  The new cancellation-handoff regression fails before the fix and passes afterward; independent follow-up review found no issues.
+
+### Refresh and run the full live browser suite (2026-09-20)
+
+- Rebased validation work onto current `dev` (`12d3245f`), including cached-thread startup, diagnostic storage fallback, the iOS import fix, and grouped-tool table rendering.
+  Broad browser receipts were collected on `e1de7c4d` plus these fixes; unit tests, typecheck, and build were rerun after the final table-only rebase.
+- Run eight independent spec processes against a disposable local Matrix server, each with one Playwright worker and separate primary, secondary, third, deactivation, and agent accounts plus fixture rooms.
+  Keep timing-sensitive scroll and performance probes in a sequential queue on separate CPU cores.
+  Use a production preview for application tests and a fresh Vite instance for specs that import source modules or load `e2e/fixtures/` pages.
+  Restart Vite after rebasing to avoid stale module singletons.
+  The 83-file main queue took 15m54s versus 116m30s of combined spec runtime; this measures concurrent execution, not a separate serial benchmark.
+  Start all fixture containers before browser tests: container network changes can interrupt browser requests during page startup.
+- Clear Cache preserves encryption identity stores together with saved logins.
+  Sync and application caches still clear; account removal retains its separate crypto cleanup.
+  Regression coverage checks stored crypto data with and without database enumeration and verifies the same Matrix device after browser reload.
+- Refresh live fixtures for the default Simple Mode and current view, sort, dialog, and command-palette controls.
+  Invite-menu coverage creates its own rooms, space, and directory users.
+  Scroll checks distinguish visible rows from virtualizer overscan and require nonempty visible anchors plus real scroll movement.
+  Review removed a proposed three-second wait after folding messages: two passing runs had first measured 634px of anchor drift before returning to zero.
+  The original immediate less-than-40px assertion is restored; asynchronous restoration alone does not establish that users never see the displacement.
+- Auth translations use a named component tag so login, registration, and password-reset actions render inside their links.
+- Recently Opened timestamps cannot shrink or wrap, preserving the two-line row height as relative timestamps age.
+  A fixed-clock live regression reproduces the previous 18px height increase.
+- Authoritative thread-cache repairs use the same edit compaction as live writes, preventing standalone streamed replacement records from accumulating.
+- Members actions choose their drawer state from the current viewport when invoked, including callbacks queued before a resize commits.
+  The regression opens the phone overlay without changing the saved desktop preference.
+  Agent-action fixtures wait for initial live sync and clear only cached deployment config before explicitly changing trust policy; all behavior assertions remain intact.
+- Glass filter checks wait for font layout to settle before asserting pointer motion preserves filter identity.
+  Native-touch bounds account for floating overlays using a bounded hit-test search; pixel evidence uses compositor timestamps and attaches the first five failing frames.
+- Final application checks: 4,736 unit tests across 556 files passed, along with typecheck and the production/PWA build.
+  ESLint reports zero errors and the existing 17 warnings.
+  Independent review found no blocking issues in the five product fixes.
+  Fixture review caught an account-settings overwrite; invite coverage now preserves unrelated preferences and restores the original settings in teardown, verified with a failing-before/passing-after live check.
+  The overview sort selector is shared between its two fixtures.
+  Agent-action validation passed three complete repeats, and the separate non-native performance queue passed all 22 cases.
+- Browser status: 210 of 212 default cases passed, plus 49 additional browser cases; three existing platform-specific skips remain.
+  Two cases remain unresolved: the original immediate fold-anchor check in `e2e/live/long-message-expansion-default.spec.ts` and `compositor momentum flicks under latency` in `e2e/live/thread-ride-under-latency.spec.ts`.
+  The restored fold assertion passed once at 0px and failed twice at 634px across three isolated repeats; eventual anchor recovery is insufficient evidence of stable visible folding.
+  Blank pixels also reproduce in a static long page with no application code, on both installed Chromium versions.
+  Headed SwiftShader rendering improves results but remains flaky (one of three repeated application runs passed); disabling partial rasterization worsens the static control.
+  No reliable compositor result is available from this software-rendered host, and no speculative virtualizer changes or relaxed pixel assertions are retained.
+
+### Preserve custom HTML rendering after grouped tool markers (2026-09-20)
+
+- Status: fixed, locally validated, and independently reviewed with no findings.
+- Duplicate-marker suppression now runs only after the current element is confirmed as a tool marker, so following tables and styled paragraphs reach the shared HTML renderer.
+  The production change moves 13 lines within `MindroomHtmlBlocks.tsx`, with no net line growth.
+- Three parser regressions and both new phone-width browser cases fail on the unchanged `e1de7c4d` baseline and pass with the fix.
+  Coverage includes adjacent and whitespace-separated markers, a styled paragraph after a group, and exactly one rendering per grouped tool.
+- Generic browser fixtures confirm contained horizontal scrolling, readable columns, and visible inner borders at 390 px; additional touch-emulated checks cover 320 px.
+  The existing standalone HTML and Markdown table checks and both theme grids still pass.
+- Validation: all 4,729 tests across 555 files pass under Node 24, as do all five Chromium table cases, typecheck, production/PWA build, changed-file formatting, and whitespace checks.
+  ESLint reports zero errors and the existing 17 warnings.
+- Ready PR #294 targets `dev`; hosted checks and automated review status are tracked on the pull request.
+
 ### Restore iOS archives after archived-room module collision (2026-09-20)
 
 - Xcode Cloud build 254 failed during the web build in `ci_pre_xcodebuild.sh` because `ARCHIVED_ROOMS_SETTINGS_PAGE` was resolved from the state module instead of the settings component.

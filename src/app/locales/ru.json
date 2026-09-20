@@ -895,7 +895,7 @@
       "login": "Вход",
       "thisClientRequiresSignInWithAppleConfigureTheHomeserverSsoProvider": "Этот клиент требует входа через Apple. Добавьте Apple в список поставщиков SSO домашнего сервера.",
       "register": "Регистрация",
-      "accountLink": "Нет учётной записи? <link>Зарегистрируйтесь</link>",
+      "accountLink": "Нет учётной записи? <authLink>Зарегистрируйтесь</authLink>",
       "passwordLoginIsDisabledOnValue1UseSsoToSignIn": "Вход по паролю отключён на «{{value1}}». Используйте SSO.",
       "thisClientDoesNotSupportLoginOnValue1ServerPasswordAndSso": "Этот клиент не поддерживает вход на сервер «{{value1}}»: не найдены способы входа по паролю или через SSO."
     },
@@ -958,7 +958,7 @@
       "thisApplicationDoesNotSupportRegistrationOnThisHomeserver": "Приложение не поддерживает регистрацию на этом домашнем сервере.",
       "ssoRegistrationIsRequiredOnThisHomeserverButNoSsoProvidersWere": "На этом домашнем сервере требуется регистрация через SSO, но сервер не сообщил ни об одном поставщике SSO.",
       "login": "Вход",
-      "accountLink": "Уже есть учётная запись? <link>Войдите</link>"
+      "accountLink": "Уже есть учётная запись? <authLink>Войдите</authLink>"
     },
     "passwordResetForm": {
       "passwordHasBeenResetSuccessfullyPleaseLoginWithYourNewPassword": "Пароль успешно сброшен. Войдите с новым паролем.",
@@ -973,7 +973,7 @@
     "resetPassword": {
       "resetPassword": "Сбросить пароль",
       "login": "Вход",
-      "accountLink": "Вспомнили пароль? <link>Войдите</link>"
+      "accountLink": "Вспомнили пароль? <authLink>Войдите</authLink>"
     },
     "clientRoot": {
       "catchingUp": "Синхронизация…",

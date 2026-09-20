@@ -885,7 +885,7 @@
       "login": "登录",
       "thisClientRequiresSignInWithAppleConfigureTheHomeserverSsoProvider": "此客户端要求使用 Apple 登录。请在主服务器的 SSO 提供商列表中加入 Apple。",
       "register": "注册",
-      "accountLink": "没有账户？ <link>注册</link>",
+      "accountLink": "没有账户？ <authLink>注册</authLink>",
       "passwordLoginIsDisabledOnValue1UseSsoToSignIn": "“{{value1}}”已禁用密码登录。请使用 SSO 登录。",
       "thisClientDoesNotSupportLoginOnValue1ServerPasswordAndSso": "该客户端不支持登录“{{value1}}”服务器。未找到基于密码和 SSO 的登录方法。"
     },
@@ -948,7 +948,7 @@
       "thisApplicationDoesNotSupportRegistrationOnThisHomeserver": "此应用程序不支持在此主服务器上注册。",
       "ssoRegistrationIsRequiredOnThisHomeserverButNoSsoProvidersWere": "该主服务器需要 SSO 注册，但没有公布 SSO 提供商。",
       "login": "登录",
-      "accountLink": "已经有账户？ <link>登录</link>"
+      "accountLink": "已经有账户？ <authLink>登录</authLink>"
     },
     "passwordResetForm": {
       "passwordHasBeenResetSuccessfullyPleaseLoginWithYourNewPassword": "密码已成功重置。请使用您的新密码登录。",
@@ -963,7 +963,7 @@
     "resetPassword": {
       "resetPassword": "重置密码",
       "login": "登录",
-      "accountLink": "还记得您的密码吗？ <link>登录</link>"
+      "accountLink": "还记得您的密码吗？ <authLink>登录</authLink>"
     },
     "clientRoot": {
       "catchingUp": "正在同步…",

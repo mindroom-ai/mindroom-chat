@@ -885,7 +885,7 @@
       "login": "Inloggen",
       "thisClientRequiresSignInWithAppleConfigureTheHomeserverSsoProvider": "Deze client vereist Log in met Apple. Configureer de lijst met SSO-providers van de homeserver zodat Apple erin staat.",
       "register": "Registreren",
-      "accountLink": "Heb je geen account? <link>Registreren</link>",
+      "accountLink": "Heb je geen account? <authLink>Registreren</authLink>",
       "passwordLoginIsDisabledOnValue1UseSsoToSignIn": "Inloggen met een wachtwoord is uitgeschakeld op \"{{value1}}\". Gebruik SSO om in te loggen.",
       "thisClientDoesNotSupportLoginOnValue1ServerPasswordAndSso": "Deze client ondersteunt inloggen op server \"{{value1}}\" niet. Er is geen inlogmethode met wachtwoord of SSO gevonden."
     },
@@ -948,7 +948,7 @@
       "thisApplicationDoesNotSupportRegistrationOnThisHomeserver": "Deze toepassing ondersteunt registratie op deze homeserver niet.",
       "ssoRegistrationIsRequiredOnThisHomeserverButNoSsoProvidersWere": "SSO-registratie is vereist op deze homeserver, maar er zijn geen SSO-providers bekendgemaakt.",
       "login": "Inloggen",
-      "accountLink": "Heb je al een account? <link>Inloggen</link>"
+      "accountLink": "Heb je al een account? <authLink>Inloggen</authLink>"
     },
     "passwordResetForm": {
       "passwordHasBeenResetSuccessfullyPleaseLoginWithYourNewPassword": "Het wachtwoord is opnieuw ingesteld. Log in met je nieuwe wachtwoord.",
@@ -963,7 +963,7 @@
     "resetPassword": {
       "resetPassword": "Wachtwoord opnieuw instellen",
       "login": "Inloggen",
-      "accountLink": "Weet je je wachtwoord weer? <link>Inloggen</link>"
+      "accountLink": "Weet je je wachtwoord weer? <authLink>Inloggen</authLink>"
     },
     "clientRoot": {
       "catchingUp": "Bijwerken...",

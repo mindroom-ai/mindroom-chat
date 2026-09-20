@@ -25,33 +25,34 @@ export const PageNav = recipe({
 export type PageNavVariants = RecipeVariants<typeof PageNav>;
 
 // Navigation chrome shares native blur without borders or a refractive rim.
-export const PageNavHeader = style([
+export const PageNavHeaderMaterial = style([
   glassSurface({ level: 'panel', variant: 'Background' }),
   glassFlat,
   glassFloating,
-  {
-    position: 'sticky',
-    top: 0,
-    zIndex: 1,
-    height: pageNavHeaderHeight,
-    padding: `0 ${config.space.S200} 0 ${config.space.S300}`,
-    flexShrink: 0,
-    selectors: {
-      'button&': {
-        cursor: 'pointer',
-      },
-      'button&[aria-pressed=true]': {
-        backgroundColor: color.Background.ContainerActive,
-      },
-      'button&:hover, button&:focus-visible': {
-        backgroundColor: color.Background.ContainerHover,
-      },
-      'button&:active': {
-        backgroundColor: color.Background.ContainerActive,
-      },
+]);
+
+export const PageNavHeader = style({
+  position: 'sticky',
+  top: 0,
+  zIndex: 1,
+  height: pageNavHeaderHeight,
+  padding: `0 ${config.space.S200} 0 ${config.space.S300}`,
+  flexShrink: 0,
+  selectors: {
+    'button&': {
+      cursor: 'pointer',
+    },
+    'button&[aria-pressed=true]': {
+      backgroundColor: color.Background.ContainerActive,
+    },
+    'button&:hover, button&:focus-visible': {
+      backgroundColor: color.Background.ContainerHover,
+    },
+    'button&:active': {
+      backgroundColor: color.Background.ContainerActive,
     },
   },
-]);
+});
 
 export const PageNavContent = style({
   display: 'flex',

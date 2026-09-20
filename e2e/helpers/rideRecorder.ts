@@ -628,8 +628,26 @@ export const synthesizeFlickUp = async (
       throw new Error('Touch target is outside the timeline scroller');
     }
     const rect = scroller.getBoundingClientRect();
-    const top = Math.max(0, rect.top) + 40;
-    const bottom = Math.min(window.innerHeight, rect.bottom) - 40;
+    const minY = Math.max(0, rect.top) + 40;
+    const maxY = Math.min(window.innerHeight, rect.bottom) - 40;
+    // Floating headers and the composer bound the touchable span. Binary
+    // search its edges: a pixel-by-pixel hit-test scan stalls a throttled
+    // renderer while the previous fling is still moving on the compositor.
+    const findEdge = (limit: number) => {
+      const isTouchable = (touchY: number) =>
+        scroller.contains(document.elementFromPoint(x, touchY));
+      if (isTouchable(limit)) return limit;
+      let inside = y;
+      let outside = limit;
+      while (Math.abs(inside - outside) > 1) {
+        const middle = (inside + outside) / 2;
+        if (isTouchable(middle)) inside = middle;
+        else outside = middle;
+      }
+      return inside;
+    };
+    const top = findEdge(minY);
+    const bottom = findEdge(maxY);
     const strokeEnd = top + requestedDistance / Math.ceil(requestedDistance / (bottom - top));
     if (
       ![top, strokeEnd].every((touchY) => scroller.contains(document.elementFromPoint(x, touchY)))
@@ -708,7 +726,8 @@ export const startScreencast = async (page: Page): Promise<ScreencastCapture> =>
   const session = await page.context().newCDPSession(page);
   const frames: { t: number; data: string }[] = [];
   session.on('Page.screencastFrame', (frame) => {
-    frames.push({ t: Date.now(), data: frame.data });
+    // Correlate pixels with their compositor swap, not delayed CDP delivery.
+    frames.push({ t: (frame.metadata.timestamp ?? Date.now() / 1000) * 1000, data: frame.data });
     session.send('Page.screencastFrameAck', { sessionId: frame.sessionId }).catch(() => undefined);
   });
   await session.send('Page.startScreencast', {

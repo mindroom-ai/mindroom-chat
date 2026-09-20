@@ -980,6 +980,105 @@ describe('clearAllCacheAndReload', () => {
   const originalWindow = globalThis.window;
   const originalBasePath = (globalThis as { __APP_BASE_PATH__?: string }).__APP_BASE_PATH__;
 
+  it.each([true, false])(
+    'preserves encryption databases and their contents while clearing caches (enumeration: %s)',
+    async (canEnumerate) => {
+      const idb = new IDBFactory();
+      const { storage } = createStorageMock();
+      const active = putSession(
+        {
+          baseUrl: 'https://example.com',
+          userId: '@alice:example.com',
+          deviceId: 'A',
+          accessToken: 'a',
+        },
+        undefined,
+        storage
+      );
+      const inactive = putSession(
+        {
+          baseUrl: 'https://example.com',
+          userId: '@bob:example.com',
+          deviceId: 'B',
+          accessToken: 'b',
+        },
+        { setActive: false },
+        storage
+      );
+      const cryptoNames = [active, inactive].flatMap((session) => [
+        ...getSessionRustCryptoStoreNames(session),
+        ...getLegacySessionRustCryptoStoreNames(session),
+        getSessionIndexedDbStoreName(session).crypto,
+      ]);
+      const cacheNames = [
+        getSessionIndexedDbStoreName(active).sync,
+        getSessionIndexedDbStoreName(inactive).sync,
+        getRoomEventCacheDbName(active.sessionId),
+      ];
+      await Promise.all(
+        [...cryptoNames, ...cacheNames].map(
+          (name) =>
+            new Promise<void>((resolve, reject) => {
+              const request = idb.open(name, 1);
+              request.onupgradeneeded = () => {
+                request.result.createObjectStore('data').put(`original-${name}`, 'identity');
+              };
+              request.onsuccess = () => {
+                request.result.close();
+                resolve();
+              };
+              request.onerror = () => reject(request.error);
+            })
+        )
+      );
+      const listDatabases = idb.databases.bind(idb);
+      if (!canEnumerate) Object.defineProperty(idb, 'databases', { value: undefined });
+      Object.defineProperty(globalThis, 'indexedDB', { value: idb, configurable: true });
+      Object.defineProperty(globalThis, 'localStorage', { value: storage, configurable: true });
+      Object.defineProperty(globalThis, 'sessionStorage', {
+        value: createStorageMock().storage,
+        configurable: true,
+      });
+      Object.defineProperty(globalThis, 'window', {
+        value: { location: { origin: 'https://example.com', replace: vi.fn() } },
+        configurable: true,
+      });
+
+      await clearAllCacheAndReload();
+
+      expect((await listDatabases()).map(({ name }) => name).sort()).toEqual(
+        [...cryptoNames].sort()
+      );
+      await Promise.all(
+        cryptoNames.map(
+          (name) =>
+            new Promise<void>((resolve, reject) => {
+              const request = idb.open(name);
+              request.onsuccess = () => {
+                const db = request.result;
+                const read = db.transaction('data').objectStore('data').get('identity');
+                read.onsuccess = () => {
+                  try {
+                    expect(read.result).toBe(`original-${name}`);
+                    resolve();
+                  } catch (error) {
+                    reject(error);
+                  }
+                  db.close();
+                };
+                read.onerror = () => {
+                  db.close();
+                  reject(read.error);
+                };
+              };
+              request.onerror = () => reject(request.error);
+            })
+        )
+      );
+      expect(getSessionStore(storage).sessions.map(({ deviceId }) => deviceId)).toEqual(['A', 'B']);
+    }
+  );
+
   afterEach(() => {
     vi.restoreAllMocks();
     (globalThis as { __APP_BASE_PATH__?: string }).__APP_BASE_PATH__ = originalBasePath;
@@ -1174,11 +1273,11 @@ describe('clearAllCacheAndReload', () => {
     );
     expect(localStorageState.has('mx_pending_events_!room:example.com')).toBe(false);
     expect(localStorageState.has('mxjssdk_memory_filter_sync')).toBe(false);
-    expect(localStorageState.has('crypto.account')).toBe(false);
+    expect(localStorageState.get('crypto.account')).toBe('crypto');
     expect(replace).toHaveBeenCalledWith('/mindroom/?clear_cache=1234');
   });
 
-  it('collects live-session, inactive-session, legacy, and event-cache IndexedDB names from indexedDB.databases()', async () => {
+  it('collects session and event caches without deleting encryption stores from indexedDB.databases()', async () => {
     const { storage: localStorageMock } = createStorageMock();
     const { storage: sessionStorageMock } = createStorageMock();
 
@@ -1265,17 +1364,11 @@ describe('clearAllCacheAndReload', () => {
 
     expect(deleteDatabase.mock.calls.map(([name]) => name)).toEqual([
       getSessionIndexedDbStoreName(activeSession).sync,
-      getSessionIndexedDbStoreName(inactiveSession).crypto,
-      getSessionRustCryptoStoreNames(inactiveSession)[0],
-      getLegacySessionRustCryptoStoreNames(activeSession)[1],
       getThreadEventCacheDbName(activeSession.sessionId),
       getRoomEventCacheDbName(inactiveSession.sessionId),
       getSessionIndexedDbStoreName(liveSession).sync,
       getThreadEventCacheDbName(liveSession.sessionId),
       'matrix-js-sdk:web-sync-store',
-      'crypto-store',
-      'matrix-js-sdk::matrix-sdk-crypto',
-      'matrix-js-sdk::matrix-sdk-crypto-meta',
     ]);
     expect(replace).toHaveBeenCalledWith('/?clear_cache=5678');
   });
@@ -1332,13 +1425,7 @@ describe('clearAllCacheAndReload', () => {
       // session-scoped name are also listed in the fallback.
       'mindroom-cache',
       'matrix-js-sdk:web-sync-store',
-      'crypto-store',
-      'matrix-js-sdk::matrix-sdk-crypto',
-      'matrix-js-sdk::matrix-sdk-crypto-meta',
       getSessionIndexedDbStoreName(session).sync,
-      getSessionIndexedDbStoreName(session).crypto,
-      ...getSessionRustCryptoStoreNames(session),
-      ...getLegacySessionRustCryptoStoreNames(session),
       getThreadEventCacheDbName(session.sessionId),
       getRoomEventCacheDbName(session.sessionId),
       getThreadSummaryCacheDbName(session.sessionId),

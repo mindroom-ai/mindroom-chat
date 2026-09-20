@@ -885,7 +885,7 @@
       "login": "ログイン",
       "thisClientRequiresSignInWithAppleConfigureTheHomeserverSsoProvider": "このクライアントでは Apple でのサインインが必要です。ホームサーバーの SSO プロバイダー一覧に Apple を追加してください。",
       "register": "登録",
-      "accountLink": "アカウントをお持ちではありませんか? <link>登録</link>",
+      "accountLink": "アカウントをお持ちではありませんか? <authLink>登録</authLink>",
       "passwordLoginIsDisabledOnValue1UseSsoToSignIn": "「{{value1}}」ではパスワードログインが無効です。SSO でサインインしてください。",
       "thisClientDoesNotSupportLoginOnValue1ServerPasswordAndSso": "このクライアントは、「{{value1}}」サーバーでのログインをサポートしていません。パスワードおよび SSO ベースのログイン方法が見つかりません。"
     },
@@ -948,7 +948,7 @@
       "thisApplicationDoesNotSupportRegistrationOnThisHomeserver": "このアプリケーションは、このホームサーバーへの登録をサポートしていません。",
       "ssoRegistrationIsRequiredOnThisHomeserverButNoSsoProvidersWere": "このホームサーバーでは SSO 登録が必要ですが、利用可能な SSO プロバイダーが提示されていません。",
       "login": "ログイン",
-      "accountLink": "すでにアカウントをお持ちですか? <link>ログイン</link>"
+      "accountLink": "すでにアカウントをお持ちですか? <authLink>ログイン</authLink>"
     },
     "passwordResetForm": {
       "passwordHasBeenResetSuccessfullyPleaseLoginWithYourNewPassword": "パスワードが正常にリセットされました。新しいパスワードでログインしてください。",
@@ -963,7 +963,7 @@
     "resetPassword": {
       "resetPassword": "パスワードのリセット",
       "login": "ログイン",
-      "accountLink": "パスワードを覚えていますか? <link>ログイン</link>"
+      "accountLink": "パスワードを覚えていますか? <authLink>ログイン</authLink>"
     },
     "clientRoot": {
       "catchingUp": "同期中…",

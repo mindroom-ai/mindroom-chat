@@ -1,7 +1,12 @@
 import { expect, test } from '@playwright/test';
 import { getHomeserver, getPrimaryCredentials, getSecondaryCredentials } from './env';
 import { expectActiveStoredUsername, logoutActiveAccount } from './helpers/accounts';
-import { accountRailButtonSelector, expectLoggedInShellStable, loginWithPassword } from './helpers/auth';
+import {
+  accountRailButtonSelector,
+  expectLoggedInShellStable,
+  loginWithPassword,
+  setFullInterfaceModeForCredentials,
+} from './helpers/auth';
 import {
   attachBrowserDiagnostics,
   expectNoUnexpectedBrowserDiagnostics,
@@ -11,6 +16,7 @@ test('falls back to the remaining account on logout, then returns to auth after 
   page,
 }) => {
   const secondaryCredentials = getSecondaryCredentials();
+  test.slow();
   test.skip(
     !secondaryCredentials,
     'Set E2E_SECOND_USERNAME and E2E_SECOND_PASSWORD to run the multi-account e2e flow.'
@@ -19,6 +25,11 @@ test('falls back to the remaining account on logout, then returns to auth after 
   const diagnostics = attachBrowserDiagnostics(page);
   const homeserver = getHomeserver();
   const primaryCredentials = getPrimaryCredentials();
+
+  await Promise.all([
+    setFullInterfaceModeForCredentials(homeserver, primaryCredentials),
+    setFullInterfaceModeForCredentials(homeserver, secondaryCredentials),
+  ]);
 
   await loginWithPassword(page, {
     homeserver,

@@ -94,7 +94,7 @@ vi.mock('../hooks/usePan', () => ({
   usePan: () => ({
     pan: { translateX: 0, translateY: 0 },
     cursor: 'default',
-    onMouseDown: vi.fn(),
+    isPanning: false,
   }),
 }));
 

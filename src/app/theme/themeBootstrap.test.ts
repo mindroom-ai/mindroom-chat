@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { configClass, varsClass } from 'folds';
 
 const statusBarTheme = vi.hoisted(() => ({
-  syncNativeStatusBarBackground: vi.fn(),
+  syncNativeStatusBarTheme: vi.fn(),
 }));
 
 vi.mock('../hooks/useTheme', () => {
@@ -103,7 +103,7 @@ describe('themeBootstrap', () => {
     window.localStorage.clear();
     delete window.__INITIAL_THEME__;
     setMatchMedia(false);
-    statusBarTheme.syncNativeStatusBarBackground.mockClear();
+    statusBarTheme.syncNativeStatusBarTheme.mockClear();
   });
 
   afterEach(() => {
@@ -399,7 +399,7 @@ describe('themeBootstrap', () => {
     expect(document.querySelector('meta[name="color-scheme"]')?.getAttribute('content')).toBe(
       'light'
     );
-    expect(statusBarTheme.syncNativeStatusBarBackground).toHaveBeenLastCalledWith('#DEDEDE');
+    expect(statusBarTheme.syncNativeStatusBarTheme).toHaveBeenLastCalledWith('light');
 
     [configClass, varsClass, ...SilverTheme.classNames].forEach((className) => {
       expect(document.body.classList.contains(className)).toBe(true);
@@ -415,6 +415,6 @@ describe('themeBootstrap', () => {
     expect(document.querySelector('meta[name="color-scheme"]')?.getAttribute('content')).toBe(
       'dark'
     );
-    expect(statusBarTheme.syncNativeStatusBarBackground).toHaveBeenLastCalledWith('#1A1A1A');
+    expect(statusBarTheme.syncNativeStatusBarTheme).toHaveBeenLastCalledWith('dark');
   });
 });
