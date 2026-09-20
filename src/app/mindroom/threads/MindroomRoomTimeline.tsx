@@ -12,7 +12,7 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import { Direction, EventTimelineSet, MatrixEvent, Room } from 'matrix-js-sdk';
+import { Direction, EventTimelineSet, MatrixEvent, RelationType, Room } from 'matrix-js-sdk';
 import classNames from 'classnames';
 import { Editor } from 'slate';
 import {
@@ -70,6 +70,7 @@ import { CompactRoomView } from './CompactRoomView';
 import { RoomThreadOverview } from './RoomThreadOverview';
 import {
   getRenderableEventEntries,
+  isRenderableEvent,
   mergeClassicRoomThreadReplyEntries,
 } from './roomTimelineEvents';
 import {
@@ -116,6 +117,8 @@ import { mindroomSettingsAtom } from '../settings/mindroomSettings';
 import { useThreadBackPaginationController } from './threadBackPaginationController';
 import { useThreadSeedPrewarmController } from './threadSeedPrewarmController';
 import { useThreadSession } from './session/useThreadSession';
+import { useThreadDiagnosticSnapshot } from './useThreadDiagnosticSnapshot';
+import { getKnownThreadReplyCount } from './threadRecord';
 import type { ThreadOpenRuntime } from './session/threadSessionTypes';
 import { useThreadAwareTimelineRefresh } from './useThreadAwareTimelineRefresh';
 import { useTimelineScrollLedgerController } from './timelineScrollLedgerController';
@@ -1161,6 +1164,40 @@ export function RoomTimeline({
     threadInitialRenderMode,
     threadPaginatingBack: isThreadPaginationPending('backward'),
     threadPendingAnchorSeq: getPendingThreadBackPaginationAnchorSeq(),
+  });
+  useThreadDiagnosticSnapshot({
+    traceId: threadDebugTraceId,
+    threadId,
+    events: threadEvents,
+    readModel: () => {
+      const model = threadId ? room.getThread(threadId) : undefined;
+      const root = model?.rootEvent ?? (threadId ? room.findEventById(threadId) : undefined);
+      return {
+        eventCount: model?.events.length ?? null,
+        replyCount:
+          model?.events.filter(
+            (event) =>
+              event.getId() !== threadId && event.getRelation()?.rel_type === RelationType.Thread
+          ).length ?? null,
+        expectedReplyCount: root ? getKnownThreadReplyCount(root) ?? null : null,
+      };
+    },
+    getElement: () => virtualInnerRef.current,
+    getVirtualItemCount: () => roomTimelineVirtualizer.getVirtualItems().length,
+    isRenderableReply: (event) =>
+      !approvalTimeline.hiddenEventIds.has(event.getId() ?? '') &&
+      isRenderableEvent(
+        event,
+        room,
+        threadId,
+        ignoredUsersSet,
+        showHiddenEvents,
+        hideMembershipEvents,
+        hideNickAvatarEvents
+      ),
+    cacheHydrated: threadInitialCacheHydrated,
+    loading: threadLatestOpenPending,
+    loadError: threadLoadError,
   });
   useThreadApprovalRowMeasurements(
     roomTimelineVirtualizer,

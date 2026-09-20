@@ -184,6 +184,7 @@ export const refreshLatestThreadSlice = async (
   expectedThreadId: string,
   opts?: { allowWhenThreadClosed?: boolean }
 ): Promise<ThreadLatestSlice | undefined> => {
+  logTimelineDebug(debugTraceId, 'thread-refresh-latest-start');
   const allowWhenThreadClosed = opts?.allowWhenThreadClosed === true;
   let currentThread = room.getThread(expectedThreadId);
   if (!currentThread && allowWhenThreadClosed) {

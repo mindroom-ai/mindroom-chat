@@ -85,7 +85,11 @@ export const runThreadOpenCacheFirst = async ({
       }
     }
     hydratedCachedPage = await hydrateThreadFromCache(threadId);
+    logTimelineDebug(debugTraceId, 'thread-cache-hydrate-finished', {
+      cacheHit: !!hydratedCachedPage,
+    });
   } catch {
+    logTimelineDebug(debugTraceId, 'thread-cache-hydrate-error');
     if (!isCurrentThreadOpen()) {
       // AC2 STEP 4 iter 2 (2026-07-04): hydrate threw and the guard
       // says the thread has been closed/re-navigated in the meantime.
@@ -138,6 +142,10 @@ export const runThreadOpenCacheFirst = async ({
     threadId,
     cachedPage: hydratedCachedPage,
     onRepaired: (repairedEvents) => {
+      logTimelineDebug(debugTraceId, 'thread-reconcile-observer', {
+        current: isCurrentThreadOpen(),
+        mappedCount: repairedEvents.length,
+      });
       // CINNY-207 AC2 render-gap RG1 (2026-07-04): sink counters.
       // These three counters partition the outcomes of the
       // component-side onRepaired callback so a docker probe snapshot
@@ -162,18 +170,29 @@ export const runThreadOpenCacheFirst = async ({
       }
       notifyEventsChanged();
     },
-  }).catch((err) => {
-    // CINNY-207 AC2 review F6 (2026-07-04): the scheduler's own
-    // rejection paths already bump `schedulerFailed` /
-    // `schedulerAborted`, so this catch used to silently return
-    // undefined to avoid an unhandled promise rejection. That left a
-    // triage ambiguity: from a browser log you couldn't tell WHICH
-    // rejection this was, only that one had happened. A single warn
-    // line here names the site without changing behavior — the
-    // counters remain the source of truth for aggregate counts.
-    // eslint-disable-next-line no-console
-    console.warn('[thread-open-choke-point] scheduleReconcile rejected', err);
-  });
+  })
+    .then((result) => {
+      logTimelineDebug(debugTraceId, 'thread-reconcile-settled', {
+        current: isCurrentThreadOpen(),
+        fetchedCount: result.fetchedCount,
+        repaired: result.repaired,
+        durable: result.durable,
+        aborted: result.aborted,
+      });
+    })
+    .catch((err) => {
+      logTimelineDebug(debugTraceId, 'thread-reconcile-error');
+      // CINNY-207 AC2 review F6 (2026-07-04): the scheduler's own
+      // rejection paths already bump `schedulerFailed` /
+      // `schedulerAborted`, so this catch used to silently return
+      // undefined to avoid an unhandled promise rejection. That left a
+      // triage ambiguity: from a browser log you couldn't tell WHICH
+      // rejection this was, only that one had happened. A single warn
+      // line here names the site without changing behavior — the
+      // counters remain the source of truth for aggregate counts.
+      // eslint-disable-next-line no-console
+      console.warn('[thread-open-choke-point] scheduleReconcile rejected', err);
+    });
 
   const cachedThreadHasLocalSnapshot =
     !!hydratedCachedPage &&

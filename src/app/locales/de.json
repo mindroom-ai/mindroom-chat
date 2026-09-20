@@ -2070,6 +2070,7 @@
         "clearing": "Wird geleert...",
         "credits": "Danksagungen",
         "deepDiagnosticTracing": "Detaillierte Diagnoseaufzeichnung",
+        "deepTraceMemoryOnly": "Aufzeichnung im Arbeitsspeicher, da der Trace-Speicher nicht verfügbar ist. Vor dem Neustart der App exportieren; diese letzten Ereignisse gehen beim Neustart verloren.",
         "deepTraceEnabledStorageUnavailable": "Aktiviert, aber der Trace-Speicher ist derzeit nicht verfügbar.",
         "deepTraceOff": "Aus. Aktiviere die Funktion, bevor du ein Einfrieren reproduzierst, um Leistungs-, Matrix-, Netzwerk-, Lebenszyklus- und Interaktionszeiten aufzuzeichnen.",
         "deepTracePreferenceSaveFailed": "{{description}} Für diese Sitzung deaktiviert, aber die Einstellung konnte nicht gespeichert werden und wird nach einem Neustart möglicherweise wieder aktiviert.",

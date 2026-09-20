@@ -2070,6 +2070,7 @@
         "clearing": "正在清除…",
         "credits": "致謝",
         "deepDiagnosticTracing": "深度診斷追蹤",
+        "deepTraceMemoryOnly": "追蹤儲存空間無法使用，正在記憶體中記錄。請在重新啟動應用程式前匯出；重新啟動後這些近期事件將遺失。",
         "deepTraceEnabledStorageUnavailable": "已啟用，但追蹤儲存空間目前不可用。",
         "deepTraceOff": "已關閉。在重現凍結前啟用，以記錄效能、Matrix、網路、生命週期和互動計時。",
         "deepTracePreferenceSaveFailed": "{{description}} 此工作階段已關閉，但無法儲存首選項，並且可能會在重新啟動後重新啟用。",

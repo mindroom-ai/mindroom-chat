@@ -2097,6 +2097,7 @@
         "clearing": "A limpar...",
         "credits": "Créditos",
         "deepDiagnosticTracing": "Rastreio de diagnóstico detalhado",
+        "deepTraceMemoryOnly": "A gravar na memória porque o armazenamento de rastreio está indisponível. Exporte antes de reiniciar a aplicação; estes eventos recentes perdem-se ao reiniciar.",
         "deepTraceEnabledStorageUnavailable": "Ativado, mas o armazenamento de rastreio está indisponível neste momento.",
         "deepTraceOff": "Desativado. Ative antes de reproduzir um bloqueio para registar o desempenho, Matrix, a rede, o ciclo de vida e os tempos de interação.",
         "deepTracePreferenceSaveFailed": "{{description}} Desativado nesta sessão, mas não foi possível guardar a preferência e poderá voltar a ativar-se após reiniciar.",

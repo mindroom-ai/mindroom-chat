@@ -1,5 +1,6 @@
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
 import { APP_BUILD_VERSION } from '../../../appVersion';
+import { THREAD_TRACE_PHASES } from './threadTraceSchema';
 import {
   getSafeLocalStorage,
   getStorageItemSafe,
@@ -20,6 +21,8 @@ export const DEEP_TRACE_MAX_EVENTS = 5_000;
 export const DEEP_TRACE_MAX_BYTES = 2 * 1024 * 1024;
 export const DEEP_TRACE_MAX_PENDING_EVENTS = 250;
 export const DEEP_TRACE_MAX_PENDING_BYTES = 256 * 1024;
+const MEMORY_MAX_EVENTS = 1_000;
+const MEMORY_MAX_BYTES = 256 * 1024;
 
 const DEEP_TRACE_DB_VERSION = 1;
 const EVENT_STORE = 'events';
@@ -65,7 +68,7 @@ export type DeepTraceStats = {
 export type DeepTraceSnapshot = {
   schemaVersion: typeof DEEP_TRACE_SCHEMA_VERSION;
   enabled: boolean;
-  status: 'recording' | 'disabled' | 'unavailable' | 'timeout';
+  status: DeepTraceRuntimeStatus | 'timeout';
   stats: DeepTraceStats;
   events: DeepTraceEvent[];
 };
@@ -105,6 +108,9 @@ type Runtime = {
   queue: DeepTraceEvent[];
   queueBytes: number;
   droppedQueueEvents: number;
+  memory: Set<StoredDeepTraceEvent>;
+  memoryBytes: number;
+  droppedMemoryEvents: number;
   flushTimer?: number;
   flushPromise?: Promise<void>;
   activationPromise?: Promise<boolean>;
@@ -135,7 +141,12 @@ type TracedFetch = typeof globalThis.fetch & {
   [TRACED_FETCH]?: boolean;
 };
 
-export type DeepTraceRuntimeStatus = 'starting' | 'recording' | 'disabled' | 'unavailable';
+export type DeepTraceRuntimeStatus =
+  | 'starting'
+  | 'recording'
+  | 'memory-only'
+  | 'disabled'
+  | 'unavailable';
 
 const SAFE_FAILURE_NAMES = new Set([
   'AbortError',
@@ -214,6 +225,7 @@ const nowMonotonic = (): number =>
 const roundMetric = (value: number): number => Math.round(value * 10) / 10;
 
 const STATIC_EVENT_NAMES = new Set([
+  ...Object.values(THREAD_TRACE_PHASES).map(([name]) => name),
   'error.global',
   'error.unhandled_rejection',
   'lifecycle.hidden',
@@ -344,13 +356,21 @@ const flush = async (target: Runtime): Promise<void> => {
   while (target.flushPromise) {
     await target.flushPromise;
   }
-  if ((target.queue.length === 0 && target.droppedQueueEvents === 0) || target.unavailable) {
+  if (
+    (target.queue.length === 0 && target.droppedQueueEvents === 0) ||
+    target.unavailable ||
+    target.starting
+  ) {
     return;
   }
 
   const flushSequence = target.activationSequence;
   const drain = (async () => {
-    while ((target.queue.length > 0 || target.droppedQueueEvents > 0) && !target.unavailable) {
+    while (
+      (target.queue.length > 0 || target.droppedQueueEvents > 0) &&
+      !target.unavailable &&
+      target.activationSequence === flushSequence
+    ) {
       const batch = target.queue.splice(0, FLUSH_BATCH_SIZE);
       target.queueBytes = Math.max(
         0,
@@ -364,6 +384,12 @@ const flush = async (target: Runtime): Promise<void> => {
     if (runtime !== target || target.disposed || target.activationSequence !== flushSequence) {
       return;
     }
+    // A final stop-marker write may finish after opt-out. Release its broken
+    // connection without reviving status/failure updates for stopped capture.
+    if (!target.enabled) {
+      releaseDatabase();
+      return;
+    }
     retainFailure(target, 'flush', error);
     markUnavailable(target);
   });
@@ -373,7 +399,7 @@ const flush = async (target: Runtime): Promise<void> => {
 };
 
 const scheduleFlush = (target: Runtime, immediate = false): void => {
-  if (target.unavailable) return;
+  if (target.unavailable || target.starting) return;
   if (immediate || target.queue.length >= FLUSH_BATCH_SIZE) {
     void flush(target);
     return;
@@ -392,7 +418,7 @@ export const recordDeepTraceEvent = (
 ): void => {
   const target = runtime;
   const normalizedName = safeEventName(name);
-  if (!target || !target.enabled || target.disposed || target.unavailable || !normalizedName) {
+  if (!target || !target.enabled || target.disposed || !normalizedName) {
     return;
   }
 
@@ -408,6 +434,17 @@ export const recordDeepTraceEvent = (
     ...(normalizedData ? { data: normalizedData } : {}),
   };
   const eventBytes = JSON.stringify(event).length;
+  // Retain an independent tail before attempting I/O: even the failed batch
+  // and events recorded while an IndexedDB operation hangs remain exportable.
+  target.memory.add({ ...event, bytes: eventBytes });
+  target.memoryBytes += eventBytes;
+  while (target.memory.size > MEMORY_MAX_EVENTS || target.memoryBytes > MEMORY_MAX_BYTES) {
+    const oldest = target.memory.values().next().value!;
+    target.memory.delete(oldest);
+    target.memoryBytes -= oldest.bytes;
+    target.droppedMemoryEvents += 1;
+  }
+  if (target.unavailable) return;
   while (
     target.queue.length > 0 &&
     (target.queue.length >= DEEP_TRACE_MAX_PENDING_EVENTS ||
@@ -592,7 +629,7 @@ export const traceDeepDiagnosticFetch = async (
     return baseFetch(input, init);
   }
   const target = runtime;
-  if (!target?.enabled || target.disposed || target.unavailable) {
+  if (!target?.enabled || target.disposed) {
     return baseFetch(input, init);
   }
 
@@ -670,9 +707,7 @@ const startPerformanceCapture = (target: Runtime): void => {
 
 const start = (target: Runtime): void => {
   if (target.enabled || target.disposed) return;
-  target.starting = false;
   target.enabled = true;
-  target.unavailable = false;
   target.sessionId = createSessionId();
   target.sequence = 0;
   target.lastRoute = undefined;
@@ -683,9 +718,10 @@ const start = (target: Runtime): void => {
 };
 
 const getRuntimeStatus = (target: Runtime | undefined): DeepTraceRuntimeStatus => {
+  if (target?.enabled && target.unavailable) return 'memory-only';
   if (target?.unavailable) return 'unavailable';
-  if (target?.enabled) return 'recording';
   if (target?.starting) return 'starting';
+  if (target?.enabled) return 'recording';
   return 'disabled';
 };
 
@@ -752,10 +788,9 @@ const stop = (target: Runtime, clearUnavailable = false): void => {
 };
 
 const markUnavailable = (target: Runtime): void => {
-  target.activationSequence += 1;
   target.unavailable = true;
+  target.starting = false;
   releaseDatabase();
-  stopCapture(target);
   target.queue.length = 0;
   target.queueBytes = 0;
   target.droppedQueueEvents = 0;
@@ -778,18 +813,20 @@ const ownsActivation = (target: Runtime, generation: number): boolean =>
   runtime === target && !target.disposed && target.activationSequence === generation;
 
 const activate = (target: Runtime): Promise<boolean> => {
-  if (target.enabled) return Promise.resolve(true);
   if (target.activationPromise && target.starting) return target.activationPromise;
-  if (typeof indexedDB === 'undefined') {
-    markUnavailable(target);
-    return Promise.resolve(false);
-  }
+  if (target.enabled) return Promise.resolve(true);
 
   target.unavailable = false;
   target.starting = true;
   const activationSequence = target.activationSequence + 1;
   target.activationSequence = activationSequence;
+  start(target);
   notifyStatus(target);
+
+  if (typeof indexedDB === 'undefined') {
+    markUnavailable(target);
+    return Promise.resolve(true);
+  }
 
   const activationPromise = (async () => {
     try {
@@ -797,11 +834,10 @@ const activate = (target: Runtime): Promise<boolean> => {
       if (!ownsActivation(target, activationSequence) || !getDeepTraceEnabled(target.storage)) {
         return false;
       }
-      start(target);
+      target.starting = false;
       await flush(target);
       if (
         !ownsActivation(target, activationSequence) ||
-        target.unavailable ||
         !target.enabled ||
         !getDeepTraceEnabled(target.storage)
       ) {
@@ -815,7 +851,7 @@ const activate = (target: Runtime): Promise<boolean> => {
       }
       retainFailure(target, 'activation', error);
       markUnavailable(target);
-      return false;
+      return true;
     }
   })();
   target.activationPromise = activationPromise;
@@ -852,6 +888,9 @@ export const initializeDeepTraceRecorder = (
     queue: [],
     queueBytes: 0,
     droppedQueueEvents: 0,
+    memory: new Set(),
+    memoryBytes: 0,
+    droppedMemoryEvents: 0,
     activationSequence: 0,
     lastLoopTick: 0,
     lastFailure: readPersistedFailure(storage),
@@ -898,6 +937,11 @@ export const clearDeepTrace = async (): Promise<void> => {
   const target = runtime;
   const storage = target?.storage ?? getSafeLocalStorage();
   if (target) {
+    // Clearing affects the memory tail at invocation. Events arriving while
+    // persistent deletion waits are new evidence and must survive it.
+    target.memory.clear();
+    target.memoryBytes = 0;
+    target.droppedMemoryEvents = 0;
     resetPendingState(target);
     if (target.flushPromise) await target.flushPromise;
     resetPendingState(target);
@@ -920,6 +964,29 @@ export const readDeepTraceSnapshot = async (): Promise<DeepTraceSnapshot> => {
     enabled: getDeepTraceEnabled(target?.storage),
     status: target?.unavailable ? 'unavailable' : target?.enabled ? 'recording' : 'disabled',
     stats,
+    events,
+  };
+};
+
+/** No storage access: exports keep this tail even when either collector stalls. */
+export const readDeepTraceMemorySnapshot = (): DeepTraceSnapshot & { storage: 'memory' } => {
+  const target = runtime;
+  const events = Array.from(target?.memory ?? [], ({ bytes: _bytes, ...event }) => ({
+    ...event,
+    ...(event.data ? { data: { ...event.data } } : {}),
+  }));
+  return {
+    schemaVersion: DEEP_TRACE_SCHEMA_VERSION,
+    storage: 'memory',
+    enabled: getDeepTraceEnabled(target?.storage),
+    status: getRuntimeStatus(target),
+    stats: {
+      eventCount: events.length,
+      byteCount: target?.memoryBytes ?? 0,
+      droppedEventCount: target?.droppedMemoryEvents ?? 0,
+      oldestAt: events[0]?.at ?? null,
+      newestAt: events.at(-1)?.at ?? null,
+    },
     events,
   };
 };

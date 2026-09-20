@@ -2097,6 +2097,7 @@
         "clearing": "Cancellazione...",
         "credits": "Riconoscimenti",
         "deepDiagnosticTracing": "Tracciamento diagnostico approfondito",
+        "deepTraceMemoryOnly": "Registrazione in memoria perché l’archivio delle tracce non è disponibile. Esporta prima di riavviare l’app; questi eventi recenti vengono persi al riavvio.",
         "deepTraceEnabledStorageUnavailable": "Attivo, ma l’archivio delle tracce non è al momento disponibile.",
         "deepTraceOff": "Disattivato. Attivalo prima di riprodurre un blocco per registrare prestazioni, Matrix, rete, ciclo di vita e tempi di interazione.",
         "deepTracePreferenceSaveFailed": "{{description}} Disattivato per questa sessione, ma non è stato possibile salvare la preferenza e potrebbe riattivarsi dopo il riavvio.",

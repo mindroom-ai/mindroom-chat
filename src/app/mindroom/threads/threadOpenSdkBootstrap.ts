@@ -70,6 +70,7 @@ export const runThreadOpenSdkBootstrap = async ({
   shouldScrollToLatestOnOpen,
   threadId,
 }: RunThreadOpenSdkBootstrapOptions): Promise<boolean> => {
+  logTimelineDebug(debugTraceId, 'thread-sdk-bootstrap-start');
   if (isPendingLocalEchoThreadRoot(room, threadId)) {
     onBootstrap({ kind: 'root-ready' });
     logTimelineDebug(debugTraceId, 'thread-open-pending-local-echo-root', {
