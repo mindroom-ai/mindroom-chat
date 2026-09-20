@@ -2,6 +2,19 @@
 
 ## Runbook
 
+### Retry missing offline content and share live cache writes (2026-09-20)
+
+- Notice and Emote long-text renderers now carry the same event/revision ownership as Text and File.
+  Ownerless essential hydration remains interactive without creating protected persistent bytes; validated owned cache hits skip payload rewrites and repeat eviction scheduling.
+- Automatic activation indexes the initial live window once, then retries missing attachment owners, missing keys and unresolved relations through the existing bounded cursor.
+  Explicit Download still scans retained history, including older records without attachment references.
+- Live write-through compaction now owns canonical persistence and publishes saved batches to attachment work.
+  Captured thread scope survives SDK pruning without assigning unrelated pending relations to that thread.
+- Compacted-edit redaction recovery inspects detached serialized data without using the live SDK mapper, preserving live unsigned state and future SDK event delivery.
+  Known ordinary roots skip the retained scan.
+- Validation: 563 files / 4,844 tests pass, including deterministic checks for one event write, one body fetch and one room-reference scan across a 20-edit burst.
+  Typecheck, production/PWA build and ESLint pass with the existing 17 warnings and zero errors.
+
 ### Close offline storage and hydration review gaps (2026-09-20)
 
 - Proactive bodies and media now use the existing CacheStore budget before admission and preserve the storage-pressure pause after recent, retained, paged and live work.

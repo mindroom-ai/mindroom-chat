@@ -17,7 +17,11 @@ import {
   readRoomOfflineProgress,
   updateRoomOfflineProgress,
 } from '../threads/cacheStore/cacheStoreMeta';
-import { loadRoomOfflineEventBatch } from '../threads/cacheStore/cacheStoreEvents';
+import {
+  loadRoomOfflineEventBatch,
+  loadCachedEventAcrossRoomScopes,
+} from '../threads/cacheStore/cacheStoreEvents';
+import { readRoomMissingAttachmentEventIds } from '../threads/cacheStore/cacheStoreAttachments';
 import { persistRoomChunkWithPreferLive } from '../threads/eventRepository';
 import { clearRoomThreadOpenSeedSnapshots } from '../threads/threadOpenSeedCache';
 import { enqueueRoomDeepHistoryJob } from './deepHistoryJob';
@@ -90,6 +94,7 @@ type RoomIntent = {
   includeAllMedia: boolean;
   canceled: boolean;
   running: boolean;
+  warmed: boolean;
   dirty: boolean;
 };
 
@@ -130,6 +135,7 @@ export const createRoomOfflineController = ({
         includeAllMedia: false,
         canceled: false,
         running: false,
+        warmed: false,
         dirty: false,
       };
       rooms.set(roomId, value);
@@ -313,7 +319,7 @@ export const createRoomOfflineController = ({
       }
       publish(roomId, { status: 'saving' });
       const recent = room.getLiveTimeline()?.getEvents?.().slice(-200) ?? [];
-      if (recent.length) {
+      if (!intent.warmed && recent.length) {
         const saved = await persistRoomChunkWithPreferLive({
           mx,
           sessionId,
@@ -328,16 +334,37 @@ export const createRoomOfflineController = ({
           return;
         }
       }
-      // Rebuild transient encrypted descriptors from retained ciphertext. This
-      // scan retries missing bodies without changing the server history cursor.
+      intent.warmed = true;
+      // Automatic work visits pending owners only. Explicit Download also repairs old retained data.
       const retryProgress = await readRoomOfflineProgress(sessionId, roomId);
       // Each explicit request covers the prefix skipped by automatic continuation.
       let after = intent.explicit ? undefined : retryProgress.retryAfterEventId ?? undefined;
       intent.fullScanPending = false;
       let retried = 0;
+      const pendingIds = intent.explicit
+        ? []
+        : [
+            ...new Set([
+              ...(await readRoomMissingAttachmentEventIds(sessionId, roomId)),
+              ...(retryProgress.undecryptedEventIds ?? []),
+              ...(retryProgress.unresolvedRelationIds ?? []),
+            ]),
+          ].sort();
       do {
         if (!current() || pauseReason(roomId)) break;
-        const batch = await loadRoomOfflineEventBatch(sessionId, roomId, after);
+        const ids = pendingIds.filter((id) => !after || id > after).slice(0, 200);
+        const batch = intent.explicit
+          ? await loadRoomOfflineEventBatch(sessionId, roomId, after)
+          : {
+              events: (
+                await Promise.all(
+                  ids.map((id) => loadCachedEventAcrossRoomScopes(sessionId, roomId, id))
+                )
+              ).filter((event): event is NonNullable<typeof event> => !!event),
+              nextEventId: pendingIds.some((id) => id > (ids.at(-1) ?? after ?? ''))
+                ? ids.at(-1)
+                : undefined,
+            };
         const saved = await persistRoomChunkWithPreferLive({
           mx,
           sessionId,
@@ -466,6 +493,7 @@ export const createRoomOfflineController = ({
     },
     clear: async (roomId) => {
       controller.cancel(roomId);
+      state(roomId).warmed = false;
       scheduler
         .pendingJobs()
         .filter((job) => job.roomId === roomId)
@@ -509,8 +537,11 @@ export const createRoomOfflineController = ({
         recheck();
       }
     },
-    observe: async (event: MatrixEvent, roomId: string): Promise<void> => {
-      const lease = captureCacheStoreWriteLease(sessionId, roomId);
+    observe: async (
+      events: MatrixEvent[],
+      roomId: string,
+      lease = captureCacheStoreWriteLease(sessionId, roomId)
+    ): Promise<void> => {
       try {
         const progress = await readRoomOfflineProgress(sessionId, roomId);
         if (
@@ -520,18 +551,7 @@ export const createRoomOfflineController = ({
           state(roomId).canceled
         )
           return;
-        const room = mx.getRoom(roomId);
-        if (!room) return;
-        const saved = await persistRoomChunkWithPreferLive({
-          mx,
-          sessionId,
-          room,
-          chunk: [event.event],
-          mappedEvents: [event],
-          writeLease: lease,
-          roomTailLoaded: false,
-        });
-        if (saved) await bodyBatch(roomId, saved.events, lease, true);
+        await bodyBatch(roomId, events, lease, true);
         await refresh(roomId, lease);
       } catch {
         /* Live paint and ordinary sync persistence remain available. */

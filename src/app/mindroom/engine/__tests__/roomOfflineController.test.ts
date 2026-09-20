@@ -606,13 +606,21 @@ it('bounded automatic body retries advance past a failed prefix and survive rest
     },
   };
   await saveRoomEventsToCacheCommitted(first.sessionId, roomId, [
-    ...Array.from({ length: 200 }, (_, i) => raw('$a' + String(i).padStart(3, '0'))),
+    ...Array.from({ length: 200 }, (_, i) => ({
+      ...raw('$a' + String(i).padStart(3, '0')),
+      type: 'm.room.encrypted',
+      content: { ciphertext: 'unavailable' },
+    })),
     body,
   ]);
   await replaceCachedAttachmentReferences(first.sessionId, roomId, '$z-body', 1, [
     { mxcUri: 'mxc://test/body', essential: true },
   ]);
-  await updateRoomOfflineProgress(first.sessionId, roomId, { opened: true, exhausted: true });
+  await updateRoomOfflineProgress(first.sessionId, roomId, {
+    opened: true,
+    exhausted: true,
+    undecryptedEventIds: Array.from({ length: 200 }, (_, i) => '$a' + String(i).padStart(3, '0')),
+  });
   const fetch = vi
     .fn()
     .mockRejectedValueOnce(new Error('body transport'))
@@ -797,6 +805,9 @@ it('promotion of a running automatic scan completes a full include-all pass afte
     exhausted: true,
     retryAfterEventId: '$a-prefix',
   });
+  await replaceCachedAttachmentReferences(engine.sessionId, roomId, '$z-held', 1, [
+    { mxcUri: 'mxc://test/held', essential: true },
+  ]);
   let release!: (response: Response) => void;
   const fetch = vi
     .fn()
@@ -864,7 +875,19 @@ it('pauses between retained body downloads when essential bytes cross the budget
       'io.mindroom.long_text': { version: 2, encoding: 'matrix_event_content_json' },
     },
   }));
-  await saveRoomEventsToCacheCommitted(engine.sessionId, roomId, bodies);
+  await persistRoomChunkWithPreferLive({
+    mx: f.mx,
+    sessionId: engine.sessionId,
+    room: f.room,
+    chunk: bodies,
+  });
+  await Promise.all(
+    bodies.map((body) =>
+      replaceCachedAttachmentReferences(engine.sessionId, roomId, body.event_id, 1, [
+        { mxcUri: body.content.url, essential: true },
+      ])
+    )
+  );
   __setCacheStoreByteBudgetForTests(2000);
   const fetch = vi.fn(
     async () => new Response(JSON.stringify({ msgtype: 'm.text', body: 'x'.repeat(3000) }))
@@ -908,7 +931,14 @@ it('preserves the storage pause after a live observed body is refused', async ()
   });
   control.start();
   try {
-    await control.observe(event, roomId);
+    await persistRoomChunkWithPreferLive({
+      mx: f.mx,
+      sessionId: engine.sessionId,
+      room: f.room,
+      chunk: [event.event],
+      mappedEvents: [event],
+    });
+    await control.observe([event], roomId);
     expect(control.controller.getSnapshot(roomId)).toMatchObject({
       status: 'space',
       missingEssential: 1,
@@ -916,5 +946,233 @@ it('preserves the storage pause after a live observed body is refused', async ()
     expect(fetch).not.toHaveBeenCalled();
   } finally {
     control.stop();
+  }
+});
+
+it('second idle focus does not rewrite complete retained history or attachment bytes', async () => {
+  const body = {
+    ...raw('$saved-body'),
+    content: {
+      msgtype: 'm.text',
+      body: 'preview',
+      url: 'mxc://test/saved-body',
+      'io.mindroom.long_text': { version: 2, encoding: 'matrix_event_content_json' },
+    },
+  };
+  const f = fixture();
+  const timeline = f.room.getLiveTimeline();
+  f.room.getLiveTimeline = () =>
+    ({ ...timeline, getEvents: () => [new MatrixEvent(body)] } as never);
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async () => new Response(JSON.stringify({ msgtype: 'm.text', body: 'saved full body' })))
+  );
+  const engine = f.make();
+  engine.noteRoomFocused(roomId);
+  await vi.waitFor(() =>
+    expect(engine.offline.getSnapshot(roomId)).toMatchObject({ status: 'ready', saved: 1 })
+  );
+  const writes: string[] = [];
+  const original = IDBObjectStore.prototype.put;
+  const spy = vi
+    .spyOn(IDBObjectStore.prototype, 'put')
+    .mockImplementation(function countWrites(value, key) {
+      writes.push(this.name);
+      return original.call(this, value, key);
+    });
+  try {
+    engine.clearRoomFocus(roomId);
+    engine.noteRoomFocused(roomId);
+    await vi.waitFor(() => expect(engine.offline.getSnapshot(roomId).status).toBe('ready'));
+    expect(writes.filter((name) => ['events', 'attachments'].includes(name))).toEqual([]);
+  } finally {
+    spy.mockRestore();
+  }
+});
+
+it('streamed replacements persist and hydrate only the latest compacted body', async () => {
+  const f = fixture();
+  const engine = f.make();
+  const root = new MatrixEvent(raw('$stream'));
+  f.room.findEventById = (id) => (id === '$stream' ? root : undefined);
+  await saveRoomEventsToCacheCommitted(engine.sessionId, roomId, [root.event]);
+  engine.noteRoomFocused(roomId);
+  await vi.waitFor(() => expect(engine.offline.getSnapshot(roomId).status).toBe('ready'));
+  const fetch = vi.fn(
+    async () => new Response(JSON.stringify({ msgtype: 'm.text', body: 'latest full body' }))
+  );
+  vi.stubGlobal('fetch', fetch);
+  const writes: string[] = [];
+  const original = IDBObjectStore.prototype.put;
+  const spy = vi
+    .spyOn(IDBObjectStore.prototype, 'put')
+    .mockImplementation(function countWrites(value, key) {
+      writes.push(this.name);
+      return original.call(this, value, key);
+    });
+  const scans: string[] = [];
+  const originalGetAll = IDBIndex.prototype.getAll;
+  const scan = vi
+    .spyOn(IDBIndex.prototype, 'getAll')
+    .mockImplementation(function countReads(...args) {
+      if (this.objectStore.name === 'attachment_references') scans.push(this.name);
+      return originalGetAll.apply(this, args);
+    });
+  try {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    for (let i = 1; i <= 20; i += 1) {
+      const content = {
+        msgtype: 'm.text',
+        body: 'preview ' + i,
+        url: 'mxc://test/revision-' + i,
+        'io.mindroom.long_text': { version: 2, encoding: 'matrix_event_content_json' },
+      };
+      const edit = new MatrixEvent({
+        ...raw('$edit-' + i),
+        origin_server_ts: i + 1,
+        content: {
+          ...content,
+          'm.new_content': content,
+          'm.relates_to': { rel_type: 'm.replace', event_id: '$stream' },
+        },
+      });
+      root.makeReplaced(edit);
+      f.mx.emit(RoomEvent.Timeline, edit, f.room, false, false, { liveEvent: true } as never);
+    }
+    await vi.advanceTimersByTimeAsync(1000);
+    vi.useRealTimers();
+    await vi.waitFor(async () => {
+      const { getCachedAttachmentMetadata } = await import('../../threads/cacheStore');
+      expect(
+        (await getCachedAttachmentMetadata(engine.sessionId, 'mxc://test/revision-20'))
+          ?.references[0]?.status
+      ).toBe('cached');
+    });
+    await vi.waitFor(() => expect(engine.offline.getSnapshot(roomId).saved).toBe(1));
+    expect(scans.filter((name) => name === 'by_room')).toHaveLength(1);
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(writes.filter((name) => name === 'events')).toHaveLength(1);
+    const cached = await loadCachedRoomEvent(engine.sessionId, roomId, '$stream');
+    expect(JSON.stringify(cached)).toContain('revision-20');
+  } finally {
+    vi.useRealTimers();
+    spy.mockRestore();
+    scan.mockRestore();
+  }
+});
+
+it('compacted redaction lookup leaves live unsigned and later SDK re-emission untouched', async () => {
+  const { createClient, Room } = await import('matrix-js-sdk');
+  const mx = createClient({ baseUrl: 'https://test', userId: '@alice:test' });
+  const room = new Room(roomId, mx, '@alice:test');
+  const live = new MatrixEvent({ ...raw('$a-live'), unsigned: { age: 7 } });
+  room.findEventById = (id) => (id === '$a-live' ? live : undefined);
+  mx.getRoom = () => room;
+  const sessionId = 'mapper-regression';
+  await saveRoomEventsToCacheCommitted(sessionId, roomId, [
+    { ...raw('$a-live'), unsigned: { age: 999 } },
+  ]);
+  const mapper = mx.getEventMapper({ decrypt: false });
+  mx.getEventMapper = () => mapper;
+  await persistRoomChunkWithPreferLive({
+    mx,
+    sessionId,
+    room,
+    chunk: [
+      { ...raw('$redaction'), type: 'm.room.redaction', redacts: '$absent-edit', content: {} },
+    ],
+  });
+  expect(live.getUnsigned().age).toBe(7);
+  const seen = vi.fn();
+  mx.on(MatrixEventEvent.Decrypted, seen);
+  const later = mapper({
+    ...raw('$later'),
+    type: 'm.room.encrypted',
+    content: { ciphertext: 'later' },
+  });
+  later.emit(MatrixEventEvent.Decrypted, later);
+  expect(seen).toHaveBeenCalledOnce();
+});
+
+it.each([false, true])(
+  'ordinary known root redaction skips retained snapshots (saved=%s)',
+  async (saved) => {
+    const f = fixture();
+    const engine = f.make();
+    const root = new MatrixEvent(raw('$root'));
+    f.room.findEventById = (id) => (id === '$root' ? root : undefined);
+    if (saved) await saveRoomEventsToCacheCommitted(engine.sessionId, roomId, [root.event]);
+    const scans: string[] = [];
+    const original = IDBIndex.prototype.openCursor;
+    const spy = vi
+      .spyOn(IDBIndex.prototype, 'openCursor')
+      .mockImplementation(function countReads(...args) {
+        scans.push(this.name);
+        return original.apply(this, args);
+      });
+    try {
+      await persistRoomChunkWithPreferLive({
+        mx: f.mx,
+        sessionId: engine.sessionId,
+        room: f.room,
+        chunk: [
+          { ...raw('$redact-root'), type: 'm.room.redaction', redacts: '$root', content: {} },
+        ],
+      });
+      expect(scans.filter((name) => name === 'by_room_event')).toEqual([]);
+    } finally {
+      spy.mockRestore();
+    }
+  }
+);
+
+it('keeps captured thread scope when a compacted target loses its live relation', async () => {
+  const f = fixture();
+  const engine = f.make();
+  const target = new MatrixEvent({
+    ...raw('$reply'),
+    content: {
+      msgtype: 'm.text',
+      body: 'reply',
+      'm.relates_to': { rel_type: 'm.thread', event_id: '$thread' },
+    },
+  });
+  const edit = new MatrixEvent({
+    ...raw('$edit-reply'),
+    origin_server_ts: 2,
+    content: {
+      'm.relates_to': { rel_type: 'm.replace', event_id: '$reply' },
+      'm.new_content': { msgtype: 'm.text', body: 'changed' },
+    },
+  });
+  f.room.findEventById = (id) => (id === '$reply' ? target : undefined);
+  await persistRoomChunkWithPreferLive({
+    mx: f.mx,
+    sessionId: engine.sessionId,
+    room: f.room,
+    chunk: [
+      {
+        ...raw('$unresolved'),
+        type: 'm.reaction',
+        content: { 'm.relates_to': { rel_type: 'm.annotation', event_id: '$unknown', key: 'x' } },
+      },
+    ],
+  });
+  await updateRoomOfflineProgress(engine.sessionId, roomId, { opened: true });
+  vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+  try {
+    f.mx.emit(RoomEvent.Timeline, edit, f.room, false, false, { liveEvent: true } as never);
+    target.event.content = {};
+    await vi.advanceTimersByTimeAsync(1000);
+    vi.useRealTimers();
+    await vi.waitFor(async () =>
+      expect(
+        (
+          await loadLatestCachedThreadEvents(engine.sessionId, roomId, '$thread', 20)
+        ).events.map((event) => event.event_id)
+      ).toEqual(['$reply'])
+    );
+  } finally {
+    vi.useRealTimers();
   }
 });

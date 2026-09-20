@@ -3,7 +3,7 @@ import {
   type EventTimeline,
   type IEvent,
   type MatrixClient,
-  type MatrixEvent,
+  MatrixEvent,
   type Room,
 } from 'matrix-js-sdk';
 import {
@@ -905,6 +905,7 @@ export const persistThreadEventCacheSnapshotCommitted = (
   });
 
 type ThreadCacheFromRoomEventsOptions = {
+  threadScope?: { threadId: string; events: MatrixEvent[] };
   beforeTokenForEarliest?: string | null;
   roomStartKnown?: boolean;
   roomTailLoaded?: boolean;
@@ -939,7 +940,14 @@ export const persistThreadCacheFromRoomEventsSnapshot = ({
   saveThreadSnapshot?: SaveThreadEventsToCache;
 }): ThreadCacheFromRoomEventsWrite[] => {
   const writes: ThreadCacheFromRoomEventsWrite[] = [];
-  const groupedThreadEvents = groupThreadCacheEvents(room, events);
+  const groupedThreadEvents = groupThreadCacheEvents(
+    room,
+    events.filter((event) => !opts?.threadScope?.events.includes(event))
+  );
+  if (opts?.threadScope) {
+    const { threadId, events: hinted } = opts.threadScope;
+    groupedThreadEvents.set(threadId, [...(groupedThreadEvents.get(threadId) ?? []), ...hinted]);
+  }
 
   groupedThreadEvents.forEach((threadEvents, threadId) => {
     const rootEvent = room.getThread(threadId)?.rootEvent ?? room.findEventById(threadId);
@@ -1099,6 +1107,7 @@ export const persistRoomChunkWithPreferLive = async ({
   chunk,
   beforeTokenForEarliest,
   roomTailLoaded = true,
+  threadId,
   mappedEvents,
   writeLease = captureCacheStoreWriteLease(sessionId, room.roomId),
 }: {
@@ -1108,6 +1117,7 @@ export const persistRoomChunkWithPreferLive = async ({
   chunk: Partial<IEvent>[];
   beforeTokenForEarliest?: string | null;
   roomTailLoaded?: boolean;
+  threadId?: string;
   writeLease?: CacheStoreWriteLease;
   mappedEvents?: MatrixEvent[];
 }): Promise<(RoomEventCacheSnapshotWrite & { events: MatrixEvent[] }) | undefined> => {
@@ -1128,8 +1138,8 @@ export const persistRoomChunkWithPreferLive = async ({
     const known = byId.get(id);
     if (known) return known;
     const raw = await loadCachedEventAcrossRoomScopes(sessionId, room.roomId, id);
-    if (!raw) return undefined;
-    const event = preferLive({ ...raw, room_id: room.roomId });
+    const event = raw ? preferLive({ ...raw, room_id: room.roomId }) : room.findEventById(id);
+    if (!event) return undefined;
     rememberEventCacheWriteLease(event, writeLease);
     await mx.decryptEventIfNeeded?.(event).catch(() => undefined);
     byId.set(id, event);
@@ -1144,19 +1154,32 @@ export const persistRoomChunkWithPreferLive = async ({
     const targetId = event.getAssociatedId() ?? event.getRelation()?.event_id;
     if (!targetId || event.getRelation()?.rel_type === RelationType.Thread) continue;
     let target = await resolve(targetId);
-    if (event.isRedaction() && (!target || !target.getRelation())) {
+    const rawTarget = target?.isRedacted()
+      ? await loadCachedEventAcrossRoomScopes(sessionId, room.roomId, targetId)
+      : undefined;
+    const knownOrdinary =
+      target &&
+      !target.getRelation() &&
+      (!target.isRedacted() ||
+        (typeof rawTarget?.content?.body === 'string' &&
+          rawTarget.content['m.relates_to']?.rel_type !== RelationType.Replace));
+    if (event.isRedaction() && !knownOrdinary && (!target || !target.getRelation())) {
       let after: string | undefined;
       do {
         const batch = await loadRoomOfflineEventBatch(sessionId, room.roomId, after);
         const ownerRaw = batch.events.find(
           (raw) =>
-            getSerializedRelationEvent(mapper(raw), RelationType.Replace)?.getId() === targetId
+            getSerializedRelationEvent(new MatrixEvent(raw), RelationType.Replace)?.getId() ===
+            targetId
         );
         if (ownerRaw) {
           const owner = await resolve(ownerRaw.event_id!);
-          const replacement = getSerializedRelationEvent(mapper(ownerRaw), RelationType.Replace);
+          const replacement = getSerializedRelationEvent(
+            new MatrixEvent(ownerRaw),
+            RelationType.Replace
+          );
           if (owner && replacement) {
-            target = mapper({ ...replacement.event, room_id: room.roomId });
+            target = new MatrixEvent({ ...replacement.event, room_id: room.roomId });
             byId.set(targetId, target);
           }
           break;
@@ -1205,7 +1228,7 @@ export const persistRoomChunkWithPreferLive = async ({
     sessionId,
     room: lookupRoom,
     events: resolvedEvents,
-    opts: { roomTailLoaded },
+    opts: { roomTailLoaded, threadScope: threadId ? { threadId, events: mapped } : undefined },
     saveSeedSnapshot: () => undefined,
     saveThreadSnapshot: (
       session,

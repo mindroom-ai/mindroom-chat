@@ -42,7 +42,6 @@ import {
   setEvictionProtectedRoomIds,
   revokeCacheStoreWrites,
   captureCacheStoreWriteLease,
-  isCacheStoreWriteLeaseCurrent,
 } from '../threads/cacheStore';
 import { createEngineWriteThrough, type EngineWriteThrough } from './engineWriteThrough';
 import { createEngineGapTracker, type EngineGapTracker } from './engineGapTracker';
@@ -56,7 +55,11 @@ import {
 } from './prefetchPolicy';
 import type { EngineLiveEventMeta, MindroomSyncEngine } from './types';
 import { trackPendingThreadEvent } from '../threads/pendingThreadEvents';
-import { rememberEventCacheWriteLease, canPersistDecryptedEvent } from '../threads/eventRepository';
+import {
+  persistRoomChunkWithPreferLive,
+  rememberEventCacheWriteLease,
+  canPersistDecryptedEvent,
+} from '../threads/eventRepository';
 import { createRoomOfflineController } from './roomOffline';
 import type { OfflineConnection } from './offlineConnection';
 
@@ -139,7 +142,7 @@ export const createMindroomSyncEngine = ({
   connection,
 }: CreateMindroomSyncEngineOptions): MindroomSyncEngine => {
   const sessionId = createSessionId(mx.getHomeserverUrl(), mx.getSafeUserId());
-  const effectiveWriteThrough = writeThrough ?? createEngineWriteThrough({ sessionId });
+
   const effectiveScheduler = scheduler ?? createBackfillScheduler({ mx });
   const effectiveGapTracker = gapTracker ?? createEngineGapTracker({ mx, sessionId });
   const effectivePersist = persist ?? createEnginePersistFacade({ sessionId });
@@ -166,6 +169,27 @@ export const createMindroomSyncEngine = ({
     onChanged: (roomId) => recoveryListeners.get(roomId)?.forEach((notify) => notify()),
     onPolicyChange: () => gapFillExecutor?.recheckDeferred(),
   });
+
+  const effectiveWriteThrough =
+    writeThrough ??
+    createEngineWriteThrough({
+      sessionId,
+      persist: (room, events, roomTailLoaded, threadId) => {
+        const lease = captureCacheStoreWriteLease(sessionId, room.roomId);
+        void persistRoomChunkWithPreferLive({
+          mx,
+          sessionId,
+          room,
+          chunk: events.map((event) => event.event),
+          mappedEvents: events,
+          roomTailLoaded: roomTailLoaded ?? false,
+          threadId,
+          writeLease: lease,
+        })
+          .then((saved) => saved && offline.observe(saved.events, room.roomId, lease))
+          .catch(() => undefined);
+      },
+    });
 
   // CINNY-207 P4.2: wire the executor over the gap tracker's queue so
   // limited-sync / startup jobs actually drain. Test overrides can pass
@@ -254,16 +278,7 @@ export const createMindroomSyncEngine = ({
       liveEvent: true,
       toStartOfTimeline: false,
     };
-    if (event.isRedaction()) {
-      const lease = captureCacheStoreWriteLease(sessionId, room.roomId);
-      void offline.observe(event, room.roomId).then(() => {
-        if (started && isCacheStoreWriteLeaseCurrent(lease))
-          effectiveWriteThrough.handleLiveEvent(event, room, meta);
-      });
-    } else {
-      effectiveWriteThrough.handleLiveEvent(event, room, meta);
-      void offline.observe(event, room.roomId);
-    }
+    effectiveWriteThrough.handleLiveEvent(event, room, meta);
   };
 
   const handleDecrypted = (event: MatrixEvent) => {
@@ -276,7 +291,6 @@ export const createMindroomSyncEngine = ({
       liveEvent: true,
       toStartOfTimeline: false,
     });
-    void offline.observe(event, room.roomId);
   };
 
   const handleRedaction: RoomEventHandlerMap[RoomEvent.Redaction] = (
@@ -302,11 +316,7 @@ export const createMindroomSyncEngine = ({
       toStartOfTimeline: false,
       sdkThreadId: threadId,
     };
-    const lease = captureCacheStoreWriteLease(sessionId, room.roomId);
-    void offline.observe(event, room.roomId).then(() => {
-      if (started && isCacheStoreWriteLeaseCurrent(lease))
-        effectiveWriteThrough.handleLiveEvent(event, room, meta);
-    });
+    effectiveWriteThrough.handleLiveEvent(event, room, meta);
   };
 
   const handleTimelineReset: RoomEventHandlerMap[RoomEvent.TimelineReset] = (

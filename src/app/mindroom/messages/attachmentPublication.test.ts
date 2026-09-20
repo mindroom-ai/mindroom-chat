@@ -7,6 +7,7 @@ import {
   clearRoomCachedContent,
   resetCacheStoreForTesting,
   loadCachedAttachment,
+  replaceCachedAttachmentReferences,
 } from '../threads/cacheStore';
 import {
   hydrateCachedMindroomLongText,
@@ -147,6 +148,9 @@ it('retries failed capability lookup on a later explicit download', async () => 
         'io.mindroom.long_text': { version: 2, encoding: 'matrix_event_content_json' },
       },
     },
+  ]);
+  await replaceCachedAttachmentReferences(sessionId, roomId, '$body', 1, [
+    { mxcUri: source.mxcUri, essential: true },
   ]);
   const scheduler = createBackfillScheduler({ mx });
   const control = createRoomOfflineController({
