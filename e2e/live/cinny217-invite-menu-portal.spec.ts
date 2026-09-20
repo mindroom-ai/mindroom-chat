@@ -1,42 +1,157 @@
+import { randomUUID } from 'node:crypto';
 import { expect, test, type Page } from '@playwright/test';
 import { getHomeserver, getPrimaryCredentials } from '../env';
-import { loginWithPassword } from '../helpers/auth';
+import { loginWithPassword, setFullInterfaceModeForSession } from '../helpers/auth';
+import {
+  addRoomToSpace,
+  createPrivateRoom,
+  createPrivateSpace,
+  joinRoom,
+  loginToMatrix,
+  matrixFetch,
+} from '../helpers/matrix';
 
 /**
  * CINNY-217 live verification: the invite autocomplete menu portals past host
  * clipping on every InviteUserPrompt host surface, and CINNY-216 ranking
  * surfaces the intended agent for its short name.
  *
- * Requires local fixtures (see FORK_CHANGES.md CINNY-217): users
- * mindroom_{mind,sarro,...} with display names Mind/Sarro/... plus a
- * "Portal Test Room" and a "Portal Test Space" with "Space Child Room",
- * all owned by the E2E user.
+ * The test creates its own users and room hierarchy so it can run against a
+ * fresh disposable homeserver account.
  */
 
 const hasCredentials = !!process.env.E2E_USERNAME;
 const SHOT_DIR = 'ui-audit/cinny217';
+const AGENT_SHORT_NAMES = [
+  'mind',
+  'sarro',
+  'alpha',
+  'beta',
+  'gamma',
+  'delta',
+  'epsilon',
+  'zeta',
+  'eta',
+  'theta',
+  'iota',
+  'kappa',
+] as const;
 
-const ROOM_NAME = 'Portal Test Room';
-const SPACE_NAME = 'Portal Test Space';
-const SPACE_ID = process.env.E2E_PORTAL_SPACE_ID ?? '!ouDcQZnrnLBwRvjdsv:localhost';
-const CHILD_NAME = 'Space Child Room';
+type TestAccount = {
+  accessToken: string;
+  userId: string;
+};
+
+type PortalFixture = {
+  roomName: string;
+  spaceName: string;
+  spaceId: string;
+  childName: string;
+  mindQuery: string;
+};
+
+const createTestAccount = async (
+  homeserver: string,
+  username: string,
+  displayName: string
+): Promise<TestAccount> => {
+  const password = randomUUID();
+  const account = await matrixFetch<{ access_token: string; user_id: string }>(
+    homeserver,
+    '/register',
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        username,
+        password,
+        auth: { type: 'm.login.dummy' },
+      }),
+    }
+  );
+
+  await matrixFetch<unknown>(
+    homeserver,
+    `/profile/${encodeURIComponent(account.user_id)}/displayname`,
+    {
+      method: 'PUT',
+      accessToken: account.access_token,
+      body: JSON.stringify({ displayname: displayName }),
+    }
+  );
+
+  return { accessToken: account.access_token, userId: account.user_id };
+};
+
+const seedPortalFixture = async (
+  homeserver: string,
+  viewer: TestAccount
+): Promise<PortalFixture> => {
+  const runId = randomUUID().replaceAll('-', '').slice(0, 12);
+  const mindQuery = 'mind';
+  const agents = await Promise.all(
+    AGENT_SHORT_NAMES.map(async (shortName) => ({
+      shortName,
+      account: await createTestAccount(
+        homeserver,
+        `mindroom_${shortName}_${runId}`,
+        shortName === 'mind'
+          ? 'Mind'
+          : `${shortName[0].toUpperCase() + shortName.slice(1)} ${runId}`
+      ),
+    }))
+  );
+  const agentHubId = await createPrivateRoom(homeserver, viewer.accessToken, {
+    name: `Portal agent directory ${runId}`,
+    topic: 'Directory fixture for invite autocomplete coverage.',
+    invite: agents.map((agent) => agent.account.userId),
+  });
+  await Promise.all(
+    agents.map((agent) => joinRoom(homeserver, agent.account.accessToken, agentHubId))
+  );
+
+  const roomName = `Portal Test Room ${runId}`;
+  const spaceName = `Portal Test Space ${runId}`;
+  const childName = `Space Child Room ${runId}`;
+  await createPrivateRoom(homeserver, viewer.accessToken, {
+    name: roomName,
+    topic: 'Invite autocomplete portal fixture.',
+  });
+  const spaceId = await createPrivateSpace(homeserver, viewer.accessToken, {
+    name: spaceName,
+    topic: 'Invite autocomplete portal hierarchy fixture.',
+  });
+  const childId = await createPrivateRoom(homeserver, viewer.accessToken, {
+    name: childName,
+    topic: 'Child room for invite autocomplete portal coverage.',
+  });
+  await addRoomToSpace(homeserver, viewer.accessToken, spaceId, childId);
+
+  return { roomName, spaceName, spaceId, childName, mindQuery };
+};
 
 const inviteInput = (page: Page) => page.locator('[name="userIdInput"]');
 // The listbox id carries a per-instance useId() suffix; match on the prefix.
 const inviteMenu = (page: Page) => page.locator('[id^="invite-autocomplete-listbox"]');
 const inviteForm = (page: Page) => page.locator('form:has([name="userIdInput"])');
 
-async function verifyPortaledInviteMenu(page: Page, surface: string) {
+async function verifyPortaledInviteMenu(page: Page, surface: string, mindQuery: string) {
   const field = inviteInput(page);
   await expect(field).toBeVisible({ timeout: 15_000 });
 
-  await field.fill('mind');
+  await field.fill(mindQuery);
   const menu = inviteMenu(page);
   await expect(menu).toBeVisible({ timeout: 15_000 });
+  await expect.poll(() => page.locator('[role="option"]').count()).toBeGreaterThan(1);
 
-  // CINNY-216: the agent whose short name is the query ranks first.
+  // CINNY-216: an exact display-name identity ranks before the generated
+  // shared-prefix fleet. Multiple exact "Mind" identities can legitimately
+  // tie, so assert the selected value from the option rather than a fixed ID.
   const firstOption = page.locator('[role="option"]').first();
-  await expect(firstOption).toHaveAttribute('aria-label', /^Mind, @mindroom_mind:/);
+  await expect(firstOption).toHaveAttribute('aria-label', /^Mind, @mindroom_mind[_:]/);
+  const selectedUserId = (await firstOption.getAttribute('aria-label'))?.match(
+    /^Mind, (@mindroom_mind[_:][^,]+)$/
+  )?.[1];
+  expect(selectedUserId, 'selected Mind MXID').toBeTruthy();
 
   // CINNY-217: the menu extends below the dialog content (the old clipping
   // boundary) while staying inside the viewport.
@@ -52,7 +167,7 @@ async function verifyPortaledInviteMenu(page: Page, surface: string) {
 
   // Clicking a portaled option commits it without closing the dialog.
   await firstOption.click();
-  await expect(field).toHaveValue(/^@mindroom_mind:/);
+  await expect(field).toHaveValue(selectedUserId!);
   await expect(inviteForm(page)).toBeVisible();
   await expect(menu).toBeHidden();
 
@@ -72,20 +187,32 @@ async function verifyPortaledInviteMenu(page: Page, surface: string) {
 
 test.describe('CINNY-217 invite menu portal', () => {
   test.skip(!hasCredentials, 'E2E_USERNAME / E2E_PASSWORD not set');
+  let restoreSettings: (() => Promise<void>) | undefined;
+
+  test.afterEach(async () => {
+    const restore = restoreSettings;
+    restoreSettings = undefined;
+    await restore?.();
+  });
 
   test('menu escapes host clipping on each invite surface', async ({ page }) => {
     const homeserver = getHomeserver();
     const { username, password } = getPrimaryCredentials();
+    const viewer = await loginToMatrix(homeserver, username, password);
+    const fixture = await seedPortalFixture(homeserver, viewer);
+
+    // Full navigation is required here, but the shared account's preferences survive the run.
+    restoreSettings = await setFullInterfaceModeForSession(homeserver, viewer);
 
     await loginWithPassword(page, { homeserver, username, password });
 
-    const roomLink = page.locator(`a[href^="/home/"]:has-text("${ROOM_NAME}")`).first();
+    const roomLink = page.locator(`a[href^="/home/"]:has-text("${fixture.roomName}")`).first();
     await expect(roomLink).toBeVisible({ timeout: 30_000 });
 
     await test.step('room-nav-item context menu', async () => {
       await roomLink.click({ button: 'right' });
       await page.getByText('Invite', { exact: true }).first().click();
-      await verifyPortaledInviteMenu(page, 'room-nav-item');
+      await verifyPortaledInviteMenu(page, 'room-nav-item', fixture.mindQuery);
       await page.keyboard.press('Escape');
     });
 
@@ -94,54 +221,51 @@ test.describe('CINNY-217 invite menu portal', () => {
       const drawerInvite = page.locator('[aria-label="Invite people"]');
       await expect(drawerInvite).toBeVisible({ timeout: 30_000 });
       await drawerInvite.click();
-      await verifyPortaledInviteMenu(page, 'members-drawer');
+      await verifyPortaledInviteMenu(page, 'members-drawer', fixture.mindQuery);
     });
 
     await test.step('mindroom room header menu', async () => {
       // The vertical-dots "More Options" trigger is the last room-header button.
-      const roomHeader = page.locator(`header:has-text("${ROOM_NAME}")`).first();
+      const roomHeader = page.locator(`header:has-text("${fixture.roomName}")`).first();
       await roomHeader.locator('button').last().click();
       await page.getByText('Invite', { exact: true }).first().click();
-      await verifyPortaledInviteMenu(page, 'mindroom-room-header');
+      await verifyPortaledInviteMenu(page, 'mindroom-room-header', fixture.mindQuery);
       await page.keyboard.press('Escape');
     });
 
     await test.step('space tabs context menu', async () => {
-      const spaceTab = page.locator(`button[data-id="${SPACE_ID}"]`).first();
+      const spaceTab = page.locator(`button[data-id="${fixture.spaceId}"]`).first();
       await expect(spaceTab).toBeVisible({ timeout: 30_000 });
       await spaceTab.click({ button: 'right' });
       await page.getByText('Invite', { exact: true }).first().click();
-      await verifyPortaledInviteMenu(page, 'space-tabs');
+      await verifyPortaledInviteMenu(page, 'space-tabs', fixture.mindQuery);
       await page.keyboard.press('Escape');
     });
 
     await test.step('space page panel menu', async () => {
-      const spaceTab = page.locator(`button[data-id="${SPACE_ID}"]`).first();
+      const spaceTab = page.locator(`button[data-id="${fixture.spaceId}"]`).first();
       await spaceTab.click();
-      const panelHeader = page.locator(`header:has-text("${SPACE_NAME}")`).last();
+      const panelHeader = page.locator(`header:has-text("${fixture.spaceName}")`).last();
       await expect(panelHeader).toBeVisible({ timeout: 30_000 });
       await panelHeader.locator('button').last().click();
       await page.getByText('Invite', { exact: true }).first().click();
-      await verifyPortaledInviteMenu(page, 'space-page-menu');
+      await verifyPortaledInviteMenu(page, 'space-page-menu', fixture.mindQuery);
       await page.keyboard.press('Escape');
     });
 
     await test.step('lobby header menu', async () => {
-      // The lobby's own header carries no text, unlike the space panel and
-      // members drawer headers.
-      const lobbyHeader = page
-        .locator('header')
-        .filter({ hasNotText: SPACE_NAME })
-        .filter({ hasNotText: 'Members' })
-        .last();
+      await page.getByRole('link', { name: 'Lobby', exact: true }).click();
+      const lobbyMembers = page.getByRole('button', { name: /Members/ });
+      await expect(lobbyMembers).toBeVisible();
+      const lobbyHeader = lobbyMembers.locator('xpath=ancestor::header[1]');
       await lobbyHeader.locator('button').last().click();
       await page.getByText('Invite', { exact: true }).first().click();
-      await verifyPortaledInviteMenu(page, 'lobby-header');
+      await verifyPortaledInviteMenu(page, 'lobby-header', fixture.mindQuery);
       await page.keyboard.press('Escape');
     });
 
     await test.step('hierarchy item menu', async () => {
-      const childRow = page.getByText(CHILD_NAME).first();
+      const childRow = page.getByText(fixture.childName).first();
       await expect(childRow).toBeVisible({ timeout: 30_000 });
       await childRow.hover();
       const rowOptions = childRow
@@ -149,7 +273,7 @@ test.describe('CINNY-217 invite menu portal', () => {
         .last();
       await rowOptions.click();
       await page.getByText('Invite', { exact: true }).first().click();
-      await verifyPortaledInviteMenu(page, 'hierarchy-item');
+      await verifyPortaledInviteMenu(page, 'hierarchy-item', fixture.mindQuery);
       await page.keyboard.press('Escape');
     });
   });

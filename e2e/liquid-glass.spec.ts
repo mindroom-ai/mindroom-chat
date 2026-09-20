@@ -25,6 +25,14 @@ test('tracks light without rebuilding the filter and releases it for accessibili
   await page.goto('/e2e/fixtures/liquid-glass.html');
   const menu = page.getByTestId('showcase-menu');
   await expect(menu).toHaveAttribute('data-liquid-glass', 'active');
+  // Font loading can resize the menu and legitimately replace its filter.
+  // Let that layout and its ResizeObserver update settle before testing pointer motion.
+  await page.evaluate(async () => {
+    await document.fonts.ready;
+    await new Promise<void>((resolve) => {
+      requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+    });
+  });
   const filter = await menu.evaluate((element) =>
     element.style.getPropertyValue('--liquid-glass-filter')
   );

@@ -80,7 +80,12 @@ export const RecentThreadEntry = memo(
                   {viewModel.roomName}
                 </Text>
                 {relativeTime && (
-                  <Text as="span" size="T200" priority="400">
+                  <Text
+                    as="span"
+                    size="T200"
+                    priority="400"
+                    style={{ flexShrink: 0, whiteSpace: 'nowrap' }}
+                  >
                     {relativeTime}
                   </Text>
                 )}

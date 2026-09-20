@@ -1,5 +1,6 @@
 import { expect, Page } from '@playwright/test';
 import { buildLoginPath } from '../env';
+import { loginToMatrix, matrixFetch, setAccountData, type MatrixSession } from './matrix';
 
 type LoginOptions = {
   homeserver: string;
@@ -7,6 +8,10 @@ type LoginOptions = {
   password: string;
   addAccount?: boolean;
 };
+
+type Credentials = Pick<LoginOptions, 'username' | 'password'>;
+
+const mindroomAccountSettingsEventType = 'io.mindroom.settings';
 
 export const activeAccountButtonNamePattern = /Open (account switcher|settings) for /;
 const failedStartAccountPattern = /Failed to start account/i;
@@ -90,4 +95,47 @@ export const loginWithPassword = async (page: Page, options: LoginOptions) => {
   await page.getByRole('button', { name: 'Login' }).click();
 
   await waitForLoggedInShell(page);
+};
+
+/** Preserve all account preferences and return a teardown that restores the snapshot. */
+export const setFullInterfaceModeForSession = async (
+  homeserver: string,
+  session: MatrixSession
+) => {
+  const settings = await matrixFetch<Record<string, unknown>>(
+    homeserver,
+    '/user/' +
+      encodeURIComponent(session.userId) +
+      '/account_data/' +
+      encodeURIComponent(mindroomAccountSettingsEventType),
+    { accessToken: session.accessToken }
+  ).catch((error: Error) => {
+    if (error.message.startsWith('Matrix API 404')) return {};
+    throw error;
+  });
+
+  await setAccountData(
+    homeserver,
+    session.accessToken,
+    session.userId,
+    mindroomAccountSettingsEventType,
+    { ...settings, simpleMode: false }
+  );
+
+  return () =>
+    setAccountData(
+      homeserver,
+      session.accessToken,
+      session.userId,
+      mindroomAccountSettingsEventType,
+      settings
+    );
+};
+
+export const setFullInterfaceModeForCredentials = async (
+  homeserver: string,
+  credentials: Credentials
+) => {
+  const session = await loginToMatrix(homeserver, credentials.username, credentials.password);
+  await setFullInterfaceModeForSession(homeserver, session);
 };

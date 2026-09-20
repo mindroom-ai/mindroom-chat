@@ -28,9 +28,7 @@ type ChipSnapshot = {
   chipText: string;
 };
 
-const snapshotReplyChips = async (
-  page: import('@playwright/test').Page
-): Promise<ChipSnapshot[]> =>
+const snapshotReplyChips = async (page: import('@playwright/test').Page): Promise<ChipSnapshot[]> =>
   page.evaluate(() => {
     const rows = Array.from(document.querySelectorAll<HTMLElement>('[data-message-id]'));
     const result: {
@@ -61,9 +59,7 @@ test.describe('thread reply chips', () => {
   test.skip(!hasCredentials, 'E2E_USERNAME / E2E_PASSWORD not set');
   test.setTimeout(600_000);
 
-  test('fallback replies render no chips; explicit replies keep honest chips', async ({
-    page,
-  }) => {
+  test('fallback replies render no chips; explicit replies keep honest chips', async ({ page }) => {
     const homeserver = getHomeserver();
     const { username, password } = getPrimaryCredentials();
     const session = await loginToMatrix(homeserver, username, password);
@@ -214,9 +210,26 @@ test.describe('thread reply chips', () => {
     // Scroll up through the whole thread so back-pagination and virtual
     // mount/unmount cycles run, then settle.
     const firstVisibleRowId = () =>
-      page.locator('[data-message-id]').first().getAttribute('data-message-id');
+      page.evaluate(() => {
+        const viewport = document
+          .querySelector('[data-message-id]')
+          ?.closest('[data-y-scrollbar-width]');
+        if (!viewport) throw new Error('Thread scroll viewport missing');
+        const bounds = viewport.getBoundingClientRect();
+        return Array.from(viewport.querySelectorAll('[data-message-id]'))
+          .find((row) => {
+            const rect = row.getBoundingClientRect();
+            return rect.bottom > bounds.top && rect.top < bounds.bottom;
+          })
+          ?.getAttribute('data-message-id');
+      });
     const firstRowBeforeScroll = await firstVisibleRowId();
-    await page.locator('[data-message-id]').first().hover();
+    expect(firstRowBeforeScroll).toBeTruthy();
+    const viewport = page
+      .locator('[data-message-id]')
+      .first()
+      .locator('xpath=ancestor::*[@data-y-scrollbar-width][1]');
+    await viewport.hover();
     for (let s = 0; s < 12; s += 1) {
       // eslint-disable-next-line no-await-in-loop
       await page.mouse.wheel(0, -1600);
@@ -225,7 +238,9 @@ test.describe('thread reply chips', () => {
     }
     // Guard against a vacuous scroll phase: the viewport must actually have
     // moved into older territory.
-    expect(await firstVisibleRowId()).not.toBe(firstRowBeforeScroll);
+    const firstRowAfterScroll = await firstVisibleRowId();
+    expect(firstRowAfterScroll).toBeTruthy();
+    expect(firstRowAfterScroll).not.toBe(firstRowBeforeScroll);
     for (let s = 0; s < 12; s += 1) {
       // eslint-disable-next-line no-await-in-loop
       await page.mouse.wheel(0, 1600);
@@ -250,18 +265,18 @@ test.describe('thread reply chips', () => {
     await expect
       .poll(
         async () =>
-          (await snapshotReplyChips(page)).find((c) =>
-            c.rowText.includes('Explicit reply to an old message')
-          )?.hasUsername,
+          (
+            await snapshotReplyChips(page)
+          ).find((c) => c.rowText.includes('Explicit reply to an old message'))?.hasUsername,
         { timeout: 30_000 }
       )
       .toBe(true);
     await expect
       .poll(
         async () =>
-          (await snapshotReplyChips(page)).find((c) =>
-            c.rowText.includes('Explicit reply to an unfetchable event')
-          )?.chipText,
+          (
+            await snapshotReplyChips(page)
+          ).find((c) => c.rowText.includes('Explicit reply to an unfetchable event'))?.chipText,
         { timeout: 30_000 }
       )
       .toContain('Failed to load message');

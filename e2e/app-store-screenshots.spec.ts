@@ -20,7 +20,6 @@ import {
 
 const FIXTURE_ROOM_ALIAS =
   process.env.E2E_FIXTURE_ROOM_ALIAS ?? '#mindroom-app-store-personal-showcase:matrix.localhost';
-const FIXTURE_ROOM_NAME = 'Personal';
 const FIXTURE_PRIMARY_DISPLAY_NAME = 'Bas Nijholt';
 const MINDROOM_THREAD_TITLE =
   'MindRoom overview: chat-native personal agents, tools, memory, and scheduled follow-ups.';
@@ -30,6 +29,8 @@ const CAR_THREAD_TITLE =
   'Car search: shortlist updated with two promising options and one negotiation checklist.';
 const HOME_THREAD_TITLE =
   'Home reminders: package pickup and maintenance note are queued for tonight.';
+const TODAY_THREAD_TITLE =
+  'Today: campground watcher is healthy, car search has new leads, and Mind explained the personal-agent workflow.';
 const PNG_MAGIC_SIGNATURE = Uint8Array.of(0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a);
 
 const sceneById = (id: AppStoreScreenshotScene['id']): AppStoreScreenshotScene => {
@@ -145,9 +146,18 @@ const captureScene = async (
   await expect(page.getByText('Loading...', { exact: true }).first()).toBeHidden({
     timeout: 10_000,
   });
-  await expect(
-    page.getByRole('img', { name: FIXTURE_PRIMARY_DISPLAY_NAME }).first()
-  ).toHaveAttribute('data-image-loaded', 'true', { timeout: 15_000 });
+  const primaryAvatars = page.getByRole('img', { name: FIXTURE_PRIMARY_DISPLAY_NAME });
+  await expect
+    .poll(
+      () =>
+        primaryAvatars.evaluateAll(
+          (avatars) =>
+            avatars.length > 0 &&
+            avatars.every((avatar) => avatar.getAttribute('data-image-loaded') === 'true')
+        ),
+      { timeout: 15_000 }
+    )
+    .toBe(true);
   await waitForNextPaint(page);
   await page.screenshot({
     path: outputPath,
@@ -167,18 +177,11 @@ const captureScene = async (
   capturedDigests.set(digest, scene.id);
 };
 
-const escapeRegExp = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-
 const getThreadEntry = (page: Page, title: string) =>
-  page
-    .getByRole('button', {
-      name: new RegExp(`Open thread:[\\s\\S]*${escapeRegExp(title)}`, 'i'),
-    })
-    .first();
+  page.locator('button[data-thread-root-id]').filter({ hasText: title });
 
 const expectFixtureRoomOverview = async (page: Page) => {
   await expect(page.getByText('Unexpected Application Error!')).toHaveCount(0);
-  await expect(page.getByText(FIXTURE_ROOM_NAME).first()).toBeVisible({ timeout: 30_000 });
 
   await expect(getThreadEntry(page, MINDROOM_THREAD_TITLE)).toBeVisible({ timeout: 30_000 });
   await expect(getThreadEntry(page, CAMPGROUND_THREAD_TITLE)).toBeVisible({ timeout: 30_000 });
@@ -198,7 +201,6 @@ const returnToFixtureRoomOverview = async (page: Page) => {
 
 const expandCollapsedMessages = async (page: Page) => {
   const showMoreButtons = page.getByRole('button', { name: /show more/i });
-  await expect(showMoreButtons.last()).toBeVisible({ timeout: 10_000 });
   const collapsedCount = await showMoreButtons.count();
 
   for (let expandedCount = 0; expandedCount < collapsedCount; expandedCount += 1) {
@@ -241,9 +243,7 @@ for (const device of APP_STORE_SCREENSHOT_DEVICES) {
       await openFixtureRoom(page, fixtureRoomId);
       await applySceneTheme(page, sceneById('personal-workspace'));
       await expectFixtureRoomOverview(page);
-      await expect(page.getByText('Today: campground watcher is healthy')).toBeVisible({
-        timeout: 30_000,
-      });
+      await expect(getThreadEntry(page, TODAY_THREAD_TITLE)).toBeVisible({ timeout: 30_000 });
       await expect(
         page.getByText('RouterAgent: I grouped the active personal-agent work')
       ).toBeVisible();

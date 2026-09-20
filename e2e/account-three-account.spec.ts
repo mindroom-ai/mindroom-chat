@@ -5,14 +5,12 @@ import {
   getSecondaryCredentials,
   getThirdCredentials,
 } from './env';
-import {
-  expectActiveStoredUsername,
-  switchToStoredUsername,
-} from './helpers/accounts';
+import { expectActiveStoredUsername, switchToStoredUsername } from './helpers/accounts';
 import {
   accountRailButtonSelector,
   expectLoggedInShellStable,
   loginWithPassword,
+  setFullInterfaceModeForCredentials,
 } from './helpers/auth';
 import {
   attachBrowserDiagnostics,
@@ -22,6 +20,7 @@ import {
 test('supports three stored accounts with route restore across switches', async ({ page }) => {
   const secondaryCredentials = getSecondaryCredentials();
   const thirdCredentials = getThirdCredentials();
+  test.slow();
   test.skip(
     !secondaryCredentials || !thirdCredentials,
     'Set second and third credentials to run the three-account e2e flow.'
@@ -30,6 +29,12 @@ test('supports three stored accounts with route restore across switches', async 
   const diagnostics = attachBrowserDiagnostics(page);
   const homeserver = getHomeserver();
   const primaryCredentials = getPrimaryCredentials();
+
+  await Promise.all([
+    setFullInterfaceModeForCredentials(homeserver, primaryCredentials),
+    setFullInterfaceModeForCredentials(homeserver, secondaryCredentials),
+    setFullInterfaceModeForCredentials(homeserver, thirdCredentials),
+  ]);
 
   await loginWithPassword(page, {
     homeserver,

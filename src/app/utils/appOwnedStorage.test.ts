@@ -19,7 +19,7 @@ const createStorage = (entries: Record<string, string>) => {
 describe('app-owned localStorage', () => {
   it('recognizes cache keys without claiming durable preferences', () => {
     expect(isCacheOwnedLocalStorageKey('mx_pending_events_!room:example.org')).toBe(true);
-    expect(isCacheOwnedLocalStorageKey('crypto.account')).toBe(true);
+    expect(isCacheOwnedLocalStorageKey('crypto.account')).toBe(false);
     expect(isCacheOwnedLocalStorageKey('settings')).toBe(false);
     expect(isCacheOwnedLocalStorageKey('roomViewMode:!room:example.org')).toBe(false);
     expect(isCacheOwnedLocalStorageKey('third_party_key')).toBe(false);
@@ -48,6 +48,7 @@ describe('app-owned localStorage', () => {
         ['roomViewMode:!room:example.org', 'compact'],
         ['roomThreadFilter:@alice:example.org:!room', 'filter'],
         ['mindroom_multi_account_store', 'session'],
+        ['crypto.account', 'crypto'],
         ['third_party_key', 'keep'],
       ])
     );

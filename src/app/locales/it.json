@@ -890,7 +890,7 @@
       "login": "Accedi",
       "thisClientRequiresSignInWithAppleConfigureTheHomeserverSsoProvider": "Questo client richiede Accedi con Apple. Configura l'elenco dei provider SSO dell'homeserver in modo che includa Apple.",
       "register": "Registrati",
-      "accountLink": "Non hai un account? <link>Registrati</link>",
+      "accountLink": "Non hai un account? <authLink>Registrati</authLink>",
       "passwordLoginIsDisabledOnValue1UseSsoToSignIn": "L'accesso con password è disabilitato su \"{{value1}}\". Usa SSO per accedere.",
       "thisClientDoesNotSupportLoginOnValue1ServerPasswordAndSso": "Questo client non supporta l'accesso al server \"{{value1}}\". Non è stato trovato alcun metodo di accesso tramite password o SSO."
     },
@@ -953,7 +953,7 @@
       "thisApplicationDoesNotSupportRegistrationOnThisHomeserver": "Questa applicazione non supporta la registrazione su questo homeserver.",
       "ssoRegistrationIsRequiredOnThisHomeserverButNoSsoProvidersWere": "Su questo homeserver è richiesta la registrazione SSO, ma non è stato indicato alcun provider SSO.",
       "login": "Accedi",
-      "accountLink": "Hai già un account? <link>Accedi</link>"
+      "accountLink": "Hai già un account? <authLink>Accedi</authLink>"
     },
     "passwordResetForm": {
       "passwordHasBeenResetSuccessfullyPleaseLoginWithYourNewPassword": "La password è stata reimpostata. Accedi con la nuova password.",
@@ -968,7 +968,7 @@
     "resetPassword": {
       "resetPassword": "Reimposta password",
       "login": "Accedi",
-      "accountLink": "Ricordi la password? <link>Accedi</link>"
+      "accountLink": "Ricordi la password? <authLink>Accedi</authLink>"
     },
     "clientRoot": {
       "catchingUp": "Aggiornamento...",

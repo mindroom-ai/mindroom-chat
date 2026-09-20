@@ -146,7 +146,7 @@ export function Register() {
           tOptions={{ interpolation: { escapeValue: true } }}
           i18nKey="sharedUi.register.accountLink"
           components={{
-            link: (
+            authLink: (
               <Link
                 to={addAccount ? withAddAccountSearch(getLoginPath(server)) : getLoginPath(server)}
               />

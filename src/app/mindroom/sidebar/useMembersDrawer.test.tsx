@@ -20,9 +20,17 @@ function Toggle() {
   );
 }
 
-const renderDrawer = (initialScreen: ScreenSize) => {
+const renderDrawer = (initialScreen: ScreenSize, desktopOpen = true) => {
   const store = createStore();
-  store.set(settingsAtom, { ...store.get(settingsAtom), isPeopleDrawer: true });
+  store.set(settingsAtom, { ...store.get(settingsAtom), isPeopleDrawer: desktopOpen });
+  const viewport = { width: initialScreen === ScreenSize.Mobile ? 390 : 1200 };
+  vi.stubGlobal('document', {
+    body: {
+      get clientWidth() {
+        return viewport.width;
+      },
+    },
+  });
   const content = (screen: ScreenSize) => (
     <Provider store={store}>
       <ScreenSizeProvider value={screen}>
@@ -40,13 +48,24 @@ const renderDrawer = (initialScreen: ScreenSize) => {
     pressed: () =>
       renderer!.root.findAllByType('button').map((button) => button.props['aria-pressed']),
     click: () => act(() => renderer!.root.findAllByType('button')[0].props.onClick()),
-    resize: (screen: ScreenSize) => act(() => renderer!.update(content(screen))),
-    unmount: () => act(() => renderer!.unmount()),
+    captureClick: () => renderer!.root.findAllByType('button')[0].props.onClick,
+    resize: (screen: ScreenSize) => {
+      viewport.width = screen === ScreenSize.Mobile ? 390 : 1200;
+      act(() => renderer!.update(content(screen)));
+    },
+    setViewportWidth: (width: number) => {
+      viewport.width = width;
+    },
+    unmount: () => {
+      act(() => renderer!.unmount());
+      vi.unstubAllGlobals();
+    },
   };
 };
 
 afterEach(() => {
   account.userId = '@alice:example.org';
+  vi.unstubAllGlobals();
 });
 
 describe('useMembersDrawer', () => {
@@ -77,5 +96,19 @@ describe('useMembersDrawer', () => {
     drawer.resize(ScreenSize.Mobile);
     expect(drawer.pressed()).toEqual([true, true]);
     drawer.unmount();
+  });
+
+  it('opens the phone overlay when a desktop callback runs after a viewport resize', () => {
+    const drawer = renderDrawer(ScreenSize.Desktop, false);
+    const desktopClick = drawer.captureClick();
+    drawer.setViewportWidth(390);
+    try {
+      act(() => desktopClick());
+      drawer.resize(ScreenSize.Mobile);
+      expect(drawer.pressed()).toEqual([true, true]);
+      expect(drawer.store.get(settingsAtom).isPeopleDrawer).toBe(false);
+    } finally {
+      drawer.unmount();
+    }
   });
 });
