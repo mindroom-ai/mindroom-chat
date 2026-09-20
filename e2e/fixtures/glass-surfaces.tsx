@@ -31,6 +31,7 @@ import type { ThreadFilterState } from '../../src/app/mindroom/threads/roomThrea
 import { mindroomAccountSettingsAtom } from '../../src/app/mindroom/settings/useMindroomAccountSettings';
 import { Modal500 } from '../../src/app/components/Modal500';
 import * as threadBannerCss from '../../src/app/mindroom/threads/ThreadContextBanner.css';
+import { MessageGlass } from './MessageGlass';
 
 const themes = {
   light: LightTheme,
@@ -234,7 +235,11 @@ createRoot(document.getElementById('root')!).render(
   <Provider store={store}>
     <MatrixClientProvider value={createClient({ baseUrl: window.location.origin })}>
       <SpecVersionsProvider value={{ versions: ['v1.10'] }}>
-        <Fixture />
+        {new URLSearchParams(window.location.search).has('messages') ? (
+          <MessageGlass />
+        ) : (
+          <Fixture />
+        )}
       </SpecVersionsProvider>
     </MatrixClientProvider>
   </Provider>

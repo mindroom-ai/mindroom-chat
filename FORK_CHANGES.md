@@ -2,6 +2,20 @@
 
 ## Runbook
 
+### Match message and approval glass rims (2026-09-20)
+
+- Inline AI summaries, tool disclosures, approval receipts, standalone requests, and review groups reuse the shared panel material and directional specular rim.
+  Nested approval-history rows stay flat and unfiltered so their enclosing box owns the glass.
+- The composer drops its uniform resting outline while retaining its focus ring.
+  The approval bar already uses the shared material and is covered by the new visual checks.
+  No dependencies, JavaScript effects, or per-card optical observers are added.
+- Validation: all 4,741 unit tests, typecheck, production/PWA build, and lint pass with the existing 17 warnings.
+  Rendered-rim checks fail on the previous styles and pass in Chromium and WebKit, light and dark.
+  All 58 Chromium/WebKit glass checks pass with two WebKit-only CDP skips, including expansion, nested receipts, composer focus, and accessibility fallbacks.
+  Chromium live approval checks pass at phone and desktop widths.
+  Independent review found no actionable issues.
+  Physical iPhone rendering remains unverified.
+
 ### Keep server changes after delayed cached content completes (2026-09-20)
 
 - Online restart regressions hold an old cached long-text body and image download until server edits or deletions have reached the UI and dedicated cache, then release both old consumers and reopen again without Matrix access or newer SDK sync data.

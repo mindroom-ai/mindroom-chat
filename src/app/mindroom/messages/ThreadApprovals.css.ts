@@ -83,14 +83,19 @@ export const HistoryBody = style([
     borderTop: `1px solid ${color.Surface.ContainerLine}`,
   },
 ]);
-globalStyle(`${HistoryBody} > ${Receipt}`, {
+// The enclosing history owns the glass; its rows remain flat and unfiltered.
+globalStyle(`${HistoryBody} > ${Receipt}${Receipt}`, {
   width: '100%',
   maxWidth: '100%',
   marginBlockStart: 0,
   background: 'transparent',
   border: 0,
   borderRadius: 0,
+  boxShadow: 'none',
+  backdropFilter: 'none',
+  WebkitBackdropFilter: 'none',
 });
+globalStyle(`${HistoryBody} > ${Receipt}::before`, { display: 'none' });
 globalStyle(`${HistoryBody} > ${Receipt}:not(:last-child)`, {
   borderBottom: `1px solid ${color.Surface.ContainerLine}`,
 });
@@ -102,17 +107,20 @@ export const DialogBody = style({
   flexDirection: 'column',
   gap: 16,
 });
-export const Group = style({
-  flexShrink: 0,
-  border: `1px solid ${color.Surface.ContainerLine}`,
-  borderRadius: 10,
-  padding: 12,
-  display: 'flex',
-  flexDirection: 'column',
-  gap: 10,
-  minWidth: 0,
-  overflowWrap: 'anywhere',
-});
+export const Group = style([
+  glassSurface({ level: 'panel', variant: 'SurfaceVariant' }),
+  {
+    flexShrink: 0,
+    borderRadius: config.radii.R400,
+    padding: 12,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 10,
+    minWidth: 0,
+    overflowWrap: 'anywhere',
+    color: color.SurfaceVariant.OnContainer,
+  },
+]);
 export const Actions = style({ display: 'flex', flexWrap: 'wrap', gap: 8 });
 
 export const Call = style({

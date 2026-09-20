@@ -1,6 +1,84 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { contrastRatio, pixelDifference, sampleScreenshot, type Rgba } from './helpers/glassVisual';
 
+for (const theme of ['light', 'dark']) {
+  test(`message cards share directional glass rims in ${theme}`, async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 1400 });
+    await page.goto(`/e2e/fixtures/glass-surfaces.html?messages&theme=${theme}`);
+    await page.evaluate(() => document.fonts.ready);
+    for (const id of [
+      'summary',
+      'tool',
+      'history',
+      'approval',
+      'approval-group',
+      'approval-bar',
+      'composer',
+    ]) {
+      const host = page.getByTestId(id);
+      const surface = ['approval-group', 'approval-bar'].includes(id)
+        ? host
+        : host.locator(':scope > *').first();
+      await expect(surface).toBeInViewport({ ratio: 1 });
+      const box = (await surface.boundingBox())!;
+      const radius = await surface.evaluate((element) =>
+        parseFloat(getComputedStyle(element).borderTopLeftRadius)
+      );
+      const [lit, faded] = await sampleScreenshot(page, [
+        { x: box.x + radius + 2, y: box.y },
+        { x: box.x + box.width / 2, y: box.y },
+      ]);
+      expect.soft(pixelDifference(lit, faded), `${id} has a fading reflection`).toBeGreaterThan(36);
+      expect
+        .soft(
+          await surface.evaluate((element) => getComputedStyle(element).boxShadow),
+          `${id} has no competing outline`
+        )
+        .not.toContain('inset');
+    }
+  });
+
+  test(`message glass preserves disclosure controls and composer focus in ${theme}`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 390, height: 1400 });
+    await page.goto(`/e2e/fixtures/glass-surfaces.html?messages&theme=${theme}`);
+    const tool = page.getByTestId('tool').getByRole('button');
+    await tool.click();
+    await expect(tool).toHaveAttribute('aria-expanded', 'true');
+    await expect(page.getByTestId('tool').getByText(/Tool #2: read_file/)).toBeVisible();
+    const history = page.getByTestId('history').locator('details').first();
+    await history.locator(':scope > summary').click();
+    const nested = history.locator('details[aria-label="Resolved tool approval request"]');
+    await expect(nested).toHaveCount(1);
+    await expect(nested).toHaveCSS('backdrop-filter', 'none');
+    expect(
+      await nested.evaluate((element) => {
+        const rim = getComputedStyle(element, '::before');
+        return rim.display === 'none' || rim.content === 'none';
+      })
+    ).toBe(true);
+    await nested.locator(':scope > summary').click();
+    await expect(
+      nested.getByText('Decision recorded for this call', { exact: true })
+    ).toBeVisible();
+    const editor = page.getByTestId('composer').getByRole('textbox');
+    const composer = page.getByTestId('composer').locator(':scope > *').first();
+    await editor.fill('Review the notes');
+    await expect(composer).toHaveCSS('box-shadow', /inset/);
+    await expect(editor).toHaveText('Review the notes');
+    await editor.blur();
+    await expect(composer).not.toHaveCSS('box-shadow', /inset/);
+    await page.emulateMedia({ contrast: 'more' });
+    for (const surface of [page.getByTestId('summary').locator(':scope > *'), history, composer]) {
+      await expect(surface).toHaveCSS('backdrop-filter', 'none');
+      expect(
+        await surface.evaluate((element) => getComputedStyle(element, '::before').display)
+      ).toBe('none');
+    }
+  });
+}
+
 for (const theme of ['light', 'silver', 'dark', 'midnight', 'butter']) {
   test(`thread and audio rims have visible directional contrast in ${theme}`, async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 1600 });
