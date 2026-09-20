@@ -2,6 +2,17 @@
 
 ## Runbook
 
+### Control room offline content from General settings (2026-09-20)
+
+- Room General settings now reports saved history entries, combined attachment coverage, storage use, inaccessible history, unresolved relations, missing keys and essential bodies through the client-scoped offline controller snapshot.
+  It distinguishes unknown, unvisited and unavailable storage as well as offline, background, connection-policy, storage-pressure and restart-required pauses.
+- Download entire room, Include all media, Cancel download and Keep offline send room-scoped intent through the engine.
+  Keep offline protects saved room media during automatic cleanup without promising unlimited capacity.
+- Clearing downloaded room content uses the existing focused dialog pattern with explicit cancel and confirm actions.
+  The controller retains ownership of cancellation, write revocation and reset; rejected pin and clear operations remain visible in the panel.
+- All 17 locale catalogs contain the new strings.
+  Nine focused component tests pass, along with application typecheck, focused ESLint, changed-file formatting and the production/PWA build.
+
 ### Complete explicit offline scans from the retained room head (2026-09-20)
 
 - Explicit Download scans the entire retained room, including essential bodies and include-all media before the automatic retry cursor.
