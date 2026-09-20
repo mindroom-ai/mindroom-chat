@@ -53,11 +53,6 @@ export const usePan = (active: boolean) => {
     setIsPanning(active && pointers.current.size === 1);
   };
 
-  const onPointerCancel: PointerEventHandler<HTMLElement> = () => {
-    pointers.current.clear();
-    setIsPanning(false);
-  };
-
   return {
     pan,
     cursor: active ? (isPanning ? 'grabbing' : 'grab') : 'initial',
@@ -65,7 +60,7 @@ export const usePan = (active: boolean) => {
     onPointerDown,
     onPointerMove,
     onPointerUp,
-    onPointerCancel,
+    onPointerCancel: onPointerUp,
     onLostPointerCapture: onPointerUp,
   };
 };

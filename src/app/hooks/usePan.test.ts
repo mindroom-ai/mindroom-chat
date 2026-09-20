@@ -51,20 +51,23 @@ describe('usePan', () => {
     expect(state.isPanning).toBe(false);
   });
 
-  it('suspends panning during pinch and resumes from the remaining finger position', () => {
-    mount(false);
-    act(() => state.onPointerDown(event(1, 100, 200)));
-    act(() => state.onPointerDown(event(2, 200, 200)));
-    activate(true);
-    act(() => state.onPointerMove(event(1, 50, 200)));
-    act(() => state.onPointerMove(event(2, 250, 200)));
-    expect(state.pan).toEqual({ translateX: 0, translateY: 0 });
-    expect(state.isPanning).toBe(false);
-    act(() => state.onPointerUp(event(2, 250, 200)));
-    act(() => state.onLostPointerCapture(event(2, 250, 200)));
-    act(() => state.onPointerMove(event(1, 80, 240)));
-    expect(state.pan).toEqual({ translateX: 30, translateY: 40 });
-  });
+  it.each(['onPointerUp', 'onPointerCancel'] as const)(
+    'suspends panning during pinch and resumes the remaining finger after %s',
+    (handler) => {
+      mount(false);
+      act(() => state.onPointerDown(event(1, 100, 200)));
+      act(() => state.onPointerDown(event(2, 200, 200)));
+      activate(true);
+      act(() => state.onPointerMove(event(1, 50, 200)));
+      act(() => state.onPointerMove(event(2, 250, 200)));
+      expect(state.pan).toEqual({ translateX: 0, translateY: 0 });
+      expect(state.isPanning).toBe(false);
+      act(() => state[handler](event(2, 250, 200)));
+      act(() => state.onLostPointerCapture(event(2, 250, 200)));
+      act(() => state.onPointerMove(event(1, 80, 240)));
+      expect(state.pan).toEqual({ translateX: 30, translateY: 40 });
+    }
+  );
 
   it('can add a second finger while dragging without accumulating pinch movement', () => {
     mount();

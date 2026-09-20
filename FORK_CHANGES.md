@@ -10,9 +10,11 @@
   Pointer capture keeps drags active outside the image, while cancellation and lost capture end tracking and returning to 100% resets the offset.
 - Regression coverage checks pinch handoff, repeated drags, cancellation, normal-size reset, and secondary mouse buttons.
   Chromium browser coverage exercises real injected touch gestures and desktop dragging against the production viewer.
-- Validation: all 4,745 tests across 557 files, typecheck, production/PWA build, and both browser cases pass.
+- Validation: all 4,746 tests across 557 files, typecheck, production/PWA build, and both browser cases pass.
   ESLint reports zero errors and the existing 17 warnings; independent review found no actionable issues.
   Physical iPhone validation remains unavailable on this Linux host.
+- Review follow-up preserves the remaining finger when only one pointer is canceled.
+  The new cancellation-handoff regression fails before the fix and passes afterward; independent follow-up review found no issues.
 
 ### Refresh and run the full live browser suite (2026-09-20)
 
