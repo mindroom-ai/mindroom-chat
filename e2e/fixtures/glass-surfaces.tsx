@@ -23,7 +23,7 @@ import { CustomEditor, useEditor } from '../../src/app/components/editor';
 import { SidebarAvatar } from '../../src/app/components/sidebar';
 import { MAudio } from '../../src/app/components/message/MsgTypeRenderers';
 import { glassShadow } from '../../src/app/styles/Glass.css';
-import { Page, PageHeader, PageRoot } from '../../src/app/components/page/Page';
+import { Page, PageHeader, PageNavHeader, PageRoot } from '../../src/app/components/page/Page';
 import { NavCategoryHeader } from '../../src/app/components/nav/NavCategoryHeader';
 import { ScreenSizeProvider, useScreenSize } from '../../src/app/hooks/useScreenSize';
 import { RoomThreadOverview } from '../../src/app/mindroom/threads/RoomThreadOverview';
@@ -153,6 +153,7 @@ function Fixture() {
             size="500"
             style={{ width: '100%', maxWidth: '100%' }}
           >
+            <PageNavHeader data-testid="settings-nav-header">Settings menu</PageNavHeader>
             <PageRoot nav={null}>
               <Page data-testid="settings-page">
                 <PageHeader data-testid="settings-header">

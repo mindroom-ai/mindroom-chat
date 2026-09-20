@@ -91,48 +91,15 @@ describe('MindRoomSplashScreen', () => {
     ).toHaveLength(1);
   });
 
-  it('enables the native splash overlay on mount and disables it after unmount', () => {
+  it('keeps native webview geometry stable when loading screens mount and unmount', () => {
     vi.mocked(isNativeIOS).mockReturnValue(true);
     let renderer: ReactTestRenderer;
-
     act(() => {
       renderer = create(React.createElement(MindRoomSplashScreen));
     });
-
-    expect(StatusBar.setOverlaysWebView).toHaveBeenNthCalledWith(1, { overlay: true });
-
     act(() => {
       renderer!.unmount();
     });
-
-    expect(requestAnimationFrame).toHaveBeenCalledTimes(1);
-    expect(StatusBar.setOverlaysWebView).toHaveBeenNthCalledWith(2, { overlay: false });
-  });
-
-  it('keeps nested native splash mounts on a single overlay acquire', () => {
-    vi.mocked(isNativeIOS).mockReturnValue(true);
-    let firstRenderer: ReactTestRenderer;
-    let secondRenderer: ReactTestRenderer;
-
-    act(() => {
-      firstRenderer = create(React.createElement(MindRoomSplashScreen));
-      secondRenderer = create(React.createElement(MindRoomSplashScreen));
-    });
-
-    expect(StatusBar.setOverlaysWebView).toHaveBeenCalledTimes(1);
-    expect(StatusBar.setOverlaysWebView).toHaveBeenLastCalledWith({ overlay: true });
-
-    act(() => {
-      firstRenderer!.unmount();
-    });
-
-    expect(StatusBar.setOverlaysWebView).toHaveBeenCalledTimes(1);
-
-    act(() => {
-      secondRenderer!.unmount();
-    });
-
-    expect(StatusBar.setOverlaysWebView).toHaveBeenCalledTimes(2);
-    expect(StatusBar.setOverlaysWebView).toHaveBeenLastCalledWith({ overlay: false });
+    expect(StatusBar.setOverlaysWebView).not.toHaveBeenCalled();
   });
 });
