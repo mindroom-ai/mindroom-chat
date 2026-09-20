@@ -10,6 +10,7 @@ import {
   findEarliestLoadedRoomEventByCacheOrder,
   getMainTimelineCacheEvents,
   loadLatestRoomCacheHydrationSnapshot,
+  shouldHydrateLatestRoomCache,
 } from './eventRepository';
 
 type ScrollToBottomState = {
@@ -63,6 +64,7 @@ export const useRoomCacheHydrationController = ({
       const currentLinkedTimelines = getLinkedTimelines(getLiveTimeline(room));
       const loadedRoomEvents = getMainTimelineCacheEvents(room, currentLinkedTimelines);
       const mapper = mx.getEventMapper();
+      const mapCachedEvent = createPreferLiveEventMapper(room, mapper);
       const hydrationSnapshot = await loadLatestRoomCacheHydrationSnapshot({
         sessionId,
         roomId: room.roomId,
@@ -73,7 +75,7 @@ export const useRoomCacheHydrationController = ({
         // deep-history job alone.
         limit: ROOM_TIMELINE_INTERACTIVE_BATCH_SIZE,
         loadedEvents: loadedRoomEvents,
-        mapEvent: createPreferLiveEventMapper(room, mapper),
+        mapEvent: mapCachedEvent,
       });
 
       if (cancelled || !alive() || roomIdRef.current !== room.roomId || threadIdRef.current) return;
@@ -131,8 +133,24 @@ export const useRoomCacheHydrationController = ({
       if (getLiveTimeline(room) !== currentLinkedTimelines[currentLinkedTimelines.length - 1]) {
         return;
       }
-      if (cachedEvents.length > 0) {
-        await insertCachedRoomTimeline({ mx, room, events: cachedEvents });
+      // Decryption during prepend can yield to newer live events on the same
+      // timeline. Only append missing events beyond its current tail, while
+      // retaining cached revisions and reusing any newly arrived live copies.
+      const currentRoomEvents = getMainTimelineCacheEvents(
+        room,
+        getLinkedTimelines(getLiveTimeline(room))
+      );
+      const currentLatestEvent = currentRoomEvents[currentRoomEvents.length - 1];
+      const currentEventIds = new Set(currentRoomEvents.map((event) => event.getId()));
+      const eventsToInsert = cachedEvents
+        .filter(
+          (event) =>
+            currentEventIds.has(event.getId()) ||
+            shouldHydrateLatestRoomCache(currentLatestEvent, event.event)
+        )
+        .map((event) => mapCachedEvent(event.event));
+      if (eventsToInsert.length > 0) {
+        await insertCachedRoomTimeline({ mx, room, events: eventsToInsert });
       }
 
       if (cancelled || !alive() || roomIdRef.current !== room.roomId || threadIdRef.current) return;
@@ -142,7 +160,7 @@ export const useRoomCacheHydrationController = ({
       setAtBottom(true);
       markCacheHydrateEnd('room');
       logTimelineDebug(roomDebugTraceId, 'room-cache-hydrate-complete', {
-        hydratedCount: cachedEvents.length + prependEvents.length,
+        hydratedCount: eventsToInsert.length + prependEvents.length,
         timelineWasEmpty,
       });
     };

@@ -175,6 +175,97 @@ describe('room cache hydration with a restored SDK tail', () => {
     expect(room.getLiveTimeline().getPaginationToken(Direction.Backward)).toBe('new-gap');
   });
 
+  it.each([
+    { hasLaterCachedTail: false, cachedTailArrivesLive: false },
+    { hasLaterCachedTail: true, cachedTailArrivesLive: false },
+    { hasLaterCachedTail: false, cachedTailArrivesLive: true },
+  ])(
+    'rechecks cache appends after decryption (later cache: $hasLaterCachedTail, same-id arrival: $cachedTailArrivesLive)',
+    async ({ hasLaterCachedTail, cachedTailArrivesLive }) => {
+      const mx = new MatrixClient({ baseUrl: 'https://example.org', userId: USER_ID });
+      const room = new Room(ROOM_ID, mx, USER_ID, { timelineSupport: true });
+      room.currentState.setStateEvents([
+        new MatrixEvent({
+          ...message('$encryption', 1),
+          type: 'm.room.encryption',
+          state_key: '',
+          content: { algorithm: 'm.megolm.v1.aes-sha2' },
+        }),
+      ]);
+      const loaded = new MatrixEvent(message('$loaded', 200));
+      const encrypted = new MatrixEvent({
+        ...message('$encrypted', 250),
+        type: 'm.room.encrypted',
+        content: { algorithm: 'm.megolm.v1.aes-sha2', ciphertext: 'pending' },
+      });
+      await room.addLiveEvents([loaded, encrypted], { fromCache: true, addToState: false });
+      const liveTimeline = room.getLiveTimeline();
+      liveTimeline.setPaginationToken('sdk-before', Direction.Backward);
+      const edit = {
+        ...message('$edit', 350),
+        content: {
+          msgtype: 'm.text',
+          body: '* Updated root',
+          'm.new_content': { msgtype: 'm.text', body: 'Updated root' },
+          'm.relates_to': { rel_type: 'm.replace', event_id: '$loaded' },
+        },
+      };
+      await saveRoomEventsToCache(
+        SESSION_ID,
+        ROOM_ID,
+        [
+          message('$older', 100),
+          { ...message('$loaded', 200), unsigned: { 'm.relations': { 'm.replace': edit } } },
+          encrypted.event,
+          {
+            ...message('$stale-cache-tail', 300),
+            unsigned: {
+              'm.relations': {
+                'm.replace': {
+                  ...edit,
+                  event_id: '$tail-edit',
+                  content: {
+                    ...edit.content,
+                    'm.relates_to': { rel_type: 'm.replace', event_id: '$stale-cache-tail' },
+                  },
+                },
+              },
+            },
+          },
+          ...(hasLaterCachedTail ? [message('$later-cache-tail', 500)] : []),
+        ],
+        null
+      );
+      const arrivingCachedTail = new MatrixEvent(message('$stale-cache-tail', 300));
+      const live = new MatrixEvent(message('$live', 400));
+      vi.spyOn(mx, 'getCrypto').mockReturnValue({
+        decryptEvent: async () => {
+          await room.addLiveEvents(cachedTailArrivesLive ? [arrivingCachedTail, live] : [live], {
+            addToState: false,
+          });
+          return { clearEvent: message('$encrypted', 250) };
+        },
+      } as unknown as ReturnType<MatrixClient['getCrypto']>);
+
+      const published = await openRoom(room, mx);
+
+      const expected = ['$older', '$loaded', '$encrypted'];
+      if (cachedTailArrivesLive) expected.push('$stale-cache-tail');
+      expected.push('$live');
+      if (hasLaterCachedTail) expected.push('$later-cache-tail');
+      expect(published).toEqual([expected]);
+      expect(room.getLiveTimeline()).toBe(liveTimeline);
+      expect(liveTimeline.getEvents().map((event) => event.getId())).toEqual(expected);
+      expect(room.findEventById('$loaded')).toBe(loaded);
+      expect(loaded.getContent().body).toBe('Updated root');
+      if (cachedTailArrivesLive) {
+        expect(room.findEventById('$stale-cache-tail')).toBe(arrivingCachedTail);
+        expect(arrivingCachedTail.getContent().body).toBe('Updated root');
+      }
+      expect(liveTimeline.getPaginationToken(Direction.Backward)).toBeNull();
+    }
+  );
+
   it('keeps the older pagination boundary if history grows during the cache read', async () => {
     const mx = new MatrixClient({ baseUrl: 'https://example.org', userId: USER_ID });
     const room = new Room(ROOM_ID, mx, USER_ID, { timelineSupport: true });

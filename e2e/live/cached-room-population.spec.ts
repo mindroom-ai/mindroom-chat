@@ -13,7 +13,9 @@ import {
 const phone = devices['iPhone 13'];
 test.use({ viewport: phone.viewport, isMobile: true, hasTouch: true });
 
-test('restores the cached room page together before any Matrix response', async ({ page }) => {
+test('restores cached room threads and their messages before any Matrix response', async ({
+  page,
+}) => {
   test.skip(!hasPrimaryCredentials(), 'Local Matrix credentials required');
   const homeserver = getHomeserver();
   const credentials = getPrimaryCredentials();
@@ -29,6 +31,7 @@ test('restores the cached room page together before any Matrix response', async 
   await page.getByRole('link', { name: roomName, exact: true }).first().click();
   await expect(page.getByRole('button', { name: 'Send message', exact: true })).toBeVisible();
   const rootIds: string[] = [];
+  const replyIds: string[] = [];
   for (const label of ['First cached thread', 'Second cached thread', 'Newest cached thread']) {
     rootIds.push(
       await sendRoomMessage(
@@ -42,6 +45,28 @@ test('restores the cached room page together before any Matrix response', async 
         'cached-room-population'
       )
     );
+    if (rootIds.length === 1) {
+      for (const body of ['First cached reply', 'Second cached reply']) {
+        replyIds.push(
+          await sendRoomMessage(
+            homeserver,
+            session.accessToken,
+            roomId,
+            {
+              msgtype: 'm.text',
+              body,
+              'm.relates_to': {
+                rel_type: 'm.thread',
+                event_id: rootIds[0],
+                is_falling_back: true,
+                'm.in_reply_to': { event_id: rootIds[0] },
+              },
+            },
+            'cached-room-population'
+          )
+        );
+      }
+    }
   }
 
   await expect(page.locator('[data-thread-root-id]')).toHaveCount(3);
@@ -51,7 +76,7 @@ test('restores the cached room page together before any Matrix response', async 
   await expect
     .poll(() =>
       page.evaluate(
-        async ({ dbName, roomId: id, roots }) => {
+        async ({ dbName, keys }) => {
           const db = await new Promise<IDBDatabase>((resolve, reject) => {
             const request = indexedDB.open(dbName);
             request.onsuccess = () => resolve(request.result);
@@ -61,10 +86,10 @@ test('restores the cached room page together before any Matrix response', async 
             const transaction = db.transaction('events', 'readonly');
             const events = transaction.objectStore('events');
             const found = await Promise.all(
-              roots.map(
-                (root) =>
+              keys.map(
+                (key) =>
                   new Promise<boolean>((resolve, reject) => {
-                    const request = events.get(`${id}||${root}`);
+                    const request = events.get(key);
                     request.onsuccess = () => resolve(!!request.result);
                     request.onerror = () => reject(request.error);
                   })
@@ -75,10 +100,16 @@ test('restores the cached room page together before any Matrix response', async 
             db.close();
           }
         },
-        { dbName: cacheDbName, roomId, roots: rootIds }
+        {
+          dbName: cacheDbName,
+          keys: [
+            ...rootIds.map((root) => `${roomId}||${root}`),
+            ...replyIds.map((reply) => `${roomId}|${rootIds[0]}|${reply}`),
+          ],
+        }
       )
     )
-    .toBe(3);
+    .toBe(5);
 
   // End the client before replacing its saved sync with a realistic narrow tail.
   await page.goto('/config.json');
@@ -140,6 +171,12 @@ test('restores the cached room page together before any Matrix response', async 
     expect(hydrationMessages.some((line) => line.includes('skip-latest-already-loaded'))).toBe(
       false
     );
+    await page.locator(`[data-thread-root-id="${rootIds[0]}"]`).click();
+    for (const replyId of replyIds) {
+      await expect(page.locator(`[data-message-id="${replyId}"]`)).toBeVisible({
+        timeout: 5_000,
+      });
+    }
   } finally {
     releaseRequests();
     await page.unrouteAll({ behavior: 'wait' });

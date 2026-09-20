@@ -148,6 +148,7 @@ When two surfaces disagree, fix the selector, cache metadata update, or
    An equal or newer SDK tail does not prove that older cached roots are loaded.
    Older events are prepended together when the page overlaps the oldest loaded event; an unknown gap remains for reconciliation.
    A timeline reset or concurrent pagination invalidates the captured prepend boundary and token.
+   If decryption lets the live tail advance, pending cached appends are rechecked against that tail while retaining same-ID revisions and live instances.
 2. `useMindroomThreadIndex` derives room surface entries and `ThreadRecord`
    maps from the painted set.
 3. `engine.noteRoomFocused(roomId)` stamps the tier ledger, adds the room
@@ -168,6 +169,8 @@ The reconcile / gap-fill / deep-history jobs run through the scheduler without b
    in-memory seed cache, current thread model state).
 2. `threadOpenCacheController.hydrateThreadFromCache` paints the thread
    from cached thread pages.
+   Supplemental cached messages paint before awaiting pending SDK sync-gap token conversions, which may require network responses.
+   SDK timeline work still waits for conversion and checks that the same thread remains open.
 3. `engine.reconciler.scheduleReconcile({reason:'open-complete-coverage'|
 'open-partial-coverage', roomId, threadId, cachedPage, onRepaired})`
    ALWAYS runs — coverage decides paint, D7 forbids skipping the network

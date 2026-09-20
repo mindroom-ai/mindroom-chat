@@ -54,7 +54,7 @@ const makeDefaultOptions = () => {
 
 describe('runThreadOpenCacheFirst', () => {
   it.each([true, false])(
-    'awaits pending SDK gaps before cache hydration (still open=%s)',
+    'hydrates cache before waiting for pending SDK gaps (still open=%s)',
     async (stillOpen) => {
       const opts = makeDefaultOptions();
       let finish!: () => void;
@@ -66,11 +66,12 @@ describe('runThreadOpenCacheFirst', () => {
       });
       const opening = runThreadOpenCacheFirst(opts as never);
       await Promise.resolve();
-      expect(opts.hydrateThreadFromCache).not.toHaveBeenCalled();
+      expect(opts.hydrateThreadFromCache).toHaveBeenCalledOnce();
       opts.isCurrentThreadOpen.mockReturnValue(stillOpen);
       finish();
       await opening;
-      expect(opts.hydrateThreadFromCache).toHaveBeenCalledTimes(stillOpen ? 1 : 0);
+      expect(opts.hydrateThreadFromCache).toHaveBeenCalledOnce();
+      expect(opts.scheduleReconcile).toHaveBeenCalledTimes(stillOpen ? 1 : 0);
     }
   );
 
@@ -352,7 +353,7 @@ describe('runThreadOpenCacheFirst', () => {
     try {
       const result = await runThreadOpenCacheFirst(opts as never);
       expect(result).toEqual({ shouldContinue: true, hydratedCachedPage: undefined });
-      expect(opts.hydrateThreadFromCache).not.toHaveBeenCalled();
+      expect(opts.hydrateThreadFromCache).toHaveBeenCalledOnce();
       expect(opts.onCacheHydrated).toHaveBeenCalledWith(false);
       expect(opts.scheduleReconcile).toHaveBeenCalledOnce();
       expect(warning).toHaveBeenCalledWith('[thread-sync-gap] token conversion failed', error);
