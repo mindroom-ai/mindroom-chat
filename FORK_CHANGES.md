@@ -2,6 +2,24 @@
 
 ## Runbook
 
+### Start cached sessions before runtime configuration refresh (2026-09-20)
+
+- Startup previously hid the entire app behind the particle splash until a fresh `config.json` request completed, even when valid configuration and chats were cached.
+- `ClientConfigLoader` now snapshots the last valid configuration at mount and starts cached content while refreshing configuration in the background.
+  Successful background refreshes update storage for the next launch; the mounted configuration and rendered subtree stay stable so the router, route, and unsent drafts survive.
+- Network failures, server errors, and malformed refresh responses retain usable cached configuration.
+  Redirects and HTTP 401/403 retain sign-in recovery; explicit retries wait for fresh configuration, and Continue offline remains an explicit recovery choice after authentication failure.
+- First launch without cached configuration still uses the existing loading and error screens.
+  The particle animation, encryption initialization, and Matrix store replay remain unchanged.
+- Regression tests cover pending and failed refreshes, real router identity and navigation, authentication recovery, and first launch.
+  The phone-sized browser regression stalls both configuration and Matrix responses, opens a cached thread, and checks that a later configuration refresh preserves the composer and its draft.
+  The browser regression fails on the merged baseline while the configuration response remains held.
+- Both cache browser regressions disable service workers and assert intercepted Matrix requests, preventing PWA fetch handling from silently bypassing their network stalls.
+- Validation: all 4,701 tests across 553 files pass under Node 24, along with application/browser-test typechecks, production/PWA build, formatting, and ESLint with zero errors and the existing 17 warnings.
+  Startup and room/message cache scenarios pass against the production build in phone-sized Chromium and WebKit.
+  Independent implementation review found no blocking issues.
+  Physical iPhone startup timing remains unmeasured; local encryption and database work still precede chat rendering.
+
 ### Restore cached room threads and paint cached replies before network waits (2026-09-20)
 
 - Room startup previously treated an equal or newer SDK tail as proof that the cached page was already loaded, discarding missing older roots and leaving later pagination to reveal them.
