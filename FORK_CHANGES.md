@@ -2,6 +2,18 @@
 
 ## Runbook
 
+### Restore iOS archives after archived-room module collision (2026-09-20)
+
+- Xcode Cloud build 254 failed during the web build in `ci_pre_xcodebuild.sh` because `ARCHIVED_ROOMS_SETTINGS_PAGE` was resolved from the state module instead of the settings component.
+  `ArchivedRooms.tsx` and `archivedRooms.ts` shared a case-insensitive basename, and Vite probes `.ts` before `.tsx` for extensionless imports.
+  Linux builds passed because their filesystem distinguished the basename casing.
+- Rename the component file to `ArchivedRoomsPage.tsx` and update its settings import so both files resolve unambiguously.
+- A Linux lookup-alias reproduction produces the exact missing-export error from the Apple log before the rename.
+  The same lookup-alias build passes after the rename.
+- Validation: all 4,726 tests across 555 files pass under Node 24, along with typecheck, the production/PWA build, App Store preflight, changed-file formatting, and ESLint with zero errors and the existing 17 warnings.
+  Independent review confirms an exact-content rename with no missed imports or blocking findings.
+  The post-merge Xcode Cloud archive will verify the native pipeline.
+
 ### Start cached sessions before runtime configuration refresh (2026-09-20)
 
 - Startup previously hid the entire app behind the particle splash until a fresh `config.json` request completed, even when valid configuration and chats were cached.
