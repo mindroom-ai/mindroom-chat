@@ -11,7 +11,12 @@ import {
 } from '../helpers/matrix';
 
 const phone = devices['iPhone 13'];
-test.use({ viewport: phone.viewport, isMobile: true, hasTouch: true });
+test.use({
+  viewport: phone.viewport,
+  isMobile: true,
+  hasTouch: true,
+  serviceWorkers: 'block',
+});
 
 test('restores cached room threads and their messages before any Matrix response', async ({
   page,
@@ -158,12 +163,15 @@ test('restores cached room threads and their messages before any Matrix response
   const requestsHeld = new Promise<void>((resolve) => {
     releaseRequests = resolve;
   });
+  let matrixRequestsHeld = 0;
   await page.route(/\/_matrix\//, async (route) => {
+    matrixRequestsHeld += 1;
     await requestsHeld;
     await route.abort();
   });
   try {
     await page.goto(roomPath);
+    await expect.poll(() => matrixRequestsHeld).toBeGreaterThan(0);
     await expect(page.locator('[data-thread-root-id]')).toHaveCount(3, { timeout: 5_000 });
     await expect
       .poll(() => hydrationMessages.some((line) => line.includes('room-cache-hydrate-complete')))
