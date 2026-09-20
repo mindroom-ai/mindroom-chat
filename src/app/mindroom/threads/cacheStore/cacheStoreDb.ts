@@ -4,6 +4,8 @@ import {
   ATTACHMENT_REFERENCES_BY_ROOM_INDEX,
   ATTACHMENT_REFERENCES_STORE,
   ATTACHMENTS_STORE,
+  ATTACHMENTS_BY_ACCESS_BYTES_INDEX,
+  ATTACHMENT_REFERENCES_BY_OWNER_INDEX,
   CACHE_STORE_DB_VERSION,
   EVENTS_BY_SCOPE_TS_INDEX,
   EVENTS_BY_ROOM_EVENT_INDEX,
@@ -74,6 +76,14 @@ const applyUpgrade = (db: IDBDatabase, transaction: IDBTransaction): void => {
     referencesStore.createIndex(ATTACHMENT_REFERENCES_BY_ATTACHMENT_INDEX, 'mxcUri', {
       unique: false,
     });
+  }
+  const attachments = transaction.objectStore(ATTACHMENTS_STORE);
+  if (!attachments.indexNames.contains(ATTACHMENTS_BY_ACCESS_BYTES_INDEX)) {
+    attachments.createIndex(ATTACHMENTS_BY_ACCESS_BYTES_INDEX, ['lastAccessedAt', 'byteLength']);
+  }
+  const references = transaction.objectStore(ATTACHMENT_REFERENCES_STORE);
+  if (!references.indexNames.contains(ATTACHMENT_REFERENCES_BY_OWNER_INDEX)) {
+    references.createIndex(ATTACHMENT_REFERENCES_BY_OWNER_INDEX, ['roomId', 'eventId']);
   }
   if (!db.objectStoreNames.contains(EVENTS_STORE)) {
     const eventsStore = db.createObjectStore(EVENTS_STORE, { keyPath: 'cacheKey' });

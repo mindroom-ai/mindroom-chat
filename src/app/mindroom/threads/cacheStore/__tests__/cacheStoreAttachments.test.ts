@@ -44,7 +44,7 @@ const seedVersionThreeDatabase = async (version = 3): Promise<CachedEventRecord>
     db.createObjectStore(ROOM_LEDGER_STORE, { keyPath: 'roomId' });
     const summaries = db.createObjectStore(THREAD_SUMMARIES_STORE, { keyPath: 'cacheKey' });
     summaries.createIndex(THREAD_SUMMARIES_BY_ROOM_INDEX, 'roomId');
-    if (version === 4) {
+    if (version >= 4) {
       db.createObjectStore(ATTACHMENTS_STORE, { keyPath: 'mxcUri' });
       const refs = db.createObjectStore(ATTACHMENT_REFERENCES_STORE, { keyPath: 'referenceKey' });
       refs.createIndex(ATTACHMENT_REFERENCES_BY_ROOM_INDEX, 'roomId');
@@ -68,7 +68,7 @@ describe('cacheStore attachment schema', () => {
     resetCacheStoreForTesting();
   });
 
-  it.each([3, 4])('adds indexes without replacing version-%s events', async (version) => {
+  it.each([3, 4, 5])('adds indexes without replacing version-%s events', async (version) => {
     const seededEvent = await seedVersionThreeDatabase(version);
 
     const db = await openCacheStore(SESSION_ID);
@@ -81,6 +81,14 @@ describe('cacheStore attachment schema', () => {
     const transaction = db?.transaction([EVENTS_STORE, ATTACHMENT_REFERENCES_STORE], 'readonly');
     const eventRequest = transaction?.objectStore(EVENTS_STORE).get(seededEvent.cacheKey);
     const references = transaction?.objectStore(ATTACHMENT_REFERENCES_STORE);
+    expect(db?.version).toBe(6);
+    expect(
+      db
+        ?.transaction(ATTACHMENTS_STORE)
+        .objectStore(ATTACHMENTS_STORE)
+        .indexNames.contains('by_access_bytes')
+    ).toBe(true);
+    expect(references?.indexNames.contains('by_owner')).toBe(true);
     expect(references?.indexNames.contains(ATTACHMENT_REFERENCES_BY_ROOM_INDEX)).toBe(true);
     expect(references?.indexNames.contains(ATTACHMENT_REFERENCES_BY_ATTACHMENT_INDEX)).toBe(true);
     const preservedEvent = await new Promise<CachedEventRecord | undefined>((resolve, reject) => {

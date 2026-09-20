@@ -8,6 +8,7 @@ import {
 import {
   ATTACHMENT_REFERENCES_BY_ATTACHMENT_INDEX,
   ATTACHMENT_REFERENCES_BY_ROOM_INDEX,
+  ATTACHMENT_REFERENCES_BY_OWNER_INDEX,
   ROOM_LEDGER_STORE,
   type CachedRoomLedgerRecord,
   ATTACHMENT_REFERENCES_STORE,
@@ -253,10 +254,9 @@ export const replaceCachedAttachmentReferences = async (
     done = transactionComplete(transaction);
     const refs = transaction.objectStore(ATTACHMENT_REFERENCES_STORE);
     const blobs = transaction.objectStore(ATTACHMENTS_STORE);
-    const previous = (await requestResult(
-      refs.index(ATTACHMENT_REFERENCES_BY_ROOM_INDEX).getAll(roomId)
+    const owned = (await requestResult(
+      refs.index(ATTACHMENT_REFERENCES_BY_OWNER_INDEX).getAll([roomId, eventId])
     )) as CachedAttachmentReferenceRecord[];
-    const owned = previous.filter((row) => row.eventId === eventId);
     const retractedRevisionIds = new Set(
       [
         ...owned.flatMap((row) => row.retractedRevisionIds ?? []),
@@ -309,11 +309,18 @@ export const replaceCachedAttachmentReferences = async (
     const entries: AttachmentReferenceInput[] = merged.size
       ? [...merged.values()]
       : [{ mxcUri: '', essential: false }];
-    const removed = previous.filter(
-      (row) =>
-        row.eventId === eventId ||
-        (!row.eventId && entries.some((entry) => entry.mxcUri === row.mxcUri))
+    const legacy = await Promise.all(
+      entries.map(
+        (entry) =>
+          requestResult(refs.get(buildAttachmentReferenceKey(roomId, entry.mxcUri))) as Promise<
+            CachedAttachmentReferenceRecord | undefined
+          >
+      )
     );
+    const removed = [
+      ...owned,
+      ...legacy.filter((row): row is CachedAttachmentReferenceRecord => !!row && !row.eventId),
+    ];
     removed.forEach((row) => refs.delete(row.referenceKey));
     for (const input of entries) {
       // eslint-disable-next-line no-await-in-loop

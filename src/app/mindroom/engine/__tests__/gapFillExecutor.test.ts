@@ -202,6 +202,15 @@ describe('gapFillExecutor (CINNY-207 P4.2)', () => {
   it.each(['transport', 'commit', 'same-token'])(
     'retries a %s failure only after recheck',
     async (failure) => {
+      // eslint-disable-next-line no-console
+      const originalWarn = console.warn;
+      const warn = vi.spyOn(console, 'warn').mockImplementation((...args) => {
+        if (
+          failure !== 'commit' ||
+          !String(args[0]).startsWith('[mindroom-cache:roomEventCache.save]')
+        )
+          originalWarn(...args);
+      });
       const roomId = '!room:mindroom.chat';
       const mx = createMockClient('mindroom.chat', (call) => {
         if (!call && failure === 'transport') throw new Error('offline');
@@ -245,6 +254,13 @@ describe('gapFillExecutor (CINNY-207 P4.2)', () => {
       await waitForCompleted(2);
       expect(await loadRoomTailDiscontinuity(SESSION_ID, roomId)).toBeUndefined();
       expect(aborted).toBe(failure === 'commit');
+      if (failure === 'commit')
+        expect(warn).toHaveBeenCalledWith(
+          expect.stringContaining('[mindroom-cache:roomEventCache.save]'),
+          expect.anything()
+        );
+      else expect(warn).not.toHaveBeenCalled();
+      warn.mockRestore();
       fault.mockRestore();
       executor.stop();
       scheduler.abortAll();
@@ -267,6 +283,7 @@ describe('gapFillExecutor (CINNY-207 P4.2)', () => {
     resetCacheProbe();
   });
   afterEach(async () => {
+    vi.restoreAllMocks();
     await clearRoomTailDiscontinuity(SESSION_ID, '!room:mindroom.chat');
     await clearRoomTailDiscontinuity(SESSION_ID, '!fed:example.org');
     await clearRoomTailDiscontinuity(SESSION_ID, '!e2e:mindroom.chat');

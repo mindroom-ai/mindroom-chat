@@ -74,96 +74,102 @@ const createOfflineFixture = async (homeserver: string): Promise<OfflineFixture>
     name: roomName,
     topic: 'Historical room and thread content saved by the production offline controller.',
   });
-  const rootId = await sendRoomMessage(
-    homeserver,
-    session.accessToken,
-    roomId,
-    { msgtype: 'm.text', body: 'Historical offline thread root' },
-    'offline-room-content'
-  );
-  const relation = {
-    rel_type: 'm.thread',
-    event_id: rootId,
-    is_falling_back: true,
-    'm.in_reply_to': { event_id: rootId },
-  };
-  const bodyId = await sendRoomMessage(
-    homeserver,
-    session.accessToken,
-    roomId,
-    {
-      msgtype: 'm.text',
-      body: 'Short historical preview only',
-      url: bodyUri,
-      'io.mindroom.long_text': { version: 2, encoding: 'matrix_event_content_json' },
-      'm.relates_to': relation,
-    },
-    'offline-room-content'
-  );
-  const imageId = await sendRoomMessage(
-    homeserver,
-    session.accessToken,
-    roomId,
-    {
-      msgtype: 'm.image',
-      body: 'Historical offline pixel',
-      url: imageUri,
-      info: { mimetype: 'image/png', size: imageBytes.length, w: 1, h: 1 },
-      'm.relates_to': relation,
-    },
-    'offline-room-content'
-  );
-
-  for (let index = 0; index < fillerCount; index += 1) {
-    // Keep the historical thread outside the real SDK initial timeline window.
-    // eslint-disable-next-line no-await-in-loop
-    await sendRoomMessage(
+  let savedSettings: Record<string, unknown> | undefined;
+  try {
+    const rootId = await sendRoomMessage(
       homeserver,
       session.accessToken,
       roomId,
-      { msgtype: 'm.text', body: `Newer tail message ${index + 1}` },
+      { msgtype: 'm.text', body: 'Historical offline thread root' },
       'offline-room-content'
     );
-  }
+    const relation = {
+      rel_type: 'm.thread',
+      event_id: rootId,
+      is_falling_back: true,
+      'm.in_reply_to': { event_id: rootId },
+    };
+    const bodyId = await sendRoomMessage(
+      homeserver,
+      session.accessToken,
+      roomId,
+      {
+        msgtype: 'm.text',
+        body: 'Short historical preview only',
+        url: bodyUri,
+        'io.mindroom.long_text': { version: 2, encoding: 'matrix_event_content_json' },
+        'm.relates_to': relation,
+      },
+      'offline-room-content'
+    );
+    const imageId = await sendRoomMessage(
+      homeserver,
+      session.accessToken,
+      roomId,
+      {
+        msgtype: 'm.image',
+        body: 'Historical offline pixel',
+        url: imageUri,
+        info: { mimetype: 'image/png', size: imageBytes.length, w: 1, h: 1 },
+        'm.relates_to': relation,
+      },
+      'offline-room-content'
+    );
 
-  const filter = encodeURIComponent(
-    JSON.stringify({ room: { rooms: [roomId], timeline: { limit: 20 } } })
-  );
-  const initialSync = await matrixFetch<{
-    rooms: { join: Record<string, { timeline: { events: Array<{ event_id: string }> } }> };
-  }>(homeserver, `/sync?timeout=0&filter=${filter}`, { accessToken: session.accessToken });
-  const initialTailIds = initialSync.rooms.join[roomId].timeline.events.map(
-    (event) => event.event_id
-  );
-  expect(initialTailIds).toHaveLength(20);
-  expect(initialTailIds).not.toContain(rootId);
-  expect(initialTailIds).not.toContain(bodyId);
-  expect(initialTailIds).not.toContain(imageId);
+    for (let index = 0; index < fillerCount; index += 1) {
+      // Keep the historical thread outside the real SDK initial timeline window.
+      // eslint-disable-next-line no-await-in-loop
+      await sendRoomMessage(
+        homeserver,
+        session.accessToken,
+        roomId,
+        { msgtype: 'm.text', body: `Newer tail message ${index + 1}` },
+        'offline-room-content'
+      );
+    }
 
-  const savedSettings = await matrixFetch<Record<string, unknown>>(
-    homeserver,
-    `/user/${encodeURIComponent(session.userId)}/account_data/io.mindroom.settings`,
-    { accessToken: session.accessToken }
-  ).catch((error: Error) => {
-    if (error.message.startsWith('Matrix API 404')) return {};
+    const filter = encodeURIComponent(
+      JSON.stringify({ room: { rooms: [roomId], timeline: { limit: 20 } } })
+    );
+    const initialSync = await matrixFetch<{
+      rooms: { join: Record<string, { timeline: { events: Array<{ event_id: string }> } }> };
+    }>(homeserver, `/sync?timeout=0&filter=${filter}`, { accessToken: session.accessToken });
+    const initialTailIds = initialSync.rooms.join[roomId].timeline.events.map(
+      (event) => event.event_id
+    );
+    expect(initialTailIds).toHaveLength(20);
+    expect(initialTailIds).not.toContain(rootId);
+    expect(initialTailIds).not.toContain(bodyId);
+    expect(initialTailIds).not.toContain(imageId);
+
+    savedSettings = await matrixFetch<Record<string, unknown>>(
+      homeserver,
+      `/user/${encodeURIComponent(session.userId)}/account_data/io.mindroom.settings`,
+      { accessToken: session.accessToken }
+    ).catch((error: Error) => {
+      if (error.message.startsWith('Matrix API 404')) return {};
+      throw error;
+    });
+    await setAccountData(homeserver, session.accessToken, session.userId, 'io.mindroom.settings', {
+      ...savedSettings,
+      simpleMode: false,
+    });
+
+    return {
+      session,
+      roomId,
+      roomName,
+      rootId,
+      bodyId,
+      imageId,
+      bodyUri,
+      imageUri,
+      savedSettings,
+    };
+  } catch (error) {
+    await forgetFixtureRoom(homeserver, { session, roomId, savedSettings });
     throw error;
-  });
-  await setAccountData(homeserver, session.accessToken, session.userId, 'io.mindroom.settings', {
-    ...savedSettings,
-    simpleMode: false,
-  });
-
-  return {
-    session,
-    roomId,
-    roomName,
-    rootId,
-    bodyId,
-    imageId,
-    bodyUri,
-    imageUri,
-    savedSettings,
-  };
+  }
 };
 
 const readPersistedCoverage = async (
@@ -343,24 +349,32 @@ const expectHistoricalContent = async (page: Page, fixture: OfflineFixture): Pro
     .toBe(true);
 };
 
-const forgetFixtureRoom = async (homeserver: string, fixture: OfflineFixture): Promise<void> => {
-  await setAccountData(
-    homeserver,
-    fixture.session.accessToken,
-    fixture.session.userId,
-    'io.mindroom.settings',
-    fixture.savedSettings
-  );
-  await matrixFetch(homeserver, `/rooms/${encodeURIComponent(fixture.roomId)}/leave`, {
-    method: 'POST',
-    accessToken: fixture.session.accessToken,
-    body: '{}',
-  });
-  await matrixFetch(homeserver, `/rooms/${encodeURIComponent(fixture.roomId)}/forget`, {
-    method: 'POST',
-    accessToken: fixture.session.accessToken,
-    body: '{}',
-  });
+const forgetFixtureRoom = async (
+  homeserver: string,
+  fixture: Pick<OfflineFixture, 'session' | 'roomId'> &
+    Partial<Pick<OfflineFixture, 'savedSettings'>>
+): Promise<void> => {
+  try {
+    if (fixture.savedSettings)
+      await setAccountData(
+        homeserver,
+        fixture.session.accessToken,
+        fixture.session.userId,
+        'io.mindroom.settings',
+        fixture.savedSettings
+      );
+  } finally {
+    await matrixFetch(homeserver, `/rooms/${encodeURIComponent(fixture.roomId)}/leave`, {
+      method: 'POST',
+      accessToken: fixture.session.accessToken,
+      body: '{}',
+    });
+    await matrixFetch(homeserver, `/rooms/${encodeURIComponent(fixture.roomId)}/forget`, {
+      method: 'POST',
+      accessToken: fixture.session.accessToken,
+      body: '{}',
+    });
+  }
 };
 
 test.describe('persisted historical room content', () => {
@@ -393,8 +407,11 @@ test.describe('persisted historical room content', () => {
       await reopened.goto(threadUrl, { waitUntil: 'domcontentloaded' });
       await expectHistoricalContent(reopened, fixture);
     } finally {
-      await context.setOffline(false);
-      if (fixture) await forgetFixtureRoom(homeserver, fixture);
+      try {
+        await context.setOffline(false);
+      } finally {
+        if (fixture) await forgetFixtureRoom(homeserver, fixture);
+      }
     }
   });
 
@@ -453,8 +470,11 @@ test.describe('persisted historical room content', () => {
         await context.unrouteAll({ behavior: 'wait' });
       }
     } finally {
-      await context.close();
-      if (fixture) await forgetFixtureRoom(homeserver, fixture);
+      try {
+        await context.close();
+      } finally {
+        if (fixture) await forgetFixtureRoom(homeserver, fixture);
+      }
     }
   });
 });

@@ -277,6 +277,7 @@ export const clearAttachmentRepositoryMemory = (): void => {
 
 export type PrefetchEventAttachmentsOptions = {
   includeAllMedia?: boolean;
+  canDownload?: () => Promise<boolean>;
   signal?: AbortSignal;
   writeLease?: CacheStoreWriteLease;
 };
@@ -320,7 +321,10 @@ export const prefetchEventAttachments = async (
       if (options.signal?.aborted) throw abortError();
       const writeLease = leases.get(message.roomId)!;
       if (!isCacheStoreWriteLeaseCurrent(writeLease)) continue;
-      if (attachment.autoDownload || options.includeAllMedia) {
+      if (
+        (attachment.autoDownload || options.includeAllMedia) &&
+        (!options.canDownload || (await options.canDownload()))
+      ) {
         try {
           // eslint-disable-next-line no-await-in-loop
           await downloadCachedAttachment(mx, attachment, useAuthentication, {
@@ -384,8 +388,9 @@ export const hydrateCachedMindroomLongText = async (
   useAuthentication: boolean
 ): Promise<Record<string, unknown>> => {
   const owner = source.owner;
-  const sessionId = owner ? getSessionId(mx) : undefined;
-  const writeLease = sessionId ? captureCacheStoreWriteLease(sessionId, owner?.roomId) : undefined;
+  const sessionId = getSessionId(mx);
+  const writeLease = captureCacheStoreWriteLease(sessionId, owner?.roomId);
+  const isCurrent = () => isCacheStoreWriteLeaseCurrent(writeLease);
   const register = (validated: boolean) =>
     owner && sessionId
       ? replaceCachedAttachmentReferences(
@@ -414,15 +419,15 @@ export const hydrateCachedMindroomLongText = async (
     );
     return blob.text();
   };
-  if (!owner) return hydrateMindroomLongTextSource(source, load, mx);
+  if (!owner) return hydrateMindroomLongTextSource(source, load, mx, isCurrent);
   const cached = getCachedMindroomLongTextContent(source, mx);
   const status = await register(!!cached);
+  if (status === 'revoked' || !isCurrent()) return source.previewContent;
   if (cached) return cached;
-  if (status === 'revoked') return source.previewContent;
   try {
     // Every owner participates in raw transport/persistence before parsed hydration can coalesce.
     const text = await load(source);
-    return await hydrateMindroomLongTextSource(source, async () => text, mx);
+    return await hydrateMindroomLongTextSource(source, async () => text, mx, isCurrent);
   } catch {
     return source.previewContent;
   }

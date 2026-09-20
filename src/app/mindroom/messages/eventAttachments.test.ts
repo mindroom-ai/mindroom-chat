@@ -8,6 +8,7 @@ import {
   resetCacheStoreForTesting,
   loadCachedAttachment,
 } from '../threads/cacheStore';
+import { resetCacheHealthForTesting } from '../threads/cacheHealth';
 import { clearAttachmentRepositoryMemory } from './attachmentRepository';
 import { collectEventAttachments } from './eventAttachments';
 import { prefetchEventAttachments } from './attachmentRepository';
@@ -26,9 +27,11 @@ const event = (eventId: string, content: Record<string, unknown>, ts = 1) =>
 beforeEach(() => {
   globalThis.indexedDB = new IDBFactory();
   resetCacheStoreForTesting();
+  resetCacheHealthForTesting();
   clearAttachmentRepositoryMemory();
 });
 afterEach(() => {
+  vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });
 
@@ -149,6 +152,17 @@ it('leaves oversized essential bodies incomplete even if an explicit download al
 });
 
 it('keeps body coverage incomplete after quota failure while interactive bytes remain usable', async () => {
+  // eslint-disable-next-line no-console
+  const originalWarn = console.warn;
+  // eslint-disable-next-line no-console
+  const originalError = console.error;
+  const warn = vi.spyOn(console, 'warn').mockImplementation((...args) => {
+    if (!String(args[0]).startsWith('[mindroom-cache:attachment.save]')) originalWarn(...args);
+  });
+  const error = vi.spyOn(console, 'error').mockImplementation((...args) => {
+    if (!String(args[0]).startsWith('[mindroom-cache] storage quota exceeded'))
+      originalError(...args);
+  });
   const original = IDBObjectStore.prototype.put;
   const put = vi
     .spyOn(IDBObjectStore.prototype, 'put')
@@ -181,8 +195,14 @@ it('keeps body coverage incomplete after quota failure while interactive bytes r
   expect(await interactive.text()).toContain('complete body');
   const { getCacheHealth } = await import('../threads/cacheHealth');
   expect(getCacheHealth().state).toBe('read-only');
+  expect(warn).toHaveBeenCalledWith(
+    expect.stringContaining('[mindroom-cache:attachment.save]'),
+    expect.objectContaining({ name: 'QuotaExceededError' })
+  );
+  expect(error).toHaveBeenCalledWith(
+    expect.stringContaining('[mindroom-cache] storage quota exceeded')
+  );
   put.mockRestore();
-  const { resetCacheHealthForTesting } = await import('../threads/cacheHealth');
   resetCacheHealthForTesting();
 });
 

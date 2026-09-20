@@ -13,9 +13,11 @@ import type { CachedPaginationTokenMap } from '../eventCacheTokenUtils';
 // `getCacheStoreDbName` in `cacheStoreDb.ts` via `getSessionScopedStorageKey`.
 
 export const MINDROOM_CACHE_DB_BASE_NAME = 'mindroom-cache';
-export const CACHE_STORE_DB_VERSION = 5;
+export const CACHE_STORE_DB_VERSION = 6;
 export const EVENTS_BY_ROOM_EVENT_INDEX = 'by_room_event';
 
+export const ATTACHMENTS_BY_ACCESS_BYTES_INDEX = 'by_access_bytes';
+export const ATTACHMENT_REFERENCES_BY_OWNER_INDEX = 'by_owner';
 export const ATTACHMENTS_STORE = 'attachments';
 export const ATTACHMENT_REFERENCES_STORE = 'attachment_references';
 export const EVENTS_STORE = 'events';

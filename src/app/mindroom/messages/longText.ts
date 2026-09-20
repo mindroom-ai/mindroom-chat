@@ -14,7 +14,10 @@ let mindroomLongTextHydrationCache = new WeakMap<object, Map<string, Record<stri
 // threadEvents update while prior fetches are still in flight). Entries are
 // removed on settle, so a failed fetch stays retryable — only completed
 // parses are cached.
-let mindroomLongTextInflight = new WeakMap<object, Map<string, Promise<Record<string, unknown>>>>();
+let mindroomLongTextInflight = new WeakMap<
+  object,
+  Map<string, Promise<Record<string, unknown> | undefined>>
+>();
 
 export type MindroomLongTextSource = {
   owner?: EventAttachmentOwner;
@@ -44,11 +47,11 @@ const getMindroomLongTextCache = (owner: object): Map<string, Record<string, unk
 
 const getMindroomLongTextInflight = (
   owner: object
-): Map<string, Promise<Record<string, unknown>>> => {
+): Map<string, Promise<Record<string, unknown> | undefined>> => {
   const existing = mindroomLongTextInflight.get(owner);
   if (existing) return existing;
 
-  const inflight = new Map<string, Promise<Record<string, unknown>>>();
+  const inflight = new Map<string, Promise<Record<string, unknown> | undefined>>();
   mindroomLongTextInflight.set(owner, inflight);
   return inflight;
 };
@@ -272,35 +275,40 @@ export const getCachedMindroomLongTextContent = (
 export const hydrateMindroomLongTextSource = async (
   source: MindroomLongTextSource,
   loadSidecarText: MindroomLongTextSidecarTextLoader,
-  cacheOwner: object
+  cacheOwner: object,
+  isCurrent: () => boolean = () => true
 ): Promise<Record<string, unknown>> => {
+  if (!isCurrent()) return source.previewContent;
   const cached = getCachedMindroomLongTextContent(source, cacheOwner);
   if (cached) return cached;
 
   const identity = getMindroomLongTextSourceIdentity(source);
   const inflight = getMindroomLongTextInflight(cacheOwner);
   const pending = inflight.get(identity);
-  if (pending) return pending;
 
-  const download = (async () => {
-    try {
-      // The loader must not run before the in-flight entry is registered:
-      // this async body executes synchronously up to its first await, so a
-      // SYNCHRONOUS loader throw would settle the promise — and run the
-      // finally-cleanup — before inflight.set below, pinning an
-      // already-resolved preview promise in the map forever.
-      const sidecarText = await Promise.resolve().then(() => loadSidecarText(source));
-      const hydratedContent = parseMindroomLongTextJsonSidecar(sidecarText);
-      if (!hydratedContent) return source.previewContent;
-      const normalizedHydratedContent = normalizeHydratedMindroomContent(hydratedContent);
-      getMindroomLongTextCache(cacheOwner).set(identity, normalizedHydratedContent);
-      return normalizedHydratedContent;
-    } catch {
-      return source.previewContent;
-    } finally {
-      inflight.delete(identity);
-    }
-  })();
+  const download =
+    pending ??
+    (async () => {
+      try {
+        // The loader must not run before the in-flight entry is registered:
+        // this async body executes synchronously up to its first await, so a
+        // SYNCHRONOUS loader throw would settle the promise — and run the
+        // finally-cleanup — before inflight.set below, pinning an
+        // already-resolved preview promise in the map forever.
+        const sidecarText = await Promise.resolve().then(() => loadSidecarText(source));
+        const hydratedContent = parseMindroomLongTextJsonSidecar(sidecarText);
+        if (!hydratedContent) return undefined;
+        return normalizeHydratedMindroomContent(hydratedContent);
+      } catch {
+        return undefined;
+      } finally {
+        inflight.delete(identity);
+      }
+    })();
   inflight.set(identity, download);
-  return download;
+  // Shared parsing does not share publication authority between room consumers.
+  const content = await download;
+  if (!isCurrent() || !content) return source.previewContent;
+  getMindroomLongTextCache(cacheOwner).set(identity, content);
+  return content;
 };

@@ -2,6 +2,19 @@
 
 ## Runbook
 
+### Close offline storage and hydration review gaps (2026-09-20)
+
+- Proactive bodies and media now use the existing CacheStore budget before admission and preserve the storage-pressure pause after recent, retained, paged and live work.
+  Interactive attachment reads remain available.
+- Schema v6 adds attachment metadata and room/event reference indexes without replacing retained data.
+  Budget admission reads index keys and the room ledger; eviction reads raw bytes only for eligible candidates.
+  Reference replacement reads only the current event owner and matching legacy keys, retaining revision/redaction tombstones and shared ownership.
+- Parsed body publication now checks each consumer's captured room/session lease after asynchronous loading and parsing.
+  Clearing one room rejects its late body while another room sharing transport can still publish.
+- Failed media capability requests remain retryable through the SDK; successful capability caching stays with the SDK.
+- Failure-path tests assert scoped diagnostics, and browser fixtures clean partial setup and attempt room cleanup even when settings restoration fails.
+
+
 ### Reopen downloaded historical thread content without Matrix access (2026-09-20)
 
 - The production browser regression creates a thread root, long-text v2 sidecar and one-pixel PNG before 24 newer room events.

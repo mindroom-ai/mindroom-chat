@@ -1,6 +1,6 @@
 import 'fake-indexeddb/auto';
 import { IDBFactory } from 'fake-indexeddb';
-import { afterEach, beforeEach, expect, it } from 'vitest';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import * as store from '../index';
 
 const session = 'retention';
@@ -58,7 +58,10 @@ it('rejects delayed event writes carrying a cleared room lease', async () => {
     []
   );
 });
-afterEach(() => store.__setCacheStoreByteBudgetForTests(undefined));
+afterEach(() => {
+  vi.restoreAllMocks();
+  store.__setCacheStoreByteBudgetForTests(undefined);
+});
 
 it('reclaims optional bytes while retaining room text and essential bodies', async () => {
   await store.saveRoomEventsToCacheCommitted(session, 'room-a', [
@@ -161,7 +164,12 @@ it('keeps previous references when registering a replacement fails atomically', 
     { mxcUri: 'mxc://test/old', essential: true },
   ]);
   const original = IDBObjectStore.prototype.put;
-  const { vi } = await import('vitest');
+  // eslint-disable-next-line no-console
+  const originalWarn = console.warn;
+  const warn = vi.spyOn(console, 'warn').mockImplementation((...args) => {
+    if (!String(args[0]).startsWith('[mindroom-cache:attachment.references]'))
+      originalWarn(...args);
+  });
   const put = vi
     .spyOn(IDBObjectStore.prototype, 'put')
     .mockImplementation(function failReference(value, key) {
@@ -174,6 +182,11 @@ it('keeps previous references when registering a replacement fails atomically', 
       { mxcUri: 'mxc://test/new', essential: true },
     ])
   ).toBe('failed');
+  expect(warn).toHaveBeenCalledWith(
+    expect.stringContaining('[mindroom-cache:attachment.references]'),
+    expect.objectContaining({ message: 'write failed' })
+  );
+  warn.mockRestore();
   put.mockRestore();
   expect(await store.readRoomAttachmentStorage(session, 'room-a')).toMatchObject({
     missingEssential: 1,
@@ -276,4 +289,22 @@ it('authoritatively retracts edits while preserving durable retired IDs and root
     redacted: true,
   });
   expect(await register(1, '', ['$edit-c'])).toBe('revoked');
+});
+
+it('replaces legacy room references by key and preserves another room sharing the blob', async () => {
+  await save('mxc://test/legacy', 'room-a', true);
+  await save('mxc://test/legacy', 'room-b', true);
+  await store.replaceCachedAttachmentReferences(session, 'room-a', '$owner', 1, [
+    { mxcUri: 'mxc://test/legacy', essential: true, validated: true },
+  ]);
+  const metadata = await store.getCachedAttachmentMetadata(session, 'mxc://test/legacy');
+  expect(metadata?.references.map((row) => [row.roomId, row.eventId]).sort()).toEqual([
+    ['room-a', '$owner'],
+    ['room-b', undefined],
+  ]);
+  await store.replaceCachedAttachmentReferences(session, 'room-a', '$owner', 2, []);
+  expect(await store.loadCachedAttachment(session, 'mxc://test/legacy')).toBeDefined();
+  expect(
+    (await store.getCachedAttachmentMetadata(session, 'mxc://test/legacy'))?.references
+  ).toHaveLength(1);
 });

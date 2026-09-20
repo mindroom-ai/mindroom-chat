@@ -824,3 +824,97 @@ it('promotion of a running automatic scan completes a full include-all pass afte
   expect(fetch).toHaveBeenCalledTimes(2);
   expect(f.request).not.toHaveBeenCalled();
 });
+
+it('does not download retained bodies while protected storage already exceeds budget', async () => {
+  const f = fixture();
+  const engine = f.make();
+  const body = {
+    ...raw('$body'),
+    content: {
+      msgtype: 'm.text',
+      body: 'preview',
+      url: 'mxc://test/body',
+      'io.mindroom.long_text': { version: 2, encoding: 'matrix_event_content_json' },
+    },
+  };
+  await saveRoomEventsToCacheCommitted(engine.sessionId, roomId, [body]);
+  await replaceCachedAttachmentReferences(engine.sessionId, roomId, '$body', 1, [
+    { mxcUri: 'mxc://test/body', essential: true },
+  ]);
+  __setCacheStoreByteBudgetForTests(1);
+  const fetch = vi.fn(
+    async () => new Response(JSON.stringify({ msgtype: 'm.text', body: 'full body' }))
+  );
+  vi.stubGlobal('fetch', fetch);
+  engine.noteRoomFocused(roomId);
+  await vi.waitFor(() => expect(engine.offline.getSnapshot(roomId).status).toBe('space'));
+  expect(f.request).not.toHaveBeenCalled();
+  expect(fetch).not.toHaveBeenCalled();
+});
+
+it('pauses between retained body downloads when essential bytes cross the budget', async () => {
+  const f = fixture();
+  const engine = f.make();
+  const bodies = ['$first', '$second'].map((id) => ({
+    ...raw(id),
+    content: {
+      msgtype: 'm.text',
+      body: 'preview',
+      url: 'mxc://test/' + id,
+      'io.mindroom.long_text': { version: 2, encoding: 'matrix_event_content_json' },
+    },
+  }));
+  await saveRoomEventsToCacheCommitted(engine.sessionId, roomId, bodies);
+  __setCacheStoreByteBudgetForTests(2000);
+  const fetch = vi.fn(
+    async () => new Response(JSON.stringify({ msgtype: 'm.text', body: 'x'.repeat(3000) }))
+  );
+  vi.stubGlobal('fetch', fetch);
+  engine.noteRoomFocused(roomId);
+  await vi.waitFor(() => expect(engine.offline.getSnapshot(roomId).status).toBe('space'));
+  expect(fetch).toHaveBeenCalledTimes(1);
+  expect(f.request).not.toHaveBeenCalled();
+});
+
+it('preserves the storage pause after a live observed body is refused', async () => {
+  const f = fixture();
+  const engine = f.make();
+  await updateRoomOfflineProgress(engine.sessionId, roomId, { opened: true, exhausted: true });
+  __setCacheStoreByteBudgetForTests(1);
+  const fetch = vi.fn(
+    async () => new Response(JSON.stringify({ msgtype: 'm.text', body: 'full body' }))
+  );
+  vi.stubGlobal('fetch', fetch);
+  const event = new MatrixEvent({
+    ...raw('$live-body'),
+    content: {
+      msgtype: 'm.text',
+      body: 'preview',
+      url: 'mxc://test/live-body',
+      'io.mindroom.long_text': { version: 2, encoding: 'matrix_event_content_json' },
+    },
+  });
+  const { createRoomOfflineController } = await import('../roomOffline');
+  const control = createRoomOfflineController({
+    mx: f.mx,
+    sessionId: engine.sessionId,
+    scheduler: engine.scheduler,
+    connection: {
+      getSnapshot: () => ({ connected: true, unmetered: true }),
+      subscribe: () => () => {},
+    },
+    getPrefetchConfig: () => ({ scope: 'current-room-only' }),
+    onChanged: () => {},
+  });
+  control.start();
+  try {
+    await control.observe(event, roomId);
+    expect(control.controller.getSnapshot(roomId)).toMatchObject({
+      status: 'space',
+      missingEssential: 1,
+    });
+    expect(fetch).not.toHaveBeenCalled();
+  } finally {
+    control.stop();
+  }
+});

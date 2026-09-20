@@ -117,7 +117,6 @@ export const createRoomOfflineController = ({
   let focused: string | undefined;
   let started = false;
   let unsubscribe: (() => void) | undefined;
-  let authentication: Promise<boolean> | undefined;
   const state = (roomId: string) => {
     let value = rooms.get(roomId);
     if (!value) {
@@ -236,11 +235,11 @@ export const createRoomOfflineController = ({
           (typeof document !== 'undefined' && document.visibilityState === 'hidden')
         : !!pauseReason(roomId, false);
     if (!events.length || paused() || !isCacheStoreWriteLeaseCurrent(lease)) return;
-    authentication ??= mx
+    const auth = await mx
       .getVersions()
       .then(supportsAuthenticatedMedia)
       .catch(() => false);
-    const auth = await authentication;
+    let admitted = true;
     const owners = collectEventAttachments(events);
     const essential = new Set(
       owners
@@ -263,13 +262,28 @@ export const createRoomOfflineController = ({
             signal,
             writeLease: lease,
             includeAllMedia: state(roomId).includeAllMedia,
+            canDownload: async () => {
+              admitted = await canSavePage(roomId, lease);
+              return admitted && !paused() && isCacheStoreWriteLeaseCurrent(lease);
+            },
           });
         },
       });
+      if (
+        !admitted ||
+        (owners.some((owner) => owner.eventId === event.getId() && owner.attachments.length) &&
+          !(await canSavePage(roomId, lease)))
+      )
+        return false;
     }
+    return true;
   };
-  const canSavePage = async (roomId: string) => {
+  const canSavePage = async (
+    roomId: string,
+    lease = captureCacheStoreWriteLease(sessionId, roomId)
+  ) => {
     const pressure = (await runCacheEvictionIfOverBudget(sessionId)).underPressure;
+    if (!isCacheStoreWriteLeaseCurrent(lease)) return false;
     if (pressure) publish(roomId, { status: 'space' });
     return !pressure;
   };
@@ -309,7 +323,10 @@ export const createRoomOfflineController = ({
           roomTailLoaded: !(await loadRoomTailDiscontinuity(sessionId, roomId)),
           writeLease: lease,
         });
-        if (saved) await bodyBatch(roomId, saved.events, lease);
+        if (saved && (await bodyBatch(roomId, saved.events, lease)) === false) {
+          await refresh(roomId, lease);
+          return;
+        }
       }
       // Rebuild transient encrypted descriptors from retained ciphertext. This
       // scan retries missing bodies without changing the server history cursor.
@@ -329,7 +346,10 @@ export const createRoomOfflineController = ({
           roomTailLoaded: false,
           writeLease: lease,
         });
-        if (saved) await bodyBatch(roomId, saved.events, lease);
+        if (saved && (await bodyBatch(roomId, saved.events, lease)) === false) {
+          await refresh(roomId, lease);
+          return;
+        }
         if (!current() || pauseReason(roomId, false)) return;
         after = batch.nextEventId;
         if (
@@ -363,10 +383,11 @@ export const createRoomOfflineController = ({
         });
         if (!page || !current()) return;
         // Essential bodies for this committed page precede the next page.
-        await bodyBatch(roomId, page.events, lease);
+        const bodiesAdmitted = await bodyBatch(roomId, page.events, lease);
 
         await refresh(roomId, lease);
         onChanged(roomId);
+        if (bodiesAdmitted === false) return;
         if (intent.fullScanPending) return;
         if (page.exhausted) {
           intent.explicit = intent.explicit && intent.snapshot.hasGap;

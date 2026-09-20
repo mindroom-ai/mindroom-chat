@@ -1,6 +1,7 @@
 import { openCacheStore, revokeRoomCacheStoreWrites } from './cacheStoreDb';
 import {
   ATTACHMENTS_STORE,
+  ATTACHMENTS_BY_ACCESS_BYTES_INDEX,
   ATTACHMENT_REFERENCES_STORE,
   ATTACHMENT_REFERENCES_BY_ROOM_INDEX,
   ATTACHMENT_REFERENCES_BY_ATTACHMENT_INDEX,
@@ -147,6 +148,30 @@ export type EvictionResult = {
 export const runCacheEvictionIfOverBudget = async (sessionId: string): Promise<EvictionResult> => {
   const db = await openCacheStore(sessionId);
   if (!db) return { bytesBefore: 0, bytesAfter: 0, evictedMxcUris: [], underPressure: false };
+  // Admission reads index keys only, never attachment payloads or room references.
+  const bytesBefore = await new Promise<number>((resolve, reject) => {
+    const transaction = db.transaction([ATTACHMENTS_STORE, ROOM_LEDGER_STORE], 'readonly');
+    const ledger = transaction.objectStore(ROOM_LEDGER_STORE).getAll();
+    const cursor = transaction
+      .objectStore(ATTACHMENTS_STORE)
+      .index(ATTACHMENTS_BY_ACCESS_BYTES_INDEX)
+      .openKeyCursor();
+    let attachmentBytes = 0;
+    cursor.onsuccess = () => {
+      if (!cursor.result) return;
+      attachmentBytes += (cursor.result.key as number[])[1];
+      cursor.result.continue();
+    };
+    transaction.oncomplete = () =>
+      resolve(
+        attachmentBytes +
+          (ledger.result as CachedRoomLedgerRecord[]).reduce((sum, row) => sum + row.approxBytes, 0)
+      );
+    transaction.onerror = () => reject(transaction.error);
+    transaction.onabort = () => reject(transaction.error);
+  });
+  if (bytesBefore <= getCacheStoreByteBudget())
+    return { bytesBefore, bytesAfter: bytesBefore, evictedMxcUris: [], underPressure: false };
   return new Promise((resolve, reject) => {
     const transaction = db.transaction(
       [ATTACHMENTS_STORE, ATTACHMENT_REFERENCES_STORE, ROOM_LEDGER_STORE, META_STORE],
@@ -157,47 +182,57 @@ export const runCacheEvictionIfOverBudget = async (sessionId: string): Promise<E
     const ledgerRequest = transaction.objectStore(ROOM_LEDGER_STORE).getAll();
     const metaRequest = transaction.objectStore(META_STORE).getAll();
     const referencesRequest = refs.getAll();
-    const records: Omit<CachedAttachmentRecord, 'bytes'>[] = [];
-    const cursorRequest = blobs.openCursor();
+    const records: Pick<CachedAttachmentRecord, 'mxcUri' | 'lastAccessedAt' | 'byteLength'>[] = [];
+    const cursorRequest = blobs.index(ATTACHMENTS_BY_ACCESS_BYTES_INDEX).openKeyCursor();
     let result: EvictionResult;
-    cursorRequest.onsuccess = () => {
-      const cursor = cursorRequest.result;
-      if (cursor) {
-        const { bytes: _bytes, ...metadata } = cursor.value as CachedAttachmentRecord;
-        records.push(metadata);
-        cursor.continue();
-        return;
-      }
-      const ledger = ledgerRequest.result as CachedRoomLedgerRecord[];
-      const references = referencesRequest.result as CachedAttachmentReferenceRecord[];
-      const protectedIds = new Set(protectedRoomIds);
-      ledger.filter((row) => row.pinned).forEach((row) => protectedIds.add(row.roomId));
-      (metaRequest.result as CachedMetaRecord[])
-        .filter((row) => (row.lastOpenedTs ?? 0) > Date.now() - EVICTION_RECENT_OPEN_WINDOW_MS)
-        .forEach((row) => protectedIds.add(row.roomId));
-      const bytesBefore =
-        ledger.reduce((sum, row) => sum + row.approxBytes, 0) +
-        records.reduce((sum, row) => sum + row.byteLength, 0);
-      let bytesAfter = bytesBefore;
-      const budget = getCacheStoreByteBudget();
-      const evictedMxcUris: string[] = [];
-      if (bytesBefore > budget) {
-        records.sort((a, b) => a.lastAccessedAt - b.lastAccessedAt);
-        for (const record of records) {
-          if (bytesAfter <= budget * EVICTION_TARGET_UTILIZATION) break;
-          const owners = references.filter((row) => row.mxcUri === record.mxcUri);
-          if (
-            record.essential ||
-            owners.some((row) => row.essential || protectedIds.has(row.roomId))
-          )
-            continue;
-          blobs.delete(record.mxcUri);
-          owners.forEach((row) => refs.put({ ...row, byteLength: 0, status: 'missing' }));
-          bytesAfter -= record.byteLength;
-          evictedMxcUris.push(record.mxcUri);
+    cursorRequest.onsuccess = async () => {
+      try {
+        const cursor = cursorRequest.result;
+        if (cursor) {
+          const [lastAccessedAt, byteLength] = cursor.key as number[];
+          records.push({ mxcUri: cursor.primaryKey as string, lastAccessedAt, byteLength });
+          cursor.continue();
+          return;
         }
+        const ledger = ledgerRequest.result as CachedRoomLedgerRecord[];
+        const references = referencesRequest.result as CachedAttachmentReferenceRecord[];
+        const protectedIds = new Set(protectedRoomIds);
+        ledger.filter((row) => row.pinned).forEach((row) => protectedIds.add(row.roomId));
+        (metaRequest.result as CachedMetaRecord[])
+          .filter((row) => (row.lastOpenedTs ?? 0) > Date.now() - EVICTION_RECENT_OPEN_WINDOW_MS)
+          .forEach((row) => protectedIds.add(row.roomId));
+        const bytesBefore =
+          ledger.reduce((sum, row) => sum + row.approxBytes, 0) +
+          records.reduce((sum, row) => sum + row.byteLength, 0);
+        let bytesAfter = bytesBefore;
+        const budget = getCacheStoreByteBudget();
+        const evictedMxcUris: string[] = [];
+        if (bytesBefore > budget) {
+          records.sort((a, b) => a.lastAccessedAt - b.lastAccessedAt);
+          for (const record of records) {
+            if (bytesAfter <= budget * EVICTION_TARGET_UTILIZATION) break;
+            const owners = references.filter((row) => row.mxcUri === record.mxcUri);
+            if (owners.some((row) => row.essential || protectedIds.has(row.roomId))) continue;
+            // Only eviction candidates need a value read (unowned essentials also survive).
+            // eslint-disable-next-line no-await-in-loop
+            const cached = await new Promise<CachedAttachmentRecord | undefined>(
+              (resolveRecord, rejectRecord) => {
+                const request = blobs.get(record.mxcUri);
+                request.onsuccess = () => resolveRecord(request.result);
+                request.onerror = () => rejectRecord(request.error);
+              }
+            );
+            if (cached?.essential) continue;
+            blobs.delete(record.mxcUri);
+            owners.forEach((row) => refs.put({ ...row, byteLength: 0, status: 'missing' }));
+            bytesAfter -= record.byteLength;
+            evictedMxcUris.push(record.mxcUri);
+          }
+        }
+        result = { bytesBefore, bytesAfter, evictedMxcUris, underPressure: bytesAfter > budget };
+      } catch (error) {
+        reject(error);
       }
-      result = { bytesBefore, bytesAfter, evictedMxcUris, underPressure: bytesAfter > budget };
     };
     transaction.oncomplete = () => resolve(result);
     transaction.onerror = () => reject(transaction.error);

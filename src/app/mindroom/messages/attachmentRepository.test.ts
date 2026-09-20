@@ -709,7 +709,10 @@ it('persists for a surviving shared hydration owner after the first room is clea
   );
   await clearRoomCachedContent(session, 'room-a');
   finish(new Response(JSON.stringify({ msgtype: 'm.text', body: 'surviving body' })));
-  await Promise.all([first, second]);
+  expect(await first).toEqual(SOURCE.previewContent);
+  expect(await second).toMatchObject({ body: 'surviving body' });
+  const { getCachedMindroomLongTextContent } = await import('./longText');
+  expect(getCachedMindroomLongTextContent(SOURCE, mx)).toMatchObject({ body: 'surviving body' });
   expect(await readRoomAttachmentStorage(session, 'room-b')).toMatchObject({
     saved: 1,
     missingEssential: 0,

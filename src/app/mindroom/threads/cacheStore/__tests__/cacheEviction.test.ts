@@ -64,3 +64,15 @@ it('reports pressure without deleting message history when no media is reclaimab
     content: { body: 'retained message' },
   });
 });
+
+it('admits under-budget work without reading raw blobs, references or protection metadata', async () => {
+  await save('cached', 'room-a');
+  const rawCursor = vi.spyOn(IDBObjectStore.prototype, 'openCursor');
+  const all = vi.spyOn(IDBObjectStore.prototype, 'getAll');
+  expect(await store.runCacheEvictionIfOverBudget(session)).toMatchObject({
+    bytesBefore: 2000,
+    underPressure: false,
+  });
+  expect(rawCursor).not.toHaveBeenCalled();
+  expect(all.mock.contexts.map((context) => context.name)).toEqual(['room_ledger']);
+});
