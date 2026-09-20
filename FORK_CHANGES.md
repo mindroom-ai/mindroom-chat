@@ -13,7 +13,7 @@
   The existing standalone HTML and Markdown table checks and both theme grids still pass.
 - Validation: all 4,729 tests across 555 files pass under Node 24, as do all five Chromium table cases, typecheck, production/PWA build, changed-file formatting, and whitespace checks.
   ESLint reports zero errors and the existing 17 warnings.
-- Next: open a ready pull request against `dev` and address confirmed automated review findings.
+- Ready PR #294 targets `dev`; hosted checks and automated review status are tracked on the pull request.
 
 ### Restore iOS archives after archived-room module collision (2026-09-20)
 
