@@ -2097,6 +2097,7 @@
         "clearing": "Borrando...",
         "credits": "Créditos",
         "deepDiagnosticTracing": "Seguimiento de diagnóstico detallado",
+        "deepTraceMemoryOnly": "Se está registrando en memoria porque el almacenamiento de seguimiento no está disponible. Exporta antes de reiniciar la aplicación; estos eventos recientes se pierden al reiniciar.",
         "deepTraceEnabledStorageUnavailable": "Activado, pero el almacenamiento de seguimiento no está disponible actualmente.",
         "deepTraceOff": "Desactivado. Actívalo antes de reproducir un bloqueo para registrar el rendimiento, Matrix, la red, el ciclo de vida y los tiempos de interacción.",
         "deepTracePreferenceSaveFailed": "{{description}} Desactivado durante esta sesión, pero no se pudo guardar la preferencia y puede volver a activarse tras reiniciar.",

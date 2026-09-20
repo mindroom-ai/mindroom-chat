@@ -2070,6 +2070,7 @@
         "clearing": "Wissen...",
         "credits": "Dankbetuigingen",
         "deepDiagnosticTracing": "Uitgebreide diagnostische tracering",
+        "deepTraceMemoryOnly": "Opname in het geheugen omdat traceopslag niet beschikbaar is. Exporteer voordat je de app opnieuw start; deze recente gebeurtenissen gaan bij het opnieuw starten verloren.",
         "deepTraceEnabledStorageUnavailable": "Ingeschakeld, maar traceopslag is momenteel niet beschikbaar.",
         "deepTraceOff": "Uit. Schakel dit in voordat je een vastloper reproduceert om prestaties, Matrix, netwerk, levenscyclus en interactietiming vast te leggen.",
         "deepTracePreferenceSaveFailed": "{{description}} Uit voor deze sessie, maar de voorkeur kon niet worden opgeslagen en wordt mogelijk na opnieuw opstarten weer ingeschakeld.",

@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { makeEvent, makeRoom, makeTimeline } from './test-utils/RoomTimeline.test.shared';
 import { buildThreadCacheCoverage } from './threadCacheCoverage';
 import { runThreadOpenCacheFirst } from './threadOpenCacheFirst';
+import * as timelineDebug from './timelineDebug';
 
 const makeDefaultOptions = () => {
   const root = makeEvent('$root', { isThreadRoot: true, ts: 1 });
@@ -333,6 +334,7 @@ describe('runThreadOpenCacheFirst', () => {
     const opts = makeDefaultOptions();
     const error = new Error('token conversion unavailable');
     const warning = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const trace = vi.spyOn(timelineDebug, 'logTimelineDebug');
     Object.assign(opts.room.getThread('$root')!, {
       flushPendingTimelineReset: vi.fn().mockRejectedValueOnce(error),
     });
@@ -357,8 +359,13 @@ describe('runThreadOpenCacheFirst', () => {
       expect(opts.onCacheHydrated).toHaveBeenCalledWith(false);
       expect(opts.scheduleReconcile).toHaveBeenCalledOnce();
       expect(warning).toHaveBeenCalledWith('[thread-sync-gap] token conversion failed', error);
+      expect(trace).toHaveBeenCalledWith(opts.debugTraceId, 'thread-cache-hydrate-finished', {
+        cacheHit: true,
+      });
+      expect(trace).not.toHaveBeenCalledWith(opts.debugTraceId, 'thread-cache-hydrate-error');
     } finally {
       warning.mockRestore();
+      trace.mockRestore();
     }
   });
 });

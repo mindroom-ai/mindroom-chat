@@ -9,6 +9,7 @@ import {
   getDeepTraceEnabled,
   getDeepTraceHealthSnapshot,
   readDeepTraceSnapshot,
+  readDeepTraceMemorySnapshot,
   type DeepTraceSnapshot,
 } from './deepTrace';
 import {
@@ -17,7 +18,7 @@ import {
   readNativeDiagnostics,
 } from './nativeDiagnostics';
 
-export const DIAGNOSTICS_EXPORT_SCHEMA_VERSION = 3;
+export const DIAGNOSTICS_EXPORT_SCHEMA_VERSION = 4;
 
 const COLLECTOR_TIMEOUT_MS = 5_000;
 
@@ -84,6 +85,9 @@ export const buildDiagnosticsExport = async (): Promise<{ fileName: string; blob
     };
   }
 
+  // Freeze the incident tail before a slow collector can let newer activity
+  // evict it. This collector does not touch persistent storage.
+  const deepTraceMemory = readDeepTraceMemorySnapshot();
   const [deepTrace, nativeDiagnostics] = await Promise.all([
     collectDeepTrace(),
     collectNativeDiagnostics(),
@@ -102,6 +106,7 @@ export const buildDiagnosticsExport = async (): Promise<{ fileName: string; blob
       exportedAt,
     },
     deepTrace,
+    deepTraceMemory,
     deepTraceHealth,
     nativeDiagnostics,
   };

@@ -2070,6 +2070,7 @@
         "clearing": "Temizleniyor...",
         "credits": "Katkıda bulunanlar",
         "deepDiagnosticTracing": "Ayrıntılı tanılama izleme",
+        "deepTraceMemoryOnly": "İz depolama kullanılamadığı için belleğe kaydediliyor. Uygulamayı yeniden başlatmadan önce dışa aktarın; bu son olaylar yeniden başlatıldığında kaybolur.",
         "deepTraceEnabledStorageUnavailable": "Etkin, ancak iz depolama şu anda kullanılamıyor.",
         "deepTraceOff": "Kapalı. Performans, Matrix, ağ, yaşam döngüsü ve etkileşim zamanlarını kaydetmek için donmayı yeniden oluşturmadan önce etkinleştirin.",
         "deepTracePreferenceSaveFailed": "{{description}} Bu oturum için kapalı, ancak tercih kaydedilemedi ve yeniden başlatıldığında tekrar etkinleşebilir.",

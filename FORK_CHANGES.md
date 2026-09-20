@@ -41,6 +41,40 @@
 - The initial cache read remains bounded to 200 room events; this fix does not promise that all room history appears in the first browser frame.
   Physical iPhone startup timing remains unverified.
 
+### Keep diagnostic evidence after storage failure (2026-09-20)
+
+- The September 19 thread incident export shows a deep-trace IndexedDB flush failure before thread navigation, leaving no subsequent thread-loading evidence.
+  Storage failure now keeps opt-in capture running in memory, including the failed batch, network activity, lifecycle events, and thread diagnostics.
+  Capture also starts while IndexedDB activation is pending; disabling tracing still stops capture immediately.
+  Preference removal or storage clearing in another same-origin tab also stops capture, including during activation or memory-only recording.
+- An insertion-ordered memory tail retains at most 1,000 events and 256 KiB of serialized event data, with eviction counts.
+  Failed persistence is not retried per event.
+  Settings reports memory-only recording and asks users to export before restarting, because this tail cannot survive a page or WebContent process restart.
+- Export schema 4 adds `deepTraceMemory`, frozen before asynchronous collectors start.
+  Persistent `deepTrace` and native diagnostics retain independent five-second deadlines, so a rejected or stalled collector cannot discard the memory snapshot.
+  Memory and persistent events can overlap; deduplicate on `(sessionId, sequence)` when combining them.
+  Clearing removes the memory tail at invocation; events arriving during the existing asynchronous persistent-clear window survive in memory but may be absent from the persistent snapshot.
+- Anonymous `thread.*` stages cover cache reads, SDK bootstrap, latest refresh, reconciliation chunks, and each reconciliation caller's outcome, including callers sharing one job.
+  Reconciliation records whether repaired data committed to cache as well as whether an observer was still current when it received the result.
+  The numeric `trace_id` identifies a thread route visit within the page; multiple open attempts for that route can share it, and a new visit receives a new counter.
+  Match it with the enclosing diagnostic session when comparing exports.
+  Only explicitly allowed phase names and numeric, boolean, or null metrics are exported; room/event IDs, message text, raw errors, and arbitrary debug fields are excluded.
+  Diagnostic intent, retention, and manual export remain device-scoped across Matrix account switches, matching the existing recorder and logout policy.
+  Local-echo thread opens emit completion, settled, and close stages without adding network work.
+  Cache completion is recorded before SDK gap conversion; a later conversion failure does not report a failed cache read.
+- While deep tracing is enabled and a thread is mounted, a once-per-second sampler compares fresh SDK model counts, committed React reply counts, and reply IDs mounted in that timeline's DOM.
+  The live model is read independently of React updates, so missed UI updates can leave distinguishable evidence.
+  Both collections use the existing shared per-root reply classification and event-ID deduplication policy.
+  Unchanged snapshots are suppressed; absent models or DOM elements produce null metrics, and disabling tracing or leaving the thread removes the sampler.
+  A failed diagnostic read stops the sampler without throwing into the app or creating a recurring error loop.
+  Mounted counts describe virtualized DOM rows, not whether pixels were painted or every loaded reply should be visible.
+- Regression tests reproduce recorder shutdown after failed persistence before the fix and cover bounded retention, activation stalls, late failures after opt-out, export deadlines, clear boundaries, shared reconciliation jobs, and stale React data.
+  A Chromium fault-injection check closes an actual IndexedDB connection, then rejects persistent export reads, and confirms that thread and network evidence still exports from memory.
+  Validation after integrating the latest cache-first paint changes passes all 4,718 tests across 555 files in Debian Node 24, application typecheck, production/PWA build, and changed-file formatting.
+  ESLint reports zero errors and the 17 existing warnings; independent code review has no remaining findings.
+- This improves the next incident's evidence.
+  It does not establish or fix the cause of the reported blank screen or root-only thread view, and no native iPhone reproduction is claimed.
+
 ### Coalesce untouched thread sync gaps (2026-09-19)
 
 - Limited room syncs retain one pending gap per initialized dormant thread instead of allocating another empty timeline each time.

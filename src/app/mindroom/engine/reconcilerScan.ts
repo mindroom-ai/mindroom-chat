@@ -135,6 +135,7 @@ const logReconcileChunk = (
   logTimelineDebug(debugTraceId, 'reconcile-chunk', {
     iteration,
     chunkSize: events.length,
+    replyCount: triples.filter((event) => event.rel_type === 'm.thread').length,
     nextToken: nextToken ? 'present' : 'absent',
     triples,
   });

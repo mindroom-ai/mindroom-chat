@@ -2097,6 +2097,7 @@
         "clearing": "Nettoyage...",
         "credits": "Crédits",
         "deepDiagnosticTracing": "Traçage de diagnostic approfondi",
+        "deepTraceMemoryOnly": "Enregistrement en mémoire, car le stockage des traces est indisponible. Exportez avant de redémarrer l’application ; ces événements récents sont perdus au redémarrage.",
         "deepTraceEnabledStorageUnavailable": "Activé, mais le stockage des traces est actuellement indisponible.",
         "deepTraceOff": "Désactivé. Activez-le avant de reproduire un blocage afin d’enregistrer les performances, Matrix, le réseau, le cycle de vie et les temps d’interaction.",
         "deepTracePreferenceSaveFailed": "{{description}} Désactivé pour cette session, mais la préférence n’a pas pu être enregistrée et pourra se réactiver après un redémarrage.",

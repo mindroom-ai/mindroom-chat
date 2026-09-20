@@ -6,6 +6,7 @@ import { useThreadSession } from './useThreadSession';
 import type { ThreadOpenRuntime, ThreadRoute, ThreadSession } from './threadSessionTypes';
 import { useThreadOpenLifecycleController } from '../threadOpenLifecycleController';
 import { loadThreadCachedSnapshot } from '../eventRepository';
+import * as timelineDebug from '../timelineDebug';
 
 vi.mock('../eventRepository', async (original) => ({
   ...(await original<typeof import('../eventRepository')>()),
@@ -342,6 +343,7 @@ describe('thread session opening', () => {
   });
 
   it('seeds local echo roots without server-thread resets or cache/bootstrap requests', () => {
+    const log = vi.spyOn(timelineDebug, 'logTimelineDebug');
     vi.mocked(loadThreadCachedSnapshot).mockReset();
     const fixture = openFixture();
     const local = new MatrixEvent({ ...fixture.root.event, event_id: '~local' });
@@ -356,6 +358,14 @@ describe('thread session opening', () => {
     expect(loadThreadCachedSnapshot).not.toHaveBeenCalled();
     expect(fixture.bootstrap).not.toHaveBeenCalled();
     view.unmount();
+    const phases = log.mock.calls.map((call) => call[1]);
+    log.mockRestore();
+    expect(phases).toEqual([
+      'thread-open-start',
+      'thread-open-complete',
+      'thread-open-settled',
+      'thread-open-close',
+    ]);
   });
 
   it('refreshes latest while closed only when requested and retains hydrated event identities', async () => {

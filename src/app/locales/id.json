@@ -2070,6 +2070,7 @@
         "clearing": "Membersihkan...",
         "credits": "Kredit",
         "deepDiagnosticTracing": "Pelacakan diagnostik mendalam",
+        "deepTraceMemoryOnly": "Merekam di memori karena penyimpanan jejak tidak tersedia. Ekspor sebelum memulai ulang aplikasi; peristiwa terbaru ini akan hilang saat aplikasi dimulai ulang.",
         "deepTraceEnabledStorageUnavailable": "Aktif, tetapi penyimpanan jejak saat ini tidak tersedia.",
         "deepTraceOff": "Nonaktif. Aktifkan sebelum mengulangi masalah macet untuk merekam waktu kinerja, Matrix, jaringan, siklus hidup, dan interaksi.",
         "deepTracePreferenceSaveFailed": "{{description}} Nonaktif untuk sesi ini, tetapi preferensi tidak dapat disimpan dan mungkin aktif kembali setelah dimulai ulang.",

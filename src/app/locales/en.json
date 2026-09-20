@@ -2074,6 +2074,7 @@
         "deepTraceOff": "Off. Enable before reproducing a freeze to record performance, Matrix, network, lifecycle, and interaction timing.",
         "deepTracePreferenceSaveFailed": "{{description}} Off for this session, but the preference could not be saved and may re-enable after restart.",
         "deepTraceRecording": "Recording a bounded, privacy-safe performance and interaction trace on this device.",
+        "deepTraceMemoryOnly": "Recording in memory because trace storage is unavailable. Export before restarting the app; these recent events are lost on restart.",
         "deepTraceStarting": "Starting a bounded, privacy-safe performance and interaction trace on this device.",
         "diagnosticsExportFailed": "{{description}} Export failed. Try again.",
         "diagnosticsNone": "No unexpected session retained.",

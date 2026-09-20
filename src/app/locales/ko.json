@@ -2070,6 +2070,7 @@
         "clearing": "지우는 중...",
         "credits": "제작 및 기여",
         "deepDiagnosticTracing": "상세 진단 추적",
+        "deepTraceMemoryOnly": "추적 저장소를 사용할 수 없어 메모리에 기록하고 있습니다. 앱을 다시 시작하면 최근 이벤트가 사라지므로 다시 시작하기 전에 내보내세요.",
         "deepTraceEnabledStorageUnavailable": "활성화되었지만 현재 추적 저장소를 사용할 수 없습니다.",
         "deepTraceOff": "꺼짐. 멈춤 현상을 재현하기 전에 활성화하면 성능, Matrix, 네트워크, 수명 주기 및 상호작용의 시간 정보를 기록합니다.",
         "deepTracePreferenceSaveFailed": "{{description}} 이 세션에서는 꺼졌지만 설정을 저장하지 못해 다시 시작하면 활성화될 수 있습니다.",

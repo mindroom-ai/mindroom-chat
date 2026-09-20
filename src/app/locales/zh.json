@@ -2070,6 +2070,7 @@
         "clearing": "正在清除…",
         "credits": "鸣谢",
         "deepDiagnosticTracing": "深度诊断追踪",
+        "deepTraceMemoryOnly": "跟踪存储不可用，正在内存中记录。请在重启应用前导出；重启后这些近期事件将丢失。",
         "deepTraceEnabledStorageUnavailable": "已启用，但跟踪存储当前不可用。",
         "deepTraceOff": "已关闭。在重现卡顿前启用，以记录性能、Matrix、网络、生命周期和交互计时。",
         "deepTracePreferenceSaveFailed": "{{description}} 此会话已关闭，但无法保存首选项，并且可能会在重新启动后重新启用。",

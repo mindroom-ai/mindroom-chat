@@ -2070,6 +2070,7 @@
         "clearing": "クリア中...",
         "credits": "クレジット",
         "deepDiagnosticTracing": "詳細な診断トレース",
+        "deepTraceMemoryOnly": "トレースストレージが使用できないため、メモリに記録しています。アプリを再起動すると最近のイベントが失われるため、再起動する前にエクスポートしてください。",
         "deepTraceEnabledStorageUnavailable": "有効になっていますが、トレース ストレージは現在使用できません。",
         "deepTraceOff": "オフ。フリーズを再現する前に有効にして、パフォーマンス、Matrix、ネットワーク、ライフサイクル、およびインタラクションのタイミングを記録します。",
         "deepTracePreferenceSaveFailed": "{{description}} このセッションではオフですが、設定を保存できなかったため、再起動後に再び有効になる可能性があります。",
