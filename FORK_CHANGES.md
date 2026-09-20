@@ -11,7 +11,9 @@
   No dependencies, JavaScript effects, or per-card optical observers are added.
 - Validation: all 4,741 unit tests, typecheck, production/PWA build, and lint pass with the existing 17 warnings.
   Rendered-rim checks fail on the previous styles and pass in Chromium and WebKit, light and dark.
-  Chromium live approval checks pass at phone and desktop widths; full glass coverage and independent review are in progress.
+  All 58 Chromium/WebKit glass checks pass with two WebKit-only CDP skips, including expansion, nested receipts, composer focus, and accessibility fallbacks.
+  Chromium live approval checks pass at phone and desktop widths.
+  Independent review found no actionable issues.
   Physical iPhone rendering remains unverified.
 
 ### Restore directional specular glass rims (2026-09-20)
