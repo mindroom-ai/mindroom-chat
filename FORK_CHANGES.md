@@ -2,6 +2,23 @@
 
 ## Runbook
 
+### Make parallel browser validation reproducible (2026-09-20)
+
+- `npm run test:e2e:parallel` discovers every Playwright configuration, deduplicates shared Chromium cases, and includes supplemental Firefox/WebKit coverage.
+  `--list` prints the complete plan without starting infrastructure; `docs/testing.md` documents setup, external fixtures, focused reruns, and reports.
+  `AGENTS.md` points directly to the command and guide.
+- The runner owns a disposable loopback Matrix Compose project, fresh accounts and rooms per spec/project, a production build snapshot, and a fresh Vite server for source-import fixtures.
+  Bounded concurrent jobs finish before timing-sensitive and special-fixture jobs run sequentially.
+  Each Playwright process has one worker, zero retries, and its own working/output directory, including legacy and release screenshots.
+- Per-job reports and the aggregate `summary.json` retain failures, missing cases, explicit platform skips, and blocked external worker/SSO prerequisites.
+  Failed setup does not stop unrelated specs, and missing prerequisites cannot silently produce a successful full run.
+  Cleanup targets only this invocation's processes, browser containers, Matrix project, and disposable volume.
+- Runner behavioral tests cover discovery, scheduling, cancellation, process cleanup, account isolation, special fixtures, and failure reporting; PR CI runs these fast checks through `npm run test:e2e:runner`.
+  The slow browser suite remains explicitly invoked.
+- Validation: all 28 runner tests and a 32-case browser smoke run passed, covering isolated account storage, Chromium/WebKit source fixtures, and the sequential minimap fixture.
+  Typecheck, runner ESLint, and changed-file formatting passed; independent review found no blocking issues.
+  The complete slow suite was not repeated for this runner change; the strict fold-anchor and software-compositor failures from the preceding validation remain visible and unchanged.
+
 ### Drag zoomed images with touch (2026-09-20)
 
 - The image viewer previously handled pinch zoom on touchscreens but only accepted mouse input for panning.
