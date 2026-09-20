@@ -2,6 +2,20 @@
 
 ## Runbook
 
+### Match message and approval glass rims (2026-09-20)
+
+- Inline AI summaries, tool disclosures, approval receipts, standalone requests, and review groups reuse the shared panel material and directional specular rim.
+  Nested approval-history rows stay flat and unfiltered so their enclosing box owns the glass.
+- The composer drops its uniform resting outline while retaining its focus ring.
+  The approval bar already uses the shared material and is covered by the new visual checks.
+  No dependencies, JavaScript effects, or per-card optical observers are added.
+- Validation: all 4,741 unit tests, typecheck, production/PWA build, and lint pass with the existing 17 warnings.
+  Rendered-rim checks fail on the previous styles and pass in Chromium and WebKit, light and dark.
+  All 58 Chromium/WebKit glass checks pass with two WebKit-only CDP skips, including expansion, nested receipts, composer focus, and accessibility fallbacks.
+  Chromium live approval checks pass at phone and desktop widths.
+  Independent review found no actionable issues.
+  Physical iPhone rendering remains unverified.
+
 ### Restore directional specular glass rims (2026-09-20)
 
 - Shared glass surfaces use a one-pixel masked gradient rim with a 45-degree upper-left highlight and a weaker opposite reflection.

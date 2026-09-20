@@ -1,20 +1,19 @@
 import { style } from '@vanilla-extract/css';
 import { color, config, toRem } from 'folds';
+import { glassSurface } from '../../styles/Glass.css';
 
-const leftAccentWidth = toRem(4);
-
-export const Card = style({
-  alignSelf: 'flex-start',
-  width: 'fit-content',
-  minWidth: 0,
-  maxWidth: `min(100%, ${toRem(500)})`,
-  padding: config.space.S300,
-  borderRadius: config.radii.R400,
-  border: `${config.borderWidth.B300} solid ${color.SurfaceVariant.ContainerLine}`,
-  backgroundColor: color.SurfaceVariant.Container,
-  color: color.SurfaceVariant.OnContainer,
-  boxShadow: `inset ${leftAccentWidth} 0 0 ${color.SurfaceVariant.ContainerLine}`,
-});
+export const Card = style([
+  glassSurface({ level: 'panel', variant: 'SurfaceVariant' }),
+  {
+    alignSelf: 'flex-start',
+    width: 'fit-content',
+    minWidth: 0,
+    maxWidth: `min(100%, ${toRem(500)})`,
+    padding: config.space.S300,
+    borderRadius: config.radii.R400,
+    color: color.SurfaceVariant.OnContainer,
+  },
+]);
 
 export const Header = style({
   display: 'flex',
