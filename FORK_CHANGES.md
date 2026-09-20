@@ -2,6 +2,19 @@
 
 ## Runbook
 
+### Preserve custom HTML rendering after grouped tool markers (2026-09-20)
+
+- Status: fixed, locally validated, and independently reviewed with no findings.
+- Duplicate-marker suppression now runs only after the current element is confirmed as a tool marker, so following tables and styled paragraphs reach the shared HTML renderer.
+  The production change moves 13 lines within `MindroomHtmlBlocks.tsx`, with no net line growth.
+- Three parser regressions and both new phone-width browser cases fail on the unchanged `e1de7c4d` baseline and pass with the fix.
+  Coverage includes adjacent and whitespace-separated markers, a styled paragraph after a group, and exactly one rendering per grouped tool.
+- Generic browser fixtures confirm contained horizontal scrolling, readable columns, and visible inner borders at 390 px; additional touch-emulated checks cover 320 px.
+  The existing standalone HTML and Markdown table checks and both theme grids still pass.
+- Validation: all 4,729 tests across 555 files pass under Node 24, as do all five Chromium table cases, typecheck, production/PWA build, changed-file formatting, and whitespace checks.
+  ESLint reports zero errors and the existing 17 warnings.
+- Ready PR #294 targets `dev`; hosted checks and automated review status are tracked on the pull request.
+
 ### Restore iOS archives after archived-room module collision (2026-09-20)
 
 - Xcode Cloud build 254 failed during the web build in `ci_pre_xcodebuild.sh` because `ARCHIVED_ROOMS_SETTINGS_PAGE` was resolved from the state module instead of the settings component.
