@@ -2,10 +2,12 @@ import { devices, expect, test, webkit, type BrowserContext, type Page } from '@
 import { getHomeserver, getPrimaryCredentials, hasPrimaryCredentials } from '../env';
 import { readSessionStore } from '../helpers/accounts';
 import { loginWithPassword } from '../helpers/auth';
+import { installOfflineFreshnessGates, readOfflineFreshness } from '../helpers/offlineFreshness';
 import {
   createPrivateRoom,
   loginToMatrix,
   matrixFetch,
+  redactEvent,
   seedRoomOverviewState,
   sendRoomMessage,
   setAccountData,
@@ -229,7 +231,10 @@ const readPersistedCoverage = async (
 
 const openRoomSettings = async (page: Page, roomName: string): Promise<void> => {
   const roomHeader = page.locator('header').filter({ hasText: roomName });
-  await roomHeader.getByRole('button').last().click();
+  // Keyboard activation avoids mobile WebKit consuming the first tap to reveal its tooltip.
+  await roomHeader.getByRole('button').last().focus();
+  await page.keyboard.press('Enter');
+  await expect(page.getByRole('button', { name: 'Room Settings', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Room Settings', exact: true }).click();
   const general = page.getByRole('button', { name: 'General', exact: true });
   await expect(general).toBeVisible();
@@ -240,7 +245,12 @@ const warmHistoricalContent = async (
   page: Page,
   homeserver: string,
   fixture: OfflineFixture
-): Promise<{ cacheDbName: string; sdkDbName: string; threadUrl: string }> => {
+): Promise<{
+  cacheDbName: string;
+  sdkDbName: string;
+  threadUrl: string;
+  savedSync: { next_batch: string; rooms: unknown };
+}> => {
   const credentials = getPrimaryCredentials();
   await loginWithPassword(page, { homeserver, ...credentials });
   await seedRoomOverviewState({
@@ -306,6 +316,16 @@ const warmHistoricalContent = async (
   expect(savedTailIds).not.toContain(fixture.bodyId);
   expect(savedTailIds).not.toContain(fixture.imageId);
   const sdkDbName = `matrix-js-sdk:web-sync-store::${activeSessionId}`;
+  await saveSdkSnapshot(page, sdkDbName, sync);
+
+  return { cacheDbName, sdkDbName, threadUrl, savedSync: sync };
+};
+
+const saveSdkSnapshot = async (
+  page: Page,
+  sdkDbName: string,
+  sync: { next_batch: string; rooms: unknown }
+): Promise<void> => {
   await page.evaluate(
     async ({ dbName, savedSync }) => {
       const db = await new Promise<IDBDatabase>((resolve, reject) => {
@@ -331,8 +351,6 @@ const warmHistoricalContent = async (
     },
     { dbName: sdkDbName, savedSync: sync }
   );
-
-  return { cacheDbName, sdkDbName, threadUrl };
 };
 
 const expectHistoricalContent = async (page: Page, fixture: OfflineFixture): Promise<void> => {
@@ -385,6 +403,213 @@ test.describe('persisted historical room content', () => {
     hasTouch: true,
     serviceWorkers: 'allow',
   });
+
+  for (const change of ['edit', 'delete'] as const) {
+    test(`keeps the server ${change} after older cached bodies and image downloads finish last`, async ({
+      context,
+      page,
+    }) => {
+      test.setTimeout(180_000);
+      test.skip(!hasPrimaryCredentials(), 'Local Matrix credentials required');
+      const homeserver = getHomeserver();
+      let fixture: OfflineFixture | undefined;
+      try {
+        fixture = await createOfflineFixture(homeserver);
+        const { cacheDbName, sdkDbName, threadUrl, savedSync } = await warmHistoricalContent(
+          page,
+          homeserver,
+          fixture
+        );
+        // Keep the real cached body; evict only image bytes to exercise an old network download too.
+        await page.evaluate(
+          async ({ name, uri }) => {
+            const db = await new Promise<IDBDatabase>((resolve, reject) => {
+              const request = indexedDB.open(name);
+              request.onsuccess = () => resolve(request.result);
+              request.onerror = () => reject(request.error);
+            });
+            try {
+              await new Promise<void>((resolve, reject) => {
+                const transaction = db.transaction('attachments', 'readwrite');
+                transaction.objectStore('attachments').delete(uri);
+                transaction.oncomplete = () => resolve();
+                transaction.onerror = () => reject(transaction.error);
+                transaction.onabort = () => reject(transaction.error);
+              });
+            } finally {
+              db.close();
+            }
+          },
+          { name: cacheDbName, uri: fixture.imageUri }
+        );
+
+        const nextBody = 'Updated complete body received from the server while online.';
+        const nextUris: string[] = [];
+        const revisionIds: string[] = [];
+        const eventIds = [fixture.bodyId, fixture.imageId];
+        if (change === 'edit') {
+          nextUris.push(
+            await uploadMedia(
+              homeserver,
+              fixture.session.accessToken,
+              Buffer.from(
+                JSON.stringify({
+                  msgtype: 'm.text',
+                  body: nextBody,
+                  format: 'org.matrix.custom.html',
+                  formatted_body: `<p>${nextBody}</p>`,
+                })
+              ),
+              'application/json'
+            )
+          );
+          nextUris.push(
+            await uploadMedia(
+              homeserver,
+              fixture.session.accessToken,
+              Buffer.from(
+                'iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAEUlEQVR4nGP4z8DwH4QZYAwAR8oH+WdZbrcAAAAASUVORK5CYII=',
+                'base64'
+              ),
+              'image/png'
+            )
+          );
+          const contents = [
+            {
+              msgtype: 'm.text',
+              body: 'Updated short preview',
+              url: nextUris[0],
+              'io.mindroom.long_text': { version: 2, encoding: 'matrix_event_content_json' },
+            },
+            {
+              msgtype: 'm.image',
+              body: 'Updated image',
+              url: nextUris[1],
+              info: { mimetype: 'image/png', w: 2, h: 2 },
+            },
+          ];
+          for (const [index, content] of contents.entries()) {
+            revisionIds.push(
+              await sendRoomMessage(
+                homeserver,
+                fixture.session.accessToken,
+                fixture.roomId,
+                {
+                  ...content,
+                  'm.new_content': content,
+                  'm.relates_to': { rel_type: 'm.replace', event_id: eventIds[index] },
+                },
+                'offline-freshness-edit'
+              )
+            );
+          }
+        } else {
+          for (const eventId of eventIds) {
+            await redactEvent(homeserver, fixture.session.accessToken, fixture.roomId, eventId);
+          }
+        }
+
+        await installOfflineFreshnessGates(context, fullBody, fixture.imageUri, [...imageBytes]);
+        await page.goto(threadUrl);
+        await expect
+          .poll(() => page.evaluate(() => window.__offlineFreshness.heldBodies))
+          .toBeGreaterThan(0);
+        await expect
+          .poll(() => page.evaluate(() => window.__offlineFreshness.heldImages))
+          .toBeGreaterThan(0);
+        await page.evaluate(() => window.__offlineFreshness.releaseNetwork());
+
+        const expectedCache = {
+          oldBytes: 0,
+          liveEventIds: change === 'edit' ? [...eventIds].sort() : [],
+          mediaUris: [...nextUris].sort(),
+          references: eventIds
+            .map((eventId, index) => ({
+              eventId,
+              mxcUri: nextUris[index] ?? '',
+              revisionId: revisionIds[index] ?? expect.any(String),
+              redacted: change === 'delete',
+            }))
+            .sort((a, b) => a.eventId.localeCompare(b.eventId)),
+        };
+        const snapshot = () =>
+          readOfflineFreshness(page, cacheDbName, fixture!.roomId, eventIds, [
+            fixture!.bodyUri,
+            fixture!.imageUri,
+          ]);
+        const expectCurrent = async (currentPage: Page) => {
+          await expect(currentPage.locator(`[data-message-id="${fixture!.rootId}"]`)).toBeVisible();
+          await expect(currentPage.getByText(fullBody, { exact: true })).toHaveCount(0);
+          const image = currentPage.locator(`[data-message-id="${fixture!.imageId}"] img`).last();
+          if (change === 'edit') {
+            await expect(
+              currentPage
+                .locator(`[data-message-id="${fixture!.bodyId}"]`)
+                .getByText(nextBody, { exact: true })
+            ).toBeVisible();
+            await expect
+              .poll(() =>
+                image.evaluate(
+                  (element: HTMLImageElement) => element.complete && element.naturalWidth
+                )
+              )
+              .toBe(2);
+          } else {
+            await expect(
+              currentPage
+                .locator(`[data-message-id="${fixture!.bodyId}"]`)
+                .getByText('Short historical preview only', { exact: true })
+            ).toHaveCount(0);
+            await expect(image).toHaveCount(0);
+          }
+        };
+        await expect.poll(snapshot).toEqual(expectedCache);
+        await expectCurrent(page);
+        await page.evaluate(() => window.__offlineFreshness.releaseOldWork());
+        // Completion is observed after repository writes and stale image publication/disposal.
+        await expect
+          .poll(() => page.evaluate(() => window.__offlineFreshness.settledBodies))
+          .toBeGreaterThan(0);
+        await expect
+          .poll(() => page.evaluate(() => window.__offlineFreshness.discardedImages))
+          .toBeGreaterThan(0);
+        await page.evaluate(
+          () =>
+            new Promise<void>((resolve) =>
+              requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+            )
+        );
+        await expectCurrent(page);
+        await expect.poll(snapshot).toEqual(expectedCache);
+
+        // Remove newer SDK sync data so the next app instance must read the dedicated cache.
+        await page.goto('/public/offline-e2e-inert.html');
+        await saveSdkSnapshot(page, sdkDbName, savedSync);
+        await page.close();
+        const reopened = await context.newPage();
+        await reopened.goto(threadUrl);
+        await expectCurrent(reopened);
+        await expect
+          .poll(() =>
+            readOfflineFreshness(reopened, cacheDbName, fixture!.roomId, eventIds, [
+              fixture!.bodyUri,
+              fixture!.imageUri,
+            ])
+          )
+          .toEqual(expectedCache);
+      } finally {
+        for (const currentPage of context.pages()) {
+          await currentPage
+            .evaluate(() => {
+              window.__offlineFreshness?.releaseNetwork();
+              window.__offlineFreshness?.releaseOldWork();
+            })
+            .catch(() => undefined);
+        }
+        if (fixture) await forgetFixtureRoom(homeserver, fixture);
+      }
+    });
+  }
 
   test('reopens an older thread body and decoded image while Chromium is offline', async ({
     browserName,

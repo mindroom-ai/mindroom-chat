@@ -7,6 +7,9 @@ import {
 } from '../../eventRepository';
 import {
   deleteCacheStoreDb,
+  loadCachedAttachment,
+  putCachedAttachment,
+  replaceCachedAttachmentReferences,
   loadLatestCachedRoomEvents,
   loadLatestCachedThreadEvents,
   loadCachedRoomPaginationToken,
@@ -143,6 +146,40 @@ describe('cache storage same-ID revision merge', () => {
     await deleteCacheStoreDb(SESSION_ID);
     resetCacheStoreForTesting();
   });
+
+  it.each(['room', 'thread'] as const)(
+    'revokes attachment writes when %s persistence observes a deletion',
+    async (scope) => {
+      const owner = { roomId: ROOM_ID, eventId: '$body', revisionTs: 100, essential: true };
+      const payload = {
+        mxcUri: 'mxc://example.org/body',
+        mimeType: 'application/json',
+        bytes: new TextEncoder().encode('old body').buffer,
+      };
+      await replaceCachedAttachmentReferences(SESSION_ID, ROOM_ID, '$body', 100, [
+        { mxcUri: payload.mxcUri, essential: true },
+      ]);
+      await putCachedAttachment(SESSION_ID, payload, owner);
+      expect(await loadCachedAttachment(SESSION_ID, payload.mxcUri)).toBeDefined();
+
+      // Live sync carries a redaction; reconciliation can carry only its pruned target.
+      if (scope === 'room') {
+        await saveRoomEventsToCache(SESSION_ID, ROOM_ID, [redaction('$delete', '$body', 300)]);
+      } else {
+        await saveThreadEventsToCache(SESSION_ID, ROOM_ID, THREAD_ID, [redacted('$body')]);
+      }
+      expect(await loadCachedAttachment(SESSION_ID, payload.mxcUri)).toBeUndefined();
+
+      // A late consumer cannot register its old revision or restore its downloaded bytes.
+      expect(
+        await replaceCachedAttachmentReferences(SESSION_ID, ROOM_ID, '$body', 100, [
+          { mxcUri: payload.mxcUri, essential: true },
+        ])
+      ).toBe('revoked');
+      await putCachedAttachment(SESSION_ID, payload, owner);
+      expect(await loadCachedAttachment(SESSION_ID, payload.mxcUri)).toBeUndefined();
+    }
+  );
 
   it('does not overwrite a redacted room event with stale plaintext', async () => {
     await saveRoomEventsToCache(SESSION_ID, ROOM_ID, [redacted('$room-event')]);

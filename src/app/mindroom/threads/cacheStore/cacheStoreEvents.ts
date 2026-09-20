@@ -17,6 +17,7 @@ import {
   type CacheStoreWriteLease,
 } from './cacheStoreDb';
 import { createLedgerTracker, type LedgerTracker } from './cacheStoreLedger';
+import { replaceCachedAttachmentReferences } from './cacheStoreAttachments';
 import {
   EVENTS_BY_SCOPE_TS_INDEX,
   EVENTS_BY_ROOM_EVENT_INDEX,
@@ -58,6 +59,30 @@ const isRawLocalEchoEventId = (eventId: unknown): boolean =>
 // lookup without replaying an ever-growing room-wide registry. Whole-room
 // eviction removes these rows with the rest of the room's meta records.
 const REDACTED_RELATION_META_PREFIX = '__redactedRelation:';
+
+/** Deletion invalidates ownership before event persistence, without waiting for media jobs. */
+const retireRedactedAttachments = async (
+  sessionId: string,
+  roomId: string,
+  eventIds: ReadonlySet<string>,
+  writeLease: CacheStoreWriteLease
+): Promise<void> => {
+  for (const eventId of eventIds) {
+    const status = await replaceCachedAttachmentReferences(
+      sessionId,
+      roomId,
+      eventId,
+      0,
+      [],
+      writeLease,
+      { redacted: true }
+    );
+    // An existing terminal tombstone returns revoked; lease checks still fence room clears.
+    if (status !== 'committed' && status !== 'revoked') {
+      throw new Error('Redacted attachment ownership did not commit');
+    }
+  }
+};
 
 const getRedactedRelationMetaScope = (eventId: string): string =>
   `${REDACTED_RELATION_META_PREFIX}${encodeURIComponent(eventId)}`;
@@ -607,6 +632,7 @@ export const saveRoomEventsToCacheCommitted = async (
     const redactedTombstones = collectRedactedTombstones(rawEvents);
     const normalizedEvents = normalizeCachedRoomEvents(rawEvents);
     if (redactedEventIds.size > 0) {
+      await retireRedactedAttachments(sessionId, roomId, redactedEventIds, writeLease);
       // Only scrub for ids we have never marked before: marker rows are
       // written by the scrub itself, so an already-marked id was fully
       // repaired on its first save and re-scrubbing is pure work.
@@ -1093,6 +1119,7 @@ export const saveThreadEventsToCacheCommitted = async (
     );
     if (redactedEventIds.size > 0) {
       // Gate the room-wide scrub on marker presence (see room-save above).
+      await retireRedactedAttachments(sessionId, roomId, redactedEventIds, writeLease);
       const unscrubbedIds = await collectRedactedIdsWithoutMarker(db, roomId, redactedEventIds);
       if (!isCacheStoreWriteLeaseCurrent(writeLease)) return false;
       if (unscrubbedIds.size > 0) {

@@ -55,10 +55,9 @@ export const enqueueRoomDeepHistoryJob = ({
       if (reservePage && !reservation) return undefined;
       let committedCount = 0;
       try {
-        const from =
-          progress.nextToken !== undefined
-            ? progress.nextToken
-            : room.getLiveTimeline()?.getPaginationToken(Direction.Backward) ?? null;
+        // SDK room pagination can advance without retaining thread replies.
+        // Only our own committed cursor proves independent offline coverage.
+        const from = progress.nextToken ?? null;
         const response = await mx.createMessagesRequest(
           roomId,
           from,

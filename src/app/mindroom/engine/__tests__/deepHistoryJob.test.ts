@@ -327,8 +327,12 @@ describe('enqueueRoomDeepHistoryJob (CINNY-207 P4.3)', () => {
     await first;
   });
 
-  it('starts from the current live-timeline backward token when one is present', async () => {
+  it('saves thread replies even when SDK room pagination already passed them', async () => {
     const mx = createMockClient(() => ({ chunk: [] }));
+    const reply = rawThreadReply('$missed-reply', 20, '$root');
+    vi.mocked(mx.createMessagesRequest).mockImplementation(async (_roomId, from) => ({
+      chunk: from === null ? [reply as IEvent] : [],
+    }));
     mx.__rooms.set(
       '!room:mindroom.chat',
       makeRoom('!room:mindroom.chat', '@alice:mindroom.chat', false, 'live-back-token')
@@ -342,7 +346,14 @@ describe('enqueueRoomDeepHistoryJob (CINNY-207 P4.3)', () => {
       roomId: '!room:mindroom.chat',
     });
 
-    expect(mx.__calls[0]?.fromToken).toBe('live-back-token');
+    const page = await loadLatestCachedThreadEvents(SESSION_ID, '!room:mindroom.chat', '$root', 10);
+    expect(page.events.map((event) => event.event_id)).toEqual(['$missed-reply']);
+    expect(mx.createMessagesRequest).toHaveBeenCalledWith(
+      '!room:mindroom.chat',
+      null,
+      200,
+      Direction.Backward
+    );
   });
 
   it('resumes from the committed page after failure with a new scheduler', async () => {

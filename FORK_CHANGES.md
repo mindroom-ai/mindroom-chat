@@ -2,6 +2,21 @@
 
 ## Runbook
 
+### Keep server changes after delayed cached content completes (2026-09-20)
+
+- Online restart regressions hold an old cached long-text body and image download until server edits or deletions have reached the UI and dedicated cache, then release both old consumers and reopen again without Matrix access or newer SDK sync data.
+  They check rendered body/image content, retired bytes, current ownership and deletion tombstones in Chromium and WebKit.
+- The fixture exposed an independent history cursor bug: ordinary SDK room pagination can advance past thread replies without saving them.
+  Offline history now starts from the room head and resumes only from its own committed cursor.
+- Observed deletions retire attachment ownership in the existing room/thread persistence boundary, before event tombstones commit.
+  Cleanup reuses terminal reference tombstones and existing shared-blob retention; it does not wait for background media jobs.
+  Existing event-scrub markers do not skip attachment retirement, and lease revocation or failed attachment writes cannot claim a successful event save.
+- The cursor and both deletion storage regressions failed before their fixes.
+  All 564 files / 4,866 unit tests, application and browser-test typechecks, production/PWA build and formatting pass; ESLint reports the existing 17 warnings and no errors.
+  The browser spec passes six cases with two expected engine-specific skips, including all four edit/deletion races.
+  Disabling the stale attachment-write guard makes the edit race fail after old work finishes: both retired payloads reappear in storage.
+  Independent review approved both fixes and the browser gate design.
+
 ### Restore directional specular glass rims (2026-09-20)
 
 - Shared glass surfaces use a one-pixel masked gradient rim with a 45-degree upper-left highlight and a weaker opposite reflection.
