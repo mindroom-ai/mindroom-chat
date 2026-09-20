@@ -32,6 +32,17 @@ export const glassOutline = style({
   '@supports': {
     [maskedRimSupport]: { selectors: { '&&': { boxShadow: glassShadow } } },
   },
+  '@media': {
+    '(prefers-reduced-transparency: reduce), (prefers-contrast: more)': {
+      selectors: { '&&&': { boxShadow: `inset 0 0 0 1px ${surfaceLine}` } },
+    },
+    '(forced-colors: active)': {
+      selectors: {
+        '&&&': { outline: '1px solid CanvasText', outlineOffset: '-1px' },
+        '&&&:focus-visible': { outline: '2px solid Highlight', outlineOffset: '2px' },
+      },
+    },
+  },
 });
 
 const material = (tint: number, blur: number, shadow: string, elevation: string): StyleRule => ({

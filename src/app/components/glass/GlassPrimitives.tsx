@@ -12,7 +12,7 @@ import {
   as,
 } from 'folds';
 import { ContainerColor as containerColor } from '../../styles/ContainerColor.css';
-import { glassFloating, glassSurface } from '../../styles/Glass.css';
+import { glassFloating, glassOutline, glassSurface } from '../../styles/Glass.css';
 import { useLiquidGlass } from './liquid/useLiquidGlass';
 import { SurfaceProvider, useSurfaceContext } from './SurfaceContext';
 import { inheritSurface } from './Surface.css';
@@ -69,7 +69,12 @@ export const Chip = as<'button', ChipProps>(
       {...props}
       ref={ref}
       variant={variant}
-      className={classNames(glassSurface({ level: 'control', variant }), glassFloating, className)}
+      className={classNames(
+        glassSurface({ level: 'control', variant }),
+        glassFloating,
+        glassOutline,
+        className
+      )}
     />
   )
 );

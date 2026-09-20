@@ -1,10 +1,11 @@
 import { style } from '@vanilla-extract/css';
 import { DefaultReset, color, config, toRem } from 'folds';
-import { glassShadow, glassSurface } from '../../styles/Glass.css';
+import { glassOutline, glassShadow, glassSurface } from '../../styles/Glass.css';
 
 export const Capsule = style([
   DefaultReset,
   glassSurface({ level: 'control', variant: 'SurfaceVariant' }),
+  glassOutline,
   {
     display: 'grid',
     gridTemplateColumns: `${toRem(36)} minmax(${toRem(96)}, 1fr) auto ${toRem(36)} ${toRem(36)}`,

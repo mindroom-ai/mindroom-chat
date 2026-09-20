@@ -1,6 +1,6 @@
 import { globalStyle, style } from '@vanilla-extract/css';
 import { color, config, toRem } from 'folds';
-import { glassSurface } from '../../styles/Glass.css';
+import { glassOutline, glassSurface } from '../../styles/Glass.css';
 
 export const Extras = style({
   display: 'flex',
@@ -12,6 +12,7 @@ export const Extras = style({
 
 export const Section = style([
   glassSurface({ level: 'panel', variant: 'SurfaceVariant' }),
+  glassOutline,
   {
     maxWidth: '100%',
     borderRadius: config.radii.R300,

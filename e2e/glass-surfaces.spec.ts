@@ -64,6 +64,33 @@ for (const theme of ['light', 'dark']) {
         await surface.evaluate((element) => getComputedStyle(element, '::before').display)
       ).toBe('none');
     }
+    const outlined = [
+      ...['attachment', 'upload', 'upload-error', 'recording'].map((id) =>
+        page.getByTestId(id).locator(':scope > *')
+      ),
+      page.getByTestId('link'),
+      extras,
+      jump,
+    ];
+    for (const surface of outlined) {
+      await expect(surface).toHaveCSS('backdrop-filter', 'none');
+      await expect(surface).toHaveCSS('box-shadow', /inset/);
+    }
+    await page.emulateMedia({ forcedColors: 'active' });
+    for (const surface of outlined) {
+      await expect(surface).toHaveCSS('outline-style', 'solid');
+      await expect(surface).toHaveCSS('outline-width', '1px');
+    }
+    await jump.focus();
+    await page.keyboard.press('Tab');
+    await page.keyboard.press('Shift+Tab');
+    await expect(jump).toBeFocused();
+    expect(
+      await jump.evaluate((element) => {
+        const css = getComputedStyle(element);
+        return [css.outlineWidth, css.outlineOffset];
+      })
+    ).toEqual(['2px', '2px']);
   });
 }
 

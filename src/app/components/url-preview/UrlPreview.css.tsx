@@ -1,10 +1,11 @@
 import { style } from '@vanilla-extract/css';
 import { DefaultReset, color, config, toRem } from 'folds';
-import { glassSurface } from '../../styles/Glass.css';
+import { glassOutline, glassSurface } from '../../styles/Glass.css';
 
 export const UrlPreview = style([
   DefaultReset,
   glassSurface({ level: 'panel', variant: 'SurfaceVariant' }),
+  glassOutline,
   {
     width: toRem(400),
     minHeight: toRem(102),

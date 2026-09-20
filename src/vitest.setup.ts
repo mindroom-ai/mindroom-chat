@@ -33,12 +33,14 @@ vi.mock('./app/mindroom/threads/RoomOverlay.css', () => ({
 vi.mock('./app/components/glass/GlassPrimitives', async () => {
   const folds = await import('folds');
   const wrappers: Record<string, unknown> = {};
-  (['Menu', 'MenuItem', 'Modal', 'Dialog', 'Header', 'IconButton', 'Chip'] as const).forEach((name) => {
-    Object.defineProperty(wrappers, name, {
-      enumerable: true,
-      get: () => folds[name],
-    });
-  });
+  (['Menu', 'MenuItem', 'Modal', 'Dialog', 'Header', 'IconButton', 'Chip'] as const).forEach(
+    (name) => {
+      Object.defineProperty(wrappers, name, {
+        enumerable: true,
+        get: () => folds[name],
+      });
+    }
+  );
   Object.defineProperty(wrappers, 'Surface', {
     enumerable: true,
     get: () => folds.Box,
