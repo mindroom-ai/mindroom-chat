@@ -2,6 +2,23 @@
 
 ## Runbook
 
+### Restore directional specular glass rims (2026-09-20)
+
+- Shared glass surfaces use a one-pixel masked gradient rim with a 45-degree upper-left highlight and a weaker opposite reflection.
+  Light themes include a shaded edge so white highlights remain legible against the chat background; dark themes retain softer white reflections.
+- The material reserves `::before` for this pointer-transparent decoration and relies on its existing backdrop filter for positioning.
+  Flat navigation, room chrome, and accessibility fallbacks suppress the rim; browsers without mask support retain the inset-shadow treatment.
+- Audio players use the shared rim instead of drawing a uniform outline over it, while preserving their elevation and active playback ring.
+  Blur, tint, layout, and the optical filter engine are unchanged.
+- Regression coverage samples rendered edge variation and an untouched interior in all five themes, and checks rimless navigation and opaque accessibility modes.
+  The fixture uses real Folds Surface colors rather than undefined color variables.
+- Validation: all 4,741 unit tests, typecheck, production/PWA build, formatting, and whitespace checks pass.
+  ESLint has zero errors and the existing 17 warnings.
+  Chromium/WebKit glass coverage passes 50 cases with two WebKit-only CDP skips; all ten rim cases fail against the previous CSS.
+  Four local Matrix checks verify the actual thread banner, audio layout, and resolve action in both browsers and light/dark themes.
+  Independent review approved the change.
+  Physical iPhone rendering remains unverified; Linux WebKit captures demonstrate the rim but do not reproduce iOS backdrop blur.
+
 ### Run browser specs in parallel (2026-09-20)
 
 - Use `npm run test:e2e:parallel -- --jobs 8`; `--list` shows all configured spec/project jobs.
