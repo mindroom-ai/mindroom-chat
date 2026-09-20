@@ -303,7 +303,17 @@ export const replaceCachedAttachmentReferences = async (
         ...input,
         essential: input.essential || previousInput?.essential === true,
         maxBytes: previousInput?.essential ? previousInput.maxBytes : input.maxBytes,
-        validated: input.validated || previousInput?.validated,
+        validated:
+          input.validated ||
+          previousInput?.validated ||
+          owned.some(
+            (row) =>
+              row.mxcUri === input.mxcUri &&
+              row.essential &&
+              row.status === 'cached' &&
+              row.revisionTs === revisionTs &&
+              (row.revisionId ?? '') === (revision.revisionId ?? '')
+          ),
       });
     });
     const entries: AttachmentReferenceInput[] = merged.size

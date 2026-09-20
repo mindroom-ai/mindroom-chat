@@ -6,6 +6,7 @@
 
 - Proactive bodies and media now use the existing CacheStore budget before admission and preserve the storage-pressure pause after recent, retained, paged and live work.
   Interactive attachment reads remain available.
+  Canonical registration preserves validation only for the unchanged owner, revision and MXC within its byte bound, so pressure-denied work cannot downgrade already saved bodies.
 - Schema v6 adds attachment metadata and room/event reference indexes without replacing retained data.
   Budget admission reads index keys and the room ledger; eviction reads raw bytes only for eligible candidates.
   Reference replacement reads only the current event owner and matching legacy keys, retaining revision/redaction tombstones and shared ownership.

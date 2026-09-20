@@ -308,3 +308,35 @@ it('replaces legacy room references by key and preserves another room sharing th
     (await store.getCachedAttachmentMetadata(session, 'mxc://test/legacy'))?.references
   ).toHaveLength(1);
 });
+
+it.each(['unchanged', 'timestamp', 'revision-id', 'mxc', 'bound', 'optional'] as const)(
+  'preserves essential validation only for the unchanged bounded owner (%s)',
+  async (change) => {
+    const mxcUri = 'mxc://test/proof';
+    await store.replaceCachedAttachmentReferences(
+      session,
+      'room-a',
+      '$owner',
+      1,
+      [{ mxcUri, essential: change !== 'optional' }],
+      undefined,
+      { revisionId: '$revision' }
+    );
+    await save(mxcUri, 'room-a', change !== 'optional');
+    const nextUri = change === 'mxc' ? 'mxc://test/different' : mxcUri;
+    if (change === 'mxc') await save(nextUri, 'room-a', true);
+    await store.replaceCachedAttachmentReferences(
+      session,
+      'room-a',
+      '$owner',
+      change === 'timestamp' ? 2 : 1,
+      [{ mxcUri: nextUri, essential: true, maxBytes: change === 'bound' ? 1 : 3000 }],
+      undefined,
+      { revisionId: change === 'revision-id' ? '$revision-new' : '$revision' }
+    );
+    const reference = (await store.getCachedAttachmentMetadata(session, nextUri))?.references.find(
+      (row) => row.eventId === '$owner'
+    );
+    expect(reference?.status).toBe(change === 'unchanged' ? 'cached' : 'missing');
+  }
+);

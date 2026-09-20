@@ -176,3 +176,50 @@ it('retries failed capability lookup on a later explicit download', async () => 
     scheduler.abortAll();
   }
 });
+
+it('keeps validated essential coverage when storage pressure denies a repeated prefetch', async () => {
+  const {
+    __setCacheStoreByteBudgetForTests,
+    readRoomAttachmentStorage,
+    runCacheEvictionIfOverBudget,
+  } = await import('../threads/cacheStore');
+  const mx = createClient({ baseUrl, userId });
+  const body = new MatrixEvent({
+    room_id: roomId,
+    event_id: '$body',
+    sender: userId,
+    origin_server_ts: 1,
+    type: 'm.room.message',
+    content: {
+      msgtype: 'm.text',
+      body: 'preview',
+      url: source.mxcUri,
+      'io.mindroom.long_text': { version: 2, encoding: 'matrix_event_content_json' },
+    },
+  });
+  const fetch = vi.fn(
+    async () => new Response(JSON.stringify({ msgtype: 'm.text', body: 'validated body' }))
+  );
+  vi.stubGlobal('fetch', fetch);
+  expect(await prefetchEventAttachments(mx, [body], false)).toEqual({ saved: 1, missing: 0 });
+  __setCacheStoreByteBudgetForTests(1);
+  try {
+    expect(
+      await prefetchEventAttachments(mx, [body], false, {
+        canDownload: async () => !(await runCacheEvictionIfOverBudget(sessionId)).underPressure,
+      })
+    ).toEqual({ saved: 1, missing: 0 });
+    expect(await readRoomAttachmentStorage(sessionId, roomId)).toMatchObject({
+      saved: 1,
+      missingEssential: 0,
+    });
+    expect(fetch).toHaveBeenCalledTimes(1);
+    clearMindroomLongTextHydrationCache();
+    expect(await hydrateCachedMindroomLongText(mx, source, false)).toMatchObject({
+      body: 'validated body',
+    });
+    expect(fetch).toHaveBeenCalledTimes(1);
+  } finally {
+    __setCacheStoreByteBudgetForTests(undefined);
+  }
+});
