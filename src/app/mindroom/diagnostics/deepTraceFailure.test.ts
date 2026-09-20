@@ -25,6 +25,71 @@ describe('deep diagnostic trace storage failure', () => {
     trace = await import('./deepTrace');
   });
 
+  it.each([
+    ['recording', 'remove'],
+    ['memory-only', 'remove'],
+    ['starting', 'remove'],
+    ['recording', 'clear'],
+    ['memory-only', 'clear'],
+    ['starting', 'clear'],
+  ])("honors another tab's opt-out while %s (%s)", async (mode, change) => {
+    let rejectOpen: ((error: Error) => void) | undefined;
+    if (mode === 'memory-only') mocks.openDB.mockRejectedValueOnce(new Error('storage failed'));
+    if (mode === 'starting')
+      mocks.openDB.mockReturnValueOnce(
+        new Promise((_resolve, reject) => {
+          rejectOpen = reject;
+        })
+      );
+    const storage = window.localStorage;
+    storage.clear();
+    const dispose = trace.initializeDeepTraceRecorder(storage);
+    const enabling = trace.setDeepTraceEnabled(true, storage);
+    if (mode !== 'starting') await enabling;
+    try {
+      window.dispatchEvent(
+        new StorageEvent('storage', {
+          storageArea: window.sessionStorage,
+          key: trace.DEEP_TRACE_ENABLED_KEY,
+          newValue: null,
+        })
+      );
+      window.dispatchEvent(
+        new StorageEvent('storage', { storageArea: storage, key: 'unrelated', newValue: null })
+      );
+      window.dispatchEvent(
+        new StorageEvent('storage', {
+          storageArea: storage,
+          key: trace.DEEP_TRACE_ENABLED_KEY,
+          newValue: '1',
+        })
+      );
+      expect(trace.getDeepTraceRuntimeStatus()).toBe(mode);
+      if (change === 'clear') storage.clear();
+      else storage.removeItem(trace.DEEP_TRACE_ENABLED_KEY);
+      window.dispatchEvent(
+        new StorageEvent('storage', {
+          storageArea: storage,
+          key: change === 'clear' ? null : trace.DEEP_TRACE_ENABLED_KEY,
+          newValue: null,
+        })
+      );
+      expect(trace.getDeepTraceRuntimeStatus()).toBe('disabled');
+      const stopped = trace.readDeepTraceMemorySnapshot();
+      trace.recordDeepTraceEvent('test.after_remote_opt_out');
+      document.dispatchEvent(new Event('pointerdown', { bubbles: true }));
+      expect(trace.readDeepTraceMemorySnapshot().events).toEqual(stopped.events);
+      rejectOpen?.(new Error('stale activation failed'));
+      if (mode === 'starting') expect(await enabling).toBe(false);
+      expect(trace.getDeepTraceRuntimeStatus()).toBe('disabled');
+    } finally {
+      rejectOpen?.(new Error('cleanup'));
+      await enabling;
+      await trace.setDeepTraceEnabled(false, storage);
+      dispose();
+    }
+  });
+
   it('records in memory after an IndexedDB open failure and retries after reinitialization', async () => {
     mocks.openDB.mockRejectedValueOnce(new Error('IndexedDB open blocked'));
     const storage = window.localStorage;

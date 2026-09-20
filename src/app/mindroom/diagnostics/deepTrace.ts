@@ -580,6 +580,15 @@ const startGlobalCapture = (target: Runtime): void => {
   };
   const online = () => recordDeepTraceEvent('network.online');
   const offline = () => recordDeepTraceEvent('network.offline', undefined, { flush: true });
+  const preferenceChanged = (event: StorageEvent) => {
+    if (
+      event.storageArea === target.storage &&
+      (event.key === DEEP_TRACE_ENABLED_KEY || event.key === null) &&
+      event.newValue !== '1'
+    ) {
+      stop(target, true);
+    }
+  };
   const error = (event: ErrorEvent) =>
     recordDeepTraceEvent(
       'error.global',
@@ -614,6 +623,7 @@ const startGlobalCapture = (target: Runtime): void => {
   listen(window, 'pageshow', pageShow);
   listen(window, 'online', online);
   listen(window, 'offline', offline);
+  listen(window, 'storage', preferenceChanged as EventListener);
   listen(window, 'error', error as EventListener);
   listen(window, 'unhandledrejection', rejection as EventListener);
   listen(document, 'pointerdown', pointerDown as EventListener, { capture: true, passive: true });

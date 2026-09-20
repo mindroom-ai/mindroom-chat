@@ -1,7 +1,8 @@
 import { useEffect, useLayoutEffect, useRef } from 'react';
-import { RelationType, type MatrixEvent } from 'matrix-js-sdk';
+import type { MatrixEvent } from 'matrix-js-sdk';
 import { subscribeDeepTraceStatus } from '../diagnostics/deepTrace';
 import { logTimelineDebug } from './timelineDebug';
+import { getThreadReplyEventsForRoot } from './threadUtils';
 
 type Options = {
   traceId?: string;
@@ -36,10 +37,7 @@ export const useThreadDiagnosticSnapshot = (options: Options): void => {
       if (current.traceId !== traceId || current.threadId !== threadId) return;
       // Read the SDK model even if React missed its latest update.
       const model = current.readModel();
-      const replies = current.events.filter(
-        (event) =>
-          event.getId() !== threadId && event.getRelation()?.rel_type === RelationType.Thread
-      );
+      const replies = getThreadReplyEventsForRoot(current.events, threadId);
       const element = current.getElement();
       const mounted = new Set(
         Array.from(element?.querySelectorAll('[data-message-id]') ?? [], (node) =>

@@ -144,7 +144,16 @@ describe('thread diagnostic render sampling', () => {
     );
     props = {
       ...props,
-      events: [reply('$one'), reply('$two')],
+      events: [
+        reply('$one'),
+        reply('$one'),
+        reply('$two'),
+        new MatrixEvent({
+          event_id: '$foreign',
+          type: 'm.room.message',
+          content: { 'm.relates_to': { rel_type: 'm.thread', event_id: '$other-root' } },
+        }),
+      ],
       cacheHydrated: true,
       loading: false,
     };

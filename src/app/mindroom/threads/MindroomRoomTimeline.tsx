@@ -12,7 +12,7 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import { Direction, EventTimelineSet, MatrixEvent, RelationType, Room } from 'matrix-js-sdk';
+import { Direction, EventTimelineSet, MatrixEvent, Room } from 'matrix-js-sdk';
 import classNames from 'classnames';
 import { Editor } from 'slate';
 import {
@@ -119,6 +119,7 @@ import { useThreadSeedPrewarmController } from './threadSeedPrewarmController';
 import { useThreadSession } from './session/useThreadSession';
 import { useThreadDiagnosticSnapshot } from './useThreadDiagnosticSnapshot';
 import { getKnownThreadReplyCount } from './threadRecord';
+import { getThreadReplyEventsForRoot } from './threadUtils';
 import type { ThreadOpenRuntime } from './session/threadSessionTypes';
 import { useThreadAwareTimelineRefresh } from './useThreadAwareTimelineRefresh';
 import { useTimelineScrollLedgerController } from './timelineScrollLedgerController';
@@ -1175,10 +1176,7 @@ export function RoomTimeline({
       return {
         eventCount: model?.events.length ?? null,
         replyCount:
-          model?.events.filter(
-            (event) =>
-              event.getId() !== threadId && event.getRelation()?.rel_type === RelationType.Thread
-          ).length ?? null,
+          model && threadId ? getThreadReplyEventsForRoot(model.events, threadId).length : null,
         expectedReplyCount: root ? getKnownThreadReplyCount(root) ?? null : null,
       };
     },

@@ -191,7 +191,9 @@ export const useThreadSession = (route: ThreadRoute): ThreadSession => {
         if (isLocalEchoEventId(threadId)) {
           const localRoot = room.findEventById(threadId);
           if (localRoot) render.append(threadId, [localRoot]);
-          return () => undefined;
+          logTimelineDebug(debugTraceId, 'thread-open-complete', { skipNetworkBootstrap: true });
+          logTimelineDebug(debugTraceId, 'thread-open-settled', { current: true });
+          return () => logTimelineDebug(debugTraceId, 'thread-open-close');
         }
         countCacheProbe('threadOpens');
         viewport.resetForOpen();
