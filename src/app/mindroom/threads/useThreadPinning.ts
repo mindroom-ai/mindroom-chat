@@ -1,11 +1,12 @@
-import { useCallback, useMemo, useSyncExternalStore } from 'react';
-import type { Room } from 'matrix-js-sdk';
+import { useCallback, useEffect, useMemo, useSyncExternalStore } from 'react';
+import { RoomEvent, RoomStateEvent, type MatrixEvent, type Room } from 'matrix-js-sdk';
 import { StateEvent } from '../../../types/matrix/room';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { usePowerLevels } from '../../hooks/usePowerLevels';
 import { useRoomCreators } from '../../hooks/useRoomCreators';
 import { AsyncStatus, useAsyncCallback } from '../../hooks/useAsyncCallback';
-import { useStateEvents } from './useStateEvents';
+import { useForceUpdate } from '../../hooks/useForceUpdate';
+import { getStateEvent } from '../../utils/room';
 import {
   canPinRoomEvents,
   getPinnedEventIds,
@@ -16,7 +17,18 @@ import {
 } from './threadPinning';
 
 export const usePinnedEventIds = (room: Room): string[] => {
-  const events = useStateEvents(room, StateEvent.RoomPinnedEvents);
+  const [stateVersion, refresh] = useForceUpdate();
+  useEffect(() => {
+    const handleState = (event: MatrixEvent) => {
+      if (event.getType() === StateEvent.RoomPinnedEvents && event.getStateKey() === '') refresh();
+    };
+    room.on(RoomStateEvent.Events, handleState);
+    room.on(RoomEvent.CurrentStateUpdated, refresh);
+    return () => {
+      room.removeListener(RoomStateEvent.Events, handleState);
+      room.removeListener(RoomEvent.CurrentStateUpdated, refresh);
+    };
+  }, [room, refresh]);
   const version = useSyncExternalStore(
     subscribePendingPins,
     getPendingPinsVersion,
@@ -24,11 +36,12 @@ export const usePinnedEventIds = (room: Room): string[] => {
   );
   return useMemo(() => {
     void version;
+    void stateVersion;
     return (
       getPendingPinnedEventIds(room) ??
-      getPinnedEventIds(events.find((event) => event.getStateKey() === '')?.getContent())
+      getPinnedEventIds(getStateEvent(room, StateEvent.RoomPinnedEvents)?.getContent())
     );
-  }, [events, room, version]);
+  }, [room, version, stateVersion]);
 };
 
 export const useThreadPinning = (room: Room) => {

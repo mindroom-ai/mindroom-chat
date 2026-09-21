@@ -411,6 +411,7 @@ vi.mock('../../../utils/matrix', () => ({
 }));
 
 vi.mock('../../../utils/room', () => ({
+  getStateEvent: () => undefined,
   canEditEvent: () => false,
   decryptAllTimelineEvent: vi.fn(),
   getEditedEvent: (_eventId: string, mEvent: { __editedEvent?: unknown }) => mEvent.__editedEvent,

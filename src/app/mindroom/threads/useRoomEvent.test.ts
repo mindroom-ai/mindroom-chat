@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { MatrixEvent } from 'matrix-js-sdk';
+import { createClient, MatrixEvent, Room } from 'matrix-js-sdk';
 import { act, create } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { useRoomEvent } from './useRoomEvent';
@@ -42,6 +42,9 @@ const flushAsyncWork = async (ticks = 5) => {
 const makeRoom = () =>
   ({
     findEventById: vi.fn(() => undefined),
+    getUnfilteredTimelineSet: () => ({ getTimelines: () => [] }),
+    on: vi.fn(),
+    removeListener: vi.fn(),
     roomId: '!room:example.org',
   } as any);
 
@@ -73,6 +76,77 @@ const EventProbe = ({
 };
 
 describe('useRoomEvent', () => {
+  it.each(['redaction', 'edit'])(
+    'updates a detached pinned root after a live %s',
+    async (change) => {
+      pins.ids = ['$old'];
+      useActiveSessionMock.mockReturnValue(undefined);
+      const mx = createClient({ baseUrl: 'https://example.org', userId: '@alice:example.org' });
+      const room = new Room('!room:example.org', mx, '@alice:example.org');
+      const edit = (id: string, body: string, ts: number) => ({
+        event_id: id,
+        room_id: room.roomId,
+        sender: '@alice:example.org',
+        origin_server_ts: ts,
+        type: 'm.room.message',
+        content: {
+          msgtype: 'm.text',
+          body: `* ${body}`,
+          'm.new_content': { msgtype: 'm.text', body },
+          'm.relates_to': { rel_type: 'm.replace', event_id: '$old' },
+        },
+      });
+      fetchRoomEventMock.mockResolvedValue({
+        ...makeRawEvent('$old'),
+        room_id: room.roomId,
+        sender: '@alice:example.org',
+        content: { msgtype: 'm.text', body: 'Original announcement' },
+        unsigned: { 'm.relations': { 'm.replace': edit('$first-edit', 'First edit', 200) } },
+      });
+      let events: MatrixEvent[] = [];
+      function Probe() {
+        events = usePinnedThreadEvents(room, true);
+        return null;
+      }
+      const client = new QueryClient();
+      let renderer!: ReturnType<typeof create>;
+      try {
+        await act(async () => {
+          renderer = create(
+            React.createElement(QueryClientProvider, { client }, React.createElement(Probe))
+          );
+          await flushAsyncWork();
+        });
+        expect(events[0].getContent().body).toBe('First edit');
+        await act(async () => {
+          await room.addLiveEvents(
+            [
+              new MatrixEvent(
+                change === 'edit'
+                  ? edit('$second-edit', 'Latest edit', 300)
+                  : {
+                      event_id: '$redaction',
+                      room_id: room.roomId,
+                      sender: '@alice:example.org',
+                      origin_server_ts: 300,
+                      type: 'm.room.redaction',
+                      redacts: '$old',
+                      content: {},
+                    }
+              ),
+            ],
+            { addToState: true }
+          );
+          await flushAsyncWork();
+        });
+        if (change === 'redaction') expect(events).toEqual([]);
+        else expect(events[0].getContent().body).toBe('Latest edit');
+      } finally {
+        act(() => renderer?.unmount());
+        client.clear();
+      }
+    }
+  );
   it('loads old pinned roots from cache and excludes pinned replies and deleted roots', async () => {
     useActiveSessionMock.mockReturnValue({ sessionId: 'session-1' });
     loadCachedRoomEventMock.mockImplementation(async (_session, _room, id) => ({
@@ -139,6 +213,7 @@ describe('useRoomEvent', () => {
     client.clear();
   });
   afterEach(() => {
+    pins.ids = ['$old', '$reply', '$deleted'];
     fetchRoomEventMock.mockReset();
     loadCachedRoomEventMock.mockReset();
     loadCachedThreadEventMock.mockReset();

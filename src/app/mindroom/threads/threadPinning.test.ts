@@ -48,6 +48,30 @@ const makeRoom = (level = 100, required = 50) => {
 };
 
 describe('room thread pins', () => {
+  it('follows pin state after a limited sync replaces the live RoomState', () => {
+    const mx = createClient({ baseUrl: 'https://example.org', userId: admin });
+    const room = new Room('!reset:example.org', mx, admin, { timelineSupport: true });
+    syncPins(room, '$before-reset', ['$old']);
+    let ids: string[] = [];
+    function Probe() {
+      ids = usePinnedEventIds(room);
+      return null;
+    }
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(React.createElement(Probe));
+    });
+    try {
+      expect(ids).toEqual(['$old']);
+      act(() => {
+        room.resetLiveTimeline('back-token', 'forward-token');
+        syncPins(room, '$after-reset', ['$new']);
+      });
+      expect(ids).toEqual(['$new']);
+    } finally {
+      act(() => renderer.unmount());
+    }
+  });
   it.each([true, false])(
     'accepts an unpin sync when its HTTP response and verification are lost (early=%s)',
     async (early) => {
