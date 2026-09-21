@@ -67,6 +67,7 @@ import {
   renderMindroomPinnedEncryptedMessageEvent,
 } from './pinnedMessageExtensions';
 import { useSetting } from '../../state/hooks/settings';
+import { shouldShowLinkFavicons } from './linkFaviconPolicy';
 import { settingsAtom } from '../../state/settings';
 import * as customHtmlCss from '../../styles/CustomHtml.css';
 import { EncryptedContent } from '../../features/room/message/EncryptedContent';
@@ -282,6 +283,11 @@ export const RoomPinMenu = forwardRef<HTMLDivElement, RoomPinMenuProps>(
     const useAuthentication = useMediaAuthentication();
     const [mediaAutoLoad] = useSetting(settingsAtom, 'mediaAutoLoad');
     const [urlPreview] = useSetting(settingsAtom, 'urlPreview');
+    const [encUrlPreview] = useSetting(settingsAtom, 'encUrlPreview');
+    const showLinkFavicons = shouldShowLinkFavicons(
+      { mediaAutoLoad, urlPreview, encUrlPreview },
+      room.hasEncryptionStateEvent()
+    );
 
     const direct = useIsDirectRoom();
     const [legacyUsernameColor] = useSetting(settingsAtom, 'legacyUsernameColor');
@@ -305,21 +311,32 @@ export const RoomPinMenu = forwardRef<HTMLDivElement, RoomPinMenuProps>(
     const linkifyOpts = useMemo<LinkifyOpts>(
       () => ({
         ...LINKIFY_OPTS,
-        render: factoryRenderLinkifyWithMention((href) =>
-          renderMatrixMention(mx, room.roomId, href, makeMentionCustomProps(mentionClickHandler))
+        render: factoryRenderLinkifyWithMention(
+          (href) =>
+            renderMatrixMention(mx, room.roomId, href, makeMentionCustomProps(mentionClickHandler)),
+          showLinkFavicons
         ),
       }),
-      [mx, room, mentionClickHandler]
+      [mx, room, mentionClickHandler, showLinkFavicons]
     );
     const htmlReactParserOptions = useMemo<HTMLReactParserOptions>(
       () =>
         getReactCustomHtmlParser(mx, room.roomId, {
           linkifyOpts,
+          showLinkFavicons,
           useAuthentication,
           handleSpoilerClick: spoilerClickHandler,
           handleMentionClick: mentionClickHandler,
         }),
-      [mx, room, linkifyOpts, mentionClickHandler, spoilerClickHandler, useAuthentication]
+      [
+        mx,
+        room,
+        linkifyOpts,
+        mentionClickHandler,
+        spoilerClickHandler,
+        useAuthentication,
+        showLinkFavicons,
+      ]
     );
     const mindroomPinnedMessageRenderers = useMemo(
       () =>

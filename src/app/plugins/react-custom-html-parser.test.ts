@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   CodeBlock,
   LINKIFY_OPTS,
+  factoryRenderLinkifyWithMention,
   getReactCustomHtmlParser,
   renderTextWithLatex,
 } from './react-custom-html-parser';
@@ -76,6 +77,7 @@ vi.mock('../styles/CustomHtml.css', () => ({
   CodeBlockBottomShadow: 'CodeBlockBottomShadow',
   Code: 'Code',
   Mention: () => 'Mention',
+  Spoiler: () => 'Spoiler',
   EmoticonBase: 'EmoticonBase',
   Emoticon: () => 'Emoticon',
 }));
@@ -249,6 +251,80 @@ const renderLatexTextMarkup = (text: string): string =>
       })
     )
   );
+
+describe('inline website favicons', () => {
+  const renderLinks = (html: string, enabled = true) => {
+    const linkifyOpts = {
+      ...LINKIFY_OPTS,
+      render: factoryRenderLinkifyWithMention(() => undefined, enabled),
+    };
+    const opts = getReactCustomHtmlParser({} as MatrixClient, undefined, {
+      linkifyOpts,
+      showLinkFavicons: enabled,
+    });
+    return renderToStaticMarkup(React.createElement(React.Fragment, null, parse(html, opts)));
+  };
+
+  it('uses the same cached site icon for plain and formatted links without exposing paths', () => {
+    const markup = renderLinks(
+      '<p>https://github.com/example/one?secret=value <a href="https://github.com/example/two#part" title="Read docs"><strong>Docs</strong></a></p>'
+    );
+    expect(markup.match(/src="https:\/\/icons.duckduckgo.com\/ip3\/github.com.ico"/g)).toHaveLength(
+      2
+    );
+    expect(markup).toContain('title="Read docs"');
+    expect(markup).toContain('<strong>Docs</strong>');
+    expect(markup).toContain('href="https://github.com/example/two#part"');
+    expect(markup).toContain('referrerPolicy="no-referrer"');
+    expect(markup).toContain('alt=""');
+  });
+
+  it('does not load favicons when previews are disabled', () => {
+    expect(
+      renderLinks('<p>https://github.com <a href="https://example.com">Example</a></p>', false)
+    ).not.toContain('<img');
+  });
+
+  it.each([
+    '<span data-mx-spoiler><a href="https://secret.example.com">Secret site</a></span>',
+    '<span data-mx-spoiler>https://secret.example.com</span>',
+    '<span data-mx-spoiler><strong>https://secret.example.com</strong></span>',
+    '<span data-mx-spoiler data-mx-maths="{">https://secret.example.com</span>',
+    '<a href="https://secret.example.com"><span data-mx-spoiler>Secret site</span></a>',
+    '<a href="https://secret.example.com"><strong><span data-mx-spoiler>Secret site</span></strong></a>',
+  ])('does not mount an icon for a link involving spoiler text: %s', (html) => {
+    const markup = renderLinks(html);
+    expect(markup).toContain('https://secret.example.com');
+    expect(markup).not.toContain('<img');
+    expect(markup).not.toContain('icons.duckduckgo.com');
+  });
+
+  it('preserves custom math rendering inside a spoiler', () => {
+    const markup = renderLinks('<span data-mx-spoiler data-mx-maths="x^2">fallback</span>');
+    expect(markup).toContain('aria-pressed="true"');
+    expect(markup).toContain('class="MathInline"');
+    expect(markup).toContain('katex');
+  });
+
+  it('keeps code and Matrix mentions free of website icons', () => {
+    expect(
+      renderLinks('<code>https://github.com</code><pre>https://example.com</pre>')
+    ).not.toContain('<img');
+    const mention = factoryRenderLinkifyWithMention(
+      () => React.createElement('a', { 'data-mention-id': '@alice:example.com' }, 'Alice'),
+      true
+    ) as (ir: unknown) => React.ReactElement;
+    const markup = renderToStaticMarkup(
+      mention({
+        tagName: 'a',
+        attributes: { href: 'https://matrix.to/#/@alice:example.com' },
+        content: 'Alice',
+      })
+    );
+    expect(markup).toContain('data-mention-id');
+    expect(markup).not.toContain('<img');
+  });
+});
 
 const collectStructuralTableWhitespace = (
   node: ReactTestRendererJSON | ReactTestRendererJSON[] | string | null,

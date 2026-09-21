@@ -35,6 +35,29 @@
   Both browsers reproduced the missing old-thread preview before the cache batch correction.
   Physical iPhone first-paint timing remains unverified.
 
+### Inline website favicons (2026-09-21)
+
+- Status: implemented and independently reviewed on `feat/link-favicons`; PR #308 is open for review.
+  A shared inline link renderer decorates plain URLs and formatted links in room/thread messages, pinned messages, and notifications.
+- Eligible web links use a hostname-only DuckDuckGo favicon URL with no referrer.
+  Stable URLs share the browser's persistent HTTP image cache; no additional database or service worker is needed.
+- A shared policy uses media auto-load and the room's normal/encrypted URL-preview settings to control icon loading across all three surfaces.
+  Matrix mentions, code, credentials, IP addresses, custom ports, and local/reserved hostnames do not trigger icon requests.
+- Decorative icons follow text size, have a light backing for visibility in either theme, preserve link behavior, and disappear on failure with a bounded five-minute retry backoff across remounts.
+  Failed icons stay hidden for the current mount and may retry on a later mount after the cooldown; no timer polls decorative images.
+- Review caught icon disclosure and background lookups for spoiler links.
+  Spoiler-associated links now omit icons entirely, including after disclosure and in either anchor/spoiler nesting order.
+  Parser regressions also cover custom math rendering and malformed math fallbacks inside spoilers.
+- Validation after integrating current `dev` and addressing review: all 5,006 tests across 578 files pass under Node 24.13.1 in the standard Linux container, along with typecheck, production/PWA build, formatting, and ESLint with zero errors and the existing 17 warnings.
+  Focused coverage checks URL eligibility, hostname reuse, failures, remount backoff, edited links, and preview toggles.
+  Chromium exercises the real shared parser at room/thread text sizes, both themes, RTL spacing, narrow layout, accessible link labels, failures, settings, edits, and the absence of spoiler icon requests before and after disclosure.
+- Real-service Chromium checks confirm icons render in both themes and persist across browser restarts: the second launch serves the GitHub icon from disk cache with zero transferred bytes.
+  Cache retention follows the provider's HTTP headers and browser eviction policy; the failure backoff is bounded in memory.
+- Independent integration and follow-up reviews found no remaining issues in the parser, notification event resolution, pinned messages, encryption settings, or spoiler policy.
+  The follow-up passed hosted checks and review; the latest `dev` integration preserves both runbook entries after a documentation-only conflict.
+  Integration tests, typecheck, build, lint, Chromium coverage, and independent review pass after that merge.
+  Next: complete hosted checks before merging.
+
 ### Group tool calls while long-text details load (2026-09-21)
 
 - Long-text previews group consecutive tool markers into the existing tool-call dropdown before the sidecar arrives.
