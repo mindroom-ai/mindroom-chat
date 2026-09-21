@@ -279,6 +279,7 @@
     "voiceBundleBlocked": "Pengiriman lampiran lain masih berlangsung atau perlu ditangani. Tunggu hingga selesai, atau coba lagi maupun hapus lampiran yang gagal, lalu kirim ulang pesan ini."
   },
   "thread": {
+    "pinFailed": "Tidak dapat memperbarui sematan. Coba lagi.",
     "chip": "Utas",
     "view": "Tampilan utas",
     "resolve": "Selesaikan",

@@ -17,6 +17,7 @@ import { isConfirmedMatrixEventId } from './threadRouteUtils';
 import { getThreadResolverDisplayName } from './threadResolutionAttribution';
 import * as css from './ThreadContextBanner.css';
 import { ThreadApprovalPermissions } from '../messages/ThreadApprovalControls';
+import { useThreadPinning } from './useThreadPinning';
 import { useLiquidGlass } from '../../components/glass/liquid/useLiquidGlass';
 
 export interface ThreadContextBannerProps {
@@ -73,6 +74,8 @@ export function ThreadContextBanner({
   const { tags, isResolved, canEdit, availableTags } = useThreadTags(room, rootEventId);
   const { addTag, removeTag, setResolved, updating, error } = useMutateThreadTags(room);
   const threadRootId = rootEventId ?? threadId;
+  const pinning = useThreadPinning(room);
+  const isPinned = pinning.pinnedEventIds.includes(threadRootId);
   const mutableThreadRootId = isConfirmedMatrixEventId(rootEventId) ? rootEventId : undefined;
   const threadRootEvent =
     room.getThread(threadRootId)?.rootEvent ?? room.findEventById(threadRootId);
@@ -82,7 +85,7 @@ export function ThreadContextBanner({
     threadRootEvent,
     summaryInfo,
     threadResolution: {
-      isResolved,
+      isResolved: isResolved && !isPinned,
       tags,
     },
     scheduledStatus: {
@@ -132,9 +135,9 @@ export function ThreadContextBanner({
   );
 
   const handleToggleResolve = useCallback(() => {
-    if (!mutableThreadRootId) return;
+    if (!mutableThreadRootId || isPinned) return;
     setResolved(mutableThreadRootId, !headerModel.isResolved);
-  }, [mutableThreadRootId, headerModel.isResolved, setResolved]);
+  }, [mutableThreadRootId, headerModel.isResolved, setResolved, isPinned]);
 
   const hasTags = headerModel.displayTags.length > 0;
 
@@ -240,34 +243,57 @@ export function ThreadContextBanner({
             </div>
           )}
         </div>
-        <div className={css.ResolveChip}>
-          <Button
-            size="300"
-            variant={headerModel.isResolved ? 'Success' : 'Secondary'}
-            fill={headerModel.isResolved ? 'Solid' : 'Soft'}
-            outlined={!headerModel.isResolved}
-            radii="300"
-            onClick={handleToggleResolve}
-            disabled={!headerModel.canEdit || headerModel.pickerDisabled}
-            title={resolvedByLabel}
-          >
-            <Text size="T200">
-              {headerModel.isResolved ? t('thread.resolved') : t('thread.resolve')}
-            </Text>
-          </Button>
-          {resolvedByDisplayName && (
-            <Text
-              className={css.ResolutionByline}
-              data-thread-resolution-byline="true"
-              size="T200"
-              priority="300"
-              truncate
+        <Box alignItems="Center" gap="100" shrink="No">
+          {isPinned && <Text size="T200">{t('threadNav.pinned')}</Text>}
+          {pinning.canPin && mutableThreadRootId && (
+            <IconButton
+              size="300"
+              radii="300"
+              aria-label={t(isPinned ? 'threadNav.unpin' : 'threadNav.pin')}
+              title={t(isPinned ? 'threadNav.unpin' : 'threadNav.pin')}
+              aria-pressed={isPinned}
+              disabled={pinning.updating || updating}
+              onClick={() => pinning.setPinned(mutableThreadRootId, !isPinned)}
             >
-              {t('thread.resolvedByShort', { name: resolvedByDisplayName })}
-            </Text>
+              <Icon src={Icons.Pin} size="100" />
+            </IconButton>
           )}
-        </div>
+          {!isPinned && (
+            <div className={css.ResolveChip}>
+              <Button
+                size="300"
+                variant={headerModel.isResolved ? 'Success' : 'Secondary'}
+                fill={headerModel.isResolved ? 'Solid' : 'Soft'}
+                outlined={!headerModel.isResolved}
+                radii="300"
+                onClick={handleToggleResolve}
+                disabled={!headerModel.canEdit || headerModel.pickerDisabled || pinning.updating}
+                title={resolvedByLabel}
+              >
+                <Text size="T200">
+                  {headerModel.isResolved ? t('thread.resolved') : t('thread.resolve')}
+                </Text>
+              </Button>
+              {resolvedByDisplayName && (
+                <Text
+                  className={css.ResolutionByline}
+                  data-thread-resolution-byline="true"
+                  size="T200"
+                  priority="300"
+                  truncate
+                >
+                  {t('thread.resolvedByShort', { name: resolvedByDisplayName })}
+                </Text>
+              )}
+            </div>
+          )}
+        </Box>
       </div>
+      {!!pinning.error && (
+        <Text role="alert" size="T200">
+          {t('thread.pinFailed')}
+        </Text>
+      )}
     </div>
   );
 }

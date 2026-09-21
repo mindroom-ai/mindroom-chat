@@ -43,11 +43,7 @@ const makeLegacyThreadTagsEvent = (
     type: MINDROOM_THREAD_TAGS_EVENT,
   });
 
-const makePerTagEvent = (
-  threadRootId: string,
-  tagName: string,
-  content: Record<string, unknown>
-) =>
+const makePerTagEvent = (threadRootId: string, tagName: string, content: Record<string, unknown>) =>
   new MatrixEvent({
     content,
     event_id: `$thread-tag-${threadRootId}-${tagName}`,
@@ -83,6 +79,34 @@ function MapHarness({ room, onRender }: MapHarnessProps) {
 }
 
 describe('useRoomThreadTags compatibility with threadTags parser', () => {
+  it('suspends resolution while pinned and restores it when the pin is removed', () => {
+    let pinned = ['$root'];
+    const room = { roomId: '!room:example.org' } as Room;
+    const tag = makePerTagEvent('$root', 'resolved', {
+      set_by: '@alice:example.org',
+      set_at: ISO_1,
+    });
+    mockedUseStateEvents.mockImplementation((_room, type) =>
+      type === MINDROOM_THREAD_TAGS_EVENT
+        ? [tag]
+        : [new MatrixEvent({ type: 'm.room.pinned_events', state_key: '', content: { pinned } })]
+    );
+    let snapshot!: ReturnType<typeof useThreadResolution>;
+    const render = () =>
+      React.createElement(ResolutionHarness, {
+        room,
+        threadRootId: '$root',
+        onRender: (value) => {
+          snapshot = value;
+        },
+      });
+    const renderer = create(render());
+    expect(snapshot.isResolved).toBe(false);
+    pinned = [];
+    act(() => renderer.update(render()));
+    expect(snapshot.isResolved).toBe(true);
+    renderer.unmount();
+  });
   it('reads resolved state and plain tag names from per-tag state events', () => {
     const room = { roomId: '!room:example.org' } as Room;
     mockedUseStateEvents.mockImplementation((_room, eventType) => {

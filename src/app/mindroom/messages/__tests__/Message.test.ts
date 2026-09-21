@@ -305,6 +305,15 @@ vi.mock('../../../hooks/useMediaAuthentication', () => ({
 vi.mock('../../../hooks/useRoomPinnedEvents', () => ({
   useRoomPinnedEvents: () => [],
 }));
+vi.mock('../../threads/useThreadPinning', () => ({
+  useThreadPinning: () => ({
+    pinnedEventIds: [],
+    canPin: true,
+    setPinned: vi.fn(),
+    updating: false,
+    error: undefined,
+  }),
+}));
 
 vi.mock('../../../../types/matrix/room', () => ({
   StateEvent: {

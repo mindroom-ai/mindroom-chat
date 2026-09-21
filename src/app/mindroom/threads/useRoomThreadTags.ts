@@ -20,6 +20,7 @@ import {
   usePendingThreadTagsVersion,
 } from './threadTagPending';
 import { useMutateThreadTags } from './useMutateThreadTags';
+import { usePinnedEventIds } from './useThreadPinning';
 
 // ─── Resolution state types ─────────────────────────────────────────────────
 
@@ -99,6 +100,7 @@ export const useThreadResolution = (room: Room, threadRootId?: string): ThreadRe
 
 export const useRoomThreadResolutionMap = (room: Room): Map<string, ThreadResolutionState> => {
   const events = useStateEvents(room, MINDROOM_THREAD_TAGS_EVENT);
+  const pinnedEventIds = usePinnedEventIds(room);
   const pVersion = usePendingVersion();
   const pendingMap = useMemo(
     () => getPendingThreadTagsContentMap(room.roomId),
@@ -121,15 +123,19 @@ export const useRoomThreadResolutionMap = (room: Room): Map<string, ThreadResolu
   }, [pendingMap, resolutionMap, room.roomId]);
 
   return useMemo(() => {
-    if (pendingMap.size === 0) return resolutionMap;
+    if (pendingMap.size === 0 && pinnedEventIds.length === 0) return resolutionMap;
 
     const next = new Map<string, ThreadResolutionState>(resolutionMap);
     pendingMap.forEach((pend, threadRootId) => {
       const current = next.get(threadRootId) ?? unresolvedState;
       next.set(threadRootId, applyPending(current, pend));
     });
+    pinnedEventIds.forEach((threadRootId) => {
+      const current = next.get(threadRootId);
+      if (current?.isResolved) next.set(threadRootId, { ...current, isResolved: false });
+    });
     return next;
-  }, [pendingMap, resolutionMap]);
+  }, [pendingMap, resolutionMap, pinnedEventIds]);
 };
 
 export const useToggleThreadResolution = (room: Room) => {

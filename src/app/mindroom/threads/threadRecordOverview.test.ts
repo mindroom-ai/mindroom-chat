@@ -1,8 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type {
-  ThreadFilterState,
-  ThreadSortFreezeState,
-} from './roomThreadOverviewModel';
+import type { ThreadFilterState, ThreadSortFreezeState } from './roomThreadOverviewModel';
 import type { ThreadRecord } from './types';
 import {
   computeThreadRecordStatusCounts,
@@ -10,6 +7,27 @@ import {
   matchesThreadRecordFilterState,
   resolveThreadRecordOverviewRootIds,
 } from './threadRecordOverview';
+
+describe('pinned announcement ordering', () => {
+  it('keeps pins above filtered threads in pin order without duplicates', () => {
+    const recordMap = new Map([
+      ['$old', makeRecord('$old')],
+      ['$new', makeRecord('$new')],
+      ['$normal', makeRecord('$normal')],
+    ]);
+    const result = resolveThreadRecordOverviewRootIds({
+      threadRootIds: ['$normal', '$old', '$new'],
+      pinnedThreadRootIds: ['$new', '$old', '$missing', '$new'],
+      threadFilterState: makeDefaultState({ resolved: 'include' }),
+      searchQuery: '',
+      recordMap,
+      threadSortFreezeState: { controlSignature: 'frozen', orderedRootIds: ['$old', '$new'] },
+      threadSortControlSignature: 'frozen',
+    });
+    expect(result.filteredIds).toEqual(['$new', '$old']);
+    expect(result.displayOrderedIds).toEqual(['$new', '$old']);
+  });
+});
 
 const makeDefaultState = (overrides: Partial<ThreadFilterState> = {}): ThreadFilterState => ({
   resolved: 'any',

@@ -390,6 +390,15 @@ vi.mock('../useRoomThreadTags', () => ({
     error: undefined,
   }),
 }));
+vi.mock('../useThreadPinning', () => ({
+  useThreadPinning: () => ({
+    pinnedEventIds: [],
+    canPin: false,
+    setPinned: vi.fn(),
+    updating: false,
+    error: undefined,
+  }),
+}));
 
 vi.mock('../useThreadRootEvent', () => ({
   useThreadRootEvent: useThreadRootEventMock,

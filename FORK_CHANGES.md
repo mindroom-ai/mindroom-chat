@@ -2,6 +2,26 @@
 
 ## Runbook
 
+### Pin announcement threads in Compact room view (2026-09-21)
+
+- Status: implemented, validated, and independently reviewed.
+- Shared room pins appear in a separate section above ordinary Compact cards, newest pin first, with a stable order across replies, filters, and sorting.
+- Room admins can pin and unpin from Compact cards, thread headers, and existing message menus.
+  Admin means power level 100 or higher, or a privileged room creator, subject to the room's pin permission.
+- Admin-only enforcement applies within MindRoom Chat.
+  Other Matrix clients follow existing room permissions; this feature does not write power-level state.
+- Pinned roots cannot be resolved through client controls or thread-tag writes, including the command palette.
+  Any pre-existing resolution is suspended while pinned and resumes when unpinned.
+- Old roots, including announcements without replies, use the existing room event loader and cache path to join the Compact catalogue.
+- Shared pin state covers the overview, thread header, and room pin menu while serialized saves catch up with sync.
+  Regression tests cover queued changes, failed saves, delayed or early echoes, lost responses, and cached roots upgrading to live content.
+- Validation: all 5,001 tests across 575 files pass under Node 24.13.1.
+  Typecheck, production/PWA build, formatting, and ESLint pass with zero errors and the existing 17 warnings.
+- Three Chromium browser checks pass for admin/moderator permissions, stable ordering and reloads, suspended resolution, old zero-reply pins, and existing hover/keyboard behavior.
+  Desktop and phone-sized layouts were inspected.
+  Independent review reports no remaining findings.
+- Manual ordering remains follow-up work.
+
 ### Group tool calls while long-text details load (2026-09-21)
 
 - Long-text previews group consecutive tool markers into the existing tool-call dropdown before the sidecar arrives.

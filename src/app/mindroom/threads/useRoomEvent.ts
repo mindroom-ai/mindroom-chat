@@ -5,10 +5,7 @@ import { CryptoBackend } from 'matrix-js-sdk/lib/common-crypto/CryptoBackend';
 import { useQuery } from '@tanstack/react-query';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useActiveSession } from '../../hooks/useSessionStore';
-import {
-  loadCachedRoomEvent,
-  loadCachedThreadEvent,
-} from './eventRepository';
+import { loadCachedRoomEvent, loadCachedThreadEvent } from './eventRepository';
 
 type UseRoomEventOptions = {
   threadId?: string;
@@ -33,42 +30,45 @@ const hydrateLoadedEvent = async (
   return mEvent;
 };
 
-const useFetchEvent = (room: Room, eventId: string, options?: UseRoomEventOptions) => {
+export const useFetchRoomEvent = (room: Room) => {
   const mx = useMatrixClient();
   const activeSession = useActiveSession();
 
-  const fetchEventCallback = useCallback(async () => {
-    const sessionId = activeSession?.sessionId;
-    if (sessionId && options?.threadId) {
-      try {
-        const cachedThreadEvent = await loadCachedThreadEvent(
-          sessionId,
-          room.roomId,
-          options.threadId,
-          eventId
-        );
-        if (cachedThreadEvent) {
-          return hydrateLoadedEvent(mx, cachedThreadEvent);
+  const fetchEventCallback = useCallback(
+    async (eventId: string, options?: UseRoomEventOptions) => {
+      const sessionId = activeSession?.sessionId;
+      if (sessionId && options?.threadId) {
+        try {
+          const cachedThreadEvent = await loadCachedThreadEvent(
+            sessionId,
+            room.roomId,
+            options.threadId,
+            eventId
+          );
+          if (cachedThreadEvent) {
+            return hydrateLoadedEvent(mx, cachedThreadEvent);
+          }
+        } catch {
+          // Ignore cache read failures and fall through to other sources.
         }
-      } catch {
-        // Ignore cache read failures and fall through to other sources.
       }
-    }
 
-    if (sessionId) {
-      try {
-        const cachedRoomEvent = await loadCachedRoomEvent(sessionId, room.roomId, eventId);
-        if (cachedRoomEvent) {
-          return hydrateLoadedEvent(mx, cachedRoomEvent);
+      if (sessionId) {
+        try {
+          const cachedRoomEvent = await loadCachedRoomEvent(sessionId, room.roomId, eventId);
+          if (cachedRoomEvent) {
+            return hydrateLoadedEvent(mx, cachedRoomEvent);
+          }
+        } catch {
+          // Ignore cache read failures and fall through to the network fetch.
         }
-      } catch {
-        // Ignore cache read failures and fall through to the network fetch.
       }
-    }
 
-    const evt = await mx.fetchRoomEvent(room.roomId, eventId);
-    return hydrateLoadedEvent(mx, evt);
-  }, [activeSession?.sessionId, eventId, mx, options?.threadId, room.roomId]);
+      const evt = await mx.fetchRoomEvent(room.roomId, eventId);
+      return hydrateLoadedEvent(mx, evt);
+    },
+    [activeSession?.sessionId, mx, room.roomId]
+  );
 
   return fetchEventCallback;
 };
@@ -90,12 +90,12 @@ export const useRoomEvent = (
     return room.findEventById(eventId);
   }, [room, eventId, getLocally]);
 
-  const fetchEvent = useFetchEvent(room, eventId, options);
+  const fetchEvent = useFetchRoomEvent(room);
 
   const { data, error } = useQuery({
     enabled: event === undefined,
     queryKey: [room.roomId, eventId, options?.threadId],
-    queryFn: fetchEvent,
+    queryFn: () => fetchEvent(eventId, options),
     staleTime: Infinity,
     gcTime: 60 * 60 * 1000, // 1hour
     // A permanently-missing event stays missing — retrying only prolongs the

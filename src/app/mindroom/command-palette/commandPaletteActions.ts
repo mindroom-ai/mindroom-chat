@@ -7,10 +7,7 @@ import {
   getInboxPath,
   getSpaceSearchPath,
 } from '../../pages/pathUtils';
-import type {
-  CommandPaletteActionItem,
-  CommandPaletteMessageItem,
-} from './commandPaletteTypes';
+import type { CommandPaletteActionItem, CommandPaletteMessageItem } from './commandPaletteTypes';
 
 export type CommandPaletteQuickActionId =
   | 'open-settings'
@@ -31,6 +28,7 @@ export type CommandPaletteQuickActionContext = {
   currentRoomName?: string;
   currentThreadId?: string;
   isCurrentThreadResolved?: boolean;
+  isCurrentThreadPinned?: boolean;
 };
 
 export type CommandPaletteUserTarget =
@@ -47,7 +45,10 @@ export type CommandPaletteMessageTarget = CommandPaletteMessageItem & {
   path: string;
 };
 
-const buildPathWithSearch = (path: string, searchParams: Record<string, string | undefined>): string => {
+const buildPathWithSearch = (
+  path: string,
+  searchParams: Record<string, string | undefined>
+): string => {
   const params = new URLSearchParams();
 
   Object.entries(searchParams).forEach(([key, value]) => {
@@ -76,7 +77,12 @@ const actionItem = (
 });
 
 export const getCommandPaletteQuickActions = (
-  { currentRoomName, currentThreadId, isCurrentThreadResolved }: CommandPaletteQuickActionContext,
+  {
+    currentRoomName,
+    currentThreadId,
+    isCurrentThreadResolved,
+    isCurrentThreadPinned,
+  }: CommandPaletteQuickActionContext,
   t: TFunction
 ): CommandPaletteActionItem[] => {
   const roomLabel = currentRoomName ?? t('commandPalette.actions.currentRoomFallback');
@@ -145,19 +151,29 @@ export const getCommandPaletteQuickActions = (
     );
   }
 
-  if (currentThreadId) {
+  if (currentThreadId && !isCurrentThreadPinned) {
     actions.splice(
       actions.findIndex((item) => item.id === 'toggle-theme'),
       0,
       isCurrentThreadResolved
-        ? actionItem('unresolve-current-thread', t('commandPalette.actions.unresolveCurrentThread'), 40, {
-            description: t('commandPalette.actions.unresolveCurrentThreadDescription'),
-            keywords: ['thread', 'reopen'],
-          })
-        : actionItem('resolve-current-thread', t('commandPalette.actions.resolveCurrentThread'), 40, {
-            description: t('commandPalette.actions.resolveCurrentThreadDescription'),
-            keywords: ['thread', 'done'],
-          })
+        ? actionItem(
+            'unresolve-current-thread',
+            t('commandPalette.actions.unresolveCurrentThread'),
+            40,
+            {
+              description: t('commandPalette.actions.unresolveCurrentThreadDescription'),
+              keywords: ['thread', 'reopen'],
+            }
+          )
+        : actionItem(
+            'resolve-current-thread',
+            t('commandPalette.actions.resolveCurrentThread'),
+            40,
+            {
+              description: t('commandPalette.actions.resolveCurrentThreadDescription'),
+              keywords: ['thread', 'done'],
+            }
+          )
     );
   }
 
@@ -173,7 +189,13 @@ export type CommandPaletteMessageContext = {
 };
 
 export const getCommandPaletteMessageTargets = (
-  { query, currentRoomId, currentRoomName, currentSpaceId, currentSpaceName }: CommandPaletteMessageContext,
+  {
+    query,
+    currentRoomId,
+    currentRoomName,
+    currentSpaceId,
+    currentSpaceName,
+  }: CommandPaletteMessageContext,
   t: TFunction
 ): CommandPaletteMessageTarget[] => {
   const trimmedQuery = query.trim();

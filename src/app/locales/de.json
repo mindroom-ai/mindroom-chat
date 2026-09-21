@@ -279,6 +279,7 @@
     "voiceBundleBlocked": "Ein anderer Anhang wird noch gesendet oder benötigt deine Aufmerksamkeit. Warte oder versuche fehlgeschlagene Anhänge erneut oder entferne sie und sende diese Nachricht dann erneut."
   },
   "thread": {
+    "pinFailed": "Anheften konnte nicht aktualisiert werden. Bitte erneut versuchen.",
     "chip": "Thread",
     "view": "Thread-Ansicht",
     "resolve": "Auflösen",

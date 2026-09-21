@@ -18,14 +18,12 @@ import {
 import React, { FormEventHandler, useCallback, useState } from 'react';
 import FocusTrap from 'focus-trap-react';
 import { MatrixEvent, Room } from 'matrix-js-sdk';
-import { RoomPinnedEventsEventContent } from 'matrix-js-sdk/lib/types';
 import { Dialog, Header, MenuItem } from '../../components/glass/GlassPrimitives';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import * as css from '../../features/room/message/styles.css';
 import { AsyncStatus, useAsyncCallback } from '../../hooks/useAsyncCallback';
 import { stopPropagation } from '../../utils/keyboard';
-import { useRoomPinnedEvents } from '../../hooks/useRoomPinnedEvents';
-import { StateEvent } from '../../../types/matrix/room';
+import { useThreadPinning } from '../threads/useThreadPinning';
 
 export const MessagePinItem = as<
   'button',
@@ -36,33 +34,32 @@ export const MessagePinItem = as<
   }
 >(({ room, mEvent, onClose, ...props }, ref) => {
   const { t } = useTranslation();
-  const mx = useMatrixClient();
-  const pinnedEvents = useRoomPinnedEvents(room);
-  const isPinned = pinnedEvents.includes(mEvent.getId() ?? '');
+  const pinning = useThreadPinning(room);
+  const isPinned = pinning.pinnedEventIds.includes(mEvent.getId() ?? '');
 
   const handlePin = () => {
     const eventId = mEvent.getId();
-    const pinContent: RoomPinnedEventsEventContent = {
-      pinned: Array.from(pinnedEvents).filter((id) => id !== eventId),
-    };
-    if (!isPinned && eventId) {
-      pinContent.pinned.push(eventId);
-    }
-    mx.sendStateEvent(room.roomId, StateEvent.RoomPinnedEvents as any, pinContent);
-    onClose?.();
+    if (eventId)
+      void pinning.setPinned(eventId, !isPinned).then((saved) => {
+        if (saved) onClose?.();
+      });
   };
 
+  if (!pinning.canPin) return null;
   return (
     <MenuItem
       size="300"
       after={<Icon size="100" src={Icons.Pin} />}
       radii="300"
       onClick={handlePin}
+      disabled={pinning.updating}
       {...props}
       ref={ref}
     >
       <Text className={css.MessageMenuItemText} as="span" size="T300" truncate>
-        {isPinned
+        {pinning.error
+          ? t('thread.pinFailed')
+          : isPinned
           ? t('mindroomUi.messages.messageModerationActions.unpinMessage')
           : t('mindroomUi.messages.messageModerationActions.pinMessage')}
       </Text>

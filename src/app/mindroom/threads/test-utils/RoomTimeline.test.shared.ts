@@ -280,12 +280,13 @@ vi.mock('jotai', async (importOriginal) => {
   };
 });
 
-vi.mock('../../../hooks/usePowerLevels', () => ({
+vi.mock('../../../hooks/usePowerLevels', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../../hooks/usePowerLevels')>()),
   usePowerLevelsContext: () => ({}),
 }));
 
 vi.mock('../../../hooks/useRoomCreators', () => ({
-  useRoomCreators: () => [],
+  useRoomCreators: () => new Set(),
 }));
 
 vi.mock('../../../hooks/useRoomCreatorsTag', () => ({
@@ -529,6 +530,7 @@ vi.mock('../../../hooks/useDocumentFocusChange', () => ({
 vi.mock('../useStateEvents', () => ({
   useStateEvents: (_room: unknown, eventType: string) => stateEventsByTypeMock.get(eventType) ?? [],
 }));
+vi.mock('../usePinnedThreadEvents', () => ({ usePinnedThreadEvents: () => [] }));
 
 vi.mock('../../../hooks/useKeyDown', () => ({
   useKeyDown: vi.fn(),

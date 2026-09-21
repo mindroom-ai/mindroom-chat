@@ -280,6 +280,7 @@
     "voiceBundleBlocked": "L'invio di un altro allegato è ancora in corso o richiede attenzione. Attendi, riprova o rimuovi gli allegati non riusciti, quindi invia di nuovo questo messaggio."
   },
   "thread": {
+    "pinFailed": "Impossibile aggiornare il messaggio fissato. Riprova.",
     "chip": "Thread",
     "view": "Vista thread",
     "resolve": "Risolvi",

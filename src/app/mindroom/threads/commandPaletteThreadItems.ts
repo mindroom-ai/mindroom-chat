@@ -19,6 +19,7 @@ import {
   RESOLVED_TAG,
 } from './threadTags';
 import { getRoomThreadTagSnapshotMap, type ThreadTagSnapshot } from './threadTagSnapshots';
+import { isThreadPinned } from './threadPinning';
 
 type MindroomCommandPaletteThreadItem = CommandPaletteThreadItem & { onSelect: () => void };
 
@@ -199,6 +200,7 @@ export const useMindroomCommandPaletteThreadItems = ({
 }: UseMindroomCommandPaletteThreadItemsOptions): {
   currentThreadRootId: string | undefined;
   currentThreadResolved: boolean;
+  currentThreadPinned: boolean;
   setCurrentThreadResolved: (resolved: boolean) => void;
   threadItems: readonly MindroomCommandPaletteThreadItem[];
 } => {
@@ -222,13 +224,15 @@ export const useMindroomCommandPaletteThreadItems = ({
     return snapshots;
   }, [allJoinedRoomIds, getRoom]);
 
+  const currentThreadPinned =
+    !!selectedRoom && !!currentThreadRootId && isThreadPinned(selectedRoom, currentThreadRootId);
   const currentThreadResolved = useMemo(() => {
-    if (!selectedRoom || !currentThreadRootId) return false;
+    if (!selectedRoom || !currentThreadRootId || currentThreadPinned) return false;
 
     return (
       threadTagSnapshots.get(selectedRoom.roomId)?.get(currentThreadRootId)?.isResolved ?? false
     );
-  }, [currentThreadRootId, selectedRoom, threadTagSnapshots]);
+  }, [currentThreadRootId, currentThreadPinned, selectedRoom, threadTagSnapshots]);
 
   const setCurrentThreadResolved = useCallback(
     (resolved: boolean) => {
@@ -236,7 +240,7 @@ export const useMindroomCommandPaletteThreadItems = ({
 
       const rootEvent = getResolvableThreadRootEvent(selectedRoom, currentThreadRootId);
       const threadRootId = rootEvent?.getId();
-      if (!threadRootId) return;
+      if (!threadRootId || isThreadPinned(selectedRoom, threadRootId)) return;
 
       fireAndForget(
         mx.sendStateEvent(
@@ -317,6 +321,7 @@ export const useMindroomCommandPaletteThreadItems = ({
   return {
     currentThreadRootId,
     currentThreadResolved,
+    currentThreadPinned,
     setCurrentThreadResolved,
     threadItems,
   };

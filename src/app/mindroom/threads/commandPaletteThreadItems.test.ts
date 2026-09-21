@@ -73,55 +73,71 @@ describe('useMindroomCommandPaletteThreadItems', () => {
     useAtomValueMock.mockReturnValue([]);
   });
 
-  it('resolves the current standalone zero-reply root without an SDK thread model', async () => {
-    const sendStateEvent = vi.fn().mockResolvedValue(undefined);
-    const standaloneRoot = makeStandaloneMessageEvent('$standalone');
-    const selectedRoom = {
-      roomId: '!room:example.org',
-      name: 'Personal',
-      findEventById: (eventId: string) => (eventId === '$standalone' ? standaloneRoot : undefined),
-      getThread: () => undefined,
-      getThreads: () => [],
-      getLiveTimeline: () => ({
-        getState: () => ({
-          getStateEvents: () => [],
+  it.each([false, true])(
+    'guards resolution of a standalone root when pinned=%s',
+    async (pinned) => {
+      const sendStateEvent = vi.fn().mockResolvedValue(undefined);
+      const standaloneRoot = makeStandaloneMessageEvent('$standalone');
+      const selectedRoom = {
+        roomId: '!room:example.org',
+        name: 'Personal',
+        findEventById: (eventId: string) =>
+          eventId === '$standalone' ? standaloneRoot : undefined,
+        getThread: () => undefined,
+        getThreads: () => [],
+        getLiveTimeline: () => ({
+          getState: () => ({
+            getStateEvents: (type: string, key?: string) =>
+              key === undefined
+                ? []
+                : type === 'm.room.pinned_events'
+                ? new MatrixEvent({
+                    type,
+                    state_key: '',
+                    content: { pinned: pinned ? ['$standalone'] : [] },
+                  })
+                : undefined,
+          }),
         }),
-      }),
-    };
-    let snapshot: ReturnType<typeof useMindroomCommandPaletteThreadItems> | undefined;
+      };
+      let snapshot: ReturnType<typeof useMindroomCommandPaletteThreadItems> | undefined;
 
-    const Harness = () => {
-      snapshot = useMindroomCommandPaletteThreadItems({
-        mx: { sendStateEvent } as never,
-        myUserId: '@alice:example.org',
-        allJoinedRoomIds: [],
-        getRoom: () => undefined,
-        selectedRoom: selectedRoom as never,
-        selectedRoomId: '!room:example.org',
-        currentThreadId: '$standalone',
-        navigateRoomThread: vi.fn(),
+      const Harness = () => {
+        snapshot = useMindroomCommandPaletteThreadItems({
+          mx: { sendStateEvent } as never,
+          myUserId: '@alice:example.org',
+          allJoinedRoomIds: [],
+          getRoom: () => undefined,
+          selectedRoom: selectedRoom as never,
+          selectedRoomId: '!room:example.org',
+          currentThreadId: '$standalone',
+          navigateRoomThread: vi.fn(),
+        });
+        return null;
+      };
+
+      const renderer = create(React.createElement(Harness));
+
+      await act(async () => {
+        snapshot?.setCurrentThreadResolved(true);
       });
-      return null;
-    };
 
-    const renderer = create(React.createElement(Harness));
+      if (pinned) {
+        expect(sendStateEvent).not.toHaveBeenCalled();
+      } else
+        expect(sendStateEvent).toHaveBeenCalledWith(
+          '!room:example.org',
+          MINDROOM_THREAD_TAGS_EVENT,
+          expect.objectContaining({
+            set_by: '@alice:example.org',
+            set_at: expect.any(String),
+          }),
+          '["$standalone","resolved"]'
+        );
 
-    await act(async () => {
-      snapshot?.setCurrentThreadResolved(true);
-    });
-
-    expect(sendStateEvent).toHaveBeenCalledWith(
-      '!room:example.org',
-      MINDROOM_THREAD_TAGS_EVENT,
-      expect.objectContaining({
-        set_by: '@alice:example.org',
-        set_at: expect.any(String),
-      }),
-      '["$standalone","resolved"]'
-    );
-
-    renderer.unmount();
-  });
+      renderer.unmount();
+    }
+  );
 });
 
 describe('mergeCommandPaletteThreadItems', () => {

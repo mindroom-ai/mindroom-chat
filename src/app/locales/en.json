@@ -279,6 +279,7 @@
     "voiceBundleBlocked": "Another attachment send is still in progress or needs attention. Wait for it, or retry or remove failed attachments, then send this message again."
   },
   "thread": {
+    "pinFailed": "Could not update pin. Please try again.",
     "chip": "Thread",
     "view": "Thread View",
     "resolve": "Resolve",

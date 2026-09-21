@@ -4,6 +4,10 @@ import { MatrixEvent } from 'matrix-js-sdk';
 import { act, create } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { useRoomEvent } from './useRoomEvent';
+import { usePinnedThreadEvents } from './usePinnedThreadEvents';
+
+const pins = vi.hoisted(() => ({ ids: ['$old', '$reply', '$deleted'] }));
+vi.mock('./useThreadPinning', () => ({ usePinnedEventIds: () => pins.ids }));
 
 const fetchRoomEventMock = vi.fn();
 const loadCachedRoomEventMock = vi.fn();
@@ -39,7 +43,7 @@ const makeRoom = () =>
   ({
     findEventById: vi.fn(() => undefined),
     roomId: '!room:example.org',
-  }) as any;
+  } as any);
 
 const makeRawEvent = (eventId: string) => ({
   content: { body: `body-${eventId}` },
@@ -69,6 +73,71 @@ const EventProbe = ({
 };
 
 describe('useRoomEvent', () => {
+  it('loads old pinned roots from cache and excludes pinned replies and deleted roots', async () => {
+    useActiveSessionMock.mockReturnValue({ sessionId: 'session-1' });
+    loadCachedRoomEventMock.mockImplementation(async (_session, _room, id) => ({
+      ...makeRawEvent(id),
+      content:
+        id === '$reply'
+          ? { body: 'reply', 'm.relates_to': { rel_type: 'm.thread', event_id: '$old' } }
+          : id === '$deleted'
+          ? {}
+          : { body: 'Older announcement', msgtype: 'm.text' },
+      unsigned: id === '$deleted' ? { redacted_because: { type: 'm.room.redaction' } } : {},
+    }));
+    const room = makeRoom();
+    let events: MatrixEvent[] = [];
+    function Probe() {
+      events = usePinnedThreadEvents(room, true);
+      return null;
+    }
+    const client = new QueryClient();
+    let renderer!: ReturnType<typeof create>;
+    await act(async () => {
+      renderer = create(
+        React.createElement(QueryClientProvider, { client }, React.createElement(Probe))
+      );
+      await flushAsyncWork();
+    });
+    expect(events.map((event) => event.getId())).toEqual(['$old']);
+    expect(events[0].getContent().body).toBe('Older announcement');
+    expect(fetchRoomEventMock).not.toHaveBeenCalled();
+    renderer.unmount();
+    client.clear();
+  });
+
+  it('upgrades a cached pin to the newer live root on a room refresh', async () => {
+    useActiveSessionMock.mockReturnValue({ sessionId: 'session-1' });
+    loadCachedRoomEventMock.mockImplementation(async (_session, _room, id) => makeRawEvent(id));
+    const room = makeRoom();
+    let events: MatrixEvent[] = [];
+    function Probe({ revision }: { revision: number }) {
+      events = usePinnedThreadEvents(room, true, revision);
+      return null;
+    }
+    const client = new QueryClient();
+    const render = (revision: number) =>
+      React.createElement(
+        QueryClientProvider,
+        { client },
+        React.createElement(Probe, { revision })
+      );
+    let renderer!: ReturnType<typeof create>;
+    await act(async () => {
+      renderer = create(render(0));
+      await flushAsyncWork();
+    });
+    expect(events[0].getContent().body).toBe('body-$old');
+    const live = new MatrixEvent({
+      ...makeRawEvent('$old'),
+      content: { body: 'Updated announcement' },
+    });
+    room.findEventById.mockImplementation((id: string) => (id === '$old' ? live : undefined));
+    act(() => renderer.update(render(1)));
+    expect(events[0].getContent().body).toBe('Updated announcement');
+    renderer.unmount();
+    client.clear();
+  });
   afterEach(() => {
     fetchRoomEventMock.mockReset();
     loadCachedRoomEventMock.mockReset();

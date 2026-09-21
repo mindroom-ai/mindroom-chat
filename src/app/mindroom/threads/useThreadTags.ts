@@ -20,6 +20,7 @@ import {
   usePendingThreadTagsVersion,
 } from './threadTagPending';
 import { buildThreadTagSnapshotMap } from './threadTagSnapshots';
+import { usePinnedEventIds } from './useThreadPinning';
 
 export type UseThreadTagsResult = {
   /** Full parsed tag map */
@@ -54,12 +55,10 @@ export const useThreadTags = (
   const permissions = useRoomPermissions(creators, powerLevels);
 
   const allTagEvents = useStateEvents(room, MINDROOM_THREAD_TAGS_EVENT);
+  const pinnedEventIds = usePinnedEventIds(room);
   const pVersion = usePendingThreadTagsVersion();
 
-  const tagSnapshots = useMemo(
-    () => buildThreadTagSnapshotMap(allTagEvents),
-    [allTagEvents]
-  );
+  const tagSnapshots = useMemo(() => buildThreadTagSnapshotMap(allTagEvents), [allTagEvents]);
 
   const actualContent = useMemo(
     () =>
@@ -84,7 +83,7 @@ export const useThreadTags = (
 
   const displayTags = useMemo(() => getDisplayTags(content), [content]);
 
-  const resolved = useMemo(() => isThreadResolved(content), [content]);
+  const resolved = isThreadResolved(content) && !pinnedEventIds.includes(threadRootId ?? '');
 
   const canEdit = useMemo(
     () => permissions.stateEvent(MINDROOM_THREAD_TAGS_EVENT, mx.getSafeUserId()),

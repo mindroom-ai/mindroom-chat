@@ -177,12 +177,13 @@ vi.mock('jotai', async (importOriginal) => {
   };
 });
 
-vi.mock('../../../hooks/usePowerLevels', () => ({
+vi.mock('../../../hooks/usePowerLevels', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../../hooks/usePowerLevels')>()),
   usePowerLevelsContext: () => ({}),
 }));
 
 vi.mock('../../../hooks/useRoomCreators', () => ({
-  useRoomCreators: () => [],
+  useRoomCreators: () => new Set(),
 }));
 
 vi.mock('../../../hooks/useRoomCreatorsTag', () => ({
@@ -341,6 +342,7 @@ vi.mock('../../../hooks/useResizeObserver', () => ({
 vi.mock('../useStateEvents', () => ({
   useStateEvents: () => [],
 }));
+vi.mock('../usePinnedThreadEvents', () => ({ usePinnedThreadEvents: () => [] }));
 
 vi.mock('../useThreadLastActivityTs', () => ({
   getThreadLastActivityTs: () => 0,
