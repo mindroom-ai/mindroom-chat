@@ -9,7 +9,12 @@ describe('getMindroomAiRunInfo', () => {
         status: 'completed',
         run_id: 'run-1',
         session_id: 'session-1',
-        model: { config: 'default', id: 'gpt-4.1-mini', provider: 'openai' },
+        model: {
+          config: 'default',
+          display_name: 'GPT Mini',
+          id: 'gpt-4.1-mini',
+          provider: 'openai',
+        },
         usage: {
           input_tokens: 100,
           output_tokens: 25,
@@ -34,6 +39,7 @@ describe('getMindroomAiRunInfo', () => {
       runId: 'run-1',
       sessionId: 'session-1',
       modelConfig: 'default',
+      modelDisplayName: 'GPT Mini',
       modelId: 'gpt-4.1-mini',
       modelProvider: 'openai',
       inputTokens: 100,
@@ -53,11 +59,16 @@ describe('getMindroomAiRunInfo', () => {
 
   it('reads metadata from m.new_content wrapper payloads', () => {
     const info = getMindroomAiRunInfo({
+      'io.mindroom.ai_run': {
+        version: 1,
+        model: { config: 'old', display_name: 'Old Model' },
+      },
       'm.new_content': {
         body: 'edited',
         'io.mindroom.ai_run': {
           version: 1,
           status: 'cached',
+          model: { config: 'new', display_name: 'New Model' },
           usage: { total_tokens: 50 },
         },
       },
@@ -65,7 +76,24 @@ describe('getMindroomAiRunInfo', () => {
 
     expect(info?.status).toBe('cached');
     expect(info?.totalTokens).toBe(50);
+    expect(info?.modelConfig).toBe('new');
+    expect(info?.modelDisplayName).toBe('New Model');
   });
+
+  it.each([undefined, null, '', '   ', 42, {}, []])(
+    'ignores missing or invalid model display name %j while preserving the alias',
+    (displayName) => {
+      const info = getMindroomAiRunInfo({
+        'io.mindroom.ai_run': {
+          version: 1,
+          model: { config: 'friendly_alias', display_name: displayName },
+        },
+      });
+
+      expect(info?.modelDisplayName).toBeUndefined();
+      expect(info?.modelConfig).toBe('friendly_alias');
+    }
+  );
 
   it('returns undefined when metadata is absent or invalid', () => {
     expect(getMindroomAiRunInfo({})).toBeUndefined();

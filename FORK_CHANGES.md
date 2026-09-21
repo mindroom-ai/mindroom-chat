@@ -2,6 +2,15 @@
 
 ## Runbook
 
+### Prefer model display names in message badges (2026-09-21)
+
+- Message badges read optional `model.display_name` from `io.mindroom.ai_run` metadata and prefer it over the model alias, preserving authored casing.
+- Missing, blank, and invalid display names retain the existing alias/model-ID/provider fallback.
+  Tooltips and accessible labels include the full display name alongside the model alias, provider, and ID; run details retain their existing diagnostic fields.
+- Parser and badge regressions cover original messages, replacement metadata, display-name precedence, and legacy events without a display name.
+- Validation: all 5,061 tests pass under Node 24; typecheck, production/PWA build, formatting, and lint pass with zero errors and 17 existing warnings.
+  Independent review verified the full tooltip and accessible label after the display-name change.
+
 ### Finish Markdown formatting in sidecar and reply previews (2026-09-21)
 
 - Inline code no longer splits surrounding bold, italic, or strikethrough formatting in the shared Markdown parser.
