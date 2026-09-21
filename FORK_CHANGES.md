@@ -2,6 +2,22 @@
 
 ## Runbook
 
+### Keep pending invitation keys out of offline account startup (2026-09-20)
+
+- A recently accepted room invitation leaves a pending key-bundle record in the Rust crypto store, even for an unencrypted room with no bundle.
+  On restart, the SDK awaited an inviter `/keys/query` before returning the crypto backend; a disconnected phone exhausted retries and failed account initialization before saved rooms could be restored.
+- The SDK patch starts this optional import in the background and catches its failure, matching its existing handling of incoming bundle notifications.
+  Device identity checks, crypto-store loading, inviter verification and bundle validation remain unchanged.
+  Failed network attempts retain the pending record for the SDK's existing later-startup or bundle-notification retry; this change adds no retry coordinator or cache layer.
+- Real-WASM tests reopen a persisted crypto store, hold the key lookup, then either complete it or exhaust offline retries with `fetch failed: Load failed`.
+  They verify startup remains usable and the existing device identity and pending record survive.
+  The browser regression accepts a real invitation, waits for the application's own saved sync, closes the page, reopens with remote traffic offline, and checks live catch-up without reloading.
+- Validation: all 573 unit files / 4,953 tests, application and focused-test typechecks, production build and formatting pass; lint retains 17 existing warnings and no errors.
+  The invitation regression passes in Chromium and WebKit, and three existing Chromium cache-startup cases pass.
+  Chromium uses browser offline mode with local bundled assets served by the fixture; WebKit aborts remote requests and simulates the offline navigator state because its desktop runner cannot navigate intercepted assets in offline mode.
+  Independent review is clear, and the SDK patch applies to a clean package and matches the tested source and compiled files.
+  Physical iPhone verification remains pending the next build.
+
 ### Restore saved rooms before server discovery (2026-09-20)
 
 - The SDK now replays saved sync before waiting for `/versions`, including when message data survives without the separate server-version cache.
