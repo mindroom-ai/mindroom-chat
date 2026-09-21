@@ -1,5 +1,5 @@
 import React, { type RefObject, useCallback, useMemo, useState } from 'react';
-import type { Room } from 'matrix-js-sdk';
+import type { MatrixEvent, Room } from 'matrix-js-sdk';
 import type { Editor } from 'slate';
 import type { HTMLReactParserOptions } from 'html-react-parser';
 import type { Opts as LinkifyOpts } from 'linkifyjs';
@@ -186,17 +186,21 @@ export const useTimelineMessageFeature = ({
           document.activeElement?.getAttribute('data-editable-name') === 'RoomInput' &&
           isEmptyEditor(editor)
         ) {
-          const editableEvt = getLatestEditableEvt(
-            room.getLiveTimeline(),
-            (mEvt) => isConfirmedMatrixEventId(mEvt.getId()) && canEditEvent(mx, mEvt)
-          );
+          const thread = threadId ? room.getThread(threadId) : undefined;
+          const timeline = threadId ? thread?.liveTimeline : room.getLiveTimeline();
+          if (!timeline) return;
+          const isEditable = (mEvt: MatrixEvent) =>
+            isConfirmedMatrixEventId(mEvt.getId()) && canEditEvent(mx, mEvt);
+          const editableEvt =
+            getLatestEditableEvt(timeline, isEditable) ??
+            (thread?.rootEvent && isEditable(thread.rootEvent) ? thread.rootEvent : undefined);
           const editableEvtId = editableEvt?.getId();
           if (!editableEvtId) return;
           setEditId(editableEvtId);
           evt.preventDefault();
         }
       },
-      [mx, room, editor]
+      [mx, room, editor, threadId]
     )
   );
 
