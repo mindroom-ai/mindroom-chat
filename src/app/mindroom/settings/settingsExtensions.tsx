@@ -1,5 +1,5 @@
 import React from 'react';
-import { ArchivedRooms, ARCHIVED_ROOMS_SETTINGS_PAGE } from '../rooms/ArchivedRooms';
+import { ArchivedRooms, ARCHIVED_ROOMS_SETTINGS_PAGE } from '../rooms/ArchivedRoomsPage';
 import { type SettingsPage } from '../../features/settings/settingsPages';
 import { renderLocalMindroomSettingsPage } from '../local-mindroom/settingsRenderer';
 import { MindroomPrefetchSettings } from './MindroomPrefetchSettings';

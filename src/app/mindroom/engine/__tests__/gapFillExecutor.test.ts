@@ -1,10 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import 'fake-indexeddb/auto';
-import { Direction } from 'matrix-js-sdk';
+import { IDBFactory, IDBDatabase } from 'fake-indexeddb';
+import { Direction, MatrixEvent } from 'matrix-js-sdk';
 import type { IEvent, MatrixClient, Room } from 'matrix-js-sdk';
 import { STARTUP_SYNC_TIMELINE_LIMIT } from '../../../../client/initMatrix';
 import { createBackfillScheduler } from '../backfillScheduler';
-import { createGapFillExecutor } from '../gapFillExecutor';
+import { createGapFillExecutor as createExecutor } from '../gapFillExecutor';
 import { createInMemoryGapFillScheduler, GAP_FILL_OVERLAP_TAIL_LIMIT } from '../engineGapTracker';
 import { StateEvent } from '../../../../types/matrix/room';
 import {
@@ -15,10 +16,20 @@ import {
   loadLatestCachedThreadEvents,
   resetCacheStoreForTesting,
 } from '../../threads/cacheStore';
+import { revokeRoomCacheStoreWrites } from '../../threads/cacheStore/cacheStoreDb';
 import { getCacheProbeSnapshot, resetCacheProbe } from '../../threads/cacheProbe';
 import { persistRoomChunkWithPreferLive } from '../../threads/eventRepository';
 
 const SESSION_ID = 'session-p42';
+// Legacy homeserver-policy cases opt in explicitly; production now defaults to focused rooms.
+const createGapFillExecutor: typeof createExecutor = (options, queue) =>
+  createExecutor(
+    {
+      getPrefetchConfig: () => ({ scope: 'my-server' }),
+      ...options,
+    },
+    queue
+  );
 
 const makeMatrixEvent = (senderId: string) =>
   ({
@@ -49,39 +60,6 @@ const makeRoomStub = (roomId: string, createSender: string | undefined, encrypte
     getLastActiveTimestamp: () => 0,
   } as unknown as Room);
 
-// CINNY-207 P7.2 audit finding #3: a minimal MatrixEvent shape sufficient
-// for `serializeRoomCacheEvents` (via `hydrateCachedEvents` +
-// `collectStateTargetEvents`). Non-redaction, non-replace events skip
-// every branch except the identity emit — we only need `getId`,
-// `getType`, `getRelation`, `getSender`, and `.event`.
-const identityMapper = (raw: Partial<IEvent>) => {
-  const relation = (raw.content as Record<string, unknown> | undefined)?.['m.relates_to'] as
-    | { rel_type?: string; event_id?: string }
-    | undefined;
-  return {
-    getId: () => raw.event_id ?? '',
-    getType: () => raw.type,
-    getTs: () => (raw.origin_server_ts as number) ?? 0,
-    isRedaction: () => raw.type === 'm.room.redaction',
-    isRedacted: () => Boolean(raw.unsigned?.redacted_because),
-    getAssociatedId: () => (raw.content as { redacts?: string } | undefined)?.redacts,
-    getRelation: () => relation ?? null,
-    getUnsigned: () => raw.unsigned ?? {},
-    getStateKey: () => (raw as { state_key?: string }).state_key,
-    getSender: () => raw.sender,
-    getContent: () => raw.content ?? {},
-    getWireContent: () => raw.content ?? {},
-    makeRedacted: () => undefined,
-    makeReplaced: () => undefined,
-    replacingEvent: () => null,
-    // Gap-fill chunks carry raw thread replies; the thread-scope
-    // grouping (2026-07-06 eager-cache fix) reads `threadRootId` off
-    // the mapped event.
-    threadRootId: relation?.rel_type === 'm.thread' ? relation.event_id : undefined,
-    event: raw,
-  } as unknown as import('matrix-js-sdk').MatrixEvent;
-};
-
 type MockClient = MatrixClient & {
   __rooms: Map<string, Room>;
   __messages: Array<{
@@ -108,7 +86,7 @@ const createMockClient = (
     // CINNY-207 P7.2 audit finding #3: `persistRoomChunkWithPreferLive`
     // resolves the event mapper up front and wraps it in
     // `createPreferLiveEventMapper` before persisting each chunk.
-    getEventMapper: () => identityMapper,
+    getEventMapper: () => (raw: Partial<IEvent>) => new MatrixEvent(raw),
     createMessagesRequest: vi
       .fn()
       .mockImplementation(
@@ -163,11 +141,107 @@ const waitForCondition = async (condition: () => boolean): Promise<void> => {
 };
 
 describe('gapFillExecutor (CINNY-207 P4.2)', () => {
+  it('retains the gap and stops a multi-token cycle under explicit allowance', async () => {
+    const roomId = '!room:mindroom.chat';
+    const mx = createMockClient('mindroom.chat', (call) => {
+      if (call >= 3) throw new Error('test cycle limit');
+      return { end: call % 2 === 0 ? 'b' : 'a', chunk: [] };
+    });
+    mx.__rooms.set(roomId, makeRoomStub(roomId, '@alice:mindroom.chat'));
+    await markRoomTailDiscontinuity(SESSION_ID, roomId, {
+      markedAt: 1,
+      prevBatch: 'a',
+      overlapEventIds: [],
+    });
+    const scheduler = createBackfillScheduler({ mx });
+    const queue = createInMemoryGapFillScheduler();
+    const executor = createGapFillExecutor(
+      { mx, sessionId: SESSION_ID, scheduler, pageAllowance: () => 200 },
+      queue
+    );
+    queue.enqueueGapFill({ roomId, markedAt: 1, prevBatch: 'a', reason: 'limited-sync' });
+    await waitForCompleted(3);
+    expect(mx.__messages).toHaveLength(2);
+    expect(await loadRoomTailDiscontinuity(SESSION_ID, roomId)).toBeDefined();
+    executor.stop();
+    scheduler.abortAll();
+  });
+
+  it.each(['transport', 'commit', 'same-token'])(
+    'retries a %s failure only after recheck',
+    async (failure) => {
+      // eslint-disable-next-line no-console
+      const originalWarn = console.warn;
+      const warn = vi.spyOn(console, 'warn').mockImplementation((...args) => {
+        if (
+          failure !== 'commit' ||
+          !String(args[0]).startsWith('[mindroom-cache:roomEventCache.save]')
+        )
+          originalWarn(...args);
+      });
+      const roomId = '!room:mindroom.chat';
+      const mx = createMockClient('mindroom.chat', (call) => {
+        if (!call && failure === 'transport') throw new Error('offline');
+        return {
+          chunk: [rawEvent('$retry', 10)],
+          ...(!call && failure === 'same-token' ? { end: 'before' } : {}),
+        };
+      });
+      mx.__rooms.set(roomId, makeRoomStub(roomId, '@alice:mindroom.chat'));
+      await markRoomTailDiscontinuity(SESSION_ID, roomId, {
+        markedAt: 1,
+        prevBatch: 'before',
+        overlapEventIds: [],
+      });
+      const transaction = IDBDatabase.prototype.transaction;
+      let aborted = false;
+      const fault = vi
+        .spyOn(IDBDatabase.prototype, 'transaction')
+        .mockImplementation(function abortFirstWrite(...args) {
+          const result = transaction.apply(this, args);
+          if (
+            failure === 'commit' &&
+            !aborted &&
+            args[1] === 'readwrite' &&
+            result.objectStoreNames.contains('events')
+          ) {
+            aborted = true;
+            queueMicrotask(() => result.abort());
+          }
+          return result;
+        });
+      const scheduler = createBackfillScheduler({ mx });
+      const queue = createInMemoryGapFillScheduler();
+      const executor = createGapFillExecutor({ mx, sessionId: SESSION_ID, scheduler }, queue);
+      queue.enqueueGapFill({ roomId, markedAt: 1, prevBatch: 'before', reason: 'limited-sync' });
+      await waitForCompleted(1);
+      expect(mx.__messages).toHaveLength(1);
+      expect(await loadRoomTailDiscontinuity(SESSION_ID, roomId)).toBeDefined();
+      executor.recheckDeferred(roomId);
+      await vi.waitFor(() => expect(mx.__messages).toHaveLength(2));
+      await waitForCompleted(2);
+      expect(await loadRoomTailDiscontinuity(SESSION_ID, roomId)).toBeUndefined();
+      expect(aborted).toBe(failure === 'commit');
+      if (failure === 'commit')
+        expect(warn).toHaveBeenCalledWith(
+          expect.stringContaining('[mindroom-cache:roomEventCache.save]'),
+          expect.anything()
+        );
+      else expect(warn).not.toHaveBeenCalled();
+      warn.mockRestore();
+      fault.mockRestore();
+      executor.stop();
+      scheduler.abortAll();
+    }
+  );
+
   it('keeps enough cached-tail ids to cover ten configured sync windows', () => {
     expect(GAP_FILL_OVERLAP_TAIL_LIMIT).toBeGreaterThanOrEqual(STARTUP_SYNC_TIMELINE_LIMIT * 10);
   });
 
   beforeEach(async () => {
+    globalThis.indexedDB = new IDBFactory();
+    resetCacheStoreForTesting();
     await clearRoomTailDiscontinuity(SESSION_ID, '!room:mindroom.chat');
     await clearRoomTailDiscontinuity(SESSION_ID, '!fed:example.org');
     await clearRoomTailDiscontinuity(SESSION_ID, '!e2e:mindroom.chat');
@@ -177,6 +251,7 @@ describe('gapFillExecutor (CINNY-207 P4.2)', () => {
     resetCacheProbe();
   });
   afterEach(async () => {
+    vi.restoreAllMocks();
     await clearRoomTailDiscontinuity(SESSION_ID, '!room:mindroom.chat');
     await clearRoomTailDiscontinuity(SESSION_ID, '!fed:example.org');
     await clearRoomTailDiscontinuity(SESSION_ID, '!e2e:mindroom.chat');
@@ -320,7 +395,7 @@ describe('gapFillExecutor (CINNY-207 P4.2)', () => {
     expect(marker).toBeDefined();
   });
 
-  it('skips encrypted own-server rooms (unusable ciphertext without decryption context)', async () => {
+  it('fetches encrypted room history before clearing an exhausted gap', async () => {
     const mx = createMockClient('mindroom.chat', () => ({ chunk: [] }));
     mx.__rooms.set(
       '!e2e:mindroom.chat',
@@ -347,7 +422,7 @@ describe('gapFillExecutor (CINNY-207 P4.2)', () => {
     await flushMicrotasks();
     await waitForCompleted();
 
-    expect(mx.__messages.length).toBe(0);
+    expect(mx.__messages.length).toBe(1);
     const marker = await loadRoomTailDiscontinuity(SESSION_ID, '!e2e:mindroom.chat');
     expect(marker).toBeUndefined();
   });
@@ -440,7 +515,8 @@ describe('gapFillExecutor (CINNY-207 P4.2)', () => {
     });
 
     resolveFirst({ end: 'old-next', chunk: [rawEvent('$recovered-prefix', 20)] });
-    await waitForCompleted(2);
+    // The superseded request and both successor pages each release a scheduler slot.
+    await waitForCompleted(3);
 
     expect(requestedTokens).toEqual(['old-token', 'new-token', 'new-next']);
     expect(await loadRoomTailDiscontinuity(SESSION_ID, '!room:mindroom.chat')).toBeUndefined();
@@ -522,6 +598,43 @@ describe('gapFillExecutor (CINNY-207 P4.2)', () => {
     expect(snapshot.schedulerFailed).toBe(0);
     expect(snapshot.schedulerCompleted).toBe(1);
   });
+
+  it.each(['boundary-read', 'empty-response'] as const)(
+    'keeps a revoked gap task from mutating metadata after %s',
+    async (stage) => {
+      const roomId = '!room:mindroom.chat';
+      const marker = {
+        markedAt: 1000,
+        prevBatch: 'tok-0',
+        generation: 'revoked',
+        ...(stage === 'empty-response' ? { overlapEventIds: ['$boundary'] } : {}),
+      };
+      await markRoomTailDiscontinuity(SESSION_ID, roomId, marker);
+      const mx = createMockClient('mindroom.chat', () => {
+        if (stage === 'empty-response') revokeRoomCacheStoreWrites(SESSION_ID, roomId);
+        return { chunk: [] };
+      });
+      mx.__rooms.set(roomId, makeRoomStub(roomId, '@alice:mindroom.chat'));
+      const scheduler = createBackfillScheduler({ mx });
+      const queue = createInMemoryGapFillScheduler();
+      createGapFillExecutor(
+        {
+          mx,
+          sessionId: SESSION_ID,
+          scheduler,
+          loadCachedTail: async () => {
+            revokeRoomCacheStoreWrites(SESSION_ID, roomId);
+            return { events: [rawEvent('$boundary', 1)], hasMore: false, beforeToken: null };
+          },
+        },
+        queue
+      );
+      queue.enqueueGapFill({ roomId, reason: 'limited-sync', ...marker });
+      await waitForCompleted();
+      expect(await loadRoomTailDiscontinuity(SESSION_ID, roomId)).toEqual(marker);
+      expect(mx.__messages).toHaveLength(stage === 'empty-response' ? 1 : 0);
+    }
+  );
 
   it('defers without fetching or clearing when the durable marker read fails', async () => {
     const mx = createMockClient('mindroom.chat', () => ({ chunk: [] }));
@@ -772,7 +885,8 @@ describe('gapFillExecutor (CINNY-207 P4.2)', () => {
     await flushMicrotasks();
     await waitForCompleted();
 
-    // The executor stopped at GAP_FILL_MAX_ITERATIONS (20) because
+    await waitForCompleted(20);
+    // Twenty page-sized scheduler turns reached the fallback cap because
     // /messages kept returning a next-token. The marker MUST still
     // be present so a later run picks up from where we left off.
     const marker = await loadRoomTailDiscontinuity(SESSION_ID, '!room:mindroom.chat');
@@ -783,7 +897,7 @@ describe('gapFillExecutor (CINNY-207 P4.2)', () => {
     // Sanity: we did hit the cap.
     expect(mx.__messages.length).toBe(20);
     const snapshot = getCacheProbeSnapshot();
-    expect(snapshot.schedulerCompleted).toBe(1);
+    expect(snapshot.schedulerCompleted).toBe(20);
     expect(snapshot.schedulerFailed).toBe(0);
 
     // A focus recheck in the same runtime resumes the retained job from the
@@ -792,6 +906,7 @@ describe('gapFillExecutor (CINNY-207 P4.2)', () => {
     await flushMicrotasks();
     await waitForCompleted(2);
 
+    await waitForCompleted(21);
     expect(mx.__messages[20].fromToken).toBe('tok-20');
     expect(mx.__messages).toHaveLength(21);
     expect(await loadRoomTailDiscontinuity(SESSION_ID, '!room:mindroom.chat')).toBeUndefined();
@@ -833,51 +948,14 @@ describe('gapFillExecutor (CINNY-207 P4.2)', () => {
     // A trackable live instance that is currently NOT redacted; when
     // preferLive fires, it must call makeRedacted on THIS object and
     // return it (so `.event` serializes to the healed shape).
-    let liveContent: Record<string, unknown> = preRedactionContent;
-    let liveIsRedacted = false;
-    const liveRedactedBecause: { present?: Partial<IEvent> } = {};
-    const liveEvent = {
-      getId: () => '$stale',
-      getType: () => 'm.room.message',
-      getTs: () => 500,
-      isRedaction: () => false,
-      isRedacted: () => liveIsRedacted,
-      getAssociatedId: () => undefined,
-      getRelation: () => null,
-      getUnsigned: () =>
-        liveRedactedBecause.present ? { redacted_because: liveRedactedBecause.present } : {},
-      getStateKey: () => undefined,
-      getSender: () => '@alice:mindroom.chat',
-      getContent: () => liveContent,
-      getWireContent: () => liveContent,
-      makeRedacted: (redactionMEvent: { event?: Partial<IEvent> }) => {
-        // Simulate matrix-js-sdk behavior: prune content, mark redacted,
-        // stamp unsigned.redacted_because from the redaction event.
-        liveIsRedacted = true;
-        liveContent = {};
-        liveRedactedBecause.present = redactionMEvent.event;
-        // The .event property is the raw form the serializer reads.
-        (liveEvent as unknown as { event: Partial<IEvent> }).event = {
-          event_id: '$stale',
-          type: 'm.room.message',
-          origin_server_ts: 500,
-          sender: '@alice:mindroom.chat',
-          room_id: '!room:mindroom.chat',
-          content: {},
-          unsigned: { redacted_because: redactionMEvent.event ?? undefined } as never,
-        };
-      },
-      makeReplaced: () => undefined,
-      replacingEvent: () => null,
-      event: {
-        event_id: '$stale',
-        type: 'm.room.message',
-        origin_server_ts: 500,
-        sender: '@alice:mindroom.chat',
-        room_id: '!room:mindroom.chat',
-        content: preRedactionContent,
-      } as Partial<IEvent>,
-    };
+    const liveEvent = new MatrixEvent({
+      event_id: '$stale',
+      type: 'm.room.message',
+      origin_server_ts: 500,
+      sender: '@alice:mindroom.chat',
+      room_id: '!room:mindroom.chat',
+      content: preRedactionContent,
+    });
 
     const mx = createMockClient('mindroom.chat', (call) => {
       if (call === 0) return { chunk: [staleChunkEvent] };
@@ -916,8 +994,8 @@ describe('gapFillExecutor (CINNY-207 P4.2)', () => {
     const cached = await loadCachedRoomEvent(SESSION_ID, '!room:mindroom.chat', '$stale');
     expect(cached).toBeDefined();
     expect(cached?.content).toEqual({});
-    expect(liveIsRedacted).toBe(true);
-    expect(liveRedactedBecause.present?.event_id).toBe('$redaction');
+    expect(liveEvent.isRedacted()).toBe(true);
+    expect(liveEvent.getUnsigned().redacted_because?.event_id).toBe('$redaction');
   });
 
   // CINNY-207 P7.2 audit finding #5 — the user-facing `prefetchScope`

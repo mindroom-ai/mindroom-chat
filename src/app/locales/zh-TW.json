@@ -279,6 +279,7 @@
     "voiceBundleBlocked": "另一個附件傳送仍在進行中或需要注意。等待，或重試或刪除失敗的附件，然後再次傳送此訊息。"
   },
   "thread": {
+    "pinFailed": "無法更新釘選狀態。請再試一次。",
     "chip": "討論串",
     "view": "討論串檢視",
     "resolve": "解決",
@@ -885,7 +886,7 @@
       "login": "登入",
       "thisClientRequiresSignInWithAppleConfigureTheHomeserverSsoProvider": "此用戶端要求使用 Apple 登入。請在主伺服器的 SSO 提供者清單中加入 Apple。",
       "register": "註冊",
-      "accountLink": "沒有帳戶？ <link>註冊</link>",
+      "accountLink": "沒有帳戶？ <authLink>註冊</authLink>",
       "passwordLoginIsDisabledOnValue1UseSsoToSignIn": "「{{value1}}」已停用密碼登入。請使用 SSO 登入。",
       "thisClientDoesNotSupportLoginOnValue1ServerPasswordAndSso": "該用戶端不支援登入「{{value1}}」伺服器。找不到基於密碼和 SSO 的登入方法。"
     },
@@ -948,7 +949,7 @@
       "thisApplicationDoesNotSupportRegistrationOnThisHomeserver": "此應用程式不支援在此主伺服器上註冊。",
       "ssoRegistrationIsRequiredOnThisHomeserverButNoSsoProvidersWere": "該主伺服器需要 SSO 註冊，但沒有公佈 SSO 提供者。",
       "login": "登入",
-      "accountLink": "已經有帳戶？ <link>登入</link>"
+      "accountLink": "已經有帳戶？ <authLink>登入</authLink>"
     },
     "passwordResetForm": {
       "passwordHasBeenResetSuccessfullyPleaseLoginWithYourNewPassword": "密碼已成功重設。請使用您的新密碼登入。",
@@ -963,7 +964,7 @@
     "resetPassword": {
       "resetPassword": "重設密碼",
       "login": "登入",
-      "accountLink": "還記得您的密碼嗎？ <link>登入</link>"
+      "accountLink": "還記得您的密碼嗎？ <authLink>登入</authLink>"
     },
     "clientRoot": {
       "catchingUp": "正在同步…",
@@ -1716,7 +1717,40 @@
         "advancedOptions": "進階選項",
         "compact": "緊湊",
         "threads": "討論串",
-        "classic": "經典"
+        "classic": "經典",
+        "offline": {
+          "title": "離線存取",
+          "checking": "正在檢查已儲存的內容…",
+          "unavailable": "此裝置無法使用已儲存的內容。",
+          "notSaved": "此聊天室尚未儲存以供離線使用。",
+          "downloading": "正在下載此聊天室以供離線使用…",
+          "offlinePause": "裝置離線時會暫停儲存。",
+          "backgroundPause": "應用程式在背景執行時會暫停儲存。",
+          "spacePause": "受保護的內容已用完儲存空間配額，因此暫停儲存。",
+          "readOnlyPause": "儲存失敗。請重新開啟應用程式以繼續儲存。",
+          "connectionPause": "此連線下的自動儲存已暫停。",
+          "errorPause": "發生錯誤後已暫停儲存。請再試一次。",
+          "partialHistory": "部分較早的歷史記錄尚未儲存。",
+          "inaccessibleHistory": "部分歷史記錄目前無法存取。",
+          "waitingForKeys": "正在等待金鑰的加密事件：{{count}}",
+          "unresolvedRelations": "尚未解析的編輯或回覆：{{count}}",
+          "missingEssential": "缺少的必要訊息內容：{{count}}",
+          "historyEntries": "已儲存的歷史記錄項目：{{count}}",
+          "attachments": "附件：已儲存 {{saved}} 個，缺少 {{missing}} 個。",
+          "storageUsed": "附件使用的儲存空間：{{size}}",
+          "pinFailed": "無法更新「保持離線」。",
+          "includeAllMedia": "包含所有媒體",
+          "keepOffline": "保持離線",
+          "keepOfflineDescription": "自動清理時保護此聊天室已儲存的媒體。",
+          "cancelDownload": "取消下載",
+          "downloadEntireRoom": "下載整個聊天室",
+          "clearDownloadedContent": "清除已下載的內容",
+          "clearTitle": "要清除已下載的內容嗎？",
+          "cancel": "取消",
+          "clearDescription": "此聊天室已儲存的歷史記錄和附件將從此裝置移除。",
+          "clearFailed": "無法清除已下載的內容。",
+          "clearConfirm": "清除內容"
+        }
       },
       "permissions": {
         "permissions": "權限",
@@ -2070,6 +2104,7 @@
         "clearing": "正在清除…",
         "credits": "致謝",
         "deepDiagnosticTracing": "深度診斷追蹤",
+        "deepTraceMemoryOnly": "追蹤儲存空間無法使用，正在記憶體中記錄。請在重新啟動應用程式前匯出；重新啟動後這些近期事件將遺失。",
         "deepTraceEnabledStorageUnavailable": "已啟用，但追蹤儲存空間目前不可用。",
         "deepTraceOff": "已關閉。在重現凍結前啟用，以記錄效能、Matrix、網路、生命週期和互動計時。",
         "deepTracePreferenceSaveFailed": "{{description}} 此工作階段已關閉，但無法儲存首選項，並且可能會在重新啟動後重新啟用。",
@@ -2431,6 +2466,8 @@
         "viewReactions": "檢視反應"
       },
       "mindroomHtmlBlocks": {
+        "loadingToolDetails": "仍在載入…",
+        "toolDetailsUnavailable": "工具詳細資訊無法使用。",
         "pastedText": "貼上的文字",
         "characterCount_one": "{{formattedCount}} 個字元",
         "characterCount_other": "{{formattedCount}} 個字元",

@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   CodeBlock,
   LINKIFY_OPTS,
+  factoryRenderLinkifyWithMention,
   getReactCustomHtmlParser,
   renderTextWithLatex,
 } from './react-custom-html-parser';
@@ -76,6 +77,9 @@ vi.mock('../styles/CustomHtml.css', () => ({
   CodeBlockBottomShadow: 'CodeBlockBottomShadow',
   Code: 'Code',
   Mention: () => 'Mention',
+  Spoiler: () => 'Spoiler',
+  EmoticonBase: 'EmoticonBase',
+  Emoticon: () => 'Emoticon',
 }));
 
 vi.mock('../mindroom/html/MatrixMath.css', () => ({
@@ -248,6 +252,80 @@ const renderLatexTextMarkup = (text: string): string =>
     )
   );
 
+describe('inline website favicons', () => {
+  const renderLinks = (html: string, enabled = true) => {
+    const linkifyOpts = {
+      ...LINKIFY_OPTS,
+      render: factoryRenderLinkifyWithMention(() => undefined, enabled),
+    };
+    const opts = getReactCustomHtmlParser({} as MatrixClient, undefined, {
+      linkifyOpts,
+      showLinkFavicons: enabled,
+    });
+    return renderToStaticMarkup(React.createElement(React.Fragment, null, parse(html, opts)));
+  };
+
+  it('uses the same cached site icon for plain and formatted links without exposing paths', () => {
+    const markup = renderLinks(
+      '<p>https://github.com/example/one?secret=value <a href="https://github.com/example/two#part" title="Read docs"><strong>Docs</strong></a></p>'
+    );
+    expect(markup.match(/src="https:\/\/icons.duckduckgo.com\/ip3\/github.com.ico"/g)).toHaveLength(
+      2
+    );
+    expect(markup).toContain('title="Read docs"');
+    expect(markup).toContain('<strong>Docs</strong>');
+    expect(markup).toContain('href="https://github.com/example/two#part"');
+    expect(markup).toContain('referrerPolicy="no-referrer"');
+    expect(markup).toContain('alt=""');
+  });
+
+  it('does not load favicons when previews are disabled', () => {
+    expect(
+      renderLinks('<p>https://github.com <a href="https://example.com">Example</a></p>', false)
+    ).not.toContain('<img');
+  });
+
+  it.each([
+    '<span data-mx-spoiler><a href="https://secret.example.com">Secret site</a></span>',
+    '<span data-mx-spoiler>https://secret.example.com</span>',
+    '<span data-mx-spoiler><strong>https://secret.example.com</strong></span>',
+    '<span data-mx-spoiler data-mx-maths="{">https://secret.example.com</span>',
+    '<a href="https://secret.example.com"><span data-mx-spoiler>Secret site</span></a>',
+    '<a href="https://secret.example.com"><strong><span data-mx-spoiler>Secret site</span></strong></a>',
+  ])('does not mount an icon for a link involving spoiler text: %s', (html) => {
+    const markup = renderLinks(html);
+    expect(markup).toContain('https://secret.example.com');
+    expect(markup).not.toContain('<img');
+    expect(markup).not.toContain('icons.duckduckgo.com');
+  });
+
+  it('preserves custom math rendering inside a spoiler', () => {
+    const markup = renderLinks('<span data-mx-spoiler data-mx-maths="x^2">fallback</span>');
+    expect(markup).toContain('aria-pressed="true"');
+    expect(markup).toContain('class="MathInline"');
+    expect(markup).toContain('katex');
+  });
+
+  it('keeps code and Matrix mentions free of website icons', () => {
+    expect(
+      renderLinks('<code>https://github.com</code><pre>https://example.com</pre>')
+    ).not.toContain('<img');
+    const mention = factoryRenderLinkifyWithMention(
+      () => React.createElement('a', { 'data-mention-id': '@alice:example.com' }, 'Alice'),
+      true
+    ) as (ir: unknown) => React.ReactElement;
+    const markup = renderToStaticMarkup(
+      mention({
+        tagName: 'a',
+        attributes: { href: 'https://matrix.to/#/@alice:example.com' },
+        content: 'Alice',
+      })
+    );
+    expect(markup).toContain('data-mention-id');
+    expect(markup).not.toContain('<img');
+  });
+});
+
 const collectStructuralTableWhitespace = (
   node: ReactTestRendererJSON | ReactTestRendererJSON[] | string | null,
   tags = new Set(['table', 'thead', 'tbody', 'tfoot', 'tr', 'colgroup'])
@@ -269,6 +347,50 @@ const collectStructuralTableWhitespace = (
 };
 
 describe('withMindroomToolTraceMarkerParserOptions', () => {
+  it.each(['', '\n  '])(
+    'preserves custom rendering after tool groups separated by %j',
+    (separator) => {
+      const html = [
+        '<p>🔧 <code>first_tool</code> [1]</p>',
+        '<p>🔧 <code>second_tool</code> [2]</p>',
+        '<table><thead><tr><th>Project</th><th>Status</th></tr></thead><tbody><tr><td>Sample</td><td>Ready</td></tr></tbody></table>',
+      ].join(separator);
+      const baseOpts = getReactCustomHtmlParser({} as MatrixClient, undefined, {
+        linkifyOpts: LINKIFY_OPTS,
+      });
+      const opts = withMindroomToolTraceMarkerParserOptions(baseOpts, { formatted_body: html });
+      const markup = renderToStaticMarkup(
+        React.createElement(React.Fragment, null, parse(html, opts))
+      );
+
+      expect(markup).toContain('class="TableContainer"');
+      expect(markup).toContain('class="TableScrollArea"');
+      expect(markup).toContain('<table class="Table">');
+      expect(markup).toContain('<td>Sample</td>');
+      expect(markup.match(/2 tool calls/g)).toHaveLength(1);
+      expect(markup).not.toContain('🔧');
+    }
+  );
+
+  it('preserves shared paragraph styling immediately after a tool group', () => {
+    const html = [
+      '<p>🔧 <code>first_tool</code> [1]</p>',
+      '<p>🔧 <code>second_tool</code> [2]</p>',
+      '<p>Results are ready.</p>',
+    ].join('');
+    const baseOpts = getReactCustomHtmlParser({} as MatrixClient, undefined, {
+      linkifyOpts: LINKIFY_OPTS,
+    });
+    const opts = withMindroomToolTraceMarkerParserOptions(baseOpts, { formatted_body: html });
+    const markup = renderToStaticMarkup(
+      React.createElement(React.Fragment, null, parse(html, opts))
+    );
+
+    expect(markup).toContain('class="Paragraph MarginSpaced"');
+    expect(markup).toContain('Results are ready.');
+    expect(markup).not.toContain('🔧');
+  });
+
   it('renders tool blocks for marker-only content and enriches them with trace metadata', () => {
     const html = '<p>🔧 <code>search_web</code> [1]</p>';
 
@@ -340,6 +462,9 @@ describe('withMindroomToolTraceMarkerParserOptions', () => {
     expect(expanded).toContain('FIRST');
     expect(expanded).toContain('Tool #2: second_tool ⏳');
     expect(expanded).toContain('Tool #3: third_tool');
+    expect(expanded.match(/Tool #1: first_tool/g)).toHaveLength(1);
+    expect(expanded.match(/Tool #2: second_tool/g)).toHaveLength(1);
+    expect(expanded.match(/Tool #3: third_tool/g)).toHaveLength(1);
     expect(expanded).toContain('THIRD');
     expect(expanded).toContain('Done');
   });

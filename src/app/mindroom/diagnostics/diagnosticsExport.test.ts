@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   getDeepTraceHealthSnapshot: vi.fn(),
   readNativeDiagnostics: vi.fn(),
   readDeepTraceSnapshot: vi.fn(),
+  readDeepTraceMemorySnapshot: vi.fn(),
 }));
 
 vi.mock('./flightRecorder', () => ({
@@ -19,6 +20,7 @@ vi.mock('./deepTrace', () => ({
   getDeepTraceEnabled: mocks.getDeepTraceEnabled,
   getDeepTraceHealthSnapshot: mocks.getDeepTraceHealthSnapshot,
   readDeepTraceSnapshot: mocks.readDeepTraceSnapshot,
+  readDeepTraceMemorySnapshot: mocks.readDeepTraceMemorySnapshot,
 }));
 
 vi.mock('./nativeDiagnostics', () => ({
@@ -64,6 +66,7 @@ describe('combined diagnostics export', () => {
       events: [{ name: 'thread_resume.visibility.start' }],
     });
     mocks.getDeepTraceEnabled.mockReturnValue(false);
+    mocks.readDeepTraceMemorySnapshot.mockReturnValue({ storage: 'memory', events: [] });
     mocks.getDeepTraceHealthSnapshot.mockReturnValue({
       status: 'recording',
       pendingEventCount: 0,
@@ -95,7 +98,7 @@ describe('combined diagnostics export', () => {
 
     expect(fileName).toBe('mindroom-diagnostics-2026-07-20T02-13-48-415Z.json');
     expect(payload.metadata).toEqual({
-      exportSchemaVersion: 3,
+      exportSchemaVersion: 4,
       flightRecorderSchemaVersion: 1,
       deepTraceSchemaVersion: 1,
       nativeDiagnosticsSchemaVersion: 1,
@@ -273,4 +276,27 @@ describe('combined diagnostics export', () => {
     expect(payload.abnormalSession).toEqual({ sessionId: 'abnormal' });
     expect(vi.getTimerCount()).toBe(0);
   });
+
+  it.each(['rejects', 'hangs'])(
+    'preserves the export-start memory tail when persistent tracing %s',
+    async (mode) => {
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+      if (mode === 'rejects')
+        mocks.readDeepTraceSnapshot.mockRejectedValue(new Error('storage failed'));
+      else mocks.readDeepTraceSnapshot.mockReturnValue(new Promise(() => {}));
+      const memory = {
+        storage: 'memory',
+        events: [{ name: 'thread.render', data: { reply_count: 1 } }],
+      };
+      mocks.readDeepTraceMemorySnapshot.mockReturnValue(memory);
+      const exporting = buildDiagnosticsExport();
+      mocks.readDeepTraceMemorySnapshot.mockReturnValue({ storage: 'memory', events: [] });
+      await vi.advanceTimersByTimeAsync(5001);
+      const payload = JSON.parse(await (await exporting).blob.text());
+      expect(payload.deepTraceMemory).toEqual(memory);
+      expect(payload.deepTrace.status).toBe(mode === 'rejects' ? 'unavailable' : 'timeout');
+      expect(payload.nativeDiagnostics.status).toBe('available');
+      expect(vi.getTimerCount()).toBe(0);
+    }
+  );
 });

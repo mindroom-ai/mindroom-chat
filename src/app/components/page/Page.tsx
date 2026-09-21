@@ -56,16 +56,23 @@ export function PageNav({ size, children }: ClientDrawerLayoutProps & css.PageNa
   );
 }
 
-export const PageNavHeader = as<'header'>(({ className, ...props }, ref) => (
-  <Header
-    className={classNames(css.PageNavHeader, className)}
-    appearance="plain"
-    variant="Background"
-    size="600"
-    {...props}
-    ref={ref}
-  />
-));
+export const PageNavHeader = as<'header'>(({ className, ...props }, ref) => {
+  const enclosingSurface = useSurfaceContext();
+  return (
+    <Header
+      className={classNames(
+        css.PageNavHeader,
+        !enclosingSurface && css.PageNavHeaderMaterial,
+        className
+      )}
+      appearance={enclosingSurface ? 'inherit' : 'plain'}
+      variant="Background"
+      size="600"
+      {...props}
+      ref={ref}
+    />
+  );
+});
 
 export function PageNavContent({
   scrollRef,
@@ -125,17 +132,18 @@ export const Page = as<'div'>(({ className, ...props }, ref) => {
   );
 });
 
-export const PageHeader = as<'div', css.PageHeaderVariants>(
-  ({ className, outlined, balance, ...props }, ref) => (
-    <Header
-      as="header"
-      size="600"
-      className={classNames(css.PageHeader({ balance, outlined }), className)}
-      {...props}
-      ref={ref}
-    />
-  )
-);
+export const PageHeader = as<
+  'div',
+  css.PageHeaderVariants & Pick<ComponentProps<typeof Header>, 'appearance'>
+>(({ className, outlined, balance, ...props }, ref) => (
+  <Header
+    as="header"
+    size="600"
+    className={classNames(css.PageHeader({ balance, outlined }), className)}
+    {...props}
+    ref={ref}
+  />
+));
 
 export const PageContent = as<'div'>(({ className, ...props }, ref) => (
   <div className={classNames(css.PageContent, className)} {...props} ref={ref} />

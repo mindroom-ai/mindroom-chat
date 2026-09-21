@@ -279,6 +279,7 @@
     "voiceBundleBlocked": "Pengiriman lampiran lain masih berlangsung atau perlu ditangani. Tunggu hingga selesai, atau coba lagi maupun hapus lampiran yang gagal, lalu kirim ulang pesan ini."
   },
   "thread": {
+    "pinFailed": "Tidak dapat memperbarui sematan. Coba lagi.",
     "chip": "Utas",
     "view": "Tampilan utas",
     "resolve": "Selesaikan",
@@ -885,7 +886,7 @@
       "login": "Login",
       "thisClientRequiresSignInWithAppleConfigureTheHomeserverSsoProvider": "Klien ini memerlukan Masuk dengan Apple. Konfigurasikan daftar penyedia SSO homeserver agar mencakup Apple.",
       "register": "Daftar",
-      "accountLink": "Belum punya akun? <link>Daftar</link>",
+      "accountLink": "Belum punya akun? <authLink>Daftar</authLink>",
       "passwordLoginIsDisabledOnValue1UseSsoToSignIn": "Login dengan kata sandi dinonaktifkan di \"{{value1}}\". Gunakan SSO untuk masuk.",
       "thisClientDoesNotSupportLoginOnValue1ServerPasswordAndSso": "Klien ini tidak mendukung login di server \"{{value1}}\". Metode login dengan kata sandi maupun SSO tidak ditemukan."
     },
@@ -948,7 +949,7 @@
       "thisApplicationDoesNotSupportRegistrationOnThisHomeserver": "Aplikasi ini tidak mendukung pendaftaran di homeserver ini.",
       "ssoRegistrationIsRequiredOnThisHomeserverButNoSsoProvidersWere": "Pendaftaran melalui SSO diwajibkan di homeserver ini, tetapi tidak ada penyedia SSO yang diumumkan.",
       "login": "Login",
-      "accountLink": "Sudah punya akun? <link>Login</link>"
+      "accountLink": "Sudah punya akun? <authLink>Login</authLink>"
     },
     "passwordResetForm": {
       "passwordHasBeenResetSuccessfullyPleaseLoginWithYourNewPassword": "Kata sandi berhasil direset. Login dengan kata sandi baru Anda.",
@@ -963,7 +964,7 @@
     "resetPassword": {
       "resetPassword": "Reset kata sandi",
       "login": "Login",
-      "accountLink": "Ingat kata sandi Anda? <link>Login</link>"
+      "accountLink": "Ingat kata sandi Anda? <authLink>Login</authLink>"
     },
     "clientRoot": {
       "catchingUp": "Memperbarui...",
@@ -1716,7 +1717,40 @@
         "advancedOptions": "Opsi lanjutan",
         "compact": "Ringkas",
         "threads": "Utas",
-        "classic": "Klasik"
+        "classic": "Klasik",
+        "offline": {
+          "title": "Akses offline",
+          "checking": "Memeriksa konten tersimpan…",
+          "unavailable": "Konten tersimpan tidak tersedia di perangkat ini.",
+          "notSaved": "Ruang ini belum disimpan untuk penggunaan offline.",
+          "downloading": "Mengunduh ruang ini untuk penggunaan offline…",
+          "offlinePause": "Penyimpanan dijeda saat perangkat offline.",
+          "backgroundPause": "Penyimpanan dijeda saat aplikasi berjalan di latar belakang.",
+          "spacePause": "Penyimpanan dijeda karena konten yang dilindungi memenuhi batas penyimpanan.",
+          "readOnlyPause": "Penyimpanan gagal. Buka kembali aplikasi untuk melanjutkan penyimpanan.",
+          "connectionPause": "Penyimpanan otomatis dijeda pada koneksi ini.",
+          "errorPause": "Penyimpanan dijeda setelah terjadi kesalahan. Coba lagi.",
+          "partialHistory": "Sebagian riwayat lama belum disimpan.",
+          "inaccessibleHistory": "Sebagian riwayat saat ini tidak dapat diakses.",
+          "waitingForKeys": "Peristiwa terenkripsi yang menunggu kunci: {{count}}",
+          "unresolvedRelations": "Edit atau balasan yang belum terselesaikan: {{count}}",
+          "missingEssential": "Isi pesan penting yang tidak ada: {{count}}",
+          "historyEntries": "Entri riwayat tersimpan: {{count}}",
+          "attachments": "Lampiran: {{saved}} tersimpan, {{missing}} belum tersimpan.",
+          "storageUsed": "Penyimpanan yang digunakan lampiran: {{size}}",
+          "pinFailed": "Pengaturan “Tetap offline” tidak dapat diperbarui.",
+          "includeAllMedia": "Sertakan semua media",
+          "keepOffline": "Tetap offline",
+          "keepOfflineDescription": "Lindungi media tersimpan untuk ruang ini selama pembersihan otomatis.",
+          "cancelDownload": "Batalkan unduhan",
+          "downloadEntireRoom": "Unduh seluruh ruang",
+          "clearDownloadedContent": "Hapus konten yang diunduh",
+          "clearTitle": "Hapus konten yang diunduh?",
+          "cancel": "Batal",
+          "clearDescription": "Riwayat dan lampiran tersimpan untuk ruang ini akan dihapus dari perangkat ini.",
+          "clearFailed": "Konten yang diunduh tidak dapat dihapus.",
+          "clearConfirm": "Hapus konten"
+        }
       },
       "permissions": {
         "permissions": "Izin",
@@ -2070,6 +2104,7 @@
         "clearing": "Membersihkan...",
         "credits": "Kredit",
         "deepDiagnosticTracing": "Pelacakan diagnostik mendalam",
+        "deepTraceMemoryOnly": "Merekam di memori karena penyimpanan jejak tidak tersedia. Ekspor sebelum memulai ulang aplikasi; peristiwa terbaru ini akan hilang saat aplikasi dimulai ulang.",
         "deepTraceEnabledStorageUnavailable": "Aktif, tetapi penyimpanan jejak saat ini tidak tersedia.",
         "deepTraceOff": "Nonaktif. Aktifkan sebelum mengulangi masalah macet untuk merekam waktu kinerja, Matrix, jaringan, siklus hidup, dan interaksi.",
         "deepTracePreferenceSaveFailed": "{{description}} Nonaktif untuk sesi ini, tetapi preferensi tidak dapat disimpan dan mungkin aktif kembali setelah dimulai ulang.",
@@ -2431,6 +2466,8 @@
         "viewReactions": "Lihat reaksi"
       },
       "mindroomHtmlBlocks": {
+        "loadingToolDetails": "Masih memuat…",
+        "toolDetailsUnavailable": "Detail alat tidak tersedia.",
         "pastedText": "Teks yang ditempel",
         "characterCount_one": "{{formattedCount}} karakter",
         "characterCount_other": "{{formattedCount}} karakter",

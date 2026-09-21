@@ -279,6 +279,7 @@
     "voiceBundleBlocked": "Başka bir ekin gönderimi sürüyor veya müdahale gerekiyor. Tamamlanmasını bekleyin ya da başarısız ekleri yeniden deneyin veya kaldırın, ardından bu mesajı tekrar gönderin."
   },
   "thread": {
+    "pinFailed": "Sabitleme güncellenemedi. Lütfen tekrar deneyin.",
     "chip": "Konu",
     "view": "Konu görünümü",
     "resolve": "Çözüldü işaretle",
@@ -885,7 +886,7 @@
       "login": "Giriş yap",
       "thisClientRequiresSignInWithAppleConfigureTheHomeserverSsoProvider": "Bu istemci Apple ile giriş yapılmasını gerektirir. Ana sunucunun SSO sağlayıcı listesine Apple'ı ekleyin.",
       "register": "Kayıt ol",
-      "accountLink": "Hesabınız yok mu? <link>Kayıt olun</link>",
+      "accountLink": "Hesabınız yok mu? <authLink>Kayıt olun</authLink>",
       "passwordLoginIsDisabledOnValue1UseSsoToSignIn": "\"{{value1}}\" sunucusunda parolayla giriş kapalıdır. Giriş yapmak için SSO kullanın.",
       "thisClientDoesNotSupportLoginOnValue1ServerPasswordAndSso": "Bu istemci \"{{value1}}\" sunucusuna girişi desteklemiyor. Parola veya SSO tabanlı giriş yöntemi bulunamadı."
     },
@@ -948,7 +949,7 @@
       "thisApplicationDoesNotSupportRegistrationOnThisHomeserver": "Bu uygulama bu ana sunucuda kaydı desteklemiyor.",
       "ssoRegistrationIsRequiredOnThisHomeserverButNoSsoProvidersWere": "Bu ana sunucuda SSO ile kayıt gerekiyor, ancak hiçbir SSO sağlayıcısı bildirilmedi.",
       "login": "Giriş yap",
-      "accountLink": "Zaten hesabınız var mı? <link>Giriş yapın</link>"
+      "accountLink": "Zaten hesabınız var mı? <authLink>Giriş yapın</authLink>"
     },
     "passwordResetForm": {
       "passwordHasBeenResetSuccessfullyPleaseLoginWithYourNewPassword": "Parola başarıyla sıfırlandı. Lütfen yeni parolanızla giriş yapın.",
@@ -963,7 +964,7 @@
     "resetPassword": {
       "resetPassword": "Parolayı sıfırla",
       "login": "Giriş yap",
-      "accountLink": "Parolanızı hatırladınız mı? <link>Giriş yapın</link>"
+      "accountLink": "Parolanızı hatırladınız mı? <authLink>Giriş yapın</authLink>"
     },
     "clientRoot": {
       "catchingUp": "Güncelleniyor...",
@@ -1716,7 +1717,40 @@
         "advancedOptions": "Gelişmiş seçenekler",
         "compact": "Kompakt",
         "threads": "Konular",
-        "classic": "Klasik"
+        "classic": "Klasik",
+        "offline": {
+          "title": "Çevrimdışı erişim",
+          "checking": "Kaydedilen içerik kontrol ediliyor…",
+          "unavailable": "Kaydedilen içerik bu cihazda kullanılamıyor.",
+          "notSaved": "Bu oda henüz çevrimdışı kullanım için kaydedilmedi.",
+          "downloading": "Bu oda çevrimdışı kullanım için indiriliyor…",
+          "offlinePause": "Cihaz çevrimdışıyken kaydetme duraklatılır.",
+          "backgroundPause": "Uygulama arka plandayken kaydetme duraklatılır.",
+          "spacePause": "Korunan içerik depolama sınırını doldurduğu için kaydetme duraklatıldı.",
+          "readOnlyPause": "Depolama başarısız oldu. Kaydetmeye devam etmek için uygulamayı yeniden açın.",
+          "connectionPause": "Bu bağlantıda otomatik kaydetme duraklatıldı.",
+          "errorPause": "Bir hatadan sonra kaydetme duraklatıldı. Tekrar deneyin.",
+          "partialHistory": "Önceki geçmişin bir bölümü kaydedilmedi.",
+          "inaccessibleHistory": "Geçmişin bir bölümüne şu anda erişilemiyor.",
+          "waitingForKeys": "Anahtar bekleyen şifrelenmiş etkinlikler: {{count}}",
+          "unresolvedRelations": "Çözümlenmemiş düzenlemeler veya yanıtlar: {{count}}",
+          "missingEssential": "Eksik temel mesaj gövdeleri: {{count}}",
+          "historyEntries": "Kaydedilen geçmiş girdileri: {{count}}",
+          "attachments": "Ekler: {{saved}} kaydedildi, {{missing}} eksik.",
+          "storageUsed": "Eklerin kullandığı depolama alanı: {{size}}",
+          "pinFailed": "“Çevrimdışı tut” güncellenemedi.",
+          "includeAllMedia": "Tüm medyayı dahil et",
+          "keepOffline": "Çevrimdışı tut",
+          "keepOfflineDescription": "Otomatik temizleme sırasında bu odanın kaydedilmiş medyasını koru.",
+          "cancelDownload": "İndirmeyi iptal et",
+          "downloadEntireRoom": "Tüm odayı indir",
+          "clearDownloadedContent": "İndirilen içeriği temizle",
+          "clearTitle": "İndirilen içerik temizlensin mi?",
+          "cancel": "İptal",
+          "clearDescription": "Bu odanın kaydedilen geçmişi ve ekleri bu cihazdan kaldırılacak.",
+          "clearFailed": "İndirilen içerik temizlenemedi.",
+          "clearConfirm": "İçeriği temizle"
+        }
       },
       "permissions": {
         "permissions": "İzinler",
@@ -2070,6 +2104,7 @@
         "clearing": "Temizleniyor...",
         "credits": "Katkıda bulunanlar",
         "deepDiagnosticTracing": "Ayrıntılı tanılama izleme",
+        "deepTraceMemoryOnly": "İz depolama kullanılamadığı için belleğe kaydediliyor. Uygulamayı yeniden başlatmadan önce dışa aktarın; bu son olaylar yeniden başlatıldığında kaybolur.",
         "deepTraceEnabledStorageUnavailable": "Etkin, ancak iz depolama şu anda kullanılamıyor.",
         "deepTraceOff": "Kapalı. Performans, Matrix, ağ, yaşam döngüsü ve etkileşim zamanlarını kaydetmek için donmayı yeniden oluşturmadan önce etkinleştirin.",
         "deepTracePreferenceSaveFailed": "{{description}} Bu oturum için kapalı, ancak tercih kaydedilemedi ve yeniden başlatıldığında tekrar etkinleşebilir.",
@@ -2431,6 +2466,8 @@
         "viewReactions": "Tepkileri görüntüle"
       },
       "mindroomHtmlBlocks": {
+        "loadingToolDetails": "Hâlâ yükleniyor…",
+        "toolDetailsUnavailable": "Araç ayrıntıları kullanılamıyor.",
         "pastedText": "Yapıştırılan metin",
         "characterCount_one": "{{formattedCount}} karakter",
         "characterCount_other": "{{formattedCount}} karakter",

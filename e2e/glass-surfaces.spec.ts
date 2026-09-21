@@ -1,5 +1,265 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { contrastRatio, pixelDifference, sampleScreenshot, type Rgba } from './helpers/glassVisual';
+import {
+  contrastRatio,
+  expectVerticalGlassRim,
+  pixelDifference,
+  sampleScreenshot,
+  type Rgba,
+} from './helpers/glassVisual';
+
+for (const theme of ['light', 'dark']) {
+  test(`chat controls and attachment shells have top and bottom rim highlights in ${theme}`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 390, height: 1800 });
+    await page.goto(`/e2e/fixtures/glass-surfaces.html?controls&theme=${theme}`);
+    await page.evaluate(() => Promise.all([...document.fonts].map((font) => font.load())));
+    const surfaces = [
+      ...['recording', 'attachment', 'paste', 'upload', 'upload-error'].map((id) =>
+        page.getByTestId(id).locator(':scope > *')
+      ),
+      page.getByTestId('link'),
+      page.getByTestId('card-shells').locator('details'),
+      page.getByRole('button', { name: 'Show full message', exact: true }),
+      page.getByRole('button', { name: 'Jump to Latest', exact: true }),
+    ];
+    for (const surface of surfaces) {
+      await expect(surface).toBeInViewport({ ratio: 1 });
+      await expectVerticalGlassRim(page, surface);
+      expect
+        .soft(await surface.evaluate((element) => getComputedStyle(element).boxShadow))
+        .not.toContain('inset');
+    }
+  });
+
+  test(`chat glass keeps controls usable and respects high contrast in ${theme}`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 390, height: 1800 });
+    await page.goto(`/e2e/fixtures/glass-surfaces.html?controls&theme=${theme}`);
+    await page.getByRole('button', { name: 'Pause voice recording' }).click();
+    await expect(page.getByRole('button', { name: 'Resume voice recording' })).toBeEnabled();
+    await page.getByRole('button', { name: 'Resume voice recording' }).click();
+    await expect(page.getByRole('button', { name: 'Pause voice recording' })).toBeEnabled();
+    const disclosure = page.getByTestId('disclosure').getByRole('button');
+    await disclosure.click();
+    await expect(disclosure).toHaveAttribute('aria-expanded', 'true');
+    await disclosure.click();
+    await expect(disclosure).toHaveAttribute('aria-expanded', 'false');
+    const jump = page.getByRole('button', { name: 'Jump to Latest', exact: true });
+    await jump.focus();
+    await page.keyboard.press('Enter');
+    await expect(page.getByRole('status')).toHaveText('Jump to Latest');
+    const extras = page.getByTestId('card-shells').locator('details');
+    await extras.locator('summary').click();
+    await expect(extras.locator('pre')).toBeHidden();
+    await extras.locator('summary').click();
+    await expect(extras.locator('pre')).toBeVisible();
+    await expect(extras.locator('pre')).toHaveCSS('filter', 'none');
+    await expect(extras.locator('pre')).toHaveCSS('backdrop-filter', 'none');
+    await page.emulateMedia({ contrast: 'more' });
+    for (const surface of [page.getByTestId('link'), extras, jump, disclosure]) {
+      await expect(surface).toHaveCSS('backdrop-filter', 'none');
+      expect(
+        await surface.evaluate((element) => getComputedStyle(element, '::before').display)
+      ).toBe('none');
+    }
+    const outlined = [
+      ...['attachment', 'upload', 'upload-error', 'recording'].map((id) =>
+        page.getByTestId(id).locator(':scope > *')
+      ),
+      page.getByTestId('link'),
+      extras,
+      jump,
+    ];
+    for (const surface of outlined) {
+      await expect(surface).toHaveCSS('backdrop-filter', 'none');
+      await expect(surface).toHaveCSS('box-shadow', /inset/);
+    }
+    await page.emulateMedia({ forcedColors: 'active' });
+    for (const surface of outlined) {
+      await expect(surface).toHaveCSS('outline-style', 'solid');
+      await expect(surface).toHaveCSS('outline-width', '1px');
+    }
+    await jump.focus();
+    await page.keyboard.press('Tab');
+    await page.keyboard.press('Shift+Tab');
+    await expect(jump).toBeFocused();
+    expect(
+      await jump.evaluate((element) => {
+        const css = getComputedStyle(element);
+        return [css.outlineWidth, css.outlineOffset];
+      })
+    ).toEqual(['2px', '2px']);
+  });
+}
+
+for (const theme of ['light', 'dark']) {
+  test(`message cards share top and bottom rim highlights in ${theme}`, async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 1400 });
+    await page.goto(`/e2e/fixtures/glass-surfaces.html?messages&theme=${theme}`);
+    await page.evaluate(() => document.fonts.ready);
+    for (const id of [
+      'summary',
+      'tool',
+      'history',
+      'approval',
+      'approval-group',
+      'approval-bar',
+      'composer',
+    ]) {
+      const host = page.getByTestId(id);
+      const surface = ['approval-group', 'approval-bar'].includes(id)
+        ? host
+        : host.locator(':scope > *').first();
+      await expect(surface).toBeInViewport({ ratio: 1 });
+      await expectVerticalGlassRim(page, surface);
+      expect
+        .soft(
+          await surface.evaluate((element) => getComputedStyle(element).boxShadow),
+          `${id} has no competing outline`
+        )
+        .not.toContain('inset');
+    }
+  });
+
+  test(`message glass preserves disclosure controls and composer focus in ${theme}`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 390, height: 1400 });
+    await page.goto(`/e2e/fixtures/glass-surfaces.html?messages&theme=${theme}`);
+    const tool = page.getByTestId('tool').getByRole('button');
+    await tool.click();
+    await expect(tool).toHaveAttribute('aria-expanded', 'true');
+    await expect(page.getByTestId('tool').getByText(/Tool #2: read_file/)).toBeVisible();
+    const history = page.getByTestId('history').locator('details').first();
+    await history.locator(':scope > summary').click();
+    const nested = history.locator('details[aria-label="Resolved tool approval request"]');
+    await expect(nested).toHaveCount(1);
+    await expect(nested).toHaveCSS('backdrop-filter', 'none');
+    expect(
+      await nested.evaluate((element) => {
+        const rim = getComputedStyle(element, '::before');
+        return rim.display === 'none' || rim.content === 'none';
+      })
+    ).toBe(true);
+    await nested.locator(':scope > summary').click();
+    await expect(
+      nested.getByText('Decision recorded for this call', { exact: true })
+    ).toBeVisible();
+    const editor = page.getByTestId('composer').getByRole('textbox');
+    const composer = page.getByTestId('composer').locator(':scope > *').first();
+    await editor.fill('Review the notes');
+    await expect(composer).toHaveCSS('box-shadow', /inset/);
+    await expect(editor).toHaveText('Review the notes');
+    await editor.blur();
+    await expect(composer).not.toHaveCSS('box-shadow', /inset/);
+    await page.emulateMedia({ contrast: 'more' });
+    for (const surface of [page.getByTestId('summary').locator(':scope > *'), history, composer]) {
+      await expect(surface).toHaveCSS('backdrop-filter', 'none');
+      expect(
+        await surface.evaluate((element) => getComputedStyle(element, '::before').display)
+      ).toBe('none');
+    }
+  });
+}
+
+for (const theme of ['light', 'silver', 'dark', 'midnight', 'butter']) {
+  test(`thread and audio rims highlight the top and bottom in ${theme}`, async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 1600 });
+    await page.goto(`/e2e/fixtures/glass-surfaces.html?theme=${theme}`);
+    // The fixture uses the real, plain chat background so colors cannot hide a missing rim.
+    for (const surface of [
+      page.getByTestId('thread-banner'),
+      page.getByTestId('audio-host').locator(':scope > div > div').last(),
+    ]) {
+      await expect(surface).toBeVisible();
+      await expect(surface).toBeInViewport({ ratio: 1 });
+      await expectVerticalGlassRim(page, surface);
+    }
+    if (theme === 'light' || theme === 'silver') {
+      const top = await page.getByTestId('thread-banner').evaluate((element) => {
+        const box = element.getBoundingClientRect();
+        return { x: box.x + box.width / 2 + window.scrollX, y: box.y + window.scrollY };
+      });
+      // The gap above this banner is plain page background, without overlapping text.
+      const [edge, backdrop] = await sampleScreenshot(page, [top, { ...top, y: top.y - 2 }]);
+      expect(pixelDifference(edge, backdrop), 'top rim stays visible on white').toBeGreaterThan(24);
+    }
+  });
+}
+
+for (const theme of ['light', 'dark']) {
+  test(`flat navigation stays rimless in ${theme}`, async ({ page }) => {
+    await page.goto(`/e2e/fixtures/glass-surfaces.html?theme=${theme}`);
+    const header = page.getByTestId('standalone-nav-header');
+    await expect(header).not.toHaveCSS('backdrop-filter', 'none');
+    await expect(header).toHaveCSS('box-shadow', 'none');
+    expect(await header.evaluate((element) => getComputedStyle(element, '::before').display)).toBe(
+      'none'
+    );
+  });
+
+  test(`safe area shares the app and modal backdrop in ${theme}`, async ({ page, browserName }) => {
+    test.skip(browserName !== 'chromium', 'Safe-area emulation requires CDP');
+    await page.setViewportSize({ width: 390, height: 844 });
+    const session = await page.context().newCDPSession(page);
+    await session.send('Emulation.setSafeAreaInsetsOverride', { insets: { top: 59 } });
+    await page.goto(`/e2e/fixtures/glass-surfaces.html?theme=${theme}`);
+    const open = page.getByRole('button', { name: 'Open settings sheet', exact: true });
+    await expect(open).toBeVisible();
+    await expect(page.locator('#root')).toHaveCSS('padding-top', '59px');
+    expect((await open.boundingBox())!.y).toBeGreaterThanOrEqual(59);
+    await page.addStyleTag({ content: 'main { background: var(--app-bg-color) !important; }' });
+    const points = [
+      { x: 5, y: 20 },
+      { x: 5, y: 62 },
+    ];
+    const normal = await sampleScreenshot(page, points);
+    expect(normal[0]).toEqual(normal[1]);
+    await open.click();
+    await expect(page.getByTestId('settings-sheet')).toBeVisible();
+    await expect
+      .poll(async () => {
+        const dimmed = await sampleScreenshot(page, points);
+        return pixelDifference(dimmed[0], normal[0]);
+      })
+      .toBeGreaterThan(10);
+    const dimmed = await sampleScreenshot(page, points);
+    // Separate compositor layers can round the same alpha blend by one channel value.
+    dimmed[0].slice(0, 3).forEach((channel, index) => {
+      expect(Math.abs(channel - dimmed[1][index])).toBeLessThanOrEqual(1);
+    });
+    await page.keyboard.press('Escape');
+    await expect(page.getByTestId('settings-sheet')).toHaveCount(0);
+    expect(await sampleScreenshot(page, points)).toEqual(normal);
+    await session.detach();
+  });
+
+  test(`settings navigation shares the modal surface in ${theme}`, async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto(`/e2e/fixtures/glass-surfaces.html?theme=${theme}`);
+    const header = page.getByTestId('settings-nav-header');
+    await expect(header).toBeVisible();
+    expect(
+      await header.evaluate((element) => {
+        const style = getComputedStyle(element);
+        return {
+          background: style.backgroundColor,
+          image: style.backgroundImage,
+          filter: style.backdropFilter,
+          shadow: style.boxShadow,
+        };
+      })
+    ).toEqual({
+      background: 'rgba(0, 0, 0, 0)',
+      image: 'none',
+      filter: 'none',
+      shadow: 'none',
+    });
+  });
+}
+
 for (const theme of ['light', 'silver', 'dark', 'midnight', 'butter']) {
   test(`settings sheet reveals its dimmed backdrop and retains contrast in ${theme}`, async ({
     page,
@@ -200,6 +460,13 @@ const expectOpaqueFallback = async (page: Page) => {
     ['audio', page.getByTestId('audio-host').locator(':scope > div > div').last()],
   ] as const) {
     await expect(surface).toHaveCSS('backdrop-filter', 'none');
+    expect(
+      await surface.evaluate((element) => {
+        const rim = getComputedStyle(element, '::before');
+        return rim.display === 'none' || rim.content === 'none';
+      }),
+      `${name} has no specular rim in opaque mode`
+    ).toBe(true);
     expect(await surface.evaluate((element) => getComputedStyle(element).backgroundImage)).toBe(
       'none'
     );

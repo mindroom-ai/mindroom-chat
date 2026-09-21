@@ -132,7 +132,7 @@ export function Login() {
             tOptions={{ interpolation: { escapeValue: true } }}
             i18nKey="sharedUi.login.accountLink"
             components={{
-              link: (
+              authLink: (
                 <Link
                   to={
                     addAccount

@@ -120,6 +120,7 @@ export const sortThreadRecordRootIds = (
 
 export const resolveThreadRecordOverviewRootIds = ({
   threadRootIds,
+  pinnedThreadRootIds = [],
   threadFilterState,
   searchQuery,
   recordMap,
@@ -127,6 +128,7 @@ export const resolveThreadRecordOverviewRootIds = ({
   threadSortControlSignature,
 }: {
   threadRootIds: string[];
+  pinnedThreadRootIds?: string[];
   threadFilterState: ThreadFilterState;
   searchQuery: string;
   recordMap: ReadonlyMap<string, ThreadRecord>;
@@ -137,20 +139,26 @@ export const resolveThreadRecordOverviewRootIds = ({
   liveOrderedIds: string[];
   displayOrderedIds: string[];
 } => {
-  const filteredIds = filterThreadRecordsBySearch(
-    filterThreadRecordRootIds(threadRootIds, threadFilterState, recordMap),
-    searchQuery,
-    recordMap
+  const pins = [...new Set(pinnedThreadRootIds)].filter((id) => threadRootIds.includes(id));
+  const prependPins = (ids: string[]) => [...pins, ...ids.filter((id) => !pins.includes(id))];
+  const filteredIds = prependPins(
+    filterThreadRecordsBySearch(
+      filterThreadRecordRootIds(threadRootIds, threadFilterState, recordMap),
+      searchQuery,
+      recordMap
+    )
   );
-  const liveOrderedIds = sortThreadRecordRootIds(
-    filteredIds,
-    threadFilterState.sortBy,
-    threadFilterState.sortDirection,
-    recordMap
+  const liveOrderedIds = prependPins(
+    sortThreadRecordRootIds(
+      filteredIds,
+      threadFilterState.sortBy,
+      threadFilterState.sortDirection,
+      recordMap
+    )
   );
   const displayOrderedIds =
     threadSortFreezeState && threadSortFreezeState.controlSignature === threadSortControlSignature
-      ? applyFrozenThreadOrder(threadSortFreezeState.orderedRootIds, liveOrderedIds)
+      ? prependPins(applyFrozenThreadOrder(threadSortFreezeState.orderedRootIds, liveOrderedIds))
       : liveOrderedIds;
 
   return {

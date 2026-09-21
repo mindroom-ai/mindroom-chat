@@ -59,6 +59,7 @@ import { logTimelineDebug } from '../threads/timelineDebug';
 import { countCacheProbe } from '../threads/cacheProbe';
 import { mergeThreadRenderEvents } from '../threads/threadRenderUtils';
 import type { BackfillScheduler } from './backfillScheduler';
+import { captureCacheStoreWriteLease } from '../threads/cacheStore';
 import type { HydratedThreadCachePage } from '../threads/types';
 import {
   collectEmbeddedRelationEventIds,
@@ -592,6 +593,7 @@ export const scheduleReconcile = (args: ScheduleReconcileArgs): Promise<Reconcil
     threadId,
   });
 
+  const writeLease = captureCacheStoreWriteLease(sessionId, roomId);
   const reconcilePromise = scheduler.enqueue<ReconcileResult>({
     roomId,
     threadId,
@@ -617,7 +619,7 @@ export const scheduleReconcile = (args: ScheduleReconcileArgs): Promise<Reconcil
         cachedPage,
         signal,
         debugTraceId,
-        persistRepair,
+        persistRepair: (snapshot) => persistRepair({ ...snapshot, writeLease }),
         continuationStore,
       });
     },

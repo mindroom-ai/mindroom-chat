@@ -16,6 +16,7 @@ import {
 import classNames from 'classnames';
 import { BlurhashCanvas } from 'react-blurhash';
 import { EncryptedAttachmentInfo } from 'browser-encrypt-attachment';
+import type { EventAttachmentOwner } from '../../../mindroom/messages/eventAttachments';
 import {
   IThumbnailContent,
   IVideoInfo,
@@ -26,12 +27,7 @@ import { useMatrixClient } from '../../../hooks/useMatrixClient';
 import { AsyncStatus, useAsyncCallback } from '../../../hooks/useAsyncCallback';
 import { revokeBlobUrl, useBlobUrlCleanup } from '../../../hooks/useBlobUrlCleanup';
 import { bytesToSize, millisecondsToMinutesAndSeconds } from '../../../utils/common';
-import {
-  decryptFile,
-  downloadEncryptedMedia,
-  downloadMedia,
-  mxcUrlToHttp,
-} from '../../../utils/matrix';
+import { downloadCachedAttachment } from '../../../mindroom/messages/attachmentRepository';
 import { useMediaAuthentication } from '../../../hooks/useMediaAuthentication';
 import { validBlurHash } from '../../../utils/blurHash';
 
@@ -44,6 +40,7 @@ type RenderVideoProps = {
   controls: boolean;
 };
 type VideoContentProps = {
+  owner?: EventAttachmentOwner;
   body: string;
   mimeType: string;
   url: string;
@@ -58,6 +55,7 @@ type VideoContentProps = {
 export const VideoContent = as<'div', VideoContentProps>(
   (
     {
+      owner,
       className,
       body,
       mimeType,
@@ -84,15 +82,18 @@ export const VideoContent = as<'div', VideoContentProps>(
 
     const [srcState, loadSrc] = useAsyncCallback(
       useCallback(async () => {
-        const mediaUrl = mxcUrlToHttp(mx, url, useAuthentication);
-        if (!mediaUrl) throw new Error('Invalid media URL');
-        const fileContent = encInfo
-          ? await downloadEncryptedMedia(mediaUrl, (encBuf) =>
-              decryptFile(encBuf, mimeType, encInfo)
-            )
-          : await downloadMedia(mediaUrl);
+        const fileContent = await downloadCachedAttachment(
+          mx,
+          {
+            owner,
+            mxcUri: url,
+            mimeType,
+            encryptedFile: encInfo ? { ...encInfo, url } : undefined,
+          },
+          useAuthentication
+        );
         return URL.createObjectURL(fileContent);
-      }, [mx, url, useAuthentication, mimeType, encInfo]),
+      }, [owner, mx, url, useAuthentication, mimeType, encInfo]),
       revokeBlobUrl
     );
     useBlobUrlCleanup(srcState);

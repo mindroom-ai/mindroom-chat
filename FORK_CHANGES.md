@@ -2,6 +2,678 @@
 
 ## Runbook
 
+### Pin announcement threads in Compact room view (2026-09-21)
+
+- Status: implemented and validated; PR open for review.
+- Shared room pins appear in a separate section above ordinary Compact cards, newest pin first, with a stable order across replies, filters, and sorting.
+- Room admins can pin and unpin from Compact cards, thread headers, and existing message menus.
+  Admin means power level 100 or higher, or a privileged room creator, subject to the room's pin permission.
+- Admin-only enforcement applies within MindRoom Chat.
+  Other Matrix clients follow existing room permissions; this feature does not write power-level state.
+- Pinned roots cannot be resolved through client controls or thread-tag writes, including the command palette.
+  Any pre-existing resolution is suspended while pinned and resumes when unpinned.
+- Old roots, including announcements without replies, use the existing room event loader and cache path to join the Compact catalogue.
+- Shared pin state covers the overview, thread header, and room pin menu while serialized saves catch up with sync.
+  Regression tests cover queued changes, failed saves, delayed or early echoes, lost responses, alternating pin/unpin saves, and cached roots upgrading to live content.
+- PR review extended pin resolution to the global thread index and recent-thread sidebar.
+  Synchronized and pending local pin changes refresh global filters and sidebar visibility, and pinned sidebar entries omit Resolve.
+  Open command palettes update their resolution actions and search results when threads are pinned or unpinned.
+- Pin subscriptions follow Matrix live-state replacement during limited sync.
+  Fetched old announcements use the existing cache hydration helpers to follow live edits and deletions, and refresh when missing decryption keys arrive.
+  Encrypted edits preserve the last readable text until decryption completes.
+- Reconnecting verifies pin saves whose result could not be confirmed while offline.
+  Detached announcements show cached content immediately, then refresh from the server on mount and reconnect without overwriting intervening live edits or deletions.
+  A cross-model design consultation favored this scoped refresh over expanding compact timeline backfill.
+- Validation after integrating `dev` and PR review fixes: all 5,062 tests across 580 files pass under Node 24.13.1.
+  Typecheck, production/PWA build, formatting, and ESLint pass with zero errors and the existing 17 warnings.
+- Three Chromium browser checks pass for admin/moderator permissions, stable ordering and reloads, suspended resolution, old zero-reply pins, and existing hover/keyboard behavior.
+  Desktop and phone-sized layouts were inspected.
+- Manual ordering remains follow-up work.
+
+### Finish Markdown formatting in sidecar and reply previews (2026-09-21)
+
+- Inline code no longer splits surrounding bold, italic, or strikethrough formatting in the shared Markdown parser.
+- Code spans remain literal; links and math retain raw code delimiters in attributes instead of receiving code HTML.
+- Long-text previews render isolated root separators while preserving escaped, indented, fenced, and ambiguous examples.
+- Quoted replies, composer reply previews, and the minimap share the compact thread preview formatter and localized tool-summary entry point.
+- Removed the unused tool-only formatter wrapper and moved its marker-formatting assertions to the production formatter, retaining the existing no-marker test.
+- Regression coverage includes the screenshot's bold/code shape, separator boundaries, link and math contexts, editor round-tripping, and a real reply component updating after an edit.
+- Consulted Claude on protecting code spans while parsing surrounding emphasis and adopted token restoration at text leaves.
+- Fence cleanup and tool counting share a scanner that preserves literal fence-like content.
+  Backtick fences follow the existing message parser's grammar, including backticks in info strings and exact closing lengths; tilde fences remain a conservative preview-only boundary.
+- Independent review found and verified fixes for control-character delimiter performance and literal tool examples in code contexts.
+- After integrating current `dev`, all 5,008 tests across 579 files pass under Node 24.13.1; typecheck, production/PWA build, formatting, and lint pass with 17 existing warnings and no errors.
+- Next: merge the reviewed PR and verify sidecar and reply previews in the deployed client.
+
+### Restore cached thread card details (2026-09-21)
+
+- The overview restored thread roots but ignored the SDK's bundled last event until the reply timeline loaded.
+  Shared presentation now uses that event for a missing summary or reply preview, preserving full message counts and preferring hydrated cache/live content.
+  A bundled summary supplies the title without hiding the preceding ordinary reply from the cache.
+  Reply timestamps keep an older partial timeline from masking a newer bundled message.
+- Overview metadata reads now select uncached threads before applying the 64-thread batch limit, so later downloaded threads also receive their summaries and previews.
+  Only completed, uncancelled reads consume preview attempts.
+  The existing 32-event tail limit and cache schema remain unchanged.
+- Real SDK and IndexedDB regressions fail before the corresponding fixes and cover empty early batches, cached summary/reply selection and newer live replies.
+  All 576 unit files / 4,968 tests, application and focused-test typechecks, build, formatting and lint pass with zero errors and 17 existing warnings.
+  Independent review has no remaining findings.
+  Automated review identified the partial-history case, now covered by a failing-before/passing-after SDK regression.
+  Its empty-page starvation concern does not reproduce: the real cache reader supplies explicit false completeness flags, which still publish an empty coverage result and advance the batch.
+- Chromium and WebKit reopen a downloaded 400-thread room offline with the old summary and ordinary reply previews, open its cached messages, then update the overview after reconnecting.
+  Both browsers reproduced the missing old-thread preview before the cache batch correction.
+  Physical iPhone first-paint timing remains unverified.
+
+### Inline website favicons (2026-09-21)
+
+- Status: implemented and independently reviewed on `feat/link-favicons`; PR #308 is open for review.
+  A shared inline link renderer decorates plain URLs and formatted links in room/thread messages, pinned messages, and notifications.
+- Eligible web links use a hostname-only DuckDuckGo favicon URL with no referrer.
+  Stable URLs share the browser's persistent HTTP image cache; no additional database or service worker is needed.
+- A shared policy uses media auto-load and the room's normal/encrypted URL-preview settings to control icon loading across all three surfaces.
+  Matrix mentions, code, credentials, IP addresses, custom ports, and local/reserved hostnames do not trigger icon requests.
+- Decorative icons follow text size, have a light backing for visibility in either theme, preserve link behavior, and disappear on failure with a bounded five-minute retry backoff across remounts.
+  Failed icons stay hidden for the current mount and may retry on a later mount after the cooldown; no timer polls decorative images.
+- Review caught icon disclosure and background lookups for spoiler links.
+  Spoiler-associated links now omit icons entirely, including after disclosure and in either anchor/spoiler nesting order.
+  Parser regressions also cover custom math rendering and malformed math fallbacks inside spoilers.
+- Validation after integrating current `dev` and addressing review: all 5,006 tests across 578 files pass under Node 24.13.1 in the standard Linux container, along with typecheck, production/PWA build, formatting, and ESLint with zero errors and the existing 17 warnings.
+  Focused coverage checks URL eligibility, hostname reuse, failures, remount backoff, edited links, and preview toggles.
+  Chromium exercises the real shared parser at room/thread text sizes, both themes, RTL spacing, narrow layout, accessible link labels, failures, settings, edits, and the absence of spoiler icon requests before and after disclosure.
+- Real-service Chromium checks confirm icons render in both themes and persist across browser restarts: the second launch serves the GitHub icon from disk cache with zero transferred bytes.
+  Cache retention follows the provider's HTTP headers and browser eviction policy; the failure backoff is bounded in memory.
+- Independent integration and follow-up reviews found no remaining issues in the parser, notification event resolution, pinned messages, encryption settings, or spoiler policy.
+  The follow-up passed hosted checks and review; the latest `dev` integration preserves both runbook entries after a documentation-only conflict.
+  Integration tests, typecheck, build, lint, Chromium coverage, and independent review pass after that merge.
+  Next: complete hosted checks before merging.
+
+### Group tool calls while long-text details load (2026-09-21)
+
+- Long-text previews group consecutive tool markers into the existing tool-call dropdown before the sidecar arrives.
+- An expanded group shows one localized loading message for missing metadata, then the downloaded details; unavailable details get a stable fallback after the download settles.
+- Ordinary inline Markdown and indented text elsewhere no longer disable marker grouping.
+- The preview uses the Markdown parser's code/math block boundaries to preserve literal examples while grouping root markers outside them; unsupported or unmatched fence syntax remains conservative.
+- Narrative paragraphs still separate tool groups, and stable group keys preserve an open dropdown when authoritative HTML replaces preview HTML.
+- Hydration status tracks the settled input identity so a cold row becoming visible does not briefly report unavailable details.
+- Regression coverage includes grouping, loading, hydration, download fallback, narrative boundaries, literal code examples, ambiguous fences, and viewport activation.
+- Validation after integrating current `dev`: all 4,965 tests across 574 files pass under Node 24.13.1 with freshly installed dependencies and the repository SDK patches.
+- Typecheck, production/PWA build, changed-file formatting, and ESLint pass with zero errors and the existing 17 warnings.
+
+### Restore the cached thread catalogue independently of room history (2026-09-20)
+
+- A downloaded room with 400 threads and substantial later room activity reopened offline with only one thread.
+  The overview discovered roots through the SDK's recent room timeline or server thread list; its cache reader could only hydrate IDs already discovered.
+- Enumerate existing thread metadata and merge cached root copies through the normal revision rules, then restore missing SDK thread models independently of network discovery.
+  Plain roots cached before their first reply use one actual cached direct reply; later standalone edits and reactions are skipped.
+  The room timeline, SDK initialization and download-completeness flags remain untouched.
+- Persist server-listed roots through the engine's existing cache writer so opening an overview saves its catalogue without claiming replies are downloaded.
+  Existing live models take precedence, and the normal server load continues independently.
+  No new production module, cache schema, retry coordinator or full-history startup scan is introduced.
+- Regression tests use real IndexedDB storage and SDK room/thread models with 400 roots, pending discovery, plain roots followed by reactions, another room and a newer live title.
+  The live browser fixture downloads a real 400-thread room, closes it and reopens offline with bundled app assets available.
+  The unpatched build reproduces “Showing 1 thread”; the patched build restores all 400 within five seconds.
+- Independent review found and verified the plain-root correction, then reported no remaining findings.
+  Automated review additionally caught later-page root freshness and cache-only error leakage; both are corrected and independently rechecked.
+  Writes deduplicate serialized revisions rather than IDs, so later edits persist and unchanged pages avoid extra writes.
+  Claude's design consultation favored restoring the existing SDK catalogue over introducing a parallel overview model.
+  All 574 unit files / 4,958 tests, application and focused-test typechecks, production build and lint pass with 17 existing warnings and no errors.
+  Chromium and WebKit both restore 400 threads offline, open an old cached reply and show a new reply after reconnect without reloading.
+  Physical iPhone validation remains outstanding.
+
+### Keep pending invitation keys out of offline account startup (2026-09-20)
+
+- A recently accepted room invitation leaves a pending key-bundle record in the Rust crypto store, even for an unencrypted room with no bundle.
+  On restart, the SDK awaited an inviter `/keys/query` before returning the crypto backend; a disconnected phone exhausted retries and failed account initialization before saved rooms could be restored.
+- The SDK patch starts this optional import in the background and catches its failure, matching its existing handling of incoming bundle notifications.
+  Device identity checks, crypto-store loading, inviter verification and bundle validation remain unchanged.
+  Failed network attempts retain the pending record for the SDK's existing later-startup or bundle-notification retry; this change adds no retry coordinator or cache layer.
+- Real-WASM tests reopen a persisted crypto store, hold the key lookup, then either complete it or exhaust offline retries with `fetch failed: Load failed`.
+  They verify startup remains usable and the existing device identity and pending record survive.
+  The browser regression accepts a real invitation, waits for the application's own saved sync, closes the page, reopens with remote traffic offline, and checks live catch-up without reloading.
+- Validation: all 573 unit files / 4,953 tests, application and focused-test typechecks, production build and formatting pass; lint retains 17 existing warnings and no errors.
+  The invitation regression passes in Chromium and WebKit, and three existing Chromium cache-startup cases pass.
+  Chromium uses browser offline mode with local bundled assets served by the fixture; WebKit aborts remote requests and simulates the offline navigator state because its desktop runner cannot navigate intercepted assets in offline mode.
+  Independent review is clear, and the SDK patch applies to a clean package and matches the tested source and compiled files.
+  Physical iPhone verification remains pending the next build.
+
+### Restore saved rooms before server discovery (2026-09-20)
+
+- The SDK now replays saved sync before waiting for `/versions`, including when message data survives without the separate server-version cache.
+  Live sync reuses that replay and updates the same room objects after discovery.
+- Cached thread bundles populate local metadata immediately; capability-dependent thread initialization and room-list loading wait for actual server support.
+  Stopping a client prevents delayed startup work from resuming sync or publishing a late cached `Prepared` state.
+  If discovery removes prior server thread support, initialization drains buffered cached edits and reactions rather than leaving them unapplied.
+- The client version provider allows restored content while optional capabilities are unknown, then updates without remounting the conversation.
+  Cached SDK capabilities keep their existing session lifetime; unknown ones are discovered from the server.
+  A sync error or empty newly synced account does not count as restored content, preserving the versions loader's initial recovery flow.
+- Real-SDK regressions cover saved threads, live catch-up, the `/threads` endpoint after discovery, cancellation and a fresh empty store.
+  Phone-sized browser cases hold all Matrix responses, open cached roots and replies, then release the network and observe new messages.
+  Startup fixtures navigate directly to their rooms so the shared account's virtualized sidebar does not affect setup.
+- Validation: all 572 files / 4,951 unit tests, application typecheck, production build and formatting pass; lint retains 17 existing warnings and no errors.
+  Six startup and eight attachment/freshness cases pass in Chromium/WebKit, with two expected platform skips in the latter spec.
+  Independent review found no remaining correctness issues; a clean SDK package accepts the patch and matches the tested source, built files and declarations.
+- No new production module or cache schema is introduced; production source changes total 103 lines added and 47 removed, excluding mirrored SDK built code and declarations.
+  Crypto identity checks and migration remain unchanged; a physical iPhone cold-start check is still needed.
+
+### Keep room cache clearing local and best effort (2026-09-20)
+
+- Clearing a room cancels earlier writes in the current app and deletes its stored content.
+  Other active tabs may cache the room again; clearing does not coordinate or pause those tabs.
+- Removed durable room epochs, observed-epoch bookkeeping and the extra metadata read in every guarded write transaction.
+  Fresh snapshots after reopening a cleared room save immediately, without a first-write rejection to learn an epoch.
+- Local room/session cancellation, logout handling, attachment revision checks and atomic event/attachment ownership remain in place.
+  Lifecycle tests retain delayed local decryption, continuation cancellation, clear rollback and database recreation coverage.
+- Validation: all 571 files / 4,938 unit tests, application typecheck, production/PWA build, formatting and whitespace checks pass; ESLint retains 17 existing warnings and no errors.
+  Eight Chromium/WebKit offline/freshness cases pass with two expected platform skips.
+  Independent review found no remaining findings and separately passed 121 focused tests.
+- This simplification removes 106 net production lines across six existing modules and 139 net test lines.
+  No new production module, coordination mechanism or schema migration is added.
+
+### Centralize attachment ownership and fence room clears (2026-09-20)
+
+- Accepted room/thread event transactions now update attachment ownership atomically, including interactive snapshots and authoritative edit repair.
+  Downloaders and renderers consume that ownership; they cannot publish an obsolete notification attachment under a newer revision.
+  Existing redaction markers replace the separate attachment retraction history and repeated retained-room owner lookup.
+- This round introduced durable room epochs; the later simplification above removes that guarantee and its implementation.
+  Room clears advanced a durable epoch in the deletion transaction. Writes checked their original lease inside their own transaction, so another tab could not restore cleared data after a delayed read, decryption or fetch.
+  Connection invalidation also revoked old leases and reset observed epochs, allowing fresh writes after another tab deleted the database.
+  A cold runtime could skip its first write while learning the epoch; the simplification above removes that behavior.
+- Room focus belongs to the stable room view rather than the thread timeline; thread navigation preserves download reservations, allowance and cancellation.
+  Cancel remains active until Download is requested again. Live attachment work obeys room scope, and inline edits/redactions create no empty attachment jobs.
+  Unchanged progress skips metadata writes, unobserved live updates skip coverage scans, and gap loading no longer uses a one-iteration loop.
+- Notifications use the existing latest-edit selection to keep displayed content and attachment identity together, including newer bundled edits and encrypted events.
+  A detached rendering snapshot leaves the SDK event available for decryption subscriptions.
+- Fresh full Agent CLI reviews by Astra and Claude Fable 5.1 identified the corrected cases; independent follow-up reviews reproduced additional notification and database-lifecycle cases and verified their fixes.
+  Latest dev is integrated. All 571 files / 4,944 unit tests, application and browser-test typechecks, production/PWA build, formatting and whitespace checks pass; ESLint has zero errors and 17 existing warnings.
+  Eight Chromium/WebKit offline/freshness cases pass with two expected platform skips. Cross-runtime IndexedDB tests cover delayed decryption, queued transactions, atomic rollback, room clears and database recreation.
+- This correction round changes 17 existing production modules: 658 lines added, 743 removed, net 85 fewer. No new production module or schema migration is introduced.
+  Physical iPhone, native Xcode archive and browser restart with real room encryption remain unverified.
+
+### Unify worker browser panel discovery (2026-09-20)
+
+- The backend now recommends `chat_ui.open_panel(panel="computer")` alongside `panel="members"` and keeps `show_computer()` as a compatible alias.
+  Both Computer calls emit the existing `show_computer` wire action, so Chat's authorization, active-context rules, passive buttons, watch mode, and human-control protections remain unchanged.
+  Opening Computer requests display only; browser navigation remains a separate browser tool call.
+- Regenerated the backend contract fixture with both Computer entry points in room and thread scope and updated the contract workflow's backend pin.
+  Client runtime code is unchanged.
+- Validation: all 136 focused UI-action, Computer, and room integration tests pass, including the freshly generated backend contract; typecheck, changed-test lint, and formatting pass.
+  The full client suite reports 4,739 passes and four unrelated failures, also reproduced in isolation: three Xcode Homebrew tests assume `/bin/bash`, which is absent on this host, and one caption-upload test fails its `onUploadSent` assertion.
+  Live browser end-to-end tests were not rerun for this API alias change.
+
+### Simplify cache repair and close independent review findings (2026-09-20)
+
+- Live persistence repairs only pending relations whose targets arrive in the current chunk.
+  The existing background controller owns bounded retries of other unresolved events; ordinary reply links do not enter the repair backlog.
+  Consulted Claude Fable 5.1 on repair ownership and adopted target-aware metadata without adding a database migration or another coordinator.
+- Canonical persistence decrypts bundled replacements, tracks unreadable owners for retry, and preserves attachment ownership while keys are unavailable.
+  Awaited SDK decryption does not schedule duplicate writes, and ciphertext remains encrypted in persistent event records.
+  Pending local edits stay in memory; persistent snapshots retain the last confirmed row until server confirmation.
+- Essential attachments share raw bytes while validation remains specific to each owner and revision.
+  Ordinary text creates no attachment references or jobs, and historical stickers use the existing optional-media policy.
+  Explicit upgrade fixtures preserve shared bytes, references, coverage, revision metadata and room pins.
+- Offline and hidden cancellation preserve their pause states.
+  Shared gap completion or failure settles room status; committed empty-page cursors and successful marker clears notify the existing controller.
+  Metadata lease revocation creates no spurious failure diagnostic, and history checkpoints retain only eight recent pagination tokens.
+- Independent review reproduced and verified fixes for failed standalone encrypted edits, pending-edit cache replay and empty-gap successors.
+  All 568 files / 4,905 unit tests, application and browser-test typechecks, production/PWA build, formatting and whitespace checks pass.
+  ESLint retains 17 existing warnings and no errors.
+  Eight Chromium/WebKit browser cases pass with two expected platform-specific skips, including delayed edit/deletion races and offline/profile-restart decoding of historical bodies, images and stickers.
+- Bounds remain explicit: policy-ineligible media can still incur bounded event retry reads; saved history entries count server traversal, not unique compacted rows.
+  Recovering discarded edit revisions requires server history, and interactive blob buffering remains a tradeoff.
+  Physical iPhone and real encrypted-browser restart validation remain unavailable.
+
+### Cover overlapping streams and attachment ownership transitions (2026-09-20)
+
+- Real engine and IndexedDB regressions hold an old body download across two later edits, then check the latest saved body and removal of obsolete bytes without refocusing the room.
+  Both attachment-to-attachment and attachment-to-inline cases failed before the fix.
+- Canonical event persistence now updates attachment ownership independently of background download admission, including inline edits received through thread reconciliation.
+  Live attachment work uses the existing scheduler's abort-and-replace behavior so newer revisions are retained behind draining jobs.
+  Scheduler cancellation uses `AbortError`; a mixed-owner queued-batch regression proves superseding one owner does not discard other messages in that batch.
+- Browser freshness races now also replace long-text bodies and images with inline text, checking current rendering, retired bytes, late old work, and another offline reopen.
+  Shared-MXC deletion coverage goes through the real event-save boundary and preserves bytes until the last owner is deleted.
+- A cold-client repair regression restores an earlier attachment when the server supplies the surviving edit after the newest edit is redacted, rejects stale replay, and hydrates the saved canonical row offline without fetching.
+  Intermediate edits remain compacted away; recovering a discarded survivor requires server history.
+- Latest `dev` is integrated; all 565 files / 4,871 unit tests, application and browser-test typechecks, and production/PWA build pass.
+  ESLint has no errors and the existing 17 warnings.
+  Independent review found and verified the queued-cancellation fix, with no remaining findings.
+  The offline-content browser spec passes eight cases with two expected engine-specific skips, including six delayed-work freshness races across Chromium and WebKit.
+  Formatting and whitespace checks pass; physical iPhone lifecycle validation remains unavailable.
+
+### Match remaining chat controls and attachment shells (2026-09-20)
+
+- Recording controls, message expansion buttons, and timeline navigation/pagination chips reuse the shared glass control material and directional rim.
+  Floating message buttons use the existing lighter blur preset; recording retains its existing optical filter.
+- File/media attachment shells, link previews, pasted-text cards, uploads, and message extras use the shared panel material.
+  Existing outlines remain available when masked rims are unsupported or transparency is disabled, including CanvasText boundaries in forced colors.
+  Progress/error colors, focus, and content rendering remain intact; dense inline reactions and status badges keep their existing treatment.
+- The topmost room header uses flat native glass instead of Chromium's refractive filter, which painted a shadow-like edge despite `box-shadow: none`.
+  Its 3 px blur, tint, controls, and rimless treatment remain intact in room and thread views.
+- Lower thread banners retain the composer's control material, directional rim, and soft outer shadow.
+  Floating blur stays at 3 px, dark tint stays at 72%, and resolved banners retain their success color.
+  Light tint follows the composer at 58%.
+- Shared glass rims use vertical lighting: a stronger top highlight, softer bottom reflection, and quiet side edges.
+  The masked gradient uses 180 degrees, and inset-shadow fallbacks follow the same top/bottom orientation.
+  Light themes reduce the top reflection's white opacity so the shaded edge remains visible against white backgrounds; dark reflections are unchanged.
+  Existing flat chrome and accessibility modes remain rimless.
+- A real-component gallery captures every changed style before and after in Chromium/WebKit and light/dark themes.
+  Eight new browser checks pass, including rim sampling, pause/resume, disclosure, keyboard activation, and high contrast; all four rim cases fail against the previous styles.
+  All 4,741 unit tests, typecheck, production/PWA build, and lint pass with the existing 17 warnings.
+  The shared glass suite passes 66 cases with two WebKit-only CDP skips, and four live room/thread checks keep disclosure controls above growing composers at phone width.
+  Twelve live Chromium/WebKit checks verify native room-header blur, underlying scrolling, and room/thread controls at phone and desktop widths in simple/full modes.
+  Independent and PR review findings about accessibility boundaries are addressed and covered by failing-before/passing-after checks.
+  Linux WebKit captures do not reproduce native iOS backdrop blur; physical iPhone checks remain unavailable.
+
+### Match message and approval glass rims (2026-09-20)
+
+- Inline AI summaries, tool disclosures, approval receipts, standalone requests, and review groups reuse the shared panel material and directional specular rim.
+  Nested approval-history rows stay flat and unfiltered so their enclosing box owns the glass.
+- The composer drops its uniform resting outline while retaining its focus ring.
+  The approval bar already uses the shared material and is covered by the new visual checks.
+  No dependencies, JavaScript effects, or per-card optical observers are added.
+- Validation: all 4,741 unit tests, typecheck, production/PWA build, and lint pass with the existing 17 warnings.
+  Rendered-rim checks fail on the previous styles and pass in Chromium and WebKit, light and dark.
+  All 58 Chromium/WebKit glass checks pass with two WebKit-only CDP skips, including expansion, nested receipts, composer focus, and accessibility fallbacks.
+  Chromium live approval checks pass at phone and desktop widths.
+  Independent review found no actionable issues.
+  Physical iPhone rendering remains unverified.
+
+### Keep server changes after delayed cached content completes (2026-09-20)
+
+- Online restart regressions hold an old cached long-text body and image download until server edits or deletions have reached the UI and dedicated cache, then release both old consumers and reopen again without Matrix access or newer SDK sync data.
+  They check rendered body/image content, retired bytes, current ownership and deletion tombstones in Chromium and WebKit.
+- The fixture exposed an independent history cursor bug: ordinary SDK room pagination can advance past thread replies without saving them.
+  Offline history now starts from the room head and resumes only from its own committed cursor.
+- Observed deletions retire attachment ownership in the existing room/thread persistence boundary, before event tombstones commit.
+  Cleanup reuses terminal reference tombstones and existing shared-blob retention; it does not wait for background media jobs.
+  Existing event-scrub markers do not skip attachment retirement, and lease revocation or failed attachment writes cannot claim a successful event save.
+- The cursor and both deletion storage regressions failed before their fixes.
+  All 564 files / 4,866 unit tests, application and browser-test typechecks, production/PWA build and formatting pass; ESLint reports the existing 17 warnings and no errors.
+  The browser spec passes six cases with two expected engine-specific skips, including all four edit/deletion races.
+  Disabling the stale attachment-write guard makes the edit race fail after old work finishes: both retired payloads reappear in storage.
+  Independent review approved both fixes and the browser gate design.
+
+### Restore directional specular glass rims (2026-09-20)
+
+- Shared glass surfaces use a one-pixel masked gradient rim with a 45-degree upper-left highlight and a weaker opposite reflection.
+  Light themes include a shaded edge so white highlights remain legible against the chat background; dark themes retain softer white reflections.
+- The material reserves `::before` for this pointer-transparent decoration and relies on its existing backdrop filter for positioning.
+  Flat navigation, room chrome, and accessibility fallbacks suppress the rim; browsers without mask support retain the inset-shadow treatment.
+- Audio players use the shared rim instead of drawing a uniform outline over it, while preserving their elevation and active playback ring.
+  Blur, tint, layout, and the optical filter engine are unchanged.
+- Regression coverage samples rendered edge variation and an untouched interior in all five themes, and checks rimless navigation and opaque accessibility modes.
+  The fixture uses real Folds Surface colors rather than undefined color variables.
+- Validation: all 4,741 unit tests, typecheck, production/PWA build, formatting, and whitespace checks pass.
+  ESLint has zero errors and the existing 17 warnings.
+  Chromium/WebKit glass coverage passes 50 cases with two WebKit-only CDP skips; all ten rim cases fail against the previous CSS.
+  Four local Matrix checks verify the actual thread banner, audio layout, and resolve action in both browsers and light/dark themes.
+  Independent review approved the change.
+  Physical iPhone rendering remains unverified; Linux WebKit captures demonstrate the rim but do not reproduce iOS backdrop blur.
+
+### Close attachment transport review findings (2026-09-20)
+
+- In-flight attachment downloads now distinguish authentication modes and abort during global in-memory cleanup.
+  Persistent bytes retain their account-scoped MXC identity, and one shared predicate checks cached message ownership.
+  Removed the unused media-auth helper re-export.
+- Browser offline fixtures navigate directly to their room, avoiding offscreen entries in a virtualized room list.
+  The gap-fill successor regression waits for all three page jobs before inspecting the committed marker.
+- Cache guarantees remain deliberately bounded: validated blob reads do not rewrite payloads for exact per-file recency.
+  Eviction protects focused, recently opened and pinned rooms plus essential bodies; other optional media uses coarse recency.
+  After clear or restart revokes an event's original lease, late decryption cannot regain write authority merely by reusing that event.
+  A current room activation or explicit Download repairs tracked missing keys through its own persistence operation.
+- Independent review approved the scoped fixes; both new transport regressions failed before their fixes and passed afterward.
+  All 564 files / 4,864 unit tests, typecheck, production/PWA build and formatting pass; ESLint retains 17 existing warnings and no errors.
+  The WebKit historical body/image profile-restart regression passes with Matrix requests held.
+
+### Retry missing offline content and share live cache writes (2026-09-20)
+
+- Notice and Emote long-text renderers now carry the same event/revision ownership as Text and File.
+  Ownerless essential hydration remains interactive without creating protected persistent bytes; validated owned cache hits skip payload rewrites and repeat eviction scheduling.
+- Automatic activation indexes the initial live window once, then retries missing attachment owners, missing keys and unresolved relations through the existing bounded cursor.
+  Explicit Download still scans retained history, including older records without attachment references.
+- Live write-through compaction now owns canonical persistence and publishes saved batches to attachment work.
+  Captured thread scope survives SDK pruning without assigning unrelated pending relations to that thread.
+- Compacted-edit redaction recovery inspects detached serialized data without using the live SDK mapper, preserving live unsigned state and future SDK event delivery.
+  Cached wire relations identify ordinary roots after SDK redaction pruning, including encrypted roots, so they skip the retained scan.
+  Encrypted standalone edits still recover their compacted owner and retire the correct attachment revision.
+- Validation: 563 files / 4,847 tests pass, including deterministic checks for one event write, one body fetch and one room-reference scan across a 20-edit burst.
+  Typecheck, production/PWA build and ESLint pass with the existing 17 warnings and zero errors.
+
+### Close offline storage and hydration review gaps (2026-09-20)
+
+- Proactive bodies and media now use the existing CacheStore budget before admission and preserve the storage-pressure pause after recent, retained, paged and live work.
+  Interactive attachment reads remain available.
+  Canonical registration preserves validation only for the unchanged owner, revision and MXC within its byte bound, so pressure-denied work cannot downgrade already saved bodies.
+- Schema v6 adds attachment metadata and room/event reference indexes without replacing retained data.
+  Budget admission reads index keys and the room ledger; eviction reads raw bytes only for eligible candidates.
+  Reference replacement reads only the current event owner and matching legacy keys, retaining revision/redaction tombstones and shared ownership.
+- Parsed body publication now checks each consumer's captured room/session lease after asynchronous loading and parsing.
+  Clearing one room rejects its late body while another room sharing transport can still publish.
+- Failed media capability requests remain retryable through the SDK; successful capability caching stays with the SDK.
+- Failure-path tests assert scoped diagnostics, and browser fixtures clean partial setup and attempt room cleanup even when settings restoration fails.
+
+
+### Reopen downloaded historical thread content without Matrix access (2026-09-20)
+
+- The production browser regression creates a thread root, long-text v2 sidecar and one-pixel PNG before 24 newer room events.
+  It proves a real 20-event SDK sync excludes the historical events, drives Download entire room through General settings, and waits for the production event and attachment stores to commit before restart.
+- The saved SDK sync is replaced with a real one-event tail after navigating to an inert service-worker-denylisted document, so the historical root, full body and decoded image can only reopen from the dedicated persistent cache.
+- Chromium closes the warm page, enables browser offline mode and opens a new page through the installed service worker.
+  WebKit closes and reopens the same persistent profile with workers blocked and every Matrix/media request held; this profile flow is used because Playwright WebKit cannot navigate offline even through a minimal standalone service worker.
+- Final integration corrected the service-worker source contract after the cache-only shell lookup change and added required bidi isolates around the new Arabic offline-setting interpolation values.
+  Physical iPhone, macOS and Xcode execution remain unavailable; CocoaPods dependency integration does not establish an archive or on-device result.
+
+### Open the cached web shell before network navigation (2026-09-20)
+
+- Eligible app, room and thread navigations return the valid precached document immediately without starting a network request.
+  A missing or unusable shell falls through to a no-store network navigation and preserves opaque authentication redirects.
+- Interactive configuration authentication adds the one-shot `authentication-recovery-navigation=1` query marker so the navigation reaches a reverse proxy.
+  Normal startup removes only that marker while preserving the path, other query parameters, hash and current history state.
+- The existing server, SSO, static and deployment-configured navigation exclusions remain in place.
+  Service worker installation, activation and non-disruptive update behavior are unchanged.
+- Validation: 31 focused navigation, configuration, registration and lifecycle tests pass, along with application typecheck and the production/PWA build.
+  ESLint reports zero errors and the existing 17 warnings.
+
+### Control room offline content from General settings (2026-09-20)
+
+- Room General settings now reports saved history entries, combined attachment coverage, storage use, inaccessible history, unresolved relations, missing keys and essential bodies through the client-scoped offline controller snapshot.
+  It distinguishes unknown, unvisited and unavailable storage as well as offline, background, connection-policy, storage-pressure and restart-required pauses.
+- Download entire room, Include all media, Cancel download and Keep offline send room-scoped intent through the engine.
+  Keep offline protects saved room media during automatic cleanup without promising unlimited capacity.
+- Clearing downloaded room content uses the existing focused dialog pattern with explicit cancel and confirm actions.
+  The controller retains ownership of cancellation, write revocation and reset; rejected pin and clear operations remain visible in the panel.
+- All 17 locale catalogs contain the new strings.
+  Nine focused component tests pass, along with application typecheck, focused ESLint, changed-file formatting and the production/PWA build.
+
+### Complete explicit offline scans from the retained room head (2026-09-20)
+
+- Explicit Download scans the entire retained room, including essential bodies and include-all media before the automatic retry cursor.
+  A Download requested during an automatic scan keeps a pending full-scan intent; the existing controller reruns from the head after the current batch, including after navigation. Cancel and clear discard that pending intent.
+- Automatic scans keep their bounded durable cursor and later-run wrapping. No public API or cache schema changes.
+- Validation: all 24 offline-controller tests pass, including three new real-store regressions for prefix bodies, prefix optional media and promotion during a held attachment fetch. Typecheck, formatting and ESLint pass with the existing 17 warnings.
+
+### Fence offline callbacks and resume retained work (2026-09-20)
+
+- Late SDK decryption keeps the event's original room write lease. Clearing then reopening cannot authorize an old callback.
+  Captured pagination operations own room and thread writes; duplicate SDK timeline writes are removed. Held seed reads check that same operation before publication.
+- Repository coverage applies transactional additions/removals to current metadata; history checkpoints update only pagination facts.
+  Attachment/decryption repair keeps its own durable scan cursor, resumes beyond bounded prefixes, and wraps only on a later run.
+- Failed gap transport, cache commits and stalled cursors retain deferred intent for a meaningful retry.
+  Explicit Download wakes deferred gaps and remains authorized across navigation until both history and the gap finish; the controller owns shared eligibility and allowance.
+- Validation: 498 focused tests cover these interleavings using real IndexedDB and production owners, including a deliberately aborted write transaction.
+  Typecheck, formatting and ESLint pass; existing ESLint warnings remain. Full-suite, production-build and native evidence below predates this fix round.
+
+### Resume opened-room offline downloads (2026-09-20)
+
+- The client engine owns opened-room history and attachment work through its existing scheduler.
+  Each history page and each message's attachment batch releases its scheduler slot before continuation; foreground work keeps priority.
+  Automatic work shares a per-room visit allowance of 10,000 events on reported Wi-Fi, or 200 on unknown/metered connections.
+  Explicit room download overrides that allowance; hidden or offline pages pause, and connection/visibility changes resume eligible work.
+- Schema v5 adds one room/event lookup index in place, preserving v3/v4 data.
+  Reserved room metadata retains committed history cursors, unresolved relations and undecrypted IDs.
+  Room exhaustion, limited-sync gaps, thread relation proofs and missing essential bodies remain separate coverage facts.
+  SDK decryption precedes grouping, retained encrypted events stay ciphertext, and later keys trigger engine repair.
+  Verified edit retractions restore canonical attachment ownership before body publication.
+- Room clear revokes the shared room write lease before deleting data. Async pagination, bootstrap and edit repair capture a fresh engine persistence operation before fetching, so old requests cannot restore cleared content and new requests in the same view can save.
+  Pin/clear/download/cancel and stable coverage snapshots are exposed by engine.offline for room settings.
+  Snapshots distinguish unread, unopened and unavailable storage; saved/missing counts include all attachment categories.
+  Soft storage pressure pauses history without deleting text; quota read-only mode still requires app restart to resume writes.
+- Default scope is current-room-only; v1 homeserver-wide preferences migrate to it, while explicit all-rooms preferences remain visible.
+  The obsolete depth input, React history loop and long-text prewarm batch are removed; interactive pagination stays bounded at 200.
+- Official @capacitor/network 8.0.1 supplies native status, with generated Android linkage and a real iOS CocoaPods lock update.
+  Native Wi-Fi reporting does not expose every metering/Low Data Mode setting. Browser unknown connections remain bounded; persistent-storage permission is requested nonblocking.
+  Native compilation and device network transitions were not available in this environment.
+- Validation: full Node 24 suite passes 561 files / 4,789 tests, plus 324 focused tests after the operation-bound persistence and gap-cycle corrections.
+  Typecheck and ESLint pass after those corrections; the production/PWA build passed before them. ESLint retains the existing 17 warnings and zero errors.
+
+### Cache message media and retain room text under storage pressure (2026-09-20)
+
+- Message images, thumbnails, video, audio, file previews and file downloads share the authenticated persistent attachment repository.
+  Components still own and revoke their Blob URLs; the image viewer saves the source Blob URL it receives.
+- Automatic batches register current message references before downloading, then fetch sequentially.
+  Optional media with known size at most 5 MiB is automatic; unknown or larger media waits for explicit open or include-all mode.
+  Streaming transport enforces each consumer's limit without canceling another consumer that still needs the same download.
+- Essential long-text body input is capped at 32 MiB and validated before claiming readable coverage.
+  Failed, malformed, oversized and uncommitted bodies remain incomplete; original-file download remains available separately.
+- Attachment references use stable room/message ownership, timestamp and edit-id ordering, and permanent redaction tombstones.
+  Detached edits await existing relation repair; only a known same-room target with matching sender can authorize a raw replacement.
+  Replacing a streamed body removes obsolete unshared bytes while shared room/message bytes survive.
+  Verified edit retractions can restore the surviving canonical body; retired edit IDs persist and reject stale replay after restart.
+  Shared-MXC coverage requires every owner to be readable, so an optional file cannot hide a missing essential body.
+- Media rendering, file controls and long-text prewarming pass message ownership through the same repository.
+  Individual consumers merge sibling references within one revision; canonical batches replace the complete reference set.
+  Warm parsed bodies still register every owner, and shared hydration preserves each owner's independent persistence lease.
+- Automatic eviction now reclaims old optional media, preserving message text, essential bodies, pinned rooms and recent/focused rooms.
+  Budget results expose remaining pressure when protected content alone exceeds the budget.
+  Explicit room clear removes that room's events, metadata, summaries, pin and attachment references, retaining shared blobs.
+- Room write leases extend the existing session lease boundary.
+  Background jobs must capture their room lease before network work and pass it into later writes so clear prevents stale resurrection.
+  Quota failures preserve interactive bytes and degrade persistent writes to origin-wide read-only mode until page restart; clear and reclamation remain available, without automatic write retries.
+- Validation: the full Node 24 suite passes 560 files and 4,766 tests; focused media/message/cache coverage passes 77 files and 689 tests.
+  Typecheck and production/PWA build pass; ESLint reports zero errors and the existing 17 warnings.
+
+### Persist essential message bodies for offline restart (2026-09-20)
+
+- The existing session-scoped `mindroom-cache` database is schema v4. It adds immutable raw attachment payloads plus indexed room references while preserving all four v3 stores and their data.
+- `downloadCachedAttachment(mx, source, useAuthentication, options?)` owns authenticated media transport, one-fetch concurrency, persistent raw-byte reads and writes, size limits, caller aborts, and consumer-time decryption. Its storage identity is the account-scoped MXC URI; encryption keys remain in message metadata and stored encrypted payloads remain cipher bytes.
+- `getCachedAttachmentCacheMetadata(mx, mxcUri)` reports committed payload and room-reference metadata. A successful interactive download does not imply offline coverage when IndexedDB is unavailable or a write fails.
+- Room references record MXC URI, room id, byte length, essential flag, `cached` status, and update time. Essential promotion is monotonic across cached hits and concurrent callers. Registering absent references and optional-media eviction remain follow-up policy work.
+- Generic sidecars persist as ordinary attachments. Long-text message bodies explicitly request essential retention and can hydrate after the parsed in-memory cache is discarded and network transport is unavailable.
+- Session cache deletion and app-wide in-memory cleanup revoke outstanding attachment write leases before clearing state, so a transport completion from an old session cannot recreate deleted payloads.
+- Validation: the full Node 24 suite passes (`557` files, `4,737` tests), including focused cache/message coverage (`22` files, `173` tests); `npm run typecheck` and `npm run build` pass; `npm run lint` passes with the existing `17` warnings and no errors.
+
+### Run browser specs in parallel (2026-09-20)
+
+- Use `npm run test:e2e:parallel -- --jobs 8`; `--list` shows all configured spec/project jobs.
+  `docs/testing.md` gives explicit Matrix, preview, Vite, and optional integration setup; `AGENTS.md` points to it.
+- One scheduler reuses the existing account and fixture scripts, isolates accounts and output per job, and runs timing-sensitive specs after the parallel queue.
+  It preserves failures and skips, reports missing external fixtures as blocked, and stops child process groups on interruption.
+  The caller owns infrastructure; Linux hosts can run the whole scheduler in the official Playwright image.
+- Validation: four scheduler tests, all 4,741 unit tests, typecheck, production/PWA build, and focused lint/format checks pass.
+  Discovery lists 111 spec/project jobs and 276 cases; container checks verify blocked integrations and interruption without stopping caller-owned services.
+  The browser smoke run passed seven cases and reported four settings-header failures; direct Playwright execution reproduced the same blur assertion without the scheduler.
+  The full slow suite was not rerun; settings-header, fold-anchor, and software-compositor failures remain strict and documented.
+  Next validation: run the full slow suite with the documented prerequisites and record its outcome.
+
+### Match settings glass and iOS safe-area painting (2026-09-20)
+
+- Settings navigation headers inherit the enclosing modal material, matching settings subpages and removing the separate fill beside the scrollbar gutter.
+  Standalone navigation retains its sticky glass header.
+- The iOS bridge overrides the StatusBar plugin configuration to let the WebView paint behind the status bar.
+  Existing `viewport-fit=cover` and root safe-area padding keep navigation below the cutout, while modal backdrops cover the whole screen and the residual native status-bar inset no longer leaves a gap above sync banners.
+  The shared Android inset configuration stays unchanged.
+- Splash screens no longer toggle native WebView geometry when mounting or unmounting.
+  Native status icons follow the active web theme; the bridge preserves an already resolved icon style when Capacitor reapplies startup settings after native screens close.
+- The earlier native-inset workaround predates `viewport-fit=cover`.
+  Browser coverage checks transparent settings navigation in light and dark themes, a 59 px safe-area inset, matching background pixels across that inset, and backdrop restoration after closing settings.
+  Native plugin boundary tests cover both icon schemes and browser isolation.
+- Validation: all 4,731 tests across 555 files pass under Node 24 with limited worker concurrency, along with typecheck, production/PWA build, App Store preflight, formatting, and whitespace checks.
+  ESLint reports zero errors and the existing 17 warnings.
+  All 19 Chromium and 17 WebKit glass fixture cases pass across the suite and isolated reruns; the two CDP safe-area cases are skipped on WebKit.
+  Browser reruns resolved a Chromium click timeout and WebKit screenshot failures accompanied by a browser-process crash.
+  Independent review found no remaining issues.
+  Native compilation and physical iPhone checks remain unverified; check the cutout, sync banner, keyboard, and status icons before and after dismissing native screens on an Apple build.
+
+### Drag zoomed images with touch (2026-09-20)
+
+- The image viewer previously handled pinch zoom on touchscreens but only accepted mouse input for panning.
+  Pointer events now support touch, mouse, and pen dragging on the viewer surface, including continuing with one finger after a pinch.
+- Drag movement stays in screen pixels at every zoom level, and transform animation is disabled while dragging.
+  Pointer capture keeps drags active outside the image, while cancellation and lost capture end tracking and returning to 100% resets the offset.
+- Regression coverage checks pinch handoff, repeated drags, cancellation, normal-size reset, and secondary mouse buttons.
+  Chromium browser coverage exercises real injected touch gestures and desktop dragging against the production viewer.
+- Validation: all 4,746 tests across 557 files, typecheck, production/PWA build, and both browser cases pass.
+  ESLint reports zero errors and the existing 17 warnings; independent review found no actionable issues.
+  Physical iPhone validation remains unavailable on this Linux host.
+- Review follow-up preserves the remaining finger when only one pointer is canceled.
+  The new cancellation-handoff regression fails before the fix and passes afterward; independent follow-up review found no issues.
+
+### Refresh and run the full live browser suite (2026-09-20)
+
+- Rebased validation work onto current `dev` (`12d3245f`), including cached-thread startup, diagnostic storage fallback, the iOS import fix, and grouped-tool table rendering.
+  Broad browser receipts were collected on `e1de7c4d` plus these fixes; unit tests, typecheck, and build were rerun after the final table-only rebase.
+- Run eight independent spec processes against a disposable local Matrix server, each with one Playwright worker and separate primary, secondary, third, deactivation, and agent accounts plus fixture rooms.
+  Keep timing-sensitive scroll and performance probes in a sequential queue on separate CPU cores.
+  Use a production preview for application tests and a fresh Vite instance for specs that import source modules or load `e2e/fixtures/` pages.
+  Restart Vite after rebasing to avoid stale module singletons.
+  The 83-file main queue took 15m54s versus 116m30s of combined spec runtime; this measures concurrent execution, not a separate serial benchmark.
+  Start all fixture containers before browser tests: container network changes can interrupt browser requests during page startup.
+- Clear Cache preserves encryption identity stores together with saved logins.
+  Sync and application caches still clear; account removal retains its separate crypto cleanup.
+  Regression coverage checks stored crypto data with and without database enumeration and verifies the same Matrix device after browser reload.
+- Refresh live fixtures for the default Simple Mode and current view, sort, dialog, and command-palette controls.
+  Invite-menu coverage creates its own rooms, space, and directory users.
+  Scroll checks distinguish visible rows from virtualizer overscan and require nonempty visible anchors plus real scroll movement.
+  Review removed a proposed three-second wait after folding messages: two passing runs had first measured 634px of anchor drift before returning to zero.
+  The original immediate less-than-40px assertion is restored; asynchronous restoration alone does not establish that users never see the displacement.
+- Auth translations use a named component tag so login, registration, and password-reset actions render inside their links.
+- Recently Opened timestamps cannot shrink or wrap, preserving the two-line row height as relative timestamps age.
+  A fixed-clock live regression reproduces the previous 18px height increase.
+- Authoritative thread-cache repairs use the same edit compaction as live writes, preventing standalone streamed replacement records from accumulating.
+- Members actions choose their drawer state from the current viewport when invoked, including callbacks queued before a resize commits.
+  The regression opens the phone overlay without changing the saved desktop preference.
+  Agent-action fixtures wait for initial live sync and clear only cached deployment config before explicitly changing trust policy; all behavior assertions remain intact.
+- Glass filter checks wait for font layout to settle before asserting pointer motion preserves filter identity.
+  Native-touch bounds account for floating overlays using a bounded hit-test search; pixel evidence uses compositor timestamps and attaches the first five failing frames.
+- Final application checks: 4,736 unit tests across 556 files passed, along with typecheck and the production/PWA build.
+  ESLint reports zero errors and the existing 17 warnings.
+  Independent review found no blocking issues in the five product fixes.
+  Fixture review caught an account-settings overwrite; invite coverage now preserves unrelated preferences and restores the original settings in teardown, verified with a failing-before/passing-after live check.
+  The overview sort selector is shared between its two fixtures.
+  Agent-action validation passed three complete repeats, and the separate non-native performance queue passed all 22 cases.
+- Browser status: 210 of 212 default cases passed, plus 49 additional browser cases; three existing platform-specific skips remain.
+  Two cases remain unresolved: the original immediate fold-anchor check in `e2e/live/long-message-expansion-default.spec.ts` and `compositor momentum flicks under latency` in `e2e/live/thread-ride-under-latency.spec.ts`.
+  The restored fold assertion passed once at 0px and failed twice at 634px across three isolated repeats; eventual anchor recovery is insufficient evidence of stable visible folding.
+  Blank pixels also reproduce in a static long page with no application code, on both installed Chromium versions.
+  Headed SwiftShader rendering improves results but remains flaky (one of three repeated application runs passed); disabling partial rasterization worsens the static control.
+  No reliable compositor result is available from this software-rendered host, and no speculative virtualizer changes or relaxed pixel assertions are retained.
+
+### Preserve custom HTML rendering after grouped tool markers (2026-09-20)
+
+- Status: fixed, locally validated, and independently reviewed with no findings.
+- Duplicate-marker suppression now runs only after the current element is confirmed as a tool marker, so following tables and styled paragraphs reach the shared HTML renderer.
+  The production change moves 13 lines within `MindroomHtmlBlocks.tsx`, with no net line growth.
+- Three parser regressions and both new phone-width browser cases fail on the unchanged `e1de7c4d` baseline and pass with the fix.
+  Coverage includes adjacent and whitespace-separated markers, a styled paragraph after a group, and exactly one rendering per grouped tool.
+- Generic browser fixtures confirm contained horizontal scrolling, readable columns, and visible inner borders at 390 px; additional touch-emulated checks cover 320 px.
+  The existing standalone HTML and Markdown table checks and both theme grids still pass.
+- Validation: all 4,729 tests across 555 files pass under Node 24, as do all five Chromium table cases, typecheck, production/PWA build, changed-file formatting, and whitespace checks.
+  ESLint reports zero errors and the existing 17 warnings.
+- Ready PR #294 targets `dev`; hosted checks and automated review status are tracked on the pull request.
+
+### Restore iOS archives after archived-room module collision (2026-09-20)
+
+- Xcode Cloud build 254 failed during the web build in `ci_pre_xcodebuild.sh` because `ARCHIVED_ROOMS_SETTINGS_PAGE` was resolved from the state module instead of the settings component.
+  `ArchivedRooms.tsx` and `archivedRooms.ts` shared a case-insensitive basename, and Vite probes `.ts` before `.tsx` for extensionless imports.
+  Linux builds passed because their filesystem distinguished the basename casing.
+- Rename the component file to `ArchivedRoomsPage.tsx` and update its settings import so both files resolve unambiguously.
+- A Linux lookup-alias reproduction produces the exact missing-export error from the Apple log before the rename.
+  The same lookup-alias build passes after the rename.
+- Validation: all 4,726 tests across 555 files pass under Node 24, along with typecheck, the production/PWA build, App Store preflight, changed-file formatting, and ESLint with zero errors and the existing 17 warnings.
+  Independent review confirms an exact-content rename with no missed imports or blocking findings.
+  The post-merge Xcode Cloud archive will verify the native pipeline.
+
+### Start cached sessions before runtime configuration refresh (2026-09-20)
+
+- Startup previously hid the entire app behind the particle splash until a fresh `config.json` request completed, even when valid configuration and chats were cached.
+- `ClientConfigLoader` now snapshots the last valid configuration at mount and starts cached content while refreshing configuration in the background.
+  Successful background refreshes update storage for the next launch; the mounted configuration and rendered subtree stay stable so the router, route, and unsent drafts survive.
+- Network failures, server errors, and malformed refresh responses retain usable cached configuration.
+  Redirects and HTTP 401/403 retain sign-in recovery; explicit retries wait for fresh configuration, and Continue offline remains an explicit recovery choice after authentication failure.
+- First launch without cached configuration still uses the existing loading and error screens.
+  The particle animation, encryption initialization, and Matrix store replay remain unchanged.
+- Regression tests cover pending and failed refreshes, real router identity and navigation, authentication recovery, and first launch.
+  The phone-sized browser regression stalls both configuration and Matrix responses, opens a cached thread, and checks that a later configuration refresh preserves the composer and its draft.
+  The browser regression fails on the merged baseline while the configuration response remains held.
+- Both cache browser regressions disable service workers and assert intercepted Matrix requests, preventing PWA fetch handling from silently bypassing their network stalls.
+- Validation: all 4,701 tests across 553 files pass under Node 24, along with application/browser-test typechecks, production/PWA build, formatting, and ESLint with zero errors and the existing 17 warnings.
+  Startup and room/message cache scenarios pass against the production build in phone-sized Chromium and WebKit.
+  Independent implementation review found no blocking issues.
+  Automated review found no bugs; its confirmed unreachable-return cleanup simplifies the loading/error branches and passed a second independent review.
+  Physical iPhone startup timing remains unmeasured; local encryption and database work still precede chat rendering.
+
+### Restore cached room threads and paint cached replies before network waits (2026-09-20)
+
+- Room startup previously treated an equal or newer SDK tail as proof that the cached page was already loaded, discarding missing older roots and leaving later pagination to reveal them.
+- The hydration snapshot now separates overlapping older history from newer tail events and revision updates.
+  The room controller prepends the older events, retains live event identity, and publishes the combined timeline once.
+- Unknown gaps remain unjoined, cached pagination tokens retain their existing semantics, and timeline resets or concurrent history loads invalidate stale prepend decisions.
+- Cached thread messages now hydrate into supplemental render state before waiting for SDK sync-gap token conversion, which can require network responses.
+  Subsequent SDK work still waits for conversion and checks thread ownership.
+- Ten real IndexedDB/SDK regressions cover equal and newer live tails, mixed history/edit/tail hydration, unknown gaps, reset and pagination races, and thread roots whose metadata requests remain stalled.
+  Review exposed a live-tail advance during encrypted prepend; hydration now rechecks pending appends and remaps same-ID arrivals to retain cached edits on live instances.
+  A session regression proves cached replies paint while token conversion remains stalled, with no replies present in SDK memory.
+- Validation: all 4,693 tests across 553 files pass under Node 24, as do application typecheck, the production/PWA build, and ESLint with zero errors and the existing 17 warnings.
+  Independent review found no remaining blocking issues.
+- The phone-sized browser regression receives three roots and two thread replies through live sync, verifies their persistence, reduces the saved SDK sync to its newest root, and holds every Matrix response during reopen.
+  The production build restores all three roots through initial hydration and shows cached replies when opening a thread in Chromium and WebKit.
+  Unchanged `dev` fails the room hydration assertion and relies on later cache pagination instead.
+  Changed-source formatting, browser-test typecheck, and whitespace checks also pass.
+- The initial cache read remains bounded to 200 room events; this fix does not promise that all room history appears in the first browser frame.
+  Physical iPhone startup timing remains unverified.
+
+### Keep diagnostic evidence after storage failure (2026-09-20)
+
+- The September 19 thread incident export shows a deep-trace IndexedDB flush failure before thread navigation, leaving no subsequent thread-loading evidence.
+  Storage failure now keeps opt-in capture running in memory, including the failed batch, network activity, lifecycle events, and thread diagnostics.
+  Capture also starts while IndexedDB activation is pending; disabling tracing still stops capture immediately.
+  Preference removal or storage clearing in another same-origin tab also stops capture, including during activation or memory-only recording.
+- An insertion-ordered memory tail retains at most 1,000 events and 256 KiB of serialized event data, with eviction counts.
+  Failed persistence is not retried per event.
+  Settings reports memory-only recording and asks users to export before restarting, because this tail cannot survive a page or WebContent process restart.
+- Export schema 4 adds `deepTraceMemory`, frozen before asynchronous collectors start.
+  Persistent `deepTrace` and native diagnostics retain independent five-second deadlines, so a rejected or stalled collector cannot discard the memory snapshot.
+  Memory and persistent events can overlap; deduplicate on `(sessionId, sequence)` when combining them.
+  Clearing removes the memory tail at invocation; events arriving during the existing asynchronous persistent-clear window survive in memory but may be absent from the persistent snapshot.
+- Anonymous `thread.*` stages cover cache reads, SDK bootstrap, latest refresh, reconciliation chunks, and each reconciliation caller's outcome, including callers sharing one job.
+  Reconciliation records whether repaired data committed to cache as well as whether an observer was still current when it received the result.
+  The numeric `trace_id` identifies a thread route visit within the page; multiple open attempts for that route can share it, and a new visit receives a new counter.
+  Match it with the enclosing diagnostic session when comparing exports.
+  Only explicitly allowed phase names and numeric, boolean, or null metrics are exported; room/event IDs, message text, raw errors, and arbitrary debug fields are excluded.
+  Diagnostic intent, retention, and manual export remain device-scoped across Matrix account switches, matching the existing recorder and logout policy.
+  Local-echo thread opens emit completion, settled, and close stages without adding network work.
+  Cache completion is recorded before SDK gap conversion; a later conversion failure does not report a failed cache read.
+- While deep tracing is enabled and a thread is mounted, a once-per-second sampler compares fresh SDK model counts, committed React reply counts, and reply IDs mounted in that timeline's DOM.
+  The live model is read independently of React updates, so missed UI updates can leave distinguishable evidence.
+  Both collections use the existing shared per-root reply classification and event-ID deduplication policy.
+  Unchanged snapshots are suppressed; absent models or DOM elements produce null metrics, and disabling tracing or leaving the thread removes the sampler.
+  A failed diagnostic read stops the sampler without throwing into the app or creating a recurring error loop.
+  Mounted counts describe virtualized DOM rows, not whether pixels were painted or every loaded reply should be visible.
+- Regression tests reproduce recorder shutdown after failed persistence before the fix and cover bounded retention, activation stalls, late failures after opt-out, export deadlines, clear boundaries, shared reconciliation jobs, and stale React data.
+  A Chromium fault-injection check closes an actual IndexedDB connection, then rejects persistent export reads, and confirms that thread and network evidence still exports from memory.
+  Validation after integrating the latest cache-first paint changes passes all 4,718 tests across 555 files in Debian Node 24, application typecheck, production/PWA build, and changed-file formatting.
+  ESLint reports zero errors and the 17 existing warnings; independent code review has no remaining findings.
+- This improves the next incident's evidence.
+  It does not establish or fix the cause of the reported blank screen or root-only thread view, and no native iPhone reproduction is claimed.
+
+### Coalesce untouched thread sync gaps (2026-09-19)
+
+- Limited room syncs retain one pending gap per initialized dormant thread instead of allocating another empty timeline each time.
+  The pending gap keeps its earliest forward boundary and newest backward boundary, with shared token conversions started immediately.
+- New live events, cache insertion, remote echoes, history insertion, pagination, and explicit thread opening materialize the gap before using it.
+  Common timeline reads and duplicate rehydration remain lazy.
+  Historical insertion and pagination retain the caller’s original timeline object; existing timelines and event lookup remain registered.
+- Reset-all calls and threads with active pagination retain immediate reset behavior.
+  Threads still fetching initial metadata also reset immediately.
+  Pagination waits for conversion, cancels if a destructive reset removed its target, and observes conversion failures without retaining a stuck wait.
+- The selected thread observes room gaps after the SDK reset loop.
+  Both cache-first opening and SDK bootstrap await conversion before capturing the live chain; navigation removes the active subscription and suppresses stale callbacks.
+  Conversion failures retain a diagnostic while their owner is current; failed cache-first resets continue through SDK bootstrap.
+- Real-SDK regressions cover 200 initialized threads across 20 gaps, touched-thread insertion, token boundaries, both pagination directions, concurrent resets, failed conversions, historical identity, duplicate cache data, and active-thread switching.
+- Validation: all 4,682 tests across 552 files pass under Node 24, along with application typecheck, production/PWA build, and changed-file formatting.
+  ESLint reports zero errors and the 17 existing warnings.
+- An isolated SDK probe with 200 untouched initialized threads and 200 room resets retains 200 thread timelines instead of 40,200.
+  Post-GC heap growth falls from 119.1 MiB to 0.8 MiB in that isolated case; room timelines remain preserved.
+- A production Chromium replay uses 200 initialized threads, 8,000 short streaming edits in 40 rounds, a 1440 × 1000 viewport, and 4× CPU throttling against local Tuwunel.
+  Both builds exclude the separate offscreen-animation change.
+  Retained SDK timelines fall from 7,236 to 1,054 despite 35 baseline versus 40 candidate room resets.
+  Post-GC heap growth falls from 19.4 MiB to 10.8 MiB (45%); peak renderer RSS falls from 825 MiB to 746 MiB (10%).
+  These are single-run observations, with different sync delivery, not an equal-event throughput benchmark.
+  Both builds miss the 30-second all-threads-latest SDK revision deadline, and p95 frame gaps remain about 217 ms.
+- A separate 2,000-edit browser replay opens a dormant thread after repeated sync gaps, displays its final reply, and scrolls back through 120 older replies to the oldest message.
+  Both baseline and candidate pass this history check; all 200 threads reach the final SDK revision in these shorter runs.
+- Status: implementation, local validation, and production replay complete.
+  Neither browser replay crashes, so this addresses measured timeline retention without establishing the reported Chrome crash cause or resolution.
+  Remaining streaming catch-up and frame timing need separate work; no native-device improvement is claimed.
+
 ### Pause offscreen thread streaming pulses (2026-09-19)
 
 - A 200-thread stress investigation found sustained style/frame work from streaming dots outside the viewport, including after message traffic stopped.
@@ -13,7 +685,7 @@
   Running animations fall from 200 to 10; p95 frame gaps fall from 33.4 ms to 16.8 ms.
   Style recalculation falls from 3.79–3.82 seconds to 0.46–0.50 seconds per sample; total main-thread time falls from 7.80–7.81 seconds to 2.01–5.37 seconds.
   These are rendering measurements with streaming markers active, not proof of sustained delivery of 200 live streams or a fix for browser-tab crashes.
-- Validation: all 4,653 unit tests, application and browser-test typechecks, production/PWA build, and changed-file formatting pass.
+- Validation after integrating `dev`: all 5,100 unit tests, application typecheck, production/PWA build, and changed-file formatting pass.
   ESLint has zero errors and the existing 17 warnings.
   All nine browser cases pass across Chromium, Firefox, and phone-sized desktop WebKit, covering offscreen pausing, large scroll jumps, remounts, reduced motion, and the missing-observer fallback.
   The offscreen-animation regression fails on the merged baseline; independent review found no actionable issues.
@@ -307,7 +979,7 @@
 - Computer view state belongs to one conversation instance through `computer/useRoomComputerState.ts`.
   Account, room, route, or availability changes clear the view before children render, so opening a routed request does not depend on effect ordering and old panel callbacks cannot affect a later visit.
   UI-action callbacks become current only after React commits, so suspended or abandoned renders cannot affect the live listener.
-- `ui-actions/chatUiBackendContract.test.ts` parses 18 notices emitted by the real backend toolkit, covering every action and Settings section in room and thread scope.
+- `ui-actions/chatUiBackendContract.test.ts` parses 20 notices emitted by the real backend toolkit, covering every action, panel value, and Settings section in room and thread scope.
   The dedicated `chat-ui-backend-contract.yml` workflow regenerates the committed fixture from its pinned backend revision and tests the generated output directly.
   When changing the wire contract, update the backend revision in that workflow and regenerate `ui-actions/__fixtures__/chatUiBackendContract.json` using `uv run -m tests.chat_ui_contract_fixture --output <fixture-path>` from the backend checkout.
 - Validation: all 4,567 unit tests, typecheck, production/PWA build, and changed-file formatting pass.
@@ -1569,7 +2241,7 @@
 - The renderer now synthesizes sanitized HTML from that preview body immediately and lets sidecar hydration replace it with authoritative content.
 - Exact root-level tool markers and standalone paste markers become the existing rich preview blocks.
 - Blank Markdown separators between root tool markers are discarded so one tool run remains one dropdown.
-- Any code, tilde, or math syntax disables rich marker promotion for that temporary preview, so ambiguous markers remain sanitized literal text until hydration.
+- Recognized code and math blocks preserve literal markers while root markers elsewhere can become dropdowns, including before tool metadata loads; unsupported or unmatched fence syntax remains conservative.
 - Inline, indented, or container-nested markers likewise remain literal instead of invoking a second compatibility parser.
 - Matrix reply fallbacks are removed exactly once before rendering, including reply-only previews and bounded formatter fallbacks.
 - Simple block and inline syntax budgets plus parser exception fallback keep untrusted previews bounded.

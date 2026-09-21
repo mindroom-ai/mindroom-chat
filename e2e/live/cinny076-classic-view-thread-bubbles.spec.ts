@@ -60,7 +60,10 @@ test.describe('live cinny-076 classic room timeline', () => {
       timeout: 30_000,
     });
 
-    await page.getByRole('button', { name: 'Classic view' }).click();
+    await page
+      .getByRole('group', { name: 'Room view mode' })
+      .getByRole('button', { name: 'Classic', exact: true })
+      .click();
 
     await expect(page.locator('[data-room-thread-overview="true"]')).toHaveCount(0);
     await expect(page.locator(`[data-thread-root-id="${fixture.rootId}"]`)).toHaveCount(0);

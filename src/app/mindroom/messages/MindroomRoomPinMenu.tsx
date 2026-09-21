@@ -2,7 +2,6 @@ import { useTranslation } from 'react-i18next';
 /* eslint-disable react/destructuring-assignment */
 import React, { forwardRef, MouseEventHandler, useCallback, useMemo, useRef } from 'react';
 import { MatrixEvent, Room } from 'matrix-js-sdk';
-import { RoomPinnedEventsEventContent } from 'matrix-js-sdk/lib/types';
 import {
   Avatar,
   Box,
@@ -20,6 +19,7 @@ import {
 import { Opts as LinkifyOpts } from 'linkifyjs';
 import { HTMLReactParserOptions } from 'html-react-parser';
 import { useVirtualizer } from '@tanstack/react-virtual';
+import { getEventAttachmentOwner } from './eventAttachments';
 import { Menu, Header } from '../../components/glass/GlassPrimitives';
 import { useRoomPinnedEvents } from '../../hooks/useRoomPinnedEvents';
 import * as css from './MindroomRoomPinMenu.css';
@@ -42,13 +42,9 @@ import {
 import { UserAvatar } from '../../components/user-avatar';
 import { getMxIdLocalPart, mxcUrlToHttp } from '../../utils/matrix';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
-import {
-  getEditedEvent,
-  getMemberAvatarMxc,
-  getMemberDisplayName,
-  getStateEvent,
-} from '../../utils/room';
-import { GetContentCallback, MessageEvent, StateEvent } from '../../../types/matrix/room';
+import { canPinRoomEvents, setRoomEventPinned } from '../threads/threadPinning';
+import { getEditedEvent, getMemberAvatarMxc, getMemberDisplayName } from '../../utils/room';
+import { GetContentCallback, MessageEvent } from '../../../types/matrix/room';
 import { useMentionClickHandler } from '../../hooks/useMentionClickHandler';
 import { useSpoilerClickHandler } from '../../hooks/useSpoilerClickHandler';
 import {
@@ -66,6 +62,7 @@ import {
   renderMindroomPinnedEncryptedMessageEvent,
 } from './pinnedMessageExtensions';
 import { useSetting } from '../../state/hooks/settings';
+import { shouldShowLinkFavicons } from './linkFaviconPolicy';
 import { settingsAtom } from '../../state/settings';
 import * as customHtmlCss from '../../styles/CustomHtml.css';
 import { EncryptedContent } from '../../features/room/message/EncryptedContent';
@@ -82,7 +79,6 @@ import { PowerIcon } from '../../components/power';
 import colorMXID from '../../../util/colorMXID';
 import { useIsDirectRoom } from '../../hooks/useRoom';
 import { useRoomCreators } from '../../hooks/useRoomCreators';
-import { useRoomPermissions } from '../../hooks/useRoomPermissions';
 import {
   GetMemberPowerTag,
   getPowerTagIconSrc,
@@ -122,13 +118,7 @@ function PinnedMessage({
 
   const [unpinState, unpin] = useAsyncCallback(
     useCallback(() => {
-      const pinEvent = getStateEvent(room, StateEvent.RoomPinnedEvents);
-      const content = pinEvent?.getContent<RoomPinnedEventsEventContent>() ?? { pinned: [] };
-      const newContent: RoomPinnedEventsEventContent = {
-        pinned: content.pinned.filter((id) => id !== eventId),
-      };
-
-      return mx.sendStateEvent(room.roomId, StateEvent.RoomPinnedEvents as any, newContent);
+      return setRoomEventPinned(mx, room, eventId, false);
     }, [room, eventId, mx])
   );
 
@@ -141,11 +131,16 @@ function PinnedMessage({
 
   const handleUnpinClick: MouseEventHandler = (evt) => {
     evt.stopPropagation();
-    unpin();
+    void unpin().catch(() => {});
   };
 
   const renderOptions = () => (
     <Box shrink="No" gap="200" alignItems="Center">
+      {unpinState.status === AsyncStatus.Error && (
+        <Text role="alert" size="T200">
+          {t('thread.pinFailed')}
+        </Text>
+      )}
       <Chip data-event-id={eventId} onClick={handleOpenClick} variant="Secondary" radii="Pill">
         <Text size="T200">{t('mindroomUi.messages.mindroomRoomPinMenu.open')}</Text>
       </Chip>
@@ -262,8 +257,7 @@ export const RoomPinMenu = forwardRef<HTMLDivElement, RoomPinMenuProps>(
     const powerLevels = usePowerLevelsContext();
     const creators = useRoomCreators(room);
 
-    const permissions = useRoomPermissions(creators, powerLevels);
-    const canPinEvent = permissions.stateEvent(StateEvent.RoomPinnedEvents, userId);
+    const canPinEvent = canPinRoomEvents(creators, powerLevels, userId);
 
     const creatorsTag = useRoomCreatorsTag();
     const powerLevelTags = usePowerLevelTags(room, powerLevels);
@@ -281,6 +275,11 @@ export const RoomPinMenu = forwardRef<HTMLDivElement, RoomPinMenuProps>(
     const useAuthentication = useMediaAuthentication();
     const [mediaAutoLoad] = useSetting(settingsAtom, 'mediaAutoLoad');
     const [urlPreview] = useSetting(settingsAtom, 'urlPreview');
+    const [encUrlPreview] = useSetting(settingsAtom, 'encUrlPreview');
+    const showLinkFavicons = shouldShowLinkFavicons(
+      { mediaAutoLoad, urlPreview, encUrlPreview },
+      room.hasEncryptionStateEvent()
+    );
 
     const direct = useIsDirectRoom();
     const [legacyUsernameColor] = useSetting(settingsAtom, 'legacyUsernameColor');
@@ -304,21 +303,32 @@ export const RoomPinMenu = forwardRef<HTMLDivElement, RoomPinMenuProps>(
     const linkifyOpts = useMemo<LinkifyOpts>(
       () => ({
         ...LINKIFY_OPTS,
-        render: factoryRenderLinkifyWithMention((href) =>
-          renderMatrixMention(mx, room.roomId, href, makeMentionCustomProps(mentionClickHandler))
+        render: factoryRenderLinkifyWithMention(
+          (href) =>
+            renderMatrixMention(mx, room.roomId, href, makeMentionCustomProps(mentionClickHandler)),
+          showLinkFavicons
         ),
       }),
-      [mx, room, mentionClickHandler]
+      [mx, room, mentionClickHandler, showLinkFavicons]
     );
     const htmlReactParserOptions = useMemo<HTMLReactParserOptions>(
       () =>
         getReactCustomHtmlParser(mx, room.roomId, {
           linkifyOpts,
+          showLinkFavicons,
           useAuthentication,
           handleSpoilerClick: spoilerClickHandler,
           handleMentionClick: mentionClickHandler,
         }),
-      [mx, room, linkifyOpts, mentionClickHandler, spoilerClickHandler, useAuthentication]
+      [
+        mx,
+        room,
+        linkifyOpts,
+        mentionClickHandler,
+        spoilerClickHandler,
+        useAuthentication,
+        showLinkFavicons,
+      ]
     );
     const mindroomPinnedMessageRenderers = useMemo(
       () =>
@@ -386,6 +396,7 @@ export const RoomPinMenu = forwardRef<HTMLDivElement, RoomPinMenuProps>(
                       content={mEvent.getContent()}
                       renderImageContent={(props) => (
                         <ImageContent
+                          owner={getEventAttachmentOwner(mEvent)}
                           {...props}
                           autoPlay={mediaAutoLoad}
                           renderImage={(p) => <Image {...p} loading="lazy" />}
@@ -455,6 +466,7 @@ export const RoomPinMenu = forwardRef<HTMLDivElement, RoomPinMenuProps>(
               content={getContent()}
               renderImageContent={(props) => (
                 <ImageContent
+                  owner={getEventAttachmentOwner(event)}
                   {...props}
                   autoPlay={mediaAutoLoad}
                   renderImage={(p) => <Image {...p} loading="lazy" />}

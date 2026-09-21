@@ -5,6 +5,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { ClientEvent, SyncState } from 'matrix-js-sdk';
 import { QueryClient, useQueryClient } from '@tanstack/react-query';
 import { ClientRoot, hasCachedClientShell } from './ClientRoot';
+import { SpecVersions } from './SpecVersions';
 import { useActiveSession } from '../../hooks/useSessionStore';
 import { useClientConfig } from '../../hooks/useClientConfig';
 import { StoredSession } from '../../state/sessions';
@@ -578,6 +579,7 @@ describe('ClientRoot', () => {
       getHomeserverUrl: vi.fn(() => 'https://example.com'),
       getSafeUserId: vi.fn(() => '@alice:example.com'),
       getSyncState: vi.fn(() => null),
+      getRooms: vi.fn(() => []),
     };
 
     currentSession = {
@@ -741,6 +743,54 @@ describe('ClientRoot', () => {
       renderer?.root.findAll((node) => node.props['aria-label'] === 'Startup recovery options')
     ).toHaveLength(0);
   });
+
+  it.each([
+    {
+      label: 'an empty store after a sync error',
+      cachedRooms: 0,
+      state: SyncState.Error,
+      allow: false,
+    },
+    {
+      label: 'an empty newly synced account',
+      cachedRooms: 0,
+      state: SyncState.Prepared,
+      allow: false,
+    },
+    {
+      label: 'restored rooms before startup completes',
+      cachedRooms: 1,
+      state: SyncState.Prepared,
+      allow: true,
+    },
+  ])(
+    'only bypasses the versions gate for usable rooms: $label',
+    async ({ cachedRooms, state, allow }) => {
+      const client = createMockClient({ cachedRooms });
+      currentSession = {
+        sessionId: 'session-a',
+        baseUrl: 'https://example.com',
+        userId: '@alice:example.com',
+        deviceId: 'DEVICE_A',
+        accessToken: 'token-a',
+        lastUsedAt: 1,
+      };
+      vi.mocked(useActiveSession).mockImplementation(() => currentSession);
+      vi.mocked(initClient).mockResolvedValue(client as never);
+      vi.mocked(startClient).mockReturnValue(new Promise(() => {}));
+
+      await act(async () => {
+        renderer = create(renderClientRoot());
+        await flushEffects();
+      });
+      await act(async () => {
+        client.emitSync(state, null);
+        await flushEffects();
+      });
+
+      expect(renderer?.root.findByType(SpecVersions).props.allowCachedContent).toBe(allow);
+    }
+  );
 
   it('keeps the particle loading screen when only a saved sync token is restored', async () => {
     const client = createMockClient({ syncToken: 's123' });

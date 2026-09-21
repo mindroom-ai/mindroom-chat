@@ -1,17 +1,19 @@
 import { style } from '@vanilla-extract/css';
 import { color, config, toRem } from 'folds';
+import { glassSurface } from '../../styles/Glass.css';
 
-export const ThreadSummaryCard = style({
-  alignSelf: 'flex-start',
-  width: 'fit-content',
-  minWidth: 0,
-  maxWidth: `min(100%, ${toRem(420)})`,
-  padding: config.space.S200,
-  borderRadius: config.radii.R300,
-  border: `${config.borderWidth.B300} solid ${color.SurfaceVariant.ContainerLine}`,
-  backgroundColor: color.SurfaceVariant.Container,
-  color: color.SurfaceVariant.OnContainer,
-});
+export const ThreadSummaryCard = style([
+  glassSurface({ level: 'panel', variant: 'SurfaceVariant' }),
+  {
+    alignSelf: 'flex-start',
+    width: 'fit-content',
+    minWidth: 0,
+    maxWidth: `min(100%, ${toRem(420)})`,
+    padding: config.space.S200,
+    borderRadius: config.radii.R300,
+    color: color.SurfaceVariant.OnContainer,
+  },
+]);
 
 export const ThreadSummaryHeader = style({
   display: 'flex',

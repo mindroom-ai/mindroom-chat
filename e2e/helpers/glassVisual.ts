@@ -105,6 +105,54 @@ export const sampleScreenshot = async (
   );
 };
 
+// Observe the rendered rim: top/bottom catch the light and both sides recede.
+// A diagonal highlight, missing rim, or uniform outline must fail this check.
+export const expectVerticalGlassRim = async (page: Page, surface: Locator) => {
+  const box = (await surface.boundingBox())!;
+  // boundingBox is viewport-relative; full-page screenshots use document coordinates.
+  const scroll = await page.evaluate(() => ({ x: window.scrollX, y: window.scrollY }));
+  box.x += scroll.x;
+  box.y += scroll.y;
+  const points = [
+    // Sum adjacent pixels to account for fractional one-pixel rim coverage.
+    { x: box.x + box.width / 2, y: Math.floor(box.y) },
+    { x: box.x + box.width / 2, y: Math.floor(box.y) + 1 },
+    { x: box.x + box.width / 2, y: Math.ceil(box.y + box.height) - 2 },
+    { x: box.x + box.width / 2, y: Math.ceil(box.y + box.height) - 1 },
+    { x: Math.floor(box.x), y: box.y + box.height / 2 },
+    { x: Math.floor(box.x) + 1, y: box.y + box.height / 2 },
+    { x: Math.ceil(box.x + box.width) - 2, y: box.y + box.height / 2 },
+    { x: Math.ceil(box.x + box.width) - 1, y: box.y + box.height / 2 },
+    { x: box.x + box.width / 2, y: box.y + box.height - 6 },
+  ];
+  const painted = await sampleScreenshot(page, points);
+  await surface.evaluate((element) => element.setAttribute('data-glass-rim-probe', ''));
+  const hideRim = await page.addStyleTag({
+    content: '[data-glass-rim-probe]::before { display: none !important; }',
+  });
+  let plain: Rgba[];
+  try {
+    plain = await sampleScreenshot(page, points);
+  } finally {
+    await hideRim.evaluate((element) => element.remove());
+    await surface.evaluate((element) => element.removeAttribute('data-glass-rim-probe'));
+  }
+  const brightness = (pixel: Rgba) => (pixel[0] + pixel[1] + pixel[2]) / 3;
+  // Compare only the rim's added light, independent of underlying fills.
+  const contribution = (a: number, b: number) =>
+    brightness(painted[a]) - brightness(plain[a]) + brightness(painted[b]) - brightness(plain[b]);
+  // WebKit can clip away part of a fractional outer edge; use the more
+  // completely painted side as the reference, in either light or dark themes.
+  const left = contribution(4, 5);
+  const right = contribution(6, 7);
+  const side = Math.abs(left) >= Math.abs(right) ? left : right;
+  expect.soft(contribution(0, 1) - side, `${surface}: top catches the light`).toBeGreaterThan(6);
+  expect
+    .soft(contribution(2, 3) - side, `${surface}: bottom reflects the light`)
+    .toBeGreaterThan(2);
+  expect.soft(painted[8], `${surface}: rim leaves the interior clear`).toEqual(plain[8]);
+};
+
 // Catch a header outside its scrolling viewport, an opaque material, or raised
 // edges reappearing when switching between navigation sections.
 export async function expectFloatingNavHeader(header: Locator) {

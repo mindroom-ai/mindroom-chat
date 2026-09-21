@@ -43,6 +43,8 @@ const SETTINGS_SECTIONS = [
 const expectedCases = new Map<string, ExpectedAction>();
 (['thread', 'room'] as const).forEach((scope) => {
   expectedCases.set(`${scope}/show_computer`, { action: 'show_computer' });
+  // The canonical panel API keeps the existing Computer wire action for compatibility.
+  expectedCases.set(`${scope}/open_panel/computer`, { action: 'show_computer' });
   SETTINGS_SECTIONS.forEach((section) => {
     expectedCases.set(`${scope}/open_settings/${section}`, { action: 'open_settings', section });
   });

@@ -307,6 +307,38 @@
             "agent_user_id": "@mindroom_researcher:localhost",
             "requester_id": "@alice:localhost",
             "room_id": "!room:localhost",
+            "thread_id": "$thread",
+            "version": 1
+          },
+          "m.relates_to": {
+            "event_id": "$thread",
+            "is_falling_back": false,
+            "m.in_reply_to": {
+              "event_id": "$request"
+            },
+            "rel_type": "m.thread"
+          },
+          "msgtype": "m.notice"
+        },
+        "event_id": "$chat-ui-contract-thread-open_panel-computer",
+        "origin_server_ts": 100000,
+        "room_id": "!room:localhost",
+        "sender": "@mindroom_researcher:localhost",
+        "type": "m.room.message"
+      },
+      "id": "thread/open_panel/computer"
+    },
+    {
+      "event": {
+        "content": {
+          "body": "Open this agent's worker computer in MindRoom Chat.",
+          "format": "org.matrix.custom.html",
+          "formatted_body": "<p>Open this agent&#x27;s worker computer in MindRoom Chat.</p>\n",
+          "io.mindroom.ui_action": {
+            "action": "show_computer",
+            "agent_user_id": "@mindroom_researcher:localhost",
+            "requester_id": "@alice:localhost",
+            "room_id": "!room:localhost",
             "thread_id": null,
             "version": 1
           },
@@ -519,6 +551,30 @@
         "type": "m.room.message"
       },
       "id": "room/open_panel/members"
+    },
+    {
+      "event": {
+        "content": {
+          "body": "Open this agent's worker computer in MindRoom Chat.",
+          "format": "org.matrix.custom.html",
+          "formatted_body": "<p>Open this agent&#x27;s worker computer in MindRoom Chat.</p>\n",
+          "io.mindroom.ui_action": {
+            "action": "show_computer",
+            "agent_user_id": "@mindroom_researcher:localhost",
+            "requester_id": "@alice:localhost",
+            "room_id": "!room:localhost",
+            "thread_id": null,
+            "version": 1
+          },
+          "msgtype": "m.notice"
+        },
+        "event_id": "$chat-ui-contract-room-open_panel-computer",
+        "origin_server_ts": 100000,
+        "room_id": "!room:localhost",
+        "sender": "@mindroom_researcher:localhost",
+        "type": "m.room.message"
+      },
+      "id": "room/open_panel/computer"
     }
   ],
   "room_id": "!room:localhost",

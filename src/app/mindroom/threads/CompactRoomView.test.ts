@@ -8,6 +8,15 @@ vi.mock('../../components/inset-scrollbar/InsetScrollbar', () => ({
   InsetScrollbar: () => null,
 }));
 
+const pinningMocks = vi.hoisted(() => ({
+  pinnedEventIds: [] as string[],
+  canPin: false,
+  setPinned: vi.fn(),
+  updating: false,
+  error: undefined,
+}));
+vi.mock('./useThreadPinning', () => ({ useThreadPinning: () => pinningMocks }));
+
 const {
   passthrough,
   renderedCardProps,
@@ -129,6 +138,7 @@ vi.mock('./CompactRoomView.css', () => ({
   EmptyState: 'EmptyState',
   CardAction: 'CardAction',
   CardShell: 'CardShell',
+  PinnedSection: 'PinnedSection',
 }));
 
 const makeRoom = () =>
@@ -143,6 +153,9 @@ describe('CompactRoomView', () => {
     resizeCallbacks.clear();
   });
   beforeEach(() => {
+    pinningMocks.pinnedEventIds = [];
+    pinningMocks.canPin = false;
+    pinningMocks.setPinned.mockReset();
     vi.stubGlobal(
       'ResizeObserver',
       class {
@@ -166,6 +179,49 @@ describe('CompactRoomView', () => {
       updatingThreadRootIds: new Set(),
       error: undefined,
     });
+  });
+
+  it('lets admins pin a card without opening the thread', () => {
+    pinningMocks.canPin = true;
+    useCompactThreadCardViewModelsMock.mockReturnValue([makeViewModel('$announcement')]);
+    const onThreadClick = vi.fn();
+    const renderer = create(
+      React.createElement(CompactRoomView, {
+        room: makeRoom(),
+        threadRootIds: ['$announcement'],
+        threadRecordMap: new Map(),
+        onThreadClick,
+        compactRoomScrollStateRef: { current: new Map() },
+      })
+    );
+    const button = renderer.root.findByProps({ 'data-compact-thread-pin': 'true' });
+    act(() => button.props.onClick());
+    expect(pinningMocks.setPinned).toHaveBeenCalledWith('$announcement', true);
+    expect(onThreadClick).not.toHaveBeenCalled();
+    renderer.unmount();
+  });
+
+  it('groups pins above ordinary cards and omits their Resolve action for every role', () => {
+    pinningMocks.pinnedEventIds = ['$announcement'];
+    useCompactThreadCardViewModelsMock.mockReturnValue([
+      makeViewModel('$announcement'),
+      makeViewModel('$ordinary'),
+    ]);
+    const renderer = create(
+      React.createElement(CompactRoomView, {
+        room: makeRoom(),
+        threadRootIds: ['$announcement', '$ordinary'],
+        threadRecordMap: new Map(),
+        onThreadClick: vi.fn(),
+        compactRoomScrollStateRef: { current: new Map() },
+      })
+    );
+    const section = renderer.root.findByProps({ 'data-pinned-threads': 'true' });
+    expect(section.findAllByProps({ 'data-thread-root-id': '$announcement' })).toHaveLength(1);
+    expect(section.findAllByProps({ 'data-compact-thread-resolve': 'true' })).toHaveLength(0);
+    expect(renderer.root.findAllByProps({ 'data-compact-thread-pin': 'true' })).toHaveLength(0);
+    expect(renderer.root.findAllByProps({ 'data-compact-thread-resolve': 'true' })).toHaveLength(1);
+    renderer.unmount();
   });
 
   it('renders an empty state when there are no thread roots', () => {

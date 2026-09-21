@@ -2,6 +2,7 @@ import React, { type ReactNode } from 'react';
 import { MsgType, type MatrixEvent } from 'matrix-js-sdk';
 import { HTMLReactParserOptions } from 'html-react-parser';
 import { Opts } from 'linkifyjs';
+import { getEventAttachmentOwner } from './eventAttachments';
 import { BrokenContent, MEmote, MNotice, MText, RenderBody } from '../../components/message';
 import { trimReplyFromBody } from '../../utils/room';
 import { MindroomMessageExtras } from './MindroomMessageExtras';
@@ -98,9 +99,6 @@ export const renderMindroomMessageContent = ({
     };
   };
 
-  const getMindroomAwareHtmlReactParserOptions = (bodyContent: Record<string, unknown>) =>
-    withMindroomToolTraceMarkerParserOptions(htmlReactParserOptions, bodyContent);
-
   const getRenderableLongTextSource = (bodyContent: Record<string, unknown>) => {
     const source = getMindroomLongTextSource(bodyContent);
     if (!source) return undefined;
@@ -146,7 +144,10 @@ export const renderMindroomMessageContent = ({
           {...props}
           customBody={customBody}
           highlightRegex={highlightRegex}
-          htmlReactParserOptions={getMindroomAwareHtmlReactParserOptions(renderableContent)}
+          htmlReactParserOptions={withMindroomToolTraceMarkerParserOptions(
+            htmlReactParserOptions,
+            renderableContent
+          )}
           linkifyOpts={linkifyOpts}
         />
       );
@@ -194,7 +195,10 @@ export const renderMindroomMessageContent = ({
       >
         <MindroomMessageExtras
           extras={extras}
-          htmlReactParserOptions={getMindroomAwareHtmlReactParserOptions(parserOptionsContent)}
+          htmlReactParserOptions={withMindroomToolTraceMarkerParserOptions(
+            htmlReactParserOptions,
+            parserOptionsContent
+          )}
         />
       </MindroomMessageExtrasRenderNotice>
     );
@@ -267,13 +271,17 @@ export const renderMindroomMessageContent = ({
             isStreaming ? renderMindroomStreamingIndicator : undefined
           )}
           content={longTextSource.previewContent}
-          longTextSource={longTextSource}
+          longTextSource={{ ...longTextSource, owner: getEventAttachmentOwner(mEvent) }}
           hydrate={hydrateLongText}
-          renderBody={(resolvedContent, props) => (
+          renderBody={(resolvedContent, props, metadataStatus) => (
             <RenderBody
               {...props}
               highlightRegex={highlightRegex}
-              htmlReactParserOptions={getMindroomAwareHtmlReactParserOptions(resolvedContent)}
+              htmlReactParserOptions={withMindroomToolTraceMarkerParserOptions(
+                htmlReactParserOptions,
+                resolvedContent,
+                metadataStatus
+              )}
               linkifyOpts={linkifyOpts}
             />
           )}
@@ -288,7 +296,12 @@ export const renderMindroomMessageContent = ({
     if (msgType === MsgType.File) {
       const pasteAttachment = getMindroomPasteAttachmentFile(content);
       if (pasteAttachment) {
-        return <MindroomPasteAttachmentContent attachment={pasteAttachment} />;
+        return (
+          <MindroomPasteAttachmentContent
+            owner={getEventAttachmentOwner(mEvent)}
+            attachment={pasteAttachment}
+          />
+        );
       }
     }
 
@@ -322,13 +335,17 @@ export const renderMindroomMessageContent = ({
             isStreaming ? renderMindroomStreamingIndicator : undefined
           )}
           content={longTextSource.previewContent}
-          longTextSource={longTextSource}
+          longTextSource={{ ...longTextSource, owner: getEventAttachmentOwner(mEvent) }}
           hydrate={hydrateLongText}
-          renderBody={(resolvedContent, props) => (
+          renderBody={(resolvedContent, props, metadataStatus) => (
             <RenderBody
               {...props}
               highlightRegex={highlightRegex}
-              htmlReactParserOptions={getMindroomAwareHtmlReactParserOptions(resolvedContent)}
+              htmlReactParserOptions={withMindroomToolTraceMarkerParserOptions(
+                htmlReactParserOptions,
+                resolvedContent,
+                metadataStatus
+              )}
               linkifyOpts={linkifyOpts}
             />
           )}
@@ -377,13 +394,17 @@ export const renderMindroomMessageContent = ({
             isStreaming ? renderMindroomStreamingIndicator : undefined
           )}
           content={longTextSource.previewContent}
-          longTextSource={longTextSource}
+          longTextSource={{ ...longTextSource, owner: getEventAttachmentOwner(mEvent) }}
           hydrate={hydrateLongText}
-          renderBody={(resolvedContent, props) => (
+          renderBody={(resolvedContent, props, metadataStatus) => (
             <RenderBody
               {...props}
               highlightRegex={highlightRegex}
-              htmlReactParserOptions={getMindroomAwareHtmlReactParserOptions(resolvedContent)}
+              htmlReactParserOptions={withMindroomToolTraceMarkerParserOptions(
+                htmlReactParserOptions,
+                resolvedContent,
+                metadataStatus
+              )}
               linkifyOpts={linkifyOpts}
             />
           )}

@@ -296,3 +296,10 @@ vi.mock('../../messages/ThreadApprovalControls', () => ({ ThreadApprovalQueue: (
 vi.mock('../../messages/ThreadApprovalProvider', () => ({
   ThreadApprovalProvider: 'thread-approval-provider',
 }));
+
+vi.mock('../../engine/engineContext', () => ({
+  useMindroomSyncEngine: () => ({
+    noteRoomFocused: () => undefined,
+    clearRoomFocus: () => undefined,
+  }),
+}));

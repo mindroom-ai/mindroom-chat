@@ -4,7 +4,6 @@ export const CACHE_OWNED_LOCAL_STORAGE_PREFIXES = [
   'cinny_',
   'mx_pending_events_',
   'mxjssdk_memory_filter_',
-  'crypto.',
 ] as const;
 
 export const isCacheOwnedLocalStorageKey = (key: string): boolean =>

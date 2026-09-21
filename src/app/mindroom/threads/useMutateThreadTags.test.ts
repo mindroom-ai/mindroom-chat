@@ -104,8 +104,12 @@ const makeRoom = (events: MatrixEvent[] = [], eventsById: Record<string, MatrixE
     findEventById: (eventId: string) => eventsById[eventId],
     getLiveTimeline: () => ({
       getState: () => ({
-        getStateEvents: (eventType: string) =>
-          eventType === MINDROOM_THREAD_TAGS_EVENT ? events : [],
+        getStateEvents: (eventType: string, stateKey?: string) =>
+          eventType === MINDROOM_THREAD_TAGS_EVENT
+            ? events
+            : stateKey === undefined
+            ? []
+            : undefined,
       }),
     }),
   } as unknown as Room);
@@ -131,6 +135,43 @@ describe('useMutateThreadTags', () => {
     vi.useRealTimers();
     resetPendingThreadTagsForTests();
   });
+
+  it.each(['setResolved', 'addTag', 'setUnresolved', 'removeTag'] as const)(
+    'blocks pinned resolution through %s',
+    async (operation) => {
+      const room = makeRoom();
+      const readState = room.getLiveTimeline().getState;
+      room.getLiveTimeline = () =>
+        ({
+          getState: () => ({
+            ...readState(),
+            getStateEvents: (type: string, stateKey?: string) =>
+              type === 'm.room.pinned_events'
+                ? new MatrixEvent({ type, state_key: '', content: { pinned: ['$root'] } })
+                : readState()?.getStateEvents(type, stateKey),
+          }),
+        } as never);
+      let snapshot!: ReturnType<typeof useMutateThreadTags>;
+      const renderer = create(
+        React.createElement(Harness, {
+          room,
+          onRender: (value) => {
+            snapshot = value;
+          },
+        })
+      );
+      await act(async () => {
+        if (operation === 'setResolved') await snapshot.setResolved('$root', true);
+        else if (operation === 'setUnresolved') await snapshot.setResolved('$root', false);
+        else if (operation === 'removeTag') await snapshot.removeTag('$root', 'resolved');
+        else await snapshot.addTag('$root', 'resolved');
+      });
+      expect(sendStateEvent).not.toHaveBeenCalled();
+      expect(getPendingThreadTagsContent(room.roomId, '$root')).toBeUndefined();
+      expect(snapshot.error).toBeInstanceOf(Error);
+      renderer.unmount();
+    }
+  );
 
   it('allows another thread to resolve while suppressing duplicate writes to a pending thread', async () => {
     let finishFirst!: () => void;

@@ -35,6 +35,10 @@ export const CardShell = style({
   minWidth: 0,
 });
 
+export const PinnedSection = style({
+  paddingBlockEnd: config.space.S300,
+});
+
 export const Card = style([
   DefaultReset,
   {
@@ -66,6 +70,9 @@ globalStyle(`${CardShell}:hover ${Card}, ${CardShell}:focus-within ${Card}`, {
 });
 
 export const CardAction = style({
+  display: 'flex',
+  gap: config.space.S100,
+  backgroundColor: color.SurfaceVariant.ContainerHover,
   position: 'absolute',
   insetInlineEnd: config.space.S300,
   top: '50%',

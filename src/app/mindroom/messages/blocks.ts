@@ -6,9 +6,8 @@ import {
   parseInlineMD,
   unescapeMarkdownInlineSequences,
 } from '../../plugins/markdown';
-import { findDisplayLatexBlockMatch, findInlineLatexMatch } from '../../plugins/math';
+import { findDisplayLatexBlockMatch } from '../../plugins/math';
 import { CodeBlockRule } from '../../plugins/markdown/block/rules';
-import { CodeRule, StrikeRule } from '../../plugins/markdown/inline/rules';
 import { sanitizeText } from '../../utils/sanitize';
 import {
   formatMindroomPasteMarkerAsHtml,
@@ -64,19 +63,6 @@ const escapeHtmlText = (text: string): string =>
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
 
-export const formatMindroomToolRefTextBodyAsHtml = (body: string): string | undefined => {
-  const hasToolRef = body
-    .replace(/\r\n?/g, '\n')
-    .split('\n')
-    .some((line) => parseMindroomToolRefText(line));
-  if (!hasToolRef) return undefined;
-
-  const formattedBody = formatMindroomMessageTextBodyAsHtml(body);
-  if (!formattedBody) return undefined;
-
-  return formattedBody;
-};
-
 const formatMindroomToolRefLineAsHtml = (line: string): string | undefined => {
   const toolRef = parseMindroomToolRefText(line);
   if (!toolRef) return undefined;
@@ -92,7 +78,6 @@ const MAX_MARKDOWN_PREVIEW_BLOCK_LINES = 512;
 const MAX_MARKDOWN_PREVIEW_INLINE_MARKERS = 512;
 const MARKDOWN_PREVIEW_BLOCK_LINE_REG =
   /^(?:#{1,6} |>|\$\$| {0,3}(?:`{3,}|~{3,})| *(?:[-*]|[\dA-Za-z]+\.) )/gm;
-const MARKDOWN_INDENTED_CONTEXT_REG = /^(?:\t| {4})/;
 const MARKDOWN_LIST_ITEM_REG = /^( *)([-*]|[\dA-Za-z]\.)( +)(.+)$/;
 
 const sanitizeMarkdownText = (text: string): string => sanitizeText(text).replace(/^&gt;/gm, '>');
@@ -123,7 +108,8 @@ const findNextMarkdownProtectedBlock = (markdown: string): MarkdownProtectedBloc
 
 const mapMarkdownOutsideParserBlocks = (
   markdown: string,
-  mapUnprotected: (text: string) => string
+  mapUnprotected: (text: string) => string,
+  mapProtected: (text: string) => string = (text) => text
 ): string => {
   let cursor = 0;
   let output = '';
@@ -137,7 +123,7 @@ const mapMarkdownOutsideParserBlocks = (
     }
 
     output += mapUnprotected(remaining.slice(0, protectedBlock.start));
-    output += remaining.slice(protectedBlock.start, protectedBlock.end);
+    output += mapProtected(remaining.slice(protectedBlock.start, protectedBlock.end));
     cursor += protectedBlock.end;
   }
 
@@ -218,18 +204,13 @@ const exceedsInlineMarkerBudget = (text: string): boolean => {
   return false;
 };
 
-const hasAmbiguousMarkdownMarkerContext = (body: string, lines: string[]): boolean => {
-  if (findDisplayLatexBlockMatch(body)) return true;
-
-  return lines.some((line) => {
+const hasAmbiguousMarkdownMarkerContext = (lines: string[]): boolean =>
+  lines.some((line) => {
     if (line === line.trim() && parseMindroomToolRefText(line)) return false;
-    if (MARKDOWN_INDENTED_CONTEXT_REG.test(line) || findInlineLatexMatch(line)) return true;
-    if (CodeRule.match(line) || StrikeRule.match(line)) return true;
 
     const unescapedMarkerText = line.replace(/\\([`~])/g, '');
     return unescapedMarkerText.includes('``') || unescapedMarkerText.includes('~~~');
   });
-};
 
 const formatStandaloneMindroomMarkerAsHtml = (
   line: string,
@@ -279,18 +260,10 @@ export const formatMindroomMessageTextBodyAsHtml = (body: string): string | unde
   return hasMindroomMarker ? htmlParts.join('') : undefined;
 };
 
-export const formatMindroomMarkdownTextBodyAsHtml = (body: string): string => {
-  const blockLineCount = body.match(MARKDOWN_PREVIEW_BLOCK_LINE_REG)?.length ?? 0;
-  if (blockLineCount > MAX_MARKDOWN_PREVIEW_BLOCK_LINES || exceedsInlineMarkerBudget(body)) {
-    return '';
-  }
-
-  const normalizedBody = body.replace(/\r\n?/g, '\n');
-  const lines = normalizedBody.split('\n');
-  const hasAmbiguousMarkerContext = hasAmbiguousMarkdownMarkerContext(normalizedBody, lines);
+const formatMarkdownPreviewSegment = (body: string, allowRichMarkers: boolean): string => {
+  const lines = body.split('\n');
   const htmlParts: string[] = [];
   let markdownLines: string[] = [];
-  let formattingFailed = false;
 
   const flushMarkdown = () => {
     if (markdownLines.length === 0) return;
@@ -300,19 +273,24 @@ export const formatMindroomMarkdownTextBodyAsHtml = (body: string): string => {
       return;
     }
 
-    try {
-      const normalizedMarkdown = normalizeMarkdownDashLists(markdown);
-      const literalMarkerMarkdown = preserveListContainedToolMarkers(normalizedMarkdown);
-      const parsedHtml = parseBlockMD(sanitizeMarkdownText(literalMarkerMarkdown), parseInlineMD);
-      htmlParts.push(normalizeParsedMathEntities(parsedHtml));
-    } catch {
-      formattingFailed = true;
-    }
+    const normalizedMarkdown = normalizeMarkdownDashLists(markdown);
+    const literalMarkerMarkdown = preserveListContainedToolMarkers(normalizedMarkdown);
+    const parsedHtml = parseBlockMD(sanitizeMarkdownText(literalMarkerMarkdown), parseInlineMD);
+    htmlParts.push(normalizeParsedMathEntities(parsedHtml));
     markdownLines = [];
   };
 
-  lines.forEach((line) => {
-    const markerHtml = formatStandaloneMindroomMarkerAsHtml(line, !hasAmbiguousMarkerContext);
+  lines.forEach((line, index) => {
+    // Promote root separators isolated by blank lines or recognized code/math
+    // blocks (segment boundaries). Ambiguous fence content remains literal.
+    const separator =
+      allowRichMarkers &&
+      /^(?:-{3,}|\*{3,}|_{3,})[ \t]*$/.test(line) &&
+      (index === 0 || lines[index - 1].trim() === '') &&
+      (index === lines.length - 1 || lines[index + 1].trim() === '');
+    const markerHtml = separator
+      ? '<hr/>'
+      : formatStandaloneMindroomMarkerAsHtml(line, allowRichMarkers);
     if (markerHtml) {
       flushMarkdown();
       htmlParts.push(markerHtml);
@@ -323,5 +301,32 @@ export const formatMindroomMarkdownTextBodyAsHtml = (body: string): string => {
   });
 
   flushMarkdown();
-  return formattingFailed ? '' : htmlParts.join('');
+  return htmlParts.join('');
+};
+
+export const formatMindroomMarkdownTextBodyAsHtml = (body: string): string => {
+  const blockLineCount = body.match(MARKDOWN_PREVIEW_BLOCK_LINE_REG)?.length ?? 0;
+  if (blockLineCount > MAX_MARKDOWN_PREVIEW_BLOCK_LINES || exceedsInlineMarkerBudget(body)) {
+    return '';
+  }
+
+  try {
+    const normalizedBody = body.replace(/\r\n?/g, '\n');
+    const unprotected = mapMarkdownOutsideParserBlocks(
+      normalizedBody,
+      (text) => text,
+      () => '\n'
+    );
+    const allowRichMarkers = !hasAmbiguousMarkdownMarkerContext(unprotected.split('\n'));
+    // Use the parser's own block boundaries so code/math examples stay literal,
+    // without disabling real tool markers elsewhere in the preview.
+    return mapMarkdownOutsideParserBlocks(
+      normalizedBody,
+      (text) => formatMarkdownPreviewSegment(text, allowRichMarkers),
+      (block) =>
+        normalizeParsedMathEntities(parseBlockMD(sanitizeMarkdownText(block), parseInlineMD))
+    );
+  } catch {
+    return '';
+  }
 };

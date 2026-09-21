@@ -279,6 +279,7 @@
     "voiceBundleBlocked": "Another attachment send is still in progress or needs attention. Wait for it, or retry or remove failed attachments, then send this message again."
   },
   "thread": {
+    "pinFailed": "Could not update pin. Please try again.",
     "chip": "Thread",
     "view": "Thread View",
     "resolve": "Resolve",
@@ -885,7 +886,7 @@
       "login": "Login",
       "thisClientRequiresSignInWithAppleConfigureTheHomeserverSsoProvider": "This client requires Sign in with Apple. Configure the homeserver SSO provider list to include Apple.",
       "register": "Register",
-      "accountLink": "Do not have an account? <link>Register</link>",
+      "accountLink": "Do not have an account? <authLink>Register</authLink>",
       "passwordLoginIsDisabledOnValue1UseSsoToSignIn": "Password login is disabled on \"{{value1}}\". Use SSO to sign in.",
       "thisClientDoesNotSupportLoginOnValue1ServerPasswordAndSso": "This client does not support login on \"{{value1}}\" server. Password and SSO based login method not found."
     },
@@ -948,7 +949,7 @@
       "thisApplicationDoesNotSupportRegistrationOnThisHomeserver": "This application does not support registration on this homeserver.",
       "ssoRegistrationIsRequiredOnThisHomeserverButNoSsoProvidersWere": "SSO registration is required on this homeserver, but no SSO providers were advertised.",
       "login": "Login",
-      "accountLink": "Already have an account? <link>Login</link>"
+      "accountLink": "Already have an account? <authLink>Login</authLink>"
     },
     "passwordResetForm": {
       "passwordHasBeenResetSuccessfullyPleaseLoginWithYourNewPassword": "Password has been reset successfully. Please login with your new password.",
@@ -963,7 +964,7 @@
     "resetPassword": {
       "resetPassword": "Reset Password",
       "login": "Login",
-      "accountLink": "Remember your password? <link>Login</link>"
+      "accountLink": "Remember your password? <authLink>Login</authLink>"
     },
     "clientRoot": {
       "catchingUp": "Catching up...",
@@ -1716,7 +1717,40 @@
         "advancedOptions": "Advanced Options",
         "compact": "Compact",
         "threads": "Threads",
-        "classic": "Classic"
+        "classic": "Classic",
+        "offline": {
+          "title": "Offline access",
+          "checking": "Checking saved content…",
+          "unavailable": "Saved content is unavailable on this device.",
+          "notSaved": "This room has not been saved for offline use yet.",
+          "downloading": "Downloading this room for offline use…",
+          "offlinePause": "Saving is paused while the device is offline.",
+          "backgroundPause": "Saving is paused while the app is in the background.",
+          "spacePause": "Saving is paused because protected content fills the storage budget.",
+          "readOnlyPause": "Storage failed. Reopen the app to resume saving.",
+          "connectionPause": "Automatic saving is paused on this connection.",
+          "errorPause": "Saving paused after an error. Try again.",
+          "partialHistory": "Some earlier history has not been saved.",
+          "inaccessibleHistory": "Some history is currently inaccessible.",
+          "waitingForKeys": "Encrypted events waiting for keys: {{count}}",
+          "unresolvedRelations": "Unresolved edits or replies: {{count}}",
+          "missingEssential": "Missing essential message bodies: {{count}}",
+          "historyEntries": "Saved history entries: {{count}}",
+          "attachments": "Attachments: {{saved}} saved, {{missing}} missing.",
+          "storageUsed": "Attachment storage used: {{size}}",
+          "pinFailed": "Keep offline could not be updated.",
+          "includeAllMedia": "Include all media",
+          "keepOffline": "Keep offline",
+          "keepOfflineDescription": "Protect saved media for this room during automatic cleanup.",
+          "cancelDownload": "Cancel download",
+          "downloadEntireRoom": "Download entire room",
+          "clearDownloadedContent": "Clear downloaded content",
+          "clearTitle": "Clear downloaded content?",
+          "cancel": "Cancel",
+          "clearDescription": "Saved history and attachments for this room will be removed from this device.",
+          "clearFailed": "Downloaded content could not be cleared.",
+          "clearConfirm": "Clear content"
+        }
       },
       "permissions": {
         "permissions": "Permissions",
@@ -2074,6 +2108,7 @@
         "deepTraceOff": "Off. Enable before reproducing a freeze to record performance, Matrix, network, lifecycle, and interaction timing.",
         "deepTracePreferenceSaveFailed": "{{description}} Off for this session, but the preference could not be saved and may re-enable after restart.",
         "deepTraceRecording": "Recording a bounded, privacy-safe performance and interaction trace on this device.",
+        "deepTraceMemoryOnly": "Recording in memory because trace storage is unavailable. Export before restarting the app; these recent events are lost on restart.",
         "deepTraceStarting": "Starting a bounded, privacy-safe performance and interaction trace on this device.",
         "diagnosticsExportFailed": "{{description}} Export failed. Try again.",
         "diagnosticsNone": "No unexpected session retained.",
@@ -2431,6 +2466,8 @@
         "viewReactions": "View Reactions"
       },
       "mindroomHtmlBlocks": {
+        "loadingToolDetails": "Still loading…",
+        "toolDetailsUnavailable": "Tool details unavailable.",
         "pastedText": "Pasted text",
         "characterCount_one": "{{formattedCount}} character",
         "characterCount_other": "{{formattedCount}} characters",

@@ -279,6 +279,7 @@
     "voiceBundleBlocked": "另一个附件发送仍在进行中或需要注意。等待，或者重试或删除失败的附件，然后再次发送此消息。"
   },
   "thread": {
+    "pinFailed": "无法更新置顶状态。请重试。",
     "chip": "讨论串",
     "view": "讨论串视图",
     "resolve": "解决",
@@ -885,7 +886,7 @@
       "login": "登录",
       "thisClientRequiresSignInWithAppleConfigureTheHomeserverSsoProvider": "此客户端要求使用 Apple 登录。请在主服务器的 SSO 提供商列表中加入 Apple。",
       "register": "注册",
-      "accountLink": "没有账户？ <link>注册</link>",
+      "accountLink": "没有账户？ <authLink>注册</authLink>",
       "passwordLoginIsDisabledOnValue1UseSsoToSignIn": "“{{value1}}”已禁用密码登录。请使用 SSO 登录。",
       "thisClientDoesNotSupportLoginOnValue1ServerPasswordAndSso": "该客户端不支持登录“{{value1}}”服务器。未找到基于密码和 SSO 的登录方法。"
     },
@@ -948,7 +949,7 @@
       "thisApplicationDoesNotSupportRegistrationOnThisHomeserver": "此应用程序不支持在此主服务器上注册。",
       "ssoRegistrationIsRequiredOnThisHomeserverButNoSsoProvidersWere": "该主服务器需要 SSO 注册，但没有公布 SSO 提供商。",
       "login": "登录",
-      "accountLink": "已经有账户？ <link>登录</link>"
+      "accountLink": "已经有账户？ <authLink>登录</authLink>"
     },
     "passwordResetForm": {
       "passwordHasBeenResetSuccessfullyPleaseLoginWithYourNewPassword": "密码已成功重置。请使用您的新密码登录。",
@@ -963,7 +964,7 @@
     "resetPassword": {
       "resetPassword": "重置密码",
       "login": "登录",
-      "accountLink": "还记得您的密码吗？ <link>登录</link>"
+      "accountLink": "还记得您的密码吗？ <authLink>登录</authLink>"
     },
     "clientRoot": {
       "catchingUp": "正在同步…",
@@ -1716,7 +1717,40 @@
         "advancedOptions": "高级选项",
         "compact": "紧凑",
         "threads": "讨论串",
-        "classic": "经典"
+        "classic": "经典",
+        "offline": {
+          "title": "离线访问",
+          "checking": "正在检查已保存的内容…",
+          "unavailable": "此设备无法使用已保存的内容。",
+          "notSaved": "此房间尚未保存以供离线使用。",
+          "downloading": "正在下载此房间以供离线使用…",
+          "offlinePause": "设备离线时会暂停保存。",
+          "backgroundPause": "应用在后台运行时会暂停保存。",
+          "spacePause": "受保护的内容已占满存储配额，保存已暂停。",
+          "readOnlyPause": "存储失败。请重新打开应用以继续保存。",
+          "connectionPause": "此连接下的自动保存已暂停。",
+          "errorPause": "发生错误后保存已暂停。请重试。",
+          "partialHistory": "部分较早的历史记录尚未保存。",
+          "inaccessibleHistory": "部分历史记录目前无法访问。",
+          "waitingForKeys": "正在等待密钥的加密事件：{{count}}",
+          "unresolvedRelations": "未解析的编辑或回复：{{count}}",
+          "missingEssential": "缺少的必要消息正文：{{count}}",
+          "historyEntries": "已保存的历史记录条目：{{count}}",
+          "attachments": "附件：已保存 {{saved}} 个，缺少 {{missing}} 个。",
+          "storageUsed": "附件使用的存储空间：{{size}}",
+          "pinFailed": "无法更新“保持离线”。",
+          "includeAllMedia": "包含所有媒体",
+          "keepOffline": "保持离线",
+          "keepOfflineDescription": "自动清理时保护此房间已保存的媒体。",
+          "cancelDownload": "取消下载",
+          "downloadEntireRoom": "下载整个房间",
+          "clearDownloadedContent": "清除已下载的内容",
+          "clearTitle": "要清除已下载的内容吗？",
+          "cancel": "取消",
+          "clearDescription": "此房间已保存的历史记录和附件将从此设备移除。",
+          "clearFailed": "无法清除已下载的内容。",
+          "clearConfirm": "清除内容"
+        }
       },
       "permissions": {
         "permissions": "权限",
@@ -2070,6 +2104,7 @@
         "clearing": "正在清除…",
         "credits": "鸣谢",
         "deepDiagnosticTracing": "深度诊断追踪",
+        "deepTraceMemoryOnly": "跟踪存储不可用，正在内存中记录。请在重启应用前导出；重启后这些近期事件将丢失。",
         "deepTraceEnabledStorageUnavailable": "已启用，但跟踪存储当前不可用。",
         "deepTraceOff": "已关闭。在重现卡顿前启用，以记录性能、Matrix、网络、生命周期和交互计时。",
         "deepTracePreferenceSaveFailed": "{{description}} 此会话已关闭，但无法保存首选项，并且可能会在重新启动后重新启用。",
@@ -2431,6 +2466,8 @@
         "viewReactions": "查看反应"
       },
       "mindroomHtmlBlocks": {
+        "loadingToolDetails": "仍在加载…",
+        "toolDetailsUnavailable": "工具详情不可用。",
         "pastedText": "粘贴的文本",
         "characterCount_one": "{{formattedCount}} 个字符",
         "characterCount_other": "{{formattedCount}} 个字符",

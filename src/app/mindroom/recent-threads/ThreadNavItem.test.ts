@@ -1,4 +1,5 @@
 import React from 'react';
+import { createClient, MatrixEvent, Room } from 'matrix-js-sdk';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CrossRoomThreadIndexEntry } from '../cross-room-threads/crossRoomThreadIndex';
@@ -80,7 +81,20 @@ vi.mock('../../components/nav', async () => {
   };
 });
 
-const room = { roomId: '!room:example.org' };
+const room = new Room(
+  '!room:example.org',
+  createClient({ baseUrl: 'https://example.org' }),
+  '@me:example.org'
+);
+const syncPins = (pinned: string[]) =>
+  room.currentState.setStateEvents([
+    new MatrixEvent({
+      type: 'm.room.pinned_events',
+      state_key: '',
+      room_id: room.roomId,
+      content: { pinned },
+    }),
+  ]);
 const mxMock = {
   getRoom: vi.fn(() => room),
   getUserId: vi.fn(() => '@me:example.org'),
@@ -157,6 +171,7 @@ describe('ThreadNavItem', () => {
     if (renderer) act(() => renderer?.unmount());
     renderer = undefined;
     roomViewModeState.value = 'compact';
+    syncPins([]);
     vi.clearAllMocks();
   });
 
@@ -243,6 +258,16 @@ describe('ThreadNavItem', () => {
     expect(onTogglePin).toHaveBeenCalledOnce();
     expect(navigateRoomMock).not.toHaveBeenCalled();
     expect(navigateRoomThreadDirectMock).not.toHaveBeenCalled();
+  });
+
+  it('hides Resolve for room pins while retaining personal sidebar pin controls', () => {
+    renderItem(true);
+    expect(renderer!.root.findAllByProps({ 'aria-label': 'Resolve' }).length).toBeGreaterThan(0);
+    act(() => syncPins(['$thread']));
+    expect(renderer!.root.findAllByProps({ 'aria-label': 'Resolve' })).toHaveLength(0);
+    expect(renderer!.root.findByProps({ 'aria-label': 'Unpin thread' })).toBeDefined();
+    act(() => syncPins([]));
+    expect(renderer!.root.findAllByProps({ 'aria-label': 'Resolve' }).length).toBeGreaterThan(0);
   });
 
   it('fills the pin while the pin button is hovered', () => {

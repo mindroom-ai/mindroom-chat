@@ -16,6 +16,8 @@ import {
   subscribeToThreadSummaryState,
 } from '../threads/threadSummaryState';
 import { MINDROOM_THREAD_TAGS_EVENT } from '../threads/threadTags';
+import { StateEvent } from '../../../types/matrix/room';
+import { subscribePendingPins } from '../threads/threadPinning';
 import {
   applyCrossRoomThreadIndexBatch,
   buildCrossRoomThreadIndexEntry,
@@ -522,8 +524,18 @@ export const useCrossRoomThreadIndex = () => {
       removeRoomFromIndex(room.roomId);
     };
 
+    const handlePinChange = (room: Room) => {
+      if (mx.getRoom(room.roomId) !== room || !roomDisposers.has(room.roomId)) return;
+      enqueueRoomThreads(room);
+      snapshotRef.current.entries.forEach((entry) => {
+        if (entry.roomId === room.roomId) enqueueThread(room.roomId, entry.threadRootId);
+      });
+    };
+    const unsubscribePendingPins = subscribePendingPins(handlePinChange);
+
     const handleStateEvent = (event: MatrixEvent, roomState: { roomId?: string }) => {
-      if (event.getType?.() !== MINDROOM_THREAD_TAGS_EVENT) return;
+      const type = event.getType();
+      if (type !== MINDROOM_THREAD_TAGS_EVENT && type !== StateEvent.RoomPinnedEvents) return;
       const roomId =
         roomState?.roomId ?? (event as unknown as { getRoomId?: () => string }).getRoomId?.();
       if (!roomId) return;
@@ -532,7 +544,8 @@ export const useCrossRoomThreadIndex = () => {
       if (!room) return;
       if (!roomDisposers.has(room.roomId)) return;
 
-      enqueueRoomThreads(room);
+      if (type === StateEvent.RoomPinnedEvents) handlePinChange(room);
+      else enqueueRoomThreads(room);
     };
 
     const handleDecrypted = (event: MatrixEvent) => {
@@ -562,6 +575,7 @@ export const useCrossRoomThreadIndex = () => {
       disposed = true;
       if (idleHandle !== undefined) cancelIdle(idleHandle);
       coalescer.clear();
+      unsubscribePendingPins();
       if (controllerRef.current?.syncJoinedRooms === syncJoinedRooms) {
         controllerRef.current = undefined;
       }

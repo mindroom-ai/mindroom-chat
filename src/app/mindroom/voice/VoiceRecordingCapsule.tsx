@@ -1,6 +1,7 @@
 import React from 'react';
-import { Box, Icon, IconButton, Icons, Spinner, Text } from 'folds';
+import { Box, Icon, Icons, Spinner, Text } from 'folds';
 import { useTranslation } from 'react-i18next';
+import { IconButton } from '../../components/glass/GlassPrimitives';
 import { millisecondsToMinutesAndSeconds } from '../../utils/common';
 import { VoiceWaveform } from '../../components/voice/VoiceWaveform';
 import { VoiceRecorderPhase } from './useVoiceRecorder';

@@ -30,7 +30,7 @@ describe('useLivePrefetchConfig', () => {
       );
     });
 
-    expect(readConfig?.()).toEqual({ scope: 'my-server' });
+    expect(readConfig?.()).toEqual({ scope: 'current-room-only' });
 
     act(() => {
       store.set(mindroomSettingsAtom, {

@@ -18,7 +18,6 @@ import { Editor } from 'slate';
 import {
   Badge,
   Box,
-  Chip,
   ContainerColor,
   Icon,
   Icons,
@@ -30,6 +29,7 @@ import {
   config,
   toRem,
 } from 'folds';
+import { Chip } from '../../components/glass/GlassPrimitives';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useVirtualPaginator } from '../../hooks/useVirtualPaginator';
 import * as overlay from './RoomOverlay.css';
@@ -52,9 +52,7 @@ import { useRoomNavigate } from '../../hooks/useRoomNavigate';
 import { useIgnoredUsers } from '../../hooks/useIgnoredUsers';
 import { useInitialClientCatchup } from '../../hooks/useInitialClientCatchup';
 import { createSessionId } from '../../state/sessions';
-import { useMindroomLongTextPrewarm } from '../messages/longTextPrewarm';
 import type { MindroomThreadSummaryInfo } from './threadSummaryStore';
-import { isConfirmedMatrixEventId } from './threadRouteUtils';
 import {
   buildResolveConfirmedEventId,
   dedupeThreadRenderEventEntries,
@@ -70,6 +68,7 @@ import { CompactRoomView } from './CompactRoomView';
 import { RoomThreadOverview } from './RoomThreadOverview';
 import {
   getRenderableEventEntries,
+  isRenderableEvent,
   mergeClassicRoomThreadReplyEntries,
 } from './roomTimelineEvents';
 import {
@@ -111,22 +110,19 @@ import {
   THREAD_BACK_AUTO_PAGINATE_TRIGGER_ROWS,
 } from './preloadSettings';
 import { countCacheProbe } from './cacheProbe';
-import { sanitizePrefetchDepth, sanitizePrefetchScope } from '../engine/prefetchPolicy';
-import { mindroomSettingsAtom } from '../settings/mindroomSettings';
 import { useThreadBackPaginationController } from './threadBackPaginationController';
 import { useThreadSeedPrewarmController } from './threadSeedPrewarmController';
 import { useThreadSession } from './session/useThreadSession';
+import { useThreadDiagnosticSnapshot } from './useThreadDiagnosticSnapshot';
+import { getKnownThreadReplyCount } from './threadRecord';
+import { getThreadReplyEventsForRoot } from './threadUtils';
 import type { ThreadOpenRuntime } from './session/threadSessionTypes';
 import { useThreadAwareTimelineRefresh } from './useThreadAwareTimelineRefresh';
 import { useTimelineScrollLedgerController } from './timelineScrollLedgerController';
 import { useRoomAutomaticFill } from './roomAutomaticFill';
 import { useRoomTimelineResetRelink } from './roomTimelineResetRelink';
 import { useThreadOverviewResumeController } from './threadOverviewResumeController';
-import {
-  enqueueRoomDeepHistoryJob,
-  scheduleReconcile as scheduleEngineReconcile,
-  useMindroomSyncEngine,
-} from '../engine';
+import { scheduleReconcile as scheduleEngineReconcile, useMindroomSyncEngine } from '../engine';
 import type { ScheduleReconcileFn } from './threadOpenCacheFirst';
 import { useCompactRootEditBackfillController } from './compactRootEditBackfillController';
 import { useCompactCoverageBackfillController } from './compactCoverageBackfillController';
@@ -263,15 +259,11 @@ export function RoomTimeline({
     viewMode,
   });
   const showThreadRepliesInRoom = effectiveViewMode === 'classic';
-  const roomEagerPreloadEnabled = !threadId && !eventId && effectiveViewMode !== 'classic';
   const [hideMembershipEvents] = useSetting(settingsAtom, 'hideMembershipEvents');
   const [hideNickAvatarEvents] = useSetting(settingsAtom, 'hideNickAvatarEvents');
   const [showHiddenEvents] = useSetting(settingsAtom, 'showHiddenEvents');
-  const [prefetchDepthSetting] = useSetting(mindroomSettingsAtom, 'prefetchDepth');
-  const prefetchDepth = sanitizePrefetchDepth(prefetchDepthSetting);
-  const [prefetchScopeSetting] = useSetting(mindroomSettingsAtom, 'prefetchScope');
-  const prefetchScope = sanitizePrefetchScope(prefetchScopeSetting);
-  const interactivePaginationLimit = Math.min(prefetchDepth, ROOM_TIMELINE_INTERACTIVE_BATCH_SIZE);
+  const prefetchDepth = ROOM_TIMELINE_INTERACTIVE_BATCH_SIZE;
+  const interactivePaginationLimit = ROOM_TIMELINE_INTERACTIVE_BATCH_SIZE;
   const prefetchDepthRef = useRef(prefetchDepth);
   prefetchDepthRef.current = prefetchDepth;
 
@@ -617,7 +609,6 @@ export function RoomTimeline({
   // Pre-download every long-text sidecar of the open thread so replies render
   // their full Markdown without waiting for viewport entry or expansion (the
   // CollapsibleMessage IntersectionObserver gate still covers room-view rows).
-  useMindroomLongTextPrewarm(threadEvents, Boolean(threadId));
   const {
     activeTimelineRange,
     filteredLength,
@@ -746,27 +737,26 @@ export function RoomTimeline({
   // to the fetch controllers (same shapes as the pre-strip props).
   const syncEngine = useMindroomSyncEngine();
   useThreadGapRecovery({ engine: syncEngine, room, threadId, append: setSupplementalThreadEvents });
-  const enginePersistForRoom = useMemo(() => syncEngine.persist.forRoom(room), [syncEngine, room]);
-  const { persistRoomEventCache, persistThreadEventCache, queueRoomThreadCachePersist } =
-    enginePersistForRoom;
+  const beginRoomCacheWrite = useCallback(
+    () => syncEngine.persist.forRoom(room).persistRoomEventCache,
+    [syncEngine, room]
+  );
+  const beginThreadCacheWrite = useCallback(
+    () => syncEngine.persist.forRoom(room).persistThreadEventCache,
+    [syncEngine, room]
+  );
 
   // CINNY-207 P4.2: whenever the mounted room (or the currently open
   // thread) changes, tell the engine so it can stamp the ledger
   // federation flag, protect this room from eviction, and bump the
   // meta lastOpenedTs for both the room and thread scopes. Idempotent
   // per-call — safe to fire on every render-relevant change.
-  useEffect(() => {
-    syncEngine.noteRoomFocused(
-      room.roomId,
-      isConfirmedMatrixEventId(threadId) ? threadId : undefined
-    );
-  }, [syncEngine, room.roomId, threadId]);
 
   const handleRoomTimelinePagination = useRoomPaginationCommandController({
     alive,
     handleTimelinePagination,
     mx,
-    persistRoomEventCache,
+    beginRoomCacheWrite,
     recalibrateFilterOptsRef,
     room,
     roomIdRef,
@@ -779,53 +769,6 @@ export function RoomTimeline({
     threadIdRef,
     timeline,
   });
-
-  // CINNY-207 P4.3: enqueue the band-4 room-deep-history job once per
-  // mounted (roomId, threadId=undefined). The scheduler dedupes by
-  // (roomId, undefined, 'room-deep-history') so remounts (view mode
-  // flips, thread open/close) don't fire redundant sweeps. The engine
-  // scheduler's abortAll on stop() tears it down on account switch.
-  // CINNY-207 P6.1 / D4: `prefetchDepth` — the user-facing "current
-  // room history depth" setting — is threaded through as the job's
-  // `targetEventCount`. Snapshot at the effect fire (not via ref)
-  // because the dedup key does not include the depth: a mid-focus
-  // depth change won't reset the running job, but the next mount
-  // (room switch, view mode flip) picks up the new value.
-  useEffect(() => {
-    if (!roomEagerPreloadEnabled) return undefined;
-    if (eventId || threadId) return undefined;
-    enqueueRoomDeepHistoryJob({
-      mx,
-      sessionId,
-      scheduler: syncEngine.scheduler,
-      roomId: room.roomId,
-      targetEventCount: prefetchDepth,
-      scope: prefetchScope,
-    }).catch(() => undefined);
-    // CINNY-207 P4.3 review (gemini PR #70 high): abort the deep
-    // history job on room switch / unmount. Without this, opening a
-    // different room, opening a thread, or unmounting leaves the
-    // previous room's job draining in the background (up to
-    // CURRENT_ROOM_DEEP_HISTORY_TARGET events fetched, one batch at
-    // a time), clogging the scheduler's concurrent slots and
-    // delaying higher-priority tasks for the newly focused room. The
-    // executor already checks `signal.aborted` between batches (see
-    // `deepHistoryJob.ts`), so aborting here is cooperative and
-    // ends the sweep at the next batch boundary.
-    return () => {
-      syncEngine.scheduler.abort(room.roomId, undefined, 'room-deep-history');
-    };
-  }, [
-    eventId,
-    mx,
-    prefetchDepth,
-    prefetchScope,
-    room.roomId,
-    roomEagerPreloadEnabled,
-    sessionId,
-    syncEngine,
-    threadId,
-  ]);
 
   useRoomCachedBackState({
     alive,
@@ -845,7 +788,7 @@ export function RoomTimeline({
     enabled: !threadId && showCompactRoomView,
     mx,
     overviewThreadRootIds,
-    persistRoomEventCache,
+    beginRoomCacheWrite,
     room,
     roomSurfaceEventEntries,
     roomThreadListThreads,
@@ -939,7 +882,7 @@ export function RoomTimeline({
       room,
       mx,
       sessionId,
-      persist: persistThreadEventCache,
+      beginCacheWrite: beginThreadCacheWrite,
       reconcile: scheduleReconcile,
       seed: { waitForExistingOrQueued },
       render: threadRender,
@@ -951,7 +894,7 @@ export function RoomTimeline({
       room,
       mx,
       sessionId,
-      persistThreadEventCache,
+      beginThreadCacheWrite,
       scheduleReconcile,
       waitForExistingOrQueued,
       threadRender,
@@ -1161,6 +1104,37 @@ export function RoomTimeline({
     threadInitialRenderMode,
     threadPaginatingBack: isThreadPaginationPending('backward'),
     threadPendingAnchorSeq: getPendingThreadBackPaginationAnchorSeq(),
+  });
+  useThreadDiagnosticSnapshot({
+    traceId: threadDebugTraceId,
+    threadId,
+    events: threadEvents,
+    readModel: () => {
+      const model = threadId ? room.getThread(threadId) : undefined;
+      const root = model?.rootEvent ?? (threadId ? room.findEventById(threadId) : undefined);
+      return {
+        eventCount: model?.events.length ?? null,
+        replyCount:
+          model && threadId ? getThreadReplyEventsForRoot(model.events, threadId).length : null,
+        expectedReplyCount: root ? getKnownThreadReplyCount(root) ?? null : null,
+      };
+    },
+    getElement: () => virtualInnerRef.current,
+    getVirtualItemCount: () => roomTimelineVirtualizer.getVirtualItems().length,
+    isRenderableReply: (event) =>
+      !approvalTimeline.hiddenEventIds.has(event.getId() ?? '') &&
+      isRenderableEvent(
+        event,
+        room,
+        threadId,
+        ignoredUsersSet,
+        showHiddenEvents,
+        hideMembershipEvents,
+        hideNickAvatarEvents
+      ),
+    cacheHydrated: threadInitialCacheHydrated,
+    loading: threadLatestOpenPending,
+    loadError: threadLoadError,
   });
   useThreadApprovalRowMeasurements(
     roomTimelineVirtualizer,
@@ -1404,9 +1378,7 @@ export function RoomTimeline({
     mx,
     normalThreadRecordMap,
     onStoreThreadSummary,
-    queueRoomThreadCachePersist,
     room,
-    roomDebugTraceId,
     roomThreadFilterActive,
     scrollRef,
     scrollToBottomRef,
@@ -1683,7 +1655,7 @@ export function RoomTimeline({
     mx,
     onApplyThreadRelations: applyThreadOverviewRelationEvents,
     onStoreThreadSummary,
-    persistThreadEventCache,
+    beginThreadCacheWrite,
     refreshCompactThreadList: refreshRoomThreadList,
     room,
     setOverviewRefreshCounter,
@@ -1700,7 +1672,7 @@ export function RoomTimeline({
     eventId,
     forceTimelineUpdate,
     mx,
-    persistThreadEventCache,
+    beginThreadCacheWrite,
     room,
     scrollRef,
     scrollToBottomRef,
@@ -1715,7 +1687,7 @@ export function RoomTimeline({
 
   bindThreadPaginationRuntime({
     mx,
-    persistThreadEventCache,
+    beginThreadCacheWrite,
     room,
     sessionId,
     thread,
@@ -2194,7 +2166,6 @@ export function RoomTimeline({
                 <Chip
                   variant="Primary"
                   radii="Pill"
-                  outlined
                   before={<Icon size="50" src={Icons.MessageUnread} />}
                   onClick={handleJumpToUnread}
                 >
@@ -2206,7 +2177,6 @@ export function RoomTimeline({
                 <Chip
                   variant="SurfaceVariant"
                   radii="Pill"
-                  outlined
                   before={<Icon size="50" src={Icons.CheckTwice} />}
                   onClick={handleMarkAsRead}
                 >
@@ -2279,7 +2249,6 @@ export function RoomTimeline({
                       <Chip
                         variant="SurfaceVariant"
                         radii="Pill"
-                        outlined
                         before={<Icon size="50" src={Icons.ArrowTop} />}
                         onClick={handleThreadPaginateBack}
                       >
@@ -2358,7 +2327,6 @@ export function RoomTimeline({
                       <Chip
                         variant="SurfaceVariant"
                         radii="Pill"
-                        outlined
                         before={<Icon size="50" src={Icons.ArrowBottom} />}
                         onClick={handleThreadPaginateFront}
                       >
@@ -2431,7 +2399,6 @@ export function RoomTimeline({
                 <Chip
                   variant="SurfaceVariant"
                   radii="Pill"
-                  outlined
                   before={<Icon size="50" src={Icons.ArrowBottom} />}
                   onClick={handleJumpToLatest}
                 >

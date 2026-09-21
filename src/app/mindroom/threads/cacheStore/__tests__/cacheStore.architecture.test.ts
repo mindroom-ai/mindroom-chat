@@ -6,9 +6,10 @@
  * (b) no source under `src/app/mindroom/**` still imports those shim
  *     paths (excluding this arch test file itself);
  * (c) render components do NOT import the cacheStore directly —
- *     MindroomRoomTimeline.tsx and everything under mindroom/messages/**
+ *     MindroomRoomTimeline.tsx and render sources under mindroom/messages/**
  *     must not contain "from './cacheStore'" or a "/cacheStore" import
- *     path. The eventRepository seam is the sanctioned consumer;
+ *     path. The eventRepository and attachmentRepository seams are the
+ *     sanctioned consumers;
  *     sessionCleanup and threadSummaryState/threadSummaryStore are the
  *     other allowed consumers (encoded here as the entire allowlist).
  */
@@ -23,6 +24,7 @@ const MINDROOM_ROOT = path.resolve(HERE, '..', '..', '..');
 const THREADS_DIR = path.resolve(MINDROOM_ROOT, 'threads');
 const MESSAGES_DIR = path.resolve(MINDROOM_ROOT, 'messages');
 const SELF_FILE = path.resolve(HERE, 'cacheStore.architecture.test.ts');
+const ATTACHMENT_REPOSITORY_FILE = path.resolve(MESSAGES_DIR, 'attachmentRepository.ts');
 
 const LEGACY_SHIM_PATHS = [
   path.resolve(THREADS_DIR, 'roomEventCache.ts'),
@@ -90,9 +92,11 @@ describe('CacheStore boundary architecture (CINNY-207 P2.3)', () => {
     expect(timelineSource).not.toContain("from './cacheStore'");
     expect(timelineSource).not.toContain('/cacheStore');
 
-    // Everything under mindroom/messages/**.
+    // Render sources under mindroom/messages/**. Tests may wire the store
+    // directly, and attachmentRepository is the non-React transport owner.
     if (existsSync(MESSAGES_DIR)) {
       for (const file of walkSourceFiles(MESSAGES_DIR)) {
+        if (/\.test\.tsx?$/.test(file) || file === ATTACHMENT_REPOSITORY_FILE) continue;
         const source = readSource(file);
         if (source.includes("from './cacheStore'") || source.includes('/cacheStore')) {
           throw new Error(
@@ -131,10 +135,15 @@ describe('CacheStore boundary architecture (CINNY-207 P2.3)', () => {
         path.resolve(THREADS_DIR, 'threadSummaryStore.ts'),
         path.resolve(THREADS_DIR, 'threadSummaryState.ts'),
         path.resolve(MINDROOM_ROOT, 'cache', 'sessionCleanup.ts'),
+        ATTACHMENT_REPOSITORY_FILE,
         path.resolve(MINDROOM_ROOT, 'engine', 'engineGapTracker.ts'),
         path.resolve(MINDROOM_ROOT, 'engine', 'gapFillExecutor.ts'),
         path.resolve(MINDROOM_ROOT, 'engine', 'deepHistoryJob.ts'),
         path.resolve(MINDROOM_ROOT, 'engine', 'mindroomSyncEngine.ts'),
+        path.resolve(MINDROOM_ROOT, 'engine', 'roomOffline.ts'),
+        path.resolve(MINDROOM_ROOT, 'engine', 'engineWriteThrough.ts'),
+        path.resolve(MINDROOM_ROOT, 'engine', 'enginePersistFacade.ts'),
+        path.resolve(MINDROOM_ROOT, 'engine', 'reconciler.ts'),
         path.resolve(MINDROOM_ROOT, 'engine', 'reconcilerScan.ts'),
       ].map((absPath) => absPath)
     );

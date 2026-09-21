@@ -8,6 +8,7 @@ import { useAtomValue, useSetAtom } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import { useMatrixClient } from '../../../hooks/useMatrixClient';
 import { useSetting } from '../../../state/hooks/settings';
+import { shouldShowLinkFavicons } from '../../messages/linkFaviconPolicy';
 import { MessageLayout, type MessageSpacing, settingsAtom } from '../../../state/settings';
 import { useMediaAuthentication } from '../../../hooks/useMediaAuthentication';
 import { useIsDirectRoom } from '../../../hooks/useRoom';
@@ -21,6 +22,7 @@ import {
 } from '../../../hooks/useMemberPowerTag';
 import { useTheme } from '../../../hooks/useTheme';
 import { useRoomPermissions } from '../../../hooks/useRoomPermissions';
+import { canPinRoomEvents } from '../threadPinning';
 import { useMentionClickHandler } from '../../../hooks/useMentionClickHandler';
 import { useSpoilerClickHandler } from '../../../hooks/useSpoilerClickHandler';
 import { useOpenUserRoomProfile } from '../../../state/hooks/userRoomProfile';
@@ -42,7 +44,7 @@ import {
   makeMentionCustomProps,
   renderMatrixMention,
 } from '../../../plugins/react-custom-html-parser';
-import { MessageEvent, StateEvent } from '../../../../types/matrix/room';
+import { MessageEvent } from '../../../../types/matrix/room';
 import { isConfirmedMatrixEventId } from '../threadRouteUtils';
 import { getMindroomRoomTimelineMessageRenderers } from '../roomTimelineMessageExtensions';
 import {
@@ -94,6 +96,10 @@ export const useTimelineMessageFeature = ({
   const [hour24Clock] = useSetting(settingsAtom, 'hour24Clock');
   const [dateFormatString] = useSetting(settingsAtom, 'dateFormatString');
   const showUrlPreview = room.hasEncryptionStateEvent() ? encUrlPreview : urlPreview;
+  const showLinkFavicons = shouldShowLinkFavicons(
+    { mediaAutoLoad, urlPreview, encUrlPreview },
+    room.hasEncryptionStateEvent()
+  );
   const powerLevels = usePowerLevelsContext();
   const creators = useRoomCreators(room);
   const creatorsTag = useRoomCreatorsTag();
@@ -109,7 +115,7 @@ export const useTimelineMessageFeature = ({
   const canRedact = permissions.action('redact', mx.getSafeUserId());
   const canDeleteOwn = permissions.event(MessageEvent.RoomRedaction, mx.getSafeUserId());
   const canSendReaction = permissions.event(MessageEvent.Reaction, mx.getSafeUserId());
-  const canPinEvent = permissions.stateEvent(StateEvent.RoomPinnedEvents, mx.getSafeUserId());
+  const canPinEvent = canPinRoomEvents(creators, powerLevels, mx.getSafeUserId());
   const [editingEventId, setEditId] = useState<string>();
   const expansion = useTimelineMessageExpansion(room.roomId, threadId, scrollRef);
   const roomToParents = useAtomValue(roomToParentsAtom);
@@ -140,21 +146,32 @@ export const useTimelineMessageFeature = ({
   const linkifyOpts = useMemo<LinkifyOpts>(
     () => ({
       ...LINKIFY_OPTS,
-      render: factoryRenderLinkifyWithMention((href) =>
-        renderMatrixMention(mx, room.roomId, href, makeMentionCustomProps(mentionClickHandler))
+      render: factoryRenderLinkifyWithMention(
+        (href) =>
+          renderMatrixMention(mx, room.roomId, href, makeMentionCustomProps(mentionClickHandler)),
+        showLinkFavicons
       ),
     }),
-    [mx, room, mentionClickHandler]
+    [mx, room, mentionClickHandler, showLinkFavicons]
   );
   const htmlReactParserOptions = useMemo<HTMLReactParserOptions>(
     () =>
       getReactCustomHtmlParser(mx, room.roomId, {
         linkifyOpts,
+        showLinkFavicons,
         useAuthentication,
         handleSpoilerClick: spoilerClickHandler,
         handleMentionClick: mentionClickHandler,
       }),
-    [mx, room, linkifyOpts, spoilerClickHandler, mentionClickHandler, useAuthentication]
+    [
+      mx,
+      room,
+      linkifyOpts,
+      spoilerClickHandler,
+      mentionClickHandler,
+      useAuthentication,
+      showLinkFavicons,
+    ]
   );
   const parseMemberEvent = useMemberEventParser();
   const { t } = useTranslation();

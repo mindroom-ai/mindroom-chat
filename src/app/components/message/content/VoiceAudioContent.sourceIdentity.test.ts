@@ -101,18 +101,10 @@ vi.mock('../FileHeader', () => ({
   FileDownloadButton: () => React.createElement('button', { 'aria-label': 'Download audio' }),
 }));
 
-vi.mock('../../../utils/matrix', async () => {
-  const actual = await vi.importActual<typeof import('../../../utils/matrix')>(
-    '../../../utils/matrix'
-  );
-
-  return {
-    ...actual,
-    downloadEncryptedMedia: vi.fn(),
-    downloadMedia: mocks.downloadMedia,
-    mxcUrlToHttp: (_mx: unknown, url: string) => `https://media.example/${url}`,
-  };
-});
+vi.mock('../../../mindroom/messages/attachmentRepository', () => ({
+  downloadCachedAttachment: (_mx: unknown, source: { mxcUri: string }) =>
+    mocks.downloadMedia(`https://media.example/${source.mxcUri}`),
+}));
 
 const renderVoiceAudioContent = (url: string) =>
   React.createElement(

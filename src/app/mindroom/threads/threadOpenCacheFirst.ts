@@ -1,4 +1,5 @@
 import { Direction, type MatrixEvent, type Room } from 'matrix-js-sdk';
+import { flushThreadSyncGap } from './activeThreadSyncGaps';
 import { getLinkedTimelines } from './timelinePagination';
 import { logTimelineDebug } from './timelineDebug';
 import { countCacheProbe } from './cacheProbe';
@@ -74,9 +75,30 @@ export const runThreadOpenCacheFirst = async ({
   threadOpenSeedSession,
 }: RunThreadOpenCacheFirstOptions): Promise<RunThreadOpenCacheFirstResult> => {
   let hydratedCachedPage;
+  let cacheHydrationFinished = false;
   try {
+    // Cached messages paint through supplemental render state, independently of
+    // the SDK timeline. Token conversion can need the network; only subsequent
+    // SDK work must wait for it, never the cache read and its first paint.
     hydratedCachedPage = await hydrateThreadFromCache(threadId);
+    cacheHydrationFinished = true;
+    logTimelineDebug(debugTraceId, 'thread-cache-hydrate-finished', {
+      cacheHit: !!hydratedCachedPage,
+    });
+    if (!isCurrentThreadOpen()) {
+      countCacheProbe('threadOpenSkipCacheFirstPostHydrateGuard');
+      return { shouldContinue: false };
+    }
+    const pendingReset = flushThreadSyncGap(room.getThread(threadId), isCurrentThreadOpen);
+    if (pendingReset) {
+      await pendingReset;
+      if (!isCurrentThreadOpen()) {
+        countCacheProbe('threadOpenSkipCacheFirstPostHydrateGuard');
+        return { shouldContinue: false };
+      }
+    }
   } catch {
+    if (!cacheHydrationFinished) logTimelineDebug(debugTraceId, 'thread-cache-hydrate-error');
     if (!isCurrentThreadOpen()) {
       // AC2 STEP 4 iter 2 (2026-07-04): hydrate threw and the guard
       // says the thread has been closed/re-navigated in the meantime.
@@ -129,6 +151,10 @@ export const runThreadOpenCacheFirst = async ({
     threadId,
     cachedPage: hydratedCachedPage,
     onRepaired: (repairedEvents) => {
+      logTimelineDebug(debugTraceId, 'thread-reconcile-observer', {
+        current: isCurrentThreadOpen(),
+        mappedCount: repairedEvents.length,
+      });
       // CINNY-207 AC2 render-gap RG1 (2026-07-04): sink counters.
       // These three counters partition the outcomes of the
       // component-side onRepaired callback so a docker probe snapshot
@@ -153,18 +179,29 @@ export const runThreadOpenCacheFirst = async ({
       }
       notifyEventsChanged();
     },
-  }).catch((err) => {
-    // CINNY-207 AC2 review F6 (2026-07-04): the scheduler's own
-    // rejection paths already bump `schedulerFailed` /
-    // `schedulerAborted`, so this catch used to silently return
-    // undefined to avoid an unhandled promise rejection. That left a
-    // triage ambiguity: from a browser log you couldn't tell WHICH
-    // rejection this was, only that one had happened. A single warn
-    // line here names the site without changing behavior — the
-    // counters remain the source of truth for aggregate counts.
-    // eslint-disable-next-line no-console
-    console.warn('[thread-open-choke-point] scheduleReconcile rejected', err);
-  });
+  })
+    .then((result) => {
+      logTimelineDebug(debugTraceId, 'thread-reconcile-settled', {
+        current: isCurrentThreadOpen(),
+        fetchedCount: result.fetchedCount,
+        repaired: result.repaired,
+        durable: result.durable,
+        aborted: result.aborted,
+      });
+    })
+    .catch((err) => {
+      logTimelineDebug(debugTraceId, 'thread-reconcile-error');
+      // CINNY-207 AC2 review F6 (2026-07-04): the scheduler's own
+      // rejection paths already bump `schedulerFailed` /
+      // `schedulerAborted`, so this catch used to silently return
+      // undefined to avoid an unhandled promise rejection. That left a
+      // triage ambiguity: from a browser log you couldn't tell WHICH
+      // rejection this was, only that one had happened. A single warn
+      // line here names the site without changing behavior — the
+      // counters remain the source of truth for aggregate counts.
+      // eslint-disable-next-line no-console
+      console.warn('[thread-open-choke-point] scheduleReconcile rejected', err);
+    });
 
   const cachedThreadHasLocalSnapshot =
     !!hydratedCachedPage &&

@@ -164,6 +164,7 @@ const loadRoomThreadsOnce = async (
   shouldContinue: () => boolean
 ): Promise<void> => {
   try {
+    await room.client?.threadSupportPending;
     if (!shouldContinue()) return;
     await ensureThreadTimelineSets(room);
     if (!shouldContinue()) return;

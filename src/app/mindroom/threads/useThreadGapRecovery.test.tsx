@@ -78,7 +78,10 @@ const setup = (chunks: Partial<IEvent>[][]) => {
     }),
   ]);
   room.getLiveTimeline().setPaginationToken('gap', Direction.Backward);
-  const engine = createMindroomSyncEngine({ mx });
+  const engine = createMindroomSyncEngine({
+    mx,
+    getPrefetchConfig: () => ({ scope: 'all-rooms' }),
+  });
   engine.start();
   let renderer: ReactTestRenderer;
   act(() => {

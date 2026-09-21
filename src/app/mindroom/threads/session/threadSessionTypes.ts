@@ -56,7 +56,7 @@ export type ThreadOpenRuntime = {
   room: Room;
   mx: MatrixClient;
   sessionId: string;
-  persist: PersistThreadEventCache;
+  beginCacheWrite: () => PersistThreadEventCache;
   reconcile: ScheduleReconcileFn;
   seed: ThreadSeedOpenPort;
   render: ThreadRenderPort;

@@ -1,17 +1,19 @@
 import { globalStyle, style } from '@vanilla-extract/css';
 import { color, config, DefaultReset, toRem } from 'folds';
+import { glassSurface } from '../../styles/Glass.css';
 
 // Inline tool activity shares one quiet disclosure surface and hit target.
-export const Surface = style({
-  width: '100%',
-  minWidth: 0,
-  maxWidth: '100%',
-  borderRadius: config.radii.R400,
-  border: `${config.borderWidth.B300} solid ${color.SurfaceVariant.ContainerLine}`,
-  background: color.SurfaceVariant.Container,
-  color: color.SurfaceVariant.OnContainer,
-  overflow: 'hidden',
-});
+export const Surface = style([
+  glassSurface({ level: 'panel', variant: 'SurfaceVariant' }),
+  {
+    width: '100%',
+    minWidth: 0,
+    maxWidth: '100%',
+    borderRadius: config.radii.R400,
+    color: color.SurfaceVariant.OnContainer,
+    overflow: 'hidden',
+  },
+]);
 
 export const Header = style([
   DefaultReset,

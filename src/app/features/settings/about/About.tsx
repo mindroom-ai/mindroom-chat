@@ -58,7 +58,9 @@ const getDeepTraceDescription = ({
 }): string => {
   let description: string;
 
-  if (runtimeStatus === 'unavailable') {
+  if (runtimeStatus === 'memory-only') {
+    description = t('featureUi.settings.about.deepTraceMemoryOnly');
+  } else if (runtimeStatus === 'unavailable') {
     description = enabled
       ? t('featureUi.settings.about.deepTraceEnabledStorageUnavailable')
       : t('featureUi.settings.about.traceStorageUnavailable');
@@ -121,7 +123,7 @@ export function About({ requestClose }: AboutProps) {
         } else if (status === 'starting') {
           setDeepTracing(true);
           setDeepTraceError(undefined);
-        } else if (status === 'recording') {
+        } else if (status === 'recording' || status === 'memory-only') {
           setDeepTracing(true);
           setDeepTraceError(undefined);
         } else {

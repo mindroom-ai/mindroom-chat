@@ -3,7 +3,6 @@ import {
   MINDROOM_TOOL_REF_HTML_REG_G,
   formatMindroomMarkdownTextBodyAsHtml,
   formatMindroomMessageTextBodyAsHtml,
-  formatMindroomToolRefTextBodyAsHtml,
   parseMindroomToolRefHtml,
   parseMindroomToolRefText,
 } from './blocks';
@@ -60,10 +59,10 @@ describe('parseMindroomToolRefText', () => {
   });
 });
 
-describe('formatMindroomToolRefTextBodyAsHtml', () => {
+describe('formatMindroomMessageTextBodyAsHtml', () => {
   it('converts plain text tool marker lines to the formatted marker contract', () => {
     expect(
-      formatMindroomToolRefTextBodyAsHtml(
+      formatMindroomMessageTextBodyAsHtml(
         [
           'Before <unsafe>',
           '',
@@ -84,12 +83,6 @@ describe('formatMindroomToolRefTextBodyAsHtml', () => {
     );
   });
 
-  it('returns undefined when the plain body has no tool refs', () => {
-    expect(formatMindroomToolRefTextBodyAsHtml('plain response')).toBeUndefined();
-  });
-});
-
-describe('formatMindroomMessageTextBodyAsHtml', () => {
   it('formats paste markers and keeps tool refs parseable', () => {
     expect(
       formatMindroomMessageTextBodyAsHtml(
@@ -113,6 +106,44 @@ describe('formatMindroomMessageTextBodyAsHtml', () => {
 });
 
 describe('formatMindroomMarkdownTextBodyAsHtml', () => {
+  it('renders bold text containing inline code before the sidecar arrives', () => {
+    const html = formatMindroomMarkdownTextBodyAsHtml(
+      '**2. Pointed `config.yaml` at it** (line 50):'
+    );
+
+    expect(html).toBe(
+      '<strong data-md="**">2. Pointed <code data-md="`">config.yaml</code> at it</strong> (line 50):'
+    );
+  });
+
+  it('renders standalone separators while preserving separators in code examples', () => {
+    const html = formatMindroomMarkdownTextBodyAsHtml(
+      ['Before', '', '---', '', 'After', '', '```text', '---', '```'].join('\n')
+    );
+
+    expect(html).toContain('<hr');
+    expect(html).toContain('<pre data-md="```"><code class="language-text">---\n</code></pre>');
+  });
+
+  it.each(['---', '***', '___', '-----'])('renders a standalone %s separator', (separator) => {
+    expect(formatMindroomMarkdownTextBodyAsHtml(separator)).toBe('<hr/>');
+  });
+
+  it.each([
+    ['```', 'x', '```', '---', '', 'After'],
+    ['Before', '', '---', '```', 'x', '```'],
+    ['$$', 'x', '$$', '---', '', 'After'],
+  ])('treats recognized code and math blocks as separator boundaries', (...lines) => {
+    expect(formatMindroomMarkdownTextBodyAsHtml(lines.join('\n'))).toContain('<hr/>');
+  });
+
+  it.each(['\\---', '    ---', '> ---', '`---`', 'Heading\n---', '---\nText', '~~~\n\n---\n\n~~~'])(
+    'keeps non-standalone or ambiguous separators literal: %s',
+    (body) => {
+      expect(formatMindroomMarkdownTextBodyAsHtml(body)).not.toContain('<hr');
+    }
+  );
+
   it('renders safe Markdown and root tool references', () => {
     expect(
       formatMindroomMarkdownTextBodyAsHtml(
@@ -127,7 +158,7 @@ describe('formatMindroomMarkdownTextBodyAsHtml', () => {
     );
   });
 
-  it('keeps all special markers literal when code fences make the preview ambiguous', () => {
+  it('keeps fenced markers literal while promoting tool calls outside the fence', () => {
     const formattedBody = formatMindroomMarkdownTextBodyAsHtml(
       ['```', '🔧 `run_shell_command` [1]', PASTE_MARKER, '```', '', '🔧 `outside_tool` [2]'].join(
         '\n'
@@ -137,8 +168,25 @@ describe('formatMindroomMarkdownTextBodyAsHtml', () => {
     expect(formattedBody).toContain('<pre data-md="```"><code>🔧 `run_shell_command` [1]\n');
     expect(formattedBody).toContain('[[mindroom-paste:{&quot;v&quot;:1');
     expect(formattedBody).not.toContain('data-mindroom-paste-marker');
-    expect(formattedBody).not.toContain('<p>🔧 <code>outside_tool</code> [2]</p>');
+    expect(formattedBody).toContain('<p>🔧 <code>outside_tool</code> [2]</p>');
     expect(formattedBody).toContain('outside_tool');
+  });
+
+  it('groups root tool markers despite unrelated inline code, strike, and math', () => {
+    const formattedBody = formatMindroomMarkdownTextBodyAsHtml(
+      [
+        'Update `notes.md`, ~~old~~, and $x$.',
+        '',
+        '🔧 `read_file` [1]',
+        '',
+        '🔧 `edit_file` [2]',
+      ].join('\n')
+    );
+
+    expect(formattedBody).toContain('<code data-md="`">notes.md</code>');
+    expect(formattedBody).toContain(
+      '<p>🔧 <code>read_file</code> [1]</p><p>🔧 <code>edit_file</code> [2]</p>'
+    );
   });
 
   it('uses the parser code-fence grammar when preserving dash text', () => {
@@ -153,6 +201,15 @@ describe('formatMindroomMarkdownTextBodyAsHtml', () => {
     expect(infoBacktick).not.toContain('* item');
     expect(exactClose).toContain('- inside one\n````\n- inside two\n');
     expect(exactClose).not.toContain('* inside');
+  });
+
+  it('keeps ambiguous fences guarded across parser-recognized blocks', () => {
+    const formattedBody = formatMindroomMarkdownTextBodyAsHtml(
+      ['~~~', '```', 'example', '```', '🔧 `example_tool` [1]'].join('\n')
+    );
+
+    expect(formattedBody).not.toContain('<p>🔧 <code>example_tool</code> [1]</p>');
+    expect(formattedBody).toContain('example_tool');
   });
 
   it('does not add Markdown escapes to list-shaped tool text inside code fences', () => {
@@ -247,16 +304,30 @@ describe('formatMindroomMarkdownTextBodyAsHtml', () => {
     const tildeFence = formatMindroomMarkdownTextBodyAsHtml(
       ['~~~', '🔧 `run_shell_command` [1]', '~~~'].join('\n')
     );
-    const indentedCode = formatMindroomMarkdownTextBodyAsHtml(
-      ['    const answer = 42;', '', '🔧 `run_shell_command` [1]'].join('\n')
-    );
 
-    [inlinePaste, multilineCode, listFence, tildeFence, indentedCode].forEach((formattedBody) => {
+    [inlinePaste, multilineCode, listFence, tildeFence].forEach((formattedBody) => {
       expect(formattedBody).not.toContain('data-mindroom-paste-marker');
       expect(formattedBody).not.toContain('<p>🔧 <code>run_shell_command</code> [1]</p>');
     });
     expect(inlinePaste).toContain('[[mindroom-paste:');
     expect(multilineCode).toContain('[[mindroom-paste:');
+  });
+
+  it('keeps indented markers literal without suppressing root tool calls elsewhere', () => {
+    const formattedBody = formatMindroomMarkdownTextBodyAsHtml(
+      [
+        '    🔧 `example_tool` [1]',
+        '',
+        '- A list item',
+        '    with continuation text',
+        '',
+        '🔧 `read_file` [2]',
+      ].join('\n')
+    );
+
+    expect(formattedBody).not.toContain('<p>🔧 <code>example_tool</code> [1]</p>');
+    expect(formattedBody).toContain('example_tool');
+    expect(formattedBody).toContain('<p>🔧 <code>read_file</code> [2]</p>');
   });
 
   it('preserves safe blockquotes, unordered dash lists, and display-math dashes', () => {

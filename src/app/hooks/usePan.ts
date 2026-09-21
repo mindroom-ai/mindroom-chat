@@ -1,4 +1,4 @@
-import { MouseEventHandler, useCallback, useEffect, useRef, useState } from 'react';
+import { PointerEventHandler, useEffect, useRef, useState } from 'react';
 
 export type Pan = {
   translateX: number;
@@ -12,71 +12,55 @@ const INITIAL_PAN = {
 
 export const usePan = (active: boolean) => {
   const [pan, setPan] = useState<Pan>(INITIAL_PAN);
-  const [cursor, setCursor] = useState<'grab' | 'grabbing' | 'initial'>(
-    active ? 'grab' : 'initial'
-  );
+  const [isPanning, setIsPanning] = useState(false);
+  const pointers = useRef(new Map<number, { x: number; y: number }>());
 
-  useEffect(() => {
-    setCursor(active ? 'grab' : 'initial');
-  }, [active]);
-
-  const handleMouseMoveRef = useRef<((evt: MouseEvent) => void) | null>(null);
-  const handleMouseUpRef = useRef<((evt: MouseEvent) => void) | null>(null);
-
-  const cleanupListeners = useCallback(() => {
-    if (handleMouseMoveRef.current) {
-      document.removeEventListener('mousemove', handleMouseMoveRef.current);
-      handleMouseMoveRef.current = null;
-    }
-    if (handleMouseUpRef.current) {
-      document.removeEventListener('mouseup', handleMouseUpRef.current);
-      handleMouseUpRef.current = null;
-    }
-  }, []);
-
-  const handleMouseDown: MouseEventHandler<HTMLElement> = (evt) => {
-    if (!active) return;
-    evt.preventDefault();
-    setCursor('grabbing');
-
-    // Clean up any stale listeners before adding new ones
-    cleanupListeners();
-
-    const handleMouseMove = (e: MouseEvent) => {
-      e.preventDefault();
-      e.stopPropagation();
-
-      setPan((p) => ({
-        translateX: p.translateX + e.movementX,
-        translateY: p.translateY + e.movementY,
-      }));
-    };
-
-    const handleMouseUp = (e: MouseEvent) => {
-      e.preventDefault();
-      setCursor('grab');
-      cleanupListeners();
-    };
-
-    handleMouseMoveRef.current = handleMouseMove;
-    handleMouseUpRef.current = handleMouseUp;
-
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
-  };
-
-  // Cleanup on unmount or when active changes
   useEffect(() => {
     if (!active) {
       setPan(INITIAL_PAN);
-      cleanupListeners();
+      setIsPanning(false);
     }
-    return cleanupListeners;
-  }, [active, cleanupListeners]);
+  }, [active]);
+
+  const onPointerDown: PointerEventHandler<HTMLElement> = (evt) => {
+    if (evt.pointerType === 'mouse' && evt.button !== 0) return;
+    // Track touches even before zooming so lifting one finger after a pinch
+    // can continue as a drag without another pointerdown.
+    pointers.current.set(evt.pointerId, { x: evt.clientX, y: evt.clientY });
+    evt.currentTarget.setPointerCapture(evt.pointerId);
+    if (evt.pointerType === 'mouse') evt.preventDefault();
+    setIsPanning(active && pointers.current.size === 1);
+  };
+
+  const onPointerMove: PointerEventHandler<HTMLElement> = (evt) => {
+    const previous = pointers.current.get(evt.pointerId);
+    if (!previous) return;
+    pointers.current.set(evt.pointerId, { x: evt.clientX, y: evt.clientY });
+    // Keep each finger's position current during a pinch, but leave zooming
+    // to useZoom until only one pointer remains.
+    if (!active || pointers.current.size !== 1) return;
+    const dx = evt.clientX - previous.x;
+    const dy = evt.clientY - previous.y;
+    setPan((current) => ({
+      translateX: current.translateX + dx,
+      translateY: current.translateY + dy,
+    }));
+    setIsPanning(true);
+  };
+
+  const onPointerUp: PointerEventHandler<HTMLElement> = (evt) => {
+    if (!pointers.current.delete(evt.pointerId)) return;
+    setIsPanning(active && pointers.current.size === 1);
+  };
 
   return {
     pan,
-    cursor,
-    onMouseDown: handleMouseDown,
+    cursor: active ? (isPanning ? 'grabbing' : 'grab') : 'initial',
+    isPanning,
+    onPointerDown,
+    onPointerMove,
+    onPointerUp,
+    onPointerCancel: onPointerUp,
+    onLostPointerCapture: onPointerUp,
   };
 };

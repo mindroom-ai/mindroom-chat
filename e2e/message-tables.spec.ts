@@ -1,5 +1,44 @@
 import { expect, test } from '@playwright/test';
 
+for (const separator of ['', '&whitespace']) {
+  test(`table after grouped tools keeps phone scrolling and grid${separator}`, async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto(`/e2e/fixtures/message-tables.html?tools${separator}`);
+    const table = page.getByRole('table');
+    const scrollArea = page.getByRole('region', { name: 'Scrollable table' });
+    await expect(scrollArea).toBeVisible();
+    await expect(page.getByText('Scroll horizontally')).toBeVisible();
+    expect(await scrollArea.evaluate((el) => el.scrollWidth > el.clientWidth)).toBe(true);
+    expect(
+      await table
+        .locator('td')
+        .first()
+        .evaluate((cell) => cell.clientWidth)
+    ).toBeGreaterThan(120);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(390);
+    await expect(table.locator('td').first()).toHaveCSS('border-right-width', '1px');
+    await expect(table.locator('td').first()).toHaveCSS('border-right-style', 'solid');
+    await expect(table.locator('td').first()).toHaveCSS('border-bottom-width', '1px');
+    await expect(table.locator('td').first()).toHaveCSS('border-bottom-style', 'solid');
+    expect(
+      await table
+        .locator('td')
+        .first()
+        .evaluate((cell) => getComputedStyle(cell).borderColor)
+    ).not.toBe('rgba(0, 0, 0, 0)');
+    await scrollArea.focus();
+    await page.keyboard.press('ArrowRight');
+    await expect.poll(() => scrollArea.evaluate((el) => el.scrollLeft)).toBeGreaterThan(0);
+    await scrollArea.evaluate((el) => {
+      el.scrollLeft = el.scrollWidth;
+    });
+    await expect(table.locator('td').last()).toBeInViewport();
+    await page.getByRole('button', { name: '2 tool calls' }).click();
+    await expect(page.getByText(/^Tool #1: first_tool\b/)).toHaveCount(1);
+    await expect(page.getByText(/^Tool #2: second_tool\b/)).toHaveCount(1);
+  });
+}
+
 for (const format of ['markdown', 'html']) {
   test(`${format} tables scroll without squeezing columns or widening the page`, async ({
     page,

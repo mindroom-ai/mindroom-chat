@@ -34,10 +34,10 @@ const config: CapacitorConfig = {
       presentationOptions: ['badge', 'sound', 'alert'],
     },
     StatusBar: {
-      // Keep the WKWebView below the iOS status bar/Dynamic Island so top
-      // navigation controls remain visible and tappable on real devices.
+      // Android keeps native insets. MindRoomBridgeViewController overrides this
+      // to true on iOS, where viewport-fit=cover and CSS own the safe area.
       overlaysWebView: false,
-      // Initial native status-bar background before React syncs the active theme.
+      // Background for platforms that retain a separate native status bar.
       backgroundColor: '#1A1A1A',
       style: 'dark',
     },

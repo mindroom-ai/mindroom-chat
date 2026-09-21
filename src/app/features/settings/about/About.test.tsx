@@ -368,6 +368,22 @@ describe('About diagnostics export', () => {
     renderer.unmount();
   });
 
+  it('keeps recording enabled and explains memory-only retention after storage failure', () => {
+    deepTracePreference = true;
+    deepTraceRuntimeStatus = 'recording';
+    let renderer!: ReactTestRenderer;
+    act(() => {
+      renderer = create(<About requestClose={vi.fn()} />);
+    });
+    act(() => {
+      deepTraceStatusListener?.('memory-only');
+    });
+    expect(deepTraceSwitch(renderer).props.checked).toBe(true);
+    expect(deepTraceTile(renderer).props['data-description']).toContain('Recording in memory');
+    expect(deepTraceTile(renderer).props['data-description']).toContain('restart');
+    renderer.unmount();
+  });
+
   it('shows unavailable trace storage on an already-unavailable mount', () => {
     deepTracePreference = true;
     deepTraceRuntimeStatus = 'unavailable';

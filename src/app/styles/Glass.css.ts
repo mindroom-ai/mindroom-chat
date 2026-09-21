@@ -5,27 +5,56 @@ import { ContainerColor, color } from 'folds';
 const surfaceContainer = createVar();
 const surfaceHover = createVar();
 const surfaceActive = createVar();
+const surfaceLine = createVar();
 const surfaceTint = createVar();
 const surfaceBlur = createVar();
 const highlight = createVar();
 const rimHighlight = createVar();
+const rimShade = createVar();
+const rimReflection = createVar();
 export const glassShadow = createVar();
+
+const maskedRimSupport =
+  '((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) and ((mask-composite: exclude) or (-webkit-mask-composite: xor))';
 
 const variantStyle = (variant: ContainerColor): StyleRule => ({
   vars: {
     [surfaceContainer]: color[variant].Container,
     [surfaceHover]: color[variant].ContainerHover,
     [surfaceActive]: color[variant].ContainerActive,
+    [surfaceLine]: color[variant].ContainerLine,
   },
 });
 
-const material = (tint: number, blur: number, shadow: string): StyleRule => ({
+// Preserve optional outlines without painting over the directional glass rim.
+export const glassOutline = style({
+  selectors: { '&&': { boxShadow: `inset 0 0 0 1px ${surfaceLine}` } },
+  '@supports': {
+    [maskedRimSupport]: { selectors: { '&&': { boxShadow: glassShadow } } },
+  },
+  '@media': {
+    '(prefers-reduced-transparency: reduce), (prefers-contrast: more)': {
+      selectors: { '&&&': { boxShadow: `inset 0 0 0 1px ${surfaceLine}` } },
+    },
+    '(forced-colors: active)': {
+      selectors: {
+        '&&&': { outline: '1px solid CanvasText', outlineOffset: '-1px' },
+        '&&&:focus-visible': { outline: '2px solid Highlight', outlineOffset: '2px' },
+      },
+    },
+  },
+});
+
+const material = (tint: number, blur: number, shadow: string, elevation: string): StyleRule => ({
   vars: {
     [glassShadow]: '0 0 0 transparent',
     [surfaceTint]: `${tint}%`,
     [surfaceBlur]: `${blur}px`,
     [highlight]: 'rgb(255 255 255 / 22%)',
     [rimHighlight]: 'rgb(255 255 255 / 32%)',
+    [rimShade]: 'rgb(65 70 90 / 24%)',
+    // Let the shaded rim show through so the top stays visible on white backgrounds.
+    [rimReflection]: 'rgb(255 255 255 / 50%)',
   },
   selectors: {
     '&&': {
@@ -37,6 +66,8 @@ const material = (tint: number, blur: number, shadow: string): StyleRule => ({
         [surfaceTint]: '72%',
         [highlight]: 'rgb(255 255 255 / 4%)',
         [rimHighlight]: 'rgb(255 255 255 / 14%)',
+        [rimShade]: 'rgb(255 255 255 / 3%)',
+        [rimReflection]: 'rgb(255 255 255 / 32%)',
       },
     },
     'button&&:hover, button&&:focus-visible': {
@@ -47,6 +78,28 @@ const material = (tint: number, blur: number, shadow: string): StyleRule => ({
     },
   },
   '@supports': {
+    [maskedRimSupport]: {
+      // Backdrop-filter establishes the containing block, even on static
+      // surfaces. Leave positioning and stacking decisions with the caller.
+      // Reserve ::before for the rim; sidebar drag indicators use ::after.
+      selectors: {
+        '&&': { vars: { [glassShadow]: elevation } },
+        '&::before': {
+          content: '""',
+          position: 'absolute',
+          inset: 0,
+          borderRadius: 'inherit',
+          padding: 1,
+          pointerEvents: 'none',
+          backgroundColor: rimShade,
+          backgroundImage: `linear-gradient(180deg, ${rimReflection}, transparent 45%, transparent 65%, ${rimHighlight})`,
+          WebkitMask: 'linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)',
+          mask: 'linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)',
+          WebkitMaskComposite: 'xor',
+          maskComposite: 'exclude',
+        },
+      },
+    },
     '(backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))': {
       vars: { [glassShadow]: shadow },
       selectors: {
@@ -66,6 +119,7 @@ const material = (tint: number, blur: number, shadow: string): StyleRule => ({
   '@media': {
     '(prefers-reduced-transparency: reduce), (prefers-contrast: more), (forced-colors: active)': {
       selectors: {
+        '&&::before': { display: 'none' },
         '&&&': {
           vars: { [glassShadow]: '0 0 0 transparent' },
           backgroundColor: surfaceContainer,
@@ -90,6 +144,7 @@ export const glassFloating = style({
 // Full-width room chrome keeps the material without raised edges or highlights.
 export const glassFlat = style({
   selectors: {
+    '&&&::before': { display: 'none' },
     '&&&': {
       border: 0,
       boxShadow: 'none',
@@ -126,16 +181,27 @@ export const glassSurface = recipe({
   variants: {
     level: {
       overlay: [
-        // Equal horizontal/vertical offsets light the rim from the upper left at 45°.
+        // Vertical lighting catches the top and bottom while the sides recede.
         material(
           60,
           12,
-          `inset 1px 1px 0 ${rimHighlight}, inset -1px -1px 0 rgb(255 255 255 / 6%), 0 16px 48px rgb(0 0 0 / 18%), 0 2px 8px rgb(0 0 0 / 8%)`
+          `inset 0 1px 0 ${rimHighlight}, inset 0 -1px 0 rgb(255 255 255 / 6%), 0 16px 48px rgb(0 0 0 / 18%), 0 2px 8px rgb(0 0 0 / 8%)`,
+          '0 16px 48px rgb(0 0 0 / 18%), 0 2px 8px rgb(0 0 0 / 8%)'
         ),
         { selectors: { '&&': { boxShadow: glassShadow } } },
       ],
-      panel: material(60, 10, 'inset 1px 1px 0 rgb(255 255 255 / 16%)'),
-      control: material(58, 8, `inset 1px 1px 0 ${rimHighlight}, 0 2px 8px rgb(0 0 0 / 5%)`),
+      panel: material(
+        60,
+        10,
+        'inset 0 1px 0 rgb(255 255 255 / 16%), inset 0 -1px 0 rgb(255 255 255 / 6%)',
+        '0 0 0 transparent'
+      ),
+      control: material(
+        58,
+        8,
+        `inset 0 1px 0 ${rimHighlight}, inset 0 -1px 0 rgb(255 255 255 / 6%), 0 2px 8px rgb(0 0 0 / 5%)`,
+        '0 2px 8px rgb(0 0 0 / 5%)'
+      ),
     },
     variant: {
       Background: variantStyle('Background'),

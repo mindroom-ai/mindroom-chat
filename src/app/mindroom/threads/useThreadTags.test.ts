@@ -2,13 +2,17 @@ import React from 'react';
 import { act, create } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MatrixEvent } from 'matrix-js-sdk/lib/models/event';
-import type { Room } from 'matrix-js-sdk/lib/models/room';
+import { createClient, Room } from 'matrix-js-sdk';
 import { useStateEvents } from './useStateEvents';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { usePowerLevelsContext } from '../../hooks/usePowerLevels';
 import { useRoomCreators } from '../../hooks/useRoomCreators';
 import { useRoomPermissions } from '../../hooks/useRoomPermissions';
-import { getPendingThreadTagsContent, resetPendingThreadTagsForTests, setPendingThreadTagsContent } from './threadTagPending';
+import {
+  getPendingThreadTagsContent,
+  resetPendingThreadTagsForTests,
+  setPendingThreadTagsContent,
+} from './threadTagPending';
 import { buildPerTagStateKey, MINDROOM_THREAD_TAGS_EVENT } from './threadTags';
 import { useThreadTags } from './useThreadTags';
 
@@ -33,6 +37,12 @@ vi.mock('../../hooks/useRoomPermissions', () => ({
 }));
 
 const mockedUseStateEvents = vi.mocked(useStateEvents);
+const makeRoom = () =>
+  new Room(
+    '!room:example.org',
+    createClient({ baseUrl: 'https://example.org', userId: '@alice:example.org' }),
+    '@alice:example.org'
+  );
 const mockedUseMatrixClient = vi.mocked(useMatrixClient);
 const mockedUsePowerLevelsContext = vi.mocked(usePowerLevelsContext);
 const mockedUseRoomCreators = vi.mocked(useRoomCreators);
@@ -52,10 +62,7 @@ function Harness({ room, threadRootId, onRender }: HarnessProps) {
   return null;
 }
 
-const makeLegacyTagEvent = (
-  stateKey: string,
-  tags: Record<string, Record<string, unknown>>
-) =>
+const makeLegacyTagEvent = (stateKey: string, tags: Record<string, Record<string, unknown>>) =>
   new MatrixEvent({
     content: {
       tags,
@@ -68,11 +75,7 @@ const makeLegacyTagEvent = (
     type: MINDROOM_THREAD_TAGS_EVENT,
   });
 
-const makePerTagEvent = (
-  threadRootId: string,
-  tagName: string,
-  content: Record<string, unknown>
-) =>
+const makePerTagEvent = (threadRootId: string, tagName: string, content: Record<string, unknown>) =>
   new MatrixEvent({
     content,
     event_id: `$per-tag-${threadRootId}-${tagName}`,
@@ -105,7 +108,7 @@ describe('useThreadTags', () => {
   });
 
   it('surfaces pending custom tags before the state event sync arrives', () => {
-    const room = { roomId: '!room:example.org' } as Room;
+    const room = makeRoom();
     setPendingThreadTagsContent(room.roomId, '$root', {
       tags: {
         bug: { set_by: '@alice:example.org', set_at: ISO_1 },
@@ -133,7 +136,7 @@ describe('useThreadTags', () => {
   });
 
   it('aggregates per-tag room state for display, resolved status, and suggestions', () => {
-    const room = { roomId: '!room:example.org' } as Room;
+    const room = makeRoom();
     mockedUseStateEvents.mockReturnValue([
       makePerTagEvent('$root', 'resolved', {
         set_by: '@alice:example.org',
@@ -172,7 +175,7 @@ describe('useThreadTags', () => {
   });
 
   it('merges legacy and per-tag room state, with tombstones overriding legacy tags', () => {
-    const room = { roomId: '!room:example.org' } as Room;
+    const room = makeRoom();
     mockedUseStateEvents.mockReturnValue([
       makeLegacyTagEvent('$root', {
         bug: { set_by: '@alice:example.org', set_at: ISO_1 },
@@ -211,7 +214,7 @@ describe('useThreadTags', () => {
   });
 
   it('clears the pending custom tag once the aggregated live state matches it', () => {
-    const room = { roomId: '!room:example.org' } as Room;
+    const room = makeRoom();
     mockedUseStateEvents.mockReturnValue([
       makePerTagEvent('$root', 'bug', {
         set_by: '@alice:example.org',

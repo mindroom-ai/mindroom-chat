@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { getHomeserver, getPrimaryCredentials, hasPrimaryCredentials } from '../env';
-import { loginWithPassword } from '../helpers/auth';
+import { loginWithPassword, setFullInterfaceModeForCredentials } from '../helpers/auth';
 import {
   createThreadFixture,
   loginToMatrix,
@@ -20,6 +20,9 @@ for (const surface of ['room', 'thread'] as const) {
         'Local fixture only'
       );
       const credentials = getPrimaryCredentials();
+      if (surface === 'room') {
+        await setFullInterfaceModeForCredentials(homeserver, credentials);
+      }
       const session = await loginToMatrix(homeserver, credentials.username, credentials.password);
       const body = Array.from(
         { length: 40 },
@@ -73,8 +76,14 @@ for (const surface of ['room', 'thread'] as const) {
           (await footer.boundingBox())!.y - 100
         );
         // Real wheel input releases the timeline's follow-latest state in both engines.
-        await page.mouse.wheel(0, -10000);
-        await expect.poll(() => scroll.evaluate((el) => el.scrollTop)).toBeLessThan(2);
+        // Reaching the top can prepend earlier room events and restore an anchor.
+        // Continue real input until that pagination has also reached the top.
+        await expect
+          .poll(async () => {
+            await page.mouse.wheel(0, -(await scroll.evaluate((el) => el.scrollHeight)));
+            return scroll.evaluate((el) => el.scrollTop);
+          })
+          .toBeLessThan(2);
         await page.mouse.wheel(0, 200);
         await expect.poll(() => scroll.evaluate((el) => el.scrollTop)).toBeGreaterThan(100);
         const contentId = (await collapse.getAttribute('aria-controls'))!;

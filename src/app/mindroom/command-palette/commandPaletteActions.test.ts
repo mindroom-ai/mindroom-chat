@@ -26,50 +26,80 @@ describe('getCommandPaletteQuickActions', () => {
 
   it('adds room-scoped actions when a room is selected', () => {
     expect(
-      getCommandPaletteQuickActions({
-        currentRoomName: 'General',
-      }, t).map((item) => item.id)
+      getCommandPaletteQuickActions(
+        {
+          currentRoomName: 'General',
+        },
+        t
+      ).map((item) => item.id)
     ).toContain('mark-current-room-read');
     expect(
-      getCommandPaletteQuickActions({
-        currentRoomName: 'General',
-      }, t).map((item) => item.id)
+      getCommandPaletteQuickActions(
+        {
+          currentRoomName: 'General',
+        },
+        t
+      ).map((item) => item.id)
     ).toContain('open-current-room-settings');
   });
 
   it('switches between resolve and unresolve for the active thread', () => {
     expect(
-      getCommandPaletteQuickActions({
-        currentThreadId: '$thread',
-        isCurrentThreadResolved: false,
-      }, t).map((item) => item.id)
+      getCommandPaletteQuickActions(
+        {
+          currentThreadId: '$thread',
+          isCurrentThreadResolved: false,
+        },
+        t
+      ).map((item) => item.id)
     ).toContain('resolve-current-thread');
     expect(
-      getCommandPaletteQuickActions({
-        currentThreadId: '$thread',
-        isCurrentThreadResolved: false,
-      }, t).map((item) => item.id)
+      getCommandPaletteQuickActions(
+        {
+          currentThreadId: '$thread',
+          isCurrentThreadResolved: false,
+        },
+        t
+      ).map((item) => item.id)
     ).not.toContain('unresolve-current-thread');
 
     expect(
-      getCommandPaletteQuickActions({
-        currentThreadId: '$thread',
-        isCurrentThreadResolved: true,
-      }, t).map((item) => item.id)
+      getCommandPaletteQuickActions(
+        {
+          currentThreadId: '$thread',
+          isCurrentThreadResolved: true,
+        },
+        t
+      ).map((item) => item.id)
     ).toContain('unresolve-current-thread');
+  });
+
+  it('omits both resolution commands for pinned threads', () => {
+    const ids = getCommandPaletteQuickActions(
+      {
+        currentThreadId: '$pinned',
+        isCurrentThreadPinned: true,
+      },
+      t
+    ).map((item) => item.id);
+    expect(ids).not.toContain('resolve-current-thread');
+    expect(ids).not.toContain('unresolve-current-thread');
   });
 });
 
 describe('getCommandPaletteMessageTargets', () => {
   it('builds current-room, current-space, and global search rows', () => {
     expect(
-      getCommandPaletteMessageTargets({
-        query: 'deploy checklist',
-        currentRoomId: '!room:example.org',
-        currentRoomName: 'General',
-        currentSpaceId: '!space:example.org',
-        currentSpaceName: 'MindRoom',
-      }, t).map((item) => item.path)
+      getCommandPaletteMessageTargets(
+        {
+          query: 'deploy checklist',
+          currentRoomId: '!room:example.org',
+          currentRoomName: 'General',
+          currentSpaceId: '!space:example.org',
+          currentSpaceName: 'MindRoom',
+        },
+        t
+      ).map((item) => item.path)
     ).toEqual([
       '/!space%3Aexample.org/search?term=deploy+checklist&rooms=%21room%3Aexample.org',
       '/!space%3Aexample.org/search?term=deploy+checklist',
@@ -79,10 +109,13 @@ describe('getCommandPaletteMessageTargets', () => {
 
   it('omits message rows for an empty query', () => {
     expect(
-      getCommandPaletteMessageTargets({
-        query: '   ',
-        currentRoomId: '!room:example.org',
-      }, t)
+      getCommandPaletteMessageTargets(
+        {
+          query: '   ',
+          currentRoomId: '!room:example.org',
+        },
+        t
+      )
     ).toEqual([]);
   });
 });

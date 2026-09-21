@@ -337,7 +337,6 @@ export const useThreadOverviewCacheHydration = ({
     if (threadId || overviewThreadRootIds.length === 0) return;
 
     const threadRootIdsToLoad = overviewThreadRootIds
-      .slice(0, overviewThreadMetadataCacheLimit)
       .filter((rootId) => {
         const needsCacheCoverage = !cachedThreadCoverageMap.has(rootId);
         const needsActivityTs = !cachedThreadLastActivityTsMap.has(rootId) && needsCacheCoverage;
@@ -354,16 +353,9 @@ export const useThreadOverviewCacheHydration = ({
           !compactCachedThreadRootBodyMap.has(rootId) && attemptCount < maxAttempts;
 
         return needsActivityTs || needsPreview || needsCacheCoverage;
-      });
+      })
+      .slice(0, overviewThreadMetadataCacheLimit);
     if (threadRootIdsToLoad.length === 0) return;
-
-    if (showCompactRoomView) {
-      threadRootIdsToLoad.forEach((rootId) => {
-        if (compactCachedThreadRootBodyMap.has(rootId)) return;
-        const currentCount = compactRootPreviewAttemptCountsRef.current.get(rootId) ?? 0;
-        compactRootPreviewAttemptCountsRef.current.set(rootId, currentCount + 1);
-      });
-    }
 
     let cancelled = false;
     const mapper = mx.getEventMapper();
@@ -381,6 +373,14 @@ export const useThreadOverviewCacheHydration = ({
         return;
       }
       if (cancelled) return;
+
+      if (showCompactRoomView) {
+        threadRootIdsToLoad.forEach((rootId) => {
+          if (compactCachedThreadRootBodyMap.has(rootId)) return;
+          const currentCount = compactRootPreviewAttemptCountsRef.current.get(rootId) ?? 0;
+          compactRootPreviewAttemptCountsRef.current.set(rootId, currentCount + 1);
+        });
+      }
 
       const nextUpdates: CachedOverviewUpdate[] = [];
       threadRootIdsToLoad.forEach((rootId) => {

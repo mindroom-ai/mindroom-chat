@@ -280,6 +280,7 @@
     "voiceBundleBlocked": "L'invio di un altro allegato è ancora in corso o richiede attenzione. Attendi, riprova o rimuovi gli allegati non riusciti, quindi invia di nuovo questo messaggio."
   },
   "thread": {
+    "pinFailed": "Impossibile aggiornare il messaggio fissato. Riprova.",
     "chip": "Thread",
     "view": "Vista thread",
     "resolve": "Risolvi",
@@ -890,7 +891,7 @@
       "login": "Accedi",
       "thisClientRequiresSignInWithAppleConfigureTheHomeserverSsoProvider": "Questo client richiede Accedi con Apple. Configura l'elenco dei provider SSO dell'homeserver in modo che includa Apple.",
       "register": "Registrati",
-      "accountLink": "Non hai un account? <link>Registrati</link>",
+      "accountLink": "Non hai un account? <authLink>Registrati</authLink>",
       "passwordLoginIsDisabledOnValue1UseSsoToSignIn": "L'accesso con password è disabilitato su \"{{value1}}\". Usa SSO per accedere.",
       "thisClientDoesNotSupportLoginOnValue1ServerPasswordAndSso": "Questo client non supporta l'accesso al server \"{{value1}}\". Non è stato trovato alcun metodo di accesso tramite password o SSO."
     },
@@ -953,7 +954,7 @@
       "thisApplicationDoesNotSupportRegistrationOnThisHomeserver": "Questa applicazione non supporta la registrazione su questo homeserver.",
       "ssoRegistrationIsRequiredOnThisHomeserverButNoSsoProvidersWere": "Su questo homeserver è richiesta la registrazione SSO, ma non è stato indicato alcun provider SSO.",
       "login": "Accedi",
-      "accountLink": "Hai già un account? <link>Accedi</link>"
+      "accountLink": "Hai già un account? <authLink>Accedi</authLink>"
     },
     "passwordResetForm": {
       "passwordHasBeenResetSuccessfullyPleaseLoginWithYourNewPassword": "La password è stata reimpostata. Accedi con la nuova password.",
@@ -968,7 +969,7 @@
     "resetPassword": {
       "resetPassword": "Reimposta password",
       "login": "Accedi",
-      "accountLink": "Ricordi la password? <link>Accedi</link>"
+      "accountLink": "Ricordi la password? <authLink>Accedi</authLink>"
     },
     "clientRoot": {
       "catchingUp": "Aggiornamento...",
@@ -1736,7 +1737,40 @@
         "advancedOptions": "Opzioni avanzate",
         "compact": "Compatto",
         "threads": "Thread",
-        "classic": "Classico"
+        "classic": "Classico",
+        "offline": {
+          "title": "Accesso offline",
+          "checking": "Verifica dei contenuti salvati…",
+          "unavailable": "I contenuti salvati non sono disponibili su questo dispositivo.",
+          "notSaved": "Questa stanza non è ancora stata salvata per l’uso offline.",
+          "downloading": "Download della stanza per l’uso offline…",
+          "offlinePause": "Il salvataggio è in pausa mentre il dispositivo è offline.",
+          "backgroundPause": "Il salvataggio è in pausa mentre l’app è in background.",
+          "spacePause": "Il salvataggio è in pausa perché i contenuti protetti occupano tutto lo spazio assegnato.",
+          "readOnlyPause": "Errore di archiviazione. Riapri l’app per riprendere il salvataggio.",
+          "connectionPause": "Il salvataggio automatico è in pausa su questa connessione.",
+          "errorPause": "Il salvataggio è stato sospeso dopo un errore. Riprova.",
+          "partialHistory": "Parte della cronologia precedente non è stata salvata.",
+          "inaccessibleHistory": "Parte della cronologia non è attualmente accessibile.",
+          "waitingForKeys": "Eventi crittografati in attesa delle chiavi: {{count}}",
+          "unresolvedRelations": "Modifiche o risposte non risolte: {{count}}",
+          "missingEssential": "Corpi essenziali dei messaggi mancanti: {{count}}",
+          "historyEntries": "Voci della cronologia salvate: {{count}}",
+          "attachments": "Allegati: {{saved}} salvati, {{missing}} mancanti.",
+          "storageUsed": "Spazio usato dagli allegati: {{size}}",
+          "pinFailed": "Impossibile aggiornare «Mantieni offline».",
+          "includeAllMedia": "Includi tutti i contenuti multimediali",
+          "keepOffline": "Mantieni offline",
+          "keepOfflineDescription": "Proteggi i contenuti multimediali salvati di questa stanza durante la pulizia automatica.",
+          "cancelDownload": "Annulla download",
+          "downloadEntireRoom": "Scarica l’intera stanza",
+          "clearDownloadedContent": "Cancella i contenuti scaricati",
+          "clearTitle": "Cancellare i contenuti scaricati?",
+          "cancel": "Annulla",
+          "clearDescription": "La cronologia e gli allegati salvati di questa stanza verranno rimossi dal dispositivo.",
+          "clearFailed": "Impossibile cancellare i contenuti scaricati.",
+          "clearConfirm": "Cancella contenuti"
+        }
       },
       "permissions": {
         "permissions": "Autorizzazioni",
@@ -2097,6 +2131,7 @@
         "clearing": "Cancellazione...",
         "credits": "Riconoscimenti",
         "deepDiagnosticTracing": "Tracciamento diagnostico approfondito",
+        "deepTraceMemoryOnly": "Registrazione in memoria perché l’archivio delle tracce non è disponibile. Esporta prima di riavviare l’app; questi eventi recenti vengono persi al riavvio.",
         "deepTraceEnabledStorageUnavailable": "Attivo, ma l’archivio delle tracce non è al momento disponibile.",
         "deepTraceOff": "Disattivato. Attivalo prima di riprodurre un blocco per registrare prestazioni, Matrix, rete, ciclo di vita e tempi di interazione.",
         "deepTracePreferenceSaveFailed": "{{description}} Disattivato per questa sessione, ma non è stato possibile salvare la preferenza e potrebbe riattivarsi dopo il riavvio.",
@@ -2462,6 +2497,8 @@
         "viewReactions": "Visualizza reazioni"
       },
       "mindroomHtmlBlocks": {
+        "loadingToolDetails": "Caricamento in corso…",
+        "toolDetailsUnavailable": "Dettagli dello strumento non disponibili.",
         "pastedText": "Testo incollato",
         "characterCount_one": "{{formattedCount}} carattere",
         "characterCount_other": "{{formattedCount}} caratteri",

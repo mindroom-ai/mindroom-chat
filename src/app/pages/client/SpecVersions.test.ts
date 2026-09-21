@@ -127,6 +127,113 @@ describe('SpecVersions', () => {
     }
   });
 
+  it('shows cached content before versions arrive and updates capabilities without losing its draft', async () => {
+    specVersionsLoaderMode = 'fallback';
+    vi.mocked(useActiveSession).mockReturnValue({
+      sessionId: 'session-a',
+      baseUrl: 'https://example.com',
+      userId: '@alice:example.com',
+      deviceId: 'DEVICE',
+      accessToken: 'token',
+      lastUsedAt: 1,
+    });
+    let resolveRefresh!: (versions: { versions: string[] }) => void;
+    vi.mocked(specVersions).mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveRefresh = resolve;
+        })
+    );
+    let mounts = 0;
+    const CachedRoom = () => {
+      const { versions } = useSpecVersions();
+      const [draft, setDraft] = React.useState('');
+      React.useEffect(() => {
+        mounts += 1;
+      }, []);
+      return React.createElement('input', {
+        value: draft,
+        'data-versions': versions.join(','),
+        onChange: (value: string) => setDraft(value),
+      });
+    };
+    const render = (allowCachedContent: boolean) =>
+      React.createElement(
+        SpecVersions,
+        { baseUrl: 'https://example.com', allowCachedContent },
+        React.createElement(CachedRoom)
+      );
+    let renderer!: ReturnType<typeof create>;
+    await act(async () => {
+      renderer = create(render(false));
+    });
+    expect(renderer.root.findAllByType('input')).toHaveLength(0);
+
+    await act(async () => {
+      renderer.update(render(true));
+    });
+    expect(renderer.root.findByType('input').props['data-versions']).toBe('');
+    act(() => {
+      renderer.root.findByType('input').props.onChange('unsent draft');
+    });
+
+    await act(async () => {
+      resolveRefresh({ versions: ['v1.11'] });
+    });
+
+    expect(renderer.root.findByType('input').props['data-versions']).toBe('v1.11');
+    expect(renderer.root.findByType('input').props.value).toBe('unsent draft');
+    expect(mounts).toBe(1);
+    expect(readCachedSpecVersions('https://example.com', '@alice:example.com')).toEqual({
+      versions: ['v1.11'],
+    });
+    act(() => {
+      renderer.unmount();
+    });
+  });
+
+  it.each(['empty', 'failed'])(
+    'keeps cached content visible after a %s versions refresh',
+    async (result) => {
+      specVersionsLoaderMode = 'fallback';
+      vi.mocked(useActiveSession).mockReturnValue({
+        sessionId: 'session-a',
+        baseUrl: 'https://example.com',
+        userId: '@alice:example.com',
+        deviceId: 'DEVICE',
+        accessToken: 'token',
+        lastUsedAt: 1,
+      });
+      if (result === 'empty') vi.mocked(specVersions).mockResolvedValue({ versions: [] });
+      else vi.mocked(specVersions).mockRejectedValue(new Error('offline'));
+      const CachedRoom = () => {
+        const { versions } = useSpecVersions();
+        return React.createElement(
+          'article',
+          { 'data-versions': versions.join(',') },
+          'cached messages'
+        );
+      };
+      let renderer!: ReturnType<typeof create>;
+      await act(async () => {
+        renderer = create(
+          React.createElement(
+            SpecVersions,
+            { baseUrl: 'https://example.com', allowCachedContent: true },
+            React.createElement(CachedRoom)
+          )
+        );
+      });
+
+      expect(renderer.root.findByType('article').children).toEqual(['cached messages']);
+      expect(renderer.root.findByType('article').props['data-versions']).toBe('');
+      expect(readCachedSpecVersions('https://example.com', '@alice:example.com')).toBeUndefined();
+      act(() => {
+        renderer.unmount();
+      });
+    }
+  );
+
   it('renders cached versions immediately and refreshes only the stored copy', async () => {
     const fetchMock = vi.fn().mockResolvedValue({} as Response);
     vi.stubGlobal('fetch', fetchMock);

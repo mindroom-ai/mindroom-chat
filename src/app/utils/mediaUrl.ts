@@ -1,6 +1,17 @@
 import { MatrixClient } from 'matrix-js-sdk';
 import { validMediaRequest } from '../../swMediaAuth';
 import { trimTrailingSlash } from './common';
+import type { SpecVersions } from '../cs-api';
+
+const AUTHENTICATED_MEDIA_SPEC_VERSION = 'v1.11';
+const AUTHENTICATED_MEDIA_UNSTABLE_FEATURE = 'org.matrix.msc3916.stable';
+
+export const supportsAuthenticatedMedia = ({
+  versions,
+  unstable_features: unstableFeatures,
+}: SpecVersions): boolean =>
+  unstableFeatures?.[AUTHENTICATED_MEDIA_UNSTABLE_FEATURE] === true ||
+  versions.includes(AUTHENTICATED_MEDIA_SPEC_VERSION);
 
 const rebaseMediaUrlToHomeserverPath = (mx: MatrixClient, mediaUrl: string): string => {
   try {

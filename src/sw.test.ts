@@ -11,12 +11,11 @@ describe('service worker app shell caching', () => {
     expect(swSource).toContain('new PrecacheController()');
     expect(swSource).toContain('precacheController.addToCacheList(precacheManifest)');
     expect(swSource).toContain('new PrecacheRoute(precacheController)');
-    expect(swSource).toContain('createHandlerBoundToURL');
+    expect(swSource).toContain("precacheController.matchPrecache('index.html')");
     expect(swSource).toContain('new NavigationRoute');
     expect(swSource).toContain('denylist: navigationFallbackDenylist');
-    // createHandlerBoundToURL throws for non-precached URLs (dev injects an
-    // empty manifest); the fallback must stay guarded on a precached
-    // index.html or service worker evaluation fails entirely.
+    // Navigation is registered only when index.html is precached. Its lookup
+    // must stay cache-only so a miss falls through to the original navigation.
     expect(swSource).toContain("=== 'index.html'");
     expect(swSource).toContain('if (precachesAppShell)');
     expect(viteConfigSource).toContain("injectionPoint: 'self.__WB_MANIFEST'");
@@ -26,7 +25,7 @@ describe('service worker app shell caching', () => {
     expect(viteConfigSource).toContain("'version.json'");
   });
 
-  it('checks the network before the precache route and never navigates active clients', () => {
+  it('registers navigation before the precache route and never navigates active clients', () => {
     const swSource = readFileSync(new URL('./sw.ts', import.meta.url), 'utf8');
 
     const navigationRoute = swSource.indexOf('new NavigationRoute');

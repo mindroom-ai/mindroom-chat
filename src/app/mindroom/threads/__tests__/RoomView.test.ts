@@ -15,6 +15,7 @@ type MockThreadContextBannerProps = {
 type MockPageProps = React.ComponentProps<'div'>;
 
 const {
+  syncEngine,
   bumpRecentThreadMock,
   compactRoomTimelineState,
   edgeSwipeBackState,
@@ -35,6 +36,7 @@ const {
   useKeyDownMock,
   useThreadRootEventMock,
 } = vi.hoisted(() => ({
+  syncEngine: { noteRoomFocused: vi.fn(), clearRoomFocus: vi.fn() },
   bumpRecentThreadMock: vi.fn(),
   compactRoomTimelineState: {
     enabled: false,
@@ -118,6 +120,8 @@ vi.stubGlobal('window', {
     userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)',
   },
 });
+
+vi.mock('../../engine/engineContext', () => ({ useMindroomSyncEngine: () => syncEngine }));
 
 vi.mock('folds', async (importOriginal) => {
   const actual = await importOriginal<typeof import('folds')>();
@@ -386,6 +390,15 @@ vi.mock('../useRoomThreadTags', () => ({
     error: undefined,
   }),
 }));
+vi.mock('../useThreadPinning', () => ({
+  useThreadPinning: () => ({
+    pinnedEventIds: [],
+    canPin: false,
+    setPinned: vi.fn(),
+    updating: false,
+    error: undefined,
+  }),
+}));
 
 vi.mock('../useThreadRootEvent', () => ({
   useThreadRootEvent: useThreadRootEventMock,
@@ -466,6 +479,8 @@ describe('RoomView', () => {
     );
     vi.useRealTimers();
     storageState.clear();
+    syncEngine.noteRoomFocused.mockReset();
+    syncEngine.clearRoomFocus.mockReset();
     bumpRecentThreadMock.mockReset();
     compactRoomTimelineState.enabled = false;
     compactRoomTimelineState.onThreadClick.mockReset();
@@ -497,6 +512,66 @@ describe('RoomView', () => {
   afterEach(() => {
     vi.stubGlobal('ResizeObserver', originalResizeObserver);
     vi.useRealTimers();
+  });
+
+  it('keeps the room download allowance and Cancel intact across thread navigation', async () => {
+    const { createRoomOfflineController } = await import('../../engine/roomOffline');
+    const { createBackfillScheduler } = await import('../../engine/backfillScheduler');
+    const { resolvePrefetchConfig } = await import('../../engine/prefetchPolicy');
+    const { RoomView } = await import('../../../features/room/RoomView');
+    const room = makeRoom(nextRoomId('offline-focus'));
+    const scheduler = createBackfillScheduler();
+    const offline = createRoomOfflineController({
+      mx: { getRoom: () => null } as never,
+      sessionId: 'focus-test',
+      scheduler,
+      connection: {
+        getSnapshot: () => ({ connected: true, unmetered: false }),
+        subscribe: () => () => undefined,
+      },
+      getPrefetchConfig: () => resolvePrefetchConfig({}),
+      onChanged: () => undefined,
+    });
+    syncEngine.noteRoomFocused.mockImplementation((id: string) => offline.focus(id));
+    syncEngine.clearRoomFocus.mockImplementation((id: string) => offline.blur(id));
+    offline.start();
+    let renderer: ReturnType<typeof create> | undefined;
+    try {
+      await act(async () => {
+        renderer = create(React.createElement(RoomView, { room: room as never }));
+      });
+      expect(offline.allowance(room.roomId)).toBe(200);
+      offline.reservePage(room.roomId)!.settle(200);
+      for (const threadId of ['$one', '$two', undefined]) {
+        await act(async () => {
+          renderer!.update(React.createElement(RoomView, { room: room as never, threadId }));
+        });
+        expect(offline.allowance(room.roomId)).toBe(0);
+      }
+      expect(syncEngine.clearRoomFocus).not.toHaveBeenCalled();
+      offline.controller.cancel(room.roomId);
+      await act(async () => {
+        renderer!.update(
+          React.createElement(RoomView, { room: room as never, threadId: '$three' })
+        );
+      });
+      expect(offline.allowance(room.roomId)).toBe(0);
+      await act(async () => {
+        renderer!.unmount();
+      });
+      expect(syncEngine.clearRoomFocus).toHaveBeenCalledWith(room.roomId);
+      await act(async () => {
+        renderer = create(React.createElement(RoomView, { room: room as never }));
+      });
+      expect(offline.allowance(room.roomId)).toBe(0);
+      offline.controller.download(room.roomId);
+      expect(offline.allowance(room.roomId)).toBe(200);
+    } finally {
+      await act(async () => {
+        renderer?.unmount();
+      });
+      offline.stop();
+    }
   });
 
   it('persists the thread filter state across thread enter/exit', async () => {

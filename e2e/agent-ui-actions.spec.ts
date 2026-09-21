@@ -101,8 +101,13 @@ test('agent requests open the active conversation and leave passive history butt
       const url = new URL(request.url());
       return url.pathname.endsWith('/sync') && url.searchParams.get('timeout') === '30000';
     });
+  const clearCachedClientConfig = () =>
+    page.evaluate(() => localStorage.removeItem('io.cinny.client-config:/config.json'));
+  const initialLiveSync = waitForLiveSync();
   await page.goto(threadPath(fixture.rootId));
   await expect(page.getByText(fixture.replyBody, { exact: true })).toBeVisible();
+  // Cached content can render before the listener is eligible for live delivery.
+  await initialLiveSync;
   await page.bringToFront();
   await expect.poll(() => page.evaluate(() => document.hasFocus())).toBe(true);
   const panel = page.getByRole('complementary', { name: 'Computer panel' });
@@ -180,6 +185,8 @@ test('agent requests open the active conversation and leave passive history butt
   // Removing deployment trust keeps a fresh request passive, with its button still usable.
   await panel.getByRole('button', { name: 'Close computer', exact: true }).click();
   autoOpenFromHomeservers = [];
+  // The loader keeps cached config for a full launch; reload against this policy explicitly.
+  await clearCachedClientConfig();
   const untrustedSync = waitForLiveSync();
   await page.reload();
   await untrustedSync;
@@ -196,6 +203,7 @@ test('agent requests open the active conversation and leave passive history butt
   // Room-level requests stay passive in a thread, then work from their room overview.
   await panel.getByRole('button', { name: 'Close computer', exact: true }).click();
   autoOpenFromHomeservers = [viewer.user_id.slice(viewer.user_id.indexOf(':') + 1)];
+  await clearCachedClientConfig();
   const restoredSync = waitForLiveSync();
   await page.reload();
   await restoredSync;

@@ -1,35 +1,12 @@
-/**
- * CINNY-207 P4.2: gap-fill executor.
- *
- * Phase 3.2 planted a `GapFillScheduler` interface with an in-memory
- * queue and a `gapFillsEnqueued` probe counter — that gave AC13 a
- * detection signal but no execution. This module is the executor: it
- * hands each enqueued gap-fill job to the P4.1 `BackfillScheduler` (so
- * we get dedup + priority + concurrency cap for free), fetches the
- * missing tail via `mx.createMessagesRequest`, persists the returned
- * raw events through `saveRoomEventsToCache`, and clears the durable
- * `tailDiscontinuity` marker when done.
- *
- * Contract with the durable marker:
- *   - Snapshot the pre-gap cached tail before fetching and keep those
- *     event ids on the marker across cursor checkpoints.
- *   - Clear only after a committed page overlaps that cached tail, or
- *     the SDK confirms there is no more history to fetch.
- *   - On abort: leave the marker in place — the next boot will retry.
- *   - On error: leave the marker in place. We swallow the error so the
- *     scheduler slot frees; the next `RoomEvent.TimelineReset` or
- *     `Sync -> PREPARED` will re-enqueue.
- *
- * Ordering: the scheduler already runs my-server-room work at bands 1
- * (`gap-fill` on other rooms) and 0 (jobs targeting the current room),
- * so the same `BackfillJobKind = 'gap-fill'` is used for both — the
- * caller controls priority. Federated rooms are skipped entirely per
- * the prefetch policy.
- */
+/** One committed gap page per scheduler turn. Durable overlap markers and
+ * cursors survive policy pauses; only overlap or exhaustion clears the gap. */
 
 import type { IEvent, MatrixClient, Room } from 'matrix-js-sdk';
 import { Direction } from 'matrix-js-sdk';
 import {
+  captureCacheStoreWriteLease,
+  isCacheStoreWriteLeaseCurrent,
+  type CacheStoreWriteLease,
   checkpointRoomTailDiscontinuity,
   clearRoomTailDiscontinuity,
   getTailDiscontinuityGeneration,
@@ -37,6 +14,7 @@ import {
   loadRoomTailDiscontinuity,
 } from '../threads/cacheStore';
 import { persistRoomChunkWithPreferLive } from '../threads/eventRepository';
+import type { ReserveHistoryPage } from './deepHistoryJob';
 import type { BackfillScheduler } from './backfillScheduler';
 import {
   collectOverlapEventIds,
@@ -47,8 +25,6 @@ import {
 import {
   DEFAULT_PREFETCH_SCOPE,
   isRoomEligibleForBackgroundPrefetch,
-  isRoomEligibleForRawFetch,
-  resolveRoomPrefetchTier,
   type PrefetchConfig,
 } from './prefetchPolicy';
 
@@ -57,21 +33,11 @@ import {
 // consistent across job kinds.
 const GAP_FILL_BATCH_SIZE = GAP_FILL_OVERLAP_TAIL_LIMIT;
 
-// The startup/ongoing sync filter is capped at 20 timeline events
-// (STARTUP_SYNC_TIMELINE_LIMIT in client/initMatrix.ts). Keeping ten
-// such windows ensures the snapshot taken for a limited-sync reset
-// still contains the pre-reset side of the gap. A contract test ties
-// these independently-owned constants together without making the
-// engine depend on client startup code. The ids are persisted on the
-// marker before any /messages page is written, so later capped runs
-// cannot displace this original boundary.
-// Cap on iterations per gap-fill job. Guards against pathological
-// homeservers that stream tokens forever. In practice a gap-fill
-// terminates when the SDK returns `end === undefined` (no more
-// history) or when we've reached the current live tail.
-const GAP_FILL_MAX_ITERATIONS = 20;
-
 export type GapFillExecutorOptions = {
+  /** When supplied, the controller owns eligibility as well as bandwidth. */
+  readonly pageAllowance?: (roomId: string) => number;
+  readonly reservePage?: ReserveHistoryPage;
+  readonly canSavePage?: (roomId: string) => Promise<boolean>;
   readonly mx: MatrixClient;
   readonly sessionId: string;
   readonly scheduler: BackfillScheduler;
@@ -84,8 +50,7 @@ export type GapFillExecutorOptions = {
    * fetching, so a user switching to `current-room-only` immediately
    * suppresses background gap-fills on non-focused rooms.
    * Optional to preserve back-compat for existing test constructors.
-   * When absent, the executor falls back to the default `my-server`
-   * policy — the historical behavior.
+   * When absent, the executor falls back to the default `current-room-only` policy.
    */
   readonly getPrefetchConfig?: () => PrefetchConfig;
   /**
@@ -134,8 +99,11 @@ export const createGapFillExecutor = (
 
   const runOnce = async (
     job: GapFillJob,
-    signal: AbortSignal
-  ): Promise<'policy-deferred' | 'continuation-deferred' | undefined> => {
+    signal: AbortSignal,
+    writeLease: CacheStoreWriteLease,
+    onCommitted: () => void,
+    visited: Set<string>
+  ): Promise<'policy-deferred' | 'continuation-deferred' | 'page-committed' | undefined> => {
     const room: Room | null | undefined = mx.getRoom?.(job.roomId);
     if (!room) return;
     let durableMarker;
@@ -158,7 +126,7 @@ export const createGapFillExecutor = (
         durableMarker ?? { markedAt: job.markedAt, prevBatch: job.prevBatch }
       );
 
-    let fromToken: string | null =
+    const fromToken: string | null =
       durableMarker?.nextToken ?? job.prevBatch ?? durableMarker?.prevBatch ?? null;
     let overlapEventIds = durableMarker?.overlapEventIds;
     if (overlapEventIds === undefined) {
@@ -168,10 +136,11 @@ export const createGapFillExecutor = (
       } catch {
         // Without a trustworthy boundary, preserve the marker and retry
         // instead of risking an unnecessary crawl to room genesis.
-        return;
+        return 'continuation-deferred';
       }
       overlapEventIds = collectOverlapEventIds(cachedTail.events);
       if (durableMarker) {
+        if (signal.aborted || !isCacheStoreWriteLeaseCurrent(writeLease)) return 'policy-deferred';
         const boundaryCheckpointed = await checkpointRoomTailDiscontinuity(
           sessionId,
           job.roomId,
@@ -179,76 +148,49 @@ export const createGapFillExecutor = (
           fromToken,
           overlapEventIds
         );
-        if (!boundaryCheckpointed) return;
+        if (!boundaryCheckpointed) return 'continuation-deferred';
       }
     }
 
-    // CINNY-207 P7.2 audit finding #5: scope-aware gate. Under
-    // `my-server` (default) this collapses to the historical
-    // `isRoomEligibleForRawFetch` policy (own-tier + not encrypted).
-    // Under `all-rooms` federated rooms become eligible. Under
-    // `current-room-only` only the currently-focused room passes.
-    //
-    // Encrypted rooms are always blocked by the helper — ciphertext is
-    // unusable without decryption context. The marker-clearing branch
-    // below still runs the historical own-tier check because that's
-    // the shape it was designed for (encrypted-own clears, federated
-    // preserves per Deviations §8); scope only affects the gating,
-    // not the marker semantics for skipped rooms.
     const scope = getPrefetchConfig ? getPrefetchConfig().scope : DEFAULT_PREFETCH_SCOPE;
-    const eligible = isRoomEligibleForBackgroundPrefetch({
-      mx,
-      room,
-      scope,
-      focusedRoomId: getFocusedRoomId(),
-    });
-    // Policy gate — federated / encrypted rooms are skipped entirely.
-    // The gap-fill queue holds them because the P4 gate fix removed
-    // the enqueue-time short-circuit (so `gapFillsEnqueued` and
-    // `schedulerEnqueued` stay in lockstep for observability); this is
-    // where they actually get filtered out.
-    if (!eligible) {
-      // Marker semantics preserved from the pre-#5 shape: encrypted-
-      // own rooms clear their marker (we've declined to fill them
-      // permanently — ciphertext is unusable), federated preserves
-      // per Deviations §8. When `current-room-only` blocks a normally-
-      // eligible room, preserve the marker so a scope-widen later
-      // picks the work back up.
-      if (isRoomEligibleForRawFetch(mx, room)) {
-        // Only reachable under `current-room-only` for a non-focused
-        // eligible room. Marker preserved.
-        return 'policy-deferred';
-      }
-      if (resolveRoomPrefetchTier(mx, room) === 'own') {
-        await clearRoomTailDiscontinuity(sessionId, room.roomId, generation).catch(() => undefined);
-      } else {
-        // A federated/background room can become eligible when the user
-        // widens the live scope to all-rooms.
-        return 'policy-deferred';
-      }
-      return;
-    }
+    if (
+      options.pageAllowance
+        ? options.pageAllowance(job.roomId) === 0
+        : !isRoomEligibleForBackgroundPrefetch({
+            mx,
+            room,
+            scope,
+            focusedRoomId: getFocusedRoomId(),
+          })
+    )
+      return 'policy-deferred';
 
     const overlapEventIdSet = new Set(overlapEventIds);
-    let iterations = 0;
-    let reachedBoundary = false;
-    while (iterations < GAP_FILL_MAX_ITERATIONS) {
-      if (signal.aborted) return;
-      iterations += 1;
+    if (signal.aborted || !isCacheStoreWriteLeaseCurrent(writeLease)) return 'policy-deferred';
+    if (options.canSavePage && !(await options.canSavePage(job.roomId))) return 'policy-deferred';
+    const cursorKey = JSON.stringify([generation, fromToken]);
+    if (visited.has(cursorKey)) return 'continuation-deferred';
+    visited.add(cursorKey);
+    const reservation = options.reservePage?.(job.roomId);
+    if (options.reservePage && !reservation) return 'policy-deferred';
+    let committedCount = 0;
+    try {
       let response;
       try {
         response = await mx.createMessagesRequest(
           job.roomId,
           fromToken,
-          GAP_FILL_BATCH_SIZE,
+          Math.min(
+            GAP_FILL_BATCH_SIZE,
+            reservation?.limit ?? options.pageAllowance?.(job.roomId) ?? GAP_FILL_BATCH_SIZE
+          ),
           Direction.Backward
         );
       } catch (error) {
-        // Homeserver error — bail without clearing the marker so the
-        // next boot re-attempts. Swallow so the scheduler slot frees.
-        return;
+        // Keep intent for the next connection/focus change, without looping.
+        return 'continuation-deferred';
       }
-      if (signal.aborted) return;
+      if (signal.aborted) return 'policy-deferred';
       const chunk: Partial<IEvent>[] = Array.isArray(response?.chunk)
         ? (response.chunk as Partial<IEvent>[])
         : [];
@@ -270,78 +212,51 @@ export const createGapFillExecutor = (
         // origin_server_ts sorting.
         try {
           // Writes must commit before the durable cursor advances.
-          // eslint-disable-next-line no-await-in-loop
           await persistChunk({
             mx,
             sessionId,
             room,
             chunk,
             beforeTokenForEarliest: response.end ?? null,
+            writeLease,
+            roomTailLoaded: true,
           });
         } catch {
-          return;
+          return 'continuation-deferred';
         }
-        options.onRoomRecovered?.(room.roomId);
-        if (signal.aborted || stopped) return;
+        committedCount = chunk.length;
+        onCommitted();
+        if (signal.aborted || stopped) return 'policy-deferred';
       }
-      // The overlap page must commit before the marker is cleared. It
-      // is safe (and useful for edit/redaction healing) to persist the
-      // whole page, including the already-cached boundary event.
-      if (overlapsCachedTail) {
-        reachedBoundary = true;
-        break;
-      }
-      // `end === undefined` (or an empty end string) means the SDK has
-      // no more history to fetch in this direction.
-      if (!response.end) {
-        reachedBoundary = true;
-        break;
+      if (signal.aborted || !isCacheStoreWriteLeaseCurrent(writeLease)) return 'policy-deferred';
+      // Only committed overlap or exhaustion proves continuity.
+      if (overlapsCachedTail || !response.end) {
+        const cleared = await clearRoomTailDiscontinuity(sessionId, job.roomId, generation).catch(
+          () => false
+        );
+        if (cleared) onCommitted();
+        return cleared ? undefined : 'continuation-deferred';
       }
       // Same token twice is not proof of exhaustion. Preserve the
       // marker at its last committed cursor for a later retry.
       if (response.end === fromToken) {
-        return;
+        return 'continuation-deferred';
       }
       // The marker may have been superseded by a newer TimelineReset
       // while this request was in flight. Stop instead of overwriting
       // the new generation's cursor.
-      // eslint-disable-next-line no-await-in-loop
       const checkpointed = await checkpointRoomTailDiscontinuity(
         sessionId,
         job.roomId,
         generation,
         response.end
       );
-      if (durableMarker && !checkpointed) return;
-      fromToken = response.end;
-      // Empty chunk after the first iteration indicates we've walked
-      // past the useful range — stop persisting nothing.
-      if (chunk.length === 0 && iterations > 1) {
-        return;
-      }
+      if (durableMarker && !checkpointed) return 'continuation-deferred';
+      if (checkpointed) onCommitted();
+    } finally {
+      reservation?.settle(committedCount);
     }
-
-    // CINNY-207 P5 review (greptile P1: gap marker clears early):
-    // only clear the marker when the server has signaled "no more
-    // history in this direction" or a committed page overlaps the
-    // durable pre-gap tail. Previously we cleared
-    // as soon as ANY batch persisted, which meant a gap larger than
-    // GAP_FILL_MAX_ITERATIONS × GAP_FILL_BATCH_SIZE (= 4,000 events)
-    // dropped the marker while the tail was still incomplete —
-    // removing the only durable retry signal for the remaining gap.
-    //
-    // With this contract, if we hit the iteration cap with more
-    // history still available (response.end still present after
-    // batch 20), the marker survives and a subsequent boot / focus-
-    // triggered run picks up from `nextToken`. The overlap ids remain
-    // attached to the marker across checkpoints, so a later run still
-    // recognizes the original cached tail even after many committed
-    // gap pages have changed the cache's newest-event window.
-    if (reachedBoundary) {
-      await clearRoomTailDiscontinuity(sessionId, job.roomId, generation).catch(() => undefined);
-      return;
-    }
-    return 'continuation-deferred';
+    return 'page-committed';
   };
 
   const runLatest = (roomId: string): void => {
@@ -349,11 +264,16 @@ export const createGapFillExecutor = (
     activeRooms.add(roomId);
     void (async () => {
       try {
+        let turns = 0;
+        const visited = new Set<string>();
         while (!stopped) {
           const job = latestJobs.get(roomId);
           if (!job) break;
           latestJobs.delete(roomId);
-          let shouldDefer = false;
+          let recovered = false;
+          let result: 'policy-deferred' | 'continuation-deferred' | 'page-committed' | undefined;
+          const writeLease = captureCacheStoreWriteLease(sessionId, roomId);
+          turns += 1;
           // eslint-disable-next-line no-await-in-loop
           await scheduler
             .enqueue({
@@ -361,12 +281,29 @@ export const createGapFillExecutor = (
               kind: 'gap-fill',
               priority,
               execute: async (signal) => {
-                shouldDefer = (await runOnce(job, signal)) !== undefined;
+                result = await runOnce(
+                  job,
+                  signal,
+                  writeLease,
+                  () => {
+                    recovered = true;
+                  },
+                  visited
+                );
               },
             })
-            .catch(() => undefined);
-          if (shouldDefer && !latestJobs.has(roomId)) {
-            deferredJobs.set(roomId, job);
+            .catch(() => {
+              result = 'policy-deferred';
+            });
+          if (recovered && isCacheStoreWriteLeaseCurrent(writeLease))
+            options.onRoomRecovered?.(roomId);
+          if (result && !latestJobs.has(roomId) && isCacheStoreWriteLeaseCurrent(writeLease)) {
+            if (
+              result === 'page-committed' &&
+              (options.pageAllowance ? options.pageAllowance(roomId) > 0 : turns < 20)
+            )
+              latestJobs.set(roomId, job);
+            else deferredJobs.set(roomId, job);
           }
         }
       } finally {
@@ -378,15 +315,6 @@ export const createGapFillExecutor = (
 
   const enqueue = (job: GapFillJob): void => {
     if (stopped) return;
-    // P4 gate fix: NO tier short-circuit here. Every tracker enqueue
-    // must produce a scheduler enqueue so `gapFillsEnqueued` and
-    // `schedulerEnqueued` stay in lockstep — otherwise a probe snapshot
-    // showing `gapFillsEnqueued>=1, schedulerCompleted=0` is ambiguous
-    // (silent policy skip vs. real execution failure). The runOnce
-    // policy gate (`isRoomEligibleForRawFetch`) still rejects federated
-    // and encrypted rooms; those runs resolve fast (marker cleared for
-    // encrypted-own, marker preserved for federated per Deviations §8)
-    // and count as `schedulerCompleted`.
     deferredJobs.delete(job.roomId);
     const queued = latestJobs.get(job.roomId);
     if (!queued || job.markedAt >= queued.markedAt) latestJobs.set(job.roomId, job);

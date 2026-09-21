@@ -148,7 +148,8 @@ export const Message = as<'div', MessageProps>(
     const showCopyText = isCopyTextMessageContent(menuMessageContent as Record<string, unknown>);
     const mindroomMessageExtensions = useMindroomMessageExtensionState(
       menuMessageContent,
-      menuAnchor !== undefined
+      menuAnchor !== undefined,
+      mEvent
     );
     const mindroomCopyText = getMindroomMessageCopyTextState(mindroomMessageExtensions);
 

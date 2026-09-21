@@ -87,7 +87,7 @@ function Harness({
     mx,
     onApplyThreadRelations,
     onStoreThreadSummary: vi.fn(),
-    persistThreadEventCache,
+    beginThreadCacheWrite: () => persistThreadEventCache,
     refreshCompactThreadList,
     room,
     setOverviewRefreshCounter,
@@ -262,7 +262,7 @@ describe('useThreadOverviewResumeController', () => {
         threadId,
         priority: 3,
         shouldApply: () => true,
-        persistThreadEventCache: survivorPersist,
+        beginThreadCacheWrite: () => survivorPersist,
         onApplyThreadRelations: survivorApply,
       });
       await Promise.resolve();

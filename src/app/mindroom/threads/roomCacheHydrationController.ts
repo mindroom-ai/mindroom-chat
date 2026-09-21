@@ -1,14 +1,16 @@
 import { useEffect, type Dispatch, type MutableRefObject, type SetStateAction } from 'react';
 import { type MatrixClient, type Room } from 'matrix-js-sdk';
-import { insertCachedRoomTimeline } from './sdk/roomTimelineSdk';
+import { insertCachedRoomTimeline, prependCachedRoomTimeline } from './sdk/roomTimelineSdk';
 import { markCacheHydrateEnd, markCacheHydrateStart } from './cacheProbe';
 import { logTimelineDebug } from './timelineDebug';
 import { ROOM_TIMELINE_INTERACTIVE_BATCH_SIZE } from './preloadSettings';
 import { getLinkedTimelines, getLiveTimeline, type Timeline } from './timelinePagination';
 import {
   createPreferLiveEventMapper,
+  findEarliestLoadedRoomEventByCacheOrder,
   getMainTimelineCacheEvents,
   loadLatestRoomCacheHydrationSnapshot,
+  shouldHydrateLatestRoomCache,
 } from './eventRepository';
 
 type ScrollToBottomState = {
@@ -62,6 +64,7 @@ export const useRoomCacheHydrationController = ({
       const currentLinkedTimelines = getLinkedTimelines(getLiveTimeline(room));
       const loadedRoomEvents = getMainTimelineCacheEvents(room, currentLinkedTimelines);
       const mapper = mx.getEventMapper();
+      const mapCachedEvent = createPreferLiveEventMapper(room, mapper);
       const hydrationSnapshot = await loadLatestRoomCacheHydrationSnapshot({
         sessionId,
         roomId: room.roomId,
@@ -72,7 +75,7 @@ export const useRoomCacheHydrationController = ({
         // deep-history job alone.
         limit: ROOM_TIMELINE_INTERACTIVE_BATCH_SIZE,
         loadedEvents: loadedRoomEvents,
-        mapEvent: createPreferLiveEventMapper(room, mapper),
+        mapEvent: mapCachedEvent,
       });
 
       if (cancelled || !alive() || roomIdRef.current !== room.roomId || threadIdRef.current) return;
@@ -91,8 +94,8 @@ export const useRoomCacheHydrationController = ({
         return;
       }
 
-      const cachedEvents = hydrationSnapshot.events;
-      if (cachedEvents.length === 0) {
+      const { events: cachedEvents, prependEvents } = hydrationSnapshot;
+      if (cachedEvents.length === 0 && prependEvents.length === 0) {
         logTimelineDebug(roomDebugTraceId, 'room-cache-hydrate-empty-after-filter', {
           cachedCount: hydrationSnapshot.cachedPage.events.length,
           loadedRoomCount: hydrationSnapshot.loadedRoomCount,
@@ -100,11 +103,55 @@ export const useRoomCacheHydrationController = ({
         return;
       }
 
-      const { timelineWasEmpty } = await insertCachedRoomTimeline({
-        mx,
+      // A limited sync may replace the live chain while IndexedDB is reading.
+      // Never apply a cached overlap/token decision to a different chain.
+      if (getLiveTimeline(room) !== currentLinkedTimelines[currentLinkedTimelines.length - 1]) {
+        return;
+      }
+      const timelineWasEmpty = getLiveTimeline(room).getEvents().length === 0;
+      if (prependEvents.length > 0) {
+        const currentRoomEvents = getMainTimelineCacheEvents(
+          room,
+          getLinkedTimelines(getLiveTimeline(room))
+        );
+        if (
+          findEarliestLoadedRoomEventByCacheOrder(currentRoomEvents)?.getId() !==
+          findEarliestLoadedRoomEventByCacheOrder(loadedRoomEvents)?.getId()
+        ) {
+          return;
+        }
+        await prependCachedRoomTimeline({
+          mx,
+          room,
+          events: [...prependEvents].reverse(),
+          firstTimeline: currentLinkedTimelines[0],
+          beforeToken: hydrationSnapshot.cachedPage.beforeToken,
+          showThreadRepliesInRoom: false,
+        });
+      }
+      if (cancelled || !alive() || roomIdRef.current !== room.roomId || threadIdRef.current) return;
+      if (getLiveTimeline(room) !== currentLinkedTimelines[currentLinkedTimelines.length - 1]) {
+        return;
+      }
+      // Decryption during prepend can yield to newer live events on the same
+      // timeline. Only append missing events beyond its current tail, while
+      // retaining cached revisions and reusing any newly arrived live copies.
+      const currentRoomEvents = getMainTimelineCacheEvents(
         room,
-        events: cachedEvents,
-      });
+        getLinkedTimelines(getLiveTimeline(room))
+      );
+      const currentLatestEvent = currentRoomEvents[currentRoomEvents.length - 1];
+      const currentEventIds = new Set(currentRoomEvents.map((event) => event.getId()));
+      const eventsToInsert = cachedEvents
+        .filter(
+          (event) =>
+            currentEventIds.has(event.getId()) ||
+            shouldHydrateLatestRoomCache(currentLatestEvent, event.event)
+        )
+        .map((event) => mapCachedEvent(event.event));
+      if (eventsToInsert.length > 0) {
+        await insertCachedRoomTimeline({ mx, room, events: eventsToInsert });
+      }
 
       if (cancelled || !alive() || roomIdRef.current !== room.roomId || threadIdRef.current) return;
       setTimeline(buildInitialTimeline());
@@ -113,7 +160,7 @@ export const useRoomCacheHydrationController = ({
       setAtBottom(true);
       markCacheHydrateEnd('room');
       logTimelineDebug(roomDebugTraceId, 'room-cache-hydrate-complete', {
-        hydratedCount: cachedEvents.length,
+        hydratedCount: eventsToInsert.length + prependEvents.length,
         timelineWasEmpty,
       });
     };

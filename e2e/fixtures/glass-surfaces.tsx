@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { createRoot } from 'react-dom/client';
 import { createClient, MsgType } from 'matrix-js-sdk';
 import { Provider, createStore } from 'jotai';
-import { AvatarFallback, Text, config } from 'folds';
+import { AvatarFallback, Text, color, config } from 'folds';
 import { Header, Menu, MenuItem, Modal } from '../../src/app/components/glass/GlassPrimitives';
 import 'folds/dist/style.css';
 import '@fontsource/inter/variable.css';
@@ -23,13 +23,16 @@ import { CustomEditor, useEditor } from '../../src/app/components/editor';
 import { SidebarAvatar } from '../../src/app/components/sidebar';
 import { MAudio } from '../../src/app/components/message/MsgTypeRenderers';
 import { glassShadow } from '../../src/app/styles/Glass.css';
-import { Page, PageHeader, PageRoot } from '../../src/app/components/page/Page';
+import { Page, PageHeader, PageNavHeader, PageRoot } from '../../src/app/components/page/Page';
 import { NavCategoryHeader } from '../../src/app/components/nav/NavCategoryHeader';
 import { ScreenSizeProvider, useScreenSize } from '../../src/app/hooks/useScreenSize';
 import { RoomThreadOverview } from '../../src/app/mindroom/threads/RoomThreadOverview';
 import type { ThreadFilterState } from '../../src/app/mindroom/threads/roomThreadOverviewModel';
 import { mindroomAccountSettingsAtom } from '../../src/app/mindroom/settings/useMindroomAccountSettings';
 import { Modal500 } from '../../src/app/components/Modal500';
+import * as threadBannerCss from '../../src/app/mindroom/threads/ThreadContextBanner.css';
+import { MessageGlass } from './MessageGlass';
+import { ChatControlsGlass } from './ChatControlsGlass';
 
 const themes = {
   light: LightTheme,
@@ -77,9 +80,8 @@ function Fixture() {
         width: '100%',
         minHeight: '100vh',
         padding: 20,
-        color: 'var(--cpd-color-surface-on-container)',
-        background:
-          'radial-gradient(circle at 18% 12%, rgb(93 123 255 / 32%), transparent 30%), radial-gradient(circle at 82% 72%, rgb(185 111 255 / 24%), transparent 35%), var(--cpd-color-background-container)',
+        color: color.Surface.OnContainer,
+        background: color.Surface.Container,
       }}
     >
       <button type="button" onClick={() => setSheetOpen(true)}>
@@ -153,6 +155,7 @@ function Fixture() {
             size="500"
             style={{ width: '100%', maxWidth: '100%' }}
           >
+            <PageNavHeader data-testid="settings-nav-header">Settings menu</PageNavHeader>
             <PageRoot nav={null}>
               <Page data-testid="settings-page">
                 <PageHeader data-testid="settings-header">
@@ -188,6 +191,7 @@ function Fixture() {
           </Modal>
           <PageRoot nav={null}>
             <Page data-testid="standalone-page">
+              <PageNavHeader data-testid="standalone-nav-header">Rooms</PageNavHeader>
               <NavCategoryHeader data-testid="plain-heading">Recently opened</NavCategoryHeader>
               <Text>Standalone page</Text>
             </Page>
@@ -216,6 +220,10 @@ function Fixture() {
           />
           <output>{threadAction}</output>
         </section>
+        <section data-testid="thread-banner" className={threadBannerCss.Banner}>
+          <Text size="L400">THREAD VIEW</Text>
+          <Text>Review the glass surfaces</Text>
+        </section>
       </div>
     </main>
   );
@@ -228,7 +236,13 @@ createRoot(document.getElementById('root')!).render(
   <Provider store={store}>
     <MatrixClientProvider value={createClient({ baseUrl: window.location.origin })}>
       <SpecVersionsProvider value={{ versions: ['v1.10'] }}>
-        <Fixture />
+        {new URLSearchParams(window.location.search).has('controls') ? (
+          <ChatControlsGlass />
+        ) : new URLSearchParams(window.location.search).has('messages') ? (
+          <MessageGlass />
+        ) : (
+          <Fixture />
+        )}
       </SpecVersionsProvider>
     </MatrixClientProvider>
   </Provider>

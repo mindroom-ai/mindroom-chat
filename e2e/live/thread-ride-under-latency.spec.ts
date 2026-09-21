@@ -355,6 +355,19 @@ test.describe('thread rides under production-shaped latency (iPhone-emulated, CP
     );
     const maxBlankPct = Math.max(0, ...blank.map((frame) => frame.blankPct));
     const blankFrames = blank.filter((frame) => frame.blankPct >= 35).length;
+    for (const [index, sample] of blank
+      .filter((frame) => frame.blankPct >= 35)
+      .slice(0, 5)
+      .entries()) {
+      const frame = frames.find((candidate) => candidate.t === sample.t);
+      if (frame) {
+        // eslint-disable-next-line no-await-in-loop
+        await testInfo.attach(`blank-frame-${index}.jpg`, {
+          body: Buffer.from(frame.data, 'base64'),
+          contentType: 'image/jpeg',
+        });
+      }
+    }
 
     // eslint-disable-next-line no-console
     console.log(

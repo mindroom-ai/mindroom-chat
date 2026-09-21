@@ -85,6 +85,8 @@ for (const viewport of [
       const initialBanner = await banner.boundingBox();
       const viewportBox = await scroll.boundingBox();
       const roomHeader = page.locator('header').filter({ hasText: 'Design review' });
+      await expect(roomHeader).toHaveCSS('box-shadow', 'none');
+      await expect(roomHeader).toHaveCSS('backdrop-filter', /^blur\(3px\)/);
       const roomHeaderBox = (await roomHeader.boundingBox())!;
       const composer = page.locator('[data-slate-editor="true"]');
       const composerBox = (await composer.boundingBox())!;
