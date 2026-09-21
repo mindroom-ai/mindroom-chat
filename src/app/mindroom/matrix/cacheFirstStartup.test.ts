@@ -6,7 +6,13 @@ import {
   type MatrixClient,
 } from 'matrix-js-sdk';
 import { Feature, ServerSupport } from 'matrix-js-sdk/lib/feature';
-import { FeatureSupport, Thread } from 'matrix-js-sdk/lib/models/thread';
+import {
+  FeatureSupport,
+  FILTER_RELATED_BY_REL_TYPES,
+  FILTER_RELATED_BY_SENDERS,
+  THREAD_RELATION_TYPE,
+  Thread,
+} from 'matrix-js-sdk/lib/models/thread';
 import { MemoryStore } from 'matrix-js-sdk/lib/store/memory';
 import type { ISavedSync } from 'matrix-js-sdk/lib/store';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -73,6 +79,11 @@ const savedSync: ISavedSync = {
   },
 };
 const clients: MatrixClient[] = [];
+const threadNamespaces = [
+  FILTER_RELATED_BY_REL_TYPES,
+  FILTER_RELATED_BY_SENDERS,
+  THREAD_RELATION_TYPE,
+];
 
 const fixture = (
   snapshot: Promise<ISavedSync | null> = Promise.resolve(structuredClone(savedSync))
@@ -124,7 +135,8 @@ const fixture = (
     readSavedSync,
     syncEvents,
     start: () => mx.startClient({ threadSupport: true, lazyLoadMembers: true }),
-    releaseVersions: () => versions.resolve(json({ versions: ['v1.4'], unstable_features: {} })),
+    releaseVersions: (supported = ['v1.4']) =>
+      versions.resolve(json({ versions: supported, unstable_features: {} })),
     releaseNetwork: () => network.resolve(),
     releaseLive: () =>
       live.resolve(
@@ -138,7 +150,10 @@ const fixture = (
 
 describe('cached Matrix startup before server discovery', () => {
   let previousSupport: [FeatureSupport, FeatureSupport, FeatureSupport];
+  let previousNamespacePreferences: boolean[];
   beforeEach(() => {
+    previousNamespacePreferences = threadNamespaces.map((value) => value.name === value.unstable);
+    threadNamespaces.forEach((value) => value.setPreferUnstable(false));
     previousSupport = [
       Thread.hasServerSideSupport,
       Thread.hasServerSideListSupport,
@@ -155,6 +170,9 @@ describe('cached Matrix startup before server discovery', () => {
       Thread.hasServerSideListSupport,
       Thread.hasServerSideFwdPaginationSupport,
     ] = previousSupport;
+    threadNamespaces.forEach((value, index) =>
+      value.setPreferUnstable(previousNamespacePreferences[index])
+    );
     vi.restoreAllMocks();
   });
 
@@ -194,6 +212,35 @@ describe('cached Matrix startup before server discovery', () => {
     expect(
       f.requests.find((url) => url.pathname.endsWith('/sync'))?.searchParams.get('since')
     ).toBe('cached-token');
+  });
+
+  it('applies buffered cached edits when discovery removes prior server thread support', async () => {
+    Thread.hasServerSideSupport = FeatureSupport.Stable;
+    const snapshot = structuredClone(savedSync);
+    snapshot.roomsData.join[roomId].timeline.events.push({
+      ...event('$cached-edit', 3),
+      content: {
+        msgtype: 'm.text',
+        body: '* corrected reply',
+        'm.new_content': { msgtype: 'm.text', body: 'corrected reply' },
+        'm.relates_to': { rel_type: 'm.replace', event_id: '$cached-reply' },
+      },
+    });
+    const f = fixture(Promise.resolve(snapshot));
+    const starting = f.start();
+    await vi.waitFor(() =>
+      expect(f.syncEvents).toContainEqual({ state: SyncState.Prepared, fromCache: true })
+    );
+    const thread = f.mx.getRoom(roomId)!.getThread('$root')!;
+    const cachedReply = thread.findEventById('$cached-reply')!;
+    expect(cachedReply.getContent().body).toBe('$cached-reply');
+
+    f.releaseVersions(['v1.3']);
+    await starting;
+    await vi.waitFor(() => expect(cachedReply.getContent().body).toBe('corrected reply'));
+    expect(thread.findEventById('$cached-reply')).toBe(cachedReply);
+    expect(cachedReply.replacingEvent()?.getId()).toBe('$cached-edit');
+    expect(thread.replayEvents).toBeNull();
   });
 
   it('does not replay saved rooms or emit Prepared after stopping a pending saved read', async () => {
