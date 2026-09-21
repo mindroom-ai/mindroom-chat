@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   CodeBlock,
   LINKIFY_OPTS,
+  factoryRenderLinkifyWithMention,
   getReactCustomHtmlParser,
   renderTextWithLatex,
 } from './react-custom-html-parser';
@@ -245,6 +246,59 @@ const renderLatexTextMarkup = (text: string): string =>
       })
     )
   );
+
+describe('inline website favicons', () => {
+  const renderLinks = (html: string, enabled = true) => {
+    const linkifyOpts = {
+      ...LINKIFY_OPTS,
+      render: factoryRenderLinkifyWithMention(() => undefined, enabled),
+    };
+    const opts = getReactCustomHtmlParser({} as MatrixClient, undefined, {
+      linkifyOpts,
+      showLinkFavicons: enabled,
+    });
+    return renderToStaticMarkup(React.createElement(React.Fragment, null, parse(html, opts)));
+  };
+
+  it('uses the same cached site icon for plain and formatted links without exposing paths', () => {
+    const markup = renderLinks(
+      '<p>https://github.com/example/one?secret=value <a href="https://github.com/example/two#part" title="Read docs"><strong>Docs</strong></a></p>'
+    );
+    expect(markup.match(/src="https:\/\/icons.duckduckgo.com\/ip3\/github.com.ico"/g)).toHaveLength(
+      2
+    );
+    expect(markup).toContain('title="Read docs"');
+    expect(markup).toContain('<strong>Docs</strong>');
+    expect(markup).toContain('href="https://github.com/example/two#part"');
+    expect(markup).toContain('referrerPolicy="no-referrer"');
+    expect(markup).toContain('alt=""');
+  });
+
+  it('does not load favicons when previews are disabled', () => {
+    expect(
+      renderLinks('<p>https://github.com <a href="https://example.com">Example</a></p>', false)
+    ).not.toContain('<img');
+  });
+
+  it('keeps code and Matrix mentions free of website icons', () => {
+    expect(
+      renderLinks('<code>https://github.com</code><pre>https://example.com</pre>')
+    ).not.toContain('<img');
+    const mention = factoryRenderLinkifyWithMention(
+      () => React.createElement('a', { 'data-mention-id': '@alice:example.com' }, 'Alice'),
+      true
+    ) as (ir: unknown) => React.ReactElement;
+    const markup = renderToStaticMarkup(
+      mention({
+        tagName: 'a',
+        attributes: { href: 'https://matrix.to/#/@alice:example.com' },
+        content: 'Alice',
+      })
+    );
+    expect(markup).toContain('data-mention-id');
+    expect(markup).not.toContain('<img');
+  });
+});
 
 const collectStructuralTableWhitespace = (
   node: ReactTestRendererJSON | ReactTestRendererJSON[] | string | null,

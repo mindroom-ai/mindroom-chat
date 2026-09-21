@@ -239,25 +239,39 @@ function RoomNotificationsGroupComp({
 
   const mentionClickHandler = useMentionClickHandler(room.roomId);
   const spoilerClickHandler = useSpoilerClickHandler();
+  const [encUrlPreview] = useSetting(settingsAtom, 'encUrlPreview');
+  const showLinkFavicons =
+    mediaAutoLoad && (room.hasEncryptionStateEvent() ? encUrlPreview : urlPreview);
 
   const linkifyOpts = useMemo<LinkifyOpts>(
     () => ({
       ...LINKIFY_OPTS,
-      render: factoryRenderLinkifyWithMention((href) =>
-        renderMatrixMention(mx, room.roomId, href, makeMentionCustomProps(mentionClickHandler))
+      render: factoryRenderLinkifyWithMention(
+        (href) =>
+          renderMatrixMention(mx, room.roomId, href, makeMentionCustomProps(mentionClickHandler)),
+        showLinkFavicons
       ),
     }),
-    [mx, room, mentionClickHandler]
+    [mx, room, mentionClickHandler, showLinkFavicons]
   );
   const htmlReactParserOptions = useMemo<HTMLReactParserOptions>(
     () =>
       getReactCustomHtmlParser(mx, room.roomId, {
         linkifyOpts,
+        showLinkFavicons,
         useAuthentication,
         handleSpoilerClick: spoilerClickHandler,
         handleMentionClick: mentionClickHandler,
       }),
-    [mx, room, linkifyOpts, mentionClickHandler, spoilerClickHandler, useAuthentication]
+    [
+      mx,
+      room,
+      linkifyOpts,
+      mentionClickHandler,
+      spoilerClickHandler,
+      useAuthentication,
+      showLinkFavicons,
+    ]
   );
 
   const renderMatrixEvent = useMatrixEventRenderer<[IRoomEvent, string, GetContentCallback]>(

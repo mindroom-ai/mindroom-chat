@@ -42,6 +42,7 @@ import {
 import { onEnterOrSpace } from '../utils/keyboard';
 import { copyToClipboard, tryDecodeURIComponent } from '../utils/dom';
 import { useTimeoutToggle } from '../hooks/useTimeoutToggle';
+import { MessageLink } from '../mindroom/messages/MessageLink';
 
 const ReactPrism = lazy(() => import('./react-prism/ReactPrism'));
 
@@ -159,7 +160,8 @@ export const renderMatrixMention = (
 };
 
 export const factoryRenderLinkifyWithMention = (
-  mentionRender: (href: string) => JSX.Element | undefined
+  mentionRender: (href: string) => JSX.Element | undefined,
+  showLinkFavicons = false
 ): OptFn<(ir: IntermediateRepresentation) => any> => {
   const render: OptFn<(ir: IntermediateRepresentation) => any> = ({
     tagName,
@@ -171,7 +173,11 @@ export const factoryRenderLinkifyWithMention = (
       if (mention) return mention;
     }
 
-    return <a {...attributes}>{content}</a>;
+    return (
+      <MessageLink {...attributes} showFavicon={showLinkFavicons}>
+        {content}
+      </MessageLink>
+    );
   };
   return render;
 };
@@ -353,6 +359,7 @@ export const getReactCustomHtmlParser = (
     handleSpoilerClick?: ReactEventHandler<HTMLElement>;
     handleMentionClick?: ReactEventHandler<HTMLElement>;
     useAuthentication?: boolean;
+    showLinkFavicons?: boolean;
   }
 ): HTMLReactParserOptions => {
   const opts: HTMLReactParserOptions = {
@@ -499,6 +506,11 @@ export const getReactCustomHtmlParser = (
 
             if (mention) return mention;
           }
+          return (
+            <MessageLink {...props} showFavicon={params.showLinkFavicons}>
+              {domToReact(children, opts)}
+            </MessageLink>
+          );
         }
 
         if (name === 'span' && 'data-mx-spoiler' in props) {

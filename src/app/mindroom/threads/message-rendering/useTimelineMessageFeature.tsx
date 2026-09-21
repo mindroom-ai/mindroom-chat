@@ -94,6 +94,7 @@ export const useTimelineMessageFeature = ({
   const [hour24Clock] = useSetting(settingsAtom, 'hour24Clock');
   const [dateFormatString] = useSetting(settingsAtom, 'dateFormatString');
   const showUrlPreview = room.hasEncryptionStateEvent() ? encUrlPreview : urlPreview;
+  const showLinkFavicons = mediaAutoLoad && showUrlPreview;
   const powerLevels = usePowerLevelsContext();
   const creators = useRoomCreators(room);
   const creatorsTag = useRoomCreatorsTag();
@@ -140,21 +141,32 @@ export const useTimelineMessageFeature = ({
   const linkifyOpts = useMemo<LinkifyOpts>(
     () => ({
       ...LINKIFY_OPTS,
-      render: factoryRenderLinkifyWithMention((href) =>
-        renderMatrixMention(mx, room.roomId, href, makeMentionCustomProps(mentionClickHandler))
+      render: factoryRenderLinkifyWithMention(
+        (href) =>
+          renderMatrixMention(mx, room.roomId, href, makeMentionCustomProps(mentionClickHandler)),
+        showLinkFavicons
       ),
     }),
-    [mx, room, mentionClickHandler]
+    [mx, room, mentionClickHandler, showLinkFavicons]
   );
   const htmlReactParserOptions = useMemo<HTMLReactParserOptions>(
     () =>
       getReactCustomHtmlParser(mx, room.roomId, {
         linkifyOpts,
+        showLinkFavicons,
         useAuthentication,
         handleSpoilerClick: spoilerClickHandler,
         handleMentionClick: mentionClickHandler,
       }),
-    [mx, room, linkifyOpts, spoilerClickHandler, mentionClickHandler, useAuthentication]
+    [
+      mx,
+      room,
+      linkifyOpts,
+      spoilerClickHandler,
+      mentionClickHandler,
+      useAuthentication,
+      showLinkFavicons,
+    ]
   );
   const parseMemberEvent = useMemberEventParser();
   const { t } = useTranslation();

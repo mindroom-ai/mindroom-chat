@@ -2,6 +2,24 @@
 
 ## Runbook
 
+### Inline website favicons (2026-09-21)
+
+- Status: implemented, locally validated, and independently reviewed with no remaining findings on `feat/link-favicons`.
+  A shared inline link renderer decorates plain URLs and formatted links in room/thread messages, pinned messages, and notifications.
+- Eligible web links use a hostname-only DuckDuckGo favicon URL with no referrer.
+  Stable URLs share the browser's persistent HTTP image cache; no additional database or service worker is needed.
+- Media auto-load and the room's normal/encrypted URL-preview settings control icon loading.
+  Matrix mentions, code, credentials, IP addresses, custom ports, and local/reserved hostnames do not trigger icon requests.
+- Decorative icons follow text size, have a light backing for visibility in either theme, preserve link behavior, and disappear on failure with a bounded five-minute retry backoff across remounts.
+- Independent review caught icons revealing hidden spoiler links.
+  A narrow spoiler visibility rule fixes that leak; the browser regression failed before the fix and passes after it, including revealing the icon with the spoiler.
+- Validation: all 4,214 tests across 514 files pass under Node 24.13.1 in the standard Linux container, along with typecheck, production/PWA build, formatting, and ESLint with zero errors and the existing 17 warnings.
+  Focused coverage checks URL eligibility, hostname reuse, failures, remount backoff, edited links, and preview toggles.
+  Chromium exercises the real shared parser at room/thread text sizes, both themes, RTL spacing, narrow layout, accessible link labels, failures, settings, edits, and spoilers.
+- Real-service Chromium checks confirm icons render in both themes and persist across browser restarts: the second launch serves the GitHub icon from disk cache with zero transferred bytes.
+  Cache retention follows the provider's HTTP headers and browser eviction policy; the failure backoff is bounded in memory.
+- The branch remains local; publishing and integration are pending.
+
 ### Animate the thinking marker with the M logo (2026-09-15)
 
 - Status: the selected Flip, glow, flip sequence replaces the four-dot indicator in `MindroomThinkingPlaceholder`.
