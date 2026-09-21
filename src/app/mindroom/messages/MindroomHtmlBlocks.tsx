@@ -14,6 +14,7 @@ import {
 } from './toolTrace';
 import * as css from './MindroomHtmlBlocks.css';
 import { useAppLanguageCode } from '../../hooks/useAppLanguageCode';
+import { useGlassHighlight } from '../../components/glass/liquid/useLiquidGlass';
 
 type MindroomTagName = 'think' | 'debug' | 'system' | 'plan' | 'analysis' | 'research';
 
@@ -120,9 +121,10 @@ function MindroomCollapsibleBlock({
   children?: ReactNode;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const glassRef = useGlassHighlight<HTMLDivElement>();
 
   return (
-    <Text as="div" size="T300" className={css.Block}>
+    <Text ref={glassRef} as="div" size="T300" className={css.Block}>
       <button
         type="button"
         className={css.BlockHeader}

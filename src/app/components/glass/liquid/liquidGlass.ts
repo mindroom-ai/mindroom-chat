@@ -127,7 +127,10 @@ const createFilter = (document: Document, width: number, height: number, radius:
 };
 
 /** Owns only the optical effect. Layout, tint, borders and states stay in CSS. */
-export const attachLiquidGlass = (element: HTMLElement): (() => void) => {
+export const attachLiquidGlass = (
+  element: HTMLElement,
+  { refraction = true }: { refraction?: boolean } = {}
+): (() => void) => {
   const document = element.ownerDocument;
   const view = document.defaultView;
   if (
@@ -146,6 +149,7 @@ export const attachLiquidGlass = (element: HTMLElement): (() => void) => {
   // CSS.supports accepts SVG filter URLs in engines that do not render them
   // as backdrop filters. Keep native blur on WebKit (including iOS) and Gecko.
   const supportsRefraction =
+    refraction &&
     /(?:Chrome|Chromium)\/\d/.test(view.navigator.userAgent) &&
     typeof ResizeObserver === 'function' &&
     typeof IntersectionObserver === 'function' &&

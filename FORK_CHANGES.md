@@ -2,6 +2,23 @@
 
 ## Runbook
 
+### Follow the pointer on inline glass cards (2026-09-21)
+
+- Tool disclosures, approval cards and history, link previews, attachment shells and pasted-text cards, and inline thread summaries share the composer's pointer highlight.
+- Inline cards keep their existing native blur without allocating refraction filters or optical observers.
+  Nested approval receipts leave the highlight to their enclosing history.
+- Approval review and active-permission cards share one group shell.
+  Disclosure headers keep a translucent hover tint so the highlight remains visible underneath.
+- All 5,129 unit tests, application typecheck, production build, and lint pass with zero errors and 17 existing warnings.
+  Independent review has no remaining findings.
+- Chromium and WebKit coverage checks pointer motion, rendered pixels, accessibility preferences, standalone receipts, and nested history ownership.
+  All 12 dedicated highlight cases pass, along with live approval, composer, room-overlay, and thread-banner checks.
+  Light and dark screenshots use synthetic component fixtures.
+- The wider parallel browser suite reports separate media, navigation, and cache-fixture failures.
+  Its glass audio-playback failure also reproduces on the unchanged base.
+- PR #313 includes the light/dark screenshots.
+  Hosted builds pass, and CodeRabbit and Qodo completed review without findings.
+
 ### Edit the latest thread message with Up-arrow (2026-09-21)
 
 - The empty-composer Up-arrow shortcut searches the active thread's live timeline when a thread is open.

@@ -15,6 +15,7 @@ import {
   Text,
 } from 'folds';
 import { Dialog, Header } from '../../components/glass/GlassPrimitives';
+import { useGlassHighlight } from '../../components/glass/liquid/useLiquidGlass';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { glassOverBackdrop } from '../../styles/Glass.css';
 import { useThreadApprovals } from './ThreadApprovalProvider';
@@ -80,6 +81,15 @@ function ApprovalDialog({
   );
 }
 
+export function ApprovalGroup({ children }: { children: React.ReactNode }) {
+  const glassRef = useGlassHighlight<HTMLElement>();
+  return (
+    <section ref={glassRef} className={css.Group}>
+      {children}
+    </section>
+  );
+}
+
 export function ApprovalReviewGroup({ records }: { records: readonly ThreadApprovalRecord[] }) {
   const { t } = useTranslation();
   const context = useThreadApprovals();
@@ -107,7 +117,7 @@ export function ApprovalReviewGroup({ records }: { records: readonly ThreadAppro
         )
       : [];
   return (
-    <section className={css.Group}>
+    <ApprovalGroup>
       <b>
         {t('mindroomUi.messages.threadApprovalControls.operationCallCount', {
           operation: getToolApprovalOperationLabel(approval),
@@ -218,7 +228,7 @@ export function ApprovalReviewGroup({ records }: { records: readonly ThreadAppro
           {t('mindroomUi.messages.threadApprovalControls.submittedWaitingForRoomUpdate')}
         </small>
       )}
-    </section>
+    </ApprovalGroup>
   );
 }
 
@@ -383,7 +393,7 @@ export function ThreadApprovalPermissions() {
           {grants.map((record) => {
             const { approval, eventId } = record;
             return (
-              <section key={eventId} className={css.Group}>
+              <ApprovalGroup key={eventId}>
                 <b>{getToolApprovalOperationLabel(approval)}</b>
                 <small>
                   {t('mindroomUi.messages.threadApprovalControls.permissionScope', {
@@ -398,7 +408,7 @@ export function ThreadApprovalPermissions() {
                   now={context.now}
                   submit={context.submit}
                 />
-              </section>
+              </ApprovalGroup>
             );
           })}
         </ApprovalDialog>
@@ -408,12 +418,17 @@ export function ThreadApprovalPermissions() {
 }
 
 export function ApprovalHistory({ records }: { records: readonly ThreadApprovalRecord[] }) {
+  const glassRef = useGlassHighlight<HTMLDetailsElement>();
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   if (records.length === 0) return null;
   const approved = records.filter((record) => record.approval.status === 'approved').length;
   return (
-    <details className={css.Receipt} onToggle={(event) => setOpen(event.currentTarget.open)}>
+    <details
+      ref={glassRef}
+      className={css.Receipt}
+      onToggle={(event) => setOpen(event.currentTarget.open)}
+    >
       <summary className={css.ReceiptHeader}>
         <Icon src={Icons.Terminal} size="50" aria-hidden />
         <span className={css.ReceiptLabel}>
@@ -429,7 +444,7 @@ export function ApprovalHistory({ records }: { records: readonly ThreadApprovalR
       {open && (
         <div className={css.HistoryBody}>
           {records.map((record) => (
-            <ApprovalReceipt key={record.eventId} approval={record.approval} />
+            <ApprovalReceipt key={record.eventId} approval={record.approval} nested />
           ))}
         </div>
       )}

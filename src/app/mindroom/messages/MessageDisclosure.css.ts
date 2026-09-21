@@ -35,7 +35,9 @@ export const Header = style([
     lineHeight: 1.4,
     listStyle: 'none',
     selectors: {
-      '&:hover': { background: color.SurfaceVariant.ContainerHover },
+      '&:hover': {
+        background: `color-mix(in srgb, ${color.SurfaceVariant.ContainerHover} 40%, transparent)`,
+      },
       '&:focus-visible': {
         outline: `2px solid ${color.Primary.Main}`,
         outlineOffset: '-2px',
