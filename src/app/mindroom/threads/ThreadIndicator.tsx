@@ -19,6 +19,7 @@ import { getThreadUnread } from './roomThreadList';
 import { getThreadRootReplyCount } from './threadIndicatorViewModel';
 import * as css from './ThreadIndicator.css';
 import { useAppLanguageCode } from '../../hooks/useAppLanguageCode';
+import { ThreadStreamingDot } from './ThreadStreamingDot';
 
 type ThreadIndicatorViewProps = {
   className?: string;
@@ -176,11 +177,7 @@ const ThreadIndicatorView = as<'div', ThreadIndicatorViewProps>(
               </Text>
             )}
             {isStreaming && (
-              <span
-                className={css.ThreadStreamingDot}
-                role="img"
-                aria-label={t('thread.aria.agentStreaming')}
-              />
+              <ThreadStreamingDot role="img" aria-label={t('thread.aria.agentStreaming')} />
             )}
             {resolvedScheduledCount > 0 && scheduledTaskLabel && (
               <Box

@@ -20,6 +20,7 @@ import { Surface } from '../../components/glass/GlassPrimitives';
 import { useLiquidGlass } from '../../components/glass/liquid/useLiquidGlass';
 import * as css from './RoomThreadOverview.css';
 import * as threadIndicatorCss from './ThreadIndicator.css';
+import { ThreadStreamingDot } from './ThreadStreamingDot';
 import type {
   ThreadFilterState,
   ThreadFilterKey,
@@ -1136,7 +1137,7 @@ export function RoomThreadOverview({
               isOrMode={isOrModeStatusChip(state, 'streaming')}
               onToggle={handleToggleWithPresetClear}
             >
-              <span className={threadIndicatorCss.ThreadStreamingDot} aria-hidden="true" />
+              <ThreadStreamingDot aria-hidden="true" />
             </TriStateIconToggle>
 
             <TriStateIconToggle
