@@ -18,7 +18,6 @@ import { Editor } from 'slate';
 import {
   Badge,
   Box,
-  Chip,
   ContainerColor,
   Icon,
   Icons,
@@ -30,6 +29,7 @@ import {
   config,
   toRem,
 } from 'folds';
+import { Chip } from '../../components/glass/GlassPrimitives';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useVirtualPaginator } from '../../hooks/useVirtualPaginator';
 import * as overlay from './RoomOverlay.css';
@@ -2229,7 +2229,6 @@ export function RoomTimeline({
                 <Chip
                   variant="Primary"
                   radii="Pill"
-                  outlined
                   before={<Icon size="50" src={Icons.MessageUnread} />}
                   onClick={handleJumpToUnread}
                 >
@@ -2241,7 +2240,6 @@ export function RoomTimeline({
                 <Chip
                   variant="SurfaceVariant"
                   radii="Pill"
-                  outlined
                   before={<Icon size="50" src={Icons.CheckTwice} />}
                   onClick={handleMarkAsRead}
                 >
@@ -2314,7 +2312,6 @@ export function RoomTimeline({
                       <Chip
                         variant="SurfaceVariant"
                         radii="Pill"
-                        outlined
                         before={<Icon size="50" src={Icons.ArrowTop} />}
                         onClick={handleThreadPaginateBack}
                       >
@@ -2393,7 +2390,6 @@ export function RoomTimeline({
                       <Chip
                         variant="SurfaceVariant"
                         radii="Pill"
-                        outlined
                         before={<Icon size="50" src={Icons.ArrowBottom} />}
                         onClick={handleThreadPaginateFront}
                       >
@@ -2466,7 +2462,6 @@ export function RoomTimeline({
                 <Chip
                   variant="SurfaceVariant"
                   radii="Pill"
-                  outlined
                   before={<Icon size="50" src={Icons.ArrowBottom} />}
                   onClick={handleJumpToLatest}
                 >

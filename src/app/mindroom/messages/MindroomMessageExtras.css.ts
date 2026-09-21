@@ -1,5 +1,6 @@
 import { globalStyle, style } from '@vanilla-extract/css';
 import { color, config, toRem } from 'folds';
+import { glassOutline, glassSurface } from '../../styles/Glass.css';
 
 export const Extras = style({
   display: 'flex',
@@ -9,13 +10,15 @@ export const Extras = style({
   marginTop: config.space.S200,
 });
 
-export const Section = style({
-  maxWidth: '100%',
-  border: `${config.borderWidth.B300} solid ${color.SurfaceVariant.ContainerLine}`,
-  borderRadius: config.radii.R300,
-  backgroundColor: color.SurfaceVariant.Container,
-  color: color.SurfaceVariant.OnContainer,
-});
+export const Section = style([
+  glassSurface({ level: 'panel', variant: 'SurfaceVariant' }),
+  glassOutline,
+  {
+    maxWidth: '100%',
+    borderRadius: config.radii.R300,
+    color: color.SurfaceVariant.OnContainer,
+  },
+]);
 
 export const Summary = style({
   cursor: 'pointer',

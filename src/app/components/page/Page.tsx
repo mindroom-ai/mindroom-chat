@@ -132,17 +132,18 @@ export const Page = as<'div'>(({ className, ...props }, ref) => {
   );
 });
 
-export const PageHeader = as<'div', css.PageHeaderVariants>(
-  ({ className, outlined, balance, ...props }, ref) => (
-    <Header
-      as="header"
-      size="600"
-      className={classNames(css.PageHeader({ balance, outlined }), className)}
-      {...props}
-      ref={ref}
-    />
-  )
-);
+export const PageHeader = as<
+  'div',
+  css.PageHeaderVariants & Pick<ComponentProps<typeof Header>, 'appearance'>
+>(({ className, outlined, balance, ...props }, ref) => (
+  <Header
+    as="header"
+    size="600"
+    className={classNames(css.PageHeader({ balance, outlined }), className)}
+    {...props}
+    ref={ref}
+  />
+));
 
 export const PageContent = as<'div'>(({ className, ...props }, ref) => (
   <div className={classNames(css.PageContent, className)} {...props} ref={ref} />
