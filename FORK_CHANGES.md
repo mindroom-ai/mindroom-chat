@@ -2,6 +2,17 @@
 
 ## Runbook
 
+### Finish Markdown formatting in sidecar and reply previews (2026-09-21)
+
+- Inline code no longer splits surrounding bold, italic, or strikethrough formatting in the shared Markdown parser.
+- Code spans remain literal; links and math retain raw code delimiters in attributes instead of receiving code HTML.
+- Long-text previews render isolated root separators while preserving escaped, indented, fenced, and ambiguous examples.
+- Quoted replies and composer reply previews reuse the compact thread preview formatter and its localized tool summaries.
+- Regression coverage includes the screenshot's bold/code shape, separator boundaries, link and math contexts, editor round-tripping, and a real reply component updating after an edit.
+- Consulted Claude on protecting code spans while parsing surrounding emphasis and adopted token restoration at text leaves.
+- Independent review found and verified fixes for control-character delimiter performance and literal tool examples in code contexts.
+- All 5,002 tests across 577 files pass under Node 24.13.1; typecheck, production/PWA build, formatting, and lint pass with 17 existing warnings and no errors.
+
 ### Group tool calls while long-text details load (2026-09-21)
 
 - Long-text previews group consecutive tool markers into the existing tool-call dropdown before the sidecar arrives.

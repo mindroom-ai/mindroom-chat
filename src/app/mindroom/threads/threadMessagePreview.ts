@@ -8,17 +8,41 @@ export const VOICE_MESSAGE_PREVIEW_TEXT = 'Voice message';
 
 // MindRoom serializes each tool call into the plain-text body as a
 // standalone "🔧 `tool_name` [n]" line, with a trailing ⏳ while the call is
-// still running (mindroom tool_system/events.py). Mirror the whole-line,
-// index-required shape of MINDROOM_TOOL_REF_TEXT_REG in ../messages/blocks.ts
-// so the badge only collapses what the timeline renders as a tool ref — a
-// wrench + code span in ordinary prose stays prose.
-const TOOL_CALL_MARKER_REGEX =
-  /^[^\S\n]*🔧[^\S\n]*`[^`\n]+`[^\S\n]*\[\d+\](?:[^\S\n]*⏳)?[^\S\n]*$/gmu;
+// still running (mindroom tool_system/events.py). Only root lines outside
+// fences count; indented examples and a wrench + code span in prose stay prose.
+const TOOL_CALL_MARKER_REGEX = /^🔧[^\S\n]*`[^`\n]+`[^\S\n]*\[\d+\](?:[^\S\n]*⏳)?[^\S\n]*$/u;
+
+const extractPreviewTools = (body: string): { body: string; toolCallCount: number } => {
+  let fence: string | undefined;
+  let toolCallCount = 0;
+  const lines = body.split(/\r?\n/).map((line) => {
+    const match = /^ {0,3}(`{3,}|~{3,})(.*)$/.exec(line);
+    if (fence) {
+      if (
+        match &&
+        match[1][0] === fence[0] &&
+        match[1].length >= fence.length &&
+        !match[2].trim()
+      ) {
+        fence = undefined;
+      }
+      return line;
+    }
+    if (match) {
+      fence = match[1];
+      return line;
+    }
+    if (!TOOL_CALL_MARKER_REGEX.test(line)) return line;
+    toolCallCount += 1;
+    return ' ';
+  });
+  return { body: lines.join('\n'), toolCallCount };
+};
 
 // Bound the text fed to the regex pipeline below: previews render as a single
 // truncated line, and unbounded pathological bodies (e.g. tens of KB of "[")
 // make the label/emphasis passes quadratic. Markers are counted and removed
-// on the full body first (that regex is line-anchored and linear).
+// on the full body first with a linear line scan.
 const PREVIEW_SOURCE_MAX_LENGTH = 2000;
 
 const ORPHAN_SEPARATOR_EDGE_REGEX = /^[\s,;:·|]+|[\s,;:·|]+$/gu;
@@ -35,7 +59,6 @@ const formatToolCallSummary = (count: number): string =>
 // snake_case or __init__ than emphasis, and LLM output uses asterisks.
 export const stripPreviewMarkdown = (value: string): string =>
   value
-    .replace(/^```.*$/gm, ' ')
     // Destinations may contain one level of balanced parens, e.g.
     // https://en.wikipedia.org/wiki/Foo_(bar). The inner alternation consumes
     // one char or one balanced group per step (no ambiguity, no exponential
@@ -53,15 +76,14 @@ export const stripPreviewMarkdown = (value: string): string =>
     .replace(/^\s*(?:>\s?)+/gm, '')
     .replace(/^\s*[-*+]\s+/gm, '')
     .replace(/^\s*\d{1,3}[.)]\s+/gm, '')
+    .replace(/^ {0,3}(?:`{3,}|~{3,}).*$/gm, ' ')
     .replace(/^\s*(?:[-*_]\s*){3,}\s*$/gm, ' ');
 
 const normalizeBodyPreview = (body: unknown): string | undefined => {
   if (typeof body !== 'string') return undefined;
 
   const withoutReply = trimReplyFromBody(body);
-  const toolCallCount = withoutReply.match(TOOL_CALL_MARKER_REGEX)?.length ?? 0;
-  const withoutToolMarkers =
-    toolCallCount > 0 ? withoutReply.replace(TOOL_CALL_MARKER_REGEX, ' ') : withoutReply;
+  const { body: withoutToolMarkers, toolCallCount } = extractPreviewTools(withoutReply);
   const boundedSource =
     withoutToolMarkers.length > PREVIEW_SOURCE_MAX_LENGTH
       ? // Drop a split-off lone high surrogate at the cut point.
@@ -151,7 +173,7 @@ export const getThreadPreviewLocalization = (
   }
   const count =
     typeof current.body === 'string'
-      ? trimReplyFromBody(current.body).match(TOOL_CALL_MARKER_REGEX)?.length ?? 0
+      ? extractPreviewTools(trimReplyFromBody(current.body)).toolCallCount
       : 0;
   const prefix = formatToolCallSummary(count);
   if (count > 0 && (body === prefix || body.startsWith(`${prefix} · `))) {

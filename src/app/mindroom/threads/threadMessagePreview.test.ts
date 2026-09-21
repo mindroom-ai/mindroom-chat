@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   getThreadMessagePreviewText,
+  getThreadPreviewLocalization,
   stripPreviewMarkdown,
   VOICE_MESSAGE_PREVIEW_TEXT,
 } from './threadMessagePreview';
@@ -18,18 +19,18 @@ describe('stripPreviewMarkdown', () => {
   });
 
   it('strips link and image syntax down to their labels', () => {
-    expect(stripPreviewMarkdown('see [the docs](https://example.com) and ![diagram](mxc://x)')).toBe(
-      'see the docs and diagram'
-    );
+    expect(
+      stripPreviewMarkdown('see [the docs](https://example.com) and ![diagram](mxc://x)')
+    ).toBe('see the docs and diagram');
   });
 
   it('strips links whose destinations contain balanced parentheses', () => {
     expect(stripPreviewMarkdown('read [docs](https://example.com/a(b)c) now')).toBe(
       'read docs now'
     );
-    expect(
-      stripPreviewMarkdown('see ![chart](https://en.wikipedia.org/wiki/Foo_(bar)) here')
-    ).toBe('see chart here');
+    expect(stripPreviewMarkdown('see ![chart](https://en.wikipedia.org/wiki/Foo_(bar)) here')).toBe(
+      'see chart here'
+    );
   });
 
   it('strips heading, blockquote, and list markers at line starts', () => {
@@ -74,6 +75,24 @@ describe('stripPreviewMarkdown', () => {
 });
 
 describe('getThreadMessagePreviewText', () => {
+  it('localizes only actual tool calls when code examples are present', () => {
+    const content = textContent('```\n🔧 `example` [1]\n```\n\n🔧 `read_file` [2]');
+    expect(getThreadPreviewLocalization(content, getThreadMessagePreviewText(content))).toEqual({
+      kind: 'tools',
+      count: 1,
+      prose: '🔧 example [1]',
+    });
+  });
+  it.each([
+    ['```\n🔧 `example` [1]\n```', '🔧 example [1]'],
+    ['~~~text\n🔧 `example` [1]\n~~~', '🔧 example [1]'],
+    ['    🔧 `example` [1]', '🔧 example [1]'],
+    ['> ```\n> 🔧 `example` [1]\n> ```', '🔧 example [1]'],
+    ['- ```\n  🔧 `example` [1]\n  ```', '🔧 example [1]'],
+    ['```\n🔧 `example` [1]\n```\n\n🔧 `read_file` [2]', '🔧 1 tool · 🔧 example [1]'],
+  ])('preserves literal tool examples in %s', (body, preview) => {
+    expect(getThreadMessagePreviewText(textContent(body))).toBe(preview);
+  });
   it('returns plain prose unchanged', () => {
     expect(getThreadMessagePreviewText(textContent('hello there'))).toBe('hello there');
   });
@@ -93,7 +112,9 @@ describe('getThreadMessagePreviewText', () => {
   it('summarizes a tool-call-only body as a tool badge', () => {
     expect(
       getThreadMessagePreviewText(
-        textContent('🔧 `get_skill_instructions` [1]\n🔧 `get_skill_instructions` [2]\n🔧 `get_skill_reference` [3]')
+        textContent(
+          '🔧 `get_skill_instructions` [1]\n🔧 `get_skill_instructions` [2]\n🔧 `get_skill_reference` [3]'
+        )
       )
     ).toBe('🔧 3 tools');
   });
@@ -113,9 +134,9 @@ describe('getThreadMessagePreviewText', () => {
   });
 
   it('cleans up orphan separators left at prose edges after marker removal', () => {
-    expect(
-      getThreadMessagePreviewText(textContent('Running the build:\n\n🔧 `build` [1]'))
-    ).toBe('🔧 1 tool · Running the build');
+    expect(getThreadMessagePreviewText(textContent('Running the build:\n\n🔧 `build` [1]'))).toBe(
+      '🔧 1 tool · Running the build'
+    );
   });
 
   it('only collapses whole-line indexed markers, matching timeline rendering', () => {
@@ -150,9 +171,7 @@ describe('getThreadMessagePreviewText', () => {
   });
 
   it('passes streaming placeholders through unbadged so edit-backfill checks still fire', () => {
-    expect(getThreadMessagePreviewText(textContent('🔧 `a` [1]\nThinking...'))).toBe(
-      'Thinking...'
-    );
+    expect(getThreadMessagePreviewText(textContent('🔧 `a` [1]\nThinking...'))).toBe('Thinking...');
   });
 
   it('does not treat a bare wrench emoji in prose as a tool call', () => {

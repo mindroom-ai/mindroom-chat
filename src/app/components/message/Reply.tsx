@@ -1,6 +1,7 @@
 import { Box, Icon, Icons, Text, as, color, toRem } from 'folds';
 import React, { MouseEventHandler, ReactNode, useCallback, useMemo } from 'react';
 import classNames from 'classnames';
+import { useTranslation } from 'react-i18next';
 import type { MatrixEvent } from 'matrix-js-sdk';
 import type { EventTimelineSet } from 'matrix-js-sdk/lib/models/event-timeline-set';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
@@ -12,6 +13,11 @@ import * as css from './Reply.css';
 import { MessageBadEncryptedContent, MessageDeletedContent, MessageFailedContent } from './content';
 import { scaleSystemEmoji } from '../../plugins/react-custom-html-parser';
 import colorMXID from '../../../util/colorMXID';
+import {
+  getThreadMessagePreviewText,
+  getThreadPreviewLocalization,
+  localizeThreadPreview,
+} from '../../mindroom/threads/threadMessagePreview';
 import { GetMemberPowerTag } from '../../hooks/useMemberPowerTag';
 import {
   MindroomReplyThreadIndicator,
@@ -80,9 +86,20 @@ export const Reply = as<'div', ReplyProps>(
         room.findEventById(replyEventId),
       [getLocally, room, timelineSet, replyEventId]
     );
-    const replyEvent = useMindroomReplyEvent(room, replyEventId, getFromLocalTimeline, threadRootId);
+    const replyEvent = useMindroomReplyEvent(
+      room,
+      replyEventId,
+      getFromLocalTimeline,
+      threadRootId
+    );
 
-    const { body } = replyEvent?.getContent() ?? {};
+    const { t } = useTranslation();
+    const replyContent = replyEvent?.getContent();
+    const { body } = replyContent ?? {};
+    const preview = useMemo(() => {
+      const text = getThreadMessagePreviewText(replyContent);
+      return localizeThreadPreview(text, getThreadPreviewLocalization(replyContent, text), t);
+    }, [replyContent, t]);
     const sender = replyEvent?.getSender();
     const powerTag = sender ? getMemberPowerTag?.(sender) : undefined;
     const tagColor = powerTag?.color ? accessibleTagColors?.get(powerTag.color) : undefined;
@@ -96,7 +113,7 @@ export const Reply = as<'div', ReplyProps>(
     );
 
     const badEncryption = replyEvent?.getContent().msgtype === 'm.bad.encrypted';
-    const bodyJSX = body ? scaleSystemEmoji(trimReplyFromBody(body)) : fallbackBody;
+    const bodyJSX = body ? scaleSystemEmoji(preview ?? trimReplyFromBody(body)) : fallbackBody;
 
     return (
       <Box direction="Row" gap="200" alignItems="Center" {...props} ref={ref}>
