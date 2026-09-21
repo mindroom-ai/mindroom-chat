@@ -10,7 +10,9 @@
   Missing threads and threads without an editable own message leave the composer unchanged, while thread roots remain eligible.
 - Dedicated keyboard regressions cover route changes, sender and message eligibility, pending events, nonempty drafts, and focus guards.
   The browser regression covers opening and saving a thread edit, protecting an unsent draft, and normal room editing.
-- Validation: all 5,122 unit tests, application typecheck, production build, and lint pass under Node 24.13.1, with 17 existing lint warnings.
+- Automated review caught separately stored thread roots missing from the SDK live timeline.
+  The shortcut now falls back to the thread's confirmed, editable root only when no eligible timeline message exists; regressions cover root eligibility and reply precedence.
+- Validation: all 5,124 unit tests, application typecheck, production build, and lint pass under Node 24.13.1, with 17 existing lint warnings.
   Focused test typechecking passes after correcting fixture types found by independent review.
   The live Chromium regression passes against the production build, and independent review has no remaining findings.
 

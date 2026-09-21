@@ -40,11 +40,15 @@ beforeEach(() => {
   });
 });
 
-const mountKeyboard = async (threadEvents?: MatrixEvent[], initialThreadId?: string) => {
+const mountKeyboard = async (
+  threadEvents?: MatrixEvent[],
+  initialThreadId?: string,
+  rootEvent?: MatrixEvent
+) => {
   const { useTimelineMessageFeature } = await import('./useTimelineMessageFeature');
   const room = makeRoom({ liveEvents: [] }) as unknown as Room;
   const threads = new Map(
-    threadEvents ? [['$root', { liveTimeline: timeline(threadEvents) }]] : []
+    threadEvents ? [['$root', { liveTimeline: timeline(threadEvents), rootEvent }]] : []
   );
   room.getThread = vi.fn((id) => threads.get(id) ?? null) as unknown as Room['getThread'];
   room.getLiveTimeline = () => timeline([message('$room-message')]);
@@ -100,7 +104,8 @@ describe('Up-arrow message editing', () => {
         }),
         message('~pending'),
       ],
-      '$root'
+      '$root',
+      message('$root')
     );
     const result = keyboard.pressUp();
     expect(result.editingEventId).toBe('$latest');
@@ -127,12 +132,23 @@ describe('Up-arrow message editing', () => {
     expect(result.prevented).not.toHaveBeenCalled();
   });
 
-  it('allows editing an own thread root when there are no own replies', async () => {
+  it('allows editing a separately stored own thread root when there are no own replies', async () => {
     const keyboard = await mountKeyboard(
-      [message('$root'), message('$reply', '@bob:example.org')],
-      '$root'
+      [message('$reply', '@bob:example.org')],
+      '$root',
+      message('$root')
     );
     expect(keyboard.pressUp().editingEventId).toBe('$root');
+  });
+
+  it.each([
+    { name: 'another sender', root: message('$root', '@bob:example.org') },
+    { name: 'pending', root: message('~root') },
+  ])('does not edit a separately stored $name root', async ({ root }) => {
+    const keyboard = await mountKeyboard([], '$root', root);
+    const result = keyboard.pressUp();
+    expect(result.editingEventId).toBeUndefined();
+    expect(result.prevented).not.toHaveBeenCalled();
   });
 
   it('leaves a nonempty draft alone', async () => {
