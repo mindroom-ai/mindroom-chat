@@ -14,8 +14,26 @@
 - Fence cleanup and tool counting share a scanner that preserves literal fence-like content.
   Backtick fences follow the existing message parser's grammar, including backticks in info strings and exact closing lengths; tilde fences remain a conservative preview-only boundary.
 - Independent review found and verified fixes for control-character delimiter performance and literal tool examples in code contexts.
-- All 5,005 tests across 577 files pass under Node 24.13.1; typecheck, production/PWA build, formatting, and lint pass with 17 existing warnings and no errors.
+- After integrating current `dev`, all 5,008 tests across 579 files pass under Node 24.13.1; typecheck, production/PWA build, formatting, and lint pass with 17 existing warnings and no errors.
 - Next: merge the reviewed PR and verify sidecar and reply previews in the deployed client.
+
+### Restore cached thread card details (2026-09-21)
+
+- The overview restored thread roots but ignored the SDK's bundled last event until the reply timeline loaded.
+  Shared presentation now uses that event for a missing summary or reply preview, preserving full message counts and preferring hydrated cache/live content.
+  A bundled summary supplies the title without hiding the preceding ordinary reply from the cache.
+  Reply timestamps keep an older partial timeline from masking a newer bundled message.
+- Overview metadata reads now select uncached threads before applying the 64-thread batch limit, so later downloaded threads also receive their summaries and previews.
+  Only completed, uncancelled reads consume preview attempts.
+  The existing 32-event tail limit and cache schema remain unchanged.
+- Real SDK and IndexedDB regressions fail before the corresponding fixes and cover empty early batches, cached summary/reply selection and newer live replies.
+  All 576 unit files / 4,968 tests, application and focused-test typechecks, build, formatting and lint pass with zero errors and 17 existing warnings.
+  Independent review has no remaining findings.
+  Automated review identified the partial-history case, now covered by a failing-before/passing-after SDK regression.
+  Its empty-page starvation concern does not reproduce: the real cache reader supplies explicit false completeness flags, which still publish an empty coverage result and advance the batch.
+- Chromium and WebKit reopen a downloaded 400-thread room offline with the old summary and ordinary reply previews, open its cached messages, then update the overview after reconnecting.
+  Both browsers reproduced the missing old-thread preview before the cache batch correction.
+  Physical iPhone first-paint timing remains unverified.
 
 ### Group tool calls while long-text details load (2026-09-21)
 
