@@ -1170,6 +1170,8 @@
         "viewReactions": "प्रतिक्रियाएँ देखें"
       },
       "mindroomHtmlBlocks": {
+        "loadingToolDetails": "अभी लोड हो रहा है…",
+        "toolDetailsUnavailable": "टूल का विवरण उपलब्ध नहीं है।",
         "blocks": {
           "analysis": "विश्लेषण एवं मूल्यांकन",
           "debug": "डिबग जानकारी",

@@ -2406,6 +2406,8 @@
         "viewReactions": "Tepkileri görüntüle"
       },
       "mindroomHtmlBlocks": {
+        "loadingToolDetails": "Hâlâ yükleniyor…",
+        "toolDetailsUnavailable": "Araç ayrıntıları kullanılamıyor.",
         "pastedText": "Yapıştırılan metin",
         "characterCount_one": "{{formattedCount}} karakter",
         "characterCount_other": "{{formattedCount}} karakter",

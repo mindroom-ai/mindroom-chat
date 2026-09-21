@@ -2437,6 +2437,8 @@
         "viewReactions": "Visualizza reazioni"
       },
       "mindroomHtmlBlocks": {
+        "loadingToolDetails": "Caricamento in corso…",
+        "toolDetailsUnavailable": "Dettagli dello strumento non disponibili.",
         "pastedText": "Testo incollato",
         "characterCount_one": "{{formattedCount}} carattere",
         "characterCount_other": "{{formattedCount}} caratteri",

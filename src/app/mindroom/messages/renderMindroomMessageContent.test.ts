@@ -369,7 +369,8 @@ describe('renderMindroomMessageContent', () => {
           '<p>🔧 <code>run_shell_command</code> [1]</p>',
           '<p>After</p>',
         ].join(''),
-      })
+      }),
+      undefined
     );
 
     renderer.unmount();
@@ -398,7 +399,8 @@ describe('renderMindroomMessageContent', () => {
           '</span>',
           ' after</p>',
         ].join(''),
-      })
+      }),
+      undefined
     );
 
     renderer.unmount();

@@ -2406,6 +2406,8 @@
         "viewReactions": "查看反应"
       },
       "mindroomHtmlBlocks": {
+        "loadingToolDetails": "仍在加载…",
+        "toolDetailsUnavailable": "工具详情不可用。",
         "pastedText": "粘贴的文本",
         "characterCount_one": "{{formattedCount}} 个字符",
         "characterCount_other": "{{formattedCount}} 个字符",

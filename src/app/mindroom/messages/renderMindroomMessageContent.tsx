@@ -13,6 +13,7 @@ import {
   formatMindroomMessageTextBodyAsHtml,
 } from './blocks';
 import { getMindroomLongTextSource } from './longText';
+import { MindroomToolMetadataStatus } from './toolTrace';
 import { MindroomLongTextKind, MindroomLongTextText } from './MindroomLongTextText';
 import { MindroomPasteAttachmentContent } from './MindroomPasteAttachmentContent';
 import { MindroomThinkingPlaceholder } from './MindroomThinkingPlaceholder';
@@ -94,8 +95,11 @@ export const renderMindroomMessageContent = ({
     };
   };
 
-  const getMindroomAwareHtmlReactParserOptions = (bodyContent: Record<string, unknown>) =>
-    withMindroomToolTraceMarkerParserOptions(htmlReactParserOptions, bodyContent);
+  const getMindroomAwareHtmlReactParserOptions = (
+    bodyContent: Record<string, unknown>,
+    metadataStatus?: MindroomToolMetadataStatus
+  ) =>
+    withMindroomToolTraceMarkerParserOptions(htmlReactParserOptions, bodyContent, metadataStatus);
 
   const getRenderableLongTextSource = (bodyContent: Record<string, unknown>) => {
     const source = getMindroomLongTextSource(bodyContent);
@@ -265,11 +269,14 @@ export const renderMindroomMessageContent = ({
           content={longTextSource.previewContent}
           longTextSource={longTextSource}
           hydrate={hydrateLongText}
-          renderBody={(resolvedContent, props) => (
+          renderBody={(resolvedContent, props, metadataStatus) => (
             <RenderBody
               {...props}
               highlightRegex={highlightRegex}
-              htmlReactParserOptions={getMindroomAwareHtmlReactParserOptions(resolvedContent)}
+              htmlReactParserOptions={getMindroomAwareHtmlReactParserOptions(
+                resolvedContent,
+                metadataStatus
+              )}
               linkifyOpts={linkifyOpts}
             />
           )}
@@ -320,11 +327,14 @@ export const renderMindroomMessageContent = ({
           content={longTextSource.previewContent}
           longTextSource={longTextSource}
           hydrate={hydrateLongText}
-          renderBody={(resolvedContent, props) => (
+          renderBody={(resolvedContent, props, metadataStatus) => (
             <RenderBody
               {...props}
               highlightRegex={highlightRegex}
-              htmlReactParserOptions={getMindroomAwareHtmlReactParserOptions(resolvedContent)}
+              htmlReactParserOptions={getMindroomAwareHtmlReactParserOptions(
+                resolvedContent,
+                metadataStatus
+              )}
               linkifyOpts={linkifyOpts}
             />
           )}
@@ -366,11 +376,14 @@ export const renderMindroomMessageContent = ({
           content={longTextSource.previewContent}
           longTextSource={longTextSource}
           hydrate={hydrateLongText}
-          renderBody={(resolvedContent, props) => (
+          renderBody={(resolvedContent, props, metadataStatus) => (
             <RenderBody
               {...props}
               highlightRegex={highlightRegex}
-              htmlReactParserOptions={getMindroomAwareHtmlReactParserOptions(resolvedContent)}
+              htmlReactParserOptions={getMindroomAwareHtmlReactParserOptions(
+                resolvedContent,
+                metadataStatus
+              )}
               linkifyOpts={linkifyOpts}
             />
           )}

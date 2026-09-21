@@ -2,6 +2,18 @@
 
 ## Runbook
 
+### Group tool calls while long-text details load (2026-09-21)
+
+- Long-text previews group consecutive tool markers into the existing tool-call dropdown before the sidecar arrives.
+- An expanded group shows one localized loading message for missing metadata, then the downloaded details; unavailable details get a stable fallback after the download settles.
+- Ordinary inline Markdown and indented text elsewhere no longer disable marker grouping.
+- The preview uses the Markdown parser's code/math block boundaries to preserve literal examples while grouping root markers outside them; unsupported or unmatched fence syntax remains conservative.
+- Narrative paragraphs still separate tool groups, and stable group keys preserve an open dropdown when authoritative HTML replaces preview HTML.
+- Hydration status tracks the settled input identity so a cold row becoming visible does not briefly report unavailable details.
+- Regression coverage includes grouping, loading, hydration, download fallback, narrative boundaries, literal code examples, ambiguous fences, and viewport activation.
+- Validation: all 4,198 tests across 513 files pass under Node 24.13.1 with freshly installed dependencies and the repository SDK patches.
+- Typecheck, production/PWA build, changed-file formatting, and ESLint pass with zero errors and the existing 17 warnings.
+
 ### Animate the thinking marker with the M logo (2026-09-15)
 
 - Status: the selected Flip, glow, flip sequence replaces the four-dot indicator in `MindroomThinkingPlaceholder`.
@@ -840,7 +852,7 @@
 - The renderer now synthesizes sanitized HTML from that preview body immediately and lets sidecar hydration replace it with authoritative content.
 - Exact root-level tool markers and standalone paste markers become the existing rich preview blocks.
 - Blank Markdown separators between root tool markers are discarded so one tool run remains one dropdown.
-- Any code, tilde, or math syntax disables rich marker promotion for that temporary preview, so ambiguous markers remain sanitized literal text until hydration.
+- Recognized code and math blocks preserve literal markers while root markers elsewhere can become dropdowns, including before tool metadata loads; unsupported or unmatched fence syntax remains conservative.
 - Inline, indented, or container-nested markers likewise remain literal instead of invoking a second compatibility parser.
 - Matrix reply fallbacks are removed exactly once before rendering, including reply-only previews and bounded formatter fallbacks.
 - Simple block and inline syntax budgets plus parser exception fallback keep untrusted previews bounded.

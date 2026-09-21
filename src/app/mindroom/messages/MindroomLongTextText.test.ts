@@ -821,6 +821,173 @@ describe('MindroomLongTextText hydration identity', () => {
     });
   });
 
+  it.each(['resolved', 'unavailable'])(
+    'keeps preview tool calls grouped while details become %s',
+    async (outcome) => {
+      const { renderMindroomMessageContent } = await import('./renderMindroomMessageContent');
+      const deferred = createDeferred<Record<string, unknown>>();
+      longTextMocks.hydrateMindroomLongTextSource.mockReturnValue(deferred.promise);
+      const content = {
+        ...createPreviewContent(),
+        body: ['Update `notes.md`.', '', '🔧 `read_file` [1]', '', '🔧 `edit_file` [2]'].join('\n'),
+      };
+      let renderer!: ReactTestRenderer;
+      await act(async () => {
+        renderer = create(
+          React.createElement(
+            ClientConfigProvider,
+            { value: {} },
+            renderMindroomMessageContent({
+              displayName: 'MindRoom',
+              msgType: 'm.text',
+              content,
+              htmlReactParserOptions: {},
+              linkifyOpts: {},
+            })
+          )
+        );
+      });
+      try {
+        expect(renderer.root.findAllByType('button')).toHaveLength(1);
+        expect(JSON.stringify(renderer.toJSON())).toContain('2 tool calls');
+        expect(JSON.stringify(renderer.toJSON())).not.toContain('read_file');
+        await act(async () => {
+          renderer.root.findByType('button').props.onClick();
+        });
+        expect(JSON.stringify(renderer.toJSON())).toContain('Still loading');
+        expect(JSON.stringify(renderer.toJSON())).not.toContain('✓');
+
+        const preview =
+          longTextMocks.hydrateMindroomLongTextSource.mock.calls.at(-1)?.[0].previewContent;
+        await act(async () => {
+          deferred.resolve(
+            outcome === 'unavailable'
+              ? preview
+              : {
+                  ...preview,
+                  formatted_body:
+                    '<p>Update <code>notes.md</code>.</p><p>🔧 <code>read_file</code> [1]</p><p>🔧 <code>edit_file</code> [2]</p>',
+                  'io.mindroom.tool_trace': {
+                    version: 2,
+                    events: [
+                      {
+                        type: 'tool_call_completed',
+                        tool_name: 'read_file',
+                        result_preview: 'Read notes',
+                      },
+                      {
+                        type: 'tool_call_completed',
+                        tool_name: 'edit_file',
+                        result_preview: 'Saved notes',
+                      },
+                    ],
+                  },
+                }
+          );
+        });
+        const rendered = JSON.stringify(renderer.toJSON());
+        expect(rendered).toContain('2 tool calls');
+        expect(rendered).not.toContain('Still loading');
+        expect(rendered).toContain(
+          outcome === 'resolved' ? 'Saved notes' : 'Tool details unavailable'
+        );
+      } finally {
+        await act(async () => {
+          renderer.unmount();
+        });
+      }
+    }
+  );
+
+  it('keeps narrative boundaries and code examples outside preview tool groups', async () => {
+    const { renderMindroomMessageContent } = await import('./renderMindroomMessageContent');
+    const content = {
+      ...createPreviewContent(),
+      body: [
+        'Use `notes.md`.',
+        '',
+        '🔧 `read_file` [1]',
+        '',
+        'Now update the file.',
+        '',
+        '🔧 `edit_file` [2]',
+        '',
+        '🔧 `read_file` [3]',
+        '',
+        '```',
+        '🔧 `example_tool` [4]',
+        '```',
+      ].join('\n'),
+    };
+    let renderer!: ReactTestRenderer;
+    await act(async () => {
+      renderer = create(
+        React.createElement(
+          ClientConfigProvider,
+          { value: {} },
+          renderMindroomMessageContent({
+            displayName: 'MindRoom',
+            msgType: 'm.text',
+            content,
+            hydrateLongText: false,
+            htmlReactParserOptions: {},
+            linkifyOpts: {},
+          })
+        )
+      );
+    });
+    try {
+      expect(renderer.root.findAllByType('button')).toHaveLength(2);
+      const rendered = JSON.stringify(renderer.toJSON());
+      expect(rendered).toContain('1 tool call');
+      expect(rendered).toContain('2 tool calls');
+      expect(rendered).toContain('Now update the file.');
+      expect(renderer.root.findByType('pre').findByType('code').children.join('')).toContain(
+        '🔧 `example_tool` [4]'
+      );
+      expect(rendered).not.toContain('edit_file');
+    } finally {
+      await act(async () => {
+        renderer.unmount();
+      });
+    }
+  });
+
+  it('keeps tool details loading on the first render when a cold row becomes visible', async () => {
+    const { MindroomLongTextKind, MindroomLongTextText } = await getMindroomLongTextTextModule();
+    longTextMocks.hydrateMindroomLongTextSource.mockReturnValue(createDeferred().promise);
+    const content = createPreviewContent();
+    const statuses: string[] = [];
+    const render = (hydrate: boolean) =>
+      React.createElement(MindroomLongTextText, {
+        kind: MindroomLongTextKind.Text,
+        content,
+        hydrate,
+        longTextSource: createLongTextSource({ previewContent: content }),
+        renderBody: (_content, _props, status) => {
+          statuses.push(status);
+          return React.createElement('span', null, status);
+        },
+      });
+    let renderer!: ReactTestRenderer;
+    await act(async () => {
+      renderer = create(render(false));
+    });
+    statuses.length = 0;
+    try {
+      await act(async () => {
+        renderer.update(render(true));
+      });
+      expect(statuses.length).toBeGreaterThan(0);
+      expect(statuses).not.toContain('unavailable');
+      expect(renderer.root.findByType('span').children).toEqual(['loading']);
+    } finally {
+      await act(async () => {
+        renderer.unmount();
+      });
+    }
+  });
+
   it('renders a root tool card after escaped multi-character inline syntax', async () => {
     const { renderMindroomMessageContent } = await import('./renderMindroomMessageContent');
     const content = {

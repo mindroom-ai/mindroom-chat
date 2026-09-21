@@ -2406,6 +2406,8 @@
         "viewReactions": "Reaktionen anzeigen"
       },
       "mindroomHtmlBlocks": {
+        "loadingToolDetails": "Wird noch geladen…",
+        "toolDetailsUnavailable": "Werkzeugdetails nicht verfügbar.",
         "pastedText": "Eingefügter Text",
         "characterCount_one": "{{formattedCount}} Zeichen",
         "characterCount_other": "{{formattedCount}} Zeichen",

@@ -2530,6 +2530,8 @@
         "viewReactions": "عرض التفاعلات"
       },
       "mindroomHtmlBlocks": {
+        "loadingToolDetails": "لا يزال التحميل جاريًا…",
+        "toolDetailsUnavailable": "تفاصيل الأداة غير متاحة.",
         "pastedText": "نص ملصق",
         "characterCount_one": "⁨{{formattedCount}}⁩ حرف",
         "characterCount_other": "⁨{{formattedCount}}⁩ من الأحرف",

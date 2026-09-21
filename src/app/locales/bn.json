@@ -1170,6 +1170,8 @@
         "viewReactions": "প্রতিক্রিয়া দেখুন"
       },
       "mindroomHtmlBlocks": {
+        "loadingToolDetails": "এখনও লোড হচ্ছে…",
+        "toolDetailsUnavailable": "টুলের বিবরণ পাওয়া যাচ্ছে না।",
         "blocks": {
           "analysis": "বিশ্লেষণ ও মূল্যায়ন",
           "debug": "ডিবাগ তথ্য",
