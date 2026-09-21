@@ -7,7 +7,7 @@
 - Inline code no longer splits surrounding bold, italic, or strikethrough formatting in the shared Markdown parser.
 - Code spans remain literal; links and math retain raw code delimiters in attributes instead of receiving code HTML.
 - Long-text previews render isolated root separators while preserving escaped, indented, fenced, and ambiguous examples.
-- Quoted replies and composer reply previews reuse the compact thread preview formatter and its localized tool summaries.
+- Quoted replies, composer reply previews, and the minimap share the compact thread preview formatter and localized tool-summary entry point.
 - Regression coverage includes the screenshot's bold/code shape, separator boundaries, link and math contexts, editor round-tripping, and a real reply component updating after an edit.
 - Consulted Claude on protecting code spans while parsing surrounding emphasis and adopted token restoration at text leaves.
 - Independent review found and verified fixes for control-character delimiter performance and literal tool examples in code contexts.

@@ -17,11 +17,7 @@ import { settingsAtom } from '../../state/settings';
 import { getMemberDisplayName } from '../../utils/room';
 import { getMxIdLocalPart } from '../../utils/matrix';
 import colorMXID from '../../../util/colorMXID';
-import {
-  getThreadMessagePreviewText,
-  getThreadPreviewLocalization,
-  localizeThreadPreview,
-} from '../threads/threadMessagePreview';
+import { getLocalizedThreadMessagePreviewText } from '../threads/threadMessagePreview';
 import { MindroomRoomInputReplyContext } from './RoomInputMindroomExtensions';
 
 type RoomInputReplyPreviewProps = {
@@ -40,11 +36,10 @@ export function RoomInputReplyPreview({
   onCancel,
 }: RoomInputReplyPreviewProps) {
   const { t } = useTranslation();
-  const preview = useMemo(() => {
-    const content = { body: replyDraft?.body };
-    const text = getThreadMessagePreviewText(content);
-    return localizeThreadPreview(text, getThreadPreviewLocalization(content, text), t);
-  }, [replyDraft?.body, t]);
+  const preview = useMemo(
+    () => getLocalizedThreadMessagePreviewText({ body: replyDraft?.body }, t),
+    [replyDraft?.body, t]
+  );
   const [legacyUsernameColor] = useSetting(settingsAtom, 'legacyUsernameColor');
   const direct = useIsDirectRoom();
   const powerLevels = usePowerLevelsContext();

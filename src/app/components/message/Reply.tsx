@@ -13,11 +13,7 @@ import * as css from './Reply.css';
 import { MessageBadEncryptedContent, MessageDeletedContent, MessageFailedContent } from './content';
 import { scaleSystemEmoji } from '../../plugins/react-custom-html-parser';
 import colorMXID from '../../../util/colorMXID';
-import {
-  getThreadMessagePreviewText,
-  getThreadPreviewLocalization,
-  localizeThreadPreview,
-} from '../../mindroom/threads/threadMessagePreview';
+import { getLocalizedThreadMessagePreviewText } from '../../mindroom/threads/threadMessagePreview';
 import { GetMemberPowerTag } from '../../hooks/useMemberPowerTag';
 import {
   MindroomReplyThreadIndicator,
@@ -96,10 +92,10 @@ export const Reply = as<'div', ReplyProps>(
     const { t } = useTranslation();
     const replyContent = replyEvent?.getContent();
     const { body } = replyContent ?? {};
-    const preview = useMemo(() => {
-      const text = getThreadMessagePreviewText(replyContent);
-      return localizeThreadPreview(text, getThreadPreviewLocalization(replyContent, text), t);
-    }, [replyContent, t]);
+    const preview = useMemo(
+      () => getLocalizedThreadMessagePreviewText(replyContent, t),
+      [replyContent, t]
+    );
     const sender = replyEvent?.getSender();
     const powerTag = sender ? getMemberPowerTag?.(sender) : undefined;
     const tagColor = powerTag?.color ? accessibleTagColors?.get(powerTag.color) : undefined;

@@ -207,3 +207,11 @@ export const localizeThreadPreview = (
       return text;
   }
 };
+
+export const getLocalizedThreadMessagePreviewText = (
+  content: Record<string, unknown> | null | undefined,
+  t?: TFunction
+): string | undefined => {
+  const text = getThreadMessagePreviewText(content);
+  return localizeThreadPreview(text, getThreadPreviewLocalization(content, text), t);
+};
