@@ -63,19 +63,6 @@ const escapeHtmlText = (text: string): string =>
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
 
-export const formatMindroomToolRefTextBodyAsHtml = (body: string): string | undefined => {
-  const hasToolRef = body
-    .replace(/\r\n?/g, '\n')
-    .split('\n')
-    .some((line) => parseMindroomToolRefText(line));
-  if (!hasToolRef) return undefined;
-
-  const formattedBody = formatMindroomMessageTextBodyAsHtml(body);
-  if (!formattedBody) return undefined;
-
-  return formattedBody;
-};
-
 const formatMindroomToolRefLineAsHtml = (line: string): string | undefined => {
   const toolRef = parseMindroomToolRefText(line);
   if (!toolRef) return undefined;
@@ -293,8 +280,17 @@ const formatMarkdownPreviewSegment = (body: string, allowRichMarkers: boolean): 
     markdownLines = [];
   };
 
-  lines.forEach((line) => {
-    const markerHtml = formatStandaloneMindroomMarkerAsHtml(line, allowRichMarkers);
+  lines.forEach((line, index) => {
+    // Promote root separators isolated by blank lines or recognized code/math
+    // blocks (segment boundaries). Ambiguous fence content remains literal.
+    const separator =
+      allowRichMarkers &&
+      /^(?:-{3,}|\*{3,}|_{3,})[ \t]*$/.test(line) &&
+      (index === 0 || lines[index - 1].trim() === '') &&
+      (index === lines.length - 1 || lines[index + 1].trim() === '');
+    const markerHtml = separator
+      ? '<hr/>'
+      : formatStandaloneMindroomMarkerAsHtml(line, allowRichMarkers);
     if (markerHtml) {
       flushMarkdown();
       htmlParts.push(markerHtml);

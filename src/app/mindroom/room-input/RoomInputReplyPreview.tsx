@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Icon, IconButton, Icons, Text } from 'folds';
 import { Room } from 'matrix-js-sdk';
 
@@ -13,9 +14,10 @@ import { useTheme } from '../../hooks/useTheme';
 import { useSetting } from '../../state/hooks/settings';
 import { IReplyDraft } from '../../state/room/roomInputDrafts';
 import { settingsAtom } from '../../state/settings';
-import { getMemberDisplayName, trimReplyFromBody } from '../../utils/room';
+import { getMemberDisplayName } from '../../utils/room';
 import { getMxIdLocalPart } from '../../utils/matrix';
 import colorMXID from '../../../util/colorMXID';
+import { getLocalizedThreadMessagePreviewText } from '../threads/threadMessagePreview';
 import { MindroomRoomInputReplyContext } from './RoomInputMindroomExtensions';
 
 type RoomInputReplyPreviewProps = {
@@ -33,6 +35,11 @@ export function RoomInputReplyPreview({
   submitPending,
   onCancel,
 }: RoomInputReplyPreviewProps) {
+  const { t } = useTranslation();
+  const preview = useMemo(
+    () => getLocalizedThreadMessagePreviewText({ body: replyDraft?.body }, t),
+    [replyDraft?.body, t]
+  );
   const [legacyUsernameColor] = useSetting(settingsAtom, 'legacyUsernameColor');
   const direct = useIsDirectRoom();
   const powerLevels = usePowerLevelsContext();
@@ -80,7 +87,7 @@ export function RoomInputReplyPreview({
           }
         >
           <Text size="T300" truncate>
-            {trimReplyFromBody(replyDraft.body)}
+            {preview}
           </Text>
         </ReplyLayout>
       )}

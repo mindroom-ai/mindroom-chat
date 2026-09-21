@@ -3,7 +3,6 @@ import {
   MINDROOM_TOOL_REF_HTML_REG_G,
   formatMindroomMarkdownTextBodyAsHtml,
   formatMindroomMessageTextBodyAsHtml,
-  formatMindroomToolRefTextBodyAsHtml,
   parseMindroomToolRefHtml,
   parseMindroomToolRefText,
 } from './blocks';
@@ -60,10 +59,10 @@ describe('parseMindroomToolRefText', () => {
   });
 });
 
-describe('formatMindroomToolRefTextBodyAsHtml', () => {
+describe('formatMindroomMessageTextBodyAsHtml', () => {
   it('converts plain text tool marker lines to the formatted marker contract', () => {
     expect(
-      formatMindroomToolRefTextBodyAsHtml(
+      formatMindroomMessageTextBodyAsHtml(
         [
           'Before <unsafe>',
           '',
@@ -84,12 +83,6 @@ describe('formatMindroomToolRefTextBodyAsHtml', () => {
     );
   });
 
-  it('returns undefined when the plain body has no tool refs', () => {
-    expect(formatMindroomToolRefTextBodyAsHtml('plain response')).toBeUndefined();
-  });
-});
-
-describe('formatMindroomMessageTextBodyAsHtml', () => {
   it('formats paste markers and keeps tool refs parseable', () => {
     expect(
       formatMindroomMessageTextBodyAsHtml(
@@ -113,6 +106,44 @@ describe('formatMindroomMessageTextBodyAsHtml', () => {
 });
 
 describe('formatMindroomMarkdownTextBodyAsHtml', () => {
+  it('renders bold text containing inline code before the sidecar arrives', () => {
+    const html = formatMindroomMarkdownTextBodyAsHtml(
+      '**2. Pointed `config.yaml` at it** (line 50):'
+    );
+
+    expect(html).toBe(
+      '<strong data-md="**">2. Pointed <code data-md="`">config.yaml</code> at it</strong> (line 50):'
+    );
+  });
+
+  it('renders standalone separators while preserving separators in code examples', () => {
+    const html = formatMindroomMarkdownTextBodyAsHtml(
+      ['Before', '', '---', '', 'After', '', '```text', '---', '```'].join('\n')
+    );
+
+    expect(html).toContain('<hr');
+    expect(html).toContain('<pre data-md="```"><code class="language-text">---\n</code></pre>');
+  });
+
+  it.each(['---', '***', '___', '-----'])('renders a standalone %s separator', (separator) => {
+    expect(formatMindroomMarkdownTextBodyAsHtml(separator)).toBe('<hr/>');
+  });
+
+  it.each([
+    ['```', 'x', '```', '---', '', 'After'],
+    ['Before', '', '---', '```', 'x', '```'],
+    ['$$', 'x', '$$', '---', '', 'After'],
+  ])('treats recognized code and math blocks as separator boundaries', (...lines) => {
+    expect(formatMindroomMarkdownTextBodyAsHtml(lines.join('\n'))).toContain('<hr/>');
+  });
+
+  it.each(['\\---', '    ---', '> ---', '`---`', 'Heading\n---', '---\nText', '~~~\n\n---\n\n~~~'])(
+    'keeps non-standalone or ambiguous separators literal: %s',
+    (body) => {
+      expect(formatMindroomMarkdownTextBodyAsHtml(body)).not.toContain('<hr');
+    }
+  );
+
   it('renders safe Markdown and root tool references', () => {
     expect(
       formatMindroomMarkdownTextBodyAsHtml(
