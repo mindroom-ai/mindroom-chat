@@ -21,6 +21,7 @@ type VisibleThreadEventLike = ThreadEventLike & {
 
 export type VisibleThreadEventCollectionLike = {
   rootEvent?: MatrixEvent;
+  replyToEvent?: MatrixEvent | null;
   length?: number;
   events?: MatrixEvent[];
   timeline?: MatrixEvent[];
