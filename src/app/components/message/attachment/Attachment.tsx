@@ -2,17 +2,21 @@ import React from 'react';
 import { Box, as } from 'folds';
 import classNames from 'classnames';
 import * as css from './Attachment.css';
+import { useGlassHighlight } from '../../glass/liquid/useLiquidGlass';
 
 export const Attachment = as<'div', css.AttachmentVariants>(
-  ({ className, outlined, ...props }, ref) => (
-    <Box
-      display="InlineFlex"
-      direction="Column"
-      className={classNames(css.Attachment({ outlined }), className)}
-      {...props}
-      ref={ref}
-    />
-  )
+  ({ className, outlined, ...props }, ref) => {
+    const glassRef = useGlassHighlight(ref);
+    return (
+      <Box
+        display="InlineFlex"
+        direction="Column"
+        className={classNames(css.Attachment({ outlined }), className)}
+        {...props}
+        ref={glassRef}
+      />
+    );
+  }
 );
 
 export const AttachmentHeader = as<'div'>(({ className, ...props }, ref) => (

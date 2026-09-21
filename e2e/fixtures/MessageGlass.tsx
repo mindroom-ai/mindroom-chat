@@ -4,7 +4,11 @@ import parse from 'html-react-parser';
 import { CustomEditor, useEditor } from '../../src/app/components/editor';
 import { MindroomThreadSummaryCard } from '../../src/app/mindroom/messages/MindroomThreadSummaryCard';
 import { MindroomToolApprovalCard } from '../../src/app/mindroom/messages/MindroomToolApprovalCard';
-import { ApprovalHistory } from '../../src/app/mindroom/messages/ThreadApprovalControls';
+import {
+  ApprovalGroup,
+  ApprovalHistory,
+} from '../../src/app/mindroom/messages/ThreadApprovalControls';
+import { ApprovalReceipt } from '../../src/app/mindroom/messages/ApprovalReceipt';
 import { withMindroomToolTraceMarkerParserOptions } from '../../src/app/mindroom/messages/MindroomHtmlBlocks';
 import type { ToolApprovalData } from '../../src/app/mindroom/messages/toolApproval';
 import * as approvals from '../../src/app/mindroom/messages/ThreadApprovals.css';
@@ -80,18 +84,23 @@ export function MessageGlass() {
             eventId="$pending"
           />
         </div>
-        <section className={approvals.Group} data-testid="approval-group">
-          <b>web_search · 2 calls</b>
-          <small>Research · Requested by Avery</small>
-          <div className={approvals.Actions}>
-            <Button size="300" variant="Success">
-              Approve all once
-            </Button>
-            <Button size="300" variant="Critical">
-              Deny all
-            </Button>
-          </div>
-        </section>
+        <div data-testid="receipt">
+          <ApprovalReceipt approval={{ ...approval, status: 'approved' }} />
+        </div>
+        <div data-testid="approval-group">
+          <ApprovalGroup>
+            <b>web_search · 2 calls</b>
+            <small>Research · Requested by Avery</small>
+            <div className={approvals.Actions}>
+              <Button size="300" variant="Success">
+                Approve all once
+              </Button>
+              <Button size="300" variant="Critical">
+                Deny all
+              </Button>
+            </div>
+          </ApprovalGroup>
+        </div>
         <div>
           <div className={approvals.Bar} data-testid="approval-bar">
             <small>2 calls paused for approval</small>

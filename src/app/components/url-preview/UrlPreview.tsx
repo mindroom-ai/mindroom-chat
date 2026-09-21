@@ -2,10 +2,14 @@ import React from 'react';
 import classNames from 'classnames';
 import { Box, as } from 'folds';
 import * as css from './UrlPreview.css';
+import { useGlassHighlight } from '../glass/liquid/useLiquidGlass';
 
-export const UrlPreview = as<'div'>(({ className, ...props }, ref) => (
-  <Box shrink="No" className={classNames(css.UrlPreview, className)} {...props} ref={ref} />
-));
+export const UrlPreview = as<'div'>(({ className, ...props }, ref) => {
+  const glassRef = useGlassHighlight(ref);
+  return (
+    <Box shrink="No" className={classNames(css.UrlPreview, className)} {...props} ref={glassRef} />
+  );
+});
 
 export const UrlPreviewImg = as<'img'>(({ className, alt, ...props }, ref) => (
   <img className={classNames(css.UrlPreviewImg, className)} alt={alt} {...props} ref={ref} />

@@ -96,6 +96,31 @@ describe('liquid glass rendering lifecycle', () => {
     vi.useRealTimers();
   });
 
+  it('tracks highlights without allocating optical observers when refraction is disabled', () => {
+    const resize = vi.fn(() => ({ observe() {}, disconnect() {} }));
+    const intersection = vi.fn(() => ({ observe() {}, disconnect() {} }));
+    vi.stubGlobal('ResizeObserver', resize);
+    vi.stubGlobal('IntersectionObserver', intersection);
+    vi.spyOn(element, 'getBoundingClientRect').mockReturnValue({
+      left: 0,
+      top: 0,
+      width: 200,
+      height: 100,
+    } as DOMRect);
+    cleanup = attachLiquidGlass(element, { refraction: false });
+    element.dispatchEvent(new MouseEvent('pointermove', { clientX: 150, clientY: 25 }));
+    vi.runAllTimers();
+    expect(element.style.getPropertyValue('--liquid-glass-light-x')).toBe('75%');
+    expect(element.style.getPropertyValue('--liquid-glass-light-y')).toBe('25%');
+    expect(resize).not.toHaveBeenCalled();
+    expect(intersection).not.toHaveBeenCalled();
+    expect(element.hasAttribute('data-liquid-glass')).toBe(false);
+    setPreference('(prefers-reduced-motion: reduce)', true);
+    expect(element.style.getPropertyValue('--liquid-glass-light-x')).toBe('');
+    cleanup();
+    expect(preferenceListeners.size).toBe(0);
+  });
+
   it('defers hidden surfaces, resizes their optical field, and releases hidden filters', () => {
     cleanup = attachLiquidGlass(element);
     notifyResize([], {} as ResizeObserver);

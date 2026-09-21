@@ -109,9 +109,7 @@ for (const theme of ['light', 'dark']) {
       'composer',
     ]) {
       const host = page.getByTestId(id);
-      const surface = ['approval-group', 'approval-bar'].includes(id)
-        ? host
-        : host.locator(':scope > *').first();
+      const surface = id === 'approval-bar' ? host : host.locator(':scope > *').first();
       await expect(surface).toBeInViewport({ ratio: 1 });
       await expectVerticalGlassRim(page, surface);
       expect
