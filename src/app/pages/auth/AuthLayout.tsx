@@ -1,8 +1,9 @@
 import { useTranslation } from 'react-i18next';
 import React, { useCallback, useEffect } from 'react';
-import { Box, Button, Header, Scroll, Spinner, Text, color } from 'folds';
+import { Box, Button, Scroll, Spinner, Text, color } from 'folds';
 import classNames from 'classnames';
 import { Outlet, useLocation, useNavigate, useParams } from 'react-router-dom';
+import { Header } from '../../components/glass/GlassPrimitives';
 
 import { AuthFooter } from './AuthFooter';
 import * as css from './styles.css';

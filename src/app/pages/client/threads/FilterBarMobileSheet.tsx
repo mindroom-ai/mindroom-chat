@@ -1,18 +1,8 @@
 import React, { ReactNode, useRef } from 'react';
-import {
-  Box,
-  config,
-  Header,
-  Icon,
-  IconButton,
-  Icons,
-  Modal,
-  Overlay,
-  OverlayBackdrop,
-  Text,
-} from 'folds';
+import { Box, config, Icon, IconButton, Icons, Overlay, OverlayBackdrop, Text } from 'folds';
 import { useTranslation } from 'react-i18next';
 import { FocusScope, mergeProps, useDialog, useOverlay, usePreventScroll } from 'react-aria';
+import { Modal, Header } from '../../../components/glass/GlassPrimitives';
 import * as css from './FilterBarMobileSheet.css';
 
 type FilterBarMobileSheetProps = {

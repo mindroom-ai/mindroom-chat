@@ -3,6 +3,8 @@ import type { IEvent, MatrixClient, MatrixEvent, Room } from 'matrix-js-sdk';
 import to from 'await-to-js';
 import { countCacheProbe } from '../threads/cacheProbe';
 import {
+  captureCacheStoreWriteLease,
+  isCacheStoreWriteLeaseCurrent,
   beginThreadReconcileContinuation,
   checkpointThreadReconcileContinuation,
   clearThreadReconcileContinuation,
@@ -16,6 +18,7 @@ import { logTimelineDebug } from '../threads/timelineDebug';
 
 const RECONCILE_BATCH_SIZE = 200;
 const MAX_RECONCILE_ITERATIONS = 25;
+const RECONCILE_REQUEST_TIMEOUT_MS = 15_000;
 
 type ReconcileScanExit = 'overlap' | 'end' | 'fetch-failed' | 'page-cap' | 'token-loop' | 'aborted';
 
@@ -81,17 +84,25 @@ const fetchThreadRelationPage = async (
   mx: MatrixClient,
   roomId: string,
   threadId: string,
-  fromToken: string | undefined
-): Promise<{ events: Partial<IEvent>[]; nextToken?: string } | 'invalid-token' | undefined> => {
+  fromToken: string | undefined,
+  signal: AbortSignal
+): Promise<
+  { events: Partial<IEvent>[]; nextToken?: string } | 'invalid-token' | 'timeout' | undefined
+> => {
   const [err, relData] = await to(
     mx.fetchRelations(roomId, threadId, null, null, {
       dir: Direction.Backward,
       limit: RECONCILE_BATCH_SIZE,
       recurse: true,
+      abortSignal: signal,
+      localTimeoutMs: RECONCILE_REQUEST_TIMEOUT_MS,
       ...(fromToken ? { from: fromToken } : {}),
     })
   );
   if (err) {
+    // The SDK uses AbortError for the local deadline. Cancellation of the
+    // scheduler's job is checked separately and must never start a retry.
+    if (!signal.aborted && err.name === 'AbortError') return 'timeout';
     const { errcode, httpStatus } = err as { errcode?: string; httpStatus?: number };
     return errcode === 'M_UNKNOWN_TOKEN' || httpStatus === 400 ? 'invalid-token' : undefined;
   }
@@ -126,6 +137,7 @@ const logReconcileChunk = (
   logTimelineDebug(debugTraceId, 'reconcile-chunk', {
     iteration,
     chunkSize: events.length,
+    replyCount: triples.filter((event) => event.rel_type === 'm.thread').length,
     nextToken: nextToken ? 'present' : 'absent',
     triples,
   });
@@ -161,6 +173,7 @@ const runScanPhase = async ({
   let phaseIterations = 0;
   let fetchedPage = false;
   let retriedSavedCursorFetch = false;
+  let retriedTimeout = false;
   let fetchFailed = false;
 
   while (phaseIterations < MAX_RECONCILE_ITERATIONS) {
@@ -177,7 +190,25 @@ const runScanPhase = async ({
     phaseIterations += 1;
     accumulator.iterations += 1;
     // eslint-disable-next-line no-await-in-loop
-    const page = await fetchThreadRelationPage(mx, roomId, threadId, fromToken);
+    const page = await fetchThreadRelationPage(mx, roomId, threadId, fromToken, signal);
+    if (signal.aborted) {
+      return { aborted: true, exit: 'aborted', fetchFailed, fromToken, savedTokenRejected: false };
+    }
+    if (page === 'timeout') {
+      if (!retriedTimeout) {
+        retriedTimeout = true;
+        // A timeout is a retry of this page, not another pagination step.
+        phaseIterations -= 1;
+        continue;
+      }
+      return {
+        aborted: false,
+        exit: 'fetch-failed',
+        fetchFailed: true,
+        fromToken,
+        savedTokenRejected: false,
+      };
+    }
     if (page === 'invalid-token') {
       return {
         aborted: false,
@@ -203,6 +234,7 @@ const runScanPhase = async ({
     }
 
     fetchedPage = true;
+    retriedTimeout = false;
     logReconcileChunk(debugTraceId, accumulator.iterations, page.events, page.nextToken);
 
     const pageRaw = page.events.slice().reverse();
@@ -307,6 +339,8 @@ export const scanThreadRelations = async ({
   preferLive: (rawEvent: Partial<IEvent>) => MatrixEvent;
   continuationStore: ThreadReconcileContinuationStore;
 }): Promise<ThreadRelationScanResult> => {
+  const lease = captureCacheStoreWriteLease(sessionId, roomId);
+  const current = () => !signal.aborted && isCacheStoreWriteLeaseCurrent(lease);
   let continuation = await continuationStore
     .load(sessionId, roomId, threadId)
     .catch(() => undefined);
@@ -316,6 +350,7 @@ export const scanThreadRelations = async ({
   );
 
   const ensureContinuation = async (): Promise<ThreadReconcileContinuation | undefined> => {
+    if (!current()) return undefined;
     if (continuation) return continuation;
     const startedAt = Date.now();
     const candidate: ThreadReconcileContinuation = {
@@ -330,7 +365,7 @@ export const scanThreadRelations = async ({
   };
 
   const restartFromHead = async (): Promise<boolean> => {
-    if (!continuation) return false;
+    if (!current() || !continuation) return false;
     const restartedAt = Date.now();
     const restarted = await continuationStore
       .restartFromHead(
@@ -424,6 +459,7 @@ export const scanThreadRelations = async ({
   const scanComplete = scanExit === 'overlap' || scanExit === 'end';
 
   const settleWithoutRepair = async (): Promise<void> => {
+    if (!current()) return;
     if (scanComplete && continuation?.validatingHead === true) {
       await continuationStore
         .clear(sessionId, roomId, threadId, continuation.generation)
@@ -432,7 +468,7 @@ export const scanThreadRelations = async ({
     }
     if (!scanComplete && fromToken && scanExit !== 'token-loop') {
       const currentContinuation = await ensureContinuation();
-      if (currentContinuation) {
+      if (currentContinuation && current()) {
         await continuationStore
           .checkpoint(sessionId, roomId, threadId, currentContinuation.generation, fromToken)
           .catch(() => false);
@@ -441,14 +477,17 @@ export const scanThreadRelations = async ({
   };
 
   const prepareRepairPersistence = async (): Promise<boolean> => {
+    if (!current()) return false;
     if (!scanComplete && fromToken && scanExit !== 'token-loop') {
       await ensureContinuation();
     }
-    return scanComplete || Boolean(continuation && fromToken && scanExit !== 'token-loop');
+    return (
+      current() && (scanComplete || Boolean(continuation && fromToken && scanExit !== 'token-loop'))
+    );
   };
 
   const commitRepairPersistence = async (writeCommitted: boolean): Promise<boolean> => {
-    if (!writeCommitted) return false;
+    if (!current() || !writeCommitted) return false;
     if (scanComplete && continuation?.validatingHead === true) {
       return continuationStore
         .clear(sessionId, roomId, threadId, continuation.generation)

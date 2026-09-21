@@ -1,6 +1,7 @@
 import React, { useCallback, useState } from 'react';
-import { Box, Text, Icon, Icons, Button, MenuItem } from 'folds';
+import { Box, Text, Icon, Icons, Button } from 'folds';
 import { useTranslation } from 'react-i18next';
+import { MenuItem } from '../../../components/glass/GlassPrimitives';
 import { SequenceCard } from '../../../components/sequence-card';
 import { SequenceCardStyle } from '../styles.css';
 import { SettingTile } from '../../../components/setting-tile';

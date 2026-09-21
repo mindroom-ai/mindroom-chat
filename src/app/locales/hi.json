@@ -577,7 +577,40 @@
         "general": "सामान्य",
         "options": "विकल्प",
         "threads": "थ्रेड",
-        "timeline": "टाइमलाइन"
+        "timeline": "टाइमलाइन",
+        "offline": {
+          "title": "ऑफ़लाइन एक्सेस",
+          "checking": "सहेजी गई सामग्री की जाँच हो रही है…",
+          "unavailable": "सहेजी गई सामग्री इस डिवाइस पर उपलब्ध नहीं है।",
+          "notSaved": "इस रूम को अभी ऑफ़लाइन उपयोग के लिए सहेजा नहीं गया है।",
+          "downloading": "इस रूम को ऑफ़लाइन उपयोग के लिए डाउनलोड किया जा रहा है…",
+          "offlinePause": "डिवाइस के ऑफ़लाइन रहने तक सहेजना रुका हुआ है।",
+          "backgroundPause": "ऐप के बैकग्राउंड में रहने तक सहेजना रुका हुआ है।",
+          "spacePause": "सुरक्षित सामग्री ने तय स्टोरेज सीमा भर दी है, इसलिए सहेजना रुका हुआ है।",
+          "readOnlyPause": "स्टोरेज विफल हुआ। सहेजना फिर शुरू करने के लिए ऐप दोबारा खोलें।",
+          "connectionPause": "इस कनेक्शन पर अपने-आप सहेजना रुका हुआ है।",
+          "errorPause": "त्रुटि के बाद सहेजना रुक गया। फिर कोशिश करें।",
+          "partialHistory": "पुराने इतिहास का कुछ हिस्सा सहेजा नहीं गया है।",
+          "inaccessibleHistory": "इतिहास का कुछ हिस्सा अभी उपलब्ध नहीं है।",
+          "waitingForKeys": "कुंजियों की प्रतीक्षा कर रहे एन्क्रिप्टेड इवेंट: {{count}}",
+          "unresolvedRelations": "अनसुलझे संपादन या जवाब: {{count}}",
+          "missingEssential": "गायब आवश्यक संदेश सामग्री: {{count}}",
+          "historyEntries": "सहेजी गई इतिहास प्रविष्टियाँ: {{count}}",
+          "attachments": "अटैचमेंट: {{saved}} सहेजे गए, {{missing}} गायब।",
+          "storageUsed": "अटैचमेंट द्वारा उपयोग किया गया स्टोरेज: {{size}}",
+          "pinFailed": "‘ऑफ़लाइन रखें’ अपडेट नहीं किया जा सका।",
+          "includeAllMedia": "सभी मीडिया शामिल करें",
+          "keepOffline": "ऑफ़लाइन रखें",
+          "keepOfflineDescription": "अपने-आप सफ़ाई के दौरान इस रूम के सहेजे गए मीडिया को सुरक्षित रखें।",
+          "cancelDownload": "डाउनलोड रद्द करें",
+          "downloadEntireRoom": "पूरा रूम डाउनलोड करें",
+          "clearDownloadedContent": "डाउनलोड की गई सामग्री साफ़ करें",
+          "clearTitle": "डाउनलोड की गई सामग्री साफ़ करें?",
+          "cancel": "रद्द करें",
+          "clearDescription": "इस रूम का सहेजा गया इतिहास और अटैचमेंट इस डिवाइस से हटा दिए जाएँगे।",
+          "clearFailed": "डाउनलोड की गई सामग्री साफ़ नहीं की जा सकी।",
+          "clearConfirm": "सामग्री साफ़ करें"
+        }
       },
       "navigation": {
         "developerTools": "डेवलपर उपकरण",
@@ -641,6 +674,7 @@
         "clearTrace": "ट्रेस साफ़ करें",
         "credits": "योगदानकर्ता",
         "deepDiagnosticTracing": "गहन निदान अनुरेखण",
+        "deepTraceMemoryOnly": "ट्रेस संग्रहण उपलब्ध न होने के कारण मेमोरी में रिकॉर्ड किया जा रहा है। ऐप फिर से शुरू करने से पहले निर्यात करें; फिर से शुरू करने पर ये हाल की घटनाएँ खो जाती हैं।",
         "deepTraceEnabledStorageUnavailable": "सक्षम, लेकिन ट्रेस संग्रहण वर्तमान में अनुपलब्ध है।",
         "deepTraceOff": "बंद है। ऐप के अटकने की समस्या दोहराने से पहले इसे चालू करें, ताकि प्रदर्शन, Matrix, नेटवर्क, जीवनचक्र और इंटरैक्शन के समय दर्ज हो सकें।",
         "deepTracePreferenceSaveFailed": "{{description}} इस सत्र के लिए बंद है, लेकिन प्राथमिकता सहेजी नहीं जा सकी और पुनरारंभ के बाद पुनः सक्षम हो सकती है।",
@@ -925,6 +959,31 @@
     "scrollHint": "क्षैतिज रूप से स्क्रॉल करें"
   },
   "mindroomUi": {
+    "models": {
+      "modelPicker": {
+        "chooseModel": "Choose model",
+        "roomDefault": "Room default",
+        "modelForThread": "Model for this thread",
+        "appliesToThread": "Applies to all agents and teams for future replies in this thread.",
+        "search": "Search models",
+        "close": "Close model picker",
+        "useRoomDefault": "Use room default",
+        "roomDefaultDescription": "Let each agent use its configured model.",
+        "models": "Models",
+        "runtime": "Runtime",
+        "chooseRuntime": "Choose a runtime",
+        "runtimeLabel": "{{userId}} on {{deviceId}}",
+        "refresh": "Refresh models",
+        "retry": "Retry",
+        "loading": "Loading models",
+        "pending": "Waiting for model change",
+        "noResults": "No matching models",
+        "commandFallback": "You can still send !model with a model key in this thread.",
+        "inheritedModels": "Room defaults by agent: {{models}}",
+        "futureReplies": "Changes apply to future replies.",
+        "threadModel": "Thread model"
+      }
+    },
     "calls": {
       "agentCallButton": {
         "browserUnsupported": "आपका ब्राउज़र WebRTC का समर्थन नहीं करता।",
@@ -1170,6 +1229,8 @@
         "viewReactions": "प्रतिक्रियाएँ देखें"
       },
       "mindroomHtmlBlocks": {
+        "loadingToolDetails": "अभी लोड हो रहा है…",
+        "toolDetailsUnavailable": "टूल का विवरण उपलब्ध नहीं है।",
         "blocks": {
           "analysis": "विश्लेषण एवं मूल्यांकन",
           "debug": "डिबग जानकारी",
@@ -1352,7 +1413,8 @@
       "mindroomTab": {
         "localMindroom": "स्थानीय MindRoom"
       },
-      "resizeNavigationPanel": "नेविगेशन पैनल का आकार बदलें"
+      "resizeNavigationPanel": "नेविगेशन पैनल का आकार बदलें",
+      "resizeMemberPanel": "सदस्य पैनल का आकार बदलें"
     },
     "threads": {
       "compactRoomView": {
@@ -1417,6 +1479,8 @@
         "youDoNotHavePermissionToPostInThisRoom": "आपको इस रूम में पोस्ट करने की अनुमति नहीं है"
       },
       "mindroomRoomViewHeader": {
+        "showComputer": "कंप्यूटर दिखाएँ",
+        "hideComputer": "कंप्यूटर छिपाएँ",
         "classic": "क्लासिक",
         "compact": "सघन",
         "copyLink": "लिंक की प्रतिलिपि करें",
@@ -1551,6 +1615,14 @@
         "voiceSendFailed": "ध्वनि भेजना विफल रहा",
         "yourRecordingIsStillSaved": "आपकी रिकॉर्डिंग अभी भी सहेजी गई है."
       }
+    },
+    "uiActions": {
+      "viewComputer": "कंप्यूटर देखें",
+      "openMembers": "सदस्य खोलें",
+      "computerUnavailable": "इस एजेंट का कंप्यूटर उपलब्ध नहीं है।",
+      "releaseControl": "दूसरा दृश्य खोलने से पहले कंप्यूटर का नियंत्रण छोड़ें।",
+      "openConversation": "यह अनुरोध कमरे की बातचीत से खोलें।",
+      "settingsUnavailable": "सेटिंग का यह अनुभाग खोलने के लिए सरल मोड बंद करें।"
     }
   },
   "nav": {
@@ -2124,7 +2196,7 @@
       "leaving": "छोड़ा जा रहा है..."
     },
     "login": {
-      "accountLink": "खाता नहीं है? <link>पंजीकरण करें</link>",
+      "accountLink": "खाता नहीं है? <authLink>पंजीकरण करें</authLink>",
       "login": "लॉग इन करें",
       "passwordLoginIsDisabledOnValue1UseSsoToSignIn": "\"{{value1}}\" पर पासवर्ड लॉगिन अक्षम है। साइन इन करने के लिए SSO का उपयोग करें।",
       "register": "पंजीकरण करें",
@@ -2328,7 +2400,7 @@
       "pleaseCheckTheBoxBelowToProceed": "कृपया आगे बढ़ने के लिए नीचे दिए गए बॉक्स को चेक करें।"
     },
     "register": {
-      "accountLink": "पहले से खाता है? <link>लॉगिन करें</link>",
+      "accountLink": "पहले से खाता है? <authLink>लॉगिन करें</authLink>",
       "invalidRequestFailedToGetAnyRegistrationOptions": "अमान्य अनुरोध! कोई भी पंजीकरण विकल्प प्राप्त करने में विफल.",
       "login": "लॉग इन करें",
       "register": "पंजीकरण करें",
@@ -2347,7 +2419,7 @@
       "retry": "पुन: प्रयास करें"
     },
     "resetPassword": {
-      "accountLink": "पासवर्ड याद है? <link>लॉगिन करें</link>",
+      "accountLink": "पासवर्ड याद है? <authLink>लॉगिन करें</authLink>",
       "login": "लॉग इन करें",
       "resetPassword": "पासवर्ड रीसेट करें"
     },
@@ -2771,5 +2843,45 @@
     "title": "थ्रेड",
     "unknownActivity": "अज्ञात",
     "unpin": "थ्रेड को अनपिन करें"
+  },
+  "roomSchedules": {
+    "title": "निर्धारित कार्य",
+    "openLabel": "निर्धारित कार्य ({{total}})",
+    "empty": "इस रूम में कोई निर्धारित कार्य नहीं है।",
+    "emptyHint": "MindRoom एजेंट से यहाँ कोई कार्य निर्धारित करने के लिए कहें।",
+    "prompt": "प्रॉम्प्ट",
+    "promptUnavailable": "प्रॉम्प्ट उपलब्ध नहीं है",
+    "once": "एक बार",
+    "recurring": "आवर्ती",
+    "executionTime": "निष्पादन समय",
+    "unknownTime": "निष्पादन समय उपलब्ध नहीं है",
+    "awaitingExecution": "निष्पादन की प्रतीक्षा में",
+    "recurrence": "पुनरावृत्ति",
+    "silent": "मौन",
+    "conditional": "सशर्त",
+    "newThread": "नया थ्रेड",
+    "roomTimeline": "रूम टाइमलाइन",
+    "openThread": "थ्रेड खोलें",
+    "owner": "कार्य का मालिक",
+    "createdAt": "बनाया गया",
+    "updatedAt": "अपडेट किया गया",
+    "model": "मॉडल",
+    "inheritedModel": "एजेंट, रूम या थ्रेड की सेटिंग से",
+    "taskId": "कार्य ID",
+    "historyLimit": "इतिहास सीमा",
+    "fullHistory": "पूरा इतिहास",
+    "noHistory": "कोई इतिहास नहीं",
+    "recentMessages": "हाल के संदेश: {{total}}",
+    "close": "बंद करें"
+  },
+  "archivedRooms": {
+    "title": "संग्रहीत रूम",
+    "archive": "रूम संग्रहित करें",
+    "restore": "रूम वापस लाएँ",
+    "restoreNamed": "{{room}} वापस लाएँ",
+    "failed": "बदलाव सहेजे नहीं जा सके। फिर से कोशिश करें।",
+    "close": "संग्रहीत रूम बंद करें",
+    "description": "रूम छोड़े बिना उन्हें साइडबार से छिपाएँ। यहाँ उन्हें खोलें या वापस लाएँ।",
+    "empty": "कोई संग्रहीत रूम नहीं।"
   }
 }

@@ -885,7 +885,7 @@
       "login": "登入",
       "thisClientRequiresSignInWithAppleConfigureTheHomeserverSsoProvider": "此用戶端要求使用 Apple 登入。請在主伺服器的 SSO 提供者清單中加入 Apple。",
       "register": "註冊",
-      "accountLink": "沒有帳戶？ <link>註冊</link>",
+      "accountLink": "沒有帳戶？ <authLink>註冊</authLink>",
       "passwordLoginIsDisabledOnValue1UseSsoToSignIn": "「{{value1}}」已停用密碼登入。請使用 SSO 登入。",
       "thisClientDoesNotSupportLoginOnValue1ServerPasswordAndSso": "該用戶端不支援登入「{{value1}}」伺服器。找不到基於密碼和 SSO 的登入方法。"
     },
@@ -948,7 +948,7 @@
       "thisApplicationDoesNotSupportRegistrationOnThisHomeserver": "此應用程式不支援在此主伺服器上註冊。",
       "ssoRegistrationIsRequiredOnThisHomeserverButNoSsoProvidersWere": "該主伺服器需要 SSO 註冊，但沒有公佈 SSO 提供者。",
       "login": "登入",
-      "accountLink": "已經有帳戶？ <link>登入</link>"
+      "accountLink": "已經有帳戶？ <authLink>登入</authLink>"
     },
     "passwordResetForm": {
       "passwordHasBeenResetSuccessfullyPleaseLoginWithYourNewPassword": "密碼已成功重設。請使用您的新密碼登入。",
@@ -963,7 +963,7 @@
     "resetPassword": {
       "resetPassword": "重設密碼",
       "login": "登入",
-      "accountLink": "還記得您的密碼嗎？ <link>登入</link>"
+      "accountLink": "還記得您的密碼嗎？ <authLink>登入</authLink>"
     },
     "clientRoot": {
       "catchingUp": "正在同步…",
@@ -1716,7 +1716,40 @@
         "advancedOptions": "進階選項",
         "compact": "緊湊",
         "threads": "討論串",
-        "classic": "經典"
+        "classic": "經典",
+        "offline": {
+          "title": "離線存取",
+          "checking": "正在檢查已儲存的內容…",
+          "unavailable": "此裝置無法使用已儲存的內容。",
+          "notSaved": "此聊天室尚未儲存以供離線使用。",
+          "downloading": "正在下載此聊天室以供離線使用…",
+          "offlinePause": "裝置離線時會暫停儲存。",
+          "backgroundPause": "應用程式在背景執行時會暫停儲存。",
+          "spacePause": "受保護的內容已用完儲存空間配額，因此暫停儲存。",
+          "readOnlyPause": "儲存失敗。請重新開啟應用程式以繼續儲存。",
+          "connectionPause": "此連線下的自動儲存已暫停。",
+          "errorPause": "發生錯誤後已暫停儲存。請再試一次。",
+          "partialHistory": "部分較早的歷史記錄尚未儲存。",
+          "inaccessibleHistory": "部分歷史記錄目前無法存取。",
+          "waitingForKeys": "正在等待金鑰的加密事件：{{count}}",
+          "unresolvedRelations": "尚未解析的編輯或回覆：{{count}}",
+          "missingEssential": "缺少的必要訊息內容：{{count}}",
+          "historyEntries": "已儲存的歷史記錄項目：{{count}}",
+          "attachments": "附件：已儲存 {{saved}} 個，缺少 {{missing}} 個。",
+          "storageUsed": "附件使用的儲存空間：{{size}}",
+          "pinFailed": "無法更新「保持離線」。",
+          "includeAllMedia": "包含所有媒體",
+          "keepOffline": "保持離線",
+          "keepOfflineDescription": "自動清理時保護此聊天室已儲存的媒體。",
+          "cancelDownload": "取消下載",
+          "downloadEntireRoom": "下載整個聊天室",
+          "clearDownloadedContent": "清除已下載的內容",
+          "clearTitle": "要清除已下載的內容嗎？",
+          "cancel": "取消",
+          "clearDescription": "此聊天室已儲存的歷史記錄和附件將從此裝置移除。",
+          "clearFailed": "無法清除已下載的內容。",
+          "clearConfirm": "清除內容"
+        }
       },
       "permissions": {
         "permissions": "權限",
@@ -2070,6 +2103,7 @@
         "clearing": "正在清除…",
         "credits": "致謝",
         "deepDiagnosticTracing": "深度診斷追蹤",
+        "deepTraceMemoryOnly": "追蹤儲存空間無法使用，正在記憶體中記錄。請在重新啟動應用程式前匯出；重新啟動後這些近期事件將遺失。",
         "deepTraceEnabledStorageUnavailable": "已啟用，但追蹤儲存空間目前不可用。",
         "deepTraceOff": "已關閉。在重現凍結前啟用，以記錄效能、Matrix、網路、生命週期和互動計時。",
         "deepTracePreferenceSaveFailed": "{{description}} 此工作階段已關閉，但無法儲存首選項，並且可能會在重新啟動後重新啟用。",
@@ -2144,6 +2178,31 @@
     }
   },
   "mindroomUi": {
+    "models": {
+      "modelPicker": {
+        "chooseModel": "Choose model",
+        "roomDefault": "Room default",
+        "modelForThread": "Model for this thread",
+        "appliesToThread": "Applies to all agents and teams for future replies in this thread.",
+        "search": "Search models",
+        "close": "Close model picker",
+        "useRoomDefault": "Use room default",
+        "roomDefaultDescription": "Let each agent use its configured model.",
+        "models": "Models",
+        "runtime": "Runtime",
+        "chooseRuntime": "Choose a runtime",
+        "runtimeLabel": "{{userId}} on {{deviceId}}",
+        "refresh": "Refresh models",
+        "retry": "Retry",
+        "loading": "Loading models",
+        "pending": "Waiting for model change",
+        "noResults": "No matching models",
+        "commandFallback": "You can still send !model with a model key in this thread.",
+        "inheritedModels": "Room defaults by agent: {{models}}",
+        "futureReplies": "Changes apply to future replies.",
+        "threadModel": "Thread model"
+      }
+    },
     "voice": {
       "discardRecording": "放棄錄音",
       "pauseRecording": "暫停錄音",
@@ -2406,6 +2465,8 @@
         "viewReactions": "檢視反應"
       },
       "mindroomHtmlBlocks": {
+        "loadingToolDetails": "仍在載入…",
+        "toolDetailsUnavailable": "工具詳細資訊無法使用。",
         "pastedText": "貼上的文字",
         "characterCount_one": "{{formattedCount}} 個字元",
         "characterCount_other": "{{formattedCount}} 個字元",
@@ -2601,7 +2662,8 @@
       "mindroomTab": {
         "localMindroom": "Local MindRoom"
       },
-      "resizeNavigationPanel": "調整導覽面板大小"
+      "resizeNavigationPanel": "調整導覽面板大小",
+      "resizeMemberPanel": "調整成員面板大小"
     },
     "threads": {
       "compactRoomView": {
@@ -2635,6 +2697,8 @@
         "youDoNotHavePermissionToPostInThisRoom": "您沒有在此房間傳送訊息的權限"
       },
       "mindroomRoomViewHeader": {
+        "showComputer": "顯示電腦",
+        "hideComputer": "隱藏電腦",
         "notifications": "通知",
         "compact": "緊湊",
         "threads": "討論串",
@@ -2770,6 +2834,54 @@
         "threadInRoom": "{{roomName}} 中的討論串",
         "thread": "討論串"
       }
+    },
+    "uiActions": {
+      "viewComputer": "檢視電腦",
+      "openMembers": "開啟成員清單",
+      "computerUnavailable": "此代理的電腦無法使用。",
+      "releaseControl": "開啟其他檢視前，請先釋放電腦控制權。",
+      "openConversation": "請從聊天室對話中開啟此請求。",
+      "settingsUnavailable": "關閉簡易模式以開啟此設定區段。"
     }
+  },
+  "roomSchedules": {
+    "title": "排程任務",
+    "openLabel": "排程任務（{{total}}）",
+    "empty": "此房間中沒有排程任務。",
+    "emptyHint": "請讓 MindRoom AI 代理在此排程任務。",
+    "prompt": "提示詞",
+    "promptUnavailable": "提示詞無法使用",
+    "once": "單次",
+    "recurring": "重複",
+    "executionTime": "執行時間",
+    "unknownTime": "執行時間無法使用",
+    "awaitingExecution": "等待執行",
+    "recurrence": "重複規則",
+    "silent": "靜默",
+    "conditional": "條件式",
+    "newThread": "新討論串",
+    "roomTimeline": "房間時間軸",
+    "openThread": "開啟討論串",
+    "owner": "任務擁有者",
+    "createdAt": "建立時間",
+    "updatedAt": "更新時間",
+    "model": "模型",
+    "inheritedModel": "來自 AI 代理、房間或討論串設定",
+    "taskId": "任務 ID",
+    "historyLimit": "歷程記錄上限",
+    "fullHistory": "完整歷程記錄",
+    "noHistory": "無歷程記錄",
+    "recentMessages": "最近訊息：{{total}} 則",
+    "close": "關閉"
+  },
+  "archivedRooms": {
+    "title": "已封存聊天室",
+    "archive": "封存聊天室",
+    "restore": "還原聊天室",
+    "restoreNamed": "還原 {{room}}",
+    "failed": "無法儲存變更。請重試。",
+    "close": "關閉已封存聊天室",
+    "description": "在側邊欄隱藏聊天室而不退出。可在此開啟或還原聊天室。",
+    "empty": "沒有已封存的聊天室。"
   }
 }

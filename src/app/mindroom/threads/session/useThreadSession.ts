@@ -107,7 +107,7 @@ export const useThreadSession = (route: ThreadRoute): ThreadSession => {
       const result = await refreshLatestThreadSlice(
         {
           ...runtime,
-          persistThreadEventCache: runtime.persist,
+          persistThreadEventCache: runtime.beginCacheWrite(),
           shouldAbortRefresh,
         },
         threadId,
@@ -185,10 +185,15 @@ export const useThreadSession = (route: ThreadRoute): ThreadSession => {
         if (!threadId) return () => undefined;
         runtimeRef.current = runtime;
         const { room, mx, render, viewport, debugTraceId } = runtime;
+        logTimelineDebug(debugTraceId, 'thread-open-start', {
+          shouldScrollToLatestOnOpen: !eventId,
+        });
         if (isLocalEchoEventId(threadId)) {
           const localRoot = room.findEventById(threadId);
           if (localRoot) render.append(threadId, [localRoot]);
-          return () => undefined;
+          logTimelineDebug(debugTraceId, 'thread-open-complete', { skipNetworkBootstrap: true });
+          logTimelineDebug(debugTraceId, 'thread-open-settled', { current: true });
+          return () => logTimelineDebug(debugTraceId, 'thread-open-close');
         }
         countCacheProbe('threadOpens');
         viewport.resetForOpen();
@@ -220,6 +225,7 @@ export const useThreadSession = (route: ThreadRoute): ThreadSession => {
           open: { ...current.open, latestPending: shouldScrollToLatestOnOpen },
         }));
         const load = async () => {
+          const persistThreadEventCache = runtime.beginCacheWrite();
           try {
             const cacheFirstResult = await runThreadOpenCacheFirst({
               debugTraceId,
@@ -280,7 +286,7 @@ export const useThreadSession = (route: ThreadRoute): ThreadSession => {
               isMounted: () => mounted,
               pinThreadToBottomOnOpen,
               onThreadLoadError: runtime.onThreadLoadError,
-              persistThreadEventCache: runtime.persist,
+              persistThreadEventCache,
               setSupplementalThreadEvents: render.append,
               onBootstrap: (observation) => {
                 if (observation.kind === 'load-error') {
@@ -304,7 +310,10 @@ export const useThreadSession = (route: ThreadRoute): ThreadSession => {
             });
             if (!shouldContinue) return;
             if (shouldScrollToLatestOnOpen) {
-              await refreshLatest(threadId, runtime);
+              await refreshLatest(threadId, {
+                ...runtime,
+                beginCacheWrite: () => persistThreadEventCache,
+              });
               if (!isCurrentThreadOpen()) return;
             } else {
               const hasForwardGap = !!room
@@ -335,6 +344,9 @@ export const useThreadSession = (route: ThreadRoute): ThreadSession => {
               threadId,
             });
           } finally {
+            logTimelineDebug(debugTraceId, 'thread-open-settled', {
+              current: isCurrentThreadOpen(),
+            });
             if (isCurrentThreadOpen()) {
               publish((current) => ({
                 ...current,
@@ -343,8 +355,9 @@ export const useThreadSession = (route: ThreadRoute): ThreadSession => {
             }
           }
         };
-        void load().catch(() => undefined);
+        void load().catch(() => logTimelineDebug(debugTraceId, 'thread-open-error'));
         return () => {
+          logTimelineDebug(debugTraceId, 'thread-open-close');
           mounted = false;
           threadOpenSeedSession.cleanup();
         };

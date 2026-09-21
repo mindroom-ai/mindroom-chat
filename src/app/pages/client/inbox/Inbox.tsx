@@ -52,17 +52,19 @@ export function Inbox() {
 
   return (
     <PageNav>
-      <PageNavHeader>
-        <Box grow="Yes" gap="300">
-          <Box grow="Yes">
-            <Text size="H4" truncate>
-              {t('sharedUi.inbox.inbox')}
-            </Text>
-          </Box>
-        </Box>
-      </PageNavHeader>
-
-      <PageNavContent>
+      <PageNavContent
+        header={
+          <PageNavHeader>
+            <Box grow="Yes" gap="300">
+              <Box grow="Yes">
+                <Text size="H4" truncate>
+                  {t('sharedUi.inbox.inbox')}
+                </Text>
+              </Box>
+            </Box>
+          </PageNavHeader>
+        }
+      >
         <Box direction="Column" gap="300">
           <NavCategory>
             <NavItem variant="Background" radii="400" aria-selected={notificationsSelected}>

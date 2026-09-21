@@ -21,11 +21,8 @@ vi.mock('../../../hooks/useMediaAuthentication', () => ({
   useMediaAuthentication: () => false,
 }));
 
-vi.mock('../../../utils/matrix', () => ({
-  decryptFile: vi.fn(),
-  downloadEncryptedMedia: vi.fn(),
-  downloadMedia: mocks.downloadMedia,
-  mxcUrlToHttp: () => 'https://media.example/audio',
+vi.mock('../../../mindroom/messages/attachmentRepository', () => ({
+  downloadCachedAttachment: mocks.downloadMedia,
 }));
 
 type Controller = {

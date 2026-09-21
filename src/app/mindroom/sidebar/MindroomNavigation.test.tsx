@@ -4,6 +4,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Room } from 'matrix-js-sdk';
 import { createInstance } from 'i18next';
 import { I18nextProvider } from 'react-i18next';
+import { MemoryRouter, useLocation } from 'react-router-dom';
+import { ExploreTab } from '../../pages/client/sidebar/ExploreTab';
+import { NavToActivePathProvider } from '../../state/hooks/navToActivePath';
+import { makeNavToActivePathAtom } from '../../state/navToActivePath';
 import { SpaceProvider } from '../../hooks/useSpace';
 import { useNavToActivePathMapper } from '../../hooks/useNavToActivePathMapper';
 import { getScreenSize, ScreenSizeProvider } from '../../hooks/useScreenSize';
@@ -26,11 +30,16 @@ vi.mock('folds', () => ({
   Icons: {
     ChevronLeft: 'chevron-left',
     ChevronRight: 'chevron-right',
+    Explore: 'explore',
   },
 }));
 
 vi.mock('../../hooks/useMatrixClient', () => ({
   useMatrixClient: () => ({ getUserId: () => '@alice:example.org' }),
+}));
+
+vi.mock('../../hooks/useClientConfig', () => ({
+  useClientConfig: () => ({ featuredCommunities: { openAsDefault: true } }),
 }));
 
 vi.mock('../../components/sidebar', () => ({
@@ -85,33 +94,56 @@ vi.mock('../../pages/client/SidebarNav', () => ({
         'aria-label': 'Select current section',
         onClick: () => onPageNavSelect?.(true),
       }),
+      React.createElement(ExploreTab, { onSelect: onPageNavSelect }),
       footer
     ),
 }));
 
 type Renderer = ReturnType<typeof create>;
 
-const navigationAtWidth = (width: number) => (
-  <ScreenSizeProvider value={getScreenSize(width)}>
-    <MindroomNavigationProvider>
-      <MindroomSidebarNav />
-      <MindroomPageRoot nav={<aside data-testid="page-nav" />}>
-        <main data-testid="page-content" />
-      </MindroomPageRoot>
-    </MindroomNavigationProvider>
-  </ScreenSizeProvider>
+function LocationProbe() {
+  const { pathname, search, hash, key } = useLocation();
+  return <output data-testid="location" data-path={`${pathname}${search}${hash}`} data-key={key} />;
+}
+
+const navigationAtWidth = (width: number, initialPath = '/home/') => (
+  <MemoryRouter
+    initialEntries={[initialPath]}
+    future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+  >
+    <NavToActivePathProvider value={makeNavToActivePathAtom('@alice:example.org')}>
+      <ScreenSizeProvider value={getScreenSize(width)}>
+        <MindroomNavigationProvider>
+          <MindroomSidebarNav />
+          <MindroomPageRoot nav={<aside data-testid="page-nav" />}>
+            <main data-testid="page-content" />
+            <LocationProbe />
+          </MindroomPageRoot>
+        </MindroomNavigationProvider>
+      </ScreenSizeProvider>
+    </NavToActivePathProvider>
+  </MemoryRouter>
 );
 
-const renderNavigation = (width = 1280): Renderer => {
+const renderNavigation = (width = 1280, initialPath?: string): Renderer => {
   let renderer: Renderer;
   act(() => {
-    renderer = create(navigationAtWidth(width));
+    renderer = create(navigationAtWidth(width, initialPath));
   });
   return renderer!;
 };
 
 const findButtons = (renderer: Renderer, label: string) =>
   renderer.root.findAllByType('button').filter((button) => button.props['aria-label'] === label);
+
+const clickExplore = (renderer: Renderer): void => {
+  act(() => {
+    renderer.root.findByType(ExploreTab).findByType('button').props.onClick();
+  });
+};
+
+const currentLocation = (renderer: Renderer) =>
+  renderer.root.findByProps({ 'data-testid': 'location' }).props;
 
 const expectNavigationState = (renderer: Renderer, collapsed: boolean): void => {
   const activeLabel = collapsed ? EXPAND_LABEL : COLLAPSE_LABEL;
@@ -273,6 +305,54 @@ describe('MindroomNavigation', () => {
     expectNavigationState(renderer, false);
     act(() => renderer.unmount());
   });
+
+  it.each([751, 1280])('toggles active Explorer without changing its page at %i px', (width) => {
+    const path = '/explore/example.org/?term=matrix#results';
+    const renderer = renderNavigation(width, path);
+    const locationKey = currentLocation(renderer)['data-key'];
+
+    expectNavigationState(renderer, false);
+    clickExplore(renderer);
+    expectNavigationState(renderer, true);
+    expect(localStorage.getItem(storageKey)).toBe('true');
+    expect(currentLocation(renderer)).toMatchObject({ 'data-path': path, 'data-key': locationKey });
+
+    clickExplore(renderer);
+    expectNavigationState(renderer, false);
+    expect(localStorage.getItem(storageKey)).toBe('false');
+    expect(currentLocation(renderer)).toMatchObject({ 'data-path': path, 'data-key': locationKey });
+    act(() => renderer.unmount());
+  });
+
+  it.each([751, 1280])(
+    'opens Explorer from another section and then toggles it at %i px',
+    (width) => {
+      localStorage.setItem(storageKey, 'true');
+      const renderer = renderNavigation(width);
+
+      clickExplore(renderer);
+      expectNavigationState(renderer, false);
+      expect(currentLocation(renderer)['data-path']).toBe('/explore/featured/');
+
+      clickExplore(renderer);
+      expectNavigationState(renderer, true);
+      act(() => renderer.unmount());
+    }
+  );
+
+  it.each([375, 750])(
+    'opens the Explorer list on mobile without changing saved collapse at %i px',
+    (width) => {
+      localStorage.setItem(storageKey, 'true');
+      const renderer = renderNavigation(width, '/explore/example.org/');
+
+      clickExplore(renderer);
+      expectNavigationWithoutToggle(renderer);
+      expect(currentLocation(renderer)['data-path']).toBe('/explore/');
+      expect(localStorage.getItem(storageKey)).toBe('true');
+      act(() => renderer.unmount());
+    }
+  );
 
   it.each([751, 1280])('reopens and persists navigation on section selection at %i px', (width) => {
     let renderer = renderNavigation(width);

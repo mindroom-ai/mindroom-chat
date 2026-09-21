@@ -1,4 +1,4 @@
-import { ReactNode, useCallback, useEffect, useState } from 'react';
+import { ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
 import { AsyncStatus, useAsyncCallback } from '../hooks/useAsyncCallback';
 import { ClientConfig } from '../hooks/useClientConfig';
 import { appUrl, getAppBasePath } from '../utils/basePath';
@@ -7,6 +7,7 @@ import {
   getStorageItemSafe,
   setStorageItemSafe,
 } from '../utils/safeLocalStorage';
+import { AUTHENTICATION_RECOVERY_NAVIGATION_PARAM } from '../../serviceWorkerNavigation';
 
 const CLIENT_CONFIG_STORAGE_PREFIX = 'io.cinny.client-config:';
 
@@ -66,7 +67,7 @@ export const fetchClientConfig = async (
     redirect: 'manual',
   });
 
-  if (response.type === 'opaqueredirect') {
+  if (response.type === 'opaqueredirect' || response.status === 401 || response.status === 403) {
     throw new ClientConfigAuthenticationError();
   }
   if (!response.ok) {
@@ -78,7 +79,29 @@ export const fetchClientConfig = async (
   return config;
 };
 
-export const reloadForInteractiveAuthentication = (): void => window.location.reload();
+const clearAuthenticationRecoveryNavigation = (): void => {
+  if (typeof window === 'undefined') return;
+
+  try {
+    const url = new URL(window.location.href);
+    if (!url.searchParams.has(AUTHENTICATION_RECOVERY_NAVIGATION_PARAM)) return;
+
+    url.searchParams.delete(AUTHENTICATION_RECOVERY_NAVIGATION_PARAM);
+    window.history.replaceState(
+      window.history.state,
+      '',
+      `${url.pathname}${url.search}${url.hash}`
+    );
+  } catch {
+    // URL cleanup must not block application startup.
+  }
+};
+
+export const reloadForInteractiveAuthentication = (): void => {
+  const url = new URL(window.location.href);
+  url.searchParams.set(AUTHENTICATION_RECOVERY_NAVIGATION_PARAM, '1');
+  window.location.assign(url.href);
+};
 
 type ClientConfigLoaderProps = {
   fallback?: () => ReactNode;
@@ -93,24 +116,43 @@ type ClientConfigLoaderProps = {
 export function ClientConfigLoader({ fallback, error, children }: ClientConfigLoaderProps) {
   const [state, load] = useAsyncCallback(fetchClientConfig);
   const [ignoreError, setIgnoreError] = useState(false);
-  const config = state.status === AsyncStatus.Success ? state.data : undefined;
-  const cachedConfig = readCachedClientConfig();
+  const [cachedConfig] = useState(() => readCachedClientConfig());
+  const [waitForFreshConfig, setWaitForFreshConfig] = useState(false);
 
   const ignoreCallback = useCallback(() => setIgnoreError(true), []);
   const retryCallback = useCallback(() => {
     setIgnoreError(false);
+    // An explicit retry follows a known startup/authentication failure. Keep
+    // that recovery gated until the request succeeds or the user goes offline.
+    setWaitForFreshConfig(true);
     void load().catch(() => undefined);
   }, [load]);
 
   useEffect(() => {
-    retryCallback();
-  }, [retryCallback]);
+    clearAuthenticationRecoveryNavigation();
+    void load().catch(() => undefined);
+  }, [load]);
 
-  if (state.status === AsyncStatus.Idle || state.status === AsyncStatus.Loading) {
-    return fallback?.();
-  }
+  const authenticationRequired =
+    state.status === AsyncStatus.Error && isClientConfigAuthenticationError(state.error);
+  const useCachedConfig =
+    cachedConfig !== undefined && (ignoreError || (!waitForFreshConfig && !authenticationRequired));
+  const resolvedConfig = useCachedConfig
+    ? cachedConfig
+    : state.status === AsyncStatus.Success
+    ? state.data
+    : undefined;
+  // App's render callback constructs its router. Keep the same subtree while
+  // background refresh settles; fetchClientConfig saves fresh data for the next
+  // launch. Do not construct a router while authentication recovery is gated.
+  const readyContent = useMemo(
+    () => (resolvedConfig === undefined ? undefined : children(resolvedConfig)),
+    [children, resolvedConfig]
+  );
 
-  if (!ignoreError && state.status === AsyncStatus.Error) {
+  if (resolvedConfig !== undefined) return readyContent;
+
+  if (state.status === AsyncStatus.Error) {
     return error?.(
       state.error,
       retryCallback,
@@ -119,7 +161,5 @@ export function ClientConfigLoader({ fallback, error, children }: ClientConfigLo
     );
   }
 
-  const resolvedConfig: ClientConfig = config ?? cachedConfig ?? {};
-
-  return children(resolvedConfig);
+  return fallback?.();
 }

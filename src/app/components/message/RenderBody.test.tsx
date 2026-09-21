@@ -26,6 +26,7 @@ vi.mock('../../plugins/react-custom-html-parser', () => ({
 vi.mock('../../mindroom/messages/MindroomHtmlBlocks.css', () => ({
   Block: 'Block',
   BlockBody: 'BlockBody',
+  BlockChevron: 'BlockChevron',
   BlockHeader: 'BlockHeader',
   BlockHeaderMeta: 'BlockHeaderMeta',
   BlockInlineResult: 'BlockInlineResult',

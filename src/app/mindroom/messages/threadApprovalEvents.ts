@@ -11,8 +11,20 @@ export type ThreadApprovalEvents = {
 };
 
 /** Unpack SDK and cached bundles once; all replacement evidence follows the same path. */
-const withAttachedReplacements = (incoming: readonly MatrixEvent[]): MatrixEvent[] =>
+const withAttachedReplacements = (
+  incoming: readonly MatrixEvent[],
+  retained: ThreadApprovalEvents
+): MatrixEvent[] =>
   incoming.flatMap((event) => {
+    const id = event.getId();
+    // Ordinary chat edits cannot decide approvals. Keep the original observation
+    // for tombstones, and keep former ciphertext candidates on the full path.
+    if (
+      event.getType() === 'm.room.message' &&
+      !isUndecryptedApprovalCandidate(event) &&
+      !(id && (retained.events.has(id) || retained.scopedEventIds.has(id)))
+    )
+      return [event];
     const attached = [event.replacingEvent(), getSerializedReplacementEvent(event)].filter(
       (replacement): replacement is MatrixEvent =>
         !!replacement &&
@@ -92,7 +104,7 @@ export const mergeThreadApprovalEvents = (
   threadId: string,
   fromBackfill = false
 ): ThreadApprovalEvents => {
-  const observations = withAttachedReplacements(incoming);
+  const observations = withAttachedReplacements(incoming, old);
   let changed = false;
   const next = new Map(old.events);
   const scopedIds = new Set(old.scopedEventIds);

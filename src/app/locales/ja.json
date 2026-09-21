@@ -885,7 +885,7 @@
       "login": "ログイン",
       "thisClientRequiresSignInWithAppleConfigureTheHomeserverSsoProvider": "このクライアントでは Apple でのサインインが必要です。ホームサーバーの SSO プロバイダー一覧に Apple を追加してください。",
       "register": "登録",
-      "accountLink": "アカウントをお持ちではありませんか? <link>登録</link>",
+      "accountLink": "アカウントをお持ちではありませんか? <authLink>登録</authLink>",
       "passwordLoginIsDisabledOnValue1UseSsoToSignIn": "「{{value1}}」ではパスワードログインが無効です。SSO でサインインしてください。",
       "thisClientDoesNotSupportLoginOnValue1ServerPasswordAndSso": "このクライアントは、「{{value1}}」サーバーでのログインをサポートしていません。パスワードおよび SSO ベースのログイン方法が見つかりません。"
     },
@@ -948,7 +948,7 @@
       "thisApplicationDoesNotSupportRegistrationOnThisHomeserver": "このアプリケーションは、このホームサーバーへの登録をサポートしていません。",
       "ssoRegistrationIsRequiredOnThisHomeserverButNoSsoProvidersWere": "このホームサーバーでは SSO 登録が必要ですが、利用可能な SSO プロバイダーが提示されていません。",
       "login": "ログイン",
-      "accountLink": "すでにアカウントをお持ちですか? <link>ログイン</link>"
+      "accountLink": "すでにアカウントをお持ちですか? <authLink>ログイン</authLink>"
     },
     "passwordResetForm": {
       "passwordHasBeenResetSuccessfullyPleaseLoginWithYourNewPassword": "パスワードが正常にリセットされました。新しいパスワードでログインしてください。",
@@ -963,7 +963,7 @@
     "resetPassword": {
       "resetPassword": "パスワードのリセット",
       "login": "ログイン",
-      "accountLink": "パスワードを覚えていますか? <link>ログイン</link>"
+      "accountLink": "パスワードを覚えていますか? <authLink>ログイン</authLink>"
     },
     "clientRoot": {
       "catchingUp": "同期中…",
@@ -1716,7 +1716,40 @@
         "advancedOptions": "詳細オプション",
         "compact": "コンパクト",
         "threads": "スレッド",
-        "classic": "クラシック"
+        "classic": "クラシック",
+        "offline": {
+          "title": "オフラインアクセス",
+          "checking": "保存済みコンテンツを確認しています…",
+          "unavailable": "この端末では保存済みコンテンツを利用できません。",
+          "notSaved": "このルームはまだオフライン用に保存されていません。",
+          "downloading": "このルームをオフライン用にダウンロードしています…",
+          "offlinePause": "端末がオフラインのため、保存を一時停止しています。",
+          "backgroundPause": "アプリがバックグラウンドにあるため、保存を一時停止しています。",
+          "spacePause": "保護されたコンテンツが保存容量の上限に達したため、保存を一時停止しています。",
+          "readOnlyPause": "ストレージでエラーが発生しました。保存を再開するにはアプリを開き直してください。",
+          "connectionPause": "この接続では自動保存を一時停止しています。",
+          "errorPause": "エラーのため保存を一時停止しました。もう一度お試しください。",
+          "partialHistory": "以前の履歴の一部は保存されていません。",
+          "inaccessibleHistory": "履歴の一部は現在アクセスできません。",
+          "waitingForKeys": "鍵を待機している暗号化イベント: {{count}}",
+          "unresolvedRelations": "未解決の編集または返信: {{count}}",
+          "missingEssential": "不足している重要なメッセージ本文: {{count}}",
+          "historyEntries": "保存済み履歴エントリ: {{count}}",
+          "attachments": "添付ファイル: 保存済み {{saved}}、未保存 {{missing}}。",
+          "storageUsed": "添付ファイルが使用している容量: {{size}}",
+          "pinFailed": "「オフラインで保持」を更新できませんでした。",
+          "includeAllMedia": "すべてのメディアを含める",
+          "keepOffline": "オフラインで保持",
+          "keepOfflineDescription": "自動クリーンアップ時に、このルームの保存済みメディアを保護します。",
+          "cancelDownload": "ダウンロードをキャンセル",
+          "downloadEntireRoom": "ルーム全体をダウンロード",
+          "clearDownloadedContent": "ダウンロード済みコンテンツを消去",
+          "clearTitle": "ダウンロード済みコンテンツを消去しますか？",
+          "cancel": "キャンセル",
+          "clearDescription": "このルームの保存済み履歴と添付ファイルをこの端末から削除します。",
+          "clearFailed": "ダウンロード済みコンテンツを消去できませんでした。",
+          "clearConfirm": "コンテンツを消去"
+        }
       },
       "permissions": {
         "permissions": "権限",
@@ -2070,6 +2103,7 @@
         "clearing": "クリア中...",
         "credits": "クレジット",
         "deepDiagnosticTracing": "詳細な診断トレース",
+        "deepTraceMemoryOnly": "トレースストレージが使用できないため、メモリに記録しています。アプリを再起動すると最近のイベントが失われるため、再起動する前にエクスポートしてください。",
         "deepTraceEnabledStorageUnavailable": "有効になっていますが、トレース ストレージは現在使用できません。",
         "deepTraceOff": "オフ。フリーズを再現する前に有効にして、パフォーマンス、Matrix、ネットワーク、ライフサイクル、およびインタラクションのタイミングを記録します。",
         "deepTracePreferenceSaveFailed": "{{description}} このセッションではオフですが、設定を保存できなかったため、再起動後に再び有効になる可能性があります。",
@@ -2144,6 +2178,31 @@
     }
   },
   "mindroomUi": {
+    "models": {
+      "modelPicker": {
+        "chooseModel": "Choose model",
+        "roomDefault": "Room default",
+        "modelForThread": "Model for this thread",
+        "appliesToThread": "Applies to all agents and teams for future replies in this thread.",
+        "search": "Search models",
+        "close": "Close model picker",
+        "useRoomDefault": "Use room default",
+        "roomDefaultDescription": "Let each agent use its configured model.",
+        "models": "Models",
+        "runtime": "Runtime",
+        "chooseRuntime": "Choose a runtime",
+        "runtimeLabel": "{{userId}} on {{deviceId}}",
+        "refresh": "Refresh models",
+        "retry": "Retry",
+        "loading": "Loading models",
+        "pending": "Waiting for model change",
+        "noResults": "No matching models",
+        "commandFallback": "You can still send !model with a model key in this thread.",
+        "inheritedModels": "Room defaults by agent: {{models}}",
+        "futureReplies": "Changes apply to future replies.",
+        "threadModel": "Thread model"
+      }
+    },
     "voice": {
       "discardRecording": "音声録音を破棄する",
       "pauseRecording": "音声録音を一時停止する",
@@ -2406,6 +2465,8 @@
         "viewReactions": "反応を見る"
       },
       "mindroomHtmlBlocks": {
+        "loadingToolDetails": "読み込み中…",
+        "toolDetailsUnavailable": "ツールの詳細を取得できません。",
         "pastedText": "貼り付けられたテキスト",
         "characterCount_one": "{{formattedCount}} 文字",
         "characterCount_other": "{{formattedCount}} 文字",
@@ -2601,7 +2662,8 @@
       "mindroomTab": {
         "localMindroom": "Local MindRoom"
       },
-      "resizeNavigationPanel": "ナビゲーションパネルのサイズを変更"
+      "resizeNavigationPanel": "ナビゲーションパネルのサイズを変更",
+      "resizeMemberPanel": "メンバーパネルのサイズを変更"
     },
     "threads": {
       "compactRoomView": {
@@ -2635,6 +2697,8 @@
         "youDoNotHavePermissionToPostInThisRoom": "このルームに投稿する権限がありません"
       },
       "mindroomRoomViewHeader": {
+        "showComputer": "コンピューターを表示",
+        "hideComputer": "コンピューターを非表示",
         "notifications": "通知",
         "compact": "コンパクト",
         "threads": "スレッド",
@@ -2770,6 +2834,54 @@
         "threadInRoom": "{{roomName}} のスレッド",
         "thread": "スレッド"
       }
+    },
+    "uiActions": {
+      "viewComputer": "コンピューターを表示",
+      "openMembers": "メンバーを開く",
+      "computerUnavailable": "このエージェントのコンピューターは利用できません。",
+      "releaseControl": "別の画面を開く前にコンピューターの操作権を手放してください。",
+      "openConversation": "ルームの会話からこのリクエストを開いてください。",
+      "settingsUnavailable": "この設定項目を開くには、シンプルモードをオフにしてください。"
     }
+  },
+  "roomSchedules": {
+    "title": "スケジュールされたタスク",
+    "openLabel": "スケジュールされたタスク（{{total}}）",
+    "empty": "このルームにはスケジュールされたタスクがありません。",
+    "emptyHint": "MindRoom AIエージェントに、このルームでタスクをスケジュールするよう依頼してください。",
+    "prompt": "プロンプト",
+    "promptUnavailable": "プロンプトを利用できません",
+    "once": "一回限り",
+    "recurring": "繰り返し",
+    "executionTime": "実行時刻",
+    "unknownTime": "実行時刻を利用できません",
+    "awaitingExecution": "実行待ち",
+    "recurrence": "繰り返し",
+    "silent": "サイレント",
+    "conditional": "条件付き",
+    "newThread": "新しいスレッド",
+    "roomTimeline": "ルームのタイムライン",
+    "openThread": "スレッドを開く",
+    "owner": "タスク所有者",
+    "createdAt": "作成日時",
+    "updatedAt": "更新日時",
+    "model": "モデル",
+    "inheritedModel": "エージェント、ルーム、またはスレッドの設定から",
+    "taskId": "タスク ID",
+    "historyLimit": "履歴の上限",
+    "fullHistory": "すべての履歴",
+    "noHistory": "履歴なし",
+    "recentMessages": "最近のメッセージ：{{total}}",
+    "close": "閉じる"
+  },
+  "archivedRooms": {
+    "title": "アーカイブ済みのルーム",
+    "archive": "ルームをアーカイブ",
+    "restore": "ルームを復元",
+    "restoreNamed": "{{room}} を復元",
+    "failed": "変更を保存できませんでした。もう一度お試しください。",
+    "close": "アーカイブ済みのルームを閉じる",
+    "description": "退出せずにサイドバーからルームを非表示にします。ここで開くか復元できます。",
+    "empty": "アーカイブ済みのルームはありません。"
   }
 }

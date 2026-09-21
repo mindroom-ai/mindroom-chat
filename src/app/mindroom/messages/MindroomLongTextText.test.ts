@@ -1,6 +1,6 @@
 import React from 'react';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { MatrixClient } from 'matrix-js-sdk';
 import { IEncryptedFile } from '../../../types/matrix/common';
 import { ClientConfigProvider } from '../../hooks/useClientConfig';
@@ -11,20 +11,23 @@ import { clearMindroomLongTextHydrationCache, MindroomLongTextSource } from './l
 const matrixMocks = vi.hoisted(() => ({
   decryptFile: vi.fn(),
   downloadEncryptedMedia: vi.fn(),
-  downloadMedia: vi.fn(),
+  networkBody: vi.fn(),
   mxcUrlToHttp: vi.fn(),
 }));
 const longTextMocks = vi.hoisted(() => ({
   hydrateMindroomLongTextSource: vi.fn(),
 }));
 const hookMocks = vi.hoisted(() => ({
-  mx: {},
+  mx: {
+    getAccessToken: vi.fn(() => undefined),
+    getHomeserverUrl: vi.fn(() => 'https://example.org'),
+    getSafeUserId: vi.fn(() => '@alice:example.org'),
+  },
 }));
 
 vi.mock('../../utils/matrix', () => ({
   decryptFile: matrixMocks.decryptFile,
   downloadEncryptedMedia: matrixMocks.downloadEncryptedMedia,
-  downloadMedia: matrixMocks.downloadMedia,
   mxcUrlToHttp: matrixMocks.mxcUrlToHttp,
 }));
 vi.mock('./longText', async () => {
@@ -110,6 +113,7 @@ vi.mock('../html/ScrollableTable.css', () => ({
 vi.mock('./MindroomHtmlBlocks.css', () => ({
   Block: 'MindroomBlock',
   BlockBody: 'MindroomBlockBody',
+  BlockChevron: 'BlockChevron',
   BlockHeader: 'MindroomBlockHeader',
   BlockHeaderMeta: 'MindroomBlockHeaderMeta',
   BlockInlineResult: 'MindroomBlockInlineResult',
@@ -334,6 +338,19 @@ const renderResolvedContentDomProbe = async (
   };
 };
 
+beforeEach(() => {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string, init?: RequestInit) => {
+      const blob = init?.headers
+        ? await matrixMocks.networkBody(url, { headers: init.headers })
+        : await matrixMocks.networkBody(url);
+      return new Response(blob);
+    })
+  );
+});
+afterEach(() => vi.unstubAllGlobals());
+
 describe('downloadMindroomLongTextSidecarText', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -346,9 +363,9 @@ describe('downloadMindroomLongTextSidecarText', () => {
     });
   });
 
-  it('downloads unencrypted sidecar content using downloadMedia', async () => {
+  it('downloads unencrypted sidecar content through shared transport', async () => {
     const downloadMindroomLongTextSidecarText = await getDownloadMindroomLongTextSidecarText();
-    matrixMocks.downloadMedia.mockResolvedValue(
+    matrixMocks.networkBody.mockResolvedValue(
       new Blob([JSON.stringify({ msgtype: 'm.text', body: 'full response' })], {
         type: 'application/json',
       })
@@ -356,7 +373,7 @@ describe('downloadMindroomLongTextSidecarText', () => {
 
     const text = await downloadMindroomLongTextSidecarText(mockMx, createLongTextSource(), false);
 
-    expect(matrixMocks.downloadMedia).toHaveBeenCalledWith(
+    expect(matrixMocks.networkBody).toHaveBeenCalledWith(
       'https://example.org/_matrix/media/v3/download/server/content'
     );
     expect(matrixMocks.downloadEncryptedMedia).not.toHaveBeenCalled();
@@ -371,7 +388,7 @@ describe('downloadMindroomLongTextSidecarText', () => {
       getAccessToken: vi.fn(() => 'access-token'),
       getHomeserverUrl: vi.fn(() => 'https://example.org'),
     });
-    matrixMocks.downloadMedia.mockResolvedValue(
+    matrixMocks.networkBody.mockResolvedValue(
       new Blob([JSON.stringify({ msgtype: 'm.text', body: 'full response' })], {
         type: 'application/json',
       })
@@ -379,7 +396,7 @@ describe('downloadMindroomLongTextSidecarText', () => {
 
     await downloadMindroomLongTextSidecarText(mockMx, createLongTextSource(), true);
 
-    expect(matrixMocks.downloadMedia).toHaveBeenCalledWith(mediaUrl, {
+    expect(matrixMocks.networkBody).toHaveBeenCalledWith(mediaUrl, {
       headers: { Authorization: 'Bearer access-token' },
     });
   });
@@ -392,31 +409,35 @@ describe('downloadMindroomLongTextSidecarText', () => {
       getAccessToken: vi.fn(() => 'access-token'),
       getHomeserverUrl: vi.fn(() => 'https://example.org'),
     });
-    matrixMocks.downloadMedia.mockResolvedValue(new Blob(['{}'], { type: 'application/json' }));
+    matrixMocks.networkBody.mockResolvedValue(
+      new Blob(['{"msgtype":"m.text","body":"body"}'], { type: 'application/json' })
+    );
 
     await downloadMindroomLongTextSidecarText(mockMx, createLongTextSource(), true);
 
-    expect(matrixMocks.downloadMedia).toHaveBeenCalledWith(mediaUrl);
+    expect(matrixMocks.networkBody).toHaveBeenCalledWith(mediaUrl);
   });
 
   it('downloads sidecar blob for unencrypted content', async () => {
     const downloadMindroomLongTextSidecarBlob = await getDownloadMindroomLongTextSidecarBlob();
     const blob = new Blob(['raw-content'], { type: 'application/json' });
-    matrixMocks.downloadMedia.mockResolvedValue(blob);
+    matrixMocks.networkBody.mockResolvedValue(blob);
 
     const downloadedBlob = await downloadMindroomLongTextSidecarBlob(
       mockMx,
       createLongTextSource(),
-      false
+      false,
+      true
     );
 
-    expect(matrixMocks.downloadMedia).toHaveBeenCalledWith(
+    expect(matrixMocks.networkBody).toHaveBeenCalledWith(
       'https://example.org/_matrix/media/v3/download/server/content'
     );
-    expect(downloadedBlob).toBe(blob);
+    expect(downloadedBlob.type).toBe(blob.type);
+    expect(await downloadedBlob.text()).toBe('raw-content');
   });
 
-  it('downloads encrypted sidecar content using downloadEncryptedMedia + decryptFile', async () => {
+  it('downloads encrypted sidecar cipher bytes and decrypts only the consumer blob', async () => {
     const downloadMindroomLongTextSidecarText = await getDownloadMindroomLongTextSidecarText();
     const encryptedFile: IEncryptedFile = {
       url: 'mxc://server/encrypted',
@@ -437,9 +458,8 @@ describe('downloadMindroomLongTextSidecarText', () => {
         type: 'application/json',
       })
     );
-    matrixMocks.downloadEncryptedMedia.mockImplementation(
-      async (_url: string, decryptContent: (buf: ArrayBuffer) => Promise<Blob>) =>
-        decryptContent(new ArrayBuffer(32))
+    matrixMocks.networkBody.mockResolvedValue(
+      new Blob([new Uint8Array(32)], { type: 'application/octet-stream' })
     );
 
     const text = await downloadMindroomLongTextSidecarText(
@@ -456,17 +476,15 @@ describe('downloadMindroomLongTextSidecarText', () => {
       true
     );
 
-    expect(matrixMocks.downloadEncryptedMedia).toHaveBeenCalledWith(
-      mediaUrl,
-      expect.any(Function),
-      { headers: { Authorization: 'Bearer access-token' } }
-    );
+    expect(matrixMocks.networkBody).toHaveBeenCalledWith(mediaUrl, {
+      headers: { Authorization: 'Bearer access-token' },
+    });
     expect(matrixMocks.decryptFile).toHaveBeenCalledWith(
       expect.any(ArrayBuffer),
       'application/json',
       encryptedFile
     );
-    expect(matrixMocks.downloadMedia).not.toHaveBeenCalled();
+    expect(matrixMocks.downloadEncryptedMedia).not.toHaveBeenCalled();
     expect(text).toContain('"body":"decrypted response"');
   });
 });
@@ -819,6 +837,173 @@ describe('MindroomLongTextText hydration identity', () => {
     await act(async () => {
       renderer.unmount();
     });
+  });
+
+  it.each(['resolved', 'unavailable'])(
+    'keeps preview tool calls grouped while details become %s',
+    async (outcome) => {
+      const { renderMindroomMessageContent } = await import('./renderMindroomMessageContent');
+      const deferred = createDeferred<Record<string, unknown>>();
+      longTextMocks.hydrateMindroomLongTextSource.mockReturnValue(deferred.promise);
+      const content = {
+        ...createPreviewContent(),
+        body: ['Update `notes.md`.', '', '🔧 `read_file` [1]', '', '🔧 `edit_file` [2]'].join('\n'),
+      };
+      let renderer!: ReactTestRenderer;
+      await act(async () => {
+        renderer = create(
+          React.createElement(
+            ClientConfigProvider,
+            { value: {} },
+            renderMindroomMessageContent({
+              displayName: 'MindRoom',
+              msgType: 'm.text',
+              content,
+              htmlReactParserOptions: {},
+              linkifyOpts: {},
+            })
+          )
+        );
+      });
+      try {
+        expect(renderer.root.findAllByType('button')).toHaveLength(1);
+        expect(JSON.stringify(renderer.toJSON())).toContain('2 tool calls');
+        expect(JSON.stringify(renderer.toJSON())).not.toContain('read_file');
+        await act(async () => {
+          renderer.root.findByType('button').props.onClick();
+        });
+        expect(JSON.stringify(renderer.toJSON())).toContain('Still loading');
+        expect(JSON.stringify(renderer.toJSON())).not.toContain('✓');
+
+        const preview =
+          longTextMocks.hydrateMindroomLongTextSource.mock.calls.at(-1)?.[0].previewContent;
+        await act(async () => {
+          deferred.resolve(
+            outcome === 'unavailable'
+              ? preview
+              : {
+                  ...preview,
+                  formatted_body:
+                    '<p>Update <code>notes.md</code>.</p><p>🔧 <code>read_file</code> [1]</p><p>🔧 <code>edit_file</code> [2]</p>',
+                  'io.mindroom.tool_trace': {
+                    version: 2,
+                    events: [
+                      {
+                        type: 'tool_call_completed',
+                        tool_name: 'read_file',
+                        result_preview: 'Read notes',
+                      },
+                      {
+                        type: 'tool_call_completed',
+                        tool_name: 'edit_file',
+                        result_preview: 'Saved notes',
+                      },
+                    ],
+                  },
+                }
+          );
+        });
+        const rendered = JSON.stringify(renderer.toJSON());
+        expect(rendered).toContain('2 tool calls');
+        expect(rendered).not.toContain('Still loading');
+        expect(rendered).toContain(
+          outcome === 'resolved' ? 'Saved notes' : 'Tool details unavailable'
+        );
+      } finally {
+        await act(async () => {
+          renderer.unmount();
+        });
+      }
+    }
+  );
+
+  it('keeps narrative boundaries and code examples outside preview tool groups', async () => {
+    const { renderMindroomMessageContent } = await import('./renderMindroomMessageContent');
+    const content = {
+      ...createPreviewContent(),
+      body: [
+        'Use `notes.md`.',
+        '',
+        '🔧 `read_file` [1]',
+        '',
+        'Now update the file.',
+        '',
+        '🔧 `edit_file` [2]',
+        '',
+        '🔧 `read_file` [3]',
+        '',
+        '```',
+        '🔧 `example_tool` [4]',
+        '```',
+      ].join('\n'),
+    };
+    let renderer!: ReactTestRenderer;
+    await act(async () => {
+      renderer = create(
+        React.createElement(
+          ClientConfigProvider,
+          { value: {} },
+          renderMindroomMessageContent({
+            displayName: 'MindRoom',
+            msgType: 'm.text',
+            content,
+            hydrateLongText: false,
+            htmlReactParserOptions: {},
+            linkifyOpts: {},
+          })
+        )
+      );
+    });
+    try {
+      expect(renderer.root.findAllByType('button')).toHaveLength(2);
+      const rendered = JSON.stringify(renderer.toJSON());
+      expect(rendered).toContain('1 tool call');
+      expect(rendered).toContain('2 tool calls');
+      expect(rendered).toContain('Now update the file.');
+      expect(renderer.root.findByType('pre').findByType('code').children.join('')).toContain(
+        '🔧 `example_tool` [4]'
+      );
+      expect(rendered).not.toContain('edit_file');
+    } finally {
+      await act(async () => {
+        renderer.unmount();
+      });
+    }
+  });
+
+  it('keeps tool details loading on the first render when a cold row becomes visible', async () => {
+    const { MindroomLongTextKind, MindroomLongTextText } = await getMindroomLongTextTextModule();
+    longTextMocks.hydrateMindroomLongTextSource.mockReturnValue(createDeferred().promise);
+    const content = createPreviewContent();
+    const statuses: string[] = [];
+    const render = (hydrate: boolean) =>
+      React.createElement(MindroomLongTextText, {
+        kind: MindroomLongTextKind.Text,
+        content,
+        hydrate,
+        longTextSource: createLongTextSource({ previewContent: content }),
+        renderBody: (_content, _props, status) => {
+          statuses.push(status);
+          return React.createElement('span', null, status);
+        },
+      });
+    let renderer!: ReactTestRenderer;
+    await act(async () => {
+      renderer = create(render(false));
+    });
+    statuses.length = 0;
+    try {
+      await act(async () => {
+        renderer.update(render(true));
+      });
+      expect(statuses.length).toBeGreaterThan(0);
+      expect(statuses).not.toContain('unavailable');
+      expect(renderer.root.findByType('span').children).toEqual(['loading']);
+    } finally {
+      await act(async () => {
+        renderer.unmount();
+      });
+    }
   });
 
   it('renders a root tool card after escaped multi-character inline syntax', async () => {
@@ -1319,7 +1504,7 @@ describe('useMindroomLongTextResolvedContent', () => {
 
     expect(onResolvedContent).toHaveBeenCalledWith(resolvedContent);
     expect(longTextMocks.hydrateMindroomLongTextSource).not.toHaveBeenCalled();
-    expect(matrixMocks.downloadMedia).not.toHaveBeenCalled();
+    expect(matrixMocks.networkBody).not.toHaveBeenCalled();
 
     await act(async () => {
       renderer.unmount();
@@ -1338,7 +1523,7 @@ describe('useMindroomLongTextResolvedContent', () => {
 
     expect(onResolvedContent).toHaveBeenCalledWith(undefined);
     expect(longTextMocks.hydrateMindroomLongTextSource).not.toHaveBeenCalled();
-    expect(matrixMocks.downloadMedia).not.toHaveBeenCalled();
+    expect(matrixMocks.networkBody).not.toHaveBeenCalled();
 
     await act(async () => {
       renderer.unmount();
@@ -1357,7 +1542,7 @@ describe('useMindroomLongTextResolvedContent', () => {
       body: 'Hydrated response',
     };
 
-    matrixMocks.downloadMedia.mockResolvedValue(
+    matrixMocks.networkBody.mockResolvedValue(
       new Blob([JSON.stringify(resolvedContent)], {
         type: 'application/json',
       })
@@ -1370,7 +1555,7 @@ describe('useMindroomLongTextResolvedContent', () => {
     });
 
     expect(longTextMocks.hydrateMindroomLongTextSource).toHaveBeenCalledTimes(1);
-    expect(matrixMocks.downloadMedia).toHaveBeenCalledWith(
+    expect(matrixMocks.networkBody).toHaveBeenCalledWith(
       'https://example.org/_matrix/media/v3/download/server/content'
     );
     expect(onResolvedContent).toHaveBeenLastCalledWith(resolvedContent);
@@ -1390,7 +1575,7 @@ describe('useMindroomLongTextResolvedContent', () => {
     const deferred = createDeferred<Blob>();
     const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
 
-    matrixMocks.downloadMedia.mockImplementation(() => deferred.promise);
+    matrixMocks.networkBody.mockImplementation(() => deferred.promise);
 
     try {
       const { onResolvedContent, renderer } = await renderResolvedContentProbe(source, true);
@@ -1456,19 +1641,19 @@ describe('useMindroomLongTextResolvedContent', () => {
       async () => JSON.stringify(resolvedContentA),
       mockMx
     );
-    matrixMocks.downloadMedia.mockImplementation(() => deferred.promise);
+    matrixMocks.networkBody.mockImplementation(() => deferred.promise);
 
     const { getProbeText, renderer, update } = await renderResolvedContentDomProbe(sourceA, true);
 
     expect(getProbeText()).toBe(JSON.stringify(resolvedContentA));
-    expect(matrixMocks.downloadMedia).not.toHaveBeenCalled();
+    expect(matrixMocks.networkBody).not.toHaveBeenCalled();
 
     const { renderPhaseValues } = await update(sourceB, true);
 
     expect(renderPhaseValues[0]).toBeUndefined();
     expect(getProbeText()).toBe('EMPTY');
     expect(longTextMocks.hydrateMindroomLongTextSource).toHaveBeenCalledTimes(1);
-    expect(matrixMocks.downloadMedia).toHaveBeenCalledTimes(1);
+    expect(matrixMocks.networkBody).toHaveBeenCalledTimes(1);
 
     await act(async () => {
       deferred.resolve(new Blob([JSON.stringify(resolvedContentB)], { type: 'application/json' }));

@@ -1,24 +1,12 @@
 import { useTranslation } from 'react-i18next';
 /* eslint-disable react/destructuring-assignment */
 import React, { MouseEventHandler, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import {
-  Avatar,
-  Box,
-  Chip,
-  Header,
-  Icon,
-  IconButton,
-  Icons,
-  Scroll,
-  Text,
-  config,
-  toRem,
-} from 'folds';
+import { Avatar, Box, Chip, Icon, IconButton, Icons, Scroll, Text, config, toRem } from 'folds';
 import { useSearchParams } from 'react-router-dom';
 import {
+  MatrixEvent,
   INotification,
   INotificationsResponse,
-  IRoomEvent,
   JoinRule,
   Method,
   RelationType,
@@ -28,6 +16,8 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import { HTMLReactParserOptions } from 'html-react-parser';
 import { Opts as LinkifyOpts } from 'linkifyjs';
 import { useAtomValue } from 'jotai';
+import { getEventAttachmentOwner } from '../../../mindroom/messages/eventAttachments';
+import { Header } from '../../../components/glass/GlassPrimitives';
 import { Page, PageContent, PageContentCenter, PageHeader } from '../../../components/page';
 import { useMatrixClient } from '../../../hooks/useMatrixClient';
 import { getMxIdLocalPart, mxcUrlToHttp } from '../../../utils/matrix';
@@ -35,12 +25,7 @@ import { InboxNotificationsPathSearchParams } from '../../paths';
 import { AsyncStatus, useAsyncCallback } from '../../../hooks/useAsyncCallback';
 import { SequenceCard } from '../../../components/sequence-card';
 import { RoomAvatar, RoomIcon } from '../../../components/room-avatar';
-import {
-  getEditedEvent,
-  getMemberAvatarMxc,
-  getMemberDisplayName,
-  getRoomAvatarUrl,
-} from '../../../utils/room';
+import { getMemberAvatarMxc, getMemberDisplayName, getRoomAvatarUrl } from '../../../utils/room';
 import { ScrollTopContainer } from '../../../components/scroll-top-container';
 import { useInterval } from '../../../hooks/useInterval';
 import {
@@ -48,7 +33,6 @@ import {
   ImageContent,
   MSticker,
   MessageNotDecryptedContent,
-  MessageUnsupportedContent,
   ModernLayout,
   RedactedContent,
   Reply,
@@ -98,7 +82,10 @@ import {
 import { useRoomCreatorsTag } from '../../../hooks/useRoomCreatorsTag';
 import { useRoomCreators } from '../../../hooks/useRoomCreators';
 import { MindroomMarkRoomReadChip } from '../../../mindroom/notifications/MindroomMarkRoomReadChip';
-import { shouldRenderNotificationLoadingPlaceholders } from './notificationTimelineView';
+import {
+  resolveNotificationEvent,
+  shouldRenderNotificationLoadingPlaceholders,
+} from './notificationTimelineView';
 
 type RoomNotificationsGroup = {
   roomId: string;
@@ -274,19 +261,20 @@ function RoomNotificationsGroupComp({
     ]
   );
 
-  const renderMatrixEvent = useMatrixEventRenderer<[IRoomEvent, string, GetContentCallback]>(
+  const renderMatrixEvent = useMatrixEventRenderer<[MatrixEvent, string]>(
     {
-      [MessageEvent.RoomMessage]: (event, displayName, getContent) => {
-        if (event.unsigned?.redacted_because) {
-          return <RedactedContent reason={event.unsigned?.redacted_because.content.reason} />;
-        }
+      [MessageEvent.RoomMessage]: (mEvent, displayName) => {
+        if (mEvent.isRedacted())
+          return <RedactedContent reason={mEvent.getUnsigned().redacted_because?.content.reason} />;
 
         return (
           <RenderMessageContent
+            mEvent={mEvent}
             displayName={displayName}
-            msgType={event.content.msgtype ?? ''}
-            ts={event.origin_server_ts}
-            getContent={getContent}
+            msgType={mEvent.getContent().msgtype ?? ''}
+            ts={mEvent.getTs()}
+            edited={!!mEvent.replacingEvent()}
+            getContent={(() => mEvent.getContent()) as GetContentCallback}
             mediaAutoLoad={mediaAutoLoad}
             urlPreview={urlPreview}
             htmlReactParserOptions={htmlReactParserOptions}
@@ -295,88 +283,23 @@ function RoomNotificationsGroupComp({
           />
         );
       },
-      [MessageEvent.RoomMessageEncrypted]: (evt, displayName) => {
-        const evtTimeline = room.getTimelineForEvent(evt.event_id);
-
-        const mEvent = evtTimeline?.getEvents().find((e) => e.getId() === evt.event_id);
-
-        if (!mEvent || !evtTimeline) {
-          return (
-            <Box grow="Yes" direction="Column">
-              <Text size="T400" priority="300">
-                <code className={customHtmlCss.Code}>{evt.type}</code>
-                {t('sharedUi.notifications.event')}
-              </Text>
-            </Box>
-          );
-        }
-
-        return (
-          <EncryptedContent mEvent={mEvent}>
-            {() => {
-              if (mEvent.isRedacted()) return <RedactedContent />;
-              if (mEvent.getType() === MessageEvent.Sticker)
-                return (
-                  <MSticker
-                    content={mEvent.getContent()}
-                    renderImageContent={(props) => (
-                      <ImageContent
-                        {...props}
-                        autoPlay={mediaAutoLoad}
-                        renderImage={(p) => <Image {...p} loading="lazy" />}
-                        renderViewer={(p) => <ImageViewer {...p} />}
-                      />
-                    )}
-                  />
-                );
-              if (mEvent.getType() === MessageEvent.RoomMessage) {
-                const editedEvent = getEditedEvent(
-                  evt.event_id,
-                  mEvent,
-                  evtTimeline.getTimelineSet()
-                );
-                const getContent = (() =>
-                  editedEvent?.getContent()['m.new_content'] ??
-                  mEvent.getContent()) as GetContentCallback;
-
-                return (
-                  <RenderMessageContent
-                    displayName={displayName}
-                    msgType={mEvent.getContent().msgtype ?? ''}
-                    ts={mEvent.getTs()}
-                    edited={!!editedEvent}
-                    getContent={getContent}
-                    mediaAutoLoad={mediaAutoLoad}
-                    urlPreview={urlPreview}
-                    htmlReactParserOptions={htmlReactParserOptions}
-                    linkifyOpts={linkifyOpts}
-                  />
-                );
-              }
-              if (mEvent.getType() === MessageEvent.RoomMessageEncrypted)
-                return (
-                  <Text>
-                    <MessageNotDecryptedContent />
-                  </Text>
-                );
-              return (
-                <Text>
-                  <MessageUnsupportedContent />
-                </Text>
-              );
-            }}
-          </EncryptedContent>
-        );
-      },
-      [MessageEvent.Sticker]: (event, displayName, getContent) => {
-        if (event.unsigned?.redacted_because) {
-          return <RedactedContent reason={event.unsigned?.redacted_because.content.reason} />;
-        }
+      [MessageEvent.RoomMessageEncrypted]: (mEvent) =>
+        mEvent.isRedacted() ? (
+          <RedactedContent reason={mEvent.getUnsigned().redacted_because?.content.reason} />
+        ) : (
+          <Text>
+            <MessageNotDecryptedContent />
+          </Text>
+        ),
+      [MessageEvent.Sticker]: (mEvent) => {
+        if (mEvent.isRedacted())
+          return <RedactedContent reason={mEvent.getUnsigned().redacted_because?.content.reason} />;
         return (
           <MSticker
-            content={getContent()}
+            content={mEvent.getContent()}
             renderImageContent={(props) => (
               <ImageContent
+                owner={getEventAttachmentOwner(mEvent)}
                 {...props}
                 autoPlay={mediaAutoLoad}
                 renderImage={(p) => <Image {...p} loading="lazy" />}
@@ -387,7 +310,7 @@ function RoomNotificationsGroupComp({
         );
       },
       [StateEvent.RoomTombstone]: (event) => {
-        const { content } = event;
+        const content = event.getContent();
         return (
           <Box grow="Yes" direction="Column">
             <Text size="T400" priority="300">
@@ -399,13 +322,12 @@ function RoomNotificationsGroupComp({
     },
     undefined,
     (event) => {
-      if (event.unsigned?.redacted_because) {
-        return <RedactedContent reason={event.unsigned?.redacted_because.content.reason} />;
-      }
+      if (event.isRedacted())
+        return <RedactedContent reason={event.getUnsigned().redacted_because?.content.reason} />;
       return (
         <Box grow="Yes" direction="Column">
           <Text size="T400" priority="300">
-            <code className={customHtmlCss.Code}>{event.type}</code>
+            <code className={customHtmlCss.Code}>{event.getType()}</code>
             {t('sharedUi.notifications.event')}
           </Text>
         </Box>
@@ -453,7 +375,13 @@ function RoomNotificationsGroupComp({
             getMxIdLocalPart(event.sender) ??
             event.sender;
           const senderAvatarMxc = getMemberAvatarMxc(room, event.sender);
-          const getContent = (() => event.content) as GetContentCallback;
+          const mEvent =
+            room.findEventById(event.event_id) ??
+            new MatrixEvent({ ...event, room_id: room.roomId });
+          const renderContent = () => {
+            const current = resolveNotificationEvent(room, event);
+            return renderMatrixEvent(current.getType(), false, current, displayName);
+          };
 
           const relation = event.content['m.relates_to'];
           const replyEventId = relation?.['m.in_reply_to']?.event_id;
@@ -540,7 +468,11 @@ function RoomNotificationsGroupComp({
                     legacyUsernameColor={legacyUsernameColor}
                   />
                 )}
-                {renderMatrixEvent(event.type, false, event, displayName, getContent)}
+                {mEvent.getWireType() === MessageEvent.RoomMessageEncrypted ? (
+                  <EncryptedContent mEvent={mEvent}>{renderContent}</EncryptedContent>
+                ) : (
+                  renderContent()
+                )}
               </ModernLayout>
             </SequenceCard>
           );

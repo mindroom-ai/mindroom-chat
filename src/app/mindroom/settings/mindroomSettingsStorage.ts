@@ -14,7 +14,7 @@ import {
 const MINDROOM_SETTINGS_STORAGE_KEY = 'mindroomSettings';
 
 const LEGACY_SETTINGS_STORAGE_KEY = 'settings';
-const MINDROOM_SETTINGS_STORE_VERSION = 1;
+const MINDROOM_SETTINGS_STORE_VERSION = 2;
 
 export type MindroomSettings = {
   prefetchScope: PrefetchScope;
@@ -33,7 +33,9 @@ const DEFAULT_MINDROOM_SETTINGS: MindroomSettings = {
 export const sanitizeMindroomSettings = (value: unknown): MindroomSettings => {
   const record = isRecord(value) ? value : {};
   return {
-    prefetchScope: sanitizePrefetchScope(record.prefetchScope ?? DEFAULT_PREFETCH_SCOPE),
+    prefetchScope: sanitizePrefetchScope(
+      record.prefetchScope === 'my-server' ? 'current-room-only' : record.prefetchScope
+    ),
     prefetchDepth: sanitizePrefetchDepth(record.prefetchDepth),
   };
 };
@@ -75,7 +77,8 @@ export const loadMindroomSettings = (
   const currentRaw = getStorageItemSafe(storage, MINDROOM_SETTINGS_STORAGE_KEY);
   if (currentRaw !== null) {
     const current = parseRecord(currentRaw);
-    if (current?.v !== MINDROOM_SETTINGS_STORE_VERSION) return DEFAULT_MINDROOM_SETTINGS;
+    if (current?.v !== 1 && current?.v !== MINDROOM_SETTINGS_STORE_VERSION)
+      return DEFAULT_MINDROOM_SETTINGS;
     return sanitizeMindroomSettings(current);
   }
 

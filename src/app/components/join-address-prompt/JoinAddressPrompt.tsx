@@ -2,11 +2,9 @@ import { useTranslation } from 'react-i18next';
 import React, { FormEventHandler, useState } from 'react';
 import FocusTrap from 'focus-trap-react';
 import {
-  Dialog,
   Overlay,
   OverlayCenter,
   OverlayBackdrop,
-  Header,
   config,
   Box,
   Text,
@@ -17,6 +15,7 @@ import {
   Input,
   color,
 } from 'folds';
+import { Dialog, Header } from '../glass/GlassPrimitives';
 import { stopPropagation } from '../../utils/keyboard';
 import { isRoomAlias, isRoomId } from '../../utils/matrix';
 import { parseMatrixToRoom, parseMatrixToRoomEvent, testMatrixTo } from '../../plugins/matrix-to';

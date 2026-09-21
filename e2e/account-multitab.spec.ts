@@ -5,7 +5,11 @@ import {
   logoutActiveAccount,
   switchToStoredUsername,
 } from './helpers/accounts';
-import { expectLoggedInShellStable, loginWithPassword } from './helpers/auth';
+import {
+  expectLoggedInShellStable,
+  loginWithPassword,
+  setFullInterfaceModeForCredentials,
+} from './helpers/auth';
 import {
   attachBrowserDiagnostics,
   expectNoUnexpectedBrowserDiagnostics,
@@ -16,6 +20,7 @@ test('propagates active-account switches across tabs without crashing', async ({
   context,
 }) => {
   const secondaryCredentials = getSecondaryCredentials();
+  test.slow();
   test.skip(
     !secondaryCredentials,
     'Set E2E_SECOND_USERNAME and E2E_SECOND_PASSWORD to run multi-tab switching coverage.'
@@ -24,6 +29,11 @@ test('propagates active-account switches across tabs without crashing', async ({
   const pageOneDiagnostics = attachBrowserDiagnostics(page);
   const homeserver = getHomeserver();
   const primaryCredentials = getPrimaryCredentials();
+
+  await Promise.all([
+    setFullInterfaceModeForCredentials(homeserver, primaryCredentials),
+    setFullInterfaceModeForCredentials(homeserver, secondaryCredentials),
+  ]);
 
   await loginWithPassword(page, {
     homeserver,
@@ -63,6 +73,7 @@ test('propagates active-account switches across tabs without crashing', async ({
 
 test('propagates logout fallback across tabs without crashing', async ({ page, context }) => {
   const secondaryCredentials = getSecondaryCredentials();
+  test.slow();
   test.skip(
     !secondaryCredentials,
     'Set E2E_SECOND_USERNAME and E2E_SECOND_PASSWORD to run multi-tab logout coverage.'
@@ -71,6 +82,11 @@ test('propagates logout fallback across tabs without crashing', async ({ page, c
   const pageOneDiagnostics = attachBrowserDiagnostics(page);
   const homeserver = getHomeserver();
   const primaryCredentials = getPrimaryCredentials();
+
+  await Promise.all([
+    setFullInterfaceModeForCredentials(homeserver, primaryCredentials),
+    setFullInterfaceModeForCredentials(homeserver, secondaryCredentials),
+  ]);
 
   await loginWithPassword(page, {
     homeserver,

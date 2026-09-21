@@ -3,12 +3,10 @@ import React, { FormEventHandler, MouseEventHandler, useCallback, useState } fro
 import {
   Box,
   Button,
-  Header,
   Icon,
   IconButton,
   Icons,
   Input,
-  Menu,
   Overlay,
   OverlayBackdrop,
   OverlayCenter,
@@ -21,6 +19,7 @@ import {
 import FocusTrap from 'focus-trap-react';
 import { Link } from 'react-router-dom';
 import { MatrixError } from 'matrix-js-sdk';
+import { Menu, Header } from '../../../components/glass/GlassPrimitives';
 import { getMxIdLocalPart, getMxIdServer, isUserId } from '../../../utils/matrix';
 import { EMAIL_REGEX } from '../../../utils/regex';
 import { useAutoDiscoveryInfo } from '../../../hooks/useAutoDiscoveryInfo';

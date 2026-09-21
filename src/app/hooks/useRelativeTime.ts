@@ -69,16 +69,23 @@ export const useRelativeTime = (ts: number | undefined): string => {
     () => (ts === undefined ? -1 : getRelativeTimeUpdateInterval(ts, now)),
     [ts, now]
   );
+  const relativeTime = ts === undefined ? '' : formatRelativeTime(ts, language);
 
   useEffect(() => {
-    if (intervalMs < 0) return undefined;
+    if (intervalMs < 0 || ts === undefined) return undefined;
 
     return subscribeRelativeTimeClock(intervalMs, () => {
-      setNow(Date.now());
+      // Large compact rooms can have hundreds of cards on the same clock.
+      // Most ticks do not change their minute/hour label; avoid rerendering
+      // the entire card until its visible text or clock cadence changes.
+      if (
+        formatRelativeTime(ts, language) !== relativeTime ||
+        getRelativeTimeUpdateInterval(ts) !== intervalMs
+      ) {
+        setNow(Date.now());
+      }
     });
-  }, [intervalMs]);
+  }, [intervalMs, language, relativeTime, ts]);
 
-  if (ts === undefined) return '';
-
-  return formatRelativeTime(ts, language);
+  return relativeTime;
 };

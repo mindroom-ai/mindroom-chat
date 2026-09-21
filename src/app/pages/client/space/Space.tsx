@@ -17,8 +17,6 @@ import {
   IconButton,
   Icons,
   Line,
-  Menu,
-  MenuItem,
   PopOut,
   RectCords,
   Spinner,
@@ -48,6 +46,7 @@ import {
 import { JoinRule, Room } from 'matrix-js-sdk';
 import { RoomJoinRulesEventContent } from 'matrix-js-sdk/lib/types';
 import FocusTrap from 'focus-trap-react';
+import { Menu, MenuItem } from '../../../components/glass/GlassPrimitives';
 import { useMatrixClient } from '../../../hooks/useMatrixClient';
 import { mDirectAtom } from '../../../state/mDirectList';
 import {
@@ -76,7 +75,7 @@ import {
   HierarchyItemSpace,
   useSpaceJoinedHierarchy,
 } from '../../../hooks/useSpaceHierarchy';
-import { allRoomsAtom } from '../../../state/room-list/roomList';
+import { navigationRoomsAtom } from '../../../mindroom/rooms/archivedRooms';
 import { PageNav, PageNavContent, PageNavHeader } from '../../../components/page';
 import { usePowerLevels } from '../../../hooks/usePowerLevels';
 import { useRecursiveChildScopeFactory, useSpaceChildren } from '../../../state/hooks/roomList';
@@ -139,7 +138,7 @@ const SpaceMenu = forwardRef<HTMLDivElement, SpaceMenuProps>(
     const [invitePrompt, setInvitePrompt] = useState(false);
 
     const allChild = useSpaceChildren(
-      allRoomsAtom,
+      navigationRoomsAtom,
       room.roomId,
       useRecursiveChildScopeFactory(mx, roomToParents)
     );
@@ -453,7 +452,7 @@ export function Space() {
   const spaceIdOrAlias = getCanonicalAliasOrRoomId(mx, space.roomId);
   const scrollRef = useRef<HTMLDivElement>(null);
   const mDirects = useAtomValue(mDirectAtom);
-  const allRooms = useAtomValue(allRoomsAtom);
+  const allRooms = useAtomValue(navigationRoomsAtom);
   const allJoinedRooms = useMemo(() => new Set(allRooms), [allRooms]);
   const notificationPreferences = useRoomsNotificationPreferencesContext();
   const [roomOrderBySpace, setRoomOrderBySpace] = useAtom(useRoomOrderBySpaceAtom());
@@ -570,8 +569,7 @@ export function Space() {
 
   return (
     <PageNav>
-      <SpaceHeader />
-      <PageNavContent scrollRef={scrollRef}>
+      <PageNavContent scrollRef={scrollRef} header={<SpaceHeader />}>
         <Box direction="Column" gap="300">
           {tombstoneEvent && (
             <SpaceTombstone

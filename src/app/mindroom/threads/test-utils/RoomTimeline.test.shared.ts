@@ -137,7 +137,7 @@ const {
     lastOptions: undefined as
       | {
           count: number;
-          estimateSize?: () => number;
+          estimateSize?: (index?: number) => number;
           getItemKey?: (index: number) => unknown;
           scrollMargin?: number;
         }
@@ -405,7 +405,7 @@ vi.mock('@tanstack/react-virtual', () => {
   return {
     useVirtualizer: (options: {
       count: number;
-      estimateSize?: () => number;
+      estimateSize?: (index?: number) => number;
       getItemKey?: (index: number) => unknown;
       scrollMargin?: number;
     }) => {
@@ -456,7 +456,12 @@ vi.mock('@tanstack/react-virtual', () => {
               index,
               key: opts.getItemKey?.(index) ?? index,
               lane: 0,
-              size: estimatedSize,
+              size:
+                (instance!.itemSizeCache as Map<unknown, number>).get(
+                  opts.getItemKey?.(index) ?? index
+                ) ??
+                opts.estimateSize?.(index) ??
+                100,
               start: index * estimatedSize,
             }));
         },
@@ -1231,26 +1236,6 @@ vi.mock('../useThreadStreamingState', () => ({
   useThreadStreamingState: () => false,
 }));
 
-vi.mock('../scheduledTaskContract', () => ({
-  MINDROOM_SCHEDULED_TASK_EVENT: 'com.mindroom.scheduled.task',
-  parseScheduledTaskStateEvent: (event: {
-    getStateKey: () => string | undefined;
-    getContent: () => Record<string, unknown>;
-  }) => {
-    const taskId = event.getStateKey();
-    if (!taskId) return null;
-    const content = event.getContent();
-    if (typeof content.status !== 'string') return null;
-    return {
-      taskId,
-      status: content.status,
-      threadId: typeof content.thread_id === 'string' ? content.thread_id : null,
-      newThread: typeof content.new_thread === 'boolean' ? content.new_thread : false,
-      executeAt: typeof content.execute_at === 'string' ? content.execute_at : null,
-    };
-  },
-}));
-
 vi.mock('../useRoomThreadTags', () => ({
   useRoomThreadResolutionMap: () => threadResolutionMapMock,
 }));
@@ -1687,6 +1672,9 @@ const threadFilterStateFromLegacy = (
 // ClientRoot, out of scope here).
 const HARNESS_TEST_SESSION_ID = 'test-session';
 const harnessSyncEngine: MindroomSyncEngine = {
+  offline: {} as MindroomSyncEngine['offline'],
+  clearRoomFocus: () => undefined,
+  backgroundPageAllowance: () => 200,
   mx: matrixClientMock as unknown as MindroomSyncEngine['mx'],
   sessionId: HARNESS_TEST_SESSION_ID,
   start: () => undefined,
@@ -1702,6 +1690,7 @@ const harnessSyncEngine: MindroomSyncEngine = {
   // to `engine.noteRoomFocused(...)` don't blow up. The mock cacheStore
   // in the harness would ignore the writes anyway.
   noteRoomFocused: () => undefined,
+  subscribeRoomRecovery: () => () => undefined,
 };
 
 // Pass children as a prop rather than positionally: this file is .ts, not

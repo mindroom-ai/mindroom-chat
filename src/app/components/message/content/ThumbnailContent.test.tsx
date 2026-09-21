@@ -30,10 +30,8 @@ vi.mock('../../../hooks/useMediaAuthentication', () => ({
   useMediaAuthentication: () => false,
 }));
 
-vi.mock('../../../utils/matrix', () => ({
-  decryptFile: vi.fn(),
-  downloadEncryptedMedia: mocks.downloadEncryptedMedia,
-  mxcUrlToHttp: () => 'https://media.example/thumbnail',
+vi.mock('../../../mindroom/messages/attachmentRepository', () => ({
+  downloadCachedAttachment: mocks.downloadEncryptedMedia,
 }));
 
 const encryptedThumbnail = {

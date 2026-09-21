@@ -8,8 +8,6 @@ import {
   Icons,
   Input,
   Line,
-  Menu,
-  MenuItem,
   PopOut,
   RectCords,
   Scroll,
@@ -25,6 +23,7 @@ import React, {
   useMemo,
   useState,
 } from 'react';
+import { Menu, MenuItem } from '../glass/GlassPrimitives';
 import { getMxIdLocalPart, getMxIdServer, isUserId } from '../../utils/matrix';
 import { useDirectUsers } from '../../hooks/useDirectUsers';
 import { SettingTile } from '../setting-tile';

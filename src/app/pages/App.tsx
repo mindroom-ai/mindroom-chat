@@ -15,6 +15,7 @@ import { useMobileKeyboardViewportFix } from '../hooks/useMobileKeyboardViewport
 import { appJotaiStore, setImperativeJotaiStore } from '../state/jotaiStore';
 import { ReactQueryDevtoolsToggle } from '../components/ReactQueryDevtoolsToggle';
 import { PersistentParticleBackgroundProvider } from '../components/particle-background';
+import { MindroomThinkingDefinitions } from '../mindroom/messages/MindroomThinkingDefinitions';
 
 const queryClient = new QueryClient();
 
@@ -29,6 +30,7 @@ function App() {
 
   return (
     <PersistentParticleBackgroundProvider>
+      <MindroomThinkingDefinitions />
       <TooltipContainerProvider value={portalContainer}>
         <PopOutContainerProvider value={portalContainer}>
           <OverlayContainerProvider value={portalContainer}>

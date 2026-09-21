@@ -6,6 +6,7 @@ import { describe, expect, it, vi } from 'vitest';
 vi.mock('./MindroomHtmlBlocks.css', () => ({
   Block: 'Block',
   BlockBody: 'BlockBody',
+  BlockChevron: 'BlockChevron',
   BlockHeader: 'BlockHeader',
   BlockHeaderMeta: 'BlockHeaderMeta',
   BlockInlineResult: 'BlockInlineResult',

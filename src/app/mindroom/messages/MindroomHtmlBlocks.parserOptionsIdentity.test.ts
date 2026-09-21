@@ -4,6 +4,7 @@ import type { HTMLReactParserOptions } from 'html-react-parser';
 vi.mock('./MindroomHtmlBlocks.css', () => ({
   Block: 'Block',
   BlockBody: 'BlockBody',
+  BlockChevron: 'BlockChevron',
   BlockHeader: 'BlockHeader',
   BlockHeaderMeta: 'BlockHeaderMeta',
   BlockInlineResult: 'BlockInlineResult',

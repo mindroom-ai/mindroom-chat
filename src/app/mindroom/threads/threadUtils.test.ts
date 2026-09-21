@@ -6,6 +6,7 @@ import {
   buildVisibleThreadParticipantMap,
   buildVisibleThreadReplyCountMap,
   eventBelongsToThread,
+  getThreadReplyEventsForRoot,
   getPreferredVisibleThreadReplyEvents,
   getValidThreadRootEvent,
   getVisibleThreadMessageCount,
@@ -64,6 +65,21 @@ describe('isThreadReplyEvent', () => {
 });
 
 describe('buildThreadReplyCountMap', () => {
+  it('selects distinct replies for one root using the same SDK classification as counts', () => {
+    const reply = makeEvent('$reply', '$root', RelationType.Thread);
+    const classified = makeEvent('$classified', '$root');
+    const events = [
+      makeEvent('$root', '$root'),
+      reply,
+      makeEvent('$reply', '$root', RelationType.Thread),
+      makeEvent('$foreign', '$other-root', RelationType.Thread),
+      makeEvent('$edit', '$root', RelationType.Replace),
+      makeEvent('$unthreaded'),
+      classified,
+    ];
+    expect(getThreadReplyEventsForRoot(events, '$root')).toEqual([reply, classified]);
+    expect(buildThreadReplyCountMap(events).get('$root')).toBe(2);
+  });
   it('counts thread replies by root id', () => {
     const counts = buildThreadReplyCountMap([
       makeEvent('$reply1', '$root', RelationType.Thread),

@@ -6,8 +6,6 @@ import {
   Avatar,
   Box,
   Button,
-  Dialog,
-  Header,
   Icon,
   IconButton,
   Icons,
@@ -19,6 +17,7 @@ import {
   color,
   config,
 } from 'folds';
+import { Dialog, Header } from '../../../components/glass/GlassPrimitives';
 import {
   NavCategory,
   NavCategoryHeader,
@@ -174,17 +173,19 @@ export function Explore() {
 
   return (
     <PageNav>
-      <PageNavHeader>
-        <Box grow="Yes" gap="300">
-          <Box grow="Yes">
-            <Text size="H4" truncate>
-              {t('sharedUi.explore.exploreCommunity')}
-            </Text>
-          </Box>
-        </Box>
-      </PageNavHeader>
-
-      <PageNavContent>
+      <PageNavContent
+        header={
+          <PageNavHeader>
+            <Box grow="Yes" gap="300">
+              <Box grow="Yes">
+                <Text size="H4" truncate>
+                  {t('sharedUi.explore.exploreCommunity')}
+                </Text>
+              </Box>
+            </Box>
+          </PageNavHeader>
+        }
+      >
         <Box direction="Column" gap="300">
           <NavCategory>
             <NavItem variant="Background" radii="400" aria-selected={featuredSelected}>

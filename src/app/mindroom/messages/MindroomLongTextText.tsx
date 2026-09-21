@@ -9,10 +9,10 @@ import {
   MindroomLongTextSource,
   getCachedMindroomLongTextContent,
   getMindroomLongTextSourceIdentity,
-  hydrateMindroomLongTextSource,
   withMindroomToolTraceFallback,
 } from './longText';
-import { downloadMindroomLongTextSidecarText } from './longTextDownload';
+import { MindroomToolMetadataStatus } from './toolTrace';
+import { hydrateCachedMindroomLongText } from './attachmentRepository';
 
 export enum MindroomLongTextKind {
   Text = 'text',
@@ -34,7 +34,11 @@ type MindroomLongTextTextProps = {
   renderStateSuffix?: () => ReactNode;
   content: Record<string, unknown>;
   longTextSource: MindroomLongTextSource;
-  renderBody: (content: Record<string, unknown>, props: RenderBodyProps) => ReactNode;
+  renderBody: (
+    content: Record<string, unknown>,
+    props: RenderBodyProps,
+    toolMetadataStatus: MindroomToolMetadataStatus
+  ) => ReactNode;
   renderAfterBody?: (
     content: Record<string, unknown>,
     fallbackContent: Record<string, unknown>
@@ -66,7 +70,7 @@ export const shouldResetResolvedContentToPreview = (
 
 export const getMindroomLongTextHydrationIdentity = (
   content: Record<string, unknown>,
-  source: Pick<MindroomLongTextSource, 'encryptedFile' | 'isV2ContentJson' | 'mxcUri'>
+  source: Pick<MindroomLongTextSource, 'encryptedFile' | 'isV2ContentJson' | 'mxcUri' | 'owner'>
 ): string => {
   const info = isRecord(content.info) ? content.info : undefined;
   const meta = isRecord(content['io.mindroom.long_text'])
@@ -74,6 +78,7 @@ export const getMindroomLongTextHydrationIdentity = (
     : undefined;
 
   return JSON.stringify({
+    owner: source.owner,
     body: getStringValue(content, 'body'),
     encryptedFileHashes: isRecord(source.encryptedFile?.hashes)
       ? JSON.stringify(source.encryptedFile.hashes)
@@ -124,7 +129,7 @@ export const useMindroomLongTextResolvedContent = (
         sourceIdentity: getMindroomLongTextSourceIdentity(source),
         content: cachedContent,
       });
-      return undefined;
+      if (!source.owner) return undefined;
     }
 
     if (!enabled) {
@@ -134,11 +139,7 @@ export const useMindroomLongTextResolvedContent = (
     let cancelled = false;
 
     void (async () => {
-      const nextContent = await hydrateMindroomLongTextSource(
-        source,
-        (nextSource) => downloadMindroomLongTextSidecarText(mx, nextSource, useAuthentication),
-        mx
-      );
+      const nextContent = await hydrateCachedMindroomLongText(mx, source, useAuthentication);
 
       if (!cancelled) {
         setResolvedEntry({
@@ -175,15 +176,19 @@ export function MindroomLongTextText({
   const { t } = useTranslation();
   const mx = useMatrixClient();
   const useAuthentication = useMediaAuthentication();
-  const { encryptedFile, isV2ContentJson, mxcUri } = longTextSource;
+  const { encryptedFile, isV2ContentJson, mxcUri, owner } = longTextSource;
   const hydrationIdentity = getMindroomLongTextHydrationIdentity(content, longTextSource);
   const hydrationInputRef = useRef({
     content,
     encryptedFile,
     isV2ContentJson,
     mxcUri,
+    owner,
   });
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(
+    () => hydrate && !getCachedMindroomLongTextContent(longTextSource, mx)
+  );
+  const [settledHydrationIdentity, setSettledHydrationIdentity] = useState<string>();
   const [showLoadingIndicator, setShowLoadingIndicator] = useState(false);
   // Prewarmed rows must render hydrated on their FIRST paint: initialize
   // from the cache synchronously instead of flashing the preview until the
@@ -199,6 +204,7 @@ export function MindroomLongTextText({
     encryptedFile,
     isV2ContentJson,
     mxcUri,
+    owner,
   };
 
   useEffect(() => {
@@ -209,6 +215,7 @@ export function MindroomLongTextText({
         encryptedFile: currentEncryptedFile,
         isV2ContentJson: currentIsV2ContentJson,
         mxcUri: currentMxcUri,
+        owner: currentOwner,
       } = hydrationInputRef.current;
 
       if (hydrate) {
@@ -226,6 +233,18 @@ export function MindroomLongTextText({
         if (cachedContent) {
           setResolvedContent(cachedContent);
           setLoading(false);
+          if (currentOwner)
+            await hydrateCachedMindroomLongText(
+              mx,
+              {
+                previewContent: currentContent,
+                encryptedFile: currentEncryptedFile,
+                isV2ContentJson: currentIsV2ContentJson,
+                mxcUri: currentMxcUri,
+                owner: currentOwner,
+              },
+              useAuthentication
+            );
           return;
         }
       }
@@ -242,19 +261,21 @@ export function MindroomLongTextText({
       }
 
       setLoading(true);
-      const nextContent = await hydrateMindroomLongTextSource(
+      const nextContent = await hydrateCachedMindroomLongText(
+        mx,
         {
           previewContent: currentContent,
           encryptedFile: currentEncryptedFile,
           isV2ContentJson: currentIsV2ContentJson,
           mxcUri: currentMxcUri,
+          owner: currentOwner,
         },
-        (source) => downloadMindroomLongTextSidecarText(mx, source, useAuthentication),
-        mx
+        useAuthentication
       );
 
       if (!cancelled) {
         setResolvedContent(nextContent);
+        setSettledHydrationIdentity(hydrationIdentity);
         setLoading(false);
       }
     };
@@ -291,6 +312,10 @@ export function MindroomLongTextText({
     ? getCachedMindroomLongTextContent(longTextSource, mx)
     : undefined;
   const displayContent = warmResolvedContent ?? resolvedContent;
+  const toolMetadataStatus: MindroomToolMetadataStatus =
+    !warmResolvedContent && (loading || !hydrate || settledHydrationIdentity !== hydrationIdentity)
+      ? 'loading'
+      : 'unavailable';
 
   const afterBody = renderAfterBody?.(content, displayContent);
 
@@ -302,7 +327,7 @@ export function MindroomLongTextText({
         edited={edited}
         renderStateSuffix={renderStateSuffix}
         content={displayContent}
-        renderBody={(props) => renderBody(displayContent, props)}
+        renderBody={(props) => renderBody(displayContent, props, toolMetadataStatus)}
         renderAfterBody={afterBody}
         renderUrlsPreview={renderUrlsPreview}
       />
@@ -313,7 +338,7 @@ export function MindroomLongTextText({
         edited={edited}
         renderStateSuffix={renderStateSuffix}
         content={displayContent}
-        renderBody={(props) => renderBody(displayContent, props)}
+        renderBody={(props) => renderBody(displayContent, props, toolMetadataStatus)}
         renderAfterBody={afterBody}
         renderUrlsPreview={renderUrlsPreview}
       />
@@ -324,7 +349,7 @@ export function MindroomLongTextText({
         edited={edited}
         renderStateSuffix={renderStateSuffix}
         content={displayContent}
-        renderBody={(props) => renderBody(displayContent, props)}
+        renderBody={(props) => renderBody(displayContent, props, toolMetadataStatus)}
         renderAfterBody={afterBody}
         renderUrlsPreview={renderUrlsPreview}
       />

@@ -1,10 +1,11 @@
 import FocusTrap from 'focus-trap-react';
-import { config, Modal, Overlay, OverlayBackdrop, OverlayCenter } from 'folds';
+import { config, Overlay, OverlayBackdrop, OverlayCenter } from 'folds';
 import { useAtom } from 'jotai';
 import { isKeyHotkey } from 'is-hotkey';
 import React, { useCallback, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { FocusScope, mergeProps, useDialog, useOverlay, usePreventScroll } from 'react-aria';
+import { Modal } from '../../components/glass/GlassPrimitives';
 import { LogoutDialog } from '../../components/LogoutDialog';
 import { ScreenSize, useScreenSizeContext } from '../../hooks/useScreenSize';
 import { stopPropagation } from '../../utils/keyboard';
@@ -30,7 +31,7 @@ const MOBILE_SHEET_CONTAINER_STYLE: React.CSSProperties = {
   width: '100vw',
 };
 const MOBILE_SHEET_STYLE: React.CSSProperties = {
-  borderRadius: `${config.radii.R400} ${config.radii.R400} 0 0`,
+  borderRadius: config.radii.R400,
   height: MOBILE_SHEET_HEIGHT,
   maxHeight: MOBILE_SHEET_HEIGHT,
   maxWidth: '100vw',

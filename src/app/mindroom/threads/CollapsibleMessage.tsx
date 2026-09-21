@@ -113,14 +113,15 @@ const getCollapsedMaxHeight = (el: HTMLDivElement): number | undefined => {
  * false negative.
  */
 const isContentOverflowing = (el: HTMLDivElement, expanded: boolean): boolean | null => {
-  if (el.scrollHeight === 0) return null;
+  const { scrollHeight } = el;
+  if (scrollHeight === 0) return null;
 
   const collapsedMaxHeight = getCollapsedMaxHeight(el);
   if (collapsedMaxHeight !== undefined) {
-    return el.scrollHeight > collapsedMaxHeight + 1;
+    return scrollHeight > collapsedMaxHeight + 1;
   }
 
-  return !expanded && el.scrollHeight > el.clientHeight + 1;
+  return !expanded && scrollHeight > el.clientHeight + 1;
 };
 
 // Task #127: remembered overflow verdicts, keyed by measurementKey.
@@ -197,6 +198,7 @@ export function CollapsibleMessage({
 }: CollapsibleMessageProps) {
   const isExempt = collapseMode === 'always-expanded';
   const contentRef = useRef<HTMLDivElement>(null);
+  const measurementKeyRef = useRef(measurementKey);
   const contentId = useId();
   const initialExpandConsumedRef = useRef(onInitialExpandConsumed);
   const previousCollapseModeRef = useRef<CollapsibleMessageCollapseMode | undefined>(undefined);
@@ -216,16 +218,14 @@ export function CollapsibleMessage({
     }
     return true;
   });
-  const applyOverflowVerdict = useCallback(
-    (verdict: boolean) => {
-      countCacheProbe(
-        verdict ? 'collapsibleVerdictOverflowing' : 'collapsibleVerdictNotOverflowing'
-      );
-      rememberOverflowVerdict(measurementKey, verdict);
-      setOverflowing(verdict);
-    },
-    [measurementKey]
-  );
+  useLayoutEffect(() => {
+    measurementKeyRef.current = measurementKey;
+  }, [measurementKey]);
+  const applyOverflowVerdict = useCallback((verdict: boolean) => {
+    countCacheProbe(verdict ? 'collapsibleVerdictOverflowing' : 'collapsibleVerdictNotOverflowing');
+    rememberOverflowVerdict(measurementKeyRef.current, verdict);
+    setOverflowing(verdict);
+  }, []);
   const [expanded, setExpanded] = useState(() => {
     // Live-expand-once rows must mount expanded even under an active
     // collapse-all override; the mount effect would correct this anyway, but
@@ -318,13 +318,19 @@ export function CollapsibleMessage({
     return () => observer.disconnect();
   }, [effectiveExpanded, hasRenderFunctionChildren, loadFullContent]);
 
-  // Re-measure when the collapse state or the semantic message identity changes.
-  useLayoutEffect(checkOverflow, [checkOverflow, measurementKey]);
+  // Expanded streaming rows have natural height. Let ResizeObserver measure
+  // their edits after layout instead of forcing layout during every React commit.
+  // Mounts, collapse transitions, and capped rows still need a synchronous check.
+  const synchronousMeasurementKey =
+    expanded && typeof ResizeObserver !== 'undefined' ? undefined : measurementKey;
+  useLayoutEffect(checkOverflow, [checkOverflow, synchronousMeasurementKey]);
 
-  // ResizeObserver for async layout shifts (lazy images, font loading, etc.)
+  // ResizeObserver for async layout shifts (lazy images, font loading, etc.).
+  // Re-observe edits even when height stays unchanged: the initial entry warms
+  // the new key's verdict for virtualized remounts without forcing layout here.
   useEffect(() => {
     const el = contentRef.current;
-    if (isExempt || forceOverflowing || !el || expanded || typeof ResizeObserver === 'undefined')
+    if (isExempt || forceOverflowing || !el || typeof ResizeObserver === 'undefined')
       return undefined;
     const observer = new ResizeObserver(() => {
       const result = isContentOverflowing(el, expanded);
@@ -334,7 +340,7 @@ export function CollapsibleMessage({
     });
     observer.observe(el);
     return () => observer.disconnect();
-  }, [applyOverflowVerdict, expanded, forceOverflowing, isExempt]);
+  }, [applyOverflowVerdict, expanded, forceOverflowing, isExempt, measurementKey]);
 
   // IntersectionObserver: re-check overflow when element enters the viewport.
   // Catches elements that had zero scrollHeight when first measured off-screen.

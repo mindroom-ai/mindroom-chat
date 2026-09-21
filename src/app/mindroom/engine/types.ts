@@ -11,6 +11,7 @@
 import type { MatrixClient, MatrixEvent, Room } from 'matrix-js-sdk';
 import type { EnginePersistFacade } from './enginePersistFacade';
 import type { BackfillScheduler } from './backfillScheduler';
+import type { OfflineRoomController } from './roomOffline';
 
 /**
  * Live event dispatch metadata as observed by the engine. This is a
@@ -55,6 +56,9 @@ export type EngineLifecycle = {
 };
 
 export type MindroomSyncEngine = EngineLifecycle & {
+  readonly offline: OfflineRoomController;
+  clearRoomFocus(roomId: string): void;
+  backgroundPageAllowance(roomId: string): number;
   /**
    * The Matrix client this engine wraps. Kept on the instance so
    * downstream layers can call SDK helpers without an extra prop.
@@ -91,6 +95,8 @@ export type MindroomSyncEngine = EngineLifecycle & {
    * wires actual fetches to it; P4.1 lands the queue and dedup.
    */
   readonly scheduler: BackfillScheduler;
+  /** Notify mounted readers after a recovered room page commits to the cache. */
+  subscribeRoomRecovery(roomId: string, listener: () => void): () => void;
   /**
    * CINNY-207 P4.2: consolidated per-room "you are here" hook. Called
    * from `MindroomRoomTimeline` whenever the mounted room changes (or

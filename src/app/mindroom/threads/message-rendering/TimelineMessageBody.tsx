@@ -1,6 +1,7 @@
 import React, { type ComponentProps } from 'react';
 import { MsgType, type Room } from 'matrix-js-sdk';
 import { Text } from 'folds';
+import { getEventAttachmentOwner } from '../../messages/eventAttachments';
 import {
   ImageContent,
   MSticker,
@@ -71,6 +72,7 @@ export function TimelineMessageBody({
       content={event.getContent()}
       renderImageContent={(props) => (
         <ImageContent
+          owner={getEventAttachmentOwner(event)}
           {...props}
           autoPlay={policy.mediaAutoLoad}
           renderImage={(p) => <Image {...p} loading="lazy" />}
@@ -99,6 +101,7 @@ export function TimelineMessageBody({
     const senderId = event.getSender() ?? '';
     const common = {
       ...contentPolicy,
+      mEvent: event,
       displayName: getMemberDisplayName(room, senderId) ?? getMxIdLocalPart(senderId) ?? senderId,
       eventType: event.getType(),
       ts: event.getTs(),

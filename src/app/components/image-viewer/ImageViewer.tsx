@@ -1,8 +1,8 @@
 import { useTranslation } from 'react-i18next';
-/* eslint-disable jsx-a11y/no-noninteractive-element-interactions */
 import React, { useCallback, useRef } from 'react';
 import classNames from 'classnames';
-import { Box, Chip, Header, Icon, IconButton, Icons, Spinner, Text, as } from 'folds';
+import { Box, Chip, Icon, IconButton, Icons, Spinner, Text, as } from 'folds';
+import { Header } from '../glass/GlassPrimitives';
 import * as css from './ImageViewer.css';
 import { useZoom } from '../../hooks/useZoom';
 import { usePan } from '../../hooks/usePan';
@@ -20,7 +20,7 @@ export const ImageViewer = as<'div', ImageViewerProps>(
   ({ className, alt, src, requestClose, ...props }, ref) => {
     const { t } = useTranslation();
     const { zoom, zoomIn, zoomOut, setZoom, zoomTargetRef, isZooming } = useZoom(0.2);
-    const { pan, cursor, onMouseDown } = usePan(zoom !== 1);
+    const { pan, cursor, isPanning, ...panHandlers } = usePan(zoom !== 1);
     const downloadedFileRef = useRef<{ src: string; blob: Blob }>();
 
     const [downloadState, download] = useAsyncCallback(
@@ -109,17 +109,18 @@ export const ImageViewer = as<'div', ImageViewerProps>(
           justifyContent="Center"
           alignItems="Center"
           ref={zoomTargetRef}
+          {...panHandlers}
         >
           <img
             className={css.ImageViewerImg}
             style={{
               cursor,
-              transform: `scale(${zoom}) translate(${pan.translateX}px, ${pan.translateY}px)`,
-              transition: isZooming ? 'none' : undefined,
+              transform: `translate(${pan.translateX}px, ${pan.translateY}px) scale(${zoom})`,
+              transition: isZooming || isPanning ? 'none' : undefined,
             }}
             src={src}
             alt={alt}
-            onMouseDown={onMouseDown}
+            draggable={false}
           />
         </Box>
       </Box>

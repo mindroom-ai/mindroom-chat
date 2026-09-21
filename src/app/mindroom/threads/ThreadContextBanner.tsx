@@ -17,6 +17,7 @@ import { isConfirmedMatrixEventId } from './threadRouteUtils';
 import { getThreadResolverDisplayName } from './threadResolutionAttribution';
 import * as css from './ThreadContextBanner.css';
 import { ThreadApprovalPermissions } from '../messages/ThreadApprovalControls';
+import { useLiquidGlass } from '../../components/glass/liquid/useLiquidGlass';
 
 export interface ThreadContextBannerProps {
   room: Room;
@@ -65,6 +66,7 @@ export function ThreadContextBanner({
   onExitThread,
 }: ThreadContextBannerProps) {
   const { t } = useTranslation();
+  const glassRef = useLiquidGlass<HTMLDivElement>();
   const rootEventId = useThreadRootEvent(room, threadId);
   const { scheduledTaskCount, nextScheduledTs, cronDescription, scheduledDisplayText } =
     useThreadHeaderInfo(room, threadId);
@@ -137,7 +139,7 @@ export function ThreadContextBanner({
   const hasTags = headerModel.displayTags.length > 0;
 
   return (
-    <div className={headerModel.isResolved ? css.BannerResolved : css.Banner}>
+    <div ref={glassRef} className={headerModel.isResolved ? css.BannerResolved : css.Banner}>
       <div className={css.TitleRow}>
         <IconButton size="300" radii="300" onClick={onExitThread}>
           <Icon data-directional src={Icons.ArrowLeft} />

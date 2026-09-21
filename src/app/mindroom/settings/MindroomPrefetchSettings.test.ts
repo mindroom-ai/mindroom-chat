@@ -58,13 +58,8 @@ vi.mock('focus-trap-react', () => ({
 }));
 
 vi.mock('../../components/sequence-card', () => ({
-  SequenceCard: ({
-    children,
-    className,
-  }: {
-    children?: React.ReactNode;
-    className?: string;
-  }) => React.createElement('section', { className }, children),
+  SequenceCard: ({ children, className }: { children?: React.ReactNode; className?: string }) =>
+    React.createElement('section', { className }, children),
 }));
 
 vi.mock('../../components/setting-tile', () => ({
@@ -121,7 +116,7 @@ afterEach(() => {
 });
 
 describe('MindroomPrefetchSettings (CINNY-207 P6.1 / D4)', () => {
-  it('renders both tiles with the D4 copy', async () => {
+  it('renders scope opt-in without obsolete depth control', async () => {
     const { MindroomPrefetchSettings } = await import('./MindroomPrefetchSettings');
 
     let renderer: ReactTestRenderer | undefined;
@@ -133,73 +128,10 @@ describe('MindroomPrefetchSettings (CINNY-207 P6.1 / D4)', () => {
 
     // Two SequenceCards render as `<section className="settings-card">`.
     const sections = renderer!.root.findAllByType('section');
-    expect(sections).toHaveLength(2);
+    expect(sections).toHaveLength(1);
     expect(sections.every((el) => el.props.className === 'settings-card')).toBe(true);
     expect(renderer!.root.findByProps({ 'data-title': 'Prefetch scope' })).toBeDefined();
-    expect(
-      renderer!.root.findByProps({ 'data-title': 'Current room history depth' })
-    ).toBeDefined();
-  });
-
-  it('clamps a depth below the minimum up to ROOM_TAIL_PREFETCH_DEPTH', async () => {
-    const { PrefetchDepthInput } = await import('./MindroomPrefetchSettings');
-    let renderer: ReactTestRenderer | undefined;
-    act(() => {
-      renderer = create(React.createElement(PrefetchDepthInput));
-    });
-    const input = renderer!.root.findByType('input');
-
-    act(() => {
-      input.props.onChange({ target: { value: '15' } });
-    });
-    act(() => {
-      renderer!.root.findByType('input').props.onBlur();
-    });
-
-    expect(state.setPrefetchDepth).toHaveBeenCalledWith(200);
-  });
-
-  it('clamps a depth above the maximum down to CURRENT_ROOM_DEEP_HISTORY_TARGET', async () => {
-    const { PrefetchDepthInput } = await import('./MindroomPrefetchSettings');
-    let renderer: ReactTestRenderer | undefined;
-    act(() => {
-      renderer = create(React.createElement(PrefetchDepthInput));
-    });
-    const input = renderer!.root.findByType('input');
-
-    act(() => {
-      input.props.onChange({ target: { value: '99999' } });
-    });
-    act(() => {
-      renderer!.root.findByType('input').props.onBlur();
-    });
-
-    expect(state.setPrefetchDepth).toHaveBeenCalledWith(10000);
-  });
-
-  it('resets the depth input on Escape', async () => {
-    state.prefetchDepth = 500;
-    const { PrefetchDepthInput } = await import('./MindroomPrefetchSettings');
-    let renderer: ReactTestRenderer | undefined;
-    act(() => {
-      renderer = create(React.createElement(PrefetchDepthInput));
-    });
-
-    act(() => {
-      renderer!.root.findByType('input').props.onChange({ target: { value: '9999' } });
-    });
-    const editedInput = renderer!.root.findByType('input');
-    expect(editedInput.props.value).toBe('9999');
-
-    act(() => {
-      editedInput.props.onKeyDown({
-        key: 'Escape',
-        stopPropagation: () => undefined,
-      });
-    });
-
-    expect(renderer!.root.findByType('input').props.value).toBe('500');
-    expect(state.setPrefetchDepth).not.toHaveBeenCalled();
+    expect(renderer!.root.findAllByType('input')).toHaveLength(0);
   });
 
   it('commits a scope selection via the MenuItem literal', async () => {
@@ -219,9 +151,9 @@ describe('MindroomPrefetchSettings (CINNY-207 P6.1 / D4)', () => {
     expect(allRoomsSpan).toBeDefined();
 
     // Walk back up to the MenuItem button that wraps this label.
-    const allRoomsButton = renderer!.root.findAllByType('button').find((btn) =>
-      btn.findAll((node) => node === allRoomsSpan).length > 0
-    );
+    const allRoomsButton = renderer!.root
+      .findAllByType('button')
+      .find((btn) => btn.findAll((node) => node === allRoomsSpan).length > 0);
     expect(allRoomsButton).toBeDefined();
 
     act(() => {
@@ -229,23 +161,5 @@ describe('MindroomPrefetchSettings (CINNY-207 P6.1 / D4)', () => {
     });
 
     expect(state.setPrefetchScope).toHaveBeenCalledWith('all-rooms');
-  });
-
-  it('commits the depth on Enter', async () => {
-    const { PrefetchDepthInput } = await import('./MindroomPrefetchSettings');
-    let renderer: ReactTestRenderer | undefined;
-    act(() => {
-      renderer = create(React.createElement(PrefetchDepthInput));
-    });
-    const input = renderer!.root.findByType('input');
-
-    act(() => {
-      input.props.onKeyDown({
-        key: 'Enter',
-        target: { value: '2500' },
-      });
-    });
-
-    expect(state.setPrefetchDepth).toHaveBeenCalledWith(2500);
   });
 });

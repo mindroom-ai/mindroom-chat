@@ -49,6 +49,7 @@ type LedgerBaseline = {
   eventCount: number;
   lastActivityTs: number;
   federated: boolean | undefined;
+  pinned?: boolean;
 };
 
 type LedgerAccumulator = {
@@ -78,6 +79,7 @@ const readOrBootstrapBaseline = (
         eventCount: currentLedger.eventCount,
         lastActivityTs: currentLedger.lastActivityTs,
         federated: currentLedger.federated,
+        pinned: currentLedger.pinned,
       });
       return;
     }
@@ -119,7 +121,7 @@ const writeUpdatedLedger = (
   const nextCount = Math.max(0, baseline.eventCount + acc.countDelta);
   const nextLastActivityTs = Math.max(baseline.lastActivityTs, acc.latestActivityTsSeen);
 
-  if (nextCount === 0 && nextBytes === 0) {
+  if (nextCount === 0 && nextBytes === 0 && !baseline.pinned) {
     ledgerStore.delete(roomId);
     return;
   }
@@ -129,6 +131,7 @@ const writeUpdatedLedger = (
     approxBytes: nextBytes,
     eventCount: nextCount,
     lastActivityTs: nextLastActivityTs,
+    ...(baseline.pinned !== undefined ? { pinned: baseline.pinned } : {}),
     ...(baseline.federated !== undefined ? { federated: baseline.federated } : {}),
   };
   ledgerStore.put(nextLedger);
@@ -268,9 +271,7 @@ export const noteRoomFederated = async (
 
 // ---------- Read-only accessor used by the eviction job (commit 3) ----------
 
-export const readLedgerSnapshot = async (
-  db: IDBDatabase
-): Promise<CachedRoomLedgerRecord[]> => {
+export const readLedgerSnapshot = async (db: IDBDatabase): Promise<CachedRoomLedgerRecord[]> => {
   return new Promise((resolve, reject) => {
     const transaction = db.transaction(ROOM_LEDGER_STORE, 'readonly');
     const store = transaction.objectStore(ROOM_LEDGER_STORE);

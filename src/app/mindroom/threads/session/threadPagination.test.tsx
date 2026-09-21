@@ -59,13 +59,14 @@ const fixture = () => {
   const clearCapture = vi.fn(() => {
     order.push('clear');
   });
+  const persist = vi.fn(() => {
+    order.push('persist');
+  });
   const runtime: ThreadOpenRuntime = {
     mx,
     room,
     sessionId: 'session',
-    persist: vi.fn(() => {
-      order.push('persist');
-    }),
+    beginCacheWrite: () => persist,
     reconcile: vi.fn(),
     seed: { waitForExistingOrQueued: () => undefined },
     render: {
@@ -124,7 +125,7 @@ const fixture = () => {
       mx,
       room: currentRoom,
       sessionId: 'session',
-      persistThreadEventCache: runtime.persist,
+      beginThreadCacheWrite: runtime.beginCacheWrite,
       thread: withThread ? thread : undefined,
       threadEvents: [],
       threadHasMoreCachedBack: true,
@@ -394,7 +395,7 @@ describe('pagination boundaries and commit ordering', () => {
     expect(f.current().snapshot.forward).toBe('pending');
     expect(f.current().isPending('forward')).toBe(true);
     expect(f.runtime.render.invalidateTimeline).not.toHaveBeenCalled();
-    expect(f.runtime.persist).toHaveBeenCalledWith(
+    expect(f.runtime.beginCacheWrite()).toHaveBeenCalledWith(
       '$a',
       f.thread.events,
       f.thread.rootEvent,
@@ -428,7 +429,7 @@ describe('pagination boundaries and commit ordering', () => {
       await request;
     });
     expect(f.thread.events).toContain(delivered);
-    expect(f.runtime.persist).toHaveBeenCalledWith(
+    expect(f.runtime.beginCacheWrite()).toHaveBeenCalledWith(
       '$a',
       f.thread.events,
       f.thread.rootEvent,
@@ -459,7 +460,7 @@ describe('pagination boundaries and commit ordering', () => {
     });
     expect(f.order).toEqual(['clear', 'capture', 'wait', 'capture', 'append', 'invalidate']);
     expect(vi.mocked(f.runtime.render.append).mock.calls[0][1]).toBe(cached.events);
-    expect(f.runtime.persist).not.toHaveBeenCalled();
+    expect(f.runtime.beginCacheWrite()).not.toHaveBeenCalled();
     expect(f.current().anchor).toBe('$anchor');
     f.unmount();
   });
@@ -505,7 +506,7 @@ describe('pagination boundaries and commit ordering', () => {
       if (source === 'cache') {
         expect(f.runtime.render.append).not.toHaveBeenCalled();
         expect(f.runtime.render.invalidateTimeline).not.toHaveBeenCalled();
-        expect(f.runtime.persist).not.toHaveBeenCalled();
+        expect(f.runtime.beginCacheWrite()).not.toHaveBeenCalled();
         // Begin, each of six failed recaptures, and failed finish clear their own ledger capture.
         expect(f.clearCapture).toHaveBeenCalledTimes(8);
       } else {

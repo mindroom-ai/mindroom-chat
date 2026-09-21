@@ -51,6 +51,7 @@ export const renderMindroomPinnedToolApprovalEvent = (
 
   return (
     <RenderMessageContent
+      mEvent={event}
       displayName={displayName}
       eventType={event.getType()}
       roomId={roomId}

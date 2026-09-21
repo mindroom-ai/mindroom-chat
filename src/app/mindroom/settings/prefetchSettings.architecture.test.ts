@@ -120,7 +120,7 @@ describe('CINNY-207 P6.1 / D4 — legacy preload setting removal', () => {
     expect(source).toContain('prefetchScope');
     expect(source).toContain('prefetchDepth');
     expect(source).toContain("from '../engine/prefetchPolicy'");
-    expect(source).toContain('MINDROOM_SETTINGS_STORE_VERSION = 1');
+    expect(source).toContain('MINDROOM_SETTINGS_STORE_VERSION = 2');
   });
 
   it('keeps fork settings out of generic state and migrates explicitly at app bootstrap', () => {

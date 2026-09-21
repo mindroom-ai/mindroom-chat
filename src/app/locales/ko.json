@@ -885,7 +885,7 @@
       "login": "로그인",
       "thisClientRequiresSignInWithAppleConfigureTheHomeserverSsoProvider": "이 클라이언트는 Apple 로그인이 필요합니다. 홈서버 SSO 공급자 목록에 Apple을 추가하세요.",
       "register": "가입",
-      "accountLink": "계정이 없나요? <link>가입</link>",
+      "accountLink": "계정이 없나요? <authLink>가입</authLink>",
       "passwordLoginIsDisabledOnValue1UseSsoToSignIn": "\"{{value1}}\"에서는 비밀번호 로그인이 비활성화되어 있습니다. SSO로 로그인하세요.",
       "thisClientDoesNotSupportLoginOnValue1ServerPasswordAndSso": "이 클라이언트는 \"{{value1}}\" 서버 로그인을 지원하지 않습니다. 비밀번호 또는 SSO 로그인 방식을 찾지 못했습니다."
     },
@@ -948,7 +948,7 @@
       "thisApplicationDoesNotSupportRegistrationOnThisHomeserver": "이 애플리케이션은 이 홈서버에서의 등록을 지원하지 않습니다.",
       "ssoRegistrationIsRequiredOnThisHomeserverButNoSsoProvidersWere": "이 홈서버에서는 SSO 등록이 필요하지만 사용 가능한 SSO 공급자가 없습니다.",
       "login": "로그인",
-      "accountLink": "이미 계정이 있나요? <link>로그인</link>"
+      "accountLink": "이미 계정이 있나요? <authLink>로그인</authLink>"
     },
     "passwordResetForm": {
       "passwordHasBeenResetSuccessfullyPleaseLoginWithYourNewPassword": "비밀번호를 재설정했습니다. 새 비밀번호로 로그인하세요.",
@@ -963,7 +963,7 @@
     "resetPassword": {
       "resetPassword": "비밀번호 재설정",
       "login": "로그인",
-      "accountLink": "비밀번호가 기억났나요? <link>로그인</link>"
+      "accountLink": "비밀번호가 기억났나요? <authLink>로그인</authLink>"
     },
     "clientRoot": {
       "catchingUp": "동기화하는 중...",
@@ -1716,7 +1716,40 @@
         "advancedOptions": "고급 옵션",
         "compact": "간결",
         "threads": "스레드",
-        "classic": "클래식"
+        "classic": "클래식",
+        "offline": {
+          "title": "오프라인 접근",
+          "checking": "저장된 콘텐츠 확인 중…",
+          "unavailable": "이 기기에서는 저장된 콘텐츠를 사용할 수 없습니다.",
+          "notSaved": "이 대화방은 아직 오프라인용으로 저장되지 않았습니다.",
+          "downloading": "이 대화방을 오프라인용으로 다운로드하는 중…",
+          "offlinePause": "기기가 오프라인인 동안 저장이 일시 중지됩니다.",
+          "backgroundPause": "앱이 백그라운드에 있는 동안 저장이 일시 중지됩니다.",
+          "spacePause": "보호된 콘텐츠가 저장 공간 한도를 채워 저장이 일시 중지되었습니다.",
+          "readOnlyPause": "저장 공간 오류가 발생했습니다. 저장을 재개하려면 앱을 다시 여세요.",
+          "connectionPause": "이 연결에서는 자동 저장이 일시 중지됩니다.",
+          "errorPause": "오류로 인해 저장이 일시 중지되었습니다. 다시 시도하세요.",
+          "partialHistory": "이전 기록 중 일부가 저장되지 않았습니다.",
+          "inaccessibleHistory": "일부 기록에 현재 접근할 수 없습니다.",
+          "waitingForKeys": "키를 기다리는 암호화된 이벤트: {{count}}",
+          "unresolvedRelations": "해결되지 않은 수정 또는 답장: {{count}}",
+          "missingEssential": "누락된 필수 메시지 본문: {{count}}",
+          "historyEntries": "저장된 기록 항목: {{count}}",
+          "attachments": "첨부 파일: 저장됨 {{saved}}, 누락 {{missing}}.",
+          "storageUsed": "첨부 파일이 사용한 저장 공간: {{size}}",
+          "pinFailed": "‘오프라인으로 유지’를 업데이트하지 못했습니다.",
+          "includeAllMedia": "모든 미디어 포함",
+          "keepOffline": "오프라인으로 유지",
+          "keepOfflineDescription": "자동 정리 중 이 대화방의 저장된 미디어를 보호합니다.",
+          "cancelDownload": "다운로드 취소",
+          "downloadEntireRoom": "대화방 전체 다운로드",
+          "clearDownloadedContent": "다운로드한 콘텐츠 지우기",
+          "clearTitle": "다운로드한 콘텐츠를 지울까요?",
+          "cancel": "취소",
+          "clearDescription": "이 대화방의 저장된 기록과 첨부 파일이 이 기기에서 삭제됩니다.",
+          "clearFailed": "다운로드한 콘텐츠를 지우지 못했습니다.",
+          "clearConfirm": "콘텐츠 지우기"
+        }
       },
       "permissions": {
         "permissions": "권한",
@@ -2070,6 +2103,7 @@
         "clearing": "지우는 중...",
         "credits": "제작 및 기여",
         "deepDiagnosticTracing": "상세 진단 추적",
+        "deepTraceMemoryOnly": "추적 저장소를 사용할 수 없어 메모리에 기록하고 있습니다. 앱을 다시 시작하면 최근 이벤트가 사라지므로 다시 시작하기 전에 내보내세요.",
         "deepTraceEnabledStorageUnavailable": "활성화되었지만 현재 추적 저장소를 사용할 수 없습니다.",
         "deepTraceOff": "꺼짐. 멈춤 현상을 재현하기 전에 활성화하면 성능, Matrix, 네트워크, 수명 주기 및 상호작용의 시간 정보를 기록합니다.",
         "deepTracePreferenceSaveFailed": "{{description}} 이 세션에서는 꺼졌지만 설정을 저장하지 못해 다시 시작하면 활성화될 수 있습니다.",
@@ -2144,6 +2178,31 @@
     }
   },
   "mindroomUi": {
+    "models": {
+      "modelPicker": {
+        "chooseModel": "Choose model",
+        "roomDefault": "Room default",
+        "modelForThread": "Model for this thread",
+        "appliesToThread": "Applies to all agents and teams for future replies in this thread.",
+        "search": "Search models",
+        "close": "Close model picker",
+        "useRoomDefault": "Use room default",
+        "roomDefaultDescription": "Let each agent use its configured model.",
+        "models": "Models",
+        "runtime": "Runtime",
+        "chooseRuntime": "Choose a runtime",
+        "runtimeLabel": "{{userId}} on {{deviceId}}",
+        "refresh": "Refresh models",
+        "retry": "Retry",
+        "loading": "Loading models",
+        "pending": "Waiting for model change",
+        "noResults": "No matching models",
+        "commandFallback": "You can still send !model with a model key in this thread.",
+        "inheritedModels": "Room defaults by agent: {{models}}",
+        "futureReplies": "Changes apply to future replies.",
+        "threadModel": "Thread model"
+      }
+    },
     "voice": {
       "discardRecording": "음성 녹음 삭제",
       "pauseRecording": "음성 녹음 일시 중지",
@@ -2406,6 +2465,8 @@
         "viewReactions": "반응 보기"
       },
       "mindroomHtmlBlocks": {
+        "loadingToolDetails": "불러오는 중…",
+        "toolDetailsUnavailable": "도구 세부 정보를 사용할 수 없습니다.",
         "pastedText": "붙여넣은 텍스트",
         "characterCount_one": "{{formattedCount}}자",
         "characterCount_other": "{{formattedCount}}자",
@@ -2601,7 +2662,8 @@
       "mindroomTab": {
         "localMindroom": "로컬 MindRoom"
       },
-      "resizeNavigationPanel": "탐색 패널 크기 조절"
+      "resizeNavigationPanel": "탐색 패널 크기 조절",
+      "resizeMemberPanel": "멤버 패널 크기 조절"
     },
     "threads": {
       "compactRoomView": {
@@ -2635,6 +2697,8 @@
         "youDoNotHavePermissionToPostInThisRoom": "이 방에 게시할 권한이 없습니다"
       },
       "mindroomRoomViewHeader": {
+        "showComputer": "컴퓨터 표시",
+        "hideComputer": "컴퓨터 숨기기",
         "notifications": "알림",
         "compact": "간결",
         "threads": "스레드",
@@ -2770,6 +2834,54 @@
         "threadInRoom": "{{roomName}}의 스레드",
         "thread": "스레드"
       }
+    },
+    "uiActions": {
+      "viewComputer": "컴퓨터 보기",
+      "openMembers": "멤버 열기",
+      "computerUnavailable": "이 에이전트의 컴퓨터를 사용할 수 없습니다.",
+      "releaseControl": "다른 화면을 열기 전에 컴퓨터 제어를 해제하세요.",
+      "openConversation": "방 대화에서 이 요청을 여세요.",
+      "settingsUnavailable": "이 설정 항목을 열려면 단순 모드를 끄세요."
     }
+  },
+  "roomSchedules": {
+    "title": "예약된 작업",
+    "openLabel": "예약된 작업 ({{total}}개)",
+    "empty": "이 방에는 예약된 작업이 없습니다.",
+    "emptyHint": "MindRoom 에이전트에게 이 방에서 작업을 예약하도록 요청하세요.",
+    "prompt": "프롬프트",
+    "promptUnavailable": "프롬프트를 사용할 수 없음",
+    "once": "일회성",
+    "recurring": "반복",
+    "executionTime": "실행 시간",
+    "unknownTime": "실행 시간을 알 수 없음",
+    "awaitingExecution": "실행 대기 중",
+    "recurrence": "반복 주기",
+    "silent": "조용히 실행",
+    "conditional": "조건부",
+    "newThread": "새 스레드",
+    "roomTimeline": "방 타임라인",
+    "openThread": "스레드 열기",
+    "owner": "작업 소유자",
+    "createdAt": "생성됨",
+    "updatedAt": "업데이트됨",
+    "model": "모델",
+    "inheritedModel": "에이전트, 방 또는 스레드 설정에서 가져옴",
+    "taskId": "작업 ID",
+    "historyLimit": "기록 한도",
+    "fullHistory": "전체 기록",
+    "noHistory": "기록 없음",
+    "recentMessages": "최근 메시지: {{total}}개",
+    "close": "닫기"
+  },
+  "archivedRooms": {
+    "title": "보관된 방",
+    "archive": "방 보관",
+    "restore": "방 복원",
+    "restoreNamed": "{{room}} 복원",
+    "failed": "변경 사항을 저장하지 못했습니다. 다시 시도하세요.",
+    "close": "보관된 방 닫기",
+    "description": "방을 나가지 않고 사이드바에서 숨깁니다. 여기에서 열거나 복원할 수 있습니다.",
+    "empty": "보관된 방이 없습니다."
   }
 }

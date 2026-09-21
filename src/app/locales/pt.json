@@ -890,7 +890,7 @@
       "login": "Iniciar sessão",
       "thisClientRequiresSignInWithAppleConfigureTheHomeserverSsoProvider": "Este cliente requer Iniciar sessão com a Apple. Configure a lista de fornecedores SSO do servidor doméstico para incluir a Apple.",
       "register": "Registar",
-      "accountLink": "Não tem uma conta? <link>Registe-se</link>",
+      "accountLink": "Não tem uma conta? <authLink>Registe-se</authLink>",
       "passwordLoginIsDisabledOnValue1UseSsoToSignIn": "O início de sessão com palavra-passe está desativado em “{{value1}}”. Use SSO para iniciar sessão.",
       "thisClientDoesNotSupportLoginOnValue1ServerPasswordAndSso": "Este cliente não permite iniciar sessão no servidor “{{value1}}”. Não foi encontrado um método de início de sessão por palavra-passe ou SSO."
     },
@@ -953,7 +953,7 @@
       "thisApplicationDoesNotSupportRegistrationOnThisHomeserver": "Esta aplicação não suporta o registo neste servidor doméstico.",
       "ssoRegistrationIsRequiredOnThisHomeserverButNoSsoProvidersWere": "Este servidor doméstico requer registo por SSO, mas não anunciou fornecedores SSO.",
       "login": "Iniciar sessão",
-      "accountLink": "Já tem uma conta? <link>Inicie sessão</link>"
+      "accountLink": "Já tem uma conta? <authLink>Inicie sessão</authLink>"
     },
     "passwordResetForm": {
       "passwordHasBeenResetSuccessfullyPleaseLoginWithYourNewPassword": "A palavra-passe foi reposta. Inicie sessão com a nova palavra-passe.",
@@ -968,7 +968,7 @@
     "resetPassword": {
       "resetPassword": "Repor palavra-passe",
       "login": "Iniciar sessão",
-      "accountLink": "Lembra-se da sua palavra-passe? <link>Inicie sessão</link>"
+      "accountLink": "Lembra-se da sua palavra-passe? <authLink>Inicie sessão</authLink>"
     },
     "clientRoot": {
       "catchingUp": "A atualizar...",
@@ -1736,7 +1736,40 @@
         "advancedOptions": "Opções avançadas",
         "compact": "Compacto",
         "threads": "Tópicos",
-        "classic": "Clássico"
+        "classic": "Clássico",
+        "offline": {
+          "title": "Acesso offline",
+          "checking": "A verificar o conteúdo guardado…",
+          "unavailable": "O conteúdo guardado não está disponível neste dispositivo.",
+          "notSaved": "Esta sala ainda não foi guardada para utilização offline.",
+          "downloading": "A transferir esta sala para utilização offline…",
+          "offlinePause": "A gravação está em pausa enquanto o dispositivo estiver offline.",
+          "backgroundPause": "A gravação está em pausa enquanto a aplicação estiver em segundo plano.",
+          "spacePause": "A gravação está em pausa porque o conteúdo protegido ocupa todo o espaço atribuído.",
+          "readOnlyPause": "Falha no armazenamento. Reabra a aplicação para retomar a gravação.",
+          "connectionPause": "A gravação automática está em pausa nesta ligação.",
+          "errorPause": "A gravação foi interrompida após um erro. Tente novamente.",
+          "partialHistory": "Parte do histórico anterior não foi guardada.",
+          "inaccessibleHistory": "Parte do histórico está atualmente inacessível.",
+          "waitingForKeys": "Eventos encriptados à espera de chaves: {{count}}",
+          "unresolvedRelations": "Edições ou respostas por resolver: {{count}}",
+          "missingEssential": "Corpos de mensagens essenciais em falta: {{count}}",
+          "historyEntries": "Entradas de histórico guardadas: {{count}}",
+          "attachments": "Anexos: {{saved}} guardados, {{missing}} em falta.",
+          "storageUsed": "Armazenamento usado por anexos: {{size}}",
+          "pinFailed": "Não foi possível atualizar «Manter offline».",
+          "includeAllMedia": "Incluir todos os ficheiros multimédia",
+          "keepOffline": "Manter offline",
+          "keepOfflineDescription": "Proteger os ficheiros multimédia guardados desta sala durante a limpeza automática.",
+          "cancelDownload": "Cancelar transferência",
+          "downloadEntireRoom": "Transferir a sala inteira",
+          "clearDownloadedContent": "Limpar conteúdo transferido",
+          "clearTitle": "Limpar o conteúdo transferido?",
+          "cancel": "Cancelar",
+          "clearDescription": "O histórico e os anexos guardados desta sala serão removidos deste dispositivo.",
+          "clearFailed": "Não foi possível limpar o conteúdo transferido.",
+          "clearConfirm": "Limpar conteúdo"
+        }
       },
       "permissions": {
         "permissions": "Permissões",
@@ -2097,6 +2130,7 @@
         "clearing": "A limpar...",
         "credits": "Créditos",
         "deepDiagnosticTracing": "Rastreio de diagnóstico detalhado",
+        "deepTraceMemoryOnly": "A gravar na memória porque o armazenamento de rastreio está indisponível. Exporte antes de reiniciar a aplicação; estes eventos recentes perdem-se ao reiniciar.",
         "deepTraceEnabledStorageUnavailable": "Ativado, mas o armazenamento de rastreio está indisponível neste momento.",
         "deepTraceOff": "Desativado. Ative antes de reproduzir um bloqueio para registar o desempenho, Matrix, a rede, o ciclo de vida e os tempos de interação.",
         "deepTracePreferenceSaveFailed": "{{description}} Desativado nesta sessão, mas não foi possível guardar a preferência e poderá voltar a ativar-se após reiniciar.",
@@ -2171,6 +2205,31 @@
     }
   },
   "mindroomUi": {
+    "models": {
+      "modelPicker": {
+        "chooseModel": "Choose model",
+        "roomDefault": "Room default",
+        "modelForThread": "Model for this thread",
+        "appliesToThread": "Applies to all agents and teams for future replies in this thread.",
+        "search": "Search models",
+        "close": "Close model picker",
+        "useRoomDefault": "Use room default",
+        "roomDefaultDescription": "Let each agent use its configured model.",
+        "models": "Models",
+        "runtime": "Runtime",
+        "chooseRuntime": "Choose a runtime",
+        "runtimeLabel": "{{userId}} on {{deviceId}}",
+        "refresh": "Refresh models",
+        "retry": "Retry",
+        "loading": "Loading models",
+        "pending": "Waiting for model change",
+        "noResults": "No matching models",
+        "commandFallback": "You can still send !model with a model key in this thread.",
+        "inheritedModels": "Room defaults by agent: {{models}}",
+        "futureReplies": "Changes apply to future replies.",
+        "threadModel": "Thread model"
+      }
+    },
     "voice": {
       "discardRecording": "Descartar gravação de voz",
       "pauseRecording": "Pausar gravação de voz",
@@ -2437,6 +2496,8 @@
         "viewReactions": "Ver reações"
       },
       "mindroomHtmlBlocks": {
+        "loadingToolDetails": "Ainda carregando…",
+        "toolDetailsUnavailable": "Detalhes da ferramenta indisponíveis.",
         "pastedText": "Texto colado",
         "characterCount_one": "{{formattedCount}} caráter",
         "characterCount_other": "{{formattedCount}} carateres",
@@ -2647,7 +2708,8 @@
       "mindroomTab": {
         "localMindroom": "MindRoom local"
       },
-      "resizeNavigationPanel": "Redimensionar painel de navegação"
+      "resizeNavigationPanel": "Redimensionar painel de navegação",
+      "resizeMemberPanel": "Redimensionar painel de membros"
     },
     "threads": {
       "compactRoomView": {
@@ -2681,6 +2743,8 @@
         "youDoNotHavePermissionToPostInThisRoom": "Não tem permissão para publicar nesta sala"
       },
       "mindroomRoomViewHeader": {
+        "showComputer": "Mostrar computador",
+        "hideComputer": "Ocultar computador",
         "notifications": "Notificações",
         "compact": "Compacto",
         "threads": "Tópicos",
@@ -2823,6 +2887,54 @@
         "threadInRoom": "Tópico em {{roomName}}",
         "thread": "Tópico"
       }
+    },
+    "uiActions": {
+      "viewComputer": "Ver computador",
+      "openMembers": "Abrir membros",
+      "computerUnavailable": "O computador deste agente não está disponível.",
+      "releaseControl": "Libere o controle do computador antes de abrir outra visualização.",
+      "openConversation": "Abra esta solicitação pela conversa da sala.",
+      "settingsUnavailable": "Desative o modo simples para abrir esta seção das configurações."
     }
+  },
+  "roomSchedules": {
+    "title": "Tarefas agendadas",
+    "openLabel": "Tarefas agendadas ({{total}})",
+    "empty": "Não há tarefas agendadas nesta sala.",
+    "emptyHint": "Peça a um agente do MindRoom para agendar uma tarefa aqui.",
+    "prompt": "Instrução",
+    "promptUnavailable": "Instrução indisponível",
+    "once": "Pontual",
+    "recurring": "Recorrente",
+    "executionTime": "Hora de execução",
+    "unknownTime": "Hora de execução indisponível",
+    "awaitingExecution": "A aguardar execução",
+    "recurrence": "Recorrência",
+    "silent": "Silenciosa",
+    "conditional": "Condicional",
+    "newThread": "Novo tópico",
+    "roomTimeline": "Cronologia da sala",
+    "openThread": "Abrir tópico",
+    "owner": "Proprietário da tarefa",
+    "createdAt": "Criada",
+    "updatedAt": "Atualizada",
+    "model": "Modelo",
+    "inheritedModel": "Das definições do agente, da sala ou do tópico",
+    "taskId": "ID da tarefa",
+    "historyLimit": "Limite do histórico",
+    "fullHistory": "Histórico completo",
+    "noHistory": "Sem histórico",
+    "recentMessages": "Mensagens recentes: {{total}}",
+    "close": "Fechar"
+  },
+  "archivedRooms": {
+    "title": "Salas arquivadas",
+    "archive": "Arquivar sala",
+    "restore": "Restaurar sala",
+    "restoreNamed": "Restaurar {{room}}",
+    "failed": "Não foi possível salvar as alterações. Tente novamente.",
+    "close": "Fechar salas arquivadas",
+    "description": "Oculte salas da barra lateral sem sair delas. Abra ou restaure as salas aqui.",
+    "empty": "Nenhuma sala arquivada."
   }
 }

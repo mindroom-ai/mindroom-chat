@@ -22,7 +22,6 @@ import {
 import {
   Box,
   Button,
-  Dialog,
   Overlay,
   OverlayBackdrop,
   OverlayCenter,
@@ -33,6 +32,7 @@ import {
   config,
 } from 'folds';
 import FocusTrap from 'focus-trap-react';
+import { Dialog } from '../glass/GlassPrimitives';
 
 import { Membership } from '../../../types/matrix/room';
 import { AsyncState, AsyncStatus, useAsyncCallback } from '../../hooks/useAsyncCallback';

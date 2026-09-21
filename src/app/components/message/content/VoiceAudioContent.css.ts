@@ -1,5 +1,6 @@
 import { style } from '@vanilla-extract/css';
 import { DefaultReset, color, config, toRem } from 'folds';
+import { glassShadow, glassSurface } from '../../../styles/Glass.css';
 
 export const Root = style({
   width: toRem(400),
@@ -9,6 +10,7 @@ export const Root = style({
 
 export const Capsule = style([
   DefaultReset,
+  glassSurface({ level: 'control', variant: 'SurfaceVariant' }),
   {
     display: 'grid',
     gridTemplateColumns: `${toRem(44)} minmax(0, 1fr) auto ${toRem(44)} ${toRem(24)}`,
@@ -22,10 +24,10 @@ export const Capsule = style([
     borderRadius: toRem(16),
     backgroundColor: color.SurfaceVariant.Container,
     color: color.SurfaceVariant.OnContainer,
-    boxShadow: `inset 0 0 0 ${config.borderWidth.B300} ${color.SurfaceVariant.ContainerLine}`,
+    boxShadow: glassShadow,
     selectors: {
       '&[data-playing="true"]': {
-        boxShadow: `inset 0 0 0 ${config.borderWidth.B300} ${color.Primary.Main}`,
+        boxShadow: `inset 0 0 0 ${config.borderWidth.B300} ${color.Primary.Main}, ${glassShadow}`,
       },
     },
   },
@@ -51,6 +53,9 @@ export const PlayButton = style({
   flexShrink: 0,
   padding: 0,
   borderRadius: '50%',
+  // Keep the 44 px touch target around a quieter 32 px visible disc.
+  border: `${toRem(6)} solid transparent`,
+  backgroundClip: 'padding-box',
 });
 
 export const PlayIcon = style({
@@ -73,7 +78,6 @@ export const Time = style({
   direction: 'ltr',
   whiteSpace: 'nowrap',
   fontSize: toRem(12),
-  opacity: 0.65,
 });
 
 export const RateCell = style({ gridArea: 'rate', display: 'flex', alignItems: 'center' });

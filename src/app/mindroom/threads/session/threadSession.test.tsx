@@ -6,6 +6,7 @@ import { useThreadSession } from './useThreadSession';
 import type { ThreadOpenRuntime, ThreadRoute, ThreadSession } from './threadSessionTypes';
 import { useThreadOpenLifecycleController } from '../threadOpenLifecycleController';
 import { loadThreadCachedSnapshot } from '../eventRepository';
+import * as timelineDebug from '../timelineDebug';
 
 vi.mock('../eventRepository', async (original) => ({
   ...(await original<typeof import('../eventRepository')>()),
@@ -56,11 +57,12 @@ const openFixture = () => {
   const bootstrap = vi.spyOn(mx, 'getThreadTimeline').mockResolvedValue(timeline);
   const context = vi.spyOn(mx, 'getEventTimeline').mockResolvedValue(timeline);
   const rendered = new Map<string, MatrixEvent>();
+  const persist = vi.fn();
   const runtime: ThreadOpenRuntime = {
     mx,
     room,
     sessionId: 'session',
-    persist: vi.fn(),
+    beginCacheWrite: () => persist,
     reconcile: vi.fn(async () => ({
       repaired: false,
       fetchedCount: 0,
@@ -205,6 +207,31 @@ describe('thread session targets', () => {
 });
 
 describe('thread session opening', () => {
+  it('paints cached replies while the SDK is still converting a sync gap token', async () => {
+    const fixture = openFixture();
+    const reset = deferred<void>();
+    Object.assign(fixture.runtime.room.getThread('$a')!, {
+      events: [],
+      flushPendingTimelineReset: vi.fn().mockReturnValueOnce(reset.promise),
+    });
+    vi.mocked(loadThreadCachedSnapshot).mockReset().mockResolvedValue(fixture.cache());
+    const view = renderOpen(fixture.runtime, {
+      roomId: fixture.runtime.room.roomId,
+      threadId: '$a',
+    });
+    try {
+      await act(async () => undefined);
+      expect(fixture.rendered.get('$reply')).toBe(fixture.reply);
+      expect(fixture.bootstrap).not.toHaveBeenCalled();
+      await act(async () => reset.resolve());
+      expect(view.session.snapshot.open.initialCacheHydrated).toBe(true);
+      expect(fixture.runtime.reconcile).toHaveBeenCalledTimes(1);
+    } finally {
+      view.unmount();
+      await act(async () => reset.resolve());
+    }
+  });
+
   it('publishes SDK root-ready tail coverage and one timeline revision/invalidation for a confirmed pending root', async () => {
     vi.mocked(loadThreadCachedSnapshot).mockReset();
     const fixture = openFixture();
@@ -246,7 +273,7 @@ describe('thread session opening', () => {
           );
       });
       // No token means the helper has already persisted, before its owner's continuation.
-      expect(fixture.runtime.persist).toHaveBeenCalledTimes(1);
+      expect(fixture.runtime.beginCacheWrite()).toHaveBeenCalledTimes(1);
       const snapshot = view.session.snapshot;
       await act(async () => {
         expect(await refresh).toBe(false);
@@ -317,6 +344,7 @@ describe('thread session opening', () => {
   });
 
   it('seeds local echo roots without server-thread resets or cache/bootstrap requests', () => {
+    const log = vi.spyOn(timelineDebug, 'logTimelineDebug');
     vi.mocked(loadThreadCachedSnapshot).mockReset();
     const fixture = openFixture();
     const local = new MatrixEvent({ ...fixture.root.event, event_id: '~local' });
@@ -331,6 +359,14 @@ describe('thread session opening', () => {
     expect(loadThreadCachedSnapshot).not.toHaveBeenCalled();
     expect(fixture.bootstrap).not.toHaveBeenCalled();
     view.unmount();
+    const phases = log.mock.calls.map((call) => call[1]);
+    log.mockRestore();
+    expect(phases).toEqual([
+      'thread-open-start',
+      'thread-open-complete',
+      'thread-open-settled',
+      'thread-open-close',
+    ]);
   });
 
   it('refreshes latest while closed only when requested and retains hydrated event identities', async () => {
@@ -349,7 +385,7 @@ describe('thread session opening', () => {
     expect(refreshed).toBe(true);
     expect(fixture.rendered.get('$reply')).toBe(fixture.reply);
     expect(view.session.snapshot.history.tailLoaded).toBe(true);
-    expect(fixture.runtime.persist).toHaveBeenCalledTimes(1);
+    expect(fixture.runtime.beginCacheWrite()).toHaveBeenCalledTimes(1);
     view.unmount();
   });
 

@@ -5,6 +5,8 @@ export type MindroomToolTraceEvent = {
   result_preview?: unknown;
 };
 
+export type MindroomToolMetadataStatus = 'loading' | 'unavailable';
+
 type MindroomToolTraceContent = {
   version?: unknown;
   events?: unknown;

@@ -1,4 +1,5 @@
-import { type IconSrc } from 'folds';
+import { Icons, type IconSrc } from 'folds';
+import { type TFunction } from 'i18next';
 import { ScreenSize } from '../../hooks/useScreenSize';
 import { type SettingsPage, SettingsPages } from '../../features/settings/settingsPages';
 import { getLocalMindroomSettingsMenuItems } from '../local-mindroom/settingsMenu';
@@ -10,8 +11,13 @@ type MindroomSettingsMenuItem = {
   icon: IconSrc;
 };
 
-export const getMindroomSettingsMenuItems = (enabled: boolean): MindroomSettingsMenuItem[] =>
-  getLocalMindroomSettingsMenuItems(enabled);
+export const getMindroomSettingsMenuItems = (
+  enabled: boolean,
+  t: TFunction
+): MindroomSettingsMenuItem[] => [
+  { page: 'archived-rooms', name: t('archivedRooms.title'), icon: Icons.Inbox },
+  ...getLocalMindroomSettingsMenuItems(enabled),
+];
 
 export const resolveMindroomSettingsInitialPage = (
   initialPage: SettingsPage | undefined,

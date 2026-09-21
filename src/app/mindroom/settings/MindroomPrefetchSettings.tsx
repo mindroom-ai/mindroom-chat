@@ -1,37 +1,13 @@
-import React, {
-  ChangeEventHandler,
-  KeyboardEventHandler,
-  MouseEventHandler,
-  useEffect,
-  useState,
-} from 'react';
-import {
-  Box,
-  Button,
-  Icon,
-  Icons,
-  Input,
-  Menu,
-  MenuItem,
-  PopOut,
-  RectCords,
-  Text,
-  config,
-  toRem,
-} from 'folds';
+import React, { MouseEventHandler, useState } from 'react';
+import { Box, Button, Icon, Icons, PopOut, RectCords, Text, config } from 'folds';
 import FocusTrap from 'focus-trap-react';
-import { isKeyHotkey } from 'is-hotkey';
 import { useTranslation } from 'react-i18next';
+import { Menu, MenuItem } from '../../components/glass/GlassPrimitives';
 import { SequenceCard } from '../../components/sequence-card';
 import { SettingTile } from '../../components/setting-tile';
 import { useSetting } from '../../state/hooks/settings';
 import { stopPropagation } from '../../utils/keyboard';
-import {
-  CURRENT_ROOM_DEEP_HISTORY_TARGET,
-  type PrefetchScope,
-  ROOM_TAIL_PREFETCH_DEPTH,
-  sanitizePrefetchDepth,
-} from '../engine/prefetchPolicy';
+import type { PrefetchScope } from '../engine/prefetchPolicy';
 import { mindroomSettingsAtom } from './mindroomSettings';
 
 // CINNY-207 P6.1 / D4: user-facing prefetch settings.
@@ -54,7 +30,6 @@ type MindroomPrefetchSettingsProps = {
 };
 
 const PREFETCH_SCOPE_ITEMS = [
-  { scope: 'my-server', labelKey: 'options.prefetchScope.myHomeserver' },
   { scope: 'all-rooms', labelKey: 'options.prefetchScope.allRooms' },
   { scope: 'current-room-only', labelKey: 'options.prefetchScope.currentRoomOnly' },
 ] as const satisfies ReadonlyArray<{ scope: PrefetchScope; labelKey: string }>;
@@ -69,16 +44,6 @@ export function MindroomPrefetchSettings({ className }: MindroomPrefetchSettings
           title={t('settings.general.messages.prefetchScope')}
           description={t('settings.general.messages.prefetchScopeDescription')}
           after={<SelectPrefetchScope />}
-        />
-      </SequenceCard>
-      <SequenceCard className={className} variant="SurfaceVariant" direction="Column">
-        <SettingTile
-          title={t('settings.general.messages.historyDepth')}
-          description={t('settings.general.messages.historyDepthDescription', {
-            min: ROOM_TAIL_PREFETCH_DEPTH,
-            max: CURRENT_ROOM_DEEP_HISTORY_TARGET,
-          })}
-          after={<PrefetchDepthInput />}
         />
       </SequenceCard>
     </>
@@ -152,61 +117,5 @@ export function SelectPrefetchScope() {
         }
       />
     </>
-  );
-}
-
-export function PrefetchDepthInput() {
-  const [prefetchDepth, setPrefetchDepth] = useSetting(mindroomSettingsAtom, 'prefetchDepth');
-  const [currentValue, setCurrentValue] = useState(`${prefetchDepth}`);
-
-  useEffect(() => {
-    setCurrentValue(prefetchDepth.toString());
-  }, [prefetchDepth]);
-
-  const commitValue = (raw: string) => {
-    const parsed = parseInt(raw, 10);
-    if (Number.isNaN(parsed)) return;
-    const safe = sanitizePrefetchDepth(parsed);
-    setPrefetchDepth(safe);
-    setCurrentValue(safe.toString());
-  };
-
-  const handleChange: ChangeEventHandler<HTMLInputElement> = (evt) => {
-    setCurrentValue(evt.target.value);
-  };
-
-  const handleKeyDown: KeyboardEventHandler<HTMLInputElement> = (evt) => {
-    if (isKeyHotkey('escape', evt)) {
-      evt.stopPropagation();
-      setCurrentValue(prefetchDepth.toString());
-    }
-    if (
-      isKeyHotkey('enter', evt) &&
-      'value' in evt.target &&
-      typeof evt.target.value === 'string'
-    ) {
-      commitValue(evt.target.value);
-    }
-  };
-
-  const handleBlur = () => {
-    commitValue(currentValue);
-  };
-
-  return (
-    <Input
-      style={{ width: toRem(100) }}
-      variant={prefetchDepth === parseInt(currentValue, 10) ? 'Secondary' : 'Success'}
-      size="300"
-      radii="300"
-      type="number"
-      min={ROOM_TAIL_PREFETCH_DEPTH.toString()}
-      max={CURRENT_ROOM_DEEP_HISTORY_TARGET.toString()}
-      value={currentValue}
-      onChange={handleChange}
-      onKeyDown={handleKeyDown}
-      onBlur={handleBlur}
-      outlined
-    />
   );
 }

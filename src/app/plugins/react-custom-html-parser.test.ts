@@ -72,10 +72,13 @@ vi.mock('../styles/CustomHtml.css', () => ({
   MarginSpaced: 'MarginSpaced',
   CodeBlock: 'CodeBlock',
   CodeBlockHeader: 'CodeBlockHeader',
+  CodeBlockScroll: 'CodeBlockScroll',
   CodeBlockInternal: 'CodeBlockInternal',
   CodeBlockBottomShadow: 'CodeBlockBottomShadow',
   Code: 'Code',
   Mention: () => 'Mention',
+  EmoticonBase: 'EmoticonBase',
+  Emoticon: () => 'Emoticon',
 }));
 
 vi.mock('../mindroom/html/MatrixMath.css', () => ({
@@ -93,6 +96,7 @@ vi.mock('../mindroom/html/ScrollableTable.css', () => ({
 vi.mock('../mindroom/messages/MindroomHtmlBlocks.css', () => ({
   Block: 'MindroomBlock',
   BlockBody: 'MindroomBlockBody',
+  BlockChevron: 'MindroomBlockChevron',
   BlockHeader: 'MindroomBlockHeader',
   BlockHeaderMeta: 'MindroomBlockHeaderMeta',
   BlockInlineResult: 'MindroomBlockInlineResult',
@@ -321,6 +325,50 @@ const collectStructuralTableWhitespace = (
 };
 
 describe('withMindroomToolTraceMarkerParserOptions', () => {
+  it.each(['', '\n  '])(
+    'preserves custom rendering after tool groups separated by %j',
+    (separator) => {
+      const html = [
+        '<p>🔧 <code>first_tool</code> [1]</p>',
+        '<p>🔧 <code>second_tool</code> [2]</p>',
+        '<table><thead><tr><th>Project</th><th>Status</th></tr></thead><tbody><tr><td>Sample</td><td>Ready</td></tr></tbody></table>',
+      ].join(separator);
+      const baseOpts = getReactCustomHtmlParser({} as MatrixClient, undefined, {
+        linkifyOpts: LINKIFY_OPTS,
+      });
+      const opts = withMindroomToolTraceMarkerParserOptions(baseOpts, { formatted_body: html });
+      const markup = renderToStaticMarkup(
+        React.createElement(React.Fragment, null, parse(html, opts))
+      );
+
+      expect(markup).toContain('class="TableContainer"');
+      expect(markup).toContain('class="TableScrollArea"');
+      expect(markup).toContain('<table class="Table">');
+      expect(markup).toContain('<td>Sample</td>');
+      expect(markup.match(/2 tool calls/g)).toHaveLength(1);
+      expect(markup).not.toContain('🔧');
+    }
+  );
+
+  it('preserves shared paragraph styling immediately after a tool group', () => {
+    const html = [
+      '<p>🔧 <code>first_tool</code> [1]</p>',
+      '<p>🔧 <code>second_tool</code> [2]</p>',
+      '<p>Results are ready.</p>',
+    ].join('');
+    const baseOpts = getReactCustomHtmlParser({} as MatrixClient, undefined, {
+      linkifyOpts: LINKIFY_OPTS,
+    });
+    const opts = withMindroomToolTraceMarkerParserOptions(baseOpts, { formatted_body: html });
+    const markup = renderToStaticMarkup(
+      React.createElement(React.Fragment, null, parse(html, opts))
+    );
+
+    expect(markup).toContain('class="Paragraph MarginSpaced"');
+    expect(markup).toContain('Results are ready.');
+    expect(markup).not.toContain('🔧');
+  });
+
   it('renders tool blocks for marker-only content and enriches them with trace metadata', () => {
     const html = '<p>🔧 <code>search_web</code> [1]</p>';
 
@@ -392,6 +440,9 @@ describe('withMindroomToolTraceMarkerParserOptions', () => {
     expect(expanded).toContain('FIRST');
     expect(expanded).toContain('Tool #2: second_tool ⏳');
     expect(expanded).toContain('Tool #3: third_tool');
+    expect(expanded.match(/Tool #1: first_tool/g)).toHaveLength(1);
+    expect(expanded.match(/Tool #2: second_tool/g)).toHaveLength(1);
+    expect(expanded.match(/Tool #3: third_tool/g)).toHaveLength(1);
     expect(expanded).toContain('THIRD');
     expect(expanded).toContain('Done');
   });

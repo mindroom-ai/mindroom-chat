@@ -1,7 +1,8 @@
 import { useTranslation } from 'react-i18next';
-import { Icon, Icons, MenuItem, Text, as } from 'folds';
+import { Icon, Icons, Text, as } from 'folds';
 import React from 'react';
 import { MatrixEvent, Room } from 'matrix-js-sdk';
+import { MenuItem } from '../../components/glass/GlassPrimitives';
 import { getEditedEvent, getLatestMessageContent } from '../../utils/room';
 import * as css from '../../features/room/message/styles.css';
 import { copyToClipboard } from '../../utils/dom';

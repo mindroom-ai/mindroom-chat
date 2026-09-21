@@ -1,9 +1,10 @@
 import { useTranslation } from 'react-i18next';
 import React, { KeyboardEvent as ReactKeyboardEvent, useCallback, useEffect } from 'react';
 import { Editor } from 'slate';
-import { Avatar, Icon, Icons, MenuItem, Text } from 'folds';
+import { Avatar, Icon, Icons, Text } from 'folds';
 import { JoinRule, MatrixClient } from 'matrix-js-sdk';
 import { useAtomValue } from 'jotai';
+import { MenuItem } from '../../glass/GlassPrimitives';
 
 import { createMentionElement, moveCursor, replaceWithElement } from '../utils';
 import { getDirectRoomAvatarUrl } from '../../../utils/room';

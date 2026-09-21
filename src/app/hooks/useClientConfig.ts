@@ -39,6 +39,13 @@ export type ClientConfig = {
 
   mindroom?: {
     thinkingPlaceholderMessages?: string[];
+    computers?: {
+      apiUrl?: string;
+    };
+    uiActions?: {
+      /** Exact Matrix server names allowed to open UI automatically. Empty or absent disables it. */
+      autoOpenFromHomeservers?: string[];
+    };
   };
 
   messageRendering?: {

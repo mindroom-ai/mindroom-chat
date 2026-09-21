@@ -30,6 +30,7 @@ const renderHookHarness = (portalChildren: unknown[] = []) => {
   };
 
   vi.stubGlobal('document', {
+    activeElement: null,
     getElementById: (id: string) =>
       id === 'portalContainer'
         ? {
@@ -95,6 +96,22 @@ describe('useCommandPaletteHotkey', () => {
 
   it('does not open while another portal overlay is mounted', () => {
     const { renderer, getSnapshot, dispatchShortcut } = renderHookHarness([{}]);
+
+    const event = dispatchShortcut();
+
+    expect(getSnapshot().open).toBe(false);
+    expect(event.preventDefault).not.toHaveBeenCalled();
+    renderer.unmount();
+  });
+
+  it('does not steal the shortcut while the computer surface owns keyboard input', () => {
+    const { renderer, getSnapshot, dispatchShortcut } = renderHookHarness();
+    Object.defineProperty(document, 'activeElement', {
+      configurable: true,
+      value: {
+        closest: (selector: string) => (selector === '[data-mindroom-computer-input]' ? {} : null),
+      },
+    });
 
     const event = dispatchShortcut();
 

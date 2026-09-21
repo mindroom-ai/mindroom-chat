@@ -37,6 +37,7 @@ const seedThread = async (
 ): Promise<Seeded> => {
   const roomId = await createPrivateRoom(homeserver, accessToken, {
     name: `Virtualization behaviors ${Date.now()}`,
+    topic: 'Synthetic thread virtualization regression',
   });
   const rootId = await sendRoomMessage(homeserver, accessToken, roomId, {
     msgtype: 'm.text',
@@ -92,11 +93,19 @@ const getScrollState = (page: Page) =>
         break;
       el = el.parentElement;
     }
+    const mountedRects = Array.from(el?.querySelectorAll('[data-index]') ?? []).map((tile) =>
+      tile.getBoundingClientRect()
+    );
     return {
       scrollTop: el?.scrollTop ?? -1,
       scrollHeight: el?.scrollHeight ?? -1,
       clientHeight: el?.clientHeight ?? -1,
       mountedRows: document.querySelectorAll('[data-message-item]').length,
+      mountedHeight: mountedRects.length
+        ? Math.max(...mountedRects.map((rect) => rect.bottom)) -
+          Math.min(...mountedRects.map((rect) => rect.top))
+        : 0,
+      tallestMountedRow: Math.max(0, ...mountedRects.map((rect) => rect.height)),
     };
   });
 
@@ -118,7 +127,13 @@ test.describe('virtualized thread behaviors', () => {
 
     const state = await getScrollState(page);
     expect(state.scrollTop + state.clientHeight).toBeGreaterThan(state.scrollHeight - 48);
-    expect(state.mountedRows).toBeLessThan(60);
+    expect(state.mountedRows).toBeLessThan(REPLY_COUNT);
+    expect(state.mountedHeight).toBeGreaterThan(0);
+    // At the bottom, one viewport plus two screens of overscan stays mounted.
+    // Bound real geometry: a fixed row count penalizes short, dense messages.
+    expect(state.mountedHeight).toBeLessThanOrEqual(
+      state.clientHeight * 3 + state.tallestMountedRow * 2
+    );
     await expect(page.getByRole('button', { name: 'Jump to Latest' })).toHaveCount(0);
   });
 

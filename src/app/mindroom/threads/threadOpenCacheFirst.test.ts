@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { makeEvent, makeRoom, makeTimeline } from './test-utils/RoomTimeline.test.shared';
 import { buildThreadCacheCoverage } from './threadCacheCoverage';
 import { runThreadOpenCacheFirst } from './threadOpenCacheFirst';
+import * as timelineDebug from './timelineDebug';
 
 const makeDefaultOptions = () => {
   const root = makeEvent('$root', { isThreadRoot: true, ts: 1 });
@@ -53,6 +54,28 @@ const makeDefaultOptions = () => {
 };
 
 describe('runThreadOpenCacheFirst', () => {
+  it.each([true, false])(
+    'hydrates cache before waiting for pending SDK gaps (still open=%s)',
+    async (stillOpen) => {
+      const opts = makeDefaultOptions();
+      let finish!: () => void;
+      const pending = new Promise<void>((resolve) => {
+        finish = resolve;
+      });
+      Object.assign(opts.room.getThread('$root')!, {
+        flushPendingTimelineReset: vi.fn().mockReturnValueOnce(pending),
+      });
+      const opening = runThreadOpenCacheFirst(opts as never);
+      await Promise.resolve();
+      expect(opts.hydrateThreadFromCache).toHaveBeenCalledOnce();
+      opts.isCurrentThreadOpen.mockReturnValue(stillOpen);
+      finish();
+      await opening;
+      expect(opts.hydrateThreadFromCache).toHaveBeenCalledOnce();
+      expect(opts.scheduleReconcile).toHaveBeenCalledTimes(stillOpen ? 1 : 0);
+    }
+  );
+
   it('short-circuits network bootstrap when cached thread coverage is complete', async () => {
     const opts = makeDefaultOptions();
     const cachedPage = {
@@ -306,5 +329,43 @@ describe('runThreadOpenCacheFirst', () => {
         cachedPage: undefined,
       })
     );
+  });
+  it('reports reset conversion failure and continues SDK bootstrap without using a complete cache snapshot', async () => {
+    const opts = makeDefaultOptions();
+    const error = new Error('token conversion unavailable');
+    const warning = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const trace = vi.spyOn(timelineDebug, 'logTimelineDebug');
+    Object.assign(opts.room.getThread('$root')!, {
+      flushPendingTimelineReset: vi.fn().mockRejectedValueOnce(error),
+    });
+    opts.hydrateThreadFromCache.mockResolvedValue({
+      cacheCoverage: buildThreadCacheCoverage({
+        eventCount: 2,
+        backwardToken: null,
+        hasMoreBackward: false,
+        relationSnapshotComplete: true,
+        snapshotComplete: true,
+        tailLoaded: true,
+      }),
+      events: [{ event_id: '$reply', origin_server_ts: 2 }],
+      hasMoreBefore: false,
+      beforeToken: null,
+      relationSnapshotComplete: true,
+    });
+    try {
+      const result = await runThreadOpenCacheFirst(opts as never);
+      expect(result).toEqual({ shouldContinue: true, hydratedCachedPage: undefined });
+      expect(opts.hydrateThreadFromCache).toHaveBeenCalledOnce();
+      expect(opts.onCacheHydrated).toHaveBeenCalledWith(false);
+      expect(opts.scheduleReconcile).toHaveBeenCalledOnce();
+      expect(warning).toHaveBeenCalledWith('[thread-sync-gap] token conversion failed', error);
+      expect(trace).toHaveBeenCalledWith(opts.debugTraceId, 'thread-cache-hydrate-finished', {
+        cacheHit: true,
+      });
+      expect(trace).not.toHaveBeenCalledWith(opts.debugTraceId, 'thread-cache-hydrate-error');
+    } finally {
+      warning.mockRestore();
+      trace.mockRestore();
+    }
   });
 });

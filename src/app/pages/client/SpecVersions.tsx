@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import React, { ReactNode } from 'react';
-import { Box, Dialog, config, Text, Button, Spinner } from 'folds';
+import { Box, config, Text, Button, Spinner } from 'folds';
+import { Dialog } from '../../components/glass/GlassPrimitives';
 import { SpecVersionsLoader } from '../../components/SpecVersionsLoader';
 import { SpecVersionsProvider } from '../../hooks/useSpecVersions';
 import { MindRoomSplashScreen, SplashScreen } from '../../components/splash-screen';
@@ -8,6 +9,8 @@ import { clearAllCacheAndReload, removeSessionAndReload } from '../../../client/
 import { useActiveSession } from '../../hooks/useSessionStore';
 import { specVersions, type SpecVersions as SpecVersionsResponse } from '../../cs-api';
 import { readCachedSpecVersions, writeCachedSpecVersions } from '../../state/cachedSpecVersions';
+
+const UNKNOWN_SPEC_VERSIONS: SpecVersionsResponse = { versions: [] };
 
 function LoadedSpecVersions({
   baseUrl,
@@ -28,7 +31,15 @@ function LoadedSpecVersions({
   return <SpecVersionsProvider value={versions}>{children}</SpecVersionsProvider>;
 }
 
-export function SpecVersions({ baseUrl, children }: { baseUrl: string; children: ReactNode }) {
+export function SpecVersions({
+  baseUrl,
+  allowCachedContent = false,
+  children,
+}: {
+  baseUrl: string;
+  allowCachedContent?: boolean;
+  children: ReactNode;
+}) {
   const { t } = useTranslation();
   const activeSession = useActiveSession();
   const userId = activeSession?.userId;
@@ -53,14 +64,24 @@ export function SpecVersions({ baseUrl, children }: { baseUrl: string; children:
     [baseUrl, userId]
   );
   const [clearing, setClearing] = React.useState(false);
+  const [refreshedVersions, setRefreshedVersions] = React.useState<SpecVersionsResponse>();
+  const canRenderCachedContent = Boolean(cachedVersions) || allowCachedContent;
 
   React.useEffect(() => {
-    if (!cachedVersions || !userId) return;
+    if (!canRenderCachedContent || !userId) return undefined;
+    let disposed = false;
 
     specVersions(request, baseUrl)
-      .then((versions) => writeCachedSpecVersions(baseUrl, userId, versions))
+      .then((versions) => {
+        if (disposed || versions.versions.length === 0) return;
+        writeCachedSpecVersions(baseUrl, userId, versions);
+        if (!cachedVersions) setRefreshedVersions(versions);
+      })
       .catch(() => undefined);
-  }, [baseUrl, cachedVersions, request, userId]);
+    return () => {
+      disposed = true;
+    };
+  }, [baseUrl, cachedVersions, canRenderCachedContent, request, userId]);
 
   const handleClearCache = async () => {
     if (clearing) return;
@@ -74,8 +95,12 @@ export function SpecVersions({ baseUrl, children }: { baseUrl: string; children:
     }
   };
 
-  if (cachedVersions) {
-    return <SpecVersionsProvider value={cachedVersions}>{children}</SpecVersionsProvider>;
+  if (canRenderCachedContent) {
+    return (
+      <SpecVersionsProvider value={cachedVersions ?? refreshedVersions ?? UNKNOWN_SPEC_VERSIONS}>
+        {children}
+      </SpecVersionsProvider>
+    );
   }
 
   return (
