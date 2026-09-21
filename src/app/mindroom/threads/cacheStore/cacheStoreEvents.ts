@@ -939,6 +939,74 @@ export const deleteRoomEventsFromCache = (
 
 // --- Thread API ---
 
+export type CachedThreadRoot = {
+  rootEvent: Partial<IEvent>;
+  latestReply?: Partial<IEvent>;
+};
+
+/** Enumerate known threads without walking the room's message history. */
+export const loadCachedThreadRootsForRoom = async (
+  sessionId: string,
+  roomId: string
+): Promise<CachedThreadRoot[]> => {
+  const db = await openCacheStore(sessionId);
+  if (!db) return [];
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction([EVENTS_STORE, META_STORE], 'readonly');
+    const roots: CachedThreadRoot[] = [];
+    const request = transaction
+      .objectStore(META_STORE)
+      .getAll(
+        IDBKeyRange.bound(buildMetaKey(roomId, ROOM_SCOPE), buildMetaKey(roomId, MAX_EVENT_ID))
+      );
+    request.onsuccess = () => {
+      (request.result as CachedMetaRecord[]).forEach((meta) => {
+        if (meta.roomId !== roomId || !meta.scope.startsWith('$')) return;
+        // A downloaded reply can precede its root. The root may then exist
+        // only in room scope; merge copies using the normal revision rules.
+        const copies = transaction
+          .objectStore(EVENTS_STORE)
+          .index(EVENTS_BY_ROOM_EVENT_INDEX)
+          .getAll([roomId, meta.scope]);
+        copies.onsuccess = () => {
+          let root = meta.rootEvent;
+          (copies.result as CachedEventRecord[]).forEach((row) => {
+            root = mergeRawEventRevisions(root, row.rawEvent);
+          });
+          if (root?.event_id !== meta.scope) return;
+          const entry: CachedThreadRoot = { rootEvent: root };
+          roots.push(entry);
+          if (root.unsigned?.['m.relations']?.['m.thread']) return;
+          // Plain roots need actual reply evidence while SDK discovery is pending.
+          // Skip standalone edits/reactions, whose target may not be loaded yet.
+          const latest = transaction
+            .objectStore(EVENTS_STORE)
+            .index(EVENTS_BY_SCOPE_TS_INDEX)
+            .openCursor(
+              IDBKeyRange.bound(
+                [roomId, meta.scope, 0, ''],
+                [roomId, meta.scope, MAX_EVENT_TS, MAX_EVENT_ID]
+              ),
+              'prev'
+            );
+          latest.onsuccess = () => {
+            const cursor = latest.result;
+            if (!cursor) return;
+            const event = (cursor.value as CachedEventRecord).rawEvent;
+            const relation = event.content?.['m.relates_to'];
+            if (relation?.rel_type === 'm.thread' && relation.event_id === meta.scope) {
+              entry.latestReply = event;
+            } else cursor.continue();
+          };
+        };
+      });
+    };
+    transaction.oncomplete = () => resolve(roots);
+    transaction.onerror = () => reject(transaction.error);
+    transaction.onabort = () => reject(transaction.error);
+  });
+};
+
 /**
  * Assemble a CachedThreadEventPage from a meta row + ordered replies.
  * Passing `undefined` for `meta` produces a "no cached state" page
