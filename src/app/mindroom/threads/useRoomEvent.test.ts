@@ -1,20 +1,30 @@
 import React, { useEffect } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { MatrixEvent } from 'matrix-js-sdk';
+import { ClientEvent, createClient, MatrixEvent, Room, SyncState } from 'matrix-js-sdk';
 import { act, create } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { useRoomEvent } from './useRoomEvent';
+import { usePinnedThreadEvents } from './usePinnedThreadEvents';
+
+const pins = vi.hoisted(() => ({ ids: ['$old', '$reply', '$deleted'] }));
+vi.mock('./useThreadPinning', () => ({ usePinnedEventIds: () => pins.ids }));
 
 const fetchRoomEventMock = vi.fn();
+const getCryptoMock = vi.fn();
 const loadCachedRoomEventMock = vi.fn();
 const loadCachedThreadEventMock = vi.fn();
 const useActiveSessionMock = vi.fn();
+const matrixClientMock = createClient({
+  baseUrl: 'https://example.org',
+  userId: '@alice:example.org',
+});
+vi.spyOn(matrixClientMock, 'fetchRoomEvent').mockImplementation((...args) =>
+  fetchRoomEventMock(...args)
+);
+vi.spyOn(matrixClientMock, 'getCrypto').mockImplementation(() => getCryptoMock());
 
 vi.mock('../../hooks/useMatrixClient', () => ({
-  useMatrixClient: () => ({
-    fetchRoomEvent: fetchRoomEventMock,
-    getCrypto: () => undefined,
-  }),
+  useMatrixClient: () => matrixClientMock,
 }));
 
 vi.mock('../../hooks/useSessionStore', () => ({
@@ -38,8 +48,11 @@ const flushAsyncWork = async (ticks = 5) => {
 const makeRoom = () =>
   ({
     findEventById: vi.fn(() => undefined),
+    getUnfilteredTimelineSet: () => ({ getTimelines: () => [] }),
+    on: vi.fn(),
+    removeListener: vi.fn(),
     roomId: '!room:example.org',
-  }) as any;
+  } as any);
 
 const makeRawEvent = (eventId: string) => ({
   content: { body: `body-${eventId}` },
@@ -69,8 +82,318 @@ const EventProbe = ({
 };
 
 describe('useRoomEvent', () => {
+  it.each(['edit', 'redaction', 'offline', 'live edit'])(
+    'keeps cached pins visible while revalidating an old %s',
+    async (change) => {
+      pins.ids = ['$old'];
+      useActiveSessionMock.mockReturnValue({ sessionId: 'session-1' });
+      const room = new Room('!room:example.org', matrixClientMock, '@alice:example.org');
+      const cached = {
+        ...makeRawEvent('$old'),
+        room_id: room.roomId,
+        sender: '@alice:example.org',
+        content: { msgtype: 'm.text', body: 'Cached announcement' },
+      };
+      loadCachedRoomEventMock.mockResolvedValue(cached);
+      let settle!: (event: unknown) => void;
+      let fail!: (error: Error) => void;
+      fetchRoomEventMock.mockImplementation(
+        () =>
+          new Promise((resolve, reject) => {
+            settle = resolve;
+            fail = reject;
+          })
+      );
+      let bodies: unknown[] = [];
+      function Probe() {
+        bodies = usePinnedThreadEvents(room, true).map((event) => event.getContent().body);
+        return null;
+      }
+      const client = new QueryClient();
+      let renderer: ReturnType<typeof create> | undefined;
+      try {
+        await act(async () => {
+          renderer = create(
+            React.createElement(QueryClientProvider, { client }, React.createElement(Probe))
+          );
+          await flushAsyncWork();
+        });
+        expect(bodies).toEqual(['Cached announcement']);
+        expect(fetchRoomEventMock).toHaveBeenCalledTimes(1);
+        const edit = (id: string, body: string, ts: number) => ({
+          ...cached,
+          event_id: id,
+          origin_server_ts: ts,
+          content: {
+            msgtype: 'm.text',
+            body: `* ${body}`,
+            'm.new_content': { msgtype: 'm.text', body },
+            'm.relates_to': { rel_type: 'm.replace', event_id: '$old' },
+          },
+        });
+        await act(async () => {
+          if (change === 'live edit') {
+            await room.addLiveEvents([new MatrixEvent(edit('$live', 'Live announcement', 300))], {
+              addToState: true,
+            });
+          }
+          if (change === 'offline') fail(new Error('Offline'));
+          else
+            settle(
+              change === 'redaction'
+                ? {
+                    ...cached,
+                    content: {},
+                    unsigned: { redacted_because: { type: 'm.room.redaction' } },
+                  }
+                : {
+                    ...cached,
+                    unsigned: {
+                      'm.relations': { 'm.replace': edit('$new', 'Current announcement', 200) },
+                    },
+                  }
+            );
+          await flushAsyncWork();
+        });
+        expect(bodies).toEqual(
+          change === 'redaction'
+            ? []
+            : [
+                change === 'offline'
+                  ? 'Cached announcement'
+                  : change === 'live edit'
+                  ? 'Live announcement'
+                  : 'Current announcement',
+              ]
+        );
+        if (change === 'offline') {
+          await act(async () => {
+            fetchRoomEventMock.mockResolvedValue({
+              ...cached,
+              unsigned: {
+                'm.relations': { 'm.replace': edit('$new', 'Current announcement', 200) },
+              },
+            });
+            matrixClientMock.emit(ClientEvent.Sync, SyncState.Syncing, SyncState.Error);
+            await flushAsyncWork();
+          });
+          expect(bodies).toEqual(['Current announcement']);
+        }
+      } finally {
+        act(() => renderer?.unmount());
+        client.clear();
+      }
+    }
+  );
+  it('refreshes an old encrypted pin when its missing key arrives', async () => {
+    pins.ids = ['$old'];
+    useActiveSessionMock.mockReturnValue(undefined);
+    const decryptEvent = vi.fn().mockRejectedValue(new Error('Missing room key'));
+    const crypto = { decryptEvent } as unknown as Parameters<MatrixEvent['attemptDecryption']>[0];
+    getCryptoMock.mockReturnValue(crypto);
+    fetchRoomEventMock.mockResolvedValue({
+      ...makeRawEvent('$old'),
+      room_id: '!room:example.org',
+      sender: '@alice:example.org',
+      type: 'm.room.encrypted',
+      content: { algorithm: 'm.megolm.v1.aes-sha2', ciphertext: 'pending' },
+    });
+    const mx = createClient({ baseUrl: 'https://example.org', userId: '@alice:example.org' });
+    const room = new Room('!room:example.org', mx, '@alice:example.org');
+    let bodies: unknown[] = [];
+    function Probe() {
+      bodies = usePinnedThreadEvents(room, true).map((event) => event.getContent().body);
+      return null;
+    }
+    const client = new QueryClient();
+    let renderer: ReturnType<typeof create> | undefined;
+    try {
+      await act(async () => {
+        renderer = create(
+          React.createElement(QueryClientProvider, { client }, React.createElement(Probe))
+        );
+        await flushAsyncWork();
+      });
+      const root = client.getQueryData<MatrixEvent>([room.roomId, '$old', undefined])!;
+      expect(room.findEventById('$old')).toBeUndefined();
+      expect(bodies[0]).toContain('Missing room key');
+      decryptEvent.mockResolvedValue({
+        clearEvent: {
+          type: 'm.room.message',
+          content: { msgtype: 'm.text', body: 'Decrypted announcement' },
+        },
+      });
+      await act(async () => {
+        await root.attemptDecryption(crypto, { isRetry: true });
+        await flushAsyncWork();
+      });
+      expect(root.getContent().body).toBe('Decrypted announcement');
+      expect(bodies).toEqual(['Decrypted announcement']);
+    } finally {
+      act(() => renderer?.unmount());
+      client.clear();
+    }
+  });
+  it.each(['redaction', 'edit', 'encrypted edit'])(
+    'updates a detached pinned root after a live %s',
+    async (change) => {
+      pins.ids = ['$old'];
+      useActiveSessionMock.mockReturnValue(undefined);
+      const mx = createClient({ baseUrl: 'https://example.org', userId: '@alice:example.org' });
+      const room = new Room('!room:example.org', mx, '@alice:example.org');
+      const edit = (id: string, body: string, ts: number) => ({
+        event_id: id,
+        room_id: room.roomId,
+        sender: '@alice:example.org',
+        origin_server_ts: ts,
+        type: 'm.room.message',
+        content: {
+          msgtype: 'm.text',
+          body: `* ${body}`,
+          'm.new_content': { msgtype: 'm.text', body },
+          'm.relates_to': { rel_type: 'm.replace', event_id: '$old' },
+        },
+      });
+      fetchRoomEventMock.mockResolvedValue({
+        ...makeRawEvent('$old'),
+        room_id: room.roomId,
+        sender: '@alice:example.org',
+        content: { msgtype: 'm.text', body: 'Original announcement' },
+        unsigned: { 'm.relations': { 'm.replace': edit('$first-edit', 'First edit', 200) } },
+      });
+      let events: MatrixEvent[] = [];
+      let bodies: unknown[] = [];
+      function Probe() {
+        events = usePinnedThreadEvents(room, true);
+        bodies = events.map((event) => event.getContent().body);
+        return null;
+      }
+      const client = new QueryClient();
+      let renderer!: ReturnType<typeof create>;
+      try {
+        await act(async () => {
+          renderer = create(
+            React.createElement(QueryClientProvider, { client }, React.createElement(Probe))
+          );
+          await flushAsyncWork();
+        });
+        expect(events[0].getContent().body).toBe('First edit');
+        const replacement = edit('$second-edit', 'Latest edit', 300);
+        const liveEvent = new MatrixEvent(
+          change === 'redaction'
+            ? {
+                event_id: '$redaction',
+                room_id: room.roomId,
+                sender: '@alice:example.org',
+                origin_server_ts: 300,
+                type: 'm.room.redaction',
+                redacts: '$old',
+                content: {},
+              }
+            : change === 'edit'
+            ? replacement
+            : {
+                ...replacement,
+                type: 'm.room.encrypted',
+                content: {
+                  algorithm: 'm.megolm.v1.aes-sha2',
+                  ciphertext: 'pending',
+                  'm.relates_to': replacement.content['m.relates_to'],
+                },
+              }
+        );
+        await act(async () => {
+          await room.addLiveEvents([liveEvent], { addToState: true });
+          await flushAsyncWork();
+        });
+        if (change === 'encrypted edit') {
+          expect(bodies).toEqual(['First edit']);
+          await act(async () => {
+            await liveEvent.attemptDecryption({
+              decryptEvent: async () => ({
+                clearEvent: { type: replacement.type, content: replacement.content },
+              }),
+            } as Parameters<MatrixEvent['attemptDecryption']>[0]);
+            await flushAsyncWork();
+          });
+        }
+        expect(bodies).toEqual(change === 'redaction' ? [] : ['Latest edit']);
+      } finally {
+        act(() => renderer?.unmount());
+        client.clear();
+      }
+    }
+  );
+  it('loads old pinned roots from cache and excludes pinned replies and deleted roots', async () => {
+    useActiveSessionMock.mockReturnValue({ sessionId: 'session-1' });
+    fetchRoomEventMock.mockRejectedValue(new Error('Offline'));
+    loadCachedRoomEventMock.mockImplementation(async (_session, _room, id) => ({
+      ...makeRawEvent(id),
+      content:
+        id === '$reply'
+          ? { body: 'reply', 'm.relates_to': { rel_type: 'm.thread', event_id: '$old' } }
+          : id === '$deleted'
+          ? {}
+          : { body: 'Older announcement', msgtype: 'm.text' },
+      unsigned: id === '$deleted' ? { redacted_because: { type: 'm.room.redaction' } } : {},
+    }));
+    const room = makeRoom();
+    let events: MatrixEvent[] = [];
+    function Probe() {
+      events = usePinnedThreadEvents(room, true);
+      return null;
+    }
+    const client = new QueryClient();
+    let renderer!: ReturnType<typeof create>;
+    await act(async () => {
+      renderer = create(
+        React.createElement(QueryClientProvider, { client }, React.createElement(Probe))
+      );
+      await flushAsyncWork();
+    });
+    expect(events.map((event) => event.getId())).toEqual(['$old']);
+    expect(events[0].getContent().body).toBe('Older announcement');
+    expect(fetchRoomEventMock).toHaveBeenCalledTimes(3);
+    renderer.unmount();
+    client.clear();
+  });
+
+  it('upgrades a cached pin to the newer live root on a room refresh', async () => {
+    useActiveSessionMock.mockReturnValue({ sessionId: 'session-1' });
+    loadCachedRoomEventMock.mockImplementation(async (_session, _room, id) => makeRawEvent(id));
+    const room = makeRoom();
+    let events: MatrixEvent[] = [];
+    function Probe({ revision }: { revision: number }) {
+      events = usePinnedThreadEvents(room, true, revision);
+      return null;
+    }
+    const client = new QueryClient();
+    const render = (revision: number) =>
+      React.createElement(
+        QueryClientProvider,
+        { client },
+        React.createElement(Probe, { revision })
+      );
+    let renderer!: ReturnType<typeof create>;
+    await act(async () => {
+      renderer = create(render(0));
+      await flushAsyncWork();
+    });
+    expect(events[0].getContent().body).toBe('body-$old');
+    const live = new MatrixEvent({
+      ...makeRawEvent('$old'),
+      content: { body: 'Updated announcement' },
+    });
+    room.findEventById.mockImplementation((id: string) => (id === '$old' ? live : undefined));
+    act(() => renderer.update(render(1)));
+    expect(events[0].getContent().body).toBe('Updated announcement');
+    renderer.unmount();
+    client.clear();
+  });
   afterEach(() => {
+    pins.ids = ['$old', '$reply', '$deleted'];
     fetchRoomEventMock.mockReset();
+    getCryptoMock.mockReset();
     loadCachedRoomEventMock.mockReset();
     loadCachedThreadEventMock.mockReset();
     useActiveSessionMock.mockReset();

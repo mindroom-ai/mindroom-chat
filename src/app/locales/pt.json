@@ -280,6 +280,7 @@
     "voiceBundleBlocked": "O envio de outro anexo ainda está em curso ou requer atenção. Aguarde, tente novamente ou remova os anexos com falha e volte a enviar esta mensagem."
   },
   "thread": {
+    "pinFailed": "Não foi possível atualizar a fixação. Tente novamente.",
     "chip": "Tópico",
     "view": "Vista do tópico",
     "resolve": "Resolver",

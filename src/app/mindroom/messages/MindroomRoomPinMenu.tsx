@@ -2,7 +2,6 @@ import { useTranslation } from 'react-i18next';
 /* eslint-disable react/destructuring-assignment */
 import React, { forwardRef, MouseEventHandler, useCallback, useMemo, useRef } from 'react';
 import { MatrixEvent, Room } from 'matrix-js-sdk';
-import { RoomPinnedEventsEventContent } from 'matrix-js-sdk/lib/types';
 import {
   Avatar,
   Box,
@@ -43,13 +42,9 @@ import {
 import { UserAvatar } from '../../components/user-avatar';
 import { getMxIdLocalPart, mxcUrlToHttp } from '../../utils/matrix';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
-import {
-  getEditedEvent,
-  getMemberAvatarMxc,
-  getMemberDisplayName,
-  getStateEvent,
-} from '../../utils/room';
-import { GetContentCallback, MessageEvent, StateEvent } from '../../../types/matrix/room';
+import { canPinRoomEvents, setRoomEventPinned } from '../threads/threadPinning';
+import { getEditedEvent, getMemberAvatarMxc, getMemberDisplayName } from '../../utils/room';
+import { GetContentCallback, MessageEvent } from '../../../types/matrix/room';
 import { useMentionClickHandler } from '../../hooks/useMentionClickHandler';
 import { useSpoilerClickHandler } from '../../hooks/useSpoilerClickHandler';
 import {
@@ -84,7 +79,6 @@ import { PowerIcon } from '../../components/power';
 import colorMXID from '../../../util/colorMXID';
 import { useIsDirectRoom } from '../../hooks/useRoom';
 import { useRoomCreators } from '../../hooks/useRoomCreators';
-import { useRoomPermissions } from '../../hooks/useRoomPermissions';
 import {
   GetMemberPowerTag,
   getPowerTagIconSrc,
@@ -124,13 +118,7 @@ function PinnedMessage({
 
   const [unpinState, unpin] = useAsyncCallback(
     useCallback(() => {
-      const pinEvent = getStateEvent(room, StateEvent.RoomPinnedEvents);
-      const content = pinEvent?.getContent<RoomPinnedEventsEventContent>() ?? { pinned: [] };
-      const newContent: RoomPinnedEventsEventContent = {
-        pinned: content.pinned.filter((id) => id !== eventId),
-      };
-
-      return mx.sendStateEvent(room.roomId, StateEvent.RoomPinnedEvents as any, newContent);
+      return setRoomEventPinned(mx, room, eventId, false);
     }, [room, eventId, mx])
   );
 
@@ -143,11 +131,16 @@ function PinnedMessage({
 
   const handleUnpinClick: MouseEventHandler = (evt) => {
     evt.stopPropagation();
-    unpin();
+    void unpin().catch(() => {});
   };
 
   const renderOptions = () => (
     <Box shrink="No" gap="200" alignItems="Center">
+      {unpinState.status === AsyncStatus.Error && (
+        <Text role="alert" size="T200">
+          {t('thread.pinFailed')}
+        </Text>
+      )}
       <Chip data-event-id={eventId} onClick={handleOpenClick} variant="Secondary" radii="Pill">
         <Text size="T200">{t('mindroomUi.messages.mindroomRoomPinMenu.open')}</Text>
       </Chip>
@@ -264,8 +257,7 @@ export const RoomPinMenu = forwardRef<HTMLDivElement, RoomPinMenuProps>(
     const powerLevels = usePowerLevelsContext();
     const creators = useRoomCreators(room);
 
-    const permissions = useRoomPermissions(creators, powerLevels);
-    const canPinEvent = permissions.stateEvent(StateEvent.RoomPinnedEvents, userId);
+    const canPinEvent = canPinRoomEvents(creators, powerLevels, userId);
 
     const creatorsTag = useRoomCreatorsTag();
     const powerLevelTags = usePowerLevelTags(room, powerLevels);

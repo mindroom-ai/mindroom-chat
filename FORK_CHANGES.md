@@ -9,8 +9,36 @@
   Tooltips and accessible labels include the full display name alongside the model alias, provider, and ID; run details retain their existing diagnostic fields.
 - Parser and badge regressions cover original messages, replacement metadata, display-name precedence, and legacy events without a display name.
 - Display-name normalization belongs to the metadata parser; label formatting and badge rendering consume its normalized value.
-- Validation: all 5,060 tests pass under Node 24; typecheck, production/PWA build, formatting, and lint pass with zero errors and 17 existing warnings.
+- Validation after integrating `dev`: all 5,114 tests pass under Node 24; typecheck, production/PWA build, formatting, and lint pass with zero errors and 17 existing warnings.
   Independent review verified the full tooltip and accessible label after the display-name change.
+
+### Pin announcement threads in Compact room view (2026-09-21)
+
+- Status: implemented and validated; PR open for review.
+- Shared room pins appear in a separate section above ordinary Compact cards, newest pin first, with a stable order across replies, filters, and sorting.
+- Room admins can pin and unpin from Compact cards, thread headers, and existing message menus.
+  Admin means power level 100 or higher, or a privileged room creator, subject to the room's pin permission.
+- Admin-only enforcement applies within MindRoom Chat.
+  Other Matrix clients follow existing room permissions; this feature does not write power-level state.
+- Pinned roots cannot be resolved through client controls or thread-tag writes, including the command palette.
+  Any pre-existing resolution is suspended while pinned and resumes when unpinned.
+- Old roots, including announcements without replies, use the existing room event loader and cache path to join the Compact catalogue.
+- Shared pin state covers the overview, thread header, and room pin menu while serialized saves catch up with sync.
+  Regression tests cover queued changes, failed saves, delayed or early echoes, lost responses, alternating pin/unpin saves, and cached roots upgrading to live content.
+- PR review extended pin resolution to the global thread index and recent-thread sidebar.
+  Synchronized and pending local pin changes refresh global filters and sidebar visibility, and pinned sidebar entries omit Resolve.
+  Open command palettes update their resolution actions and search results when threads are pinned or unpinned.
+- Pin subscriptions follow Matrix live-state replacement during limited sync.
+  Fetched old announcements use the existing cache hydration helpers to follow live edits and deletions, and refresh when missing decryption keys arrive.
+  Encrypted edits preserve the last readable text until decryption completes.
+- Reconnecting verifies pin saves whose result could not be confirmed while offline.
+  Detached announcements show cached content immediately, then refresh from the server on mount and reconnect without overwriting intervening live edits or deletions.
+  A cross-model design consultation favored this scoped refresh over expanding compact timeline backfill.
+- Validation after integrating `dev` and PR review fixes: all 5,062 tests across 580 files pass under Node 24.13.1.
+  Typecheck, production/PWA build, formatting, and ESLint pass with zero errors and the existing 17 warnings.
+- Three Chromium browser checks pass for admin/moderator permissions, stable ordering and reloads, suspended resolution, old zero-reply pins, and existing hover/keyboard behavior.
+  Desktop and phone-sized layouts were inspected.
+- Manual ordering remains follow-up work.
 
 ### Finish Markdown formatting in sidecar and reply previews (2026-09-21)
 

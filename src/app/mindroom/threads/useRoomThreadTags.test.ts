@@ -2,7 +2,7 @@ import React from 'react';
 import { act, create } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { MatrixEvent } from 'matrix-js-sdk/lib/models/event';
-import type { Room } from 'matrix-js-sdk/lib/models/room';
+import { createClient, Room } from 'matrix-js-sdk';
 import { useStateEvents } from './useStateEvents';
 import {
   getPendingThreadTagsContent,
@@ -17,6 +17,12 @@ vi.mock('./useStateEvents', () => ({
 }));
 
 const mockedUseStateEvents = vi.mocked(useStateEvents);
+const makeRoom = () =>
+  new Room(
+    '!room:example.org',
+    createClient({ baseUrl: 'https://example.org', userId: '@alice:example.org' }),
+    '@alice:example.org'
+  );
 
 const ISO_1 = '2026-04-07T00:00:01.000Z';
 const ISO_2 = '2026-04-07T00:00:02.000Z';
@@ -43,11 +49,7 @@ const makeLegacyThreadTagsEvent = (
     type: MINDROOM_THREAD_TAGS_EVENT,
   });
 
-const makePerTagEvent = (
-  threadRootId: string,
-  tagName: string,
-  content: Record<string, unknown>
-) =>
+const makePerTagEvent = (threadRootId: string, tagName: string, content: Record<string, unknown>) =>
   new MatrixEvent({
     content,
     event_id: `$thread-tag-${threadRootId}-${tagName}`,
@@ -83,8 +85,45 @@ function MapHarness({ room, onRender }: MapHarnessProps) {
 }
 
 describe('useRoomThreadTags compatibility with threadTags parser', () => {
+  it('suspends resolution while pinned and restores it when the pin is removed', () => {
+    const room = makeRoom();
+    const syncPins = (pinned: string[]) =>
+      room.currentState.setStateEvents([
+        new MatrixEvent({
+          type: 'm.room.pinned_events',
+          state_key: '',
+          room_id: room.roomId,
+          content: { pinned },
+        }),
+      ]);
+    syncPins(['$root']);
+    const tag = makePerTagEvent('$root', 'resolved', {
+      set_by: '@alice:example.org',
+      set_at: ISO_1,
+    });
+    mockedUseStateEvents.mockImplementation((_room, type) =>
+      type === MINDROOM_THREAD_TAGS_EVENT ? [tag] : []
+    );
+    let snapshot!: ReturnType<typeof useThreadResolution>;
+    const render = () =>
+      React.createElement(ResolutionHarness, {
+        room,
+        threadRootId: '$root',
+        onRender: (value) => {
+          snapshot = value;
+        },
+      });
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(render());
+    });
+    expect(snapshot.isResolved).toBe(false);
+    act(() => syncPins([]));
+    expect(snapshot.isResolved).toBe(true);
+    renderer.unmount();
+  });
   it('reads resolved state and plain tag names from per-tag state events', () => {
-    const room = { roomId: '!room:example.org' } as Room;
+    const room = makeRoom();
     mockedUseStateEvents.mockImplementation((_room, eventType) => {
       if (eventType === MINDROOM_THREAD_TAGS_EVENT) {
         return [
@@ -122,7 +161,7 @@ describe('useRoomThreadTags compatibility with threadTags parser', () => {
   });
 
   it('builds a room resolution map from mixed legacy and per-tag state', () => {
-    const room = { roomId: '!room:example.org' } as Room;
+    const room = makeRoom();
     mockedUseStateEvents.mockImplementation((_room, eventType) => {
       if (eventType === MINDROOM_THREAD_TAGS_EVENT) {
         return [
@@ -171,7 +210,7 @@ describe('useRoomThreadTags compatibility with threadTags parser', () => {
   });
 
   it('applies pending custom tags before state sync arrives', () => {
-    const room = { roomId: '!room:example.org' } as Room;
+    const room = makeRoom();
     setPendingThreadTagsContent(room.roomId, '$root', {
       tags: {
         resolved: { set_by: '@alice:example.org', set_at: ISO_1 },
@@ -203,7 +242,7 @@ describe('useRoomThreadTags compatibility with threadTags parser', () => {
   });
 
   it('clears pending content once aggregated live state matches it', () => {
-    const room = { roomId: '!room:example.org' } as Room;
+    const room = makeRoom();
     setPendingThreadTagsContent(room.roomId, '$root', {
       tags: {
         urgent: { set_by: '@alice:example.org', set_at: ISO_2 },

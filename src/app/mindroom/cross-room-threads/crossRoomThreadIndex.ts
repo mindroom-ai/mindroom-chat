@@ -9,6 +9,8 @@ import { buildThreadRecord } from '../threads/threadRecord';
 import { getRoomThreadTagSnapshotMap, type ThreadTagSnapshot } from '../threads/threadTagSnapshots';
 import { getPreferredVisibleThreadReplyEvents } from '../threads/threadUtils';
 import type { ThreadRecord } from '../threads/types';
+import { isThreadPinned } from '../threads/threadPinning';
+import { isThreadResolved } from '../threads/threadTags';
 
 export const MAX_CROSS_ROOM_INDEX_ENTRIES = 5000;
 export const CROSS_ROOM_INDEX_EVICTION_SLACK = 250;
@@ -369,7 +371,10 @@ export const buildCrossRoomThreadIndexEntry = ({
     rootPreviewText,
     threadResolution: resolvedTagSnapshot
       ? {
-          isResolved: resolvedTagSnapshot.isResolved,
+          isResolved: isThreadResolved(
+            resolvedTagSnapshot.content,
+            isThreadPinned(room, threadRootId)
+          ),
           tags: resolvedTagSnapshot.content.tags,
         }
       : undefined,

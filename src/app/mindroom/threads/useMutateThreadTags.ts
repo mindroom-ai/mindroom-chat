@@ -14,6 +14,7 @@ import { getValidThreadRootEvent } from './threadUtils';
 import { clearPendingThreadTagsContent, setPendingThreadTagsContent } from './threadTagPending';
 import { buildThreadTagSnapshotMap } from './threadTagSnapshots';
 import { getResolvableThreadRootEvent } from './threadResolvableRoot';
+import { isThreadPinned } from './threadPinning';
 
 type ThreadRootEventResolver = typeof getValidThreadRootEvent;
 
@@ -93,6 +94,12 @@ export const useMutateThreadTags = (room: Room): UseMutateThreadTagsResult => {
           userId,
           setAt
         );
+        if (
+          stateKey === buildPerTagStateKey(validThreadRootId, RESOLVED_TAG) &&
+          isThreadPinned(room, validThreadRootId)
+        ) {
+          throw new Error('Pinned threads cannot be resolved.');
+        }
         setPendingThreadTagsContent(room.roomId, validThreadRootId, next);
         await mx.sendStateEvent(
           room.roomId,

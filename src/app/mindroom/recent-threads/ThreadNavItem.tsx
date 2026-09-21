@@ -12,6 +12,7 @@ import type { CrossRoomThreadIndexEntry } from '../cross-room-threads/crossRoomT
 import { isMindroomAgentUserId } from '../matrix/agentIdentity';
 import { buildCompactThreadCardViewModelFromRecord } from '../threads/compactThreadCardViewModel';
 import { useToggleThreadResolution } from '../threads/useRoomThreadTags';
+import { usePinnedEventIds } from '../threads/useThreadPinning';
 import { useRoomViewMode } from '../threads/useRoomViewMode';
 import { createThreadNavLocationState } from './threadNavCategoryUtils';
 import * as css from './threadNav.css';
@@ -34,6 +35,7 @@ type ThreadNavActionsProps = {
 function ThreadNavActions({ entry, onTogglePin, pinned, room }: ThreadNavActionsProps) {
   const { t } = useTranslation();
   const { canToggle, setResolved, updating, error } = useToggleThreadResolution(room);
+  const roomPinned = usePinnedEventIds(room).includes(entry.threadRootId);
   const [pinHovered, setPinHovered] = useState(false);
 
   useEffect(() => {
@@ -45,18 +47,20 @@ function ThreadNavActions({ entry, onTogglePin, pinned, room }: ThreadNavActions
 
   return (
     <NavItemOptions className={css.EntryActions} gap="100">
-      <IconButton
-        type="button"
-        variant="Background"
-        fill="None"
-        size="300"
-        radii="300"
-        aria-label={t('thread.resolve')}
-        disabled={!canToggle || updating}
-        onClick={() => setResolved(entry.threadRootId, true)}
-      >
-        <Icon src={Icons.CheckTwice} size="50" aria-hidden="true" />
-      </IconButton>
+      {!roomPinned && (
+        <IconButton
+          type="button"
+          variant="Background"
+          fill="None"
+          size="300"
+          radii="300"
+          aria-label={t('thread.resolve')}
+          disabled={!canToggle || updating}
+          onClick={() => setResolved(entry.threadRootId, true)}
+        >
+          <Icon src={Icons.CheckTwice} size="50" aria-hidden="true" />
+        </IconButton>
+      )}
       <IconButton
         className={pinned ? css.EntryPinButtonPinned : undefined}
         type="button"

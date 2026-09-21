@@ -22,6 +22,7 @@ import {
 } from '../../../hooks/useMemberPowerTag';
 import { useTheme } from '../../../hooks/useTheme';
 import { useRoomPermissions } from '../../../hooks/useRoomPermissions';
+import { canPinRoomEvents } from '../threadPinning';
 import { useMentionClickHandler } from '../../../hooks/useMentionClickHandler';
 import { useSpoilerClickHandler } from '../../../hooks/useSpoilerClickHandler';
 import { useOpenUserRoomProfile } from '../../../state/hooks/userRoomProfile';
@@ -43,7 +44,7 @@ import {
   makeMentionCustomProps,
   renderMatrixMention,
 } from '../../../plugins/react-custom-html-parser';
-import { MessageEvent, StateEvent } from '../../../../types/matrix/room';
+import { MessageEvent } from '../../../../types/matrix/room';
 import { isConfirmedMatrixEventId } from '../threadRouteUtils';
 import { getMindroomRoomTimelineMessageRenderers } from '../roomTimelineMessageExtensions';
 import {
@@ -114,7 +115,7 @@ export const useTimelineMessageFeature = ({
   const canRedact = permissions.action('redact', mx.getSafeUserId());
   const canDeleteOwn = permissions.event(MessageEvent.RoomRedaction, mx.getSafeUserId());
   const canSendReaction = permissions.event(MessageEvent.Reaction, mx.getSafeUserId());
-  const canPinEvent = permissions.stateEvent(StateEvent.RoomPinnedEvents, mx.getSafeUserId());
+  const canPinEvent = canPinRoomEvents(creators, powerLevels, mx.getSafeUserId());
   const [editingEventId, setEditId] = useState<string>();
   const expansion = useTimelineMessageExpansion(room.roomId, threadId, scrollRef);
   const roomToParents = useAtomValue(roomToParentsAtom);

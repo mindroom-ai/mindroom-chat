@@ -293,17 +293,22 @@ export const useCommandPaletteSource = (
     selectedRoomId,
   ]);
 
-  const { currentThreadRootId, currentThreadResolved, setCurrentThreadResolved, threadItems } =
-    useMindroomCommandPaletteThreadItems({
-      mx,
-      myUserId,
-      allJoinedRoomIds,
-      getRoom,
-      selectedRoom,
-      selectedRoomId,
-      currentThreadId,
-      navigateRoomThread,
-    });
+  const {
+    currentThreadRootId,
+    currentThreadResolved,
+    currentThreadPinned,
+    setCurrentThreadResolved,
+    threadItems,
+  } = useMindroomCommandPaletteThreadItems({
+    mx,
+    myUserId,
+    allJoinedRoomIds,
+    getRoom,
+    selectedRoom,
+    selectedRoomId,
+    currentThreadId,
+    navigateRoomThread,
+  });
 
   const actionCallbacks = useMemo<Record<CommandPaletteQuickActionId, () => void>>(
     () => ({
@@ -366,6 +371,7 @@ export const useCommandPaletteSource = (
           currentRoomName: selectedRoom?.name ?? selectedRoom?.roomId,
           currentThreadId: currentThreadRootId,
           isCurrentThreadResolved: currentThreadResolved,
+          isCurrentThreadPinned: currentThreadPinned,
         },
         t
       ).map((item) => ({
@@ -376,6 +382,7 @@ export const useCommandPaletteSource = (
       actionCallbacks,
       currentThreadRootId,
       currentThreadResolved,
+      currentThreadPinned,
       selectedRoom?.name,
       selectedRoom?.roomId,
       t,

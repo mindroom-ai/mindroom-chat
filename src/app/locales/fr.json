@@ -280,6 +280,7 @@
     "voiceBundleBlocked": "L'envoi d'une autre pièce jointe est toujours en cours ou nécessite votre attention. Attendez, réessayez ou supprimez les pièces jointes en échec, puis renvoyez ce message."
   },
   "thread": {
+    "pinFailed": "Impossible de modifier l’épingle. Réessayez.",
     "chip": "Fil",
     "view": "Vue du fil",
     "resolve": "Résoudre",

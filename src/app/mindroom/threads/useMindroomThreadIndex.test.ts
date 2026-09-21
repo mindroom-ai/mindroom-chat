@@ -1,8 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  createDefaultThreadFilterState,
-  type ThreadFilterState,
-} from './roomThreadOverviewModel';
+import { createDefaultThreadFilterState, type ThreadFilterState } from './roomThreadOverviewModel';
 import type { ThreadRecord } from './types';
 import { resolveMindroomThreadIndexSnapshot } from './useMindroomThreadIndex';
 
@@ -71,9 +68,10 @@ describe('resolveMindroomThreadIndexSnapshot', () => {
       compactViewRequested: true,
       visibleThreadRootIds: ['$normal'],
       compactThreadRootIds: ['$compact'],
+      pinnedThreadRootIds: ['$compact'],
       normalThreadRecordMap: new Map([['$normal', normalRecord]]),
       compactThreadRecordMap: new Map([['$compact', compactRecord]]),
-      threadFilterState: makeFilterState(),
+      threadFilterState: makeFilterState({ resolved: 'include' }),
       liveThreadFilterState: makeFilterState(),
       fallbackThreadFilterState: makeFilterState(),
       searchQuery: '',

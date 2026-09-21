@@ -279,6 +279,7 @@
     "voiceBundleBlocked": "Er wordt nog een bijlage verzonden of deze heeft aandacht nodig. Wacht even of probeer mislukte bijlagen opnieuw of verwijder ze en verzend dit bericht daarna opnieuw."
   },
   "thread": {
+    "pinFailed": "Vastmaken kon niet worden bijgewerkt. Probeer het opnieuw.",
     "chip": "Thread",
     "view": "Threadweergave",
     "resolve": "Oplossen",
