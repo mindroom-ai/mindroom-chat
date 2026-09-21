@@ -49,3 +49,35 @@ it('reports a real metadata transaction failure while keeping progress uncommitt
   }
   expect(await readRoomOfflineProgress('session', '!room:test')).toEqual({});
 });
+
+it('skips unchanged progress writes while preserving concurrent changes', async () => {
+  await updateRoomOfflineProgress('session', '!room:test', {
+    opened: true,
+    undecryptedEventIds: ['$pending'],
+    unresolvedRelations: {},
+  });
+  const writes = vi.spyOn(IDBObjectStore.prototype, 'put');
+  try {
+    expect(
+      await updateRoomOfflineProgress('session', '!room:test', {
+        opened: true,
+        undecryptedEventIds: ['$pending'],
+        unresolvedRelations: {},
+      })
+    ).toBe(true);
+    expect(writes).not.toHaveBeenCalled();
+    await Promise.all([
+      updateRoomOfflineProgress('session', '!room:test', { exhausted: true }),
+      updateRoomOfflineProgress('session', '!room:test', (current) => ({
+        undecryptedEventIds: [...(current.undecryptedEventIds ?? []), '$another'],
+      })),
+    ]);
+    expect(await readRoomOfflineProgress('session', '!room:test')).toMatchObject({
+      opened: true,
+      exhausted: true,
+      undecryptedEventIds: ['$pending', '$another'],
+    });
+  } finally {
+    writes.mockRestore();
+  }
+});

@@ -3,6 +3,7 @@ import { encryptAttachment } from 'browser-encrypt-attachment';
 import { IDBFactory } from 'fake-indexeddb';
 import { createClient, type MatrixClient } from 'matrix-js-sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { saveAttachmentOwner } from '../threads/__tests__/attachmentFixtures';
 import { createSessionId } from '../../state/sessions';
 import type { IEncryptedFile } from '../../../types/matrix/common';
 import {
@@ -22,6 +23,7 @@ import {
   clearAttachmentRepositoryMemory,
   downloadCachedAttachment,
   getCachedAttachmentCacheMetadata,
+  type CachedAttachmentSource,
 } from './attachmentRepository';
 
 const BASE_URL = 'https://matrix.example.org';
@@ -42,6 +44,24 @@ const SOURCE: MindroomLongTextSource = {
 
 const createAccountClient = (userId: string): MatrixClient =>
   createClient({ baseUrl: BASE_URL, userId });
+
+const admitSource = async <T extends CachedAttachmentSource>(
+  mx: MatrixClient,
+  source: T,
+  essential = false
+) => {
+  const owner = source.owner ?? { ...SOURCE.owner!, eventId: '$' + source.mxcUri };
+  await saveAttachmentOwner(
+    createSessionId(mx.getHomeserverUrl(), mx.getSafeUserId()),
+    owner.roomId,
+    owner.eventId,
+    owner.revisionTs,
+    [{ mxcUri: source.mxcUri, essential }],
+    undefined,
+    owner
+  );
+  return { ...source, owner };
+};
 
 const hydrate = (mx: MatrixClient) =>
   hydrateMindroomLongTextSource(
@@ -83,11 +103,12 @@ const pauseAttachmentLookup = (mxcUri: string) => {
 };
 
 describe('persistent attachment repository', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     (globalThis as { indexedDB: IDBFactory }).indexedDB = new IDBFactory();
     resetCacheStoreForTesting();
     clearMindroomLongTextHydrationCache();
     clearAttachmentRepositoryMemory();
+    await admitSource(createAccountClient('@alice:matrix.example.org'), SOURCE, true);
   });
 
   afterEach(() => {
@@ -165,6 +186,7 @@ describe('persistent attachment repository', () => {
     );
     const alice = createAccountClient('@alice:matrix.example.org');
 
+    await admitSource(alice, { owner: SOURCE.owner, mxcUri: encryptedFile.url }, true);
     const consumerBlob = await downloadCachedAttachment(
       alice,
       {
@@ -214,6 +236,18 @@ describe('persistent attachment repository', () => {
     const alice = createAccountClient('@alice:matrix.example.org');
     const source = { mxcUri: 'mxc://matrix.example.org/shared', mimeType: 'text/plain' };
 
+    await admitSource(
+      alice,
+      {
+        ...source,
+        owner: { roomId: '!essential:matrix.example.org', eventId: '$essential', revisionTs: 1 },
+      },
+      true
+    );
+    const ordinarySource = await admitSource(alice, {
+      ...source,
+      owner: { roomId: '!ordinary:matrix.example.org', eventId: '$ordinary', revisionTs: 1 },
+    });
     const essential = downloadCachedAttachment(
       alice,
       {
@@ -226,7 +260,7 @@ describe('persistent attachment repository', () => {
         roomId: '!essential:matrix.example.org',
       }
     );
-    const ordinary = downloadCachedAttachment(alice, source, false, {
+    const ordinary = downloadCachedAttachment(alice, ordinarySource, false, {
       roomId: '!ordinary:matrix.example.org',
     });
     await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
@@ -338,11 +372,16 @@ describe('persistent attachment repository', () => {
     const fetchMock = vi.fn(async () => new Response('cached body', { status: 200 }));
     vi.stubGlobal('fetch', fetchMock);
     const alice = createAccountClient('@alice:matrix.example.org');
-    const source = { mxcUri: 'mxc://matrix.example.org/promote', mimeType: 'text/plain' };
+    const source = await admitSource(alice, {
+      owner: SOURCE.owner,
+      mxcUri: 'mxc://matrix.example.org/promote',
+      mimeType: 'text/plain',
+    });
 
     await downloadCachedAttachment(alice, source, false);
     expect((await getCachedAttachmentCacheMetadata(alice, source.mxcUri))?.essential).toBe(false);
 
+    await admitSource(alice, source, true);
     await downloadCachedAttachment(alice, { ...source, owner: SOURCE.owner }, false, {
       essential: true,
       roomId: '!room:matrix.example.org',
@@ -356,7 +395,7 @@ describe('persistent attachment repository', () => {
     ]);
   });
 
-  it('keeps generic sidecars ordinary unless their caller marks them essential', async () => {
+  it('renders generic sidecars without creating durable ownership', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn(async () => new Response('{}', { status: 200 }))
@@ -366,7 +405,7 @@ describe('persistent attachment repository', () => {
 
     await downloadMindroomSidecarBlob(alice, { mxcUri }, false);
 
-    expect((await getCachedAttachmentCacheMetadata(alice, mxcUri))?.essential).toBe(false);
+    expect(await getCachedAttachmentCacheMetadata(alice, mxcUri)).toBeUndefined();
   });
 
   it('returns a downloaded blob without claiming persistence when storage is unavailable', async () => {
@@ -445,10 +484,11 @@ describe('persistent attachment repository', () => {
     );
     vi.stubGlobal('fetch', fetchMock);
     const alice = createAccountClient('@alice:matrix.example.org');
-    const source = {
+    const source = await admitSource(alice, {
+      owner: { ...SOURCE.owner!, roomId: '!remaining:matrix.example.org' },
       mxcUri: 'mxc://matrix.example.org/partially-aborted',
       mimeType: 'text/plain',
-    };
+    });
     const controller = new AbortController();
     const canceled = downloadCachedAttachment(alice, source, false, {
       essential: true,
@@ -482,10 +522,10 @@ describe('persistent attachment repository', () => {
       vi.fn(async () => new Response('unused body', { status: 200 }))
     );
     const alice = createAccountClient('@alice:matrix.example.org');
-    const source = {
+    const source = await admitSource(alice, {
       mxcUri: 'mxc://matrix.example.org/abort-persistence',
       mimeType: 'text/plain',
-    };
+    });
     const sessionId = createSessionId(BASE_URL, '@alice:matrix.example.org');
     const db = await openCacheStore(sessionId);
     const controller = new AbortController();
@@ -511,7 +551,10 @@ describe('persistent attachment repository', () => {
       vi.fn(async () => new Response('cached body', { status: 200 }))
     );
     const alice = createAccountClient('@alice:matrix.example.org');
-    const source = { mxcUri: 'mxc://matrix.example.org/abort-cached', mimeType: 'text/plain' };
+    const source = await admitSource(alice, {
+      mxcUri: 'mxc://matrix.example.org/abort-cached',
+      mimeType: 'text/plain',
+    });
     await downloadCachedAttachment(alice, source, false);
     const controller = new AbortController();
     controller.abort();
@@ -573,10 +616,10 @@ describe('persistent attachment repository', () => {
     const fetchMock = vi.fn(async () => new Response('surviving body', { status: 200 }));
     vi.stubGlobal('fetch', fetchMock);
     const alice = createAccountClient('@alice:matrix.example.org');
-    const source = {
+    const source = await admitSource(alice, {
       mxcUri: 'mxc://matrix.example.org/survive-lookup-abort',
       mimeType: 'text/plain',
-    };
+    });
     const sessionId = createSessionId(BASE_URL, '@alice:matrix.example.org');
     await openCacheStore(sessionId);
     const lookup = pauseAttachmentLookup(source.mxcUri);
@@ -683,7 +726,7 @@ it('cancels shared HTTP transport when its last consumer leaves', async () => {
   vi.unstubAllGlobals();
 });
 
-it('registers a second warm-memory owner and keeps its body after clearing the first room', async () => {
+it('validates a second admitted warm-memory owner and keeps its body after clearing the first room', async () => {
   const repository = await import('./attachmentRepository');
   const { clearRoomCachedContent, readRoomAttachmentStorage } = await import(
     '../threads/cacheStore'
@@ -702,6 +745,8 @@ it('registers a second warm-memory owner and keeps its body after clearing the f
   );
   const first = { ...SOURCE, owner: { roomId: 'room-a', eventId: '$a', revisionTs: 1 } };
   const second = { ...SOURCE, owner: { roomId: 'room-b', eventId: '$b', revisionTs: 1 } };
+  await admitSource(mx, first, true);
+  await admitSource(mx, second, true);
   await repository.hydrateCachedMindroomLongText(mx, first, false);
   await repository.hydrateCachedMindroomLongText(mx, second, false);
   expect(await readRoomAttachmentStorage(session, 'room-b')).toMatchObject({
@@ -719,7 +764,6 @@ it('registers a second warm-memory owner and keeps its body after clearing the f
 });
 
 it('does not resurrect a retired interactive long-text body after delayed transport', async () => {
-  const { replaceCachedAttachmentReferences } = await import('../threads/cacheStore');
   globalThis.indexedDB = new IDBFactory();
   resetCacheStoreForTesting();
   clearAttachmentRepositoryMemory();
@@ -735,13 +779,14 @@ it('does not resurrect a retired interactive long-text body after delayed transp
         })
     )
   );
-  const pending = downloadMindroomLongTextSidecarText(
+  const initial = await admitSource(
     mx,
     { ...SOURCE, owner: { roomId: 'room-a', eventId: '$stream', revisionTs: 1 } },
-    false
+    true
   );
+  const pending = downloadMindroomLongTextSidecarText(mx, initial, false);
   await vi.waitFor(() => expect(finish).toBeDefined());
-  await replaceCachedAttachmentReferences(session, 'room-a', '$stream', 2, []);
+  await saveAttachmentOwner(session, 'room-a', '$stream', 2, []);
   finish(new Response(JSON.stringify({ msgtype: 'm.text', body: 'obsolete' })));
   await pending;
   expect(await getCachedAttachmentCacheMetadata(mx, SOURCE.mxcUri)).toBeUndefined();
@@ -768,6 +813,16 @@ it('persists for a surviving shared hydration owner after the first room is clea
           finish = resolve;
         })
     )
+  );
+  await admitSource(
+    mx,
+    { ...SOURCE, owner: { roomId: 'room-a', eventId: '$a', revisionTs: 1 } },
+    true
+  );
+  await admitSource(
+    mx,
+    { ...SOURCE, owner: { roomId: 'room-b', eventId: '$b', revisionTs: 1 } },
+    true
   );
   const first = hydrateCachedMindroomLongText(
     mx,
@@ -798,7 +853,7 @@ it('persists for a surviving shared hydration owner after the first room is clea
   vi.unstubAllGlobals();
 });
 
-it('registers full media and its thumbnail together without engine preregistration', async () => {
+it('renders unadmitted media and thumbnails without creating ownership', async () => {
   const { readRoomAttachmentStorage } = await import('../threads/cacheStore');
   globalThis.indexedDB = new IDBFactory();
   resetCacheStoreForTesting();
@@ -815,7 +870,7 @@ it('registers full media and its thumbnail together without engine preregistrati
     downloadCachedAttachment(mx, { owner, mxcUri: 'mxc://test/thumb' }, false),
   ]);
   expect(await readRoomAttachmentStorage(session, 'room-a')).toMatchObject({
-    saved: 2,
+    saved: 0,
     missing: 0,
   });
   vi.unstubAllGlobals();
@@ -833,6 +888,7 @@ it('keeps an original sidecar file incomplete until body validation even without
     vi.fn(async () => new Response('invalid json'))
   );
   const source = { ...SOURCE, owner: { roomId: 'room-a', eventId: '$body', revisionTs: 1 } };
+  await admitSource(mx, source, true);
   expect(await (await downloadMindroomLongTextSidecarBlob(mx, source, false, true)).text()).toBe(
     'invalid json'
   );
@@ -875,6 +931,7 @@ it('validated owned cache hits do not rewrite attachment payloads', async () => 
     mxcUri: 'mxc://matrix.example.org/cache-hit',
     owner: { roomId: '!hit:test', eventId: '$hit', revisionTs: 1, revisionId: '' },
   };
+  await admitSource(mx, source, true);
   await hydrateCachedMindroomLongText(mx, source, false);
   clearMindroomLongTextHydrationCache();
   const writes: string[] = [];

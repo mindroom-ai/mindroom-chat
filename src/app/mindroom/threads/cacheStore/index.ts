@@ -46,7 +46,6 @@ export {
   getCachedAttachmentMetadata,
   loadCachedAttachment,
   putCachedAttachment,
-  replaceCachedAttachmentReferences,
   readRoomAttachmentStorage,
   setRoomAttachmentPinned,
   type CacheAttachmentWriteOptions,

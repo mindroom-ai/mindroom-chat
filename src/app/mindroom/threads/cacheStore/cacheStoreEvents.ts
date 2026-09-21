@@ -1,8 +1,10 @@
 import type { IEvent } from 'matrix-js-sdk';
+import type { EventAttachmentMessage } from '../../messages/eventAttachments';
 import { countCacheProbe } from '../cacheProbe';
 import { isCacheWritable, reportCacheWriteError } from '../cacheHealth';
 import {
   collectEmbeddedRelationEventIds,
+  describeRawEventRevision,
   collectExplicitRedactedEventIds,
   mergeRawEventRevisions,
   stripRedactedRelationsFromRawEvent,
@@ -12,16 +14,23 @@ import { getCachedPaginationToken, mergeCachedPaginationTokens } from '../eventC
 import { maybeScheduleEvictionCheck } from './cacheEviction';
 import {
   openCacheStore,
+  createCacheStoreWriteTransaction,
   captureCacheStoreWriteLease,
   isCacheStoreWriteLeaseCurrent,
   type CacheStoreWriteLease,
 } from './cacheStoreDb';
 import { createLedgerTracker, type LedgerTracker } from './cacheStoreLedger';
-import { replaceCachedAttachmentReferences } from './cacheStoreAttachments';
+import {
+  replaceCachedAttachmentReferences,
+  invalidateCachedAttachmentReferences,
+} from './cacheStoreAttachments';
 import {
   EVENTS_BY_SCOPE_TS_INDEX,
   EVENTS_BY_ROOM_EVENT_INDEX,
   EVENTS_STORE,
+  ATTACHMENTS_STORE,
+  ATTACHMENT_REFERENCES_STORE,
+  buildRedactedRelationMetaKey,
   MAX_EVENT_ID,
   MAX_EVENT_TS,
   META_STORE,
@@ -52,43 +61,35 @@ import {
 // legacy per-domain behaviors (skip local-echo in the room cursor; skip
 // the root record in the thread cursor) are preserved.
 
-const isRawLocalEchoEventId = (eventId: unknown): boolean =>
-  typeof eventId === 'string' && eventId.startsWith('~');
-
-// One marker row per redacted id gives later stale event pages an O(batch)
-// lookup without replaying an ever-growing room-wide registry. Whole-room
-// eviction removes these rows with the rest of the room's meta records.
-const REDACTED_RELATION_META_PREFIX = '__redactedRelation:';
-
-/** Deletion invalidates ownership before event persistence, without waiting for media jobs. */
-const retireRedactedAttachments = async (
-  sessionId: string,
-  roomId: string,
-  eventIds: ReadonlySet<string>,
-  writeLease: CacheStoreWriteLease
-): Promise<void> => {
-  for (const eventId of eventIds) {
-    const status = await replaceCachedAttachmentReferences(
-      sessionId,
-      roomId,
-      eventId,
-      0,
-      [],
-      writeLease,
-      { redacted: true }
-    );
-    // An existing terminal tombstone returns revoked; lease checks still fence room clears.
-    if (status !== 'committed' && status !== 'revoked') {
-      throw new Error('Redacted attachment ownership did not commit');
-    }
+const abortTransaction = (transaction: IDBTransaction): void => {
+  try {
+    transaction.abort();
+  } catch {
+    // A lease fence or another request may already have aborted it.
   }
 };
 
-const getRedactedRelationMetaScope = (eventId: string): string =>
-  `${REDACTED_RELATION_META_PREFIX}${encodeURIComponent(eventId)}`;
+const isRawLocalEchoEventId = (eventId: unknown): boolean =>
+  typeof eventId === 'string' && eventId.startsWith('~');
 
-const getRedactedRelationMetaKey = (roomId: string, eventId: string): string =>
-  buildMetaKey(roomId, getRedactedRelationMetaScope(eventId));
+/** Ownership is derived only from the revision accepted by this event transaction. */
+const saveAcceptedAttachmentOwner = (
+  transaction: IDBTransaction,
+  rawEvent: Partial<IEvent>,
+  owners: readonly EventAttachmentMessage[]
+): void => {
+  const owner = owners.find((candidate) => candidate.eventId === rawEvent.event_id);
+  if (!owner || rawEvent.unsigned?.redacted_because) return;
+  const revision = describeRawEventRevision(rawEvent);
+  if (
+    owner.revisionTs !== (revision.replacement?.ts ?? rawEvent.origin_server_ts) ||
+    (owner.revisionId ?? '') !== (revision.replacement?.eventId ?? '')
+  )
+    return;
+  void replaceCachedAttachmentReferences(transaction, owner).catch(() =>
+    abortTransaction(transaction)
+  );
+};
 
 const stripKnownRedactedRelations = <T extends Partial<IEvent>>(
   rawEvents: readonly T[],
@@ -166,7 +167,7 @@ const loadKnownRedactedRelationEventIds = (
   let pending = unresolvedEventIds.length;
   let failed = false;
   unresolvedEventIds.forEach((eventId) => {
-    const request = metaStore.get(getRedactedRelationMetaKey(roomId, eventId));
+    const request = metaStore.get(buildRedactedRelationMetaKey(roomId, eventId));
     request.onsuccess = () => {
       if (failed) return;
       if (request.result) knownEventIds.add(eventId);
@@ -236,17 +237,25 @@ const runScrubRedactedRelationsTxn = async (
   db: IDBDatabase,
   roomId: string,
   redactedEventIds: ReadonlySet<string>,
-  tombstones: ReadonlyMap<string, Partial<IEvent>>
+  tombstones: ReadonlyMap<string, Partial<IEvent>>,
+  writeLease: CacheStoreWriteLease
 ): Promise<void> =>
   new Promise<void>((resolve, reject) => {
-    const transaction = db.transaction([EVENTS_STORE, META_STORE, ROOM_LEDGER_STORE], 'readwrite');
+    const transaction = createCacheStoreWriteTransaction(
+      db,
+      [EVENTS_STORE, META_STORE, ROOM_LEDGER_STORE, ATTACHMENTS_STORE, ATTACHMENT_REFERENCES_STORE],
+      writeLease
+    );
+    void invalidateCachedAttachmentReferences(transaction, roomId, redactedEventIds).catch(() =>
+      abortTransaction(transaction)
+    );
     const eventStore = transaction.objectStore(EVENTS_STORE);
     const metaStore = transaction.objectStore(META_STORE);
     const ledgerStore = transaction.objectStore(ROOM_LEDGER_STORE);
     const ledger = createLedgerTracker(roomId);
 
     redactedEventIds.forEach((eventId) => {
-      const scope = getRedactedRelationMetaScope(eventId);
+      const scope = `__redactedRelation:${encodeURIComponent(eventId)}`;
       metaStore.put({
         metaKey: buildMetaKey(roomId, scope),
         roomId,
@@ -328,8 +337,9 @@ const runScrubRedactedRelationsTxn = async (
     metaCursorRequest.onerror = () => reject(metaCursorRequest.error);
 
     transaction.oncomplete = () => resolve();
-    transaction.onerror = () => reject(transaction.error);
-    transaction.onabort = () => reject(transaction.error);
+    transaction.onerror = (event) => reject((event.target as IDBRequest).error);
+    transaction.onabort = () =>
+      reject(transaction.error ?? new DOMException('Cache write aborted', 'AbortError'));
   });
 
 export type CachedRoomEventPage = {
@@ -611,7 +621,8 @@ export const saveRoomEventsToCacheCommitted = async (
   rawEvents: Partial<IEvent>[],
   beforeTokenForEarliest?: string | null,
   relationSnapshotMode: RelationSnapshotMode = 'partial',
-  writeLease: CacheStoreWriteLease = captureCacheStoreWriteLease(sessionId, roomId)
+  writeLease: CacheStoreWriteLease = captureCacheStoreWriteLease(sessionId, roomId),
+  attachmentOwners: readonly EventAttachmentMessage[] = []
 ): Promise<boolean> => {
   // CINNY-207 P2.3: cache health gate lives at the single write choke
   // point. After a quota failure the session is cache-read-only —
@@ -632,15 +643,19 @@ export const saveRoomEventsToCacheCommitted = async (
     const redactedTombstones = collectRedactedTombstones(rawEvents);
     const normalizedEvents = normalizeCachedRoomEvents(rawEvents);
     if (redactedEventIds.size > 0) {
-      await retireRedactedAttachments(sessionId, roomId, redactedEventIds, writeLease);
       // Only scrub for ids we have never marked before: marker rows are
       // written by the scrub itself, so an already-marked id was fully
       // repaired on its first save and re-scrubbing is pure work.
       const unscrubbedIds = await collectRedactedIdsWithoutMarker(db, roomId, redactedEventIds);
       if (!isCacheStoreWriteLeaseCurrent(writeLease)) return false;
-      if (unscrubbedIds.size > 0) {
-        await runScrubRedactedRelationsTxn(db, roomId, unscrubbedIds, redactedTombstones);
-      }
+      if (unscrubbedIds.size > 0)
+        await runScrubRedactedRelationsTxn(
+          db,
+          roomId,
+          unscrubbedIds,
+          redactedTombstones,
+          writeLease
+        );
     }
     if (!isCacheStoreWriteLeaseCurrent(writeLease)) return false;
     if (normalizedEvents.length === 0) return true;
@@ -656,10 +671,13 @@ export const saveRoomEventsToCacheCommitted = async (
       normalizedEvents,
       beforeTokenForEarliest,
       relationSnapshotMode,
-      redactedEventIds
+      redactedEventIds,
+      attachmentOwners,
+      writeLease
     );
   } catch (error) {
-    reportCacheWriteError('roomEventCache.save', error);
+    if (isCacheStoreWriteLeaseCurrent(writeLease))
+      reportCacheWriteError('roomEventCache.save', error);
     return false;
   }
 
@@ -694,6 +712,8 @@ type SchedulePutsOptions = {
   knownRedactedEventIds: ReadonlySet<string>;
   relationSnapshotMode: RelationSnapshotMode;
   probeKey: 'roomEventPuts' | 'threadEventPuts';
+  transaction: IDBTransaction;
+  attachmentOwners: readonly EventAttachmentMessage[];
   reject: (reason?: unknown) => void;
   onComplete: (earliestPersistedEventId: string | undefined) => void;
 };
@@ -708,6 +728,8 @@ const scheduleEventPutsWithLedger = ({
   knownRedactedEventIds,
   relationSnapshotMode,
   probeKey,
+  transaction,
+  attachmentOwners,
   reject,
   onComplete,
 }: SchedulePutsOptions): void => {
@@ -746,6 +768,7 @@ const scheduleEventPutsWithLedger = ({
       countCacheProbe(probeKey);
       if (ledger) ledger.notePut(eventRecord, previous);
       eventStore.put(eventRecord);
+      saveAcceptedAttachmentOwner(transaction, eventRecord.rawEvent, attachmentOwners);
       persistedEventIds[index] = rawEvent.event_id;
       maybeFinalizeLedger();
     };
@@ -759,10 +782,16 @@ const runSaveRoomEventsTxn = async (
   normalizedEvents: CachedRoomEvent[],
   beforeTokenForEarliest: string | null | undefined,
   relationSnapshotMode: RelationSnapshotMode,
-  redactedEventIds: ReadonlySet<string>
+  redactedEventIds: ReadonlySet<string>,
+  attachmentOwners: readonly EventAttachmentMessage[],
+  writeLease: CacheStoreWriteLease
 ): Promise<void> =>
   new Promise<void>((resolve, reject) => {
-    const transaction = db.transaction([EVENTS_STORE, META_STORE, ROOM_LEDGER_STORE], 'readwrite');
+    const transaction = createCacheStoreWriteTransaction(
+      db,
+      [EVENTS_STORE, META_STORE, ROOM_LEDGER_STORE, ATTACHMENTS_STORE, ATTACHMENT_REFERENCES_STORE],
+      writeLease
+    );
     const eventStore = transaction.objectStore(EVENTS_STORE);
     const metaStore = transaction.objectStore(META_STORE);
     const ledgerStore = transaction.objectStore(ROOM_LEDGER_STORE);
@@ -824,6 +853,8 @@ const runSaveRoomEventsTxn = async (
         ledger.readBaseline(ledgerStore, eventStore, () => {
           scheduleEventPutsWithLedger({
             eventStore,
+            transaction,
+            attachmentOwners,
             ledger,
             ledgerStore,
             roomId,
@@ -841,8 +872,9 @@ const runSaveRoomEventsTxn = async (
     );
 
     transaction.oncomplete = () => resolve();
-    transaction.onerror = () => reject(transaction.error);
-    transaction.onabort = () => reject(transaction.error);
+    transaction.onerror = (event) => reject((event.target as IDBRequest).error);
+    transaction.onabort = () =>
+      reject(transaction.error ?? new DOMException('Cache write aborted', 'AbortError'));
   });
 
 /**
@@ -1099,7 +1131,8 @@ export const saveThreadEventsToCacheCommitted = async (
   expectedReplyCount?: number,
   relationSnapshotComplete?: boolean,
   relationSnapshotMode: RelationSnapshotMode = 'partial',
-  writeLease: CacheStoreWriteLease = captureCacheStoreWriteLease(sessionId, roomId)
+  writeLease: CacheStoreWriteLease = captureCacheStoreWriteLease(sessionId, roomId),
+  attachmentOwners: readonly EventAttachmentMessage[] = []
 ): Promise<boolean> => {
   // CINNY-207 P2.3: cache health gate (same rationale as the room save).
   if (!isCacheWritable() || !isCacheStoreWriteLeaseCurrent(writeLease)) return false;
@@ -1119,12 +1152,16 @@ export const saveThreadEventsToCacheCommitted = async (
     );
     if (redactedEventIds.size > 0) {
       // Gate the room-wide scrub on marker presence (see room-save above).
-      await retireRedactedAttachments(sessionId, roomId, redactedEventIds, writeLease);
       const unscrubbedIds = await collectRedactedIdsWithoutMarker(db, roomId, redactedEventIds);
       if (!isCacheStoreWriteLeaseCurrent(writeLease)) return false;
-      if (unscrubbedIds.size > 0) {
-        await runScrubRedactedRelationsTxn(db, roomId, unscrubbedIds, redactedTombstones);
-      }
+      if (unscrubbedIds.size > 0)
+        await runScrubRedactedRelationsTxn(
+          db,
+          roomId,
+          unscrubbedIds,
+          redactedTombstones,
+          writeLease
+        );
     }
     if (!isCacheStoreWriteLeaseCurrent(writeLease)) return false;
     if (normalizedEvents.length === 0 && !rootEvent) return true;
@@ -1144,10 +1181,13 @@ export const saveThreadEventsToCacheCommitted = async (
       expectedReplyCount,
       relationSnapshotComplete,
       relationSnapshotMode,
-      redactedEventIds
+      redactedEventIds,
+      attachmentOwners,
+      writeLease
     );
   } catch (error) {
-    reportCacheWriteError('threadEventCache.save', error);
+    if (isCacheStoreWriteLeaseCurrent(writeLease))
+      reportCacheWriteError('threadEventCache.save', error);
     return false;
   }
 
@@ -1174,16 +1214,25 @@ const runSaveThreadEventsTxn = async (
   expectedReplyCount: number | undefined,
   relationSnapshotComplete: boolean | undefined,
   relationSnapshotMode: RelationSnapshotMode,
-  redactedEventIds: ReadonlySet<string>
+  redactedEventIds: ReadonlySet<string>,
+  attachmentOwners: readonly EventAttachmentMessage[],
+  writeLease: CacheStoreWriteLease
 ): Promise<void> =>
   new Promise<void>((resolve, reject) => {
     // Only include ROOM_LEDGER_STORE in the txn when we actually have
     // event puts — a rootEvent-only meta-only save leaves the ledger
     // untouched (per plan: "ledger untouched by meta-only writes").
     const hasEventPuts = normalizedEvents.length > 0;
-    const transaction = db.transaction(
-      hasEventPuts ? [EVENTS_STORE, META_STORE, ROOM_LEDGER_STORE] : [EVENTS_STORE, META_STORE],
-      'readwrite'
+    const transaction = createCacheStoreWriteTransaction(
+      db,
+      [
+        EVENTS_STORE,
+        META_STORE,
+        ATTACHMENTS_STORE,
+        ATTACHMENT_REFERENCES_STORE,
+        ...(hasEventPuts ? [ROOM_LEDGER_STORE] : []),
+      ],
+      writeLease
     );
     const eventStore = transaction.objectStore(EVENTS_STORE);
     const metaStore = transaction.objectStore(META_STORE);
@@ -1258,6 +1307,8 @@ const runSaveThreadEventsTxn = async (
               lastOpenedTs: currentMeta?.lastOpenedTs,
             };
             metaStore.put(nextMeta);
+            if (nextMeta.rootEvent)
+              saveAcceptedAttachmentOwner(transaction, nextMeta.rootEvent, attachmentOwners);
           };
           metaRequest.onerror = () => reject(metaRequest.error);
         };
@@ -1265,6 +1316,8 @@ const runSaveThreadEventsTxn = async (
         const scheduleWrites = (): void =>
           scheduleEventPutsWithLedger({
             eventStore,
+            transaction,
+            attachmentOwners,
             ledger,
             ledgerStore,
             roomId,
@@ -1286,8 +1339,9 @@ const runSaveThreadEventsTxn = async (
     );
 
     transaction.oncomplete = () => resolve();
-    transaction.onerror = () => reject(transaction.error);
-    transaction.onabort = () => reject(transaction.error);
+    transaction.onerror = (event) => reject((event.target as IDBRequest).error);
+    transaction.onabort = () =>
+      reject(transaction.error ?? new DOMException('Cache write aborted', 'AbortError'));
   });
 
 /** Best-effort compatibility API used by fire-and-forget cleanup paths. */
@@ -1312,7 +1366,7 @@ const noteScopeOpened = async (sessionId: string, roomId: string, scope: string)
   if (!db || !isCacheStoreWriteLeaseCurrent(lease)) return;
 
   await new Promise<void>((resolve, reject) => {
-    const transaction = db.transaction(META_STORE, 'readwrite');
+    const transaction = createCacheStoreWriteTransaction(db, META_STORE, lease);
     const metaStore = transaction.objectStore(META_STORE);
     const metaKey = buildMetaKey(roomId, scope);
     const now = Date.now();

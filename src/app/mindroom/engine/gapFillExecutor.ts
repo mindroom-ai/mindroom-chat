@@ -33,9 +33,6 @@ import {
 // consistent across job kinds.
 const GAP_FILL_BATCH_SIZE = GAP_FILL_OVERLAP_TAIL_LIMIT;
 
-// Continuations enqueue after settlement so foreground work gets a slot.
-const GAP_FILL_MAX_ITERATIONS = 1;
-
 export type GapFillExecutorOptions = {
   /** When supplied, the controller owns eligibility as well as bandwidth. */
   readonly pageAllowance?: (roomId: string) => number;
@@ -129,7 +126,7 @@ export const createGapFillExecutor = (
         durableMarker ?? { markedAt: job.markedAt, prevBatch: job.prevBatch }
       );
 
-    let fromToken: string | null =
+    const fromToken: string | null =
       durableMarker?.nextToken ?? job.prevBatch ?? durableMarker?.prevBatch ?? null;
     let overlapEventIds = durableMarker?.overlapEventIds;
     if (overlapEventIds === undefined) {
@@ -143,6 +140,7 @@ export const createGapFillExecutor = (
       }
       overlapEventIds = collectOverlapEventIds(cachedTail.events);
       if (durableMarker) {
+        if (signal.aborted || !isCacheStoreWriteLeaseCurrent(writeLease)) return 'policy-deferred';
         const boundaryCheckpointed = await checkpointRoomTailDiscontinuity(
           sessionId,
           job.roomId,
@@ -168,115 +166,95 @@ export const createGapFillExecutor = (
       return 'policy-deferred';
 
     const overlapEventIdSet = new Set(overlapEventIds);
-    let iterations = 0;
-    let reachedBoundary = false;
-    while (iterations < GAP_FILL_MAX_ITERATIONS) {
-      if (signal.aborted || !isCacheStoreWriteLeaseCurrent(writeLease)) return 'policy-deferred';
-      if (options.canSavePage && !(await options.canSavePage(job.roomId))) return 'policy-deferred';
-      const cursorKey = JSON.stringify([generation, fromToken]);
-      if (visited.has(cursorKey)) return 'continuation-deferred';
-      visited.add(cursorKey);
-      const reservation = options.reservePage?.(job.roomId);
-      if (options.reservePage && !reservation) return 'policy-deferred';
-      let committedCount = 0;
+    if (signal.aborted || !isCacheStoreWriteLeaseCurrent(writeLease)) return 'policy-deferred';
+    if (options.canSavePage && !(await options.canSavePage(job.roomId))) return 'policy-deferred';
+    const cursorKey = JSON.stringify([generation, fromToken]);
+    if (visited.has(cursorKey)) return 'continuation-deferred';
+    visited.add(cursorKey);
+    const reservation = options.reservePage?.(job.roomId);
+    if (options.reservePage && !reservation) return 'policy-deferred';
+    let committedCount = 0;
+    try {
+      let response;
       try {
-        iterations += 1;
-        let response;
-        try {
-          response = await mx.createMessagesRequest(
-            job.roomId,
-            fromToken,
-            Math.min(
-              GAP_FILL_BATCH_SIZE,
-              reservation?.limit ?? options.pageAllowance?.(job.roomId) ?? GAP_FILL_BATCH_SIZE
-            ),
-            Direction.Backward
-          );
-        } catch (error) {
-          // Keep intent for the next connection/focus change, without looping.
-          return 'continuation-deferred';
-        }
-        if (signal.aborted) return 'policy-deferred';
-        const chunk: Partial<IEvent>[] = Array.isArray(response?.chunk)
-          ? (response.chunk as Partial<IEvent>[])
-          : [];
-        const overlapsCachedTail = chunk.some(
-          (event) => typeof event.event_id === 'string' && overlapEventIdSet.has(event.event_id)
-        );
-        if (chunk.length > 0) {
-          // CINNY-207 P7.2 audit finding #3: chunks must funnel through
-          // `createPreferLiveEventMapper` (see reconciler.ts header + I2)
-          // — Tuwunel serves un-pruned copies of redacted events for
-          // ~10s, and last-writer-wins on `eventStore.put` would let a
-          // gap-fill overwrite a cached tombstone with pre-redaction
-          // plaintext at rest. The shared helper maps every raw event
-          // (either through the mapper to a fresh MatrixEvent, or to the
-          // SDK's live instance with `unsigned.redacted_because` applied)
-          // and persists via `persistRoomEventCacheSnapshot` — the same
-          // serialize+save path the write-through uses. Ordering is
-          // normalized inside `runSaveRoomEventsTxn` via
-          // origin_server_ts sorting.
-          try {
-            // Writes must commit before the durable cursor advances.
-            // eslint-disable-next-line no-await-in-loop
-            await persistChunk({
-              mx,
-              sessionId,
-              room,
-              chunk,
-              beforeTokenForEarliest: response.end ?? null,
-              writeLease,
-              roomTailLoaded: true,
-            });
-          } catch {
-            return 'continuation-deferred';
-          }
-          committedCount = chunk.length;
-          onCommitted();
-          if (signal.aborted || stopped) return 'policy-deferred';
-        }
-        // The overlap page must commit before the marker is cleared. It
-        // is safe (and useful for edit/redaction healing) to persist the
-        // whole page, including the already-cached boundary event.
-        if (overlapsCachedTail) {
-          reachedBoundary = true;
-          break;
-        }
-        // `end === undefined` (or an empty end string) means the SDK has
-        // no more history to fetch in this direction.
-        if (!response.end) {
-          reachedBoundary = true;
-          break;
-        }
-        // Same token twice is not proof of exhaustion. Preserve the
-        // marker at its last committed cursor for a later retry.
-        if (response.end === fromToken) {
-          return 'continuation-deferred';
-        }
-        // The marker may have been superseded by a newer TimelineReset
-        // while this request was in flight. Stop instead of overwriting
-        // the new generation's cursor.
-        // eslint-disable-next-line no-await-in-loop
-        const checkpointed = await checkpointRoomTailDiscontinuity(
-          sessionId,
+        response = await mx.createMessagesRequest(
           job.roomId,
-          generation,
-          response.end
+          fromToken,
+          Math.min(
+            GAP_FILL_BATCH_SIZE,
+            reservation?.limit ?? options.pageAllowance?.(job.roomId) ?? GAP_FILL_BATCH_SIZE
+          ),
+          Direction.Backward
         );
-        if (durableMarker && !checkpointed) return 'continuation-deferred';
-        if (checkpointed) onCommitted();
-        fromToken = response.end;
-      } finally {
-        reservation?.settle(committedCount);
+      } catch (error) {
+        // Keep intent for the next connection/focus change, without looping.
+        return 'continuation-deferred';
       }
-    }
-
-    if (reachedBoundary) {
-      const cleared = await clearRoomTailDiscontinuity(sessionId, job.roomId, generation).catch(
-        () => false
+      if (signal.aborted) return 'policy-deferred';
+      const chunk: Partial<IEvent>[] = Array.isArray(response?.chunk)
+        ? (response.chunk as Partial<IEvent>[])
+        : [];
+      const overlapsCachedTail = chunk.some(
+        (event) => typeof event.event_id === 'string' && overlapEventIdSet.has(event.event_id)
       );
-      if (cleared) onCommitted();
-      return cleared ? undefined : 'continuation-deferred';
+      if (chunk.length > 0) {
+        // CINNY-207 P7.2 audit finding #3: chunks must funnel through
+        // `createPreferLiveEventMapper` (see reconciler.ts header + I2)
+        // — Tuwunel serves un-pruned copies of redacted events for
+        // ~10s, and last-writer-wins on `eventStore.put` would let a
+        // gap-fill overwrite a cached tombstone with pre-redaction
+        // plaintext at rest. The shared helper maps every raw event
+        // (either through the mapper to a fresh MatrixEvent, or to the
+        // SDK's live instance with `unsigned.redacted_because` applied)
+        // and persists via `persistRoomEventCacheSnapshot` — the same
+        // serialize+save path the write-through uses. Ordering is
+        // normalized inside `runSaveRoomEventsTxn` via
+        // origin_server_ts sorting.
+        try {
+          // Writes must commit before the durable cursor advances.
+          await persistChunk({
+            mx,
+            sessionId,
+            room,
+            chunk,
+            beforeTokenForEarliest: response.end ?? null,
+            writeLease,
+            roomTailLoaded: true,
+          });
+        } catch {
+          return 'continuation-deferred';
+        }
+        committedCount = chunk.length;
+        onCommitted();
+        if (signal.aborted || stopped) return 'policy-deferred';
+      }
+      if (signal.aborted || !isCacheStoreWriteLeaseCurrent(writeLease)) return 'policy-deferred';
+      // Only committed overlap or exhaustion proves continuity.
+      if (overlapsCachedTail || !response.end) {
+        const cleared = await clearRoomTailDiscontinuity(sessionId, job.roomId, generation).catch(
+          () => false
+        );
+        if (cleared) onCommitted();
+        return cleared ? undefined : 'continuation-deferred';
+      }
+      // Same token twice is not proof of exhaustion. Preserve the
+      // marker at its last committed cursor for a later retry.
+      if (response.end === fromToken) {
+        return 'continuation-deferred';
+      }
+      // The marker may have been superseded by a newer TimelineReset
+      // while this request was in flight. Stop instead of overwriting
+      // the new generation's cursor.
+      const checkpointed = await checkpointRoomTailDiscontinuity(
+        sessionId,
+        job.roomId,
+        generation,
+        response.end
+      );
+      if (durableMarker && !checkpointed) return 'continuation-deferred';
+      if (checkpointed) onCommitted();
+    } finally {
+      reservation?.settle(committedCount);
     }
     return 'page-committed';
   };

@@ -1,4 +1,8 @@
-import { openCacheStore, revokeRoomCacheStoreWrites } from './cacheStoreDb';
+import {
+  advanceRoomCacheStoreEpoch,
+  openCacheStore,
+  revokeRoomCacheStoreWrites,
+} from './cacheStoreDb';
 import {
   ATTACHMENTS_STORE,
   ATTACHMENTS_BY_ACCESS_BYTES_INDEX,
@@ -54,6 +58,7 @@ export const clearRoomCachedContent = async (
       ],
       'readwrite'
     );
+    advanceRoomCacheStoreEpoch(txn, sessionId, roomId);
     const eventsStore = txn.objectStore(EVENTS_STORE);
     const metaStore = txn.objectStore(META_STORE);
     const ledgerStore = txn.objectStore(ROOM_LEDGER_STORE);

@@ -3,12 +3,12 @@ import 'fake-indexeddb/auto';
 import { IDBFactory } from 'fake-indexeddb';
 import { Direction, MatrixEvent } from 'matrix-js-sdk';
 import type { IEvent, MatrixClient, Room } from 'matrix-js-sdk';
+import { saveAttachmentOwner } from '../../threads/__tests__/attachmentFixtures';
 import { createBackfillScheduler } from '../backfillScheduler';
 import { enqueueRoomDeepHistoryJob } from '../deepHistoryJob';
 import { StateEvent } from '../../../../types/matrix/room';
 import {
   loadCachedRoomEvent,
-  replaceCachedAttachmentReferences,
   loadLatestCachedThreadEvents,
   resetCacheStoreForTesting,
 } from '../../threads/cacheStore';
@@ -437,7 +437,7 @@ describe('enqueueRoomDeepHistoryJob (CINNY-207 P4.3)', () => {
       roomId: room.roomId,
     };
     await enqueueRoomDeepHistoryJob(args);
-    await replaceCachedAttachmentReferences(
+    await saveAttachmentOwner(
       SESSION_ID,
       room.roomId,
       '$original',
@@ -448,12 +448,12 @@ describe('enqueueRoomDeepHistoryJob (CINNY-207 P4.3)', () => {
     );
     await enqueueRoomDeepHistoryJob(args);
     expect(
-      await replaceCachedAttachmentReferences(SESSION_ID, room.roomId, '$original', 10, [
+      await saveAttachmentOwner(SESSION_ID, room.roomId, '$original', 10, [
         { mxcUri: 'mxc://test/original', essential: true },
       ])
-    ).toBe('committed');
+    ).toBe(true);
     expect(
-      await replaceCachedAttachmentReferences(
+      await saveAttachmentOwner(
         SESSION_ID,
         room.roomId,
         '$original',
@@ -462,7 +462,7 @@ describe('enqueueRoomDeepHistoryJob (CINNY-207 P4.3)', () => {
         undefined,
         { revisionId: '$edit' }
       )
-    ).toBe('revoked');
+    ).toBe(true);
     const cached = await loadCachedRoomEvent(SESSION_ID, room.roomId, '$original');
     expect(cached?.unsigned?.['m.relations']?.['m.replace']).toBeUndefined();
   });

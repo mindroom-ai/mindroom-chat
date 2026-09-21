@@ -164,6 +164,8 @@ export const openCacheStore = (
       }
 
       db.onversionchange = () => {
+        revokeCacheStoreWrites(sessionId);
+        resetObservedRoomEpochs(sessionId);
         db.close();
         dbPromiseByName.delete(dbName);
       };
@@ -207,6 +209,7 @@ export const deleteCacheStoreDb = async (sessionId: string): Promise<void> => {
   currentDb?.close();
   dbPromiseByName.delete(dbName);
   await deleteIndexedDb(dbName);
+  resetObservedRoomEpochs(sessionId);
 };
 
 const writeGenerationBySession = new Map<string, number>();
@@ -216,9 +219,16 @@ export type CacheStoreWriteLease = {
   readonly generation: number;
   readonly roomId?: string;
   readonly roomGeneration?: number;
+  readonly roomEpoch?: number;
 };
 
 const writeGenerationByRoom = new Map<string, number>();
+const observedRoomEpochByKey = new Map<string, number>();
+const resetObservedRoomEpochs = (sessionId: string): void => {
+  observedRoomEpochByKey.forEach((_epoch, key) => {
+    if (JSON.parse(key)[0] === sessionId) observedRoomEpochByKey.delete(key);
+  });
+};
 const roomLeaseKey = (sessionId: string, roomId: string): string =>
   JSON.stringify([sessionId, roomId]);
 
@@ -232,6 +242,9 @@ export const captureCacheStoreWriteLease = (
     sessionId,
     generation,
     roomId,
+    roomEpoch: roomId
+      ? observedRoomEpochByKey.get(roomLeaseKey(sessionId, roomId)) ?? 0
+      : undefined,
     roomGeneration: roomId
       ? writeGenerationByRoom.get(roomLeaseKey(sessionId, roomId)) ?? 0
       : undefined,
@@ -241,8 +254,68 @@ export const captureCacheStoreWriteLease = (
 export const isCacheStoreWriteLeaseCurrent = (lease: CacheStoreWriteLease): boolean =>
   (writeGenerationBySession.get(lease.sessionId) ?? 0) === lease.generation &&
   (!lease.roomId ||
-    (writeGenerationByRoom.get(roomLeaseKey(lease.sessionId, lease.roomId)) ?? 0) ===
-      lease.roomGeneration);
+    ((writeGenerationByRoom.get(roomLeaseKey(lease.sessionId, lease.roomId)) ?? 0) ===
+      lease.roomGeneration &&
+      (observedRoomEpochByKey.get(roomLeaseKey(lease.sessionId, lease.roomId)) ?? 0) ===
+        lease.roomEpoch));
+
+// Room epochs outlive content clears, whose meta keys start with roomId + '|'.
+const roomEpochMetaKey = (roomId: string): string => '__roomWriteEpoch:' + JSON.stringify(roomId);
+type RoomEpochRecord = { metaKey: string; epoch: number };
+
+const observeRoomEpoch = (sessionId: string, roomId: string, epoch: number): void => {
+  const key = roomLeaseKey(sessionId, roomId);
+  observedRoomEpochByKey.set(key, Math.max(observedRoomEpochByKey.get(key) ?? 0, epoch));
+};
+
+/** Read durable authority before any caller writes, in the same transaction. */
+export const createCacheStoreWriteTransaction = (
+  db: IDBDatabase,
+  stores: string | readonly string[],
+  lease: CacheStoreWriteLease
+): IDBTransaction => {
+  const names = typeof stores === 'string' ? [stores] : stores;
+  const transaction = db.transaction([...new Set([...names, META_STORE])], 'readwrite');
+  if (lease.roomId) {
+    const roomId = lease.roomId;
+    const request = transaction.objectStore(META_STORE).get(roomEpochMetaKey(roomId));
+    request.onsuccess = () => {
+      if (!isCacheStoreWriteLeaseCurrent(lease)) {
+        transaction.abort();
+        return;
+      }
+      const epoch = (request.result as RoomEpochRecord | undefined)?.epoch ?? 0;
+      // Learn only for future captures. An old lease never adopts this epoch.
+      observeRoomEpoch(lease.sessionId, roomId, epoch);
+      if (epoch !== lease.roomEpoch || !isCacheStoreWriteLeaseCurrent(lease)) transaction.abort();
+    };
+  }
+  return transaction;
+};
+
+/** Advance the fence atomically with room deletion, without renewing local leases. */
+export const advanceRoomCacheStoreEpoch = (
+  transaction: IDBTransaction,
+  sessionId: string,
+  roomId: string
+): void => {
+  const generation = writeGenerationBySession.get(sessionId) ?? 0;
+  const metaKey = roomEpochMetaKey(roomId);
+  const store = transaction.objectStore(META_STORE);
+  const request = store.get(metaKey);
+  request.onsuccess = () => {
+    const epoch = ((request.result as RoomEpochRecord | undefined)?.epoch ?? 0) + 1;
+    store.put({ metaKey, epoch } satisfies RoomEpochRecord);
+    transaction.addEventListener(
+      'complete',
+      () => {
+        if ((writeGenerationBySession.get(sessionId) ?? 0) === generation)
+          observeRoomEpoch(sessionId, roomId, epoch);
+      },
+      { once: true }
+    );
+  };
+};
 
 export const revokeRoomCacheStoreWrites = (sessionId: string, roomId: string): void => {
   const key = roomLeaseKey(sessionId, roomId);
@@ -267,6 +340,7 @@ export const resetCacheStoreForTesting = (): void => {
   dbPromiseByName.clear();
   writeGenerationBySession.clear();
   writeGenerationByRoom.clear();
+  observedRoomEpochByKey.clear();
 };
 
 // Re-exported so the wipe hook (P2.1 commit 3) can iterate stored

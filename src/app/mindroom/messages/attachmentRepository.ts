@@ -10,7 +10,6 @@ import {
   putCachedAttachment,
   type CachedAttachmentMetadata,
   type CacheStoreWriteLease,
-  replaceCachedAttachmentReferences,
   isCacheStoreWriteLeaseCurrent,
   maybeScheduleEvictionCheck,
 } from '../threads/cacheStore';
@@ -233,24 +232,6 @@ export const downloadCachedAttachment = async (
   options = { ...source.owner, ...options };
   const sessionId = getSessionId(mx);
   const writeLease = options.writeLease ?? captureCacheStoreWriteLease(sessionId, options.roomId);
-  if (source.owner) {
-    await replaceCachedAttachmentReferences(
-      sessionId,
-      source.owner.roomId,
-      source.owner.eventId,
-      source.owner.revisionTs,
-      [
-        {
-          mxcUri: source.mxcUri,
-          essential: options.essential === true || source.isV2ContentJson !== undefined,
-          maxBytes:
-            source.isV2ContentJson !== undefined ? ESSENTIAL_BODY_MAX_BYTES : options.maxBytes,
-        },
-      ],
-      writeLease,
-      { ...source.owner, merge: true }
-    );
-  }
   const attachment = acquireAttachment(mx, sessionId, source, useAuthentication, options.maxBytes);
   try {
     const raw = await awaitWithSignal(attachment.promise, options.signal);
@@ -270,7 +251,7 @@ export const downloadCachedAttachment = async (
       metadata &&
       (!options.essential || metadata.essential) &&
       (!options.roomId || hasCachedReference(metadata, options));
-    if ((!options.essential || (options.roomId && options.eventId)) && !satisfied) {
+    if (options.roomId && options.eventId && !satisfied) {
       await awaitWithSignal(
         putCachedAttachment(
           sessionId,
@@ -308,43 +289,22 @@ export type PrefetchEventAttachmentsOptions = {
   writeLease?: CacheStoreWriteLease;
 };
 
-/** One bounded batch, with no worker queue. Registration precedes all transport. */
+/** One bounded batch consuming ownership already admitted by canonical event persistence. */
 export const prefetchEventAttachments = async (
   mx: MatrixClient,
   events: readonly MatrixEvent[],
   useAuthentication: boolean,
   options: PrefetchEventAttachmentsOptions = {}
-): Promise<{ saved: number; missing: number }> => {
+): Promise<void> => {
   const sessionId = getSessionId(mx);
-  const messages = collectEventAttachments(events).filter(
-    (message) => message.attachments.length || message.redacted || message.revisionId
-  );
+  const messages = collectEventAttachments(events).filter((message) => message.attachments.length);
   const leases = new Map(
     messages.map((message) => [
       message.roomId,
       options.writeLease ?? captureCacheStoreWriteLease(sessionId, message.roomId),
     ])
   );
-  const current = [] as typeof messages;
   for (const message of messages) {
-    if (options.signal?.aborted) throw abortError();
-    // eslint-disable-next-line no-await-in-loop
-    const status = await replaceCachedAttachmentReferences(
-      sessionId,
-      message.roomId,
-      message.eventId,
-      message.revisionTs,
-      message.attachments,
-      leases.get(message.roomId),
-      message
-    );
-    if (status !== 'revoked') current.push(message);
-  }
-  const requirements = new Map<
-    string,
-    { roomId: string; mxcUri: string; owners: typeof messages }
-  >();
-  for (const message of current) {
     for (const attachment of message.attachments) {
       if (options.signal?.aborted) throw abortError();
       const writeLease = leases.get(message.roomId)!;
@@ -377,29 +337,11 @@ export const prefetchEventAttachments = async (
           // Missing/failed bytes remain registered for retry and storage reporting.
         }
       }
-      const key = JSON.stringify([message.roomId, attachment.mxcUri]);
-      const required = requirements.get(key) ?? {
-        roomId: message.roomId,
-        mxcUri: attachment.mxcUri,
-        owners: [],
-      };
-      required.owners.push(message);
-      requirements.set(key, required);
     }
   }
-  // Read after every consumer has validated: raw bytes alone do not satisfy an essential body.
-  let saved = 0;
-  let missing = 0;
-  for (const { mxcUri, owners } of requirements.values()) {
-    // eslint-disable-next-line no-await-in-loop
-    const metadata = await getCachedAttachmentMetadata(sessionId, mxcUri);
-    if (metadata && owners.every((owner) => hasCachedReference(metadata, owner))) saved += 1;
-    else missing += 1;
-  }
-  return { saved, missing };
 };
 
-/** Register each message owner even when parsed-memory/inflight hydration shares a body. */
+/** Each owner validates the shared raw payload before claiming readable coverage. */
 export const hydrateCachedMindroomLongText = async (
   mx: MatrixClient,
   source: MindroomLongTextSource,
@@ -409,29 +351,10 @@ export const hydrateCachedMindroomLongText = async (
   const sessionId = getSessionId(mx);
   const writeLease = captureCacheStoreWriteLease(sessionId, owner?.roomId);
   const isCurrent = () => isCacheStoreWriteLeaseCurrent(writeLease);
-  const register = (validated: boolean) =>
-    owner && sessionId
-      ? replaceCachedAttachmentReferences(
-          sessionId,
-          owner.roomId,
-          owner.eventId,
-          owner.revisionTs,
-          [
-            {
-              mxcUri: source.mxcUri,
-              essential: true,
-              maxBytes: ESSENTIAL_BODY_MAX_BYTES,
-              validated,
-            },
-          ],
-          writeLease,
-          { ...owner, merge: true }
-        )
-      : Promise.resolve();
   const load = async (nextSource: MindroomLongTextSource) => {
     const blob = await downloadCachedAttachment(
       mx,
-      { ...nextSource, owner: undefined, mimeType: 'application/json' },
+      { ...nextSource, mimeType: 'application/json' },
       useAuthentication,
       { ...owner, essential: true, maxBytes: ESSENTIAL_BODY_MAX_BYTES, writeLease }
     );
@@ -439,14 +362,16 @@ export const hydrateCachedMindroomLongText = async (
   };
   if (!owner) return hydrateMindroomLongTextSource(source, load, mx, isCurrent);
   const cached = getCachedMindroomLongTextContent(source, mx);
-  const status = await register(!!cached);
-  if (status === 'revoked' || !isCurrent()) return source.previewContent;
-  if (cached) return cached;
+  if (
+    cached &&
+    hasCachedReference(await getCachedAttachmentMetadata(sessionId, source.mxcUri), owner)
+  )
+    return isCurrent() ? cached : source.previewContent;
   try {
     // Every owner participates in raw transport/persistence before parsed hydration can coalesce.
     const text = await load(source);
     return await hydrateMindroomLongTextSource(source, async () => text, mx, isCurrent);
   } catch {
-    return source.previewContent;
+    return isCurrent() ? cached ?? source.previewContent : source.previewContent;
   }
 };

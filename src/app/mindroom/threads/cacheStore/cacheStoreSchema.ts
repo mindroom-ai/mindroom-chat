@@ -213,7 +213,6 @@ export type CachedAttachmentReferenceRecord = {
   eventId?: string;
   revisionTs?: number;
   revisionId?: string;
-  retractedRevisionIds?: string[];
   redacted?: boolean;
   maxBytes?: number;
   status: 'cached' | 'missing';
@@ -247,3 +246,7 @@ export const estimateRawEventBytes = (rawEvent: Partial<IEvent>): number => {
     return 0;
   }
 };
+
+/** Durable event-redaction evidence shared by canonical events and attachment ownership. */
+export const buildRedactedRelationMetaKey = (roomId: string, eventId: string): string =>
+  buildMetaKey(roomId, `__redactedRelation:${encodeURIComponent(eventId)}`);

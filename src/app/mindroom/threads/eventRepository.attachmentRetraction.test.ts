@@ -111,7 +111,6 @@ it('restores a server-supplied surviving edit after latest-edit retraction and c
       eventId: '$root',
       revisionId: '$earlier',
       status: 'cached',
-      retractedRevisionIds: ['$latest'],
     }),
   ]);
   expect(await loadCachedAttachment(sessionId, 'mxc://test/latest')).toBeUndefined();

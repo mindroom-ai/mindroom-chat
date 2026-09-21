@@ -2,13 +2,17 @@ import 'fake-indexeddb/auto';
 import { IDBFactory } from 'fake-indexeddb';
 import { createClient, EventStatus, MatrixEvent, Room } from 'matrix-js-sdk';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import {
+  saveAttachmentOwner,
+  persistAttachmentEvents,
+} from '../threads/__tests__/attachmentFixtures';
 import { createSessionId } from '../../state/sessions';
 import {
   clearRoomCachedContent,
   resetCacheStoreForTesting,
+  readRoomAttachmentStorage,
   loadCachedAttachment,
   getCachedAttachmentMetadata,
-  replaceCachedAttachmentReferences,
 } from '../threads/cacheStore';
 import {
   hydrateCachedMindroomLongText,
@@ -172,6 +176,7 @@ it('accepts the server revision after hydrating a pending SDK edit with a later 
     }),
     edit
   );
+  await persistAttachmentEvents(mx, [root]);
   await prefetchEventAttachments(mx, [root], false);
   expect(await hydrateRoot()).toMatchObject({ body: 'complete edited body' });
   expect((await getCachedAttachmentMetadata(sessionId, source.mxcUri))?.references).toEqual([
@@ -204,6 +209,7 @@ it('preserves saved ownership when a standalone SDK edit fails decryption, then 
     'fetch',
     vi.fn(async () => new Response(JSON.stringify({ msgtype: 'm.text', body: 'saved body' })))
   );
+  await persistAttachmentEvents(mx, [root]);
   await prefetchEventAttachments(mx, [root], false);
   const relation = { rel_type: 'm.replace', event_id: '$body' };
   const edit = new MatrixEvent({
@@ -222,6 +228,7 @@ it('preserves saved ownership when a standalone SDK edit fails decryption, then 
   expect(edit.isDecryptionFailure()).toBe(true);
   expect(edit.getType()).toBe('m.room.message');
   root.makeReplaced(edit);
+  await persistAttachmentEvents(mx, [root, edit]);
   await prefetchEventAttachments(mx, [root, edit], false);
   expect(await loadCachedAttachment(sessionId, source.mxcUri)).toBeDefined();
   expect((await getCachedAttachmentMetadata(sessionId, source.mxcUri))?.references).toEqual([
@@ -235,7 +242,12 @@ it('preserves saved ownership when a standalone SDK edit fails decryption, then 
       },
     }),
   } as never);
-  expect(await prefetchEventAttachments(mx, [root, edit], false)).toEqual({ saved: 1, missing: 0 });
+  await persistAttachmentEvents(mx, [root, edit]);
+  await prefetchEventAttachments(mx, [root, edit], false);
+  expect(await readRoomAttachmentStorage(sessionId, roomId)).toMatchObject({
+    saved: 1,
+    missing: 0,
+  });
   expect((await getCachedAttachmentMetadata(sessionId, source.mxcUri))?.references).toEqual([
     expect.objectContaining({
       eventId: '$body',
@@ -291,7 +303,7 @@ it('retries failed capability lookup on a later explicit download', async () => 
       },
     },
   ]);
-  await replaceCachedAttachmentReferences(sessionId, roomId, '$body', 1, [
+  await saveAttachmentOwner(sessionId, roomId, '$body', 1, [
     { mxcUri: source.mxcUri, essential: true },
   ]);
   const scheduler = createBackfillScheduler({ mx });
@@ -307,6 +319,7 @@ it('retries failed capability lookup on a later explicit download', async () => 
     onChanged: () => {},
   });
   control.start();
+  const unsubscribe = control.controller.subscribe(roomId, () => {});
   try {
     control.focus(roomId);
     await vi.waitFor(() => expect(control.controller.getSnapshot(roomId).status).toBe('ready'));
@@ -318,17 +331,16 @@ it('retries failed capability lookup on a later explicit download', async () => 
     expect(versions).toHaveBeenCalledTimes(2);
     expect(control.controller.getSnapshot(roomId).missingEssential).toBe(0);
   } finally {
+    unsubscribe();
     control.stop();
     scheduler.abortAll();
   }
 });
 
 it('keeps validated essential coverage when storage pressure denies a repeated prefetch', async () => {
-  const {
-    __setCacheStoreByteBudgetForTests,
-    readRoomAttachmentStorage,
-    runCacheEvictionIfOverBudget,
-  } = await import('../threads/cacheStore');
+  const { __setCacheStoreByteBudgetForTests, runCacheEvictionIfOverBudget } = await import(
+    '../threads/cacheStore'
+  );
   const mx = createClient({ baseUrl, userId });
   const body = new MatrixEvent({
     room_id: roomId,
@@ -347,14 +359,17 @@ it('keeps validated essential coverage when storage pressure denies a repeated p
     async () => new Response(JSON.stringify({ msgtype: 'm.text', body: 'validated body' }))
   );
   vi.stubGlobal('fetch', fetch);
-  expect(await prefetchEventAttachments(mx, [body], false)).toEqual({ saved: 1, missing: 0 });
+  await persistAttachmentEvents(mx, [body]);
+  await prefetchEventAttachments(mx, [body], false);
+  expect(await readRoomAttachmentStorage(sessionId, roomId)).toMatchObject({
+    saved: 1,
+    missing: 0,
+  });
   __setCacheStoreByteBudgetForTests(1);
   try {
-    expect(
-      await prefetchEventAttachments(mx, [body], false, {
-        canDownload: async () => !(await runCacheEvictionIfOverBudget(sessionId)).underPressure,
-      })
-    ).toEqual({ saved: 1, missing: 0 });
+    await prefetchEventAttachments(mx, [body], false, {
+      canDownload: async () => !(await runCacheEvictionIfOverBudget(sessionId)).underPressure,
+    });
     expect(await readRoomAttachmentStorage(sessionId, roomId)).toMatchObject({
       saved: 1,
       missingEssential: 0,

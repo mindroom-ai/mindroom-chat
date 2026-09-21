@@ -2,6 +2,25 @@
 
 ## Runbook
 
+### Centralize attachment ownership and fence room clears (2026-09-20)
+
+- Accepted room/thread event transactions now update attachment ownership atomically, including interactive snapshots and authoritative edit repair.
+  Downloaders and renderers consume that ownership; they cannot publish an obsolete notification attachment under a newer revision.
+  Existing redaction markers replace the separate attachment retraction history and repeated retained-room owner lookup.
+- Room clears advance a durable epoch in the deletion transaction. Writes check their original lease inside their own transaction, so another tab cannot restore cleared data after a delayed read, decryption or fetch.
+  Connection invalidation also revokes old leases and resets observed epochs, allowing fresh writes after another tab deletes the database.
+  A cold runtime that has not learned a room's epoch may skip its first write; later fresh work can retry. Clear remains best effort storage management, not removal of messages from the server.
+- Room focus belongs to the stable room view rather than the thread timeline; thread navigation preserves download reservations, allowance and cancellation.
+  Cancel remains active until Download is requested again. Live attachment work obeys room scope, and inline edits/redactions create no empty attachment jobs.
+  Unchanged progress skips metadata writes, unobserved live updates skip coverage scans, and gap loading no longer uses a one-iteration loop.
+- Notifications use the existing latest-edit selection to keep displayed content and attachment identity together, including newer bundled edits and encrypted events.
+  A detached rendering snapshot leaves the SDK event available for decryption subscriptions.
+- Fresh full Agent CLI reviews by Astra and Claude Fable 5.1 identified the corrected cases; independent follow-up reviews reproduced additional notification and database-lifecycle cases and verified their fixes.
+  Latest dev is integrated. All 571 files / 4,944 unit tests, application and browser-test typechecks, production/PWA build, formatting and whitespace checks pass; ESLint has zero errors and 17 existing warnings.
+  Eight Chromium/WebKit offline/freshness cases pass with two expected platform skips. Cross-runtime IndexedDB tests cover delayed decryption, queued transactions, atomic rollback, room clears and database recreation.
+- This correction round changes 17 existing production modules: 658 lines added, 743 removed, net 85 fewer. No new production module or schema migration is introduced.
+  Physical iPhone, native Xcode archive and browser restart with real room encryption remain unverified.
+
 ### Unify worker browser panel discovery (2026-09-20)
 
 - The backend now recommends `chat_ui.open_panel(panel="computer")` alongside `panel="members"` and keeps `show_computer()` as a compatible alias.

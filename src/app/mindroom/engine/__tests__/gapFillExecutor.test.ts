@@ -16,6 +16,7 @@ import {
   loadLatestCachedThreadEvents,
   resetCacheStoreForTesting,
 } from '../../threads/cacheStore';
+import { revokeRoomCacheStoreWrites } from '../../threads/cacheStore/cacheStoreDb';
 import { getCacheProbeSnapshot, resetCacheProbe } from '../../threads/cacheProbe';
 import { persistRoomChunkWithPreferLive } from '../../threads/eventRepository';
 
@@ -597,6 +598,43 @@ describe('gapFillExecutor (CINNY-207 P4.2)', () => {
     expect(snapshot.schedulerFailed).toBe(0);
     expect(snapshot.schedulerCompleted).toBe(1);
   });
+
+  it.each(['boundary-read', 'empty-response'] as const)(
+    'keeps a revoked gap task from mutating metadata after %s',
+    async (stage) => {
+      const roomId = '!room:mindroom.chat';
+      const marker = {
+        markedAt: 1000,
+        prevBatch: 'tok-0',
+        generation: 'revoked',
+        ...(stage === 'empty-response' ? { overlapEventIds: ['$boundary'] } : {}),
+      };
+      await markRoomTailDiscontinuity(SESSION_ID, roomId, marker);
+      const mx = createMockClient('mindroom.chat', () => {
+        if (stage === 'empty-response') revokeRoomCacheStoreWrites(SESSION_ID, roomId);
+        return { chunk: [] };
+      });
+      mx.__rooms.set(roomId, makeRoomStub(roomId, '@alice:mindroom.chat'));
+      const scheduler = createBackfillScheduler({ mx });
+      const queue = createInMemoryGapFillScheduler();
+      createGapFillExecutor(
+        {
+          mx,
+          sessionId: SESSION_ID,
+          scheduler,
+          loadCachedTail: async () => {
+            revokeRoomCacheStoreWrites(SESSION_ID, roomId);
+            return { events: [rawEvent('$boundary', 1)], hasMore: false, beforeToken: null };
+          },
+        },
+        queue
+      );
+      queue.enqueueGapFill({ roomId, reason: 'limited-sync', ...marker });
+      await waitForCompleted();
+      expect(await loadRoomTailDiscontinuity(SESSION_ID, roomId)).toEqual(marker);
+      expect(mx.__messages).toHaveLength(stage === 'empty-response' ? 1 : 0);
+    }
+  );
 
   it('defers without fetching or clearing when the durable marker read fails', async () => {
     const mx = createMockClient('mindroom.chat', () => ({ chunk: [] }));

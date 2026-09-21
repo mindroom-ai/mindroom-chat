@@ -1,6 +1,7 @@
 import 'fake-indexeddb/auto';
 import { IDBFactory } from 'fake-indexeddb';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { saveAttachmentOwner } from '../../__tests__/attachmentFixtures';
 import * as store from '../index';
 
 const session = 'retention';
@@ -84,7 +85,7 @@ it('reclaims optional bytes while retaining room text and essential bodies', asy
 });
 
 it('registers missing bodies and retires revisions without losing shared room bytes', async () => {
-  await store.replaceCachedAttachmentReferences(session, 'room-a', '$message', 1, [
+  await saveAttachmentOwner(session, 'room-a', '$message', 1, [
     { mxcUri: 'mxc://test/body', essential: true },
   ]);
   expect(await store.readRoomAttachmentStorage(session, 'room-a')).toMatchObject({
@@ -92,10 +93,10 @@ it('registers missing bodies and retires revisions without losing shared room by
     saved: 0,
   });
   await save('mxc://test/body', 'room-a', true);
-  await store.replaceCachedAttachmentReferences(session, 'room-b', '$other', 1, [
+  await saveAttachmentOwner(session, 'room-b', '$other', 1, [
     { mxcUri: 'mxc://test/body', essential: true },
   ]);
-  await store.replaceCachedAttachmentReferences(session, 'room-a', '$message', 2, []);
+  await saveAttachmentOwner(session, 'room-a', '$message', 2, []);
   expect(await store.readRoomAttachmentStorage(session, 'room-a')).toMatchObject({
     missingEssential: 0,
     saved: 0,
@@ -143,11 +144,11 @@ it('preserves a room pin through event ledger updates', async () => {
 });
 
 it('drops obsolete unshared streamed bodies and refuses their late writers', async () => {
-  await store.replaceCachedAttachmentReferences(session, 'room-a', '$stream', 1, [
+  await saveAttachmentOwner(session, 'room-a', '$stream', 1, [
     { mxcUri: 'mxc://test/old', essential: true },
   ]);
   await save('mxc://test/old', 'room-a', true);
-  await store.replaceCachedAttachmentReferences(session, 'room-a', '$stream', 2, [
+  await saveAttachmentOwner(session, 'room-a', '$stream', 2, [
     { mxcUri: 'mxc://test/new', essential: true },
   ]);
   expect(await store.loadCachedAttachment(session, 'mxc://test/old')).toBeUndefined();
@@ -160,15 +161,14 @@ it('drops obsolete unshared streamed bodies and refuses their late writers', asy
 });
 
 it('keeps previous references when registering a replacement fails atomically', async () => {
-  await store.replaceCachedAttachmentReferences(session, 'room-a', '$message', 1, [
+  await saveAttachmentOwner(session, 'room-a', '$message', 1, [
     { mxcUri: 'mxc://test/old', essential: true },
   ]);
   const original = IDBObjectStore.prototype.put;
   // eslint-disable-next-line no-console
   const originalWarn = console.warn;
   const warn = vi.spyOn(console, 'warn').mockImplementation((...args) => {
-    if (!String(args[0]).startsWith('[mindroom-cache:attachment.references]'))
-      originalWarn(...args);
+    if (!String(args[0]).startsWith('[mindroom-cache:roomEventCache.save]')) originalWarn(...args);
   });
   const put = vi
     .spyOn(IDBObjectStore.prototype, 'put')
@@ -178,23 +178,26 @@ it('keeps previous references when registering a replacement fails atomically', 
       return key === undefined ? original.call(this, value) : original.call(this, value, key);
     });
   expect(
-    await store.replaceCachedAttachmentReferences(session, 'room-a', '$message', 2, [
+    await saveAttachmentOwner(session, 'room-a', '$message', 2, [
       { mxcUri: 'mxc://test/new', essential: true },
     ])
-  ).toBe('failed');
+  ).toBe(false);
   expect(warn).toHaveBeenCalledWith(
-    expect.stringContaining('[mindroom-cache:attachment.references]'),
-    expect.objectContaining({ message: 'write failed' })
+    expect.stringContaining('[mindroom-cache:roomEventCache.save]'),
+    expect.objectContaining({ name: 'AbortError' })
   );
   warn.mockRestore();
   put.mockRestore();
   expect(await store.readRoomAttachmentStorage(session, 'room-a')).toMatchObject({
     missingEssential: 1,
   });
+  expect((await store.loadCachedRoomEvent(session, 'room-a', '$message'))?.origin_server_ts).toBe(
+    1
+  );
 });
 
 it('rejects an older equal-time revision and keeps a redacted owner retired', async () => {
-  await store.replaceCachedAttachmentReferences(
+  await saveAttachmentOwner(
     session,
     'room-a',
     '$root',
@@ -204,7 +207,7 @@ it('rejects an older equal-time revision and keeps a redacted owner retired', as
     { revisionId: '$z' }
   );
   expect(
-    await store.replaceCachedAttachmentReferences(
+    await saveAttachmentOwner(
       session,
       'room-a',
       '$root',
@@ -213,15 +216,19 @@ it('rejects an older equal-time revision and keeps a redacted owner retired', as
       undefined,
       { revisionId: '$a' }
     )
-  ).toBe('revoked');
-  await store.replaceCachedAttachmentReferences(session, 'room-a', '$root', 6, [], undefined, {
+  ).toBe(true);
+  await saveAttachmentOwner(session, 'room-a', '$root', 6, [], undefined, {
     redacted: true,
   });
   expect(
-    await store.replaceCachedAttachmentReferences(session, 'room-a', '$root', 7, [
+    await saveAttachmentOwner(session, 'room-a', '$root', 7, [
       { mxcUri: 'mxc://test/old', essential: true },
     ])
-  ).toBe('revoked');
+  ).toBe(true);
+  expect(await store.readRoomAttachmentStorage(session, 'room-a')).toMatchObject({
+    saved: 0,
+    missing: 0,
+  });
 });
 
 it.each([
@@ -231,17 +238,13 @@ it.each([
   'keeps missing essential coverage independent of optional owner order (%s)',
   async (bodyId, fileId) => {
     const mxcUri = 'mxc://test/shared';
-    await store.replaceCachedAttachmentReferences(session, 'room-a', bodyId, 1, [
-      { mxcUri, essential: true },
-    ]);
+    await saveAttachmentOwner(session, 'room-a', bodyId, 1, [{ mxcUri, essential: true }]);
     await store.putCachedAttachment(session, {
       mxcUri,
       bytes: new TextEncoder().encode('invalid json').buffer,
       mimeType: 'application/json',
     });
-    await store.replaceCachedAttachmentReferences(session, 'room-a', fileId, 1, [
-      { mxcUri, essential: false },
-    ]);
+    await saveAttachmentOwner(session, 'room-a', fileId, 1, [{ mxcUri, essential: false }]);
     expect(await store.readRoomAttachmentStorage(session, 'room-a')).toMatchObject({
       bytes: 12,
       saved: 0,
@@ -251,58 +254,18 @@ it.each([
   }
 );
 
-it('authoritatively retracts edits while preserving durable retired IDs and root tombstones', async () => {
-  const refs = (name: string) => [{ mxcUri: `mxc://test/${name}`, essential: true }];
-  const register = (ts: number, revisionId: string, retractedRevisionIds?: string[]) =>
-    store.replaceCachedAttachmentReferences(
-      session,
-      'room-a',
-      '$root',
-      ts,
-      refs(revisionId || 'root'),
-      undefined,
-      { revisionId, retractedRevisionIds }
-    );
-  expect(await register(1, '')).toBe('committed');
-  expect(await register(0, '', [''])).toBe('revoked');
-  expect(await register(2, '$edit-a')).toBe('committed');
-  expect(await register(3, '$edit-b')).toBe('committed');
-  expect(await register(2, '$edit-a')).toBe('revoked');
-  expect(await register(2, '$edit-a', ['$unrelated'])).toBe('revoked');
-  expect(await register(2, '$edit-a', ['$edit-b'])).toBe('committed');
-  await store.putCachedAttachment(
-    session,
-    { mxcUri: 'mxc://test/$edit-b', bytes: new ArrayBuffer(1), mimeType: 'text/plain' },
-    { roomId: 'room-a', eventId: '$root', revisionTs: 3, revisionId: '$edit-b', essential: true }
-  );
-  expect(await store.loadCachedAttachment(session, 'mxc://test/$edit-b')).toBeUndefined();
-  store.resetCacheStoreForTesting();
-  expect(await register(3, '$edit-b')).toBe('revoked');
-  expect(await register(1, '', ['$edit-a'])).toBe('committed');
-  expect(await register(4, '$edit-c')).toBe('committed');
-  expect(await register(1, '', ['$edit-c'])).toBe('committed');
-  store.resetCacheStoreForTesting();
-  expect(await register(2, '$edit-a')).toBe('revoked');
-  expect(await register(3, '$edit-b')).toBe('revoked');
-  expect(await register(4, '$edit-c')).toBe('revoked');
-  await store.replaceCachedAttachmentReferences(session, 'room-a', '$root', 5, [], undefined, {
-    redacted: true,
-  });
-  expect(await register(1, '', ['$edit-c'])).toBe('revoked');
-});
-
 it('replaces legacy room references by key and preserves another room sharing the blob', async () => {
   await save('mxc://test/legacy', 'room-a', true);
   await save('mxc://test/legacy', 'room-b', true);
-  await store.replaceCachedAttachmentReferences(session, 'room-a', '$owner', 1, [
-    { mxcUri: 'mxc://test/legacy', essential: true, validated: true },
+  await saveAttachmentOwner(session, 'room-a', '$owner', 1, [
+    { mxcUri: 'mxc://test/legacy', essential: true },
   ]);
   const metadata = await store.getCachedAttachmentMetadata(session, 'mxc://test/legacy');
   expect(metadata?.references.map((row) => [row.roomId, row.eventId]).sort()).toEqual([
     ['room-a', '$owner'],
     ['room-b', undefined],
   ]);
-  await store.replaceCachedAttachmentReferences(session, 'room-a', '$owner', 2, []);
+  await saveAttachmentOwner(session, 'room-a', '$owner', 2, []);
   expect(await store.loadCachedAttachment(session, 'mxc://test/legacy')).toBeDefined();
   expect(
     (await store.getCachedAttachmentMetadata(session, 'mxc://test/legacy'))?.references
@@ -313,7 +276,7 @@ it.each(['unchanged', 'timestamp', 'revision-id', 'mxc', 'bound', 'optional'] as
   'preserves essential validation only for the unchanged bounded owner (%s)',
   async (change) => {
     const mxcUri = 'mxc://test/proof';
-    await store.replaceCachedAttachmentReferences(
+    await saveAttachmentOwner(
       session,
       'room-a',
       '$owner',
@@ -335,7 +298,7 @@ it.each(['unchanged', 'timestamp', 'revision-id', 'mxc', 'bound', 'optional'] as
     );
     const nextUri = change === 'mxc' ? 'mxc://test/different' : mxcUri;
     if (change === 'mxc') await save(nextUri, 'room-a', true);
-    await store.replaceCachedAttachmentReferences(
+    await saveAttachmentOwner(
       session,
       'room-a',
       '$owner',

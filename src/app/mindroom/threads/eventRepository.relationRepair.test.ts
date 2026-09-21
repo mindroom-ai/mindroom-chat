@@ -162,3 +162,16 @@ it('does not make a pending local edit authoritative after cache replay', async 
     ]?.event_id
   ).toBe('$server-edit');
 });
+
+it('does not rescan retained events or attachment owners when retrying a marked unknown redaction', async () => {
+  const { persist } = fixture();
+  const redaction = { ...raw('$unknown'), type: 'm.room.redaction', redacts: '$absent' };
+  await persist([redaction]);
+  const scans = vi.spyOn(IDBIndex.prototype, 'openCursor');
+  const references = vi.spyOn(IDBIndex.prototype, 'getAll');
+  await persist([redaction]);
+  expect(scans).not.toHaveBeenCalled();
+  expect(
+    references.mock.instances.filter((index) => index.objectStore.name === 'attachment_references')
+  ).toHaveLength(0);
+});

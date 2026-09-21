@@ -53,7 +53,6 @@ import { useIgnoredUsers } from '../../hooks/useIgnoredUsers';
 import { useInitialClientCatchup } from '../../hooks/useInitialClientCatchup';
 import { createSessionId } from '../../state/sessions';
 import type { MindroomThreadSummaryInfo } from './threadSummaryStore';
-import { isConfirmedMatrixEventId } from './threadRouteUtils';
 import {
   buildResolveConfirmedEventId,
   dedupeThreadRenderEventEntries,
@@ -752,12 +751,6 @@ export function RoomTimeline({
   // federation flag, protect this room from eviction, and bump the
   // meta lastOpenedTs for both the room and thread scopes. Idempotent
   // per-call — safe to fire on every render-relevant change.
-  useEffect(() => {
-    syncEngine.noteRoomFocused(
-      room.roomId,
-      isConfirmedMatrixEventId(threadId) ? threadId : undefined
-    );
-  }, [syncEngine, room.roomId, threadId]);
 
   const handleRoomTimelinePagination = useRoomPaginationCommandController({
     alive,
@@ -776,8 +769,6 @@ export function RoomTimeline({
     threadIdRef,
     timeline,
   });
-
-  useEffect(() => () => syncEngine.clearRoomFocus(room.roomId), [syncEngine, room.roomId]);
 
   useRoomCachedBackState({
     alive,

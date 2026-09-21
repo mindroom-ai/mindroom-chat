@@ -9,6 +9,7 @@
  */
 import {
   openCacheStore,
+  createCacheStoreWriteTransaction,
   captureCacheStoreWriteLease,
   isCacheStoreWriteLeaseCurrent,
   type CacheStoreWriteLease,
@@ -39,16 +40,16 @@ export const updateMetaRecord = async <T>(
   sessionId: string,
   roomId: string,
   scope: string,
-  update: (existing: CachedMetaRecord | undefined, store: IDBObjectStore) => T
+  update: (existing: CachedMetaRecord | undefined, store: IDBObjectStore) => T,
+  lease: CacheStoreWriteLease = captureCacheStoreWriteLease(sessionId, roomId)
 ): Promise<T> => {
-  const lease = captureCacheStoreWriteLease(sessionId, roomId);
   const db = await openCacheStore(sessionId);
   if (!db) throw new CacheStoreMetaUnavailableError();
   const metaKey = buildMetaKey(roomId, scope);
   let result: T;
 
   await new Promise<void>((resolve, reject) => {
-    const transaction = db.transaction(META_STORE, 'readwrite');
+    const transaction = createCacheStoreWriteTransaction(db, META_STORE, lease);
     const store = transaction.objectStore(META_STORE);
     const request = store.get(metaKey);
     request.onsuccess = () => {
@@ -108,20 +109,28 @@ export const updateRoomOfflineProgress = async (
 ): Promise<boolean> => {
   if (!isCacheWritable() || !isCacheStoreWriteLeaseCurrent(lease)) return false;
   try {
-    return await updateMetaRecord(sessionId, roomId, OFFLINE_SCOPE, (existing, store) => {
-      if (!isCacheStoreWriteLeaseCurrent(lease)) return false;
-      store.put({
-        metaKey: buildMetaKey(roomId, OFFLINE_SCOPE),
-        roomId,
-        scope: OFFLINE_SCOPE,
-        updatedAt: Date.now(),
-        offline: {
+    return await updateMetaRecord(
+      sessionId,
+      roomId,
+      OFFLINE_SCOPE,
+      (existing, store) => {
+        if (!isCacheStoreWriteLeaseCurrent(lease)) return false;
+        const offline = {
           ...existing?.offline,
           ...(typeof patch === 'function' ? patch(existing?.offline ?? {}) : patch),
-        },
-      } satisfies CachedMetaRecord);
-      return true;
-    });
+        };
+        if (JSON.stringify(offline) === JSON.stringify(existing?.offline ?? {})) return true;
+        store.put({
+          metaKey: buildMetaKey(roomId, OFFLINE_SCOPE),
+          roomId,
+          scope: OFFLINE_SCOPE,
+          updatedAt: Date.now(),
+          offline,
+        } satisfies CachedMetaRecord);
+        return true;
+      },
+      lease
+    );
   } catch (error) {
     if (isCacheStoreWriteLeaseCurrent(lease)) reportCacheWriteError('offline.progress', error);
     return false;

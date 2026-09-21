@@ -2,6 +2,7 @@ import 'fake-indexeddb/auto';
 import React from 'react';
 import { create } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
+import { persistAttachmentEvents } from '../threads/__tests__/attachmentFixtures';
 import { MINDROOM_MESSAGE_EXTRAS_KEY } from './messageExtrasData';
 
 const toolApprovalCardMock = vi.hoisted(() => vi.fn());
@@ -913,6 +914,7 @@ it.each(['m.notice', 'm.emote'])(
           origin_server_ts: revision,
           content,
         });
+        await persistAttachmentEvents(mx, [mEvent]);
         const tree = await renderNode({ msgType, content, mEvent });
         const node = tree.root.find((item) => !!item.props.longTextSource);
         const hydrated = await hydrateCachedMindroomLongText(mx, node.props.longTextSource, false);

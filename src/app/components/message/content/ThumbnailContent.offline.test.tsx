@@ -1,11 +1,12 @@
 import 'fake-indexeddb/auto';
 import React from 'react';
 import { IDBFactory } from 'fake-indexeddb';
-import { createClient } from 'matrix-js-sdk';
+import { createClient, MatrixEvent } from 'matrix-js-sdk';
 import { act, create } from 'react-test-renderer';
 import { afterEach, expect, it, vi } from 'vitest';
 import { clearAttachmentRepositoryMemory } from '../../../mindroom/messages/attachmentRepository';
 import { resetCacheStoreForTesting } from '../../../mindroom/threads/cacheStore';
+import { persistAttachmentEvents } from '../../../mindroom/threads/__tests__/attachmentFixtures';
 import { ThumbnailContent } from './ThumbnailContent';
 
 const client = createClient({
@@ -13,6 +14,21 @@ const client = createClient({
   userId: '@alice:example.org',
   accessToken: 'test-token',
 });
+const persistThumbnail = (url: string) =>
+  persistAttachmentEvents(client, [
+    new MatrixEvent({
+      event_id: '$image',
+      room_id: '!room',
+      sender: '@alice:example.org',
+      origin_server_ts: 1,
+      type: 'm.room.message',
+      content: {
+        msgtype: 'm.image',
+        body: 'image',
+        info: { thumbnail_url: url, thumbnail_info: { mimetype: 'image/png' } },
+      },
+    }),
+  ]);
 vi.mock('../../../hooks/useMatrixClient', () => ({ useMatrixClient: () => client }));
 vi.mock('../../../hooks/useMediaAuthentication', () => ({ useMediaAuthentication: () => true }));
 afterEach(() => {
@@ -29,6 +45,7 @@ it('renders persisted thumbnail bytes after remount with transport offline', asy
     async () => new Response('thumbnail bytes', { headers: { 'Content-Type': 'image/png' } })
   );
   vi.stubGlobal('fetch', fetchMock);
+  await persistThumbnail('mxc://matrix.example.org/thumb');
   const displayed: Blob[] = [];
   vi.spyOn(URL, 'createObjectURL').mockImplementation((blob) => {
     displayed.push(blob as Blob);
@@ -88,6 +105,7 @@ it('cannot persist a room-owned thumbnail when room clear wins its pending fetch
   globalThis.indexedDB = new IDBFactory();
   resetCacheStoreForTesting();
   clearAttachmentRepositoryMemory();
+  await persistThumbnail('mxc://matrix.example.org/late');
   let finish!: (response: Response) => void;
   vi.stubGlobal(
     'fetch',

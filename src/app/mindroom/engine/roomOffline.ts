@@ -232,14 +232,7 @@ export const createRoomOfflineController = ({
     lease: CacheStoreWriteLease,
     live = false
   ) => {
-    const paused = () =>
-      live
-        ? !started ||
-          !connection.getSnapshot().connected ||
-          !isCacheWritable() ||
-          state(roomId).canceled ||
-          (typeof document !== 'undefined' && document.visibilityState === 'hidden')
-        : !!pauseReason(roomId, false);
+    const paused = () => !!pauseReason(roomId, false);
     if (!events.length || paused() || !isCacheStoreWriteLeaseCurrent(lease)) return;
     let admitted = true;
     const owners = collectEventAttachments(events);
@@ -251,13 +244,8 @@ export const createRoomOfflineController = ({
     const ordered = events
       .filter((event) => {
         const owner = owners.find((item) => item.eventId === event.getId());
-        return (
-          owner?.attachments.some(
-            (attachment) => attachment.autoDownload || state(roomId).includeAllMedia
-          ) ||
-          (!owner?.attachments.length && owner?.revisionId) ||
-          event.isRedacted() ||
-          event.isRedaction()
+        return owner?.attachments.some(
+          (attachment) => attachment.autoDownload || state(roomId).includeAllMedia
         );
       })
       .sort((a, b) => Number(essential.has(b.getId()!)) - Number(essential.has(a.getId()!)));
@@ -559,7 +547,6 @@ export const createRoomOfflineController = ({
       intent.used = 0;
       intent.reserved = 0;
       intent.visit += 1;
-      intent.canceled = false;
       if (previous && !state(previous).explicit) {
         scheduler.abort(previous, undefined, 'room-deep-history');
         scheduler.abort(previous, undefined, 'room-attachments');
@@ -587,7 +574,7 @@ export const createRoomOfflineController = ({
         )
           return;
         await bodyBatch(roomId, events, lease, true);
-        await refresh(roomId, lease);
+        if (listeners.has(roomId)) await refresh(roomId, lease);
       } catch {
         /* Live paint and ordinary sync persistence remain available. */
       }

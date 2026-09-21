@@ -468,7 +468,7 @@ export const scanThreadRelations = async ({
     }
     if (!scanComplete && fromToken && scanExit !== 'token-loop') {
       const currentContinuation = await ensureContinuation();
-      if (currentContinuation) {
+      if (currentContinuation && current()) {
         await continuationStore
           .checkpoint(sessionId, roomId, threadId, currentContinuation.generation, fromToken)
           .catch(() => false);
@@ -481,7 +481,9 @@ export const scanThreadRelations = async ({
     if (!scanComplete && fromToken && scanExit !== 'token-loop') {
       await ensureContinuation();
     }
-    return scanComplete || Boolean(continuation && fromToken && scanExit !== 'token-loop');
+    return (
+      current() && (scanComplete || Boolean(continuation && fromToken && scanExit !== 'token-loop'))
+    );
   };
 
   const commitRepairPersistence = async (writeCommitted: boolean): Promise<boolean> => {

@@ -9,6 +9,7 @@ import {
   type Room,
 } from 'matrix-js-sdk';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { saveAttachmentOwner } from '../../threads/__tests__/attachmentFixtures';
 import { createMindroomSyncEngine } from '../mindroomSyncEngine';
 import { createSessionId } from '../../../state/sessions';
 import { createRoomOfflineController } from '../roomOffline';
@@ -17,7 +18,6 @@ import { resolvePrefetchConfig } from '../prefetchPolicy';
 import {
   loadCachedRoomEvent,
   loadRoomTailDiscontinuity,
-  replaceCachedAttachmentReferences,
   loadLatestCachedThreadEvents,
   resetCacheStoreForTesting,
 } from '../../threads/cacheStore';
@@ -315,6 +315,7 @@ it('awaits SDK decryption before grouping and retains ciphertext for late keys',
     observed = event;
   };
   const engine = f.make();
+  engine.offline.subscribe(roomId, () => {});
   engine.noteRoomFocused(roomId);
   await vi.waitFor(() =>
     expect(engine.offline.getSnapshot(roomId)).toMatchObject({
@@ -816,7 +817,7 @@ it('bounded automatic body retries advance past a failed prefix and survive rest
     })),
     body,
   ]);
-  await replaceCachedAttachmentReferences(first.sessionId, roomId, '$z-body', 1, [
+  await saveAttachmentOwner(first.sessionId, roomId, '$z-body', 1, [
     { mxcUri: 'mxc://test/body', essential: true },
   ]);
   await updateRoomOfflineProgress(first.sessionId, roomId, {
@@ -957,7 +958,7 @@ it.each([true, false])(
         : { msgtype: 'm.file', body: 'file', url: 'mxc://test/prefix' },
     };
     await saveRoomEventsToCacheCommitted(engine.sessionId, roomId, [prefix, raw('$z-plain')]);
-    await replaceCachedAttachmentReferences(engine.sessionId, roomId, '$a-prefix', 1, [
+    await saveAttachmentOwner(engine.sessionId, roomId, '$a-prefix', 1, [
       { mxcUri: 'mxc://test/prefix', essential },
     ]);
     await updateRoomOfflineProgress(engine.sessionId, roomId, {
@@ -1000,7 +1001,7 @@ it('promotion of a running automatic scan completes a full include-all pass afte
       },
     },
   ]);
-  await replaceCachedAttachmentReferences(engine.sessionId, roomId, '$a-prefix', 1, [
+  await saveAttachmentOwner(engine.sessionId, roomId, '$a-prefix', 1, [
     { mxcUri: 'mxc://test/prefix', essential: false },
   ]);
   await updateRoomOfflineProgress(engine.sessionId, roomId, {
@@ -1008,7 +1009,7 @@ it('promotion of a running automatic scan completes a full include-all pass afte
     exhausted: true,
     retryAfterEventId: '$a-prefix',
   });
-  await replaceCachedAttachmentReferences(engine.sessionId, roomId, '$z-held', 1, [
+  await saveAttachmentOwner(engine.sessionId, roomId, '$z-held', 1, [
     { mxcUri: 'mxc://test/held', essential: true },
   ]);
   let release!: (response: Response) => void;
@@ -1052,7 +1053,7 @@ it('does not download retained bodies while protected storage already exceeds bu
     },
   };
   await saveRoomEventsToCacheCommitted(engine.sessionId, roomId, [body]);
-  await replaceCachedAttachmentReferences(engine.sessionId, roomId, '$body', 1, [
+  await saveAttachmentOwner(engine.sessionId, roomId, '$body', 1, [
     { mxcUri: 'mxc://test/body', essential: true },
   ]);
   __setCacheStoreByteBudgetForTests(1);
@@ -1086,7 +1087,7 @@ it('pauses between retained body downloads when essential bytes cross the budget
   });
   await Promise.all(
     bodies.map((body) =>
-      replaceCachedAttachmentReferences(engine.sessionId, roomId, body.event_id, 1, [
+      saveAttachmentOwner(engine.sessionId, roomId, body.event_id, 1, [
         { mxcUri: body.content.url, essential: true },
       ])
     )
@@ -1129,10 +1130,11 @@ it('preserves the storage pause after a live observed body is refused', async ()
       getSnapshot: () => ({ connected: true, unmetered: true }),
       subscribe: () => () => {},
     },
-    getPrefetchConfig: () => ({ scope: 'current-room-only' }),
+    getPrefetchConfig: () => ({ scope: 'all-rooms' }),
     onChanged: () => {},
   });
   control.start();
+  const unsubscribe = control.controller.subscribe(roomId, () => {});
   try {
     await persistRoomChunkWithPreferLive({
       mx: f.mx,
@@ -1148,6 +1150,7 @@ it('preserves the storage pause after a live observed body is refused', async ()
     });
     expect(fetch).not.toHaveBeenCalled();
   } finally {
+    unsubscribe();
     control.stop();
   }
 });
@@ -1196,6 +1199,7 @@ it('second idle focus does not rewrite complete retained history or attachment b
 it('streamed replacements persist and hydrate only the latest compacted body', async () => {
   const f = fixture();
   const engine = f.make();
+  engine.offline.subscribe(roomId, () => {});
   const root = new MatrixEvent(raw('$stream'));
   f.room.findEventById = (id) => (id === '$stream' ? root : undefined);
   await saveRoomEventsToCacheCommitted(engine.sessionId, roomId, [root.event]);
@@ -1376,7 +1380,7 @@ it('superseding a queued live owner still downloads the other owners in its batc
       getSnapshot: () => ({ connected: true, unmetered: true }),
       subscribe: () => () => undefined,
     },
-    getPrefetchConfig: () => resolvePrefetchConfig({}),
+    getPrefetchConfig: () => resolvePrefetchConfig({ prefetchScope: 'all-rooms' }),
     onChanged: () => undefined,
   });
   await updateRoomOfflineProgress(sessionId, roomId, () => ({ opened: true }));
@@ -1407,6 +1411,13 @@ it('superseding a queued live owner still downloads the other owners in its batc
         },
       })
   );
+  await persistRoomChunkWithPreferLive({
+    mx: f.mx,
+    room: f.room,
+    sessionId,
+    chunk: events.map((event) => event.event),
+    mappedEvents: events,
+  });
   try {
     const older = offline.observe(events, roomId);
     await vi.waitFor(() =>
@@ -1640,7 +1651,7 @@ it('SDK-pruned encrypted standalone edits still recover their compacted owner', 
   });
   // A standalone ciphertext copy may coexist with the compacted owner's embedded edit.
   await saveRoomEventsToCacheCommitted(engine.sessionId, roomId, [edit.event]);
-  await replaceCachedAttachmentReferences(
+  await saveAttachmentOwner(
     engine.sessionId,
     roomId,
     original.getId()!,
@@ -1665,12 +1676,12 @@ it('SDK-pruned encrypted standalone edits still recover their compacted owner', 
     mappedEvents: [redaction],
   });
   expect(
-    await replaceCachedAttachmentReferences(engine.sessionId, roomId, original.getId()!, 1, [
+    await saveAttachmentOwner(engine.sessionId, roomId, original.getId()!, 1, [
       { mxcUri: 'mxc://test/original-edit-body', essential: true },
     ])
-  ).toBe('committed');
+  ).toBe(true);
   expect(
-    await replaceCachedAttachmentReferences(
+    await saveAttachmentOwner(
       engine.sessionId,
       roomId,
       original.getId()!,
@@ -1679,7 +1690,7 @@ it('SDK-pruned encrypted standalone edits still recover their compacted owner', 
       undefined,
       { revisionId: edit.getId() }
     )
-  ).toBe('revoked');
+  ).toBe(true);
   expect(
     (await loadCachedRoomEvent(engine.sessionId, roomId, original.getId()!))?.unsigned?.[
       'm.relations'

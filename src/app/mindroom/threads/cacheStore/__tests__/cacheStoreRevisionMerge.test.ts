@@ -1,6 +1,7 @@
 import 'fake-indexeddb/auto';
 import { MatrixEvent, type IEvent, type Room } from 'matrix-js-sdk';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { saveAttachmentOwner } from '../../__tests__/attachmentFixtures';
 import {
   createPreferLiveEventMapper,
   persistThreadEventCacheSnapshot,
@@ -9,7 +10,6 @@ import {
   deleteCacheStoreDb,
   loadCachedAttachment,
   putCachedAttachment,
-  replaceCachedAttachmentReferences,
   loadLatestCachedRoomEvents,
   loadLatestCachedThreadEvents,
   loadCachedRoomPaginationToken,
@@ -156,7 +156,7 @@ describe('cache storage same-ID revision merge', () => {
         mimeType: 'application/json',
         bytes: new TextEncoder().encode('old body').buffer,
       };
-      await replaceCachedAttachmentReferences(SESSION_ID, ROOM_ID, '$body', 100, [
+      await saveAttachmentOwner(SESSION_ID, ROOM_ID, '$body', 100, [
         { mxcUri: payload.mxcUri, essential: true },
       ]);
       await putCachedAttachment(SESSION_ID, payload, owner);
@@ -172,10 +172,10 @@ describe('cache storage same-ID revision merge', () => {
 
       // A late consumer cannot register its old revision or restore its downloaded bytes.
       expect(
-        await replaceCachedAttachmentReferences(SESSION_ID, ROOM_ID, '$body', 100, [
+        await saveAttachmentOwner(SESSION_ID, ROOM_ID, '$body', 100, [
           { mxcUri: payload.mxcUri, essential: true },
         ])
-      ).toBe('revoked');
+      ).toBe(true);
       await putCachedAttachment(SESSION_ID, payload, owner);
       expect(await loadCachedAttachment(SESSION_ID, payload.mxcUri)).toBeUndefined();
     }
@@ -193,7 +193,7 @@ describe('cache storage same-ID revision merge', () => {
       { roomId: '!other:example.org', eventId: '$three' },
     ];
     for (const owner of owners) {
-      await replaceCachedAttachmentReferences(SESSION_ID, owner.roomId, owner.eventId, 100, [
+      await saveAttachmentOwner(SESSION_ID, owner.roomId, owner.eventId, 100, [
         { mxcUri: payload.mxcUri, essential: true },
       ]);
       await putCachedAttachment(SESSION_ID, payload, {
