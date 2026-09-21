@@ -35,10 +35,14 @@ test('inline icons preserve text, resize with messages, and recover after edits'
     );
     await expect(thread.locator('img')).toHaveCSS('width', '14px');
     await expect(thread.locator('img')).toHaveCSS('margin-left', '3.5px');
-    const spoiler = room.locator('[data-mx-spoiler]');
-    await expect(spoiler.locator('img')).toBeHidden();
-    await spoiler.click();
-    await expect(spoiler.locator('img')).toBeVisible();
+    for (const spoiler of await room.locator('[data-mx-spoiler]').all()) {
+      await expect(spoiler.locator('img')).toHaveCount(0);
+      // Keyboard disclosure also handles a spoiler nested inside a navigable link.
+      await spoiler.press('Space');
+      await expect(spoiler).toHaveAttribute('aria-pressed', 'false');
+      await expect(spoiler.locator('img')).toHaveCount(0);
+    }
+    await expect(room.getByRole('link', { name: 'Nested secret' }).locator('img')).toHaveCount(0);
     await expect(room.getByRole('link', { name: 'Updated link' }).locator('img')).toHaveCount(0);
     expect(await room.innerText()).toContain('https://example.com/code');
     expect(await page.getByRole('img').count()).toBe(0);

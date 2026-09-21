@@ -36,7 +36,9 @@ function Fixture() {
     <p>Read <a href="https://github.com/example/docs"><strong>the docs</strong></a> for details.</p>
     <p><a href="https://${edited ? 'github.com' : 'broken-site.com'}/">Updated link</a></p>
     <p><code>https://example.com/code</code> and <a href="mailto:alice@example.com">email</a></p>
-    <p><span data-mx-spoiler=""><a href="https://github.com/secret">Secret site</a></span></p>`;
+    <p><span data-mx-spoiler=""><a href="https://secret.example.com/">Secret site</a></span></p>
+    <p><a href="https://nested.example.com/"><span data-mx-spoiler="">Nested secret</span></a></p>
+    <p><span data-mx-spoiler="">https://plain.example.com/</span></p>`;
   return (
     <main style={{ padding: 24, color: color.Surface.OnContainer, lineHeight: 1.5 }}>
       <button type="button" onClick={() => setEnabled(!enabled)}>

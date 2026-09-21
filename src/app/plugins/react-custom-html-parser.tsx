@@ -43,7 +43,8 @@ import {
 import { onEnterOrSpace } from '../utils/keyboard';
 import { copyToClipboard, tryDecodeURIComponent } from '../utils/dom';
 import { useTimeoutToggle } from '../hooks/useTimeoutToggle';
-import { MessageLink } from '../mindroom/messages/MessageLink';
+import { LinkFaviconContext, MessageLink } from '../mindroom/messages/MessageLink';
+import { containsSpoiler } from '../mindroom/messages/linkFaviconPolicy';
 
 const ReactPrism = lazy(() => import('./react-prism/ReactPrism'));
 
@@ -370,6 +371,27 @@ export const getReactCustomHtmlParser = (
         const { name, attribs, children, parent } = domNode;
         const props = attributesToProps(attribs);
 
+        // Spoiler policy also applies to custom-rendered descendants and math fallbacks.
+        if (name === 'span' && 'data-mx-spoiler' in props) {
+          return (
+            <LinkFaviconContext.Provider value={false}>
+              <span
+                {...props}
+                role="button"
+                tabIndex={params.handleSpoilerClick ? 0 : -1}
+                onKeyDown={params.handleSpoilerClick}
+                onClick={params.handleSpoilerClick}
+                className={css.Spoiler()}
+                aria-pressed
+                style={{ cursor: 'pointer' }}
+              >
+                {renderMindroomCustomHtmlElement(name, attribs, children, opts) ??
+                  domToReact(children, opts)}
+              </span>
+            </LinkFaviconContext.Provider>
+          );
+        }
+
         const mindroomElement = renderMindroomCustomHtmlElement(name, attribs, children, opts);
         if (mindroomElement) return mindroomElement;
 
@@ -509,26 +531,12 @@ export const getReactCustomHtmlParser = (
             if (mention) return mention;
           }
           return (
-            <MessageLink {...props} showFavicon={params.showLinkFavicons}>
-              {domToReact(children, opts)}
-            </MessageLink>
-          );
-        }
-
-        if (name === 'span' && 'data-mx-spoiler' in props) {
-          return (
-            <span
+            <MessageLink
               {...props}
-              role="button"
-              tabIndex={params.handleSpoilerClick ? 0 : -1}
-              onKeyDown={params.handleSpoilerClick}
-              onClick={params.handleSpoilerClick}
-              className={css.Spoiler()}
-              aria-pressed
-              style={{ cursor: 'pointer' }}
+              showFavicon={params.showLinkFavicons && !containsSpoiler(children)}
             >
               {domToReact(children, opts)}
-            </span>
+            </MessageLink>
           );
         }
 

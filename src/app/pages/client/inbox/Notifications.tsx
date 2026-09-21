@@ -49,6 +49,7 @@ import {
 } from '../../../plugins/react-custom-html-parser';
 import { RenderMessageContent } from '../../../components/RenderMessageContent';
 import { useSetting } from '../../../state/hooks/settings';
+import { shouldShowLinkFavicons } from '../../../mindroom/messages/linkFaviconPolicy';
 import { settingsAtom } from '../../../state/settings';
 import { Image } from '../../../components/media';
 import { ImageViewer } from '../../../components/image-viewer';
@@ -227,8 +228,10 @@ function RoomNotificationsGroupComp({
   const mentionClickHandler = useMentionClickHandler(room.roomId);
   const spoilerClickHandler = useSpoilerClickHandler();
   const [encUrlPreview] = useSetting(settingsAtom, 'encUrlPreview');
-  const showLinkFavicons =
-    mediaAutoLoad && (room.hasEncryptionStateEvent() ? encUrlPreview : urlPreview);
+  const showLinkFavicons = shouldShowLinkFavicons(
+    { mediaAutoLoad, urlPreview, encUrlPreview },
+    room.hasEncryptionStateEvent()
+  );
 
   const linkifyOpts = useMemo<LinkifyOpts>(
     () => ({

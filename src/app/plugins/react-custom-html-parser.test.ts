@@ -77,6 +77,7 @@ vi.mock('../styles/CustomHtml.css', () => ({
   CodeBlockBottomShadow: 'CodeBlockBottomShadow',
   Code: 'Code',
   Mention: () => 'Mention',
+  Spoiler: () => 'Spoiler',
   EmoticonBase: 'EmoticonBase',
   Emoticon: () => 'Emoticon',
 }));
@@ -282,6 +283,27 @@ describe('inline website favicons', () => {
     expect(
       renderLinks('<p>https://github.com <a href="https://example.com">Example</a></p>', false)
     ).not.toContain('<img');
+  });
+
+  it.each([
+    '<span data-mx-spoiler><a href="https://secret.example.com">Secret site</a></span>',
+    '<span data-mx-spoiler>https://secret.example.com</span>',
+    '<span data-mx-spoiler><strong>https://secret.example.com</strong></span>',
+    '<span data-mx-spoiler data-mx-maths="{">https://secret.example.com</span>',
+    '<a href="https://secret.example.com"><span data-mx-spoiler>Secret site</span></a>',
+    '<a href="https://secret.example.com"><strong><span data-mx-spoiler>Secret site</span></strong></a>',
+  ])('does not mount an icon for a link involving spoiler text: %s', (html) => {
+    const markup = renderLinks(html);
+    expect(markup).toContain('https://secret.example.com');
+    expect(markup).not.toContain('<img');
+    expect(markup).not.toContain('icons.duckduckgo.com');
+  });
+
+  it('preserves custom math rendering inside a spoiler', () => {
+    const markup = renderLinks('<span data-mx-spoiler data-mx-maths="x^2">fallback</span>');
+    expect(markup).toContain('aria-pressed="true"');
+    expect(markup).toContain('class="MathInline"');
+    expect(markup).toContain('katex');
   });
 
   it('keeps code and Matrix mentions free of website icons', () => {

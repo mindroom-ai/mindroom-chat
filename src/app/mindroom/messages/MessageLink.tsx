@@ -1,4 +1,7 @@
-import React, { ComponentPropsWithoutRef, useState } from 'react';
+import React, { ComponentPropsWithoutRef, createContext, useContext, useState } from 'react';
+
+// Spoiler text never starts a favicon lookup, even after disclosure.
+export const LinkFaviconContext = createContext(true);
 
 const failedIcons = new Map<string, number>();
 const FAILURE_BACKOFF_MS = 5 * 60 * 1000;
@@ -47,6 +50,7 @@ const iconStyle: React.CSSProperties = {
 };
 
 function SiteIcon({ src }: { src: string }) {
+  // Retry on a later mount after the cooldown, without polling a decorative image.
   const [failed, setFailed] = useState(false);
   const retryAt = failedIcons.get(src);
   if (failed || (retryAt !== undefined && retryAt > Date.now())) return null;
@@ -55,7 +59,6 @@ function SiteIcon({ src }: { src: string }) {
       src={src}
       alt=""
       aria-hidden="true"
-      data-link-favicon=""
       width={16}
       height={16}
       style={iconStyle}
@@ -80,7 +83,8 @@ export function MessageLink({
   showFavicon = false,
   ...props
 }: ComponentPropsWithoutRef<'a'> & { showFavicon?: boolean }) {
-  const iconUrl = showFavicon ? getIconUrl(props.href) : undefined;
+  const allowed = useContext(LinkFaviconContext);
+  const iconUrl = showFavicon && allowed ? getIconUrl(props.href) : undefined;
   return (
     <a {...props}>
       {iconUrl && <SiteIcon key={iconUrl} src={iconUrl} />}

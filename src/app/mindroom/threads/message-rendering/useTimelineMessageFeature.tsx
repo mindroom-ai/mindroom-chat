@@ -8,6 +8,7 @@ import { useAtomValue, useSetAtom } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import { useMatrixClient } from '../../../hooks/useMatrixClient';
 import { useSetting } from '../../../state/hooks/settings';
+import { shouldShowLinkFavicons } from '../../messages/linkFaviconPolicy';
 import { MessageLayout, type MessageSpacing, settingsAtom } from '../../../state/settings';
 import { useMediaAuthentication } from '../../../hooks/useMediaAuthentication';
 import { useIsDirectRoom } from '../../../hooks/useRoom';
@@ -94,7 +95,10 @@ export const useTimelineMessageFeature = ({
   const [hour24Clock] = useSetting(settingsAtom, 'hour24Clock');
   const [dateFormatString] = useSetting(settingsAtom, 'dateFormatString');
   const showUrlPreview = room.hasEncryptionStateEvent() ? encUrlPreview : urlPreview;
-  const showLinkFavicons = mediaAutoLoad && showUrlPreview;
+  const showLinkFavicons = shouldShowLinkFavicons(
+    { mediaAutoLoad, urlPreview, encUrlPreview },
+    room.hasEncryptionStateEvent()
+  );
   const powerLevels = usePowerLevelsContext();
   const creators = useRoomCreators(room);
   const creatorsTag = useRoomCreatorsTag();

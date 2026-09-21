@@ -42,6 +42,7 @@ const {
   renderMessageContentMock: vi.fn(),
   roomMock: {
     roomId: '!room:example.org',
+    hasEncryptionStateEvent: vi.fn(() => false),
     getTimelineForEvent: vi.fn(() => undefined),
   },
 }));

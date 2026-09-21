@@ -67,6 +67,7 @@ import {
   renderMindroomPinnedEncryptedMessageEvent,
 } from './pinnedMessageExtensions';
 import { useSetting } from '../../state/hooks/settings';
+import { shouldShowLinkFavicons } from './linkFaviconPolicy';
 import { settingsAtom } from '../../state/settings';
 import * as customHtmlCss from '../../styles/CustomHtml.css';
 import { EncryptedContent } from '../../features/room/message/EncryptedContent';
@@ -283,8 +284,10 @@ export const RoomPinMenu = forwardRef<HTMLDivElement, RoomPinMenuProps>(
     const [mediaAutoLoad] = useSetting(settingsAtom, 'mediaAutoLoad');
     const [urlPreview] = useSetting(settingsAtom, 'urlPreview');
     const [encUrlPreview] = useSetting(settingsAtom, 'encUrlPreview');
-    const showLinkFavicons =
-      mediaAutoLoad && (room.hasEncryptionStateEvent() ? encUrlPreview : urlPreview);
+    const showLinkFavicons = shouldShowLinkFavicons(
+      { mediaAutoLoad, urlPreview, encUrlPreview },
+      room.hasEncryptionStateEvent()
+    );
 
     const direct = useIsDirectRoom();
     const [legacyUsernameColor] = useSetting(settingsAtom, 'legacyUsernameColor');

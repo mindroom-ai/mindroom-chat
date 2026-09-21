@@ -187,10 +187,6 @@ a:hover {
   pointer-events: none;
 }
 
-[data-mx-spoiler][aria-pressed='true'] img[data-link-favicon] {
-  visibility: hidden;
-}
-
 b {
   font-weight: 500;
 }
