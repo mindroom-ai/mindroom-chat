@@ -2496,6 +2496,8 @@
         "viewReactions": "Ver reações"
       },
       "mindroomHtmlBlocks": {
+        "loadingToolDetails": "Ainda carregando…",
+        "toolDetailsUnavailable": "Detalhes da ferramenta indisponíveis.",
         "pastedText": "Texto colado",
         "characterCount_one": "{{formattedCount}} caráter",
         "characterCount_other": "{{formattedCount}} carateres",

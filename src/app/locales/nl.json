@@ -2465,6 +2465,8 @@
         "viewReactions": "Reacties weergeven"
       },
       "mindroomHtmlBlocks": {
+        "loadingToolDetails": "Nog aan het laden…",
+        "toolDetailsUnavailable": "Tooldetails niet beschikbaar.",
         "pastedText": "Geplakte tekst",
         "characterCount_one": "{{formattedCount}} teken",
         "characterCount_other": "{{formattedCount}} tekens",

@@ -2527,6 +2527,8 @@
         "viewReactions": "Просмотреть реакции"
       },
       "mindroomHtmlBlocks": {
+        "loadingToolDetails": "Всё ещё загружается…",
+        "toolDetailsUnavailable": "Сведения об инструменте недоступны.",
         "pastedText": "Вставленный текст",
         "characterCount_one": "{{formattedCount}} символ",
         "characterCount_other": "{{formattedCount}} символов",

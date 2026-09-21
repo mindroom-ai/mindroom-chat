@@ -2465,6 +2465,8 @@
         "viewReactions": "Lihat reaksi"
       },
       "mindroomHtmlBlocks": {
+        "loadingToolDetails": "Masih memuat…",
+        "toolDetailsUnavailable": "Detail alat tidak tersedia.",
         "pastedText": "Teks yang ditempel",
         "characterCount_one": "{{formattedCount}} karakter",
         "characterCount_other": "{{formattedCount}} karakter",

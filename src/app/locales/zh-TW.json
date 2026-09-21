@@ -2465,6 +2465,8 @@
         "viewReactions": "檢視反應"
       },
       "mindroomHtmlBlocks": {
+        "loadingToolDetails": "仍在載入…",
+        "toolDetailsUnavailable": "工具詳細資訊無法使用。",
         "pastedText": "貼上的文字",
         "characterCount_one": "{{formattedCount}} 個字元",
         "characterCount_other": "{{formattedCount}} 個字元",

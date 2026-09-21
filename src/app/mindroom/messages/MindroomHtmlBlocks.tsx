@@ -8,6 +8,7 @@ import { MINDROOM_MESSAGE_EXTRAS_KEY } from './messageExtrasData';
 import { MindroomPasteMarker, parseMindroomPasteMarker } from './pasteAttachmentMarker';
 import {
   MindroomToolTraceEvent,
+  MindroomToolMetadataStatus,
   getMindroomToolTraceEvents,
   isMindroomToolTraceV2,
 } from './toolTrace';
@@ -195,7 +196,11 @@ function MindroomNamedBlock({
   );
 }
 
-type MindroomToolBlockStatus = 'pending' | 'completed' | 'completed_with_result';
+type MindroomToolBlockStatus =
+  | 'pending'
+  | 'completed'
+  | 'completed_with_result'
+  | MindroomToolMetadataStatus;
 
 type MindroomToolBlockRenderData = {
   index: number;
@@ -210,13 +215,18 @@ const asToolTraceText = (value: unknown): string | undefined =>
 
 const buildToolRefRenderData = (
   toolRef: MindroomToolRefParseResult,
-  eventRaw?: MindroomToolTraceEvent
+  eventRaw?: MindroomToolTraceEvent,
+  metadataStatus?: MindroomToolMetadataStatus
 ): MindroomToolBlockRenderData => {
   const traceType = asToolTraceText(eventRaw?.type);
   const traceToolName = asToolTraceText(eventRaw?.tool_name) ?? toolRef.toolName;
   const argsPreview = asToolTraceText(eventRaw?.args_preview);
   const resultPreview = asToolTraceText(eventRaw?.result_preview);
   const command = argsPreview ? `${traceToolName}(${argsPreview})` : traceToolName;
+
+  if (!eventRaw && metadataStatus) {
+    return { index: toolRef.index, status: metadataStatus, command, resultInline: false };
+  }
 
   if (
     traceType === 'tool_call_started' ||
@@ -291,17 +301,33 @@ function MindroomToolRefGroupBlock({
   const label = t('mindroomUi.messages.mindroomHtmlBlocks.toolCallCount', {
     count: parsedTools.length,
   });
-  const pending = parsedTools.length === 1 ? parsedTools[0].status === 'pending' : undefined;
+  const loadedTools = parsedTools.filter(
+    (tool) => tool.status !== 'loading' && tool.status !== 'unavailable'
+  );
+  const metadataStatus = parsedTools.find(
+    (tool) => tool.status === 'loading' || tool.status === 'unavailable'
+  )?.status;
+  const pending =
+    parsedTools.length === 1 && !metadataStatus ? parsedTools[0].status === 'pending' : undefined;
 
   return (
     <MindroomCollapsibleBlock icon={Icons.Terminal} label={label} pending={pending}>
       <Box className={css.ToolGroupList}>
-        {parsedTools.map((parsedTool) => (
+        {loadedTools.map((parsedTool) => (
           <MindroomToolRefGroupItem
             key={`tool-group-item-${parsedTool.index}-${parsedTool.command}`}
             parsedTool={parsedTool}
           />
         ))}
+        {metadataStatus && (
+          <Text size="T200" role="status">
+            {t(
+              metadataStatus === 'loading'
+                ? 'mindroomUi.messages.mindroomHtmlBlocks.loadingToolDetails'
+                : 'mindroomUi.messages.mindroomHtmlBlocks.toolDetailsUnavailable'
+            )}
+          </Text>
+        )}
       </Box>
     </MindroomCollapsibleBlock>
   );
@@ -499,7 +525,8 @@ const contentHasMindroomMarkerCandidate = (content: Record<string, unknown>): bo
 
 export const withMindroomToolTraceMarkerParserOptions = (
   baseOpts: HTMLReactParserOptions,
-  content: Record<string, unknown>
+  content: Record<string, unknown>,
+  metadataStatus?: MindroomToolMetadataStatus
 ): HTMLReactParserOptions => {
   // The wrapped options carry per-parse state and a fresh identity, which
   // defeats parse memoization downstream. Most messages carry no mindroom
@@ -549,7 +576,11 @@ export const withMindroomToolTraceMarkerParserOptions = (
           const toolRef = parseMindroomToolRefHtml(toolRefPrefix.html);
           if (!toolRef) return undefined;
 
-          const data = buildToolRefRenderData(toolRef, traceEvents?.[toolRef.index - 1]);
+          const data = buildToolRefRenderData(
+            toolRef,
+            traceEvents?.[toolRef.index - 1],
+            metadataStatus
+          );
           const clonedTrailingChildren = toolRefPrefix.trailingChildren.map((child) =>
             cloneDomChildNode(child)
           );
@@ -616,7 +647,10 @@ export const withMindroomToolTraceMarkerParserOptions = (
           items.forEach((item) => consumedToolIndexes.add(item.data.index));
           groupRootIndexes.add(firstItem.data.index);
           const toolBlock = (
-            <MindroomToolRefGroupBlock parsedTools={items.map((item) => item.data)} />
+            <MindroomToolRefGroupBlock
+              key={`tool-group-${firstItem.data.index}`}
+              parsedTools={items.map((item) => item.data)}
+            />
           );
           if (trailingElements.length === 0) return toolBlock;
 

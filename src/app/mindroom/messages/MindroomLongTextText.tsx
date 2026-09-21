@@ -11,6 +11,7 @@ import {
   getMindroomLongTextSourceIdentity,
   withMindroomToolTraceFallback,
 } from './longText';
+import { MindroomToolMetadataStatus } from './toolTrace';
 import { hydrateCachedMindroomLongText } from './attachmentRepository';
 
 export enum MindroomLongTextKind {
@@ -33,7 +34,11 @@ type MindroomLongTextTextProps = {
   renderStateSuffix?: () => ReactNode;
   content: Record<string, unknown>;
   longTextSource: MindroomLongTextSource;
-  renderBody: (content: Record<string, unknown>, props: RenderBodyProps) => ReactNode;
+  renderBody: (
+    content: Record<string, unknown>,
+    props: RenderBodyProps,
+    toolMetadataStatus: MindroomToolMetadataStatus
+  ) => ReactNode;
   renderAfterBody?: (
     content: Record<string, unknown>,
     fallbackContent: Record<string, unknown>
@@ -180,7 +185,10 @@ export function MindroomLongTextText({
     mxcUri,
     owner,
   });
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(
+    () => hydrate && !getCachedMindroomLongTextContent(longTextSource, mx)
+  );
+  const [settledHydrationIdentity, setSettledHydrationIdentity] = useState<string>();
   const [showLoadingIndicator, setShowLoadingIndicator] = useState(false);
   // Prewarmed rows must render hydrated on their FIRST paint: initialize
   // from the cache synchronously instead of flashing the preview until the
@@ -267,6 +275,7 @@ export function MindroomLongTextText({
 
       if (!cancelled) {
         setResolvedContent(nextContent);
+        setSettledHydrationIdentity(hydrationIdentity);
         setLoading(false);
       }
     };
@@ -303,6 +312,10 @@ export function MindroomLongTextText({
     ? getCachedMindroomLongTextContent(longTextSource, mx)
     : undefined;
   const displayContent = warmResolvedContent ?? resolvedContent;
+  const toolMetadataStatus: MindroomToolMetadataStatus =
+    !warmResolvedContent && (loading || !hydrate || settledHydrationIdentity !== hydrationIdentity)
+      ? 'loading'
+      : 'unavailable';
 
   const afterBody = renderAfterBody?.(content, displayContent);
 
@@ -314,7 +327,7 @@ export function MindroomLongTextText({
         edited={edited}
         renderStateSuffix={renderStateSuffix}
         content={displayContent}
-        renderBody={(props) => renderBody(displayContent, props)}
+        renderBody={(props) => renderBody(displayContent, props, toolMetadataStatus)}
         renderAfterBody={afterBody}
         renderUrlsPreview={renderUrlsPreview}
       />
@@ -325,7 +338,7 @@ export function MindroomLongTextText({
         edited={edited}
         renderStateSuffix={renderStateSuffix}
         content={displayContent}
-        renderBody={(props) => renderBody(displayContent, props)}
+        renderBody={(props) => renderBody(displayContent, props, toolMetadataStatus)}
         renderAfterBody={afterBody}
         renderUrlsPreview={renderUrlsPreview}
       />
@@ -336,7 +349,7 @@ export function MindroomLongTextText({
         edited={edited}
         renderStateSuffix={renderStateSuffix}
         content={displayContent}
-        renderBody={(props) => renderBody(displayContent, props)}
+        renderBody={(props) => renderBody(displayContent, props, toolMetadataStatus)}
         renderAfterBody={afterBody}
         renderUrlsPreview={renderUrlsPreview}
       />

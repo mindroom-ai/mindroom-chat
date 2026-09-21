@@ -2465,6 +2465,8 @@
         "viewReactions": "反応を見る"
       },
       "mindroomHtmlBlocks": {
+        "loadingToolDetails": "読み込み中…",
+        "toolDetailsUnavailable": "ツールの詳細を取得できません。",
         "pastedText": "貼り付けられたテキスト",
         "characterCount_one": "{{formattedCount}} 文字",
         "characterCount_other": "{{formattedCount}} 文字",
