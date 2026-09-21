@@ -16,8 +16,10 @@
   The live browser fixture downloads a real 400-thread room, closes it and reopens offline with bundled app assets available.
   The unpatched build reproduces “Showing 1 thread”; the patched build restores all 400 within five seconds.
 - Independent review found and verified the plain-root correction, then reported no remaining findings.
+  Automated review additionally caught later-page root freshness and cache-only error leakage; both are corrected and independently rechecked.
+  Writes deduplicate serialized revisions rather than IDs, so later edits persist and unchanged pages avoid extra writes.
   Claude's design consultation favored restoring the existing SDK catalogue over introducing a parallel overview model.
-  All 574 unit files / 4,955 tests, application and focused-test typechecks, production build and lint pass with 17 existing warnings and no errors.
+  All 574 unit files / 4,958 tests, application and focused-test typechecks, production build and lint pass with 17 existing warnings and no errors.
   Chromium and WebKit both restore 400 threads offline, open an old cached reply and show a new reply after reconnect without reloading.
   Physical iPhone validation remains outstanding.
 

@@ -1,7 +1,8 @@
 import 'fake-indexeddb/auto';
 import React from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
-import { MatrixClient, MatrixEvent, Room, type IEvent } from 'matrix-js-sdk';
+import { Direction, MatrixClient, MatrixEvent, Room, type IEvent } from 'matrix-js-sdk';
+import { FeatureSupport, Thread } from 'matrix-js-sdk/lib/models/thread';
 import { afterEach, expect, it, vi } from 'vitest';
 import { MatrixClientProvider } from '../../hooks/useMatrixClient';
 import { createMindroomSyncEngine } from '../engine/mindroomSyncEngine';
@@ -19,11 +20,13 @@ const userId = '@alice:example.org';
 const roomId = '!offline:example.org';
 let renderer: ReactTestRenderer | undefined;
 let sessionId: string;
+const originalListSupport = Thread.hasServerSideListSupport;
 
 afterEach(async () => {
   await act(async () => renderer?.unmount());
   renderer = undefined;
   if (sessionId) await deleteCacheStoreDb(sessionId);
+  Thread.hasServerSideListSupport = originalListSupport;
   vi.restoreAllMocks();
 });
 
@@ -143,48 +146,94 @@ it('restores 400 cached threads while only one is in the SDK and discovery is pe
   expect(room.getThread('$root-1')?.events).toHaveLength(0);
 });
 
-it('saves server-listed roots without claiming their replies have been downloaded', async () => {
-  class Client extends MatrixClient {
-    constructor() {
-      super({ baseUrl: 'https://example.org', userId });
-      this.clientOpts = { threadSupport: true };
-      this.threadSupportPending = Promise.resolve();
+it.each([false, true])(
+  'saves server-listed roots and later revisions without claiming replies downloaded (later page: %s)',
+  async (laterPage) => {
+    class Client extends MatrixClient {
+      constructor() {
+        super({ baseUrl: 'https://example.org', userId });
+        this.clientOpts = { threadSupport: true };
+        this.threadSupportPending = Promise.resolve();
+      }
     }
-  }
-  const mx = new Client();
-  const room = new Room(roomId, mx, userId, { timelineSupport: true });
-  mx.store.storeRoom(room);
-  const engine = createMindroomSyncEngine({ mx });
-  sessionId = engine.sessionId;
-  const root = new MatrixEvent({
-    event_id: '$listed',
-    room_id: roomId,
-    sender: userId,
-    origin_server_ts: 1000,
-    type: 'm.room.message',
-    content: { msgtype: 'm.text', body: 'Listed by server' },
-  });
-  vi.spyOn(room, 'fetchRoomThreads').mockImplementation(async () => {
-    room.processThreadRoots([root], false);
-  });
-  function Harness() {
-    useRoomThreadList(room);
-    return null;
-  }
-  await act(async () => {
-    renderer = create(
-      <MatrixClientProvider value={mx}>
-        <MindroomSyncEngineProvider engine={engine}>
-          <Harness />
-        </MindroomSyncEngineProvider>
-      </MatrixClientProvider>
-    );
-    await vi.waitFor(async () => {
-      const cached = await loadLatestCachedThreadEvents(sessionId, roomId, '$listed', 1);
-      expect(cached.rootEvent?.content?.body).toBe('Listed by server');
-      expect(cached.events).toEqual([]);
-      expect(cached.tailLoaded).toBe(false);
-      expect(cached.snapshotComplete).toBe(false);
+    const mx = new Client();
+    const room = new Room(roomId, mx, userId, { timelineSupport: true });
+    mx.store.storeRoom(room);
+    const engine = createMindroomSyncEngine({ mx });
+    const persist = engine.persist.forRoom(room);
+    const saveRoot = vi.spyOn(persist, 'persistThreadEventCache');
+    vi.spyOn(engine.persist, 'forRoom').mockReturnValue(persist);
+    sessionId = engine.sessionId;
+    const root = new MatrixEvent({
+      event_id: '$listed',
+      room_id: roomId,
+      sender: userId,
+      origin_server_ts: 1000,
+      type: 'm.room.message',
+      content: { msgtype: 'm.text', body: 'Listed by server' },
     });
-  });
-});
+    if (laterPage) {
+      Thread.hasServerSideListSupport = FeatureSupport.Stable;
+      const list = room.getUnfilteredTimelineSet();
+      room.threadsTimelineSets[0] = list;
+      room.threadsTimelineSets[1] = list;
+      list.getLiveTimeline().setPaginationToken('older-roots', Direction.Backward);
+      vi.spyOn(mx, 'paginateEventTimeline').mockImplementation(async () => {
+        if (root.replacingEvent()) {
+          // A further unchanged page must not rewrite all restored roots.
+          list.getLiveTimeline().setPaginationToken(null, Direction.Backward);
+          return false;
+        }
+        // First progress callback has already saved this same root.
+        await vi.waitFor(async () => {
+          const cached = await loadLatestCachedThreadEvents(sessionId, roomId, '$listed', 1);
+          expect(cached.rootEvent?.content?.body).toBe('Listed by server');
+        });
+        root.makeReplaced(
+          new MatrixEvent({
+            event_id: '$edit',
+            room_id: roomId,
+            sender: userId,
+            origin_server_ts: 2000,
+            type: 'm.room.message',
+            content: {
+              msgtype: 'm.text',
+              body: '* Newer server title',
+              'm.new_content': { msgtype: 'm.text', body: 'Newer server title' },
+              'm.relates_to': { rel_type: 'm.replace', event_id: '$listed' },
+            },
+          })
+        );
+        list.getLiveTimeline().setPaginationToken('unchanged-page', Direction.Backward);
+        return true;
+      });
+    }
+    vi.spyOn(room, 'fetchRoomThreads').mockImplementation(async () => {
+      room.processThreadRoots([root], false);
+    });
+    let loading = true;
+    function Harness() {
+      loading = useRoomThreadList(room).loading;
+      return null;
+    }
+    await act(async () => {
+      renderer = create(
+        <MatrixClientProvider value={mx}>
+          <MindroomSyncEngineProvider engine={engine}>
+            <Harness />
+          </MindroomSyncEngineProvider>
+        </MatrixClientProvider>
+      );
+      await vi.waitFor(async () => {
+        const cached = await loadLatestCachedThreadEvents(sessionId, roomId, '$listed', 1);
+        if (laterPage) expect(JSON.stringify(cached.rootEvent)).toContain('Newer server title');
+        else expect(cached.rootEvent?.content?.body).toBe('Listed by server');
+        expect(cached.events).toEqual([]);
+        expect(cached.tailLoaded).toBe(false);
+        expect(cached.snapshotComplete).toBe(false);
+        expect(loading).toBe(false);
+      });
+    });
+    expect(saveRoot).toHaveBeenCalledTimes(laterPage ? 2 : 1);
+  }
+);

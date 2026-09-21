@@ -8,7 +8,11 @@ import {
 } from './roomThreadList';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useMindroomSyncEngine } from '../engine/engineContext';
-import { createPreferLiveEventMapper, loadCachedThreadRootsForRoom } from './eventRepository';
+import {
+  createPreferLiveEventMapper,
+  loadCachedThreadRootsForRoom,
+  serializeThreadCacheEvents,
+} from './eventRepository';
 import { restoreCachedRoomThreads } from './sdk/roomTimelineSdk';
 
 export const useRoomThreadList = (room: Room, enabled = true) => {
@@ -36,9 +40,8 @@ export const useRoomThreadList = (room: Room, enabled = true) => {
         );
         setVersion((current) => current + 1);
       })
-      .catch((err: unknown) => {
+      .catch(() => {
         // A cache miss/failure must not interrupt the independent server load.
-        if (!cancelled) setError(err as Error);
       });
     return () => {
       cancelled = true;
@@ -53,14 +56,17 @@ export const useRoomThreadList = (room: Room, enabled = true) => {
   const loadThreads = useCallback(
     (signal: AbortSignal) => {
       const persist = engine.persist.forRoom(room);
-      const saved = new Set<string>();
+      const saved = new Map<string, string>();
       return loadRoomThreads(
         room,
         () => {
           if (signal.aborted) return;
           room.getThreads().forEach((thread) => {
-            if (!thread.rootEvent || saved.has(thread.id)) return;
-            saved.add(thread.id);
+            if (!thread.rootEvent) return;
+            // Later pages can update the same SDK object, including its edits.
+            const revision = JSON.stringify(serializeThreadCacheEvents(room, [], thread.rootEvent));
+            if (saved.get(thread.id) === revision) return;
+            saved.set(thread.id, revision);
             // A listed root is enough for the overview, not proof of cached replies.
             persist.persistThreadEventCache(thread.id, [], thread.rootEvent);
           });

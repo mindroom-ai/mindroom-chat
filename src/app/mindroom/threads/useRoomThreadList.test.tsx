@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { MatrixClientProvider } from '../../hooks/useMatrixClient';
 import { loadRoomThreads } from './roomThreadList';
 import { useRoomThreadList } from './useRoomThreadList';
+import { loadCachedThreadRootsForRoom } from './eventRepository';
 import { MindroomSyncEngineProvider } from '../engine/engineContext';
 import { createMindroomSyncEngine } from '../engine/mindroomSyncEngine';
 
@@ -16,6 +17,11 @@ vi.mock('./roomThreadList', async (importOriginal) => {
     loadRoomThreads: vi.fn(),
   };
 });
+
+vi.mock('./eventRepository', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./eventRepository')>()),
+  loadCachedThreadRootsForRoom: vi.fn(async () => []),
+}));
 
 const mockedLoadRoomThreads = vi.mocked(loadRoomThreads);
 
@@ -45,6 +51,7 @@ const makeRoom = () =>
 
 afterEach(() => {
   mockedLoadRoomThreads.mockReset();
+  vi.mocked(loadCachedThreadRootsForRoom).mockReset().mockResolvedValue([]);
 });
 
 describe('useRoomThreadList', () => {
@@ -107,4 +114,56 @@ describe('useRoomThreadList', () => {
 
     renderer.unmount();
   });
+  it.each([false, true])(
+    'keeps a cache failure separate from server success (cache first: %s)',
+    async (cacheFirst) => {
+      let rejectCache!: (error: Error) => void;
+      let completeServer!: () => void;
+      vi.mocked(loadCachedThreadRootsForRoom).mockReturnValueOnce(
+        new Promise((_, reject) => {
+          rejectCache = reject;
+        })
+      );
+      mockedLoadRoomThreads.mockImplementation(
+        (_room, onProgress) =>
+          new Promise((resolve) => {
+            completeServer = () => {
+              onProgress?.();
+              resolve();
+            };
+          })
+      );
+      const room = makeRoom();
+      const mx = new MatrixClient({ baseUrl: 'https://example.org', userId: '@self:example.org' });
+      const engine = createMindroomSyncEngine({ mx });
+      let snapshot: ThreadListSnapshot | undefined;
+      let renderer!: ReactTestRenderer;
+      await act(async () => {
+        renderer = create(
+          <MatrixClientProvider value={mx}>
+            <MindroomSyncEngineProvider engine={engine}>
+              <Harness
+                enabled
+                room={room}
+                onRender={(value) => {
+                  snapshot = value;
+                }}
+              />
+            </MindroomSyncEngineProvider>
+          </MatrixClientProvider>
+        );
+      });
+      const failCache = () => rejectCache(new Error('Cache transaction failed'));
+      await act(async () => {
+        (cacheFirst ? failCache : completeServer)();
+      });
+      await act(async () => {
+        (cacheFirst ? completeServer : failCache)();
+      });
+      expect(snapshot?.loadedSuccessfully).toBe(true);
+      expect(snapshot?.loading).toBe(false);
+      expect(snapshot?.error).toBeUndefined();
+      renderer.unmount();
+    }
+  );
 });
