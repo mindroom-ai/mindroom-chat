@@ -67,6 +67,28 @@ const makeThreadReplyEvent = (
 });
 
 describe('loadRoomThreads', () => {
+  it.each([false, true])(
+    'waits for capability discovery before loading (cancelled: %s)',
+    async (cancelled) => {
+      const { room } = makeRoom([null]);
+      let discover!: () => void;
+      const pending = new Promise<void>((resolve) => {
+        discover = resolve;
+      });
+      Object.assign(room.client, { threadSupportPending: pending });
+      const controller = new AbortController();
+      const loading = loadRoomThreads(room as never, undefined, controller.signal);
+      await Promise.resolve();
+      await Promise.resolve();
+      expect(room.fetchRoomThreads).not.toHaveBeenCalled();
+      if (cancelled) controller.abort();
+      setServerSideListSupport(true);
+      discover();
+      await loading;
+      expect(room.fetchRoomThreads).toHaveBeenCalledTimes(cancelled ? 0 : 1);
+    }
+  );
+
   it('shares an in-flight room load across compact-mode remounts', async () => {
     setServerSideListSupport(true);
     let releaseFetch: (() => void) | undefined;

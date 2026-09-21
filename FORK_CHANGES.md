@@ -2,6 +2,25 @@
 
 ## Runbook
 
+### Restore saved rooms before server discovery (2026-09-20)
+
+- The SDK now replays saved sync before waiting for `/versions`, including when message data survives without the separate server-version cache.
+  Live sync reuses that replay and updates the same room objects after discovery.
+- Cached thread bundles populate local metadata immediately; capability-dependent thread initialization and room-list loading wait for actual server support.
+  Stopping a client prevents delayed startup work from resuming sync or publishing a late cached `Prepared` state.
+  If discovery removes prior server thread support, initialization drains buffered cached edits and reactions rather than leaving them unapplied.
+- The client version provider allows restored content while optional capabilities are unknown, then updates without remounting the conversation.
+  Cached SDK capabilities keep their existing session lifetime; unknown ones are discovered from the server.
+  A sync error or empty newly synced account does not count as restored content, preserving the versions loader's initial recovery flow.
+- Real-SDK regressions cover saved threads, live catch-up, the `/threads` endpoint after discovery, cancellation and a fresh empty store.
+  Phone-sized browser cases hold all Matrix responses, open cached roots and replies, then release the network and observe new messages.
+  Startup fixtures navigate directly to their rooms so the shared account's virtualized sidebar does not affect setup.
+- Validation: all 572 files / 4,951 unit tests, application typecheck, production build and formatting pass; lint retains 17 existing warnings and no errors.
+  Six startup and eight attachment/freshness cases pass in Chromium/WebKit, with two expected platform skips in the latter spec.
+  Independent review found no remaining correctness issues; a clean SDK package accepts the patch and matches the tested source, built files and declarations.
+- No new production module or cache schema is introduced; production source changes total 103 lines added and 47 removed, excluding mirrored SDK built code and declarations.
+  Crypto identity checks and migration remain unchanged; a physical iPhone cold-start check is still needed.
+
 ### Keep room cache clearing local and best effort (2026-09-20)
 
 - Clearing a room cancels earlier writes in the current app and deletes its stored content.

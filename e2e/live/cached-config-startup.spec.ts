@@ -44,7 +44,8 @@ test('opens cached chats before configuration and Matrix responses, preserving n
 
   await loginWithPassword(page, { homeserver, ...credentials });
   await seedRoomOverviewState({ page, roomId, userId: session.userId, viewMode: 'compact' });
-  await page.getByRole('link', { name: roomName, exact: true }).first().click();
+  // The shared account's virtualized sidebar need not have this room mounted.
+  await page.goto(`/home/${encodeURIComponent(roomId)}`);
   await expect(page.locator(`[data-thread-root-id="${rootId}"]`)).toBeVisible();
   const { activeSessionId } = await readSessionStore(page);
   expect(activeSessionId).toBeTruthy();
