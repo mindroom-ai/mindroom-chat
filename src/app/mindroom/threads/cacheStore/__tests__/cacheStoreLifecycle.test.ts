@@ -1,8 +1,7 @@
-import { IDBFactory, IDBKeyRange, IDBObjectStore as FakeIDBObjectStore } from 'fake-indexeddb';
+import { IDBCursor as FakeIDBCursor, IDBFactory, IDBKeyRange } from 'fake-indexeddb';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import type { CacheStoreWriteLease } from '../cacheStoreDb';
 
-const sessionId = 'cross-runtime-clear';
+const sessionId = 'cache-lifecycle';
 const roomId = '!clear:example.org';
 const rawEvent = {
   event_id: '$late',
@@ -33,12 +32,11 @@ afterEach(() => {
 });
 
 it.each(['room', 'thread', 'attachment', 'progress'] as const)(
-  'rejects a pending %s write after another runtime clears the room',
+  'rejects a pending %s write after this runtime clears the room',
   async (kind) => {
     const writer = await createRuntime();
-    const clearer = await createRuntime();
     const lease = writer.captureCacheStoreWriteLease(sessionId, roomId);
-    await clearer.clearRoomCachedContent(sessionId, roomId);
+    await writer.clearRoomCachedContent(sessionId, roomId);
     if (kind === 'room') {
       expect(
         await writer.saveRoomEventsToCacheCommitted(
@@ -96,162 +94,55 @@ it.each(['room', 'thread', 'attachment', 'progress'] as const)(
   }
 );
 
-it('learns a remote clear only for new leases and leaves other rooms writable', async () => {
+it('rolls back a failed clear while cancelling earlier local writes', async () => {
   const writer = await createRuntime();
-  const clearer = await createRuntime();
-  const stale = writer.captureCacheStoreWriteLease(sessionId, roomId);
-  const other = writer.captureCacheStoreWriteLease(sessionId, '!other:example.org');
-  await clearer.clearRoomCachedContent(sessionId, roomId);
-  expect(
-    await writer.saveRoomEventsToCacheCommitted(
-      sessionId,
-      roomId,
-      [rawEvent],
-      undefined,
-      'partial',
-      stale
-    )
-  ).toBe(false);
-  const fresh = writer.captureCacheStoreWriteLease(sessionId, roomId);
-  expect(
-    await writer.saveRoomEventsToCacheCommitted(
-      sessionId,
-      roomId,
-      [rawEvent],
-      undefined,
-      'partial',
-      fresh
-    )
-  ).toBe(true);
-  expect(
-    await writer.saveRoomEventsToCacheCommitted(
-      sessionId,
-      roomId,
-      [rawEvent],
-      undefined,
-      'partial',
-      stale
-    )
-  ).toBe(false);
-  expect(
-    await writer.saveRoomEventsToCacheCommitted(
-      sessionId,
-      '!other:example.org',
-      [rawEvent],
-      undefined,
-      'partial',
-      other
-    )
-  ).toBe(true);
-});
-
-const writeGuarded = (
-  runtime: Awaited<ReturnType<typeof createRuntime>>,
-  lease: CacheStoreWriteLease = runtime.captureCacheStoreWriteLease(sessionId, roomId)
-): Promise<boolean> =>
-  new Promise((resolve, reject) => {
-    const transaction = runtime.createCacheStoreWriteTransaction(runtime.db, 'events', lease);
-    transaction.objectStore('events').put({
-      cacheKey: roomId + '||$late',
-      roomId,
-      scope: '',
-      eventId: '$late',
-      ts: 1,
-      rawEvent,
-      approxBytes: 100,
-    });
-    transaction.oncomplete = () => resolve(true);
-    transaction.onabort = () => resolve(false);
-    transaction.onerror = () => {
-      if (runtime.isCacheStoreWriteLeaseCurrent(lease)) reject(transaction.error);
-    };
-  });
-
-it('checks a queued writer after the preceding clear transaction commits', async () => {
-  const writer = await createRuntime();
-  const clearer = await createRuntime();
-  const lease = writer.captureCacheStoreWriteLease(sessionId, roomId);
-  const clearing = clearer.clearRoomCachedContent(sessionId, roomId);
-  await Promise.resolve();
-  expect(writer.isCacheStoreWriteLeaseCurrent(lease)).toBe(true);
-  const writing = writeGuarded(writer, lease);
-  await clearing;
-  expect(await writing).toBe(false);
-  expect(await writer.loadCachedRoomEvent(sessionId, roomId, '$late')).toBeUndefined();
-});
-
-it('drops an unknown epoch after restart without renewing that lease', async () => {
-  const clearer = await createRuntime();
-  await clearer.clearRoomCachedContent(sessionId, roomId);
-  const writer = await createRuntime();
-  const unknown = writer.captureCacheStoreWriteLease(sessionId, roomId);
-  expect(await writeGuarded(writer, unknown)).toBe(false);
-  expect(await writeGuarded(writer)).toBe(true);
-  expect(await writeGuarded(writer, unknown)).toBe(false);
-});
-
-it('retains the durable fence across repeated clears', async () => {
-  const writer = await createRuntime();
-  const clearer = await createRuntime();
-  await clearer.clearRoomCachedContent(sessionId, roomId);
-  expect(await writeGuarded(writer)).toBe(false);
-  const beforeSecondClear = writer.captureCacheStoreWriteLease(sessionId, roomId);
-  expect(await writeGuarded(writer, beforeSecondClear)).toBe(true);
-  await clearer.clearRoomCachedContent(sessionId, roomId);
-  expect(await writeGuarded(writer, beforeSecondClear)).toBe(false);
-  expect(await writeGuarded(writer)).toBe(true);
-});
-
-it('clears a writer transaction that precedes the clear', async () => {
-  const writer = await createRuntime();
-  const clearer = await createRuntime();
-  const writing = writeGuarded(writer);
-  const clearing = clearer.clearRoomCachedContent(sessionId, roomId);
-  expect(await writing).toBe(true);
-  await clearing;
-  expect(await writer.loadCachedRoomEvent(sessionId, roomId, '$late')).toBeUndefined();
-});
-
-it('rolls back a failed clear but keeps its local cancellation', async () => {
-  const writer = await createRuntime();
-  const clearer = await createRuntime();
-  expect(await writeGuarded(writer)).toBe(true);
-  const oldLocalLease = clearer.captureCacheStoreWriteLease(sessionId, roomId);
-  const put = FakeIDBObjectStore.prototype.put;
+  await writer.saveRoomEventsToCacheCommitted(sessionId, roomId, [rawEvent]);
+  const oldLease = writer.captureCacheStoreWriteLease(sessionId, roomId);
+  const remove = FakeIDBCursor.prototype.delete;
   const fault = vi
-    .spyOn(FakeIDBObjectStore.prototype, 'put')
-    .mockImplementation(function abortEpoch(value, key) {
-      const request = key === undefined ? put.call(this, value) : put.call(this, value, key);
-      if (this.name === 'meta' && typeof value.epoch === 'number') {
-        request.addEventListener('success', () => this.transaction.abort(), { once: true });
-      }
+    .spyOn(FakeIDBCursor.prototype, 'delete')
+    .mockImplementation(function abortDelete() {
+      const transaction =
+        'objectStore' in this.source
+          ? this.source.objectStore.transaction
+          : this.source.transaction;
+      const request = remove.call(this);
+      request.addEventListener('success', () => transaction.abort(), { once: true });
       return request;
     });
-  await expect(clearer.clearRoomCachedContent(sessionId, roomId)).rejects.toBeDefined();
+  await expect(writer.clearRoomCachedContent(sessionId, roomId)).rejects.toBeDefined();
   fault.mockRestore();
   expect(await writer.loadCachedRoomEvent(sessionId, roomId, '$late')).toEqual(rawEvent);
-  expect(await writeGuarded(writer)).toBe(true);
-  expect(clearer.isCacheStoreWriteLeaseCurrent(oldLocalLease)).toBe(false);
-  expect(await writeGuarded(clearer, oldLocalLease)).toBe(false);
-  expect(await writeGuarded(clearer)).toBe(true);
-});
-
-it('does not recreate a summary when clear is queued before its write', async () => {
-  const writer = await createRuntime();
-  const clearer = await createRuntime();
-  await Promise.all([
-    clearer.clearRoomCachedContent(sessionId, roomId),
-    writer.saveCachedThreadSummary(sessionId, roomId, '$root', { summaryText: 'old summary' }),
-  ]);
-  expect(await writer.loadCachedThreadSummaries(sessionId, roomId)).toEqual(new Map());
+  expect(
+    await writer.saveRoomEventsToCacheCommitted(
+      sessionId,
+      roomId,
+      [rawEvent],
+      undefined,
+      'partial',
+      oldLease
+    )
+  ).toBe(false);
+  expect(await writer.saveRoomEventsToCacheCommitted(sessionId, roomId, [rawEvent])).toBe(true);
   expect(writer.getCacheProbeCounter('writeErrors')).toBe(0);
 });
 
-it('does not persist encrypted history when another runtime clears during decryption', async () => {
+it('saves the first fresh snapshot after reopening a previously cleared room', async () => {
+  const previous = await createRuntime();
+  await previous.saveRoomEventsToCacheCommitted(sessionId, roomId, [rawEvent]);
+  await previous.clearRoomCachedContent(sessionId, roomId);
+  previous.db.close();
+  const current = await createRuntime();
+  expect(await current.loadCachedRoomEvent(sessionId, roomId, '$late')).toBeUndefined();
+  expect(await current.saveRoomEventsToCacheCommitted(sessionId, roomId, [rawEvent])).toBe(true);
+  expect(await current.loadCachedRoomEvent(sessionId, roomId, '$late')).toEqual(rawEvent);
+  expect(current.getCacheProbeCounter('writeErrors')).toBe(0);
+});
+
+it('does not persist encrypted history when this runtime clears during decryption', async () => {
   const writer = await createRuntime();
   const { persistRoomChunkWithPreferLive } = await import('../../eventRepository');
   const { createClient, Room } = await import('matrix-js-sdk');
-  const clearer = await createRuntime();
   const userId = '@writer:example.org';
   const mx = createClient({ baseUrl: 'https://matrix.example.org', userId });
   const room = new Room(roomId, mx, userId);
@@ -295,7 +186,7 @@ it('does not persist encrypted history when another runtime clears during decryp
     ],
   }).catch(() => undefined);
   await decrypting;
-  await clearer.clearRoomCachedContent(sessionId, roomId);
+  await writer.clearRoomCachedContent(sessionId, roomId);
   release();
   await saving;
   expect(await writer.loadCachedRoomEvent(sessionId, roomId, '$late')).toBeUndefined();
@@ -433,35 +324,5 @@ it('recovers after another runtime deletes the database without reviving old ses
     )
   ).toBe(true);
   expect(await writer.loadCachedRoomEvent(sessionId, roomId, '$late')).toEqual(rawEvent);
-  expect(writer.getCacheProbeCounter('writeErrors')).toBe(0);
-});
-
-it('does not relearn an epoch from a clear that finishes after connection invalidation', async () => {
-  const writer = await createRuntime();
-  const remover = await createRuntime();
-  let invalidated = false;
-  writer.db.addEventListener('versionchange', () => {
-    invalidated = true;
-  });
-  const transaction = writer.db.transaction.bind(writer.db);
-  vi.spyOn(writer.db, 'transaction').mockImplementation((...args) => {
-    const pending = transaction(...args);
-    if (args[1] === 'readwrite') {
-      const keepAlive = () => {
-        const request = pending.objectStore('meta').get('keep-clear-active');
-        request.onsuccess = () => {
-          if (!invalidated) keepAlive();
-        };
-      };
-      keepAlive();
-    }
-    return pending;
-  });
-  const clearing = writer.clearRoomCachedContent(sessionId, roomId);
-  await Promise.resolve();
-  await Promise.all([clearing, remover.deleteCacheStoreDb(sessionId)]);
-  expect(invalidated).toBe(true);
-  expect(await writer.saveRoomEventsToCacheCommitted(sessionId, roomId, [rawEvent])).toBe(true);
-  connections.push((await writer.openCacheStore(sessionId))!);
   expect(writer.getCacheProbeCounter('writeErrors')).toBe(0);
 });

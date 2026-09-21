@@ -2,7 +2,6 @@ import type { MindroomThreadSummaryInfo } from '../../messages/threadSummary';
 import { isCacheWritable, reportCacheWriteError } from '../cacheHealth';
 import {
   openCacheStore,
-  createCacheStoreWriteTransaction,
   captureCacheStoreWriteLease,
   isCacheStoreWriteLeaseCurrent,
 } from './cacheStoreDb';
@@ -36,7 +35,7 @@ export const saveCachedThreadSummary = async (
     if (!db || !info.summaryText || !isCacheStoreWriteLeaseCurrent(lease)) return;
 
     await new Promise<void>((resolve, reject) => {
-      const transaction = createCacheStoreWriteTransaction(db, THREAD_SUMMARIES_STORE, lease);
+      const transaction = db.transaction(THREAD_SUMMARIES_STORE, 'readwrite');
       const store = transaction.objectStore(THREAD_SUMMARIES_STORE);
 
       const record: CachedThreadSummaryRecord = {

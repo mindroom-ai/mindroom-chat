@@ -2,14 +2,29 @@
 
 ## Runbook
 
+### Keep room cache clearing local and best effort (2026-09-20)
+
+- Clearing a room cancels earlier writes in the current app and deletes its stored content.
+  Other active tabs may cache the room again; clearing does not coordinate or pause those tabs.
+- Removed durable room epochs, observed-epoch bookkeeping and the extra metadata read in every guarded write transaction.
+  Fresh snapshots after reopening a cleared room save immediately, without a first-write rejection to learn an epoch.
+- Local room/session cancellation, logout handling, attachment revision checks and atomic event/attachment ownership remain in place.
+  Lifecycle tests retain delayed local decryption, continuation cancellation, clear rollback and database recreation coverage.
+- Validation: all 571 files / 4,938 unit tests, application typecheck, production/PWA build, formatting and whitespace checks pass; ESLint retains 17 existing warnings and no errors.
+  Eight Chromium/WebKit offline/freshness cases pass with two expected platform skips.
+  Independent review found no remaining findings and separately passed 121 focused tests.
+- This simplification removes 106 net production lines across six existing modules and 139 net test lines.
+  No new production module, coordination mechanism or schema migration is added.
+
 ### Centralize attachment ownership and fence room clears (2026-09-20)
 
 - Accepted room/thread event transactions now update attachment ownership atomically, including interactive snapshots and authoritative edit repair.
   Downloaders and renderers consume that ownership; they cannot publish an obsolete notification attachment under a newer revision.
   Existing redaction markers replace the separate attachment retraction history and repeated retained-room owner lookup.
-- Room clears advance a durable epoch in the deletion transaction. Writes check their original lease inside their own transaction, so another tab cannot restore cleared data after a delayed read, decryption or fetch.
-  Connection invalidation also revokes old leases and resets observed epochs, allowing fresh writes after another tab deletes the database.
-  A cold runtime that has not learned a room's epoch may skip its first write; later fresh work can retry. Clear remains best effort storage management, not removal of messages from the server.
+- This round introduced durable room epochs; the later simplification above removes that guarantee and its implementation.
+  Room clears advanced a durable epoch in the deletion transaction. Writes checked their original lease inside their own transaction, so another tab could not restore cleared data after a delayed read, decryption or fetch.
+  Connection invalidation also revoked old leases and reset observed epochs, allowing fresh writes after another tab deleted the database.
+  A cold runtime could skip its first write while learning the epoch; the simplification above removes that behavior.
 - Room focus belongs to the stable room view rather than the thread timeline; thread navigation preserves download reservations, allowance and cancellation.
   Cancel remains active until Download is requested again. Live attachment work obeys room scope, and inline edits/redactions create no empty attachment jobs.
   Unchanged progress skips metadata writes, unobserved live updates skip coverage scans, and gap loading no longer uses a one-iteration loop.

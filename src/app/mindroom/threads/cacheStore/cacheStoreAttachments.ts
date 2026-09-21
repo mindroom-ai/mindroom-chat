@@ -2,7 +2,6 @@ import type { EventAttachmentMessage } from '../../messages/eventAttachments';
 import { isCacheWritable, reportCacheWriteError } from '../cacheHealth';
 import {
   captureCacheStoreWriteLease,
-  createCacheStoreWriteTransaction,
   isCacheStoreWriteLeaseCurrent,
   openCacheStore,
   type CacheStoreWriteLease,
@@ -72,14 +71,9 @@ export const loadCachedAttachment = async (
 const putAttachmentTransaction = async (
   db: IDBDatabase,
   input: Pick<CachedAttachmentRecord, 'bytes' | 'mimeType' | 'mxcUri'>,
-  options: CacheAttachmentWriteOptions,
-  writeLease: CacheStoreWriteLease
+  options: CacheAttachmentWriteOptions
 ): Promise<void> => {
-  const transaction = createCacheStoreWriteTransaction(
-    db,
-    [ATTACHMENTS_STORE, ATTACHMENT_REFERENCES_STORE],
-    writeLease
-  );
+  const transaction = db.transaction([ATTACHMENTS_STORE, ATTACHMENT_REFERENCES_STORE], 'readwrite');
   const done = transactionComplete(transaction);
   const abortTransaction = () => {
     try {
@@ -190,7 +184,7 @@ export const putCachedAttachment = async (
     if (options.signal?.aborted) throw abortError();
     if (!isCacheStoreWriteLeaseCurrent(writeLease)) return 'revoked';
 
-    await putAttachmentTransaction(db, input, options, writeLease);
+    await putAttachmentTransaction(db, input, options);
     return 'committed';
   } catch (error) {
     if (options.signal?.aborted) {
@@ -441,7 +435,7 @@ export const setRoomAttachmentPinned = async (
   const db = await openCacheStore(sessionId);
   if (!db || !isCacheStoreWriteLeaseCurrent(lease)) return;
   await new Promise<void>((resolve, reject) => {
-    const transaction = createCacheStoreWriteTransaction(db, ROOM_LEDGER_STORE, lease);
+    const transaction = db.transaction(ROOM_LEDGER_STORE, 'readwrite');
     const ledger = transaction.objectStore(ROOM_LEDGER_STORE);
     const request = ledger.get(roomId);
     request.onsuccess = () => {

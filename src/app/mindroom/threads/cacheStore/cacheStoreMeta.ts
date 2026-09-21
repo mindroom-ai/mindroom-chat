@@ -9,7 +9,6 @@
  */
 import {
   openCacheStore,
-  createCacheStoreWriteTransaction,
   captureCacheStoreWriteLease,
   isCacheStoreWriteLeaseCurrent,
   type CacheStoreWriteLease,
@@ -49,7 +48,7 @@ export const updateMetaRecord = async <T>(
   let result: T;
 
   await new Promise<void>((resolve, reject) => {
-    const transaction = createCacheStoreWriteTransaction(db, META_STORE, lease);
+    const transaction = db.transaction(META_STORE, 'readwrite');
     const store = transaction.objectStore(META_STORE);
     const request = store.get(metaKey);
     request.onsuccess = () => {
