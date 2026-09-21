@@ -89,7 +89,8 @@ export const enqueueRoomDeepHistoryJob = ({
             nextToken: next,
             exhausted: !next,
             savedEvents: (progress.savedEvents ?? 0) + (response.chunk?.length ?? 0),
-            recentTokens: next ? [...(progress.recentTokens ?? []), next] : [],
+            // Detect short server cursor cycles without growing every checkpoint.
+            recentTokens: next ? [...(progress.recentTokens ?? []).slice(-7), next] : [],
           },
           writeLease
         );

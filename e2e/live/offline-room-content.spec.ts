@@ -29,8 +29,10 @@ type OfflineFixture = {
   rootId: string;
   bodyId: string;
   imageId: string;
+  stickerId: string;
   bodyUri: string;
   imageUri: string;
+  stickerUri: string;
   savedSettings: Record<string, unknown>;
 };
 
@@ -71,6 +73,15 @@ const createOfflineFixture = async (homeserver: string): Promise<OfflineFixture>
     'application/json'
   );
   const imageUri = await uploadMedia(homeserver, session.accessToken, imageBytes, 'image/png');
+  const stickerUri = await uploadMedia(
+    homeserver,
+    session.accessToken,
+    Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAEUlEQVR4nGP4z8DwH4QZYAwAR8oH+WdZbrcAAAAASUVORK5CYII=',
+      'base64'
+    ),
+    'image/png'
+  );
   const roomName = `Offline historical content ${Date.now()}`;
   const roomId = await createPrivateRoom(homeserver, session.accessToken, {
     name: roomName,
@@ -117,6 +128,21 @@ const createOfflineFixture = async (homeserver: string): Promise<OfflineFixture>
       },
       'offline-room-content'
     );
+    const { event_id: stickerId } = await matrixFetch<{ event_id: string }>(
+      homeserver,
+      `/rooms/${encodeURIComponent(roomId)}/send/m.sticker/offline-sticker-${Date.now()}`,
+      {
+        accessToken: session.accessToken,
+        method: 'PUT',
+        body: JSON.stringify({
+          body: 'Historical offline sticker',
+          url: stickerUri,
+          // No advertised size: Include all media must opt in to fetching this sticker.
+          info: { mimetype: 'image/png', w: 2, h: 2 },
+          'm.relates_to': relation,
+        }),
+      }
+    );
 
     for (let index = 0; index < fillerCount; index += 1) {
       // Keep the historical thread outside the real SDK initial timeline window.
@@ -143,6 +169,7 @@ const createOfflineFixture = async (homeserver: string): Promise<OfflineFixture>
     expect(initialTailIds).not.toContain(rootId);
     expect(initialTailIds).not.toContain(bodyId);
     expect(initialTailIds).not.toContain(imageId);
+    expect(initialTailIds).not.toContain(stickerId);
 
     savedSettings = await matrixFetch<Record<string, unknown>>(
       homeserver,
@@ -164,8 +191,10 @@ const createOfflineFixture = async (homeserver: string): Promise<OfflineFixture>
       rootId,
       bodyId,
       imageId,
+      stickerId,
       bodyUri,
       imageUri,
+      stickerUri,
       savedSettings,
     };
   } catch (error) {
@@ -224,8 +253,9 @@ const readPersistedCoverage = async (
         `${fixture.roomId}||${fixture.rootId}`,
         `${fixture.roomId}|${fixture.rootId}|${fixture.bodyId}`,
         `${fixture.roomId}|${fixture.rootId}|${fixture.imageId}`,
+        `${fixture.roomId}|${fixture.rootId}|${fixture.stickerId}`,
       ],
-      attachmentUris: [fixture.bodyUri, fixture.imageUri],
+      attachmentUris: [fixture.bodyUri, fixture.imageUri, fixture.stickerUri],
     }
   );
 
@@ -264,6 +294,7 @@ const warmHistoricalContent = async (
   await expect(page.getByRole('button', { name: 'Send message', exact: true })).toBeVisible();
 
   await openRoomSettings(page, fixture.roomName);
+  await page.getByRole('switch', { name: 'Include all media', exact: true }).check();
   const download = page.getByRole('button', { name: 'Download entire room', exact: true });
   await expect(download).toBeEnabled();
   await download.click();
@@ -273,7 +304,7 @@ const warmHistoricalContent = async (
   const cacheDbName = `mindroom-cache::${activeSessionId}`;
   await expect
     .poll(() => readPersistedCoverage(page, cacheDbName, fixture), { timeout: 30_000 })
-    .toEqual({ events: 3, attachments: 2 });
+    .toEqual({ events: 4, attachments: 3 });
 
   await page.keyboard.press('Escape');
   const root = page.locator(`[data-thread-root-id="${fixture.rootId}"]`);
@@ -315,6 +346,7 @@ const warmHistoricalContent = async (
   expect(savedTailIds).not.toContain(fixture.rootId);
   expect(savedTailIds).not.toContain(fixture.bodyId);
   expect(savedTailIds).not.toContain(fixture.imageId);
+  expect(savedTailIds).not.toContain(fixture.stickerId);
   const sdkDbName = `matrix-js-sdk:web-sync-store::${activeSessionId}`;
   await saveSdkSnapshot(page, sdkDbName, sync);
 
@@ -366,6 +398,12 @@ const expectHistoricalContent = async (page: Page, fixture: OfflineFixture): Pro
       image.evaluate((element: HTMLImageElement) => element.complete && element.naturalWidth > 0)
     )
     .toBe(true);
+  const sticker = page.locator(`[data-message-id="${fixture.stickerId}"] img`).last();
+  await expect
+    .poll(() =>
+      sticker.evaluate((element: HTMLImageElement) => element.complete && element.naturalWidth)
+    )
+    .toBe(2);
 };
 
 const forgetFixtureRoom = async (

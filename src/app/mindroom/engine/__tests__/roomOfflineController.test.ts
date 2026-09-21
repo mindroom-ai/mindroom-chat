@@ -199,6 +199,66 @@ it('offline pauses and reconnect resumes focused intent', async () => {
   await vi.waitFor(() => expect(engine.offline.getSnapshot(roomId).historyExhausted).toBe(true));
 });
 
+it.each(['offline', 'hidden'] as const)(
+  'keeps the %s pause when queued history is canceled',
+  async (pause) => {
+    const document = new EventTarget();
+    Object.defineProperty(document, 'visibilityState', { value: 'visible', writable: true });
+    vi.stubGlobal('document', document);
+    const f = fixture();
+    const engine = f.make();
+    const releases: Array<() => void> = [];
+    const blockers = [0, 1].map((i) =>
+      engine.scheduler.enqueue({
+        roomId,
+        threadId: '$block-' + i,
+        kind: 'thread-backfill',
+        priority: 0,
+        execute: () =>
+          new Promise<void>((resolve) => {
+            releases.push(resolve);
+          }),
+      })
+    );
+    try {
+      await vi.waitFor(() => expect(releases).toHaveLength(2));
+      engine.noteRoomFocused(roomId);
+      await vi.waitFor(() =>
+        expect(engine.scheduler.pendingJobs().some((job) => job.kind === 'room-deep-history')).toBe(
+          true
+        )
+      );
+      if (pause === 'offline') f.setNetwork({ connected: false, unmetered: true });
+      else {
+        Object.assign(document, { visibilityState: 'hidden' });
+        document.dispatchEvent(new Event('visibilitychange'));
+      }
+      await new Promise((resolve) => {
+        setImmediate(resolve);
+      });
+      expect(engine.offline.getSnapshot(roomId).status).toBe(pause);
+      expect(f.request).not.toHaveBeenCalled();
+    } finally {
+      releases.forEach((release) => release());
+      await Promise.all(blockers);
+    }
+  }
+);
+
+it('saves ordinary history without scheduling attachment work', async () => {
+  const f = fixture(vi.fn().mockResolvedValue({ chunk: [raw('$plain')] }));
+  const engine = f.make();
+  const enqueue = vi.spyOn(engine.scheduler, 'enqueue');
+  try {
+    engine.noteRoomFocused(roomId);
+    await vi.waitFor(() => expect(engine.offline.getSnapshot(roomId).status).toBe('ready'));
+    expect(await loadCachedRoomEvent(engine.sessionId, roomId, '$plain')).toBeDefined();
+    expect(enqueue.mock.calls.filter(([job]) => job.kind === 'room-attachments')).toHaveLength(0);
+  } finally {
+    enqueue.mockRestore();
+  }
+});
+
 it('keeps failed body coverage separate and retries it after history exhaustion', async () => {
   const message = {
     ...raw('$body'),
@@ -364,6 +424,142 @@ it('shares the 200-event allowance with a concurrent limited-sync gap', async ()
   engine.offline.cancel(roomId);
   resolve({ chunk: [] });
 });
+
+it.each(['failed', 'recovered', 'empty', 'offline', 'canceled', 'cleared'] as const)(
+  'settles saving after a shared gap is %s without replacing its active status',
+  async (outcome) => {
+    let resolve!: (value: object) => void;
+    let reject!: (error: Error) => void;
+    const f = fixture(
+      vi
+        .fn()
+        .mockImplementationOnce(
+          () =>
+            new Promise((done, fail) => {
+              resolve = done;
+              reject = fail;
+            })
+        )
+        .mockResolvedValue({ chunk: [] })
+    );
+    f.setNetwork({ connected: true, unmetered: false });
+    const engine = f.make(true);
+    const enqueue = vi.spyOn(engine.scheduler, 'enqueue');
+    try {
+      engine.noteRoomFocused(roomId);
+      f.mx.emit(RoomEvent.TimelineReset, f.room, f.timelineSet as never, false);
+      await vi.waitFor(() => {
+        expect(enqueue.mock.calls.some(([job]) => job.kind === 'room-deep-history')).toBe(true);
+        expect(engine.scheduler.pendingJobs().map((job) => job.kind)).toEqual(['gap-fill']);
+      });
+      expect(engine.offline.getSnapshot(roomId).status).toBe('saving');
+      const recovered = outcome === 'recovered' || outcome === 'empty';
+      if (outcome === 'offline') f.setNetwork({ connected: false, unmetered: false });
+      if (outcome === 'canceled') engine.offline.cancel(roomId);
+      if (outcome === 'cleared') await engine.offline.clear(roomId);
+      if (recovered) resolve({ chunk: outcome === 'empty' ? [] : [raw('$gap-filled')] });
+      else reject(new Error('network unavailable'));
+      await vi.waitFor(() => expect(engine.scheduler.pendingJobs()).toHaveLength(0));
+      await vi.waitFor(() =>
+        expect(engine.offline.getSnapshot(roomId).status).toBe(
+          recovered ? 'ready' : outcome === 'offline' ? 'offline' : 'idle'
+        )
+      );
+      expect(engine.offline.getSnapshot(roomId).historyExhausted).toBe(recovered);
+      if (outcome === 'cleared')
+        expect(await readRoomOfflineProgress(engine.sessionId, roomId)).toEqual({});
+    } finally {
+      resolve?.({ chunk: [] });
+      enqueue.mockRestore();
+    }
+  }
+);
+
+it.each(['recovered', 'failed'] as const)(
+  'keeps saving across an empty shared-gap page until its successor is %s',
+  async (outcome) => {
+    const pending: Array<{ resolve: (value: object) => void; reject: (error: Error) => void }> = [];
+    const f = fixture(
+      vi.fn(() =>
+        pending.length < 2
+          ? new Promise((resolve, reject) => {
+              pending.push({ resolve, reject });
+            })
+          : Promise.resolve({ chunk: [] })
+      )
+    );
+    f.setNetwork({ connected: true, unmetered: false });
+    const engine = f.make(true);
+    const enqueue = vi.spyOn(engine.scheduler, 'enqueue');
+    try {
+      engine.noteRoomFocused(roomId);
+      f.mx.emit(RoomEvent.TimelineReset, f.room, f.timelineSet as never, false);
+      await vi.waitFor(() => {
+        expect(enqueue.mock.calls.some(([job]) => job.kind === 'room-deep-history')).toBe(true);
+        expect(engine.scheduler.pendingJobs().map((job) => job.kind)).toEqual(['gap-fill']);
+      });
+      pending[0].resolve({ chunk: [], end: 'older' });
+      await vi.waitFor(() => expect(pending).toHaveLength(2));
+      expect(f.request.mock.calls[1][1]).toBe('older');
+      await vi.waitFor(() => expect(engine.offline.getSnapshot(roomId).status).toBe('saving'));
+      if (outcome === 'recovered') pending[1].resolve({ chunk: [] });
+      else pending[1].reject(new Error('successor unavailable'));
+      await vi.waitFor(() => expect(engine.scheduler.pendingJobs()).toHaveLength(0));
+      await vi.waitFor(() =>
+        expect(engine.offline.getSnapshot(roomId).status).toBe(
+          outcome === 'recovered' ? 'ready' : 'idle'
+        )
+      );
+      expect(engine.offline.getSnapshot(roomId).historyExhausted).toBe(outcome === 'recovered');
+    } finally {
+      pending.forEach(({ resolve }) => resolve({ chunk: [] }));
+      enqueue.mockRestore();
+    }
+  }
+);
+
+it.each([10 * 1024 * 1024, undefined])(
+  'skips ineligible media jobs on automatic visits and downloads on request (size: %s)',
+  async (size) => {
+    const media = {
+      ...raw('$large-image'),
+      content: {
+        msgtype: 'm.image',
+        body: 'large',
+        url: 'mxc://test/large',
+        info: { size },
+      },
+    };
+    const f = fixture(vi.fn().mockResolvedValue({ chunk: [media] }));
+    const fetch = vi.fn(async () => new Response('media bytes'));
+    vi.stubGlobal('fetch', fetch);
+    const engine = f.make();
+    const enqueue = vi.spyOn(engine.scheduler, 'enqueue');
+    try {
+      engine.noteRoomFocused(roomId);
+      await vi.waitFor(() =>
+        expect(engine.offline.getSnapshot(roomId)).toMatchObject({ status: 'ready', missing: 1 })
+      );
+      engine.clearRoomFocus(roomId);
+      engine.noteRoomFocused(roomId);
+      await vi.waitFor(() => expect(engine.offline.getSnapshot(roomId).status).toBe('ready'));
+      expect(engine.offline.getSnapshot(roomId).missing).toBe(1);
+      expect(enqueue.mock.calls.filter(([job]) => job.kind === 'room-attachments')).toHaveLength(0);
+      expect(fetch).not.toHaveBeenCalled();
+      engine.offline.download(roomId, { includeAllMedia: true });
+      await vi.waitFor(() =>
+        expect(engine.offline.getSnapshot(roomId)).toMatchObject({
+          status: 'ready',
+          saved: 1,
+          missing: 0,
+        })
+      );
+      expect(fetch).toHaveBeenCalledOnce();
+    } finally {
+      enqueue.mockRestore();
+    }
+  }
+);
 
 it('cancel rejects a pending page and a later intent can retry', async () => {
   let resolve!: (response: object) => void;
@@ -593,7 +789,10 @@ it('concurrent repository coverage additions preserve each other', async () => {
   );
   const progress = await readRoomOfflineProgress(engine.sessionId, roomId);
   expect(progress.undecryptedEventIds?.sort()).toEqual(['$key-a', '$key-b']);
-  expect(progress.unresolvedRelationIds?.sort()).toEqual(['$relation-a', '$relation-b']);
+  expect(Object.keys(progress.unresolvedRelations ?? {}).sort()).toEqual([
+    '$relation-a',
+    '$relation-b',
+  ]);
 });
 
 it('bounded automatic body retries advance past a failed prefix and survive restart', async () => {
@@ -697,7 +896,7 @@ it('concurrent coverage repairs remove only processed IDs and retain newer addit
   ]);
   const progress = await readRoomOfflineProgress(engine.sessionId, roomId);
   expect(progress.undecryptedEventIds?.sort()).toEqual(['$key-keep', '$key-new']);
-  expect(progress.unresolvedRelationIds?.sort()).toEqual(['$rel-keep', '$rel-new']);
+  expect(Object.keys(progress.unresolvedRelations ?? {}).sort()).toEqual(['$rel-keep', '$rel-new']);
 });
 
 it('explicit download wakes deferred gaps and keeps pages running away from focus', async () => {

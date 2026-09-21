@@ -264,6 +264,7 @@ export const createGapFillExecutor = (
           response.end
         );
         if (durableMarker && !checkpointed) return 'continuation-deferred';
+        if (checkpointed) onCommitted();
         fromToken = response.end;
       } finally {
         reservation?.settle(committedCount);

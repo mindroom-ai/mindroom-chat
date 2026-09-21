@@ -38,6 +38,7 @@ import { readRoomOfflineProgress, updateRoomOfflineProgress } from './cacheStore
 import { collectEventAttachments } from '../messages/eventAttachments';
 import { replaceCachedAttachmentReferences } from './cacheStore';
 import { getSerializedRelationEvent, isSameSenderEditEvent } from '../../utils/editEvent';
+import { getLatestEdit } from '../../utils/room';
 import { isThreadOnlyRoomActivity } from './threadRenderUtils';
 import { buildThreadReplyCountMap } from './threadUtils';
 import { getKnownThreadReplyCount } from './threadRecord';
@@ -1100,6 +1101,9 @@ export const persistRoomEventCacheSnapshot = ({
 // SDK mapper objects can emit Decrypted long after their originating operation.
 // Keep provenance, not another generation: CacheStore owns revocation.
 const eventWriteLeases = new WeakMap<MatrixEvent, CacheStoreWriteLease>();
+// Explicit persistence already awaits these decryptions; their SDK notification
+// must not start a second write. Later key arrivals still use normal write-through.
+const persistingDecryptions = new WeakSet<MatrixEvent>();
 export const rememberEventCacheWriteLease = (
   event: MatrixEvent,
   lease: CacheStoreWriteLease
@@ -1108,7 +1112,12 @@ export const rememberEventCacheWriteLease = (
 };
 export const canPersistDecryptedEvent = (event: MatrixEvent, sessionId: string): boolean => {
   const lease = eventWriteLeases.get(event);
-  return !!lease && lease.sessionId === sessionId && isCacheStoreWriteLeaseCurrent(lease);
+  return (
+    !!lease &&
+    !persistingDecryptions.has(event) &&
+    lease.sessionId === sessionId &&
+    isCacheStoreWriteLeaseCurrent(lease)
+  );
 };
 
 /**
@@ -1179,33 +1188,69 @@ export const persistRoomChunkWithPreferLive = async ({
   const mapper = mx.getEventMapper({ decrypt: false });
   const preferLive = createPreferLiveEventMapper(room, mapper);
   const mapped = mappedEvents ?? chunk.map((raw) => preferLive({ ...raw, room_id: room.roomId }));
-  mapped.forEach((event) => rememberEventCacheWriteLease(event, writeLease));
-  await Promise.allSettled(
-    mapped
-      .filter((event) => event.getType() === 'm.room.encrypted')
-      .map((event) => mx.decryptEventIfNeeded?.(event))
-  );
+  const decryptEvent = async (event: MatrixEvent) => {
+    rememberEventCacheWriteLease(event, writeLease);
+    if (event.getType() !== 'm.room.encrypted' && !event.isDecryptionFailure()) return;
+    persistingDecryptions.add(event);
+    try {
+      await mx.decryptEventIfNeeded?.(event);
+    } catch {
+      // Missing keys remain tracked below for the existing bounded retry pass.
+    } finally {
+      persistingDecryptions.delete(event);
+    }
+  };
+  const decrypt = async (event: MatrixEvent) => {
+    await decryptEvent(event);
+    if (event.isRedacted()) return;
+    const replacement = getLatestEdit(
+      event,
+      [event.replacingEvent(), getSerializedRelationEvent(event, RelationType.Replace)].filter(
+        (candidate): candidate is MatrixEvent => !!candidate
+      )
+    );
+    if (!replacement) return;
+    replacement.event.room_id = room.roomId;
+    await decryptEvent(replacement);
+    if (event.replacingEvent() !== replacement) event.makeReplaced(replacement);
+  };
+  await Promise.all(mapped.map(decrypt));
   if (!isCacheStoreWriteLeaseCurrent(writeLease)) throw new Error('cache room write revoked');
   const progress = await readRoomOfflineProgress(sessionId, room.roomId);
   const byId = new Map(mapped.map((event) => [event.getId(), event]));
   const resolve = async (id: string): Promise<MatrixEvent | undefined> => {
     const known = byId.get(id);
     if (known) return known;
+    const bundled = [...byId.values()]
+      .map((event) => event.replacingEvent())
+      .find((event) => event?.getId() === id);
+    if (bundled) {
+      byId.set(id, bundled);
+      return bundled;
+    }
     const raw = await loadCachedEventAcrossRoomScopes(sessionId, room.roomId, id);
     const event = raw ? preferLive({ ...raw, room_id: room.roomId }) : room.findEventById(id);
     if (!event) return undefined;
-    rememberEventCacheWriteLease(event, writeLease);
-    await mx.decryptEventIfNeeded?.(event).catch(() => undefined);
+    await decrypt(event);
     byId.set(id, event);
     return event;
   };
-  await Promise.all((progress.unresolvedRelationIds ?? []).map(resolve));
-  const unresolved = new Set<string>();
+  // Retry only relations made relevant by this chunk. The controller owns
+  // bounded retries of the rest; streaming a message must not replay the room backlog.
+  const incomingIds = new Set(
+    mapped.flatMap((event) => [event.getId(), event.replacingEvent()?.getId()])
+  );
+  await Promise.all(
+    Object.entries(progress.unresolvedRelations ?? {})
+      .filter(([, targetId]) => incomingIds.has(targetId))
+      .map(([id]) => resolve(id))
+  );
+  const unresolved: Record<string, string> = {};
   const retractedByOwner = new Map<string, string[]>();
   // Compaction embeds same-sender edits in their owner. For a redacted edit
   // absent as a standalone row, recover that verified ownership before scrub.
   for (const event of [...byId.values()]) {
-    const targetId = event.getAssociatedId() ?? event.getRelation()?.event_id;
+    const targetId = event.isRedaction() ? event.getAssociatedId() : event.getRelation()?.event_id;
     if (!targetId || event.getRelation()?.rel_type === RelationType.Thread) continue;
     let target = await resolve(targetId);
     const rawTarget = target?.isRedacted()
@@ -1243,7 +1288,7 @@ export const persistRoomChunkWithPreferLive = async ({
       } while (after && isCacheStoreWriteLeaseCurrent(writeLease));
     }
     if (!target) {
-      if (event.getId()) unresolved.add(event.getId()!);
+      if (event.getId()) unresolved[event.getId()!] = targetId;
       continue;
     }
     if (event.isRedaction() && target.getRelation()?.rel_type === RelationType.Replace) {
@@ -1335,7 +1380,14 @@ export const persistRoomChunkWithPreferLive = async ({
     const id = event.getId();
     if (!id) return;
     processed.add(id);
-    if (event.getType() === 'm.room.encrypted') undecrypted.add(id);
+    const replacement = event.replacingEvent();
+    if (
+      event.getType() === 'm.room.encrypted' ||
+      event.isDecryptionFailure() ||
+      replacement?.getType() === 'm.room.encrypted' ||
+      replacement?.isDecryptionFailure()
+    )
+      undecrypted.add(id);
   });
   if (
     !(await updateRoomOfflineProgress(
@@ -1358,12 +1410,15 @@ export const persistRoomChunkWithPreferLive = async ({
           });
           return [...result];
         };
+        const relations = { ...current.unresolvedRelations };
+        processed.forEach((id) => {
+          if (!unresolved[id]) delete relations[id];
+        });
+        Object.entries(unresolved).forEach(([id, target]) => {
+          if (!progress.unresolvedRelations?.[id]) relations[id] = target;
+        });
         return {
-          unresolvedRelationIds: merge(
-            current.unresolvedRelationIds,
-            unresolved,
-            progress.unresolvedRelationIds
-          ),
+          unresolvedRelations: relations,
           undecryptedEventIds: merge(
             current.undecryptedEventIds,
             undecrypted,

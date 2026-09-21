@@ -219,7 +219,7 @@ export const createRoomOfflineController = ({
         hasGap: !!gap,
         savedEvents: progress.savedEvents ?? 0,
         undecryptedEvents: progress.undecryptedEventIds?.length ?? 0,
-        unresolvedRelations: progress.unresolvedRelationIds?.length ?? 0,
+        unresolvedRelations: Object.keys(progress.unresolvedRelations ?? {}).length,
       });
     } catch {
       if (isCacheStoreWriteLeaseCurrent(lease))
@@ -241,10 +241,6 @@ export const createRoomOfflineController = ({
           (typeof document !== 'undefined' && document.visibilityState === 'hidden')
         : !!pauseReason(roomId, false);
     if (!events.length || paused() || !isCacheStoreWriteLeaseCurrent(lease)) return;
-    const auth = await mx
-      .getVersions()
-      .then(supportsAuthenticatedMedia)
-      .catch(() => false);
     let admitted = true;
     const owners = collectEventAttachments(events);
     const essential = new Set(
@@ -252,9 +248,24 @@ export const createRoomOfflineController = ({
         .filter((owner) => owner.attachments.some((attachment) => attachment.essential))
         .map((owner) => owner.eventId)
     );
-    const ordered = [...events].sort(
-      (a, b) => Number(essential.has(b.getId()!)) - Number(essential.has(a.getId()!))
-    );
+    const ordered = events
+      .filter((event) => {
+        const owner = owners.find((item) => item.eventId === event.getId());
+        return (
+          owner?.attachments.some(
+            (attachment) => attachment.autoDownload || state(roomId).includeAllMedia
+          ) ||
+          (!owner?.attachments.length && owner?.revisionId) ||
+          event.isRedacted() ||
+          event.isRedaction()
+        );
+      })
+      .sort((a, b) => Number(essential.has(b.getId()!)) - Number(essential.has(a.getId()!)));
+    if (!ordered.length) return;
+    const auth = await mx
+      .getVersions()
+      .then(supportsAuthenticatedMedia)
+      .catch(() => false);
     for (const event of ordered) {
       if (paused() || !isCacheStoreWriteLeaseCurrent(lease)) return;
       // The scheduler retains one replacement behind a draining job with the same key.
@@ -354,7 +365,7 @@ export const createRoomOfflineController = ({
             ...new Set([
               ...(await readRoomMissingAttachmentEventIds(sessionId, roomId)),
               ...(retryProgress.undecryptedEventIds ?? []),
-              ...(retryProgress.unresolvedRelationIds ?? []),
+              ...Object.keys(retryProgress.unresolvedRelations ?? {}),
             ]),
           ].sort();
       do {
@@ -415,7 +426,19 @@ export const createRoomOfflineController = ({
           reservePage,
           canRun: () => current() && !pauseReason(roomId),
         });
-        if (!page || !current()) return;
+        if (!current()) return;
+        if (!page) {
+          // A gap page can hold the shared allowance. Keep its active status
+          // until it settles, including failures that publish no recovery.
+          await Promise.allSettled(
+            scheduler
+              .pendingJobs()
+              .filter((job) => job.roomId === roomId && job.kind === 'gap-fill')
+              .map((job) => job.promise)
+          );
+          if (current()) publish(roomId, { status: pauseReason(roomId) ?? 'idle' });
+          return;
+        }
         // Essential bodies for this committed page precede the next page.
         const bodiesAdmitted = await bodyBatch(roomId, page.events, lease);
 
@@ -430,8 +453,13 @@ export const createRoomOfflineController = ({
         }
       }
       if (current()) publish(roomId, { status: pauseReason(roomId) ?? 'idle' });
-    } catch {
-      if (current()) publish(roomId, { status: isCacheWritable() ? 'error' : 'read-only' });
+    } catch (error) {
+      if (current())
+        publish(roomId, {
+          status:
+            pauseReason(roomId) ??
+            (error instanceof Error && error.name === 'AbortError' ? 'idle' : 'error'),
+        });
     } finally {
       intent.running = false;
       if (intent.dirty && started && eligible(roomId) && !pauseReason(roomId)) {

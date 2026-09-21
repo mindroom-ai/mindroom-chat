@@ -123,7 +123,7 @@ export const updateRoomOfflineProgress = async (
       return true;
     });
   } catch (error) {
-    reportCacheWriteError('offline.progress', error);
+    if (isCacheStoreWriteLeaseCurrent(lease)) reportCacheWriteError('offline.progress', error);
     return false;
   }
 };

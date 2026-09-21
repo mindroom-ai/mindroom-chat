@@ -13,6 +13,7 @@ import {
   resetCacheStoreForTesting,
 } from '../../threads/cacheStore';
 import { getCacheProbeSnapshot, resetCacheProbe } from '../../threads/cacheProbe';
+import { readRoomOfflineProgress } from '../../threads/cacheStore/cacheStoreMeta';
 import {
   clearThreadOpenSeedSnapshotsForTests,
   getThreadOpenSeedSnapshot,
@@ -76,38 +77,6 @@ const rawThreadReply = (id: string, ts: number, threadRootId: string): Partial<I
   },
 });
 
-// CINNY-207 P7.2 audit finding #3: minimal MatrixEvent shape sufficient
-// for `serializeRoomCacheEvents` on non-redaction, non-replace events —
-// mirrors the identity mapper in the gap-fill test.
-const identityMapper = (raw: Partial<IEvent>) => {
-  const relation = (raw.content as Record<string, unknown> | undefined)?.['m.relates_to'] as
-    | { rel_type?: string; event_id?: string }
-    | undefined;
-  return {
-    getId: () => raw.event_id ?? '',
-    getRoomId: () => raw.room_id,
-    getType: () => raw.type,
-    getTs: () => (raw.origin_server_ts as number) ?? 0,
-    isRedaction: () => raw.type === 'm.room.redaction',
-    isRedacted: () => Boolean(raw.unsigned?.redacted_because),
-    getAssociatedId: () => (raw.content as { redacts?: string } | undefined)?.redacts,
-    getRelation: () => relation ?? null,
-    getUnsigned: () => raw.unsigned ?? {},
-    getStateKey: () => (raw as { state_key?: string }).state_key,
-    getSender: () => raw.sender,
-    getContent: () => raw.content ?? {},
-    getWireContent: () => raw.content ?? {},
-    makeRedacted: () => undefined,
-    makeReplaced: () => undefined,
-    replacingEvent: () => null,
-    // Deep-history chunks carry raw thread replies; the thread-scope
-    // grouping reads `threadRootId` off the mapped event, which for a
-    // raw m.thread relation resolves to the relation target.
-    threadRootId: relation?.rel_type === 'm.thread' ? relation.event_id : undefined,
-    event: raw,
-  } as unknown as import('matrix-js-sdk').MatrixEvent;
-};
-
 const createMockClient = (
   responder: (call: number) => { end?: string; chunk: Partial<IEvent>[] }
 ): MockClient => {
@@ -118,7 +87,7 @@ const createMockClient = (
     getRoom: (roomId: string) => rooms.get(roomId) ?? null,
     // CINNY-207 P7.2 audit finding #3: preferLive mapper is resolved via
     // this hook inside `persistRoomChunkWithPreferLive`.
-    getEventMapper: () => identityMapper,
+    getEventMapper: () => (raw: Partial<IEvent>) => new MatrixEvent(raw),
     createMessagesRequest: vi
       .fn()
       .mockImplementation(
@@ -373,6 +342,29 @@ describe('enqueueRoomDeepHistoryJob (CINNY-207 P4.3)', () => {
     resetCacheStoreForTesting();
     await enqueueRoomDeepHistoryJob({ ...args, scheduler: createBackfillScheduler({ mx }) });
     expect(mx.__calls.map((call) => call.fromToken)).toEqual([null, 'older-1', 'older-1']);
+  });
+
+  it('bounds pagination checkpoints while rejecting recent token cycles', async () => {
+    const mx = createMockClient((call) => ({
+      end: call < 20 ? 'token-' + (call + 1) : 'token-19',
+      chunk: [rawEvent('$page-' + call, call + 1)],
+    }));
+    const roomId = '!room:mindroom.chat';
+    mx.getEventMapper = () => (event) => new MatrixEvent(event);
+    mx.__rooms.set(roomId, makeRoom(roomId, '@alice:mindroom.chat'));
+    const args = { mx, sessionId: SESSION_ID, scheduler: createBackfillScheduler({ mx }), roomId };
+    for (let i = 0; i < 20; i += 1) {
+      // eslint-disable-next-line no-await-in-loop
+      await enqueueRoomDeepHistoryJob(args);
+    }
+    const progress = await readRoomOfflineProgress(SESSION_ID, roomId);
+    expect(progress.savedEvents).toBe(20);
+    expect(progress.recentTokens!.length).toBeLessThanOrEqual(8);
+    expect(progress.nextToken).toBe('token-20');
+    await expect(enqueueRoomDeepHistoryJob(args)).rejects.toThrow(
+      'History pagination did not advance'
+    );
+    expect((await readRoomOfflineProgress(SESSION_ID, roomId)).nextToken).toBe('token-20');
   });
 
   it('attributes an edit to a reply first encountered on a later history page', async () => {

@@ -157,7 +157,7 @@ export type RoomOfflineProgress = {
   recentTokens?: string[];
   retryAfterEventId?: string | null;
   undecryptedEventIds?: string[];
-  unresolvedRelationIds?: string[];
+  unresolvedRelations?: Record<string, string>;
 };
 
 // CINNY-207 P2.2: per-room byte + activity ledger used by the eviction

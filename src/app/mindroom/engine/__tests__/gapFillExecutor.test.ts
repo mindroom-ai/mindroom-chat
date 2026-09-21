@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import 'fake-indexeddb/auto';
 import { IDBFactory, IDBDatabase } from 'fake-indexeddb';
-import { Direction } from 'matrix-js-sdk';
+import { Direction, MatrixEvent } from 'matrix-js-sdk';
 import type { IEvent, MatrixClient, Room } from 'matrix-js-sdk';
 import { STARTUP_SYNC_TIMELINE_LIMIT } from '../../../../client/initMatrix';
 import { createBackfillScheduler } from '../backfillScheduler';
@@ -59,39 +59,6 @@ const makeRoomStub = (roomId: string, createSender: string | undefined, encrypte
     getLastActiveTimestamp: () => 0,
   } as unknown as Room);
 
-// CINNY-207 P7.2 audit finding #3: a minimal MatrixEvent shape sufficient
-// for `serializeRoomCacheEvents` (via `hydrateCachedEvents` +
-// `collectStateTargetEvents`). Non-redaction, non-replace events skip
-// every branch except the identity emit — we only need `getId`,
-// `getType`, `getRelation`, `getSender`, and `.event`.
-const identityMapper = (raw: Partial<IEvent>) => {
-  const relation = (raw.content as Record<string, unknown> | undefined)?.['m.relates_to'] as
-    | { rel_type?: string; event_id?: string }
-    | undefined;
-  return {
-    getId: () => raw.event_id ?? '',
-    getType: () => raw.type,
-    getTs: () => (raw.origin_server_ts as number) ?? 0,
-    isRedaction: () => raw.type === 'm.room.redaction',
-    isRedacted: () => Boolean(raw.unsigned?.redacted_because),
-    getAssociatedId: () => (raw.content as { redacts?: string } | undefined)?.redacts,
-    getRelation: () => relation ?? null,
-    getUnsigned: () => raw.unsigned ?? {},
-    getStateKey: () => (raw as { state_key?: string }).state_key,
-    getSender: () => raw.sender,
-    getContent: () => raw.content ?? {},
-    getWireContent: () => raw.content ?? {},
-    makeRedacted: () => undefined,
-    makeReplaced: () => undefined,
-    replacingEvent: () => null,
-    // Gap-fill chunks carry raw thread replies; the thread-scope
-    // grouping (2026-07-06 eager-cache fix) reads `threadRootId` off
-    // the mapped event.
-    threadRootId: relation?.rel_type === 'm.thread' ? relation.event_id : undefined,
-    event: raw,
-  } as unknown as import('matrix-js-sdk').MatrixEvent;
-};
-
 type MockClient = MatrixClient & {
   __rooms: Map<string, Room>;
   __messages: Array<{
@@ -118,7 +85,7 @@ const createMockClient = (
     // CINNY-207 P7.2 audit finding #3: `persistRoomChunkWithPreferLive`
     // resolves the event mapper up front and wraps it in
     // `createPreferLiveEventMapper` before persisting each chunk.
-    getEventMapper: () => identityMapper,
+    getEventMapper: () => (raw: Partial<IEvent>) => new MatrixEvent(raw),
     createMessagesRequest: vi
       .fn()
       .mockImplementation(
@@ -943,51 +910,14 @@ describe('gapFillExecutor (CINNY-207 P4.2)', () => {
     // A trackable live instance that is currently NOT redacted; when
     // preferLive fires, it must call makeRedacted on THIS object and
     // return it (so `.event` serializes to the healed shape).
-    let liveContent: Record<string, unknown> = preRedactionContent;
-    let liveIsRedacted = false;
-    const liveRedactedBecause: { present?: Partial<IEvent> } = {};
-    const liveEvent = {
-      getId: () => '$stale',
-      getType: () => 'm.room.message',
-      getTs: () => 500,
-      isRedaction: () => false,
-      isRedacted: () => liveIsRedacted,
-      getAssociatedId: () => undefined,
-      getRelation: () => null,
-      getUnsigned: () =>
-        liveRedactedBecause.present ? { redacted_because: liveRedactedBecause.present } : {},
-      getStateKey: () => undefined,
-      getSender: () => '@alice:mindroom.chat',
-      getContent: () => liveContent,
-      getWireContent: () => liveContent,
-      makeRedacted: (redactionMEvent: { event?: Partial<IEvent> }) => {
-        // Simulate matrix-js-sdk behavior: prune content, mark redacted,
-        // stamp unsigned.redacted_because from the redaction event.
-        liveIsRedacted = true;
-        liveContent = {};
-        liveRedactedBecause.present = redactionMEvent.event;
-        // The .event property is the raw form the serializer reads.
-        (liveEvent as unknown as { event: Partial<IEvent> }).event = {
-          event_id: '$stale',
-          type: 'm.room.message',
-          origin_server_ts: 500,
-          sender: '@alice:mindroom.chat',
-          room_id: '!room:mindroom.chat',
-          content: {},
-          unsigned: { redacted_because: redactionMEvent.event ?? undefined } as never,
-        };
-      },
-      makeReplaced: () => undefined,
-      replacingEvent: () => null,
-      event: {
-        event_id: '$stale',
-        type: 'm.room.message',
-        origin_server_ts: 500,
-        sender: '@alice:mindroom.chat',
-        room_id: '!room:mindroom.chat',
-        content: preRedactionContent,
-      } as Partial<IEvent>,
-    };
+    const liveEvent = new MatrixEvent({
+      event_id: '$stale',
+      type: 'm.room.message',
+      origin_server_ts: 500,
+      sender: '@alice:mindroom.chat',
+      room_id: '!room:mindroom.chat',
+      content: preRedactionContent,
+    });
 
     const mx = createMockClient('mindroom.chat', (call) => {
       if (call === 0) return { chunk: [staleChunkEvent] };
@@ -1026,8 +956,8 @@ describe('gapFillExecutor (CINNY-207 P4.2)', () => {
     const cached = await loadCachedRoomEvent(SESSION_ID, '!room:mindroom.chat', '$stale');
     expect(cached).toBeDefined();
     expect(cached?.content).toEqual({});
-    expect(liveIsRedacted).toBe(true);
-    expect(liveRedactedBecause.present?.event_id).toBe('$redaction');
+    expect(liveEvent.isRedacted()).toBe(true);
+    expect(liveEvent.getUnsigned().redacted_because?.event_id).toBe('$redaction');
   });
 
   // CINNY-207 P7.2 audit finding #5 — the user-facing `prefetchScope`

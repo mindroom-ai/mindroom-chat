@@ -2,6 +2,28 @@
 
 ## Runbook
 
+### Simplify cache repair and close independent review findings (2026-09-20)
+
+- Live persistence repairs only pending relations whose targets arrive in the current chunk.
+  The existing background controller owns bounded retries of other unresolved events; ordinary reply links do not enter the repair backlog.
+  Consulted Claude Fable 5.1 on repair ownership and adopted target-aware metadata without adding a database migration or another coordinator.
+- Canonical persistence decrypts bundled replacements, tracks unreadable owners for retry, and preserves attachment ownership while keys are unavailable.
+  Awaited SDK decryption does not schedule duplicate writes, and ciphertext remains encrypted in persistent event records.
+  Pending local edits stay in memory; persistent snapshots retain the last confirmed row until server confirmation.
+- Essential attachments share raw bytes while validation remains specific to each owner and revision.
+  Ordinary text creates no attachment references or jobs, and historical stickers use the existing optional-media policy.
+  Explicit upgrade fixtures preserve shared bytes, references, coverage, revision metadata and room pins.
+- Offline and hidden cancellation preserve their pause states.
+  Shared gap completion or failure settles room status; committed empty-page cursors and successful marker clears notify the existing controller.
+  Metadata lease revocation creates no spurious failure diagnostic, and history checkpoints retain only eight recent pagination tokens.
+- Independent review reproduced and verified fixes for failed standalone encrypted edits, pending-edit cache replay and empty-gap successors.
+  All 568 files / 4,905 unit tests, application and browser-test typechecks, production/PWA build, formatting and whitespace checks pass.
+  ESLint retains 17 existing warnings and no errors.
+  Eight Chromium/WebKit browser cases pass with two expected platform-specific skips, including delayed edit/deletion races and offline/profile-restart decoding of historical bodies, images and stickers.
+- Bounds remain explicit: policy-ineligible media can still incur bounded event retry reads; saved history entries count server traversal, not unique compacted rows.
+  Recovering discarded edit revisions requires server history, and interactive blob buffering remains a tradeoff.
+  Physical iPhone and real encrypted-browser restart validation remain unavailable.
+
 ### Cover overlapping streams and attachment ownership transitions (2026-09-20)
 
 - Real engine and IndexedDB regressions hold an old body download across two later edits, then check the latest saved body and removal of obsolete bytes without refocusing the room.
