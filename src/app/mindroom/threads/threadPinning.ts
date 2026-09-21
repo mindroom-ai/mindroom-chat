@@ -1,6 +1,8 @@
 import {
+  ClientEvent,
   EventType,
   RoomStateEvent,
+  SyncState,
   type MatrixClient,
   type MatrixEvent,
   type Room,
@@ -102,21 +104,9 @@ const publishPendingPins = (
   pendingPins.delete(room);
   if (next) {
     let reconciliation = 0;
-    const handler = (event: MatrixEvent) => {
-      if (event.getType() !== StateEvent.RoomPinnedEvents || event.getStateKey() !== '') return;
-      // Keep the latest save visible through older echoes from this client's queue.
+    const verifyPending = () => {
       const pending = pendingPins.get(room);
       if (!pending?.accepted) return;
-      if (pending.earlierEventIds.has(event.getId() ?? '')) return;
-      const eventPins = getPinnedEventIds(event.getContent());
-      const expectedUncertainEcho =
-        pending.expectedEchoIds && samePins(eventPins, pending.expectedEchoIds);
-      if (samePins(eventPins, pending.ids) || expectedUncertainEcho) {
-        publishPendingPins(mx, room);
-        return;
-      }
-      // An unknown sync event may itself be delayed. Confirm conflicting state
-      // with the server before replacing an accepted local pin.
       const revision = ++reconciliation;
       void readPinContent(mx, room)
         .then((content) => {
@@ -129,6 +119,7 @@ const publishPendingPins = (
             publishPendingPins(mx, room);
           } else {
             pending.ids = ids;
+            pending.expectedEchoIds = undefined;
             emitPinChange(room);
           }
         })
@@ -136,10 +127,39 @@ const publishPendingPins = (
           // Keep the last accepted state until sync or a later successful read.
         });
     };
+    const handler = (event: MatrixEvent) => {
+      if (event.getType() !== StateEvent.RoomPinnedEvents || event.getStateKey() !== '') return;
+      // Keep the latest save visible through older echoes from this client's queue.
+      const pending = pendingPins.get(room);
+      if (!pending?.accepted || pending.earlierEventIds.has(event.getId() ?? '')) return;
+      const eventPins = getPinnedEventIds(event.getContent());
+      const expectedUncertainEcho =
+        pending.expectedEchoIds && samePins(eventPins, pending.expectedEchoIds);
+      if (samePins(eventPins, pending.ids) || expectedUncertainEcho) {
+        publishPendingPins(mx, room);
+        return;
+      }
+      // An unknown sync event may itself be delayed. Confirm conflicting state
+      // with the server before replacing an accepted local pin.
+      verifyPending();
+    };
+    const handleSync = (state: SyncState, previous: SyncState | null) => {
+      if (state !== SyncState.Syncing && state !== SyncState.Prepared) return;
+      if (
+        pendingPins.get(room)?.expectedEchoIds ||
+        previous === SyncState.Error ||
+        previous === SyncState.Reconnecting
+      )
+        verifyPending();
+    };
     room.on(RoomStateEvent.Events, handler);
+    mx.on(ClientEvent.Sync, handleSync);
     pendingPins.set(room, {
       ...next,
-      unsubscribe: () => room.removeListener(RoomStateEvent.Events, handler),
+      unsubscribe: () => {
+        room.removeListener(RoomStateEvent.Events, handler);
+        mx.removeListener(ClientEvent.Sync, handleSync);
+      },
     });
     const current = getStateEvent(room, StateEvent.RoomPinnedEvents);
     if (current) handler(current);

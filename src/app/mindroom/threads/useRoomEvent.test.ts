@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { createClient, MatrixEvent, Room } from 'matrix-js-sdk';
+import { ClientEvent, createClient, MatrixEvent, Room, SyncState } from 'matrix-js-sdk';
 import { act, create } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { useRoomEvent } from './useRoomEvent';
@@ -14,12 +14,17 @@ const getCryptoMock = vi.fn();
 const loadCachedRoomEventMock = vi.fn();
 const loadCachedThreadEventMock = vi.fn();
 const useActiveSessionMock = vi.fn();
+const matrixClientMock = createClient({
+  baseUrl: 'https://example.org',
+  userId: '@alice:example.org',
+});
+vi.spyOn(matrixClientMock, 'fetchRoomEvent').mockImplementation((...args) =>
+  fetchRoomEventMock(...args)
+);
+vi.spyOn(matrixClientMock, 'getCrypto').mockImplementation(() => getCryptoMock());
 
 vi.mock('../../hooks/useMatrixClient', () => ({
-  useMatrixClient: () => ({
-    fetchRoomEvent: fetchRoomEventMock,
-    getCrypto: () => getCryptoMock(),
-  }),
+  useMatrixClient: () => matrixClientMock,
 }));
 
 vi.mock('../../hooks/useSessionStore', () => ({
@@ -77,10 +82,113 @@ const EventProbe = ({
 };
 
 describe('useRoomEvent', () => {
+  it.each(['edit', 'redaction', 'offline', 'live edit'])(
+    'keeps cached pins visible while revalidating an old %s',
+    async (change) => {
+      pins.ids = ['$old'];
+      useActiveSessionMock.mockReturnValue({ sessionId: 'session-1' });
+      const room = new Room('!room:example.org', matrixClientMock, '@alice:example.org');
+      const cached = {
+        ...makeRawEvent('$old'),
+        room_id: room.roomId,
+        sender: '@alice:example.org',
+        content: { msgtype: 'm.text', body: 'Cached announcement' },
+      };
+      loadCachedRoomEventMock.mockResolvedValue(cached);
+      let settle!: (event: unknown) => void;
+      let fail!: (error: Error) => void;
+      fetchRoomEventMock.mockImplementation(
+        () =>
+          new Promise((resolve, reject) => {
+            settle = resolve;
+            fail = reject;
+          })
+      );
+      let bodies: unknown[] = [];
+      function Probe() {
+        bodies = usePinnedThreadEvents(room, true).map((event) => event.getContent().body);
+        return null;
+      }
+      const client = new QueryClient();
+      let renderer: ReturnType<typeof create> | undefined;
+      try {
+        await act(async () => {
+          renderer = create(
+            React.createElement(QueryClientProvider, { client }, React.createElement(Probe))
+          );
+          await flushAsyncWork();
+        });
+        expect(bodies).toEqual(['Cached announcement']);
+        expect(fetchRoomEventMock).toHaveBeenCalledTimes(1);
+        const edit = (id: string, body: string, ts: number) => ({
+          ...cached,
+          event_id: id,
+          origin_server_ts: ts,
+          content: {
+            msgtype: 'm.text',
+            body: `* ${body}`,
+            'm.new_content': { msgtype: 'm.text', body },
+            'm.relates_to': { rel_type: 'm.replace', event_id: '$old' },
+          },
+        });
+        await act(async () => {
+          if (change === 'live edit') {
+            await room.addLiveEvents([new MatrixEvent(edit('$live', 'Live announcement', 300))], {
+              addToState: true,
+            });
+          }
+          if (change === 'offline') fail(new Error('Offline'));
+          else
+            settle(
+              change === 'redaction'
+                ? {
+                    ...cached,
+                    content: {},
+                    unsigned: { redacted_because: { type: 'm.room.redaction' } },
+                  }
+                : {
+                    ...cached,
+                    unsigned: {
+                      'm.relations': { 'm.replace': edit('$new', 'Current announcement', 200) },
+                    },
+                  }
+            );
+          await flushAsyncWork();
+        });
+        expect(bodies).toEqual(
+          change === 'redaction'
+            ? []
+            : [
+                change === 'offline'
+                  ? 'Cached announcement'
+                  : change === 'live edit'
+                  ? 'Live announcement'
+                  : 'Current announcement',
+              ]
+        );
+        if (change === 'offline') {
+          await act(async () => {
+            fetchRoomEventMock.mockResolvedValue({
+              ...cached,
+              unsigned: {
+                'm.relations': { 'm.replace': edit('$new', 'Current announcement', 200) },
+              },
+            });
+            matrixClientMock.emit(ClientEvent.Sync, SyncState.Syncing, SyncState.Error);
+            await flushAsyncWork();
+          });
+          expect(bodies).toEqual(['Current announcement']);
+        }
+      } finally {
+        act(() => renderer?.unmount());
+        client.clear();
+      }
+    }
+  );
   it('refreshes an old encrypted pin when its missing key arrives', async () => {
     pins.ids = ['$old'];
     useActiveSessionMock.mockReturnValue(undefined);
-    const decryptEvent = vi.fn().mockRejectedValueOnce(new Error('Missing room key'));
+    const decryptEvent = vi.fn().mockRejectedValue(new Error('Missing room key'));
     const crypto = { decryptEvent } as unknown as Parameters<MatrixEvent['attemptDecryption']>[0];
     getCryptoMock.mockReturnValue(crypto);
     fetchRoomEventMock.mockResolvedValue({
@@ -218,6 +326,7 @@ describe('useRoomEvent', () => {
   );
   it('loads old pinned roots from cache and excludes pinned replies and deleted roots', async () => {
     useActiveSessionMock.mockReturnValue({ sessionId: 'session-1' });
+    fetchRoomEventMock.mockRejectedValue(new Error('Offline'));
     loadCachedRoomEventMock.mockImplementation(async (_session, _room, id) => ({
       ...makeRawEvent(id),
       content:
@@ -244,7 +353,7 @@ describe('useRoomEvent', () => {
     });
     expect(events.map((event) => event.getId())).toEqual(['$old']);
     expect(events[0].getContent().body).toBe('Older announcement');
-    expect(fetchRoomEventMock).not.toHaveBeenCalled();
+    expect(fetchRoomEventMock).toHaveBeenCalledTimes(3);
     renderer.unmount();
     client.clear();
   });

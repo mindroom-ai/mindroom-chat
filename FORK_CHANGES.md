@@ -21,7 +21,10 @@
 - Pin subscriptions follow Matrix live-state replacement during limited sync.
   Fetched old announcements use the existing cache hydration helpers to follow live edits and deletions, and refresh when missing decryption keys arrive.
   Encrypted edits preserve the last readable text until decryption completes.
-- Validation after integrating current `dev` and PR review fixes: all 5,056 tests across 580 files pass under Node 24.13.1.
+- Reconnecting verifies pin saves whose result could not be confirmed while offline.
+  Detached announcements show cached content immediately, then refresh from the server on mount and reconnect without overwriting intervening live edits or deletions.
+  A cross-model design consultation favored this scoped refresh over expanding compact timeline backfill.
+- Validation after integrating `dev` and PR review fixes: all 5,062 tests across 580 files pass under Node 24.13.1.
   Typecheck, production/PWA build, formatting, and ESLint pass with zero errors and the existing 17 warnings.
 - Three Chromium browser checks pass for admin/moderator permissions, stable ordering and reloads, suspended resolution, old zero-reply pins, and existing hover/keyboard behavior.
   Desktop and phone-sized layouts were inspected.

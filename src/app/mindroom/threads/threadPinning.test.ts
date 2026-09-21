@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createClient, MatrixEvent, Room } from 'matrix-js-sdk';
+import { ClientEvent, createClient, MatrixEvent, Room, SyncState } from 'matrix-js-sdk';
 import React from 'react';
 import { act, create } from 'react-test-renderer';
 import { StateEvent } from '../../../types/matrix/room';
@@ -48,6 +48,30 @@ const makeRoom = (level = 100, required = 50) => {
 };
 
 describe('room thread pins', () => {
+  it.each([false, true])(
+    'verifies an uncertain pin after reconnect (committed=%s)',
+    async (committed) => {
+      const { mx, room } = makeRoom();
+      let serverPins = ['$older', '$reply'];
+      vi.spyOn(mx, 'sendStateEvent').mockImplementation(async (_room, _type, content) => {
+        if (committed) serverPins = (content as { pinned: string[] }).pinned;
+        vi.mocked(mx.getStateEvent).mockRejectedValue(new Error('Offline'));
+        throw new Error('Connection lost');
+      });
+      await expect(setRoomEventPinned(mx, room, '$root', true)).rejects.toThrow('Connection lost');
+      expect(isThreadPinned(room, '$root')).toBe(true);
+      vi.mocked(mx.getStateEvent).mockResolvedValue({ pinned: serverPins });
+      mx.emit(ClientEvent.Sync, SyncState.Syncing, SyncState.Error);
+      await vi.waitFor(() => {
+        expect(mx.getStateEvent).toHaveBeenCalledTimes(3);
+        expect(isThreadPinned(room, '$root')).toBe(committed);
+      });
+      syncPins(room, '$confirmed', serverPins);
+      mx.emit(ClientEvent.Sync, SyncState.Syncing, SyncState.Syncing);
+      await Promise.resolve();
+      expect(mx.getStateEvent).toHaveBeenCalledTimes(3);
+    }
+  );
   it('follows pin state after a limited sync replaces the live RoomState', () => {
     const mx = createClient({ baseUrl: 'https://example.org', userId: admin });
     const room = new Room('!reset:example.org', mx, admin, { timelineSupport: true });

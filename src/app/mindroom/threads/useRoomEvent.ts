@@ -11,7 +11,7 @@ type UseRoomEventOptions = {
   threadId?: string;
 };
 
-const hydrateLoadedEvent = async (
+export const hydrateLoadedEvent = async (
   mx: ReturnType<typeof useMatrixClient>,
   evt: Partial<IEvent>
 ): Promise<MatrixEvent> => {

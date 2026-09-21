@@ -1,17 +1,20 @@
-import { useQueries, type UseQueryResult } from '@tanstack/react-query';
-import { useEffect, useMemo } from 'react';
+import { useQueries, useQueryClient, type UseQueryResult } from '@tanstack/react-query';
+import { useCallback, useEffect, useMemo } from 'react';
 import {
   MatrixEventEvent,
   RelationType,
   RoomEvent,
+  SyncState,
   type MatrixEvent,
   type Room,
 } from 'matrix-js-sdk';
-import { useFetchRoomEvent } from './useRoomEvent';
+import { hydrateLoadedEvent, useFetchRoomEvent } from './useRoomEvent';
 import { usePinnedEventIds } from './useThreadPinning';
 import { isZeroReplyStandaloneThreadRootEvent } from './compactThreadRootData';
 import { hydrateCachedEvents } from './eventCacheEditUtils';
 import { useForceUpdate } from '../../hooks/useForceUpdate';
+import { useMatrixClient } from '../../hooks/useMatrixClient';
+import { useSyncState } from '../../hooks/useSyncState';
 
 const collectEvents = (results: UseQueryResult<MatrixEvent>[]) =>
   results.map((result) => result.data);
@@ -24,7 +27,23 @@ export const usePinnedThreadEvents = (
 ): MatrixEvent[] => {
   const pinnedEventIds = usePinnedEventIds(room);
   const fetchEvent = useFetchRoomEvent(room);
+  const mx = useMatrixClient();
+  const queryClient = useQueryClient();
   const [relationVersion, refreshRelations] = useForceUpdate();
+  const [revalidation, revalidate] = useForceUpdate();
+  useSyncState(
+    mx,
+    useCallback(
+      (state, previous) => {
+        if (
+          state === SyncState.Prepared ||
+          (state === SyncState.Syncing && previous !== SyncState.Syncing)
+        )
+          revalidate();
+      },
+      [revalidate]
+    )
+  );
   const fetched = useQueries({
     queries: pinnedEventIds.map((eventId) => ({
       queryKey: [room.roomId, eventId, undefined],
@@ -37,6 +56,45 @@ export const usePinnedThreadEvents = (
     })),
     combine: collectEvents,
   });
+  useEffect(() => {
+    if (!enabled) return undefined;
+    let cancelled = false;
+    const refresh = async (eventId: string) => {
+      if (room.findEventById(eventId)) return;
+      const queryKey = [room.roomId, eventId, undefined];
+      try {
+        // Publish the cached copy first; detached roots also need an authoritative refresh.
+        const before = await queryClient.ensureQueryData({
+          queryKey,
+          queryFn: () => fetchEvent(eventId),
+          staleTime: Infinity,
+        });
+        if (cancelled || room.findEventById(eventId)) return;
+        const beforeContent = before.getContent();
+        const fresh = await hydrateLoadedEvent(mx, await mx.fetchRoomEvent(room.roomId, eventId));
+        if (cancelled || room.findEventById(eventId)) return;
+        const current = queryClient.getQueryData<MatrixEvent>(queryKey);
+        // Preserve edits/deletions delivered while the request was in flight.
+        if (
+          fresh.isRedacted() ||
+          (!fresh.isDecryptionFailure() &&
+            current === before &&
+            !current.isRedacted() &&
+            current.getContent() === beforeContent)
+        ) {
+          queryClient.setQueryData(queryKey, fresh);
+        }
+      } catch {
+        // Offline pins keep their cached content and refresh when sync resumes.
+      }
+    };
+    pinnedEventIds.forEach((eventId) => {
+      void refresh(eventId);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [enabled, pinnedEventIds, room, mx, queryClient, fetchEvent, revalidation]);
   useEffect(() => {
     if (!enabled) return undefined;
     const roots = pinnedEventIds
