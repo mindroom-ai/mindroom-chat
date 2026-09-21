@@ -155,14 +155,14 @@ describe('cacheStoreDiscontinuity (CINNY-207 P3.2)', () => {
       overlapEventIds: ['$cached-tail'],
     });
 
-    await clearRoomTailDiscontinuity(SESSION_ID, ROOM_ID, 'stale-generation');
+    expect(await clearRoomTailDiscontinuity(SESSION_ID, ROOM_ID, 'stale-generation')).toBe(false);
     expect(await loadRoomTailDiscontinuity(SESSION_ID, ROOM_ID)).toBeDefined();
-    await clearRoomTailDiscontinuity(SESSION_ID, ROOM_ID, 'generation-1');
+    expect(await clearRoomTailDiscontinuity(SESSION_ID, ROOM_ID, 'generation-1')).toBe(true);
     expect(await loadRoomTailDiscontinuity(SESSION_ID, ROOM_ID)).toBeUndefined();
   });
 
   it('clear() on an unmarked room is a no-op', async () => {
-    await clearRoomTailDiscontinuity(SESSION_ID, ROOM_ID);
+    expect(await clearRoomTailDiscontinuity(SESSION_ID, ROOM_ID)).toBe(true);
     const marker = await loadRoomTailDiscontinuity(SESSION_ID, ROOM_ID);
     expect(marker).toBeUndefined();
   });

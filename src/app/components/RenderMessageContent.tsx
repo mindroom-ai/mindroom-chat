@@ -1,8 +1,9 @@
 import React from 'react';
-import { MsgType } from 'matrix-js-sdk';
+import { MsgType, type MatrixEvent } from 'matrix-js-sdk';
 import { HTMLReactParserOptions } from 'html-react-parser';
 import { Opts } from 'linkifyjs';
 import { config } from 'folds';
+import { getEventAttachmentOwner } from '../mindroom/messages/eventAttachments';
 import {
   DownloadFile,
   FileContent,
@@ -34,6 +35,7 @@ import { hasMindroomAgentMessageMetadata } from '../mindroom/matrix/agentIdentit
 import { isMindroomVisibleRouterVoiceEcho } from '../mindroom/messages/transcribingPlaceholder';
 
 type RenderMessageContentProps = {
+  mEvent?: MatrixEvent;
   displayName: string;
   eventType?: string;
   roomId?: string;
@@ -55,6 +57,7 @@ type RenderMessageContentProps = {
   failedSend?: boolean;
 };
 export function RenderMessageContent({
+  mEvent,
   displayName,
   eventType,
   roomId,
@@ -76,6 +79,9 @@ export function RenderMessageContent({
   failedSend,
 }: RenderMessageContentProps) {
   const content = getContent<Record<string, unknown>>();
+  // MatrixEvent mutates in place when a replacement changes its content.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const owner = React.useMemo(() => getEventAttachmentOwner(mEvent), [mEvent, content]);
   // Agent streaming and router transcription use edits to finish their messages.
   const edited =
     messageEdited &&
@@ -132,6 +138,7 @@ export function RenderMessageContent({
             mimeType={mimeType}
             renderAsPdfFile={() => (
               <ReadPdfFile
+                owner={owner}
                 body={body}
                 mimeType={mimeType}
                 url={url}
@@ -141,6 +148,7 @@ export function RenderMessageContent({
             )}
             renderAsTextFile={() => (
               <ReadTextFile
+                owner={owner}
                 body={body}
                 mimeType={mimeType}
                 url={url}
@@ -149,7 +157,14 @@ export function RenderMessageContent({
               />
             )}
           >
-            <DownloadFile body={body} mimeType={mimeType} url={url} encInfo={encInfo} info={info} />
+            <DownloadFile
+              owner={owner}
+              body={body}
+              mimeType={mimeType}
+              url={url}
+              encInfo={encInfo}
+              info={info}
+            />
           </FileContent>
         )}
         outlined={outlineAttachment}
@@ -159,6 +174,7 @@ export function RenderMessageContent({
   );
 
   const mindroomContent = renderMindroomMessageContent({
+    mEvent,
     displayName,
     eventType,
     roomId,
@@ -185,6 +201,7 @@ export function RenderMessageContent({
           content={getContent()}
           renderImageContent={(props) => (
             <ImageContent
+              owner={owner}
               {...props}
               autoPlay={mediaAutoLoad}
               renderImage={(p) => <Image {...p} loading="lazy" />}
@@ -202,10 +219,12 @@ export function RenderMessageContent({
     return (
       <>
         <MVideo
+          owner={owner}
           content={getContent()}
           renderAsFile={renderFile}
           renderVideoContent={({ body, info, ...props }) => (
             <VideoContent
+              owner={owner}
               body={body}
               info={info}
               {...props}
@@ -213,6 +232,7 @@ export function RenderMessageContent({
                 mediaAutoLoad
                   ? () => (
                       <ThumbnailContent
+                        owner={owner}
                         info={info}
                         renderImage={(src) => (
                           <Image alt={body} title={body} src={src} loading="lazy" />
@@ -234,7 +254,12 @@ export function RenderMessageContent({
   if (msgType === MsgType.Audio) {
     return (
       <>
-        <MAudio content={getContent()} renderAsFile={renderFile} outlined={outlineAttachment} />
+        <MAudio
+          owner={owner}
+          content={getContent()}
+          renderAsFile={renderFile}
+          outlined={outlineAttachment}
+        />
         {renderCaption()}
       </>
     );

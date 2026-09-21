@@ -29,6 +29,7 @@ import {
 } from '../native/iosPush';
 import { useIOSPushEnabled } from '../native/useIOSPushEnabled';
 import { useCrossRoomThreadIndex } from '../cross-room-threads/useCrossRoomThreadIndex';
+import { useModelControllerLifetime } from '../models/useModelPicker';
 
 const LogoUnreadSVG = MINDROOM_FAVICON_SRC;
 const LogoHighlightSVG = MINDROOM_FAVICON_SRC;
@@ -259,6 +260,7 @@ function MindroomNativeIOSPushFeature() {
 }
 
 export function MindroomClientNonUIFeatures() {
+  useModelControllerLifetime();
   return (
     <>
       <CrossRoomThreadIndexFeature />

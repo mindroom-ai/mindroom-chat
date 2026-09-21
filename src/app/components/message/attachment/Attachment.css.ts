@@ -1,21 +1,22 @@
 import { style } from '@vanilla-extract/css';
 import { RecipeVariants, recipe } from '@vanilla-extract/recipes';
 import { DefaultReset, color, config, toRem } from 'folds';
+import { glassOutline, glassSurface } from '../../../styles/Glass.css';
 
 export const Attachment = recipe({
-  base: {
-    backgroundColor: color.SurfaceVariant.Container,
-    color: color.SurfaceVariant.OnContainer,
-    borderRadius: config.radii.R400,
-    overflow: 'hidden',
-    maxWidth: '100%',
-    width: toRem(400),
-  },
+  base: [
+    glassSurface({ level: 'panel', variant: 'SurfaceVariant' }),
+    {
+      color: color.SurfaceVariant.OnContainer,
+      borderRadius: config.radii.R400,
+      overflow: 'hidden',
+      maxWidth: '100%',
+      width: toRem(400),
+    },
+  ],
   variants: {
     outlined: {
-      true: {
-        boxShadow: `inset 0 0 0 ${config.borderWidth.B300} ${color.SurfaceVariant.ContainerLine}`,
-      },
+      true: glassOutline,
     },
   },
 });

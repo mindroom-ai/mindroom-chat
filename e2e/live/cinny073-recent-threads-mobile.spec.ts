@@ -63,12 +63,13 @@ const seedRecentThreadsState = async ({
   page,
   userId,
   fixtures,
+  openedAtBase = Date.now(),
 }: {
   page: Page;
   userId: string;
   fixtures: ThreadFixture[];
+  openedAtBase?: number;
 }) => {
-  const openedAtBase = Date.now();
   const entries = fixtures.map((fixture, index) => ({
     roomId: fixture.roomId,
     threadId: fixture.rootId,
@@ -314,7 +315,14 @@ test.describe('live cinny073 persistent thread navigation', () => {
         filterState: createDefaultThreadFilterState(),
       });
     }
-    await seedRecentThreadsState({ page, userId: session.userId, fixtures });
+    const now = Date.now();
+    await page.clock.setFixedTime(now);
+    await seedRecentThreadsState({
+      page,
+      userId: session.userId,
+      fixtures,
+      openedAtBase: now - 35_000,
+    });
 
     await page.goto('/home/');
     await waitForLoggedInShell(page);
@@ -322,7 +330,12 @@ test.describe('live cinny073 persistent thread navigation', () => {
     await waitForRecentlyOpenedEntries(page, fixtures);
     await expectRecentlyOpenedRowGrouping(page, 2);
 
-    await seedRecentThreadsState({ page, userId: session.userId, fixtures: fixtures.slice(0, 1) });
+    await seedRecentThreadsState({
+      page,
+      userId: session.userId,
+      fixtures: fixtures.slice(0, 1),
+      openedAtBase: now - 35_000,
+    });
     await page.reload();
     await waitForLoggedInShell(page);
     await waitForRecentlyOpenedEntries(page, fixtures.slice(0, 1));

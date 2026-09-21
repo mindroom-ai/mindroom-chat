@@ -905,7 +905,7 @@
       "login": "تسجيل الدخول",
       "thisClientRequiresSignInWithAppleConfigureTheHomeserverSsoProvider": "يتطلب هذا العميل «تسجيل الدخول باستخدام Apple». أضف Apple إلى قائمة موفري SSO في الخادم المنزلي.",
       "register": "تسجيل حساب",
-      "accountLink": "ليس لديك حساب؟ <link>سجّل حسابًا</link>",
+      "accountLink": "ليس لديك حساب؟ <authLink>سجّل حسابًا</authLink>",
       "passwordLoginIsDisabledOnValue1UseSsoToSignIn": "تسجيل الدخول بكلمة المرور معطّل على «⁨{{value1}}⁩». استخدم SSO.",
       "thisClientDoesNotSupportLoginOnValue1ServerPasswordAndSso": "لا يدعم هذا العميل تسجيل الدخول إلى الخادم «⁨{{value1}}⁩». لم يتم العثور على تسجيل دخول بكلمة مرور أو SSO."
     },
@@ -968,7 +968,7 @@
       "thisApplicationDoesNotSupportRegistrationOnThisHomeserver": "لا يدعم هذا التطبيق التسجيل على هذا الخادم المنزلي.",
       "ssoRegistrationIsRequiredOnThisHomeserverButNoSsoProvidersWere": "يتطلب هذا الخادم المنزلي التسجيل عبر SSO، لكنه لم يعلن عن أي موفري SSO.",
       "login": "تسجيل الدخول",
-      "accountLink": "لديك حساب بالفعل؟ <link>سجّل الدخول</link>"
+      "accountLink": "لديك حساب بالفعل؟ <authLink>سجّل الدخول</authLink>"
     },
     "passwordResetForm": {
       "passwordHasBeenResetSuccessfullyPleaseLoginWithYourNewPassword": "تمت إعادة ضبط كلمة المرور. سجّل الدخول باستخدام كلمة المرور الجديدة.",
@@ -983,7 +983,7 @@
     "resetPassword": {
       "resetPassword": "إعادة ضبط كلمة المرور",
       "login": "تسجيل الدخول",
-      "accountLink": "تذكرت كلمة المرور؟ <link>سجّل الدخول</link>"
+      "accountLink": "تذكرت كلمة المرور؟ <authLink>سجّل الدخول</authLink>"
     },
     "clientRoot": {
       "catchingUp": "جارٍ استدراك المزامنة...",
@@ -1796,7 +1796,40 @@
         "advancedOptions": "خيارات متقدمة",
         "compact": "مدمج",
         "threads": "سلاسل المحادثات",
-        "classic": "تقليدي"
+        "classic": "تقليدي",
+        "offline": {
+          "title": "الوصول دون اتصال",
+          "checking": "جارٍ التحقق من المحتوى المحفوظ…",
+          "unavailable": "المحتوى المحفوظ غير متاح على هذا الجهاز.",
+          "notSaved": "لم تُحفظ هذه الغرفة بعد للاستخدام دون اتصال.",
+          "downloading": "جارٍ تنزيل هذه الغرفة للاستخدام دون اتصال…",
+          "offlinePause": "تم إيقاف الحفظ مؤقتًا لأن الجهاز غير متصل.",
+          "backgroundPause": "تم إيقاف الحفظ مؤقتًا لأن التطبيق يعمل في الخلفية.",
+          "spacePause": "تم إيقاف الحفظ مؤقتًا لأن المحتوى المحمي استنفد مساحة التخزين المخصصة.",
+          "readOnlyPause": "فشل التخزين. أعد فتح التطبيق لاستئناف الحفظ.",
+          "connectionPause": "تم إيقاف الحفظ التلقائي مؤقتًا على هذا الاتصال.",
+          "errorPause": "توقف الحفظ مؤقتًا بعد حدوث خطأ. حاول مرة أخرى.",
+          "partialHistory": "لم يُحفظ جزء من السجل السابق.",
+          "inaccessibleHistory": "يتعذر حاليًا الوصول إلى جزء من السجل.",
+          "waitingForKeys": "الأحداث المشفرة التي تنتظر المفاتيح: ⁨{{count}}⁩",
+          "unresolvedRelations": "التعديلات أو الردود غير المحلولة: ⁨{{count}}⁩",
+          "missingEssential": "نصوص الرسائل الأساسية المفقودة: ⁨{{count}}⁩",
+          "historyEntries": "إدخالات السجل المحفوظة: ⁨{{count}}⁩",
+          "attachments": "المرفقات: تم حفظ ⁨{{saved}}⁩، والمفقود ⁨{{missing}}⁩.",
+          "storageUsed": "مساحة التخزين التي تستخدمها المرفقات: ⁨{{size}}⁩",
+          "pinFailed": "تعذر تحديث «الاحتفاظ دون اتصال».",
+          "includeAllMedia": "تضمين جميع الوسائط",
+          "keepOffline": "الاحتفاظ دون اتصال",
+          "keepOfflineDescription": "حماية الوسائط المحفوظة لهذه الغرفة أثناء التنظيف التلقائي.",
+          "cancelDownload": "إلغاء التنزيل",
+          "downloadEntireRoom": "تنزيل الغرفة بالكامل",
+          "clearDownloadedContent": "مسح المحتوى المنزّل",
+          "clearTitle": "هل تريد مسح المحتوى المنزّل؟",
+          "cancel": "إلغاء",
+          "clearDescription": "ستتم إزالة السجل والمرفقات المحفوظة لهذه الغرفة من هذا الجهاز.",
+          "clearFailed": "تعذر مسح المحتوى المنزّل.",
+          "clearConfirm": "مسح المحتوى"
+        }
       },
       "permissions": {
         "permissions": "الأذونات",
@@ -2178,6 +2211,7 @@
         "clearing": "جارٍ المسح...",
         "credits": "حقوق النشر",
         "deepDiagnosticTracing": "تتبع تشخيصي مفصل",
+        "deepTraceMemoryOnly": "يجري التسجيل في الذاكرة لأن تخزين التتبع غير متاح. صدّر السجل قبل إعادة تشغيل التطبيق؛ إذ تُفقد هذه الأحداث الأخيرة عند إعادة التشغيل.",
         "deepTraceEnabledStorageUnavailable": "مفعّل، لكن مساحة تخزين التتبع غير متاحة حاليًا.",
         "deepTraceOff": "متوقف. فعّله قبل إعادة حدوث التجمّد لتسجيل توقيتات الأداء وMatrix والشبكة ودورة الحياة والتفاعل.",
         "deepTracePreferenceSaveFailed": "⁨{{description}}⁩ متوقف لهذه الجلسة، لكن تعذر حفظ التفضيل وقد يُفعّل مجددًا بعد إعادة التشغيل.",
@@ -2252,6 +2286,31 @@
     }
   },
   "mindroomUi": {
+    "models": {
+      "modelPicker": {
+        "chooseModel": "Choose model",
+        "roomDefault": "Room default",
+        "modelForThread": "Model for this thread",
+        "appliesToThread": "Applies to all agents and teams for future replies in this thread.",
+        "search": "Search models",
+        "close": "Close model picker",
+        "useRoomDefault": "Use room default",
+        "roomDefaultDescription": "Let each agent use its configured model.",
+        "models": "Models",
+        "runtime": "Runtime",
+        "chooseRuntime": "Choose a runtime",
+        "runtimeLabel": "⁨{{userId}}⁩ on ⁨{{deviceId}}⁩",
+        "refresh": "Refresh models",
+        "retry": "Retry",
+        "loading": "Loading models",
+        "pending": "Waiting for model change",
+        "noResults": "No matching models",
+        "commandFallback": "You can still send !model with a model key in this thread.",
+        "inheritedModels": "Room defaults by agent: ⁨{{models}}⁩",
+        "futureReplies": "Changes apply to future replies.",
+        "threadModel": "Thread model"
+      }
+    },
     "voice": {
       "discardRecording": "تجاهل التسجيل الصوتي",
       "pauseRecording": "إيقاف التسجيل الصوتي مؤقتًا",
@@ -2787,7 +2846,8 @@
       "mindroomTab": {
         "localMindroom": "Local MindRoom"
       },
-      "resizeNavigationPanel": "تغيير حجم لوحة التنقل"
+      "resizeNavigationPanel": "تغيير حجم لوحة التنقل",
+      "resizeMemberPanel": "تغيير حجم لوحة الأعضاء"
     },
     "threads": {
       "compactRoomView": {
@@ -2821,6 +2881,8 @@
         "youDoNotHavePermissionToPostInThisRoom": "ليست لديك صلاحية النشر في هذه الغرفة"
       },
       "mindroomRoomViewHeader": {
+        "showComputer": "إظهار الكمبيوتر",
+        "hideComputer": "إخفاء الكمبيوتر",
         "notifications": "الإشعارات",
         "compact": "مدمج",
         "threads": "سلاسل المحادثات",
@@ -2984,6 +3046,54 @@
         "threadInRoom": "سلسلة محادثة في ⁨{{roomName}}⁩",
         "thread": "سلسلة المحادثة"
       }
+    },
+    "uiActions": {
+      "viewComputer": "عرض الكمبيوتر",
+      "openMembers": "فتح الأعضاء",
+      "computerUnavailable": "كمبيوتر هذا الوكيل غير متاح.",
+      "releaseControl": "اترك التحكم في الكمبيوتر قبل فتح عرض آخر.",
+      "openConversation": "افتح هذا الطلب من محادثة الغرفة.",
+      "settingsUnavailable": "أوقف الوضع البسيط لفتح هذا القسم من الإعدادات."
     }
+  },
+  "roomSchedules": {
+    "title": "المهام المجدولة",
+    "openLabel": "المهام المجدولة (⁨{{total}}⁩)",
+    "empty": "لا توجد مهام مجدولة في هذه الغرفة.",
+    "emptyHint": "اطلب من وكيل MindRoom جدولة مهمة هنا.",
+    "prompt": "الموجّه",
+    "promptUnavailable": "الموجّه غير متاح",
+    "once": "لمرة واحدة",
+    "recurring": "متكررة",
+    "executionTime": "وقت التنفيذ",
+    "unknownTime": "وقت التنفيذ غير متاح",
+    "awaitingExecution": "في انتظار التنفيذ",
+    "recurrence": "التكرار",
+    "silent": "صامتة",
+    "conditional": "مشروطة",
+    "newThread": "سلسلة محادثة جديدة",
+    "roomTimeline": "الخط الزمني للغرفة",
+    "openThread": "فتح سلسلة المحادثة",
+    "owner": "مالك المهمة",
+    "createdAt": "تاريخ الإنشاء",
+    "updatedAt": "تم التحديث",
+    "model": "النموذج",
+    "inheritedModel": "من إعدادات الوكيل أو الغرفة أو سلسلة المحادثة",
+    "taskId": "معرّف المهمة",
+    "historyLimit": "حد السجل",
+    "fullHistory": "السجل الكامل",
+    "noHistory": "بدون سجل",
+    "recentMessages": "الرسائل الأخيرة: ⁨{{total}}⁩",
+    "close": "إغلاق"
+  },
+  "archivedRooms": {
+    "title": "الغرف المؤرشفة",
+    "archive": "أرشفة الغرفة",
+    "restore": "استعادة الغرفة",
+    "restoreNamed": "استعادة ⁨{{room}}⁩",
+    "failed": "تعذّر حفظ التغييرات. حاول مرة أخرى.",
+    "close": "إغلاق الغرف المؤرشفة",
+    "description": "أخفِ الغرف من الشريط الجانبي دون مغادرتها. افتحها أو استعدها من هنا.",
+    "empty": "لا توجد غرف مؤرشفة."
   }
 }

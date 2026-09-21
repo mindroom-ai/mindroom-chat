@@ -15,6 +15,7 @@ import {
   seedRoomOverviewState,
   setAccountData,
 } from '../helpers/matrix';
+import { getThreadOverviewSortButton } from '../helpers/threadOverview';
 
 type ThreadFixture = {
   roomId: string;
@@ -152,13 +153,10 @@ const expectFilterState = async (page: Page, key: ThreadFilterKey, state: Thread
   await expect(getFilterButton(page, key)).toHaveAttribute('data-filter-state', state);
 };
 
-const getSortButton = (page: Page) =>
-  page.getByRole('button', {
-    name: /^(Threads in timeline order|Sort threads by last reply, newest first|Sort threads by last reply, oldest first)$/,
-  });
-
-const expectSortButtonName = async (page: Page, name: string | RegExp) => {
-  await expect(getSortButton(page)).toHaveAccessibleName(name);
+const expectSortDirection = async (page: Page, direction: 'asc' | 'desc') => {
+  await expect(getThreadOverviewSortButton(page)).toHaveAccessibleName('Last Reply');
+  await expect(getThreadOverviewSortButton(page)).toHaveAttribute('data-sort-by', 'lastReply');
+  await expect(getThreadOverviewSortButton(page)).toHaveAttribute('data-sort-direction', direction);
 };
 
 const openThreadAndReturn = async (page: Page, rootId: string, rootBody: string) => {
@@ -227,7 +225,7 @@ test.describe('live cinny-030 thread filter persistence', () => {
     await navigateToRoom(page, roomA.roomName);
     await expectFilterState(page, 'resolved', 'any');
     await expectFilterState(page, 'scheduled', 'any');
-    await expectSortButtonName(page, 'Sort threads by last reply, newest first');
+    await expectSortDirection(page, 'desc');
     await getFilterButton(page, 'resolved').click();
     await getFilterButton(page, 'resolved').click();
     await expectFilterState(page, 'resolved', 'exclude');
@@ -241,13 +239,13 @@ test.describe('live cinny-030 thread filter persistence', () => {
     await expectFilterState(page, 'resolved', 'exclude');
     await expectFilterState(page, 'scheduled', 'any');
 
-    await getSortButton(page).click();
-    await expectSortButtonName(page, 'Sort threads by last reply, oldest first');
+    await getThreadOverviewSortButton(page).click();
+    await expectSortDirection(page, 'asc');
 
     await navigateToRoom(page, roomB.roomName);
     await expectFilterState(page, 'resolved', 'any');
     await expectFilterState(page, 'scheduled', 'any');
-    await expectSortButtonName(page, 'Sort threads by last reply, newest first');
+    await expectSortDirection(page, 'desc');
 
     await getFilterButton(page, 'scheduled').click();
     await expectFilterState(page, 'resolved', 'any');
@@ -256,12 +254,12 @@ test.describe('live cinny-030 thread filter persistence', () => {
     await navigateToRoom(page, roomA.roomName);
     await expectFilterState(page, 'resolved', 'exclude');
     await expectFilterState(page, 'scheduled', 'any');
-    await expectSortButtonName(page, 'Sort threads by last reply, oldest first');
+    await expectSortDirection(page, 'asc');
 
     await navigateToRoom(page, roomB.roomName);
     await expectFilterState(page, 'resolved', 'any');
     await expectFilterState(page, 'scheduled', 'include');
-    await expectSortButtonName(page, 'Sort threads by last reply, newest first');
+    await expectSortDirection(page, 'desc');
 
     await page.screenshot({
       path: 'test-results/cinny030-thread-filter-persistence.png',

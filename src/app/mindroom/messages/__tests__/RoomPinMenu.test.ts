@@ -189,12 +189,14 @@ vi.mock('../../../components/RenderMessageContent', () => ({
     edited,
     eventType,
     getContent,
+    mEvent,
   }: {
     edited?: boolean;
     eventType?: string;
     getContent?: () => Record<string, unknown>;
+    mEvent?: unknown;
   }) => {
-    renderMessageContentMock({ edited, eventType, getContent });
+    renderMessageContentMock({ edited, eventType, getContent, mEvent });
     const content = getContent?.();
     const newContent = content?.['m.new_content'];
     const approvalStatus =
@@ -438,5 +440,56 @@ describe('RoomPinMenu', () => {
     expect(renderedApproval.props['data-event-type']).toBe(APPROVAL_EVENT_TYPE);
     expect(renderedApproval.props['data-approval-status']).toBe('denied');
     expect(renderedApproval.props['data-edited']).toBe('true');
+  });
+
+  it('passes the source event through ordinary pinned message rendering', () => {
+    pinnedEventMock.getType.mockReturnValue('m.room.message');
+    pinnedEventMock.getContent.mockReturnValue({
+      msgtype: 'm.text',
+      body: 'Pinned request',
+    } as never);
+
+    act(() => {
+      renderer = create(
+        React.createElement(RoomPinMenu, {
+          room: roomMock as never,
+          requestClose: vi.fn(),
+        })
+      );
+    });
+
+    expect(renderMessageContentMock).toHaveBeenCalledWith(
+      expect.objectContaining({ mEvent: pinnedEventMock })
+    );
+  });
+
+  it('passes the decrypted event through encrypted pinned message rendering', () => {
+    const decryptedMessageEvent = {
+      getContent: vi.fn(() => ({ msgtype: 'm.text', body: 'Pinned encrypted request' })),
+      getId: vi.fn(() => '$approval'),
+      getTs: vi.fn(() => 0),
+      getType: vi.fn(() => 'm.room.message'),
+      isRedacted: vi.fn(() => false),
+      replacingEvent: vi.fn(() => undefined),
+    };
+    const eventTimeline = {
+      getEvents: vi.fn(() => [decryptedMessageEvent]),
+      getTimelineSet: vi.fn(() => ({ relations: {} })),
+    };
+    pinnedEventMock.getType.mockReturnValue('m.room.encrypted');
+    roomMock.getTimelineForEvent.mockReturnValue(eventTimeline as never);
+
+    act(() => {
+      renderer = create(
+        React.createElement(RoomPinMenu, {
+          room: roomMock as never,
+          requestClose: vi.fn(),
+        })
+      );
+    });
+
+    expect(renderMessageContentMock).toHaveBeenCalledWith(
+      expect.objectContaining({ mEvent: decryptedMessageEvent })
+    );
   });
 });

@@ -1,6 +1,11 @@
 import { style } from '@vanilla-extract/css';
 import { recipe, RecipeVariants } from '@vanilla-extract/recipes';
 import { DefaultReset, color, config, toRem } from 'folds';
+import { glassFlat, glassFloating, glassSurface } from '../../styles/Glass.css';
+import { Viewport } from '../inset-scrollbar/InsetScrollbar.css';
+
+// Match the size-600 navigation header and its native focus-scroll inset.
+const pageNavHeaderHeight = toRem(54);
 
 export const PageNav = recipe({
   variants: {
@@ -19,44 +24,55 @@ export const PageNav = recipe({
 });
 export type PageNavVariants = RecipeVariants<typeof PageNav>;
 
-export const PageNavHeader = recipe({
-  base: {
-    padding: `0 ${config.space.S200} 0 ${config.space.S300}`,
-    flexShrink: 0,
-    selectors: {
-      'button&': {
-        cursor: 'pointer',
-      },
-      'button&[aria-pressed=true]': {
-        backgroundColor: color.Background.ContainerActive,
-      },
-      'button&:hover, button&:focus-visible': {
-        backgroundColor: color.Background.ContainerHover,
-      },
-      'button&:active': {
-        backgroundColor: color.Background.ContainerActive,
-      },
-    },
-  },
+// Navigation chrome shares native blur without borders or a refractive rim.
+export const PageNavHeaderMaterial = style([
+  glassSurface({ level: 'panel', variant: 'Background' }),
+  glassFlat,
+  glassFloating,
+]);
 
-  variants: {
-    outlined: {
-      true: {
-        borderBottomWidth: 1,
-      },
+export const PageNavHeader = style({
+  position: 'sticky',
+  top: 0,
+  zIndex: 1,
+  height: pageNavHeaderHeight,
+  padding: `0 ${config.space.S200} 0 ${config.space.S300}`,
+  flexShrink: 0,
+  selectors: {
+    'button&': {
+      cursor: 'pointer',
     },
-  },
-  defaultVariants: {
-    outlined: true,
+    'button&[aria-pressed=true]': {
+      backgroundColor: color.Background.ContainerActive,
+    },
+    'button&:hover, button&:focus-visible': {
+      backgroundColor: color.Background.ContainerHover,
+    },
+    'button&:active': {
+      backgroundColor: color.Background.ContainerActive,
+    },
   },
 });
-export type PageNavHeaderVariants = RecipeVariants<typeof PageNavHeader>;
 
 export const PageNavContent = style({
-  minHeight: '100%',
+  display: 'flex',
+  flexDirection: 'column',
+  minHeight: `calc(100% - ${pageNavHeaderHeight})`,
   padding: config.space.S200,
-  paddingInlineEnd: 0,
+  paddingInlineEnd: 'calc(var(--mr-scrollbar-inset-end, 0px) + 12px)',
   paddingBottom: config.space.S700,
+});
+
+export const PageNavHeaderScroll = style([
+  Viewport,
+  { scrollPaddingBlockStart: pageNavHeaderHeight },
+]);
+
+export const PageNavScrollbar = style({
+  top: pageNavHeaderHeight,
+  bottom: 0,
+  insetInlineEnd: 'var(--mr-scrollbar-inset-end, 0px)',
+  zIndex: 1,
 });
 
 export const PageHeader = recipe({

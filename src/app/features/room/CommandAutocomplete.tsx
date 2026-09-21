@@ -1,8 +1,9 @@
 import React, { KeyboardEvent as ReactKeyboardEvent, useCallback, useEffect, useMemo } from 'react';
 import { Editor } from 'slate';
-import { Box, config, MenuItem, Text } from 'folds';
+import { Box, config, Text } from 'folds';
 import { Room } from 'matrix-js-sdk';
 import { useTranslation } from 'react-i18next';
+import { MenuItem } from '../../components/glass/GlassPrimitives';
 import { Command, useCommands } from '../../hooks/useCommands';
 import {
   AutocompleteMenu,

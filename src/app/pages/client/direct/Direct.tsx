@@ -8,7 +8,6 @@ import {
   Icon,
   IconButton,
   Icons,
-  Menu,
   PopOut,
   RectCords,
   Text,
@@ -18,6 +17,8 @@ import {
 import { useVirtualizer } from '@tanstack/react-virtual';
 import FocusTrap from 'focus-trap-react';
 import { useNavigate } from 'react-router-dom';
+import { useVisibleRooms } from '../../../mindroom/rooms/archivedRooms';
+import { Menu } from '../../../components/glass/GlassPrimitives';
 import { useMatrixClient } from '../../../hooks/useMatrixClient';
 import { factoryRoomIdByActivity } from '../../../utils/sort';
 import {
@@ -52,7 +53,7 @@ type DirectMenuProps = {
   requestClose: () => void;
 };
 const DirectMenu = forwardRef<HTMLDivElement, DirectMenuProps>(({ requestClose }, ref) => {
-  const orphanRooms = useDirectRooms();
+  const orphanRooms = useVisibleRooms(useDirectRooms());
 
   return (
     <Menu ref={ref} style={{ maxWidth: toRem(160), width: '100vw' }}>
@@ -151,7 +152,7 @@ export function Direct() {
   const { t } = useTranslation();
   const mx = useMatrixClient();
   const scrollRef = useRef<HTMLDivElement>(null);
-  const directs = useDirectRooms();
+  const directs = useVisibleRooms(useDirectRooms());
   const notificationPreferences = useRoomsNotificationPreferencesContext();
   const navigate = useNavigate();
 
@@ -179,11 +180,10 @@ export function Direct() {
 
   return (
     <PageNav>
-      <DirectHeader />
-      {noRoomToDisplay ? (
-        <DirectEmpty />
-      ) : (
-        <PageNavContent scrollRef={scrollRef}>
+      <PageNavContent scrollRef={scrollRef} header={<DirectHeader />}>
+        {noRoomToDisplay ? (
+          <DirectEmpty />
+        ) : (
           <Box direction="Column" gap="300">
             <NavCategory>
               <NavItem variant="Background" radii="400" aria-selected={createDirectSelected}>
@@ -248,8 +248,8 @@ export function Direct() {
               </div>
             </NavCategory>
           </Box>
-        </PageNavContent>
-      )}
+        )}
+      </PageNavContent>
       <RecentlyOpenedNavCategory />
     </PageNav>
   );

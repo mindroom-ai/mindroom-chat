@@ -6,8 +6,6 @@ import {
   Icon,
   Icons,
   PopOut,
-  Menu,
-  MenuItem,
   Text,
   RectCords,
   config,
@@ -16,12 +14,14 @@ import {
   toRem,
 } from 'folds';
 import { useTranslation } from 'react-i18next';
+import { Menu, MenuItem } from '../../components/glass/GlassPrimitives';
 import { HierarchyItem } from '../../hooks/useSpaceHierarchy';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { MSpaceChildContent, StateEvent } from '../../../types/matrix/room';
 import { AsyncStatus, useAsyncCallback } from '../../hooks/useAsyncCallback';
 import { UseStateProvider } from '../../components/UseStateProvider';
 import { LeaveSpacePrompt } from '../../components/leave-space-prompt';
+import { ArchiveRoomMenuItem } from '../../mindroom/rooms/ArchiveRoomMenuItem';
 import { LeaveRoomPrompt } from '../../components/leave-room-prompt';
 import { stopPropagation } from '../../utils/keyboard';
 import { useOpenRoomSettings } from '../../state/hooks/roomSettings';
@@ -294,6 +294,9 @@ export function HierarchyItemMenu({
                       disabled={!canInvite()}
                     />
                     <SettingsMenuItem item={item} requestClose={handleRequestClose} />
+                    {!('space' in item) && (
+                      <ArchiveRoomMenuItem roomId={item.roomId} onClose={handleRequestClose} />
+                    )}
                     <UseStateProvider initial={false}>
                       {(promptLeave, setPromptLeave) => (
                         <>

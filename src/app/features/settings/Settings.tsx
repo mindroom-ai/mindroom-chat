@@ -7,7 +7,6 @@ import {
   Icon,
   IconButton,
   Icons,
-  MenuItem,
   Overlay,
   OverlayBackdrop,
   OverlayCenter,
@@ -15,6 +14,7 @@ import {
 } from 'folds';
 import FocusTrap from 'focus-trap-react';
 import { useTranslation } from 'react-i18next';
+import { MenuItem } from '../../components/glass/GlassPrimitives';
 import { General } from './general';
 import { PageNav, PageNavContent, PageNavHeader, PageRoot } from '../../components/page';
 import { ScreenSize, useScreenSizeContext } from '../../hooks/useScreenSize';
@@ -39,16 +39,9 @@ import {
   resolveSettingsInitialPage,
   type SettingsMenuItem,
 } from './settingsMenu';
-import { SettingsPage, SettingsPages } from './settingsPages';
+import { SettingsPage, SettingsPages, SIMPLE_MODE_HIDDEN_SETTINGS_PAGES } from './settingsPages';
 import { renderMindroomSettingsPage } from '../../mindroom/settings/settingsExtensions';
 import { useSimpleMode } from '../../mindroom/settings/useMindroomAccountSettings';
-
-// Kept out of the menu in simple mode; General (hosting the Simple Mode
-// switch itself), Account, Notifications, Devices, and About stay.
-const SIMPLE_MODE_HIDDEN_PAGES: SettingsPage[] = [
-  SettingsPages.DeveloperToolsPage,
-  SettingsPages.EmojisStickersPage,
-];
 
 const useSettingsMenuItems = (
   showLocalMindRoom: boolean,
@@ -59,7 +52,7 @@ const useSettingsMenuItems = (
   return useMemo(() => {
     const items = getSettingsMenuItems(showLocalMindRoom, t);
     return simpleMode
-      ? items.filter((item) => !SIMPLE_MODE_HIDDEN_PAGES.includes(item.page))
+      ? items.filter((item) => !SIMPLE_MODE_HIDDEN_SETTINGS_PAGES.includes(item.page))
       : items;
   }, [showLocalMindRoom, simpleMode, t]);
 };
@@ -110,29 +103,32 @@ export function Settings({ initialPage, requestClose }: SettingsProps) {
       nav={
         screenSize === ScreenSize.Mobile && activePage !== undefined ? undefined : (
           <PageNav size="300">
-            <PageNavHeader outlined={false}>
-              <Box grow="Yes" gap="200">
-                <Avatar size="200" radii="300">
-                  <UserAvatar
-                    userId={userId}
-                    src={avatarUrl}
-                    renderFallback={() => <Text size="H6">{nameInitials(displayName)}</Text>}
-                  />
-                </Avatar>
-                <Text size="H4" truncate>
-                  {t('settings.title')}
-                </Text>
-              </Box>
-              <Box shrink="No">
-                {screenSize === ScreenSize.Mobile && (
-                  <IconButton onClick={requestClose} variant="Background">
-                    <Icon src={Icons.Cross} />
-                  </IconButton>
-                )}
-              </Box>
-            </PageNavHeader>
             <Box grow="Yes" direction="Column">
-              <PageNavContent>
+              <PageNavContent
+                header={
+                  <PageNavHeader>
+                    <Box grow="Yes" gap="200">
+                      <Avatar size="200" radii="300">
+                        <UserAvatar
+                          userId={userId}
+                          src={avatarUrl}
+                          renderFallback={() => <Text size="H6">{nameInitials(displayName)}</Text>}
+                        />
+                      </Avatar>
+                      <Text size="H4" truncate>
+                        {t('settings.title')}
+                      </Text>
+                    </Box>
+                    <Box shrink="No">
+                      {screenSize === ScreenSize.Mobile && (
+                        <IconButton onClick={requestClose} variant="Background">
+                          <Icon src={Icons.Cross} />
+                        </IconButton>
+                      )}
+                    </Box>
+                  </PageNavHeader>
+                }
+              >
                 <div style={{ flexGrow: 1 }}>
                   {menuItems.map((item) => (
                     <MenuItem
@@ -209,7 +205,12 @@ export function Settings({ initialPage, requestClose }: SettingsProps) {
       {activePage === SettingsPages.EmojisStickersPage && (
         <EmojisStickers requestClose={handlePageRequestClose} />
       )}
-      {renderMindroomSettingsPage(activePage, showLocalMindRoom, handlePageRequestClose)}
+      {renderMindroomSettingsPage(
+        activePage,
+        showLocalMindRoom,
+        handlePageRequestClose,
+        requestClose
+      )}
       {activePage === SettingsPages.DeveloperToolsPage && (
         <DeveloperTools requestClose={handlePageRequestClose} />
       )}

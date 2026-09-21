@@ -1,6 +1,13 @@
 import { useEffect, useRef, type Dispatch, type SetStateAction } from 'react';
-import { Direction, RelationType, type MatrixClient, type MatrixEvent, type Room } from 'matrix-js-sdk';
+import {
+  Direction,
+  RelationType,
+  type MatrixClient,
+  type MatrixEvent,
+  type Room,
+} from 'matrix-js-sdk';
 import to from 'await-to-js';
+import type { PersistRoomEventCache } from '../engine/enginePersistFacade';
 import { getLatestEdit } from '../../utils/room';
 import { logMindroomEditDebug as logEditDebug } from '../messages/editDebug';
 import { markThreadEditBackfillAttempted } from './threadEditBackfill';
@@ -10,7 +17,7 @@ export const useCompactRootEditBackfillController = ({
   enabled,
   mx,
   overviewThreadRootIds,
-  persistRoomEventCache,
+  beginRoomCacheWrite,
   room,
   roomSurfaceEventEntries,
   roomThreadListThreads,
@@ -19,7 +26,7 @@ export const useCompactRootEditBackfillController = ({
   enabled: boolean;
   mx: MatrixClient;
   overviewThreadRootIds: string[];
-  persistRoomEventCache: (events: MatrixEvent[], beforeTokenForEarliest?: string | null) => void;
+  beginRoomCacheWrite: () => PersistRoomEventCache;
   room: Room;
   roomSurfaceEventEntries: Array<{ event: MatrixEvent }>;
   roomThreadListThreads: Array<{ id?: string; rootEvent?: MatrixEvent }>;
@@ -66,6 +73,7 @@ export const useCompactRootEditBackfillController = ({
 
     let cancelled = false;
     const loadMissingCompactRootEdits = async () => {
+      const persistRoomEventCache = beginRoomCacheWrite();
       const updatedEvents: MatrixEvent[] = [];
       const concurrency = 4;
       let cursor = 0;
@@ -174,7 +182,7 @@ export const useCompactRootEditBackfillController = ({
     enabled,
     mx,
     overviewThreadRootIds,
-    persistRoomEventCache,
+    beginRoomCacheWrite,
     room,
     roomSurfaceEventEntries,
     roomThreadListThreads,

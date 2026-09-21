@@ -885,7 +885,7 @@
       "login": "Inloggen",
       "thisClientRequiresSignInWithAppleConfigureTheHomeserverSsoProvider": "Deze client vereist Log in met Apple. Configureer de lijst met SSO-providers van de homeserver zodat Apple erin staat.",
       "register": "Registreren",
-      "accountLink": "Heb je geen account? <link>Registreren</link>",
+      "accountLink": "Heb je geen account? <authLink>Registreren</authLink>",
       "passwordLoginIsDisabledOnValue1UseSsoToSignIn": "Inloggen met een wachtwoord is uitgeschakeld op \"{{value1}}\". Gebruik SSO om in te loggen.",
       "thisClientDoesNotSupportLoginOnValue1ServerPasswordAndSso": "Deze client ondersteunt inloggen op server \"{{value1}}\" niet. Er is geen inlogmethode met wachtwoord of SSO gevonden."
     },
@@ -948,7 +948,7 @@
       "thisApplicationDoesNotSupportRegistrationOnThisHomeserver": "Deze toepassing ondersteunt registratie op deze homeserver niet.",
       "ssoRegistrationIsRequiredOnThisHomeserverButNoSsoProvidersWere": "SSO-registratie is vereist op deze homeserver, maar er zijn geen SSO-providers bekendgemaakt.",
       "login": "Inloggen",
-      "accountLink": "Heb je al een account? <link>Inloggen</link>"
+      "accountLink": "Heb je al een account? <authLink>Inloggen</authLink>"
     },
     "passwordResetForm": {
       "passwordHasBeenResetSuccessfullyPleaseLoginWithYourNewPassword": "Het wachtwoord is opnieuw ingesteld. Log in met je nieuwe wachtwoord.",
@@ -963,7 +963,7 @@
     "resetPassword": {
       "resetPassword": "Wachtwoord opnieuw instellen",
       "login": "Inloggen",
-      "accountLink": "Weet je je wachtwoord weer? <link>Inloggen</link>"
+      "accountLink": "Weet je je wachtwoord weer? <authLink>Inloggen</authLink>"
     },
     "clientRoot": {
       "catchingUp": "Bijwerken...",
@@ -1716,7 +1716,40 @@
         "advancedOptions": "Geavanceerde opties",
         "compact": "Compact",
         "threads": "Threads",
-        "classic": "Klassiek"
+        "classic": "Klassiek",
+        "offline": {
+          "title": "Offline toegang",
+          "checking": "Opgeslagen inhoud controleren…",
+          "unavailable": "Opgeslagen inhoud is niet beschikbaar op dit apparaat.",
+          "notSaved": "Deze kamer is nog niet opgeslagen voor offline gebruik.",
+          "downloading": "Deze kamer downloaden voor offline gebruik…",
+          "offlinePause": "Opslaan is gepauzeerd zolang het apparaat offline is.",
+          "backgroundPause": "Opslaan is gepauzeerd zolang de app op de achtergrond staat.",
+          "spacePause": "Opslaan is gepauzeerd omdat beschermde inhoud het opslagbudget vult.",
+          "readOnlyPause": "Opslag is mislukt. Open de app opnieuw om het opslaan te hervatten.",
+          "connectionPause": "Automatisch opslaan is gepauzeerd op deze verbinding.",
+          "errorPause": "Opslaan is na een fout gepauzeerd. Probeer het opnieuw.",
+          "partialHistory": "Een deel van de oudere geschiedenis is niet opgeslagen.",
+          "inaccessibleHistory": "Een deel van de geschiedenis is momenteel niet toegankelijk.",
+          "waitingForKeys": "Versleutelde gebeurtenissen die op sleutels wachten: {{count}}",
+          "unresolvedRelations": "Onopgeloste bewerkingen of antwoorden: {{count}}",
+          "missingEssential": "Ontbrekende essentiële berichtinhoud: {{count}}",
+          "historyEntries": "Opgeslagen geschiedenisitems: {{count}}",
+          "attachments": "Bijlagen: {{saved}} opgeslagen, {{missing}} ontbreken.",
+          "storageUsed": "Opslag gebruikt door bijlagen: {{size}}",
+          "pinFailed": "‘Offline bewaren’ kon niet worden bijgewerkt.",
+          "includeAllMedia": "Alle media opnemen",
+          "keepOffline": "Offline bewaren",
+          "keepOfflineDescription": "Bescherm opgeslagen media van deze kamer tijdens automatisch opruimen.",
+          "cancelDownload": "Download annuleren",
+          "downloadEntireRoom": "Hele kamer downloaden",
+          "clearDownloadedContent": "Gedownloade inhoud wissen",
+          "clearTitle": "Gedownloade inhoud wissen?",
+          "cancel": "Annuleren",
+          "clearDescription": "Opgeslagen geschiedenis en bijlagen van deze kamer worden van dit apparaat verwijderd.",
+          "clearFailed": "Gedownloade inhoud kon niet worden gewist.",
+          "clearConfirm": "Inhoud wissen"
+        }
       },
       "permissions": {
         "permissions": "Bevoegdheden",
@@ -2070,6 +2103,7 @@
         "clearing": "Wissen...",
         "credits": "Dankbetuigingen",
         "deepDiagnosticTracing": "Uitgebreide diagnostische tracering",
+        "deepTraceMemoryOnly": "Opname in het geheugen omdat traceopslag niet beschikbaar is. Exporteer voordat je de app opnieuw start; deze recente gebeurtenissen gaan bij het opnieuw starten verloren.",
         "deepTraceEnabledStorageUnavailable": "Ingeschakeld, maar traceopslag is momenteel niet beschikbaar.",
         "deepTraceOff": "Uit. Schakel dit in voordat je een vastloper reproduceert om prestaties, Matrix, netwerk, levenscyclus en interactietiming vast te leggen.",
         "deepTracePreferenceSaveFailed": "{{description}} Uit voor deze sessie, maar de voorkeur kon niet worden opgeslagen en wordt mogelijk na opnieuw opstarten weer ingeschakeld.",
@@ -2144,6 +2178,31 @@
     }
   },
   "mindroomUi": {
+    "models": {
+      "modelPicker": {
+        "chooseModel": "Choose model",
+        "roomDefault": "Room default",
+        "modelForThread": "Model for this thread",
+        "appliesToThread": "Applies to all agents and teams for future replies in this thread.",
+        "search": "Search models",
+        "close": "Close model picker",
+        "useRoomDefault": "Use room default",
+        "roomDefaultDescription": "Let each agent use its configured model.",
+        "models": "Models",
+        "runtime": "Runtime",
+        "chooseRuntime": "Choose a runtime",
+        "runtimeLabel": "{{userId}} on {{deviceId}}",
+        "refresh": "Refresh models",
+        "retry": "Retry",
+        "loading": "Loading models",
+        "pending": "Waiting for model change",
+        "noResults": "No matching models",
+        "commandFallback": "You can still send !model with a model key in this thread.",
+        "inheritedModels": "Room defaults by agent: {{models}}",
+        "futureReplies": "Changes apply to future replies.",
+        "threadModel": "Thread model"
+      }
+    },
     "voice": {
       "discardRecording": "Spraakopname verwijderen",
       "pauseRecording": "Spraakopname pauzeren",
@@ -2603,7 +2662,8 @@
       "mindroomTab": {
         "localMindroom": "Lokale MindRoom"
       },
-      "resizeNavigationPanel": "Navigatiepaneel vergroten of verkleinen"
+      "resizeNavigationPanel": "Navigatiepaneel vergroten of verkleinen",
+      "resizeMemberPanel": "Ledenpaneel vergroten of verkleinen"
     },
     "threads": {
       "compactRoomView": {
@@ -2637,6 +2697,8 @@
         "youDoNotHavePermissionToPostInThisRoom": "Je hebt geen toestemming om in deze kamer te schrijven"
       },
       "mindroomRoomViewHeader": {
+        "showComputer": "Toon computer",
+        "hideComputer": "Verberg computer",
         "notifications": "Meldingen",
         "compact": "Compact",
         "threads": "Threads",
@@ -2772,6 +2834,54 @@
         "threadInRoom": "Thread in {{roomName}}",
         "thread": "Thread"
       }
+    },
+    "uiActions": {
+      "viewComputer": "Computer bekijken",
+      "openMembers": "Leden openen",
+      "computerUnavailable": "De computer van deze agent is niet beschikbaar.",
+      "releaseControl": "Geef de computerbediening vrij voordat je een andere weergave opent.",
+      "openConversation": "Open dit verzoek vanuit het gesprek in de kamer.",
+      "settingsUnavailable": "Schakel de eenvoudige modus uit om dit onderdeel van de instellingen te openen."
     }
+  },
+  "roomSchedules": {
+    "title": "Geplande taken",
+    "openLabel": "Geplande taken ({{total}})",
+    "empty": "Geen geplande taken in deze ruimte.",
+    "emptyHint": "Vraag een MindRoom-agent om hier een taak te plannen.",
+    "prompt": "Prompt",
+    "promptUnavailable": "Prompt niet beschikbaar",
+    "once": "Eenmalig",
+    "recurring": "Terugkerend",
+    "executionTime": "Uitvoeringstijd",
+    "unknownTime": "Uitvoeringstijd niet beschikbaar",
+    "awaitingExecution": "In afwachting van uitvoering",
+    "recurrence": "Herhaling",
+    "silent": "Stil",
+    "conditional": "Voorwaardelijk",
+    "newThread": "Nieuwe thread",
+    "roomTimeline": "Ruimtetijdlijn",
+    "openThread": "Thread openen",
+    "owner": "Taakeigenaar",
+    "createdAt": "Gemaakt",
+    "updatedAt": "Bijgewerkt",
+    "model": "Model",
+    "inheritedModel": "Uit agent-, ruimte- of threadinstellingen",
+    "taskId": "Taak-ID",
+    "historyLimit": "Geschiedenislimiet",
+    "fullHistory": "Volledige geschiedenis",
+    "noHistory": "Geen geschiedenis",
+    "recentMessages": "Recente berichten: {{total}}",
+    "close": "Sluiten"
+  },
+  "archivedRooms": {
+    "title": "Gearchiveerde kamers",
+    "archive": "Kamer archiveren",
+    "restore": "Kamer herstellen",
+    "restoreNamed": "{{room}} herstellen",
+    "failed": "Wijzigingen opslaan mislukt. Probeer opnieuw.",
+    "close": "Gearchiveerde kamers sluiten",
+    "description": "Verberg kamers in de zijbalk zonder ze te verlaten. Open of herstel ze hier.",
+    "empty": "Geen gearchiveerde kamers."
   }
 }

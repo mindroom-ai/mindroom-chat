@@ -187,8 +187,11 @@ vi.mock('../../hooks/useMemberPowerCompare', () => ({
 }));
 
 vi.mock('../../state/hooks/settings', () => ({
-  useSetSetting: () => vi.fn(),
   useSetting: () => [0, vi.fn()],
+}));
+
+vi.mock('../../mindroom/sidebar/useMembersDrawer', () => ({
+  useMembersDrawer: () => [true, vi.fn()],
 }));
 
 vi.mock('../../state/settings', () => ({

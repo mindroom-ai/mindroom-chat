@@ -2,10 +2,12 @@
 import { useTranslation } from 'react-i18next';
 import FocusTrap from 'focus-trap-react';
 import React, { MouseEventHandler, useCallback, useEffect, useRef, useState } from 'react';
-import { Icon, IconButton, Icons, Menu, PopOut, RectCords, Spinner, Text } from 'folds';
+import { Icon, IconButton, Icons, PopOut, RectCords, Spinner, Text } from 'folds';
 import { EncryptedAttachmentInfo } from 'browser-encrypt-attachment';
 import { useAtomValue } from 'jotai';
 import { IconPlayerPauseFilled, IconPlayerPlayFilled } from '@tabler/icons-react';
+import type { EventAttachmentOwner } from '../../../mindroom/messages/eventAttachments';
+import { Menu } from '../../glass/GlassPrimitives';
 import { IAudioInfo } from '../../../../types/matrix/common';
 import { AsyncStatus } from '../../../hooks/useAsyncCallback';
 import {
@@ -29,6 +31,7 @@ import { bytesToSize } from '../../../utils/common';
 import { stopPropagation } from '../../../utils/keyboard';
 import { FileDownloadButton } from '../FileHeader';
 import { getAudioContentSourceIdentity, useAudioContentSource } from './useAudioContentSource';
+import { useLiquidGlass } from '../../glass/liquid/useLiquidGlass';
 import * as css from './VoiceAudioContent.css';
 
 const PLAY_TIME_THROTTLE_OPS = {
@@ -40,6 +43,7 @@ const formatVoiceTime = (seconds: number) =>
   secondsToMinutesAndSeconds(Number.isFinite(seconds) && seconds > 0 ? seconds : 0);
 
 export type VoiceAudioContentProps = {
+  owner?: EventAttachmentOwner;
   mimeType: string;
   url: string;
   info: IAudioInfo;
@@ -51,6 +55,7 @@ export type VoiceAudioContentProps = {
 };
 
 export function VoiceAudioContent({
+  owner,
   mimeType,
   url,
   info,
@@ -61,7 +66,8 @@ export function VoiceAudioContent({
   isVoiceMessage = true,
 }: VoiceAudioContentProps) {
   const { t } = useTranslation();
-  const [srcState, loadSrc] = useAudioContentSource({ mimeType, url, encInfo });
+  const glassRef = useLiquidGlass<HTMLDivElement>();
+  const [srcState, loadSrc] = useAudioContentSource({ mimeType, url, encInfo, owner });
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [audioElement, setAudioElement] = useState<HTMLAudioElement | null>(null);
   const pendingSeekTimeRef = useRef<number>();
@@ -77,7 +83,7 @@ export function VoiceAudioContent({
     Number.isFinite(info.duration) && info.duration && info.duration > 0 ? info.duration : 0;
   const hasInfoDuration = infoDuration > 0;
   const [duration, setDuration] = useState(infoDuration / 1000);
-  const mediaIdentity = getAudioContentSourceIdentity({ mimeType, url, encInfo });
+  const mediaIdentity = getAudioContentSourceIdentity({ mimeType, url, encInfo, owner });
   const mediaIdentityRef = useRef(mediaIdentity);
   const loadIntentRef = useRef(0);
   const browserMeasuredDurationRef = useRef(false);
@@ -255,7 +261,7 @@ export function VoiceAudioContent({
           {filename}
         </Text>
       )}
-      <div className={css.Capsule} data-playing={playing || undefined}>
+      <div ref={glassRef} className={css.Capsule} data-playing={playing || undefined}>
         <div className={css.PlayCell}>
           <IconButton
             className={css.PlayButton}
@@ -275,9 +281,9 @@ export function VoiceAudioContent({
             {!hasPlaybackError && (srcState.status === AsyncStatus.Loading || loading) ? (
               <Spinner variant="Secondary" size="50" />
             ) : playing ? (
-              <IconPlayerPauseFilled size={22} aria-hidden="true" />
+              <IconPlayerPauseFilled size={18} aria-hidden="true" />
             ) : (
-              <IconPlayerPlayFilled className={css.PlayIcon} size={22} aria-hidden="true" />
+              <IconPlayerPlayFilled className={css.PlayIcon} size={18} aria-hidden="true" />
             )}
           </IconButton>
         </div>
@@ -360,6 +366,7 @@ export function VoiceAudioContent({
                     <div className={css.MoreMenuAction}>
                       <Text size="B300">{t('sharedUi.voiceAudioContent.download')}</Text>
                       <FileDownloadButton
+                        owner={owner}
                         filename={filename}
                         url={url}
                         mimeType={mimeType}

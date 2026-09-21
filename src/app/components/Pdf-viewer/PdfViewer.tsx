@@ -14,12 +14,10 @@ import {
   Box,
   Button,
   Chip,
-  Header,
   Icon,
   IconButton,
   Icons,
   Input,
-  Menu,
   PopOut,
   RectCords,
   Scroll,
@@ -29,6 +27,7 @@ import {
   config,
 } from 'folds';
 import FocusTrap from 'focus-trap-react';
+import { Menu, Header } from '../glass/GlassPrimitives';
 import * as css from './PdfViewer.css';
 import { AsyncStatus, useAsyncCallback } from '../../hooks/useAsyncCallback';
 import { useZoom } from '../../hooks/useZoom';

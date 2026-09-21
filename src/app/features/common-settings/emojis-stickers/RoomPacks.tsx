@@ -14,10 +14,10 @@ import {
   Spinner,
   color,
   IconButton,
-  Menu,
 } from 'folds';
 import { MatrixError } from 'matrix-js-sdk';
 import { useTranslation } from 'react-i18next';
+import { Menu } from '../../../components/glass/GlassPrimitives';
 import { SequenceCard } from '../../../components/sequence-card';
 import {
   ImagePack,

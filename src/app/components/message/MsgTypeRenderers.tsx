@@ -2,6 +2,7 @@ import { useTranslation } from 'react-i18next';
 import React, { CSSProperties, ReactNode } from 'react';
 import { Box, Chip, Icon, Icons, Text, toRem } from 'folds';
 import { IContent } from 'matrix-js-sdk';
+import type { EventAttachmentOwner } from '../../mindroom/messages/eventAttachments';
 import { JUMBO_EMOJI_REG, URL_REG } from '../../utils/regex';
 import { trimReplyFromBody } from '../../utils/room';
 import { MessageTextBody } from './layout';
@@ -264,12 +265,19 @@ type RenderVideoContentProps = {
   spoilerReason?: string;
 };
 type MVideoProps = {
+  owner?: EventAttachmentOwner;
   content: IVideoContent;
   renderAsFile: () => ReactNode;
   renderVideoContent: (props: RenderVideoContentProps) => ReactNode;
   outlined?: boolean;
 };
-export function MVideo({ content, renderAsFile, renderVideoContent, outlined }: MVideoProps) {
+export function MVideo({
+  owner,
+  content,
+  renderAsFile,
+  renderVideoContent,
+  outlined,
+}: MVideoProps) {
   const videoInfo = content?.info;
   const mxcUrl = content.file?.url ?? content.url;
   const safeMimeType = getBlobSafeMimeType(videoInfo?.mimetype ?? '');
@@ -293,6 +301,7 @@ export function MVideo({ content, renderAsFile, renderVideoContent, outlined }: 
           mimeType={safeMimeType}
           after={
             <FileDownloadButton
+              owner={owner}
               filename={filename}
               url={mxcUrl}
               mimeType={safeMimeType}
@@ -321,11 +330,12 @@ export function MVideo({ content, renderAsFile, renderVideoContent, outlined }: 
 }
 
 type MAudioProps = {
+  owner?: EventAttachmentOwner;
   content: IAudioContent;
   renderAsFile: () => ReactNode;
   outlined?: boolean;
 };
-export function MAudio({ content, renderAsFile }: MAudioProps) {
+export function MAudio({ owner, content, renderAsFile }: MAudioProps) {
   const { t } = useTranslation();
   const voiceMessage = isVoiceMessageContent(content as Record<string, unknown>);
   const voiceAudioDetails = getVoiceMessageAudioDetails(content as Record<string, unknown>);
@@ -351,6 +361,7 @@ export function MAudio({ content, renderAsFile }: MAudioProps) {
   const downloadFilename = content.filename ?? content.body ?? 'Audio';
   return (
     <VoiceAudioContent
+      owner={owner}
       info={audioInfo}
       mimeType={safeMimeType}
       url={mxcUrl}

@@ -1,21 +1,22 @@
 import { globalStyle, style } from '@vanilla-extract/css';
 import { color, config, toRem } from 'folds';
+import { glassOutline, glassSurface } from '../../styles/Glass.css';
 
-export const Card = style({
-  display: 'inline-flex',
-  flexDirection: 'column',
-  gap: config.space.S100,
-  maxWidth: 'min(100%, 28rem)',
-  padding: config.space.S200,
-  backgroundColor: color.SurfaceVariant.Container,
-  color: color.SurfaceVariant.OnContainer,
-  borderRadius: config.radii.R300,
-  boxSizing: 'border-box',
-});
+export const Card = style([
+  glassSurface({ level: 'panel', variant: 'SurfaceVariant' }),
+  {
+    display: 'inline-flex',
+    flexDirection: 'column',
+    gap: config.space.S100,
+    maxWidth: 'min(100%, 28rem)',
+    padding: config.space.S200,
+    color: color.SurfaceVariant.OnContainer,
+    borderRadius: config.radii.R300,
+    boxSizing: 'border-box',
+  },
+]);
 
-export const Outlined = style({
-  boxShadow: `inset 0 0 0 ${config.borderWidth.B300} ${color.SurfaceVariant.ContainerLine}`,
-});
+export const Outlined = glassOutline;
 
 export const Header = style({
   display: 'flex',

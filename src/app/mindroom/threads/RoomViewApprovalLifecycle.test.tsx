@@ -215,3 +215,10 @@ it('continues the pending second upload and caption when the first upload opens 
     send.mockRestore();
   }
 });
+
+vi.mock('../engine/engineContext', () => ({
+  useMindroomSyncEngine: () => ({
+    noteRoomFocused: () => undefined,
+    clearRoomFocus: () => undefined,
+  }),
+}));

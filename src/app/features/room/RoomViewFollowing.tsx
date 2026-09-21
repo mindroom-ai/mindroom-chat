@@ -1,21 +1,11 @@
 import React, { useState } from 'react';
-import {
-  Box,
-  Icon,
-  Icons,
-  Modal,
-  Overlay,
-  OverlayBackdrop,
-  OverlayCenter,
-  Text,
-  as,
-  config,
-} from 'folds';
+import { Box, Icon, Icons, Overlay, OverlayBackdrop, OverlayCenter, Text, as, config } from 'folds';
 import { Room } from 'matrix-js-sdk';
 import classNames from 'classnames';
 import FocusTrap from 'focus-trap-react';
 
 import { Trans, useTranslation } from 'react-i18next';
+import { Modal, Surface } from '../../components/glass/GlassPrimitives';
 import { getMemberDisplayName } from '../../utils/room';
 import { getMxIdLocalPart } from '../../utils/matrix';
 import * as css from './RoomViewFollowing.css';
@@ -67,73 +57,82 @@ export const RoomViewFollowing = as<'div', RoomViewFollowingProps>(
             </OverlayCenter>
           </Overlay>
         )}
-        <Box
-          as={names.length > 0 ? 'button' : 'div'}
-          onClick={names.length > 0 ? () => setOpen(true) : undefined}
-          className={classNames(css.RoomViewFollowing({ clickable: names.length > 0 }), className)}
-          alignItems="Center"
-          justifyContent="End"
-          gap="200"
-          {...props}
-          ref={ref}
+        <Surface
+          level="panel"
+          appearance={names.length > 0 ? 'glass' : 'inherit'}
+          className={names.length > 0 ? css.FollowingSurface : undefined}
         >
-          {names.length > 0 && (
-            <>
-              <Icon style={{ opacity: config.opacity.P300 }} size="100" src={Icons.CheckTwice} />
-              <Text size="T300" truncate>
-                {names.length === 1 && (
-                  <Trans
-                    i18nKey="featureUi.room.following.one"
-                    t={t}
-                    shouldUnescape
-                    tOptions={{ interpolation: { escapeValue: true } }}
-                    values={{ name: names[0] }}
-                    components={{ name: <b /> }}
-                  />
-                )}
-                {names.length === 2 && (
-                  <Trans
-                    i18nKey="featureUi.room.following.two"
-                    t={t}
-                    shouldUnescape
-                    tOptions={{ interpolation: { escapeValue: true } }}
-                    values={{ first: names[0], second: names[1] }}
-                    components={{ first: <b />, second: <b /> }}
-                  />
-                )}
-                {names.length === 3 && (
-                  <Trans
-                    i18nKey="featureUi.room.following.three"
-                    t={t}
-                    shouldUnescape
-                    tOptions={{ interpolation: { escapeValue: true } }}
-                    values={{ first: names[0], second: names[1], third: names[2] }}
-                    components={{ first: <b />, second: <b />, third: <b /> }}
-                  />
-                )}
-                {names.length > 3 && (
-                  <Trans
-                    i18nKey={
-                      names.length === 4
-                        ? 'featureUi.room.following.four'
-                        : 'featureUi.room.following.many'
-                    }
-                    t={t}
-                    shouldUnescape
-                    tOptions={{ interpolation: { escapeValue: true } }}
-                    values={{
-                      first: names[0],
-                      second: names[1],
-                      third: names[2],
-                      count: names.length - 3,
-                    }}
-                    components={{ first: <b />, second: <b />, third: <b />, others: <b /> }}
-                  />
-                )}
-              </Text>
-            </>
-          )}
-        </Box>
+          <Box
+            as={names.length > 0 ? 'button' : 'div'}
+            onClick={names.length > 0 ? () => setOpen(true) : undefined}
+            className={classNames(
+              css.RoomViewFollowing({ clickable: names.length > 0 }),
+              className
+            )}
+            alignItems="Center"
+            justifyContent="End"
+            gap="200"
+            {...props}
+            ref={ref}
+          >
+            {names.length > 0 && (
+              <>
+                <Icon style={{ opacity: config.opacity.P300 }} size="100" src={Icons.CheckTwice} />
+                <Text size="T300" truncate>
+                  {names.length === 1 && (
+                    <Trans
+                      i18nKey="featureUi.room.following.one"
+                      t={t}
+                      shouldUnescape
+                      tOptions={{ interpolation: { escapeValue: true } }}
+                      values={{ name: names[0] }}
+                      components={{ name: <b /> }}
+                    />
+                  )}
+                  {names.length === 2 && (
+                    <Trans
+                      i18nKey="featureUi.room.following.two"
+                      t={t}
+                      shouldUnescape
+                      tOptions={{ interpolation: { escapeValue: true } }}
+                      values={{ first: names[0], second: names[1] }}
+                      components={{ first: <b />, second: <b /> }}
+                    />
+                  )}
+                  {names.length === 3 && (
+                    <Trans
+                      i18nKey="featureUi.room.following.three"
+                      t={t}
+                      shouldUnescape
+                      tOptions={{ interpolation: { escapeValue: true } }}
+                      values={{ first: names[0], second: names[1], third: names[2] }}
+                      components={{ first: <b />, second: <b />, third: <b /> }}
+                    />
+                  )}
+                  {names.length > 3 && (
+                    <Trans
+                      i18nKey={
+                        names.length === 4
+                          ? 'featureUi.room.following.four'
+                          : 'featureUi.room.following.many'
+                      }
+                      t={t}
+                      shouldUnescape
+                      tOptions={{ interpolation: { escapeValue: true } }}
+                      values={{
+                        first: names[0],
+                        second: names[1],
+                        third: names[2],
+                        count: names.length - 3,
+                      }}
+                      components={{ first: <b />, second: <b />, third: <b />, others: <b /> }}
+                    />
+                  )}
+                </Text>
+              </>
+            )}
+          </Box>
+        </Surface>
       </>
     );
   }

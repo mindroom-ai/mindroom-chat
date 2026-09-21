@@ -9,11 +9,10 @@ import {
   MindroomLongTextSource,
   getCachedMindroomLongTextContent,
   getMindroomLongTextSourceIdentity,
-  hydrateMindroomLongTextSource,
   withMindroomToolTraceFallback,
 } from './longText';
-import { downloadMindroomLongTextSidecarText } from './longTextDownload';
 import { MindroomToolMetadataStatus } from './toolTrace';
+import { hydrateCachedMindroomLongText } from './attachmentRepository';
 
 export enum MindroomLongTextKind {
   Text = 'text',
@@ -71,7 +70,7 @@ export const shouldResetResolvedContentToPreview = (
 
 export const getMindroomLongTextHydrationIdentity = (
   content: Record<string, unknown>,
-  source: Pick<MindroomLongTextSource, 'encryptedFile' | 'isV2ContentJson' | 'mxcUri'>
+  source: Pick<MindroomLongTextSource, 'encryptedFile' | 'isV2ContentJson' | 'mxcUri' | 'owner'>
 ): string => {
   const info = isRecord(content.info) ? content.info : undefined;
   const meta = isRecord(content['io.mindroom.long_text'])
@@ -79,6 +78,7 @@ export const getMindroomLongTextHydrationIdentity = (
     : undefined;
 
   return JSON.stringify({
+    owner: source.owner,
     body: getStringValue(content, 'body'),
     encryptedFileHashes: isRecord(source.encryptedFile?.hashes)
       ? JSON.stringify(source.encryptedFile.hashes)
@@ -129,7 +129,7 @@ export const useMindroomLongTextResolvedContent = (
         sourceIdentity: getMindroomLongTextSourceIdentity(source),
         content: cachedContent,
       });
-      return undefined;
+      if (!source.owner) return undefined;
     }
 
     if (!enabled) {
@@ -139,11 +139,7 @@ export const useMindroomLongTextResolvedContent = (
     let cancelled = false;
 
     void (async () => {
-      const nextContent = await hydrateMindroomLongTextSource(
-        source,
-        (nextSource) => downloadMindroomLongTextSidecarText(mx, nextSource, useAuthentication),
-        mx
-      );
+      const nextContent = await hydrateCachedMindroomLongText(mx, source, useAuthentication);
 
       if (!cancelled) {
         setResolvedEntry({
@@ -180,13 +176,14 @@ export function MindroomLongTextText({
   const { t } = useTranslation();
   const mx = useMatrixClient();
   const useAuthentication = useMediaAuthentication();
-  const { encryptedFile, isV2ContentJson, mxcUri } = longTextSource;
+  const { encryptedFile, isV2ContentJson, mxcUri, owner } = longTextSource;
   const hydrationIdentity = getMindroomLongTextHydrationIdentity(content, longTextSource);
   const hydrationInputRef = useRef({
     content,
     encryptedFile,
     isV2ContentJson,
     mxcUri,
+    owner,
   });
   const [loading, setLoading] = useState(
     () => hydrate && !getCachedMindroomLongTextContent(longTextSource, mx)
@@ -207,6 +204,7 @@ export function MindroomLongTextText({
     encryptedFile,
     isV2ContentJson,
     mxcUri,
+    owner,
   };
 
   useEffect(() => {
@@ -217,6 +215,7 @@ export function MindroomLongTextText({
         encryptedFile: currentEncryptedFile,
         isV2ContentJson: currentIsV2ContentJson,
         mxcUri: currentMxcUri,
+        owner: currentOwner,
       } = hydrationInputRef.current;
 
       if (hydrate) {
@@ -234,6 +233,18 @@ export function MindroomLongTextText({
         if (cachedContent) {
           setResolvedContent(cachedContent);
           setLoading(false);
+          if (currentOwner)
+            await hydrateCachedMindroomLongText(
+              mx,
+              {
+                previewContent: currentContent,
+                encryptedFile: currentEncryptedFile,
+                isV2ContentJson: currentIsV2ContentJson,
+                mxcUri: currentMxcUri,
+                owner: currentOwner,
+              },
+              useAuthentication
+            );
           return;
         }
       }
@@ -250,15 +261,16 @@ export function MindroomLongTextText({
       }
 
       setLoading(true);
-      const nextContent = await hydrateMindroomLongTextSource(
+      const nextContent = await hydrateCachedMindroomLongText(
+        mx,
         {
           previewContent: currentContent,
           encryptedFile: currentEncryptedFile,
           isV2ContentJson: currentIsV2ContentJson,
           mxcUri: currentMxcUri,
+          owner: currentOwner,
         },
-        (source) => downloadMindroomLongTextSidecarText(mx, source, useAuthentication),
-        mx
+        useAuthentication
       );
 
       if (!cancelled) {

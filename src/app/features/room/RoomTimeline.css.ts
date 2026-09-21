@@ -1,5 +1,6 @@
 import { RecipeVariants, recipe } from '@vanilla-extract/recipes';
 import { DefaultReset, config } from 'folds';
+import { footerInset, topInset } from '../../mindroom/threads/RoomOverlay.css';
 
 export const TimelineFloat = recipe({
   base: [
@@ -15,10 +16,10 @@ export const TimelineFloat = recipe({
   variants: {
     position: {
       Top: {
-        top: config.space.S400,
+        top: `calc(${topInset} + ${config.space.S400})`,
       },
       Bottom: {
-        bottom: config.space.S400,
+        bottom: `calc(${footerInset} + ${config.space.S400})`,
       },
     },
   },

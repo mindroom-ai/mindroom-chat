@@ -9,6 +9,7 @@ import {
   accountRailButtonSelector,
   expectLoggedInShellStable,
   loginWithPassword,
+  setFullInterfaceModeForCredentials,
 } from './helpers/auth';
 import {
   attachBrowserDiagnostics,
@@ -18,11 +19,14 @@ import {
 test('re-logging the same account through Add account does not create duplicates', async ({
   page,
 }) => {
+  test.slow();
   test.skip(!hasPrimaryCredentials(), 'E2E_USERNAME / E2E_PASSWORD not set');
 
   const diagnostics = attachBrowserDiagnostics(page);
   const homeserver = getHomeserver();
   const primaryCredentials = getPrimaryCredentials();
+
+  await setFullInterfaceModeForCredentials(homeserver, primaryCredentials);
 
   await loginWithPassword(page, {
     homeserver,

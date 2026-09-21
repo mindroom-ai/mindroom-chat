@@ -22,6 +22,7 @@ import { withHistory } from 'slate-history';
 import { BlockType } from './types';
 import { RenderElement, RenderLeaf } from './Elements';
 import { CustomElement } from './slate';
+import { useLiquidGlass } from '../glass/liquid/useLiquidGlass';
 import * as css from './Editor.css';
 import { toggleKeyboardShortcut } from './keyboard';
 
@@ -98,6 +99,7 @@ export const CustomEditor = forwardRef<HTMLDivElement, CustomEditorProps>(
     },
     ref
   ) => {
+    const glassRef = useLiquidGlass(ref);
     const renderElement = useCallback(
       (props: RenderElementProps) => <RenderElement {...props} />,
       []
@@ -127,7 +129,7 @@ export const CustomEditor = forwardRef<HTMLDivElement, CustomEditorProps>(
     );
 
     return (
-      <div className={css.Editor} style={style} ref={ref}>
+      <div className={css.Editor} style={style} ref={glassRef}>
         <Slate editor={editor} initialValue={initialValue} onChange={onChange}>
           {top}
           <Box alignItems="Start">

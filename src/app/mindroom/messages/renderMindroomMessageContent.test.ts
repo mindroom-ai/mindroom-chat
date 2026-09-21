@@ -1,6 +1,8 @@
+import 'fake-indexeddb/auto';
 import React from 'react';
 import { create } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
+import { persistAttachmentEvents } from '../threads/__tests__/attachmentFixtures';
 import { MINDROOM_MESSAGE_EXTRAS_KEY } from './messageExtrasData';
 
 const toolApprovalCardMock = vi.hoisted(() => vi.fn());
@@ -881,3 +883,59 @@ describe('renderMindroomMessageContent', () => {
     expect(rendered).toBeUndefined();
   });
 });
+
+it.each(['m.notice', 'm.emote'])(
+  'retires and clears rendered long text for %s',
+  async (msgType) => {
+    const { IDBFactory } = await import('fake-indexeddb');
+    const { createClient, MatrixEvent } = await import('matrix-js-sdk');
+    const cache = await import('../threads/cacheStore');
+    const { hydrateCachedMindroomLongText } = await import('./attachmentRepository');
+    const { createSessionId } = await import('../../state/sessions');
+    globalThis.indexedDB = new IDBFactory();
+    cache.resetCacheStoreForTesting();
+    const mx = createClient({ baseUrl: 'https://matrix.example.org', userId: '@alice:test' });
+    const sessionId = createSessionId(mx.getHomeserverUrl(), mx.getSafeUserId());
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response(JSON.stringify({ msgtype: msgType, body: 'complete body' })))
+    );
+    try {
+      for (const revision of [1, 2]) {
+        const content = {
+          msgtype: msgType,
+          body: 'preview',
+          url: 'mxc://matrix.example.org/render-' + revision,
+          'io.mindroom.long_text': { version: 2, encoding: 'matrix_event_content_json' },
+        };
+        const mEvent = new MatrixEvent({
+          event_id: '$render',
+          room_id: '!render:test',
+          type: 'm.room.message',
+          sender: '@alice:test',
+          origin_server_ts: revision,
+          content,
+        });
+        await persistAttachmentEvents(mx, [mEvent]);
+        const tree = await renderNode({ msgType, content, mEvent });
+        const node = tree.root.find((item) => !!item.props.longTextSource);
+        const hydrated = await hydrateCachedMindroomLongText(mx, node.props.longTextSource, false);
+        expect(hydrated.body).toBe('complete body');
+        tree.unmount();
+      }
+      expect(
+        await cache.loadCachedAttachment(sessionId, 'mxc://matrix.example.org/render-1')
+      ).toBeUndefined();
+      expect(
+        await cache.loadCachedAttachment(sessionId, 'mxc://matrix.example.org/render-2')
+      ).toBeDefined();
+      await cache.clearRoomCachedContent(sessionId, '!render:test');
+      expect(
+        await cache.loadCachedAttachment(sessionId, 'mxc://matrix.example.org/render-2')
+      ).toBeUndefined();
+    } finally {
+      vi.unstubAllGlobals();
+      cache.resetCacheStoreForTesting();
+    }
+  }
+);

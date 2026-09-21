@@ -890,7 +890,7 @@
       "login": "Connexion",
       "thisClientRequiresSignInWithAppleConfigureTheHomeserverSsoProvider": "Ce client exige la fonctionnalité Se connecter avec Apple. Configurez la liste des fournisseurs SSO du serveur d'accueil afin d'y inclure Apple.",
       "register": "S'inscrire",
-      "accountLink": "Vous n'avez pas de compte ? <link>Inscrivez-vous</link>",
+      "accountLink": "Vous n'avez pas de compte ? <authLink>Inscrivez-vous</authLink>",
       "passwordLoginIsDisabledOnValue1UseSsoToSignIn": "La connexion par mot de passe est désactivée sur « {{value1}} ». Utilisez le SSO pour vous connecter.",
       "thisClientDoesNotSupportLoginOnValue1ServerPasswordAndSso": "Ce client ne permet pas de se connecter au serveur « {{value1}} ». Aucune méthode de connexion par mot de passe ou SSO n’a été trouvée."
     },
@@ -953,7 +953,7 @@
       "thisApplicationDoesNotSupportRegistrationOnThisHomeserver": "Cette application ne prend pas en charge l'inscription sur ce serveur d'accueil.",
       "ssoRegistrationIsRequiredOnThisHomeserverButNoSsoProvidersWere": "Ce serveur d'accueil exige une inscription SSO, mais aucun fournisseur SSO n'a été annoncé.",
       "login": "Connexion",
-      "accountLink": "Vous avez déjà un compte ? <link>Connectez-vous</link>"
+      "accountLink": "Vous avez déjà un compte ? <authLink>Connectez-vous</authLink>"
     },
     "passwordResetForm": {
       "passwordHasBeenResetSuccessfullyPleaseLoginWithYourNewPassword": "Le mot de passe a été réinitialisé. Connectez-vous avec votre nouveau mot de passe.",
@@ -968,7 +968,7 @@
     "resetPassword": {
       "resetPassword": "Réinitialiser le mot de passe",
       "login": "Connexion",
-      "accountLink": "Vous vous souvenez de votre mot de passe ? <link>Connectez-vous</link>"
+      "accountLink": "Vous vous souvenez de votre mot de passe ? <authLink>Connectez-vous</authLink>"
     },
     "clientRoot": {
       "catchingUp": "Mise à jour...",
@@ -1736,7 +1736,40 @@
         "advancedOptions": "Options avancées",
         "compact": "Compact",
         "threads": "Fils",
-        "classic": "Classique"
+        "classic": "Classique",
+        "offline": {
+          "title": "Accès hors ligne",
+          "checking": "Vérification du contenu enregistré…",
+          "unavailable": "Le contenu enregistré n’est pas disponible sur cet appareil.",
+          "notSaved": "Ce salon n’a pas encore été enregistré pour une utilisation hors ligne.",
+          "downloading": "Téléchargement de ce salon pour une utilisation hors ligne…",
+          "offlinePause": "L’enregistrement est en pause tant que l’appareil est hors ligne.",
+          "backgroundPause": "L’enregistrement est en pause tant que l’application est en arrière-plan.",
+          "spacePause": "L’enregistrement est en pause car le contenu protégé occupe tout l’espace alloué.",
+          "readOnlyPause": "Échec du stockage. Rouvrez l’application pour reprendre l’enregistrement.",
+          "connectionPause": "L’enregistrement automatique est en pause sur cette connexion.",
+          "errorPause": "L’enregistrement a été interrompu après une erreur. Réessayez.",
+          "partialHistory": "Une partie de l’historique ancien n’a pas été enregistrée.",
+          "inaccessibleHistory": "Une partie de l’historique est actuellement inaccessible.",
+          "waitingForKeys": "Événements chiffrés en attente de clés : {{count}}",
+          "unresolvedRelations": "Modifications ou réponses non résolues : {{count}}",
+          "missingEssential": "Corps de messages essentiels manquants : {{count}}",
+          "historyEntries": "Entrées d’historique enregistrées : {{count}}",
+          "attachments": "Pièces jointes : {{saved}} enregistrées, {{missing}} manquantes.",
+          "storageUsed": "Stockage utilisé par les pièces jointes : {{size}}",
+          "pinFailed": "Impossible de mettre à jour « Conserver hors ligne ».",
+          "includeAllMedia": "Inclure tous les médias",
+          "keepOffline": "Conserver hors ligne",
+          "keepOfflineDescription": "Protéger les médias enregistrés de ce salon pendant le nettoyage automatique.",
+          "cancelDownload": "Annuler le téléchargement",
+          "downloadEntireRoom": "Télécharger tout le salon",
+          "clearDownloadedContent": "Effacer le contenu téléchargé",
+          "clearTitle": "Effacer le contenu téléchargé ?",
+          "cancel": "Annuler",
+          "clearDescription": "L’historique et les pièces jointes enregistrés de ce salon seront supprimés de cet appareil.",
+          "clearFailed": "Impossible d’effacer le contenu téléchargé.",
+          "clearConfirm": "Effacer le contenu"
+        }
       },
       "permissions": {
         "permissions": "Autorisations",
@@ -2097,6 +2130,7 @@
         "clearing": "Nettoyage...",
         "credits": "Crédits",
         "deepDiagnosticTracing": "Traçage de diagnostic approfondi",
+        "deepTraceMemoryOnly": "Enregistrement en mémoire, car le stockage des traces est indisponible. Exportez avant de redémarrer l’application ; ces événements récents sont perdus au redémarrage.",
         "deepTraceEnabledStorageUnavailable": "Activé, mais le stockage des traces est actuellement indisponible.",
         "deepTraceOff": "Désactivé. Activez-le avant de reproduire un blocage afin d’enregistrer les performances, Matrix, le réseau, le cycle de vie et les temps d’interaction.",
         "deepTracePreferenceSaveFailed": "{{description}} Désactivé pour cette session, mais la préférence n’a pas pu être enregistrée et pourra se réactiver après un redémarrage.",
@@ -2171,6 +2205,31 @@
     }
   },
   "mindroomUi": {
+    "models": {
+      "modelPicker": {
+        "chooseModel": "Choose model",
+        "roomDefault": "Room default",
+        "modelForThread": "Model for this thread",
+        "appliesToThread": "Applies to all agents and teams for future replies in this thread.",
+        "search": "Search models",
+        "close": "Close model picker",
+        "useRoomDefault": "Use room default",
+        "roomDefaultDescription": "Let each agent use its configured model.",
+        "models": "Models",
+        "runtime": "Runtime",
+        "chooseRuntime": "Choose a runtime",
+        "runtimeLabel": "{{userId}} on {{deviceId}}",
+        "refresh": "Refresh models",
+        "retry": "Retry",
+        "loading": "Loading models",
+        "pending": "Waiting for model change",
+        "noResults": "No matching models",
+        "commandFallback": "You can still send !model with a model key in this thread.",
+        "inheritedModels": "Room defaults by agent: {{models}}",
+        "futureReplies": "Changes apply to future replies.",
+        "threadModel": "Thread model"
+      }
+    },
     "voice": {
       "discardRecording": "Supprimer l'enregistrement vocal",
       "pauseRecording": "Mettre l'enregistrement vocal en pause",
@@ -2649,7 +2708,8 @@
       "mindroomTab": {
         "localMindroom": "MindRoom local"
       },
-      "resizeNavigationPanel": "Redimensionner le panneau de navigation"
+      "resizeNavigationPanel": "Redimensionner le panneau de navigation",
+      "resizeMemberPanel": "Redimensionner le panneau des membres"
     },
     "threads": {
       "compactRoomView": {
@@ -2683,6 +2743,8 @@
         "youDoNotHavePermissionToPostInThisRoom": "Vous n’avez pas l’autorisation de publier dans ce salon"
       },
       "mindroomRoomViewHeader": {
+        "showComputer": "Afficher l’ordinateur",
+        "hideComputer": "Masquer l’ordinateur",
         "notifications": "Notifications",
         "compact": "Compact",
         "threads": "Fils",
@@ -2825,6 +2887,54 @@
         "threadInRoom": "Fil dans {{roomName}}",
         "thread": "Fil"
       }
+    },
+    "uiActions": {
+      "viewComputer": "Voir l’ordinateur",
+      "openMembers": "Ouvrir les membres",
+      "computerUnavailable": "L’ordinateur de cet agent est indisponible.",
+      "releaseControl": "Relâchez le contrôle de l’ordinateur avant d’ouvrir une autre vue.",
+      "openConversation": "Ouvrez cette demande depuis la conversation du salon.",
+      "settingsUnavailable": "Désactivez le mode simple pour ouvrir cette section des paramètres."
     }
+  },
+  "roomSchedules": {
+    "title": "Tâches planifiées",
+    "openLabel": "Tâches planifiées ({{total}})",
+    "empty": "Aucune tâche planifiée dans ce salon.",
+    "emptyHint": "Demandez à un agent MindRoom de planifier une tâche ici.",
+    "prompt": "Instruction",
+    "promptUnavailable": "Instruction indisponible",
+    "once": "Ponctuelle",
+    "recurring": "Récurrente",
+    "executionTime": "Heure d’exécution",
+    "unknownTime": "Heure d’exécution indisponible",
+    "awaitingExecution": "En attente d’exécution",
+    "recurrence": "Récurrence",
+    "silent": "Silencieuse",
+    "conditional": "Conditionnelle",
+    "newThread": "Nouveau fil",
+    "roomTimeline": "Chronologie du salon",
+    "openThread": "Ouvrir le fil",
+    "owner": "Propriétaire de la tâche",
+    "createdAt": "Créée",
+    "updatedAt": "Mise à jour",
+    "model": "Modèle",
+    "inheritedModel": "Selon les paramètres de l’agent, du salon ou du fil",
+    "taskId": "ID de la tâche",
+    "historyLimit": "Limite de l’historique",
+    "fullHistory": "Historique complet",
+    "noHistory": "Aucun historique",
+    "recentMessages": "Messages récents : {{total}}",
+    "close": "Fermer"
+  },
+  "archivedRooms": {
+    "title": "Salons archivés",
+    "archive": "Archiver le salon",
+    "restore": "Restaurer le salon",
+    "restoreNamed": "Restaurer {{room}}",
+    "failed": "Impossible d’enregistrer les modifications. Réessayez.",
+    "close": "Fermer les salons archivés",
+    "description": "Masquez des salons dans la barre latérale sans les quitter. Ouvrez-les ou restaurez-les ici.",
+    "empty": "Aucun salon archivé."
   }
 }

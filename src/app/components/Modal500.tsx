@@ -1,7 +1,9 @@
 import React, { ReactNode } from 'react';
 import FocusTrap from 'focus-trap-react';
-import { Modal, Overlay, OverlayBackdrop, OverlayCenter } from 'folds';
+import { Overlay, OverlayBackdrop, OverlayCenter } from 'folds';
+import { Modal } from './glass/GlassPrimitives';
 import { stopPropagation } from '../utils/keyboard';
+import { glassOverBackdrop } from '../styles/Glass.css';
 
 type Modal500Props = {
   requestClose: () => void;
@@ -19,7 +21,7 @@ export function Modal500({ requestClose, children }: Modal500Props) {
             escapeDeactivates: stopPropagation,
           }}
         >
-          <Modal size="500" variant="Background">
+          <Modal size="500" variant="Background" className={glassOverBackdrop}>
             {children}
           </Modal>
         </FocusTrap>

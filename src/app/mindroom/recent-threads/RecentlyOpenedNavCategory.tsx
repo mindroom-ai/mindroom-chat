@@ -3,6 +3,7 @@ import { useAtom, useAtomValue } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import { Scroll, Text } from 'folds';
 import type { Room } from 'matrix-js-sdk';
+import { archivedRoomsAtom, isRoomVisible } from '../rooms/archivedRooms';
 import { NavCategory, NavCategoryHeader } from '../../components/nav';
 import { RoomNavCategoryButton } from '../../features/room-nav';
 import { useCategoryHandler } from '../../hooks/useCategoryHandler';
@@ -72,6 +73,7 @@ export function RecentlyOpenedNavCategory({
   const recentThreadsAtom = useMemo(() => makeRecentThreadsAtom(userId), [userId]);
   const panelHeightAtom = useMemo(() => makeRecentlyOpenedPanelHeightAtom(userId), [userId]);
   const recentThreads = useAtomValue(recentThreadsAtom);
+  const archivedRooms = useAtomValue(archivedRoomsAtom);
   const allRoomIds = useAtomValue(allRoomsAtom);
   const [closedCategories, setClosedCategories] = useAtom(useClosedNavCategoriesAtom());
   const [preferredPanelHeight, setPreferredPanelHeight] = useAtom(panelHeightAtom);
@@ -89,7 +91,11 @@ export function RecentlyOpenedNavCategory({
     // allRoomsAtom makes joined-room membership changes reactive; mx.getRoom alone is not.
     void allRoomIds;
     return recentThreads.reduce<VisibleRecentThreadItem[]>((visibleEntries, recentThread) => {
-      if (visibleEntries.length >= visibleLimit) return visibleEntries;
+      if (
+        visibleEntries.length >= visibleLimit ||
+        !isRoomVisible(recentThread.roomId, archivedRooms)
+      )
+        return visibleEntries;
 
       const room = mx.getRoom(recentThread.roomId);
       if (!room || room.getMyMembership() !== 'join') return visibleEntries;
@@ -97,7 +103,7 @@ export function RecentlyOpenedNavCategory({
       visibleEntries.push({ ...recentThread, room });
       return visibleEntries;
     }, []);
-  }, [allRoomIds, mx, recentThreads, visibleLimit]);
+  }, [allRoomIds, archivedRooms, mx, recentThreads, visibleLimit]);
 
   const commitPanelHeight = (height: number, maxHeight: number) => {
     const nextHeight = clampPanelHeight(height, maxHeight);

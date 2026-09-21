@@ -6,7 +6,6 @@ import {
   type SetStateAction,
 } from 'react';
 import { type MatrixClient, type MatrixEvent, RelationType, type Room } from 'matrix-js-sdk';
-import type { QueueRoomThreadCachePersist } from '../engine/enginePersistFacade';
 import {
   getLatestThreadSummaryInfoFromEventSources,
   isMindroomThreadSummaryEvent,
@@ -14,7 +13,6 @@ import {
 } from '../messages/threadSummary';
 import { markMainTimelineAsRead } from '../notifications/readReceipts';
 import { getLiveCollapsibleMessageExpandId } from './threadCollapsibleMessages';
-import { getThreadCacheTargetId } from './eventRepository';
 import { useLiveEventArrive, type TimelineArriveMeta } from './roomLiveEventArrive';
 import { isZeroReplyStandaloneThreadRootEvent } from './compactThreadRootData';
 import { isRenderableEvent } from './roomTimelineEvents';
@@ -28,7 +26,6 @@ import {
 import { getRoomUnreadInfo, type Timeline } from './timelinePagination';
 import { eventBelongsToThread } from './threadUtils';
 import type { ThreadRecord } from './types';
-import { logTimelineDebug } from './timelineDebug';
 import { useRoomLocalEchoRefresh } from './roomLocalEchoRefresh';
 
 type ScrollToBottomState = {
@@ -50,14 +47,7 @@ type RoomUnreadInfo = ReturnType<typeof getRoomUnreadInfo>;
  * read-receipt marking, unread info, thread-summary store, timeline
  * range bumps, and the F6-C redaction repaint tick.
  *
- * The one persist call that stays here is
- * `queueRoomThreadCachePersist` for `!liveEvent` room-thread events
- * (backward-paginated in-room thread events). The engine's live
- * guard deliberately skips `toStartOfTimeline=true` events, so those
- * still need an explicit persist point on the pagination path. It is
- * satisfied here via `engine.persist.queueRoomThreadCachePersist`
- * (see MindroomRoomTimeline wiring; the pagination-batch persist for
- * generic room events is at `roomPaginationCommandController`).
+ * Async pagination owns persistence through its captured engine operation.
  */
 export const useRoomLiveRenderController = ({
   atBottomRef,
@@ -71,9 +61,7 @@ export const useRoomLiveRenderController = ({
   mx,
   normalThreadRecordMap,
   onStoreThreadSummary,
-  queueRoomThreadCachePersist,
   room,
-  roomDebugTraceId,
   roomThreadFilterActive,
   scrollRef,
   scrollToBottomRef,
@@ -100,9 +88,7 @@ export const useRoomLiveRenderController = ({
   mx: MatrixClient;
   normalThreadRecordMap: ReadonlyMap<string, ThreadRecord>;
   onStoreThreadSummary: (threadRootId: string, info: MindroomThreadSummaryInfo | undefined) => void;
-  queueRoomThreadCachePersist: QueueRoomThreadCachePersist;
   room: Room;
-  roomDebugTraceId: string;
   roomThreadFilterActive: boolean;
   scrollRef: RefObject<HTMLDivElement>;
   scrollToBottomRef: MutableRefObject<ScrollToBottomState>;
@@ -177,7 +163,6 @@ export const useRoomLiveRenderController = ({
           hideNickAvatarEvents,
         });
         const threadOnlyRoomActivity = isThreadOnlyRoomActivity(room, mEvt);
-        const threadCacheTargetId = getThreadCacheTargetId(room, mEvt);
         const isVisibleThreadActivity =
           mEventId === threadId ||
           eventBelongsToThread(mEvt, threadId ?? '') ||
@@ -213,19 +198,6 @@ export const useRoomLiveRenderController = ({
             }
             notifyThreadEventsChanged();
             return;
-          }
-
-          if (!threadId && threadCacheTargetId) {
-            // Paginated (toStartOfTimeline) thread-attributed events in
-            // a room-view — the engine's live guard deliberately skips
-            // these, so persistence goes through the microtask-batched
-            // queue on the persist facade.
-            queueRoomThreadCachePersist(mEvt);
-            logTimelineDebug(roomDebugTraceId, 'room-thread-cache-persist-paginated', {
-              eventId: mEventId ?? null,
-              threadId: threadCacheTargetId,
-              toStartOfTimeline: timelineMeta.toStartOfTimeline,
-            });
           }
 
           // CINNY-088: pending local echoes (e.g. a freshly-sent voice message)
@@ -382,9 +354,7 @@ export const useRoomLiveRenderController = ({
         mx,
         normalThreadRecordMap,
         onStoreThreadSummary,
-        queueRoomThreadCachePersist,
         room,
-        roomDebugTraceId,
         roomThreadFilterActive,
         scrollRef,
         scrollToBottomRef,

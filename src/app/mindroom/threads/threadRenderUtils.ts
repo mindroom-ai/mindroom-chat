@@ -369,10 +369,10 @@ export const estimateThreadEventRowHeight = (
 ): number => {
   const base = compact ? THREAD_ROW_BASE_COMPACT_PX : THREAD_ROW_BASE_PX;
   const relationType = mEvent.getRelation()?.rel_type;
-  // Edits and reactions render no thread row of their own; their tiles
-  // measure ~0. A tiny non-zero keeps virtual-core's math well-behaved.
+  // Edits and reactions have no tile to measure. Reserve exactly zero
+  // space so a streaming history cannot accumulate phantom scroll height.
   if (relationType === RelationType.Replace || relationType === RelationType.Annotation) {
-    return 4;
+    return 0;
   }
   const content = mEvent.getContent();
   const contentRecord = content as Record<string, unknown>;

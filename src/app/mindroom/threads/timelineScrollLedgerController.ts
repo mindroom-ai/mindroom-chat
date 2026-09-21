@@ -9,8 +9,15 @@ import {
   type MutableRefObject,
   type RefObject,
 } from 'react';
-import { useVirtualizer, type ReactVirtualizer } from '@tanstack/react-virtual';
+import {
+  observeElementRect,
+  useVirtualizer,
+  type Range,
+  type ReactVirtualizer,
+} from '@tanstack/react-virtual';
+import { threadScrollRange } from './threadScrollRange';
 import { countCacheProbe } from './cacheProbe';
+import { createBatchedMeasurementRef } from './batchedMeasurementRef';
 import { installRideTraceRecorder, isRideTraceEnabled } from './rideTraceRecorder';
 import {
   hasActiveWindowTouches,
@@ -68,6 +75,7 @@ export type TimelineScrollLedgerController = {
   captureThreadPrepend: (capture: ThreadPrependLedgerCapture) => void;
   clearThreadPrependCapture: () => void;
   ledgerPxAtRender: number;
+  measureElement: (node: Element | null) => void;
   virtualInnerRef: RefObject<HTMLDivElement>;
   virtualizer: ReactVirtualizer<HTMLDivElement, Element>;
 };
@@ -261,17 +269,46 @@ export const useTimelineScrollLedgerController = ({
     threadLedgerRenderPlan,
   ]);
 
+  // Core only notifies when visible indices change. A height-only resize
+  // inside one tall row must still refresh the pixel buffer. Reuse its
+  // observer, which remains attached when room/thread views share a scroller.
+  const [, setViewportResizeTick] = useState(0);
+  const observeThreadHeightRef = useRef(!!threadId);
+  useInsertionEffect(() => {
+    observeThreadHeightRef.current = !!threadId;
+  }, [threadId]);
+  const observeTimelineRect = useCallback<typeof observeElementRect>((instance, onRect) => {
+    let previousHeight: number | undefined;
+    return observeElementRect(instance, (rect) => {
+      const heightChanged = previousHeight !== rect.height;
+      previousHeight = rect.height;
+      onRect(rect);
+      if (heightChanged && observeThreadHeightRef.current) {
+        setViewportResizeTick((tick) => tick + 1);
+      }
+    });
+  }, []);
+
+  // Extraction runs after useVirtualizer returns, against this render's
+  // instance/options. A fresh callback invalidates the range cache on resize.
+  const rangeExtractor = (range: Range): number[] => threadScrollRange(range, virtualizer);
   const virtualizer = useVirtualizer<HTMLDivElement, Element>({
     count: itemCount,
     getScrollElement,
     estimateSize,
     overscan: 10,
+    ...(threadId ? { rangeExtractor } : {}),
+    observeElementRect: observeTimelineRect,
     scrollMargin: -ledgerPxAtRender,
     // The caller intentionally supplies a fresh function on each render so
     // updated estimates reach unmeasured virtual-core rows.
     getItemKey,
   });
   const virtualizerRef = useRef(virtualizer);
+  const measureElement = useMemo(
+    () => createBatchedMeasurementRef(virtualizer.measureElement),
+    [virtualizer]
+  );
 
   useLayoutEffect(() => {
     ledgerFoldSizeCacheRef.current = virtualizer.itemSizeCache;
@@ -579,6 +616,7 @@ export const useTimelineScrollLedgerController = ({
     captureThreadPrepend,
     clearThreadPrependCapture,
     ledgerPxAtRender,
+    measureElement,
     virtualInnerRef,
     virtualizer,
   };

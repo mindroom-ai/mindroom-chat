@@ -885,7 +885,7 @@
       "login": "Giriş yap",
       "thisClientRequiresSignInWithAppleConfigureTheHomeserverSsoProvider": "Bu istemci Apple ile giriş yapılmasını gerektirir. Ana sunucunun SSO sağlayıcı listesine Apple'ı ekleyin.",
       "register": "Kayıt ol",
-      "accountLink": "Hesabınız yok mu? <link>Kayıt olun</link>",
+      "accountLink": "Hesabınız yok mu? <authLink>Kayıt olun</authLink>",
       "passwordLoginIsDisabledOnValue1UseSsoToSignIn": "\"{{value1}}\" sunucusunda parolayla giriş kapalıdır. Giriş yapmak için SSO kullanın.",
       "thisClientDoesNotSupportLoginOnValue1ServerPasswordAndSso": "Bu istemci \"{{value1}}\" sunucusuna girişi desteklemiyor. Parola veya SSO tabanlı giriş yöntemi bulunamadı."
     },
@@ -948,7 +948,7 @@
       "thisApplicationDoesNotSupportRegistrationOnThisHomeserver": "Bu uygulama bu ana sunucuda kaydı desteklemiyor.",
       "ssoRegistrationIsRequiredOnThisHomeserverButNoSsoProvidersWere": "Bu ana sunucuda SSO ile kayıt gerekiyor, ancak hiçbir SSO sağlayıcısı bildirilmedi.",
       "login": "Giriş yap",
-      "accountLink": "Zaten hesabınız var mı? <link>Giriş yapın</link>"
+      "accountLink": "Zaten hesabınız var mı? <authLink>Giriş yapın</authLink>"
     },
     "passwordResetForm": {
       "passwordHasBeenResetSuccessfullyPleaseLoginWithYourNewPassword": "Parola başarıyla sıfırlandı. Lütfen yeni parolanızla giriş yapın.",
@@ -963,7 +963,7 @@
     "resetPassword": {
       "resetPassword": "Parolayı sıfırla",
       "login": "Giriş yap",
-      "accountLink": "Parolanızı hatırladınız mı? <link>Giriş yapın</link>"
+      "accountLink": "Parolanızı hatırladınız mı? <authLink>Giriş yapın</authLink>"
     },
     "clientRoot": {
       "catchingUp": "Güncelleniyor...",
@@ -1716,7 +1716,40 @@
         "advancedOptions": "Gelişmiş seçenekler",
         "compact": "Kompakt",
         "threads": "Konular",
-        "classic": "Klasik"
+        "classic": "Klasik",
+        "offline": {
+          "title": "Çevrimdışı erişim",
+          "checking": "Kaydedilen içerik kontrol ediliyor…",
+          "unavailable": "Kaydedilen içerik bu cihazda kullanılamıyor.",
+          "notSaved": "Bu oda henüz çevrimdışı kullanım için kaydedilmedi.",
+          "downloading": "Bu oda çevrimdışı kullanım için indiriliyor…",
+          "offlinePause": "Cihaz çevrimdışıyken kaydetme duraklatılır.",
+          "backgroundPause": "Uygulama arka plandayken kaydetme duraklatılır.",
+          "spacePause": "Korunan içerik depolama sınırını doldurduğu için kaydetme duraklatıldı.",
+          "readOnlyPause": "Depolama başarısız oldu. Kaydetmeye devam etmek için uygulamayı yeniden açın.",
+          "connectionPause": "Bu bağlantıda otomatik kaydetme duraklatıldı.",
+          "errorPause": "Bir hatadan sonra kaydetme duraklatıldı. Tekrar deneyin.",
+          "partialHistory": "Önceki geçmişin bir bölümü kaydedilmedi.",
+          "inaccessibleHistory": "Geçmişin bir bölümüne şu anda erişilemiyor.",
+          "waitingForKeys": "Anahtar bekleyen şifrelenmiş etkinlikler: {{count}}",
+          "unresolvedRelations": "Çözümlenmemiş düzenlemeler veya yanıtlar: {{count}}",
+          "missingEssential": "Eksik temel mesaj gövdeleri: {{count}}",
+          "historyEntries": "Kaydedilen geçmiş girdileri: {{count}}",
+          "attachments": "Ekler: {{saved}} kaydedildi, {{missing}} eksik.",
+          "storageUsed": "Eklerin kullandığı depolama alanı: {{size}}",
+          "pinFailed": "“Çevrimdışı tut” güncellenemedi.",
+          "includeAllMedia": "Tüm medyayı dahil et",
+          "keepOffline": "Çevrimdışı tut",
+          "keepOfflineDescription": "Otomatik temizleme sırasında bu odanın kaydedilmiş medyasını koru.",
+          "cancelDownload": "İndirmeyi iptal et",
+          "downloadEntireRoom": "Tüm odayı indir",
+          "clearDownloadedContent": "İndirilen içeriği temizle",
+          "clearTitle": "İndirilen içerik temizlensin mi?",
+          "cancel": "İptal",
+          "clearDescription": "Bu odanın kaydedilen geçmişi ve ekleri bu cihazdan kaldırılacak.",
+          "clearFailed": "İndirilen içerik temizlenemedi.",
+          "clearConfirm": "İçeriği temizle"
+        }
       },
       "permissions": {
         "permissions": "İzinler",
@@ -2070,6 +2103,7 @@
         "clearing": "Temizleniyor...",
         "credits": "Katkıda bulunanlar",
         "deepDiagnosticTracing": "Ayrıntılı tanılama izleme",
+        "deepTraceMemoryOnly": "İz depolama kullanılamadığı için belleğe kaydediliyor. Uygulamayı yeniden başlatmadan önce dışa aktarın; bu son olaylar yeniden başlatıldığında kaybolur.",
         "deepTraceEnabledStorageUnavailable": "Etkin, ancak iz depolama şu anda kullanılamıyor.",
         "deepTraceOff": "Kapalı. Performans, Matrix, ağ, yaşam döngüsü ve etkileşim zamanlarını kaydetmek için donmayı yeniden oluşturmadan önce etkinleştirin.",
         "deepTracePreferenceSaveFailed": "{{description}} Bu oturum için kapalı, ancak tercih kaydedilemedi ve yeniden başlatıldığında tekrar etkinleşebilir.",
@@ -2144,6 +2178,31 @@
     }
   },
   "mindroomUi": {
+    "models": {
+      "modelPicker": {
+        "chooseModel": "Choose model",
+        "roomDefault": "Room default",
+        "modelForThread": "Model for this thread",
+        "appliesToThread": "Applies to all agents and teams for future replies in this thread.",
+        "search": "Search models",
+        "close": "Close model picker",
+        "useRoomDefault": "Use room default",
+        "roomDefaultDescription": "Let each agent use its configured model.",
+        "models": "Models",
+        "runtime": "Runtime",
+        "chooseRuntime": "Choose a runtime",
+        "runtimeLabel": "{{userId}} on {{deviceId}}",
+        "refresh": "Refresh models",
+        "retry": "Retry",
+        "loading": "Loading models",
+        "pending": "Waiting for model change",
+        "noResults": "No matching models",
+        "commandFallback": "You can still send !model with a model key in this thread.",
+        "inheritedModels": "Room defaults by agent: {{models}}",
+        "futureReplies": "Changes apply to future replies.",
+        "threadModel": "Thread model"
+      }
+    },
     "voice": {
       "discardRecording": "Ses kaydını sil",
       "pauseRecording": "Ses kaydını duraklat",
@@ -2603,7 +2662,8 @@
       "mindroomTab": {
         "localMindroom": "Yerel MindRoom"
       },
-      "resizeNavigationPanel": "Gezinme panelini yeniden boyutlandır"
+      "resizeNavigationPanel": "Gezinme panelini yeniden boyutlandır",
+      "resizeMemberPanel": "Üye panelini yeniden boyutlandır"
     },
     "threads": {
       "compactRoomView": {
@@ -2637,6 +2697,8 @@
         "youDoNotHavePermissionToPostInThisRoom": "Bu odada mesaj gönderme izniniz yok"
       },
       "mindroomRoomViewHeader": {
+        "showComputer": "Bilgisayarı göster",
+        "hideComputer": "Bilgisayarı gizle",
         "notifications": "Bildirimler",
         "compact": "Kompakt",
         "threads": "Konular",
@@ -2772,6 +2834,54 @@
         "threadInRoom": "{{roomName}} odasındaki konu",
         "thread": "Konu"
       }
+    },
+    "uiActions": {
+      "viewComputer": "Bilgisayarı görüntüle",
+      "openMembers": "Üyeleri aç",
+      "computerUnavailable": "Bu ajanın bilgisayarı kullanılamıyor.",
+      "releaseControl": "Başka bir görünüm açmadan önce bilgisayarın kontrolünü bırakın.",
+      "openConversation": "Bu isteği oda sohbetinden açın.",
+      "settingsUnavailable": "Bu Ayarlar bölümünü açmak için Basit Modu kapatın."
     }
+  },
+  "roomSchedules": {
+    "title": "Zamanlanmış görevler",
+    "openLabel": "Zamanlanmış görevler ({{total}})",
+    "empty": "Bu odada zamanlanmış görev yok.",
+    "emptyHint": "Bir MindRoom ajanından burada bir görev zamanlamasını isteyin.",
+    "prompt": "İstem",
+    "promptUnavailable": "İstem kullanılamıyor",
+    "once": "Tek seferlik",
+    "recurring": "Yinelenen",
+    "executionTime": "Yürütme zamanı",
+    "unknownTime": "Yürütme zamanı kullanılamıyor",
+    "awaitingExecution": "Yürütülmeyi bekliyor",
+    "recurrence": "Yineleme",
+    "silent": "Sessiz",
+    "conditional": "Koşullu",
+    "newThread": "Yeni konu",
+    "roomTimeline": "Oda zaman çizelgesi",
+    "openThread": "Konuyu aç",
+    "owner": "Görev sahibi",
+    "createdAt": "Oluşturulma",
+    "updatedAt": "Güncellendi",
+    "model": "Model",
+    "inheritedModel": "Ajan, oda veya konu ayarlarından",
+    "taskId": "Görev kimliği",
+    "historyLimit": "Geçmiş sınırı",
+    "fullHistory": "Tüm geçmiş",
+    "noHistory": "Geçmiş yok",
+    "recentMessages": "Son mesajlar: {{total}}",
+    "close": "Kapat"
+  },
+  "archivedRooms": {
+    "title": "Arşivlenmiş odalar",
+    "archive": "Odayı arşivle",
+    "restore": "Odayı geri yükle",
+    "restoreNamed": "{{room}} odasını geri yükle",
+    "failed": "Değişiklikler kaydedilemedi. Tekrar deneyin.",
+    "close": "Arşivlenmiş odaları kapat",
+    "description": "Odalardan ayrılmadan onları kenar çubuğundan gizleyin. Buradan açın veya geri yükleyin.",
+    "empty": "Arşivlenmiş oda yok."
   }
 }

@@ -15,6 +15,27 @@ import {
 import { resolveHydratedRoomBeforeToken } from '../eventCacheTokenUtils';
 import { getLiveTimeline } from '../timelinePagination';
 
+/** Restore the thread catalogue without implying contiguous room history. */
+export function restoreCachedRoomThreads(
+  room: Room,
+  roots: { rootEvent: MatrixEvent; latestReply?: MatrixEvent }[]
+): void {
+  const missingRoots = roots.filter(({ rootEvent }) => !room.getThread(rootEvent.getId()!));
+  const missing = missingRoots.map(({ rootEvent }) => rootEvent);
+  hydrateCachedEvents({ room, events: missing });
+  room.processThreadRoots(missing, true);
+  missingRoots.forEach(({ rootEvent, latestReply }) => {
+    const thread = room.getThread(rootEvent.getId()!);
+    if (!thread || !latestReply || thread.replyToEvent || thread.events.length || thread.length)
+      return;
+    const events = [latestReply];
+    hydrateCachedEvents({ room, events });
+    // Old roots may predate their server bundle. Actual cached replies make
+    // them visible while discovery is pending; SDK initialization stays intact.
+    thread.timelineSet.addEventsToTimeline(events, true, false, thread.liveTimeline);
+  });
+}
+
 /** Hydrate before SDK insertion so timeline listeners see cached edits and redactions immediately. */
 export async function insertCachedRoomTimeline({
   mx,

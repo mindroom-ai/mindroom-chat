@@ -895,7 +895,7 @@
       "login": "Вход",
       "thisClientRequiresSignInWithAppleConfigureTheHomeserverSsoProvider": "Этот клиент требует входа через Apple. Добавьте Apple в список поставщиков SSO домашнего сервера.",
       "register": "Регистрация",
-      "accountLink": "Нет учётной записи? <link>Зарегистрируйтесь</link>",
+      "accountLink": "Нет учётной записи? <authLink>Зарегистрируйтесь</authLink>",
       "passwordLoginIsDisabledOnValue1UseSsoToSignIn": "Вход по паролю отключён на «{{value1}}». Используйте SSO.",
       "thisClientDoesNotSupportLoginOnValue1ServerPasswordAndSso": "Этот клиент не поддерживает вход на сервер «{{value1}}»: не найдены способы входа по паролю или через SSO."
     },
@@ -958,7 +958,7 @@
       "thisApplicationDoesNotSupportRegistrationOnThisHomeserver": "Приложение не поддерживает регистрацию на этом домашнем сервере.",
       "ssoRegistrationIsRequiredOnThisHomeserverButNoSsoProvidersWere": "На этом домашнем сервере требуется регистрация через SSO, но сервер не сообщил ни об одном поставщике SSO.",
       "login": "Вход",
-      "accountLink": "Уже есть учётная запись? <link>Войдите</link>"
+      "accountLink": "Уже есть учётная запись? <authLink>Войдите</authLink>"
     },
     "passwordResetForm": {
       "passwordHasBeenResetSuccessfullyPleaseLoginWithYourNewPassword": "Пароль успешно сброшен. Войдите с новым паролем.",
@@ -973,7 +973,7 @@
     "resetPassword": {
       "resetPassword": "Сбросить пароль",
       "login": "Вход",
-      "accountLink": "Вспомнили пароль? <link>Войдите</link>"
+      "accountLink": "Вспомнили пароль? <authLink>Войдите</authLink>"
     },
     "clientRoot": {
       "catchingUp": "Синхронизация…",
@@ -1756,7 +1756,40 @@
         "advancedOptions": "Дополнительные параметры",
         "compact": "Компактный",
         "threads": "Ветки",
-        "classic": "Классический"
+        "classic": "Классический",
+        "offline": {
+          "title": "Офлайн-доступ",
+          "checking": "Проверка сохранённого содержимого…",
+          "unavailable": "Сохранённое содержимое недоступно на этом устройстве.",
+          "notSaved": "Эта комната ещё не сохранена для работы офлайн.",
+          "downloading": "Комната скачивается для работы офлайн…",
+          "offlinePause": "Сохранение приостановлено, пока устройство не в сети.",
+          "backgroundPause": "Сохранение приостановлено, пока приложение работает в фоновом режиме.",
+          "spacePause": "Сохранение приостановлено: защищённое содержимое заняло весь выделенный объём.",
+          "readOnlyPause": "Ошибка хранилища. Снова откройте приложение, чтобы возобновить сохранение.",
+          "connectionPause": "Автоматическое сохранение приостановлено для этого подключения.",
+          "errorPause": "Сохранение приостановлено после ошибки. Повторите попытку.",
+          "partialHistory": "Часть ранней истории не сохранена.",
+          "inaccessibleHistory": "Часть истории сейчас недоступна.",
+          "waitingForKeys": "Зашифрованные события, ожидающие ключи: {{count}}",
+          "unresolvedRelations": "Неразрешённые изменения или ответы: {{count}}",
+          "missingEssential": "Отсутствующие важные тела сообщений: {{count}}",
+          "historyEntries": "Сохранённые записи истории: {{count}}",
+          "attachments": "Вложения: сохранено {{saved}}, отсутствует {{missing}}.",
+          "storageUsed": "Место, занятое вложениями: {{size}}",
+          "pinFailed": "Не удалось обновить параметр «Хранить офлайн».",
+          "includeAllMedia": "Включить все медиафайлы",
+          "keepOffline": "Хранить офлайн",
+          "keepOfflineDescription": "Защищать сохранённые медиафайлы этой комнаты при автоматической очистке.",
+          "cancelDownload": "Отменить скачивание",
+          "downloadEntireRoom": "Скачать всю комнату",
+          "clearDownloadedContent": "Очистить скачанное содержимое",
+          "clearTitle": "Очистить скачанное содержимое?",
+          "cancel": "Отмена",
+          "clearDescription": "Сохранённая история и вложения этой комнаты будут удалены с устройства.",
+          "clearFailed": "Не удалось очистить скачанное содержимое.",
+          "clearConfirm": "Очистить содержимое"
+        }
       },
       "permissions": {
         "permissions": "Разрешения",
@@ -2124,6 +2157,7 @@
         "clearing": "Очистка…",
         "credits": "Авторы и лицензии",
         "deepDiagnosticTracing": "Подробная диагностическая трассировка",
+        "deepTraceMemoryOnly": "Запись ведётся в памяти, поскольку хранилище трассировки недоступно. Экспортируйте данные перед перезапуском приложения: эти недавние события будут потеряны при перезапуске.",
         "deepTraceEnabledStorageUnavailable": "Включено, но хранилище трассировки сейчас недоступно.",
         "deepTraceOff": "Выключено. Включите перед воспроизведением зависания, чтобы записать данные о производительности, Matrix, сети, жизненном цикле и взаимодействиях.",
         "deepTracePreferenceSaveFailed": "{{description}} выключена для этого сеанса, но настройку не удалось сохранить; после перезапуска она может включиться снова.",
@@ -2198,6 +2232,31 @@
     }
   },
   "mindroomUi": {
+    "models": {
+      "modelPicker": {
+        "chooseModel": "Choose model",
+        "roomDefault": "Room default",
+        "modelForThread": "Model for this thread",
+        "appliesToThread": "Applies to all agents and teams for future replies in this thread.",
+        "search": "Search models",
+        "close": "Close model picker",
+        "useRoomDefault": "Use room default",
+        "roomDefaultDescription": "Let each agent use its configured model.",
+        "models": "Models",
+        "runtime": "Runtime",
+        "chooseRuntime": "Choose a runtime",
+        "runtimeLabel": "{{userId}} on {{deviceId}}",
+        "refresh": "Refresh models",
+        "retry": "Retry",
+        "loading": "Loading models",
+        "pending": "Waiting for model change",
+        "noResults": "No matching models",
+        "commandFallback": "You can still send !model with a model key in this thread.",
+        "inheritedModels": "Room defaults by agent: {{models}}",
+        "futureReplies": "Changes apply to future replies.",
+        "threadModel": "Thread model"
+      }
+    },
     "voice": {
       "discardRecording": "Удалить голосовую запись",
       "pauseRecording": "Приостановить запись",
@@ -2695,7 +2754,8 @@
       "mindroomTab": {
         "localMindroom": "Local MindRoom"
       },
-      "resizeNavigationPanel": "Изменить размер панели навигации"
+      "resizeNavigationPanel": "Изменить размер панели навигации",
+      "resizeMemberPanel": "Изменить размер панели участников"
     },
     "threads": {
       "compactRoomView": {
@@ -2729,6 +2789,8 @@
         "youDoNotHavePermissionToPostInThisRoom": "У вас нет разрешения писать в этой комнате"
       },
       "mindroomRoomViewHeader": {
+        "showComputer": "Показать компьютер",
+        "hideComputer": "Скрыть компьютер",
         "notifications": "Уведомления",
         "compact": "Компактный",
         "threads": "Ветки",
@@ -2878,6 +2940,54 @@
         "threadInRoom": "Ветка в {{roomName}}",
         "thread": "Ветка"
       }
+    },
+    "uiActions": {
+      "viewComputer": "Посмотреть компьютер",
+      "openMembers": "Открыть участников",
+      "computerUnavailable": "Компьютер этого агента недоступен.",
+      "releaseControl": "Отпустите управление компьютером, прежде чем открывать другое представление.",
+      "openConversation": "Откройте этот запрос из беседы в комнате.",
+      "settingsUnavailable": "Отключите простой режим, чтобы открыть этот раздел настроек."
     }
+  },
+  "roomSchedules": {
+    "title": "Запланированные задачи",
+    "openLabel": "Запланированные задачи ({{total}})",
+    "empty": "В этой комнате нет запланированных задач.",
+    "emptyHint": "Попросите агента MindRoom запланировать здесь задачу.",
+    "prompt": "Промпт",
+    "promptUnavailable": "Промпт недоступен",
+    "once": "Однократная",
+    "recurring": "Повторяющаяся",
+    "executionTime": "Время выполнения",
+    "unknownTime": "Время выполнения недоступно",
+    "awaitingExecution": "Ожидает выполнения",
+    "recurrence": "Повторение",
+    "silent": "Без уведомлений",
+    "conditional": "Условная",
+    "newThread": "Новая ветка",
+    "roomTimeline": "Хронология комнаты",
+    "openThread": "Открыть ветку",
+    "owner": "Владелец задачи",
+    "createdAt": "Создано",
+    "updatedAt": "Обновлено",
+    "model": "Модель",
+    "inheritedModel": "Из настроек агента, комнаты или ветки",
+    "taskId": "ID задачи",
+    "historyLimit": "Лимит истории",
+    "fullHistory": "Полная история",
+    "noHistory": "Без истории",
+    "recentMessages": "Недавние сообщения: {{total}}",
+    "close": "Закрыть"
+  },
+  "archivedRooms": {
+    "title": "Архивные комнаты",
+    "archive": "Архивировать комнату",
+    "restore": "Восстановить комнату",
+    "restoreNamed": "Восстановить {{room}}",
+    "failed": "Не удалось сохранить изменения. Попробуйте снова.",
+    "close": "Закрыть архивные комнаты",
+    "description": "Скрывайте комнаты с боковой панели, не покидая их. Открывайте или восстанавливайте их здесь.",
+    "empty": "Нет архивных комнат."
   }
 }

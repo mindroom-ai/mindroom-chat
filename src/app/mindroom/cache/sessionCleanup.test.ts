@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createStore } from 'jotai';
 import { getRoomInputDraftKey, roomIdToMsgDraftAtomFamily } from '../../state/room/roomInputDrafts';
 import { clearMindroomLongTextHydrationCache } from '../messages/longText';
+import { clearAttachmentRepositoryMemory } from '../messages/attachmentRepository';
 import { clearIOSPushState } from '../native/iosPush';
 import { clearRecentThreadsStore } from '../recent-threads/recentThreads';
 import { clearRecentlyOpenedPanelHeightStore } from '../recent-threads/recentlyOpenedPanelHeight';
@@ -30,6 +31,10 @@ import {
 
 vi.mock('../messages/longText', () => ({
   clearMindroomLongTextHydrationCache: vi.fn(),
+}));
+
+vi.mock('../messages/attachmentRepository', () => ({
+  clearAttachmentRepositoryMemory: vi.fn(),
 }));
 
 it('removes only the logged-out account composer drafts from storage and memory', () => {
@@ -111,6 +116,7 @@ vi.mock('../threads/cacheStore', () => ({
     `thread-cache::${sessionId}`,
     `summary-cache::${sessionId}`,
   ]),
+  revokeAllCacheStoreWrites: vi.fn(),
 }));
 
 describe('MindRoom session cleanup', () => {
@@ -225,5 +231,6 @@ describe('MindRoom session cleanup', () => {
     expect(vi.mocked(clearThreadSummarySharedState)).toHaveBeenCalledWith('session-a');
     expect(vi.mocked(clearIOSPushState)).toHaveBeenCalledWith('session-a');
     expect(vi.mocked(clearMindroomLongTextHydrationCache)).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(clearAttachmentRepositoryMemory)).toHaveBeenCalledTimes(1);
   });
 });

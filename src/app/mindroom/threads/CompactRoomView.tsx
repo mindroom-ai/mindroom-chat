@@ -13,6 +13,8 @@ import type { CompactThreadCardViewModel, ThreadRecord } from './types';
 import { CompactThreadCard } from './CompactThreadCard';
 import * as css from './CompactRoomView.css';
 import { useToggleThreadResolution } from './useRoomThreadTags';
+import { InsetScrollbar } from '../../components/inset-scrollbar/InsetScrollbar';
+import * as overlay from './RoomOverlay.css';
 
 export type CompactRoomViewProps = {
   room: Room;
@@ -37,6 +39,7 @@ export function CompactRoomView({
 }: CompactRoomViewProps) {
   const { t } = useTranslation();
   const viewRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
   const scrollRestoreStateRef = useRef<ScrollRestoreState>();
   const cardViewModels = useCompactThreadCardViewModels({
     room,
@@ -80,24 +83,33 @@ export function CompactRoomView({
     const view = viewRef.current;
     if (!view || cardViewModels.length === 0) return;
 
-    const restoreState = scrollRestoreStateRef.current;
-    if (restoreState?.roomId === room.roomId) {
-      const restoreWasClamped = restoreState.lastAppliedScrollTop !== restoreState.targetScrollTop;
-      const scrollHasNotMoved = view.scrollTop === restoreState.lastAppliedScrollTop;
-      if (restoreWasClamped && scrollHasNotMoved) {
-        view.scrollTop = restoreState.targetScrollTop;
-        restoreState.lastAppliedScrollTop = view.scrollTop;
+    const restore = () => {
+      const restoreState = scrollRestoreStateRef.current;
+      if (restoreState?.roomId === room.roomId) {
+        const restoreWasClamped =
+          restoreState.lastAppliedScrollTop !== restoreState.targetScrollTop;
+        const scrollHasNotMoved = view.scrollTop === restoreState.lastAppliedScrollTop;
+        if (restoreWasClamped && scrollHasNotMoved) {
+          view.scrollTop = restoreState.targetScrollTop;
+          restoreState.lastAppliedScrollTop = view.scrollTop;
+        }
+        return;
       }
-      return;
-    }
 
-    const savedScrollTop = compactRoomScrollStateRef.current.get(room.roomId);
-    if (savedScrollTop !== undefined) view.scrollTop = savedScrollTop;
-    scrollRestoreStateRef.current = {
-      roomId: room.roomId,
-      targetScrollTop: savedScrollTop ?? view.scrollTop,
-      lastAppliedScrollTop: view.scrollTop,
+      const savedScrollTop = compactRoomScrollStateRef.current.get(room.roomId);
+      if (savedScrollTop !== undefined) view.scrollTop = savedScrollTop;
+      scrollRestoreStateRef.current = {
+        roomId: room.roomId,
+        targetScrollTop: savedScrollTop ?? view.scrollTop,
+        lastAppliedScrollTop: view.scrollTop,
+      };
     };
+    restore();
+    // Overlay measurements can increase padding after the initial restore.
+    // Retry only a clamped restore, and never after the reader has moved.
+    const observer = new ResizeObserver(restore);
+    observer.observe(view);
+    return () => observer.disconnect();
   }, [cardViewModels.length, compactRoomScrollStateRef, room.roomId]);
 
   useLayoutEffect(() => {
@@ -113,49 +125,53 @@ export function CompactRoomView({
     };
   }, [compactRoomScrollStateRef, room.roomId]);
 
-  if (threadRootIds.length === 0) {
-    return (
-      <Box ref={viewRef} className={css.View} data-compact-room-view="true">
-        <Box className={css.EmptyState}>
-          <Text size="T300" priority="300">
-            {t('mindroomUi.threads.compactRoomView.noThreads')}
-          </Text>
-        </Box>
-      </Box>
-    );
-  }
-
   return (
     <Box ref={viewRef} className={css.View} data-compact-room-view="true">
-      {cardViewModels.map((viewModel) => {
-        const showResolveAction = canToggle && !viewModel.isResolved;
+      <Box ref={contentRef} direction="Column" gap="100" shrink="No">
+        {threadRootIds.length === 0 ? (
+          <Box className={css.EmptyState}>
+            <Text size="T300" priority="300">
+              {t('mindroomUi.threads.compactRoomView.noThreads')}
+            </Text>
+          </Box>
+        ) : (
+          cardViewModels.map((viewModel) => {
+            const showResolveAction = canToggle && !viewModel.isResolved;
 
-        return (
-          <div key={viewModel.id.threadRootId} className={css.CardShell}>
-            <CompactThreadCard viewModel={viewModel} onClick={handleCardClick} />
-            {showResolveAction && (
-              // Keep reveal opacity off the button: Folds forces disabled opacity with !important.
-              <div className={css.CardAction}>
-                <Button
-                  type="button"
-                  size="300"
-                  variant="Secondary"
-                  fill="Soft"
-                  outlined
-                  radii="300"
-                  disabled={updatingThreadRootIds.has(viewModel.id.threadRootId)}
-                  onClick={() => handleResolve(viewModel.id.threadRootId)}
-                  data-compact-thread-resolve="true"
-                >
-                  <Text as="span" size="T200">
-                    {t('thread.resolve')}
-                  </Text>
-                </Button>
+            return (
+              <div key={viewModel.id.threadRootId} className={css.CardShell}>
+                <CompactThreadCard viewModel={viewModel} onClick={handleCardClick} />
+                {showResolveAction && (
+                  // Keep reveal opacity off the button: Folds forces disabled opacity with !important.
+                  <div className={css.CardAction}>
+                    <Button
+                      type="button"
+                      size="300"
+                      variant="Secondary"
+                      fill="Soft"
+                      outlined
+                      radii="300"
+                      disabled={updatingThreadRootIds.has(viewModel.id.threadRootId)}
+                      onClick={() => handleResolve(viewModel.id.threadRootId)}
+                      data-compact-thread-resolve="true"
+                    >
+                      <Text as="span" size="T200">
+                        {t('thread.resolve')}
+                      </Text>
+                    </Button>
+                  </div>
+                )}
               </div>
-            )}
-          </div>
-        );
-      })}
+            );
+          })
+        )}
+      </Box>
+      <InsetScrollbar
+        scrollRef={viewRef}
+        contentRef={contentRef}
+        className={overlay.Scrollbar}
+        label={t('threadNav.messages')}
+      />
     </Box>
   );
 }

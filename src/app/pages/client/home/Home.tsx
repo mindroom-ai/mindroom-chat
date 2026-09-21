@@ -7,7 +7,6 @@ import {
   Icon,
   IconButton,
   Icons,
-  Menu,
   PopOut,
   RectCords,
   Text,
@@ -18,6 +17,8 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import { useAtom } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import FocusTrap from 'focus-trap-react';
+import { useVisibleRooms } from '../../../mindroom/rooms/archivedRooms';
+import { Menu } from '../../../components/glass/GlassPrimitives';
 import { factoryRoomIdByAtoZ } from '../../../utils/sort';
 import {
   NavButton,
@@ -67,7 +68,7 @@ type HomeMenuProps = {
   requestClose: () => void;
 };
 const HomeMenu = forwardRef<HTMLDivElement, HomeMenuProps>(({ requestClose }, ref) => {
-  const orphanRooms = useHomeRooms();
+  const orphanRooms = useVisibleRooms(useHomeRooms());
 
   return (
     <Menu ref={ref} style={{ maxWidth: toRem(160), width: '100vw' }}>
@@ -214,7 +215,7 @@ export function Home() {
   const { t } = useTranslation();
   const mx = useMatrixClient();
   const scrollRef = useRef<HTMLDivElement>(null);
-  const rooms = useHomeRooms();
+  const rooms = useVisibleRooms(useHomeRooms());
   const notificationPreferences = useRoomsNotificationPreferencesContext();
   const navigate = useNavigate();
 
@@ -242,11 +243,10 @@ export function Home() {
 
   return (
     <PageNav>
-      <HomeHeader />
-      {noRoomToDisplay ? (
-        <HomeEmpty />
-      ) : (
-        <PageNavContent scrollRef={scrollRef}>
+      <PageNavContent scrollRef={scrollRef} header={<HomeHeader />}>
+        {noRoomToDisplay ? (
+          <HomeEmpty />
+        ) : (
           <Box direction="Column" gap="300">
             <NavCategory>
               <NavItem variant="Background" radii="400" aria-selected={createRoomSelected}>
@@ -367,8 +367,8 @@ export function Home() {
             </NavCategory>
             <ThreadNavCategory sidebarScrollRef={scrollRef} />
           </Box>
-        </PageNavContent>
-      )}
+        )}
+      </PageNavContent>
       <RecentlyOpenedNavCategory />
     </PageNav>
   );

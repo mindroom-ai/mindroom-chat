@@ -51,7 +51,7 @@ describe('matrix-js-sdk thread timeline reset', () => {
 
     room.resetLiveTimeline('sync-back', 'sync-forward');
 
-    expect(createMessagesRequest).toHaveBeenCalledOnce();
+    expect(createMessagesRequest).toHaveBeenCalledTimes(2);
     expect(createMessagesRequest).toHaveBeenCalledWith(
       room.roomId,
       'sync-back',
@@ -68,6 +68,7 @@ describe('matrix-js-sdk thread timeline reset', () => {
       1,
       Direction.Backward
     );
+    await Promise.all(threads.map((thread) => thread.flushPendingTimelineReset()));
     threads.forEach((thread, index) => {
       expect(thread.liveTimeline.getPaginationToken(Direction.Backward)).toBe('messages:sync-back');
       expect(oldLiveTimelines[index]?.getPaginationToken(Direction.Forward)).toBe(

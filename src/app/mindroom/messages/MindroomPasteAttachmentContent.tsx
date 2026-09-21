@@ -3,6 +3,7 @@ import type { TFunction } from 'i18next';
 import React from 'react';
 import { Box, Text } from 'folds';
 import classNames from 'classnames';
+import type { EventAttachmentOwner } from './eventAttachments';
 import { DownloadFile, ReadTextFile } from '../../components/message';
 import { TextViewer } from '../../components/text-viewer';
 import { bytesToSize } from '../../utils/common';
@@ -12,6 +13,7 @@ import type { MindroomPasteAttachmentFile } from './pasteAttachmentMarker';
 import { useAppLanguageCode } from '../../hooks/useAppLanguageCode';
 
 type MindroomPasteAttachmentContentProps = {
+  owner?: EventAttachmentOwner;
   attachment: MindroomPasteAttachmentFile;
   outlined?: boolean;
 };
@@ -34,6 +36,7 @@ const getPasteAttachmentDetail = (
 };
 
 export function MindroomPasteAttachmentContent({
+  owner,
   attachment,
   outlined,
 }: MindroomPasteAttachmentContentProps) {
@@ -64,6 +67,7 @@ export function MindroomPasteAttachmentContent({
         </Text>
         <Box className={css.Actions}>
           <ReadTextFile
+            owner={owner}
             body={fileName}
             mimeType={mimeType}
             url={mxcUri}
@@ -74,6 +78,7 @@ export function MindroomPasteAttachmentContent({
             renderViewer={(props) => <TextViewer {...props} />}
           />
           <DownloadFile
+            owner={owner}
             body={fileName}
             mimeType={mimeType}
             url={mxcUri}

@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import React from 'react';
+import { Icon, Icons } from 'folds';
 import { ApprovalArguments } from './ApprovalArguments';
 import { getToolApprovalOperationLabel, ToolApprovalData } from './toolApproval';
 import * as css from './ThreadApprovals.css';
@@ -26,11 +27,12 @@ export function ApprovalReceipt({
       className={css.Receipt}
       aria-label={t('mindroomUi.messages.approvalReceipt.resolvedToolApprovalRequest')}
     >
-      <summary>
+      <summary className={css.ReceiptHeader}>
         <span className={css.ReceiptTool}>
           {approval.status === 'approved' ? '✓' : '–'} {getToolApprovalOperationLabel(approval)}
         </span>
-        <span>{statusLabel}</span>
+        <span className={css.ReceiptMeta}>{statusLabel}</span>
+        <Icon src={Icons.ChevronBottom} size="50" className={css.ReceiptChevron} aria-hidden />
       </summary>
       <div className={css.ReceiptBody}>
         <p>

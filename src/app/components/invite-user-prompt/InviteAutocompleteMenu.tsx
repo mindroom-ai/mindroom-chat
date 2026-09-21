@@ -1,6 +1,7 @@
 import React, { ReactNode, useCallback, useLayoutEffect, useRef, useState } from 'react';
 import FocusTrap from 'focus-trap-react';
-import { Header, Menu, PopOut, Scroll, config, type RectCords } from 'folds';
+import { PopOut, Scroll, config, type RectCords } from 'folds';
+import { Menu, Header } from '../glass/GlassPrimitives';
 
 import { useAlive } from '../../hooks/useAlive';
 import { preventScrollWithArrowKey, stopPropagation } from '../../utils/keyboard';

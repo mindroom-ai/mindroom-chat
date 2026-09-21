@@ -1,11 +1,9 @@
 import React, { MouseEventHandler, useCallback, useMemo, useState } from 'react';
 import FocusTrap from 'focus-trap-react';
 import {
-  Dialog,
   Overlay,
   OverlayCenter,
   OverlayBackdrop,
-  Header,
   config,
   Box,
   Text,
@@ -21,6 +19,7 @@ import {
 } from 'folds';
 import { Direction, MatrixError } from 'matrix-js-sdk';
 import { useTranslation } from 'react-i18next';
+import { Dialog, Header } from '../../../components/glass/GlassPrimitives';
 import { useMatrixClient } from '../../../hooks/useMatrixClient';
 import { AsyncStatus, useAsyncCallback } from '../../../hooks/useAsyncCallback';
 import { stopPropagation } from '../../../utils/keyboard';

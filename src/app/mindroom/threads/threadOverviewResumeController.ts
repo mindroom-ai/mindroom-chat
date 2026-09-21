@@ -7,7 +7,7 @@ import {
   type MutableRefObject,
   type SetStateAction,
 } from 'react';
-import { type MatrixClient, type MatrixEvent, type Room } from 'matrix-js-sdk';
+import { type MatrixClient, type Room } from 'matrix-js-sdk';
 import { usePageResume } from './usePageResume';
 import { loadRoomThreads } from './roomThreadList';
 import { logTimelineDebug } from './timelineDebug';
@@ -19,16 +19,7 @@ import type { Timeline } from './timelinePagination';
 import type { FetchedRelationOverviewUpdateOptions } from './threadOverviewCacheHydration';
 import { useMindroomSyncEngine } from '../engine';
 
-type PersistThreadEventCache = (
-  expectedThreadId: string,
-  events: MatrixEvent[],
-  rootEvent?: MatrixEvent | null,
-  beforeTokenForEarliest?: string | null,
-  tailLoaded?: boolean,
-  snapshotComplete?: boolean,
-  expectedReplyCount?: number,
-  relationSnapshotComplete?: boolean
-) => void;
+import type { PersistThreadEventCache } from '../engine/enginePersistFacade';
 
 export const useThreadOverviewResumeController = ({
   alive,
@@ -41,7 +32,7 @@ export const useThreadOverviewResumeController = ({
   mx,
   onStoreThreadSummary,
   onApplyThreadRelations,
-  persistThreadEventCache,
+  beginThreadCacheWrite,
   refreshCompactThreadList,
   room,
   setOverviewRefreshCounter,
@@ -62,7 +53,7 @@ export const useThreadOverviewResumeController = ({
   mx: MatrixClient;
   onStoreThreadSummary: (threadRootId: string, info: MindroomThreadSummaryInfo | undefined) => void;
   onApplyThreadRelations: (options: FetchedRelationOverviewUpdateOptions) => void;
-  persistThreadEventCache: PersistThreadEventCache;
+  beginThreadCacheWrite: () => PersistThreadEventCache;
   refreshCompactThreadList: () => Promise<void>;
   room: Room;
   setOverviewRefreshCounter: Dispatch<SetStateAction<number>>;
@@ -80,6 +71,7 @@ export const useThreadOverviewResumeController = ({
   // (kind: 'thread-backfill'), and the resume trigger is naturally
   // rate-limited by the 1s window below plus the scheduler's dedup.
   const lastOverviewResumeRefreshTsRef = useRef(0);
+  const overviewRefreshAbortControllerRef = useRef<AbortController>();
   const { overviewResumeRefreshIds: targetThreadIds } = useMemo(
     () =>
       resolveThreadOverviewRefreshTargets({
@@ -111,6 +103,22 @@ export const useThreadOverviewResumeController = ({
   useEffect(() => {
     lastOverviewResumeRefreshTsRef.current = 0;
   }, [room.roomId]);
+
+  useEffect(() => {
+    if (threadId) {
+      overviewRefreshAbortControllerRef.current = undefined;
+      return undefined;
+    }
+
+    const abortController = new AbortController();
+    overviewRefreshAbortControllerRef.current = abortController;
+    return () => {
+      abortController.abort();
+      if (overviewRefreshAbortControllerRef.current === abortController) {
+        overviewRefreshAbortControllerRef.current = undefined;
+      }
+    };
+  }, [compactViewRequested, room, threadId]);
 
   // CINNY-207 P4.4: route each per-thread refresh through the engine
   // scheduler as a `thread-backfill` job. AC8 dedup means a resume
@@ -144,7 +152,7 @@ export const useThreadOverviewResumeController = ({
   // and the thread-seed prewarm band (cold-start content prefetch)
   // stay one implementation. Behavior here is unchanged.
   const refreshOverviewThreadCacheFromRelations = useCallback(
-    async (expectedThreadId: string): Promise<void> => {
+    async (expectedThreadId: string, shouldApply: () => boolean): Promise<void> => {
       await fetchAndPersistThreadContent({
         mx,
         scheduler: syncEngine.scheduler,
@@ -155,25 +163,15 @@ export const useThreadOverviewResumeController = ({
         // so it beats prewarm (band 3) but yields to the current
         // room's own gap-fill (band 0-1).
         priority: 2,
-        shouldContinue: () =>
-          alive() && (!threadIdRef.current || threadIdRef.current === expectedThreadId),
-        shouldApply: () =>
-          alive() && (!threadIdRef.current || threadIdRef.current === expectedThreadId),
-        persistThreadEventCache,
+        // This scheduler job may be shared with another consumer. Let the
+        // engine own its cancellation and release only this view's apply path.
+        shouldApply,
+        beginThreadCacheWrite,
         onApplyThreadRelations,
         onStoreThreadSummary,
       });
     },
-    [
-      alive,
-      mx,
-      onApplyThreadRelations,
-      onStoreThreadSummary,
-      persistThreadEventCache,
-      room,
-      syncEngine,
-      threadIdRef,
-    ]
+    [mx, onApplyThreadRelations, onStoreThreadSummary, beginThreadCacheWrite, room, syncEngine]
   );
 
   const refreshOverviewThreadsOnResume = useCallback(
@@ -193,6 +191,9 @@ export const useThreadOverviewResumeController = ({
       // burst-fire from stacked resume signals (visibility + focus
       // firing in quick succession).
       const runRefresh = async () => {
+        const signal = overviewRefreshAbortControllerRef.current?.signal;
+        if (!signal || signal.aborted) return;
+        const shouldContinueRefresh = () => !signal.aborted && alive() && !threadIdRef.current;
         logTimelineDebug(debugTraceId, 'overview-thread-resume-refresh-start', {
           compactViewRequested,
           reason,
@@ -203,17 +204,19 @@ export const useThreadOverviewResumeController = ({
           if (compactViewRequested) {
             await refreshCompactThreadList();
           } else {
-            await loadRoomThreads(room);
+            await loadRoomThreads(room, undefined, signal);
           }
 
-          if (!alive() || threadIdRef.current) return;
+          if (!shouldContinueRefresh()) return;
 
           for (const expectedThreadId of targetThreadIds) {
-            if (!alive() || threadIdRef.current) return;
+            if (!shouldContinueRefresh()) return;
             // eslint-disable-next-line no-await-in-loop
-            await refreshOverviewThreadCacheFromRelations(expectedThreadId);
+            await refreshOverviewThreadCacheFromRelations(expectedThreadId, shouldContinueRefresh);
+            if (!shouldContinueRefresh()) return;
           }
 
+          if (!shouldContinueRefresh()) return;
           setOverviewRefreshCounter((value) => value + 1);
           logTimelineDebug(debugTraceId, 'overview-thread-resume-refresh-complete', {
             compactViewRequested,

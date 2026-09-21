@@ -3,7 +3,8 @@ import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { LobbyHeader } from './LobbyHeader';
 
-const { permissionState } = vi.hoisted(() => ({
+const { permissionState, screenSizeState } = vi.hoisted(() => ({
+  screenSizeState: { value: 'Desktop' },
   permissionState: {
     canInvite: true,
     canKick: true,
@@ -74,12 +75,8 @@ vi.mock('../../components/page', () => ({
     React.createElement('div', null, children),
 }));
 
-vi.mock('../../state/hooks/settings', () => ({
-  useSetSetting: () => vi.fn(),
-}));
-
-vi.mock('../../state/settings', () => ({
-  settingsAtom: {},
+vi.mock('../../mindroom/sidebar/useMembersDrawer', () => ({
+  useMembersDrawer: () => [false, vi.fn()],
 }));
 
 vi.mock('../../hooks/useRoomMeta', () => ({
@@ -128,9 +125,10 @@ vi.mock('../../utils/keyboard', () => ({
 vi.mock('../../hooks/useScreenSize', () => ({
   ScreenSize: {
     Desktop: 'Desktop',
+    Tablet: 'Tablet',
     Mobile: 'Mobile',
   },
-  useScreenSizeContext: () => 'Desktop',
+  useScreenSizeContext: () => screenSizeState.value,
 }));
 
 vi.mock('../../mindroom/native/MindroomBackRouteHandler', () => ({
@@ -175,30 +173,35 @@ const renderHeader = (joinRequestCount: number): ReactTestRenderer => {
 };
 
 afterEach(() => {
+  screenSizeState.value = 'Desktop';
   permissionState.canInvite = true;
   permissionState.canKick = true;
 });
 
 describe('LobbyHeader', () => {
-  it('shows pending space join requests on the Members button only to moderators', () => {
-    const renderer = renderHeader(2);
+  it.each(['Desktop', 'Tablet', 'Mobile'])(
+    'shows the member control and authorized join requests on %s',
+    (screen) => {
+      screenSizeState.value = screen;
+      const renderer = renderHeader(2);
 
-    expect(
-      renderer.root.findByProps({
-        'aria-label': 'Members, 2 pending join requests',
-      })
-    ).toBeDefined();
-    expect(renderer.root.findAllByProps({ children: 2 }).length).toBeGreaterThan(0);
+      expect(
+        renderer.root.findByProps({
+          'aria-label': 'Members, 2 pending join requests',
+        })
+      ).toBeDefined();
+      expect(renderer.root.findAllByProps({ children: 2 }).length).toBeGreaterThan(0);
 
-    permissionState.canInvite = false;
-    permissionState.canKick = false;
-    const unauthorizedRenderer = renderHeader(2);
+      permissionState.canInvite = false;
+      permissionState.canKick = false;
+      const unauthorizedRenderer = renderHeader(2);
 
-    expect(
-      unauthorizedRenderer.root.findAllByProps({
-        'aria-label': 'Members, 2 pending join requests',
-      })
-    ).toHaveLength(0);
-    expect(unauthorizedRenderer.root.findByProps({ 'aria-label': 'Members' })).toBeDefined();
-  });
+      expect(
+        unauthorizedRenderer.root.findAllByProps({
+          'aria-label': 'Members, 2 pending join requests',
+        })
+      ).toHaveLength(0);
+      expect(unauthorizedRenderer.root.findByProps({ 'aria-label': 'Members' })).toBeDefined();
+    }
+  );
 });

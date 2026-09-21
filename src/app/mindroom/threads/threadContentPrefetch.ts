@@ -12,7 +12,7 @@
  * thread coalesce into a single round-trip (AC8 dedup).
  */
 
-import type { MatrixClient, MatrixEvent, Room } from 'matrix-js-sdk';
+import type { MatrixClient, Room } from 'matrix-js-sdk';
 import {
   enqueueThreadBackfillJob,
   type BackfillJobPriority,
@@ -27,16 +27,7 @@ import { saveThreadOpenSeedSnapshot } from './threadOpenSeedCache';
 import { getKnownThreadReplyCount } from './threadRecord';
 import type { FetchedRelationOverviewUpdateOptions } from './threadOverviewCacheHydration';
 
-type PersistThreadEventCache = (
-  expectedThreadId: string,
-  events: MatrixEvent[],
-  rootEvent?: MatrixEvent | null,
-  beforeTokenForEarliest?: string | null,
-  tailLoaded?: boolean,
-  snapshotComplete?: boolean,
-  expectedReplyCount?: number,
-  relationSnapshotComplete?: boolean
-) => void;
+import type { PersistThreadEventCache } from '../engine/enginePersistFacade';
 
 export type FetchAndPersistThreadContentResult = {
   fetchedCount: number;
@@ -52,7 +43,7 @@ export const fetchAndPersistThreadContent = async ({
   priority,
   shouldContinue,
   shouldApply,
-  persistThreadEventCache,
+  beginThreadCacheWrite,
   onApplyThreadRelations,
   onStoreThreadSummary,
 }: {
@@ -71,13 +62,14 @@ export const fetchAndPersistThreadContent = async ({
    * Callers use it for staleness guards (unmount, thread switch).
    */
   shouldApply?: () => boolean;
-  persistThreadEventCache: PersistThreadEventCache;
+  beginThreadCacheWrite: () => PersistThreadEventCache;
   onApplyThreadRelations?: (options: FetchedRelationOverviewUpdateOptions) => void;
   onStoreThreadSummary?: (
     threadRootId: string,
     info: MindroomThreadSummaryInfo | undefined
   ) => void;
 }): Promise<FetchAndPersistThreadContentResult | undefined> => {
+  const persistThreadEventCache = beginThreadCacheWrite();
   const rootEvent = room.getThread(threadId)?.rootEvent ?? room.findEventById(threadId);
   if (!rootEvent) return undefined;
 

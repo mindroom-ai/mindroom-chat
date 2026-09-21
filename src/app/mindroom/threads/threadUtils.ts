@@ -170,9 +170,11 @@ export const getVisibleThreadParticipantIds = (
   return participantIds;
 };
 
-export const buildThreadReplyCountMap = (events: ThreadEventLike[]): Map<string, number> => {
+const forEachThreadReplyEvent = <T extends ThreadEventLike>(
+  events: readonly T[],
+  visit: (event: T, threadRootId: string) => void
+): void => {
   const seenEventIds = new Set<string>();
-  const counts = new Map<string, number>();
 
   events.forEach((event) => {
     const eventId = event.getId();
@@ -183,7 +185,24 @@ export const buildThreadReplyCountMap = (events: ThreadEventLike[]): Map<string,
     seenEventIds.add(eventId);
 
     if (!isThreadRelation(event)) return;
+    visit(event, threadRootId);
+  });
+};
 
+export const getThreadReplyEventsForRoot = <T extends ThreadEventLike>(
+  events: readonly T[],
+  threadId: string
+): T[] => {
+  const replies: T[] = [];
+  forEachThreadReplyEvent(events, (event, rootId) => {
+    if (rootId === threadId) replies.push(event);
+  });
+  return replies;
+};
+
+export const buildThreadReplyCountMap = (events: ThreadEventLike[]): Map<string, number> => {
+  const counts = new Map<string, number>();
+  forEachThreadReplyEvent(events, (_event, threadRootId) => {
     counts.set(threadRootId, (counts.get(threadRootId) ?? 0) + 1);
   });
 

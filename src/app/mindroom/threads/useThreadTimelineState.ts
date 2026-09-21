@@ -1,5 +1,6 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useReducer } from 'react';
 import { Direction, MatrixEvent, Room } from 'matrix-js-sdk';
+import { observeActiveThreadSyncGaps } from './activeThreadSyncGaps';
 import { getLinkedTimelines } from './timelinePagination';
 import { useThreadRenderState } from './useThreadRenderState';
 
@@ -17,6 +18,11 @@ export const useThreadTimelineState = ({
   debugTraceId,
 }: UseThreadTimelineStateOptions) => {
   const thread = threadId ? room.getThread(threadId) : null;
+  const [, refresh] = useReducer((revision: number) => revision + 1, 0);
+  useEffect(() => {
+    if (!thread) return undefined;
+    return observeActiveThreadSyncGaps(room, thread, refresh);
+  }, [room, thread]);
   const roomTimelineSet = room.getUnfilteredTimelineSet();
   const threadTimelineSet = thread?.getUnfilteredTimelineSet();
   const threadLinkedTimelines = threadTimelineSet

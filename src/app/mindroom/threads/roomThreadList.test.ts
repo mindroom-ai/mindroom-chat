@@ -67,6 +67,28 @@ const makeThreadReplyEvent = (
 });
 
 describe('loadRoomThreads', () => {
+  it.each([false, true])(
+    'waits for capability discovery before loading (cancelled: %s)',
+    async (cancelled) => {
+      const { room } = makeRoom([null]);
+      let discover!: () => void;
+      const pending = new Promise<void>((resolve) => {
+        discover = resolve;
+      });
+      Object.assign(room.client, { threadSupportPending: pending });
+      const controller = new AbortController();
+      const loading = loadRoomThreads(room as never, undefined, controller.signal);
+      await Promise.resolve();
+      await Promise.resolve();
+      expect(room.fetchRoomThreads).not.toHaveBeenCalled();
+      if (cancelled) controller.abort();
+      setServerSideListSupport(true);
+      discover();
+      await loading;
+      expect(room.fetchRoomThreads).toHaveBeenCalledTimes(cancelled ? 0 : 1);
+    }
+  );
+
   it('shares an in-flight room load across compact-mode remounts', async () => {
     setServerSideListSupport(true);
     let releaseFetch: (() => void) | undefined;
@@ -156,6 +178,178 @@ describe('loadRoomThreads', () => {
     await Promise.all([firstLoad, secondLoad]);
 
     expect(secondProgress).toHaveBeenCalledOnce();
+  });
+
+  it('does not start another page after the last interested caller aborts', async () => {
+    setServerSideListSupport(true);
+    const controller = new AbortController();
+    let releasePagination: ((hasMore: boolean) => void) | undefined;
+    let paginationToken: string | null = 'page-1';
+    const liveTimeline = {
+      getPaginationToken: vi.fn(() => paginationToken),
+    };
+    const room = {
+      client: {
+        paginateEventTimeline: vi.fn(
+          () =>
+            new Promise<boolean>((resolve) => {
+              releasePagination = resolve;
+            })
+        ),
+        supportsThreads: vi.fn(() => true),
+      },
+      fetchRoomThreads: vi.fn(async () => undefined),
+      threadsTimelineSets: [
+        {
+          getLiveTimeline: () => liveTimeline,
+        },
+      ],
+    };
+
+    const load = loadRoomThreads(room as never, undefined, controller.signal);
+    await vi.waitFor(() => expect(room.client.paginateEventTimeline).toHaveBeenCalledOnce());
+
+    controller.abort();
+    paginationToken = 'page-2';
+    releasePagination?.(true);
+    await load;
+
+    expect(room.client.paginateEventTimeline).toHaveBeenCalledOnce();
+  });
+
+  it('continues pagination while an unsignaled shared caller remains interested', async () => {
+    setServerSideListSupport(true);
+    const firstController = new AbortController();
+    let releaseFirstPage: ((hasMore: boolean) => void) | undefined;
+    let paginationToken: string | null = 'page-1';
+    const liveTimeline = {
+      getPaginationToken: vi.fn(() => paginationToken),
+    };
+    const room = {
+      client: {
+        paginateEventTimeline: vi
+          .fn<() => Promise<boolean>>()
+          .mockImplementationOnce(
+            () =>
+              new Promise<boolean>((resolve) => {
+                releaseFirstPage = resolve;
+              })
+          )
+          .mockImplementationOnce(async () => {
+            paginationToken = null;
+            return false;
+          }),
+        supportsThreads: vi.fn(() => true),
+      },
+      fetchRoomThreads: vi.fn(async () => undefined),
+      threadsTimelineSets: [
+        {
+          getLiveTimeline: () => liveTimeline,
+        },
+      ],
+    };
+
+    const firstLoad = loadRoomThreads(room as never, undefined, firstController.signal);
+    const secondLoad = loadRoomThreads(room as never);
+    await vi.waitFor(() => expect(room.client.paginateEventTimeline).toHaveBeenCalledOnce());
+
+    firstController.abort();
+    paginationToken = 'page-2';
+    releaseFirstPage?.(true);
+    await Promise.all([firstLoad, secondLoad]);
+
+    expect(room.client.paginateEventTimeline).toHaveBeenCalledTimes(2);
+  });
+
+  it('reattaches a returning caller while an abandoned page is still pending', async () => {
+    setServerSideListSupport(true);
+    const controller = new AbortController();
+    let releaseFirstPage: ((hasMore: boolean) => void) | undefined;
+    let paginationToken: string | null = 'page-1';
+    const liveTimeline = {
+      getPaginationToken: vi.fn(() => paginationToken),
+    };
+    const room = {
+      client: {
+        paginateEventTimeline: vi
+          .fn<() => Promise<boolean>>()
+          .mockImplementationOnce(
+            () =>
+              new Promise<boolean>((resolve) => {
+                releaseFirstPage = resolve;
+              })
+          )
+          .mockImplementationOnce(async () => {
+            paginationToken = null;
+            return false;
+          }),
+        supportsThreads: vi.fn(() => true),
+      },
+      fetchRoomThreads: vi.fn(async () => undefined),
+      threadsTimelineSets: [
+        {
+          getLiveTimeline: () => liveTimeline,
+        },
+      ],
+    };
+
+    const abandonedLoad = loadRoomThreads(room as never, undefined, controller.signal);
+    await vi.waitFor(() => expect(room.client.paginateEventTimeline).toHaveBeenCalledOnce());
+
+    controller.abort();
+    const resumedLoad = loadRoomThreads(room as never);
+    paginationToken = 'page-2';
+    releaseFirstPage?.(true);
+    await Promise.all([abandonedLoad, resumedLoad]);
+
+    expect(room.fetchRoomThreads).toHaveBeenCalledOnce();
+    expect(room.client.paginateEventTimeline).toHaveBeenCalledTimes(2);
+  });
+
+  it('resumes the remaining pages when a caller returns after cancellation settles', async () => {
+    setServerSideListSupport(true);
+    const controller = new AbortController();
+    let releaseFirstPage: ((hasMore: boolean) => void) | undefined;
+    let paginationToken: string | null = 'page-1';
+    const liveTimeline = {
+      getPaginationToken: vi.fn(() => paginationToken),
+    };
+    const room = {
+      client: {
+        paginateEventTimeline: vi
+          .fn<() => Promise<boolean>>()
+          .mockImplementationOnce(
+            () =>
+              new Promise<boolean>((resolve) => {
+                releaseFirstPage = resolve;
+              })
+          )
+          .mockImplementationOnce(async () => {
+            paginationToken = null;
+            return false;
+          }),
+        supportsThreads: vi.fn(() => true),
+      },
+      fetchRoomThreads: vi.fn(async () => undefined),
+      threadsTimelineSets: [
+        {
+          getLiveTimeline: () => liveTimeline,
+        },
+      ],
+    };
+
+    const abandonedLoad = loadRoomThreads(room as never, undefined, controller.signal);
+    await vi.waitFor(() => expect(room.client.paginateEventTimeline).toHaveBeenCalledOnce());
+
+    controller.abort();
+    paginationToken = 'page-2';
+    releaseFirstPage?.(true);
+    await abandonedLoad;
+
+    await loadRoomThreads(room as never);
+
+    expect(room.fetchRoomThreads).toHaveBeenCalledTimes(2);
+    expect(room.client.paginateEventTimeline).toHaveBeenCalledTimes(2);
   });
 
   it('starts a fresh load before the previous success is observable to callers', async () => {

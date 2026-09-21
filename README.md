@@ -79,9 +79,29 @@ Notable options:
 - auth behavior (including `allowRegistration`, support/privacy/terms links),
 - splash loading copy via `splash.loadingMessages`,
 - MindRoom placeholder copy via `mindroom.thinkingPlaceholderMessages`,
+- agent UI automatic-opening policy via `mindroom.uiActions.autoOpenFromHomeservers`,
 - additional application-link schemes via `messageRendering.additionalAllowedUriSchemes`,
 - sidebar entry points including `sidebar.showThreads` and `sidebar.showExploreCommunityInSimpleMode`,
 - welcome-page behavior.
+
+Agent requests can open Computer, Settings, or Members automatically only when the agent's Matrix server name is explicitly trusted by the deployment:
+
+```json
+{
+  "mindroom": {
+    "uiActions": {
+      "autoOpenFromHomeservers": ["mindroom.chat"]
+    }
+  }
+}
+```
+
+MindRoom's shipped configuration lists `mindroom.chat`.
+An absent or empty list disables automatic opening; valid requests still have a button the addressed user can click.
+Entries match the exact server name in the Matrix user ID, including any port; URLs, wildcards, and implicit subdomains are unsupported.
+The existing checks for joined `mindroom_` agents on the viewer's own homeserver still apply.
+Only list homeservers whose operators control the agent username namespace; this setting trusts that operator policy, not every account on the server.
+Live delivery, focus, conversation, and computer authorization checks continue to apply.
 
 Explorer is hidden from the sidebar by default in Simple Mode.
 To show it in Simple Mode, set `sidebar.showExploreCommunityInSimpleMode` to `true` in `config.json`:

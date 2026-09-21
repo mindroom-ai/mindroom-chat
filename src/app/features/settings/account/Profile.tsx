@@ -18,14 +18,12 @@ import {
   Overlay,
   OverlayBackdrop,
   OverlayCenter,
-  Modal,
-  Dialog,
-  Header,
   config,
   Spinner,
 } from 'folds';
 import FocusTrap from 'focus-trap-react';
 import { useTranslation } from 'react-i18next';
+import { Modal, Dialog, Header } from '../../../components/glass/GlassPrimitives';
 import { SequenceCard } from '../../../components/sequence-card';
 import { SequenceCardStyle } from '../styles.css';
 import { SettingTile } from '../../../components/setting-tile';

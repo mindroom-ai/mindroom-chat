@@ -335,7 +335,7 @@ describe('RoomTimeline', () => {
       let renderer: ReturnType<typeof create> | undefined;
 
       settingsState.prefetchDepth = 10000;
-      roomTimelineVirtualizerState.virtualIndexes = [295, 296, 297, 298, 299];
+      roomTimelineVirtualizerState.virtualIndexes = [195, 196, 197, 198, 199];
 
       try {
         await act(async () => {
@@ -367,8 +367,8 @@ describe('RoomTimeline', () => {
           await flushAsyncWork();
         });
 
-        expect(virtualPaginatorState.lastOptions?.range).toEqual({ start: 0, end: 300 });
-        expect(roomTimelineVirtualizerState.lastOptions?.count).toBe(300);
+        expect(virtualPaginatorState.lastOptions?.range).toEqual({ start: 100, end: 300 });
+        expect(roomTimelineVirtualizerState.lastOptions?.count).toBe(200);
         expect(getRenderedEventIds(renderer!)).toEqual([
           '$event-295',
           '$event-296',
@@ -791,9 +791,7 @@ describe('RoomTimeline', () => {
         );
         expect(ledgerOps.indexOf('scrollTop')).toBeGreaterThanOrEqual(0);
         expect(ledgerOps.indexOf('scrollTop')).toBeLessThan(ledgerOps.indexOf('setOptions'));
-        expect(getCacheProbeSnapshot().ledgerQuiescenceSettles).toBe(
-          quiescenceSettlesBefore + 1
-        );
+        expect(getCacheProbeSnapshot().ledgerQuiescenceSettles).toBe(quiescenceSettlesBefore + 1);
 
         // Consumption pin: the fold must consume the pagination anchor at
         // the commit. A further prepend WITHOUT a new Load Older (no
@@ -5065,7 +5063,7 @@ describe('RoomTimeline', () => {
     //   - 'persists root-targeted relations into the thread cache during room cache persistence'
     //   - 'persists redactions targeting thread replies into the thread cache during room cache persistence'
 
-    it('persists paginated thread-only room events into the thread cache', async () => {
+    it('leaves paginated event persistence to its captured operation', async () => {
       const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
       const { saveThreadEventsToCache } = await import('../cacheStore');
       const threadId = '$thread-root';
@@ -5105,22 +5103,20 @@ describe('RoomTimeline', () => {
           await flushAsyncWork(10);
         });
 
-        await waitForCondition(
-          () =>
-            vi
-              .mocked(saveThreadEventsToCache)
-              .mock.calls.some(
-                ([, , expectedThreadId, rawEvents]) =>
-                  expectedThreadId === threadId &&
-                  Array.isArray(rawEvents) &&
-                  rawEvents.some(
-                    (rawEvent) =>
-                      typeof rawEvent?.event_id === 'string' &&
-                      rawEvent.event_id === '$thread-reply-paginated'
-                  )
-              ),
-          50
-        );
+        expect(
+          vi
+            .mocked(saveThreadEventsToCache)
+            .mock.calls.some(
+              ([, , expectedThreadId, rawEvents]) =>
+                expectedThreadId === threadId &&
+                Array.isArray(rawEvents) &&
+                rawEvents.some(
+                  (rawEvent) =>
+                    typeof rawEvent?.event_id === 'string' &&
+                    rawEvent.event_id === '$thread-reply-paginated'
+                )
+            )
+        ).toBe(false);
       } finally {
         await act(async () => {
           renderer?.unmount();

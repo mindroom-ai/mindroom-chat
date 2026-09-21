@@ -5,7 +5,6 @@ import {
   Button,
   Icon,
   Icons,
-  Modal,
   Overlay,
   OverlayBackdrop,
   OverlayCenter,
@@ -17,6 +16,8 @@ import {
 } from 'folds';
 import { EncryptedAttachmentInfo } from 'browser-encrypt-attachment';
 import FocusTrap from 'focus-trap-react';
+import type { EventAttachmentOwner } from '../../../mindroom/messages/eventAttachments';
+import { Modal } from '../../glass/GlassPrimitives';
 import { IFileInfo } from '../../../../types/matrix/common';
 import { AsyncStatus, useAsyncCallback } from '../../../hooks/useAsyncCallback';
 import { revokeBlobUrl, useBlobUrlCleanup } from '../../../hooks/useBlobUrlCleanup';
@@ -29,12 +30,7 @@ import {
   mimeTypeToExt,
 } from '../../../utils/mimeTypes';
 import { stopPropagation } from '../../../utils/keyboard';
-import {
-  decryptFile,
-  downloadEncryptedMedia,
-  downloadMedia,
-  mxcUrlToHttp,
-} from '../../../utils/matrix';
+import { downloadCachedAttachment } from '../../../mindroom/messages/attachmentRepository';
 import { useMediaAuthentication } from '../../../hooks/useMediaAuthentication';
 import { saveFile } from '../../../mindroom/native/nativeFileSave';
 import { ModalWide } from '../../../styles/Modal.css';
@@ -76,6 +72,7 @@ type RenderTextViewerProps = {
 };
 type FileActionButtonSize = ComponentProps<typeof Button>['size'];
 type ReadTextFileProps = {
+  owner?: EventAttachmentOwner;
   body: string;
   mimeType: string;
   url: string;
@@ -86,6 +83,7 @@ type ReadTextFileProps = {
   buttonSize?: FileActionButtonSize;
 };
 export function ReadTextFile({
+  owner,
   body,
   mimeType,
   url,
@@ -103,16 +101,21 @@ export function ReadTextFile({
 
   const [textState, loadText] = useAsyncCallback(
     useCallback(async () => {
-      const mediaUrl = mxcUrlToHttp(mx, url, useAuthentication);
-      if (!mediaUrl) throw new Error('Invalid media URL');
-      const fileContent = encInfo
-        ? await downloadEncryptedMedia(mediaUrl, (encBuf) => decryptFile(encBuf, mimeType, encInfo))
-        : await downloadMedia(mediaUrl);
+      const fileContent = await downloadCachedAttachment(
+        mx,
+        {
+          owner,
+          mxcUri: url,
+          mimeType,
+          encryptedFile: encInfo ? { ...encInfo, url } : undefined,
+        },
+        useAuthentication
+      );
 
       const text = fileContent.text();
       setTextViewer(true);
       return text;
-    }, [mx, useAuthentication, mimeType, encInfo, url])
+    }, [owner, mx, useAuthentication, mimeType, encInfo, url])
   );
 
   return (
@@ -185,13 +188,21 @@ type RenderPdfViewerProps = {
   requestClose: () => void;
 };
 export type ReadPdfFileProps = {
+  owner?: EventAttachmentOwner;
   body: string;
   mimeType: string;
   url: string;
   encInfo?: EncryptedAttachmentInfo;
   renderViewer: (props: RenderPdfViewerProps) => ReactNode;
 };
-export function ReadPdfFile({ body, mimeType, url, encInfo, renderViewer }: ReadPdfFileProps) {
+export function ReadPdfFile({
+  owner,
+  body,
+  mimeType,
+  url,
+  encInfo,
+  renderViewer,
+}: ReadPdfFileProps) {
   const { t } = useTranslation();
   const mx = useMatrixClient();
   const useAuthentication = useMediaAuthentication();
@@ -199,14 +210,19 @@ export function ReadPdfFile({ body, mimeType, url, encInfo, renderViewer }: Read
 
   const [pdfState, loadPdf] = useAsyncCallback(
     useCallback(async () => {
-      const mediaUrl = mxcUrlToHttp(mx, url, useAuthentication);
-      if (!mediaUrl) throw new Error('Invalid media URL');
-      const fileContent = encInfo
-        ? await downloadEncryptedMedia(mediaUrl, (encBuf) => decryptFile(encBuf, mimeType, encInfo))
-        : await downloadMedia(mediaUrl);
+      const fileContent = await downloadCachedAttachment(
+        mx,
+        {
+          owner,
+          mxcUri: url,
+          mimeType,
+          encryptedFile: encInfo ? { ...encInfo, url } : undefined,
+        },
+        useAuthentication
+      );
       setPdfViewer(true);
       return URL.createObjectURL(fileContent);
-    }, [mx, url, useAuthentication, mimeType, encInfo]),
+    }, [owner, mx, url, useAuthentication, mimeType, encInfo]),
     revokeBlobUrl
   );
   useBlobUrlCleanup(pdfState);
@@ -271,6 +287,7 @@ export function ReadPdfFile({ body, mimeType, url, encInfo, renderViewer }: Read
 }
 
 export type DownloadFileProps = {
+  owner?: EventAttachmentOwner;
   body: string;
   mimeType: string;
   url: string;
@@ -281,6 +298,7 @@ export type DownloadFileProps = {
   buttonSize?: FileActionButtonSize;
 };
 export function DownloadFile({
+  owner,
   body,
   mimeType,
   url,
@@ -297,6 +315,7 @@ export function DownloadFile({
     url: string;
     mimeType: string;
     encInfo?: EncryptedAttachmentInfo;
+    ownerKey: string;
     blob: Blob;
   }>();
 
@@ -306,23 +325,33 @@ export function DownloadFile({
       let fileContent =
         cachedFile?.url === url &&
         cachedFile.mimeType === mimeType &&
-        cachedFile.encInfo === encInfo
+        cachedFile.encInfo === encInfo &&
+        cachedFile.ownerKey === JSON.stringify(owner)
           ? cachedFile.blob
           : undefined;
       if (!fileContent) {
-        const mediaUrl = mxcUrlToHttp(mx, url, useAuthentication);
-        if (!mediaUrl) throw new Error('Invalid media URL');
-        fileContent = encInfo
-          ? await downloadEncryptedMedia(mediaUrl, (encBuf) =>
-              decryptFile(encBuf, mimeType, encInfo)
-            )
-          : await downloadMedia(mediaUrl);
-        downloadedFileRef.current = { url, mimeType, encInfo, blob: fileContent };
+        fileContent = await downloadCachedAttachment(
+          mx,
+          {
+            owner,
+            mxcUri: url,
+            mimeType,
+            encryptedFile: encInfo ? { ...encInfo, url } : undefined,
+          },
+          useAuthentication
+        );
+        downloadedFileRef.current = {
+          url,
+          mimeType,
+          encInfo,
+          ownerKey: JSON.stringify(owner),
+          blob: fileContent,
+        };
       }
 
       await saveFile(fileContent, body);
       return fileContent;
-    }, [mx, url, useAuthentication, mimeType, encInfo, body])
+    }, [owner, mx, url, useAuthentication, mimeType, encInfo, body])
   );
   const handleDownload = () => {
     void download().catch(() => undefined);

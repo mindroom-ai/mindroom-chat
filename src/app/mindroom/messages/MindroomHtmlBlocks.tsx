@@ -123,7 +123,12 @@ function MindroomCollapsibleBlock({
 
   return (
     <Text as="div" size="T300" className={css.Block}>
-      <button type="button" className={css.BlockHeader} onClick={() => setExpanded((v) => !v)}>
+      <button
+        type="button"
+        className={css.BlockHeader}
+        aria-expanded={expanded}
+        onClick={() => setExpanded((v) => !v)}
+      >
         <Box grow="Yes" className={css.BlockHeaderMeta}>
           <Icon size="50" src={icon} />
           {pending !== undefined && <ToolStatusBadge pending={pending} />}
@@ -142,7 +147,12 @@ function MindroomCollapsibleBlock({
             </Text>
           )}
         </Box>
-        <Icon size="50" src={expanded ? Icons.ChevronTop : Icons.ChevronBottom} />
+        <Icon
+          size="50"
+          className={css.BlockChevron}
+          src={expanded ? Icons.ChevronTop : Icons.ChevronBottom}
+          aria-hidden
+        />
       </button>
       {expanded && <Box className={css.BlockBody}>{children}</Box>}
     </Text>
@@ -582,21 +592,21 @@ export const withMindroomToolTraceMarkerParserOptions = (
           return { data, trailingElement };
         };
 
-        // Render only the first marker in a consecutive run; later markers are
-        // consumed by the first marker's grouped render.
-        let previousSibling: ChildNode | null = domNode.prev;
-        while (isDomTextNode(previousSibling) && !previousSibling.data.trim()) {
-          previousSibling = previousSibling.prev;
-        }
-        const previousItem = isDomElementNode(previousSibling)
-          ? buildItem(previousSibling)
-          : undefined;
-        if (previousItem && !previousItem.trailingElement) {
-          return null;
-        }
-
         const firstItem = buildItem(domNode);
         if (firstItem) {
+          // Render only the first marker in a consecutive run; later markers are
+          // consumed by the first marker's grouped render.
+          let previousSibling: ChildNode | null = domNode.prev;
+          while (isDomTextNode(previousSibling) && !previousSibling.data.trim()) {
+            previousSibling = previousSibling.prev;
+          }
+          const previousItem = isDomElementNode(previousSibling)
+            ? buildItem(previousSibling)
+            : undefined;
+          if (previousItem && !previousItem.trailingElement) {
+            return null;
+          }
+
           const items: ToolRefItem[] = [firstItem];
           const trailingElements: Element[] = [];
           if (firstItem.trailingElement) trailingElements.push(firstItem.trailingElement);

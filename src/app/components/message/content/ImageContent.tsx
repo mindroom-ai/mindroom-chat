@@ -8,7 +8,6 @@ import {
   Chip,
   Icon,
   Icons,
-  Modal,
   Overlay,
   OverlayBackdrop,
   OverlayCenter,
@@ -22,6 +21,8 @@ import classNames from 'classnames';
 import { BlurhashCanvas } from 'react-blurhash';
 import FocusTrap from 'focus-trap-react';
 import { EncryptedAttachmentInfo } from 'browser-encrypt-attachment';
+import type { EventAttachmentOwner } from '../../../mindroom/messages/eventAttachments';
+import { Modal } from '../../glass/GlassPrimitives';
 import { IImageInfo, MATRIX_BLUR_HASH_PROPERTY_NAME } from '../../../../types/matrix/common';
 import { AsyncStatus, useAsyncCallback } from '../../../hooks/useAsyncCallback';
 import { revokeBlobUrl, useBlobUrlCleanup } from '../../../hooks/useBlobUrlCleanup';
@@ -30,7 +31,7 @@ import * as css from './style.css';
 import { bytesToSize } from '../../../utils/common';
 import { FALLBACK_MIMETYPE } from '../../../utils/mimeTypes';
 import { stopPropagation } from '../../../utils/keyboard';
-import { decryptFile, downloadEncryptedMedia, mxcUrlToHttp } from '../../../utils/matrix';
+import { downloadCachedAttachment } from '../../../mindroom/messages/attachmentRepository';
 import { useMediaAuthentication } from '../../../hooks/useMediaAuthentication';
 import { imageViewerOpenAtom } from '../../../state/imageViewer';
 import { ModalWide } from '../../../styles/Modal.css';
@@ -53,6 +54,7 @@ type RenderImageProps = {
   tabIndex: number;
 };
 export type ImageContentProps = {
+  owner?: EventAttachmentOwner;
   body: string;
   mimeType?: string;
   url: string;
@@ -67,6 +69,7 @@ export type ImageContentProps = {
 export const ImageContent = as<'div', ImageContentProps>(
   (
     {
+      owner,
       className,
       body,
       mimeType,
@@ -95,16 +98,18 @@ export const ImageContent = as<'div', ImageContentProps>(
 
     const [srcState, loadSrc] = useAsyncCallback(
       useCallback(async () => {
-        const mediaUrl = mxcUrlToHttp(mx, url, useAuthentication);
-        if (!mediaUrl) throw new Error('Invalid media URL');
-        if (encInfo) {
-          const fileContent = await downloadEncryptedMedia(mediaUrl, (encBuf) =>
-            decryptFile(encBuf, mimeType ?? FALLBACK_MIMETYPE, encInfo)
-          );
-          return URL.createObjectURL(fileContent);
-        }
-        return mediaUrl;
-      }, [mx, url, useAuthentication, mimeType, encInfo]),
+        const fileContent = await downloadCachedAttachment(
+          mx,
+          {
+            owner,
+            mxcUri: url,
+            mimeType: mimeType ?? FALLBACK_MIMETYPE,
+            encryptedFile: encInfo ? { ...encInfo, url } : undefined,
+          },
+          useAuthentication
+        );
+        return URL.createObjectURL(fileContent);
+      }, [owner, mx, url, useAuthentication, mimeType, encInfo]),
       revokeBlobUrl
     );
     useBlobUrlCleanup(srcState);

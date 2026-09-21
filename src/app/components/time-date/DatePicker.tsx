@@ -1,7 +1,8 @@
 import { useTranslation } from 'react-i18next';
 import React, { forwardRef } from 'react';
-import { Menu, Box, Text, Chip } from 'folds';
+import { Box, Text, Chip } from 'folds';
 import dayjs from 'dayjs';
+import { Menu } from '../glass/GlassPrimitives';
 import * as css from './styles.css';
 import { PickerColumn } from './PickerColumn';
 import { dateFor, daysInMonth, daysToMs } from '../../utils/time';

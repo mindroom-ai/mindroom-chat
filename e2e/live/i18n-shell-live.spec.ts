@@ -34,7 +34,7 @@ test.describe('live shell i18n', () => {
     const dePaletteButton = page.getByRole('button', { name: 'Befehlspalette öffnen' }).first();
     await expect(dePaletteButton).toBeVisible();
     await dePaletteButton.click();
-    await expect(page.getByPlaceholder('Befehl eingeben oder suchen...')).toBeVisible();
+    await expect(page.getByRole('combobox', { name: 'Befehlspalette', exact: true })).toBeVisible();
     await expect(page.getByText('Aktionen').first()).toBeVisible();
     await expect(page.getByText('Einstellungen öffnen').first()).toBeVisible();
     // Settle time so fonts/paint finish before the documentation screenshot.
@@ -50,7 +50,7 @@ test.describe('live shell i18n', () => {
     const nlPaletteButton = page.getByRole('button', { name: 'Commandopalet openen' }).first();
     await expect(nlPaletteButton).toBeVisible();
     await nlPaletteButton.click();
-    await expect(page.getByPlaceholder('Typ een commando of zoek...')).toBeVisible();
+    await expect(page.getByRole('combobox', { name: 'Commandopalet', exact: true })).toBeVisible();
     await page.waitForTimeout(500);
     await page.screenshot({ path: 'ui-audit/i18n-shell-nl-palette.png' });
   });

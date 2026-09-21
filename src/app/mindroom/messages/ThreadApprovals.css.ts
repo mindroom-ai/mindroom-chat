@@ -1,18 +1,23 @@
 import { style, globalStyle, keyframes } from '@vanilla-extract/css';
 import { color, config } from 'folds';
+import { glassFloating, glassSurface } from '../../styles/Glass.css';
+import * as disclosure from './MessageDisclosure.css';
 
-export const Bar = style({
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  gap: 8,
-  padding: '8px 12px',
-  margin: `0 ${config.space.S400} ${config.space.S200}`,
-  borderRadius: config.radii.R400,
-  background: color.SurfaceVariant.Container,
-  boxShadow: `inset 0 0 0 ${config.borderWidth.B300} ${color.SurfaceVariant.ContainerLine}`,
-  flexShrink: 0,
-});
+export const Bar = style([
+  glassSurface({ level: 'panel', variant: 'SurfaceVariant' }),
+  glassFloating,
+  {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+    padding: '8px 12px',
+    margin: `0 ${config.space.S400} ${config.space.S200}`,
+    borderRadius: config.radii.R400,
+    color: color.SurfaceVariant.OnContainer,
+    flexShrink: 0,
+  },
+]);
 export const BarStatus = style({
   display: 'flex',
   alignItems: 'center',
@@ -54,47 +59,20 @@ export const Chip = style({
   fontSize: 12,
   whiteSpace: 'nowrap',
 });
-export const Receipt = style({
-  width: 'fit-content',
-  maxWidth: 'min(100%, 42rem)',
-  minWidth: 0,
-  fontSize: 12,
-  lineHeight: 1.5,
-  color: color.SurfaceVariant.OnContainer,
-  background: color.SurfaceVariant.Container,
-  border: `1px solid ${color.Surface.ContainerLine}`,
-  borderRadius: 6,
-  selectors: { '&[open]': { width: '100%' } },
-});
-globalStyle(`${Receipt} > summary`, {
-  display: 'flex',
-  alignItems: 'center',
-  gap: 6,
-  cursor: 'pointer',
-  padding: '4px 8px',
-  fontWeight: 500,
-  listStyle: 'none',
-});
-globalStyle(`${Receipt} > summary::-webkit-details-marker`, { display: 'none' });
-globalStyle(`${Receipt} > summary::before`, { content: '"›"' });
-globalStyle(`${Receipt}[open] > summary::before`, { content: '"⌄"' });
-globalStyle(`${Receipt} > summary > span:first-of-type`, {
-  flex: 1,
-  minWidth: 0,
-  overflowWrap: 'anywhere',
-});
-globalStyle(`${Receipt} > summary > span:last-of-type`, {
-  whiteSpace: 'nowrap',
-  fontWeight: 400,
-  opacity: 0.7,
-});
-export const ReceiptTool = style({ fontFamily: 'var(--font-mono)' });
-export const ReceiptBody = style({
-  padding: '6px 8px 8px',
-  borderTop: `1px solid ${color.Surface.ContainerLine}`,
-  fontSize: 13,
-  overflowWrap: 'anywhere',
-});
+export const Receipt = style([
+  disclosure.Surface,
+  { selectors: { '&:not(:first-child)': { marginBlockStart: config.space.S100 } } },
+]);
+export const ReceiptTool = style([
+  disclosure.Label,
+  {
+    fontFamily: 'var(--font-mono)',
+    selectors: {
+      'details[open] > summary &': { whiteSpace: 'normal', overflowWrap: 'anywhere' },
+    },
+  },
+]);
+export const ReceiptBody = style([disclosure.Body, { fontSize: 13, overflowWrap: 'anywhere' }]);
 globalStyle(`${ReceiptBody} p`, { margin: '0 0 6px' });
 export const Stack = style({ display: 'flex', flexDirection: 'column', gap: 8, minWidth: 0 });
 export const HistoryBody = style([
@@ -105,13 +83,19 @@ export const HistoryBody = style([
     borderTop: `1px solid ${color.Surface.ContainerLine}`,
   },
 ]);
-globalStyle(`${HistoryBody} > ${Receipt}`, {
+// The enclosing history owns the glass; its rows remain flat and unfiltered.
+globalStyle(`${HistoryBody} > ${Receipt}${Receipt}`, {
   width: '100%',
   maxWidth: '100%',
+  marginBlockStart: 0,
   background: 'transparent',
   border: 0,
   borderRadius: 0,
+  boxShadow: 'none',
+  backdropFilter: 'none',
+  WebkitBackdropFilter: 'none',
 });
+globalStyle(`${HistoryBody} > ${Receipt}::before`, { display: 'none' });
 globalStyle(`${HistoryBody} > ${Receipt}:not(:last-child)`, {
   borderBottom: `1px solid ${color.Surface.ContainerLine}`,
 });
@@ -123,17 +107,20 @@ export const DialogBody = style({
   flexDirection: 'column',
   gap: 16,
 });
-export const Group = style({
-  flexShrink: 0,
-  border: `1px solid ${color.Surface.ContainerLine}`,
-  borderRadius: 10,
-  padding: 12,
-  display: 'flex',
-  flexDirection: 'column',
-  gap: 10,
-  minWidth: 0,
-  overflowWrap: 'anywhere',
-});
+export const Group = style([
+  glassSurface({ level: 'panel', variant: 'SurfaceVariant' }),
+  {
+    flexShrink: 0,
+    borderRadius: config.radii.R400,
+    padding: 12,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 10,
+    minWidth: 0,
+    overflowWrap: 'anywhere',
+    color: color.SurfaceVariant.OnContainer,
+  },
+]);
 export const Actions = style({ display: 'flex', flexWrap: 'wrap', gap: 8 });
 
 export const Call = style({
@@ -143,3 +130,10 @@ export const Call = style({
   padding: '8px 0',
   borderBottom: `1px solid ${color.Surface.ContainerLine}`,
 });
+
+export {
+  Header as ReceiptHeader,
+  Label as ReceiptLabel,
+  Meta as ReceiptMeta,
+  Chevron as ReceiptChevron,
+} from './MessageDisclosure.css';

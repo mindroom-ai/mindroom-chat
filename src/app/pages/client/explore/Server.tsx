@@ -18,8 +18,6 @@ import {
   Icons,
   Input,
   Line,
-  Menu,
-  MenuItem,
   PopOut,
   RectCords,
   Scroll,
@@ -33,6 +31,7 @@ import FocusTrap from 'focus-trap-react';
 import { useAtomValue } from 'jotai';
 import { useQuery } from '@tanstack/react-query';
 import { JoinRule, MatrixClient, Method, RoomType } from 'matrix-js-sdk';
+import { Menu, MenuItem } from '../../../components/glass/GlassPrimitives';
 import { Page, PageContent, PageContentCenter, PageHeader } from '../../../components/page';
 import { useMatrixClient } from '../../../hooks/useMatrixClient';
 import { RoomTopicViewer } from '../../../components/room-topic-viewer';

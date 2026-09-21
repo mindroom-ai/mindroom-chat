@@ -22,6 +22,7 @@ import {
 } from '../../../mindroom/threads/roomViewMode';
 import { useRoomViewMode } from '../../../mindroom/threads/useRoomViewMode';
 import { useSimpleMode } from '../../../mindroom/settings/useMindroomAccountSettings';
+import { OfflineRoomSettings } from './OfflineRoomSettings';
 
 const ROOM_VIEW_MODE_LABELS = {
   compact: 'featureUi.roomSettings.general.compact',
@@ -94,6 +95,7 @@ export function General({ requestClose }: GeneralProps) {
                 <Text size="L400">{t('featureUi.roomSettings.general.options')}</Text>
                 <RoomJoinRules permissions={permissions} />
                 <RoomTimelineMode />
+                <OfflineRoomSettings roomId={room.roomId} />
                 <RoomHistoryVisibility permissions={permissions} />
                 <RoomEncryption permissions={permissions} />
                 <RoomPublish permissions={permissions} />

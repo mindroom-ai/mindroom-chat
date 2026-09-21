@@ -885,7 +885,7 @@
       "login": "Login",
       "thisClientRequiresSignInWithAppleConfigureTheHomeserverSsoProvider": "Klien ini memerlukan Masuk dengan Apple. Konfigurasikan daftar penyedia SSO homeserver agar mencakup Apple.",
       "register": "Daftar",
-      "accountLink": "Belum punya akun? <link>Daftar</link>",
+      "accountLink": "Belum punya akun? <authLink>Daftar</authLink>",
       "passwordLoginIsDisabledOnValue1UseSsoToSignIn": "Login dengan kata sandi dinonaktifkan di \"{{value1}}\". Gunakan SSO untuk masuk.",
       "thisClientDoesNotSupportLoginOnValue1ServerPasswordAndSso": "Klien ini tidak mendukung login di server \"{{value1}}\". Metode login dengan kata sandi maupun SSO tidak ditemukan."
     },
@@ -948,7 +948,7 @@
       "thisApplicationDoesNotSupportRegistrationOnThisHomeserver": "Aplikasi ini tidak mendukung pendaftaran di homeserver ini.",
       "ssoRegistrationIsRequiredOnThisHomeserverButNoSsoProvidersWere": "Pendaftaran melalui SSO diwajibkan di homeserver ini, tetapi tidak ada penyedia SSO yang diumumkan.",
       "login": "Login",
-      "accountLink": "Sudah punya akun? <link>Login</link>"
+      "accountLink": "Sudah punya akun? <authLink>Login</authLink>"
     },
     "passwordResetForm": {
       "passwordHasBeenResetSuccessfullyPleaseLoginWithYourNewPassword": "Kata sandi berhasil direset. Login dengan kata sandi baru Anda.",
@@ -963,7 +963,7 @@
     "resetPassword": {
       "resetPassword": "Reset kata sandi",
       "login": "Login",
-      "accountLink": "Ingat kata sandi Anda? <link>Login</link>"
+      "accountLink": "Ingat kata sandi Anda? <authLink>Login</authLink>"
     },
     "clientRoot": {
       "catchingUp": "Memperbarui...",
@@ -1716,7 +1716,40 @@
         "advancedOptions": "Opsi lanjutan",
         "compact": "Ringkas",
         "threads": "Utas",
-        "classic": "Klasik"
+        "classic": "Klasik",
+        "offline": {
+          "title": "Akses offline",
+          "checking": "Memeriksa konten tersimpan…",
+          "unavailable": "Konten tersimpan tidak tersedia di perangkat ini.",
+          "notSaved": "Ruang ini belum disimpan untuk penggunaan offline.",
+          "downloading": "Mengunduh ruang ini untuk penggunaan offline…",
+          "offlinePause": "Penyimpanan dijeda saat perangkat offline.",
+          "backgroundPause": "Penyimpanan dijeda saat aplikasi berjalan di latar belakang.",
+          "spacePause": "Penyimpanan dijeda karena konten yang dilindungi memenuhi batas penyimpanan.",
+          "readOnlyPause": "Penyimpanan gagal. Buka kembali aplikasi untuk melanjutkan penyimpanan.",
+          "connectionPause": "Penyimpanan otomatis dijeda pada koneksi ini.",
+          "errorPause": "Penyimpanan dijeda setelah terjadi kesalahan. Coba lagi.",
+          "partialHistory": "Sebagian riwayat lama belum disimpan.",
+          "inaccessibleHistory": "Sebagian riwayat saat ini tidak dapat diakses.",
+          "waitingForKeys": "Peristiwa terenkripsi yang menunggu kunci: {{count}}",
+          "unresolvedRelations": "Edit atau balasan yang belum terselesaikan: {{count}}",
+          "missingEssential": "Isi pesan penting yang tidak ada: {{count}}",
+          "historyEntries": "Entri riwayat tersimpan: {{count}}",
+          "attachments": "Lampiran: {{saved}} tersimpan, {{missing}} belum tersimpan.",
+          "storageUsed": "Penyimpanan yang digunakan lampiran: {{size}}",
+          "pinFailed": "Pengaturan “Tetap offline” tidak dapat diperbarui.",
+          "includeAllMedia": "Sertakan semua media",
+          "keepOffline": "Tetap offline",
+          "keepOfflineDescription": "Lindungi media tersimpan untuk ruang ini selama pembersihan otomatis.",
+          "cancelDownload": "Batalkan unduhan",
+          "downloadEntireRoom": "Unduh seluruh ruang",
+          "clearDownloadedContent": "Hapus konten yang diunduh",
+          "clearTitle": "Hapus konten yang diunduh?",
+          "cancel": "Batal",
+          "clearDescription": "Riwayat dan lampiran tersimpan untuk ruang ini akan dihapus dari perangkat ini.",
+          "clearFailed": "Konten yang diunduh tidak dapat dihapus.",
+          "clearConfirm": "Hapus konten"
+        }
       },
       "permissions": {
         "permissions": "Izin",
@@ -2070,6 +2103,7 @@
         "clearing": "Membersihkan...",
         "credits": "Kredit",
         "deepDiagnosticTracing": "Pelacakan diagnostik mendalam",
+        "deepTraceMemoryOnly": "Merekam di memori karena penyimpanan jejak tidak tersedia. Ekspor sebelum memulai ulang aplikasi; peristiwa terbaru ini akan hilang saat aplikasi dimulai ulang.",
         "deepTraceEnabledStorageUnavailable": "Aktif, tetapi penyimpanan jejak saat ini tidak tersedia.",
         "deepTraceOff": "Nonaktif. Aktifkan sebelum mengulangi masalah macet untuk merekam waktu kinerja, Matrix, jaringan, siklus hidup, dan interaksi.",
         "deepTracePreferenceSaveFailed": "{{description}} Nonaktif untuk sesi ini, tetapi preferensi tidak dapat disimpan dan mungkin aktif kembali setelah dimulai ulang.",
@@ -2144,6 +2178,31 @@
     }
   },
   "mindroomUi": {
+    "models": {
+      "modelPicker": {
+        "chooseModel": "Choose model",
+        "roomDefault": "Room default",
+        "modelForThread": "Model for this thread",
+        "appliesToThread": "Applies to all agents and teams for future replies in this thread.",
+        "search": "Search models",
+        "close": "Close model picker",
+        "useRoomDefault": "Use room default",
+        "roomDefaultDescription": "Let each agent use its configured model.",
+        "models": "Models",
+        "runtime": "Runtime",
+        "chooseRuntime": "Choose a runtime",
+        "runtimeLabel": "{{userId}} on {{deviceId}}",
+        "refresh": "Refresh models",
+        "retry": "Retry",
+        "loading": "Loading models",
+        "pending": "Waiting for model change",
+        "noResults": "No matching models",
+        "commandFallback": "You can still send !model with a model key in this thread.",
+        "inheritedModels": "Room defaults by agent: {{models}}",
+        "futureReplies": "Changes apply to future replies.",
+        "threadModel": "Thread model"
+      }
+    },
     "voice": {
       "discardRecording": "Buang rekaman suara",
       "pauseRecording": "Jeda rekaman suara",
@@ -2603,7 +2662,8 @@
       "mindroomTab": {
         "localMindroom": "MindRoom lokal"
       },
-      "resizeNavigationPanel": "Ubah ukuran panel navigasi"
+      "resizeNavigationPanel": "Ubah ukuran panel navigasi",
+      "resizeMemberPanel": "Ubah ukuran panel anggota"
     },
     "threads": {
       "compactRoomView": {
@@ -2637,6 +2697,8 @@
         "youDoNotHavePermissionToPostInThisRoom": "Anda tidak memiliki izin untuk mengirim pesan di ruang ini"
       },
       "mindroomRoomViewHeader": {
+        "showComputer": "Tampilkan komputer",
+        "hideComputer": "Sembunyikan komputer",
         "notifications": "Notifikasi",
         "compact": "Ringkas",
         "threads": "Utas",
@@ -2772,6 +2834,54 @@
         "threadInRoom": "Utas di {{roomName}}",
         "thread": "Utas"
       }
+    },
+    "uiActions": {
+      "viewComputer": "Lihat komputer",
+      "openMembers": "Buka anggota",
+      "computerUnavailable": "Komputer agen ini tidak tersedia.",
+      "releaseControl": "Lepaskan kendali komputer sebelum membuka tampilan lain.",
+      "openConversation": "Buka permintaan ini dari percakapan ruangan.",
+      "settingsUnavailable": "Nonaktifkan Mode Sederhana untuk membuka bagian Pengaturan ini."
     }
+  },
+  "roomSchedules": {
+    "title": "Tugas terjadwal",
+    "openLabel": "Tugas terjadwal ({{total}})",
+    "empty": "Tidak ada tugas terjadwal di ruang ini.",
+    "emptyHint": "Minta agen MindRoom untuk menjadwalkan tugas di sini.",
+    "prompt": "Prompt",
+    "promptUnavailable": "Prompt tidak tersedia",
+    "once": "Sekali",
+    "recurring": "Berulang",
+    "executionTime": "Waktu eksekusi",
+    "unknownTime": "Waktu eksekusi tidak tersedia",
+    "awaitingExecution": "Menunggu eksekusi",
+    "recurrence": "Perulangan",
+    "silent": "Senyap",
+    "conditional": "Bersyarat",
+    "newThread": "Utas baru",
+    "roomTimeline": "Linimasa ruang",
+    "openThread": "Buka utas",
+    "owner": "Pemilik tugas",
+    "createdAt": "Dibuat",
+    "updatedAt": "Diperbarui",
+    "model": "Model",
+    "inheritedModel": "Dari pengaturan agen, ruang, atau utas",
+    "taskId": "ID tugas",
+    "historyLimit": "Batas riwayat",
+    "fullHistory": "Riwayat lengkap",
+    "noHistory": "Tanpa riwayat",
+    "recentMessages": "Pesan terbaru: {{total}}",
+    "close": "Tutup"
+  },
+  "archivedRooms": {
+    "title": "Ruang yang diarsipkan",
+    "archive": "Arsipkan ruang",
+    "restore": "Pulihkan ruang",
+    "restoreNamed": "Pulihkan {{room}}",
+    "failed": "Tidak dapat menyimpan perubahan. Coba lagi.",
+    "close": "Tutup ruang yang diarsipkan",
+    "description": "Sembunyikan ruang dari bilah samping tanpa meninggalkannya. Buka atau pulihkan di sini.",
+    "empty": "Tidak ada ruang yang diarsipkan."
   }
 }

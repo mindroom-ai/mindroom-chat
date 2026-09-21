@@ -11,13 +11,11 @@ import {
   AvatarFallback,
   config,
   Spinner,
-  Menu,
   RectCords,
   PopOut,
   Checkbox,
   toRem,
   Scroll,
-  Header,
   Line,
   Chip,
 } from 'folds';
@@ -25,6 +23,7 @@ import FocusTrap from 'focus-trap-react';
 import { useAtomValue } from 'jotai';
 import { Room } from 'matrix-js-sdk';
 import { useTranslation } from 'react-i18next';
+import { Menu, Header } from '../../../components/glass/GlassPrimitives';
 import { useGlobalImagePacks, useRoomsImagePacks } from '../../../hooks/useImagePacks';
 import { SequenceCardStyle } from '../styles.css';
 import { SequenceCard } from '../../../components/sequence-card';

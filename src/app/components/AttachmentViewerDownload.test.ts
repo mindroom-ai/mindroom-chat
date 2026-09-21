@@ -94,7 +94,7 @@ vi.mock('../hooks/usePan', () => ({
   usePan: () => ({
     pan: { translateX: 0, translateY: 0 },
     cursor: 'default',
-    onMouseDown: vi.fn(),
+    isPanning: false,
   }),
 }));
 
@@ -102,6 +102,10 @@ vi.mock('../plugins/pdfjs-dist', () => ({
   createPage: vi.fn(),
   usePdfDocumentLoader: () => [{ status: 'idle' }, vi.fn()],
   usePdfJSLoader: () => [{ status: 'idle' }, vi.fn()],
+}));
+
+vi.mock('../mindroom/messages/attachmentRepository', () => ({
+  downloadCachedAttachment: downloadMediaMock,
 }));
 
 vi.mock('../utils/matrix', () => ({

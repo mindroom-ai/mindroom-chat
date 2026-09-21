@@ -1,19 +1,22 @@
 import { globalStyle, style } from '@vanilla-extract/css';
 import { recipe } from '@vanilla-extract/recipes';
 import { DefaultReset, color, config } from 'folds';
+import { footerInset, topInset, Scroll } from './RoomOverlay.css';
 import { transition } from '../../styles/transition';
 
-export const View = style({
-  display: 'flex',
-  flexDirection: 'column',
-  flex: '1 1 auto',
-  gap: config.space.S100,
-  minWidth: 0,
-  padding: `0 ${config.space.S300} ${config.space.S300}`,
-  overflowY: 'auto',
-  overflowX: 'hidden',
-  width: '100%',
-});
+export const View = style([
+  Scroll,
+  {
+    display: 'flex',
+    flexDirection: 'column',
+    flex: '1 1 auto',
+    minWidth: 0,
+    padding: `${topInset} ${config.space.S300} calc(${footerInset} + ${config.space.S300})`,
+    overflowY: 'auto',
+    overflowX: 'hidden',
+    width: '100%',
+  },
+]);
 
 export const EmptyState = style({
   display: 'flex',

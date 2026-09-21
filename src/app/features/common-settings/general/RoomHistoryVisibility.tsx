@@ -1,21 +1,10 @@
 import React, { MouseEventHandler, useCallback, useMemo, useState } from 'react';
-import {
-  Button,
-  color,
-  config,
-  Icon,
-  Icons,
-  Menu,
-  MenuItem,
-  PopOut,
-  RectCords,
-  Spinner,
-  Text,
-} from 'folds';
+import { Button, color, config, Icon, Icons, PopOut, RectCords, Spinner, Text } from 'folds';
 import { HistoryVisibility, MatrixError } from 'matrix-js-sdk';
 import { RoomHistoryVisibilityEventContent } from 'matrix-js-sdk/lib/types';
 import FocusTrap from 'focus-trap-react';
 import { useTranslation } from 'react-i18next';
+import { Menu, MenuItem } from '../../../components/glass/GlassPrimitives';
 import { SequenceCard } from '../../../components/sequence-card';
 import { SequenceCardStyle } from '../../room-settings/styles.css';
 import { SettingTile } from '../../../components/setting-tile';
