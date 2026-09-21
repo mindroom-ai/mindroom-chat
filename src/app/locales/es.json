@@ -280,6 +280,7 @@
     "voiceBundleBlocked": "Todavía se está enviando otro archivo adjunto o requiere atención. Espera o reintenta o elimina los archivos adjuntos fallidos antes de volver a enviar este mensaje."
   },
   "thread": {
+    "pinFailed": "No se pudo actualizar el mensaje fijado. Inténtalo de nuevo.",
     "chip": "Hilo",
     "view": "Vista del hilo",
     "resolve": "Resolver",

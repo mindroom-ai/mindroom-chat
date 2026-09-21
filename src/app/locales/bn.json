@@ -2750,6 +2750,7 @@
     }
   },
   "thread": {
+    "pinFailed": "পিন আপডেট করা যায়নি। আবার চেষ্টা করুন।",
     "aria": {
       "agentStreaming": "এজেন্ট স্ট্রিমিং",
       "lastActivity": "শেষ কার্যকলাপ {{time}}",

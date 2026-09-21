@@ -41,6 +41,8 @@ import {
   mergeCompactThreadRootData,
 } from './compactThreadRootData';
 import { useStateEvents } from './useStateEvents';
+import { usePinnedEventIds } from './useThreadPinning';
+import { usePinnedThreadEvents } from './usePinnedThreadEvents';
 import { useRoomThreadList } from './useRoomThreadList';
 import { MINDROOM_SCHEDULED_TASK_EVENT } from './scheduledTaskContract';
 import {
@@ -111,6 +113,7 @@ export type UseMindroomThreadIndexResult = MindroomThreadIndexSnapshot & {
 };
 
 export type ResolveMindroomThreadIndexSnapshotOptions = {
+  pinnedThreadRootIds?: string[];
   threadId: string | undefined;
   compactViewRequested: boolean;
   visibleThreadRootIds: string[];
@@ -174,6 +177,7 @@ export const resolveFocusedRoomOverviewRootId = ({
 };
 
 export const resolveMindroomThreadIndexSnapshot = ({
+  pinnedThreadRootIds,
   threadId,
   compactViewRequested,
   visibleThreadRootIds,
@@ -217,6 +221,7 @@ export const resolveMindroomThreadIndexSnapshot = ({
       ? normalOverviewOrdering
       : resolveThreadRecordOverviewRootIds({
           threadRootIds: compactThreadRootIds,
+          pinnedThreadRootIds,
           threadFilterState,
           searchQuery,
           recordMap: compactThreadRecordMap,
@@ -405,6 +410,19 @@ export const useMindroomThreadIndex = ({
     fullyLoaded: roomThreadListFullyLoaded,
     retry: refreshRoomThreadList,
   } = useRoomThreadList(room, compactViewRequested);
+  const pinnedEventIds = usePinnedEventIds(room);
+  const pinnedThreadEvents = usePinnedThreadEvents(
+    room,
+    compactViewRequested && !threadId,
+    overviewRefreshCounter
+  );
+  const compactRoomSurfaceEntries = useMemo(() => {
+    const entries = pinnedThreadEvents.map((event, index) => ({
+      event: room.findEventById(event.getId()!) ?? event,
+      absoluteIndex: -(index + 1),
+    }));
+    return [...entries, ...roomSurfaceEventEntries];
+  }, [pinnedThreadEvents, room, roomSurfaceEventEntries]);
   const { compactThreadRootData, hasZeroReplyRootCoverage } = useMemo(() => {
     if (threadId || !compactViewRequested) {
       return {
@@ -433,7 +451,7 @@ export const useMindroomThreadIndex = ({
     });
     const compactZeroReplyRootData = buildCompactZeroReplyRootData({
       room,
-      roomSurfaceEntries: roomSurfaceEventEntries,
+      roomSurfaceEntries: compactRoomSurfaceEntries,
       knownThreadRootIds: knownRealThreadRootIds,
     });
 
@@ -453,7 +471,7 @@ export const useMindroomThreadIndex = ({
     threadId,
     compactViewRequested,
     room,
-    roomSurfaceEventEntries,
+    compactRoomSurfaceEntries,
     visibleThreadRootData,
     roomThreadListThreads,
     roomThreadListLoading,
@@ -502,8 +520,8 @@ export const useMindroomThreadIndex = ({
     [roomSurfaceEventEntries, visibleThreadRootData.indexMap]
   );
   const compactThreadRootEventMap = useMemo(
-    () => buildThreadRootEventMap(roomSurfaceEventEntries, compactThreadRootData.indexMap),
-    [roomSurfaceEventEntries, compactThreadRootData.indexMap]
+    () => buildThreadRootEventMap(compactRoomSurfaceEntries, compactThreadRootData.indexMap),
+    [compactRoomSurfaceEntries, compactThreadRootData.indexMap]
   );
   const { normalThreadRecordMap, compactThreadRecordMap } = useMemo(() => {
     // External hydration can refresh mutable SDK/cache-backed sources without changing map identity.
@@ -571,6 +589,7 @@ export const useMindroomThreadIndex = ({
   const snapshot = useMemo(
     () =>
       resolveMindroomThreadIndexSnapshot({
+        pinnedThreadRootIds: [...pinnedEventIds].reverse(),
         threadId,
         compactViewRequested,
         visibleThreadRootIds: visibleThreadRootData.ids,
@@ -587,6 +606,7 @@ export const useMindroomThreadIndex = ({
         focusedRoomOverviewRootId,
       }),
     [
+      pinnedEventIds,
       threadId,
       compactViewRequested,
       visibleThreadRootData.ids,

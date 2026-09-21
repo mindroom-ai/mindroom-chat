@@ -2750,6 +2750,7 @@
     }
   },
   "thread": {
+    "pinFailed": "पिन अपडेट नहीं हो सका। फिर से कोशिश करें।",
     "aria": {
       "agentStreaming": "एजेंट स्ट्रीमिंग",
       "lastActivity": "अंतिम गतिविधि {{time}}",

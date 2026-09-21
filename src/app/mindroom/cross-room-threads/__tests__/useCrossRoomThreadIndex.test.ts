@@ -6,7 +6,7 @@ import { Provider, createStore } from 'jotai';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { RelationType } from 'matrix-js-sdk/lib/@types/event';
 import { MatrixEventEvent, type MatrixEvent } from 'matrix-js-sdk/lib/models/event';
-import { RoomEvent, RoomStateEvent } from 'matrix-js-sdk';
+import { RoomEvent, RoomStateEvent, MatrixEvent as StateMatrixEvent } from 'matrix-js-sdk';
 import { ThreadEvent, type Thread } from 'matrix-js-sdk/lib/models/thread';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
 import { allRoomsAtom } from '../../../state/room-list/roomList';
@@ -17,9 +17,15 @@ import {
   storeThreadSummaryInState,
 } from '../../threads/threadSummaryState';
 import { MINDROOM_THREAD_TAGS_EVENT } from '../../threads/threadTags';
+import { setRoomEventPinned } from '../../threads/threadPinning';
+import { buildSidebarThreadEntries } from '../../recent-threads/threadNavCategoryUtils';
 import { useCrossRoomThreadIndex } from '../useCrossRoomThreadIndex';
 import { crossRoomThreadIndexAtom, getCrossRoomThreadIndexKey } from '../crossRoomThreadIndex';
-import { isCrossRoomThreadEntryEligible } from '../crossRoomThreadFilterPipeline';
+import {
+  applyCrossRoomThreadFilters,
+  isCrossRoomThreadEntryEligible,
+} from '../crossRoomThreadFilterPipeline';
+import { DEFAULT_CROSS_ROOM_THREAD_FILTERS } from '../crossRoomThreadFilters';
 
 const { matrixClientMock, activeSessionMock } = vi.hoisted(() => ({
   matrixClientMock: vi.fn(),
@@ -328,6 +334,98 @@ describe('useCrossRoomThreadIndex', () => {
     localStorage.clear();
     clearThreadSummarySharedState();
   });
+
+  it.each(['sync', 'local'])(
+    'suspends global resolution for %s pins and restores it on unpin',
+    async (source) => {
+      const { room } = makeRoom();
+      const mx = {
+        ...makeClient(room),
+        getSafeUserId: () => '@me:example.org',
+        getStateEvent: vi.fn(async () => ({ pinned: [] as string[] })),
+        sendStateEvent: vi.fn(async () => ({ event_id: '$saved' })),
+      };
+      const tags = new StateMatrixEvent({
+        type: MINDROOM_THREAD_TAGS_EVENT,
+        state_key: '["$root","resolved"]',
+        content: { set_by: '@me:example.org', set_at: '2026-09-21T00:00:00Z' },
+      });
+      let pins = new StateMatrixEvent({
+        type: 'm.room.pinned_events',
+        state_key: '',
+        event_id: '$initial',
+        content: { pinned: [] },
+      });
+      const state = {
+        roomId: room.roomId,
+        getStateEvents: (type: string) => {
+          if (type === MINDROOM_THREAD_TAGS_EVENT) return [tags];
+          if (type === 'm.room.pinned_events') return pins;
+          if (type === 'm.room.power_levels')
+            return new StateMatrixEvent({ content: { users: { '@me:example.org': 100 } } });
+          return undefined;
+        },
+      };
+      vi.mocked(room.getLiveTimeline).mockReturnValue({ getState: () => state } as never);
+      matrixClientMock.mockReturnValue(mx);
+      const store = createStore();
+      store.set(allRoomsAtom, { type: 'INITIALIZE', rooms: [room.roomId] });
+      let renderer!: ReturnType<typeof create>;
+      await act(async () => {
+        renderer = create(React.createElement(Provider, { store }, React.createElement(HookProbe)));
+      });
+      const entries = () => Array.from(store.get(crossRoomThreadIndexAtom).entries.values());
+      const syncPins = async (ids: string[]) => {
+        await act(async () => {
+          pins = new StateMatrixEvent({
+            type: 'm.room.pinned_events',
+            state_key: '',
+            content: { pinned: ids },
+          });
+          room.emit(RoomStateEvent.Events, pins, state);
+          mx.emit(RoomStateEvent.Events, pins, state);
+        });
+        await flushScheduledWork();
+      };
+      try {
+        await flushScheduledWork();
+        expect(entries()[0].isResolved).toBe(true);
+        expect(buildSidebarThreadEntries(entries(), [])).toHaveLength(0);
+        if (source === 'sync') await syncPins(['$root']);
+        else {
+          await act(async () => {
+            await setRoomEventPinned(mx as never, room, '$root', true);
+          });
+          await flushScheduledWork();
+        }
+        expect(entries()[0].isResolved).toBe(false);
+        expect(entries()[0].threadRecord.status.isResolved).toBe(false);
+        expect(
+          applyCrossRoomThreadFilters(entries(), {
+            ...DEFAULT_CROSS_ROOM_THREAD_FILTERS,
+            scope: 'all',
+            resolved: 'unresolved',
+            activityWindow: 'all',
+          })
+        ).toHaveLength(1);
+        expect(buildSidebarThreadEntries(entries(), [])).toHaveLength(1);
+        await syncPins(['$root']);
+        await syncPins([]);
+        expect(entries()[0].isResolved).toBe(true);
+        expect(
+          applyCrossRoomThreadFilters(entries(), {
+            ...DEFAULT_CROSS_ROOM_THREAD_FILTERS,
+            scope: 'all',
+            resolved: 'unresolved',
+            activityWindow: 'all',
+          })
+        ).toHaveLength(0);
+        expect(buildSidebarThreadEntries(entries(), [])).toHaveLength(0);
+      } finally {
+        act(() => renderer.unmount());
+      }
+    }
+  );
 
   it('bootstraps loaded joined room threads lazily and registers listeners while mounted', async () => {
     const { room } = makeRoom();

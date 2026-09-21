@@ -257,7 +257,8 @@ vi.mock('../../../components/virtualizer', () => ({
   >(({ children, ...props }, ref) => React.createElement('div', { ...props, ref }, children)),
 }));
 
-vi.mock('../../../hooks/usePowerLevels', () => ({
+vi.mock('../../../hooks/usePowerLevels', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../../hooks/usePowerLevels')>()),
   usePowerLevelsContext: () => ({}),
 }));
 
@@ -299,7 +300,7 @@ vi.mock('../../../hooks/useRoom', () => ({
 }));
 
 vi.mock('../../../hooks/useRoomCreators', () => ({
-  useRoomCreators: () => [],
+  useRoomCreators: () => new Set(),
 }));
 
 vi.mock('../../../hooks/useRoomPermissions', () => ({

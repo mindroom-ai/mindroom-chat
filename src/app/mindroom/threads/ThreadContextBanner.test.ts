@@ -17,6 +17,15 @@ import { ThreadContextBanner } from './ThreadContextBanner';
 
 vi.mock('../messages/ThreadApprovalControls', () => ({ ThreadApprovalPermissions: () => null }));
 
+const pinningMocks = vi.hoisted(() => ({
+  pinnedEventIds: [] as string[],
+  canPin: false,
+  setPinned: vi.fn(),
+  updating: false,
+  error: undefined,
+}));
+vi.mock('./useThreadPinning', () => ({ useThreadPinning: () => pinningMocks }));
+
 const ISO_1 = '2026-04-07T00:00:01.000Z';
 const ISO_2 = '2026-04-07T00:00:02.000Z';
 const ISO_3 = '2026-04-07T00:00:03.000Z';
@@ -286,6 +295,9 @@ describe('ThreadContextBanner data flow', () => {
 
 describe('ThreadContextBanner rendering', () => {
   beforeEach(() => {
+    pinningMocks.pinnedEventIds = [];
+    pinningMocks.canPin = false;
+    pinningMocks.setPinned.mockReset();
     bannerMocks.useThreadRootEvent.mockReturnValue('$root');
     bannerMocks.useThreadTags.mockReturnValue({
       tags: {},
@@ -321,6 +333,25 @@ describe('ThreadContextBanner rendering', () => {
         onExitThread: vi.fn(),
       })
     );
+
+  it('replaces Resolve with a pinned status and allows only admins to unpin', () => {
+    pinningMocks.pinnedEventIds = ['$root'];
+    bannerMocks.useThreadHeaderInfo.mockReturnValue({ scheduledTaskCount: 0 });
+    const member = renderBanner();
+    expect(JSON.stringify(member.toJSON())).toContain('Pinned');
+    expect(JSON.stringify(member.toJSON())).not.toContain('Resolve');
+    expect(member.root.findAllByProps({ 'aria-label': 'Unpin thread' })).toHaveLength(0);
+    member.unmount();
+    pinningMocks.canPin = true;
+    const admin = renderBanner();
+    const unpin = admin.root
+      .findAllByType('button')
+      .find((button) => button.props['aria-label'] === 'Unpin thread');
+    expect(unpin).toBeDefined();
+    unpin!.props.onClick();
+    expect(pinningMocks.setPinned).toHaveBeenCalledWith('$root', false);
+    admin.unmount();
+  });
 
   it('hides the metadata row when no summary or scheduled task info exists', () => {
     bannerMocks.useThreadHeaderInfo.mockReturnValue({
