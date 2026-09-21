@@ -2,6 +2,7 @@ import React from 'react';
 import { create } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import { MindroomModelBadge } from './MindroomModelBadge';
+import { getMindroomAiRunInfo } from './aiRun';
 
 vi.mock('./MindroomModelBadge.css', () => ({
   Badge: 'Badge',
@@ -10,6 +11,28 @@ vi.mock('./MindroomModelBadge.css', () => ({
 }));
 
 describe('MindroomModelBadge', () => {
+  it.each([
+    ['  my Friendly Model  ', 'my Friendly Model', 'my Friendly Model · friendly_alias (openai)'],
+    [undefined, 'Friendly Alias', 'friendly_alias (openai)'],
+    ['   ', 'Friendly Alias', 'friendly_alias (openai)'],
+    [42, 'Friendly Alias', 'friendly_alias (openai)'],
+  ])(
+    'renders model display name %s with an alias fallback',
+    (displayName, expectedLabel, details) => {
+      const info = getMindroomAiRunInfo({
+        'io.mindroom.ai_run': {
+          version: 1,
+          model: { config: 'friendly_alias', display_name: displayName, provider: 'openai' },
+        },
+      });
+      const renderer = create(<MindroomModelBadge info={info!} />);
+
+      expect(renderer.root.findByProps({ className: 'Label' }).children).toEqual([expectedLabel]);
+      const badge = renderer.root.findByProps({ title: details });
+      expect(badge.props['aria-label']).toBe(`Model: ${details}`);
+    }
+  );
+
   it('uses the Anthropic mark for Claude models routed through Vertex AI', () => {
     const renderer = create(
       <MindroomModelBadge

@@ -10,7 +10,11 @@ export function MindroomModelBadge({ info }: { info: MindroomAiRunInfo }) {
   const label = getMindroomAiRunCompactModelLabel(info);
   if (!label) return null;
 
-  const fullModelLabel = getMindroomAiRunModelLabel(info) ?? label;
+  const modelDetails = getMindroomAiRunModelLabel(info);
+  const fullModelLabel =
+    info.modelDisplayName && modelDetails && modelDetails !== label
+      ? `${label} · ${modelDetails}`
+      : modelDetails ?? label;
 
   return (
     <span

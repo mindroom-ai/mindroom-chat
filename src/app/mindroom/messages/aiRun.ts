@@ -2,6 +2,7 @@ const AI_RUN_METADATA_KEY = 'io.mindroom.ai_run';
 
 type MindroomAiRunModel = {
   config?: unknown;
+  display_name?: unknown;
   id?: unknown;
   provider?: unknown;
 };
@@ -43,6 +44,8 @@ export type MindroomAiRunInfo = {
   runId?: string;
   sessionId?: string;
   modelConfig?: string;
+  /** Trimmed, nonempty display name from message metadata. */
+  modelDisplayName?: string;
   modelId?: string;
   modelProvider?: string;
   inputTokens?: number;
@@ -110,6 +113,7 @@ export const getMindroomAiRunInfo = (
     runId: asString(metadata.run_id),
     sessionId: asString(metadata.session_id),
     modelConfig: asString(model?.config),
+    modelDisplayName: asString(model?.display_name)?.trim() || undefined,
     modelId: asString(model?.id),
     modelProvider: asString(model?.provider),
     inputTokens: asFiniteNumber(usage?.input_tokens),

@@ -34,6 +34,20 @@ describe('getMindroomAiRunModelLabel', () => {
 });
 
 describe('getMindroomAiRunCompactModelLabel', () => {
+  it.each(['custom_alias', 'default', undefined])(
+    'prefers the display name over config %s and preserves its casing',
+    (modelConfig) => {
+      expect(
+        getMindroomAiRunCompactModelLabel({
+          modelDisplayName: 'my Friendly Model',
+          modelConfig,
+          modelId: 'another-model',
+          modelProvider: 'openai',
+        })
+      ).toBe('my Friendly Model');
+    }
+  );
+
   it('prefers a friendly configured model name', () => {
     expect(
       getMindroomAiRunCompactModelLabel({
