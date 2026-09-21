@@ -2,6 +2,17 @@
 
 ## Runbook
 
+### Unify worker browser panel discovery (2026-09-20)
+
+- The backend now recommends `chat_ui.open_panel(panel="computer")` alongside `panel="members"` and keeps `show_computer()` as a compatible alias.
+  Both Computer calls emit the existing `show_computer` wire action, so Chat's authorization, active-context rules, passive buttons, watch mode, and human-control protections remain unchanged.
+  Opening Computer requests display only; browser navigation remains a separate browser tool call.
+- Regenerated the backend contract fixture with both Computer entry points in room and thread scope and updated the contract workflow's backend pin.
+  Client runtime code is unchanged.
+- Validation: all 136 focused UI-action, Computer, and room integration tests pass, including the freshly generated backend contract; typecheck, changed-test lint, and formatting pass.
+  The full client suite reports 4,739 passes and four unrelated failures, also reproduced in isolation: three Xcode Homebrew tests assume `/bin/bash`, which is absent on this host, and one caption-upload test fails its `onUploadSent` assertion.
+  Live browser end-to-end tests were not rerun for this API alias change.
+
 ### Match remaining chat controls and attachment shells (2026-09-20)
 
 - Recording controls, message expansion buttons, and timeline navigation/pagination chips reuse the shared glass control material and directional rim.
@@ -557,7 +568,7 @@
 - Computer view state belongs to one conversation instance through `computer/useRoomComputerState.ts`.
   Account, room, route, or availability changes clear the view before children render, so opening a routed request does not depend on effect ordering and old panel callbacks cannot affect a later visit.
   UI-action callbacks become current only after React commits, so suspended or abandoned renders cannot affect the live listener.
-- `ui-actions/chatUiBackendContract.test.ts` parses 18 notices emitted by the real backend toolkit, covering every action and Settings section in room and thread scope.
+- `ui-actions/chatUiBackendContract.test.ts` parses 20 notices emitted by the real backend toolkit, covering every action, panel value, and Settings section in room and thread scope.
   The dedicated `chat-ui-backend-contract.yml` workflow regenerates the committed fixture from its pinned backend revision and tests the generated output directly.
   When changing the wire contract, update the backend revision in that workflow and regenerate `ui-actions/__fixtures__/chatUiBackendContract.json` using `uv run -m tests.chat_ui_contract_fixture --output <fixture-path>` from the backend checkout.
 - Validation: all 4,567 unit tests, typecheck, production/PWA build, and changed-file formatting pass.
