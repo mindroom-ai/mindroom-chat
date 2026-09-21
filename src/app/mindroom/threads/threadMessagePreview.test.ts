@@ -12,6 +12,11 @@ const textContent = (body: string): Record<string, unknown> => ({
 });
 
 describe('stripPreviewMarkdown', () => {
+  it('preserves fence-like lines that are code content rather than closing boundaries', () => {
+    expect(stripPreviewMarkdown('```text\n```literal text\nvalue\n```\nAfter')).toContain(
+      '```literal text'
+    );
+  });
   it('strips inline emphasis, code, and strikethrough markers', () => {
     expect(stripPreviewMarkdown('**bold** and *italic* and ~~gone~~ and `code`')).toBe(
       'bold and italic and gone and code'
@@ -84,6 +89,9 @@ describe('getThreadMessagePreviewText', () => {
     });
   });
   it.each([
+    ['``` literal text\n🔧 `read_file` [1]\n```', '🔧 1 tool · ``` literal text'],
+    ['```\n````\n🔧 `example` [1]\n```\n\n🔧 `read_file` [2]', '🔧 1 tool · ```` 🔧 example [1]'],
+    ['```foo`bar\n🔧 `example` [1]\n```\n\n🔧 `read_file` [2]', '🔧 1 tool · 🔧 example [1]'],
     ['```\n🔧 `example` [1]\n```', '🔧 example [1]'],
     ['~~~text\n🔧 `example` [1]\n~~~', '🔧 example [1]'],
     ['    🔧 `example` [1]', '🔧 example [1]'],

@@ -12,31 +12,47 @@ export const VOICE_MESSAGE_PREVIEW_TEXT = 'Voice message';
 // fences count; indented examples and a wrench + code span in prose stay prose.
 const TOOL_CALL_MARKER_REGEX = /^🔧[^\S\n]*`[^`\n]+`[^\S\n]*\[\d+\](?:[^\S\n]*⏳)?[^\S\n]*$/u;
 
-const extractPreviewTools = (body: string): { body: string; toolCallCount: number } => {
+const mapPreviewLines = (
+  body: string,
+  mapLine: (line: string, context: 'prose' | 'code' | 'fence') => string
+): string => {
   let fence: string | undefined;
-  let toolCallCount = 0;
   const lines = body.split(/\r?\n/).map((line) => {
-    const match = /^ {0,3}(`{3,}|~{3,})(.*)$/.exec(line);
+    const match = fence
+      ? /^(`{3,})( *)$/.exec(line) ?? /^ {0,3}(~{3,})([ \t]*)$/.exec(line)
+      : /^(`{3,})(?!`)(\S*)$/.exec(line) ?? /^ {0,3}(~{3,})(.*)$/.exec(line);
     if (fence) {
       if (
         match &&
         match[1][0] === fence[0] &&
-        match[1].length >= fence.length &&
-        !match[2].trim()
+        // Backticks mirror CodeBlockRule's exact-length closing grammar;
+        // tilde fences remain a conservative preview-only boundary.
+        (fence[0] === '`' ? match[1] === fence : match[1].length >= fence.length)
       ) {
         fence = undefined;
+        return mapLine(line, 'fence');
       }
-      return line;
+      return mapLine(line, 'code');
     }
     if (match) {
+      // The message parser accepts backticks in info strings. Keep examples
+      // protected here too, including conservative unmatched-fence handling.
       fence = match[1];
-      return line;
+      return mapLine(line, 'fence');
     }
-    if (!TOOL_CALL_MARKER_REGEX.test(line)) return line;
+    return mapLine(line, 'prose');
+  });
+  return lines.join('\n');
+};
+
+const extractPreviewTools = (body: string): { body: string; toolCallCount: number } => {
+  let toolCallCount = 0;
+  const text = mapPreviewLines(body, (line, context) => {
+    if (context !== 'prose' || !TOOL_CALL_MARKER_REGEX.test(line)) return line;
     toolCallCount += 1;
     return ' ';
   });
-  return { body: lines.join('\n'), toolCallCount };
+  return { body: text, toolCallCount };
 };
 
 // Bound the text fed to the regex pipeline below: previews render as a single
@@ -58,7 +74,19 @@ const formatToolCallSummary = (count: number): string =>
 // agent chat bare underscores are far more likely to be identifiers like
 // snake_case or __init__ than emphasis, and LLM output uses asterisks.
 export const stripPreviewMarkdown = (value: string): string =>
-  value
+  mapPreviewLines(
+    value
+      .replace(/^#{1,6}\s+/gm, '')
+      .replace(/^\s*(?:>\s?)+/gm, '')
+      .replace(/^\s*[-*+]\s+/gm, '')
+      .replace(/^\s*\d{1,3}[.)]\s+/gm, '')
+      // Indentation is presentation-only in this single-line result. Normalize
+      // it after counting tools so nested code boundaries can also be stripped.
+      .split('\n')
+      .map((line) => line.trimStart())
+      .join('\n'),
+    (line, context) => (context === 'fence' ? ' ' : line)
+  )
     // Destinations may contain one level of balanced parens, e.g.
     // https://en.wikipedia.org/wiki/Foo_(bar). The inner alternation consumes
     // one char or one balanced group per step (no ambiguity, no exponential
@@ -72,11 +100,6 @@ export const stripPreviewMarkdown = (value: string): string =>
     .replace(/(^|[^\w*])\*([^\s*](?:[^*\n]*?[^\s*])?)\*(?![\w*])/g, '$1$2')
     .replace(/~~([^~\n]+)~~/g, '$1')
     .replace(/`([^`\n]+)`/g, '$1')
-    .replace(/^#{1,6}\s+/gm, '')
-    .replace(/^\s*(?:>\s?)+/gm, '')
-    .replace(/^\s*[-*+]\s+/gm, '')
-    .replace(/^\s*\d{1,3}[.)]\s+/gm, '')
-    .replace(/^ {0,3}(?:`{3,}|~{3,}).*$/gm, ' ')
     .replace(/^\s*(?:[-*_]\s*){3,}\s*$/gm, ' ');
 
 const normalizeBodyPreview = (body: unknown): string | undefined => {
