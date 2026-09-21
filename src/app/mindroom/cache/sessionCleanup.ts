@@ -1,4 +1,5 @@
 import { clearMindroomLongTextHydrationCache } from '../messages/longText';
+import { clearAttachmentRepositoryMemory } from '../messages/attachmentRepository';
 import { clearRoomInputDrafts } from '../../state/room/roomInputDrafts';
 import { clearIOSPushState } from '../native/iosPush';
 import { clearRecentThreadsStore } from '../recent-threads/recentThreads';
@@ -19,6 +20,7 @@ import {
   getLegacySessionScopedCacheDbNames,
   getLegacyThreadEventCacheDbName,
   getLegacyThreadSummaryCacheDbName,
+  revokeAllCacheStoreWrites,
 } from '../threads/cacheStore';
 
 // CINNY-207 P2.1 (decision D8) / P2.3: the legacy singleton names REMAIN
@@ -95,5 +97,7 @@ export const clearMindroomSessionNativeState = (sessionId: string): void => {
 };
 
 export const clearMindroomInMemoryCaches = (): void => {
+  revokeAllCacheStoreWrites();
+  clearAttachmentRepositoryMemory();
   clearMindroomLongTextHydrationCache();
 };

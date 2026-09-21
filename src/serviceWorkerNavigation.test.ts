@@ -1,7 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
+  AUTHENTICATION_RECOVERY_NAVIGATION_PARAM,
   NAVIGATION_FALLBACK_EXCLUDE_PARAM,
   fetchNavigationWithShellFallback,
+  isAuthenticationRecoveryNavigation,
   navigationFallbackExcludePathPattern,
   normalizeNavigationFallbackExcludePaths,
   readNavigationFallbackExcludePaths,
@@ -59,74 +61,67 @@ describe('service worker navigation fallback exclusions', () => {
 
 describe('service worker navigation responses', () => {
   afterEach(() => {
-    vi.useRealTimers();
     vi.unstubAllGlobals();
   });
 
-  it('uses a fresh network document before the precached shell', async () => {
+  it('returns the precached shell while the network navigation remains held', async () => {
     const request = new Request('https://chat.example.com/home/room');
-    const networkResponse = new Response('new shell');
-    const fetchMock = vi.fn().mockResolvedValue(networkResponse);
-    const loadCachedShell = vi.fn().mockResolvedValue(new Response('cached shell'));
+    const cachedResponse = new Response('cached shell');
+    const fetchMock = vi.fn(
+      () =>
+        new Promise<Response>(() => {
+          // Held network navigation.
+        })
+    );
+    const loadCachedShell = vi.fn().mockResolvedValue(cachedResponse);
     vi.stubGlobal('fetch', fetchMock);
-
-    await expect(fetchNavigationWithShellFallback(request, loadCachedShell)).resolves.toBe(
-      networkResponse
-    );
-    expect(fetchMock).toHaveBeenCalledWith(
-      request,
-      expect.objectContaining({ cache: 'no-store', signal: expect.any(AbortSignal) })
-    );
-    expect(loadCachedShell).not.toHaveBeenCalled();
-  });
-
-  it('returns an opaque navigation redirect for the browser to follow', async () => {
-    const request = new Request('https://chat.example.com/home');
-    const redirectResponse = { ok: false, type: 'opaqueredirect' } as Response;
-    const loadCachedShell = vi.fn().mockResolvedValue(new Response('cached shell'));
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(redirectResponse));
-
-    await expect(fetchNavigationWithShellFallback(request, loadCachedShell)).resolves.toBe(
-      redirectResponse
-    );
-    expect(loadCachedShell).not.toHaveBeenCalled();
-  });
-
-  it('aborts a stalled navigation before falling back to the precached shell', async () => {
-    vi.useFakeTimers();
-    const request = new Request('https://chat.example.com/home/room');
-    const cachedResponse = new Response('cached shell');
-    const loadCachedShell = vi.fn().mockResolvedValue(cachedResponse);
-    vi.stubGlobal(
-      'fetch',
-      vi.fn((_request: Request, init: RequestInit) => {
-        return new Promise((_resolve, reject) => {
-          init.signal?.addEventListener('abort', () => {
-            reject(new DOMException('Aborted', 'AbortError'));
-          });
-        });
-      })
-    );
-
-    const response = fetchNavigationWithShellFallback(request, loadCachedShell, 1000);
-    await vi.advanceTimersByTimeAsync(1000);
-
-    await expect(response).resolves.toBe(cachedResponse);
-    expect(loadCachedShell).toHaveBeenCalledOnce();
-  });
-
-  it.each([
-    ['network failure', () => Promise.reject(new Error('offline'))],
-    ['unsuccessful response', () => Promise.resolve(new Response('missing', { status: 404 }))],
-  ])('falls back to the precached shell after %s', async (_label, fetchResult) => {
-    const request = new Request('https://chat.example.com/home/room');
-    const cachedResponse = new Response('cached shell');
-    const loadCachedShell = vi.fn().mockResolvedValue(cachedResponse);
-    vi.stubGlobal('fetch', vi.fn().mockImplementation(fetchResult));
 
     await expect(fetchNavigationWithShellFallback(request, loadCachedShell)).resolves.toBe(
       cachedResponse
     );
     expect(loadCachedShell).toHaveBeenCalledOnce();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['missing', () => Promise.reject(new Error('missing shell'))],
+    ['unusable', () => Promise.resolve(new Response('missing', { status: 404 }))],
+  ])('uses the network when the precached shell is %s', async (_label, loadCachedShell) => {
+    const request = new Request('https://chat.example.com/home');
+    const redirectResponse = { ok: false, type: 'opaqueredirect' } as Response;
+    const fetchMock = vi.fn().mockResolvedValue(redirectResponse);
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(fetchNavigationWithShellFallback(request, loadCachedShell)).resolves.toBe(
+      redirectResponse
+    );
+    expect(fetchMock).toHaveBeenCalledWith(request, { cache: 'no-store' });
+  });
+
+  it('uses the network for a marked authentication recovery navigation', async () => {
+    const request = new Request(
+      `https://chat.example.com/home/room?tab=members&${AUTHENTICATION_RECOVERY_NAVIGATION_PARAM}=1`
+    );
+    const redirectResponse = { ok: false, type: 'opaqueredirect' } as Response;
+    const loadCachedShell = vi.fn().mockResolvedValue(new Response('cached shell'));
+    const fetchMock = vi.fn().mockResolvedValue(redirectResponse);
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(fetchNavigationWithShellFallback(request, loadCachedShell)).resolves.toBe(
+      redirectResponse
+    );
+    expect(isAuthenticationRecoveryNavigation(request.url)).toBe(true);
+    expect(loadCachedShell).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledWith(request, { cache: 'no-store' });
+  });
+
+  it('ignores absent, malformed, and unrelated authentication recovery markers', () => {
+    expect(isAuthenticationRecoveryNavigation('https://chat.example.com/home')).toBe(false);
+    expect(
+      isAuthenticationRecoveryNavigation(
+        `https://chat.example.com/home?${AUTHENTICATION_RECOVERY_NAVIGATION_PARAM}=0`
+      )
+    ).toBe(false);
+    expect(isAuthenticationRecoveryNavigation('not a URL')).toBe(false);
   });
 });

@@ -1,18 +1,15 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { EncryptedAttachmentInfo } from 'browser-encrypt-attachment';
+import type { EventAttachmentOwner } from '../../../mindroom/messages/eventAttachments';
 import { useMatrixClient } from '../../../hooks/useMatrixClient';
 import { AsyncState, AsyncStatus } from '../../../hooks/useAsyncCallback';
 import { revokeBlobUrl, useBlobUrlCleanup } from '../../../hooks/useBlobUrlCleanup';
-import {
-  decryptFile,
-  downloadEncryptedMedia,
-  downloadMedia,
-  mxcUrlToHttp,
-} from '../../../utils/matrix';
+import { downloadCachedAttachment } from '../../../mindroom/messages/attachmentRepository';
 import { useMediaAuthentication } from '../../../hooks/useMediaAuthentication';
 import { useAlive } from '../../../hooks/useAlive';
 
 type AudioContentSourceOptions = {
+  owner?: EventAttachmentOwner;
   mimeType: string;
   url: string;
   encInfo?: EncryptedAttachmentInfo;
@@ -22,8 +19,10 @@ export const getAudioContentSourceIdentity = ({
   mimeType,
   url,
   encInfo,
+  owner,
 }: AudioContentSourceOptions): string =>
   JSON.stringify([
+    owner,
     mimeType,
     url,
     encInfo?.v ?? '',
@@ -36,11 +35,12 @@ export const useAudioContentSource = ({
   mimeType,
   url,
   encInfo,
+  owner,
 }: AudioContentSourceOptions): [AsyncState<string>, () => Promise<string>] => {
   const mx = useMatrixClient();
   const useAuthentication = useMediaAuthentication();
   const alive = useAlive();
-  const mediaIdentity = getAudioContentSourceIdentity({ mimeType, url, encInfo });
+  const mediaIdentity = getAudioContentSourceIdentity({ mimeType, url, encInfo, owner });
   const mediaIdentityRef = useRef(mediaIdentity);
   const requestRef = useRef(0);
   const pendingSrcRef = useRef<string>();
@@ -73,11 +73,16 @@ export const useAudioContentSource = ({
     setSrcState({ status: AsyncStatus.Loading });
 
     try {
-      const mediaUrl = mxcUrlToHttp(mx, url, useAuthentication);
-      if (!mediaUrl) throw new Error('Invalid media URL');
-      const fileContent = encInfo
-        ? await downloadEncryptedMedia(mediaUrl, (encBuf) => decryptFile(encBuf, mimeType, encInfo))
-        : await downloadMedia(mediaUrl);
+      const fileContent = await downloadCachedAttachment(
+        mx,
+        {
+          owner,
+          mxcUri: url,
+          mimeType,
+          encryptedFile: encInfo ? { ...encInfo, url } : undefined,
+        },
+        useAuthentication
+      );
       const blobUrl = URL.createObjectURL(fileContent);
       if (
         request !== requestRef.current ||
@@ -101,7 +106,17 @@ export const useAudioContentSource = ({
       }
       throw error;
     }
-  }, [alive, discardPendingSrc, encInfo, mediaIdentity, mimeType, mx, url, useAuthentication]);
+  }, [
+    owner,
+    alive,
+    discardPendingSrc,
+    encInfo,
+    mediaIdentity,
+    mimeType,
+    mx,
+    url,
+    useAuthentication,
+  ]);
 
   useLayoutEffect(
     () => () => {

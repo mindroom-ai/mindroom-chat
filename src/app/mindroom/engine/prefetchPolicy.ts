@@ -1,30 +1,6 @@
-/**
- * CINNY-207 P4.2: prefetch policy.
- *
- * Encodes decision D3 from the cache overhaul plan: which rooms are
- * eligible for background prefetch (tail-fill after startup, gap-fills
- * after limited sync, room-tail deep history, thread inventory), and
- * which rooms the scheduler should leave alone. The design goal is
- * "friendly to remote homeservers": we only speculatively fetch from
- * OUR homeserver's rooms. Federated rooms wait for user attention.
- *
- * "My server" is determined by comparing OUR homeserver's domain
- * (`mx.getDomain()`) to the SENDER DOMAIN of the room's
- * `m.room.create` state event. This is the room v12 / MSC4291 way —
- * `!localpart:server.example` room ids are being phased out in favor
- * of opaque ids, so the room id is NEVER parsed. When the create
- * event is missing (state hasn't caught up, ACL blocked, etc.) we
- * treat the room as federated (conservative — no speculative fetches).
- *
- * Encrypted rooms are always excluded from raw-fetch prefetch jobs:
- * fetching `/messages` for an encrypted room without decryption
- * context gives us unusable ciphertext, and the write-through only
- * ever caches decrypted events anyway.
- *
- * Concurrency + depth constants live here so callers pull them from
- * one place — the scheduler is the single arbiter for how deep any
- * one room's prefetch goes.
- */
+/** Background scope policy. Focus is the default; all rooms is explicit opt-in.
+ * Legacy homeserver tiers remain readable for older settings and ledger data.
+ * Engine jobs decrypt through the SDK and enforce connectivity and allowance. */
 
 import type { MatrixClient, Room } from 'matrix-js-sdk';
 import { StateEvent } from '../../../types/matrix/room';
@@ -39,15 +15,9 @@ import { getStateEvent } from '../../utils/room';
  */
 export const PREFETCH_SCOPE = 'my-server' as const;
 
-/**
- * User-selectable prefetch scope (settings D4 / Phase 6.1). The literal
- * strings are stored verbatim in the settings blob — anything else
- * (older values, hand-edited JSON) is coerced to the default via
- * `sanitizePrefetchScope`. The default matches PREFETCH_SCOPE — the
- * conservative "friendly to remote homeservers" policy from D2.
- */
+/** Stored scope values; v1 homeserver preferences migrate to focused rooms. */
 export type PrefetchScope = 'my-server' | 'all-rooms' | 'current-room-only';
-export const DEFAULT_PREFETCH_SCOPE: PrefetchScope = 'my-server';
+export const DEFAULT_PREFETCH_SCOPE: PrefetchScope = 'current-room-only';
 const PREFETCH_SCOPE_VALUES: ReadonlyArray<PrefetchScope> = [
   'my-server',
   'all-rooms',
@@ -114,20 +84,13 @@ export const resolveRoomPrefetchTier = (mx: MatrixClient, room: Room): RoomPrefe
   return senderDomain === ourDomain ? 'own' : 'federated';
 };
 
-/**
- * True when a raw-fetch prefetch job is safe to run against this room.
- * Currently excludes encrypted rooms (unusable ciphertext without
- * decryption context) and — as the second guard — anything not tier
- * `own`. Callers use this to skip enqueue rather than to skip execute:
- * the scheduler doesn't inspect rooms, the caller does.
- */
+/** Legacy homeserver-tier eligibility; encrypted pages use SDK decryption. */
 export const isRoomEligibleForRawFetch = (
   mx: MatrixClient,
   room: Room,
   tier: RoomPrefetchTier = resolveRoomPrefetchTier(mx, room)
 ): boolean => {
   if (tier !== 'own') return false;
-  if (room.hasEncryptionStateEvent?.()) return false;
   return true;
 };
 
@@ -185,40 +148,11 @@ export type PrefetchConfig = {
  * scheduler / tests can compute the same config off any snapshot
  * without pulling jotai into non-React modules.
  */
-export const resolvePrefetchConfig = (settings: {
-  prefetchScope?: unknown;
-}): PrefetchConfig => ({
+export const resolvePrefetchConfig = (settings: { prefetchScope?: unknown }): PrefetchConfig => ({
   scope: sanitizePrefetchScope(settings.prefetchScope),
 });
 
-/**
- * CINNY-207 P7.2 audit finding #5: scope-aware eligibility gate for
- * BACKGROUND prefetch bands (bands 1-3 in the scheduler). Consulted by
- * the gap-fill executor and any other consumer that decides whether a
- * given (room, currently-focused-room) pair is allowed to run a
- * background raw fetch.
- *
- * Semantics match the UI selector strings in `MindroomPrefetchSettings.tsx`:
- *   - `my-server` (default): only rooms whose `create.sender` domain
- *     matches ours. Encrypted rooms still blocked. This is the
- *     historical `isRoomEligibleForRawFetch` behavior.
- *   - `all-rooms`: any joined room, own or federated (background tier
- *     still counts as federated for policy purposes). Encrypted rooms
- *     still blocked — ciphertext is unusable without decryption
- *     context.
- *   - `current-room-only`: only the currently-focused room is
- *     eligible. Every other room is suppressed for background bands
- *     regardless of tier. A user opening a specific room can still
- *     trigger a band-0 fetch via `noteRoomFocused`.
- *
- * `focusedRoomId` is the room id the user is currently looking at (as
- * tracked by the engine's most recent `noteRoomFocused` call). It is
- * consulted by the `current-room-only` branch only.
- *
- * The band-0 (foreground) path is NOT gated by this function: opening
- * a room the user actively navigates to is always eligible, otherwise
- * the client couldn't fill from history in the very room being read.
- */
+/** Scope gate for automatic history and gap recovery. */
 export const isRoomEligibleForBackgroundPrefetch = ({
   mx,
   room,
@@ -230,13 +164,12 @@ export const isRoomEligibleForBackgroundPrefetch = ({
   scope: PrefetchScope;
   focusedRoomId: string | undefined;
 }): boolean => {
-  if (room.hasEncryptionStateEvent?.()) return false;
   if (scope === 'current-room-only') {
     return focusedRoomId === room.roomId;
   }
   if (scope === 'all-rooms') {
     return true;
   }
-  // Default 'my-server': historical behavior — only own-tier rooms.
+  // Legacy homeserver scope.
   return resolveRoomPrefetchTier(mx, room) === 'own';
 };

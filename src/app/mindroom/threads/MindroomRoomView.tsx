@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next';
-import React, { useCallback, useLayoutEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Box, Text, config } from 'folds';
 import { EventType, Room } from 'matrix-js-sdk';
@@ -30,10 +30,12 @@ import { useRoomCreators } from '../../hooks/useRoomCreators';
 import { hasBlockingPortalOverlay } from '../../utils/portalOverlay';
 import { ThreadContextBanner } from './ThreadContextBanner';
 import { useRoomViewThreadState } from './useRoomViewThreadState';
-import { isLocalEchoEventId } from './threadRouteUtils';
+import { isConfirmedMatrixEventId, isLocalEchoEventId } from './threadRouteUtils';
 import { ThreadApprovalProvider } from '../messages/ThreadApprovalProvider';
 import { ThreadApprovalQueue } from '../messages/ThreadApprovalControls';
 import { computerOwnsKeyboardEvent, computerOwnsKeyboardFocus } from '../computer/computerFocus';
+
+import { useMindroomSyncEngine } from '../engine/engineContext';
 
 import * as overlay from './RoomOverlay.css';
 
@@ -103,6 +105,7 @@ export function RoomView({
 
   const { roomId } = room;
   const mx = useMatrixClient();
+  const syncEngine = useMindroomSyncEngine();
   const editor = useEditor();
   const focusConversation = useCallback(() => ReactEditor.focus(editor), [editor]);
 
@@ -135,6 +138,15 @@ export function RoomView({
     threadSummaryInfo,
     viewMode,
   } = useRoomViewThreadState({ eventId, hasMindroomAgents, room, threadId });
+  // Room focus outlives the timeline, which remounts when the thread changes.
+  useEffect(() => {
+    syncEngine.noteRoomFocused(
+      roomId,
+      isConfirmedMatrixEventId(effectiveThreadId) ? effectiveThreadId : undefined
+    );
+  }, [syncEngine, roomId, effectiveThreadId]);
+  useEffect(() => () => syncEngine.clearRoomFocus(roomId), [syncEngine, roomId]);
+
   useLayoutEffect(() => {
     const root = roomViewRef.current;
     const header = headerRef.current;

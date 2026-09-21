@@ -107,7 +107,7 @@ export const useThreadSession = (route: ThreadRoute): ThreadSession => {
       const result = await refreshLatestThreadSlice(
         {
           ...runtime,
-          persistThreadEventCache: runtime.persist,
+          persistThreadEventCache: runtime.beginCacheWrite(),
           shouldAbortRefresh,
         },
         threadId,
@@ -225,6 +225,7 @@ export const useThreadSession = (route: ThreadRoute): ThreadSession => {
           open: { ...current.open, latestPending: shouldScrollToLatestOnOpen },
         }));
         const load = async () => {
+          const persistThreadEventCache = runtime.beginCacheWrite();
           try {
             const cacheFirstResult = await runThreadOpenCacheFirst({
               debugTraceId,
@@ -285,7 +286,7 @@ export const useThreadSession = (route: ThreadRoute): ThreadSession => {
               isMounted: () => mounted,
               pinThreadToBottomOnOpen,
               onThreadLoadError: runtime.onThreadLoadError,
-              persistThreadEventCache: runtime.persist,
+              persistThreadEventCache,
               setSupplementalThreadEvents: render.append,
               onBootstrap: (observation) => {
                 if (observation.kind === 'load-error') {
@@ -309,7 +310,10 @@ export const useThreadSession = (route: ThreadRoute): ThreadSession => {
             });
             if (!shouldContinue) return;
             if (shouldScrollToLatestOnOpen) {
-              await refreshLatest(threadId, runtime);
+              await refreshLatest(threadId, {
+                ...runtime,
+                beginCacheWrite: () => persistThreadEventCache,
+              });
               if (!isCurrentThreadOpen()) return;
             } else {
               const hasForwardGap = !!room

@@ -104,6 +104,10 @@ vi.mock('../plugins/pdfjs-dist', () => ({
   usePdfJSLoader: () => [{ status: 'idle' }, vi.fn()],
 }));
 
+vi.mock('../mindroom/messages/attachmentRepository', () => ({
+  downloadCachedAttachment: downloadMediaMock,
+}));
+
 vi.mock('../utils/matrix', () => ({
   decryptFile: vi.fn(),
   downloadEncryptedMedia: vi.fn(),

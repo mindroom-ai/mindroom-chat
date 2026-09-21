@@ -1,7 +1,10 @@
-import { countCacheProbe } from '../cacheProbe';
-import { openCacheStore } from './cacheStoreDb';
-import { readLedgerSnapshot } from './cacheStoreLedger';
+import { openCacheStore, revokeRoomCacheStoreWrites } from './cacheStoreDb';
 import {
+  ATTACHMENTS_STORE,
+  ATTACHMENTS_BY_ACCESS_BYTES_INDEX,
+  ATTACHMENT_REFERENCES_STORE,
+  ATTACHMENT_REFERENCES_BY_ROOM_INDEX,
+  ATTACHMENT_REFERENCES_BY_ATTACHMENT_INDEX,
   EVENTS_BY_SCOPE_TS_INDEX,
   EVENTS_STORE,
   EVICTION_CHECK_MIN_INTERVAL_MS,
@@ -16,90 +19,40 @@ import {
   getCacheStoreByteBudget,
   type CachedMetaRecord,
   type CachedRoomLedgerRecord,
+  type CachedAttachmentRecord,
+  type CachedAttachmentReferenceRecord,
 } from './cacheStoreSchema';
 
-// CINNY-207 P2.2 commit 3 (D9/AC7): cache eviction job.
-//
-// Policy (D9):
-//   1. Compute total bytes from the ledger snapshot.
-//   2. If sum <= budget, no-op.
-//   3. Build the eviction candidate list from the ledger, excluding:
-//        - rooms in the protected registry (set by the sync engine's
-//          `noteRoomFocused` in Phase 3/4; empty today because LRU
-//          order naturally keeps the active room last)
-//        - rooms with any meta.lastOpenedTs inside
-//          EVICTION_RECENT_OPEN_WINDOW_MS ("never evict recently
-//          opened threads" — v1 interpretation: whole-room, any
-//          thread scope counting)
-//   4. Sort: federated===true first, then ascending lastActivityTs
-//      (LRU inside each priority class).
-//   5. Evict rooms in that order until sum drops to
-//      budget * EVICTION_TARGET_UTILIZATION (10% headroom).
-//
-// Auto-trigger: `maybeScheduleEvictionCheck(sessionId)` is called
-// from the save paths in `cacheStoreEvents`. It's cheap: a
-// module-level timestamp dedupes back-to-back checks at
-// EVICTION_CHECK_MIN_INTERVAL_MS. No timers are held open —
-// re-entering after the interval simply schedules the next check.
-
-// ------- Protected registry (set by the sync engine in Phase 3/4) -------
-
 const protectedRoomIds = new Set<string>();
-
 export const setEvictionProtectedRoomIds = (roomIds: readonly string[]): void => {
   protectedRoomIds.clear();
   roomIds.forEach((id) => protectedRoomIds.add(id));
 };
-
-export const getEvictionProtectedRoomIds = (): string[] => Array.from(protectedRoomIds);
-
-// ------- Debounce state -------
-
+export const getEvictionProtectedRoomIds = (): string[] => [...protectedRoomIds];
 const lastCheckAtBySession = new Map<string, number>();
-
-/**
- * Reset module-level state (protected registry + debounce timestamps).
- * Test-only.
- */
 export const __resetEvictionForTests = (): void => {
   protectedRoomIds.clear();
   lastCheckAtBySession.clear();
 };
 
-// ------- Meta scan for the recent-open guard -------
-
-const readMetaLastOpenedByRoom = (
-  db: IDBDatabase
-): Promise<Map<string, number>> =>
-  new Promise((resolve, reject) => {
-    const txn = db.transaction(META_STORE, 'readonly');
-    const store = txn.objectStore(META_STORE);
-    const cursorRequest = store.openCursor();
-    const perRoom = new Map<string, number>();
-    cursorRequest.onsuccess = () => {
-      const cursor = cursorRequest.result;
-      if (!cursor) return;
-      const record = cursor.value as CachedMetaRecord;
-      if (typeof record.lastOpenedTs === 'number' && record.lastOpenedTs > 0) {
-        const previous = perRoom.get(record.roomId) ?? 0;
-        if (record.lastOpenedTs > previous) {
-          perRoom.set(record.roomId, record.lastOpenedTs);
-        }
-      }
-      cursor.continue();
-    };
-    cursorRequest.onerror = () => reject(cursorRequest.error);
-    txn.oncomplete = () => resolve(perRoom);
-    txn.onerror = () => reject(txn.error);
-    txn.onabort = () => reject(txn.error);
-  });
-
-// ------- Room-eviction transaction -------
-
-const evictRoom = (db: IDBDatabase, roomId: string): Promise<number> =>
-  new Promise((resolve, reject) => {
+/** Local storage cleanup; other active tabs may cache the room again. */
+export const clearRoomCachedContent = async (
+  sessionId: string,
+  roomId: string
+): Promise<number> => {
+  revokeRoomCacheStoreWrites(sessionId, roomId);
+  const db = await openCacheStore(sessionId);
+  if (!db) return 0;
+  return new Promise((resolve, reject) => {
     const txn = db.transaction(
-      [EVENTS_STORE, META_STORE, ROOM_LEDGER_STORE, THREAD_SUMMARIES_STORE],
+      [
+        EVENTS_STORE,
+        META_STORE,
+        ROOM_LEDGER_STORE,
+        THREAD_SUMMARIES_STORE,
+        ATTACHMENTS_STORE,
+        ATTACHMENT_REFERENCES_STORE,
+      ],
       'readwrite'
     );
     const eventsStore = txn.objectStore(EVENTS_STORE);
@@ -153,6 +106,29 @@ const evictRoom = (db: IDBDatabase, roomId: string): Promise<number> =>
     };
     summariesCursor.onerror = () => reject(summariesCursor.error);
 
+    const references = txn.objectStore(ATTACHMENT_REFERENCES_STORE);
+    const blobs = txn.objectStore(ATTACHMENTS_STORE);
+    const roomReferences = references.index(ATTACHMENT_REFERENCES_BY_ROOM_INDEX).getAll(roomId);
+    roomReferences.onsuccess = () => {
+      const rows = roomReferences.result as CachedAttachmentReferenceRecord[];
+      rows.forEach((row) => references.delete(row.referenceKey));
+      new Set(rows.map((row) => row.mxcUri).filter(Boolean)).forEach((mxcUri) => {
+        const remaining = references
+          .index(ATTACHMENT_REFERENCES_BY_ATTACHMENT_INDEX)
+          .getAll(mxcUri);
+        remaining.onsuccess = () => {
+          const shared = remaining.result as CachedAttachmentReferenceRecord[];
+          if (!shared.length) blobs.delete(mxcUri);
+          else {
+            const blob = blobs.get(mxcUri);
+            blob.onsuccess = () => {
+              if (blob.result)
+                blobs.put({ ...blob.result, essential: shared.some((row) => row.essential) });
+            };
+          }
+        };
+      });
+    };
     // Ledger row: primary key.
     ledgerStore.delete(roomId);
 
@@ -160,119 +136,114 @@ const evictRoom = (db: IDBDatabase, roomId: string): Promise<number> =>
     txn.onerror = () => reject(txn.error);
     txn.onabort = () => reject(txn.error);
   });
-
-// ------- Candidate ordering -------
-
-type EvictionCandidate = CachedRoomLedgerRecord;
-
-const compareEvictionOrder = (a: EvictionCandidate, b: EvictionCandidate): number => {
-  const aFed = a.federated === true ? 1 : 0;
-  const bFed = b.federated === true ? 1 : 0;
-  // Federated first (higher priority for eviction).
-  if (aFed !== bFed) return bFed - aFed;
-  // Then LRU: ascending lastActivityTs (oldest first).
-  return a.lastActivityTs - b.lastActivityTs;
 };
-
-// ------- Public entry points -------
 
 export type EvictionResult = {
   bytesBefore: number;
   bytesAfter: number;
-  evictedRoomIds: string[];
-  skippedRoomIds: string[];
-  eventsDeleted: number;
+  evictedMxcUris: string[];
+  underPressure: boolean;
 };
 
-/**
- * Run the eviction pass once. Returns a result summary; if not
- * over-budget, `evictedRoomIds` is empty.
- */
-export const runCacheEvictionIfOverBudget = async (
-  sessionId: string
-): Promise<EvictionResult> => {
+/** Reclaim optional media only. Text, essential bodies and pinned rooms survive pressure. */
+export const runCacheEvictionIfOverBudget = async (sessionId: string): Promise<EvictionResult> => {
   const db = await openCacheStore(sessionId);
-  if (!db) {
-    return {
-      bytesBefore: 0,
-      bytesAfter: 0,
-      evictedRoomIds: [],
-      skippedRoomIds: [],
-      eventsDeleted: 0,
+  if (!db) return { bytesBefore: 0, bytesAfter: 0, evictedMxcUris: [], underPressure: false };
+  // Admission reads index keys only, never attachment payloads or room references.
+  const bytesBefore = await new Promise<number>((resolve, reject) => {
+    const transaction = db.transaction([ATTACHMENTS_STORE, ROOM_LEDGER_STORE], 'readonly');
+    const ledger = transaction.objectStore(ROOM_LEDGER_STORE).getAll();
+    const cursor = transaction
+      .objectStore(ATTACHMENTS_STORE)
+      .index(ATTACHMENTS_BY_ACCESS_BYTES_INDEX)
+      .openKeyCursor();
+    let attachmentBytes = 0;
+    cursor.onsuccess = () => {
+      if (!cursor.result) return;
+      attachmentBytes += (cursor.result.key as number[])[1];
+      cursor.result.continue();
     };
-  }
-
-  const ledger = await readLedgerSnapshot(db);
-  const bytesBefore = ledger.reduce((sum, row) => sum + row.approxBytes, 0);
-  const budget = getCacheStoreByteBudget();
-
-  if (bytesBefore <= budget) {
-    return {
-      bytesBefore,
-      bytesAfter: bytesBefore,
-      evictedRoomIds: [],
-      skippedRoomIds: [],
-      eventsDeleted: 0,
-    };
-  }
-
-  // Below-target threshold (10% headroom).
-  const target = Math.floor(budget * EVICTION_TARGET_UTILIZATION);
-
-  // Build skip set from protected registry + recent-open guard.
-  const recentOpenByRoom = await readMetaLastOpenedByRoom(db);
-  const recentCutoff = Date.now() - EVICTION_RECENT_OPEN_WINDOW_MS;
-  const skipped = new Set<string>();
-  const candidates: EvictionCandidate[] = [];
-  ledger.forEach((row) => {
-    if (protectedRoomIds.has(row.roomId)) {
-      skipped.add(row.roomId);
-      return;
-    }
-    const lastOpenedTs = recentOpenByRoom.get(row.roomId);
-    if (typeof lastOpenedTs === 'number' && lastOpenedTs > recentCutoff) {
-      skipped.add(row.roomId);
-      return;
-    }
-    candidates.push(row);
+    transaction.oncomplete = () =>
+      resolve(
+        attachmentBytes +
+          (ledger.result as CachedRoomLedgerRecord[]).reduce((sum, row) => sum + row.approxBytes, 0)
+      );
+    transaction.onerror = () => reject(transaction.error);
+    transaction.onabort = () => reject(transaction.error);
   });
-
-  candidates.sort(compareEvictionOrder);
-
-  let bytesRemaining = bytesBefore;
-  const evictedRoomIds: string[] = [];
-  let totalDeleted = 0;
-
-  for (const candidate of candidates) {
-    if (bytesRemaining <= target) break;
-    // eslint-disable-next-line no-await-in-loop
-    const deletedCount = await evictRoom(db, candidate.roomId);
-    evictedRoomIds.push(candidate.roomId);
-    totalDeleted += deletedCount;
-    bytesRemaining -= candidate.approxBytes;
-    if (deletedCount > 0) countCacheProbe('eventDeletes', deletedCount);
-  }
-
-  return {
-    bytesBefore,
-    bytesAfter: Math.max(0, bytesRemaining),
-    evictedRoomIds,
-    skippedRoomIds: Array.from(skipped),
-    eventsDeleted: totalDeleted,
-  };
+  if (bytesBefore <= getCacheStoreByteBudget())
+    return { bytesBefore, bytesAfter: bytesBefore, evictedMxcUris: [], underPressure: false };
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(
+      [ATTACHMENTS_STORE, ATTACHMENT_REFERENCES_STORE, ROOM_LEDGER_STORE, META_STORE],
+      'readwrite'
+    );
+    const blobs = transaction.objectStore(ATTACHMENTS_STORE);
+    const refs = transaction.objectStore(ATTACHMENT_REFERENCES_STORE);
+    const ledgerRequest = transaction.objectStore(ROOM_LEDGER_STORE).getAll();
+    const metaRequest = transaction.objectStore(META_STORE).getAll();
+    const referencesRequest = refs.getAll();
+    const records: Pick<CachedAttachmentRecord, 'mxcUri' | 'lastAccessedAt' | 'byteLength'>[] = [];
+    const cursorRequest = blobs.index(ATTACHMENTS_BY_ACCESS_BYTES_INDEX).openKeyCursor();
+    let result: EvictionResult;
+    cursorRequest.onsuccess = async () => {
+      try {
+        const cursor = cursorRequest.result;
+        if (cursor) {
+          const [lastAccessedAt, byteLength] = cursor.key as number[];
+          records.push({ mxcUri: cursor.primaryKey as string, lastAccessedAt, byteLength });
+          cursor.continue();
+          return;
+        }
+        const ledger = ledgerRequest.result as CachedRoomLedgerRecord[];
+        const references = referencesRequest.result as CachedAttachmentReferenceRecord[];
+        const protectedIds = new Set(protectedRoomIds);
+        ledger.filter((row) => row.pinned).forEach((row) => protectedIds.add(row.roomId));
+        (metaRequest.result as CachedMetaRecord[])
+          .filter((row) => (row.lastOpenedTs ?? 0) > Date.now() - EVICTION_RECENT_OPEN_WINDOW_MS)
+          .forEach((row) => protectedIds.add(row.roomId));
+        const bytesBefore =
+          ledger.reduce((sum, row) => sum + row.approxBytes, 0) +
+          records.reduce((sum, row) => sum + row.byteLength, 0);
+        let bytesAfter = bytesBefore;
+        const budget = getCacheStoreByteBudget();
+        const evictedMxcUris: string[] = [];
+        if (bytesBefore > budget) {
+          records.sort((a, b) => a.lastAccessedAt - b.lastAccessedAt);
+          for (const record of records) {
+            if (bytesAfter <= budget * EVICTION_TARGET_UTILIZATION) break;
+            const owners = references.filter((row) => row.mxcUri === record.mxcUri);
+            if (owners.some((row) => row.essential || protectedIds.has(row.roomId))) continue;
+            // Only eviction candidates need a value read (unowned essentials also survive).
+            // eslint-disable-next-line no-await-in-loop
+            const cached = await new Promise<CachedAttachmentRecord | undefined>(
+              (resolveRecord, rejectRecord) => {
+                const request = blobs.get(record.mxcUri);
+                request.onsuccess = () => resolveRecord(request.result);
+                request.onerror = () => rejectRecord(request.error);
+              }
+            );
+            if (cached?.essential) continue;
+            blobs.delete(record.mxcUri);
+            owners.forEach((row) => refs.put({ ...row, byteLength: 0, status: 'missing' }));
+            bytesAfter -= record.byteLength;
+            evictedMxcUris.push(record.mxcUri);
+          }
+        }
+        result = { bytesBefore, bytesAfter, evictedMxcUris, underPressure: bytesAfter > budget };
+      } catch (error) {
+        reject(error);
+      }
+    };
+    transaction.oncomplete = () => resolve(result);
+    transaction.onerror = () => reject(transaction.error);
+    transaction.onabort = () => reject(transaction.error);
+  });
 };
 
-/**
- * Save-path auto-trigger. Fire-and-forget with a module-level debounce
- * so a burst of saves does not schedule many overlapping eviction
- * passes. Errors are swallowed (best-effort cleanup) and the next
- * scheduled check will retry.
- */
 export const maybeScheduleEvictionCheck = (sessionId: string): void => {
   const now = Date.now();
-  const last = lastCheckAtBySession.get(sessionId) ?? 0;
-  if (now - last < EVICTION_CHECK_MIN_INTERVAL_MS) return;
+  if (now - (lastCheckAtBySession.get(sessionId) ?? 0) < EVICTION_CHECK_MIN_INTERVAL_MS) return;
   lastCheckAtBySession.set(sessionId, now);
   void runCacheEvictionIfOverBudget(sessionId).catch(() => undefined);
 };
-

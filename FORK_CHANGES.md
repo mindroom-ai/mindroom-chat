@@ -2,6 +2,40 @@
 
 ## Runbook
 
+### Keep room cache clearing local and best effort (2026-09-20)
+
+- Clearing a room cancels earlier writes in the current app and deletes its stored content.
+  Other active tabs may cache the room again; clearing does not coordinate or pause those tabs.
+- Removed durable room epochs, observed-epoch bookkeeping and the extra metadata read in every guarded write transaction.
+  Fresh snapshots after reopening a cleared room save immediately, without a first-write rejection to learn an epoch.
+- Local room/session cancellation, logout handling, attachment revision checks and atomic event/attachment ownership remain in place.
+  Lifecycle tests retain delayed local decryption, continuation cancellation, clear rollback and database recreation coverage.
+- Validation: all 571 files / 4,938 unit tests, application typecheck, production/PWA build, formatting and whitespace checks pass; ESLint retains 17 existing warnings and no errors.
+  Eight Chromium/WebKit offline/freshness cases pass with two expected platform skips.
+  Independent review found no remaining findings and separately passed 121 focused tests.
+- This simplification removes 106 net production lines across six existing modules and 139 net test lines.
+  No new production module, coordination mechanism or schema migration is added.
+
+### Centralize attachment ownership and fence room clears (2026-09-20)
+
+- Accepted room/thread event transactions now update attachment ownership atomically, including interactive snapshots and authoritative edit repair.
+  Downloaders and renderers consume that ownership; they cannot publish an obsolete notification attachment under a newer revision.
+  Existing redaction markers replace the separate attachment retraction history and repeated retained-room owner lookup.
+- This round introduced durable room epochs; the later simplification above removes that guarantee and its implementation.
+  Room clears advanced a durable epoch in the deletion transaction. Writes checked their original lease inside their own transaction, so another tab could not restore cleared data after a delayed read, decryption or fetch.
+  Connection invalidation also revoked old leases and reset observed epochs, allowing fresh writes after another tab deleted the database.
+  A cold runtime could skip its first write while learning the epoch; the simplification above removes that behavior.
+- Room focus belongs to the stable room view rather than the thread timeline; thread navigation preserves download reservations, allowance and cancellation.
+  Cancel remains active until Download is requested again. Live attachment work obeys room scope, and inline edits/redactions create no empty attachment jobs.
+  Unchanged progress skips metadata writes, unobserved live updates skip coverage scans, and gap loading no longer uses a one-iteration loop.
+- Notifications use the existing latest-edit selection to keep displayed content and attachment identity together, including newer bundled edits and encrypted events.
+  A detached rendering snapshot leaves the SDK event available for decryption subscriptions.
+- Fresh full Agent CLI reviews by Astra and Claude Fable 5.1 identified the corrected cases; independent follow-up reviews reproduced additional notification and database-lifecycle cases and verified their fixes.
+  Latest dev is integrated. All 571 files / 4,944 unit tests, application and browser-test typechecks, production/PWA build, formatting and whitespace checks pass; ESLint has zero errors and 17 existing warnings.
+  Eight Chromium/WebKit offline/freshness cases pass with two expected platform skips. Cross-runtime IndexedDB tests cover delayed decryption, queued transactions, atomic rollback, room clears and database recreation.
+- This correction round changes 17 existing production modules: 658 lines added, 743 removed, net 85 fewer. No new production module or schema migration is introduced.
+  Physical iPhone, native Xcode archive and browser restart with real room encryption remain unverified.
+
 ### Unify worker browser panel discovery (2026-09-20)
 
 - The backend now recommends `chat_ui.open_panel(panel="computer")` alongside `panel="members"` and keeps `show_computer()` as a compatible alias.
@@ -12,6 +46,45 @@
 - Validation: all 136 focused UI-action, Computer, and room integration tests pass, including the freshly generated backend contract; typecheck, changed-test lint, and formatting pass.
   The full client suite reports 4,739 passes and four unrelated failures, also reproduced in isolation: three Xcode Homebrew tests assume `/bin/bash`, which is absent on this host, and one caption-upload test fails its `onUploadSent` assertion.
   Live browser end-to-end tests were not rerun for this API alias change.
+
+### Simplify cache repair and close independent review findings (2026-09-20)
+
+- Live persistence repairs only pending relations whose targets arrive in the current chunk.
+  The existing background controller owns bounded retries of other unresolved events; ordinary reply links do not enter the repair backlog.
+  Consulted Claude Fable 5.1 on repair ownership and adopted target-aware metadata without adding a database migration or another coordinator.
+- Canonical persistence decrypts bundled replacements, tracks unreadable owners for retry, and preserves attachment ownership while keys are unavailable.
+  Awaited SDK decryption does not schedule duplicate writes, and ciphertext remains encrypted in persistent event records.
+  Pending local edits stay in memory; persistent snapshots retain the last confirmed row until server confirmation.
+- Essential attachments share raw bytes while validation remains specific to each owner and revision.
+  Ordinary text creates no attachment references or jobs, and historical stickers use the existing optional-media policy.
+  Explicit upgrade fixtures preserve shared bytes, references, coverage, revision metadata and room pins.
+- Offline and hidden cancellation preserve their pause states.
+  Shared gap completion or failure settles room status; committed empty-page cursors and successful marker clears notify the existing controller.
+  Metadata lease revocation creates no spurious failure diagnostic, and history checkpoints retain only eight recent pagination tokens.
+- Independent review reproduced and verified fixes for failed standalone encrypted edits, pending-edit cache replay and empty-gap successors.
+  All 568 files / 4,905 unit tests, application and browser-test typechecks, production/PWA build, formatting and whitespace checks pass.
+  ESLint retains 17 existing warnings and no errors.
+  Eight Chromium/WebKit browser cases pass with two expected platform-specific skips, including delayed edit/deletion races and offline/profile-restart decoding of historical bodies, images and stickers.
+- Bounds remain explicit: policy-ineligible media can still incur bounded event retry reads; saved history entries count server traversal, not unique compacted rows.
+  Recovering discarded edit revisions requires server history, and interactive blob buffering remains a tradeoff.
+  Physical iPhone and real encrypted-browser restart validation remain unavailable.
+
+### Cover overlapping streams and attachment ownership transitions (2026-09-20)
+
+- Real engine and IndexedDB regressions hold an old body download across two later edits, then check the latest saved body and removal of obsolete bytes without refocusing the room.
+  Both attachment-to-attachment and attachment-to-inline cases failed before the fix.
+- Canonical event persistence now updates attachment ownership independently of background download admission, including inline edits received through thread reconciliation.
+  Live attachment work uses the existing scheduler's abort-and-replace behavior so newer revisions are retained behind draining jobs.
+  Scheduler cancellation uses `AbortError`; a mixed-owner queued-batch regression proves superseding one owner does not discard other messages in that batch.
+- Browser freshness races now also replace long-text bodies and images with inline text, checking current rendering, retired bytes, late old work, and another offline reopen.
+  Shared-MXC deletion coverage goes through the real event-save boundary and preserves bytes until the last owner is deleted.
+- A cold-client repair regression restores an earlier attachment when the server supplies the surviving edit after the newest edit is redacted, rejects stale replay, and hydrates the saved canonical row offline without fetching.
+  Intermediate edits remain compacted away; recovering a discarded survivor requires server history.
+- Latest `dev` is integrated; all 565 files / 4,871 unit tests, application and browser-test typechecks, and production/PWA build pass.
+  ESLint has no errors and the existing 17 warnings.
+  Independent review found and verified the queued-cancellation fix, with no remaining findings.
+  The offline-content browser spec passes eight cases with two expected engine-specific skips, including six delayed-work freshness races across Chromium and WebKit.
+  Formatting and whitespace checks pass; physical iPhone lifecycle validation remains unavailable.
 
 ### Match remaining chat controls and attachment shells (2026-09-20)
 
@@ -51,6 +124,21 @@
   Independent review found no actionable issues.
   Physical iPhone rendering remains unverified.
 
+### Keep server changes after delayed cached content completes (2026-09-20)
+
+- Online restart regressions hold an old cached long-text body and image download until server edits or deletions have reached the UI and dedicated cache, then release both old consumers and reopen again without Matrix access or newer SDK sync data.
+  They check rendered body/image content, retired bytes, current ownership and deletion tombstones in Chromium and WebKit.
+- The fixture exposed an independent history cursor bug: ordinary SDK room pagination can advance past thread replies without saving them.
+  Offline history now starts from the room head and resumes only from its own committed cursor.
+- Observed deletions retire attachment ownership in the existing room/thread persistence boundary, before event tombstones commit.
+  Cleanup reuses terminal reference tombstones and existing shared-blob retention; it does not wait for background media jobs.
+  Existing event-scrub markers do not skip attachment retirement, and lease revocation or failed attachment writes cannot claim a successful event save.
+- The cursor and both deletion storage regressions failed before their fixes.
+  All 564 files / 4,866 unit tests, application and browser-test typechecks, production/PWA build and formatting pass; ESLint reports the existing 17 warnings and no errors.
+  The browser spec passes six cases with two expected engine-specific skips, including all four edit/deletion races.
+  Disabling the stale attachment-write guard makes the edit race fail after old work finishes: both retired payloads reappear in storage.
+  Independent review approved both fixes and the browser gate design.
+
 ### Restore directional specular glass rims (2026-09-20)
 
 - Shared glass surfaces use a one-pixel masked gradient rim with a 45-degree upper-left highlight and a weaker opposite reflection.
@@ -67,6 +155,158 @@
   Four local Matrix checks verify the actual thread banner, audio layout, and resolve action in both browsers and light/dark themes.
   Independent review approved the change.
   Physical iPhone rendering remains unverified; Linux WebKit captures demonstrate the rim but do not reproduce iOS backdrop blur.
+
+### Close attachment transport review findings (2026-09-20)
+
+- In-flight attachment downloads now distinguish authentication modes and abort during global in-memory cleanup.
+  Persistent bytes retain their account-scoped MXC identity, and one shared predicate checks cached message ownership.
+  Removed the unused media-auth helper re-export.
+- Browser offline fixtures navigate directly to their room, avoiding offscreen entries in a virtualized room list.
+  The gap-fill successor regression waits for all three page jobs before inspecting the committed marker.
+- Cache guarantees remain deliberately bounded: validated blob reads do not rewrite payloads for exact per-file recency.
+  Eviction protects focused, recently opened and pinned rooms plus essential bodies; other optional media uses coarse recency.
+  After clear or restart revokes an event's original lease, late decryption cannot regain write authority merely by reusing that event.
+  A current room activation or explicit Download repairs tracked missing keys through its own persistence operation.
+- Independent review approved the scoped fixes; both new transport regressions failed before their fixes and passed afterward.
+  All 564 files / 4,864 unit tests, typecheck, production/PWA build and formatting pass; ESLint retains 17 existing warnings and no errors.
+  The WebKit historical body/image profile-restart regression passes with Matrix requests held.
+
+### Retry missing offline content and share live cache writes (2026-09-20)
+
+- Notice and Emote long-text renderers now carry the same event/revision ownership as Text and File.
+  Ownerless essential hydration remains interactive without creating protected persistent bytes; validated owned cache hits skip payload rewrites and repeat eviction scheduling.
+- Automatic activation indexes the initial live window once, then retries missing attachment owners, missing keys and unresolved relations through the existing bounded cursor.
+  Explicit Download still scans retained history, including older records without attachment references.
+- Live write-through compaction now owns canonical persistence and publishes saved batches to attachment work.
+  Captured thread scope survives SDK pruning without assigning unrelated pending relations to that thread.
+- Compacted-edit redaction recovery inspects detached serialized data without using the live SDK mapper, preserving live unsigned state and future SDK event delivery.
+  Cached wire relations identify ordinary roots after SDK redaction pruning, including encrypted roots, so they skip the retained scan.
+  Encrypted standalone edits still recover their compacted owner and retire the correct attachment revision.
+- Validation: 563 files / 4,847 tests pass, including deterministic checks for one event write, one body fetch and one room-reference scan across a 20-edit burst.
+  Typecheck, production/PWA build and ESLint pass with the existing 17 warnings and zero errors.
+
+### Close offline storage and hydration review gaps (2026-09-20)
+
+- Proactive bodies and media now use the existing CacheStore budget before admission and preserve the storage-pressure pause after recent, retained, paged and live work.
+  Interactive attachment reads remain available.
+  Canonical registration preserves validation only for the unchanged owner, revision and MXC within its byte bound, so pressure-denied work cannot downgrade already saved bodies.
+- Schema v6 adds attachment metadata and room/event reference indexes without replacing retained data.
+  Budget admission reads index keys and the room ledger; eviction reads raw bytes only for eligible candidates.
+  Reference replacement reads only the current event owner and matching legacy keys, retaining revision/redaction tombstones and shared ownership.
+- Parsed body publication now checks each consumer's captured room/session lease after asynchronous loading and parsing.
+  Clearing one room rejects its late body while another room sharing transport can still publish.
+- Failed media capability requests remain retryable through the SDK; successful capability caching stays with the SDK.
+- Failure-path tests assert scoped diagnostics, and browser fixtures clean partial setup and attempt room cleanup even when settings restoration fails.
+
+
+### Reopen downloaded historical thread content without Matrix access (2026-09-20)
+
+- The production browser regression creates a thread root, long-text v2 sidecar and one-pixel PNG before 24 newer room events.
+  It proves a real 20-event SDK sync excludes the historical events, drives Download entire room through General settings, and waits for the production event and attachment stores to commit before restart.
+- The saved SDK sync is replaced with a real one-event tail after navigating to an inert service-worker-denylisted document, so the historical root, full body and decoded image can only reopen from the dedicated persistent cache.
+- Chromium closes the warm page, enables browser offline mode and opens a new page through the installed service worker.
+  WebKit closes and reopens the same persistent profile with workers blocked and every Matrix/media request held; this profile flow is used because Playwright WebKit cannot navigate offline even through a minimal standalone service worker.
+- Final integration corrected the service-worker source contract after the cache-only shell lookup change and added required bidi isolates around the new Arabic offline-setting interpolation values.
+  Physical iPhone, macOS and Xcode execution remain unavailable; CocoaPods dependency integration does not establish an archive or on-device result.
+
+### Open the cached web shell before network navigation (2026-09-20)
+
+- Eligible app, room and thread navigations return the valid precached document immediately without starting a network request.
+  A missing or unusable shell falls through to a no-store network navigation and preserves opaque authentication redirects.
+- Interactive configuration authentication adds the one-shot `authentication-recovery-navigation=1` query marker so the navigation reaches a reverse proxy.
+  Normal startup removes only that marker while preserving the path, other query parameters, hash and current history state.
+- The existing server, SSO, static and deployment-configured navigation exclusions remain in place.
+  Service worker installation, activation and non-disruptive update behavior are unchanged.
+- Validation: 31 focused navigation, configuration, registration and lifecycle tests pass, along with application typecheck and the production/PWA build.
+  ESLint reports zero errors and the existing 17 warnings.
+
+### Control room offline content from General settings (2026-09-20)
+
+- Room General settings now reports saved history entries, combined attachment coverage, storage use, inaccessible history, unresolved relations, missing keys and essential bodies through the client-scoped offline controller snapshot.
+  It distinguishes unknown, unvisited and unavailable storage as well as offline, background, connection-policy, storage-pressure and restart-required pauses.
+- Download entire room, Include all media, Cancel download and Keep offline send room-scoped intent through the engine.
+  Keep offline protects saved room media during automatic cleanup without promising unlimited capacity.
+- Clearing downloaded room content uses the existing focused dialog pattern with explicit cancel and confirm actions.
+  The controller retains ownership of cancellation, write revocation and reset; rejected pin and clear operations remain visible in the panel.
+- All 17 locale catalogs contain the new strings.
+  Nine focused component tests pass, along with application typecheck, focused ESLint, changed-file formatting and the production/PWA build.
+
+### Complete explicit offline scans from the retained room head (2026-09-20)
+
+- Explicit Download scans the entire retained room, including essential bodies and include-all media before the automatic retry cursor.
+  A Download requested during an automatic scan keeps a pending full-scan intent; the existing controller reruns from the head after the current batch, including after navigation. Cancel and clear discard that pending intent.
+- Automatic scans keep their bounded durable cursor and later-run wrapping. No public API or cache schema changes.
+- Validation: all 24 offline-controller tests pass, including three new real-store regressions for prefix bodies, prefix optional media and promotion during a held attachment fetch. Typecheck, formatting and ESLint pass with the existing 17 warnings.
+
+### Fence offline callbacks and resume retained work (2026-09-20)
+
+- Late SDK decryption keeps the event's original room write lease. Clearing then reopening cannot authorize an old callback.
+  Captured pagination operations own room and thread writes; duplicate SDK timeline writes are removed. Held seed reads check that same operation before publication.
+- Repository coverage applies transactional additions/removals to current metadata; history checkpoints update only pagination facts.
+  Attachment/decryption repair keeps its own durable scan cursor, resumes beyond bounded prefixes, and wraps only on a later run.
+- Failed gap transport, cache commits and stalled cursors retain deferred intent for a meaningful retry.
+  Explicit Download wakes deferred gaps and remains authorized across navigation until both history and the gap finish; the controller owns shared eligibility and allowance.
+- Validation: 498 focused tests cover these interleavings using real IndexedDB and production owners, including a deliberately aborted write transaction.
+  Typecheck, formatting and ESLint pass; existing ESLint warnings remain. Full-suite, production-build and native evidence below predates this fix round.
+
+### Resume opened-room offline downloads (2026-09-20)
+
+- The client engine owns opened-room history and attachment work through its existing scheduler.
+  Each history page and each message's attachment batch releases its scheduler slot before continuation; foreground work keeps priority.
+  Automatic work shares a per-room visit allowance of 10,000 events on reported Wi-Fi, or 200 on unknown/metered connections.
+  Explicit room download overrides that allowance; hidden or offline pages pause, and connection/visibility changes resume eligible work.
+- Schema v5 adds one room/event lookup index in place, preserving v3/v4 data.
+  Reserved room metadata retains committed history cursors, unresolved relations and undecrypted IDs.
+  Room exhaustion, limited-sync gaps, thread relation proofs and missing essential bodies remain separate coverage facts.
+  SDK decryption precedes grouping, retained encrypted events stay ciphertext, and later keys trigger engine repair.
+  Verified edit retractions restore canonical attachment ownership before body publication.
+- Room clear revokes the shared room write lease before deleting data. Async pagination, bootstrap and edit repair capture a fresh engine persistence operation before fetching, so old requests cannot restore cleared content and new requests in the same view can save.
+  Pin/clear/download/cancel and stable coverage snapshots are exposed by engine.offline for room settings.
+  Snapshots distinguish unread, unopened and unavailable storage; saved/missing counts include all attachment categories.
+  Soft storage pressure pauses history without deleting text; quota read-only mode still requires app restart to resume writes.
+- Default scope is current-room-only; v1 homeserver-wide preferences migrate to it, while explicit all-rooms preferences remain visible.
+  The obsolete depth input, React history loop and long-text prewarm batch are removed; interactive pagination stays bounded at 200.
+- Official @capacitor/network 8.0.1 supplies native status, with generated Android linkage and a real iOS CocoaPods lock update.
+  Native Wi-Fi reporting does not expose every metering/Low Data Mode setting. Browser unknown connections remain bounded; persistent-storage permission is requested nonblocking.
+  Native compilation and device network transitions were not available in this environment.
+- Validation: full Node 24 suite passes 561 files / 4,789 tests, plus 324 focused tests after the operation-bound persistence and gap-cycle corrections.
+  Typecheck and ESLint pass after those corrections; the production/PWA build passed before them. ESLint retains the existing 17 warnings and zero errors.
+
+### Cache message media and retain room text under storage pressure (2026-09-20)
+
+- Message images, thumbnails, video, audio, file previews and file downloads share the authenticated persistent attachment repository.
+  Components still own and revoke their Blob URLs; the image viewer saves the source Blob URL it receives.
+- Automatic batches register current message references before downloading, then fetch sequentially.
+  Optional media with known size at most 5 MiB is automatic; unknown or larger media waits for explicit open or include-all mode.
+  Streaming transport enforces each consumer's limit without canceling another consumer that still needs the same download.
+- Essential long-text body input is capped at 32 MiB and validated before claiming readable coverage.
+  Failed, malformed, oversized and uncommitted bodies remain incomplete; original-file download remains available separately.
+- Attachment references use stable room/message ownership, timestamp and edit-id ordering, and permanent redaction tombstones.
+  Detached edits await existing relation repair; only a known same-room target with matching sender can authorize a raw replacement.
+  Replacing a streamed body removes obsolete unshared bytes while shared room/message bytes survive.
+  Verified edit retractions can restore the surviving canonical body; retired edit IDs persist and reject stale replay after restart.
+  Shared-MXC coverage requires every owner to be readable, so an optional file cannot hide a missing essential body.
+- Media rendering, file controls and long-text prewarming pass message ownership through the same repository.
+  Individual consumers merge sibling references within one revision; canonical batches replace the complete reference set.
+  Warm parsed bodies still register every owner, and shared hydration preserves each owner's independent persistence lease.
+- Automatic eviction now reclaims old optional media, preserving message text, essential bodies, pinned rooms and recent/focused rooms.
+  Budget results expose remaining pressure when protected content alone exceeds the budget.
+  Explicit room clear removes that room's events, metadata, summaries, pin and attachment references, retaining shared blobs.
+- Room write leases extend the existing session lease boundary.
+  Background jobs must capture their room lease before network work and pass it into later writes so clear prevents stale resurrection.
+  Quota failures preserve interactive bytes and degrade persistent writes to origin-wide read-only mode until page restart; clear and reclamation remain available, without automatic write retries.
+- Validation: the full Node 24 suite passes 560 files and 4,766 tests; focused media/message/cache coverage passes 77 files and 689 tests.
+  Typecheck and production/PWA build pass; ESLint reports zero errors and the existing 17 warnings.
+
+### Persist essential message bodies for offline restart (2026-09-20)
+
+- The existing session-scoped `mindroom-cache` database is schema v4. It adds immutable raw attachment payloads plus indexed room references while preserving all four v3 stores and their data.
+- `downloadCachedAttachment(mx, source, useAuthentication, options?)` owns authenticated media transport, one-fetch concurrency, persistent raw-byte reads and writes, size limits, caller aborts, and consumer-time decryption. Its storage identity is the account-scoped MXC URI; encryption keys remain in message metadata and stored encrypted payloads remain cipher bytes.
+- `getCachedAttachmentCacheMetadata(mx, mxcUri)` reports committed payload and room-reference metadata. A successful interactive download does not imply offline coverage when IndexedDB is unavailable or a write fails.
+- Room references record MXC URI, room id, byte length, essential flag, `cached` status, and update time. Essential promotion is monotonic across cached hits and concurrent callers. Registering absent references and optional-media eviction remain follow-up policy work.
+- Generic sidecars persist as ordinary attachments. Long-text message bodies explicitly request essential retention and can hydrate after the parsed in-memory cache is discarded and network transport is unavailable.
+- Session cache deletion and app-wide in-memory cleanup revoke outstanding attachment write leases before clearing state, so a transport completion from an old session cannot recreate deleted payloads.
+- Validation: the full Node 24 suite passes (`557` files, `4,737` tests), including focused cache/message coverage (`22` files, `173` tests); `npm run typecheck` and `npm run build` pass; `npm run lint` passes with the existing `17` warnings and no errors.
 
 ### Run browser specs in parallel (2026-09-20)
 

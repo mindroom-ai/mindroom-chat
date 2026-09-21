@@ -57,11 +57,12 @@ const openFixture = () => {
   const bootstrap = vi.spyOn(mx, 'getThreadTimeline').mockResolvedValue(timeline);
   const context = vi.spyOn(mx, 'getEventTimeline').mockResolvedValue(timeline);
   const rendered = new Map<string, MatrixEvent>();
+  const persist = vi.fn();
   const runtime: ThreadOpenRuntime = {
     mx,
     room,
     sessionId: 'session',
-    persist: vi.fn(),
+    beginCacheWrite: () => persist,
     reconcile: vi.fn(async () => ({
       repaired: false,
       fetchedCount: 0,
@@ -272,7 +273,7 @@ describe('thread session opening', () => {
           );
       });
       // No token means the helper has already persisted, before its owner's continuation.
-      expect(fixture.runtime.persist).toHaveBeenCalledTimes(1);
+      expect(fixture.runtime.beginCacheWrite()).toHaveBeenCalledTimes(1);
       const snapshot = view.session.snapshot;
       await act(async () => {
         expect(await refresh).toBe(false);
@@ -384,7 +385,7 @@ describe('thread session opening', () => {
     expect(refreshed).toBe(true);
     expect(fixture.rendered.get('$reply')).toBe(fixture.reply);
     expect(view.session.snapshot.history.tailLoaded).toBe(true);
-    expect(fixture.runtime.persist).toHaveBeenCalledTimes(1);
+    expect(fixture.runtime.beginCacheWrite()).toHaveBeenCalledTimes(1);
     view.unmount();
   });
 

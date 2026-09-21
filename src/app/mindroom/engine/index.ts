@@ -35,7 +35,6 @@ export type {
   PersistRoomEventCache,
   PersistThreadEventCache,
   PersistThreadCacheFromRoomEvents,
-  QueueRoomThreadCachePersist,
 } from './enginePersistFacade';
 export {
   MAX_CONCURRENT_BACKFILL_JOBS,
@@ -67,7 +66,7 @@ export type { PrefetchConfig, PrefetchScope, RoomPrefetchTier } from './prefetch
 export { createGapFillExecutor } from './gapFillExecutor';
 export type { GapFillExecutor, GapFillExecutorOptions } from './gapFillExecutor';
 export { enqueueRoomDeepHistoryJob } from './deepHistoryJob';
-export type { EnqueueDeepHistoryArgs } from './deepHistoryJob';
+export type { HistoryPage } from './deepHistoryJob';
 export { scheduleReconcile } from './reconciler';
 export type { ReconcileResult, ScheduleReconcileArgs } from './reconciler';
 export {

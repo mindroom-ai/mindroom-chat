@@ -1,3 +1,4 @@
+import type { MatrixEvent } from 'matrix-js-sdk';
 import React, { ReactNode } from 'react';
 
 import {
@@ -23,9 +24,10 @@ export type MindroomMessageCopyTextState = {
 
 export function useMindroomMessageExtensionState(
   content: Record<string, unknown>,
-  menuOpen: boolean
+  menuOpen: boolean,
+  mEvent?: MatrixEvent
 ): MindroomMessageExtensionState {
-  return useMindroomMessageControls(content, menuOpen);
+  return useMindroomMessageControls(content, menuOpen, mEvent);
 }
 
 export function getMindroomMessageCopyTextState(

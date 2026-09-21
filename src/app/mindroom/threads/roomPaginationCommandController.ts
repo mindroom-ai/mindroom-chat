@@ -29,7 +29,7 @@ export const useRoomPaginationCommandController = ({
   alive,
   handleTimelinePagination,
   mx,
-  persistRoomEventCache,
+  beginRoomCacheWrite,
   recalibrateFilterOptsRef,
   room,
   roomIdRef,
@@ -45,7 +45,7 @@ export const useRoomPaginationCommandController = ({
   alive: () => boolean;
   handleTimelinePagination: (backwards: boolean) => Promise<void>;
   mx: MatrixClient;
-  persistRoomEventCache: PersistRoomEventCache;
+  beginRoomCacheWrite: () => PersistRoomEventCache;
   recalibrateFilterOptsRef: RefObject<RecalibrateFilterOpts | undefined>;
   room: Room;
   roomIdRef: MutableRefObject<string>;
@@ -60,6 +60,7 @@ export const useRoomPaginationCommandController = ({
 }) => {
   const backPaginationPromiseRef = useRef<Promise<void>>();
   const runBackwardPagination = useCallback(async () => {
+    const persistRoomEventCache = beginRoomCacheWrite();
     roomPaginatingBackRef.current = true;
     try {
       const currentLinkedTimelines = timeline.linkedTimelines;
@@ -181,7 +182,7 @@ export const useRoomPaginationCommandController = ({
     alive,
     handleTimelinePagination,
     mx,
-    persistRoomEventCache,
+    beginRoomCacheWrite,
     recalibrateFilterOptsRef,
     room,
     roomIdRef,

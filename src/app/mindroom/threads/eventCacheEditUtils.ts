@@ -401,18 +401,23 @@ const isStandaloneSameSenderReplace = (
 
 export const serializeEventsForCache = (room: Room, events: MatrixEvent[]): Partial<IEvent>[] => {
   hydrateCachedEvents({ room, events });
+  // SDK pending status is not part of the wire event. Keep the previous durable
+  // row until confirmation, rather than replay a local revision as server truth.
+  const confirmedEvents = events.filter(
+    (event) => !event.status && !event.replacingEvent()?.status
+  );
 
   const serializedEvents = new Map<string, Partial<IEvent>>();
   const eventById = new Map<string, MatrixEvent>();
 
-  events.forEach((mEvent) => {
+  confirmedEvents.forEach((mEvent) => {
     const eventId = mEvent.getId();
     if (eventId) {
       eventById.set(eventId, mEvent);
     }
   });
 
-  events.forEach((mEvent) => {
+  confirmedEvents.forEach((mEvent) => {
     const eventId = mEvent.getId();
     const rawEvent = mEvent.event as Partial<IEvent> | undefined;
     if (!eventId || !rawEvent) return;

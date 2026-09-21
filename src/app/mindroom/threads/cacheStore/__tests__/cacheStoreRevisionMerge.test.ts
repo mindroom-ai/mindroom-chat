@@ -1,12 +1,15 @@
 import 'fake-indexeddb/auto';
 import { MatrixEvent, type IEvent, type Room } from 'matrix-js-sdk';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { saveAttachmentOwner } from '../../__tests__/attachmentFixtures';
 import {
   createPreferLiveEventMapper,
   persistThreadEventCacheSnapshot,
 } from '../../eventRepository';
 import {
   deleteCacheStoreDb,
+  loadCachedAttachment,
+  putCachedAttachment,
   loadLatestCachedRoomEvents,
   loadLatestCachedThreadEvents,
   loadCachedRoomPaginationToken,
@@ -142,6 +145,73 @@ describe('cache storage same-ID revision merge', () => {
   afterEach(async () => {
     await deleteCacheStoreDb(SESSION_ID);
     resetCacheStoreForTesting();
+  });
+
+  it.each(['room', 'thread'] as const)(
+    'revokes attachment writes when %s persistence observes a deletion',
+    async (scope) => {
+      const owner = { roomId: ROOM_ID, eventId: '$body', revisionTs: 100, essential: true };
+      const payload = {
+        mxcUri: 'mxc://example.org/body',
+        mimeType: 'application/json',
+        bytes: new TextEncoder().encode('old body').buffer,
+      };
+      await saveAttachmentOwner(SESSION_ID, ROOM_ID, '$body', 100, [
+        { mxcUri: payload.mxcUri, essential: true },
+      ]);
+      await putCachedAttachment(SESSION_ID, payload, owner);
+      expect(await loadCachedAttachment(SESSION_ID, payload.mxcUri)).toBeDefined();
+
+      // Live sync carries a redaction; reconciliation can carry only its pruned target.
+      if (scope === 'room') {
+        await saveRoomEventsToCache(SESSION_ID, ROOM_ID, [redaction('$delete', '$body', 300)]);
+      } else {
+        await saveThreadEventsToCache(SESSION_ID, ROOM_ID, THREAD_ID, [redacted('$body')]);
+      }
+      expect(await loadCachedAttachment(SESSION_ID, payload.mxcUri)).toBeUndefined();
+
+      // A late consumer cannot register its old revision or restore its downloaded bytes.
+      expect(
+        await saveAttachmentOwner(SESSION_ID, ROOM_ID, '$body', 100, [
+          { mxcUri: payload.mxcUri, essential: true },
+        ])
+      ).toBe(true);
+      await putCachedAttachment(SESSION_ID, payload, owner);
+      expect(await loadCachedAttachment(SESSION_ID, payload.mxcUri)).toBeUndefined();
+    }
+  );
+
+  it('keeps shared attachment bytes until every message owner is deleted', async () => {
+    const payload = {
+      mxcUri: 'mxc://example.org/shared',
+      mimeType: 'text/plain',
+      bytes: new TextEncoder().encode('shared body').buffer,
+    };
+    const owners = [
+      { roomId: ROOM_ID, eventId: '$one' },
+      { roomId: ROOM_ID, eventId: '$two' },
+      { roomId: '!other:example.org', eventId: '$three' },
+    ];
+    for (const owner of owners) {
+      await saveAttachmentOwner(SESSION_ID, owner.roomId, owner.eventId, 100, [
+        { mxcUri: payload.mxcUri, essential: true },
+      ]);
+      await putCachedAttachment(SESSION_ID, payload, {
+        ...owner,
+        revisionTs: 100,
+        essential: true,
+      });
+    }
+    for (const [index, owner] of owners.entries()) {
+      const deletion = redaction(`$delete-${index}`, owner.eventId, 300);
+      await saveRoomEventsToCache(SESSION_ID, owner.roomId, [deletion]);
+      // Re-observing an already marked deletion must preserve the same surviving owners.
+      await saveRoomEventsToCache(SESSION_ID, owner.roomId, [deletion]);
+      const saved = await loadCachedAttachment(SESSION_ID, payload.mxcUri);
+      if (index < owners.length - 1) {
+        expect(new TextDecoder().decode(saved?.bytes)).toBe('shared body');
+      } else expect(saved).toBeUndefined();
+    }
   });
 
   it('does not overwrite a redacted room event with stale plaintext', async () => {

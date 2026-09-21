@@ -1,6 +1,6 @@
 import React from 'react';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { MatrixClient } from 'matrix-js-sdk';
 import { IEncryptedFile } from '../../../types/matrix/common';
 import { ClientConfigProvider } from '../../hooks/useClientConfig';
@@ -11,20 +11,23 @@ import { clearMindroomLongTextHydrationCache, MindroomLongTextSource } from './l
 const matrixMocks = vi.hoisted(() => ({
   decryptFile: vi.fn(),
   downloadEncryptedMedia: vi.fn(),
-  downloadMedia: vi.fn(),
+  networkBody: vi.fn(),
   mxcUrlToHttp: vi.fn(),
 }));
 const longTextMocks = vi.hoisted(() => ({
   hydrateMindroomLongTextSource: vi.fn(),
 }));
 const hookMocks = vi.hoisted(() => ({
-  mx: {},
+  mx: {
+    getAccessToken: vi.fn(() => undefined),
+    getHomeserverUrl: vi.fn(() => 'https://example.org'),
+    getSafeUserId: vi.fn(() => '@alice:example.org'),
+  },
 }));
 
 vi.mock('../../utils/matrix', () => ({
   decryptFile: matrixMocks.decryptFile,
   downloadEncryptedMedia: matrixMocks.downloadEncryptedMedia,
-  downloadMedia: matrixMocks.downloadMedia,
   mxcUrlToHttp: matrixMocks.mxcUrlToHttp,
 }));
 vi.mock('./longText', async () => {
@@ -335,6 +338,19 @@ const renderResolvedContentDomProbe = async (
   };
 };
 
+beforeEach(() => {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string, init?: RequestInit) => {
+      const blob = init?.headers
+        ? await matrixMocks.networkBody(url, { headers: init.headers })
+        : await matrixMocks.networkBody(url);
+      return new Response(blob);
+    })
+  );
+});
+afterEach(() => vi.unstubAllGlobals());
+
 describe('downloadMindroomLongTextSidecarText', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -347,9 +363,9 @@ describe('downloadMindroomLongTextSidecarText', () => {
     });
   });
 
-  it('downloads unencrypted sidecar content using downloadMedia', async () => {
+  it('downloads unencrypted sidecar content through shared transport', async () => {
     const downloadMindroomLongTextSidecarText = await getDownloadMindroomLongTextSidecarText();
-    matrixMocks.downloadMedia.mockResolvedValue(
+    matrixMocks.networkBody.mockResolvedValue(
       new Blob([JSON.stringify({ msgtype: 'm.text', body: 'full response' })], {
         type: 'application/json',
       })
@@ -357,7 +373,7 @@ describe('downloadMindroomLongTextSidecarText', () => {
 
     const text = await downloadMindroomLongTextSidecarText(mockMx, createLongTextSource(), false);
 
-    expect(matrixMocks.downloadMedia).toHaveBeenCalledWith(
+    expect(matrixMocks.networkBody).toHaveBeenCalledWith(
       'https://example.org/_matrix/media/v3/download/server/content'
     );
     expect(matrixMocks.downloadEncryptedMedia).not.toHaveBeenCalled();
@@ -372,7 +388,7 @@ describe('downloadMindroomLongTextSidecarText', () => {
       getAccessToken: vi.fn(() => 'access-token'),
       getHomeserverUrl: vi.fn(() => 'https://example.org'),
     });
-    matrixMocks.downloadMedia.mockResolvedValue(
+    matrixMocks.networkBody.mockResolvedValue(
       new Blob([JSON.stringify({ msgtype: 'm.text', body: 'full response' })], {
         type: 'application/json',
       })
@@ -380,7 +396,7 @@ describe('downloadMindroomLongTextSidecarText', () => {
 
     await downloadMindroomLongTextSidecarText(mockMx, createLongTextSource(), true);
 
-    expect(matrixMocks.downloadMedia).toHaveBeenCalledWith(mediaUrl, {
+    expect(matrixMocks.networkBody).toHaveBeenCalledWith(mediaUrl, {
       headers: { Authorization: 'Bearer access-token' },
     });
   });
@@ -393,31 +409,35 @@ describe('downloadMindroomLongTextSidecarText', () => {
       getAccessToken: vi.fn(() => 'access-token'),
       getHomeserverUrl: vi.fn(() => 'https://example.org'),
     });
-    matrixMocks.downloadMedia.mockResolvedValue(new Blob(['{}'], { type: 'application/json' }));
+    matrixMocks.networkBody.mockResolvedValue(
+      new Blob(['{"msgtype":"m.text","body":"body"}'], { type: 'application/json' })
+    );
 
     await downloadMindroomLongTextSidecarText(mockMx, createLongTextSource(), true);
 
-    expect(matrixMocks.downloadMedia).toHaveBeenCalledWith(mediaUrl);
+    expect(matrixMocks.networkBody).toHaveBeenCalledWith(mediaUrl);
   });
 
   it('downloads sidecar blob for unencrypted content', async () => {
     const downloadMindroomLongTextSidecarBlob = await getDownloadMindroomLongTextSidecarBlob();
     const blob = new Blob(['raw-content'], { type: 'application/json' });
-    matrixMocks.downloadMedia.mockResolvedValue(blob);
+    matrixMocks.networkBody.mockResolvedValue(blob);
 
     const downloadedBlob = await downloadMindroomLongTextSidecarBlob(
       mockMx,
       createLongTextSource(),
-      false
+      false,
+      true
     );
 
-    expect(matrixMocks.downloadMedia).toHaveBeenCalledWith(
+    expect(matrixMocks.networkBody).toHaveBeenCalledWith(
       'https://example.org/_matrix/media/v3/download/server/content'
     );
-    expect(downloadedBlob).toBe(blob);
+    expect(downloadedBlob.type).toBe(blob.type);
+    expect(await downloadedBlob.text()).toBe('raw-content');
   });
 
-  it('downloads encrypted sidecar content using downloadEncryptedMedia + decryptFile', async () => {
+  it('downloads encrypted sidecar cipher bytes and decrypts only the consumer blob', async () => {
     const downloadMindroomLongTextSidecarText = await getDownloadMindroomLongTextSidecarText();
     const encryptedFile: IEncryptedFile = {
       url: 'mxc://server/encrypted',
@@ -438,9 +458,8 @@ describe('downloadMindroomLongTextSidecarText', () => {
         type: 'application/json',
       })
     );
-    matrixMocks.downloadEncryptedMedia.mockImplementation(
-      async (_url: string, decryptContent: (buf: ArrayBuffer) => Promise<Blob>) =>
-        decryptContent(new ArrayBuffer(32))
+    matrixMocks.networkBody.mockResolvedValue(
+      new Blob([new Uint8Array(32)], { type: 'application/octet-stream' })
     );
 
     const text = await downloadMindroomLongTextSidecarText(
@@ -457,17 +476,15 @@ describe('downloadMindroomLongTextSidecarText', () => {
       true
     );
 
-    expect(matrixMocks.downloadEncryptedMedia).toHaveBeenCalledWith(
-      mediaUrl,
-      expect.any(Function),
-      { headers: { Authorization: 'Bearer access-token' } }
-    );
+    expect(matrixMocks.networkBody).toHaveBeenCalledWith(mediaUrl, {
+      headers: { Authorization: 'Bearer access-token' },
+    });
     expect(matrixMocks.decryptFile).toHaveBeenCalledWith(
       expect.any(ArrayBuffer),
       'application/json',
       encryptedFile
     );
-    expect(matrixMocks.downloadMedia).not.toHaveBeenCalled();
+    expect(matrixMocks.downloadEncryptedMedia).not.toHaveBeenCalled();
     expect(text).toContain('"body":"decrypted response"');
   });
 });
@@ -1320,7 +1337,7 @@ describe('useMindroomLongTextResolvedContent', () => {
 
     expect(onResolvedContent).toHaveBeenCalledWith(resolvedContent);
     expect(longTextMocks.hydrateMindroomLongTextSource).not.toHaveBeenCalled();
-    expect(matrixMocks.downloadMedia).not.toHaveBeenCalled();
+    expect(matrixMocks.networkBody).not.toHaveBeenCalled();
 
     await act(async () => {
       renderer.unmount();
@@ -1339,7 +1356,7 @@ describe('useMindroomLongTextResolvedContent', () => {
 
     expect(onResolvedContent).toHaveBeenCalledWith(undefined);
     expect(longTextMocks.hydrateMindroomLongTextSource).not.toHaveBeenCalled();
-    expect(matrixMocks.downloadMedia).not.toHaveBeenCalled();
+    expect(matrixMocks.networkBody).not.toHaveBeenCalled();
 
     await act(async () => {
       renderer.unmount();
@@ -1358,7 +1375,7 @@ describe('useMindroomLongTextResolvedContent', () => {
       body: 'Hydrated response',
     };
 
-    matrixMocks.downloadMedia.mockResolvedValue(
+    matrixMocks.networkBody.mockResolvedValue(
       new Blob([JSON.stringify(resolvedContent)], {
         type: 'application/json',
       })
@@ -1371,7 +1388,7 @@ describe('useMindroomLongTextResolvedContent', () => {
     });
 
     expect(longTextMocks.hydrateMindroomLongTextSource).toHaveBeenCalledTimes(1);
-    expect(matrixMocks.downloadMedia).toHaveBeenCalledWith(
+    expect(matrixMocks.networkBody).toHaveBeenCalledWith(
       'https://example.org/_matrix/media/v3/download/server/content'
     );
     expect(onResolvedContent).toHaveBeenLastCalledWith(resolvedContent);
@@ -1391,7 +1408,7 @@ describe('useMindroomLongTextResolvedContent', () => {
     const deferred = createDeferred<Blob>();
     const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
 
-    matrixMocks.downloadMedia.mockImplementation(() => deferred.promise);
+    matrixMocks.networkBody.mockImplementation(() => deferred.promise);
 
     try {
       const { onResolvedContent, renderer } = await renderResolvedContentProbe(source, true);
@@ -1457,19 +1474,19 @@ describe('useMindroomLongTextResolvedContent', () => {
       async () => JSON.stringify(resolvedContentA),
       mockMx
     );
-    matrixMocks.downloadMedia.mockImplementation(() => deferred.promise);
+    matrixMocks.networkBody.mockImplementation(() => deferred.promise);
 
     const { getProbeText, renderer, update } = await renderResolvedContentDomProbe(sourceA, true);
 
     expect(getProbeText()).toBe(JSON.stringify(resolvedContentA));
-    expect(matrixMocks.downloadMedia).not.toHaveBeenCalled();
+    expect(matrixMocks.networkBody).not.toHaveBeenCalled();
 
     const { renderPhaseValues } = await update(sourceB, true);
 
     expect(renderPhaseValues[0]).toBeUndefined();
     expect(getProbeText()).toBe('EMPTY');
     expect(longTextMocks.hydrateMindroomLongTextSource).toHaveBeenCalledTimes(1);
-    expect(matrixMocks.downloadMedia).toHaveBeenCalledTimes(1);
+    expect(matrixMocks.networkBody).toHaveBeenCalledTimes(1);
 
     await act(async () => {
       deferred.resolve(new Blob([JSON.stringify(resolvedContentB)], { type: 'application/json' }));

@@ -26,7 +26,7 @@ export type ThreadPaginationRuntime = {
   mx: MatrixClient;
   room: Room;
   sessionId: string;
-  persistThreadEventCache: PersistThreadEventCache;
+  beginThreadCacheWrite: () => PersistThreadEventCache;
   thread: Thread | null | undefined;
   threadEvents: MatrixEvent[];
   threadHasMoreCachedBack: boolean;
@@ -69,8 +69,9 @@ export const useThreadPagination = (session: ThreadSessionCommands, route: Threa
       const lease = session.captureLease();
       if (!runtime || !lease || active.backward) return;
       const current = runtime;
-      const { mx, room, sessionId, thread, threadEvents, viewport, persistThreadEventCache } =
+      const { mx, room, sessionId, thread, threadEvents, viewport, beginThreadCacheWrite } =
         current;
+      const persistThreadEventCache = beginThreadCacheWrite();
       const request: ThreadPaginationRequest = {
         lease,
         direction: 'backward',
@@ -187,7 +188,8 @@ export const useThreadPagination = (session: ThreadSessionCommands, route: Threa
     const paginateFront = async () => {
       const lease = session.captureLease();
       if (!runtime?.thread || !lease || active.forward) return;
-      const { mx, thread, persistThreadEventCache } = runtime;
+      const { mx, thread, beginThreadCacheWrite } = runtime;
+      const persistThreadEventCache = beginThreadCacheWrite();
       const linked = getLinkedTimelines(thread.getUnfilteredTimelineSet().getLiveTimeline());
       const last = linked[linked.length - 1];
       if (!last?.getPaginationToken(Direction.Forward)) return;

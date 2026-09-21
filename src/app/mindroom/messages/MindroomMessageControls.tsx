@@ -1,3 +1,4 @@
+import type { MatrixEvent } from 'matrix-js-sdk';
 import { useTranslation } from 'react-i18next';
 import {
   Box,
@@ -14,6 +15,7 @@ import {
 } from 'folds';
 import React, { ReactNode, useCallback, useMemo, useRef, useState } from 'react';
 import FocusTrap from 'focus-trap-react';
+import { getEventAttachmentOwner } from './eventAttachments';
 import { Dialog, Header, MenuItem } from '../../components/glass/GlassPrimitives';
 import { AsyncStatus, useAsyncCallback } from '../../hooks/useAsyncCallback';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
@@ -46,8 +48,15 @@ import { useMindroomLongTextResolvedContent } from './MindroomLongTextText';
 import * as css from './MindroomMessageControls.css';
 import { useAppLanguageCode } from '../../hooks/useAppLanguageCode';
 
-export function useMindroomMessageControls(content: Record<string, unknown>, menuOpen: boolean) {
-  const longTextSource = useMemo(() => getMindroomLongTextSource(content), [content]);
+export function useMindroomMessageControls(
+  content: Record<string, unknown>,
+  menuOpen: boolean,
+  mEvent?: MatrixEvent
+) {
+  const longTextSource = useMemo(() => {
+    const source = getMindroomLongTextSource(content);
+    return source ? { ...source, owner: getEventAttachmentOwner(mEvent) } : undefined;
+  }, [content, mEvent]);
   const resolvedLongTextContent = useMindroomLongTextResolvedContent(longTextSource, menuOpen);
   const longTextLoading = longTextSource !== undefined && resolvedLongTextContent === undefined;
   const aiRunInfo = getMindroomAiRunInfo(content);
@@ -319,7 +328,7 @@ export const MindroomDownloadOriginalMenuItem = as<
       const identity = getMindroomLongTextSourceIdentity(source);
       let blob = downloadedFileRef.current?.identity === identity && downloadedFileRef.current.blob;
       if (!blob) {
-        blob = await downloadMindroomLongTextSidecarBlob(mx, source, useAuthentication);
+        blob = await downloadMindroomLongTextSidecarBlob(mx, source, useAuthentication, true);
         downloadedFileRef.current = { identity, blob };
       }
       const saved = await saveFile(blob, getMindroomLongTextDownloadName(source));

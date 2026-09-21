@@ -59,6 +59,7 @@ import { countCacheProbe } from '../threads/cacheProbe';
 export type BackfillJobKind =
   | 'gap-fill'
   | 'room-deep-history'
+  | 'room-attachments'
   | 'thread-backfill'
   | 'thread-approvals'
   | 'thread-seed'
@@ -357,7 +358,7 @@ export const createBackfillScheduler = (
     const entry = byKey.get(key);
     if (!entry) return false;
     if (!entry.controller.signal.aborted) {
-      entry.controller.abort(new Error('backfill aborted'));
+      entry.controller.abort(new DOMException('backfill aborted', 'AbortError'));
     }
     const runningEntry = running.get(key);
     if (runningEntry?.controller === entry.controller) {

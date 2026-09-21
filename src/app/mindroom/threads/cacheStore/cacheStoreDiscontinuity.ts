@@ -68,23 +68,24 @@ export const markRoomTailDiscontinuity = async (
 /**
  * Clear the room's tail-discontinuity marker. Called by the Phase 4
  * gap-fill executor after a successful fill. No-op if no marker or
- * no meta row exists.
+ * no meta row exists. Reports whether the room is clear after the commit.
  */
 export const clearRoomTailDiscontinuity = async (
   sessionId: string,
   roomId: string,
   expectedGeneration?: string
-): Promise<void> => {
-  await updateMetaRecord(sessionId, roomId, ROOM_SCOPE, (existing, store) => {
-    if (!existing?.tailDiscontinuity) return;
+): Promise<boolean> => {
+  return updateMetaRecord(sessionId, roomId, ROOM_SCOPE, (existing, store) => {
+    if (!existing?.tailDiscontinuity) return true;
     if (
       expectedGeneration &&
       getTailDiscontinuityGeneration(existing.tailDiscontinuity) !== expectedGeneration
     ) {
-      return;
+      return false;
     }
     const { tailDiscontinuity: _drop, ...rest } = existing;
     store.put({ ...rest, updatedAt: Date.now() } satisfies CachedMetaRecord);
+    return true;
   });
 };
 

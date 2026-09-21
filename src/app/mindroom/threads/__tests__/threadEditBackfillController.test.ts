@@ -87,7 +87,7 @@ const makeProps = (harness: ReturnType<typeof makeHarness>, threadEvents: Matrix
       eventId: undefined,
       forceTimelineUpdate: vi.fn(),
       mx: harness.mx,
-      persistThreadEventCache: vi.fn(),
+      beginThreadCacheWrite: vi.fn().mockReturnValue(vi.fn()),
       room: harness.room,
       scrollRef: { current: null },
       scrollToBottomRef: { current: { count: 0, smooth: false } },
@@ -258,13 +258,13 @@ describe('useThreadEditBackfillController (task #129)', () => {
       });
       expect(harness.relations).toHaveBeenCalledTimes(5);
       expect(previous[0].getContent().body).toBe('Thinking...');
-      expect(props.persistThreadEventCache).not.toHaveBeenCalled();
+      expect(props.beginThreadCacheWrite()).not.toHaveBeenCalled();
       await act(async () => {
         harness.deferreds.get('$current')!.resolve();
         await flush();
       });
       expect(current.getContent().body).toBe('resolved');
-      expect(props.persistThreadEventCache).toHaveBeenCalledWith(
+      expect(props.beginThreadCacheWrite()).toHaveBeenCalledWith(
         '$current-thread',
         [current],
         undefined,
@@ -335,7 +335,7 @@ describe('useThreadEditBackfillController (task #129)', () => {
     });
     expect(harness.relations).toHaveBeenCalledTimes(4);
     expect(targets.every((event) => event.getContent().body === 'Thinking...')).toBe(true);
-    expect(props.persistThreadEventCache).not.toHaveBeenCalled();
+    expect(props.beginThreadCacheWrite()).not.toHaveBeenCalled();
   });
 
   it('reads a same-commit open reset before choosing edit repairs from previously attempted instances', async () => {

@@ -393,7 +393,7 @@ describe('CINNY-207 P2 review: eviction meta scan uses key-range', () => {
     vi.restoreAllMocks();
   });
 
-  it("evicts only the target room's meta rows (leaves the other room untouched)", async () => {
+  it("explicitly clears only the target room's meta rows (leaves the other room untouched)", async () => {
     const cacheStore = await import('../index');
     const dbName = cacheStore.getCacheStoreDbName(SESSION_ID);
 
@@ -437,29 +437,7 @@ describe('CINNY-207 P2 review: eviction meta scan uses key-range', () => {
     });
     db.close();
 
-    // Force room A to evict by shrinking the budget below its ledger
-    // size but keeping room B outside the eviction target.
-    cacheStore.__resetEvictionForTests();
-
-    const db2 = await openTestDb(dbName);
-    const roomALedger = await readLedger(db2, ROOM_ID_A);
-    const roomBLedger = await readLedger(db2, ROOM_ID_B);
-    db2.close();
-    const totalBytes = (roomALedger?.approxBytes ?? 0) + (roomBLedger?.approxBytes ?? 0);
-    // Budget just below total so evicting the single older room (A) is
-    // enough to satisfy the target-utilization headroom; room B stays.
-    // Target-utilization is 90% of budget, so choose a budget where
-    // roomB's bytes are well below that target.
-    const bBytes = roomBLedger?.approxBytes ?? 0;
-    cacheStore.__setCacheStoreByteBudgetForTests(
-      Math.max(bBytes + 200, Math.floor(totalBytes * 0.9))
-    );
-
-    // Ensure LRU order evicts A (older lastActivityTs) — room A was
-    // saved with ts=100 and room B with ts=200, so A is older.
-    const result = await cacheStore.runCacheEvictionIfOverBudget(SESSION_ID);
-    expect(result.evictedRoomIds).toContain(ROOM_ID_A);
-    expect(result.evictedRoomIds).not.toContain(ROOM_ID_B);
+    await cacheStore.clearRoomCachedContent(SESSION_ID, ROOM_ID_A);
 
     const db3 = await openTestDb(dbName);
     const remainingKeys = await readAllMetaKeys(db3);

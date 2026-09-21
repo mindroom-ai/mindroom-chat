@@ -64,6 +64,10 @@ vi.mock('../app/mindroom/messages/longText', () => ({
   clearMindroomLongTextHydrationCache: vi.fn(),
 }));
 
+vi.mock('../app/mindroom/messages/attachmentRepository', () => ({
+  clearAttachmentRepositoryMemory: vi.fn(),
+}));
+
 vi.mock('../app/mindroom/matrix/matrixClientFactory', () => ({
   createMatrixClient: vi.fn(),
 }));
@@ -113,6 +117,7 @@ vi.mock('../app/mindroom/threads/cacheStore', () => ({
     `mindroom-thread-event-cache::${sessionId}`,
     `mindroom-thread-summary-cache::${sessionId}`,
   ]),
+  revokeAllCacheStoreWrites: vi.fn(),
 }));
 
 vi.mock('../app/mindroom/native/iosPush', () => ({
