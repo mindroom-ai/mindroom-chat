@@ -7,12 +7,15 @@
 - The overview restored thread roots but ignored the SDK's bundled last event until the reply timeline loaded.
   Shared presentation now uses that event for a missing summary or reply preview, preserving full message counts and preferring hydrated cache/live content.
   A bundled summary supplies the title without hiding the preceding ordinary reply from the cache.
+  Reply timestamps keep an older partial timeline from masking a newer bundled message.
 - Overview metadata reads now select uncached threads before applying the 64-thread batch limit, so later downloaded threads also receive their summaries and previews.
   Only completed, uncancelled reads consume preview attempts.
   The existing 32-event tail limit and cache schema remain unchanged.
 - Real SDK and IndexedDB regressions fail before the corresponding fixes and cover empty early batches, cached summary/reply selection and newer live replies.
   All 576 unit files / 4,968 tests, application and focused-test typechecks, build, formatting and lint pass with zero errors and 17 existing warnings.
   Independent review has no remaining findings.
+  Automated review identified the partial-history case, now covered by a failing-before/passing-after SDK regression.
+  Its empty-page starvation concern does not reproduce: the real cache reader supplies explicit false completeness flags, which still publish an empty coverage result and advance the batch.
 - Chromium and WebKit reopen a downloaded 400-thread room offline with the old summary and ordinary reply previews, open its cached messages, then update the overview after reconnecting.
   Both browsers reproduced the missing old-thread preview before the cache batch correction.
   Physical iPhone first-paint timing remains unverified.

@@ -108,6 +108,28 @@ it.each([false, true])(
       },
     });
     const thread = room.getThread('$root')!;
+    const olderReply = new MatrixEvent({
+      ...liveReply.event,
+      event_id: '$older-reply',
+      sender: '@older:example.org',
+      origin_server_ts: 1500,
+      content: { ...liveReply.getContent(), body: 'Older loaded reply' },
+    });
+    thread.timelineSet.addEventsToTimeline([olderReply], true, false, thread.liveTimeline);
+    const partial = buildThreadRecord({ room, threadRootId: '$root' }).presentation;
+    expect(partial.latestReplyPreviewText).toBe(
+      summary ? 'Older loaded reply' : 'Saved last reply'
+    );
+    expect(partial.lastSenderId).toBe(summary ? '@older:example.org' : userId);
+    if (!summary) {
+      const bundled = thread.replyToEvent!;
+      const savedBody = bundled.getContent().body;
+      bundled.getContent().body = '';
+      const readable = buildThreadRecord({ room, threadRootId: '$root' }).presentation;
+      expect(readable.latestReplyPreviewText).toBe('Older loaded reply');
+      expect(readable.lastSenderId).toBe('@older:example.org');
+      bundled.getContent().body = savedBody;
+    }
     thread.timelineSet.addLiveEvent(liveReply, { addToState: false });
     expect(
       buildThreadRecord({
