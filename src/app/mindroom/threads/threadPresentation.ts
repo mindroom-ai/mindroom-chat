@@ -8,6 +8,7 @@ import {
 } from './threadMessagePreview';
 import {
   getLatestThreadSummaryInfoFromEventSources,
+  isMindroomThreadSummaryEvent,
   pickLatestThreadSummaryInfo,
   type MindroomThreadSummaryInfo,
 } from '../messages/threadSummary';
@@ -21,6 +22,7 @@ import {
   getPreferredVisibleThreadReplyEvents,
   getVisibleThreadEventBodyPreviewText,
   getVisibleThreadMessageCount,
+  isVisibleThreadReplyEvent,
   type VisibleThreadEventCollectionLike,
 } from './threadUtils';
 
@@ -46,6 +48,11 @@ export const resolveThreadSummaryInfo = ({
   thread,
 }: ResolveThreadSummaryInfoOptions): MindroomThreadSummaryInfo | undefined =>
   pickLatestThreadSummaryInfo(
+    getLatestThreadSummaryInfoFromEventSources(
+      thread?.replyToEvent && isVisibleThreadReplyEvent(thread.replyToEvent)
+        ? [thread.replyToEvent]
+        : undefined
+    ),
     preferredSummaryInfo,
     getLatestThreadSummaryInfoFromEventSources(thread?.events, thread?.timeline)
   );
@@ -100,7 +107,19 @@ export const resolveThreadPresentationSnapshot = ({
   fallbackParticipantIds,
 }: ResolveThreadPresentationSnapshotOptions): ThreadPresentationSnapshot => {
   const replyEvents = getPreferredVisibleThreadReplyEvents(thread);
-  const latestPreviewEvent = getLatestRenderableVisibleThreadReplyEvent(replyEvents);
+  const loadedPreviewEvent = getLatestRenderableVisibleThreadReplyEvent(replyEvents);
+  // The SDK restores the bundled reply before loading the thread timeline.
+  // Use it for presentation without treating one event as the full reply count.
+  const bundledReply = thread?.replyToEvent;
+  const latestPreviewEvent =
+    !fallbackLatestReplyPreviewText &&
+    bundledReply &&
+    !isMindroomThreadSummaryEvent(bundledReply) &&
+    isVisibleThreadReplyEvent(bundledReply) &&
+    getVisibleThreadEventBodyPreviewText(bundledReply) &&
+    (!loadedPreviewEvent || bundledReply.getTs() > loadedPreviewEvent.getTs())
+      ? bundledReply
+      : loadedPreviewEvent;
   const lastEvent = latestPreviewEvent ?? replyEvents[replyEvents.length - 1];
   const lastSenderId =
     lastEvent?.getSender?.() ??

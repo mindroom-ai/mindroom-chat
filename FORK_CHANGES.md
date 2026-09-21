@@ -2,6 +2,24 @@
 
 ## Runbook
 
+### Restore cached thread card details (2026-09-21)
+
+- The overview restored thread roots but ignored the SDK's bundled last event until the reply timeline loaded.
+  Shared presentation now uses that event for a missing summary or reply preview, preserving full message counts and preferring hydrated cache/live content.
+  A bundled summary supplies the title without hiding the preceding ordinary reply from the cache.
+  Reply timestamps keep an older partial timeline from masking a newer bundled message.
+- Overview metadata reads now select uncached threads before applying the 64-thread batch limit, so later downloaded threads also receive their summaries and previews.
+  Only completed, uncancelled reads consume preview attempts.
+  The existing 32-event tail limit and cache schema remain unchanged.
+- Real SDK and IndexedDB regressions fail before the corresponding fixes and cover empty early batches, cached summary/reply selection and newer live replies.
+  All 576 unit files / 4,968 tests, application and focused-test typechecks, build, formatting and lint pass with zero errors and 17 existing warnings.
+  Independent review has no remaining findings.
+  Automated review identified the partial-history case, now covered by a failing-before/passing-after SDK regression.
+  Its empty-page starvation concern does not reproduce: the real cache reader supplies explicit false completeness flags, which still publish an empty coverage result and advance the batch.
+- Chromium and WebKit reopen a downloaded 400-thread room offline with the old summary and ordinary reply previews, open its cached messages, then update the overview after reconnecting.
+  Both browsers reproduced the missing old-thread preview before the cache batch correction.
+  Physical iPhone first-paint timing remains unverified.
+
 ### Inline website favicons (2026-09-21)
 
 - Status: implemented and independently reviewed on `feat/link-favicons`; PR #308 is open for review.
@@ -15,13 +33,15 @@
 - Review caught icon disclosure and background lookups for spoiler links.
   Spoiler-associated links now omit icons entirely, including after disclosure and in either anchor/spoiler nesting order.
   Parser regressions also cover custom math rendering and malformed math fallbacks inside spoilers.
-- Validation after integrating current `dev` and addressing review: all 5,003 tests across 576 files pass under Node 24.13.1 in the standard Linux container, along with typecheck, production/PWA build, formatting, and ESLint with zero errors and the existing 17 warnings.
+- Validation after integrating current `dev` and addressing review: all 5,006 tests across 578 files pass under Node 24.13.1 in the standard Linux container, along with typecheck, production/PWA build, formatting, and ESLint with zero errors and the existing 17 warnings.
   Focused coverage checks URL eligibility, hostname reuse, failures, remount backoff, edited links, and preview toggles.
   Chromium exercises the real shared parser at room/thread text sizes, both themes, RTL spacing, narrow layout, accessible link labels, failures, settings, edits, and the absence of spoiler icon requests before and after disclosure.
 - Real-service Chromium checks confirm icons render in both themes and persist across browser restarts: the second launch serves the GitHub icon from disk cache with zero transferred bytes.
   Cache retention follows the provider's HTTP headers and browser eviction policy; the failure backoff is bounded in memory.
 - Independent integration and follow-up reviews found no remaining issues in the parser, notification event resolution, pinned messages, encryption settings, or spoiler policy.
-  Next: complete hosted checks and review of the follow-up commit before integration.
+  The follow-up passed hosted checks and review; the latest `dev` integration preserves both runbook entries after a documentation-only conflict.
+  Integration tests, typecheck, build, lint, Chromium coverage, and independent review pass after that merge.
+  Next: complete hosted checks before merging.
 
 ### Group tool calls while long-text details load (2026-09-21)
 
