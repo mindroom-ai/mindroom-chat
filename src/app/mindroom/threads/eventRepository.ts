@@ -80,6 +80,8 @@ export {
   deleteThreadEventsFromCache,
   getThreadCursorAnchor,
   loadCachedThreadEvent,
+  loadCachedThreadRootsForRoom,
+  type CachedThreadRoot,
   loadCachedThreadEventsBefore,
   loadLatestCachedThreadEvents,
   loadLatestCachedThreadEventsBatch,

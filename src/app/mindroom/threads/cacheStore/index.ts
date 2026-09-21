@@ -73,6 +73,8 @@ export {
   loadCachedRoomEventsBefore,
   loadCachedRoomPaginationToken,
   loadCachedThreadEvent,
+  loadCachedThreadRootsForRoom,
+  type CachedThreadRoot,
   loadCachedThreadEventsBefore,
   loadLatestCachedRoomEvents,
   loadLatestCachedThreadEvents,

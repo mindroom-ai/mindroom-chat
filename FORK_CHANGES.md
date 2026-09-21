@@ -2,6 +2,25 @@
 
 ## Runbook
 
+### Restore the cached thread catalogue independently of room history (2026-09-20)
+
+- A downloaded room with 400 threads and substantial later room activity reopened offline with only one thread.
+  The overview discovered roots through the SDK's recent room timeline or server thread list; its cache reader could only hydrate IDs already discovered.
+- Enumerate existing thread metadata and merge cached root copies through the normal revision rules, then restore missing SDK thread models independently of network discovery.
+  Plain roots cached before their first reply use one actual cached direct reply; later standalone edits and reactions are skipped.
+  The room timeline, SDK initialization and download-completeness flags remain untouched.
+- Persist server-listed roots through the engine's existing cache writer so opening an overview saves its catalogue without claiming replies are downloaded.
+  Existing live models take precedence, and the normal server load continues independently.
+  No new production module, cache schema, retry coordinator or full-history startup scan is introduced.
+- Regression tests use real IndexedDB storage and SDK room/thread models with 400 roots, pending discovery, plain roots followed by reactions, another room and a newer live title.
+  The live browser fixture downloads a real 400-thread room, closes it and reopens offline with bundled app assets available.
+  The unpatched build reproduces “Showing 1 thread”; the patched build restores all 400 within five seconds.
+- Independent review found and verified the plain-root correction, then reported no remaining findings.
+  Claude's design consultation favored restoring the existing SDK catalogue over introducing a parallel overview model.
+  All 574 unit files / 4,955 tests, application and focused-test typechecks, production build and lint pass with 17 existing warnings and no errors.
+  Chromium and WebKit both restore 400 threads offline, open an old cached reply and show a new reply after reconnect without reloading.
+  Physical iPhone validation remains outstanding.
+
 ### Keep pending invitation keys out of offline account startup (2026-09-20)
 
 - A recently accepted room invitation leaves a pending key-bundle record in the Rust crypto store, even for an unencrypted room with no bundle.

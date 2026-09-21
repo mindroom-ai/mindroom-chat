@@ -1,10 +1,13 @@
 import React from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
+import { MatrixClient } from 'matrix-js-sdk';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { MatrixClientProvider } from '../../hooks/useMatrixClient';
 import { loadRoomThreads } from './roomThreadList';
 import { useRoomThreadList } from './useRoomThreadList';
+import { MindroomSyncEngineProvider } from '../engine/engineContext';
+import { createMindroomSyncEngine } from '../engine/mindroomSyncEngine';
 
 vi.mock('./roomThreadList', async (importOriginal) => {
   const original = await importOriginal<typeof import('./roomThreadList')>();
@@ -33,6 +36,7 @@ function Harness({
 
 const makeRoom = () =>
   ({
+    roomId: '!room:example.org',
     getThreads: () => [],
     on: vi.fn(),
     removeListener: vi.fn(),
@@ -57,21 +61,23 @@ describe('useRoomThreadList', () => {
     });
 
     const room = makeRoom();
-    const mx = { getUserId: () => '@self:example.org' };
+    const mx = new MatrixClient({ baseUrl: 'https://example.org', userId: '@self:example.org' });
+    const engine = createMindroomSyncEngine({ mx });
     let snapshot: ThreadListSnapshot | undefined;
     let renderer!: ReactTestRenderer;
-    const render = (enabled: boolean) =>
-      React.createElement(
-        MatrixClientProvider,
-        { value: mx as never },
-        React.createElement(Harness, {
-          enabled,
-          onRender: (value) => {
-            snapshot = value;
-          },
-          room,
-        })
-      );
+    const render = (enabled: boolean) => (
+      <MatrixClientProvider value={mx}>
+        <MindroomSyncEngineProvider engine={engine}>
+          <Harness
+            enabled={enabled}
+            onRender={(value) => {
+              snapshot = value;
+            }}
+            room={room}
+          />
+        </MindroomSyncEngineProvider>
+      </MatrixClientProvider>
+    );
 
     await act(async () => {
       renderer = create(render(true));
