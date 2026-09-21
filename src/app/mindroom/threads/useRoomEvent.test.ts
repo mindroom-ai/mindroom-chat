@@ -126,7 +126,7 @@ describe('useRoomEvent', () => {
       client.clear();
     }
   });
-  it.each(['redaction', 'edit'])(
+  it.each(['redaction', 'edit', 'encrypted edit'])(
     'updates a detached pinned root after a live %s',
     async (change) => {
       pins.ids = ['$old'];
@@ -154,8 +154,10 @@ describe('useRoomEvent', () => {
         unsigned: { 'm.relations': { 'm.replace': edit('$first-edit', 'First edit', 200) } },
       });
       let events: MatrixEvent[] = [];
+      let bodies: unknown[] = [];
       function Probe() {
         events = usePinnedThreadEvents(room, true);
+        bodies = events.map((event) => event.getContent().body);
         return null;
       }
       const client = new QueryClient();
@@ -168,29 +170,46 @@ describe('useRoomEvent', () => {
           await flushAsyncWork();
         });
         expect(events[0].getContent().body).toBe('First edit');
+        const replacement = edit('$second-edit', 'Latest edit', 300);
+        const liveEvent = new MatrixEvent(
+          change === 'redaction'
+            ? {
+                event_id: '$redaction',
+                room_id: room.roomId,
+                sender: '@alice:example.org',
+                origin_server_ts: 300,
+                type: 'm.room.redaction',
+                redacts: '$old',
+                content: {},
+              }
+            : change === 'edit'
+            ? replacement
+            : {
+                ...replacement,
+                type: 'm.room.encrypted',
+                content: {
+                  algorithm: 'm.megolm.v1.aes-sha2',
+                  ciphertext: 'pending',
+                  'm.relates_to': replacement.content['m.relates_to'],
+                },
+              }
+        );
         await act(async () => {
-          await room.addLiveEvents(
-            [
-              new MatrixEvent(
-                change === 'edit'
-                  ? edit('$second-edit', 'Latest edit', 300)
-                  : {
-                      event_id: '$redaction',
-                      room_id: room.roomId,
-                      sender: '@alice:example.org',
-                      origin_server_ts: 300,
-                      type: 'm.room.redaction',
-                      redacts: '$old',
-                      content: {},
-                    }
-              ),
-            ],
-            { addToState: true }
-          );
+          await room.addLiveEvents([liveEvent], { addToState: true });
           await flushAsyncWork();
         });
-        if (change === 'redaction') expect(events).toEqual([]);
-        else expect(events[0].getContent().body).toBe('Latest edit');
+        if (change === 'encrypted edit') {
+          expect(bodies).toEqual(['First edit']);
+          await act(async () => {
+            await liveEvent.attemptDecryption({
+              decryptEvent: async () => ({
+                clearEvent: { type: replacement.type, content: replacement.content },
+              }),
+            } as Parameters<MatrixEvent['attemptDecryption']>[0]);
+            await flushAsyncWork();
+          });
+        }
+        expect(bodies).toEqual(change === 'redaction' ? [] : ['Latest edit']);
       } finally {
         act(() => renderer?.unmount());
         client.clear();

@@ -43,6 +43,7 @@ export const usePinnedThreadEvents = (
       .map((id, index) => room.findEventById(id) ?? fetched[index])
       .filter((event): event is MatrixEvent => !!event);
     if (roots.length === 0) return undefined;
+    const observed = new Set<MatrixEvent>();
     const reconcile = () => {
       const before = roots.map((root) => [root.isRedacted(), root.replacingEvent()?.getId()]);
       // Query-loaded roots need the same edit/redaction hydration as cached timeline events.
@@ -59,17 +60,30 @@ export const usePinnedThreadEvents = (
           event.getRelation()?.rel_type === RelationType.Replace &&
           rootIds.has(event.getRelation()?.event_id)
       );
+      const replacementsAndEdits = [...replacements, ...edits];
+      [...roots, ...replacementsAndEdits].forEach((event) => {
+        if (observed.has(event)) return;
+        observed.add(event);
+        event.on(MatrixEventEvent.Decrypted, refreshRelations);
+      });
       const targetIds = new Set([
         ...rootIds,
-        ...replacements.map((event) => event.getId()),
-        ...edits.map((event) => event.getId()),
+        ...replacementsAndEdits.map((event) => event.getId()),
       ]);
       const redactions = loaded.filter(
         (event) => event.isRedaction() && targetIds.has(event.getAssociatedId())
       );
       hydrateCachedEvents({
         room,
-        events: [...roots, ...replacements, ...edits, ...redactions],
+        events: [
+          ...roots,
+          ...replacementsAndEdits.filter(
+            (event) =>
+              !event.isEncrypted() ||
+              (event.getClearContent() !== null && !event.isDecryptionFailure())
+          ),
+          ...redactions,
+        ],
       });
       return roots.some(
         (root, index) =>
@@ -89,20 +103,17 @@ export const usePinnedThreadEvents = (
         refreshRelations();
       }
     };
-    const handleDecrypted = () => {
-      reconcile();
-      refreshRelations();
-    };
     if (reconcile()) refreshRelations();
-    roots.forEach((root) => root.on(MatrixEventEvent.Decrypted, handleDecrypted));
     room.on(RoomEvent.Timeline, handleEvent);
     room.on(RoomEvent.Redaction, handleEvent);
     return () => {
-      roots.forEach((root) => root.removeListener(MatrixEventEvent.Decrypted, handleDecrypted));
+      observed.forEach((event) =>
+        event.removeListener(MatrixEventEvent.Decrypted, refreshRelations)
+      );
       room.removeListener(RoomEvent.Timeline, handleEvent);
       room.removeListener(RoomEvent.Redaction, handleEvent);
     };
-  }, [enabled, pinnedEventIds, room, fetched, revision, refreshRelations]);
+  }, [enabled, pinnedEventIds, room, fetched, revision, relationVersion, refreshRelations]);
   return useMemo(() => {
     // SDK rooms retain their identity when newer live events replace cached copies.
     void revision;
