@@ -1,11 +1,7 @@
 import type { TFunction } from 'i18next';
 import { EventType } from 'matrix-js-sdk';
 import { isMindroomAgentMessageEvent, isMindroomAgentUserId } from '../matrix/agentIdentity';
-import {
-  getThreadMessagePreviewText,
-  getThreadPreviewLocalization,
-  localizeThreadPreview,
-} from './threadMessagePreview';
+import { getLocalizedThreadMessagePreviewText } from './threadMessagePreview';
 
 export const TIMELINE_MINIMAP_ITEM_SPACING = 8;
 export const TIMELINE_MINIMAP_MIN_ITEMS = 2;
@@ -76,11 +72,7 @@ const resolveMinimapSourceKind = (mEvent: TimelineMinimapEvent): MinimapSourceKi
 };
 
 const resolveMinimapPreviewText = (mEvent: TimelineMinimapEvent, t?: TFunction): string | null => {
-  const content = mEvent.getContent();
-  const text = getThreadMessagePreviewText(content);
-  return compactMinimapPreview(
-    localizeThreadPreview(text, getThreadPreviewLocalization(content, text), t)
-  );
+  return compactMinimapPreview(getLocalizedThreadMessagePreviewText(mEvent.getContent(), t));
 };
 
 /**

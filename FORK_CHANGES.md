@@ -15,12 +15,45 @@
 - Old roots, including announcements without replies, use the existing room event loader and cache path to join the Compact catalogue.
 - Shared pin state covers the overview, thread header, and room pin menu while serialized saves catch up with sync.
   Regression tests cover queued changes, failed saves, delayed or early echoes, lost responses, and cached roots upgrading to live content.
-- Validation: all 5,001 tests across 575 files pass under Node 24.13.1.
+- Validation after integrating current `dev`: all 5,044 tests across 580 files pass under Node 24.13.1.
   Typecheck, production/PWA build, formatting, and ESLint pass with zero errors and the existing 17 warnings.
 - Three Chromium browser checks pass for admin/moderator permissions, stable ordering and reloads, suspended resolution, old zero-reply pins, and existing hover/keyboard behavior.
   Desktop and phone-sized layouts were inspected.
   Independent review reports no remaining findings.
 - Manual ordering remains follow-up work.
+
+### Finish Markdown formatting in sidecar and reply previews (2026-09-21)
+
+- Inline code no longer splits surrounding bold, italic, or strikethrough formatting in the shared Markdown parser.
+- Code spans remain literal; links and math retain raw code delimiters in attributes instead of receiving code HTML.
+- Long-text previews render isolated root separators while preserving escaped, indented, fenced, and ambiguous examples.
+- Quoted replies, composer reply previews, and the minimap share the compact thread preview formatter and localized tool-summary entry point.
+- Removed the unused tool-only formatter wrapper and moved its marker-formatting assertions to the production formatter, retaining the existing no-marker test.
+- Regression coverage includes the screenshot's bold/code shape, separator boundaries, link and math contexts, editor round-tripping, and a real reply component updating after an edit.
+- Consulted Claude on protecting code spans while parsing surrounding emphasis and adopted token restoration at text leaves.
+- Fence cleanup and tool counting share a scanner that preserves literal fence-like content.
+  Backtick fences follow the existing message parser's grammar, including backticks in info strings and exact closing lengths; tilde fences remain a conservative preview-only boundary.
+- Independent review found and verified fixes for control-character delimiter performance and literal tool examples in code contexts.
+- After integrating current `dev`, all 5,008 tests across 579 files pass under Node 24.13.1; typecheck, production/PWA build, formatting, and lint pass with 17 existing warnings and no errors.
+- Next: merge the reviewed PR and verify sidecar and reply previews in the deployed client.
+
+### Restore cached thread card details (2026-09-21)
+
+- The overview restored thread roots but ignored the SDK's bundled last event until the reply timeline loaded.
+  Shared presentation now uses that event for a missing summary or reply preview, preserving full message counts and preferring hydrated cache/live content.
+  A bundled summary supplies the title without hiding the preceding ordinary reply from the cache.
+  Reply timestamps keep an older partial timeline from masking a newer bundled message.
+- Overview metadata reads now select uncached threads before applying the 64-thread batch limit, so later downloaded threads also receive their summaries and previews.
+  Only completed, uncancelled reads consume preview attempts.
+  The existing 32-event tail limit and cache schema remain unchanged.
+- Real SDK and IndexedDB regressions fail before the corresponding fixes and cover empty early batches, cached summary/reply selection and newer live replies.
+  All 576 unit files / 4,968 tests, application and focused-test typechecks, build, formatting and lint pass with zero errors and 17 existing warnings.
+  Independent review has no remaining findings.
+  Automated review identified the partial-history case, now covered by a failing-before/passing-after SDK regression.
+  Its empty-page starvation concern does not reproduce: the real cache reader supplies explicit false completeness flags, which still publish an empty coverage result and advance the batch.
+- Chromium and WebKit reopen a downloaded 400-thread room offline with the old summary and ordinary reply previews, open its cached messages, then update the overview after reconnecting.
+  Both browsers reproduced the missing old-thread preview before the cache batch correction.
+  Physical iPhone first-paint timing remains unverified.
 
 ### Group tool calls while long-text details load (2026-09-21)
 

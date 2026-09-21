@@ -51,6 +51,19 @@ test('restores all 400 downloaded threads behind a long room history while offli
               'm.in_reply_to': { event_id: root },
             },
           });
+          if (index === 0) {
+            await sendRoomMessage(homeserver, session.accessToken, roomId, {
+              msgtype: 'm.notice',
+              body: 'Saved overview summary',
+              'io.mindroom.thread_summary': true,
+              'm.relates_to': {
+                rel_type: 'm.thread',
+                event_id: root,
+                is_falling_back: true,
+                'm.in_reply_to': { event_id: root },
+              },
+            });
+          }
           return root;
         })
       ))
@@ -146,7 +159,20 @@ test('restores all 400 downloaded threads behind a long room history while offli
   await expect(reopened.getByText('Showing 400 threads', { exact: true })).toHaveCount(1, {
     timeout: 5_000,
   });
+  await expect(reopened.locator(`[data-thread-root-id="${roots[0]}"]`)).toContainText(
+    'Saved overview summary',
+    { timeout: 5_000 }
+  );
+  await expect(reopened.locator(`[data-thread-root-id="${roots[1]}"]`)).toContainText(
+    'Cached reply 1',
+    { timeout: 5_000 }
+  );
+  await expect(reopened.locator(`[data-thread-root-id="${roots[0]}"]`)).toContainText(
+    'Cached reply 0',
+    { timeout: 5_000 }
+  );
   await reopened.locator(`[data-thread-root-id="${roots[0]}"]`).click();
+  await expect(reopened.getByText('Saved overview summary', { exact: true }).first()).toBeVisible();
   await expect(reopened.getByText('Cached reply 0', { exact: true })).toBeVisible();
   const newReply = await sendRoomMessage(homeserver, session.accessToken, roomId, {
     msgtype: 'm.text',
@@ -167,4 +193,8 @@ test('restores all 400 downloaded threads behind a long room history while offli
     });
   }
   await expect(reopened.locator(`[data-message-id="${newReply}"]`)).toBeVisible();
+  await reopened.goBack();
+  await expect(reopened.locator(`[data-thread-root-id="${roots[0]}"]`)).toContainText(
+    'Arrived during offline startup'
+  );
 });
