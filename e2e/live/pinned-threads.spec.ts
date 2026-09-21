@@ -62,7 +62,7 @@ test.describe('pinned announcement threads', () => {
       viewMode: 'compact',
       filterState: createDefaultThreadFilterState(),
     });
-    await page.getByRole('link', { name: roomName, exact: true }).first().click();
+    await page.goto(`/home/${encodeURIComponent(roomId)}`);
     const overviewUrl = page.url();
     const card = (id: string) => page.locator(`[data-thread-root-id="${id}"]`);
     for (const id of [first, second]) {
@@ -185,7 +185,7 @@ test.describe('pinned announcement threads', () => {
       viewMode: 'compact',
       filterState: createDefaultThreadFilterState(),
     });
-    await page.getByRole('link', { name: roomName, exact: true }).first().click();
+    await page.goto(`/home/${encodeURIComponent(roomId)}`);
     const pin = page.locator(`[data-pinned-threads="true"] [data-thread-root-id="${root}"]`);
     await expect(pin).toContainText('Persistent room announcement');
     await page.setViewportSize({ width: 390, height: 844 });
