@@ -3,7 +3,6 @@ import {
   MINDROOM_TOOL_REF_HTML_REG_G,
   formatMindroomMarkdownTextBodyAsHtml,
   formatMindroomMessageTextBodyAsHtml,
-  formatMindroomToolRefTextBodyAsHtml,
   parseMindroomToolRefHtml,
   parseMindroomToolRefText,
 } from './blocks';
@@ -60,10 +59,10 @@ describe('parseMindroomToolRefText', () => {
   });
 });
 
-describe('formatMindroomToolRefTextBodyAsHtml', () => {
+describe('formatMindroomMessageTextBodyAsHtml', () => {
   it('converts plain text tool marker lines to the formatted marker contract', () => {
     expect(
-      formatMindroomToolRefTextBodyAsHtml(
+      formatMindroomMessageTextBodyAsHtml(
         [
           'Before <unsafe>',
           '',
@@ -84,12 +83,6 @@ describe('formatMindroomToolRefTextBodyAsHtml', () => {
     );
   });
 
-  it('returns undefined when the plain body has no tool refs', () => {
-    expect(formatMindroomToolRefTextBodyAsHtml('plain response')).toBeUndefined();
-  });
-});
-
-describe('formatMindroomMessageTextBodyAsHtml', () => {
   it('formats paste markers and keeps tool refs parseable', () => {
     expect(
       formatMindroomMessageTextBodyAsHtml(

@@ -63,19 +63,6 @@ const escapeHtmlText = (text: string): string =>
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
 
-export const formatMindroomToolRefTextBodyAsHtml = (body: string): string | undefined => {
-  const hasToolRef = body
-    .replace(/\r\n?/g, '\n')
-    .split('\n')
-    .some((line) => parseMindroomToolRefText(line));
-  if (!hasToolRef) return undefined;
-
-  const formattedBody = formatMindroomMessageTextBodyAsHtml(body);
-  if (!formattedBody) return undefined;
-
-  return formattedBody;
-};
-
 const formatMindroomToolRefLineAsHtml = (line: string): string | undefined => {
   const toolRef = parseMindroomToolRefText(line);
   if (!toolRef) return undefined;
