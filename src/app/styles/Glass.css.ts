@@ -5,6 +5,7 @@ import { ContainerColor, color } from 'folds';
 const surfaceContainer = createVar();
 const surfaceHover = createVar();
 const surfaceActive = createVar();
+const surfaceLine = createVar();
 const surfaceTint = createVar();
 const surfaceBlur = createVar();
 const highlight = createVar();
@@ -21,6 +22,26 @@ const variantStyle = (variant: ContainerColor): StyleRule => ({
     [surfaceContainer]: color[variant].Container,
     [surfaceHover]: color[variant].ContainerHover,
     [surfaceActive]: color[variant].ContainerActive,
+    [surfaceLine]: color[variant].ContainerLine,
+  },
+});
+
+// Preserve optional outlines without painting over the directional glass rim.
+export const glassOutline = style({
+  selectors: { '&&': { boxShadow: `inset 0 0 0 1px ${surfaceLine}` } },
+  '@supports': {
+    [maskedRimSupport]: { selectors: { '&&': { boxShadow: glassShadow } } },
+  },
+  '@media': {
+    '(prefers-reduced-transparency: reduce), (prefers-contrast: more)': {
+      selectors: { '&&&': { boxShadow: `inset 0 0 0 1px ${surfaceLine}` } },
+    },
+    '(forced-colors: active)': {
+      selectors: {
+        '&&&': { outline: '1px solid CanvasText', outlineOffset: '-1px' },
+        '&&&:focus-visible': { outline: '2px solid Highlight', outlineOffset: '2px' },
+      },
+    },
   },
 });
 
@@ -32,7 +53,8 @@ const material = (tint: number, blur: number, shadow: string, elevation: string)
     [highlight]: 'rgb(255 255 255 / 22%)',
     [rimHighlight]: 'rgb(255 255 255 / 32%)',
     [rimShade]: 'rgb(65 70 90 / 24%)',
-    [rimReflection]: 'rgb(255 255 255 / 90%)',
+    // Let the shaded rim show through so the top stays visible on white backgrounds.
+    [rimReflection]: 'rgb(255 255 255 / 50%)',
   },
   selectors: {
     '&&': {
@@ -70,7 +92,7 @@ const material = (tint: number, blur: number, shadow: string, elevation: string)
           padding: 1,
           pointerEvents: 'none',
           backgroundColor: rimShade,
-          backgroundImage: `linear-gradient(135deg, ${rimReflection}, transparent 45%, transparent 65%, ${rimHighlight})`,
+          backgroundImage: `linear-gradient(180deg, ${rimReflection}, transparent 45%, transparent 65%, ${rimHighlight})`,
           WebkitMask: 'linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)',
           mask: 'linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)',
           WebkitMaskComposite: 'xor',
@@ -159,20 +181,25 @@ export const glassSurface = recipe({
   variants: {
     level: {
       overlay: [
-        // Equal horizontal/vertical offsets light the rim from the upper left at 45°.
+        // Vertical lighting catches the top and bottom while the sides recede.
         material(
           60,
           12,
-          `inset 1px 1px 0 ${rimHighlight}, inset -1px -1px 0 rgb(255 255 255 / 6%), 0 16px 48px rgb(0 0 0 / 18%), 0 2px 8px rgb(0 0 0 / 8%)`,
+          `inset 0 1px 0 ${rimHighlight}, inset 0 -1px 0 rgb(255 255 255 / 6%), 0 16px 48px rgb(0 0 0 / 18%), 0 2px 8px rgb(0 0 0 / 8%)`,
           '0 16px 48px rgb(0 0 0 / 18%), 0 2px 8px rgb(0 0 0 / 8%)'
         ),
         { selectors: { '&&': { boxShadow: glassShadow } } },
       ],
-      panel: material(60, 10, 'inset 1px 1px 0 rgb(255 255 255 / 16%)', '0 0 0 transparent'),
+      panel: material(
+        60,
+        10,
+        'inset 0 1px 0 rgb(255 255 255 / 16%), inset 0 -1px 0 rgb(255 255 255 / 6%)',
+        '0 0 0 transparent'
+      ),
       control: material(
         58,
         8,
-        `inset 1px 1px 0 ${rimHighlight}, 0 2px 8px rgb(0 0 0 / 5%)`,
+        `inset 0 1px 0 ${rimHighlight}, inset 0 -1px 0 rgb(255 255 255 / 6%), 0 2px 8px rgb(0 0 0 / 5%)`,
         '0 2px 8px rgb(0 0 0 / 5%)'
       ),
     },

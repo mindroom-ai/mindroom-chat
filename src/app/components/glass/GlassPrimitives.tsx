@@ -2,6 +2,7 @@ import React, { ComponentProps, Ref } from 'react';
 import classNames from 'classnames';
 import {
   ContainerColor,
+  Chip as FoldsChip,
   Dialog as FoldsDialog,
   Header as FoldsHeader,
   IconButton as FoldsIconButton,
@@ -11,7 +12,7 @@ import {
   as,
 } from 'folds';
 import { ContainerColor as containerColor } from '../../styles/ContainerColor.css';
-import { glassFloating, glassSurface } from '../../styles/Glass.css';
+import { glassFloating, glassOutline, glassSurface } from '../../styles/Glass.css';
 import { useLiquidGlass } from './liquid/useLiquidGlass';
 import { SurfaceProvider, useSurfaceContext } from './SurfaceContext';
 import { inheritSurface } from './Surface.css';
@@ -53,6 +54,27 @@ export const IconButton = as<'button', IconButtonProps>(
       ref={ref}
       variant={variant}
       className={classNames(glassSurface({ level: 'control', variant }), className)}
+    />
+  )
+);
+
+type ChipProps = Pick<
+  ComponentProps<typeof FoldsChip>,
+  'variant' | 'size' | 'radii' | 'before' | 'after'
+>;
+
+export const Chip = as<'button', ChipProps>(
+  ({ className, variant = 'SurfaceVariant', ...props }, ref) => (
+    <FoldsChip
+      {...props}
+      ref={ref}
+      variant={variant}
+      className={classNames(
+        glassSurface({ level: 'control', variant }),
+        glassFloating,
+        glassOutline,
+        className
+      )}
     />
   )
 );
