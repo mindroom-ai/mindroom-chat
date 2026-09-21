@@ -456,7 +456,7 @@ function ClientSessionRoot({ children, activeSession, loadingMessages }: ClientS
 
   return (
     <QueryClientProvider client={queryClient}>
-      <SpecVersions baseUrl={activeSession.baseUrl}>
+      <SpecVersions baseUrl={activeSession.baseUrl} allowCachedContent={canRenderReadyContent}>
         {clientState.status !== 'error' &&
           canRenderReadyContent &&
           mx &&
