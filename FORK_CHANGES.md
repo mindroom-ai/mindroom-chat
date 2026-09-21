@@ -10,8 +10,9 @@
 - Regenerated the backend contract fixture with both Computer entry points in room and thread scope and updated the contract workflow's backend pin.
   Client runtime code is unchanged.
 - Validation: all 136 focused UI-action, Computer, and room integration tests pass, including the freshly generated backend contract; typecheck, changed-test lint, and formatting pass.
-  The full client suite reports 4,565 passes and four unrelated failures, also reproduced in isolation: three Xcode Homebrew tests assume `/bin/bash`, which is absent on this host, and one caption-upload test fails its `onUploadSent` assertion.
+  The full client suite reports 4,739 passes and four unrelated failures, also reproduced in isolation: three Xcode Homebrew tests assume `/bin/bash`, which is absent on this host, and one caption-upload test fails its `onUploadSent` assertion.
   Live browser end-to-end tests were not rerun for this API alias change.
+
 ### Match remaining chat controls and attachment shells (2026-09-20)
 
 - Recording controls, message expansion buttons, and timeline navigation/pagination chips reuse the shared glass control material and directional rim.
