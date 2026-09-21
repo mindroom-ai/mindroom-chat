@@ -214,6 +214,36 @@ describe('room thread pins', () => {
     await vi.waitFor(() => expect(isThreadPinned(room, '$root')).toBe(false));
   });
 
+  it.each([false, true])(
+    'keeps alternating saves protected through delayed echoes (initiallyPinned=%s)',
+    async (initiallyPinned) => {
+      const { mx, room } = makeRoom();
+      let serverPins = ['$older', '$reply'];
+      if (initiallyPinned) serverPins.push('$root');
+      syncPins(room, '$initial', serverPins);
+      const saves: { id: string; pins: string[] }[] = [];
+      vi.mocked(mx.getStateEvent).mockImplementation(async () => ({ pinned: serverPins }));
+      vi.spyOn(mx, 'sendStateEvent').mockImplementation(async (_room, _type, content) => {
+        serverPins = (content as { pinned: string[] }).pinned;
+        const id = `$save-${saves.length}`;
+        saves.push({ id, pins: serverPins });
+        return { event_id: id };
+      });
+      await setRoomEventPinned(mx, room, '$root', true);
+      await setRoomEventPinned(mx, room, '$root', false);
+      await setRoomEventPinned(mx, room, '$root', true);
+      if (initiallyPinned) await setRoomEventPinned(mx, room, '$root', true);
+      expect(isThreadPinned(room, '$root')).toBe(true);
+      saves.forEach(({ id, pins }) => {
+        syncPins(room, id, pins);
+        expect(isThreadPinned(room, '$root')).toBe(true);
+      });
+      serverPins = [];
+      syncPins(room, '$remote-unpin', serverPins);
+      await vi.waitFor(() => expect(isThreadPinned(room, '$root')).toBe(false));
+    }
+  );
+
   it('continues blocking resolution until an unpin request is accepted', async () => {
     const { mx, room } = makeRoom();
     let acceptSave!: (value: { event_id: string }) => void;

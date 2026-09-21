@@ -10,6 +10,7 @@ const pins = vi.hoisted(() => ({ ids: ['$old', '$reply', '$deleted'] }));
 vi.mock('./useThreadPinning', () => ({ usePinnedEventIds: () => pins.ids }));
 
 const fetchRoomEventMock = vi.fn();
+const getCryptoMock = vi.fn();
 const loadCachedRoomEventMock = vi.fn();
 const loadCachedThreadEventMock = vi.fn();
 const useActiveSessionMock = vi.fn();
@@ -17,7 +18,7 @@ const useActiveSessionMock = vi.fn();
 vi.mock('../../hooks/useMatrixClient', () => ({
   useMatrixClient: () => ({
     fetchRoomEvent: fetchRoomEventMock,
-    getCrypto: () => undefined,
+    getCrypto: () => getCryptoMock(),
   }),
 }));
 
@@ -76,6 +77,55 @@ const EventProbe = ({
 };
 
 describe('useRoomEvent', () => {
+  it('refreshes an old encrypted pin when its missing key arrives', async () => {
+    pins.ids = ['$old'];
+    useActiveSessionMock.mockReturnValue(undefined);
+    const decryptEvent = vi.fn().mockRejectedValueOnce(new Error('Missing room key'));
+    const crypto = { decryptEvent } as unknown as Parameters<MatrixEvent['attemptDecryption']>[0];
+    getCryptoMock.mockReturnValue(crypto);
+    fetchRoomEventMock.mockResolvedValue({
+      ...makeRawEvent('$old'),
+      room_id: '!room:example.org',
+      sender: '@alice:example.org',
+      type: 'm.room.encrypted',
+      content: { algorithm: 'm.megolm.v1.aes-sha2', ciphertext: 'pending' },
+    });
+    const mx = createClient({ baseUrl: 'https://example.org', userId: '@alice:example.org' });
+    const room = new Room('!room:example.org', mx, '@alice:example.org');
+    let bodies: unknown[] = [];
+    function Probe() {
+      bodies = usePinnedThreadEvents(room, true).map((event) => event.getContent().body);
+      return null;
+    }
+    const client = new QueryClient();
+    let renderer: ReturnType<typeof create> | undefined;
+    try {
+      await act(async () => {
+        renderer = create(
+          React.createElement(QueryClientProvider, { client }, React.createElement(Probe))
+        );
+        await flushAsyncWork();
+      });
+      const root = client.getQueryData<MatrixEvent>([room.roomId, '$old', undefined])!;
+      expect(room.findEventById('$old')).toBeUndefined();
+      expect(bodies[0]).toContain('Missing room key');
+      decryptEvent.mockResolvedValue({
+        clearEvent: {
+          type: 'm.room.message',
+          content: { msgtype: 'm.text', body: 'Decrypted announcement' },
+        },
+      });
+      await act(async () => {
+        await root.attemptDecryption(crypto, { isRetry: true });
+        await flushAsyncWork();
+      });
+      expect(root.getContent().body).toBe('Decrypted announcement');
+      expect(bodies).toEqual(['Decrypted announcement']);
+    } finally {
+      act(() => renderer?.unmount());
+      client.clear();
+    }
+  });
   it.each(['redaction', 'edit'])(
     'updates a detached pinned root after a live %s',
     async (change) => {
@@ -215,6 +265,7 @@ describe('useRoomEvent', () => {
   afterEach(() => {
     pins.ids = ['$old', '$reply', '$deleted'];
     fetchRoomEventMock.mockReset();
+    getCryptoMock.mockReset();
     loadCachedRoomEventMock.mockReset();
     loadCachedThreadEventMock.mockReset();
     useActiveSessionMock.mockReset();

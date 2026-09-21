@@ -14,13 +14,13 @@
   Any pre-existing resolution is suspended while pinned and resumes when unpinned.
 - Old roots, including announcements without replies, use the existing room event loader and cache path to join the Compact catalogue.
 - Shared pin state covers the overview, thread header, and room pin menu while serialized saves catch up with sync.
-  Regression tests cover queued changes, failed saves, delayed or early echoes, lost responses, and cached roots upgrading to live content.
+  Regression tests cover queued changes, failed saves, delayed or early echoes, lost responses, alternating pin/unpin saves, and cached roots upgrading to live content.
 - PR review extended pin resolution to the global thread index and recent-thread sidebar.
   Synchronized and pending local pin changes refresh global filters and sidebar visibility, and pinned sidebar entries omit Resolve.
   Open command palettes update their resolution actions and search results when threads are pinned or unpinned.
 - Pin subscriptions follow Matrix live-state replacement during limited sync.
-  Fetched old announcements use the existing cache hydration helpers to follow live edits and deletions.
-- Validation after integrating current `dev` and PR review fixes: all 5,052 tests across 580 files pass under Node 24.13.1.
+  Fetched old announcements use the existing cache hydration helpers to follow live edits and deletions, and refresh when missing decryption keys arrive.
+- Validation after integrating current `dev` and PR review fixes: all 5,055 tests across 580 files pass under Node 24.13.1.
   Typecheck, production/PWA build, formatting, and ESLint pass with zero errors and the existing 17 warnings.
 - Three Chromium browser checks pass for admin/moderator permissions, stable ordering and reloads, suspended resolution, old zero-reply pins, and existing hover/keyboard behavior.
   Desktop and phone-sized layouts were inspected.

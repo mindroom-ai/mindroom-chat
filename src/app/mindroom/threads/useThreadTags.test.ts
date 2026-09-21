@@ -8,7 +8,11 @@ import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { usePowerLevelsContext } from '../../hooks/usePowerLevels';
 import { useRoomCreators } from '../../hooks/useRoomCreators';
 import { useRoomPermissions } from '../../hooks/useRoomPermissions';
-import { getPendingThreadTagsContent, resetPendingThreadTagsForTests, setPendingThreadTagsContent } from './threadTagPending';
+import {
+  getPendingThreadTagsContent,
+  resetPendingThreadTagsForTests,
+  setPendingThreadTagsContent,
+} from './threadTagPending';
 import { buildPerTagStateKey, MINDROOM_THREAD_TAGS_EVENT } from './threadTags';
 import { useThreadTags } from './useThreadTags';
 
@@ -58,10 +62,7 @@ function Harness({ room, threadRootId, onRender }: HarnessProps) {
   return null;
 }
 
-const makeLegacyTagEvent = (
-  stateKey: string,
-  tags: Record<string, Record<string, unknown>>
-) =>
+const makeLegacyTagEvent = (stateKey: string, tags: Record<string, Record<string, unknown>>) =>
   new MatrixEvent({
     content: {
       tags,
@@ -74,11 +75,7 @@ const makeLegacyTagEvent = (
     type: MINDROOM_THREAD_TAGS_EVENT,
   });
 
-const makePerTagEvent = (
-  threadRootId: string,
-  tagName: string,
-  content: Record<string, unknown>
-) =>
+const makePerTagEvent = (threadRootId: string, tagName: string, content: Record<string, unknown>) =>
   new MatrixEvent({
     content,
     event_id: `$per-tag-${threadRootId}-${tagName}`,

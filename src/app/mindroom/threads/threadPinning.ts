@@ -107,16 +107,14 @@ const publishPendingPins = (
       // Keep the latest save visible through older echoes from this client's queue.
       const pending = pendingPins.get(room);
       if (!pending?.accepted) return;
+      if (pending.earlierEventIds.has(event.getId() ?? '')) return;
       const eventPins = getPinnedEventIds(event.getContent());
       const expectedUncertainEcho =
-        pending.expectedEchoIds &&
-        !pending.earlierEventIds.has(event.getId() ?? '') &&
-        samePins(eventPins, pending.expectedEchoIds);
+        pending.expectedEchoIds && samePins(eventPins, pending.expectedEchoIds);
       if (samePins(eventPins, pending.ids) || expectedUncertainEcho) {
         publishPendingPins(mx, room);
         return;
       }
-      if (pending.earlierEventIds.has(event.getId() ?? '')) return;
       // An unknown sync event may itself be delayed. Confirm conflicting state
       // with the server before replacing an accepted local pin.
       const revision = ++reconciliation;
@@ -188,6 +186,7 @@ export const setRoomEventPinned = async (
       const priorLiveId = getStateEvent(room, StateEvent.RoomPinnedEvents)?.getId();
       if (priorLiveId) earlierEventIds.add(priorLiveId);
       if (current.includes(eventId) === pinned) {
+        if (previousPins && samePins(current, previousPins.ids)) return;
         publishPendingPins(
           mx,
           room,

@@ -1,6 +1,12 @@
 import { useQueries, type UseQueryResult } from '@tanstack/react-query';
 import { useEffect, useMemo } from 'react';
-import { RelationType, RoomEvent, type MatrixEvent, type Room } from 'matrix-js-sdk';
+import {
+  MatrixEventEvent,
+  RelationType,
+  RoomEvent,
+  type MatrixEvent,
+  type Room,
+} from 'matrix-js-sdk';
 import { useFetchRoomEvent } from './useRoomEvent';
 import { usePinnedEventIds } from './useThreadPinning';
 import { isZeroReplyStandaloneThreadRootEvent } from './compactThreadRootData';
@@ -83,10 +89,16 @@ export const usePinnedThreadEvents = (
         refreshRelations();
       }
     };
+    const handleDecrypted = () => {
+      reconcile();
+      refreshRelations();
+    };
     if (reconcile()) refreshRelations();
+    roots.forEach((root) => root.on(MatrixEventEvent.Decrypted, handleDecrypted));
     room.on(RoomEvent.Timeline, handleEvent);
     room.on(RoomEvent.Redaction, handleEvent);
     return () => {
+      roots.forEach((root) => root.removeListener(MatrixEventEvent.Decrypted, handleDecrypted));
       room.removeListener(RoomEvent.Timeline, handleEvent);
       room.removeListener(RoomEvent.Redaction, handleEvent);
     };
