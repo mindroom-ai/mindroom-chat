@@ -29,7 +29,7 @@ export const getEventAttachmentOwner = (
   event?: MatrixEvent,
   target?: MatrixEvent
 ): EventAttachmentOwner | undefined => {
-  if (!event?.getRoomId?.()) return undefined;
+  if (!event?.getRoomId?.() || event.status || event.replacingEvent()?.status) return undefined;
   const roomId = event.getRoomId();
   const relation = event.getRelation();
   if (
@@ -72,6 +72,15 @@ export const collectEventAttachments = (
 ): EventAttachmentMessage[] => {
   const messages = new Map<string, EventAttachmentMessage>();
   events.forEach((event) => {
+    const replacement = event.replacingEvent();
+    // Unknown event or replacement content cannot retire the last readable attachment revision.
+    if (
+      !event.isRedacted() &&
+      (event.isDecryptionFailure() ||
+        replacement?.getType() === 'm.room.encrypted' ||
+        replacement?.isDecryptionFailure())
+    )
+      return;
     const targetId = event.getRelation()?.event_id;
     const owner = getEventAttachmentOwner(
       event,
@@ -79,7 +88,8 @@ export const collectEventAttachments = (
         (candidate) => candidate.getId() === targetId && candidate.getRoomId() === event.getRoomId()
       )
     );
-    if (!owner || !['m.room.message', 'm.room.redaction'].includes(event.getType())) return;
+    if (!owner || !['m.room.message', 'm.room.redaction', 'm.sticker'].includes(event.getType()))
+      return;
     const { roomId, eventId, revisionTs } = owner;
     const relation = event.getRelation();
     const redaction = event.getType() === 'm.room.redaction';
@@ -134,8 +144,9 @@ export const collectEventAttachments = (
       });
     };
     if (
-      typeof content.msgtype === 'string' &&
-      ['m.image', 'm.audio', 'm.video', 'm.file'].includes(content.msgtype)
+      event.getType() === 'm.sticker' ||
+      (typeof content.msgtype === 'string' &&
+        ['m.image', 'm.audio', 'm.video', 'm.file'].includes(content.msgtype))
     )
       add(content.url, content.file, record(content.info));
     const info = record(content.info);

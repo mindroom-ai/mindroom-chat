@@ -1,5 +1,6 @@
 import 'fake-indexeddb/auto';
 import { IDBFactory } from 'fake-indexeddb';
+import { encryptAttachment } from 'browser-encrypt-attachment';
 import { createClient, MatrixEvent } from 'matrix-js-sdk';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { createSessionId } from '../../state/sessions';
@@ -7,9 +8,10 @@ import {
   readRoomAttachmentStorage,
   resetCacheStoreForTesting,
   loadCachedAttachment,
+  getCachedAttachmentMetadata,
 } from '../threads/cacheStore';
 import { resetCacheHealthForTesting } from '../threads/cacheHealth';
-import { clearAttachmentRepositoryMemory } from './attachmentRepository';
+import { clearAttachmentRepositoryMemory, downloadCachedAttachment } from './attachmentRepository';
 import { collectEventAttachments } from './eventAttachments';
 import { prefetchEventAttachments } from './attachmentRepository';
 
@@ -129,6 +131,78 @@ it('skips unknown and large optional media unless explicitly included', async ()
     await prefetchEventAttachments(mx, events, false, { includeAllMedia: true })
   ).toMatchObject({ saved: 2, missing: 0 });
   expect(await loadCachedAttachment(sessionId, 'mxc://test/file')).toBeDefined();
+});
+
+it.each([
+  [false, false],
+  [true, false],
+  [false, true],
+  [true, true],
+])(
+  'validates shared essential bytes per owner (reverse=%s, crossRoom=%s)',
+  async (reverse, crossRoom) => {
+    vi.stubGlobal('window', { crypto, atob, btoa, location: { protocol: 'https:' } });
+    const encrypted = await encryptAttachment(
+      new TextEncoder().encode(JSON.stringify({ msgtype: 'm.text', body: 'complete body' }))
+    );
+    const mxcUri = 'mxc://test/shared-encrypted';
+    const valid = event('$valid', {
+      msgtype: 'm.text',
+      file: { ...encrypted.info, url: mxcUri },
+      'io.mindroom.long_text': { version: 2, encoding: 'matrix_event_content_json' },
+    });
+    const invalid = event('$invalid', {
+      ...valid.getContent(),
+      file: { ...encrypted.info, url: mxcUri, hashes: { sha256: 'invalid' } },
+    });
+    if (crossRoom) invalid.event.room_id = '!other';
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response(encrypted.data))
+    );
+    const events = reverse ? [invalid, valid] : [valid, invalid];
+    const expected = { saved: crossRoom ? 1 : 0, missing: 1 };
+    expect(await prefetchEventAttachments(mx, events, false)).toEqual(expected);
+    expect((await getCachedAttachmentMetadata(sessionId, mxcUri))?.references).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ eventId: '$valid', status: 'cached' }),
+        expect.objectContaining({ eventId: '$invalid', status: 'missing' }),
+      ])
+    );
+    expect(await readRoomAttachmentStorage(sessionId, invalid.getRoomId()!)).toMatchObject({
+      missingEssential: 1,
+    });
+    // Retrying the unreadable owner cannot downgrade its independently validated sibling.
+    expect(await prefetchEventAttachments(mx, events, false)).toEqual(expected);
+  }
+);
+
+it('downloads a historical sticker through optional media policy and reopens it offline', async () => {
+  const sticker = new MatrixEvent({
+    event_id: '$sticker',
+    room_id: '!room',
+    sender: '@alice:example.org',
+    origin_server_ts: 1,
+    type: 'm.sticker',
+    content: { body: 'sticker', url: 'mxc://test/sticker', info: { mimetype: 'image/png' } },
+  });
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async () => new Response('sticker bytes'))
+  );
+  expect(await prefetchEventAttachments(mx, [sticker], false)).toEqual({ saved: 0, missing: 1 });
+  expect(fetch).not.toHaveBeenCalled();
+  expect(await prefetchEventAttachments(mx, [sticker], false, { includeAllMedia: true })).toEqual({
+    saved: 1,
+    missing: 0,
+  });
+  clearAttachmentRepositoryMemory();
+  resetCacheStoreForTesting();
+  vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('offline')));
+  const coldClient = createClient({ baseUrl: mx.getHomeserverUrl(), userId: mx.getSafeUserId() });
+  const blob = await downloadCachedAttachment(coldClient, { mxcUri: 'mxc://test/sticker' }, false);
+  expect(await blob.text()).toBe('sticker bytes');
+  expect(fetch).not.toHaveBeenCalled();
 });
 
 it('leaves oversized essential bodies incomplete even if an explicit download already cached bytes', async () => {

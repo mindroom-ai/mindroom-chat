@@ -322,7 +322,17 @@ it.each(['unchanged', 'timestamp', 'revision-id', 'mxc', 'bound', 'optional'] as
       undefined,
       { revisionId: '$revision' }
     );
-    await save(mxcUri, 'room-a', change !== 'optional');
+    await store.putCachedAttachment(
+      session,
+      { mxcUri, bytes: new ArrayBuffer(2000), mimeType: 'text/plain' },
+      {
+        roomId: 'room-a',
+        eventId: '$owner',
+        revisionTs: 1,
+        revisionId: '$revision',
+        essential: change !== 'optional',
+      }
+    );
     const nextUri = change === 'mxc' ? 'mxc://test/different' : mxcUri;
     if (change === 'mxc') await save(nextUri, 'room-a', true);
     await store.replaceCachedAttachmentReferences(

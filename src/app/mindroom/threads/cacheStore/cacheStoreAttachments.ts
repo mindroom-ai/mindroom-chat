@@ -119,7 +119,13 @@ const putAttachmentTransaction = async (
           updatedAt: now,
           status:
             record.byteLength <= (row.maxBytes ?? Infinity) &&
-            (!row.essential || options.essential || row.status === 'cached')
+            (!row.essential ||
+              row.status === 'cached' ||
+              (options.essential &&
+                row.roomId === options.roomId &&
+                row.eventId === options.eventId &&
+                row.revisionTs === options.revisionTs &&
+                (row.revisionId ?? '') === (options.revisionId ?? '')))
               ? 'cached'
               : 'missing',
         })

@@ -316,7 +316,9 @@ export const prefetchEventAttachments = async (
   options: PrefetchEventAttachmentsOptions = {}
 ): Promise<{ saved: number; missing: number }> => {
   const sessionId = getSessionId(mx);
-  const messages = collectEventAttachments(events);
+  const messages = collectEventAttachments(events).filter(
+    (message) => message.attachments.length || message.redacted || message.revisionId
+  );
   const leases = new Map(
     messages.map((message) => [
       message.roomId,

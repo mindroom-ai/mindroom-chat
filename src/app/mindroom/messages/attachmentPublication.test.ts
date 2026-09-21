@@ -1,12 +1,13 @@
 import 'fake-indexeddb/auto';
 import { IDBFactory } from 'fake-indexeddb';
-import { createClient, MatrixEvent } from 'matrix-js-sdk';
+import { createClient, EventStatus, MatrixEvent, Room } from 'matrix-js-sdk';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { createSessionId } from '../../state/sessions';
 import {
   clearRoomCachedContent,
   resetCacheStoreForTesting,
   loadCachedAttachment,
+  getCachedAttachmentMetadata,
   replaceCachedAttachmentReferences,
 } from '../threads/cacheStore';
 import {
@@ -14,7 +15,12 @@ import {
   clearAttachmentRepositoryMemory,
   prefetchEventAttachments,
 } from './attachmentRepository';
-import { clearMindroomLongTextHydrationCache, getCachedMindroomLongTextContent } from './longText';
+import {
+  clearMindroomLongTextHydrationCache,
+  getCachedMindroomLongTextContent,
+  getMindroomLongTextSource,
+} from './longText';
+import { getEventAttachmentOwner } from './eventAttachments';
 import { clearMindroomInMemoryCaches } from '../cache/sessionCleanup';
 
 const baseUrl = 'https://matrix.example.org';
@@ -65,10 +71,11 @@ it.each(['room-clear', 'logout', 'unowned-logout'] as const)(
     expect(getCachedMindroomLongTextContent(source, mx)).toBeUndefined();
   }
 );
-it('measures reference rows read for ordinary text batch', async () => {
+it('does not store or read attachment reference rows for ordinary text batches', async () => {
   const mx = createClient({ baseUrl, userId });
   let rowsRead = 0;
   let roomReads = 0;
+  let referenceReads = 0;
   const original = IDBIndex.prototype.getAll;
   vi.spyOn(IDBIndex.prototype, 'getAll').mockImplementation(function countReferenceReads(
     query,
@@ -76,6 +83,7 @@ it('measures reference rows read for ordinary text batch', async () => {
   ) {
     const request = original.call(this, query, count);
     if (this.objectStore.name === 'attachment_references') {
+      referenceReads += 1;
       if (query === roomId || query === undefined) roomReads += 1;
       request.addEventListener('success', () => {
         rowsRead += request.result.length;
@@ -101,7 +109,141 @@ it('measures reference rows read for ordinary text batch', async () => {
   expect(rowsRead).toBe(0);
   await prefetchEventAttachments(mx, events, false);
   expect(roomReads).toBe(0);
-  expect(rowsRead).toBe(300);
+  expect(rowsRead).toBe(0);
+  expect(referenceReads).toBe(0);
+});
+
+it('accepts the server revision after hydrating a pending SDK edit with a later local timestamp', async () => {
+  const mx = createClient({ baseUrl, userId });
+  const room = new Room(roomId, mx, userId);
+  mx.store.storeRoom(room);
+  const root = new MatrixEvent({
+    event_id: '$root',
+    room_id: roomId,
+    sender: userId,
+    type: 'm.room.message',
+    origin_server_ts: 1,
+    content: { msgtype: 'm.text', body: 'original' },
+  });
+  await room.addLiveEvents([root], { addToState: false });
+  const edit = new MatrixEvent({
+    event_id: '~local-edit',
+    room_id: roomId,
+    sender: userId,
+    type: 'm.room.message',
+    origin_server_ts: 100,
+    content: {
+      'm.relates_to': { rel_type: 'm.replace', event_id: '$root' },
+      'm.new_content': {
+        msgtype: 'm.text',
+        body: 'preview',
+        url: source.mxcUri,
+        'io.mindroom.long_text': { version: 2, encoding: 'matrix_event_content_json' },
+      },
+    },
+  });
+  edit.setStatus(EventStatus.SENDING);
+  edit.setTxnId('edit-transaction');
+  room.addPendingEvent(edit, 'edit-transaction');
+  await vi.waitFor(() => expect(root.replacingEvent()).toBe(edit));
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(
+      async () => new Response(JSON.stringify({ msgtype: 'm.text', body: 'complete edited body' }))
+    )
+  );
+  const hydrateRoot = () =>
+    hydrateCachedMindroomLongText(
+      mx,
+      {
+        ...getMindroomLongTextSource(root.getContent())!,
+        owner: getEventAttachmentOwner(root),
+      },
+      false
+    );
+  expect(await hydrateRoot()).toMatchObject({ body: 'complete edited body' });
+  room.updatePendingEvent(edit, EventStatus.SENT, '$server-edit');
+  room.handleRemoteEcho(
+    new MatrixEvent({
+      ...edit.event,
+      event_id: '$server-edit',
+      origin_server_ts: 2,
+      unsigned: { transaction_id: 'edit-transaction' },
+    }),
+    edit
+  );
+  await prefetchEventAttachments(mx, [root], false);
+  expect(await hydrateRoot()).toMatchObject({ body: 'complete edited body' });
+  expect((await getCachedAttachmentMetadata(sessionId, source.mxcUri))?.references).toEqual([
+    expect.objectContaining({
+      eventId: '$root',
+      revisionId: '$server-edit',
+      revisionTs: 2,
+      status: 'cached',
+    }),
+  ]);
+});
+
+it('preserves saved ownership when a standalone SDK edit fails decryption, then accepts its retry', async () => {
+  const mx = createClient({ baseUrl, userId });
+  const content = {
+    msgtype: 'm.text',
+    body: 'preview',
+    url: source.mxcUri,
+    'io.mindroom.long_text': { version: 2, encoding: 'matrix_event_content_json' },
+  };
+  const root = new MatrixEvent({
+    event_id: '$body',
+    room_id: roomId,
+    sender: userId,
+    type: 'm.room.message',
+    origin_server_ts: 1,
+    content,
+  });
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async () => new Response(JSON.stringify({ msgtype: 'm.text', body: 'saved body' })))
+  );
+  await prefetchEventAttachments(mx, [root], false);
+  const relation = { rel_type: 'm.replace', event_id: '$body' };
+  const edit = new MatrixEvent({
+    event_id: '$encrypted-edit',
+    room_id: roomId,
+    sender: userId,
+    type: 'm.room.encrypted',
+    origin_server_ts: 2,
+    content: { ciphertext: 'unreadable', 'm.relates_to': relation },
+  });
+  await edit.attemptDecryption({
+    decryptEvent: async () => {
+      throw new Error('missing key');
+    },
+  } as never);
+  expect(edit.isDecryptionFailure()).toBe(true);
+  expect(edit.getType()).toBe('m.room.message');
+  root.makeReplaced(edit);
+  await prefetchEventAttachments(mx, [root, edit], false);
+  expect(await loadCachedAttachment(sessionId, source.mxcUri)).toBeDefined();
+  expect((await getCachedAttachmentMetadata(sessionId, source.mxcUri))?.references).toEqual([
+    expect.objectContaining({ eventId: '$body', revisionTs: 1, revisionId: '', status: 'cached' }),
+  ]);
+  await edit.attemptDecryption({
+    decryptEvent: async () => ({
+      clearEvent: {
+        type: 'm.room.message',
+        content: { 'm.relates_to': relation, 'm.new_content': content },
+      },
+    }),
+  } as never);
+  expect(await prefetchEventAttachments(mx, [root, edit], false)).toEqual({ saved: 1, missing: 0 });
+  expect((await getCachedAttachmentMetadata(sessionId, source.mxcUri))?.references).toEqual([
+    expect.objectContaining({
+      eventId: '$body',
+      revisionTs: 2,
+      revisionId: '$encrypted-edit',
+      status: 'cached',
+    }),
+  ]);
 });
 
 it('retries failed capability lookup on a later explicit download', async () => {

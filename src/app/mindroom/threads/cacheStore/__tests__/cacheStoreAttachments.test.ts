@@ -4,6 +4,11 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { loadCachedEventAcrossRoomScopes, loadRoomOfflineEventBatch } from '../cacheStoreEvents';
 import { getCacheStoreDbName, openCacheStore, resetCacheStoreForTesting } from '../cacheStoreDb';
 import {
+  getCachedAttachmentMetadata,
+  loadCachedAttachment,
+  readRoomAttachmentStorage,
+} from '../cacheStoreAttachments';
+import {
   ATTACHMENT_REFERENCES_BY_ATTACHMENT_INDEX,
   ATTACHMENT_REFERENCES_BY_ROOM_INDEX,
   ATTACHMENT_REFERENCES_STORE,
@@ -41,14 +46,49 @@ const seedVersionThreeDatabase = async (version = 3): Promise<CachedEventRecord>
     const events = db.createObjectStore(EVENTS_STORE, { keyPath: 'cacheKey' });
     events.createIndex(EVENTS_BY_SCOPE_TS_INDEX, ['roomId', 'scope', 'ts', 'eventId']);
     db.createObjectStore(META_STORE, { keyPath: 'metaKey' });
-    db.createObjectStore(ROOM_LEDGER_STORE, { keyPath: 'roomId' });
+    const ledger = db.createObjectStore(ROOM_LEDGER_STORE, { keyPath: 'roomId' });
     const summaries = db.createObjectStore(THREAD_SUMMARIES_STORE, { keyPath: 'cacheKey' });
     summaries.createIndex(THREAD_SUMMARIES_BY_ROOM_INDEX, 'roomId');
     if (version >= 4) {
-      db.createObjectStore(ATTACHMENTS_STORE, { keyPath: 'mxcUri' });
+      const attachments = db.createObjectStore(ATTACHMENTS_STORE, { keyPath: 'mxcUri' });
       const refs = db.createObjectStore(ATTACHMENT_REFERENCES_STORE, { keyPath: 'referenceKey' });
       refs.createIndex(ATTACHMENT_REFERENCES_BY_ROOM_INDEX, 'roomId');
       refs.createIndex(ATTACHMENT_REFERENCES_BY_ATTACHMENT_INDEX, 'mxcUri');
+      const mxcUri = 'mxc://example.org/shared-body';
+      attachments.put({
+        mxcUri,
+        bytes: new Uint8Array([1, 2, 3]).buffer,
+        byteLength: 3,
+        mimeType: 'application/octet-stream',
+        essential: true,
+        storedAt: 10,
+        lastAccessedAt: 20,
+      });
+      for (const [roomId, eventId, status] of [
+        ['!room:example.org', '$event', 'cached'],
+        ['!other:example.org', '$other', 'missing'],
+      ]) {
+        refs.put({
+          referenceKey: JSON.stringify([roomId, mxcUri, eventId]),
+          roomId,
+          eventId,
+          mxcUri,
+          revisionTs: 123,
+          revisionId: '$edit',
+          essential: true,
+          byteLength: 3,
+          maxBytes: 1024,
+          status,
+          updatedAt: 20,
+        });
+      }
+      ledger.put({
+        roomId: '!room:example.org',
+        pinned: true,
+        approxBytes: 128,
+        eventCount: 1,
+        lastActivityTs: 123,
+      });
     }
     events.put(seededEvent);
   };
@@ -68,42 +108,91 @@ describe('cacheStore attachment schema', () => {
     resetCacheStoreForTesting();
   });
 
-  it.each([3, 4, 5])('adds indexes without replacing version-%s events', async (version) => {
-    const seededEvent = await seedVersionThreeDatabase(version);
+  it.each([3, 4, 5])(
+    'adds indexes without replacing version-%s retained content',
+    async (version) => {
+      const seededEvent = await seedVersionThreeDatabase(version);
 
-    const db = await openCacheStore(SESSION_ID);
+      const db = await openCacheStore(SESSION_ID);
 
-    expect(db?.objectStoreNames.contains(ATTACHMENTS_STORE)).toBe(true);
-    expect(
-      db?.transaction(EVENTS_STORE).objectStore(EVENTS_STORE).indexNames.contains('by_room_event')
-    ).toBe(true);
-    expect(db?.objectStoreNames.contains(ATTACHMENT_REFERENCES_STORE)).toBe(true);
-    const transaction = db?.transaction([EVENTS_STORE, ATTACHMENT_REFERENCES_STORE], 'readonly');
-    const eventRequest = transaction?.objectStore(EVENTS_STORE).get(seededEvent.cacheKey);
-    const references = transaction?.objectStore(ATTACHMENT_REFERENCES_STORE);
-    expect(db?.version).toBe(6);
-    expect(
-      db
-        ?.transaction(ATTACHMENTS_STORE)
-        .objectStore(ATTACHMENTS_STORE)
-        .indexNames.contains('by_access_bytes')
-    ).toBe(true);
-    expect(references?.indexNames.contains('by_owner')).toBe(true);
-    expect(references?.indexNames.contains(ATTACHMENT_REFERENCES_BY_ROOM_INDEX)).toBe(true);
-    expect(references?.indexNames.contains(ATTACHMENT_REFERENCES_BY_ATTACHMENT_INDEX)).toBe(true);
-    const preservedEvent = await new Promise<CachedEventRecord | undefined>((resolve, reject) => {
-      if (!eventRequest) {
-        resolve(undefined);
-        return;
+      expect(db?.objectStoreNames.contains(ATTACHMENTS_STORE)).toBe(true);
+      expect(
+        db?.transaction(EVENTS_STORE).objectStore(EVENTS_STORE).indexNames.contains('by_room_event')
+      ).toBe(true);
+      expect(db?.objectStoreNames.contains(ATTACHMENT_REFERENCES_STORE)).toBe(true);
+      const transaction = db?.transaction([EVENTS_STORE, ATTACHMENT_REFERENCES_STORE], 'readonly');
+      const eventRequest = transaction?.objectStore(EVENTS_STORE).get(seededEvent.cacheKey);
+      const references = transaction?.objectStore(ATTACHMENT_REFERENCES_STORE);
+      expect(db?.version).toBe(6);
+      expect(
+        db
+          ?.transaction(ATTACHMENTS_STORE)
+          .objectStore(ATTACHMENTS_STORE)
+          .indexNames.contains('by_access_bytes')
+      ).toBe(true);
+      expect(references?.indexNames.contains('by_owner')).toBe(true);
+      expect(references?.indexNames.contains(ATTACHMENT_REFERENCES_BY_ROOM_INDEX)).toBe(true);
+      expect(references?.indexNames.contains(ATTACHMENT_REFERENCES_BY_ATTACHMENT_INDEX)).toBe(true);
+      const preservedEvent = await new Promise<CachedEventRecord | undefined>((resolve, reject) => {
+        if (!eventRequest) {
+          resolve(undefined);
+          return;
+        }
+        eventRequest.onsuccess = () =>
+          resolve(eventRequest.result as CachedEventRecord | undefined);
+        eventRequest.onerror = () => reject(eventRequest.error);
+      });
+      expect(preservedEvent?.rawEvent.content).toEqual({
+        body: 'preserved',
+        msgtype: 'm.text',
+      });
+      if (version >= 4) {
+        const mxcUri = 'mxc://example.org/shared-body';
+        const attachment = await loadCachedAttachment(SESSION_ID, mxcUri);
+        expect(Array.from(new Uint8Array(attachment!.bytes))).toEqual([1, 2, 3]);
+        expect(attachment).toMatchObject({
+          byteLength: 3,
+          essential: true,
+          storedAt: 10,
+          lastAccessedAt: 20,
+        });
+        const metadata = await getCachedAttachmentMetadata(SESSION_ID, mxcUri);
+        expect(metadata?.references).toHaveLength(2);
+        expect(metadata?.references).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              roomId: '!room:example.org',
+              eventId: '$event',
+              status: 'cached',
+              revisionId: '$edit',
+              maxBytes: 1024,
+            }),
+            expect.objectContaining({
+              roomId: '!other:example.org',
+              eventId: '$other',
+              status: 'missing',
+              revisionId: '$edit',
+              maxBytes: 1024,
+            }),
+          ])
+        );
+        expect(await readRoomAttachmentStorage(SESSION_ID, '!room:example.org')).toMatchObject({
+          bytes: 3,
+          saved: 1,
+          missing: 0,
+          missingEssential: 0,
+          pinned: true,
+        });
+        expect(await readRoomAttachmentStorage(SESSION_ID, '!other:example.org')).toMatchObject({
+          bytes: 3,
+          saved: 0,
+          missing: 1,
+          missingEssential: 1,
+          pinned: false,
+        });
       }
-      eventRequest.onsuccess = () => resolve(eventRequest.result as CachedEventRecord | undefined);
-      eventRequest.onerror = () => reject(eventRequest.error);
-    });
-    expect(preservedEvent?.rawEvent.content).toEqual({
-      body: 'preserved',
-      msgtype: 'm.text',
-    });
-  });
+    }
+  );
 });
 
 it('indexed target lookup merges duplicate tombstones and finds metadata-only roots', async () => {
