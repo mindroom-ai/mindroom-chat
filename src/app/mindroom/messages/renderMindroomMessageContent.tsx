@@ -14,7 +14,6 @@ import {
   formatMindroomMessageTextBodyAsHtml,
 } from './blocks';
 import { getMindroomLongTextSource } from './longText';
-import { MindroomToolMetadataStatus } from './toolTrace';
 import { MindroomLongTextKind, MindroomLongTextText } from './MindroomLongTextText';
 import { MindroomPasteAttachmentContent } from './MindroomPasteAttachmentContent';
 import { MindroomThinkingPlaceholder } from './MindroomThinkingPlaceholder';
@@ -100,12 +99,6 @@ export const renderMindroomMessageContent = ({
     };
   };
 
-  const getMindroomAwareHtmlReactParserOptions = (
-    bodyContent: Record<string, unknown>,
-    metadataStatus?: MindroomToolMetadataStatus
-  ) =>
-    withMindroomToolTraceMarkerParserOptions(htmlReactParserOptions, bodyContent, metadataStatus);
-
   const getRenderableLongTextSource = (bodyContent: Record<string, unknown>) => {
     const source = getMindroomLongTextSource(bodyContent);
     if (!source) return undefined;
@@ -151,7 +144,10 @@ export const renderMindroomMessageContent = ({
           {...props}
           customBody={customBody}
           highlightRegex={highlightRegex}
-          htmlReactParserOptions={getMindroomAwareHtmlReactParserOptions(renderableContent)}
+          htmlReactParserOptions={withMindroomToolTraceMarkerParserOptions(
+            htmlReactParserOptions,
+            renderableContent
+          )}
           linkifyOpts={linkifyOpts}
         />
       );
@@ -199,7 +195,10 @@ export const renderMindroomMessageContent = ({
       >
         <MindroomMessageExtras
           extras={extras}
-          htmlReactParserOptions={getMindroomAwareHtmlReactParserOptions(parserOptionsContent)}
+          htmlReactParserOptions={withMindroomToolTraceMarkerParserOptions(
+            htmlReactParserOptions,
+            parserOptionsContent
+          )}
         />
       </MindroomMessageExtrasRenderNotice>
     );
@@ -278,7 +277,8 @@ export const renderMindroomMessageContent = ({
             <RenderBody
               {...props}
               highlightRegex={highlightRegex}
-              htmlReactParserOptions={getMindroomAwareHtmlReactParserOptions(
+              htmlReactParserOptions={withMindroomToolTraceMarkerParserOptions(
+                htmlReactParserOptions,
                 resolvedContent,
                 metadataStatus
               )}
@@ -341,7 +341,8 @@ export const renderMindroomMessageContent = ({
             <RenderBody
               {...props}
               highlightRegex={highlightRegex}
-              htmlReactParserOptions={getMindroomAwareHtmlReactParserOptions(
+              htmlReactParserOptions={withMindroomToolTraceMarkerParserOptions(
+                htmlReactParserOptions,
                 resolvedContent,
                 metadataStatus
               )}
@@ -399,7 +400,8 @@ export const renderMindroomMessageContent = ({
             <RenderBody
               {...props}
               highlightRegex={highlightRegex}
-              htmlReactParserOptions={getMindroomAwareHtmlReactParserOptions(
+              htmlReactParserOptions={withMindroomToolTraceMarkerParserOptions(
+                htmlReactParserOptions,
                 resolvedContent,
                 metadataStatus
               )}
