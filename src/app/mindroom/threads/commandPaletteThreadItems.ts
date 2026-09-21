@@ -2,7 +2,10 @@ import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import { type MatrixClient, type Room } from 'matrix-js-sdk';
 import { useAtomValue } from 'jotai';
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useSyncExternalStore } from 'react';
+import { StateEvent } from '../../../types/matrix/room';
+import { useForceUpdate } from '../../hooks/useForceUpdate';
+import { useStateEventCallback } from '../../hooks/useStateEventCallback';
 import type { CommandPaletteThreadItem } from '../command-palette/commandPaletteTypes';
 import { getMxIdLocalPart } from '../../utils/matrix';
 import { getMemberDisplayName } from '../../utils/room';
@@ -17,9 +20,10 @@ import {
   buildPerTagStateKey,
   MINDROOM_THREAD_TAGS_EVENT,
   RESOLVED_TAG,
+  isThreadResolved,
 } from './threadTags';
 import { getRoomThreadTagSnapshotMap, type ThreadTagSnapshot } from './threadTagSnapshots';
-import { isThreadPinned } from './threadPinning';
+import { getPendingPinsVersion, isThreadPinned, subscribePendingPins } from './threadPinning';
 
 type MindroomCommandPaletteThreadItem = CommandPaletteThreadItem & { onSelect: () => void };
 
@@ -42,12 +46,13 @@ const mapUserDisplayName = (room: Room, userId: string): string =>
   getMemberDisplayName(room, userId) ?? getMxIdLocalPart(userId) ?? userId;
 
 export const buildThreadResolutionFromTagSnapshot = (
-  tagSnapshot: ThreadTagSnapshot | undefined
+  tagSnapshot: ThreadTagSnapshot | undefined,
+  pinned = false
 ): { isResolved: boolean; tags: Record<string, unknown> | null } | undefined => {
   if (!tagSnapshot) return undefined;
 
   return {
-    isResolved: tagSnapshot.isResolved,
+    isResolved: isThreadResolved(tagSnapshot.content, pinned),
     tags: Object.fromEntries(tagSnapshot.displayTags.map((tagName) => [tagName, true])),
   };
 };
@@ -130,7 +135,10 @@ const buildRecentThreadItem = ({
     room,
     threadRootId,
     threadRootEvent: rootEvent,
-    threadResolution: buildThreadResolutionFromTagSnapshot(tagSnapshot),
+    threadResolution: buildThreadResolutionFromTagSnapshot(
+      tagSnapshot,
+      isThreadPinned(room, threadRootId)
+    ),
   });
   const viewModel = buildCommandPaletteThreadViewModelFromRecord({
     t,
@@ -142,7 +150,7 @@ const buildRecentThreadItem = ({
     boost:
       (room.roomId === selectedRoomId ? 10 : 0) +
       (threadRootId === canonicalSelectedThreadId ? 30 : 0) +
-      (tagSnapshot && !tagSnapshot.isResolved ? 10 : 0),
+      (tagSnapshot && !record.status.isResolved ? 10 : 0),
   });
 
   return toCommandPaletteThreadItem(viewModel, () => navigateRoomThread(room.roomId, threadRootId));
@@ -172,7 +180,10 @@ const buildSdkThreadItem = ({
     room,
     threadRootId,
     threadRootEvent: rootEvent,
-    threadResolution: buildThreadResolutionFromTagSnapshot(tagSnapshot),
+    threadResolution: buildThreadResolutionFromTagSnapshot(
+      tagSnapshot,
+      isThreadPinned(room, threadRootId)
+    ),
   });
   const viewModel = buildCommandPaletteThreadViewModelFromRecord({
     t,
@@ -182,7 +193,7 @@ const buildSdkThreadItem = ({
     boost:
       (room.roomId === selectedRoomId ? 10 : 0) +
       (threadRootId === canonicalSelectedThreadId ? 30 : 0) +
-      (tagSnapshot && !tagSnapshot.isResolved ? 10 : 0),
+      (tagSnapshot && !record.status.isResolved ? 10 : 0),
   });
 
   return toCommandPaletteThreadItem(viewModel, () => navigateRoomThread(room.roomId, threadRootId));
@@ -207,12 +218,33 @@ export const useMindroomCommandPaletteThreadItems = ({
   const { t } = useTranslation();
   const recentThreadsAtom = useMemo(() => makeRecentThreadsAtom(myUserId), [myUserId]);
   const recentThreads = useAtomValue(recentThreadsAtom);
+  const [resolutionVersion, refreshResolution] = useForceUpdate();
+  useStateEventCallback(
+    mx,
+    useCallback(
+      (event) => {
+        if (
+          event.getType() === MINDROOM_THREAD_TAGS_EVENT ||
+          event.getType() === StateEvent.RoomPinnedEvents
+        )
+          refreshResolution();
+      },
+      [refreshResolution]
+    )
+  );
+  const pendingPinsVersion = useSyncExternalStore(
+    subscribePendingPins,
+    getPendingPinsVersion,
+    getPendingPinsVersion
+  );
   const currentThreadRootId = useMemo(
     () => resolveCommandPaletteCurrentThreadRootId(selectedRoom, currentThreadId),
     [currentThreadId, selectedRoom]
   );
 
   const threadTagSnapshots = useMemo(() => {
+    void resolutionVersion;
+    void pendingPinsVersion;
     const snapshots = new Map<string, Map<string, ThreadTagSnapshot>>();
 
     allJoinedRoomIds.forEach((roomId) => {
@@ -222,7 +254,7 @@ export const useMindroomCommandPaletteThreadItems = ({
     });
 
     return snapshots;
-  }, [allJoinedRoomIds, getRoom]);
+  }, [allJoinedRoomIds, getRoom, resolutionVersion, pendingPinsVersion]);
 
   const currentThreadPinned =
     !!selectedRoom && !!currentThreadRootId && isThreadPinned(selectedRoom, currentThreadRootId);

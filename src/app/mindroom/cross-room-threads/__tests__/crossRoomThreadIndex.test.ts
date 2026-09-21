@@ -100,6 +100,7 @@ const makeRoom = ({
     findEventById: (eventId: string) => (eventId === root.getId() ? root : undefined),
     getMember: () => undefined,
     getEventReadUpTo: () => undefined,
+    getLiveTimeline: () => ({ getState: () => ({ getStateEvents: () => undefined }) }),
     getUnfilteredTimelineSet: () => makeTimelineSet([...replies, root]),
   } as unknown as Room;
 };

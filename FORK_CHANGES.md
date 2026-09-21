@@ -4,7 +4,7 @@
 
 ### Pin announcement threads in Compact room view (2026-09-21)
 
-- Status: implemented, validated, and independently reviewed.
+- Status: implemented and validated; PR open for review.
 - Shared room pins appear in a separate section above ordinary Compact cards, newest pin first, with a stable order across replies, filters, and sorting.
 - Room admins can pin and unpin from Compact cards, thread headers, and existing message menus.
   Admin means power level 100 or higher, or a privileged room creator, subject to the room's pin permission.
@@ -15,11 +15,13 @@
 - Old roots, including announcements without replies, use the existing room event loader and cache path to join the Compact catalogue.
 - Shared pin state covers the overview, thread header, and room pin menu while serialized saves catch up with sync.
   Regression tests cover queued changes, failed saves, delayed or early echoes, lost responses, and cached roots upgrading to live content.
-- Validation after integrating current `dev`: all 5,044 tests across 580 files pass under Node 24.13.1.
+- PR review extended pin resolution to the global thread index and recent-thread sidebar.
+  Synchronized and pending local pin changes refresh global filters and sidebar visibility, and pinned sidebar entries omit Resolve.
+  Open command palettes update their resolution actions and search results when threads are pinned or unpinned.
+- Validation after integrating current `dev` and PR review fixes: all 5,049 tests across 580 files pass under Node 24.13.1.
   Typecheck, production/PWA build, formatting, and ESLint pass with zero errors and the existing 17 warnings.
 - Three Chromium browser checks pass for admin/moderator permissions, stable ordering and reloads, suspended resolution, old zero-reply pins, and existing hover/keyboard behavior.
   Desktop and phone-sized layouts were inspected.
-  Independent review reports no remaining findings.
 - Manual ordering remains follow-up work.
 
 ### Finish Markdown formatting in sidecar and reply previews (2026-09-21)

@@ -83,7 +83,7 @@ export const useThreadTags = (
 
   const displayTags = useMemo(() => getDisplayTags(content), [content]);
 
-  const resolved = isThreadResolved(content) && !pinnedEventIds.includes(threadRootId ?? '');
+  const resolved = isThreadResolved(content, pinnedEventIds.includes(threadRootId ?? ''));
 
   const canEdit = useMemo(
     () => permissions.stateEvent(MINDROOM_THREAD_TAGS_EVENT, mx.getSafeUserId()),

@@ -85,7 +85,7 @@ export function ThreadContextBanner({
     threadRootEvent,
     summaryInfo,
     threadResolution: {
-      isResolved: isResolved && !isPinned,
+      isResolved,
       tags,
     },
     scheduledStatus: {

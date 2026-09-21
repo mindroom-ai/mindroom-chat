@@ -48,13 +48,13 @@ type PendingPins = {
 
 const pendingPins = new WeakMap<Room, PendingPins>();
 const queuedPinAdds = new WeakMap<Room, Map<string, number>>();
-const pinListeners = new Set<() => void>();
+const pinListeners = new Set<(room: Room) => void>();
 let pinVersion = 0;
-const emitPinChange = () => {
+const emitPinChange = (room: Room) => {
   pinVersion += 1;
-  pinListeners.forEach((listener) => listener());
+  pinListeners.forEach((listener) => listener(room));
 };
-export const subscribePendingPins = (listener: () => void) => {
+export const subscribePendingPins = (listener: (room: Room) => void) => {
   pinListeners.add(listener);
   return () => {
     pinListeners.delete(listener);
@@ -78,7 +78,7 @@ const trackQueuedPin = (room: Room, eventId: string, delta: number) => {
   else queued.delete(eventId);
   if (queued.size) queuedPinAdds.set(room, queued);
   else queuedPinAdds.delete(room);
-  emitPinChange();
+  emitPinChange(room);
 };
 
 const readPinContent = async (mx: MatrixClient, room: Room) => {
@@ -131,7 +131,7 @@ const publishPendingPins = (
             publishPendingPins(mx, room);
           } else {
             pending.ids = ids;
-            emitPinChange();
+            emitPinChange(room);
           }
         })
         .catch(() => {
@@ -146,7 +146,7 @@ const publishPendingPins = (
     const current = getStateEvent(room, StateEvent.RoomPinnedEvents);
     if (current) handler(current);
   }
-  emitPinChange();
+  emitPinChange(room);
 };
 
 export const isThreadPinned = (room: Room, threadRootId: string): boolean =>

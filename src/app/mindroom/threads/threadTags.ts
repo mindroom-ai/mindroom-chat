@@ -110,9 +110,7 @@ const parseTagMetadata = (value: unknown): TagMetadata | null => {
 };
 
 const sortTags = (tags: Record<string, TagMetadata>): Record<string, TagMetadata> =>
-  Object.fromEntries(
-    Object.entries(tags).sort(([left], [right]) => left.localeCompare(right))
-  );
+  Object.fromEntries(Object.entries(tags).sort(([left], [right]) => left.localeCompare(right)));
 
 /**
  * Parse raw state event content into a typed ThreadTagsContent.
@@ -183,9 +181,8 @@ export const buildResolvedTagsContent = (
 /**
  * Build content that removes the resolved tag, preserving other tags.
  */
-export const buildUnresolvedTagsContent = (
-  existing: ThreadTagsContent
-): ThreadTagsContent => buildRemoveTagContent(existing, RESOLVED_TAG);
+export const buildUnresolvedTagsContent = (existing: ThreadTagsContent): ThreadTagsContent =>
+  buildRemoveTagContent(existing, RESOLVED_TAG);
 
 /**
  * Parse a canonical per-tag state key: `["$threadRootId","tag"]`.
@@ -253,9 +250,7 @@ export const buildPerTagEventContent = (
  * Merge legacy per-thread events with canonical per-tag records for one room.
  * Per-tag tombstones remove legacy tags, and per-tag records override legacy data.
  */
-export const aggregateThreadTagEvents = (
-  events: MatrixEvent[]
-): Map<string, ThreadTagsContent> => {
+export const aggregateThreadTagEvents = (events: MatrixEvent[]): Map<string, ThreadTagsContent> => {
   const cached = aggregatedThreadTagEventsCache.get(events);
   if (cached) {
     return cached;
@@ -336,8 +331,8 @@ export const getDisplayTags = (content: ThreadTagsContent): string[] =>
 /**
  * Check if a thread is resolved.
  */
-export const isThreadResolved = (content: ThreadTagsContent): boolean =>
-  RESOLVED_TAG in content.tags;
+export const isThreadResolved = (content: ThreadTagsContent, pinned = false): boolean =>
+  !pinned && RESOLVED_TAG in content.tags;
 
 /**
  * Collect unique tag names from multiple thread tag events, excluding "resolved".
