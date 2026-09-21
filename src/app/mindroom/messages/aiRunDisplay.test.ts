@@ -39,7 +39,7 @@ describe('getMindroomAiRunCompactModelLabel', () => {
     (modelConfig) => {
       expect(
         getMindroomAiRunCompactModelLabel({
-          modelDisplayName: '  my Friendly Model  ',
+          modelDisplayName: 'my Friendly Model',
           modelConfig,
           modelId: 'another-model',
           modelProvider: 'openai',
@@ -47,15 +47,6 @@ describe('getMindroomAiRunCompactModelLabel', () => {
       ).toBe('my Friendly Model');
     }
   );
-
-  it.each([undefined, '', '   '])('falls back to the alias for display name %j', (name) => {
-    expect(
-      getMindroomAiRunCompactModelLabel({
-        modelDisplayName: name,
-        modelConfig: 'friendly_alias',
-      })
-    ).toBe('Friendly Alias');
-  });
 
   it('prefers a friendly configured model name', () => {
     expect(

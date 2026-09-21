@@ -8,7 +8,8 @@
 - Missing, blank, and invalid display names retain the existing alias/model-ID/provider fallback.
   Tooltips and accessible labels include the full display name alongside the model alias, provider, and ID; run details retain their existing diagnostic fields.
 - Parser and badge regressions cover original messages, replacement metadata, display-name precedence, and legacy events without a display name.
-- Validation: all 5,061 tests pass under Node 24; typecheck, production/PWA build, formatting, and lint pass with zero errors and 17 existing warnings.
+- Display-name normalization belongs to the metadata parser; label formatting and badge rendering consume its normalized value.
+- Validation: all 5,060 tests pass under Node 24; typecheck, production/PWA build, formatting, and lint pass with zero errors and 17 existing warnings.
   Independent review verified the full tooltip and accessible label after the display-name change.
 
 ### Finish Markdown formatting in sidecar and reply previews (2026-09-21)

@@ -44,6 +44,7 @@ export type MindroomAiRunInfo = {
   runId?: string;
   sessionId?: string;
   modelConfig?: string;
+  /** Trimmed, nonempty display name from message metadata. */
   modelDisplayName?: string;
   modelId?: string;
   modelProvider?: string;

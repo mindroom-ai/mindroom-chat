@@ -11,7 +11,7 @@ describe('getMindroomAiRunInfo', () => {
         session_id: 'session-1',
         model: {
           config: 'default',
-          display_name: 'GPT Mini',
+          display_name: '  GPT Mini  ',
           id: 'gpt-4.1-mini',
           provider: 'openai',
         },

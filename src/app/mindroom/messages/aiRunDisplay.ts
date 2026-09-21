@@ -52,8 +52,7 @@ const formatModelId = (modelId: string): string => {
 
 /** A short, friendly model name intended for the always-visible message badge. */
 export const getMindroomAiRunCompactModelLabel = (info: MindroomAiRunInfo): string | undefined => {
-  const displayName = info.modelDisplayName?.trim();
-  if (displayName) return displayName;
+  if (info.modelDisplayName) return info.modelDisplayName;
 
   const modelConfig = info.modelConfig?.trim();
   if (modelConfig && !GENERIC_MODEL_CONFIGS.has(modelConfig.toLowerCase())) {

@@ -12,8 +12,10 @@ vi.mock('./MindroomModelBadge.css', () => ({
 
 describe('MindroomModelBadge', () => {
   it.each([
-    ['my Friendly Model', 'my Friendly Model', 'my Friendly Model · friendly_alias (openai)'],
+    ['  my Friendly Model  ', 'my Friendly Model', 'my Friendly Model · friendly_alias (openai)'],
     [undefined, 'Friendly Alias', 'friendly_alias (openai)'],
+    ['   ', 'Friendly Alias', 'friendly_alias (openai)'],
+    [42, 'Friendly Alias', 'friendly_alias (openai)'],
   ])(
     'renders model display name %s with an alias fallback',
     (displayName, expectedLabel, details) => {
