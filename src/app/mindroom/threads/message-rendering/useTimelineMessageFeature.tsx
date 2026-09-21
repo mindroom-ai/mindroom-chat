@@ -186,8 +186,12 @@ export const useTimelineMessageFeature = ({
           document.activeElement?.getAttribute('data-editable-name') === 'RoomInput' &&
           isEmptyEditor(editor)
         ) {
+          const timeline = threadId
+            ? room.getThread(threadId)?.liveTimeline
+            : room.getLiveTimeline();
+          if (!timeline) return;
           const editableEvt = getLatestEditableEvt(
-            room.getLiveTimeline(),
+            timeline,
             (mEvt) => isConfirmedMatrixEventId(mEvt.getId()) && canEditEvent(mx, mEvt)
           );
           const editableEvtId = editableEvt?.getId();
@@ -196,7 +200,7 @@ export const useTimelineMessageFeature = ({
           evt.preventDefault();
         }
       },
-      [mx, room, editor]
+      [mx, room, editor, threadId]
     )
   );
 
