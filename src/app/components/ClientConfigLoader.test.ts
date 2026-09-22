@@ -7,8 +7,8 @@ import {
   ClientConfigLoader,
   fetchClientConfig,
   readCachedClientConfig,
-  reloadForInteractiveAuthentication,
 } from './ClientConfigLoader';
+import { recoverAuthentication } from '../../authenticationRecovery';
 import { AUTHENTICATION_RECOVERY_NAVIGATION_PARAM } from '../../serviceWorkerNavigation';
 
 const originalFetch = globalThis.fetch;
@@ -343,7 +343,7 @@ describe('client configuration loading', () => {
       }),
       __AUTHENTICATION_RECOVERY__: { navigate },
     });
-    reloadForInteractiveAuthentication();
+    recoverAuthentication();
     expect(navigate).not.toHaveBeenCalled();
     ready();
     await Promise.resolve();

@@ -1,12 +1,19 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { runInNewContext } from 'node:vm';
 import test from 'node:test';
+import { buildAuthenticationRecoveryAssets } from './authentication-recovery-assets.mjs';
 
 // Requires Docker and nginx:alpine. No application build or external login fixture needed.
-test('native recovery assets, probe and runtime URL serialization', async () => {
+test('native recovery assets, probe and runtime URL serialization', async (t) => {
+  const assets = await buildAuthenticationRecoveryAssets();
+  mkdirSync('test-results', { recursive: true });
+  const directory = mkdtempSync(resolve('test-results/authentication-recovery-nginx-'));
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  for (const [name, source] of Object.entries(assets))
+    writeFileSync(resolve(directory, name), source);
   const probe = '/authentication-recovery-probe?quoted="yes"&slash=\\value';
   const container = execFileSync(
     'docker',
@@ -20,14 +27,21 @@ test('native recovery assets, probe and runtime URL serialization', async () => 
       `${resolve('docker-nginx.conf')}:/etc/nginx/conf.d/default.conf:ro`,
       '-v',
       `${resolve(
-        'public/authentication-recovery.js'
+        directory,
+        'authentication-recovery.js'
       )}:/usr/share/nginx/html/authentication-recovery.js:ro`,
+      '-v',
+      `${resolve(directory, 'runtime-config.js')}:/opt/mindroom/runtime-config.js:ro`,
       '-v',
       `${resolve('index.html')}:/usr/share/nginx/html/index.html:ro`,
       '-v',
       `${resolve(
         'docker-entrypoint.d/99-runtime-config.sh'
       )}:/docker-entrypoint.d/99-runtime-config.sh:ro`,
+      '-e',
+      'APP_BASE_PATH=/chat',
+      '-e',
+      'APP_ENABLE_SERVICE_WORKER=false',
       '-e',
       `APP_AUTHENTICATION_RECOVERY_PROBE_URL=${probe}`,
       '-e',
@@ -62,12 +76,6 @@ test('native recovery assets, probe and runtime URL serialization', async () => 
       const runtime = await fetch(`${origin}${prefix}/runtime-config.js`);
       assert.equal(runtime.headers.get('cache-control'), 'no-store');
       const runtimeSource = await runtime.text();
-      const publicRuntime = readFileSync('public/runtime-config.js', 'utf8');
-      assert.equal(
-        runtimeSource.slice(runtimeSource.indexOf('\n(function () {')),
-        publicRuntime.slice(publicRuntime.indexOf('\n(function () {')),
-        'generated and public runtime scripts must use the same recovery loader'
-      );
       const scripts = [];
       const window = {};
       runInNewContext(runtimeSource, {
@@ -80,6 +88,8 @@ test('native recovery assets, probe and runtime URL serialization', async () => 
           head: { appendChild: (script) => scripts.push(script) },
         },
       });
+      assert.equal(window.__APP_BASE_PATH__, '/chat');
+      assert.equal(window.__ENABLE_SERVICE_WORKER__, false);
       assert.equal(window.__AUTHENTICATION_RECOVERY_CONFIG__.probeUrl, probe);
       assert.equal(window.__AUTHENTICATION_RECOVERY_CONFIG__.navigationUrl, '/?reconnect=1#thread');
       assert.equal(scripts[0].src, `${origin}${prefix}/authentication-recovery.js`);

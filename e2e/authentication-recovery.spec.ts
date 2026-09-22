@@ -2,6 +2,7 @@ import { createServer, type Server } from 'node:http';
 import { existsSync, readFileSync } from 'node:fs';
 import { build } from 'esbuild';
 import { test, expect } from '@playwright/test';
+import { buildAuthenticationRecoveryAssets } from '../scripts/authentication-recovery-assets.mjs';
 
 test.use({
   launchOptions: {
@@ -55,6 +56,7 @@ async function workerSource(legacy: boolean) {
 }
 
 test.beforeAll(async () => {
+  const assets = await buildAuthenticationRecoveryAssets();
   server = createServer((request, response) => {
     const url = new URL(request.url!, origin);
     if (!allowBfcache) response.setHeader('Cache-Control', 'no-store');
@@ -63,22 +65,19 @@ test.beforeAll(async () => {
       response.end(
         oldRuntime
           ? 'window.__APP_BASE_PATH__ = "/"; window.__ENABLE_SERVICE_WORKER__ = true;'
-          : readFileSync('public/runtime-config.js', 'utf8').replace(
-              'window.__AUTHENTICATION_RECOVERY_CONFIG__ = null;',
-              `window.__AUTHENTICATION_RECOVERY_CONFIG__ = ${
-                enabled
-                  ? JSON.stringify({
-                      probeUrl: '/authentication-recovery-probe',
-                      navigationUrl: '/login',
-                      timeoutMs: 1000,
-                    })
-                  : 'null'
-              };`
-            )
+          : `window.__AUTHENTICATION_RECOVERY_CONFIG__ = ${JSON.stringify(
+              enabled
+                ? {
+                    probeUrl: '/authentication-recovery-probe',
+                    navigationUrl: '/login',
+                    timeoutMs: 1000,
+                  }
+                : null
+            )};\n${assets['runtime-config.js']}`
       );
     } else if (url.pathname === '/authentication-recovery.js') {
       response.setHeader('Content-Type', 'application/javascript');
-      response.end(readFileSync('public/authentication-recovery.js'));
+      response.end(assets['authentication-recovery.js']);
     } else if (url.pathname === '/sw.js') {
       response.setHeader('Content-Type', 'application/javascript');
       response.end(worker);

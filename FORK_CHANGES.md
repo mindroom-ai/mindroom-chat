@@ -2,6 +2,17 @@
 
 ## Runbook
 
+### Consolidate authentication recovery sources (2026-09-22)
+
+- Status: implemented and independently approved; broader browser validation is running.
+- Recovery lifecycle and application helpers now share typed source, while Vite emits the same classic-script URLs for cached clients.
+  Runtime configuration has one loader source; Docker prepends deployment settings to the built script instead of maintaining a separate loader.
+- Both compatibility entry points remain, preserving cached predecessor HTML and older custom runtime configuration.
+  Probe handling, per-tab retry bounds, worker ownership, and Matrix storage preservation remain unchanged.
+- All 5,287 unit tests pass in the Node 24 container, along with typecheck, production/PWA build, formatting, and lint with zero errors and 17 existing warnings.
+  All eight Chromium recovery scenarios and the nginx and Netlify checks pass.
+  Generated-script coverage verifies deployment settings, prefixed URLs, and loader readiness; the new deployment-setting regression failed before the change.
+
 ### Reduce loading and thread-operation latency (2026-09-22)
 
 - Status: PR #321 contains independently reviewed performance changes based on merged PR #319 (`59dd75c2`).

@@ -8,15 +8,12 @@ import {
   setStorageItemSafe,
 } from '../utils/safeLocalStorage';
 import { AUTHENTICATION_RECOVERY_NAVIGATION_PARAM } from '../../serviceWorkerNavigation';
+import {
+  authenticationConfigurationLoaded,
+  recoverAuthentication,
+} from '../../authenticationRecovery';
 
 const CLIENT_CONFIG_STORAGE_PREFIX = 'io.cinny.client-config:';
-type AuthenticationRecoveryWindow = Window & {
-  __AUTHENTICATION_RECOVERY_READY__?: Promise<unknown>;
-  __AUTHENTICATION_RECOVERY__?: {
-    navigate: () => Promise<string>;
-    configurationLoaded?: () => void;
-  };
-};
 
 export class ClientConfigAuthenticationError extends Error {
   constructor() {
@@ -83,12 +80,7 @@ export const fetchClientConfig = async (
 
   const config = asClientConfig(await response.json());
   cacheClientConfig(config, basePath);
-  if (typeof window !== 'undefined') {
-    const recoveryWindow = window as AuthenticationRecoveryWindow;
-    void Promise.resolve(recoveryWindow.__AUTHENTICATION_RECOVERY_READY__)
-      .then(() => recoveryWindow.__AUTHENTICATION_RECOVERY__?.configurationLoaded?.())
-      .catch(() => undefined);
-  }
+  authenticationConfigurationLoaded();
   return config;
 };
 
@@ -108,13 +100,6 @@ const clearAuthenticationRecoveryNavigation = (): void => {
   } catch {
     // URL cleanup must not block application startup.
   }
-};
-
-export const reloadForInteractiveAuthentication = async (): Promise<string> => {
-  const recoveryWindow = window as AuthenticationRecoveryWindow;
-  // runtime-config.js also loads the owner for cached predecessor app shells.
-  await recoveryWindow.__AUTHENTICATION_RECOVERY_READY__;
-  return recoveryWindow.__AUTHENTICATION_RECOVERY__?.navigate() ?? 'unavailable';
 };
 
 type ClientConfigLoaderProps = {
@@ -144,7 +129,7 @@ export function ClientConfigLoader({ fallback, error, children }: ClientConfigLo
     void load().catch(() => undefined);
   }, [load]);
   const authenticateCallback = useCallback(() => {
-    void reloadForInteractiveAuthentication()
+    void recoverAuthentication()
       .then((result) => {
         if (result === 'healthy') {
           retryCallback();
