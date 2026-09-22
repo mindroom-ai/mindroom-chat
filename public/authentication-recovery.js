@@ -7,6 +7,17 @@
   var config;
   function localUrl(value) {
     if (typeof value !== 'string' || !value.trim()) throw new Error('Missing URL');
+    for (var i = 0; i < value.length; i++) {
+      var code = value.charCodeAt(i);
+      if (code < 32 || code === 127) throw new Error('Unsafe recovery URL control character');
+    }
+    var path = value.trim().split(/[?#]/)[0];
+    if (
+      value.includes('\\') ||
+      /%2f|%5c/i.test(path) ||
+      /(^|\/)(?:\.|%2e)(?:\.|%2e)?(?=\/|$)/i.test(path)
+    )
+      throw new Error('Unsafe recovery URL path');
     // Page-relative paths would change the probe identity after a recovery navigation.
     if (!/^(?:\/(?!\/)|https?:\/\/)/i.test(value.trim()))
       throw new Error('Recovery URLs must be root-relative or absolute');
@@ -21,7 +32,14 @@
     return url;
   }
   try {
-    if (raw) config = { probe: localUrl(raw.probeUrl), navigation: localUrl(raw.navigationUrl) };
+    if (raw)
+      config = {
+        probe: localUrl(raw.probeUrl),
+        navigation:
+          raw.navigationUrl === undefined || raw.navigationUrl === ''
+            ? undefined
+            : localUrl(raw.navigationUrl),
+      };
   } catch (_) {
     /* Invalid configuration disables automatic recovery. */
   }
@@ -66,7 +84,9 @@
             await deadline(registration.unregister());
           }
         }
-        var target = new URL(config ? config.navigation.href : window.location.href);
+        var target = new URL(
+          config && config.navigation ? config.navigation.href : window.location.href
+        );
         if (!target.hash) target.hash = new URL(window.location.href).hash;
         target.searchParams.set(marker, '1');
         var source = new URL(window.location.href);

@@ -35,7 +35,7 @@ function quoted(value, output, i, char) {
 BEGIN {
   probe = ENVIRON["APP_AUTHENTICATION_RECOVERY_PROBE_URL"]
   navigation = ENVIRON["APP_AUTHENTICATION_RECOVERY_NAVIGATION_URL"]
-  if (probe != "" && navigation != "")
+  if (probe != "")
     print "window.__AUTHENTICATION_RECOVERY_CONFIG__ = {probeUrl:" quoted(probe) ",navigationUrl:" quoted(navigation) "};"
   else print "window.__AUTHENTICATION_RECOVERY_CONFIG__ = null;"
 }' >> /usr/share/nginx/html/runtime-config.js

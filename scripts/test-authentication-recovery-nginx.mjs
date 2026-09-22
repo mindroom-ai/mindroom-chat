@@ -86,6 +86,28 @@ test('native recovery assets, probe and runtime URL serialization', async () => 
       const nested = await fetch(`${origin}${prefix}/authentication-recovery-probe/child`);
       assert.notEqual(nested.status, 204);
     }
+    execFileSync('docker', [
+      'exec',
+      '-e',
+      'APP_AUTHENTICATION_RECOVERY_NAVIGATION_URL=',
+      container,
+      'sh',
+      '/docker-entrypoint.d/99-runtime-config.sh',
+    ]);
+    const defaultRuntime = await (await fetch(`${origin}/runtime-config.js`)).text();
+    const defaultWindow = {};
+    runInNewContext(defaultRuntime, {
+      window: defaultWindow,
+      URL,
+      Promise,
+      document: {
+        currentScript: { src: `${origin}/runtime-config.js` },
+        createElement: () => ({}),
+        head: { appendChild: () => {} },
+      },
+    });
+    assert.equal(defaultWindow.__AUTHENTICATION_RECOVERY_CONFIG__.probeUrl, probe);
+    assert.equal(defaultWindow.__AUTHENTICATION_RECOVERY_CONFIG__.navigationUrl, '');
   } finally {
     execFileSync('docker', ['stop', container], { stdio: 'ignore' });
   }

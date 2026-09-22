@@ -7,7 +7,6 @@ Set these image environment variables:
 
 ```sh
 APP_AUTHENTICATION_RECOVERY_PROBE_URL=/authentication-recovery-probe
-APP_AUTHENTICATION_RECOVERY_NAVIGATION_URL=/
 ```
 
 Alternatively, a deployment that supplies `runtime-config.js` can set:
@@ -15,13 +14,15 @@ Alternatively, a deployment that supplies `runtime-config.js` can set:
 ```js
 window.__AUTHENTICATION_RECOVERY_CONFIG__ = {
   probeUrl: '/authentication-recovery-probe',
-  navigationUrl: '/',
+  navigationUrl: '',
   timeoutMs: 5000,
 };
 ```
 
-Both URLs must resolve to the application's origin, use HTTP or HTTPS, and contain no credentials.
-Use root-relative paths or same-origin absolute URLs; page-relative paths and protocol-relative URLs are rejected so the retry identity stays stable across navigations.
+An absent or empty `navigationUrl` returns to the current pathname, query, and fragment after sign-in, including for applications under a path prefix.
+Set `APP_AUTHENTICATION_RECOVERY_NAVIGATION_URL` or a nonempty runtime `navigationUrl` only when recovery must use a fixed destination.
+The probe and any nonempty navigation URL must resolve to the application's origin, use HTTP or HTTPS, and contain no credentials.
+Use root-relative paths or same-origin absolute URLs for configured destinations; page-relative paths and protocol-relative URLs are rejected so the retry identity stays stable across navigations.
 The optional timeout defaults to 5 seconds and is bounded to 1–30 seconds.
 A missing or invalid object disables automatic recovery.
 
@@ -33,7 +34,8 @@ Only HTTP 204 confirms a healthy session; HTTP 403 means access denied and does 
 HTTP 200, other statuses, network errors, offline state, and timeouts do not trigger recovery.
 Do not return a public 204 before the authentication check, and do not exempt chat, configuration, Matrix, or API routes from authentication.
 The navigation destination must initiate the normal protected sign-in flow and return the user to the application.
-The current fragment is retained unless the configured destination supplies one.
+Recovery adds or replaces the `authentication-recovery-navigation=1` query marker without dropping other query values or the current fragment.
+An explicit destination retains its own pathname and query; the current fragment is retained unless that destination supplies one.
 
 ## Bootstrap and cached clients
 

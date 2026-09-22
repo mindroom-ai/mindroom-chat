@@ -59,13 +59,60 @@ describe('native authentication recovery', () => {
       // eslint-disable-next-line no-script-url -- rejected unsafe configuration regression
       { probeUrl: '/probe', navigationUrl: 'javascript:alert(1)' },
       { probeUrl: '/probe', navigationUrl: 'https://user@chat.example/' },
+      { probeUrl: '/probe', navigationUrl: '//other.example/login' },
+      { probeUrl: '/probe', navigationUrl: '   ' },
+      { probeUrl: '/probe', navigationUrl: '/%2f%2fother.example/login' },
+      { probeUrl: '/probe', navigationUrl: '/%5c%5cother.example/login' },
+      { probeUrl: '/probe', navigationUrl: '/%2e%2e/login' },
     ]) {
-      const { api, fetch, assign } = setup(config === undefined ? null : config);
+      const { api, fetch, assign, unregister } = setup(config === undefined ? null : config);
       expect(await api.check()).toBe('disabled');
       expect(fetch).not.toHaveBeenCalled();
+      expect(unregister).not.toHaveBeenCalled();
       expect(assign).not.toHaveBeenCalled();
     }
   });
+
+  it.each(['\n', '\r', '\t'])(
+    'disables malformed probe and navigation URLs containing %s before any recovery effect',
+    async (control) => {
+      for (const field of ['probeUrl', 'navigationUrl'] as const) {
+        for (const unsafe of [
+          `/chat/%2${control}f%2${control}fother.example/login`,
+          `/chat/%2${control}e%2${control}e/login`,
+          `/chat/${control}../login`,
+        ]) {
+          const config = { probeUrl: '/probe', navigationUrl: '/login', [field]: unsafe };
+          const { api, fetch, unregister, assign } = setup(config);
+          expect(await api.check()).toBe('disabled');
+          expect(fetch).not.toHaveBeenCalled();
+          expect(unregister).not.toHaveBeenCalled();
+          expect(assign).not.toHaveBeenCalled();
+        }
+      }
+    }
+  );
+
+  it.each([undefined, ''])(
+    'returns to the current deep link when navigationUrl is %s',
+    async (navigationUrl) => {
+      const config = {
+        probeUrl: '/probe',
+        ...(navigationUrl === undefined ? {} : { navigationUrl }),
+      };
+      const { api, fetch, assign } = setup(
+        config,
+        new Map(),
+        'https://chat.example/chat/rooms/example?thread=123#latest'
+      );
+      await api.check();
+      fetch.mockResolvedValue({ status: 401 });
+      expect(await api.check()).toBe('navigating');
+      expect(assign).toHaveBeenCalledWith(
+        'https://chat.example/chat/rooms/example?thread=123&authentication-recovery-navigation=1#latest'
+      );
+    }
+  );
 
   it.each([401, 0])(
     'recovers confirmed expiry %s once and preserves the fragment',

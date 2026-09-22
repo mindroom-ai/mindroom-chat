@@ -2,6 +2,14 @@
 
 ## Runbook
 
+### Preserve browser location during authentication recovery (2026-09-22)
+
+- An absent or empty navigation URL returns to the current pathname, query, and fragment with the recovery marker set or replaced.
+  Explicit same-origin destinations remain fixed, and unsafe encoded path separators, dot segments, or raw control characters disable recovery.
+- The image runtime configuration enables this default when a probe URL is present and no navigation URL is supplied.
+  Browser regressions cover root and prefixed deep links, marker replacement, and a returned-shell retry bound.
+  The focused Docker test covers generated runtime configuration with an empty destination.
+
 ### Reduce loading and thread-operation latency (2026-09-22)
 
 - Status: PR #321 contains independently reviewed performance changes based on merged PR #319 (`59dd75c2`).
