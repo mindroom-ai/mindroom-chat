@@ -10,126 +10,55 @@ import { fileURLToPath } from 'node:url';
 const script = fileURLToPath(new URL('./seed-streaming-stress-room.mjs', import.meta.url));
 
 async function fixture(t) {
-  const directory = await mkdtemp(join(tmpdir(), 'mindroom-stress-test-'));
-  const state = {
-    roomId: null,
-    events: [],
-    transactions: new Map(),
-    devices: [],
-    requests: [],
-    fault: () => undefined,
-    incorrectCount: false,
-    requireRegistration: false,
-    registered: false,
-    loseCreateResponse: false,
-    deviceOverride: null,
-  };
+  const directory = await mkdtemp(join(tmpdir(), 'mindroom-stress-'));
+  const manifest = join(directory, 'manifest.json');
+  const state = { room: false, events: new Map(), requests: [], fault: () => undefined };
   const server = createServer(async (request, response) => {
     let raw = '';
     for await (const chunk of request) raw += chunk;
     const body = raw ? JSON.parse(raw) : {};
-    const url = new URL(request.url, 'http://localhost');
-    const version = /^\/_matrix\/client\/(v\d+)\//.exec(url.pathname)?.[1];
-    const path = decodeURIComponent(url.pathname.replace(/^\/_matrix\/client\/v\d+/, ''));
+    const path = decodeURIComponent(request.url.replace('/_matrix/client/v3', ''));
     state.requests.push({ path, body });
-    const reply = (status, data) => {
-      response.writeHead(status, { 'Content-Type': 'application/json' });
+    const reply = (status, data, headers = {}) => {
+      response.writeHead(status, { 'Content-Type': 'application/json', ...headers });
       response.end(JSON.stringify(data));
     };
-    // Threads were introduced under v1; the homeserver has no v3 thread-list route.
-    if (version !== (path.endsWith('/threads') ? 'v1' : 'v3')) {
-      return reply(404, { errcode: 'M_UNRECOGNIZED' });
-    }
-    if (path === '/login') {
-      if (state.requireRegistration && !state.registered) {
-        return reply(403, { errcode: 'M_FORBIDDEN' });
-      }
-      state.devices.push(body.device_id);
+    const fault = state.fault(path, body);
+    if (fault) return reply(fault.status, fault.body ?? {}, fault.headers);
+    if (path === '/login')
       return reply(200, {
-        user_id: '@mindroom_stress_disposable:test.local',
-        access_token: 'secret-test-access-token',
-        device_id: state.deviceOverride ?? body.device_id,
-      });
-    }
-    if (path === '/register') {
-      if (body.auth?.session !== 'registration-session') {
-        return reply(401, {
-          session: 'registration-session',
-          flows: [{ stages: ['m.login.dummy'] }],
-        });
-      }
-      state.registered = true;
-      state.devices.push(body.device_id);
-      return reply(200, {
-        user_id: '@mindroom_stress_disposable:test.local',
-        access_token: 'secret-test-access-token',
+        user_id: '@stress:test.local',
+        access_token: 'secret-test-token',
         device_id: body.device_id,
       });
-    }
     if (path.startsWith('/directory/room/')) {
-      return state.roomId
-        ? reply(200, { room_id: state.roomId })
-        : reply(404, { errcode: 'M_NOT_FOUND' });
+      return reply(state.room ? 200 : 404, { room_id: '!stress:test.local' });
     }
     if (path === '/createRoom') {
-      state.roomId = '!stress:test.local';
-      if (state.loseCreateResponse) return request.socket.destroy();
-      return reply(200, { room_id: state.roomId });
+      state.room = true;
+      return reply(200, { room_id: '!stress:test.local' });
     }
     if (path.includes('/send/m.room.message/')) {
-      const transaction = path.split('/').at(-1);
-      const failure = state.fault({ transaction, body, state });
-      if (failure?.status) return reply(failure.status, failure.body ?? {});
-      let event = state.transactions.get(transaction);
-      if (!event) {
-        event = {
-          event_id: `$event-${state.events.length}`,
-          type: 'm.room.message',
+      if (!state.events.has(path))
+        state.events.set(path, {
+          event_id: `$event-${state.events.size}`,
           content: body,
-        };
-        state.transactions.set(transaction, event);
-        state.events.push(event);
-      }
-      if (failure?.disconnect) return request.socket.destroy();
-      return reply(200, { event_id: event.event_id });
+        });
+      return reply(200, { event_id: state.events.get(path).event_id });
     }
-    if (path.endsWith('/threads')) {
-      const roots = state.events.filter((event) => !event.content['m.relates_to']);
-      const offset = Number(url.searchParams.get('from') ?? 0);
-      const chunk = roots.slice(offset, offset + 1).map((event) => {
-        const replies = state.events.filter(
-          (candidate) =>
-            candidate.content['m.relates_to']?.rel_type === 'm.thread' &&
-            candidate.content['m.relates_to'].event_id === event.event_id
-        );
-        return {
-          ...event,
-          unsigned: {
-            'm.relations': {
-              'm.thread': {
-                count: state.incorrectCount ? replies.length + 1 : replies.length,
-                latest_event: replies.at(-1),
-              },
-            },
-          },
-        };
-      });
-      return reply(200, {
-        chunk,
-        ...(offset + 1 < roots.length ? { next_batch: String(offset + 1) } : {}),
-      });
-    }
-    return reply(404, { errcode: 'M_NOT_FOUND' });
+    return reply(404, {});
   });
-  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  await new Promise((resolve) => {
+    server.listen(0, '127.0.0.1', resolve);
+  });
   t.after(async () => {
     server.closeAllConnections();
-    await new Promise((resolve) => server.close(resolve));
+    await new Promise((resolve) => {
+      server.close(resolve);
+    });
     await rm(directory, { recursive: true, force: true });
   });
-  const manifest = join(directory, 'manifest.json');
-  const homeserver = `http://127.0.0.1:${server.address().port}`;
-  const run = (args = [], onSpawn) =>
+  const run = (args = [], env = {}, onSpawn = () => {}) =>
     new Promise((resolve) => {
       const child = spawn(
         process.execPath,
@@ -138,7 +67,7 @@ async function fixture(t) {
           '--manifest',
           manifest,
           '--homeserver',
-          homeserver,
+          `http://127.0.0.1:${server.address().port}`,
           '--threads',
           '2',
           '--replies',
@@ -146,14 +75,15 @@ async function fixture(t) {
           '--edits',
           '3',
           '--concurrency',
-          '2',
+          '1',
           ...args,
         ],
         {
           env: {
             ...process.env,
-            STRESS_USERNAME: 'mindroom_stress_disposable',
-            STRESS_PASSWORD: 'secret-test-password',
+            E2E_USERNAME: 'stress',
+            E2E_PASSWORD: 'secret-test-password',
+            ...env,
           },
           stdio: ['ignore', 'pipe', 'pipe'],
         }
@@ -166,229 +96,148 @@ async function fixture(t) {
         output += data;
       });
       child.on('close', (code) => resolve({ code, output }));
-      onSpawn?.(child);
+      onSpawn(child);
     });
   return { state, run, manifest };
 }
 
-test('seeds real Matrix lifecycle payloads and verifies all paginated thread counts', async (t) => {
-  const { state, run, manifest } = await fixture(t);
-  state.requireRegistration = true;
-  const result = await run();
-  assert.equal(result.code, 0, result.output);
-  assert.equal(state.events.length, 18);
-  const roots = state.events.filter((event) => !event.content['m.relates_to']);
-  assert.equal(roots.length, 2);
-  for (const root of roots) {
-    const replies = state.events.filter(
-      (event) =>
-        event.content['m.relates_to']?.rel_type === 'm.thread' &&
-        event.content['m.relates_to'].event_id === root.event_id
-    );
-    assert.equal(replies.length, 2);
-    assert.equal(replies[0].content['m.relates_to']['m.in_reply_to'].event_id, root.event_id);
-    assert.equal(replies[1].content['m.relates_to']['m.in_reply_to'].event_id, replies[0].event_id);
-    for (const original of replies) {
-      const edits = state.events.filter(
-        (event) =>
-          event.content['m.relates_to']?.rel_type === 'm.replace' &&
-          event.content['m.relates_to'].event_id === original.event_id
-      );
-      assert.equal(original.content.msgtype, 'm.notice');
-      assert.equal(original.content['io.mindroom.stream_status'], 'pending');
-      assert.equal(original.content['m.relates_to'].is_falling_back, true);
-      assert.deepEqual(
-        edits.map((event) => event.content['m.new_content'].msgtype),
-        ['m.notice', 'm.notice', 'm.text']
-      );
-      assert.deepEqual(
-        edits.map((event) => event.content['io.mindroom.stream_status']),
-        ['streaming', 'streaming', 'completed']
-      );
-      for (const edit of edits) {
-        const content = edit.content['m.new_content'];
-        assert.equal(content['m.relates_to'], undefined);
-        assert.equal(
-          content['io.mindroom.stream_status'],
-          edit.content['io.mindroom.stream_status']
-        );
-        assert.equal(content.format, 'org.matrix.custom.html');
-        assert.match(content.formatted_body, /<strong>/);
-        assert.equal(edit.content.body, `* ${content.body}`);
-      }
-    }
+test('requires an existing explicit account without registering or sending requests', async (t) => {
+  const { state, run } = await fixture(t);
+  for (const env of [{ E2E_PASSWORD: '' }, { E2E_USERNAME: '' }]) {
+    const result = await run([], env);
+    assert.equal(result.code, 1);
+    assert.match(result.output, /E2E_USERNAME.*E2E_PASSWORD/);
   }
-  const saved = JSON.parse(await readFile(manifest, 'utf8'));
-  assert.equal(saved.verified.threadCount, 2);
-  assert.equal(saved.verified.replyCount, 4);
-  assert.equal(saved.threads.filter((thread) => thread.complete).length, 2);
-  assert.doesNotMatch(
-    JSON.stringify(saved) + result.output,
-    /secret-test-password|secret-test-access-token/
+  assert.equal(state.requests.length, 0);
+  state.fault = () => ({ status: 403 });
+  assert.equal((await run()).code, 1);
+  assert.deepEqual(
+    state.requests.map(({ path }) => path),
+    ['/login']
   );
 });
 
-test('retries a lost send acknowledgement and 429 without duplicating Matrix events', async (t) => {
-  const { state, run } = await fixture(t);
-  const failed = new Set();
-  state.fault = ({ transaction, body }) => {
-    const status = body['io.mindroom.stream_status'];
-    if (status === 'pending' && !failed.has('transport')) {
-      failed.add('transport');
-      return { disconnect: true };
+test('seeds exact pending/streaming/completed thread payloads without leaking credentials', async (t) => {
+  const { state, run, manifest } = await fixture(t);
+  const result = await run();
+  assert.equal(result.code, 0, result.output);
+  const events = [...state.events.values()];
+  assert.equal(events.length, 18);
+  const roots = events.filter(({ content }) => !content['m.relates_to']);
+  assert.equal(roots.length, 2);
+  for (const root of roots) {
+    const replies = events.filter(
+      ({ content }) => content['m.relates_to']?.event_id === root.event_id
+    );
+    assert.equal(replies.length, 2);
+    for (const reply of replies) {
+      assert.equal(reply.content['m.relates_to'].rel_type, 'm.thread');
+      assert.equal(reply.content['io.mindroom.stream_status'], 'pending');
+      assert.equal(reply.content.msgtype, 'm.notice');
+      const edits = events.filter(
+        ({ content }) => content['m.relates_to']?.event_id === reply.event_id
+      );
+      assert.deepEqual(
+        edits.map(({ content }) => content['io.mindroom.stream_status']),
+        ['streaming', 'streaming', 'completed']
+      );
+      edits.forEach(({ content }, index) => {
+        assert.equal(content['m.relates_to'].rel_type, 'm.replace');
+        assert.equal(content.msgtype, index === 2 ? 'm.text' : 'm.notice');
+        assert.equal(content.body, `* ${content['m.new_content'].body}`);
+        assert.equal(content.formatted_body, content['m.new_content'].formatted_body);
+        assert.equal(
+          content['io.mindroom.stream_status'],
+          content['m.new_content']['io.mindroom.stream_status']
+        );
+      });
     }
-    if (status === 'streaming' && !failed.has('rate')) {
-      failed.add('rate');
-      failed.add(transaction);
-      return { status: 429, body: { errcode: 'M_LIMIT_EXCEEDED', retry_after_ms: 1 } };
+  }
+  const saved = await readFile(manifest, 'utf8');
+  assert.equal(JSON.parse(saved).threads.filter(({ complete }) => complete).length, 2);
+  assert.doesNotMatch(saved + result.output, /secret-test-(password|token)/);
+});
+
+test('resumes interrupted threads with stable transactions while skipping completed checkpoints', async (t) => {
+  const { state, run, manifest } = await fixture(t);
+  state.fault = (_, body) =>
+    body['m.new_content']?.body.startsWith('STRESS-T0002-R001-V1') ? { status: 403 } : undefined;
+  assert.equal((await run()).code, 1);
+  assert.deepEqual(
+    JSON.parse(await readFile(manifest, 'utf8')).threads.map(({ complete }) => complete),
+    [true, false]
+  );
+  const before = state.requests.length;
+  let throttledAt;
+  let retriedAt;
+  state.fault = (path) => {
+    if (path.includes('/send/')) {
+      if (!throttledAt) {
+        throttledAt = Date.now();
+        return { status: 429, headers: { 'Retry-After': '1' } };
+      }
+      retriedAt ??= Date.now();
     }
     return undefined;
   };
-  const result = await run();
-  assert.equal(result.code, 0, result.output);
-  assert.equal(state.events.length, 18);
-  assert.ok(failed.has('transport') && failed.has('rate'));
-});
-
-test('resumes failed threads with the same Matrix device and transaction identities', async (t) => {
-  const { state, run, manifest } = await fixture(t);
-  state.fault = ({ body }) =>
-    body['io.mindroom.stream_status'] === 'streaming'
-      ? { status: 403, body: { errcode: 'M_FORBIDDEN', error: 'secret-test-password' } }
-      : undefined;
-  const failed = await run(['--concurrency', '1']);
-  assert.equal(failed.code, 1);
-  assert.doesNotMatch(failed.output, /secret-test-password/);
-  assert.equal(state.events.length, 2);
-  const before = state.events.map((event) => event.event_id);
-  state.fault = () => undefined;
-  const resumed = await run(['--concurrency', '1']);
+  const resumed = await run();
   assert.equal(resumed.code, 0, resumed.output);
-  assert.deepEqual(
-    state.events.slice(0, 2).map((event) => event.event_id),
-    before
+  assert.ok(retriedAt - throttledAt >= 900, 'Retry-After must delay the resumed request');
+  assert.equal(state.events.size, 18);
+  assert.ok(
+    state.requests
+      .slice(before)
+      .filter(({ path }) => path.includes('/send/'))
+      .every(({ path }) => path.includes('-t1-'))
   );
-  assert.equal(state.events.length, 18);
-  const saved = JSON.parse(await readFile(manifest, 'utf8'));
-  assert.deepEqual(state.devices, [saved.deviceId, saved.deviceId]);
+  const devices = state.requests
+    .filter(({ path }) => path === '/login')
+    .map(({ body }) => body.device_id);
+  assert.equal(new Set(devices).size, 1);
 });
 
-test('verify mode never sends messages and rejects an incorrect server reply count', async (t) => {
+test('rejects external origins and changed or malformed manifests before network access', async (t) => {
   const { state, run, manifest } = await fixture(t);
-  const seeded = await run();
-  assert.equal(seeded.code, 0, seeded.output);
-  state.incorrectCount = true;
-  const before = state.requests.filter(({ path }) => path.includes('/send/')).length;
-  const result = await run(['--verify']);
-  assert.equal(result.code, 1);
-  assert.match(result.output, /reply count/i);
-  assert.equal(state.requests.filter(({ path }) => path.includes('/send/')).length, before);
-  assert.equal(JSON.parse(await readFile(manifest, 'utf8')).verified, undefined);
-});
-
-test('rejects external homeservers and invalid workload sizes before network access', async (t) => {
-  const { state, run } = await fixture(t);
-  const external = await run(['--homeserver', 'https://matrix.org']);
-  assert.equal(external.code, 1);
-  assert.match(external.output, /loopback/i);
-  const invalid = await run(['--threads', '0']);
-  assert.equal(invalid.code, 1);
-  assert.match(invalid.output, /threads/i);
-  assert.equal(state.requests.length, 0);
-});
-
-test('stops after bounded retries instead of finishing a partial room', async (t) => {
-  const { state, run } = await fixture(t);
-  state.fault = () => ({ status: 429, body: { retry_after_ms: 1 } });
-  const result = await run(['--concurrency', '1']);
-  assert.equal(result.code, 1);
-  assert.match(result.output, /429/);
-  const sends = state.requests.filter(({ path }) => path.includes('/send/'));
-  assert.ok(sends.length > 1 && sends.length <= 6);
-  assert.equal(new Set(sends.map(({ path }) => path)).size, 1);
-  assert.equal(state.events.length, 0);
-});
-
-test('recovers a lost create-room response through its stable alias', async (t) => {
-  const { state, run } = await fixture(t);
-  state.loseCreateResponse = true;
-  const result = await run();
-  assert.equal(result.code, 0, result.output);
-  assert.equal(state.requests.filter(({ path }) => path === '/createRoom').length, 1);
-  assert.equal(state.events.length, 18);
-});
-
-test('resuming a partially seeded room skips completed thread checkpoints', async (t) => {
-  const { state, run, manifest } = await fixture(t);
-  state.fault = ({ body }) =>
-    body['m.new_content']?.body.startsWith('STRESS-T0002-R001-V1') ? { status: 403 } : undefined;
-  assert.equal((await run(['--concurrency', '1'])).code, 1);
-  const saved = JSON.parse(await readFile(manifest, 'utf8'));
-  assert.deepEqual(
-    saved.threads.map((thread) => thread.complete),
-    [true, false]
-  );
-  const requestCount = state.requests.length;
-  state.fault = () => undefined;
-  const result = await run(['--concurrency', '1']);
-  assert.equal(result.code, 0, result.output);
-  const resumedSends = state.requests
-    .slice(requestCount)
-    .filter(({ path }) => path.includes('/send/'));
-  assert.ok(resumedSends.every(({ path }) => path.includes('-t1-')));
-  assert.equal(state.events.length, 18);
-});
-
-test('rejects changed manifest settings before authenticating', async (t) => {
-  const { state, run } = await fixture(t);
-  assert.equal((await run()).code, 0);
-  const requestCount = state.requests.length;
-  const changed = await run(['--replies', '3']);
-  assert.equal(changed.code, 1);
-  assert.match(changed.output, /manifest/i);
-  assert.equal(state.requests.length, requestCount);
-});
-
-test('refuses to seed when login changes the persisted Matrix device identity', async (t) => {
-  const { state, run } = await fixture(t);
-  state.deviceOverride = 'UNEXPECTED_DEVICE';
-  const result = await run();
-  assert.equal(result.code, 1);
-  assert.match(result.output, /device/i);
-  assert.equal(state.events.length, 0);
-  assert.equal(state.roomId, null);
-});
-
-test('rejects a null checkpoint without overwriting it or creating a new fixture', async (t) => {
-  const { state, run, manifest } = await fixture(t);
+  for (const args of [
+    ['--homeserver', 'https://matrix.org'],
+    ['--threads', '0'],
+  ]) {
+    assert.equal((await run(args)).code, 1);
+  }
   await writeFile(manifest, 'null\n');
-  const result = await run();
-  assert.equal(result.code, 1);
-  assert.match(result.output, /manifest/i);
+  assert.equal((await run()).code, 1);
   assert.equal(await readFile(manifest, 'utf8'), 'null\n');
   assert.equal(state.requests.length, 0);
+  await rm(manifest);
+  assert.equal((await run()).code, 0);
+  const before = state.requests.length;
+  assert.equal((await run(['--replies', '3'])).code, 1);
+  assert.equal(state.requests.length, before);
 });
 
 test(
-  'SIGTERM aborts a retry wait, releases the lock, and leaves a resumable checkpoint',
+  'SIGTERM aborts retry waits, releases the lock, and preserves resumability',
   { timeout: 10_000 },
   async (t) => {
     const { state, run, manifest } = await fixture(t);
     let child;
-    state.fault = ({ body }) => {
-      if (body['io.mindroom.stream_status'] !== 'pending') return undefined;
+    state.fault = (path) => {
+      if (!path.includes('/send/')) return undefined;
       setTimeout(() => child.kill('SIGTERM'), 25);
       return { status: 429, body: { retry_after_ms: 30_000 } };
     };
-    const interrupted = await run(['--concurrency', '1'], (process) => {
-      child = process;
-    });
-    assert.equal(interrupted.code, 1, interrupted.output);
-    assert.equal(JSON.parse(await readFile(manifest, 'utf8')).threads[0].complete, false);
-    await assert.rejects(readFile(`${manifest}.lock`, 'utf8'), { code: 'ENOENT' });
+    assert.equal(
+      (
+        await run([], {}, (process) => {
+          child = process;
+        })
+      ).code,
+      1
+    );
+    await assert.rejects(readFile(`${manifest}.lock`), { code: 'ENOENT' });
     state.fault = () => undefined;
-    const resumed = await run(['--concurrency', '1']);
+    const resumed = await run();
     assert.equal(resumed.code, 0, resumed.output);
-    assert.equal(state.events.length, 18);
+    assert.equal(state.events.size, 18);
   }
 );

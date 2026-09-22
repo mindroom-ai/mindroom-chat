@@ -16,7 +16,8 @@ This fixture does not call an LLM or claim coverage of the backend's complete fu
 
 Measurements use headed Google Chrome 153.0.8010.53, a 1440 × 1000 viewport, production builds, a fresh browser context per run, and a loopback Tuwunel server.
 No CPU or network throttling is applied.
-The baseline is Chat commit `987836258d46eb4be104638817b467bb1c5110f9`.
+The initial baseline was Chat commit `987836258d46eb4be104638817b467bb1c5110f9`.
+After the independent compact-thread optimizations in PR #315 landed, the final comparison uses baseline `d58051e6efe1d4e3367004799cc998586c7b3d14` and integrated candidate `4fb70e22`.
 Builds use the repository's Node 24.13.1.
 Main-thread task duration comes from Chrome DevTools Protocol, with V8 CPU profiles, animation-frame gaps, and long-task observations captured during each burst through final preview catch-up.
 The measurements are local observations, not CI timing thresholds or production service-level guarantees.
@@ -32,6 +33,29 @@ The resolver retains sender validation, ordering, redaction handling, and metada
 No persistent replacement cache is introduced, so later in-place Matrix updates remain visible.
 
 ## Results
+
+### Current base after PR #315
+
+The checked-in Chrome probe ran three alternating baseline/candidate pairs without competing test suites or builds.
+All six runs verified 1,000 roots and at least 100 replies per root, then rendered all final previews and cleared their streaming indicators.
+The pre-replay reply total grew from 100,200 to 100,300 across these runs; each run added another 20 replies.
+
+| Build/run      | Open all cards (s) | Send 400 edits (s) | Catch-up after sends (s) | Main-thread work (ms) | Long tasks (ms) | Frame-gap p95 (ms) |
+| -------------- | -----------------: | -----------------: | -----------------------: | --------------------: | --------------: | -----------------: |
+| Current base 1 |             21.710 |              1.497 |                    0.993 |                 2,846 |           2,178 |              349.9 |
+| Optimized 1    |             19.795 |              1.629 |                    1.224 |                 3,293 |           2,400 |              375.0 |
+| Current base 2 |             24.575 |              1.572 |                    1.141 |                 3,125 |           2,452 |              333.5 |
+| Optimized 2    |             17.598 |              1.675 |                    0.778 |                 2,896 |           2,036 |              291.5 |
+| Current base 3 |             19.914 |              1.662 |                    1.149 |                 3,165 |           2,752 |              333.6 |
+| Optimized 3    |             17.707 |              1.527 |                    0.569 |                 2,553 |           1,744 |              309.3 |
+
+Mean main-thread work fell from 3,046 ms to 2,914 ms, approximately 4%.
+Mean long-task time fell from 2,461 ms to 2,060 ms, approximately 16%.
+The first optimized run was slower, so these small-sample averages do not establish a stable improvement of either size.
+Room opening and catch-up also varied; the individual timings remain visible rather than advertising guaranteed percentages.
+The current comparison supersedes the earlier percentages below for this PR's incremental benefit on today's base.
+
+### Original base before PR #315
 
 | Build/run                   | Open all cards (s) | Send 400 edits (s) | Catch-up after sends (s) | Main-thread work (ms) | Long tasks (ms) | Frame-gap p95 (ms) |
 | --------------------------- | -----------------: | -----------------: | -----------------------: | --------------------: | --------------: | -----------------: |

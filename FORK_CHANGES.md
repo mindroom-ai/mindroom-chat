@@ -4,20 +4,25 @@
 
 ### Profile a room with 1,000 streamed threads (2026-09-21)
 
-- Status: implemented two measured optimizations on `perf/large-room-streaming` from `98783625`; full browser validation and PR review are in progress.
+- Status: implemented two measured optimizations in PR #316 on `perf/large-room-streaming`, with PR #315 integrated from `dev`; final browser reruns and hosted review are in progress.
 - The isolated Tuwunel fixture contains 1,000 thread roots, 100 logical replies per thread, and three replacement events per reply, using MindRoom's pending/streaming/completed message format.
   Historical seeding sent 401,000 events; each measured live replay adds 20 replies and 400 edits.
 - Headed Google Chrome profiles identified repeated locale formatter construction and duplicate detached replacement cloning during streaming-state checks.
   Card counts now reuse the current locale's formatter, and streaming checks pass their already decoded replacement to the shared edit resolver without introducing a persistent event cache.
-- Three baseline and two optimized overview runs show mean main-thread work falling from 2,884 ms to 2,467 ms, approximately 14%, and long-task time falling approximately 19%.
+- Three alternating pairs against current base `d58051e6` show mean main-thread work falling from 3,046 ms to 2,914 ms, approximately 4%, and long-task time falling approximately 16%.
+  The first optimized run was slower; these local averages vary and are not guaranteed gains.
+  The original base comparison showed approximately 14% less main-thread work and 19% less long-task time; the performance report preserves both datasets separately.
   Every measured overview burst reached its final previews; the open-thread pair also completed but does not establish an active-thread speedup.
   A later baseline rerun confirms burst improvement while showing substantial variation in initial room-open time.
 - Added a resumable, loopback-only seeder and a dedicated Chrome replay probe with server count checks, final-preview assertions, and saved CPU profiles.
+  At the user's request, removed duplicate verification and account creation from the seeder, reducing it and its tests from 916 to 599 lines while preserving resumability.
   The generic browser scheduler excludes this manifest-owned benchmark because it replaces account credentials per job.
   See [the performance report](docs/streaming-stress-performance.md) and [reproduction instructions](docs/testing.md#streaming-stress-fixture).
 - Independent reviews approve the production fixes and tooling; regression tests failed before their corresponding fixes.
-  All 5,205 unit tests, 17 tooling tests, application typecheck, and production build pass under Node 24.13.1.
-  Lint has zero errors and 17 existing warnings; the dedicated Chrome probe passed against all 1,000 threads.
+  All 5,213 unit tests pass under Node 24.13.1 after integrating PR #315; the dedicated Chrome probe passed six current-base comparisons against all 1,000 threads.
+  The full scheduler completed 122 jobs: 92 passed, 28 failed, and two were blocked by external SSO and worker-computer prerequisites.
+  Twelve failing jobs could not launch a missing WebKit binary; it is now installed for targeted reruns.
+  Direct streamed-edit cache, stale-cache, summary-upgrade, streaming-card, and streaming-performance checks passed.
 - A cross-model consultation was attempted but blocked by the provider's quota; the implemented fixes preserve existing edit-resolution and event-source precedence.
   Broad SDK root lookup scans and rendering all 1,000 cards remain follow-up opportunities.
 

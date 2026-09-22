@@ -73,21 +73,28 @@ Unit tests remain `npm test`; the scheduler's focused tests run through `npm run
 
 ## Streaming stress fixture
 
-With a disposable local Matrix stack running, seed 1,000 threads with 100 streamed replies each:
+With a disposable local Matrix stack running, create a dedicated account and seed 1,000 threads with 100 streamed replies each:
 
 ```sh
+export E2E_HOMESERVER=http://127.0.0.1:28108
+export E2E_USERNAME=mindroom_stress_disposable
+: "${E2E_PASSWORD:?Set a disposable fixture password}"
+export E2E_PASSWORD
+# Credentials come from the environment; suppress the helper's shell exports.
+uv run --no-project --python 3.12 bash scripts/ensure-e2e-account.sh E2E unused unused >/dev/null
 node scripts/seed-streaming-stress-room.mjs \
-  --homeserver http://127.0.0.1:28108 \
   --manifest test-results/streaming-stress/manifest.json
-node scripts/seed-streaming-stress-room.mjs \
-  --manifest test-results/streaming-stress/manifest.json --verify
 node --test scripts/seed-streaming-stress-room.test.mjs
 ```
 
-The script only accepts loopback homeservers and defaults to a disposable account; `--help` documents credential environment variables and workload options.
+The seeder accepts only loopback homeservers and requires the existing account's `E2E_USERNAME` and `E2E_PASSWORD`; `--help` documents workload options.
 Each reply sends an initial pending notice and three edits ending in a completed text message, producing 401,000 message events including the roots.
 Keep the manifest and Matrix device, then rerun the same command to resume interrupted work.
-Verification checks every thread root and bundled reply count; historical seeding does not prove that a browser processed those edits live.
+Completed threads are checkpointed atomically; interrupted threads reuse stable transaction IDs without duplicating messages.
+A lost room-creation response is recovered through its stable alias on the next run.
+If a forced kill leaves a `.lock` file, confirm its recorded process has stopped before removing that file.
+Seeding reports completed threads and expected event counts; the live probe below verifies every server thread root and reply count before sending its replay.
+Historical seeding does not prove that a browser processed those edits live.
 
 ### Live Chrome replay
 
@@ -117,4 +124,3 @@ Playwright traces, videos, and automatic screenshots are disabled so authenticat
 
 Each replay adds 20 logical replies and 400 edits; the manifest's 401,000 historical seed events are a separate workload, not 401,000 live edits.
 Use distinct output directories for before/after runs and record accumulated replay counts, or restore an identical disposable Matrix snapshot for each run.
-The seeder's exact reply-count verification applies before the first replay.

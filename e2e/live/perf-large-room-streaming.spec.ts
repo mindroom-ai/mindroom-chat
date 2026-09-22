@@ -72,7 +72,10 @@ test.describe('PERF: seeded large room with concurrent streaming edits', () => {
     });
     const homeserver = new URL(process.env.E2E_HOMESERVER ?? fixture.homeserver);
     expect(['http:', 'https:']).toContain(homeserver.protocol);
-    expect(['localhost', '127.0.0.1', '[::1]']).toContain(homeserver.hostname);
+    expect(
+      ['localhost', '[::1]'].includes(homeserver.hostname) ||
+        /^127\.\d+\.\d+\.\d+$/.test(homeserver.hostname)
+    ).toBe(true);
     if (homeserver.href !== `${homeserver.origin}/` || homeserver.origin !== fixture.homeserver) {
       throw new Error('E2E_HOMESERVER must match the manifest and contain only a server origin.');
     }
