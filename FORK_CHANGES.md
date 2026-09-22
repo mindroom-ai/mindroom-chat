@@ -4,7 +4,7 @@
 
 ### Shared thread context menu (2026-09-21)
 
-- Status: shared context menu implemented, independently reviewed, and validated; companion backend support is in final review.
+- Status: shared context menu implemented, independently reviewed, and validated; companion backend support is tracked in MindRoom #2174.
 - Right-click, keyboard context-menu shortcuts, and a more button expose thread navigation, tags, manual summary edits, agent summary requests, resolve/reopen, admin pinning, and links.
 - Compact cards and the active thread bar share one action menu, including manual editing and agent regeneration.
   The bar supports right-click, keyboard shortcuts, and a more button while preserving focus and route ownership.
@@ -33,7 +33,8 @@
 - Independent review verified permissions, root eligibility, pending operations, focus restoration, portal and route isolation, touch controls, and shared summary selection with no remaining blockers.
 - PR #314 includes desktop, narrow-layout, and thread-bar screenshots uploaded with `--attach`.
   [MindRoom #2174](https://github.com/mindroom-ai/mindroom/pull/2174) provides backend pin recovery and preserves explicit and automatic update ordering after clock skew.
-- Confirmed frontend automated review findings are addressed; the current CodeRabbit follow-up is rate-limited, with independent re-review completed.
+- Confirmed frontend automated review findings are addressed, with independent re-review completed after the follow-ups.
+  CodeRabbit completed review of the final code changes without new findings, and Qodo reports no remaining findings.
 
 ### Follow the pointer on inline glass cards (2026-09-21)
 
