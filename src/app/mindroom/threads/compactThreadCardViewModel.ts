@@ -24,6 +24,10 @@ const PREVIEW_TEXT_LIMIT = 96;
 const MATRIX_USER_ID_CANDIDATE_REGEXP = /@[^\s:]+:\S+/g;
 const MATRIX_USER_ID_TRAILING_PUNCTUATION_REGEXP = /[.,!?;:)\]}'"`*_~>]+$/;
 
+// A room refresh formats every card's count, even when only one thread changed.
+// Keep only the active locale so refresh cost does not include a formatter per card.
+let countFormatter: { locale: string | undefined; value: Intl.NumberFormat } | undefined;
+
 const truncateText = (value: string, limit: number): string =>
   value.length <= limit ? value : `${value.slice(0, limit - 3).trimEnd()}...`;
 
@@ -51,7 +55,10 @@ export const getCompactThreadMessageCountLabel = (
   if (messageCount === 0)
     return t?.('mindroomUi.threads.compactThreadCardViewModel.noReplies') ?? '0 replies';
 
-  const formattedCount = new Intl.NumberFormat(locale).format(messageCount);
+  if (!countFormatter || countFormatter.locale !== locale) {
+    countFormatter = { locale, value: new Intl.NumberFormat(locale) };
+  }
+  const formattedCount = countFormatter.value.format(messageCount);
   return (
     t?.('mindroomUi.threads.compactThreadCardViewModel.messageCount', {
       count: messageCount,
