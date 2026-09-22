@@ -29,6 +29,7 @@ const SummaryPublishHarness = ({
 }) => {
   useThreadSummaryPublishController({
     onStoreThreadSummary,
+    room: { getThread: () => null },
     thread: null,
     threadEvents: [makeSummaryEvent('Summary', '2026-01-01T00:00:00Z', 1)],
     threadId,

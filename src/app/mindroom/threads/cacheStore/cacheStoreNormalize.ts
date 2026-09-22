@@ -66,9 +66,7 @@ const sortThreadEvents = (a: CachedThreadEvent, b: CachedThreadEvent): number =>
   return a.event_id.localeCompare(b.event_id);
 };
 
-export const normalizeCachedRoomEvents = (
-  rawEvents: Partial<IEvent>[]
-): CachedRoomEvent[] => {
+export const normalizeCachedRoomEvents = (rawEvents: Partial<IEvent>[]): CachedRoomEvent[] => {
   const eventMap = new Map<string, CachedRoomEvent>();
 
   rawEvents.forEach((rawEvent) => {
@@ -206,9 +204,7 @@ export const mergeThreadCacheFlag = (
   nextValue: boolean | undefined
 ): boolean | undefined => (nextValue === undefined ? currentValue : nextValue);
 
-export const normalizeExpectedReplyCount = (
-  value: number | undefined
-): number | undefined =>
+export const normalizeExpectedReplyCount = (value: number | undefined): number | undefined =>
   typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : undefined;
 
 /**
@@ -254,6 +250,11 @@ export const getCachedThreadSummaryInfoFromRawEvent = (
 
   return getThreadSummaryEventInfo({
     getContent: () => content,
+    getTs: () => rawEvent.origin_server_ts,
+    replacingEventDate: () => {
+      const timestamp = rawEvent.unsigned?.['m.relations']?.['m.replace']?.origin_server_ts;
+      return typeof timestamp === 'number' ? new Date(timestamp) : undefined;
+    },
   });
 };
 

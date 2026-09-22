@@ -1,10 +1,12 @@
 import { useEffect, useMemo } from 'react';
-import type { MatrixEvent, Thread } from 'matrix-js-sdk';
+import type { MatrixEvent, Room, Thread } from 'matrix-js-sdk';
 import {
   getLatestThreadSummaryInfoFromEventSources,
+  getThreadSummaryInfosFromEventSources,
   type MindroomThreadSummaryInfo,
 } from '../messages/threadSummary';
 import { isConfirmedMatrixEventId } from './threadRouteUtils';
+import type { ThreadSummaryWriter } from './threadSummaryState';
 
 export const getActiveThreadSummaryInfo = ({
   thread,
@@ -21,12 +23,14 @@ export const getActiveThreadSummaryInfo = ({
 
 export const useThreadSummaryPublishController = ({
   onStoreThreadSummary,
+  room,
   thread,
   threadEvents,
   threadId,
   threadSummaryInfoMap,
 }: {
-  onStoreThreadSummary: (threadRootId: string, info: MindroomThreadSummaryInfo | undefined) => void;
+  onStoreThreadSummary: ThreadSummaryWriter;
+  room: Pick<Room, 'getThread'>;
   thread: Pick<Thread, 'events' | 'timeline'> | null;
   threadEvents: MatrixEvent[];
   threadId: string | undefined;
@@ -45,14 +49,22 @@ export const useThreadSummaryPublishController = ({
   useEffect(() => {
     if (threadId) return;
     threadSummaryInfoMap.forEach((info, threadRootId) => {
-      onStoreThreadSummary(threadRootId, info);
+      const knownThread = room.getThread(threadRootId);
+      onStoreThreadSummary(
+        threadRootId,
+        info,
+        ...getThreadSummaryInfosFromEventSources(knownThread?.events, knownThread?.timeline)
+      );
     });
-  }, [onStoreThreadSummary, threadId, threadSummaryInfoMap]);
+  }, [onStoreThreadSummary, room, threadId, threadSummaryInfoMap]);
 
   useEffect(() => {
     if (!isConfirmedMatrixEventId(threadId)) return;
-    onStoreThreadSummary(threadId, activeThreadSummaryInfo);
-  }, [activeThreadSummaryInfo, onStoreThreadSummary, threadId]);
+    onStoreThreadSummary(
+      threadId,
+      ...getThreadSummaryInfosFromEventSources(threadEvents, thread?.events, thread?.timeline)
+    );
+  }, [onStoreThreadSummary, thread, threadEvents, threadId]);
 
   return activeThreadSummaryInfo;
 };

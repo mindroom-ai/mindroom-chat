@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Route } from '@playwright/test';
 import { getHomeserver, getPrimaryCredentials, hasPrimaryCredentials } from '../env';
 import { expectLoggedInShellStable, loginWithPassword } from '../helpers/auth';
 import {
@@ -81,8 +81,63 @@ test('compact thread actions update tags, summaries and status without opening t
       req.url().includes('/send/m.room.message/') &&
       req.postDataJSON()?.['io.mindroom.thread_summary']?.model === 'manual'
   );
-  await edit.getByRole('button', { name: 'Save summary', exact: true }).click();
-  expect((await manualNotice).postDataJSON()['io.mindroom.thread_summary'].pinned).toBe(true);
+  const pageErrors: string[] = [];
+  const capturePageError = (error: Error) => pageErrors.push(error.message);
+  page.on('pageerror', capturePageError);
+  let heldManualRoute: Route | undefined;
+  let markManualRequestHeld: () => void = () => undefined;
+  const manualRequestHeld = new Promise<void>((resolve) => {
+    markManualRequestHeld = resolve;
+  });
+  const messageRoute = '**/_matrix/client/**/send/m.room.message/**';
+  await page.route(messageRoute, async (route) => {
+    const request = route.request();
+    if (
+      request.method() === 'PUT' &&
+      request.postDataJSON()?.['io.mindroom.thread_summary']?.model === 'manual'
+    ) {
+      heldManualRoute = route;
+      markManualRequestHeld();
+      return;
+    }
+    await route.continue();
+  });
+  try {
+    await edit.getByRole('button', { name: 'Save summary', exact: true }).click();
+    const manualMetadata = (await manualNotice).postDataJSON()['io.mindroom.thread_summary'];
+    await manualRequestHeld;
+    expect(manualMetadata.pinned).toBe(true);
+    await expect(edit.getByRole('textbox', { name: 'Summary', exact: true })).toBeDisabled();
+    await page.keyboard.press('Tab');
+    await expect(edit).toBeFocused();
+    await page.keyboard.press('Shift+Tab');
+    await expect(edit).toBeFocused();
+
+    // This event reaches the server first despite its later metadata clock.
+    await sendRoomMessage(homeserver, agent.accessToken, roomId, {
+      msgtype: 'm.notice',
+      body: 'Automatic summary while the manual save waits',
+      'io.mindroom.thread_summary': {
+        version: 1,
+        summary: 'Automatic summary while the manual save waits',
+        generated_at: new Date(
+          Date.parse(manualMetadata.generated_at) + 60 * 60 * 1000
+        ).toISOString(),
+      },
+      'm.relates_to': {
+        rel_type: 'm.thread',
+        event_id: rootId,
+        is_falling_back: true,
+        'm.in_reply_to': { event_id: rootId },
+      },
+    });
+    await expect(card).toContainText('Automatic summary while the manual save waits');
+    expect(pageErrors).toEqual([]);
+  } finally {
+    if (heldManualRoute) await heldManualRoute.continue();
+    await page.unroute(messageRoute);
+    page.off('pageerror', capturePageError);
+  }
   await expect(edit).toHaveCount(0);
   await expect(card).toContainText('Manually revised thread summary');
   expect(page.url()).toBe(overviewUrl);

@@ -3,15 +3,22 @@ import { type MindroomThreadSummaryInfo } from '../messages/threadSummary';
 import { loadCachedThreadSummaries, saveCachedThreadSummary } from './cacheStore';
 import {
   buildPreferredThreadSummaryMap,
-  shouldWriteThreadSummaryToCache,
+  selectThreadSummaryUpdate,
 } from './threadSummarySelection';
 
 type ThreadSummaryListener = () => void;
+
+export type ThreadSummaryWriter = (
+  threadRootId: string,
+  ...infos: Array<MindroomThreadSummaryInfo | undefined>
+) => void;
 
 type RoomThreadSummaryState = {
   summaryMap: Map<string, MindroomThreadSummaryInfo>;
   listeners: Set<ThreadSummaryListener>;
   loadPromise?: Promise<void>;
+  hasLoaded?: boolean;
+  incomingDuringLoad?: Map<string, Array<MindroomThreadSummaryInfo | undefined>>;
 };
 
 const EMPTY_SUMMARY_MAP = new Map<string, MindroomThreadSummaryInfo>();
@@ -49,6 +56,7 @@ const areSummaryMapsEqual = (
     if (
       leftInfo.summaryText !== rightInfo.summaryText ||
       leftInfo.generatedTs !== rightInfo.generatedTs ||
+      leftInfo.eventTs !== rightInfo.eventTs ||
       leftInfo.messageCount !== rightInfo.messageCount ||
       leftInfo.isManual !== rightInfo.isManual
     ) {
@@ -97,12 +105,20 @@ export const getThreadSummaryStateSnapshot = (
 export const ensureThreadSummaryStateLoaded = async (sessionId: string, roomId: string) => {
   const state = getOrCreateState(sessionId, roomId);
   if (state.loadPromise) return state.loadPromise;
+  // Preserve the full evidence while a disk read is pending. Reducing live
+  // batches before this merge could resurrect a legacy record with a skewed
+  // metadata clock after its newer replacement has already been published.
+  const incomingDuringLoad = new Map<string, Array<MindroomThreadSummaryInfo | undefined>>();
+  state.incomingDuringLoad = incomingDuringLoad;
 
   state.loadPromise = loadCachedThreadSummaries(sessionId, roomId)
     .then((cachedSummaryMap) => {
-      if (cachedSummaryMap.size === 0) return;
-
-      const nextSummaryMap = buildPreferredThreadSummaryMap(cachedSummaryMap, state.summaryMap);
+      if (roomThreadSummaryStates.get(getStateKey(sessionId, roomId)) !== state) return;
+      const nextSummaryMap = buildPreferredThreadSummaryMap(
+        cachedSummaryMap,
+        state.summaryMap,
+        incomingDuringLoad
+      );
       if (areSummaryMapsEqual(state.summaryMap, nextSummaryMap)) return;
 
       state.summaryMap = nextSummaryMap;
@@ -111,6 +127,13 @@ export const ensureThreadSummaryStateLoaded = async (sessionId: string, roomId: 
     .catch(() => {})
     .finally(() => {
       state.loadPromise = undefined;
+      state.hasLoaded = true;
+      state.incomingDuringLoad = undefined;
+      if (roomThreadSummaryStates.get(getStateKey(sessionId, roomId)) !== state) return;
+      incomingDuringLoad.forEach((_candidates, threadRootId) => {
+        const info = state.summaryMap.get(threadRootId);
+        if (info) saveCachedThreadSummary(sessionId, roomId, threadRootId, info).catch(() => {});
+      });
     });
 
   return state.loadPromise;
@@ -120,20 +143,31 @@ export const storeThreadSummaryInState = (
   sessionId: string,
   roomId: string,
   threadRootId: string,
-  info: MindroomThreadSummaryInfo | undefined
+  ...infos: Array<MindroomThreadSummaryInfo | undefined>
 ): boolean => {
   if (!threadRootId) return false;
 
   const state = getOrCreateState(sessionId, roomId);
+  // Start the initial read before a live publication can replace an unknown
+  // disk title. Pending writes flush only after that read and its evidence merge.
+  if (!state.hasLoaded && !state.loadPromise)
+    void ensureThreadSummaryStateLoaded(sessionId, roomId);
+  if (state.incomingDuringLoad) {
+    const candidates = state.incomingDuringLoad.get(threadRootId) ?? [];
+    candidates.push(...infos);
+    state.incomingDuringLoad.set(threadRootId, candidates);
+  }
   const currentInfo = state.summaryMap.get(threadRootId);
-  if (!shouldWriteThreadSummaryToCache(currentInfo, info)) return false;
+  const info = selectThreadSummaryUpdate(currentInfo, ...infos);
+  if (!info) return false;
 
   const nextSummaryMap = new Map(state.summaryMap);
   nextSummaryMap.set(threadRootId, info);
   state.summaryMap = nextSummaryMap;
   notifyStateListeners(state);
 
-  saveCachedThreadSummary(sessionId, roomId, threadRootId, info).catch(() => {});
+  if (!state.loadPromise)
+    saveCachedThreadSummary(sessionId, roomId, threadRootId, info).catch(() => {});
   return true;
 };
 

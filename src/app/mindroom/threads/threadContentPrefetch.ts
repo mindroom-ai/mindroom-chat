@@ -19,7 +19,7 @@ import {
   type BackfillScheduler,
 } from '../engine';
 import {
-  getLatestThreadSummaryInfoFromEventSources,
+  getThreadSummaryInfosFromEventSources,
   type MindroomThreadSummaryInfo,
 } from '../messages/threadSummary';
 import { isCompleteCachedThreadSnapshot } from './threadCacheSnapshot';
@@ -28,6 +28,7 @@ import { getKnownThreadReplyCount } from './threadRecord';
 import type { FetchedRelationOverviewUpdateOptions } from './threadOverviewCacheHydration';
 
 import type { PersistThreadEventCache } from '../engine/enginePersistFacade';
+import type { ThreadSummaryWriter } from './threadSummaryState';
 
 export type FetchAndPersistThreadContentResult = {
   fetchedCount: number;
@@ -71,10 +72,7 @@ export const fetchAndPersistThreadContent = async ({
   getCurrentThreadSummary?: (threadRootId: string) => MindroomThreadSummaryInfo | undefined;
   beginThreadCacheWrite: () => PersistThreadEventCache;
   onApplyThreadRelations?: (options: FetchedRelationOverviewUpdateOptions) => void;
-  onStoreThreadSummary?: (
-    threadRootId: string,
-    info: MindroomThreadSummaryInfo | undefined
-  ) => void;
+  onStoreThreadSummary?: ThreadSummaryWriter;
 }): Promise<FetchAndPersistThreadContentResult | undefined> => {
   const persistThreadEventCache = beginThreadCacheWrite();
   const rootEvent = room.getThread(threadId)?.rootEvent ?? room.findEventById(threadId);
@@ -141,10 +139,8 @@ export const fetchAndPersistThreadContent = async ({
   );
 
   if (onStoreThreadSummary) {
-    const summaryInfo = getLatestThreadSummaryInfoFromEventSources(relationEvents);
-    if (summaryInfo?.summaryText) {
-      onStoreThreadSummary(threadId, summaryInfo);
-    }
+    const infos = getThreadSummaryInfosFromEventSources(relationEvents);
+    if (infos.length > 0) onStoreThreadSummary(threadId, ...infos);
   }
 
   return {

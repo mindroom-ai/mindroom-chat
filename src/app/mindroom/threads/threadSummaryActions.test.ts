@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createSessionId } from '../../state/sessions';
 import {
   getMindroomThreadSummaryInfo,
+  getThreadSummaryEventInfo,
   getLatestThreadSummaryInfoFromEventSources,
 } from '../messages/threadSummary';
 import {
@@ -57,6 +58,7 @@ const setup = () => {
   const sendMessage = vi.fn().mockResolvedValue({ event_id: '$summary' });
   const mx = {
     sendMessage,
+    fetchRoomEvent: vi.fn().mockImplementation(async () => ({ origin_server_ts: Date.now() })),
     getSafeUserId: () => '@me:test',
     getHomeserverUrl: () => 'https://matrix.test',
     makeTxnId: () => 'summary-transaction',
@@ -89,6 +91,77 @@ describe('thread summary actions', () => {
     accept({ event_id: '$summary' });
     await save;
     expect(getStoredSummary()).toMatchObject({ summaryText: 'New title', isManual: true });
+  });
+
+  it('keeps the accepted manual title when an automatic notice arrives during send, including reload', async () => {
+    const { room, mx, sendMessage } = setup();
+    const sessionId = createSessionId('https://matrix.test', '@me:test');
+    let accept!: (value: { event_id: string }) => void;
+    sendMessage.mockReturnValue(
+      new Promise((resolve) => {
+        accept = resolve;
+      })
+    );
+    const saving = saveThreadSummary(mx, room, '$root', 'Human title');
+    await vi.waitFor(() => expect(sendMessage).toHaveBeenCalledOnce());
+    const content = sendMessage.mock.calls[0][2];
+    const generatedTs = getMindroomThreadSummaryInfo(content)!.generatedTs!;
+    const automatic = new MatrixEvent({
+      event_id: '$auto',
+      type: 'm.room.message',
+      origin_server_ts: generatedTs + 100,
+      content: {
+        msgtype: 'm.notice',
+        body: 'Automatic title',
+        'io.mindroom.thread_summary': {
+          version: 1,
+          summary: 'Automatic title',
+          generated_at: new Date(generatedTs + 100).toISOString(),
+          message_count: 10,
+        },
+      },
+    });
+    storeThreadSummaryInState(
+      sessionId,
+      room.roomId,
+      '$root',
+      getThreadSummaryEventInfo(automatic)
+    );
+    vi.mocked(mx.fetchRoomEvent).mockResolvedValue({ origin_server_ts: generatedTs + 200 });
+    accept({ event_id: '$summary' });
+    await saving;
+    expect(getStoredSummary()?.summaryText).toBe('Human title');
+    const accepted = getStoredSummary()!;
+    clearThreadSummarySharedState();
+    vi.mocked(loadCachedThreadSummaries).mockResolvedValue(new Map([['$root', accepted]]));
+    await ensureThreadSummaryStateLoaded(sessionId, room.roomId);
+    expect(
+      resolveThreadSummaryInfo({
+        preferredSummaryInfo: getStoredSummary(),
+        thread: { events: [automatic], timeline: [automatic] },
+      })?.summaryText
+    ).toBe('Human title');
+  });
+
+  it('does not report a failed save if acceptance timestamp lookup fails', async () => {
+    const { room, mx, sendMessage } = setup();
+    vi.mocked(mx.fetchRoomEvent).mockRejectedValue(new Error('Temporary read failure'));
+    await saveThreadSummary(mx, room, '$root', 'Accepted title');
+    expect(sendMessage).toHaveBeenCalledOnce();
+    expect(getStoredSummary()?.summaryText).toBe('Accepted title');
+    const remote = new MatrixEvent({
+      event_id: '$summary',
+      type: 'm.room.message',
+      origin_server_ts: 1200,
+      content: sendMessage.mock.calls[0][2],
+    });
+    storeThreadSummaryInState(
+      createSessionId('https://matrix.test', '@me:test'),
+      room.roomId,
+      '$root',
+      getThreadSummaryEventInfo(remote)
+    );
+    expect(getStoredSummary()).toMatchObject({ summaryText: 'Accepted title', eventTs: 1200 });
   });
   it.each(['cache', 'live', 'cached-events'])(
     'replaces a future-dated %s summary and preserves the edit after cache reload',
@@ -153,10 +226,11 @@ describe('thread summary actions', () => {
         expect.any(String),
         '!room:test',
         '$root',
-        written
+        expect.objectContaining(written!)
       );
+      const persisted = getStoredSummary()!;
       clearThreadSummarySharedState();
-      vi.mocked(loadCachedThreadSummaries).mockResolvedValue(new Map([['$root', written!]]));
+      vi.mocked(loadCachedThreadSummaries).mockResolvedValue(new Map([['$root', persisted]]));
       await ensureThreadSummaryStateLoaded(
         createSessionId('https://matrix.test', '@me:test'),
         '!room:test'

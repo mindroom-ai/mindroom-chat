@@ -31,7 +31,7 @@ const sendThreadAction = async (
 ) => {
   const txnId = mx.makeTxnId();
   try {
-    await mx.sendMessage(room.roomId, threadId, content, txnId);
+    return await mx.sendMessage(room.roomId, threadId, content, txnId);
   } catch (error) {
     const event = room.getEventForTxnId(txnId);
     if (event?.status === EventStatus.NOT_SENT) mx.cancelPendingEvent(event);
@@ -112,15 +112,27 @@ export const saveThreadSummary = async (
       pinned: true,
     },
   };
-  await sendThreadAction(mx, room, threadId, content as RoomMessageEventContent);
+  const { event_id: eventId } = await sendThreadAction(
+    mx,
+    room,
+    threadId,
+    content as RoomMessageEventContent
+  );
+  // sendMessage returns only an ID; the SDK local echo retains its send-start
+  // timestamp. Fetch server acceptance time so an automatic notice delivered
+  // during this send cannot outrank the later accepted manual edit.
+  const eventTs = await mx
+    .fetchRoomEvent(room.roomId, eventId)
+    .then((event) => event.origin_server_ts)
+    // The write already succeeded. Sync can enrich chronology after a read
+    // failure; reporting a failed save here would invite duplicate writes.
+    .catch(() => undefined);
   // A first summary can precede SDK thread hydration. Publish the accepted
   // notice through the same state/cache used by the overview and thread banner.
-  storeThreadSummaryInState(
-    sessionId,
-    room.roomId,
-    threadId,
-    getMindroomThreadSummaryInfo(content)
-  );
+  storeThreadSummaryInState(sessionId, room.roomId, threadId, {
+    ...getMindroomThreadSummaryInfo(content),
+    ...(eventTs !== undefined && isSupportedThreadSummaryTimestamp(eventTs) ? { eventTs } : {}),
+  });
 };
 
 export const requestThreadSummary = async (

@@ -8,8 +8,8 @@ import {
 import { type MatrixClient, type MatrixEvent, RelationType, type Room } from 'matrix-js-sdk';
 import {
   getLatestThreadSummaryInfoFromEventSources,
+  getThreadSummaryInfosFromEventSources,
   isMindroomThreadSummaryEvent,
-  type MindroomThreadSummaryInfo,
 } from '../messages/threadSummary';
 import { markMainTimelineAsRead } from '../notifications/readReceipts';
 import { getLiveCollapsibleMessageExpandId } from './threadCollapsibleMessages';
@@ -27,6 +27,7 @@ import { getRoomUnreadInfo, type Timeline } from './timelinePagination';
 import { eventBelongsToThread } from './threadUtils';
 import type { ThreadRecord } from './types';
 import { useRoomLocalEchoRefresh } from './roomLocalEchoRefresh';
+import type { ThreadSummaryWriter } from './threadSummaryState';
 
 type ScrollToBottomState = {
   count: number;
@@ -87,7 +88,7 @@ export const useRoomLiveRenderController = ({
   markLiveExpansionCandidate: (eventId: string) => void;
   mx: MatrixClient;
   normalThreadRecordMap: ReadonlyMap<string, ThreadRecord>;
-  onStoreThreadSummary: (threadRootId: string, info: MindroomThreadSummaryInfo | undefined) => void;
+  onStoreThreadSummary: ThreadSummaryWriter;
   room: Room;
   roomThreadFilterActive: boolean;
   scrollRef: RefObject<HTMLDivElement>;
@@ -278,7 +279,15 @@ export const useRoomLiveRenderController = ({
             if (rootId) {
               const info = getLatestThreadSummaryInfoFromEventSources([mEvt]);
               if (info?.summaryText) {
-                onStoreThreadSummary(rootId, info);
+                const knownThread = room.getThread(rootId);
+                onStoreThreadSummary(
+                  rootId,
+                  info,
+                  ...getThreadSummaryInfosFromEventSources(
+                    knownThread?.events,
+                    knownThread?.timeline
+                  )
+                );
               }
             }
           }

@@ -1638,6 +1638,7 @@ export function RoomTimeline({
 
   useThreadSummaryPublishController({
     onStoreThreadSummary,
+    room,
     thread,
     threadEvents,
     threadId,
