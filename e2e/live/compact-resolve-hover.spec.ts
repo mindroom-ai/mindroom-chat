@@ -39,7 +39,8 @@ const buildThreadRelation = (rootId: string) => ({
 
 for (const touch of [false, true]) {
   test.describe(`compact actions ${touch ? 'touch' : 'desktop'}`, () => {
-    test.use({ hasTouch: touch });
+    // The pending-save probe must intercept writes before a service worker handles them.
+    test.use({ hasTouch: touch, serviceWorkers: 'block' });
     test.skip(!hasCredentials, 'E2E_USERNAME / E2E_PASSWORD not set');
 
     test('overlays on hover without moving text and resolves without opening', async ({
@@ -201,6 +202,9 @@ for (const touch of [false, true]) {
       }
 
       await page.setViewportSize({ width: 420, height: 800 });
+      // ScreenSizeContext follows ResizeObserver; touch controls are already visible
+      // before the room navigation has switched to the narrow layout.
+      await expect(roomLink).toBeHidden();
       await page.evaluate(() => {
         document.documentElement.dir = 'rtl';
       });

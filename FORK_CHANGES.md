@@ -14,6 +14,8 @@
 - All 5,218 unit tests pass in the Node 24 container, along with application typecheck, production build, formatting, and lint with zero errors and 17 existing warnings.
   Focused Chromium checks pass for desktop and touch actions, menu pin/unpin, shared thread menus, and pinned-thread permissions.
   Light and Butter screenshots use synthetic fixtures.
+- WebKit desktop and touch checks pass after making the pending-save probe bypass service workers and wait for responsive navigation before measuring cards.
+  Independent re-review approves these test fixes.
 
 ### Reduce compact-card formatting and repeated history scans (2026-09-21)
 
