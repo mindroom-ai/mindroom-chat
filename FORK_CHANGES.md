@@ -4,7 +4,7 @@
 
 ### Profile a room with 1,000 streamed threads (2026-09-21)
 
-- Status: implemented two measured optimizations in PR #316 on `perf/large-room-streaming`, with PR #315 integrated from `dev`; final browser reruns and hosted review are in progress.
+- Status: implemented, measured, and independently reviewed in PR #316 on `perf/large-room-streaming`, with PR #315 integrated from `dev`.
 - The isolated Tuwunel fixture contains 1,000 thread roots, 100 logical replies per thread, and three replacement events per reply, using MindRoom's pending/streaming/completed message format.
   Historical seeding sent 401,000 events; each measured live replay adds 20 replies and 400 edits.
 - Headed Google Chrome profiles identified repeated locale formatter construction and duplicate detached replacement cloning during streaming-state checks.
@@ -20,9 +20,14 @@
   See [the performance report](docs/streaming-stress-performance.md) and [reproduction instructions](docs/testing.md#streaming-stress-fixture).
 - Independent reviews approve the production fixes and tooling; regression tests failed before their corresponding fixes.
   All 5,213 unit tests pass under Node 24.13.1 after integrating PR #315; the dedicated Chrome probe passed six current-base comparisons against all 1,000 threads.
+  All 10 tooling tests, application typecheck, and integrated production build pass; lint reports zero errors and 17 existing warnings.
   The full scheduler completed 122 jobs: 92 passed, 28 failed, and two were blocked by external SSO and worker-computer prerequisites.
-  Twelve failing jobs could not launch a missing WebKit binary; it is now installed for targeted reruns.
+  Twelve failing jobs could not launch a missing WebKit binary; after installing it, 19 of 26 targeted jobs passed, including nine of those twelve WebKit jobs.
+  Seven targeted jobs still fail in audio playback, header styling, and Chromium's following indicator; the broader suite is not green.
+  The room-resume stale-card precondition and gap-fill counter failures also reproduce on unchanged `dev` at `d58051e6`.
   Direct streamed-edit cache, stale-cache, summary-upgrade, streaming-card, and streaming-performance checks passed.
+- Qodo's confirmed loopback-policy mismatch is fixed and its inline thread resolved.
+  Other hosted reviewers were blocked by quota or inactive billing; independent reviews found no remaining issues in the final production changes, smaller tooling, or measurement report.
 - A cross-model consultation was attempted but blocked by the provider's quota; the implemented fixes preserve existing edit-resolution and event-source precedence.
   Broad SDK root lookup scans and rendering all 1,000 cards remain follow-up opportunities.
 
