@@ -2,6 +2,7 @@
 
 import 'fake-indexeddb/auto';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { logTimelineDebug } from '../threads/timelineDebug';
 import {
   classifyDeepTraceNetworkRequest,
   clearDeepTrace,
@@ -130,6 +131,43 @@ describe('opt-in deep diagnostic trace', () => {
     expect(json).not.toContain('private-room');
     expect(json).not.toContain('finite');
     expect(json).toContain('"count":3');
+  });
+
+  it('exports attempted and committed thread state without identifiers or message text', async () => {
+    await setDeepTraceEnabled(true, storage);
+    logTimelineDebug('thread-open#7#private-room#private-thread', 'thread-render-snapshot', {
+      eventCount: 0,
+      modelEventCount: 3,
+      modelReplyCount: 2,
+      loadedReplyCount: 0,
+      renderableReplyCount: 0,
+      mountedReplyCount: 0,
+      expectedReplyCount: 2,
+      rootMounted: false,
+      virtualItemCount: 0,
+      cacheHydrated: false,
+      sdkReady: false,
+      loading: false,
+      loadError: false,
+      renderAttemptCount: 3,
+      commitCount: 1,
+      attemptedEventCount: 3,
+      attemptedSdkReady: true,
+      attemptedCacheHydrated: true,
+      body: 'private message',
+    });
+    const snapshot = await readDeepTraceSnapshot();
+    const event = snapshot.events.find((entry) => entry.name === 'thread.render');
+    expect(event?.data).toMatchObject({
+      trace_id: 7,
+      event_count: 0,
+      render_attempt_count: 3,
+      commit_count: 1,
+      attempted_event_count: 3,
+      attempted_sdk_ready: true,
+      attempted_cache_hydrated: true,
+    });
+    expect(JSON.stringify(event)).not.toContain('private');
   });
 
   it('captures JavaScriptCore stack locations without retaining stack text', async () => {

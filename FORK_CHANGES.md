@@ -2,6 +2,27 @@
 
 ## Runbook
 
+### Investigate blank native thread views after successful loading (2026-09-22)
+
+- Status: failure confirmed in device diagnostics; exact trigger and rendering fix remain unproven.
+  The header and composer remain responsive while the thread view is blank.
+- On build `f803999a`, server bootstrap and latest-history loading complete for both small and large threads.
+  Cache hydration and reconciliation also finish on large-thread opens, but sampled committed state retains zero events and its initial loading/hydration flags while SDK reply counts grow.
+  A separate 7.5-second event-loop stall occurs during one open.
+- Existing session/render tests and the production blocked-cache browser regression pass in Chromium and mobile WebKit.
+  A synthetic native-platform WebKit probe also renders replies with forced diagnostic-storage failure and blocked history storage; its diagnostic snapshot advances from zero to mounted replies.
+  These probes do not reproduce the device failure.
+- Added numeric render-attempt/commit counters and attempted event/readiness values alongside committed SDK readiness to the opt-in thread snapshot.
+  A concurrent DOM regression reproduces the previous diagnostic ambiguity using a suspended render, then checks that attempted and committed state remain distinguishable through recovery.
+  No message content or identifiers are added to the export.
+- Next: use the additional counters in a device reproduction to distinguish absent render attempts from interrupted renders before changing state publication or fetching.
+  Cross-model consultation supports instrumentation before any publication workaround; no speculative fetch or synchronous-render change is included.
+- Independent review approves the diagnostic addition after expanding the bounded export field allowance to retain the complete snapshot.
+  Both new regressions fail before their corresponding changes, and all 5,285 unit tests pass under Node 24.13.1.
+  Application and changed-test typechecks, production build, and lint pass with zero errors and 17 existing warnings.
+  The final synthetic native-platform WebKit probe confirms mounted replies and advancing diagnostic counters with failed diagnostic storage and blocked history storage.
+  The full browser scheduler is running in the supported browser container.
+
 ### Reduce loading and thread-operation latency (2026-09-22)
 
 - Status: PR #321 contains independently reviewed performance changes based on merged PR #319 (`59dd75c2`).

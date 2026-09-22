@@ -267,7 +267,8 @@ const safeData = (value: DeepTraceData | undefined): DeepTraceData | undefined =
       if (item === null || typeof item === 'boolean') return true;
       return typeof item === 'number' && Number.isFinite(item);
     })
-    .slice(0, 16);
+    // The thread render snapshot includes 19 bounded state/counter fields.
+    .slice(0, 20);
   return entries.length > 0 ? Object.fromEntries(entries) : undefined;
 };
 
