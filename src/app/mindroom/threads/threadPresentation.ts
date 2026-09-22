@@ -91,6 +91,7 @@ type ResolveThreadPresentationSnapshotOptions = {
   rootEvent?: MatrixEvent;
   thread?: VisibleThreadEventCollectionLike | null;
   threadRootId: string;
+  visibleReplyEvents?: MatrixEvent[];
 };
 
 export const resolveThreadPresentationSnapshot = ({
@@ -105,8 +106,9 @@ export const resolveThreadPresentationSnapshot = ({
   fallbackLastSenderDisplayName,
   fallbackMessageCount,
   fallbackParticipantIds,
+  visibleReplyEvents,
 }: ResolveThreadPresentationSnapshotOptions): ThreadPresentationSnapshot => {
-  const replyEvents = getPreferredVisibleThreadReplyEvents(thread);
+  const replyEvents = visibleReplyEvents ?? getPreferredVisibleThreadReplyEvents(thread);
   const loadedPreviewEvent = getLatestRenderableVisibleThreadReplyEvent(replyEvents);
   // The SDK restores the bundled reply before loading the thread timeline.
   // Use it for presentation without treating one event as the full reply count.
@@ -132,7 +134,11 @@ export const resolveThreadPresentationSnapshot = ({
     preferredSummaryInfo,
     thread,
   });
-  const visibleMessageCount = getVisibleThreadMessageCount(thread, fallbackMessageCount);
+  const visibleMessageCount = getVisibleThreadMessageCount(
+    thread,
+    fallbackMessageCount,
+    replyEvents
+  );
   const rootPreviewText = resolveThreadRootPreviewText({
     room,
     threadRootId,

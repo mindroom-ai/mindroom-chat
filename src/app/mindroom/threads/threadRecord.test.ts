@@ -1,8 +1,11 @@
 import { readFileSync } from 'node:fs';
 import type { MatrixEvent } from 'matrix-js-sdk';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { buildThreadRecord, buildThreadRecordMap } from './threadRecord';
+import * as threadUtils from './threadUtils';
+
+afterEach(() => vi.restoreAllMocks());
 
 const makeEvent = ({
   eventId,
@@ -52,6 +55,52 @@ const makeRoom = ({
   } as unknown as Room);
 
 describe('buildThreadRecord', () => {
+  it('shares one visible-reply snapshot within a build and refreshes it after redaction', () => {
+    const root = makeEvent({ eventId: '$root', sender: '@me:server', body: 'Root' });
+    const reply = makeEvent({
+      eventId: '$reply',
+      threadRootId: '$root',
+      body: 'Reply',
+      ts: 2000,
+    });
+    const events = [root, reply];
+    const room = makeRoom({
+      rootEvent: root,
+      thread: {
+        rootEvent: root,
+        events,
+        timeline: events,
+        getUnfilteredTimelineSet: () => ({
+          getLiveTimeline: () => ({
+            getEvents: () => events,
+            getNeighbouringTimeline: () => undefined,
+          }),
+          relations: { getChildEventsForEvent: () => undefined },
+        }),
+      } as unknown as ReturnType<Room['getThread']>,
+    });
+    const visibleReplies = vi.spyOn(threadUtils, 'getPreferredVisibleThreadReplyEvents');
+    const build = () =>
+      buildThreadRecord({
+        room,
+        threadRootId: '$root',
+        currentUserId: '@me:server',
+        readUpToTs: null,
+      });
+    expect(build()).toMatchObject({
+      presentation: { messageCount: 1, latestReplyPreviewText: 'Reply' },
+      status: { isUnread: true, hasPendingSend: false, hasFailedSend: false },
+    });
+    expect(visibleReplies).toHaveBeenCalledTimes(1);
+
+    vi.spyOn(reply, 'isRedacted').mockReturnValue(true);
+    expect(build()).toMatchObject({
+      presentation: { messageCount: 0, participantIds: ['@me:server'] },
+      status: { isUnread: false, hasPendingSend: false, hasFailedSend: false },
+    });
+    expect(visibleReplies).toHaveBeenCalledTimes(2);
+  });
+
   it('does not depend on legacy overview metadata compatibility inputs', () => {
     const source = readFileSync(new URL('./threadRecord.ts', import.meta.url), 'utf8');
     const legacyTypeName = ['Thread', 'Overview', 'Metadata'].join('');

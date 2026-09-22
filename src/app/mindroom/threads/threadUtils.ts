@@ -129,9 +129,9 @@ export const hasLoadedThreadReplyEvents = (
 
 export const getVisibleThreadMessageCount = (
   thread: VisibleThreadEventCollectionLike | null | undefined,
-  fallbackMessageCount?: number
+  fallbackMessageCount?: number,
+  replyEvents = getPreferredVisibleThreadReplyEvents(thread)
 ): number => {
-  const replyEvents = getPreferredVisibleThreadReplyEvents(thread);
   if (replyEvents.length > 0) return replyEvents.length;
   if (hasLoadedThreadReplyEvents(thread)) return 0;
   if (typeof thread?.length === 'number' && thread.length > 0) return thread.length;
@@ -145,11 +145,11 @@ export const getVisibleThreadMessageCount = (
 export const getVisibleThreadParticipantIds = (
   thread: VisibleThreadEventCollectionLike | null | undefined,
   threadRootEvent: MatrixEvent | undefined,
-  maxParticipants = 3
+  maxParticipants = 3,
+  replyEvents = getPreferredVisibleThreadReplyEvents(thread)
 ): string[] => {
   const participantIds: string[] = [];
   const seenParticipantIds = new Set<string>();
-  const replyEvents = getPreferredVisibleThreadReplyEvents(thread);
 
   for (let i = replyEvents.length - 1; i >= 0 && participantIds.length < maxParticipants; i -= 1) {
     const senderId = replyEvents[i].getSender?.();

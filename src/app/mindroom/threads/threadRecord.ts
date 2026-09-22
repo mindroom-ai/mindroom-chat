@@ -91,20 +91,20 @@ const isFailedThreadEvent = (event: MatrixEvent | undefined): boolean =>
 
 const getThreadPendingSend = (
   threadRootEvent: MatrixEvent | undefined,
-  thread: ReturnType<Room['getThread']>
+  replyEvents: MatrixEvent[]
 ): boolean => {
   if (isPendingThreadEvent(threadRootEvent)) return true;
 
-  return getPreferredVisibleThreadReplyEvents(thread).some((event) => isPendingThreadEvent(event));
+  return replyEvents.some((event) => isPendingThreadEvent(event));
 };
 
 const getThreadFailedSend = (
   threadRootEvent: MatrixEvent | undefined,
-  thread: ReturnType<Room['getThread']>
+  replyEvents: MatrixEvent[]
 ): boolean => {
   if (isFailedThreadEvent(threadRootEvent)) return true;
 
-  return getPreferredVisibleThreadReplyEvents(thread).some((event) => isFailedThreadEvent(event));
+  return replyEvents.some((event) => isFailedThreadEvent(event));
 };
 
 export const getThreadReplyCount = (
@@ -210,12 +210,12 @@ const getThreadResolverUserId = (
 const getThreadUnreadFromReadUpToTs = (
   thread: ReturnType<Room['getThread']>,
   currentUserId: string | undefined,
-  readUpToTs: number | null | undefined
+  readUpToTs: number | null | undefined,
+  replyEvents: MatrixEvent[]
 ): boolean | undefined => {
   if (readUpToTs === undefined || !thread || !currentUserId) return undefined;
   const effectiveReadUpToTs = getEffectiveThreadReadUpToTs(thread, currentUserId, readUpToTs);
 
-  const replyEvents = getPreferredVisibleThreadReplyEvents(thread);
   const latestReply = replyEvents[replyEvents.length - 1];
   if (!latestReply) return false;
   if (latestReply.getSender() === currentUserId) return false;
@@ -271,6 +271,9 @@ export const buildThreadRecord = ({
   absoluteIndex,
 }: BuildThreadRecordOptions): ThreadRecord => {
   const thread = room.getThread(threadRootId);
+  // Share this snapshot only within this synchronous build; SDK events can
+  // change in place between updates through edits, decryption and redaction.
+  const visibleReplyEvents = getPreferredVisibleThreadReplyEvents(thread);
   const resolvedThreadRootEvent =
     threadRootEvent ?? thread?.rootEvent ?? room.findEventById(threadRootId);
   const zeroReplyThreadRoot = resolvedThreadRootEvent
@@ -301,7 +304,8 @@ export const buildThreadRecord = ({
   const participantIds = getVisibleThreadParticipantIds(
     thread,
     resolvedThreadRootEvent,
-    THREAD_PARTICIPANT_LIMIT
+    THREAD_PARTICIPANT_LIMIT,
+    visibleReplyEvents
   );
   const presentation = resolveThreadPresentationSnapshot({
     room,
@@ -315,6 +319,7 @@ export const buildThreadRecord = ({
     fallbackLastSenderDisplayName,
     fallbackMessageCount: fallbackMessageCount ?? recordReplyCount,
     fallbackParticipantIds,
+    visibleReplyEvents,
   });
   const resolvedScheduledTaskCount = scheduledStatus.scheduledTaskCount;
   const resolvedNextScheduledTs =
@@ -329,12 +334,12 @@ export const buildThreadRecord = ({
       getEffectiveThreadRootActivityTs(resolvedThreadRootEvent)
     ) || undefined;
   const isUnread =
-    getThreadUnreadFromReadUpToTs(thread, currentUserId, readUpToTs) ??
+    getThreadUnreadFromReadUpToTs(thread, currentUserId, readUpToTs, visibleReplyEvents) ??
     (thread && currentUserId ? getThreadUnread(room, thread, currentUserId) : false);
   const isResolved = threadResolution?.isResolved ?? false;
   const isStreaming = getThreadStreamingState(room, threadRootId);
-  const hasPendingSend = getThreadPendingSend(resolvedThreadRootEvent, thread);
-  const hasFailedSend = getThreadFailedSend(resolvedThreadRootEvent, thread);
+  const hasPendingSend = getThreadPendingSend(resolvedThreadRootEvent, visibleReplyEvents);
+  const hasFailedSend = getThreadFailedSend(resolvedThreadRootEvent, visibleReplyEvents);
 
   return {
     roomId: room.roomId,
