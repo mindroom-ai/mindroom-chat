@@ -15,6 +15,7 @@ export type ThreadFixture = {
 
 type MatrixFetchOptions = RequestInit & {
   accessToken?: string;
+  apiVersion?: 'v1' | 'v3';
 };
 
 type CreateRoomOptions = {
@@ -131,8 +132,8 @@ export const matrixFetch = async <T>(
   path: string,
   options: MatrixFetchOptions = {}
 ): Promise<T> => {
-  const { accessToken, headers, ...rest } = options;
-  const response = await fetch(`${homeserver}/_matrix/client/v3${path}`, {
+  const { accessToken, apiVersion = 'v3', headers, ...rest } = options;
+  const response = await fetch(`${homeserver}/_matrix/client/${apiVersion}${path}`, {
     ...rest,
     headers: {
       'Content-Type': 'application/json',

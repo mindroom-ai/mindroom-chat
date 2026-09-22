@@ -44,6 +44,8 @@ jobs:
         run: npm run test
       - name: Test parallel browser runner
         run: npm run test:e2e:runner
+      - name: Test streaming stress seeder
+        run: node --test scripts/seed-streaming-stress-room.test.mjs
       - name: Typecheck
         run: npm run typecheck
       - name: Lint
