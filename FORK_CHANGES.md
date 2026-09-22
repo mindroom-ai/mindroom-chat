@@ -4,7 +4,7 @@
 
 ### Simplify compact thread controls (2026-09-22)
 
-- Status: implemented and independently approved; hosted review and full browser validation pending.
+- Status: implemented and independently approved; PR #318 tracks hosted review and broader browser results.
 - Compact cards use borderless Resolve and Pin icons on desktop hover or keyboard focus.
   A horizontal menu icon replaces the filled vertical overflow control.
 - Narrow and touch layouts keep only the menu button inside each card, with reserved inline space so it cannot cover text.
@@ -16,6 +16,9 @@
   Light and Butter screenshots use synthetic fixtures.
 - WebKit desktop and touch checks pass after making the pending-save probe bypass service workers and wait for responsive navigation before measuring cards.
   Independent re-review approves these test fixes.
+- The full browser scheduler completed 122 jobs: 73 passed, 47 failed, and two were blocked by missing external SSO and worker fixtures.
+  A stopped local preview server caused connection errors in 37 failed jobs; the other failures include login navigation, media, glass, preload, and scroll checks.
+  Recovery runs and their final results are recorded in the PR.
 
 ### Reduce compact-card formatting and repeated history scans (2026-09-21)
 
