@@ -2,6 +2,30 @@
 
 ## Runbook
 
+### Native reverse-proxy authentication recovery (2026-09-22)
+
+- Status: implemented, independently approved, and locally verified.
+- An opt-in native bootstrap confirms expired proxy authentication through a same-origin probe, then unregisters only the worker controlling this app before navigating.
+  Mutable runtime configuration loads the bootstrap for cached predecessor shells; cached pages without a mutable bootstrap reference still require a separate update path.
+- HTTP 401 and opaque redirects trigger recovery; exact HTTP 204 confirms health, while denied access, offline state, timeouts, and server failures preserve the current session.
+  Per-tab retry bounds survive document reloads and reset only after confirmed health.
+- The existing configuration-error sign-in action uses the same owner and retry budget.
+  Matrix local storage, IndexedDB, encryption keys, caches, and unrelated worker registrations remain intact.
+- Seven Chromium regressions cover legacy Workbox marker interception, native legacy/current/no-worker recovery, denied/server responses, repeated expiry after a misconfigured login destination, and older custom runtime configuration.
+  An actual nginx container test covers root/prefixed asset and probe routes, no-store responses, and runtime URL escaping.
+- All 5,239 tests pass under Node 24, along with application typecheck, production/PWA build, and lint with zero errors and 17 existing warnings.
+  The host Node 22 run retains the four previously documented Xcode environment/caption timing failures.
+  The final review fixes pass all 38 focused recovery/configuration tests and all seven Chromium cases.
+  The full built app also recovers with a legacy worker at four startup timings, including when app worker registration happens before recovery.
+- Follow-up review fixes add exact Netlify passthrough and no-store rules for both bootstrap assets and protect generated/public loader parity.
+  Both Netlify routing/header regressions and nginx integration pass; the full Node 24 suite still passes all 5,239 tests, with typecheck, production/PWA build, and lint (zero errors, 17 existing warnings).
+- Browser history restoration now discards stale navigation/check promises and probes again without resetting the per-tab retry budget before confirmed health.
+  A real Chromium back-forward cache regression confirms the same document cannot loop while expired, then clears its budget after HTTP 204 and recovers from a later expiry.
+- Follow-up review declares the browser fixture's pinned worker bundler as a direct test dependency.
+  When an explicit sign-in probe reports a healthy session, the configuration screen now retries fresh configuration and clears any earlier recovery error.
+  Component regressions cover the fresh-config loading gate and a later configuration failure after blocked recovery.
+- Deployment configuration and the exact cached-client compatibility boundary are documented in docs/authentication-recovery.md.
+
 ### Load active threads independently of persistent storage (2026-09-22)
 
 - Status: implemented and independently approved in PR #319; confirmed hosted findings are resolved.

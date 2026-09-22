@@ -58,7 +58,7 @@ export const copyFiles = {
       dest: 'public/element-call',
     },
     {
-      src: 'public/runtime-config.js',
+      src: ['public/runtime-config.js', 'public/authentication-recovery.js'],
       dest: '',
     },
     {
@@ -249,7 +249,12 @@ export default defineConfig({
         injectionPoint: 'self.__WB_MANIFEST',
         maximumFileSizeToCacheInBytes: 6 * 1024 * 1024,
         globPatterns: ['**/*.{js,wasm,css,html}'],
-        globIgnores: ['public/element-call/**', 'runtime-config.js', 'version.json'],
+        globIgnores: [
+          'public/element-call/**',
+          'runtime-config.js',
+          'authentication-recovery.js',
+          'version.json',
+        ],
       },
       devOptions: {
         enabled: true,

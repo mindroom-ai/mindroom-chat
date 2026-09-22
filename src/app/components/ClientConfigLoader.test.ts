@@ -334,20 +334,158 @@ describe('client configuration loading', () => {
     expect(continueOffline).toBeUndefined();
   });
 
-  it('uses a one-shot network navigation for interactive authentication', () => {
-    const assign = vi.fn();
+  it('delegates sign-in to the native recovery owner after bootstrap loads', async () => {
+    const navigate = vi.fn().mockResolvedValue('blocked');
+    let ready!: () => void;
     vi.stubGlobal('window', {
-      location: {
-        assign,
-        href: 'https://chat.example.com/home/room?tab=members#event',
-      },
+      __AUTHENTICATION_RECOVERY_READY__: new Promise<void>((resolve) => {
+        ready = resolve;
+      }),
+      __AUTHENTICATION_RECOVERY__: { navigate },
     });
-
     reloadForInteractiveAuthentication();
+    expect(navigate).not.toHaveBeenCalled();
+    ready();
+    await Promise.resolve();
+    expect(navigate).toHaveBeenCalledTimes(1);
+  });
 
-    expect(assign).toHaveBeenCalledWith(
-      `https://chat.example.com/home/room?tab=members&${AUTHENTICATION_RECOVERY_NAVIGATION_PARAM}=1#event`
-    );
+  it('notifies native recovery only after successful fresh configuration validation', async () => {
+    const configurationLoaded = vi.fn();
+    vi.stubGlobal('window', { __AUTHENTICATION_RECOVERY__: { configurationLoaded } });
+    globalThis.fetch = vi
+      .fn()
+      .mockResolvedValue(response({ json: async () => ({ hashRouter: true }) }));
+    await fetchClientConfig();
+    expect(configurationLoaded).toHaveBeenCalledTimes(1);
+    readCachedClientConfig();
+    expect(configurationLoaded).toHaveBeenCalledTimes(1);
+    globalThis.fetch = vi.fn().mockResolvedValue(response({ status: 401, ok: false }));
+    await expect(fetchClientConfig()).rejects.toBeInstanceOf(ClientConfigAuthenticationError);
+    globalThis.fetch = vi.fn().mockResolvedValue(response({ json: async () => [] }));
+    await expect(fetchClientConfig()).rejects.toThrow();
+    expect(configurationLoaded).toHaveBeenCalledTimes(1);
+  });
+
+  it('reports blocked native recovery and keeps the connection retry available', async () => {
+    const navigate = vi.fn().mockResolvedValue('blocked');
+    vi.stubGlobal('window', {
+      location: { href: 'https://chat.example/room' },
+      __AUTHENTICATION_RECOVERY__: { navigate },
+    });
+    globalThis.fetch = vi.fn().mockResolvedValue(response({ status: 401, ok: false }));
+    let authenticate!: () => void;
+    let retry!: () => void;
+    let shownError: unknown;
+    let renderer!: ReturnType<typeof create>;
+    await act(async () => {
+      renderer = create(
+        React.createElement(
+          ClientConfigLoader,
+          {
+            error: (error, retryRequest, _ignore, signIn) => {
+              shownError = error;
+              retry = retryRequest;
+              authenticate = signIn;
+              return null;
+            },
+          },
+          () => null
+        )
+      );
+    });
+    expect(shownError).toBeInstanceOf(ClientConfigAuthenticationError);
+    await act(async () => authenticate());
+    expect((shownError as Error).message).toContain('Sign-in recovery could not complete');
+    await act(async () => retry());
+    expect(shownError).toBeInstanceOf(ClientConfigAuthenticationError);
+    expect(navigate).toHaveBeenCalledTimes(1);
+    act(() => renderer.unmount());
+  });
+
+  it('loads fresh configuration after sign-in finds an already healthy session', async () => {
+    globalThis.fetch = vi
+      .fn()
+      .mockResolvedValue(response({ json: async () => ({ hashRouter: true }) }));
+    await fetchClientConfig();
+    let finish!: (value: Response) => void;
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(response({ status: 401, ok: false }))
+      .mockImplementationOnce(
+        () =>
+          new Promise<Response>((resolve) => {
+            finish = resolve;
+          })
+      );
+    globalThis.fetch = fetchMock;
+    const navigate = vi.fn().mockResolvedValue('healthy');
+    vi.stubGlobal('window', {
+      location: { href: 'https://chat.example/room' },
+      __AUTHENTICATION_RECOVERY__: { navigate },
+    });
+    let authenticate!: () => void;
+    let renderer!: ReturnType<typeof create>;
+    await act(async () => {
+      renderer = create(
+        React.createElement(
+          ClientConfigLoader,
+          {
+            fallback: () => React.createElement('span', null, 'Loading'),
+            error: (_error, _retry, _ignore, signIn) => {
+              authenticate = signIn;
+              return React.createElement('span', null, 'Sign in');
+            },
+          },
+          (config) => React.createElement('span', null, config.hashRouter ? 'Cached' : 'Fresh')
+        )
+      );
+    });
+    expect(renderer.root.findByType('span').children).toEqual(['Sign in']);
+    await act(async () => authenticate());
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(renderer.root.findByType('span').children).toEqual(['Loading']);
+    await act(async () => finish(response({ json: async () => ({ hashRouter: false }) })));
+    expect(renderer.root.findByType('span').children).toEqual(['Fresh']);
+    act(() => renderer.unmount());
+  });
+
+  it('shows the fresh configuration error after a blocked sign-in later recovers', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(response({ status: 401, ok: false }))
+      .mockResolvedValueOnce(response({ status: 503, ok: false }));
+    globalThis.fetch = fetchMock;
+    const navigate = vi.fn().mockResolvedValueOnce('blocked').mockResolvedValueOnce('healthy');
+    vi.stubGlobal('window', {
+      location: { href: 'https://chat.example/room' },
+      __AUTHENTICATION_RECOVERY__: { navigate },
+    });
+    let authenticate!: () => void;
+    let shownError: unknown;
+    let renderer!: ReturnType<typeof create>;
+    await act(async () => {
+      renderer = create(
+        React.createElement(
+          ClientConfigLoader,
+          {
+            error: (error, _retry, _ignore, signIn) => {
+              shownError = error;
+              authenticate = signIn;
+              return null;
+            },
+          },
+          () => null
+        )
+      );
+    });
+    expect(shownError).toBeInstanceOf(ClientConfigAuthenticationError);
+    await act(async () => authenticate());
+    expect((shownError as Error).message).toContain('Sign-in recovery could not complete');
+    await act(async () => authenticate());
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect((shownError as Error).message).toBe('Failed to load client configuration (HTTP 503).');
+    act(() => renderer.unmount());
   });
 
   it('removes only the authentication recovery marker on normal startup', async () => {
