@@ -45,7 +45,9 @@ export const saveCachedThreadSummary = async (
         // Guarded above (`!info.summaryText` returns early).
         summaryText: info.summaryText!,
         generatedTs: info.generatedTs,
+        ...(info.eventTs !== undefined ? { eventTs: info.eventTs } : {}),
         messageCount: info.messageCount,
+        ...(info.isManual ? { isManual: true } : {}),
         updatedAt: Date.now(),
       };
       store.put(record);
@@ -81,7 +83,9 @@ export const loadCachedThreadSummaries = async (
       result.set(record.threadRootId, {
         summaryText: record.summaryText,
         generatedTs: record.generatedTs,
+        ...(record.eventTs !== undefined ? { eventTs: record.eventTs } : {}),
         messageCount: record.messageCount,
+        ...(record.isManual ? { isManual: true } : {}),
       });
       cursor.continue();
     };

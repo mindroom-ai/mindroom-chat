@@ -222,6 +222,25 @@ describe('getThreadCursorAnchor', () => {
 });
 
 describe('getCachedThreadSummaryInfoFromRawEvent', () => {
+  it.each([false, true])(
+    'preserves server chronology from cached events (edited: %s)',
+    (edited) => {
+      expect(
+        getCachedThreadSummaryInfoFromRawEvent({
+          origin_server_ts: 1000,
+          ...(edited
+            ? { unsigned: { 'm.relations': { 'm.replace': { origin_server_ts: 2000 } } } }
+            : {}),
+          content: {
+            body: 'Saved summary',
+            msgtype: 'm.notice',
+            'io.mindroom.thread_summary': true,
+          },
+        })
+      ).toEqual({ summaryText: 'Saved summary', eventTs: edited ? 2000 : 1000 });
+    }
+  );
+
   it('extracts summary info from cached summary events', () => {
     expect(
       getCachedThreadSummaryInfoFromRawEvent({

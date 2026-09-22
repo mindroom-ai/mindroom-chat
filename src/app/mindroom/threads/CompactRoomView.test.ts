@@ -1,4 +1,5 @@
 import React from 'react';
+import type { Room } from 'matrix-js-sdk';
 import { act, create } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CompactThreadCardViewModel, ThreadRecord } from './types';
@@ -6,6 +7,13 @@ import { CompactRoomView } from './CompactRoomView';
 
 vi.mock('../../components/inset-scrollbar/InsetScrollbar', () => ({
   InsetScrollbar: () => null,
+}));
+const menuProps = vi.hoisted(() => vi.fn());
+vi.mock('./ThreadActionsMenu', () => ({
+  ThreadActionsMenu: (props: unknown) => {
+    menuProps(props);
+    return null;
+  },
 }));
 
 const pinningMocks = vi.hoisted(() => ({
@@ -64,6 +72,15 @@ const makeThreadRecord = (
   threadRootId,
   rootEventId: threadRootId,
   presentation: {
+    summaryInfo: undefined,
+    summaryText: undefined,
+    rootPreviewText: undefined,
+    latestReplyPreviewText: undefined,
+    lastSenderId: undefined,
+    lastSenderDisplayName: undefined,
+    replyParticipantIds: [],
+    primarySummaryText: undefined,
+    recentThreadSummaryText: undefined,
     messageCount: 0,
     participantIds: [],
   },
@@ -92,6 +109,7 @@ vi.mock('folds', async (importOriginal) => {
     ...actual,
     Box: passthrough,
     Button: 'button',
+    IconButton: 'button',
     Text: passthrough,
   };
 });
@@ -144,9 +162,114 @@ vi.mock('./CompactRoomView.css', () => ({
 const makeRoom = () =>
   ({
     roomId: '!room:server',
-  } as never);
+  } as Room);
 
 describe('CompactRoomView', () => {
+  it('opens thread actions on right click and navigates only after Open thread is chosen', async () => {
+    useCompactThreadCardViewModelsMock.mockReturnValue([makeViewModel('$context')]);
+    const onThreadClick = vi.fn();
+    const renderer = create(
+      React.createElement(CompactRoomView, {
+        room: makeRoom(),
+        threadRootIds: ['$context'],
+        threadRecordMap: new Map(),
+        onThreadClick,
+        compactRoomScrollStateRef: { current: new Map() },
+      })
+    );
+    const shell = renderer.root.findByProps({ className: 'CardShell' });
+    const event = {
+      preventDefault: vi.fn(),
+      stopPropagation: vi.fn(),
+      clientX: 123,
+      clientY: 234,
+      currentTarget: { querySelector: () => null },
+    };
+    await act(async () => {
+      shell.props.onContextMenu(event);
+    });
+    expect(event.preventDefault).toHaveBeenCalled();
+    expect(event.stopPropagation).toHaveBeenCalled();
+    expect(onThreadClick).not.toHaveBeenCalled();
+    const selectedMenu = menuProps.mock.calls.at(-1)![0];
+    expect(selectedMenu.rootId).toBe('$context');
+    expect(selectedMenu.anchor).toEqual({ x: 123, y: 234, width: 0, height: 0 });
+    act(() => selectedMenu.onOpenThread());
+    expect(onThreadClick).toHaveBeenCalledWith('$context', 'Recent summary');
+    renderer.unmount();
+  });
+
+  it('offers a keyboard and touch accessible menu button for resolved cards', () => {
+    useCompactThreadCardViewModelsMock.mockReturnValue([
+      makeViewModel('$context', { isResolved: true }),
+    ]);
+    const renderer = create(
+      React.createElement(CompactRoomView, {
+        room: makeRoom(),
+        threadRootIds: ['$context'],
+        threadRecordMap: new Map(),
+        onThreadClick: vi.fn(),
+        compactRoomScrollStateRef: { current: new Map() },
+      })
+    );
+    expect(renderer.root.findAllByProps({ 'aria-haspopup': 'menu' })).toHaveLength(1);
+    renderer.unmount();
+  });
+
+  it('ignores stale callbacks after another thread menu opens', async () => {
+    useCompactThreadCardViewModelsMock.mockReturnValue([
+      makeViewModel('$first'),
+      makeViewModel('$second'),
+    ]);
+    const firstTrigger = { focus: vi.fn(), isConnected: true };
+    const secondTrigger = { focus: vi.fn(), isConnected: true };
+    const onThreadClick = vi.fn();
+    const renderer = create(
+      React.createElement(CompactRoomView, {
+        room: makeRoom(),
+        threadRootIds: ['$first', '$second'],
+        threadRecordMap: new Map(),
+        onThreadClick,
+        compactRoomScrollStateRef: { current: new Map() },
+      })
+    );
+    const [firstShell, secondShell] = renderer.root.findAllByProps({ className: 'CardShell' });
+
+    await act(async () => {
+      firstShell.props.onContextMenu({
+        preventDefault: vi.fn(),
+        stopPropagation: vi.fn(),
+        clientX: 10,
+        clientY: 20,
+        currentTarget: { querySelector: () => firstTrigger },
+      });
+    });
+    const firstMenu = menuProps.mock.calls.at(-1)![0];
+
+    act(() => {
+      secondShell.props.onContextMenu({
+        preventDefault: vi.fn(),
+        stopPropagation: vi.fn(),
+        clientX: 30,
+        clientY: 40,
+        currentTarget: { querySelector: () => secondTrigger },
+      });
+    });
+    const secondMenu = menuProps.mock.calls.at(-1)![0];
+
+    act(() => firstMenu.onClose());
+    expect(firstTrigger.focus).not.toHaveBeenCalled();
+    expect(menuProps.mock.calls.at(-1)![0].rootId).toBe('$second');
+
+    act(() => firstMenu.onOpenThread());
+    expect(onThreadClick).not.toHaveBeenCalled();
+    expect(menuProps.mock.calls.at(-1)![0].rootId).toBe('$second');
+
+    act(() => secondMenu.onClose());
+    expect(secondTrigger.focus).toHaveBeenCalledOnce();
+    renderer.unmount();
+  });
+
   const resizeCallbacks = new Set<() => void>();
   afterEach(() => {
     vi.unstubAllGlobals();

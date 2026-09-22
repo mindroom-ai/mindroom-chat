@@ -278,6 +278,28 @@
     "voiceStillSending": "另一条语音消息仍在发送中。请等待后再重新录制。",
     "voiceBundleBlocked": "另一个附件发送仍在进行中或需要注意。等待，或者重试或删除失败的附件，然后再次发送此消息。"
   },
+  "threadActions": {
+    "more": "讨论串选项",
+    "open": "打开讨论串",
+    "tags": "编辑标签",
+    "editSummary": "编辑摘要",
+    "regenerate": "重新生成摘要",
+    "reopen": "重新打开讨论串",
+    "copy": "复制讨论串链接",
+    "summary": "摘要",
+    "summaryHint": "手动编辑会停止自动更新摘要。你可以随时再次编辑或重新生成摘要。",
+    "length": "{{count}} / {{max}} 个字符",
+    "agent": "智能体",
+    "noAgents": "此房间中没有已加入的智能体",
+    "regenerateHint": "请智能体更新此讨论串的摘要。智能体需要讨论串摘要工具。",
+    "requested": "请求已发送。智能体完成后，摘要将会更新。请在讨论串中查看其回复。",
+    "failed": "无法完成此操作。请重试。",
+    "save": "保存摘要",
+    "sendRequest": "发送请求",
+    "saving": "正在发送…",
+    "cancel": "取消",
+    "done": "完成"
+  },
   "thread": {
     "pinFailed": "无法更新置顶状态。请重试。",
     "chip": "讨论串",
@@ -1315,6 +1337,7 @@
       "tools_other": "{{count, number}} 工具"
     },
     "threadSummary": {
+      "manual": "手动编辑的摘要",
       "title": "讨论串摘要",
       "provenance": "AI 生成的讨论串摘要",
       "provenanceCount_one": "最后 {{count, number}} 条消息的 AI 摘要",

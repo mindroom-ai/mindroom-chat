@@ -278,6 +278,28 @@
     "voiceStillSending": "Er wordt nog een spraakbericht verzonden. Wacht even voordat je opnieuw opneemt.",
     "voiceBundleBlocked": "Er wordt nog een bijlage verzonden of deze heeft aandacht nodig. Wacht even of probeer mislukte bijlagen opnieuw of verwijder ze en verzend dit bericht daarna opnieuw."
   },
+  "threadActions": {
+    "more": "Threadopties",
+    "open": "Thread openen",
+    "tags": "Tags bewerken",
+    "editSummary": "Samenvatting bewerken",
+    "regenerate": "Samenvatting opnieuw genereren",
+    "reopen": "Thread heropenen",
+    "copy": "Threadlink kopiëren",
+    "summary": "Samenvatting",
+    "summaryHint": "Handmatige bewerkingen stoppen automatische updates van de samenvatting. Je kunt de samenvatting op elk moment opnieuw bewerken of genereren.",
+    "length": "{{count}} / {{max}} tekens",
+    "agent": "Agent",
+    "noAgents": "Er zijn geen agents lid van deze ruimte",
+    "regenerateHint": "Vraag een agent om de samenvatting van deze thread te vernieuwen. De agent heeft de tool voor threadsamenvattingen nodig.",
+    "requested": "Verzoek verzonden. De samenvatting wordt bijgewerkt wanneer de agent klaar is. Bekijk de thread voor het antwoord.",
+    "failed": "Deze actie kon niet worden voltooid. Probeer het opnieuw.",
+    "save": "Samenvatting opslaan",
+    "sendRequest": "Verzoek verzenden",
+    "saving": "Bezig met verzenden…",
+    "cancel": "Annuleren",
+    "done": "Klaar"
+  },
   "thread": {
     "pinFailed": "Vastmaken kon niet worden bijgewerkt. Probeer het opnieuw.",
     "chip": "Thread",
@@ -1319,6 +1341,7 @@
       "tools_other": "{{count, number}} gereedschappen"
     },
     "threadSummary": {
+      "manual": "Handmatig bewerkte samenvatting",
       "title": "Threadsamenvatting",
       "provenance": "Door AI gegenereerde threadsamenvatting",
       "provenanceCount_one": "AI-samenvatting van het laatste {{count, number}} bericht",

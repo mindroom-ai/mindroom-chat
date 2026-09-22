@@ -1638,6 +1638,7 @@ export function RoomTimeline({
 
   useThreadSummaryPublishController({
     onStoreThreadSummary,
+    room,
     thread,
     threadEvents,
     threadId,
@@ -1658,6 +1659,7 @@ export function RoomTimeline({
     beginThreadCacheWrite,
     refreshCompactThreadList: refreshRoomThreadList,
     room,
+    sessionId,
     setOverviewRefreshCounter,
     showCompactRoomView,
     threadFilteredEventEntries,

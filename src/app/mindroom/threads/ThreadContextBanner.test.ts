@@ -1,5 +1,5 @@
 import React from 'react';
-import { create } from 'react-test-renderer';
+import { act, create } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
 import {
@@ -13,7 +13,15 @@ import {
   type ThreadTagsContent,
 } from './threadTags';
 import { tagColor, TAG_TEXT_COLOR } from './threadTagColor';
-import { ThreadContextBanner } from './ThreadContextBanner';
+import { ThreadContextBanner, type ThreadContextBannerProps } from './ThreadContextBanner';
+
+const menuProps = vi.hoisted(() => vi.fn());
+vi.mock('./ThreadActionsMenu', () => ({
+  ThreadActionsMenu: (props: unknown) => {
+    menuProps(props);
+    return React.createElement('div', { role: 'menu' });
+  },
+}));
 
 vi.mock('../messages/ThreadApprovalControls', () => ({ ThreadApprovalPermissions: () => null }));
 
@@ -52,11 +60,12 @@ vi.mock('folds', async () => {
 
   return {
     Box: renderElement,
-    Button: ({ children, ...props }: Record<string, unknown>) =>
+    Button: ({ children, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) =>
       React.createElement('button', props, children),
     Icon: (props: Record<string, unknown>) => React.createElement('i', props),
-    IconButton: ({ children, ...props }: Record<string, unknown>) =>
-      React.createElement('button', props, children),
+    IconButton: React.forwardRef<HTMLButtonElement, React.ButtonHTMLAttributes<HTMLButtonElement>>(
+      ({ children, ...props }, ref) => React.createElement('button', { ...props, ref }, children)
+    ),
     Icons: { ArrowLeft: 'arrow-left' },
     Text: ({
       as,
@@ -295,6 +304,7 @@ describe('ThreadContextBanner data flow', () => {
 
 describe('ThreadContextBanner rendering', () => {
   beforeEach(() => {
+    menuProps.mockClear();
     pinningMocks.pinnedEventIds = [];
     pinningMocks.canPin = false;
     pinningMocks.setPinned.mockReset();
@@ -313,9 +323,13 @@ describe('ThreadContextBanner rendering', () => {
       updating: false,
       error: undefined,
     });
+    bannerMocks.useThreadHeaderInfo.mockReturnValue({ scheduledTaskCount: 0 });
   });
 
-  const renderBanner = (summaryText?: string) =>
+  const renderBanner = (
+    summaryText?: string,
+    createNodeMock?: (element: React.ReactElement) => unknown
+  ) =>
     create(
       React.createElement(ThreadContextBanner, {
         room: {
@@ -331,8 +345,146 @@ describe('ThreadContextBanner rendering', () => {
         threadId: '$root',
         summaryInfo: summaryText ? { summaryText } : undefined,
         onExitThread: vi.fn(),
+      }),
+      createNodeMock ? { createNodeMock } : undefined
+    );
+
+  it('opens actions for the active thread and current summary without offering navigation', async () => {
+    const renderer = renderBanner('Current summary');
+    const banner = renderer.root.findByProps({ className: 'Banner' });
+    const target = { focus: vi.fn(), isConnected: true, contains: () => true };
+    const event = {
+      preventDefault: vi.fn(),
+      stopPropagation: vi.fn(),
+      clientX: 120,
+      clientY: 230,
+      currentTarget: target,
+      target,
+    };
+
+    await act(async () => banner.props.onContextMenu(event));
+
+    expect(event.preventDefault).toHaveBeenCalledOnce();
+    expect(event.stopPropagation).toHaveBeenCalledOnce();
+    const selectedMenu = menuProps.mock.calls.at(-1)![0];
+    expect(selectedMenu.rootId).toBe('$root');
+    expect(selectedMenu.summaryText).toBe('Current summary');
+    expect(selectedMenu.anchor).toEqual({ x: 120, y: 230, width: 0, height: 0 });
+    expect(selectedMenu.onOpenThread).toBeUndefined();
+    act(() => selectedMenu.onClose());
+    expect(target.focus).toHaveBeenCalledOnce();
+    expect(renderer.root.findAllByProps({ role: 'menu' })).toHaveLength(0);
+    renderer.unmount();
+  });
+
+  it.each([
+    { key: 'ContextMenu', shiftKey: false },
+    { key: 'F10', shiftKey: true },
+  ])('supports the $key keyboard shortcut and restores the focused trigger', async (keys) => {
+    const renderer = renderBanner();
+    const banner = renderer.root.findByProps({ className: 'Banner' });
+    const trigger = { focus: vi.fn(), isConnected: true };
+    const anchor = { x: 20, y: 30, width: 400, height: 80 };
+    const event = {
+      ...keys,
+      preventDefault: vi.fn(),
+      stopPropagation: vi.fn(),
+      currentTarget: { getBoundingClientRect: () => anchor, contains: () => true },
+      target: trigger,
+    };
+
+    await act(async () => banner.props.onKeyDown(event));
+
+    const selectedMenu = menuProps.mock.calls.at(-1)![0];
+    expect(selectedMenu.rootId).toBe('$root');
+    expect(selectedMenu.anchor).toEqual(anchor);
+    act(() => selectedMenu.onClose());
+    expect(trigger.focus).toHaveBeenCalledOnce();
+    renderer.unmount();
+  });
+
+  it('restores focus to More when the original trigger has detached', async () => {
+    const moreButton = { focus: vi.fn(), isConnected: true };
+    const renderer = renderBanner(undefined, (element) =>
+      element.type === 'button' && element.props['aria-haspopup'] === 'menu' ? moreButton : null
+    );
+    const trigger = { focus: vi.fn(), isConnected: false };
+    const banner = renderer.root.findByProps({ className: 'Banner' });
+    await act(async () =>
+      banner.props.onKeyDown({
+        key: 'ContextMenu',
+        preventDefault: vi.fn(),
+        stopPropagation: vi.fn(),
+        currentTarget: {
+          getBoundingClientRect: () => ({ x: 20, y: 30, width: 400, height: 80 }),
+          contains: () => true,
+        },
+        target: trigger,
       })
     );
+
+    act(() => menuProps.mock.calls.at(-1)![0].onClose());
+
+    expect(trigger.focus).not.toHaveBeenCalled();
+    expect(moreButton.focus).toHaveBeenCalledOnce();
+    renderer.unmount();
+  });
+
+  it('offers a More button and ignores a stale close after the thread route changes', async () => {
+    const renderer = renderBanner();
+    const trigger = {
+      focus: vi.fn(),
+      isConnected: true,
+      getBoundingClientRect: () => ({ x: 20, y: 30, width: 30, height: 30 }),
+    };
+    const more = () =>
+      renderer.root
+        .findAllByType('button')
+        .find((button) => button.props['aria-haspopup'] === 'menu')!;
+
+    expect(more().props['aria-label']).toBe('Thread options');
+    await act(async () => more().props.onClick({ currentTarget: trigger }));
+    const firstMenu = menuProps.mock.calls.at(-1)![0];
+
+    const nextProps: ThreadContextBannerProps = {
+      ...(renderer.root.findByType(ThreadContextBanner).props as ThreadContextBannerProps),
+      threadId: '$next',
+    };
+    bannerMocks.useThreadRootEvent.mockReturnValue('$next');
+    act(() => renderer.update(React.createElement(ThreadContextBanner, nextProps)));
+    expect(renderer.root.findAllByProps({ role: 'menu' })).toHaveLength(0);
+    await act(async () => more().props.onClick({ currentTarget: trigger }));
+    act(() => firstMenu.onClose());
+
+    expect(trigger.focus).not.toHaveBeenCalled();
+    expect(renderer.root.findAllByProps({ role: 'menu' })).toHaveLength(1);
+    expect(menuProps.mock.calls.at(-1)![0].rootId).toBe('$next');
+    const nextMenu = menuProps.mock.calls.at(-1)![0];
+    renderer.unmount();
+    act(() => nextMenu.onClose());
+    expect(trigger.focus).not.toHaveBeenCalled();
+  });
+
+  it('ignores context-menu and keyboard events from portalled header controls', async () => {
+    const renderer = renderBanner();
+    const banner = renderer.root.findByProps({ className: 'Banner' });
+    const event = {
+      key: 'ContextMenu',
+      preventDefault: vi.fn(),
+      stopPropagation: vi.fn(),
+      currentTarget: { contains: () => false },
+      target: {},
+    };
+
+    await act(async () => {
+      banner.props.onContextMenu(event);
+      banner.props.onKeyDown(event);
+    });
+
+    expect(event.preventDefault).not.toHaveBeenCalled();
+    expect(menuProps).not.toHaveBeenCalled();
+    renderer.unmount();
+  });
 
   it('replaces Resolve with a pinned status and allows only admins to unpin', () => {
     pinningMocks.pinnedEventIds = ['$root'];
@@ -392,6 +544,52 @@ describe('ThreadContextBanner rendering', () => {
 
     expect(JSON.stringify(renderer.toJSON())).not.toContain('+ tag');
     expect(resolveButton?.props.disabled).toBe(true);
+  });
+
+  it('ignores every menu trigger until the provisional root is confirmed', async () => {
+    bannerMocks.useThreadRootEvent.mockReturnValue('~!room:example.org:txn-root');
+    const renderer = renderBanner();
+    const banner = renderer.root.findByProps({ className: 'Banner' });
+    const target = {
+      contains: () => true,
+      getBoundingClientRect: () => ({ x: 20, y: 30, width: 30, height: 30 }),
+    };
+    const more = () =>
+      renderer.root
+        .findAllByType('button')
+        .find((button) => button.props['aria-haspopup'] === 'menu')!;
+    const event = {
+      preventDefault: vi.fn(),
+      stopPropagation: vi.fn(),
+      currentTarget: target,
+      target,
+      clientX: 20,
+      clientY: 30,
+    };
+
+    await act(async () => {
+      more().props.onClick(event);
+      banner.props.onContextMenu(event);
+      banner.props.onKeyDown({ ...event, key: 'ContextMenu' });
+      banner.props.onKeyDown({ ...event, key: 'F10', shiftKey: true });
+    });
+
+    expect(more().props.disabled).toBe(true);
+    expect(renderer.root.findAllByProps({ role: 'menu' })).toHaveLength(0);
+    expect(event.preventDefault).not.toHaveBeenCalled();
+    bannerMocks.useThreadRootEvent.mockReturnValue('$confirmed');
+    act(() =>
+      renderer.update(
+        React.createElement(
+          ThreadContextBanner,
+          renderer.root.findByType(ThreadContextBanner).props as ThreadContextBannerProps
+        )
+      )
+    );
+    expect(more().props.disabled).toBe(false);
+    await act(async () => more().props.onClick(event));
+    expect(renderer.root.findAllByProps({ role: 'menu' })).toHaveLength(1);
+    renderer.unmount();
   });
 
   it('renders a truncated summary row when summary text is available', () => {

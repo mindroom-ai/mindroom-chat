@@ -90,6 +90,7 @@ function Harness({
     beginThreadCacheWrite: () => persistThreadEventCache,
     refreshCompactThreadList,
     room,
+    sessionId: 'resume-session',
     setOverviewRefreshCounter,
     showCompactRoomView: false,
     threadFilteredEventEntries: [],

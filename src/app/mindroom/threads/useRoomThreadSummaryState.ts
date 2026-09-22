@@ -14,8 +14,8 @@ export const useRoomThreadSummaryState = ({
   const summaryMap = useThreadSummaryStateMap({ roomId, sessionId });
 
   const storeThreadSummary = useCallback(
-    (threadRootId: string, info: MindroomThreadSummaryInfo | undefined) => {
-      storeThreadSummaryInState(sessionId, roomId, threadRootId, info);
+    (threadRootId: string, ...infos: Array<MindroomThreadSummaryInfo | undefined>) => {
+      storeThreadSummaryInState(sessionId, roomId, threadRootId, ...infos);
     },
     [roomId, sessionId]
   );

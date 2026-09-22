@@ -279,6 +279,28 @@
     "voiceStillSending": "Un autre message vocal est toujours en cours d'envoi. Attendez avant d'en enregistrer un autre.",
     "voiceBundleBlocked": "L'envoi d'une autre pièce jointe est toujours en cours ou nécessite votre attention. Attendez, réessayez ou supprimez les pièces jointes en échec, puis renvoyez ce message."
   },
+  "threadActions": {
+    "more": "Options du fil",
+    "open": "Ouvrir le fil",
+    "tags": "Modifier les étiquettes",
+    "editSummary": "Modifier le résumé",
+    "regenerate": "Régénérer le résumé",
+    "reopen": "Rouvrir le fil",
+    "copy": "Copier le lien du fil",
+    "summary": "Résumé",
+    "summaryHint": "Les modifications manuelles interrompent les mises à jour automatiques du résumé. Vous pouvez à tout moment modifier ou régénérer le résumé.",
+    "length": "{{count}} / {{max}} caractères",
+    "agent": "Agent",
+    "noAgents": "Aucun agent n’a rejoint ce salon",
+    "regenerateHint": "Demandez à un agent d’actualiser le résumé de ce fil. L’agent doit disposer de l’outil de résumé des fils.",
+    "requested": "Demande envoyée. Le résumé sera mis à jour lorsque l’agent aura terminé. Consultez le fil pour voir sa réponse.",
+    "failed": "Impossible d’effectuer cette action. Veuillez réessayer.",
+    "save": "Enregistrer le résumé",
+    "sendRequest": "Envoyer la demande",
+    "saving": "Envoi en cours…",
+    "cancel": "Annuler",
+    "done": "Terminé"
+  },
   "thread": {
     "pinFailed": "Impossible de modifier l’épingle. Réessayez.",
     "chip": "Fil",
@@ -1328,6 +1350,7 @@
       "tools_many": "{{count, number}} outils"
     },
     "threadSummary": {
+      "manual": "Résumé modifié manuellement",
       "title": "Résumé du fil",
       "provenance": "Résumé du fil généré par l’IA",
       "provenanceCount_one": "Résumé IA du dernier message parmi {{count, number}}",

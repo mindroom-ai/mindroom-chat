@@ -279,6 +279,28 @@
     "voiceStillSending": "Ainda está a ser enviada outra mensagem de voz. Aguarde antes de voltar a gravar.",
     "voiceBundleBlocked": "O envio de outro anexo ainda está em curso ou requer atenção. Aguarde, tente novamente ou remova os anexos com falha e volte a enviar esta mensagem."
   },
+  "threadActions": {
+    "more": "Opções do tópico",
+    "open": "Abrir tópico",
+    "tags": "Editar etiquetas",
+    "editSummary": "Editar resumo",
+    "regenerate": "Gerar resumo novamente",
+    "reopen": "Reabrir tópico",
+    "copy": "Copiar link do tópico",
+    "summary": "Resumo",
+    "summaryHint": "As edições manuais interrompem as atualizações automáticas do resumo. Pode editar ou gerar novamente o resumo a qualquer momento.",
+    "length": "{{count}} / {{max}} caracteres",
+    "agent": "Agente",
+    "noAgents": "Não há agentes nesta sala",
+    "regenerateHint": "Peça a um agente para atualizar o resumo deste tópico. O agente precisa da ferramenta de resumo de tópicos.",
+    "requested": "Pedido enviado. O resumo será atualizado quando o agente terminar. Consulte o tópico para ver a resposta.",
+    "failed": "Não foi possível concluir esta ação. Tente novamente.",
+    "save": "Guardar resumo",
+    "sendRequest": "Enviar pedido",
+    "saving": "A enviar…",
+    "cancel": "Cancelar",
+    "done": "Concluído"
+  },
   "thread": {
     "pinFailed": "Não foi possível atualizar a fixação. Tente novamente.",
     "chip": "Tópico",
@@ -1328,6 +1350,7 @@
       "tools_many": "{{count, number}} ferramentas"
     },
     "threadSummary": {
+      "manual": "Resumo editado manualmente",
       "title": "Resumo do tópico",
       "provenance": "Resumo do tópico gerado por IA",
       "provenanceCount_one": "Resumo de IA da última {{count, number}} mensagem",

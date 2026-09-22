@@ -279,6 +279,28 @@
     "voiceStillSending": "È ancora in corso l'invio di un altro messaggio vocale. Attendi prima di registrare di nuovo.",
     "voiceBundleBlocked": "L'invio di un altro allegato è ancora in corso o richiede attenzione. Attendi, riprova o rimuovi gli allegati non riusciti, quindi invia di nuovo questo messaggio."
   },
+  "threadActions": {
+    "more": "Opzioni del thread",
+    "open": "Apri thread",
+    "tags": "Modifica tag",
+    "editSummary": "Modifica riepilogo",
+    "regenerate": "Rigenera riepilogo",
+    "reopen": "Riapri thread",
+    "copy": "Copia link del thread",
+    "summary": "Riepilogo",
+    "summaryHint": "Le modifiche manuali interrompono gli aggiornamenti automatici del riepilogo. Puoi modificare o rigenerare il riepilogo in qualsiasi momento.",
+    "length": "{{count}} / {{max}} caratteri",
+    "agent": "Agente",
+    "noAgents": "Nessun agente è entrato in questa stanza",
+    "regenerateHint": "Chiedi a un agente di aggiornare il riepilogo di questo thread. L’agente deve disporre dello strumento per i riepiloghi dei thread.",
+    "requested": "Richiesta inviata. Il riepilogo verrà aggiornato quando l’agente avrà terminato. Controlla il thread per vedere la sua risposta.",
+    "failed": "Impossibile completare questa azione. Riprova.",
+    "save": "Salva riepilogo",
+    "sendRequest": "Invia richiesta",
+    "saving": "Invio in corso…",
+    "cancel": "Annulla",
+    "done": "Fine"
+  },
   "thread": {
     "pinFailed": "Impossibile aggiornare il messaggio fissato. Riprova.",
     "chip": "Thread",
@@ -1328,6 +1350,7 @@
       "tools_many": "{{count, number}} strumenti"
     },
     "threadSummary": {
+      "manual": "Riepilogo modificato manualmente",
       "title": "Riepilogo del thread",
       "provenance": "Riepilogo del thread generato dall’IA",
       "provenanceCount_one": "Riepilogo IA dell’ultimo {{count, number}} messaggio",

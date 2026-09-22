@@ -1,18 +1,16 @@
 import React from 'react';
 import { ThreadEvent } from 'matrix-js-sdk/lib/models/thread';
-import type { Room } from 'matrix-js-sdk';
+import { MatrixEvent, type Room } from 'matrix-js-sdk';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const {
   loadCachedThreadSummariesMock,
   saveCachedThreadSummaryMock,
-  getLatestThreadSummaryInfoFromEventSourcesMock,
   getCompactThreadRootBodyPreviewTextMock,
 } = vi.hoisted(() => ({
   loadCachedThreadSummariesMock: vi.fn(),
   saveCachedThreadSummaryMock: vi.fn(async () => undefined),
-  getLatestThreadSummaryInfoFromEventSourcesMock: vi.fn(),
   getCompactThreadRootBodyPreviewTextMock: vi.fn(),
 }));
 
@@ -27,12 +25,6 @@ vi.mock('./cacheStore', async (importOriginal) => {
     saveCachedThreadSummary: saveCachedThreadSummaryMock,
   };
 });
-
-vi.mock('../messages/threadSummary', () => ({
-  getLatestThreadSummaryInfoFromEventSources: getLatestThreadSummaryInfoFromEventSourcesMock,
-  pickLatestThreadSummaryInfo: (...infos: Array<{ summaryText?: string } | undefined>) =>
-    [...infos].reverse().find((info) => !!info?.summaryText),
-}));
 
 vi.mock('./compactThreadRootData', () => ({
   getCompactThreadRootBodyPreviewText: getCompactThreadRootBodyPreviewTextMock,
@@ -80,7 +72,7 @@ class MockRoom {
 
   getThread = vi.fn(() => undefined);
 
-  findEventById = vi.fn(() => undefined);
+  findEventById = vi.fn<() => MatrixEvent | undefined>(() => undefined);
 
   hasEncryptionStateEvent = vi.fn(() => false);
 }
@@ -111,9 +103,7 @@ describe('useRecentThreadViewModel', () => {
 
   beforeEach(() => {
     loadCachedThreadSummariesMock.mockReset();
-    getLatestThreadSummaryInfoFromEventSourcesMock.mockReset();
     getCompactThreadRootBodyPreviewTextMock.mockReset();
-    getLatestThreadSummaryInfoFromEventSourcesMock.mockReturnValue(undefined);
     getCompactThreadRootBodyPreviewTextMock.mockReturnValue(undefined);
     clearRecentThreadViewModelSharedState();
   });
@@ -181,16 +171,15 @@ describe('useRecentThreadViewModel', () => {
     getCompactThreadRootBodyPreviewTextMock.mockReturnValue('Root preview');
 
     const room = new MockRoom();
-    room.findEventById.mockReturnValue({
-      getId: () => '$thread-1',
-      getTs: () => 100,
-      getSender: () => '@alice:example.org',
-      getUnsigned: () => ({}),
-      getContent: () => ({ body: 'Root preview' }),
-      replacingEvent: () => undefined,
-      on: vi.fn(),
-      removeListener: vi.fn(),
-    });
+    room.findEventById.mockReturnValue(
+      new MatrixEvent({
+        event_id: '$thread-1',
+        origin_server_ts: 100,
+        sender: '@alice:example.org',
+        type: 'm.room.message',
+        content: { msgtype: 'm.text', body: 'Root preview' },
+      })
+    );
 
     let summary = '';
 

@@ -1,6 +1,10 @@
 import { useCallback, useEffect } from 'react';
 import type { IEvent, MatrixClient, MatrixEvent, Room } from 'matrix-js-sdk';
-import type { MindroomThreadSummaryInfo } from '../messages/threadSummary';
+import {
+  getThreadSummaryInfosFromEventSources,
+  type MindroomThreadSummaryInfo,
+} from '../messages/threadSummary';
+import type { ThreadSummaryWriter } from './threadSummaryState';
 import type { ThreadCacheCoverage, ThreadRecord } from './types';
 import {
   getCompactCachedThreadActivityTs,
@@ -34,11 +38,12 @@ type UseThreadOverviewCacheHydrationOptions = {
   compactThreadRecordMap: ReadonlyMap<string, ThreadRecord>;
   threadRecordMap: ReadonlyMap<string, ThreadRecord>;
   cachedMetadata: ThreadOverviewCachedMetadataController;
-  onStoreThreadSummary: (rootId: string, info: MindroomThreadSummaryInfo) => void;
+  onStoreThreadSummary: ThreadSummaryWriter;
 };
 
 type CachedOverviewUpdate = ThreadOverviewCachedMetadataUpdate & {
   nextSummaryInfo?: MindroomThreadSummaryInfo;
+  summaryCandidates?: Array<MindroomThreadSummaryInfo | undefined>;
 };
 
 export type FetchedRelationOverviewUpdateOptions = {
@@ -188,6 +193,7 @@ export const resolveFetchedRelationOverviewUpdate = ({
     nextLastSenderId,
     nextMessageCount,
     nextSummaryInfo,
+    summaryCandidates: getThreadSummaryInfosFromEventSources(events),
     nextCacheCoverage,
   };
 };
@@ -306,6 +312,7 @@ export const resolveCachedOverviewUpdate = ({
     nextLastSenderId,
     nextMessageCount,
     nextSummaryInfo,
+    summaryCandidates: getThreadSummaryInfosFromEventSources(cachedEvents),
     nextCacheCoverage,
   };
 };
@@ -416,9 +423,9 @@ export const useThreadOverviewCacheHydration = ({
 
       applyUpdates(nextUpdates, { includeCompactRootBody: showCompactRoomView });
 
-      nextUpdates.forEach(({ rootId, nextSummaryInfo }) => {
+      nextUpdates.forEach(({ rootId, nextSummaryInfo, summaryCandidates }) => {
         if (!nextSummaryInfo?.summaryText) return;
-        onStoreThreadSummary(rootId, nextSummaryInfo);
+        onStoreThreadSummary(rootId, ...(summaryCandidates ?? [nextSummaryInfo]));
       });
     };
 
@@ -457,7 +464,7 @@ export type UseThreadOverviewRelationUpdatesOptions = {
   cachedMetadata: ThreadOverviewCachedMetadataController;
   room: Room;
   roomThreadListThreads: ThreadLikeRoot[];
-  onStoreThreadSummary: (rootId: string, info: MindroomThreadSummaryInfo) => void;
+  onStoreThreadSummary: ThreadSummaryWriter;
 };
 
 export const useThreadOverviewRelationUpdates = ({
@@ -497,7 +504,7 @@ export const useThreadOverviewRelationUpdates = ({
       cachedMetadata.applyUpdate(update, { includeCompactRootBody: false });
 
       if (update.nextSummaryInfo?.summaryText) {
-        onStoreThreadSummary(rootId, update.nextSummaryInfo);
+        onStoreThreadSummary(rootId, ...(update.summaryCandidates ?? [update.nextSummaryInfo]));
       }
     },
     [

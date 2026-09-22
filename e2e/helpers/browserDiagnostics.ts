@@ -38,7 +38,7 @@ export const attachBrowserDiagnostics = (page: Page): BrowserDiagnostics => {
       return;
     }
 
-    if (message.type() === 'warning' || message.type() === 'warn') {
+    if (message.type() === 'warning') {
       diagnostics.consoleWarnings.push(message.text());
     }
   });

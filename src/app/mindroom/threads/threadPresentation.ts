@@ -7,7 +7,7 @@ import {
   type ThreadPreviewLocalization,
 } from './threadMessagePreview';
 import {
-  getLatestThreadSummaryInfoFromEventSources,
+  getThreadSummaryInfosFromEventSources,
   isMindroomThreadSummaryEvent,
   pickLatestThreadSummaryInfo,
   type MindroomThreadSummaryInfo,
@@ -48,13 +48,13 @@ export const resolveThreadSummaryInfo = ({
   thread,
 }: ResolveThreadSummaryInfoOptions): MindroomThreadSummaryInfo | undefined =>
   pickLatestThreadSummaryInfo(
-    getLatestThreadSummaryInfoFromEventSources(
+    ...getThreadSummaryInfosFromEventSources(
       thread?.replyToEvent && isVisibleThreadReplyEvent(thread.replyToEvent)
         ? [thread.replyToEvent]
         : undefined
     ),
     preferredSummaryInfo,
-    getLatestThreadSummaryInfoFromEventSources(thread?.events, thread?.timeline)
+    ...getThreadSummaryInfosFromEventSources(thread?.events, thread?.timeline)
   );
 
 type ResolveThreadRootPreviewTextOptions = {

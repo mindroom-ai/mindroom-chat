@@ -10,6 +10,7 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 // ── Original: content-level helpers (used by RenderMessageContent / MsgTypeRenderers) ──
 
 type MindroomThreadSummaryMetadata = {
+  model?: unknown;
   version?: unknown;
   generated_at?: unknown;
   message_count?: unknown;
@@ -17,15 +18,25 @@ type MindroomThreadSummaryMetadata = {
 };
 
 export type MindroomThreadSummaryInfo = {
+  isManual?: boolean;
   summaryText?: string;
+  /** Accepted Matrix event (or replacement) timestamp, absent on legacy cache/local echoes. */
+  eventTs?: number;
   generatedTs?: number;
   messageCount?: number;
 };
 
+// Match the backend datetime range so extended-year metadata cannot poison
+// ordering in live data or older cached snapshots.
+export const isSupportedThreadSummaryTimestamp = (value: number): boolean =>
+  Number.isFinite(value) && value >= -62_135_596_800_000 && value <= 253_402_300_799_999;
+
 const hasSummaryText = (
   info: MindroomThreadSummaryInfo | undefined
 ): info is MindroomThreadSummaryInfo & { summaryText: string } =>
-  typeof info?.summaryText === 'string' && info.summaryText.trim().length > 0;
+  typeof info?.summaryText === 'string' &&
+  info.summaryText.trim().length > 0 &&
+  (info.generatedTs === undefined || isSupportedThreadSummaryTimestamp(info.generatedTs));
 
 const compareDefinedNumbers = (left?: number, right?: number): number | undefined => {
   const hasLeft = typeof left === 'number' && Number.isFinite(left);
@@ -42,13 +53,42 @@ export const pickLatestThreadSummaryInfo = (
   ...infos: Array<MindroomThreadSummaryInfo | undefined>
 ): MindroomThreadSummaryInfo | undefined => {
   let preferred: MindroomThreadSummaryInfo | undefined;
+  // Evaluate the entire merge before discarding candidates: an undated legacy
+  // value must not hide a newer agent summary before a manual candidate arrives.
+  const hasDatedManual = infos.some(
+    (info) => hasSummaryText(info) && info.isManual && info.generatedTs !== undefined
+  );
+  // Older cache records have no server timestamp. If this batch includes the
+  // same notice from Matrix, discard the incomplete copy before reduction:
+  // otherwise it can hide a later server event through its skewed metadata.
+  const knownEvents = infos.filter((info) => hasSummaryText(info) && info.eventTs !== undefined);
 
   infos.forEach((candidate) => {
-    if (!hasSummaryText(candidate)) return;
+    if (!hasSummaryText(candidate) || (hasDatedManual && candidate.generatedTs === undefined))
+      return;
+    if (
+      candidate.eventTs === undefined &&
+      knownEvents.some(
+        (known) =>
+          known?.summaryText === candidate.summaryText &&
+          known?.generatedTs === candidate.generatedTs &&
+          known?.messageCount === candidate.messageCount
+      )
+    )
+      return;
     if (!hasSummaryText(preferred)) {
       preferred = candidate;
       return;
     }
+
+    // Match backend pin decisions using server chronology. Old cache records
+    // lack this field, so retain metadata ordering until live data enriches them.
+    const eventComparison = compareDefinedNumbers(candidate.eventTs, preferred.eventTs);
+    if (eventComparison === 1) {
+      preferred = candidate;
+      return;
+    }
+    if (eventComparison === -1) return;
 
     const tsComparison = compareDefinedNumbers(candidate.generatedTs, preferred.generatedTs);
     if (tsComparison === 1) {
@@ -79,7 +119,21 @@ export const pickLatestThreadSummaryInfo = (
       return;
     }
 
-    if (candidate.summaryText !== preferred.summaryText) {
+    if (
+      candidate.summaryText === preferred.summaryText &&
+      candidate.generatedTs === preferred.generatedTs
+    ) {
+      if (candidate.eventTs !== undefined && preferred.eventTs === undefined) {
+        preferred = candidate;
+        return;
+      }
+      if (candidate.eventTs === undefined && preferred.eventTs !== undefined) return;
+    }
+
+    if (
+      candidate.summaryText !== preferred.summaryText ||
+      candidate.isManual !== preferred.isManual
+    ) {
       preferred = candidate;
     }
   });
@@ -164,6 +218,7 @@ export const getMindroomThreadSummaryInfo = (
     (!hasNewContent ? asNonEmptyString(metadata.summary) ?? summaryBody : undefined);
 
   return {
+    ...(metadata.model === 'manual' ? { isManual: true } : {}),
     summaryText,
     generatedTs: asTimestamp(metadata.generated_at),
     messageCount: asMessageCount(metadata.message_count),
@@ -176,10 +231,15 @@ export const formatMindroomThreadSummaryMessageCount = (count: number): string =
 // ── CINNY-003b: event-level helpers (used by RoomTimeline) ─────────
 
 type ThreadSummaryEventLike = {
+  status?: string | null;
   getContent(): Record<string, unknown>;
+  getTs?(): number | undefined;
+  replacingEventDate?(): Date | undefined;
+  replacingEvent?(): { status?: string | null } | null;
 };
 
 export const isMindroomThreadSummaryEvent = (event: ThreadSummaryEventLike): boolean => {
+  if (event.status != null && event.status !== 'sent') return false;
   const content = event.getContent();
   const msgtype = content.msgtype;
   if (msgtype !== 'm.notice') return false;
@@ -189,10 +249,17 @@ export const isMindroomThreadSummaryEvent = (event: ThreadSummaryEventLike): boo
 export const findLatestThreadSummaryEvent = <T extends ThreadSummaryEventLike>(
   events: T[]
 ): T | undefined => {
-  for (let i = events.length - 1; i >= 0; i--) {
-    if (isMindroomThreadSummaryEvent(events[i])) return events[i];
-  }
-  return undefined;
+  let latest: T | undefined;
+  let latestInfo: MindroomThreadSummaryInfo | undefined;
+  events.forEach((event) => {
+    if (!isMindroomThreadSummaryEvent(event)) return;
+    const info = getThreadSummaryEventInfo(event);
+    if (info && pickLatestThreadSummaryInfo(latestInfo, info) === info) {
+      latest = event;
+      latestInfo = info;
+    }
+  });
+  return latest;
 };
 
 export const getThreadSummaryPreviewText = (event: ThreadSummaryEventLike): string | undefined => {
@@ -217,12 +284,19 @@ export const getThreadSummaryEventInfo = (
 ): MindroomThreadSummaryInfo | undefined => {
   const content = event.getContent();
   const info = getMindroomThreadSummaryInfo(content);
-  if (info) return info;
-
   // Fall back to body extraction for simple boolean flag format
   const text = getThreadSummaryPreviewText(event);
-  if (text) return { summaryText: text };
-  return undefined;
+  const summary = info ?? (text ? { summaryText: text } : undefined);
+  if (!summary) return undefined;
+  // The SDK's accepted local echo still has its send-start timestamp.
+  // Only a remote event supplies server chronology, including accepted edits.
+  const eventTs = event.replacingEventDate?.()?.getTime() ?? event.getTs?.();
+  return event.status == null &&
+    event.replacingEvent?.()?.status == null &&
+    eventTs !== undefined &&
+    isSupportedThreadSummaryTimestamp(eventTs)
+    ? { ...summary, eventTs }
+    : summary;
 };
 
 export const getLatestThreadSummaryInfo = <T extends ThreadSummaryEventLike>(
@@ -238,8 +312,13 @@ export const getLatestThreadSummaryInfo = <T extends ThreadSummaryEventLike>(
 export const getLatestThreadSummaryInfoFromEventSources = <T extends ThreadSummaryEventLike>(
   ...eventSources: Array<T[] | undefined>
 ): MindroomThreadSummaryInfo | undefined =>
-  pickLatestThreadSummaryInfo(
-    ...eventSources.map((events) => (events?.length ? getLatestThreadSummaryInfo(events) : undefined))
+  pickLatestThreadSummaryInfo(...getThreadSummaryInfosFromEventSources(...eventSources));
+
+export const getThreadSummaryInfosFromEventSources = <T extends ThreadSummaryEventLike>(
+  ...eventSources: Array<T[] | undefined>
+): Array<MindroomThreadSummaryInfo | undefined> =>
+  eventSources.flatMap(
+    (events) => events?.filter(isMindroomThreadSummaryEvent).map(getThreadSummaryEventInfo) ?? []
   );
 
 export const findLatestThreadSummaryEventFromEventSources = <T extends ThreadSummaryEventLike>(
@@ -272,15 +351,17 @@ export const buildThreadSummaryMap = (
 ): Map<string, MindroomThreadSummaryInfo> => {
   const summaries = new Map<string, MindroomThreadSummaryInfo>();
 
-  for (let i = events.length - 1; i >= 0; i--) {
+  for (let i = 0; i < events.length; i++) {
     const event = events[i];
     const { threadRootId } = event;
     const eventId = event.getId();
     if (!eventId || !threadRootId || eventId === threadRootId) continue;
-    if (summaries.has(threadRootId)) continue;
     if (!isMindroomThreadSummaryEvent(event)) continue;
 
-    const info = getThreadSummaryEventInfo(event);
+    const info = pickLatestThreadSummaryInfo(
+      summaries.get(threadRootId),
+      getThreadSummaryEventInfo(event)
+    );
     if (info?.summaryText) summaries.set(threadRootId, info);
   }
 

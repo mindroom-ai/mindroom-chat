@@ -119,12 +119,29 @@ type CacheContract = {
     sessionId: string,
     roomId: string,
     threadRootId: string,
-    info: { summaryText: string; generatedTs?: number; messageCount?: number }
+    info: {
+      summaryText: string;
+      generatedTs?: number;
+      eventTs?: number;
+      messageCount?: number;
+      isManual?: boolean;
+    }
   ) => Promise<void>;
   loadSummaries: (
     sessionId: string,
     roomId: string
-  ) => Promise<Map<string, { summaryText: string; generatedTs?: number; messageCount?: number }>>;
+  ) => Promise<
+    Map<
+      string,
+      {
+        summaryText?: string;
+        generatedTs?: number;
+        eventTs?: number;
+        messageCount?: number;
+        isManual?: boolean;
+      }
+    >
+  >;
 };
 
 // ---------- CacheStore adapter ----------
@@ -670,6 +687,8 @@ const runContract = (label: string, buildContract: () => Promise<CacheContract>)
     it('saves and loads thread summaries by room', async () => {
       await contract.saveSummary(SESSION_ID, ROOM_ID, '$rootA', {
         summaryText: 'hello A',
+        isManual: true,
+        eventTs: 900,
         generatedTs: 1000,
         messageCount: 3,
       });
@@ -684,7 +703,9 @@ const runContract = (label: string, buildContract: () => Promise<CacheContract>)
       const summaries = await contract.loadSummaries(SESSION_ID, ROOM_ID);
       expect(summaries.get('$rootA')?.summaryText).toBe('hello A');
       expect(summaries.get('$rootA')?.generatedTs).toBe(1000);
+      expect(summaries.get('$rootA')?.eventTs).toBe(900);
       expect(summaries.get('$rootA')?.messageCount).toBe(3);
+      expect(summaries.get('$rootA')?.isManual).toBe(true);
       expect(summaries.get('$rootB')?.summaryText).toBe('hello B');
       expect(summaries.size).toBe(2);
     });

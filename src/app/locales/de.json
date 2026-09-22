@@ -278,6 +278,28 @@
     "voiceStillSending": "Eine andere Sprachnachricht wird noch gesendet. Bitte warte, bevor du erneut aufnimmst.",
     "voiceBundleBlocked": "Ein anderer Anhang wird noch gesendet oder benötigt deine Aufmerksamkeit. Warte oder versuche fehlgeschlagene Anhänge erneut oder entferne sie und sende diese Nachricht dann erneut."
   },
+  "threadActions": {
+    "more": "Thread-Optionen",
+    "open": "Thread öffnen",
+    "tags": "Tags bearbeiten",
+    "editSummary": "Zusammenfassung bearbeiten",
+    "regenerate": "Zusammenfassung neu erstellen",
+    "reopen": "Thread wieder öffnen",
+    "copy": "Thread-Link kopieren",
+    "summary": "Zusammenfassung",
+    "summaryHint": "Manuelle Änderungen verhindern automatische Aktualisierungen der Zusammenfassung. Du kannst die Zusammenfassung jederzeit erneut bearbeiten oder neu erstellen.",
+    "length": "{{count}} / {{max}} Zeichen",
+    "agent": "Agent",
+    "noAgents": "Keine beigetretenen Agenten in diesem Raum",
+    "regenerateHint": "Bitte einen Agenten, die Zusammenfassung dieses Threads zu aktualisieren. Der Agent benötigt das Werkzeug für Thread-Zusammenfassungen.",
+    "requested": "Anfrage gesendet. Die Zusammenfassung wird aktualisiert, wenn der Agent fertig ist. Im Thread findest du seine Antwort.",
+    "failed": "Diese Aktion konnte nicht abgeschlossen werden. Bitte versuche es erneut.",
+    "save": "Zusammenfassung speichern",
+    "sendRequest": "Anfrage senden",
+    "saving": "Wird gesendet…",
+    "cancel": "Abbrechen",
+    "done": "Fertig"
+  },
   "thread": {
     "pinFailed": "Anheften konnte nicht aktualisiert werden. Bitte erneut versuchen.",
     "chip": "Thread",
@@ -1319,6 +1341,7 @@
       "tools_other": "{{count, number}} Werkzeuge"
     },
     "threadSummary": {
+      "manual": "Manuell bearbeitete Zusammenfassung",
       "title": "Thread-Zusammenfassung",
       "provenance": "KI-generierte Thread-Zusammenfassung",
       "provenanceCount_one": "KI-Zusammenfassung der letzten {{count, number}} Nachricht",

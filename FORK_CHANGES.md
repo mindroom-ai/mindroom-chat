@@ -2,6 +2,46 @@
 
 ## Runbook
 
+### Shared thread context menu (2026-09-21)
+
+- Status: shared context menu implemented, independently reviewed, and validated; companion backend support is tracked in MindRoom #2174.
+- Right-click, keyboard context-menu shortcuts, and a more button expose thread navigation, tags, manual summary edits, agent summary requests, resolve/reopen, admin pinning, and links.
+- Compact cards and the active thread bar share one action menu, including manual editing and agent regeneration.
+  The bar supports right-click, keyboard shortcuts, and a more button while preserving focus and route ownership.
+- Manual summaries save as user-authored notices with `pinned: true`; the companion MindRoom backend change honors authorized human pins so automatic updates preserve the wording.
+  Explicit regeneration requests mention a selected joined agent and ask its summary tool to replace and pin the new wording.
+- Consulted Claude on summary writes and clock skew; direct manual notices use a timestamp after the latest known cached/live summary so accepted edits survive hydration and reload.
+  Consulted Claude on the in-flight send race; accepted Matrix event/replacement timestamps now lead shared live/cache selection, with metadata ordering retained for older cache records until hydration.
+  Accepted manual writes fetch their server timestamp; a failed follow-up read leaves the successful write intact and sync supplies the timestamp later.
+  Publishers retain full summary candidates across source selection and pending cache reads, so legacy records gain server chronology before reduction.
+  Initial publications read existing cache before flushing writes; partial live history preserves newer cached titles, and session cleanup prevents late writes.
+  Failed cache reads retain pending candidates and defer writes until a successful retry, preserving unread titles and legacy migration evidence.
+  Unsupported dates are excluded consistently from live/cache selection; an exhausted supported clock rejects the write without losing the editor draft.
+  Timestamp-less legacy summaries cannot displace an accepted manual edit during live/cache merges.
+  Mixed-source permutations preserve newer dated agent summaries regardless of input order.
+  Manual saves include the cached event tail before advancing the summary timestamp.
+  Relation fetches discard their snapshot when the shared summary changes in flight, protecting both visible state and the disk cache.
+- Menu eligibility and summary writes share confirmed-root, membership, and message-permission validation.
+- Baseline: 5,120 tests pass with four failures on the host before changes.
+  Three Xcode script tests require standard Unix paths missing on this host; the caption-send test passes under Node 24.
+- Manual saves publish accepted notices through shared summary state immediately, including zero-reply roots, and preserve manual provenance in the cache.
+  Failed local echoes are cancelled so retries remain possible and unsent summaries cannot replace saved titles.
+- Validation: all 5,203 unit tests pass under Node 24 after the follow-up fixes; application and focused-test typechecks, production build, formatting, and lint pass with 17 existing warnings.
+  The production Chromium context-menu flow covers compact cards and the thread bar, including manual notices with summary pin metadata, agent requests, focus, and reload consistency.
+  The follow-up browser check holds a manual send while an automatic notice arrives, checks Tab and Shift+Tab during the pending save, and verifies both surfaces after acceptance and reload.
+  Compact hover controls and summary cache upgrades pass; the final menu/cache rerun also passes after clock-range and stale-fetch validation.
+  The cache-upgrade fixture now preserves the existing database version instead of requesting obsolete schema version 3.
+  Narrow and touch layouts keep controls below card content, preventing hover controls from intercepting card clicks.
+- The full browser scheduler completed 120 jobs: 100 passed, 18 failed, and two were blocked by missing external SSO and worker-computer fixtures.
+  Fixed the summary-cache fixture and narrow-card failures; all seven focused cases now pass across Chromium and WebKit, including offline overviews, hover controls, pinning, and the new menu.
+  Fifteen unrelated failing jobs remain in login navigation, audio, favicon referrers, glass styling, thread preloading, and scroll/virtualization checks.
+- Follow-up review found and fixed a manual-send ordering race, unavailable local-echo banner menus, and missing focus fallback while dialog controls are disabled.
+  Regression tests exercise actual Matrix events, IndexedDB reloads and startup races, and actual focus-trap keyboard behavior; independent re-review approves the fixes.
+- PR #314 includes desktop, narrow-layout, and thread-bar screenshots uploaded with `--attach`.
+  [MindRoom #2174](https://github.com/mindroom-ai/mindroom/pull/2174) provides backend pin recovery and preserves explicit and automatic update ordering after clock skew.
+- Confirmed frontend automated review findings are addressed, with independent re-review completed after the follow-ups.
+  Independent follow-up review verifies summary chronology, migration evidence, pending cache reads, focus handling, and session cleanup without remaining findings.
+
 ### Follow the pointer on inline glass cards (2026-09-21)
 
 - Tool disclosures, approval cards and history, link previews, attachment shells and pasted-text cards, and inline thread summaries share the composer's pointer highlight.

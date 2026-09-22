@@ -25,11 +25,21 @@ const makeSummaryEvent = (body: string, extra?: Record<string, unknown>) =>
     ...extra,
   });
 
-const makeThreadEvent = (
-  id: string,
-  threadRootId: string,
-  content: Record<string, unknown>
-) => ({
+describe('confirmed summary selection', () => {
+  it.each(['sending', 'not_sent', 'queued', 'encrypting', 'cancelled'])(
+    'keeps the saved summary while the replacement is %s',
+    (status) => {
+      expect(
+        getLatestThreadSummaryInfo([
+          makeSummaryEvent('Saved summary'),
+          { ...makeSummaryEvent('Unsent summary'), status },
+        ])?.summaryText
+      ).toBe('Saved summary');
+    }
+  );
+});
+
+const makeThreadEvent = (id: string, threadRootId: string, content: Record<string, unknown>) => ({
   ...makeEvent(content),
   getId: () => id,
   threadRootId,
@@ -49,9 +59,9 @@ describe('isMindroomThreadSummaryEvent', () => {
   });
 
   it('returns false when thread_summary metadata is absent', () => {
-    expect(
-      isMindroomThreadSummaryEvent(makeEvent({ msgtype: 'm.notice', body: 'hi' }))
-    ).toBe(false);
+    expect(isMindroomThreadSummaryEvent(makeEvent({ msgtype: 'm.notice', body: 'hi' }))).toBe(
+      false
+    );
   });
 
   it('returns false for empty content', () => {
@@ -217,9 +227,7 @@ describe('buildThreadSummaryMap', () => {
   });
 
   it('returns empty map when no summary events', () => {
-    const events = [
-      makeThreadEvent('evt-1', 'root-1', { msgtype: 'm.text', body: 'hello' }),
-    ];
+    const events = [makeThreadEvent('evt-1', 'root-1', { msgtype: 'm.text', body: 'hello' })];
     const map = buildThreadSummaryMap(events);
     expect(map.size).toBe(0);
   });
@@ -305,6 +313,50 @@ describe('getLatestThreadSummaryInfoFromEventSources', () => {
 });
 
 describe('pickLatestThreadSummaryInfo', () => {
+  it('ignores summary dates outside the backend wire range in either candidate order', () => {
+    const invalid = {
+      summaryText: 'Unsupported date',
+      generatedTs: Date.parse('+275760-09-13T00:00:00.000Z'),
+      messageCount: 99,
+    };
+    const valid = { summaryText: 'Accepted replacement', generatedTs: 1000 };
+    expect(pickLatestThreadSummaryInfo(invalid, valid)).toEqual(valid);
+    expect(pickLatestThreadSummaryInfo(valid, invalid)).toEqual(valid);
+    expect(pickLatestThreadSummaryInfo(invalid)).toBeUndefined();
+  });
+
+  it.each([undefined, 99])(
+    'keeps a dated manual edit ahead of legacy summaries with count %s',
+    (messageCount) => {
+      const legacy = { summaryText: 'Old legacy summary', messageCount };
+      const manual = { summaryText: 'Human replacement', isManual: true, generatedTs: 1000 };
+      expect(pickLatestThreadSummaryInfo(legacy, manual)).toEqual(manual);
+      expect(pickLatestThreadSummaryInfo(manual, legacy)).toEqual(manual);
+    }
+  );
+
+  it.each([
+    [0, 1, 2],
+    [0, 2, 1],
+    [1, 0, 2],
+    [1, 2, 0],
+    [2, 0, 1],
+    [2, 1, 0],
+  ])(
+    'keeps the newer agent summary across mixed legacy/manual source order %s/%s/%s',
+    (first, second, third) => {
+      const sources = [
+        { summaryText: 'New agent summary', generatedTs: 200 },
+        { summaryText: 'Legacy summary', messageCount: 99 },
+        { summaryText: 'Older manual summary', generatedTs: 100, isManual: true },
+      ];
+      expect(pickLatestThreadSummaryInfo(sources[first], sources[second], sources[third])).toEqual({
+        summaryText: 'New agent summary',
+        generatedTs: 200,
+      });
+    }
+  );
+
   it('prefers the summary with the newer generated timestamp', () => {
     expect(
       pickLatestThreadSummaryInfo(

@@ -28,10 +28,11 @@ export function MindroomThreadSummaryCard({
   const glassRef = useGlassHighlight<HTMLDivElement>();
   const { t } = useTranslation();
   const summaryText = summaryInfo.summaryText ?? t('sharedUi.threadSummary.title');
-  const provenanceLabel =
-    typeof summaryInfo.messageCount === 'number'
-      ? t('sharedUi.threadSummary.provenanceCount', { count: summaryInfo.messageCount })
-      : t('sharedUi.threadSummary.provenance');
+  const provenanceLabel = summaryInfo.isManual
+    ? t('sharedUi.threadSummary.manual')
+    : typeof summaryInfo.messageCount === 'number'
+    ? t('sharedUi.threadSummary.provenanceCount', { count: summaryInfo.messageCount })
+    : t('sharedUi.threadSummary.provenance');
 
   return (
     <Box
@@ -39,7 +40,11 @@ export function MindroomThreadSummaryCard({
       className={css.ThreadSummaryCard}
       direction="Column"
       gap="100"
-      aria-label={t('mindroomUi.messages.mindroomThreadSummaryCard.aiThreadSummary')}
+      aria-label={t(
+        summaryInfo.isManual
+          ? 'sharedUi.threadSummary.title'
+          : 'mindroomUi.messages.mindroomThreadSummaryCard.aiThreadSummary'
+      )}
     >
       <Box className={css.ThreadSummaryHeader}>
         <Box as="span" className={css.ThreadSummaryLabel}>

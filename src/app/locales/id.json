@@ -278,6 +278,28 @@
     "voiceStillSending": "Pesan suara lain masih dikirim. Tunggu sebelum merekam lagi.",
     "voiceBundleBlocked": "Pengiriman lampiran lain masih berlangsung atau perlu ditangani. Tunggu hingga selesai, atau coba lagi maupun hapus lampiran yang gagal, lalu kirim ulang pesan ini."
   },
+  "threadActions": {
+    "more": "Opsi utas",
+    "open": "Buka utas",
+    "tags": "Edit tag",
+    "editSummary": "Edit ringkasan",
+    "regenerate": "Buat ulang ringkasan",
+    "reopen": "Buka kembali utas",
+    "copy": "Salin tautan utas",
+    "summary": "Ringkasan",
+    "summaryHint": "Pengeditan manual menghentikan pembaruan ringkasan otomatis. Anda dapat mengedit atau membuat ulang ringkasan kapan saja.",
+    "length": "{{count}} / {{max}} karakter",
+    "agent": "Agen",
+    "noAgents": "Tidak ada agen yang bergabung di ruang ini",
+    "regenerateHint": "Minta agen memperbarui ringkasan utas ini. Agen memerlukan alat ringkasan utas.",
+    "requested": "Permintaan dikirim. Ringkasan akan diperbarui setelah agen menyelesaikannya. Periksa utas untuk melihat responsnya.",
+    "failed": "Tindakan ini tidak dapat diselesaikan. Coba lagi.",
+    "save": "Simpan ringkasan",
+    "sendRequest": "Kirim permintaan",
+    "saving": "Mengirim…",
+    "cancel": "Batal",
+    "done": "Selesai"
+  },
   "thread": {
     "pinFailed": "Tidak dapat memperbarui sematan. Coba lagi.",
     "chip": "Utas",
@@ -1315,6 +1337,7 @@
       "tools_other": "{{count, number}} alat"
     },
     "threadSummary": {
+      "manual": "Ringkasan yang diedit secara manual",
       "title": "Ringkasan utas",
       "provenance": "Ringkasan utas yang dibuat AI",
       "provenanceCount_one": "Ringkasan AI dari {{count, number}} pesan terakhir",
