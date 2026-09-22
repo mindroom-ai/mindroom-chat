@@ -110,7 +110,7 @@ afterEach(() => {
 
 describe('compact card formatting work', () => {
   it('skips formatting unchanged values even when records and cache coverage are rebuilt', () => {
-    const format = vi.spyOn(Intl, 'NumberFormat');
+    const format = vi.spyOn(Intl.NumberFormat.prototype, 'format', 'get');
     const harness = mount(room, [record('$a'), record('$b')]);
     const original = harness.models;
     expect(format).toHaveBeenCalledTimes(2);
