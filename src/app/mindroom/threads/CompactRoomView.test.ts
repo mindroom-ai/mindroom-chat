@@ -155,6 +155,8 @@ vi.mock('./CompactRoomView.css', () => ({
   View: 'View',
   EmptyState: 'EmptyState',
   CardAction: 'CardAction',
+  CardQuickAction: 'CardQuickAction',
+  CardMenuButton: 'CardMenuButton',
   CardShell: 'CardShell',
   PinnedSection: 'PinnedSection',
 }));
@@ -414,7 +416,7 @@ describe('CompactRoomView', () => {
       resolveButton.props.onClick();
     });
 
-    expect(resolveButton.findAll((node) => node.children.includes('Resolve'))).toHaveLength(1);
+    expect(resolveButton.props['aria-label']).toBe('Resolve');
     expect(setResolvedMock).toHaveBeenCalledWith('$thread-resolve', true);
     expect(onThreadClick).not.toHaveBeenCalled();
   });

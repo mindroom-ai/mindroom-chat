@@ -4,6 +4,8 @@ import { DefaultReset, color, config } from 'folds';
 import { footerInset, topInset, Scroll } from './RoomOverlay.css';
 import { transition } from '../../styles/transition';
 
+const touchActions = '(max-width: 480px), (hover: none)';
+
 export const View = style([
   Scroll,
   {
@@ -62,6 +64,11 @@ export const Card = style([
       outline: `${config.borderWidth.B300} solid ${color.Primary.Main}`,
       outlineOffset: '1px',
     },
+    '@media': {
+      [touchActions]: {
+        paddingInlineEnd: '3rem',
+      },
+    },
   },
 ]);
 
@@ -82,14 +89,13 @@ export const CardAction = style({
   transform: 'translateY(-50%)',
   transition: transition(['opacity']),
   '@media': {
-    '(max-width: 480px), (hover: none)': {
-      position: 'static',
-      justifyContent: 'flex-end',
+    [touchActions]: {
+      insetInlineEnd: config.space.S100,
+      top: config.space.S100,
       transform: 'none',
       opacity: 1,
       pointerEvents: 'auto',
       backgroundColor: 'transparent',
-      padding: config.space.S100,
       selectors: {
         '&::before': {
           display: 'none',
@@ -106,6 +112,23 @@ export const CardAction = style({
       width: config.space.S500,
       pointerEvents: 'none',
       background: `linear-gradient(to right, transparent, ${color.SurfaceVariant.ContainerHover})`,
+    },
+  },
+});
+
+export const CardQuickAction = style({
+  '@media': {
+    [touchActions]: {
+      display: 'none',
+    },
+  },
+});
+
+export const CardMenuButton = style({
+  '@media': {
+    [touchActions]: {
+      width: '2.5rem',
+      height: '2.5rem',
     },
   },
 });

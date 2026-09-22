@@ -2,6 +2,19 @@
 
 ## Runbook
 
+### Simplify compact thread controls (2026-09-22)
+
+- Status: implemented and independently approved; hosted review and full browser validation pending.
+- Compact cards use borderless Resolve and Pin icons on desktop hover or keyboard focus.
+  A horizontal menu icon replaces the filled vertical overflow control.
+- Narrow and touch layouts keep only the menu button inside each card, with reserved inline space so it cannot cover text.
+  Resolve and Pin remain available through the shared thread menu; the extra action row below every card is removed.
+- Browser coverage checks desktop hover stability, keyboard access, narrow RTL geometry, touch input, and resolution through the menu without opening a thread.
+  The new narrow-layout assertion fails against the previous production build.
+- All 5,218 unit tests pass in the Node 24 container, along with application typecheck, production build, formatting, and lint with zero errors and 17 existing warnings.
+  Focused Chromium checks pass for desktop and touch actions, menu pin/unpin, shared thread menus, and pinned-thread permissions.
+  Light and Butter screenshots use synthetic fixtures.
+
 ### Reduce compact-card formatting and repeated history scans (2026-09-21)
 
 - Status: implemented and independently approved as a processing-cost follow-up to #315.
