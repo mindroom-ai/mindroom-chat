@@ -5,7 +5,10 @@ import type { Room } from 'matrix-js-sdk/lib/models/room';
 import type { CompactThreadCardViewModel, ThreadRecord } from './types';
 
 vi.mock('../../hooks/useMatrixClient', () => ({
-  useMatrixClient: () => ({ getUserId: () => '@me:server' }),
+  useMatrixClient: () => ({
+    getUserId: () => '@me:server',
+    getHomeserverUrl: () => 'https://matrix.example',
+  }),
 }));
 
 vi.mock('../../hooks/useMediaAuthentication', () => ({
@@ -19,6 +22,7 @@ const makeRoom = (): Room =>
   ({
     roomId: '!room:server',
     getMember: () => undefined,
+    getMembers: () => [],
   } as unknown as Room);
 
 const makeRecord = (threadRootId: string, messageCount: number): ThreadRecord =>

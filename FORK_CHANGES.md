@@ -2,6 +2,29 @@
 
 ## Runbook
 
+### Reduce compact-card formatting and repeated history scans (2026-09-21)
+
+- Status: implemented and independently approved as a processing-cost follow-up to #315.
+  Neither the original short-history probe nor the controlled long-history comparison establishes a scrolling improvement.
+- A production CPU profile identifies repeated message-count formatting and plural translation while rebuilding every card's view model after a streamed edit.
+  The existing output cache preserved React identities only after that formatting work had completed.
+- Compare presentation and status values before building a card; ignore cache-coverage and position changes that cannot affect its output.
+  Snapshot room member names and avatars once per selector pass, including people mentioned outside a thread's participant list.
+  Account, locale, translation, media authentication, native token, homeserver, and timezone context invalidate reuse.
+  Scheduled rows retain their existing clock-based formatting cadence.
+- Build one visible-reply snapshot per synchronous thread-record update and share it across presentation, counts, participants, unread status, and send state.
+  Each new update rescans current events, preserving in-place redaction and decryption.
+  Raw reply-count and participant maps retain their distinct duplicate-ID and per-root rules.
+- Deterministic work-count and freshness regressions cover rebuilt records, member changes, inline mentions, account changes, locale, media authentication, send state, tags, and scheduled countdowns.
+  All 5,218 tests pass, along with application and focused-test typechecks, production build, formatting, and lint with zero errors and 17 existing warnings.
+  Production Chromium checks pass for compact menus, the thread bar, hover controls, and cached-to-live summary upgrades.
+- A controlled production Chromium comparison mounts 500 cards with approximately 48,000 synthetic SDK events and sends 40 real message edits during a native scroll.
+  Four samples per build in baseline/follow-up/follow-up/baseline order show median JavaScript time of 2,300 ms before and 1,859 ms after, while total task time is essentially unchanged at 3,227 ms and 3,248 ms.
+  The fixture fixes browser time to avoid relative-time ticker aging, keeps long-history assignments stable, and confirms receipt of each burst's final edit.
+  Its synthetic history follows the edited historical reply, so the latest visible preview can remain unchanged; this measures refresh processing rather than a live agent preview or scrolling FPS.
+  Earlier apparent idle/scroll gains were confounded by timestamp aging and are not evidence for this change.
+- Next steps: complete hosted review and capture a Chrome trace from the affected workload if scrolling lag persists; total browser work and scrolling speed remain unproven.
+
 ### Restore compact-list performance after thread actions (2026-09-21)
 
 - Status: implemented and independently approved as a performance follow-up to #314 after reported compact-list scrolling lag.
@@ -21,6 +44,7 @@
 - Production Chromium checks pass for compact menus, the thread bar, hover controls, and cached-to-live summary upgrades.
   The existing live probe mounts all 400 cards in both builds; 40 streaming edits consume 10,694 ms of main-thread task time before the fix and 10,188 ms after it in single runs.
   That short-history whole-app probe shows a much smaller change than the isolated benchmarks and does not establish a scrolling frame-rate improvement.
+- Next steps: profile the reported long-history workload; the follow-up above evaluates card formatting before further optimization.
 
 ### Shared thread context menu (2026-09-21)
 
