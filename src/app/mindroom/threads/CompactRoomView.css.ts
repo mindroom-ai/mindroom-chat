@@ -81,6 +81,22 @@ export const CardAction = style({
   pointerEvents: 'none',
   transform: 'translateY(-50%)',
   transition: transition(['opacity']),
+  '@media': {
+    '(max-width: 480px), (hover: none)': {
+      position: 'static',
+      justifyContent: 'flex-end',
+      transform: 'none',
+      opacity: 1,
+      pointerEvents: 'auto',
+      backgroundColor: 'transparent',
+      padding: config.space.S100,
+      selectors: {
+        '&::before': {
+          display: 'none',
+        },
+      },
+    },
+  },
   selectors: {
     '&::before': {
       content: "''",

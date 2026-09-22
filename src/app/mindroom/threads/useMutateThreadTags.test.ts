@@ -3,6 +3,7 @@ import { act, create } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MatrixEvent } from 'matrix-js-sdk/lib/models/event';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
+import { EventTimeline } from 'matrix-js-sdk';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { getPendingThreadTagsContent, resetPendingThreadTagsForTests } from './threadTagPending';
 import { buildPerTagStateKey, MINDROOM_THREAD_TAGS_EVENT } from './threadTags';
@@ -144,11 +145,13 @@ describe('useMutateThreadTags', () => {
       room.getLiveTimeline = () =>
         ({
           getState: () => ({
-            ...readState(),
+            ...readState(EventTimeline.FORWARDS),
             getStateEvents: (type: string, stateKey?: string) =>
               type === 'm.room.pinned_events'
                 ? new MatrixEvent({ type, state_key: '', content: { pinned: ['$root'] } })
-                : readState()?.getStateEvents(type, stateKey),
+                : stateKey === undefined
+                ? readState(EventTimeline.FORWARDS)?.getStateEvents(type)
+                : readState(EventTimeline.FORWARDS)?.getStateEvents(type, stateKey),
           }),
         } as never);
       let snapshot!: ReturnType<typeof useMutateThreadTags>;
@@ -442,7 +445,7 @@ describe('useMutateThreadTags', () => {
     renderer.unmount();
   });
 
-  it('keeps arbitrary tag writes restricted to SDK thread roots', async () => {
+  it('adds tags to confirmed standalone roots shown in the compact view', async () => {
     const room = makeRoom([], {
       $standalone: makeStandaloneMessageEvent('$standalone'),
     });
@@ -461,8 +464,13 @@ describe('useMutateThreadTags', () => {
       await snapshot?.addTag('$standalone', 'triage');
     });
 
-    expect(sendStateEvent).not.toHaveBeenCalled();
-    expect(snapshot?.error?.message).toBe('Thread tags are only available for known thread roots.');
+    expect(sendStateEvent).toHaveBeenCalledWith(
+      '!room:example.org',
+      MINDROOM_THREAD_TAGS_EVENT,
+      expect.objectContaining({ set_by: '@alice:example.org' }),
+      '["$standalone","triage"]'
+    );
+    expect(snapshot?.error).toBeNull();
 
     renderer.unmount();
   });

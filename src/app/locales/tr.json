@@ -278,6 +278,28 @@
     "voiceStillSending": "Başka bir sesli mesaj hâlâ gönderiliyor. Yeniden kaydetmeden önce lütfen bekleyin.",
     "voiceBundleBlocked": "Başka bir ekin gönderimi sürüyor veya müdahale gerekiyor. Tamamlanmasını bekleyin ya da başarısız ekleri yeniden deneyin veya kaldırın, ardından bu mesajı tekrar gönderin."
   },
+  "threadActions": {
+    "more": "Konu seçenekleri",
+    "open": "Konuyu aç",
+    "tags": "Etiketleri düzenle",
+    "editSummary": "Özeti düzenle",
+    "regenerate": "Özeti yeniden oluştur",
+    "reopen": "Konuyu yeniden aç",
+    "copy": "Konu bağlantısını kopyala",
+    "summary": "Özet",
+    "summaryHint": "En fazla 300 karakterlik düz metin kullanın. Daha sonraki otomatik özetler bu metnin yerini alabilir.",
+    "length": "{{count}} / {{max}} karakter",
+    "agent": "Ajan",
+    "noAgents": "Bu odada katılmış bir ajan yok",
+    "regenerateHint": "Bir ajandan bu konunun özetini yenilemesini isteyin. Ajanın konu özeti aracına ihtiyacı vardır.",
+    "requested": "İstek gönderildi. Ajan işlemi tamamladığında özet güncellenecek. Yanıtı için konuyu kontrol edin.",
+    "failed": "Bu işlem tamamlanamadı. Lütfen tekrar deneyin.",
+    "save": "Özeti kaydet",
+    "sendRequest": "İstek gönder",
+    "saving": "Gönderiliyor…",
+    "cancel": "İptal",
+    "done": "Bitti"
+  },
   "thread": {
     "pinFailed": "Sabitleme güncellenemedi. Lütfen tekrar deneyin.",
     "chip": "Konu",
@@ -1315,6 +1337,7 @@
       "tools_other": "{{count, number}} araç"
     },
     "threadSummary": {
+      "manual": "Elle düzenlenmiş özet",
       "title": "Konu özeti",
       "provenance": "Yapay zekâ tarafından oluşturulan konu özeti",
       "provenanceCount_one": "Son {{count, number}} mesajın yapay zekâ özeti",

@@ -2,6 +2,27 @@
 
 ## Runbook
 
+### Compact thread context menu (2026-09-21)
+
+- Status: implemented, independently reviewed, and validated.
+- Right-click, keyboard context-menu shortcuts, and a more button expose thread navigation, tags, manual summary edits, agent summary requests, resolve/reopen, admin pinning, and links.
+- Reuse shared thread tags, pins, summary notices, and navigation; mount one action menu for the selected card.
+- Manual summaries save as user-authored notices and can be superseded by later automatic summaries.
+  Regeneration requests mention a selected joined agent and ask it to use the existing thread summary tool.
+- Consulted Claude on summary writes; chose direct manual notices for deterministic edits and agent requests for regeneration, without claiming backend summary pinning.
+- Baseline: 5,120 tests pass with four failures on the host before changes.
+  Three Xcode script tests require standard Unix paths missing on this host; the caption-send test passes under Node 24.
+- Manual saves publish accepted notices through shared summary state immediately, including zero-reply roots, and preserve manual provenance in the cache.
+  Failed local echoes are cancelled so retries remain possible and unsent summaries cannot replace saved titles.
+- Validation: all 5,149 unit tests pass under Node 24; application and focused-test typechecks, production build, formatting, and lint pass with 17 existing warnings.
+  The production Chromium context-menu flow, summary consistency, compact hover controls, and summary cache upgrades pass.
+  The cache-upgrade fixture now preserves the existing database version instead of requesting obsolete schema version 3.
+  Narrow and touch layouts keep controls below card content, preventing hover controls from intercepting card clicks.
+- The full browser scheduler completed 120 jobs: 100 passed, 18 failed, and two were blocked by missing external SSO and worker-computer fixtures.
+  Fixed the summary-cache fixture and narrow-card failures; all seven focused cases now pass across Chromium and WebKit, including offline overviews, hover controls, pinning, and the new menu.
+  Fifteen unrelated failing jobs remain in login navigation, audio, favicon referrers, glass styling, thread preloading, and scroll/virtualization checks.
+- Independent review verified permissions, pending operations, focus restoration, touch controls, and shared summary selection with no remaining blockers.
+
 ### Edit the latest thread message with Up-arrow (2026-09-21)
 
 - The empty-composer Up-arrow shortcut searches the active thread's live timeline when a thread is open.

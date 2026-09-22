@@ -43,6 +43,16 @@ describe('buildPreferredThreadSummaryMap', () => {
 });
 
 describe('shouldWriteThreadSummaryToCache', () => {
+  it('refreshes manual provenance when an older cache has the same summary text and timestamp', () => {
+    const cached = { summaryText: 'Summary', generatedTs: 1000 };
+    const live = { ...cached, isManual: true };
+    expect(shouldWriteThreadSummaryToCache(cached, live)).toBe(true);
+    expect(
+      buildPreferredThreadSummaryMap(new Map([['$root', cached]]), new Map([['$root', live]])).get(
+        '$root'
+      )?.isManual
+    ).toBe(true);
+  });
   it('does not overwrite a newer cached summary with an older loaded summary', () => {
     expect(
       shouldWriteThreadSummaryToCache(

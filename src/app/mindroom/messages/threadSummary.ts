@@ -10,6 +10,7 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 // ── Original: content-level helpers (used by RenderMessageContent / MsgTypeRenderers) ──
 
 type MindroomThreadSummaryMetadata = {
+  model?: unknown;
   version?: unknown;
   generated_at?: unknown;
   message_count?: unknown;
@@ -17,6 +18,7 @@ type MindroomThreadSummaryMetadata = {
 };
 
 export type MindroomThreadSummaryInfo = {
+  isManual?: boolean;
   summaryText?: string;
   generatedTs?: number;
   messageCount?: number;
@@ -79,7 +81,10 @@ export const pickLatestThreadSummaryInfo = (
       return;
     }
 
-    if (candidate.summaryText !== preferred.summaryText) {
+    if (
+      candidate.summaryText !== preferred.summaryText ||
+      candidate.isManual !== preferred.isManual
+    ) {
       preferred = candidate;
     }
   });
@@ -164,6 +169,7 @@ export const getMindroomThreadSummaryInfo = (
     (!hasNewContent ? asNonEmptyString(metadata.summary) ?? summaryBody : undefined);
 
   return {
+    ...(metadata.model === 'manual' ? { isManual: true } : {}),
     summaryText,
     generatedTs: asTimestamp(metadata.generated_at),
     messageCount: asMessageCount(metadata.message_count),
@@ -176,10 +182,12 @@ export const formatMindroomThreadSummaryMessageCount = (count: number): string =
 // ── CINNY-003b: event-level helpers (used by RoomTimeline) ─────────
 
 type ThreadSummaryEventLike = {
+  status?: string | null;
   getContent(): Record<string, unknown>;
 };
 
 export const isMindroomThreadSummaryEvent = (event: ThreadSummaryEventLike): boolean => {
+  if (event.status != null && event.status !== 'sent') return false;
   const content = event.getContent();
   const msgtype = content.msgtype;
   if (msgtype !== 'm.notice') return false;
@@ -239,7 +247,9 @@ export const getLatestThreadSummaryInfoFromEventSources = <T extends ThreadSumma
   ...eventSources: Array<T[] | undefined>
 ): MindroomThreadSummaryInfo | undefined =>
   pickLatestThreadSummaryInfo(
-    ...eventSources.map((events) => (events?.length ? getLatestThreadSummaryInfo(events) : undefined))
+    ...eventSources.map((events) =>
+      events?.length ? getLatestThreadSummaryInfo(events) : undefined
+    )
   );
 
 export const findLatestThreadSummaryEventFromEventSources = <T extends ThreadSummaryEventLike>(

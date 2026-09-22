@@ -1,11 +1,14 @@
 import React, {
   type MutableRefObject,
+  lazy,
+  Suspense,
   useCallback,
   useEffect,
   useLayoutEffect,
   useRef,
+  useState,
 } from 'react';
-import { Box, Button, Icon, Icons, Text } from 'folds';
+import { Box, Button, Icon, IconButton, Icons, Text, type RectCords } from 'folds';
 import { useTranslation } from 'react-i18next';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
 import { useCompactThreadCardViewModels } from './compactThreadCardViewModel';
@@ -17,6 +20,10 @@ import { InsetScrollbar } from '../../components/inset-scrollbar/InsetScrollbar'
 import * as overlay from './RoomOverlay.css';
 import { useThreadPinning } from './useThreadPinning';
 import { isConfirmedMatrixEventId } from './threadRouteUtils';
+
+const CompactThreadMenu = lazy(() =>
+  import('./CompactThreadMenu').then((module) => ({ default: module.CompactThreadMenu }))
+);
 
 export type CompactRoomViewProps = {
   room: Room;
@@ -30,6 +37,14 @@ type ScrollRestoreState = {
   roomId: string;
   targetScrollTop: number;
   lastAppliedScrollTop: number;
+};
+
+type CompactThreadMenuState = {
+  roomId: string;
+  rootId: string;
+  anchor: RectCords;
+  trigger?: HTMLElement;
+  viewModel: CompactThreadCardViewModel;
 };
 
 export function CompactRoomView({
@@ -50,6 +65,31 @@ export function CompactRoomView({
   });
   const { canToggle, setResolved, updatingThreadRootIds, error } = useToggleThreadResolution(room);
   const pinning = useThreadPinning(room);
+  const [menu, setMenu] = useState<CompactThreadMenuState>();
+  const menuRef = useRef<CompactThreadMenuState>();
+  const openMenu = (nextMenu: CompactThreadMenuState) => {
+    menuRef.current = nextMenu;
+    setMenu(nextMenu);
+  };
+  const closeMenu = (selectedMenu: CompactThreadMenuState) => {
+    if (menuRef.current !== selectedMenu) return;
+    menuRef.current = undefined;
+    setMenu(undefined);
+    const trigger = selectedMenu.trigger?.isConnected
+      ? selectedMenu.trigger
+      : viewRef.current?.querySelector<HTMLButtonElement>(
+          `[data-thread-root-id="${CSS.escape(selectedMenu.rootId)}"]`
+        ) ?? viewRef.current;
+    trigger?.focus();
+  };
+  const menuModel =
+    menu?.roomId === room.roomId
+      ? cardViewModels.find((model) => model.id.threadRootId === menu.rootId) ?? menu.viewModel
+      : undefined;
+  useLayoutEffect(() => {
+    menuRef.current = undefined;
+    setMenu(undefined);
+  }, [room.roomId]);
   const pinnedCards = cardViewModels.filter((model) =>
     pinning.pinnedEventIds.includes(model.id.threadRootId)
   );
@@ -140,52 +180,99 @@ export function CompactRoomView({
     const showResolveAction = canToggle && !viewModel.isResolved && !pinned;
     const showPinAction = pinning.canPin && isConfirmedMatrixEventId(rootId);
     return (
-      <div key={rootId} className={css.CardShell}>
+      <div
+        key={rootId}
+        className={css.CardShell}
+        onContextMenu={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          openMenu({
+            roomId: room.roomId,
+            rootId,
+            viewModel,
+            anchor: { x: event.clientX, y: event.clientY, width: 0, height: 0 },
+            trigger:
+              event.currentTarget.querySelector<HTMLButtonElement>('[data-thread-root-id]') ??
+              undefined,
+          });
+        }}
+        onKeyDown={(event) => {
+          if (event.key !== 'ContextMenu' && !(event.shiftKey && event.key === 'F10')) return;
+          event.preventDefault();
+          event.stopPropagation();
+          openMenu({
+            roomId: room.roomId,
+            rootId,
+            viewModel,
+            anchor: event.currentTarget.getBoundingClientRect(),
+            trigger: event.target as HTMLElement,
+          });
+        }}
+      >
         <CompactThreadCard viewModel={viewModel} onClick={handleCardClick} />
-        {(showResolveAction || showPinAction) && (
-          <div className={css.CardAction}>
-            {showResolveAction && (
-              <Button
-                type="button"
-                size="300"
-                variant="Secondary"
-                fill="Soft"
-                outlined
-                radii="300"
-                disabled={pinning.updating || updatingThreadRootIds.has(rootId)}
-                onClick={() => handleResolve(rootId)}
-                data-compact-thread-resolve="true"
-              >
-                <Text as="span" size="T200">
-                  {t('thread.resolve')}
-                </Text>
-              </Button>
-            )}
-            {showPinAction && (
-              <Button
-                type="button"
-                size="300"
-                variant="Secondary"
-                fill="Soft"
-                outlined
-                radii="300"
-                disabled={pinning.updating || updatingThreadRootIds.has(rootId)}
-                onClick={() => pinning.setPinned(rootId, !pinned)}
-                data-compact-thread-pin="true"
-              >
-                <Text as="span" size="T200">
-                  {t(pinned ? 'threadNav.unpin' : 'threadNav.pin')}
-                </Text>
-              </Button>
-            )}
-          </div>
-        )}
+        <div className={css.CardAction}>
+          {showResolveAction && (
+            <Button
+              type="button"
+              size="300"
+              variant="Secondary"
+              fill="Soft"
+              outlined
+              radii="300"
+              disabled={pinning.updating || updatingThreadRootIds.has(rootId)}
+              onClick={() => handleResolve(rootId)}
+              data-compact-thread-resolve="true"
+            >
+              <Text as="span" size="T200">
+                {t('thread.resolve')}
+              </Text>
+            </Button>
+          )}
+          {showPinAction && (
+            <Button
+              type="button"
+              size="300"
+              variant="Secondary"
+              fill="Soft"
+              outlined
+              radii="300"
+              disabled={pinning.updating || updatingThreadRootIds.has(rootId)}
+              onClick={() => pinning.setPinned(rootId, !pinned)}
+              data-compact-thread-pin="true"
+            >
+              <Text as="span" size="T200">
+                {t(pinned ? 'threadNav.unpin' : 'threadNav.pin')}
+              </Text>
+            </Button>
+          )}
+          <IconButton
+            type="button"
+            size="300"
+            variant="Secondary"
+            fill="Soft"
+            radii="300"
+            aria-label={t('threadActions.more')}
+            aria-haspopup="menu"
+            aria-expanded={menu?.rootId === rootId && !!menuModel}
+            onClick={(event: React.MouseEvent<HTMLButtonElement>) =>
+              openMenu({
+                roomId: room.roomId,
+                rootId,
+                viewModel,
+                anchor: event.currentTarget.getBoundingClientRect(),
+                trigger: event.currentTarget,
+              })
+            }
+          >
+            <Icon size="100" src={Icons.VerticalDots} />
+          </IconButton>
+        </div>
       </div>
     );
   };
 
   return (
-    <Box ref={viewRef} className={css.View} data-compact-room-view="true">
+    <Box ref={viewRef} className={css.View} data-compact-room-view="true" tabIndex={-1}>
       <Box ref={contentRef} direction="Column" gap="100" shrink="No">
         {!!pinning.error && (
           <Text role="alert" size="T200">
@@ -226,6 +313,23 @@ export function CompactRoomView({
         className={overlay.Scrollbar}
         label={t('threadNav.messages')}
       />
+      {menu && menuModel && (
+        <Suspense fallback={null}>
+          <CompactThreadMenu
+            key={`${room.roomId}:${menu.rootId}`}
+            room={room}
+            viewModel={menuModel}
+            anchor={menu.anchor}
+            onClose={() => closeMenu(menu)}
+            onOpenThread={() => {
+              if (menuRef.current !== menu) return;
+              menuRef.current = undefined;
+              setMenu(undefined);
+              handleCardClick(menu.rootId);
+            }}
+          />
+        </Suspense>
+      )}
     </Box>
   );
 }

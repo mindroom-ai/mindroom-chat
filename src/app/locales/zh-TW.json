@@ -278,6 +278,28 @@
     "voiceStillSending": "另一條語音訊息仍在傳送中。請等待後再重新錄製。",
     "voiceBundleBlocked": "另一個附件傳送仍在進行中或需要注意。等待，或重試或刪除失敗的附件，然後再次傳送此訊息。"
   },
+  "threadActions": {
+    "more": "討論串選項",
+    "open": "開啟討論串",
+    "tags": "編輯標籤",
+    "editSummary": "編輯摘要",
+    "regenerate": "重新產生摘要",
+    "reopen": "重新開啟討論串",
+    "copy": "複製討論串連結",
+    "summary": "摘要",
+    "summaryHint": "請使用純文字，最多 300 個字元。之後的自動摘要可能會取代此文字。",
+    "length": "{{count}} / {{max}} 個字元",
+    "agent": "代理程式",
+    "noAgents": "此聊天室中沒有已加入的代理程式",
+    "regenerateHint": "請代理程式更新此討論串的摘要。代理程式需要討論串摘要工具。",
+    "requested": "要求已傳送。代理程式完成後，摘要將會更新。請在討論串中查看其回覆。",
+    "failed": "無法完成此操作。請再試一次。",
+    "save": "儲存摘要",
+    "sendRequest": "傳送要求",
+    "saving": "正在傳送…",
+    "cancel": "取消",
+    "done": "完成"
+  },
   "thread": {
     "pinFailed": "無法更新釘選狀態。請再試一次。",
     "chip": "討論串",
@@ -1315,6 +1337,7 @@
       "tools_other": "{{count, number}} 工具"
     },
     "threadSummary": {
+      "manual": "手動編輯的摘要",
       "title": "討論串摘要",
       "provenance": "AI 產生的討論串摘要",
       "provenanceCount_one": "最後 {{count, number}} 筆訊息的 AI 摘要",

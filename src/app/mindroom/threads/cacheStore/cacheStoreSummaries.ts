@@ -46,6 +46,7 @@ export const saveCachedThreadSummary = async (
         summaryText: info.summaryText!,
         generatedTs: info.generatedTs,
         messageCount: info.messageCount,
+        ...(info.isManual ? { isManual: true } : {}),
         updatedAt: Date.now(),
       };
       store.put(record);
@@ -82,6 +83,7 @@ export const loadCachedThreadSummaries = async (
         summaryText: record.summaryText,
         generatedTs: record.generatedTs,
         messageCount: record.messageCount,
+        ...(record.isManual ? { isManual: true } : {}),
       });
       cursor.continue();
     };

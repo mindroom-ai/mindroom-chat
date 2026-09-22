@@ -73,7 +73,7 @@ export const useMutateThreadTags = (room: Room): UseMutateThreadTagsResult => {
         stateKey: string;
         eventContent: Record<string, unknown>;
       },
-      resolveThreadRootEvent: ThreadRootEventResolver = getValidThreadRootEvent
+      resolveThreadRootEvent: ThreadRootEventResolver = getResolvableThreadRootEvent
     ) => {
       if (pendingRef.current.has(threadRootId)) return;
       pendingRef.current.add(threadRootId);

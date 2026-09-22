@@ -15,7 +15,8 @@ export const shouldWriteThreadSummaryToCache = (
   return (
     cachedInfo?.summaryText !== loadedInfo.summaryText ||
     cachedInfo?.generatedTs !== loadedInfo.generatedTs ||
-    cachedInfo?.messageCount !== loadedInfo.messageCount
+    cachedInfo?.messageCount !== loadedInfo.messageCount ||
+    cachedInfo?.isManual !== loadedInfo.isManual
   );
 };
 

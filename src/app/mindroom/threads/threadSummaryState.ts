@@ -49,7 +49,8 @@ const areSummaryMapsEqual = (
     if (
       leftInfo.summaryText !== rightInfo.summaryText ||
       leftInfo.generatedTs !== rightInfo.generatedTs ||
-      leftInfo.messageCount !== rightInfo.messageCount
+      leftInfo.messageCount !== rightInfo.messageCount ||
+      leftInfo.isManual !== rightInfo.isManual
     ) {
       return false;
     }

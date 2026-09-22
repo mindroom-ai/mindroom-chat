@@ -4,6 +4,7 @@ import React from 'react';
 import { create, ReactTestInstance } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import { MindroomThreadSummaryCard } from './MindroomThreadSummaryCard';
+import { getMindroomThreadSummaryInfo } from './threadSummary';
 
 const cssSource = () =>
   readFileSync(new URL('./MindroomThreadSummaryCard.css.ts', import.meta.url), 'utf8');
@@ -59,6 +60,25 @@ const getNodeText = (value: ReactTestInstance | string): string => {
 };
 
 describe('MindroomThreadSummaryCard', () => {
+  it('labels a manually authored summary without claiming AI generation', () => {
+    const renderer = create(
+      React.createElement(MindroomThreadSummaryCard, {
+        summaryInfo: getMindroomThreadSummaryInfo({
+          msgtype: 'm.notice',
+          body: 'Handwritten summary',
+          'io.mindroom.thread_summary': {
+            version: 1,
+            model: 'manual',
+            summary: 'Handwritten summary',
+          },
+        })!,
+        renderBody: ({ body }) => React.createElement('span', null, body),
+      })
+    );
+    expect(getNodeText(renderer.root)).toContain('Manually edited summary');
+    expect(JSON.stringify(renderer.toJSON())).not.toContain('AI');
+    renderer.unmount();
+  });
   it('renders compact non-interactive AI summary provenance', () => {
     const renderer = create(
       React.createElement(MindroomThreadSummaryCard, {

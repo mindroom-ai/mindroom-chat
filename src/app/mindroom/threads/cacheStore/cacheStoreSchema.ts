@@ -185,6 +185,7 @@ export type CachedRoomLedgerRecord = {
 };
 
 export type CachedThreadSummaryRecord = {
+  isManual?: boolean;
   cacheKey: string;
   roomId: string;
   threadRootId: string;

@@ -28,7 +28,6 @@ export const readIndexedDbNames = async (page: Page): Promise<string[]> =>
 // survives app boot.
 const SESSION_DB_PREFIX = '::';
 const UNIFIED_CACHE_DB = 'mindroom-cache';
-const UNIFIED_CACHE_DB_VERSION = 3;
 
 export const getThreadSummaryCacheDbName = (sessionId: string): string =>
   `${UNIFIED_CACHE_DB}${SESSION_DB_PREFIX}${sessionId}`;
@@ -102,9 +101,11 @@ export const seedThreadSummaryCache = async ({
   }, legacyDbNames);
 
   await page.evaluate(
-    async ({ dbName, dbVersion, room, rootId, summary, generatedAt, count }) => {
+    async ({ dbName, room, rootId, summary, generatedAt, count }) => {
       await new Promise<void>((resolve, reject) => {
-        const request = indexedDB.open(dbName, dbVersion);
+        // Preserve the app's current schema on a warm profile. A cold fixture
+        // starts at version 1 so the app can apply its normal schema upgrades.
+        const request = indexedDB.open(dbName);
 
         // If this seed opens the DB before the app does, create the
         // full v3 schema (all four stores) so the app's corruption
@@ -169,7 +170,6 @@ export const seedThreadSummaryCache = async ({
     },
     {
       dbName: getThreadSummaryCacheDbName(sessionId),
-      dbVersion: UNIFIED_CACHE_DB_VERSION,
       room: roomId,
       rootId: threadRootId,
       summary: summaryText,

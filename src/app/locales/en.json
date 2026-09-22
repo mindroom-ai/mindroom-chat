@@ -278,6 +278,28 @@
     "voiceStillSending": "Another voice message is still sending. Please wait before recording again.",
     "voiceBundleBlocked": "Another attachment send is still in progress or needs attention. Wait for it, or retry or remove failed attachments, then send this message again."
   },
+  "threadActions": {
+    "more": "Thread options",
+    "open": "Open thread",
+    "tags": "Edit tags",
+    "editSummary": "Edit summary",
+    "regenerate": "Regenerate summary",
+    "reopen": "Reopen thread",
+    "copy": "Copy thread link",
+    "summary": "Summary",
+    "summaryHint": "Use plain text, up to 300 characters. Later automatic summaries may replace this text.",
+    "length": "{{count}} / {{max}} characters",
+    "agent": "Agent",
+    "noAgents": "No joined agents in this room",
+    "regenerateHint": "Ask an agent to refresh this thread’s summary. The agent needs the thread summary tool.",
+    "requested": "Request sent. The summary will update when the agent completes it. Check the thread for its response.",
+    "failed": "Could not complete this action. Please try again.",
+    "save": "Save summary",
+    "sendRequest": "Send request",
+    "saving": "Sending…",
+    "cancel": "Cancel",
+    "done": "Done"
+  },
   "thread": {
     "pinFailed": "Could not update pin. Please try again.",
     "chip": "Thread",
@@ -1319,6 +1341,7 @@
       "tools_other": "{{count, number}} tools"
     },
     "threadSummary": {
+      "manual": "Manually edited summary",
       "title": "Thread summary",
       "provenance": "AI-generated thread summary",
       "provenanceCount_one": "AI summary of last {{count, number}} message",

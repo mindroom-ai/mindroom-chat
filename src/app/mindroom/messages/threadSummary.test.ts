@@ -25,11 +25,21 @@ const makeSummaryEvent = (body: string, extra?: Record<string, unknown>) =>
     ...extra,
   });
 
-const makeThreadEvent = (
-  id: string,
-  threadRootId: string,
-  content: Record<string, unknown>
-) => ({
+describe('confirmed summary selection', () => {
+  it.each(['sending', 'not_sent', 'queued', 'encrypting', 'cancelled'])(
+    'keeps the saved summary while the replacement is %s',
+    (status) => {
+      expect(
+        getLatestThreadSummaryInfo([
+          makeSummaryEvent('Saved summary'),
+          { ...makeSummaryEvent('Unsent summary'), status },
+        ])?.summaryText
+      ).toBe('Saved summary');
+    }
+  );
+});
+
+const makeThreadEvent = (id: string, threadRootId: string, content: Record<string, unknown>) => ({
   ...makeEvent(content),
   getId: () => id,
   threadRootId,
@@ -49,9 +59,9 @@ describe('isMindroomThreadSummaryEvent', () => {
   });
 
   it('returns false when thread_summary metadata is absent', () => {
-    expect(
-      isMindroomThreadSummaryEvent(makeEvent({ msgtype: 'm.notice', body: 'hi' }))
-    ).toBe(false);
+    expect(isMindroomThreadSummaryEvent(makeEvent({ msgtype: 'm.notice', body: 'hi' }))).toBe(
+      false
+    );
   });
 
   it('returns false for empty content', () => {
@@ -217,9 +227,7 @@ describe('buildThreadSummaryMap', () => {
   });
 
   it('returns empty map when no summary events', () => {
-    const events = [
-      makeThreadEvent('evt-1', 'root-1', { msgtype: 'm.text', body: 'hello' }),
-    ];
+    const events = [makeThreadEvent('evt-1', 'root-1', { msgtype: 'm.text', body: 'hello' })];
     const map = buildThreadSummaryMap(events);
     expect(map.size).toBe(0);
   });

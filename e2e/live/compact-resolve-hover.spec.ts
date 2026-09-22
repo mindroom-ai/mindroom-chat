@@ -121,11 +121,14 @@ test.describe('compact Resolve action', () => {
     const idleCardShell = idleThreadCard.locator('xpath=..');
     const idleResolveButton = idleCardShell.locator('[data-compact-thread-resolve="true"]');
     const activateAction = (action: Locator) => (hasTouch ? action.tap() : action.click());
+    const staticActions = await page.evaluate(
+      () => matchMedia('(max-width: 480px), (hover: none)').matches
+    );
     await expect(threadCard).toBeVisible({ timeout: 30_000 });
     await expect(idleThreadCard).toBeVisible({ timeout: 30_000 });
     await expect(resolveButton).toHaveText(hasTouch ? 'Oplossen' : 'Resolve');
-    await expectActionOpacity(resolveButton, 0);
-    await expectActionOpacity(idleResolveButton, 0);
+    await expectActionOpacity(resolveButton, staticActions ? 1 : 0);
+    await expectActionOpacity(idleResolveButton, staticActions ? 1 : 0);
 
     const titleBeforeHover = await threadCard.getByText(rootBody, { exact: true }).boundingBox();
     expect(titleBeforeHover, 'title bounding box before hover').not.toBeNull();
@@ -140,13 +143,14 @@ test.describe('compact Resolve action', () => {
 
     await cardShell.hover();
     await expectActionOpacity(resolveButton, 1);
-    await expectActionOpacity(idleResolveButton, 0);
+    await expectActionOpacity(idleResolveButton, staticActions ? 1 : 0);
     const titleAfterHover = await threadCard.getByText(rootBody, { exact: true }).boundingBox();
     expect(titleAfterHover, 'title bounding box after hover').not.toBeNull();
     expect(titleAfterHover!).toEqual(titleBeforeHover!);
     const actionFade = await resolveButton.evaluate((action) => {
       const style = getComputedStyle(action.parentElement!, '::before');
       return {
+        display: style.display,
         backgroundImage: style.backgroundImage,
         width: Number.parseFloat(style.width),
         insetInlineStart: Number.parseFloat(style.insetInlineStart),
@@ -155,6 +159,7 @@ test.describe('compact Resolve action', () => {
     expect(actionFade.backgroundImage).not.toBe('none');
     expect(actionFade.width).toBeGreaterThan(0);
     expect(actionFade.insetInlineStart).toBe(-actionFade.width);
+    expect(actionFade.display).toBe(staticActions ? 'none' : 'block');
     const screenshotVariant = process.env.E2E_SCREENSHOT_VARIANT;
     if (screenshotVariant) {
       await page.screenshot({
@@ -163,11 +168,23 @@ test.describe('compact Resolve action', () => {
     }
 
     await page.mouse.move(0, 0);
-    await expectActionOpacity(resolveButton, 0);
+    await expectActionOpacity(resolveButton, staticActions ? 1 : 0);
     await threadCard.focus();
     await page.keyboard.press('Tab');
     await expect(resolveButton).toBeFocused();
     await expectActionOpacity(resolveButton, 1);
+
+    // Disabled styles must not reveal an idle desktop hover action.
+    if (!staticActions) {
+      await idleResolveButton.evaluate(async (button: HTMLButtonElement) => {
+        button.disabled = true;
+        await Promise.all(button.getAnimations().map((animation) => animation.finished));
+      });
+      await expectActionOpacity(idleResolveButton, 0);
+      await idleResolveButton.evaluate((button: HTMLButtonElement) => {
+        button.disabled = false;
+      });
+    }
 
     await page.setViewportSize({ width: 420, height: 800 });
     await page.evaluate(() => {
@@ -194,6 +211,8 @@ test.describe('compact Resolve action', () => {
         actionLeft: actionRect.left,
         actionRight: actionRect.right,
         actionWidth: actionRect.width,
+        actionTop: actionRect.top,
+        cardBottom: cardRect.bottom,
         paddingInlineEnd,
         paddingInlineStart,
         cardWidth: cardRect.width,
@@ -205,19 +224,11 @@ test.describe('compact Resolve action', () => {
     expect(layout.actionRight).toBeLessThanOrEqual(layout.shellRight);
     expect(layout.paddingInlineEnd).toBe(layout.paddingInlineStart);
     expect(layout.cardWidth).toBeGreaterThan(layout.actionWidth);
+    expect(layout.actionTop).toBeGreaterThanOrEqual(layout.cardBottom);
+    await expectActionOpacity(idleResolveButton, 1);
     expect(layout.actionLeft - layout.shellLeft).toBeLessThan(
       layout.shellRight - layout.actionRight
     );
-
-    // Disabled styles must not reveal an idle action, including on touch layouts.
-    await idleResolveButton.evaluate(async (button: HTMLButtonElement) => {
-      button.disabled = true;
-      await Promise.all(button.getAnimations().map((animation) => animation.finished));
-    });
-    await expectActionOpacity(idleResolveButton, 0);
-    await idleResolveButton.evaluate((button: HTMLButtonElement) => {
-      button.disabled = false;
-    });
 
     // Keep the first save pending while resolving another thread.
     let releaseSave!: () => void;
@@ -239,7 +250,7 @@ test.describe('compact Resolve action', () => {
     });
     await activateAction(resolveButton);
     await expect.poll(() => tagWrites.length).toBe(1);
-    await expectActionOpacity(idleResolveButton, 0);
+    await expectActionOpacity(idleResolveButton, 1);
     await expect(idleResolveButton).toBeEnabled();
     if (hasTouch) await idleThreadCard.focus();
     else await idleCardShell.hover();
