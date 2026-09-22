@@ -4,7 +4,7 @@
 
 ### Consolidate authentication recovery sources (2026-09-22)
 
-- Status: implemented and independently approved; broader browser validation is running.
+- Status: implemented and independently approved; PR #322 tracks hosted review and broader browser results.
 - Recovery lifecycle and application helpers now share typed source, while Vite emits the same classic-script URLs for cached clients.
   Runtime configuration has one loader source; Docker prepends deployment settings to the built script instead of maintaining a separate loader.
 - Both compatibility entry points remain, preserving cached predecessor HTML and older custom runtime configuration.
