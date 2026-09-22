@@ -2,7 +2,6 @@ import { createClient, Direction, Room } from 'matrix-js-sdk';
 import { FeatureSupport, Thread } from 'matrix-js-sdk/lib/models/thread';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { flushThreadSyncGap, observeActiveThreadSyncGaps } from './activeThreadSyncGaps';
-import { runThreadOpenCacheFirst } from './threadOpenCacheFirst';
 import { runThreadOpenSdkBootstrap } from './threadOpenSdkBootstrap';
 
 const settle = async () => {
@@ -135,64 +134,43 @@ describe('active thread sync gaps', () => {
     expect(threads[0].liveTimeline.getPaginationToken(Direction.Backward)).toBe('converted:back-2');
   });
 
-  it.each(['cache', 'sdk'])(
-    'stops draining later gaps when an explicit %s open closes during conversion',
-    async (mode) => {
-      const { room, threads, client } = fixture();
-      let finish!: (value: any) => void;
-      const conversion = new Promise<any>((resolve) => {
-        finish = resolve;
-      });
-      vi.mocked(client.createMessagesRequest)
-        .mockReturnValueOnce(conversion)
-        .mockReturnValueOnce(conversion);
-      room.resetLiveTimeline('back', 'forward');
-      let current = true;
-      const hydrate = vi.fn();
-      const getThreadTimeline = vi.spyOn(client, 'getThreadTimeline').mockResolvedValue(undefined);
-      const notify = vi.fn();
-      const opening =
-        mode === 'cache'
-          ? runThreadOpenCacheFirst({
-              room,
-              threadId: threads[0].id,
-              isCurrentThreadOpen: () => current,
-              debugTraceId: undefined,
-              hydrateThreadFromCache: hydrate,
-              notifyEventsChanged: notify,
-              onCacheHydrated: vi.fn(),
-              pinThreadToBottomOnOpen: vi.fn(),
-              scheduleReconcile: vi.fn().mockResolvedValue(undefined),
-              setSupplementalThreadEvents: vi.fn(),
-              shouldScrollToLatestOnOpen: false,
-              threadOpenSeedSession: { applyInitialUntargetedThreadSeed: vi.fn() },
-            })
-          : runThreadOpenSdkBootstrap({
-              room,
-              mx: client,
-              threadId: threads[0].id,
-              isMounted: () => current,
-              debugTraceId: undefined,
-              onBootstrap: notify,
-              persistThreadEventCache: vi.fn(),
-              pinThreadToBottomOnOpen: vi.fn(),
-              setSupplementalThreadEvents: vi.fn(),
-              shouldScrollToLatestOnOpen: false,
-            });
-      await settle();
-      expect(threads[0].timelineSet.getTimelines()).toHaveLength(2);
-      current = false;
-      room.resetLiveTimeline('back-2', 'forward-2');
-      finish({ chunk: [], start: 'converted-forward', end: 'converted-back' });
-      await opening;
-      expect(threads[0].timelineSet.getTimelines()).toHaveLength(2);
-      expect(hydrate).toHaveBeenCalledTimes(mode === 'cache' ? 1 : 0);
-      expect(getThreadTimeline).not.toHaveBeenCalled();
-      expect(notify).not.toHaveBeenCalled();
-      await flushThreadSyncGap(threads[0]);
-      expect(threads[0].timelineSet.getTimelines()).toHaveLength(3);
-    }
-  );
+  it('stops draining later gaps when SDK bootstrap closes during conversion', async () => {
+    const { room, threads, client } = fixture();
+    let finish!: (value: any) => void;
+    const conversion = new Promise<any>((resolve) => {
+      finish = resolve;
+    });
+    vi.mocked(client.createMessagesRequest)
+      .mockReturnValueOnce(conversion)
+      .mockReturnValueOnce(conversion);
+    room.resetLiveTimeline('back', 'forward');
+    let current = true;
+    const getThreadTimeline = vi.spyOn(client, 'getThreadTimeline').mockResolvedValue(undefined);
+    const notify = vi.fn();
+    const opening = runThreadOpenSdkBootstrap({
+      room,
+      mx: client,
+      threadId: threads[0].id,
+      isMounted: () => current,
+      debugTraceId: undefined,
+      onBootstrap: notify,
+      persistThreadEventCache: vi.fn(),
+      pinThreadToBottomOnOpen: vi.fn(),
+      setSupplementalThreadEvents: vi.fn(),
+      shouldScrollToLatestOnOpen: false,
+    });
+    await settle();
+    expect(threads[0].timelineSet.getTimelines()).toHaveLength(2);
+    current = false;
+    room.resetLiveTimeline('back-2', 'forward-2');
+    finish({ chunk: [], start: 'converted-forward', end: 'converted-back' });
+    await opening;
+    expect(threads[0].timelineSet.getTimelines()).toHaveLength(2);
+    expect(getThreadTimeline).not.toHaveBeenCalled();
+    expect(notify).not.toHaveBeenCalled();
+    await flushThreadSyncGap(threads[0]);
+    expect(threads[0].timelineSet.getTimelines()).toHaveLength(3);
+  });
   it.each([null, 'back'])(
     'publishes a destructive room reset after its synchronous replacement (back=%s)',
     async (back) => {

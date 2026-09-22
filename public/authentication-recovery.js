@@ -93,7 +93,7 @@
     if (!config) return Promise.resolve('disabled');
     if (navigating) return navigating;
     if (checking) return checking;
-    checking = (async function () {
+    var pending = (async function () {
       if (window.navigator.onLine === false) return 'unavailable';
       var abort = new AbortController();
       var timer = setTimeout(function () {
@@ -122,8 +122,9 @@
         clearTimeout(timer);
       }
     })().finally(function () {
-      checking = undefined;
+      if (checking === pending) checking = undefined;
     });
+    checking = pending;
     return checking;
   }
 
@@ -149,6 +150,14 @@
     // The existing sign-in action uses the same proof and budget when configured.
     navigate: config ? check : navigate,
   };
+  window.addEventListener('pageshow', function (event) {
+    if (!event.persisted) return;
+    // History restoration resumes the same document after its navigation promise settled.
+    navigating = undefined;
+    checking = undefined;
+    lastAutomaticCheck = 0;
+    if (config) automaticCheck();
+  });
   if (config) {
     window.addEventListener('focus', automaticCheck);
     window.addEventListener('online', automaticCheck);

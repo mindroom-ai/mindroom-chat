@@ -11,6 +11,53 @@ const flushAsyncWork = async (cycles = 5) => {
 };
 
 describe('runThreadOpenSdkBootstrap', () => {
+  it('loads replies when SDK context fails with only the root already present', async () => {
+    const root = makeEvent('$root', { isThreadRoot: true, ts: 1 });
+    const reply = makeEvent('$reply', {
+      relation: { rel_type: 'm.thread', event_id: '$root' },
+      threadRootId: '$root',
+      ts: 2,
+    });
+    const events = [root];
+    let backward: string | null = null;
+    const timeline = {
+      getEvents: () => events,
+      getNeighbouringTimeline: () => null,
+      getPaginationToken: () => backward,
+      setPaginationToken: (value: string | null) => {
+        backward = value;
+      },
+    };
+    const thread = {
+      id: '$root',
+      rootEvent: root,
+      events,
+      addEvents: (incoming: MatrixEvent[]) => events.push(...incoming),
+      getUnfilteredTimelineSet: () => ({ getLiveTimeline: () => timeline }),
+    };
+    const room = makeRoom({ liveEvents: [root], threads: [thread as never] });
+    const mx = {
+      getThreadTimeline: vi.fn().mockRejectedValue(new Error('context unavailable')),
+      fetchRelations: vi.fn().mockResolvedValue({ chunk: [reply.event], next_batch: 'older' }),
+      getEventMapper: () => () => reply,
+    };
+    const result = await runThreadOpenSdkBootstrap({
+      debugTraceId: undefined,
+      isMounted: () => true,
+      mx: mx as never,
+      room: room as never,
+      threadId: '$root',
+      persistThreadEventCache: vi.fn(),
+      pinThreadToBottomOnOpen: vi.fn(),
+      setSupplementalThreadEvents: vi.fn(),
+      onBootstrap: vi.fn(),
+      shouldScrollToLatestOnOpen: true,
+    });
+    expect(result).toBe(true);
+    expect(events.map((event) => event.getId())).toEqual(['$root', '$reply']);
+    expect(backward).toBe('older');
+  });
+
   it.each(['context', 'missing-thread-relations', 'empty-thread-relations'])(
     'stops after cancellation during %s without mapping or publishing fetched events',
     async (phase) => {

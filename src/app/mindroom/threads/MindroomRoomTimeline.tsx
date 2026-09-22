@@ -315,6 +315,7 @@ export function RoomTimeline({
   const {
     loadError: threadLoadError,
     initialCacheHydrated: threadInitialCacheHydrated,
+    sdkReady: threadInitialSdkLoaded,
     latestPending: threadLatestOpenPending,
     editResetEpoch,
   } = threadSnapshot.open;
@@ -597,6 +598,7 @@ export function RoomTimeline({
     room,
     threadId,
     threadInitialCacheHydrated,
+    threadInitialSdkLoaded,
     debugTraceId: threadDebugTraceId,
   });
   const approvalTimeline = useThreadApprovalTimeline(

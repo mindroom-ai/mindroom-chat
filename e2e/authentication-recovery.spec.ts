@@ -1,7 +1,18 @@
 import { createServer, type Server } from 'node:http';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { build } from 'esbuild';
 import { test, expect } from '@playwright/test';
+
+test.use({
+  launchOptions: {
+    executablePath:
+      process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE ??
+      ['/run/current-system/sw/bin/chromium', '/run/current-system/sw/bin/chromium-browser'].find(
+        existsSync
+      ),
+    ignoreDefaultArgs: ['--disable-back-forward-cache'],
+  },
+});
 
 let server: Server;
 let origin: string;
@@ -12,6 +23,8 @@ let probeStatus = 204;
 let loginReturnsShell = false;
 let oldRuntime = false;
 let currentShell = false;
+let allowBfcache = false;
+let probeCalls = 0;
 let worker: string;
 const shell = '<!doctype html><script src="/runtime-config.js"></script><h1>Cached chats</h1>';
 
@@ -44,7 +57,7 @@ async function workerSource(legacy: boolean) {
 test.beforeAll(async () => {
   server = createServer((request, response) => {
     const url = new URL(request.url!, origin);
-    response.setHeader('Cache-Control', 'no-store');
+    if (!allowBfcache) response.setHeader('Cache-Control', 'no-store');
     if (url.pathname === '/runtime-config.js') {
       response.setHeader('Content-Type', 'application/javascript');
       response.end(
@@ -73,6 +86,7 @@ test.beforeAll(async () => {
       response.setHeader('Content-Type', 'application/javascript');
       response.end("self.addEventListener('install',()=>self.skipWaiting());");
     } else if (url.pathname === '/authentication-recovery-probe') {
+      probeCalls += 1;
       response.writeHead(expired ? 401 : probeStatus);
       response.end();
     } else if (url.pathname === '/login') {
@@ -114,6 +128,8 @@ test.beforeEach(() => {
   loginReturnsShell = false;
   oldRuntime = false;
   currentShell = false;
+  allowBfcache = false;
+  probeCalls = 0;
 });
 
 async function seedStorage(page: import('@playwright/test').Page) {
@@ -279,4 +295,81 @@ test('current HTML retains explicit recovery with an unchanged custom runtime sc
   });
   await expect(page).toHaveURL(/authentication-recovery-navigation=1#event$/);
   await expect(page.getByRole('heading')).toHaveText('Cached chats');
+});
+
+test.describe('browser history restoration', () => {
+  test('rechecks restored authentication and releases the retry budget after BFCache Back', async ({
+    page,
+  }) => {
+    allowBfcache = true;
+    await page.goto(`${origin}/room`);
+    const firstBoot = await page.evaluate(() => {
+      const state = window as typeof window & {
+        recoveryBoot?: number;
+        restoredFromCache?: boolean;
+      };
+      state.recoveryBoot = Math.random();
+      window.addEventListener('pageshow', (event) => {
+        state.restoredFromCache = event.persisted;
+      });
+      return state.recoveryBoot;
+    });
+    expired = true;
+    await page.evaluate(() => {
+      void (
+        window as typeof window & { __AUTHENTICATION_RECOVERY__: { check: () => Promise<string> } }
+      ).__AUTHENTICATION_RECOVERY__.check();
+    });
+    await expect(page.getByRole('heading')).toHaveText('Proxy sign-in');
+    expect(loginVisits).toBe(1);
+    const callsBeforeBack = probeCalls;
+    await page.evaluate(() => history.back());
+    await expect
+      .poll(() =>
+        page.evaluate(
+          () => (window as typeof window & { restoredFromCache?: boolean }).restoredFromCache
+        )
+      )
+      .toBe(true);
+    const restored = await page.evaluate(async () => {
+      const state = window as typeof window & {
+        recoveryBoot?: number;
+        __AUTHENTICATION_RECOVERY__: { check: () => Promise<string> };
+      };
+      return {
+        boot: state.recoveryBoot,
+        result: await state.__AUTHENTICATION_RECOVERY__.check(),
+        budget: Object.keys(sessionStorage).filter((key) =>
+          key.includes('authentication-recovery:')
+        ),
+      };
+    });
+    expect(restored.boot).toBe(firstBoot);
+    expect(restored.result).toBe('blocked');
+    expect(restored.budget).toHaveLength(1);
+    expect(probeCalls).toBeGreaterThan(callsBeforeBack);
+    expect(loginVisits).toBe(1);
+    expired = false;
+    const healthy = await page.evaluate(async () => {
+      const state = window as typeof window & {
+        __AUTHENTICATION_RECOVERY__: { check: () => Promise<string> };
+      };
+      return {
+        result: await state.__AUTHENTICATION_RECOVERY__.check(),
+        budget: Object.keys(sessionStorage).filter((key) =>
+          key.includes('authentication-recovery:')
+        ),
+      };
+    });
+    expect(healthy.result).toBe('healthy');
+    expect(healthy.budget).toEqual([]);
+    expired = true;
+    await page.evaluate(() => {
+      void (
+        window as typeof window & { __AUTHENTICATION_RECOVERY__: { check: () => Promise<string> } }
+      ).__AUTHENTICATION_RECOVERY__.check();
+    });
+    await expect(page.getByRole('heading')).toHaveText('Proxy sign-in');
+    expect(loginVisits).toBe(2);
+  });
 });

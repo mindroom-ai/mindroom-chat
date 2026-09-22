@@ -19,7 +19,42 @@
   The full built app also recovers with a legacy worker at four startup timings, including when app worker registration happens before recovery.
 - Follow-up review fixes add exact Netlify passthrough and no-store rules for both bootstrap assets and protect generated/public loader parity.
   Both Netlify routing/header regressions and nginx integration pass; the full Node 24 suite still passes all 5,239 tests, with typecheck, production/PWA build, and lint (zero errors, 17 existing warnings).
+- Browser history restoration now discards stale navigation/check promises and probes again without resetting the per-tab retry budget before confirmed health.
+  A real Chromium back-forward cache regression confirms the same document cannot loop while expired, then clears its budget after HTTP 204 and recovers from a later expiry.
 - Deployment configuration and the exact cached-client compatibility boundary are documented in docs/authentication-recovery.md.
+
+### Load active threads independently of persistent storage (2026-09-22)
+
+- Status: implemented and independently approved in PR #319; confirmed hosted findings are resolved.
+  CI remains queued and additional hosted review is rate-limited.
+- Integrated the latest `dev`, preserving both Runbook entries; production files merged without conflicts.
+  All 5,238 unit tests pass on the integrated tree.
+- Device diagnostics show cache reads settling after their thread views closed, followed by successful reply loading after restart.
+  The failing interaction was not retained, and the diagnostic database error does not prove a failure in the separate thread database.
+- Reproduced three defects: a pending cache read blocks active-thread server loading, a root-only SDK timeline skips fallback after context failure, and an unexpectedly closed cache connection remains memoized.
+- Cache hydration and server bootstrap now start independently.
+  Cache coverage available when bootstrap completes can suppress the full history drain; later cache results add events without overwriting server pagination state.
+  Cache settlement still schedules reconciliation, while a stalled cache cannot block the SDK loading path.
+- Server readiness permits live rendering for ordinary opens and deep links before cache completion.
+  Server errors surface independently, and a later complete offline cache clears the error.
+  Root-only timelines fetch the bounded relations fallback.
+  Manual pagination uses an available server cursor directly, with cached pages retained for offline and cache-only history.
+  The complete-cache join clears both a stale SDK cursor and the matching history availability.
+  Manual loading crosses SDK pages already visible through room/cache seeds until it reaches older replies or a terminal cursor.
+- Unexpected IndexedDB closure invalidates the connection so subsequent reads reopen existing data without deleting the cache.
+- Consulted Claude on concurrent bootstrap versus moving reconciliation ahead of storage; chose concurrent bootstrap with one pagination join.
+- Regression coverage includes both completion orders, late-token preservation, offline cache, navigation lifetimes, real render-hook deep links, and forced database closure.
+  A browser probe keeps a real cache transaction open while requiring server replies and the thread summary to appear.
+- All 5,236 unit tests pass under Node 24, along with application and new-test typechecks, production build, formatting, and lint with zero errors and 17 existing warnings.
+  Focused Chromium checks pass for blocked storage, manual loading, summary consistency and cache upgrades, and message persistence.
+- Hosted review follow-ups preserve complete offline tail coverage after an earlier server failure, reject SDK callbacks after route ownership changes, and publish root readiness immediately.
+  One mapping helper now handles both relations fallback paths; independent re-review approves the follow-ups.
+- The blocked-storage browser regression fails on the unchanged base with the reply absent and passes on the fixed build.
+  The full browser scheduler completed 123 jobs on the initial fix: 105 passed, 16 failed, and two were blocked by missing external SSO and worker fixtures.
+  Failures include media, glass styling, favicon referrers, navigation, preload, and scroll probes.
+- The long-thread prepend trace exposed an SDK page entirely overlapping room-seeded replies; the final pagination fix crosses that overlap and passes three new regressions.
+  Final browser checks pass for the load button and blocked storage.
+  The prepend browser probe still fails pre-release count stability while background history arrives, and the base comparison also fails during setup; this probe does not yet confirm final scroll behavior.
 
 ### Profile a room with 1,000 streamed threads (2026-09-21)
 

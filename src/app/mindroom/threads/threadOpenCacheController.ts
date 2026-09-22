@@ -10,7 +10,7 @@ import {
   getAuthoritativeCachedThreadReplyCount,
   isCompleteCachedThreadSnapshot,
 } from './threadCacheSnapshot';
-import { buildThreadCacheCoverage, hasThreadCacheKnownBackwardStart } from './threadCacheCoverage';
+import { buildThreadCacheCoverage } from './threadCacheCoverage';
 import { saveThreadOpenSeedSnapshot } from './threadOpenSeedCache';
 import { getKnownThreadReplyCount } from './threadRecord';
 import type { HydratedThreadCachePage } from './types';
@@ -102,27 +102,6 @@ export const hydrateThreadFromCache = async (
     snapshotComplete,
     tailLoaded,
   });
-  const currentThreadTimelineSet = room.getThread(expectedThreadId)?.getUnfilteredTimelineSet();
-  const currentFirstThreadTimeline = currentThreadTimelineSet
-    ? getLinkedTimelines(currentThreadTimelineSet.getLiveTimeline())[0]
-    : undefined;
-  // 2026-07-06 review finding #1: clearing the SDK's backward token
-  // requires the RELATIONS-proven completeness proof, not just the
-  // reply-count proof — see the matching gate in
-  // threadOpenCacheFirst.ts (count-proof can be vacuous under a
-  // stale expectedReplyCount; the token is the escape hatch).
-  const cacheProvesNoBackwardGap =
-    snapshotComplete === true &&
-    cachedRelationSnapshotComplete &&
-    hasThreadCacheKnownBackwardStart(cacheCoverage);
-  const hadStaleSdkBackwardToken =
-    currentFirstThreadTimeline?.getPaginationToken(Direction.Backward) != null;
-  if (cacheProvesNoBackwardGap && currentFirstThreadTimeline && hadStaleSdkBackwardToken) {
-    currentFirstThreadTimeline.setPaginationToken(null, Direction.Backward);
-    logTimelineDebug(debugTraceId, 'thread-cache-hydrate-clear-backward-gap', {
-      threadId: expectedThreadId,
-    });
-  }
   if (cachedEvents.length === 0) {
     logTimelineDebug(debugTraceId, 'thread-cache-hydrate-empty', {
       tailLoaded,
@@ -150,9 +129,8 @@ export const hydrateThreadFromCache = async (
   });
   // CINNY-207 P5-GATE-FIX v2 (AC2 instance-race): expose the exact
   // MatrixEvent instances the render layer just received via
-  // `setSupplementalThreadEvents`. On complete-coverage cache-first
-  // reopens the SDK bootstrap is skipped by design, so these clones
-  // ARE the render's source of truth — the reconciler must apply
+  // `setSupplementalThreadEvents`. These cached clones can render
+  // before SDK bootstrap finishes, so the reconciler must apply
   // `makeReplaced`/`makeRedacted` against them (not fresh remaps)
   // for the repair to become visible. See engine/reconciler.ts.
   return {

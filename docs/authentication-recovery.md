@@ -81,6 +81,8 @@ The current document may remain controlled until it unloads, which is expected.
 
 One attempt is allowed per tab and probe URL until a later HTTP 204 confirms restored authentication.
 A failed unregister, timeout, unavailable session storage, or repeated expiry stops automatic navigation.
+When browser history restores a previous document from the back-forward cache, recovery discards its stale in-memory navigation state and probes again.
+The retry budget stays in session storage until an exact HTTP 204 confirms restored authentication.
 The configuration error screen retains its retry/offline options and reports recovery failure.
 Closing the tab ends its session-storage budget; an explicit connection retry does not clear the budget.
 Authentication policy and cross-tab coordination remain the deployment's responsibility.

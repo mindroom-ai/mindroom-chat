@@ -38,6 +38,7 @@ type UseThreadRenderStateOpts = {
   threadId?: string;
   thread: Thread | null;
   threadInitialCacheHydrated: boolean;
+  threadInitialSdkLoaded?: boolean;
   debugTraceId?: string;
 };
 
@@ -76,12 +77,14 @@ const buildThreadEvents = ({
   thread,
   fallbackEvents,
   threadInitialCacheHydrated,
+  threadInitialSdkLoaded = false,
 }: {
   room: Room;
   threadId: string;
   thread: Thread | null;
   fallbackEvents: MatrixEvent[];
   threadInitialCacheHydrated: boolean;
+  threadInitialSdkLoaded: boolean;
 }): {
   events: MatrixEvent[];
   indexMap: Map<string, number>;
@@ -89,7 +92,7 @@ const buildThreadEvents = ({
   const collectedEvents: MatrixEvent[] = [];
   const initialRenderMode = getThreadRenderStateInitialMode({
     threadId,
-    initialCacheHydrated: threadInitialCacheHydrated,
+    initialCacheHydrated: threadInitialCacheHydrated || threadInitialSdkLoaded,
     fallbackEventCount: fallbackEvents.length,
   });
 
@@ -138,6 +141,7 @@ export const useThreadRenderState = ({
   threadId,
   thread,
   threadInitialCacheHydrated,
+  threadInitialSdkLoaded = false,
   debugTraceId,
 }: UseThreadRenderStateOpts): {
   threadEventIndexMapRef: MutableRefObject<Map<string, number>>;
@@ -303,8 +307,17 @@ export const useThreadRenderState = ({
       thread,
       fallbackEvents,
       threadInitialCacheHydrated,
+      threadInitialSdkLoaded,
     });
-  }, [fallbackEvents, room, thread, threadEventRefreshTick, threadId, threadInitialCacheHydrated]);
+  }, [
+    fallbackEvents,
+    room,
+    thread,
+    threadEventRefreshTick,
+    threadId,
+    threadInitialCacheHydrated,
+    threadInitialSdkLoaded,
+  ]);
   const { events: threadEvents, indexMap: threadEventIndexMap } = threadEventState;
   useLayoutEffect(() => {
     threadEventIndexMapRef.current = threadEventIndexMap;
@@ -327,7 +340,7 @@ export const useThreadRenderState = ({
 
   const threadInitialRenderMode = getThreadRenderStateInitialMode({
     threadId,
-    initialCacheHydrated: threadInitialCacheHydrated,
+    initialCacheHydrated: threadInitialCacheHydrated || threadInitialSdkLoaded,
     fallbackEventCount:
       fallbackEvents.length + (threadId ? getPendingThreadEvents(room, threadId).length : 0),
   });
