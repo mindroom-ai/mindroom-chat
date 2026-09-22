@@ -287,7 +287,7 @@
     "reopen": "Reopen thread",
     "copy": "Copy thread link",
     "summary": "Summary",
-    "summaryHint": "Use plain text, up to 300 characters. Later automatic summaries may replace this text.",
+    "summaryHint": "Manual edits stop automatic summary updates. You can edit or regenerate the summary again at any time.",
     "length": "{{count}} / {{max}} characters",
     "agent": "Agent",
     "noAgents": "No joined agents in this room",

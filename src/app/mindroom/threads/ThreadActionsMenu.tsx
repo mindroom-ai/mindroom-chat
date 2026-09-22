@@ -19,7 +19,6 @@ import { Dialog, Menu, MenuItem } from '../../components/glass/GlassPrimitives';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { usePowerLevels } from '../../hooks/usePowerLevels';
 import { useRoomCreators } from '../../hooks/useRoomCreators';
-import { useRoomPermissions } from '../../hooks/useRoomPermissions';
 import { useRoomMembers } from '../../hooks/useRoomMembers';
 import { stopPropagation } from '../../utils/keyboard';
 import { copyToClipboard } from '../../utils/dom';
@@ -32,42 +31,45 @@ import { useThreadPinning } from './useThreadPinning';
 import { ThreadTagPicker } from './ThreadTagPicker';
 import { ThreadTagPill } from './ThreadTagPill';
 import { isConfirmedMatrixEventId } from './threadRouteUtils';
+import { getResolvableThreadRootEvent } from './threadResolvableRoot';
 import {
+  getThreadSummaryActionError,
   normalizeSummaryText,
   requestThreadSummary,
   saveThreadSummary,
   SUMMARY_MAX_LENGTH,
 } from './threadSummaryActions';
-import type { CompactThreadCardViewModel } from './types';
 
-export type CompactThreadMenuProps = {
+export type ThreadActionsMenuProps = {
   room: Room;
-  viewModel: CompactThreadCardViewModel;
+  rootId: string;
+  summaryText?: string;
   anchor: RectCords;
   onClose: () => void;
-  onOpenThread: () => void;
+  onOpenThread?: () => void;
 };
-export function CompactThreadMenu({
+export function ThreadActionsMenu({
   room,
-  viewModel,
+  rootId,
+  summaryText,
   anchor,
   onClose,
   onOpenThread,
-}: CompactThreadMenuProps) {
+}: ThreadActionsMenuProps) {
   const { t } = useTranslation();
   const mx = useMatrixClient();
-  const rootId = viewModel.id.threadRootId;
   const confirmed = isConfirmedMatrixEventId(rootId);
   const tags = useThreadTags(room, rootId);
   const mutations = useMutateThreadTags(room);
   const pinning = useThreadPinning(room);
   const pinned = pinning.pinnedEventIds.includes(rootId);
-  const powers = usePowerLevels(room);
-  const creators = useRoomCreators(room);
-  const permissions = useRoomPermissions(creators, powers);
+  // Keep permission changes reactive while sharing the policy with the write helpers.
+  usePowerLevels(room);
+  useRoomCreators(room);
   const joined = room.getMyMembership() === 'join';
-  const canSend = confirmed && joined && permissions.event('m.room.message', mx.getSafeUserId());
-  const canEditTags = confirmed && joined && tags.canEdit;
+  const canSend = !getThreadSummaryActionError(mx, room, rootId);
+  const canEditTags =
+    confirmed && joined && tags.canEdit && !!getResolvableThreadRootEvent(room, rootId);
   const members = useRoomMembers(mx, room.roomId);
   const agents = members.filter(
     (member) =>
@@ -79,10 +81,10 @@ export function CompactThreadMenu({
   const menuActive = useRef(true);
   const openDialog = (next: 'tags' | 'editSummary' | 'regenerate') => {
     menuActive.current = false;
-    if (next === 'editSummary') setDraft(viewModel.primarySummaryText ?? '');
+    if (next === 'editSummary') setDraft(summaryText ?? '');
     setMode(next);
   };
-  const [draft, setDraft] = useState(viewModel.primarySummaryText ?? '');
+  const [draft, setDraft] = useState(summaryText ?? '');
   const [agentId, setAgentId] = useState('');
   const selectedAgent = agentId ? agents.find((agent) => agent.userId === agentId) : agents[0];
   const [saving, setSaving] = useState(false);
@@ -180,7 +182,7 @@ export function CompactThreadMenu({
               style={{ minWidth: '14rem', maxWidth: 'calc(100vw - 24px)' }}
             >
               <Box direction="Column" gap="100" style={{ padding: config.space.S100 }}>
-                {item('open', t('threadActions.open'), Icons.Message, onOpenThread)}
+                {onOpenThread && item('open', t('threadActions.open'), Icons.Message, onOpenThread)}
                 {canEditTags &&
                   item(
                     'tags',
@@ -307,11 +309,11 @@ export function CompactThreadMenu({
                   <Box direction="Column" gap="300">
                     {mode === 'editSummary' ? (
                       <>
-                        <Text as="label" htmlFor="compact-thread-summary" size="T300">
+                        <Text as="label" htmlFor="thread-summary" size="T300">
                           {t('threadActions.summary')}
                         </Text>
                         <textarea
-                          id="compact-thread-summary"
+                          id="thread-summary"
                           rows={4}
                           value={draft}
                           disabled={saving || !canSend}
@@ -338,11 +340,11 @@ export function CompactThreadMenu({
                     ) : (
                       <>
                         <Text size="T300">{t('threadActions.regenerateHint')}</Text>
-                        <Text as="label" htmlFor="compact-summary-agent" size="T300">
+                        <Text as="label" htmlFor="thread-summary-agent" size="T300">
                           {t('threadActions.agent')}
                         </Text>
                         <select
-                          id="compact-summary-agent"
+                          id="thread-summary-agent"
                           value={selectedAgent?.userId ?? ''}
                           disabled={saving || requested || !canSend}
                           onChange={(event) => setAgentId(event.target.value)}

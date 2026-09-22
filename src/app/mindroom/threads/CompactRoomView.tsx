@@ -21,8 +21,8 @@ import * as overlay from './RoomOverlay.css';
 import { useThreadPinning } from './useThreadPinning';
 import { isConfirmedMatrixEventId } from './threadRouteUtils';
 
-const CompactThreadMenu = lazy(() =>
-  import('./CompactThreadMenu').then((module) => ({ default: module.CompactThreadMenu }))
+const ThreadActionsMenu = lazy(() =>
+  import('./ThreadActionsMenu').then((module) => ({ default: module.ThreadActionsMenu }))
 );
 
 export type CompactRoomViewProps = {
@@ -39,7 +39,7 @@ type ScrollRestoreState = {
   lastAppliedScrollTop: number;
 };
 
-type CompactThreadMenuState = {
+type ThreadActionsMenuState = {
   roomId: string;
   rootId: string;
   anchor: RectCords;
@@ -65,13 +65,13 @@ export function CompactRoomView({
   });
   const { canToggle, setResolved, updatingThreadRootIds, error } = useToggleThreadResolution(room);
   const pinning = useThreadPinning(room);
-  const [menu, setMenu] = useState<CompactThreadMenuState>();
-  const menuRef = useRef<CompactThreadMenuState>();
-  const openMenu = (nextMenu: CompactThreadMenuState) => {
+  const [menu, setMenu] = useState<ThreadActionsMenuState>();
+  const menuRef = useRef<ThreadActionsMenuState>();
+  const openMenu = (nextMenu: ThreadActionsMenuState) => {
     menuRef.current = nextMenu;
     setMenu(nextMenu);
   };
-  const closeMenu = (selectedMenu: CompactThreadMenuState) => {
+  const closeMenu = (selectedMenu: ThreadActionsMenuState) => {
     if (menuRef.current !== selectedMenu) return;
     menuRef.current = undefined;
     setMenu(undefined);
@@ -315,10 +315,11 @@ export function CompactRoomView({
       />
       {menu && menuModel && (
         <Suspense fallback={null}>
-          <CompactThreadMenu
+          <ThreadActionsMenu
             key={`${room.roomId}:${menu.rootId}`}
             room={room}
-            viewModel={menuModel}
+            rootId={menu.rootId}
+            summaryText={menuModel.primarySummaryText}
             anchor={menu.anchor}
             onClose={() => closeMenu(menu)}
             onOpenThread={() => {

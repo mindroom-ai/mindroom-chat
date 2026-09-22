@@ -288,7 +288,7 @@
     "reopen": "Reabrir hilo",
     "copy": "Copiar enlace del hilo",
     "summary": "Resumen",
-    "summaryHint": "Usa texto sin formato de hasta 300 caracteres. Los resúmenes automáticos posteriores pueden reemplazar este texto.",
+    "summaryHint": "Las ediciones manuales detienen las actualizaciones automáticas del resumen. Puedes volver a editar o generar el resumen en cualquier momento.",
     "length": "{{count}} / {{max}} caracteres",
     "agent": "Agente",
     "noAgents": "No hay agentes unidos a esta sala",

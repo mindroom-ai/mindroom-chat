@@ -287,7 +287,7 @@
     "reopen": "Thread wieder öffnen",
     "copy": "Thread-Link kopieren",
     "summary": "Zusammenfassung",
-    "summaryHint": "Verwende nur Text mit bis zu 300 Zeichen. Spätere automatische Zusammenfassungen können diesen Text ersetzen.",
+    "summaryHint": "Manuelle Änderungen verhindern automatische Aktualisierungen der Zusammenfassung. Du kannst die Zusammenfassung jederzeit erneut bearbeiten oder neu erstellen.",
     "length": "{{count}} / {{max}} Zeichen",
     "agent": "Agent",
     "noAgents": "Keine beigetretenen Agenten in diesem Raum",

@@ -313,6 +313,18 @@ describe('getLatestThreadSummaryInfoFromEventSources', () => {
 });
 
 describe('pickLatestThreadSummaryInfo', () => {
+  it('ignores summary dates outside the backend wire range in either candidate order', () => {
+    const invalid = {
+      summaryText: 'Unsupported date',
+      generatedTs: Date.parse('+275760-09-13T00:00:00.000Z'),
+      messageCount: 99,
+    };
+    const valid = { summaryText: 'Accepted replacement', generatedTs: 1000 };
+    expect(pickLatestThreadSummaryInfo(invalid, valid)).toEqual(valid);
+    expect(pickLatestThreadSummaryInfo(valid, invalid)).toEqual(valid);
+    expect(pickLatestThreadSummaryInfo(invalid)).toBeUndefined();
+  });
+
   it('prefers the summary with the newer generated timestamp', () => {
     expect(
       pickLatestThreadSummaryInfo(

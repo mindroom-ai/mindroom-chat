@@ -75,7 +75,14 @@ test('compact thread actions update tags, summaries and status without opening t
   await edit
     .getByRole('textbox', { name: 'Summary', exact: true })
     .fill('Manually revised thread summary');
+  const manualNotice = page.waitForRequest(
+    (req) =>
+      req.method() === 'PUT' &&
+      req.url().includes('/send/m.room.message/') &&
+      req.postDataJSON()?.['io.mindroom.thread_summary']?.model === 'manual'
+  );
   await edit.getByRole('button', { name: 'Save summary', exact: true }).click();
+  expect((await manualNotice).postDataJSON()['io.mindroom.thread_summary'].pinned).toBe(true);
   await expect(edit).toHaveCount(0);
   await expect(card).toContainText('Manually revised thread summary');
   expect(page.url()).toBe(overviewUrl);
@@ -85,9 +92,28 @@ test('compact thread actions update tags, summaries and status without opening t
   await expect(page.locator('[data-thread-context-summary]')).toHaveText(
     'Manually revised thread summary'
   );
-  await page.goto(overviewUrl);
-
-  await openMenu();
+  const threadUrl = page.url();
+  const bannerSummary = page.locator('[data-thread-context-summary]');
+  await bannerSummary.click({ button: 'right' });
+  await expect(page.getByRole('menu', { name: 'Thread options' })).toBeVisible();
+  expect(page.url()).toBe(threadUrl);
+  await expect(page.getByRole('menuitem', { name: 'Open thread', exact: true })).toHaveCount(0);
+  await page.screenshot({ path: testInfo.outputPath('thread-banner-context-menu.png') });
+  await page.getByRole('menuitem', { name: 'Edit summary', exact: true }).click();
+  await expect(edit.getByRole('textbox', { name: 'Summary', exact: true })).toHaveValue(
+    'Manually revised thread summary'
+  );
+  await edit
+    .getByRole('textbox', { name: 'Summary', exact: true })
+    .fill('Summary edited from the thread bar');
+  await edit.getByRole('button', { name: 'Save summary', exact: true }).click();
+  await expect(bannerSummary).toHaveText('Summary edited from the thread bar');
+  const bannerOptions = page.getByRole('button', { name: 'Thread options', exact: true });
+  await bannerOptions.click();
+  await page.keyboard.press('Escape');
+  await expect(bannerOptions).toBeFocused();
+  await page.keyboard.press('Shift+F10');
+  await expect(page.getByRole('menu', { name: 'Thread options' })).toBeVisible();
   await page.getByRole('menuitem', { name: 'Regenerate summary', exact: true }).click();
   const regenerate = page.getByRole('dialog', { name: 'Regenerate summary', exact: true });
   await regenerate.getByRole('combobox', { name: 'Agent', exact: true }).selectOption(agent.userId);
@@ -99,6 +125,7 @@ test('compact thread actions update tags, summaries and status without opening t
   );
   await regenerate.getByRole('button', { name: 'Send request', exact: true }).click();
   const content = (await request).postDataJSON();
+  expect(content.body).toContain('pin=true');
   expect(content['m.mentions']).toEqual({ user_ids: [agent.userId] });
   expect(content['m.relates_to']).toMatchObject({ rel_type: 'm.thread', event_id: rootId });
   await expect(regenerate.getByRole('status')).toContainText('Request sent');
@@ -118,6 +145,8 @@ test('compact thread actions update tags, summaries and status without opening t
       'm.in_reply_to': { event_id: rootId },
     },
   });
+  await expect(bannerSummary).toHaveText('Fresh agent summary');
+  await page.goto(overviewUrl);
   await expect(card).toContainText('Fresh agent summary');
   await card.click();
   await expect(page.locator('[data-thread-context-summary]')).toHaveText('Fresh agent summary');

@@ -1,5 +1,13 @@
-import React, { useCallback, useEffect } from 'react';
-import { Box, Icon, IconButton, Icons, Text, Button } from 'folds';
+import React, {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from 'react';
+import { Box, Icon, IconButton, Icons, Text, Button, type RectCords } from 'folds';
 import { useTranslation } from 'react-i18next';
 import { IconCalendarEvent } from '@tabler/icons-react';
 import { Room } from 'matrix-js-sdk';
@@ -19,6 +27,18 @@ import * as css from './ThreadContextBanner.css';
 import { ThreadApprovalPermissions } from '../messages/ThreadApprovalControls';
 import { useThreadPinning } from './useThreadPinning';
 import { useLiquidGlass } from '../../components/glass/liquid/useLiquidGlass';
+
+const ThreadActionsMenu = lazy(() =>
+  import('./ThreadActionsMenu').then((module) => ({ default: module.ThreadActionsMenu }))
+);
+
+type BannerMenuState = {
+  roomId: string;
+  threadId: string;
+  rootId: string;
+  anchor: RectCords;
+  trigger: HTMLElement;
+};
 
 export interface ThreadContextBannerProps {
   room: Room;
@@ -74,6 +94,32 @@ export function ThreadContextBanner({
   const { tags, isResolved, canEdit, availableTags } = useThreadTags(room, rootEventId);
   const { addTag, removeTag, setResolved, updating, error } = useMutateThreadTags(room);
   const threadRootId = rootEventId ?? threadId;
+  const [menu, setMenu] = useState<BannerMenuState>();
+  const menuRef = useRef<BannerMenuState>();
+  const moreButtonRef = useRef<HTMLButtonElement>(null);
+  const openMenu = (anchor: RectCords, trigger: HTMLElement) => {
+    const nextMenu = { roomId: room.roomId, threadId, rootId: threadRootId, anchor, trigger };
+    menuRef.current = nextMenu;
+    setMenu(nextMenu);
+  };
+  const closeMenu = (selectedMenu: BannerMenuState) => {
+    if (menuRef.current !== selectedMenu) return;
+    menuRef.current = undefined;
+    setMenu(undefined);
+    const trigger = selectedMenu.trigger.isConnected ? selectedMenu.trigger : moreButtonRef.current;
+    trigger?.focus();
+  };
+  useLayoutEffect(() => {
+    menuRef.current = undefined;
+    setMenu(undefined);
+    return () => {
+      menuRef.current = undefined;
+    };
+  }, [room.roomId, threadId, threadRootId]);
+  const activeMenu =
+    menu?.roomId === room.roomId && menu.threadId === threadId && menu.rootId === threadRootId
+      ? menu
+      : undefined;
   const pinning = useThreadPinning(room);
   const isPinned = pinning.pinnedEventIds.includes(threadRootId);
   const mutableThreadRootId = isConfirmedMatrixEventId(rootEventId) ? rootEventId : undefined;
@@ -142,23 +188,115 @@ export function ThreadContextBanner({
   const hasTags = headerModel.displayTags.length > 0;
 
   return (
-    <div ref={glassRef} className={headerModel.isResolved ? css.BannerResolved : css.Banner}>
-      <div className={css.TitleRow}>
-        <IconButton size="300" radii="300" onClick={onExitThread}>
-          <Icon data-directional src={Icons.ArrowLeft} />
-        </IconButton>
-        <div className={css.TitleColumn}>
-          <Box direction="Row" alignItems="Center" gap="200">
-            <Text className={css.ViewLabel} size="L400" priority="300">
-              {t('thread.view')}
-            </Text>
-            {/* Desktop: tags inline on title row */}
-            <ThreadApprovalPermissions />
+    <>
+      <div
+        ref={glassRef}
+        className={headerModel.isResolved ? css.BannerResolved : css.Banner}
+        data-thread-context-banner="true"
+        tabIndex={-1}
+        onContextMenu={(event) => {
+          if (!event.currentTarget.contains(event.target as Node)) return;
+          event.preventDefault();
+          event.stopPropagation();
+          openMenu(
+            { x: event.clientX, y: event.clientY, width: 0, height: 0 },
+            event.currentTarget
+          );
+        }}
+        onKeyDown={(event) => {
+          if (!event.currentTarget.contains(event.target as Node)) return;
+          if (event.key !== 'ContextMenu' && !(event.shiftKey && event.key === 'F10')) return;
+          event.preventDefault();
+          event.stopPropagation();
+          openMenu(event.currentTarget.getBoundingClientRect(), event.target as HTMLElement);
+        }}
+      >
+        <div className={css.TitleRow}>
+          <IconButton size="300" radii="300" onClick={onExitThread}>
+            <Icon data-directional src={Icons.ArrowLeft} />
+          </IconButton>
+          <div className={css.TitleColumn}>
+            <Box direction="Row" alignItems="Center" gap="200">
+              <Text className={css.ViewLabel} size="L400" priority="300">
+                {t('thread.view')}
+              </Text>
+              {/* Desktop: tags inline on title row */}
+              <ThreadApprovalPermissions />
+              {(hasTags || headerModel.canEdit) && (
+                <div className={`${css.TagsRow} ${css.DesktopOnlyTags}`}>
+                  <TagPills
+                    tags={headerModel.displayTags}
+                    maxPills={DESKTOP_MAX_PILLS}
+                    allTags={headerModel.displayTags}
+                    canEdit={headerModel.canEdit}
+                    onRemove={handleRemoveTag}
+                  />
+                  {headerModel.canEdit && (
+                    <ThreadTagPicker
+                      availableTags={headerModel.availableTags}
+                      onAddTag={handleAddTag}
+                      disabled={headerModel.pickerDisabled}
+                    />
+                  )}
+                </div>
+              )}
+            </Box>
+            {(headerModel.summaryText || headerModel.bannerScheduledText) && (
+              <div className={css.SubtitleRow}>
+                {headerModel.summaryText && (
+                  <Text
+                    as="span"
+                    data-thread-context-summary="true"
+                    className={css.SummaryText}
+                    size="T300"
+                    truncate
+                    title={headerModel.summaryText}
+                  >
+                    {headerModel.summaryText}
+                  </Text>
+                )}
+                {headerModel.bannerScheduledText && headerModel.scheduledLabel && (
+                  <Box as="span" className={css.ScheduledWrap} alignItems="Center" gap="100">
+                    {headerModel.summaryText && (
+                      <Text
+                        as="span"
+                        className={css.MetadataDot}
+                        size="T200"
+                        priority="300"
+                        aria-hidden="true"
+                      >
+                        ·
+                      </Text>
+                    )}
+                    <Box
+                      as="span"
+                      className={`${css.ScheduledIndicator} ${threadIndicatorCss.ThreadScheduledIndicator}`}
+                      alignItems="Center"
+                      gap="100"
+                      role="img"
+                      aria-label={headerModel.scheduledLabel}
+                      title={headerModel.scheduledLabel}
+                    >
+                      <IconCalendarEvent
+                        size={12}
+                        stroke={1.8}
+                        className={threadIndicatorCss.ThreadScheduledIcon}
+                        aria-hidden="true"
+                      />
+                      <Text as="span" size="T200" priority="300" truncate>
+                        {headerModel.bannerScheduledText}
+                      </Text>
+                    </Box>
+                  </Box>
+                )}
+              </div>
+            )}
+            {/* Mobile: tags in a dedicated row below subtitle */}
             {(hasTags || headerModel.canEdit) && (
-              <div className={`${css.TagsRow} ${css.DesktopOnlyTags}`}>
+              <div className={css.MobileOnlyTags}>
                 <TagPills
                   tags={headerModel.displayTags}
-                  maxPills={DESKTOP_MAX_PILLS}
+                  maxPills={MOBILE_MAX_PILLS}
                   allTags={headerModel.displayTags}
                   canEdit={headerModel.canEdit}
                   onRemove={handleRemoveTag}
@@ -172,128 +310,85 @@ export function ThreadContextBanner({
                 )}
               </div>
             )}
-          </Box>
-          {(headerModel.summaryText || headerModel.bannerScheduledText) && (
-            <div className={css.SubtitleRow}>
-              {headerModel.summaryText && (
-                <Text
-                  as="span"
-                  data-thread-context-summary="true"
-                  className={css.SummaryText}
-                  size="T300"
-                  truncate
-                  title={headerModel.summaryText}
-                >
-                  {headerModel.summaryText}
-                </Text>
-              )}
-              {headerModel.bannerScheduledText && headerModel.scheduledLabel && (
-                <Box as="span" className={css.ScheduledWrap} alignItems="Center" gap="100">
-                  {headerModel.summaryText && (
-                    <Text
-                      as="span"
-                      className={css.MetadataDot}
-                      size="T200"
-                      priority="300"
-                      aria-hidden="true"
-                    >
-                      ·
-                    </Text>
-                  )}
-                  <Box
-                    as="span"
-                    className={`${css.ScheduledIndicator} ${threadIndicatorCss.ThreadScheduledIndicator}`}
-                    alignItems="Center"
-                    gap="100"
-                    role="img"
-                    aria-label={headerModel.scheduledLabel}
-                    title={headerModel.scheduledLabel}
-                  >
-                    <IconCalendarEvent
-                      size={12}
-                      stroke={1.8}
-                      className={threadIndicatorCss.ThreadScheduledIcon}
-                      aria-hidden="true"
-                    />
-                    <Text as="span" size="T200" priority="300" truncate>
-                      {headerModel.bannerScheduledText}
-                    </Text>
-                  </Box>
-                </Box>
-              )}
-            </div>
-          )}
-          {/* Mobile: tags in a dedicated row below subtitle */}
-          {(hasTags || headerModel.canEdit) && (
-            <div className={css.MobileOnlyTags}>
-              <TagPills
-                tags={headerModel.displayTags}
-                maxPills={MOBILE_MAX_PILLS}
-                allTags={headerModel.displayTags}
-                canEdit={headerModel.canEdit}
-                onRemove={handleRemoveTag}
-              />
-              {headerModel.canEdit && (
-                <ThreadTagPicker
-                  availableTags={headerModel.availableTags}
-                  onAddTag={handleAddTag}
-                  disabled={headerModel.pickerDisabled}
-                />
-              )}
-            </div>
-          )}
-        </div>
-        <Box alignItems="Center" gap="100" shrink="No">
-          {isPinned && <Text size="T200">{t('threadNav.pinned')}</Text>}
-          {pinning.canPin && mutableThreadRootId && (
+          </div>
+          <Box alignItems="Center" gap="100" shrink="No">
             <IconButton
+              ref={moreButtonRef}
               size="300"
               radii="300"
-              aria-label={t(isPinned ? 'threadNav.unpin' : 'threadNav.pin')}
-              title={t(isPinned ? 'threadNav.unpin' : 'threadNav.pin')}
-              aria-pressed={isPinned}
-              disabled={pinning.updating || updating}
-              onClick={() => pinning.setPinned(mutableThreadRootId, !isPinned)}
+              aria-label={t('threadActions.more')}
+              title={t('threadActions.more')}
+              aria-haspopup="menu"
+              aria-expanded={!!activeMenu}
+              onClick={(event: React.MouseEvent<HTMLButtonElement>) =>
+                openMenu(event.currentTarget.getBoundingClientRect(), event.currentTarget)
+              }
             >
-              <Icon src={Icons.Pin} size="100" />
+              <Icon src={Icons.VerticalDots} size="100" />
             </IconButton>
-          )}
-          {!isPinned && (
-            <div className={css.ResolveChip}>
-              <Button
+            {isPinned && <Text size="T200">{t('threadNav.pinned')}</Text>}
+            {pinning.canPin && mutableThreadRootId && (
+              <IconButton
                 size="300"
-                variant={headerModel.isResolved ? 'Success' : 'Secondary'}
-                fill={headerModel.isResolved ? 'Solid' : 'Soft'}
-                outlined={!headerModel.isResolved}
                 radii="300"
-                onClick={handleToggleResolve}
-                disabled={!headerModel.canEdit || headerModel.pickerDisabled || pinning.updating}
-                title={resolvedByLabel}
+                aria-label={t(isPinned ? 'threadNav.unpin' : 'threadNav.pin')}
+                title={t(isPinned ? 'threadNav.unpin' : 'threadNav.pin')}
+                aria-pressed={isPinned}
+                disabled={pinning.updating || updating}
+                onClick={() => pinning.setPinned(mutableThreadRootId, !isPinned)}
               >
-                <Text size="T200">
-                  {headerModel.isResolved ? t('thread.resolved') : t('thread.resolve')}
-                </Text>
-              </Button>
-              {resolvedByDisplayName && (
-                <Text
-                  className={css.ResolutionByline}
-                  data-thread-resolution-byline="true"
-                  size="T200"
-                  priority="300"
-                  truncate
+                <Icon src={Icons.Pin} size="100" />
+              </IconButton>
+            )}
+            {!isPinned && (
+              <div className={css.ResolveChip}>
+                <Button
+                  size="300"
+                  variant={headerModel.isResolved ? 'Success' : 'Secondary'}
+                  fill={headerModel.isResolved ? 'Solid' : 'Soft'}
+                  outlined={!headerModel.isResolved}
+                  radii="300"
+                  onClick={handleToggleResolve}
+                  disabled={!headerModel.canEdit || headerModel.pickerDisabled || pinning.updating}
+                  title={resolvedByLabel}
                 >
-                  {t('thread.resolvedByShort', { name: resolvedByDisplayName })}
-                </Text>
-              )}
-            </div>
-          )}
-        </Box>
+                  <Text size="T200">
+                    {headerModel.isResolved ? t('thread.resolved') : t('thread.resolve')}
+                  </Text>
+                </Button>
+                {resolvedByDisplayName && (
+                  <Text
+                    className={css.ResolutionByline}
+                    data-thread-resolution-byline="true"
+                    size="T200"
+                    priority="300"
+                    truncate
+                  >
+                    {t('thread.resolvedByShort', { name: resolvedByDisplayName })}
+                  </Text>
+                )}
+              </div>
+            )}
+          </Box>
+        </div>
+        {!!pinning.error && (
+          <Text role="alert" size="T200">
+            {t('thread.pinFailed')}
+          </Text>
+        )}
       </div>
-      {!!pinning.error && (
-        <Text role="alert" size="T200">
-          {t('thread.pinFailed')}
-        </Text>
+      {activeMenu && (
+        <Suspense fallback={null}>
+          <ThreadActionsMenu
+            key={`${room.roomId}:${threadRootId}`}
+            room={room}
+            rootId={threadRootId}
+            summaryText={headerModel.summaryText}
+            anchor={activeMenu.anchor}
+            onClose={() => closeMenu(activeMenu)}
+          />
+        </Suspense>
       )}
-    </div>
+    </>
   );
 }

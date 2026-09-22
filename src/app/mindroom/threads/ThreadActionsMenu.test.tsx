@@ -1,8 +1,9 @@
 import React from 'react';
+import { MatrixEvent } from 'matrix-js-sdk';
 import { act, create } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { CompactThreadMenu } from './CompactThreadMenu';
-import type { CompactThreadCardViewModel } from './types';
+import { ThreadActionsMenu } from './ThreadActionsMenu';
+import type { ThreadActionsMenuProps } from './ThreadActionsMenu';
 
 vi.mock('./ThreadContextBanner.css', () => ({
   TagPickerInput: 'input',
@@ -32,6 +33,7 @@ const state = vi.hoisted(() => ({
   regenerate: vi.fn(),
   copy: vi.fn(),
   canSend: true,
+  rootLoaded: true,
 }));
 vi.mock('./useThreadTags', () => ({ useThreadTags: () => state.tags }));
 vi.mock('./useMutateThreadTags', () => ({ useMutateThreadTags: () => state.mutations }));
@@ -41,9 +43,6 @@ vi.mock('../../hooks/useMatrixClient', () => ({
 }));
 vi.mock('../../hooks/usePowerLevels', () => ({ usePowerLevels: () => ({}) }));
 vi.mock('../../hooks/useRoomCreators', () => ({ useRoomCreators: () => new Set() }));
-vi.mock('../../hooks/useRoomPermissions', () => ({
-  useRoomPermissions: () => ({ event: () => state.canSend }),
-}));
 vi.mock('../../hooks/useRoomMembers', () => ({
   useRoomMembers: () => [
     { userId: '@mindroom_helper:test', name: 'Helper', membership: 'join' },
@@ -76,20 +75,33 @@ vi.mock('../../components/glass/GlassPrimitives', () => ({
   Dialog: 'div',
 }));
 
-const viewModel = {
-  id: { roomId: '!room:test', threadRootId: '$root' },
-  primarySummaryText: 'Old summary',
-  titleText: 'Old summary',
-  participants: [],
-} as unknown as CompactThreadCardViewModel;
-const render = () =>
+const rootEvent = new MatrixEvent({
+  event_id: '$root',
+  room_id: '!room:test',
+  type: 'm.room.message',
+  sender: '@me:test',
+  origin_server_ts: 1,
+  content: { msgtype: 'm.text', body: 'Thread root' },
+});
+const render = (overrides: Partial<ThreadActionsMenuProps> = {}) =>
   create(
-    <CompactThreadMenu
-      room={{ roomId: '!room:test', getMyMembership: () => 'join' } as never}
-      viewModel={viewModel}
+    <ThreadActionsMenu
+      room={
+        {
+          roomId: '!room:test',
+          getMyMembership: () => 'join',
+          getThread: () => undefined,
+          findEventById: (id: string) =>
+            state.rootLoaded && id === '$root' ? rootEvent : undefined,
+          currentState: { maySendEvent: () => state.canSend },
+        } as never
+      }
+      rootId="$root"
+      summaryText="Old summary"
       anchor={{ x: 10, y: 20, width: 0, height: 0 }}
       onClose={vi.fn()}
       onOpenThread={vi.fn()}
+      {...overrides}
     />
   );
 const click = (renderer: ReturnType<typeof create>, label: string) =>
@@ -100,7 +112,7 @@ const click = (renderer: ReturnType<typeof create>, label: string) =>
       .props.onClick();
   });
 
-describe('CompactThreadMenu', () => {
+describe('ThreadActionsMenu', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     state.tags.canEdit = true;
@@ -108,8 +120,31 @@ describe('CompactThreadMenu', () => {
     state.pinning.pinnedEventIds = [];
     state.pinning.canPin = true;
     state.canSend = true;
+    state.rootLoaded = true;
     state.save.mockResolvedValue(undefined);
     state.copy.mockResolvedValue(true);
+  });
+
+  it('omits navigation for the active thread while retaining summary actions', () => {
+    const renderer = render({ onOpenThread: undefined });
+    const actions = renderer.root
+      .findAllByType('button')
+      .map((node) => node.props['data-thread-action']);
+    expect(actions).not.toContain('open');
+    expect(actions).toContain('editSummary');
+    expect(actions).toContain('regenerate');
+    renderer.unmount();
+  });
+
+  it('hides tag and summary mutations until a confirmed thread root is loaded', () => {
+    state.rootLoaded = false;
+    state.pinning.canPin = false;
+    const renderer = render();
+
+    expect(
+      renderer.root.findAllByType('button').map((node) => node.props['data-thread-action'])
+    ).toEqual(['open', 'copy']);
+    renderer.unmount();
   });
 
   it('resolves or reopens the selected thread and suppresses resolve while pinned', () => {

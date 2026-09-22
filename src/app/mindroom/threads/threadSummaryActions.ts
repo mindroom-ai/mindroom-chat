@@ -2,6 +2,7 @@ import { EventStatus, MsgType, type MatrixClient, type Room } from 'matrix-js-sd
 import type { RoomMessageEventContent } from 'matrix-js-sdk/lib/@types/events';
 import {
   getMindroomThreadSummaryInfo,
+  isSupportedThreadSummaryTimestamp,
   THREAD_SUMMARY_METADATA_KEY,
 } from '../messages/threadSummary';
 import { createSessionId } from '../../state/sessions';
@@ -9,7 +10,12 @@ import { isMindroomAgentUserId } from '../matrix/agentIdentity';
 import { getMessageRelation } from './composeMessageRelation';
 import { getResolvableThreadRootEvent } from './threadResolvableRoot';
 import { isConfirmedMatrixEventId } from './threadRouteUtils';
-import { storeThreadSummaryInState } from './threadSummaryState';
+import {
+  ensureThreadSummaryStateLoaded,
+  getThreadSummaryStateSnapshot,
+  storeThreadSummaryInState,
+} from './threadSummaryState';
+import { resolveThreadSummaryInfo } from './threadPresentation';
 
 export const normalizeSummaryText = (text: string): string => text.replace(/\s+/g, ' ').trim();
 export const SUMMARY_MAX_LENGTH = 300;
@@ -30,16 +36,26 @@ const sendThreadAction = async (
   }
 };
 
-const validateTarget = (mx: MatrixClient, room: Room, threadId: string) => {
+export const getThreadSummaryActionError = (
+  mx: MatrixClient,
+  room: Room,
+  threadId: string
+): string | undefined => {
   if (!isConfirmedMatrixEventId(threadId) || !getResolvableThreadRootEvent(room, threadId)) {
-    throw new Error('A confirmed thread is required.');
+    return 'A confirmed thread is required.';
   }
   if (
     room.getMyMembership() !== 'join' ||
     !room.currentState.maySendEvent('m.room.message', mx.getSafeUserId())
   ) {
-    throw new Error('You cannot send messages in this room.');
+    return 'You cannot send messages in this room.';
   }
+  return undefined;
+};
+
+const validateTarget = (mx: MatrixClient, room: Room, threadId: string) => {
+  const error = getThreadSummaryActionError(mx, room, threadId);
+  if (error) throw new Error(error);
 };
 
 export const saveThreadSummary = async (
@@ -53,6 +69,19 @@ export const saveThreadSummary = async (
   if (!summary || Array.from(summary).length > SUMMARY_MAX_LENGTH) {
     throw new Error('Summary must contain between 1 and 300 characters.');
   }
+  const sessionId = createSessionId(mx.getHomeserverUrl(), mx.getSafeUserId());
+  await ensureThreadSummaryStateLoaded(sessionId, room.roomId);
+  validateTarget(mx, room, threadId);
+  const previous = resolveThreadSummaryInfo({
+    preferredSummaryInfo: getThreadSummaryStateSnapshot(sessionId, room.roomId).get(threadId),
+    thread: room.getThread(threadId),
+  });
+  // Summary readers share this clock. Advance it past the title being edited
+  // even when that title was authored by a device whose clock runs ahead.
+  const generatedTs = Math.max(Date.now(), (previous?.generatedTs ?? 0) + 1);
+  if (!isSupportedThreadSummaryTimestamp(generatedTs)) {
+    throw new Error('The current summary timestamp cannot be advanced.');
+  }
   const content = {
     msgtype: MsgType.Notice,
     body: summary,
@@ -60,15 +89,16 @@ export const saveThreadSummary = async (
     [THREAD_SUMMARY_METADATA_KEY]: {
       version: 1,
       summary,
-      generated_at: new Date().toISOString(),
+      generated_at: new Date(generatedTs).toISOString(),
       model: 'manual',
+      pinned: true,
     },
   };
   await sendThreadAction(mx, room, threadId, content as RoomMessageEventContent);
   // A first summary can precede SDK thread hydration. Publish the accepted
   // notice through the same state/cache used by the overview and thread banner.
   storeThreadSummaryInState(
-    createSessionId(mx.getHomeserverUrl(), mx.getSafeUserId()),
+    sessionId,
     room.roomId,
     threadId,
     getMindroomThreadSummaryInfo(content)
@@ -87,7 +117,7 @@ export const requestThreadSummary = async (
   }
   await sendThreadAction(mx, room, threadId, {
     msgtype: MsgType.Text,
-    body: `${agentId} Please regenerate a concise, plain-text summary of this thread (at most 300 characters). Use set_thread_summary with pin=false to update the thread summary. If that tool is unavailable, tell me.`,
+    body: `${agentId} Please regenerate a concise, plain-text summary of this thread (at most 300 characters). Use set_thread_summary with pin=true to update the thread summary. If that tool is unavailable, tell me.`,
     'm.mentions': { user_ids: [agentId] },
     'm.relates_to': getMessageRelation(undefined, undefined, threadId),
   });

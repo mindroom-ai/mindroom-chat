@@ -24,10 +24,17 @@ export type MindroomThreadSummaryInfo = {
   messageCount?: number;
 };
 
+// Match the backend datetime range so extended-year metadata cannot poison
+// ordering in live data or older cached snapshots.
+export const isSupportedThreadSummaryTimestamp = (value: number): boolean =>
+  Number.isFinite(value) && value >= -62_135_596_800_000 && value <= 253_402_300_799_999;
+
 const hasSummaryText = (
   info: MindroomThreadSummaryInfo | undefined
 ): info is MindroomThreadSummaryInfo & { summaryText: string } =>
-  typeof info?.summaryText === 'string' && info.summaryText.trim().length > 0;
+  typeof info?.summaryText === 'string' &&
+  info.summaryText.trim().length > 0 &&
+  (info.generatedTs === undefined || isSupportedThreadSummaryTimestamp(info.generatedTs));
 
 const compareDefinedNumbers = (left?: number, right?: number): number | undefined => {
   const hasLeft = typeof left === 'number' && Number.isFinite(left);

@@ -288,7 +288,7 @@
     "reopen": "Rouvrir le fil",
     "copy": "Copier le lien du fil",
     "summary": "Résumé",
-    "summaryHint": "Utilisez du texte brut, jusqu’à 300 caractères. Les résumés automatiques ultérieurs pourront remplacer ce texte.",
+    "summaryHint": "Les modifications manuelles interrompent les mises à jour automatiques du résumé. Vous pouvez à tout moment modifier ou régénérer le résumé.",
     "length": "{{count}} / {{max}} caractères",
     "agent": "Agent",
     "noAgents": "Aucun agent n’a rejoint ce salon",

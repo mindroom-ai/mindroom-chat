@@ -9,8 +9,8 @@ vi.mock('../../components/inset-scrollbar/InsetScrollbar', () => ({
   InsetScrollbar: () => null,
 }));
 const menuProps = vi.hoisted(() => vi.fn());
-vi.mock('./CompactThreadMenu', () => ({
-  CompactThreadMenu: (props: unknown) => {
+vi.mock('./ThreadActionsMenu', () => ({
+  ThreadActionsMenu: (props: unknown) => {
     menuProps(props);
     return null;
   },
@@ -192,7 +192,7 @@ describe('CompactRoomView', () => {
     expect(event.stopPropagation).toHaveBeenCalled();
     expect(onThreadClick).not.toHaveBeenCalled();
     const selectedMenu = menuProps.mock.calls.at(-1)![0];
-    expect(selectedMenu.viewModel.id.threadRootId).toBe('$context');
+    expect(selectedMenu.rootId).toBe('$context');
     expect(selectedMenu.anchor).toEqual({ x: 123, y: 234, width: 0, height: 0 });
     act(() => selectedMenu.onOpenThread());
     expect(onThreadClick).toHaveBeenCalledWith('$context', 'Recent summary');
@@ -259,11 +259,11 @@ describe('CompactRoomView', () => {
 
     act(() => firstMenu.onClose());
     expect(firstTrigger.focus).not.toHaveBeenCalled();
-    expect(menuProps.mock.calls.at(-1)![0].viewModel.id.threadRootId).toBe('$second');
+    expect(menuProps.mock.calls.at(-1)![0].rootId).toBe('$second');
 
     act(() => firstMenu.onOpenThread());
     expect(onThreadClick).not.toHaveBeenCalled();
-    expect(menuProps.mock.calls.at(-1)![0].viewModel.id.threadRootId).toBe('$second');
+    expect(menuProps.mock.calls.at(-1)![0].rootId).toBe('$second');
 
     act(() => secondMenu.onClose());
     expect(secondTrigger.focus).toHaveBeenCalledOnce();

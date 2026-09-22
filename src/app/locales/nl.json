@@ -287,7 +287,7 @@
     "reopen": "Thread heropenen",
     "copy": "Threadlink kopiëren",
     "summary": "Samenvatting",
-    "summaryHint": "Gebruik platte tekst van maximaal 300 tekens. Latere automatische samenvattingen kunnen deze tekst vervangen.",
+    "summaryHint": "Handmatige bewerkingen stoppen automatische updates van de samenvatting. Je kunt de samenvatting op elk moment opnieuw bewerken of genereren.",
     "length": "{{count}} / {{max}} tekens",
     "agent": "Agent",
     "noAgents": "Er zijn geen agents lid van deze ruimte",

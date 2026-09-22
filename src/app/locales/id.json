@@ -287,7 +287,7 @@
     "reopen": "Buka kembali utas",
     "copy": "Salin tautan utas",
     "summary": "Ringkasan",
-    "summaryHint": "Gunakan teks biasa, hingga 300 karakter. Ringkasan otomatis berikutnya dapat menggantikan teks ini.",
+    "summaryHint": "Pengeditan manual menghentikan pembaruan ringkasan otomatis. Anda dapat mengedit atau membuat ulang ringkasan kapan saja.",
     "length": "{{count}} / {{max}} karakter",
     "agent": "Agen",
     "noAgents": "Tidak ada agen yang bergabung di ruang ini",

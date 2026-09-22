@@ -288,7 +288,7 @@
     "reopen": "Reabrir tópico",
     "copy": "Copiar link do tópico",
     "summary": "Resumo",
-    "summaryHint": "Use texto simples com até 300 caracteres. Resumos automáticos posteriores podem substituir este texto.",
+    "summaryHint": "As edições manuais interrompem as atualizações automáticas do resumo. Pode editar ou gerar novamente o resumo a qualquer momento.",
     "length": "{{count}} / {{max}} caracteres",
     "agent": "Agente",
     "noAgents": "Não há agentes nesta sala",

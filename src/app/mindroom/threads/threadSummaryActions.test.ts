@@ -2,8 +2,18 @@ import { EventStatus, MatrixEvent, type MatrixClient, type Room } from 'matrix-j
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createSessionId } from '../../state/sessions';
 import { getMindroomThreadSummaryInfo } from '../messages/threadSummary';
-import { requestThreadSummary, saveThreadSummary } from './threadSummaryActions';
-import { clearThreadSummarySharedState, getThreadSummaryStateSnapshot } from './threadSummaryState';
+import {
+  getThreadSummaryActionError,
+  requestThreadSummary,
+  saveThreadSummary,
+} from './threadSummaryActions';
+import {
+  clearThreadSummarySharedState,
+  getThreadSummaryStateSnapshot,
+  ensureThreadSummaryStateLoaded,
+} from './threadSummaryState';
+import { loadCachedThreadSummaries, saveCachedThreadSummary } from './cacheStore';
+import { resolveThreadSummaryInfo } from './threadPresentation';
 
 vi.mock('./cacheStore', () => ({
   loadCachedThreadSummaries: vi.fn().mockResolvedValue(new Map()),
@@ -47,7 +57,11 @@ const setup = () => {
 };
 
 describe('thread summary actions', () => {
-  beforeEach(() => clearThreadSummarySharedState());
+  beforeEach(() => {
+    clearThreadSummarySharedState();
+    vi.mocked(loadCachedThreadSummaries).mockResolvedValue(new Map());
+    vi.mocked(saveCachedThreadSummary).mockClear();
+  });
 
   it('updates shared overview and banner state only after the server accepts a manual summary', async () => {
     const { room, mx, sendMessage } = setup();
@@ -59,10 +73,111 @@ describe('thread summary actions', () => {
     );
     const save = saveThreadSummary(mx, room, '$root', 'New title');
     expect(getStoredSummary()).toBeUndefined();
+    await vi.waitFor(() => expect(sendMessage).toHaveBeenCalledOnce());
     accept({ event_id: '$summary' });
     await save;
     expect(getStoredSummary()).toMatchObject({ summaryText: 'New title', isManual: true });
   });
+  it.each(['cache', 'live'])(
+    'replaces a future-dated %s summary and preserves the edit after cache reload',
+    async (source) => {
+      const { room, mx, sendMessage } = setup();
+      const prior = {
+        summaryText: 'Clock-skewed title',
+        generatedTs: Date.now() + 86_400_000,
+        messageCount: 99,
+      };
+      if (source === 'cache') {
+        vi.mocked(loadCachedThreadSummaries).mockResolvedValue(new Map([['$root', prior]]));
+      } else {
+        const notice = new MatrixEvent({
+          event_id: '$old-summary',
+          type: 'm.room.message',
+          content: {
+            msgtype: 'm.notice',
+            body: prior.summaryText,
+            'io.mindroom.thread_summary': {
+              version: 1,
+              summary: prior.summaryText,
+              generated_at: new Date(prior.generatedTs).toISOString(),
+              message_count: 99,
+            },
+            'm.relates_to': { rel_type: 'm.thread', event_id: '$root' },
+          },
+        });
+        room.getThread = () =>
+          ({ events: [notice], timeline: [notice] } as ReturnType<Room['getThread']>);
+      }
+      await saveThreadSummary(mx, room, '$root', 'Human title wins');
+      expect(getStoredSummary()?.summaryText).toBe('Human title wins');
+      const written = getMindroomThreadSummaryInfo(sendMessage.mock.calls[0][2]);
+      expect(written?.generatedTs).toBeGreaterThan(prior.generatedTs);
+      expect(
+        resolveThreadSummaryInfo({
+          preferredSummaryInfo: getStoredSummary(),
+          thread: room.getThread('$root'),
+        })?.summaryText
+      ).toBe('Human title wins');
+      expect(saveCachedThreadSummary).toHaveBeenLastCalledWith(
+        expect.any(String),
+        '!room:test',
+        '$root',
+        written
+      );
+      clearThreadSummarySharedState();
+      vi.mocked(loadCachedThreadSummaries).mockResolvedValue(new Map([['$root', written!]]));
+      await ensureThreadSummaryStateLoaded(
+        createSessionId('https://matrix.test', '@me:test'),
+        '!room:test'
+      );
+      expect(
+        resolveThreadSummaryInfo({
+          preferredSummaryInfo: getStoredSummary(),
+          thread: room.getThread('$root'),
+        })?.summaryText
+      ).toBe('Human title wins');
+    }
+  );
+
+  it('replaces an unsupported cached date without overflowing the summary clock', async () => {
+    const { room, mx, sendMessage } = setup();
+    vi.mocked(loadCachedThreadSummaries).mockResolvedValue(
+      new Map([
+        [
+          '$root',
+          {
+            summaryText: 'Unsupported date',
+            generatedTs: Date.parse('+275760-09-13T00:00:00.000Z'),
+            messageCount: 99,
+          },
+        ],
+      ])
+    );
+    await saveThreadSummary(mx, room, '$root', 'Valid manual title');
+    expect(getStoredSummary()?.summaryText).toBe('Valid manual title');
+    expect(sendMessage).toHaveBeenCalledOnce();
+  });
+
+  it('rejects the terminal supported date deliberately without sending an unordered replacement', async () => {
+    const { room, mx, sendMessage } = setup();
+    vi.mocked(loadCachedThreadSummaries).mockResolvedValue(
+      new Map([
+        [
+          '$root',
+          {
+            summaryText: 'Terminal date',
+            generatedTs: Date.parse('9999-12-31T23:59:59.999Z'),
+          },
+        ],
+      ])
+    );
+    await expect(saveThreadSummary(mx, room, '$root', 'Retain my draft')).rejects.toThrow(
+      'The current summary timestamp cannot be advanced.'
+    );
+    expect(sendMessage).not.toHaveBeenCalled();
+    expect(getStoredSummary()?.summaryText).toBe('Terminal date');
+  });
+
   it('removes its failed local echo so a retry does not leave a stale summary or block sends', async () => {
     const { room, mx, sendMessage } = setup();
     const pending = new MatrixEvent({
@@ -86,7 +201,12 @@ describe('thread summary actions', () => {
       msgtype: 'm.notice',
       body: 'Updated summary',
       'm.relates_to': { rel_type: 'm.thread', event_id: '$root' },
-      'io.mindroom.thread_summary': { version: 1, summary: 'Updated summary', model: 'manual' },
+      'io.mindroom.thread_summary': {
+        version: 1,
+        summary: 'Updated summary',
+        model: 'manual',
+        pinned: true,
+      },
     });
     expect(getMindroomThreadSummaryInfo(content)?.summaryText).toBe('Updated summary');
     expect(getMindroomThreadSummaryInfo(content)?.generatedTs).toBeGreaterThan(0);
@@ -113,6 +233,35 @@ describe('thread summary actions', () => {
     }
   );
 
+  it.each(['~pending', '$missing'])(
+    'reports unavailable roots to both menu and actions: %s',
+    (threadId) => {
+      const { room, mx } = setup();
+      expect(getThreadSummaryActionError(mx, room, threadId)).toBe(
+        'A confirmed thread is required.'
+      );
+    }
+  );
+
+  it.each(['leave', 'no-permission'])(
+    'keeps menu eligibility and mutation enforcement aligned: %s',
+    async (restriction) => {
+      const { room, mx, sendMessage } = setup();
+      if (restriction === 'leave') room.getMyMembership = () => 'leave';
+      else room.currentState.maySendEvent = () => false;
+      expect(getThreadSummaryActionError(mx, room, '$root')).toBe(
+        'You cannot send messages in this room.'
+      );
+      await expect(saveThreadSummary(mx, room, '$root', 'Summary')).rejects.toThrow(
+        'You cannot send messages in this room.'
+      );
+      await expect(
+        requestThreadSummary(mx, room, '$root', '@mindroom_helper:test')
+      ).rejects.toThrow('You cannot send messages in this room.');
+      expect(sendMessage).not.toHaveBeenCalled();
+    }
+  );
+
   it('requests regeneration from exactly the selected agent inside the selected thread', async () => {
     const { room, mx, sendMessage } = setup();
     await requestThreadSummary(mx, room, '$root', '@mindroom_helper:test');
@@ -127,7 +276,7 @@ describe('thread summary actions', () => {
       'summary-transaction'
     );
     expect(sendMessage.mock.calls[0][2].body).toContain('set_thread_summary');
-    expect(sendMessage.mock.calls[0][2].body).toContain('pin=false');
+    expect(sendMessage.mock.calls[0][2].body).toContain('pin=true');
   });
 
   it('rejects an agent that is no longer joined', async () => {
