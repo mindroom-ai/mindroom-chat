@@ -34,6 +34,9 @@ export function plan(reports, root = repo) {
     const visit = (suite, titles = []) => {
       for (const spec of suite.specs ?? []) {
         const file = relative(root, resolve(report.config.rootDir, spec.file));
+        // This standalone benchmark reuses a verified manifest and its account.
+        // The scheduler's fresh credentials cannot access that fixture room.
+        if (file === 'e2e/live/perf-large-room-streaming.spec.ts') continue;
         for (const { projectName: project } of spec.tests) {
           const key = `${file}:${project}`;
           if (!jobs.has(key)) jobs.set(key, { file, project, config, titles: new Set() });

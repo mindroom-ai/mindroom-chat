@@ -40,8 +40,12 @@ const getPreferredEventContent = (
   }
 
   const eventId = mEvent.getId();
+  // Reuse the detached bundle from the eligibility check. The shared resolver
+  // still owns ordering, sender validation and metadata fallbacks.
   const editedEvent =
-    eventId && timelineSet ? getEditedEvent(eventId, mEvent, timelineSet) : undefined;
+    eventId && timelineSet
+      ? getEditedEvent(eventId, mEvent, timelineSet, serializedReplacementCandidate)
+      : undefined;
 
   return getLatestMessageContent(mEvent, editedEvent);
 };

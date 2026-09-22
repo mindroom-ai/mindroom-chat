@@ -517,7 +517,8 @@ const copyEditMetadataFallbacksToLatestEdit = (
 export const getEditedEvent = (
   mEventId: string,
   mEvent: MatrixEvent,
-  timelineSet: EventTimelineSet
+  timelineSet: EventTimelineSet,
+  serializedReplacementCandidate = getSerializedReplacementEvent(mEvent)
 ): MatrixEvent | undefined => {
   const replacingEventCandidate = mEvent.replacingEvent() ?? undefined;
   // CINNY-207 AC2 render-gap RG3 (2026-07-04): observability at the
@@ -540,7 +541,6 @@ export const getEditedEvent = (
     });
   }
 
-  const serializedReplacementCandidate = getSerializedReplacementEvent(mEvent);
   const serializedReplacement = isSameSenderEditEvent(mEvent, serializedReplacementCandidate)
     ? serializedReplacementCandidate
     : undefined;

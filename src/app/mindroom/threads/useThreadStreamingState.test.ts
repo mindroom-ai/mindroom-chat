@@ -5,7 +5,7 @@ import { RelationsEvent } from 'matrix-js-sdk/lib/models/relations';
 import { ThreadEvent } from 'matrix-js-sdk/lib/models/thread';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
-import { useThreadStreamingState } from './useThreadStreamingState';
+import { getThreadStreamingState, useThreadStreamingState } from './useThreadStreamingState';
 
 const THREAD_ROOT_ID = '$root';
 
@@ -207,6 +207,39 @@ const renderHookHarness = (
 };
 
 describe('useThreadStreamingState', () => {
+  it('materializes each bundled edit only once per status read and observes newer bundles', () => {
+    const relationMap = new Map<string, MockRelations>();
+    const replyEvent = makeThreadReplyEvent('$reply', 200, {
+      'io.mindroom.stream_status': 'pending',
+    });
+    const attach = (id: string, ts: number, status: string) => {
+      replyEvent.setUnsigned({
+        'm.relations': {
+          'm.replace': makeEditEvent(id, ts, '$reply', {
+            'io.mindroom.stream_status': status,
+          }).event,
+        },
+      });
+    };
+    attach('$streaming', 300, 'streaming');
+    const thread = makeThread({ lastReply: replyEvent, relationMap });
+    const room = makeRoom({
+      rootEventId: '$root',
+      thread,
+      roomTimelineSet: makeTimelineSet(relationMap, () => []),
+    });
+    const clone = vi.spyOn(globalThis, 'structuredClone');
+    try {
+      expect(getThreadStreamingState(room, '$root')).toBe(true);
+      expect(clone).toHaveBeenCalledTimes(1);
+      attach('$completed', 400, 'completed');
+      expect(getThreadStreamingState(room, '$root')).toBe(false);
+      expect(clone).toHaveBeenCalledTimes(2);
+    } finally {
+      clone.mockRestore();
+    }
+  });
+
   it('returns true for ai_run streaming metadata', () => {
     const relationMap = new Map<string, MockRelations>();
     const roomTimelineSet = makeTimelineSet(relationMap, () => []);

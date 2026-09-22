@@ -70,3 +70,57 @@ Known unresolved checks remain strict: immediate fold-anchor displacement and na
 The settings-header live check also expects its own blur although settings now inherit the modal material; direct Playwright execution reproduces this failure without the scheduler.
 The scheduler does not relax assertions or add retries.
 Unit tests remain `npm test`; the scheduler's focused tests run through `npm run test:e2e:runner` in PR CI.
+
+## Streaming stress fixture
+
+With a disposable local Matrix stack running, create a dedicated account and seed 1,000 threads with 100 streamed replies each:
+
+```sh
+export E2E_HOMESERVER=http://127.0.0.1:28108
+export E2E_USERNAME=mindroom_stress_disposable
+: "${E2E_PASSWORD:?Set a disposable fixture password}"
+export E2E_PASSWORD
+# Credentials come from the environment; suppress the helper's shell exports.
+uv run --no-project --python 3.12 bash scripts/ensure-e2e-account.sh E2E unused unused >/dev/null
+node scripts/seed-streaming-stress-room.mjs \
+  --manifest test-results/streaming-stress/manifest.json
+node --test scripts/seed-streaming-stress-room.test.mjs
+```
+
+The seeder accepts only loopback homeservers and requires the existing account's `E2E_USERNAME` and `E2E_PASSWORD`; `--help` documents workload options.
+Each reply sends an initial pending notice and three edits ending in a completed text message, producing 401,000 message events including the roots.
+Keep the manifest and Matrix device, then rerun the same command to resume interrupted work.
+Completed threads are checkpointed atomically; interrupted threads reuse stable transaction IDs without duplicating messages.
+A lost room-creation response is recovered through its stable alias on the next run.
+If a forced kill leaves a `.lock` file, confirm its recorded process has stopped before removing that file.
+Seeding reports completed threads and expected event counts; the live probe below verifies every server thread root and reply count before sending its replay.
+Historical seeding does not prove that a browser processed those edits live.
+
+### Live Chrome replay
+
+Run the dedicated overview probe against that complete manifest and an already-running production preview:
+
+```sh
+: "${E2E_PASSWORD:?Set the seeded fixture account password}"
+E2E_NO_WEB_SERVER=1 E2E_BASE_URL=http://127.0.0.1:4173 \
+  PERF_STRESS_MANIFEST=test-results/streaming-stress/manifest.json \
+  npx playwright test e2e/live/perf-large-room-streaming.spec.ts \
+  --project=chromium --workers=1 --retries=0 --headed \
+  --output=test-results/streaming-stress/before
+```
+
+The probe uses installed Google Chrome unless `PLAYWRIGHT_CHROMIUM_EXECUTABLE` explicitly selects another executable.
+It defaults to the manifest's username and loopback homeserver; any `E2E_USERNAME` or `E2E_HOMESERVER` override must match that fixture.
+Without a manifest it skips; with a manifest, a missing password or incomplete fixture fails explicitly.
+The parallel scheduler excludes this standalone probe because its per-job accounts cannot reuse the manifest-owned room.
+
+Before replay, the probe checks every server thread root against the manifest and requires at least the configured reply count in each thread.
+It records the actual pre-replay reply total, so repeated runs remain valid and their accumulated replies stay visible in the report.
+The probe waits for every unique manifest thread card, adds one pending reply to each of the first 20 roots, and waits for all 20 previews before profiling.
+It sends 20 batches of 20 replacement events with a 50 ms pause between batches, ending with completed text messages, and requires every final preview and streaming indicator to catch up.
+CPU profiles and JSON reports are attached to the Playwright result, including actual send rate, catch-up time, raw frame gaps, long tasks, and browser metrics.
+Timings are informational; missing cards and stale final previews fail the test.
+Playwright traces, videos, and automatic screenshots are disabled so authentication is not recorded.
+
+Each replay adds 20 logical replies and 400 edits; the manifest's 401,000 historical seed events are a separate workload, not 401,000 live edits.
+Use distinct output directories for before/after runs and record accumulated replay counts, or restore an identical disposable Matrix snapshot for each run.
