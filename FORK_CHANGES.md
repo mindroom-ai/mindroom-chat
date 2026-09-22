@@ -2,6 +2,22 @@
 
 ## Runbook
 
+### Recover overview summaries beyond the cached event tail (2026-09-22)
+
+- Status: independently approved; final full validation is in progress.
+- Live Chrome inspection found a thread with summary notices already cached outside the overview's 32-event tail, but no entry in the separate summary store.
+  Opening the thread recovered the title; the same limited discovery exists in the pre-optimization build.
+- Missing-summary recovery now reads older cache history separately in bounded 128-event pages, yielding between reads and retaining only summary candidates and their relation evidence.
+  It preserves the overview's 32-event metadata limit and publishes through the existing shared summary selection and persistence used by cards and banners.
+  Accepted edits and redactions spanning pages are applied together, including ordinary notices edited into summaries.
+  Bounded point reads recover referenced originals when server timestamps sort them ahead of their edits.
+- Committed thread-cache writes invalidate negative discovery results for their session, room, and thread, with coalesced wakeups.
+  Closing the overview, switching scope, or clearing the cache prevents stale publication.
+  Reads interrupted by committed history changes restart before publishing; later history growth also invalidates initially short cache coverage.
+  Existing summary entries keep their current cached-to-live upgrade path; this repair targets missing entries.
+- Regressions reproduce buried summaries, later background history arrival, cross-page relations, and cancellation.
+  An offline Chromium test verifies recovery before opening, matching banner text, closing, and reload.
+
 ### Reduce loading and thread-operation latency (2026-09-22)
 
 - Status: PR #321 contains independently reviewed performance changes based on merged PR #319 (`59dd75c2`).

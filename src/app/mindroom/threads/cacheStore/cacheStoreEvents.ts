@@ -1,4 +1,5 @@
 import type { IEvent } from 'matrix-js-sdk';
+import { notifyThreadCacheChanged } from './cacheStoreThreadChanges';
 import type { EventAttachmentMessage } from '../../messages/eventAttachments';
 import { countCacheProbe } from '../cacheProbe';
 import { isCacheWritable, reportCacheWriteError } from '../cacheHealth';
@@ -1241,6 +1242,8 @@ export const saveThreadEventsToCacheCommitted = async (
   }
 
   // CINNY-207 P2.2 commit 3: same debounced over-budget probe.
+  if (isCacheStoreWriteLeaseCurrent(writeLease))
+    notifyThreadCacheChanged(sessionId, roomId, threadId);
   maybeScheduleEvictionCheck(sessionId);
   return true;
 };

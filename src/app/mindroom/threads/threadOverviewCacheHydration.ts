@@ -15,6 +15,7 @@ import { type CachedThreadEventPage, loadLatestCachedThreadEventsBatch } from '.
 import { hasLikelyIncompleteStreamingBody } from './threadEditBackfill';
 import { resolveThreadPresentationSnapshot } from './threadPresentation';
 import { buildThreadCacheCoverage } from './threadCacheCoverage';
+import { useThreadOverviewSummaryRecovery } from './threadOverviewSummaryRecovery';
 import type {
   ThreadOverviewCachedMetadataController,
   ThreadOverviewCachedMetadataUpdate,
@@ -346,6 +347,16 @@ export const useThreadOverviewCacheHydration = ({
   const pendingReadsRef = useRef(
     new Map<string, ReturnType<typeof loadLatestCachedThreadEventsBatch>>()
   );
+
+  useThreadOverviewSummaryRecovery({
+    enabled: !threadId && overviewThreadMetadataCacheLimit > 0,
+    sessionId,
+    room,
+    threadRootIds: overviewThreadRootIds,
+    records: showCompactRoomView ? compactThreadRecordMap : threadRecordMap,
+    coverage: cachedThreadCoverageMap,
+    onStoreThreadSummary,
+  });
 
   useEffect(() => {
     if (threadId || overviewThreadRootIds.length === 0 || overviewThreadMetadataCacheLimit <= 0)
