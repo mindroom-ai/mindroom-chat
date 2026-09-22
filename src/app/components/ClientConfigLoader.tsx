@@ -10,6 +10,13 @@ import {
 import { AUTHENTICATION_RECOVERY_NAVIGATION_PARAM } from '../../serviceWorkerNavigation';
 
 const CLIENT_CONFIG_STORAGE_PREFIX = 'io.cinny.client-config:';
+type AuthenticationRecoveryWindow = Window & {
+  __AUTHENTICATION_RECOVERY_READY__?: Promise<unknown>;
+  __AUTHENTICATION_RECOVERY__?: {
+    navigate: () => Promise<string>;
+    configurationLoaded?: () => void;
+  };
+};
 
 export class ClientConfigAuthenticationError extends Error {
   constructor() {
@@ -76,6 +83,12 @@ export const fetchClientConfig = async (
 
   const config = asClientConfig(await response.json());
   cacheClientConfig(config, basePath);
+  if (typeof window !== 'undefined') {
+    const recoveryWindow = window as AuthenticationRecoveryWindow;
+    void Promise.resolve(recoveryWindow.__AUTHENTICATION_RECOVERY_READY__)
+      .then(() => recoveryWindow.__AUTHENTICATION_RECOVERY__?.configurationLoaded?.())
+      .catch(() => undefined);
+  }
   return config;
 };
 
@@ -97,10 +110,11 @@ const clearAuthenticationRecoveryNavigation = (): void => {
   }
 };
 
-export const reloadForInteractiveAuthentication = (): void => {
-  const url = new URL(window.location.href);
-  url.searchParams.set(AUTHENTICATION_RECOVERY_NAVIGATION_PARAM, '1');
-  window.location.assign(url.href);
+export const reloadForInteractiveAuthentication = async (): Promise<string> => {
+  const recoveryWindow = window as AuthenticationRecoveryWindow;
+  // runtime-config.js also loads the owner for cached predecessor app shells.
+  await recoveryWindow.__AUTHENTICATION_RECOVERY_READY__;
+  return recoveryWindow.__AUTHENTICATION_RECOVERY__?.navigate() ?? 'unavailable';
 };
 
 type ClientConfigLoaderProps = {
@@ -116,12 +130,33 @@ type ClientConfigLoaderProps = {
 export function ClientConfigLoader({ fallback, error, children }: ClientConfigLoaderProps) {
   const [state, load] = useAsyncCallback(fetchClientConfig);
   const [ignoreError, setIgnoreError] = useState(false);
+  const [recoveryError, setRecoveryError] = useState<Error>();
+  const authenticateCallback = useCallback(() => {
+    void reloadForInteractiveAuthentication()
+      .then((result) => {
+        if (result !== 'navigating') {
+          setRecoveryError(
+            new Error(
+              'Sign-in recovery could not complete. Retry the connection or continue offline.'
+            )
+          );
+        }
+      })
+      .catch(() => {
+        setRecoveryError(
+          new Error(
+            'Sign-in recovery could not complete. Retry the connection or continue offline.'
+          )
+        );
+      });
+  }, []);
   const [cachedConfig] = useState(() => readCachedClientConfig());
   const [waitForFreshConfig, setWaitForFreshConfig] = useState(false);
 
   const ignoreCallback = useCallback(() => setIgnoreError(true), []);
   const retryCallback = useCallback(() => {
     setIgnoreError(false);
+    setRecoveryError(undefined);
     // An explicit retry follows a known startup/authentication failure. Keep
     // that recovery gated until the request succeeds or the user goes offline.
     setWaitForFreshConfig(true);
@@ -154,10 +189,10 @@ export function ClientConfigLoader({ fallback, error, children }: ClientConfigLo
 
   if (state.status === AsyncStatus.Error) {
     return error?.(
-      state.error,
+      recoveryError ?? state.error,
       retryCallback,
       cachedConfig === undefined ? undefined : ignoreCallback,
-      reloadForInteractiveAuthentication
+      authenticateCallback
     );
   }
 

@@ -1,0 +1,272 @@
+import { readFileSync } from 'node:fs';
+import { runInNewContext } from 'node:vm';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+
+const source = () => readFileSync('public/authentication-recovery.js', 'utf8');
+const setup = (
+  config: unknown = { probeUrl: '/probe', navigationUrl: '/login' },
+  values = new Map<string, string>(),
+  href = 'https://chat.example/room?tab=one#event'
+) => {
+  const controller = { scriptURL: 'https://chat.example/sw.js' };
+  const unregister = vi.fn().mockResolvedValue(true);
+  const registration = { active: controller, unregister };
+  const assign = vi.fn();
+  const fetch = vi.fn().mockResolvedValue({ status: 204, ok: true });
+  const window = {
+    __AUTHENTICATION_RECOVERY_CONFIG__: config,
+    location: { href, assign },
+    navigator: {
+      onLine: true,
+      serviceWorker: { controller, getRegistration: vi.fn().mockResolvedValue(registration) },
+    },
+    sessionStorage: {
+      getItem: vi.fn((key: string) => values.get(key) ?? null),
+      setItem: vi.fn((key: string, value: string) => values.set(key, value)),
+      removeItem: vi.fn((key: string) => values.delete(key)),
+    },
+    addEventListener: vi.fn(),
+    document: { visibilityState: 'visible', addEventListener: vi.fn() },
+    fetch,
+  };
+  runInNewContext(source(), {
+    window,
+    URL,
+    AbortController,
+    setTimeout,
+    clearTimeout,
+    setInterval: vi.fn(),
+  });
+  const api = (
+    window as unknown as {
+      __AUTHENTICATION_RECOVERY__: {
+        check: () => Promise<string>;
+        navigate: () => Promise<string>;
+        configurationLoaded: () => void;
+      };
+    }
+  ).__AUTHENTICATION_RECOVERY__;
+  return { window, api, assign, fetch, unregister, registration, values };
+};
+afterEach(() => vi.useRealTimers());
+
+describe('native authentication recovery', () => {
+  it('is opt-in and rejects cross-origin, credentialed and non-HTTP URLs', async () => {
+    for (const config of [
+      undefined,
+      {},
+      { probeUrl: '//other.example/probe', navigationUrl: '/' },
+      // eslint-disable-next-line no-script-url -- rejected unsafe configuration regression
+      { probeUrl: '/probe', navigationUrl: 'javascript:alert(1)' },
+      { probeUrl: '/probe', navigationUrl: 'https://user@chat.example/' },
+    ]) {
+      const { api, fetch, assign } = setup(config === undefined ? null : config);
+      expect(await api.check()).toBe('disabled');
+      expect(fetch).not.toHaveBeenCalled();
+      expect(assign).not.toHaveBeenCalled();
+    }
+  });
+
+  it.each([401, 0])(
+    'recovers confirmed expiry %s once and preserves the fragment',
+    async (status) => {
+      const { api, fetch, assign, unregister, values } = setup();
+      await api.check();
+      fetch.mockResolvedValue({
+        status,
+        ok: false,
+        type: status === 0 ? 'opaqueredirect' : 'basic',
+      });
+      expect(await api.check()).toBe('navigating');
+      expect(unregister).toHaveBeenCalledTimes(1);
+      expect(assign).toHaveBeenCalledWith(
+        'https://chat.example/login?authentication-recovery-navigation=1#event'
+      );
+      expect(values.size).toBe(1);
+      expect(await api.check()).toBe('navigating');
+      expect(assign).toHaveBeenCalledTimes(1);
+    }
+  );
+
+  it('treats forbidden as authorization denial and bounds the existing sign-in action', async () => {
+    const { api, fetch, assign } = setup();
+    await api.check();
+    fetch.mockResolvedValue({ status: 403 });
+    expect(await api.navigate()).toBe('denied');
+    expect(assign).not.toHaveBeenCalled();
+  });
+
+  it.each([502, 503, 404, 200])('does not navigate for ambiguous HTTP %s', async (status) => {
+    const { api, fetch, unregister, assign } = setup();
+    await api.check();
+    fetch.mockResolvedValue({ status, ok: status === 200 });
+    expect(await api.check()).toBe('unavailable');
+    expect(unregister).not.toHaveBeenCalled();
+    expect(assign).not.toHaveBeenCalled();
+  });
+
+  it('does not navigate offline or on a failed or timed out request', async () => {
+    vi.useFakeTimers();
+    const { api, window, fetch, assign } = setup();
+    await api.check();
+    window.navigator.onLine = false;
+    expect(await api.check()).toBe('unavailable');
+    window.navigator.onLine = true;
+    fetch.mockRejectedValue(new TypeError('network failure'));
+    expect(await api.check()).toBe('unavailable');
+    fetch.mockImplementation(
+      (_url, init) =>
+        new Promise((_resolve, reject) => {
+          init.signal.addEventListener('abort', () => reject(new Error('aborted')));
+        })
+    );
+    const pending = api.check();
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(await pending).toBe('unavailable');
+    expect(assign).not.toHaveBeenCalled();
+  });
+
+  it('coalesces concurrent probes and navigations', async () => {
+    const { api, fetch, assign } = setup();
+    await api.check();
+    let finish!: (value: unknown) => void;
+    fetch.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        })
+    );
+    const first = api.check();
+    const second = api.check();
+    expect(first).toBe(second);
+    finish({ status: 401 });
+    await Promise.all([first, second]);
+    expect(assign).toHaveBeenCalledTimes(1);
+  });
+
+  it('fails closed when unregister fails or the matching controller cannot be found', async () => {
+    const { api, fetch, unregister, assign } = setup();
+    await api.check();
+    unregister.mockRejectedValue(new Error('denied'));
+    fetch.mockResolvedValue({ status: 401 });
+    expect(await api.check()).toBe('blocked');
+    expect(assign).not.toHaveBeenCalled();
+    const other = setup();
+    await other.api.check();
+    // A different registration may use the same script; object identity proves ownership.
+    other.registration.active = { scriptURL: 'https://chat.example/sw.js' };
+    other.fetch.mockResolvedValue({ status: 401 });
+    expect(await other.api.check()).toBe('blocked');
+    expect(other.unregister).not.toHaveBeenCalled();
+  });
+
+  it('bounds a second boot and fails closed when its retry record cannot be saved', async () => {
+    const { api, fetch, values, assign } = setup();
+    await api.check();
+    values.set('mindroom.authentication-recovery:https://chat.example/probe', '1');
+    fetch.mockResolvedValue({ status: 401 });
+    expect(await api.check()).toBe('blocked');
+    expect(assign).not.toHaveBeenCalled();
+    const denied = setup();
+    await denied.api.check();
+    denied.window.sessionStorage.setItem.mockImplementation(() => {
+      throw new Error('denied');
+    });
+    denied.fetch.mockResolvedValue({ status: 401 });
+    expect(await denied.api.check()).toBe('blocked');
+    expect(denied.assign).not.toHaveBeenCalled();
+  });
+
+  it('navigates without a worker and resets the budget only after HTTP 204', async () => {
+    const { api, fetch, window, values, assign } = setup();
+    await api.check();
+    values.set('mindroom.authentication-recovery:https://chat.example/probe', '1');
+    expect(await api.check()).toBe('healthy');
+    expect(values.size).toBe(0);
+    Object.assign(window.navigator.serviceWorker, { controller: null });
+    fetch.mockResolvedValue({ status: 401 });
+    expect(await api.check()).toBe('navigating');
+    expect(window.navigator.serviceWorker.getRegistration).not.toHaveBeenCalled();
+    expect(assign).toHaveBeenCalledTimes(1);
+  });
+  it('blocks safely when service-worker unregister never settles', async () => {
+    vi.useFakeTimers();
+    const { api, fetch, unregister, assign } = setup();
+    await api.check();
+    unregister.mockImplementation(() => new Promise(() => {}));
+    fetch.mockResolvedValue({ status: 401 });
+    const pending = api.check();
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(await pending).toBe('blocked');
+    expect(assign).not.toHaveBeenCalled();
+  });
+
+  it('does not require removal when another tab already unregistered the controller', async () => {
+    const { api, fetch, window, unregister, assign } = setup();
+    await api.check();
+    window.navigator.serviceWorker.getRegistration.mockResolvedValue(undefined);
+    fetch.mockResolvedValue({ status: 401 });
+    expect(await api.check()).toBe('navigating');
+    expect(unregister).not.toHaveBeenCalled();
+    expect(assign).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps the configured fragment rather than overwriting it', async () => {
+    const { api, fetch, assign } = setup({
+      probeUrl: '/probe',
+      navigationUrl: '/login#configured',
+    });
+    await api.check();
+    fetch.mockResolvedValue({ status: 401 });
+    await api.check();
+    expect(assign).toHaveBeenCalledWith(
+      'https://chat.example/login?authentication-recovery-navigation=1#configured'
+    );
+  });
+  it('allows a later healthy probe to release a failed recovery budget', async () => {
+    const { api, fetch, unregister, assign } = setup();
+    await api.check();
+    unregister.mockRejectedValueOnce(new Error('transient unregister failure'));
+    fetch.mockResolvedValue({ status: 401 });
+    expect(await api.check()).toBe('blocked');
+    fetch.mockResolvedValue({ status: 204 });
+    expect(await api.check()).toBe('healthy');
+    fetch.mockResolvedValue({ status: 401 });
+    expect(await api.check()).toBe('navigating');
+    expect(assign).toHaveBeenCalledTimes(1);
+  });
+  it('resets only manual recovery after fresh configuration succeeds across two sign-ins', async () => {
+    const values = new Map<string, string>();
+    const first = setup(null, values);
+    expect(await first.api.navigate()).toBe('navigating');
+    const stillExpired = setup(null, values);
+    expect(await stillExpired.api.navigate()).toBe('blocked');
+    const signedIn = setup(null, values);
+    signedIn.api.configurationLoaded();
+    expect(values.size).toBe(0);
+    expect(await signedIn.api.navigate()).toBe('navigating');
+    expect(signedIn.assign).toHaveBeenCalledTimes(1);
+
+    const configured = setup();
+    await configured.api.check();
+    configured.values.set('mindroom.authentication-recovery:https://chat.example/probe', '1');
+    configured.api.configurationLoaded();
+    expect(configured.values.size).toBe(1);
+  });
+
+  it('rejects relative configurations across successive returned-shell boots', async () => {
+    const values = new Map<string, string>();
+    for (let boot = 0; boot < 4; boot += 1) {
+      const client = setup(
+        { probeUrl: 'probe', navigationUrl: 'login/' },
+        values,
+        'https://chat.example/chat/' + 'login/'.repeat(boot)
+      );
+      client.fetch.mockResolvedValue({ status: 401 });
+      expect(await client.api.check()).toBe('disabled');
+      expect(client.assign).not.toHaveBeenCalled();
+      expect(client.fetch).not.toHaveBeenCalled();
+    }
+    expect(values.size).toBe(0);
+  });
+});
