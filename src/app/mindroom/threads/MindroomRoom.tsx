@@ -22,6 +22,7 @@ import { useRoomThreadRouteGuards } from './useRoomThreadRouteGuards';
 import { useRoomEscapeReadReceipts } from './useRoomEscapeReadReceipts';
 import { useRoomViewMode } from './useRoomViewMode';
 import { useThreadRootEvent } from './useThreadRootEvent';
+import { isThreadRouteReady } from './threadRouteUtils';
 import { hasActiveMindroomAgent, isMindroomAgentUserId } from '../matrix/agentIdentity';
 import { MembershipFilter } from '../../hooks/useMemberFilter';
 import { useClientConfig } from '../../hooks/useClientConfig';
@@ -108,10 +109,7 @@ export function Room() {
   });
   const computerThreadId = useThreadRootEvent(room, routedThreadId);
   const continuationReady =
-    !routedThreadId ||
-    computerThreadId !== routedThreadId ||
-    !!room.findEventById(routedThreadId) ||
-    !!room.getThread(routedThreadId)?.rootEvent;
+    computerThreadId !== routedThreadId || isThreadRouteReady(room, routedThreadId);
   const handleComputerToggle = useCallback(() => {
     if (!effectiveComputerOpen) setPeopleDrawer(false);
     toggleComputer();

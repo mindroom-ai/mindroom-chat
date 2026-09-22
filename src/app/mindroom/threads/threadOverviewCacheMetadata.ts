@@ -174,9 +174,13 @@ export const useThreadOverviewCachedMetadata = (
   roomId: string
 ): ThreadOverviewCachedMetadataController => {
   const [snapshot, setSnapshot] = useState(createEmptyThreadOverviewCachedMetadata);
+  const snapshotRoomIdRef = useRef(roomId);
   const compactRootPreviewAttemptCountsRef = useRef<Map<string, number>>(new Map());
 
   useEffect(() => {
+    // The initial snapshot is already empty; replacing it rebuilds every thread record.
+    if (snapshotRoomIdRef.current === roomId) return;
+    snapshotRoomIdRef.current = roomId;
     compactRootPreviewAttemptCountsRef.current = new Map();
     setSnapshot(createEmptyThreadOverviewCachedMetadata());
   }, [roomId]);

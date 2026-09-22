@@ -1,7 +1,7 @@
 import React from 'react';
-import { RoomEvent, ThreadEvent } from 'matrix-js-sdk';
+import { RoomEvent, ThreadEvent, type MatrixEvent, type Room, type Thread } from 'matrix-js-sdk';
 import { act, create } from 'react-test-renderer';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { useThreadRootEvent } from './useThreadRootEvent';
 
 const makeEvent = (
@@ -23,7 +23,7 @@ const makeEvent = (
         : {},
     isSending: () => options?.isSending ?? false,
     threadRootId: options?.threadRootId,
-  }) as never;
+  } as unknown as MatrixEvent);
 
 const makeRoom = ({
   events = [],
@@ -49,10 +49,53 @@ const makeRoom = ({
       listeners.delete(event);
     },
     __listeners: listeners,
-  } as never;
+  } as unknown as Room & { __listeners: typeof listeners };
 };
 
 describe('useThreadRootEvent', () => {
+  it('uses a known SDK root without scanning other threads on mount or updates', async () => {
+    const room = makeRoom();
+    const root = makeEvent('$root');
+    room.getThread = () => ({ id: '$root', rootEvent: root } as Thread);
+    const lookup = vi.spyOn(room, 'findEventById');
+    const observed: Array<string | undefined> = [];
+    const HookProbe = () => {
+      observed.push(useThreadRootEvent(room, '$root'));
+      return null;
+    };
+    let renderer: ReturnType<typeof create>;
+    await act(async () => {
+      renderer = create(React.createElement(HookProbe));
+    });
+    await act(async () => {
+      room.__listeners.get(ThreadEvent.Update)?.();
+      room.__listeners.get(RoomEvent.Timeline)?.(root, room, false, false);
+    });
+    expect(observed.at(-1)).toBe('$root');
+    expect(lookup).not.toHaveBeenCalled();
+    await act(async () => renderer.unmount());
+  });
+
+  it('refreshes readiness when an unknown route gains an SDK root with the same ID', async () => {
+    const room = makeRoom();
+    const observed: Array<string | undefined> = [];
+    const HookProbe = () => {
+      observed.push(useThreadRootEvent(room, '$root'));
+      return null;
+    };
+    let renderer: ReturnType<typeof create>;
+    await act(async () => {
+      renderer = create(React.createElement(HookProbe));
+    });
+    expect(observed).toEqual(['$root']);
+    room.getThread = () => ({ id: '$root', rootEvent: makeEvent('$root') } as Thread);
+    await act(async () => {
+      room.__listeners.get(ThreadEvent.New)?.();
+    });
+    expect(observed).toEqual(['$root', '$root']);
+    await act(async () => renderer.unmount());
+  });
+
   it('updates a pending local-echo thread root id when LocalEchoUpdated confirms it', async () => {
     const pendingRoot = makeEvent('~pending-root', {
       txnId: 'txn-1',
@@ -83,11 +126,7 @@ describe('useThreadRootEvent', () => {
     events.splice(0, events.length, confirmedRoot);
 
     await act(async () => {
-      room.__listeners.get(RoomEvent.LocalEchoUpdated)?.(
-        confirmedRoot,
-        room,
-        '~pending-root'
-      );
+      room.__listeners.get(RoomEvent.LocalEchoUpdated)?.(confirmedRoot, room, '~pending-root');
     });
 
     expect(observedRootIds.at(-1)).toBe('$confirmed-root');
@@ -224,9 +263,11 @@ describe('useThreadRootEvent', () => {
     });
 
     await act(async () => {
-      room.__listeners
-        .get(RoomEvent.LocalEchoUpdated)
-        ?.(makeEvent('$reply-2'), room, '~!room:example.org:m123');
+      room.__listeners.get(RoomEvent.LocalEchoUpdated)?.(
+        makeEvent('$reply-2'),
+        room,
+        '~!room:example.org:m123'
+      );
     });
 
     expect(observedRootIds.at(-1)).toBe('$root');

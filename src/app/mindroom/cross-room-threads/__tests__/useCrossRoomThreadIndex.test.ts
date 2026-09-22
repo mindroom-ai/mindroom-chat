@@ -3,7 +3,7 @@
 import React from 'react';
 import { act, create } from 'react-test-renderer';
 import { Provider, createStore } from 'jotai';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi, type Mocked } from 'vitest';
 import { RelationType } from 'matrix-js-sdk/lib/@types/event';
 import { MatrixEventEvent, type MatrixEvent } from 'matrix-js-sdk/lib/models/event';
 import { RoomEvent, RoomStateEvent, MatrixEvent as StateMatrixEvent } from 'matrix-js-sdk';
@@ -127,7 +127,7 @@ const makeThread = (root: MatrixEvent, replies: MatrixEvent[] = []): Thread =>
     length: replies.length,
     lastReply: () => null,
     getUnfilteredTimelineSet: () => makeTimelineSet([root, ...replies]),
-  } as Thread);
+  } as unknown as Thread);
 
 const makeRoom = (
   roomId = '!room:example.org',
@@ -189,7 +189,7 @@ const makeRoom = (
       removeListener(listeners, event, handler)
     ),
     emit: (event: unknown, ...args: unknown[]) => emit(listeners, event, ...args),
-  } as unknown as Room & { emit: (event: unknown, ...args: unknown[]) => void };
+  } as unknown as Mocked<Room> & { emit: (event: unknown, ...args: unknown[]) => void };
 
   return { room, root, thread };
 };
@@ -228,7 +228,7 @@ const makeRoomWithThreads = (roomId: string, threadRoots: Array<{ id: string; bo
       removeListener(listeners, event, handler)
     ),
     emit: (event: unknown, ...args: unknown[]) => emit(listeners, event, ...args),
-  } as unknown as Room & { emit: (event: unknown, ...args: unknown[]) => void };
+  } as unknown as Mocked<Room> & { emit: (event: unknown, ...args: unknown[]) => void };
 
   return { room, roots, threads };
 };
@@ -278,7 +278,7 @@ const makeRoomWithThreadReplies = (roomId: string, threadCount: number) => {
       removeListener(listeners, event, handler)
     ),
     emit: (event: unknown, ...args: unknown[]) => emit(listeners, event, ...args),
-  } as unknown as Room & { emit: (event: unknown, ...args: unknown[]) => void };
+  } as unknown as Mocked<Room> & { emit: (event: unknown, ...args: unknown[]) => void };
 
   return { room, roots, replies, threads };
 };
@@ -334,6 +334,91 @@ describe('useCrossRoomThreadIndex', () => {
     localStorage.clear();
     clearThreadSummarySharedState();
   });
+
+  it('reads room tag state once when bootstrapping many threads, including untagged roots', async () => {
+    const { room } = makeRoomWithThreadReplies('!room:example.org', 40);
+    const tag = new StateMatrixEvent({
+      type: MINDROOM_THREAD_TAGS_EVENT,
+      state_key: '["$root-0","resolved"]',
+      content: { set_by: '@me:example.org', set_at: '2026-09-21T00:00:00Z' },
+    });
+    const readTags = vi.fn(() => [tag]);
+    vi.mocked(room.getLiveTimeline).mockReturnValue({
+      getState: () => ({
+        // Like the SDK, each read returns a fresh array.
+        getStateEvents: (type: string) => (type === MINDROOM_THREAD_TAGS_EVENT ? readTags() : null),
+      }),
+    } as never);
+    matrixClientMock.mockReturnValue(makeClient(room));
+    const store = createStore();
+    store.set(allRoomsAtom, { type: 'INITIALIZE', rooms: [room.roomId] });
+    let renderer!: ReturnType<typeof create>;
+    await act(async () => {
+      renderer = create(React.createElement(Provider, { store }, React.createElement(HookProbe)));
+    });
+    await flushScheduledWork();
+    const entries = store.get(crossRoomThreadIndexAtom).entries;
+    expect(entries.size).toBe(40);
+    expect(entries.get(getCrossRoomThreadIndexKey(room.roomId, '$root-0'))?.isResolved).toBe(true);
+    expect(entries.get(getCrossRoomThreadIndexKey(room.roomId, '$root-39'))?.isResolved).toBe(
+      false
+    );
+    expect(readTags).toHaveBeenCalledOnce();
+    renderer.unmount();
+  });
+
+  it.each(['canonical', 'legacy'])(
+    'only rebuilds the changed thread on %s resolve and reopen',
+    async (format) => {
+      const { room, replies } = makeRoomWithThreadReplies('!room:example.org', 3);
+      let tag = new StateMatrixEvent({
+        type: MINDROOM_THREAD_TAGS_EVENT,
+        state_key: format === 'canonical' ? '["$root-1","resolved"]' : '$root-1',
+        content: {},
+      });
+      vi.mocked(room.getLiveTimeline).mockReturnValue({
+        getState: () => ({
+          getStateEvents: (type: string) => (type === MINDROOM_THREAD_TAGS_EVENT ? [tag] : null),
+        }),
+      } as never);
+      const mx = makeClient(room);
+      matrixClientMock.mockReturnValue(mx);
+      const store = createStore();
+      store.set(allRoomsAtom, { type: 'INITIALIZE', rooms: [room.roomId] });
+      let renderer!: ReturnType<typeof create>;
+      await act(async () => {
+        renderer = create(React.createElement(Provider, { store }, React.createElement(HookProbe)));
+      });
+      await flushScheduledWork();
+      const untouched = store
+        .get(crossRoomThreadIndexAtom)
+        .entries.get(getCrossRoomThreadIndexKey(room.roomId, '$root-0'));
+      const untouchedContent = vi.spyOn(replies[0], 'getContent');
+      const metadata = { set_by: '@me:example.org', set_at: '2026-09-21T00:00:00Z' };
+      for (const resolved of [true, false]) {
+        tag = new StateMatrixEvent({
+          ...tag.event,
+          content: resolved
+            ? format === 'canonical'
+              ? metadata
+              : { tags: { resolved: metadata } }
+            : {},
+        });
+        await act(async () => {
+          mx.emit(RoomStateEvent.Events, tag, { roomId: room.roomId });
+          await Promise.resolve();
+        });
+        await flushScheduledWork();
+        const entries = store.get(crossRoomThreadIndexAtom).entries;
+        expect(entries.get(getCrossRoomThreadIndexKey(room.roomId, '$root-1'))?.isResolved).toBe(
+          resolved
+        );
+        expect(entries.get(getCrossRoomThreadIndexKey(room.roomId, '$root-0'))).toBe(untouched);
+        expect(untouchedContent).not.toHaveBeenCalled();
+      }
+      renderer.unmount();
+    }
+  );
 
   it.each(['sync', 'local'])(
     'suspends global resolution for %s pins and restores it on unpin',
@@ -551,7 +636,7 @@ describe('useCrossRoomThreadIndex', () => {
     const replyContent = {
       msgtype: 'm.text',
       body: 'encrypted reply',
-      'm.mentions': { user_ids: [] },
+      'm.mentions': { user_ids: [] as string[] },
     };
     const reply = makeEvent({
       id: '$reply',

@@ -160,12 +160,13 @@ export const useRoomThreadList = (room: Room, enabled = true) => {
   }, [room, version]);
   const userId = mx.getUserId() ?? '';
   const threadUnreads = useMemo(
-    () => getRoomThreadsUnread(room, rawThreads, userId),
-    [room, rawThreads, userId]
+    () => (enabled ? getRoomThreadsUnread(room, rawThreads, userId) : new Map<string, boolean>()),
+    [enabled, room, rawThreads, userId]
   );
   const threads = useMemo(
-    () => sortThreadsByActivity(rawThreads, threadUnreads),
-    [rawThreads, threadUnreads]
+    // Non-compact surfaces still use known roots for deep links, but not this ordering.
+    () => (enabled ? sortThreadsByActivity(rawThreads, threadUnreads) : rawThreads),
+    [enabled, rawThreads, threadUnreads]
   );
   const fullyLoaded = useMemo(() => {
     void version;

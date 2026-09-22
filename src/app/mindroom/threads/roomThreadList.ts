@@ -7,11 +7,16 @@ import type { Room } from 'matrix-js-sdk/lib/models/room';
 import { Thread } from 'matrix-js-sdk/lib/models/thread';
 import { isVisibleThreadReplyEvent } from './threadUtils';
 
-const getLatestVisibleReply = (thread: Thread) =>
-  [...(thread.events ?? [])].reverse().find(isVisibleThreadReplyEvent) ??
-  (thread.replyToEvent && isVisibleThreadReplyEvent(thread.replyToEvent)
+const getLatestVisibleReply = (thread: Thread): MatrixEvent | undefined => {
+  const events = thread.events ?? [];
+  for (let index = events.length - 1; index >= 0; index -= 1) {
+    const event = events[index];
+    if (isVisibleThreadReplyEvent(event)) return event;
+  }
+  return thread.replyToEvent && isVisibleThreadReplyEvent(thread.replyToEvent)
     ? thread.replyToEvent
-    : undefined);
+    : undefined;
+};
 
 const findThreadReceiptEvent = (thread: Thread, eventId: string): MatrixEvent | undefined => {
   const timelineEvent = thread.events?.find((event) => event.getId() === eventId);
@@ -68,24 +73,33 @@ export const getEffectiveThreadReadUpToTs = (
 export const getThreadLastActivityTs = (thread: Thread): number =>
   getLatestVisibleReply(thread)?.getTs() ?? thread.rootEvent?.getTs() ?? 0;
 
-/**
- * Check if a single thread has unread messages.
- * A thread is unread when its latest reply is from another user
- * and is newer than both the thread-scoped and room-level read receipts.
- */
-export const getThreadUnread = (room: Room, thread: Thread, userId: string): boolean => {
+const getRoomReadUpToTs = (room: Room, userId: string): number | null => {
+  const readUpToId = room.getEventReadUpTo(userId);
+  return (readUpToId ? room.findEventById(readUpToId)?.getTs() : null) ?? null;
+};
+
+const getThreadUnreadWithRoomReceipt = (
+  thread: Thread,
+  userId: string,
+  readRoomReceipt: () => number | null
+): boolean => {
   const latestReply = getLatestVisibleReply(thread);
   if (!latestReply) return false;
 
   if (latestReply.getSender() === userId) return false;
 
-  const readUpToId = room.getEventReadUpTo(userId);
-  const roomReadUpToTs = readUpToId ? room.findEventById(readUpToId)?.getTs() : null;
-  const readUpToTs = getEffectiveThreadReadUpToTs(thread, userId, roomReadUpToTs ?? null) ?? null;
+  const readUpToTs = getEffectiveThreadReadUpToTs(thread, userId, readRoomReceipt()) ?? null;
   if (readUpToTs === null) return true;
 
   return latestReply.getTs() > readUpToTs;
 };
+
+/**
+ * A thread is unread when its latest reply is from another user
+ * and is newer than both the thread-scoped and room-level read receipts.
+ */
+export const getThreadUnread = (room: Room, thread: Thread, userId: string): boolean =>
+  getThreadUnreadWithRoomReceipt(thread, userId, () => getRoomReadUpToTs(room, userId));
 
 /**
  * Return a Map of threadRootId → boolean for all given threads,
@@ -97,9 +111,15 @@ export const getRoomThreadsUnread = (
   userId: string
 ): Map<string, boolean> => {
   const unreadMap = new Map<string, boolean>();
+  // Read lazily so empty and self-authored threads still need no receipt lookup.
+  let roomReadUpToTs: number | null | undefined;
+  const readRoomReceipt = () => {
+    if (roomReadUpToTs === undefined) roomReadUpToTs = getRoomReadUpToTs(room, userId);
+    return roomReadUpToTs;
+  };
   for (const thread of threads) {
     const rootId = thread.id;
-    unreadMap.set(rootId, getThreadUnread(room, thread, userId));
+    unreadMap.set(rootId, getThreadUnreadWithRoomReceipt(thread, userId, readRoomReceipt));
   }
   return unreadMap;
 };
@@ -107,16 +127,18 @@ export const getRoomThreadsUnread = (
 export const sortThreadsByActivity = (
   threads: Thread[],
   threadUnreads?: Map<string, boolean>
-): Thread[] =>
-  [...threads].sort((threadA, threadB) => {
+): Thread[] => {
+  const activity = new Map(threads.map((thread) => [thread, getThreadLastActivityTs(thread)]));
+  return [...threads].sort((threadA, threadB) => {
     // Unread threads sort first when unread data is provided
     if (threadUnreads) {
       const aUnread = threadUnreads.get(threadA.id) ?? false;
       const bUnread = threadUnreads.get(threadB.id) ?? false;
       if (aUnread !== bUnread) return aUnread ? -1 : 1;
     }
-    return getThreadLastActivityTs(threadB) - getThreadLastActivityTs(threadA);
+    return activity.get(threadB)! - activity.get(threadA)!;
   });
+};
 
 const getAllThreadsLiveTimeline = (room: Room) => room.threadsTimelineSets[0]?.getLiveTimeline();
 

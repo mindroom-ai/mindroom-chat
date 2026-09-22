@@ -18,7 +18,7 @@ describe('runThreadOpenSdkBootstrap', () => {
       threadRootId: '$root',
       ts: 2,
     });
-    const events = [root];
+    const events: Array<ReturnType<typeof makeEvent> | MatrixEvent> = [root];
     let backward: string | null = null;
     const timeline = {
       getEvents: () => events,
@@ -190,6 +190,7 @@ describe('runThreadOpenSdkBootstrap', () => {
       }),
     };
     const room = makeRoom({ liveEvents: [root], threads: [thread as never] });
+    vi.spyOn(room, 'findEventById');
     const mx = {
       fetchRelations: vi.fn(),
       getEventMapper: vi.fn(),
@@ -212,6 +213,8 @@ describe('runThreadOpenSdkBootstrap', () => {
 
     expect(shouldContinue).toBe(true);
     expect(room.createThread).not.toHaveBeenCalled();
+    // Only the pending-local-echo check needs the room-wide lookup.
+    expect(room.findEventById).toHaveBeenCalledTimes(1);
   });
 
   it('keeps first-open backfill and a racing reply when SDK metadata initialization completes', async () => {

@@ -1,6 +1,6 @@
 import { useEffect, useReducer, useRef } from 'react';
 import { Room, RoomEvent, RoomEventHandlerMap, ThreadEvent } from 'matrix-js-sdk';
-import { resolveCanonicalThreadRootId } from './threadRouteUtils';
+import { isThreadRouteReady, resolveCanonicalThreadRootId } from './threadRouteUtils';
 
 /**
  * Resolve the canonical thread root event ID from a threadId.
@@ -20,8 +20,7 @@ export const useThreadRootEvent = (
   const rootId = resolveCanonicalThreadRootId(room, threadId);
   const rootIdRef = useRef(rootId);
   rootIdRef.current = rootId;
-  const routeKnown =
-    !threadId || !!room.findEventById(threadId) || !!room.getThread(threadId)?.rootEvent;
+  const routeKnown = isThreadRouteReady(room, threadId);
   const routeKnownRef = useRef(routeKnown);
   routeKnownRef.current = routeKnown;
 
@@ -30,8 +29,7 @@ export const useThreadRootEvent = (
 
     const refreshRootId = () => {
       const nextRootId = resolveCanonicalThreadRootId(room, threadId);
-      const nextRouteKnown =
-        !!room.findEventById(threadId) || !!room.getThread(threadId)?.rootEvent;
+      const nextRouteKnown = isThreadRouteReady(room, threadId);
       if (rootIdRef.current === nextRootId && routeKnownRef.current === nextRouteKnown) return;
 
       // Consumers can safely enable thread actions when a previously unknown
