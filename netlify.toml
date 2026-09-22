@@ -1,3 +1,23 @@
+[[headers]]
+  for = "/authentication-recovery.js"
+  [headers.values]
+    Cache-Control = "no-store"
+
+[[headers]]
+  for = "/runtime-config.js"
+  [headers.values]
+    Cache-Control = "no-store"
+
+[[redirects]]
+  from = "/authentication-recovery.js"
+  to = "/authentication-recovery.js"
+  status = 200
+
+[[redirects]]
+  from = "/runtime-config.js"
+  to = "/runtime-config.js"
+  status = 200
+
 [[redirects]]
   from = "/config.json"
   to = "/config.json"
