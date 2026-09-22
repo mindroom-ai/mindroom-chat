@@ -6,6 +6,7 @@
 
 - Status: failure confirmed in device diagnostics; exact trigger and rendering fix remain unproven.
   The header and composer remain responsive while the thread view is blank.
+  Force-closing and reopening the app restores messages in the same threads.
 - On build `f803999a`, server bootstrap and latest-history loading complete for both small and large threads.
   Cache hydration and reconciliation also finish on large-thread opens, but sampled committed state retains zero events and its initial loading/hydration flags while SDK reply counts grow.
   A separate 7.5-second event-loop stall occurs during one open.
@@ -14,14 +15,21 @@
   These probes do not reproduce the device failure.
 - Added numeric render-attempt/commit counters and attempted event/readiness values alongside committed SDK readiness to the opt-in thread snapshot.
   A concurrent DOM regression reproduces the previous diagnostic ambiguity using a suspended render, then checks that attempted and committed state remain distinguishable through recovery.
+  A one-shot scheduling probe records timer, animation-frame, and fresh MessageChannel delays plus document visibility when thread diagnostics start.
+  It distinguishes callback paths without changing React scheduling; a fresh channel's result alone cannot establish the health of React's existing scheduler channel.
   No message content or identifiers are added to the export.
 - Next: use the additional counters in a device reproduction to distinguish absent render attempts from interrupted renders before changing state publication or fetching.
   Cross-model consultation supports instrumentation before any publication workaround; no speculative fetch or synchronous-render change is included.
 - Independent review approves the diagnostic addition after expanding the bounded export field allowance to retain the complete snapshot.
-  Both new regressions fail before their corresponding changes, and all 5,285 unit tests pass under Node 24.13.1.
+  A second independent review approves the bounded scheduling probe and its cleanup.
+  New regressions fail before their corresponding changes, and all 5,287 unit tests pass under Node 24.13.1.
   Application and changed-test typechecks, production build, and lint pass with zero errors and 17 existing warnings.
-  The final synthetic native-platform WebKit probe confirms mounted replies and advancing diagnostic counters with failed diagnostic storage and blocked history storage.
-  The full browser scheduler is running in the supported browser container.
+  The final synthetic native-platform WebKit probe confirms mounted replies, advancing diagnostic counters, and all three scheduling observations with failed diagnostic storage and blocked history storage.
+  The full browser scheduler on the initial diagnostic production build completes 124 jobs in the supported browser container: 104 passed, 18 failed, and two blocked by missing external SSO and worker-computer fixtures.
+  Failures include media, styling, fixture assumptions, login readiness, pagination counts, and a compositor scroll-jump stress budget; the latter records no blank frames.
+  Compact-view, thread-scroll, streaming, and message-rendering performance probes pass.
+  The full suite remains non-green, and these results do not reproduce or resolve the reported blank-thread failure.
+  The scheduling follow-up passes the full unit suite and final production mobile WebKit probe separately.
 
 ### Reduce loading and thread-operation latency (2026-09-22)
 

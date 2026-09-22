@@ -14,6 +14,9 @@ vi.mock('../diagnostics/deepTrace', () => ({
   },
 }));
 vi.mock('./timelineDebug', () => ({ logTimelineDebug: mocks.log }));
+vi.mock('./threadRenderSchedulerProbe', () => ({
+  observeThreadRenderScheduler: () => () => undefined,
+}));
 
 it('distinguishes an attempted reply render from the last committed empty view', async () => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);

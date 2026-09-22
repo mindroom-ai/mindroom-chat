@@ -3,6 +3,7 @@ import type { MatrixEvent } from 'matrix-js-sdk';
 import { subscribeDeepTraceStatus } from '../diagnostics/deepTrace';
 import { logTimelineDebug } from './timelineDebug';
 import { getThreadReplyEventsForRoot } from './threadUtils';
+import { observeThreadRenderScheduler } from './threadRenderSchedulerProbe';
 
 type Options = {
   traceId?: string;
@@ -40,6 +41,7 @@ export const useThreadDiagnosticSnapshot = (options: Options): void => {
   useEffect(() => {
     if (!traceId || !threadId) return undefined;
     let timer: ReturnType<typeof setInterval> | undefined;
+    let stopSchedulerProbe: (() => void) | undefined;
     let previous: string | undefined;
     const sample = () => {
       const current = latest.current;
@@ -86,6 +88,8 @@ export const useThreadDiagnosticSnapshot = (options: Options): void => {
     const stop = () => {
       if (timer !== undefined) clearInterval(timer);
       timer = undefined;
+      stopSchedulerProbe?.();
+      stopSchedulerProbe = undefined;
     };
     const safeSample = (): boolean => {
       try {
@@ -102,6 +106,9 @@ export const useThreadDiagnosticSnapshot = (options: Options): void => {
         stop();
       } else if (timer === undefined) {
         previous = undefined;
+        stopSchedulerProbe = observeThreadRenderScheduler((data) =>
+          logTimelineDebug(traceId, 'thread-render-scheduler', data)
+        );
         if (safeSample()) timer = setInterval(safeSample, 1000);
       }
     });

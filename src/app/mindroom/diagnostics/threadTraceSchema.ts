@@ -47,6 +47,7 @@ export const THREAD_TRACE_PHASES: Record<string, readonly [string, readonly stri
     ['current', 'fetchedCount', 'repaired', 'durable', 'aborted'],
   ],
   'thread-reconcile-error': ['thread.reconcile.error', []],
+  'thread-render-scheduler': ['thread.scheduler', ['source', 'delayMs', 'visible']],
   'thread-render-snapshot': [
     'thread.render',
     [

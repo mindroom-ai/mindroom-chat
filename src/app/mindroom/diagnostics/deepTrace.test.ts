@@ -168,6 +168,17 @@ describe('opt-in deep diagnostic trace', () => {
       attempted_cache_hydrated: true,
     });
     expect(JSON.stringify(event)).not.toContain('private');
+    logTimelineDebug('thread-open#7#private-room', 'thread-render-scheduler', {
+      source: 3,
+      delayMs: 50,
+      visible: true,
+    });
+    expect((await readDeepTraceSnapshot()).events).toContainEqual(
+      expect.objectContaining({
+        name: 'thread.scheduler',
+        data: { trace_id: 7, source: 3, delay_ms: 50, visible: true },
+      })
+    );
   });
 
   it('captures JavaScriptCore stack locations without retaining stack text', async () => {
