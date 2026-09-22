@@ -17,6 +17,8 @@
   The host Node 22 run retains the four previously documented Xcode environment/caption timing failures.
   The final review fixes pass all 38 focused recovery/configuration tests and all seven Chromium cases.
   The full built app also recovers with a legacy worker at four startup timings, including when app worker registration happens before recovery.
+- Follow-up review fixes add exact Netlify passthrough and no-store rules for both bootstrap assets and protect generated/public loader parity.
+  Both Netlify routing/header regressions and nginx integration pass; the full Node 24 suite still passes all 5,239 tests, with typecheck, production/PWA build, and lint (zero errors, 17 existing warnings).
 - Deployment configuration and the exact cached-client compatibility boundary are documented in docs/authentication-recovery.md.
 
 ### Simplify compact thread controls (2026-09-22)

@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { runInNewContext } from 'node:vm';
 import test from 'node:test';
@@ -60,9 +61,16 @@ test('native recovery assets, probe and runtime URL serialization', async () => 
       assert.match(await bootstrap.text(), /__AUTHENTICATION_RECOVERY__/);
       const runtime = await fetch(`${origin}${prefix}/runtime-config.js`);
       assert.equal(runtime.headers.get('cache-control'), 'no-store');
+      const runtimeSource = await runtime.text();
+      const publicRuntime = readFileSync('public/runtime-config.js', 'utf8');
+      assert.equal(
+        runtimeSource.slice(runtimeSource.indexOf('\n(function () {')),
+        publicRuntime.slice(publicRuntime.indexOf('\n(function () {')),
+        'generated and public runtime scripts must use the same recovery loader'
+      );
       const scripts = [];
       const window = {};
-      runInNewContext(await runtime.text(), {
+      runInNewContext(runtimeSource, {
         window,
         URL,
         Promise,

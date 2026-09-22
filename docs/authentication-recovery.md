@@ -91,6 +91,7 @@ Authentication policy and cross-tab coordination remain the deployment's respons
 npm test
 E2E_NO_WEB_SERVER=1 npm run test:e2e -- e2e/authentication-recovery.spec.ts
 node --test scripts/test-authentication-recovery-nginx.mjs
+uv run --no-project python scripts/test_authentication_recovery_netlify.py
 ```
 
 The browser suite starts its own loopback fixture and bundles actual Workbox legacy and current workers.
