@@ -55,6 +55,14 @@ type RunThreadOpenSdkBootstrapOptions = {
   threadId: string;
 };
 
+const mapBootstrapRelations = (mx: MatrixClient, chunk: IEvent[]): MatrixEvent[] => {
+  const mapper = mx.getEventMapper();
+  return chunk
+    .slice()
+    .reverse()
+    .map((event) => mapper(event));
+};
+
 export const runThreadOpenSdkBootstrap = async ({
   debugTraceId,
   isMounted,
@@ -133,11 +141,7 @@ export const runThreadOpenSdkBootstrap = async ({
 
     threadModel = room.getThread(threadId);
     if (!threadModel && relData?.chunk?.length) {
-      const mapper = mx.getEventMapper();
-      const mappedEvents = relData.chunk
-        .slice()
-        .reverse()
-        .map((evt) => mapper(evt));
+      const mappedEvents = mapBootstrapRelations(mx, relData.chunk);
       setSupplementalThreadEvents(threadId, mappedEvents);
       persistThreadEventCache(
         threadId,
@@ -199,11 +203,7 @@ export const runThreadOpenSdkBootstrap = async ({
       return false;
     }
     if (relData?.chunk) {
-      const mapper = mx.getEventMapper();
-      const mappedEvents = relData.chunk
-        .slice()
-        .reverse()
-        .map((evt) => mapper(evt));
+      const mappedEvents = mapBootstrapRelations(mx, relData.chunk);
       appendThreadBootstrapRelations({
         thread: threadModel,
         events: mappedEvents,

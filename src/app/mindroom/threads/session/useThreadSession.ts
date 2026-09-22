@@ -309,12 +309,13 @@ export const useThreadSession = (route: ThreadRoute): ThreadSession => {
               mx,
               threadId,
               shouldScrollToLatestOnOpen,
-              isMounted: () => mounted,
+              isMounted: isCurrentThreadOpen,
               pinThreadToBottomOnOpen,
               onThreadLoadError: runtime.onThreadLoadError,
               persistThreadEventCache,
               setSupplementalThreadEvents: render.append,
               onBootstrap: (observation) => {
+                if (!isCurrentThreadOpen()) return;
                 if (observation.kind === 'load-error') {
                   networkLoadError = true;
                   publish((current) => ({
@@ -322,6 +323,7 @@ export const useThreadSession = (route: ThreadRoute): ThreadSession => {
                     open: { ...current.open, loadError: cacheComplete !== true },
                   }));
                 } else if (observation.kind === 'root-ready') {
+                  publish((current) => ({ ...current, open: { ...current.open, sdkReady: true } }));
                   commands.observeLiveTail(threadId);
                   invalidateEvents();
                 } else {
@@ -336,8 +338,8 @@ export const useThreadSession = (route: ThreadRoute): ThreadSession => {
               },
             });
             if (!isCurrentThreadOpen()) return;
-            liveProgressed = true;
             if (!shouldContinue) return;
+            liveProgressed = true;
             publish((current) => ({ ...current, open: { ...current.open, sdkReady: true } }));
             const cachedPage = cacheResult?.hydratedCachedPage;
             const thread = room.getThread(threadId);

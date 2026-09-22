@@ -208,6 +208,32 @@ describe('thread session targets', () => {
 });
 
 describe('thread session opening', () => {
+  it('rejects SDK publication after route ownership changes before cleanup', async () => {
+    const fixture = openFixture();
+    vi.mocked(fixture.runtime.room.getThread).mockReturnValue(undefined);
+    vi.mocked(fixture.runtime.room.findEventById).mockReturnValue(undefined);
+    const context = deferred<typeof fixture.timeline>();
+    fixture.context.mockReturnValue(context.promise);
+    vi.mocked(loadThreadCachedSnapshot)
+      .mockReset()
+      .mockReturnValue(new Promise(() => {}));
+    const route = { roomId: fixture.runtime.room.roomId, threadId: '$a' };
+    const view = renderSession(route);
+    let cleanup!: () => void;
+    act(() => {
+      cleanup = view.session.commands.startOpen(fixture.runtime);
+    });
+    view.rerender({ ...route, threadId: '$b' });
+    try {
+      await act(async () => context.reject(new Error('Old request failed')));
+      expect(view.session.snapshot.open.loadError).toBe(false);
+      expect(fixture.runtime.render.invalidateTimeline).not.toHaveBeenCalled();
+    } finally {
+      cleanup();
+      view.unmount();
+    }
+  });
+
   it('joins complete cache coverage with a stale server backward cursor', async () => {
     const fixture = openFixture();
     const bootstrap = deferred<typeof fixture.timeline>();
@@ -301,6 +327,7 @@ describe('thread session opening', () => {
           await settleCache();
         }
         expect(fixture.rendered.get('$reply')).toBe(fixture.reply);
+        expect(view.session.snapshot.history.tailLoaded).toBe(true);
         expect(view.session.snapshot.open.loadError).toBe(false);
         expect(view.session.snapshot.open.latestPending).toBe(false);
       } finally {
@@ -402,6 +429,7 @@ describe('thread session opening', () => {
     expect(view.session.snapshot.timelineRevision).toBe(1);
     expect(fixture.runtime.render.invalidateTimeline).toHaveBeenCalledTimes(1);
     expect(fixture.runtime.viewport.requestLatestPin).toHaveBeenCalledTimes(1);
+    expect(view.session.snapshot.open.sdkReady).toBe(true);
     expect(fixture.bootstrap).not.toHaveBeenCalled();
     expect(fixture.context).not.toHaveBeenCalled();
     expect(fixture.runtime.reconcile).toHaveBeenCalledTimes(1);

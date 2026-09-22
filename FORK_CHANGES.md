@@ -20,8 +20,10 @@
 - Consulted Claude on concurrent bootstrap versus moving reconciliation ahead of storage; chose concurrent bootstrap with one pagination join.
 - Regression coverage includes both completion orders, late-token preservation, offline cache, navigation lifetimes, real render-hook deep links, and forced database closure.
   A browser probe keeps a real cache transaction open while requiring server replies and the thread summary to appear.
-- All 5,231 unit tests pass under Node 24, along with application and new-test typechecks, production build, formatting, and lint with zero errors and 17 existing warnings.
+- All 5,233 unit tests pass under Node 24, along with application and new-test typechecks, production build, formatting, and lint with zero errors and 17 existing warnings.
   Focused Chromium checks pass for blocked storage, manual loading, summary consistency and cache upgrades, and message persistence.
+- Hosted review follow-ups preserve complete offline tail coverage after an earlier server failure, reject SDK callbacks after route ownership changes, and publish root readiness immediately.
+  One mapping helper now handles both relations fallback paths; independent re-review approves the follow-ups.
 
 ### Simplify compact thread controls (2026-09-22)
 
