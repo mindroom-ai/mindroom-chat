@@ -10,9 +10,11 @@ import {
 } from '../threadPaginationUtils';
 import {
   createPreferLiveEventMapper,
+  getThreadCursorAnchor,
   loadThreadCachedPaginationSnapshot,
 } from '../eventRepository';
 import { countCacheProbe } from '../cacheProbe';
+import { compareCachedPaginationAnchors } from '../eventCacheTokenUtils';
 import type { PersistThreadEventCache } from '../../engine/enginePersistFacade';
 import type {
   ThreadPagination,
@@ -101,69 +103,102 @@ export const useThreadPagination = (session: ThreadSessionCommands, route: Threa
         return false;
       };
       try {
-        const cached = await loadThreadCachedPaginationSnapshot({
-          sessionId,
-          roomId: room.roomId,
-          threadId: lease.threadId,
-          earliestLoadedReply: findEarliestLoadedThreadReplyByCacheOrder(
-            threadEvents,
-            lease.threadId
-          ),
-          limit: THREAD_BATCH_SIZE,
-          mapEvent: createPreferLiveEventMapper(room, mx.getEventMapper()),
-        });
-        if (!currentOrClear()) return;
-        if (cached.status === 'cache-hit') {
-          const timelineSet = thread?.getUnfilteredTimelineSet();
-          const first = timelineSet
-            ? getLinkedTimelines(timelineSet.getLiveTimeline())[0]
-            : undefined;
-          if (first && cached.cachedPage.beforeToken !== undefined) {
-            first.setPaginationToken(cached.cachedPage.beforeToken ?? null, Direction.Backward);
+        const first = thread
+          ? getLinkedTimelines(thread.getUnfilteredTimelineSet().getLiveTimeline())[0]
+          : undefined;
+        const serverCursor = first?.getPaginationToken(Direction.Backward);
+        // A server cursor is executable without storage. Failed/offline requests
+        // and cache-only history still use the persisted page below.
+        let networkError: Error | null = null;
+        if (thread && first && serverCursor) {
+          const renderedAnchor = getThreadCursorAnchor(
+            findEarliestLoadedThreadReplyByCacheOrder(threadEvents, lease.threadId)?.event
+          );
+          const visitedCursors = new Set<string>();
+          let cursor: string | null = serverCursor;
+          while (cursor && !visitedCursors.has(cursor)) {
+            visitedCursors.add(cursor);
+            // eslint-disable-next-line no-await-in-loop
+            [networkError] = await to(
+              mx.paginateEventTimeline(first, { backwards: true, limit: THREAD_BATCH_SIZE })
+            );
+            if (networkError) break;
+            // Accepted SDK work remains durable even if navigation changed ownership.
+            persistThreadEventCache(
+              lease.threadId,
+              thread.events,
+              thread.rootEvent,
+              first.getPaginationToken(Direction.Backward)
+            );
+            if (!currentOrClear()) return;
+            const serverAnchor = getThreadCursorAnchor(
+              findEarliestLoadedThreadReplyByCacheOrder(
+                [...first.getEvents(), ...thread.events],
+                lease.threadId
+              )?.event
+            );
+            if (
+              !renderedAnchor ||
+              (serverAnchor && compareCachedPaginationAnchors(serverAnchor, renderedAnchor) < 0)
+            )
+              break;
+            // Room/cache seeds may extend beyond the SDK window. Cross their
+            // overlap in this request so one click reaches unseen older history.
+            cursor = first.getPaginationToken(Direction.Backward);
           }
-          await viewport.waitForQuiescence(request);
+        }
+        if (networkError) countCacheProbe('threadPaginateBackNetworkErrors');
+        if (!thread || !first || !serverCursor || networkError) {
           if (!currentOrClear()) return;
-          const captured = await recapture();
-          if (!currentOrClear()) return;
-          // Cached data has not changed the SDK/render sink: retry from cache if rows are absent.
-          if (!captured) {
-            countCacheProbe('threadPaginateBackCommitSkippedNoAnchor');
+          const cached = await loadThreadCachedPaginationSnapshot({
+            sessionId,
+            roomId: room.roomId,
+            threadId: lease.threadId,
+            earliestLoadedReply: findEarliestLoadedThreadReplyByCacheOrder(
+              threadEvents,
+              lease.threadId
+            ),
+            limit: THREAD_BATCH_SIZE,
+            mapEvent: createPreferLiveEventMapper(room, mx.getEventMapper()),
+          }).catch(() => undefined);
+          if (!currentOrClear() || !cached) return;
+          if (cached.status === 'cache-hit') {
+            const timelineSet = thread?.getUnfilteredTimelineSet();
+            const cachedTimeline = timelineSet
+              ? getLinkedTimelines(timelineSet.getLiveTimeline())[0]
+              : undefined;
+            if (cachedTimeline && cached.cachedPage.beforeToken !== undefined) {
+              cachedTimeline.setPaginationToken(
+                cached.cachedPage.beforeToken ?? null,
+                Direction.Backward
+              );
+            }
+            await viewport.waitForQuiescence(request);
+            if (!currentOrClear()) return;
+            const captured = await recapture();
+            if (!currentOrClear()) return;
+            // Cached data has not changed the SDK/render sink: retry from cache if rows are absent.
+            if (!captured) {
+              countCacheProbe('threadPaginateBackCommitSkippedNoAnchor');
+              return;
+            }
+            committed = session.commitPage(lease, {
+              kind: 'back-cache',
+              events: cached.events,
+              hasMoreCachedBack: cached.hasMoreCachedBack,
+            });
+            if (committed) countCacheProbe('threadPaginateBackCacheCommits');
             return;
           }
-          committed = session.commitPage(lease, {
-            kind: 'back-cache',
-            events: cached.events,
-            hasMoreCachedBack: cached.hasMoreCachedBack,
-          });
-          if (committed) countCacheProbe('threadPaginateBackCacheCommits');
+
+          countCacheProbe('threadPaginateBackCacheMisses');
+          if (!thread) countCacheProbe('threadPaginateBackNoThread');
+          else if (!serverCursor) {
+            countCacheProbe('threadPaginateBackNoToken');
+            session.markBackwardExhausted(lease);
+          }
           return;
         }
-        countCacheProbe('threadPaginateBackCacheMisses');
-        if (!thread) {
-          countCacheProbe('threadPaginateBackNoThread');
-          return;
-        }
-        const first = getLinkedTimelines(thread.getUnfilteredTimelineSet().getLiveTimeline())[0];
-        if (!first?.getPaginationToken(Direction.Backward)) {
-          countCacheProbe('threadPaginateBackNoToken');
-          session.markBackwardExhausted(lease);
-          return;
-        }
-        const [error] = await to(
-          mx.paginateEventTimeline(first, { backwards: true, limit: THREAD_BATCH_SIZE })
-        );
-        if (error) {
-          countCacheProbe('threadPaginateBackNetworkErrors');
-          currentOrClear();
-          return;
-        }
-        // The SDK already accepted these events. Preserve persistence even when UI ownership expired.
-        persistThreadEventCache(
-          lease.threadId,
-          thread.events,
-          thread.rootEvent,
-          first.getPaginationToken(Direction.Backward)
-        );
         if (!currentOrClear()) return;
         await viewport.waitForQuiescence(request);
         if (!currentOrClear()) return;

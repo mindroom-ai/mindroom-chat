@@ -16,6 +16,7 @@ export type ThreadSessionSnapshot = Readonly<{
   open: Readonly<{
     loadError: boolean;
     initialCacheHydrated: boolean;
+    sdkReady: boolean;
     latestPending: boolean;
     editResetEpoch: number;
   }>;

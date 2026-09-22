@@ -163,10 +163,16 @@ export const openCacheStore = (
         return;
       }
 
+      const invalidateConnection = () => {
+        if (dbPromiseByName.get(dbName) === dbPromise) dbPromiseByName.delete(dbName);
+        // Also settle an open interrupted during the legacy migration.
+        reject(new DOMException('Cache database connection closed', 'InvalidStateError'));
+      };
+      db.onclose = invalidateConnection;
       db.onversionchange = () => {
         revokeCacheStoreWrites(sessionId);
         db.close();
-        dbPromiseByName.delete(dbName);
+        invalidateConnection();
       };
       // D8 wipe runs after the schema is confirmed and before we hand
       // the DB out to callers.
