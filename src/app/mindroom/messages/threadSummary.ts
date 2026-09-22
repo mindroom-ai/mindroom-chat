@@ -279,24 +279,72 @@ type ThreadSummaryBuildEventLike = ThreadSummaryEventLike & {
   threadRootId?: string;
 };
 
+type SummaryEventCacheEntry = {
+  hasMetadata: boolean;
+  hasNewContent: boolean;
+  body: unknown;
+  newBody: unknown;
+  summary: unknown;
+  generatedAt: unknown;
+  messageCount: unknown;
+  model: unknown;
+  eventTs: number | undefined;
+  info: MindroomThreadSummaryInfo | undefined;
+};
+
+const summaryEventCache = new WeakMap<ThreadSummaryEventLike, SummaryEventCacheEntry>();
+
 export const getThreadSummaryEventInfo = (
   event: ThreadSummaryEventLike
 ): MindroomThreadSummaryInfo | undefined => {
   const content = event.getContent();
+  const newContent = isRecord(content['m.new_content']) ? content['m.new_content'] : undefined;
+  const metadata = getMindroomThreadSummaryMetadata(content);
+  // The SDK's accepted local echo still has its send-start timestamp.
+  // Only a remote event supplies server chronology, including accepted edits.
+  const timestamp = event.replacingEventDate?.()?.getTime() ?? event.getTs?.();
+  const eventTs =
+    event.status == null &&
+    event.replacingEvent?.()?.status == null &&
+    timestamp !== undefined &&
+    isSupportedThreadSummaryTimestamp(timestamp)
+      ? timestamp
+      : undefined;
+  const cached = summaryEventCache.get(event);
+  // Inspect values, not just object identity: SDK edits, decryption and cached
+  // event enrichment can change existing objects between overview refreshes.
+  if (
+    cached &&
+    cached.hasMetadata === !!metadata &&
+    cached.hasNewContent === !!newContent &&
+    cached.body === content.body &&
+    cached.newBody === newContent?.body &&
+    cached.summary === metadata?.summary &&
+    cached.generatedAt === metadata?.generated_at &&
+    cached.messageCount === metadata?.message_count &&
+    cached.model === metadata?.model &&
+    cached.eventTs === eventTs
+  ) {
+    return cached.info;
+  }
   const info = getMindroomThreadSummaryInfo(content);
   // Fall back to body extraction for simple boolean flag format
   const text = getThreadSummaryPreviewText(event);
   const summary = info ?? (text ? { summaryText: text } : undefined);
-  if (!summary) return undefined;
-  // The SDK's accepted local echo still has its send-start timestamp.
-  // Only a remote event supplies server chronology, including accepted edits.
-  const eventTs = event.replacingEventDate?.()?.getTime() ?? event.getTs?.();
-  return event.status == null &&
-    event.replacingEvent?.()?.status == null &&
-    eventTs !== undefined &&
-    isSupportedThreadSummaryTimestamp(eventTs)
-    ? { ...summary, eventTs }
-    : summary;
+  const result = summary && eventTs !== undefined ? { ...summary, eventTs } : summary;
+  summaryEventCache.set(event, {
+    hasMetadata: !!metadata,
+    hasNewContent: !!newContent,
+    body: content.body,
+    newBody: newContent?.body,
+    summary: metadata?.summary,
+    generatedAt: metadata?.generated_at,
+    messageCount: metadata?.message_count,
+    model: metadata?.model,
+    eventTs,
+    info: result,
+  });
+  return result;
 };
 
 export const getLatestThreadSummaryInfo = <T extends ThreadSummaryEventLike>(
@@ -316,10 +364,18 @@ export const getLatestThreadSummaryInfoFromEventSources = <T extends ThreadSumma
 
 export const getThreadSummaryInfosFromEventSources = <T extends ThreadSummaryEventLike>(
   ...eventSources: Array<T[] | undefined>
-): Array<MindroomThreadSummaryInfo | undefined> =>
-  eventSources.flatMap(
-    (events) => events?.filter(isMindroomThreadSummaryEvent).map(getThreadSummaryEventInfo) ?? []
-  );
+): Array<MindroomThreadSummaryInfo | undefined> => {
+  const infos: Array<MindroomThreadSummaryInfo | undefined> = [];
+  eventSources.forEach((events, index) => {
+    // SDK events and timeline alias the same array. Keep the last occurrence
+    // so source precedence remains intact without scanning that history twice.
+    if (!events || eventSources.lastIndexOf(events) !== index) return;
+    events.forEach((event) => {
+      if (isMindroomThreadSummaryEvent(event)) infos.push(getThreadSummaryEventInfo(event));
+    });
+  });
+  return infos;
+};
 
 export const findLatestThreadSummaryEventFromEventSources = <T extends ThreadSummaryEventLike>(
   ...eventSources: Array<T[] | undefined>

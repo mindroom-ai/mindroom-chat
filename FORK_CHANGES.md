@@ -21,6 +21,26 @@
 - A cross-model consultation was attempted but blocked by the provider's quota; the implemented fixes preserve existing edit-resolution and event-source precedence.
   Broad SDK root lookup scans and rendering all 1,000 cards remain follow-up opportunities.
 
+### Restore compact-list performance after thread actions (2026-09-21)
+
+- Status: implemented and independently approved as a performance follow-up to #314 after reported compact-list scrolling lag.
+- Repeated summary resolution scans SDK `events` and `timeline` only once when they share an array.
+  Parsed summary results are reused while content values and accepted event/edit time remain unchanged.
+  Value checks preserve edits, decryption, in-place cache enrichment, redaction, and local-echo acceptance.
+- Consulted Claude on candidate indexing versus parsing reuse.
+  Retained explicit content checks because array length/end-point heuristics can miss changed events in the middle of a timeline.
+- Compact row actions reuse memoized rendering while unchanged, preserving existing menu, keyboard, focus, permission, and touch behavior.
+  Stable callbacks read the latest committed handlers; shared labels are translated once per overview render.
+- Eight regressions cover duplicate work, parsed-value invalidation, late decryption, redaction, accepted chronology, changed row state, and callback freshness.
+  All 5,211 tests pass under Node 24, along with application and focused-test typechecks, production build, formatting, and lint with zero errors and 17 existing warnings.
+  Independent review approves both performance changes without findings.
+- The Chromium summary-resolution benchmark with 400 threads and 500 events per thread drops from 10.6 ms to 2.4 ms median.
+  A development-renderer control benchmark with 400 admin cards drops from 19.58 ms to 1.45 ms median.
+  These isolate CPU costs and do not measure production scrolling FPS.
+- Production Chromium checks pass for compact menus, the thread bar, hover controls, and cached-to-live summary upgrades.
+  The existing live probe mounts all 400 cards in both builds; 40 streaming edits consume 10,694 ms of main-thread task time before the fix and 10,188 ms after it in single runs.
+  That short-history whole-app probe shows a much smaller change than the isolated benchmarks and does not establish a scrolling frame-rate improvement.
+
 ### Shared thread context menu (2026-09-21)
 
 - Status: shared context menu implemented, independently reviewed, and validated; companion backend support is tracked in MindRoom #2174.
