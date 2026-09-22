@@ -21,6 +21,9 @@
   Both Netlify routing/header regressions and nginx integration pass; the full Node 24 suite still passes all 5,239 tests, with typecheck, production/PWA build, and lint (zero errors, 17 existing warnings).
 - Browser history restoration now discards stale navigation/check promises and probes again without resetting the per-tab retry budget before confirmed health.
   A real Chromium back-forward cache regression confirms the same document cannot loop while expired, then clears its budget after HTTP 204 and recovers from a later expiry.
+- Follow-up review declares the browser fixture's pinned worker bundler as a direct test dependency.
+  When an explicit sign-in probe reports a healthy session, the configuration screen now retries fresh configuration and clears any earlier recovery error.
+  Component regressions cover the fresh-config loading gate and a later configuration failure after blocked recovery.
 - Deployment configuration and the exact cached-client compatibility boundary are documented in docs/authentication-recovery.md.
 
 ### Load active threads independently of persistent storage (2026-09-22)

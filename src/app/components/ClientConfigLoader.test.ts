@@ -403,6 +403,91 @@ describe('client configuration loading', () => {
     act(() => renderer.unmount());
   });
 
+  it('loads fresh configuration after sign-in finds an already healthy session', async () => {
+    globalThis.fetch = vi
+      .fn()
+      .mockResolvedValue(response({ json: async () => ({ hashRouter: true }) }));
+    await fetchClientConfig();
+    let finish!: (value: Response) => void;
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(response({ status: 401, ok: false }))
+      .mockImplementationOnce(
+        () =>
+          new Promise<Response>((resolve) => {
+            finish = resolve;
+          })
+      );
+    globalThis.fetch = fetchMock;
+    const navigate = vi.fn().mockResolvedValue('healthy');
+    vi.stubGlobal('window', {
+      location: { href: 'https://chat.example/room' },
+      __AUTHENTICATION_RECOVERY__: { navigate },
+    });
+    let authenticate!: () => void;
+    let renderer!: ReturnType<typeof create>;
+    await act(async () => {
+      renderer = create(
+        React.createElement(
+          ClientConfigLoader,
+          {
+            fallback: () => React.createElement('span', null, 'Loading'),
+            error: (_error, _retry, _ignore, signIn) => {
+              authenticate = signIn;
+              return React.createElement('span', null, 'Sign in');
+            },
+          },
+          (config) => React.createElement('span', null, config.hashRouter ? 'Cached' : 'Fresh')
+        )
+      );
+    });
+    expect(renderer.root.findByType('span').children).toEqual(['Sign in']);
+    await act(async () => authenticate());
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(renderer.root.findByType('span').children).toEqual(['Loading']);
+    await act(async () => finish(response({ json: async () => ({ hashRouter: false }) })));
+    expect(renderer.root.findByType('span').children).toEqual(['Fresh']);
+    act(() => renderer.unmount());
+  });
+
+  it('shows the fresh configuration error after a blocked sign-in later recovers', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(response({ status: 401, ok: false }))
+      .mockResolvedValueOnce(response({ status: 503, ok: false }));
+    globalThis.fetch = fetchMock;
+    const navigate = vi.fn().mockResolvedValueOnce('blocked').mockResolvedValueOnce('healthy');
+    vi.stubGlobal('window', {
+      location: { href: 'https://chat.example/room' },
+      __AUTHENTICATION_RECOVERY__: { navigate },
+    });
+    let authenticate!: () => void;
+    let shownError: unknown;
+    let renderer!: ReturnType<typeof create>;
+    await act(async () => {
+      renderer = create(
+        React.createElement(
+          ClientConfigLoader,
+          {
+            error: (error, _retry, _ignore, signIn) => {
+              shownError = error;
+              authenticate = signIn;
+              return null;
+            },
+          },
+          () => null
+        )
+      );
+    });
+    expect(shownError).toBeInstanceOf(ClientConfigAuthenticationError);
+    await act(async () => authenticate());
+    expect((shownError as Error).message).toContain('Sign-in recovery could not complete');
+    await act(async () => authenticate());
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect((shownError as Error).message).toBe('Failed to load client configuration (HTTP 503).');
+    act(() => renderer.unmount());
+  });
+
   it('removes only the authentication recovery marker on normal startup', async () => {
     const historyState = { route: 'thread', unsentDraft: true };
     const replaceState = vi.fn();

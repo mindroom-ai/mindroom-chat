@@ -62,6 +62,7 @@ Deployments generating their own `runtime-config.js` must include this loader af
 The bootstrap is idempotent and exposes `window.__AUTHENTICATION_RECOVERY__.check()` and `.navigate()`.
 The existing configuration-error sign-in action delegates to this owner and shares its probe and retry budget.
 For configured deployments, `navigate()` confirms expiry using the probe before any navigation.
+If the probe instead confirms a healthy session, the configuration-error sign-in action retries fresh configuration and keeps cached configuration gated until the request succeeds or the user continues offline.
 Without configuration, the explicit sign-in action still uses scoped worker removal and the retry bound.
 A successfully fetched and validated fresh client configuration notifies the owner through `configurationLoaded()` to reset only that unconfigured manual budget; cached configuration and failed loads never reset it.
 

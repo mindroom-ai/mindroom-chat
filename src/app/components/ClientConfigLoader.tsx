@@ -131,10 +131,24 @@ export function ClientConfigLoader({ fallback, error, children }: ClientConfigLo
   const [state, load] = useAsyncCallback(fetchClientConfig);
   const [ignoreError, setIgnoreError] = useState(false);
   const [recoveryError, setRecoveryError] = useState<Error>();
+  const [cachedConfig] = useState(() => readCachedClientConfig());
+  const [waitForFreshConfig, setWaitForFreshConfig] = useState(false);
+
+  const ignoreCallback = useCallback(() => setIgnoreError(true), []);
+  const retryCallback = useCallback(() => {
+    setIgnoreError(false);
+    setRecoveryError(undefined);
+    // An explicit retry follows a known startup/authentication failure. Keep
+    // that recovery gated until the request succeeds or the user goes offline.
+    setWaitForFreshConfig(true);
+    void load().catch(() => undefined);
+  }, [load]);
   const authenticateCallback = useCallback(() => {
     void reloadForInteractiveAuthentication()
       .then((result) => {
-        if (result !== 'navigating') {
+        if (result === 'healthy') {
+          retryCallback();
+        } else if (result !== 'navigating') {
           setRecoveryError(
             new Error(
               'Sign-in recovery could not complete. Retry the connection or continue offline.'
@@ -149,19 +163,7 @@ export function ClientConfigLoader({ fallback, error, children }: ClientConfigLo
           )
         );
       });
-  }, []);
-  const [cachedConfig] = useState(() => readCachedClientConfig());
-  const [waitForFreshConfig, setWaitForFreshConfig] = useState(false);
-
-  const ignoreCallback = useCallback(() => setIgnoreError(true), []);
-  const retryCallback = useCallback(() => {
-    setIgnoreError(false);
-    setRecoveryError(undefined);
-    // An explicit retry follows a known startup/authentication failure. Keep
-    // that recovery gated until the request succeeds or the user goes offline.
-    setWaitForFreshConfig(true);
-    void load().catch(() => undefined);
-  }, [load]);
+  }, [retryCallback]);
 
   useEffect(() => {
     clearAuthenticationRecoveryNavigation();
