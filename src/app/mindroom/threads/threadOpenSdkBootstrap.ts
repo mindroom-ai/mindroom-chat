@@ -89,7 +89,7 @@ export const runThreadOpenSdkBootstrap = async ({
   }
 
   let threadModel = room.getThread(threadId);
-  const zeroReplyStandaloneRootEvent = room.findEventById(threadId);
+  const zeroReplyStandaloneRootEvent = threadModel ? undefined : room.findEventById(threadId);
   if (
     !threadModel &&
     zeroReplyStandaloneRootEvent &&

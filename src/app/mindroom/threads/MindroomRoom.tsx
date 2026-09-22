@@ -110,8 +110,8 @@ export function Room() {
   const continuationReady =
     !routedThreadId ||
     computerThreadId !== routedThreadId ||
-    !!room.findEventById(routedThreadId) ||
-    !!room.getThread(routedThreadId)?.rootEvent;
+    !!room.getThread(routedThreadId)?.rootEvent ||
+    !!room.findEventById(routedThreadId);
   const handleComputerToggle = useCallback(() => {
     if (!effectiveComputerOpen) setPeopleDrawer(false);
     toggleComputer();

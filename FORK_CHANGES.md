@@ -4,8 +4,8 @@
 
 ### Reduce loading and thread-operation latency (2026-09-22)
 
-- Status: first changes implemented and independently reviewed on `perf/thread-operation-latency`, now based on merged PR #319 (`59dd75c2`).
-  Further profiling and integrated browser validation are in progress.
+- Status: performance changes implemented and independently reviewed on `perf/thread-operation-latency`, based on merged PR #319 (`59dd75c2`).
+  Matched Chrome comparisons are complete; full browser validation is in progress.
 - Live Chrome profiling found multi-second startup stalls and expensive room-wide work during normal thread operations.
   A repeated tag-aggregation pass over 516 SDK threads and 614 tag-state events took roughly 1.83 seconds; sharing one synchronous snapshot took roughly 3.7 ms in three isolated comparisons.
   This is a component measurement, not a whole-application speedup.
@@ -13,9 +13,20 @@
   Canonical and legacy tag changes refresh only their affected thread; pin changes retain room-wide reconciliation.
 - Room ordering scans backwards without copying history, calculates each activity timestamp once per sort, and reads the room receipt once per unread pass.
   Disabled compact discovery preserves known roots for deep links while skipping unused unread and ordering work.
+- Known SDK roots satisfy route-readiness checks without scanning other thread timelines.
+  Content-valued lookups keep their existing source precedence, and thread bootstrap skips an unused standalone-root search.
+- Overview cache hydration retains bounded reads and publishes its first useful batch promptly, then combines fast responses for up to 250 ms before publishing again.
+  A stalled later read cannot hold completed updates; cancellation discards buffered values and forces prompt fresh publication on the next pass so continuous streaming cannot starve progress.
+  The metadata hook also avoids replacing its initial empty snapshot with another empty snapshot.
 - Work-count and freshness regressions failed before the fixes.
   The first independent review approved the final snapshot, ordering, receipt, and disabled-mode changes after correcting a null-sentinel type mismatch.
-  Full validation and current-baseline operation measurements will be recorded before finalizing.
+- Two fresh Chrome contexts per build, with three operation cycles each, show median resolve/unresolve readiness falling about 79% to roughly 240 ms.
+  Thread opening measures 22% faster and closing 14% faster; closing uses 22% less main-thread work through settlement.
+  Opening and closing samples overlap, and initial loading shows no meaningful improvement.
+  These are local measurements against #319, not verified production gains; see [the operation report](docs/thread-operation-performance.md).
+- All 5,254 unit tests pass under Node 24.13.1, along with application and focused-test typechecks, production build, and lint with zero errors and 17 existing warnings.
+  Follow-up fixture typing corrections pass all 48 affected tests.
+  The full browser scheduler is running against the final production code.
 
 ### Load active threads independently of persistent storage (2026-09-22)
 

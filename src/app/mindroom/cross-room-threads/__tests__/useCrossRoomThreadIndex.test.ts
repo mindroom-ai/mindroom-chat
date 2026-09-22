@@ -3,7 +3,7 @@
 import React from 'react';
 import { act, create } from 'react-test-renderer';
 import { Provider, createStore } from 'jotai';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi, type Mocked } from 'vitest';
 import { RelationType } from 'matrix-js-sdk/lib/@types/event';
 import { MatrixEventEvent, type MatrixEvent } from 'matrix-js-sdk/lib/models/event';
 import { RoomEvent, RoomStateEvent, MatrixEvent as StateMatrixEvent } from 'matrix-js-sdk';
@@ -127,7 +127,7 @@ const makeThread = (root: MatrixEvent, replies: MatrixEvent[] = []): Thread =>
     length: replies.length,
     lastReply: () => null,
     getUnfilteredTimelineSet: () => makeTimelineSet([root, ...replies]),
-  } as Thread);
+  } as unknown as Thread);
 
 const makeRoom = (
   roomId = '!room:example.org',
@@ -189,7 +189,7 @@ const makeRoom = (
       removeListener(listeners, event, handler)
     ),
     emit: (event: unknown, ...args: unknown[]) => emit(listeners, event, ...args),
-  } as unknown as Room & { emit: (event: unknown, ...args: unknown[]) => void };
+  } as unknown as Mocked<Room> & { emit: (event: unknown, ...args: unknown[]) => void };
 
   return { room, root, thread };
 };
@@ -228,7 +228,7 @@ const makeRoomWithThreads = (roomId: string, threadRoots: Array<{ id: string; bo
       removeListener(listeners, event, handler)
     ),
     emit: (event: unknown, ...args: unknown[]) => emit(listeners, event, ...args),
-  } as unknown as Room & { emit: (event: unknown, ...args: unknown[]) => void };
+  } as unknown as Mocked<Room> & { emit: (event: unknown, ...args: unknown[]) => void };
 
   return { room, roots, threads };
 };
@@ -278,7 +278,7 @@ const makeRoomWithThreadReplies = (roomId: string, threadCount: number) => {
       removeListener(listeners, event, handler)
     ),
     emit: (event: unknown, ...args: unknown[]) => emit(listeners, event, ...args),
-  } as unknown as Room & { emit: (event: unknown, ...args: unknown[]) => void };
+  } as unknown as Mocked<Room> & { emit: (event: unknown, ...args: unknown[]) => void };
 
   return { room, roots, replies, threads };
 };
@@ -636,7 +636,7 @@ describe('useCrossRoomThreadIndex', () => {
     const replyContent = {
       msgtype: 'm.text',
       body: 'encrypted reply',
-      'm.mentions': { user_ids: [] },
+      'm.mentions': { user_ids: [] as string[] },
     };
     const reply = makeEvent({
       id: '$reply',

@@ -1,4 +1,4 @@
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import type { IEvent, MatrixClient, MatrixEvent, Room } from 'matrix-js-sdk';
 import {
   getThreadSummaryInfosFromEventSources,
@@ -24,6 +24,8 @@ type ThreadLikeRoot = {
   id: string;
   rootEvent?: MatrixEvent;
 };
+
+const OVERVIEW_CACHE_PUBLICATION_INTERVAL_MS = 250;
 
 type UseThreadOverviewCacheHydrationOptions = {
   threadId?: string;
@@ -339,88 +341,133 @@ export const useThreadOverviewCacheHydration = ({
     compactRootPreviewAttemptCountsRef,
     applyUpdates,
   } = cachedMetadata;
+  const preferImmediatePublicationRef = useRef(false);
 
   useEffect(() => {
-    if (threadId || overviewThreadRootIds.length === 0) return;
+    if (threadId || overviewThreadRootIds.length === 0 || overviewThreadMetadataCacheLimit <= 0)
+      return;
 
-    const threadRootIdsToLoad = overviewThreadRootIds
-      .filter((rootId) => {
-        const needsCacheCoverage = !cachedThreadCoverageMap.has(rootId);
-        const needsActivityTs = !cachedThreadLastActivityTsMap.has(rootId) && needsCacheCoverage;
+    const threadRootIdsToLoad = overviewThreadRootIds.filter((rootId) => {
+      const needsCacheCoverage = !cachedThreadCoverageMap.has(rootId);
+      const needsActivityTs = !cachedThreadLastActivityTsMap.has(rootId) && needsCacheCoverage;
 
-        if (!showCompactRoomView) {
-          return needsActivityTs || needsCacheCoverage;
-        }
+      if (!showCompactRoomView) {
+        return needsActivityTs || needsCacheCoverage;
+      }
 
-        const currentPreview = compactThreadRootBodyMap.get(rootId);
-        const attemptCount = compactRootPreviewAttemptCountsRef.current.get(rootId) ?? 0;
-        const maxAttempts =
-          !currentPreview || hasLikelyIncompleteStreamingBody(currentPreview) ? 3 : 1;
-        const needsPreview =
-          !compactCachedThreadRootBodyMap.has(rootId) && attemptCount < maxAttempts;
+      const currentPreview = compactThreadRootBodyMap.get(rootId);
+      const attemptCount = compactRootPreviewAttemptCountsRef.current.get(rootId) ?? 0;
+      const maxAttempts =
+        !currentPreview || hasLikelyIncompleteStreamingBody(currentPreview) ? 3 : 1;
+      const needsPreview =
+        !compactCachedThreadRootBodyMap.has(rootId) && attemptCount < maxAttempts;
 
-        return needsActivityTs || needsPreview || needsCacheCoverage;
-      })
-      .slice(0, overviewThreadMetadataCacheLimit);
+      return needsActivityTs || needsPreview || needsCacheCoverage;
+    });
     if (threadRootIdsToLoad.length === 0) return;
 
     let cancelled = false;
-    const mapper = mx.getEventMapper();
+    let hasBufferedUpdates = false;
+    let publicationTimer: ReturnType<typeof setTimeout> | undefined;
+    let finishPublicationWait: (() => void) | undefined;
 
     const loadCachedThreadOverviewRecords = async () => {
-      let cachedPages: Map<string, CachedThreadEventPage>;
-      try {
-        cachedPages = await loadLatestCachedThreadEventsBatch(
-          sessionId,
-          room.roomId,
-          threadRootIdsToLoad,
-          32
+      const startedAt = performance.now();
+      const nextUpdates: CachedOverviewUpdate[] = [];
+      const attemptedRootIds: string[] = [];
+      for (
+        let offset = 0;
+        offset < threadRootIdsToLoad.length;
+        offset += overviewThreadMetadataCacheLimit
+      ) {
+        const batchIds = threadRootIdsToLoad.slice(
+          offset,
+          offset + overviewThreadMetadataCacheLimit
         );
-      } catch {
-        return;
+        let cachedPages: Map<string, CachedThreadEventPage> | undefined;
+        try {
+          // Keep reads bounded and yield to IndexedDB between batches, without
+          // rebuilding the entire overview after every fast cache response.
+          const read = loadLatestCachedThreadEventsBatch(sessionId, room.roomId, batchIds, 32);
+          cachedPages = await (nextUpdates.length === 0
+            ? read
+            : Promise.race([
+                read,
+                new Promise<undefined>((resolve) => {
+                  finishPublicationWait = () => resolve(undefined);
+                  publicationTimer = setTimeout(
+                    finishPublicationWait,
+                    Math.max(
+                      0,
+                      OVERVIEW_CACHE_PUBLICATION_INTERVAL_MS - (performance.now() - startedAt)
+                    )
+                  );
+                }),
+              ]));
+        } catch {
+          break;
+        } finally {
+          clearTimeout(publicationTimer);
+          publicationTimer = undefined;
+          finishPublicationWait = undefined;
+        }
+        if (cancelled) return;
+        if (!cachedPages) break;
+        const mapper = mx.getEventMapper();
+        attemptedRootIds.push(...batchIds);
+        batchIds.forEach((rootId) => {
+          const cachedPage = cachedPages.get(rootId);
+          if (!cachedPage) return;
+          try {
+            const currentRecord = (
+              showCompactRoomView ? compactThreadRecordMap : threadRecordMap
+            ).get(rootId);
+            const currentRootEvent =
+              room.findEventById(rootId) ??
+              room.getThread(rootId)?.rootEvent ??
+              roomThreadListThreads.find((thread) => thread.id === rootId)?.rootEvent;
+
+            const update = resolveCachedOverviewUpdate({
+              rootId,
+              room,
+              mapper,
+              cachedPage,
+              currentRecord,
+              currentRootEvent,
+              showCompactRoomView,
+              compactCachedThreadRootBodyMap,
+              compactThreadRootBodyMap,
+            });
+            if (update) nextUpdates.push(update);
+          } catch {
+            // A single unreadable cached page must not block the others.
+          }
+        });
+        hasBufferedUpdates = nextUpdates.length > 0;
+        // Publish the first useful batch promptly, then amortize full-room
+        // derivation while keeping progress visible during slower cache reads.
+        if (
+          nextUpdates.length > 0 &&
+          (preferImmediatePublicationRef.current ||
+            cachedThreadCoverageMap.size === 0 ||
+            performance.now() - startedAt >= OVERVIEW_CACHE_PUBLICATION_INTERVAL_MS)
+        )
+          break;
       }
       if (cancelled) return;
 
       if (showCompactRoomView) {
-        threadRootIdsToLoad.forEach((rootId) => {
+        attemptedRootIds.forEach((rootId) => {
           if (compactCachedThreadRootBodyMap.has(rootId)) return;
           const currentCount = compactRootPreviewAttemptCountsRef.current.get(rootId) ?? 0;
           compactRootPreviewAttemptCountsRef.current.set(rootId, currentCount + 1);
         });
       }
 
-      const nextUpdates: CachedOverviewUpdate[] = [];
-      threadRootIdsToLoad.forEach((rootId) => {
-        const cachedPage = cachedPages.get(rootId);
-        if (!cachedPage) return;
-        try {
-          const currentRecord = (
-            showCompactRoomView ? compactThreadRecordMap : threadRecordMap
-          ).get(rootId);
-          const currentRootEvent =
-            room.findEventById(rootId) ??
-            room.getThread(rootId)?.rootEvent ??
-            roomThreadListThreads.find((thread) => thread.id === rootId)?.rootEvent;
-
-          const update = resolveCachedOverviewUpdate({
-            rootId,
-            room,
-            mapper,
-            cachedPage,
-            currentRecord,
-            currentRootEvent,
-            showCompactRoomView,
-            compactCachedThreadRootBodyMap,
-            compactThreadRootBodyMap,
-          });
-          if (update) nextUpdates.push(update);
-        } catch {
-          // A single unreadable cached page must not block the others.
-        }
-      });
-
       if (nextUpdates.length === 0) return;
 
+      hasBufferedUpdates = false;
+      preferImmediatePublicationRef.current = false;
       applyUpdates(nextUpdates, { includeCompactRootBody: showCompactRoomView });
 
       nextUpdates.forEach(({ rootId, nextSummaryInfo, summaryCandidates }) => {
@@ -433,6 +480,11 @@ export const useThreadOverviewCacheHydration = ({
 
     return () => {
       cancelled = true;
+      // Live updates can invalidate derived values while the next read waits.
+      // Re-derive them next time, but publish promptly so streaming cannot starve progress.
+      if (hasBufferedUpdates) preferImmediatePublicationRef.current = true;
+      finishPublicationWait?.();
+      clearTimeout(publicationTimer);
     };
   }, [
     cachedThreadLastActivityTsMap,

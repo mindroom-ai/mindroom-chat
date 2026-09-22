@@ -73,11 +73,6 @@ export const getEffectiveThreadReadUpToTs = (
 export const getThreadLastActivityTs = (thread: Thread): number =>
   getLatestVisibleReply(thread)?.getTs() ?? thread.rootEvent?.getTs() ?? 0;
 
-/**
- * Check if a single thread has unread messages.
- * A thread is unread when its latest reply is from another user
- * and is newer than both the thread-scoped and room-level read receipts.
- */
 const getRoomReadUpToTs = (room: Room, userId: string): number | null => {
   const readUpToId = room.getEventReadUpTo(userId);
   return (readUpToId ? room.findEventById(readUpToId)?.getTs() : null) ?? null;
@@ -99,6 +94,10 @@ const getThreadUnreadWithRoomReceipt = (
   return latestReply.getTs() > readUpToTs;
 };
 
+/**
+ * A thread is unread when its latest reply is from another user
+ * and is newer than both the thread-scoped and room-level read receipts.
+ */
 export const getThreadUnread = (room: Room, thread: Thread, userId: string): boolean =>
   getThreadUnreadWithRoomReceipt(thread, userId, () => getRoomReadUpToTs(room, userId));
 

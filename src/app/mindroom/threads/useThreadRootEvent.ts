@@ -21,7 +21,7 @@ export const useThreadRootEvent = (
   const rootIdRef = useRef(rootId);
   rootIdRef.current = rootId;
   const routeKnown =
-    !threadId || !!room.findEventById(threadId) || !!room.getThread(threadId)?.rootEvent;
+    !threadId || !!room.getThread(threadId)?.rootEvent || !!room.findEventById(threadId);
   const routeKnownRef = useRef(routeKnown);
   routeKnownRef.current = routeKnown;
 
@@ -31,7 +31,7 @@ export const useThreadRootEvent = (
     const refreshRootId = () => {
       const nextRootId = resolveCanonicalThreadRootId(room, threadId);
       const nextRouteKnown =
-        !!room.findEventById(threadId) || !!room.getThread(threadId)?.rootEvent;
+        !!room.getThread(threadId)?.rootEvent || !!room.findEventById(threadId);
       if (rootIdRef.current === nextRootId && routeKnownRef.current === nextRouteKnown) return;
 
       // Consumers can safely enable thread actions when a previously unknown
