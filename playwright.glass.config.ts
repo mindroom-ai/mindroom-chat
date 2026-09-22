@@ -3,6 +3,7 @@ import config from './playwright.config';
 
 export default defineConfig(config, {
   testMatch: [
+    '**/card-glass-highlight.spec.ts',
     '**/glass-surfaces.spec.ts',
     '**/live/following-glass.spec.ts',
     '**/live/composer-glass.spec.ts',

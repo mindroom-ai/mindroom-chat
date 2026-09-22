@@ -24,6 +24,7 @@ import { useApprovalActions } from './useApprovalActions';
 import { ThreadApprovalRecord } from './threadApprovalModel';
 import { ApprovalDecisionControls } from './ApprovalDecisionControls';
 import { ApprovalGrantStatus } from './ApprovalGrantStatus';
+import { useGlassHighlight } from '../../components/glass/liquid/useLiquidGlass';
 
 type MindroomToolApprovalCardProps = {
   approval: ToolApprovalData;
@@ -76,6 +77,7 @@ function StandaloneToolApprovalCard({
   eventId,
   threadId,
 }: MindroomToolApprovalCardProps) {
+  const glassRef = useGlassHighlight<HTMLDivElement>();
   const { t } = useTranslation();
   const mx = useMatrixClient();
   const requestedTs = getTimestamp(approval.requestedAt);
@@ -159,6 +161,7 @@ function StandaloneToolApprovalCard({
 
   return (
     <Box
+      ref={glassRef}
       className={css.Card}
       direction="Column"
       gap="200"

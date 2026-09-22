@@ -11,6 +11,7 @@ import { FALLBACK_MIMETYPE } from '../../utils/mimeTypes';
 import * as css from './MindroomPasteAttachmentContent.css';
 import type { MindroomPasteAttachmentFile } from './pasteAttachmentMarker';
 import { useAppLanguageCode } from '../../hooks/useAppLanguageCode';
+import { useGlassHighlight } from '../../components/glass/liquid/useLiquidGlass';
 
 type MindroomPasteAttachmentContentProps = {
   owner?: EventAttachmentOwner;
@@ -40,6 +41,7 @@ export function MindroomPasteAttachmentContent({
   attachment,
   outlined,
 }: MindroomPasteAttachmentContentProps) {
+  const glassRef = useGlassHighlight<HTMLDivElement>();
   const { t } = useTranslation();
   const language = useAppLanguageCode();
   const { encryptedFile, fileName, mimeType = FALLBACK_MIMETYPE, mxcUri, size } = attachment;
@@ -50,7 +52,7 @@ export function MindroomPasteAttachmentContent({
   };
 
   return (
-    <Box className={classNames(css.Card, outlined && css.Outlined)}>
+    <Box ref={glassRef} className={classNames(css.Card, outlined && css.Outlined)}>
       <Box className={css.Header}>
         <Text className={css.Title} size="T300">
           {t('mindroomUi.messages.mindroomPasteAttachmentContent.pastedText')}

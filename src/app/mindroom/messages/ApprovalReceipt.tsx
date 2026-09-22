@@ -5,14 +5,18 @@ import { ApprovalArguments } from './ApprovalArguments';
 import { getToolApprovalOperationLabel, ToolApprovalData } from './toolApproval';
 import * as css from './ThreadApprovals.css';
 import { useAppLanguageCode } from '../../hooks/useAppLanguageCode';
+import { useGlassHighlight } from '../../components/glass/liquid/useLiquidGlass';
 
 export function ApprovalReceipt({
   approval,
   children,
+  nested = false,
 }: {
   approval: ToolApprovalData;
   children?: React.ReactNode;
+  nested?: boolean;
 }) {
+  const glassRef = useGlassHighlight<HTMLDetailsElement>(undefined, !nested);
   const { t } = useTranslation();
   const language = useAppLanguageCode();
   const provenance = approval.provenance;
@@ -24,6 +28,7 @@ export function ApprovalReceipt({
       : t('mindroomUi.messages.approvalReceipt.statusDenied');
   return (
     <details
+      ref={glassRef}
       className={css.Receipt}
       aria-label={t('mindroomUi.messages.approvalReceipt.resolvedToolApprovalRequest')}
     >

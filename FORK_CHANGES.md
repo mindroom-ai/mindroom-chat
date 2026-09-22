@@ -14,7 +14,7 @@
   Three Xcode script tests require standard Unix paths missing on this host; the caption-send test passes under Node 24.
 - Manual saves publish accepted notices through shared summary state immediately, including zero-reply roots, and preserve manual provenance in the cache.
   Failed local echoes are cancelled so retries remain possible and unsent summaries cannot replace saved titles.
-- Validation: all 5,149 unit tests pass under Node 24; application and focused-test typechecks, production build, formatting, and lint pass with 17 existing warnings.
+- Validation: all 5,154 unit tests pass under Node 24 after integrating current dev; application and focused-test typechecks, production build, formatting, and lint pass with 17 existing warnings.
   The production Chromium context-menu flow, summary consistency, compact hover controls, and summary cache upgrades pass.
   The cache-upgrade fixture now preserves the existing database version instead of requesting obsolete schema version 3.
   Narrow and touch layouts keep controls below card content, preventing hover controls from intercepting card clicks.
@@ -22,6 +22,23 @@
   Fixed the summary-cache fixture and narrow-card failures; all seven focused cases now pass across Chromium and WebKit, including offline overviews, hover controls, pinning, and the new menu.
   Fifteen unrelated failing jobs remain in login navigation, audio, favicon referrers, glass styling, thread preloading, and scroll/virtualization checks.
 - Independent review verified permissions, pending operations, focus restoration, touch controls, and shared summary selection with no remaining blockers.
+
+### Follow the pointer on inline glass cards (2026-09-21)
+
+- Tool disclosures, approval cards and history, link previews, attachment shells and pasted-text cards, and inline thread summaries share the composer's pointer highlight.
+- Inline cards keep their existing native blur without allocating refraction filters or optical observers.
+  Nested approval receipts leave the highlight to their enclosing history.
+- Approval review and active-permission cards share one group shell.
+  Disclosure headers keep a translucent hover tint so the highlight remains visible underneath.
+- All 5,129 unit tests, application typecheck, production build, and lint pass with zero errors and 17 existing warnings.
+  Independent review has no remaining findings.
+- Chromium and WebKit coverage checks pointer motion, rendered pixels, accessibility preferences, standalone receipts, and nested history ownership.
+  All 12 dedicated highlight cases pass, along with live approval, composer, room-overlay, and thread-banner checks.
+  Light and dark screenshots use synthetic component fixtures.
+- The wider parallel browser suite reports separate media, navigation, and cache-fixture failures.
+  Its glass audio-playback failure also reproduces on the unchanged base.
+- PR #313 includes the light/dark screenshots.
+  Hosted builds pass, and CodeRabbit and Qodo completed review without findings.
 
 ### Edit the latest thread message with Up-arrow (2026-09-21)
 

@@ -3,9 +3,10 @@ import React, { StrictMode, createRef } from 'react';
 import { createRoot, Root } from 'react-dom/client';
 import { act } from 'react-dom/test-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { useLiquidGlass } from './useLiquidGlass';
+import { useGlassHighlight, useLiquidGlass } from './useLiquidGlass';
 
-describe('liquid glass element lifecycle', () => {
+describe.each(['liquid glass', 'highlight only'])('%s element lifecycle', (mode) => {
+  const useGlass = mode === 'liquid glass' ? useLiquidGlass : useGlassHighlight;
   let container: HTMLDivElement;
   let root: Root;
   let motion: boolean;
@@ -62,7 +63,7 @@ describe('liquid glass element lifecycle', () => {
     let renderCount = 0;
     const Surface = () => {
       renderCount += 1;
-      const glassRef = useLiquidGlass(ref);
+      const glassRef = useGlass(ref);
       return <div ref={glassRef}>Clear text</div>;
     };
     act(() =>
@@ -88,7 +89,7 @@ describe('liquid glass element lifecycle', () => {
   });
 
   it('resets the highlight when leaving and honors changing reduced-motion preferences', () => {
-    const Surface = () => <div ref={useLiquidGlass()}>Clear text</div>;
+    const Surface = () => <div ref={useGlass()}>Clear text</div>;
     act(() => root.render(<Surface />));
     const element = container.firstElementChild as HTMLElement;
     pointAt(element, 150, 25);
@@ -107,7 +108,7 @@ describe('liquid glass element lifecycle', () => {
   it('skips disabled surfaces and releases listeners when toggled under StrictMode', () => {
     const ref = createRef<HTMLDivElement>();
     const Surface = ({ enabled }: { enabled: boolean }) => (
-      <div ref={useLiquidGlass(ref, enabled)}>Clear text</div>
+      <div ref={useGlass(ref, enabled)}>Clear text</div>
     );
     let element: HTMLDivElement | null = null;
     for (const enabled of [false, true, false, true]) {
@@ -136,7 +137,7 @@ describe('liquid glass element lifecycle', () => {
       nodes.push(node);
     };
     const Surface = ({ replace }: { replace: boolean }) => {
-      const ref = useLiquidGlass(forwardedRef);
+      const ref = useGlass(forwardedRef);
       return replace ? <section ref={ref} /> : <div ref={ref} />;
     };
     act(() => root.render(<Surface replace={false} />));

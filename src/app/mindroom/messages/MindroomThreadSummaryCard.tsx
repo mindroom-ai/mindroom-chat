@@ -5,6 +5,7 @@ import { MessageEditedContent } from '../../components/message/content';
 import { MessageTextBody } from '../../components/message/layout';
 import type { MindroomThreadSummaryInfo } from './threadSummary';
 import * as css from './MindroomThreadSummaryCard.css';
+import { useGlassHighlight } from '../../components/glass/liquid/useLiquidGlass';
 
 type RenderBodyProps = {
   body: string;
@@ -24,6 +25,7 @@ export function MindroomThreadSummaryCard({
   summaryInfo,
   renderBody,
 }: MindroomThreadSummaryCardProps) {
+  const glassRef = useGlassHighlight<HTMLDivElement>();
   const { t } = useTranslation();
   const summaryText = summaryInfo.summaryText ?? t('sharedUi.threadSummary.title');
   const provenanceLabel = summaryInfo.isManual
@@ -34,6 +36,7 @@ export function MindroomThreadSummaryCard({
 
   return (
     <Box
+      ref={glassRef}
       className={css.ThreadSummaryCard}
       direction="Column"
       gap="100"
