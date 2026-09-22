@@ -8,7 +8,7 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import { Box, Button, Icon, IconButton, Icons, Text, type RectCords } from 'folds';
+import { Box, Icon, IconButton, Icons, Text, type RectCords } from 'folds';
 import { useTranslation } from 'react-i18next';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
 import { useCompactThreadCardViewModels } from './compactThreadCardViewModel';
@@ -115,46 +115,48 @@ const CompactThreadCardRow = React.memo(
         <CompactThreadCard viewModel={viewModel} onClick={onThreadClick} />
         <div className={css.CardAction}>
           {showResolveAction && (
-            <Button
+            <IconButton
+              className={css.CardQuickAction}
               type="button"
               size="300"
               variant="Secondary"
-              fill="Soft"
-              outlined
+              fill="None"
               radii="300"
+              aria-label={resolveLabel}
+              title={resolveLabel}
               disabled={actionsDisabled}
               onClick={() => onResolve(rootId)}
               data-compact-thread-resolve="true"
             >
-              <Text as="span" size="T200">
-                {resolveLabel}
-              </Text>
-            </Button>
+              <Icon size="100" src={Icons.Check} />
+            </IconButton>
           )}
           {showPinAction && (
-            <Button
+            <IconButton
+              className={css.CardQuickAction}
               type="button"
               size="300"
               variant="Secondary"
-              fill="Soft"
-              outlined
+              fill="None"
               radii="300"
+              aria-label={pinLabel}
+              title={pinLabel}
               disabled={actionsDisabled}
               onClick={() => onPin(rootId, pinned)}
               data-compact-thread-pin="true"
             >
-              <Text as="span" size="T200">
-                {pinLabel}
-              </Text>
-            </Button>
+              <Icon size="100" src={Icons.Pin} filled={pinned} />
+            </IconButton>
           )}
           <IconButton
+            className={css.CardMenuButton}
             type="button"
             size="300"
             variant="Secondary"
-            fill="Soft"
+            fill="None"
             radii="300"
             aria-label={moreLabel}
+            title={moreLabel}
             aria-haspopup="menu"
             aria-expanded={menuOpen}
             onClick={(event: React.MouseEvent<HTMLButtonElement>) =>
@@ -167,7 +169,7 @@ const CompactThreadCardRow = React.memo(
               })
             }
           >
-            <Icon size="100" src={Icons.VerticalDots} />
+            <Icon size="100" src={Icons.HorizontalDots} />
           </IconButton>
         </div>
       </div>
