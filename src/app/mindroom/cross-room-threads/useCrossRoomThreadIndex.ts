@@ -15,7 +15,8 @@ import {
   getThreadSummaryStateSnapshot,
   subscribeToThreadSummaryState,
 } from '../threads/threadSummaryState';
-import { MINDROOM_THREAD_TAGS_EVENT } from '../threads/threadTags';
+import { MINDROOM_THREAD_TAGS_EVENT, parsePerTagStateKey } from '../threads/threadTags';
+import { getRoomThreadTagSnapshotMap } from '../threads/threadTagSnapshots';
 import { StateEvent } from '../../../types/matrix/room';
 import { subscribePendingPins } from '../threads/threadPinning';
 import {
@@ -217,7 +218,11 @@ export const useCrossRoomThreadIndex = () => {
       if (!recentRoomOrder.has(entry.roomId)) recentRoomOrder.set(entry.roomId, index);
     });
 
-    const buildEntry = (roomId: string, threadRootId: string) => {
+    const buildEntry = (
+      roomId: string,
+      threadRootId: string,
+      roomTagSnapshots: Map<string, ReturnType<typeof getRoomThreadTagSnapshotMap>>
+    ) => {
       if (!roomDisposers.has(roomId)) return undefined;
 
       const room = mx.getRoom(roomId);
@@ -231,6 +236,11 @@ export const useCrossRoomThreadIndex = () => {
       const sessionId = sessionIdRef.current;
       const summaryMap = getThreadSummaryStateSnapshot(sessionId, roomId);
       const parents = Array.from(parentMapRef.current.get(roomId) ?? []);
+      let tagSnapshots = roomTagSnapshots.get(roomId);
+      if (!tagSnapshots) {
+        tagSnapshots = getRoomThreadTagSnapshotMap(room);
+        roomTagSnapshots.set(roomId, tagSnapshots);
+      }
 
       return buildCrossRoomThreadIndexEntry({
         room,
@@ -238,6 +248,7 @@ export const useCrossRoomThreadIndex = () => {
         summaryInfo: summaryMap.get(threadRootId),
         currentUserId: userIdRef.current,
         parentSpaceIds: parents,
+        tagSnapshot: tagSnapshots.get(threadRootId) ?? null,
       });
     };
 
@@ -249,12 +260,14 @@ export const useCrossRoomThreadIndex = () => {
 
         const upserts: CrossRoomThreadIndexEntry[] = [];
         const removals: CrossRoomThreadIndexBatchRemoval[] = [];
+        // Scope reuse to this synchronous flush so later state events always win.
+        const roomTagSnapshots = new Map<string, ReturnType<typeof getRoomThreadTagSnapshotMap>>();
 
         keys.forEach((key) => {
           const parsed = parseCrossRoomThreadIndexKey(key);
           if (!parsed) return;
 
-          const entry = buildEntry(parsed.roomId, parsed.threadRootId);
+          const entry = buildEntry(parsed.roomId, parsed.threadRootId, roomTagSnapshots);
           if (!entry) {
             removals.push(parsed);
             return;
@@ -544,8 +557,13 @@ export const useCrossRoomThreadIndex = () => {
       if (!room) return;
       if (!roomDisposers.has(room.roomId)) return;
 
-      if (type === StateEvent.RoomPinnedEvents) handlePinChange(room);
-      else enqueueRoomThreads(room);
+      if (type === StateEvent.RoomPinnedEvents) {
+        handlePinChange(room);
+      } else {
+        const stateKey = event.getStateKey();
+        if (typeof stateKey !== 'string') return;
+        enqueueThread(room.roomId, parsePerTagStateKey(stateKey)?.threadRootId ?? stateKey);
+      }
     };
 
     const handleDecrypted = (event: MatrixEvent) => {

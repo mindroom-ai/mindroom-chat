@@ -1,7 +1,7 @@
 import React from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
-import { MatrixClient } from 'matrix-js-sdk';
+import { MatrixClient, MatrixEvent, type Thread } from 'matrix-js-sdk';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { MatrixClientProvider } from '../../hooks/useMatrixClient';
 import { loadRoomThreads } from './roomThreadList';
@@ -55,6 +55,54 @@ afterEach(() => {
 });
 
 describe('useRoomThreadList', () => {
+  it('retains known root fallbacks without unread or history work while disabled', async () => {
+    mockedLoadRoomThreads.mockResolvedValue(undefined);
+    const root = new MatrixEvent({
+      event_id: '$root',
+      origin_server_ts: 10,
+      type: 'm.room.message',
+      content: { body: 'Root', msgtype: 'm.text' },
+    });
+    const historyRead = vi.fn(() => []);
+    const thread = {
+      id: '$root',
+      rootEvent: root,
+      get events() {
+        return historyRead();
+      },
+    } as unknown as Thread;
+    const room = { ...makeRoom(), getThreads: () => [thread] } as Room;
+    const mx = new MatrixClient({ baseUrl: 'https://example.org', userId: '@self:example.org' });
+    const engine = createMindroomSyncEngine({ mx });
+    let snapshot!: ThreadListSnapshot;
+    let renderer!: ReactTestRenderer;
+    const render = (enabled: boolean) => (
+      <MatrixClientProvider value={mx}>
+        <MindroomSyncEngineProvider engine={engine}>
+          <Harness
+            room={room}
+            enabled={enabled}
+            onRender={(value) => {
+              snapshot = value;
+            }}
+          />
+        </MindroomSyncEngineProvider>
+      </MatrixClientProvider>
+    );
+    await act(async () => {
+      renderer = create(render(false));
+    });
+    expect(snapshot.threads).toEqual([thread]);
+    expect(snapshot.threadUnreads.size).toBe(0);
+    expect(historyRead).not.toHaveBeenCalled();
+    await act(async () => {
+      renderer.update(render(true));
+    });
+    expect(snapshot.threads).toEqual([thread]);
+    expect(snapshot.threadUnreads.get('$root')).toBe(false);
+    expect(historyRead).toHaveBeenCalled();
+    renderer.unmount();
+  });
   it('cancels automatic and retry loads together without applying a stale retry error', async () => {
     const pendingLoads: Array<{
       reject: (error: Error) => void;

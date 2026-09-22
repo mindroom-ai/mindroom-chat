@@ -2,6 +2,21 @@
 
 ## Runbook
 
+### Reduce loading and thread-operation latency (2026-09-22)
+
+- Status: first changes implemented and independently reviewed on `perf/thread-operation-latency`, now based on merged PR #319 (`59dd75c2`).
+  Further profiling and integrated browser validation are in progress.
+- Live Chrome profiling found multi-second startup stalls and expensive room-wide work during normal thread operations.
+  A repeated tag-aggregation pass over 516 SDK threads and 614 tag-state events took roughly 1.83 seconds; sharing one synchronous snapshot took roughly 3.7 ms in three isolated comparisons.
+  This is a component measurement, not a whole-application speedup.
+- Cross-room indexing now builds each room's tag snapshot once per flush, including explicitly untagged roots.
+  Canonical and legacy tag changes refresh only their affected thread; pin changes retain room-wide reconciliation.
+- Room ordering scans backwards without copying history, calculates each activity timestamp once per sort, and reads the room receipt once per unread pass.
+  Disabled compact discovery preserves known roots for deep links while skipping unused unread and ordering work.
+- Work-count and freshness regressions failed before the fixes.
+  The first independent review approved the final snapshot, ordering, receipt, and disabled-mode changes after correcting a null-sentinel type mismatch.
+  Full validation and current-baseline operation measurements will be recorded before finalizing.
+
 ### Load active threads independently of persistent storage (2026-09-22)
 
 - Status: implemented and independently approved in PR #319; confirmed hosted findings are resolved.
