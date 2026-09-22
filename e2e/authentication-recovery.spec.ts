@@ -1,9 +1,13 @@
 import { createServer, type Server } from 'node:http';
 import { existsSync, readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { build } from 'esbuild';
 import { test, expect } from '@playwright/test';
+import { buildAuthenticationRecoveryAssets } from '../scripts/authentication-recovery-assets.mjs';
 
 test.use({
+  // Exercise BFCache in full Chromium instead of Playwright's default headless shell.
+  channel: 'chromium',
   launchOptions: {
     executablePath:
       process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE ??
@@ -40,7 +44,7 @@ async function workerSource(legacy: boolean) {
   `
     : "import './src/sw.ts';";
   const result = await build({
-    stdin: { contents, resolveDir: process.cwd() },
+    stdin: { contents, resolveDir: fileURLToPath(new URL('../', import.meta.url)) },
     bundle: true,
     write: false,
     format: 'iife',
@@ -55,6 +59,7 @@ async function workerSource(legacy: boolean) {
 }
 
 test.beforeAll(async () => {
+  const assets = await buildAuthenticationRecoveryAssets();
   server = createServer((request, response) => {
     const url = new URL(request.url!, origin);
     if (!allowBfcache) response.setHeader('Cache-Control', 'no-store');
@@ -63,22 +68,19 @@ test.beforeAll(async () => {
       response.end(
         oldRuntime
           ? 'window.__APP_BASE_PATH__ = "/"; window.__ENABLE_SERVICE_WORKER__ = true;'
-          : readFileSync('public/runtime-config.js', 'utf8').replace(
-              'window.__AUTHENTICATION_RECOVERY_CONFIG__ = null;',
-              `window.__AUTHENTICATION_RECOVERY_CONFIG__ = ${
-                enabled
-                  ? JSON.stringify({
-                      probeUrl: '/authentication-recovery-probe',
-                      navigationUrl: '/login',
-                      timeoutMs: 1000,
-                    })
-                  : 'null'
-              };`
-            )
+          : `window.__AUTHENTICATION_RECOVERY_CONFIG__ = ${JSON.stringify(
+              enabled
+                ? {
+                    probeUrl: '/authentication-recovery-probe',
+                    navigationUrl: '/login',
+                    timeoutMs: 1000,
+                  }
+                : null
+            )};\n${assets['runtime-config.js']}`
       );
     } else if (url.pathname === '/authentication-recovery.js') {
       response.setHeader('Content-Type', 'application/javascript');
-      response.end(readFileSync('public/authentication-recovery.js'));
+      response.end(assets['authentication-recovery.js']);
     } else if (url.pathname === '/sw.js') {
       response.setHeader('Content-Type', 'application/javascript');
       response.end(worker);
@@ -105,7 +107,7 @@ test.beforeAll(async () => {
     } else {
       response.setHeader('Content-Type', 'text/html');
       const scripts =
-        readFileSync('index.html', 'utf8').match(
+        readFileSync(new URL('../index.html', import.meta.url), 'utf8').match(
           /<script src="\/(?:runtime-config|authentication-recovery)\.js"><\/script>/g
         ) ?? [];
       response.end(
@@ -118,6 +120,7 @@ test.beforeAll(async () => {
   origin = `http://127.0.0.1:${typeof address === 'object' && address ? address.port : 0}`;
 });
 test.afterAll(async () => {
+  if (!server) return;
   await new Promise<void>((resolve) => server.close(() => resolve()));
 });
 test.beforeEach(() => {
@@ -324,6 +327,7 @@ test.describe('browser history restoration', () => {
     expect(loginVisits).toBe(1);
     const callsBeforeBack = probeCalls;
     await page.evaluate(() => history.back());
+    await expect(page.getByRole('heading')).toHaveText('Cached chats');
     await expect
       .poll(() =>
         page.evaluate(

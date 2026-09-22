@@ -1,8 +1,9 @@
-import { readFileSync } from 'node:fs';
 import { runInNewContext } from 'node:vm';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { buildAuthenticationRecoveryAssets } from '../scripts/authentication-recovery-assets.mjs';
 
-const source = () => readFileSync('public/authentication-recovery.js', 'utf8');
+const assets = await buildAuthenticationRecoveryAssets();
+const source = () => assets['authentication-recovery.js'];
 const setup = (
   config: unknown = { probeUrl: '/probe', navigationUrl: '/login' },
   values = new Map<string, string>(),
