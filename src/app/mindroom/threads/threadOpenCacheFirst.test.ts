@@ -1,4 +1,4 @@
-import { Direction, type MatrixEvent } from 'matrix-js-sdk';
+import { type MatrixEvent } from 'matrix-js-sdk';
 import { describe, expect, it, vi } from 'vitest';
 import { makeEvent, makeRoom, makeTimeline } from './test-utils/RoomTimeline.test.shared';
 import { buildThreadCacheCoverage } from './threadCacheCoverage';
@@ -55,16 +55,14 @@ const makeDefaultOptions = () => {
 
 describe('runThreadOpenCacheFirst', () => {
   it.each([true, false])(
-    'hydrates cache before waiting for pending SDK gaps (still open=%s)',
+    'ignores cache completion after navigation (still open=%s)',
     async (stillOpen) => {
       const opts = makeDefaultOptions();
       let finish!: () => void;
       const pending = new Promise<void>((resolve) => {
         finish = resolve;
       });
-      Object.assign(opts.room.getThread('$root')!, {
-        flushPendingTimelineReset: vi.fn().mockReturnValueOnce(pending),
-      });
+      opts.hydrateThreadFromCache.mockReturnValue(pending);
       const opening = runThreadOpenCacheFirst(opts as never);
       await Promise.resolve();
       expect(opts.hydrateThreadFromCache).toHaveBeenCalledOnce();
@@ -76,7 +74,7 @@ describe('runThreadOpenCacheFirst', () => {
     }
   );
 
-  it('short-circuits network bootstrap when cached thread coverage is complete', async () => {
+  it('reports complete cache coverage without mutating the SDK timeline', async () => {
     const opts = makeDefaultOptions();
     const cachedPage = {
       cacheCoverage: buildThreadCacheCoverage({
@@ -101,7 +99,7 @@ describe('runThreadOpenCacheFirst', () => {
     expect(result).toEqual({ hydratedCachedPage: cachedPage, shouldContinue: false });
     expect(opts.threadOpenSeedSession.applyInitialUntargetedThreadSeed).not.toHaveBeenCalled();
     expect(opts.onCacheHydrated).toHaveBeenCalled();
-    expect(opts.threadTimeline.setPaginationToken).toHaveBeenCalledWith(null, Direction.Backward);
+    expect(opts.threadTimeline.setPaginationToken).not.toHaveBeenCalled();
     expect(opts.onCacheHydrated).toHaveBeenCalledWith(true);
     expect(opts.notifyEventsChanged).toHaveBeenCalledTimes(1);
     // CINNY-207 AC2 revision (2026-07-04): the SINGLE choke-point
@@ -330,7 +328,7 @@ describe('runThreadOpenCacheFirst', () => {
       })
     );
   });
-  it('reports reset conversion failure and continues SDK bootstrap without using a complete cache snapshot', async () => {
+  it('paints a complete cache independently of SDK reset conversion', async () => {
     const opts = makeDefaultOptions();
     const error = new Error('token conversion unavailable');
     const warning = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
@@ -354,11 +352,11 @@ describe('runThreadOpenCacheFirst', () => {
     });
     try {
       const result = await runThreadOpenCacheFirst(opts as never);
-      expect(result).toEqual({ shouldContinue: true, hydratedCachedPage: undefined });
+      expect(result.shouldContinue).toBe(false);
       expect(opts.hydrateThreadFromCache).toHaveBeenCalledOnce();
-      expect(opts.onCacheHydrated).toHaveBeenCalledWith(false);
+      expect(opts.onCacheHydrated).toHaveBeenCalledWith(true);
       expect(opts.scheduleReconcile).toHaveBeenCalledOnce();
-      expect(warning).toHaveBeenCalledWith('[thread-sync-gap] token conversion failed', error);
+      expect(warning).not.toHaveBeenCalled();
       expect(trace).toHaveBeenCalledWith(opts.debugTraceId, 'thread-cache-hydrate-finished', {
         cacheHit: true,
       });

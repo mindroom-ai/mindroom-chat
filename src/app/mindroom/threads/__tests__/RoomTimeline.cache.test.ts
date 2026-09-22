@@ -3603,7 +3603,7 @@ describe('RoomTimeline', () => {
       }
     });
 
-    it('skips thread bootstrap but still refreshes the latest relations tail on untargeted complete cache hits', async () => {
+    it('paints complete cache while bootstrap and tail reconciliation start independently', async () => {
       const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
       const { loadLatestCachedThreadEvents } = await import('../cacheStore');
       const threadId = '$thread-root';
@@ -3667,8 +3667,8 @@ describe('RoomTimeline', () => {
           50
         );
 
-        expect(matrixClientMock.fetchRelations).toHaveBeenCalledTimes(1);
-        expect(matrixClientMock.getEventTimeline).not.toHaveBeenCalled();
+        expect(matrixClientMock.fetchRelations).toHaveBeenCalledTimes(2);
+        expect(matrixClientMock.getEventTimeline).toHaveBeenCalledTimes(1);
         expect(matrixClientMock.getThreadTimeline).not.toHaveBeenCalled();
         expect(matrixClientMock.paginateEventTimeline).not.toHaveBeenCalled();
         expect(matrixClientMock.relations).not.toHaveBeenCalled();
@@ -3811,7 +3811,7 @@ describe('RoomTimeline', () => {
                 '$cached-reply-1,$cached-reply-2'
           )
         ).toBe(true);
-        expect(matrixClientMock.fetchRelations).toHaveBeenCalledTimes(1);
+        expect(matrixClientMock.fetchRelations).toHaveBeenCalledTimes(2);
       } finally {
         await act(async () => {
           renderer?.unmount();
@@ -3969,7 +3969,7 @@ describe('RoomTimeline', () => {
           })
         );
         expect(matrixClientMock.getEventTimeline).not.toHaveBeenCalled();
-        expect(matrixClientMock.getThreadTimeline).not.toHaveBeenCalled();
+        expect(matrixClientMock.getThreadTimeline).toHaveBeenCalledTimes(1);
         expect(matrixClientMock.paginateEventTimeline).not.toHaveBeenCalled();
         // The reconcile's repair persisted the missed edit into the
         // thread cache (as a standalone record or folded into the
@@ -4131,8 +4131,8 @@ describe('RoomTimeline', () => {
         );
 
         expect(matrixClientMock.getEventTimeline).not.toHaveBeenCalled();
-        expect(matrixClientMock.fetchRelations).toHaveBeenCalledTimes(1);
-        expect(matrixClientMock.getThreadTimeline).not.toHaveBeenCalled();
+        expect(matrixClientMock.fetchRelations).toHaveBeenCalledTimes(2);
+        expect(matrixClientMock.getThreadTimeline).toHaveBeenCalledTimes(1);
         expect(matrixClientMock.paginateEventTimeline).not.toHaveBeenCalled();
       } finally {
         await act(async () => {
@@ -4477,8 +4477,8 @@ describe('RoomTimeline', () => {
         );
 
         expect(matrixClientMock.getEventTimeline).not.toHaveBeenCalled();
-        expect(matrixClientMock.fetchRelations).toHaveBeenCalledTimes(1);
-        expect(matrixClientMock.getThreadTimeline).not.toHaveBeenCalled();
+        expect(matrixClientMock.fetchRelations).toHaveBeenCalledTimes(2);
+        expect(matrixClientMock.getThreadTimeline).toHaveBeenCalledTimes(1);
         expect(matrixClientMock.paginateEventTimeline).not.toHaveBeenCalled();
       } finally {
         await act(async () => {
@@ -4676,7 +4676,7 @@ describe('RoomTimeline', () => {
         // full drain STEP d used to assert here) is deleted; the open
         // falls through to SDK bootstrap + refreshLatestThreadSlice
         // instead of drain-racing the reconciler.
-        expect(matrixClientMock.fetchRelations).toHaveBeenCalledTimes(1);
+        expect(matrixClientMock.fetchRelations).toHaveBeenCalledTimes(2);
         // Fall-through evidence: SDK bootstrap ran (thread model was
         // present so no /context call, but getThreadTimeline fired).
         expect(matrixClientMock.getEventTimeline).not.toHaveBeenCalled();
@@ -4891,7 +4891,13 @@ describe('RoomTimeline', () => {
       }
     });
 
-    it('clears stale sdk backward tokens on complete cached thread hydrate', async () => {
+    it('clears stale sdk backward tokens when complete cache arrives before bootstrap', async () => {
+      let finishBootstrap!: () => void;
+      matrixClientMock.getThreadTimeline.mockReturnValue(
+        new Promise<void>((resolve) => {
+          finishBootstrap = resolve;
+        })
+      );
       const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
       const { loadLatestCachedThreadEvents } = await import('../cacheStore');
       const threadId = '$thread-root';
@@ -4969,6 +4975,15 @@ describe('RoomTimeline', () => {
           await flushAsyncWork(10);
         });
 
+        await waitForCondition(
+          () => vi.mocked(loadLatestCachedThreadEvents).mock.calls.length > 0,
+          50
+        );
+        await act(async () => {
+          await flushAsyncWork(30);
+          finishBootstrap();
+          await flushAsyncWork(30);
+        });
         await waitForCondition(
           () => staleThreadTimeline.getPaginationToken(Direction.Backward) === null,
           50

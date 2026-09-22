@@ -43,7 +43,6 @@ export type ThreadBootstrapObservation =
   | { kind: 'backward-availability'; hasMoreCachedBack: boolean };
 type RunThreadOpenSdkBootstrapOptions = {
   debugTraceId: string | undefined;
-  hydratedCachedPage?: HydratedThreadCachePage;
   isMounted: () => boolean;
   mx: MatrixClient;
   onThreadLoadError?: (threadId: string) => void;
@@ -58,7 +57,6 @@ type RunThreadOpenSdkBootstrapOptions = {
 
 export const runThreadOpenSdkBootstrap = async ({
   debugTraceId,
-  hydratedCachedPage,
   isMounted,
   mx,
   onThreadLoadError,
@@ -189,19 +187,18 @@ export const runThreadOpenSdkBootstrap = async ({
   }
 
   const firstThreadTimeline = getLinkedTimelines(loadedThreadTimelineSet.getLiveTimeline())[0];
-  reconcileCachedThreadBackwardToken({
-    cachedPage: hydratedCachedPage,
-    firstThreadTimeline,
-    threadEvents: threadModel.events,
-    threadId,
-  });
 
-  if (threadModel.events.length === 0) {
+  // A root is a renderable placeholder, not evidence that reply history loaded.
+  if (threadModel.events.every((event) => event.getId() === threadId)) {
     const [relErr, relData] = await to(fetchThreadBootstrapRelations(mx, room.roomId, threadId));
     if (!isMounted()) {
       return false;
     }
-    if (!relErr && relData?.chunk?.length) {
+    if (relErr) {
+      onBootstrap({ kind: 'load-error' });
+      return false;
+    }
+    if (relData?.chunk) {
       const mapper = mx.getEventMapper();
       const mappedEvents = relData.chunk
         .slice()
@@ -245,7 +242,7 @@ export const runThreadOpenSdkBootstrap = async ({
   return true;
 };
 
-const reconcileCachedThreadBackwardToken = ({
+export const reconcileCachedThreadBackwardToken = ({
   cachedPage,
   firstThreadTimeline,
   threadEvents,

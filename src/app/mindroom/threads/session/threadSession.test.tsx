@@ -1,5 +1,5 @@
 import React, { useLayoutEffect } from 'react';
-import { createClient, EventStatus, MatrixEvent, Room } from 'matrix-js-sdk';
+import { createClient, Direction, EventStatus, MatrixEvent, Room } from 'matrix-js-sdk';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import { useThreadSession } from './useThreadSession';
@@ -56,6 +56,7 @@ const openFixture = () => {
   vi.spyOn(room, 'findEventById').mockImplementation((id) => (id === '$a' ? root : undefined));
   const bootstrap = vi.spyOn(mx, 'getThreadTimeline').mockResolvedValue(timeline);
   const context = vi.spyOn(mx, 'getEventTimeline').mockResolvedValue(timeline);
+  vi.spyOn(mx, 'fetchRelations').mockResolvedValue({ chunk: [] });
   const rendered = new Map<string, MatrixEvent>();
   const persist = vi.fn();
   const runtime: ThreadOpenRuntime = {
@@ -207,6 +208,159 @@ describe('thread session targets', () => {
 });
 
 describe('thread session opening', () => {
+  it('joins complete cache coverage with a stale server backward cursor', async () => {
+    const fixture = openFixture();
+    const bootstrap = deferred<typeof fixture.timeline>();
+    fixture.bootstrap.mockReturnValue(bootstrap.promise);
+    fixture.timeline.setPaginationToken('stale-older', Direction.Backward);
+    vi.mocked(loadThreadCachedSnapshot).mockReset().mockResolvedValue(fixture.cache());
+    const view = renderOpen(fixture.runtime, {
+      roomId: fixture.runtime.room.roomId,
+      threadId: '$a',
+    });
+    try {
+      await act(async () => undefined);
+      expect(view.session.snapshot.history.hasMoreCachedBack).toBe(false);
+      await act(async () => bootstrap.resolve(fixture.timeline));
+      expect(fixture.timeline.getPaginationToken(Direction.Backward)).toBeNull();
+      expect(view.session.snapshot.history.hasMoreCachedBack).toBe(false);
+    } finally {
+      view.unmount();
+    }
+  });
+
+  it('reports server failure while storage remains pending', async () => {
+    const fixture = openFixture();
+    vi.mocked(fixture.runtime.room.getThread).mockReturnValue(undefined);
+    vi.mocked(fixture.runtime.room.findEventById).mockReturnValue(undefined);
+    fixture.context.mockRejectedValue(new Error('server unavailable'));
+    vi.mocked(loadThreadCachedSnapshot)
+      .mockReset()
+      .mockReturnValue(new Promise(() => {}));
+    const view = renderOpen(fixture.runtime, {
+      roomId: fixture.runtime.room.roomId,
+      threadId: '$a',
+    });
+    try {
+      await act(async () => undefined);
+      expect(view.session.snapshot.open.loadError).toBe(true);
+      expect(view.session.snapshot.open.latestPending).toBe(false);
+    } finally {
+      view.unmount();
+    }
+  });
+
+  it.each([false, true])(
+    'late cache preserves server pagination (complete=%s)',
+    async (complete) => {
+      const fixture = openFixture();
+      const pending = deferred<ReturnType<typeof fixture.cache>>();
+      vi.mocked(loadThreadCachedSnapshot).mockReset().mockReturnValue(pending.promise);
+      fixture.timeline.setPaginationToken('server-older', Direction.Backward);
+      vi.spyOn(fixture.runtime.mx, 'paginateEventTimeline').mockResolvedValue(false);
+      const view = renderOpen(fixture.runtime, {
+        roomId: fixture.runtime.room.roomId,
+        threadId: '$a',
+      });
+      try {
+        await act(async () => undefined);
+        const history = view.session.snapshot.history;
+        expect(history).toEqual({ hasMoreCachedBack: true, tailLoaded: true });
+        await act(async () => pending.resolve(fixture.cache(complete)));
+        expect(fixture.timeline.getPaginationToken(Direction.Backward)).toBe('server-older');
+        expect(view.session.snapshot.history).toEqual(history);
+        expect(fixture.rendered.get('$reply')).toBe(fixture.reply);
+      } finally {
+        view.unmount();
+      }
+    }
+  );
+
+  it.each(['cache-first', 'network-first'] as const)(
+    'keeps a complete offline cache usable after server failure (%s)',
+    async (order) => {
+      const fixture = openFixture();
+      Object.assign(fixture.runtime.room.getThread('$a')!, { events: [fixture.root] });
+      const cache = deferred<ReturnType<typeof fixture.cache>>();
+      const network = deferred<typeof fixture.timeline>();
+      vi.mocked(loadThreadCachedSnapshot).mockReset().mockReturnValue(cache.promise);
+      fixture.bootstrap.mockReturnValue(network.promise);
+      vi.mocked(fixture.runtime.mx.fetchRelations).mockRejectedValue(new Error('offline'));
+      const view = renderOpen(fixture.runtime, {
+        roomId: fixture.runtime.room.roomId,
+        threadId: '$a',
+      });
+      try {
+        const settleCache = () => act(async () => cache.resolve(fixture.cache()));
+        const settleNetwork = () => act(async () => network.reject(new Error('offline')));
+        if (order === 'cache-first') {
+          await settleCache();
+          await settleNetwork();
+        } else {
+          await settleNetwork();
+          await settleCache();
+        }
+        expect(fixture.rendered.get('$reply')).toBe(fixture.reply);
+        expect(view.session.snapshot.open.loadError).toBe(false);
+        expect(view.session.snapshot.open.latestPending).toBe(false);
+      } finally {
+        view.unmount();
+      }
+    }
+  );
+
+  it('ignores a late cache read after leaving and reopening the same thread', async () => {
+    const fixture = openFixture();
+    const oldCache = deferred<ReturnType<typeof fixture.cache>>();
+    const newCache = deferred<ReturnType<typeof fixture.cache>>();
+    vi.mocked(loadThreadCachedSnapshot)
+      .mockReset()
+      .mockReturnValueOnce(oldCache.promise)
+      .mockReturnValueOnce(newCache.promise);
+    const route = { roomId: fixture.runtime.room.roomId, threadId: '$a' };
+    const view = renderOpen(fixture.runtime, route);
+    try {
+      view.rerender({ roomId: route.roomId });
+      view.rerender(route);
+      await act(async () => undefined);
+      const stale = fixture.cache();
+      stale.events.push(new MatrixEvent({ event_id: '$stale', origin_server_ts: 3 }));
+      await act(async () => oldCache.resolve(stale));
+      expect(fixture.rendered.has('$stale')).toBe(false);
+      expect(view.session.snapshot.open.initialCacheHydrated).toBe(false);
+      expect(fixture.runtime.reconcile).not.toHaveBeenCalled();
+      await act(async () => newCache.resolve(fixture.cache()));
+      expect(view.session.snapshot.open.initialCacheHydrated).toBe(true);
+    } finally {
+      view.unmount();
+    }
+  });
+
+  it('loads and publishes server replies while the cache read is still pending', async () => {
+    const fixture = openFixture();
+    const pending = deferred<ReturnType<typeof fixture.cache>>();
+    const thread = fixture.runtime.room.getThread('$a')!;
+    Object.assign(thread, { events: [fixture.root] });
+    fixture.bootstrap.mockImplementation(async () => {
+      Object.assign(thread, { events: [fixture.root, fixture.reply] });
+      return fixture.timeline;
+    });
+    vi.mocked(loadThreadCachedSnapshot).mockReset().mockReturnValue(pending.promise);
+    const view = renderOpen(fixture.runtime, {
+      roomId: fixture.runtime.room.roomId,
+      threadId: '$a',
+    });
+    try {
+      await act(async () => undefined);
+      expect(fixture.rendered.get('$reply')).toBe(fixture.reply);
+      expect(view.session.snapshot.open.latestPending).toBe(false);
+      expect(view.session.snapshot.history.tailLoaded).toBe(true);
+    } finally {
+      view.unmount();
+      await act(async () => pending.resolve(fixture.cache()));
+    }
+  });
+
   it('paints cached replies while the SDK is still converting a sync gap token', async () => {
     const fixture = openFixture();
     const reset = deferred<void>();
@@ -242,12 +396,10 @@ describe('thread session opening', () => {
       roomId: fixture.runtime.room.roomId,
       threadId: '$a',
     });
-    const revisionBeforeBootstrap = view.session.snapshot.timelineRevision;
-    expect(view.session.snapshot.history.tailLoaded).toBe(false);
-    expect(fixture.runtime.render.invalidateTimeline).not.toHaveBeenCalled();
+    expect(view.session.snapshot.history.tailLoaded).toBe(true);
     await act(async () => cache.resolve(undefined));
     expect(view.session.snapshot.history.tailLoaded).toBe(true);
-    expect(view.session.snapshot.timelineRevision - revisionBeforeBootstrap).toBe(1);
+    expect(view.session.snapshot.timelineRevision).toBe(1);
     expect(fixture.runtime.render.invalidateTimeline).toHaveBeenCalledTimes(1);
     expect(fixture.runtime.viewport.requestLatestPin).toHaveBeenCalledTimes(1);
     expect(fixture.bootstrap).not.toHaveBeenCalled();
@@ -409,8 +561,8 @@ describe('thread session opening', () => {
     expect(fixture.runtime.reconcile).toHaveBeenCalledTimes(1);
     const args = vi.mocked(fixture.runtime.reconcile).mock.calls[0][0];
     expect(args.cachedPage?.hydratedEvents?.[1]).toBe(fixture.reply);
-    expect(fixture.bootstrap).not.toHaveBeenCalled();
-    expect(fixture.runtime.viewport.requestLatestPin).toHaveBeenCalledTimes(1);
+    expect(fixture.bootstrap).toHaveBeenCalledTimes(1);
+    expect(fixture.runtime.viewport.requestLatestPin).toHaveBeenCalled();
     expect(view.session.commands.isCurrent(lease)).toBe(true);
     view.unmount();
     expect(view.session.commands.isCurrent(lease)).toBe(false);

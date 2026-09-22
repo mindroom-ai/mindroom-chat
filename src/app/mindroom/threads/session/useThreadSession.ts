@@ -4,10 +4,14 @@ import { countCacheProbe } from '../cacheProbe';
 import { logTimelineDebug } from '../timelineDebug';
 import { isLocalEchoEventId } from '../threadRouteUtils';
 import { hydrateThreadFromCache, refreshLatestThreadSlice } from '../threadOpenCacheController';
+import { getLinkedTimelines } from '../timelinePagination';
 import { hasThreadCacheBackwardGap } from '../threadCacheCoverage';
 import { createThreadOpenSeedSession } from '../threadOpenSeedController';
 import { runThreadOpenCacheFirst } from '../threadOpenCacheFirst';
-import { runThreadOpenSdkBootstrap } from '../threadOpenSdkBootstrap';
+import {
+  reconcileCachedThreadBackwardToken,
+  runThreadOpenSdkBootstrap,
+} from '../threadOpenSdkBootstrap';
 import { runThreadOpenTargetEvent } from '../threadOpenTargetEvent';
 import type {
   PendingThreadTarget,
@@ -20,7 +24,13 @@ import type {
 } from './threadSessionTypes';
 
 const initialState = {
-  open: { loadError: false, initialCacheHydrated: false, latestPending: false, editResetEpoch: 0 },
+  open: {
+    loadError: false,
+    initialCacheHydrated: false,
+    sdkReady: false,
+    latestPending: false,
+    editResetEpoch: 0,
+  },
   history: { hasMoreCachedBack: false, tailLoaded: false },
   timelineRevision: 0,
   targetRevision: 0,
@@ -210,7 +220,11 @@ export const useThreadSession = (route: ThreadRoute): ThreadSession => {
           threadId,
         });
         let mounted = true;
-        const isCurrentThreadOpen = () => mounted && routeRef.current.threadId === threadId;
+        const isCurrentThreadOpen = () =>
+          mounted &&
+          lifetime.current.alive &&
+          routeRef.current.roomId === room.roomId &&
+          routeRef.current.threadId === threadId;
         const pinThreadToBottomOnOpen = () => {
           if (isCurrentThreadOpen()) viewport.requestLatestPin();
         };
@@ -224,65 +238,77 @@ export const useThreadSession = (route: ThreadRoute): ThreadSession => {
           ...current,
           open: { ...current.open, latestPending: shouldScrollToLatestOnOpen },
         }));
-        const load = async () => {
-          const persistThreadEventCache = runtime.beginCacheWrite();
-          try {
-            const cacheFirstResult = await runThreadOpenCacheFirst({
-              debugTraceId,
-              room,
-              threadId,
-              shouldScrollToLatestOnOpen,
-              threadOpenSeedSession,
-              isCurrentThreadOpen,
-              pinThreadToBottomOnOpen,
-              scheduleReconcile: runtime.reconcile,
-              setSupplementalThreadEvents: render.append,
-              notifyEventsChanged: invalidateEvents,
-              hydrateThreadFromCache: async (expectedThreadId) => {
-                const page = await hydrateThreadFromCache(
-                  {
-                    ...runtime,
-                    isCurrentThread: (id) =>
-                      lifetime.current.alive && routeRef.current.threadId === id,
-                  },
-                  expectedThreadId
-                );
-                if (
-                  !page ||
-                  !lifetime.current.alive ||
-                  routeRef.current.threadId !== expectedThreadId
-                )
-                  return undefined;
-                publish((current) => ({
-                  ...current,
-                  history: {
-                    ...current.history,
-                    hasMoreCachedBack: hasThreadCacheBackwardGap(page.cacheCoverage),
-                  },
-                }));
-                if (page.hydratedEvents?.length) {
-                  render.append(expectedThreadId, page.hydratedEvents);
-                  invalidateEvents();
-                }
-                return page;
+        const persistThreadEventCache = runtime.beginCacheWrite();
+        let cacheResult: Awaited<ReturnType<typeof runThreadOpenCacheFirst>> | undefined;
+        let liveProgressed = false;
+        let networkLoadError = false;
+        let cacheComplete: boolean | undefined;
+        const cacheWork = runThreadOpenCacheFirst({
+          debugTraceId,
+          room,
+          threadId,
+          shouldScrollToLatestOnOpen,
+          threadOpenSeedSession,
+          isCurrentThreadOpen,
+          pinThreadToBottomOnOpen,
+          scheduleReconcile: runtime.reconcile,
+          setSupplementalThreadEvents: render.append,
+          notifyEventsChanged: invalidateEvents,
+          hydrateThreadFromCache: async (expectedThreadId) => {
+            const page = await hydrateThreadFromCache(
+              {
+                ...runtime,
+                isCurrentThread: (id) => isCurrentThreadOpen() && id === threadId,
               },
-              onCacheHydrated: (complete) =>
-                publish((current) => ({
-                  ...current,
-                  open: { ...current.open, initialCacheHydrated: true },
-                  history: complete
-                    ? { hasMoreCachedBack: false, tailLoaded: true }
-                    : current.history,
-                })),
-            });
-            if (!cacheFirstResult.shouldContinue) return;
+              expectedThreadId
+            );
+            if (!page || !isCurrentThreadOpen()) return undefined;
+            if (!liveProgressed) {
+              publish((current) => ({
+                ...current,
+                history: {
+                  ...current.history,
+                  hasMoreCachedBack: hasThreadCacheBackwardGap(page.cacheCoverage),
+                },
+              }));
+            }
+            if (page.hydratedEvents?.length) {
+              render.append(expectedThreadId, page.hydratedEvents);
+              invalidateEvents();
+            }
+            return page;
+          },
+          onCacheHydrated: (complete) => {
+            cacheComplete = complete;
+            publish((current) => ({
+              ...current,
+              open: {
+                ...current.open,
+                initialCacheHydrated: true,
+                loadError: networkLoadError && !complete,
+                latestPending: complete ? false : current.open.latestPending,
+              },
+              history:
+                complete && !liveProgressed
+                  ? { hasMoreCachedBack: false, tailLoaded: true }
+                  : current.history,
+            }));
+          },
+        }).then((result) => {
+          cacheResult = result;
+        });
+        void cacheWork.catch(() => logTimelineDebug(debugTraceId, 'thread-cache-hydrate-error'));
+
+        // Storage can stall independently of the homeserver. Start server loading now;
+        // only a cache result already available at the join may guide pagination.
+        const load = async () => {
+          try {
             const shouldContinue = await runThreadOpenSdkBootstrap({
               debugTraceId,
               room,
               mx,
               threadId,
               shouldScrollToLatestOnOpen,
-              hydratedCachedPage: cacheFirstResult.hydratedCachedPage,
               isMounted: () => mounted,
               pinThreadToBottomOnOpen,
               onThreadLoadError: runtime.onThreadLoadError,
@@ -290,9 +316,10 @@ export const useThreadSession = (route: ThreadRoute): ThreadSession => {
               setSupplementalThreadEvents: render.append,
               onBootstrap: (observation) => {
                 if (observation.kind === 'load-error') {
+                  networkLoadError = true;
                   publish((current) => ({
                     ...current,
-                    open: { ...current.open, loadError: true },
+                    open: { ...current.open, loadError: cacheComplete !== true },
                   }));
                 } else if (observation.kind === 'root-ready') {
                   commands.observeLiveTail(threadId);
@@ -308,7 +335,32 @@ export const useThreadSession = (route: ThreadRoute): ThreadSession => {
                 }
               },
             });
+            if (!isCurrentThreadOpen()) return;
+            liveProgressed = true;
             if (!shouldContinue) return;
+            publish((current) => ({ ...current, open: { ...current.open, sdkReady: true } }));
+            const cachedPage = cacheResult?.hydratedCachedPage;
+            const thread = room.getThread(threadId);
+            const firstTimeline = thread
+              ? getLinkedTimelines(thread.getUnfilteredTimelineSet().getLiveTimeline())[0]
+              : undefined;
+            if (cacheResult?.shouldContinue === false) {
+              if (cachedPage?.relationSnapshotComplete) {
+                firstTimeline?.setPaginationToken(null, Direction.Backward);
+                publish((current) => ({
+                  ...current,
+                  history: { ...current.history, hasMoreCachedBack: false },
+                }));
+                invalidateEvents();
+              }
+              return;
+            }
+            reconcileCachedThreadBackwardToken({
+              cachedPage,
+              firstThreadTimeline: firstTimeline,
+              threadEvents: thread?.events ?? [],
+              threadId,
+            });
             if (shouldScrollToLatestOnOpen) {
               await refreshLatest(threadId, {
                 ...runtime,

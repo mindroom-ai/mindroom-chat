@@ -8,6 +8,7 @@ export type UseThreadTimelineStateOptions = {
   room: Room;
   threadId?: string;
   threadInitialCacheHydrated: boolean;
+  threadInitialSdkLoaded?: boolean;
   debugTraceId?: string;
 };
 
@@ -15,6 +16,7 @@ export const useThreadTimelineState = ({
   room,
   threadId,
   threadInitialCacheHydrated,
+  threadInitialSdkLoaded,
   debugTraceId,
 }: UseThreadTimelineStateOptions) => {
   const thread = threadId ? room.getThread(threadId) : null;
@@ -36,6 +38,7 @@ export const useThreadTimelineState = ({
     threadId,
     thread,
     threadInitialCacheHydrated,
+    threadInitialSdkLoaded,
     debugTraceId,
   });
 

@@ -50,6 +50,7 @@ const scrollRoot = {
 
 const fixture = () => {
   const mx = createClient({ baseUrl: 'https://example.org' });
+  vi.spyOn(mx, 'getEventTimeline').mockImplementation(() => new Promise(() => {}));
   const room = new Room('!room:example.org', mx, '@user:example.org');
   const otherRoom = new Room('!other:example.org', mx, '@user:example.org');
   const order: string[] = [];
@@ -176,10 +177,80 @@ afterEach(() => {
 });
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.mocked(loadThreadCachedPaginationSnapshot).mockReset();
   vi.mocked(waitForScrollQuiescence).mockResolvedValue(undefined);
   vi.mocked(loadThreadCachedSnapshot).mockImplementation(() => new Promise(() => {}));
 });
 describe('thread pagination request ownership', () => {
+  it('keeps cache-only history retryable after a storage read failure', async () => {
+    const cached = page('$retried-cache');
+    vi.mocked(loadThreadCachedPaginationSnapshot)
+      .mockRejectedValueOnce(new DOMException('Cache closed', 'InvalidStateError'))
+      .mockResolvedValueOnce(cached);
+    const f = fixture();
+    f.useNetwork();
+    f.room.getLiveTimeline().setPaginationToken(null, Direction.Backward);
+    const exhausted = vi.spyOn(f.current().commands, 'markBackwardExhausted');
+    try {
+      await act(async () => {
+        await f.current().paginateBack();
+      });
+      expect(exhausted).not.toHaveBeenCalled();
+      expect(f.current().snapshot.backward).toBe('idle');
+      await act(async () => {
+        await f.current().paginateBack();
+      });
+      expect(f.runtime.render.append).toHaveBeenCalledWith('$a', cached.events);
+    } finally {
+      f.unmount();
+    }
+  });
+
+  it('uses an available server cursor without waiting for a blocked cache read', async () => {
+    vi.mocked(loadThreadCachedPaginationSnapshot).mockReturnValueOnce(new Promise(() => {}));
+    const f = fixture();
+    f.useNetwork();
+    const reply = new MatrixEvent({ event_id: '$network-page' });
+    f.paginate.mockImplementation(async () => {
+      f.thread.events.push(reply);
+      return true;
+    });
+    try {
+      let completed = false;
+      await act(async () => {
+        void f
+          .current()
+          .paginateBack()
+          .then(() => {
+            completed = true;
+          });
+      });
+      expect(f.thread.events).toContain(reply);
+      expect(completed).toBe(true);
+      expect(f.current().snapshot.backward).toBe('idle');
+    } finally {
+      f.unmount();
+    }
+  });
+
+  it('loads a cached page when the server request fails', async () => {
+    const cached = page('$offline-reply');
+    vi.mocked(loadThreadCachedPaginationSnapshot).mockResolvedValueOnce(cached);
+    const f = fixture();
+    f.useNetwork();
+    f.paginate.mockRejectedValueOnce(new Error('Offline'));
+    try {
+      await act(async () => {
+        await f.current().paginateBack();
+      });
+      expect(f.runtime.render.append).toHaveBeenCalledWith('$a', cached.events);
+      expect(f.runtime.render.invalidateTimeline).toHaveBeenCalled();
+      expect(f.current().snapshot.backward).toBe('idle');
+    } finally {
+      f.unmount();
+    }
+  });
+
   it('old backward completion cannot release replacement pending state or clear its anchor', async () => {
     const a = deferred<Page>();
     const b = deferred<Page>();
@@ -247,13 +318,14 @@ describe('pagination boundaries and commit ordering', () => {
       .mockReturnValueOnce(nextPage.promise);
     const f = fixture();
     f.useNetwork();
+    f.paginate.mockRejectedValue(new Error('Offline'));
     let old!: Promise<void>;
     let next!: Promise<void>;
-    act(() => {
+    await act(async () => {
       old = f.current().paginateBack();
     });
     f.rerender('$a', '!other:example.org');
-    act(() => {
+    await act(async () => {
       next = f.current().paginateBack();
     });
     await act(async () => {
@@ -472,7 +544,7 @@ describe('pagination boundaries and commit ordering', () => {
         source === 'cache' ? page('$cached') : { status: 'cache-miss' }
       );
       const f = fixture();
-      f.useNetwork();
+      if (source === 'network') f.useNetwork();
       f.hideRows();
       f.paginate.mockImplementation(async () => {
         f.order.push('sdk');

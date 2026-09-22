@@ -1,6 +1,4 @@
-import { Direction, type MatrixEvent, type Room } from 'matrix-js-sdk';
-import { flushThreadSyncGap } from './activeThreadSyncGaps';
-import { getLinkedTimelines } from './timelinePagination';
+import { type MatrixEvent, type Room } from 'matrix-js-sdk';
 import { logTimelineDebug } from './timelineDebug';
 import { countCacheProbe } from './cacheProbe';
 import { hasUsableThreadCacheSnapshot, isCompleteThreadCacheCoverage } from './threadCacheCoverage';
@@ -41,7 +39,7 @@ type RunThreadOpenCacheFirstOptions = {
    * reconciler's widened `onRepaired` callback hands us the
    * fully-mapped batch of fetched events; we route them into the
    * render's supplemental-events sink so the complete-coverage
-   * cache-first path (SDK bootstrap skipped by design) converges. The
+   * cache path converges alongside SDK bootstrap. The
    * sink itself lives in `useThreadRenderState.setSupplementalThreadEvents`
    * and dedups by event id, so re-passing an already-known live event
    * is a no-op there. Kept as a separate injected function so this
@@ -77,9 +75,8 @@ export const runThreadOpenCacheFirst = async ({
   let hydratedCachedPage;
   let cacheHydrationFinished = false;
   try {
-    // Cached messages paint through supplemental render state, independently of
-    // the SDK timeline. Token conversion can need the network; only subsequent
-    // SDK work must wait for it, never the cache read and its first paint.
+    // Cache paints independently of concurrent SDK bootstrap. Pagination tokens
+    // are joined by the session only if this read finishes before the network.
     hydratedCachedPage = await hydrateThreadFromCache(threadId);
     cacheHydrationFinished = true;
     logTimelineDebug(debugTraceId, 'thread-cache-hydrate-finished', {
@@ -88,14 +85,6 @@ export const runThreadOpenCacheFirst = async ({
     if (!isCurrentThreadOpen()) {
       countCacheProbe('threadOpenSkipCacheFirstPostHydrateGuard');
       return { shouldContinue: false };
-    }
-    const pendingReset = flushThreadSyncGap(room.getThread(threadId), isCurrentThreadOpen);
-    if (pendingReset) {
-      await pendingReset;
-      if (!isCurrentThreadOpen()) {
-        countCacheProbe('threadOpenSkipCacheFirstPostHydrateGuard');
-        return { shouldContinue: false };
-      }
     }
   } catch {
     if (!cacheHydrationFinished) logTimelineDebug(debugTraceId, 'thread-cache-hydrate-error');
@@ -225,26 +214,6 @@ export const runThreadOpenCacheFirst = async ({
   onCacheHydrated(hasCompleteCachedThreadSnapshot);
 
   if (hasCompleteCachedThreadSnapshot && hydratedCachedPage) {
-    const firstThreadLiveTimeline = room
-      .getThread(threadId)
-      ?.getUnfilteredTimelineSet()
-      .getLiveTimeline();
-    const firstThreadTimeline = firstThreadLiveTimeline
-      ? getLinkedTimelines(firstThreadLiveTimeline)[0]
-      : undefined;
-    // 2026-07-06 review finding #1: count-proof (reply-count coverage)
-    // is one-sided — a stale-low expectedReplyCount makes it vacuous,
-    // and a limited-sync hole mid-soup would then paint as "complete".
-    // Painting fast on count-proof is fine (gap-fill + reconcile heal),
-    // but DESTROYING the server-side escape hatch is not: clear the
-    // SDK backward token only on a genuine relations-proven snapshot
-    // (a full /relations drain observed next_batch exhaust). On
-    // count-proof-only opens the token survives, so the load-older
-    // affordance and scroll pagination can still reach anything the
-    // proof missed.
-    if (hydratedCachedPage.relationSnapshotComplete === true) {
-      firstThreadTimeline?.setPaginationToken(null, Direction.Backward);
-    }
     notifyEventsChanged();
     logTimelineDebug(debugTraceId, 'thread-open-complete-cache-hit', {
       cachedCount: hydratedCachedPage.events.length,
@@ -252,7 +221,6 @@ export const runThreadOpenCacheFirst = async ({
     });
     logTimelineDebug(debugTraceId, 'thread-open-complete', {
       shouldScrollToLatestOnOpen,
-      skipNetworkBootstrap: true,
       threadId,
     });
     // CINNY-207 AC2 revision (2026-07-04): the branch-local reconcile
