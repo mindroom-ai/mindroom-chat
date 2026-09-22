@@ -90,6 +90,7 @@ export function ThreadActionsMenu({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(false);
   const [requested, setRequested] = useState(false);
+  const dialogRef = useRef<HTMLDivElement>(null);
   const pending = useRef(false);
   const busy = saving || mutations.updating || pinning.updating;
   const busyRef = useRef(busy);
@@ -257,6 +258,7 @@ export function ThreadActionsMenu({
         <FocusTrap
           focusTrapOptions={{
             onDeactivate: close,
+            fallbackFocus: () => dialogRef.current ?? document.body,
             clickOutsideDeactivates: () => !busyRef.current,
             escapeDeactivates: (event) => {
               stopPropagation(event);
@@ -266,7 +268,9 @@ export function ThreadActionsMenu({
           }}
         >
           <Dialog
+            ref={dialogRef}
             role="dialog"
+            tabIndex={-1}
             aria-modal="true"
             aria-label={t(`threadActions.${mode}`)}
             style={{ width: 'min(480px, calc(100vw - 24px))' }}

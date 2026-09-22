@@ -94,10 +94,12 @@ export function ThreadContextBanner({
   const { tags, isResolved, canEdit, availableTags } = useThreadTags(room, rootEventId);
   const { addTag, removeTag, setResolved, updating, error } = useMutateThreadTags(room);
   const threadRootId = rootEventId ?? threadId;
+  const canOpenMenu = isConfirmedMatrixEventId(threadRootId);
   const [menu, setMenu] = useState<BannerMenuState>();
   const menuRef = useRef<BannerMenuState>();
   const moreButtonRef = useRef<HTMLButtonElement>(null);
   const openMenu = (anchor: RectCords, trigger: HTMLElement) => {
+    if (!canOpenMenu) return;
     const nextMenu = { roomId: room.roomId, threadId, rootId: threadRootId, anchor, trigger };
     menuRef.current = nextMenu;
     setMenu(nextMenu);
@@ -195,7 +197,7 @@ export function ThreadContextBanner({
         data-thread-context-banner="true"
         tabIndex={-1}
         onContextMenu={(event) => {
-          if (!event.currentTarget.contains(event.target as Node)) return;
+          if (!canOpenMenu || !event.currentTarget.contains(event.target as Node)) return;
           event.preventDefault();
           event.stopPropagation();
           openMenu(
@@ -204,7 +206,7 @@ export function ThreadContextBanner({
           );
         }}
         onKeyDown={(event) => {
-          if (!event.currentTarget.contains(event.target as Node)) return;
+          if (!canOpenMenu || !event.currentTarget.contains(event.target as Node)) return;
           if (event.key !== 'ContextMenu' && !(event.shiftKey && event.key === 'F10')) return;
           event.preventDefault();
           event.stopPropagation();
@@ -320,6 +322,7 @@ export function ThreadContextBanner({
               title={t('threadActions.more')}
               aria-haspopup="menu"
               aria-expanded={!!activeMenu}
+              disabled={!canOpenMenu}
               onClick={(event: React.MouseEvent<HTMLButtonElement>) =>
                 openMenu(event.currentTarget.getBoundingClientRect(), event.currentTarget)
               }

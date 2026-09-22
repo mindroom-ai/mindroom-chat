@@ -546,6 +546,52 @@ describe('ThreadContextBanner rendering', () => {
     expect(resolveButton?.props.disabled).toBe(true);
   });
 
+  it('ignores every menu trigger until the provisional root is confirmed', async () => {
+    bannerMocks.useThreadRootEvent.mockReturnValue('~!room:example.org:txn-root');
+    const renderer = renderBanner();
+    const banner = renderer.root.findByProps({ className: 'Banner' });
+    const target = {
+      contains: () => true,
+      getBoundingClientRect: () => ({ x: 20, y: 30, width: 30, height: 30 }),
+    };
+    const more = () =>
+      renderer.root
+        .findAllByType('button')
+        .find((button) => button.props['aria-haspopup'] === 'menu')!;
+    const event = {
+      preventDefault: vi.fn(),
+      stopPropagation: vi.fn(),
+      currentTarget: target,
+      target,
+      clientX: 20,
+      clientY: 30,
+    };
+
+    await act(async () => {
+      more().props.onClick(event);
+      banner.props.onContextMenu(event);
+      banner.props.onKeyDown({ ...event, key: 'ContextMenu' });
+      banner.props.onKeyDown({ ...event, key: 'F10', shiftKey: true });
+    });
+
+    expect(more().props.disabled).toBe(true);
+    expect(renderer.root.findAllByProps({ role: 'menu' })).toHaveLength(0);
+    expect(event.preventDefault).not.toHaveBeenCalled();
+    bannerMocks.useThreadRootEvent.mockReturnValue('$confirmed');
+    act(() =>
+      renderer.update(
+        React.createElement(
+          ThreadContextBanner,
+          renderer.root.findByType(ThreadContextBanner).props as ThreadContextBannerProps
+        )
+      )
+    );
+    expect(more().props.disabled).toBe(false);
+    await act(async () => more().props.onClick(event));
+    expect(renderer.root.findAllByProps({ role: 'menu' })).toHaveLength(1);
+    renderer.unmount();
+  });
+
   it('renders a truncated summary row when summary text is available', () => {
     bannerMocks.useThreadHeaderInfo.mockReturnValue({
       scheduledTaskCount: 0,
