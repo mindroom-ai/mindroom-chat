@@ -108,8 +108,10 @@ export const ensureThreadSummaryStateLoaded = async (sessionId: string, roomId: 
   // Preserve the full evidence while a disk read is pending. Reducing live
   // batches before this merge could resurrect a legacy record with a skewed
   // metadata clock after its newer replacement has already been published.
-  const incomingDuringLoad = new Map<string, Array<MindroomThreadSummaryInfo | undefined>>();
+  const incomingDuringLoad =
+    state.incomingDuringLoad ?? new Map<string, Array<MindroomThreadSummaryInfo | undefined>>();
   state.incomingDuringLoad = incomingDuringLoad;
+  state.hasLoaded = false;
 
   state.loadPromise = loadCachedThreadSummaries(sessionId, roomId)
     .then((cachedSummaryMap) => {
@@ -119,15 +121,17 @@ export const ensureThreadSummaryStateLoaded = async (sessionId: string, roomId: 
         state.summaryMap,
         incomingDuringLoad
       );
-      if (areSummaryMapsEqual(state.summaryMap, nextSummaryMap)) return;
-
-      state.summaryMap = nextSummaryMap;
-      notifyStateListeners(state);
+      if (!areSummaryMapsEqual(state.summaryMap, nextSummaryMap)) {
+        state.summaryMap = nextSummaryMap;
+        notifyStateListeners(state);
+      }
+      state.hasLoaded = true;
     })
+    // A failed read must retain the evidence and leave disk untouched until retry.
     .catch(() => {})
     .finally(() => {
       state.loadPromise = undefined;
-      state.hasLoaded = true;
+      if (!state.hasLoaded) return;
       state.incomingDuringLoad = undefined;
       if (roomThreadSummaryStates.get(getStateKey(sessionId, roomId)) !== state) return;
       incomingDuringLoad.forEach((_candidates, threadRootId) => {

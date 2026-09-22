@@ -2,7 +2,7 @@ import 'fake-indexeddb/auto';
 import React from 'react';
 import { act, create } from 'react-test-renderer';
 import { MatrixEvent, type Thread } from 'matrix-js-sdk';
-import { expect, it } from 'vitest';
+import { expect, it, vi } from 'vitest';
 import { getMindroomThreadSummaryInfo } from '../messages/threadSummary';
 import { loadCachedThreadSummaries, saveCachedThreadSummary } from './cacheStore';
 import { useThreadSummaryPublishController } from './threadSummaryPublishController';
@@ -11,8 +11,95 @@ import {
   ensureThreadSummaryStateLoaded,
   getThreadSummaryStateSnapshot,
   storeThreadSummaryInState,
+  subscribeToThreadSummaryState,
 } from './threadSummaryState';
 import { useRoomThreadSummaryState } from './useRoomThreadSummaryState';
+
+it('persists a live title queued by a hydration subscriber before the cache read settles', async () => {
+  const sessionId = 'summary-read-settlement';
+  const roomId = '!summary:test';
+  await saveCachedThreadSummary(sessionId, roomId, '$root', {
+    summaryText: 'Cached title',
+    generatedTs: 1000,
+  });
+  let queued = false;
+  const unsubscribe = subscribeToThreadSummaryState(sessionId, roomId, () => {
+    if (queued) return;
+    queued = true;
+    queueMicrotask(() => {
+      storeThreadSummaryInState(sessionId, roomId, '$other', {
+        summaryText: 'Published after hydration',
+        generatedTs: 2000,
+      });
+    });
+  });
+  try {
+    await ensureThreadSummaryStateLoaded(sessionId, roomId);
+    expect(getThreadSummaryStateSnapshot(sessionId, roomId).get('$other')?.summaryText).toBe(
+      'Published after hydration'
+    );
+    expect((await loadCachedThreadSummaries(sessionId, roomId)).get('$other')?.summaryText).toBe(
+      'Published after hydration'
+    );
+  } finally {
+    unsubscribe();
+    clearThreadSummarySharedState(sessionId);
+  }
+});
+
+it.each([false, true])(
+  'retries failed cache reads without losing disk titles or migration evidence (manual edit: %s)',
+  async (manualEdit) => {
+    const sessionId = `summary-failed-read-${manualEdit}`;
+    const roomId = '!summary:test';
+    const cached = { summaryText: 'Newer cached title', generatedTs: 9000 };
+    await saveCachedThreadSummary(sessionId, roomId, '$root', cached);
+    const transaction = vi
+      .spyOn(IDBDatabase.prototype, 'transaction')
+      .mockImplementationOnce(() => {
+        throw new DOMException('Temporarily unavailable', 'InvalidStateError');
+      });
+    try {
+      storeThreadSummaryInState(
+        sessionId,
+        roomId,
+        '$root',
+        manualEdit
+          ? { ...cached, eventTs: 1000 }
+          : { summaryText: 'Older live title', generatedTs: 1000, eventTs: 1000 },
+        manualEdit
+          ? {
+              summaryText: 'Accepted human title',
+              generatedTs: 1000,
+              eventTs: 1200,
+              isManual: true,
+            }
+          : undefined
+      );
+      await ensureThreadSummaryStateLoaded(sessionId, roomId);
+      expect((await loadCachedThreadSummaries(sessionId, roomId)).get('$root')?.summaryText).toBe(
+        'Newer cached title'
+      );
+
+      // A later live publication retries hydration without resending the first batch.
+      storeThreadSummaryInState(sessionId, roomId, '$other', {
+        summaryText: 'Another thread',
+        generatedTs: 2000,
+      });
+      await ensureThreadSummaryStateLoaded(sessionId, roomId);
+      const expected = manualEdit ? 'Accepted human title' : 'Newer cached title';
+      expect(getThreadSummaryStateSnapshot(sessionId, roomId).get('$root')?.summaryText).toBe(
+        expected
+      );
+      expect((await loadCachedThreadSummaries(sessionId, roomId)).get('$root')?.summaryText).toBe(
+        expected
+      );
+    } finally {
+      transaction.mockRestore();
+      clearThreadSummarySharedState(sessionId);
+    }
+  }
+);
 
 it('retains a newer disk title when partial live history publishes before initial hydration', async () => {
   const sessionId = 'summary-partial-history';

@@ -15,6 +15,7 @@
   Accepted manual writes fetch their server timestamp; a failed follow-up read leaves the successful write intact and sync supplies the timestamp later.
   Publishers retain full summary candidates across source selection and pending cache reads, so legacy records gain server chronology before reduction.
   Initial publications read existing cache before flushing writes; partial live history preserves newer cached titles, and session cleanup prevents late writes.
+  Failed cache reads retain pending candidates and defer writes until a successful retry, preserving unread titles and legacy migration evidence.
   Unsupported dates are excluded consistently from live/cache selection; an exhausted supported clock rejects the write without losing the editor draft.
   Timestamp-less legacy summaries cannot displace an accepted manual edit during live/cache merges.
   Mixed-source permutations preserve newer dated agent summaries regardless of input order.
@@ -25,7 +26,7 @@
   Three Xcode script tests require standard Unix paths missing on this host; the caption-send test passes under Node 24.
 - Manual saves publish accepted notices through shared summary state immediately, including zero-reply roots, and preserve manual provenance in the cache.
   Failed local echoes are cancelled so retries remain possible and unsent summaries cannot replace saved titles.
-- Validation: all 5,200 unit tests pass under Node 24 after the follow-up fixes; application and focused-test typechecks, production build, formatting, and lint pass with 17 existing warnings.
+- Validation: all 5,203 unit tests pass under Node 24 after the follow-up fixes; application and focused-test typechecks, production build, formatting, and lint pass with 17 existing warnings.
   The production Chromium context-menu flow covers compact cards and the thread bar, including manual notices with summary pin metadata, agent requests, focus, and reload consistency.
   The follow-up browser check holds a manual send while an automatic notice arrives, checks Tab and Shift+Tab during the pending save, and verifies both surfaces after acceptance and reload.
   Compact hover controls and summary cache upgrades pass; the final menu/cache rerun also passes after clock-range and stale-fetch validation.
