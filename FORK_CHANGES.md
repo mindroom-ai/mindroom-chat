@@ -4,7 +4,8 @@
 
 ### Load active threads independently of persistent storage (2026-09-22)
 
-- Status: implemented and independently approved; full browser validation and hosted review pending.
+- Status: implemented and independently approved in PR #319; confirmed hosted findings are resolved.
+  CI remains queued and additional hosted review is rate-limited.
 - Device diagnostics show cache reads settling after their thread views closed, followed by successful reply loading after restart.
   The failing interaction was not retained, and the diagnostic database error does not prove a failure in the separate thread database.
 - Reproduced three defects: a pending cache read blocks active-thread server loading, a root-only SDK timeline skips fallback after context failure, and an unexpectedly closed cache connection remains memoized.
@@ -25,6 +26,12 @@
   Focused Chromium checks pass for blocked storage, manual loading, summary consistency and cache upgrades, and message persistence.
 - Hosted review follow-ups preserve complete offline tail coverage after an earlier server failure, reject SDK callbacks after route ownership changes, and publish root readiness immediately.
   One mapping helper now handles both relations fallback paths; independent re-review approves the follow-ups.
+- The blocked-storage browser regression fails on the unchanged base with the reply absent and passes on the fixed build.
+  The full browser scheduler completed 123 jobs on the initial fix: 105 passed, 16 failed, and two were blocked by missing external SSO and worker fixtures.
+  Failures include media, glass styling, favicon referrers, navigation, preload, and scroll probes.
+- The long-thread prepend trace exposed an SDK page entirely overlapping room-seeded replies; the final pagination fix crosses that overlap and passes three new regressions.
+  Final browser checks pass for the load button and blocked storage.
+  The prepend browser probe still fails pre-release count stability while background history arrives, and the base comparison also fails during setup; this probe does not yet confirm final scroll behavior.
 
 ### Simplify compact thread controls (2026-09-22)
 
