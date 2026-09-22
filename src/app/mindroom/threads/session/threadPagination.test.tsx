@@ -48,7 +48,7 @@ const scrollRoot = {
   ],
 } as unknown as HTMLDivElement;
 
-const fixture = () => {
+const fixture = (renderedEvents: MatrixEvent[] = []) => {
   const mx = createClient({ baseUrl: 'https://example.org' });
   vi.spyOn(mx, 'getEventTimeline').mockImplementation(() => new Promise(() => {}));
   const room = new Room('!room:example.org', mx, '@user:example.org');
@@ -128,7 +128,7 @@ const fixture = () => {
       sessionId: 'session',
       beginThreadCacheWrite: runtime.beginCacheWrite,
       thread: withThread ? thread : undefined,
-      threadEvents: [],
+      threadEvents: renderedEvents,
       threadHasMoreCachedBack: true,
       viewport,
     });
@@ -182,6 +182,48 @@ beforeEach(() => {
   vi.mocked(loadThreadCachedSnapshot).mockImplementation(() => new Promise(() => {}));
 });
 describe('thread pagination request ownership', () => {
+  it.each(['older', 'exhausted', 'repeated-cursor'] as const)(
+    'crosses server pages already present in the rendered window until %s',
+    async (ending) => {
+      const reply = (id: string, ts: number) =>
+        new MatrixEvent({
+          event_id: id,
+          origin_server_ts: ts,
+          content: { 'm.relates_to': { rel_type: 'm.thread', event_id: '$a' } },
+        });
+      const earliest = reply('$rendered-earliest', 100);
+      const overlap = reply('$already-rendered', 200);
+      const older = reply('$unseen-older', 50);
+      const f = fixture([earliest, overlap]);
+      f.useNetwork();
+      f.paginate
+        .mockImplementationOnce(async () => {
+          f.thread.events.push(overlap);
+          f.room.getLiveTimeline().setPaginationToken('next-page', Direction.Backward);
+          return true;
+        })
+        .mockImplementationOnce(async () => {
+          if (ending === 'older') f.thread.events.push(older);
+          f.room
+            .getLiveTimeline()
+            .setPaginationToken(ending === 'exhausted' ? null : 'next-page', Direction.Backward);
+          return ending !== 'exhausted';
+        });
+      try {
+        await act(async () => {
+          await f.current().paginateBack();
+        });
+        expect(f.paginate).toHaveBeenCalledTimes(2);
+        expect(loadThreadCachedPaginationSnapshot).not.toHaveBeenCalled();
+        expect(f.runtime.render.invalidateTimeline).toHaveBeenCalledTimes(1);
+        expect(f.current().snapshot.backward).toBe('idle');
+        if (ending === 'older') expect(f.thread.events).toContain(older);
+      } finally {
+        f.unmount();
+      }
+    }
+  );
+
   it('keeps cache-only history retryable after a storage read failure', async () => {
     const cached = page('$retried-cache');
     vi.mocked(loadThreadCachedPaginationSnapshot)

@@ -16,11 +16,12 @@
   Root-only timelines fetch the bounded relations fallback.
   Manual pagination uses an available server cursor directly, with cached pages retained for offline and cache-only history.
   The complete-cache join clears both a stale SDK cursor and the matching history availability.
+  Manual loading crosses SDK pages already visible through room/cache seeds until it reaches older replies or a terminal cursor.
 - Unexpected IndexedDB closure invalidates the connection so subsequent reads reopen existing data without deleting the cache.
 - Consulted Claude on concurrent bootstrap versus moving reconciliation ahead of storage; chose concurrent bootstrap with one pagination join.
 - Regression coverage includes both completion orders, late-token preservation, offline cache, navigation lifetimes, real render-hook deep links, and forced database closure.
   A browser probe keeps a real cache transaction open while requiring server replies and the thread summary to appear.
-- All 5,233 unit tests pass under Node 24, along with application and new-test typechecks, production build, formatting, and lint with zero errors and 17 existing warnings.
+- All 5,236 unit tests pass under Node 24, along with application and new-test typechecks, production build, formatting, and lint with zero errors and 17 existing warnings.
   Focused Chromium checks pass for blocked storage, manual loading, summary consistency and cache upgrades, and message persistence.
 - Hosted review follow-ups preserve complete offline tail coverage after an earlier server failure, reject SDK callbacks after route ownership changes, and publish root readiness immediately.
   One mapping helper now handles both relations fallback paths; independent re-review approves the follow-ups.
