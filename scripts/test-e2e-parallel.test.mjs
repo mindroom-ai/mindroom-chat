@@ -38,6 +38,21 @@ test('deduplicates shared Chromium coverage while retaining other browsers and s
   );
 });
 
+test('keeps the manifest-owned streaming benchmark out of disposable-account jobs', () => {
+  const jobs = plan(
+    [
+      discovery('default', 'chromium', 'live/perf-large-room-streaming.spec.ts'),
+      discovery('default', 'chromium', 'live/perf-thread-streaming.spec.ts'),
+      discovery('default', 'chromium'),
+    ],
+    '/repo'
+  );
+  assert.deepEqual(
+    jobs.map(({ file }) => file),
+    ['e2e/live/perf-thread-streaming.spec.ts', 'e2e/chat.spec.ts']
+  );
+});
+
 test('rejects discovery errors and incompatible subsets instead of dropping cases', () => {
   assert.throws(() => plan([{ config: 'broken', report: { errors: ['failed'] } }], '/repo'));
   const extra = discovery('filtered', 'chromium');
