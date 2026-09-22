@@ -8,7 +8,15 @@ export const isLocalEchoEventId = (eventId: string | undefined): boolean =>
 export const isConfirmedMatrixEventId = (eventId: unknown): eventId is string =>
   typeof eventId === 'string' && eventId.startsWith('$');
 
-const getEventTxnId = (event: Pick<MatrixEvent, 'getTxnId' | 'getUnsigned'>): string | undefined => {
+/** Check availability without selecting between loaded event copies. */
+export const isThreadRouteReady = (
+  room: Pick<Room, 'getThread' | 'findEventById'>,
+  threadId: string | undefined
+): boolean => !threadId || !!room.getThread(threadId)?.rootEvent || !!room.findEventById(threadId);
+
+const getEventTxnId = (
+  event: Pick<MatrixEvent, 'getTxnId' | 'getUnsigned'>
+): string | undefined => {
   const txnId = event.getTxnId?.() ?? event.getUnsigned()?.transaction_id;
   return typeof txnId === 'string' && txnId.length > 0 ? txnId : undefined;
 };

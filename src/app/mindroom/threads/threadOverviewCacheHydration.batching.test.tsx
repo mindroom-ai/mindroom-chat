@@ -57,17 +57,25 @@ const mount = async () => {
   const storeSummary = vi.fn();
   const publishedSizes: number[] = [];
   let replyPreviews: ReadonlyMap<string, string> = new Map();
-  function Harness({ records = noRecords }: { records?: Map<string, ThreadRecord> }) {
-    const cachedMetadata = useThreadOverviewCachedMetadata(room.roomId);
+  function Harness({
+    records = noRecords,
+    activeRoom = room,
+    sessionId = 'batching',
+  }: {
+    records?: Map<string, ThreadRecord>;
+    activeRoom?: Room;
+    sessionId?: string;
+  }) {
+    const cachedMetadata = useThreadOverviewCachedMetadata(activeRoom.roomId);
     replyPreviews = cachedMetadata.latestReplyPreviewMap;
     const size = cachedMetadata.coverageMap.size;
     if (publishedSizes.at(-1) !== size) publishedSizes.push(size);
     useThreadOverviewCacheHydration({
       overviewThreadRootIds: roots,
       overviewThreadMetadataCacheLimit: 2,
-      room,
+      room: activeRoom,
       roomThreadListThreads: noThreads,
-      sessionId: 'batching',
+      sessionId,
       mx,
       showCompactRoomView: true,
       compactThreadRootBodyMap: bodies,
@@ -86,8 +94,16 @@ const mount = async () => {
     roots,
     storeSummary,
     getReplyPreviews: () => replyPreviews,
-    refresh: async (records = new Map<string, ThreadRecord>()) => {
-      await act(async () => renderer?.update(<Harness records={records} />));
+    refresh: async (
+      records = new Map<string, ThreadRecord>(),
+      scope: { sessionId?: string; roomId?: string } = {}
+    ) => {
+      const activeRoom = scope.roomId ? new Room(scope.roomId, mx, '@self:example.org') : room;
+      await act(async () =>
+        renderer?.update(
+          <Harness records={records} activeRoom={activeRoom} sessionId={scope.sessionId} />
+        )
+      );
     },
   };
 };
@@ -149,6 +165,7 @@ describe('overview cache publication', () => {
       await vi.advanceTimersByTimeAsync(250);
     });
     expect(publishedSizes).toEqual([0, 2, 4]);
+    expect(loadBatch.mock.calls.filter((call) => call[2][0] === '$root-4')).toHaveLength(1);
   });
 
   it('keeps completed batches when a later read fails and retries remaining roots', async () => {
@@ -163,6 +180,7 @@ describe('overview cache publication', () => {
     });
     const { publishedSizes } = await mount();
     expect(publishedSizes).toEqual([0, 2, 4, 8]);
+    expect(loadBatch.mock.calls.filter((call) => call[2][0] === '$root-4')).toHaveLength(2);
   });
 
   it('keeps making progress when live record updates interrupt buffered publication', async () => {
@@ -185,5 +203,44 @@ describe('overview cache publication', () => {
     await refresh();
     await refresh();
     expect(loadBatch.mock.calls.filter((call) => call[2][0] === '$root-2')).toHaveLength(2);
+    expect(loadBatch.mock.calls.filter((call) => call[2][0] === '$root-4')).toHaveLength(1);
+  });
+
+  it('derives shared pending results against the latest live record', async () => {
+    vi.spyOn(performance, 'now').mockReturnValue(0);
+    let finishRead!: (value: Map<string, CachedThreadEventPage>) => void;
+    loadBatch.mockImplementation(async (_session, _room, ids) => {
+      if (ids[0] === '$root-2')
+        return new Promise((resolve) => {
+          finishRead ??= resolve;
+        });
+      return pages(ids);
+    });
+    const { publishedSizes, refresh, getReplyPreviews } = await mount();
+    const freshRecord = {
+      threadRootId: '$root-2',
+      status: { lastActivityTs: 2000, replyCount: 1 },
+      presentation: { latestReplyPreviewText: 'Newer live reply', messageCount: 1 },
+    } as ThreadRecord;
+    await refresh(new Map([['$root-2', freshRecord]]));
+    await act(async () => finishRead(pagesWithReply(['$root-2', '$root-3'])));
+    expect(publishedSizes).toEqual([0, 2, 8]);
+    expect(getReplyPreviews().has('$root-2')).toBe(false);
+    expect(loadBatch.mock.calls.filter((call) => call[2][0] === '$root-2')).toHaveLength(1);
+  });
+
+  it('reuses reordered pending batches while isolating sessions and rooms', async () => {
+    loadBatch.mockImplementation(() => new Promise(() => {}));
+    const { roots, refresh } = await mount();
+    roots.splice(0, 2, '$root-1', '$root-0');
+    await refresh();
+    expect(loadBatch).toHaveBeenCalledTimes(1);
+    await refresh(new Map(), { sessionId: 'another-session' });
+    await refresh(new Map(), { sessionId: 'another-session', roomId: '!other:example.org' });
+    expect(loadBatch.mock.calls.map(([sessionId, roomId]) => [sessionId, roomId])).toEqual([
+      ['batching', '!room:example.org'],
+      ['another-session', '!room:example.org'],
+      ['another-session', '!other:example.org'],
+    ]);
   });
 });

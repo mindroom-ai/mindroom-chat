@@ -4,8 +4,8 @@
 
 ### Reduce loading and thread-operation latency (2026-09-22)
 
-- Status: performance changes implemented and independently reviewed on `perf/thread-operation-latency`, based on merged PR #319 (`59dd75c2`).
-  Matched Chrome comparisons are complete; full browser validation is in progress.
+- Status: PR #321 contains independently reviewed performance changes based on merged PR #319 (`59dd75c2`).
+  Matched Chrome comparisons, the full browser scheduler, and local validation of the hosted review follow-ups are complete.
 - Live Chrome profiling found multi-second startup stalls and expensive room-wide work during normal thread operations.
   A repeated tag-aggregation pass over 516 SDK threads and 614 tag-state events took roughly 1.83 seconds; sharing one synchronous snapshot took roughly 3.7 ms in three isolated comparisons.
   This is a component measurement, not a whole-application speedup.
@@ -15,18 +15,29 @@
   Disabled compact discovery preserves known roots for deep links while skipping unused unread and ordering work.
 - Known SDK roots satisfy route-readiness checks without scanning other thread timelines.
   Content-valued lookups keep their existing source precedence, and thread bootstrap skips an unused standalone-root search.
+  One shared readiness helper keeps the room and hook checks consistent.
 - Overview cache hydration retains bounded reads and publishes its first useful batch promptly, then combines fast responses for up to 250 ms before publishing again.
   A stalled later read cannot hold completed updates; cancellation discards buffered values and forces prompt fresh publication on the next pass so continuous streaming cannot starve progress.
   The metadata hook also avoids replacing its initial empty snapshot with another empty snapshot.
+  Pending raw cache reads are shared across effect restarts within the mounted hook, keyed by session, room, event limit, and canonical batch IDs.
+  Settled reads are evicted on success or failure, and current live records still govern metadata derivation.
 - Work-count and freshness regressions failed before the fixes.
   The first independent review approved the final snapshot, ordering, receipt, and disabled-mode changes after correcting a null-sentinel type mismatch.
 - Two fresh Chrome contexts per build, with three operation cycles each, show median resolve/unresolve readiness falling about 79% to roughly 240 ms.
   Thread opening measures 22% faster and closing 14% faster; closing uses 22% less main-thread work through settlement.
   Opening and closing samples overlap, and initial loading shows no meaningful improvement.
   These are local measurements against #319, not verified production gains; see [the operation report](docs/thread-operation-performance.md).
-- All 5,254 unit tests pass under Node 24.13.1, along with application and focused-test typechecks, production build, and lint with zero errors and 17 existing warnings.
-  Follow-up fixture typing corrections pass all 48 affected tests.
-  The full browser scheduler is running against the final production code.
+- All 5,260 unit tests pass under Node 24.13.1, along with application and eight changed-test-file typechecks, production build, and lint with zero errors and 17 existing warnings.
+  The full browser scheduler completed 123 jobs on `c37c08a8`: 103 passed, 18 failed, and two were blocked by missing external SSO and worker-computer fixtures.
+  All dedicated performance probes passed, along with summary consistency/upgrades, streamed edits, stale-cache recovery, and thread restoration.
+  The short-thread load button, jump-to-latest visibility, room-resume stale-card precondition, classic-room back-pagination count, gap-fill counter, and computer-panel action failures reproduce identically on unchanged #319.
+  The broader suite remains non-green; other failures include media, styling, and command-palette opening.
+- Hosted review follow-ups centralize readiness and prevent duplicate pending reads after hydration restarts.
+  Regressions reproduce the duplicate-read failure, verify retry after rejection, preserve current live metadata, and isolate sessions and rooms.
+  Independent reviews approve both follow-ups.
+  The final production build passes six browser cases across cache loading, summary consistency/upgrades, streaming tiles, and resolve controls.
+  A fresh headed Chrome check completes all 12 open/resolve/unresolve/close actions on the 1,000-thread fixture, with resolve/unresolve between 225 and 283 ms.
+  This final sanity run is separate from the matched comparison above and establishes no additional percentage gain.
 
 ### Load active threads independently of persistent storage (2026-09-22)
 

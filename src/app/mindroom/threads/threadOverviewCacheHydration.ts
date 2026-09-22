@@ -26,6 +26,7 @@ type ThreadLikeRoot = {
 };
 
 const OVERVIEW_CACHE_PUBLICATION_INTERVAL_MS = 250;
+const OVERVIEW_CACHE_EVENT_LIMIT = 32;
 
 type UseThreadOverviewCacheHydrationOptions = {
   threadId?: string;
@@ -342,6 +343,9 @@ export const useThreadOverviewCacheHydration = ({
     applyUpdates,
   } = cachedMetadata;
   const preferImmediatePublicationRef = useRef(false);
+  const pendingReadsRef = useRef(
+    new Map<string, ReturnType<typeof loadLatestCachedThreadEventsBatch>>()
+  );
 
   useEffect(() => {
     if (threadId || overviewThreadRootIds.length === 0 || overviewThreadMetadataCacheLimit <= 0)
@@ -388,7 +392,27 @@ export const useThreadOverviewCacheHydration = ({
         try {
           // Keep reads bounded and yield to IndexedDB between batches, without
           // rebuilding the entire overview after every fast cache response.
-          const read = loadLatestCachedThreadEventsBatch(sessionId, room.roomId, batchIds, 32);
+          const readKey = JSON.stringify([
+            sessionId,
+            room.roomId,
+            OVERVIEW_CACHE_EVENT_LIMIT,
+            Array.from(new Set(batchIds)).sort(),
+          ]);
+          const pendingReads = pendingReadsRef.current;
+          let read = pendingReads.get(readKey);
+          if (!read) {
+            read = loadLatestCachedThreadEventsBatch(
+              sessionId,
+              room.roomId,
+              batchIds,
+              OVERVIEW_CACHE_EVENT_LIMIT
+            );
+            pendingReads.set(readKey, read);
+            const releaseRead = () => pendingReads.delete(readKey);
+            void read.then(releaseRead, releaseRead);
+          }
+          // Share only pending raw reads across restarts. Each current effect
+          // still derives metadata from its latest live records after awaiting.
           cachedPages = await (nextUpdates.length === 0
             ? read
             : Promise.race([

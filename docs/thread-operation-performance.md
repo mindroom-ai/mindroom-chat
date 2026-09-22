@@ -17,11 +17,14 @@ The overview metadata hook avoids an unnecessary empty snapshot on mount.
 Cache hydration keeps bounded database reads, publishes its first useful batch promptly, then combines fast results for up to 250 ms before publishing again.
 A deadline publishes completed updates even if a later read stalls.
 Cancellation discards derived values and requests prompt fresh publication on the next pass, preserving progress during streaming.
+Within one mounted hook, effect restarts share pending reads for the same session, room, event limit, and root set.
+Only pending read promises are shared; current live records govern derivation, and completed or failed reads are evicted.
 
 ## Workload and measurement
 
 The baseline is merged PR #319, commit `59dd75c21658feb47aed97d480b886977a3c372a`, including its independent cache/server thread-loading fixes.
-The candidate includes the production changes in this PR.
+The measured candidate is `c37c08a8`.
+Later review follow-ups consolidate the identical readiness checks and share pending cache reads across hydration restarts; the table does not quantify their incremental effect.
 The disposable loopback fixture has 1,000 roots, 100 original logical replies per root, and three replacement events per original reply: 401,000 historical message events.
 Earlier streaming replays remain in the fixture; these operation comparisons add no messages.
 An additional 614 canonical tag-state events make the state volume comparable to the profiled Personal room.
