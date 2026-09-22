@@ -1,15 +1,24 @@
 import { build } from 'esbuild';
+import { fileURLToPath } from 'node:url';
+
+const root = fileURLToPath(new URL('../', import.meta.url));
 
 /** Build classic scripts independently of the app's module graph and cached shell. */
 export async function buildAuthenticationRecoveryAssets() {
-  const options = { bundle: true, write: false, format: 'iife', target: 'es2020' };
+  const options = {
+    absWorkingDir: root,
+    bundle: true,
+    write: false,
+    format: 'iife',
+    target: 'es2020',
+  };
   const [recovery, runtime] = await Promise.all([
     build({
       ...options,
       stdin: {
         contents:
           "import { installAuthenticationRecovery } from './src/authenticationRecovery'; installAuthenticationRecovery(window);",
-        resolveDir: process.cwd(),
+        resolveDir: root,
       },
     }),
     build({ ...options, entryPoints: ['src/runtimeConfig.ts'] }),
