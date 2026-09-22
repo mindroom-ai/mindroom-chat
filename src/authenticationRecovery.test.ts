@@ -1,8 +1,9 @@
-import { readFileSync } from 'node:fs';
 import { runInNewContext } from 'node:vm';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { buildAuthenticationRecoveryAssets } from '../scripts/authentication-recovery-assets.mjs';
 
-const source = () => readFileSync('public/authentication-recovery.js', 'utf8');
+const assets = await buildAuthenticationRecoveryAssets();
+const source = () => assets['authentication-recovery.js'];
 const setup = (
   config: unknown = { probeUrl: '/probe', navigationUrl: '/login' },
   values = new Map<string, string>(),
@@ -64,6 +65,7 @@ describe('native authentication recovery', () => {
       { probeUrl: '/probe', navigationUrl: '/%2f%2fother.example/login' },
       { probeUrl: '/probe', navigationUrl: '/%5c%5cother.example/login' },
       { probeUrl: '/probe', navigationUrl: '/%2e%2e/login' },
+      { probeUrl: '/probe', navigationUrl: '/login\\other' },
     ]) {
       const { api, fetch, assign, unregister } = setup(config === undefined ? null : config);
       expect(await api.check()).toBe('disabled');
@@ -113,6 +115,35 @@ describe('native authentication recovery', () => {
       );
     }
   );
+
+  it.each([
+    [
+      '/login?next=\\folder',
+      'https://chat.example/login?next=%5Cfolder&authentication-recovery-navigation=1#event',
+    ],
+    [
+      '/login#section\\part',
+      'https://chat.example/login?authentication-recovery-navigation=1#section\\part',
+    ],
+  ])(
+    'allows a backslash outside the configured destination path: %s',
+    async (navigationUrl, expected) => {
+      const { api, fetch, assign } = setup({ probeUrl: '/probe', navigationUrl });
+      await api.check();
+      fetch.mockResolvedValue({ status: 401 });
+      expect(await api.check()).toBe('navigating');
+      expect(assign).toHaveBeenCalledWith(expected);
+    }
+  );
+
+  it('allows a backslash in the probe query while retaining the validated probe path', async () => {
+    const { api, fetch } = setup({ probeUrl: '/probe?item=\\part', navigationUrl: '/login' });
+    expect(await api.check()).toBe('healthy');
+    expect(fetch).toHaveBeenCalledWith(
+      'https://chat.example/probe?item=\\part',
+      expect.objectContaining({ method: 'GET' })
+    );
+  });
 
   it.each([401, 0])(
     'recovers confirmed expiry %s once and preserves the fragment',

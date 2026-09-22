@@ -11,6 +11,7 @@ import fs from 'fs';
 import path from 'path';
 import { execFileSync } from 'child_process';
 import buildConfig from './build.config';
+import { authenticationRecoveryAssets } from './scripts/authentication-recovery-assets.mjs';
 import { resolveBuildVersion } from './scripts/build-version.mjs';
 import { injectElementCallTransparentBackground } from './scripts/element-call-background.mjs';
 
@@ -58,10 +59,6 @@ export const copyFiles = {
       dest: 'public/element-call',
     },
     {
-      src: ['public/runtime-config.js', 'public/authentication-recovery.js'],
-      dest: '',
-    },
-    {
       src: 'node_modules/pdfjs-dist/build/pdf.worker.min.mjs',
       dest: '',
       rename: 'pdf.worker.min.js',
@@ -107,32 +104,6 @@ function serverMatrixSdkCryptoWasm(wasmFilePath) {
 
           if (fs.existsSync(resolvedPath)) {
             res.setHeader('Content-Type', 'application/wasm');
-            res.setHeader('Cache-Control', 'no-cache');
-
-            const fileStream = fs.createReadStream(resolvedPath);
-            fileStream.pipe(res);
-          } else {
-            res.writeHead(404);
-            res.end('File not found');
-          }
-        } else {
-          next();
-        }
-      });
-    },
-  };
-}
-
-function serverRuntimeConfig(runtimeConfigPath) {
-  return {
-    name: 'vite-plugin-serve-runtime-config',
-    configureServer(server) {
-      server.middlewares.use((req, res, next) => {
-        if (req.url === runtimeConfigPath) {
-          const resolvedPath = path.join(path.resolve(), 'public/runtime-config.js');
-
-          if (fs.existsSync(resolvedPath)) {
-            res.setHeader('Content-Type', 'application/javascript');
             res.setHeader('Cache-Control', 'no-cache');
 
             const fileStream = fs.createReadStream(resolvedPath);
@@ -226,7 +197,7 @@ export default defineConfig({
   },
   plugins: [
     appVersionManifest(),
-    serverRuntimeConfig('/runtime-config.js'),
+    authenticationRecoveryAssets(),
     serverStaleServiceWorkerCleanup(`${appBasePath}/sw.js`),
     serverMatrixSdkCryptoWasm(matrixCryptoWasmPath),
     topLevelAwait({

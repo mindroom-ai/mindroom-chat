@@ -23,6 +23,7 @@ An absent or empty `navigationUrl` returns to the current pathname, query, and f
 Set `APP_AUTHENTICATION_RECOVERY_NAVIGATION_URL` or a nonempty runtime `navigationUrl` only when recovery must use a fixed destination.
 The probe and any nonempty navigation URL must resolve to the application's origin, use HTTP or HTTPS, and contain no credentials.
 Use root-relative paths or same-origin absolute URLs for configured destinations; page-relative paths and protocol-relative URLs are rejected so the retry identity stays stable across navigations.
+Raw control characters, path backslashes, encoded path separators, and encoded dot segments also disable recovery before a probe or worker action.
 The optional timeout defaults to 5 seconds and is bounded to 1–30 seconds.
 A missing or invalid object disables automatic recovery.
 
@@ -46,20 +47,20 @@ The image also supports its existing single-segment deployment prefix, such as `
 The bootstrap does not need the Matrix app bundle or configuration fetch to succeed.
 If the reverse proxy protects all assets, allow only the exact runtime configuration and bootstrap asset routes needed to run recovery; retain authentication on the probe and navigation destination.
 
-Deployments generating their own `runtime-config.js` must include this loader after setting the configuration:
+The source files are `src/authenticationRecovery.ts` and `src/runtimeConfig.ts`.
+Vite builds both as standalone classic scripts and serves the same generated assets in development.
+They remain outside the application bundle and service-worker precache.
+The Docker image preserves the built runtime script at `/opt/mindroom/runtime-config.js` and appends it after the entrypoint's deployment settings.
 
-```js
-(function () {
-  var script = document.createElement('script');
-  script.src = new URL('authentication-recovery.js', document.currentScript.src).href;
-  script.async = false;
-  window.__AUTHENTICATION_RECOVERY_READY__ = new Promise(function (resolve) {
-    script.onload = resolve;
-    script.onerror = resolve;
-  });
-  document.head.appendChild(script);
-})();
+Deployments generating their own `runtime-config.js` should prepend their settings to the built runtime script instead of copying loader code:
+
+```sh
+cat deployment-settings.js dist/runtime-config.js > runtime-config.js
 ```
+
+The settings file assigns the deployment globals, including `window.__AUTHENTICATION_RECOVERY_CONFIG__` as shown above.
+The built script fills absent settings with defaults and loads recovery relative to its own served URL.
+Serve the combined file as the deployment's `runtime-config.js` alongside the built `authentication-recovery.js`.
 
 The bootstrap is idempotent and exposes `window.__AUTHENTICATION_RECOVERY__.check()` and `.navigate()`.
 The existing configuration-error sign-in action delegates to this owner and shares its probe and retry budget.
@@ -96,6 +97,7 @@ Authentication policy and cross-tab coordination remain the deployment's respons
 npm test
 E2E_NO_WEB_SERVER=1 npm run test:e2e -- e2e/authentication-recovery.spec.ts
 node --test scripts/test-authentication-recovery-nginx.mjs
+npm run build # Netlify checks verify the generated deployment assets.
 uv run --no-project python scripts/test_authentication_recovery_netlify.py
 ```
 

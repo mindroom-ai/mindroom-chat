@@ -39,15 +39,6 @@ BEGIN {
     print "window.__AUTHENTICATION_RECOVERY_CONFIG__ = {probeUrl:" quoted(probe) ",navigationUrl:" quoted(navigation) "};"
   else print "window.__AUTHENTICATION_RECOVERY_CONFIG__ = null;"
 }' >> /usr/share/nginx/html/runtime-config.js
-cat >> /usr/share/nginx/html/runtime-config.js <<'EOF_BOOTSTRAP'
-(function () {
-  var script = document.createElement('script');
-  script.src = new URL('authentication-recovery.js', document.currentScript.src).href;
-  script.async = false;
-  window.__AUTHENTICATION_RECOVERY_READY__ = new Promise(function (resolve) {
-    script.onload = resolve;
-    script.onerror = resolve;
-  });
-  document.head.appendChild(script);
-})();
-EOF_BOOTSTRAP
+
+# Use the same bootstrap as static and development deployments.
+cat /opt/mindroom/runtime-config.js >> /usr/share/nginx/html/runtime-config.js
