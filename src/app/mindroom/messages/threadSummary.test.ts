@@ -325,6 +325,38 @@ describe('pickLatestThreadSummaryInfo', () => {
     expect(pickLatestThreadSummaryInfo(invalid)).toBeUndefined();
   });
 
+  it.each([undefined, 99])(
+    'keeps a dated manual edit ahead of legacy summaries with count %s',
+    (messageCount) => {
+      const legacy = { summaryText: 'Old legacy summary', messageCount };
+      const manual = { summaryText: 'Human replacement', isManual: true, generatedTs: 1000 };
+      expect(pickLatestThreadSummaryInfo(legacy, manual)).toEqual(manual);
+      expect(pickLatestThreadSummaryInfo(manual, legacy)).toEqual(manual);
+    }
+  );
+
+  it.each([
+    [0, 1, 2],
+    [0, 2, 1],
+    [1, 0, 2],
+    [1, 2, 0],
+    [2, 0, 1],
+    [2, 1, 0],
+  ])(
+    'keeps the newer agent summary across mixed legacy/manual source order %s/%s/%s',
+    (first, second, third) => {
+      const sources = [
+        { summaryText: 'New agent summary', generatedTs: 200 },
+        { summaryText: 'Legacy summary', messageCount: 99 },
+        { summaryText: 'Older manual summary', generatedTs: 100, isManual: true },
+      ];
+      expect(pickLatestThreadSummaryInfo(sources[first], sources[second], sources[third])).toEqual({
+        summaryText: 'New agent summary',
+        generatedTs: 200,
+      });
+    }
+  );
+
   it('prefers the summary with the newer generated timestamp', () => {
     expect(
       pickLatestThreadSummaryInfo(

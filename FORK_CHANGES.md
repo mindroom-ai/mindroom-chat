@@ -4,7 +4,7 @@
 
 ### Shared thread context menu (2026-09-21)
 
-- Status: shared context menu implemented, independently reviewed, and validated; companion backend support under review.
+- Status: shared context menu implemented, independently reviewed, and validated; companion backend support is in final review.
 - Right-click, keyboard context-menu shortcuts, and a more button expose thread navigation, tags, manual summary edits, agent summary requests, resolve/reopen, admin pinning, and links.
 - Compact cards and the active thread bar share one action menu, including manual editing and agent regeneration.
   The bar supports right-click, keyboard shortcuts, and a more button while preserving focus and route ownership.
@@ -13,12 +13,14 @@
 - Consulted Claude on summary writes and clock skew; direct manual notices use a timestamp after the latest known cached/live summary so accepted edits survive hydration and reload.
   Existing metadata ordering remains shared across surfaces and clients.
   Unsupported dates are excluded consistently from live/cache selection; an exhausted supported clock rejects the write without losing the editor draft.
+  Timestamp-less legacy summaries cannot displace an accepted manual edit during live/cache merges.
+  Mixed-source permutations preserve genuinely newer dated agent summaries regardless of input order.
 - Menu eligibility and summary writes share confirmed-root, membership, and message-permission validation.
 - Baseline: 5,120 tests pass with four failures on the host before changes.
   Three Xcode script tests require standard Unix paths missing on this host; the caption-send test passes under Node 24.
 - Manual saves publish accepted notices through shared summary state immediately, including zero-reply roots, and preserve manual provenance in the cache.
   Failed local echoes are cancelled so retries remain possible and unsent summaries cannot replace saved titles.
-- Validation: all 5,171 unit tests pass under Node 24 after the thread-bar follow-up; application and focused-test typechecks, production build, formatting, and lint pass with 17 existing warnings.
+- Validation: all 5,179 unit tests pass under Node 24 after the thread-bar follow-up; application and focused-test typechecks, production build, formatting, and lint pass with 17 existing warnings.
   The production Chromium context-menu flow covers compact cards and the thread bar, including manual notices with summary pin metadata, agent requests, focus, and reload consistency.
   Compact hover controls and summary cache upgrades pass; the final menu/cache rerun also passes after clock-range validation.
   The cache-upgrade fixture now preserves the existing database version instead of requesting obsolete schema version 3.
@@ -28,6 +30,8 @@
   Fifteen unrelated failing jobs remain in login navigation, audio, favicon referrers, glass styling, thread preloading, and scroll/virtualization checks.
 - Independent review verified permissions, root eligibility, pending operations, focus restoration, portal and route isolation, touch controls, and shared summary selection with no remaining blockers.
 - PR #314 includes desktop, narrow-layout, and thread-bar screenshots uploaded with `--attach`.
+  [MindRoom #2174](https://github.com/mindroom-ai/mindroom/pull/2174) provides backend pin recovery and preserves explicit and automatic update ordering after clock skew.
+- Confirmed frontend automated review findings are addressed; the current CodeRabbit follow-up is rate-limited, with independent re-review completed.
 
 ### Follow the pointer on inline glass cards (2026-09-21)
 

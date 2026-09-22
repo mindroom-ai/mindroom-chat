@@ -51,9 +51,15 @@ export const pickLatestThreadSummaryInfo = (
   ...infos: Array<MindroomThreadSummaryInfo | undefined>
 ): MindroomThreadSummaryInfo | undefined => {
   let preferred: MindroomThreadSummaryInfo | undefined;
+  // Evaluate the entire merge before discarding candidates: an undated legacy
+  // value must not hide a newer agent summary before a manual candidate arrives.
+  const hasDatedManual = infos.some(
+    (info) => hasSummaryText(info) && info.isManual && info.generatedTs !== undefined
+  );
 
   infos.forEach((candidate) => {
-    if (!hasSummaryText(candidate)) return;
+    if (!hasSummaryText(candidate) || (hasDatedManual && candidate.generatedTs === undefined))
+      return;
     if (!hasSummaryText(preferred)) {
       preferred = candidate;
       return;
