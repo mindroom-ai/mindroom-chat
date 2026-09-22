@@ -24,8 +24,7 @@ const PREVIEW_TEXT_LIMIT = 96;
 const MATRIX_USER_ID_CANDIDATE_REGEXP = /@[^\s:]+:\S+/g;
 const MATRIX_USER_ID_TRAILING_PUNCTUATION_REGEXP = /[.,!?;:)\]}'"`*_~>]+$/;
 
-// A room refresh formats every card's count, even when only one thread changed.
-// Keep only the active locale so refresh cost does not include a formatter per card.
+// Share the active locale's formatter across new cards and changed message counts.
 let countFormatter: { locale: string | undefined; value: Intl.NumberFormat } | undefined;
 
 const truncateText = (value: string, limit: number): string =>
@@ -254,6 +253,12 @@ type UseCompactThreadCardViewModelsOptions = {
   threadRecordMap: ReadonlyMap<string, ThreadRecord>;
 };
 
+type CachedCardViewModel = {
+  inputSignature: string;
+  outputSignature: string;
+  viewModel: CompactThreadCardViewModel;
+};
+
 export const useCompactThreadCardViewModels = ({
   room,
   threadRootIds,
@@ -264,26 +269,64 @@ export const useCompactThreadCardViewModels = ({
   const language = useAppLanguageCode();
   const useAuthentication = useMediaAuthentication();
   const currentUserId = mx.getUserId() ?? undefined;
-  // The thread index rebuilds records wholesale on every refresh (e.g. each
-  // streaming edit anywhere in the room), so freshly built view models get new
-  // identities even when their content is unchanged. Reusing the previous
-  // instance for content-identical view models lets memoized cards skip
-  // re-rendering.
-  const viewModelCacheRef = useRef(
-    new Map<string, { signature: string; viewModel: CompactThreadCardViewModel }>()
-  );
+  // Records are rebuilt on every index refresh. Snapshot their values before
+  // formatting so an unrelated streaming edit does not rebuild every card.
+  const viewModelCacheRef = useRef<{
+    mx: MatrixClient;
+    room: Room;
+    t: TFunction;
+    contextSignature: string;
+    models: Map<string, CachedCardViewModel>;
+  }>();
 
   return useMemo(() => {
     const previousCache = viewModelCacheRef.current;
-    const nextCache = new Map<
-      string,
-      { signature: string; viewModel: CompactThreadCardViewModel }
-    >();
+    // SDK member objects mutate in place. Include all members because titles
+    // and previews can mention people outside the thread's participant list.
+    const contextSignature = JSON.stringify([
+      currentUserId,
+      language,
+      useAuthentication,
+      mx.getHomeserverUrl(),
+      useAuthentication &&
+      typeof window !== 'undefined' &&
+      window.location?.protocol === 'capacitor:'
+        ? mx.getAccessToken()
+        : undefined,
+      new Intl.DateTimeFormat().resolvedOptions().timeZone,
+      room
+        .getMembers()
+        .map((member) => [member.userId, member.rawDisplayName, member.getMxcAvatarUrl()]),
+    ]);
+    const canReuseInputs =
+      previousCache?.mx === mx &&
+      previousCache.room === room &&
+      previousCache.t === t &&
+      previousCache.contextSignature === contextSignature;
+    const nextCache = new Map<string, CachedCardViewModel>();
     const viewModels: CompactThreadCardViewModel[] = [];
 
     threadRootIds.forEach((threadRootId) => {
       const record = threadRecordMap.get(threadRootId);
       if (!record) return;
+
+      const inputSignature = JSON.stringify([
+        record.roomId,
+        record.threadRootId,
+        record.presentation,
+        record.status,
+      ]);
+      const cached = previousCache?.models.get(threadRootId);
+      // Scheduled labels read the clock; keep their existing refresh cadence.
+      if (
+        canReuseInputs &&
+        cached?.inputSignature === inputSignature &&
+        record.status.nextScheduledTs === undefined
+      ) {
+        nextCache.set(threadRootId, cached);
+        viewModels.push(cached.viewModel);
+        return;
+      }
 
       const freshViewModel = buildCompactThreadCardViewModelFromRecord({
         record,
@@ -294,14 +337,14 @@ export const useCompactThreadCardViewModels = ({
         t,
         locale: language,
       });
-      const signature = JSON.stringify(freshViewModel);
-      const cached = previousCache.get(threadRootId);
-      const viewModel = cached?.signature === signature ? cached.viewModel : freshViewModel;
-      nextCache.set(threadRootId, { signature, viewModel });
+      const outputSignature = JSON.stringify(freshViewModel);
+      const viewModel =
+        cached?.outputSignature === outputSignature ? cached.viewModel : freshViewModel;
+      nextCache.set(threadRootId, { inputSignature, outputSignature, viewModel });
       viewModels.push(viewModel);
     });
 
-    viewModelCacheRef.current = nextCache;
+    viewModelCacheRef.current = { mx, room, t, contextSignature, models: nextCache };
     return viewModels;
   }, [currentUserId, language, mx, room, t, threadRecordMap, threadRootIds, useAuthentication]);
 };

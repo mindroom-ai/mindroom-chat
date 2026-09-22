@@ -4,12 +4,18 @@
 
 ### Profile a room with 1,000 streamed threads (2026-09-21)
 
-- Status: implemented, measured, and independently reviewed in PR #316 on `perf/large-room-streaming`, with PR #315 integrated from `dev`.
+- Status: PR #316 is under final merge review on `perf/large-room-streaming`, with PRs #315, #317, and #318 integrated from `dev`.
+  Resolved the Runbook conflict by preserving both development histories; the PR records final browser and hosted-check results.
+  Merge review found a new upstream test counting formatter construction instead of formatting work; its getter spy now preserves the two-initial, zero-unchanged, one-changed formatting checks.
+  Disabling unchanged-card reuse makes that corrected test fail, confirming the regression remains covered.
+  All 5,220 unit tests, 10 tooling tests, typecheck, production build, and lint pass on the integrated tree; lint retains 17 existing warnings.
+  The full-size Chrome replay also passes against the integrated build with all 1,000 cards and all 20 final streamed previews.
 - The isolated Tuwunel fixture contains 1,000 thread roots, 100 logical replies per thread, and three replacement events per reply, using MindRoom's pending/streaming/completed message format.
   Historical seeding sent 401,000 events; each measured live replay adds 20 replies and 400 edits.
 - Headed Google Chrome profiles identified repeated locale formatter construction and duplicate detached replacement cloning during streaming-state checks.
   Card counts now reuse the current locale's formatter, and streaming checks pass their already decoded replacement to the shared edit resolver without introducing a persistent event cache.
-- Three alternating pairs against current base `d58051e6` show mean main-thread work falling from 3,046 ms to 2,914 ms, approximately 4%, and long-task time falling approximately 16%.
+- Three alternating pairs against measured base `d58051e6` show mean main-thread work falling from 3,046 ms to 2,914 ms, approximately 4%, and long-task time falling approximately 16%.
+  Those measurements predate PRs #317 and #318 and do not establish the final integrated branch's incremental benefit.
   The first optimized run was slower; these local averages vary and are not guaranteed gains.
   The original base comparison showed approximately 14% less main-thread work and 19% less long-task time; the performance report preserves both datasets separately.
   Every measured overview burst reached its final previews; the open-thread pair also completed but does not establish an active-thread speedup.
@@ -31,6 +37,47 @@
 - A cross-model consultation was attempted but blocked by the provider's quota; the implemented fixes preserve existing edit-resolution and event-source precedence.
   Broad SDK root lookup scans and rendering all 1,000 cards remain follow-up opportunities.
 
+### Simplify compact thread controls (2026-09-22)
+
+- Status: implemented and independently approved; PR #318 tracks hosted review and broader browser results.
+- Compact cards use borderless Resolve and Pin icons on desktop hover or keyboard focus.
+  A horizontal menu icon replaces the filled vertical overflow control.
+- Narrow and touch layouts keep only the menu button inside each card, with reserved inline space so it cannot cover text.
+  Resolve and Pin remain available through the shared thread menu; the extra action row below every card is removed.
+- Browser coverage checks desktop hover stability, keyboard access, narrow RTL geometry, touch input, and resolution through the menu without opening a thread.
+  The new narrow-layout assertion fails against the previous production build.
+- All 5,218 unit tests pass in the Node 24 container, along with application typecheck, production build, formatting, and lint with zero errors and 17 existing warnings.
+  Focused Chromium checks pass for desktop and touch actions, menu pin/unpin, shared thread menus, and pinned-thread permissions.
+  Light and Butter screenshots use synthetic fixtures.
+- WebKit desktop and touch checks pass after making the pending-save probe bypass service workers and wait for responsive navigation before measuring cards.
+  Independent re-review approves these test fixes.
+- The full browser scheduler completed 122 jobs: 73 passed, 47 failed, and two were blocked by missing external SSO and worker fixtures.
+  A stopped local preview server caused connection errors in 37 failed jobs; the other failures include login navigation, media, glass, preload, and scroll checks.
+  Recovery runs and their final results are recorded in the PR.
+
+### Reduce compact-card formatting and repeated history scans (2026-09-21)
+
+- Status: implemented and independently approved as a processing-cost follow-up to #315.
+  Neither the original short-history probe nor the controlled long-history comparison establishes a scrolling improvement.
+- A production CPU profile identifies repeated message-count formatting and plural translation while rebuilding every card's view model after a streamed edit.
+  The existing output cache preserved React identities only after that formatting work had completed.
+- Compare presentation and status values before building a card; ignore cache-coverage and position changes that cannot affect its output.
+  Snapshot room member names and avatars once per selector pass, including people mentioned outside a thread's participant list.
+  Account, locale, translation, media authentication, native token, homeserver, and timezone context invalidate reuse.
+  Scheduled rows retain their existing clock-based formatting cadence.
+- Build one visible-reply snapshot per synchronous thread-record update and share it across presentation, counts, participants, unread status, and send state.
+  Each new update rescans current events, preserving in-place redaction and decryption.
+  Raw reply-count and participant maps retain their distinct duplicate-ID and per-root rules.
+- Deterministic work-count and freshness regressions cover rebuilt records, member changes, inline mentions, account changes, locale, media authentication, send state, tags, and scheduled countdowns.
+  All 5,218 tests pass, along with application and focused-test typechecks, production build, formatting, and lint with zero errors and 17 existing warnings.
+  Production Chromium checks pass for compact menus, the thread bar, hover controls, and cached-to-live summary upgrades.
+- A controlled production Chromium comparison mounts 500 cards with approximately 48,000 synthetic SDK events and sends 40 real message edits during a native scroll.
+  Four samples per build in baseline/follow-up/follow-up/baseline order show median JavaScript time of 2,300 ms before and 1,859 ms after, while total task time is essentially unchanged at 3,227 ms and 3,248 ms.
+  The fixture fixes browser time to avoid relative-time ticker aging, keeps long-history assignments stable, and confirms receipt of each burst's final edit.
+  Its synthetic history follows the edited historical reply, so the latest visible preview can remain unchanged; this measures refresh processing rather than a live agent preview or scrolling FPS.
+  Earlier apparent idle/scroll gains were confounded by timestamp aging and are not evidence for this change.
+- Next steps: complete hosted review and capture a Chrome trace from the affected workload if scrolling lag persists; total browser work and scrolling speed remain unproven.
+
 ### Restore compact-list performance after thread actions (2026-09-21)
 
 - Status: implemented and independently approved as a performance follow-up to #314 after reported compact-list scrolling lag.
@@ -50,6 +97,7 @@
 - Production Chromium checks pass for compact menus, the thread bar, hover controls, and cached-to-live summary upgrades.
   The existing live probe mounts all 400 cards in both builds; 40 streaming edits consume 10,694 ms of main-thread task time before the fix and 10,188 ms after it in single runs.
   That short-history whole-app probe shows a much smaller change than the isolated benchmarks and does not establish a scrolling frame-rate improvement.
+- Next steps: profile the reported long-history workload; the follow-up above evaluates card formatting before further optimization.
 
 ### Shared thread context menu (2026-09-21)
 
