@@ -1,7 +1,9 @@
-import { EventStatus, MsgType, type MatrixClient, type Room } from 'matrix-js-sdk';
+import { EventStatus, MsgType, type IEvent, type MatrixClient, type Room } from 'matrix-js-sdk';
 import type { RoomMessageEventContent } from 'matrix-js-sdk/lib/@types/events';
 import {
   getMindroomThreadSummaryInfo,
+  getLatestThreadSummaryInfoFromEventSources,
+  pickLatestThreadSummaryInfo,
   isSupportedThreadSummaryTimestamp,
   THREAD_SUMMARY_METADATA_KEY,
 } from '../messages/threadSummary';
@@ -16,6 +18,7 @@ import {
   storeThreadSummaryInState,
 } from './threadSummaryState';
 import { resolveThreadSummaryInfo } from './threadPresentation';
+import { loadLatestCachedThreadEvents } from './cacheStore';
 
 export const normalizeSummaryText = (text: string): string => text.replace(/\s+/g, ' ').trim();
 export const SUMMARY_MAX_LENGTH = 300;
@@ -70,12 +73,27 @@ export const saveThreadSummary = async (
     throw new Error('Summary must contain between 1 and 300 characters.');
   }
   const sessionId = createSessionId(mx.getHomeserverUrl(), mx.getSafeUserId());
-  await ensureThreadSummaryStateLoaded(sessionId, room.roomId);
+  const [, cachedSummary] = await Promise.all([
+    ensureThreadSummaryStateLoaded(sessionId, room.roomId),
+    // Overview hydration also reads this cached tail. Include its title before
+    // writing so a later cache read cannot restore a clock-skewed predecessor.
+    loadLatestCachedThreadEvents(sessionId, room.roomId, threadId, 32)
+      .then((page) => {
+        const mapper = mx.getEventMapper();
+        return getLatestThreadSummaryInfoFromEventSources(
+          page.events.map((event) => mapper(event as IEvent))
+        );
+      })
+      .catch(() => undefined),
+  ]);
   validateTarget(mx, room, threadId);
-  const previous = resolveThreadSummaryInfo({
-    preferredSummaryInfo: getThreadSummaryStateSnapshot(sessionId, room.roomId).get(threadId),
-    thread: room.getThread(threadId),
-  });
+  const previous = pickLatestThreadSummaryInfo(
+    cachedSummary,
+    resolveThreadSummaryInfo({
+      preferredSummaryInfo: getThreadSummaryStateSnapshot(sessionId, room.roomId).get(threadId),
+      thread: room.getThread(threadId),
+    })
+  );
   // Summary readers share this clock. Advance it past the title being edited
   // even when that title was authored by a device whose clock runs ahead.
   const generatedTs = Math.max(Date.now(), (previous?.generatedTs ?? 0) + 1);

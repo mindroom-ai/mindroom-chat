@@ -1658,6 +1658,7 @@ export function RoomTimeline({
     beginThreadCacheWrite,
     refreshCompactThreadList: refreshRoomThreadList,
     room,
+    sessionId,
     setOverviewRefreshCounter,
     showCompactRoomView,
     threadFilteredEventEntries,

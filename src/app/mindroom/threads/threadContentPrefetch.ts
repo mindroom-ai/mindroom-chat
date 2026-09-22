@@ -43,6 +43,7 @@ export const fetchAndPersistThreadContent = async ({
   priority,
   shouldContinue,
   shouldApply,
+  getCurrentThreadSummary,
   beginThreadCacheWrite,
   onApplyThreadRelations,
   onStoreThreadSummary,
@@ -62,6 +63,12 @@ export const fetchAndPersistThreadContent = async ({
    * Callers use it for staleness guards (unmount, thread switch).
    */
   shouldApply?: () => boolean;
+  /**
+   * Returns the current shared summary object for this thread. A changed
+   * object means a newer summary source was published while the relation
+   * request was in flight, so the entire fetched snapshot must be discarded.
+   */
+  getCurrentThreadSummary?: (threadRootId: string) => MindroomThreadSummaryInfo | undefined;
   beginThreadCacheWrite: () => PersistThreadEventCache;
   onApplyThreadRelations?: (options: FetchedRelationOverviewUpdateOptions) => void;
   onStoreThreadSummary?: (
@@ -72,6 +79,7 @@ export const fetchAndPersistThreadContent = async ({
   const persistThreadEventCache = beginThreadCacheWrite();
   const rootEvent = room.getThread(threadId)?.rootEvent ?? room.findEventById(threadId);
   if (!rootEvent) return undefined;
+  const summaryBeforeFetch = getCurrentThreadSummary?.(threadId);
 
   const relationPageResult = await enqueueThreadBackfillJob({
     mx,
@@ -81,7 +89,11 @@ export const fetchAndPersistThreadContent = async ({
     priority,
     shouldContinue,
   });
-  if (!relationPageResult || (shouldApply && !shouldApply())) {
+  if (
+    !relationPageResult ||
+    (shouldApply && !shouldApply()) ||
+    (getCurrentThreadSummary && getCurrentThreadSummary(threadId) !== summaryBeforeFetch)
+  ) {
     return undefined;
   }
 

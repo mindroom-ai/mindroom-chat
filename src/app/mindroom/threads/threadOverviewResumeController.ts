@@ -18,6 +18,7 @@ import type { TimelineEventEntry } from './roomTimelineEvents';
 import type { Timeline } from './timelinePagination';
 import type { FetchedRelationOverviewUpdateOptions } from './threadOverviewCacheHydration';
 import { useMindroomSyncEngine } from '../engine';
+import { getThreadSummaryStateSnapshot } from './threadSummaryState';
 
 import type { PersistThreadEventCache } from '../engine/enginePersistFacade';
 
@@ -35,6 +36,7 @@ export const useThreadOverviewResumeController = ({
   beginThreadCacheWrite,
   refreshCompactThreadList,
   room,
+  sessionId,
   setOverviewRefreshCounter,
   showCompactRoomView,
   threadFilteredEventEntries,
@@ -56,6 +58,7 @@ export const useThreadOverviewResumeController = ({
   beginThreadCacheWrite: () => PersistThreadEventCache;
   refreshCompactThreadList: () => Promise<void>;
   room: Room;
+  sessionId: string;
   setOverviewRefreshCounter: Dispatch<SetStateAction<number>>;
   showCompactRoomView: boolean;
   threadFilteredEventEntries: TimelineEventEntry[];
@@ -166,12 +169,22 @@ export const useThreadOverviewResumeController = ({
         // This scheduler job may be shared with another consumer. Let the
         // engine own its cancellation and release only this view's apply path.
         shouldApply,
+        getCurrentThreadSummary: (threadRootId) =>
+          getThreadSummaryStateSnapshot(sessionId, room.roomId).get(threadRootId),
         beginThreadCacheWrite,
         onApplyThreadRelations,
         onStoreThreadSummary,
       });
     },
-    [mx, onApplyThreadRelations, onStoreThreadSummary, beginThreadCacheWrite, room, syncEngine]
+    [
+      mx,
+      onApplyThreadRelations,
+      onStoreThreadSummary,
+      beginThreadCacheWrite,
+      room,
+      sessionId,
+      syncEngine,
+    ]
   );
 
   const refreshOverviewThreadsOnResume = useCallback(

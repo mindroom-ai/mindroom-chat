@@ -14,15 +14,17 @@
   Existing metadata ordering remains shared across surfaces and clients.
   Unsupported dates are excluded consistently from live/cache selection; an exhausted supported clock rejects the write without losing the editor draft.
   Timestamp-less legacy summaries cannot displace an accepted manual edit during live/cache merges.
-  Mixed-source permutations preserve genuinely newer dated agent summaries regardless of input order.
+  Mixed-source permutations preserve newer dated agent summaries regardless of input order.
+  Manual saves include the cached event tail before advancing the summary timestamp.
+  Relation fetches discard their snapshot when the shared summary changes in flight, protecting both visible state and the disk cache.
 - Menu eligibility and summary writes share confirmed-root, membership, and message-permission validation.
 - Baseline: 5,120 tests pass with four failures on the host before changes.
   Three Xcode script tests require standard Unix paths missing on this host; the caption-send test passes under Node 24.
 - Manual saves publish accepted notices through shared summary state immediately, including zero-reply roots, and preserve manual provenance in the cache.
   Failed local echoes are cancelled so retries remain possible and unsent summaries cannot replace saved titles.
-- Validation: all 5,179 unit tests pass under Node 24 after the thread-bar follow-up; application and focused-test typechecks, production build, formatting, and lint pass with 17 existing warnings.
+- Validation: all 5,182 unit tests pass under Node 24 after the thread-bar and cache-race follow-ups; application and focused-test typechecks, production build, formatting, and lint pass with 17 existing warnings.
   The production Chromium context-menu flow covers compact cards and the thread bar, including manual notices with summary pin metadata, agent requests, focus, and reload consistency.
-  Compact hover controls and summary cache upgrades pass; the final menu/cache rerun also passes after clock-range validation.
+  Compact hover controls and summary cache upgrades pass; the final menu/cache rerun also passes after clock-range and stale-fetch validation.
   The cache-upgrade fixture now preserves the existing database version instead of requesting obsolete schema version 3.
   Narrow and touch layouts keep controls below card content, preventing hover controls from intercepting card clicks.
 - The full browser scheduler completed 120 jobs: 100 passed, 18 failed, and two were blocked by missing external SSO and worker-computer fixtures.
