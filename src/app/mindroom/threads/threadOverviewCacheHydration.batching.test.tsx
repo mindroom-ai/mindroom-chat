@@ -1,4 +1,3 @@
-import 'fake-indexeddb/auto';
 import React from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { MatrixClient, Room } from 'matrix-js-sdk';
@@ -7,8 +6,6 @@ import { loadLatestCachedThreadEventsBatch, type CachedThreadEventPage } from '.
 import { useThreadOverviewCachedMetadata } from './threadOverviewCacheMetadata';
 import { useThreadOverviewCacheHydration } from './threadOverviewCacheHydration';
 import type { ThreadRecord } from './types';
-import { clearRoomCachedContent, deleteCacheStoreDb } from './cacheStore';
-import { clearThreadSummarySharedState } from './threadSummaryState';
 
 vi.mock('./eventRepository', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./eventRepository')>()),
@@ -48,8 +45,6 @@ afterEach(async () => {
   loadBatch.mockReset();
   vi.restoreAllMocks();
   vi.useRealTimers();
-  await deleteCacheStoreDb('batching');
-  clearThreadSummarySharedState();
 });
 
 const mount = async () => {
@@ -247,62 +242,5 @@ describe('overview cache publication', () => {
       ['another-session', '!room:example.org'],
       ['another-session', '!other:example.org'],
     ]);
-  });
-  it.each(['room-clear', 'session-removal'])(
-    'discards an unseen summary from a pending read after %s',
-    async (cause) => {
-      let finishRead!: (value: Map<string, CachedThreadEventPage>) => void;
-      loadBatch.mockImplementation(async (_session, _room, ids) => {
-        if (ids[0] === '$root-2')
-          return new Promise((resolve) => {
-            finishRead = resolve;
-          });
-        return pages(ids);
-      });
-      const { publishedSizes, storeSummary, getReplyPreviews } = await mount();
-      expect(publishedSizes).toEqual([0, 2]);
-      await act(async () => {
-        if (cause === 'room-clear') await clearRoomCachedContent('batching', '!room:example.org');
-        else clearThreadSummarySharedState('batching');
-        finishRead(pagesWithReply(['$root-2', '$root-3'], true));
-      });
-      expect(publishedSizes).toEqual([0, 2]);
-      expect(getReplyPreviews().has('$root-2')).toBe(false);
-      expect(storeSummary).not.toHaveBeenCalled();
-    }
-  );
-
-  it('starts a fresh read after clear and does not let an old settlement evict it', async () => {
-    const finishReads: Array<(value: Map<string, CachedThreadEventPage>) => void> = [];
-    loadBatch.mockImplementation(async (_session, _room, ids) => {
-      if (ids[0] === '$root-2')
-        return new Promise((resolve) => {
-          finishReads.push(resolve);
-        });
-      return pages(ids);
-    });
-    const { refresh, publishedSizes, storeSummary } = await mount();
-    await act(async () => {
-      await clearRoomCachedContent('batching', '!room:example.org');
-    });
-    await refresh();
-    expect(finishReads).toHaveLength(2);
-    await act(async () => {
-      finishReads[0](pagesWithReply(['$root-2', '$root-3'], true));
-    });
-    expect(storeSummary).not.toHaveBeenCalled();
-    expect(publishedSizes).toEqual([0, 2]);
-    await refresh();
-    expect(finishReads).toHaveLength(2);
-    const fresh = pagesWithReply(['$root-2', '$root-3'], true);
-    fresh.get('$root-2')!.events[0].content!.body = 'Fresh summary';
-    await act(async () => {
-      finishReads[1](fresh);
-    });
-    expect(storeSummary).toHaveBeenCalledWith('$root-2', {
-      summaryText: 'Fresh summary',
-      eventTs: 1000,
-    });
-    expect(publishedSizes).toEqual([0, 2, 8]);
   });
 });

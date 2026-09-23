@@ -63,8 +63,8 @@ test('repairs a legacy cached summary for the overview and thread banner while M
   );
   const summaryText = 'Recovered summary from older downloaded history';
 
-  // Stop the client, then seed the pre-index cache format: old notices are
-  // present, but summary-index fields and migration completion are absent.
+  // Stop the client, then seed the old cache format: summary notices are present,
+  // but the derived summary and repair marker are absent.
   await page.goto('/config.json');
   await page.evaluate(
     async ({ sessionId, room, root, sync, title }) => {
@@ -110,7 +110,7 @@ test('repairs a legacy cached summary for the overview and thread banner while M
             });
           }
           const meta = transaction.objectStore('meta');
-          meta.delete(`${room}|__summaryMigration`);
+          meta.delete(`${room}|__summaryRepair`);
           const request = meta.get(`${room}|${root}`);
           request.onsuccess = () =>
             meta.put({

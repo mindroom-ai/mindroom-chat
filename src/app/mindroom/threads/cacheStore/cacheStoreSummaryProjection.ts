@@ -11,7 +11,6 @@ import {
   applyCachedReplaceRelations,
   applySerializedCachedReplaceRelations,
 } from '../eventCacheEditUtils';
-import { collectExplicitRedactedEventIds, mergeRawEventRevisions } from '../eventRevision';
 import { isCacheWritable, reportCacheWriteError } from '../cacheHealth';
 import { isCacheStoreWriteLeaseCurrent, type CacheStoreWriteLease } from './cacheStoreDb';
 import {
@@ -20,14 +19,12 @@ import {
 } from './cacheStoreSummaryChanges';
 import {
   EVENTS_STORE,
+  EVENTS_BY_SCOPE_TS_INDEX,
   META_STORE,
   THREAD_SUMMARIES_STORE,
-  EVENTS_BY_ROOM_EVENT_INDEX,
-  EVENTS_BY_SUMMARY_CANDIDATE_INDEX,
-  EVENTS_BY_RELATION_TARGET_INDEX,
-  EVENTS_BY_SUMMARY_TARGET_INDEX,
+  MAX_EVENT_ID,
+  MAX_EVENT_TS,
   buildSummaryCacheKey,
-  buildRedactedRelationMetaKey,
   type CachedEventRecord,
   type CachedThreadSummaryRecord,
   type CachedMetaRecord,
@@ -38,240 +35,96 @@ const requestResult = <T>(request: IDBRequest<T>): Promise<T> =>
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error);
   });
-const threadForRecord = (record: CachedEventRecord): string | undefined => {
-  if (record.scope) return record.scope;
-  const relation = record.rawEvent.content?.['m.relates_to'];
-  return relation?.rel_type === 'm.thread' ? relation.event_id : undefined;
-};
-const isCandidate = (raw: Partial<IEvent>): boolean =>
-  !raw.unsigned?.redacted_because &&
-  (hasMindroomThreadSummary(raw.content ?? {}) ||
-    hasMindroomThreadSummary(raw.unsigned?.['m.relations']?.['m.replace']?.content ?? {}));
 
-/** Index only accepted merged rows, never the pre-merge input. */
-export const indexSummaryEventRecord = (record: CachedEventRecord): CachedEventRecord => {
-  const relation = record.rawEvent.content?.['m.relates_to'];
-  const target =
-    relation?.rel_type === 'm.replace'
-      ? relation.event_id
-      : record.rawEvent.type === 'm.room.redaction'
-      ? record.rawEvent.redacts ?? record.rawEvent.content?.redacts
-      : undefined;
-  const candidate = isCandidate(record.rawEvent);
-  return {
-    ...record,
-    summaryThreadRootId: candidate
-      ? threadForRecord(record) ??
-        (relation?.rel_type === 'm.replace' ? record.summaryThreadRootId : undefined)
-      : undefined,
-    summaryRelationTarget: typeof target === 'string' ? target : undefined,
-    summaryCandidateTarget:
-      candidate && relation?.rel_type === 'm.replace' ? relation.event_id : undefined,
-  };
-};
-/** Resolve room-timeline edits through their original; either row may arrive first. */
-const affectedSummaryRoots = async (
-  events: IDBObjectStore,
-  record: CachedEventRecord
-): Promise<Set<string>> => {
-  const roots = new Set<string>();
-  if (record.summaryThreadRootId) roots.add(record.summaryThreadRootId);
-  const link = (candidate: CachedEventRecord, root: string | undefined) => {
-    if (!root) return;
-    roots.add(root);
-    if (candidate.summaryThreadRootId !== root)
-      events.put({ ...candidate, summaryThreadRootId: root });
-  };
-  const ids = new Set(
-    [record.eventId, record.summaryRelationTarget].filter((id): id is string => !!id)
-  );
-  await Promise.all(
-    [...ids].map(async (id) => {
-      const related = (await requestResult(
-        events.index(EVENTS_BY_SUMMARY_TARGET_INDEX).getAll([record.roomId, id])
-      )) as CachedEventRecord[];
-      related.forEach((candidate) => {
-        link(
-          candidate,
-          candidate.summaryThreadRootId ??
-            (id === record.eventId ? threadForRecord(record) : undefined)
-        );
-      });
-      // A non-summary revision can invalidate a candidate stored in another
-      // scope, so dependency discovery includes copies of the changed event.
-      const targets = (await requestResult(
-        events.index(EVENTS_BY_ROOM_EVENT_INDEX).getAll([record.roomId, id])
-      )) as CachedEventRecord[];
-      targets.forEach((target) => {
-        if (target.summaryThreadRootId) roots.add(target.summaryThreadRootId);
-        related.forEach((candidate) =>
-          link(candidate, candidate.summaryThreadRootId ?? threadForRecord(target))
-        );
-      });
-    })
-  );
-  return roots;
+const hasSummary = (raw: Partial<IEvent>): boolean =>
+  hasMindroomThreadSummary(raw.content ?? {}) ||
+  hasMindroomThreadSummary(raw.unsigned?.['m.relations']?.['m.replace']?.content ?? {});
+
+const acceptedSummary = (record: CachedEventRecord | undefined) => {
+  if (!record || !hasSummary(record.rawEvent)) return undefined;
+  const event = new MatrixEvent(record.rawEvent);
+  applySerializedCachedReplaceRelations([event]);
+  return !event.isRedacted() && isMindroomThreadSummaryEvent(event)
+    ? getThreadSummaryEventInfo(event)
+    : undefined;
 };
 
-export const summaryRecordInfo = (
+const summaryRecordInfo = (
   record: CachedThreadSummaryRecord | undefined
 ): MindroomThreadSummaryInfo | undefined =>
-  record
-    ? {
-        summaryText: record.summaryText,
-        generatedTs: record.generatedTs,
-        ...(record.eventTs !== undefined ? { eventTs: record.eventTs } : {}),
-        messageCount: record.messageCount,
-        ...(record.isManual ? { isManual: true } : {}),
-      }
-    : undefined;
-const migrationKey = (roomId: string) => `${roomId}|__summaryMigration`;
-const pendingPrefix = (roomId: string) => `${roomId}|__summaryPending:`;
-type Migration = CachedMetaRecord & {
-  after?: string;
-  phase: 'index' | 'project' | 'done';
-};
-type PendingProjection = CachedMetaRecord & { threadRootId: string };
-const queueProjection = (meta: IDBObjectStore, roomId: string, threadRootId: string) => {
-  meta.put({
-    metaKey: pendingPrefix(roomId) + threadRootId,
-    roomId,
-    scope: `__summaryPending:${threadRootId}`,
-    updatedAt: Date.now(),
-    threadRootId,
-  } satisfies PendingProjection);
-};
+  record && {
+    summaryText: record.summaryText,
+    generatedTs: record.generatedTs,
+    eventTs: record.eventTs,
+    messageCount: record.messageCount,
+    ...(record.isManual ? { isManual: true } : {}),
+  };
 
+/** Ingestion already folds accepted edits into their originals; storage owns only the projection. */
 const projectThread = async (
   transaction: IDBTransaction,
   roomId: string,
-  threadRootId: string,
-  complete: boolean
+  threadRootId: string
 ): Promise<CachedThreadSummaryChange | undefined> => {
-  const events = transaction.objectStore(EVENTS_STORE);
   const summaries = transaction.objectStore(THREAD_SUMMARIES_STORE);
-  const meta = transaction.objectStore(META_STORE);
   const key = buildSummaryCacheKey(roomId, threadRootId);
-  const [previous, candidates] = await Promise.all([
+  const [previous, rows] = await Promise.all([
     requestResult(summaries.get(key)) as Promise<CachedThreadSummaryRecord | undefined>,
     requestResult(
-      events.index(EVENTS_BY_SUMMARY_CANDIDATE_INDEX).getAll([roomId, threadRootId])
+      transaction
+        .objectStore(EVENTS_STORE)
+        .index(EVENTS_BY_SCOPE_TS_INDEX)
+        .getAll(
+          IDBKeyRange.bound(
+            [roomId, threadRootId, 0, ''],
+            [roomId, threadRootId, MAX_EVENT_TS, MAX_EVENT_ID]
+          )
+        )
     ) as Promise<CachedEventRecord[]>,
   ]);
-  // A Matrix event can have room and thread cache copies. Resolve its accepted
-  // revision once before selecting titles, just like cross-scope event reads.
-  const targetIds = new Set(
-    candidates.map((record) => record.summaryCandidateTarget ?? record.eventId)
-  );
-  const targets = new Map<string, Partial<IEvent>>();
-  await Promise.all(
-    [...targetIds].map(async (eventId) => {
-      const originals = (await requestResult(
-        events.index(EVENTS_BY_ROOM_EVENT_INDEX).getAll([roomId, eventId])
-      )) as CachedEventRecord[];
-      originals.forEach((original) =>
-        targets.set(eventId, mergeRawEventRevisions(targets.get(eventId), original.rawEvent))
-      );
-    })
-  );
-  const infos = await Promise.all(
-    [...targets.entries()].map(async ([eventId, target]) => {
-      const relations = (await requestResult(
-        events.index(EVENTS_BY_RELATION_TARGET_INDEX).getAll([roomId, eventId])
-      )) as CachedEventRecord[];
-      const mergedRelations = new Map<string, Partial<IEvent>>();
-      relations.forEach((record) =>
-        mergedRelations.set(
-          record.eventId,
-          mergeRawEventRevisions(mergedRelations.get(record.eventId), record.rawEvent)
-        )
-      );
-      const raws = [target, ...mergedRelations.values()];
-      const redactedIds = collectExplicitRedactedEventIds(raws);
-      const ids = new Set(
-        raws
-          .flatMap((raw) => [raw.event_id, raw.unsigned?.['m.relations']?.['m.replace']?.event_id])
-          .filter((id): id is string => typeof id === 'string')
-      );
-      await Promise.all(
-        [...ids].map(async (id) => {
-          if (await requestResult(meta.get(buildRedactedRelationMetaKey(roomId, id))))
-            redactedIds.add(id);
-          const evidence = (await requestResult(
-            events.index(EVENTS_BY_RELATION_TARGET_INDEX).getAll([roomId, id])
-          )) as CachedEventRecord[];
-          collectExplicitRedactedEventIds(evidence.map((record) => record.rawEvent)).forEach(
-            (redacted) => redactedIds.add(redacted)
-          );
-        })
-      );
-      const hydrated = raws.map((raw) => new MatrixEvent(raw));
-      const isRedacted = (event: MatrixEvent) =>
-        event.isRedacted() || redactedIds.has(event.getId() ?? '');
-      applySerializedCachedReplaceRelations(hydrated, isRedacted);
-      applyCachedReplaceRelations(hydrated, isRedacted);
-      const event = hydrated[0];
-      return !isRedacted(event) &&
+  const events = rows.map(({ rawEvent }) => new MatrixEvent(rawEvent));
+  applySerializedCachedReplaceRelations(events);
+  applyCachedReplaceRelations(events);
+  const candidates = events
+    .filter(
+      (event) =>
+        !event.isRedacted() &&
         event.getRelation()?.rel_type !== 'm.replace' &&
         isMindroomThreadSummaryEvent(event)
-        ? { info: getThreadSummaryEventInfo(event), eventId }
-        : undefined;
-    })
-  );
+    )
+    .map((event) => ({ eventId: event.getId(), info: getThreadSummaryEventInfo(event) }));
   const previousInfo = summaryRecordInfo(previous);
-  // Unproven legacy/manual values survive. A partial index cannot invalidate a winner.
-  const retained = !complete || !previous?.sourceEventId ? previousInfo : undefined;
+  // Summary-only legacy values remain until their source is present in history.
+  // Selection needs all candidates together (manual and legacy chronology differ).
   const summary = pickLatestThreadSummaryInfo(
-    retained,
-    ...infos.map((candidate) => candidate?.info)
+    previous?.sourceEventId ? undefined : previousInfo,
+    ...candidates.map(({ info }) => info)
   );
-  const source = infos
-    .slice()
+  const sourceEventId = candidates
     .reverse()
-    .find((candidate) => candidate && areThreadSummaryInfosEqual(candidate.info, summary))?.eventId;
-  const unchanged = areThreadSummaryInfosEqual(previousInfo, summary);
-  if (summary?.summaryText && (!unchanged || source !== previous?.sourceEventId)) {
+    .find(({ info }) => areThreadSummaryInfosEqual(info, summary))?.eventId;
+  if (summary?.summaryText) {
     summaries.put({
       cacheKey: key,
       roomId,
       threadRootId,
       ...summary,
       summaryText: summary.summaryText,
-      sourceEventId: source ?? previous?.sourceEventId,
+      sourceEventId: sourceEventId ?? previous?.sourceEventId,
       updatedAt: Date.now(),
     } satisfies CachedThreadSummaryRecord);
-  } else if (!summary?.summaryText && complete && previous?.sourceEventId) summaries.delete(key);
-  if (unchanged) return undefined;
+  } else if (previous?.sourceEventId) summaries.delete(key);
+  if (areThreadSummaryInfosEqual(previousInfo, summary)) return undefined;
   return { type: 'summary', threadRootId, previous: previousInfo, summary };
 };
 
-/** One coordinator per accepted mutation transaction; flush after all event writes are queued. */
+/** Ordinary messages do no summary reads; rare summary changes rebuild only their thread. */
 export const createSummaryProjection = (
   transaction: IDBTransaction,
   lease: CacheStoreWriteLease,
   roomId: string
 ) => {
-  // Detect a genuinely empty room before this transaction queues event puts.
-  // Such a room needs no migration; pre-existing history retains the bounded repair path.
-  const meta = transaction.objectStore(META_STORE);
-  const ready = requestResult(meta.get(migrationKey(roomId)))
-    .then(async (state: Migration | undefined) => {
-      if (state) return state.phase === 'done';
-      const count = await requestResult(
-        transaction.objectStore(EVENTS_STORE).count(IDBKeyRange.bound(`${roomId}|`, `${roomId}|￿`))
-      );
-      if (count !== 0) return false;
-      meta.put({
-        metaKey: migrationKey(roomId),
-        roomId,
-        scope: '__summaryMigration',
-        updatedAt: Date.now(),
-        phase: 'done',
-      } satisfies Migration);
-      return true;
-    })
-    .catch(() => false);
-  const changed: CachedEventRecord[] = [];
+  const roots = new Set<string>();
   const changes: CachedThreadSummaryChange[] = [];
   transaction.addEventListener('complete', () => {
     if (isCacheStoreWriteLeaseCurrent(lease))
@@ -279,29 +132,27 @@ export const createSummaryProjection = (
   });
   return {
     note(previous: CachedEventRecord | undefined, next?: CachedEventRecord) {
-      if (previous) changed.push(indexSummaryEventRecord(previous));
-      if (next) changed.push(next);
+      // Legacy standalone edits can create or remove a summary in m.new_content.
+      // Their deletion must reconsider the original even without summary metadata.
+      const standalone = [previous, next].some(
+        (record) => record?.rawEvent.content?.['m.relates_to']?.rel_type === 'm.replace'
+      );
+      if (
+        !standalone &&
+        areThreadSummaryInfosEqual(acceptedSummary(previous), acceptedSummary(next))
+      )
+        return;
+      for (const record of [previous, next]) {
+        if (record?.scope && (standalone || hasSummary(record.rawEvent))) roots.add(record.scope);
+      }
     },
     flush() {
-      const run = async () => {
-        const events = transaction.objectStore(EVENTS_STORE);
-        const roots = new Set<string>();
-        await Promise.all(
-          changed.map(async (record) => {
-            (await affectedSummaryRoots(events, record)).forEach((root) => roots.add(root));
-          })
-        );
-        if (!roots.size) return;
-        const complete = await ready;
-        await Promise.all(
-          [...roots].map(async (root) => {
-            if (!complete) queueProjection(meta, roomId, root);
-            const change = await projectThread(transaction, roomId, root, complete);
-            if (change) changes.push(change);
-          })
-        );
-      };
-      void run().catch(() => {
+      void Promise.all(
+        [...roots].map(async (root) => {
+          const change = await projectThread(transaction, roomId, root);
+          if (change) changes.push(change);
+        })
+      ).catch(() => {
         try {
           transaction.abort();
         } catch {
@@ -312,95 +163,67 @@ export const createSummaryProjection = (
   };
 };
 
-/** One durable bounded step; ordinary summary reads never await its history work. */
-const repairCachedThreadSummaryBatch = (
+type RepairProgress = CachedMetaRecord & { after?: string; done?: boolean };
+
+/** One thread per transaction; never rewrite event rows or build another relation index. */
+const repairNextThread = (
   db: IDBDatabase,
   lease: CacheStoreWriteLease,
-  roomId: string,
-  shouldContinue: () => boolean
-): Promise<boolean> => {
-  return new Promise<boolean>((resolve, reject) => {
+  roomId: string
+): Promise<boolean> =>
+  new Promise((resolve, reject) => {
     const tx = db.transaction([EVENTS_STORE, META_STORE, THREAD_SUMMARIES_STORE], 'readwrite');
-    let finished = false;
-    const changes: CachedThreadSummaryChange[] = [];
+    let done = false;
+    let change: CachedThreadSummaryChange | undefined;
     const run = async () => {
       const meta = tx.objectStore(META_STORE);
-      const events = tx.objectStore(EVENTS_STORE);
-      const key = migrationKey(roomId);
-      const state = (await requestResult(meta.get(key))) as Migration | undefined;
-      if (state?.phase === 'done') {
-        finished = true;
+      const metaKey = `${roomId}|__summaryRepair`;
+      const progress = (await requestResult(meta.get(metaKey))) as RepairProgress | undefined;
+      if (progress?.done) {
+        done = true;
         return;
       }
-      if (!state || state.phase === 'index') {
-        const rows = (await requestResult(
-          events.getAll(
-            IDBKeyRange.bound(state?.after ?? `${roomId}|`, `${roomId}|￿`, !!state?.after),
-            128
-          )
-        )) as CachedEventRecord[];
-        await Promise.all(
-          rows.map(async (row) => {
-            const indexed = indexSummaryEventRecord(row);
-            events.put(indexed);
-            (await affectedSummaryRoots(events, indexed)).forEach((affected) =>
-              queueProjection(meta, roomId, affected)
-            );
-          })
-        );
-        meta.put({
-          metaKey: key,
-          roomId,
-          scope: '__summaryMigration',
-          updatedAt: Date.now(),
-          after: rows.at(-1)?.cacheKey ?? state?.after,
-          phase: rows.length === 128 ? 'index' : 'project',
-        } satisfies Migration);
-      } else {
-        const prefix = pendingPrefix(roomId);
-        const pending = (await requestResult(
-          meta.getAll(IDBKeyRange.bound(prefix, `${prefix}￿`), 32)
-        )) as PendingProjection[];
-        await Promise.all(
-          pending.map(async (row) => {
-            const change = await projectThread(tx, roomId, row.threadRootId, true);
-            if (change) changes.push(change);
-            meta.delete(row.metaKey);
-          })
-        );
-        if (pending.length < 32) {
-          meta.put({ ...state, phase: 'done' });
-          finished = true;
-        }
-      }
+      const [thread] = (await requestResult(
+        meta.getAll(
+          IDBKeyRange.bound(
+            progress?.after ?? `${roomId}|$`,
+            `${roomId}|%`,
+            !!progress?.after,
+            true
+          ),
+          1
+        )
+      )) as CachedMetaRecord[];
+      if (thread) change = await projectThread(tx, roomId, thread.scope);
+      done = !thread;
+      meta.put({
+        metaKey,
+        roomId,
+        scope: '__summaryRepair',
+        updatedAt: Date.now(),
+        after: thread?.metaKey,
+        done,
+      } satisfies RepairProgress);
     };
     void run().catch((error) => {
       try {
         tx.abort();
       } catch {
-        // A failed IndexedDB request may already have aborted the transaction.
+        /* Already aborted. */
       }
-      reject(tx.error ?? error);
+      reject(error);
     });
     tx.oncomplete = () => {
-      if (shouldContinue())
-        changes.forEach((change) =>
-          notifyCachedThreadSummaryChange(lease.sessionId, roomId, change)
-        );
-      resolve(finished);
+      if (change && isCacheStoreWriteLeaseCurrent(lease))
+        notifyCachedThreadSummaryChange(lease.sessionId, roomId, change);
+      resolve(done);
     };
     tx.onabort = () => reject(tx.error);
   });
-};
 
-type SummaryRepairJob = {
-  db: IDBDatabase;
-  lease: CacheStoreWriteLease;
-  promise: Promise<void>;
-};
-const summaryRepairJobs = new Map<string, SummaryRepairJob>();
+const repairs = new Map<string, { lease: CacheStoreWriteLease; promise: Promise<void> }>();
 
-/** Continue repair in the storage layer, sharing only work owned by the current room lease. */
+/** Share background repair; existing room/session leases cancel work after cache clearing. */
 export const repairCachedThreadSummaries = (
   db: IDBDatabase,
   lease: CacheStoreWriteLease,
@@ -408,29 +231,26 @@ export const repairCachedThreadSummaries = (
 ): Promise<void> => {
   if (!isCacheWritable() || !isCacheStoreWriteLeaseCurrent(lease)) return Promise.resolve();
   const key = JSON.stringify([lease.sessionId, roomId]);
-  const existing = summaryRepairJobs.get(key);
-  if (existing?.db === db && isCacheStoreWriteLeaseCurrent(existing.lease)) return existing.promise;
-
-  const job: SummaryRepairJob = { db, lease, promise: Promise.resolve() };
-  summaryRepairJobs.set(key, job);
-  const shouldContinue = () =>
-    summaryRepairJobs.get(key) === job && isCacheStoreWriteLeaseCurrent(lease);
+  const existing = repairs.get(key);
+  if (existing && isCacheStoreWriteLeaseCurrent(existing.lease)) return existing.promise;
+  const job = { lease, promise: Promise.resolve() };
+  repairs.set(key, job);
   job.promise = (async () => {
     try {
-      while (shouldContinue() && isCacheWritable()) {
-        // Let the committed-index reader and interactive work run before every batch.
+      while (isCacheStoreWriteLeaseCurrent(lease) && isCacheWritable()) {
+        // Yield before opening a write transaction so committed titles can paint first.
         // eslint-disable-next-line no-await-in-loop
         await new Promise<void>((resolve) => {
           setTimeout(resolve, 0);
         });
-        if (!shouldContinue() || !isCacheWritable()) return;
+        if (!isCacheStoreWriteLeaseCurrent(lease) || !isCacheWritable()) return;
         // eslint-disable-next-line no-await-in-loop
-        if (await repairCachedThreadSummaryBatch(db, lease, roomId, shouldContinue)) return;
+        if (await repairNextThread(db, lease, roomId)) return;
       }
     } catch (error) {
-      if (shouldContinue()) reportCacheWriteError('summaryMigration', error);
+      if (isCacheStoreWriteLeaseCurrent(lease)) reportCacheWriteError('summaryRepair', error);
     } finally {
-      if (summaryRepairJobs.get(key) === job) summaryRepairJobs.delete(key);
+      if (repairs.get(key) === job) repairs.delete(key);
     }
   })();
   return job.promise;

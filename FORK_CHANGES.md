@@ -4,33 +4,25 @@
 
 ### Keep cached thread history and summaries consistent (2026-09-22)
 
-- Status: PR #323 now derives summaries at the storage boundary; independent storage, UI, and integration reviews approve the implementation.
-  Hosted code review is complete, all code findings are addressed, and implementation CI passes on `cdac02f1`.
-- Next: after merge and deployment, reload the affected Personal room and verify the previously missing title appears without opening its thread.
-  Confirm edits, deletion, and cache clearing update both the overview card and thread banner without remounting; these checks complete production verification.
-  Track the separate SDK ingestion gap and unmatched invite-ranking failure independently from this summary fix.
+- Status: PR #323 has been simplified and independently approved.
+  Local validation passes; hosted checks and review of the follow-up commit remain pending.
 - Live Chrome inspection found summary notices already cached outside the overview's 32-event tail, but no entry in the separate summary store.
-  Opening the thread restored its title because UI hydration had been responsible for populating that store.
-  The same limited discovery exists in the pre-optimization build.
-- CacheStore now derives summaries from accepted event revisions within the history transaction, using indexed candidates and targeted relation lookups.
-  Background ingestion updates summaries without a mounted overview or thread.
-  Edits, redactions, deletion, and clear paths must maintain the same projection; ordinary streaming updates must not scan full thread history.
-- Existing caches receive bounded, resumable index repair with durable progress.
-  Reads return committed titles immediately while storage-owned background batches repair missing entries and publish updates.
-  Concurrent reads share repair work; room/session clears invalidate its ownership, and write failures leave committed titles readable.
-  Partial migration cannot invalidate a prior summary, and legacy summary-only records remain until their event provenance is established.
-- Shared card/banner state consumes committed summary changes and invalidations.
-  UI publications are display-only, and accepted manual summary events use ordinary history ingestion.
-  The overview recovery effect and its scan/retry machinery are removed; overview metadata remains capped at 32 events.
-- Storage, shared-state, and offline browser regressions cover the original missing-summary failure and relation/lifecycle cases.
-  Clear notifications also invalidate mounted titles when IndexedDB is unavailable.
-  All 5,351 unit tests, application and changed-test typechecks, production build, and lint pass with zero errors and 17 existing warnings.
-  Installed Google Chrome passes five focused cases across cached room population, card/banner consistency, cached-title upgrades, and offline legacy repair.
-- The full browser scheduler completed 125 jobs: 103 passed, 20 failed, and two lacked external fixtures.
-  Dedicated compact-view, scrolling, and streaming performance probes passed.
-  Most failures match earlier runs; invite-ranking remains unmatched.
-  After removing blocking migration, cache population passes all six repeated Chromium cases and both installed Chrome cases; finite repeats do not establish the cause of the earlier intermittent failure.
-  A deterministic SDK test reproduces a separate bootstrap/sync cache-ingestion gap on unchanged `dev`; its source is untouched by this PR.
+  Opening the thread restored its title because UI hydration had populated that store.
+- CacheStore derives durable summaries in accepted history transactions, independently of mounted views.
+  Existing ingestion resolves edits and detached relations; only summary-affected threads are recomputed using the shared selection rules.
+  Ordinary streaming performs no summary history reads or writes.
+- Existing caches repair one thread per background transaction with one durable cursor, reusing the existing schema and indexes.
+  Committed titles paint immediately, and repair notifications update both overview and banner.
+  Room/session leases cancel stale writes, and summary-only legacy records remain until their source event is available.
+- UI publications are display-only; shared state consumes committed updates and deletion fallbacks.
+  Clearing cached state does not permanently suppress valid live SDK titles.
+  Manual summary actions persist accepted events through the ordinary cache writer.
+- All 5,323 unit tests pass, along with application and changed-test typechecks, production build, formatting, and lint (zero errors, 17 existing warnings).
+  Installed Google Chrome passes five cases across cached room population, card/banner consistency, cached-title upgrades, and offline recovery.
+  Regressions verify legacy standalone-edit redactions and no history scans when ordinary streaming snapshots repeat an unchanged summary.
+- Next: complete hosted checks and review of the simplified implementation.
+  After deployment, verify the affected Personal room title without opening its thread.
+  The separate SDK bootstrap/sync ingestion gap and existing full-browser-suite failures remain outside this change.
 
 ### Preserve current location in typed authentication recovery (2026-09-22)
 

@@ -4,7 +4,7 @@ import {
   getThreadSummaryInfosFromEventSources,
   type MindroomThreadSummaryInfo,
 } from '../messages/threadSummary';
-import { captureThreadSummaryStateOwnership, type ThreadSummaryWriter } from './threadSummaryState';
+import type { ThreadSummaryWriter } from './threadSummaryState';
 import type { ThreadCacheCoverage, ThreadRecord } from './types';
 import {
   getCompactCachedThreadActivityTs,
@@ -344,13 +344,7 @@ export const useThreadOverviewCacheHydration = ({
   } = cachedMetadata;
   const preferImmediatePublicationRef = useRef(false);
   const pendingReadsRef = useRef(
-    new Map<
-      string,
-      {
-        read: ReturnType<typeof loadLatestCachedThreadEventsBatch>;
-        ownsSummaryState: () => boolean;
-      }
-    >()
+    new Map<string, ReturnType<typeof loadLatestCachedThreadEventsBatch>>()
   );
 
   useEffect(() => {
@@ -376,10 +370,7 @@ export const useThreadOverviewCacheHydration = ({
     });
     if (threadRootIdsToLoad.length === 0) return;
 
-    // Clear can invalidate a pending read without rerendering or unmounting this effect.
-    const ownsSummaryState = captureThreadSummaryStateOwnership(sessionId, room.roomId);
     let cancelled = false;
-    const isCurrent = () => !cancelled && ownsSummaryState();
     let hasBufferedUpdates = false;
     let publicationTimer: ReturnType<typeof setTimeout> | undefined;
     let finishPublicationWait: (() => void) | undefined;
@@ -408,23 +399,18 @@ export const useThreadOverviewCacheHydration = ({
             Array.from(new Set(batchIds)).sort(),
           ]);
           const pendingReads = pendingReadsRef.current;
-          let pending = pendingReads.get(readKey);
-          if (!pending?.ownsSummaryState()) {
-            const read = loadLatestCachedThreadEventsBatch(
+          let read = pendingReads.get(readKey);
+          if (!read) {
+            read = loadLatestCachedThreadEventsBatch(
               sessionId,
               room.roomId,
               batchIds,
               OVERVIEW_CACHE_EVENT_LIMIT
             );
-            pending = { read, ownsSummaryState };
-            pendingReads.set(readKey, pending);
-            const captured = pending;
-            const releaseRead = () => {
-              if (pendingReads.get(readKey) === captured) pendingReads.delete(readKey);
-            };
+            pendingReads.set(readKey, read);
+            const releaseRead = () => pendingReads.delete(readKey);
             void read.then(releaseRead, releaseRead);
           }
-          const { read } = pending;
           // Share only pending raw reads across restarts. Each current effect
           // still derives metadata from its latest live records after awaiting.
           cachedPages = await (nextUpdates.length === 0
@@ -449,7 +435,7 @@ export const useThreadOverviewCacheHydration = ({
           publicationTimer = undefined;
           finishPublicationWait = undefined;
         }
-        if (!isCurrent()) return;
+        if (cancelled) return;
         if (!cachedPages) break;
         const mapper = mx.getEventMapper();
         attemptedRootIds.push(...batchIds);
@@ -492,7 +478,7 @@ export const useThreadOverviewCacheHydration = ({
         )
           break;
       }
-      if (!isCurrent()) return;
+      if (cancelled) return;
 
       if (showCompactRoomView) {
         attemptedRootIds.forEach((rootId) => {
@@ -509,7 +495,7 @@ export const useThreadOverviewCacheHydration = ({
       applyUpdates(nextUpdates, { includeCompactRootBody: showCompactRoomView });
 
       nextUpdates.forEach(({ rootId, nextSummaryInfo, summaryCandidates }) => {
-        if (!isCurrent() || !nextSummaryInfo?.summaryText) return;
+        if (!nextSummaryInfo?.summaryText) return;
         onStoreThreadSummary(rootId, ...(summaryCandidates ?? [nextSummaryInfo]));
       });
     };

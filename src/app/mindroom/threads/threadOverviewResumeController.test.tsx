@@ -1,4 +1,3 @@
-import 'fake-indexeddb/auto';
 import React, { type MutableRefObject } from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { MatrixEvent, type IEvent, type MatrixClient, type Room } from 'matrix-js-sdk';
@@ -11,9 +10,6 @@ import {
 import { fetchAndPersistThreadContent } from './threadContentPrefetch';
 import { loadRoomThreads } from './roomThreadList';
 import { useThreadOverviewResumeController } from './threadOverviewResumeController';
-import { clearRoomCachedContent, deleteCacheStoreDb } from './cacheStore';
-import { clearThreadSummarySharedState } from './threadSummaryState';
-import { getThreadOpenSeedSnapshot } from './threadOpenSeedCache';
 
 const resumeState = vi.hoisted(() => ({
   callback: undefined as
@@ -61,7 +57,6 @@ type HarnessProps = {
   compactViewRequested: boolean;
   mx: MatrixClient;
   onApplyThreadRelations: ReturnType<typeof vi.fn>;
-  onStoreThreadSummary?: ReturnType<typeof vi.fn>;
   persistThreadEventCache: ReturnType<typeof vi.fn>;
   refreshCompactThreadList: ReturnType<typeof vi.fn>;
   room: Room;
@@ -74,7 +69,6 @@ function Harness({
   compactViewRequested,
   mx,
   onApplyThreadRelations,
-  onStoreThreadSummary = vi.fn(),
   persistThreadEventCache,
   refreshCompactThreadList,
   room,
@@ -92,7 +86,7 @@ function Harness({
     limit: 20,
     mx,
     onApplyThreadRelations,
-    onStoreThreadSummary,
+    onStoreThreadSummary: vi.fn(),
     beginThreadCacheWrite: () => persistThreadEventCache,
     refreshCompactThreadList,
     room,
@@ -108,11 +102,9 @@ function Harness({
   return null;
 }
 
-afterEach(async () => {
+afterEach(() => {
   resumeState.callback = undefined;
   vi.clearAllMocks();
-  await deleteCacheStoreDb('resume-session');
-  clearThreadSummarySharedState();
 });
 
 describe('useThreadOverviewResumeController', () => {
@@ -295,97 +287,6 @@ describe('useThreadOverviewResumeController', () => {
       expect(setOverviewRefreshCounter).not.toHaveBeenCalled();
 
       renderer.unmount();
-    }
-  );
-  it.each(['room-clear', 'session-removal'])(
-    'drops a pending relation response after %s even when no summary was known',
-    async (cause) => {
-      mockedLoadRoomThreads.mockResolvedValue(undefined);
-      const roomId = '!room:example.org';
-      const threadId = '$thread-root';
-      const rootEvent = new MatrixEvent({
-        event_id: threadId,
-        room_id: roomId,
-        origin_server_ts: 1000,
-        sender: '@alice:example.org',
-        type: 'm.room.message',
-        content: { msgtype: 'm.text', body: 'Root' },
-      });
-      const rawSummary: Partial<IEvent> = {
-        event_id: '$unseen-summary',
-        room_id: roomId,
-        origin_server_ts: 2000,
-        sender: '@alice:example.org',
-        type: 'm.room.message',
-        content: {
-          msgtype: 'm.notice',
-          body: 'Unseen old title',
-          'io.mindroom.thread_summary': true,
-          'm.relates_to': { rel_type: 'm.thread', event_id: threadId },
-        },
-      };
-      let finish!: () => void;
-      const response = new Promise<{ chunk: Partial<IEvent>[]; next_batch: undefined }>(
-        (resolve) => {
-          finish = () => resolve({ chunk: [rawSummary], next_batch: undefined });
-        }
-      );
-      const room = {
-        roomId,
-        getThread: () => null,
-        findEventById: (id: string) => (id === threadId ? rootEvent : undefined),
-        getLastActiveTimestamp: () => 0,
-      } as unknown as Room;
-      const fetchRelations = vi.fn(() => response);
-      const mx = {
-        fetchRelations,
-        getRoom: () => room,
-        getEventMapper: () => (raw: Partial<IEvent>) => new MatrixEvent(raw),
-      } as unknown as MatrixClient;
-      const engine = { scheduler: createBackfillScheduler({ mx }) } as MindroomSyncEngine;
-      const onApplyThreadRelations = vi.fn();
-      const onStoreThreadSummary = vi.fn();
-      const persistThreadEventCache = vi.fn();
-      const setOverviewRefreshCounter = vi.fn();
-      let renderer!: ReactTestRenderer;
-      try {
-        await act(async () => {
-          renderer = create(
-            <MindroomSyncEngineProvider engine={engine}>
-              <Harness
-                compactViewRequested={false}
-                mx={mx}
-                room={room}
-                threadId={undefined}
-                threadIdRef={{ current: undefined }}
-                onApplyThreadRelations={onApplyThreadRelations}
-                onStoreThreadSummary={onStoreThreadSummary}
-                persistThreadEventCache={persistThreadEventCache}
-                refreshCompactThreadList={vi.fn(async () => undefined)}
-                setOverviewRefreshCounter={setOverviewRefreshCounter}
-              />
-            </MindroomSyncEngineProvider>
-          );
-        });
-        await act(async () => {
-          resumeState.callback?.('focus');
-        });
-        await vi.waitFor(() => expect(fetchRelations).toHaveBeenCalledOnce());
-        await act(async () => {
-          if (cause === 'room-clear') await clearRoomCachedContent('resume-session', roomId);
-          else clearThreadSummarySharedState('resume-session');
-          finish();
-          await response;
-        });
-        expect(onApplyThreadRelations).not.toHaveBeenCalled();
-        expect(onStoreThreadSummary).not.toHaveBeenCalled();
-        expect(persistThreadEventCache).not.toHaveBeenCalled();
-        expect(getThreadOpenSeedSnapshot(room, threadId)).toEqual([]);
-        expect(setOverviewRefreshCounter).not.toHaveBeenCalled();
-        expect(mockedFetchAndPersistThreadContent).toHaveBeenCalledOnce();
-      } finally {
-        await act(async () => renderer?.unmount());
-      }
     }
   );
 });

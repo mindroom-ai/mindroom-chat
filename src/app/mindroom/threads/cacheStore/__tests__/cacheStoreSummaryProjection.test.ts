@@ -1,445 +1,241 @@
 import 'fake-indexeddb/auto';
-import type { IEvent } from 'matrix-js-sdk';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { createClient, Room, type IEvent } from 'matrix-js-sdk';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import {
   deleteCacheStoreDb,
   resetCacheStoreForTesting,
   saveThreadEventsToCache,
   loadCachedThreadSummaries,
   deleteThreadEventsFromCache,
-  saveRoomEventsToCache,
   openCacheStore,
   EVENTS_STORE,
-  ROOM_LEDGER_STORE,
-  revokeRoomCacheStoreWrites,
+  THREAD_SUMMARIES_STORE,
+  META_STORE,
   buildEventCacheKey,
   clearRoomCachedContent,
   captureCacheStoreWriteLease,
   saveThreadEventsToCacheCommitted,
-  deleteThreadEventFromCacheByEventId,
   loadCachedThreadEvent,
-  THREAD_SUMMARIES_STORE,
-  META_STORE,
 } from '..';
-
 import { repairCachedThreadSummaries } from '../cacheStoreSummaryProjection';
 import { seedLegacyCachedThreadSummary } from './summaryFixtures';
 import { subscribeCachedThreadSummaryChanges } from '../cacheStoreSummaryChanges';
-import { EVENTS_BY_SUMMARY_CANDIDATE_INDEX } from '../cacheStoreSchema';
-import {
-  getCacheHealth,
-  reportCacheWriteError,
-  resetCacheHealthForTesting,
-} from '../../cacheHealth';
+import { reportCacheWriteError, resetCacheHealthForTesting } from '../../cacheHealth';
+import { persistRoomChunkWithPreferLive } from '../../eventRepository';
 
 const session = 'summary-projection';
-const room = '!room:test';
+const roomId = '!room:test';
 const root = '$root';
+const sender = '@alice:test';
 const message = (id: string, ts = 10, body = 'ordinary'): Partial<IEvent> => ({
   event_id: id,
+  room_id: roomId,
   origin_server_ts: ts,
-  sender: '@alice:test',
+  sender,
   type: 'm.room.message',
-  content: { msgtype: 'm.notice', body },
+  content: { msgtype: 'm.notice', body, 'm.relates_to': { rel_type: 'm.thread', event_id: root } },
 });
 const summary = (id: string, ts = 10, body = 'Buried title'): Partial<IEvent> => ({
-  ...message(id, ts, body),
-  content: { msgtype: 'm.notice', body, 'io.mindroom.thread_summary': true },
-});
-const edit = (id: string, target: string, ts: number, body = 'Edited title'): Partial<IEvent> => ({
   ...message(id, ts),
+  content: { ...message(id, ts, body).content, 'io.mindroom.thread_summary': true },
+});
+const edit = (target: string, ts: number, content = summary('$edit').content): Partial<IEvent> => ({
+  ...message('$edit', ts),
   content: {
-    ...summary(id, ts, body).content,
-    'm.new_content': summary(id, ts, body).content,
+    msgtype: 'm.notice',
+    body: '* edited',
+    'm.new_content': content,
     'm.relates_to': { rel_type: 'm.replace', event_id: target },
   },
 });
-const read = async () => (await loadCachedThreadSummaries(session, room)).get(root);
-const finishRepair = async () => {
-  const db = (await openCacheStore(session))!;
-  await repairCachedThreadSummaries(db, captureCacheStoreWriteLease(session, room), room);
+const read = async () => (await loadCachedThreadSummaries(session, roomId)).get(root);
+const repair = async () =>
+  repairCachedThreadSummaries(
+    (await openCacheStore(session))!,
+    captureCacheStoreWriteLease(session, roomId),
+    roomId
+  );
+const save = (...events: Partial<IEvent>[]) =>
+  saveThreadEventsToCache(session, roomId, root, events);
+const ingest = () => {
+  const mx = createClient({ baseUrl: 'https://matrix.test', userId: sender });
+  const room = new Room(roomId, mx, sender);
+  mx.getRoom = (id) => (id === roomId ? room : null);
+  return (chunk: Partial<IEvent>[]) =>
+    persistRoomChunkWithPreferLive({ mx, room, sessionId: session, chunk });
 };
-const readAfterRepair = async () => {
-  await finishRepair();
-  return read();
-};
-const save = (...events: Partial<IEvent>[]) => saveThreadEventsToCache(session, room, root, events);
-
-const seedLegacy = async (rows: Partial<IEvent>[]) => {
+const seedLegacy = async (
+  rows = [
+    summary('$summary'),
+    ...Array.from({ length: 100 }, (_, i) => message('$reply' + i, 20 + i)),
+  ]
+) => {
   const db = (await openCacheStore(session))!;
-  await new Promise<void>((resolve) => {
-    const tx = db.transaction([EVENTS_STORE, ROOM_LEDGER_STORE], 'readwrite');
-    tx.objectStore(ROOM_LEDGER_STORE).put({
-      roomId: room,
-      eventCount: rows.length,
-      approxBytes: rows.length * 100,
-      lastActivityTs: 400,
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction([EVENTS_STORE, META_STORE], 'readwrite');
+    tx.objectStore(META_STORE).put({
+      metaKey: `${roomId}|${root}`,
+      roomId,
+      scope: root,
+      updatedAt: 1,
     });
-    rows.forEach((rawEvent) =>
+    rows.forEach((rawEvent) => {
       tx.objectStore(EVENTS_STORE).put({
-        cacheKey: buildEventCacheKey(room, root, rawEvent.event_id!),
-        roomId: room,
+        cacheKey: buildEventCacheKey(roomId, root, rawEvent.event_id!),
+        roomId,
         scope: root,
         eventId: rawEvent.event_id,
         ts: rawEvent.origin_server_ts,
         rawEvent,
         approxBytes: 100,
-      })
-    );
+      });
+    });
     tx.oncomplete = () => resolve();
+    tx.onabort = () => reject(tx.error);
   });
-  return db;
 };
-
-const pauseRepairYields = () => {
-  const pending: Array<() => void> = [];
-  const schedule = globalThis.setTimeout;
-  const spy = vi.spyOn(globalThis, 'setTimeout').mockImplementation(((
-    callback: () => void,
-    delay?: number,
-    ...args: unknown[]
-  ) => {
-    if (delay === 0) {
-      pending.push(callback);
-      return 0 as unknown as ReturnType<typeof setTimeout>;
-    }
-    return schedule(callback, delay, ...args);
-  }) as typeof setTimeout);
-  return {
-    pending,
-    release: () => {
-      spy.mockRestore();
-      pending.splice(0).forEach((resume) => resume());
-    },
-  };
-};
-
 beforeEach(() => {
   resetCacheStoreForTesting();
   resetCacheHealthForTesting();
 });
 afterEach(async () => {
   vi.restoreAllMocks();
-  const db = (await openCacheStore(session))!;
-  const pending = repairCachedThreadSummaries(db, captureCacheStoreWriteLease(session, room), room);
+  await repair();
   await deleteCacheStoreDb(session);
-  await pending;
   resetCacheStoreForTesting();
   resetCacheHealthForTesting();
 });
 
-describe('transaction-owned thread summaries', () => {
-  it('returns existing titles before a large legacy repair and publishes missing titles later', async () => {
-    await seedLegacy([
-      summary('$summary'),
-      ...Array.from({ length: 400 }, (_, i) => message('$reply' + i, 20 + i)),
-    ]);
-    await seedLegacyCachedThreadSummary(session, room, '$known', {
-      summaryText: 'Available immediately',
-    });
-    const listener = vi.fn();
-    const unsubscribe = subscribeCachedThreadSummaryChanges(session, room, listener);
-    const gate = pauseRepairYields();
-    let loaded = false;
-    let initial: Awaited<ReturnType<typeof loadCachedThreadSummaries>> | undefined;
-    const loading = loadCachedThreadSummaries(session, room).then((value) => {
-      loaded = true;
-      initial = value;
-    });
-    try {
-      await vi.waitFor(() => {
-        expect(gate.pending.length).toBeGreaterThan(0);
-        expect(loaded).toBe(true);
-      });
-      expect(initial?.get('$known')?.summaryText).toBe('Available immediately');
-      expect(initial?.has(root)).toBe(false);
-      expect(listener).not.toHaveBeenCalled();
-    } finally {
-      gate.release();
-      await loading;
-    }
-    try {
-      await vi.waitFor(() =>
-        expect(listener).toHaveBeenCalledWith(
-          expect.objectContaining({
-            type: 'summary',
-            threadRootId: root,
-            summary: expect.objectContaining({ summaryText: 'Buried title' }),
-          })
-        )
-      );
-      expect((await read())?.summaryText).toBe('Buried title');
-    } finally {
-      unsubscribe();
-    }
-  });
-  it('shares one background repair across concurrent loads of the same room', async () => {
-    const db = await seedLegacy([
-      summary('$summary'),
-      ...Array.from({ length: 400 }, (_, i) => message('$reply' + i, i)),
-    ]);
-    const gate = pauseRepairYields();
-    const lease = captureCacheStoreWriteLease(session, room);
-    const first = repairCachedThreadSummaries(db, lease, room);
-    try {
-      expect(repairCachedThreadSummaries(db, lease, room)).toBe(first);
-      expect(await Promise.all([read(), read(), read()])).toEqual([
-        undefined,
-        undefined,
-        undefined,
-      ]);
-      expect(gate.pending).toHaveLength(1);
-    } finally {
-      gate.release();
-      await first;
-    }
-    expect((await read())?.summaryText).toBe('Buried title');
-  });
-
-  it.each(['room-clear', 'database-delete'])(
-    'keeps a fresh repair owned when its %s predecessor settles afterward',
-    async (clear) => {
-      const db = await seedLegacy([summary('$stale', 10, 'Stale')]);
-      const listener = vi.fn();
-      const unsubscribe = subscribeCachedThreadSummaryChanges(session, room, listener);
-      const gate = pauseRepairYields();
-      const old = repairCachedThreadSummaries(db, captureCacheStoreWriteLease(session, room), room);
-      let fresh: Promise<void> | undefined;
-      try {
-        if (clear === 'room-clear') await clearRoomCachedContent(session, room);
-        else await deleteCacheStoreDb(session);
-        const freshDb = await seedLegacy([summary('$fresh', 20, 'Fresh')]);
-        const lease = captureCacheStoreWriteLease(session, room);
-        fresh = repairCachedThreadSummaries(freshDb, lease, room);
-        expect(fresh).not.toBe(old);
-        expect(gate.pending).toHaveLength(2);
-        gate.pending.shift()!();
-        await old;
-        expect(repairCachedThreadSummaries(freshDb, lease, room)).toBe(fresh);
-        expect(gate.pending).toHaveLength(1);
-      } finally {
-        gate.release();
-        await old;
-        await fresh;
-        unsubscribe();
-      }
-      expect(
-        listener.mock.calls.map(([change]) =>
-          change.type === 'summary' ? change.summary?.summaryText : change.type
-        )
-      ).toEqual(['clear', 'Fresh']);
-      expect((await read())?.summaryText).toBe('Fresh');
-    }
+it('persists a buried summary without mounting a view and falls back after deletion', async () => {
+  await save(
+    summary('$older', 1, 'Older'),
+    summary('$summary'),
+    ...Array.from({ length: 100 }, (_, i) => message('$reply' + i, 20 + i))
   );
+  expect((await read())?.summaryText).toBe('Buried title');
+  await deleteThreadEventsFromCache(session, roomId, root, ['$summary']);
+  expect((await read())?.summaryText).toBe('Older');
+  await deleteThreadEventsFromCache(session, roomId, root, ['$older']);
+  expect(await read()).toBeUndefined();
+});
 
-  it('stops between batches when cache health becomes read-only and resumes later', async () => {
-    const db = await seedLegacy([
-      summary('$zsummary'),
-      ...Array.from({ length: 300 }, (_, i) => message('$reply' + i, i)),
-    ]);
-    vi.spyOn(console, 'warn').mockImplementation(() => {});
-    vi.spyOn(console, 'error').mockImplementation(() => {});
-    const getAll = IDBObjectStore.prototype.getAll;
-    let pages = 0;
-    const spy = vi
-      .spyOn(IDBObjectStore.prototype, 'getAll')
-      .mockImplementation(function degrade(this: IDBObjectStore, query, count) {
-        const request = getAll.call(this, query, count);
-        if (this.name === EVENTS_STORE) {
-          pages += 1;
-          this.transaction.addEventListener(
-            'complete',
-            () =>
-              reportCacheWriteError(
-                'fixture',
-                new DOMException('Quota exceeded', 'QuotaExceededError')
-              ),
-            { once: true }
-          );
-        }
-        return request;
-      });
-    await repairCachedThreadSummaries(db, captureCacheStoreWriteLease(session, room), room);
-    expect(pages).toBe(1);
-    expect(await read()).toBeUndefined();
-    spy.mockRestore();
-    resetCacheHealthForTesting();
-    expect((await readAfterRepair())?.summaryText).toBe('Buried title');
-  });
-
-  it('keeps legacy reads available after an asynchronous migration transaction failure', async () => {
-    await seedLegacy([summary('$summary')]);
-    await seedLegacyCachedThreadSummary(session, room, root, { summaryText: 'Existing legacy' });
-    const warning = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    const originalPut = IDBObjectStore.prototype.put;
-    vi.spyOn(IDBObjectStore.prototype, 'put').mockImplementation(function failMigrationPut(
-      this: IDBObjectStore,
-      ...args
-    ) {
-      // A duplicate primary key fails asynchronously and aborts the transaction.
-      return this.name === EVENTS_STORE ? this.add(...args) : originalPut.apply(this, args);
-    });
-    expect((await read())?.summaryText).toBe('Existing legacy');
-    await finishRepair();
-    expect(warning).toHaveBeenCalledWith(
-      expect.any(String),
-      expect.objectContaining({ name: 'ConstraintError' })
-    );
-  });
-  it('backfills ordinary legacy history without scheduling empty summary projections', async () => {
-    await seedLegacy(Array.from({ length: 256 }, (_, i) => message(`$ordinary-${i}`, i)));
-    const reads = vi.spyOn(IDBIndex.prototype, 'getAll');
-    expect(await read()).toBeUndefined();
-    await finishRepair();
-    expect(
-      reads.mock.contexts.filter(
-        (index) => (index as IDBIndex).name === EVENTS_BY_SUMMARY_CANDIDATE_INDEX
-      )
-    ).toHaveLength(0);
-  });
-  it('invalidates an edited summary when another scope receives a non-summary revision', async () => {
+it.each([false, true])(
+  'uses ingestion for standalone edits arriving before their target: %s',
+  async (editFirst) => {
+    const persist = ingest();
     const original = message('$original');
-    await save({
-      ...original,
-      unsigned: { 'm.relations': { 'm.replace': edit('$promote', '$original', 100) } },
-    });
-    expect((await read())?.summaryText).toBe('Edited title');
-    const replacement = {
-      ...edit('$remove', '$original', 200),
-      content: {
-        msgtype: 'm.notice',
-        body: '* ordinary',
-        'm.new_content': { msgtype: 'm.notice', body: 'ordinary' },
-        'm.relates_to': { rel_type: 'm.replace', event_id: '$original' },
-      },
-    };
-    await saveRoomEventsToCache(session, room, [
-      { ...original, unsigned: { 'm.relations': { 'm.replace': replacement } } },
+    const replacement = edit('$original', 100);
+    if (editFirst) await persist([replacement]);
+    await persist([original]);
+    if (!editFirst) await persist([replacement]);
+    expect(await read()).toMatchObject({ summaryText: 'Buried title', eventTs: 100 });
+    await persist([
+      { ...message('$redact', 200), type: 'm.room.redaction', redacts: '$edit', content: {} },
     ]);
     expect(await read()).toBeUndefined();
-  });
-  it.each([false, true])(
-    'keeps committed titles readable when migration cannot write (already read-only: %s)',
-    async (readOnly) => {
-      await seedLegacy([summary('$summary')]);
-      await seedLegacyCachedThreadSummary(session, room, root, { summaryText: 'Existing legacy' });
-      const quota = new DOMException('Quota exceeded', 'QuotaExceededError');
-      vi.spyOn(console, 'warn').mockImplementation(() => {});
-      vi.spyOn(console, 'error').mockImplementation(() => {});
-      if (readOnly) reportCacheWriteError('fixture', quota);
-      const originalPut = IDBObjectStore.prototype.put;
-      let writeAttempts = 0;
-      vi.spyOn(IDBObjectStore.prototype, 'put').mockImplementation(function failMigrationPut(
-        this: IDBObjectStore,
-        ...args
-      ) {
-        if (this.name === EVENTS_STORE) {
-          writeAttempts += 1;
-          throw quota;
-        }
-        return originalPut.apply(this, args);
-      });
-      expect((await read())?.summaryText).toBe('Existing legacy');
-      await finishRepair();
-      expect(getCacheHealth().state).toBe('read-only');
-      expect(writeAttempts).toBe(readOnly ? 0 : 1);
-      expect((await read())?.summaryText).toBe('Existing legacy');
-      expect(writeAttempts).toBe(readOnly ? 0 : 1);
-      vi.restoreAllMocks();
-      resetCacheHealthForTesting();
-      expect((await readAfterRepair())?.summaryText).toBe('Buried title');
-    }
-  );
-  it.each([false, true])(
-    'merges accepted revisions across room and thread copies (room first: %s)',
-    async (roomFirst) => {
-      const original = summary('$summary');
-      const replacement = {
-        ...edit('$edit', '$summary', 100),
-        content: {
-          msgtype: 'm.notice',
-          body: '* ordinary',
-          'm.new_content': { msgtype: 'm.notice', body: 'ordinary' },
-          'm.relates_to': { rel_type: 'm.replace', event_id: '$summary' },
-        },
-      };
-      const roomCopy = {
-        ...original,
-        content: { ...original.content, 'm.relates_to': { rel_type: 'm.thread', event_id: root } },
-        unsigned: { 'm.relations': { 'm.replace': replacement } },
-      };
-      if (roomFirst) await saveRoomEventsToCache(session, room, [roomCopy]);
-      await save(original);
-      if (!roomFirst) await saveRoomEventsToCache(session, room, [roomCopy]);
-      expect(await read()).toBeUndefined();
-    }
-  );
-  it('establishes provenance when accepted history exactly matches a legacy title', async () => {
-    await seedLegacyCachedThreadSummary(session, room, root, {
-      summaryText: 'Buried title',
-      eventTs: 10,
-    });
-    await save(summary('$summary'));
-    expect((await read())?.summaryText).toBe('Buried title');
-    await deleteThreadEventsFromCache(session, room, root, ['$summary']);
-    expect(await read()).toBeUndefined();
-  });
-  it('persists a buried summary without mounting a view', async () => {
-    await save(
-      summary('$summary'),
-      ...Array.from({ length: 96 }, (_, i) => message(`$reply${i}`, 20 + i))
+  }
+);
+
+it('uses accepted bundled content, ignores wrong-sender edits, and removes summary metadata', async () => {
+  const persist = ingest();
+  await persist([summary('$summary'), { ...edit('$summary', 100), sender: '@mallory:test' }]);
+  expect((await read())?.eventTs).toBe(10);
+  await persist([edit('$summary', 200, summary('$new', 200, 'Edited title').content)]);
+  expect(await read()).toMatchObject({ summaryText: 'Edited title', eventTs: 200 });
+  await persist([{ ...edit('$summary', 300, message('$ordinary').content), event_id: '$remove' }]);
+  expect(await read()).toBeUndefined();
+});
+
+it.each([true, false])(
+  'updates a repaired legacy title when a standalone summary-creating edit is redacted: %s',
+  async (createsSummary) => {
+    const original = createsSummary ? message('$original') : summary('$original');
+    const replacement = edit(
+      '$original',
+      100,
+      createsSummary ? summary('$new').content : message('$new').content
     );
-    expect((await read())?.summaryText).toBe('Buried title');
-  });
-  it('resolves cross-page edits and redactions through accepted events', async () => {
-    await save(
-      summary('$summary'),
-      ...Array.from({ length: 160 }, (_, i) => message(`$reply${i}`, 20 + i))
-    );
-    await save(edit('$edit', '$summary', 300));
-    expect(await read()).toEqual({ summaryText: 'Edited title', eventTs: 300 });
-    await saveRoomEventsToCache(session, room, [
-      { ...message('$redaction', 400), type: 'm.room.redaction', redacts: '$edit', content: {} },
+    await seedLegacy([original, replacement]);
+    await repair();
+    expect((await read())?.summaryText).toBe(createsSummary ? 'Buried title' : undefined);
+    await ingest()([
+      { ...message('$redaction', 200), type: 'm.room.redaction', redacts: '$edit', content: {} },
     ]);
+    expect((await read())?.summaryText).toBe(createsSummary ? undefined : 'Buried title');
+  }
+);
+
+it('preserves legacy-only titles, but establishes provenance when history supplies the same notice', async () => {
+  await seedLegacyCachedThreadSummary(session, roomId, root, {
+    summaryText: 'Buried title',
+    eventTs: 10,
+  });
+  await save(message('$ordinary'));
+  await repair();
+  expect((await read())?.summaryText).toBe('Buried title');
+  await save(summary('$summary'));
+  await deleteThreadEventsFromCache(session, roomId, root, ['$summary']);
+  expect(await read()).toBeUndefined();
+});
+
+it('paints existing titles before background repair, shares repair, and never rescans after reopen', async () => {
+  await seedLegacy();
+  await seedLegacyCachedThreadSummary(session, roomId, '$known', {
+    summaryText: 'Available immediately',
+  });
+  const listener = vi.fn();
+  const unsubscribe = subscribeCachedThreadSummaryChanges(session, roomId, listener);
+  const scheduled: Array<() => void> = [];
+  const schedule = globalThis.setTimeout;
+  const gate = vi.spyOn(globalThis, 'setTimeout').mockImplementation(((
+    callback: () => void,
+    delay?: number,
+    ...args: unknown[]
+  ) => {
+    if (delay === 0) {
+      scheduled.push(callback);
+      return 0 as unknown as ReturnType<typeof setTimeout>;
+    }
+    return schedule(callback, delay, ...args);
+  }) as typeof setTimeout);
+  try {
+    const titles = await loadCachedThreadSummaries(session, roomId);
+    expect(titles.get('$known')?.summaryText).toBe('Available immediately');
+    expect(titles.has(root)).toBe(false);
+    const db = (await openCacheStore(session))!;
+    const lease = captureCacheStoreWriteLease(session, roomId);
+    const pending = repairCachedThreadSummaries(db, lease, roomId);
+    expect(repairCachedThreadSummaries(db, lease, roomId)).toBe(pending);
+    expect(listener).not.toHaveBeenCalled();
+    gate.mockRestore();
+    scheduled.splice(0).forEach((callback) => callback());
+    await pending;
     expect((await read())?.summaryText).toBe('Buried title');
-  });
-  it.each([5, 500])('accepts a late ordinary target with timestamp %s', async (ts) => {
-    await save(edit('$edit', '$ordinary', 100));
-    expect(await read()).toBeUndefined();
-    await save(message('$ordinary', ts));
-    expect(await read()).toEqual({ summaryText: 'Edited title', eventTs: 100 });
-  });
-  it('rejects a different sender replacement and falls back after deletion', async () => {
-    await save(summary('$old', 1, 'Old'), summary('$summary', 10), {
-      ...edit('$bad', '$summary', 100),
-      sender: '@mallory:test',
-    });
-    expect((await read())?.summaryText).toBe('Buried title');
-    await deleteThreadEventsFromCache(session, room, root, ['$summary']);
-    expect((await read())?.summaryText).toBe('Old');
-  });
-  it('backfills raw legacy rows and never walks history again after completion', async () => {
-    await seedLegacy([
-      summary('$legacy'),
-      ...Array.from({ length: 300 }, (_, i) => message(`$reply${i}`, 20 + i)),
-    ]);
-    expect((await readAfterRepair())?.summaryText).toBe('Buried title');
-    const cursor = vi.spyOn(IDBIndex.prototype, 'openCursor');
-    await read();
-    await save(message('$new', 500));
-    await read();
-    expect(
-      (cursor.mock.contexts as IDBIndex[]).filter((index) => index.name === 'by_scope_ts')
-    ).toHaveLength(0);
-  });
-  it('rejects stale writes after clear and accepts fresh writes', async () => {
-    await save(summary('$summary'));
-    const lease = captureCacheStoreWriteLease(session, room);
-    await clearRoomCachedContent(session, room);
+    await repair();
+    resetCacheStoreForTesting();
+    const scans = vi.spyOn(IDBIndex.prototype, 'getAll');
+    await repair();
+    expect(scans).not.toHaveBeenCalled();
+  } finally {
+    gate.mockRestore();
+    unsubscribe();
+  }
+});
+
+it.each(['room', 'session'] as const)(
+  'cancels background repair and stale writes when clearing %s cache',
+  async (scope) => {
+    await seedLegacy();
+    const db = (await openCacheStore(session))!;
+    const lease = captureCacheStoreWriteLease(session, roomId);
+    const pending = repairCachedThreadSummaries(db, lease, roomId);
+    if (scope === 'room') await clearRoomCachedContent(session, roomId);
+    else await deleteCacheStoreDb(session);
+    await pending;
     expect(
       await saveThreadEventsToCacheCommitted(
         session,
-        room,
+        roomId,
         root,
         [summary('$stale')],
         undefined,
@@ -453,243 +249,96 @@ describe('transaction-owned thread summaries', () => {
       )
     ).toBe(false);
     expect(await read()).toBeUndefined();
-    await save(summary('$fresh', 100, 'Fresh'));
+    await save(summary('$fresh', 30, 'Fresh'));
     expect((await read())?.summaryText).toBe('Fresh');
-  });
-  it.each(['target-first', 'edit-first'])(
-    'indexes room-only summary-creating edits: %s',
-    async (order) => {
-      const target = {
-        ...message('$ordinary'),
-        content: {
-          ...message('$ordinary').content,
-          'm.relates_to': { rel_type: 'm.thread', event_id: root },
-        },
-      };
-      const replacement = edit('$edit', '$ordinary', 100);
-      const rows = order === 'target-first' ? [target, replacement] : [replacement, target];
-      for (const row of rows) await saveRoomEventsToCache(session, room, [row]);
-      expect((await read())?.summaryText).toBe('Edited title');
-    }
-  );
-  it('uses bundled replacement content and accepted chronology', async () => {
-    await save({
-      ...summary('$summary'),
-      unsigned: { 'm.relations': { 'm.replace': edit('$edit', '$summary', 200) } },
-    });
-    expect(await read()).toEqual({ summaryText: 'Edited title', eventTs: 200 });
-  });
-  it('removes a summary promoted by an edit when that edit is deleted across scopes', async () => {
-    await save(message('$ordinary'), edit('$edit', '$ordinary', 100));
-    expect((await read())?.summaryText).toBe('Edited title');
-    await deleteThreadEventFromCacheByEventId(session, room, '$edit');
-    expect(await read()).toBeUndefined();
-  });
-  it('preserves summary-only legacy records with no raw source', async () => {
-    await seedLegacyCachedThreadSummary(session, room, root, {
-      summaryText: 'Legacy manual',
-      isManual: true,
-      generatedTs: 100,
-    });
-    await save(message('$ordinary'));
-    expect((await read())?.summaryText).toBe('Legacy manual');
-  });
-  it('does no history or candidate scans during ordinary streaming', async () => {
-    await save(summary('$summary'), message('$ordinary'));
-    await read();
-    const cursor = vi.spyOn(IDBIndex.prototype, 'openCursor');
-    const getAll = vi.spyOn(IDBIndex.prototype, 'getAll');
-    const history = vi.spyOn(IDBObjectStore.prototype, 'getAll');
-    for (let i = 0; i < 5; i += 1) {
-      await save(message('$reply' + i, 100 + i), {
-        ...edit('$stream' + i, '$ordinary', 200 + i),
-        content: {
-          'm.relates_to': { rel_type: 'm.replace', event_id: '$ordinary' },
-          'm.new_content': { msgtype: 'm.text', body: 'stream ' + i },
-          body: '* stream',
-          msgtype: 'm.text',
-        },
-      });
-    }
-    expect(
-      (cursor.mock.contexts as IDBIndex[]).filter((index) => index.name === 'by_scope_ts')
-    ).toHaveLength(0);
-    expect(
-      (history.mock.contexts as IDBObjectStore[]).filter((store) => store.name === EVENTS_STORE)
-    ).toHaveLength(0);
-    expect(
-      (getAll.mock.contexts as IDBIndex[]).filter((index) => index.name === 'by_summary_candidate')
-    ).toHaveLength(0);
-    await save(edit('$summaryEdit', '$summary', 500));
-    expect((await read())?.summaryText).toBe('Edited title');
-  });
-  it('publishes neither event nor summary when its transaction aborts', async () => {
-    await save(summary('$summary'));
-    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
-    const listener = vi.fn();
-    const unsubscribe = subscribeCachedThreadSummaryChanges(session, room, listener);
-    const put = IDBObjectStore.prototype.put;
-    const fault = vi
-      .spyOn(IDBObjectStore.prototype, 'put')
-      .mockImplementation(function abortSummary(this: IDBObjectStore, value, key) {
-        const request = key === undefined ? put.call(this, value) : put.call(this, value, key);
-        if (this.name === THREAD_SUMMARIES_STORE)
-          request.addEventListener('success', () => this.transaction.abort(), { once: true });
-        return request;
-      });
-    expect(
-      await saveThreadEventsToCacheCommitted(session, room, root, [edit('$edit', '$summary', 100)])
-    ).toBe(false);
-    fault.mockRestore();
-    expect(listener).not.toHaveBeenCalled();
-    expect(await loadCachedThreadEvent(session, room, root, '$edit')).toBeUndefined();
-    expect((await read())?.summaryText).toBe('Buried title');
-    unsubscribe();
-  });
-  it('publishes only committed summary changes and retains subscriptions through clears', async () => {
-    const listener = vi.fn();
-    const unsubscribe = subscribeCachedThreadSummaryChanges(session, room, listener);
-    await save(summary('$summary'));
-    await save(message('$ordinary'));
-    expect(listener).toHaveBeenCalledTimes(1);
-    await clearRoomCachedContent(session, room);
-    expect(listener).toHaveBeenLastCalledWith({ type: 'clear' });
-    await save(summary('$fresh', 100, 'Fresh'));
-    expect(listener).toHaveBeenLastCalledWith(
-      expect.objectContaining({
-        type: 'summary',
-        previous: undefined,
-        summary: expect.objectContaining({ summaryText: 'Fresh' }),
-      })
-    );
-    await deleteCacheStoreDb(session);
-    expect(listener).toHaveBeenLastCalledWith({ type: 'clear' });
-    unsubscribe();
-  });
+  }
+);
 
-  it('removes summary metadata through an accepted ordinary replacement', async () => {
-    await save(summary('$old', 1, 'Old'), summary('$summary'));
-    await save({
-      ...edit('$edit', '$summary', 100),
-      content: {
-        msgtype: 'm.notice',
-        body: '* ordinary',
-        'm.new_content': { msgtype: 'm.notice', body: 'ordinary' },
-        'm.relates_to': { rel_type: 'm.replace', event_id: '$summary' },
-      },
-    });
-    expect((await read())?.summaryText).toBe('Old');
-  });
-  it('resumes bounded migration after interruption and database reopen', async () => {
-    const db = await seedLegacy([
-      summary('$zsummary'),
-      ...Array.from({ length: 300 }, (_, i) => message('$reply' + i, 20 + i)),
-    ]);
-    const getAll = IDBObjectStore.prototype.getAll;
-    let interrupted = false;
-    const pages: { lower: unknown; limit: number | undefined }[] = [];
-    const spy = vi
-      .spyOn(IDBObjectStore.prototype, 'getAll')
-      .mockImplementation(function observe(this: IDBObjectStore, query, limit) {
-        const request = getAll.call(this, query, limit);
-        if (this.name === EVENTS_STORE) {
-          pages.push({ lower: (query as IDBKeyRange).lower, limit });
-          if (!interrupted) {
-            interrupted = true;
-            this.transaction.addEventListener(
-              'complete',
-              () => revokeRoomCacheStoreWrites(session, room),
-              { once: true }
-            );
-          }
-        }
-        return request;
-      });
-    expect(await read()).toBeUndefined();
-    await finishRepair();
-    expect(pages).toHaveLength(1);
-    db.close();
-    resetCacheStoreForTesting();
-    expect((await readAfterRepair())?.summaryText).toBe('Buried title');
-    expect(pages.length).toBeGreaterThan(2);
-    expect(pages.every((page) => page.limit === 128)).toBe(true);
-    expect(pages[1].lower).not.toBe(pages[0].lower);
-    const pageCount = pages.length;
-    await read();
-    expect(pages).toHaveLength(pageCount);
-    spy.mockRestore();
-  });
-  it('does not publish a stale mutation when clear revokes its active transaction', async () => {
-    await save(summary('$summary'));
-    const listener = vi.fn();
-    const unsubscribe = subscribeCachedThreadSummaryChanges(session, room, listener);
-    const put = IDBObjectStore.prototype.put;
-    let clearing: Promise<number> | undefined;
-    const spy = vi
-      .spyOn(IDBObjectStore.prototype, 'put')
-      .mockImplementation(function clearDuringPut(this: IDBObjectStore, value, key) {
-        const request = key === undefined ? put.call(this, value) : put.call(this, value, key);
-        if (this.name === THREAD_SUMMARIES_STORE)
-          request.addEventListener(
-            'success',
-            () => {
-              clearing = clearRoomCachedContent(session, room);
-            },
-            { once: true }
-          );
-        return request;
-      });
-    await save(edit('$edit', '$summary', 100));
-    await clearing;
-    spy.mockRestore();
-    expect(listener.mock.calls).toEqual([[{ type: 'clear' }]]);
-    expect(await read()).toBeUndefined();
-    unsubscribe();
-  });
+it('keeps committed titles readable with read-only storage and repairs after recovery', async () => {
+  await seedLegacy();
+  await seedLegacyCachedThreadSummary(session, roomId, '$known', { summaryText: 'Known' });
+  vi.spyOn(console, 'error').mockImplementation(() => {});
+  vi.spyOn(console, 'warn').mockImplementation(() => {});
+  reportCacheWriteError('fixture', new DOMException('Quota exceeded', 'QuotaExceededError'));
+  const titles = await loadCachedThreadSummaries(session, roomId);
+  expect(titles.get('$known')?.summaryText).toBe('Known');
+  await repair();
+  expect(titles.has(root)).toBe(false);
+  resetCacheHealthForTesting();
+  await repair();
+  expect((await read())?.summaryText).toBe('Buried title');
+});
 
-  it('revisits a projected thread changed before migration completion', async () => {
-    await save(summary('$summary'));
-    const db = (await openCacheStore(session))!;
-    await new Promise<void>((resolve) => {
-      const tx = db.transaction(META_STORE, 'readwrite');
-      tx.objectStore(META_STORE).put({
-        metaKey: room + '|__summaryMigration',
-        roomId: room,
-        phase: 'project',
-      });
-      tx.oncomplete = () => resolve();
-    });
-    await deleteThreadEventsFromCache(session, room, root, ['$summary']);
-    expect(await readAfterRepair()).toBeUndefined();
+it('does no history scans or summary writes during ordinary streaming', async () => {
+  const persist = ingest();
+  await persist([message('$ordinary')]);
+  await repair();
+  let scans = 0;
+  let puts = 0;
+  const getAll = IDBIndex.prototype.getAll;
+  const put = IDBObjectStore.prototype.put;
+  vi.spyOn(IDBIndex.prototype, 'getAll').mockImplementation(function countScans(
+    this: IDBIndex,
+    ...args
+  ) {
+    if (this.name === 'by_scope_ts') scans += 1;
+    return getAll.apply(this, args);
   });
-  it('does not republish an unchanged structured summary', async () => {
-    const listener = vi.fn();
-    const unsubscribe = subscribeCachedThreadSummaryChanges(session, room, listener);
-    const raw = summary('$manual');
-    raw.content!['io.mindroom.thread_summary'] = {
-      version: 1,
-      model: 'manual',
-      generated_at: '2026-01-01T00:00:00Z',
-      summary: 'Manual',
-      message_count: 12,
-    };
-    await save(raw);
-    await save(raw);
-    expect(listener).toHaveBeenCalledTimes(1);
-    unsubscribe();
+  vi.spyOn(IDBObjectStore.prototype, 'put').mockImplementation(function countPuts(
+    this: IDBObjectStore,
+    ...args
+  ) {
+    if (this.name === THREAD_SUMMARIES_STORE) puts += 1;
+    return put.apply(this, args);
   });
-  it('repairs legacy cross-page relation evidence before publishing a winner', async () => {
-    await seedLegacy([
-      summary('$a-summary', 10, 'Original'),
-      ...Array.from({ length: 300 }, (_, i) => message('$middle' + i, 20 + i)),
-      edit('$z-edit', '$a-summary', 400),
+  for (let i = 0; i < 10; i += 1) {
+    await persist([
       {
-        ...message('$zz-redaction', 500),
-        type: 'm.room.redaction',
-        redacts: '$z-edit',
-        content: {},
+        ...edit('$ordinary', 100 + i, message('$ordinary', i, 'token ' + i).content),
+        event_id: '$stream' + i,
       },
     ]);
-    expect(await readAfterRepair()).toEqual({ summaryText: 'Original', eventTs: 10 });
+  }
+  expect(scans).toBe(0);
+  expect(puts).toBe(0);
+});
+
+it('does not rescan history when a streaming snapshot repeats an unchanged summary', async () => {
+  const notice = summary('$summary');
+  await save(notice, message('$ordinary'));
+  await repair();
+  const scans = vi.spyOn(IDBIndex.prototype, 'getAll');
+  await save(notice, {
+    ...message('$ordinary'),
+    unsigned: {
+      'm.relations': {
+        'm.replace': edit('$ordinary', 100, message('$ordinary', 100, 'streaming').content),
+      },
+    },
   });
+  expect(scans).not.toHaveBeenCalled();
+});
+
+it('publishes neither event nor summary when the summary transaction fails', async () => {
+  const listener = vi.fn();
+  const unsubscribe = subscribeCachedThreadSummaryChanges(session, roomId, listener);
+  const put = IDBObjectStore.prototype.put;
+  vi.spyOn(IDBObjectStore.prototype, 'put').mockImplementation(function failSummary(
+    this: IDBObjectStore,
+    ...args
+  ) {
+    if (this.name === THREAD_SUMMARIES_STORE) throw new Error('summary write failure');
+    return put.apply(this, args);
+  });
+  vi.spyOn(console, 'error').mockImplementation(() => {});
+  vi.spyOn(console, 'warn').mockImplementation(() => {});
+  try {
+    expect(
+      await saveThreadEventsToCacheCommitted(session, roomId, root, [summary('$summary')])
+    ).toBe(false);
+    expect(await loadCachedThreadEvent(session, roomId, root, '$summary')).toBeUndefined();
+    expect(listener).not.toHaveBeenCalled();
+  } finally {
+    unsubscribe();
+  }
 });

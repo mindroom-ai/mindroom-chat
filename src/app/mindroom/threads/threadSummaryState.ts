@@ -25,10 +25,9 @@ type RoomThreadSummaryState = {
   summaryMap: Map<string, MindroomThreadSummaryInfo>;
   listeners: Set<ThreadSummaryListener>;
   loadPromise?: Promise<void>;
+  loadInvalidated?: boolean;
   hasLoaded?: boolean;
   incomingDuringLoad?: Map<string, Array<MindroomThreadSummaryInfo | undefined>>;
-  invalidated: Map<string, MindroomThreadSummaryInfo[]>;
-  published: Map<string, MindroomThreadSummaryInfo[]>;
   generation: number;
   unsubscribeCache?: () => void;
 };
@@ -46,29 +45,11 @@ const getOrCreateState = (sessionId: string, roomId: string): RoomThreadSummaryS
   const nextState: RoomThreadSummaryState = {
     summaryMap: new Map(),
     listeners: new Set(),
-    invalidated: new Map(),
-    published: new Map(),
     generation: 0,
   };
   roomThreadSummaryStates.set(stateKey, nextState);
   nextState.unsubscribeCache = subscribeCachedThreadSummaryChanges(sessionId, roomId, (change) => {
     if (change.type === 'clear') {
-      // Mounted views can still publish pre-clear candidates. Keep their
-      // invalidation evidence until accepted history commits them again.
-      const invalidate = (info: MindroomThreadSummaryInfo | undefined, rootId: string) => {
-        if (!info) return;
-        const removed = nextState.invalidated.get(rootId) ?? [];
-        if (!removed.some((candidate) => sameRevision(candidate, info))) removed.push(info);
-        nextState.invalidated.set(rootId, removed);
-      };
-      nextState.summaryMap.forEach(invalidate);
-      nextState.published.forEach((infos, rootId) =>
-        infos.forEach((info) => invalidate(info, rootId))
-      );
-      nextState.published.clear();
-      nextState.incomingDuringLoad?.forEach((infos, rootId) =>
-        infos.forEach((info) => invalidate(info, rootId))
-      );
       nextState.generation += 1;
       nextState.loadPromise = undefined;
       nextState.hasLoaded = false;
@@ -80,14 +61,8 @@ const getOrCreateState = (sessionId: string, roomId: string): RoomThreadSummaryS
       return;
     }
     const { threadRootId, previous, summary } = change;
-    const invalidated = nextState.invalidated.get(threadRootId) ?? [];
-    if (previous) invalidated.push(previous);
-    // A committed fallback can restore a previously superseded notice.
-    nextState.invalidated.set(
-      threadRootId,
-      invalidated.filter((info) => !sameRevision(info, summary))
-    );
-    const current = validSummary(nextState, threadRootId, nextState.summaryMap.get(threadRootId));
+    const displayed = nextState.summaryMap.get(threadRootId);
+    const current = displayed && sameRevision(displayed, previous) ? undefined : displayed;
     const selected = selectThreadSummaryUpdate(current, summary) ?? current;
     const updated = new Map(nextState.summaryMap);
     if (selected) updated.set(threadRootId, selected);
@@ -95,6 +70,18 @@ const getOrCreateState = (sessionId: string, roomId: string): RoomThreadSummaryS
     if (!areSummaryMapsEqual(nextState.summaryMap, updated)) {
       nextState.summaryMap = updated;
       notifyStateListeners(nextState);
+    }
+    if (nextState.loadPromise && roomThreadSummaryStates.get(stateKey) === nextState) {
+      // Retry the whole snapshot so an old read cannot restore this previous
+      // winner, while unrelated cached titles still finish loading.
+      const candidates = nextState.incomingDuringLoad?.get(threadRootId);
+      if (candidates) {
+        nextState.incomingDuringLoad?.set(
+          threadRootId,
+          candidates.filter((info) => !info || !sameRevision(info, previous))
+        );
+      }
+      nextState.loadInvalidated = true;
     }
   });
   return nextState;
@@ -110,15 +97,6 @@ const sameRevision = (
   left.messageCount === right.messageCount &&
   left.isManual === right.isManual &&
   (left.eventTs === undefined || right.eventTs === undefined || left.eventTs === right.eventTs);
-
-const validSummary = (
-  state: RoomThreadSummaryState,
-  rootId: string,
-  info: MindroomThreadSummaryInfo | undefined
-) =>
-  info && !state.invalidated.get(rootId)?.some((removed) => sameRevision(removed, info))
-    ? info
-    : undefined;
 
 const notifyStateListeners = (state: RoomThreadSummaryState) => {
   state.listeners.forEach((listener) => listener());
@@ -203,24 +181,17 @@ export const ensureThreadSummaryStateLoaded = async (sessionId: string, roomId: 
     state.incomingDuringLoad ?? new Map<string, Array<MindroomThreadSummaryInfo | undefined>>();
   state.incomingDuringLoad = incomingDuringLoad;
   state.hasLoaded = false;
+  state.loadInvalidated = false;
   const generation = state.generation;
 
-  state.loadPromise = loadCachedThreadSummaries(sessionId, roomId)
+  const loadPromise: Promise<void> = loadCachedThreadSummaries(sessionId, roomId)
     .then((cachedSummaryMap) => {
       if (
         roomThreadSummaryStates.get(getStateKey(sessionId, roomId)) !== state ||
-        generation !== state.generation
+        generation !== state.generation ||
+        state.loadInvalidated
       )
         return;
-      cachedSummaryMap.forEach((info, id) => {
-        if (!validSummary(state, id, info)) cachedSummaryMap.delete(id);
-      });
-      incomingDuringLoad.forEach((infos, id) => {
-        incomingDuringLoad.set(
-          id,
-          infos.map((info) => validSummary(state, id, info))
-        );
-      });
       const nextSummaryMap = buildPreferredThreadSummaryMap(
         cachedSummaryMap,
         state.summaryMap,
@@ -235,13 +206,19 @@ export const ensureThreadSummaryStateLoaded = async (sessionId: string, roomId: 
     // A failed read must retain the evidence and leave disk untouched until retry.
     .catch(() => {})
     .finally(() => {
-      if (generation !== state.generation) return;
+      if (
+        state.loadPromise !== loadPromise ||
+        roomThreadSummaryStates.get(getStateKey(sessionId, roomId)) !== state
+      )
+        return;
       state.loadPromise = undefined;
+      if (state.loadInvalidated) return ensureThreadSummaryStateLoaded(sessionId, roomId);
       if (!state.hasLoaded) return;
       state.incomingDuringLoad = undefined;
     });
 
-  return state.loadPromise;
+  state.loadPromise = loadPromise;
+  return loadPromise;
 };
 
 export const storeThreadSummaryInState = (
@@ -255,26 +232,15 @@ export const storeThreadSummaryInState = (
   const state = getOrCreateState(sessionId, roomId);
   // UI publications are display-only. Storage derives durable titles from
   // accepted events, independently of which views happen to be mounted.
-  // Remember losing candidates too: SDK publishers replay the complete set,
-  // and clearing only its winner would expose an older pre-clear title.
-  const published = state.published.get(threadRootId) ?? [];
-  infos.forEach((candidate) => {
-    if (candidate && !published.some((info) => sameRevision(info, candidate)))
-      published.push(candidate);
-  });
-  state.published.set(threadRootId, published);
   if (!state.hasLoaded && !state.loadPromise)
     void ensureThreadSummaryStateLoaded(sessionId, roomId);
   if (state.incomingDuringLoad) {
     const candidates = state.incomingDuringLoad.get(threadRootId) ?? [];
-    candidates.push(...infos.map((info) => validSummary(state, threadRootId, info)));
+    candidates.push(...infos);
     state.incomingDuringLoad.set(threadRootId, candidates);
   }
   const currentInfo = state.summaryMap.get(threadRootId);
-  const info = selectThreadSummaryUpdate(
-    currentInfo,
-    ...infos.map((candidate) => validSummary(state, threadRootId, candidate))
-  );
+  const info = selectThreadSummaryUpdate(currentInfo, ...infos);
   if (!info) return false;
 
   const nextSummaryMap = new Map(state.summaryMap);

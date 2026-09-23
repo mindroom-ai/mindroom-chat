@@ -13,11 +13,8 @@ import type { CachedPaginationTokenMap } from '../eventCacheTokenUtils';
 // `getCacheStoreDbName` in `cacheStoreDb.ts` via `getSessionScopedStorageKey`.
 
 export const MINDROOM_CACHE_DB_BASE_NAME = 'mindroom-cache';
-export const CACHE_STORE_DB_VERSION = 7;
+export const CACHE_STORE_DB_VERSION = 6;
 export const EVENTS_BY_ROOM_EVENT_INDEX = 'by_room_event';
-export const EVENTS_BY_SUMMARY_CANDIDATE_INDEX = 'by_summary_candidate';
-export const EVENTS_BY_SUMMARY_TARGET_INDEX = 'by_summary_target';
-export const EVENTS_BY_RELATION_TARGET_INDEX = 'by_relation_target';
 
 export const ATTACHMENTS_BY_ACCESS_BYTES_INDEX = 'by_access_bytes';
 export const ATTACHMENT_REFERENCES_BY_OWNER_INDEX = 'by_owner';
@@ -90,10 +87,6 @@ export const __setCacheStoreByteBudgetForTests = (bytes: number | undefined): vo
 // --- Record types ---
 
 export type CachedEventRecord = {
-  /** Sparse indexes: summary candidates and standalone relation evidence. */
-  summaryThreadRootId?: string;
-  summaryRelationTarget?: string;
-  summaryCandidateTarget?: string;
   // `${roomId}|${scope}|${eventId}` — matches the legacy per-domain
   // key shapes minus the two-store split.
   cacheKey: string;

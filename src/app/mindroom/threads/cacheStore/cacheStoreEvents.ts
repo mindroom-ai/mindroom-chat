@@ -1,5 +1,5 @@
 import type { IEvent } from 'matrix-js-sdk';
-import { createSummaryProjection, indexSummaryEventRecord } from './cacheStoreSummaryProjection';
+import { createSummaryProjection } from './cacheStoreSummaryProjection';
 import type { EventAttachmentMessage } from '../../messages/eventAttachments';
 import { countCacheProbe } from '../cacheProbe';
 import { isCacheWritable, reportCacheWriteError } from '../cacheHealth';
@@ -106,7 +106,7 @@ const buildMergedEventRecord = (
   relationSnapshotMode: RelationSnapshotMode
 ): CachedEventRecord => {
   const rawEvent = mergeRawEventRevisions(previous?.rawEvent, incoming, relationSnapshotMode);
-  return indexSummaryEventRecord({
+  return {
     cacheKey: buildEventCacheKey(roomId, scope, incoming.event_id),
     roomId,
     scope,
@@ -117,7 +117,7 @@ const buildMergedEventRecord = (
         : incoming.origin_server_ts,
     rawEvent,
     approxBytes: estimateRawEventBytes(rawEvent),
-  });
+  };
 };
 
 const canPersistMarkedEvent = (
@@ -314,11 +314,11 @@ const runScrubRedactedRelationsTxn = async (
         }
 
         if (rawEvent !== previous.rawEvent) {
-          const nextRecord = indexSummaryEventRecord({
+          const nextRecord: CachedEventRecord = {
             ...previous,
             rawEvent,
             approxBytes: estimateRawEventBytes(rawEvent),
-          });
+          };
           ledger.notePut(nextRecord, previous);
           cursor.update(nextRecord);
           projection.note(previous, nextRecord);

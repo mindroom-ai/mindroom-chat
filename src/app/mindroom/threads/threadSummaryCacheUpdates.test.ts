@@ -20,7 +20,7 @@ import {
 const sessionId = 'summary-state-commits';
 const roomId = '!summary:test';
 const rootId = '$root';
-const event = (id: string, ts: number, body: string): Partial<IEvent> => ({
+const event = (id: string, ts: number, body: string, threadRootId = rootId): Partial<IEvent> => ({
   event_id: id,
   room_id: roomId,
   type: 'm.room.message',
@@ -30,7 +30,7 @@ const event = (id: string, ts: number, body: string): Partial<IEvent> => ({
     msgtype: 'm.notice',
     body,
     'io.mindroom.thread_summary': true,
-    'm.relates_to': { rel_type: 'm.thread', event_id: rootId },
+    'm.relates_to': { rel_type: 'm.thread', event_id: threadRootId },
   },
 });
 const title = () => getThreadSummaryStateSnapshot(sessionId, roomId).get(rootId)?.summaryText;
@@ -56,7 +56,7 @@ it.each(['room', 'session'] as const)(
 
     expect(title()).toBeUndefined();
     storeThreadSummaryInState(sessionId, roomId, rootId, live);
-    expect(title()).toBeUndefined();
+    expect(title()).toBe('Live title');
   }
 );
 
@@ -78,18 +78,13 @@ it('updates an already loaded shared state from background history commits', asy
   expect(title()).toBe('New title');
 });
 
-it('falls back after deletion and rejects a stale view republishing the removed winner', async () => {
+it('falls back after deletion without retaining the removed cached winner', async () => {
   await saveThreadEventsToCache(sessionId, roomId, rootId, [
     event('$one', 10, 'First title'),
     event('$two', 20, 'Removed title'),
   ]);
   await ensureThreadSummaryStateLoaded(sessionId, roomId);
   await deleteThreadEventsFromCache(sessionId, roomId, rootId, ['$two']);
-  expect(title()).toBe('First title');
-  storeThreadSummaryInState(sessionId, roomId, rootId, {
-    summaryText: 'Removed title',
-    eventTs: 20,
-  });
   expect(title()).toBe('First title');
   await ensureThreadSummaryStateLoaded(sessionId, roomId);
   expect(title()).toBe('First title');
@@ -114,12 +109,12 @@ it('clears shared titles and accepts new committed history without remounting', 
   await clearRoomCachedContent(sessionId, roomId);
   expect(title()).toBeUndefined();
   storeThreadSummaryInState(sessionId, roomId, rootId, { summaryText: 'Old title', eventTs: 10 });
-  expect(title()).toBeUndefined();
+  expect(title()).toBe('Old title');
   await saveThreadEventsToCache(sessionId, roomId, rootId, [event('$two', 20, 'Fresh title')]);
   expect(title()).toBe('Fresh title');
 });
 
-it('does not restore losing live candidates replayed after a clear', async () => {
+it('allows genuine SDK candidates to supply a title after a cache clear', async () => {
   await ensureThreadSummaryStateLoaded(sessionId, roomId);
   const candidates = [
     { summaryText: 'Older title', eventTs: 10 },
@@ -128,10 +123,42 @@ it('does not restore losing live candidates replayed after a clear', async () =>
   storeThreadSummaryInState(sessionId, roomId, rootId, ...candidates);
   expect(title()).toBe('Newest title');
   await clearRoomCachedContent(sessionId, roomId);
-  storeThreadSummaryInState(sessionId, roomId, rootId, ...candidates);
   expect(title()).toBeUndefined();
-  await saveThreadEventsToCache(sessionId, roomId, rootId, [event('$one', 10, 'Older title')]);
-  expect(title()).toBe('Older title');
+  storeThreadSummaryInState(sessionId, roomId, rootId, ...candidates);
+  expect(title()).toBe('Newest title');
+  expect((await loadCachedThreadSummaries(sessionId, roomId)).has(rootId)).toBe(false);
+});
+
+it('retries interrupted hydration without losing other cached titles or newer live values', async () => {
+  await saveThreadEventsToCache(sessionId, roomId, rootId, [event('$one', 10, 'Removed title')]);
+  await saveThreadEventsToCache(sessionId, roomId, '$other', [
+    event('$other-summary', 5, 'Other cached title', '$other'),
+  ]);
+  let complete!: (value: Map<string, MindroomThreadSummaryInfo>) => void;
+  const loadSummaries = vi.spyOn(cacheStore, 'loadCachedThreadSummaries').mockReturnValueOnce(
+    new Promise((resolve) => {
+      complete = resolve;
+    })
+  );
+  const loading = ensureThreadSummaryStateLoaded(sessionId, roomId);
+  storeThreadSummaryInState(sessionId, roomId, rootId, {
+    summaryText: 'Removed title',
+    eventTs: 10,
+  });
+  storeThreadSummaryInState(sessionId, roomId, '$live', { summaryText: 'Live title', eventTs: 30 });
+  await deleteThreadEventsFromCache(sessionId, roomId, rootId, ['$one']);
+  await saveThreadEventsToCache(sessionId, roomId, '$committed', [
+    event('$new-summary', 6, 'New committed title', '$committed'),
+  ]);
+  expect(loadSummaries).toHaveBeenCalledTimes(1);
+  complete(new Map([[rootId, { summaryText: 'Removed title', eventTs: 10 }]]));
+  await loading;
+  expect(title()).toBeUndefined();
+  const snapshot = getThreadSummaryStateSnapshot(sessionId, roomId);
+  expect(snapshot.get('$other')?.summaryText).toBe('Other cached title');
+  expect(snapshot.get('$committed')?.summaryText).toBe('New committed title');
+  expect(snapshot.get('$live')?.summaryText).toBe('Live title');
+  expect(loadSummaries).toHaveBeenCalledTimes(2);
 });
 
 it.each(['delete', 'clear'] as const)(
