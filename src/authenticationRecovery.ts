@@ -27,9 +27,21 @@ export function installAuthenticationRecovery(window: AuthenticationRecoveryWind
   const current = new URL(window.location.href);
   const value = window.__AUTHENTICATION_RECOVERY_CONFIG__;
   const raw = value && typeof value === 'object' ? (value as Record<string, unknown>) : undefined;
-  let config: { probe: URL; navigation: URL } | undefined;
+  let config: { probe: URL; navigation?: URL } | undefined;
   function localUrl(value: unknown): URL {
     if (typeof value !== 'string' || !value.trim()) throw new Error('Missing URL');
+    for (let i = 0; i < value.length; i += 1) {
+      const code = value.charCodeAt(i);
+      if (code < 32 || (code >= 127 && code <= 159))
+        throw new Error('Unsafe recovery URL control character');
+    }
+    const path = value.trim().split(/[?#]/)[0];
+    if (
+      path.includes('\\') ||
+      /%2f|%5c/i.test(path) ||
+      /(^|\/)(?:\.|%2e)(?:\.|%2e)?(?=\/|$)/i.test(path)
+    )
+      throw new Error('Unsafe recovery URL path');
     // Page-relative paths would change the probe identity after a recovery navigation.
     if (!/^(?:\/(?!\/)|https?:\/\/)/i.test(value.trim()))
       throw new Error('Recovery URLs must be root-relative or absolute');
@@ -44,7 +56,14 @@ export function installAuthenticationRecovery(window: AuthenticationRecoveryWind
     return url;
   }
   try {
-    if (raw) config = { probe: localUrl(raw.probeUrl), navigation: localUrl(raw.navigationUrl) };
+    if (raw)
+      config = {
+        probe: localUrl(raw.probeUrl),
+        navigation:
+          raw.navigationUrl === undefined || raw.navigationUrl === ''
+            ? undefined
+            : localUrl(raw.navigationUrl),
+      };
   } catch {
     /* Invalid configuration disables automatic recovery. */
   }
@@ -91,7 +110,9 @@ export function installAuthenticationRecovery(window: AuthenticationRecoveryWind
             await deadline(registration.unregister());
           }
         }
-        const target = new URL(config ? config.navigation.href : window.location.href);
+        const target = new URL(
+          config && config.navigation ? config.navigation.href : window.location.href
+        );
         if (!target.hash) target.hash = new URL(window.location.href).hash;
         target.searchParams.set(marker, '1');
         const source = new URL(window.location.href);

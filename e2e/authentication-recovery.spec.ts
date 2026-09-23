@@ -29,6 +29,8 @@ let oldRuntime = false;
 let currentShell = false;
 let allowBfcache = false;
 let probeCalls = 0;
+let navigationUrl: string | undefined = '/login';
+let defaultReturnsShell = false;
 let worker: string;
 const shell = '<!doctype html><script src="/runtime-config.js"></script><h1>Cached chats</h1>';
 
@@ -72,7 +74,7 @@ test.beforeAll(async () => {
               enabled
                 ? {
                     probeUrl: '/authentication-recovery-probe',
-                    navigationUrl: '/login',
+                    ...(navigationUrl === undefined ? {} : { navigationUrl }),
                     timeoutMs: 1000,
                   }
                 : null
@@ -104,6 +106,22 @@ test.beforeAll(async () => {
       response.end();
     } else if (url.pathname === '/asset.txt') {
       response.end('cached asset');
+    } else if (
+      expired &&
+      !navigationUrl &&
+      url.searchParams.has('authentication-recovery-navigation')
+    ) {
+      loginVisits += 1;
+      const returnUrl = new URL(url);
+      returnUrl.searchParams.delete('authentication-recovery-navigation');
+      response.setHeader('Content-Type', 'text/html');
+      response.end(
+        defaultReturnsShell
+          ? shell
+          : `<h1>Proxy sign-in</h1><button onclick="fetch('/session',{method:'POST'}).then(()=>location.href=decodeURIComponent('${encodeURIComponent(
+              returnUrl.pathname + returnUrl.search
+            )}')+location.hash)">Sign in</button>`
+      );
     } else {
       response.setHeader('Content-Type', 'text/html');
       const scripts =
@@ -133,6 +151,77 @@ test.beforeEach(() => {
   currentShell = false;
   allowBfcache = false;
   probeCalls = 0;
+  navigationUrl = '/login';
+  defaultReturnsShell = false;
+});
+
+test('malformed runtime destination with an embedded control does not start recovery', async ({
+  page,
+}) => {
+  navigationUrl = '/chat/%2\ne%2\ne/login';
+  await page.goto(`${origin}/chat/rooms/example?thread=123#latest`);
+  expired = true;
+  await page.reload();
+  await expect(page.getByRole('heading')).toHaveText('Cached chats');
+  expect(
+    await page.evaluate(async () =>
+      (
+        window as typeof window & { __AUTHENTICATION_RECOVERY__: { check: () => Promise<string> } }
+      ).__AUTHENTICATION_RECOVERY__.check()
+    )
+  ).toBe('disabled');
+  expect(probeCalls).toBe(0);
+  expect(loginVisits).toBe(0);
+  expect(page.url()).toBe(`${origin}/chat/rooms/example?thread=123#latest`);
+});
+
+for (const [name, path, destination] of [
+  ['root with empty destination', '/rooms/example?thread=123#latest', ''],
+  ['subpath with omitted destination', '/chat/rooms/example?thread=123#latest', undefined],
+] as const) {
+  test(`${name} returns to the current deep link`, async ({ page }) => {
+    navigationUrl = destination;
+    worker = await workerSource(true);
+    await page.goto(origin + path);
+    expired = true;
+    await page.reload();
+    await expect(page.getByRole('heading')).toHaveText('Proxy sign-in');
+    expect(new URL(page.url()).pathname).toBe(new URL(path, origin).pathname);
+    expect(new URL(page.url()).searchParams.get('thread')).toBe('123');
+    expect(new URL(page.url()).searchParams.get('authentication-recovery-navigation')).toBe('1');
+    expect(new URL(page.url()).hash).toBe('#latest');
+    await page.getByRole('button', { name: 'Sign in' }).click();
+    await expect(page.getByRole('heading')).toHaveText('Cached chats');
+    expect(page.url()).toBe(origin + path);
+    expect(loginVisits).toBe(1);
+  });
+}
+
+test('default recovery replaces an existing marker and bounds a returned shell', async ({
+  page,
+}) => {
+  navigationUrl = '';
+  defaultReturnsShell = true;
+  worker = await workerSource(true);
+  await page.goto(`${origin}/rooms/example?thread=123&authentication-recovery-navigation=0#latest`);
+  expired = true;
+  await page.evaluate(() => {
+    void (
+      window as typeof window & { __AUTHENTICATION_RECOVERY__: { check: () => Promise<string> } }
+    ).__AUTHENTICATION_RECOVERY__.check();
+  });
+  await expect(page).toHaveURL(
+    `${origin}/rooms/example?thread=123&authentication-recovery-navigation=1#latest`
+  );
+  await expect(page.getByRole('heading')).toHaveText('Cached chats');
+  expect(
+    await page.evaluate(async () =>
+      (
+        window as typeof window & { __AUTHENTICATION_RECOVERY__: { check: () => Promise<string> } }
+      ).__AUTHENTICATION_RECOVERY__.check()
+    )
+  ).toBe('blocked');
+  expect(loginVisits).toBe(1);
 });
 
 async function seedStorage(page: import('@playwright/test').Page) {

@@ -2,9 +2,22 @@
 
 ## Runbook
 
+### Preserve current location in typed authentication recovery (2026-09-22)
+
+- An absent or empty navigation URL returns to the current pathname, query, and fragment with the recovery marker set or replaced.
+  Explicit same-origin destinations remain fixed, and unsafe encoded path separators, dot segments, or raw control characters disable recovery before a probe or worker action.
+  Path backslashes remain unsafe; query and fragment backslashes retain their data meaning.
+- The image runtime configuration enables this default when a probe URL is present and no navigation URL is supplied.
+  The typed owner remains the source of the generated standalone recovery asset and shared runtime loader.
+- Generated-asset unit tests, all 12 focused Chromium recovery cases, and the nginx container check pass locally.
+  The browser cases cover root and prefixed deep links, marker replacement, and a returned-shell retry bound.
+- The full Node 24 suite passes all 5,296 tests, with typecheck, production/PWA build, Netlify checks, and lint at zero errors and 17 existing warnings.
+- A later review follow-up includes C1 controls in raw URL rejection while preserving query and fragment backslashes.
+  Two generated-asset regressions failed before the fix, and all 34 focused unit tests pass afterward.
+
 ### Consolidate authentication recovery sources (2026-09-22)
 
-- Status: implemented and independently approved; PR #322 tracks hosted review and broader browser results.
+- Status: merged in PR #322 after independent review and hosted validation.
 - Recovery lifecycle and application helpers now share typed source, while Vite emits the same classic-script URLs for cached clients.
   Runtime configuration has one loader source; Docker prepends deployment settings to the built script instead of maintaining a separate loader.
 - Both compatibility entry points remain, preserving cached predecessor HTML and older custom runtime configuration.
