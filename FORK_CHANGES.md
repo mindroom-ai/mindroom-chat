@@ -2,21 +2,23 @@
 
 ## Runbook
 
-### Recover overview summaries beyond the cached event tail (2026-09-22)
+### Keep cached thread history and summaries consistent (2026-09-22)
 
-- Status: independently approved; final full validation is in progress.
-- Live Chrome inspection found a thread with summary notices already cached outside the overview's 32-event tail, but no entry in the separate summary store.
-  Opening the thread recovered the title; the same limited discovery exists in the pre-optimization build.
-- Missing-summary recovery now reads older cache history separately in bounded 128-event pages, yielding between reads and retaining only summary candidates and their relation evidence.
-  It preserves the overview's 32-event metadata limit and publishes through the existing shared summary selection and persistence used by cards and banners.
-  Accepted edits and redactions spanning pages are applied together, including ordinary notices edited into summaries.
-  Bounded point reads recover referenced originals when server timestamps sort them ahead of their edits.
-- Committed thread-cache writes invalidate negative discovery results for their session, room, and thread, with coalesced wakeups.
-  Closing the overview, switching scope, or clearing the cache prevents stale publication.
-  Reads interrupted by committed history changes restart before publishing; later history growth also invalidates initially short cache coverage.
-  Existing summary entries keep their current cached-to-live upgrade path; this repair targets missing entries.
-- Regressions reproduce buried summaries, later background history arrival, cross-page relations, and cancellation.
-  An offline Chromium test verifies recovery before opening, matching banner text, closing, and reload.
+- Status: PR #323 now derives summaries at the storage boundary; independent storage and UI reviews approve the implementation.
+  Full integrated validation and hosted review remain in progress.
+- Live Chrome inspection found summary notices already cached outside the overview's 32-event tail, but no entry in the separate summary store.
+  Opening the thread restored its title because UI hydration had been responsible for populating that store.
+  The same limited discovery exists in the pre-optimization build.
+- CacheStore now derives summaries from accepted event revisions within the history transaction, using indexed candidates and targeted relation lookups.
+  Background ingestion updates summaries without a mounted overview or thread.
+  Edits, redactions, deletion, and clear paths must maintain the same projection; ordinary streaming updates must not scan full thread history.
+- Existing caches receive bounded, resumable index repair with durable progress.
+  Partial migration cannot invalidate a prior summary, and legacy summary-only records remain until their event provenance is established.
+- Shared card/banner state consumes committed summary changes and invalidations.
+  UI publications are display-only, and accepted manual summary events use ordinary history ingestion.
+  The overview recovery effect and its scan/retry machinery are removed; overview metadata remains capped at 32 events.
+- Storage, shared-state, and offline browser regressions cover the original missing-summary failure and relation/lifecycle cases.
+  Final independent review, full validation, and hosted-review remediation remain in progress.
 
 ### Reduce loading and thread-operation latency (2026-09-22)
 

@@ -12,7 +12,7 @@ import {
 
 test.use({ serviceWorkers: 'block' });
 
-test('recovers a buried cached summary in the overview and thread banner while Matrix is unavailable', async ({
+test('repairs a legacy cached summary for the overview and thread banner while Matrix is unavailable', async ({
   page,
 }) => {
   test.skip(!hasPrimaryCredentials(), 'Local Matrix credentials required');
@@ -63,8 +63,8 @@ test('recovers a buried cached summary in the overview and thread banner while M
   );
   const summaryText = 'Recovered summary from older downloaded history';
 
-  // Stop the running client, then model a background history download that
-  // saved old notices but never populated the separate summary index.
+  // Stop the client, then seed the pre-index cache format: old notices are
+  // present, but summary-index fields and migration completion are absent.
   await page.goto('/config.json');
   await page.evaluate(
     async ({ sessionId, room, root, sync, title }) => {
@@ -110,6 +110,7 @@ test('recovers a buried cached summary in the overview and thread banner while M
             });
           }
           const meta = transaction.objectStore('meta');
+          meta.delete(`${room}|__summaryMigration`);
           const request = meta.get(`${room}|${root}`);
           request.onsuccess = () =>
             meta.put({

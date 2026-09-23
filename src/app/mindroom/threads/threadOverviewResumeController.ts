@@ -18,7 +18,10 @@ import type { TimelineEventEntry } from './roomTimelineEvents';
 import type { Timeline } from './timelinePagination';
 import type { FetchedRelationOverviewUpdateOptions } from './threadOverviewCacheHydration';
 import { useMindroomSyncEngine } from '../engine';
-import { getThreadSummaryStateSnapshot } from './threadSummaryState';
+import {
+  captureThreadSummaryStateOwnership,
+  getThreadSummaryStateSnapshot,
+} from './threadSummaryState';
 
 import type { PersistThreadEventCache } from '../engine/enginePersistFacade';
 
@@ -206,7 +209,10 @@ export const useThreadOverviewResumeController = ({
       const runRefresh = async () => {
         const signal = overviewRefreshAbortControllerRef.current?.signal;
         if (!signal || signal.aborted) return;
-        const shouldContinueRefresh = () => !signal.aborted && alive() && !threadIdRef.current;
+        // One ownership boundary covers the list request and every subsequent thread fetch.
+        const ownsSummaryState = captureThreadSummaryStateOwnership(sessionId, room.roomId);
+        const shouldContinueRefresh = () =>
+          !signal.aborted && alive() && !threadIdRef.current && ownsSummaryState();
         logTimelineDebug(debugTraceId, 'overview-thread-resume-refresh-start', {
           compactViewRequested,
           reason,
@@ -255,6 +261,7 @@ export const useThreadOverviewResumeController = ({
       refreshCompactThreadList,
       refreshOverviewThreadCacheFromRelations,
       room,
+      sessionId,
       setOverviewRefreshCounter,
       targetThreadIds,
       threadId,

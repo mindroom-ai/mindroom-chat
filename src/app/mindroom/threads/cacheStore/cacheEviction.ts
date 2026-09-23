@@ -1,3 +1,4 @@
+import { notifyCachedThreadSummariesCleared } from './cacheStoreSummaryChanges';
 import { openCacheStore, revokeRoomCacheStoreWrites } from './cacheStoreDb';
 import {
   ATTACHMENTS_STORE,
@@ -132,7 +133,10 @@ export const clearRoomCachedContent = async (
     // Ledger row: primary key.
     ledgerStore.delete(roomId);
 
-    txn.oncomplete = () => resolve(deletedCount);
+    txn.oncomplete = () => {
+      notifyCachedThreadSummariesCleared(sessionId, roomId);
+      resolve(deletedCount);
+    };
     txn.onerror = () => reject(txn.error);
     txn.onabort = () => reject(txn.error);
   });

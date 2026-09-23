@@ -13,6 +13,7 @@ import {
   ATTACHMENT_REFERENCES_BY_ROOM_INDEX,
   ATTACHMENT_REFERENCES_STORE,
   ATTACHMENTS_STORE,
+  CACHE_STORE_DB_VERSION,
   EVENTS_BY_SCOPE_TS_INDEX,
   EVENTS_STORE,
   META_STORE,
@@ -108,7 +109,7 @@ describe('cacheStore attachment schema', () => {
     resetCacheStoreForTesting();
   });
 
-  it.each([3, 4, 5])(
+  it.each([3, 4, 5, 6])(
     'adds indexes without replacing version-%s retained content',
     async (version) => {
       const seededEvent = await seedVersionThreeDatabase(version);
@@ -123,7 +124,7 @@ describe('cacheStore attachment schema', () => {
       const transaction = db?.transaction([EVENTS_STORE, ATTACHMENT_REFERENCES_STORE], 'readonly');
       const eventRequest = transaction?.objectStore(EVENTS_STORE).get(seededEvent.cacheKey);
       const references = transaction?.objectStore(ATTACHMENT_REFERENCES_STORE);
-      expect(db?.version).toBe(6);
+      expect(db?.version).toBe(CACHE_STORE_DB_VERSION);
       expect(
         db
           ?.transaction(ATTACHMENTS_STORE)

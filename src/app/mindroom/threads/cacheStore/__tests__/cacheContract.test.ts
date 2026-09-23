@@ -15,6 +15,7 @@ import 'fake-indexeddb/auto';
 import { IDBFactory } from 'fake-indexeddb';
 import type { IEvent } from 'matrix-js-sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { seedLegacyCachedThreadSummary } from './summaryFixtures';
 
 type RawEvent = Partial<IEvent>;
 
@@ -115,7 +116,7 @@ type CacheContract = {
     eventId: string
   ) => Promise<string[]>;
 
-  saveSummary: (
+  seedLegacySummary: (
     sessionId: string,
     roomId: string,
     threadRootId: string,
@@ -175,7 +176,6 @@ type ThreadLike = {
 };
 
 type SummaryLike = {
-  saveCachedThreadSummary: typeof import('../index')['saveCachedThreadSummary'];
   loadCachedThreadSummaries: typeof import('../index')['loadCachedThreadSummaries'];
 };
 
@@ -239,8 +239,8 @@ const buildContractFromModules = (
     deleteThreadEventByEventId: (sessionId, roomId, eventId) =>
       threadModule.deleteThreadEventFromCacheByEventId(sessionId, roomId, eventId),
 
-    saveSummary: (sessionId, roomId, threadRootId, info) =>
-      summaryModule.saveCachedThreadSummary(sessionId, roomId, threadRootId, info),
+    seedLegacySummary: (sessionId, roomId, threadRootId, info) =>
+      seedLegacyCachedThreadSummary(sessionId, roomId, threadRootId, info),
     loadSummaries: (sessionId, roomId) =>
       summaryModule.loadCachedThreadSummaries(sessionId, roomId),
   };
@@ -685,18 +685,18 @@ const runContract = (label: string, buildContract: () => Promise<CacheContract>)
     // --- Summary ---
 
     it('saves and loads thread summaries by room', async () => {
-      await contract.saveSummary(SESSION_ID, ROOM_ID, '$rootA', {
+      await contract.seedLegacySummary(SESSION_ID, ROOM_ID, '$rootA', {
         summaryText: 'hello A',
         isManual: true,
         eventTs: 900,
         generatedTs: 1000,
         messageCount: 3,
       });
-      await contract.saveSummary(SESSION_ID, ROOM_ID, '$rootB', {
+      await contract.seedLegacySummary(SESSION_ID, ROOM_ID, '$rootB', {
         summaryText: 'hello B',
       });
       // Other-room summary must not leak.
-      await contract.saveSummary(SESSION_ID, OTHER_ROOM_ID, '$rootA', {
+      await contract.seedLegacySummary(SESSION_ID, OTHER_ROOM_ID, '$rootA', {
         summaryText: 'not this one',
       });
 
@@ -708,12 +708,6 @@ const runContract = (label: string, buildContract: () => Promise<CacheContract>)
       expect(summaries.get('$rootA')?.isManual).toBe(true);
       expect(summaries.get('$rootB')?.summaryText).toBe('hello B');
       expect(summaries.size).toBe(2);
-    });
-
-    it('summary save is a no-op with empty summaryText', async () => {
-      await contract.saveSummary(SESSION_ID, ROOM_ID, '$rootA', { summaryText: '' });
-      const summaries = await contract.loadSummaries(SESSION_ID, ROOM_ID);
-      expect(summaries.size).toBe(0);
     });
   });
 };

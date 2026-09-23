@@ -9,6 +9,9 @@ import {
   CACHE_STORE_DB_VERSION,
   EVENTS_BY_SCOPE_TS_INDEX,
   EVENTS_BY_ROOM_EVENT_INDEX,
+  EVENTS_BY_SUMMARY_CANDIDATE_INDEX,
+  EVENTS_BY_RELATION_TARGET_INDEX,
+  EVENTS_BY_SUMMARY_TARGET_INDEX,
   EVENTS_STORE,
   META_STORE,
   MINDROOM_CACHE_DB_BASE_NAME,
@@ -16,6 +19,7 @@ import {
   THREAD_SUMMARIES_BY_ROOM_INDEX,
   THREAD_SUMMARIES_STORE,
 } from './cacheStoreSchema';
+import { notifyCachedThreadSummariesCleared } from './cacheStoreSummaryChanges';
 import { performLegacyDbWipe } from './cacheStoreLegacyWipe';
 
 // The opener follows the corruption self-heal pattern from the legacy
@@ -97,6 +101,15 @@ const applyUpgrade = (db: IDBDatabase, transaction: IDBTransaction): void => {
   const events = transaction.objectStore(EVENTS_STORE);
   if (!events.indexNames.contains(EVENTS_BY_ROOM_EVENT_INDEX)) {
     events.createIndex(EVENTS_BY_ROOM_EVENT_INDEX, ['roomId', 'eventId'], { unique: false });
+  }
+  if (!events.indexNames.contains(EVENTS_BY_SUMMARY_CANDIDATE_INDEX)) {
+    events.createIndex(EVENTS_BY_SUMMARY_CANDIDATE_INDEX, ['roomId', 'summaryThreadRootId']);
+  }
+  if (!events.indexNames.contains(EVENTS_BY_SUMMARY_TARGET_INDEX)) {
+    events.createIndex(EVENTS_BY_SUMMARY_TARGET_INDEX, ['roomId', 'summaryCandidateTarget']);
+  }
+  if (!events.indexNames.contains(EVENTS_BY_RELATION_TARGET_INDEX)) {
+    events.createIndex(EVENTS_BY_RELATION_TARGET_INDEX, ['roomId', 'summaryRelationTarget']);
   }
   if (!db.objectStoreNames.contains(ROOM_LEDGER_STORE)) {
     // CINNY-207 P2.2 preparation: created empty in v3. Filled by the
@@ -214,6 +227,7 @@ export const deleteCacheStoreDb = async (sessionId: string): Promise<void> => {
   currentDb?.close();
   dbPromiseByName.delete(dbName);
   await deleteIndexedDb(dbName);
+  notifyCachedThreadSummariesCleared(sessionId);
 };
 
 const writeGenerationBySession = new Map<string, number>();

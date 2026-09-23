@@ -1,5 +1,5 @@
 import type { IEvent } from 'matrix-js-sdk';
-import { notifyThreadCacheChanged } from './cacheStoreThreadChanges';
+import { createSummaryProjection, indexSummaryEventRecord } from './cacheStoreSummaryProjection';
 import type { EventAttachmentMessage } from '../../messages/eventAttachments';
 import { countCacheProbe } from '../cacheProbe';
 import { isCacheWritable, reportCacheWriteError } from '../cacheHealth';
@@ -28,6 +28,7 @@ import {
   EVENTS_BY_SCOPE_TS_INDEX,
   EVENTS_BY_ROOM_EVENT_INDEX,
   EVENTS_STORE,
+  THREAD_SUMMARIES_STORE,
   ATTACHMENTS_STORE,
   ATTACHMENT_REFERENCES_STORE,
   buildRedactedRelationMetaKey,
@@ -105,7 +106,7 @@ const buildMergedEventRecord = (
   relationSnapshotMode: RelationSnapshotMode
 ): CachedEventRecord => {
   const rawEvent = mergeRawEventRevisions(previous?.rawEvent, incoming, relationSnapshotMode);
-  return {
+  return indexSummaryEventRecord({
     cacheKey: buildEventCacheKey(roomId, scope, incoming.event_id),
     roomId,
     scope,
@@ -116,7 +117,7 @@ const buildMergedEventRecord = (
         : incoming.origin_server_ts,
     rawEvent,
     approxBytes: estimateRawEventBytes(rawEvent),
-  };
+  });
 };
 
 const canPersistMarkedEvent = (
@@ -237,11 +238,19 @@ const runScrubRedactedRelationsTxn = async (
   db: IDBDatabase,
   roomId: string,
   redactedEventIds: ReadonlySet<string>,
-  tombstones: ReadonlyMap<string, Partial<IEvent>>
+  tombstones: ReadonlyMap<string, Partial<IEvent>>,
+  writeLease: CacheStoreWriteLease
 ): Promise<void> =>
   new Promise<void>((resolve, reject) => {
     const transaction = db.transaction(
-      [EVENTS_STORE, META_STORE, ROOM_LEDGER_STORE, ATTACHMENTS_STORE, ATTACHMENT_REFERENCES_STORE],
+      [
+        EVENTS_STORE,
+        META_STORE,
+        ROOM_LEDGER_STORE,
+        ATTACHMENTS_STORE,
+        ATTACHMENT_REFERENCES_STORE,
+        THREAD_SUMMARIES_STORE,
+      ],
       'readwrite'
     );
     void invalidateCachedAttachmentReferences(transaction, roomId, redactedEventIds).catch(() =>
@@ -251,6 +260,7 @@ const runScrubRedactedRelationsTxn = async (
     const metaStore = transaction.objectStore(META_STORE);
     const ledgerStore = transaction.objectStore(ROOM_LEDGER_STORE);
     const ledger = createLedgerTracker(roomId);
+    const projection = createSummaryProjection(transaction, writeLease, roomId);
 
     redactedEventIds.forEach((eventId) => {
       const scope = `__redactedRelation:${encodeURIComponent(eventId)}`;
@@ -289,6 +299,7 @@ const runScrubRedactedRelationsTxn = async (
         const cursor = cursorRequest.result;
         if (!cursor) {
           ledger.finalize(ledgerStore);
+          projection.flush();
           return;
         }
 
@@ -297,18 +308,20 @@ const runScrubRedactedRelationsTxn = async (
         if (!rawEvent) {
           ledger.noteDelete(previous);
           cursor.delete();
+          projection.note(previous);
           cursor.continue();
           return;
         }
 
         if (rawEvent !== previous.rawEvent) {
-          const nextRecord: CachedEventRecord = {
+          const nextRecord = indexSummaryEventRecord({
             ...previous,
             rawEvent,
             approxBytes: estimateRawEventBytes(rawEvent),
-          };
+          });
           ledger.notePut(nextRecord, previous);
           cursor.update(nextRecord);
+          projection.note(previous, nextRecord);
         }
         cursor.continue();
       };
@@ -647,7 +660,13 @@ export const saveRoomEventsToCacheCommitted = async (
       const unscrubbedIds = await collectRedactedIdsWithoutMarker(db, roomId, redactedEventIds);
       if (!isCacheStoreWriteLeaseCurrent(writeLease)) return false;
       if (unscrubbedIds.size > 0)
-        await runScrubRedactedRelationsTxn(db, roomId, unscrubbedIds, redactedTombstones);
+        await runScrubRedactedRelationsTxn(
+          db,
+          roomId,
+          unscrubbedIds,
+          redactedTombstones,
+          writeLease
+        );
     }
     if (!isCacheStoreWriteLeaseCurrent(writeLease)) return false;
     if (normalizedEvents.length === 0) return true;
@@ -664,7 +683,8 @@ export const saveRoomEventsToCacheCommitted = async (
       beforeTokenForEarliest,
       relationSnapshotMode,
       redactedEventIds,
-      attachmentOwners
+      attachmentOwners,
+      writeLease
     );
   } catch (error) {
     if (isCacheStoreWriteLeaseCurrent(writeLease))
@@ -705,6 +725,7 @@ type SchedulePutsOptions = {
   probeKey: 'roomEventPuts' | 'threadEventPuts';
   transaction: IDBTransaction;
   attachmentOwners: readonly EventAttachmentMessage[];
+  projection: ReturnType<typeof createSummaryProjection>;
   reject: (reason?: unknown) => void;
   onComplete: (earliestPersistedEventId: string | undefined) => void;
 };
@@ -721,6 +742,7 @@ const scheduleEventPutsWithLedger = ({
   probeKey,
   transaction,
   attachmentOwners,
+  projection,
   reject,
   onComplete,
 }: SchedulePutsOptions): void => {
@@ -731,6 +753,7 @@ const scheduleEventPutsWithLedger = ({
   };
   if (pendingPuts === 0) {
     finalizeLedger();
+    projection.flush();
     onComplete(undefined);
     return;
   }
@@ -738,6 +761,7 @@ const scheduleEventPutsWithLedger = ({
     pendingPuts -= 1;
     if (pendingPuts !== 0) return;
     finalizeLedger();
+    projection.flush();
     onComplete(persistedEventIds.find((eventId) => eventId !== undefined));
   };
   eventsToConsider.forEach((rawEvent, index) => {
@@ -759,6 +783,7 @@ const scheduleEventPutsWithLedger = ({
       countCacheProbe(probeKey);
       if (ledger) ledger.notePut(eventRecord, previous);
       eventStore.put(eventRecord);
+      projection.note(previous, eventRecord);
       saveAcceptedAttachmentOwner(transaction, eventRecord.rawEvent, attachmentOwners);
       persistedEventIds[index] = rawEvent.event_id;
       maybeFinalizeLedger();
@@ -774,17 +799,26 @@ const runSaveRoomEventsTxn = async (
   beforeTokenForEarliest: string | null | undefined,
   relationSnapshotMode: RelationSnapshotMode,
   redactedEventIds: ReadonlySet<string>,
-  attachmentOwners: readonly EventAttachmentMessage[]
+  attachmentOwners: readonly EventAttachmentMessage[],
+  writeLease: CacheStoreWriteLease
 ): Promise<void> =>
   new Promise<void>((resolve, reject) => {
     const transaction = db.transaction(
-      [EVENTS_STORE, META_STORE, ROOM_LEDGER_STORE, ATTACHMENTS_STORE, ATTACHMENT_REFERENCES_STORE],
+      [
+        EVENTS_STORE,
+        META_STORE,
+        ROOM_LEDGER_STORE,
+        ATTACHMENTS_STORE,
+        ATTACHMENT_REFERENCES_STORE,
+        THREAD_SUMMARIES_STORE,
+      ],
       'readwrite'
     );
     const eventStore = transaction.objectStore(EVENTS_STORE);
     const metaStore = transaction.objectStore(META_STORE);
     const ledgerStore = transaction.objectStore(ROOM_LEDGER_STORE);
     const ledger = createLedgerTracker(roomId);
+    const projection = createSummaryProjection(transaction, writeLease, roomId);
 
     const scheduleMetaPut = (earliestEventId: string | undefined): void => {
       // Legacy-faithful asymmetry: room meta is written ONLY when a token
@@ -844,6 +878,7 @@ const runSaveRoomEventsTxn = async (
             eventStore,
             transaction,
             attachmentOwners,
+            projection,
             ledger,
             ledgerStore,
             roomId,
@@ -890,6 +925,7 @@ const deleteScopedEventsFromCache = async (
 ): Promise<void> => {
   if (eventIds.length === 0) return;
   const uniqueEventIds = Array.from(new Set(eventIds));
+  const writeLease = captureCacheStoreWriteLease(sessionId, roomId);
 
   try {
     const db = await openCacheStore(sessionId);
@@ -898,15 +934,22 @@ const deleteScopedEventsFromCache = async (
     countCacheProbe('eventDeletes', uniqueEventIds.length);
 
     await new Promise<void>((resolve, reject) => {
-      const transaction = db.transaction([EVENTS_STORE, ROOM_LEDGER_STORE], 'readwrite');
+      const transaction = db.transaction(
+        [EVENTS_STORE, META_STORE, ROOM_LEDGER_STORE, THREAD_SUMMARIES_STORE],
+        'readwrite'
+      );
       const eventStore = transaction.objectStore(EVENTS_STORE);
       const ledgerStore = transaction.objectStore(ROOM_LEDGER_STORE);
       const ledger = createLedgerTracker(roomId);
+      const projection = createSummaryProjection(transaction, writeLease, roomId);
       ledger.readBaseline(ledgerStore, eventStore, () => {
         let pendingReads = uniqueEventIds.length;
         const maybeFinalizeLedger = (): void => {
           pendingReads -= 1;
-          if (pendingReads === 0) ledger.finalize(ledgerStore);
+          if (pendingReads === 0) {
+            ledger.finalize(ledgerStore);
+            projection.flush();
+          }
         };
         uniqueEventIds.forEach((eventId) => {
           const cacheKey = buildEventCacheKey(roomId, scope, eventId);
@@ -917,6 +960,7 @@ const deleteScopedEventsFromCache = async (
             const previous = previousRequest.result as CachedEventRecord | undefined;
             ledger.noteDelete(previous);
             eventStore.delete(cacheKey);
+            projection.note(previous);
             maybeFinalizeLedger();
           };
           previousRequest.onerror = () => reject(previousRequest.error);
@@ -1212,7 +1256,13 @@ export const saveThreadEventsToCacheCommitted = async (
       const unscrubbedIds = await collectRedactedIdsWithoutMarker(db, roomId, redactedEventIds);
       if (!isCacheStoreWriteLeaseCurrent(writeLease)) return false;
       if (unscrubbedIds.size > 0)
-        await runScrubRedactedRelationsTxn(db, roomId, unscrubbedIds, redactedTombstones);
+        await runScrubRedactedRelationsTxn(
+          db,
+          roomId,
+          unscrubbedIds,
+          redactedTombstones,
+          writeLease
+        );
     }
     if (!isCacheStoreWriteLeaseCurrent(writeLease)) return false;
     if (normalizedEvents.length === 0 && !rootEvent) return true;
@@ -1233,7 +1283,8 @@ export const saveThreadEventsToCacheCommitted = async (
       relationSnapshotComplete,
       relationSnapshotMode,
       redactedEventIds,
-      attachmentOwners
+      attachmentOwners,
+      writeLease
     );
   } catch (error) {
     if (isCacheStoreWriteLeaseCurrent(writeLease))
@@ -1242,8 +1293,6 @@ export const saveThreadEventsToCacheCommitted = async (
   }
 
   // CINNY-207 P2.2 commit 3: same debounced over-budget probe.
-  if (isCacheStoreWriteLeaseCurrent(writeLease))
-    notifyThreadCacheChanged(sessionId, roomId, threadId);
   maybeScheduleEvictionCheck(sessionId);
   return true;
 };
@@ -1267,7 +1316,8 @@ const runSaveThreadEventsTxn = async (
   relationSnapshotComplete: boolean | undefined,
   relationSnapshotMode: RelationSnapshotMode,
   redactedEventIds: ReadonlySet<string>,
-  attachmentOwners: readonly EventAttachmentMessage[]
+  attachmentOwners: readonly EventAttachmentMessage[],
+  writeLease: CacheStoreWriteLease
 ): Promise<void> =>
   new Promise<void>((resolve, reject) => {
     // Only include ROOM_LEDGER_STORE in the txn when we actually have
@@ -1277,6 +1327,7 @@ const runSaveThreadEventsTxn = async (
     const transaction = db.transaction(
       [
         EVENTS_STORE,
+        THREAD_SUMMARIES_STORE,
         META_STORE,
         ATTACHMENTS_STORE,
         ATTACHMENT_REFERENCES_STORE,
@@ -1290,6 +1341,7 @@ const runSaveThreadEventsTxn = async (
     const metaKey = buildMetaKey(roomId, threadId);
     const normalizedExpectedReplyCount = normalizeExpectedReplyCount(expectedReplyCount);
     const ledger = hasEventPuts ? createLedgerTracker(roomId) : undefined;
+    const projection = createSummaryProjection(transaction, writeLease, roomId);
 
     loadKnownRedactedRelationEventIds(
       metaStore,
@@ -1368,6 +1420,7 @@ const runSaveThreadEventsTxn = async (
             eventStore,
             transaction,
             attachmentOwners,
+            projection,
             ledger,
             ledgerStore,
             roomId,
@@ -1473,6 +1526,7 @@ export const deleteThreadEventFromCacheByEventId = async (
   roomId: string,
   eventId: string
 ): Promise<string[]> => {
+  const writeLease = captureCacheStoreWriteLease(sessionId, roomId);
   // CINNY-207 P2 review: swallow open/txn failures — see
   // deleteRoomEventsFromCache for the rationale.
   try {
@@ -1480,10 +1534,14 @@ export const deleteThreadEventFromCacheByEventId = async (
     if (!db) return [];
 
     return await new Promise<string[]>((resolve, reject) => {
-      const transaction = db.transaction([EVENTS_STORE, ROOM_LEDGER_STORE], 'readwrite');
+      const transaction = db.transaction(
+        [EVENTS_STORE, META_STORE, ROOM_LEDGER_STORE, THREAD_SUMMARIES_STORE],
+        'readwrite'
+      );
       const eventStore = transaction.objectStore(EVENTS_STORE);
       const ledgerStore = transaction.objectStore(ROOM_LEDGER_STORE);
       const ledger = createLedgerTracker(roomId);
+      const projection = createSummaryProjection(transaction, writeLease, roomId);
       const deletedScopes = new Set<string>();
       ledger.readBaseline(ledgerStore, eventStore, () => {
         const index = eventStore.index(EVENTS_BY_SCOPE_TS_INDEX);
@@ -1498,6 +1556,7 @@ export const deleteThreadEventFromCacheByEventId = async (
           if (!cursor) {
             // Cursor exhausted — finalize ledger before txn autocommits.
             ledger.finalize(ledgerStore);
+            projection.flush();
             return;
           }
           const record = cursor.value as CachedEventRecord;
@@ -1507,6 +1566,7 @@ export const deleteThreadEventFromCacheByEventId = async (
             ledger.noteDelete(record);
             deletedScopes.add(record.scope);
             cursor.delete();
+            projection.note(record);
           }
           cursor.continue();
         };

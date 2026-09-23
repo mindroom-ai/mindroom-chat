@@ -12,7 +12,6 @@ import { useThreadOverviewCachedMetadata } from './threadOverviewCacheMetadata';
 import { useThreadOverviewCacheHydration } from './threadOverviewCacheHydration';
 import { useRoomThreadSummaryState } from './useRoomThreadSummaryState';
 import { clearThreadSummarySharedState } from './threadSummaryState';
-import * as cacheStore from './cacheStore';
 
 it('reads later overview batches even when the first threads have no cached replies', async () => {
   const sessionId = 'overview-batches';
@@ -94,7 +93,7 @@ it.each([
   { downloadedLater: true, initialReplies: 96 },
   { downloadedLater: true, initialReplies: 20 },
 ])(
-  'recovers a buried summary without opening its thread (downloaded later: $downloadedLater, initial replies: $initialReplies)',
+  'reads indexed summaries without expanding overview history (downloaded later: $downloadedLater, initial replies: $initialReplies)',
   async ({ downloadedLater, initialReplies }) => {
     const sessionId = 'overview-buried-summary';
     const mx = new MatrixClient({ baseUrl: 'https://example.org', userId: '@alice:example.org' });
@@ -129,7 +128,9 @@ it.each([
         },
       })),
     ]);
-    expect((await loadCachedThreadSummaries(sessionId, room.roomId)).size).toBe(0);
+    expect((await loadCachedThreadSummaries(sessionId, room.roomId)).size).toBe(
+      downloadedLater ? 0 : 1
+    );
     let overviewEventCount: number | undefined;
     function Harness() {
       const cachedMetadata = useThreadOverviewCachedMetadata(room.roomId);
@@ -155,19 +156,13 @@ it.each([
       return <span>{summaryMap.get(roots[0])?.summaryText ?? 'Original prompt'}</span>;
     }
     let renderer: ReturnType<typeof create> | undefined;
-    const recoveryRead = vi.spyOn(cacheStore, 'loadLatestCachedThreadEvents');
     try {
       await act(async () => {
         renderer = create(<Harness />);
       });
       if (downloadedLater) {
         await vi.waitFor(() => expect(overviewEventCount).toBe(Math.min(32, initialReplies)));
-        if (initialReplies > 32) await vi.waitFor(() => expect(recoveryRead).toHaveBeenCalled());
-        // Let the initial missing-summary scan settle, then grow history behind
-        // the unchanged 32-event tail and activity timestamp.
-        await act(async () => {
-          await Promise.all(recoveryRead.mock.results.map((result) => result.value));
-        });
+        // Older history arrives after the overview has loaded its bounded tail.
         await act(async () =>
           saveThreadEventsToCache(sessionId, room.roomId, roots[0], [
             summaryEvent,
@@ -198,7 +193,6 @@ it.each([
       });
     } finally {
       await act(async () => renderer?.unmount());
-      recoveryRead.mockRestore();
       clearThreadSummarySharedState(sessionId);
       await deleteCacheStoreDb(sessionId);
     }

@@ -4,15 +4,12 @@ import { MatrixEvent, type Room } from 'matrix-js-sdk';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const {
-  loadCachedThreadSummariesMock,
-  saveCachedThreadSummaryMock,
-  getCompactThreadRootBodyPreviewTextMock,
-} = vi.hoisted(() => ({
-  loadCachedThreadSummariesMock: vi.fn(),
-  saveCachedThreadSummaryMock: vi.fn(async () => undefined),
-  getCompactThreadRootBodyPreviewTextMock: vi.fn(),
-}));
+const { loadCachedThreadSummariesMock, getCompactThreadRootBodyPreviewTextMock } = vi.hoisted(
+  () => ({
+    loadCachedThreadSummariesMock: vi.fn(),
+    getCompactThreadRootBodyPreviewTextMock: vi.fn(),
+  })
+);
 
 // CINNY-207 P2.3: threadSummaryState imports summary APIs directly from
 // `./cacheStore` (the `threadSummaryCache` shim is gone), so the mock
@@ -22,7 +19,6 @@ vi.mock('./cacheStore', async (importOriginal) => {
   return {
     ...actual,
     loadCachedThreadSummaries: loadCachedThreadSummariesMock,
-    saveCachedThreadSummary: saveCachedThreadSummaryMock,
   };
 });
 

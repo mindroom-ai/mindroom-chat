@@ -7,7 +7,6 @@ import {
 
 vi.mock('./cacheStore', () => ({
   loadCachedThreadSummaries: vi.fn().mockResolvedValue(new Map()),
-  saveCachedThreadSummary: vi.fn().mockResolvedValue(undefined),
 }));
 
 describe('threadSummaryState cleanup', () => {
