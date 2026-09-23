@@ -12,6 +12,8 @@
 - Generated-asset unit tests, all 12 focused Chromium recovery cases, and the nginx container check pass locally.
   The browser cases cover root and prefixed deep links, marker replacement, and a returned-shell retry bound.
 - The full Node 24 suite passes all 5,296 tests, with typecheck, production/PWA build, Netlify checks, and lint at zero errors and 17 existing warnings.
+- A later review follow-up includes C1 controls in raw URL rejection while preserving query and fragment backslashes.
+  Two generated-asset regressions failed before the fix, and all 34 focused unit tests pass afterward.
 
 ### Consolidate authentication recovery sources (2026-09-22)
 

@@ -95,6 +95,22 @@ describe('native authentication recovery', () => {
     }
   );
 
+  it.each([
+    ['U+0085', '\u0085'],
+    ['U+009F', '\u009f'],
+  ])('disables raw %s controls anywhere in configured URLs', async (_name, control) => {
+    for (const field of ['probeUrl', 'navigationUrl'] as const) {
+      for (const unsafe of ['/login/' + control, '/login?value=' + control, '/login#' + control]) {
+        const config = { probeUrl: '/probe', navigationUrl: '/login', [field]: unsafe };
+        const { api, fetch, unregister, assign } = setup(config);
+        expect(await api.check()).toBe('disabled');
+        expect(fetch).not.toHaveBeenCalled();
+        expect(unregister).not.toHaveBeenCalled();
+        expect(assign).not.toHaveBeenCalled();
+      }
+    }
+  });
+
   it.each([undefined, ''])(
     'returns to the current deep link when navigationUrl is %s',
     async (navigationUrl) => {

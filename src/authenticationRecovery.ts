@@ -32,7 +32,8 @@ export function installAuthenticationRecovery(window: AuthenticationRecoveryWind
     if (typeof value !== 'string' || !value.trim()) throw new Error('Missing URL');
     for (let i = 0; i < value.length; i += 1) {
       const code = value.charCodeAt(i);
-      if (code < 32 || code === 127) throw new Error('Unsafe recovery URL control character');
+      if (code < 32 || (code >= 127 && code <= 159))
+        throw new Error('Unsafe recovery URL control character');
     }
     const path = value.trim().split(/[?#]/)[0];
     if (
