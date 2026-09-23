@@ -1,6 +1,14 @@
 import { useCallback, useEffect, useSyncExternalStore } from 'react';
-import { type MindroomThreadSummaryInfo } from '../messages/threadSummary';
-import { loadCachedThreadSummaries, saveCachedThreadSummary } from './cacheStore';
+import {
+  areThreadSummaryInfosEqual,
+  type MindroomThreadSummaryInfo,
+} from '../messages/threadSummary';
+import { loadCachedThreadSummaries } from './cacheStore';
+import {
+  captureCacheStoreWriteLease,
+  isCacheStoreWriteLeaseCurrent,
+} from './cacheStore/cacheStoreDb';
+import { subscribeCachedThreadSummaryChanges } from './cacheStore/cacheStoreSummaryChanges';
 import {
   buildPreferredThreadSummaryMap,
   selectThreadSummaryUpdate,
@@ -17,8 +25,11 @@ type RoomThreadSummaryState = {
   summaryMap: Map<string, MindroomThreadSummaryInfo>;
   listeners: Set<ThreadSummaryListener>;
   loadPromise?: Promise<void>;
+  loadInvalidated?: boolean;
   hasLoaded?: boolean;
   incomingDuringLoad?: Map<string, Array<MindroomThreadSummaryInfo | undefined>>;
+  generation: number;
+  unsubscribeCache?: () => void;
 };
 
 const EMPTY_SUMMARY_MAP = new Map<string, MindroomThreadSummaryInfo>();
@@ -34,10 +45,58 @@ const getOrCreateState = (sessionId: string, roomId: string): RoomThreadSummaryS
   const nextState: RoomThreadSummaryState = {
     summaryMap: new Map(),
     listeners: new Set(),
+    generation: 0,
   };
   roomThreadSummaryStates.set(stateKey, nextState);
+  nextState.unsubscribeCache = subscribeCachedThreadSummaryChanges(sessionId, roomId, (change) => {
+    if (change.type === 'clear') {
+      nextState.generation += 1;
+      nextState.loadPromise = undefined;
+      nextState.hasLoaded = false;
+      nextState.incomingDuringLoad = undefined;
+      if (nextState.summaryMap.size > 0) {
+        nextState.summaryMap = new Map();
+        notifyStateListeners(nextState);
+      }
+      return;
+    }
+    const { threadRootId, previous, summary } = change;
+    const displayed = nextState.summaryMap.get(threadRootId);
+    const current = displayed && sameRevision(displayed, previous) ? undefined : displayed;
+    const selected = selectThreadSummaryUpdate(current, summary) ?? current;
+    const updated = new Map(nextState.summaryMap);
+    if (selected) updated.set(threadRootId, selected);
+    else updated.delete(threadRootId);
+    if (!areSummaryMapsEqual(nextState.summaryMap, updated)) {
+      nextState.summaryMap = updated;
+      notifyStateListeners(nextState);
+    }
+    if (nextState.loadPromise && roomThreadSummaryStates.get(stateKey) === nextState) {
+      // Retry the whole snapshot so an old read cannot restore this previous
+      // winner, while unrelated cached titles still finish loading.
+      const candidates = nextState.incomingDuringLoad?.get(threadRootId);
+      if (candidates) {
+        nextState.incomingDuringLoad?.set(
+          threadRootId,
+          candidates.filter((info) => !info || !sameRevision(info, previous))
+        );
+      }
+      nextState.loadInvalidated = true;
+    }
+  });
   return nextState;
 };
+
+const sameRevision = (
+  left: MindroomThreadSummaryInfo,
+  right: MindroomThreadSummaryInfo | undefined
+): boolean =>
+  !!right &&
+  left.summaryText === right.summaryText &&
+  left.generatedTs === right.generatedTs &&
+  left.messageCount === right.messageCount &&
+  left.isManual === right.isManual &&
+  (left.eventTs === undefined || right.eventTs === undefined || left.eventTs === right.eventTs);
 
 const notifyStateListeners = (state: RoomThreadSummaryState) => {
   state.listeners.forEach((listener) => listener());
@@ -53,13 +112,7 @@ const areSummaryMapsEqual = (
   for (const [threadRootId, leftInfo] of left) {
     const rightInfo = right.get(threadRootId);
     if (!rightInfo) return false;
-    if (
-      leftInfo.summaryText !== rightInfo.summaryText ||
-      leftInfo.generatedTs !== rightInfo.generatedTs ||
-      leftInfo.eventTs !== rightInfo.eventTs ||
-      leftInfo.messageCount !== rightInfo.messageCount ||
-      leftInfo.isManual !== rightInfo.isManual
-    ) {
+    if (!areThreadSummaryInfosEqual(leftInfo, rightInfo)) {
       return false;
     }
   }
@@ -69,14 +122,30 @@ const areSummaryMapsEqual = (
 
 export const clearThreadSummarySharedState = (sessionId?: string) => {
   if (!sessionId) {
+    roomThreadSummaryStates.forEach((state) => state.unsubscribeCache?.());
     roomThreadSummaryStates.clear();
     return;
   }
 
   const prefix = `${sessionId}|`;
-  roomThreadSummaryStates.forEach((_state, stateKey) => {
-    if (stateKey.startsWith(prefix)) roomThreadSummaryStates.delete(stateKey);
+  roomThreadSummaryStates.forEach((state, stateKey) => {
+    if (stateKey.startsWith(prefix)) {
+      state.unsubscribeCache?.();
+      roomThreadSummaryStates.delete(stateKey);
+    }
   });
+};
+
+// Capture before asynchronous manual actions so a clear or session removal
+// cannot let their late response begin a fresh write or recreate UI state.
+export const captureThreadSummaryStateOwnership = (sessionId: string, roomId: string) => {
+  const state = getOrCreateState(sessionId, roomId);
+  const generation = state.generation;
+  const lease = captureCacheStoreWriteLease(sessionId, roomId);
+  return () =>
+    roomThreadSummaryStates.get(getStateKey(sessionId, roomId)) === state &&
+    state.generation === generation &&
+    isCacheStoreWriteLeaseCurrent(lease);
 };
 
 export const subscribeToThreadSummaryState = (
@@ -112,10 +181,17 @@ export const ensureThreadSummaryStateLoaded = async (sessionId: string, roomId: 
     state.incomingDuringLoad ?? new Map<string, Array<MindroomThreadSummaryInfo | undefined>>();
   state.incomingDuringLoad = incomingDuringLoad;
   state.hasLoaded = false;
+  state.loadInvalidated = false;
+  const generation = state.generation;
 
-  state.loadPromise = loadCachedThreadSummaries(sessionId, roomId)
+  const loadPromise: Promise<void> = loadCachedThreadSummaries(sessionId, roomId)
     .then((cachedSummaryMap) => {
-      if (roomThreadSummaryStates.get(getStateKey(sessionId, roomId)) !== state) return;
+      if (
+        roomThreadSummaryStates.get(getStateKey(sessionId, roomId)) !== state ||
+        generation !== state.generation ||
+        state.loadInvalidated
+      )
+        return;
       const nextSummaryMap = buildPreferredThreadSummaryMap(
         cachedSummaryMap,
         state.summaryMap,
@@ -130,17 +206,19 @@ export const ensureThreadSummaryStateLoaded = async (sessionId: string, roomId: 
     // A failed read must retain the evidence and leave disk untouched until retry.
     .catch(() => {})
     .finally(() => {
+      if (
+        state.loadPromise !== loadPromise ||
+        roomThreadSummaryStates.get(getStateKey(sessionId, roomId)) !== state
+      )
+        return;
       state.loadPromise = undefined;
+      if (state.loadInvalidated) return ensureThreadSummaryStateLoaded(sessionId, roomId);
       if (!state.hasLoaded) return;
       state.incomingDuringLoad = undefined;
-      if (roomThreadSummaryStates.get(getStateKey(sessionId, roomId)) !== state) return;
-      incomingDuringLoad.forEach((_candidates, threadRootId) => {
-        const info = state.summaryMap.get(threadRootId);
-        if (info) saveCachedThreadSummary(sessionId, roomId, threadRootId, info).catch(() => {});
-      });
     });
 
-  return state.loadPromise;
+  state.loadPromise = loadPromise;
+  return loadPromise;
 };
 
 export const storeThreadSummaryInState = (
@@ -152,8 +230,8 @@ export const storeThreadSummaryInState = (
   if (!threadRootId) return false;
 
   const state = getOrCreateState(sessionId, roomId);
-  // Start the initial read before a live publication can replace an unknown
-  // disk title. Pending writes flush only after that read and its evidence merge.
+  // UI publications are display-only. Storage derives durable titles from
+  // accepted events, independently of which views happen to be mounted.
   if (!state.hasLoaded && !state.loadPromise)
     void ensureThreadSummaryStateLoaded(sessionId, roomId);
   if (state.incomingDuringLoad) {
@@ -170,8 +248,6 @@ export const storeThreadSummaryInState = (
   state.summaryMap = nextSummaryMap;
   notifyStateListeners(state);
 
-  if (!state.loadPromise)
-    saveCachedThreadSummary(sessionId, roomId, threadRootId, info).catch(() => {});
   return true;
 };
 

@@ -185,6 +185,8 @@ export type CachedRoomLedgerRecord = {
 };
 
 export type CachedThreadSummaryRecord = {
+  /** Set only once accepted event history owns this projection. */
+  sourceEventId?: string;
   eventTs?: number;
   isManual?: boolean;
   cacheKey: string;

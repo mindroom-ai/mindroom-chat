@@ -23,6 +23,7 @@ const {
   messageTestId,
   collapsibleType,
   collapsibleTestId,
+  collapsibleProviderType,
   matrixClientMock,
   shouldAutoScrollRoomOnLiveEventMock,
   threadResolutionMapMock,
@@ -36,6 +37,7 @@ const {
   messageTestId: 'mock-message',
   collapsibleType: 'div',
   collapsibleTestId: 'mock-collapsible',
+  collapsibleProviderType: 'collapsible-message-state-provider',
   matrixClientMock: {
     fetchRelations: vi.fn(),
     getEventMapper: vi.fn(() => (rawEvent: unknown) => rawEvent),
@@ -572,7 +574,7 @@ vi.mock('../CollapsibleMessage', async () => {
       manualExpansionState: Map<string, boolean>;
     }) =>
       ReactImport.createElement(
-        'collapsible-message-state-provider',
+        collapsibleProviderType,
         { expandAllInit, manualExpansionState },
         children
       ),
@@ -743,7 +745,6 @@ vi.mock('../cacheStore', async (importOriginal) => {
     normalizeCachedRoomEvents: (events: unknown[]) => events,
     saveRoomEventsToCache: vi.fn(async () => undefined),
     loadCachedThreadSummaries: vi.fn(async () => new Map()),
-    saveCachedThreadSummary: vi.fn(async () => undefined),
   };
 });
 
@@ -1046,6 +1047,9 @@ const createControlledRoomTimelineHarness = (
 
 const HARNESS_TEST_SESSION_ID = 'test-session';
 const harnessSyncEngine: MindroomSyncEngine = {
+  offline: {} as MindroomSyncEngine['offline'],
+  clearRoomFocus: () => undefined,
+  backgroundPageAllowance: () => 200,
   mx: {} as MindroomSyncEngine['mx'],
   sessionId: HARNESS_TEST_SESSION_ID,
   start: () => undefined,
@@ -1232,7 +1236,7 @@ describe('RoomTimeline collapsible wiring', () => {
       await flushAsyncWork(2);
     });
 
-    const provider = renderer.root.findByType('collapsible-message-state-provider');
+    const provider = renderer.root.find((node) => node.type === collapsibleProviderType);
     expect(provider.props.expandAllInit).toBe(true);
     const collapseAllButton = renderer.root.find(
       (node) =>
@@ -1249,9 +1253,9 @@ describe('RoomTimeline collapsible wiring', () => {
     });
 
     expect(collapseAllMessages).toHaveBeenCalledTimes(1);
-    expect(renderer.root.findByType('collapsible-message-state-provider').props.expandAllInit).toBe(
-      false
-    );
+    expect(
+      renderer.root.find((node) => node.type === collapsibleProviderType).props.expandAllInit
+    ).toBe(false);
   });
 
   it('clears remembered per-message choices before applying an expand-all baseline', async () => {
@@ -1276,7 +1280,7 @@ describe('RoomTimeline collapsible wiring', () => {
       await flushAsyncWork(2);
     });
 
-    const provider = renderer.root.findByType('collapsible-message-state-provider');
+    const provider = renderer.root.find((node) => node.type === collapsibleProviderType);
     const manualExpansionState = provider.props.manualExpansionState as Map<string, boolean>;
     manualExpansionState.set('$historical', true);
     const expandAllButton = renderer.root.find(
@@ -1295,7 +1299,7 @@ describe('RoomTimeline collapsible wiring', () => {
 
     expect(manualExpansionState.size).toBe(0);
     expect(expandAllMessages).toHaveBeenCalledTimes(1);
-    const refreshedProvider = renderer.root.findByType('collapsible-message-state-provider');
+    const refreshedProvider = renderer.root.find((node) => node.type === collapsibleProviderType);
     expect(refreshedProvider.props.expandAllInit).toBe(true);
     expect(refreshedProvider.props.manualExpansionState).toBe(manualExpansionState);
   });

@@ -1,11 +1,7 @@
 import { EventStatus, MatrixEvent, type MatrixClient, type Room } from 'matrix-js-sdk';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createSessionId } from '../../state/sessions';
-import {
-  getMindroomThreadSummaryInfo,
-  getThreadSummaryEventInfo,
-  getLatestThreadSummaryInfoFromEventSources,
-} from '../messages/threadSummary';
+import { getMindroomThreadSummaryInfo, getThreadSummaryEventInfo } from '../messages/threadSummary';
 import {
   getThreadSummaryActionError,
   requestThreadSummary,
@@ -17,17 +13,12 @@ import {
   ensureThreadSummaryStateLoaded,
   storeThreadSummaryInState,
 } from './threadSummaryState';
-import {
-  loadCachedThreadSummaries,
-  loadLatestCachedThreadEvents,
-  saveCachedThreadSummary,
-} from './cacheStore';
+import { loadCachedThreadSummaries, saveThreadEventsToCache } from './cacheStore';
 import { resolveThreadSummaryInfo } from './threadPresentation';
 
 vi.mock('./cacheStore', () => ({
   loadCachedThreadSummaries: vi.fn().mockResolvedValue(new Map()),
-  loadLatestCachedThreadEvents: vi.fn().mockResolvedValue({ events: [], hasMoreBefore: false }),
-  saveCachedThreadSummary: vi.fn().mockResolvedValue(undefined),
+  saveThreadEventsToCache: vi.fn().mockResolvedValue(undefined),
 }));
 
 const getStoredSummary = () =>
@@ -58,7 +49,14 @@ const setup = () => {
   const sendMessage = vi.fn().mockResolvedValue({ event_id: '$summary' });
   const mx = {
     sendMessage,
-    fetchRoomEvent: vi.fn().mockImplementation(async () => ({ origin_server_ts: Date.now() })),
+    fetchRoomEvent: vi.fn().mockImplementation(async () => ({
+      event_id: '$summary',
+      room_id: room.roomId,
+      sender: '@me:test',
+      type: 'm.room.message',
+      origin_server_ts: Date.now(),
+      content: sendMessage.mock.calls.at(-1)?.[2],
+    })),
     getSafeUserId: () => '@me:test',
     getHomeserverUrl: () => 'https://matrix.test',
     makeTxnId: () => 'summary-transaction',
@@ -73,8 +71,26 @@ describe('thread summary actions', () => {
   beforeEach(() => {
     clearThreadSummarySharedState();
     vi.mocked(loadCachedThreadSummaries).mockResolvedValue(new Map());
-    vi.mocked(loadLatestCachedThreadEvents).mockResolvedValue({ events: [], hasMoreBefore: false });
-    vi.mocked(saveCachedThreadSummary).mockClear();
+    vi.mocked(saveThreadEventsToCache).mockClear();
+  });
+
+  it('persists the fetched accepted manual event through ordinary history ingestion', async () => {
+    const { room, mx } = setup();
+    await saveThreadSummary(mx, room, '$root', 'Durable manual title');
+    expect(saveThreadEventsToCache).toHaveBeenCalledWith(
+      createSessionId('https://matrix.test', '@me:test'),
+      room.roomId,
+      '$root',
+      [
+        expect.objectContaining({
+          event_id: '$summary',
+          sender: '@me:test',
+          type: 'm.room.message',
+          origin_server_ts: expect.any(Number),
+          content: expect.objectContaining({ body: 'Durable manual title' }),
+        }),
+      ]
+    );
   });
 
   it('updates shared overview and banner state only after the server accepts a manual summary', async () => {
@@ -127,7 +143,14 @@ describe('thread summary actions', () => {
       '$root',
       getThreadSummaryEventInfo(automatic)
     );
-    vi.mocked(mx.fetchRoomEvent).mockResolvedValue({ origin_server_ts: generatedTs + 200 });
+    vi.mocked(mx.fetchRoomEvent).mockResolvedValue({
+      event_id: '$summary',
+      room_id: room.roomId,
+      sender: '@me:test',
+      type: 'm.room.message',
+      origin_server_ts: generatedTs + 200,
+      content,
+    });
     accept({ event_id: '$summary' });
     await saving;
     expect(getStoredSummary()?.summaryText).toBe('Human title');
@@ -149,6 +172,7 @@ describe('thread summary actions', () => {
     await saveThreadSummary(mx, room, '$root', 'Accepted title');
     expect(sendMessage).toHaveBeenCalledOnce();
     expect(getStoredSummary()?.summaryText).toBe('Accepted title');
+    expect(saveThreadEventsToCache).not.toHaveBeenCalled();
     const remote = new MatrixEvent({
       event_id: '$summary',
       type: 'm.room.message',
@@ -163,7 +187,7 @@ describe('thread summary actions', () => {
     );
     expect(getStoredSummary()).toMatchObject({ summaryText: 'Accepted title', eventTs: 1200 });
   });
-  it.each(['cache', 'live', 'cached-events'])(
+  it.each(['cache', 'live'])(
     'replaces a future-dated %s summary and preserves the edit after cache reload',
     async (source) => {
       const { room, mx, sendMessage } = setup();
@@ -190,43 +214,29 @@ describe('thread summary actions', () => {
             'm.relates_to': { rel_type: 'm.thread', event_id: '$root' },
           },
         });
-        if (source === 'cached-events') {
-          vi.mocked(loadLatestCachedThreadEvents).mockResolvedValue({
-            events: [{ ...notice.event, event_id: '$old-summary', origin_server_ts: 1 }],
-            hasMoreBefore: false,
-          });
-        } else {
-          room.getThread = () =>
-            ({ events: [notice], timeline: [notice] } as ReturnType<Room['getThread']>);
-        }
+        room.getThread = () =>
+          ({ events: [notice], timeline: [notice] } as ReturnType<Room['getThread']>);
       }
       await saveThreadSummary(mx, room, '$root', 'Human title wins');
       expect(getStoredSummary()?.summaryText).toBe('Human title wins');
       const written = getMindroomThreadSummaryInfo(sendMessage.mock.calls[0][2]);
       expect(written?.generatedTs).toBeGreaterThan(prior.generatedTs);
-      if (source === 'cached-events') {
-        const cachedPage = await loadLatestCachedThreadEvents('session', room.roomId, '$root', 32);
-        storeThreadSummaryInState(
-          createSessionId('https://matrix.test', '@me:test'),
-          room.roomId,
-          '$root',
-          getLatestThreadSummaryInfoFromEventSources(
-            cachedPage.events.map((event) => new MatrixEvent(event))
-          )
-        );
-        expect(getStoredSummary()?.summaryText).toBe('Human title wins');
-      }
+
       expect(
         resolveThreadSummaryInfo({
           preferredSummaryInfo: getStoredSummary(),
           thread: room.getThread('$root'),
         })?.summaryText
       ).toBe('Human title wins');
-      expect(saveCachedThreadSummary).toHaveBeenLastCalledWith(
+      expect(saveThreadEventsToCache).toHaveBeenLastCalledWith(
         expect.any(String),
         '!room:test',
         '$root',
-        expect.objectContaining(written!)
+        [
+          expect.objectContaining({
+            content: expect.objectContaining({ body: written!.summaryText }),
+          }),
+        ]
       );
       const persisted = getStoredSummary()!;
       clearThreadSummarySharedState();
@@ -246,7 +256,7 @@ describe('thread summary actions', () => {
 
   it('still saves when the optional event cache is unavailable', async () => {
     const { room, mx, sendMessage } = setup();
-    vi.mocked(loadLatestCachedThreadEvents).mockRejectedValue(new Error('Cache unavailable'));
+    vi.mocked(loadCachedThreadSummaries).mockRejectedValue(new Error('Cache unavailable'));
     await saveThreadSummary(mx, room, '$root', 'Manual title');
     expect(sendMessage).toHaveBeenCalledOnce();
     expect(getStoredSummary()?.summaryText).toBe('Manual title');

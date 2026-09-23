@@ -16,6 +16,7 @@ import {
   THREAD_SUMMARIES_BY_ROOM_INDEX,
   THREAD_SUMMARIES_STORE,
 } from './cacheStoreSchema';
+import { notifyCachedThreadSummariesCleared } from './cacheStoreSummaryChanges';
 import { performLegacyDbWipe } from './cacheStoreLegacyWipe';
 
 // The opener follows the corruption self-heal pattern from the legacy
@@ -207,13 +208,17 @@ export const openCacheStore = (
 
 export const deleteCacheStoreDb = async (sessionId: string): Promise<void> => {
   revokeCacheStoreWrites(sessionId);
-  if (typeof indexedDB === 'undefined') return;
+  if (typeof indexedDB === 'undefined') {
+    notifyCachedThreadSummariesCleared(sessionId);
+    return;
+  }
 
   const dbName = getCacheStoreDbName(sessionId);
   const currentDb = await dbPromiseByName.get(dbName)?.catch(() => undefined);
   currentDb?.close();
   dbPromiseByName.delete(dbName);
   await deleteIndexedDb(dbName);
+  notifyCachedThreadSummariesCleared(sessionId);
 };
 
 const writeGenerationBySession = new Map<string, number>();

@@ -2,6 +2,28 @@
 
 ## Runbook
 
+### Keep cached thread history and summaries consistent (2026-09-22)
+
+- Status: PR #323 has been simplified and independently approved.
+  Local validation passes; hosted checks and review of the follow-up commit remain pending.
+- Live Chrome inspection found summary notices already cached outside the overview's 32-event tail, but no entry in the separate summary store.
+  Opening the thread restored its title because UI hydration had populated that store.
+- CacheStore derives durable summaries in accepted history transactions, independently of mounted views.
+  Existing ingestion resolves edits and detached relations; only summary-affected threads are recomputed using the shared selection rules.
+  Ordinary streaming performs no summary history reads or writes.
+- Existing caches repair one thread per background transaction with one durable cursor, reusing the existing schema and indexes.
+  Committed titles paint immediately, and repair notifications update both overview and banner.
+  Room/session leases cancel stale writes, and summary-only legacy records remain until their source event is available.
+- UI publications are display-only; shared state consumes committed updates and deletion fallbacks.
+  Clearing cached state does not permanently suppress valid live SDK titles.
+  Manual summary actions persist accepted events through the ordinary cache writer.
+- All 5,323 unit tests pass, along with application and changed-test typechecks, production build, formatting, and lint (zero errors, 17 existing warnings).
+  Installed Google Chrome passes five cases across cached room population, card/banner consistency, cached-title upgrades, and offline recovery.
+  Regressions verify legacy standalone-edit redactions and no history scans when ordinary streaming snapshots repeat an unchanged summary.
+- Next: complete hosted checks and review of the simplified implementation.
+  After deployment, verify the affected Personal room title without opening its thread.
+  The separate SDK bootstrap/sync ingestion gap and existing full-browser-suite failures remain outside this change.
+
 ### Preserve current location in typed authentication recovery (2026-09-22)
 
 - An absent or empty navigation URL returns to the current pathname, query, and fragment with the recovery marker set or replaced.

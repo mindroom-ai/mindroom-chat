@@ -1,4 +1,5 @@
 import {
+  areThreadSummaryInfosEqual,
   pickLatestThreadSummaryInfo,
   type MindroomThreadSummaryInfo,
 } from '../messages/threadSummary';
@@ -9,13 +10,7 @@ export const selectThreadSummaryUpdate = (
 ): MindroomThreadSummaryInfo | undefined => {
   const preferred = pickLatestThreadSummaryInfo(cachedInfo, ...loadedInfos);
   if (!preferred?.summaryText) return undefined;
-  return cachedInfo?.summaryText !== preferred.summaryText ||
-    cachedInfo?.generatedTs !== preferred.generatedTs ||
-    cachedInfo?.eventTs !== preferred.eventTs ||
-    cachedInfo?.messageCount !== preferred.messageCount ||
-    cachedInfo?.isManual !== preferred.isManual
-    ? preferred
-    : undefined;
+  return areThreadSummaryInfosEqual(cachedInfo, preferred) ? undefined : preferred;
 };
 
 export const buildPreferredThreadSummaryMap = (

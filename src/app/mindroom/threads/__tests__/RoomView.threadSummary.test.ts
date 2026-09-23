@@ -18,23 +18,17 @@ type MockRoomTimelineProps = {
   ) => void;
 };
 
-const {
-  passthrough,
-  threadContextBannerState,
-  roomTimelineState,
-  loadCachedThreadSummariesMock,
-  saveCachedThreadSummaryMock,
-} = vi.hoisted(() => ({
-  passthrough: 'div',
-  threadContextBannerState: {
-    props: undefined as MockThreadContextBannerProps | undefined,
-  },
-  roomTimelineState: {
-    props: undefined as MockRoomTimelineProps | undefined,
-  },
-  loadCachedThreadSummariesMock: vi.fn(async () => new Map()),
-  saveCachedThreadSummaryMock: vi.fn(async () => undefined),
-}));
+const { passthrough, threadContextBannerState, roomTimelineState, loadCachedThreadSummariesMock } =
+  vi.hoisted(() => ({
+    passthrough: 'div',
+    threadContextBannerState: {
+      props: undefined as MockThreadContextBannerProps | undefined,
+    },
+    roomTimelineState: {
+      props: undefined as MockRoomTimelineProps | undefined,
+    },
+    loadCachedThreadSummariesMock: vi.fn(async () => new Map()),
+  }));
 
 const storageState = new Map<string, string>();
 
@@ -201,7 +195,6 @@ vi.mock('../cacheStore', async (importOriginal) => {
   return {
     ...actual,
     loadCachedThreadSummaries: loadCachedThreadSummariesMock,
-    saveCachedThreadSummary: saveCachedThreadSummaryMock,
   };
 });
 
@@ -218,7 +211,6 @@ describe('RoomView thread summary sharing', () => {
     threadContextBannerState.props = undefined;
     roomTimelineState.props = undefined;
     loadCachedThreadSummariesMock.mockReset();
-    saveCachedThreadSummaryMock.mockReset();
     loadCachedThreadSummariesMock.mockResolvedValue(
       new Map([
         [
@@ -231,7 +223,6 @@ describe('RoomView thread summary sharing', () => {
         ],
       ])
     );
-    saveCachedThreadSummaryMock.mockResolvedValue(undefined);
   });
 
   it('shows cached summary first and upgrades banner and room state when a newer live summary arrives', async () => {
@@ -276,16 +267,6 @@ describe('RoomView thread summary sharing', () => {
     expect(threadContextBannerState.props?.summaryInfo?.summaryText).toBe('Live summary');
     expect(roomTimelineState.props?.summaryMap.get('$thread-root')?.summaryText).toBe(
       'Live summary'
-    );
-    expect(saveCachedThreadSummaryMock).toHaveBeenCalledWith(
-      'https%3A%2F%2Fmindroom.chat::%40alice%3Aexample.org',
-      '!room:example.org',
-      '$thread-root',
-      expect.objectContaining({
-        summaryText: 'Live summary',
-        generatedTs: 2,
-        messageCount: 12,
-      })
     );
 
     renderer?.unmount();

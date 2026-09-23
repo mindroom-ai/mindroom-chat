@@ -1,9 +1,7 @@
-import { EventStatus, MsgType, type IEvent, type MatrixClient, type Room } from 'matrix-js-sdk';
+import { EventStatus, MsgType, type MatrixClient, type Room } from 'matrix-js-sdk';
 import type { RoomMessageEventContent } from 'matrix-js-sdk/lib/@types/events';
 import {
   getMindroomThreadSummaryInfo,
-  getLatestThreadSummaryInfoFromEventSources,
-  pickLatestThreadSummaryInfo,
   isSupportedThreadSummaryTimestamp,
   THREAD_SUMMARY_METADATA_KEY,
 } from '../messages/threadSummary';
@@ -13,12 +11,13 @@ import { getMessageRelation } from './composeMessageRelation';
 import { getResolvableThreadRootEvent } from './threadResolvableRoot';
 import { isConfirmedMatrixEventId } from './threadRouteUtils';
 import {
+  captureThreadSummaryStateOwnership,
   ensureThreadSummaryStateLoaded,
   getThreadSummaryStateSnapshot,
   storeThreadSummaryInState,
 } from './threadSummaryState';
 import { resolveThreadSummaryInfo } from './threadPresentation';
-import { loadLatestCachedThreadEvents } from './cacheStore';
+import { saveThreadEventsToCache } from './cacheStore';
 
 export const normalizeSummaryText = (text: string): string => text.replace(/\s+/g, ' ').trim();
 export const SUMMARY_MAX_LENGTH = 300;
@@ -73,27 +72,14 @@ export const saveThreadSummary = async (
     throw new Error('Summary must contain between 1 and 300 characters.');
   }
   const sessionId = createSessionId(mx.getHomeserverUrl(), mx.getSafeUserId());
-  const [, cachedSummary] = await Promise.all([
-    ensureThreadSummaryStateLoaded(sessionId, room.roomId),
-    // Overview hydration also reads this cached tail. Include its title before
-    // writing so a later cache read cannot restore a clock-skewed predecessor.
-    loadLatestCachedThreadEvents(sessionId, room.roomId, threadId, 32)
-      .then((page) => {
-        const mapper = mx.getEventMapper();
-        return getLatestThreadSummaryInfoFromEventSources(
-          page.events.map((event) => mapper(event as IEvent))
-        );
-      })
-      .catch(() => undefined),
-  ]);
+  const isCurrent = captureThreadSummaryStateOwnership(sessionId, room.roomId);
+  await ensureThreadSummaryStateLoaded(sessionId, room.roomId);
+  if (!isCurrent()) return;
   validateTarget(mx, room, threadId);
-  const previous = pickLatestThreadSummaryInfo(
-    cachedSummary,
-    resolveThreadSummaryInfo({
-      preferredSummaryInfo: getThreadSummaryStateSnapshot(sessionId, room.roomId).get(threadId),
-      thread: room.getThread(threadId),
-    })
-  );
+  const previous = resolveThreadSummaryInfo({
+    preferredSummaryInfo: getThreadSummaryStateSnapshot(sessionId, room.roomId).get(threadId),
+    thread: room.getThread(threadId),
+  });
   // Summary readers share this clock. Advance it past the title being edited
   // even when that title was authored by a device whose clock runs ahead.
   const generatedTs = Math.max(Date.now(), (previous?.generatedTs ?? 0) + 1);
@@ -121,14 +107,17 @@ export const saveThreadSummary = async (
   // sendMessage returns only an ID; the SDK local echo retains its send-start
   // timestamp. Fetch server acceptance time so an automatic notice delivered
   // during this send cannot outrank the later accepted manual edit.
-  const eventTs = await mx
+  const accepted = await mx
     .fetchRoomEvent(room.roomId, eventId)
-    .then((event) => event.origin_server_ts)
     // The write already succeeded. Sync can enrich chronology after a read
     // failure; reporting a failed save here would invite duplicate writes.
     .catch(() => undefined);
+  if (!isCurrent()) return;
+  if (accepted) await saveThreadEventsToCache(sessionId, room.roomId, threadId, [accepted]);
+  if (!isCurrent()) return;
+  const eventTs = accepted?.origin_server_ts;
   // A first summary can precede SDK thread hydration. Publish the accepted
-  // notice through the same state/cache used by the overview and thread banner.
+  // notice to both views; normal sync supplies durable history if fetching failed.
   storeThreadSummaryInState(sessionId, room.roomId, threadId, {
     ...getMindroomThreadSummaryInfo(content),
     ...(eventTs !== undefined && isSupportedThreadSummaryTimestamp(eventTs) ? { eventTs } : {}),

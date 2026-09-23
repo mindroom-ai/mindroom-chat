@@ -4,7 +4,8 @@ import { act, create } from 'react-test-renderer';
 import { MatrixEvent, type Thread } from 'matrix-js-sdk';
 import { expect, it, vi } from 'vitest';
 import { getMindroomThreadSummaryInfo } from '../messages/threadSummary';
-import { loadCachedThreadSummaries, saveCachedThreadSummary } from './cacheStore';
+import { loadCachedThreadSummaries, saveThreadEventsToCache } from './cacheStore';
+import { seedLegacyCachedThreadSummary } from './cacheStore/__tests__/summaryFixtures';
 import { useThreadSummaryPublishController } from './threadSummaryPublishController';
 import {
   clearThreadSummarySharedState,
@@ -15,10 +16,10 @@ import {
 } from './threadSummaryState';
 import { useRoomThreadSummaryState } from './useRoomThreadSummaryState';
 
-it('persists a live title queued by a hydration subscriber before the cache read settles', async () => {
+it('displays a live title queued during hydration without turning it into durable history', async () => {
   const sessionId = 'summary-read-settlement';
   const roomId = '!summary:test';
-  await saveCachedThreadSummary(sessionId, roomId, '$root', {
+  await seedLegacyCachedThreadSummary(sessionId, roomId, '$root', {
     summaryText: 'Cached title',
     generatedTs: 1000,
   });
@@ -38,9 +39,7 @@ it('persists a live title queued by a hydration subscriber before the cache read
     expect(getThreadSummaryStateSnapshot(sessionId, roomId).get('$other')?.summaryText).toBe(
       'Published after hydration'
     );
-    expect((await loadCachedThreadSummaries(sessionId, roomId)).get('$other')?.summaryText).toBe(
-      'Published after hydration'
-    );
+    expect((await loadCachedThreadSummaries(sessionId, roomId)).has('$other')).toBe(false);
   } finally {
     unsubscribe();
     clearThreadSummarySharedState(sessionId);
@@ -53,11 +52,19 @@ it.each([false, true])(
     const sessionId = `summary-failed-read-${manualEdit}`;
     const roomId = '!summary:test';
     const cached = { summaryText: 'Newer cached title', generatedTs: 9000 };
-    await saveCachedThreadSummary(sessionId, roomId, '$root', cached);
+    await seedLegacyCachedThreadSummary(sessionId, roomId, '$root', cached);
+    const originalTransaction = IDBDatabase.prototype.transaction;
+    let failRead = true;
     const transaction = vi
       .spyOn(IDBDatabase.prototype, 'transaction')
-      .mockImplementationOnce(() => {
-        throw new DOMException('Temporarily unavailable', 'InvalidStateError');
+      .mockImplementation(function failSummaryRead(this: IDBDatabase, stores, mode, options) {
+        // Migration is a write that can fall back to the committed index;
+        // this regression must fail the actual summary read instead.
+        if (failRead && stores === 'thread_summaries' && mode === 'readonly') {
+          failRead = false;
+          throw new DOMException('Temporarily unavailable', 'InvalidStateError');
+        }
+        return originalTransaction.call(this, stores, mode, options);
       });
     try {
       storeThreadSummaryInState(
@@ -77,6 +84,7 @@ it.each([false, true])(
           : undefined
       );
       await ensureThreadSummaryStateLoaded(sessionId, roomId);
+      expect(failRead).toBe(false);
       expect((await loadCachedThreadSummaries(sessionId, roomId)).get('$root')?.summaryText).toBe(
         'Newer cached title'
       );
@@ -92,7 +100,7 @@ it.each([false, true])(
         expected
       );
       expect((await loadCachedThreadSummaries(sessionId, roomId)).get('$root')?.summaryText).toBe(
-        expected
+        'Newer cached title'
       );
     } finally {
       transaction.mockRestore();
@@ -104,7 +112,7 @@ it.each([false, true])(
 it('retains a newer disk title when partial live history publishes before initial hydration', async () => {
   const sessionId = 'summary-partial-history';
   const roomId = '!summary:test';
-  await saveCachedThreadSummary(sessionId, roomId, '$root', {
+  await seedLegacyCachedThreadSummary(sessionId, roomId, '$root', {
     summaryText: 'Newer cached title',
     generatedTs: 9000,
   });
@@ -126,7 +134,7 @@ it('retains a newer disk title when partial live history publishes before initia
 it('does not flush a pending publication after its session state is removed', async () => {
   const sessionId = 'summary-removed-session';
   const roomId = '!summary:test';
-  await saveCachedThreadSummary(sessionId, roomId, '$root', {
+  await seedLegacyCachedThreadSummary(sessionId, roomId, '$root', {
     summaryText: 'Existing title',
     generatedTs: 9000,
   });
@@ -149,7 +157,7 @@ it.each([
   ['overview', true],
   ['thread', true],
 ] as const)(
-  'persists legacy-cache enrichment from the %s (initial cache read pending: %s)',
+  'displays legacy-cache enrichment from the %s and persists accepted event ingestion (initial read pending: %s)',
   async (surface, pendingCacheRead) => {
     const sessionId = `summary-migration-${surface}-${pendingCacheRead}`;
     const roomId = '!summary-migration:test';
@@ -178,7 +186,7 @@ it.each([
       });
     const automatic = event('$auto', 'Stale automatic', 1100, 9000);
     const manual = event('$manual', 'Accepted human title', 1200, 1000, true);
-    await saveCachedThreadSummary(
+    await seedLegacyCachedThreadSummary(
       sessionId,
       roomId,
       '$root',
@@ -208,6 +216,12 @@ it.each([
     await act(async () => ensureThreadSummaryStateLoaded(sessionId, roomId));
     try {
       expect(renderer.root.findByType('span').children).toEqual(['Accepted human title']);
+      expect((await loadCachedThreadSummaries(sessionId, roomId)).get('$root')?.summaryText).toBe(
+        'Stale automatic'
+      );
+      await act(async () => {
+        await saveThreadEventsToCache(sessionId, roomId, '$root', [automatic.event, manual.event]);
+      });
       expect((await loadCachedThreadSummaries(sessionId, roomId)).get('$root')?.summaryText).toBe(
         'Accepted human title'
       );

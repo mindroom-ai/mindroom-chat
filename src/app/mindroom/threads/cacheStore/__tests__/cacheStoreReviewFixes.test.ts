@@ -200,23 +200,6 @@ describe('CINNY-207 P2 review: open-failure health gate', () => {
     restore();
   });
 
-  it('summary save reports to health and resolves when open fails', async () => {
-    const cacheStore = await import('../index');
-    const health = await import('../../cacheHealth');
-    const restore = await breakOpen();
-
-    const reportSpy = vi.spyOn(health, 'reportCacheWriteError');
-
-    await expect(
-      cacheStore.saveCachedThreadSummary(SESSION_ID, ROOM_ID_A, THREAD_ID, {
-        summaryText: 'summary',
-      })
-    ).resolves.toBeUndefined();
-
-    expect(reportSpy).toHaveBeenCalledWith('threadSummaryCache.save', expect.anything());
-    restore();
-  });
-
   it('a quota-shaped open failure degrades health to read-only', async () => {
     const cacheStore = await import('../index');
     const health = await import('../../cacheHealth');

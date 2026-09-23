@@ -1,3 +1,4 @@
+import { notifyCachedThreadSummariesCleared } from './cacheStoreSummaryChanges';
 import { openCacheStore, revokeRoomCacheStoreWrites } from './cacheStoreDb';
 import {
   ATTACHMENTS_STORE,
@@ -42,7 +43,10 @@ export const clearRoomCachedContent = async (
 ): Promise<number> => {
   revokeRoomCacheStoreWrites(sessionId, roomId);
   const db = await openCacheStore(sessionId);
-  if (!db) return 0;
+  if (!db) {
+    notifyCachedThreadSummariesCleared(sessionId, roomId);
+    return 0;
+  }
   return new Promise((resolve, reject) => {
     const txn = db.transaction(
       [
@@ -132,7 +136,10 @@ export const clearRoomCachedContent = async (
     // Ledger row: primary key.
     ledgerStore.delete(roomId);
 
-    txn.oncomplete = () => resolve(deletedCount);
+    txn.oncomplete = () => {
+      notifyCachedThreadSummariesCleared(sessionId, roomId);
+      resolve(deletedCount);
+    };
     txn.onerror = () => reject(txn.error);
     txn.onabort = () => reject(txn.error);
   });

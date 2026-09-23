@@ -55,7 +55,6 @@ const {
   loadLatestCachedRoomEventsMock,
   loadCachedThreadSummariesMock,
   saveRoomEventsToCacheMock,
-  saveCachedThreadSummaryMock,
   isTimelineAtLiveEndMock,
   virtualPaginatorState,
   roomTimelineVirtualizerState,
@@ -116,7 +115,6 @@ const {
   loadLatestCachedRoomEventsMock: vi.fn(async () => ({ events: [], hasMoreBefore: false })),
   loadCachedThreadSummariesMock: vi.fn(async () => new Map()),
   saveRoomEventsToCacheMock: vi.fn(async () => undefined),
-  saveCachedThreadSummaryMock: vi.fn(async () => undefined),
   isTimelineAtLiveEndMock: vi.fn(() => true),
   settingsState: {
     prefetchDepth: 300,
@@ -1134,7 +1132,6 @@ vi.mock('../cacheStore', async (importOriginal) => {
       }
     ),
     loadCachedThreadSummaries: loadCachedThreadSummariesMock,
-    saveCachedThreadSummary: saveCachedThreadSummaryMock,
     loadCachedRoomEventsBefore: loadCachedRoomEventsBeforeMock,
     loadCachedRoomPaginationToken: loadCachedRoomPaginationTokenMock,
     loadLatestCachedRoomEvents: loadLatestCachedRoomEventsMock,
@@ -1533,7 +1530,6 @@ beforeEach(() => {
   loadLatestCachedRoomEventsMock.mockResolvedValue({ events: [], hasMoreBefore: false });
   loadCachedThreadSummariesMock.mockResolvedValue(new Map());
   saveRoomEventsToCacheMock.mockResolvedValue(undefined);
-  saveCachedThreadSummaryMock.mockResolvedValue(undefined);
   settingsState.prefetchDepth = 300;
   virtualPaginatorState.lastOptions = undefined;
   virtualPaginatorState.callCount = 0;
