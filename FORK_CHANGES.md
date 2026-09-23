@@ -5,7 +5,10 @@
 ### Keep cached thread history and summaries consistent (2026-09-22)
 
 - Status: PR #323 now derives summaries at the storage boundary; independent storage, UI, and integration reviews approve the implementation.
-  Hosted-review fixes are implemented and independently approved; final hosted validation remains in progress.
+  Hosted code review is complete, all code findings are addressed, and implementation CI passes on `cdac02f1`.
+- Next: after merge and deployment, reload the affected Personal room and verify the previously missing title appears without opening its thread.
+  Confirm edits, deletion, and cache clearing update both the overview card and thread banner without remounting; these checks complete production verification.
+  Track the separate SDK ingestion gap and unmatched invite-ranking failure independently from this summary fix.
 - Live Chrome inspection found summary notices already cached outside the overview's 32-event tail, but no entry in the separate summary store.
   Opening the thread restored its title because UI hydration had been responsible for populating that store.
   The same limited discovery exists in the pre-optimization build.
