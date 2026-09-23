@@ -22,6 +22,7 @@ import {
   META_STORE,
 } from '..';
 
+import { repairCachedThreadSummaries } from '../cacheStoreSummaryProjection';
 import { seedLegacyCachedThreadSummary } from './summaryFixtures';
 import { subscribeCachedThreadSummaryChanges } from '../cacheStoreSummaryChanges';
 import { EVENTS_BY_SUMMARY_CANDIDATE_INDEX } from '../cacheStoreSchema';
@@ -54,6 +55,14 @@ const edit = (id: string, target: string, ts: number, body = 'Edited title'): Pa
   },
 });
 const read = async () => (await loadCachedThreadSummaries(session, room)).get(root);
+const finishRepair = async () => {
+  const db = (await openCacheStore(session))!;
+  await repairCachedThreadSummaries(db, captureCacheStoreWriteLease(session, room), room);
+};
+const readAfterRepair = async () => {
+  await finishRepair();
+  return read();
+};
 const save = (...events: Partial<IEvent>[]) => saveThreadEventsToCache(session, room, root, events);
 
 const seedLegacy = async (rows: Partial<IEvent>[]) => {
@@ -82,18 +91,182 @@ const seedLegacy = async (rows: Partial<IEvent>[]) => {
   return db;
 };
 
+const pauseRepairYields = () => {
+  const pending: Array<() => void> = [];
+  const schedule = globalThis.setTimeout;
+  const spy = vi.spyOn(globalThis, 'setTimeout').mockImplementation(((
+    callback: () => void,
+    delay?: number,
+    ...args: unknown[]
+  ) => {
+    if (delay === 0) {
+      pending.push(callback);
+      return 0 as unknown as ReturnType<typeof setTimeout>;
+    }
+    return schedule(callback, delay, ...args);
+  }) as typeof setTimeout);
+  return {
+    pending,
+    release: () => {
+      spy.mockRestore();
+      pending.splice(0).forEach((resume) => resume());
+    },
+  };
+};
+
 beforeEach(() => {
   resetCacheStoreForTesting();
   resetCacheHealthForTesting();
 });
 afterEach(async () => {
   vi.restoreAllMocks();
+  const db = (await openCacheStore(session))!;
+  const pending = repairCachedThreadSummaries(db, captureCacheStoreWriteLease(session, room), room);
   await deleteCacheStoreDb(session);
+  await pending;
   resetCacheStoreForTesting();
   resetCacheHealthForTesting();
 });
 
 describe('transaction-owned thread summaries', () => {
+  it('returns existing titles before a large legacy repair and publishes missing titles later', async () => {
+    await seedLegacy([
+      summary('$summary'),
+      ...Array.from({ length: 400 }, (_, i) => message('$reply' + i, 20 + i)),
+    ]);
+    await seedLegacyCachedThreadSummary(session, room, '$known', {
+      summaryText: 'Available immediately',
+    });
+    const listener = vi.fn();
+    const unsubscribe = subscribeCachedThreadSummaryChanges(session, room, listener);
+    const gate = pauseRepairYields();
+    let loaded = false;
+    let initial: Awaited<ReturnType<typeof loadCachedThreadSummaries>> | undefined;
+    const loading = loadCachedThreadSummaries(session, room).then((value) => {
+      loaded = true;
+      initial = value;
+    });
+    try {
+      await vi.waitFor(() => {
+        expect(gate.pending.length).toBeGreaterThan(0);
+        expect(loaded).toBe(true);
+      });
+      expect(initial?.get('$known')?.summaryText).toBe('Available immediately');
+      expect(initial?.has(root)).toBe(false);
+      expect(listener).not.toHaveBeenCalled();
+    } finally {
+      gate.release();
+      await loading;
+    }
+    try {
+      await vi.waitFor(() =>
+        expect(listener).toHaveBeenCalledWith(
+          expect.objectContaining({
+            type: 'summary',
+            threadRootId: root,
+            summary: expect.objectContaining({ summaryText: 'Buried title' }),
+          })
+        )
+      );
+      expect((await read())?.summaryText).toBe('Buried title');
+    } finally {
+      unsubscribe();
+    }
+  });
+  it('shares one background repair across concurrent loads of the same room', async () => {
+    const db = await seedLegacy([
+      summary('$summary'),
+      ...Array.from({ length: 400 }, (_, i) => message('$reply' + i, i)),
+    ]);
+    const gate = pauseRepairYields();
+    const lease = captureCacheStoreWriteLease(session, room);
+    const first = repairCachedThreadSummaries(db, lease, room);
+    try {
+      expect(repairCachedThreadSummaries(db, lease, room)).toBe(first);
+      expect(await Promise.all([read(), read(), read()])).toEqual([
+        undefined,
+        undefined,
+        undefined,
+      ]);
+      expect(gate.pending).toHaveLength(1);
+    } finally {
+      gate.release();
+      await first;
+    }
+    expect((await read())?.summaryText).toBe('Buried title');
+  });
+
+  it.each(['room-clear', 'database-delete'])(
+    'keeps a fresh repair owned when its %s predecessor settles afterward',
+    async (clear) => {
+      const db = await seedLegacy([summary('$stale', 10, 'Stale')]);
+      const listener = vi.fn();
+      const unsubscribe = subscribeCachedThreadSummaryChanges(session, room, listener);
+      const gate = pauseRepairYields();
+      const old = repairCachedThreadSummaries(db, captureCacheStoreWriteLease(session, room), room);
+      let fresh: Promise<void> | undefined;
+      try {
+        if (clear === 'room-clear') await clearRoomCachedContent(session, room);
+        else await deleteCacheStoreDb(session);
+        const freshDb = await seedLegacy([summary('$fresh', 20, 'Fresh')]);
+        const lease = captureCacheStoreWriteLease(session, room);
+        fresh = repairCachedThreadSummaries(freshDb, lease, room);
+        expect(fresh).not.toBe(old);
+        expect(gate.pending).toHaveLength(2);
+        gate.pending.shift()!();
+        await old;
+        expect(repairCachedThreadSummaries(freshDb, lease, room)).toBe(fresh);
+        expect(gate.pending).toHaveLength(1);
+      } finally {
+        gate.release();
+        await old;
+        await fresh;
+        unsubscribe();
+      }
+      expect(
+        listener.mock.calls.map(([change]) =>
+          change.type === 'summary' ? change.summary?.summaryText : change.type
+        )
+      ).toEqual(['clear', 'Fresh']);
+      expect((await read())?.summaryText).toBe('Fresh');
+    }
+  );
+
+  it('stops between batches when cache health becomes read-only and resumes later', async () => {
+    const db = await seedLegacy([
+      summary('$zsummary'),
+      ...Array.from({ length: 300 }, (_, i) => message('$reply' + i, i)),
+    ]);
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const getAll = IDBObjectStore.prototype.getAll;
+    let pages = 0;
+    const spy = vi
+      .spyOn(IDBObjectStore.prototype, 'getAll')
+      .mockImplementation(function degrade(this: IDBObjectStore, query, count) {
+        const request = getAll.call(this, query, count);
+        if (this.name === EVENTS_STORE) {
+          pages += 1;
+          this.transaction.addEventListener(
+            'complete',
+            () =>
+              reportCacheWriteError(
+                'fixture',
+                new DOMException('Quota exceeded', 'QuotaExceededError')
+              ),
+            { once: true }
+          );
+        }
+        return request;
+      });
+    await repairCachedThreadSummaries(db, captureCacheStoreWriteLease(session, room), room);
+    expect(pages).toBe(1);
+    expect(await read()).toBeUndefined();
+    spy.mockRestore();
+    resetCacheHealthForTesting();
+    expect((await readAfterRepair())?.summaryText).toBe('Buried title');
+  });
+
   it('keeps legacy reads available after an asynchronous migration transaction failure', async () => {
     await seedLegacy([summary('$summary')]);
     await seedLegacyCachedThreadSummary(session, room, root, { summaryText: 'Existing legacy' });
@@ -107,9 +280,7 @@ describe('transaction-owned thread summaries', () => {
       return this.name === EVENTS_STORE ? this.add(...args) : originalPut.apply(this, args);
     });
     expect((await read())?.summaryText).toBe('Existing legacy');
-    await new Promise((resolve) => {
-      setTimeout(resolve, 0);
-    });
+    await finishRepair();
     expect(warning).toHaveBeenCalledWith(
       expect.any(String),
       expect.objectContaining({ name: 'ConstraintError' })
@@ -119,6 +290,7 @@ describe('transaction-owned thread summaries', () => {
     await seedLegacy(Array.from({ length: 256 }, (_, i) => message(`$ordinary-${i}`, i)));
     const reads = vi.spyOn(IDBIndex.prototype, 'getAll');
     expect(await read()).toBeUndefined();
+    await finishRepair();
     expect(
       reads.mock.contexts.filter(
         (index) => (index as IDBIndex).name === EVENTS_BY_SUMMARY_CANDIDATE_INDEX
@@ -168,13 +340,14 @@ describe('transaction-owned thread summaries', () => {
         return originalPut.apply(this, args);
       });
       expect((await read())?.summaryText).toBe('Existing legacy');
+      await finishRepair();
       expect(getCacheHealth().state).toBe('read-only');
       expect(writeAttempts).toBe(readOnly ? 0 : 1);
       expect((await read())?.summaryText).toBe('Existing legacy');
       expect(writeAttempts).toBe(readOnly ? 0 : 1);
       vi.restoreAllMocks();
       resetCacheHealthForTesting();
-      expect((await read())?.summaryText).toBe('Buried title');
+      expect((await readAfterRepair())?.summaryText).toBe('Buried title');
     }
   );
   it.each([false, true])(
@@ -250,7 +423,7 @@ describe('transaction-owned thread summaries', () => {
       summary('$legacy'),
       ...Array.from({ length: 300 }, (_, i) => message(`$reply${i}`, 20 + i)),
     ]);
-    expect((await read())?.summaryText).toBe('Buried title');
+    expect((await readAfterRepair())?.summaryText).toBe('Buried title');
     const cursor = vi.spyOn(IDBIndex.prototype, 'openCursor');
     await read();
     await save(message('$new', 500));
@@ -433,10 +606,11 @@ describe('transaction-owned thread summaries', () => {
         return request;
       });
     expect(await read()).toBeUndefined();
+    await finishRepair();
     expect(pages).toHaveLength(1);
     db.close();
     resetCacheStoreForTesting();
-    expect((await read())?.summaryText).toBe('Buried title');
+    expect((await readAfterRepair())?.summaryText).toBe('Buried title');
     expect(pages.length).toBeGreaterThan(2);
     expect(pages.every((page) => page.limit === 128)).toBe(true);
     expect(pages[1].lower).not.toBe(pages[0].lower);
@@ -486,7 +660,7 @@ describe('transaction-owned thread summaries', () => {
       tx.oncomplete = () => resolve();
     });
     await deleteThreadEventsFromCache(session, room, root, ['$summary']);
-    expect(await read()).toBeUndefined();
+    expect(await readAfterRepair()).toBeUndefined();
   });
   it('does not republish an unchanged structured summary', async () => {
     const listener = vi.fn();
@@ -516,6 +690,6 @@ describe('transaction-owned thread summaries', () => {
         content: {},
       },
     ]);
-    expect(await read()).toEqual({ summaryText: 'Original', eventTs: 10 });
+    expect(await readAfterRepair()).toEqual({ summaryText: 'Original', eventTs: 10 });
   });
 });

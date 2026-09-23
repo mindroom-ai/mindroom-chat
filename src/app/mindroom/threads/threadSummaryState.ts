@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useSyncExternalStore } from 'react';
-import { type MindroomThreadSummaryInfo } from '../messages/threadSummary';
+import {
+  areThreadSummaryInfosEqual,
+  type MindroomThreadSummaryInfo,
+} from '../messages/threadSummary';
 import { loadCachedThreadSummaries } from './cacheStore';
 import {
   captureCacheStoreWriteLease,
@@ -131,13 +134,7 @@ const areSummaryMapsEqual = (
   for (const [threadRootId, leftInfo] of left) {
     const rightInfo = right.get(threadRootId);
     if (!rightInfo) return false;
-    if (
-      leftInfo.summaryText !== rightInfo.summaryText ||
-      leftInfo.generatedTs !== rightInfo.generatedTs ||
-      leftInfo.eventTs !== rightInfo.eventTs ||
-      leftInfo.messageCount !== rightInfo.messageCount ||
-      leftInfo.isManual !== rightInfo.isManual
-    ) {
+    if (!areThreadSummaryInfosEqual(leftInfo, rightInfo)) {
       return false;
     }
   }

@@ -26,6 +26,16 @@ export type MindroomThreadSummaryInfo = {
   messageCount?: number;
 };
 
+export const areThreadSummaryInfosEqual = (
+  left: MindroomThreadSummaryInfo | undefined,
+  right: MindroomThreadSummaryInfo | undefined
+): boolean =>
+  left?.summaryText === right?.summaryText &&
+  left?.generatedTs === right?.generatedTs &&
+  left?.eventTs === right?.eventTs &&
+  left?.messageCount === right?.messageCount &&
+  left?.isManual === right?.isManual;
+
 // Match the backend datetime range so extended-year metadata cannot poison
 // ordering in live data or older cached snapshots.
 export const isSupportedThreadSummaryTimestamp = (value: number): boolean =>

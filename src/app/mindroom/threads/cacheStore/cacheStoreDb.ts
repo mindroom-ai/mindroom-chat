@@ -220,7 +220,10 @@ export const openCacheStore = (
 
 export const deleteCacheStoreDb = async (sessionId: string): Promise<void> => {
   revokeCacheStoreWrites(sessionId);
-  if (typeof indexedDB === 'undefined') return;
+  if (typeof indexedDB === 'undefined') {
+    notifyCachedThreadSummariesCleared(sessionId);
+    return;
+  }
 
   const dbName = getCacheStoreDbName(sessionId);
   const currentDb = await dbPromiseByName.get(dbName)?.catch(() => undefined);

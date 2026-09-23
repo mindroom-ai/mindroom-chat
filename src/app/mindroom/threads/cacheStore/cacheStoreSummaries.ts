@@ -1,6 +1,5 @@
 import { repairCachedThreadSummaries } from './cacheStoreSummaryProjection';
 import type { MindroomThreadSummaryInfo } from '../../messages/threadSummary';
-import { isCacheWritable, reportCacheWriteError } from '../cacheHealth';
 import {
   openCacheStore,
   captureCacheStoreWriteLease,
@@ -20,15 +19,6 @@ export const loadCachedThreadSummaries = async (
   const result = new Map<string, MindroomThreadSummaryInfo>();
   const db = await openCacheStore(sessionId);
   if (!db || !isCacheStoreWriteLeaseCurrent(lease)) return result;
-  if (isCacheWritable()) {
-    try {
-      await repairCachedThreadSummaries(db, lease, roomId);
-    } catch (error) {
-      if (isCacheStoreWriteLeaseCurrent(lease)) reportCacheWriteError('summaryMigration', error);
-    }
-  }
-  if (!isCacheStoreWriteLeaseCurrent(lease)) return result;
-
   return new Promise<Map<string, MindroomThreadSummaryInfo>>((resolve, reject) => {
     const transaction = db.transaction(THREAD_SUMMARIES_STORE, 'readonly');
     const store = transaction.objectStore(THREAD_SUMMARIES_STORE);
@@ -50,8 +40,15 @@ export const loadCachedThreadSummaries = async (
     };
     request.onerror = () => reject(request.error);
 
-    transaction.oncomplete = () =>
-      resolve(isCacheStoreWriteLeaseCurrent(lease) ? result : new Map());
+    transaction.oncomplete = () => {
+      if (!isCacheStoreWriteLeaseCurrent(lease)) {
+        resolve(new Map());
+        return;
+      }
+      // Existing titles paint immediately; committed repair notifications upgrade them later.
+      void repairCachedThreadSummaries(db, lease, roomId);
+      resolve(result);
+    };
     transaction.onerror = () => reject(transaction.error);
     transaction.onabort = () => reject(transaction.error);
   });

@@ -1,5 +1,6 @@
 import { MatrixEvent, type IEvent } from 'matrix-js-sdk';
 import {
+  areThreadSummaryInfosEqual,
   getThreadSummaryEventInfo,
   hasMindroomThreadSummary,
   isMindroomThreadSummaryEvent,
@@ -11,6 +12,7 @@ import {
   applySerializedCachedReplaceRelations,
 } from '../eventCacheEditUtils';
 import { collectExplicitRedactedEventIds, mergeRawEventRevisions } from '../eventRevision';
+import { isCacheWritable, reportCacheWriteError } from '../cacheHealth';
 import { isCacheStoreWriteLeaseCurrent, type CacheStoreWriteLease } from './cacheStoreDb';
 import {
   notifyCachedThreadSummaryChange,
@@ -139,15 +141,6 @@ const queueProjection = (meta: IDBObjectStore, roomId: string, threadRootId: str
     threadRootId,
   } satisfies PendingProjection);
 };
-const sameSummary = (
-  left: MindroomThreadSummaryInfo | undefined,
-  right: MindroomThreadSummaryInfo | undefined
-) =>
-  left?.summaryText === right?.summaryText &&
-  left?.generatedTs === right?.generatedTs &&
-  left?.eventTs === right?.eventTs &&
-  left?.messageCount === right?.messageCount &&
-  left?.isManual === right?.isManual;
 
 const projectThread = async (
   transaction: IDBTransaction,
@@ -235,8 +228,8 @@ const projectThread = async (
   const source = infos
     .slice()
     .reverse()
-    .find((candidate) => candidate && sameSummary(candidate.info, summary))?.eventId;
-  const unchanged = sameSummary(previousInfo, summary);
+    .find((candidate) => candidate && areThreadSummaryInfosEqual(candidate.info, summary))?.eventId;
+  const unchanged = areThreadSummaryInfosEqual(previousInfo, summary);
   if (summary?.summaryText && (!unchanged || source !== previous?.sourceEventId)) {
     summaries.put({
       cacheKey: key,
@@ -319,92 +312,126 @@ export const createSummaryProjection = (
   };
 };
 
-/** Backfill at most 128 event rows per commit; persist both cursor and pending projections. */
-export const repairCachedThreadSummaries = async (
+/** One durable bounded step; ordinary summary reads never await its history work. */
+const repairCachedThreadSummaryBatch = (
+  db: IDBDatabase,
+  lease: CacheStoreWriteLease,
+  roomId: string,
+  shouldContinue: () => boolean
+): Promise<boolean> => {
+  return new Promise<boolean>((resolve, reject) => {
+    const tx = db.transaction([EVENTS_STORE, META_STORE, THREAD_SUMMARIES_STORE], 'readwrite');
+    let finished = false;
+    const changes: CachedThreadSummaryChange[] = [];
+    const run = async () => {
+      const meta = tx.objectStore(META_STORE);
+      const events = tx.objectStore(EVENTS_STORE);
+      const key = migrationKey(roomId);
+      const state = (await requestResult(meta.get(key))) as Migration | undefined;
+      if (state?.phase === 'done') {
+        finished = true;
+        return;
+      }
+      if (!state || state.phase === 'index') {
+        const rows = (await requestResult(
+          events.getAll(
+            IDBKeyRange.bound(state?.after ?? `${roomId}|`, `${roomId}|￿`, !!state?.after),
+            128
+          )
+        )) as CachedEventRecord[];
+        await Promise.all(
+          rows.map(async (row) => {
+            const indexed = indexSummaryEventRecord(row);
+            events.put(indexed);
+            (await affectedSummaryRoots(events, indexed)).forEach((affected) =>
+              queueProjection(meta, roomId, affected)
+            );
+          })
+        );
+        meta.put({
+          metaKey: key,
+          roomId,
+          scope: '__summaryMigration',
+          updatedAt: Date.now(),
+          after: rows.at(-1)?.cacheKey ?? state?.after,
+          phase: rows.length === 128 ? 'index' : 'project',
+        } satisfies Migration);
+      } else {
+        const prefix = pendingPrefix(roomId);
+        const pending = (await requestResult(
+          meta.getAll(IDBKeyRange.bound(prefix, `${prefix}￿`), 32)
+        )) as PendingProjection[];
+        await Promise.all(
+          pending.map(async (row) => {
+            const change = await projectThread(tx, roomId, row.threadRootId, true);
+            if (change) changes.push(change);
+            meta.delete(row.metaKey);
+          })
+        );
+        if (pending.length < 32) {
+          meta.put({ ...state, phase: 'done' });
+          finished = true;
+        }
+      }
+    };
+    void run().catch((error) => {
+      try {
+        tx.abort();
+      } catch {
+        // A failed IndexedDB request may already have aborted the transaction.
+      }
+      reject(tx.error ?? error);
+    });
+    tx.oncomplete = () => {
+      if (shouldContinue())
+        changes.forEach((change) =>
+          notifyCachedThreadSummaryChange(lease.sessionId, roomId, change)
+        );
+      resolve(finished);
+    };
+    tx.onabort = () => reject(tx.error);
+  });
+};
+
+type SummaryRepairJob = {
+  db: IDBDatabase;
+  lease: CacheStoreWriteLease;
+  promise: Promise<void>;
+};
+const summaryRepairJobs = new Map<string, SummaryRepairJob>();
+
+/** Continue repair in the storage layer, sharing only work owned by the current room lease. */
+export const repairCachedThreadSummaries = (
   db: IDBDatabase,
   lease: CacheStoreWriteLease,
   roomId: string
 ): Promise<void> => {
-  let done = false;
-  while (!done && isCacheStoreWriteLeaseCurrent(lease)) {
-    // eslint-disable-next-line no-await-in-loop
-    done = await new Promise<boolean>((resolve, reject) => {
-      const tx = db.transaction([EVENTS_STORE, META_STORE, THREAD_SUMMARIES_STORE], 'readwrite');
-      let finished = false;
-      const changes: CachedThreadSummaryChange[] = [];
-      const run = async () => {
-        const meta = tx.objectStore(META_STORE);
-        const events = tx.objectStore(EVENTS_STORE);
-        const key = migrationKey(roomId);
-        const state = (await requestResult(meta.get(key))) as Migration | undefined;
-        if (state?.phase === 'done') {
-          finished = true;
-          return;
-        }
-        if (!state || state.phase === 'index') {
-          const rows = (await requestResult(
-            events.getAll(
-              IDBKeyRange.bound(state?.after ?? `${roomId}|`, `${roomId}|￿`, !!state?.after),
-              128
-            )
-          )) as CachedEventRecord[];
-          await Promise.all(
-            rows.map(async (row) => {
-              const indexed = indexSummaryEventRecord(row);
-              events.put(indexed);
-              (await affectedSummaryRoots(events, indexed)).forEach((affected) =>
-                queueProjection(meta, roomId, affected)
-              );
-            })
-          );
-          meta.put({
-            metaKey: key,
-            roomId,
-            scope: '__summaryMigration',
-            updatedAt: Date.now(),
-            after: rows.at(-1)?.cacheKey ?? state?.after,
-            phase: rows.length === 128 ? 'index' : 'project',
-          } satisfies Migration);
-        } else {
-          const prefix = pendingPrefix(roomId);
-          const pending = (await requestResult(
-            meta.getAll(IDBKeyRange.bound(prefix, `${prefix}￿`), 32)
-          )) as PendingProjection[];
-          await Promise.all(
-            pending.map(async (row) => {
-              const change = await projectThread(tx, roomId, row.threadRootId, true);
-              if (change) changes.push(change);
-              meta.delete(row.metaKey);
-            })
-          );
-          if (pending.length < 32) {
-            meta.put({ ...state, phase: 'done' });
-            finished = true;
-          }
-        }
-      };
-      void run().catch((error) => {
-        try {
-          tx.abort();
-        } catch {
-          // A failed IndexedDB request may already have aborted the transaction.
-        }
-        reject(tx.error ?? error);
-      });
-      tx.oncomplete = () => {
-        if (isCacheStoreWriteLeaseCurrent(lease))
-          changes.forEach((change) =>
-            notifyCachedThreadSummaryChange(lease.sessionId, roomId, change)
-          );
-        resolve(finished);
-      };
-      tx.onabort = () => reject(tx.error);
-    });
-    if (!done) {
-      // eslint-disable-next-line no-await-in-loop
-      await new Promise<void>((resolve) => {
-        setTimeout(resolve, 0);
-      });
+  if (!isCacheWritable() || !isCacheStoreWriteLeaseCurrent(lease)) return Promise.resolve();
+  const key = JSON.stringify([lease.sessionId, roomId]);
+  const existing = summaryRepairJobs.get(key);
+  if (existing?.db === db && isCacheStoreWriteLeaseCurrent(existing.lease)) return existing.promise;
+
+  const job: SummaryRepairJob = { db, lease, promise: Promise.resolve() };
+  summaryRepairJobs.set(key, job);
+  const shouldContinue = () =>
+    summaryRepairJobs.get(key) === job && isCacheStoreWriteLeaseCurrent(lease);
+  job.promise = (async () => {
+    try {
+      while (shouldContinue() && isCacheWritable()) {
+        // Let the committed-index reader and interactive work run before every batch.
+        // eslint-disable-next-line no-await-in-loop
+        await new Promise<void>((resolve) => {
+          setTimeout(resolve, 0);
+        });
+        if (!shouldContinue() || !isCacheWritable()) return;
+        // eslint-disable-next-line no-await-in-loop
+        if (await repairCachedThreadSummaryBatch(db, lease, roomId, shouldContinue)) return;
+      }
+    } catch (error) {
+      if (shouldContinue()) reportCacheWriteError('summaryMigration', error);
+    } finally {
+      if (summaryRepairJobs.get(key) === job) summaryRepairJobs.delete(key);
     }
-  }
+  })();
+  return job.promise;
 };

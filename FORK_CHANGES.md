@@ -4,8 +4,8 @@
 
 ### Keep cached thread history and summaries consistent (2026-09-22)
 
-- Status: PR #323 now derives summaries at the storage boundary; independent storage and UI reviews approve the implementation.
-  Full integrated validation and hosted review remain in progress.
+- Status: PR #323 now derives summaries at the storage boundary; independent storage, UI, and integration reviews approve the implementation.
+  Hosted-review fixes are implemented and independently approved; final hosted validation remains in progress.
 - Live Chrome inspection found summary notices already cached outside the overview's 32-event tail, but no entry in the separate summary store.
   Opening the thread restored its title because UI hydration had been responsible for populating that store.
   The same limited discovery exists in the pre-optimization build.
@@ -13,12 +13,21 @@
   Background ingestion updates summaries without a mounted overview or thread.
   Edits, redactions, deletion, and clear paths must maintain the same projection; ordinary streaming updates must not scan full thread history.
 - Existing caches receive bounded, resumable index repair with durable progress.
+  Reads return committed titles immediately while storage-owned background batches repair missing entries and publish updates.
+  Concurrent reads share repair work; room/session clears invalidate its ownership, and write failures leave committed titles readable.
   Partial migration cannot invalidate a prior summary, and legacy summary-only records remain until their event provenance is established.
 - Shared card/banner state consumes committed summary changes and invalidations.
   UI publications are display-only, and accepted manual summary events use ordinary history ingestion.
   The overview recovery effect and its scan/retry machinery are removed; overview metadata remains capped at 32 events.
 - Storage, shared-state, and offline browser regressions cover the original missing-summary failure and relation/lifecycle cases.
-  Final independent review, full validation, and hosted-review remediation remain in progress.
+  Clear notifications also invalidate mounted titles when IndexedDB is unavailable.
+  All 5,351 unit tests, application and changed-test typechecks, production build, and lint pass with zero errors and 17 existing warnings.
+  Installed Google Chrome passes five focused cases across cached room population, card/banner consistency, cached-title upgrades, and offline legacy repair.
+- The full browser scheduler completed 125 jobs: 103 passed, 20 failed, and two lacked external fixtures.
+  Dedicated compact-view, scrolling, and streaming performance probes passed.
+  Most failures match earlier runs; invite-ranking remains unmatched.
+  After removing blocking migration, cache population passes all six repeated Chromium cases and both installed Chrome cases; finite repeats do not establish the cause of the earlier intermittent failure.
+  A deterministic SDK test reproduces a separate bootstrap/sync cache-ingestion gap on unchanged `dev`; its source is untouched by this PR.
 
 ### Preserve current location in typed authentication recovery (2026-09-22)
 

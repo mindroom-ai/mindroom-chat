@@ -38,8 +38,27 @@ const title = () => getThreadSummaryStateSnapshot(sessionId, roomId).get(rootId)
 afterEach(async () => {
   clearThreadSummarySharedState(sessionId);
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
   await deleteCacheStoreDb(sessionId);
 });
+
+it.each(['room', 'session'] as const)(
+  'clears mounted %s summaries when IndexedDB is unavailable',
+  async (scope) => {
+    vi.stubGlobal('indexedDB', undefined);
+    await ensureThreadSummaryStateLoaded(sessionId, roomId);
+    const live = { summaryText: 'Live title', eventTs: 20 };
+    storeThreadSummaryInState(sessionId, roomId, rootId, live);
+    expect(title()).toBe('Live title');
+
+    if (scope === 'room') await clearRoomCachedContent(sessionId, roomId);
+    else await deleteCacheStoreDb(sessionId);
+
+    expect(title()).toBeUndefined();
+    storeThreadSummaryInState(sessionId, roomId, rootId, live);
+    expect(title()).toBeUndefined();
+  }
+);
 
 it('keeps display-only publications out of the durable summary index', async () => {
   await ensureThreadSummaryStateLoaded(sessionId, roomId);
