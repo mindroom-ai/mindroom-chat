@@ -2,6 +2,15 @@
 
 ## Runbook
 
+### Preserve same-origin Computer API cookies (2026-09-24)
+
+- Computer session creation, status, stream tickets, control, and cleanup now preserve same-origin cookies needed by an authenticating reverse proxy.
+  Cross-origin requests remain cookie-free, and Matrix OpenID and session bearer authorization remain required by the API.
+- A real Chromium regression exercises all five HTTP operations against same-origin and cross-origin servers.
+  The same-origin case fails before the fix; both cases pass afterward, including when launched outside the repository working directory.
+- Independent review confirmed the production change and identified a fixture path assumption, corrected by resolving the entry point relative to the spec.
+- All 5,298 unit tests, application typecheck, production build, and lint pass with the pinned dependencies under Node 24.
+
 ### Preserve current location in typed authentication recovery (2026-09-22)
 
 - An absent or empty navigation URL returns to the current pathname, query, and fragment with the recovery marker set or replaced.
