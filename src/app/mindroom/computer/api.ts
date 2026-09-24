@@ -9,6 +9,7 @@ import type {
 } from './types';
 
 const COMPUTER_SESSIONS_PATH = '/api/computers/sessions';
+const COMPUTER_REQUEST_CREDENTIALS: RequestCredentials = 'same-origin';
 const MAX_ERROR_LENGTH = 300;
 
 export class ComputerApiError extends Error {
@@ -87,7 +88,7 @@ const requestJson = async <T>(
   try {
     const response = await request(url, {
       cache: 'no-store',
-      credentials: 'same-origin',
+      credentials: COMPUTER_REQUEST_CREDENTIALS,
       ...init,
     });
     if (!response.ok) throw await responseError(response);
@@ -109,7 +110,7 @@ const requestNoContent = async (
   try {
     const response = await request(url, {
       cache: 'no-store',
-      credentials: 'same-origin',
+      credentials: COMPUTER_REQUEST_CREDENTIALS,
       ...init,
     });
     if (!response.ok) throw await responseError(response);
