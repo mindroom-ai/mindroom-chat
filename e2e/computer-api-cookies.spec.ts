@@ -57,7 +57,9 @@ test.beforeAll(async () => {
       );
     });
     servers.push(server);
-    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    await new Promise<void>((resolve) => {
+      server.listen(0, '127.0.0.1', resolve);
+    });
     const address = server.address();
     if (!address || typeof address === 'string') throw new Error('Missing server address');
     return `http://127.0.0.1:${address.port}`;
@@ -87,7 +89,7 @@ for (const sameOrigin of [true, false]) {
     await page.goto(appOrigin);
     await page.evaluate(
       async (apiUrl) => {
-        const { createComputerSession } = await import('/api.js');
+        const { createComputerSession } = await import('./api.js');
         const client = await createComputerSession({
           apiUrl,
           agentUserId: '@helper:example.org',
