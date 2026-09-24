@@ -87,7 +87,7 @@ const requestJson = async <T>(
   try {
     const response = await request(url, {
       cache: 'no-store',
-      credentials: 'omit',
+      credentials: 'same-origin',
       ...init,
     });
     if (!response.ok) throw await responseError(response);
@@ -109,7 +109,7 @@ const requestNoContent = async (
   try {
     const response = await request(url, {
       cache: 'no-store',
-      credentials: 'omit',
+      credentials: 'same-origin',
       ...init,
     });
     if (!response.ok) throw await responseError(response);

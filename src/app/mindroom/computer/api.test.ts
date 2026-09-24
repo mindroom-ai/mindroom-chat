@@ -75,7 +75,7 @@ describe('computer session client', () => {
     expect(createCall[0]).toBe('https://computer.example.org/api/computers/sessions');
     expect(createCall[1]).toMatchObject({
       cache: 'no-store',
-      credentials: 'omit',
+      credentials: 'same-origin',
       method: 'POST',
       headers: {
         Accept: 'application/json',
@@ -93,7 +93,7 @@ describe('computer session client', () => {
       'https://computer.example.org/api/computers/sessions/session-1/stream-ticket',
       {
         cache: 'no-store',
-        credentials: 'omit',
+        credentials: 'same-origin',
         method: 'POST',
         headers: {
           Accept: 'application/json',
