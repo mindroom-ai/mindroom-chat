@@ -3,6 +3,7 @@ import type { MatrixEvent } from 'matrix-js-sdk';
 import { subscribeDeepTraceStatus } from '../diagnostics/deepTrace';
 import { logTimelineDebug } from './timelineDebug';
 import { getThreadReplyEventsForRoot } from './threadUtils';
+import { observeThreadRenderScheduler } from './threadRenderSchedulerProbe';
 
 type Options = {
   traceId?: string;
@@ -17,6 +18,7 @@ type Options = {
   getVirtualItemCount: () => number;
   isRenderableReply?: (event: MatrixEvent) => boolean;
   cacheHydrated: boolean;
+  sdkReady?: boolean;
   loading: boolean;
   loadError: boolean;
 };
@@ -24,17 +26,28 @@ type Options = {
 /** Opt-in, at most once per second; reads mounted IDs but exports only counts. */
 export const useThreadDiagnosticSnapshot = (options: Options): void => {
   const latest = useRef(options);
+  // Diagnostic-only observations: an interrupted render must not replace the
+  // committed snapshot, but its progress is useful when a view stays empty.
+  const renderAttemptCount = useRef(0);
+  const commitCount = useRef(0);
+  const attempted = useRef(options);
+  renderAttemptCount.current += 1;
+  attempted.current = options;
   useLayoutEffect(() => {
     latest.current = options;
+    commitCount.current += 1;
   });
   const { traceId, threadId } = options;
   useEffect(() => {
     if (!traceId || !threadId) return undefined;
     let timer: ReturnType<typeof setInterval> | undefined;
+    let stopSchedulerProbe: (() => void) | undefined;
     let previous: string | undefined;
     const sample = () => {
       const current = latest.current;
       if (current.traceId !== traceId || current.threadId !== threadId) return;
+      const pending = attempted.current;
+      const sameThread = pending.traceId === traceId && pending.threadId === threadId;
       // Read the SDK model even if React missed its latest update.
       const model = current.readModel();
       const replies = getThreadReplyEventsForRoot(current.events, threadId);
@@ -58,8 +71,14 @@ export const useThreadDiagnosticSnapshot = (options: Options): void => {
         rootMounted: element ? mounted.has(threadId) : null,
         virtualItemCount: current.getVirtualItemCount(),
         cacheHydrated: current.cacheHydrated,
+        sdkReady: current.sdkReady ?? false,
         loading: current.loading,
         loadError: current.loadError,
+        renderAttemptCount: renderAttemptCount.current,
+        commitCount: commitCount.current,
+        attemptedEventCount: sameThread ? pending.events.length : null,
+        attemptedSdkReady: sameThread ? pending.sdkReady ?? false : null,
+        attemptedCacheHydrated: sameThread ? pending.cacheHydrated : null,
       };
       const signature = JSON.stringify(data);
       if (signature === previous) return;
@@ -69,6 +88,8 @@ export const useThreadDiagnosticSnapshot = (options: Options): void => {
     const stop = () => {
       if (timer !== undefined) clearInterval(timer);
       timer = undefined;
+      stopSchedulerProbe?.();
+      stopSchedulerProbe = undefined;
     };
     const safeSample = (): boolean => {
       try {
@@ -85,6 +106,9 @@ export const useThreadDiagnosticSnapshot = (options: Options): void => {
         stop();
       } else if (timer === undefined) {
         previous = undefined;
+        stopSchedulerProbe = observeThreadRenderScheduler((data) =>
+          logTimelineDebug(traceId, 'thread-render-scheduler', data)
+        );
         if (safeSample()) timer = setInterval(safeSample, 1000);
       }
     });

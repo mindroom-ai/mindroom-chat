@@ -20,6 +20,9 @@ vi.mock('../diagnostics/deepTrace', () => ({
   },
 }));
 vi.mock('./timelineDebug', () => ({ logTimelineDebug: mocks.log }));
+vi.mock('./threadRenderSchedulerProbe', () => ({
+  observeThreadRenderScheduler: () => () => undefined,
+}));
 
 const reply = (id: string) =>
   new MatrixEvent({

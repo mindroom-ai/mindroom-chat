@@ -2,6 +2,19 @@
 
 ## Runbook
 
+### Prepare thread render diagnostics for production (2026-09-25)
+
+- Production review retains the bounded opt-in render counters and three one-shot scheduling observations; they add useful evidence without changing application state or scheduling.
+  The original blank-thread trigger remains unproven.
+- Integrated current `dev`, preserving both histories in the Runbook; no application code conflicted.
+- Independent review approves the production scope, privacy boundary, cleanup, and interrupted-render regression.
+  All 5,303 unit tests pass under Node 24.13.1, along with application and changed-test typechecks, production build, formatting, and lint with zero errors and 17 existing warnings.
+- Hosted review consolidated the export field budget with the shared thread schema while retaining the generic metadata allowance.
+  An export-completeness regression covers every declared phase and fails with the historical 16-field cap.
+- All three focused Chromium scheduler cases pass for blocked-cache loading and summary consistency/upgrades.
+  The final mobile WebKit probe renders replies and records all three scheduling paths with forced diagnostic-storage failure and blocked history storage.
+  These focused checks supplement the earlier non-green full browser run documented below.
+
 ### Preserve same-origin Computer API cookies (2026-09-24)
 
 - Computer session creation, status, stream tickets, control, and cleanup now preserve same-origin cookies needed by an authenticating reverse proxy.
@@ -37,6 +50,35 @@
 - Scheduler validation exposed working-directory assumptions in the builder and browser fixture; both now resolve sources relative to their own files.
   A new subprocess regression fails before the fix and passes afterward.
   All eight recovery cases pass through the scheduler on the host and in the browser container, with full Chromium selected for BFCache and navigation awaited before inspecting restored state.
+
+### Investigate blank native thread views after successful loading (2026-09-22)
+
+- Status: failure confirmed in device diagnostics; exact trigger and rendering fix remain unproven.
+  The header and composer remain responsive while the thread view is blank.
+  Force-closing and reopening the app restores messages in the same threads.
+- On build `f803999a`, server bootstrap and latest-history loading complete for both small and large threads.
+  Cache hydration and reconciliation also finish on large-thread opens, but sampled committed state retains zero events and its initial loading/hydration flags while SDK reply counts grow.
+  A separate 7.5-second event-loop stall occurs during one open.
+- Existing session/render tests and the production blocked-cache browser regression pass in Chromium and mobile WebKit.
+  A synthetic native-platform WebKit probe also renders replies with forced diagnostic-storage failure and blocked history storage; its diagnostic snapshot advances from zero to mounted replies.
+  These probes do not reproduce the device failure.
+- Added numeric render-attempt/commit counters and attempted event/readiness values alongside committed SDK readiness to the opt-in thread snapshot.
+  A concurrent DOM regression reproduces the previous diagnostic ambiguity using a suspended render, then checks that attempted and committed state remain distinguishable through recovery.
+  A one-shot scheduling probe records timer, animation-frame, and fresh MessageChannel delays plus document visibility when thread diagnostics start.
+  It distinguishes callback paths without changing React scheduling; a fresh channel's result alone cannot establish the health of React's existing scheduler channel.
+  No message content or identifiers are added to the export.
+- Next: use the additional counters in a device reproduction to distinguish absent render attempts from interrupted renders before changing state publication or fetching.
+  Cross-model consultation supports instrumentation before any publication workaround; no speculative fetch or synchronous-render change is included.
+- Independent review approves the diagnostic addition after expanding the bounded export field allowance to retain the complete snapshot.
+  A second independent review approves the bounded scheduling probe and its cleanup.
+  New regressions fail before their corresponding changes, and all 5,287 unit tests pass under Node 24.13.1.
+  Application and changed-test typechecks, production build, and lint pass with zero errors and 17 existing warnings.
+  The final synthetic native-platform WebKit probe confirms mounted replies, advancing diagnostic counters, and all three scheduling observations with failed diagnostic storage and blocked history storage.
+  The full browser scheduler on the initial diagnostic production build completes 124 jobs in the supported browser container: 104 passed, 18 failed, and two blocked by missing external SSO and worker-computer fixtures.
+  Failures include media, styling, fixture assumptions, login readiness, pagination counts, and a compositor scroll-jump stress budget; the latter records no blank frames.
+  Compact-view, thread-scroll, streaming, and message-rendering performance probes pass.
+  The full suite remains non-green, and these results do not reproduce or resolve the reported blank-thread failure.
+  The scheduling follow-up passes the full unit suite and final production mobile WebKit probe separately.
 
 ### Reduce loading and thread-operation latency (2026-09-22)
 

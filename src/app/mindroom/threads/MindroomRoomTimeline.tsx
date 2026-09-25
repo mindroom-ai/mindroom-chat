@@ -1135,6 +1135,7 @@ export function RoomTimeline({
         hideNickAvatarEvents
       ),
     cacheHydrated: threadInitialCacheHydrated,
+    sdkReady: threadInitialSdkLoaded,
     loading: threadLatestOpenPending,
     loadError: threadLoadError,
   });
