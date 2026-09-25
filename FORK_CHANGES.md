@@ -6,6 +6,7 @@
 
 - Agent notices carrying version 1 `io.mindroom.document` metadata render as document cards with the file, location, last modifier, change summary, per-edit outcomes, and verification state.
   Cards are read only from unedited notices sent by a joined MindRoom agent on the viewer's homeserver whose metadata names that sender and room; anything else renders as the plain notice.
+  Cards list edit ranges and outcomes; the backend keeps cell contents out of room cards.
 - **Open in Excel** uses Office's `ms-excel:ofe|u|` scheme built only from the card's HTTPS `file_url`, and **Open in browser** opens the HTTPS `web_url` in a new tab without an opener or referrer.
 - Approval cards for `edit_office_document`, standalone and in thread review groups, show a before/after table of changed cells with addresses and number formats above the unchanged raw-argument disclosure.
   The review uses only complete arguments, renders nothing for malformed or truncated previews, and marks cells the backend redacted as secrets.

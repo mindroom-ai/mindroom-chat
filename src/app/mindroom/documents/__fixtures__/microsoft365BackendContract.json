@@ -197,14 +197,6 @@
               "edits": [
                 {
                   "cells_changed": 0,
-                  "current": [
-                    [
-                      0.11
-                    ],
-                    [
-                      142
-                    ]
-                  ],
                   "outcome": "conflict",
                   "range": "Assumptions!B4:B5"
                 },
@@ -212,12 +204,7 @@
                   "cells_changed": 1,
                   "outcome": "applied",
                   "range": "'Summary Sheet'!B2",
-                  "verified": false,
-                  "written": [
-                    [
-                      "Revenue grows 12% YoY (restated)."
-                    ]
-                  ]
+                  "verified": false
                 }
               ],
               "status": "partial",
