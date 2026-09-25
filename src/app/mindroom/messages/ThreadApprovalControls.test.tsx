@@ -7,6 +7,8 @@ import { ThreadApprovalPermissions, ThreadApprovalQueue } from './ThreadApproval
 import { ThreadApprovals } from './ThreadApprovalProvider';
 import { parseToolApprovalContent } from './toolApproval';
 
+vi.mock('../documents/DocumentEditReview', () => ({ ApprovalDocumentEditReview: () => null }));
+
 let current: ThreadApprovals;
 vi.mock('./ThreadApprovalProvider', () => ({ useThreadApprovals: () => current }));
 vi.mock('../../hooks/useMatrixClient', () => ({

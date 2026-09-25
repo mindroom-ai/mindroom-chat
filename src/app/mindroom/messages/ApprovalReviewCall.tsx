@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import React from 'react';
 import { ApprovalArguments } from './ApprovalArguments';
+import { ApprovalDocumentEditReview } from '../documents/DocumentEditReview';
 import { ApprovalDecisionControls } from './ApprovalDecisionControls';
 import { ApprovalControlProps, isApprovalPending } from './approvalActions';
 import * as css from './ThreadApprovals.css';
@@ -22,6 +23,7 @@ export function ApprovalReviewCall({
           status: statusLabel,
         })}
       </small>
+      <ApprovalDocumentEditReview approval={record.approval} />
       <ApprovalArguments approval={record.approval} />
       <ApprovalDecisionControls {...controls} index={index} />
     </div>

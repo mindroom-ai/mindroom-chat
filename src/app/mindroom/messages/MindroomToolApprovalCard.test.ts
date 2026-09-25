@@ -6,6 +6,8 @@ import { MindroomToolApprovalCard } from './MindroomToolApprovalCard';
 import { ThreadApprovals } from './ThreadApprovalProvider';
 import { MINDROOM_TOOL_APPROVAL_RESPONSE_EVENT, ToolApprovalData } from './toolApproval';
 
+vi.mock('../documents/DocumentEditReview', () => ({ ApprovalDocumentEditReview: () => null }));
+
 const sendEventMock = vi.fn();
 vi.mock('./ThreadApprovals.css', () => ({
   ReceiptHeader: 'ReceiptHeader',

@@ -2866,6 +2866,50 @@
       "releaseControl": "다른 화면을 열기 전에 컴퓨터 제어를 해제하세요.",
       "openConversation": "방 대화에서 이 요청을 여세요.",
       "settingsUnavailable": "이 설정 항목을 열려면 단순 모드를 끄세요."
+    },
+    "documents": {
+      "card": {
+        "label": "Microsoft 365 문서",
+        "event": {
+          "connected": "이 대화에 연결됨",
+          "saved": "Microsoft 365에 저장됨",
+          "edited": "편집됨"
+        },
+        "modifiedBy": "마지막 수정: {{name}}",
+        "modifiedByAt": "마지막 수정: {{name}}, {{time}}",
+        "status": {
+          "applied": "적용됨",
+          "partial": "일부 적용됨",
+          "conflict": "충돌, 아무것도 쓰지 않음",
+          "failed": "실패, 아무것도 쓰지 않음"
+        },
+        "cellsChanged": "변경된 셀: {{cells}}",
+        "verified": "확인됨",
+        "notVerified": "확인되지 않음",
+        "outcome": {
+          "applied": "적용됨",
+          "conflict": "읽은 후 변경되어 건너뜀",
+          "failed": "실패",
+          "not_attempted": "시도하지 않음",
+          "alreadyApplied": "이미 적용됨"
+        },
+        "openInExcel": "Excel에서 열기",
+        "openInBrowser": "브라우저에서 열기"
+      },
+      "review": {
+        "label": "제안된 통합 문서 변경 사항",
+        "cell": "셀",
+        "before": "변경 전",
+        "after": "변경 후",
+        "hidden": "숨김",
+        "empty": "비어 있음",
+        "format": "서식 {{format}}",
+        "unchanged": "변경되지 않은 셀: {{cells}}",
+        "skipConflicts": "읽은 후 변경된 범위는 건너뜁니다.",
+        "redactedNote": "일부 값은 비밀처럼 보여 이 미리 보기에서 숨겨졌습니다.",
+        "conflictNote": "읽은 후 변경된 범위에는 아무것도 쓰지 않습니다.",
+        "document": "통합 문서:"
+      }
     }
   },
   "roomSchedules": {

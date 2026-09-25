@@ -8,6 +8,11 @@ import { trimReplyFromBody } from '../../utils/room';
 import { MINDROOM_MESSAGE_EXTRAS_KEY, parseMindroomMessageExtras } from './messageExtrasData';
 import { clearMindroomLongTextHydrationCache, MindroomLongTextSource } from './longText';
 
+vi.mock('../documents/MindroomDocumentCard', () => ({
+  MindroomDocumentCard: ({ fallback }: { fallback: unknown }) => fallback,
+}));
+vi.mock('../documents/DocumentEditReview', () => ({ ApprovalDocumentEditReview: () => null }));
+
 const matrixMocks = vi.hoisted(() => ({
   decryptFile: vi.fn(),
   downloadEncryptedMedia: vi.fn(),

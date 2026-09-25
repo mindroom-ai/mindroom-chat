@@ -2866,6 +2866,50 @@
       "releaseControl": "Release computer control before opening another view.",
       "openConversation": "Open this request from the room conversation.",
       "settingsUnavailable": "Turn off Simple Mode to open this Settings section."
+    },
+    "documents": {
+      "card": {
+        "label": "Microsoft 365 document",
+        "event": {
+          "connected": "Connected to this conversation",
+          "saved": "Saved to Microsoft 365",
+          "edited": "Edited"
+        },
+        "modifiedBy": "Last modified by {{name}}",
+        "modifiedByAt": "Last modified by {{name}} {{time}}",
+        "status": {
+          "applied": "Applied",
+          "partial": "Partially applied",
+          "conflict": "Conflict, nothing written",
+          "failed": "Failed, nothing written"
+        },
+        "cellsChanged": "Cells changed: {{cells}}",
+        "verified": "Verified",
+        "notVerified": "Not verified",
+        "outcome": {
+          "applied": "applied",
+          "conflict": "changed since it was read, skipped",
+          "failed": "failed",
+          "not_attempted": "not attempted",
+          "alreadyApplied": "already applied"
+        },
+        "openInExcel": "Open in Excel",
+        "openInBrowser": "Open in browser"
+      },
+      "review": {
+        "label": "Proposed workbook changes",
+        "cell": "Cell",
+        "before": "Before",
+        "after": "After",
+        "hidden": "hidden",
+        "empty": "empty",
+        "format": "format {{format}}",
+        "unchanged": "Unchanged cells: {{cells}}",
+        "skipConflicts": "Ranges changed since they were read will be skipped.",
+        "redactedNote": "Some values are hidden in this preview because they look like secrets.",
+        "conflictNote": "Nothing is written to a range that changed since it was read.",
+        "document": "Workbook:"
+      }
     }
   },
   "roomSchedules": {

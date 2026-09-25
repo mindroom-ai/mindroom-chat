@@ -1,0 +1,300 @@
+{
+  "cases": [
+    {
+      "event": {
+        "content": {
+          "body": "Connected Forecast.xlsx (FY27) to this conversation.\ndocument_id: b!drive-1:01ITEM\nhttps://contoso.sharepoint.com/sites/finance/_layouts/15/Doc.aspx?sourcedoc=%7BA1B2%7D&file=Forecast.xlsx&action=default",
+          "format": "org.matrix.custom.html",
+          "formatted_body": "<p>Connected Forecast.xlsx (FY27) to this conversation.<br>\ndocument_id: b!drive-1:01ITEM<br>\nhttps://contoso.sharepoint.com/sites/finance/_layouts/15/Doc.aspx?sourcedoc=%7BA1B2%7D&amp;file=Forecast.xlsx&amp;action=default</p>\n",
+          "io.mindroom.document": {
+            "agent_user_id": "@mindroom_analyst:localhost",
+            "document_id": "b!drive-1:01ITEM",
+            "event": "connected",
+            "file_url": "https://contoso.sharepoint.com/sites/finance/Shared%20Documents/FY27/Forecast.xlsx",
+            "kind": "xlsx",
+            "location": "FY27",
+            "name": "Forecast.xlsx",
+            "requester_id": "@alice:localhost",
+            "revision": {
+              "etag": "\"{ETAG},1\"",
+              "modified_at": "2026-09-25T10:05:40Z",
+              "modified_by": "Sam Kim"
+            },
+            "room_id": "!room:localhost",
+            "thread_id": "$thread",
+            "version": 1,
+            "web_url": "https://contoso.sharepoint.com/sites/finance/_layouts/15/Doc.aspx?sourcedoc=%7BA1B2%7D&file=Forecast.xlsx&action=default"
+          },
+          "m.relates_to": {
+            "event_id": "$thread",
+            "is_falling_back": false,
+            "m.in_reply_to": {
+              "event_id": "$request"
+            },
+            "rel_type": "m.thread"
+          },
+          "msgtype": "m.notice"
+        },
+        "event_id": "$microsoft-365-contract-thread-connected",
+        "origin_server_ts": 100000,
+        "room_id": "!room:localhost",
+        "sender": "@mindroom_analyst:localhost",
+        "type": "m.room.message"
+      },
+      "id": "thread/connected"
+    },
+    {
+      "event": {
+        "content": {
+          "body": "Connected Forecast.xlsx (FY27) to this conversation.\ndocument_id: b!drive-1:01ITEM\nhttps://contoso.sharepoint.com/sites/finance/_layouts/15/Doc.aspx?sourcedoc=%7BA1B2%7D&file=Forecast.xlsx&action=default",
+          "format": "org.matrix.custom.html",
+          "formatted_body": "<p>Connected Forecast.xlsx (FY27) to this conversation.<br>\ndocument_id: b!drive-1:01ITEM<br>\nhttps://contoso.sharepoint.com/sites/finance/_layouts/15/Doc.aspx?sourcedoc=%7BA1B2%7D&amp;file=Forecast.xlsx&amp;action=default</p>\n",
+          "io.mindroom.document": {
+            "agent_user_id": "@mindroom_analyst:localhost",
+            "document_id": "b!drive-1:01ITEM",
+            "event": "connected",
+            "file_url": "https://contoso.sharepoint.com/sites/finance/Shared%20Documents/FY27/Forecast.xlsx",
+            "kind": "xlsx",
+            "location": "FY27",
+            "name": "Forecast.xlsx",
+            "requester_id": "@alice:localhost",
+            "revision": {
+              "etag": "\"{ETAG},1\"",
+              "modified_at": "2026-09-25T10:05:40Z",
+              "modified_by": "Sam Kim"
+            },
+            "room_id": "!room:localhost",
+            "thread_id": null,
+            "version": 1,
+            "web_url": "https://contoso.sharepoint.com/sites/finance/_layouts/15/Doc.aspx?sourcedoc=%7BA1B2%7D&file=Forecast.xlsx&action=default"
+          },
+          "msgtype": "m.notice"
+        },
+        "event_id": "$microsoft-365-contract-room-connected",
+        "origin_server_ts": 100000,
+        "room_id": "!room:localhost",
+        "sender": "@mindroom_analyst:localhost",
+        "type": "m.room.message"
+      },
+      "id": "room/connected"
+    },
+    {
+      "event": {
+        "content": {
+          "body": "Saved Forecast.xlsx (FY27) to Microsoft 365 and connected it to this conversation.\ndocument_id: b!drive-1:01NEW1\nhttps://contoso.sharepoint.com/sites/finance/_layouts/15/Doc.aspx?sourcedoc=%7BA1B2%7D&file=Forecast.xlsx&action=default",
+          "format": "org.matrix.custom.html",
+          "formatted_body": "<p>Saved Forecast.xlsx (FY27) to Microsoft 365 and connected it to this conversation.<br>\ndocument_id: b!drive-1:01NEW1<br>\nhttps://contoso.sharepoint.com/sites/finance/_layouts/15/Doc.aspx?sourcedoc=%7BA1B2%7D&amp;file=Forecast.xlsx&amp;action=default</p>\n",
+          "io.mindroom.document": {
+            "agent_user_id": "@mindroom_analyst:localhost",
+            "document_id": "b!drive-1:01NEW1",
+            "event": "saved",
+            "file_url": "https://contoso.sharepoint.com/sites/finance/Shared%20Documents/FY27/Forecast.xlsx",
+            "kind": "xlsx",
+            "location": "FY27",
+            "name": "Forecast.xlsx",
+            "requester_id": "@alice:localhost",
+            "revision": {
+              "etag": "\"{ETAG},1\"",
+              "modified_at": "2026-09-25T10:05:40Z",
+              "modified_by": "Sam Kim"
+            },
+            "room_id": "!room:localhost",
+            "thread_id": "$thread",
+            "version": 1,
+            "web_url": "https://contoso.sharepoint.com/sites/finance/_layouts/15/Doc.aspx?sourcedoc=%7BA1B2%7D&file=Forecast.xlsx&action=default"
+          },
+          "m.relates_to": {
+            "event_id": "$thread",
+            "is_falling_back": false,
+            "m.in_reply_to": {
+              "event_id": "$request"
+            },
+            "rel_type": "m.thread"
+          },
+          "msgtype": "m.notice"
+        },
+        "event_id": "$microsoft-365-contract-thread-saved",
+        "origin_server_ts": 100000,
+        "room_id": "!room:localhost",
+        "sender": "@mindroom_analyst:localhost",
+        "type": "m.room.message"
+      },
+      "id": "thread/saved"
+    },
+    {
+      "event": {
+        "content": {
+          "body": "Edited Forecast.xlsx (FY27).\nRaise growth to 12% and refresh the narrative\n2 cell(s) changed, verified.\ndocument_id: b!drive-1:01ITEM\nhttps://contoso.sharepoint.com/sites/finance/_layouts/15/Doc.aspx?sourcedoc=%7BA1B2%7D&file=Forecast.xlsx&action=default",
+          "format": "org.matrix.custom.html",
+          "formatted_body": "<p>Edited Forecast.xlsx (FY27).<br>\nRaise growth to 12% and refresh the narrative<br>\n2 cell(s) changed, verified.<br>\ndocument_id: b!drive-1:01ITEM<br>\nhttps://contoso.sharepoint.com/sites/finance/_layouts/15/Doc.aspx?sourcedoc=%7BA1B2%7D&amp;file=Forecast.xlsx&amp;action=default</p>\n",
+          "io.mindroom.document": {
+            "agent_user_id": "@mindroom_analyst:localhost",
+            "change": {
+              "cells_changed": 2,
+              "edits": [
+                {
+                  "cells_changed": 1,
+                  "outcome": "applied",
+                  "range": "Assumptions!B4:B5",
+                  "verified": true
+                },
+                {
+                  "cells_changed": 1,
+                  "outcome": "applied",
+                  "range": "'Summary Sheet'!B2",
+                  "verified": true
+                }
+              ],
+              "status": "applied",
+              "summary": "Raise growth to 12% and refresh the narrative",
+              "verified": true
+            },
+            "document_id": "b!drive-1:01ITEM",
+            "event": "edited",
+            "file_url": "https://contoso.sharepoint.com/sites/finance/Shared%20Documents/FY27/Forecast.xlsx",
+            "kind": "xlsx",
+            "location": "FY27",
+            "name": "Forecast.xlsx",
+            "requester_id": "@alice:localhost",
+            "revision": {
+              "etag": "\"{ETAG},1\"",
+              "modified_at": "2026-09-25T10:05:40Z",
+              "modified_by": "Sam Kim"
+            },
+            "room_id": "!room:localhost",
+            "thread_id": "$thread",
+            "version": 1,
+            "web_url": "https://contoso.sharepoint.com/sites/finance/_layouts/15/Doc.aspx?sourcedoc=%7BA1B2%7D&file=Forecast.xlsx&action=default"
+          },
+          "m.relates_to": {
+            "event_id": "$thread",
+            "is_falling_back": false,
+            "m.in_reply_to": {
+              "event_id": "$request"
+            },
+            "rel_type": "m.thread"
+          },
+          "msgtype": "m.notice"
+        },
+        "event_id": "$microsoft-365-contract-thread-edited",
+        "origin_server_ts": 100000,
+        "room_id": "!room:localhost",
+        "sender": "@mindroom_analyst:localhost",
+        "type": "m.room.message"
+      },
+      "id": "thread/edited"
+    },
+    {
+      "event": {
+        "content": {
+          "body": "Edited Forecast.xlsx (FY27).\nRaise growth to 12% and refresh the narrative\n1 cell(s) changed, NOT verified.\ndocument_id: b!drive-1:01ITEM\nhttps://contoso.sharepoint.com/sites/finance/_layouts/15/Doc.aspx?sourcedoc=%7BA1B2%7D&file=Forecast.xlsx&action=default",
+          "format": "org.matrix.custom.html",
+          "formatted_body": "<p>Edited Forecast.xlsx (FY27).<br>\nRaise growth to 12% and refresh the narrative<br>\n1 cell(s) changed, NOT verified.<br>\ndocument_id: b!drive-1:01ITEM<br>\nhttps://contoso.sharepoint.com/sites/finance/_layouts/15/Doc.aspx?sourcedoc=%7BA1B2%7D&amp;file=Forecast.xlsx&amp;action=default</p>\n",
+          "io.mindroom.document": {
+            "agent_user_id": "@mindroom_analyst:localhost",
+            "change": {
+              "cells_changed": 1,
+              "edits": [
+                {
+                  "cells_changed": 0,
+                  "outcome": "conflict",
+                  "range": "Assumptions!B4:B5"
+                },
+                {
+                  "cells_changed": 1,
+                  "outcome": "applied",
+                  "range": "'Summary Sheet'!B2",
+                  "verified": false
+                }
+              ],
+              "status": "partial",
+              "summary": "Raise growth to 12% and refresh the narrative",
+              "verified": false
+            },
+            "document_id": "b!drive-1:01ITEM",
+            "event": "edited",
+            "file_url": "https://contoso.sharepoint.com/sites/finance/Shared%20Documents/FY27/Forecast.xlsx",
+            "kind": "xlsx",
+            "location": "FY27",
+            "name": "Forecast.xlsx",
+            "requester_id": "@alice:localhost",
+            "revision": {
+              "etag": "\"{ETAG},1\"",
+              "modified_at": "2026-09-25T10:05:40Z",
+              "modified_by": "Sam Kim"
+            },
+            "room_id": "!room:localhost",
+            "thread_id": "$thread",
+            "version": 1,
+            "web_url": "https://contoso.sharepoint.com/sites/finance/_layouts/15/Doc.aspx?sourcedoc=%7BA1B2%7D&file=Forecast.xlsx&action=default"
+          },
+          "m.relates_to": {
+            "event_id": "$thread",
+            "is_falling_back": false,
+            "m.in_reply_to": {
+              "event_id": "$request"
+            },
+            "rel_type": "m.thread"
+          },
+          "msgtype": "m.notice"
+        },
+        "event_id": "$microsoft-365-contract-thread-edited-partial",
+        "origin_server_ts": 100000,
+        "room_id": "!room:localhost",
+        "sender": "@mindroom_analyst:localhost",
+        "type": "m.room.message"
+      },
+      "id": "thread/edited-partial"
+    }
+  ],
+  "edit_arguments": {
+    "document_id": "b!drive-1:01ITEM",
+    "edits": [
+      {
+        "after": [
+          [
+            0.12
+          ],
+          [
+            142
+          ]
+        ],
+        "before": [
+          [
+            0.08
+          ],
+          [
+            142
+          ]
+        ],
+        "number_format": [
+          [
+            "0%"
+          ],
+          [
+            null
+          ]
+        ],
+        "range": "Assumptions!B4:B5"
+      },
+      {
+        "after": [
+          [
+            "Revenue grows 12% YoY."
+          ]
+        ],
+        "before": [
+          [
+            "Revenue grows 8% YoY."
+          ]
+        ],
+        "range": "'Summary Sheet'!B2"
+      }
+    ],
+    "skip_conflicts": false,
+    "summary": "Raise growth to 12% and refresh the narrative"
+  },
+  "room_id": "!room:localhost",
+  "version": 1,
+  "viewer_id": "@alice:localhost"
+}

@@ -2866,6 +2866,50 @@
       "releaseControl": "開啟其他檢視前，請先釋放電腦控制權。",
       "openConversation": "請從聊天室對話中開啟此請求。",
       "settingsUnavailable": "關閉簡易模式以開啟此設定區段。"
+    },
+    "documents": {
+      "card": {
+        "label": "Microsoft 365 文件",
+        "event": {
+          "connected": "已連結至此對話",
+          "saved": "已儲存至 Microsoft 365",
+          "edited": "已編輯"
+        },
+        "modifiedBy": "最後修改者：{{name}}",
+        "modifiedByAt": "最後修改者：{{name}}，{{time}}",
+        "status": {
+          "applied": "已套用",
+          "partial": "部分套用",
+          "conflict": "有衝突，未寫入任何內容",
+          "failed": "失敗，未寫入任何內容"
+        },
+        "cellsChanged": "已變更的儲存格：{{cells}}",
+        "verified": "已驗證",
+        "notVerified": "未驗證",
+        "outcome": {
+          "applied": "已套用",
+          "conflict": "讀取後已被變更，已略過",
+          "failed": "失敗",
+          "not_attempted": "未嘗試",
+          "alreadyApplied": "先前已套用"
+        },
+        "openInExcel": "在 Excel 中開啟",
+        "openInBrowser": "在瀏覽器中開啟"
+      },
+      "review": {
+        "label": "建議的活頁簿變更",
+        "cell": "儲存格",
+        "before": "之前",
+        "after": "之後",
+        "hidden": "已隱藏",
+        "empty": "空白",
+        "format": "格式 {{format}}",
+        "unchanged": "未變更的儲存格：{{cells}}",
+        "skipConflicts": "讀取後已被變更的範圍將被略過。",
+        "redactedNote": "部分值看起來像機密資訊，因此在此預覽中隱藏。",
+        "conflictNote": "不會寫入讀取後已被變更的範圍。",
+        "document": "活頁簿："
+      }
     }
   },
   "roomSchedules": {

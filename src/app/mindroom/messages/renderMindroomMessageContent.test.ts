@@ -5,6 +5,12 @@ import { describe, expect, it, vi } from 'vitest';
 import { persistAttachmentEvents } from '../threads/__tests__/attachmentFixtures';
 import { MINDROOM_MESSAGE_EXTRAS_KEY } from './messageExtrasData';
 
+vi.mock('../documents/MindroomDocumentCard', () => ({
+  MindroomDocumentCard: ({ fallback }: { fallback: React.ReactNode }) =>
+    React.createElement('div', { 'data-renderer': 'document-card' }, fallback),
+}));
+vi.mock('../documents/DocumentEditReview', () => ({ ApprovalDocumentEditReview: () => null }));
+
 const toolApprovalCardMock = vi.hoisted(() => vi.fn());
 const longTextTextMock = vi.hoisted(() => vi.fn());
 const pasteAttachmentContentMock = vi.hoisted(() => vi.fn());
@@ -712,6 +718,27 @@ describe('renderMindroomMessageContent', () => {
     expect(rendered).not.toContain('notice');
 
     renderer.unmount();
+  });
+
+  it('routes unedited document notices through the document card with the notice as fallback', async () => {
+    const content = {
+      msgtype: 'm.notice',
+      body: 'Connected Forecast.xlsx to this conversation.',
+      'io.mindroom.document': { version: 1, event: 'connected' },
+    };
+    const card = JSON.stringify(
+      (await renderNode({ mEvent: {} as never, msgType: 'm.notice', content })).toJSON()
+    );
+    const edited = JSON.stringify(
+      (
+        await renderNode({ mEvent: {} as never, msgType: 'm.notice', content, edited: true })
+      ).toJSON()
+    );
+
+    expect(card).toContain('document-card');
+    expect(card).toContain('Connected Forecast.xlsx to this conversation.');
+    expect(edited).not.toContain('document-card');
+    expect(edited).toContain('notice');
   });
 
   it('renders tool approval events through the MindRoom approval card', async () => {

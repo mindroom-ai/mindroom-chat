@@ -2866,6 +2866,50 @@
       "releaseControl": "Lepaskan kendali komputer sebelum membuka tampilan lain.",
       "openConversation": "Buka permintaan ini dari percakapan ruangan.",
       "settingsUnavailable": "Nonaktifkan Mode Sederhana untuk membuka bagian Pengaturan ini."
+    },
+    "documents": {
+      "card": {
+        "label": "Dokumen Microsoft 365",
+        "event": {
+          "connected": "Terhubung ke percakapan ini",
+          "saved": "Disimpan ke Microsoft 365",
+          "edited": "Diedit"
+        },
+        "modifiedBy": "Terakhir diubah oleh {{name}}",
+        "modifiedByAt": "Terakhir diubah oleh {{name}} {{time}}",
+        "status": {
+          "applied": "Diterapkan",
+          "partial": "Diterapkan sebagian",
+          "conflict": "Konflik, tidak ada yang ditulis",
+          "failed": "Gagal, tidak ada yang ditulis"
+        },
+        "cellsChanged": "Sel yang berubah: {{cells}}",
+        "verified": "Terverifikasi",
+        "notVerified": "Tidak terverifikasi",
+        "outcome": {
+          "applied": "diterapkan",
+          "conflict": "berubah sejak dibaca, dilewati",
+          "failed": "gagal",
+          "not_attempted": "tidak dicoba",
+          "alreadyApplied": "sudah diterapkan"
+        },
+        "openInExcel": "Buka di Excel",
+        "openInBrowser": "Buka di browser"
+      },
+      "review": {
+        "label": "Usulan perubahan workbook",
+        "cell": "Sel",
+        "before": "Sebelum",
+        "after": "Sesudah",
+        "hidden": "tersembunyi",
+        "empty": "kosong",
+        "format": "format {{format}}",
+        "unchanged": "Sel yang tidak berubah: {{cells}}",
+        "skipConflicts": "Rentang yang berubah sejak dibaca akan dilewati.",
+        "redactedNote": "Beberapa nilai disembunyikan dalam pratinjau ini karena tampak seperti rahasia.",
+        "conflictNote": "Tidak ada yang ditulis ke rentang yang berubah sejak dibaca.",
+        "document": "Workbook:"
+      }
     }
   },
   "roomSchedules": {

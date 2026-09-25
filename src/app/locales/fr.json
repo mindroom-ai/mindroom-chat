@@ -2919,6 +2919,50 @@
       "releaseControl": "Relâchez le contrôle de l’ordinateur avant d’ouvrir une autre vue.",
       "openConversation": "Ouvrez cette demande depuis la conversation du salon.",
       "settingsUnavailable": "Désactivez le mode simple pour ouvrir cette section des paramètres."
+    },
+    "documents": {
+      "card": {
+        "label": "Document Microsoft 365",
+        "event": {
+          "connected": "Connecté à cette conversation",
+          "saved": "Enregistré dans Microsoft 365",
+          "edited": "Modifié"
+        },
+        "modifiedBy": "Dernière modification par {{name}}",
+        "modifiedByAt": "Dernière modification par {{name}} {{time}}",
+        "status": {
+          "applied": "Appliqué",
+          "partial": "Partiellement appliqué",
+          "conflict": "Conflit, rien n’a été écrit",
+          "failed": "Échec, rien n’a été écrit"
+        },
+        "cellsChanged": "Cellules modifiées : {{cells}}",
+        "verified": "Vérifié",
+        "notVerified": "Non vérifié",
+        "outcome": {
+          "applied": "appliqué",
+          "conflict": "modifié depuis la lecture, ignoré",
+          "failed": "échec",
+          "not_attempted": "non tenté",
+          "alreadyApplied": "déjà appliqué"
+        },
+        "openInExcel": "Ouvrir dans Excel",
+        "openInBrowser": "Ouvrir dans le navigateur"
+      },
+      "review": {
+        "label": "Modifications proposées du classeur",
+        "cell": "Cellule",
+        "before": "Avant",
+        "after": "Après",
+        "hidden": "masqué",
+        "empty": "vide",
+        "format": "format {{format}}",
+        "unchanged": "Cellules inchangées : {{cells}}",
+        "skipConflicts": "Les plages modifiées depuis leur lecture seront ignorées.",
+        "redactedNote": "Certaines valeurs sont masquées dans cet aperçu, car elles ressemblent à des secrets.",
+        "conflictNote": "Rien n’est écrit dans une plage modifiée depuis sa lecture.",
+        "document": "Classeur :"
+      }
     }
   },
   "roomSchedules": {

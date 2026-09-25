@@ -2866,6 +2866,50 @@
       "releaseControl": "Gib die Computersteuerung frei, bevor du eine andere Ansicht öffnest.",
       "openConversation": "Öffne diese Anfrage über das Gespräch im Raum.",
       "settingsUnavailable": "Deaktiviere den einfachen Modus, um diesen Einstellungsbereich zu öffnen."
+    },
+    "documents": {
+      "card": {
+        "label": "Microsoft 365-Dokument",
+        "event": {
+          "connected": "Mit dieser Unterhaltung verbunden",
+          "saved": "In Microsoft 365 gespeichert",
+          "edited": "Bearbeitet"
+        },
+        "modifiedBy": "Zuletzt geändert von {{name}}",
+        "modifiedByAt": "Zuletzt geändert von {{name}} {{time}}",
+        "status": {
+          "applied": "Übernommen",
+          "partial": "Teilweise übernommen",
+          "conflict": "Konflikt, nichts geschrieben",
+          "failed": "Fehlgeschlagen, nichts geschrieben"
+        },
+        "cellsChanged": "Geänderte Zellen: {{cells}}",
+        "verified": "Überprüft",
+        "notVerified": "Nicht überprüft",
+        "outcome": {
+          "applied": "übernommen",
+          "conflict": "seit dem Lesen geändert, übersprungen",
+          "failed": "fehlgeschlagen",
+          "not_attempted": "nicht versucht",
+          "alreadyApplied": "bereits übernommen"
+        },
+        "openInExcel": "In Excel öffnen",
+        "openInBrowser": "Im Browser öffnen"
+      },
+      "review": {
+        "label": "Vorgeschlagene Änderungen an der Arbeitsmappe",
+        "cell": "Zelle",
+        "before": "Vorher",
+        "after": "Nachher",
+        "hidden": "ausgeblendet",
+        "empty": "leer",
+        "format": "Format {{format}}",
+        "unchanged": "Unveränderte Zellen: {{cells}}",
+        "skipConflicts": "Bereiche, die sich seit dem Lesen geändert haben, werden übersprungen.",
+        "redactedNote": "Einige Werte sind in dieser Vorschau ausgeblendet, weil sie wie Geheimnisse aussehen.",
+        "conflictNote": "In einen Bereich, der sich seit dem Lesen geändert hat, wird nichts geschrieben.",
+        "document": "Arbeitsmappe:"
+      }
     }
   },
   "roomSchedules": {

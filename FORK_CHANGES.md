@@ -2,6 +2,21 @@
 
 ## Runbook
 
+### Render Microsoft 365 document cards and workbook edit reviews (2026-09-25)
+
+- Agent notices carrying version 1 `io.mindroom.document` metadata render as document cards with the file, location, last modifier, change summary, per-edit outcomes, and verification state.
+  Cards are read only from unedited notices sent by a joined MindRoom agent on the viewer's homeserver whose metadata names that sender and room; anything else renders as the plain notice.
+  Cards list edit ranges and outcomes; the backend keeps cell contents out of room cards.
+- **Open in Excel** uses Office's `ms-excel:ofe|u|` scheme built only from the card's HTTPS `file_url`, and **Open in browser** opens the HTTPS `web_url` in a new tab without an opener or referrer.
+- Approval cards for `edit_office_document`, standalone and in thread review groups, show a before/after table of changed cells with addresses and number formats above the unchanged raw-argument disclosure.
+  The review names the target document ID, compares cells exactly, always lists redacted cells as changes, treats null number formats as unchanged, and uses only complete arguments, rendering nothing for malformed, truncated, or attachment-backed previews.
+- `documents/__fixtures__/microsoft365BackendContract.json` comes from the backend's `tests.microsoft_365_contract_fixture`, and `microsoft-365-backend-contract.yml` regenerates it from the pinned backend revision.
+  When the card or argument contract changes, update that revision and regenerate the fixture with `uv run -m tests.microsoft_365_contract_fixture --output <fixture-path>` from the backend checkout.
+- New strings are translated in every catalog; they still need native-speaker review.
+- Validation: document protocol, backend contract, component, renderer-routing, i18n, and literal-token tests pass, along with typecheck, changed-file formatting, and lint.
+  The Chromium fixture `e2e/document-cards.spec.ts` checks phone and desktop layouts in light and dark themes, including link targets and the redaction note.
+  The full suite retains the four documented baseline failures (three Xcode Cloud Homebrew tests on non-macOS and one caption-restoration test); five RoomTimeline tests timed out only under full-suite load and pass in isolation.
+
 ### Preserve same-origin Computer API cookies (2026-09-24)
 
 - Computer session creation, status, stream tickets, control, and cleanup now preserve same-origin cookies needed by an authenticating reverse proxy.

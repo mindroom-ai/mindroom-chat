@@ -2866,6 +2866,50 @@
       "releaseControl": "打开其他视图前，请先释放电脑控制权。",
       "openConversation": "请从房间对话中打开此请求。",
       "settingsUnavailable": "关闭简单模式以打开此设置部分。"
+    },
+    "documents": {
+      "card": {
+        "label": "Microsoft 365 文档",
+        "event": {
+          "connected": "已关联到此对话",
+          "saved": "已保存到 Microsoft 365",
+          "edited": "已编辑"
+        },
+        "modifiedBy": "最后修改者：{{name}}",
+        "modifiedByAt": "最后修改者：{{name}}，{{time}}",
+        "status": {
+          "applied": "已应用",
+          "partial": "部分应用",
+          "conflict": "有冲突，未写入任何内容",
+          "failed": "失败，未写入任何内容"
+        },
+        "cellsChanged": "已更改的单元格：{{cells}}",
+        "verified": "已验证",
+        "notVerified": "未验证",
+        "outcome": {
+          "applied": "已应用",
+          "conflict": "读取后已被更改，已跳过",
+          "failed": "失败",
+          "not_attempted": "未尝试",
+          "alreadyApplied": "已应用过"
+        },
+        "openInExcel": "在 Excel 中打开",
+        "openInBrowser": "在浏览器中打开"
+      },
+      "review": {
+        "label": "建议的工作簿更改",
+        "cell": "单元格",
+        "before": "之前",
+        "after": "之后",
+        "hidden": "已隐藏",
+        "empty": "空",
+        "format": "格式 {{format}}",
+        "unchanged": "未更改的单元格：{{cells}}",
+        "skipConflicts": "读取后已被更改的区域将被跳过。",
+        "redactedNote": "部分值看起来像机密信息，因此在此预览中被隐藏。",
+        "conflictNote": "不会向读取后已被更改的区域写入任何内容。",
+        "document": "工作簿："
+      }
     }
   },
   "roomSchedules": {

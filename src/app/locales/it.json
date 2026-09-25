@@ -2919,6 +2919,50 @@
       "releaseControl": "Rilascia il controllo del computer prima di aprire un’altra vista.",
       "openConversation": "Apri questa richiesta dalla conversazione della stanza.",
       "settingsUnavailable": "Disattiva la modalità semplice per aprire questa sezione delle impostazioni."
+    },
+    "documents": {
+      "card": {
+        "label": "Documento di Microsoft 365",
+        "event": {
+          "connected": "Collegato a questa conversazione",
+          "saved": "Salvato in Microsoft 365",
+          "edited": "Modificato"
+        },
+        "modifiedBy": "Ultima modifica di {{name}}",
+        "modifiedByAt": "Ultima modifica di {{name}} {{time}}",
+        "status": {
+          "applied": "Applicato",
+          "partial": "Applicato parzialmente",
+          "conflict": "Conflitto, nulla è stato scritto",
+          "failed": "Non riuscito, nulla è stato scritto"
+        },
+        "cellsChanged": "Celle modificate: {{cells}}",
+        "verified": "Verificato",
+        "notVerified": "Non verificato",
+        "outcome": {
+          "applied": "applicato",
+          "conflict": "modificato dopo la lettura, saltato",
+          "failed": "non riuscito",
+          "not_attempted": "non tentato",
+          "alreadyApplied": "già applicato"
+        },
+        "openInExcel": "Apri in Excel",
+        "openInBrowser": "Apri nel browser"
+      },
+      "review": {
+        "label": "Modifiche proposte alla cartella di lavoro",
+        "cell": "Cella",
+        "before": "Prima",
+        "after": "Dopo",
+        "hidden": "nascosto",
+        "empty": "vuoto",
+        "format": "formato {{format}}",
+        "unchanged": "Celle invariate: {{cells}}",
+        "skipConflicts": "Gli intervalli modificati dopo la lettura verranno saltati.",
+        "redactedNote": "Alcuni valori sono nascosti in questa anteprima perché sembrano segreti.",
+        "conflictNote": "Non viene scritto nulla in un intervallo modificato dopo la lettura.",
+        "document": "Cartella di lavoro:"
+      }
     }
   },
   "roomSchedules": {

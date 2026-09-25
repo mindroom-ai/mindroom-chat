@@ -2919,6 +2919,50 @@
       "releaseControl": "Libere o controle do computador antes de abrir outra visualização.",
       "openConversation": "Abra esta solicitação pela conversa da sala.",
       "settingsUnavailable": "Desative o modo simples para abrir esta seção das configurações."
+    },
+    "documents": {
+      "card": {
+        "label": "Documento do Microsoft 365",
+        "event": {
+          "connected": "Conectado a esta conversa",
+          "saved": "Salvo no Microsoft 365",
+          "edited": "Editado"
+        },
+        "modifiedBy": "Modificado pela última vez por {{name}}",
+        "modifiedByAt": "Modificado pela última vez por {{name}} {{time}}",
+        "status": {
+          "applied": "Aplicado",
+          "partial": "Aplicado parcialmente",
+          "conflict": "Conflito, nada foi gravado",
+          "failed": "Falha, nada foi gravado"
+        },
+        "cellsChanged": "Células alteradas: {{cells}}",
+        "verified": "Verificado",
+        "notVerified": "Não verificado",
+        "outcome": {
+          "applied": "aplicado",
+          "conflict": "alterado desde a leitura, ignorado",
+          "failed": "falhou",
+          "not_attempted": "não tentado",
+          "alreadyApplied": "já aplicado"
+        },
+        "openInExcel": "Abrir no Excel",
+        "openInBrowser": "Abrir no navegador"
+      },
+      "review": {
+        "label": "Alterações propostas na pasta de trabalho",
+        "cell": "Célula",
+        "before": "Antes",
+        "after": "Depois",
+        "hidden": "oculto",
+        "empty": "vazio",
+        "format": "formato {{format}}",
+        "unchanged": "Células inalteradas: {{cells}}",
+        "skipConflicts": "Intervalos alterados desde a leitura serão ignorados.",
+        "redactedNote": "Alguns valores estão ocultos nesta prévia porque parecem segredos.",
+        "conflictNote": "Nada é gravado em um intervalo alterado desde a leitura.",
+        "document": "Pasta de trabalho:"
+      }
     }
   },
   "roomSchedules": {
