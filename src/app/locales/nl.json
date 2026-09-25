@@ -2866,6 +2866,49 @@
       "releaseControl": "Geef de computerbediening vrij voordat je een andere weergave opent.",
       "openConversation": "Open dit verzoek vanuit het gesprek in de kamer.",
       "settingsUnavailable": "Schakel de eenvoudige modus uit om dit onderdeel van de instellingen te openen."
+    },
+    "documents": {
+      "card": {
+        "label": "Microsoft 365-document",
+        "event": {
+          "connected": "Gekoppeld aan dit gesprek",
+          "saved": "Opgeslagen in Microsoft 365",
+          "edited": "Bewerkt"
+        },
+        "modifiedBy": "Laatst gewijzigd door {{name}}",
+        "modifiedByAt": "Laatst gewijzigd door {{name}} {{time}}",
+        "status": {
+          "applied": "Toegepast",
+          "partial": "Gedeeltelijk toegepast",
+          "conflict": "Conflict, niets geschreven",
+          "failed": "Mislukt, niets geschreven"
+        },
+        "cellsChanged": "Gewijzigde cellen: {{cells}}",
+        "verified": "Geverifieerd",
+        "notVerified": "Niet geverifieerd",
+        "outcome": {
+          "applied": "toegepast",
+          "conflict": "gewijzigd sinds het lezen, overgeslagen",
+          "failed": "mislukt",
+          "not_attempted": "niet geprobeerd",
+          "alreadyApplied": "al toegepast"
+        },
+        "openInExcel": "Openen in Excel",
+        "openInBrowser": "Openen in browser"
+      },
+      "review": {
+        "label": "Voorgestelde wijzigingen in de werkmap",
+        "cell": "Cel",
+        "before": "Voor",
+        "after": "Na",
+        "hidden": "verborgen",
+        "empty": "leeg",
+        "format": "opmaak {{format}}",
+        "unchanged": "Ongewijzigde cellen: {{cells}}",
+        "skipConflicts": "Bereiken die sinds het lezen zijn gewijzigd, worden overgeslagen.",
+        "redactedNote": "Sommige waarden zijn in dit voorbeeld verborgen omdat ze op geheimen lijken.",
+        "conflictNote": "Er wordt niets geschreven naar een bereik dat sinds het lezen is gewijzigd."
+      }
     }
   },
   "roomSchedules": {

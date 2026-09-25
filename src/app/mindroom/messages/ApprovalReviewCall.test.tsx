@@ -8,6 +8,8 @@ import { ApprovalReviewCall } from './ApprovalReviewCall';
 import { parseToolApprovalContent } from './toolApproval';
 import { ThreadApprovalRecord } from './threadApprovalModel';
 
+vi.mock('../documents/DocumentEditReview', () => ({ ApprovalDocumentEditReview: () => null }));
+
 const mocks = vi.hoisted(() => ({
   submit: vi.fn(),
   actions: new Map(),

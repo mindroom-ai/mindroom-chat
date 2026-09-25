@@ -3078,6 +3078,49 @@
       "releaseControl": "اترك التحكم في الكمبيوتر قبل فتح عرض آخر.",
       "openConversation": "افتح هذا الطلب من محادثة الغرفة.",
       "settingsUnavailable": "أوقف الوضع البسيط لفتح هذا القسم من الإعدادات."
+    },
+    "documents": {
+      "card": {
+        "label": "مستند Microsoft 365",
+        "event": {
+          "connected": "متصل بهذه المحادثة",
+          "saved": "محفوظ في Microsoft 365",
+          "edited": "تم التعديل"
+        },
+        "modifiedBy": "آخر تعديل بواسطة ⁨{{name}}⁩",
+        "modifiedByAt": "آخر تعديل بواسطة ⁨{{name}}⁩ ⁨{{time}}⁩",
+        "status": {
+          "applied": "تم التطبيق",
+          "partial": "تم التطبيق جزئيًا",
+          "conflict": "تعارض، لم تتم كتابة أي شيء",
+          "failed": "فشل، لم تتم كتابة أي شيء"
+        },
+        "cellsChanged": "الخلايا المتغيرة: ⁨{{cells}}⁩",
+        "verified": "تم التحقق",
+        "notVerified": "لم يتم التحقق",
+        "outcome": {
+          "applied": "تم التطبيق",
+          "conflict": "تغيّر منذ قراءته، تم تخطيه",
+          "failed": "فشل",
+          "not_attempted": "لم تتم المحاولة",
+          "alreadyApplied": "مطبّق مسبقًا"
+        },
+        "openInExcel": "فتح في Excel",
+        "openInBrowser": "فتح في المتصفح"
+      },
+      "review": {
+        "label": "التغييرات المقترحة على المصنف",
+        "cell": "الخلية",
+        "before": "قبل",
+        "after": "بعد",
+        "hidden": "مخفي",
+        "empty": "فارغ",
+        "format": "التنسيق ⁨{{format}}⁩",
+        "unchanged": "الخلايا دون تغيير: ⁨{{cells}}⁩",
+        "skipConflicts": "سيتم تخطي النطاقات التي تغيرت منذ قراءتها.",
+        "redactedNote": "بعض القيم مخفية في هذه المعاينة لأنها تبدو كأسرار.",
+        "conflictNote": "لا تتم كتابة أي شيء في نطاق تغيّر منذ قراءته."
+      }
     }
   },
   "roomSchedules": {

@@ -2866,6 +2866,49 @@
       "releaseControl": "別の画面を開く前にコンピューターの操作権を手放してください。",
       "openConversation": "ルームの会話からこのリクエストを開いてください。",
       "settingsUnavailable": "この設定項目を開くには、シンプルモードをオフにしてください。"
+    },
+    "documents": {
+      "card": {
+        "label": "Microsoft 365 ドキュメント",
+        "event": {
+          "connected": "この会話に接続済み",
+          "saved": "Microsoft 365 に保存済み",
+          "edited": "編集済み"
+        },
+        "modifiedBy": "最終更新者: {{name}}",
+        "modifiedByAt": "最終更新者: {{name}}（{{time}}）",
+        "status": {
+          "applied": "適用済み",
+          "partial": "一部適用済み",
+          "conflict": "競合のため書き込みなし",
+          "failed": "失敗のため書き込みなし"
+        },
+        "cellsChanged": "変更されたセル: {{cells}}",
+        "verified": "検証済み",
+        "notVerified": "未検証",
+        "outcome": {
+          "applied": "適用済み",
+          "conflict": "読み取り後に変更されたためスキップ",
+          "failed": "失敗",
+          "not_attempted": "未実行",
+          "alreadyApplied": "適用済み（前回）"
+        },
+        "openInExcel": "Excel で開く",
+        "openInBrowser": "ブラウザーで開く"
+      },
+      "review": {
+        "label": "ブックの変更案",
+        "cell": "セル",
+        "before": "変更前",
+        "after": "変更後",
+        "hidden": "非表示",
+        "empty": "空",
+        "format": "書式 {{format}}",
+        "unchanged": "変更されていないセル: {{cells}}",
+        "skipConflicts": "読み取り後に変更された範囲はスキップされます。",
+        "redactedNote": "シークレットのように見える値は、このプレビューでは非表示になっています。",
+        "conflictNote": "読み取り後に変更された範囲には何も書き込まれません。"
+      }
     }
   },
   "roomSchedules": {

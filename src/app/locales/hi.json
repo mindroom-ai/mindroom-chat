@@ -1623,6 +1623,49 @@
       "releaseControl": "दूसरा दृश्य खोलने से पहले कंप्यूटर का नियंत्रण छोड़ें।",
       "openConversation": "यह अनुरोध कमरे की बातचीत से खोलें।",
       "settingsUnavailable": "सेटिंग का यह अनुभाग खोलने के लिए सरल मोड बंद करें।"
+    },
+    "documents": {
+      "card": {
+        "label": "Microsoft 365 दस्तावेज़",
+        "event": {
+          "connected": "इस बातचीत से जुड़ा है",
+          "saved": "Microsoft 365 में सहेजा गया",
+          "edited": "संपादित"
+        },
+        "modifiedBy": "अंतिम बदलाव: {{name}}",
+        "modifiedByAt": "अंतिम बदलाव: {{name}}, {{time}}",
+        "status": {
+          "applied": "लागू किया गया",
+          "partial": "आंशिक रूप से लागू",
+          "conflict": "टकराव, कुछ नहीं लिखा गया",
+          "failed": "विफल, कुछ नहीं लिखा गया"
+        },
+        "cellsChanged": "बदले गए सेल: {{cells}}",
+        "verified": "सत्यापित",
+        "notVerified": "सत्यापित नहीं",
+        "outcome": {
+          "applied": "लागू किया गया",
+          "conflict": "पढ़ने के बाद बदल गया, छोड़ा गया",
+          "failed": "विफल",
+          "not_attempted": "प्रयास नहीं किया गया",
+          "alreadyApplied": "पहले से लागू"
+        },
+        "openInExcel": "Excel में खोलें",
+        "openInBrowser": "ब्राउज़र में खोलें"
+      },
+      "review": {
+        "label": "वर्कबुक में प्रस्तावित बदलाव",
+        "cell": "सेल",
+        "before": "पहले",
+        "after": "बाद में",
+        "hidden": "छिपा हुआ",
+        "empty": "खाली",
+        "format": "फ़ॉर्मैट {{format}}",
+        "unchanged": "बिना बदले सेल: {{cells}}",
+        "skipConflicts": "पढ़ने के बाद बदली गई रेंज छोड़ दी जाएँगी।",
+        "redactedNote": "कुछ मान इस पूर्वावलोकन में छिपे हैं क्योंकि वे गोपनीय जानकारी जैसे दिखते हैं।",
+        "conflictNote": "पढ़ने के बाद बदली गई रेंज में कुछ नहीं लिखा जाता।"
+      }
     }
   },
   "nav": {

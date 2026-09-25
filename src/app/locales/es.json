@@ -2919,6 +2919,49 @@
       "releaseControl": "Libera el control del ordenador antes de abrir otra vista.",
       "openConversation": "Abre esta solicitud desde la conversación de la sala.",
       "settingsUnavailable": "Desactiva el modo simple para abrir esta sección de ajustes."
+    },
+    "documents": {
+      "card": {
+        "label": "Documento de Microsoft 365",
+        "event": {
+          "connected": "Conectado a esta conversación",
+          "saved": "Guardado en Microsoft 365",
+          "edited": "Editado"
+        },
+        "modifiedBy": "Modificado por última vez por {{name}}",
+        "modifiedByAt": "Modificado por última vez por {{name}} {{time}}",
+        "status": {
+          "applied": "Aplicado",
+          "partial": "Aplicado parcialmente",
+          "conflict": "Conflicto, no se escribió nada",
+          "failed": "Error, no se escribió nada"
+        },
+        "cellsChanged": "Celdas cambiadas: {{cells}}",
+        "verified": "Verificado",
+        "notVerified": "No verificado",
+        "outcome": {
+          "applied": "aplicado",
+          "conflict": "cambió desde que se leyó, omitido",
+          "failed": "error",
+          "not_attempted": "no intentado",
+          "alreadyApplied": "ya aplicado"
+        },
+        "openInExcel": "Abrir en Excel",
+        "openInBrowser": "Abrir en el navegador"
+      },
+      "review": {
+        "label": "Cambios propuestos en el libro",
+        "cell": "Celda",
+        "before": "Antes",
+        "after": "Después",
+        "hidden": "oculto",
+        "empty": "vacío",
+        "format": "formato {{format}}",
+        "unchanged": "Celdas sin cambios: {{cells}}",
+        "skipConflicts": "Se omitirán los rangos que hayan cambiado desde que se leyeron.",
+        "redactedNote": "Algunos valores están ocultos en esta vista previa porque parecen secretos.",
+        "conflictNote": "No se escribe nada en un rango que haya cambiado desde que se leyó."
+      }
     }
   },
   "roomSchedules": {

@@ -29,6 +29,8 @@ import { getMindroomThreadSummaryInfo } from './threadSummary';
 import { getMindroomMessageStateSuffixRenderer } from './messageStateSuffix';
 import { ChatUiActionButton } from '../ui-actions/ChatUiActionButton';
 import { CHAT_UI_ACTION_KEY } from '../ui-actions/chatUiProtocol';
+import { MindroomDocumentCard } from '../documents/MindroomDocumentCard';
+import { DOCUMENT_CARD_KEY } from '../documents/documentProtocol';
 
 export type RenderMindroomMessageContentOptions = {
   mEvent?: MatrixEvent;
@@ -374,6 +376,14 @@ export const renderMindroomMessageContent = ({
   }
 
   if (msgType === MsgType.Notice) {
+    if (mEvent && !edited && content[DOCUMENT_CARD_KEY]) {
+      return (
+        <MindroomDocumentCard
+          event={mEvent}
+          fallback={<MNotice content={content} renderBody={renderBody(content)} />}
+        />
+      );
+    }
     if (mEvent && !edited && content[CHAT_UI_ACTION_KEY]) {
       return (
         <MNotice

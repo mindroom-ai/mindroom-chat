@@ -2866,6 +2866,49 @@
       "releaseControl": "Başka bir görünüm açmadan önce bilgisayarın kontrolünü bırakın.",
       "openConversation": "Bu isteği oda sohbetinden açın.",
       "settingsUnavailable": "Bu Ayarlar bölümünü açmak için Basit Modu kapatın."
+    },
+    "documents": {
+      "card": {
+        "label": "Microsoft 365 belgesi",
+        "event": {
+          "connected": "Bu sohbete bağlandı",
+          "saved": "Microsoft 365'e kaydedildi",
+          "edited": "Düzenlendi"
+        },
+        "modifiedBy": "Son değiştiren: {{name}}",
+        "modifiedByAt": "Son değiştiren: {{name}}, {{time}}",
+        "status": {
+          "applied": "Uygulandı",
+          "partial": "Kısmen uygulandı",
+          "conflict": "Çakışma, hiçbir şey yazılmadı",
+          "failed": "Başarısız, hiçbir şey yazılmadı"
+        },
+        "cellsChanged": "Değişen hücre sayısı: {{cells}}",
+        "verified": "Doğrulandı",
+        "notVerified": "Doğrulanmadı",
+        "outcome": {
+          "applied": "uygulandı",
+          "conflict": "okunduktan sonra değişti, atlandı",
+          "failed": "başarısız",
+          "not_attempted": "denenmedi",
+          "alreadyApplied": "zaten uygulanmış"
+        },
+        "openInExcel": "Excel'de aç",
+        "openInBrowser": "Tarayıcıda aç"
+      },
+      "review": {
+        "label": "Çalışma kitabı için önerilen değişiklikler",
+        "cell": "Hücre",
+        "before": "Önce",
+        "after": "Sonra",
+        "hidden": "gizli",
+        "empty": "boş",
+        "format": "biçim {{format}}",
+        "unchanged": "Değişmeyen hücre sayısı: {{cells}}",
+        "skipConflicts": "Okunduktan sonra değişen aralıklar atlanacak.",
+        "redactedNote": "Bazı değerler gizli bilgiye benzediği için bu önizlemede gizlendi.",
+        "conflictNote": "Okunduktan sonra değişen bir aralığa hiçbir şey yazılmaz."
+      }
     }
   },
   "roomSchedules": {
