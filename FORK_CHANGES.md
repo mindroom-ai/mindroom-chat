@@ -8,7 +8,9 @@
   The original blank-thread trigger remains unproven.
 - Integrated current `dev`, preserving both histories in the Runbook; no application code conflicted.
 - Independent review approves the production scope, privacy boundary, cleanup, and interrupted-render regression.
-  All 5,302 unit tests pass under Node 24.13.1, along with application and changed-test typechecks, production build, formatting, and lint with zero errors and 17 existing warnings.
+  All 5,303 unit tests pass under Node 24.13.1, along with application and changed-test typechecks, production build, formatting, and lint with zero errors and 17 existing warnings.
+- Hosted review consolidated the export field budget with the shared thread schema while retaining the generic metadata allowance.
+  An export-completeness regression covers every declared phase and fails with the historical 16-field cap.
 - All three focused Chromium scheduler cases pass for blocked-cache loading and summary consistency/upgrades.
   The final mobile WebKit probe renders replies and records all three scheduling paths with forced diagnostic-storage failure and blocked history storage.
   These focused checks supplement the earlier non-green full browser run documented below.

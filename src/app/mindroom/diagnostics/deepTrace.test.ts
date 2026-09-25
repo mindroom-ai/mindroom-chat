@@ -3,6 +3,7 @@
 import 'fake-indexeddb/auto';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { logTimelineDebug } from '../threads/timelineDebug';
+import { THREAD_TRACE_PHASES } from './threadTraceSchema';
 import {
   classifyDeepTraceNetworkRequest,
   clearDeepTrace,
@@ -131,6 +132,23 @@ describe('opt-in deep diagnostic trace', () => {
     expect(json).not.toContain('private-room');
     expect(json).not.toContain('finite');
     expect(json).toContain('"count":3');
+  });
+
+  it('retains every metric declared by the thread trace schema', async () => {
+    await setDeepTraceEnabled(true, storage);
+    for (const [phase, [, fields]] of Object.entries(THREAD_TRACE_PHASES)) {
+      const payload = Object.fromEntries(fields.map((field, index) => [field, index + 100]));
+      logTimelineDebug('thread-open#7#synthetic', phase, payload);
+    }
+    const snapshot = await readDeepTraceSnapshot();
+    for (const [name, fields] of Object.values(THREAD_TRACE_PHASES)) {
+      const event = snapshot.events.find((entry) => entry.name === name);
+      expect(event?.data?.trace_id).toBe(7);
+      expect(Object.values(event?.data ?? {}).sort((a, b) => Number(a) - Number(b))).toEqual([
+        7,
+        ...fields.map((_, index) => index + 100),
+      ]);
+    }
   });
 
   it('exports attempted and committed thread state without identifiers or message text', async () => {

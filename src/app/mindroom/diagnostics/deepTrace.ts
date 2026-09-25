@@ -23,6 +23,11 @@ export const DEEP_TRACE_MAX_PENDING_EVENTS = 250;
 export const DEEP_TRACE_MAX_PENDING_BYTES = 256 * 1024;
 const MEMORY_MAX_EVENTS = 1_000;
 const MEMORY_MAX_BYTES = 256 * 1024;
+// Keep the generic metadata allowance and fit each declared thread metric plus trace_id.
+const MAX_DATA_FIELDS = Math.max(
+  16,
+  ...Object.values(THREAD_TRACE_PHASES).map(([, fields]) => fields.length + 1)
+);
 
 const DEEP_TRACE_DB_VERSION = 1;
 const EVENT_STORE = 'events';
@@ -267,8 +272,7 @@ const safeData = (value: DeepTraceData | undefined): DeepTraceData | undefined =
       if (item === null || typeof item === 'boolean') return true;
       return typeof item === 'number' && Number.isFinite(item);
     })
-    // The thread render snapshot includes 19 bounded state/counter fields.
-    .slice(0, 20);
+    .slice(0, MAX_DATA_FIELDS);
   return entries.length > 0 ? Object.fromEntries(entries) : undefined;
 };
 
