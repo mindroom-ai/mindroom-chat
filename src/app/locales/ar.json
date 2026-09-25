@@ -2586,6 +2586,7 @@
       "messageCopyActions": {
         "copyTextLoading": "نسخ النص (جارٍ التحميل…)",
         "copyText": "نسخ النص",
+        "copyTextWithToolCalls": "نسخ النص مع استدعاءات الأدوات",
         "copyLink": "نسخ الرابط"
       },
       "messageInspectionActions": {

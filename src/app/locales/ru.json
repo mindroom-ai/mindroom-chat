@@ -2524,6 +2524,7 @@
       "messageCopyActions": {
         "copyTextLoading": "Копировать текст (загрузка…)",
         "copyText": "Копировать текст",
+        "copyTextWithToolCalls": "Копировать текст с вызовами инструментов",
         "copyLink": "Копировать ссылку"
       },
       "messageInspectionActions": {
