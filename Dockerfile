@@ -18,6 +18,7 @@ RUN npm run build
 FROM nginx:1.31.2-alpine
 
 COPY --from=builder /src/dist /app
+COPY --from=builder /src/dist/runtime-config.js /opt/mindroom/runtime-config.js
 COPY --from=builder /src/docker-nginx.conf /etc/nginx/conf.d/default.conf
 COPY docker-entrypoint.d/99-runtime-config.sh /docker-entrypoint.d/99-runtime-config.sh
 

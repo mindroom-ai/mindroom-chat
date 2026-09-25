@@ -22,7 +22,7 @@ class AuthenticationRecoveryNetlifyTests(unittest.TestCase):
                 )
                 self.assertEqual(rule["to"], path)
                 self.assertEqual(rule["status"], 200)
-                self.assertTrue((ROOT / "public" / path.removeprefix("/")).is_file())
+                self.assertTrue((ROOT / "dist" / path.removeprefix("/")).is_file())
 
     def test_bootstrap_assets_are_not_stored_in_caches(self):
         config = tomllib.loads((ROOT / "netlify.toml").read_text())
