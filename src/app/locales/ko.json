@@ -2907,7 +2907,8 @@
         "unchanged": "변경되지 않은 셀: {{cells}}",
         "skipConflicts": "읽은 후 변경된 범위는 건너뜁니다.",
         "redactedNote": "일부 값은 비밀처럼 보여 이 미리 보기에서 숨겨졌습니다.",
-        "conflictNote": "읽은 후 변경된 범위에는 아무것도 쓰지 않습니다."
+        "conflictNote": "읽은 후 변경된 범위에는 아무것도 쓰지 않습니다.",
+        "document": "통합 문서:"
       }
     }
   },

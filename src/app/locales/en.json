@@ -2907,7 +2907,8 @@
         "unchanged": "Unchanged cells: {{cells}}",
         "skipConflicts": "Ranges changed since they were read will be skipped.",
         "redactedNote": "Some values are hidden in this preview because they look like secrets.",
-        "conflictNote": "Nothing is written to a range that changed since it was read."
+        "conflictNote": "Nothing is written to a range that changed since it was read.",
+        "document": "Workbook:"
       }
     }
   },

@@ -2907,7 +2907,8 @@
         "unchanged": "Ongewijzigde cellen: {{cells}}",
         "skipConflicts": "Bereiken die sinds het lezen zijn gewijzigd, worden overgeslagen.",
         "redactedNote": "Sommige waarden zijn in dit voorbeeld verborgen omdat ze op geheimen lijken.",
-        "conflictNote": "Er wordt niets geschreven naar een bereik dat sinds het lezen is gewijzigd."
+        "conflictNote": "Er wordt niets geschreven naar een bereik dat sinds het lezen is gewijzigd.",
+        "document": "Werkmap:"
       }
     }
   },

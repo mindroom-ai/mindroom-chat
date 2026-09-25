@@ -2907,7 +2907,8 @@
         "unchanged": "未變更的儲存格：{{cells}}",
         "skipConflicts": "讀取後已被變更的範圍將被略過。",
         "redactedNote": "部分值看起來像機密資訊，因此在此預覽中隱藏。",
-        "conflictNote": "不會寫入讀取後已被變更的範圍。"
+        "conflictNote": "不會寫入讀取後已被變更的範圍。",
+        "document": "活頁簿："
       }
     }
   },

@@ -1,7 +1,6 @@
 import { MatrixClient, MatrixEvent, Room } from 'matrix-js-sdk';
 import { describe, expect, it } from 'vitest';
 import {
-  cellsEqual,
   excelDesktopUrl,
   httpsUrl,
   isRedactedCell,
@@ -175,6 +174,7 @@ describe('document edit arguments', () => {
 
   it('parses complete arguments', () => {
     expect(parseDocumentEditArguments(args)).toEqual({
+      documentId: 'b!drive:01ITEM',
       summary: 'Raise growth',
       skipConflicts: true,
       edits: [
@@ -186,6 +186,24 @@ describe('document edit arguments', () => {
         },
       ],
     });
+  });
+
+  it('keeps null formats and ignores an edit-level null format', () => {
+    const withNulls = parseDocumentEditArguments({
+      edits: [
+        {
+          range: 'A!A1:A2',
+          before: [[1], [2]],
+          after: [[3], [2]],
+          number_format: [['0%'], [null]],
+        },
+        { range: 'A!B1', before: [[1]], after: [[2]], number_format: null },
+      ],
+    });
+    expect(withNulls?.edits.map((edit) => edit.numberFormat)).toEqual([
+      [['0%'], [null]],
+      undefined,
+    ]);
   });
 
   it.each([
@@ -204,11 +222,9 @@ describe('document edit arguments', () => {
     expect(parseDocumentEditArguments(value)).toBeUndefined();
   });
 
-  it('marks redacted cells and compares numbers numerically', () => {
+  it('marks redacted cells', () => {
     expect(isRedactedCell('***redacted***')).toBe(true);
     expect(isRedactedCell('=IF(secret=***redacted***,2,3)')).toBe(true);
     expect(isRedactedCell('plain')).toBe(false);
-    expect(cellsEqual(0.1 + 0.2, 0.3)).toBe(true);
-    expect(cellsEqual('8', 8)).toBe(false);
   });
 });

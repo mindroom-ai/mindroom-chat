@@ -9,7 +9,7 @@
   Cards list edit ranges and outcomes; the backend keeps cell contents out of room cards.
 - **Open in Excel** uses Office's `ms-excel:ofe|u|` scheme built only from the card's HTTPS `file_url`, and **Open in browser** opens the HTTPS `web_url` in a new tab without an opener or referrer.
 - Approval cards for `edit_office_document`, standalone and in thread review groups, show a before/after table of changed cells with addresses and number formats above the unchanged raw-argument disclosure.
-  The review uses only complete arguments, renders nothing for malformed or truncated previews, and marks cells the backend redacted as secrets.
+  The review names the target document ID, compares cells exactly, always lists redacted cells as changes, treats null number formats as unchanged, and uses only complete arguments, rendering nothing for malformed, truncated, or attachment-backed previews.
 - `documents/__fixtures__/microsoft365BackendContract.json` comes from the backend's `tests.microsoft_365_contract_fixture`, and `microsoft-365-backend-contract.yml` regenerates it from the pinned backend revision.
   When the card or argument contract changes, update that revision and regenerate the fixture with `uv run -m tests.microsoft_365_contract_fixture --output <fixture-path>` from the backend checkout.
 - New strings are translated in every catalog; they still need native-speaker review.

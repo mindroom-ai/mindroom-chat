@@ -2907,7 +2907,8 @@
         "unchanged": "Değişmeyen hücre sayısı: {{cells}}",
         "skipConflicts": "Okunduktan sonra değişen aralıklar atlanacak.",
         "redactedNote": "Bazı değerler gizli bilgiye benzediği için bu önizlemede gizlendi.",
-        "conflictNote": "Okunduktan sonra değişen bir aralığa hiçbir şey yazılmaz."
+        "conflictNote": "Okunduktan sonra değişen bir aralığa hiçbir şey yazılmaz.",
+        "document": "Çalışma kitabı:"
       }
     }
   },

@@ -2907,7 +2907,8 @@
         "unchanged": "Unveränderte Zellen: {{cells}}",
         "skipConflicts": "Bereiche, die sich seit dem Lesen geändert haben, werden übersprungen.",
         "redactedNote": "Einige Werte sind in dieser Vorschau ausgeblendet, weil sie wie Geheimnisse aussehen.",
-        "conflictNote": "In einen Bereich, der sich seit dem Lesen geändert hat, wird nichts geschrieben."
+        "conflictNote": "In einen Bereich, der sich seit dem Lesen geändert hat, wird nichts geschrieben.",
+        "document": "Arbeitsmappe:"
       }
     }
   },

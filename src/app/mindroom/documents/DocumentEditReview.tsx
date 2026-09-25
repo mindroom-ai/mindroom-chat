@@ -6,7 +6,6 @@ import {
   DOCUMENT_EDIT_TOOL_NAME,
   type DocumentEditCell,
   type DocumentEditRequest,
-  cellsEqual,
   isRedactedCell,
   parseDocumentEditArguments,
 } from './documentProtocol';
@@ -51,8 +50,10 @@ export const changedCells = (
   edit.after.forEach((row, rowIndex) =>
     row.forEach((after, columnIndex) => {
       const before = edit.before[rowIndex][columnIndex];
-      const format = edit.numberFormat?.[rowIndex][columnIndex];
-      if (cellsEqual(before, after) && format === undefined) {
+      const format = edit.numberFormat?.[rowIndex][columnIndex] ?? undefined;
+      // Exact comparison, and redacted cells always shown, so a real change is never hidden as unchanged.
+      const redacted = isRedactedCell(before) || isRedactedCell(after);
+      if (!redacted && before === after && format === undefined) {
         unchanged += 1;
         return;
       }
@@ -136,8 +137,16 @@ export function DocumentEditReview({ args }: { args: Record<string, unknown> }) 
   return (
     <div className={css.Review} aria-label={t('mindroomUi.documents.review.label')}>
       {parsed.summary && <Text size="T300">{parsed.summary}</Text>}
-      {parsed.edits.map((edit) => (
-        <EditDiff key={edit.range} edit={edit} />
+      {parsed.documentId && (
+        <Text size="T200" className={css.Muted}>
+          {t('mindroomUi.documents.review.document')}{' '}
+          <span className={css.Mono}>{parsed.documentId}</span>
+        </Text>
+      )}
+      {parsed.edits.map((edit, index) => (
+        // Arguments are unvalidated input, so ranges may repeat; the position is the stable identity.
+        // eslint-disable-next-line react/no-array-index-key
+        <EditDiff key={index} edit={edit} />
       ))}
       {parsed.skipConflicts && (
         <Text size="T200" className={css.Muted}>

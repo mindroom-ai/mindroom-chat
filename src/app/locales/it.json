@@ -2960,7 +2960,8 @@
         "unchanged": "Celle invariate: {{cells}}",
         "skipConflicts": "Gli intervalli modificati dopo la lettura verranno saltati.",
         "redactedNote": "Alcuni valori sono nascosti in questa anteprima perché sembrano segreti.",
-        "conflictNote": "Non viene scritto nulla in un intervallo modificato dopo la lettura."
+        "conflictNote": "Non viene scritto nulla in un intervallo modificato dopo la lettura.",
+        "document": "Cartella di lavoro:"
       }
     }
   },

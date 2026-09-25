@@ -161,26 +161,35 @@ export type DocumentEditRequest = {
   range: string;
   before: DocumentEditCell[][];
   after: DocumentEditCell[][];
-  numberFormat?: string[][];
+  /** Per-cell formats; null keeps a cell's current format. */
+  numberFormat?: (string | null)[][];
 };
 
 export type DocumentEditArguments = {
+  documentId?: string;
   summary?: string;
   skipConflicts: boolean;
   edits: DocumentEditRequest[];
 };
 
-const cellGrid = (value: unknown): DocumentEditCell[][] | undefined => {
+const rectangular = <T>(
+  value: unknown,
+  isCell: (cell: unknown) => cell is T
+): T[][] | undefined => {
   if (!Array.isArray(value) || value.length === 0) return undefined;
   const rows = value.map((row) =>
-    Array.isArray(row) && row.every((cell) => ['string', 'number', 'boolean'].includes(typeof cell))
-      ? (row as DocumentEditCell[])
-      : undefined
+    Array.isArray(row) && row.every((cell) => isCell(cell)) ? (row as T[]) : undefined
   );
   const width = rows[0]?.length;
   if (!width || rows.some((row) => !row || row.length !== width)) return undefined;
-  return rows as DocumentEditCell[][];
+  return rows as T[][];
 };
+
+const isEditCell = (cell: unknown): cell is DocumentEditCell =>
+  typeof cell === 'string' || typeof cell === 'number' || typeof cell === 'boolean';
+
+const isFormatCell = (cell: unknown): cell is string | null =>
+  cell === null || typeof cell === 'string';
 
 const sameShape = (left: unknown[][], right: unknown[][]): boolean =>
   left.length === right.length && left.every((row, index) => row.length === right[index].length);
@@ -193,24 +202,18 @@ export const parseDocumentEditArguments = (
   const edits: DocumentEditRequest[] = [];
   for (const item of args.edits) {
     if (!record(item) || typeof item.range !== 'string') return undefined;
-    const before = cellGrid(item.before);
-    const after = cellGrid(item.after);
+    const before = rectangular(item.before, isEditCell);
+    const after = rectangular(item.after, isEditCell);
     if (!before || !after || !sameShape(before, after)) return undefined;
-    let numberFormat: string[][] | undefined;
-    if (item.number_format !== undefined) {
-      const formats = cellGrid(item.number_format);
-      if (
-        !formats ||
-        !sameShape(formats, after) ||
-        !formats.every((row) => row.every((cell) => typeof cell === 'string'))
-      ) {
-        return undefined;
-      }
-      numberFormat = formats as string[][];
+    let numberFormat: (string | null)[][] | undefined;
+    if (item.number_format !== undefined && item.number_format !== null) {
+      numberFormat = rectangular(item.number_format, isFormatCell);
+      if (!numberFormat || !sameShape(numberFormat, after)) return undefined;
     }
     edits.push({ range: item.range, before, after, numberFormat });
   }
   return {
+    documentId: optionalText(args.document_id),
     summary: optionalText(args.summary),
     skipConflicts: args.skip_conflicts === true,
     edits,
@@ -219,8 +222,3 @@ export const parseDocumentEditArguments = (
 
 export const isRedactedCell = (value: DocumentEditCell): boolean =>
   typeof value === 'string' && value.includes(REDACTED_MARKER);
-
-export const cellsEqual = (left: DocumentEditCell, right: DocumentEditCell): boolean =>
-  typeof left === 'number' && typeof right === 'number'
-    ? Math.abs(left - right) <= Math.max(Math.abs(left), Math.abs(right)) * 1e-12
-    : left === right;

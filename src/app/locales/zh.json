@@ -2907,7 +2907,8 @@
         "unchanged": "未更改的单元格：{{cells}}",
         "skipConflicts": "读取后已被更改的区域将被跳过。",
         "redactedNote": "部分值看起来像机密信息，因此在此预览中被隐藏。",
-        "conflictNote": "不会向读取后已被更改的区域写入任何内容。"
+        "conflictNote": "不会向读取后已被更改的区域写入任何内容。",
+        "document": "工作簿："
       }
     }
   },

@@ -2960,7 +2960,8 @@
         "unchanged": "Células inalteradas: {{cells}}",
         "skipConflicts": "Intervalos alterados desde a leitura serão ignorados.",
         "redactedNote": "Alguns valores estão ocultos nesta prévia porque parecem segredos.",
-        "conflictNote": "Nada é gravado em um intervalo alterado desde a leitura."
+        "conflictNote": "Nada é gravado em um intervalo alterado desde a leitura.",
+        "document": "Pasta de trabalho:"
       }
     }
   },

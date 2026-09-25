@@ -171,16 +171,44 @@ describe('document edit review', () => {
     expect(unchanged).toBe(1);
   });
 
-  it('renders changed cells, formats, and the redaction note from complete arguments', () => {
-    const output = text(render(<ApprovalDocumentEditReview approval={approval(args)} />));
+  it('renders changed cells, formats, the document, and redacted cells from complete arguments', () => {
+    const tree = render(<ApprovalDocumentEditReview approval={approval(args)} />);
+    const output = text(tree);
     expect(output).toContain('Raise growth to 12%');
-    expect(output).toContain('B4');
+    expect(output).toContain('b!drive:01ITEM');
     expect(output).toContain('0.12');
     expect(output).toContain('format 0%');
-    expect(output).toContain('hidden');
+    const addresses = tree.root
+      .findAllByType('td')
+      .filter((cell) => String(cell.props.className).includes('Mono'))
+      .map((cell) => cell.children.join(''));
+    // The redacted cell is listed as a change, never counted as unchanged.
+    // C4 and B5 keep their values but set formats, so they are listed too.
+    expect(addresses).toEqual(['B4', 'C4', 'B5', 'C5']);
     expect(output).toContain(
       'Some values are hidden in this preview because they look like secrets.'
     );
+  });
+
+  it('treats numbers differing only in the last digit as changed', () => {
+    const { changed, unchanged } = changedCells({
+      range: 'A!A1:B1',
+      before: [[123456789012345, 4111111111111111]],
+      after: [[123456789012346, 4111111111111111]],
+    });
+    expect(changed.map((cell) => cell.address)).toEqual(['A1']);
+    expect(unchanged).toBe(1);
+  });
+
+  it('counts null formats as unchanged cells', () => {
+    const { changed, unchanged } = changedCells({
+      range: 'A!A1:B1',
+      before: [[1, 2]],
+      after: [[1, 2]],
+      numberFormat: [['0%', null]],
+    });
+    expect(changed.map((cell) => cell.address)).toEqual(['A1']);
+    expect(unchanged).toBe(1);
   });
 
   it('prefers full arguments and hides the review when only a truncated preview exists', () => {

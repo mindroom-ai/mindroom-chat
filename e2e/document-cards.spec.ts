@@ -28,7 +28,9 @@ for (const [label, width, query] of [
     await expect(partial.getByText('changed since it was read, skipped')).toBeVisible();
 
     const review = page.locator('[data-case="review"]');
-    await expect(review.getByRole('table')).toHaveCount(2);
+    // The redacted Secrets!A1 edit is shown as a change, so every edit has a table.
+    await expect(review.getByRole('table')).toHaveCount(3);
+    await expect(review.getByText('b!drive-1:01ITEM')).toBeVisible();
     await expect(review.getByText('B4', { exact: true })).toBeVisible();
     await expect(review.getByText('format 0%')).toBeVisible();
     await expect(

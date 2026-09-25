@@ -2960,7 +2960,8 @@
         "unchanged": "Cellules inchangées : {{cells}}",
         "skipConflicts": "Les plages modifiées depuis leur lecture seront ignorées.",
         "redactedNote": "Certaines valeurs sont masquées dans cet aperçu, car elles ressemblent à des secrets.",
-        "conflictNote": "Rien n’est écrit dans une plage modifiée depuis sa lecture."
+        "conflictNote": "Rien n’est écrit dans une plage modifiée depuis sa lecture.",
+        "document": "Classeur :"
       }
     }
   },

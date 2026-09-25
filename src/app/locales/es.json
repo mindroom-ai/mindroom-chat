@@ -2960,7 +2960,8 @@
         "unchanged": "Celdas sin cambios: {{cells}}",
         "skipConflicts": "Se omitirán los rangos que hayan cambiado desde que se leyeron.",
         "redactedNote": "Algunos valores están ocultos en esta vista previa porque parecen secretos.",
-        "conflictNote": "No se escribe nada en un rango que haya cambiado desde que se leyó."
+        "conflictNote": "No se escribe nada en un rango que haya cambiado desde que se leyó.",
+        "document": "Libro:"
       }
     }
   },
