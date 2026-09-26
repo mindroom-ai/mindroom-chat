@@ -14,12 +14,14 @@ vi.mock('../eventRepository', async (original) => ({
 }));
 afterEach(() => vi.restoreAllMocks());
 
-it.each(['reply', 'root', 'joined-reply'] as const)(
+it.each(['reply', 'root', 'joined-reply', 'pending-bootstrap'] as const)(
   'renders the available %s through the real render hook while storage stays pending',
   async (mode) => {
     const support = Thread.hasServerSideSupport;
     Thread.hasServerSideSupport =
-      mode === 'joined-reply' ? FeatureSupport.Stable : FeatureSupport.None;
+      mode === 'joined-reply' || mode === 'pending-bootstrap'
+        ? FeatureSupport.Stable
+        : FeatureSupport.None;
     const mx = createClient({
       baseUrl: 'https://example.org',
       userId: '@alice:example.org',
@@ -47,14 +49,19 @@ it.each(['reply', 'root', 'joined-reply'] as const)(
       },
     };
     const reply = new MatrixEvent(rawReply);
-    vi.spyOn(mx, 'fetchRoomEvent').mockResolvedValue(rawRoot);
+    vi.spyOn(mx, 'fetchRoomEvent').mockImplementation(() =>
+      mode === 'pending-bootstrap' ? new Promise(() => {}) : Promise.resolve(rawRoot)
+    );
     let finishFallback!: () => void;
     const fallback = new Promise<{ chunk: typeof rawReply[] }>((resolve) => {
       finishFallback = () => resolve({ chunk: [rawReply] });
     });
     vi.spyOn(mx, 'fetchRelations').mockImplementation(() => fallback);
     vi.spyOn(room, 'findEventById').mockImplementation((id) => (id === '$root' ? root : undefined));
-    const thread = mode === 'reply' ? room.createThread('$root', root, [], false) : undefined;
+    const thread =
+      mode === 'reply' || mode === 'pending-bootstrap'
+        ? room.createThread('$root', root, [], false)
+        : undefined;
     vi.spyOn(mx, 'getThreadTimeline').mockImplementation(async () => {
       if (mode === 'joined-reply') {
         const createdThread = room.getThread('$root')!;
@@ -67,17 +74,22 @@ it.each(['reply', 'root', 'joined-reply'] as const)(
       if (!thread) return new Promise(() => {});
       // getThreadTimeline fills the timeline directly, without Thread.NewReply.
       thread.timelineSet.addEventsToTimeline([reply], true, false, thread.liveTimeline, null);
+      if (mode === 'pending-bootstrap') return new Promise(() => {});
       return thread.liveTimeline;
     });
     vi.spyOn(mx, 'getEventTimeline').mockResolvedValue(room.getLiveTimeline());
     const persist = vi.fn();
     let renderer!: ReactTestRenderer;
+    let sdkReady = false;
+    let cacheHydrated = false;
     function Harness() {
       const session = useThreadSession({
         roomId: room.roomId,
         threadId: '$root',
         eventId: mode !== 'root' ? '$reply' : undefined,
       });
+      sdkReady = session.snapshot.open.sdkReady;
+      cacheHydrated = session.snapshot.open.initialCacheHydrated;
       const timeline = useThreadTimelineState({
         room,
         threadId: '$root',
@@ -137,6 +149,10 @@ it.each(['reply', 'root', 'joined-reply'] as const)(
             .timelineSet.getLiveTimeline()
             .getNeighbouringTimeline(Direction.Backward)
         ).toBeTruthy();
+      }
+      if (mode === 'pending-bootstrap') {
+        expect(sdkReady).toBe(false);
+        expect(cacheHydrated).toBe(false);
       }
       if (thread) expect(thread.events).toContain(reply);
       expect(renderer.root.findAllByType('span').map((node) => node.children.join(''))).toContain(

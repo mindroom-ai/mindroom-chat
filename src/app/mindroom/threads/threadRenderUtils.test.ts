@@ -105,7 +105,7 @@ describe('getThreadInitialRenderMode', () => {
       getThreadInitialRenderMode({
         threadId: undefined,
         initialCacheHydrated: false,
-        fallbackEventCount: 0,
+        availableEventCount: 0,
       })
     ).toBe('live');
   });
@@ -115,7 +115,7 @@ describe('getThreadInitialRenderMode', () => {
       getThreadInitialRenderMode({
         threadId: '$thread',
         initialCacheHydrated: false,
-        fallbackEventCount: 0,
+        availableEventCount: 0,
       })
     ).toBe('loading');
   });
@@ -125,7 +125,7 @@ describe('getThreadInitialRenderMode', () => {
       getThreadInitialRenderMode({
         threadId: '$thread',
         initialCacheHydrated: false,
-        fallbackEventCount: 3,
+        availableEventCount: 3,
       })
     ).toBe('cached');
   });
@@ -135,7 +135,7 @@ describe('getThreadInitialRenderMode', () => {
       getThreadInitialRenderMode({
         threadId: '$thread',
         initialCacheHydrated: true,
-        fallbackEventCount: 0,
+        availableEventCount: 0,
       })
     ).toBe('live');
   });
@@ -677,6 +677,8 @@ describe('shouldPinThreadToBottomOnOpen', () => {
       shouldPinThreadToBottomOnOpen({
         threadId: '$thread',
         threadLatestOpenPending: true,
+        threadOpenedAtLatest: true,
+        hasUserScrollIntent: false,
         threadInitialRenderMode: 'live',
         threadEventCount: 3,
         suppressOpenBottomPin: true,

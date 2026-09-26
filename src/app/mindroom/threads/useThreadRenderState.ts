@@ -59,18 +59,18 @@ const EMPTY_THREAD_EVENTS: MatrixEvent[] = [];
 const getThreadRenderStateInitialMode = ({
   threadId,
   initialCacheHydrated,
-  fallbackEventCount,
+  availableEventCount,
 }: {
   threadId?: string;
   initialCacheHydrated: boolean;
-  fallbackEventCount: number;
+  availableEventCount: number;
 }): ThreadInitialRenderMode =>
   isLocalEchoEventId(threadId)
     ? 'live'
     : getThreadInitialRenderMode({
         threadId,
         initialCacheHydrated,
-        fallbackEventCount,
+        availableEventCount,
       });
 
 const buildThreadEvents = ({
@@ -90,13 +90,10 @@ const buildThreadEvents = ({
 }): {
   events: MatrixEvent[];
   indexMap: Map<string, number>;
+  initialRenderMode: ThreadInitialRenderMode;
 } => {
   const collectedEvents: MatrixEvent[] = [];
-  const initialRenderMode = getThreadRenderStateInitialMode({
-    threadId,
-    initialCacheHydrated: threadInitialCacheHydrated || threadInitialSdkLoaded,
-    fallbackEventCount: fallbackEvents.length,
-  });
+  const sdkEvents = thread ? getThreadTimelineEvents(thread) : [];
 
   const addThreadEvent = (mEvent?: MatrixEvent | null, requireThreadMatch = true) => {
     if (!mEvent) return;
@@ -107,11 +104,16 @@ const buildThreadEvents = ({
     collectedEvents.push(mEvent);
   };
 
-  if (initialRenderMode === 'live') {
+  if (
+    sdkEvents.length > 0 ||
+    threadInitialCacheHydrated ||
+    threadInitialSdkLoaded ||
+    isLocalEchoEventId(threadId)
+  ) {
     const threadModelReady = !!thread;
     addThreadEvent(thread?.rootEvent ?? room.findEventById(threadId), !threadModelReady);
     if (threadModelReady) {
-      getThreadTimelineEvents(thread).forEach((mEvent) => addThreadEvent(mEvent, false));
+      sdkEvents.forEach((mEvent) => addThreadEvent(mEvent, false));
     }
   }
 
@@ -133,6 +135,11 @@ const buildThreadEvents = ({
   return {
     events: sortedEvents,
     indexMap,
+    initialRenderMode: getThreadRenderStateInitialMode({
+      threadId,
+      initialCacheHydrated: threadInitialCacheHydrated || threadInitialSdkLoaded,
+      availableEventCount: sortedEvents.length,
+    }),
   };
 };
 
@@ -171,6 +178,19 @@ export const useThreadRenderState = ({
   const refreshThreadEvents = useCallback(() => {
     setThreadEventRefreshTick((tick) => tick + 1);
   }, []);
+
+  useEffect(() => {
+    if (!thread) return undefined;
+    // Thread.Update waits for metadata requests; timeline insertion/reset does not.
+    thread.on(RoomEvent.Timeline, refreshThreadEvents);
+    thread.on(RoomEvent.TimelineReset, refreshThreadEvents);
+    // Capture arrivals between render and subscription.
+    refreshThreadEvents();
+    return () => {
+      thread.removeListener(RoomEvent.Timeline, refreshThreadEvents);
+      thread.removeListener(RoomEvent.TimelineReset, refreshThreadEvents);
+    };
+  }, [thread, refreshThreadEvents]);
 
   const setSupplementalThreadEvents = useCallback(
     (expectedThreadId: string, events: MatrixEvent[]) => {
@@ -303,7 +323,11 @@ export const useThreadRenderState = ({
     void timelineRevision;
 
     if (!threadId) {
-      return { events: EMPTY_THREAD_EVENTS, indexMap: new Map<string, number>() };
+      return {
+        events: EMPTY_THREAD_EVENTS,
+        indexMap: new Map<string, number>(),
+        initialRenderMode: 'live' as const,
+      };
     }
 
     return buildThreadEvents({
@@ -324,7 +348,11 @@ export const useThreadRenderState = ({
     threadInitialCacheHydrated,
     threadInitialSdkLoaded,
   ]);
-  const { events: threadEvents, indexMap: threadEventIndexMap } = threadEventState;
+  const {
+    events: threadEvents,
+    indexMap: threadEventIndexMap,
+    initialRenderMode: threadInitialRenderMode,
+  } = threadEventState;
   useLayoutEffect(() => {
     threadEventIndexMapRef.current = threadEventIndexMap;
   }, [threadEventIndexMap]);
@@ -343,13 +371,6 @@ export const useThreadRenderState = ({
     refreshThreadEvents,
     handleThreadNewReply
   );
-
-  const threadInitialRenderMode = getThreadRenderStateInitialMode({
-    threadId,
-    initialCacheHydrated: threadInitialCacheHydrated || threadInitialSdkLoaded,
-    fallbackEventCount:
-      fallbackEvents.length + (threadId ? getPendingThreadEvents(room, threadId).length : 0),
-  });
 
   useEffect(() => {
     if (!threadId) return;

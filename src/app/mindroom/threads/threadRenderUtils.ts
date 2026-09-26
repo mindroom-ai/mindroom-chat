@@ -32,15 +32,15 @@ type ThreadOpenBottomPinOpts = {
 export const getThreadInitialRenderMode = ({
   threadId,
   initialCacheHydrated,
-  fallbackEventCount,
+  availableEventCount,
 }: {
   threadId?: string;
   initialCacheHydrated: boolean;
-  fallbackEventCount: number;
+  availableEventCount: number;
 }): ThreadInitialRenderMode => {
   if (!threadId) return 'live';
   if (initialCacheHydrated) return 'live';
-  return fallbackEventCount > 0 ? 'cached' : 'loading';
+  return availableEventCount > 0 ? 'cached' : 'loading';
 };
 
 export const shouldPinThreadToBottomOnOpen = ({

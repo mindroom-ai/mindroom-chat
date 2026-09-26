@@ -2,6 +2,24 @@
 
 ## Runbook
 
+### Render available thread replies before initialization completes (2026-09-25)
+
+- A device export from a build containing the connected-history fix still shows a root-only thread while SDK replies increase and React render/commit counters stay unchanged.
+  Reopening eventually displays the replies; the exact delayed device request remains unidentified.
+- Real SDK regressions reproduce two remaining barriers: backward history insertion emits immediate timeline events while thread metadata keeps higher-level notifications pending, and the renderer excludes SDK history until cache hydration or bootstrap completes.
+  The active render hook now observes timeline insertion/reset directly and includes available connected SDK history during initialization.
+  Rendering mode derives from the same merged event snapshot, while completion flags retain their original meaning.
+- The change preserves disconnected-history exclusion, richer cached edits, streaming replacement notifications, session revision invalidation for silent history joins, and listener cleanup.
+  Raw timeline listeners stay local to the active thread view.
+- Both mounted SDK regressions and the session/render regression fail before the fix and pass afterward with storage and bootstrap still pending.
+  Coverage includes preloaded and arriving replies, disconnected segments, timeline resets, streaming edits, and cached replacements before hydration.
+- Validation: all 5,478 unit tests, application typecheck, lint with zero errors and 17 existing warnings, and production build pass under Node 24.13.1.
+  Independent native review approves the implementation.
+  Changed-test typecheck also passes.
+  The complete browser scheduler and independent Claude review are being finalized.
+- Next: complete browser/review validation and verify an iOS build containing this follow-up on the affected device.
+  The separate report of missing summaries remains under investigation.
+
 ### Label the tool-call copy on touch screens (2026-09-25)
 
 - Touch screens (`(hover: none), (pointer: coarse)`, read once when the menu opens) show Copy Text with Tool Calls as a labelled row below Copy Text, since they have no hover tooltip; pointer devices keep the icon beside Copy Text.
