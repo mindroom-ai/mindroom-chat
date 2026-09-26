@@ -17,6 +17,23 @@
   All 5,309 unit tests pass under Node 24.13.1, along with application and changed-test typechecks, the production build, and lint with zero errors and 17 existing warnings.
   Four focused Chromium cases pass for blocked-cache loading, summary consistency and upgrades, and streaming tiles; the mobile WebKit blocked-storage probe also passes.
   The full browser suite was not rerun for this change; earlier non-green full runs remain documented below.
+- Integrated the latest `dev`; only the Runbook conflicted, and both entries are retained.
+  All 5,336 unit tests pass on the combined tree, with application typecheck and lint passing.
+
+### Copy replies without tool markers (2026-09-25)
+
+- Copy Text now removes standalone MindRoom tool markers (`🔧 \`tool\` [N]`, optionally pending) outside fenced and indented code, including fences opened inside list items or block quotes.
+  Bodies without markers are copied byte-for-byte as before; a reply made only of tool calls copies those calls instead of nothing.
+- A side action on the same menu row, Copy Text with Tool Calls, appears only for bodies with markers and hides while long text loads.
+  It replaces each marker with a Markdown block holding the call's name, arguments, result, and running, truncated, or unavailable status from `io.mindroom.tool_trace`.
+  The copied Markdown stays English regardless of interface language so pasted transcripts read the same; the side action's label is translated in all 17 locales.
+- Trace lookup matches the renderer: hydrated long-text content keeps its own trace, otherwise the latest edit and then the original event supply it.
+- Independent review found no blockers; its fence, indentation, pending-status, whitespace, and empty-copy findings are fixed with regressions.
+  The side action's label is tooltip-only, so touch users see just the icon.
+- Unit, typecheck, build, lint (0 errors, 17 existing warnings), and the new Chromium clipboard spec pass under Node 24; three `xcodeCloudPostClone` tests need `/bin/bash` and cannot run on this NixOS host.
+- Equations need no copy change: MindRoom keeps LaTeX as `$…$`/`$$…$$` in both `body` and `formatted_body`, so Copy Text copies the LaTeX source.
+  Native text selection is different. A Chromium probe of the current KaTeX `htmlAndMathml` output copies duplicated glyphs, one per line; KaTeX's `copy-tex` extension copies `$…$` instead but drops paragraph breaks around display math.
+  Selection copy is a separate follow-up.
 
 ### Prepare thread render diagnostics for production (2026-09-25)
 

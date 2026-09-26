@@ -2462,6 +2462,7 @@
       "messageCopyActions": {
         "copyTextLoading": "텍스트 복사 (불러오는 중…)",
         "copyText": "텍스트 복사",
+        "copyTextWithToolCalls": "도구 호출 포함 텍스트 복사",
         "copyLink": "링크 복사"
       },
       "messageInspectionActions": {

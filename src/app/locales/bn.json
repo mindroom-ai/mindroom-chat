@@ -1202,6 +1202,7 @@
       "messageCopyActions": {
         "copyLink": "লিংক কপি করুন",
         "copyText": "টেক্সট কপি করুন",
+        "copyTextWithToolCalls": "টুল কলসহ টেক্সট কপি করুন",
         "copyTextLoading": "টেক্সট কপি করুন (লোড হচ্ছে...)"
       },
       "messageInspectionActions": {

@@ -3,6 +3,7 @@ export type MindroomToolTraceEvent = {
   tool_name?: unknown;
   args_preview?: unknown;
   result_preview?: unknown;
+  truncated?: unknown;
 };
 
 export type MindroomToolMetadataStatus = 'loading' | 'unavailable';

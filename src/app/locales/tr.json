@@ -2462,6 +2462,7 @@
       "messageCopyActions": {
         "copyTextLoading": "Metni kopyala (yükleniyor…)",
         "copyText": "Metni kopyala",
+        "copyTextWithToolCalls": "Metni araç çağrılarıyla kopyala",
         "copyLink": "Bağlantıyı kopyala"
       },
       "messageInspectionActions": {

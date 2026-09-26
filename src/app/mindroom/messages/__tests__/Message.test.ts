@@ -108,6 +108,8 @@ vi.mock('folds', async () => {
       Pin: 'Pin',
       ReplyArrow: 'ReplyArrow',
       SmilePlus: 'SmilePlus',
+      Terminal: 'Terminal',
+      Text: 'Text',
       ThreadPlus: 'ThreadPlus',
       User: 'User',
       VerticalDots: 'VerticalDots',
@@ -142,6 +144,12 @@ vi.mock('folds', async () => {
     Spinner: () => createElement('div', null, 'spinner'),
     Text: ({ children, ...props }: { children?: React.ReactNode; [key: string]: unknown }) =>
       createElement('span', props, children),
+    Tooltip: div(),
+    TooltipProvider: ({
+      children,
+    }: {
+      children: (triggerRef: React.Ref<unknown>) => React.ReactNode;
+    }) => createElement(reactModule.Fragment, null, children(null)),
     as: (render: (props: Record<string, unknown>, ref: React.Ref<unknown>) => React.ReactNode) =>
       reactModule.forwardRef(render),
     color: {
@@ -723,5 +731,113 @@ describe('Message copy text overflow integration', () => {
     });
 
     expect(domMocks.copyToClipboard).toHaveBeenCalledWith('Resolved overflow body');
+  });
+});
+
+describe('Message copy text tool markers', () => {
+  const toolMarkerContent = {
+    msgtype: 'm.text',
+    body: 'Let me check.\n\n🔧 `search_web` [1]\n\nIt is sunny.',
+    'io.mindroom.tool_trace': {
+      version: 2,
+      events: [
+        {
+          type: 'tool_call_completed',
+          tool_name: 'search_web',
+          args_preview: 'query=weather',
+          result_preview: 'Sunny',
+        },
+      ],
+    },
+  };
+
+  it('copies the reply without tool markers from the primary action', async () => {
+    const { renderer } = await renderMessage(toolMarkerContent);
+
+    await openContextMenu(renderer);
+
+    await act(async () => {
+      getButtonByText(renderer, 'Copy Text')?.props.onClick();
+    });
+
+    expect(domMocks.copyToClipboard).toHaveBeenCalledWith('Let me check.\n\nIt is sunny.');
+  });
+
+  it('copies the reply with structured tool calls from the side action', async () => {
+    const { renderer } = await renderMessage(toolMarkerContent);
+
+    await openContextMenu(renderer);
+
+    const copyWithToolCallsButton = getButtonByAriaLabel(renderer, 'Copy Text with Tool Calls');
+    expect(copyWithToolCallsButton).toBeDefined();
+
+    await act(async () => {
+      copyWithToolCallsButton?.props.onClick();
+    });
+
+    expect(domMocks.copyToClipboard).toHaveBeenCalledWith(
+      [
+        'Let me check.',
+        '',
+        '**🔧 Tool call 1**',
+        '',
+        '```',
+        'search_web(query=weather)',
+        '```',
+        '',
+        'Result:',
+        '',
+        '```',
+        'Sunny',
+        '```',
+        '',
+        'It is sunny.',
+      ].join('\n')
+    );
+  });
+
+  it('copies tool calls from the primary action when the reply has no other text', async () => {
+    const { renderer } = await renderMessage({
+      msgtype: 'm.text',
+      body: '🔧 `shell` [1] ⏳',
+      'io.mindroom.tool_trace': {
+        version: 2,
+        events: [{ type: 'tool_call_started', tool_name: 'shell', args_preview: 'cmd=ls' }],
+      },
+    });
+
+    await openContextMenu(renderer);
+
+    await act(async () => {
+      getButtonByText(renderer, 'Copy Text')?.props.onClick();
+    });
+
+    expect(domMocks.copyToClipboard).toHaveBeenCalledWith(
+      ['**🔧 Tool call 1 (running)**', '', '```', 'shell(cmd=ls)', '```'].join('\n')
+    );
+  });
+
+  it('hides the side action while long text is still loading', async () => {
+    longTextMocks.getMindroomLongTextSource.mockReturnValue({
+      previewContent: toolMarkerContent,
+      mxcUri: 'mxc://mindroom/overflow',
+      isV2ContentJson: true,
+    });
+
+    const { renderer } = await renderMessage(toolMarkerContent);
+
+    await openContextMenu(renderer);
+
+    expect(getButtonByText(renderer, 'Copy Text (loading…)')).toBeDefined();
+    expect(getButtonByAriaLabel(renderer, 'Copy Text with Tool Calls')).toBeUndefined();
+  });
+
+  it('hides the side action for replies without tool markers', async () => {
+    const { renderer } = await renderMessage({ msgtype: 'm.text', body: 'plain reply' });
+
+    await openContextMenu(renderer);
+
+    expect(getButtonByText(renderer, 'Copy Text')).toBeDefined();
+    expect(getButtonByAriaLabel(renderer, 'Copy Text with Tool Calls')).toBeUndefined();
   });
 });

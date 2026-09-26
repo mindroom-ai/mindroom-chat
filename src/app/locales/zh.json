@@ -2462,6 +2462,7 @@
       "messageCopyActions": {
         "copyTextLoading": "复制文本（正在加载...）",
         "copyText": "复制文本",
+        "copyTextWithToolCalls": "复制文本（含工具调用）",
         "copyLink": "复制链接"
       },
       "messageInspectionActions": {
