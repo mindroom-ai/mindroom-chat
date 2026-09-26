@@ -1,13 +1,10 @@
 import {
   Direction,
   type EventTimeline,
-  type EventTimelineSet,
   type IEvent,
   type MatrixClient,
   type MatrixEvent,
   type Room,
-  RoomEvent,
-  type RoomEventHandlerMap,
 } from 'matrix-js-sdk';
 import to from 'await-to-js';
 import { flushThreadSyncGap } from './activeThreadSyncGaps';
@@ -42,7 +39,6 @@ type PersistThreadEventCache = (
 
 export type ThreadBootstrapObservation =
   | { kind: 'root-ready' }
-  | { kind: 'history-progress' }
   | { kind: 'load-error' }
   | { kind: 'backward-availability'; hasMoreCachedBack: boolean };
 type RunThreadOpenSdkBootstrapOptions = {
@@ -57,40 +53,6 @@ type RunThreadOpenSdkBootstrapOptions = {
   onBootstrap: (observation: ThreadBootstrapObservation) => void;
   shouldScrollToLatestOnOpen: boolean;
   threadId: string;
-};
-
-/** Coalesce each synchronous SDK history insertion batch into one notification. */
-const observeTimelineSetHistoryInsertions = (
-  room: Room,
-  timelineSet: EventTimelineSet,
-  isMounted: () => boolean,
-  notify: () => void
-): (() => void) => {
-  let active = true;
-  let scheduled = false;
-  const stop = () => {
-    active = false;
-    room.removeListener(RoomEvent.Timeline, onTimeline);
-  };
-  // Live appends already invalidate through the room's live-event path.
-  function onTimeline(
-    ...[_event, _room, _toStartOfTimeline, _removed, data]: Parameters<
-      RoomEventHandlerMap[RoomEvent.Timeline]
-    >
-  ) {
-    if (!isMounted()) {
-      stop();
-      return;
-    }
-    if (scheduled || data?.liveEvent || data?.timeline.getTimelineSet() !== timelineSet) return;
-    scheduled = true;
-    queueMicrotask(() => {
-      scheduled = false;
-      if (active) notify();
-    });
-  }
-  room.on(RoomEvent.Timeline, onTimeline);
-  return stop;
 };
 
 const mapBootstrapRelations = (mx: MatrixClient, chunk: IEvent[]): MatrixEvent[] => {
@@ -217,16 +179,7 @@ export const runThreadOpenSdkBootstrap = async ({
     }
   }
   const loadedThreadTimelineSet = threadModel.getUnfilteredTimelineSet();
-  // getThreadTimeline indexes replies without a thread event, then awaits a root
-  // request that can queue behind background thread loading. Render them on arrival.
-  const stopHistoryProgress = observeTimelineSetHistoryInsertions(
-    room,
-    loadedThreadTimelineSet,
-    isMounted,
-    () => onBootstrap({ kind: 'history-progress' })
-  );
   const [err] = await to(mx.getThreadTimeline(loadedThreadTimelineSet, threadId));
-  stopHistoryProgress();
   if (!isMounted()) {
     return false;
   }

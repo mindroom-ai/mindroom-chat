@@ -26,7 +26,7 @@ import {
   mergeThreadRenderEvents,
   ThreadInitialRenderMode,
 } from './threadRenderUtils';
-import { eventBelongsToThread, getThreadReplyEventsForRoot } from './threadUtils';
+import { eventBelongsToThread } from './threadUtils';
 import { logTimelineDebug } from './timelineDebug';
 import { isLocalEchoEventId } from './threadRouteUtils';
 import { getPendingThreadEvents } from './pendingThreadEvents';
@@ -56,45 +56,29 @@ type ThreadFallbackState = {
 
 const EMPTY_THREAD_EVENTS: MatrixEvent[] = [];
 
-const getThreadRenderStateInitialMode = ({
-  threadId,
-  initialCacheHydrated,
-  fallbackEventCount,
-}: {
-  threadId?: string;
-  initialCacheHydrated: boolean;
-  fallbackEventCount: number;
-}): ThreadInitialRenderMode =>
-  isLocalEchoEventId(threadId)
-    ? 'live'
-    : getThreadInitialRenderMode({
-        threadId,
-        initialCacheHydrated,
-        fallbackEventCount,
-      });
-
 const buildThreadEvents = ({
   room,
   threadId,
   thread,
   fallbackEvents,
-  threadRenderReady,
+  threadInitialCacheHydrated,
+  threadInitialSdkLoaded = false,
 }: {
   room: Room;
   threadId: string;
   thread: Thread | null;
   fallbackEvents: MatrixEvent[];
-  threadRenderReady: boolean;
+  threadInitialCacheHydrated: boolean;
+  threadInitialSdkLoaded: boolean;
 }): {
   events: MatrixEvent[];
   indexMap: Map<string, number>;
+  initialRenderMode: ThreadInitialRenderMode;
 } => {
   const collectedEvents: MatrixEvent[] = [];
-  const initialRenderMode = getThreadRenderStateInitialMode({
-    threadId,
-    initialCacheHydrated: threadRenderReady,
-    fallbackEventCount: fallbackEvents.length,
-  });
+  const sdkEvents = thread ? getThreadTimelineEvents(thread) : [];
+  const initializationComplete =
+    threadInitialCacheHydrated || threadInitialSdkLoaded || isLocalEchoEventId(threadId);
 
   const addThreadEvent = (mEvent?: MatrixEvent | null, requireThreadMatch = true) => {
     if (!mEvent) return;
@@ -105,11 +89,11 @@ const buildThreadEvents = ({
     collectedEvents.push(mEvent);
   };
 
-  if (initialRenderMode === 'live') {
+  if (sdkEvents.length > 0 || initializationComplete) {
     const threadModelReady = !!thread;
     addThreadEvent(thread?.rootEvent ?? room.findEventById(threadId), !threadModelReady);
     if (threadModelReady) {
-      getThreadTimelineEvents(thread).forEach((mEvent) => addThreadEvent(mEvent, false));
+      sdkEvents.forEach((mEvent) => addThreadEvent(mEvent, false));
     }
   }
 
@@ -131,6 +115,10 @@ const buildThreadEvents = ({
   return {
     events: sortedEvents,
     indexMap,
+    initialRenderMode: getThreadInitialRenderMode({
+      initializationComplete,
+      availableEventCount: sortedEvents.length,
+    }),
   };
 };
 
@@ -165,11 +153,23 @@ export const useThreadRenderState = ({
     threadId: undefined,
     events: [],
   });
-  const threadRepliesLoadedRef = useRef<string>();
   const [threadEventRefreshTick, setThreadEventRefreshTick] = useState(0);
   const refreshThreadEvents = useCallback(() => {
     setThreadEventRefreshTick((tick) => tick + 1);
   }, []);
+
+  useEffect(() => {
+    if (!thread) return undefined;
+    // Thread.Update waits for metadata requests; timeline insertion/reset does not.
+    thread.on(RoomEvent.Timeline, refreshThreadEvents);
+    thread.on(RoomEvent.TimelineReset, refreshThreadEvents);
+    // Capture arrivals between render and subscription.
+    refreshThreadEvents();
+    return () => {
+      thread.removeListener(RoomEvent.Timeline, refreshThreadEvents);
+      thread.removeListener(RoomEvent.TimelineReset, refreshThreadEvents);
+    };
+  }, [thread, refreshThreadEvents]);
 
   const setSupplementalThreadEvents = useCallback(
     (expectedThreadId: string, events: MatrixEvent[]) => {
@@ -252,7 +252,6 @@ export const useThreadRenderState = ({
   );
 
   const resetThreadRenderState = useCallback((nextThreadId?: string) => {
-    threadRepliesLoadedRef.current = undefined;
     threadEventIndexMapRef.current = new Map();
     threadSupplementalRelationIdsRef.current = {
       threadId: nextThreadId,
@@ -297,30 +296,17 @@ export const useThreadRenderState = ({
     return fallbackThreadEventsState.events;
   }, [fallbackThreadEventsState.events, fallbackThreadEventsState.threadId, threadId]);
 
-  // SDK replies can load while storage and the open chain still wait on I/O. Latch
-  // them per open so a later SDK timeline reset cannot restore the loading state.
-  if (
-    threadId &&
-    thread &&
-    !threadInitialCacheHydrated &&
-    !threadInitialSdkLoaded &&
-    threadRepliesLoadedRef.current !== threadId &&
-    getThreadReplyEventsForRoot(getThreadTimelineEvents(thread), threadId).length > 0
-  ) {
-    threadRepliesLoadedRef.current = threadId;
-  }
-  const threadRenderReady =
-    threadInitialCacheHydrated ||
-    threadInitialSdkLoaded ||
-    (!!threadId && threadRepliesLoadedRef.current === threadId);
-
   const threadEventState = useMemo(() => {
     void threadEventRefreshTick;
     // SDK joins can change history without emitting a thread event.
     void timelineRevision;
 
     if (!threadId) {
-      return { events: EMPTY_THREAD_EVENTS, indexMap: new Map<string, number>() };
+      return {
+        events: EMPTY_THREAD_EVENTS,
+        indexMap: new Map<string, number>(),
+        initialRenderMode: 'live' as const,
+      };
     }
 
     return buildThreadEvents({
@@ -328,7 +314,8 @@ export const useThreadRenderState = ({
       threadId,
       thread,
       fallbackEvents,
-      threadRenderReady,
+      threadInitialCacheHydrated,
+      threadInitialSdkLoaded,
     });
   }, [
     fallbackEvents,
@@ -337,9 +324,14 @@ export const useThreadRenderState = ({
     threadEventRefreshTick,
     timelineRevision,
     threadId,
-    threadRenderReady,
+    threadInitialCacheHydrated,
+    threadInitialSdkLoaded,
   ]);
-  const { events: threadEvents, indexMap: threadEventIndexMap } = threadEventState;
+  const {
+    events: threadEvents,
+    indexMap: threadEventIndexMap,
+    initialRenderMode: threadInitialRenderMode,
+  } = threadEventState;
   useLayoutEffect(() => {
     threadEventIndexMapRef.current = threadEventIndexMap;
   }, [threadEventIndexMap]);
@@ -358,13 +350,6 @@ export const useThreadRenderState = ({
     refreshThreadEvents,
     handleThreadNewReply
   );
-
-  const threadInitialRenderMode = getThreadRenderStateInitialMode({
-    threadId,
-    initialCacheHydrated: threadRenderReady,
-    fallbackEventCount:
-      fallbackEvents.length + (threadId ? getPendingThreadEvents(room, threadId).length : 0),
-  });
 
   useEffect(() => {
     if (!threadId) return;

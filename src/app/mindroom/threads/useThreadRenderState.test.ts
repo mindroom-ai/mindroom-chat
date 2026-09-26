@@ -272,6 +272,11 @@ describe('useThreadRenderState', () => {
       getSnapshot().setSupplementalThreadEvents('$root', [correctedFallbackReply]);
     });
 
+    expect(getSnapshot().threadInitialRenderMode).toBe('cached');
+    expect(getSnapshot().threadEvents.map((event) => event.getId())).toEqual(['$root', '$reply']);
+    expect(getSnapshot().threadEvents[1]).toBe(correctedFallbackReply);
+    expect(getSnapshot().threadEvents[1].replacingEvent()?.getId()).toBe('$edit-2');
+
     update({
       room,
       roomTimelineSet,
@@ -311,6 +316,11 @@ describe('useThreadRenderState', () => {
     act(() => {
       getSnapshot().setSupplementalThreadEvents('$root', [refetchedFallbackReply]);
     });
+
+    expect(getSnapshot().threadInitialRenderMode).toBe('cached');
+    expect(getSnapshot().threadEvents.map((event) => event.getId())).toEqual(['$root', '$reply']);
+    expect(getSnapshot().threadEvents[1]).toBe(refetchedFallbackReply);
+    expect(getSnapshot().threadEvents[1].replacingEvent()?.getId()).toBe('$edit-13');
 
     update({
       room,

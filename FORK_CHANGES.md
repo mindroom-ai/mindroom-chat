@@ -2,26 +2,47 @@
 
 ## Runbook
 
-### Show SDK-loaded thread replies before the open chain settles (2026-09-25)
+### Identify the cold-start request behind root-only threads (2026-09-25)
 
-- An iOS export from build `c278d829` (includes #329) shows the remaining root-only failure: a cold start fires about 560 `/relations` and 650 other client requests in its first 30 seconds, and each thread open's persistent-cache read took 15-20 seconds.
-  One open rendered only the root while the SDK thread model already held 127 events with 20 replies (17 expected) and the SDK bootstrap had not returned; the next open became ready within a second and showed the full thread, matching the reported "closed and reopened until it appeared".
-- Root cause: `useThreadRenderState` read the SDK thread model only after storage hydrated or `runThreadOpenSdkBootstrap` returned, so replies the SDK had already indexed stayed hidden while `getThreadTimeline` awaited its trailing root request.
-  That call inserts replies without a thread event (the SDK's own `ThreadEvent.Update` first awaits the thread's own queued root request), so nothing re-rendered even once storage had hydrated.
-- Connected-history `m.thread` replies now count as render readiness, latched per open so the SDK's own first-load `resetLiveTimeline()` cannot return the view to the cached or loading state.
-  During the bootstrap's `getThreadTimeline` call, a room `RoomEvent.Timeline` listener filtered to the thread's timeline set coalesces each non-live SDK insertion batch into one `history-progress` invalidation; it detaches once its open is abandoned.
-  A back-pagination that lands inside that window can therefore render before its anchor recapture; outside it, pagination and live-event invalidation are unchanged.
-- A real-SDK session render test delays `/context`, lets the SDK index two replies, and keeps the trailing root request pending, with storage either pending or missed.
-  Both variants fail without the bootstrap listener, the pending variant fails without the readiness change, and its post-reset mode check fails without the latch.
+- The iOS export from build `c278d829` (after #329, before #331) pins down the delayed request #331 left unidentified.
+  A cold start fires about 560 `/relations` and 650 other client requests in its first 30 seconds, because the SDK creates a `Thread` for every listed root (`fetchRoomThreads`, `processThreadRoots`) and each one fetches its root and an initial `/relations` page.
+  The open's `getThreadTimeline` indexes the replies and then awaits its trailing root request behind that queue, and the SDK's own `ThreadEvent.Update` first awaits the thread's queued root request too; persistent-cache reads took 15-20 seconds.
+  One open rendered only the root while the SDK model held 127 events with 20 replies (17 expected); the next open became ready within a second, matching "closed and reopened until it appeared".
+- #331's render-time SDK history and timeline listener cover this; an independent fix for the same export (#332) duplicated them, so its production changes were dropped when resolving conflicts with #331.
+- #332 keeps a real-SDK session regression that runs the SDK's own `getThreadTimeline` with a delayed `/context` and a pending trailing root request, with storage either pending or missed.
+  The missed variant covers storage hydrating before the replies arrive, when the view is already live; both variants fail before #331 and pass on it.
 - Validation: unit tests pass under Node 24 except the three `xcodeCloudPostClone` tests that need `/bin/bash` on this NixOS host; typecheck, changed-test typecheck, build, and lint (0 errors, 17 existing warnings) pass.
-- Independent review first found that storage hydrating before `/context` still hid replies, that readiness could regress after an SDK reset, and that edits alone counted as history; the bootstrap-scoped listener, per-open latch, and reply-only readiness address those.
-  Re-review found no blocking issues; its suggestions to skip live appends and detach abandoned listeners are applied, while a back-pagination guard and a readiness field in the `render-state` log remain optional.
-- Not fixed here:
-  - The thread model's history can still arrive late on a cold start, because the SDK creates a `Thread` for every listed root (`fetchRoomThreads`, `processThreadRoots`) and each one fetches its root and an initial `/relations` page, competing with the opened thread's requests.
-  - The SDK's first-load reset can still drop replies inserted before it; the view stays live but those rows disappear until the SDK repaginates.
+- Not fixed:
+  - Thread history can still arrive late on a cold start while background thread initialization competes with the opened thread's requests.
   - Every device open starts twice within 5 ms (trace pairs such as 1615/1617), and the abandoned open's SDK requests keep running.
     Runtime identity changes restart the open, for example a thread model created mid-open changes `setSupplementalThreadEvents` and therefore `threadOpenRuntime`, and each restart repeats the slow storage read.
+  - Unverified: #331's always-on thread timeline listener also refreshes on back-pagination inserts before `useThreadPagination` recaptures its scroll anchor; check older-reply loading for jumps.
 - Next: confirm on iOS that replies appear without reopening, then decide whether to throttle or deprioritize background thread initialization so the opened thread's requests go first.
+
+### Render available thread replies before initialization completes (2026-09-25)
+
+- A device export from a build containing the connected-history fix still shows a root-only thread while SDK replies increase and React render/commit counters stay unchanged.
+  Reopening eventually displays the replies; the exact delayed device request remains unidentified.
+- Real SDK regressions reproduce two remaining barriers: backward history insertion emits immediate timeline events while thread metadata keeps higher-level notifications pending, and the renderer excludes SDK history until cache hydration or bootstrap completes.
+  The active render hook now observes timeline insertion/reset directly and includes available connected SDK history during initialization.
+  Rendering mode derives from the same merged event snapshot, while completion flags retain their original meaning.
+- The change preserves disconnected-history exclusion, richer cached edits, streaming replacement notifications, session revision invalidation for silent history joins, and listener cleanup.
+  Raw timeline listeners stay local to the active thread view.
+- Both mounted SDK regressions and the session/render regression fail before the fix and pass afterward with storage and bootstrap still pending.
+  Coverage includes preloaded and arriving replies, disconnected segments, timeline resets, streaming edits, and cached replacements before hydration.
+- Validation: all 5,477 unit tests, application and changed-test typechecks, lint with zero errors and 17 existing warnings, and production build pass under Node 24.13.1.
+  A concurrent validation run hit two unit timeouts and a subsequent assertion failure; both affected files pass separately, and the complete suite passes with browser activity stopped.
+  The complete browser scheduler finished with 107 passing jobs, 17 failing jobs, and two blocked external fixtures.
+  The full browser suite is not green; hosted SSO and worker-computer fixtures are unavailable.
+  Final focused Chromium checks pass for blocked-cache opening, both summary surfaces, and streaming tiles; the mobile WebKit blocked-storage probe also passes.
+  Quote navigation passes three quiet reruns and Chromium room-disclosure layout passes its quiet rerun, matching unchanged-base results.
+  Unchanged-base comparisons reproduce overview preload, classic pagination, invite-menu, header blur, and WebKit disclosure failures; broader suite failures remain documented separately from the device fix.
+- Independent native review approves the implementation and cleanup.
+  Claude found no functional defects but requested consolidated readiness policy, safe test cleanup, and removal of an unused helper branch and cache-only parameter naming.
+  Those changes are complete; the no-thread mode stays owned by the render hook.
+  Claude's final re-review approves the corrected implementation and validation record.
+- Next: verify an iOS build containing this follow-up on the affected device and continue triaging the broader browser-suite failures.
+  The separate report of missing summaries remains under investigation.
 
 ### Label the tool-call copy on touch screens (2026-09-25)
 
