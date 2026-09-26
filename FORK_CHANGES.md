@@ -2,6 +2,12 @@
 
 ## Runbook
 
+### Label the tool-call copy on touch screens (2026-09-25)
+
+- Touch screens (`(hover: none), (pointer: coarse)`, read once when the menu opens) show Copy Text with Tool Calls as a labelled row below Copy Text, since they have no hover tooltip; pointer devices keep the icon beside Copy Text.
+- A component test stubs `matchMedia`, and a Chromium spec with Pixel 7 touch emulation checks the row sits below Copy Text and copies the tool-call Markdown.
+- Validation under Node 24: unit tests, typecheck, build, lint (0 errors, 17 existing warnings), and the Chromium clipboard spec (pointer and touch) pass; three `xcodeCloudPostClone` tests need `/bin/bash` and cannot run on this NixOS host.
+
 ### Copy only the tool markers the reply displays (2026-09-25)
 
 - Seven fresh independent reviews of the merged copy change and its follow-ups each found inputs where copy deleted text the app shows.
@@ -66,7 +72,7 @@
 - Trace lookup matches the renderer: hydrated long-text content keeps its own trace, otherwise the latest edit and then the original event supply it.
 - The first independent review found no blockers; its fence, indentation, pending-status, whitespace, and empty-copy findings were fixed with regressions.
   A later fresh review found remaining fence-tracking bugs, fixed in the next entry.
-  The side action's label is tooltip-only, so touch users see just the icon.
+  The side action's label was tooltip-only on touch screens; fixed in "Label the tool-call copy on touch screens".
 - Unit, typecheck, build, lint (0 errors, 17 existing warnings), and the new Chromium clipboard spec pass under Node 24; three `xcodeCloudPostClone` tests need `/bin/bash` and cannot run on this NixOS host.
 - Equations need no copy change: MindRoom keeps LaTeX as `$…$`/`$$…$$` in both `body` and `formatted_body`, so Copy Text copies the LaTeX source.
   Native text selection is different. A Chromium probe of the current KaTeX `htmlAndMathml` output copies duplicated glyphs, one per line; KaTeX's `copy-tex` extension copies `$…$` instead but drops paragraph breaks around display math.

@@ -878,6 +878,31 @@ describe('Message copy text tool markers', () => {
     expect(domMocks.copyToClipboard).toHaveBeenCalledWith('Let me check.\n\nIt is sunny.');
   });
 
+  it('shows a labelled tool-call row on touch screens', async () => {
+    vi.stubGlobal('matchMedia', (query: string) => ({
+      matches: query.includes('pointer: coarse'),
+    }));
+    try {
+      const { renderer } = await renderMessage(toolMarkerContent);
+
+      await openContextMenu(renderer);
+
+      expect(getButtonByAriaLabel(renderer, 'Copy Text with Tool Calls')).toBeUndefined();
+      const labelledRow = getButtonByText(renderer, 'Copy Text with Tool Calls');
+      expect(labelledRow).toBeDefined();
+
+      await act(async () => {
+        labelledRow?.props.onClick();
+      });
+
+      expect(domMocks.copyToClipboard).toHaveBeenCalledWith(
+        expect.stringContaining('**🔧 Tool call 1**')
+      );
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it('hides the side action for replies without tool markers', async () => {
     const { renderer } = await renderMessage({ msgtype: 'm.text', body: 'plain reply' });
 

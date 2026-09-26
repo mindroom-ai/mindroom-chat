@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import { Box, Icon, IconButton, Icons, Text, Tooltip, TooltipProvider, as } from 'folds';
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { MatrixEvent, Room } from 'matrix-js-sdk';
 import { MenuItem } from '../../components/glass/GlassPrimitives';
 import { getEditedEvent, getLatestMessageContent } from '../../utils/room';
@@ -30,6 +30,11 @@ export const getMenuMessageContent = (room: Room, mEvent: MatrixEvent): Record<s
   return getLatestMessageContent(mEvent, editedEvent);
 };
 
+// Touch screens show no hover tooltip, so they get a labelled row instead of
+// the icon-only side action.
+const prefersLabelledCopyActions = (): boolean =>
+  globalThis.matchMedia?.('(hover: none), (pointer: coarse)').matches ?? false;
+
 export const MessageCopyTextItem = as<
   'button',
   {
@@ -42,6 +47,7 @@ export const MessageCopyTextItem = as<
   }
 >(({ content, mEvent, onClose, resolvedLongTextContent, loading, ...props }, ref) => {
   const { t } = useTranslation();
+  const [labelledCopyActions] = useState(prefersLabelledCopyActions);
   const source = getMessageCopyTextSource(
     content,
     mEvent.getContent() as Record<string, unknown>,
@@ -97,6 +103,26 @@ export const MessageCopyTextItem = as<
       </Text>
     </MenuItem>
   );
+
+  if (labelledCopyActions) {
+    return (
+      <>
+        {copyTextItem}
+        {showCopyWithToolCalls && (
+          <MenuItem
+            size="300"
+            after={<Icon size="100" src={Icons.Terminal} />}
+            radii="300"
+            onClick={handleCopyWithToolCalls}
+          >
+            <Text className={css.MessageMenuItemText} as="span" size="T300" truncate>
+              {copyWithToolCallsLabel}
+            </Text>
+          </MenuItem>
+        )}
+      </>
+    );
+  }
 
   return (
     <Box alignItems="Center" gap="100">
