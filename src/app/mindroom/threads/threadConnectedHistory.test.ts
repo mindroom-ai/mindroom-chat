@@ -115,6 +115,38 @@ it.each([
         await mx.getThreadTimeline(thread.getUnfilteredTimelineSet(), '$root');
         vi.spyOn(mx, 'getThreadTimeline').mockRejectedValue(new Error('Context unavailable'));
       }
+      // A separate context window must stay excluded until pagination connects it.
+      const timelineSet = thread.getUnfilteredTimelineSet();
+      timelineSet.addEventsToTimeline(
+        [new MatrixEvent({ ...rawReply, event_id: '$detached' })],
+        true,
+        false,
+        timelineSet.addTimeline()
+      );
+      const debugLog = vi.spyOn(timelineDebug, 'logTimelineDebug');
+      let renderedEvents: MatrixEvent[] = [];
+      let renderCount = 0;
+      const Harness = ({ revision }: { revision: number }) => {
+        const state = useThreadRenderState({
+          room,
+          roomTimelineSet: room.getUnfilteredTimelineSet(),
+          threadTimelineSet: timelineSet,
+          threadId: '$root',
+          thread,
+          threadInitialCacheHydrated: false,
+          threadInitialSdkLoaded: true,
+          timelineRevision: revision,
+        });
+        renderedEvents = state.threadEvents;
+        renderCount += 1;
+        return null;
+      };
+      if (contextFails) {
+        act(() => {
+          renderer = create(React.createElement(Harness, { revision: 0 }));
+        });
+        expect(renderedEvents.map((event) => event.getId())).toEqual(['$root']);
+      }
       const persist = vi.fn();
       const result = await runThreadOpenSdkBootstrap({
         mx,
@@ -141,33 +173,10 @@ it.each([
       );
       expect(persist.mock.lastCall?.[5]).toBe(true);
 
-      // A separate context window must stay excluded until pagination connects it.
-      const timelineSet = thread.getUnfilteredTimelineSet();
-      timelineSet.addEventsToTimeline(
-        [new MatrixEvent({ ...rawReply, event_id: '$detached' })],
-        true,
-        false,
-        timelineSet.addTimeline()
-      );
-      const debugLog = vi.spyOn(timelineDebug, 'logTimelineDebug');
-      let renderedEvents: MatrixEvent[] = [];
-      let renderCount = 0;
-      const Harness = () => {
-        const state = useThreadRenderState({
-          room,
-          roomTimelineSet: room.getUnfilteredTimelineSet(),
-          threadTimelineSet: timelineSet,
-          threadId: '$root',
-          thread,
-          threadInitialCacheHydrated: false,
-          threadInitialSdkLoaded: true,
-        });
-        renderedEvents = state.threadEvents;
-        renderCount += 1;
-        return null;
-      };
       act(() => {
-        renderer = create(React.createElement(Harness));
+        const view = React.createElement(Harness, { revision: 1 });
+        if (renderer) renderer.update(view);
+        else renderer = create(view);
       });
       expect(renderedEvents.map((event) => event.getId())).toEqual([
         '$root',

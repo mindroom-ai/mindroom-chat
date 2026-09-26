@@ -24,8 +24,11 @@
   Fallback insertion now selects the new live segment synchronously and preserves fetched replies while conversion is pending or rejected; conversion cannot overwrite the relations cursor.
   Removed redundant individual insertion, corrected SDK test doubles, and aligned render diagnostics with connected history.
   New failed-conversion and pending-conversion regressions fail before these corrections.
+- Claude re-review identified missing render invalidation for SDK history joins.
+  The render memo now consumes the existing session history revision, so a join refreshes visible replies even when the SDK emits no thread event.
+  A mounted real-SDK render regression reproduces the stale root without that dependency; session/render coverage also exercises a delayed join with pending storage.
 - Integrated the latest `dev`; only the Runbook conflicted, and both entries are retained.
-  All 5,338 unit tests pass on the reviewed combined tree, with application and changed-test typechecks, lint, and build passing.
+  All 5,339 unit tests pass on the reviewed combined tree, with application and changed-test typechecks, lint, and build passing.
 
 ### Copy replies without tool markers (2026-09-25)
 

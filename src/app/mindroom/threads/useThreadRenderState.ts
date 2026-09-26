@@ -40,6 +40,7 @@ type UseThreadRenderStateOpts = {
   thread: Thread | null;
   threadInitialCacheHydrated: boolean;
   threadInitialSdkLoaded?: boolean;
+  timelineRevision?: number;
   debugTraceId?: string;
 };
 
@@ -143,6 +144,7 @@ export const useThreadRenderState = ({
   thread,
   threadInitialCacheHydrated,
   threadInitialSdkLoaded = false,
+  timelineRevision = 0,
   debugTraceId,
 }: UseThreadRenderStateOpts): {
   threadEventIndexMapRef: MutableRefObject<Map<string, number>>;
@@ -297,6 +299,8 @@ export const useThreadRenderState = ({
 
   const threadEventState = useMemo(() => {
     void threadEventRefreshTick;
+    // SDK joins can change history without emitting a thread event.
+    void timelineRevision;
 
     if (!threadId) {
       return { events: EMPTY_THREAD_EVENTS, indexMap: new Map<string, number>() };
@@ -315,6 +319,7 @@ export const useThreadRenderState = ({
     room,
     thread,
     threadEventRefreshTick,
+    timelineRevision,
     threadId,
     threadInitialCacheHydrated,
     threadInitialSdkLoaded,
