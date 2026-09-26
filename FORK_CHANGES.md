@@ -2,6 +2,23 @@
 
 ## Runbook
 
+### Identify the cold-start request behind root-only threads (2026-09-25)
+
+- The iOS export from build `c278d829` (after #329, before #331) pins down the delayed request #331 left unidentified.
+  A cold start fires about 560 `/relations` and 650 other client requests in its first 30 seconds, because the SDK creates a `Thread` for every listed root (`fetchRoomThreads`, `processThreadRoots`) and each one fetches its root and an initial `/relations` page.
+  The open's `getThreadTimeline` indexes the replies and then awaits its trailing root request behind that queue, and the SDK's own `ThreadEvent.Update` first awaits the thread's queued root request too; persistent-cache reads took 15-20 seconds.
+  One open rendered only the root while the SDK model held 127 events with 20 replies (17 expected); the next open became ready within a second, matching "closed and reopened until it appeared".
+- #331's render-time SDK history and timeline listener cover this; an independent fix for the same export (#332) duplicated them, so its production changes were dropped when resolving conflicts with #331.
+- #332 keeps a real-SDK session regression that runs the SDK's own `getThreadTimeline` with a delayed `/context` and a pending trailing root request, with storage either pending or missed.
+  The missed variant covers storage hydrating before the replies arrive, when the view is already live; both variants fail before #331 and pass on it.
+- Validation: unit tests pass under Node 24 except the three `xcodeCloudPostClone` tests that need `/bin/bash` on this NixOS host; typecheck, changed-test typecheck, build, and lint (0 errors, 17 existing warnings) pass.
+- Not fixed:
+  - Thread history can still arrive late on a cold start while background thread initialization competes with the opened thread's requests.
+  - Every device open starts twice within 5 ms (trace pairs such as 1615/1617), and the abandoned open's SDK requests keep running.
+    Runtime identity changes restart the open, for example a thread model created mid-open changes `setSupplementalThreadEvents` and therefore `threadOpenRuntime`, and each restart repeats the slow storage read.
+  - Unverified: #331's always-on thread timeline listener also refreshes on back-pagination inserts before `useThreadPagination` recaptures its scroll anchor; check older-reply loading for jumps.
+- Next: confirm on iOS that replies appear without reopening, then decide whether to throttle or deprioritize background thread initialization so the opened thread's requests go first.
+
 ### Render available thread replies before initialization completes (2026-09-25)
 
 - A device export from a build containing the connected-history fix still shows a root-only thread while SDK replies increase and React render/commit counters stay unchanged.

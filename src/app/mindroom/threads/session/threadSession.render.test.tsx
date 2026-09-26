@@ -14,6 +14,157 @@ vi.mock('../eventRepository', async (original) => ({
 }));
 afterEach(() => vi.restoreAllMocks());
 
+const mountThreadSession = async ({
+  mx,
+  room,
+  eventId,
+}: {
+  mx: ReturnType<typeof createClient>;
+  room: Room;
+  eventId?: string;
+}) => {
+  let renderer!: ReactTestRenderer;
+  function Harness() {
+    const session = useThreadSession({ roomId: room.roomId, threadId: '$root', eventId });
+    const timeline = useThreadTimelineState({
+      room,
+      threadId: '$root',
+      threadInitialCacheHydrated: session.snapshot.open.initialCacheHydrated,
+      threadInitialSdkLoaded: session.snapshot.open.sdkReady,
+      timelineRevision: session.snapshot.timelineRevision,
+    });
+    const runtime = useMemo<ThreadOpenRuntime>(
+      () => ({
+        mx,
+        room,
+        sessionId: 'pending-storage',
+        beginCacheWrite: () => vi.fn(),
+        reconcile: vi.fn(async () => ({
+          repaired: false,
+          fetchedCount: 0,
+          iterations: 0,
+          aborted: false,
+        })),
+        seed: { waitForExistingOrQueued: () => undefined },
+        render: {
+          reset: timeline.resetThreadRenderState,
+          append: timeline.setSupplementalThreadEvents,
+          invalidateTimeline: () => undefined,
+        },
+        viewport: {
+          resetForOpen: () => undefined,
+          resetAfterLeave: () => undefined,
+          requestLatestPin: () => undefined,
+        },
+      }),
+      [timeline.resetThreadRenderState, timeline.setSupplementalThreadEvents]
+    );
+    useEffect(() => session.commands.startOpen(runtime), [session.commands, runtime]);
+    return (
+      <>
+        {timeline.threadEvents.map((event) => (
+          <span key={event.getId()}>{event.getContent().body}</span>
+        ))}
+      </>
+    );
+  }
+  await act(async () => {
+    renderer = create(<Harness />);
+  });
+  return {
+    bodies: () => renderer.root.findAllByType('span').map((node) => node.children.join('')),
+    unmount: () => act(() => renderer.unmount()),
+  };
+};
+
+it.each(['pending', 'missed'] as const)(
+  'renders SDK-loaded replies while thread bootstrap stalls and storage is %s',
+  async (storage) => {
+    const support = Thread.hasServerSideSupport;
+    const forwardSupport = Thread.hasServerSideFwdPaginationSupport;
+    Thread.hasServerSideSupport = FeatureSupport.Stable;
+    Thread.hasServerSideFwdPaginationSupport = FeatureSupport.Stable;
+    let view: Awaited<ReturnType<typeof mountThreadSession>> | undefined;
+    try {
+      const mx = createClient({ baseUrl: 'https://example.org', userId: '@alice:example.org' });
+      const room = new Room('!room:example.org', mx, '@alice:example.org', {
+        timelineSupport: true,
+      });
+      vi.spyOn(mx, 'supportsThreads').mockReturnValue(true);
+      const rawRoot = {
+        unsigned: {},
+        event_id: '$root',
+        room_id: room.roomId,
+        sender: '@alice:example.org',
+        type: 'm.room.message',
+        origin_server_ts: 1,
+        content: { body: 'Root', msgtype: 'm.text' },
+      };
+      const rawReplies = [2, 3].map((index) => ({
+        ...rawRoot,
+        event_id: `$reply-${index}`,
+        origin_server_ts: index,
+        content: {
+          body: `Reply ${index}`,
+          msgtype: 'm.text',
+          'm.relates_to': { rel_type: 'm.thread', event_id: '$root' },
+        },
+      }));
+      rawRoot.unsigned = {
+        'm.relations': {
+          'm.thread': { count: 2, current_user_participated: true, latest_event: rawReplies[1] },
+        },
+      };
+      const root = new MatrixEvent(rawRoot);
+      vi.spyOn(room, 'findEventById').mockImplementation((id) =>
+        id === '$root' ? root : undefined
+      );
+      const thread = room.createThread('$root', root, [], false);
+      thread.initialEventsFetched = true;
+      thread.replayEvents = null;
+      thread.timelineSet.addEventsToTimeline([root], true, false, thread.liveTimeline, null);
+      // Cold start on iOS: the context arrives late, the SDK then indexes every reply,
+      // and its trailing root request stays queued behind background thread fetches.
+      let finishContext!: () => void;
+      const context = new Promise<object>((resolve) => {
+        finishContext = () =>
+          resolve({
+            event: rawRoot,
+            state: [],
+            events_before: [],
+            events_after: [],
+            start: 's',
+            end: 'e',
+          });
+      });
+      const contextClient = mx as unknown as { getEventContext: () => Promise<object> };
+      vi.spyOn(contextClient, 'getEventContext').mockReturnValue(context);
+      vi.spyOn(mx, 'fetchRelations').mockImplementation(
+        async (_roomId, _eventId, _rel, _type, opts) =>
+          opts?.dir === Direction.Forward ? { chunk: rawReplies } : { chunk: [] }
+      );
+      vi.spyOn(mx, 'fetchRoomEvent').mockReturnValue(new Promise(() => {}));
+      if (storage === 'missed')
+        vi.mocked(loadThreadCachedSnapshot).mockResolvedValueOnce(undefined);
+
+      view = await mountThreadSession({ mx, room });
+      expect(view.bodies()).not.toContain('Reply 2');
+      await act(async () => finishContext());
+
+      expect(thread.events.map((event) => event.getId()).sort()).toEqual([
+        '$reply-2',
+        '$reply-3',
+        '$root',
+      ]);
+      expect(view.bodies()).toEqual(['Root', 'Reply 2', 'Reply 3']);
+    } finally {
+      view?.unmount();
+      Thread.hasServerSideSupport = support;
+      Thread.hasServerSideFwdPaginationSupport = forwardSupport;
+    }
+  }
+);
+
 it.each(['reply', 'root', 'joined-reply', 'pending-bootstrap'] as const)(
   'renders the available %s through the real render hook while storage stays pending',
   async (mode) => {
