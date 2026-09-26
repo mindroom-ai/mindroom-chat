@@ -1,4 +1,4 @@
-import { Direction, type EventTimeline } from 'matrix-js-sdk';
+import { Direction, type EventTimeline, type MatrixEvent, type Thread } from 'matrix-js-sdk';
 
 export const getFirstLinkedTimeline = (
   timeline: EventTimeline,
@@ -34,4 +34,12 @@ export const getLinkedTimelines = (timeline: EventTimeline): EventTimeline[] => 
   }
 
   return timelines;
+};
+
+/** Read only history connected to the live segment; disconnected context windows may have gaps. */
+export const getThreadTimelineEvents = (thread: Thread): MatrixEvent[] => {
+  const timelines = getLinkedTimelines(thread.getUnfilteredTimelineSet().getLiveTimeline());
+  return timelines.length === 1
+    ? thread.events
+    : timelines.flatMap((timeline) => timeline.getEvents());
 };

@@ -2,7 +2,7 @@ import { Direction, type MatrixClient, type MatrixEvent, type Room } from 'matri
 import to from 'await-to-js';
 import { THREAD_BATCH_SIZE } from './preloadSettings';
 import { logTimelineDebug } from './timelineDebug';
-import { getLinkedTimelines } from './timelinePagination';
+import { getLinkedTimelines, getThreadTimelineEvents } from './linkedTimelines';
 import { reconcileThreadBackwardPagination } from './threadPaginationUtils';
 import { createPreferLiveEventMapper, loadThreadCachedSnapshot } from './eventRepository';
 import { MAX_THREAD_FETCH_ITERATIONS } from './threadBootstrap';
@@ -192,7 +192,7 @@ export const refreshLatestThreadSlice = async (
 
   if (shouldAbortRefresh()) return undefined;
 
-  const allEvents = currentThread.events;
+  const allEvents = getThreadTimelineEvents(currentThread);
   const rootEvent = currentThread.rootEvent ?? room.findEventById(expectedThreadId);
   const firstThreadTimeline = getLinkedTimelines(threadTimelineSet.getLiveTimeline())[0];
   const backwardToken = firstThreadTimeline?.getPaginationToken(Direction.Backward) ?? null;

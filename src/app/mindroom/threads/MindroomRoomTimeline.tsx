@@ -599,6 +599,7 @@ export function RoomTimeline({
     threadId,
     threadInitialCacheHydrated,
     threadInitialSdkLoaded,
+    timelineRevision: threadTimelineTick,
     debugTraceId: threadDebugTraceId,
   });
   const approvalTimeline = useThreadApprovalTimeline(

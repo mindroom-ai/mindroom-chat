@@ -1,6 +1,5 @@
 import {
   Direction,
-  type EventTimeline,
   type MatrixClient,
   type MatrixEvent,
   type Room,
@@ -28,18 +27,28 @@ export function fetchThreadBootstrapRelations(
   });
 }
 
-/** Preserve synchronous SDK prepend and token assignment without awaiting metadata work. */
+/** Preserve SDK metadata, then join known historical events through native pagination. */
 export function appendThreadBootstrapRelations({
   thread,
   events,
-  firstTimeline,
   nextBatch,
 }: {
   thread: Thread;
   events: MatrixEvent[];
-  firstTimeline: EventTimeline | undefined;
   nextBatch: string | undefined;
 }): void {
-  thread.addEvents(events, true);
-  firstTimeline?.setPaginationToken(nextBatch ?? null, Direction.Backward);
+  // The SDK selects the new live segment synchronously and observes conversion failures.
+  // Relations already supply their own cursor; conversion must not block fetched replies.
+  void thread.flushPendingTimelineReset();
+  events.forEach((event) => thread.setEventMetadata(event));
+  const timelineSet = thread.getUnfilteredTimelineSet();
+  // Thread.addEvents skips IDs already indexed in another segment. The pagination
+  // API joins those segments and preserves their existing cursor on overlap.
+  timelineSet.addEventsToTimeline(
+    events.slice().reverse(),
+    true,
+    false,
+    timelineSet.getLiveTimeline(),
+    nextBatch ?? null
+  );
 }

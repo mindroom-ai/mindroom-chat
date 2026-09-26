@@ -15,7 +15,7 @@ import {
   findEarliestLoadedThreadReplyByCacheOrder,
   reconcileThreadBackwardPagination,
 } from './threadPaginationUtils';
-import { getLinkedTimelines } from './timelinePagination';
+import { getLinkedTimelines, getThreadTimelineEvents } from './linkedTimelines';
 import { logTimelineDebug } from './timelineDebug';
 import { getThreadCursorAnchor } from './eventRepository';
 import { isThreadNotFoundError } from './threadBootstrap';
@@ -190,10 +190,10 @@ export const runThreadOpenSdkBootstrap = async ({
     });
   }
 
-  const firstThreadTimeline = getLinkedTimelines(loadedThreadTimelineSet.getLiveTimeline())[0];
+  let firstThreadTimeline = getLinkedTimelines(loadedThreadTimelineSet.getLiveTimeline())[0];
 
   // A root is a renderable placeholder, not evidence that reply history loaded.
-  if (threadModel.events.every((event) => event.getId() === threadId)) {
+  if (getThreadTimelineEvents(threadModel).every((event) => event.getId() === threadId)) {
     const [relErr, relData] = await to(fetchThreadBootstrapRelations(mx, room.roomId, threadId));
     if (!isMounted()) {
       return false;
@@ -207,9 +207,9 @@ export const runThreadOpenSdkBootstrap = async ({
       appendThreadBootstrapRelations({
         thread: threadModel,
         events: mappedEvents,
-        firstTimeline: firstThreadTimeline,
         nextBatch: relData.next_batch,
       });
+      firstThreadTimeline = getLinkedTimelines(loadedThreadTimelineSet.getLiveTimeline())[0];
       logTimelineDebug(debugTraceId, 'thread-sdk-bootstrap-empty-thread-relations-fill', {
         mappedCount: mappedEvents.length,
         nextBatchPresent: typeof relData.next_batch === 'string',
@@ -220,12 +220,12 @@ export const runThreadOpenSdkBootstrap = async ({
 
   logTimelineDebug(debugTraceId, 'thread-sdk-bootstrap-ready', {
     rootPresent: !!threadModel.rootEvent,
-    sdkEventCount: threadModel.events.length,
+    sdkEventCount: getThreadTimelineEvents(threadModel).length,
     threadId,
   });
   persistThreadEventCache(
     threadId,
-    threadModel.events,
+    getThreadTimelineEvents(threadModel),
     threadModel.rootEvent,
     firstThreadTimeline?.getPaginationToken(Direction.Backward)
   );

@@ -30,6 +30,7 @@ import { eventBelongsToThread } from './threadUtils';
 import { logTimelineDebug } from './timelineDebug';
 import { isLocalEchoEventId } from './threadRouteUtils';
 import { getPendingThreadEvents } from './pendingThreadEvents';
+import { getThreadTimelineEvents } from './linkedTimelines';
 
 type UseThreadRenderStateOpts = {
   room: Room;
@@ -39,6 +40,7 @@ type UseThreadRenderStateOpts = {
   thread: Thread | null;
   threadInitialCacheHydrated: boolean;
   threadInitialSdkLoaded?: boolean;
+  timelineRevision?: number;
   debugTraceId?: string;
 };
 
@@ -109,7 +111,7 @@ const buildThreadEvents = ({
     const threadModelReady = !!thread;
     addThreadEvent(thread?.rootEvent ?? room.findEventById(threadId), !threadModelReady);
     if (threadModelReady) {
-      thread?.events.forEach((mEvent) => addThreadEvent(mEvent, false));
+      getThreadTimelineEvents(thread).forEach((mEvent) => addThreadEvent(mEvent, false));
     }
   }
 
@@ -142,6 +144,7 @@ export const useThreadRenderState = ({
   thread,
   threadInitialCacheHydrated,
   threadInitialSdkLoaded = false,
+  timelineRevision = 0,
   debugTraceId,
 }: UseThreadRenderStateOpts): {
   threadEventIndexMapRef: MutableRefObject<Map<string, number>>;
@@ -296,6 +299,8 @@ export const useThreadRenderState = ({
 
   const threadEventState = useMemo(() => {
     void threadEventRefreshTick;
+    // SDK joins can change history without emitting a thread event.
+    void timelineRevision;
 
     if (!threadId) {
       return { events: EMPTY_THREAD_EVENTS, indexMap: new Map<string, number>() };
@@ -314,6 +319,7 @@ export const useThreadRenderState = ({
     room,
     thread,
     threadEventRefreshTick,
+    timelineRevision,
     threadId,
     threadInitialCacheHydrated,
     threadInitialSdkLoaded,
@@ -353,7 +359,7 @@ export const useThreadRenderState = ({
       initialCacheHydrated: threadInitialCacheHydrated,
       initialRenderMode: threadInitialRenderMode,
       mergedCount: threadEvents.length,
-      sdkThreadCount: thread?.events.length ?? 0,
+      sdkThreadCount: thread ? getThreadTimelineEvents(thread).length : 0,
     });
   }, [
     debugTraceId,

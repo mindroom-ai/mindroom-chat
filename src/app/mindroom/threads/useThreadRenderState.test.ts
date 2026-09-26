@@ -156,7 +156,10 @@ const makeThread = (rootEvent: MatrixEvent, events: MatrixEvent[]): MockThread =
     id: rootEvent.getId(),
     rootEvent,
     events,
-  }) as MockThread;
+    getUnfilteredTimelineSet: () => ({
+      getLiveTimeline: () => ({ getNeighbouringTimeline: () => null }),
+    }),
+  }) as unknown as MockThread;
 
 const renderHookHarness = (
   props: Omit<HarnessProps, 'onRender'>
@@ -559,7 +562,7 @@ describe('useThreadRenderState', () => {
     const rootEvent = makeMessageEvent('$root', 1);
     const localEchoReply = makeMessageEvent('~local-reply', 2);
     localEchoReply.status = EventStatus.SENDING;
-    localEchoReply.event.content['m.relates_to'] = {
+    localEchoReply.getContent()['m.relates_to'] = {
       event_id: '$root',
       rel_type: 'm.thread',
     };
@@ -567,7 +570,7 @@ describe('useThreadRenderState', () => {
     const roomTimelineSet = makeTimelineSet();
     const thread = makeThread(rootEvent, []);
     const unrelatedReply = makeMessageEvent('~unrelated-reply', 3);
-    unrelatedReply.event.content['m.relates_to'] = {
+    unrelatedReply.getContent()['m.relates_to'] = {
       event_id: '$other-root',
       rel_type: 'm.thread',
     };

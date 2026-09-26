@@ -1410,6 +1410,19 @@ const makeRoom = ({
       const threadEvents = [...events];
       const threadLiveTimeline = makeTimeline(threadEvents);
       const threadTimelineSet = {
+        addEventsToTimeline: (
+          incoming: ReturnType<typeof makeEvent>[],
+          _backwards: boolean,
+          _state: boolean,
+          timeline: ReturnType<typeof makeTimeline>,
+          token: string | null
+        ) => {
+          incoming.forEach((event) => {
+            if (!threadEvents.some((existing) => existing.getId() === event.getId()))
+              threadEvents.unshift(event);
+          });
+          timeline.setPaginationToken(token, Direction.Backward);
+        },
         getLiveTimeline: () => threadLiveTimeline,
         getTimelineForEvent: (eventId: string) =>
           threadEvents.some((event) => event.getId() === eventId) ? threadLiveTimeline : undefined,
@@ -1425,6 +1438,8 @@ const makeRoom = ({
         get length() {
           return threadEvents.length;
         },
+        setEventMetadata: vi.fn(),
+        flushPendingTimelineReset: vi.fn(),
         addEvents: vi.fn((newEvents: ReturnType<typeof makeEvent>[], toStart: boolean) => {
           if (toStart) {
             threadEvents.unshift(...newEvents);

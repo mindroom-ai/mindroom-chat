@@ -32,8 +32,24 @@ describe('runThreadOpenSdkBootstrap', () => {
       id: '$root',
       rootEvent: root,
       events,
-      addEvents: (incoming: MatrixEvent[]) => events.push(...incoming),
-      getUnfilteredTimelineSet: () => ({ getLiveTimeline: () => timeline }),
+      setEventMetadata: vi.fn(),
+      flushPendingTimelineReset: vi.fn(),
+      getUnfilteredTimelineSet: () => ({
+        getLiveTimeline: () => timeline,
+        addEventsToTimeline: (
+          incoming: MatrixEvent[],
+          _backwards: boolean,
+          _state: boolean,
+          _timeline: unknown,
+          token: string | null
+        ) => {
+          incoming.forEach((event) => {
+            if (!events.some((existing) => existing.getId() === event.getId()))
+              events.unshift(event);
+          });
+          backward = token;
+        },
+      }),
     };
     const room = makeRoom({ liveEvents: [root], threads: [thread as never] });
     const mx = {
@@ -54,7 +70,7 @@ describe('runThreadOpenSdkBootstrap', () => {
       shouldScrollToLatestOnOpen: true,
     });
     expect(result).toBe(true);
-    expect(events.map((event) => event.getId())).toEqual(['$root', '$reply']);
+    expect(events.map((event) => event.getId())).toEqual(['$reply', '$root']);
     expect(backward).toBe('older');
   });
 

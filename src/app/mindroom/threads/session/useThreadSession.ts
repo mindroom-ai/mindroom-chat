@@ -4,7 +4,7 @@ import { countCacheProbe } from '../cacheProbe';
 import { logTimelineDebug } from '../timelineDebug';
 import { isLocalEchoEventId } from '../threadRouteUtils';
 import { hydrateThreadFromCache, refreshLatestThreadSlice } from '../threadOpenCacheController';
-import { getLinkedTimelines } from '../timelinePagination';
+import { getLinkedTimelines, getThreadTimelineEvents } from '../linkedTimelines';
 import { hasThreadCacheBackwardGap } from '../threadCacheCoverage';
 import { createThreadOpenSeedSession } from '../threadOpenSeedController';
 import { runThreadOpenCacheFirst } from '../threadOpenCacheFirst';
@@ -360,7 +360,7 @@ export const useThreadSession = (route: ThreadRoute): ThreadSession => {
             reconcileCachedThreadBackwardToken({
               cachedPage,
               firstThreadTimeline: firstTimeline,
-              threadEvents: thread?.events ?? [],
+              threadEvents: thread ? getThreadTimelineEvents(thread) : [],
               threadId,
             });
             if (shouldScrollToLatestOnOpen) {
