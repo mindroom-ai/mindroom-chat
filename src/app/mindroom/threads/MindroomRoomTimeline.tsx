@@ -1626,17 +1626,14 @@ export function RoomTimeline({
       ignoredUsersSet,
       navigateRoom,
       navigateRoomThread,
-      refreshLatestThreadSlice,
       room,
       prefetchDepth,
-      scrollRef,
       scrollToBottomRef,
       setAtBottom,
       setTimeline,
       showHiddenEvents,
       showThreadRepliesInRoom,
       threadId,
-      threadIdRef,
       unreadInfo,
     });
 

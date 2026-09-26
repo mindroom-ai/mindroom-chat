@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page, type Route } from '@playwright/test';
 import { getHomeserver, getPrimaryCredentials } from '../env';
 import { loginWithPassword } from '../helpers/auth';
 import {
@@ -179,6 +179,60 @@ test.describe('virtualized thread behaviors', () => {
     expect(Math.abs(after.scrollTop - before.scrollTop)).toBeLessThan(200);
     expect(after.scrollTop + after.clientHeight).toBeLessThan(after.scrollHeight - 300);
     await expect(page.getByRole('button', { name: 'Jump to Latest' })).toBeVisible();
+  });
+
+  test('Jump to Latest reaches the newest reply while older history is still loading', async ({
+    page,
+  }) => {
+    const homeserver = getHomeserver();
+    const { username, password } = getPrimaryCredentials();
+    const session = await loginToMatrix(homeserver, username, password);
+    // More replies than one THREAD_BATCH_SIZE (200), so the thread model
+    // still has older history to page in after the open.
+    const replyCount = 260;
+    const seeded = await seedThread(homeserver, session.accessToken, { replyCount });
+
+    // Older-history pages never complete: a slow mobile network, where
+    // each backward /relations page took ~350ms and a long thread needed
+    // many of them. Jumping to the newest reply must not depend on them.
+    const heldOlderPages: Route[] = [];
+    await page.route('**/_matrix/client/**/relations/**', async (route) => {
+      if (new URL(route.request().url()).searchParams.has('from')) {
+        heldOlderPages.push(route);
+        return;
+      }
+      await route.continue();
+    });
+
+    await loginWithPassword(page, { homeserver, username, password });
+    await openThread(page, seeded);
+
+    const timeline = page.locator('[data-message-item]').first();
+    await timeline.hover();
+    for (let i = 0; i < 12; i += 1) {
+      // eslint-disable-next-line no-await-in-loop
+      await page.mouse.wheel(0, -900);
+      // eslint-disable-next-line no-await-in-loop
+      await page.waitForTimeout(120);
+    }
+    const before = await getScrollState(page);
+    expect(before.scrollTop + before.clientHeight).toBeLessThan(before.scrollHeight - 300);
+    expect(heldOlderPages.length).toBeGreaterThan(0);
+
+    await page.getByRole('button', { name: 'Jump to Latest' }).click();
+
+    const lastReply = page.getByText(`Virt reply ${replyCount}`, { exact: true }).last();
+    await expect(lastReply).toBeInViewport({ timeout: 5_000 });
+    await expect(page.getByRole('button', { name: 'Jump to Latest' })).toHaveCount(0);
+    await expect
+      .poll(async () => {
+        const after = await getScrollState(page);
+        return after.scrollHeight - after.scrollTop - after.clientHeight;
+      })
+      .toBeLessThan(48);
+
+    await page.unrouteAll({ behavior: 'ignoreErrors' });
+    await Promise.all(heldOlderPages.map((route) => route.abort().catch(() => undefined)));
   });
 
   // Guards two things: (1) the user-facing CONTRACT — older thread

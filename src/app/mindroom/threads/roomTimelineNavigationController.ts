@@ -8,7 +8,6 @@ import {
 import type { NavigateOptions } from 'react-router-dom';
 import type { Room } from 'matrix-js-sdk';
 import { bumpRecentThread } from '../recent-threads/recentThreads';
-import { scrollToBottom } from '../../utils/dom';
 import type { OpenRoomEventHandler } from './roomEventOpenController';
 import type { ScrollToBottomState } from './roomFocusScrollController';
 import { getInitialTimeline, type Timeline } from './timelinePagination';
@@ -26,8 +25,6 @@ type RoomUnreadInfoLike = {
   readUptoEventId: string;
 };
 
-type RefreshLatestThreadSlice = (threadId: string) => Promise<boolean>;
-
 export type RoomTimelineNavigationControllerOptions = {
   eventId?: string;
   classicRoomTimeline?: boolean;
@@ -37,17 +34,14 @@ export type RoomTimelineNavigationControllerOptions = {
   ignoredUsersSet: Set<string>;
   navigateRoom: NavigateRoom;
   navigateRoomThread: NavigateRoomThread;
-  refreshLatestThreadSlice: RefreshLatestThreadSlice;
   room: Room;
   prefetchDepth: number;
-  scrollRef: MutableRefObject<HTMLDivElement | null>;
   scrollToBottomRef: MutableRefObject<ScrollToBottomState>;
   setAtBottom: Dispatch<SetStateAction<boolean>>;
   setTimeline: Dispatch<SetStateAction<Timeline>>;
   showHiddenEvents: boolean;
   showThreadRepliesInRoom?: boolean;
   threadId?: string;
-  threadIdRef: MutableRefObject<string | undefined>;
   unreadInfo?: RoomUnreadInfoLike;
 };
 
@@ -60,39 +54,29 @@ export const useRoomTimelineNavigationController = ({
   ignoredUsersSet,
   navigateRoom,
   navigateRoomThread,
-  refreshLatestThreadSlice,
   room,
   prefetchDepth,
-  scrollRef,
   scrollToBottomRef,
   setAtBottom,
   setTimeline,
   showHiddenEvents,
   showThreadRepliesInRoom,
   threadId,
-  threadIdRef,
   unreadInfo,
 }: RoomTimelineNavigationControllerOptions) => {
-  const handleJumpToLatest = useCallback(async () => {
+  const handleJumpToLatest = useCallback(() => {
     if (threadId) {
       if (eventId) {
         navigateRoomThread(room.roomId, threadId, undefined, { replace: true });
       }
 
-      const didPaginateToLatest = await refreshLatestThreadSlice(threadId);
-      if (threadIdRef.current !== threadId) return;
-      if (didPaginateToLatest) {
-        scrollToBottomRef.current.count += 1;
-        scrollToBottomRef.current.smooth = false;
-        setAtBottom(true);
-        return;
-      }
-
-      const scrollEl = scrollRef.current;
-      if (scrollEl) {
-        scrollToBottom(scrollEl, 'instant');
-        setAtBottom(true);
-      }
+      // Pin to the newest rendered reply now. The refresh this used to await
+      // only pages OLDER history (the live timeline already holds the
+      // newest replies), so on a slow network the jump stayed dead for
+      // seconds while each arriving page shifted the viewport upward.
+      scrollToBottomRef.current.count += 1;
+      scrollToBottomRef.current.smooth = false;
+      setAtBottom(true);
       return;
     }
 
@@ -118,17 +102,14 @@ export const useRoomTimelineNavigationController = ({
     ignoredUsersSet,
     navigateRoom,
     navigateRoomThread,
-    refreshLatestThreadSlice,
     room,
     prefetchDepth,
-    scrollRef,
     scrollToBottomRef,
     setAtBottom,
     setTimeline,
     showHiddenEvents,
     showThreadRepliesInRoom,
     threadId,
-    threadIdRef,
   ]);
 
   const handleJumpToUnread = useCallback(() => {
