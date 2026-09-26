@@ -3,7 +3,7 @@ import { Direction, type MatrixClient, type MatrixEvent, type Room } from 'matri
 import type { Thread } from 'matrix-js-sdk/lib/models/thread';
 import to from 'await-to-js';
 import { THREAD_BATCH_SIZE } from '../preloadSettings';
-import { getLinkedTimelines } from '../timelinePagination';
+import { getLinkedTimelines, getThreadTimelineEvents } from '../linkedTimelines';
 import {
   findEarliestLoadedThreadReplyByCacheOrder,
   reconcileThreadBackwardPagination,
@@ -103,7 +103,7 @@ export const useThreadPagination = (session: ThreadSessionCommands, route: Threa
         return false;
       };
       try {
-        const first = thread
+        let first = thread
           ? getLinkedTimelines(thread.getUnfilteredTimelineSet().getLiveTimeline())[0]
           : undefined;
         const serverCursor = first?.getPaginationToken(Direction.Backward);
@@ -123,17 +123,18 @@ export const useThreadPagination = (session: ThreadSessionCommands, route: Threa
               mx.paginateEventTimeline(first, { backwards: true, limit: THREAD_BATCH_SIZE })
             );
             if (networkError) break;
+            first = getLinkedTimelines(thread.getUnfilteredTimelineSet().getLiveTimeline())[0];
             // Accepted SDK work remains durable even if navigation changed ownership.
             persistThreadEventCache(
               lease.threadId,
-              thread.events,
+              getThreadTimelineEvents(thread),
               thread.rootEvent,
               first.getPaginationToken(Direction.Backward)
             );
             if (!currentOrClear()) return;
             const serverAnchor = getThreadCursorAnchor(
               findEarliestLoadedThreadReplyByCacheOrder(
-                [...first.getEvents(), ...thread.events],
+                getThreadTimelineEvents(thread),
                 lease.threadId
               )?.event
             );
@@ -243,7 +244,7 @@ export const useThreadPagination = (session: ThreadSessionCommands, route: Threa
         const tailLoaded = !last.getPaginationToken(Direction.Forward);
         persistThreadEventCache(
           lease.threadId,
-          thread.events,
+          getThreadTimelineEvents(thread),
           thread.rootEvent,
           undefined,
           tailLoaded

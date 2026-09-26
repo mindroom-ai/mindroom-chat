@@ -4509,6 +4509,13 @@ describe('RoomTimeline', () => {
         backwardToken: 'stale-backward-token',
       });
       const threadTimelineSet = {
+        addEventsToTimeline: (
+          _events: unknown[],
+          _backwards: boolean,
+          _state: boolean,
+          timeline: ReturnType<typeof makeTimeline>,
+          token: string | null
+        ) => timeline.setPaginationToken(token, Direction.Backward),
         getLiveTimeline: () => staleThreadTimeline,
         getTimelineForEvent: (eventId: string) =>
           eventId === threadId ? staleThreadTimeline : undefined,
@@ -4527,6 +4534,7 @@ describe('RoomTimeline', () => {
       const threadEvents = [rootEvent];
       room.getThread = () =>
         ({
+          setEventMetadata: vi.fn(),
           addEvents: (added: ReturnType<typeof makeEvent>[]) => {
             threadEvents.push(...added);
           },

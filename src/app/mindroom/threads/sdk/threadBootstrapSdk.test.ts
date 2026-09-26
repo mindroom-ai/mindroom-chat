@@ -8,6 +8,7 @@ import {
 } from 'matrix-js-sdk';
 import { FeatureSupport, Thread, ThreadEvent } from 'matrix-js-sdk/lib/models/thread';
 import { describe, expect, it, vi } from 'vitest';
+import { getLinkedTimelines, getThreadTimelineEvents } from '../linkedTimelines';
 import {
   appendThreadBootstrapRelations,
   createInitializedThreadForRoot,
@@ -52,13 +53,41 @@ const makeDeferredThread = () => {
     const updated = new Promise<void>((resolve) => {
       thread.once(ThreadEvent.Update, () => resolve());
     });
-    finishRootFetch(root.event);
+    finishRootFetch(root.event as IEvent);
     await updated;
   };
   return { mx, room, root, thread, finishDeferredMetadata };
 };
 
 describe('threadBootstrapSdk', () => {
+  it('places new events around a known historical window without changing the latest reply', async () => {
+    const previousSupport = Thread.hasServerSideSupport;
+    Thread.hasServerSideSupport = FeatureSupport.Stable;
+    try {
+      const { thread, finishDeferredMetadata } = makeDeferredThread();
+      const older = makeEvent('$older', 2, true);
+      const middle = makeEvent('$middle', 3, true);
+      const newer = makeEvent('$newer', 4, true);
+      thread.setEventMetadata(middle);
+      const timelineSet = thread.getUnfilteredTimelineSet();
+      const historical = timelineSet.addTimeline();
+      timelineSet.addEventsToTimeline([middle], true, false, historical, 'before-middle');
+      appendThreadBootstrapRelations({
+        thread,
+        events: [older, middle, newer],
+        nextBatch: 'before-older',
+      });
+      await finishDeferredMetadata();
+      expect(getThreadTimelineEvents(thread)).toEqual([older, middle, newer]);
+      expect(thread.lastReply()).toBe(newer);
+      expect(
+        getLinkedTimelines(thread.liveTimeline)[0].getPaginationToken(Direction.Backward)
+      ).toBe('before-older');
+    } finally {
+      Thread.hasServerSideSupport = previousSupport;
+      vi.restoreAllMocks();
+    }
+  });
   it('preserves a racing reply when constructor-started SDK metadata completes', async () => {
     const previousSupport = Thread.hasServerSideSupport;
     Thread.hasServerSideSupport = FeatureSupport.Stable;
@@ -127,13 +156,12 @@ describe('threadBootstrapSdk', () => {
         appendThreadBootstrapRelations({
           thread,
           events: [reply, newerReply],
-          firstTimeline,
           nextBatch,
         });
         await finishDeferredMetadata();
 
-        // addEvents(..., true) prepends each supplied event; the adapter must not sort or reverse them.
-        expect(thread.events).toEqual([newerReply, reply]);
+        // Native backward pagination accepts newest first and stores chronological order.
+        expect(thread.events).toEqual([reply, newerReply]);
         expect(thread.findEventById('$reply')).toBe(reply);
         expect(firstTimeline.getPaginationToken(Direction.Backward)).toBe(nextBatch ?? null);
       } finally {
@@ -143,7 +171,7 @@ describe('threadBootstrapSdk', () => {
     }
   );
 
-  it('adds relations without requiring a first timeline', async () => {
+  it('indexes relations in the live timeline', async () => {
     const previousSupport = Thread.hasServerSideSupport;
     Thread.hasServerSideSupport = FeatureSupport.Stable;
     try {
@@ -152,7 +180,6 @@ describe('threadBootstrapSdk', () => {
       appendThreadBootstrapRelations({
         thread,
         events: [reply],
-        firstTimeline: undefined,
         nextBatch: undefined,
       });
       await finishDeferredMetadata();

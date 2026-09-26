@@ -2,6 +2,22 @@
 
 ## Runbook
 
+### Recover replies from connected thread history (2026-09-25)
+
+- A new device export shows root-only rendering with ten expected replies, zero live SDK events, and loading completing without an error.
+  It predates the merged render counters, so the device trigger remains unproven.
+- A real SDK regression reproduces one matching failure: context loading indexes replies in a detached historical segment, and individual fallback insertion skips those known IDs.
+  The fallback now uses native pagination insertion to connect overlapping segments, preserving event metadata and chronological placement.
+- Rendering, latest-history persistence, cache cursor reconciliation, and manual pagination read one shared connected-history view.
+  Disconnected context windows remain excluded, and manual pagination recaptures the history head after a join.
+  Pending limited-sync resets settle before fallback insertion chooses its live target.
+- Regression coverage includes short and 120-reply threads, context failures, historical streaming edits, subsequent live replies, mixed old/new overlap, and a reset during fallback loading.
+  The root-only, mixed-order, and reset regressions each failed before their respective corrections.
+- Independent review approves the final implementation.
+  All 5,309 unit tests pass under Node 24.13.1, along with application and changed-test typechecks, the production build, and lint with zero errors and 17 existing warnings.
+  Four focused Chromium cases pass for blocked-cache loading, summary consistency and upgrades, and streaming tiles; the mobile WebKit blocked-storage probe also passes.
+  The full browser suite was not rerun for this change; earlier non-green full runs remain documented below.
+
 ### Prepare thread render diagnostics for production (2026-09-25)
 
 - Production review retains the bounded opt-in render counters and three one-shot scheduling observations; they add useful evidence without changing application state or scheduling.

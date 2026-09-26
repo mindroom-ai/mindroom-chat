@@ -30,6 +30,7 @@ import { eventBelongsToThread } from './threadUtils';
 import { logTimelineDebug } from './timelineDebug';
 import { isLocalEchoEventId } from './threadRouteUtils';
 import { getPendingThreadEvents } from './pendingThreadEvents';
+import { getThreadTimelineEvents } from './linkedTimelines';
 
 type UseThreadRenderStateOpts = {
   room: Room;
@@ -109,7 +110,7 @@ const buildThreadEvents = ({
     const threadModelReady = !!thread;
     addThreadEvent(thread?.rootEvent ?? room.findEventById(threadId), !threadModelReady);
     if (threadModelReady) {
-      thread?.events.forEach((mEvent) => addThreadEvent(mEvent, false));
+      getThreadTimelineEvents(thread).forEach((mEvent) => addThreadEvent(mEvent, false));
     }
   }
 

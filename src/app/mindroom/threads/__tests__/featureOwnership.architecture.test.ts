@@ -179,13 +179,18 @@ describe('feature ownership architecture', () => {
         threadSources,
         new Set([
           'addLiveEvents',
-          'addEventsToTimeline',
           'partitionThreadedEvents',
           'processAggregatedTimelineEvents',
           'processThreadRoots',
         ])
       ).map((entry) => entry.file)
     ).toEqual(['mindroom/threads/sdk/roomTimelineSdk.ts']);
+    expect(
+      memberOwnership(threadSources, new Set(['addEventsToTimeline'])).map((entry) => entry.file)
+    ).toEqual([
+      'mindroom/threads/sdk/roomTimelineSdk.ts',
+      'mindroom/threads/sdk/threadBootstrapSdk.ts',
+    ]);
   });
 
   it('keeps browser capture separate from durable voice delivery', () => {

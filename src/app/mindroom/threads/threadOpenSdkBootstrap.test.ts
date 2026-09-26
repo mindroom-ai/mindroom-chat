@@ -32,8 +32,20 @@ describe('runThreadOpenSdkBootstrap', () => {
       id: '$root',
       rootEvent: root,
       events,
+      setEventMetadata: vi.fn(),
       addEvents: (incoming: MatrixEvent[]) => events.push(...incoming),
-      getUnfilteredTimelineSet: () => ({ getLiveTimeline: () => timeline }),
+      getUnfilteredTimelineSet: () => ({
+        getLiveTimeline: () => timeline,
+        addEventsToTimeline: (
+          _events: MatrixEvent[],
+          _backwards: boolean,
+          _state: boolean,
+          _timeline: unknown,
+          token: string | null
+        ) => {
+          backward = token;
+        },
+      }),
     };
     const room = makeRoom({ liveEvents: [root], threads: [thread as never] });
     const mx = {
