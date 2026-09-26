@@ -2462,6 +2462,7 @@
       "messageCopyActions": {
         "copyTextLoading": "Salin teks (memuat…)",
         "copyText": "Salin teks",
+        "copyTextWithToolCalls": "Salin teks dengan panggilan alat",
         "copyLink": "Salin tautan"
       },
       "messageInspectionActions": {

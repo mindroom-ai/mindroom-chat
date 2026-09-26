@@ -2493,6 +2493,7 @@
       "messageCopyActions": {
         "copyTextLoading": "Copier le texte (chargement…)",
         "copyText": "Copier le texte",
+        "copyTextWithToolCalls": "Copier le texte avec les appels d’outils",
         "copyLink": "Copier le lien"
       },
       "messageInspectionActions": {

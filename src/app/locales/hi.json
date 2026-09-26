@@ -1202,6 +1202,7 @@
       "messageCopyActions": {
         "copyLink": "लिंक की प्रतिलिपि करें",
         "copyText": "टेक्स्ट कॉपी करें",
+        "copyTextWithToolCalls": "टूल कॉल सहित टेक्स्ट कॉपी करें",
         "copyTextLoading": "टेक्स्ट कॉपी करें (लोड हो रहा है...)"
       },
       "messageInspectionActions": {
