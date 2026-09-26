@@ -16,11 +16,15 @@
 - Validation: all 5,477 unit tests, application and changed-test typechecks, lint with zero errors and 17 existing warnings, and production build pass under Node 24.13.1.
   A concurrent validation run hit two unit timeouts and a subsequent assertion failure; both affected files pass separately, and the complete suite passes with browser activity stopped.
   The complete browser scheduler finished with 107 passing jobs, 17 failing jobs, and two blocked external fixtures.
-  Baseline comparisons and focused browser reruns are being finalized; the full browser suite is not green.
+  The full browser suite is not green; hosted SSO and worker-computer fixtures are unavailable.
+  Final focused Chromium checks pass for blocked-cache opening, both summary surfaces, and streaming tiles; the mobile WebKit blocked-storage probe also passes.
+  Quote navigation passes three quiet reruns and Chromium room-disclosure layout passes its quiet rerun, matching unchanged-base results.
+  Unchanged-base comparisons reproduce overview preload, classic pagination, invite-menu, header blur, and WebKit disclosure failures; broader suite failures remain documented separately from the device fix.
 - Independent native review approves the implementation and cleanup.
   Claude found no functional defects but requested consolidated readiness policy, safe test cleanup, and removal of an unused helper branch and cache-only parameter naming.
-  Those changes are complete; final Claude review remains pending.
-- Next: complete browser/review validation and verify an iOS build containing this follow-up on the affected device.
+  Those changes are complete; the no-thread mode stays owned by the render hook.
+  Claude's final re-review approves the corrected implementation and validation record.
+- Next: verify an iOS build containing this follow-up on the affected device and continue triaging the broader browser-suite failures.
   The separate report of missing summaries remains under investigation.
 
 ### Label the tool-call copy on touch screens (2026-09-25)
