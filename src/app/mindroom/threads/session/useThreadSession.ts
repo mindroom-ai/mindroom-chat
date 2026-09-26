@@ -326,6 +326,8 @@ export const useThreadSession = (route: ThreadRoute): ThreadSession => {
                   publish((current) => ({ ...current, open: { ...current.open, sdkReady: true } }));
                   commands.observeLiveTail(threadId);
                   invalidateEvents();
+                } else if (observation.kind === 'history-progress') {
+                  invalidateEvents();
                 } else {
                   publish((current) => ({
                     ...current,

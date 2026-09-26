@@ -2,6 +2,27 @@
 
 ## Runbook
 
+### Show SDK-loaded thread replies before the open chain settles (2026-09-25)
+
+- An iOS export from build `c278d829` (includes #329) shows the remaining root-only failure: a cold start fires about 560 `/relations` and 650 other client requests in its first 30 seconds, and each thread open's persistent-cache read took 15-20 seconds.
+  One open rendered only the root while the SDK thread model already held 127 events with 20 replies (17 expected) and the SDK bootstrap had not returned; the next open became ready within a second and showed the full thread, matching the reported "closed and reopened until it appeared".
+- Root cause: `useThreadRenderState` read the SDK thread model only after storage hydrated or `runThreadOpenSdkBootstrap` returned, so replies the SDK had already indexed stayed hidden while `getThreadTimeline` awaited its trailing root request.
+  That call inserts replies without a thread event (the SDK's own `ThreadEvent.Update` first awaits the thread's own queued root request), so nothing re-rendered even once storage had hydrated.
+- Connected-history `m.thread` replies now count as render readiness, latched per open so the SDK's own first-load `resetLiveTimeline()` cannot return the view to the cached or loading state.
+  During the bootstrap's `getThreadTimeline` call, a room `RoomEvent.Timeline` listener filtered to the thread's timeline set coalesces each non-live SDK insertion batch into one `history-progress` invalidation; it detaches once its open is abandoned.
+  A back-pagination that lands inside that window can therefore render before its anchor recapture; outside it, pagination and live-event invalidation are unchanged.
+- A real-SDK session render test delays `/context`, lets the SDK index two replies, and keeps the trailing root request pending, with storage either pending or missed.
+  Both variants fail without the bootstrap listener, the pending variant fails without the readiness change, and its post-reset mode check fails without the latch.
+- Validation: unit tests pass under Node 24 except the three `xcodeCloudPostClone` tests that need `/bin/bash` on this NixOS host; typecheck, changed-test typecheck, build, and lint (0 errors, 17 existing warnings) pass.
+- Independent review first found that storage hydrating before `/context` still hid replies, that readiness could regress after an SDK reset, and that edits alone counted as history; the bootstrap-scoped listener, per-open latch, and reply-only readiness address those.
+  Re-review found no blocking issues; its suggestions to skip live appends and detach abandoned listeners are applied, while a back-pagination guard and a readiness field in the `render-state` log remain optional.
+- Not fixed here:
+  - The thread model's history can still arrive late on a cold start, because the SDK creates a `Thread` for every listed root (`fetchRoomThreads`, `processThreadRoots`) and each one fetches its root and an initial `/relations` page, competing with the opened thread's requests.
+  - The SDK's first-load reset can still drop replies inserted before it; the view stays live but those rows disappear until the SDK repaginates.
+  - Every device open starts twice within 5 ms (trace pairs such as 1615/1617), and the abandoned open's SDK requests keep running.
+    Runtime identity changes restart the open, for example a thread model created mid-open changes `setSupplementalThreadEvents` and therefore `threadOpenRuntime`, and each restart repeats the slow storage read.
+- Next: confirm on iOS that replies appear without reopening, then decide whether to throttle or deprioritize background thread initialization so the opened thread's requests go first.
+
 ### Label the tool-call copy on touch screens (2026-09-25)
 
 - Touch screens (`(hover: none), (pointer: coarse)`, read once when the menu opens) show Copy Text with Tool Calls as a labelled row below Copy Text, since they have no hover tooltip; pointer devices keep the icon beside Copy Text.
