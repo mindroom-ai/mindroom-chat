@@ -2,6 +2,31 @@
 
 ## Runbook
 
+### Render available thread replies before initialization completes (2026-09-25)
+
+- A device export from a build containing the connected-history fix still shows a root-only thread while SDK replies increase and React render/commit counters stay unchanged.
+  Reopening eventually displays the replies; the exact delayed device request remains unidentified.
+- Real SDK regressions reproduce two remaining barriers: backward history insertion emits immediate timeline events while thread metadata keeps higher-level notifications pending, and the renderer excludes SDK history until cache hydration or bootstrap completes.
+  The active render hook now observes timeline insertion/reset directly and includes available connected SDK history during initialization.
+  Rendering mode derives from the same merged event snapshot, while completion flags retain their original meaning.
+- The change preserves disconnected-history exclusion, richer cached edits, streaming replacement notifications, session revision invalidation for silent history joins, and listener cleanup.
+  Raw timeline listeners stay local to the active thread view.
+- Both mounted SDK regressions and the session/render regression fail before the fix and pass afterward with storage and bootstrap still pending.
+  Coverage includes preloaded and arriving replies, disconnected segments, timeline resets, streaming edits, and cached replacements before hydration.
+- Validation: all 5,477 unit tests, application and changed-test typechecks, lint with zero errors and 17 existing warnings, and production build pass under Node 24.13.1.
+  A concurrent validation run hit two unit timeouts and a subsequent assertion failure; both affected files pass separately, and the complete suite passes with browser activity stopped.
+  The complete browser scheduler finished with 107 passing jobs, 17 failing jobs, and two blocked external fixtures.
+  The full browser suite is not green; hosted SSO and worker-computer fixtures are unavailable.
+  Final focused Chromium checks pass for blocked-cache opening, both summary surfaces, and streaming tiles; the mobile WebKit blocked-storage probe also passes.
+  Quote navigation passes three quiet reruns and Chromium room-disclosure layout passes its quiet rerun, matching unchanged-base results.
+  Unchanged-base comparisons reproduce overview preload, classic pagination, invite-menu, header blur, and WebKit disclosure failures; broader suite failures remain documented separately from the device fix.
+- Independent native review approves the implementation and cleanup.
+  Claude found no functional defects but requested consolidated readiness policy, safe test cleanup, and removal of an unused helper branch and cache-only parameter naming.
+  Those changes are complete; the no-thread mode stays owned by the render hook.
+  Claude's final re-review approves the corrected implementation and validation record.
+- Next: verify an iOS build containing this follow-up on the affected device and continue triaging the broader browser-suite failures.
+  The separate report of missing summaries remains under investigation.
+
 ### Label the tool-call copy on touch screens (2026-09-25)
 
 - Touch screens (`(hover: none), (pointer: coarse)`, read once when the menu opens) show Copy Text with Tool Calls as a labelled row below Copy Text, since they have no hover tooltip; pointer devices keep the icon beside Copy Text.
