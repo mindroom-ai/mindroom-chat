@@ -204,35 +204,37 @@ test.describe('virtualized thread behaviors', () => {
       await route.continue();
     });
 
-    await loginWithPassword(page, { homeserver, username, password });
-    await openThread(page, seeded);
+    try {
+      await loginWithPassword(page, { homeserver, username, password });
+      await openThread(page, seeded);
 
-    const timeline = page.locator('[data-message-item]').first();
-    await timeline.hover();
-    for (let i = 0; i < 12; i += 1) {
-      // eslint-disable-next-line no-await-in-loop
-      await page.mouse.wheel(0, -900);
-      // eslint-disable-next-line no-await-in-loop
-      await page.waitForTimeout(120);
+      const timeline = page.locator('[data-message-item]').first();
+      await timeline.hover();
+      for (let i = 0; i < 12; i += 1) {
+        // eslint-disable-next-line no-await-in-loop
+        await page.mouse.wheel(0, -900);
+        // eslint-disable-next-line no-await-in-loop
+        await page.waitForTimeout(120);
+      }
+      const before = await getScrollState(page);
+      expect(before.scrollTop + before.clientHeight).toBeLessThan(before.scrollHeight - 300);
+      expect(heldOlderPages.length).toBeGreaterThan(0);
+
+      await page.getByRole('button', { name: 'Jump to Latest' }).click();
+
+      const lastReply = page.getByText(`Virt reply ${replyCount}`, { exact: true }).last();
+      await expect(lastReply).toBeInViewport({ timeout: 5_000 });
+      await expect(page.getByRole('button', { name: 'Jump to Latest' })).toHaveCount(0);
+      await expect
+        .poll(async () => {
+          const after = await getScrollState(page);
+          return after.scrollHeight - after.scrollTop - after.clientHeight;
+        })
+        .toBeLessThan(48);
+    } finally {
+      await page.unrouteAll({ behavior: 'ignoreErrors' });
+      await Promise.all(heldOlderPages.map((route) => route.abort().catch(() => undefined)));
     }
-    const before = await getScrollState(page);
-    expect(before.scrollTop + before.clientHeight).toBeLessThan(before.scrollHeight - 300);
-    expect(heldOlderPages.length).toBeGreaterThan(0);
-
-    await page.getByRole('button', { name: 'Jump to Latest' }).click();
-
-    const lastReply = page.getByText(`Virt reply ${replyCount}`, { exact: true }).last();
-    await expect(lastReply).toBeInViewport({ timeout: 5_000 });
-    await expect(page.getByRole('button', { name: 'Jump to Latest' })).toHaveCount(0);
-    await expect
-      .poll(async () => {
-        const after = await getScrollState(page);
-        return after.scrollHeight - after.scrollTop - after.clientHeight;
-      })
-      .toBeLessThan(48);
-
-    await page.unrouteAll({ behavior: 'ignoreErrors' });
-    await Promise.all(heldOlderPages.map((route) => route.abort().catch(() => undefined)));
   });
 
   // Guards two things: (1) the user-facing CONTRACT — older thread

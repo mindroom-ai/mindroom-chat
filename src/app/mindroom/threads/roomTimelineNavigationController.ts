@@ -70,10 +70,9 @@ export const useRoomTimelineNavigationController = ({
         navigateRoomThread(room.roomId, threadId, undefined, { replace: true });
       }
 
-      // Pin to the newest rendered reply now. The refresh this used to await
-      // only pages OLDER history (the live timeline already holds the
-      // newest replies), so on a slow network the jump stayed dead for
-      // seconds while each arriving page shifted the viewport upward.
+      // The live timeline already ends at the newest reply; only older
+      // history can still be loading. Never wait for it: on a slow network
+      // the jump would stay dead while each page shifts the viewport up.
       scrollToBottomRef.current.count += 1;
       scrollToBottomRef.current.smooth = false;
       setAtBottom(true);

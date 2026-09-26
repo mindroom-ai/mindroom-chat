@@ -56,6 +56,8 @@
 - Reproduced before the fix in Chromium with iPhone emulation and a 320-reply thread whose replies stream in through edits: with the open's older pages failed and later pages at 1.5s, three taps over 7s left the viewport 13k-52k px above the bottom while it jumped from reply 268 to 147; the bottom arrived only after all six pages (~11s).
   After the fix the same run reaches the bottom within 300ms and stays there.
 - `thread-virtualization-behaviors.spec.ts` adds a live test that holds every backward `/relations` page and requires Jump to Latest to show the newest reply within 5s; it fails before the fix (the view stays at reply 61) and passes after.
+- `roomTimelineNavigationController.test.ts` runs in CI: thread Jump must pin synchronously (nothing awaited) and drop a permalink first; both cases fail on the pre-fix controller (`expected Promise{…} to be undefined`).
+- A second independent review of the final branch found no blockers; its CI-coverage, `try/finally` route cleanup, and comment-wording notes are addressed.
 - Validation: typecheck, build, and eslint on changed files pass; `vitest run src/app/mindroom/threads` passes except `useRoomInputSendSessionController.test.ts` "restores an already-cleared caption…", which fails identically on clean `HEAD`.
   Live specs `thread-virtualization-behaviors`, `cinny033-jump-to-latest`, `thread-streaming-tiles`, and `thread-banner-overlay` pass; the quote-click test flaked once and then passed 3/3 (it also flakes on `HEAD`).
 - Open risk, not changed here: older rows inserted by background loads (reconcile delivery, an open-time or resume refresh still paging after a gesture) are not scroll-anchored, because only explicit back-pagination records a prepend anchor.
