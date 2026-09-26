@@ -100,42 +100,29 @@ const makeRoom = (txnMap?: Map<string, MatrixEvent>) =>
   } as never);
 
 describe('getThreadInitialRenderMode', () => {
-  it('uses the live render path outside thread view', () => {
+  it('shows a loading state while initialization is pending and no events are available', () => {
     expect(
       getThreadInitialRenderMode({
-        threadId: undefined,
-        initialCacheHydrated: false,
-        fallbackEventCount: 0,
-      })
-    ).toBe('live');
-  });
-
-  it('shows a loading state until the initial thread cache lookup completes', () => {
-    expect(
-      getThreadInitialRenderMode({
-        threadId: '$thread',
-        initialCacheHydrated: false,
-        fallbackEventCount: 0,
+        initializationComplete: false,
+        availableEventCount: 0,
       })
     ).toBe('loading');
   });
 
-  it('renders cached thread events ahead of provisional live events during initial hydration', () => {
+  it('renders available thread events while initialization is pending', () => {
     expect(
       getThreadInitialRenderMode({
-        threadId: '$thread',
-        initialCacheHydrated: false,
-        fallbackEventCount: 3,
+        initializationComplete: false,
+        availableEventCount: 3,
       })
     ).toBe('cached');
   });
 
-  it('switches back to the live render path after cache hydration finishes', () => {
+  it('switches to the live render path once initialization completes', () => {
     expect(
       getThreadInitialRenderMode({
-        threadId: '$thread',
-        initialCacheHydrated: true,
-        fallbackEventCount: 0,
+        initializationComplete: true,
+        availableEventCount: 0,
       })
     ).toBe('live');
   });
@@ -677,6 +664,8 @@ describe('shouldPinThreadToBottomOnOpen', () => {
       shouldPinThreadToBottomOnOpen({
         threadId: '$thread',
         threadLatestOpenPending: true,
+        threadOpenedAtLatest: true,
+        hasUserScrollIntent: false,
         threadInitialRenderMode: 'live',
         threadEventCount: 3,
         suppressOpenBottomPin: true,
