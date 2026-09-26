@@ -56,23 +56,6 @@ type ThreadFallbackState = {
 
 const EMPTY_THREAD_EVENTS: MatrixEvent[] = [];
 
-const getThreadRenderStateInitialMode = ({
-  threadId,
-  initialCacheHydrated,
-  availableEventCount,
-}: {
-  threadId?: string;
-  initialCacheHydrated: boolean;
-  availableEventCount: number;
-}): ThreadInitialRenderMode =>
-  isLocalEchoEventId(threadId)
-    ? 'live'
-    : getThreadInitialRenderMode({
-        threadId,
-        initialCacheHydrated,
-        availableEventCount,
-      });
-
 const buildThreadEvents = ({
   room,
   threadId,
@@ -94,6 +77,8 @@ const buildThreadEvents = ({
 } => {
   const collectedEvents: MatrixEvent[] = [];
   const sdkEvents = thread ? getThreadTimelineEvents(thread) : [];
+  const initializationComplete =
+    threadInitialCacheHydrated || threadInitialSdkLoaded || isLocalEchoEventId(threadId);
 
   const addThreadEvent = (mEvent?: MatrixEvent | null, requireThreadMatch = true) => {
     if (!mEvent) return;
@@ -104,12 +89,7 @@ const buildThreadEvents = ({
     collectedEvents.push(mEvent);
   };
 
-  if (
-    sdkEvents.length > 0 ||
-    threadInitialCacheHydrated ||
-    threadInitialSdkLoaded ||
-    isLocalEchoEventId(threadId)
-  ) {
+  if (sdkEvents.length > 0 || initializationComplete) {
     const threadModelReady = !!thread;
     addThreadEvent(thread?.rootEvent ?? room.findEventById(threadId), !threadModelReady);
     if (threadModelReady) {
@@ -135,9 +115,8 @@ const buildThreadEvents = ({
   return {
     events: sortedEvents,
     indexMap,
-    initialRenderMode: getThreadRenderStateInitialMode({
-      threadId,
-      initialCacheHydrated: threadInitialCacheHydrated || threadInitialSdkLoaded,
+    initialRenderMode: getThreadInitialRenderMode({
+      initializationComplete,
       availableEventCount: sortedEvents.length,
     }),
   };

@@ -13,10 +13,13 @@
   Raw timeline listeners stay local to the active thread view.
 - Both mounted SDK regressions and the session/render regression fail before the fix and pass afterward with storage and bootstrap still pending.
   Coverage includes preloaded and arriving replies, disconnected segments, timeline resets, streaming edits, and cached replacements before hydration.
-- Validation: all 5,478 unit tests, application typecheck, lint with zero errors and 17 existing warnings, and production build pass under Node 24.13.1.
-  Independent native review approves the implementation.
-  Changed-test typecheck also passes.
-  The complete browser scheduler and independent Claude review are being finalized.
+- Validation: all 5,477 unit tests, application and changed-test typechecks, lint with zero errors and 17 existing warnings, and production build pass under Node 24.13.1.
+  A concurrent validation run hit two unit timeouts and a subsequent assertion failure; both affected files pass separately, and the complete suite passes with browser activity stopped.
+  The complete browser scheduler finished with 107 passing jobs, 17 failing jobs, and two blocked external fixtures.
+  Baseline comparisons and focused browser reruns are being finalized; the full browser suite is not green.
+- Independent native review approves the implementation and cleanup.
+  Claude found no functional defects but requested consolidated readiness policy, safe test cleanup, and removal of an unused helper branch and cache-only parameter naming.
+  Those changes are complete; final Claude review remains pending.
 - Next: complete browser/review validation and verify an iOS build containing this follow-up on the affected device.
   The separate report of missing summaries remains under investigation.
 

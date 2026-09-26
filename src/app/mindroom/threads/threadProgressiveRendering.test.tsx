@@ -125,10 +125,10 @@ it.each(['already loaded', 'arriving'] as const)(
       }
     } finally {
       act(() => renderer?.unmount());
-      expect(thread.listenerCount(RoomEvent.Timeline)).toBe(listenerCount);
-      expect(thread.listenerCount(RoomEvent.TimelineReset)).toBe(resetListenerCount);
       vi.restoreAllMocks();
       Thread.hasServerSideSupport = support;
     }
+    expect(thread.listenerCount(RoomEvent.Timeline)).toBe(listenerCount);
+    expect(thread.listenerCount(RoomEvent.TimelineReset)).toBe(resetListenerCount);
   }
 );
