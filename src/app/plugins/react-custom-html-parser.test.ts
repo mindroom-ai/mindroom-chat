@@ -3,7 +3,13 @@ import parse, { Element, HTMLReactParserOptions, domToReact } from 'html-react-p
 import { Text as DOMText } from 'domhandler';
 import { MatrixClient } from 'matrix-js-sdk';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { act, create, ReactTestRenderer, ReactTestRendererJSON } from 'react-test-renderer';
+import {
+  act,
+  create,
+  ReactTestInstance,
+  ReactTestRenderer,
+  ReactTestRendererJSON,
+} from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   CodeBlock,
@@ -13,6 +19,14 @@ import {
   renderTextWithLatex,
 } from './react-custom-html-parser';
 import { withMindroomToolTraceMarkerParserOptions } from '../mindroom/messages/MindroomHtmlBlocks';
+import backendToolMarkerBodies from '../mindroom/messages/__fixtures__/backendToolMarkerBodies.json';
+import { getRenderedMindroomToolRefs } from '../mindroom/messages/toolRefDom';
+import {
+  getMessageCopyTexts,
+  scanMindroomToolMarkerLines,
+} from '../mindroom/messages/messageCopyText';
+import { formatMindroomMessageTextBodyAsHtml } from '../mindroom/messages/blocks';
+import { sanitizeCustomHtml } from '../utils/sanitize';
 
 const clipboardMocks = vi.hoisted(() => ({
   copyToClipboard: vi.fn<(text: string) => Promise<boolean>>(),
@@ -68,6 +82,9 @@ vi.mock('folds', async () => {
 });
 
 vi.mock('../styles/CustomHtml.css', () => ({
+  BlockQuote: 'BlockQuote',
+  Heading: 'Heading',
+  List: 'List',
   Paragraph: 'Paragraph',
   MarginSpaced: 'MarginSpaced',
   CodeBlock: 'CodeBlock',
@@ -802,5 +819,118 @@ describe('getReactCustomHtmlParser', () => {
 
     expect(markup).toContain('MathBlock');
     expect(markup).toContain('katex-display');
+  });
+});
+
+// Copy may strip marker lines only when the app renders exactly those markers as
+// tool blocks and shows nothing of them elsewhere; check against the real renderer.
+describe('copy stripping matches the app renderer', () => {
+  // The renderer shows these markers but detection conservatively skips them:
+  // names holding another index, and (in sender HTML only, since the plain-body
+  // fallback escapes HTML) markers nested in wrappers the base parser leaves alone.
+  const knownDetectionGaps = new Set(['tool name containing another index']);
+  const knownFormattedBodyGaps = new Set([
+    'tool call inside a raw div',
+    'tool call inside a details block',
+  ]);
+
+  // Everything the app shows as text outside tool blocks, including HTML it
+  // injects directly, such as KaTeX output.
+  const textOutsideToolBlocks = (node: ReactTestInstance | string): string => {
+    if (typeof node === 'string') return node;
+    if (Array.isArray(node.props?.parsedTools)) return '';
+    const injected = node.props?.dangerouslySetInnerHTML?.__html;
+    return (
+      (typeof injected === 'string' ? injected.replace(/<[^>]*>/g, '') : '') +
+      node.children.map(textOutsideToolBlocks).join('')
+    );
+  };
+
+  const expectCopyMatchesRender = async (
+    name: string,
+    body: string,
+    formattedBody: string | undefined,
+    renderedHtml: string
+  ) => {
+    const html = sanitizeCustomHtml(renderedHtml);
+    const baseOpts = getReactCustomHtmlParser({} as MatrixClient, undefined, {
+      linkifyOpts: LINKIFY_OPTS,
+    });
+    const opts = withMindroomToolTraceMarkerParserOptions(baseOpts, {
+      body,
+      formatted_body: renderedHtml,
+    });
+    let renderer!: ReactTestRenderer;
+    await act(async () => {
+      renderer = create(React.createElement(React.Fragment, null, parse(html, opts)));
+    });
+    const renderedToolIndexes = renderer.root
+      .findAll((node) => Array.isArray(node.props?.parsedTools))
+      .flatMap((node) =>
+        (node.props.parsedTools as Array<{ index: number }>).map((tool) => tool.index)
+      );
+    const shownText = textOutsideToolBlocks(renderer.root);
+    renderer.unmount();
+
+    // Repeated indexes render once as a block and again as text, so compare sets.
+    const plainBodyFallback = formattedBody === undefined;
+    const detected = new Set(
+      getRenderedMindroomToolRefs(html).toolBlocks.map(({ index }) => index)
+    );
+    const rendered = new Set(renderedToolIndexes);
+    detected.forEach((index) => expect(rendered.has(index)).toBe(true));
+    if (knownDetectionGaps.has(name) || (!plainBodyFallback && knownFormattedBodyGaps.has(name))) {
+      expect(detected.size).toBeLessThan(rendered.size);
+    } else {
+      expect(detected.size).toBe(rendered.size);
+    }
+
+    const scan = scanMindroomToolMarkerLines(body, formattedBody, plainBodyFallback);
+    if (!scan) return;
+    // Stripped lines are exactly the tool blocks, and nothing of them is shown
+    // as text: no 🔧, and no ⏳ beyond what the copy keeps.
+    const stripped = scan.toolRefs.filter(Boolean).map((toolRef) => toolRef?.index);
+    expect(stripped.sort()).toEqual([...renderedToolIndexes].sort());
+    expect(shownText).not.toContain('🔧');
+    const { text } = getMessageCopyTexts({ body, formattedBody, plainBodyFallback }, scan);
+    expect(shownText.split('⏳').length).toBe(text.split('⏳').length);
+  };
+
+  it.each(Object.entries(backendToolMarkerBodies))(
+    'backend formatted_body: %s',
+    async (name, { body, formatted_body: formattedBody }) => {
+      await expectCopyMatchesRender(name, body, formattedBody, formattedBody);
+    }
+  );
+
+  it.each(Object.entries(backendToolMarkerBodies))(
+    'plain-body fallback: %s',
+    async (name, { body }) => {
+      const fallbackHtml = formatMindroomMessageTextBodyAsHtml(body);
+      if (fallbackHtml) await expectCopyMatchesRender(name, body, undefined, fallbackHtml);
+    }
+  );
+
+  // Hand-written events whose shown text comes from attributes; no MindRoom
+  // sender produces them, but copy must still keep the attribute-shown line.
+  it.each([
+    [
+      'KaTeX block rendered from an attribute',
+      '$$\n🔧 `x` [1]\n$$\n\n&#x1F527; `x` [1]',
+      '<div data-mx-maths="🔧 `x` [1]"></div><p>🔧 <code>x</code> [1]</p>',
+    ],
+    [
+      'inline KaTeX rendered from an attribute',
+      'Formula:\n🔧 `x` [1]\n\n&#x1F527; `x` [1]',
+      '<p>Formula: <span data-mx-maths="🔧 `x` [1]"></span></p><p>🔧 <code>x</code> [1]</p>',
+    ],
+    [
+      'code-block label rendered from an attribute',
+      '🔧 `x` [1]\n\n&#x1F527; `x` [1]',
+      '<pre><code data-label="🔧 `x` [1]">code</code></pre><p>🔧 <code>x</code> [1]</p>',
+    ],
+  ])('crafted formatted_body: %s', async (name, body, formattedBody) => {
+    expect(scanMindroomToolMarkerLines(body, formattedBody, false)).toBeUndefined();
+    await expectCopyMatchesRender(name, body, formattedBody, formattedBody);
   });
 });

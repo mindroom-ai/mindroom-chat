@@ -546,7 +546,7 @@ export const Message = as<'div', MessageProps>(
                             )}
                             {!mEvent.isRedacted() && (showCopyText || mindroomCopyText.visible) && (
                               <MessageCopyTextItem
-                                room={room}
+                                content={menuMessageContent}
                                 mEvent={mEvent}
                                 onClose={closeMenu}
                                 resolvedLongTextContent={mindroomCopyText.resolvedContent}

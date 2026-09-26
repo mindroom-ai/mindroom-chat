@@ -1,6 +1,6 @@
 import React from 'react';
 import { createRoot } from 'react-dom/client';
-import { MatrixEvent, Room } from 'matrix-js-sdk';
+import { MatrixEvent } from 'matrix-js-sdk';
 import { Box, color, configClass, varsClass } from 'folds';
 import '@fontsource/inter/variable.css';
 import 'folds/dist/style.css';
@@ -19,6 +19,10 @@ const content = params.has('plain')
   : {
       msgtype: 'm.text',
       body: 'Let me check.\n\n🔧 `search_web` [1]\n\nIt is sunny, $T = 21^\\circ C$.',
+      // Captured from MindRoom's markdown_to_html for this body.
+      format: 'org.matrix.custom.html',
+      formatted_body:
+        '<p>Let me check.</p>\n<p>🔧 <code>search_web</code> [1]</p>\n<p>It is sunny, $T = 21^\\circ C$.</p>\n',
       'io.mindroom.tool_trace': {
         version: 2,
         events: [
@@ -32,7 +36,6 @@ const content = params.has('plain')
       },
     };
 
-const room = { getTimelineForEvent: () => null } as unknown as Room;
 const mEvent = {
   getId: () => '$copy-fixture',
   getContent: () => content,
@@ -49,7 +52,7 @@ createRoot(document.getElementById('root')!).render(
   >
     <Menu style={{ width: 220 }}>
       <Box direction="Column" gap="100" style={{ padding: 4 }}>
-        <MessageCopyTextItem room={room} mEvent={mEvent} onClose={() => undefined} />
+        <MessageCopyTextItem content={content} mEvent={mEvent} onClose={() => undefined} />
       </Box>
     </Menu>
   </main>

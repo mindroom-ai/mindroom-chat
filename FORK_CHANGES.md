@@ -2,6 +2,32 @@
 
 ## Runbook
 
+### Copy only the tool markers the reply displays (2026-09-25)
+
+- Seven fresh independent reviews of the merged copy change and its follow-ups each found inputs where copy deleted text the app shows.
+  #328's fence scanner mis-tracked fences; a `markdown-it` re-parse diverged from the server's HTML pre-passes and `$$` math; mapping displayed tool blocks back to body lines by index counts was evaded by model-written marker spellings, reference links, tables, and bracketed tool names; and the proof below first missed a two-space ⏳ and text the renderer shows from attributes.
+- Copy now strips only when it can prove the stripped lines are exactly the displayed tool blocks, and otherwise copies the body unchanged.
+  It reads sanitized `formatted_body`, or the sanitized plain-body fallback for plain events only, with the renderer's own tool-marker prefix helpers (moved unchanged to `toolRefDom.ts`) and its first-bracketed-index grouping check.
+  Every 🔧 in the rendered text or any attribute (the renderer shows some, such as KaTeX `data-mx-maths` and code-block labels) must sit in a tool block, every 🔧 in the body on a canonical marker line, and the two must match one to one by index, tool name, and pending ⏳.
+  Then no stripped line can also render as visible text, whatever code, math, quotes, links, or spelling surround it.
+- Backend markers among ordinary prose, math, and code still strip; replies that also show 🔧 text elsewhere, such as marker examples in code, quotes, or headings, copy unchanged.
+  Detection skips markers nested in wrappers the base parser leaves alone (`div`, `details`) and names holding another index, so those replies also copy unchanged.
+  Long-text previews without HTML keep their markers; hydrated long text without HTML renders as plain text, so its markers correctly stay.
+- Copy Text now reads the row's rendered content (`resolvedMessageContent`, or the menu's resolved edit) instead of re-resolving the event at click time, so it copies exactly what the row shows.
+  The menu memoizes the scan on the body and HTML strings, so re-renders of edited content do not rescan, and clicks reuse the result.
+  A cheap text check skips containers that cannot start with a marker before the renderer's quadratic prefix scan.
+  The tool-call action hides when it would copy the same text as Copy Text, as for replies made only of tool calls.
+- `scripts/capture-backend-tool-marker-bodies.py` renders 41 bodies with the backend's `markdown_to_html` (backend `f5aaea2b0`, renderer versions pinned to its lock) into `__fixtures__/backendToolMarkerBodies.json`; its docstring holds the `uv run` recipe.
+  They skip `format_message_with_mentions`, whose marker spacing every send applies, so unspaced layouts only arise from model-written text.
+  `react-custom-html-parser.test.ts` renders each with the app's real base parser, both as sent and through the plain-body fallback, plus three hand-written events whose shown text comes from attributes.
+  Detected tool blocks must be rendered ones (fewer only for the listed conservative gaps), and whenever copy strips, the stripped indexes must equal the rendered tool blocks and the text shown outside them, KaTeX output included, must hold no 🔧 and no more ⏳ than the copy.
+  Entity-encoded tool blocks beside canonical markers in code, math, code spans, or escaped comments fail if the rendered-🔧 check alone is removed, the attribute events fail without the attribute count, and a two-space ⏳ fails without the pending match.
+  A reviewer's fuzzing of 15,000 backend-rendered bodies through the real renderer found no stripped line shown as text; the attribute count since then only strips less.
+- Validation under Node 24: unit tests, typecheck, build, lint (0 errors, 17 existing warnings), and the Chromium clipboard spec pass; three `xcodeCloudPostClone` tests need `/bin/bash` and cannot run on this NixOS host.
+  No dependency or bundle-chunk change.
+- Next: the backend could publish marker-free text so copy needs no inference; native text selection of rendered math still copies duplicated glyphs.
+  Renderer limitations worth their own change: markers in lists and quotes never render as tool blocks, and a marker after a hard break that follows a tool group renders as unstyled text instead of a tool block (its `replace` returns `null`, which html-react-parser 4.2 treats as no replacement); copy keeps both.
+
 ### Recover replies from connected thread history (2026-09-25)
 
 - A new device export shows root-only rendering with ten expected replies, zero live SDK events, and loading completing without an error.
@@ -32,13 +58,14 @@
 
 ### Copy replies without tool markers (2026-09-25)
 
-- Copy Text now removes standalone MindRoom tool markers (`🔧 \`tool\` [N]`, optionally pending) outside fenced and indented code, including fences opened inside list items or block quotes.
+- Copy Text now removes standalone MindRoom tool markers (`🔧 \`tool\` [N]`, optionally pending) outside code.
   Bodies without markers are copied byte-for-byte as before; a reply made only of tool calls copies those calls instead of nothing.
 - A side action on the same menu row, Copy Text with Tool Calls, appears only for bodies with markers and hides while long text loads.
   It replaces each marker with a Markdown block holding the call's name, arguments, result, and running, truncated, or unavailable status from `io.mindroom.tool_trace`.
   The copied Markdown stays English regardless of interface language so pasted transcripts read the same; the side action's label is translated in all 17 locales.
 - Trace lookup matches the renderer: hydrated long-text content keeps its own trace, otherwise the latest edit and then the original event supply it.
-- Independent review found no blockers; its fence, indentation, pending-status, whitespace, and empty-copy findings are fixed with regressions.
+- The first independent review found no blockers; its fence, indentation, pending-status, whitespace, and empty-copy findings were fixed with regressions.
+  A later fresh review found remaining fence-tracking bugs, fixed in the next entry.
   The side action's label is tooltip-only, so touch users see just the icon.
 - Unit, typecheck, build, lint (0 errors, 17 existing warnings), and the new Chromium clipboard spec pass under Node 24; three `xcodeCloudPostClone` tests need `/bin/bash` and cannot run on this NixOS host.
 - Equations need no copy change: MindRoom keeps LaTeX as `$…$`/`$$…$$` in both `body` and `formatted_body`, so Copy Text copies the LaTeX source.

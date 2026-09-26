@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import { Box, Icon, IconButton, Icons, Text, Tooltip, TooltipProvider, as } from 'folds';
-import React from 'react';
+import React, { useMemo } from 'react';
 import { MatrixEvent, Room } from 'matrix-js-sdk';
 import { MenuItem } from '../../components/glass/GlassPrimitives';
 import { getEditedEvent, getLatestMessageContent } from '../../utils/room';
@@ -9,10 +9,9 @@ import { copyToClipboard } from '../../utils/dom';
 import { getMatrixToRoomEvent } from '../../plugins/matrix-to';
 import { getViaServers } from '../../plugins/via-servers';
 import {
-  expandMindroomToolMarkerLines,
   getMessageCopyTextSource,
-  hasMindroomToolMarkerLines,
-  stripMindroomToolMarkerLines,
+  getMessageCopyTexts,
+  scanMindroomToolMarkerLines,
 } from './messageCopyText';
 
 export const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -34,67 +33,75 @@ export const getMenuMessageContent = (room: Room, mEvent: MatrixEvent): Record<s
 export const MessageCopyTextItem = as<
   'button',
   {
-    room: Room;
+    /** The rendered message content, already resolved for edits. */
+    content: Record<string, unknown>;
     mEvent: MatrixEvent;
     onClose: () => void;
     resolvedLongTextContent?: Record<string, unknown>;
     loading?: boolean;
   }
->(({ room, mEvent, onClose, resolvedLongTextContent, loading, ...props }, ref) => {
+>(({ content, mEvent, onClose, resolvedLongTextContent, loading, ...props }, ref) => {
   const { t } = useTranslation();
-  const getCopySource = () =>
-    getMessageCopyTextSource(
-      getMenuMessageContent(room, mEvent),
-      mEvent.getContent() as Record<string, unknown>,
-      resolvedLongTextContent
-    );
-  const renderedSource = getCopySource();
-  const showCopyWithToolCalls =
-    !loading && !!renderedSource && hasMindroomToolMarkerLines(renderedSource.body);
+  const source = getMessageCopyTextSource(
+    content,
+    mEvent.getContent() as Record<string, unknown>,
+    resolvedLongTextContent
+  );
+  // Edited content is a new object on every render, so memoize the HTML scan on
+  // its strings; streaming edits still rescan because the body changes.
+  const body = source?.body;
+  const formattedBody = source?.formattedBody;
+  const plainBodyFallback = source?.plainBodyFallback ?? false;
+  const markerScan = useMemo(
+    () =>
+      body === undefined
+        ? undefined
+        : scanMindroomToolMarkerLines(body, formattedBody, plainBodyFallback),
+    [body, formattedBody, plainBodyFallback]
+  );
+  // Tool markers are display chrome; the plain copy keeps only the reply.
+  const copyTexts = source ? getMessageCopyTexts(source, markerScan) : undefined;
+  const showCopyWithToolCalls = !loading && copyTexts?.textWithToolCalls !== undefined;
 
   const handleCopy = () => {
-    // Tool markers are display chrome; the plain copy keeps only the reply.
-    // A reply made only of tool calls copies those calls instead of nothing.
-    const source = getCopySource();
-    const text = source
-      ? stripMindroomToolMarkerLines(source.body) ||
-        expandMindroomToolMarkerLines(source.body, source.toolTraceEvents)
-      : undefined;
-    if (text) {
-      copyToClipboard(text);
+    if (copyTexts?.text) {
+      copyToClipboard(copyTexts.text);
     }
     onClose();
   };
 
   const handleCopyWithToolCalls = () => {
-    const source = getCopySource();
-    if (source) {
-      copyToClipboard(expandMindroomToolMarkerLines(source.body, source.toolTraceEvents));
+    if (copyTexts?.textWithToolCalls) {
+      copyToClipboard(copyTexts.textWithToolCalls);
     }
     onClose();
   };
 
   const copyWithToolCallsLabel = t('mindroomUi.messages.messageCopyActions.copyTextWithToolCalls');
 
+  const copyTextItem = (
+    <MenuItem
+      size="300"
+      after={<Icon size="100" src={Icons.Text} />}
+      radii="300"
+      aria-disabled={loading}
+      disabled={loading}
+      onClick={handleCopy}
+      {...props}
+      ref={ref}
+    >
+      <Text className={css.MessageMenuItemText} as="span" size="T300" truncate>
+        {loading
+          ? t('mindroomUi.messages.messageCopyActions.copyTextLoading')
+          : t('mindroomUi.messages.messageCopyActions.copyText')}
+      </Text>
+    </MenuItem>
+  );
+
   return (
     <Box alignItems="Center" gap="100">
       <Box grow="Yes" direction="Column">
-        <MenuItem
-          size="300"
-          after={<Icon size="100" src={Icons.Text} />}
-          radii="300"
-          aria-disabled={loading}
-          disabled={loading}
-          onClick={handleCopy}
-          {...props}
-          ref={ref}
-        >
-          <Text className={css.MessageMenuItemText} as="span" size="T300" truncate>
-            {loading
-              ? t('mindroomUi.messages.messageCopyActions.copyTextLoading')
-              : t('mindroomUi.messages.messageCopyActions.copyText')}
-          </Text>
-        </MenuItem>
+        {copyTextItem}
       </Box>
       {showCopyWithToolCalls && (
         <TooltipProvider

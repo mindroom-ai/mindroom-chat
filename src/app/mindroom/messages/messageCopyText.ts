@@ -1,4 +1,11 @@
-import { parseMindroomToolRefText, type MindroomToolRefParseResult } from './blocks';
+import { sanitizeCustomHtml } from '../../utils/sanitize';
+import {
+  MINDROOM_TOOL_REF_ICON,
+  formatMindroomMessageTextBodyAsHtml,
+  parseMindroomToolRefText,
+  type MindroomToolRefParseResult,
+} from './blocks';
+import { countMindroomToolRefIcons, getRenderedMindroomToolRefs } from './toolRefDom';
 import {
   getMindroomToolTraceEvents,
   isMindroomToolTraceV2,
@@ -7,7 +14,7 @@ import {
 
 const COPY_TEXT_MSGTYPES = new Set(['m.text', 'm.notice', 'm.emote']);
 const TOOL_TRACE_KEY = 'io.mindroom.tool_trace';
-const TOOL_MARKER_ICON = '🔧';
+const LONG_TEXT_KEY = 'io.mindroom.long_text';
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   !!value && typeof value === 'object' && !Array.isArray(value);
@@ -23,6 +30,15 @@ export const isCopyTextMessageContent = (content: Record<string, unknown>): bool
 
 export type MessageCopyTextSource = {
   body: string;
+  /** The HTML rendered alongside `body`, when the sender provided one. */
+  formattedBody?: string;
+  /**
+   * Whether to derive tool blocks for a body without HTML from the plain-body
+   * fallback. Only plain events use it. Hydrated long text renders as plain
+   * text, and long-text previews use a Markdown fallback that copy does not mirror,
+   * so their markers stay in the copy.
+   */
+  plainBodyFallback: boolean;
   toolTraceEvents?: MindroomToolTraceEvent[];
 };
 
@@ -57,6 +73,10 @@ export const getMessageCopyTextSource = (
 
   return {
     body: bodySource.body as string,
+    formattedBody:
+      typeof bodySource.formatted_body === 'string' ? bodySource.formatted_body : undefined,
+    plainBodyFallback:
+      family === families[1] && !family.some((candidate) => candidate[LONG_TEXT_KEY] !== undefined),
     toolTraceEvents:
       traceSource && isMindroomToolTraceV2(traceSource)
         ? getMindroomToolTraceEvents(traceSource)
@@ -64,86 +84,83 @@ export const getMessageCopyTextSource = (
   };
 };
 
-type CodeFence = {
-  marker: string;
-  length: number;
-};
-
-// Fences may open inside list items or block quotes; drop those container
-// prefixes before looking for the fence itself.
-const FENCE_CONTAINER_PREFIX_REG = /^(?:[ \t]*(?:>|[-*+]|\d{1,9}[.)])(?=[ \t]|$)[ \t]?)*/;
-const CODE_FENCE_REG = /^[ \t]*(`{3,}|~{3,})(.*)$/;
-const INDENTED_CODE_REG = /^(?: {0,3}\t| {4})/;
-
-const readCodeFence = (line: string): (CodeFence & { info: string }) | undefined => {
-  const match = CODE_FENCE_REG.exec(line.replace(FENCE_CONTAINER_PREFIX_REG, ''));
-  if (!match) return undefined;
-
-  const [, fence, info] = match;
-  // Backtick fence info strings cannot contain backticks (CommonMark).
-  if (fence[0] === '`' && info.includes('`')) return undefined;
-  return { marker: fence[0], length: fence.length, info };
-};
-
-const closesCodeFence = (line: string, fence: CodeFence): boolean => {
-  const candidate = readCodeFence(line);
-  return (
-    !!candidate &&
-    candidate.marker === fence.marker &&
-    candidate.length >= fence.length &&
-    candidate.info.trim() === ''
-  );
-};
-
-const parseToolMarkerLine = (line: string): MindroomToolRefParseResult | undefined =>
-  line.includes(TOOL_MARKER_ICON) && !INDENTED_CODE_REG.test(line)
-    ? parseMindroomToolRefText(line)
-    : undefined;
-
-type ToolMarkerLineVisitor = (toolRef: MindroomToolRefParseResult) => string[];
-
 const splitLines = (text: string): string[] => text.replace(/\r\n?/g, '\n').split('\n');
 
-/**
- * Call `onLine` for every line, passing MindRoom's standalone
- * `🔧 `tool` [N]` marker when the line is one outside fenced code. Stops as
- * soon as `onLine` returns false.
- */
-const scanToolMarkerLines = (
-  lines: string[],
-  onLine: (line: string, toolRef: MindroomToolRefParseResult | undefined) => boolean | void
-): void => {
-  let openFence: CodeFence | undefined;
-
-  lines.every((line) => {
-    if (openFence) {
-      if (closesCodeFence(line, openFence)) openFence = undefined;
-      return onLine(line, undefined) !== false;
-    }
-
-    const toolRef = parseToolMarkerLine(line);
-    if (!toolRef) openFence = readCodeFence(line);
-    return onLine(line, toolRef) !== false;
-  });
+export type MindroomToolMarkerScan = {
+  lines: string[];
+  toolRefs: Array<MindroomToolRefParseResult | undefined>;
 };
+
+/**
+ * Find the body's tool-marker lines, but only when they provably are exactly
+ * the tool blocks the renderer displays. Every 🔧 in the rendered text must sit
+ * in a tool block, every 🔧 in the body on a marker line, and the two must match
+ * one to one. Then no marker line can also render as visible text, whatever
+ * code, math, quotes, or spelling surround it. Anything else copies the body
+ * unchanged.
+ *
+ * Takes plain strings so callers can memoize this, the expensive step.
+ */
+export const scanMindroomToolMarkerLines = (
+  body: string,
+  formattedBody: string | undefined,
+  plainBodyFallback: boolean
+): MindroomToolMarkerScan | undefined => {
+  if (!body.includes(MINDROOM_TOOL_REF_ICON)) return undefined;
+
+  // Mirror the renderer, which sanitizes formatted_body or its plain-body fallback.
+  const rawHtml =
+    formattedBody ?? (plainBodyFallback ? formatMindroomMessageTextBodyAsHtml(body) : undefined);
+  if (!rawHtml) return undefined;
+  const html = sanitizeCustomHtml(rawHtml);
+
+  const { toolBlocks, iconCount, toolBlockIconCount } = getRenderedMindroomToolRefs(html);
+  if (toolBlocks.length === 0 || iconCount !== toolBlockIconCount) return undefined;
+  const displayed = new Map(toolBlocks.map((toolBlock) => [toolBlock.index, toolBlock]));
+  if (displayed.size !== toolBlocks.length) return undefined;
+
+  const lines = splitLines(body);
+  const toolRefs = lines.map((line) =>
+    line.includes(MINDROOM_TOOL_REF_ICON) ? parseMindroomToolRefText(line) : undefined
+  );
+  const markers = toolRefs.filter((toolRef): toolRef is MindroomToolRefParseResult => !!toolRef);
+  const markerIconCount = lines.reduce(
+    (count, line, index) => (toolRefs[index] ? count + countMindroomToolRefIcons(line) : count),
+    0
+  );
+  if (
+    markers.length !== toolBlocks.length ||
+    new Set(markers.map(({ index }) => index)).size !== markers.length ||
+    // The pending ⏳ must be part of the block too, not left behind as text.
+    markers.some(
+      ({ index, toolName, pending }) =>
+        displayed.get(index)?.toolName !== toolName || displayed.get(index)?.pending !== pending
+    ) ||
+    countMindroomToolRefIcons(body) !== markerIconCount
+  ) {
+    return undefined;
+  }
+  return { lines, toolRefs };
+};
+
+type ToolMarkerLineVisitor = (toolRef: MindroomToolRefParseResult) => string[];
 
 /**
  * Replace marker lines with `visit`'s lines. Blank lines around a marker
  * collapse so it never leaves a gap wider than one blank line, and a marker
- * between two text lines still separates them. Returns the body unchanged when
- * it contains no markers.
+ * between two text lines still separates them.
  */
-const replaceToolMarkerLines = (body: string, visit: ToolMarkerLineVisitor): string => {
-  if (!body.includes(TOOL_MARKER_ICON)) return body;
-
+const replaceToolMarkerLines = (
+  { lines, toolRefs }: MindroomToolMarkerScan,
+  visit: ToolMarkerLineVisitor
+): string => {
   const output: string[] = [];
-  let replaced = false;
   let separateNextBlock = false;
   const lastLineIsBlank = () => output.length === 0 || output[output.length - 1].trim() === '';
 
-  scanToolMarkerLines(splitLines(body), (line, toolRef) => {
+  lines.forEach((line, index) => {
+    const toolRef = toolRefs[index];
     if (toolRef) {
-      replaced = true;
       const replacement = visit(toolRef);
       if (replacement.length > 0) {
         if (!lastLineIsBlank()) output.push('');
@@ -162,26 +179,13 @@ const replaceToolMarkerLines = (body: string, visit: ToolMarkerLineVisitor): str
     output.push(line);
   });
 
-  if (!replaced) return body;
-
   while (output.length > 0 && output[0].trim() === '') output.shift();
   while (output.length > 0 && output[output.length - 1].trim() === '') output.pop();
   return output.join('\n');
 };
 
-export const hasMindroomToolMarkerLines = (body: string): boolean => {
-  if (!body.includes(TOOL_MARKER_ICON)) return false;
-
-  let found = false;
-  scanToolMarkerLines(splitLines(body), (_line, toolRef) => {
-    found = !!toolRef;
-    return !found;
-  });
-  return found;
-};
-
-export const stripMindroomToolMarkerLines = (body: string): string =>
-  replaceToolMarkerLines(body, () => []);
+const stripMindroomToolMarkerLines = (scan: MindroomToolMarkerScan): string =>
+  replaceToolMarkerLines(scan, () => []);
 
 // Keep indentation inside previews; only drop surrounding blank lines.
 const asTraceCodeText = (value: unknown): string | undefined => {
@@ -219,7 +223,7 @@ const formatToolCallMarkdown = (
   if (!event) notes.push('details unavailable');
   if (event?.truncated === true) notes.push('preview truncated');
 
-  const heading = `**${TOOL_MARKER_ICON} Tool call ${toolRef.index}${
+  const heading = `**${MINDROOM_TOOL_REF_ICON} Tool call ${toolRef.index}${
     notes.length > 0 ? ` (${notes.join(', ')})` : ''
   }**`;
   const command = argsPreview ? `${toolName}(${argsPreview})` : toolName;
@@ -228,10 +232,32 @@ const formatToolCallMarkdown = (
   return lines;
 };
 
-export const expandMindroomToolMarkerLines = (
-  body: string,
+const expandMindroomToolMarkerLines = (
+  scan: MindroomToolMarkerScan,
   toolTraceEvents: MindroomToolTraceEvent[] | undefined
 ): string =>
-  replaceToolMarkerLines(body, (toolRef) =>
+  replaceToolMarkerLines(scan, (toolRef) =>
     formatToolCallMarkdown(toolRef, toolTraceEvents?.[toolRef.index - 1])
   );
+
+export type MessageCopyTexts = {
+  text: string;
+  /** Only present when it differs from `text`. */
+  textWithToolCalls?: string;
+};
+
+/**
+ * Copy texts for one message from its `scanMindroomToolMarkerLines` result;
+ * bodies without displayed markers copy as-is.
+ */
+export const getMessageCopyTexts = (
+  source: MessageCopyTextSource,
+  scan: MindroomToolMarkerScan | undefined
+): MessageCopyTexts => {
+  if (!scan) return { text: source.body };
+
+  const textWithToolCalls = expandMindroomToolMarkerLines(scan, source.toolTraceEvents);
+  // A reply made only of tool calls copies those calls instead of nothing.
+  const text = stripMindroomToolMarkerLines(scan);
+  return text ? { text, textWithToolCalls } : { text: textWithToolCalls };
+};

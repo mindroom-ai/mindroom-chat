@@ -21,6 +21,8 @@ export type MindroomToolRefParseResult = {
   pending: boolean;
 };
 
+export const MINDROOM_TOOL_REF_ICON = '🔧';
+
 // Contract for matching formatted_body markers emitted by the server (v2).
 export const MINDROOM_TOOL_REF_HTML_REG_G = /🔧 <code>([^<]+)<\/code> \[(\d+)\]( ⏳)?/g;
 
@@ -157,7 +159,7 @@ const extractDomText = (nodes: DOMNode[]): string =>
     .join('');
 
 const listItemCanFlattenToToolRefPrefix = (markdown: string): boolean => {
-  if (!markdown.includes('🔧')) return false;
+  if (!markdown.includes(MINDROOM_TOOL_REF_ICON)) return false;
 
   const parsedInline = parseInlineMD(sanitizeMarkdownText(markdown.trimStart()));
   let flattenedInline = '';
