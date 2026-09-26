@@ -354,7 +354,7 @@ export const useThreadRenderState = ({
       initialCacheHydrated: threadInitialCacheHydrated,
       initialRenderMode: threadInitialRenderMode,
       mergedCount: threadEvents.length,
-      sdkThreadCount: thread?.events.length ?? 0,
+      sdkThreadCount: thread ? getThreadTimelineEvents(thread).length : 0,
     });
   }, [
     debugTraceId,

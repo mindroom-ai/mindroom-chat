@@ -37,6 +37,9 @@ export function appendThreadBootstrapRelations({
   events: MatrixEvent[];
   nextBatch: string | undefined;
 }): void {
+  // The SDK selects the new live segment synchronously and observes conversion failures.
+  // Relations already supply their own cursor; conversion must not block fetched replies.
+  void thread.flushPendingTimelineReset();
   events.forEach((event) => thread.setEventMetadata(event));
   const timelineSet = thread.getUnfilteredTimelineSet();
   // Thread.addEvents skips IDs already indexed in another segment. The pagination
@@ -48,5 +51,4 @@ export function appendThreadBootstrapRelations({
     timelineSet.getLiveTimeline(),
     nextBatch ?? null
   );
-  thread.addEvents(events, true);
 }

@@ -10,15 +10,22 @@
   The fallback now uses native pagination insertion to connect overlapping segments, preserving event metadata and chronological placement.
 - Rendering, latest-history persistence, cache cursor reconciliation, and manual pagination read one shared connected-history view.
   Disconnected context windows remain excluded, and manual pagination recaptures the history head after a join.
-  Pending limited-sync resets settle before fallback insertion chooses its live target.
+  Pending limited-sync resets select the new live target synchronously before fallback insertion.
 - Regression coverage includes short and 120-reply threads, context failures, historical streaming edits, subsequent live replies, mixed old/new overlap, and a reset during fallback loading.
   The root-only, mixed-order, and reset regressions each failed before their respective corrections.
 - Independent review approves the final implementation.
   All 5,309 unit tests pass under Node 24.13.1, along with application and changed-test typechecks, the production build, and lint with zero errors and 17 existing warnings.
   Four focused Chromium cases pass for blocked-cache loading, summary consistency and upgrades, and streaming tiles; the mobile WebKit blocked-storage probe also passes.
   The full browser suite was not rerun for this change; earlier non-green full runs remain documented below.
+- Next: install an iOS build containing this fix, retry the affected threads, and export diagnostics with its build identifier to verify reply rendering on the device.
+  Run the complete browser scheduler with `npm run test:e2e:parallel -- --jobs 8` and the prerequisites in `docs/testing.md`, then triage failures against an unchanged base.
+  Keep the device attribution and full-suite status open until those checks complete.
+- Claude review identified a fetched-reply loss when reset token conversion failed.
+  Fallback insertion now selects the new live segment synchronously and preserves fetched replies while conversion is pending or rejected; conversion cannot overwrite the relations cursor.
+  Removed redundant individual insertion, corrected SDK test doubles, and aligned render diagnostics with connected history.
+  New failed-conversion and pending-conversion regressions fail before these corrections.
 - Integrated the latest `dev`; only the Runbook conflicted, and both entries are retained.
-  All 5,336 unit tests pass on the combined tree, with application typecheck and lint passing.
+  All 5,338 unit tests pass on the reviewed combined tree, with application and changed-test typechecks, lint, and build passing.
 
 ### Copy replies without tool markers (2026-09-25)
 

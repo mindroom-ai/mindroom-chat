@@ -60,6 +60,32 @@ const makeDeferredThread = () => {
 };
 
 describe('threadBootstrapSdk', () => {
+  it('inserts fetched replies before reset token conversion settles and preserves the relations cursor', async () => {
+    const previousSupport = Thread.hasServerSideSupport;
+    Thread.hasServerSideSupport = FeatureSupport.Stable;
+    try {
+      const { mx, room, thread, finishDeferredMetadata } = makeDeferredThread();
+      let finishConversion!: (value: { chunk: never[]; start: string; end: string }) => void;
+      const conversion = new Promise<{ chunk: never[]; start: string; end: string }>((resolve) => {
+        finishConversion = resolve;
+      });
+      vi.spyOn(mx, 'createMessagesRequest').mockReturnValue(conversion);
+      const previousLive = thread.liveTimeline;
+      room.resetLiveTimeline('sync-back', 'sync-forward');
+      const reply = makeEvent('$reply', 2, true);
+      appendThreadBootstrapRelations({ thread, events: [reply], nextBatch: 'relations-older' });
+      expect(thread.liveTimeline).not.toBe(previousLive);
+      expect(thread.events).toEqual([reply]);
+      expect(thread.liveTimeline.getPaginationToken(Direction.Backward)).toBe('relations-older');
+      finishConversion({ chunk: [], start: 'converted-forward', end: 'converted-back' });
+      await thread.flushPendingTimelineReset();
+      await finishDeferredMetadata();
+      expect(thread.liveTimeline.getPaginationToken(Direction.Backward)).toBe('relations-older');
+    } finally {
+      Thread.hasServerSideSupport = previousSupport;
+      vi.restoreAllMocks();
+    }
+  });
   it('places new events around a known historical window without changing the latest reply', async () => {
     const previousSupport = Thread.hasServerSideSupport;
     Thread.hasServerSideSupport = FeatureSupport.Stable;

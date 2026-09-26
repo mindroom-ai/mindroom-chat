@@ -203,16 +203,6 @@ export const runThreadOpenSdkBootstrap = async ({
       return false;
     }
     if (relData?.chunk) {
-      // A limited sync may queue a new live segment while the relations request is pending.
-      const resetAfterFetch = flushThreadSyncGap(threadModel, isMounted);
-      if (resetAfterFetch) {
-        const [resetError] = await to(resetAfterFetch);
-        if (!isMounted()) return false;
-        if (resetError) {
-          onBootstrap({ kind: 'load-error' });
-          return false;
-        }
-      }
       const mappedEvents = mapBootstrapRelations(mx, relData.chunk);
       appendThreadBootstrapRelations({
         thread: threadModel,

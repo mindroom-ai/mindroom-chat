@@ -6,6 +6,7 @@ import { it, expect, vi } from 'vitest';
 import { useThreadRenderState } from './useThreadRenderState';
 import { runThreadOpenSdkBootstrap } from './threadOpenSdkBootstrap';
 import { refreshLatestThreadSlice } from './threadOpenCacheController';
+import * as timelineDebug from './timelineDebug';
 
 it.each([
   [1, false, false],
@@ -13,6 +14,7 @@ it.each([
   [1, true, false],
   [120, true, false],
   [1, false, true],
+  [1, false, 'failed'],
 ] as const)(
   'loads and persists %i replies across SDK timeline segments (context fails: %s, sync resets: %s)',
   async (replyCount, contextFails, resetDuringFallback) => {
@@ -88,11 +90,10 @@ it.each([
       const room = new Room(roomId, mx, userId, { timelineSupport: true });
       mx.store.storeRoom(room);
       vi.spyOn(mx, 'fetchRoomEvent').mockResolvedValue(rawRoot);
-      vi.spyOn(mx, 'createMessagesRequest').mockImplementation(async (_room, token) => ({
-        chunk: [],
-        start: `converted:${token}`,
-        end: `converted:${token}`,
-      }));
+      vi.spyOn(mx, 'createMessagesRequest').mockImplementation(async (_room, token) => {
+        if (resetDuringFallback === 'failed') throw new Error('Token conversion unavailable');
+        return { chunk: [], start: `converted:${token}`, end: `converted:${token}` };
+      });
       vi.spyOn(mx, 'fetchRelations').mockImplementation(
         async (_room, _root, _relation, _type, opts) => {
           if (opts?.from === 'before-root') return { chunk: [] };
@@ -148,6 +149,7 @@ it.each([
         false,
         timelineSet.addTimeline()
       );
+      const debugLog = vi.spyOn(timelineDebug, 'logTimelineDebug');
       let renderedEvents: MatrixEvent[] = [];
       let renderCount = 0;
       const Harness = () => {
@@ -171,6 +173,11 @@ it.each([
         '$root',
         ...replies.map((event) => event.event_id),
       ]);
+      expect(debugLog).toHaveBeenCalledWith(
+        undefined,
+        'render-state',
+        expect.objectContaining({ sdkThreadCount: loadedIds.length })
+      );
       const firstReply = thread.findEventById(replies[0].event_id)!;
       const beforeEdit = renderCount;
       act(() =>

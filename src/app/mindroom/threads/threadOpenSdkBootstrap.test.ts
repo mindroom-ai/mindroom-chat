@@ -33,16 +33,20 @@ describe('runThreadOpenSdkBootstrap', () => {
       rootEvent: root,
       events,
       setEventMetadata: vi.fn(),
-      addEvents: (incoming: MatrixEvent[]) => events.push(...incoming),
+      flushPendingTimelineReset: vi.fn(),
       getUnfilteredTimelineSet: () => ({
         getLiveTimeline: () => timeline,
         addEventsToTimeline: (
-          _events: MatrixEvent[],
+          incoming: MatrixEvent[],
           _backwards: boolean,
           _state: boolean,
           _timeline: unknown,
           token: string | null
         ) => {
+          incoming.forEach((event) => {
+            if (!events.some((existing) => existing.getId() === event.getId()))
+              events.unshift(event);
+          });
           backward = token;
         },
       }),
@@ -66,7 +70,7 @@ describe('runThreadOpenSdkBootstrap', () => {
       shouldScrollToLatestOnOpen: true,
     });
     expect(result).toBe(true);
-    expect(events.map((event) => event.getId())).toEqual(['$root', '$reply']);
+    expect(events.map((event) => event.getId())).toEqual(['$reply', '$root']);
     expect(backward).toBe('older');
   });
 
