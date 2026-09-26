@@ -394,8 +394,14 @@ const renderMessage = async (
   {
     collapse = true,
     eventId = '$event',
+    resolvedMessageContent,
     serverActions = false,
-  }: { collapse?: boolean; eventId?: string; serverActions?: boolean } = {}
+  }: {
+    collapse?: boolean;
+    eventId?: string;
+    resolvedMessageContent?: Record<string, unknown>;
+    serverActions?: boolean;
+  } = {}
 ): Promise<RenderedMessage> => {
   const Message = await getMessageComponent();
   let renderer!: ReactTestRenderer;
@@ -413,6 +419,7 @@ const renderMessage = async (
           canDelete: serverActions,
           canPinEvent: serverActions,
           canSendReaction: serverActions,
+          resolvedMessageContent,
           messageLayout: 'Modern',
           messageSpacing: '400',
           onUserClick: vi.fn(),
@@ -751,6 +758,26 @@ describe('Message copy text tool markers', () => {
     },
   };
 
+  it('keeps markers the rendered HTML shows as text', async () => {
+    const body = 'Markers look like this:\n\n```\n🔧 `search_web` [1]\n```';
+    const { renderer } = await renderMessage({
+      msgtype: 'm.text',
+      body,
+      format: 'org.matrix.custom.html',
+      formatted_body:
+        '<p>Markers look like this:</p>\n<pre><code>🔧 `search_web` [1]\n</code></pre>\n',
+    });
+
+    await openContextMenu(renderer);
+
+    expect(getButtonByAriaLabel(renderer, 'Copy Text with Tool Calls')).toBeUndefined();
+    await act(async () => {
+      getButtonByText(renderer, 'Copy Text')?.props.onClick();
+    });
+
+    expect(domMocks.copyToClipboard).toHaveBeenCalledWith(body);
+  });
+
   it('copies the reply without tool markers from the primary action', async () => {
     const { renderer } = await renderMessage(toolMarkerContent);
 
@@ -808,6 +835,10 @@ describe('Message copy text tool markers', () => {
 
     await openContextMenu(renderer);
 
+    // The side action would copy the same text, so it is not offered.
+    expect(getButtonByText(renderer, 'Copy Text')).toBeDefined();
+    expect(getButtonByAriaLabel(renderer, 'Copy Text with Tool Calls')).toBeUndefined();
+
     await act(async () => {
       getButtonByText(renderer, 'Copy Text')?.props.onClick();
     });
@@ -830,6 +861,46 @@ describe('Message copy text tool markers', () => {
 
     expect(getButtonByText(renderer, 'Copy Text (loading…)')).toBeDefined();
     expect(getButtonByAriaLabel(renderer, 'Copy Text with Tool Calls')).toBeUndefined();
+  });
+
+  it('copies the edited content the timeline resolved', async () => {
+    const { renderer } = await renderMessage(
+      { msgtype: 'm.text', body: 'original reply' },
+      { resolvedMessageContent: toolMarkerContent }
+    );
+
+    await openContextMenu(renderer);
+
+    await act(async () => {
+      getButtonByText(renderer, 'Copy Text')?.props.onClick();
+    });
+
+    expect(domMocks.copyToClipboard).toHaveBeenCalledWith('Let me check.\n\nIt is sunny.');
+  });
+
+  it('shows a labelled tool-call row on touch screens', async () => {
+    vi.stubGlobal('matchMedia', (query: string) => ({
+      matches: query.includes('pointer: coarse'),
+    }));
+    try {
+      const { renderer } = await renderMessage(toolMarkerContent);
+
+      await openContextMenu(renderer);
+
+      expect(getButtonByAriaLabel(renderer, 'Copy Text with Tool Calls')).toBeUndefined();
+      const labelledRow = getButtonByText(renderer, 'Copy Text with Tool Calls');
+      expect(labelledRow).toBeDefined();
+
+      await act(async () => {
+        labelledRow?.props.onClick();
+      });
+
+      expect(domMocks.copyToClipboard).toHaveBeenCalledWith(
+        expect.stringContaining('**🔧 Tool call 1**')
+      );
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it('hides the side action for replies without tool markers', async () => {

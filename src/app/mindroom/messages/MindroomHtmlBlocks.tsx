@@ -3,7 +3,19 @@ import React, { ReactNode, useState } from 'react';
 import { Element, HTMLReactParserOptions, Text as DOMText, domToReact } from 'html-react-parser';
 import { ChildNode } from 'domhandler';
 import { Box, Icon, IconSrc, Icons, Spinner, Text } from 'folds';
-import { MindroomToolRefParseResult, parseMindroomToolRefHtml } from './blocks';
+import {
+  MINDROOM_TOOL_REF_ICON,
+  MindroomToolRefParseResult,
+  parseMindroomToolRefHtml,
+} from './blocks';
+import {
+  extractTextFromChildren,
+  getToolRefPrefixFromElement,
+  isDomElementNode,
+  isDomTextNode,
+  parseToolRefIndexFromTextPrefix,
+  trimLeadingToolRefBoundary,
+} from './toolRefDom';
 import { MINDROOM_MESSAGE_EXTRAS_KEY } from './messageExtrasData';
 import { MindroomPasteMarker, parseMindroomPasteMarker } from './pasteAttachmentMarker';
 import {
@@ -37,32 +49,6 @@ const MINDROOM_BLOCK_META: Record<MindroomTagName, { icon: IconSrc }> = {
   research: {
     icon: Icons.Explore,
   },
-};
-
-const isDomTextNode = (node: unknown): node is DOMText =>
-  typeof node === 'object' &&
-  node !== null &&
-  typeof (node as { data?: unknown }).data === 'string' &&
-  !Array.isArray((node as { children?: unknown }).children);
-
-const isDomElementNode = (node: unknown): node is Element =>
-  typeof node === 'object' &&
-  node !== null &&
-  typeof (node as { name?: unknown }).name === 'string' &&
-  Array.isArray((node as { children?: unknown }).children);
-
-const extractTextFromChildren = (nodes: ChildNode[]): string => {
-  let text = '';
-
-  nodes.forEach((node) => {
-    if (isDomTextNode(node)) {
-      text += node.data;
-    } else if (isDomElementNode(node)) {
-      text += extractTextFromChildren((node as { children: ChildNode[] }).children);
-    }
-  });
-
-  return text;
 };
 
 function ToolStatusBadge({ pending }: { pending: boolean }) {
@@ -335,17 +321,6 @@ function MindroomToolRefGroupBlock({
   );
 }
 
-type ToolRefElementPrefix = {
-  html: string;
-  trailingChildren: ChildNode[];
-};
-
-type ToolRefMatchBoundary = {
-  html: string;
-  childIndex: number;
-  textSplitIndex: number | undefined;
-};
-
 const cloneDomChildNode = (node: ChildNode): ChildNode => {
   if (isDomTextNode(node)) {
     return new DOMText(node.data);
@@ -357,27 +332,6 @@ const cloneDomChildNode = (node: ChildNode): ChildNode => {
   }
 
   return new DOMText('');
-};
-
-const trimLeadingToolRefBoundary = (children: ChildNode[]): ChildNode[] => {
-  const remaining = [...children];
-
-  const trimLeadingWhitespaceText = () => {
-    while (remaining.length > 0) {
-      const first = remaining[0];
-      if (!isDomTextNode(first) || first.data.trim()) break;
-      remaining.shift();
-    }
-  };
-
-  trimLeadingWhitespaceText();
-
-  if (remaining.length > 0 && isDomElementNode(remaining[0]) && remaining[0].name === 'br') {
-    remaining.shift();
-    trimLeadingWhitespaceText();
-  }
-
-  return remaining;
 };
 
 const normalizeLeadingToolRefBoundaryInPlace = (element: Element): boolean => {
@@ -401,86 +355,6 @@ const normalizeLeadingToolRefBoundaryInPlace = (element: Element): boolean => {
   return true;
 };
 
-const parseToolRefIndexFromTextPrefix = (text: string): number | undefined => {
-  const match = /^\s*🔧[\s\S]*?\[(\d+)\](?:\s*⏳)?/u.exec(text);
-  if (!match) return undefined;
-
-  const index = Number(match[1]);
-  if (!Number.isInteger(index) || index < 1) return undefined;
-  return index;
-};
-
-const getToolRefPrefixFromElement = (element: Element): ToolRefElementPrefix | undefined => {
-  if (!['p', 'div', 'li'].includes(element.name)) return undefined;
-
-  let html = '';
-  let bestMatch: ToolRefMatchBoundary | undefined;
-
-  const buildPrefixResult = (match: ToolRefMatchBoundary): ToolRefElementPrefix => {
-    const matchedChild = element.children[match.childIndex];
-    const trailingText =
-      isDomTextNode(matchedChild) && match.textSplitIndex !== undefined
-        ? matchedChild.data.slice(match.textSplitIndex)
-        : '';
-    const trailingChildren = trimLeadingToolRefBoundary([
-      ...(trailingText ? [new DOMText(trailingText)] : []),
-      ...element.children.slice(match.childIndex + 1),
-    ]);
-
-    return {
-      html: match.html,
-      trailingChildren,
-    };
-  };
-
-  for (let childIndex = 0; childIndex < element.children.length; childIndex += 1) {
-    const child = element.children[childIndex];
-
-    if (isDomTextNode(child)) {
-      for (let splitIndex = 0; splitIndex <= child.data.length; splitIndex += 1) {
-        const candidate = `${html}${child.data.slice(0, splitIndex)}`;
-        if (parseMindroomToolRefHtml(candidate)) {
-          // Prefer the longest valid marker prefix (e.g. include optional " ⏳" when present).
-          bestMatch = {
-            html: candidate,
-            childIndex,
-            textSplitIndex: splitIndex,
-          };
-        }
-      }
-
-      html += child.data;
-    } else if (isDomElementNode(child) && child.name === 'code') {
-      html += `<code>${extractTextFromChildren(child.children)}</code>`;
-
-      if (parseMindroomToolRefHtml(html)) {
-        bestMatch = {
-          html,
-          childIndex,
-          textSplitIndex: undefined,
-        };
-      }
-    } else if (isDomElementNode(child) && child.name === 'span') {
-      html += extractTextFromChildren(child.children);
-
-      if (parseMindroomToolRefHtml(html)) {
-        bestMatch = {
-          html,
-          childIndex,
-          textSplitIndex: undefined,
-        };
-      }
-    } else if (bestMatch) {
-      return buildPrefixResult(bestMatch);
-    } else {
-      return undefined;
-    }
-  }
-
-  if (!bestMatch) return undefined;
-  return buildPrefixResult(bestMatch);
-};
-
 const getPasteMarkerFromElement = (element: Element): MindroomPasteMarker | undefined => {
   if (element.name !== 'span' || element.attribs['data-mindroom-paste-marker'] !== 'true') {
     return undefined;
@@ -496,7 +370,6 @@ const getPasteMarkerFromElement = (element: Element): MindroomPasteMarker | unde
   return marker;
 };
 
-const MINDROOM_TOOL_REF_MARKER_TEXT = '🔧';
 const MINDROOM_PASTE_MARKER_ATTRIBUTE = 'data-mindroom-paste-marker';
 
 // Literal substring detection assumes MindRoom-emitted markers: a literal 🔧
@@ -504,8 +377,7 @@ const MINDROOM_PASTE_MARKER_ATTRIBUTE = 'data-mindroom-paste-marker';
 // spellings from non-MindRoom senders fall back to plain rendering.
 const valueHasMindroomMarkerCandidate = (value: unknown): boolean =>
   typeof value === 'string' &&
-  (value.includes(MINDROOM_TOOL_REF_MARKER_TEXT) ||
-    value.includes(MINDROOM_PASTE_MARKER_ATTRIBUTE));
+  (value.includes(MINDROOM_TOOL_REF_ICON) || value.includes(MINDROOM_PASTE_MARKER_ATTRIBUTE));
 
 const contentHasMindroomMarkerCandidate = (content: Record<string, unknown>): boolean => {
   if (isMindroomToolTraceV2(content)) return true;
