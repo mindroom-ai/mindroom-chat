@@ -1,5 +1,6 @@
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
 import { APP_BUILD_VERSION } from '../../../appVersion';
+import { SCHEDULER_WAKEUP_REPLACED_EVENT } from './schedulerWakeup';
 import { THREAD_TRACE_PHASES } from './threadTraceSchema';
 import {
   getSafeLocalStorage,
@@ -240,6 +241,7 @@ const STATIC_EVENT_NAMES = new Set([
   'network.offline',
   'network.online',
   'performance.event_loop_stall',
+  'performance.scheduler_wakeup_replaced',
   'trace.build.known',
   'trace.build.unknown',
   'trace.session.start',
@@ -614,6 +616,18 @@ const startGlobalCapture = (target: Runtime): void => {
       },
       { flush: true }
     );
+  // A MessagePort loss usually replaces near the 250 ms grace period; long
+  // tasks, late timers, and suspension report longer delays.
+  const schedulerWakeupReplaced = (event: Event) => {
+    const elapsedMs = (event as CustomEvent<{ elapsedMs?: unknown }>).detail?.elapsedMs;
+    recordDeepTraceEvent(
+      'performance.scheduler_wakeup_replaced',
+      typeof elapsedMs === 'number' && Number.isFinite(elapsedMs)
+        ? { elapsed_ms: roundMetric(elapsedMs) }
+        : undefined,
+      { flush: true }
+    );
+  };
   const pointerDown = (event: PointerEvent) => {
     const action = classifyFlightRecorderAction(event.target);
     setFlightRecorderLastAction(action);
@@ -631,6 +645,7 @@ const startGlobalCapture = (target: Runtime): void => {
   listen(window, 'storage', preferenceChanged as EventListener);
   listen(window, 'error', error as EventListener);
   listen(window, 'unhandledrejection', rejection as EventListener);
+  listen(window, SCHEDULER_WAKEUP_REPLACED_EVENT, schedulerWakeupReplaced);
   listen(document, 'pointerdown', pointerDown as EventListener, { capture: true, passive: true });
   target.removeListeners = () => removers.forEach((remove) => remove());
 };

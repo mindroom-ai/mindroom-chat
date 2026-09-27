@@ -4,6 +4,8 @@ FROM --platform=$BUILDPLATFORM node:24.13.1-alpine AS builder
 WORKDIR /src
 
 COPY .npmrc package.json package-lock.json /src/
+# The patch-package postinstall needs the patches before dependencies install.
+COPY patches /src/patches
 RUN npm ci --fetch-retries=5 --fetch-retry-mintimeout=20000 --fetch-retry-maxtimeout=120000
 COPY . /src/
 ENV NODE_OPTIONS=--max_old_space_size=4096

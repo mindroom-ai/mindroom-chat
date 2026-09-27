@@ -7,6 +7,36 @@ import { Viewport } from '../inset-scrollbar/InsetScrollbar.css';
 // Match the size-600 navigation header and its native focus-scroll inset.
 const pageNavHeaderHeight = toRem(54);
 
+// Size-600 page chrome shares the navigation header's flat native material.
+export const PageHeaderMaterial = style([
+  glassSurface({ level: 'panel', variant: 'Surface' }),
+  glassFlat,
+  glassFloating,
+]);
+
+export const PageScroll = recipe({
+  base: [Viewport, { scrollPaddingBlockStart: 0 }],
+  variants: { header: { true: { scrollPaddingBlockStart: pageNavHeaderHeight } } },
+});
+
+export const PageScrollContent = style({ minHeight: '100%' });
+export const PageScrollHeader = style({
+  position: 'sticky',
+  top: 0,
+  zIndex: 1,
+  height: pageNavHeaderHeight,
+});
+export const PageScrollBody = style({
+  paddingInlineEnd: 'calc(var(--mr-scrollbar-inset-end, 0px) + 12px)',
+});
+export const PageScrollbar = recipe({
+  base: { top: 0, bottom: 0, insetInlineEnd: 'var(--mr-scrollbar-inset-end, 0px)', zIndex: 1 },
+  variants: { header: { true: { top: pageNavHeaderHeight } } },
+});
+export const PageScrollToTop = style({
+  selectors: { '&&': { top: `calc(${pageNavHeaderHeight} + ${config.space.S200})` } },
+});
+
 export const PageNav = recipe({
   variants: {
     size: {

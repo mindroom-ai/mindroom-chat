@@ -102,10 +102,6 @@ vi.mock('../../utils/common', () => ({
   nameInitials: () => 'ES',
 }));
 
-vi.mock('./LobbyHeader.css', () => ({
-  Header: 'Header',
-}));
-
 vi.mock('../../components/UseStateProvider', () => ({
   UseStateProvider: ({
     children,
