@@ -1018,9 +1018,11 @@
       "connectionLost": "Ligação perdida!"
     },
     "storageStatus": {
-      "lost": "A ligação ao armazenamento deste dispositivo foi perdida. O MindRoom será recarregado quando sair.",
+      "lost": "A ligação ao armazenamento deste dispositivo foi perdida. O MindRoom vai recarregar para a restabelecer.",
       "lostAgain": "A ligação ao armazenamento deste dispositivo voltou a perder-se. Recarregue o MindRoom para a restabelecer.",
-      "reload": "Recarregar"
+      "blocked": "A ligação ao armazenamento deste dispositivo foi perdida. O MindRoom será recarregado quando o trabalho por enviar terminar.",
+      "reload": "Recarregar",
+      "confirmDiscard": "Recarregar agora elimina o trabalho por enviar, como gravações, anexos e edições de mensagens. Recarregar mesmo assim?"
     },
     "welcomePage": {
       "setUpLocalMindroom": "Configurar o MindRoom local",

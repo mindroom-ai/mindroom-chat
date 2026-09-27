@@ -1018,9 +1018,11 @@
       "connectionLost": "Connexion perdue !"
     },
     "storageStatus": {
-      "lost": "La connexion au stockage de cet appareil a été perdue. MindRoom se rechargera lorsque vous le quitterez.",
+      "lost": "La connexion au stockage de cet appareil a été perdue. MindRoom va se recharger pour la rétablir.",
       "lostAgain": "La connexion au stockage de cet appareil a de nouveau été perdue. Rechargez MindRoom pour la rétablir.",
-      "reload": "Recharger"
+      "blocked": "La connexion au stockage de cet appareil a été perdue. MindRoom se rechargera une fois le travail non envoyé terminé.",
+      "reload": "Recharger",
+      "confirmDiscard": "Recharger maintenant supprime le travail non envoyé, comme les enregistrements, les pièces jointes et les modifications de messages. Recharger quand même ?"
     },
     "welcomePage": {
       "setUpLocalMindroom": "Configurer MindRoom en local",

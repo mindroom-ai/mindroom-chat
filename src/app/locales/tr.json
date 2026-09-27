@@ -1013,9 +1013,11 @@
       "connectionLost": "Bağlantı kesildi!"
     },
     "storageStatus": {
-      "lost": "Bu cihazın depolama alanıyla bağlantı kesildi. MindRoom'dan ayrıldığınızda yeniden yüklenecek.",
+      "lost": "Bu cihazın depolama alanıyla bağlantı kesildi. Geri getirmek için MindRoom yeniden yüklenecek.",
       "lostAgain": "Bu cihazın depolama alanıyla bağlantı yeniden kesildi. Geri getirmek için MindRoom'u yeniden yükleyin.",
-      "reload": "Yeniden yükle"
+      "blocked": "Bu cihazın depolama alanıyla bağlantı kesildi. Gönderilmemiş işler bittiğinde MindRoom yeniden yüklenecek.",
+      "reload": "Yeniden yükle",
+      "confirmDiscard": "Şimdi yeniden yüklemek kayıtlar, ekler ve mesaj düzenlemeleri gibi gönderilmemiş işleri siler. Yine de yeniden yüklensin mi?"
     },
     "welcomePage": {
       "setUpLocalMindroom": "Yerel MindRoom'u ayarla",

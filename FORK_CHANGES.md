@@ -5,32 +5,45 @@
 ### Reload after WebKit loses its storage connection (2026-09-27)
 
 - #334 keeps React rendering after WebKit's networking process exits, but that is one casualty of the loss.
-  WebKit also runs `IDBDatabase::connectionToServerLost` on every open IndexedDB connection (`error` then `close`), and the page keeps closed handles for the rest of its life.
-  The SDK sync store, the Rust crypto store, deep-trace storage, and Element Call's own scheduler stay broken until the page reloads.
-- Reproduced on #334's production build by closing every existing MessagePort and IndexedDB connection the way WebKit does: live rendering continued, but an encrypted send made after the loss never reached the server and stayed "sending" with no error.
-- A sentinel IndexedDB connection opened at boot, before any client store, turns that `close` event into an explicit lost state (`src/app/mindroom/client/storageConnectionRecovery.ts`).
-  When enabled, deep trace records `lifecycle.storage_connection_lost` and `lifecycle.storage_recovery_reload`.
-  A native `visibilitychange` listener reloads once the page is hidden, or immediately when the loss happens while hidden, so recovery does not depend on React scheduling.
+  Killing that process (`SIGKILL WPENetworkProcess`) in Playwright's WebKit 2248 showed what the page keeps afterwards:
+
+  | After the kill | In the old page | After a reload |
+  | --- | --- | --- |
+  | Open IndexedDB connections | `error`, then `close`; transactions throw `InvalidStateError` | reopen normally |
+  | New `indexedDB.open` | `UnknownError: Connection to Indexed Database server lost. Refresh the page to try again` | works |
+  | Existing Web Storage keys | read as `null`; writes still land | `localStorage` flushed to disk survives in a persistent profile; `sessionStorage` and unflushed writes are gone |
+  | Existing MessagePorts | closed since WebKit `67117c49`; new channels deliver | work |
+
+  With the Rust crypto store closed, the SDK logs `Caught /sync error Error: failed to read or write to the crypto store DomException InvalidStateError` and skips whole /sync responses, so new messages stop arriving at all.
+  On #334's build a simulated loss also left an encrypted send "sending" forever without reaching the server.
+  The iOS export kept its session and some live events after the loss, so device behavior varies by WebKit version, but no path recovers without a reload.
+- A sentinel IndexedDB connection opened at boot, before any client store, turns its `close` event into a lost state (`src/app/mindroom/client/storageConnectionRecovery.ts`).
+  The app then reloads as soon as no unsaved in-memory work remains: immediately when hidden, otherwise after three seconds without pointer or keyboard input, checked every second from native timers and events rather than React.
+  Reloading waits only for a mounted client to vouch for the page, so sign-in, registration, and SSO flows never reload automatically.
   The URL keeps the open room and thread, and composer drafts already persist on every edit.
-- Reloads wait for work that exists only in memory (`useStorageRecoveryBlocker`): voice capture or a pending voice send, composer attachments, uploads in progress, calls, sends still in flight for under 10 seconds, and unsent media.
-  Text sends that are stuck past that grace period, or failed, are appended to their room or thread composer draft before any recovery reload, so the reload returns them to the composer instead of discarding them.
-  Edits, reactions, and redactions that never sent are dropped by the reload.
-  Upload atom families track their params because jotai 2.6 cannot enumerate them.
-- A warning strip under the client header explains the lost connection and offers Reload while recovery waits for the page to be hidden.
-  A reload marker in session storage is written before navigating; a second loss within two minutes of a recovery reload, or an unwritable marker, stops automatic reloads, and the strip then asks the user to reload.
-  The three strings are translated in all 17 locales.
-- Consulted Codex on recovery through reload (A), an in-page client restart (B), a notice only (C), or no change (D).
-  It recommended A with work blockers, a pre-navigation guard and circuit breaker, and C while recovery waits; B would leave the call iframe and diagnostic storage broken while rebinding every client consumer.
-  Salvaging stuck text instead of letting it block recovery forever follows from the encrypted-send probe above.
-- Unit coverage: sentinel detection, duplicate losses, visibility-driven and hidden-loss reloads, blockers, preparations (including a failing one), the circuit breaker and its window, an unwritable marker, stop, and missing IndexedDB (`storageConnectionRecovery.test.ts`); every blocker, local-echo tracking and cleanup, and draft salvage into room and thread drafts (`useStorageRecoveryBlocker.test.tsx`); and the strip in both states (`StorageConnectionStatus.test.tsx`).
-- `e2e/live/storage-connection-recovery.spec.ts` uses `e2e/helpers/networkingProcessLoss.ts`, which records native MessageChannels and IndexedDB connections from page load and loses them together.
-  One case keeps an open thread live after the loss, shows the strip, reloads on hide into the same thread, and renders a later reply.
-  The other moves an encrypted send stuck by the loss into the composer across the reload and sends it; the server then has both encrypted messages.
-  Both fail on #334's production build (no strip, no reload) and pass on this branch in Chromium and WebKit, and the #334 port-loss spec now shares the helper.
+- Reloads wait for voice capture or a pending voice send, composer attachments, uploads in progress, calls, an open message edit (`MessageEditor` registers itself), and composer text sends that the homeserver has not answered within 10 seconds.
+  `sendSessionText` registers each composer text send with its own composer's room, thread, and content, and settles it when the send promise settles; failed sends were already restored into the composer by the send session.
+  Before any recovery reload, unanswered sends are appended to their composer's draft with their formatting, so the reload returns them to the composer; a user-requested reload also saves sends still in flight, and each send is saved once.
+  Sends not typed into a composer (thread titles, `!model` commands, tool approvals, edits, reactions) are neither blocked on nor saved.
+- While storage is lost, the session store keeps its last stored snapshot when `localStorage` reads it as `null`, so the app neither redirects to sign-in nor overwrites the account registry from an empty read.
+- A warning strip under the client header explains the loss, says when recovery waits for unsent work, and offers Reload; over unsent work, the first tap shows what a reload discards and the second reloads.
+  The five strings are translated in all 17 locales.
+- A reload marker in `localStorage` is written before navigating, because `sessionStorage` dies with the process.
+  A second loss within two minutes of a recovery reload, or an unwritable marker, stops automatic reloads; the strip then asks the user to reload.
+  Events recorded before the reload die with the lost diagnostic store, so the next boot records `lifecycle.storage_recovery_reloaded` with the reload's age; `lifecycle.storage_connection_lost` and `lifecycle.storage_recovery_reload` survive only in the in-memory tail.
+- Consulted Codex on recovery through reload, an in-page client restart, a notice only, or no change; it recommended reload with work blockers, a pre-navigation guard with a circuit breaker, and a notice while recovery waits.
+  The real-WebKit kill later showed /sync processing stops entirely, so recovery reloads promptly instead of waiting for the page to be hidden.
+- Unit coverage: sentinel detection, duplicate losses, hidden and idle reloads, input pauses, periodic checks and their cleanup, blockers (including a throwing one), the no-client rule, single-flight reloads with preparations, the circuit breaker and its window, an unwritable marker, and the boot record (`storageConnectionRecovery.test.ts`); every blocker and composer-send salvage into the sending composer, once (`useStorageRecoveryBlocker.test.tsx`); the send session's tracking (`useRoomInputSendSessionController.test.ts`); the session-store guard (`sessions.test.ts`); and the strip's states and two-step reload (`StorageConnectionStatus.test.tsx`).
+- `e2e/live/storage-connection-recovery.spec.ts`, using `e2e/helpers/networkingProcessLoss.ts`:
+  - an idle open thread reloads after a simulated loss (every existing MessagePort and IndexedDB connection lost together) and receives a later reply;
+  - an encrypted send stuck by the loss returns to the composer across the reload, sends, and the server then has both encrypted messages;
+  - on WebKit, a real `SIGKILL` of the networking process in a persistent profile reloads into the same thread, which then receives a later reply.
+  All three fail on #334's production build and pass on this branch (the simulated cases in Chromium and WebKit); the #334 port-loss spec now shares the helper.
 - Not fixed:
-  - A loss while the page stays visible leaves encrypted sending and store persistence broken until the user reloads or leaves the app.
+  - Writes made just before the loss that WebKit had not flushed, including a draft typed in the last seconds, are lost.
+  - The reply target of a composer, sends not typed into a composer, and Element Call's in-iframe state do not survive the reload.
   - Why WebKit's networking process exits is still unknown.
-- Next: in the next iOS export after a storage loss, check `lifecycle.storage_connection_lost` followed by `lifecycle.storage_recovery_reload`, and whether users lingered with the strip visible.
+- Next: in the next iOS export after a storage loss, check for `lifecycle.storage_recovery_reloaded` and replies that keep arriving.
 
 ### Recover React scheduling after WebKit closes existing MessagePorts (2026-09-26)
 

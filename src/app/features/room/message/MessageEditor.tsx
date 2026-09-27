@@ -55,6 +55,7 @@ import { useMatrixClient } from '../../../hooks/useMatrixClient';
 import { getEditedEvent, getMentionContent, trimReplyFromFormattedBody } from '../../../utils/room';
 import { mobileOrTablet } from '../../../utils/user-agent';
 import { useComposingCheck } from '../../../hooks/useComposingCheck';
+import { registerStorageRecoveryBlocker } from '../../../mindroom/client/storageConnectionRecovery';
 
 type MessageEditorProps = {
   roomId: string;
@@ -207,6 +208,9 @@ export const MessageEditor = as<'div', MessageEditorProps>(
       editor.insertNode(createEmoticonElement(key, shortcode));
       moveCursor(editor);
     };
+
+    // An open edit exists only in memory, so storage-loss recovery must not reload over it.
+    useEffect(() => registerStorageRecoveryBlocker(() => true), []);
 
     useEffect(() => {
       const [body, customHtml] = getPrevBodyAndFormattedBody();

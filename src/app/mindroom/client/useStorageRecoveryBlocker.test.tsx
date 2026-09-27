@@ -1,10 +1,7 @@
-import { EventEmitter } from 'events';
 import React from 'react';
 import { Provider as JotaiProvider, createStore } from 'jotai';
-import { EventStatus, MatrixEvent, RoomEvent, type MatrixClient } from 'matrix-js-sdk';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, describe, expect, it } from 'vitest';
-import { MatrixClientProvider } from '../../hooks/useMatrixClient';
 import { callEmbedAtom } from '../../state/callEmbed';
 import {
   getRoomInputDraftKey,
@@ -22,52 +19,35 @@ import {
 } from '../voice/voiceCaptureDiagnostics';
 import {
   hasStorageRecoveryBlocker,
+  reloadAfterStorageLoss,
   resetStorageConnectionRecoveryForTesting,
+  startStorageConnectionSentinel,
 } from './storageConnectionRecovery';
 import {
   hasUnsavedTransientWork,
-  saveUnsentTextToDrafts,
+  resetComposerTextSendsForTesting,
+  saveUnsentComposerText,
   STUCK_SEND_MS,
+  trackComposerTextSend,
   useStorageRecoveryBlocker,
 } from './useStorageRecoveryBlocker';
 
 type Store = ReturnType<typeof createStore>;
 
-const hasWork = (store: Store, localEchoes: MatrixEvent[] = [], now = Date.now()) =>
-  hasUnsavedTransientWork({ store, localEchoes, now });
-
-const createLocalEcho = ({
-  body,
-  ts,
-  msgtype = 'm.text',
-  threadId,
-  replaces,
-}: {
-  body: string;
-  ts: number;
-  msgtype?: string;
-  threadId?: string;
-  replaces?: string;
-}) =>
-  new MatrixEvent({
-    type: 'm.room.message',
-    room_id: '!room:test',
-    origin_server_ts: ts,
-    content: {
-      msgtype,
-      body,
-      ...(threadId
-        ? { 'm.relates_to': { rel_type: 'm.thread', event_id: threadId } }
-        : replaces
-        ? { 'm.relates_to': { rel_type: 'm.replace', event_id: replaces } }
-        : {}),
-    },
-  });
+const hasWork = (store: Store, now = Date.now()) => hasUnsavedTransientWork({ store, now });
 
 const createFile = (name: string) => new Blob([name], { type: 'text/plain' }) as File;
 
+const paragraph = (text: string) => ({ type: 'paragraph', children: [{ text }] });
+
+const draftText = (store: Store, key: string) =>
+  (store.get(roomIdToMsgDraftAtomFamily(key)) as { children: { text: string }[] }[]).map((node) =>
+    node.children.map((child) => child.text).join('')
+  );
+
 afterEach(() => {
   resetStorageConnectionRecoveryForTesting();
+  resetComposerTextSendsForTesting();
   roomIdToUploadItemsAtomFamily.getParams().forEach((key) => {
     roomIdToUploadItemsAtomFamily.remove(key);
   });
@@ -104,8 +84,10 @@ describe('unsaved in-memory work that blocks a storage recovery reload', () => {
 
   it('blocks while composer attachments exist only in memory', () => {
     const store = createStore();
-    const items = roomIdToUploadItemsAtomFamily('!room:test');
-    store.set(items, { type: 'PUT', item: { file: createFile('a') } as TUploadItem });
+    store.set(roomIdToUploadItemsAtomFamily('!room:test'), {
+      type: 'PUT',
+      item: { file: createFile('a') } as TUploadItem,
+    });
 
     expect(hasWork(store)).toBe(true);
   });
@@ -127,82 +109,94 @@ describe('unsaved in-memory work that blocks a storage recovery reload', () => {
 
   it('blocks during a call', () => {
     const store = createStore();
-    store.set(callEmbedAtom, {} as never);
+    store.set(callEmbedAtom, { dispose: () => undefined } as never);
 
     expect(hasWork(store)).toBe(true);
   });
 
-  it('blocks on sends still in flight and on unsent media, not on salvageable text', () => {
+  it('waits for a composer send in flight, then treats it as stuck', () => {
     const now = 1_000_000;
-    const text = createLocalEcho({ body: 'hi', ts: now - 1_000 });
-    text.setStatus(EventStatus.SENDING);
-    expect(hasWork(createStore(), [text], now)).toBe(true);
-    expect(hasWork(createStore(), [text], now + STUCK_SEND_MS)).toBe(false);
-
-    text.setStatus(EventStatus.NOT_SENT);
-    expect(hasWork(createStore(), [text], now)).toBe(false);
-
-    const image = createLocalEcho({ msgtype: 'm.image', body: 'photo.png', ts: now - 1_000 });
-    image.setStatus(EventStatus.NOT_SENT);
-    expect(hasWork(createStore(), [image], now)).toBe(true);
-
-    const reaction = new MatrixEvent({
-      type: 'm.reaction',
-      origin_server_ts: now - 60_000,
-      content: { 'm.relates_to': { rel_type: 'm.annotation', event_id: '$x', key: '👍' } },
+    const settle = trackComposerTextSend({
+      userId: '@me:test',
+      roomId: '!room:test',
+      threadId: undefined,
+      draft: [paragraph('hi')] as never,
+      startedAt: now,
     });
-    reaction.setStatus(EventStatus.NOT_SENT);
-    expect(hasWork(createStore(), [reaction], now)).toBe(false);
 
-    text.setStatus(null);
-    expect(hasWork(createStore(), [text], now)).toBe(false);
+    expect(hasWork(createStore(), now + STUCK_SEND_MS - 1)).toBe(true);
+    expect(hasWork(createStore(), now + STUCK_SEND_MS)).toBe(false);
+    settle();
+    expect(hasWork(createStore(), now)).toBe(false);
   });
 });
 
-describe('saveUnsentTextToDrafts', () => {
-  it('appends stuck and failed text sends to their composer drafts', () => {
+describe('saveUnsentComposerText', () => {
+  it('returns unanswered sends to the composers that sent them, once', () => {
     const now = 1_000_000;
     const store = createStore();
     const roomKey = getRoomInputDraftKey('@me:test', '!room:test');
     const threadKey = getRoomInputDraftKey('@me:test', '!room:test', '$root');
-    store.set(roomIdToMsgDraftAtomFamily(roomKey), [
-      { type: 'paragraph', children: [{ text: 'already typing' }] },
-    ] as never);
-    const stuck = createLocalEcho({
-      body: 'stuck reply',
-      ts: now - STUCK_SEND_MS,
-      threadId: '$root',
-    });
-    stuck.setStatus(EventStatus.ENCRYPTING);
-    const failed = createLocalEcho({ body: 'failed line one\nline two', ts: now });
-    failed.setStatus(EventStatus.NOT_SENT);
-    const inFlight = createLocalEcho({ body: 'still sending', ts: now });
-    inFlight.setStatus(EventStatus.SENDING);
-    const edit = createLocalEcho({ body: '* edited', ts: now - STUCK_SEND_MS, replaces: '$old' });
-    edit.setStatus(EventStatus.SENDING);
-
-    saveUnsentTextToDrafts({
-      store,
+    store.set(roomIdToMsgDraftAtomFamily(roomKey), [paragraph('already typing')] as never);
+    // A room-composer reply to a threaded message still belongs to the room composer.
+    trackComposerTextSend({
       userId: '@me:test',
-      localEchoes: [stuck, failed, inFlight, edit],
-      now,
+      roomId: '!room:test',
+      threadId: undefined,
+      draft: [paragraph('reply from the room'), paragraph('second line')] as never,
+      startedAt: now - STUCK_SEND_MS,
     });
+    trackComposerTextSend({
+      userId: '@me:test',
+      roomId: '!room:test',
+      threadId: '$root',
+      draft: [paragraph('in flight')] as never,
+      startedAt: now,
+    });
+    const settled = trackComposerTextSend({
+      userId: '@me:test',
+      roomId: '!room:test',
+      threadId: '$root',
+      draft: [paragraph('delivered')] as never,
+      startedAt: now - STUCK_SEND_MS,
+    });
+    settled();
 
-    const paragraphs = (key: string) =>
-      (store.get(roomIdToMsgDraftAtomFamily(key)) as { children: { text: string }[] }[]).map(
-        (node) => node.children.map((child) => child.text).join('')
-      );
-    expect(paragraphs(roomKey)).toEqual(['already typing', 'failed line one', 'line two']);
-    expect(paragraphs(threadKey)).toEqual(['stuck reply']);
+    saveUnsentComposerText({ store, includeInFlight: false, now });
+    saveUnsentComposerText({ store, includeInFlight: false, now });
+
+    expect(draftText(store, roomKey)).toEqual([
+      'already typing',
+      'reply from the room',
+      'second line',
+    ]);
+    expect(draftText(store, threadKey)).toEqual([]);
+
+    saveUnsentComposerText({ store, includeInFlight: true, now });
+    expect(draftText(store, threadKey)).toEqual(['in flight']);
     roomIdToMsgDraftAtomFamily.remove(roomKey);
     roomIdToMsgDraftAtomFamily.remove(threadKey);
   });
 });
 
 describe('useStorageRecoveryBlocker', () => {
-  it('tracks local echoes from the client and registers until unmounted', async () => {
-    const mx = new EventEmitter();
+  it('blocks automatic reloads and saves every unanswered send on a manual reload', async () => {
     const store = createStore();
+    const database = new EventTarget();
+    startStorageConnectionSentinel({
+      indexedDB: {
+        open: () => {
+          const request = { result: database, onsuccess: null as null | (() => void) };
+          queueMicrotask(() => request.onsuccess?.());
+          return request;
+        },
+      } as unknown as IDBFactory,
+      markerStorage: {
+        getItem: () => null,
+        setItem: () => undefined,
+      } as unknown as Storage,
+      reload: () => undefined,
+    });
     function Harness() {
       useStorageRecoveryBlocker();
       return null;
@@ -210,30 +204,27 @@ describe('useStorageRecoveryBlocker', () => {
     let renderer!: ReactTestRenderer;
     await act(async () => {
       renderer = create(
-        <MatrixClientProvider value={mx as unknown as MatrixClient}>
-          <JotaiProvider store={store}>
-            <Harness />
-          </JotaiProvider>
-        </MatrixClientProvider>
+        <JotaiProvider store={store}>
+          <Harness />
+        </JotaiProvider>
       );
     });
-    const event = createLocalEcho({ body: 'hi', ts: Date.now() });
+    trackComposerTextSend({
+      userId: '@me:test',
+      roomId: '!room:test',
+      threadId: undefined,
+      draft: [paragraph('just sent')] as never,
+      startedAt: Date.now(),
+    });
 
-    expect(hasStorageRecoveryBlocker()).toBe(false);
-    event.setStatus(EventStatus.SENDING);
-    mx.emit(RoomEvent.LocalEchoUpdated, event);
     expect(hasStorageRecoveryBlocker()).toBe(true);
-    event.setStatus(null);
-    mx.emit(RoomEvent.LocalEchoUpdated, event);
+    database.dispatchEvent(new Event('close'));
+    expect(reloadAfterStorageLoss({ automatic: false })).toBe(true);
+    const key = getRoomInputDraftKey('@me:test', '!room:test');
+    expect(draftText(store, key)).toEqual(['just sent']);
     expect(hasStorageRecoveryBlocker()).toBe(false);
-
-    store.set(callEmbedAtom, { dispose: () => undefined } as never);
-    expect(hasStorageRecoveryBlocker()).toBe(true);
-    store.set(callEmbedAtom, undefined);
 
     await act(async () => renderer.unmount());
-    event.setStatus(EventStatus.SENDING);
-    mx.emit(RoomEvent.LocalEchoUpdated, event);
-    expect(hasStorageRecoveryBlocker()).toBe(false);
+    roomIdToMsgDraftAtomFamily.remove(key);
   });
 });

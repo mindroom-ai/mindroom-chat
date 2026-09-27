@@ -1,7 +1,8 @@
 import React from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  registerStorageRecoveryBlocker,
   resetStorageConnectionRecoveryForTesting,
   startStorageConnectionSentinel,
   STORAGE_RECOVERY_RELOAD_KEY,
@@ -27,7 +28,7 @@ const createLosableIndexedDB = () => {
   };
 };
 
-const createSessionStorage = (entries: Record<string, string> = {}) => {
+const createMarkerStorage = (entries: Record<string, string> = {}) => {
   const values = new Map(Object.entries(entries));
   return {
     getItem: (key: string) => values.get(key) ?? null,
@@ -43,8 +44,13 @@ const text = (renderer: ReactTestRenderer) =>
     .flatMap((node) => node.children.filter((child): child is string => typeof child === 'string'))
     .join(' ');
 
+beforeEach(() => {
+  vi.stubGlobal('window', { setInterval, clearInterval });
+});
+
 afterEach(() => {
   resetStorageConnectionRecoveryForTesting();
+  vi.unstubAllGlobals();
 });
 
 describe('StorageConnectionStatus', () => {
@@ -53,7 +59,7 @@ describe('StorageConnectionStatus', () => {
     const reload = vi.fn();
     startStorageConnectionSentinel({
       indexedDB: host.indexedDB,
-      sessionStorage: createSessionStorage(),
+      markerStorage: createMarkerStorage(),
       reload,
     });
     await act(async () => {
@@ -67,7 +73,7 @@ describe('StorageConnectionStatus', () => {
 
     await act(async () => host.lose());
 
-    expect(text(renderer)).toContain('MindRoom will reload when you leave it.');
+    expect(text(renderer)).toContain('MindRoom will reload to restore it.');
     await act(async () => {
       renderer.root.findByType('button').props.onClick();
     });
@@ -78,7 +84,7 @@ describe('StorageConnectionStatus', () => {
     const host = createLosableIndexedDB();
     startStorageConnectionSentinel({
       indexedDB: host.indexedDB,
-      sessionStorage: createSessionStorage({
+      markerStorage: createMarkerStorage({
         [STORAGE_RECOVERY_RELOAD_KEY]: String(Date.now()),
       }),
       reload: vi.fn(),
@@ -94,5 +100,37 @@ describe('StorageConnectionStatus', () => {
     await act(async () => host.lose());
 
     expect(text(renderer)).toContain('Reload MindRoom to restore it.');
+  });
+
+  it('explains waiting for unsent work and warns before a reload would discard it', async () => {
+    const host = createLosableIndexedDB();
+    const reload = vi.fn();
+    registerStorageRecoveryBlocker(() => true);
+    startStorageConnectionSentinel({
+      indexedDB: host.indexedDB,
+      markerStorage: createMarkerStorage(),
+      reload,
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+    let renderer!: ReactTestRenderer;
+    await act(async () => {
+      renderer = create(<StorageConnectionStatus />);
+    });
+
+    await act(async () => host.lose());
+
+    expect(text(renderer)).toContain('once unsent work finishes.');
+    await act(async () => {
+      renderer.root.findByType('button').props.onClick();
+    });
+    expect(text(renderer)).toContain('discards unsent work');
+    expect(reload).not.toHaveBeenCalled();
+
+    await act(async () => {
+      renderer.root.findByType('button').props.onClick();
+    });
+    expect(reload).toHaveBeenCalledTimes(1);
   });
 });

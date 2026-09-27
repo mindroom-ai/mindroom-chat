@@ -1013,9 +1013,11 @@
       "connectionLost": "连接丢失！"
     },
     "storageStatus": {
-      "lost": "与此设备存储空间的连接已断开。离开 MindRoom 时它会重新加载。",
+      "lost": "与此设备存储空间的连接已断开。MindRoom 将重新加载以恢复连接。",
       "lostAgain": "与此设备存储空间的连接再次断开。请重新加载 MindRoom 以恢复。",
-      "reload": "重新加载"
+      "blocked": "与此设备存储空间的连接已断开。未发送的内容完成后，MindRoom 将重新加载。",
+      "reload": "重新加载",
+      "confirmDiscard": "现在重新加载会丢弃未发送的内容，例如录音、附件和消息编辑。仍要重新加载吗？"
     },
     "welcomePage": {
       "setUpLocalMindroom": "设置Local MindRoom",

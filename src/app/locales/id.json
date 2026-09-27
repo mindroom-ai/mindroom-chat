@@ -1013,9 +1013,11 @@
       "connectionLost": "Koneksi terputus!"
     },
     "storageStatus": {
-      "lost": "Koneksi ke penyimpanan perangkat ini terputus. MindRoom akan dimuat ulang saat Anda meninggalkannya.",
+      "lost": "Koneksi ke penyimpanan perangkat ini terputus. MindRoom akan dimuat ulang untuk memulihkannya.",
       "lostAgain": "Koneksi ke penyimpanan perangkat ini terputus lagi. Muat ulang MindRoom untuk memulihkannya.",
-      "reload": "Muat ulang"
+      "blocked": "Koneksi ke penyimpanan perangkat ini terputus. MindRoom akan dimuat ulang setelah pekerjaan yang belum terkirim selesai.",
+      "reload": "Muat ulang",
+      "confirmDiscard": "Memuat ulang sekarang akan membuang pekerjaan yang belum terkirim seperti rekaman, lampiran, dan suntingan pesan. Tetap muat ulang?"
     },
     "welcomePage": {
       "setUpLocalMindroom": "Siapkan MindRoom lokal",

@@ -1,4 +1,8 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import {
+  resetStorageConnectionRecoveryForTesting,
+  startStorageConnectionSentinel,
+} from '../mindroom/client/storageConnectionRecovery';
 import {
   LEGACY_SESSION_STORAGE_KEYS,
   SessionStoreWriteError,
@@ -37,6 +41,47 @@ const createStorage = (seed: Record<string, string> = {}) => {
 };
 
 describe('sessions', () => {
+  afterEach(() => {
+    resetStorageConnectionRecoveryForTesting();
+  });
+
+  it('keeps the known sessions when a lost storage connection reads them as missing', async () => {
+    const storage = createStorage();
+    const session = putSession(
+      {
+        baseUrl: 'https://matrix.example.org',
+        userId: '@alice:example.org',
+        deviceId: 'DEVICE',
+        accessToken: 'token',
+      },
+      undefined,
+      storage
+    );
+    expect(getActiveSession(storage)?.sessionId).toBe(session.sessionId);
+    const database = new EventTarget();
+    startStorageConnectionSentinel({
+      indexedDB: {
+        open: () => {
+          const request = { result: database, onsuccess: null as null | (() => void) };
+          queueMicrotask(() => request.onsuccess?.());
+          return request;
+        },
+      } as unknown as IDBFactory,
+      markerStorage: undefined,
+    });
+    await Promise.resolve();
+    // WebKit reads every existing Web Storage key as null after its networking process exits.
+    storage.getItem.mockReturnValue(null);
+
+    // Reads between the loss and its close event cannot be told apart from a logout.
+    expect(getActiveSession(storage)).toBeUndefined();
+
+    database.dispatchEvent(new Event('close'));
+
+    expect(getActiveSession(storage)?.sessionId).toBe(session.sessionId);
+    expect(listSessions(storage)).toHaveLength(1);
+  });
+
   it('creates stable session ids from normalized baseUrl and userId', () => {
     expect(createSessionId('https://example.com/', '@alice:example.com')).toBe(
       createSessionId('https://example.com', '@alice:example.com')

@@ -1018,9 +1018,11 @@
       "connectionLost": "Connessione persa!"
     },
     "storageStatus": {
-      "lost": "La connessione allo spazio di archiviazione di questo dispositivo si è interrotta. MindRoom si ricaricherà quando lo lasci.",
+      "lost": "La connessione allo spazio di archiviazione di questo dispositivo si è interrotta. MindRoom si ricaricherà per ripristinarla.",
       "lostAgain": "La connessione allo spazio di archiviazione di questo dispositivo si è interrotta di nuovo. Ricarica MindRoom per ripristinarla.",
-      "reload": "Ricarica"
+      "blocked": "La connessione allo spazio di archiviazione di questo dispositivo si è interrotta. MindRoom si ricaricherà al termine del lavoro non inviato.",
+      "reload": "Ricarica",
+      "confirmDiscard": "Ricaricare ora elimina il lavoro non inviato, come registrazioni, allegati e modifiche ai messaggi. Ricaricare comunque?"
     },
     "welcomePage": {
       "setUpLocalMindroom": "Configura MindRoom locale",

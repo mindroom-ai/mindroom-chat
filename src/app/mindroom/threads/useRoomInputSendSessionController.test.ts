@@ -1,8 +1,18 @@
 import React, { MutableRefObject, useEffect, useMemo, useRef } from 'react';
 import { act, create } from 'react-test-renderer';
 import { MatrixError } from 'matrix-js-sdk';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { IReplyDraft, TUploadItem } from '../../state/room/roomInputDrafts';
+import { createStore } from 'jotai';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+  getRoomInputDraftKey,
+  IReplyDraft,
+  roomIdToMsgDraftAtomFamily,
+  TUploadItem,
+} from '../../state/room/roomInputDrafts';
+import {
+  resetComposerTextSendsForTesting,
+  saveUnsentComposerText,
+} from '../client/useStorageRecoveryBlocker';
 import { Upload, UploadStatus } from '../../state/upload';
 import { TUploadContent, toMatrixUploadError } from '../../utils/matrix';
 import type { RoomInputAttachmentAccess } from '../room-input/roomInputAttachmentAccess';
@@ -110,6 +120,7 @@ const TestHarness = ({
   onRoomMessageSent?: (eventId: string) => boolean | void;
   mx: {
     getEventForTxnId: ReturnType<typeof vi.fn>;
+    getUserId: ReturnType<typeof vi.fn>;
     makeTxnId: ReturnType<typeof vi.fn>;
     sendMessage: ReturnType<typeof vi.fn>;
   };
@@ -213,6 +224,7 @@ const renderHarness = (
   const localEvents = new Map<string, { getId: () => string }>();
   const mx = {
     getEventForTxnId: vi.fn((txnId: string) => localEvents.get(txnId)),
+    getUserId: vi.fn(() => '@me:example.org'),
     makeTxnId: vi.fn(() => `txn-${transactionIds++}`),
     sendMessage: vi.fn(async (targetRoomId: string, _content: unknown, txnId?: string) => {
       if (txnId) {
@@ -538,6 +550,54 @@ describe('useRoomInputSendSessionController prep-error uploads', () => {
         uploadFiles: ['child.txt'],
       },
     ]);
+  });
+});
+
+describe('useRoomInputSendSessionController storage-loss recovery', () => {
+  afterEach(() => {
+    resetComposerTextSendsForTesting();
+  });
+
+  it('tracks an unanswered text send against its composer until the homeserver answers', async () => {
+    const { api, mx } = renderHarness({ threadId: '$composer' });
+    let answer!: (value: { event_id: string }) => void;
+    mx.sendMessage.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          answer = resolve;
+        })
+    );
+    const store = createStore();
+    const composerKey = getRoomInputDraftKey('@me:example.org', '!room:example.org', '$composer');
+
+    let sending!: Promise<void>;
+    await act(async () => {
+      sending = api.startSendSession({
+        textContent: { msgtype: 'm.text', body: 'caption draft' },
+        context: {
+          roomId: '!room:example.org',
+          room: {} as never,
+          threadId: '$elsewhere',
+          replyDraft: undefined,
+          threadingEnabled: true,
+          signalBridgedRoom: false,
+        },
+      });
+      await Promise.resolve();
+    });
+    saveUnsentComposerText({ store, includeInFlight: true });
+    expect(store.get(roomIdToMsgDraftAtomFamily(composerKey))).toEqual([
+      { type: 'paragraph', children: [{ text: 'caption draft' }] },
+    ]);
+
+    store.set(roomIdToMsgDraftAtomFamily(composerKey), []);
+    await act(async () => {
+      answer({ event_id: '$sent' });
+      await sending;
+    });
+    saveUnsentComposerText({ store, includeInFlight: true });
+    expect(store.get(roomIdToMsgDraftAtomFamily(composerKey))).toEqual([]);
+    roomIdToMsgDraftAtomFamily.remove(composerKey);
   });
 });
 

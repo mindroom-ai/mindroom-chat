@@ -21,6 +21,7 @@ import {
   RoomInputSendSessionState,
 } from './roomInputSendSession';
 import { getRoomMessageSentNotificationEventId } from './roomMessageSent';
+import { trackComposerTextSend } from '../client/useStorageRecoveryBlocker';
 
 type SendSession = RoomInputSendSessionState & {
   room: Room;
@@ -175,6 +176,18 @@ export const useRoomInputSendSessionController = ({
         : session.textContent;
       const txnId = mx.makeTxnId();
       const sendPromise = mx.sendMessage(session.roomId, content as any, txnId);
+      const userId = mx.getUserId();
+      // An unanswered send is saved back into its composer if storage loss forces a reload.
+      const settleTracking =
+        userId && session.composerFallback?.length
+          ? trackComposerTextSend({
+              userId,
+              roomId: session.composerContext.roomId,
+              threadId: session.composerContext.threadId,
+              draft: session.composerFallback,
+              startedAt: Date.now(),
+            })
+          : undefined;
       const localEventId = session.room.getEventForTxnId(txnId)?.getId();
       let roomMessageSentNotified = false;
 
@@ -197,7 +210,7 @@ export const useRoomInputSendSessionController = ({
         notifyRoomMessageSent(localEventId);
       }
 
-      const response = await sendPromise;
+      const response = await sendPromise.finally(() => settleTracking?.());
       notifyRoomMessageSent(response.event_id);
 
       session.textPending = false;

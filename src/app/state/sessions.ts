@@ -7,6 +7,7 @@ import {
   removeStorageItemSafe,
   setStorageItemSafe,
 } from '../utils/safeLocalStorage';
+import { getStorageConnectionState } from '../mindroom/client/storageConnectionRecovery';
 
 export type StoredSession = {
   sessionId: string;
@@ -85,6 +86,7 @@ const EMPTY_SESSION_SNAPSHOT: SessionStoreSnapshot = {
   sessions: EMPTY_SESSIONS,
 };
 const sessionStoreSnapshotCache = new WeakMap<object, SessionStoreSnapshot>();
+const storedSessionSnapshotCache = new WeakMap<object, SessionStoreSnapshot>();
 
 export class SessionStoreWriteError extends Error {
   constructor() {
@@ -252,6 +254,13 @@ const getSessionStoreSnapshot = (
 
   try {
     const raw = storage.getItem(SESSION_STORE_KEY);
+    // WebKit reads every existing Web Storage key as null after its networking
+    // process exits, while writes still persist. Keep the last stored sessions
+    // until the recovery reload instead of signing out or overwriting them.
+    const storedSnapshot = storedSessionSnapshotCache.get(storage);
+    if (raw === null && storedSnapshot && getStorageConnectionState() !== 'healthy') {
+      return storedSnapshot;
+    }
     const cachedSnapshot = sessionStoreSnapshotCache.get(storage);
     if (cachedSnapshot && cachedSnapshot.raw === raw) {
       return cachedSnapshot;
@@ -260,6 +269,7 @@ const getSessionStoreSnapshot = (
     const store = raw ? sanitizeSessionStore(JSON.parse(raw)) : EMPTY_SESSION_STORE;
     const snapshot = createSessionStoreSnapshot(raw, store);
     sessionStoreSnapshotCache.set(storage, snapshot);
+    if (raw !== null) storedSessionSnapshotCache.set(storage, snapshot);
     return snapshot;
   } catch {
     const snapshot = createSessionStoreSnapshot(null, EMPTY_SESSION_STORE);

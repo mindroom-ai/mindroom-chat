@@ -1,3 +1,4 @@
+import { execSync } from 'node:child_process';
 import type { Page } from '@playwright/test';
 
 declare global {
@@ -10,10 +11,11 @@ declare global {
 
 /**
  * WebKit hosts IndexedDB and brokers MessagePorts in its networking process.
- * When that process exits, every existing port stops delivering without an
- * event and every IndexedDB connection receives `error` then `close`, while
- * ports and connections created afterwards work. Record native channels and
- * connections from page load so a test can reproduce that loss.
+ * When that process exits, existing ports stop delivering and every open
+ * IndexedDB connection receives `error` then `close`. This helper reproduces
+ * only that part in any browser; real WebKit also fails new IndexedDB opens
+ * and reads existing Web Storage keys as null until the page reloads, which
+ * `killWebKitNetworkProcess` exercises.
  */
 const installNetworkingProcessLoss = () => {
   const NativeMessageChannel = window.MessageChannel;
@@ -58,15 +60,27 @@ const installNetworkingProcessLoss = () => {
   };
 };
 
+const findWebKitNetworkProcesses = (): number[] => {
+  try {
+    return execSync('ps -eo pid,comm', { encoding: 'utf8' })
+      .split('\n')
+      .filter((line) => /NetworkProce/.test(line))
+      .map((line) => Number(line.trim().split(/\s+/)[0]))
+      .filter((pid) => Number.isInteger(pid) && pid > 0);
+  } catch {
+    return [];
+  }
+};
+
+/** True when the test runs beside a WebKit networking process it can signal. */
+export const canKillWebKitNetworkProcess = (): boolean => findWebKitNetworkProcesses().length > 0;
+
+/** Kills WebKit's networking process; the page receives no event for the exit itself. */
+export const killWebKitNetworkProcess = (): number => {
+  const pids = findWebKitNetworkProcesses();
+  pids.forEach((pid) => process.kill(pid, 'SIGKILL'));
+  return pids.length;
+};
+
 export const recordNetworkingProcessResources = (page: Page) =>
   page.addInitScript(installNetworkingProcessLoss);
-
-/** Hides the page the way leaving the app does, without navigating away. */
-export const hidePage = (page: Page) =>
-  page.evaluate(() => {
-    Object.defineProperty(document, 'visibilityState', {
-      configurable: true,
-      get: () => 'hidden',
-    });
-    document.dispatchEvent(new Event('visibilitychange'));
-  });
