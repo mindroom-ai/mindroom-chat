@@ -33,10 +33,11 @@
   Removing re-arming, early arming, channel closing, the notification, or its error isolation each fails a case.
 - `e2e/live/thread-message-port-loss.spec.ts` records native channels from page load, closes them while an open thread idles on live sync, and requires a new reply, its streamed edit, and a scheduler replacement.
   `playwright.message-port.config.ts` adds a WebKit project for this spec.
-  The reply never renders on unpatched development (Chromium) and production (Chromium and WebKit) builds; patched builds pass in both browsers.
+  The reply never renders on unpatched development (Chromium) and production (Chromium and WebKit) builds; patched builds pass in both browsers, re-run after the shared-module refactor.
 - The Docker builder ran `npm ci` before copying `patches/`, so published images shipped without any patch-package change (SDK, virtualizer, folds, Capacitor).
   The builder now copies `patches/` first; a local builder run applies all five patches and bundles the scheduler change.
   `patch-package --error-on-fail` now fails installs outside CI too, so a patch that stops applying cannot ship silently.
+  A checkout that installed an earlier revision of this branch's scheduler patch needs `npm ci` (or a removed `node_modules/scheduler`), because `npm install` cannot reapply the changed patch over it.
 - Validation under Node 24: 5,505 unit tests pass; the three `xcodeCloudPostClone` tests fail only because this NixOS host has no `/bin/bash`.
   Application and changed-test typechecks, production build, prettier, and lint (0 errors, 17 existing warnings) pass.
   Live Chromium checks on the patched production build pass `threads`, `thread-streaming-tiles`, `cinny068-fresh-zero-reply-open`, `cinny033-jump-to-latest`, `thread-message-persistence`, and `perf-thread-streaming`.
