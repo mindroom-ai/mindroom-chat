@@ -2339,7 +2339,9 @@
         "codeNotFound": "找不到此代碼。請檢查終端機中顯示的代碼。",
         "codeExpired": "此代碼已過期。請使用終端機中顯示的新連結或代碼。",
         "codeAlreadyApproved": "此代碼已被核准。",
-        "backToChat": "返回聊天"
+        "backToChat": "返回聊天",
+        "enterNewCode": "輸入新代碼：",
+        "noAccountAppGuidance": "已在 MindRoom 應用程式中登入？在應用程式的設定 → Local MindRoom 中輸入 {{code}}。"
       }
     },
     "matrix": {

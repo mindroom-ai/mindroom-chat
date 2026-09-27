@@ -2339,7 +2339,9 @@
         "codeNotFound": "Dieser Code wurde nicht gefunden. Prüfe den Code in deinem Terminal.",
         "codeExpired": "Dieser Code ist abgelaufen. Verwende den neuen Link oder Code in deinem Terminal.",
         "codeAlreadyApproved": "Dieser Code wurde bereits bestätigt.",
-        "backToChat": "Zurück zum Chat"
+        "backToChat": "Zurück zum Chat",
+        "enterNewCode": "Gib den neuen Code ein:",
+        "noAccountAppGuidance": "Bereits in der MindRoom-App angemeldet? Öffne dort Einstellungen → Lokales MindRoom und gib {{code}} ein."
       }
     },
     "matrix": {

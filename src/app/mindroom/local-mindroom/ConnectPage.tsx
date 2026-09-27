@@ -37,6 +37,9 @@ type PairState =
 const isSignedOutError = (error: unknown): boolean =>
   error instanceof LocalMindroomApiError && error.status === 401;
 
+const isExpiredOrNotFoundError = (error: unknown): boolean =>
+  error instanceof LocalMindroomApiError && (error.status === 404 || error.status === 410);
+
 const getPairingErrorMessage = (error: unknown, t: TFunction): string => {
   if (error instanceof LocalMindroomApiError) {
     if (error.status === 401) return t('mindroomUi.local-mindroom.connect.accountSignedOut');
@@ -181,6 +184,9 @@ export function ConnectPage() {
     content = (
       <>
         <Text size="T300">{t('mindroomUi.local-mindroom.connect.noAccount')}</Text>
+        <Text size="T300" priority="300">
+          {t('mindroomUi.local-mindroom.connect.noAccountAppGuidance', { code: pairCode })}
+        </Text>
         <Button variant="Primary" size="400" radii="300" onClick={() => handleSignIn()}>
           <Text size="B400">{t('mindroomUi.local-mindroom.connect.signIn')}</Text>
         </Button>
@@ -258,9 +264,23 @@ export function ConnectPage() {
               </Text>
             )}
             {pairError !== undefined && (
-              <Text size="T300" style={{ color: color.Critical.Main }}>
-                {getPairingErrorMessage(pairError, t)}
-              </Text>
+              <>
+                <Text size="T300" style={{ color: color.Critical.Main }}>
+                  {getPairingErrorMessage(pairError, t)}
+                </Text>
+                {isExpiredOrNotFoundError(pairError) && (
+                  <>
+                    <Box as="label" htmlFor="new-pair-code">
+                      <Text size="T300">{t('mindroomUi.local-mindroom.connect.enterNewCode')}</Text>
+                    </Box>
+                    <PairCodeForm
+                      inputId="new-pair-code"
+                      defaultValue=""
+                      onSubmit={(code) => navigate(getConnectPath(code), { replace: true })}
+                    />
+                  </>
+                )}
+              </>
             )}
             {isSignedOutError(pairError) ? (
               <Button

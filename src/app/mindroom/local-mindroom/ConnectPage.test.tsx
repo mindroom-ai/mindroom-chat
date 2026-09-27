@@ -320,4 +320,59 @@ describe('ConnectPage', () => {
     expect(textOf()).toContain('This code has expired.');
     expect(findButton('Approve as @alice:mindroom.chat').props.disabled).toBe(true);
   });
+
+  it('renders PairCodeForm beneath expired error so user can enter new code', async () => {
+    storeSession('@alice:mindroom.chat', 'https://mindroom.chat');
+    inspectMock.mockRejectedValue(new LocalMindroomApiError('Pair code expired', 410));
+
+    await renderAt('/connect?code=ABCD-EFGH');
+
+    const input = renderer!.root.findByType('input');
+    await act(async () => {
+      input.props.onChange({ currentTarget: { value: 'wxyz-1234' } });
+    });
+    await act(async () => {
+      renderer!.root.findByType('form').props.onSubmit({ preventDefault: vi.fn() });
+    });
+    await flush();
+
+    expect(inspectMock).toHaveBeenLastCalledWith(
+      'WXYZ-1234',
+      '@alice:mindroom.chat-access',
+      'https://mindroom.chat'
+    );
+  });
+
+  it('renders PairCodeForm beneath not-found error so user can enter new code', async () => {
+    storeSession('@alice:mindroom.chat', 'https://mindroom.chat');
+    inspectMock.mockRejectedValue(new LocalMindroomApiError('Code not found', 404));
+
+    await renderAt('/connect?code=ABCD-EFGH');
+
+    const input = renderer!.root.findByType('input');
+    await act(async () => {
+      input.props.onChange({ currentTarget: { value: 'new1-2345' } });
+    });
+    await act(async () => {
+      renderer!.root.findByType('form').props.onSubmit({ preventDefault: vi.fn() });
+    });
+    await flush();
+
+    expect(inspectMock).toHaveBeenLastCalledWith(
+      'NEW1-2345',
+      '@alice:mindroom.chat-access',
+      'https://mindroom.chat'
+    );
+  });
+
+  it('shows iOS app guidance with code in no-eligible-account state', async () => {
+    storeSession('@carol:matrix.org', 'https://matrix-client.matrix.org');
+
+    await renderAt('/connect?code=ABCD-EFGH');
+
+    expect(textOf()).toContain('Already signed in on the MindRoom app?');
+    expect(textOf()).toContain('Settings → Local MindRoom');
+    expect(textOf()).toContain('ABCD-EFGH');
+    expect(() => findButton('Sign in to approve')).not.toThrow();
+  });
 });

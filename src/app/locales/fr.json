@@ -2367,7 +2367,9 @@
         "codeNotFound": "Ce code est introuvable. Vérifiez le code affiché dans votre terminal.",
         "codeExpired": "Ce code a expiré. Utilisez le nouveau lien ou code affiché dans votre terminal.",
         "codeAlreadyApproved": "Ce code a déjà été approuvé.",
-        "backToChat": "Retour à la discussion"
+        "backToChat": "Retour à la discussion",
+        "enterNewCode": "Saisissez le nouveau code :",
+        "noAccountAppGuidance": "Déjà connecté sur l'application MindRoom ? Ouvrez Paramètres → MindRoom local et saisissez {{code}}."
       }
     },
     "matrix": {

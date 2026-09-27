@@ -6,9 +6,10 @@ import { normalizePairCode } from './devicePairing';
 type PairCodeFormProps = {
   defaultValue?: string;
   onSubmit: (pairCode: string) => void;
+  inputId?: string;
 };
 
-export function PairCodeForm({ defaultValue = '', onSubmit }: PairCodeFormProps) {
+export function PairCodeForm({ defaultValue = '', onSubmit, inputId }: PairCodeFormProps) {
   const { t } = useTranslation();
   const [value, setValue] = useState(defaultValue);
   const [invalid, setInvalid] = useState(false);
@@ -33,6 +34,7 @@ export function PairCodeForm({ defaultValue = '', onSubmit }: PairCodeFormProps)
       <Box gap="200">
         <Box grow="Yes" direction="Column">
           <Input
+            id={inputId}
             name="pairCode"
             value={value}
             onChange={handleChange}

@@ -2339,7 +2339,9 @@
         "codeNotFound": "このコードは見つかりませんでした。ターミナルに表示されたコードを確認してください。",
         "codeExpired": "このコードは期限切れです。ターミナルに表示された新しいリンクまたはコードを使用してください。",
         "codeAlreadyApproved": "このコードはすでに承認されています。",
-        "backToChat": "チャットに戻る"
+        "backToChat": "チャットに戻る",
+        "enterNewCode": "新しいコードを入力してください：",
+        "noAccountAppGuidance": "MindRoom アプリで既にサインインしていますか？アプリの設定 → Local MindRoom で {{code}} を入力してください。"
       }
     },
     "matrix": {

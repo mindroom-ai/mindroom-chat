@@ -2367,7 +2367,9 @@
         "codeNotFound": "No se encontró este código. Comprueba el código que aparece en tu terminal.",
         "codeExpired": "Este código ha caducado. Usa el nuevo enlace o código que aparece en tu terminal.",
         "codeAlreadyApproved": "Este código ya se ha aprobado.",
-        "backToChat": "Volver al chat"
+        "backToChat": "Volver al chat",
+        "enterNewCode": "Introduce el nuevo código:",
+        "noAccountAppGuidance": "¿Ya iniciaste sesión en la aplicación MindRoom? Abre Ajustes → MindRoom local allí e introduce {{code}}."
       }
     },
     "matrix": {

@@ -2367,7 +2367,9 @@
         "codeNotFound": "Este código não foi encontrado. Verifique o código exibido no seu terminal.",
         "codeExpired": "Este código expirou. Use o novo link ou código exibido no seu terminal.",
         "codeAlreadyApproved": "Este código já foi aprovado.",
-        "backToChat": "Voltar à conversa"
+        "backToChat": "Voltar à conversa",
+        "enterNewCode": "Introduza o novo código:",
+        "noAccountAppGuidance": "Já iniciou sessão na aplicação MindRoom? Abra Definições → MindRoom local e introduza {{code}}."
       }
     },
     "matrix": {

@@ -2339,7 +2339,9 @@
         "codeNotFound": "This code was not found. Check the code shown in your terminal.",
         "codeExpired": "This code has expired. Use the new link or code shown in your terminal.",
         "codeAlreadyApproved": "This code has already been approved.",
-        "backToChat": "Back to chat"
+        "backToChat": "Back to chat",
+        "enterNewCode": "Enter the new code:",
+        "noAccountAppGuidance": "Already signed in on the MindRoom app? Open Settings → Local MindRoom there and enter {{code}}."
       }
     },
     "matrix": {

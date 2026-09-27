@@ -2339,7 +2339,9 @@
         "codeNotFound": "Kode ini tidak ditemukan. Periksa kode yang ditampilkan di terminal Anda.",
         "codeExpired": "Kode ini sudah kedaluwarsa. Gunakan tautan atau kode baru yang ditampilkan di terminal Anda.",
         "codeAlreadyApproved": "Kode ini sudah disetujui.",
-        "backToChat": "Kembali ke percakapan"
+        "backToChat": "Kembali ke percakapan",
+        "enterNewCode": "Masukkan kode baru:",
+        "noAccountAppGuidance": "Sudah masuk di aplikasi MindRoom? Buka Pengaturan → MindRoom lokal di sana dan masukkan {{code}}."
       }
     },
     "matrix": {

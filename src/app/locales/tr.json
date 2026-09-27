@@ -2339,7 +2339,9 @@
         "codeNotFound": "Bu kod bulunamadı. Terminalinizde gösterilen kodu kontrol edin.",
         "codeExpired": "Bu kodun süresi doldu. Terminalinizde gösterilen yeni bağlantıyı veya kodu kullanın.",
         "codeAlreadyApproved": "Bu kod zaten onaylandı.",
-        "backToChat": "Sohbete dön"
+        "backToChat": "Sohbete dön",
+        "enterNewCode": "Yeni kodu girin:",
+        "noAccountAppGuidance": "MindRoom uygulamasında zaten oturum açtınız mı? Orada Ayarlar → Yerel MindRoom'u açın ve {{code}} girin."
       }
     },
     "matrix": {

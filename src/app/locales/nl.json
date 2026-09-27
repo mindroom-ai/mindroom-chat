@@ -2339,7 +2339,9 @@
         "codeNotFound": "Deze code is niet gevonden. Controleer de code in je terminal.",
         "codeExpired": "Deze code is verlopen. Gebruik de nieuwe link of code in je terminal.",
         "codeAlreadyApproved": "Deze code is al goedgekeurd.",
-        "backToChat": "Terug naar de chat"
+        "backToChat": "Terug naar de chat",
+        "enterNewCode": "Voer de nieuwe code in:",
+        "noAccountAppGuidance": "Al ingelogd in de MindRoom-app? Open daar Instellingen → Lokale MindRoom en voer {{code}} in."
       }
     },
     "matrix": {
