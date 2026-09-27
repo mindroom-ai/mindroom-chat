@@ -26,9 +26,14 @@
 - A token refresh times out after 15 seconds (the refresh client's `localTimeoutMs` and a guard around the locked refresh), so a hung refresh surfaces a retryable error and releases the cross-tab lock.
 - The saved after-login path now carries a timestamp and expires after 15 minutes, so an abandoned login cannot redirect a later add-account; untimestamped values from earlier releases are ignored.
 - The account picker is disabled while approving, and an approval result is dropped if the chosen account changed meanwhile.
+- Provisioning requests no longer carry a Matrix access token.
+  Before each inspect, approve, connection-list, or revoke request, the client asks the account's own homeserver for an OpenID token (`POST /_matrix/client/v3/user/{userId}/openid/request_token`) and sends only that token as `X-Matrix-OpenID-Token`.
+  `/connect` mints it from the chosen stored session through the same native/web transport as provisioning requests, and a 401 from either the OpenID request or provisioning triggers the existing single refresh-and-retry.
+  Settings → Local MindRoom and the welcome prompt use the active client's `getOpenIdToken()`, which refreshes through the SDK.
+  The provisioning service's matching change validates the token through its homeserver's federation `openid/userinfo` endpoint.
 - Validation: unit tests pass under Node 24 except the three `xcodeCloudPostClone` tests that need `/bin/bash` on this NixOS host; typecheck, changed-test typecheck, build, lint (0 errors, 17 existing warnings), and the mock-only Chromium spec `e2e/device-pairing.spec.ts` pass.
   New locale strings are machine-authored for all 16 non-English catalogs and still need human review.
-- Next: verify on an iOS device that `/connect` approval works through `CapacitorHttp` against the deployed provisioning service.
+- Next: verify on an iOS device that `/connect` approval, including the homeserver OpenID request, works through `CapacitorHttp` against the deployed provisioning service.
 
 ### Identify the cold-start request behind root-only threads (2026-09-25)
 

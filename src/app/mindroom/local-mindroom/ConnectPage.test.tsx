@@ -9,6 +9,7 @@ import {
   approveLocalMindroomPairCode,
   inspectLocalMindroomPairCode,
   LocalMindroomApiError,
+  requestMatrixOpenIdToken,
   type LocalMindroomPairDevice,
 } from './api';
 import { useClientConfig } from '../../hooks/useClientConfig';
@@ -72,10 +73,12 @@ vi.mock('./api', async () => ({
   ...(await vi.importActual<typeof import('./api')>('./api')),
   approveLocalMindroomPairCode: vi.fn(),
   inspectLocalMindroomPairCode: vi.fn(),
+  requestMatrixOpenIdToken: vi.fn(),
 }));
 
 const inspectMock = vi.mocked(inspectLocalMindroomPairCode);
 const approveMock = vi.mocked(approveLocalMindroomPairCode);
+const openIdMock = vi.mocked(requestMatrixOpenIdToken);
 
 const pendingDevice = (): LocalMindroomPairDevice => ({
   client_name: 'studio-mac',
@@ -146,6 +149,7 @@ beforeEach(() => {
   vi.mocked(useClientConfig).mockReturnValue({
     sidebar: { mindRoomProvisioningUrl: 'https://mindroom.chat' },
   });
+  openIdMock.mockImplementation(async ({ accessToken }) => `openid:${accessToken}`);
   inspectMock.mockImplementation(async () => pendingDevice());
   approveMock.mockImplementation(async () => ({ ...pendingDevice(), status: 'approved' }));
 });
@@ -165,7 +169,7 @@ describe('ConnectPage', () => {
 
     expect(inspectMock).toHaveBeenCalledWith(
       'ABCD-EFGH',
-      '@alice:mindroom.chat-access',
+      'openid:@alice:mindroom.chat-access',
       'https://mindroom.chat'
     );
     expect(textOf()).toContain('studio-mac');
@@ -176,7 +180,7 @@ describe('ConnectPage', () => {
 
     expect(approveMock).toHaveBeenCalledWith(
       'ABCD-EFGH',
-      '@alice:mindroom.chat-access',
+      'openid:@alice:mindroom.chat-access',
       'https://mindroom.chat'
     );
     expect(textOf()).toContain('Connected. You can return to your terminal.');
@@ -195,7 +199,7 @@ describe('ConnectPage', () => {
 
     expect(inspectMock).toHaveBeenLastCalledWith(
       'ABCD-EFGH',
-      '@alice:mindroom.chat-access',
+      'openid:@alice:mindroom.chat-access',
       'https://mindroom.chat'
     );
 
@@ -203,7 +207,7 @@ describe('ConnectPage', () => {
 
     expect(approveMock).toHaveBeenCalledWith(
       'ABCD-EFGH',
-      '@alice:mindroom.chat-access',
+      'openid:@alice:mindroom.chat-access',
       'https://mindroom.chat'
     );
     expect(getActiveSession()?.sessionId).toBe(active.sessionId);
@@ -247,7 +251,7 @@ describe('ConnectPage', () => {
       .mockResolvedValue({ access_token: 'access-b', refresh_token: 'refresh-b' });
     vi.mocked(createMatrixClient).mockReturnValue({ refreshToken } as never);
     inspectMock.mockRejectedValueOnce(
-      new LocalMindroomApiError('Invalid Matrix access token', 401)
+      new LocalMindroomApiError('Invalid Matrix OpenID token', 401)
     );
 
     await renderAt('/connect?code=ABCD-EFGH');
@@ -255,8 +259,8 @@ describe('ConnectPage', () => {
 
     expect(refreshToken).toHaveBeenCalledWith('refresh-a');
     expect(inspectMock.mock.calls.map((call) => call[1])).toEqual([
-      '@alice:mindroom.chat-access',
-      'access-b',
+      'openid:@alice:mindroom.chat-access',
+      'openid:access-b',
     ]);
     expect(getSessionStore().sessions).toEqual([
       expect.objectContaining({
@@ -306,7 +310,7 @@ describe('ConnectPage', () => {
 
     expect(inspectMock).toHaveBeenCalledWith(
       'ABCD-EFGH',
-      '@alice:mindroom.chat-access',
+      'openid:@alice:mindroom.chat-access',
       'https://mindroom.chat'
     );
   });
@@ -338,7 +342,7 @@ describe('ConnectPage', () => {
 
     expect(inspectMock).toHaveBeenLastCalledWith(
       'WXYZ-1234',
-      '@alice:mindroom.chat-access',
+      'openid:@alice:mindroom.chat-access',
       'https://mindroom.chat'
     );
   });
@@ -360,7 +364,7 @@ describe('ConnectPage', () => {
 
     expect(inspectMock).toHaveBeenLastCalledWith(
       'NEW1-2345',
-      '@alice:mindroom.chat-access',
+      'openid:@alice:mindroom.chat-access',
       'https://mindroom.chat'
     );
   });

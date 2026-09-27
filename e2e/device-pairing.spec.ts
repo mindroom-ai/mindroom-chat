@@ -4,8 +4,9 @@ const SESSION_STORE_KEY = 'mindroom_multi_account_store';
 
 // The e2e dev server points provisioning at its own origin instead of the
 // hosted service (scripts/e2e-client-config.mjs), so accounts seeded on that
-// origin play the hosted accounts. The page never contacts the homeserver
-// itself, and provisioning requests are fulfilled below.
+// origin play the hosted accounts. The page contacts their homeserver only to
+// exchange an access token for an OpenID token; that request and the
+// provisioning requests are fulfilled below.
 const provisioningOrigin = () =>
   new URL(test.info().project.use.baseURL ?? 'http://127.0.0.1:4173').origin;
 
@@ -33,6 +34,26 @@ const seedSessions = async (page: Page, sessions: SeedSession[], activeUserId?: 
     },
     [SESSION_STORE_KEY, JSON.stringify(store)] as const
   );
+};
+
+const mockOpenIdTokens = async (page: Page) => {
+  const requests: Request[] = [];
+  await page.route('**/_matrix/client/v3/user/*/openid/request_token', async (route) => {
+    requests.push(route.request());
+    const accessToken = route
+      .request()
+      .headers()
+      .authorization?.replace(/^Bearer /, '');
+    await route.fulfill({
+      json: {
+        access_token: `openid-for-${accessToken}`,
+        token_type: 'Bearer',
+        matrix_server_name: 'mindroom.chat',
+        expires_in: 3600,
+      },
+    });
+  });
+  return requests;
 };
 
 const mockPairDevice = async (page: Page) => {
@@ -72,6 +93,7 @@ test('approves a pairing code with a chosen non-active account', async ({ page }
     ],
     '@carol:matrix.org'
   );
+  const openIdRequests = await mockOpenIdTokens(page);
   const requests = await mockPairDevice(page);
 
   await page.goto('/connect?code=abcd-efgh');
@@ -85,8 +107,16 @@ test('approves a pairing code with a chosen non-active account', async ({ page }
   await expect(page.getByText('Connected. You can return to your terminal.')).toBeVisible();
   const approve = requests.find((request) => request.url().endsWith('/pair/device/approve'));
   expect(approve?.url()).toBe(`${provisioningOrigin()}/v1/local-mindroom/pair/device/approve`);
-  expect(approve?.headers()['x-matrix-access-token']).toBe('bob-token');
+  expect(approve?.headers()['x-matrix-openid-token']).toBe('openid-for-bob-token');
   expect(approve?.postDataJSON()).toEqual({ pair_code: 'ABCD-EFGH' });
+  for (const request of requests) {
+    expect(request.headers()).not.toHaveProperty('x-matrix-access-token');
+    expect(request.headers()).not.toHaveProperty('authorization');
+  }
+  expect(openIdRequests.at(-1)?.url()).toBe(
+    `${provisioningOrigin()}/_matrix/client/v3/user/%40bob%3Amindroom.chat/openid/request_token`
+  );
+  expect(openIdRequests.at(-1)?.headers().authorization).toBe('Bearer bob-token');
   expect(await readActiveSessionId(page)).toBe(activeBefore);
 });
 

@@ -50,9 +50,10 @@ export function LocalMindroom({ requestClose, onNavigate }: LocalMindroomProps) 
     accessToken: sessionAccessToken,
   });
   const provisioningUrl = provisioningRequest.provisioningBaseUrl;
-  const browserAccessToken = provisioningRequest.accessToken;
-  // Without a token this account's installations cannot be listed; asking
-  // anyway would only send an unauthenticated request to another origin.
+  // Accounts that may not authenticate to this provisioning origin cannot list
+  // their installations; asking anyway would only send an unauthenticated
+  // request to another origin.
+  const canAuthenticate = provisioningRequest.accessToken !== undefined;
   const provisioningHost = provisioningUrl ? new URL(provisioningUrl).host : undefined;
 
   const [connections, setConnections] = useState<LocalMindroomConnection[] | undefined>();
@@ -66,7 +67,8 @@ export function LocalMindroom({ requestClose, onNavigate }: LocalMindroomProps) 
     setLoadingConnections(true);
     setConnectionsError(undefined);
     try {
-      const result = await getLocalMindroomConnections(browserAccessToken, provisioningUrl);
+      const { access_token: openIdToken } = await mx.getOpenIdToken();
+      const result = await getLocalMindroomConnections(openIdToken, provisioningUrl);
       setConnections(result.connections.filter((connection) => !isConnectionRevoked(connection)));
     } catch (error) {
       setConnectionsError(
@@ -78,11 +80,11 @@ export function LocalMindroom({ requestClose, onNavigate }: LocalMindroomProps) 
     } finally {
       setLoadingConnections(false);
     }
-  }, [browserAccessToken, provisioningUrl, t]);
+  }, [mx, provisioningUrl, t]);
 
   useEffect(() => {
-    if (browserAccessToken) loadConnections();
-  }, [browserAccessToken, loadConnections]);
+    if (canAuthenticate) loadConnections();
+  }, [canAuthenticate, loadConnections]);
 
   // The connect page lives outside the client layout, so close settings first
   // to keep the modal from reopening when the user comes back.
@@ -97,7 +99,8 @@ export function LocalMindroom({ requestClose, onNavigate }: LocalMindroomProps) 
       setRevokeError(undefined);
 
       try {
-        await revokeLocalMindroomConnection(connectionId, browserAccessToken, provisioningUrl);
+        const { access_token: openIdToken } = await mx.getOpenIdToken();
+        await revokeLocalMindroomConnection(connectionId, openIdToken, provisioningUrl);
         setConfirmRevokeId(undefined);
         await loadConnections();
       } catch (error) {
@@ -111,7 +114,7 @@ export function LocalMindroom({ requestClose, onNavigate }: LocalMindroomProps) 
         setRevokingId(undefined);
       }
     },
-    [loadConnections, browserAccessToken, provisioningUrl, t]
+    [loadConnections, mx, provisioningUrl, t]
   );
 
   const hasConnections = (connections?.length ?? 0) > 0;
@@ -184,7 +187,7 @@ export function LocalMindroom({ requestClose, onNavigate }: LocalMindroomProps) 
                   direction="Column"
                   gap="300"
                 >
-                  {browserAccessToken ? (
+                  {canAuthenticate ? (
                     <>
                       {loadingConnections && (
                         <Box alignItems="Center" gap="200">

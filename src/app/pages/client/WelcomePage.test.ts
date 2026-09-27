@@ -122,7 +122,13 @@ const mockClient = () => {
     getHomeserverUrl: () => 'https://mindroom.chat',
     getSafeUserId: () => '@alice:mindroom.chat',
     getCrypto: () => undefined,
-  } as ReturnType<typeof useMatrixClient>);
+    getOpenIdToken: async () => ({
+      access_token: 'openid-token',
+      token_type: 'Bearer',
+      matrix_server_name: 'mindroom.chat',
+      expires_in: 3600,
+    }),
+  } as unknown as ReturnType<typeof useMatrixClient>);
 };
 
 const mockWelcomeConfig = () => {
@@ -200,6 +206,10 @@ describe('WelcomePage', () => {
       renderer = create(React.createElement(WelcomePage));
     });
 
+    expect(getLocalMindroomConnectionsMock).toHaveBeenCalledWith(
+      'openid-token',
+      'https://mindroom.chat'
+    );
     const text = renderer!.root.findAllByType('span').map((node) => node.children.join(' '));
     expect(text).toContain('Set up Local MindRoom');
     expect(text).toContain(

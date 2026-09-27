@@ -1,7 +1,7 @@
 import { TokenRefreshLogoutError } from 'matrix-js-sdk';
 import { createStoredSessionTokenRefresh } from '../../../client/sessionTokenRefresh';
 import { listSessions, type StoredSession } from '../../state/sessions';
-import { LocalMindroomApiError } from './api';
+import { LocalMindroomApiError, requestMatrixOpenIdToken } from './api';
 import { resolveMindroomProvisioningRequest } from './mindroom';
 
 export type PairingAccount = {
@@ -17,8 +17,8 @@ export const normalizePairCode = (value: string | null | undefined): string | un
   return `${compact.slice(0, 4)}-${compact.slice(4)}`;
 };
 
-// An account can approve only when its provisioning request would carry its
-// own token, which excludes accounts on other homeservers when a provisioning
+// An account can approve only when it may authenticate to its provisioning
+// origin, which excludes accounts on other homeservers when a provisioning
 // override is configured.
 export const getPairingAccounts = (
   sessions: StoredSession[],
@@ -44,13 +44,15 @@ const refreshStoredSessionAccessToken = async (
 const isInvalidTokenError = (error: unknown): boolean =>
   error instanceof LocalMindroomApiError && error.status === 401;
 
-// Runs a provisioning request with a stored account's token, independent of
-// the account the rest of the app is using. A rejected token is replaced once:
-// by credentials another tab rotated meanwhile, or else by a refresh that the
-// shared refresh function persists to the session store.
+// Runs a provisioning request as a stored account, independent of the account
+// the rest of the app is using. The request receives an OpenID token minted
+// from the account's access token; the access token itself only goes to the
+// account's homeserver. A rejection of either token replaces the access token
+// once: by credentials another tab rotated meanwhile, or else by a refresh
+// that the shared refresh function persists to the session store.
 export const requestAsStoredSession = async <T>(
   sessionId: string,
-  request: (accessToken: string) => Promise<T>,
+  request: (openIdToken: string) => Promise<T>,
   refreshAccessToken: (
     session: StoredSession
   ) => Promise<string | undefined> = refreshStoredSessionAccessToken
@@ -59,8 +61,17 @@ export const requestAsStoredSession = async <T>(
   const session = findSession();
   if (!session) throw new LocalMindroomApiError('Account is no longer signed in', 401);
 
+  const requestWith = async (accessToken: string) =>
+    request(
+      await requestMatrixOpenIdToken({
+        baseUrl: session.baseUrl,
+        userId: session.userId,
+        accessToken,
+      })
+    );
+
   try {
-    return await request(session.accessToken);
+    return await requestWith(session.accessToken);
   } catch (error) {
     if (!isInvalidTokenError(error)) throw error;
 
@@ -78,6 +89,6 @@ export const requestAsStoredSession = async <T>(
     }
     if (!accessToken) throw error;
 
-    return request(accessToken);
+    return requestWith(accessToken);
   }
 };

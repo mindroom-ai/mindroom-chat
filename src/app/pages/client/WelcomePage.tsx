@@ -135,9 +135,12 @@ export function WelcomePage() {
     setSettingsModal({ initialPage: LOCAL_MINDROOM_SETTINGS_PAGE });
   }, [setSettingsModal]);
 
+  const canAuthenticate = provisioningRequest.accessToken !== undefined;
+  const { provisioningBaseUrl } = provisioningRequest;
+
   React.useEffect(() => {
-    // Accounts that cannot forward their token to provisioning cannot pair here.
-    if (!provisioningRequest.accessToken) {
+    // Accounts that may not authenticate to this provisioning origin cannot pair here.
+    if (!canAuthenticate) {
       setShowSetupInstructions(false);
       return undefined;
     }
@@ -146,10 +149,10 @@ export function WelcomePage() {
     const nowMs = Date.now();
     const storageKey = getWelcomeSetupFirstSeenStorageKey(userId);
 
-    getLocalMindroomConnections(
-      provisioningRequest.accessToken,
-      provisioningRequest.provisioningBaseUrl
-    )
+    mx.getOpenIdToken()
+      .then(({ access_token: openIdToken }) =>
+        getLocalMindroomConnections(openIdToken, provisioningBaseUrl)
+      )
       .then((result) => {
         if (cancelled) return;
         const activeConnectionCount = result.connections.filter(
@@ -177,7 +180,7 @@ export function WelcomePage() {
     return () => {
       cancelled = true;
     };
-  }, [provisioningRequest.accessToken, provisioningRequest.provisioningBaseUrl, userId]);
+  }, [canAuthenticate, mx, provisioningBaseUrl, userId]);
 
   return (
     <Page>

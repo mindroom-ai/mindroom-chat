@@ -123,8 +123,8 @@ export function ConnectPage() {
 
     let cancelled = false;
     setPairState({ status: 'loading' });
-    requestAsStoredSession(sessionId, (accessToken) =>
-      inspectLocalMindroomPairCode(pairCode, accessToken, provisioningBaseUrl)
+    requestAsStoredSession(sessionId, (openIdToken) =>
+      inspectLocalMindroomPairCode(pairCode, openIdToken, provisioningBaseUrl)
     )
       .then((device) => {
         if (!cancelled) setPairState({ status: 'ready', device });
@@ -145,8 +145,8 @@ export function ConnectPage() {
     setPairState({ status: 'approving', device });
     let nextState: PairState;
     try {
-      await requestAsStoredSession(sessionId, (accessToken) =>
-        approveLocalMindroomPairCode(pairCode, accessToken, provisioningBaseUrl)
+      await requestAsStoredSession(sessionId, (openIdToken) =>
+        approveLocalMindroomPairCode(pairCode, openIdToken, provisioningBaseUrl)
       );
       nextState = { status: 'approved', device };
     } catch (error) {

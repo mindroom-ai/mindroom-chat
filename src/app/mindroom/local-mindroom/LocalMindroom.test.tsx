@@ -5,7 +5,7 @@ import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'rea
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { LocalMindroom } from './LocalMindroom';
-import { getLocalMindroomConnections } from './api';
+import { getLocalMindroomConnections, revokeLocalMindroomConnection } from './api';
 import { useClientConfig } from '../../hooks/useClientConfig';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 
@@ -80,6 +80,7 @@ vi.mock('../../hooks/useMatrixClient', () => ({
 vi.mock('./api', async () => ({
   ...(await vi.importActual<typeof import('./api')>('./api')),
   getLocalMindroomConnections: vi.fn(),
+  revokeLocalMindroomConnection: vi.fn(),
 }));
 
 function LocationProbe() {
@@ -93,14 +94,28 @@ const textOf = (node: ReactTestInstance | undefined): string =>
     .join(' ');
 
 let renderer: ReactTestRenderer | undefined;
+const getOpenIdTokenMock = vi.fn();
+
+const findButton = (label: string) =>
+  renderer!.root.findAll((node) => node.type === 'button' && textOf(node).trim() === label, {
+    deep: true,
+  })[0];
 
 beforeEach(() => {
   vi.mocked(useClientConfig).mockReturnValue({ sidebar: {} });
   vi.mocked(useMatrixClient).mockReturnValue({
     getHomeserverUrl: () => 'https://mindroom.chat',
     getAccessToken: () => 'token',
+    getOpenIdToken: getOpenIdTokenMock,
   } as never);
+  getOpenIdTokenMock.mockResolvedValue({
+    access_token: 'openid-token',
+    token_type: 'Bearer',
+    matrix_server_name: 'mindroom.chat',
+    expires_in: 3600,
+  });
   vi.mocked(getLocalMindroomConnections).mockResolvedValue({ connections: [] });
+  vi.mocked(revokeLocalMindroomConnection).mockResolvedValue();
 });
 
 afterEach(() => {
@@ -166,5 +181,43 @@ describe('LocalMindroom settings', () => {
     expect(text).not.toContain('Access token forwarding');
     expect(text).not.toContain('No linked local MindRoom installations yet.');
     expect(renderer!.root.findAllByType('input')).toHaveLength(1);
+  });
+
+  it('lists and revokes installations with an OpenID token instead of the access token', async () => {
+    vi.mocked(getLocalMindroomConnections).mockResolvedValue({
+      connections: [{ id: 'conn-1', client_name: 'studio-mac' }],
+    });
+
+    await act(async () => {
+      renderer = create(
+        <MemoryRouter>
+          <LocalMindroom requestClose={vi.fn()} onNavigate={vi.fn()} />
+        </MemoryRouter>
+      );
+    });
+
+    expect(getLocalMindroomConnections).toHaveBeenCalledWith(
+      'openid-token',
+      'https://mindroom.chat'
+    );
+    expect(textOf(renderer?.root)).toContain('studio-mac');
+
+    await act(async () => {
+      findButton('Revoke').props.onClick();
+    });
+    await act(async () => {
+      findButton('Confirm Revoke').props.onClick();
+    });
+
+    expect(revokeLocalMindroomConnection).toHaveBeenCalledWith(
+      'conn-1',
+      'openid-token',
+      'https://mindroom.chat'
+    );
+    const tokensSent = [
+      ...vi.mocked(getLocalMindroomConnections).mock.calls.map((call) => call[0]),
+      ...vi.mocked(revokeLocalMindroomConnection).mock.calls.map((call) => call[1]),
+    ];
+    expect(tokensSent).not.toContain('token');
   });
 });
