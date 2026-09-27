@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { useStore } from 'jotai';
 import type { Descendant } from 'slate';
 import { EventStatus } from 'matrix-js-sdk';
+import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { callEmbedAtom } from '../../state/callEmbed';
 import {
   getRoomInputDraftKey,
@@ -13,6 +14,7 @@ import {
 } from '../../state/room/roomInputDrafts';
 import { persistKnownSessionStore } from '../../state/sessions';
 import { UploadStatus } from '../../state/upload';
+import { isLocalEchoEventId } from '../threads/threadRouteUtils';
 import { isVoiceCaptureActive } from '../voice/voiceCaptureDiagnostics';
 import {
   registerStorageRecoveryBlocker,
@@ -101,10 +103,13 @@ export const hasUnsavedTransientWork = ({
   store,
   now = Date.now(),
   doc,
+  isKnownRoom = () => true,
 }: {
   store: JotaiStore;
   now?: number;
   doc?: Document;
+  /** Attachments staged in a room of another account cannot be reached here. */
+  isKnownRoom?: (roomId: string) => boolean;
 }): boolean =>
   isVoiceCaptureActive() ||
   store.get(voiceAutoSendPendingAtom) ||
@@ -113,7 +118,9 @@ export const hasUnsavedTransientWork = ({
   Array.from(composerTextSends).some((send) => isInFlight(send, now)) ||
   roomIdToUploadItemsAtomFamily
     .getParams()
-    .some((key) => store.get(roomIdToUploadItemsAtomFamily(key)).length > 0) ||
+    .some(
+      (roomId) => isKnownRoom(roomId) && store.get(roomIdToUploadItemsAtomFamily(roomId)).length > 0
+    ) ||
   roomUploadAtomFamily
     .getParams()
     .some((file) => store.get(roomUploadAtomFamily(file)).status === UploadStatus.Loading) ||
@@ -173,7 +180,7 @@ export const leavePendingThreadRoute = (
 ): void => {
   if (!location || !history) return;
   const url = new URL(location.href);
-  if (!url.searchParams.get('threadId')?.startsWith('~')) return;
+  if (!isLocalEchoEventId(url.searchParams.get('threadId') ?? undefined)) return;
   url.searchParams.delete('threadId');
   history.replaceState(history.state, '', url.toString());
 };
@@ -181,10 +188,11 @@ export const leavePendingThreadRoute = (
 /** Keeps storage-loss recovery from reloading over unsent or in-progress work. */
 export const useStorageRecoveryBlocker = (): void => {
   const store = useStore();
+  const mx = useMatrixClient();
 
   useEffect(() => {
     const unregisterBlocker = registerStorageRecoveryBlocker(() =>
-      hasUnsavedTransientWork({ store })
+      hasUnsavedTransientWork({ store, isKnownRoom: (roomId) => !!mx.getRoom(roomId) })
     );
     const unregisterPreparation = registerStorageRecoveryPreparation(({ automatic }) => {
       saveUnsentComposerText({ store, includeInFlight: !automatic });
@@ -196,7 +204,7 @@ export const useStorageRecoveryBlocker = (): void => {
       unregisterBlocker();
       unregisterPreparation();
     };
-  }, [store]);
+  }, [mx, store]);
 };
 
 export const resetComposerTextSendsForTesting = (): void => {

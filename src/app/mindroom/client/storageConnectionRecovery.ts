@@ -257,7 +257,11 @@ export const startStorageConnectionSentinel = ({
   };
   try {
     const request = indexedDB.open(STORAGE_SENTINEL_DB_NAME, 1);
-    request.onerror = () => undefined;
+    // WebKit fails an open with UnknownError when its networking process is already gone;
+    // other failures (for example storage disabled in private browsing) are not a loss.
+    request.onerror = () => {
+      if (request.error?.name === 'UnknownError') markLost(current);
+    };
     request.onsuccess = () => {
       if (runtime !== current) {
         request.result.close?.();

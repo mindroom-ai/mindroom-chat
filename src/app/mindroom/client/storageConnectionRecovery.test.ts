@@ -439,6 +439,23 @@ describe('storage connection recovery', () => {
     expect(host.activeIntervals()).toBe(0);
   });
 
+  it.each([
+    ['UnknownError', 'lost'],
+    ['InvalidStateError', 'healthy'],
+  ] as const)('treats a sentinel open failing with %s as %s', async (name, expected) => {
+    const request = { onerror: null as null | (() => void), error: { name } };
+    startStorageConnectionSentinel({
+      indexedDB: { open: () => request } as unknown as IDBFactory,
+      markerStorage: new MemoryStorage() as unknown as Storage,
+      setInterval: () => 1,
+      clearInterval: () => undefined,
+    });
+
+    request.onerror?.();
+
+    expect(getStorageConnectionState()).toBe(expected);
+  });
+
   it('does nothing without IndexedDB', () => {
     const stop = startStorageConnectionSentinel({ indexedDB: undefined });
 

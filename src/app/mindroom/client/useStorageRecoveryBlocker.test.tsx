@@ -1,8 +1,9 @@
 import React from 'react';
 import { Provider as JotaiProvider, createStore } from 'jotai';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
-import { EventStatus } from 'matrix-js-sdk';
+import { EventStatus, type MatrixClient } from 'matrix-js-sdk';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { MatrixClientProvider } from '../../hooks/useMatrixClient';
 import { callEmbedAtom } from '../../state/callEmbed';
 import {
   getRoomInputDraftKey,
@@ -105,6 +106,10 @@ describe('unsaved in-memory work that blocks a storage recovery reload', () => {
     });
 
     expect(hasWork(store)).toBe(true);
+    // Attachments left in a room of a removed or other account cannot be sent from here.
+    expect(
+      hasUnsavedTransientWork({ store, isKnownRoom: (roomId) => roomId !== '!room:test' })
+    ).toBe(false);
   });
 
   it('blocks while an upload is in progress', () => {
@@ -245,12 +250,15 @@ describe('useStorageRecoveryBlocker', () => {
       useStorageRecoveryBlocker();
       return null;
     }
+    const mx = { getRoom: () => null } as unknown as MatrixClient;
     let renderer!: ReactTestRenderer;
     await act(async () => {
       renderer = create(
-        <JotaiProvider store={store}>
-          <Harness />
-        </JotaiProvider>
+        <MatrixClientProvider value={mx}>
+          <JotaiProvider store={store}>
+            <Harness />
+          </JotaiProvider>
+        </MatrixClientProvider>
       );
     });
     track({ text: 'just sent', startedAt: Date.now() });

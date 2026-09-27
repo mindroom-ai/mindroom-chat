@@ -457,11 +457,12 @@ function ClientSessionRoot({ children, activeSession, loadingMessages }: ClientS
 
   return (
     <QueryClientProvider client={queryClient}>
+      {/* Outside the versions gate, so a loss while versions load or fail still recovers. */}
+      <StorageConnectionStatus />
       <SpecVersions
         baseUrl={activeSession.baseUrl}
         allowCachedContent={Boolean(mx && hasCachedClientShell(mx))}
       >
-        <StorageConnectionStatus />
         {clientState.status !== 'error' &&
           canRenderReadyContent &&
           mx &&
