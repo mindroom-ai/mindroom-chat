@@ -23,7 +23,14 @@ const require = createRequire(import.meta.url);
  * reproduces that loss. `timersFirst` models WebKit running an overdue timer
  * before an already queued port message.
  */
-const createSchedulerHost = (build: string, { timersFirst = false } = {}) => {
+const createSchedulerHost = (
+  build: string,
+  {
+    timersFirst = false,
+    closeDropsQueued = true,
+    dispatch = 'record' as 'record' | 'missing' | 'throw',
+  } = {}
+) => {
   let now = 0;
   let nextTimerId = 1;
   let failNextChannel = false;
@@ -83,7 +90,8 @@ const createSchedulerHost = (build: string, { timersFirst = false } = {}) => {
     for (;;) {
       const message = messageTasks.shift();
       if (!message) return undefined;
-      if (!message.channel.closed && !message.channel.severed) return message;
+      if (message.channel.severed) continue;
+      if (!message.channel.closed || !closeDropsQueued) return message;
     }
   };
   /** Runs every task that is runnable at the current time, in event-loop order. */
@@ -128,17 +136,26 @@ const createSchedulerHost = (build: string, { timersFirst = false } = {}) => {
     if (deliver) drain();
   };
 
+  const eventApi =
+    dispatch === 'missing'
+      ? {}
+      : {
+          CustomEvent: HostCustomEvent,
+          dispatchEvent: (event: HostCustomEvent) => {
+            if (dispatch === 'throw') throw new Error('listener failed');
+            if (event.type === SCHEDULER_WAKEUP_REPLACED_EVENT) {
+              replacements.push(event.init?.detail);
+            }
+            return true;
+          },
+        };
   const context = {
     exports: {} as Scheduler,
     process: { env: { NODE_ENV: build.includes('production') ? 'production' : 'development' } },
     console,
     Date,
     MessageChannel: HostMessageChannel,
-    CustomEvent: HostCustomEvent,
-    dispatchEvent: (event: HostCustomEvent) => {
-      if (event.type === SCHEDULER_WAKEUP_REPLACED_EVENT) replacements.push(event.init?.detail);
-      return true;
-    },
+    ...eventApi,
     performance: { now: () => now },
     setTimeout: (callback: () => void, delay = 0) => {
       const id = nextTimerId;
@@ -358,6 +375,47 @@ describe.each(BUILDS)('React Scheduler MessagePort loss (%s)', (build) => {
       host.drain();
       expect(runs).toBe(2);
       expect(host.openChannelCount()).toBe(1);
+    }
+  );
+
+  it('runs work once when a closed channel still delivers its queued wakeup', () => {
+    const host = createSchedulerHost(build, { timersFirst: true, closeDropsQueued: false });
+    const { scheduler } = host;
+    let runs = 0;
+
+    scheduler.unstable_scheduleCallback(scheduler.unstable_NormalPriority, () => {
+      runs += 1;
+    });
+    host.elapse(400);
+    host.drain();
+    expect(runs).toBe(1);
+    expect(host.channelCount()).toBe(2);
+
+    scheduler.unstable_scheduleCallback(scheduler.unstable_NormalPriority, () => {
+      runs += 1;
+    });
+    host.drain();
+    host.advance(1000);
+    expect(runs).toBe(2);
+    expect(host.channelCount()).toBe(2);
+    expect(host.pendingTimerCount()).toBe(0);
+  });
+
+  it.each(['missing', 'throw'] as const)(
+    'recovers when the replacement notification is unavailable (%s)',
+    (dispatch) => {
+      const host = createSchedulerHost(build, { dispatch });
+      const { scheduler } = host;
+      let runs = 0;
+
+      scheduler.unstable_scheduleCallback(scheduler.unstable_NormalPriority, () => {
+        runs += 1;
+      });
+      host.severPorts();
+      host.advance(1000);
+
+      expect(runs).toBe(1);
+      expect(host.errors).toEqual([]);
     }
   );
 });

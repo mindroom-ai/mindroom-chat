@@ -74,10 +74,11 @@ test.describe('thread live updates after MessagePort loss', () => {
     // Let opening settle so the loss hits a thread idling on live sync.
     await page.waitForTimeout(2_000);
 
-    const closedChannelCount = await page.evaluate(
-      () => window.__closeExistingMessagePorts?.() ?? 0
-    );
-    expect(closedChannelCount).toBeGreaterThan(0);
+    const loss = await page.evaluate(() => ({
+      replacementsBefore: window.__schedulerWakeupReplacements ?? 0,
+      closedChannelCount: window.__closeExistingMessagePorts?.() ?? 0,
+    }));
+    expect(loss.closedChannelCount).toBeGreaterThan(0);
 
     const replyBody = `Reply after port loss ${stamp}`;
     const replyId = await sendRoomMessage(homeserver, session.accessToken, fixture.roomId, {
@@ -97,6 +98,8 @@ test.describe('thread live updates after MessagePort loss', () => {
     await sendMessageEdit(homeserver, session.accessToken, fixture.roomId, replyId, revision);
     await expect(reply).toContainText(revision, { timeout: 15_000 });
     // Recovery went through React Scheduler's own channel, not an unrelated one.
-    expect(await page.evaluate(() => window.__schedulerWakeupReplacements)).toBeGreaterThan(0);
+    expect(await page.evaluate(() => window.__schedulerWakeupReplacements ?? 0)).toBeGreaterThan(
+      loss.replacementsBefore
+    );
   });
 });

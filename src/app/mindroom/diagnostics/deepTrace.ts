@@ -616,8 +616,8 @@ const startGlobalCapture = (target: Runtime): void => {
       },
       { flush: true }
     );
-  // Real MessagePort losses replace near the 250 ms grace period; long tasks
-  // show their own duration and coincide with an event-loop stall.
+  // A MessagePort loss usually replaces near the 250 ms grace period; long
+  // tasks, late timers, and suspension report longer delays.
   const schedulerWakeupReplaced = (event: Event) => {
     const elapsedMs = (event as CustomEvent<{ elapsedMs?: unknown }>).detail?.elapsedMs;
     recordDeepTraceEvent(

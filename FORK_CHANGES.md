@@ -13,7 +13,7 @@
   WebKit hosts IndexedDB in its networking process and has brokered MessagePorts through it.
   When that connection closes, existing ports stop delivering without an event, while ports created later work.
   WebKit `67117c49` (2026-06-04, rdar://177440317) made `networkProcessConnectionClosed` close every existing port; older builds lose the queued and later messages instead.
-  WebKit `f7a7c233` (2026-06-23) delivers same-realm messages without the networking process, so exposure depends on the iOS WebKit version.
+  WebKit `f7a7c233` (2026-06-23) changes only the same-realm delivery path; `MessagePort::notifyAllConnectionsClosed` still detaches every registered port and its listeners, so current builds remain exposed.
   React Scheduler 0.23.2 posts every non-synchronous wakeup through one MessageChannel created at load.
   After one lost message `isMessageLoopRunning` stays true and the scheduler never posts again.
   Default-priority updates (SDK listeners, reconcile delivery, session publication) then queue forever, while discrete input still renders its synchronous lane and skips them, matching the device signature.
@@ -22,18 +22,25 @@
   A throwing listener would also abort the rest of each sync batch, but one device sync added two events to the thread.
 - `patches/scheduler+0.23.2.patch` keeps the MessageChannel wakeup and arms one watchdog timer per outstanding wakeup, re-arming for the remainder while fresh wakeups keep arriving.
   When a wakeup has not arrived after 250 ms, the scheduler closes the old channel, creates a fresh one, and posts again; the watchdog is armed before any port operation, so a failed channel creation retries.
-  WebKit runs an overdue timer before a queued port message, so a long task over 250 ms also replaces a healthy channel; closing the replaced pair keeps those replacements from leaking listening ports.
+  WebKit runs an overdue timer before a queued port message, so a non-scheduler task that holds a queued wakeup past 250 ms also replaces a healthy channel; closing the replaced pair keeps those replacements from leaking listening ports.
   Continuous rendering keeps one channel, and an idle loop leaves no timer armed; the development and production builds carry the same change.
   Each replacement dispatches `mindroom:scheduler-wakeup-replaced`, and deep trace records it as `performance.scheduler_wakeup_replaced` with only `elapsed_ms`.
-  A real loss replaces near 250 ms, while a long task reports its own duration next to `performance.event_loop_stall`.
+  A loss while the page runs usually replaces near 250 ms, while a long task usually reports its own duration; read nearby `performance.event_loop_stall` and `lifecycle.*` events, because suspension and late timers also raise `elapsed_ms`.
 - `src/app/reactSchedulerMessagePort.test.ts` evaluates both shipped scheduler builds against a deterministic host that reproduces WebKit's port loss and either timer/message order.
   The loss cases fail before the patch and pass after it.
-  The suite also covers mid-work loss, throwing callbacks, failed channel creation, continuous work beyond the grace period, and long-task replacement; removing re-arming, early arming, channel closing, or the notification each fails a case.
+  The suite also covers mid-work loss, throwing callbacks, failed channel creation, continuous work beyond the grace period, long-task replacement, a closed port that still delivers its queued wakeup, and a missing or throwing notification.
+  Removing re-arming, early arming, channel closing, or the notification each fails a case; an independent differential fuzz found identical development and production behavior across 6,400 scenarios.
 - `e2e/live/thread-message-port-loss.spec.ts` records native channels from page load, closes them while an open thread idles on live sync, and requires a new reply, its streamed edit, and a scheduler replacement.
   `playwright.message-port.config.ts` adds a WebKit project for this spec.
   The reply never renders on unpatched development (Chromium) and production (Chromium and WebKit) builds; patched builds pass in both browsers.
 - The Docker builder ran `npm ci` before copying `patches/`, so published images shipped without any patch-package change (SDK, virtualizer, folds, Capacitor).
   The builder now copies `patches/` first; a local builder run applies all five patches and bundles the scheduler change.
+  `patch-package --error-on-fail` now fails installs outside CI too, so a patch that stops applying cannot ship silently.
+- Validation under Node 24: 5,499 unit tests pass; the three `xcodeCloudPostClone` tests fail only because this NixOS host has no `/bin/bash`.
+  Application and changed-test typechecks, production build, prettier, and lint (0 errors, 17 existing warnings) pass.
+  Live Chromium checks on the patched production build pass `threads`, `thread-streaming-tiles`, `cinny068-fresh-zero-reply-open`, `cinny033-jump-to-latest`, `thread-message-persistence`, and `perf-thread-streaming`.
+  WebKit runs in the official Playwright 1.58.2 container because the host lacks its libraries.
+- Two independent reviews: the first found a leaked-port case on WebKit long tasks, missing re-arm coverage, and the Docker patch gap, all fixed; the second approved the final branch and its wording and test-hardening notes are applied.
 - The 2026-09-22 blank-view export had the same signature (committed state frozen while SDK replies grew, next to a diagnostic database error), so it is likely the same loss.
 - Not fixed:
   - Other connections held across the loss stay broken: the deep-trace store stays memory-only, and the SDK sync and crypto stores keep their closed IndexedDB connections until reload.
