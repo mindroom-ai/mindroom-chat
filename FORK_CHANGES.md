@@ -16,6 +16,9 @@
   Both fixes are covered, and independent review approves the final implementation.
 - Validation: all 5,481 unit tests, application and new browser-test typechecks, targeted lint, and the production build pass.
   All four live browser cases pass across Chromium and WebKit, with dark desktop and light mobile views; before/after screenshots cover Lobby, Explore server results, and Featured mobile.
+- Screenshot limitation: the Linux/headless Playwright WebKit backend reports a supported native backdrop filter but paints blurred and unblurred controls identically, including a static non-scrolling control.
+  Chromium paints the same controls correctly, and the direct and wrapped sticky layouts behave alike in both engines.
+  WebKit screenshots verify layout and transparency, not native iOS/macOS blur rendering; that still needs a device check.
 
 ### Identify the cold-start request behind root-only threads (2026-09-25)
 
