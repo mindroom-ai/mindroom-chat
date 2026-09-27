@@ -20,6 +20,57 @@
   Chromium paints the same controls correctly, and the direct and wrapped sticky layouts behave alike in both engines.
   WebKit screenshots verify layout and transparency, not native iOS/macOS blur rendering; that still needs a device check.
 
+### Recover React scheduling after WebKit closes existing MessagePorts (2026-09-26)
+
+- An iOS export from build `ce259d1d` shows an open thread that did not display the agent's second reply until the user left and reopened it.
+  The thread stayed open throughout: it opened at 05:07:00 right after the voice-message root was sent, the app was backgrounded from 05:07:28 to 05:08:43, and the reopen happened at 05:08:51.
+  From 05:07:10 every `/sync` grew the SDK thread (4 to 14 events, 1 to 2 replies) while the view's render-attempt counter stayed at 34 for 95 seconds, including the 18 seconds before backgrounding.
+  Taps after resume rendered and committed without applying the pending updates.
+  After the reopen the view stayed at 22 events while the model reached 63, and it kept `sdkReady` and `cacheHydrated` false after both loads completed, through a dozen later commits.
+- At 05:07:08.5, two seconds before the freeze, the deep-trace IndexedDB flush failed; the store stayed unavailable for the rest of the session.
+  WebKit hosts IndexedDB in its networking process and has brokered MessagePorts through it.
+  When that connection closes, existing ports stop delivering without an event, while ports created later work.
+  WebKit `67117c49` (2026-06-04, rdar://177440317) made `networkProcessConnectionClosed` close every existing port; older builds lose the queued and later messages instead.
+  WebKit `f7a7c233` (2026-06-23) changes only the same-realm delivery path; `MessagePort::notifyAllConnectionsClosed` still detaches every registered port and its listeners, so current builds remain exposed.
+  React Scheduler 0.23.2 posts every non-synchronous wakeup through one MessageChannel created at load.
+  After one lost message `isMessageLoopRunning` stays true and the scheduler never posts again.
+  Default-priority updates (SDK listeners, reconcile delivery, session publication) then queue forever, while discrete input still renders its synchronous lane and skips them, matching the device signature.
+- Ruled out: a real-SDK reproduction of the open sequence (local-echo root, sync-created thread, repeated open, reconcile injection, sync gaps, stalled storage) renders every reply.
+  An audit of every listener in the SDK's synchronous timeline emit chain found none that can throw, with or without IndexedDB.
+  A throwing listener would also abort the rest of each sync batch, but one device sync added two events to the thread.
+- `patches/scheduler+0.23.2.patch` adds `scheduler/cjs/mindroom-wakeup.js`, and both the development and production builds require it for their MessageChannel wakeup, so the recovery has one implementation.
+  It keeps the MessageChannel wakeup and arms one watchdog timer per outstanding wakeup, re-arming for the remainder while fresh wakeups keep arriving.
+  When a wakeup has not arrived after 250 ms, the scheduler closes the old channel, creates a fresh one, and posts again; the watchdog is armed before any port operation, so a failed channel creation retries.
+  WebKit runs an overdue timer before a queued port message, so a non-scheduler task that holds a queued wakeup past 250 ms also replaces a healthy channel; closing the replaced pair keeps those replacements from leaking listening ports.
+  Continuous rendering keeps one channel, and an idle loop leaves no timer armed.
+  Each replacement dispatches `mindroom:scheduler-wakeup-replaced`, and deep trace records it as `performance.scheduler_wakeup_replaced` with only `elapsed_ms`.
+  A loss while the page runs usually replaces near 250 ms, while a long task usually reports its own duration; read nearby `performance.event_loop_stall` and `lifecycle.*` events, because suspension and late timers also raise `elapsed_ms`.
+- `src/app/reactSchedulerMessagePort.test.ts` evaluates both shipped scheduler builds against a deterministic host that reproduces WebKit's port loss and either timer/message order.
+  The loss cases fail before the patch and pass after it.
+  The suite also covers mid-work loss, throwing callbacks, failed channel creation, continuous work beyond the grace period, long-task replacement, a closed port that still delivers its queued wakeup, and a missing or throwing notification.
+  Removing re-arming, early arming, channel closing, the notification, or its error isolation each fails a case.
+- `e2e/live/thread-message-port-loss.spec.ts` records native channels from page load, closes them while an open thread idles on live sync, and requires a new reply, its streamed edit, and a scheduler replacement.
+  `playwright.message-port.config.ts` adds a WebKit project for this spec.
+  The reply never renders on unpatched development (Chromium) and production (Chromium and WebKit) builds; patched builds pass in both browsers, re-run after the shared-module refactor.
+- The Docker builder ran `npm ci` before copying `patches/`, so published images shipped without any patch-package change (SDK, virtualizer, folds, Capacitor).
+  The builder now copies `patches/` first; a local builder run applies all five patches and bundles the scheduler change.
+  `patch-package --error-on-fail` now fails installs outside CI too, so a patch that stops applying cannot ship silently.
+  A checkout that installed an earlier revision of this branch's scheduler patch needs `npm ci` (or a removed `node_modules/scheduler`), because `npm install` cannot reapply the changed patch over it.
+- Validation under Node 24: 5,505 unit tests pass; the three `xcodeCloudPostClone` tests fail only because this NixOS host has no `/bin/bash`.
+  Application and changed-test typechecks, production build, prettier, and lint (0 errors, 17 existing warnings) pass.
+  Live Chromium checks on the patched production build pass `threads`, `thread-streaming-tiles`, `cinny068-fresh-zero-reply-open`, `cinny033-jump-to-latest`, `thread-message-persistence`, and `perf-thread-streaming`.
+  WebKit runs in the official Playwright 1.58.2 container because the host lacks its libraries.
+- Two independent reviews: the first found a leaked-port case on WebKit long tasks, missing re-arm coverage, and the Docker patch gap, all fixed; the second approved the final branch and its wording and test-hardening notes are applied.
+  Qodo's hosted review flagged two hand-maintained recovery copies (development and minified production); both builds now require the shared module.
+- The 2026-09-22 blank-view export had the same signature (committed state frozen while SDK replies grew, next to a diagnostic database error), so it is likely the same loss.
+- Not fixed:
+  - Other connections held across the loss stay broken: the deep-trace store stays memory-only, and the SDK sync and crypto stores keep their closed IndexedDB connections until reload.
+    The thread cache already reopens after closure (#319).
+  - Element Call bundles its own unpatched scheduler inside its iframe.
+  - Why the networking process exited is unknown; the cold start's request burst and memory pressure are plausible.
+- Next: in the next iOS export after a diagnostic IndexedDB failure, check for `performance.scheduler_wakeup_replaced` near 250 ms and replies that keep rendering, then decide whether the SDK stores need the same reconnect handling.
+
+
 ### Identify the cold-start request behind root-only threads (2026-09-25)
 
 - The iOS export from build `c278d829` (after #329, before #331) pins down the delayed request #331 left unidentified.
