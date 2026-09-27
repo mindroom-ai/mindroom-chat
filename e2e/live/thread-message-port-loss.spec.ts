@@ -7,42 +7,7 @@ import {
   sendMessageEdit,
   sendRoomMessage,
 } from '../helpers/matrix';
-
-declare global {
-  interface Window {
-    __closeExistingMessagePorts?: () => number;
-    __schedulerWakeupReplacements?: number;
-  }
-}
-
-/**
- * WebKit brokers MessagePorts through its networking process. When that process
- * exits, WebKit closes every existing port without an event, while ports created
- * afterwards work. Record native channels so the test can reproduce that loss.
- */
-const installMessagePortLoss = () => {
-  const NativeMessageChannel = window.MessageChannel;
-  const channels: MessageChannel[] = [];
-  function RecordedMessageChannel() {
-    const channel = new NativeMessageChannel();
-    channels.push(channel);
-    return channel;
-  }
-  RecordedMessageChannel.prototype = NativeMessageChannel.prototype;
-  window.MessageChannel = RecordedMessageChannel as unknown as typeof MessageChannel;
-  window.__schedulerWakeupReplacements = 0;
-  window.addEventListener('mindroom:scheduler-wakeup-replaced', () => {
-    window.__schedulerWakeupReplacements = (window.__schedulerWakeupReplacements ?? 0) + 1;
-  });
-  window.__closeExistingMessagePorts = () => {
-    const closed = channels.splice(0);
-    closed.forEach((channel) => {
-      channel.port1.close();
-      channel.port2.close();
-    });
-    return closed.length;
-  };
-};
+import { recordNetworkingProcessResources } from '../helpers/networkingProcessLoss';
 
 test.describe('thread live updates after MessagePort loss', () => {
   test.skip(!hasPrimaryCredentials(), 'E2E_USERNAME / E2E_PASSWORD not set');
@@ -62,7 +27,7 @@ test.describe('thread live updates after MessagePort loss', () => {
       replyBody: `Reply before port loss ${stamp}`,
     });
 
-    await page.addInitScript(installMessagePortLoss);
+    await recordNetworkingProcessResources(page);
     await loginWithPassword(page, { homeserver, ...credentials });
     await page.goto(
       `/home/${encodeURIComponent(fixture.roomId)}?threadId=${encodeURIComponent(fixture.rootId)}`
