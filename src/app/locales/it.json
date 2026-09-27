@@ -1017,6 +1017,11 @@
       "connectionLostReconnecting": "Connessione persa! Riconnessione...",
       "connectionLost": "Connessione persa!"
     },
+    "storageStatus": {
+      "lost": "La connessione allo spazio di archiviazione di questo dispositivo si è interrotta. MindRoom si ricaricherà quando lo lasci.",
+      "lostAgain": "La connessione allo spazio di archiviazione di questo dispositivo si è interrotta di nuovo. Ricarica MindRoom per ripristinarla.",
+      "reload": "Ricarica"
+    },
     "welcomePage": {
       "setUpLocalMindroom": "Configura MindRoom locale",
       "openLocalMindroomSettings": "Apri le impostazioni di MindRoom locale",

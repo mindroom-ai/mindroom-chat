@@ -1032,6 +1032,11 @@
       "connectionLostReconnecting": "انقطع الاتصال! جارٍ إعادة الاتصال...",
       "connectionLost": "انقطع الاتصال!"
     },
+    "storageStatus": {
+      "lost": "انقطع الاتصال بمساحة تخزين هذا الجهاز. سيُعاد تحميل MindRoom عند مغادرتك له.",
+      "lostAgain": "انقطع الاتصال بمساحة تخزين هذا الجهاز مرة أخرى. أعد تحميل MindRoom لاستعادته.",
+      "reload": "إعادة التحميل"
+    },
     "welcomePage": {
       "setUpLocalMindroom": "إعداد Local MindRoom",
       "openLocalMindroomSettings": "فتح إعدادات Local MindRoom",

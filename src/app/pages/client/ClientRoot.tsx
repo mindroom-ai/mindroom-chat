@@ -36,6 +36,7 @@ import { MatrixClientProvider } from '../../hooks/useMatrixClient';
 import { SpecVersions } from './SpecVersions';
 import { stopPropagation } from '../../utils/keyboard';
 import { SyncStatus } from './SyncStatus';
+import { StorageConnectionStatus } from './StorageConnectionStatus';
 import { AuthMetadataProvider } from '../../hooks/useAuthMetadata';
 import { StoredSession } from '../../state/sessions';
 import { useActiveSession } from '../../hooks/useSessionStore';
@@ -460,6 +461,7 @@ function ClientSessionRoot({ children, activeSession, loadingMessages }: ClientS
         baseUrl={activeSession.baseUrl}
         allowCachedContent={Boolean(mx && hasCachedClientShell(mx))}
       >
+        <StorageConnectionStatus />
         {clientState.status !== 'error' &&
           canRenderReadyContent &&
           mx &&

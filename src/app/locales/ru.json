@@ -1022,6 +1022,11 @@
       "connectionLostReconnecting": "Соединение потеряно! Повторное подключение…",
       "connectionLost": "Соединение потеряно!"
     },
+    "storageStatus": {
+      "lost": "Соединение с хранилищем этого устройства потеряно. MindRoom перезагрузится, когда вы его покинете.",
+      "lostAgain": "Соединение с хранилищем этого устройства снова потеряно. Перезагрузите MindRoom, чтобы восстановить его.",
+      "reload": "Перезагрузить"
+    },
     "welcomePage": {
       "setUpLocalMindroom": "Настроить Local MindRoom",
       "openLocalMindroomSettings": "Открыть настройки Local MindRoom",

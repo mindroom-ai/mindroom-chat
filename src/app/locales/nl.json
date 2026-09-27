@@ -1012,6 +1012,11 @@
       "connectionLostReconnecting": "Verbinding verbroken! Opnieuw verbinden...",
       "connectionLost": "Verbinding verbroken!"
     },
+    "storageStatus": {
+      "lost": "De verbinding met de opslag van dit apparaat is verbroken. MindRoom wordt opnieuw geladen wanneer je het verlaat.",
+      "lostAgain": "De verbinding met de opslag van dit apparaat is opnieuw verbroken. Laad MindRoom opnieuw om deze te herstellen.",
+      "reload": "Opnieuw laden"
+    },
     "welcomePage": {
       "setUpLocalMindroom": "Lokaal MindRoom instellen",
       "openLocalMindroomSettings": "Instellingen van lokaal MindRoom openen",

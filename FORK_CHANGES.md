@@ -2,6 +2,36 @@
 
 ## Runbook
 
+### Reload after WebKit loses its storage connection (2026-09-27)
+
+- #334 keeps React rendering after WebKit's networking process exits, but that is one casualty of the loss.
+  WebKit also runs `IDBDatabase::connectionToServerLost` on every open IndexedDB connection (`error` then `close`), and the page keeps closed handles for the rest of its life.
+  The SDK sync store, the Rust crypto store, deep-trace storage, and Element Call's own scheduler stay broken until the page reloads.
+- Reproduced on #334's production build by closing every existing MessagePort and IndexedDB connection the way WebKit does: live rendering continued, but an encrypted send made after the loss never reached the server and stayed "sending" with no error.
+- A sentinel IndexedDB connection opened at boot, before any client store, turns that `close` event into an explicit lost state (`src/app/mindroom/client/storageConnectionRecovery.ts`).
+  When enabled, deep trace records `lifecycle.storage_connection_lost` and `lifecycle.storage_recovery_reload`.
+  A native `visibilitychange` listener reloads once the page is hidden, or immediately when the loss happens while hidden, so recovery does not depend on React scheduling.
+  The URL keeps the open room and thread, and composer drafts already persist on every edit.
+- Reloads wait for work that exists only in memory (`useStorageRecoveryBlocker`): voice capture or a pending voice send, composer attachments, uploads in progress, calls, sends still in flight for under 10 seconds, and unsent media.
+  Text sends that are stuck past that grace period, or failed, are appended to their room or thread composer draft before any recovery reload, so the reload returns them to the composer instead of discarding them.
+  Edits, reactions, and redactions that never sent are dropped by the reload.
+  Upload atom families track their params because jotai 2.6 cannot enumerate them.
+- A warning strip under the client header explains the lost connection and offers Reload while recovery waits for the page to be hidden.
+  A reload marker in session storage is written before navigating; a second loss within two minutes of a recovery reload, or an unwritable marker, stops automatic reloads, and the strip then asks the user to reload.
+  The three strings are translated in all 17 locales.
+- Consulted Codex on recovery through reload (A), an in-page client restart (B), a notice only (C), or no change (D).
+  It recommended A with work blockers, a pre-navigation guard and circuit breaker, and C while recovery waits; B would leave the call iframe and diagnostic storage broken while rebinding every client consumer.
+  Salvaging stuck text instead of letting it block recovery forever follows from the encrypted-send probe above.
+- Unit coverage: sentinel detection, duplicate losses, visibility-driven and hidden-loss reloads, blockers, preparations (including a failing one), the circuit breaker and its window, an unwritable marker, stop, and missing IndexedDB (`storageConnectionRecovery.test.ts`); every blocker, local-echo tracking and cleanup, and draft salvage into room and thread drafts (`useStorageRecoveryBlocker.test.tsx`); and the strip in both states (`StorageConnectionStatus.test.tsx`).
+- `e2e/live/storage-connection-recovery.spec.ts` uses `e2e/helpers/networkingProcessLoss.ts`, which records native MessageChannels and IndexedDB connections from page load and loses them together.
+  One case keeps an open thread live after the loss, shows the strip, reloads on hide into the same thread, and renders a later reply.
+  The other moves an encrypted send stuck by the loss into the composer across the reload and sends it; the server then has both encrypted messages.
+  Both fail on #334's production build (no strip, no reload) and pass on this branch in Chromium and WebKit, and the #334 port-loss spec now shares the helper.
+- Not fixed:
+  - A loss while the page stays visible leaves encrypted sending and store persistence broken until the user reloads or leaves the app.
+  - Why WebKit's networking process exits is still unknown.
+- Next: in the next iOS export after a storage loss, check `lifecycle.storage_connection_lost` followed by `lifecycle.storage_recovery_reload`, and whether users lingered with the strip visible.
+
 ### Recover React scheduling after WebKit closes existing MessagePorts (2026-09-26)
 
 - An iOS export from build `ce259d1d` shows an open thread that did not display the agent's second reply until the user left and reopened it.

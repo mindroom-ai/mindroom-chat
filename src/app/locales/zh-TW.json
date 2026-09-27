@@ -1012,6 +1012,11 @@
       "connectionLostReconnecting": "連線遺失！正在重新連線...",
       "connectionLost": "連線遺失！"
     },
+    "storageStatus": {
+      "lost": "與此裝置儲存空間的連線已中斷。離開 MindRoom 時會重新載入。",
+      "lostAgain": "與此裝置儲存空間的連線再次中斷。請重新載入 MindRoom 以恢復。",
+      "reload": "重新載入"
+    },
     "welcomePage": {
       "setUpLocalMindroom": "設定Local MindRoom",
       "openLocalMindroomSettings": "開啟Local MindRoom 設定",

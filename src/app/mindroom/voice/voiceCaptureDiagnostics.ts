@@ -14,3 +14,6 @@ export const publishVoiceCaptureState = (source: symbol, state: VoiceCaptureStat
 export const releaseVoiceCaptureState = (source: symbol): void => {
   if (states.has(source)) publishVoiceCaptureState(source, 'inactive');
 };
+
+/** True while any recorder is requesting, recording, or processing audio. */
+export const isVoiceCaptureActive = (): boolean => states.size > 0;

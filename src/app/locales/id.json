@@ -1012,6 +1012,11 @@
       "connectionLostReconnecting": "Koneksi terputus! Menghubungkan kembali...",
       "connectionLost": "Koneksi terputus!"
     },
+    "storageStatus": {
+      "lost": "Koneksi ke penyimpanan perangkat ini terputus. MindRoom akan dimuat ulang saat Anda meninggalkannya.",
+      "lostAgain": "Koneksi ke penyimpanan perangkat ini terputus lagi. Muat ulang MindRoom untuk memulihkannya.",
+      "reload": "Muat ulang"
+    },
     "welcomePage": {
       "setUpLocalMindroom": "Siapkan MindRoom lokal",
       "openLocalMindroomSettings": "Buka pengaturan MindRoom lokal",

@@ -28,7 +28,11 @@ import { migrateLegacyIOSPushEnabled } from './app/mindroom/native/iosPush';
 import { APP_BUILD_VERSION, fetchPublishedAppVersion, startAppVersionMonitor } from './appVersion';
 import { createServiceWorkerUrl } from './serviceWorkerRegistration';
 import { installFlightRecorder } from './app/mindroom/diagnostics/flightRecorder';
-import { initializeDeepTraceRecorder } from './app/mindroom/diagnostics/deepTrace';
+import {
+  initializeDeepTraceRecorder,
+  recordDeepTraceEvent,
+} from './app/mindroom/diagnostics/deepTrace';
+import { startStorageConnectionSentinel } from './app/mindroom/client/storageConnectionRecovery';
 
 // import i18n (needs to be bundled ;))
 import './app/i18n';
@@ -50,6 +54,15 @@ if (isNativeIOS()) {
   } catch {
     // Opt-in tracing must never block application boot.
   }
+}
+
+try {
+  // Detect a lost storage connection from boot, before any client store opens.
+  startStorageConnectionSentinel({
+    record: (name, data) => recordDeepTraceEvent(name, data, { flush: true }),
+  });
+} catch {
+  // Recovery is best effort and must never block application boot.
 }
 
 if (isNativeApp()) {

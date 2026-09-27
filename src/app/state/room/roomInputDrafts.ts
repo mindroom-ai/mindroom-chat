@@ -39,9 +39,33 @@ export type TUploadItem = {
 
 export type TUploadListAtom = ReturnType<typeof createListAtom<TUploadItem>>;
 
-export const roomIdToUploadItemsAtomFamily = atomFamily<string, TUploadListAtom>(createListAtom);
+type ParamAtomFamily<Param, AtomType> = {
+  (param: Param): AtomType;
+  remove(param: Param): void;
+  setShouldRemove(shouldRemove: ((createdAt: number, param: Param) => boolean) | null): void;
+};
 
-export const roomUploadAtomFamily = createUploadAtomFamily();
+/** Adds param enumeration, which jotai 2.6 atom families lack. */
+const withTrackedParams = <Param, AtomType>(family: ParamAtomFamily<Param, AtomType>) => {
+  const params = new Set<Param>();
+  const tracked = (param: Param) => {
+    params.add(param);
+    return family(param);
+  };
+  tracked.remove = (param: Param) => {
+    params.delete(param);
+    family.remove(param);
+  };
+  tracked.setShouldRemove = family.setShouldRemove;
+  tracked.getParams = (): Param[] => Array.from(params);
+  return tracked;
+};
+
+export const roomIdToUploadItemsAtomFamily = withTrackedParams(
+  atomFamily<string, TUploadListAtom>(createListAtom)
+);
+
+export const roomUploadAtomFamily = withTrackedParams(createUploadAtomFamily());
 
 export const voiceAutoSendPendingAtom = atom(false);
 

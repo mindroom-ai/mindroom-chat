@@ -1012,6 +1012,11 @@
       "connectionLostReconnecting": "Verbindung verloren! Verbindung wird wiederhergestellt...",
       "connectionLost": "Verbindung verloren!"
     },
+    "storageStatus": {
+      "lost": "Die Verbindung zum Speicher dieses Geräts wurde unterbrochen. MindRoom lädt neu, wenn du es verlässt.",
+      "lostAgain": "Die Verbindung zum Speicher dieses Geräts wurde erneut unterbrochen. Lade MindRoom neu, um sie wiederherzustellen.",
+      "reload": "Neu laden"
+    },
     "welcomePage": {
       "setUpLocalMindroom": "Lokales MindRoom einrichten",
       "openLocalMindroomSettings": "Einstellungen des lokalen MindRoom öffnen",

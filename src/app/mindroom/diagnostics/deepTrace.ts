@@ -237,6 +237,8 @@ const STATIC_EVENT_NAMES = new Set([
   'lifecycle.hidden',
   'lifecycle.pagehide',
   'lifecycle.pageshow',
+  'lifecycle.storage_connection_lost',
+  'lifecycle.storage_recovery_reload',
   'lifecycle.visible',
   'network.offline',
   'network.online',

@@ -1012,6 +1012,11 @@
       "connectionLostReconnecting": "Connection Lost! Reconnecting...",
       "connectionLost": "Connection Lost!"
     },
+    "storageStatus": {
+      "lost": "Lost the connection to this device's storage. MindRoom will reload when you leave it.",
+      "lostAgain": "Lost the connection to this device's storage again. Reload MindRoom to restore it.",
+      "reload": "Reload"
+    },
     "welcomePage": {
       "setUpLocalMindroom": "Set up Local MindRoom",
       "openLocalMindroomSettings": "Open Local MindRoom settings",

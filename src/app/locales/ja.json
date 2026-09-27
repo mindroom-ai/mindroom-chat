@@ -1012,6 +1012,11 @@
       "connectionLostReconnecting": "接続が失われました!再接続中...",
       "connectionLost": "接続が失われました!"
     },
+    "storageStatus": {
+      "lost": "このデバイスのストレージとの接続が失われました。MindRoom を離れると再読み込みされます。",
+      "lostAgain": "このデバイスのストレージとの接続が再び失われました。復元するには MindRoom を再読み込みしてください。",
+      "reload": "再読み込み"
+    },
     "welcomePage": {
       "setUpLocalMindroom": "Local MindRoom をセットアップする",
       "openLocalMindroomSettings": "ローカルの MindRoom 設定を開く",
