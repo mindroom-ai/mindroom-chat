@@ -167,7 +167,23 @@ const createSchedulerHost = (
       timers.delete(id);
     },
   };
-  vm.runInNewContext(readFileSync(require.resolve(build), 'utf8'), context);
+  const sandbox = vm.createContext(context);
+  const buildPath = require.resolve(build);
+  // Evaluate the build's relative CommonJS dependencies in the same host.
+  const requireInHost = (specifier: string) => {
+    const path = createRequire(buildPath).resolve(specifier);
+    const module = { exports: {} };
+    const factory = vm.runInContext(
+      `(function (exports, require, module) {${readFileSync(path, 'utf8')}\n})`,
+      sandbox
+    ) as (exports: unknown, require: unknown, module: unknown) => void;
+    factory(module.exports, requireInHost, module);
+    return module.exports;
+  };
+  vm.runInContext(`(function (exports, require) {${readFileSync(buildPath, 'utf8')}\n})`, sandbox)(
+    context.exports,
+    requireInHost
+  );
 
   return {
     scheduler: context.exports,

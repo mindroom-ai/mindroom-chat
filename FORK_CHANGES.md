@@ -20,16 +20,17 @@
 - Ruled out: a real-SDK reproduction of the open sequence (local-echo root, sync-created thread, repeated open, reconcile injection, sync gaps, stalled storage) renders every reply.
   An audit of every listener in the SDK's synchronous timeline emit chain found none that can throw, with or without IndexedDB.
   A throwing listener would also abort the rest of each sync batch, but one device sync added two events to the thread.
-- `patches/scheduler+0.23.2.patch` keeps the MessageChannel wakeup and arms one watchdog timer per outstanding wakeup, re-arming for the remainder while fresh wakeups keep arriving.
+- `patches/scheduler+0.23.2.patch` adds `scheduler/cjs/mindroom-wakeup.js`, and both the development and production builds require it for their MessageChannel wakeup, so the recovery has one implementation.
+  It keeps the MessageChannel wakeup and arms one watchdog timer per outstanding wakeup, re-arming for the remainder while fresh wakeups keep arriving.
   When a wakeup has not arrived after 250 ms, the scheduler closes the old channel, creates a fresh one, and posts again; the watchdog is armed before any port operation, so a failed channel creation retries.
   WebKit runs an overdue timer before a queued port message, so a non-scheduler task that holds a queued wakeup past 250 ms also replaces a healthy channel; closing the replaced pair keeps those replacements from leaking listening ports.
-  Continuous rendering keeps one channel, and an idle loop leaves no timer armed; the development and production builds carry the same change.
+  Continuous rendering keeps one channel, and an idle loop leaves no timer armed.
   Each replacement dispatches `mindroom:scheduler-wakeup-replaced`, and deep trace records it as `performance.scheduler_wakeup_replaced` with only `elapsed_ms`.
   A loss while the page runs usually replaces near 250 ms, while a long task usually reports its own duration; read nearby `performance.event_loop_stall` and `lifecycle.*` events, because suspension and late timers also raise `elapsed_ms`.
 - `src/app/reactSchedulerMessagePort.test.ts` evaluates both shipped scheduler builds against a deterministic host that reproduces WebKit's port loss and either timer/message order.
   The loss cases fail before the patch and pass after it.
   The suite also covers mid-work loss, throwing callbacks, failed channel creation, continuous work beyond the grace period, long-task replacement, a closed port that still delivers its queued wakeup, and a missing or throwing notification.
-  Removing re-arming, early arming, channel closing, or the notification each fails a case; an independent differential fuzz found identical development and production behavior across 6,400 scenarios.
+  Removing re-arming, early arming, channel closing, the notification, or its error isolation each fails a case.
 - `e2e/live/thread-message-port-loss.spec.ts` records native channels from page load, closes them while an open thread idles on live sync, and requires a new reply, its streamed edit, and a scheduler replacement.
   `playwright.message-port.config.ts` adds a WebKit project for this spec.
   The reply never renders on unpatched development (Chromium) and production (Chromium and WebKit) builds; patched builds pass in both browsers.
@@ -41,6 +42,7 @@
   Live Chromium checks on the patched production build pass `threads`, `thread-streaming-tiles`, `cinny068-fresh-zero-reply-open`, `cinny033-jump-to-latest`, `thread-message-persistence`, and `perf-thread-streaming`.
   WebKit runs in the official Playwright 1.58.2 container because the host lacks its libraries.
 - Two independent reviews: the first found a leaked-port case on WebKit long tasks, missing re-arm coverage, and the Docker patch gap, all fixed; the second approved the final branch and its wording and test-hardening notes are applied.
+  Qodo's hosted review flagged two hand-maintained recovery copies (development and minified production); both builds now require the shared module.
 - The 2026-09-22 blank-view export had the same signature (committed state frozen while SDK replies grew, next to a diagnostic database error), so it is likely the same loss.
 - Not fixed:
   - Other connections held across the loss stay broken: the deep-trace store stays memory-only, and the SDK sync and crypto stores keep their closed IndexedDB connections until reload.
