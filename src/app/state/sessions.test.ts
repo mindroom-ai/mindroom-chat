@@ -82,9 +82,18 @@ describe('sessions', () => {
     expect(getActiveSession(storage)?.sessionId).toBe(session.sessionId);
     expect(listSessions(storage)).toHaveLength(1);
 
-    // A persistent profile can also serve an older value flushed to disk.
-    storage.getItem.mockReturnValue(JSON.stringify({ version: 1, sessions: [] }));
-    expect(listSessions(storage)).toHaveLength(1);
+    // A persistent profile can also serve an older value this page saw before.
+    const olderRaw = storage.setItem.mock.calls[0][1] as string;
+    storage.getItem.mockReturnValue(olderRaw);
+    expect(getActiveSession(storage)?.sessionId).toBe(session.sessionId);
+
+    // A value this page never saw was written by another tab: never overwrite it, adopt it.
+    const otherTab = JSON.stringify({ version: 1, sessions: [] });
+    storage.getItem.mockReturnValue(otherTab);
+    storage.setItem.mockClear();
+    persistKnownSessionStore(storage);
+    expect(storage.setItem).not.toHaveBeenCalled();
+    expect(listSessions(storage)).toHaveLength(0);
 
     // Writes made after the loss still read back and are trusted.
     storage.getItem.mockReset();

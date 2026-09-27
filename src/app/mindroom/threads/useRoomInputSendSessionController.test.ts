@@ -1,6 +1,6 @@
 import React, { MutableRefObject, useEffect, useMemo, useRef } from 'react';
 import { act, create } from 'react-test-renderer';
-import { MatrixError } from 'matrix-js-sdk';
+import { EventStatus, MatrixError } from 'matrix-js-sdk';
 import { createStore } from 'jotai';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
@@ -674,6 +674,7 @@ describe('useRoomInputSendSessionController storage-loss send tracking', () => {
     mx.sendMessage.mockRejectedValueOnce(new Error('crypto store closed'));
     mx.getEventForTxnId.mockImplementation((txnId: string) => ({
       getId: () => `~!room:example.org:${txnId}`,
+      status: EventStatus.NOT_SENT,
     }));
     const store = createStore();
 

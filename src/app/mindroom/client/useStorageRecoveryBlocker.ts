@@ -12,7 +12,6 @@ import {
   roomUploadAtomFamily,
   voiceAutoSendPendingAtom,
 } from '../../state/room/roomInputDrafts';
-import { persistKnownSessionStore } from '../../state/sessions';
 import { UploadStatus } from '../../state/upload';
 import { isLocalEchoEventId } from '../threads/threadRouteUtils';
 import { isVoiceCaptureActive } from '../voice/voiceCaptureDiagnostics';
@@ -46,6 +45,8 @@ export type ComposerTextSend = {
   startedAt: number;
   /** Status of the send's local echo, if the room still has it. */
   getStatus: () => EventStatus | null | undefined;
+  /** Whether the room had a local echo when tracking began; the SDK drops it on remote echo. */
+  hadEcho: boolean;
   /** False once the account's drafts were cleared, for example by removing the account. */
   canWriteDraft: () => boolean;
 };
@@ -67,31 +68,49 @@ export const trackComposerTextSend = (send: ComposerTextSend): (() => void) => {
 const isInFlight = (send: ComposerTextSend, now: number): boolean =>
   now - send.startedAt < STUCK_SEND_MS;
 
+const NON_TEXT_INPUT_TYPES = [
+  'hidden',
+  'checkbox',
+  'radio',
+  'file',
+  'range',
+  'color',
+  'button',
+  'submit',
+  'reset',
+  'image',
+  'search',
+];
 const EDITABLE_SELECTOR = [
-  'input:not([type="hidden"]):not([type="checkbox"]):not([type="radio"])',
+  `input${NON_TEXT_INPUT_TYPES.map((type) => `:not([type="${type}"])`).join('')}`,
   'textarea',
-  'select',
   '[contenteditable="true"]',
 ].join(', ');
 
+const hasTypedText = (element: Element): boolean => {
+  if (element.closest('[data-editable-name="RoomInput"]')) return false;
+  if (element.getAttribute('role') === 'searchbox') return false;
+  const value =
+    element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement
+      ? element.value
+      : element.textContent ?? '';
+  return value.trim().length > 0;
+};
+
 /**
- * Forms outside the room composer keep their input only in memory: an open
- * dialog with fields (settings, room creation, password prompts) or any
- * focused editable element other than the persisted composer.
+ * Text typed outside the persisted room composer lives only in memory: an open
+ * dialog or a focused field (settings, room creation, password prompts) that
+ * already holds text. Empty fields and search boxes have nothing to lose.
  */
 export const hasUnsavedFormInput = (
   doc: Document | undefined = typeof document === 'undefined' ? undefined : document
 ): boolean => {
   if (!doc) return false;
   const active = doc.activeElement;
-  if (
-    active instanceof HTMLElement &&
-    active.matches(EDITABLE_SELECTOR) &&
-    !active.closest('[data-editable-name="RoomInput"]')
-  ) {
-    return true;
-  }
-  return !!doc.getElementById('portalContainer')?.querySelector(EDITABLE_SELECTOR);
+  if (active?.matches(EDITABLE_SELECTOR) && hasTypedText(active)) return true;
+  return Array.from(
+    doc.getElementById('portalContainer')?.querySelectorAll(EDITABLE_SELECTOR) ?? []
+  ).some(hasTypedText);
 };
 
 /**
@@ -142,17 +161,21 @@ export const saveUnsentComposerText = ({
   includeInFlight: boolean;
   now?: number;
 }): void => {
-  Array.from(composerTextSends).forEach((send) => {
-    if (!includeInFlight && isInFlight(send, now)) return;
-    composerTextSends.delete(send);
-    const status = send.getStatus();
-    if (status !== undefined && !UNSENT_STATUSES.has(status)) return;
-    if (!send.canWriteDraft()) return;
-    const draftAtom = roomIdToMsgDraftAtomFamily(
-      getRoomInputDraftKey(send.userId, send.roomId, send.threadId)
-    );
-    store.set(draftAtom, [...send.draft, ...store.get(draftAtom)]);
-  });
+  // Prepend newest first so several sends to one composer come back in send order.
+  Array.from(composerTextSends)
+    .sort((left, right) => right.startedAt - left.startedAt)
+    .forEach((send) => {
+      if (!includeInFlight && isInFlight(send, now)) return;
+      composerTextSends.delete(send);
+      const status = send.getStatus();
+      // A vanished echo was replaced by the remote echo, so the server already has it.
+      if (status === undefined ? send.hadEcho : !UNSENT_STATUSES.has(status)) return;
+      if (!send.canWriteDraft()) return;
+      const draftAtom = roomIdToMsgDraftAtomFamily(
+        getRoomInputDraftKey(send.userId, send.roomId, send.threadId)
+      );
+      store.set(draftAtom, [...send.draft, ...store.get(draftAtom)]);
+    });
 };
 
 /**
@@ -197,7 +220,6 @@ export const useStorageRecoveryBlocker = (): void => {
     const unregisterPreparation = registerStorageRecoveryPreparation(({ automatic }) => {
       saveUnsentComposerText({ store, includeInFlight: !automatic });
       persistComposerDrafts(store);
-      persistKnownSessionStore();
       leavePendingThreadRoute();
     });
     return () => {

@@ -1,6 +1,10 @@
 import { createStore } from 'jotai';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { clearRoomInputDrafts, roomIdToMsgDraftAtomFamily } from './roomInputDrafts';
+import {
+  clearRoomInputDrafts,
+  getRoomInputDraftKey,
+  roomIdToMsgDraftAtomFamily,
+} from './roomInputDrafts';
 
 const KEY = JSON.stringify(['@alice:example.org', '!room:example.org', '$thread']);
 const draft = [{ type: 'paragraph' as const, children: [{ text: 'Unsent draft', bold: true }] }];
@@ -81,4 +85,17 @@ describe('message draft persistence', () => {
       expect(createStore().get(roomIdToMsgDraftAtomFamily(KEY))).toEqual([]);
     }
   );
+
+  it("forgets a cleared account's draft atoms so recovery cannot write them back", () => {
+    const cleared = getRoomInputDraftKey('@gone:test', '!room:test');
+    const kept = getRoomInputDraftKey('@kept:test', '!room:test');
+    roomIdToMsgDraftAtomFamily(cleared);
+    roomIdToMsgDraftAtomFamily(kept);
+
+    clearRoomInputDrafts('@gone:test');
+
+    expect(roomIdToMsgDraftAtomFamily.getParams()).toContain(kept);
+    expect(roomIdToMsgDraftAtomFamily.getParams()).not.toContain(cleared);
+    roomIdToMsgDraftAtomFamily.remove(kept);
+  });
 });

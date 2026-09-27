@@ -2,10 +2,12 @@ import React, { useEffect, useState, useSyncExternalStore } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Box, Button, config, Line, Text } from 'folds';
 import { ContainerColor } from '../../styles/ContainerColor.css';
+import { persistKnownSessionStore } from '../../state/sessions';
 import {
   getStorageConnectionState,
   hasStorageRecoveryBlocker,
   registerStorageRecoveryHost,
+  registerStorageRecoveryPreparation,
   reloadAfterStorageLoss,
   subscribeStorageConnectionState,
 } from '../../mindroom/client/storageConnectionRecovery';
@@ -28,7 +30,17 @@ export function StorageConnectionStatus() {
   const [blocked, setBlocked] = useState(false);
   const [confirming, setConfirming] = useState(false);
 
-  useEffect(() => registerStorageRecoveryHost(), []);
+  useEffect(() => {
+    const unregisterHost = registerStorageRecoveryHost();
+    // The session registry needs saving even when no client has started yet.
+    const unregisterPreparation = registerStorageRecoveryPreparation(() =>
+      persistKnownSessionStore()
+    );
+    return () => {
+      unregisterHost();
+      unregisterPreparation();
+    };
+  }, []);
 
   useEffect(() => {
     if (state === 'healthy') return undefined;
@@ -61,6 +73,7 @@ export function StorageConnectionStatus() {
     // Saved composer text survives; recordings, attachments, and open edits do not,
     // so a reload over them takes a second tap after the warning.
     if (!confirming && hasStorageRecoveryBlocker()) {
+      setBlocked(true);
       setConfirming(true);
       return;
     }

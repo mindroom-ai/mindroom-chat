@@ -87,6 +87,20 @@ const EMPTY_SESSION_SNAPSHOT: SessionStoreSnapshot = {
 };
 const sessionStoreSnapshotCache = new WeakMap<object, SessionStoreSnapshot>();
 const storedSessionSnapshotCache = new WeakMap<object, SessionStoreSnapshot>();
+/** Registry values this page has read or written; a stale storage read returns one of them. */
+const knownSessionStoreRaws = new WeakMap<object, string[]>();
+const KNOWN_SESSION_STORE_RAW_LIMIT = 50;
+
+const rememberSessionStoreRaw = (storage: object, raw: string): void => {
+  const known = knownSessionStoreRaws.get(storage) ?? [];
+  if (known[known.length - 1] === raw) return;
+  known.push(raw);
+  if (known.length > KNOWN_SESSION_STORE_RAW_LIMIT) known.shift();
+  knownSessionStoreRaws.set(storage, known);
+};
+
+const isKnownSessionStoreRaw = (storage: object, raw: string | null): boolean =>
+  raw === null || (knownSessionStoreRaws.get(storage)?.includes(raw) ?? false);
 
 export class SessionStoreWriteError extends Error {
   constructor() {
@@ -214,6 +228,7 @@ const writeSessionStore = (
       storage,
       createSessionStoreSnapshot(raw, sanitizeSessionStore(JSON.parse(raw)))
     );
+    rememberSessionStoreRaw(storage, raw);
     dispatchSessionStoreEvent();
     return true;
   }
@@ -263,9 +278,14 @@ const getSessionStoreSnapshot = (
     // After WebKit's networking process exits, existing Web Storage keys read as
     // null or as an older value flushed to disk, while new writes persist.
     // Keep the last known sessions until the recovery reload instead of
-    // signing out or writing a stale registry back.
+    // signing out; a value this page never saw was written by another tab.
     const storedSnapshot = storedSessionSnapshotCache.get(storage);
-    if (storedSnapshot && raw !== storedSnapshot.raw && getStorageConnectionState() !== 'healthy') {
+    if (
+      storedSnapshot &&
+      raw !== storedSnapshot.raw &&
+      getStorageConnectionState() !== 'healthy' &&
+      isKnownSessionStoreRaw(storage, raw)
+    ) {
       return storedSnapshot;
     }
     const cachedSnapshot = sessionStoreSnapshotCache.get(storage);
@@ -276,7 +296,10 @@ const getSessionStoreSnapshot = (
     const store = raw ? sanitizeSessionStore(JSON.parse(raw)) : EMPTY_SESSION_STORE;
     const snapshot = createSessionStoreSnapshot(raw, store);
     sessionStoreSnapshotCache.set(storage, snapshot);
-    if (raw !== null) storedSessionSnapshotCache.set(storage, snapshot);
+    if (raw !== null) {
+      storedSessionSnapshotCache.set(storage, snapshot);
+      rememberSessionStoreRaw(storage, raw);
+    }
     return snapshot;
   } catch {
     const snapshot = createSessionStoreSnapshot(null, EMPTY_SESSION_STORE);
@@ -526,6 +549,8 @@ export const persistKnownSessionStore = (
   const storedSnapshot = storedSessionSnapshotCache.get(storage);
   if (!storedSnapshot?.raw) return;
   try {
+    // Another tab's newer registry must not be overwritten with this page's view.
+    if (!isKnownSessionStoreRaw(storage, storage.getItem(SESSION_STORE_KEY))) return;
     storage.setItem(SESSION_STORE_KEY, storedSnapshot.raw);
   } catch {
     // The reload still restores whatever reached disk.

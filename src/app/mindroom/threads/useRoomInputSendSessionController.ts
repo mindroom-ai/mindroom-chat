@@ -192,6 +192,7 @@ export const useRoomInputSendSessionController = ({
               draft: session.composerFallback,
               startedAt: Date.now(),
               getStatus: () => session.room.getEventForTxnId(txnId)?.status,
+              hadEcho: !!session.room.getEventForTxnId(txnId),
               canWriteDraft: captureRoomInputDraftGuard(
                 getRoomInputDraftKey(
                   userId,

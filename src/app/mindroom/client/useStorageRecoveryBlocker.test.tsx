@@ -52,6 +52,7 @@ const track = (send: Partial<ComposerTextSend> & { text: string; startedAt: numb
     threadId: undefined,
     draft: [paragraph(send.text)] as never,
     getStatus: () => EventStatus.ENCRYPTING,
+    hadEcho: true,
     canWriteDraft: () => true,
     ...send,
   });
@@ -146,6 +147,18 @@ describe('unsaved in-memory work that blocks a storage recovery reload', () => {
 });
 
 describe('saveUnsentComposerText', () => {
+  it('returns several stuck sends to one composer in send order', () => {
+    const store = createStore();
+    const roomKey = getRoomInputDraftKey('@me:test', '!room:test');
+    track({ text: 'first', startedAt: 1 });
+    track({ text: 'second', startedAt: 2 });
+
+    saveUnsentComposerText({ store, includeInFlight: true, now: 1_000_000 });
+
+    expect(draftText(store, roomKey)).toEqual(['first', 'second']);
+    roomIdToMsgDraftAtomFamily.remove(roomKey);
+  });
+
   it('returns unanswered sends to the composers that sent them, first and once', () => {
     const now = 1_000_000;
     const store = createStore();
@@ -181,11 +194,13 @@ describe('saveUnsentComposerText', () => {
     track({ text: 'on the wire', startedAt: 0, getStatus: () => EventStatus.SENDING });
     track({ text: 'accepted', startedAt: 0, getStatus: () => EventStatus.SENT });
     track({ text: 'removed account', startedAt: 0, canWriteDraft: () => false });
-    track({ text: 'echo gone', startedAt: 0, getStatus: () => undefined });
+    // The SDK drops a local echo once its remote echo arrives.
+    track({ text: 'echo replaced', startedAt: 0, getStatus: () => undefined });
+    track({ text: 'never echoed', startedAt: 0, getStatus: () => undefined, hadEcho: false });
 
     saveUnsentComposerText({ store, includeInFlight: true, now });
 
-    expect(draftText(store, roomKey)).toEqual(['echo gone']);
+    expect(draftText(store, roomKey)).toEqual(['never echoed']);
     expect(hasWork(store, now)).toBe(false);
     roomIdToMsgDraftAtomFamily.remove(roomKey);
   });

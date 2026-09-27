@@ -190,8 +190,10 @@ export const clearRoomInputDrafts = (userId: string): void => {
   getStorageKeysSafe(storage)
     .filter((key) => key.startsWith(`${COMPOSER_DRAFT_STORAGE_PREFIX}${userPrefix}`))
     .forEach((key) => removeStorageItemSafe(storage, key));
-  roomIdToMsgDraftAtomFamily.setShouldRemove((_createdAt, key) => key.startsWith(userPrefix));
-  roomIdToMsgDraftAtomFamily.setShouldRemove(null);
+  roomIdToMsgDraftAtomFamily
+    .getParams()
+    .filter((key) => key.startsWith(userPrefix))
+    .forEach((key) => roomIdToMsgDraftAtomFamily.remove(key));
 };
 
 export type IReplyDraft = {
