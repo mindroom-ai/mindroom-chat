@@ -1,9 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
+  approveLocalMindroomPairCode,
   getLocalMindroomConnections,
   getLocalMindroomErrorMessage,
-  getLocalMindroomPairStatus,
-  issueLocalMindroomPairCode,
+  inspectLocalMindroomPairCode,
   revokeLocalMindroomConnection,
 } from './api';
 
@@ -29,84 +29,81 @@ const createResponse = (status: number, body?: unknown): MockResponse => ({
   json: vi.fn().mockResolvedValue(body),
 });
 
+const pendingPairDevice = {
+  client_name: 'studio-mac',
+  created_at: '2026-09-26T12:00:00.000Z',
+  expires_at: '2026-09-26T12:10:00.000Z',
+  status: 'pending',
+};
+
 afterEach(() => {
   capacitorMocks.isNativePlatform.mockReturnValue(false);
   capacitorMocks.nativeRequest.mockReset();
 });
 
 describe('local mindroom api', () => {
-  it('starts pairing and returns pair code payload', async () => {
-    const request = vi.fn().mockResolvedValue(
-      createResponse(200, {
-        pair_code: 'ABC123',
-        expires_at: '2026-02-27T13:00:00.000Z',
-        poll_interval_seconds: 2,
-      })
-    );
+  it('inspects a device pair code with the Matrix token and a JSON body', async () => {
+    const request = vi.fn().mockResolvedValue(createResponse(200, pendingPairDevice));
 
-    const data = await issueLocalMindroomPairCode(undefined, undefined, request as unknown as typeof fetch);
-
-    expect(data.pair_code).toBe('ABC123');
-    expect(request).toHaveBeenCalledWith('/v1/local-mindroom/pair/start', {
-      credentials: 'omit',
-      method: 'POST',
-      headers: {
-        Accept: 'application/json',
-      },
-    });
-  });
-
-  it('includes matrix access token header when provided', async () => {
-    const request = vi.fn().mockResolvedValue(
-      createResponse(200, {
-        pair_code: 'ABCD-EFGH',
-        expires_at: '2026-02-27T13:00:00.000Z',
-        poll_interval_seconds: 3,
-      })
-    );
-
-    await issueLocalMindroomPairCode(
+    const data = await inspectLocalMindroomPairCode(
+      'ABCD-EFGH',
       'matrix-token-123',
       undefined,
       request as unknown as typeof fetch
     );
 
-    expect(request).toHaveBeenCalledWith('/v1/local-mindroom/pair/start', {
+    expect(data).toEqual(pendingPairDevice);
+    expect(request).toHaveBeenCalledWith('/v1/local-mindroom/pair/device/inspect', {
       credentials: 'omit',
       method: 'POST',
       headers: {
         Accept: 'application/json',
+        'Content-Type': 'application/json',
         'X-Matrix-Access-Token': 'matrix-token-123',
       },
+      body: JSON.stringify({ pair_code: 'ABCD-EFGH' }),
     });
   });
 
-  it('handles pending -> connected status responses for polling', async () => {
+  it('approves a device pair code at the provisioning base url', async () => {
     const request = vi
       .fn()
-      .mockResolvedValueOnce(createResponse(200, { status: 'pending' }))
-      .mockResolvedValueOnce(
-        createResponse(200, {
-          status: 'connected',
-          connection: { id: 'conn-1', client_name: 'MacBook Air' },
-        })
-      );
+      .mockResolvedValue(createResponse(200, { ...pendingPairDevice, status: 'approved' }));
 
-    const pending = await getLocalMindroomPairStatus(
-      'ABC123',
-      undefined,
-      undefined,
-      request as unknown as typeof fetch
-    );
-    const connected = await getLocalMindroomPairStatus(
-      'ABC123',
-      undefined,
-      undefined,
+    const data = await approveLocalMindroomPairCode(
+      'ABCD-EFGH',
+      'matrix-token-123',
+      'https://provisioning.example/',
       request as unknown as typeof fetch
     );
 
-    expect(pending.status).toBe('pending');
-    expect(connected.status).toBe('connected');
+    expect(data.status).toBe('approved');
+    expect(request).toHaveBeenCalledWith(
+      'https://provisioning.example/v1/local-mindroom/pair/device/approve',
+      {
+        credentials: 'omit',
+        method: 'POST',
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+          'X-Matrix-Access-Token': 'matrix-token-123',
+        },
+        body: JSON.stringify({ pair_code: 'ABCD-EFGH' }),
+      }
+    );
+  });
+
+  it('keeps the HTTP status and server detail on pairing errors', async () => {
+    const request = vi.fn().mockResolvedValue(createResponse(410, { detail: 'Pair code expired' }));
+
+    const result = approveLocalMindroomPairCode(
+      'ABCD-EFGH',
+      'matrix-token-123',
+      undefined,
+      request as unknown as typeof fetch
+    );
+
+    await expect(result).rejects.toMatchObject({ status: 410, message: 'Pair code expired' });
   });
 
   it('revokes a linked connection', async () => {
@@ -144,31 +141,6 @@ describe('local mindroom api', () => {
     expect(getLocalMindroomErrorMessage(null)).toBe('Request failed. Please try again.');
   });
 
-  it('supports provisioning base url override', async () => {
-    const request = vi.fn().mockResolvedValue(
-      createResponse(200, {
-        pair_code: 'ABCD-EFGH',
-        expires_at: '2026-02-27T13:00:00.000Z',
-        poll_interval_seconds: 3,
-      })
-    );
-
-    await issueLocalMindroomPairCode(
-      'matrix-token-123',
-      'https://provisioning.example',
-      request as unknown as typeof fetch
-    );
-
-    expect(request).toHaveBeenCalledWith('https://provisioning.example/v1/local-mindroom/pair/start', {
-      credentials: 'omit',
-      method: 'POST',
-      headers: {
-        Accept: 'application/json',
-        'X-Matrix-Access-Token': 'matrix-token-123',
-      },
-    });
-  });
-
   it('throws clear error for non-json successful responses', async () => {
     const request = vi.fn().mockResolvedValue({
       ok: true,
@@ -177,32 +149,60 @@ describe('local mindroom api', () => {
     } as unknown as Response);
 
     await expect(
-      issueLocalMindroomPairCode(undefined, undefined, request as unknown as typeof fetch)
-    ).rejects.toThrow('Provisioning API returned invalid JSON. Verify provisioning URL/proxy configuration.');
+      inspectLocalMindroomPairCode(
+        'ABCD-EFGH',
+        undefined,
+        undefined,
+        request as unknown as typeof fetch
+      )
+    ).rejects.toThrow(
+      'Provisioning API returned invalid JSON. Verify provisioning URL/proxy configuration.'
+    );
   });
 
-  it('uses native http transport on native platforms when no custom request is provided', async () => {
+  it('sends the JSON body through native http transport on native platforms', async () => {
     capacitorMocks.isNativePlatform.mockReturnValue(true);
     capacitorMocks.nativeRequest.mockResolvedValue({
       status: 200,
-      data: {
-        pair_code: 'ABCD-EFGH',
-        expires_at: '2026-02-27T13:00:00.000Z',
-        poll_interval_seconds: 3,
-      },
+      data: { ...pendingPairDevice, status: 'approved' },
       headers: {},
-      url: 'https://mindroom.chat/v1/local-mindroom/pair/start',
+      url: 'https://mindroom.chat/v1/local-mindroom/pair/device/approve',
     });
 
-    const data = await issueLocalMindroomPairCode(
+    const data = await approveLocalMindroomPairCode(
+      'ABCD-EFGH',
       'matrix-token-123',
       'https://mindroom.chat'
     );
 
-    expect(data.pair_code).toBe('ABCD-EFGH');
+    expect(data.status).toBe('approved');
     expect(capacitorMocks.nativeRequest).toHaveBeenCalledWith({
-      url: 'https://mindroom.chat/v1/local-mindroom/pair/start',
+      url: 'https://mindroom.chat/v1/local-mindroom/pair/device/approve',
       method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+        'X-Matrix-Access-Token': 'matrix-token-123',
+      },
+      data: JSON.stringify({ pair_code: 'ABCD-EFGH' }),
+      responseType: 'json',
+    });
+  });
+
+  it('keeps native requests without a body free of request data', async () => {
+    capacitorMocks.isNativePlatform.mockReturnValue(true);
+    capacitorMocks.nativeRequest.mockResolvedValue({
+      status: 200,
+      data: { connections: [] },
+      headers: {},
+      url: 'https://mindroom.chat/v1/local-mindroom/connections',
+    });
+
+    await getLocalMindroomConnections('matrix-token-123', 'https://mindroom.chat');
+
+    expect(capacitorMocks.nativeRequest).toHaveBeenCalledWith({
+      url: 'https://mindroom.chat/v1/local-mindroom/connections',
+      method: 'GET',
       headers: {
         Accept: 'application/json',
         'X-Matrix-Access-Token': 'matrix-token-123',
@@ -211,11 +211,30 @@ describe('local mindroom api', () => {
     });
   });
 
+  it('keeps native error statuses for pairing requests', async () => {
+    capacitorMocks.isNativePlatform.mockReturnValue(true);
+    capacitorMocks.nativeRequest.mockResolvedValue({
+      status: 401,
+      data: { detail: 'Invalid Matrix access token' },
+      headers: {},
+      url: 'https://mindroom.chat/v1/local-mindroom/pair/device/inspect',
+    });
+
+    await expect(
+      inspectLocalMindroomPairCode('ABCD-EFGH', 'stale-token', 'https://mindroom.chat')
+    ).rejects.toMatchObject({ status: 401, message: 'Invalid Matrix access token' });
+  });
+
   it('replaces browser transport errors with a user-facing provisioning error', async () => {
     const request = vi.fn().mockRejectedValue(new TypeError('Load failed'));
 
     await expect(
-      issueLocalMindroomPairCode(undefined, undefined, request as unknown as typeof fetch)
+      inspectLocalMindroomPairCode(
+        'ABCD-EFGH',
+        undefined,
+        undefined,
+        request as unknown as typeof fetch
+      )
     ).rejects.toThrow(
       'Unable to reach the provisioning API. Verify the server/proxy is reachable from this app.'
     );

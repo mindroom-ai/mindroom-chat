@@ -1015,7 +1015,7 @@
     "welcomePage": {
       "setUpLocalMindroom": "Yerel MindRoom'u ayarla",
       "openLocalMindroomSettings": "Yerel MindRoom ayarlarını aç",
-      "3ClickHereToOpenLocalMindroomAndGenerateAPairCode": "3. Yerel MindRoom'u açıp bir eşleştirme kodu oluşturmak için buraya tıklayın",
+      "enterPairCode": "Kodunuz mu var? Yerel MindRoom'da girin",
       "poweredBy": "Altyapı: <links />",
       "title": "{{appName}} uygulamasına hoş geldiniz",
       "subtitle": "Sohbet odalarınızda yaşayan yapay zekâ ajanları.",
@@ -1023,8 +1023,7 @@
       "sourceCode": "Kaynak kodu",
       "setupStep1": "1. {{command}} komutunu çalıştırın",
       "setupStep2": "2. Model kimlik bilgilerini {{envFile}} dosyasına ekleyin veya {{command}} komutunu çalıştırın",
-      "setupStep4": "4. {{command}} komutunu çalıştırın",
-      "setupStep5": "5. {{command}} komutuyla başlatın"
+      "setupStep3": "3. {{command}} ile başlatın, ardından bağlantıyı onaylamak için yazdırdığı bağlantıyı açın"
     },
     "create": {
       "createSpace": "Alan oluştur",
@@ -2303,21 +2302,14 @@
     },
     "local-mindroom": {
       "localMindroom": {
-        "copied": "Kopyalandı",
-        "copyCommand": "Komutu kopyala",
         "localMindroom": "Yerel MindRoom",
         "connectLocalMindroom": "Yerel MindRoom'a bağlan",
         "pairThisChatAccountWithYourLocalMindroomProcess": "Bu sohbet hesabını yerel MindRoom işleminizle eşleştirin",
-        "generateAOneTimeCodeRunTheCommandLocallyThen": "Tek kullanımlık bir kod oluşturun, komutu yerel olarak çalıştırın ve bağlantı onayını bekleyin.",
+        "enterCodeDescription": "Bilgisayarınızda {{command}} komutunu çalıştırın, ardından yazdırdığı bağlantıyı açın veya kodunu buraya girin.",
         "pairCode": "Eşleştirme kodu",
-        "command": "Komut",
-        "waitingForLocalConnectionRunTheCommandAboveOnYour": "Yerel bağlantı bekleniyor. Yukarıdaki komutu bilgisayarınızda çalıştırın.",
-        "localMindroomConnectedSuccessfully": "Yerel MindRoom başarıyla bağlandı.",
-        "pairCodeExpiredGenerateANewCodeToContinue": "Eşleştirme kodunun süresi doldu. Devam etmek için yeni bir kod oluşturun.",
-        "generatePairCode": "Eşleştirme kodu oluştur",
-        "generateNewCode": "Yeni kod oluştur",
         "mindroomDocs": "MindRoom belgeleri",
         "linkedInstallations": "Bağlı kurulumlar",
+        "linkedInstallationsUnavailable": "Bağlı kurulumlar yalnızca {{server}} üzerindeki hesaplar için kullanılabilir.",
         "loadingLinkedInstallations": "Bağlı kurulumlar yükleniyor...",
         "tryAgain": "Tekrar dene",
         "noLinkedLocalMindroomInstallationsYet": "Henüz bağlı yerel MindRoom kurulumu yok.",
@@ -2325,13 +2317,29 @@
         "confirmRevoke": "İptali onayla",
         "cancel": "İptal",
         "requestFailed": "İstek başarısız. Lütfen tekrar deneyin.",
-        "secondsRemaining": "{{count}} sn",
-        "connected": "Bağlı",
-        "expired": "Süresi doldu",
         "unknown": "Bilinmiyor",
-        "connectionSummary": "{{name}} | Oluşturulma: {{created}} | Son görülme: {{lastSeen}}",
         "createdAt": "Oluşturulma: {{timestamp}}",
         "lastSeenAt": "Son görülme: {{timestamp}}"
+      },
+      "connect": {
+        "enterCode": "Terminalinizde gösterilen kodu girin.",
+        "continue": "Devam",
+        "invalidCode": "8 karakterlik kodu girin, örneğin ABCD-EFGH.",
+        "code": "Kod: {{code}}",
+        "chooseAccount": "Bu bağlantıyı onaylayacak hesabı seçin",
+        "checkingCode": "Kod kontrol ediliyor...",
+        "deviceQuestion": "{{clientName}} bağlansın mı?",
+        "deviceStarted": "{{age}} başlatıldı",
+        "warning": "Yalnızca bunu az önce kendi bilgisayarınızda kendiniz başlattıysanız onaylayın.",
+        "approveAs": "{{userId}} olarak onayla",
+        "approved": "Bağlandı. Terminalinize dönebilirsiniz.",
+        "noAccount": "Bu bağlantıyı onaylamak için MindRoom hesabınızla oturum açın.",
+        "signIn": "Onaylamak için oturum aç",
+        "accountSignedOut": "Bu hesabın onaylayabilmesi için yeniden oturum açması gerekiyor.",
+        "codeNotFound": "Bu kod bulunamadı. Terminalinizde gösterilen kodu kontrol edin.",
+        "codeExpired": "Bu kodun süresi doldu. Terminalinizde gösterilen yeni bağlantıyı veya kodu kullanın.",
+        "codeAlreadyApproved": "Bu kod zaten onaylandı.",
+        "backToChat": "Sohbete dön"
       }
     },
     "matrix": {

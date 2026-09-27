@@ -1024,34 +1024,43 @@
     "local-mindroom": {
       "localMindroom": {
         "cancel": "বাতিল করুন",
-        "command": "কমান্ড",
         "confirmRevoke": "প্রত্যাহার নিশ্চিত করুন",
-        "connected": "সংযুক্ত",
-        "connectionSummary": "{{name}} | তৈরি করা হয়েছে: {{created}} | শেষবার দেখা হয়েছে: {{lastSeen}}",
         "connectLocalMindroom": "স্থানীয় MindRoom সংযুক্ত করুন",
-        "copied": "কপি করা হয়েছে",
-        "copyCommand": "কমান্ড কপি করুন",
         "createdAt": "তৈরি করা হয়েছে: {{timestamp}}",
-        "expired": "মেয়াদ শেষ",
-        "generateAOneTimeCodeRunTheCommandLocallyThen": "একটি এককালীন কোড তৈরি করুন, স্থানীয়ভাবে কমান্ডটি চালান, তারপর সংযোগ নিশ্চিতকরণের জন্য অপেক্ষা করুন।",
-        "generateNewCode": "নতুন কোড তৈরি করুন",
-        "generatePairCode": "পেয়ারিং কোড তৈরি করুন",
+        "enterCodeDescription": "আপনার মেশিনে {{command}} চালান, তারপর এটি যে লিংক দেখায় সেটি খুলুন বা এখানে এর কোড লিখুন।",
         "lastSeenAt": "শেষবার দেখা হয়েছে: {{timestamp}}",
         "linkedInstallations": "লিঙ্কযুক্ত ইনস্টলেশন",
+        "linkedInstallationsUnavailable": "লিঙ্কযুক্ত ইনস্টলেশন শুধুমাত্র {{server}}-এর অ্যাকাউন্টের জন্য উপলব্ধ।",
         "loadingLinkedInstallations": "লিঙ্ক করা ইনস্টলেশন লোড হচ্ছে...",
         "localMindroom": "স্থানীয় MindRoom",
-        "localMindroomConnectedSuccessfully": "স্থানীয় MindRoom সফলভাবে সংযুক্ত হয়েছে।",
         "mindroomDocs": "MindRoom ডক্স",
         "noLinkedLocalMindroomInstallationsYet": "এখনও পর্যন্ত কোনও লিঙ্কযুক্ত স্থানীয় MindRoom ইনস্টলেশন নেই৷",
         "pairCode": "পেয়ারিং কোড",
-        "pairCodeExpiredGenerateANewCodeToContinue": "পেয়ারিং কোডের মেয়াদ শেষ। চালিয়ে যেতে নতুন কোড তৈরি করুন।",
         "pairThisChatAccountWithYourLocalMindroomProcess": "এই চ্যাট অ্যাকাউন্টটিকে আপনার স্থানীয় MindRoom প্রক্রিয়ার সাথে যুক্ত করুন৷",
         "requestFailed": "অনুরোধ ব্যর্থ হয়েছে. আবার চেষ্টা করুন.",
         "revoke": "প্রত্যাহার করুন",
-        "secondsRemaining": "{{count}} সেকেন্ড",
         "tryAgain": "আবার চেষ্টা করুন",
-        "unknown": "অজানা",
-        "waitingForLocalConnectionRunTheCommandAboveOnYour": "স্থানীয় সংযোগের জন্য অপেক্ষা করা হচ্ছে। আপনার মেশিনে উপরের কমান্ডটি চালান।"
+        "unknown": "অজানা"
+      },
+      "connect": {
+        "accountSignedOut": "অনুমোদন করার আগে এই অ্যাকাউন্টটিকে আবার সাইন ইন করতে হবে।",
+        "approveAs": "{{userId}} হিসেবে অনুমোদন করুন",
+        "approved": "সংযুক্ত হয়েছে। আপনি এখন আপনার টার্মিনালে ফিরে যেতে পারেন।",
+        "backToChat": "চ্যাটে ফিরে যান",
+        "checkingCode": "কোড যাচাই করা হচ্ছে...",
+        "chooseAccount": "যে অ্যাকাউন্ট এই সংযোগ অনুমোদন করবে সেটি বেছে নিন",
+        "code": "কোড: {{code}}",
+        "codeAlreadyApproved": "এই কোডটি ইতিমধ্যে অনুমোদিত হয়েছে।",
+        "codeExpired": "এই কোডের মেয়াদ শেষ হয়ে গেছে। আপনার টার্মিনালে দেখানো নতুন লিংক বা কোড ব্যবহার করুন।",
+        "codeNotFound": "এই কোডটি পাওয়া যায়নি। আপনার টার্মিনালে দেখানো কোডটি যাচাই করুন।",
+        "continue": "চালিয়ে যান",
+        "deviceQuestion": "{{clientName}} সংযুক্ত করবেন?",
+        "deviceStarted": "{{age}} শুরু হয়েছে",
+        "enterCode": "আপনার টার্মিনালে দেখানো কোডটি লিখুন।",
+        "invalidCode": "৮ অক্ষরের কোডটি লিখুন, যেমন ABCD-EFGH।",
+        "noAccount": "এই সংযোগ অনুমোদন করতে আপনার MindRoom অ্যাকাউন্ট দিয়ে সাইন ইন করুন।",
+        "signIn": "অনুমোদন করতে সাইন ইন করুন",
+        "warning": "শুধু তখনই অনুমোদন করুন যদি আপনি এইমাত্র নিজের মেশিনে এটি নিজে শুরু করে থাকেন।"
       }
     },
     "matrix": {
@@ -2733,7 +2742,7 @@
       "seekVoiceMessage": "ভয়েস বার্তার সময় বদলান"
     },
     "welcomePage": {
-      "3ClickHereToOpenLocalMindroomAndGenerateAPairCode": "3. স্থানীয় MindRoom খুলতে ও পেয়ারিং কোড তৈরি করতে এখানে ক্লিক করুন",
+      "enterPairCode": "কোড আছে? স্থানীয় MindRoom-এ সেটি লিখুন",
       "docs": "ডক্স",
       "openLocalMindroomSettings": "স্থানীয় MindRoom-এর সেটিংস খুলুন",
       "poweredBy": "<links /> দ্বারা চালিত",
@@ -2743,8 +2752,7 @@
       "title": "{{appName}} এ স্বাগতম",
       "setupStep1": "1. {{command}} চালান",
       "setupStep2": "2. {{envFile}}-এ মডেলের ক্রেডেনশিয়াল যোগ করুন, অথবা {{command}} চালান",
-      "setupStep4": "4. {{command}} চালান",
-      "setupStep5": "5. {{command}} দিয়ে শুরু করুন"
+      "setupStep3": "3. {{command}} দিয়ে এটি শুরু করুন, তারপর সংযোগ অনুমোদন করতে এটি যে লিংক দেখায় সেটি খুলুন"
     },
     "mindroomNavigation": {
       "expandNavigationPanel": "নেভিগেশন প্যানেল বিস্তৃত করুন",

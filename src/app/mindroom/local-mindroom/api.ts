@@ -9,24 +9,12 @@ export type LocalMindroomConnection = {
   [key: string]: unknown;
 };
 
-export type LocalMindroomPairStartResponse = {
-  pair_code: string;
+export type LocalMindroomPairDevice = {
+  client_name: string;
+  created_at: string;
   expires_at: string;
-  poll_interval_seconds: number;
+  status: 'pending' | 'approved';
 };
-
-export type LocalMindroomPairStatusResponse =
-  | {
-      status: 'pending';
-      expires_at?: string;
-    }
-  | {
-      status: 'connected';
-      connection?: LocalMindroomConnection;
-    }
-  | {
-      status: 'expired';
-    };
 
 export type LocalMindroomConnectionsResponse = {
   connections: LocalMindroomConnection[];
@@ -97,10 +85,12 @@ const toHttpHeaders = (headers?: HeadersInit): HttpHeaders => {
   );
 };
 
+// CapacitorHttp sends `data` verbatim when a Content-Type header is present.
 const toNativeHttpOptions = (url: string, init: RequestInit): HttpOptions => ({
   url,
   method: init.method,
   headers: toHttpHeaders(init.headers),
+  ...(typeof init.body === 'string' ? { data: init.body } : {}),
   responseType: 'json',
 });
 
@@ -197,39 +187,43 @@ const requestNoContent = async (
   }
 };
 
-const browserAuthHeaders = (accessToken?: string): HeadersInit => ({
+const browserAuthHeaders = (accessToken?: string): Record<string, string> => ({
   Accept: 'application/json',
   ...(accessToken ? { 'X-Matrix-Access-Token': accessToken } : {}),
 });
 
-export const issueLocalMindroomPairCode = async (
-  accessToken?: string,
-  provisioningBaseUrl?: string,
-  request?: typeof fetch
-): Promise<LocalMindroomPairStartResponse> =>
-  requestJson<LocalMindroomPairStartResponse>(
+const pairDeviceRequest = (
+  action: 'inspect' | 'approve',
+  pairCode: string,
+  accessToken: string | undefined,
+  provisioningBaseUrl: string | undefined,
+  request: typeof fetch | undefined
+): Promise<LocalMindroomPairDevice> =>
+  requestJson<LocalMindroomPairDevice>(
     request,
-    `${getApiBaseUrl(provisioningBaseUrl)}/pair/start`,
+    `${getApiBaseUrl(provisioningBaseUrl)}/pair/device/${action}`,
     {
       method: 'POST',
-      headers: browserAuthHeaders(accessToken),
+      headers: { ...browserAuthHeaders(accessToken), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pair_code: pairCode }),
     }
   );
 
-export const getLocalMindroomPairStatus = async (
+export const inspectLocalMindroomPairCode = (
   pairCode: string,
   accessToken?: string,
   provisioningBaseUrl?: string,
   request?: typeof fetch
-): Promise<LocalMindroomPairStatusResponse> =>
-  requestJson<LocalMindroomPairStatusResponse>(
-    request,
-    `${getApiBaseUrl(provisioningBaseUrl)}/pair/status?pair_code=${encodeURIComponent(pairCode)}`,
-    {
-      method: 'GET',
-      headers: browserAuthHeaders(accessToken),
-    }
-  );
+): Promise<LocalMindroomPairDevice> =>
+  pairDeviceRequest('inspect', pairCode, accessToken, provisioningBaseUrl, request);
+
+export const approveLocalMindroomPairCode = (
+  pairCode: string,
+  accessToken?: string,
+  provisioningBaseUrl?: string,
+  request?: typeof fetch
+): Promise<LocalMindroomPairDevice> =>
+  pairDeviceRequest('approve', pairCode, accessToken, provisioningBaseUrl, request);
 
 export const getLocalMindroomConnections = async (
   accessToken?: string,

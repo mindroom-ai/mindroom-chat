@@ -1015,7 +1015,7 @@
     "welcomePage": {
       "setUpLocalMindroom": "设置Local MindRoom",
       "openLocalMindroomSettings": "打开Local MindRoom 设置",
-      "3ClickHereToOpenLocalMindroomAndGenerateAPairCode": "3.点击此处打开Local MindRoom并生成配对码",
+      "enterPairCode": "已有代码？在 Local MindRoom 中输入",
       "poweredBy": "由 <links /> 提供支持",
       "title": "欢迎来到{{appName}}",
       "subtitle": "活跃于聊天房间中的 AI 智能体。",
@@ -1023,8 +1023,7 @@
       "sourceCode": "源代码",
       "setupStep1": "1. 运行 {{command}}",
       "setupStep2": "2. 在 {{envFile}} 中添加模型凭据，或运行 {{command}}",
-      "setupStep4": "4. 运行 {{command}}",
-      "setupStep5": "5. 使用 {{command}} 启动"
+      "setupStep3": "3. 使用 {{command}} 启动，然后打开它输出的链接以批准连接"
     },
     "create": {
       "createSpace": "创建空间",
@@ -2303,21 +2302,14 @@
     },
     "local-mindroom": {
       "localMindroom": {
-        "copied": "已复制",
-        "copyCommand": "复制命令",
         "localMindroom": "Local MindRoom",
         "connectLocalMindroom": "连接Local MindRoom",
         "pairThisChatAccountWithYourLocalMindroomProcess": "将此聊天账户与您本地的 MindRoom 流程配对",
-        "generateAOneTimeCodeRunTheCommandLocallyThen": "生成一次性代码，在本地运行命令，然后等待连接确认。",
+        "enterCodeDescription": "在您的设备上运行 {{command}}，然后打开它输出的链接，或在此处输入其代码。",
         "pairCode": "配对码",
-        "command": "命令",
-        "waitingForLocalConnectionRunTheCommandAboveOnYour": "正在等待本地连接。请在您的设备上运行上述命令。",
-        "localMindroomConnectedSuccessfully": "Local MindRoom连接成功。",
-        "pairCodeExpiredGenerateANewCodeToContinue": "配对码已过期。生成新代码以继续。",
-        "generatePairCode": "生成配对代码",
-        "generateNewCode": "生成新代码",
         "mindroomDocs": "MindRoom 文档",
         "linkedInstallations": "已关联的安装",
+        "linkedInstallationsUnavailable": "已关联的安装仅适用于 {{server}} 上的账户。",
         "loadingLinkedInstallations": "正在加载链接的安装...",
         "tryAgain": "再试一次",
         "noLinkedLocalMindroomInstallationsYet": "尚未链接本地 MindRoom 安装。",
@@ -2325,13 +2317,29 @@
         "confirmRevoke": "确认撤销",
         "cancel": "取消",
         "requestFailed": "请求失败。请再试一次。",
-        "secondsRemaining": "{{count}} 秒",
-        "connected": "已连接",
-        "expired": "已到期",
         "unknown": "未知",
-        "connectionSummary": "{{name}} |创建：{{created}} |最后一次出现：{{lastSeen}}",
         "createdAt": "创建时间：{{timestamp}}",
         "lastSeenAt": "最后查看时间：{{timestamp}}"
+      },
+      "connect": {
+        "enterCode": "输入终端中显示的代码。",
+        "continue": "继续",
+        "invalidCode": "请输入 8 位代码，例如 ABCD-EFGH。",
+        "code": "代码：{{code}}",
+        "chooseAccount": "选择批准此连接的账户",
+        "checkingCode": "正在检查代码...",
+        "deviceQuestion": "连接 {{clientName}}？",
+        "deviceStarted": "{{age}}启动",
+        "warning": "仅当您刚刚在自己的设备上启动此操作时才批准。",
+        "approveAs": "以 {{userId}} 身份批准",
+        "approved": "已连接。您可以返回终端了。",
+        "noAccount": "请使用您的 MindRoom 账户登录以批准此连接。",
+        "signIn": "登录以批准",
+        "accountSignedOut": "此账户需要重新登录后才能批准。",
+        "codeNotFound": "未找到此代码。请检查终端中显示的代码。",
+        "codeExpired": "此代码已过期。请使用终端中显示的新链接或代码。",
+        "codeAlreadyApproved": "此代码已被批准。",
+        "backToChat": "返回聊天"
       }
     },
     "matrix": {

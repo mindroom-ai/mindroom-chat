@@ -1015,7 +1015,7 @@
     "welcomePage": {
       "setUpLocalMindroom": "Local MindRoom をセットアップする",
       "openLocalMindroomSettings": "ローカルの MindRoom 設定を開く",
-      "3ClickHereToOpenLocalMindroomAndGenerateAPairCode": "3. ここをクリックしてLocal MindRoom を開き、ペア コードを生成します",
+      "enterPairCode": "コードをお持ちですか？Local MindRoom で入力してください",
       "poweredBy": "<links /> によって提供されます",
       "title": "{{appName}} へようこそ",
       "subtitle": "チャット ルームに常駐する AI エージェント。",
@@ -1023,8 +1023,7 @@
       "sourceCode": "ソースコード",
       "setupStep1": "1. {{command}}を実行します",
       "setupStep2": "2. {{envFile}} にモデル認証情報を追加するか、{{command}} を実行します",
-      "setupStep4": "4. {{command}}を実行します",
-      "setupStep5": "5. {{command}}で起動します"
+      "setupStep3": "3. {{command}} で起動し、表示されたリンクを開いて接続を承認します"
     },
     "create": {
       "createSpace": "スペースを作成",
@@ -2303,21 +2302,14 @@
     },
     "local-mindroom": {
       "localMindroom": {
-        "copied": "コピーされました",
-        "copyCommand": "コピーコマンド",
         "localMindroom": "Local MindRoom",
         "connectLocalMindroom": "Local MindRoom に接続する",
         "pairThisChatAccountWithYourLocalMindroomProcess": "このチャット アカウントをローカルの MindRoom プロセスとペアリングします",
-        "generateAOneTimeCodeRunTheCommandLocallyThen": "ワンタイム コードを生成し、コマンドをローカルで実行して、接続の確認を待ちます。",
+        "enterCodeDescription": "マシンで {{command}} を実行し、表示されたリンクを開くか、ここにコードを入力してください。",
         "pairCode": "ペアコード",
-        "command": "コマンド",
-        "waitingForLocalConnectionRunTheCommandAboveOnYour": "ローカル接続を待っています。お使いのマシンで上のコマンドを実行してください。",
-        "localMindroomConnectedSuccessfully": "Local MindRoom が正常に接続されました。",
-        "pairCodeExpiredGenerateANewCodeToContinue": "ペアコードの有効期限が切れました。続行するには、新しいコードを生成してください。",
-        "generatePairCode": "ペアコードの生成",
-        "generateNewCode": "新しいコードの生成",
         "mindroomDocs": "MindRoom ドキュメント",
         "linkedInstallations": "リンクされたインストール",
+        "linkedInstallationsUnavailable": "リンク済みのインストールは {{server}} のアカウントでのみ利用できます。",
         "loadingLinkedInstallations": "リンクされたインストールをロードしています...",
         "tryAgain": "もう一度やり直してください",
         "noLinkedLocalMindroomInstallationsYet": "リンクされたローカル MindRoom インストールはまだありません。",
@@ -2325,13 +2317,29 @@
         "confirmRevoke": "取り消しの確認",
         "cancel": "キャンセル",
         "requestFailed": "リクエストは失敗しました。もう一度試してください。",
-        "secondsRemaining": "{{count}}秒",
-        "connected": "接続済み",
-        "expired": "期限切れ",
         "unknown": "不明",
-        "connectionSummary": "{{name}} |作成済み: {{created}} |最後に見た場所: {{lastSeen}}",
         "createdAt": "作成日: {{timestamp}}",
         "lastSeenAt": "最後に確認された時間: {{timestamp}}"
+      },
+      "connect": {
+        "enterCode": "ターミナルに表示されたコードを入力してください。",
+        "continue": "続行",
+        "invalidCode": "8 文字のコードを入力してください（例: ABCD-EFGH）。",
+        "code": "コード: {{code}}",
+        "chooseAccount": "この接続を承認するアカウントを選択してください",
+        "checkingCode": "コードを確認しています...",
+        "deviceQuestion": "{{clientName}} を接続しますか？",
+        "deviceStarted": "{{age}}に開始",
+        "warning": "自分のマシンでたった今これを開始した場合にのみ承認してください。",
+        "approveAs": "{{userId}} として承認",
+        "approved": "接続しました。ターミナルに戻ってください。",
+        "noAccount": "この接続を承認するには、MindRoom アカウントでサインインしてください。",
+        "signIn": "サインインして承認",
+        "accountSignedOut": "このアカウントで承認するには、もう一度サインインする必要があります。",
+        "codeNotFound": "このコードは見つかりませんでした。ターミナルに表示されたコードを確認してください。",
+        "codeExpired": "このコードは期限切れです。ターミナルに表示された新しいリンクまたはコードを使用してください。",
+        "codeAlreadyApproved": "このコードはすでに承認されています。",
+        "backToChat": "チャットに戻る"
       }
     },
     "matrix": {

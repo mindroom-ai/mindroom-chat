@@ -1020,7 +1020,7 @@
     "welcomePage": {
       "setUpLocalMindroom": "Configurer MindRoom en local",
       "openLocalMindroomSettings": "Ouvrir les paramètres de MindRoom en local",
-      "3ClickHereToOpenLocalMindroomAndGenerateAPairCode": "3. Cliquez ici pour ouvrir MindRoom en local et générer un code d'association",
+      "enterPairCode": "Vous avez un code ? Saisissez-le dans MindRoom local",
       "poweredBy": "Propulsé par <links />",
       "title": "Bienvenue dans {{appName}}",
       "subtitle": "Des agents IA qui vivent dans vos salons de discussion.",
@@ -1028,8 +1028,7 @@
       "sourceCode": "Code source",
       "setupStep1": "1. Exécutez {{command}}",
       "setupStep2": "2. Ajoutez les identifiants du modèle dans {{envFile}} ou exécutez {{command}}",
-      "setupStep4": "4. Exécutez {{command}}",
-      "setupStep5": "5. Démarrez-le avec {{command}}"
+      "setupStep3": "3. Démarrez-le avec {{command}}, puis ouvrez le lien affiché pour approuver la connexion"
     },
     "mindroomNavigation": {
       "expandNavigationPanel": "Développer le panneau de navigation",
@@ -2331,21 +2330,14 @@
     },
     "local-mindroom": {
       "localMindroom": {
-        "copied": "Copié",
-        "copyCommand": "Copier la commande",
         "localMindroom": "MindRoom local",
         "connectLocalMindroom": "Connecter MindRoom local",
         "pairThisChatAccountWithYourLocalMindroomProcess": "Associez ce compte de discussion à votre processus MindRoom local",
-        "generateAOneTimeCodeRunTheCommandLocallyThen": "Générez un code à usage unique, exécutez la commande localement, puis attendez la confirmation de connexion.",
+        "enterCodeDescription": "Exécutez {{command}} sur votre machine, puis ouvrez le lien affiché ou saisissez son code ici.",
         "pairCode": "Code d’association",
-        "command": "Commande",
-        "waitingForLocalConnectionRunTheCommandAboveOnYour": "En attente de la connexion locale. Exécutez la commande ci-dessus sur votre machine.",
-        "localMindroomConnectedSuccessfully": "MindRoom local connecté.",
-        "pairCodeExpiredGenerateANewCodeToContinue": "Le code d’association a expiré. Générez-en un nouveau pour continuer.",
-        "generatePairCode": "Générer un code d’association",
-        "generateNewCode": "Générer un nouveau code",
         "mindroomDocs": "Documentation MindRoom",
         "linkedInstallations": "Installations associées",
+        "linkedInstallationsUnavailable": "Les installations associées ne sont disponibles que pour les comptes sur {{server}}.",
         "loadingLinkedInstallations": "Chargement des installations associées...",
         "tryAgain": "Réessayer",
         "noLinkedLocalMindroomInstallationsYet": "Aucune installation MindRoom locale associée pour le moment.",
@@ -2353,13 +2345,29 @@
         "confirmRevoke": "Confirmer la révocation",
         "cancel": "Annuler",
         "requestFailed": "Échec de la demande. Réessayez.",
-        "secondsRemaining": "{{count}} s",
-        "connected": "Connecté",
-        "expired": "Expiré",
         "unknown": "Inconnue",
-        "connectionSummary": "{{name}} | Créée : {{created}} | Dernière activité : {{lastSeen}}",
         "createdAt": "Créé : {{timestamp}}",
         "lastSeenAt": "Dernière activité : {{timestamp}}"
+      },
+      "connect": {
+        "enterCode": "Saisissez le code affiché dans votre terminal.",
+        "continue": "Continuer",
+        "invalidCode": "Saisissez le code à 8 caractères, par exemple ABCD-EFGH.",
+        "code": "Code : {{code}}",
+        "chooseAccount": "Choisissez le compte qui approuve cette connexion",
+        "checkingCode": "Vérification du code...",
+        "deviceQuestion": "Connecter {{clientName}} ?",
+        "deviceStarted": "Démarré {{age}}",
+        "warning": "N’approuvez que si vous venez de lancer ceci vous-même sur votre propre machine.",
+        "approveAs": "Approuver en tant que {{userId}}",
+        "approved": "Connecté. Vous pouvez retourner à votre terminal.",
+        "noAccount": "Connectez-vous avec votre compte MindRoom pour approuver cette connexion.",
+        "signIn": "Se connecter pour approuver",
+        "accountSignedOut": "Ce compte doit se reconnecter avant de pouvoir approuver.",
+        "codeNotFound": "Ce code est introuvable. Vérifiez le code affiché dans votre terminal.",
+        "codeExpired": "Ce code a expiré. Utilisez le nouveau lien ou code affiché dans votre terminal.",
+        "codeAlreadyApproved": "Ce code a déjà été approuvé.",
+        "backToChat": "Retour à la discussion"
       }
     },
     "matrix": {

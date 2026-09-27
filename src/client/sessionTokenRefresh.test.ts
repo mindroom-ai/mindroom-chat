@@ -1,20 +1,63 @@
+// @vitest-environment jsdom
+
 import {
   MatrixError,
   TokenRefreshError,
   TokenRefreshLogoutError,
   type IRefreshTokenResponse,
 } from 'matrix-js-sdk';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { createSessionTokenRefresh } from './sessionTokenRefresh';
+import { createMatrixClient } from '../app/mindroom/matrix/matrixClientFactory';
+import { getSessionStore, putSession } from '../app/state/sessions';
+import {
+  TOKEN_REFRESH_TIMEOUT_MS,
+  createSessionTokenRefresh,
+  createStoredSessionTokenRefresh,
+} from './sessionTokenRefresh';
+
+vi.mock('../app/mindroom/matrix/matrixClientFactory', () => ({
+  createMatrixClient: vi.fn(),
+}));
 
 const createRefresh = (
   refresh: (refreshToken: string) => Promise<IRefreshTokenResponse> = vi.fn()
 ) =>
   createSessionTokenRefresh({
     sessionId: 'session-a',
+    deviceId: 'DEVICE',
     refresh,
   });
+
+const storeSession = (tokens: { accessToken: string; refreshToken: string; deviceId?: string }) =>
+  putSession({
+    baseUrl: 'https://example.com',
+    userId: '@alice:example.com',
+    deviceId: tokens.deviceId ?? 'DEVICE',
+    accessToken: tokens.accessToken,
+    refreshToken: tokens.refreshToken,
+  });
+
+// Minimal Web Locks double: one exclusive holder per name, shared by every
+// refresher in this realm, like tabs of one origin.
+const installWebLocks = () => {
+  const tails = new Map<string, Promise<unknown>>();
+  const request = vi.fn((name: string, callback: () => Promise<unknown>) => {
+    const previous = tails.get(name) ?? Promise.resolve();
+    const result = previous.then(callback, callback);
+    tails.set(
+      name,
+      result.catch(() => undefined)
+    );
+    return result;
+  });
+  Object.defineProperty(navigator, 'locks', { configurable: true, value: { request } });
+  return request;
+};
+
+const removeWebLocks = () => {
+  Reflect.deleteProperty(navigator, 'locks');
+};
 
 describe('createSessionTokenRefresh', () => {
   it.each([
@@ -56,5 +99,185 @@ describe('createSessionTokenRefresh', () => {
 
     await expect(result).rejects.toBeInstanceOf(TokenRefreshLogoutError);
     await expect(result).rejects.not.toBeInstanceOf(TokenRefreshError);
+  });
+});
+
+describe('cross-tab refresh-token rotation', () => {
+  afterEach(() => {
+    removeWebLocks();
+    localStorage.clear();
+  });
+
+  it('adopts a rotation another tab stored instead of spending a stale refresh token', async () => {
+    const session = storeSession({ accessToken: 'access-b', refreshToken: 'refresh-b' });
+    const refresh = vi.fn();
+
+    const tokens = await createSessionTokenRefresh({
+      sessionId: session.sessionId,
+      deviceId: 'DEVICE',
+      refresh,
+    })('refresh-a');
+
+    expect(refresh).not.toHaveBeenCalled();
+    expect(tokens).toEqual({
+      accessToken: 'access-b',
+      refreshToken: 'refresh-b',
+      expiry: undefined,
+    });
+  });
+
+  it('does not adopt credentials stored for a different device of the same account', async () => {
+    const session = storeSession({
+      accessToken: 'access-new-device',
+      refreshToken: 'refresh-new-device',
+      deviceId: 'NEWDEVICE',
+    });
+    const refresh = vi
+      .fn()
+      .mockResolvedValue({ access_token: 'access-b', refresh_token: 'refresh-b' });
+
+    const tokens = await createSessionTokenRefresh({
+      sessionId: session.sessionId,
+      deviceId: 'DEVICE',
+      refresh,
+    })('refresh-a');
+
+    expect(refresh).toHaveBeenCalledWith('refresh-a');
+    expect(tokens).toMatchObject({ accessToken: 'access-b', refreshToken: 'refresh-b' });
+    expect(getSessionStore().sessions[0]).toMatchObject({ accessToken: 'access-new-device' });
+  });
+
+  it('performs one network refresh when two tabs refresh the same session at once', async () => {
+    const locks = installWebLocks();
+    const session = storeSession({ accessToken: 'access-a', refreshToken: 'refresh-a' });
+    let finishRefresh: (value: IRefreshTokenResponse) => void = () => undefined;
+    const refresh = vi.fn(
+      () =>
+        new Promise<IRefreshTokenResponse>((resolve) => {
+          finishRefresh = resolve;
+        })
+    );
+    const firstTab = createSessionTokenRefresh({
+      sessionId: session.sessionId,
+      deviceId: 'DEVICE',
+      refresh,
+    });
+    const secondTab = createSessionTokenRefresh({
+      sessionId: session.sessionId,
+      deviceId: 'DEVICE',
+      refresh,
+    });
+
+    const first = firstTab('refresh-a');
+    const second = secondTab('refresh-a');
+    await vi.waitFor(() => expect(refresh).toHaveBeenCalledTimes(1));
+    finishRefresh({ access_token: 'access-b', refresh_token: 'refresh-b', expires_in_ms: 60_000 });
+
+    await expect(first).resolves.toMatchObject({
+      accessToken: 'access-b',
+      refreshToken: 'refresh-b',
+    });
+    await expect(second).resolves.toMatchObject({
+      accessToken: 'access-b',
+      refreshToken: 'refresh-b',
+    });
+    expect(refresh).toHaveBeenCalledTimes(1);
+    expect(locks).toHaveBeenCalledWith(
+      `mindroom-token-refresh:${session.sessionId}`,
+      expect.any(Function)
+    );
+  });
+});
+
+describe('hung token refresh', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+    removeWebLocks();
+    localStorage.clear();
+  });
+
+  it('times out a hung holder so the next tab can refresh', async () => {
+    vi.useFakeTimers();
+    installWebLocks();
+    const session = storeSession({ accessToken: 'access-a', refreshToken: 'refresh-a' });
+    const hungRefresh = vi.fn(
+      () =>
+        new Promise<IRefreshTokenResponse>(() => {
+          // Never settles, like a request stuck behind a dead connection.
+        })
+    );
+    const workingRefresh = vi.fn().mockResolvedValue({
+      access_token: 'access-b',
+      refresh_token: 'refresh-b',
+      expires_in_ms: 60_000,
+    });
+
+    const hung = createSessionTokenRefresh({
+      sessionId: session.sessionId,
+      deviceId: 'DEVICE',
+      refresh: hungRefresh,
+    })('refresh-a');
+    const hungOutcome = hung.catch((error: unknown) => error);
+    const next = createSessionTokenRefresh({
+      sessionId: session.sessionId,
+      deviceId: 'DEVICE',
+      refresh: workingRefresh,
+    })('refresh-a');
+
+    await vi.advanceTimersByTimeAsync(TOKEN_REFRESH_TIMEOUT_MS);
+
+    const hungError = await hungOutcome;
+    expect(hungError).toBeInstanceOf(Error);
+    expect(hungError).not.toBeInstanceOf(TokenRefreshLogoutError);
+    await expect(next).resolves.toMatchObject({ accessToken: 'access-b' });
+    expect(workingRefresh).toHaveBeenCalledWith('refresh-a');
+  });
+});
+
+describe('createStoredSessionTokenRefresh', () => {
+  afterEach(() => {
+    vi.mocked(createMatrixClient).mockReset();
+    localStorage.clear();
+  });
+
+  it('returns no refresh function for sessions without a refresh token', () => {
+    expect(
+      createStoredSessionTokenRefresh({
+        sessionId: 'session-a',
+        baseUrl: 'https://example.com',
+        deviceId: 'DEVICE',
+        refreshToken: undefined,
+      })
+    ).toBeUndefined();
+    expect(createMatrixClient).not.toHaveBeenCalled();
+  });
+
+  it('refreshes through an unauthenticated client and persists the rotated credentials', async () => {
+    const session = putSession({
+      baseUrl: 'https://example.com',
+      userId: '@alice:example.com',
+      deviceId: 'DEVICE',
+      accessToken: 'access-a',
+      refreshToken: 'refresh-a',
+    });
+    const refreshToken = vi.fn().mockResolvedValue({
+      access_token: 'access-b',
+      refresh_token: 'refresh-b',
+    });
+    vi.mocked(createMatrixClient).mockReturnValue({ refreshToken } as never);
+
+    const refresh = createStoredSessionTokenRefresh(session);
+    const tokens = await refresh?.('refresh-a');
+
+    expect(createMatrixClient).toHaveBeenCalledWith({
+      baseUrl: 'https://example.com',
+      localTimeoutMs: TOKEN_REFRESH_TIMEOUT_MS,
+    });
+    expect(refreshToken).toHaveBeenCalledWith('refresh-a');
+    expect(tokens).toMatchObject({ accessToken: 'access-b', refreshToken: 'refresh-b' });
+    expect(getSessionStore().sessions[0]).toMatchObject({
+      accessToken: 'access-b',
+      refreshToken: 'refresh-b',
+    });
   });
 });

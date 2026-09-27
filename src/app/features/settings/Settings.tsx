@@ -75,7 +75,8 @@ export function Settings({ initialPage, requestClose }: SettingsProps) {
 
   const screenSize = useScreenSizeContext();
   const simpleMode = useSimpleMode();
-  const showLocalMindRoom = (sidebar?.showMindRoom ?? true) && !simpleMode;
+  // Local MindRoom stays visible in simple mode: it is where device pairing codes are entered.
+  const showLocalMindRoom = sidebar?.showMindRoom ?? true;
   const [activePage, setActivePage] = useState<SettingsPage | undefined>(() =>
     resolveSettingsInitialPage(initialPage, screenSize, showLocalMindRoom)
   );

@@ -1,21 +1,19 @@
 import { useTranslation } from 'react-i18next';
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Box, Button, Icon, IconButton, Icons, Scroll, Spinner, Text, color } from 'folds';
 import { Page, PageContent, PageHeader } from '../../components/page';
 import { SequenceCard } from '../../components/sequence-card';
 import { SettingTile } from '../../components/setting-tile';
-import { copyToClipboard } from '../../utils/dom';
 import { useClientConfig } from '../../hooks/useClientConfig';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
-import { useTimeoutToggle } from '../../hooks/useTimeoutToggle';
 import { useAppLanguageCode } from '../../hooks/useAppLanguageCode';
 import { SequenceCardStyle } from '../../features/settings/styles.css';
+import { getConnectPath } from '../../pages/pathUtils';
 import {
   LocalMindroomConnection,
   getLocalMindroomConnections,
   getLocalMindroomErrorMessage,
-  getLocalMindroomPairStatus,
-  issueLocalMindroomPairCode,
   revokeLocalMindroomConnection,
 } from './api';
 import {
@@ -25,46 +23,22 @@ import {
   getConnectionLastSeenAt,
   getConnectionName,
   getMindroomDocsUrl,
-  getMindroomPairingCommand,
-  getPairingSecondsRemaining,
   isConnectionRevoked,
   resolveMindroomProvisioningRequest,
 } from './mindroom';
+import { PairCodeForm } from './PairCodeForm';
+
+const LOCAL_MINDROOM_RUN_COMMAND = 'uvx mindroom run';
 
 type LocalMindroomProps = {
   requestClose: () => void;
+  onNavigate: () => void;
 };
 
-type PairStatus = 'pending' | 'connected' | 'expired';
-
-type PairSession = {
-  pairCode: string;
-  expiresAt: string;
-  pollIntervalSeconds: number;
-};
-
-export function PairingCommandCopyButton({ command }: { command: string }) {
-  const { t } = useTranslation();
-  const [copied, setCopied] = useTimeoutToggle(1600);
-
-  const handleCopy = async () => {
-    if (await copyToClipboard(command)) setCopied();
-  };
-
-  return (
-    <Button size="300" variant="Secondary" fill="Soft" outlined radii="300" onClick={handleCopy}>
-      <Text size="B300">
-        {copied
-          ? t('mindroomUi.local-mindroom.localMindroom.copied')
-          : t('mindroomUi.local-mindroom.localMindroom.copyCommand')}
-      </Text>
-    </Button>
-  );
-}
-
-export function LocalMindroom({ requestClose }: LocalMindroomProps) {
+export function LocalMindroom({ requestClose, onNavigate }: LocalMindroomProps) {
   const { t } = useTranslation();
   const language = useAppLanguageCode();
+  const navigate = useNavigate();
   const mx = useMatrixClient();
   const { sidebar } = useClientConfig();
   const docsUrl = getMindroomDocsUrl(sidebar?.mindRoomUrl);
@@ -77,17 +51,13 @@ export function LocalMindroom({ requestClose }: LocalMindroomProps) {
   });
   const provisioningUrl = provisioningRequest.provisioningBaseUrl;
   const browserAccessToken = provisioningRequest.accessToken;
+  // Without a token this account's installations cannot be listed; asking
+  // anyway would only send an unauthenticated request to another origin.
+  const provisioningHost = provisioningUrl ? new URL(provisioningUrl).host : undefined;
 
   const [connections, setConnections] = useState<LocalMindroomConnection[] | undefined>();
   const [loadingConnections, setLoadingConnections] = useState(false);
   const [connectionsError, setConnectionsError] = useState<string>();
-
-  const [pairSession, setPairSession] = useState<PairSession>();
-  const [pairStatus, setPairStatus] = useState<PairStatus>();
-  const [pairConnection, setPairConnection] = useState<LocalMindroomConnection>();
-  const [pairError, setPairError] = useState<string>();
-  const [startingPair, setStartingPair] = useState(false);
-  const [nowMs, setNowMs] = useState(Date.now());
   const [confirmRevokeId, setConfirmRevokeId] = useState<string>();
   const [revokingId, setRevokingId] = useState<string>();
   const [revokeError, setRevokeError] = useState<string>();
@@ -111,104 +81,15 @@ export function LocalMindroom({ requestClose }: LocalMindroomProps) {
   }, [browserAccessToken, provisioningUrl, t]);
 
   useEffect(() => {
-    loadConnections();
-  }, [loadConnections]);
+    if (browserAccessToken) loadConnections();
+  }, [browserAccessToken, loadConnections]);
 
-  useEffect(() => {
-    if (!pairSession) return undefined;
-    const intervalId = window.setInterval(() => setNowMs(Date.now()), 1000);
-    return () => window.clearInterval(intervalId);
-  }, [pairSession]);
-
-  const secondsRemaining = useMemo(() => {
-    if (!pairSession) return 0;
-    return getPairingSecondsRemaining(pairSession.expiresAt, nowMs);
-  }, [pairSession, nowMs]);
-
-  useEffect(() => {
-    if (!pairSession || pairStatus !== 'pending') return;
-    if (secondsRemaining <= 0) {
-      setPairStatus('expired');
-    }
-  }, [pairSession, pairStatus, secondsRemaining]);
-
-  useEffect(() => {
-    if (!pairSession || pairStatus !== 'pending') return undefined;
-
-    let cancelled = false;
-    const pollIntervalMs = Math.max(1, pairSession.pollIntervalSeconds) * 1000;
-
-    const poll = async () => {
-      try {
-        const result = await getLocalMindroomPairStatus(
-          pairSession.pairCode,
-          browserAccessToken,
-          provisioningUrl
-        );
-        if (cancelled) return;
-
-        if (result.status === 'pending') {
-          setPairStatus('pending');
-          return;
-        }
-
-        if (result.status === 'expired') {
-          setPairStatus('expired');
-          return;
-        }
-
-        setPairStatus('connected');
-        setPairConnection(result.connection);
-        loadConnections().catch(() => undefined);
-      } catch (error) {
-        if (cancelled) return;
-        setPairError(
-          getLocalMindroomErrorMessage(
-            error,
-            t('mindroomUi.local-mindroom.localMindroom.requestFailed')
-          )
-        );
-      }
-    };
-
-    poll();
-    const intervalId = window.setInterval(() => {
-      poll();
-    }, pollIntervalMs);
-
-    return () => {
-      cancelled = true;
-      window.clearInterval(intervalId);
-    };
-  }, [pairSession, pairStatus, loadConnections, browserAccessToken, provisioningUrl, t]);
-
-  const handleStartPair = useCallback(async () => {
-    setStartingPair(true);
-    setPairError(undefined);
-    setRevokeError(undefined);
-    setConfirmRevokeId(undefined);
-    setPairConnection(undefined);
-
-    try {
-      const result = await issueLocalMindroomPairCode(browserAccessToken, provisioningUrl);
-      setPairSession({
-        pairCode: result.pair_code,
-        expiresAt: result.expires_at,
-        pollIntervalSeconds: result.poll_interval_seconds,
-      });
-      setPairStatus('pending');
-      setNowMs(Date.now());
-    } catch (error) {
-      setPairError(
-        getLocalMindroomErrorMessage(
-          error,
-          t('mindroomUi.local-mindroom.localMindroom.requestFailed')
-        )
-      );
-    } finally {
-      setStartingPair(false);
-    }
-  }, [browserAccessToken, provisioningUrl, t]);
+  // The connect page lives outside the client layout, so close settings first
+  // to keep the modal from reopening when the user comes back.
+  const handlePairCode = (pairCode: string) => {
+    onNavigate();
+    navigate(getConnectPath(pairCode));
+  };
 
   const handleRevokeConnection = useCallback(
     async (connectionId: string) => {
@@ -234,15 +115,6 @@ export function LocalMindroom({ requestClose }: LocalMindroomProps) {
   );
 
   const hasConnections = (connections?.length ?? 0) > 0;
-  const pairingCommand = pairSession ? getMindroomPairingCommand(pairSession.pairCode) : '';
-  const showGenerateNewCode = !pairSession || pairStatus === 'expired';
-  let pairStatusLabel = t('mindroomUi.local-mindroom.localMindroom.secondsRemaining', {
-    count: secondsRemaining,
-  });
-  if (pairStatus === 'connected')
-    pairStatusLabel = t('mindroomUi.local-mindroom.localMindroom.connected');
-  else if (pairStatus === 'expired')
-    pairStatusLabel = t('mindroomUi.local-mindroom.localMindroom.expired');
 
   return (
     <Page>
@@ -278,106 +150,14 @@ export function LocalMindroom({ requestClose }: LocalMindroomProps) {
                     title={t(
                       'mindroomUi.local-mindroom.localMindroom.pairThisChatAccountWithYourLocalMindroomProcess'
                     )}
-                    description={t(
-                      'mindroomUi.local-mindroom.localMindroom.generateAOneTimeCodeRunTheCommandLocallyThen'
-                    )}
+                    description={t('mindroomUi.local-mindroom.localMindroom.enterCodeDescription', {
+                      command: LOCAL_MINDROOM_RUN_COMMAND,
+                    })}
                   />
 
-                  {provisioningRequest.warning && (
-                    <Text size="T200" style={{ color: color.Warning.Main }}>
-                      {provisioningRequest.warning}
-                    </Text>
-                  )}
-
-                  {pairSession && (
-                    <Box direction="Column" gap="300">
-                      <SettingTile
-                        title={t('mindroomUi.local-mindroom.localMindroom.pairCode')}
-                        description={pairSession.pairCode}
-                        after={
-                          <Text size="B300" style={{ color: color.Secondary.Main }}>
-                            {pairStatusLabel}
-                          </Text>
-                        }
-                      />
-                      <SettingTile
-                        title={t('mindroomUi.local-mindroom.localMindroom.command')}
-                        description={
-                          <code style={{ fontSize: '0.85em', wordBreak: 'break-word' }}>
-                            {pairingCommand}
-                          </code>
-                        }
-                        after={
-                          <PairingCommandCopyButton key={pairingCommand} command={pairingCommand} />
-                        }
-                      />
-                    </Box>
-                  )}
-
-                  {pairStatus === 'pending' && (
-                    <Text size="T200" priority="300">
-                      {t(
-                        'mindroomUi.local-mindroom.localMindroom.waitingForLocalConnectionRunTheCommandAboveOnYour'
-                      )}
-                    </Text>
-                  )}
-
-                  {pairStatus === 'connected' && (
-                    <Box direction="Column" gap="100">
-                      <Text size="T200" style={{ color: color.Success.Main }}>
-                        {t(
-                          'mindroomUi.local-mindroom.localMindroom.localMindroomConnectedSuccessfully'
-                        )}
-                      </Text>
-                      {pairConnection && (
-                        <Text size="T200" priority="300">
-                          {t('mindroomUi.local-mindroom.localMindroom.connectionSummary', {
-                            name: getConnectionName(pairConnection, 0),
-                            created: formatLocalTimestamp(
-                              getConnectionCreatedAt(pairConnection),
-                              language,
-                              t('mindroomUi.local-mindroom.localMindroom.unknown')
-                            ),
-                            lastSeen: formatLocalTimestamp(
-                              getConnectionLastSeenAt(pairConnection),
-                              language,
-                              t('mindroomUi.local-mindroom.localMindroom.unknown')
-                            ),
-                          })}
-                        </Text>
-                      )}
-                    </Box>
-                  )}
-
-                  {pairStatus === 'expired' && (
-                    <Text size="T200" style={{ color: color.Warning.Main }}>
-                      {t(
-                        'mindroomUi.local-mindroom.localMindroom.pairCodeExpiredGenerateANewCodeToContinue'
-                      )}
-                    </Text>
-                  )}
-
-                  {pairError && (
-                    <Text size="T200" style={{ color: color.Critical.Main }}>
-                      {pairError}
-                    </Text>
-                  )}
+                  <PairCodeForm onSubmit={handlePairCode} />
 
                   <Box gap="200" wrap="Wrap">
-                    <Button
-                      size="300"
-                      variant="Primary"
-                      radii="300"
-                      onClick={handleStartPair}
-                      disabled={startingPair || pairStatus === 'pending'}
-                      before={startingPair && <Spinner variant="Primary" fill="Solid" size="200" />}
-                    >
-                      <Text size="B300">
-                        {showGenerateNewCode
-                          ? t('mindroomUi.local-mindroom.localMindroom.generatePairCode')
-                          : t('mindroomUi.local-mindroom.localMindroom.generateNewCode')}
-                      </Text>
-                    </Button>
                     <Button
                       size="300"
                       variant="Secondary"
@@ -404,144 +184,157 @@ export function LocalMindroom({ requestClose }: LocalMindroomProps) {
                   direction="Column"
                   gap="300"
                 >
-                  {loadingConnections && (
-                    <Box alignItems="Center" gap="200">
-                      <Spinner variant="Secondary" fill="Soft" size="200" />
-                      <Text size="T200" priority="300">
-                        {t('mindroomUi.local-mindroom.localMindroom.loadingLinkedInstallations')}
-                      </Text>
-                    </Box>
-                  )}
-
-                  {!loadingConnections && connectionsError && (
-                    <Box direction="Column" gap="200">
-                      <Text size="T200" style={{ color: color.Critical.Main }}>
-                        {connectionsError}
-                      </Text>
-                      <Button
-                        size="300"
-                        variant="Secondary"
-                        fill="Soft"
-                        outlined
-                        radii="300"
-                        onClick={loadConnections}
-                      >
-                        <Text size="B300">
-                          {t('mindroomUi.local-mindroom.localMindroom.tryAgain')}
-                        </Text>
-                      </Button>
-                    </Box>
-                  )}
-
-                  {!loadingConnections && !connectionsError && !hasConnections && (
-                    <Text size="T200" priority="300">
-                      {t(
-                        'mindroomUi.local-mindroom.localMindroom.noLinkedLocalMindroomInstallationsYet'
+                  {browserAccessToken ? (
+                    <>
+                      {loadingConnections && (
+                        <Box alignItems="Center" gap="200">
+                          <Spinner variant="Secondary" fill="Soft" size="200" />
+                          <Text size="T200" priority="300">
+                            {t(
+                              'mindroomUi.local-mindroom.localMindroom.loadingLinkedInstallations'
+                            )}
+                          </Text>
+                        </Box>
                       )}
-                    </Text>
-                  )}
 
-                  {connections?.map((connection, index) => {
-                    const connectionId = getConnectionId(connection);
-                    const isRevoking = connectionId !== undefined && revokingId === connectionId;
-                    const isConfirming =
-                      connectionId !== undefined && confirmRevokeId === connectionId;
+                      {!loadingConnections && connectionsError && (
+                        <Box direction="Column" gap="200">
+                          <Text size="T200" style={{ color: color.Critical.Main }}>
+                            {connectionsError}
+                          </Text>
+                          <Button
+                            size="300"
+                            variant="Secondary"
+                            fill="Soft"
+                            outlined
+                            radii="300"
+                            onClick={loadConnections}
+                          >
+                            <Text size="B300">
+                              {t('mindroomUi.local-mindroom.localMindroom.tryAgain')}
+                            </Text>
+                          </Button>
+                        </Box>
+                      )}
 
-                    return (
-                      <SequenceCard
-                        key={connectionId ?? `connection-item-${index}`}
-                        variant="Surface"
-                        direction="Column"
-                        gap="200"
-                        style={{ padding: '12px' }}
-                      >
-                        <SettingTile
-                          title={getConnectionName(connection, index)}
-                          description={
-                            <>
-                              <div>
-                                {t('mindroomUi.local-mindroom.localMindroom.createdAt', {
-                                  timestamp: formatLocalTimestamp(
-                                    getConnectionCreatedAt(connection),
-                                    language,
-                                    t('mindroomUi.local-mindroom.localMindroom.unknown')
-                                  ),
-                                })}
-                              </div>
-                              <div>
-                                {t('mindroomUi.local-mindroom.localMindroom.lastSeenAt', {
-                                  timestamp: formatLocalTimestamp(
-                                    getConnectionLastSeenAt(connection),
-                                    language,
-                                    t('mindroomUi.local-mindroom.localMindroom.unknown')
-                                  ),
-                                })}
-                              </div>
-                            </>
-                          }
-                        />
+                      {!loadingConnections && !connectionsError && !hasConnections && (
+                        <Text size="T200" priority="300">
+                          {t(
+                            'mindroomUi.local-mindroom.localMindroom.noLinkedLocalMindroomInstallationsYet'
+                          )}
+                        </Text>
+                      )}
 
-                        {connectionId && (
-                          <Box gap="200" wrap="Wrap">
-                            {!isConfirming && (
-                              <Button
-                                size="300"
-                                variant="Critical"
-                                fill="Soft"
-                                outlined
-                                radii="300"
-                                onClick={() => setConfirmRevokeId(connectionId)}
-                              >
-                                <Text size="B300">
-                                  {t('mindroomUi.local-mindroom.localMindroom.revoke')}
-                                </Text>
-                              </Button>
+                      {connections?.map((connection, index) => {
+                        const connectionId = getConnectionId(connection);
+                        const isRevoking =
+                          connectionId !== undefined && revokingId === connectionId;
+                        const isConfirming =
+                          connectionId !== undefined && confirmRevokeId === connectionId;
+
+                        return (
+                          <SequenceCard
+                            key={connectionId ?? `connection-item-${index}`}
+                            variant="Surface"
+                            direction="Column"
+                            gap="200"
+                            style={{ padding: '12px' }}
+                          >
+                            <SettingTile
+                              title={getConnectionName(connection, index)}
+                              description={
+                                <>
+                                  <div>
+                                    {t('mindroomUi.local-mindroom.localMindroom.createdAt', {
+                                      timestamp: formatLocalTimestamp(
+                                        getConnectionCreatedAt(connection),
+                                        language,
+                                        t('mindroomUi.local-mindroom.localMindroom.unknown')
+                                      ),
+                                    })}
+                                  </div>
+                                  <div>
+                                    {t('mindroomUi.local-mindroom.localMindroom.lastSeenAt', {
+                                      timestamp: formatLocalTimestamp(
+                                        getConnectionLastSeenAt(connection),
+                                        language,
+                                        t('mindroomUi.local-mindroom.localMindroom.unknown')
+                                      ),
+                                    })}
+                                  </div>
+                                </>
+                              }
+                            />
+
+                            {connectionId && (
+                              <Box gap="200" wrap="Wrap">
+                                {!isConfirming && (
+                                  <Button
+                                    size="300"
+                                    variant="Critical"
+                                    fill="Soft"
+                                    outlined
+                                    radii="300"
+                                    onClick={() => setConfirmRevokeId(connectionId)}
+                                  >
+                                    <Text size="B300">
+                                      {t('mindroomUi.local-mindroom.localMindroom.revoke')}
+                                    </Text>
+                                  </Button>
+                                )}
+
+                                {isConfirming && (
+                                  <>
+                                    <Button
+                                      size="300"
+                                      variant="Critical"
+                                      radii="300"
+                                      onClick={() => {
+                                        handleRevokeConnection(connectionId);
+                                      }}
+                                      disabled={isRevoking}
+                                      before={
+                                        isRevoking && (
+                                          <Spinner variant="Critical" fill="Solid" size="200" />
+                                        )
+                                      }
+                                    >
+                                      <Text size="B300">
+                                        {t('mindroomUi.local-mindroom.localMindroom.confirmRevoke')}
+                                      </Text>
+                                    </Button>
+                                    <Button
+                                      size="300"
+                                      variant="Secondary"
+                                      fill="Soft"
+                                      outlined
+                                      radii="300"
+                                      onClick={() => setConfirmRevokeId(undefined)}
+                                      disabled={isRevoking}
+                                    >
+                                      <Text size="B300">
+                                        {t('mindroomUi.local-mindroom.localMindroom.cancel')}
+                                      </Text>
+                                    </Button>
+                                  </>
+                                )}
+                              </Box>
                             )}
+                          </SequenceCard>
+                        );
+                      })}
 
-                            {isConfirming && (
-                              <>
-                                <Button
-                                  size="300"
-                                  variant="Critical"
-                                  radii="300"
-                                  onClick={() => {
-                                    handleRevokeConnection(connectionId);
-                                  }}
-                                  disabled={isRevoking}
-                                  before={
-                                    isRevoking && (
-                                      <Spinner variant="Critical" fill="Solid" size="200" />
-                                    )
-                                  }
-                                >
-                                  <Text size="B300">
-                                    {t('mindroomUi.local-mindroom.localMindroom.confirmRevoke')}
-                                  </Text>
-                                </Button>
-                                <Button
-                                  size="300"
-                                  variant="Secondary"
-                                  fill="Soft"
-                                  outlined
-                                  radii="300"
-                                  onClick={() => setConfirmRevokeId(undefined)}
-                                  disabled={isRevoking}
-                                >
-                                  <Text size="B300">
-                                    {t('mindroomUi.local-mindroom.localMindroom.cancel')}
-                                  </Text>
-                                </Button>
-                              </>
-                            )}
-                          </Box>
-                        )}
-                      </SequenceCard>
-                    );
-                  })}
-
-                  {revokeError && (
-                    <Text size="T200" style={{ color: color.Critical.Main }}>
-                      {revokeError}
+                      {revokeError && (
+                        <Text size="T200" style={{ color: color.Critical.Main }}>
+                          {revokeError}
+                        </Text>
+                      )}
+                    </>
+                  ) : (
+                    <Text size="T200" priority="300">
+                      {t('mindroomUi.local-mindroom.localMindroom.linkedInstallationsUnavailable', {
+                        server: provisioningHost,
+                      })}
                     </Text>
                   )}
                 </SequenceCard>

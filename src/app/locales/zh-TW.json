@@ -1015,7 +1015,7 @@
     "welcomePage": {
       "setUpLocalMindroom": "設定Local MindRoom",
       "openLocalMindroomSettings": "開啟Local MindRoom 設定",
-      "3ClickHereToOpenLocalMindroomAndGenerateAPairCode": "3.點選此處開啟Local MindRoom並產生配對碼",
+      "enterPairCode": "已有代碼？在 Local MindRoom 中輸入",
       "poweredBy": "由 <links /> 提供支援",
       "title": "歡迎來到{{appName}}",
       "subtitle": "活躍於聊天房間中的 AI 代理。",
@@ -1023,8 +1023,7 @@
       "sourceCode": "原始碼",
       "setupStep1": "1. 執行 {{command}}",
       "setupStep2": "2. 在 {{envFile}} 中加入模型憑證，或執行 {{command}}",
-      "setupStep4": "4. 執行 {{command}}",
-      "setupStep5": "5. 使用 {{command}} 啟動"
+      "setupStep3": "3. 使用 {{command}} 啟動，然後開啟它輸出的連結以核准連線"
     },
     "create": {
       "createSpace": "建立空間",
@@ -2303,21 +2302,14 @@
     },
     "local-mindroom": {
       "localMindroom": {
-        "copied": "已複製",
-        "copyCommand": "複製指令",
         "localMindroom": "Local MindRoom",
         "connectLocalMindroom": "連線Local MindRoom",
         "pairThisChatAccountWithYourLocalMindroomProcess": "將此聊天帳戶與您本機的 MindRoom 流程配對",
-        "generateAOneTimeCodeRunTheCommandLocallyThen": "產生一次性程式碼，在本機執行命令，然後等待連線確認。",
+        "enterCodeDescription": "在您的裝置上執行 {{command}}，然後開啟它輸出的連結，或在此輸入其代碼。",
         "pairCode": "配對碼",
-        "command": "命令",
-        "waitingForLocalConnectionRunTheCommandAboveOnYour": "正在等待本機連線。請在您的裝置上執行上述命令。",
-        "localMindroomConnectedSuccessfully": "Local MindRoom連線成功。",
-        "pairCodeExpiredGenerateANewCodeToContinue": "配對碼已過期。產生新程式碼以繼續。",
-        "generatePairCode": "產生配對程式碼",
-        "generateNewCode": "產生新程式碼",
         "mindroomDocs": "MindRoom 檔案",
         "linkedInstallations": "已連結的安裝專案",
+        "linkedInstallationsUnavailable": "已連結的安裝僅適用於 {{server}} 上的帳戶。",
         "loadingLinkedInstallations": "正在載入連結的安裝...",
         "tryAgain": "再試一次",
         "noLinkedLocalMindroomInstallationsYet": "尚未連結本機 MindRoom 安裝。",
@@ -2325,13 +2317,29 @@
         "confirmRevoke": "確認撤銷",
         "cancel": "取消",
         "requestFailed": "請求失敗。請再試一次。",
-        "secondsRemaining": "{{count}} 秒",
-        "connected": "已連線",
-        "expired": "已到期",
         "unknown": "未知",
-        "connectionSummary": "{{name}} |建立：{{created}} |上次出現：{{lastSeen}}}",
         "createdAt": "建立時間：{{timestamp}}",
         "lastSeenAt": "最後檢視時間：{{timestamp}}"
+      },
+      "connect": {
+        "enterCode": "輸入終端機中顯示的代碼。",
+        "continue": "繼續",
+        "invalidCode": "請輸入 8 位代碼，例如 ABCD-EFGH。",
+        "code": "代碼：{{code}}",
+        "chooseAccount": "選擇核准此連線的帳戶",
+        "checkingCode": "正在檢查代碼...",
+        "deviceQuestion": "連線 {{clientName}}？",
+        "deviceStarted": "{{age}}啟動",
+        "warning": "僅在您剛剛於自己的裝置上啟動此操作時才核准。",
+        "approveAs": "以 {{userId}} 身分核准",
+        "approved": "已連線。您可以返回終端機了。",
+        "noAccount": "請使用您的 MindRoom 帳戶登入以核准此連線。",
+        "signIn": "登入以核准",
+        "accountSignedOut": "此帳戶需要重新登入才能核准。",
+        "codeNotFound": "找不到此代碼。請檢查終端機中顯示的代碼。",
+        "codeExpired": "此代碼已過期。請使用終端機中顯示的新連結或代碼。",
+        "codeAlreadyApproved": "此代碼已被核准。",
+        "backToChat": "返回聊天"
       }
     },
     "matrix": {

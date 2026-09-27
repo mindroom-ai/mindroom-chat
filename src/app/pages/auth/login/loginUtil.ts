@@ -105,7 +105,7 @@ export const login = async (
   };
 };
 
-export const useLoginComplete = (data?: CustomLoginResponse, addAccount = false) => {
+export const useLoginComplete = (data?: CustomLoginResponse) => {
   const session = useMemo(() => {
     if (!data) return undefined;
     const { response, baseUrl } = data;
@@ -119,5 +119,5 @@ export const useLoginComplete = (data?: CustomLoginResponse, addAccount = false)
     };
   }, [data]);
 
-  return useSessionCompletion(session, addAccount);
+  return useSessionCompletion(session);
 };

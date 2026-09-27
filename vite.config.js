@@ -12,6 +12,7 @@ import path from 'path';
 import { execFileSync } from 'child_process';
 import buildConfig from './build.config';
 import { authenticationRecoveryAssets } from './scripts/authentication-recovery-assets.mjs';
+import { e2eClientConfig } from './scripts/e2e-client-config.mjs';
 import { resolveBuildVersion } from './scripts/build-version.mjs';
 import { injectElementCallTransparentBackground } from './scripts/element-call-background.mjs';
 
@@ -196,6 +197,8 @@ export default defineConfig({
     },
   },
   plugins: [
+    // Registered first so its config.json takes precedence over the static copy.
+    e2eClientConfig(process.env.MINDROOM_E2E_PROVISIONING_URL),
     appVersionManifest(),
     authenticationRecoveryAssets(),
     serverStaleServiceWorkerCleanup(`${appBasePath}/sw.js`),

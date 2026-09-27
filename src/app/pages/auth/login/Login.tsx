@@ -86,7 +86,7 @@ export function Login() {
         </Text>
       )}
       {parsedFlows.token && loginSearchParams.loginToken && (
-        <TokenLogin token={loginSearchParams.loginToken} addAccount={addAccount} />
+        <TokenLogin token={loginSearchParams.loginToken} />
       )}
       {showPasswordLogin && (
         <>

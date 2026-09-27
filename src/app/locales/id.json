@@ -1015,7 +1015,7 @@
     "welcomePage": {
       "setUpLocalMindroom": "Siapkan MindRoom lokal",
       "openLocalMindroomSettings": "Buka pengaturan MindRoom lokal",
-      "3ClickHereToOpenLocalMindroomAndGenerateAPairCode": "3. Klik di sini untuk membuka MindRoom lokal dan membuat kode pemasangan",
+      "enterPairCode": "Punya kode? Masukkan di MindRoom lokal",
       "poweredBy": "Didukung oleh <links />",
       "title": "Selamat datang di {{appName}}",
       "subtitle": "Agen AI yang hadir di ruang obrolan Anda.",
@@ -1023,8 +1023,7 @@
       "sourceCode": "Kode sumber",
       "setupStep1": "1. Jalankan {{command}}",
       "setupStep2": "2. Tambahkan kredensial model di {{envFile}}, atau jalankan {{command}}",
-      "setupStep4": "4. Jalankan {{command}}",
-      "setupStep5": "5. Mulai dengan {{command}}"
+      "setupStep3": "3. Mulai dengan {{command}}, lalu buka tautan yang ditampilkannya untuk menyetujui koneksi"
     },
     "create": {
       "createSpace": "Buat space",
@@ -2303,21 +2302,14 @@
     },
     "local-mindroom": {
       "localMindroom": {
-        "copied": "Disalin",
-        "copyCommand": "Salin perintah",
         "localMindroom": "MindRoom lokal",
         "connectLocalMindroom": "Hubungkan MindRoom lokal",
         "pairThisChatAccountWithYourLocalMindroomProcess": "Pasangkan akun percakapan ini dengan proses MindRoom lokal Anda",
-        "generateAOneTimeCodeRunTheCommandLocallyThen": "Buat kode sekali pakai, jalankan perintah secara lokal, lalu tunggu konfirmasi koneksi.",
+        "enterCodeDescription": "Jalankan {{command}} di komputer Anda, lalu buka tautan yang ditampilkannya atau masukkan kodenya di sini.",
         "pairCode": "Kode pemasangan",
-        "command": "Perintah",
-        "waitingForLocalConnectionRunTheCommandAboveOnYour": "Menunggu koneksi lokal. Jalankan perintah di atas pada komputer Anda.",
-        "localMindroomConnectedSuccessfully": "MindRoom lokal berhasil terhubung.",
-        "pairCodeExpiredGenerateANewCodeToContinue": "Kode pemasangan kedaluwarsa. Buat kode baru untuk melanjutkan.",
-        "generatePairCode": "Buat kode pemasangan",
-        "generateNewCode": "Buat kode baru",
         "mindroomDocs": "Dokumentasi MindRoom",
         "linkedInstallations": "Instalasi terhubung",
+        "linkedInstallationsUnavailable": "Instalasi tertaut hanya tersedia untuk akun di {{server}}.",
         "loadingLinkedInstallations": "Memuat instalasi terhubung...",
         "tryAgain": "Coba lagi",
         "noLinkedLocalMindroomInstallationsYet": "Belum ada instalasi MindRoom lokal yang terhubung.",
@@ -2325,13 +2317,29 @@
         "confirmRevoke": "Konfirmasi pencabutan",
         "cancel": "Batal",
         "requestFailed": "Permintaan gagal. Coba lagi.",
-        "secondsRemaining": "{{count}} dtk",
-        "connected": "Terhubung",
-        "expired": "Kedaluwarsa",
         "unknown": "Tidak diketahui",
-        "connectionSummary": "{{name}} | Dibuat: {{created}} | Terakhir terlihat: {{lastSeen}}",
         "createdAt": "Dibuat: {{timestamp}}",
         "lastSeenAt": "Terakhir terlihat: {{timestamp}}"
+      },
+      "connect": {
+        "enterCode": "Masukkan kode yang ditampilkan di terminal Anda.",
+        "continue": "Lanjutkan",
+        "invalidCode": "Masukkan kode 8 karakter, misalnya ABCD-EFGH.",
+        "code": "Kode: {{code}}",
+        "chooseAccount": "Pilih akun yang menyetujui koneksi ini",
+        "checkingCode": "Memeriksa kode...",
+        "deviceQuestion": "Hubungkan {{clientName}}?",
+        "deviceStarted": "Dimulai {{age}}",
+        "warning": "Setujui hanya jika Anda baru saja memulai ini sendiri di komputer Anda.",
+        "approveAs": "Setujui sebagai {{userId}}",
+        "approved": "Terhubung. Anda dapat kembali ke terminal.",
+        "noAccount": "Masuk dengan akun MindRoom Anda untuk menyetujui koneksi ini.",
+        "signIn": "Masuk untuk menyetujui",
+        "accountSignedOut": "Akun ini harus masuk lagi sebelum dapat menyetujui.",
+        "codeNotFound": "Kode ini tidak ditemukan. Periksa kode yang ditampilkan di terminal Anda.",
+        "codeExpired": "Kode ini sudah kedaluwarsa. Gunakan tautan atau kode baru yang ditampilkan di terminal Anda.",
+        "codeAlreadyApproved": "Kode ini sudah disetujui.",
+        "backToChat": "Kembali ke percakapan"
       }
     },
     "matrix": {

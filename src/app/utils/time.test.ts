@@ -32,6 +32,13 @@ describe('formatRelativeTime', () => {
     expect(formatRelativeTime(now - minutesToMs(59))).toBe('59m ago');
   });
 
+  it('spells units out in the long style', () => {
+    const now = Date.now();
+
+    expect(formatRelativeTime(now - minutesToMs(2), 'en', 'long')).toBe('2 minutes ago');
+    expect(formatRelativeTime(now - minutesToMs(2))).toBe('2m ago');
+  });
+
   it('returns hours from 1 hour through 23 hours', () => {
     const now = Date.now();
 

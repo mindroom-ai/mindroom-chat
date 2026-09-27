@@ -1020,7 +1020,7 @@
     "welcomePage": {
       "setUpLocalMindroom": "Configurar MindRoom local",
       "openLocalMindroomSettings": "Abrir los ajustes de MindRoom local",
-      "3ClickHereToOpenLocalMindroomAndGenerateAPairCode": "3. Haz clic aquí para abrir MindRoom local y generar un código de emparejamiento",
+      "enterPairCode": "¿Tienes un código? Introdúcelo en MindRoom local",
       "poweredBy": "Con tecnología de <links />",
       "title": "Te damos la bienvenida a {{appName}}",
       "subtitle": "Agentes de IA que viven en tus salas de chat.",
@@ -1028,8 +1028,7 @@
       "sourceCode": "Código fuente",
       "setupStep1": "1. Ejecuta {{command}}",
       "setupStep2": "2. Añade las credenciales del modelo a {{envFile}} o ejecuta {{command}}",
-      "setupStep4": "4. Ejecuta {{command}}",
-      "setupStep5": "5. Inícialo con {{command}}"
+      "setupStep3": "3. Inícialo con {{command}} y luego abre el enlace que muestra para aprobar la conexión"
     },
     "mindroomNavigation": {
       "expandNavigationPanel": "Expandir el panel de navegación",
@@ -2331,21 +2330,14 @@
     },
     "local-mindroom": {
       "localMindroom": {
-        "copied": "Copiado",
-        "copyCommand": "Copiar comando",
         "localMindroom": "MindRoom local",
         "connectLocalMindroom": "Conectar MindRoom local",
         "pairThisChatAccountWithYourLocalMindroomProcess": "Vincula esta cuenta de chat con tu proceso local de MindRoom",
-        "generateAOneTimeCodeRunTheCommandLocallyThen": "Genera un código de un solo uso, ejecuta el comando localmente y espera la confirmación de conexión.",
+        "enterCodeDescription": "Ejecuta {{command}} en tu equipo y luego abre el enlace que muestra o introduce aquí su código.",
         "pairCode": "Código de vinculación",
-        "command": "Comando",
-        "waitingForLocalConnectionRunTheCommandAboveOnYour": "Esperando la conexión local. Ejecuta el comando anterior en tu equipo.",
-        "localMindroomConnectedSuccessfully": "MindRoom local se ha conectado correctamente.",
-        "pairCodeExpiredGenerateANewCodeToContinue": "El código de vinculación ha caducado. Genera uno nuevo para continuar.",
-        "generatePairCode": "Generar código de vinculación",
-        "generateNewCode": "Generar código nuevo",
         "mindroomDocs": "Documentación de MindRoom",
         "linkedInstallations": "Instalaciones vinculadas",
+        "linkedInstallationsUnavailable": "Las instalaciones vinculadas solo están disponibles para cuentas de {{server}}.",
         "loadingLinkedInstallations": "Cargando instalaciones vinculadas...",
         "tryAgain": "Intentar de nuevo",
         "noLinkedLocalMindroomInstallationsYet": "Aún no hay instalaciones locales de MindRoom vinculadas.",
@@ -2353,13 +2345,29 @@
         "confirmRevoke": "Confirmar revocación",
         "cancel": "Cancelar",
         "requestFailed": "La solicitud falló. Inténtalo de nuevo.",
-        "secondsRemaining": "{{count}} s",
-        "connected": "Conectado",
-        "expired": "Caducado",
         "unknown": "Desconocida",
-        "connectionSummary": "{{name}} | Creada: {{created}} | Visto por última vez: {{lastSeen}}",
         "createdAt": "Creada: {{timestamp}}",
         "lastSeenAt": "Visto por última vez: {{timestamp}}"
+      },
+      "connect": {
+        "enterCode": "Introduce el código que aparece en tu terminal.",
+        "continue": "Continuar",
+        "invalidCode": "Introduce el código de 8 caracteres, por ejemplo ABCD-EFGH.",
+        "code": "Código: {{code}}",
+        "chooseAccount": "Elige la cuenta que aprueba esta conexión",
+        "checkingCode": "Comprobando el código...",
+        "deviceQuestion": "¿Conectar {{clientName}}?",
+        "deviceStarted": "Iniciado {{age}}",
+        "warning": "Aprueba solo si acabas de iniciar esto en tu propio equipo.",
+        "approveAs": "Aprobar como {{userId}}",
+        "approved": "Conectado. Ya puedes volver a tu terminal.",
+        "noAccount": "Inicia sesión con tu cuenta de MindRoom para aprobar esta conexión.",
+        "signIn": "Iniciar sesión para aprobar",
+        "accountSignedOut": "Esta cuenta debe volver a iniciar sesión antes de poder aprobar.",
+        "codeNotFound": "No se encontró este código. Comprueba el código que aparece en tu terminal.",
+        "codeExpired": "Este código ha caducado. Usa el nuevo enlace o código que aparece en tu terminal.",
+        "codeAlreadyApproved": "Este código ya se ha aprobado.",
+        "backToChat": "Volver al chat"
       }
     },
     "matrix": {

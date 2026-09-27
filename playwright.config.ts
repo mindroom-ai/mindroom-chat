@@ -55,5 +55,6 @@ export default defineConfig({
           url: baseURL,
           reuseExistingServer,
           timeout: 120_000,
+          env: { MINDROOM_E2E_PROVISIONING_URL: new URL(baseURL).origin },
         },
 });

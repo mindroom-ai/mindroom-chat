@@ -206,9 +206,11 @@ describe('WelcomePage', () => {
       '1. Run uvx mindroom config init --provider <anthropic|codex|llama.cpp|ollama|openai|openrouter|vertexai_claude>'
     );
     expect(text).toContain('2. Add model credentials in ~/.mindroom/.env, or run codex login');
-    expect(text).toContain('3. Click here to open Local MindRoom and generate a pair code');
-    expect(text).toContain('4. Run uvx mindroom connect --pair-code ABCD-EFGH');
-    expect(text).toContain('5. Start it with uvx mindroom run');
+    expect(text).toContain(
+      '3. Start it with uvx mindroom run, then open the link it prints to approve the connection'
+    );
+    expect(text).toContain('Have a code? Enter it in Local MindRoom');
+    expect(text.join('\n')).not.toContain('mindroom connect');
   });
 
   it('updates setup instruction prose when the language changes without changing commands', async () => {
@@ -234,8 +236,7 @@ describe('WelcomePage', () => {
               welcomePage: {
                 setupStep1: '1. Run {{command}}',
                 setupStep2: '2. Add model credentials in {{envFile}}, or run {{command}}',
-                setupStep4: '4. Run {{command}}',
-                setupStep5: '5. Start it with {{command}}',
+                setupStep3: '3. Start it with {{command}}',
               },
             },
           },
@@ -246,8 +247,7 @@ describe('WelcomePage', () => {
               welcomePage: {
                 setupStep1: '1. Führe {{command}} aus',
                 setupStep2: '2. Hinterlege Zugangsdaten in {{envFile}} oder führe {{command}} aus',
-                setupStep4: '4. Führe {{command}} aus',
-                setupStep5: '5. Starte es mit {{command}}',
+                setupStep3: '3. Starte es mit {{command}}',
               },
             },
           },
@@ -273,8 +273,7 @@ describe('WelcomePage', () => {
     expect(text).toContain(
       '2. Hinterlege Zugangsdaten in ~/.mindroom/.env oder führe codex login aus'
     );
-    expect(text).toContain('4. Führe uvx mindroom connect --pair-code ABCD-EFGH aus');
-    expect(text).toContain('5. Starte es mit uvx mindroom run');
+    expect(text).toContain('3. Starte es mit uvx mindroom run');
   });
 
   it('opens Local MindRoom settings from the setup instructions', async () => {
@@ -305,6 +304,35 @@ describe('WelcomePage', () => {
     expect(store.get(settingsModalAtom)).toEqual({
       initialPage: LOCAL_MINDROOM_SETTINGS_PAGE,
     });
+  });
+
+  it('does not query provisioning for an account whose token it may not forward', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-05-15T12:00:00.000Z'));
+    useMatrixClientMock.mockReturnValue({
+      getAccessToken: () => 'matrix-org-token',
+      getHomeserverUrl: () => 'https://matrix-client.matrix.org',
+      getSafeUserId: () => '@bob:matrix.org',
+      getCrypto: () => undefined,
+    } as ReturnType<typeof useMatrixClient>);
+    useClientConfigMock.mockReturnValue({
+      sidebar: { mindRoomProvisioningUrl: 'https://mindroom.chat' },
+      welcome: {},
+    });
+    localStorage.setItem(
+      getWelcomeSetupFirstSeenStorageKey('@bob:matrix.org'),
+      Date.parse('2026-05-14T11:59:59.000Z').toString()
+    );
+    getLocalMindroomConnectionsMock.mockResolvedValue({ connections: [] });
+
+    let renderer: ReturnType<typeof create>;
+    await act(async () => {
+      renderer = create(React.createElement(WelcomePage));
+    });
+
+    expect(getLocalMindroomConnectionsMock).not.toHaveBeenCalled();
+    const text = renderer!.root.findAllByType('span').map((node) => node.children.join(' '));
+    expect(text).not.toContain('Set up Local MindRoom');
   });
 
   it('does not render setup instructions before the one-day grace period or with a paired device', async () => {

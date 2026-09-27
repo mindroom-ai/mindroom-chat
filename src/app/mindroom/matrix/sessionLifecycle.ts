@@ -17,6 +17,7 @@ import {
   getSessionIndexedDbStoreName,
   getSessionRustCryptoStoreNames,
   getSessionRustCryptoStorePrefix,
+  listSessions,
   removeSession,
 } from '../../state/sessions';
 import { clearAppOwnedCacheLocalStorage } from '../../utils/appOwnedStorage';
@@ -186,6 +187,16 @@ export const removeCurrentClientSessionAndReload = async (
 ): Promise<void> => {
   const session = getMatrixClientSessionCleanupContext(mx, candidate);
   stopClientRuntime(mx);
+
+  // Signing the same account in again (for example through Add account)
+  // replaces this record with a newer device. Its registry entry, sync store,
+  // and caches are keyed by account, so a logged-out older device must leave
+  // them alone; reloading boots the newer device.
+  const stored = listSessions().find((item) => item.sessionId === session?.sessionId);
+  if (session && stored && stored.deviceId !== session.deviceId) {
+    window.location.reload();
+    return;
+  }
 
   if (session) {
     await removeSessionRecordAndLocalData(session, mx);

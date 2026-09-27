@@ -74,31 +74,35 @@ export const hoursToMs = (hour: number) => hour * minutesToMs(60);
 export const daysToMs = (days: number) => days * hoursToMs(24);
 
 // useRelativeTime re-invokes formatRelativeTime every second per visible thread
-// card; caching the two Intl.RelativeTimeFormat variants avoids constructing
-// them on every tick. Only a small handful of languages (en/de/nl today) ever
-// reach this cache.
+// card; caching the Intl.RelativeTimeFormat variants avoids constructing
+// them on every tick.
 const relativeTimeFormatterCache = new Map<string, Intl.RelativeTimeFormat>();
 
 const getRelativeTimeFormatter = (
   language: string,
-  numeric: 'always' | 'auto'
+  numeric: 'always' | 'auto',
+  style: Intl.RelativeTimeFormatStyle
 ): Intl.RelativeTimeFormat => {
-  const cacheKey = `${language}:${numeric}`;
+  const cacheKey = `${language}:${numeric}:${style}`;
   const cached = relativeTimeFormatterCache.get(cacheKey);
   if (cached) return cached;
-  const formatter = new Intl.RelativeTimeFormat(language, { numeric, style: 'narrow' });
+  const formatter = new Intl.RelativeTimeFormat(language, { numeric, style });
   relativeTimeFormatterCache.set(cacheKey, formatter);
   return formatter;
 };
 
-export const formatRelativeTime = (ts: number, language = 'en'): string => {
+export const formatRelativeTime = (
+  ts: number,
+  language = 'en',
+  style: Intl.RelativeTimeFormatStyle = 'narrow'
+): string => {
   const ageMs = Math.max(0, Date.now() - ts);
 
   if (ageMs < 5000) {
-    return getRelativeTimeFormatter(language, 'auto').format(0, 'second');
+    return getRelativeTimeFormatter(language, 'auto', style).format(0, 'second');
   }
 
-  const relativeTime = getRelativeTimeFormatter(language, 'always');
+  const relativeTime = getRelativeTimeFormatter(language, 'always', style);
 
   const ageSeconds = Math.floor(ageMs / 1000);
   if (ageSeconds < 60) return relativeTime.format(-ageSeconds, 'second');

@@ -1015,7 +1015,7 @@
     "welcomePage": {
       "setUpLocalMindroom": "Lokales MindRoom einrichten",
       "openLocalMindroomSettings": "Einstellungen des lokalen MindRoom öffnen",
-      "3ClickHereToOpenLocalMindroomAndGenerateAPairCode": "3. Klicke hier, um das lokale MindRoom zu öffnen und einen Kopplungscode zu erzeugen",
+      "enterPairCode": "Hast du einen Code? Gib ihn unter Lokales MindRoom ein",
       "poweredBy": "Bereitgestellt von <links />",
       "title": "Willkommen bei {{appName}}",
       "subtitle": "KI-Agenten, die in deinen Chaträumen leben.",
@@ -1023,8 +1023,7 @@
       "sourceCode": "Quellcode",
       "setupStep1": "1. Führe {{command}} aus",
       "setupStep2": "2. Hinterlege die Modellzugangsdaten in {{envFile}} oder führe {{command}} aus",
-      "setupStep4": "4. Führe {{command}} aus",
-      "setupStep5": "5. Starte es mit {{command}}"
+      "setupStep3": "3. Starte es mit {{command}} und öffne dann den ausgegebenen Link, um die Verbindung zu bestätigen"
     },
     "mindroomNavigation": {
       "expandNavigationPanel": "Navigationsleiste ausklappen",
@@ -2303,21 +2302,14 @@
     },
     "local-mindroom": {
       "localMindroom": {
-        "copied": "Kopiert",
-        "copyCommand": "Befehl kopieren",
         "localMindroom": "Lokales MindRoom",
         "connectLocalMindroom": "Lokales MindRoom verbinden",
         "pairThisChatAccountWithYourLocalMindroomProcess": "Kopple dieses Chatkonto mit deinem lokalen MindRoom-Prozess",
-        "generateAOneTimeCodeRunTheCommandLocallyThen": "Erzeuge einen einmalig verwendbaren Code, führe den Befehl lokal aus und warte dann auf die Verbindungsbestätigung.",
+        "enterCodeDescription": "Führe {{command}} auf deinem Rechner aus und öffne dann den ausgegebenen Link oder gib den Code hier ein.",
         "pairCode": "Kopplungscode",
-        "command": "Befehl",
-        "waitingForLocalConnectionRunTheCommandAboveOnYour": "Warten auf lokale Verbindung. Führe den obigen Befehl auf deinem Computer aus.",
-        "localMindroomConnectedSuccessfully": "Lokales MindRoom wurde erfolgreich verbunden.",
-        "pairCodeExpiredGenerateANewCodeToContinue": "Der Kopplungscode ist abgelaufen. Erzeuge einen neuen Code, um fortzufahren.",
-        "generatePairCode": "Kopplungscode erzeugen",
-        "generateNewCode": "Neuen Code erzeugen",
         "mindroomDocs": "MindRoom-Dokumentation",
         "linkedInstallations": "Verknüpfte Installationen",
+        "linkedInstallationsUnavailable": "Verknüpfte Installationen sind nur für Konten auf {{server}} verfügbar.",
         "loadingLinkedInstallations": "Verknüpfte Installationen werden geladen...",
         "tryAgain": "Erneut versuchen",
         "noLinkedLocalMindroomInstallationsYet": "Noch keine lokalen MindRoom-Installationen verknüpft.",
@@ -2325,13 +2317,29 @@
         "confirmRevoke": "Widerruf bestätigen",
         "cancel": "Abbrechen",
         "requestFailed": "Anfrage fehlgeschlagen. Bitte versuche es erneut.",
-        "secondsRemaining": "{{count}} s",
-        "connected": "Verbunden",
-        "expired": "Abgelaufen",
         "unknown": "Unbekannt",
-        "connectionSummary": "{{name}} | Erstellt: {{created}} | Zuletzt gesehen: {{lastSeen}}",
         "createdAt": "Erstellt: {{timestamp}}",
         "lastSeenAt": "Zuletzt gesehen: {{timestamp}}"
+      },
+      "connect": {
+        "enterCode": "Gib den Code ein, der in deinem Terminal angezeigt wird.",
+        "continue": "Weiter",
+        "invalidCode": "Gib den 8-stelligen Code ein, zum Beispiel ABCD-EFGH.",
+        "code": "Code: {{code}}",
+        "chooseAccount": "Wähle das Konto, das diese Verbindung bestätigt",
+        "checkingCode": "Code wird geprüft...",
+        "deviceQuestion": "{{clientName}} verbinden?",
+        "deviceStarted": "Gestartet {{age}}",
+        "warning": "Bestätige nur, wenn du dies gerade selbst auf deinem eigenen Rechner gestartet hast.",
+        "approveAs": "Als {{userId}} bestätigen",
+        "approved": "Verbunden. Du kannst zu deinem Terminal zurückkehren.",
+        "noAccount": "Melde dich mit deinem MindRoom-Konto an, um diese Verbindung zu bestätigen.",
+        "signIn": "Zum Bestätigen anmelden",
+        "accountSignedOut": "Dieses Konto muss sich erneut anmelden, bevor es bestätigen kann.",
+        "codeNotFound": "Dieser Code wurde nicht gefunden. Prüfe den Code in deinem Terminal.",
+        "codeExpired": "Dieser Code ist abgelaufen. Verwende den neuen Link oder Code in deinem Terminal.",
+        "codeAlreadyApproved": "Dieser Code wurde bereits bestätigt.",
+        "backToChat": "Zurück zum Chat"
       }
     },
     "matrix": {

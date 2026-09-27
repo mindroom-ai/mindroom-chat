@@ -1020,7 +1020,7 @@
     "welcomePage": {
       "setUpLocalMindroom": "Configurar o MindRoom local",
       "openLocalMindroomSettings": "Abrir as definições do MindRoom local",
-      "3ClickHereToOpenLocalMindroomAndGenerateAPairCode": "3. Clique aqui para abrir o MindRoom local e gerar um código de emparelhamento",
+      "enterPairCode": "Tem um código? Insira-o em MindRoom local",
       "poweredBy": "Com tecnologia <links />",
       "title": "Boas-vindas ao {{appName}}",
       "subtitle": "Agentes de IA que vivem nas suas salas de conversa.",
@@ -1028,8 +1028,7 @@
       "sourceCode": "Código-fonte",
       "setupStep1": "1. Execute {{command}}",
       "setupStep2": "2. Adicione as credenciais do modelo a {{envFile}} ou execute {{command}}",
-      "setupStep4": "4. Execute {{command}}",
-      "setupStep5": "5. Inicie-o com {{command}}"
+      "setupStep3": "3. Inicie-o com {{command}} e depois abra o link exibido para aprovar a conexão"
     },
     "mindroomNavigation": {
       "expandNavigationPanel": "Expandir o painel de navegação",
@@ -2331,21 +2330,14 @@
     },
     "local-mindroom": {
       "localMindroom": {
-        "copied": "Copiado",
-        "copyCommand": "Copiar comando",
         "localMindroom": "MindRoom local",
         "connectLocalMindroom": "Ligar MindRoom local",
         "pairThisChatAccountWithYourLocalMindroomProcess": "Associe esta conta de conversa ao seu processo local do MindRoom",
-        "generateAOneTimeCodeRunTheCommandLocallyThen": "Gere um código de utilização única, execute o comando localmente e aguarde a confirmação da ligação.",
+        "enterCodeDescription": "Execute {{command}} no seu computador e depois abra o link exibido ou insira o código aqui.",
         "pairCode": "Código de associação",
-        "command": "Comando",
-        "waitingForLocalConnectionRunTheCommandAboveOnYour": "A aguardar ligação local. Execute o comando acima no seu computador.",
-        "localMindroomConnectedSuccessfully": "MindRoom local ligado com sucesso.",
-        "pairCodeExpiredGenerateANewCodeToContinue": "O código de associação expirou. Gere um novo código para continuar.",
-        "generatePairCode": "Gerar código de associação",
-        "generateNewCode": "Gerar novo código",
         "mindroomDocs": "Documentação do MindRoom",
         "linkedInstallations": "Instalações associadas",
+        "linkedInstallationsUnavailable": "As instalações associadas estão disponíveis apenas para contas em {{server}}.",
         "loadingLinkedInstallations": "A carregar instalações associadas...",
         "tryAgain": "Tentar novamente",
         "noLinkedLocalMindroomInstallationsYet": "Ainda não há instalações locais do MindRoom associadas.",
@@ -2353,13 +2345,29 @@
         "confirmRevoke": "Confirmar revogação",
         "cancel": "Cancelar",
         "requestFailed": "O pedido falhou. Tente novamente.",
-        "secondsRemaining": "{{count}} s",
-        "connected": "Ligado",
-        "expired": "Expirado",
         "unknown": "Desconhecida",
-        "connectionSummary": "{{name}} | Criada: {{created}} | Visto pela última vez: {{lastSeen}}",
         "createdAt": "Criado: {{timestamp}}",
         "lastSeenAt": "Visto pela última vez: {{timestamp}}"
+      },
+      "connect": {
+        "enterCode": "Insira o código exibido no seu terminal.",
+        "continue": "Continuar",
+        "invalidCode": "Insira o código de 8 caracteres, por exemplo ABCD-EFGH.",
+        "code": "Código: {{code}}",
+        "chooseAccount": "Escolha a conta que aprova esta conexão",
+        "checkingCode": "Verificando o código...",
+        "deviceQuestion": "Conectar {{clientName}}?",
+        "deviceStarted": "Iniciado {{age}}",
+        "warning": "Aprove somente se você acabou de iniciar isto no seu próprio computador.",
+        "approveAs": "Aprovar como {{userId}}",
+        "approved": "Conectado. Você pode voltar ao seu terminal.",
+        "noAccount": "Entre com sua conta MindRoom para aprovar esta conexão.",
+        "signIn": "Entrar para aprovar",
+        "accountSignedOut": "Esta conta precisa entrar novamente antes de poder aprovar.",
+        "codeNotFound": "Este código não foi encontrado. Verifique o código exibido no seu terminal.",
+        "codeExpired": "Este código expirou. Use o novo link ou código exibido no seu terminal.",
+        "codeAlreadyApproved": "Este código já foi aprovado.",
+        "backToChat": "Voltar à conversa"
       }
     },
     "matrix": {

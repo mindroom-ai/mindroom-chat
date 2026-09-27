@@ -19,7 +19,7 @@ import {
   hasInitializedCryptoStore,
   markCryptoStoreInitialized,
 } from '../app/state/sessions';
-import { createSessionTokenRefresh } from './sessionTokenRefresh';
+import { createStoredSessionTokenRefresh } from './sessionTokenRefresh';
 
 export {
   LARGE_SYNC_ARCHIVE_TIMELINE_LIMIT,
@@ -59,15 +59,7 @@ export const initClient = async (session: ClientBootstrapSession): Promise<Matri
 
   const legacyCryptoStore = new IndexedDBCryptoStore(global.indexedDB, storeNames.crypto);
 
-  const refreshClient = session.refreshToken
-    ? createMatrixClient({ baseUrl: session.baseUrl })
-    : undefined;
-  const tokenRefreshFunction = refreshClient
-    ? createSessionTokenRefresh({
-        sessionId: session.sessionId,
-        refresh: (refreshToken) => refreshClient.refreshToken(refreshToken),
-      })
-    : undefined;
+  const tokenRefreshFunction = createStoredSessionTokenRefresh(session);
 
   const mx = createMatrixClient({
     baseUrl: session.baseUrl,

@@ -28,7 +28,6 @@ const WELCOME_SETUP_COMMANDS = {
   initialize:
     'uvx mindroom config init --provider <anthropic|codex|llama.cpp|ollama|openai|openrouter|vertexai_claude>',
   login: 'codex login',
-  connect: 'uvx mindroom connect --pair-code ABCD-EFGH',
   run: 'uvx mindroom run',
 } as const;
 
@@ -79,23 +78,20 @@ type WelcomeSetupInstructionsProps = {
 
 function WelcomeSetupInstructions({ onOpenLocalMindroomSettings }: WelcomeSetupInstructionsProps) {
   const { t } = useTranslation();
-  const initialSteps = [
+  const steps = [
     t('sharedUi.welcomePage.setupStep1', { command: WELCOME_SETUP_COMMANDS.initialize }),
     t('sharedUi.welcomePage.setupStep2', {
       envFile: '~/.mindroom/.env',
       command: WELCOME_SETUP_COMMANDS.login,
     }),
-  ];
-  const finalSteps = [
-    t('sharedUi.welcomePage.setupStep4', { command: WELCOME_SETUP_COMMANDS.connect }),
-    t('sharedUi.welcomePage.setupStep5', { command: WELCOME_SETUP_COMMANDS.run }),
+    t('sharedUi.welcomePage.setupStep3', { command: WELCOME_SETUP_COMMANDS.run }),
   ];
   return (
     <Box direction="Column" gap="200" style={WelcomeCardStyle}>
       <Text as="span" size="L400">
         {t('sharedUi.welcomePage.setUpLocalMindroom')}
       </Text>
-      {initialSteps.map((step) => (
+      {steps.map((step) => (
         <Text key={step} as="span" size="T200" priority="300" style={{ overflowWrap: 'anywhere' }}>
           {step}
         </Text>
@@ -108,14 +104,9 @@ function WelcomeSetupInstructions({ onOpenLocalMindroomSettings }: WelcomeSetupI
         style={{ justifyContent: 'flex-start' }}
       >
         <Text as="span" size="B300" style={{ overflowWrap: 'anywhere', whiteSpace: 'normal' }}>
-          {t('sharedUi.welcomePage.3ClickHereToOpenLocalMindroomAndGenerateAPairCode')}
+          {t('sharedUi.welcomePage.enterPairCode')}
         </Text>
       </Button>
-      {finalSteps.map((step) => (
-        <Text key={step} as="span" size="T200" priority="300" style={{ overflowWrap: 'anywhere' }}>
-          {step}
-        </Text>
-      ))}
     </Box>
   );
 }
@@ -145,6 +136,12 @@ export function WelcomePage() {
   }, [setSettingsModal]);
 
   React.useEffect(() => {
+    // Accounts that cannot forward their token to provisioning cannot pair here.
+    if (!provisioningRequest.accessToken) {
+      setShowSetupInstructions(false);
+      return undefined;
+    }
+
     let cancelled = false;
     const nowMs = Date.now();
     const storageKey = getWelcomeSetupFirstSeenStorageKey(userId);
