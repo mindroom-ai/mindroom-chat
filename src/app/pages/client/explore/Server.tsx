@@ -20,7 +20,6 @@ import {
   Line,
   PopOut,
   RectCords,
-  Scroll,
   Spinner,
   Text,
   config,
@@ -32,7 +31,13 @@ import { useAtomValue } from 'jotai';
 import { useQuery } from '@tanstack/react-query';
 import { JoinRule, MatrixClient, Method, RoomType } from 'matrix-js-sdk';
 import { Menu, MenuItem } from '../../../components/glass/GlassPrimitives';
-import { Page, PageContent, PageContentCenter, PageHeader } from '../../../components/page';
+import {
+  Page,
+  PageContent,
+  PageContentCenter,
+  PageHeader,
+  PageScroll,
+} from '../../../components/page';
 import { useMatrixClient } from '../../../hooks/useMatrixClient';
 import { RoomTopicViewer } from '../../../components/room-topic-viewer';
 import { RoomCard, RoomCardBase, RoomCardGrid } from '../../../components/room-card';
@@ -478,202 +483,202 @@ export function PublicRooms() {
 
   return (
     <Page>
-      <PageHeader balance>
-        {isSearch ? (
-          <>
-            <Box grow="Yes" basis="No">
-              <Chip
-                size="500"
-                variant="Surface"
-                radii="Pill"
-                before={<Icon data-directional size="100" src={Icons.ArrowLeft} />}
-                onClick={handleSearchClear}
-              >
-                <Text size="T300">{server}</Text>
-              </Chip>
-            </Box>
-
-            <Box grow="No" justifyContent="Center" alignItems="Center" gap="200">
-              {screenSize !== ScreenSize.Mobile && <Icon size="400" src={Icons.Search} />}
-              <Text size="H3" truncate>
-                {t('sharedUi.server.search')}
-              </Text>
-            </Box>
-            <Box grow="Yes" basis="No" />
-          </>
-        ) : (
-          <>
-            <Box grow="Yes" basis="No">
-              {screenSize === ScreenSize.Mobile && (
-                <BackRouteHandler>
-                  {(onBack) => (
-                    <IconButton onClick={onBack}>
-                      <Icon data-directional src={Icons.ArrowLeft} />
-                    </IconButton>
-                  )}
-                </BackRouteHandler>
-              )}
-            </Box>
-            <Box grow="Yes" justifyContent="Center" alignItems="Center" gap="200">
-              {screenSize !== ScreenSize.Mobile && <Icon size="400" src={Icons.Server} />}
-              <Text size="H3" truncate>
-                {server}
-              </Text>
-            </Box>
-            <Box grow="Yes" basis="No" />
-          </>
-        )}
-      </PageHeader>
-      <Box grow="Yes">
-        <Scroll ref={scrollRef} hideTrack visibility="Hover">
-          <PageContent>
-            <PageContentCenter>
-              <Box direction="Column" gap="600">
-                <Search
-                  key={server}
-                  active={isSearch}
-                  loading={isLoading}
-                  searchInputRef={searchInputRef}
-                  onSearch={handleSearch}
-                  onReset={handleSearchClear}
-                />
-                <Box direction="Column" gap="400">
-                  <Box direction="Column" gap="300">
-                    {isSearch ? (
-                      <Text size="H4">
-                        {t('sharedUi.server.resultsForValue1', { value1: serverSearchParams.term })}
-                      </Text>
-                    ) : (
-                      <Text size="H4">{t('sharedUi.server.popularCommunities')}</Text>
-                    )}
-                    <Box gap="200">
-                      {roomTypeFilters.map((filter) => (
-                        <Chip
-                          key={filter.title}
-                          onClick={handleRoomFilterClick}
-                          data-room-filter={filter.value}
-                          variant={filter.value === serverSearchParams.type ? 'Success' : 'Surface'}
-                          aria-pressed={filter.value === serverSearchParams.type}
-                          before={
-                            filter.value === serverSearchParams.type && (
-                              <Icon size="100" src={Icons.Check} />
-                            )
-                          }
-                          outlined
-                        >
-                          <Text size="T200">{filter.title}</Text>
-                        </Chip>
-                      ))}
-                      {userServer === server && (
-                        <>
-                          <Line
-                            style={{ margin: `${config.space.S100} 0` }}
-                            direction="Vertical"
-                            variant="Surface"
-                            size="300"
-                          />
-                          <ThirdPartyProtocolsSelector
-                            instanceId={serverSearchParams.instance}
-                            onChange={handleInstanceIdChange}
-                          />
-                        </>
-                      )}
-                      <Box grow="Yes" data-spacing-node />
-                      <LimitButton limit={currentLimit} onLimitChange={handleLimitChange} />
-                    </Box>
-                  </Box>
-                  {isLoading && (
-                    <RoomCardGrid>
-                      {[...Array(currentLimit).keys()].map((item) => (
-                        <RoomCardBase key={item} style={{ minHeight: toRem(260) }} />
-                      ))}
-                    </RoomCardGrid>
-                  )}
-                  {error && (
-                    <Box direction="Column" className={css.PublicRoomsError} gap="200">
-                      <Text size="L400">{error.name}</Text>
-                      <Text size="T300">{error.message}</Text>
-                    </Box>
-                  )}
-                  {data &&
-                    (data.chunk.length > 0 ? (
-                      <>
-                        <RoomCardGrid>
-                          {data?.chunk.map((chunkRoom) => (
-                            <RoomCard
-                              key={chunkRoom.room_id}
-                              roomIdOrAlias={chunkRoom.canonical_alias ?? chunkRoom.room_id}
-                              roomId={chunkRoom.room_id}
-                              allRooms={allRooms}
-                              avatarUrl={chunkRoom.avatar_url}
-                              name={chunkRoom.name}
-                              topic={chunkRoom.topic}
-                              memberCount={chunkRoom.num_joined_members}
-                              roomType={chunkRoom.room_type}
-                              joinRule={chunkRoom.join_rule ?? JoinRule.Public}
-                              viaServers={server ? [server] : undefined}
-                              onView={
-                                chunkRoom.room_type === RoomType.Space
-                                  ? navigateSpace
-                                  : navigateRoom
-                              }
-                              renderTopicViewer={(name, topic, requestClose) => (
-                                <RoomTopicViewer
-                                  name={name}
-                                  topic={topic}
-                                  requestClose={requestClose}
-                                />
-                              )}
-                            />
-                          ))}
-                        </RoomCardGrid>
-
-                        {(data.prev_batch || data.next_batch) && (
-                          <Box justifyContent="Center" gap="200">
-                            <Button
-                              onClick={paginateBack}
-                              size="300"
-                              fill="Soft"
-                              disabled={!data.prev_batch}
-                            >
-                              <Text size="B300" truncate>
-                                {t('sharedUi.server.previousPage')}
-                              </Text>
-                            </Button>
-                            <Box data-spacing-node grow="Yes" />
-                            <Button
-                              onClick={paginateFront}
-                              size="300"
-                              fill="Solid"
-                              disabled={!data.next_batch}
-                            >
-                              <Text size="B300" truncate>
-                                {t('sharedUi.server.nextPage')}
-                              </Text>
-                            </Button>
-                          </Box>
-                        )}
-                      </>
-                    ) : (
-                      <Box
-                        className={css.RoomsInfoCard}
-                        direction="Column"
-                        justifyContent="Center"
-                        alignItems="Center"
-                        gap="200"
-                      >
-                        <Icon size="400" src={Icons.Info} />
-                        <Text size="T300" align="Center">
-                          {t('sharedUi.server.noCommunitiesFound')}
-                        </Text>
-                      </Box>
-                    ))}
+      <PageScroll
+        scrollRef={scrollRef}
+        header={
+          <PageHeader flat balance>
+            {isSearch ? (
+              <>
+                <Box grow="Yes" basis="No">
+                  <Chip
+                    size="500"
+                    variant="Surface"
+                    radii="Pill"
+                    before={<Icon data-directional size="100" src={Icons.ArrowLeft} />}
+                    onClick={handleSearchClear}
+                  >
+                    <Text size="T300">{server}</Text>
+                  </Chip>
                 </Box>
+
+                <Box grow="No" justifyContent="Center" alignItems="Center" gap="200">
+                  {screenSize !== ScreenSize.Mobile && <Icon size="400" src={Icons.Search} />}
+                  <Text size="H3" truncate>
+                    {t('sharedUi.server.search')}
+                  </Text>
+                </Box>
+                <Box grow="Yes" basis="No" />
+              </>
+            ) : (
+              <>
+                <Box grow="Yes" basis="No">
+                  {screenSize === ScreenSize.Mobile && (
+                    <BackRouteHandler>
+                      {(onBack) => (
+                        <IconButton onClick={onBack}>
+                          <Icon data-directional src={Icons.ArrowLeft} />
+                        </IconButton>
+                      )}
+                    </BackRouteHandler>
+                  )}
+                </Box>
+                <Box grow="Yes" justifyContent="Center" alignItems="Center" gap="200">
+                  {screenSize !== ScreenSize.Mobile && <Icon size="400" src={Icons.Server} />}
+                  <Text size="H3" truncate>
+                    {server}
+                  </Text>
+                </Box>
+                <Box grow="Yes" basis="No" />
+              </>
+            )}
+          </PageHeader>
+        }
+      >
+        <PageContent>
+          <PageContentCenter>
+            <Box direction="Column" gap="600">
+              <Search
+                key={server}
+                active={isSearch}
+                loading={isLoading}
+                searchInputRef={searchInputRef}
+                onSearch={handleSearch}
+                onReset={handleSearchClear}
+              />
+              <Box direction="Column" gap="400">
+                <Box direction="Column" gap="300">
+                  {isSearch ? (
+                    <Text size="H4">
+                      {t('sharedUi.server.resultsForValue1', { value1: serverSearchParams.term })}
+                    </Text>
+                  ) : (
+                    <Text size="H4">{t('sharedUi.server.popularCommunities')}</Text>
+                  )}
+                  <Box gap="200">
+                    {roomTypeFilters.map((filter) => (
+                      <Chip
+                        key={filter.title}
+                        onClick={handleRoomFilterClick}
+                        data-room-filter={filter.value}
+                        variant={filter.value === serverSearchParams.type ? 'Success' : 'Surface'}
+                        aria-pressed={filter.value === serverSearchParams.type}
+                        before={
+                          filter.value === serverSearchParams.type && (
+                            <Icon size="100" src={Icons.Check} />
+                          )
+                        }
+                        outlined
+                      >
+                        <Text size="T200">{filter.title}</Text>
+                      </Chip>
+                    ))}
+                    {userServer === server && (
+                      <>
+                        <Line
+                          style={{ margin: `${config.space.S100} 0` }}
+                          direction="Vertical"
+                          variant="Surface"
+                          size="300"
+                        />
+                        <ThirdPartyProtocolsSelector
+                          instanceId={serverSearchParams.instance}
+                          onChange={handleInstanceIdChange}
+                        />
+                      </>
+                    )}
+                    <Box grow="Yes" data-spacing-node />
+                    <LimitButton limit={currentLimit} onLimitChange={handleLimitChange} />
+                  </Box>
+                </Box>
+                {isLoading && (
+                  <RoomCardGrid>
+                    {[...Array(currentLimit).keys()].map((item) => (
+                      <RoomCardBase key={item} style={{ minHeight: toRem(260) }} />
+                    ))}
+                  </RoomCardGrid>
+                )}
+                {error && (
+                  <Box direction="Column" className={css.PublicRoomsError} gap="200">
+                    <Text size="L400">{error.name}</Text>
+                    <Text size="T300">{error.message}</Text>
+                  </Box>
+                )}
+                {data &&
+                  (data.chunk.length > 0 ? (
+                    <>
+                      <RoomCardGrid>
+                        {data?.chunk.map((chunkRoom) => (
+                          <RoomCard
+                            key={chunkRoom.room_id}
+                            roomIdOrAlias={chunkRoom.canonical_alias ?? chunkRoom.room_id}
+                            roomId={chunkRoom.room_id}
+                            allRooms={allRooms}
+                            avatarUrl={chunkRoom.avatar_url}
+                            name={chunkRoom.name}
+                            topic={chunkRoom.topic}
+                            memberCount={chunkRoom.num_joined_members}
+                            roomType={chunkRoom.room_type}
+                            joinRule={chunkRoom.join_rule ?? JoinRule.Public}
+                            viaServers={server ? [server] : undefined}
+                            onView={
+                              chunkRoom.room_type === RoomType.Space ? navigateSpace : navigateRoom
+                            }
+                            renderTopicViewer={(name, topic, requestClose) => (
+                              <RoomTopicViewer
+                                name={name}
+                                topic={topic}
+                                requestClose={requestClose}
+                              />
+                            )}
+                          />
+                        ))}
+                      </RoomCardGrid>
+
+                      {(data.prev_batch || data.next_batch) && (
+                        <Box justifyContent="Center" gap="200">
+                          <Button
+                            onClick={paginateBack}
+                            size="300"
+                            fill="Soft"
+                            disabled={!data.prev_batch}
+                          >
+                            <Text size="B300" truncate>
+                              {t('sharedUi.server.previousPage')}
+                            </Text>
+                          </Button>
+                          <Box data-spacing-node grow="Yes" />
+                          <Button
+                            onClick={paginateFront}
+                            size="300"
+                            fill="Solid"
+                            disabled={!data.next_batch}
+                          >
+                            <Text size="B300" truncate>
+                              {t('sharedUi.server.nextPage')}
+                            </Text>
+                          </Button>
+                        </Box>
+                      )}
+                    </>
+                  ) : (
+                    <Box
+                      className={css.RoomsInfoCard}
+                      direction="Column"
+                      justifyContent="Center"
+                      alignItems="Center"
+                      gap="200"
+                    >
+                      <Icon size="400" src={Icons.Info} />
+                      <Text size="T300" align="Center">
+                        {t('sharedUi.server.noCommunitiesFound')}
+                      </Text>
+                    </Box>
+                  ))}
               </Box>
-            </PageContentCenter>
-          </PageContent>
-        </Scroll>
-      </Box>
+            </Box>
+          </PageContentCenter>
+        </PageContent>
+      </PageScroll>
     </Page>
   );
 }

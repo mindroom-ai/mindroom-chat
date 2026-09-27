@@ -24,7 +24,6 @@ import { useSpace } from '../../hooks/useSpace';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { RoomAvatar } from '../../components/room-avatar';
 import { nameInitials } from '../../utils/common';
-import * as css from './LobbyHeader.css';
 import { IPowerLevels } from '../../hooks/usePowerLevels';
 import { UseStateProvider } from '../../components/UseStateProvider';
 import { LeaveSpacePrompt } from '../../components/leave-space-prompt';
@@ -175,7 +174,7 @@ export function LobbyHeader({ showProfile, powerLevels, joinRequestCount = 0 }: 
   };
 
   return (
-    <PageHeader className={showProfile ? undefined : css.Header} balance>
+    <PageHeader flat balance>
       <Box grow="Yes" alignItems="Center" gap="200">
         {screenSize === ScreenSize.Mobile ? (
           <>
