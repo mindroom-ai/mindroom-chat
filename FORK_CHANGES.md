@@ -2,6 +2,21 @@
 
 ## Runbook
 
+### Flat glass headers for Lobby and Explore (2026-09-27)
+
+- Lobby, Explore server results, and Featured on mobile use the same flat native glass treatment as navigation headers.
+  The header has no border, shadow, specular rim, or pointer-driven refraction; interactive buttons retain their normal feedback.
+- Shared `PageScroll` keeps the header inside the native scrolling viewport, reserves its height for focus scrolling, and bounds the inset scrollbar below it.
+  Featured on desktop has no header or extra top inset.
+- Lobby measures the virtual list's offset independently of hero height, and subtracts that offset from virtual tile positions.
+  Its compact title and Scroll to Top respond when the hero disappears below the visible header boundary.
+- The local Matrix browser regression reproduces the old header outside its scroll viewport.
+  It covers material and hover behavior, real text passing behind headers, focus scrolling, scrollbar controls, Lobby's end and return to top, and the hero visibility boundary.
+- Independent review found and resolved the hero visibility offset; browser tests caught a stylesheet-order override on the Scroll to Top position.
+  Both fixes are covered, and independent review approves the final implementation.
+- Validation: all 5,481 unit tests, application and new browser-test typechecks, targeted lint, and the production build pass.
+  All four live browser cases pass across Chromium and WebKit, with dark desktop and light mobile views; before/after screenshots cover Lobby, Explore server results, and Featured mobile.
+
 ### Identify the cold-start request behind root-only threads (2026-09-25)
 
 - The iOS export from build `c278d829` (after #329, before #331) pins down the delayed request #331 left unidentified.

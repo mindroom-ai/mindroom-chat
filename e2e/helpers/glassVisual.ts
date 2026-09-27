@@ -134,7 +134,7 @@ export const expectVerticalGlassRim = async (page: Page, surface: Locator) => {
   try {
     plain = await sampleScreenshot(page, points);
   } finally {
-    await hideRim.evaluate((element) => element.remove());
+    await hideRim.evaluate((element) => (element as HTMLStyleElement).remove());
     await surface.evaluate((element) => element.removeAttribute('data-glass-rim-probe'));
   }
   const brightness = (pixel: Rgba) => (pixel[0] + pixel[1] + pixel[2]) / 3;
