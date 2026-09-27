@@ -5,13 +5,19 @@ import { ContainerColor } from '../../styles/ContainerColor.css';
 import {
   getStorageConnectionState,
   hasStorageRecoveryBlocker,
+  registerStorageRecoveryHost,
   reloadAfterStorageLoss,
   subscribeStorageConnectionState,
 } from '../../mindroom/client/storageConnectionRecovery';
 
 const BLOCKER_CHECK_INTERVAL_MS = 1_000;
+const CONFIRM_TIMEOUT_MS = 10_000;
 
-/** Keeps a degraded storage connection visible until the page reloads. */
+/**
+ * Keeps a degraded storage connection visible until the page reloads. Its
+ * client session hosts automatic recovery, including while the client loads
+ * or shows a startup error.
+ */
 export function StorageConnectionStatus() {
   const { t } = useTranslation();
   const state = useSyncExternalStore(
@@ -22,6 +28,8 @@ export function StorageConnectionStatus() {
   const [blocked, setBlocked] = useState(false);
   const [confirming, setConfirming] = useState(false);
 
+  useEffect(() => registerStorageRecoveryHost(), []);
+
   useEffect(() => {
     if (state === 'healthy') return undefined;
     const check = () => setBlocked(hasStorageRecoveryBlocker());
@@ -29,6 +37,16 @@ export function StorageConnectionStatus() {
     const interval = window.setInterval(check, BLOCKER_CHECK_INTERVAL_MS);
     return () => window.clearInterval(interval);
   }, [state]);
+
+  useEffect(() => {
+    if (!confirming) return undefined;
+    if (!blocked) {
+      setConfirming(false);
+      return undefined;
+    }
+    const timeout = window.setTimeout(() => setConfirming(false), CONFIRM_TIMEOUT_MS);
+    return () => window.clearTimeout(timeout);
+  }, [blocked, confirming]);
 
   if (state === 'healthy') return null;
 

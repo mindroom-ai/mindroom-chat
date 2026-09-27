@@ -19,6 +19,7 @@ import {
   hasStoredSessions,
   listSessions,
   markCryptoStoreInitialized,
+  persistKnownSessionStore,
   putSession,
   removeSession,
   setActiveSession,
@@ -80,6 +81,23 @@ describe('sessions', () => {
 
     expect(getActiveSession(storage)?.sessionId).toBe(session.sessionId);
     expect(listSessions(storage)).toHaveLength(1);
+
+    // A persistent profile can also serve an older value flushed to disk.
+    storage.getItem.mockReturnValue(JSON.stringify({ version: 1, sessions: [] }));
+    expect(listSessions(storage)).toHaveLength(1);
+
+    // Writes made after the loss still read back and are trusted.
+    storage.getItem.mockReset();
+    const written = new Map<string, string>();
+    storage.setItem.mockImplementation((key: string, value: string) => {
+      written.set(key, value);
+    });
+    storage.getItem.mockImplementation((key: string) => written.get(key) ?? null);
+    removeSession(session.sessionId, storage);
+    expect(listSessions(storage)).toHaveLength(0);
+
+    persistKnownSessionStore(storage);
+    expect(JSON.parse(written.get('mindroom_multi_account_store') ?? '{}').sessions).toEqual([]);
   });
 
   it('creates stable session ids from normalized baseUrl and userId', () => {

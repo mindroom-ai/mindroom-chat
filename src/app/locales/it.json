@@ -1020,7 +1020,7 @@
     "storageStatus": {
       "lost": "La connessione allo spazio di archiviazione di questo dispositivo si è interrotta. MindRoom si ricaricherà per ripristinarla.",
       "lostAgain": "La connessione allo spazio di archiviazione di questo dispositivo si è interrotta di nuovo. Ricarica MindRoom per ripristinarla.",
-      "blocked": "La connessione allo spazio di archiviazione di questo dispositivo si è interrotta. MindRoom si ricaricherà al termine del lavoro non inviato.",
+      "blocked": "La connessione allo spazio di archiviazione di questo dispositivo si è interrotta. MindRoom si ricaricherà quando il lavoro non inviato sarà inviato o scartato.",
       "reload": "Ricarica",
       "confirmDiscard": "Ricaricare ora elimina il lavoro non inviato, come registrazioni, allegati e modifiche ai messaggi. Ricaricare comunque?"
     },

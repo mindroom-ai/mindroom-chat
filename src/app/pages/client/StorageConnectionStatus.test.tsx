@@ -5,6 +5,7 @@ import {
   registerStorageRecoveryBlocker,
   resetStorageConnectionRecoveryForTesting,
   startStorageConnectionSentinel,
+  STORAGE_RECOVERY_IDLE_MS,
   STORAGE_RECOVERY_RELOAD_KEY,
 } from '../../mindroom/client/storageConnectionRecovery';
 import { StorageConnectionStatus } from './StorageConnectionStatus';
@@ -45,7 +46,7 @@ const text = (renderer: ReactTestRenderer) =>
     .join(' ');
 
 beforeEach(() => {
-  vi.stubGlobal('window', { setInterval, clearInterval });
+  vi.stubGlobal('window', { setInterval, clearInterval, setTimeout, clearTimeout });
 });
 
 afterEach(() => {
@@ -85,7 +86,7 @@ describe('StorageConnectionStatus', () => {
     startStorageConnectionSentinel({
       indexedDB: host.indexedDB,
       markerStorage: createMarkerStorage({
-        [STORAGE_RECOVERY_RELOAD_KEY]: String(Date.now()),
+        [STORAGE_RECOVERY_RELOAD_KEY]: JSON.stringify({ at: Date.now(), automatic: true }),
       }),
       reload: vi.fn(),
     });
@@ -121,7 +122,7 @@ describe('StorageConnectionStatus', () => {
 
     await act(async () => host.lose());
 
-    expect(text(renderer)).toContain('once unsent work finishes.');
+    expect(text(renderer)).toContain('once unsent work is sent or discarded.');
     await act(async () => {
       renderer.root.findByType('button').props.onClick();
     });
@@ -132,5 +133,34 @@ describe('StorageConnectionStatus', () => {
       renderer.root.findByType('button').props.onClick();
     });
     expect(reload).toHaveBeenCalledTimes(1);
+  });
+
+  it('hosts automatic recovery while it is mounted, even without a client', async () => {
+    const host = createLosableIndexedDB();
+    const reload = vi.fn();
+    let now = 1_000_000;
+    const intervals: Array<() => void> = [];
+    startStorageConnectionSentinel({
+      indexedDB: host.indexedDB,
+      markerStorage: createMarkerStorage(),
+      reload,
+      now: () => now,
+      setInterval: (callback) => intervals.push(callback),
+      clearInterval: () => undefined,
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+    let renderer!: ReactTestRenderer;
+    await act(async () => {
+      renderer = create(<StorageConnectionStatus />);
+    });
+
+    await act(async () => host.lose());
+    now += STORAGE_RECOVERY_IDLE_MS;
+    intervals.forEach((check) => check());
+    expect(reload).toHaveBeenCalledTimes(1);
+
+    await act(async () => renderer.unmount());
   });
 });

@@ -56,6 +56,7 @@ const withTrackedParams = <Param, AtomType>(family: ParamAtomFamily<Param, AtomT
     params.delete(param);
     family.remove(param);
   };
+  // Callers must remove params themselves; automatic removal would leave stale entries.
   tracked.setShouldRemove = family.setShouldRemove;
   tracked.getParams = (): Param[] => Array.from(params);
   return tracked;
@@ -178,7 +179,9 @@ const createMsgDraftAtom = (draftKey: string) => {
   );
 };
 export type TMsgDraftAtom = ReturnType<typeof createMsgDraftAtom>;
-export const roomIdToMsgDraftAtomFamily = atomFamily<string, TMsgDraftAtom>(createMsgDraftAtom);
+export const roomIdToMsgDraftAtomFamily = withTrackedParams(
+  atomFamily<string, TMsgDraftAtom>(createMsgDraftAtom)
+);
 
 export const clearRoomInputDrafts = (userId: string): void => {
   accountDraftVersions.set(userId, (accountDraftVersions.get(userId) ?? 0) + 1);

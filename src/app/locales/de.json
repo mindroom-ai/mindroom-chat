@@ -1015,7 +1015,7 @@
     "storageStatus": {
       "lost": "Die Verbindung zum Speicher dieses Geräts wurde unterbrochen. MindRoom lädt neu, um sie wiederherzustellen.",
       "lostAgain": "Die Verbindung zum Speicher dieses Geräts wurde erneut unterbrochen. Lade MindRoom neu, um sie wiederherzustellen.",
-      "blocked": "Die Verbindung zum Speicher dieses Geräts wurde unterbrochen. MindRoom lädt neu, sobald nicht gesendete Arbeit abgeschlossen ist.",
+      "blocked": "Die Verbindung zum Speicher dieses Geräts wurde unterbrochen. MindRoom lädt neu, sobald nicht gesendete Arbeit gesendet oder verworfen ist.",
       "reload": "Neu laden",
       "confirmDiscard": "Wenn du jetzt neu lädst, gehen nicht gesendete Inhalte wie Aufnahmen, Anhänge und Nachrichtenbearbeitungen verloren. Trotzdem neu laden?"
     },

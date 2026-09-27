@@ -2,10 +2,12 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   getStorageConnectionState,
   registerStorageRecoveryBlocker,
+  registerStorageRecoveryHost,
   registerStorageRecoveryPreparation,
   reloadAfterStorageLoss,
   resetStorageConnectionRecoveryForTesting,
   startStorageConnectionSentinel,
+  STORAGE_RECOVERY_HIDE_GRACE_MS,
   STORAGE_RECOVERY_IDLE_MS,
   STORAGE_RECOVERY_RELOAD_KEY,
   STORAGE_RECOVERY_REPEAT_WINDOW_MS,
@@ -70,6 +72,12 @@ const settle = () =>
     setTimeout(resolve, 0);
   });
 
+const withMarker = (marker: Record<string, unknown>) => {
+  const storage = new MemoryStorage();
+  storage.setItem(STORAGE_RECOVERY_RELOAD_KEY, JSON.stringify(marker));
+  return storage;
+};
+
 const createVisibility = (initial: DocumentVisibilityState) => {
   const target = new EventTarget() as EventTarget & { visibilityState: DocumentVisibilityState };
   target.visibilityState = initial;
@@ -117,7 +125,7 @@ const start = (
     record,
     stop,
     setVisibility: visibility.set,
-    input: (type: 'pointerdown' | 'keydown') => {
+    input: (type: string) => {
       visibility.document.dispatchEvent(new Event(type));
     },
     /** Advances the clock and runs the periodic recovery check. */
@@ -166,7 +174,11 @@ describe('storage connection recovery', () => {
 
     expect(reloadAfterStorageLoss({ automatic: true })).toBe(true);
 
-    expect(host.storage.getItem(STORAGE_RECOVERY_RELOAD_KEY)).toBe('1000000');
+    expect(JSON.parse(host.storage.getItem(STORAGE_RECOVERY_RELOAD_KEY) ?? '')).toEqual({
+      at: 1_000_000,
+      automatic: true,
+      lostAt: 1_000_000,
+    });
     expect(host.record).toHaveBeenLastCalledWith('lifecycle.storage_recovery_reload', {
       automatic: true,
     });
@@ -174,17 +186,21 @@ describe('storage connection recovery', () => {
   });
 
   it('stops automatic recovery when storage fails again soon after a recovery reload', async () => {
-    const storage = new MemoryStorage();
-    storage.setItem(STORAGE_RECOVERY_RELOAD_KEY, String(1_000_000));
-    const host = start({ now: 1_000_000 + STORAGE_RECOVERY_REPEAT_WINDOW_MS - 1, storage });
+    const host = start({
+      now: 1_000_000 + STORAGE_RECOVERY_REPEAT_WINDOW_MS - 1,
+      storage: withMarker({ at: 1_000_000, automatic: false }),
+    });
     await settle();
+    registerStorageRecoveryHost();
 
     host.loseConnection();
+    host.wait(STORAGE_RECOVERY_IDLE_MS);
 
     expect(getStorageConnectionState()).toBe('manual');
     expect(host.record).toHaveBeenCalledWith('lifecycle.storage_connection_lost', {
       automatic_recovery: false,
     });
+    expect(host.activeIntervals()).toBe(0);
     expect(reloadAfterStorageLoss({ automatic: true })).toBe(false);
     expect(host.reload).not.toHaveBeenCalled();
 
@@ -193,9 +209,10 @@ describe('storage connection recovery', () => {
   });
 
   it('allows automatic recovery again after the repeat window', async () => {
-    const storage = new MemoryStorage();
-    storage.setItem(STORAGE_RECOVERY_RELOAD_KEY, String(1_000_000));
-    const host = start({ now: 1_000_000 + STORAGE_RECOVERY_REPEAT_WINDOW_MS, storage });
+    const host = start({
+      now: 1_000_000 + STORAGE_RECOVERY_REPEAT_WINDOW_MS,
+      storage: withMarker({ at: 1_000_000, automatic: true }),
+    });
     await settle();
 
     host.loseConnection();
@@ -203,7 +220,7 @@ describe('storage connection recovery', () => {
     expect(getStorageConnectionState()).toBe('lost');
   });
 
-  it('falls back to manual recovery when the reload guard cannot be stored', async () => {
+  it('falls back to manual recovery when the reload marker cannot be stored', async () => {
     const storage = new MemoryStorage();
     storage.failWrites = true;
     const host = start({ storage });
@@ -218,51 +235,80 @@ describe('storage connection recovery', () => {
     expect(host.reload).toHaveBeenCalledTimes(1);
   });
 
-  it('reloads when a page that lost storage is hidden', async () => {
+  it('reloads a hidden page once the hide is not right after input', async () => {
     const host = start();
     await settle();
-    registerStorageRecoveryBlocker(() => false);
+    registerStorageRecoveryHost();
     host.loseConnection();
+
+    host.input('pointerdown');
+    host.setVisibility('hidden');
     expect(host.reload).not.toHaveBeenCalled();
 
-    host.setVisibility('hidden');
-
-    expect(host.reload).toHaveBeenCalledTimes(1);
-    expect(host.storage.getItem(STORAGE_RECOVERY_RELOAD_KEY)).toBe('1000000');
-  });
-
-  it('reloads immediately when storage is lost while hidden', async () => {
-    const host = start({ visibility: 'hidden' });
-    await settle();
-    registerStorageRecoveryBlocker(() => false);
-
-    host.loseConnection();
-
+    host.wait(STORAGE_RECOVERY_HIDE_GRACE_MS);
     expect(host.reload).toHaveBeenCalledTimes(1);
   });
 
-  it('leaves reloading to the user when no client vouches for the page', async () => {
+  it('leaves reloading to the user when no client session hosts recovery', async () => {
     const host = start({ visibility: 'hidden' });
     await settle();
 
     host.loseConnection();
-    host.setVisibility('hidden');
+    host.wait(STORAGE_RECOVERY_IDLE_MS);
 
+    expect(host.reload).not.toHaveBeenCalled();
+    const unregister = registerStorageRecoveryHost();
+    unregister();
+    unregister();
+    host.wait(STORAGE_RECOVERY_IDLE_MS);
     expect(host.reload).not.toHaveBeenCalled();
     expect(reloadAfterStorageLoss({ automatic: false })).toBe(true);
   });
 
   it('treats a failing unsaved-work check as unsaved work', async () => {
-    const host = start({ visibility: 'hidden' });
+    const host = start();
     await settle();
+    registerStorageRecoveryHost();
     registerStorageRecoveryBlocker(() => {
       throw new Error('store unavailable');
     });
 
     host.loseConnection();
+    host.wait(STORAGE_RECOVERY_IDLE_MS);
 
     expect(host.reload).not.toHaveBeenCalled();
   });
+
+  it('waits while text composition is in progress', async () => {
+    const host = start();
+    await settle();
+    registerStorageRecoveryHost();
+    host.loseConnection();
+
+    host.input('compositionstart');
+    host.wait(STORAGE_RECOVERY_IDLE_MS * 3);
+    expect(host.reload).not.toHaveBeenCalled();
+
+    host.input('compositionend');
+    host.wait(STORAGE_RECOVERY_IDLE_MS);
+    expect(host.reload).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(['wheel', 'touchstart', 'beforeinput', 'input', 'focusin'] as const)(
+    'treats %s as input that postpones a visible reload',
+    async (type) => {
+      const host = start();
+      await settle();
+      registerStorageRecoveryHost();
+      host.loseConnection();
+
+      host.wait(STORAGE_RECOVERY_IDLE_MS - 1);
+      host.input(type);
+      host.wait(STORAGE_RECOVERY_IDLE_MS - 1);
+
+      expect(host.reload).not.toHaveBeenCalled();
+    }
+  );
 
   it('reloads and prepares only once', async () => {
     const host = start();
@@ -278,44 +324,47 @@ describe('storage connection recovery', () => {
     expect(host.reload).toHaveBeenCalledTimes(1);
   });
 
-  it('records a recent recovery reload at boot', () => {
-    const storage = new MemoryStorage();
-    storage.setItem(STORAGE_RECOVERY_RELOAD_KEY, String(1_000_000));
+  it('allows another attempt when navigating throws', async () => {
+    const host = start();
+    await settle();
+    host.reload.mockImplementationOnce(() => {
+      throw new Error('navigation blocked');
+    });
+    host.loseConnection();
+
+    expect(reloadAfterStorageLoss({ automatic: false })).toBe(false);
+    expect(reloadAfterStorageLoss({ automatic: false })).toBe(true);
+  });
+
+  it('records a recovery reload once at the next boot', () => {
+    const storage = withMarker({ at: 1_000_000, automatic: true, lostAt: 996_500 });
     const host = start({ now: 1_004_000, storage });
 
     expect(host.record).toHaveBeenCalledWith('lifecycle.storage_recovery_reloaded', {
+      automatic: true,
       reload_age_ms: 4_000,
+      loss_to_reload_ms: 3_500,
     });
+    host.stop();
+    resetStorageConnectionRecoveryForTesting();
+
+    const later = start({ now: 1_010_000, storage });
+    expect(later.record).not.toHaveBeenCalled();
   });
 
-  it('waits for unsaved in-memory work before reloading', async () => {
+  it('recovers even when recording diagnostics fails', async () => {
     const host = start();
     await settle();
-    let unsaved = true;
-    const unregister = registerStorageRecoveryBlocker(() => unsaved);
+    registerStorageRecoveryHost();
+    host.record.mockImplementation(() => {
+      throw new Error('trace store closed');
+    });
+
     host.loseConnection();
+    host.wait(STORAGE_RECOVERY_IDLE_MS);
 
-    host.setVisibility('hidden');
-    expect(host.reload).not.toHaveBeenCalled();
-
-    unsaved = false;
-    host.setVisibility('visible');
-    expect(host.reload).not.toHaveBeenCalled();
-    host.setVisibility('hidden');
+    expect(getStorageConnectionState()).toBe('lost');
     expect(host.reload).toHaveBeenCalledTimes(1);
-    unregister();
-  });
-
-  it('does not reload automatically when recovery is manual', async () => {
-    const storage = new MemoryStorage();
-    storage.setItem(STORAGE_RECOVERY_RELOAD_KEY, String(1_000_000));
-    const host = start({ now: 1_000_001, storage });
-    await settle();
-    host.loseConnection();
-
-    host.setVisibility('hidden');
-
-    expect(host.reload).not.toHaveBeenCalled();
   });
 
   it('prepares before reloading and survives a failing preparation', async () => {
@@ -337,7 +386,7 @@ describe('storage connection recovery', () => {
   it('reloads a visible page after input pauses and stops checking', async () => {
     const host = start();
     await settle();
-    registerStorageRecoveryBlocker(() => false);
+    registerStorageRecoveryHost();
     host.loseConnection();
 
     host.wait(STORAGE_RECOVERY_IDLE_MS - 1_000);
@@ -353,6 +402,7 @@ describe('storage connection recovery', () => {
   it('keeps checking while unsaved work blocks recovery', async () => {
     const host = start();
     await settle();
+    registerStorageRecoveryHost();
     let unsaved = true;
     registerStorageRecoveryBlocker(() => unsaved);
     host.loseConnection();
@@ -368,7 +418,9 @@ describe('storage connection recovery', () => {
   it('never reloads while storage is healthy', async () => {
     const host = start();
     await settle();
+    registerStorageRecoveryHost();
     host.setVisibility('hidden');
+    host.wait(STORAGE_RECOVERY_IDLE_MS);
 
     expect(reloadAfterStorageLoss({ automatic: true })).toBe(false);
     expect(host.reload).not.toHaveBeenCalled();

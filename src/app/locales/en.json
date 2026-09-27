@@ -1015,7 +1015,7 @@
     "storageStatus": {
       "lost": "Lost the connection to this device's storage. MindRoom will reload to restore it.",
       "lostAgain": "Lost the connection to this device's storage again. Reload MindRoom to restore it.",
-      "blocked": "Lost the connection to this device's storage. MindRoom will reload once unsent work finishes.",
+      "blocked": "Lost the connection to this device's storage. MindRoom will reload once unsent work is sent or discarded.",
       "reload": "Reload",
       "confirmDiscard": "Reloading now discards unsent work such as recordings, attachments, and message edits. Reload anyway?"
     },

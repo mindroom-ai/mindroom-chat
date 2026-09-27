@@ -165,17 +165,22 @@ test.describe('storage connection recovery', () => {
     );
     try {
       const page = context.pages()[0] ?? (await context.newPage());
+      await page.goto('/');
+      test.skip(!canKillWebKitNetworkProcess(), 'The WebKit networking process is not visible.');
       // WebKit flushes Web Storage to disk after a delay; unflushed writes die with the process.
       const { fixture, stamp, sendReply } = await openThread(page, 'Real networking loss', {
         settleMs: 5_000,
       });
-      test.skip(!canKillWebKitNetworkProcess(), 'The WebKit networking process is not visible.');
 
       const reloaded = page.waitForEvent('load', { timeout: 60_000 });
       expect(killWebKitNetworkProcess()).toBeGreaterThan(0);
       await reloaded;
 
       await expectRecoveredThread(page, fixture, sendReply, `Reply after real recovery ${stamp}`);
+      const marker = await page.evaluate(() =>
+        window.localStorage.getItem('mindroom.storageRecovery.reloadedAt')
+      );
+      expect(JSON.parse(marker ?? '{}')).toMatchObject({ automatic: true, recorded: true });
     } finally {
       await context.close();
     }

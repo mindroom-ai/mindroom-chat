@@ -6,7 +6,12 @@ import {
   resetEditorHistory,
   restoreEditorContent,
 } from '../../components/editor/utils';
-import { IReplyDraft, TUploadItem } from '../../state/room/roomInputDrafts';
+import {
+  captureRoomInputDraftGuard,
+  getRoomInputDraftKey,
+  IReplyDraft,
+  TUploadItem,
+} from '../../state/room/roomInputDrafts';
 import { Upload } from '../../state/upload';
 import type { RoomInputAttachmentAccess } from '../room-input/roomInputAttachmentAccess';
 import { TUploadContent } from '../../utils/matrix';
@@ -186,6 +191,14 @@ export const useRoomInputSendSessionController = ({
               threadId: session.composerContext.threadId,
               draft: session.composerFallback,
               startedAt: Date.now(),
+              getStatus: () => session.room.getEventForTxnId(txnId)?.status,
+              canWriteDraft: captureRoomInputDraftGuard(
+                getRoomInputDraftKey(
+                  userId,
+                  session.composerContext.roomId,
+                  session.composerContext.threadId
+                )
+              ),
             })
           : undefined;
       const localEventId = session.room.getEventForTxnId(txnId)?.getId();
@@ -210,7 +223,17 @@ export const useRoomInputSendSessionController = ({
         notifyRoomMessageSent(localEventId);
       }
 
-      const response = await sendPromise.finally(() => settleTracking?.());
+      const response = await sendPromise.then(
+        (result) => {
+          settleTracking?.();
+          return result;
+        },
+        (error: unknown) => {
+          // The session restores a failed send to its composer unless the timeline keeps it.
+          if (!session.textTimelineOwned) settleTracking?.();
+          throw error;
+        }
+      );
       notifyRoomMessageSent(response.event_id);
 
       session.textPending = false;

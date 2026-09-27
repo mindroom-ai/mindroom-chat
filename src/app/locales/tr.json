@@ -1015,7 +1015,7 @@
     "storageStatus": {
       "lost": "Bu cihazın depolama alanıyla bağlantı kesildi. Geri getirmek için MindRoom yeniden yüklenecek.",
       "lostAgain": "Bu cihazın depolama alanıyla bağlantı yeniden kesildi. Geri getirmek için MindRoom'u yeniden yükleyin.",
-      "blocked": "Bu cihazın depolama alanıyla bağlantı kesildi. Gönderilmemiş işler bittiğinde MindRoom yeniden yüklenecek.",
+      "blocked": "Bu cihazın depolama alanıyla bağlantı kesildi. Gönderilmemiş işler gönderildiğinde veya silindiğinde MindRoom yeniden yüklenecek.",
       "reload": "Yeniden yükle",
       "confirmDiscard": "Şimdi yeniden yüklemek kayıtlar, ekler ve mesaj düzenlemeleri gibi gönderilmemiş işleri siler. Yine de yeniden yüklensin mi?"
     },

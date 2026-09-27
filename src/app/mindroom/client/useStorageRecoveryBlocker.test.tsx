@@ -1,7 +1,8 @@
 import React from 'react';
 import { Provider as JotaiProvider, createStore } from 'jotai';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
-import { afterEach, describe, expect, it } from 'vitest';
+import { EventStatus } from 'matrix-js-sdk';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { callEmbedAtom } from '../../state/callEmbed';
 import {
   getRoomInputDraftKey,
@@ -24,7 +25,10 @@ import {
   startStorageConnectionSentinel,
 } from './storageConnectionRecovery';
 import {
+  type ComposerTextSend,
   hasUnsavedTransientWork,
+  leavePendingThreadRoute,
+  persistComposerDrafts,
   resetComposerTextSendsForTesting,
   saveUnsentComposerText,
   STUCK_SEND_MS,
@@ -39,6 +43,17 @@ const hasWork = (store: Store, now = Date.now()) => hasUnsavedTransientWork({ st
 const createFile = (name: string) => new Blob([name], { type: 'text/plain' }) as File;
 
 const paragraph = (text: string) => ({ type: 'paragraph', children: [{ text }] });
+
+const track = (send: Partial<ComposerTextSend> & { text: string; startedAt: number }) =>
+  trackComposerTextSend({
+    userId: '@me:test',
+    roomId: '!room:test',
+    threadId: undefined,
+    draft: [paragraph(send.text)] as never,
+    getStatus: () => EventStatus.ENCRYPTING,
+    canWriteDraft: () => true,
+    ...send,
+  });
 
 const draftText = (store: Store, key: string) =>
   (store.get(roomIdToMsgDraftAtomFamily(key)) as { children: { text: string }[] }[]).map((node) =>
@@ -116,13 +131,7 @@ describe('unsaved in-memory work that blocks a storage recovery reload', () => {
 
   it('waits for a composer send in flight, then treats it as stuck', () => {
     const now = 1_000_000;
-    const settle = trackComposerTextSend({
-      userId: '@me:test',
-      roomId: '!room:test',
-      threadId: undefined,
-      draft: [paragraph('hi')] as never,
-      startedAt: now,
-    });
+    const settle = track({ text: 'hi', startedAt: now });
 
     expect(hasWork(createStore(), now + STUCK_SEND_MS - 1)).toBe(true);
     expect(hasWork(createStore(), now + STUCK_SEND_MS)).toBe(false);
@@ -132,50 +141,85 @@ describe('unsaved in-memory work that blocks a storage recovery reload', () => {
 });
 
 describe('saveUnsentComposerText', () => {
-  it('returns unanswered sends to the composers that sent them, once', () => {
+  it('returns unanswered sends to the composers that sent them, first and once', () => {
     const now = 1_000_000;
     const store = createStore();
     const roomKey = getRoomInputDraftKey('@me:test', '!room:test');
     const threadKey = getRoomInputDraftKey('@me:test', '!room:test', '$root');
-    store.set(roomIdToMsgDraftAtomFamily(roomKey), [paragraph('already typing')] as never);
+    store.set(roomIdToMsgDraftAtomFamily(roomKey), [paragraph('typed since')] as never);
     // A room-composer reply to a threaded message still belongs to the room composer.
-    trackComposerTextSend({
-      userId: '@me:test',
-      roomId: '!room:test',
-      threadId: undefined,
-      draft: [paragraph('reply from the room'), paragraph('second line')] as never,
-      startedAt: now - STUCK_SEND_MS,
-    });
-    trackComposerTextSend({
-      userId: '@me:test',
-      roomId: '!room:test',
+    track({ text: 'reply from the room', startedAt: now - STUCK_SEND_MS });
+    track({ text: 'in flight', threadId: '$root', startedAt: now });
+    track({
+      text: 'failed',
       threadId: '$root',
-      draft: [paragraph('in flight')] as never,
-      startedAt: now,
-    });
-    const settled = trackComposerTextSend({
-      userId: '@me:test',
-      roomId: '!room:test',
-      threadId: '$root',
-      draft: [paragraph('delivered')] as never,
       startedAt: now - STUCK_SEND_MS,
+      getStatus: () => EventStatus.NOT_SENT,
     });
-    settled();
 
     saveUnsentComposerText({ store, includeInFlight: false, now });
     saveUnsentComposerText({ store, includeInFlight: false, now });
 
-    expect(draftText(store, roomKey)).toEqual([
-      'already typing',
-      'reply from the room',
-      'second line',
-    ]);
-    expect(draftText(store, threadKey)).toEqual([]);
+    expect(draftText(store, roomKey)).toEqual(['reply from the room', 'typed since']);
+    expect(draftText(store, threadKey)).toEqual(['failed']);
 
     saveUnsentComposerText({ store, includeInFlight: true, now });
-    expect(draftText(store, threadKey)).toEqual(['in flight']);
+    expect(draftText(store, threadKey)).toEqual(['in flight', 'failed']);
     roomIdToMsgDraftAtomFamily.remove(roomKey);
     roomIdToMsgDraftAtomFamily.remove(threadKey);
+  });
+
+  it('leaves out sends that may have reached the server or whose account was removed', () => {
+    const now = 1_000_000;
+    const store = createStore();
+    const roomKey = getRoomInputDraftKey('@me:test', '!room:test');
+    track({ text: 'on the wire', startedAt: 0, getStatus: () => EventStatus.SENDING });
+    track({ text: 'accepted', startedAt: 0, getStatus: () => EventStatus.SENT });
+    track({ text: 'removed account', startedAt: 0, canWriteDraft: () => false });
+    track({ text: 'echo gone', startedAt: 0, getStatus: () => undefined });
+
+    saveUnsentComposerText({ store, includeInFlight: true, now });
+
+    expect(draftText(store, roomKey)).toEqual(['echo gone']);
+    expect(hasWork(store, now)).toBe(false);
+    roomIdToMsgDraftAtomFamily.remove(roomKey);
+  });
+});
+
+describe('recovery reload preparation', () => {
+  it('writes non-empty in-memory drafts again and leaves empty ones alone', () => {
+    const store = createStore();
+    const typedKey = getRoomInputDraftKey('@me:test', '!typed:test');
+    const emptyKey = getRoomInputDraftKey('@me:test', '!empty:test');
+    store.set(roomIdToMsgDraftAtomFamily(typedKey), [paragraph('last seconds')] as never);
+    store.get(roomIdToMsgDraftAtomFamily(emptyKey));
+    const set = vi.spyOn(store, 'set');
+
+    persistComposerDrafts(store);
+
+    expect(set).toHaveBeenCalledTimes(1);
+    expect(set).toHaveBeenCalledWith(roomIdToMsgDraftAtomFamily(typedKey), [
+      paragraph('last seconds'),
+    ]);
+    roomIdToMsgDraftAtomFamily.remove(typedKey);
+    roomIdToMsgDraftAtomFamily.remove(emptyKey);
+  });
+
+  it('opens the room instead of a pending local-echo thread route', () => {
+    const history = { state: { key: 'k' }, replaceState: vi.fn() };
+    leavePendingThreadRoute(
+      { href: 'https://chat.test/home/!room?threadId=~!room:txn-1&x=1' },
+      history
+    );
+    expect(history.replaceState).toHaveBeenCalledWith(
+      { key: 'k' },
+      '',
+      'https://chat.test/home/!room?x=1'
+    );
+
+    history.replaceState.mockClear();
+    leavePendingThreadRoute({ href: 'https://chat.test/home/!room?threadId=%24root' }, history);
+    expect(history.replaceState).not.toHaveBeenCalled();
   });
 });
 
@@ -209,13 +253,7 @@ describe('useStorageRecoveryBlocker', () => {
         </JotaiProvider>
       );
     });
-    trackComposerTextSend({
-      userId: '@me:test',
-      roomId: '!room:test',
-      threadId: undefined,
-      draft: [paragraph('just sent')] as never,
-      startedAt: Date.now(),
-    });
+    track({ text: 'just sent', startedAt: Date.now() });
 
     expect(hasStorageRecoveryBlocker()).toBe(true);
     database.dispatchEvent(new Event('close'));

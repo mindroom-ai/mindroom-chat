@@ -207,7 +207,13 @@ const writeSessionStore = (
   if (!storage) return false;
 
   clearLegacySessionStorage(storage);
-  if (setStorageItemSafe(storage, SESSION_STORE_KEY, JSON.stringify(store))) {
+  const raw = JSON.stringify(store);
+  if (setStorageItemSafe(storage, SESSION_STORE_KEY, raw)) {
+    // Writes read back even while a lost storage connection serves stale values.
+    storedSessionSnapshotCache.set(
+      storage,
+      createSessionStoreSnapshot(raw, sanitizeSessionStore(JSON.parse(raw)))
+    );
     dispatchSessionStoreEvent();
     return true;
   }
@@ -254,11 +260,12 @@ const getSessionStoreSnapshot = (
 
   try {
     const raw = storage.getItem(SESSION_STORE_KEY);
-    // WebKit reads every existing Web Storage key as null after its networking
-    // process exits, while writes still persist. Keep the last stored sessions
-    // until the recovery reload instead of signing out or overwriting them.
+    // After WebKit's networking process exits, existing Web Storage keys read as
+    // null or as an older value flushed to disk, while new writes persist.
+    // Keep the last known sessions until the recovery reload instead of
+    // signing out or writing a stale registry back.
     const storedSnapshot = storedSessionSnapshotCache.get(storage);
-    if (raw === null && storedSnapshot && getStorageConnectionState() !== 'healthy') {
+    if (storedSnapshot && raw !== storedSnapshot.raw && getStorageConnectionState() !== 'healthy') {
       return storedSnapshot;
     }
     const cachedSnapshot = sessionStoreSnapshotCache.get(storage);
@@ -505,6 +512,24 @@ export const updateSessionLastPath = (
   );
 
   return nextSession;
+};
+
+/**
+ * Writes the last stored sessions again while storage is lost. WebKit keeps
+ * writes made after the loss but may drop recent ones, such as a refreshed
+ * token, that had not reached disk yet.
+ */
+export const persistKnownSessionStore = (
+  storage: LocalStorageLike | undefined = getSafeLocalStorage()
+): void => {
+  if (!storage || getStorageConnectionState() === 'healthy') return;
+  const storedSnapshot = storedSessionSnapshotCache.get(storage);
+  if (!storedSnapshot?.raw) return;
+  try {
+    storage.setItem(SESSION_STORE_KEY, storedSnapshot.raw);
+  } catch {
+    // The reload still restores whatever reached disk.
+  }
 };
 
 export const removeSession = (

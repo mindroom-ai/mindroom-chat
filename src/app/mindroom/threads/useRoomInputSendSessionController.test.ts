@@ -10,6 +10,7 @@ import {
   TUploadItem,
 } from '../../state/room/roomInputDrafts';
 import {
+  hasUnsavedTransientWork,
   resetComposerTextSendsForTesting,
   saveUnsentComposerText,
 } from '../client/useStorageRecoveryBlocker';
@@ -576,7 +577,7 @@ describe('useRoomInputSendSessionController storage-loss recovery', () => {
         textContent: { msgtype: 'm.text', body: 'caption draft' },
         context: {
           roomId: '!room:example.org',
-          room: {} as never,
+          room: { getEventForTxnId: () => undefined } as never,
           threadId: '$elsewhere',
           replyDraft: undefined,
           threadingEnabled: true,
@@ -598,6 +599,99 @@ describe('useRoomInputSendSessionController storage-loss recovery', () => {
     saveUnsentComposerText({ store, includeInFlight: true });
     expect(store.get(roomIdToMsgDraftAtomFamily(composerKey))).toEqual([]);
     roomIdToMsgDraftAtomFamily.remove(composerKey);
+  });
+});
+
+describe('useRoomInputSendSessionController storage-loss send tracking', () => {
+  afterEach(() => {
+    resetComposerTextSendsForTesting();
+  });
+
+  const rootContext = {
+    roomId: '!room:example.org',
+    room: {
+      roomId: '!room:example.org',
+      getEventForTxnId: () => undefined,
+    } as never,
+    threadId: undefined,
+    replyDraft: undefined,
+    threadingEnabled: true,
+    signalBridgedRoom: false,
+  };
+
+  it('counts a send as in flight until the homeserver answers', async () => {
+    const { api, mx } = renderHarness();
+    let answer!: (value: { event_id: string }) => void;
+    mx.sendMessage.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          answer = resolve;
+        })
+    );
+    const store = createStore();
+
+    let sending!: Promise<void>;
+    await act(async () => {
+      sending = api.startSendSession({
+        textContent: { msgtype: 'm.text', body: 'caption draft' },
+        context: rootContext,
+      });
+      await Promise.resolve();
+    });
+    expect(hasUnsavedTransientWork({ store })).toBe(true);
+
+    await act(async () => {
+      answer({ event_id: '$sent' });
+      await sending;
+    });
+    expect(hasUnsavedTransientWork({ store })).toBe(false);
+  });
+
+  it('stops tracking a failed send that its composer gets back', async () => {
+    const { api, mx } = renderHarness();
+    mx.sendMessage.mockRejectedValueOnce(new Error('crypto store closed'));
+    const store = createStore();
+
+    await act(async () => {
+      await api
+        .startSendSession({
+          textContent: { msgtype: 'm.text', body: 'caption draft' },
+          context: rootContext,
+        })
+        .catch(() => undefined);
+    });
+
+    saveUnsentComposerText({ store, includeInFlight: true });
+    const key = getRoomInputDraftKey('@me:example.org', '!room:example.org');
+    expect(store.get(roomIdToMsgDraftAtomFamily(key))).toEqual([]);
+    roomIdToMsgDraftAtomFamily.remove(key);
+  });
+
+  it('keeps a failed root that the timeline owns for the recovery reload', async () => {
+    const { api, mx, restoreComposerFallbackForRoom } = renderHarness({
+      onRoomMessageSent: () => true,
+    });
+    mx.sendMessage.mockRejectedValueOnce(new Error('crypto store closed'));
+    mx.getEventForTxnId.mockImplementation((txnId: string) => ({
+      getId: () => `~!room:example.org:${txnId}`,
+    }));
+    const store = createStore();
+
+    await act(async () => {
+      await api
+        .startSendSession({
+          textContent: { msgtype: 'm.text', body: 'caption draft' },
+        })
+        .catch(() => undefined);
+    });
+
+    expect(restoreComposerFallbackForRoom).not.toHaveBeenCalled();
+    saveUnsentComposerText({ store, includeInFlight: true });
+    const key = getRoomInputDraftKey('@me:example.org', '!room:example.org');
+    expect(store.get(roomIdToMsgDraftAtomFamily(key))).toEqual([
+      { type: 'paragraph', children: [{ text: 'caption draft' }] },
+    ]);
+    roomIdToMsgDraftAtomFamily.remove(key);
   });
 });
 

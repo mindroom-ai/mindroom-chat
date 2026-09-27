@@ -9,39 +9,43 @@
 
   | After the kill | In the old page | After a reload |
   | --- | --- | --- |
-  | Open IndexedDB connections | `error`, then `close`; transactions throw `InvalidStateError` | reopen normally |
+  | Open IndexedDB connections | `error`, then `close` about 10 ms later; transactions throw `InvalidStateError` | reopen normally |
   | New `indexedDB.open` | `UnknownError: Connection to Indexed Database server lost. Refresh the page to try again` | works |
-  | Existing Web Storage keys | read as `null`; writes still land | `localStorage` flushed to disk survives in a persistent profile; `sessionStorage` and unflushed writes are gone |
+  | Existing Web Storage keys | a persistent profile serves the last value flushed to disk (writes from the last second may be missing); an ephemeral profile reads every key as `null`; writes made after the loss read back | writes after the loss survive; `sessionStorage` from before the loss is gone |
   | Existing MessagePorts | closed since WebKit `67117c49`; new channels deliver | work |
 
   With the Rust crypto store closed, the SDK logs `Caught /sync error Error: failed to read or write to the crypto store DomException InvalidStateError` and skips whole /sync responses, so new messages stop arriving at all.
-  On #334's build a simulated loss also left an encrypted send "sending" forever without reaching the server.
+  On #334's build a simulated loss also left an encrypted send "sending" without reaching the server.
   The iOS export kept its session and some live events after the loss, so device behavior varies by WebKit version, but no path recovers without a reload.
 - A sentinel IndexedDB connection opened at boot, before any client store, turns its `close` event into a lost state (`src/app/mindroom/client/storageConnectionRecovery.ts`).
-  The app then reloads as soon as no unsaved in-memory work remains: immediately when hidden, otherwise after three seconds without pointer or keyboard input, checked every second from native timers and events rather than React.
-  Reloading waits only for a mounted client to vouch for the page, so sign-in, registration, and SSO flows never reload automatically.
-  The URL keeps the open room and thread, and composer drafts already persist on every edit.
-- Reloads wait for voice capture or a pending voice send, composer attachments, uploads in progress, calls, an open message edit (`MessageEditor` registers itself), and composer text sends that the homeserver has not answered within 10 seconds.
-  `sendSessionText` registers each composer text send with its own composer's room, thread, and content, and settles it when the send promise settles; failed sends were already restored into the composer by the send session.
-  Before any recovery reload, unanswered sends are appended to their composer's draft with their formatting, so the reload returns them to the composer; a user-requested reload also saves sends still in flight, and each send is saved once.
-  Sends not typed into a composer (thread titles, `!model` commands, tool approvals, edits, reactions) are neither blocked on nor saved.
-- While storage is lost, the session store keeps its last stored snapshot when `localStorage` reads it as `null`, so the app neither redirects to sign-in nor overwrites the account registry from an empty read.
-- A warning strip under the client header explains the loss, says when recovery waits for unsent work, and offers Reload; over unsent work, the first tap shows what a reload discards and the second reloads.
+  The app then reloads as soon as no unsaved in-memory work remains and input pauses: three seconds on a visible page, two seconds on a hidden one, so a camera, picker, or sign-in window opened by a tap is not torn down; composition in progress always waits.
+  Pointer, keyboard, wheel, touch, input, focus, and composition events count as input; checks run every second from native timers and events rather than React.
+  Only a mounted client session hosts automatic recovery (the warning strip registers it, including while the client loads or shows a startup error), so sign-in, registration, and SSO flows never reload on their own.
+  The URL keeps the open room and thread; a pending local-echo thread route is dropped so the reload opens the room with its composer.
+- Reloads wait for voice capture or a pending voice send, composer attachments, uploads in progress, calls, an open message edit (`MessageEditor` registers itself), a focused editable element other than the room composer, an open dialog with form fields, and composer text sends not answered within 10 seconds.
+  `sendSessionText` registers each composer text send with its own composer's room, thread, formatted content, and account draft guard; the entry settles when the homeserver answers, or when a failed send goes back to its composer, but a failed root that the compact timeline owns stays registered.
+  Before any recovery reload, registered sends whose local echo never left (`ENCRYPTING`, `QUEUED`, `NOT_SENT`, or no echo) are put back at the start of their composer's draft, ahead of text typed since; a user-requested reload also saves sends still in flight, and each send is saved once.
+  Sends that may already have reached the homeserver (`SENDING`, `SENT`), sends of a removed account, and sends not typed into a composer (thread titles, `!model` commands, tool approvals, edits, reactions) are not saved.
+  Every non-empty in-memory draft and the last known session registry are written again first, because writes after the loss survive while recent writes before it may not have reached disk.
+- While storage is lost, the session store trusts only its last known snapshot and this page's own writes, so neither a `null` nor a stale flushed read signs the user out or writes an old registry back.
+- A warning strip under the client header explains the loss, says when recovery waits for unsent work to be sent or discarded, and offers Reload; over unsent work, the first tap shows what a reload discards for ten seconds and the second reloads.
   The five strings are translated in all 17 locales.
-- A reload marker in `localStorage` is written before navigating, because `sessionStorage` dies with the process.
-  A second loss within two minutes of a recovery reload, or an unwritable marker, stops automatic reloads; the strip then asks the user to reload.
-  Events recorded before the reload die with the lost diagnostic store, so the next boot records `lifecycle.storage_recovery_reloaded` with the reload's age; `lifecycle.storage_connection_lost` and `lifecycle.storage_recovery_reload` survive only in the in-memory tail.
+- Every recovery reload, automatic or manual, first writes a marker to `localStorage`, because `sessionStorage` dies with the process.
+  A second loss within two minutes of a recovery reload, or an unwritable marker, stops automatic reloads, and the strip then asks the user to reload.
+  Events recorded before a reload die with the lost diagnostic store and its in-memory tail, so the next boot records `lifecycle.storage_recovery_reloaded` once, with whether it was automatic, the reload's age, and the time from loss to reload.
 - Consulted Codex on recovery through reload, an in-page client restart, a notice only, or no change; it recommended reload with work blockers, a pre-navigation guard with a circuit breaker, and a notice while recovery waits.
   The real-WebKit kill later showed /sync processing stops entirely, so recovery reloads promptly instead of waiting for the page to be hidden.
-- Unit coverage: sentinel detection, duplicate losses, hidden and idle reloads, input pauses, periodic checks and their cleanup, blockers (including a throwing one), the no-client rule, single-flight reloads with preparations, the circuit breaker and its window, an unwritable marker, and the boot record (`storageConnectionRecovery.test.ts`); every blocker and composer-send salvage into the sending composer, once (`useStorageRecoveryBlocker.test.tsx`); the send session's tracking (`useRoomInputSendSessionController.test.ts`); the session-store guard (`sessions.test.ts`); and the strip's states and two-step reload (`StorageConnectionStatus.test.tsx`).
+- Unit coverage: `storageConnectionRecovery.test.ts` covers detection, duplicate losses, idle and hidden reloads with the hide grace, every input type, composition, periodic checks and their cleanup, blockers (including a throwing one), host registration, single-flight reloads, preparations, a throwing recorder or navigation, the circuit breaker and its window, an unwritable marker, and the one-time boot record.
+  `useStorageRecoveryBlocker.test.tsx` and `storageRecoveryForms.test.ts` cover every blocker, status-aware salvage into the sending composer, order, the account guard, draft re-flushing, and the pending-route drop; `useRoomInputSendSessionController.test.ts` covers settling on an answer, on a returned failure, and not for a timeline-owned failure; `sessions.test.ts` covers null and stale reads and post-loss writes; `StorageConnectionStatus.test.tsx` covers the strip's states, hosting, and the two-step reload.
 - `e2e/live/storage-connection-recovery.spec.ts`, using `e2e/helpers/networkingProcessLoss.ts`:
   - an idle open thread reloads after a simulated loss (every existing MessagePort and IndexedDB connection lost together) and receives a later reply;
-  - an encrypted send stuck by the loss returns to the composer across the reload, sends, and the server then has both encrypted messages;
-  - on WebKit, a real `SIGKILL` of the networking process in a persistent profile reloads into the same thread, which then receives a later reply.
-  All three fail on #334's production build and pass on this branch (the simulated cases in Chromium and WebKit); the #334 port-loss spec now shares the helper.
+  - an encrypted send made after the loss is back in the composer after the reload and then reaches the server (this passes whether the closed crypto store rejects the send, which the composer restores, or leaves it pending, which recovery saves);
+  - on WebKit, a real `SIGKILL` of the networking process in a persistent profile reloads into the same thread, which then receives a later reply, and the boot records the automatic reload.
+  They pass on this branch (the simulated cases in Chromium and WebKit); on #334's production build they fail because nothing reloads, which is expected rather than a measurement of lost messages.
+  The #334 port-loss spec now shares the helper.
 - Not fixed:
-  - Writes made just before the loss that WebKit had not flushed, including a draft typed in the last seconds, are lost.
-  - The reply target of a composer, sends not typed into a composer, and Element Call's in-iframe state do not survive the reload.
+  - A composer's reply target, sends not typed into a composer, captions waiting on stuck uploads, and Element Call's in-iframe state do not survive the reload.
+  - The e2e kill helper signals every WebKit networking process visible in its container.
   - Why WebKit's networking process exits is still unknown.
 - Next: in the next iOS export after a storage loss, check for `lifecycle.storage_recovery_reloaded` and replies that keep arriving.
 

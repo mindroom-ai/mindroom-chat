@@ -1015,7 +1015,7 @@
     "storageStatus": {
       "lost": "De verbinding met de opslag van dit apparaat is verbroken. MindRoom wordt opnieuw geladen om deze te herstellen.",
       "lostAgain": "De verbinding met de opslag van dit apparaat is opnieuw verbroken. Laad MindRoom opnieuw om deze te herstellen.",
-      "blocked": "De verbinding met de opslag van dit apparaat is verbroken. MindRoom wordt opnieuw geladen zodra niet-verzonden werk klaar is.",
+      "blocked": "De verbinding met de opslag van dit apparaat is verbroken. MindRoom wordt opnieuw geladen zodra niet-verzonden werk is verzonden of verwijderd.",
       "reload": "Opnieuw laden",
       "confirmDiscard": "Nu opnieuw laden verwijdert niet-verzonden werk zoals opnames, bijlagen en berichtbewerkingen. Toch opnieuw laden?"
     },

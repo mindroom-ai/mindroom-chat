@@ -1020,7 +1020,7 @@
     "storageStatus": {
       "lost": "A ligação ao armazenamento deste dispositivo foi perdida. O MindRoom vai recarregar para a restabelecer.",
       "lostAgain": "A ligação ao armazenamento deste dispositivo voltou a perder-se. Recarregue o MindRoom para a restabelecer.",
-      "blocked": "A ligação ao armazenamento deste dispositivo foi perdida. O MindRoom será recarregado quando o trabalho por enviar terminar.",
+      "blocked": "A ligação ao armazenamento deste dispositivo foi perdida. O MindRoom será recarregado quando o trabalho por enviar for enviado ou descartado.",
       "reload": "Recarregar",
       "confirmDiscard": "Recarregar agora elimina o trabalho por enviar, como gravações, anexos e edições de mensagens. Recarregar mesmo assim?"
     },

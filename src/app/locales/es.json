@@ -1020,7 +1020,7 @@
     "storageStatus": {
       "lost": "Se perdió la conexión con el almacenamiento de este dispositivo. MindRoom se recargará para restaurarla.",
       "lostAgain": "Se volvió a perder la conexión con el almacenamiento de este dispositivo. Recarga MindRoom para restaurarla.",
-      "blocked": "Se perdió la conexión con el almacenamiento de este dispositivo. MindRoom se recargará cuando termine el trabajo sin enviar.",
+      "blocked": "Se perdió la conexión con el almacenamiento de este dispositivo. MindRoom se recargará cuando el trabajo sin enviar se envíe o se descarte.",
       "reload": "Recargar",
       "confirmDiscard": "Si recargas ahora, se descartará el trabajo sin enviar, como grabaciones, archivos adjuntos y ediciones de mensajes. ¿Recargar de todos modos?"
     },
