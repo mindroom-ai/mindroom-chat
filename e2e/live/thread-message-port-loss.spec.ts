@@ -11,6 +11,7 @@ import {
 declare global {
   interface Window {
     __closeExistingMessagePorts?: () => number;
+    __schedulerWakeupReplacements?: number;
   }
 }
 
@@ -29,6 +30,10 @@ const installMessagePortLoss = () => {
   }
   RecordedMessageChannel.prototype = NativeMessageChannel.prototype;
   window.MessageChannel = RecordedMessageChannel as unknown as typeof MessageChannel;
+  window.__schedulerWakeupReplacements = 0;
+  window.addEventListener('mindroom:scheduler-wakeup-replaced', () => {
+    window.__schedulerWakeupReplacements = (window.__schedulerWakeupReplacements ?? 0) + 1;
+  });
   window.__closeExistingMessagePorts = () => {
     const closed = channels.splice(0);
     closed.forEach((channel) => {
@@ -91,5 +96,7 @@ test.describe('thread live updates after MessagePort loss', () => {
     const revision = `Streamed revision after port loss ${stamp}`;
     await sendMessageEdit(homeserver, session.accessToken, fixture.roomId, replyId, revision);
     await expect(reply).toContainText(revision, { timeout: 15_000 });
+    // Recovery went through React Scheduler's own channel, not an unrelated one.
+    expect(await page.evaluate(() => window.__schedulerWakeupReplacements)).toBeGreaterThan(0);
   });
 });

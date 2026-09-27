@@ -3,6 +3,7 @@
 import 'fake-indexeddb/auto';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { logTimelineDebug } from '../threads/timelineDebug';
+import { SCHEDULER_WAKEUP_REPLACED_EVENT } from './schedulerWakeup';
 import { THREAD_TRACE_PHASES } from './threadTraceSchema';
 import {
   classifyDeepTraceNetworkRequest,
@@ -197,6 +198,24 @@ describe('opt-in deep diagnostic trace', () => {
         data: { trace_id: 7, source: 3, delay_ms: 50, visible: true },
       })
     );
+  });
+
+  it('records React Scheduler wakeup replacements with only their delay', async () => {
+    await setDeepTraceEnabled(true, storage);
+
+    window.dispatchEvent(
+      new CustomEvent(SCHEDULER_WAKEUP_REPLACED_EVENT, { detail: { elapsedMs: 251.37 } })
+    );
+    window.dispatchEvent(
+      new CustomEvent(SCHEDULER_WAKEUP_REPLACED_EVENT, { detail: { elapsedMs: 'private' } })
+    );
+
+    const snapshot = await readDeepTraceSnapshot();
+    const replacements = snapshot.events.filter(
+      (event) => event.name === 'performance.scheduler_wakeup_replaced'
+    );
+    expect(replacements.map((event) => event.data)).toEqual([{ elapsed_ms: 251.4 }, undefined]);
+    expect(JSON.stringify(snapshot)).not.toContain('private');
   });
 
   it('captures JavaScriptCore stack locations without retaining stack text', async () => {

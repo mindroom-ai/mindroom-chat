@@ -1,34 +1,42 @@
 diff --git a/node_modules/scheduler/cjs/scheduler.development.js b/node_modules/scheduler/cjs/scheduler.development.js
-index 21bfb25..2812d51 100644
+index 21bfb25..c8fd3d0 100644
 --- a/node_modules/scheduler/cjs/scheduler.development.js
 +++ b/node_modules/scheduler/cjs/scheduler.development.js
-@@ -566,12 +566,58 @@ if (typeof localSetImmediate === 'function') {
+@@ -566,13 +566,82 @@ if (typeof localSetImmediate === 'function') {
  } else if (typeof MessageChannel !== 'undefined') {
    // DOM and Worker environments.
    // We prefer MessageChannel because of the 4ms setTimeout clamping.
 -  var channel = new MessageChannel();
 -  var port = channel.port2;
 -  channel.port1.onmessage = performWorkUntilDeadline;
-+  // MindRoom: WebKit brokers every MessagePort through its networking process
-+  // and silently closes all existing ports when that process exits. A lost
-+  // wakeup would leave isMessageLoopRunning set forever, so replace a port
++  // MindRoom: WebKit brokers MessagePorts through its networking process, and
++  // when that process exits existing ports silently stop delivering. A lost
++  // wakeup would leave isMessageLoopRunning set forever, so replace a channel
 +  // whose wakeup has not arrived after a timer-driven grace period.
 +  var wakeupTimeoutMs = 250;
++  var wakeupReceiver = null;
 +  var port = null;
 +  var wakeupPending = false;
 +  var wakeupPostedAt = -1;
 +  var wakeupWatchdogID = -1;
 +
 +  var receiveWakeup = function () {
-+    if (!wakeupPending) return;
 +    wakeupPending = false;
 +    performWorkUntilDeadline();
 +  };
  
 -  schedulePerformWorkUntilDeadline = function () {
 +  var connectWakeupPort = function () {
++    // A listening port stays alive in WebKit, and a merely delayed wakeup has
++    // been posted again, so close the replaced pair.
++    if (wakeupReceiver !== null) {
++      wakeupReceiver.close();
++      port.close();
++    }
++
 +    var channel = new MessageChannel();
 +    channel.port1.onmessage = receiveWakeup;
++    wakeupReceiver = channel.port1;
 +    port = channel.port2;
 +  };
 +
@@ -36,10 +44,25 @@ index 21bfb25..2812d51 100644
 +    if (wakeupWatchdogID === -1) wakeupWatchdogID = localSetTimeout(checkWakeup, ms);
 +  };
 +
-+  var postWakeup = function () {
-+    wakeupPostedAt = exports.unstable_now();
-     port.postMessage(null);
++  var postWakeup = function (reconnect) {
++    wakeupPostedAt = exports.unstable_now(); // Arm first so a failing port operation still retries.
++
 +    armWakeupWatchdog(wakeupTimeoutMs);
++    if (reconnect) connectWakeupPort();
+     port.postMessage(null);
+   };
++
++  var notifyWakeupReplaced = function (elapsedMs) {
++    if (typeof dispatchEvent !== 'function' || typeof CustomEvent !== 'function') return;
++
++    try {
++      dispatchEvent(new CustomEvent('mindroom:scheduler-wakeup-replaced', {
++        detail: {
++          elapsedMs: elapsedMs
++        }
++      }));
++    } catch (error) {// Diagnostics must not affect scheduling.
++    }
 +  };
 +
 +  var checkWakeup = function () {
@@ -52,8 +75,8 @@ index 21bfb25..2812d51 100644
 +      return;
 +    }
 +
-+    connectWakeupPort();
-+    postWakeup();
++    postWakeup(true);
++    notifyWakeupReplaced(elapsed);
 +  };
 +
 +  connectWakeupPort();
@@ -61,12 +84,13 @@ index 21bfb25..2812d51 100644
 +  schedulePerformWorkUntilDeadline = function () {
 +    if (wakeupPending) return;
 +    wakeupPending = true;
-+    postWakeup();
-   };
++    postWakeup(false);
++  };
  } else {
    // We should only fallback here in non-browser environments.
+   schedulePerformWorkUntilDeadline = function () {
 diff --git a/node_modules/scheduler/cjs/scheduler.production.min.js b/node_modules/scheduler/cjs/scheduler.production.min.js
-index 7f84d25..6665fc8 100644
+index 7f84d25..7a3601e 100644
 --- a/node_modules/scheduler/cjs/scheduler.production.min.js
 +++ b/node_modules/scheduler/cjs/scheduler.production.min.js
 @@ -11,7 +11,7 @@
@@ -74,7 +98,7 @@ index 7f84d25..6665fc8 100644
  "undefined"!==typeof navigator&&void 0!==navigator.scheduling&&void 0!==navigator.scheduling.isInputPending&&navigator.scheduling.isInputPending.bind(navigator.scheduling);function G(a){for(var b=h(t);null!==b;){if(null===b.callback)k(t);else if(b.startTime<=a)k(t),b.sortIndex=b.expirationTime,f(r,b);else break;b=h(t)}}function H(a){B=!1;G(a);if(!A)if(null!==h(r))A=!0,I(J);else{var b=h(t);null!==b&&K(H,b.startTime-a)}}
  function J(a,b){A=!1;B&&(B=!1,E(L),L=-1);z=!0;var c=y;try{G(b);for(v=h(r);null!==v&&(!(v.expirationTime>b)||a&&!M());){var d=v.callback;if("function"===typeof d){v.callback=null;y=v.priorityLevel;var e=d(v.expirationTime<=b);b=exports.unstable_now();"function"===typeof e?v.callback=e:v===h(r)&&k(r);G(b)}else k(r);v=h(r)}if(null!==v)var w=!0;else{var m=h(t);null!==m&&K(H,m.startTime-b);w=!1}return w}finally{v=null,y=c,z=!1}}var N=!1,O=null,L=-1,P=5,Q=-1;
 -function M(){return exports.unstable_now()-Q<P?!1:!0}function R(){if(null!==O){var a=exports.unstable_now();Q=a;var b=!0;try{b=O(!0,a)}finally{b?S():(N=!1,O=null)}}else N=!1}var S;if("function"===typeof F)S=function(){F(R)};else if("undefined"!==typeof MessageChannel){var T=new MessageChannel,U=T.port2;T.port1.onmessage=R;S=function(){U.postMessage(null)}}else S=function(){D(R,0)};function I(a){O=a;N||(N=!0,S())}function K(a,b){L=D(function(){a(exports.unstable_now())},b)}
-+function M(){return exports.unstable_now()-Q<P?!1:!0}function R(){if(null!==O){var a=exports.unstable_now();Q=a;var b=!0;try{b=O(!0,a)}finally{b?S():(N=!1,O=null)}}else N=!1}var S;if("function"===typeof F)S=function(){F(R)};else if("undefined"!==typeof MessageChannel){var T=250,U=null,Y=!1,Z=-1,aa=-1,ba=function(){Y&&(Y=!1,R())},ca=function(){var a=new MessageChannel;a.port1.onmessage=ba;U=a.port2},da=function(a){-1===aa&&(aa=D(fa,a))},ea=function(){Z=exports.unstable_now();U.postMessage(null);da(T)},fa=function(){aa=-1;if(Y){var a=exports.unstable_now()-Z;a<T?da(T-a):(ca(),ea())}};ca();S=function(){Y||(Y=!0,ea())}}else S=function(){D(R,0)};function I(a){O=a;N||(N=!0,S())}function K(a,b){L=D(function(){a(exports.unstable_now())},b)}
++function M(){return exports.unstable_now()-Q<P?!1:!0}function R(){if(null!==O){var a=exports.unstable_now();Q=a;var b=!0;try{b=O(!0,a)}finally{b?S():(N=!1,O=null)}}else N=!1}var S;if("function"===typeof F)S=function(){F(R)};else if("undefined"!==typeof MessageChannel){var T=250,V=null,U=null,Y=!1,Z=-1,aa=-1,ba=function(){Y=!1;R()},ca=function(){null!==V&&(V.close(),U.close());var a=new MessageChannel;a.port1.onmessage=ba;V=a.port1;U=a.port2},da=function(a){-1===aa&&(aa=D(fa,a))},ea=function(a){Z=exports.unstable_now();da(T);a&&ca();U.postMessage(null)},ga=function(a){if("function"===typeof dispatchEvent&&"function"===typeof CustomEvent)try{dispatchEvent(new CustomEvent("mindroom:scheduler-wakeup-replaced",{detail:{elapsedMs:a}}))}catch(b){}},fa=function(){aa=-1;if(Y){var a=exports.unstable_now()-Z;a<T?da(T-a):(ea(!0),ga(a))}};ca();S=function(){Y||(Y=!0,ea(!1))}}else S=function(){D(R,0)};function I(a){O=a;N||(N=!0,S())}function K(a,b){L=D(function(){a(exports.unstable_now())},b)}
  exports.unstable_IdlePriority=5;exports.unstable_ImmediatePriority=1;exports.unstable_LowPriority=4;exports.unstable_NormalPriority=3;exports.unstable_Profiling=null;exports.unstable_UserBlockingPriority=2;exports.unstable_cancelCallback=function(a){a.callback=null};exports.unstable_continueExecution=function(){A||z||(A=!0,I(J))};
  exports.unstable_forceFrameRate=function(a){0>a||125<a?console.error("forceFrameRate takes a positive int between 0 and 125, forcing frame rates higher than 125 fps is not supported"):P=0<a?Math.floor(1E3/a):5};exports.unstable_getCurrentPriorityLevel=function(){return y};exports.unstable_getFirstCallbackNode=function(){return h(r)};exports.unstable_next=function(a){switch(y){case 1:case 2:case 3:var b=3;break;default:b=y}var c=y;y=b;try{return a()}finally{y=c}};exports.unstable_pauseExecution=function(){};
  exports.unstable_requestPaint=function(){};exports.unstable_runWithPriority=function(a,b){switch(a){case 1:case 2:case 3:case 4:case 5:break;default:a=3}var c=y;y=a;try{return b()}finally{y=c}};
