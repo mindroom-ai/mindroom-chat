@@ -2,6 +2,24 @@
 
 ## Runbook
 
+### Flat glass headers for Lobby and Explore (2026-09-27)
+
+- Lobby, Explore server results, and Featured on mobile use the same flat native glass treatment as navigation headers.
+  The header has no border, shadow, specular rim, or pointer-driven refraction; interactive buttons retain their normal feedback.
+- Shared `PageScroll` keeps the header inside the native scrolling viewport, reserves its height for focus scrolling, and bounds the inset scrollbar below it.
+  Featured on desktop has no header or extra top inset.
+- Lobby measures the virtual list's offset independently of hero height, and subtracts that offset from virtual tile positions.
+  Its compact title and Scroll to Top respond when the hero disappears below the visible header boundary.
+- The local Matrix browser regression reproduces the old header outside its scroll viewport.
+  It covers material and hover behavior, real text passing behind headers, focus scrolling, scrollbar controls, Lobby's end and return to top, and the hero visibility boundary.
+- Independent review found and resolved the hero visibility offset; browser tests caught a stylesheet-order override on the Scroll to Top position.
+  Both fixes are covered, and independent review approves the final implementation.
+- Validation: all 5,481 unit tests, application and new browser-test typechecks, targeted lint, and the production build pass.
+  All four live browser cases pass across Chromium and WebKit, with dark desktop and light mobile views; before/after screenshots cover Lobby, Explore server results, and Featured mobile.
+- Screenshot limitation: the Linux/headless Playwright WebKit backend reports a supported native backdrop filter but paints blurred and unblurred controls identically, including a static non-scrolling control.
+  Chromium paints the same controls correctly, and the direct and wrapped sticky layouts behave alike in both engines.
+  WebKit screenshots verify layout and transparency, not native iOS/macOS blur rendering; that still needs a device check.
+
 ### Recover React scheduling after WebKit closes existing MessagePorts (2026-09-26)
 
 - An iOS export from build `ce259d1d` shows an open thread that did not display the agent's second reply until the user left and reopened it.
@@ -51,6 +69,7 @@
   - Element Call bundles its own unpatched scheduler inside its iframe.
   - Why the networking process exited is unknown; the cold start's request burst and memory pressure are plausible.
 - Next: in the next iOS export after a diagnostic IndexedDB failure, check for `performance.scheduler_wakeup_replaced` near 250 ms and replies that keep rendering, then decide whether the SDK stores need the same reconnect handling.
+
 
 ### Identify the cold-start request behind root-only threads (2026-09-25)
 

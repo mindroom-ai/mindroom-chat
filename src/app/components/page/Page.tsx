@@ -134,16 +134,60 @@ export const Page = as<'div'>(({ className, ...props }, ref) => {
 
 export const PageHeader = as<
   'div',
-  css.PageHeaderVariants & Pick<ComponentProps<typeof Header>, 'appearance'>
->(({ className, outlined, balance, ...props }, ref) => (
+  css.PageHeaderVariants & Pick<ComponentProps<typeof Header>, 'appearance'> & { flat?: boolean }
+>(({ className, outlined, balance, appearance, flat, ...props }, ref) => (
   <Header
     as="header"
     size="600"
-    className={classNames(css.PageHeader({ balance, outlined }), className)}
+    appearance={flat ? 'plain' : appearance}
+    className={classNames(
+      css.PageHeader({ balance, outlined: flat ? false : outlined }),
+      flat && css.PageHeaderMaterial,
+      className
+    )}
     {...props}
     ref={ref}
   />
 ));
+
+/** Page chrome stays inside the native viewport so content can pass beneath it. */
+export function PageScroll({
+  header,
+  scrollRef,
+  children,
+}: {
+  header?: ReactNode;
+  scrollRef?: MutableRefObject<HTMLDivElement | null>;
+  children: ReactNode;
+}) {
+  const { t } = useTranslation();
+  const fallbackScrollRef = useRef<HTMLDivElement>(null);
+  const viewportRef = scrollRef ?? fallbackScrollRef;
+  const contentRef = useRef<HTMLDivElement>(null);
+  const hasHeader = !!header;
+
+  return (
+    <Box grow="Yes" direction="Column" style={{ position: 'relative' }}>
+      <Scroll
+        ref={viewportRef}
+        className={css.PageScroll({ header: hasHeader })}
+        hideTrack
+        visibility="Hover"
+      >
+        <div ref={contentRef} className={css.PageScrollContent}>
+          {hasHeader && <div className={css.PageScrollHeader}>{header}</div>}
+          <div className={css.PageScrollBody}>{children}</div>
+        </div>
+        <InsetScrollbar
+          scrollRef={viewportRef}
+          contentRef={contentRef}
+          className={css.PageScrollbar({ header: hasHeader })}
+          label={t('commandPalette.navigate')}
+        />
+      </Scroll>
+    </Box>
+  );
+}
 
 export const PageContent = as<'div'>(({ className, ...props }, ref) => (
   <div className={classNames(css.PageContent, className)} {...props} ref={ref} />

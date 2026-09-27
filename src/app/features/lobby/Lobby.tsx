@@ -1,5 +1,5 @@
 import React, { MouseEventHandler, useCallback, useMemo, useRef, useState } from 'react';
-import { Box, Chip, Icon, IconButton, Icons, Scroll, Spinner, Text, config } from 'folds';
+import { Box, Chip, Icon, IconButton, Icons, Spinner, Text, config } from 'folds';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useAtom, useAtomValue } from 'jotai';
 import { useNavigate } from 'react-router-dom';
@@ -9,7 +9,13 @@ import { IHierarchyRoom } from 'matrix-js-sdk/lib/@types/spaces';
 import produce from 'immer';
 import { useTranslation } from 'react-i18next';
 import { useSpace } from '../../hooks/useSpace';
-import { Page, PageContent, PageContentCenter, PageHeroSection } from '../../components/page';
+import {
+  Page,
+  PageContent,
+  PageContentCenter,
+  PageHeroSection,
+  PageScroll,
+} from '../../components/page';
 import {
   HierarchyItem,
   HierarchyItemSpace,
@@ -22,6 +28,7 @@ import { useMembersDrawer } from '../../mindroom/sidebar/useMembersDrawer';
 import { ResizableMembersPanel } from '../../mindroom/sidebar/ResizableMembersPanel';
 import { LobbyHeader } from './LobbyHeader';
 import { LobbyHero } from './LobbyHero';
+import { PageScrollToTop } from '../../components/page/style.css';
 import { ScrollTopContainer } from '../../components/scroll-top-container';
 import { useElementSizeObserver } from '../../hooks/useElementSizeObserver';
 import {
@@ -168,6 +175,7 @@ export function Lobby() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const heroSectionRef = useRef<HTMLDivElement>(null);
   const [heroSectionHeight, setHeroSectionHeight] = useState<number>();
+  const [scrollMargin, setScrollMargin] = useState(0);
   const [spaceRooms, setSpaceRooms] = useAtom(spaceRoomsAtom);
   const [isDrawer, setPeopleDrawer] = useMembersDrawer();
   const [onTop, setOnTop] = useState(true);
@@ -188,7 +196,16 @@ export function Lobby() {
 
   useElementSizeObserver(
     useCallback(() => heroSectionRef.current, []),
-    useCallback((w, height) => setHeroSectionHeight(height), [])
+    useCallback((w, height, hero) => {
+      setHeroSectionHeight(height);
+      const scroll = scrollRef.current;
+      if (scroll) {
+        // The hero starts at the virtual list origin, after the sticky header and page padding.
+        setScrollMargin(
+          hero.getBoundingClientRect().top - scroll.getBoundingClientRect().top + scroll.scrollTop
+        );
+      }
+    }, [])
   );
 
   const getRoom = useGetRoom(allJoinedRooms);
@@ -212,6 +229,7 @@ export function Lobby() {
     estimateSize: () => 1,
     overscan: 2,
     paddingStart: heroSectionHeight ?? 258,
+    scrollMargin,
   });
   const vItems = virtualizer.getVirtualItems();
 
@@ -436,110 +454,115 @@ export function Lobby() {
     <PowerLevelsContextProvider value={spacePowerLevels}>
       <Box grow="Yes">
         <Page>
-          <LobbyHeader
-            showProfile={!onTop}
-            powerLevels={roomsPowerLevels.get(space.roomId) ?? {}}
-            joinRequestCount={joinRequestCount}
-          />
-          <Box style={{ position: 'relative' }} grow="Yes">
-            <Scroll ref={scrollRef} hideTrack visibility="Hover">
-              <PageContent>
-                <PageContentCenter>
-                  <ScrollTopContainer
-                    scrollRef={scrollRef}
-                    anchorRef={heroSectionRef}
-                    onVisibilityChange={setOnTop}
+          <PageScroll
+            scrollRef={scrollRef}
+            header={
+              <LobbyHeader
+                showProfile={!onTop}
+                powerLevels={roomsPowerLevels.get(space.roomId) ?? {}}
+                joinRequestCount={joinRequestCount}
+              />
+            }
+          >
+            <PageContent>
+              <PageContentCenter>
+                <ScrollTopContainer
+                  respectScrollPadding
+                  className={PageScrollToTop}
+                  scrollRef={scrollRef}
+                  anchorRef={heroSectionRef}
+                  onVisibilityChange={setOnTop}
+                >
+                  <IconButton
+                    onClick={() => virtualizer.scrollToOffset(0)}
+                    variant="SurfaceVariant"
+                    radii="Pill"
+                    outlined
+                    size="300"
+                    aria-label={t('featureUi.lobby.scrollToTop')}
                   >
-                    <IconButton
-                      onClick={() => virtualizer.scrollToOffset(0)}
-                      variant="SurfaceVariant"
-                      radii="Pill"
-                      outlined
-                      size="300"
-                      aria-label={t('featureUi.lobby.scrollToTop')}
-                    >
-                      <Icon src={Icons.ChevronTop} size="300" />
-                    </IconButton>
-                  </ScrollTopContainer>
-                  <div
-                    style={{
-                      position: 'relative',
-                      height: virtualizer.getTotalSize(),
-                    }}
-                  >
-                    <PageHeroSection ref={heroSectionRef} style={{ paddingTop: 0 }}>
-                      <LobbyHero />
-                    </PageHeroSection>
-                    {vItems.map((vItem) => {
-                      const item = hierarchy[vItem.index];
-                      if (!item) return null;
-                      const nextSpaceId = hierarchy[vItem.index + 1]?.space.roomId;
+                    <Icon src={Icons.ChevronTop} size="300" />
+                  </IconButton>
+                </ScrollTopContainer>
+                <div
+                  style={{
+                    position: 'relative',
+                    height: virtualizer.getTotalSize(),
+                  }}
+                >
+                  <PageHeroSection ref={heroSectionRef} style={{ paddingTop: 0 }}>
+                    <LobbyHero />
+                  </PageHeroSection>
+                  {vItems.map((vItem) => {
+                    const item = hierarchy[vItem.index];
+                    if (!item) return null;
+                    const nextSpaceId = hierarchy[vItem.index + 1]?.space.roomId;
 
-                      const categoryId = makeLobbyCategoryId(space.roomId, item.space.roomId);
+                    const categoryId = makeLobbyCategoryId(space.roomId, item.space.roomId);
 
-                      return (
-                        <VirtualTile
-                          virtualItem={vItem}
-                          style={{
-                            paddingTop: vItem.index === 0 ? 0 : config.space.S500,
-                          }}
-                          ref={virtualizer.measureElement}
-                          key={vItem.index}
-                        >
-                          <SpaceHierarchy
-                            spaceItem={item.space}
-                            summary={spacesItems.get(item.space.roomId)}
-                            roomItems={item.rooms}
-                            allJoinedRooms={allJoinedRooms}
-                            mDirects={mDirects}
-                            roomsPowerLevels={roomsPowerLevels}
-                            categoryId={categoryId}
-                            closed={
-                              closedCategories.has(categoryId) ||
-                              (draggingItem ? 'space' in draggingItem : false)
-                            }
-                            handleClose={handleCategoryClick}
-                            draggingItem={draggingItem}
-                            onDragging={setDraggingItem}
-                            canDrop={canDrop}
-                            disabledReorder={reordering}
-                            nextSpaceId={nextSpaceId}
-                            getRoom={getRoom}
-                            pinned={sidebarSpaces.has(item.space.roomId)}
-                            togglePinToSidebar={togglePinToSidebar}
-                            onSpacesFound={handleSpacesFound}
-                            onOpenRoom={handleOpenRoom}
-                          />
-                        </VirtualTile>
-                      );
-                    })}
-                  </div>
-                  {reordering && (
-                    <Box
-                      style={{
-                        position: 'absolute',
-                        bottom: config.space.S400,
-                        left: 0,
-                        right: 0,
-                        zIndex: 2,
-                        pointerEvents: 'none',
-                      }}
-                      justifyContent="Center"
-                    >
-                      <Chip
-                        variant="Secondary"
-                        outlined
-                        radii="Pill"
-                        before={<Spinner variant="Secondary" fill="Soft" size="100" />}
+                    return (
+                      <VirtualTile
+                        virtualItem={vItem}
+                        style={{
+                          top: vItem.start - scrollMargin,
+                          paddingTop: vItem.index === 0 ? 0 : config.space.S500,
+                        }}
+                        ref={virtualizer.measureElement}
+                        key={vItem.index}
                       >
-                        <Text size="L400">{t('featureUi.lobby.reordering')}</Text>
-                      </Chip>
-                    </Box>
-                  )}
-                </PageContentCenter>
-              </PageContent>
-            </Scroll>
-          </Box>
+                        <SpaceHierarchy
+                          spaceItem={item.space}
+                          summary={spacesItems.get(item.space.roomId)}
+                          roomItems={item.rooms}
+                          allJoinedRooms={allJoinedRooms}
+                          mDirects={mDirects}
+                          roomsPowerLevels={roomsPowerLevels}
+                          categoryId={categoryId}
+                          closed={
+                            closedCategories.has(categoryId) ||
+                            (draggingItem ? 'space' in draggingItem : false)
+                          }
+                          handleClose={handleCategoryClick}
+                          draggingItem={draggingItem}
+                          onDragging={setDraggingItem}
+                          canDrop={canDrop}
+                          disabledReorder={reordering}
+                          nextSpaceId={nextSpaceId}
+                          getRoom={getRoom}
+                          pinned={sidebarSpaces.has(item.space.roomId)}
+                          togglePinToSidebar={togglePinToSidebar}
+                          onSpacesFound={handleSpacesFound}
+                          onOpenRoom={handleOpenRoom}
+                        />
+                      </VirtualTile>
+                    );
+                  })}
+                </div>
+                {reordering && (
+                  <Box
+                    style={{
+                      position: 'absolute',
+                      bottom: config.space.S400,
+                      left: 0,
+                      right: 0,
+                      zIndex: 2,
+                      pointerEvents: 'none',
+                    }}
+                    justifyContent="Center"
+                  >
+                    <Chip
+                      variant="Secondary"
+                      outlined
+                      radii="Pill"
+                      before={<Spinner variant="Secondary" fill="Soft" size="100" />}
+                    >
+                      <Text size="L400">{t('featureUi.lobby.reordering')}</Text>
+                    </Chip>
+                  </Box>
+                )}
+              </PageContentCenter>
+            </PageContent>
+          </PageScroll>
         </Page>
         {isDrawer && (
           <ResizableMembersPanel key={space.roomId} onClose={() => setPeopleDrawer(false)}>

@@ -58,6 +58,18 @@ vi.mock('../../../components/page', () => {
   const Wrapper = ({ children }: { children?: React.ReactNode }) => children;
   return {
     Page: Wrapper,
+    PageScroll: ({
+      header,
+      children,
+    }: {
+      header?: React.ReactNode;
+      children?: React.ReactNode;
+    }) => (
+      <>
+        {header}
+        {children}
+      </>
+    ),
     PageContent: Wrapper,
     PageContentCenter: Wrapper,
     PageHeader: Wrapper,
