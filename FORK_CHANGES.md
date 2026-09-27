@@ -2,6 +2,38 @@
 
 ## Runbook
 
+### Recover React scheduling after WebKit closes existing MessagePorts (2026-09-26)
+
+- An iOS export from build `ce259d1d` shows an open thread that did not display the agent's second reply until the user left and reopened it.
+  The thread stayed open throughout: it opened at 05:07:00 right after the voice-message root was sent, the app was backgrounded from 05:07:28 to 05:08:43, and the reopen happened at 05:08:51.
+  From 05:07:10 every `/sync` grew the SDK thread (4 to 14 events, 1 to 2 replies) while the view's render-attempt counter stayed at 34 for 95 seconds, including the 18 seconds before backgrounding.
+  Taps after resume rendered and committed without applying the pending updates.
+  After the reopen the view stayed at 22 events while the model reached 63, and it kept `sdkReady` and `cacheHydrated` false after both loads completed, through a dozen later commits.
+- At 05:07:08.5, two seconds before the freeze, the deep-trace IndexedDB flush failed; the store stayed unavailable for the rest of the session.
+  WebKit hosts IndexedDB in its networking process and brokers every MessagePort through it, even two ports in one page.
+  When that connection closes, `WebMessagePortChannelProvider::networkProcessConnectionClosed` drops queued port messages and closes every existing port without an event; ports created later work.
+  React Scheduler 0.23.2 posts every non-synchronous wakeup through one MessageChannel created at load.
+  After one lost message `isMessageLoopRunning` stays true and the scheduler never posts again.
+  Default-priority updates (SDK listeners, reconcile delivery, session publication) then queue forever, while discrete input still renders its synchronous lane and skips them, matching the device signature.
+- Ruled out: a real-SDK reproduction of the open sequence (local-echo root, sync-created thread, repeated open, reconcile injection, sync gaps, stalled storage) renders every reply.
+  An audit of every listener in the SDK's synchronous timeline emit chain found none that can throw, with or without IndexedDB.
+  A throwing listener would also abort the rest of each sync batch, but one device sync added two events to the thread.
+- `patches/scheduler+0.23.2.patch` keeps the MessageChannel wakeup and arms one watchdog timer per outstanding wakeup.
+  When a wakeup has not arrived after 250 ms, the scheduler creates a fresh channel and posts again.
+  A pending flag runs each wakeup once when a slow original message arrives after its replacement.
+  Healthy operation keeps one channel and leaves no timer armed while idle; the development and production builds carry the same change.
+- `src/app/reactSchedulerMessagePort.test.ts` evaluates both shipped scheduler builds against a deterministic host that reproduces WebKit's port loss.
+  The loss cases fail before the patch and pass after it; the steady-state and late-delivery cases pass on both.
+- `e2e/live/thread-message-port-loss.spec.ts` records native channels from page load, closes them while an open thread idles on live sync, and requires a new reply and its streamed edit to render.
+  `playwright.message-port.config.ts` adds a WebKit project for this spec.
+  The reply never renders on unpatched development (Chromium) and production (Chromium and WebKit) builds; patched builds pass in both browsers.
+- The 2026-09-22 blank-view export had the same signature (committed state frozen while SDK replies grew, next to a diagnostic database error), so it is likely the same loss.
+- Not fixed:
+  - Other connections held across the loss stay broken: the deep-trace store stays memory-only, and the SDK sync and crypto stores keep their closed IndexedDB connections until reload.
+    The thread cache already reopens after closure (#319).
+  - Why the networking process exited is unknown; the cold start's request burst and memory pressure are plausible.
+- Next: confirm on iOS that replies keep appearing after a diagnostic IndexedDB failure, then decide whether the SDK stores need the same reconnect handling.
+
 ### Identify the cold-start request behind root-only threads (2026-09-25)
 
 - The iOS export from build `c278d829` (after #329, before #331) pins down the delayed request #331 left unidentified.
