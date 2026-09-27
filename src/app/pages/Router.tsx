@@ -31,6 +31,7 @@ import {
   _SEARCH_PATH,
   _SERVER_PATH,
   CREATE_PATH,
+  CONNECT_PATH,
 } from './paths';
 import { getExploreFeaturedPath, getInboxNotificationsPath, getSpaceLobbyPath } from './pathUtils';
 import { ClientBindAtoms, ClientLayout, ClientRoot } from './client';
@@ -59,6 +60,7 @@ import { HomeCreateRoom } from './client/home/CreateRoom';
 import { Create } from './client/create';
 import { CreateSpaceModalRenderer } from '../features/create-space';
 import { CommandPaletteRenderer } from '../mindroom/command-palette';
+import { ConnectPage } from '../mindroom/local-mindroom/ConnectPage';
 import { Room } from '../mindroom/threads/MindroomRoom';
 import { SettingsModalRenderer } from '../features/settings';
 import { CallStatusRenderer } from './CallStatusRenderer';
@@ -96,6 +98,17 @@ export const createRouter = (clientConfig: ClientConfig, screenSize: ScreenSize)
           }
           return redirect(decision.redirectTo);
         }}
+      />
+      {/* Device pairing approves with any stored account, so it stays outside the
+          active-account client layout and must be static to win over SPACE_PATH. */}
+      <Route
+        path={CONNECT_PATH}
+        element={
+          <>
+            <ConnectPage />
+            <UnAuthRouteThemeManager />
+          </>
+        }
       />
       <Route
         loader={({ request }) => {

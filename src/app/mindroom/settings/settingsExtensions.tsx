@@ -19,7 +19,7 @@ export const renderMindroomSettingsPage = (
   activePage === ARCHIVED_ROOMS_SETTINGS_PAGE ? (
     <ArchivedRooms requestClose={requestClose} onNavigate={onNavigate} />
   ) : (
-    renderLocalMindroomSettingsPage(activePage, enabled, requestClose)
+    renderLocalMindroomSettingsPage(activePage, enabled, requestClose, onNavigate)
   );
 
 export function MindroomGeneralMessageSettings({ className }: MindroomGeneralMessageSettingsProps) {

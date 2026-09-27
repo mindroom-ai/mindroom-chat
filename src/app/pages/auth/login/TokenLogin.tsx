@@ -45,9 +45,8 @@ function LoginTokenError({ message }: { message: string }) {
 
 type TokenLoginProps = {
   token: string;
-  addAccount?: boolean;
 };
-export function TokenLogin({ token, addAccount = false }: TokenLoginProps) {
+export function TokenLogin({ token }: TokenLoginProps) {
   const { t } = useTranslation();
   const discovery = useAutoDiscoveryInfo();
   const baseUrl = discovery['m.homeserver'].base_url;
@@ -67,8 +66,7 @@ export function TokenLogin({ token, addAccount = false }: TokenLoginProps) {
   }, [baseUrl, token, startLogin]);
 
   const sessionStoreError = useLoginComplete(
-    loginState.status === AsyncStatus.Success ? loginState.data : undefined,
-    addAccount
+    loginState.status === AsyncStatus.Success ? loginState.data : undefined
   );
 
   return (

@@ -1025,7 +1025,7 @@
     "welcomePage": {
       "setUpLocalMindroom": "Настроить Local MindRoom",
       "openLocalMindroomSettings": "Открыть настройки Local MindRoom",
-      "3ClickHereToOpenLocalMindroomAndGenerateAPairCode": "3. Нажмите здесь, чтобы открыть Local MindRoom и создать код сопряжения",
+      "enterPairCode": "Есть код? Введите его в Local MindRoom",
       "poweredBy": "На базе <links />",
       "title": "Добро пожаловать в {{appName}}",
       "subtitle": "ИИ-агенты, которые живут в ваших чат-комнатах.",
@@ -1033,8 +1033,7 @@
       "sourceCode": "Исходный код",
       "setupStep1": "1. Выполните {{command}}",
       "setupStep2": "2. Добавьте данные доступа к модели в {{envFile}} или выполните {{command}}",
-      "setupStep4": "4. Выполните {{command}}",
-      "setupStep5": "5. Запустите с помощью {{command}}"
+      "setupStep3": "3. Запустите его с помощью {{command}}, затем откройте показанную ссылку, чтобы подтвердить подключение"
     },
     "mindroomNavigation": {
       "expandNavigationPanel": "Развернуть панель навигации",
@@ -2359,21 +2358,14 @@
     },
     "local-mindroom": {
       "localMindroom": {
-        "copied": "Скопировано",
-        "copyCommand": "Копировать команду",
         "localMindroom": "Local MindRoom",
         "connectLocalMindroom": "Подключить Local MindRoom",
         "pairThisChatAccountWithYourLocalMindroomProcess": "Свяжите эту учётную запись чата с локальным процессом MindRoom",
-        "generateAOneTimeCodeRunTheCommandLocallyThen": "Создайте одноразовый код, выполните команду локально и дождитесь подтверждения подключения.",
+        "enterCodeDescription": "Запустите {{command}} на своём компьютере, затем откройте показанную ссылку или введите код здесь.",
         "pairCode": "Код сопряжения",
-        "command": "Команда",
-        "waitingForLocalConnectionRunTheCommandAboveOnYour": "Ожидание локального подключения. Выполните приведённую выше команду на своём компьютере.",
-        "localMindroomConnectedSuccessfully": "Local MindRoom успешно подключён.",
-        "pairCodeExpiredGenerateANewCodeToContinue": "Срок действия кода истёк. Создайте новый код.",
-        "generatePairCode": "Создать код сопряжения",
-        "generateNewCode": "Создать новый код",
         "mindroomDocs": "Документация MindRoom",
         "linkedInstallations": "Связанные установки",
+        "linkedInstallationsUnavailable": "Связанные установки доступны только для учётных записей на {{server}}.",
         "loadingLinkedInstallations": "Загрузка связанных установок…",
         "tryAgain": "Повторить",
         "noLinkedLocalMindroomInstallationsYet": "Связанных локальных установок MindRoom пока нет.",
@@ -2381,13 +2373,31 @@
         "confirmRevoke": "Подтвердить отзыв",
         "cancel": "Отмена",
         "requestFailed": "Запрос не выполнен. Повторите попытку.",
-        "secondsRemaining": "{{count}} с",
-        "connected": "Подключено",
-        "expired": "Истёк",
         "unknown": "Неизвестно",
-        "connectionSummary": "{{name}} | Создано: {{created}} | Последняя активность: {{lastSeen}}",
         "createdAt": "Создано: {{timestamp}}",
         "lastSeenAt": "Последняя активность: {{timestamp}}"
+      },
+      "connect": {
+        "enterCode": "Введите код, показанный в терминале.",
+        "continue": "Продолжить",
+        "invalidCode": "Введите 8-символьный код, например ABCD-EFGH.",
+        "code": "Код: {{code}}",
+        "chooseAccount": "Выберите учётную запись, которая подтвердит это подключение",
+        "checkingCode": "Проверка кода...",
+        "deviceQuestion": "Подключить {{clientName}}?",
+        "deviceStarted": "Запущено {{age}}",
+        "warning": "Подтверждайте, только если вы только что сами запустили это на своём компьютере.",
+        "approveAs": "Подтвердить как {{userId}}",
+        "approved": "Подключено. Можно вернуться в терминал.",
+        "noAccount": "Войдите в свою учётную запись MindRoom, чтобы подтвердить это подключение.",
+        "signIn": "Войти для подтверждения",
+        "accountSignedOut": "Этой учётной записи нужно войти снова, прежде чем подтверждать.",
+        "codeNotFound": "Код не найден. Проверьте код, показанный в терминале.",
+        "codeExpired": "Срок действия кода истёк. Используйте новую ссылку или код из терминала.",
+        "codeAlreadyApproved": "Этот код уже подтверждён.",
+        "backToChat": "Вернуться в чат",
+        "enterNewCode": "Введите новый код:",
+        "noAccountAppGuidance": "Уже вошли в приложение MindRoom? Откройте Настройки → Local MindRoom и введите {{code}}."
       }
     },
     "matrix": {

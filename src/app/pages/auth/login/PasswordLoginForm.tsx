@@ -133,8 +133,7 @@ export function PasswordLoginForm({
   >(useCallback(login, []));
 
   const sessionStoreError = useLoginComplete(
-    loginState.status === AsyncStatus.Success ? loginState.data : undefined,
-    addAccount
+    loginState.status === AsyncStatus.Success ? loginState.data : undefined
   );
 
   const handleUsernameLogin = (username: string, password: string) => {

@@ -15,7 +15,6 @@ type ResolveProvisioningRequest = {
 export type LocalMindroomProvisioningRequest = {
   provisioningBaseUrl?: string;
   accessToken?: string;
-  warning?: string;
 };
 
 const getOrigin = (url?: string): string | undefined => {
@@ -43,22 +42,15 @@ export const resolveMindroomProvisioningRequest = ({
   const isCrossOriginOverride =
     overrideOrigin !== undefined && sessionOrigin !== undefined && overrideOrigin !== sessionOrigin;
 
-  if (isCrossOriginOverride) {
-    return {
-      provisioningBaseUrl,
-      warning:
-        'Provisioning URL uses a different origin than your active homeserver. Access token forwarding is blocked by default for safety.',
-    };
-  }
+  // Never forward a homeserver token to another origin. Callers must not
+  // query provisioning without a token.
+  if (isCrossOriginOverride) return { provisioningBaseUrl };
 
   return {
     provisioningBaseUrl,
     accessToken,
   };
 };
-
-export const getMindroomPairingCommand = (pairCode: string): string =>
-  `uvx mindroom connect --pair-code ${pairCode}`;
 
 export const getWelcomeSetupFirstSeenStorageKey = (userId: string): string =>
   `mindroom_welcome_setup_first_seen_at::${userId}`;
@@ -77,15 +69,6 @@ export const shouldShowWelcomeSetupPrompt = ({
   activeConnectionCount === 0 &&
   firstSeenAtMs !== undefined &&
   nowMs - firstSeenAtMs >= WELCOME_SETUP_PROMPT_DELAY_MS;
-
-export const getPairingSecondsRemaining = (
-  expiresAt: string,
-  nowMs: number = Date.now()
-): number => {
-  const expiresAtMs = Date.parse(expiresAt);
-  if (Number.isNaN(expiresAtMs)) return 0;
-  return Math.max(0, Math.ceil((expiresAtMs - nowMs) / 1000));
-};
 
 export const getConnectionId = (connection: LocalMindroomConnection): string | undefined => {
   if (typeof connection.id === 'string' && connection.id.length > 0) return connection.id;

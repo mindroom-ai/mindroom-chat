@@ -1015,7 +1015,7 @@
     "welcomePage": {
       "setUpLocalMindroom": "Set up Local MindRoom",
       "openLocalMindroomSettings": "Open Local MindRoom settings",
-      "3ClickHereToOpenLocalMindroomAndGenerateAPairCode": "3. Click here to open Local MindRoom and generate a pair code",
+      "enterPairCode": "Have a code? Enter it in Local MindRoom",
       "poweredBy": "Powered by <links />",
       "title": "Welcome to {{appName}}",
       "subtitle": "AI agents that live in your chat rooms.",
@@ -1023,8 +1023,7 @@
       "sourceCode": "Source Code",
       "setupStep1": "1. Run {{command}}",
       "setupStep2": "2. Add model credentials in {{envFile}}, or run {{command}}",
-      "setupStep4": "4. Run {{command}}",
-      "setupStep5": "5. Start it with {{command}}"
+      "setupStep3": "3. Start it with {{command}}, then open the link it prints to approve the connection"
     },
     "mindroomNavigation": {
       "expandNavigationPanel": "Expand navigation panel",
@@ -2303,21 +2302,14 @@
     },
     "local-mindroom": {
       "localMindroom": {
-        "copied": "Copied",
-        "copyCommand": "Copy Command",
         "localMindroom": "Local MindRoom",
         "connectLocalMindroom": "Connect Local MindRoom",
         "pairThisChatAccountWithYourLocalMindroomProcess": "Pair this chat account with your local MindRoom process",
-        "generateAOneTimeCodeRunTheCommandLocallyThen": "Generate a one-time code, run the command locally, then wait for the connection confirmation.",
+        "enterCodeDescription": "Run {{command}} on your machine, then open the link it prints or enter its code here.",
         "pairCode": "Pair code",
-        "command": "Command",
-        "waitingForLocalConnectionRunTheCommandAboveOnYour": "Waiting for local connection. Run the command above on your machine.",
-        "localMindroomConnectedSuccessfully": "Local MindRoom connected successfully.",
-        "pairCodeExpiredGenerateANewCodeToContinue": "Pair code expired. Generate a new code to continue.",
-        "generatePairCode": "Generate Pair Code",
-        "generateNewCode": "Generate New Code",
         "mindroomDocs": "MindRoom Docs",
         "linkedInstallations": "Linked Installations",
+        "linkedInstallationsUnavailable": "Linked installations are only available for accounts on {{server}}.",
         "loadingLinkedInstallations": "Loading linked installations...",
         "tryAgain": "Try Again",
         "noLinkedLocalMindroomInstallationsYet": "No linked local MindRoom installations yet.",
@@ -2325,13 +2317,31 @@
         "confirmRevoke": "Confirm Revoke",
         "cancel": "Cancel",
         "requestFailed": "Request failed. Please try again.",
-        "secondsRemaining": "{{count}}s",
-        "connected": "Connected",
-        "expired": "Expired",
         "unknown": "Unknown",
-        "connectionSummary": "{{name}} | Created: {{created}} | Last seen: {{lastSeen}}",
         "createdAt": "Created: {{timestamp}}",
         "lastSeenAt": "Last seen: {{timestamp}}"
+      },
+      "connect": {
+        "enterCode": "Enter the code shown in your terminal.",
+        "continue": "Continue",
+        "invalidCode": "Enter the 8-character code, for example ABCD-EFGH.",
+        "code": "Code: {{code}}",
+        "chooseAccount": "Choose the account that approves this connection",
+        "checkingCode": "Checking code...",
+        "deviceQuestion": "Connect {{clientName}}?",
+        "deviceStarted": "Started {{age}}",
+        "warning": "Only approve if you just started this on your own machine.",
+        "approveAs": "Approve as {{userId}}",
+        "approved": "Connected. You can return to your terminal.",
+        "noAccount": "Sign in with your MindRoom account to approve this connection.",
+        "signIn": "Sign in to approve",
+        "accountSignedOut": "This account needs to sign in again before it can approve.",
+        "codeNotFound": "This code was not found. Check the code shown in your terminal.",
+        "codeExpired": "This code has expired. Use the new link or code shown in your terminal.",
+        "codeAlreadyApproved": "This code has already been approved.",
+        "backToChat": "Back to chat",
+        "enterNewCode": "Enter the new code:",
+        "noAccountAppGuidance": "Already signed in on the MindRoom app? Open Settings → Local MindRoom there and enter {{code}}."
       }
     },
     "matrix": {

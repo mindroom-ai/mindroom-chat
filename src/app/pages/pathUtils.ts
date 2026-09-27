@@ -24,6 +24,8 @@ import {
   SPACE_SEARCH_PATH,
   THREADS_PATH,
   CREATE_PATH,
+  CONNECT_PATH,
+  ConnectPathSearchParams,
 } from './paths';
 import { trimLeadingSlash, trimTrailingSlash } from '../utils/common';
 import { ensureBasePathTrailingSlash, getAppBasePath } from '../utils/basePath';
@@ -164,3 +166,6 @@ export const getCreatePath = (): string => CREATE_PATH;
 export const getInboxPath = (): string => INBOX_PATH;
 export const getInboxNotificationsPath = (): string => INBOX_NOTIFICATIONS_PATH;
 export const getInboxInvitesPath = (): string => INBOX_INVITES_PATH;
+
+export const getConnectPath = (code?: string): string =>
+  code ? withSearchParam<ConnectPathSearchParams>(CONNECT_PATH, { code }) : CONNECT_PATH;

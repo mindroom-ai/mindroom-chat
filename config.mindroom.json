@@ -93,7 +93,8 @@
     "showExploreCommunity": false,
     "showAddSpace": false,
     "showMindRoom": true,
-    "mindRoomUrl": "https://docs.mindroom.chat/"
+    "mindRoomUrl": "https://docs.mindroom.chat/",
+    "mindRoomProvisioningUrl": "https://mindroom.chat"
   },
 
   "auth": {

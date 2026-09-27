@@ -20,6 +20,39 @@
   Chromium paints the same controls correctly, and the direct and wrapped sticky layouts behave alike in both engines.
   WebKit screenshots verify layout and transparency, not native iOS/macOS blur rendering; that still needs a device check.
 
+### Approve CLI-initiated Local MindRoom pairing codes (2026-09-26)
+
+- The local CLI now starts pairing (`pair/device/start`) and prints `https://chat.mindroom.chat/connect?code=ABCD-EFGH`; the client no longer generates codes.
+  Design: `docs/baspowers/specs/2026-09-26-device-pairing-design.md` in the `mindroom` repository.
+- New static `/connect` route outside the active-account client layout, so it never matches `/:spaceIdOrAlias/`, works without an active account, and does not boot a Matrix client.
+  It reads `code` from the query string or asks for one, lists every stored account whose provisioning request carries its own token, calls `pair/device/inspect` to show the machine name and age, warns before approval, and calls `pair/device/approve` with the chosen account's stored token without switching the active account.
+- A 401 from the provisioning service retries once: with credentials another tab rotated meanwhile, or else after a refresh through the same `createStoredSessionTokenRefresh` that `initMatrix` gives the SDK, which persists the rotated tokens with `updateSessionCredentials`.
+- The shared refresh function now adopts a rotation already stored for the same device instead of spending its stale refresh token, which would fail with `M_UNKNOWN_TOKEN` and log out a chat tab whose token the pairing page (or another tab) rotated.
+  Check-and-refresh runs under the Web Lock `mindroom-token-refresh:<sessionId>` (iOS 15.4+ WKWebView, so every supported iOS build; older Android System WebViews fall back to no lock).
+  Tokens stored for a different device are neither adopted nor overwritten, and stored tokens the refresher itself already spent (a failed write) are refreshed normally.
+- A logged-out client whose account record now belongs to a newer device (same-account re-login through Add account) only stops and reloads; it no longer removes that record or its account-keyed sync store and caches.
+- With no eligible account the page stores `/connect?code=…` as the after-login path and opens login (add-account when an account is active).
+  Session completion now honors the saved path in add-account mode too, and protected routes save it when accounts exist but none is active.
+- Settings → Local MindRoom replaces Generate Pair Code with an Enter code field that opens `/connect`, keeps linked installations and revoke, and stays visible in simple mode.
+  The welcome setup prompt now says to start with `uvx mindroom run` and open the printed link, with a button to enter a code instead.
+- The native provisioning transport passes JSON request bodies to `CapacitorHttp` as `data`; it previously dropped them.
+- Removed the broken `pair/start` and `pair/status` client code (its polling never sent the required pair-session header), the pairing command copy button, and their locale strings.
+- `config.mindroom.json` sets `sidebar.mindRoomProvisioningUrl` to `https://mindroom.chat` (the hosted well-known base URL), so accounts on other homeservers are not offered for approval and do not forward their tokens.
+  Accounts whose token cannot be forwarded (other homeservers) no longer query provisioning at all: the welcome setup prompt stays hidden, and Settings → Local MindRoom explains that linked installations are only available for accounts on that server instead of sending an unauthenticated request to the hosted service.
+  The Playwright dev server sets `MINDROOM_E2E_PROVISIONING_URL` to its own origin, and `scripts/e2e-client-config.mjs` serves `config.json` with that provisioning URL, so browser tests never reach the hosted service; this does not cover `E2E_BASE_URL` runs or a reused dev server started without the variable.
+  Local development against a local homeserver and provisioning service needs its own config value (or the same environment variable).
+- A token refresh times out after 15 seconds (the refresh client's `localTimeoutMs` and a guard around the locked refresh), so a hung refresh surfaces a retryable error and releases the cross-tab lock.
+- The saved after-login path now carries a timestamp and expires after 15 minutes, so an abandoned login cannot redirect a later add-account; untimestamped values from earlier releases are ignored.
+- The account picker is disabled while approving, and an approval result is dropped if the chosen account changed meanwhile.
+- Provisioning requests no longer carry a Matrix access token.
+  Before each inspect, approve, connection-list, or revoke request, the client asks the account's own homeserver for an OpenID token (`POST /_matrix/client/v3/user/{userId}/openid/request_token`) and sends only that token as `X-Matrix-OpenID-Token`.
+  `/connect` mints it from the chosen stored session through the same native/web transport as provisioning requests, and a 401 from either the OpenID request or provisioning triggers the existing single refresh-and-retry.
+  Settings → Local MindRoom and the welcome prompt use the active client's `getOpenIdToken()`, which refreshes through the SDK.
+  The provisioning service's matching change validates the token through its homeserver's federation `openid/userinfo` endpoint.
+- Validation: unit tests pass under Node 24 except the three `xcodeCloudPostClone` tests that need `/bin/bash` on this NixOS host; typecheck, changed-test typecheck, build, lint (0 errors, 17 existing warnings), and the mock-only Chromium spec `e2e/device-pairing.spec.ts` pass.
+  New locale strings are machine-authored for all 16 non-English catalogs and still need human review.
+- Next: verify on an iOS device that `/connect` approval, including the homeserver OpenID request, works through `CapacitorHttp` against the deployed provisioning service.
+
 ### Recover React scheduling after WebKit closes existing MessagePorts (2026-09-26)
 
 - An iOS export from build `ce259d1d` shows an open thread that did not display the agent's second reply until the user left and reopened it.

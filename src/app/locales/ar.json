@@ -1035,7 +1035,7 @@
     "welcomePage": {
       "setUpLocalMindroom": "إعداد Local MindRoom",
       "openLocalMindroomSettings": "فتح إعدادات Local MindRoom",
-      "3ClickHereToOpenLocalMindroomAndGenerateAPairCode": "3. انقر هنا لفتح Local MindRoom وإنشاء رمز اقتران",
+      "enterPairCode": "لديك رمز؟ أدخله في Local MindRoom",
       "poweredBy": "مشغّل بواسطة <links />",
       "title": "مرحبًا بك في ⁨{{appName}}⁩",
       "subtitle": "وكلاء ذكاء اصطناعي يعيشون في غرف الدردشة.",
@@ -1043,8 +1043,7 @@
       "sourceCode": "الشيفرة المصدرية",
       "setupStep1": "1. شغّل ⁨{{command}}⁩",
       "setupStep2": "2. أضف بيانات اعتماد النموذج إلى ⁨{{envFile}}⁩، أو شغّل ⁨{{command}}⁩",
-      "setupStep4": "4. شغّل ⁨{{command}}⁩",
-      "setupStep5": "5. ابدأه باستخدام ⁨{{command}}⁩"
+      "setupStep3": "3. ابدأه باستخدام ⁨{{command}}⁩، ثم افتح الرابط الذي يعرضه للموافقة على الاتصال"
     },
     "mindroomNavigation": {
       "expandNavigationPanel": "توسيع لوحة التنقل",
@@ -2415,21 +2414,14 @@
     },
     "local-mindroom": {
       "localMindroom": {
-        "copied": "تم النسخ",
-        "copyCommand": "نسخ الأمر",
         "localMindroom": "Local MindRoom",
         "connectLocalMindroom": "ربط Local MindRoom",
         "pairThisChatAccountWithYourLocalMindroomProcess": "إقران حساب الدردشة هذا بعملية MindRoom المحلية",
-        "generateAOneTimeCodeRunTheCommandLocallyThen": "أنشئ رمزًا لمرة واحدة، وشغّل الأمر محليًا، ثم انتظر تأكيد الاتصال.",
+        "enterCodeDescription": "شغّل ⁨{{command}}⁩ على جهازك، ثم افتح الرابط الذي يعرضه أو أدخل رمزه هنا.",
         "pairCode": "رمز الإقران",
-        "command": "الأمر",
-        "waitingForLocalConnectionRunTheCommandAboveOnYour": "في انتظار الاتصال المحلي. شغّل الأمر أعلاه على جهازك.",
-        "localMindroomConnectedSuccessfully": "تم ربط Local MindRoom بنجاح.",
-        "pairCodeExpiredGenerateANewCodeToContinue": "انتهت صلاحية رمز الإقران. أنشئ رمزًا جديدًا للمتابعة.",
-        "generatePairCode": "إنشاء رمز إقران",
-        "generateNewCode": "إنشاء رمز جديد",
         "mindroomDocs": "وثائق MindRoom",
         "linkedInstallations": "عمليات التثبيت المرتبطة",
+        "linkedInstallationsUnavailable": "التثبيتات المرتبطة متاحة فقط للحسابات على ⁨{{server}}⁩.",
         "loadingLinkedInstallations": "جارٍ تحميل عمليات التثبيت المرتبطة...",
         "tryAgain": "حاول مرة أخرى",
         "noLinkedLocalMindroomInstallationsYet": "لا توجد عمليات تثبيت محلية مرتبطة لـ MindRoom بعد.",
@@ -2437,13 +2429,31 @@
         "confirmRevoke": "تأكيد الإلغاء",
         "cancel": "إلغاء",
         "requestFailed": "فشل الطلب. حاول مرة أخرى.",
-        "secondsRemaining": "⁨{{count}}⁩ ث",
-        "connected": "متصل",
-        "expired": "منتهي الصلاحية",
         "unknown": "غير معروف",
-        "connectionSummary": "⁨{{name}}⁩ | أُنشئ: ⁨{{created}}⁩ | آخر ظهور: ⁨{{lastSeen}}⁩",
         "createdAt": "أُنشئ: ⁨{{timestamp}}⁩",
         "lastSeenAt": "آخر ظهور: ⁨{{timestamp}}⁩"
+      },
+      "connect": {
+        "enterCode": "أدخل الرمز الظاهر في الطرفية.",
+        "continue": "متابعة",
+        "invalidCode": "أدخل الرمز المكوّن من 8 أحرف، مثل ABCD-EFGH.",
+        "code": "الرمز: ⁨{{code}}⁩",
+        "chooseAccount": "اختر الحساب الذي يوافق على هذا الاتصال",
+        "checkingCode": "جارٍ التحقق من الرمز...",
+        "deviceQuestion": "هل تريد ربط ⁨{{clientName}}⁩؟",
+        "deviceStarted": "بدأ ⁨{{age}}⁩",
+        "warning": "لا توافق إلا إذا كنت قد بدأت هذا للتو بنفسك على جهازك.",
+        "approveAs": "الموافقة باسم ⁨{{userId}}⁩",
+        "approved": "تم الاتصال. يمكنك العودة إلى الطرفية.",
+        "noAccount": "سجّل الدخول بحساب MindRoom للموافقة على هذا الاتصال.",
+        "signIn": "سجّل الدخول للموافقة",
+        "accountSignedOut": "يجب أن يسجّل هذا الحساب الدخول مرة أخرى قبل أن يتمكن من الموافقة.",
+        "codeNotFound": "لم يُعثر على هذا الرمز. تحقق من الرمز الظاهر في الطرفية.",
+        "codeExpired": "انتهت صلاحية هذا الرمز. استخدم الرابط أو الرمز الجديد الظاهر في الطرفية.",
+        "codeAlreadyApproved": "تمت الموافقة على هذا الرمز بالفعل.",
+        "backToChat": "العودة إلى الدردشة",
+        "enterNewCode": "أدخل الرمز الجديد:",
+        "noAccountAppGuidance": "مسجّل دخول بالفعل في تطبيق MindRoom؟ افتح الإعدادات → Local MindRoom هناك وأدخل ⁨{{code}}⁩."
       }
     },
     "matrix": {

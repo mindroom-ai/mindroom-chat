@@ -6,9 +6,10 @@ import { isLocalMindroomSettingsPage } from './settingsPage';
 export const renderLocalMindroomSettingsPage = (
   activePage: SettingsPage | undefined,
   enabled: boolean,
-  requestClose: () => void
+  requestClose: () => void,
+  onNavigate: () => void
 ): React.ReactNode => {
   if (!enabled || !isLocalMindroomSettingsPage(activePage)) return null;
 
-  return <LocalMindroom requestClose={requestClose} />;
+  return <LocalMindroom requestClose={requestClose} onNavigate={onNavigate} />;
 };

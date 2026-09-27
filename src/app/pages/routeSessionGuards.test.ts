@@ -145,7 +145,9 @@ describe('routeSessionGuards', () => {
       configurable: true,
     });
 
-    expect(resolveRootRouteRedirect('https://chat.mindroom.chat/space/%23lobby%3Amindroom.chat')).toEqual({
+    expect(
+      resolveRootRouteRedirect('https://chat.mindroom.chat/space/%23lobby%3Amindroom.chat')
+    ).toEqual({
       redirectTo: getLoginPath(),
       afterLoginPath: '/space/%23lobby%3Amindroom.chat',
     });
@@ -191,34 +193,39 @@ describe('routeSessionGuards', () => {
     });
   });
 
-  it('redirects protected routes to login when accounts exist but none is active', () => {
+  it('returns to the requested route after login when accounts exist but none is active', () => {
+    Object.defineProperty(globalThis, 'window', {
+      value: {
+        location: {
+          origin: 'https://chat.mindroom.chat',
+        },
+      },
+      configurable: true,
+    });
+
     expect(
       resolveProtectedRouteRedirect(
-        'https://chat.mindroom.chat/home',
+        'https://chat.mindroom.chat/home/%23room%3Amindroom.chat',
         undefined,
         true,
         undefined
       )
     ).toEqual({
       redirectTo: getLoginPath(),
+      afterLoginPath: '/home/%23room%3Amindroom.chat',
     });
   });
 
   it('allows protected routes when an active session exists', () => {
     expect(
-      resolveProtectedRouteRedirect(
-        'https://chat.mindroom.chat/home',
-        undefined,
-        true,
-        {
-          sessionId: 'session-a',
-          baseUrl: 'https://chat.mindroom.chat',
-          userId: '@alice:mindroom.chat',
-          deviceId: 'DEVICE',
-          accessToken: 'token',
-          lastUsedAt: 1,
-        }
-      )
+      resolveProtectedRouteRedirect('https://chat.mindroom.chat/home', undefined, true, {
+        sessionId: 'session-a',
+        baseUrl: 'https://chat.mindroom.chat',
+        userId: '@alice:mindroom.chat',
+        deviceId: 'DEVICE',
+        accessToken: 'token',
+        lastUsedAt: 1,
+      })
     ).toBeNull();
   });
 });

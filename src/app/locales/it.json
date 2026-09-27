@@ -1020,7 +1020,7 @@
     "welcomePage": {
       "setUpLocalMindroom": "Configura MindRoom locale",
       "openLocalMindroomSettings": "Apri le impostazioni di MindRoom locale",
-      "3ClickHereToOpenLocalMindroomAndGenerateAPairCode": "3. Fai clic qui per aprire MindRoom locale e generare un codice di associazione",
+      "enterPairCode": "Hai un codice? Inseriscilo in MindRoom locale",
       "poweredBy": "Basato su <links />",
       "title": "Ti diamo il benvenuto in {{appName}}",
       "subtitle": "Agenti IA che vivono nelle tue stanze di chat.",
@@ -1028,8 +1028,7 @@
       "sourceCode": "Codice sorgente",
       "setupStep1": "1. Esegui {{command}}",
       "setupStep2": "2. Aggiungi le credenziali del modello in {{envFile}} oppure esegui {{command}}",
-      "setupStep4": "4. Esegui {{command}}",
-      "setupStep5": "5. Avvialo con {{command}}"
+      "setupStep3": "3. Avvialo con {{command}}, poi apri il link mostrato per approvare la connessione"
     },
     "mindroomNavigation": {
       "expandNavigationPanel": "Espandi il pannello di navigazione",
@@ -2331,21 +2330,14 @@
     },
     "local-mindroom": {
       "localMindroom": {
-        "copied": "Copiato",
-        "copyCommand": "Copia comando",
         "localMindroom": "MindRoom locale",
         "connectLocalMindroom": "Connetti MindRoom locale",
         "pairThisChatAccountWithYourLocalMindroomProcess": "Associa questo account di chat al processo MindRoom locale",
-        "generateAOneTimeCodeRunTheCommandLocallyThen": "Genera un codice monouso, esegui il comando in locale e attendi la conferma della connessione.",
+        "enterCodeDescription": "Esegui {{command}} sul tuo computer, poi apri il link mostrato o inserisci qui il codice.",
         "pairCode": "Codice di associazione",
-        "command": "Comando",
-        "waitingForLocalConnectionRunTheCommandAboveOnYour": "In attesa della connessione locale. Esegui il comando qui sopra sul tuo computer.",
-        "localMindroomConnectedSuccessfully": "MindRoom locale connesso correttamente.",
-        "pairCodeExpiredGenerateANewCodeToContinue": "Il codice di associazione è scaduto. Generane uno nuovo per continuare.",
-        "generatePairCode": "Genera codice di associazione",
-        "generateNewCode": "Genera nuovo codice",
         "mindroomDocs": "Documentazione di MindRoom",
         "linkedInstallations": "Installazioni collegate",
+        "linkedInstallationsUnavailable": "Le installazioni associate sono disponibili solo per gli account su {{server}}.",
         "loadingLinkedInstallations": "Caricamento delle installazioni collegate...",
         "tryAgain": "Riprova",
         "noLinkedLocalMindroomInstallationsYet": "Non è ancora collegata alcuna installazione locale di MindRoom.",
@@ -2353,13 +2345,31 @@
         "confirmRevoke": "Conferma revoca",
         "cancel": "Annulla",
         "requestFailed": "Richiesta non riuscita. Riprova.",
-        "secondsRemaining": "{{count}} s",
-        "connected": "Connesso",
-        "expired": "Scaduto",
         "unknown": "Sconosciuta",
-        "connectionSummary": "{{name}} | Creata: {{created}} | Ultimo accesso: {{lastSeen}}",
         "createdAt": "Creato: {{timestamp}}",
         "lastSeenAt": "Ultimo accesso: {{timestamp}}"
+      },
+      "connect": {
+        "enterCode": "Inserisci il codice mostrato nel terminale.",
+        "continue": "Continua",
+        "invalidCode": "Inserisci il codice di 8 caratteri, ad esempio ABCD-EFGH.",
+        "code": "Codice: {{code}}",
+        "chooseAccount": "Scegli l’account che approva questa connessione",
+        "checkingCode": "Verifica del codice...",
+        "deviceQuestion": "Connettere {{clientName}}?",
+        "deviceStarted": "Avviato {{age}}",
+        "warning": "Approva solo se hai appena avviato tu stesso questa operazione sul tuo computer.",
+        "approveAs": "Approva come {{userId}}",
+        "approved": "Connesso. Puoi tornare al terminale.",
+        "noAccount": "Accedi con il tuo account MindRoom per approvare questa connessione.",
+        "signIn": "Accedi per approvare",
+        "accountSignedOut": "Questo account deve accedere di nuovo prima di poter approvare.",
+        "codeNotFound": "Codice non trovato. Controlla il codice mostrato nel terminale.",
+        "codeExpired": "Questo codice è scaduto. Usa il nuovo link o codice mostrato nel terminale.",
+        "codeAlreadyApproved": "Questo codice è già stato approvato.",
+        "backToChat": "Torna alla chat",
+        "enterNewCode": "Inserisci il nuovo codice:",
+        "noAccountAppGuidance": "Già connesso sull'app MindRoom? Apri Impostazioni → MindRoom locale e inserisci {{code}}."
       }
     },
     "matrix": {

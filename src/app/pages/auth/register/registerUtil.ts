@@ -123,7 +123,7 @@ export const useRegisterComplete = (data?: CustomRegisterResponse, addAccount = 
     };
   }, [data]);
 
-  const sessionStoreError = useSessionCompletion(session, addAccount);
+  const sessionStoreError = useSessionCompletion(session);
 
   useEffect(() => {
     if (!data || session) return;

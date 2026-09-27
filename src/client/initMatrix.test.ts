@@ -11,11 +11,13 @@ import {
   LARGE_SYNC_ARCHIVE_TIMELINE_LIMIT,
   logoutClient,
   MissingCryptoStoreError,
+  removeCurrentClientSessionAndReload,
   removeStoredSession,
   STARTUP_SYNC_TIMELINE_LIMIT,
   startClient,
 } from './initMatrix';
 import { createMatrixClient } from '../app/mindroom/matrix/matrixClientFactory';
+import { TOKEN_REFRESH_TIMEOUT_MS } from './sessionTokenRefresh';
 import { clearSecretStorageKeys } from './secretStorageKeys';
 import { MINDROOM_EDIT_DEBUG_STORAGE_KEY } from '../app/mindroom/messages/editDebug';
 import { clearMindroomLongTextHydrationCache } from '../app/mindroom/messages/longText';
@@ -804,6 +806,7 @@ describe('initClient', () => {
 
       expect(vi.mocked(createMatrixClient)).toHaveBeenNthCalledWith(1, {
         baseUrl: session.baseUrl,
+        localTimeoutMs: TOKEN_REFRESH_TIMEOUT_MS,
       });
       const clientOptions = vi.mocked(createMatrixClient).mock.calls[1]?.[0];
       expect(clientOptions).toEqual(
@@ -1798,6 +1801,71 @@ describe('logoutClient', () => {
     expect(readCachedSpecVersions(activeSession.baseUrl, activeSession.userId)).toEqual({
       versions: ['v1.11'],
     });
+    expect(reload).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps a same-account re-login on a newer device when the replaced device is logged out', async () => {
+    vi.mocked(deleteCacheStoreDb).mockClear();
+    const { storage: localStorageMock } = createStorageMock();
+    const replacedSession = putSession(
+      {
+        baseUrl: 'https://example.com',
+        userId: '@alice:example.com',
+        deviceId: 'DEVICE_OLD',
+        accessToken: 'token-old',
+      },
+      undefined,
+      localStorageMock
+    );
+    const reloggedSession = putSession(
+      {
+        baseUrl: replacedSession.baseUrl,
+        userId: replacedSession.userId,
+        deviceId: 'DEVICE_NEW',
+        accessToken: 'token-new',
+      },
+      undefined,
+      localStorageMock
+    );
+    const reload = vi.fn();
+    Object.defineProperty(globalThis, 'localStorage', {
+      value: localStorageMock,
+      configurable: true,
+    });
+    Object.defineProperty(globalThis, 'indexedDB', {
+      value: {
+        databases: vi.fn().mockResolvedValue([]),
+        deleteDatabase: createDeleteDatabaseMock(),
+      },
+      configurable: true,
+    });
+    Object.defineProperty(globalThis, 'window', {
+      value: {
+        localStorage: localStorageMock,
+        dispatchEvent: vi.fn(),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        location: { reload },
+      },
+      configurable: true,
+    });
+    const clearStores = vi.fn().mockResolvedValue(undefined);
+    const stopClient = vi.fn();
+
+    await removeCurrentClientSessionAndReload({
+      clearStores,
+      getDeviceId: vi.fn(() => 'DEVICE_OLD'),
+      getHomeserverUrl: vi.fn(() => replacedSession.baseUrl),
+      getSafeUserId: vi.fn(() => replacedSession.userId),
+      stopClient,
+    } as never);
+
+    expect(stopClient).toHaveBeenCalledTimes(1);
+    expect(clearStores).not.toHaveBeenCalled();
+    expect(vi.mocked(deleteCacheStoreDb)).not.toHaveBeenCalled();
+    expect(getSessionStore(localStorageMock).sessions).toEqual([
+      expect.objectContaining({ sessionId: reloggedSession.sessionId, deviceId: 'DEVICE_NEW' }),
+    ]);
     expect(reload).toHaveBeenCalledTimes(1);
   });
 

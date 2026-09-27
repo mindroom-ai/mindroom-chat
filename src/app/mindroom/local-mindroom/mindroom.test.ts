@@ -3,8 +3,6 @@ import {
   DEFAULT_MINDROOM_DOCS_URL,
   getConnectionRevokedAt,
   getMindroomDocsUrl,
-  getMindroomPairingCommand,
-  getPairingSecondsRemaining,
   getWelcomeSetupFirstSeenStorageKey,
   isConnectionRevoked,
   resolveMindroomProvisioningRequest,
@@ -14,15 +12,6 @@ import {
 describe('local mindroom helpers', () => {
   it('falls back to default docs url when value is empty', () => {
     expect(getMindroomDocsUrl('   ')).toBe(DEFAULT_MINDROOM_DOCS_URL);
-  });
-
-  it('builds expected pairing command', () => {
-    expect(getMindroomPairingCommand('ABC123')).toBe('uvx mindroom connect --pair-code ABC123');
-  });
-
-  it('returns 0 seconds for expired pairing windows', () => {
-    const nowMs = Date.parse('2026-02-27T12:00:00.000Z');
-    expect(getPairingSecondsRemaining('2026-02-27T11:59:59.000Z', nowMs)).toBe(0);
   });
 
   it('uses active session homeserver origin for provisioning by default', () => {
@@ -47,7 +36,6 @@ describe('local mindroom helpers', () => {
 
     expect(result.provisioningBaseUrl).toBe('https://provisioning.other.example');
     expect(result.accessToken).toBeUndefined();
-    expect(result.warning).toContain('Access token forwarding is blocked by default');
   });
 
   it('forwards token when provisioning origin matches session homeserver origin', () => {

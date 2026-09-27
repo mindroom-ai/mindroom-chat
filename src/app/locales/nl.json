@@ -1015,7 +1015,7 @@
     "welcomePage": {
       "setUpLocalMindroom": "Lokaal MindRoom instellen",
       "openLocalMindroomSettings": "Instellingen van lokaal MindRoom openen",
-      "3ClickHereToOpenLocalMindroomAndGenerateAPairCode": "3. Klik hier om lokaal MindRoom te openen en een koppelcode te genereren",
+      "enterPairCode": "Heb je een code? Voer die in bij Lokale MindRoom",
       "poweredBy": "Mogelijk gemaakt door <links />",
       "title": "Welkom bij {{appName}}",
       "subtitle": "AI-agenten die in je chatkamers leven.",
@@ -1023,8 +1023,7 @@
       "sourceCode": "Broncode",
       "setupStep1": "1. Voer {{command}} uit",
       "setupStep2": "2. Voeg de inloggegevens voor het model toe aan {{envFile}} of voer {{command}} uit",
-      "setupStep4": "4. Voer {{command}} uit",
-      "setupStep5": "5. Start het met {{command}}"
+      "setupStep3": "3. Start het met {{command}} en open daarna de getoonde link om de verbinding goed te keuren"
     },
     "mindroomNavigation": {
       "expandNavigationPanel": "Navigatiepaneel uitklappen",
@@ -2303,21 +2302,14 @@
     },
     "local-mindroom": {
       "localMindroom": {
-        "copied": "Gekopieerd",
-        "copyCommand": "Opdracht kopiëren",
         "localMindroom": "Lokale MindRoom",
         "connectLocalMindroom": "Lokale MindRoom verbinden",
         "pairThisChatAccountWithYourLocalMindroomProcess": "Koppel dit chataccount aan je lokale MindRoom-proces",
-        "generateAOneTimeCodeRunTheCommandLocallyThen": "Genereer een eenmalige code, voer de opdracht lokaal uit en wacht op de verbindingsbevestiging.",
+        "enterCodeDescription": "Voer {{command}} uit op je computer en open daarna de getoonde link of voer de code hier in.",
         "pairCode": "Koppelcode",
-        "command": "Opdracht",
-        "waitingForLocalConnectionRunTheCommandAboveOnYour": "Wachten op lokale verbinding. Voer de bovenstaande opdracht uit op je computer.",
-        "localMindroomConnectedSuccessfully": "Lokale MindRoom is verbonden.",
-        "pairCodeExpiredGenerateANewCodeToContinue": "De koppelcode is verlopen. Genereer een nieuwe code om door te gaan.",
-        "generatePairCode": "Koppelcode genereren",
-        "generateNewCode": "Nieuwe code genereren",
         "mindroomDocs": "MindRoom-documentatie",
         "linkedInstallations": "Gekoppelde installaties",
+        "linkedInstallationsUnavailable": "Gekoppelde installaties zijn alleen beschikbaar voor accounts op {{server}}.",
         "loadingLinkedInstallations": "Gekoppelde installaties laden...",
         "tryAgain": "Opnieuw proberen",
         "noLinkedLocalMindroomInstallationsYet": "Er zijn nog geen lokale MindRoom-installaties gekoppeld.",
@@ -2325,13 +2317,31 @@
         "confirmRevoke": "Intrekken bevestigen",
         "cancel": "Annuleren",
         "requestFailed": "Verzoek mislukt. Probeer het opnieuw.",
-        "secondsRemaining": "{{count}} s",
-        "connected": "Verbonden",
-        "expired": "Verlopen",
         "unknown": "Onbekend",
-        "connectionSummary": "{{name}} | Aangemaakt: {{created}} | Laatst gezien: {{lastSeen}}",
         "createdAt": "Aangemaakt: {{timestamp}}",
         "lastSeenAt": "Laatst gezien: {{timestamp}}"
+      },
+      "connect": {
+        "enterCode": "Voer de code in die in je terminal wordt getoond.",
+        "continue": "Doorgaan",
+        "invalidCode": "Voer de code van 8 tekens in, bijvoorbeeld ABCD-EFGH.",
+        "code": "Code: {{code}}",
+        "chooseAccount": "Kies het account dat deze verbinding goedkeurt",
+        "checkingCode": "Code controleren...",
+        "deviceQuestion": "{{clientName}} verbinden?",
+        "deviceStarted": "{{age}} gestart",
+        "warning": "Keur alleen goed als je dit zelf net op je eigen computer hebt gestart.",
+        "approveAs": "Goedkeuren als {{userId}}",
+        "approved": "Verbonden. Je kunt teruggaan naar je terminal.",
+        "noAccount": "Log in met je MindRoom-account om deze verbinding goed te keuren.",
+        "signIn": "Inloggen om goed te keuren",
+        "accountSignedOut": "Dit account moet opnieuw inloggen voordat het kan goedkeuren.",
+        "codeNotFound": "Deze code is niet gevonden. Controleer de code in je terminal.",
+        "codeExpired": "Deze code is verlopen. Gebruik de nieuwe link of code in je terminal.",
+        "codeAlreadyApproved": "Deze code is al goedgekeurd.",
+        "backToChat": "Terug naar de chat",
+        "enterNewCode": "Voer de nieuwe code in:",
+        "noAccountAppGuidance": "Al ingelogd in de MindRoom-app? Open daar Instellingen → Lokale MindRoom en voer {{code}} in."
       }
     },
     "matrix": {

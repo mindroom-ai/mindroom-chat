@@ -54,19 +54,11 @@ export const resolveProtectedRouteRedirect = (
   storedSessions = hasStoredSessions(),
   activeSession = getActiveSession()
 ): RouteRedirectDecision | null => {
-  if (!storedSessions) {
-    const afterLoginPath = getAppPathFromHref(getOriginBaseUrl(hashRouterConfig), href);
-    return {
-      redirectTo: getLoginPath(),
-      afterLoginPath: afterLoginPath || undefined,
-    };
-  }
+  if (storedSessions && activeSession) return null;
 
-  if (!activeSession) {
-    return {
-      redirectTo: getLoginPath(),
-    };
-  }
-
-  return null;
+  const afterLoginPath = getAppPathFromHref(getOriginBaseUrl(hashRouterConfig), href);
+  return {
+    redirectTo: getLoginPath(),
+    afterLoginPath: afterLoginPath || undefined,
+  };
 };
