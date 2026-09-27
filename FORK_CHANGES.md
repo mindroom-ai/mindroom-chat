@@ -36,7 +36,7 @@
 - The Docker builder ran `npm ci` before copying `patches/`, so published images shipped without any patch-package change (SDK, virtualizer, folds, Capacitor).
   The builder now copies `patches/` first; a local builder run applies all five patches and bundles the scheduler change.
   `patch-package --error-on-fail` now fails installs outside CI too, so a patch that stops applying cannot ship silently.
-- Validation under Node 24: 5,499 unit tests pass; the three `xcodeCloudPostClone` tests fail only because this NixOS host has no `/bin/bash`.
+- Validation under Node 24: 5,505 unit tests pass; the three `xcodeCloudPostClone` tests fail only because this NixOS host has no `/bin/bash`.
   Application and changed-test typechecks, production build, prettier, and lint (0 errors, 17 existing warnings) pass.
   Live Chromium checks on the patched production build pass `threads`, `thread-streaming-tiles`, `cinny068-fresh-zero-reply-open`, `cinny033-jump-to-latest`, `thread-message-persistence`, and `perf-thread-streaming`.
   WebKit runs in the official Playwright 1.58.2 container because the host lacks its libraries.
