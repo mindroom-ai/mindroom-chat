@@ -484,6 +484,39 @@ describe('ComputerPanel', () => {
     expect(props.mx.sendMessage).toHaveBeenCalledTimes(1);
   });
 
+  it('shows a failed watch reconnect before continuation delivery settles', async () => {
+    let resolveContinuation: ((value: { event_id: string }) => void) | undefined;
+    const mx = makeMatrixClient();
+    vi.mocked(mx.sendMessage).mockReturnValue(
+      new Promise<{ event_id: string }>((resolve) => {
+        resolveContinuation = resolve;
+      })
+    );
+    const gateway = createGateway();
+    let tickets = 0;
+    const request = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (input.toString().endsWith('/stream-ticket') && ++tickets === 2) {
+        return jsonResponse(503, { detail: 'Computer stream is unavailable.' });
+      }
+      return gateway(input, init);
+    }) as unknown as typeof fetch;
+    renderPanel({ mx, request });
+
+    await waitFor(() => findButton(container, 'Take control'));
+    await click(findButton(container, 'Take control'));
+    await waitFor(() => findButton(container, 'Resume agent'));
+    await click(findButton(container, 'Resume agent'));
+
+    await waitFor(() => expect(container.textContent).toContain('Computer stream is unavailable.'));
+    expect(container.textContent).toContain('Computer disconnected');
+    expect(container.querySelector('[data-testid="computer-screen"]')).toBeNull();
+    expect(findButton(container, 'Reconnect').disabled).toBe(true);
+
+    await act(async () => resolveContinuation?.({ event_id: '$continuation' }));
+    await waitFor(() => expect(findButton(container, 'Reconnect').disabled).toBe(false));
+    expect(container.textContent).toContain('The agent was asked to continue.');
+  });
+
   it.each(['failure', 'success'])('handles disconnect before Stop %s settles', async (outcome) => {
     const gateway = createGateway();
     let settle!: (response: Response) => void;

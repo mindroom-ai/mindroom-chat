@@ -272,21 +272,19 @@ export function ComputerPanel({
       setReleaseNotice('released');
 
       const continuation = sendComputerContinuation(mx, roomId, threadId, selectedAgentUserId);
-      const reconnect = connectStream(session, lifecycle, false);
-      const [continuationResult, reconnectResult] = await Promise.allSettled([
-        continuation,
-        reconnect,
-      ]);
+      // A failed watch reconnect shows at once, without waiting for the continuation to send.
+      const reconnect = connectStream(session, lifecycle, false).catch((reconnectError) => {
+        if (lifecycleRef.current !== lifecycle || sessionRef.current !== session) return;
+        setStream(undefined);
+        setError(getErrorMessage(reconnectError));
+        setPhase('disconnected');
+      });
+      const [continuationResult] = await Promise.allSettled([continuation, reconnect]);
       if (lifecycleRef.current !== lifecycle || sessionRef.current !== session) return;
       if (continuationResult.status === 'rejected') {
         setSendError('Control was released, but the continuation message could not be sent.');
       } else {
         setReleaseNotice('sent');
-      }
-      if (reconnectResult.status === 'rejected') {
-        setStream(undefined);
-        setError(getErrorMessage(reconnectResult.reason));
-        setPhase('disconnected');
       }
     } catch (releaseError) {
       if (lifecycleRef.current === lifecycle) {
