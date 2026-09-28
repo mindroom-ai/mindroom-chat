@@ -506,18 +506,78 @@ describe('aggregateThreadTagEvents reuse across fresh state arrays', () => {
     expect(next.get('$reuse-a')?.tags.urgent).toBeDefined();
   });
 
+  const makeRedaction = (redacts: MatrixEvent) =>
+    new MatrixEvent({
+      content: {},
+      event_id: `$redaction-${redacts.getId()}`,
+      origin_server_ts: 2,
+      redacts: redacts.getId(),
+      room_id: '!room:example.org',
+      sender: '@alice:example.org',
+      type: 'm.room.redaction',
+    });
+
   it('recomputes when an event is redacted in place', () => {
     const events = makeRoomTagEvents();
     const first = aggregateThreadTagEvents([...events]);
-    // Redaction keeps the MatrixEvent and its content object, stripping keys.
-    const content = events[1].getContent() as Record<string, unknown>;
-    Object.keys(content).forEach((key) => delete content[key]);
-    vi.spyOn(events[1], 'isRedacted').mockReturnValue(true);
+    // The SDK keeps the MatrixEvent and its content object, stripping the keys.
+    // State events have no thread, so the room argument is not read.
+    events[1].makeRedacted(makeRedaction(events[1]), undefined as never);
 
     const next = aggregateThreadTagEvents([...events]);
 
     expect(next).not.toBe(first);
     expect(next.has('$reuse-b')).toBe(false);
+    expect(aggregateThreadTagEvents([...events])).toBe(next);
+  });
+
+  it('follows a local redaction and its reversal', () => {
+    const events = makeRoomTagEvents();
+    const first = aggregateThreadTagEvents([...events]);
+
+    events[1].markLocallyRedacted(makeRedaction(events[1]));
+    const redacted = aggregateThreadTagEvents([...events]);
+    // A pending local redaction reads a fresh `{}` each time, yet still hits.
+    expect(redacted).not.toBe(first);
+    expect(redacted.has('$reuse-b')).toBe(false);
+    expect(aggregateThreadTagEvents([...events])).toBe(redacted);
+
+    events[1].unmarkLocallyRedacted();
+    const restored = aggregateThreadTagEvents([...events]);
+    expect(restored).not.toBe(redacted);
+    expect(restored.get('$reuse-b')?.tags.blocked).toBeDefined();
+  });
+
+  it('recomputes when events are added, removed or reordered', () => {
+    const events = makeRoomTagEvents();
+    const first = aggregateThreadTagEvents([...events]);
+    const extra = makeThreadTagsEvent('$reuse-c', {
+      tags: { later: { set_by: '@alice:example.com', set_at: ISO_3 } },
+    });
+
+    expect(aggregateThreadTagEvents([...events, extra]).has('$reuse-c')).toBe(true);
+    expect(aggregateThreadTagEvents([events[0]]).has('$reuse-b')).toBe(false);
+    expect(aggregateThreadTagEvents([events[1], events[0]])).not.toBe(first);
+    expect(aggregateThreadTagEvents([events[1], events[0]])).toEqual(first);
+  });
+
+  it('keeps one slot per room while a caller cycles through many rooms', () => {
+    // The command palette and cross-room flushes read every room in turn.
+    const rooms = Array.from({ length: 12 }, (_, index) => [
+      makeThreadTagsEvent(`$cycle-${index}`, {
+        tags: { urgent: { set_by: '@alice:example.com', set_at: ISO_1 } },
+      }),
+    ]);
+    const first = rooms.map((events) => aggregateThreadTagEvents([...events]));
+
+    rooms.forEach((events, index) => {
+      expect(aggregateThreadTagEvents([...events])).toBe(first[index]);
+    });
+  });
+
+  it('shares one empty aggregation for rooms without tag state', () => {
+    expect(aggregateThreadTagEvents([])).toBe(aggregateThreadTagEvents([]));
+    expect(aggregateThreadTagEvents([]).size).toBe(0);
   });
 
   it('recomputes when an event exposes different content', () => {

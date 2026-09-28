@@ -8,9 +8,11 @@
   A 24-minute trace of normal use spent 111 s on the main thread, and the first minute after login was saturated.
 - Tag state was re-parsed on every cross-room index flush (19.6 s of the trace, `parsePerTagStateKey` alone 14 s).
   `aggregateThreadTagEvents` cached by array identity, but `RoomState.getStateEvents()` returns a new array per call, so the cache never hit for live state.
-  Recent inputs are now matched element by element (event object, content object and redaction flag), and `buildThreadTagSnapshotMap` reuses one snapshot map per aggregation.
+  Each input is now matched element by element (event object, plus content object or redaction flag) against the last aggregation that started with the same event, which gives every room its own weakly held slot; rooms without tag state share one empty map.
+  `buildThreadTagSnapshotMap` reuses one read-only snapshot map per aggregation.
 - Message previews ran the full markdown-stripping pipeline three times per localized preview, for every loaded message on every overview, record and minimap rebuild.
-  The body analysis (preview text and tool-call count) is a pure function of the body and is now memoized in a bounded 1,000-entry cache.
+  The body analysis (preview text and tool-call count) is a pure function of the body and is now memoized in a least-recently-used cache of 5,000 entries and 4 million characters that skips bodies over 64,000 characters.
+  One localized preview now analyzes its body once instead of four times, and the cache holds the 523-thread room's rebuild working set.
 - A/B on warm reloads (base, fix, fix, base; dev build): the main thread goes quiet after 11.6-15.9 s instead of 27.8-29.9 s, with 15.0-19.2 s of main-thread work instead of 26.0-27.4 s.
   Thread open/close improves less (close work about 2.8 s to 2.3 s, noisy); first cards appear after about 3 s in both.
 - Startup rebuilt each cross-room index entry a median 14 times (3,065 microtask flushes, 8,386 entry builds for 577 threads), because SDK thread initialization and streamed edits emit updates in separate tasks and the coalescer flushed on every microtask.
@@ -19,7 +21,10 @@
   Cross-room flush time on a warm reload drops from 3.8 s to 0.8 s; total startup work drops from 14.7-16.7 s to 13.0-15.1 s, and the worst frame from about 507 ms to 284-364 ms.
 - Remaining findings: each record build deep-clones bundled edits for streaming detection (`cloneRawEvent`); consumers mutate those clones (`m.new_content` metadata fills, `room_id`, decryption, `makeReplaced`), so the clone cannot simply be shared.
   The SDK's per-thread initialization still fetches 208 roots and 114 recursive `/relations` pages at startup, and its logger stays at DEBUG (duplicate-event and receipt warnings cost about 1.7 s with DevTools attached).
-- Validation: tag, snapshot, preview and cross-room index tests pass; new reuse tests fail before the fix.
+- Independent review of the tag and preview change found no blockers and confirmed the element-wise match against the SDK's state replacement, `makeRedacted` and local-redaction paths.
+  It found that an 8-entry recency list thrashed when a caller cycles through more than 8 tagged rooms and that a 1,000-entry first-in-first-out preview cache could not hold one rebuild; both are replaced as described above.
+- Validation: tag, snapshot, preview and cross-room index tests pass.
+  The reuse, many-room, local-redaction, working-set and large-body tests fail on the earlier implementations; the invalidation tests guard behavior and pass on both.
   `deepTraceFailure.test.ts` fails the same 6 cases on clean `dev`.
 
 ### Compact room chrome on short screens (2026-09-28)

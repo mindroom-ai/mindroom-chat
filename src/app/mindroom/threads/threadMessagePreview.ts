@@ -164,22 +164,41 @@ const computeBodyPreview = (body: string): BodyPreviewAnalysis => {
   return { preview: prose.length > 0 ? prose : undefined, toolCallCount };
 };
 
-// Room overviews, thread records and the minimap preview every loaded message
-// on each rebuild, and localization derives the same preview again. The
-// result depends only on the body, so repeated bodies reuse one analysis.
-const BODY_PREVIEW_CACHE_LIMIT = 1000;
+// Thread records, cross-room index entries and the minimap preview the root
+// and latest replies of every thread on each rebuild, and localization derives
+// the same preview again. The result depends only on the body, so a
+// least-recently-used cache sized above one large room's working set (523
+// threads) reuses the analysis across rebuilds. The character budget and the
+// per-body limit bound the strings it can keep alive.
+const BODY_PREVIEW_CACHE_MAX_ENTRIES = 5000;
+const BODY_PREVIEW_CACHE_MAX_CHARS = 4_000_000;
+const BODY_PREVIEW_CACHE_MAX_BODY_CHARS = 64_000;
 const bodyPreviewCache = new Map<string, BodyPreviewAnalysis>();
+let bodyPreviewCacheChars = 0;
 
 const analyzeBodyPreview = (body: string): BodyPreviewAnalysis => {
   const cached = bodyPreviewCache.get(body);
-  if (cached) return cached;
+  if (cached) {
+    // Map iteration follows insertion order, so re-inserting marks it recent.
+    bodyPreviewCache.delete(body);
+    bodyPreviewCache.set(body, cached);
+    return cached;
+  }
 
   const analysis = computeBodyPreview(body);
-  if (bodyPreviewCache.size >= BODY_PREVIEW_CACHE_LIMIT) {
-    const oldest = bodyPreviewCache.keys().next().value;
-    if (oldest !== undefined) bodyPreviewCache.delete(oldest);
-  }
+  if (body.length > BODY_PREVIEW_CACHE_MAX_BODY_CHARS) return analysis;
+
   bodyPreviewCache.set(body, analysis);
+  bodyPreviewCacheChars += body.length;
+  while (
+    bodyPreviewCache.size > BODY_PREVIEW_CACHE_MAX_ENTRIES ||
+    bodyPreviewCacheChars > BODY_PREVIEW_CACHE_MAX_CHARS
+  ) {
+    const oldest = bodyPreviewCache.keys().next().value;
+    if (oldest === undefined) break;
+    bodyPreviewCache.delete(oldest);
+    bodyPreviewCacheChars -= oldest.length;
+  }
   return analysis;
 };
 

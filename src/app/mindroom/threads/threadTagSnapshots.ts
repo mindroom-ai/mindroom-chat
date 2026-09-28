@@ -21,15 +21,15 @@ export const buildThreadTagSnapshot = (content: ThreadTagsContent): ThreadTagSna
 });
 
 // Keyed by the aggregation result, which aggregateThreadTagEvents reuses while
-// the tag state is unchanged, so repeated reads share one snapshot map.
+// the tag state is unchanged, so repeated reads share one read-only map.
 const snapshotMapCache = new WeakMap<
-  Map<string, ThreadTagsContent>,
-  Map<string, ThreadTagSnapshot>
+  ReadonlyMap<string, ThreadTagsContent>,
+  ReadonlyMap<string, ThreadTagSnapshot>
 >();
 
 export const buildThreadTagSnapshotMap = (
   events: MatrixEvent[]
-): Map<string, ThreadTagSnapshot> => {
+): ReadonlyMap<string, ThreadTagSnapshot> => {
   const aggregated = aggregateThreadTagEvents(events);
   const cached = snapshotMapCache.get(aggregated);
   if (cached) return cached;
@@ -43,7 +43,7 @@ export const buildThreadTagSnapshotMap = (
   return snapshots;
 };
 
-export const getRoomThreadTagSnapshotMap = (room: Room): Map<string, ThreadTagSnapshot> => {
+export const getRoomThreadTagSnapshotMap = (room: Room): ReadonlyMap<string, ThreadTagSnapshot> => {
   const stateEvents =
     room
       .getLiveTimeline()

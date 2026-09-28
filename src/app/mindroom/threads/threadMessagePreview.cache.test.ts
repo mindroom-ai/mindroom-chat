@@ -1,14 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+  getLocalizedThreadMessagePreviewText,
+  getThreadMessagePreviewText,
+} from './threadMessagePreview';
 
 const { trimReplyFromBody } = vi.hoisted(() => ({
   trimReplyFromBody: vi.fn((body: string) => body),
 }));
 
 vi.mock('../../utils/room', () => ({ trimReplyFromBody }));
-
-const { getLocalizedThreadMessagePreviewText, getThreadMessagePreviewText } = await import(
-  './threadMessagePreview'
-);
 
 const textContent = (body: string): Record<string, unknown> => ({ msgtype: 'm.text', body });
 const t = ((key: string, options?: { count?: number }) =>
@@ -42,6 +42,26 @@ describe('thread message preview analysis reuse', () => {
     expect(getThreadMessagePreviewText(textContent('Streaming reply part one and two'))).toBe(
       'Streaming reply part one and two'
     );
+    expect(trimReplyFromBody).toHaveBeenCalledTimes(2);
+  });
+
+  it('keeps analyses for a large room working set across rebuilds', () => {
+    // Two previews per thread for a room with 523 threads, then a rebuild.
+    const bodies = Array.from({ length: 1_100 }, (_, index) => `Thread message ${index}`);
+    bodies.forEach((body) => getThreadMessagePreviewText(textContent(body)));
+    trimReplyFromBody.mockClear();
+
+    bodies.forEach((body) => getThreadMessagePreviewText(textContent(body)));
+
+    expect(trimReplyFromBody).not.toHaveBeenCalled();
+  });
+
+  it('does not retain very large bodies', () => {
+    const body = `Large tool output ${'x'.repeat(70_000)}`;
+
+    getThreadMessagePreviewText(textContent(body));
+    getThreadMessagePreviewText(textContent(body));
+
     expect(trimReplyFromBody).toHaveBeenCalledTimes(2);
   });
 });
