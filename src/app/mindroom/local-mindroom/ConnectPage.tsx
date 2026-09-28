@@ -35,8 +35,6 @@ type PairState =
   | { status: 'ready' | 'approving' | 'approved'; device: LocalMindroomPairDevice }
   | { status: 'error'; error: unknown; device?: LocalMindroomPairDevice };
 
-const isSignedOutError = (error: unknown): boolean => error instanceof HomeserverSignedOutError;
-
 const isExpiredOrNotFoundError = (error: unknown): boolean =>
   error instanceof LocalMindroomApiError && (error.status === 404 || error.status === 410);
 
@@ -90,13 +88,7 @@ function ConnectCard({ children }: { children: React.ReactNode }) {
   );
 }
 
-const isInFrame = (): boolean => {
-  try {
-    return window.top !== window.self;
-  } catch {
-    return true;
-  }
-};
+const isInFrame = (): boolean => window.top !== window.self;
 
 // Approves a local MindRoom's device pairing code with any stored account on
 // the provisioning homeserver, without switching the app's active account.
@@ -309,7 +301,7 @@ export function ConnectPage() {
                 )}
               </>
             )}
-            {isSignedOutError(pairError) ? (
+            {pairError instanceof HomeserverSignedOutError ? (
               <Button
                 variant="Primary"
                 size="400"

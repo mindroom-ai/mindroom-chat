@@ -135,8 +135,7 @@ export function WelcomePage() {
     setSettingsModal({ initialPage: LOCAL_MINDROOM_SETTINGS_PAGE });
   }, [setSettingsModal]);
 
-  const canAuthenticate = provisioningRequest.canAuthenticate;
-  const { provisioningBaseUrl } = provisioningRequest;
+  const { canAuthenticate, provisioningBaseUrl } = provisioningRequest;
 
   React.useEffect(() => {
     // Accounts that may not authenticate to this provisioning origin cannot pair here.

@@ -96,7 +96,7 @@ describe('normalizePairCode', () => {
 });
 
 describe('getPairingAccounts', () => {
-  it('keeps only accounts whose provisioning request carries their token', () => {
+  it('keeps only accounts that can authenticate to the provisioning origin', () => {
     const hosted = storeSession('@alice:mindroom.chat', 'https://mindroom.chat');
     storeSession('@bob:matrix.org', 'https://matrix-client.matrix.org');
 
@@ -236,7 +236,6 @@ describe('requestAsStoredSession', () => {
     );
 
     expect(refresh).not.toHaveBeenCalled();
-    expect(request).toHaveBeenCalledTimes(1);
     expect(request.mock.calls).toEqual([['openid:access-a']]);
   });
 
@@ -271,24 +270,31 @@ describe('requestAsStoredSession', () => {
   });
 
   it('uses credentials already rotated by another tab without calling refresh', async () => {
-    const requests = installNetwork();
+    const requests = installNetwork(['access-a']);
     const session = storeSession('@alice:mindroom.chat', 'https://mindroom.chat', {
       accessToken: 'access-a',
       refreshToken: 'refresh-a',
     });
-    // Another tab rotates credentials before we call requestAsStoredSession
+    const request = vi.fn().mockResolvedValue('ok');
+    const refresh = vi.fn();
+
+    // Simulate another tab rotating credentials while the first mint is pending and fails
+    const requestPromise = requestAsStoredSession(session.sessionId, request, refresh);
+
+    // Rotate credentials before the rejection is handled
     updateSessionCredentials(session.sessionId, {
       accessToken: 'access-b',
       refreshToken: 'refresh-b',
     });
-    const request = vi.fn().mockResolvedValue('ok');
-    const refresh = vi.fn();
 
-    await expect(requestAsStoredSession(session.sessionId, request, refresh)).resolves.toBe('ok');
+    await expect(requestPromise).resolves.toBe('ok');
 
     expect(refresh).not.toHaveBeenCalled();
     expect(request.mock.calls).toEqual([['openid:access-b']]);
-    expect(requests.map((recorded) => recorded.headers.authorization)).toEqual(['Bearer access-b']);
+    expect(requests.map((recorded) => recorded.headers.authorization)).toEqual([
+      'Bearer access-a',
+      'Bearer access-b',
+    ]);
   });
 
   it('rejects accounts that are no longer stored as signed out', async () => {
@@ -296,7 +302,7 @@ describe('requestAsStoredSession', () => {
     const request = vi.fn();
 
     await expect(requestAsStoredSession('missing-session', request, vi.fn())).rejects.toMatchObject(
-      { status: 401 }
+      { name: 'HomeserverSignedOutError', status: 401 }
     );
     expect(request).not.toHaveBeenCalled();
   });
@@ -317,7 +323,7 @@ describe('requestAsStoredSession', () => {
     expect(refresh).not.toHaveBeenCalled();
   });
 
-  it('keeps the invalid-token error when the account cannot be refreshed', async () => {
+  it('throws HomeserverSignedOutError when the account cannot be refreshed', async () => {
     const session = storeSession('@alice:mindroom.chat', 'https://mindroom.chat');
     installNetwork([session.accessToken]);
     const request = vi.fn();

@@ -27,7 +27,7 @@ describe('local mindroom helpers', () => {
     expect(result.provisioningBaseUrl).not.toBe('https://mindroom.chat');
   });
 
-  it('does not forward token to mismatched override origin by default', () => {
+  it('cannot authenticate to a mismatched override origin', () => {
     const result = resolveMindroomProvisioningRequest({
       sessionHomeserverUrl: 'https://matrix.example.org',
       provisioningOverrideUrl: 'https://provisioning.other.example',
@@ -38,7 +38,7 @@ describe('local mindroom helpers', () => {
     expect(result.canAuthenticate).toBe(false);
   });
 
-  it('forwards token when provisioning origin matches session homeserver origin', () => {
+  it('can authenticate when origins match', () => {
     const result = resolveMindroomProvisioningRequest({
       sessionHomeserverUrl: 'https://matrix.example.org',
       provisioningOverrideUrl: 'https://matrix.example.org',

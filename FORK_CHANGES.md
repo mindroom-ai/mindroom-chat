@@ -5,8 +5,8 @@
 ### Security and reliability improvements for `/connect` device pairing (2026-09-27)
 
 - Added clickjacking protection: `/connect` blocks approval when rendered inside a frame and shows a button to open the page in a new tab instead.
-  The check runs on every render and handles both same-origin frames and cross-origin access errors.
-  docker-nginx.conf adds `Content-Security-Policy: frame-ancestors 'self'` and `X-Frame-Options: SAMEORIGIN` to the `/connect` location; the hosted Caddy config lives outside this repository.
+  The check runs on every render.
+  docker-nginx.conf adds `Content-Security-Policy: frame-ancestors 'none'` and `X-Frame-Options: DENY` to the `/connect` location; the hosted Caddy config lives outside this repository.
 - Refresh logic distinguishes homeserver OpenID 401s from provisioning 401s.
   `requestAsStoredSession` mints an OpenID token from the current access token; on homeserver 401, it calls refresh once and mints again if the token changed.
   Any 401 from the second mint throws `HomeserverSignedOutError`.
@@ -16,6 +16,7 @@
   The access token was only used as a same-origin gate; the boolean makes this intent explicit.
 - Validation: all unit tests pass, including new coverage for clickjacking protection, provisioning 401 handling, homeserver-only refresh, and HomeserverSignedOutError display.
   Application typecheck, lint (0 errors, 17 existing warnings), prettier, and e2e device-pairing spec pass.
+- Next: add matching `frame-ancestors 'none'` and `X-Frame-Options: DENY` headers to the hosted Caddy configuration for `/connect`.
 
 ### Flat glass headers for Lobby and Explore (2026-09-27)
 
@@ -41,7 +42,8 @@
   Device pairing is documented in `docs/deployment/hosted-matrix.md` in the `mindroom` repository.
 - New static `/connect` route outside the active-account client layout, so it never matches `/:spaceIdOrAlias/`, works without an active account, and does not boot a Matrix client.
   It reads `code` from the query string or asks for one, lists every stored account whose provisioning request carries its own token, calls `pair/device/inspect` to show the machine name and age, warns before approval, and calls `pair/device/approve` with the chosen account's stored token without switching the active account.
-- A 401 from the provisioning service retries once: with credentials another tab rotated meanwhile, or else after a refresh through the same `createStoredSessionTokenRefresh` that `initMatrix` gives the SDK, which persists the rotated tokens with `updateSessionCredentials`.
+- A 401 from the homeserver OpenID request retries once: with credentials another tab rotated meanwhile, or else after a refresh through the same `createStoredSessionTokenRefresh` that `initMatrix` gives the SDK, which persists the rotated tokens with `updateSessionCredentials`.
+  Provisioning 401s surface as errors without refresh.
 - The shared refresh function now adopts a rotation already stored for the same device instead of spending its stale refresh token, which would fail with `M_UNKNOWN_TOKEN` and log out a chat tab whose token the pairing page (or another tab) rotated.
   Check-and-refresh runs under the Web Lock `mindroom-token-refresh:<sessionId>` (iOS 15.4+ WKWebView, so every supported iOS build; older Android System WebViews fall back to no lock).
   Tokens stored for a different device are neither adopted nor overwritten, and stored tokens the refresher itself already spent (a failed write) are refreshed normally.
@@ -61,7 +63,7 @@
 - The account picker is disabled while approving, and an approval result is dropped if the chosen account changed meanwhile.
 - Provisioning requests no longer carry a Matrix access token.
   Before each inspect, approve, connection-list, or revoke request, the client asks the account's own homeserver for an OpenID token (`POST /_matrix/client/v3/user/{userId}/openid/request_token`) and sends only that token as `X-Matrix-OpenID-Token`.
-  `/connect` mints it from the chosen stored session through the same native/web transport as provisioning requests, and a 401 from either the OpenID request or provisioning triggers the existing single refresh-and-retry.
+  `/connect` mints it from the chosen stored session through the same native/web transport as provisioning requests, and a 401 from the homeserver OpenID request triggers a single refresh-and-retry; provisioning 401s surface as errors without refresh.
   Settings → Local MindRoom and the welcome prompt use the active client's `getOpenIdToken()`, which refreshes through the SDK.
   The provisioning service's matching change validates the token through its homeserver's federation `openid/userinfo` endpoint.
 - Validation: unit tests pass under Node 24 except the three `xcodeCloudPostClone` tests that need `/bin/bash` on this NixOS host; typecheck, changed-test typecheck, build, lint (0 errors, 17 existing warnings), and the mock-only Chromium spec `e2e/device-pairing.spec.ts` pass.

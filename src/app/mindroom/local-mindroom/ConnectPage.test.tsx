@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ConnectPage } from './ConnectPage';
 import {
   approveLocalMindroomPairCode,
+  HomeserverSignedOutError,
   inspectLocalMindroomPairCode,
   LocalMindroomApiError,
   requestMatrixOpenIdToken,
@@ -404,32 +405,6 @@ describe('ConnectPage', () => {
     }
   });
 
-  it('blocks approval when cross-origin frame access throws', async () => {
-    storeSession('@alice:mindroom.chat', 'https://mindroom.chat');
-    const originalTop = window.top;
-    Object.defineProperty(window, 'top', {
-      get() {
-        throw new Error('Cross-origin access denied');
-      },
-      configurable: true,
-    });
-
-    try {
-      await renderAt('/connect?code=ABCD-EFGH');
-      await flush();
-
-      expect(textOf()).toContain(
-        'For security, device approval cannot be completed inside a frame.'
-      );
-      expect(() => findButton('Open in new tab')).not.toThrow();
-      expect(() => findButton('Approve as')).toThrow();
-      expect(inspectMock).not.toHaveBeenCalled();
-      expect(openIdMock).not.toHaveBeenCalled();
-    } finally {
-      Object.defineProperty(window, 'top', { value: originalTop, configurable: true });
-    }
-  });
-
   it('shows provisioning error details for provisioning 401s without offering sign-in', async () => {
     storeSession('@alice:mindroom.chat', 'https://mindroom.chat');
     inspectMock.mockRejectedValue(new LocalMindroomApiError('Invalid Matrix OpenID token', 401));
@@ -443,7 +418,6 @@ describe('ConnectPage', () => {
   });
 
   it('shows sign-in button for HomeserverSignedOutError', async () => {
-    const { HomeserverSignedOutError } = await import('./api');
     storeSession('@alice:mindroom.chat', 'https://mindroom.chat');
     openIdMock.mockRejectedValue(new HomeserverSignedOutError('Account refresh token expired'));
 

@@ -70,10 +70,9 @@ export const requestAsStoredSession = async <T>(
       accessToken,
     });
 
-  let usedAccessToken = session.accessToken;
   let openIdToken: string;
   try {
-    openIdToken = await mintOpenIdToken(usedAccessToken);
+    openIdToken = await mintOpenIdToken(session.accessToken);
   } catch (error) {
     // A 401 from the homeserver means the access token is expired.
     // Refresh once and retry the OpenID request.
@@ -83,7 +82,7 @@ export const requestAsStoredSession = async <T>(
     if (!latest) throw new HomeserverSignedOutError('Account is no longer signed in');
 
     let refreshedAccessToken: string | undefined = latest.accessToken;
-    if (refreshedAccessToken === usedAccessToken) {
+    if (refreshedAccessToken === session.accessToken) {
       try {
         refreshedAccessToken = await refreshAccessToken(latest);
       } catch (refreshError) {
@@ -93,13 +92,12 @@ export const requestAsStoredSession = async <T>(
         throw refreshError;
       }
     }
-    if (!refreshedAccessToken || refreshedAccessToken === usedAccessToken) {
+    if (!refreshedAccessToken) {
       throw new HomeserverSignedOutError('Cannot refresh account credentials');
     }
 
-    usedAccessToken = refreshedAccessToken;
     try {
-      openIdToken = await mintOpenIdToken(usedAccessToken);
+      openIdToken = await mintOpenIdToken(refreshedAccessToken);
     } catch (secondError) {
       if (isInvalidTokenError(secondError)) {
         throw new HomeserverSignedOutError('Homeserver rejected refreshed credentials');
