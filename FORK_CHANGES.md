@@ -2089,6 +2089,7 @@
 - Flip, glow, flip places Glowing core between the two original Tilt & turn flips on a repeating nine-second cycle. The original wind-ups, flips, and rebounds keep their speed; the resting gaps shrink to roughly half a second. The cube and glow hold still during the turns; the M holds still during the core animation.
 - The preview honors the operating system's reduced-motion preference.
 - The original geometry, gradients, masks, and layer order are preserved in one shared SVG definition set; Glowing core animates the original central cube.
+- The outer frame's fill has a hole under the central cube, inset 2% so the cube still overlaps the frame's edge, so while the core turns the page shows through instead of the frame's navy fill; at rest the cube covers the hole and the mark renders the same pixels as before.
 - Initial fidelity checks verified source artwork and geometry, but the comparison page's inline definitions masked the WebKit external-gradient failure.
   The follow-up above adds isolated painted-pixel coverage in the real component fixture.
 - PR #255 merged the selected 32 px marker and shorter pauses; the rendering fix is tracked above.

@@ -7,7 +7,7 @@
   <g id="logo">
     <!-- The structural M is one continuous polygon. -->
     <g id="outer-frame">
-      <path id="structural-frame" d="M 168.5,222.5 311.5,134.5 512,264.5 712.5,134.5 855.5,222.5 V 741.5 L 735.5,809.5 599.5,719.5 V 589.5 L 512,643.5 424.5,589.5 V 719.5 L 288.5,809.5 168.5,741.5 Z" fill="url(#paint-structural-frame)"/>
+      <path id="structural-frame" d="M 168.5,222.5 311.5,134.5 512,264.5 712.5,134.5 855.5,222.5 V 741.5 L 735.5,809.5 599.5,719.5 V 589.5 L 512,643.5 424.5,589.5 V 719.5 L 288.5,809.5 168.5,741.5 Z M 361.1,362.9 512.0,268.8 662.9,362.9 662.9,544.2 512.0,639.2 361.1,544.2 Z" fill="url(#paint-structural-frame)" fill-rule="evenodd"/>
     </g>
     <g id="left-rooms">
       <!-- Roof glass and recessed room. Highlights are joined separately below. -->
