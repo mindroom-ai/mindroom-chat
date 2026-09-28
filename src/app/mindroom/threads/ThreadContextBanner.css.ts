@@ -1,6 +1,7 @@
 import { style } from '@vanilla-extract/css';
 import { config, color } from 'folds';
 import { glassFloating, glassSurface } from '../../styles/Glass.css';
+import { shortViewport } from './shortViewport';
 
 const BannerLayout = style({
   margin: `${config.space.S200} ${config.space.S300}`,
@@ -8,6 +9,13 @@ const BannerLayout = style({
   borderRadius: config.radii.R400,
   flexShrink: 0,
   pointerEvents: 'auto',
+  '@media': { [shortViewport]: { padding: config.space.S200 } },
+});
+
+// Short screens keep one row: back, title and the actions menu, which already
+// offers tags, pinning and resolving.
+export const ShortViewportHidden = style({
+  '@media': { [shortViewport]: { selectors: { '&&': { display: 'none' } } } },
 });
 
 export const Banner = style([
@@ -57,6 +65,7 @@ export const SubtitleRow = style({
   marginTop: config.space.S100,
   minWidth: 0,
   flexWrap: 'wrap',
+  '@media': { [shortViewport]: { marginTop: 0 } },
 });
 
 export const ResolveChip = style({

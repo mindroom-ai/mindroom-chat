@@ -70,6 +70,7 @@ export function ThreadActionsMenu({
   const canSend = !getThreadSummaryActionError(mx, room, rootId);
   const canEditTags =
     confirmed && joined && tags.canEdit && !!getResolvableThreadRootEvent(room, rootId);
+  const tagsLabel = canEditTags ? 'threadActions.tags' : 'thread.stats.tags';
   const members = useRoomMembers(mx, room.roomId);
   const agents = members.filter(
     (member) =>
@@ -184,14 +185,9 @@ export function ThreadActionsMenu({
             >
               <Box direction="Column" gap="100" style={{ padding: config.space.S100 }}>
                 {onOpenThread && item('open', t('threadActions.open'), Icons.Message, onOpenThread)}
-                {canEditTags &&
-                  item(
-                    'tags',
-                    t('threadActions.tags'),
-                    Icons.Bookmark,
-                    () => openDialog('tags'),
-                    busy
-                  )}
+                {/* Readers can still list tags: short screens drop them from the banner. */}
+                {(canEditTags || (confirmed && tags.displayTags.length > 0)) &&
+                  item('tags', t(tagsLabel), Icons.Bookmark, () => openDialog('tags'), busy)}
                 {canSend &&
                   item(
                     'editSummary',
@@ -252,6 +248,7 @@ export function ThreadActionsMenu({
 
   const normalizedDraft = normalizeSummaryText(draft);
   const draftLength = Array.from(normalizedDraft).length;
+  const title = t(mode === 'tags' ? tagsLabel : `threadActions.${mode}`);
   return (
     <Overlay open backdrop={<OverlayBackdrop />}>
       <OverlayCenter>
@@ -272,12 +269,12 @@ export function ThreadActionsMenu({
             role="dialog"
             tabIndex={-1}
             aria-modal="true"
-            aria-label={t(`threadActions.${mode}`)}
+            aria-label={title}
             style={{ width: 'min(480px, calc(100vw - 24px))' }}
           >
             <Box direction="Column" gap="400" style={{ padding: config.space.S400 }}>
               <Text as="h2" size="H4">
-                {t(`threadActions.${mode}`)}
+                {title}
               </Text>
               {mode === 'tags' ? (
                 <>
@@ -295,13 +292,15 @@ export function ThreadActionsMenu({
                         }
                       />
                     ))}
-                    <ThreadTagPicker
-                      availableTags={tags.availableTags}
-                      disabled={!canEditTags || busy}
-                      onAddTag={(tag) => {
-                        void mutations.addTag(rootId, tag);
-                      }}
-                    />
+                    {canEditTags && (
+                      <ThreadTagPicker
+                        availableTags={tags.availableTags}
+                        disabled={busy}
+                        onAddTag={(tag) => {
+                          void mutations.addTag(rootId, tag);
+                        }}
+                      />
+                    )}
                   </Box>
                   {failure}
                   <Button onClick={close} disabled={busy}>

@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import classNames from 'classnames';
 import { createPortal } from 'react-dom';
 import { Box, Text, config } from 'folds';
 import { EventType, Room } from 'matrix-js-sdk';
@@ -183,7 +184,10 @@ export function RoomView({
         threadId={pendingThreadRoot ? undefined : effectiveThreadId}
         focusConversation={focusConversation}
       >
-        <div ref={headerRef} className={overlay.Header}>
+        <div
+          ref={headerRef}
+          className={classNames(overlay.Header, effectiveThreadId && overlay.HeaderInThread)}
+        >
           <RoomViewHeader
             hasMindroomAgents={hasMindroomAgents}
             computerAvailable={computerAvailable}
@@ -302,7 +306,7 @@ export function RoomView({
             </>
           )}
         </div>
-        <div data-room-following="true">
+        <div className={overlay.Following} data-room-following="true">
           {hideActivity ? <RoomViewFollowingPlaceholder /> : <RoomViewFollowing room={room} />}
         </div>
       </Box>
