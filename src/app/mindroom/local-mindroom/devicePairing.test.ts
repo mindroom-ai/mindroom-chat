@@ -157,7 +157,13 @@ describe('requestAsStoredSession', () => {
       refreshToken: 'refresh-a',
     });
     const request = vi.fn().mockResolvedValue('ok');
-    const refresh = vi.fn().mockResolvedValue('access-b');
+    const refresh = vi.fn().mockImplementation(async () => {
+      updateSessionCredentials(session.sessionId, {
+        accessToken: 'access-b',
+        refreshToken: 'refresh-b',
+      });
+      return 'access-b';
+    });
 
     await expect(requestAsStoredSession(session.sessionId, request, refresh)).resolves.toBe('ok');
 
@@ -166,6 +172,13 @@ describe('requestAsStoredSession', () => {
     expect(requests.map((recorded) => recorded.headers.authorization)).toEqual([
       'Bearer access-a',
       'Bearer access-b',
+    ]);
+    expect(getSessionStore().sessions).toEqual([
+      expect.objectContaining({
+        sessionId: session.sessionId,
+        accessToken: 'access-b',
+        refreshToken: 'refresh-b',
+      }),
     ]);
   });
 
@@ -207,30 +220,14 @@ describe('requestAsStoredSession', () => {
     );
   });
 
-  it('refreshes an expired token once and retries with the new token', async () => {
+  it('does not refresh when the provisioning service rejects the OpenID token', async () => {
     installNetwork();
     const session = storeSession('@alice:mindroom.chat', 'https://mindroom.chat', {
       accessToken: 'access-a',
       refreshToken: 'refresh-a',
     });
-    const request = vi.fn().mockRejectedValueOnce(unauthorized()).mockResolvedValueOnce('ok');
-    const refresh = vi.fn().mockResolvedValue('access-b');
-
-    await expect(requestAsStoredSession(session.sessionId, request, refresh)).resolves.toBe('ok');
-
-    expect(refresh.mock.calls).toEqual([
-      [expect.objectContaining({ sessionId: session.sessionId, refreshToken: 'refresh-a' })],
-    ]);
-    expect(request.mock.calls).toEqual([['openid:access-a'], ['openid:access-b']]);
-  });
-
-  it('retries only once when the refreshed token is also rejected', async () => {
-    installNetwork();
-    const session = storeSession('@alice:mindroom.chat', 'https://mindroom.chat', {
-      refreshToken: 'refresh-a',
-    });
     const request = vi.fn().mockRejectedValue(unauthorized());
-    const refresh = vi.fn().mockResolvedValue('access-b');
+    const refresh = vi.fn();
 
     await expect(requestAsStoredSession(session.sessionId, request, refresh)).rejects.toMatchObject(
       {
@@ -238,32 +235,60 @@ describe('requestAsStoredSession', () => {
       }
     );
 
-    expect(request).toHaveBeenCalledTimes(2);
-    expect(refresh).toHaveBeenCalledTimes(1);
+    expect(refresh).not.toHaveBeenCalled();
+    expect(request).toHaveBeenCalledTimes(1);
+    expect(request.mock.calls).toEqual([['openid:access-a']]);
   });
 
-  it('retries with credentials another tab already rotated instead of refreshing again', async () => {
-    installNetwork();
+  it('retries only once when the homeserver rejects both old and refreshed tokens', async () => {
+    const requests = installNetwork(['access-a', 'access-b']);
     const session = storeSession('@alice:mindroom.chat', 'https://mindroom.chat', {
       accessToken: 'access-a',
       refreshToken: 'refresh-a',
     });
-    const request = vi
-      .fn()
-      .mockImplementationOnce(async () => {
-        updateSessionCredentials(session.sessionId, {
-          accessToken: 'access-b',
-          refreshToken: 'refresh-b',
-        });
-        throw unauthorized();
-      })
-      .mockResolvedValueOnce('ok');
+    const request = vi.fn();
+    const refresh = vi.fn().mockImplementation(async () => {
+      updateSessionCredentials(session.sessionId, {
+        accessToken: 'access-b',
+        refreshToken: 'refresh-b',
+      });
+      return 'access-b';
+    });
+
+    await expect(requestAsStoredSession(session.sessionId, request, refresh)).rejects.toMatchObject(
+      {
+        name: 'HomeserverSignedOutError',
+        status: 401,
+      }
+    );
+
+    expect(refresh).toHaveBeenCalledTimes(1);
+    expect(request).not.toHaveBeenCalled();
+    expect(requests.map((recorded) => recorded.headers.authorization)).toEqual([
+      'Bearer access-a',
+      'Bearer access-b',
+    ]);
+  });
+
+  it('uses credentials already rotated by another tab without calling refresh', async () => {
+    const requests = installNetwork();
+    const session = storeSession('@alice:mindroom.chat', 'https://mindroom.chat', {
+      accessToken: 'access-a',
+      refreshToken: 'refresh-a',
+    });
+    // Another tab rotates credentials before we call requestAsStoredSession
+    updateSessionCredentials(session.sessionId, {
+      accessToken: 'access-b',
+      refreshToken: 'refresh-b',
+    });
+    const request = vi.fn().mockResolvedValue('ok');
     const refresh = vi.fn();
 
     await expect(requestAsStoredSession(session.sessionId, request, refresh)).resolves.toBe('ok');
 
-    expect(request.mock.calls).toEqual([['openid:access-a'], ['openid:access-b']]);
     expect(refresh).not.toHaveBeenCalled();
+    expect(request.mock.calls).toEqual([['openid:access-b']]);
+    expect(requests.map((recorded) => recorded.headers.authorization)).toEqual(['Bearer access-b']);
   });
 
   it('rejects accounts that are no longer stored as signed out', async () => {
@@ -293,32 +318,67 @@ describe('requestAsStoredSession', () => {
   });
 
   it('keeps the invalid-token error when the account cannot be refreshed', async () => {
-    installNetwork();
     const session = storeSession('@alice:mindroom.chat', 'https://mindroom.chat');
-    const request = vi.fn().mockRejectedValue(unauthorized());
+    installNetwork([session.accessToken]);
+    const request = vi.fn();
     const refresh = vi.fn().mockResolvedValue(undefined);
 
     await expect(requestAsStoredSession(session.sessionId, request, refresh)).rejects.toMatchObject(
       {
+        name: 'HomeserverSignedOutError',
         status: 401,
       }
     );
-    expect(request).toHaveBeenCalledTimes(1);
+    expect(refresh).toHaveBeenCalledTimes(1);
+    expect(request).not.toHaveBeenCalled();
   });
 
-  it('reports a rejected refresh token as the invalid-token error', async () => {
-    installNetwork();
+  it('reports a rejected refresh token as the homeserver signed-out error', async () => {
     const session = storeSession('@alice:mindroom.chat', 'https://mindroom.chat', {
       refreshToken: 'refresh-a',
     });
-    const request = vi.fn().mockRejectedValue(unauthorized());
+    installNetwork([session.accessToken]);
+    const request = vi.fn();
     const refresh = vi.fn().mockRejectedValue(new TokenRefreshLogoutError(new Error('gone')));
 
     await expect(requestAsStoredSession(session.sessionId, request, refresh)).rejects.toMatchObject(
       {
+        name: 'HomeserverSignedOutError',
         status: 401,
       }
     );
+    expect(refresh).toHaveBeenCalledTimes(1);
+    expect(request).not.toHaveBeenCalled();
+  });
+
+  it('surfaces provisioning 401s as LocalMindroomApiError with no extra homeserver calls', async () => {
+    const requests = installNetwork(['access-a']);
+    const session = storeSession('@alice:mindroom.chat', 'https://mindroom.chat', {
+      accessToken: 'access-a',
+      refreshToken: 'refresh-a',
+    });
+    const request = vi.fn().mockRejectedValue(unauthorized());
+    const refresh = vi.fn().mockImplementation(async () => {
+      updateSessionCredentials(session.sessionId, {
+        accessToken: 'access-b',
+        refreshToken: 'refresh-b',
+      });
+      return 'access-b';
+    });
+
+    await expect(requestAsStoredSession(session.sessionId, request, refresh)).rejects.toMatchObject(
+      {
+        name: 'LocalMindroomApiError',
+        status: 401,
+      }
+    );
+
+    expect(refresh).toHaveBeenCalledTimes(1);
     expect(request).toHaveBeenCalledTimes(1);
+    expect(request).toHaveBeenCalledWith('openid:access-b');
+    expect(requests.map((recorded) => recorded.headers.authorization)).toEqual([
+      'Bearer access-a',
+      'Bearer access-b',
+    ]);
   });
 });

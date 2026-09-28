@@ -2453,7 +2453,9 @@
         "codeAlreadyApproved": "تمت الموافقة على هذا الرمز بالفعل.",
         "backToChat": "العودة إلى الدردشة",
         "enterNewCode": "أدخل الرمز الجديد:",
-        "noAccountAppGuidance": "مسجّل دخول بالفعل في تطبيق MindRoom؟ افتح الإعدادات → Local MindRoom هناك وأدخل ⁨{{code}}⁩."
+        "noAccountAppGuidance": "مسجّل دخول بالفعل في تطبيق MindRoom؟ افتح الإعدادات → Local MindRoom هناك وأدخل ⁨{{code}}⁩.",
+        "frameWarning": "لأسباب أمنية، لا يمكن إتمام الموافقة على الجهاز داخل إطار.",
+        "openInNewTab": "فتح في علامة تبويب جديدة"
       }
     },
     "matrix": {

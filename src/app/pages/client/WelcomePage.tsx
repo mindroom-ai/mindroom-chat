@@ -135,7 +135,7 @@ export function WelcomePage() {
     setSettingsModal({ initialPage: LOCAL_MINDROOM_SETTINGS_PAGE });
   }, [setSettingsModal]);
 
-  const canAuthenticate = provisioningRequest.accessToken !== undefined;
+  const canAuthenticate = provisioningRequest.canAuthenticate;
   const { provisioningBaseUrl } = provisioningRequest;
 
   React.useEffect(() => {

@@ -22,6 +22,7 @@ import { MINDROOM_AUTH_BRANDING } from '../auth/authUi';
 import {
   approveLocalMindroomPairCode,
   getLocalMindroomErrorMessage,
+  HomeserverSignedOutError,
   inspectLocalMindroomPairCode,
   LocalMindroomApiError,
   type LocalMindroomPairDevice,
@@ -34,15 +35,16 @@ type PairState =
   | { status: 'ready' | 'approving' | 'approved'; device: LocalMindroomPairDevice }
   | { status: 'error'; error: unknown; device?: LocalMindroomPairDevice };
 
-const isSignedOutError = (error: unknown): boolean =>
-  error instanceof LocalMindroomApiError && error.status === 401;
+const isSignedOutError = (error: unknown): boolean => error instanceof HomeserverSignedOutError;
 
 const isExpiredOrNotFoundError = (error: unknown): boolean =>
   error instanceof LocalMindroomApiError && (error.status === 404 || error.status === 410);
 
 const getPairingErrorMessage = (error: unknown, t: TFunction): string => {
+  if (error instanceof HomeserverSignedOutError) {
+    return t('mindroomUi.local-mindroom.connect.accountSignedOut');
+  }
   if (error instanceof LocalMindroomApiError) {
-    if (error.status === 401) return t('mindroomUi.local-mindroom.connect.accountSignedOut');
     if (error.status === 404) return t('mindroomUi.local-mindroom.connect.codeNotFound');
     if (error.status === 409) return t('mindroomUi.local-mindroom.connect.codeAlreadyApproved');
     if (error.status === 410) return t('mindroomUi.local-mindroom.connect.codeExpired');
@@ -88,6 +90,14 @@ function ConnectCard({ children }: { children: React.ReactNode }) {
   );
 }
 
+const isInFrame = (): boolean => {
+  try {
+    return window.top !== window.self;
+  } catch {
+    return true;
+  }
+};
+
 // Approves a local MindRoom's device pairing code with any stored account on
 // the provisioning homeserver, without switching the app's active account.
 export function ConnectPage() {
@@ -113,13 +123,14 @@ export function ConnectPage() {
   const provisioningBaseUrl = account?.provisioningBaseUrl;
   const [pairState, setPairState] = useState<PairState>({ status: 'loading' });
   const sessionIdRef = useRef(sessionId);
+  const inFrame = isInFrame();
 
   useEffect(() => {
     sessionIdRef.current = sessionId;
   }, [sessionId]);
 
   useEffect(() => {
-    if (!pairCode || !sessionId || !provisioningBaseUrl) return undefined;
+    if (inFrame || !pairCode || !sessionId || !provisioningBaseUrl) return undefined;
 
     let cancelled = false;
     setPairState({ status: 'loading' });
@@ -136,7 +147,7 @@ export function ConnectPage() {
     return () => {
       cancelled = true;
     };
-  }, [pairCode, sessionId, provisioningBaseUrl]);
+  }, [inFrame, pairCode, sessionId, provisioningBaseUrl]);
 
   const handleApprove = useCallback(async () => {
     if (pairState.status !== 'ready' || !pairCode || !sessionId || !provisioningBaseUrl) return;
@@ -170,7 +181,23 @@ export function ConnectPage() {
   const canApprove = pairState.status === 'ready' && !alreadyApproved;
 
   let content: React.ReactNode;
-  if (!pairCode) {
+  if (inFrame) {
+    content = (
+      <>
+        <Text size="T300" style={{ color: color.Warning.Main }}>
+          {t('mindroomUi.local-mindroom.connect.frameWarning')}
+        </Text>
+        <Button
+          variant="Primary"
+          size="400"
+          radii="300"
+          onClick={() => window.open(window.location.href, '_blank', 'noopener,noreferrer')}
+        >
+          <Text size="B400">{t('mindroomUi.local-mindroom.connect.openInNewTab')}</Text>
+        </Button>
+      </>
+    );
+  } else if (!pairCode) {
     content = (
       <>
         <Text size="T300">{t('mindroomUi.local-mindroom.connect.enterCode')}</Text>

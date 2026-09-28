@@ -34,6 +34,13 @@ export class LocalMindroomApiError extends Error {
   }
 }
 
+export class HomeserverSignedOutError extends LocalMindroomApiError {
+  constructor(message: string) {
+    super(message, 401);
+    this.name = 'HomeserverSignedOutError';
+  }
+}
+
 const toErrorMessage = async (response: Response): Promise<string> => {
   try {
     const payload = (await response.json()) as unknown;

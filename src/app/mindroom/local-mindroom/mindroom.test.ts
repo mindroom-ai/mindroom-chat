@@ -22,7 +22,7 @@ describe('local mindroom helpers', () => {
 
     expect(result).toEqual({
       provisioningBaseUrl: 'https://matrix.example.org',
-      accessToken: 'session-token',
+      canAuthenticate: true,
     });
     expect(result.provisioningBaseUrl).not.toBe('https://mindroom.chat');
   });
@@ -35,7 +35,7 @@ describe('local mindroom helpers', () => {
     });
 
     expect(result.provisioningBaseUrl).toBe('https://provisioning.other.example');
-    expect(result.accessToken).toBeUndefined();
+    expect(result.canAuthenticate).toBe(false);
   });
 
   it('forwards token when provisioning origin matches session homeserver origin', () => {
@@ -47,7 +47,7 @@ describe('local mindroom helpers', () => {
 
     expect(result).toEqual({
       provisioningBaseUrl: 'https://matrix.example.org',
-      accessToken: 'session-token',
+      canAuthenticate: true,
     });
   });
 

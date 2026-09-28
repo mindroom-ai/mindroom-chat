@@ -53,7 +53,7 @@ export function LocalMindroom({ requestClose, onNavigate }: LocalMindroomProps) 
   // Accounts that may not authenticate to this provisioning origin cannot list
   // their installations; asking anyway would only send an unauthenticated
   // request to another origin.
-  const canAuthenticate = provisioningRequest.accessToken !== undefined;
+  const canAuthenticate = provisioningRequest.canAuthenticate;
   const provisioningHost = provisioningUrl ? new URL(provisioningUrl).host : undefined;
 
   const [connections, setConnections] = useState<LocalMindroomConnection[] | undefined>();

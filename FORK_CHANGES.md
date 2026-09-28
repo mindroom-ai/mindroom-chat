@@ -2,6 +2,21 @@
 
 ## Runbook
 
+### Security and reliability improvements for `/connect` device pairing (2026-09-27)
+
+- Added clickjacking protection: `/connect` blocks approval when rendered inside a frame and shows a button to open the page in a new tab instead.
+  The check runs on every render and handles both same-origin frames and cross-origin access errors.
+  docker-nginx.conf adds `Content-Security-Policy: frame-ancestors 'self'` and `X-Frame-Options: SAMEORIGIN` to the `/connect` location; the hosted Caddy config lives outside this repository.
+- Refresh logic distinguishes homeserver OpenID 401s from provisioning 401s.
+  `requestAsStoredSession` mints an OpenID token from the current access token; on homeserver 401, it calls refresh once and mints again if the token changed.
+  Any 401 from the second mint throws `HomeserverSignedOutError`.
+  ConnectPage shows "This account needs to sign in again" only for `HomeserverSignedOutError`; provisioning 401s show their detail or `requestFailed` without offering sign-in.
+  Credentials rotated by another tab are used without calling refresh.
+- `resolveMindroomProvisioningRequest` returns `canAuthenticate: boolean` instead of `accessToken?: string`.
+  The access token was only used as a same-origin gate; the boolean makes this intent explicit.
+- Validation: all unit tests pass, including new coverage for clickjacking protection, provisioning 401 handling, homeserver-only refresh, and HomeserverSignedOutError display.
+  Application typecheck, lint (0 errors, 17 existing warnings), prettier, and e2e device-pairing spec pass.
+
 ### Flat glass headers for Lobby and Explore (2026-09-27)
 
 - Lobby, Explore server results, and Featured on mobile use the same flat native glass treatment as navigation headers.
@@ -23,7 +38,7 @@
 ### Approve CLI-initiated Local MindRoom pairing codes (2026-09-26)
 
 - The local CLI now starts pairing (`pair/device/start`) and prints `https://chat.mindroom.chat/connect?code=ABCD-EFGH`; the client no longer generates codes.
-  Design: `docs/baspowers/specs/2026-09-26-device-pairing-design.md` in the `mindroom` repository.
+  Device pairing is documented in `docs/deployment/hosted-matrix.md` in the `mindroom` repository.
 - New static `/connect` route outside the active-account client layout, so it never matches `/:spaceIdOrAlias/`, works without an active account, and does not boot a Matrix client.
   It reads `code` from the query string or asks for one, lists every stored account whose provisioning request carries its own token, calls `pair/device/inspect` to show the machine name and age, warns before approval, and calls `pair/device/approve` with the chosen account's stored token without switching the active account.
 - A 401 from the provisioning service retries once: with credentials another tab rotated meanwhile, or else after a refresh through the same `createStoredSessionTokenRefresh` that `initMatrix` gives the SDK, which persists the rotated tokens with `updateSessionCredentials`.

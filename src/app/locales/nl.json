@@ -2341,7 +2341,9 @@
         "codeAlreadyApproved": "Deze code is al goedgekeurd.",
         "backToChat": "Terug naar de chat",
         "enterNewCode": "Voer de nieuwe code in:",
-        "noAccountAppGuidance": "Al ingelogd in de MindRoom-app? Open daar Instellingen → Lokale MindRoom en voer {{code}} in."
+        "noAccountAppGuidance": "Al ingelogd in de MindRoom-app? Open daar Instellingen → Lokale MindRoom en voer {{code}} in.",
+        "frameWarning": "Om veiligheidsredenen kan de apparaatgoedkeuring niet binnen een frame worden voltooid.",
+        "openInNewTab": "Openen in nieuw tabblad"
       }
     },
     "matrix": {

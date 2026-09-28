@@ -250,18 +250,13 @@ describe('ConnectPage', () => {
       .fn()
       .mockResolvedValue({ access_token: 'access-b', refresh_token: 'refresh-b' });
     vi.mocked(createMatrixClient).mockReturnValue({ refreshToken } as never);
-    inspectMock.mockRejectedValueOnce(
-      new LocalMindroomApiError('Invalid Matrix OpenID token', 401)
-    );
+    openIdMock.mockRejectedValueOnce(new LocalMindroomApiError('Invalid Matrix access token', 401));
 
     await renderAt('/connect?code=ABCD-EFGH');
     await flush();
 
     expect(refreshToken).toHaveBeenCalledWith('refresh-a');
-    expect(inspectMock.mock.calls.map((call) => call[1])).toEqual([
-      'openid:@alice:mindroom.chat-access',
-      'openid:access-b',
-    ]);
+    expect(inspectMock.mock.calls.map((call) => call[1])).toEqual(['openid:access-b']);
     expect(getSessionStore().sessions).toEqual([
       expect.objectContaining({
         sessionId: session.sessionId,
@@ -378,5 +373,85 @@ describe('ConnectPage', () => {
     expect(textOf()).toContain('Settings → Local MindRoom');
     expect(textOf()).toContain('ABCD-EFGH');
     expect(() => findButton('Sign in to approve')).not.toThrow();
+  });
+
+  it('blocks approval when rendered inside a frame', async () => {
+    storeSession('@alice:mindroom.chat', 'https://mindroom.chat');
+    const originalTop = window.top;
+    const originalOpen = window.open;
+    const mockTop = {} as Window & typeof globalThis;
+    const mockOpen = vi.fn();
+    Object.defineProperty(window, 'top', { value: mockTop, configurable: true });
+    Object.defineProperty(window, 'open', { value: mockOpen, configurable: true });
+
+    try {
+      await renderAt('/connect?code=ABCD-EFGH');
+      await flush();
+
+      expect(textOf()).toContain(
+        'For security, device approval cannot be completed inside a frame.'
+      );
+      expect(() => findButton('Open in new tab')).not.toThrow();
+      expect(() => findButton('Approve as')).toThrow();
+      expect(inspectMock).not.toHaveBeenCalled();
+      expect(openIdMock).not.toHaveBeenCalled();
+
+      await click('Open in new tab');
+      expect(mockOpen).toHaveBeenCalledWith(window.location.href, '_blank', 'noopener,noreferrer');
+    } finally {
+      Object.defineProperty(window, 'top', { value: originalTop, configurable: true });
+      Object.defineProperty(window, 'open', { value: originalOpen, configurable: true });
+    }
+  });
+
+  it('blocks approval when cross-origin frame access throws', async () => {
+    storeSession('@alice:mindroom.chat', 'https://mindroom.chat');
+    const originalTop = window.top;
+    Object.defineProperty(window, 'top', {
+      get() {
+        throw new Error('Cross-origin access denied');
+      },
+      configurable: true,
+    });
+
+    try {
+      await renderAt('/connect?code=ABCD-EFGH');
+      await flush();
+
+      expect(textOf()).toContain(
+        'For security, device approval cannot be completed inside a frame.'
+      );
+      expect(() => findButton('Open in new tab')).not.toThrow();
+      expect(() => findButton('Approve as')).toThrow();
+      expect(inspectMock).not.toHaveBeenCalled();
+      expect(openIdMock).not.toHaveBeenCalled();
+    } finally {
+      Object.defineProperty(window, 'top', { value: originalTop, configurable: true });
+    }
+  });
+
+  it('shows provisioning error details for provisioning 401s without offering sign-in', async () => {
+    storeSession('@alice:mindroom.chat', 'https://mindroom.chat');
+    inspectMock.mockRejectedValue(new LocalMindroomApiError('Invalid Matrix OpenID token', 401));
+
+    await renderAt('/connect?code=ABCD-EFGH');
+
+    expect(textOf()).toContain('Invalid Matrix OpenID token');
+    expect(textOf()).not.toContain('This account needs to sign in again');
+    expect(() => findButton('Sign in to approve')).toThrow();
+    expect(findButton('Approve as @alice:mindroom.chat').props.disabled).toBe(true);
+  });
+
+  it('shows sign-in button for HomeserverSignedOutError', async () => {
+    const { HomeserverSignedOutError } = await import('./api');
+    storeSession('@alice:mindroom.chat', 'https://mindroom.chat');
+    openIdMock.mockRejectedValue(new HomeserverSignedOutError('Account refresh token expired'));
+
+    await renderAt('/connect?code=ABCD-EFGH');
+
+    expect(textOf()).toContain('This account needs to sign in again before it can approve');
+    expect(() => findButton('Sign in to approve')).not.toThrow();
+    await click('Sign in to approve');
+    expect(textOf(renderer?.root.findByType('output'))).toBe('/login/mindroom.chat?addAccount=1');
   });
 });

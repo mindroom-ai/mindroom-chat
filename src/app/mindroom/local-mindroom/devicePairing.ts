@@ -1,7 +1,7 @@
 import { TokenRefreshLogoutError } from 'matrix-js-sdk';
 import { createStoredSessionTokenRefresh } from '../../../client/sessionTokenRefresh';
 import { listSessions, type StoredSession } from '../../state/sessions';
-import { LocalMindroomApiError, requestMatrixOpenIdToken } from './api';
+import { HomeserverSignedOutError, LocalMindroomApiError, requestMatrixOpenIdToken } from './api';
 import { resolveMindroomProvisioningRequest } from './mindroom';
 
 export type PairingAccount = {
@@ -25,12 +25,12 @@ export const getPairingAccounts = (
   provisioningOverrideUrl: string | undefined
 ): PairingAccount[] =>
   sessions.flatMap((session) => {
-    const { accessToken, provisioningBaseUrl } = resolveMindroomProvisioningRequest({
+    const { canAuthenticate, provisioningBaseUrl } = resolveMindroomProvisioningRequest({
       sessionHomeserverUrl: session.baseUrl,
       provisioningOverrideUrl,
       accessToken: session.accessToken,
     });
-    return accessToken && provisioningBaseUrl ? [{ session, provisioningBaseUrl }] : [];
+    return canAuthenticate && provisioningBaseUrl ? [{ session, provisioningBaseUrl }] : [];
   });
 
 const refreshStoredSessionAccessToken = async (
@@ -47,9 +47,11 @@ const isInvalidTokenError = (error: unknown): boolean =>
 // Runs a provisioning request as a stored account, independent of the account
 // the rest of the app is using. The request receives an OpenID token minted
 // from the account's access token; the access token itself only goes to the
-// account's homeserver. A rejection of either token replaces the access token
-// once: by credentials another tab rotated meanwhile, or else by a refresh
-// that the shared refresh function persists to the session store.
+// account's homeserver. A 401 from the homeserver OpenID request triggers one
+// refresh-and-retry: by credentials another tab rotated meanwhile, or else by
+// a refresh that the shared refresh function persists to the session store.
+// Homeserver auth failures throw HomeserverSignedOutError; provisioning 401s
+// surface as LocalMindroomApiError.
 export const requestAsStoredSession = async <T>(
   sessionId: string,
   request: (openIdToken: string) => Promise<T>,
@@ -59,36 +61,52 @@ export const requestAsStoredSession = async <T>(
 ): Promise<T> => {
   const findSession = () => listSessions().find((session) => session.sessionId === sessionId);
   const session = findSession();
-  if (!session) throw new LocalMindroomApiError('Account is no longer signed in', 401);
+  if (!session) throw new HomeserverSignedOutError('Account is no longer signed in');
 
-  const requestWith = async (accessToken: string) =>
-    request(
-      await requestMatrixOpenIdToken({
-        baseUrl: session.baseUrl,
-        userId: session.userId,
-        accessToken,
-      })
-    );
+  const mintOpenIdToken = async (accessToken: string): Promise<string> =>
+    requestMatrixOpenIdToken({
+      baseUrl: session.baseUrl,
+      userId: session.userId,
+      accessToken,
+    });
 
+  let usedAccessToken = session.accessToken;
+  let openIdToken: string;
   try {
-    return await requestWith(session.accessToken);
+    openIdToken = await mintOpenIdToken(usedAccessToken);
   } catch (error) {
+    // A 401 from the homeserver means the access token is expired.
+    // Refresh once and retry the OpenID request.
     if (!isInvalidTokenError(error)) throw error;
 
     const latest = findSession();
-    if (!latest) throw error;
+    if (!latest) throw new HomeserverSignedOutError('Account is no longer signed in');
 
-    let accessToken: string | undefined = latest.accessToken;
-    if (accessToken === session.accessToken) {
+    let refreshedAccessToken: string | undefined = latest.accessToken;
+    if (refreshedAccessToken === usedAccessToken) {
       try {
-        accessToken = await refreshAccessToken(latest);
+        refreshedAccessToken = await refreshAccessToken(latest);
       } catch (refreshError) {
-        if (refreshError instanceof TokenRefreshLogoutError) throw error;
+        if (refreshError instanceof TokenRefreshLogoutError) {
+          throw new HomeserverSignedOutError('Account refresh token expired');
+        }
         throw refreshError;
       }
     }
-    if (!accessToken) throw error;
+    if (!refreshedAccessToken || refreshedAccessToken === usedAccessToken) {
+      throw new HomeserverSignedOutError('Cannot refresh account credentials');
+    }
 
-    return requestWith(accessToken);
+    usedAccessToken = refreshedAccessToken;
+    try {
+      openIdToken = await mintOpenIdToken(usedAccessToken);
+    } catch (secondError) {
+      if (isInvalidTokenError(secondError)) {
+        throw new HomeserverSignedOutError('Homeserver rejected refreshed credentials');
+      }
+      throw secondError;
+    }
   }
+
+  return request(openIdToken);
 };

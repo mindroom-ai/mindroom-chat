@@ -2341,7 +2341,9 @@
         "codeAlreadyApproved": "此代碼已被核准。",
         "backToChat": "返回聊天",
         "enterNewCode": "輸入新代碼：",
-        "noAccountAppGuidance": "已在 MindRoom 應用程式中登入？在應用程式的設定 → Local MindRoom 中輸入 {{code}}。"
+        "noAccountAppGuidance": "已在 MindRoom 應用程式中登入？在應用程式的設定 → Local MindRoom 中輸入 {{code}}。",
+        "frameWarning": "基於安全考量，無法在框架內完成裝置核准。",
+        "openInNewTab": "在新分頁中開啟"
       }
     },
     "matrix": {

@@ -2341,7 +2341,9 @@
         "codeAlreadyApproved": "Kode ini sudah disetujui.",
         "backToChat": "Kembali ke percakapan",
         "enterNewCode": "Masukkan kode baru:",
-        "noAccountAppGuidance": "Sudah masuk di aplikasi MindRoom? Buka Pengaturan → MindRoom lokal di sana dan masukkan {{code}}."
+        "noAccountAppGuidance": "Sudah masuk di aplikasi MindRoom? Buka Pengaturan → MindRoom lokal di sana dan masukkan {{code}}.",
+        "frameWarning": "Untuk keamanan, persetujuan perangkat tidak dapat diselesaikan di dalam bingkai.",
+        "openInNewTab": "Buka di tab baru"
       }
     },
     "matrix": {
