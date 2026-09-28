@@ -7,7 +7,7 @@ import test from 'node:test';
 import { buildAuthenticationRecoveryAssets } from './authentication-recovery-assets.mjs';
 
 // Requires Docker and nginx:alpine. No application build or external login fixture needed.
-test('native recovery assets, probe and runtime URL serialization', async (t) => {
+test('native recovery assets, probe, runtime URL serialization and /connect frame headers', async (t) => {
   const assets = await buildAuthenticationRecoveryAssets();
   mkdirSync('test-results', { recursive: true });
   const directory = mkdtempSync(resolve('test-results/authentication-recovery-nginx-'));
@@ -95,6 +95,17 @@ test('native recovery assets, probe and runtime URL serialization', async (t) =>
       assert.equal(scripts[0].src, `${origin}${prefix}/authentication-recovery.js`);
       const nested = await fetch(`${origin}${prefix}/authentication-recovery-probe/child`);
       assert.notEqual(nested.status, 204);
+      const connect = await fetch(`${origin}${prefix}/connect`);
+      assert.equal(connect.status, 200);
+      assert.equal(connect.headers.get('content-security-policy'), "frame-ancestors 'none'");
+      assert.equal(connect.headers.get('x-frame-options'), 'DENY');
+      const connectTrailing = await fetch(`${origin}${prefix}/connect/`);
+      assert.equal(connectTrailing.status, 200);
+      assert.equal(
+        connectTrailing.headers.get('content-security-policy'),
+        "frame-ancestors 'none'"
+      );
+      assert.equal(connectTrailing.headers.get('x-frame-options'), 'DENY');
     }
     execFileSync('docker', [
       'exec',

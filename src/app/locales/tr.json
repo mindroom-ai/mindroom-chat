@@ -2341,7 +2341,9 @@
         "codeAlreadyApproved": "Bu kod zaten onaylandı.",
         "backToChat": "Sohbete dön",
         "enterNewCode": "Yeni kodu girin:",
-        "noAccountAppGuidance": "MindRoom uygulamasında zaten oturum açtınız mı? Orada Ayarlar → Yerel MindRoom'u açın ve {{code}} girin."
+        "noAccountAppGuidance": "MindRoom uygulamasında zaten oturum açtınız mı? Orada Ayarlar → Yerel MindRoom'u açın ve {{code}} girin.",
+        "frameWarning": "Güvenlik nedeniyle, cihaz onayı bir çerçeve içinde tamamlanamaz.",
+        "openInNewTab": "Yeni sekmede aç"
       }
     },
     "matrix": {

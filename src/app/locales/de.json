@@ -2341,7 +2341,9 @@
         "codeAlreadyApproved": "Dieser Code wurde bereits bestätigt.",
         "backToChat": "Zurück zum Chat",
         "enterNewCode": "Gib den neuen Code ein:",
-        "noAccountAppGuidance": "Bereits in der MindRoom-App angemeldet? Öffne dort Einstellungen → Lokales MindRoom und gib {{code}} ein."
+        "noAccountAppGuidance": "Bereits in der MindRoom-App angemeldet? Öffne dort Einstellungen → Lokales MindRoom und gib {{code}} ein.",
+        "frameWarning": "Aus Sicherheitsgründen kann die Gerätefreigabe nicht innerhalb eines Rahmens abgeschlossen werden.",
+        "openInNewTab": "In neuem Tab öffnen"
       }
     },
     "matrix": {

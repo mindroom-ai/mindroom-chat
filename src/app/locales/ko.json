@@ -2341,7 +2341,9 @@
         "codeAlreadyApproved": "이 코드는 이미 승인되었습니다.",
         "backToChat": "채팅으로 돌아가기",
         "enterNewCode": "새 코드를 입력하세요:",
-        "noAccountAppGuidance": "MindRoom 앱에 이미 로그인되어 있나요? 앱에서 설정 → 로컬 MindRoom을 열고 {{code}}를 입력하세요."
+        "noAccountAppGuidance": "MindRoom 앱에 이미 로그인되어 있나요? 앱에서 설정 → 로컬 MindRoom을 열고 {{code}}를 입력하세요.",
+        "frameWarning": "보안상의 이유로 프레임 내에서 기기 승인을 완료할 수 없습니다.",
+        "openInNewTab": "새 탭에서 열기"
       }
     },
     "matrix": {

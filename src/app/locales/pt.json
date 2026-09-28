@@ -2369,7 +2369,9 @@
         "codeAlreadyApproved": "Este código já foi aprovado.",
         "backToChat": "Voltar à conversa",
         "enterNewCode": "Introduza o novo código:",
-        "noAccountAppGuidance": "Já iniciou sessão na aplicação MindRoom? Abra Definições → MindRoom local e introduza {{code}}."
+        "noAccountAppGuidance": "Já iniciou sessão na aplicação MindRoom? Abra Definições → MindRoom local e introduza {{code}}.",
+        "frameWarning": "Por motivos de segurança, a aprovação do dispositivo não pode ser concluída dentro de um quadro.",
+        "openInNewTab": "Abrir num novo separador"
       }
     },
     "matrix": {

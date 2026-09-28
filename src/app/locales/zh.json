@@ -2341,7 +2341,9 @@
         "codeAlreadyApproved": "此代码已被批准。",
         "backToChat": "返回聊天",
         "enterNewCode": "输入新代码：",
-        "noAccountAppGuidance": "已在 MindRoom 应用中登录？在应用的设置 → Local MindRoom 中输入 {{code}}。"
+        "noAccountAppGuidance": "已在 MindRoom 应用中登录？在应用的设置 → Local MindRoom 中输入 {{code}}。",
+        "frameWarning": "出于安全考虑，无法在框架内完成设备批准。",
+        "openInNewTab": "在新标签页中打开"
       }
     },
     "matrix": {

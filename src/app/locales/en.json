@@ -2341,7 +2341,9 @@
         "codeAlreadyApproved": "This code has already been approved.",
         "backToChat": "Back to chat",
         "enterNewCode": "Enter the new code:",
-        "noAccountAppGuidance": "Already signed in on the MindRoom app? Open Settings → Local MindRoom there and enter {{code}}."
+        "noAccountAppGuidance": "Already signed in on the MindRoom app? Open Settings → Local MindRoom there and enter {{code}}.",
+        "frameWarning": "For security, device approval cannot be completed inside a frame.",
+        "openInNewTab": "Open in new tab"
       }
     },
     "matrix": {

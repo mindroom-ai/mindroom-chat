@@ -2341,7 +2341,9 @@
         "codeAlreadyApproved": "このコードはすでに承認されています。",
         "backToChat": "チャットに戻る",
         "enterNewCode": "新しいコードを入力してください：",
-        "noAccountAppGuidance": "MindRoom アプリで既にサインインしていますか？アプリの設定 → Local MindRoom で {{code}} を入力してください。"
+        "noAccountAppGuidance": "MindRoom アプリで既にサインインしていますか？アプリの設定 → Local MindRoom で {{code}} を入力してください。",
+        "frameWarning": "セキュリティ上の理由により、フレーム内でデバイスの承認を完了できません。",
+        "openInNewTab": "新しいタブで開く"
       }
     },
     "matrix": {

@@ -2369,7 +2369,9 @@
         "codeAlreadyApproved": "Este código ya se ha aprobado.",
         "backToChat": "Volver al chat",
         "enterNewCode": "Introduce el nuevo código:",
-        "noAccountAppGuidance": "¿Ya iniciaste sesión en la aplicación MindRoom? Abre Ajustes → MindRoom local allí e introduce {{code}}."
+        "noAccountAppGuidance": "¿Ya iniciaste sesión en la aplicación MindRoom? Abre Ajustes → MindRoom local allí e introduce {{code}}.",
+        "frameWarning": "Por seguridad, la aprobación del dispositivo no se puede completar dentro de un marco.",
+        "openInNewTab": "Abrir en una pestaña nueva"
       }
     },
     "matrix": {

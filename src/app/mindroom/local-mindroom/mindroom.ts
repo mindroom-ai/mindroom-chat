@@ -14,7 +14,7 @@ type ResolveProvisioningRequest = {
 
 export type LocalMindroomProvisioningRequest = {
   provisioningBaseUrl?: string;
-  accessToken?: string;
+  canAuthenticate: boolean;
 };
 
 const getOrigin = (url?: string): string | undefined => {
@@ -37,18 +37,17 @@ export const resolveMindroomProvisioningRequest = ({
   const overrideOrigin = getOrigin(provisioningOverrideUrl);
   const provisioningBaseUrl = overrideOrigin ?? sessionOrigin;
 
-  if (!provisioningBaseUrl) return {};
+  if (!provisioningBaseUrl) return { canAuthenticate: false };
 
   const isCrossOriginOverride =
     overrideOrigin !== undefined && sessionOrigin !== undefined && overrideOrigin !== sessionOrigin;
 
-  // Never forward a homeserver token to another origin. Callers must not
-  // query provisioning without a token.
-  if (isCrossOriginOverride) return { provisioningBaseUrl };
+  // Cross-origin accounts cannot authenticate to this provisioning service.
+  if (isCrossOriginOverride) return { provisioningBaseUrl, canAuthenticate: false };
 
   return {
     provisioningBaseUrl,
-    accessToken,
+    canAuthenticate: Boolean(accessToken),
   };
 };
 

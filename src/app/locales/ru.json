@@ -2397,7 +2397,9 @@
         "codeAlreadyApproved": "Этот код уже подтверждён.",
         "backToChat": "Вернуться в чат",
         "enterNewCode": "Введите новый код:",
-        "noAccountAppGuidance": "Уже вошли в приложение MindRoom? Откройте Настройки → Local MindRoom и введите {{code}}."
+        "noAccountAppGuidance": "Уже вошли в приложение MindRoom? Откройте Настройки → Local MindRoom и введите {{code}}.",
+        "frameWarning": "По соображениям безопасности подтверждение устройства не может быть выполнено внутри фрейма.",
+        "openInNewTab": "Открыть в новой вкладке"
       }
     },
     "matrix": {
