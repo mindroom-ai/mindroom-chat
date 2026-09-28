@@ -125,6 +125,10 @@ const makeMatrixClient = (userId = '@alice:example.org') =>
   ({
     getOpenIdToken: vi.fn().mockResolvedValue(openIdToken),
     getSafeUserId: () => userId,
+    getRoom: () => ({
+      getMember: (memberId: string) =>
+        memberId === '@mindroom_helper:example.org' ? { rawDisplayName: 'Helper <Bot>' } : null,
+    }),
     sendMessage: vi.fn().mockResolvedValue({ event_id: '$continuation' }),
   } as unknown as MatrixClient);
 
@@ -288,6 +292,9 @@ describe('ComputerPanel', () => {
       '!room:example.org',
       expect.objectContaining({
         body: '@mindroom_helper:example.org The computer is available again. Please continue.',
+        format: 'org.matrix.custom.html',
+        formatted_body:
+          '<a href="https://matrix.to/#/%40mindroom_helper%3Aexample.org">Helper &lt;Bot&gt;</a> The computer is available again. Please continue.',
         'm.mentions': { user_ids: ['@mindroom_helper:example.org'] },
         'm.relates_to': {
           rel_type: 'm.thread',
