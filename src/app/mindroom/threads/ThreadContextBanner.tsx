@@ -354,7 +354,13 @@ export function ThreadContextBanner({
               </IconButton>
             )}
             {!isPinned && (
-              <div className={classNames(css.ResolveChip, css.ShortViewportHidden)}>
+              // Resolve is in More, but a resolved status stays visible for readers.
+              <div
+                className={classNames(
+                  css.ResolveChip,
+                  !headerModel.isResolved && css.ShortViewportHidden
+                )}
+              >
                 <Button
                   size="300"
                   variant={headerModel.isResolved ? 'Success' : 'Secondary'}
@@ -371,7 +377,7 @@ export function ThreadContextBanner({
                 </Button>
                 {resolvedByDisplayName && (
                   <Text
-                    className={css.ResolutionByline}
+                    className={classNames(css.ResolutionByline, css.ShortViewportHidden)}
                     data-thread-resolution-byline="true"
                     size="T200"
                     priority="300"

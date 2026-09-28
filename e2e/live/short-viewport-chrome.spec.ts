@@ -53,6 +53,9 @@ for (const viewport of [
       const roomId = await createPrivateRoom(homeserver, session.accessToken, {
         name: ROOM_NAME,
         topic: ROOM_TOPIC,
+      }).catch(async (error) => {
+        await restoreSettings();
+        throw error;
       });
       try {
         const rootId = await sendRoomMessage(homeserver, session.accessToken, roomId, {
@@ -158,8 +161,14 @@ for (const viewport of [
           await expect(menu.locator('[data-thread-action="tags"]')).toBeVisible();
           await expect(menu.locator('[data-thread-action="resolve"]')).toBeVisible();
           await expect(menu.locator('[data-thread-action="pin"]')).toBeVisible();
+          await menu.locator('[data-thread-action="resolve"]').click();
+          // A resolved thread keeps its status in the single row.
+          await expect(banner.getByRole('button', { name: 'Resolved' })).toBeVisible();
+          // The menu ignores Escape while the change is saving.
+          await expect(menu.locator('[data-thread-action="resolve"]')).toBeEnabled();
           await page.keyboard.press('Escape');
           await expect(menu).toBeHidden();
+          expect((await banner.boundingBox())!.height).toBeLessThanOrEqual(48);
 
           // Rotating re-measures the header inset the sticky banner sits under.
           await page.setViewportSize({ width: viewport.height, height: viewport.width });

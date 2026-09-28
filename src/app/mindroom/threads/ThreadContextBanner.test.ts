@@ -553,6 +553,19 @@ describe('ThreadContextBanner rendering', () => {
     expect(hidden(scheduled)).toContain('ViewLabel');
     scheduled.unmount();
 
+    // A resolved status stays in view; only its byline goes.
+    bannerMocks.useThreadTags.mockReturnValue({
+      tags: {},
+      displayTags: [],
+      isResolved: true,
+      canEdit: false,
+      availableTags: [],
+    });
+    const resolved = renderBanner('A concise thread summary');
+    expect(JSON.stringify(resolved.toJSON())).toContain('Resolved');
+    expect(hidden(resolved)).not.toContain('ResolveChip');
+    resolved.unmount();
+
     // The pinned status replaces Resolve and stays in view.
     pinningMocks.pinnedEventIds = ['$root'];
     const pinned = renderBanner('A concise thread summary');
