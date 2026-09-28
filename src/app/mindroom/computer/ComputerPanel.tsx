@@ -88,6 +88,7 @@ export function ComputerPanel({
   const sessionRef = useRef<ComputerSessionClient>();
   const lifecycleRef = useRef(0);
   const activeStreamTicketRef = useRef<string>();
+  const releasingStreamTicketRef = useRef<string>();
   const disposedSessionsRef = useRef(new WeakSet<ComputerSessionClient>());
 
   const chosenAgent = useMemo(
@@ -243,7 +244,7 @@ export function ComputerPanel({
     } catch (controlError) {
       if (lifecycleRef.current === lifecycle) {
         setError(getErrorMessage(controlError));
-        setPhase('ready');
+        setPhase(activeStreamTicketRef.current ? 'ready' : 'disconnected');
       }
     } finally {
       if (lifecycleRef.current === lifecycle) setOperation(undefined);
@@ -258,37 +259,47 @@ export function ComputerPanel({
     setError(undefined);
     setSendError(undefined);
     setReleaseNotice(undefined);
+    // Releasing control closes the controller's stream, often before the release response arrives.
+    const releasingTicket = activeStreamTicketRef.current;
+    releasingStreamTicketRef.current = releasingTicket;
     try {
       const nextStatus = await session.control('release');
       if (lifecycleRef.current !== lifecycle || sessionRef.current !== session) return;
       setStatus(nextStatus);
+      // The retired screen stays in place until the watch stream replaces it.
       activeStreamTicketRef.current = undefined;
-      setStream(undefined);
       setConnected(false);
       setReleaseNotice('released');
 
       const continuation = sendComputerContinuation(mx, roomId, threadId, selectedAgentUserId);
-      const reconnect = connectStream(session, lifecycle, false);
-      const [continuationResult, reconnectResult] = await Promise.allSettled([
-        continuation,
-        reconnect,
-      ]);
+      // A failed watch reconnect shows at once, without waiting for the continuation to send.
+      const reconnect = connectStream(session, lifecycle, false).catch((reconnectError) => {
+        if (lifecycleRef.current !== lifecycle || sessionRef.current !== session) return;
+        setStream(undefined);
+        setError(getErrorMessage(reconnectError));
+        setPhase('disconnected');
+      });
+      const [continuationResult] = await Promise.allSettled([continuation, reconnect]);
       if (lifecycleRef.current !== lifecycle || sessionRef.current !== session) return;
       if (continuationResult.status === 'rejected') {
         setSendError('Control was released, but the continuation message could not be sent.');
       } else {
         setReleaseNotice('sent');
       }
-      if (reconnectResult.status === 'rejected') {
-        setError(getErrorMessage(reconnectResult.reason));
-        setPhase('disconnected');
-      }
     } catch (releaseError) {
       if (lifecycleRef.current === lifecycle) {
         setError(`Control was not released. ${getErrorMessage(releaseError)}`);
-        setPhase('ready');
+        if (activeStreamTicketRef.current) {
+          setPhase('ready');
+        } else {
+          setStream(undefined);
+          setPhase('disconnected');
+        }
       }
     } finally {
+      if (releasingStreamTicketRef.current === releasingTicket) {
+        releasingStreamTicketRef.current = undefined;
+      }
       if (lifecycleRef.current === lifecycle) setOperation(undefined);
     }
   };
@@ -362,6 +373,8 @@ export function ComputerPanel({
     if (!sessionRef.current) return;
     activeStreamTicketRef.current = undefined;
     setConnected(false);
+    // Resume agent owns this close: it reconnects on success or reports the disconnect on failure.
+    if (releasingStreamTicketRef.current === streamTicket) return;
     setStream(undefined);
     setError(message ?? 'The computer connection closed.');
     setPhase('disconnected');
@@ -414,6 +427,7 @@ export function ComputerPanel({
                 key={`${stream.url}:${stream.protocols[1]}`}
                 mode={status?.mode ?? 'view'}
                 onConnected={() => {
+                  if (activeStreamTicketRef.current !== stream.protocols[1]) return;
                   setConnected(true);
                   setPhase('ready');
                   setError(undefined);

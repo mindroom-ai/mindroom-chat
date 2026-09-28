@@ -337,6 +337,92 @@ describe('ComputerPanel', () => {
     expect(mx.sendMessage).toHaveBeenCalledOnce();
   });
 
+  const holdControl = (action: 'take' | 'release', fail = false) => {
+    const gateway = createGateway();
+    const pending: { resolve?: () => void } = {};
+    const request = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (init?.body && JSON.parse(init.body as string).action === action) {
+        await new Promise<void>((resolve) => {
+          pending.resolve = resolve;
+        });
+        if (fail) return jsonResponse(503, { detail: 'Control unavailable.' });
+      }
+      return gateway(input, init);
+    });
+    return { pending, request: request as unknown as typeof fetch };
+  };
+
+  const screenTickets = () => screenConnections.map(({ protocols }) => protocols[1]);
+
+  it('keeps the screen when the control stream closes before the release response', async () => {
+    const { pending, request } = holdControl('release');
+    renderPanel({ request });
+
+    await waitFor(() => findButton(container, 'Take control'));
+    await click(findButton(container, 'Take control'));
+    await waitFor(() => findButton(container, 'Resume agent'));
+    await click(findButton(container, 'Resume agent'));
+    await waitFor(() => expect(pending.resolve).toBeDefined());
+    act(() => screenConnections[0].onDisconnected());
+
+    expect(container.textContent).not.toContain('Computer disconnected');
+    expect(container.textContent).not.toContain('The computer connection closed.');
+    expect(container.querySelector('[data-testid="computer-screen"]')).not.toBeNull();
+
+    await act(async () => pending.resolve?.());
+    await waitFor(() => findButton(container, 'Take control'));
+    expect(screenTickets()).toEqual(['mindroom-ticket.ticket-1', 'mindroom-ticket.ticket-2']);
+    expect(container.textContent).toContain('Watch mode');
+    expect(container.textContent).not.toContain('Computer disconnected');
+  });
+
+  it('keeps control when release fails with the stream still open', async () => {
+    const { pending, request } = holdControl('release', true);
+    renderPanel({ request });
+
+    await waitFor(() => findButton(container, 'Take control'));
+    await click(findButton(container, 'Take control'));
+    await waitFor(() => findButton(container, 'Resume agent'));
+    await click(findButton(container, 'Resume agent'));
+    await waitFor(() => expect(pending.resolve).toBeDefined());
+    await act(async () => pending.resolve?.());
+
+    await waitFor(() => expect(findButton(container, 'Resume agent').disabled).toBe(false));
+    expect(container.textContent).toContain('Control was not released. Control unavailable.');
+    expect(container.textContent).toContain('You have control');
+
+    act(() => screenConnections[0].onDisconnected());
+    await waitFor(() => findButton(container, 'Reconnect'));
+    expect(container.textContent).toContain('Computer disconnected');
+  });
+
+  it.each([
+    ['release', 'Resume agent'],
+    ['take', 'Take control'],
+  ] as const)('recovers when %s fails after the stream closed', async (action, restoredButton) => {
+    const { pending, request } = holdControl(action, true);
+    renderPanel({ request });
+
+    await waitFor(() => findButton(container, 'Take control'));
+    await click(findButton(container, 'Take control'));
+    if (action === 'release') {
+      await waitFor(() => findButton(container, 'Resume agent'));
+      await click(findButton(container, 'Resume agent'));
+    }
+    await waitFor(() => expect(pending.resolve).toBeDefined());
+    act(() => screenConnections[0].onDisconnected());
+    await act(async () => pending.resolve?.());
+
+    await waitFor(() => expect(findButton(container, 'Reconnect').disabled).toBe(false));
+    expect(container.textContent).toContain('Computer disconnected');
+    expect(container.textContent).toContain('Control unavailable.');
+    expect(container.querySelector('[data-testid="computer-screen"]')).toBeNull();
+
+    await click(findButton(container, 'Reconnect'));
+    await waitFor(() => findButton(container, restoredButton));
+    expect(screenTickets()).toEqual(['mindroom-ticket.ticket-1', 'mindroom-ticket.ticket-2']);
+  });
+
   it('reconnects a failed replacement watch stream while continuation delivery is pending', async () => {
     let resolveContinuation: ((value: { event_id: string }) => void) | undefined;
     const continuation = new Promise<{ event_id: string }>((resolve) => {
@@ -391,10 +477,44 @@ describe('ComputerPanel', () => {
     await click(findButton(container, 'Resume agent'));
 
     await waitFor(() => expect(container.textContent).toContain('Computer stream is unavailable.'));
+    expect(container.querySelector('[data-testid="computer-screen"]')).toBeNull();
     expect(props.mx.sendMessage).toHaveBeenCalledTimes(1);
     await click(findButton(container, 'Reconnect'));
     await waitFor(() => findButton(container, 'Take control'));
     expect(props.mx.sendMessage).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows a failed watch reconnect before continuation delivery settles', async () => {
+    let resolveContinuation: ((value: { event_id: string }) => void) | undefined;
+    const mx = makeMatrixClient();
+    vi.mocked(mx.sendMessage).mockReturnValue(
+      new Promise<{ event_id: string }>((resolve) => {
+        resolveContinuation = resolve;
+      })
+    );
+    const gateway = createGateway();
+    let tickets = 0;
+    const request = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (input.toString().endsWith('/stream-ticket') && ++tickets === 2) {
+        return jsonResponse(503, { detail: 'Computer stream is unavailable.' });
+      }
+      return gateway(input, init);
+    }) as unknown as typeof fetch;
+    renderPanel({ mx, request });
+
+    await waitFor(() => findButton(container, 'Take control'));
+    await click(findButton(container, 'Take control'));
+    await waitFor(() => findButton(container, 'Resume agent'));
+    await click(findButton(container, 'Resume agent'));
+
+    await waitFor(() => expect(container.textContent).toContain('Computer stream is unavailable.'));
+    expect(container.textContent).toContain('Computer disconnected');
+    expect(container.querySelector('[data-testid="computer-screen"]')).toBeNull();
+    expect(findButton(container, 'Reconnect').disabled).toBe(true);
+
+    await act(async () => resolveContinuation?.({ event_id: '$continuation' }));
+    await waitFor(() => expect(findButton(container, 'Reconnect').disabled).toBe(false));
+    expect(container.textContent).toContain('The agent was asked to continue.');
   });
 
   it.each(['failure', 'success'])('handles disconnect before Stop %s settles', async (outcome) => {
