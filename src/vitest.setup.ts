@@ -17,7 +17,9 @@ vi.mock('./app/components/glass/Surface.css', () => ({
 }));
 vi.mock('./app/mindroom/threads/RoomOverlay.css', () => ({
   Header: 'room-header',
+  HeaderInThread: 'room-header-in-thread',
   Footer: 'room-footer',
+  Following: 'room-following',
   Overview: 'room-overview',
   Scroll: 'room-scroll',
   Scrollbar: 'room-scrollbar',

@@ -1515,6 +1515,27 @@ describe('RoomView', () => {
     expect(JSON.stringify(pageState.props?.style ?? {})).not.toContain('--app-height');
   });
 
+  it('marks the room header for replacement by the thread banner only inside a thread', async () => {
+    const { RoomView } = await import('../../../features/room/RoomView');
+    const room = makeRoom(nextRoomId('short-screen'));
+    let renderer: ReturnType<typeof create> | undefined;
+    const headerClass = () =>
+      renderer!.root.find(
+        (node) =>
+          node.type === 'div' && String(node.props.className ?? '').startsWith('room-header')
+      ).props.className;
+
+    await act(async () => {
+      renderer = create(React.createElement(RoomView, { room: room as never }));
+    });
+    expect(headerClass()).toBe('room-header');
+
+    await act(async () => {
+      renderer?.update(React.createElement(RoomView, { room: room as never, threadId: '$thread' }));
+    });
+    expect(headerClass()).toBe('room-header room-header-in-thread');
+  });
+
   it('does not move computer keyboard input into the room composer', async () => {
     const { RoomView } = await import('../../../features/room/RoomView');
     const room = makeRoom('!computer-focus:example.org');

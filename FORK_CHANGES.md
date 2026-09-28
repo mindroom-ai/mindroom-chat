@@ -2,6 +2,24 @@
 
 ## Runbook
 
+### Compact room chrome on short screens (2026-09-28)
+
+- On a phone held sideways (667×375), the room header, thread banner, composer and receipt row left about 130px of a thread for messages.
+  Landscape touch screens at most 500px tall (`shortViewport` in `src/app/mindroom/threads/shortViewport.ts`) now compact that chrome.
+  The query is on height, so larger phones in the Tablet layout compact too; the coarse pointer keeps short desktop windows unchanged, and landscape keeps most portrait keyboards from toggling it (on the smallest phones an open keyboard can still leave a wider-than-tall viewport).
+- Room view: the header drops the topic line and is 44px tall.
+- Thread view: the room header is hidden and the thread banner is the only bar, as a single row with back, title and More.
+  Tags, the pin button and Resolve are hidden there, since More already offers them; the "Thread View" eyebrow stays when the thread has no title yet, and the Pinned label, a resolved thread's Resolved status (without its byline) and the active-permissions chip stay visible.
+  Leaving the thread or rotating to portrait brings the room header back.
+- More now lists tags read-only, labelled "Tags" instead of "Edit tags", for people who cannot edit them, so compact banners do not hide tags from readers; the tag picker shows only for editors.
+- The read-receipt row is hidden; the composer already pads for the bottom safe area, so the footer keeps only an 8px gap.
+- Result at 667×375: about 270px of messages in a thread, up from about 130px.
+- The new rules live in MindRoom-owned files (`MindroomRoomViewHeader.css.ts`, `RoomOverlay.css.ts`, `ThreadContextBanner.css.ts`), so the upstream diff does not grow.
+- Validation: `e2e/live/short-viewport-chrome.spec.ts` runs with touch emulation at 667×375 and 844×390 (including rotating to portrait and back, More offering tags, pin and Resolve, and a resolved thread keeping its status in one row), at 390×844, and without touch at 1280×400; the last two keep the full chrome.
+  Unit tests cover which banner controls compact, the room-header class inside threads, and read-only tags in More.
+  Application typecheck, changed-test typecheck (no new errors), eslint, prettier and the production build pass; the full unit suite has only the 4 known unrelated failures, plus one `RoomTimeline.ledgerLifecycle` test that failed once while e2e ran alongside and passes on its own.
+- Next: the Tablet layout at 844×390 still spends about 320px of width on the room list; consider collapsing it on short screens.
+
 ### Open iOS pairing links in the installed app (2026-09-28)
 
 - Status: implemented and independently approved by Claude Opus and GPT-6 Astra, both with explicit no-scope-creep and no-over-engineering verdicts.

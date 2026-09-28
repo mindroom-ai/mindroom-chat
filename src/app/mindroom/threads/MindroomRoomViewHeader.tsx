@@ -41,6 +41,7 @@ import { getHomeSearchPath, getSpaceSearchPath, withSearchParam } from '../../pa
 import { getCanonicalAliasOrRoomId, isRoomAlias, mxcUrlToHttp } from '../../utils/matrix';
 import { _SearchPathSearchParams } from '../../pages/paths';
 import * as css from '../../features/room/RoomViewHeader.css';
+import * as headerCss from './MindroomRoomViewHeader.css';
 import { usePowerLevelsContext } from '../../hooks/usePowerLevels';
 import { MindroomMarkRoomReadMenuItem } from '../notifications/MindroomMarkRoomReadMenuItem';
 import { useSimpleMode } from '../settings/useMindroomAccountSettings';
@@ -393,7 +394,8 @@ export function RoomViewHeader({
         ContainerColor({ variant: 'Surface' }),
         glassSurface({ level: 'panel', variant: 'Surface' }),
         glassFloating,
-        glassFlat
+        glassFlat,
+        headerCss.Header
       )}
       balance={screenSize === ScreenSize.Mobile}
     >
@@ -452,7 +454,7 @@ export function RoomViewHeader({
                       as="button"
                       type="button"
                       onClick={() => setViewTopic(true)}
-                      className={css.HeaderTopic}
+                      className={classNames(css.HeaderTopic, headerCss.Topic)}
                       size="T200"
                       priority="300"
                       truncate

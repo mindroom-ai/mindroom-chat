@@ -181,6 +181,11 @@ vi.mock('../../../features/room/RoomViewHeader.css', () => ({
   HeaderTopic: 'HeaderTopic',
 }));
 
+vi.mock('../../threads/MindroomRoomViewHeader.css', () => ({
+  Header: 'Header',
+  Topic: 'Topic',
+}));
+
 vi.mock('../../schedules/roomSchedules.css', () => ({
   Trigger: 'Trigger',
   Count: 'Count',

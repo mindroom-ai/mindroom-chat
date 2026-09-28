@@ -7,6 +7,7 @@ import React, {
   useRef,
   useState,
 } from 'react';
+import classNames from 'classnames';
 import { Box, Icon, IconButton, Icons, Text, Button, type RectCords } from 'folds';
 import { useTranslation } from 'react-i18next';
 import { IconCalendarEvent } from '@tabler/icons-react';
@@ -188,6 +189,8 @@ export function ThreadContextBanner({
   }, [mutableThreadRootId, headerModel.isResolved, setResolved, isPinned]);
 
   const hasTags = headerModel.displayTags.length > 0;
+  const hasScheduled = !!(headerModel.bannerScheduledText && headerModel.scheduledLabel);
+  const hasSubtitle = !!headerModel.summaryText || hasScheduled;
 
   return (
     <>
@@ -219,13 +222,19 @@ export function ThreadContextBanner({
           </IconButton>
           <div className={css.TitleColumn}>
             <Box direction="Row" alignItems="Center" gap="200">
-              <Text className={css.ViewLabel} size="L400" priority="300">
+              <Text
+                className={classNames(css.ViewLabel, hasSubtitle && css.ShortViewportHidden)}
+                size="L400"
+                priority="300"
+              >
                 {t('thread.view')}
               </Text>
               {/* Desktop: tags inline on title row */}
               <ThreadApprovalPermissions />
               {(hasTags || headerModel.canEdit) && (
-                <div className={`${css.TagsRow} ${css.DesktopOnlyTags}`}>
+                <div
+                  className={classNames(css.TagsRow, css.DesktopOnlyTags, css.ShortViewportHidden)}
+                >
                   <TagPills
                     tags={headerModel.displayTags}
                     maxPills={DESKTOP_MAX_PILLS}
@@ -243,7 +252,7 @@ export function ThreadContextBanner({
                 </div>
               )}
             </Box>
-            {(headerModel.summaryText || headerModel.bannerScheduledText) && (
+            {hasSubtitle && (
               <div className={css.SubtitleRow}>
                 {headerModel.summaryText && (
                   <Text
@@ -257,7 +266,7 @@ export function ThreadContextBanner({
                     {headerModel.summaryText}
                   </Text>
                 )}
-                {headerModel.bannerScheduledText && headerModel.scheduledLabel && (
+                {hasScheduled && (
                   <Box as="span" className={css.ScheduledWrap} alignItems="Center" gap="100">
                     {headerModel.summaryText && (
                       <Text
@@ -295,7 +304,7 @@ export function ThreadContextBanner({
             )}
             {/* Mobile: tags in a dedicated row below subtitle */}
             {(hasTags || headerModel.canEdit) && (
-              <div className={css.MobileOnlyTags}>
+              <div className={classNames(css.MobileOnlyTags, css.ShortViewportHidden)}>
                 <TagPills
                   tags={headerModel.displayTags}
                   maxPills={MOBILE_MAX_PILLS}
@@ -332,6 +341,7 @@ export function ThreadContextBanner({
             {isPinned && <Text size="T200">{t('threadNav.pinned')}</Text>}
             {pinning.canPin && mutableThreadRootId && (
               <IconButton
+                className={css.ShortViewportHidden}
                 size="300"
                 radii="300"
                 aria-label={t(isPinned ? 'threadNav.unpin' : 'threadNav.pin')}
@@ -344,7 +354,13 @@ export function ThreadContextBanner({
               </IconButton>
             )}
             {!isPinned && (
-              <div className={css.ResolveChip}>
+              // Resolve is in More, but a resolved status stays visible for readers.
+              <div
+                className={classNames(
+                  css.ResolveChip,
+                  !headerModel.isResolved && css.ShortViewportHidden
+                )}
+              >
                 <Button
                   size="300"
                   variant={headerModel.isResolved ? 'Success' : 'Secondary'}
@@ -361,7 +377,7 @@ export function ThreadContextBanner({
                 </Button>
                 {resolvedByDisplayName && (
                   <Text
-                    className={css.ResolutionByline}
+                    className={classNames(css.ResolutionByline, css.ShortViewportHidden)}
                     data-thread-resolution-byline="true"
                     size="T200"
                     priority="300"

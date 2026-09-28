@@ -128,6 +128,7 @@ vi.mock('./ThreadContextBanner.css', () => ({
   ResolutionByline: 'ResolutionByline',
   ScheduledIndicator: 'ScheduledIndicator',
   ScheduledWrap: 'ScheduledWrap',
+  ShortViewportHidden: 'ShortViewportHidden',
   SubtitleRow: 'SubtitleRow',
   SummaryText: 'SummaryText',
   TagsRow: 'TagsRow',
@@ -503,6 +504,82 @@ describe('ThreadContextBanner rendering', () => {
     unpin!.props.onClick();
     expect(pinningMocks.setPinned).toHaveBeenCalledWith('$root', false);
     admin.unmount();
+  });
+
+  it('keeps only back, title and More on short screens', () => {
+    pinningMocks.canPin = true;
+    bannerMocks.useThreadTags.mockReturnValue({
+      tags: {},
+      displayTags: ['bug'],
+      isResolved: false,
+      canEdit: true,
+      availableTags: [],
+    });
+    const hidden = (renderer: ReturnType<typeof renderBanner>) =>
+      renderer.root
+        .findAll(
+          (node) =>
+            typeof node.type === 'string' &&
+            String(node.props.className ?? '')
+              .split(' ')
+              .includes('ShortViewportHidden')
+        )
+        .map((node) => node.props['aria-label'] ?? String(node.props.className).split(' ')[0]);
+
+    const summarized = renderBanner('A concise thread summary');
+    expect(hidden(summarized)).toEqual([
+      'ViewLabel',
+      'TagsRow',
+      'MobileOnlyTags',
+      'Pin thread',
+      'ResolveChip',
+    ]);
+    const more = summarized.root.findByProps({ 'aria-label': 'Thread options' });
+    expect(more.props.className).toBeUndefined();
+    summarized.unmount();
+
+    // Without a title the eyebrow is the only label, so it stays.
+    const untitled = renderBanner();
+    expect(hidden(untitled)).not.toContain('ViewLabel');
+    untitled.unmount();
+
+    // A scheduled-task line is a title too.
+    bannerMocks.useThreadHeaderInfo.mockReturnValue({
+      scheduledTaskCount: 2,
+      nextScheduledTs: Date.parse('2026-04-04T18:12:00.000Z'),
+      scheduledDisplayText: 'in 12m',
+    });
+    const scheduled = renderBanner();
+    expect(hidden(scheduled)).toContain('ViewLabel');
+    scheduled.unmount();
+
+    // A resolved status stays in view; only its byline goes.
+    bannerMocks.useThreadTags.mockReturnValue({
+      tags: {},
+      displayTags: [],
+      isResolved: true,
+      canEdit: false,
+      availableTags: [],
+    });
+    const resolved = renderBanner('A concise thread summary');
+    expect(JSON.stringify(resolved.toJSON())).toContain('Resolved');
+    expect(hidden(resolved)).not.toContain('ResolveChip');
+    resolved.unmount();
+
+    // The pinned status replaces Resolve and stays in view.
+    pinningMocks.pinnedEventIds = ['$root'];
+    const pinned = renderBanner('A concise thread summary');
+    expect(JSON.stringify(pinned.toJSON())).toContain('Pinned');
+    expect(hidden(pinned)).not.toContain('ResolveChip');
+    expect(
+      pinned.root.findAll(
+        (node) =>
+          node.type === 'span' &&
+          node.children.includes('Pinned') &&
+          String(node.props.className ?? '').includes('ShortViewportHidden')
+      )
+    ).toHaveLength(0);
+    pinned.unmount();
   });
 
   it('hides the metadata row when no summary or scheduled task info exists', () => {

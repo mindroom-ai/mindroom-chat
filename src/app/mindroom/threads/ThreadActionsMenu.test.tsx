@@ -143,7 +143,7 @@ describe('ThreadActionsMenu', () => {
 
     expect(
       renderer.root.findAllByType('button').map((node) => node.props['data-thread-action'])
-    ).toEqual(['open', 'copy']);
+    ).toEqual(['open', 'tags', 'copy']);
     renderer.unmount();
   });
 
@@ -171,8 +171,27 @@ describe('ThreadActionsMenu', () => {
     const actions = renderer.root
       .findAllByType('button')
       .map((node) => node.props['data-thread-action']);
-    expect(actions).toEqual(['open', 'copy']);
+    expect(actions).toEqual(['open', 'tags', 'copy']);
     renderer.unmount();
+  });
+
+  it('lists tags read-only for readers and omits the item when there are none', () => {
+    state.tags.canEdit = false;
+    let renderer = render();
+    const item = renderer.root.findByProps({ 'data-thread-action': 'tags' });
+    expect(item.findAll((node) => node.children.includes('Edit tags'))).toHaveLength(0);
+    expect(item.findAll((node) => node.children.includes('Tags')).length).toBeGreaterThan(0);
+    click(renderer, 'tags');
+    expect(renderer.root.findByProps({ role: 'dialog' }).props['aria-label']).toBe('Tags');
+    expect(renderer.root.findAllByProps({ name: 'triage' }).length).toBeGreaterThan(0);
+    expect(renderer.root.findAllByProps({ availableTags: ['urgent'] })).toHaveLength(0);
+    renderer.unmount();
+    const { displayTags } = state.tags;
+    state.tags.displayTags = [];
+    renderer = render();
+    expect(renderer.root.findAllByProps({ 'data-thread-action': 'tags' })).toHaveLength(0);
+    renderer.unmount();
+    state.tags.displayTags = displayTags;
   });
 
   it('keeps a failed summary draft open and saves successfully on retry', async () => {
