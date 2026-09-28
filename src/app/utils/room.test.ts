@@ -1,6 +1,13 @@
 import { MatrixEvent, RelationType } from 'matrix-js-sdk';
 import { describe, expect, it, vi } from 'vitest';
-import { getEditedEvent, getLatestEdit, getLatestMessageContent, roomHaveUnread } from './room';
+import { cloneRawEvent, getSerializedReplacementEventView } from './editEvent';
+import {
+  getEditedEvent,
+  getLatestEdit,
+  getLatestEditedMessageContent,
+  getLatestMessageContent,
+  roomHaveUnread,
+} from './room';
 
 const makeMessageEvent = (
   eventId: string,
@@ -420,6 +427,108 @@ describe('room edit helpers', () => {
     );
     expect(resolvedContent['io.mindroom.stream_status']).toBe('streaming');
     expect(resolvedContent['io.mindroom.tool_trace']).toEqual(traceMetadata);
+  });
+});
+
+describe('getLatestEditedMessageContent', () => {
+  const metadataEdit = (
+    eventId: string,
+    ts: number,
+    newContent: Record<string, unknown>,
+    sender = '@alice:example.org'
+  ) =>
+    new MatrixEvent({
+      content: {
+        body: `* ${eventId}`,
+        'm.new_content': { body: eventId, msgtype: 'm.text', ...newContent },
+        'm.relates_to': { event_id: '$target', rel_type: 'm.replace' },
+        msgtype: 'm.text',
+      },
+      event_id: eventId,
+      origin_server_ts: ts,
+      room_id: '!room:example.org',
+      sender,
+      type: 'm.room.message',
+    });
+  const timelineSetWith = (relations: MatrixEvent[]) =>
+    ({
+      relations: {
+        getChildEventsForEvent: vi.fn().mockReturnValue({ getRelations: () => relations }),
+      },
+    } as any);
+  const aiRun = (status: string) => ({ version: 1, status });
+
+  it('matches getEditedEvent when a bundled edit wins, without writing to the bundle', () => {
+    const makeTarget = () => {
+      const target = makeMessageEvent('$target', 1000);
+      target.event.unsigned = {
+        'm.relations': {
+          'm.replace': metadataEdit('$bundled', 3000, { body: 'bundled final' }).event,
+        },
+      };
+      return target;
+    };
+    // The older live edit carries the metadata the bundled edit lacks.
+    const olderEdit = () =>
+      metadataEdit('$older', 2000, {
+        'io.mindroom.stream_status': 'completed',
+        'io.mindroom.ai_run': aiRun('completed'),
+      });
+    const reference = makeTarget();
+    const expected = getLatestMessageContent(
+      reference,
+      getEditedEvent('$target', reference, timelineSetWith([olderEdit()]))
+    );
+    const target = makeTarget();
+    const bundle = target.getUnsigned()['m.relations']?.['m.replace'];
+    const bundleBefore = cloneRawEvent(bundle as object);
+
+    const resolved = getLatestEditedMessageContent(
+      '$target',
+      target,
+      timelineSetWith([olderEdit()]),
+      getSerializedReplacementEventView(target)
+    );
+
+    const { 'm.new_content': expectedNewContent, ...expectedTopLevel } = expected;
+    const { 'm.new_content': resolvedNewContent, ...resolvedTopLevel } = resolved;
+    expect(resolvedTopLevel).toEqual(expectedTopLevel);
+    expect(resolvedTopLevel['io.mindroom.stream_status']).toBe('completed');
+    expect((resolvedNewContent as Record<string, unknown>).body).toBe(
+      (expectedNewContent as Record<string, unknown>).body
+    );
+    expect(target.getUnsigned()['m.relations']?.['m.replace']).toEqual(bundleBefore);
+  });
+
+  it('fills a winning live edit in place, as getEditedEvent does', () => {
+    const target = makeMessageEvent('$target', 1000);
+    const liveLatest = metadataEdit('$live', 3000, { body: 'live final' });
+    const olderEdit = metadataEdit('$older', 2000, {
+      'io.mindroom.stream_status': 'completed',
+    });
+
+    const resolved = getLatestEditedMessageContent(
+      '$target',
+      target,
+      timelineSetWith([olderEdit, liveLatest]),
+      undefined
+    );
+
+    expect(resolved.body).toBe('live final');
+    expect(resolved['io.mindroom.stream_status']).toBe('completed');
+    expect(
+      (liveLatest.getContent()['m.new_content'] as Record<string, unknown>)[
+        'io.mindroom.stream_status'
+      ]
+    ).toBe('completed');
+  });
+
+  it('returns the original content without edits', () => {
+    const target = makeMessageEvent('$target', 1000);
+
+    expect(getLatestEditedMessageContent('$target', target, timelineSetWith([]), undefined)).toBe(
+      target.getContent()
+    );
   });
 });
 

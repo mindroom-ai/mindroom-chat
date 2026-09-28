@@ -19,7 +19,14 @@
   The flush schedule now has a leading edge: an isolated update still flushes on the next microtask, while a burst waits until 200 ms after the previous flush.
   A thread deletion discards that thread's pending rebuild, so the wider window cannot re-add a removed entry.
   Cross-room flush time on a warm reload drops from 3.8 s to 0.8 s; total startup work drops from 14.7-16.7 s to 13.0-15.1 s, and the worst frame from about 507 ms to 284-364 ms.
-- Remaining findings: each record build deep-clones bundled edits for streaming detection (`cloneRawEvent`); consumers mutate those clones (`m.new_content` metadata fills, `room_id`, decryption, `makeReplaced`), so the clone cannot simply be shared.
+- Streaming detection checks the last 10 events of every thread on each record build, and each check deep-copied the bundled `m.replace` edit (`structuredClone`) because `getEditedEvent` writes fallback metadata into the winning edit.
+  Other consumers still mutate their copies (`room_id`, decryption, `makeReplaced`), so `getSerializedReplacementEvent` keeps copying.
+  The streaming check now reads the bundle through `getSerializedReplacementEventView` (no copy) and resolves content with `getLatestEditedMessageContent`, which shares `getEditedEvent`'s candidate selection.
+  When the bundled view wins, the other edits' metadata is passed as fallbacks instead of being written into it; the resulting top-level content and precedence match, and readers check `m.new_content` before the top level.
+  When a live SDK edit wins it is still filled in place, because `stopReaction.ts` reads that edit's content directly.
+  Over three thread closes on the dev build, `getThreadStreamingSnapshot` drops from 640 ms to 155 ms and `buildThreadRecordMap` from 927 ms to 457 ms.
+- Production sourcemaps map a 5 MB chunk to only 74 sources, so production profiles and stack traces cannot be attributed; unminified production builds were used for function-level comparisons instead.
+- Remaining findings: `Room.findEventById` scans every thread on a miss, so the SDK event mapper (twice per event with a bundled edit) and `buildCompactThreadRootData` (once per thread) cost O(threads) per lookup.
   The SDK's per-thread initialization still fetches 208 roots and 114 recursive `/relations` pages at startup, and its logger stays at DEBUG (duplicate-event and receipt warnings cost about 1.7 s with DevTools attached).
 - Independent review of the tag and preview change found no blockers and confirmed the element-wise match against the SDK's state replacement, `makeRedacted` and local-redaction paths.
   It found that an 8-entry recency list thrashed when a caller cycles through more than 8 tagged rooms and that a 1,000-entry first-in-first-out preview cache could not hold one rebuild; both are replaced as described above.

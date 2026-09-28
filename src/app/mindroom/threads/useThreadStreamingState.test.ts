@@ -207,7 +207,7 @@ const renderHookHarness = (
 };
 
 describe('useThreadStreamingState', () => {
-  it('materializes each bundled edit only once per status read and observes newer bundles', () => {
+  it('reads bundled edits in place and observes newer bundles', () => {
     const relationMap = new Map<string, MockRelations>();
     const replyEvent = makeThreadReplyEvent('$reply', 200, {
       'io.mindroom.stream_status': 'pending',
@@ -231,10 +231,12 @@ describe('useThreadStreamingState', () => {
     const clone = vi.spyOn(globalThis, 'structuredClone');
     try {
       expect(getThreadStreamingState(room, '$root')).toBe(true);
-      expect(clone).toHaveBeenCalledTimes(1);
       attach('$completed', 400, 'completed');
+      const bundle = JSON.stringify(replyEvent.getUnsigned());
       expect(getThreadStreamingState(room, '$root')).toBe(false);
-      expect(clone).toHaveBeenCalledTimes(2);
+      // Every record rebuild runs this check for each thread's tail.
+      expect(clone).not.toHaveBeenCalled();
+      expect(JSON.stringify(replyEvent.getUnsigned())).toBe(bundle);
     } finally {
       clone.mockRestore();
     }

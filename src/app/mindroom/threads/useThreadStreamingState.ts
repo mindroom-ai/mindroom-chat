@@ -10,9 +10,13 @@ import {
   hasTerminalMindroomStreamMetadata,
 } from '../messages/aiRun';
 import { STOP_REACTION_KEYS } from '../messages/stopReaction';
-import { getSerializedReplacementEvent, isSameSenderEditEvent } from '../../utils/editEvent';
+import { getSerializedReplacementEventView, isSameSenderEditEvent } from '../../utils/editEvent';
 import { getActiveAnnotationsByKey } from '../../utils/reactionAnnotations';
-import { getEditedEvent, getEventReactions, getLatestMessageContent } from '../../utils/room';
+import {
+  getEventReactions,
+  getLatestEditedMessageContent,
+  getLatestMessageContent,
+} from '../../utils/room';
 import { DEFAULT_THREAD_TAIL_EVENT_COUNT, getThreadTailEvents } from '../../utils/thread';
 import { useThreadEventRefresh } from './useThreadEventRefresh';
 
@@ -30,24 +34,22 @@ const getPreferredEventContent = (
   timelineSet?: ReturnType<Room['getUnfilteredTimelineSet']>
 ): Record<string, unknown> => {
   const replacingEventCandidate = mEvent.replacingEvent() ?? undefined;
-  const serializedReplacementCandidate = getSerializedReplacementEvent(mEvent);
+  // Every record rebuild checks the tail of every thread, so the bundled edit
+  // is read in place instead of deep-copied; the shared resolver never writes
+  // to it and still owns ordering, sender validation and metadata fallbacks.
+  const serializedReplacementView = getSerializedReplacementEventView(mEvent);
   const hasResolvableReplacement =
     isSameSenderEditEvent(mEvent, replacingEventCandidate) ||
-    isSameSenderEditEvent(mEvent, serializedReplacementCandidate);
+    isSameSenderEditEvent(mEvent, serializedReplacementView);
 
   if (!hasResolvableReplacement || !timelineSet) {
     return (mEvent.getContent() as Record<string, unknown>) ?? {};
   }
 
   const eventId = mEvent.getId();
-  // Reuse the detached bundle from the eligibility check. The shared resolver
-  // still owns ordering, sender validation and metadata fallbacks.
-  const editedEvent =
-    eventId && timelineSet
-      ? getEditedEvent(eventId, mEvent, timelineSet, serializedReplacementCandidate)
-      : undefined;
+  if (!eventId) return getLatestMessageContent(mEvent);
 
-  return getLatestMessageContent(mEvent, editedEvent);
+  return getLatestEditedMessageContent(eventId, mEvent, timelineSet, serializedReplacementView);
 };
 
 // Some producers wrap the stream status in a `{ status | state }` record instead

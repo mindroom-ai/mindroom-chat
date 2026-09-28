@@ -514,12 +514,18 @@ const copyEditMetadataFallbacksToLatestEdit = (
   ]);
 };
 
-export const getEditedEvent = (
+type ResolvedEdit = {
+  latestEdit: MatrixEvent | undefined;
+  candidateEdits: MatrixEvent[];
+  serializedReplacement: MatrixEvent | undefined;
+};
+
+const resolveLatestEdit = (
   mEventId: string,
   mEvent: MatrixEvent,
   timelineSet: EventTimelineSet,
-  serializedReplacementCandidate = getSerializedReplacementEvent(mEvent)
-): MatrixEvent | undefined => {
+  serializedReplacementCandidate: MatrixEvent | undefined
+): ResolvedEdit => {
   const replacingEventCandidate = mEvent.replacingEvent() ?? undefined;
   // CINNY-207 AC2 render-gap RG3 (2026-07-04): observability at the
   // render-pipeline seam. See cacheProbe.ts for interpretation.
@@ -578,10 +584,54 @@ export const getEditedEvent = (
         ? 'relations'
         : 'none',
   });
+  return { latestEdit, candidateEdits, serializedReplacement };
+};
+
+export const getEditedEvent = (
+  mEventId: string,
+  mEvent: MatrixEvent,
+  timelineSet: EventTimelineSet,
+  serializedReplacementCandidate = getSerializedReplacementEvent(mEvent)
+): MatrixEvent | undefined => {
+  const { latestEdit, candidateEdits } = resolveLatestEdit(
+    mEventId,
+    mEvent,
+    timelineSet,
+    serializedReplacementCandidate
+  );
   if (latestEdit) {
     copyEditMetadataFallbacksToLatestEdit(latestEdit, candidateEdits);
   }
   return latestEdit;
+};
+
+/**
+ * Resolve the content `getLatestMessageContent(mEvent, getEditedEvent(...))`
+ * returns, for callers that only read it. The bundled replacement may be a
+ * read-only view over the target's unsigned data (see
+ * getSerializedReplacementEventView): when it wins, the other edits' metadata
+ * is supplied as fallbacks instead of being written into it. A winning live
+ * SDK edit is filled in place exactly as getEditedEvent does, because other
+ * readers see that edit's content directly.
+ */
+export const getLatestEditedMessageContent = (
+  mEventId: string,
+  mEvent: MatrixEvent,
+  timelineSet: EventTimelineSet,
+  serializedReplacementView: MatrixEvent | undefined
+): Record<string, unknown> => {
+  const { latestEdit, candidateEdits, serializedReplacement } = resolveLatestEdit(
+    mEventId,
+    mEvent,
+    timelineSet,
+    serializedReplacementView
+  );
+  if (!latestEdit) return getLatestMessageContent(mEvent);
+  if (latestEdit === serializedReplacement) {
+    return getLatestMessageContent(mEvent, latestEdit, candidateEdits);
+  }
+  copyEditMetadataFallbacksToLatestEdit(latestEdit, candidateEdits);
+  return getLatestMessageContent(mEvent, latestEdit);
 };
 
 export const getLatestMessageContent = (
