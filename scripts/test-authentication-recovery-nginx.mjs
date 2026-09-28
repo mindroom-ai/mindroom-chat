@@ -7,7 +7,7 @@ import test from 'node:test';
 import { buildAuthenticationRecoveryAssets } from './authentication-recovery-assets.mjs';
 
 // Requires Docker and nginx:alpine. No application build or external login fixture needed.
-test('native recovery assets, probe, runtime URL serialization and /connect frame headers', async (t) => {
+test('native recovery assets, probe, runtime URL serialization and pairing routes', async (t) => {
   const assets = await buildAuthenticationRecoveryAssets();
   mkdirSync('test-results', { recursive: true });
   const directory = mkdtempSync(resolve('test-results/authentication-recovery-nginx-'));
@@ -34,6 +34,8 @@ test('native recovery assets, probe, runtime URL serialization and /connect fram
       `${resolve(directory, 'runtime-config.js')}:/opt/mindroom/runtime-config.js:ro`,
       '-v',
       `${resolve('index.html')}:/usr/share/nginx/html/index.html:ro`,
+      '-v',
+      `${resolve('public/.well-known')}:/usr/share/nginx/html/.well-known:ro`,
       '-v',
       `${resolve(
         'docker-entrypoint.d/99-runtime-config.sh'
@@ -64,6 +66,17 @@ test('native recovery assets, probe, runtime URL serialization and /connect fram
         await new Promise((done) => setTimeout(done, 100));
       }
     }
+    const association = await fetch(`${origin}/.well-known/apple-app-site-association`, {
+      redirect: 'manual',
+    });
+    assert.equal(association.status, 200);
+    assert.equal(association.headers.get('content-type'), 'application/json');
+    assert.deepEqual((await association.json()).applinks.details, [
+      {
+        appIDs: ['DNA6966LGZ.chat.mindroom.app'],
+        components: [{ '/': '/connect', comment: 'Local MindRoom pairing' }, { '/': '/connect/' }],
+      },
+    ]);
     for (const prefix of ['', '/chat']) {
       const response = await fetch(`${origin}${prefix}/authentication-recovery-probe`);
       assert.equal(response.status, 204);

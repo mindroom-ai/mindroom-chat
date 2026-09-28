@@ -9,7 +9,7 @@ import {
   isNativeApp,
   isNativeIOS,
   openNativeSsoBrowser,
-  registerNativeSsoCallbacks,
+  registerNativeAppUrlCallbacks,
   routeNativeSsoCallback,
   signInWithNativeApple,
 } from './nativeSso';
@@ -281,7 +281,7 @@ describe('nativeSso', () => {
       }),
     };
 
-    registerNativeSsoCallbacks(nativeAppPlugin);
+    registerNativeAppUrlCallbacks(nativeAppPlugin);
     await nativeAppPlugin.getLaunchUrl.mock.results[0]?.value;
 
     expect(nativeAppPlugin.addListener).toHaveBeenCalledWith('appUrlOpen', expect.any(Function));
