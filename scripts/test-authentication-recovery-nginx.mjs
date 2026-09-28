@@ -7,7 +7,7 @@ import test from 'node:test';
 import { buildAuthenticationRecoveryAssets } from './authentication-recovery-assets.mjs';
 
 // Requires Docker and nginx:alpine. No application build or external login fixture needed.
-test('native recovery assets, probe and runtime URL serialization', async (t) => {
+test('native recovery assets, probe, runtime URL serialization and /connect frame headers', async (t) => {
   const assets = await buildAuthenticationRecoveryAssets();
   mkdirSync('test-results', { recursive: true });
   const directory = mkdtempSync(resolve('test-results/authentication-recovery-nginx-'));
