@@ -112,12 +112,12 @@ export function ConnectPage() {
   const sessionId = account?.session.sessionId;
   const provisioningBaseUrl = account?.provisioningBaseUrl;
   const [pairState, setPairState] = useState<PairState>({ status: 'loading' });
-  const sessionIdRef = useRef(sessionId);
+  const pairingRevision = useRef(0);
   const inFrame = window.top !== window.self;
 
   useEffect(() => {
-    sessionIdRef.current = sessionId;
-  }, [sessionId]);
+    pairingRevision.current += 1;
+  }, [sessionId, pairCode, provisioningBaseUrl]);
 
   useEffect(() => {
     if (inFrame || !pairCode || !sessionId || !provisioningBaseUrl) return undefined;
@@ -143,6 +143,7 @@ export function ConnectPage() {
     if (pairState.status !== 'ready' || !pairCode || !sessionId || !provisioningBaseUrl) return;
 
     const { device } = pairState;
+    const approvalRevision = pairingRevision.current;
     setPairState({ status: 'approving', device });
     let nextState: PairState;
     try {
@@ -153,9 +154,8 @@ export function ConnectPage() {
     } catch (error) {
       nextState = { status: 'error', error, device };
     }
-    // The chosen account can disappear meanwhile (signed out in another tab);
-    // its outcome must not be shown as the next account's.
-    if (sessionIdRef.current === sessionId) setPairState(nextState);
+    // A warm link or account change can replace this pairing while approval is pending.
+    if (pairingRevision.current === approvalRevision) setPairState(nextState);
   }, [pairCode, pairState, provisioningBaseUrl, sessionId]);
 
   const handleSignIn = (server?: string) => {

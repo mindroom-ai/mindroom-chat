@@ -48,6 +48,10 @@ function appVersionManifest() {
 export const copyFiles = {
   targets: [
     {
+      src: 'public/.well-known/apple-app-site-association',
+      dest: '.well-known',
+    },
+    {
       src: 'node_modules/@element-hq/element-call-embedded/dist/index.html',
       dest: 'public/element-call',
       transform: injectElementCallTransparentBackground,

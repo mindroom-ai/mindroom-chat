@@ -1,5 +1,6 @@
 import { Browser } from '@capacitor/browser';
 import { Capacitor, registerPlugin } from '@capacitor/core';
+import { getConnectPath } from '../../pages/pathUtils';
 
 const NATIVE_SSO_SCHEME = 'mindroom';
 const NATIVE_SSO_HOST = 'auth';
@@ -9,7 +10,7 @@ type MindRoomAuthPlugin = {
   authenticate(options: { url: string; callbackScheme: string }): Promise<{ url?: string }>;
   signInWithApple(options?: Record<string, never>): Promise<NativeAppleCredential>;
 };
-type NativeSsoAppPlugin = {
+type NativeAppUrlPlugin = {
   addListener(
     eventName: 'appUrlOpen',
     listener: (event: { url?: string }) => void
@@ -95,38 +96,69 @@ export const isIOSStandaloneWebApp = (): boolean => {
   return standaloneDisplayMode || (window.navigator as StandaloneNavigator).standalone === true;
 };
 
-export const routeNativeSsoCallback = (incomingUrl: string): boolean => {
-  const appPath = getAppPathFromNativeSsoUrl(incomingUrl);
-  if (!appPath || typeof window === 'undefined') return false;
-
-  Promise.resolve(Browser.close()).catch(() => undefined);
-
+const navigateNativeAppPath = (appPath: string): void => {
   try {
     window.history.replaceState(null, '', appPath);
     window.dispatchEvent(createPopStateNavigationEvent());
   } catch {
     window.location.replace(appPath);
   }
+};
+
+export const routeNativeSsoCallback = (incomingUrl: string): boolean => {
+  const appPath = getAppPathFromNativeSsoUrl(incomingUrl);
+  if (!appPath || typeof window === 'undefined') return false;
+
+  Promise.resolve(Browser.close()).catch(() => undefined);
+  navigateNativeAppPath(appPath);
 
   return true;
 };
 
-export const registerNativeSsoCallbacks = (nativeApp: NativeSsoAppPlugin): void => {
-  const handleNativeSSOCallback = (url: string) => {
-    routeNativeSsoCallback(url);
+const getAppPathFromPairingUrl = (incomingUrl: string): string | undefined => {
+  let url: URL;
+  try {
+    url = new URL(incomingUrl);
+  } catch {
+    return undefined;
+  }
+  if (
+    url.origin !== 'https://chat.mindroom.chat' ||
+    url.username ||
+    url.password ||
+    (url.pathname !== '/connect' && url.pathname !== '/connect/')
+  ) {
+    return undefined;
+  }
+  return getConnectPath(url.searchParams.get('code') ?? undefined);
+};
+
+export const registerNativeAppUrlCallbacks = (nativeApp: NativeAppUrlPlugin): void => {
+  let handledOpenUrl = false;
+  const handleNativeAppUrl = (url: string): boolean => {
+    if (routeNativeSsoCallback(url)) return true;
+    const appPath = getAppPathFromPairingUrl(url);
+    if (appPath && typeof window !== 'undefined') {
+      navigateNativeAppPath(appPath);
+      return true;
+    }
+    // Keep rejected callbacks diagnosable without disclosing codes or credentials.
+    // eslint-disable-next-line no-console
+    console.warn('[MindRoom Chat] Ignored unsupported app URL');
+    return false;
   };
 
   nativeApp
     .getLaunchUrl()
     .then((launchUrl) => {
       const url = launchUrl?.url;
-      if (url) handleNativeSSOCallback(url);
+      if (url && !handledOpenUrl) handleNativeAppUrl(url);
     })
     .catch(() => undefined);
 
   nativeApp
     .addListener('appUrlOpen', (event) => {
-      if (event.url) handleNativeSSOCallback(event.url);
+      if (event.url && handleNativeAppUrl(event.url)) handledOpenUrl = true;
     })
     .catch(() => undefined);
 };

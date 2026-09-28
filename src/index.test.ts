@@ -22,7 +22,7 @@ vi.mock('@capacitor/app', () => ({
 vi.mock('./app/mindroom/native/nativeSso', () => ({
   isNativeIOS: mocks.isNativeIOS,
   isNativeApp: () => false,
-  registerNativeSsoCallbacks: vi.fn(),
+  registerNativeAppUrlCallbacks: vi.fn(),
 }));
 
 vi.mock('./app/mindroom/diagnostics/flightRecorder', () => ({
