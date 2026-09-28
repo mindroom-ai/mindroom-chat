@@ -69,6 +69,33 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 const formatToolCallSummary = (count: number): string =>
   `🔧 ${count} ${count === 1 ? 'tool' : 'tools'}`;
 
+// A GFM table's delimiter row carries no text, and its rows read as cells set
+// apart by a middle dot. Only rows fenced by pipes count, so prose such as
+// "a | b" stays as written. Fence lines drop out, as for any code block.
+const TABLE_DELIMITER_ROW_REGEX = /^\|(?:\s*:?-+:?\s*\|)+$/;
+const TABLE_ROW_REGEX = /^\|.*\|$/;
+
+const previewLineText = (): ((line: string, context: 'prose' | 'code' | 'fence') => string) => {
+  let inTable = false;
+  return (line, context) => {
+    const row = line.trim();
+    if (context !== 'prose' || !TABLE_ROW_REGEX.test(row)) {
+      inTable = false;
+      return context === 'fence' ? ' ' : line;
+    }
+    if (TABLE_DELIMITER_ROW_REGEX.test(row)) return ' ';
+    const cells = row
+      .slice(1, -1)
+      .split('|')
+      .map((cell) => cell.trim())
+      .filter(Boolean)
+      .join(' · ');
+    const text = inTable ? `· ${cells}` : cells;
+    inTable = true;
+    return text;
+  };
+};
+
 // One-line previews render markdown source as-is, so strip the syntax down to
 // its text. Underscore emphasis (_x_, __x__) is intentionally left alone: in
 // agent chat bare underscores are far more likely to be identifiers like
@@ -85,7 +112,7 @@ export const stripPreviewMarkdown = (value: string): string =>
       .split('\n')
       .map((line) => line.trimStart())
       .join('\n'),
-    (line, context) => (context === 'fence' ? ' ' : line)
+    previewLineText()
   )
     // Destinations may contain one level of balanced parens, e.g.
     // https://en.wikipedia.org/wiki/Foo_(bar). The inner alternation consumes

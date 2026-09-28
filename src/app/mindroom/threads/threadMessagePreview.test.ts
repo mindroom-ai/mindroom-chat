@@ -77,9 +77,30 @@ describe('stripPreviewMarkdown', () => {
   it('does not strip four-digit numbers as ordered list markers', () => {
     expect(stripPreviewMarkdown('2026. A good year')).toBe('2026. A good year');
   });
+
+  it('reads a table as its cells, without pipes or the delimiter row', () => {
+    const table = '| Rule | Vantrell | Kessler |\n|---|:---:|---|\n| Hotels | $250 | €180 |';
+    expect(stripPreviewMarkdown(`Three rules differ:\n\n${table}\n\nWhich one wins?`)).toBe(
+      'Three rules differ:\n\nRule · Vantrell · Kessler\n \n· Hotels · $250 · €180\n\nWhich one wins?'
+    );
+  });
+
+  it('leaves pipes in prose and fenced tables alone', () => {
+    expect(stripPreviewMarkdown('pick a | b')).toBe('pick a | b');
+    expect(stripPreviewMarkdown('```\n| a | b |\n```')).toContain('| a | b |');
+  });
 });
 
 describe('getThreadMessagePreviewText', () => {
+  it('previews an agent reply with a table as its cells', () => {
+    const body =
+      '🔧 `google_drive_search_files` [1]\n\nThree rules differ:\n\n' +
+      '| Rule | Vantrell | Kessler |\n|---|---|---|\n| Hotels | $250 | €180 |\n| Meals | $75 | €60 |';
+    expect(getThreadMessagePreviewText(textContent(body))).toBe(
+      '🔧 1 tool · Three rules differ: Rule · Vantrell · Kessler · Hotels · $250 · €180 · Meals · $75 · €60'
+    );
+  });
+
   it('localizes only actual tool calls when code examples are present', () => {
     const content = textContent('```\n🔧 `example` [1]\n```\n\n🔧 `read_file` [2]');
     expect(getThreadPreviewLocalization(content, getThreadMessagePreviewText(content))).toEqual({
