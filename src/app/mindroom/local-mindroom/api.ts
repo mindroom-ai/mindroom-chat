@@ -11,6 +11,8 @@ export type LocalMindroomConnection = {
 
 export type LocalMindroomPairDevice = {
   client_name: string;
+  // Optional because provisioning services deployed before this field omit it.
+  client_ip?: string | null;
   created_at: string;
   expires_at: string;
   status: 'pending' | 'approved';

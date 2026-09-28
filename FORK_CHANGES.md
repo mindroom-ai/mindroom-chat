@@ -2,6 +2,18 @@
 
 ## Runbook
 
+### Requester address on `/connect` (2026-09-28)
+
+- `/connect` now shows "Requested from <IP>" under the machine name: the address that started the pairing, as recorded by the provisioning service.
+- The warning now tells users to approve only when the code on the page matches the one their terminal printed.
+  `mindroom connect` and `mindroom run` print `Approve only if the page shows code ABCD-EFGH` next to the link; the service generates that code at random for each session, so a pairing link someone else sent shows a code the user's terminal did not print.
+- `pair/device/inspect` returns the new `client_ip` field from mindroom-ai/mindroom#2406, which must be deployed to the provisioning service before this build shows the address.
+  `client_ip` is optional in `LocalMindroomPairDevice`: a missing or null value shows "Requested from an unknown address" (older or self-hosted services, and sessions persisted before the service recorded addresses).
+- Validation: the tests in `src/app/mindroom/local-mindroom` and `src/app/pages/client` plus the i18n catalog tests pass, including new coverage for the address and for a service that omits it.
+  Application typecheck, changed-test typecheck, eslint and prettier on the changed files, and the production build pass.
+  New locale strings and the reworded warning are machine-authored for all 16 non-English catalogs and still need human review.
+- Next: after the service deploy, confirm on chat.mindroom.chat that a fresh pairing shows the requester address.
+
 ### Security and reliability improvements for `/connect` device pairing (2026-09-27)
 
 - Added clickjacking protection: `/connect` blocks approval when rendered inside a frame and shows a button to open the page in a new tab instead.
