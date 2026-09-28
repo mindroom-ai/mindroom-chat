@@ -2,6 +2,22 @@
 
 ## Runbook
 
+### Large-room main-thread hot paths (2026-09-28)
+
+- Profiled a live account on the Vite dev build in headed Chrome 153: Personal room with 523 SDK threads, 9,549 loaded thread events and 619 thread-tag state events; 136 joined rooms with 3,913 tag events.
+  A 24-minute trace of normal use spent 111 s on the main thread, and the first minute after login was saturated.
+- Tag state was re-parsed on every cross-room index flush (19.6 s of the trace, `parsePerTagStateKey` alone 14 s).
+  `aggregateThreadTagEvents` cached by array identity, but `RoomState.getStateEvents()` returns a new array per call, so the cache never hit for live state.
+  Recent inputs are now matched element by element (event object, content object and redaction flag), and `buildThreadTagSnapshotMap` reuses one snapshot map per aggregation.
+- Message previews ran the full markdown-stripping pipeline three times per localized preview, for every loaded message on every overview, record and minimap rebuild.
+  The body analysis (preview text and tool-call count) is a pure function of the body and is now memoized in a bounded 1,000-entry cache.
+- A/B on warm reloads (base, fix, fix, base; dev build): the main thread goes quiet after 11.6-15.9 s instead of 27.8-29.9 s, with 15.0-19.2 s of main-thread work instead of 26.0-27.4 s.
+  Thread open/close improves less (close work about 2.8 s to 2.3 s, noisy); first cards appear after about 3 s in both.
+- Remaining findings: startup rebuilds each cross-room index entry a median 14 times (3,065 microtask flushes, 8,386 entry builds for 577 threads), and each build deep-clones bundled edits for streaming detection (`cloneRawEvent` 1.7 s self plus garbage collection).
+  The SDK's per-thread initialization still fetches 208 roots and 114 recursive `/relations` pages at startup.
+- Validation: tag, snapshot, preview and cross-room index tests pass; new reuse tests fail before the fix.
+  `deepTraceFailure.test.ts` fails the same 6 cases on clean `dev`.
+
 ### Compact room chrome on short screens (2026-09-28)
 
 - On a phone held sideways (667×375), the room header, thread banner, composer and receipt row left about 130px of a thread for messages.

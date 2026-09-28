@@ -20,15 +20,26 @@ export const buildThreadTagSnapshot = (content: ThreadTagsContent): ThreadTagSna
   displayTags: getDisplayTags(content),
 });
 
+// Keyed by the aggregation result, which aggregateThreadTagEvents reuses while
+// the tag state is unchanged, so repeated reads share one snapshot map.
+const snapshotMapCache = new WeakMap<
+  Map<string, ThreadTagsContent>,
+  Map<string, ThreadTagSnapshot>
+>();
+
 export const buildThreadTagSnapshotMap = (
   events: MatrixEvent[]
 ): Map<string, ThreadTagSnapshot> => {
-  const snapshots = new Map<string, ThreadTagSnapshot>();
+  const aggregated = aggregateThreadTagEvents(events);
+  const cached = snapshotMapCache.get(aggregated);
+  if (cached) return cached;
 
-  aggregateThreadTagEvents(events).forEach((content, threadRootId) => {
+  const snapshots = new Map<string, ThreadTagSnapshot>();
+  aggregated.forEach((content, threadRootId) => {
     snapshots.set(threadRootId, buildThreadTagSnapshot(content));
   });
 
+  snapshotMapCache.set(aggregated, snapshots);
   return snapshots;
 };
 

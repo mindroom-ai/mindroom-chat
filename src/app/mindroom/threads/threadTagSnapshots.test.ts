@@ -41,4 +41,24 @@ describe('buildThreadTagSnapshotMap', () => {
       },
     });
   });
+
+  it('shares one snapshot map while the tag state is unchanged', () => {
+    const events = [
+      makeTagEvent(JSON.stringify(['$shared', 'blocked']), {
+        set_by: '@bob:example.org',
+        set_at: ISO_2,
+      }),
+    ];
+    const first = buildThreadTagSnapshotMap([...events]);
+
+    expect(buildThreadTagSnapshotMap([...events])).toBe(first);
+    expect(
+      buildThreadTagSnapshotMap([
+        makeTagEvent(JSON.stringify(['$shared', 'blocked']), {
+          set_by: '@bob:example.org',
+          set_at: ISO_1,
+        }),
+      ])
+    ).not.toBe(first);
+  });
 });

@@ -475,6 +475,65 @@ describe('aggregateThreadTagEvents', () => {
   });
 });
 
+describe('aggregateThreadTagEvents reuse across fresh state arrays', () => {
+  const makeRoomTagEvents = () => [
+    makeThreadTagsEvent('$reuse-a', {
+      tags: { urgent: { set_by: '@alice:example.com', set_at: ISO_1 } },
+    }),
+    makeThreadTagsEvent(buildPerTagStateKey('$reuse-b', 'blocked'), {
+      set_by: '@bob:example.com',
+      set_at: ISO_2,
+    }),
+  ];
+
+  it('returns the same aggregation for a new array holding the same events', () => {
+    // RoomState.getStateEvents() copies its map values into a new array per call.
+    const events = makeRoomTagEvents();
+    const first = aggregateThreadTagEvents([...events]);
+
+    expect(aggregateThreadTagEvents([...events])).toBe(first);
+  });
+
+  it('recomputes when a state event is replaced', () => {
+    const events = makeRoomTagEvents();
+    const first = aggregateThreadTagEvents([...events]);
+    const replacement = makeThreadTagsEvent(buildPerTagStateKey('$reuse-b', 'blocked'), {});
+
+    const next = aggregateThreadTagEvents([events[0], replacement]);
+
+    expect(next).not.toBe(first);
+    expect(next.has('$reuse-b')).toBe(false);
+    expect(next.get('$reuse-a')?.tags.urgent).toBeDefined();
+  });
+
+  it('recomputes when an event is redacted in place', () => {
+    const events = makeRoomTagEvents();
+    const first = aggregateThreadTagEvents([...events]);
+    // Redaction keeps the MatrixEvent and its content object, stripping keys.
+    const content = events[1].getContent() as Record<string, unknown>;
+    Object.keys(content).forEach((key) => delete content[key]);
+    vi.spyOn(events[1], 'isRedacted').mockReturnValue(true);
+
+    const next = aggregateThreadTagEvents([...events]);
+
+    expect(next).not.toBe(first);
+    expect(next.has('$reuse-b')).toBe(false);
+  });
+
+  it('recomputes when an event exposes different content', () => {
+    const events = makeRoomTagEvents();
+    const first = aggregateThreadTagEvents([...events]);
+    vi.spyOn(events[0], 'getContent').mockReturnValue({
+      tags: { later: { set_by: '@alice:example.com', set_at: ISO_3 } },
+    });
+
+    const next = aggregateThreadTagEvents([...events]);
+
+    expect(next).not.toBe(first);
+    expect(Object.keys(next.get('$reuse-a')?.tags ?? {})).toEqual(['later']);
+  });
+});
+
 describe('normalizeTagName', () => {
   it('trims and lowercases', () => {
     expect(normalizeTagName('  Bug  ')).toBe('bug');

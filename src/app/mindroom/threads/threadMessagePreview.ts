@@ -129,9 +129,12 @@ export const stripPreviewMarkdown = (value: string): string =>
     .replace(/`([^`\n]+)`/g, '$1')
     .replace(/^\s*(?:[-*_]\s*){3,}\s*$/gm, ' ');
 
-const normalizeBodyPreview = (body: unknown): string | undefined => {
-  if (typeof body !== 'string') return undefined;
+type BodyPreviewAnalysis = {
+  preview: string | undefined;
+  toolCallCount: number;
+};
 
+const computeBodyPreview = (body: string): BodyPreviewAnalysis => {
   const withoutReply = trimReplyFromBody(body);
   const { body: withoutToolMarkers, toolCallCount } = extractPreviewTools(withoutReply);
   const boundedSource =
@@ -147,14 +150,41 @@ const normalizeBodyPreview = (body: unknown): string | undefined => {
     // threadOverviewCacheHydration) run hasLikelyIncompleteStreamingBody on
     // this preview text; prefixing the badge would hide the "Thinking" prefix
     // they match on, so pass the placeholder through unbadged.
-    if (hasLikelyIncompleteStreamingBody(cleanedProse)) return cleanedProse;
-    return /[\p{L}\p{N}]/u.test(cleanedProse)
-      ? `${formatToolCallSummary(toolCallCount)} · ${cleanedProse}`
-      : formatToolCallSummary(toolCallCount);
+    if (hasLikelyIncompleteStreamingBody(cleanedProse)) {
+      return { preview: cleanedProse, toolCallCount };
+    }
+    return {
+      preview: /[\p{L}\p{N}]/u.test(cleanedProse)
+        ? `${formatToolCallSummary(toolCallCount)} · ${cleanedProse}`
+        : formatToolCallSummary(toolCallCount),
+      toolCallCount,
+    };
   }
 
-  return prose.length > 0 ? prose : undefined;
+  return { preview: prose.length > 0 ? prose : undefined, toolCallCount };
 };
+
+// Room overviews, thread records and the minimap preview every loaded message
+// on each rebuild, and localization derives the same preview again. The
+// result depends only on the body, so repeated bodies reuse one analysis.
+const BODY_PREVIEW_CACHE_LIMIT = 1000;
+const bodyPreviewCache = new Map<string, BodyPreviewAnalysis>();
+
+const analyzeBodyPreview = (body: string): BodyPreviewAnalysis => {
+  const cached = bodyPreviewCache.get(body);
+  if (cached) return cached;
+
+  const analysis = computeBodyPreview(body);
+  if (bodyPreviewCache.size >= BODY_PREVIEW_CACHE_LIMIT) {
+    const oldest = bodyPreviewCache.keys().next().value;
+    if (oldest !== undefined) bodyPreviewCache.delete(oldest);
+  }
+  bodyPreviewCache.set(body, analysis);
+  return analysis;
+};
+
+const normalizeBodyPreview = (body: unknown): string | undefined =>
+  typeof body === 'string' ? analyzeBodyPreview(body).preview : undefined;
 
 const getMediaFallbackPreviewText = (content: Record<string, unknown>): string | undefined => {
   switch (content.msgtype) {
@@ -222,9 +252,7 @@ export const getThreadPreviewLocalization = (
     }
   }
   const count =
-    typeof current.body === 'string'
-      ? extractPreviewTools(trimReplyFromBody(current.body)).toolCallCount
-      : 0;
+    typeof current.body === 'string' ? analyzeBodyPreview(current.body).toolCallCount : 0;
   const prefix = formatToolCallSummary(count);
   if (count > 0 && (body === prefix || body.startsWith(`${prefix} · `))) {
     return { kind: 'tools', count, prose: body.slice(prefix.length + 3) };
