@@ -83,7 +83,6 @@ const openIdMock = vi.mocked(requestMatrixOpenIdToken);
 const pendingDevice = (): LocalMindroomPairDevice => ({
   client_name: 'studio-mac',
   client_ip: '203.0.113.7',
-  device_check: 'AB12-CD34',
   created_at: new Date(Date.now() - 2 * 60_000).toISOString(),
   expires_at: new Date(Date.now() + 8 * 60_000).toISOString(),
   status: 'pending',
@@ -177,8 +176,9 @@ describe('ConnectPage', () => {
     expect(textOf()).toContain('studio-mac');
     expect(textOf()).toContain('Started 2 minutes ago');
     expect(textOf()).toContain('Requested from 203.0.113.7');
-    expect(textOf()).toContain('Device check: AB12-CD34');
-    expect(textOf()).toContain('Only approve if you just started this on your own machine.');
+    expect(textOf()).toContain(
+      'Only approve if you just started this on your own machine and your terminal shows the same code.'
+    );
 
     await click('Approve as @alice:mindroom.chat');
 
@@ -191,20 +191,15 @@ describe('ConnectPage', () => {
     expect(() => findButton('Approve as')).toThrow();
   });
 
-  it('shows an unknown address and no device check when the service omits them', async () => {
+  it('shows an unknown address when the service omits it', async () => {
     storeSession('@alice:mindroom.chat', 'https://mindroom.chat');
-    const {
-      client_ip: _clientIp,
-      device_check: _deviceCheck,
-      ...olderServiceDevice
-    } = pendingDevice();
+    const { client_ip: _clientIp, ...olderServiceDevice } = pendingDevice();
     inspectMock.mockResolvedValueOnce(olderServiceDevice);
 
     await renderAt('/connect?code=ABCD-EFGH');
 
     expect(textOf()).toContain('studio-mac');
     expect(textOf()).toContain('Requested from an unknown address');
-    expect(textOf()).not.toContain('Device check');
     expect(findButton('Approve as @alice:mindroom.chat').props.disabled).toBe(false);
   });
 

@@ -268,13 +268,6 @@ export function ConnectPage() {
                 ? t('mindroomUi.local-mindroom.connect.requestedFrom', { ip: device.client_ip })
                 : t('mindroomUi.local-mindroom.connect.requestedFromUnknown')}
             </Text>
-            {device.device_check && (
-              <Text size="T300">
-                {t('mindroomUi.local-mindroom.connect.deviceCheck', {
-                  check: device.device_check,
-                })}
-              </Text>
-            )}
           </Box>
         )}
 
