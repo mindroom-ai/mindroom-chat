@@ -15,8 +15,9 @@
   Both late-success and late-failure regressions failed before the guard and pass afterward.
 - Validation: 226 focused native/pairing tests, application and changed-test typechecks, the production/PWA build, App Store preflight, Capacitor iOS sync, nginx and Netlify checks, and both Chrome device-pairing browser cases pass.
   The evaluated Nix Caddy configuration passes a live local-container check for JSON/200 without redirect, preserved SPA/pairing headers, and 404 when the file is absent.
-  Changed-file lint passes with three existing startup-log warnings.
-  The full Node 24 suite is not green on this host; all eight failures in the offline-controller, long-text, and gap-fill suites also reproduce on unchanged base `62ee1e8c`.
+  Full lint passes with zero errors and 17 existing warnings; touched-file formatting passes.
+  The full Node 24 suite finishes with 5,585 passing and 11 failing tests across 614 files.
+  All eight failures in the offline-controller, long-text, and gap-fill suites also reproduce on unchanged base `62ee1e8c`; the remaining three timeout cases pass in an isolated rerun of their files (16 tests).
   The earlier Node 26 run was interrupted after timing and diagnostic failures; `.node-version` pins Node 24.13.1.
 - [iOS pairing documentation](docs/ios-pairing-links.md) covers deployment, owner capability/profile setup, self-hosted forks, and the device checklist.
 - Baseline on 2026-09-28: the hosted association URL returns HTTP 200 with `text/html`; Apple's CDN returns HTTP 404 with `SWCERR00401 Bad JSON content`.
