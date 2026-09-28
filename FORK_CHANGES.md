@@ -13,8 +13,12 @@
   The body analysis (preview text and tool-call count) is a pure function of the body and is now memoized in a bounded 1,000-entry cache.
 - A/B on warm reloads (base, fix, fix, base; dev build): the main thread goes quiet after 11.6-15.9 s instead of 27.8-29.9 s, with 15.0-19.2 s of main-thread work instead of 26.0-27.4 s.
   Thread open/close improves less (close work about 2.8 s to 2.3 s, noisy); first cards appear after about 3 s in both.
-- Remaining findings: startup rebuilds each cross-room index entry a median 14 times (3,065 microtask flushes, 8,386 entry builds for 577 threads), and each build deep-clones bundled edits for streaming detection (`cloneRawEvent` 1.7 s self plus garbage collection).
-  The SDK's per-thread initialization still fetches 208 roots and 114 recursive `/relations` pages at startup.
+- Startup rebuilt each cross-room index entry a median 14 times (3,065 microtask flushes, 8,386 entry builds for 577 threads), because SDK thread initialization and streamed edits emit updates in separate tasks and the coalescer flushed on every microtask.
+  The flush schedule now has a leading edge: an isolated update still flushes on the next microtask, while a burst waits until 200 ms after the previous flush.
+  A thread deletion discards that thread's pending rebuild, so the wider window cannot re-add a removed entry.
+  Cross-room flush time on a warm reload drops from 3.8 s to 0.8 s; total startup work drops from 14.7-16.7 s to 13.0-15.1 s, and the worst frame from about 507 ms to 284-364 ms.
+- Remaining findings: each record build deep-clones bundled edits for streaming detection (`cloneRawEvent`); consumers mutate those clones (`m.new_content` metadata fills, `room_id`, decryption, `makeReplaced`), so the clone cannot simply be shared.
+  The SDK's per-thread initialization still fetches 208 roots and 114 recursive `/relations` pages at startup, and its logger stays at DEBUG (duplicate-event and receipt warnings cost about 1.7 s with DevTools attached).
 - Validation: tag, snapshot, preview and cross-room index tests pass; new reuse tests fail before the fix.
   `deepTraceFailure.test.ts` fails the same 6 cases on clean `dev`.
 

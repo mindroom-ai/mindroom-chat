@@ -23,6 +23,8 @@ import {
   applyCrossRoomThreadIndexBatch,
   buildCrossRoomThreadIndexEntry,
   createCrossRoomThreadDirtyCoalescer,
+  createThrottledFlushSchedule,
+  CROSS_ROOM_INDEX_FLUSH_INTERVAL_MS,
   crossRoomThreadIndexAtom,
   emptyCrossRoomThreadIndexSnapshot,
   getCrossRoomThreadRootsForEvent,
@@ -279,7 +281,10 @@ export const useCrossRoomThreadIndex = () => {
         return applyCrossRoomThreadIndexBatch(current, { upserts, removals });
       });
     };
-    const coalescer = createCrossRoomThreadDirtyCoalescer(flushDirtyKeys);
+    const coalescer = createCrossRoomThreadDirtyCoalescer(
+      flushDirtyKeys,
+      createThrottledFlushSchedule(CROSS_ROOM_INDEX_FLUSH_INTERVAL_MS)
+    );
 
     const enqueueThread = (roomId: string, threadRootId: string | undefined) => {
       if (!isEffectCurrent()) return;
@@ -381,6 +386,8 @@ export const useCrossRoomThreadIndex = () => {
         );
         const threadRootId = getThreadRootId(thread) ?? getThreadRelationRootId(event);
         if (!threadRootId || !isEffectCurrent()) return;
+        // A pending rebuild would otherwise re-add the entry after the removal.
+        coalescer.discardDirty(getCrossRoomThreadIndexKey(room.roomId, threadRootId));
 
         setSnapshot((current) => {
           if (!isEffectCurrent()) return current;

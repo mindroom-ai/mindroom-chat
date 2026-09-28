@@ -577,6 +577,38 @@ describe('useCrossRoomThreadIndex', () => {
     expect(store.get(crossRoomThreadIndexAtom).bootstrapped).toBe(true);
   });
 
+  it('rebuilds a thread once for a burst of updates inside the flush interval', async () => {
+    const { room, threads, replies } = makeRoomWithThreadReplies('!room:example.org', 2);
+    matrixClientMock.mockReturnValue(makeClient(room));
+    const store = createStore();
+    store.set(allRoomsAtom, { type: 'INITIALIZE', rooms: [room.roomId] });
+    let renderer!: ReturnType<typeof create>;
+    await act(async () => {
+      renderer = create(React.createElement(Provider, { store }, React.createElement(HookProbe)));
+    });
+    await flushScheduledWork();
+    const replyContent = vi.spyOn(replies[0], 'getContent');
+    const emitUpdates = async (count: number) => {
+      for (let index = 0; index < count; index += 1) {
+        // Each SDK update arrives in its own task, so each microtask checkpoint passes.
+        await act(async () => {
+          room.emit(ThreadEvent.Update, threads[0]);
+          await Promise.resolve();
+        });
+      }
+      await flushScheduledWork();
+    };
+
+    await emitUpdates(1);
+    const readsPerRebuild = replyContent.mock.calls.length;
+    replyContent.mockClear();
+    await emitUpdates(5);
+
+    expect(readsPerRebuild).toBeGreaterThan(0);
+    expect(replyContent).toHaveBeenCalledTimes(readsPerRebuild);
+    renderer.unmount();
+  });
+
   it('does not index plain live room messages as cross-room threads', async () => {
     const { room } = makeRoom();
     const mx = makeClient(room);

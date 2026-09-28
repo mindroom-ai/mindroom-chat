@@ -612,8 +612,37 @@ export const removeRoomCrossRoomThreadIndexEntries = (
 
 export type CrossRoomThreadDirtyCoalescer = {
   enqueueDirty: (key: string) => void;
+  discardDirty: (key: string) => void;
   flushNow: () => void;
   clear: () => void;
+};
+
+export const CROSS_ROOM_INDEX_FLUSH_INTERVAL_MS = 200;
+
+/**
+ * Flush schedule with a leading edge: an isolated update still flushes on the
+ * next microtask, but a burst waits until `minIntervalMs` after the previous
+ * flush. SDK thread initialization and streamed edits emit many updates per
+ * thread in separate tasks; without spacing, startup rebuilt each entry a
+ * median of 14 times (3,065 flushes for 577 threads on a large account).
+ */
+export const createThrottledFlushSchedule = (
+  minIntervalMs: number,
+  now: () => number = Date.now,
+  setTimer: (callback: () => void, delayMs: number) => unknown = (callback, delayMs) =>
+    globalThis.setTimeout(callback, delayMs)
+): ((callback: () => void) => void) => {
+  let lastFlushAt = Number.NEGATIVE_INFINITY;
+
+  return (callback) => {
+    const run = () => {
+      lastFlushAt = now();
+      callback();
+    };
+    const waitMs = lastFlushAt + minIntervalMs - now();
+    if (waitMs <= 0) queueMicrotask(run);
+    else setTimer(run, waitMs);
+  };
 };
 
 export const createCrossRoomThreadDirtyCoalescer = (
@@ -641,6 +670,9 @@ export const createCrossRoomThreadDirtyCoalescer = (
       if (scheduled) return;
       scheduled = true;
       schedule(flushNow);
+    },
+    discardDirty: (key: string) => {
+      dirtyKeys.delete(key);
     },
     flushNow,
     clear: () => {
