@@ -15,7 +15,7 @@ import { appUrl, ensureBasePathTrailingSlash, getAppBasePath } from './app/utils
 import {
   isNativeApp,
   isNativeIOS,
-  registerNativeSsoCallbacks,
+  registerNativeAppUrlCallbacks,
 } from './app/mindroom/native/nativeSso';
 import { isServiceWorkerEnabled } from './app/utils/runtimeConfig';
 import { pushSessionToSW, waitForServiceWorkerControl } from './sw-session';
@@ -53,7 +53,7 @@ if (isNativeIOS()) {
 }
 
 if (isNativeApp()) {
-  registerNativeSsoCallbacks(CapacitorApp);
+  registerNativeAppUrlCallbacks(CapacitorApp);
 }
 
 const mountApp = () => {

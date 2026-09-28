@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer';
-import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
+import { MemoryRouter, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ConnectPage } from './ConnectPage';
 import {
@@ -103,11 +103,18 @@ function LocationProbe() {
 }
 
 let renderer: ReactTestRenderer | undefined;
+let navigate: ReturnType<typeof useNavigate>;
+
+function NavigationProbe() {
+  navigate = useNavigate();
+  return null;
+}
 
 const renderAt = async (entry: string) => {
   await act(async () => {
     renderer = create(
       <MemoryRouter initialEntries={[entry]}>
+        <NavigationProbe />
         <Routes>
           <Route path="/connect" element={<ConnectPage />} />
           <Route path="*" element={<LocationProbe />} />
@@ -259,6 +266,41 @@ describe('ConnectPage', () => {
     expect(textOf()).not.toContain('Connected. You can return to your terminal.');
     expect(findButton('Approve as @bob:mindroom.chat').props.disabled).toBe(false);
   });
+
+  it.each(['success', 'failure'])(
+    'drops an old approval %s after opening another pairing link',
+    async (outcome) => {
+      storeSession('@alice:mindroom.chat', 'https://mindroom.chat');
+      let finishApprove!: (device: LocalMindroomPairDevice) => void;
+      let failApprove!: (error: Error) => void;
+      approveMock.mockImplementationOnce(
+        () =>
+          new Promise((resolve, reject) => {
+            finishApprove = resolve;
+            failApprove = reject;
+          })
+      );
+
+      await renderAt('/connect?code=ABCD-EFGH');
+      await click('Approve as @alice:mindroom.chat');
+      inspectMock.mockResolvedValueOnce({ ...pendingDevice(), client_name: 'second-mac' });
+      await act(async () => navigate('/connect?code=JKLM-NPQR'));
+      await flush();
+      expect(textOf()).toContain('second-mac');
+
+      await act(async () => {
+        if (outcome === 'success') finishApprove({ ...pendingDevice(), status: 'approved' });
+        else failApprove(new Error('Old approval failed'));
+      });
+      await flush();
+
+      expect(textOf()).toContain('second-mac');
+      expect(textOf()).not.toContain('Connected. You can return to your terminal.');
+      expect(textOf()).not.toContain('Old approval failed');
+      expect(findButton('Approve as @alice:mindroom.chat').props.disabled).toBe(false);
+      expect(approveMock).toHaveBeenCalledTimes(1);
+    }
+  );
 
   it('refreshes an expired stored token, saves it, and retries once', async () => {
     const session = storeSession('@alice:mindroom.chat', 'https://mindroom.chat', 'refresh-a');

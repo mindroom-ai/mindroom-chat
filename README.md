@@ -181,6 +181,11 @@ npx cap open ios
 
 Then archive from Xcode (`App` scheme, `Any iOS Device (arm64)`).
 
+### iOS pairing links
+
+The iOS app opens hosted `/connect?code=…` links on its approval page using the accounts already signed in to the app.
+See [iOS pairing links](docs/ios-pairing-links.md) for association-file hosting, Apple Developer capability/profile setup, self-hosted forks, and device verification.
+
 ## iOS Push Notifications (APNs + Matrix)
 
 Native iOS push plumbing is included in this fork (`@capacitor/push-notifications` + Matrix pusher

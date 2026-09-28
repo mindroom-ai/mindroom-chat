@@ -2,6 +2,29 @@
 
 ## Runbook
 
+### Open iOS pairing links in the installed app (2026-09-28)
+
+- Status: implemented and independently approved by Claude Opus and GPT-6 Astra, both with explicit no-scope-creep and no-over-engineering verdicts.
+  Deployment and signed-device checks remain pending.
+- Associate only the hosted `/connect` and `/connect/` paths with `DNA6966LGZ.chat.mindroom.app` and add the matching iOS associated-domain entitlement.
+  Copy the extensionless association file explicitly into the build and serve it as JSON through exact nginx, Netlify, and hosted Caddy routes.
+- Route cold-launch and warm native URLs to the existing approval page, forwarding only the pairing code and preserving native SSO behavior and the `capacitor://localhost` storage origin.
+  Unsupported URLs are ignored with a fixed diagnostic that does not disclose their contents.
+- Independent review found that an approval for one code could settle after a warm link opened another code on the same account.
+  Approval results now belong to a pairing revision that changes with the code, account, or provisioning origin.
+  Both late-success and late-failure regressions failed before the guard and pass afterward.
+- Validation: 226 focused native/pairing tests, application and changed-test typechecks, the production/PWA build, App Store preflight, Capacitor iOS sync, nginx and Netlify checks, and both Chrome device-pairing browser cases pass.
+  The evaluated Nix Caddy configuration passes a live local-container check for JSON/200 without redirect, preserved SPA/pairing headers, and 404 when the file is absent.
+  Changed-file lint passes with three existing startup-log warnings.
+  The full Node 24 suite is not green on this host; all eight failures in the offline-controller, long-text, and gap-fill suites also reproduce on unchanged base `62ee1e8c`.
+  The earlier Node 26 run was interrupted after timing and diagnostic failures; `.node-version` pins Node 24.13.1.
+- [iOS pairing documentation](docs/ios-pairing-links.md) covers deployment, owner capability/profile setup, self-hosted forks, and the device checklist.
+- Baseline on 2026-09-28: the hosted association URL returns HTTP 200 with `text/html`; Apple's CDN returns HTTP 404 with `SWCERR00401 Bad JSON content`.
+  Xcode 26.6 has no available simulator runtimes/devices or connected physical devices.
+  The signed build stops because no development profile for `chat.mindroom.app` is installed; an unsigned attempt reports the iOS 26.5 platform component is missing.
+  Cold/warm universal-link association, signed-device approval, app-deleted Safari fallback, and post-deployment origin/CDN checks have not been verified.
+- Hosting companion: [dotfiles PR #98](https://github.com/basnijholt/dotfiles/pull/98), signed commit `b923e53`, changes only `caddy.nix` and has not been deployed.
+
 ### Requester address on `/connect` (2026-09-28)
 
 - `/connect` now shows "Requested from <IP>" under the machine name: the address that started the pairing, as recorded by the provisioning service.
