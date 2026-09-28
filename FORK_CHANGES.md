@@ -10,7 +10,6 @@
   `requestAsStoredSession` mints an OpenID token from the current access token; on homeserver 401, it rereads the stored token and refreshes only if the stored token is still the rejected one, then mints once with the replacement.
   Any 401 from the second mint throws `HomeserverSignedOutError`.
   ConnectPage shows "This account needs to sign in again" only for `HomeserverSignedOutError`; provisioning 401s show their detail or `requestFailed` without offering sign-in.
-  Credentials rotated by another tab are used without calling refresh.
 - `resolveMindroomProvisioningRequest` returns `canAuthenticate: boolean` instead of `accessToken?: string`.
   The access token was only used as a same-origin gate; the boolean makes this intent explicit.
 - Validation: 199 tests in `src/app/mindroom/local-mindroom` and `src/app/pages/client` pass, including new coverage for clickjacking protection, provisioning 401 handling, homeserver-only refresh, and HomeserverSignedOutError display.

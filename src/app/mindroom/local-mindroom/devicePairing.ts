@@ -61,7 +61,7 @@ export const requestAsStoredSession = async <T>(
 ): Promise<T> => {
   const findSession = () => listSessions().find((session) => session.sessionId === sessionId);
   const session = findSession();
-  if (!session) throw new HomeserverSignedOutError('Account is no longer signed in');
+  if (!session) throw new HomeserverSignedOutError();
 
   const mintOpenIdToken = async (accessToken: string): Promise<string> =>
     requestMatrixOpenIdToken({
@@ -70,8 +70,6 @@ export const requestAsStoredSession = async <T>(
       accessToken,
     });
 
-  const signedOut = () => new HomeserverSignedOutError('Account is no longer signed in');
-
   let openIdToken: string;
   try {
     openIdToken = await mintOpenIdToken(session.accessToken);
@@ -79,7 +77,7 @@ export const requestAsStoredSession = async <T>(
     if (!isInvalidTokenError(error)) throw error;
 
     const latest = findSession();
-    if (!latest) throw signedOut();
+    if (!latest) throw new HomeserverSignedOutError();
 
     let replacementAccessToken: string | undefined = latest.accessToken;
     if (replacementAccessToken === session.accessToken) {
@@ -87,20 +85,20 @@ export const requestAsStoredSession = async <T>(
         replacementAccessToken = await refreshAccessToken(latest);
       } catch (refreshError) {
         if (refreshError instanceof TokenRefreshLogoutError) {
-          throw new HomeserverSignedOutError('Account refresh token expired');
+          throw new HomeserverSignedOutError();
         }
         throw refreshError;
       }
     }
     if (!replacementAccessToken) {
-      throw new HomeserverSignedOutError('Cannot refresh account credentials');
+      throw new HomeserverSignedOutError();
     }
 
     try {
       openIdToken = await mintOpenIdToken(replacementAccessToken);
     } catch (secondError) {
       if (isInvalidTokenError(secondError)) {
-        throw new HomeserverSignedOutError('Homeserver rejected refreshed credentials');
+        throw new HomeserverSignedOutError();
       }
       throw secondError;
     }

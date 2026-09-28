@@ -35,8 +35,8 @@ export class LocalMindroomApiError extends Error {
 }
 
 export class HomeserverSignedOutError extends LocalMindroomApiError {
-  constructor(message: string) {
-    super(message, 401);
+  constructor() {
+    super('Account is no longer signed in', 401);
     this.name = 'HomeserverSignedOutError';
   }
 }

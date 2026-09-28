@@ -416,7 +416,7 @@ describe('ConnectPage', () => {
     expect(findButton('Approve as @alice:mindroom.chat').props.disabled).toBe(true);
   });
 
-  it('shows sign-in button for HomeserverSignedOutError', async () => {
+  it('offers sign-in when the homeserver rejects a stored token that cannot be refreshed', async () => {
     storeSession('@alice:mindroom.chat', 'https://mindroom.chat');
     openIdMock.mockRejectedValue(new LocalMindroomApiError('Unknown token', 401));
 

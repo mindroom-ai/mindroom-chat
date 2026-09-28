@@ -42,7 +42,6 @@ export const resolveMindroomProvisioningRequest = ({
   const isCrossOriginOverride =
     overrideOrigin !== undefined && sessionOrigin !== undefined && overrideOrigin !== sessionOrigin;
 
-  // Never forward a homeserver token to another origin.
   // Cross-origin accounts cannot authenticate to this provisioning service.
   if (isCrossOriginOverride) return { provisioningBaseUrl, canAuthenticate: false };
 
