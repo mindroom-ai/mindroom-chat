@@ -50,6 +50,31 @@ describe('native pairing links', () => {
     }
   });
 
+  it.each([
+    ['https://chat.mindroom.chat/connect?code=JKLM-NPQR', '/connect?code=JKLM-NPQR'],
+    ['https://other.example/connect?code=JKLM-NPQR', '/connect?code=ABCD-EFGH'],
+  ])(
+    'keeps the newest accepted URL when launch resolves after %s',
+    async (warmUrl, expectedPath) => {
+      let resolveLaunch!: (event: { url: string }) => void;
+      registerNativeAppUrlCallbacks({
+        getLaunchUrl: () =>
+          new Promise((resolve) => {
+            resolveLaunch = resolve;
+          }),
+        addListener: async (_name, listener) => {
+          openUrl = listener;
+        },
+      });
+
+      openUrl({ url: warmUrl });
+      resolveLaunch({ url: 'https://chat.mindroom.chat/connect?code=ABCD-EFGH' });
+      await Promise.resolve();
+
+      expect(window.location.pathname + window.location.search).toBe(expectedPath);
+    }
+  );
+
   it('forwards only the pairing code, leaving validation and missing-code input to ConnectPage', async () => {
     await register();
     openUrl({

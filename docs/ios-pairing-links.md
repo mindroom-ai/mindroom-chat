@@ -66,6 +66,7 @@ The shipped association is for the official MindRoom Chat app and hosted domain.
 Serving these static bytes on another domain does not associate that domain with the official app: its entitlement and URL handler accept only `chat.mindroom.chat`.
 Ordinary web pairing remains available on other deployments.
 For a separately signed iOS fork, change the app/team identifiers and associated-domain entitlement, the expected origin in `src/app/mindroom/native/nativeSso.ts`, and the association file's `appIDs` together.
+Keep `hashRouter.enabled: false`, as in the shipped `config.mindroom.json`; native callbacks use browser-router paths, and custom hash-router native builds are outside this integration.
 Serve the file at the domain root even when the web client uses a base path, and keep the accepted pairing path aligned across the native handler and association file.
 The native handler deliberately forwards only `code`, using the existing `getConnectPath` route builder; `ConnectPage` owns code validation and approval.
 Do not change `capacitor://localhost`: the app's sessions and crypto storage are keyed to that origin.

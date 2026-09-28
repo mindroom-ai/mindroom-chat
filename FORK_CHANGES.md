@@ -13,10 +13,14 @@
 - Independent review found that an approval for one code could settle after a warm link opened another code on the same account.
   Approval results now belong to a pairing revision that changes with the code, account, or provisioning origin.
   Both late-success and late-failure regressions failed before the guard and pass afterward.
-- Validation: 226 focused native/pairing tests, application and changed-test typechecks, the production/PWA build, App Store preflight, Capacitor iOS sync, nginx and Netlify checks, and both Chrome device-pairing browser cases pass.
+- Hosted review found a deferred launch URL could replace a newer accepted `appUrlOpen` URL.
+  The launch fallback now yields once a live URL has routed; rejected live URLs do not suppress a valid launch link.
+  A deferred-promise regression reproduced the bug before this guard.
+  Self-hosting instructions now explicitly retain the shipped browser-router mode for native forks; configurable hash-router native callbacks remain outside this hosted integration.
+- Validation: 228 focused native/pairing tests, application and changed-test typechecks, the production/PWA build, App Store preflight, Capacitor iOS sync, nginx and Netlify checks, and both Chrome device-pairing browser cases pass.
   The evaluated Nix Caddy configuration passes a live local-container check for JSON/200 without redirect, preserved SPA/pairing headers, and 404 when the file is absent.
   Full lint passes with zero errors and 17 existing warnings; touched-file formatting passes.
-  The full Node 24 suite finishes with 5,585 passing and 11 failing tests across 614 files.
+  Before the launch-order follow-up, the full Node 24 suite finished with 5,585 passing and 11 failing tests across 614 files; the follow-up's focused suite, typechecks, lint, and production build pass.
   All eight failures in the offline-controller, long-text, and gap-fill suites also reproduce on unchanged base `62ee1e8c`; the remaining three timeout cases pass in an isolated rerun of their files (16 tests).
   The earlier Node 26 run was interrupted after timing and diagnostic failures; `.node-version` pins Node 24.13.1.
 - [iOS pairing documentation](docs/ios-pairing-links.md) covers deployment, owner capability/profile setup, self-hosted forks, and the device checklist.

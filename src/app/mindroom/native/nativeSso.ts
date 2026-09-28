@@ -134,29 +134,31 @@ const getAppPathFromPairingUrl = (incomingUrl: string): string | undefined => {
 };
 
 export const registerNativeAppUrlCallbacks = (nativeApp: NativeAppUrlPlugin): void => {
-  const handleNativeAppUrl = (url: string) => {
-    if (routeNativeSsoCallback(url)) return;
+  let handledOpenUrl = false;
+  const handleNativeAppUrl = (url: string): boolean => {
+    if (routeNativeSsoCallback(url)) return true;
     const appPath = getAppPathFromPairingUrl(url);
     if (appPath && typeof window !== 'undefined') {
       navigateNativeAppPath(appPath);
-      return;
+      return true;
     }
     // Keep rejected callbacks diagnosable without disclosing codes or credentials.
     // eslint-disable-next-line no-console
     console.warn('[MindRoom Chat] Ignored unsupported app URL');
+    return false;
   };
 
   nativeApp
     .getLaunchUrl()
     .then((launchUrl) => {
       const url = launchUrl?.url;
-      if (url) handleNativeAppUrl(url);
+      if (url && !handledOpenUrl) handleNativeAppUrl(url);
     })
     .catch(() => undefined);
 
   nativeApp
     .addListener('appUrlOpen', (event) => {
-      if (event.url) handleNativeAppUrl(event.url);
+      if (event.url && handleNativeAppUrl(event.url)) handledOpenUrl = true;
     })
     .catch(() => undefined);
 };
