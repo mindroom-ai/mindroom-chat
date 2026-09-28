@@ -12,8 +12,8 @@
   ConnectPage shows "This account needs to sign in again" only for `HomeserverSignedOutError`; provisioning 401s show their detail or `requestFailed` without offering sign-in.
 - `resolveMindroomProvisioningRequest` returns `canAuthenticate: boolean` instead of `accessToken?: string`.
   The access token was only used as a same-origin gate; the boolean makes this intent explicit.
-- Validation: 199 tests in `src/app/mindroom/local-mindroom` and `src/app/pages/client` pass, including new coverage for clickjacking protection, provisioning 401 handling, homeserver-only refresh, and HomeserverSignedOutError display.
-  Application typecheck, lint (0 errors, 17 existing warnings), prettier, the Docker nginx test asserting CSP/X-Frame-Options headers, and e2e device-pairing spec pass.
+- Validation: 200 tests in `src/app/mindroom/local-mindroom` and `src/app/pages/client` pass, including new coverage for clickjacking protection, provisioning 401 handling, homeserver-only refresh, and HomeserverSignedOutError display.
+  Application typecheck, lint (0 errors, 17 existing warnings), prettier, the Docker nginx test and the Netlify header check asserting CSP/X-Frame-Options headers, and e2e device-pairing spec pass.
   The full suite has 4 unrelated failures: 3 in `xcodeCloudPostClone.test.ts` (need `/bin/bash` on NixOS) and 1 in `useRoomInputSendSessionController.test.ts`.
   New locale strings are machine-authored for all 16 non-English catalogs and still need human review.
 - Next: add matching `frame-ancestors 'none'` and `X-Frame-Options: DENY` headers to the hosted Caddy configuration for `/connect`.

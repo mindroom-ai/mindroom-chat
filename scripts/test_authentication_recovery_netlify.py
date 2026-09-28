@@ -36,5 +36,16 @@ class AuthenticationRecoveryNetlifyTests(unittest.TestCase):
                 self.assertIn("no-store", cache_control.split(", "))
 
 
+    def test_connect_page_cannot_be_framed(self):
+        config = tomllib.loads((ROOT / "netlify.toml").read_text())
+        for path in ("/connect", "/connect/"):
+            with self.subTest(path=path):
+                headers = {}
+                for rule in config.get("headers", []):
+                    if fnmatch.fnmatchcase(path, rule["for"]):
+                        headers.update(rule["values"])
+                self.assertEqual(headers.get("Content-Security-Policy"), "frame-ancestors 'none'")
+                self.assertEqual(headers.get("X-Frame-Options"), "DENY")
+
 if __name__ == "__main__":
     unittest.main()
