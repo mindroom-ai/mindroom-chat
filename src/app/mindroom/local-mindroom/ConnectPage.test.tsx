@@ -7,7 +7,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ConnectPage } from './ConnectPage';
 import {
   approveLocalMindroomPairCode,
-  HomeserverSignedOutError,
   inspectLocalMindroomPairCode,
   LocalMindroomApiError,
   requestMatrixOpenIdToken,
@@ -419,7 +418,7 @@ describe('ConnectPage', () => {
 
   it('shows sign-in button for HomeserverSignedOutError', async () => {
     storeSession('@alice:mindroom.chat', 'https://mindroom.chat');
-    openIdMock.mockRejectedValue(new HomeserverSignedOutError('Account refresh token expired'));
+    openIdMock.mockRejectedValue(new LocalMindroomApiError('Unknown token', 401));
 
     await renderAt('/connect?code=ABCD-EFGH');
 

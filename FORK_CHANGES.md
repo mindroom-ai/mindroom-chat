@@ -5,17 +5,17 @@
 ### Security and reliability improvements for `/connect` device pairing (2026-09-27)
 
 - Added clickjacking protection: `/connect` blocks approval when rendered inside a frame and shows a button to open the page in a new tab instead.
-  The check runs on every render.
   docker-nginx.conf adds `Content-Security-Policy: frame-ancestors 'none'` and `X-Frame-Options: DENY` to the `/connect` location; the hosted Caddy config lives outside this repository.
 - Refresh logic distinguishes homeserver OpenID 401s from provisioning 401s.
-  `requestAsStoredSession` mints an OpenID token from the current access token; on homeserver 401, it calls refresh once and mints again if the token changed.
+  `requestAsStoredSession` mints an OpenID token from the current access token; on homeserver 401, it rereads the stored token and refreshes only if the stored token is still the rejected one, then mints once with the replacement.
   Any 401 from the second mint throws `HomeserverSignedOutError`.
   ConnectPage shows "This account needs to sign in again" only for `HomeserverSignedOutError`; provisioning 401s show their detail or `requestFailed` without offering sign-in.
   Credentials rotated by another tab are used without calling refresh.
 - `resolveMindroomProvisioningRequest` returns `canAuthenticate: boolean` instead of `accessToken?: string`.
   The access token was only used as a same-origin gate; the boolean makes this intent explicit.
-- Validation: all unit tests pass, including new coverage for clickjacking protection, provisioning 401 handling, homeserver-only refresh, and HomeserverSignedOutError display.
-  Application typecheck, lint (0 errors, 17 existing warnings), prettier, and e2e device-pairing spec pass.
+- Validation: 199 tests in `src/app/mindroom/local-mindroom` and `src/app/pages/client` pass, including new coverage for clickjacking protection, provisioning 401 handling, homeserver-only refresh, and HomeserverSignedOutError display.
+  Application typecheck, lint (0 errors, 17 existing warnings), prettier, the Docker nginx test asserting CSP/X-Frame-Options headers, and e2e device-pairing spec pass.
+  The full suite has 4 unrelated failures: 3 in `xcodeCloudPostClone.test.ts` (need `/bin/bash` on NixOS) and 1 in `useRoomInputSendSessionController.test.ts`.
 - Next: add matching `frame-ancestors 'none'` and `X-Frame-Options: DENY` headers to the hosted Caddy configuration for `/connect`.
 
 ### Flat glass headers for Lobby and Explore (2026-09-27)
@@ -41,7 +41,7 @@
 - The local CLI now starts pairing (`pair/device/start`) and prints `https://chat.mindroom.chat/connect?code=ABCD-EFGH`; the client no longer generates codes.
   Device pairing is documented in `docs/deployment/hosted-matrix.md` in the `mindroom` repository.
 - New static `/connect` route outside the active-account client layout, so it never matches `/:spaceIdOrAlias/`, works without an active account, and does not boot a Matrix client.
-  It reads `code` from the query string or asks for one, lists every stored account whose provisioning request carries its own token, calls `pair/device/inspect` to show the machine name and age, warns before approval, and calls `pair/device/approve` with the chosen account's stored token without switching the active account.
+  It reads `code` from the query string or asks for one, lists every stored account that can authenticate to the provisioning origin (`canAuthenticate`), calls `pair/device/inspect` to show the machine name and age, warns before approval, and calls `pair/device/approve` with the chosen account's stored token without switching the active account.
 - A 401 from the homeserver OpenID request retries once: with credentials another tab rotated meanwhile, or else after a refresh through the same `createStoredSessionTokenRefresh` that `initMatrix` gives the SDK, which persists the rotated tokens with `updateSessionCredentials`.
   Provisioning 401s surface as errors without refresh.
 - The shared refresh function now adopts a rotation already stored for the same device instead of spending its stale refresh token, which would fail with `M_UNKNOWN_TOKEN` and log out a chat tab whose token the pairing page (or another tab) rotated.

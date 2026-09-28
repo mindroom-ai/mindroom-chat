@@ -44,15 +44,15 @@ export function LocalMindroom({ requestClose, onNavigate }: LocalMindroomProps) 
   const docsUrl = getMindroomDocsUrl(sidebar?.mindRoomUrl);
   const sessionHomeserverUrl = mx.getHomeserverUrl();
   const sessionAccessToken = mx.getAccessToken() ?? undefined;
-  const provisioningRequest = resolveMindroomProvisioningRequest({
-    sessionHomeserverUrl,
-    provisioningOverrideUrl: sidebar?.mindRoomProvisioningUrl,
-    accessToken: sessionAccessToken,
-  });
   // Accounts that may not authenticate to this provisioning origin cannot list
   // their installations; asking anyway would only send an unauthenticated
   // request to another origin.
-  const { canAuthenticate, provisioningBaseUrl: provisioningUrl } = provisioningRequest;
+  const { canAuthenticate, provisioningBaseUrl: provisioningUrl } =
+    resolveMindroomProvisioningRequest({
+      sessionHomeserverUrl,
+      provisioningOverrideUrl: sidebar?.mindRoomProvisioningUrl,
+      accessToken: sessionAccessToken,
+    });
   const provisioningHost = provisioningUrl ? new URL(provisioningUrl).host : undefined;
 
   const [connections, setConnections] = useState<LocalMindroomConnection[] | undefined>();

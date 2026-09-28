@@ -88,8 +88,6 @@ function ConnectCard({ children }: { children: React.ReactNode }) {
   );
 }
 
-const isInFrame = (): boolean => window.top !== window.self;
-
 // Approves a local MindRoom's device pairing code with any stored account on
 // the provisioning homeserver, without switching the app's active account.
 export function ConnectPage() {
@@ -115,7 +113,7 @@ export function ConnectPage() {
   const provisioningBaseUrl = account?.provisioningBaseUrl;
   const [pairState, setPairState] = useState<PairState>({ status: 'loading' });
   const sessionIdRef = useRef(sessionId);
-  const inFrame = isInFrame();
+  const inFrame = window.top !== window.self;
 
   useEffect(() => {
     sessionIdRef.current = sessionId;

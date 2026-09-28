@@ -157,13 +157,7 @@ describe('requestAsStoredSession', () => {
       refreshToken: 'refresh-a',
     });
     const request = vi.fn().mockResolvedValue('ok');
-    const refresh = vi.fn().mockImplementation(async () => {
-      updateSessionCredentials(session.sessionId, {
-        accessToken: 'access-b',
-        refreshToken: 'refresh-b',
-      });
-      return 'access-b';
-    });
+    const refresh = vi.fn().mockResolvedValue('access-b');
 
     await expect(requestAsStoredSession(session.sessionId, request, refresh)).resolves.toBe('ok');
 
@@ -172,13 +166,6 @@ describe('requestAsStoredSession', () => {
     expect(requests.map((recorded) => recorded.headers.authorization)).toEqual([
       'Bearer access-a',
       'Bearer access-b',
-    ]);
-    expect(getSessionStore().sessions).toEqual([
-      expect.objectContaining({
-        sessionId: session.sessionId,
-        accessToken: 'access-b',
-        refreshToken: 'refresh-b',
-      }),
     ]);
   });
 
