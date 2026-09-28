@@ -88,6 +88,7 @@ export function ComputerPanel({
   const sessionRef = useRef<ComputerSessionClient>();
   const lifecycleRef = useRef(0);
   const activeStreamTicketRef = useRef<string>();
+  const releasingStreamTicketRef = useRef<string>();
   const disposedSessionsRef = useRef(new WeakSet<ComputerSessionClient>());
 
   const chosenAgent = useMemo(
@@ -258,12 +259,15 @@ export function ComputerPanel({
     setError(undefined);
     setSendError(undefined);
     setReleaseNotice(undefined);
+    // Releasing control closes the controller's stream, often before the release response arrives.
+    const releasingTicket = activeStreamTicketRef.current;
+    releasingStreamTicketRef.current = releasingTicket;
     try {
       const nextStatus = await session.control('release');
       if (lifecycleRef.current !== lifecycle || sessionRef.current !== session) return;
       setStatus(nextStatus);
+      // The retired screen stays in place until the watch stream replaces it.
       activeStreamTicketRef.current = undefined;
-      setStream(undefined);
       setConnected(false);
       setReleaseNotice('released');
 
@@ -280,15 +284,24 @@ export function ComputerPanel({
         setReleaseNotice('sent');
       }
       if (reconnectResult.status === 'rejected') {
+        setStream(undefined);
         setError(getErrorMessage(reconnectResult.reason));
         setPhase('disconnected');
       }
     } catch (releaseError) {
       if (lifecycleRef.current === lifecycle) {
         setError(`Control was not released. ${getErrorMessage(releaseError)}`);
-        setPhase('ready');
+        if (activeStreamTicketRef.current) {
+          setPhase('ready');
+        } else {
+          setStream(undefined);
+          setPhase('disconnected');
+        }
       }
     } finally {
+      if (releasingStreamTicketRef.current === releasingTicket) {
+        releasingStreamTicketRef.current = undefined;
+      }
       if (lifecycleRef.current === lifecycle) setOperation(undefined);
     }
   };
@@ -362,6 +375,8 @@ export function ComputerPanel({
     if (!sessionRef.current) return;
     activeStreamTicketRef.current = undefined;
     setConnected(false);
+    // Resume agent retired this stream and reconnects in watch mode.
+    if (releasingStreamTicketRef.current === streamTicket) return;
     setStream(undefined);
     setError(message ?? 'The computer connection closed.');
     setPhase('disconnected');

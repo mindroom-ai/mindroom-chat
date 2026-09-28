@@ -337,6 +337,68 @@ describe('ComputerPanel', () => {
     expect(mx.sendMessage).toHaveBeenCalledOnce();
   });
 
+  const holdRelease = (status = 200) => {
+    const gateway = createGateway();
+    const pending: { resolve?: () => void } = {};
+    const request = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (
+        init?.method === 'POST' &&
+        input.toString().endsWith('/control') &&
+        JSON.parse(init.body as string).action === 'release'
+      ) {
+        await new Promise<void>((resolve) => {
+          pending.resolve = resolve;
+        });
+        if (status !== 200) return jsonResponse(status, { detail: 'Release failed.' });
+      }
+      return gateway(input, init);
+    });
+    return { pending, request: request as unknown as typeof fetch };
+  };
+
+  it('keeps the screen when the control stream closes before the release response', async () => {
+    const { pending, request } = holdRelease();
+    renderPanel({ request });
+
+    await waitFor(() => findButton(container, 'Take control'));
+    await click(findButton(container, 'Take control'));
+    await waitFor(() => findButton(container, 'Resume agent'));
+    await click(findButton(container, 'Resume agent'));
+    await waitFor(() => expect(pending.resolve).toBeDefined());
+    act(() => screenConnections[0].onDisconnected());
+
+    expect(container.textContent).not.toContain('Computer disconnected');
+    expect(container.textContent).not.toContain('The computer connection closed.');
+    expect(container.querySelector('[data-testid="computer-screen"]')).not.toBeNull();
+
+    await act(async () => pending.resolve?.());
+    await waitFor(() => findButton(container, 'Take control'));
+    expect(screenConnections.map(({ protocols }) => protocols[1])).toEqual([
+      'mindroom-ticket.ticket-1',
+      'mindroom-ticket.ticket-2',
+    ]);
+    expect(container.textContent).toContain('Watch mode');
+    expect(container.textContent).not.toContain('Computer disconnected');
+  });
+
+  it('reports the closed stream when release fails after the control stream closed', async () => {
+    const { pending, request } = holdRelease(500);
+    renderPanel({ request });
+
+    await waitFor(() => findButton(container, 'Take control'));
+    await click(findButton(container, 'Take control'));
+    await waitFor(() => findButton(container, 'Resume agent'));
+    await click(findButton(container, 'Resume agent'));
+    await waitFor(() => expect(pending.resolve).toBeDefined());
+    act(() => screenConnections[0].onDisconnected());
+    await act(async () => pending.resolve?.());
+
+    await waitFor(() => findButton(container, 'Reconnect'));
+    expect(container.textContent).toContain('Computer disconnected');
+    expect(container.textContent).toContain('Control was not released.');
+    expect(container.querySelector('[data-testid="computer-screen"]')).toBeNull();
+  });
+
   it('reconnects a failed replacement watch stream while continuation delivery is pending', async () => {
     let resolveContinuation: ((value: { event_id: string }) => void) | undefined;
     const continuation = new Promise<{ event_id: string }>((resolve) => {
