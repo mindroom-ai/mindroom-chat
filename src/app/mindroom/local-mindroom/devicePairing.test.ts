@@ -14,6 +14,7 @@ import { getPairingAccounts, normalizePairCode, requestAsStoredSession } from '.
 import {
   getSessionStore,
   putSession,
+  removeSession,
   updateSessionCredentials,
   type StoredSession,
 } from '../../state/sessions';
@@ -276,6 +277,23 @@ describe('requestAsStoredSession', () => {
       'Bearer access-a',
       'Bearer access-b',
     ]);
+  });
+
+  it('reports an account removed while its token is rejected as signed out', async () => {
+    installNetwork(['access-a']);
+    const session = storeSession('@alice:mindroom.chat', 'https://mindroom.chat', {
+      accessToken: 'access-a',
+      refreshToken: 'refresh-a',
+    });
+    const request = vi.fn();
+    const refresh = vi.fn();
+
+    const requestPromise = requestAsStoredSession(session.sessionId, request, refresh);
+    removeSession(session.sessionId);
+
+    await expect(requestPromise).rejects.toMatchObject({ name: 'HomeserverSignedOutError' });
+    expect(refresh).not.toHaveBeenCalled();
+    expect(request).not.toHaveBeenCalled();
   });
 
   it('rejects accounts that are no longer stored as signed out', async () => {

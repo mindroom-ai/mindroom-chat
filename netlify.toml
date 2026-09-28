@@ -8,6 +8,18 @@
   [headers.values]
     Cache-Control = "no-store"
 
+[[headers]]
+  for = "/connect"
+  [headers.values]
+    Content-Security-Policy = "frame-ancestors 'none'"
+    X-Frame-Options = "DENY"
+
+[[headers]]
+  for = "/connect/"
+  [headers.values]
+    Content-Security-Policy = "frame-ancestors 'none'"
+    X-Frame-Options = "DENY"
+
 [[redirects]]
   from = "/authentication-recovery.js"
   to = "/authentication-recovery.js"

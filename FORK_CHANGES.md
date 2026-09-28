@@ -5,7 +5,7 @@
 ### Security and reliability improvements for `/connect` device pairing (2026-09-27)
 
 - Added clickjacking protection: `/connect` blocks approval when rendered inside a frame and shows a button to open the page in a new tab instead.
-  docker-nginx.conf adds `Content-Security-Policy: frame-ancestors 'none'` and `X-Frame-Options: DENY` to the `/connect` location; the hosted Caddy config lives outside this repository.
+  docker-nginx.conf and netlify.toml send `Content-Security-Policy: frame-ancestors 'none'` and `X-Frame-Options: DENY` for `/connect`; the hosted Caddy config lives outside this repository.
 - Refresh logic distinguishes homeserver OpenID 401s from provisioning 401s.
   `requestAsStoredSession` mints an OpenID token from the current access token; on homeserver 401, it rereads the stored token and refreshes only if the stored token is still the rejected one, then mints once with the replacement.
   Any 401 from the second mint throws `HomeserverSignedOutError`.
@@ -15,6 +15,7 @@
 - Validation: 199 tests in `src/app/mindroom/local-mindroom` and `src/app/pages/client` pass, including new coverage for clickjacking protection, provisioning 401 handling, homeserver-only refresh, and HomeserverSignedOutError display.
   Application typecheck, lint (0 errors, 17 existing warnings), prettier, the Docker nginx test asserting CSP/X-Frame-Options headers, and e2e device-pairing spec pass.
   The full suite has 4 unrelated failures: 3 in `xcodeCloudPostClone.test.ts` (need `/bin/bash` on NixOS) and 1 in `useRoomInputSendSessionController.test.ts`.
+  New locale strings are machine-authored for all 16 non-English catalogs and still need human review.
 - Next: add matching `frame-ancestors 'none'` and `X-Frame-Options: DENY` headers to the hosted Caddy configuration for `/connect`.
 
 ### Flat glass headers for Lobby and Explore (2026-09-27)
@@ -62,7 +63,7 @@
 - The account picker is disabled while approving, and an approval result is dropped if the chosen account changed meanwhile.
 - Provisioning requests no longer carry a Matrix access token.
   Before each inspect, approve, connection-list, or revoke request, the client asks the account's own homeserver for an OpenID token (`POST /_matrix/client/v3/user/{userId}/openid/request_token`) and sends only that token as `X-Matrix-OpenID-Token`.
-  `/connect` mints it from the chosen stored session through the same native/web transport as provisioning requests, and a 401 from the homeserver OpenID request triggers a single refresh-and-retry; provisioning 401s surface as errors without refresh.
+  `/connect` mints it from the chosen stored session through the same native/web transport as provisioning requests, and a 401 from the homeserver OpenID request retries that request once; provisioning 401s surface as errors without refresh.
   Settings → Local MindRoom and the welcome prompt use the active client's `getOpenIdToken()`, which refreshes through the SDK.
   The provisioning service's matching change validates the token through its homeserver's federation `openid/userinfo` endpoint.
 - Validation: unit tests pass under Node 24 except the three `xcodeCloudPostClone` tests that need `/bin/bash` on this NixOS host; typecheck, changed-test typecheck, build, lint (0 errors, 17 existing warnings), and the mock-only Chromium spec `e2e/device-pairing.spec.ts` pass.

@@ -47,9 +47,10 @@ const isInvalidTokenError = (error: unknown): boolean =>
 // Runs a provisioning request as a stored account, independent of the account
 // the rest of the app is using. The request receives an OpenID token minted
 // from the account's access token; the access token itself only goes to the
-// account's homeserver. A 401 from the homeserver OpenID request triggers one
-// refresh-and-retry: by credentials another tab rotated meanwhile, or else by
-// a refresh that the shared refresh function persists to the session store.
+// account's homeserver. A 401 from the homeserver OpenID request replaces the
+// access token once and mints again: with credentials another tab rotated
+// meanwhile, or else after a refresh that the shared refresh function persists
+// to the session store.
 // Homeserver auth failures throw HomeserverSignedOutError; provisioning 401s
 // surface as LocalMindroomApiError.
 export const requestAsStoredSession = async <T>(
@@ -63,7 +64,7 @@ export const requestAsStoredSession = async <T>(
   const session = findSession();
   if (!session) throw new HomeserverSignedOutError();
 
-  const mintOpenIdToken = async (accessToken: string): Promise<string> =>
+  const mintOpenIdToken = (accessToken: string): Promise<string> =>
     requestMatrixOpenIdToken({
       baseUrl: session.baseUrl,
       userId: session.userId,
@@ -84,22 +85,16 @@ export const requestAsStoredSession = async <T>(
       try {
         replacementAccessToken = await refreshAccessToken(latest);
       } catch (refreshError) {
-        if (refreshError instanceof TokenRefreshLogoutError) {
-          throw new HomeserverSignedOutError();
-        }
+        if (refreshError instanceof TokenRefreshLogoutError) throw new HomeserverSignedOutError();
         throw refreshError;
       }
     }
-    if (!replacementAccessToken) {
-      throw new HomeserverSignedOutError();
-    }
+    if (!replacementAccessToken) throw new HomeserverSignedOutError();
 
     try {
       openIdToken = await mintOpenIdToken(replacementAccessToken);
     } catch (secondError) {
-      if (isInvalidTokenError(secondError)) {
-        throw new HomeserverSignedOutError();
-      }
+      if (isInvalidTokenError(secondError)) throw new HomeserverSignedOutError();
       throw secondError;
     }
   }
