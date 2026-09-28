@@ -1862,8 +1862,8 @@
 - Session bearer tokens remain inside the active in-memory client, every display connection uses a new single-use ticket in the `mindroom-ticket.<ticket>` WebSocket subprotocol, and request credentials are omitted.
 - Server status is authoritative for view and control mode; the native noVNC screen scales to its viewport, updates `viewOnly` from that status, and disposes its single RFB instance and callbacks on replacement or unmount.
 - Resume agent releases control first, reconnects the same public session in watch mode with a fresh ticket, and independently sends one ordinary thread-aware continuation mentioning the selected agent.
-- Releasing control closes the controller's stream on the server, often before the release response arrives, so that close is expected: the retired screen stays in place without a disconnect notice until the watch stream replaces it.
-- If the release fails after that stream closed, the panel reports the disconnect and offers Reconnect.
+- Releasing control closes the controller's stream on the server, often before the release response arrives, so that close is expected: the retired screen's frame stays in place without a disconnect notice until the watch stream replaces it.
+- If taking or releasing control fails after the stream closed, the panel reports the disconnect and offers Reconnect.
 - A failed watch reconnect does not suppress or duplicate the continuation message. A replacement watch-stream failure remains recoverable while continuation delivery is pending, while callbacks from the retired control stream are ignored. A continuation-send failure leaves control released and reports the send failure separately.
 - Stop revokes the current session, and Start computer obtains a fresh Matrix OpenID token and creates a new public session.
 - Closing the panel deletes only the viewer session and never sends a continuation message or stops the persistent worker computer.

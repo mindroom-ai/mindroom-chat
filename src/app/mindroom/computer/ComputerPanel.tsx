@@ -244,7 +244,7 @@ export function ComputerPanel({
     } catch (controlError) {
       if (lifecycleRef.current === lifecycle) {
         setError(getErrorMessage(controlError));
-        setPhase('ready');
+        setPhase(activeStreamTicketRef.current ? 'ready' : 'disconnected');
       }
     } finally {
       if (lifecycleRef.current === lifecycle) setOperation(undefined);
@@ -375,7 +375,7 @@ export function ComputerPanel({
     if (!sessionRef.current) return;
     activeStreamTicketRef.current = undefined;
     setConnected(false);
-    // Resume agent retired this stream and reconnects in watch mode.
+    // Resume agent owns this close: it reconnects on success or reports the disconnect on failure.
     if (releasingStreamTicketRef.current === streamTicket) return;
     setStream(undefined);
     setError(message ?? 'The computer connection closed.');
@@ -429,6 +429,7 @@ export function ComputerPanel({
                 key={`${stream.url}:${stream.protocols[1]}`}
                 mode={status?.mode ?? 'view'}
                 onConnected={() => {
+                  if (activeStreamTicketRef.current !== stream.protocols[1]) return;
                   setConnected(true);
                   setPhase('ready');
                   setError(undefined);
