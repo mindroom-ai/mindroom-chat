@@ -2,6 +2,17 @@
 
 ## Runbook
 
+### Requester address and device check on `/connect` (2026-09-28)
+
+- `/connect` now shows "Requested from <IP>" and "Device check: AB12-CD34" under the machine name, so a user can tell a pairing link someone else sent from one their own terminal started.
+  `mindroom connect` and `mindroom run` print the same device check (`Confirm the page shows device check AB12-CD34`), and the approval should only proceed when both match.
+- `pair/device/inspect` returns the new `client_ip` and `device_check` fields from mindroom-ai/mindroom#2406, which must be deployed to the provisioning service before this build shows them.
+  Both fields are optional in `LocalMindroomPairDevice`: a missing or null `client_ip` shows "Requested from an unknown address" (older services and sessions persisted before the service recorded addresses), and a missing `device_check` hides that line.
+- Validation: 202 tests in `src/app/mindroom/local-mindroom` and `src/app/pages/client` plus the i18n catalog tests pass, including new coverage for the fields and for a service that omits them.
+  Application typecheck, changed-test typecheck, eslint and prettier on the changed files pass.
+  New locale strings are machine-authored for all 16 non-English catalogs and still need human review.
+- Next: after the service deploy, confirm on chat.mindroom.chat that a fresh pairing shows the requester address and the device check printed by the CLI.
+
 ### Security and reliability improvements for `/connect` device pairing (2026-09-27)
 
 - Added clickjacking protection: `/connect` blocks approval when rendered inside a frame and shows a button to open the page in a new tab instead.

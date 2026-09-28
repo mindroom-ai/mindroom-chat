@@ -263,6 +263,18 @@ export function ConnectPage() {
                 age: formatRelativeTime(Date.parse(device.created_at), language, 'long'),
               })}
             </Text>
+            <Text size="T300" priority="300">
+              {device.client_ip
+                ? t('mindroomUi.local-mindroom.connect.requestedFrom', { ip: device.client_ip })
+                : t('mindroomUi.local-mindroom.connect.requestedFromUnknown')}
+            </Text>
+            {device.device_check && (
+              <Text size="T300">
+                {t('mindroomUi.local-mindroom.connect.deviceCheck', {
+                  check: device.device_check,
+                })}
+              </Text>
+            )}
           </Box>
         )}
 
