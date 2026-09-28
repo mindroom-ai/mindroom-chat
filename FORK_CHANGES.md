@@ -6094,6 +6094,7 @@ Executed directly by the team lead (subagent messaging had become unreliable —
   - All preview surfaces funnel through `getThreadMessagePreviewText()` (`src/app/mindroom/threads/threadMessagePreview.ts`) — compact cards, zero-reply roots, latest-reply snippets, command palette, aria labels — so the fix lives entirely in that module:
     - `stripPreviewMarkdown()` removes inline emphasis, code spans/fences, links/images (kept as labels), headings, blockquotes, and list markers.
       Underscore emphasis (`_x_`, `__x__`) is deliberately left alone to protect identifiers like `snake_case`/`__init__` (LLMs emit asterisks).
+      GFM tables read as their cells set apart by a middle dot, without pipes or the delimiter row; only rows fenced by pipes count, so prose such as `a | b` and fenced tables stay as written.
     - Tool-call markers are counted and collapsed into an inline badge: `🔧 4 tools · <remaining prose>` when prose exists, or `🔧 4 tools` alone for tool-only messages.
       Orphan separators left between removed markers are cleaned up.
 - Decisions:
