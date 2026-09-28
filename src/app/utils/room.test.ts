@@ -523,6 +523,41 @@ describe('getLatestEditedMessageContent', () => {
     ).toBe('completed');
   });
 
+  it('matches getEditedEvent when the SDK replacement wraps the same bundle', () => {
+    // The SDK event mapper wraps the bundled edit without copying and applies it.
+    const makeTarget = () => {
+      const target = makeMessageEvent('$target', 1000);
+      target.event.unsigned = {
+        'm.relations': {
+          'm.replace': metadataEdit('$bundled', 3000, { body: 'bundled final' }).event,
+        },
+      };
+      target.makeReplaced(
+        new MatrixEvent(target.getUnsigned()['m.relations']?.['m.replace'] as never)
+      );
+      return target;
+    };
+    const olderEdit = () =>
+      metadataEdit('$older', 2000, { 'io.mindroom.stream_status': 'completed' });
+    const reference = makeTarget();
+    const expected = getLatestMessageContent(
+      reference,
+      getEditedEvent('$target', reference, timelineSetWith([olderEdit()]))
+    );
+    const target = makeTarget();
+
+    const resolved = getLatestEditedMessageContent(
+      '$target',
+      target,
+      timelineSetWith([olderEdit()]),
+      getSerializedReplacementEventView(target)
+    );
+
+    expect(resolved).toEqual(expected);
+    // The live replacement wins the tie and is filled in place, as before.
+    expect(target.getUnsigned()).toEqual(reference.getUnsigned());
+  });
+
   it('returns the original content without edits', () => {
     const target = makeMessageEvent('$target', 1000);
 

@@ -350,6 +350,9 @@ export const useCrossRoomThreadIndex = () => {
 
       idleHandle = undefined;
       if (!isEffectCurrent()) return;
+      // Land throttled rebuilds first, so views that trust the flag never
+      // see the index as complete while scanned threads are still pending.
+      coalescer.flushNow();
       setSnapshot((current) =>
         current.bootstrapped ? current : { ...current, bootstrapped: true }
       );
@@ -386,7 +389,7 @@ export const useCrossRoomThreadIndex = () => {
         );
         const threadRootId = getThreadRootId(thread) ?? getThreadRelationRootId(event);
         if (!threadRootId || !isEffectCurrent()) return;
-        // A pending rebuild would otherwise re-add the entry after the removal.
+        // Drop the rebuild queued before the delete; a later update still re-adds it.
         coalescer.discardDirty(getCrossRoomThreadIndexKey(room.roomId, threadRootId));
 
         setSnapshot((current) => {

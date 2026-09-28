@@ -639,4 +639,21 @@ describe('crossRoomThreadIndex', () => {
     expect(runs).toEqual([1_000, 1_200, 1_500]);
     expect(timers).toHaveLength(1);
   });
+
+  it('never waits longer than the interval when the clock moves backwards', async () => {
+    let now = 10_000;
+    const timers: Array<{ callback: () => void; delayMs: number }> = [];
+    const schedule = createThrottledFlushSchedule(
+      200,
+      () => now,
+      (callback, delayMs) => timers.push({ callback, delayMs })
+    );
+    schedule(() => {});
+    await Promise.resolve();
+
+    now = 4_000;
+    schedule(() => {});
+
+    expect(timers).toEqual([{ callback: expect.any(Function), delayMs: 200 }]);
+  });
 });

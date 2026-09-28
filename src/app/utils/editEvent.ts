@@ -56,9 +56,11 @@ export const getSerializedReplacementEvent = (mEvent: MatrixEvent): MatrixEvent 
 
 /**
  * The bundled replacement wrapped without copying it, for code that only reads
- * it and never keeps it. Callers must not write to it, decrypt it or attach
- * it to another event: it shares the target's unsigned data. The MatrixEvent
- * constructor only re-interns equal strings in the raw object.
+ * it. Callers must not write to it, decrypt it or attach it to another event:
+ * it shares the target's unsigned data. Values read from it may still be
+ * copied by reference into resolved content, as the SDK's own mapper-built
+ * replacement already shares this object. The MatrixEvent constructor only
+ * re-interns equal strings in the raw object.
  */
 export const getSerializedReplacementEventView = (mEvent: MatrixEvent): MatrixEvent | undefined => {
   const relationEvent = getRawSerializedRelationEvent(mEvent, RelationType.Replace);

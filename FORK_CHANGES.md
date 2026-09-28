@@ -15,24 +15,32 @@
   One localized preview now analyzes its body once instead of four times, and the cache holds the 523-thread room's rebuild working set.
 - A/B on warm reloads (base, fix, fix, base; dev build): the main thread goes quiet after 11.6-15.9 s instead of 27.8-29.9 s, with 15.0-19.2 s of main-thread work instead of 26.0-27.4 s.
   Thread open/close improves less (close work about 2.8 s to 2.3 s, noisy); first cards appear after about 3 s in both.
+- Production (unminified build, one warm reload each, function-level): cross-room flushes 9.6 s to 0.8 s, tag aggregation 6.2 s to 10-22 ms, and preview analysis 2.2 s to 50-80 ms.
+  Whole-reload totals on the live account varied too much to compare (agents kept posting and the thread cache grew between runs), so freed time was partly taken by SDK thread initialization and cache work.
 - Startup rebuilt each cross-room index entry a median 14 times (3,065 microtask flushes, 8,386 entry builds for 577 threads), because SDK thread initialization and streamed edits emit updates in separate tasks and the coalescer flushed on every microtask.
   The flush schedule now has a leading edge: an isolated update still flushes on the next microtask, while a burst waits until 200 ms after the previous flush.
-  A thread deletion discards that thread's pending rebuild, so the wider window cannot re-add a removed entry.
+  A thread deletion drops the rebuild queued before it; a later update still re-adds the entry, as before, because the SDK keeps the `Thread`.
+  The wait is capped at the interval, so a clock that moves backwards cannot stall the index, and bootstrap flushes pending rebuilds before it marks the index bootstrapped, so filtered sidebar views never show an empty list while scanned threads wait.
   Cross-room flush time on a warm reload drops from 3.8 s to 0.8 s; total startup work drops from 14.7-16.7 s to 13.0-15.1 s, and the worst frame from about 507 ms to 284-364 ms.
 - Streaming detection checks the last 10 events of every thread on each record build, and each check deep-copied the bundled `m.replace` edit (`structuredClone`) because `getEditedEvent` writes fallback metadata into the winning edit.
   Other consumers still mutate their copies (`room_id`, decryption, `makeReplaced`), so `getSerializedReplacementEvent` keeps copying.
   The streaming check now reads the bundle through `getSerializedReplacementEventView` (no copy) and resolves content with `getLatestEditedMessageContent`, which shares `getEditedEvent`'s candidate selection.
   When the bundled view wins, the other edits' metadata is passed as fallbacks instead of being written into it; the resulting top-level content and precedence match, and readers check `m.new_content` before the top level.
   When a live SDK edit wins it is still filled in place, because `stopReaction.ts` reads that edit's content directly.
+  The SDK event mapper builds that live replacement over the same raw bundle and wins same-id ties, so the bundle is still filled in that case, exactly as before; the old deep copy lost that tie and was discarded.
   Over three thread closes on the dev build, `getThreadStreamingSnapshot` drops from 640 ms to 155 ms and `buildThreadRecordMap` from 927 ms to 457 ms.
 - Production sourcemaps map a 5 MB chunk to only 74 sources, so production profiles and stack traces cannot be attributed; unminified production builds were used for function-level comparisons instead.
 - Remaining findings: `Room.findEventById` scans every thread on a miss, so the SDK event mapper (twice per event with a bundled edit) and `buildCompactThreadRootData` (once per thread) cost O(threads) per lookup.
   The SDK's per-thread initialization still fetches 208 roots and 114 recursive `/relations` pages at startup, and its logger stays at DEBUG (duplicate-event and receipt warnings cost about 1.7 s with DevTools attached).
 - Independent review of the tag and preview change found no blockers and confirmed the element-wise match against the SDK's state replacement, `makeRedacted` and local-redaction paths.
   It found that an 8-entry recency list thrashed when a caller cycles through more than 8 tagged rooms and that a 1,000-entry first-in-first-out preview cache could not hold one rebuild; both are replaced as described above.
-- Validation: tag, snapshot, preview and cross-room index tests pass.
-  The reuse, many-room, local-redaction, working-set and large-body tests fail on the earlier implementations; the invalidation tests guard behavior and pass on both.
-  `deepTraceFailure.test.ts` fails the same 6 cases on clean `dev`.
+- A second independent review of the flush throttle and the streaming change found no blockers.
+  A randomized comparison of 20,000 cases found the old and new streaming paths identical for every status reader and for the saved event state.
+  Its findings (backwards clock, bootstrap flag before pending rebuilds, untested deletion discard, a streaming no-write test that could not fail, missing tie coverage, and wording) are addressed above.
+- Validation: tag, snapshot, preview, cross-room index, streaming and edit-resolution tests pass; typecheck, lint and prettier pass on the changed files.
+  The reuse, many-room, local-redaction, working-set, large-body, burst, deletion, bootstrap, backwards-clock and streaming no-write tests fail when their fix is removed; the invalidation and parity tests guard behavior and pass on both.
+  `deepTraceFailure.test.ts` fails the same 6 cases on clean `dev`; `RoomTimeline.cache.test.ts` "keeps folding mid-flight bands" failed once under load and passes alone with and without these changes.
+- Next: remove the O(threads) `Room.findEventById` fallback cost (SDK patch or app-side lookups), decide whether background SDK thread initialization should be deferred or throttled, and repair production sourcemaps.
 
 ### Compact room chrome on short screens (2026-09-28)
 

@@ -222,6 +222,15 @@ describe('useThreadStreamingState', () => {
       });
     };
     attach('$streaming', 300, 'streaming');
+    // An older live edit carries metadata the bundle lacks, so resolving the
+    // bundled winner has something it could copy into the bundle.
+    const olderEdit = makeEditEvent('$older', 250, '$reply', {
+      'io.mindroom.tool_trace': { version: 1, events: [] },
+    });
+    relationMap.set(
+      '$reply',
+      Object.assign(makeRelations(), { getRelations: () => [olderEdit] }) as MockRelations
+    );
     const thread = makeThread({ lastReply: replyEvent, relationMap });
     const room = makeRoom({
       rootEventId: '$root',
@@ -230,7 +239,9 @@ describe('useThreadStreamingState', () => {
     });
     const clone = vi.spyOn(globalThis, 'structuredClone');
     try {
+      const streamingBundle = JSON.stringify(replyEvent.getUnsigned());
       expect(getThreadStreamingState(room, '$root')).toBe(true);
+      expect(JSON.stringify(replyEvent.getUnsigned())).toBe(streamingBundle);
       attach('$completed', 400, 'completed');
       const bundle = JSON.stringify(replyEvent.getUnsigned());
       expect(getThreadStreamingState(room, '$root')).toBe(false);
