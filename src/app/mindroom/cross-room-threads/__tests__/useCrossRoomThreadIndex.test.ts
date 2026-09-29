@@ -577,6 +577,102 @@ describe('useCrossRoomThreadIndex', () => {
     expect(store.get(crossRoomThreadIndexAtom).bootstrapped).toBe(true);
   });
 
+  it('rebuilds a thread once for a burst of updates inside the flush interval', async () => {
+    // The flush interval runs on performance.now, which Vitest fakes only on request.
+    vi.useFakeTimers({
+      toFake: [
+        'setTimeout',
+        'clearTimeout',
+        'setInterval',
+        'clearInterval',
+        'setImmediate',
+        'clearImmediate',
+        'Date',
+        'performance',
+      ],
+    });
+    const { room, threads, replies } = makeRoomWithThreadReplies('!room:example.org', 2);
+    matrixClientMock.mockReturnValue(makeClient(room));
+    const store = createStore();
+    store.set(allRoomsAtom, { type: 'INITIALIZE', rooms: [room.roomId] });
+    let renderer!: ReturnType<typeof create>;
+    await act(async () => {
+      renderer = create(React.createElement(Provider, { store }, React.createElement(HookProbe)));
+    });
+    await flushScheduledWork();
+    const replyContent = vi.spyOn(replies[0], 'getContent');
+    const emitUpdates = async (count: number) => {
+      for (let index = 0; index < count; index += 1) {
+        // Each SDK update arrives in its own task, so each microtask checkpoint passes.
+        await act(async () => {
+          room.emit(ThreadEvent.Update, threads[0]);
+          await Promise.resolve();
+        });
+      }
+      await flushScheduledWork();
+    };
+
+    await emitUpdates(1);
+    const readsPerRebuild = replyContent.mock.calls.length;
+    replyContent.mockClear();
+    await emitUpdates(5);
+
+    expect(readsPerRebuild).toBeGreaterThan(0);
+    expect(replyContent).toHaveBeenCalledTimes(readsPerRebuild);
+    renderer.unmount();
+  });
+
+  it('does not re-add a deleted thread from an update queued before the delete', async () => {
+    const { room, threads } = makeRoomWithThreadReplies('!room:example.org', 2);
+    matrixClientMock.mockReturnValue(makeClient(room));
+    const store = createStore();
+    store.set(allRoomsAtom, { type: 'INITIALIZE', rooms: [room.roomId] });
+    let renderer!: ReturnType<typeof create>;
+    await act(async () => {
+      renderer = create(React.createElement(Provider, { store }, React.createElement(HookProbe)));
+    });
+    await flushScheduledWork();
+    const deletedKey = getCrossRoomThreadIndexKey(room.roomId, '$root-0');
+    expect(store.get(crossRoomThreadIndexAtom).entries.has(deletedKey)).toBe(true);
+
+    await act(async () => {
+      room.emit(ThreadEvent.Update, threads[0]);
+      room.emit(ThreadEvent.Delete, threads[0]);
+      await Promise.resolve();
+    });
+    await flushScheduledWork();
+
+    expect(store.get(crossRoomThreadIndexAtom).entries.has(deletedKey)).toBe(false);
+    renderer.unmount();
+  });
+
+  it('includes every bootstrapped thread when the index reports bootstrapped', async () => {
+    // Bootstrap scans rooms in chunks of 5 across idle callbacks.
+    const rooms = Array.from(
+      { length: 7 },
+      (_, index) => makeRoomWithThreadReplies(`!room-${index}:example.org`, 1).room
+    );
+    matrixClientMock.mockReturnValue(makeClient(rooms));
+    const store = createStore();
+    store.set(allRoomsAtom, { type: 'INITIALIZE', rooms: rooms.map((room) => room.roomId) });
+    let entriesWhenBootstrapped: number | undefined;
+    const unsubscribe = store.sub(crossRoomThreadIndexAtom, () => {
+      const snapshot = store.get(crossRoomThreadIndexAtom);
+      if (snapshot.bootstrapped && entriesWhenBootstrapped === undefined) {
+        entriesWhenBootstrapped = snapshot.entries.size;
+      }
+    });
+    let renderer!: ReturnType<typeof create>;
+    await act(async () => {
+      renderer = create(React.createElement(Provider, { store }, React.createElement(HookProbe)));
+    });
+    for (let pass = 0; pass < 4; pass += 1) await flushScheduledWork();
+
+    expect(entriesWhenBootstrapped).toBe(7);
+    unsubscribe();
+    renderer.unmount();
+  });
+
   it('does not index plain live room messages as cross-room threads', async () => {
     const { room } = makeRoom();
     const mx = makeClient(room);

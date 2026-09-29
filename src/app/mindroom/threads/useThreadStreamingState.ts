@@ -10,7 +10,7 @@ import {
   hasTerminalMindroomStreamMetadata,
 } from '../messages/aiRun';
 import { STOP_REACTION_KEYS } from '../messages/stopReaction';
-import { getSerializedReplacementEvent, isSameSenderEditEvent } from '../../utils/editEvent';
+import { getShallowSerializedReplacementEvent, isSameSenderEditEvent } from '../../utils/editEvent';
 import { getActiveAnnotationsByKey } from '../../utils/reactionAnnotations';
 import { getEditedEvent, getEventReactions, getLatestMessageContent } from '../../utils/room';
 import { DEFAULT_THREAD_TAIL_EVENT_COUNT, getThreadTailEvents } from '../../utils/thread';
@@ -30,7 +30,9 @@ const getPreferredEventContent = (
   timelineSet?: ReturnType<Room['getUnfilteredTimelineSet']>
 ): Record<string, unknown> => {
   const replacingEventCandidate = mEvent.replacingEvent() ?? undefined;
-  const serializedReplacementCandidate = getSerializedReplacementEvent(mEvent);
+  // Every record rebuild checks the tail of every thread, so copy only what
+  // getEditedEvent writes to instead of deep-copying each bundled edit.
+  const serializedReplacementCandidate = getShallowSerializedReplacementEvent(mEvent);
   const hasResolvableReplacement =
     isSameSenderEditEvent(mEvent, replacingEventCandidate) ||
     isSameSenderEditEvent(mEvent, serializedReplacementCandidate);

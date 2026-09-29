@@ -207,7 +207,7 @@ const renderHookHarness = (
 };
 
 describe('useThreadStreamingState', () => {
-  it('materializes each bundled edit only once per status read and observes newer bundles', () => {
+  it('copies bundled edits shallowly without changing them and observes newer bundles', () => {
     const relationMap = new Map<string, MockRelations>();
     const replyEvent = makeThreadReplyEvent('$reply', 200, {
       'io.mindroom.stream_status': 'pending',
@@ -222,6 +222,12 @@ describe('useThreadStreamingState', () => {
       });
     };
     attach('$streaming', 300, 'streaming');
+    // An older live edit carries metadata the bundle lacks, so resolving the
+    // bundled winner fills that metadata into its copy.
+    const olderEdit = makeEditEvent('$older', 250, '$reply', {
+      'io.mindroom.tool_trace': { version: 1, events: [] },
+    });
+    relationMap.set('$reply', Object.assign(makeRelations(), { getRelations: () => [olderEdit] }));
     const thread = makeThread({ lastReply: replyEvent, relationMap });
     const room = makeRoom({
       rootEventId: '$root',
@@ -230,11 +236,15 @@ describe('useThreadStreamingState', () => {
     });
     const clone = vi.spyOn(globalThis, 'structuredClone');
     try {
+      const streamingBundle = JSON.stringify(replyEvent.getUnsigned());
       expect(getThreadStreamingState(room, '$root')).toBe(true);
-      expect(clone).toHaveBeenCalledTimes(1);
+      expect(JSON.stringify(replyEvent.getUnsigned())).toBe(streamingBundle);
       attach('$completed', 400, 'completed');
+      const bundle = JSON.stringify(replyEvent.getUnsigned());
       expect(getThreadStreamingState(room, '$root')).toBe(false);
-      expect(clone).toHaveBeenCalledTimes(2);
+      // Every record rebuild runs this check for each thread's tail.
+      expect(clone).not.toHaveBeenCalled();
+      expect(JSON.stringify(replyEvent.getUnsigned())).toBe(bundle);
     } finally {
       clone.mockRestore();
     }

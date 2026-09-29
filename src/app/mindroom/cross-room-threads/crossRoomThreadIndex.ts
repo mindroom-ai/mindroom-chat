@@ -612,40 +612,72 @@ export const removeRoomCrossRoomThreadIndexEntries = (
 
 export type CrossRoomThreadDirtyCoalescer = {
   enqueueDirty: (key: string) => void;
+  discardDirty: (key: string) => void;
   flushNow: () => void;
   clear: () => void;
 };
 
+const FLUSH_INTERVAL_MS = 200;
+
+/** A scheduled flush; the timer is unset while it waits on a microtask. */
+type PendingFlush = { timer?: ReturnType<typeof setTimeout> };
+
+/**
+ * Coalesces dirty keys into flushes with a leading edge: an isolated update
+ * flushes on the next microtask, while a burst waits until 200 ms
+ * after the previous flush ended, measured on the monotonic
+ * `performance.now()` clock. SDK thread initialization and streamed edits emit
+ * many updates per thread in separate tasks; flushing on every microtask
+ * rebuilt each entry a median of 14 times at startup (3,065 flushes for 577
+ * threads on a large account). `flushNow` supersedes the pending flush, and a
+ * flush that finds no keys leaves the interval untouched.
+ */
 export const createCrossRoomThreadDirtyCoalescer = (
-  flushDirtyKeys: (keys: string[]) => void,
-  schedule: (callback: () => void) => void = queueMicrotask
+  flushDirtyKeys: (keys: string[]) => void
 ): CrossRoomThreadDirtyCoalescer => {
   const dirtyKeys = new Set<string>();
-  let scheduled = false;
+  let lastFlushEndedAt = Number.NEGATIVE_INFINITY;
+  let pending: PendingFlush | undefined;
+
+  const cancelPending = () => {
+    if (pending?.timer !== undefined) clearTimeout(pending.timer);
+    pending = undefined;
+  };
 
   const flushNow = () => {
-    if (dirtyKeys.size === 0) {
-      scheduled = false;
-      return;
-    }
+    cancelPending();
+    if (dirtyKeys.size === 0) return;
 
     const keys = Array.from(dirtyKeys);
     dirtyKeys.clear();
-    scheduled = false;
     flushDirtyKeys(keys);
+    lastFlushEndedAt = performance.now();
+  };
+
+  const schedule = () => {
+    const run: PendingFlush = {};
+    pending = run;
+    // A superseded run (flushNow or clear) must not flush later keys early.
+    const fire = () => {
+      if (pending === run) flushNow();
+    };
+    const waitMs = lastFlushEndedAt + FLUSH_INTERVAL_MS - performance.now();
+    if (waitMs <= 0) queueMicrotask(fire);
+    else run.timer = setTimeout(fire, waitMs);
   };
 
   return {
     enqueueDirty: (key: string) => {
       dirtyKeys.add(key);
-      if (scheduled) return;
-      scheduled = true;
-      schedule(flushNow);
+      if (!pending) schedule();
+    },
+    discardDirty: (key: string) => {
+      dirtyKeys.delete(key);
     },
     flushNow,
     clear: () => {
       dirtyKeys.clear();
-      scheduled = false;
+      cancelPending();
     },
   };
 };

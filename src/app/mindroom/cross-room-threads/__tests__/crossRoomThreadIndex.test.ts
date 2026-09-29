@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { RelationType } from 'matrix-js-sdk/lib/@types/event';
 import type { MatrixEvent } from 'matrix-js-sdk';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
@@ -72,7 +72,7 @@ const makeThread = (root: MatrixEvent, replies: MatrixEvent[] = []): Thread =>
     length: replies.length,
     lastReply: () => replies.at(-1) ?? null,
     getUnfilteredTimelineSet: () => makeTimelineSet([...replies, root]),
-  } as Thread);
+  } as unknown as Thread);
 
 const tagSnapshot: ThreadTagSnapshot = {
   content: { tags: { urgent: { set_by: '@alice:example.org', set_at: '2026-05-06T00:00:00Z' } } },
@@ -573,21 +573,130 @@ describe('crossRoomThreadIndex', () => {
     ).toEqual([`$root${total - 1}`]);
   });
 
-  it('coalesces dirty keys into one scheduled flush', () => {
-    const callbacks: Array<() => void> = [];
-    const flush = vi.fn();
-    const coalescer = createCrossRoomThreadDirtyCoalescer(flush, (callback) =>
-      callbacks.push(callback)
-    );
+  describe('dirty coalescer', () => {
+    beforeEach(() => {
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'performance'] });
+    });
 
-    coalescer.enqueueDirty('a');
-    coalescer.enqueueDirty('b');
-    coalescer.enqueueDirty('a');
+    afterEach(() => {
+      vi.useRealTimers();
+    });
 
-    expect(callbacks).toHaveLength(1);
-    callbacks[0]();
+    it('coalesces dirty keys into one flush on the next microtask', async () => {
+      const flush = vi.fn();
+      const coalescer = createCrossRoomThreadDirtyCoalescer(flush);
 
-    expect(flush).toHaveBeenCalledTimes(1);
-    expect(flush).toHaveBeenCalledWith(['a', 'b']);
+      coalescer.enqueueDirty('a');
+      coalescer.enqueueDirty('b');
+      coalescer.enqueueDirty('a');
+      expect(flush).not.toHaveBeenCalled();
+      await Promise.resolve();
+
+      expect(flush).toHaveBeenCalledTimes(1);
+      expect(flush).toHaveBeenCalledWith(['a', 'b']);
+    });
+
+    it('drops a discarded key from the pending flush', async () => {
+      const flush = vi.fn();
+      const coalescer = createCrossRoomThreadDirtyCoalescer(flush);
+
+      coalescer.enqueueDirty('a');
+      coalescer.enqueueDirty('b');
+      coalescer.discardDirty('a');
+      await Promise.resolve();
+
+      expect(flush).toHaveBeenCalledWith(['b']);
+    });
+
+    it('spaces a burst until the interval after the previous flush ended', async () => {
+      const flush = vi.fn(() => {
+        vi.advanceTimersByTime(30);
+      });
+      const coalescer = createCrossRoomThreadDirtyCoalescer(flush);
+      coalescer.enqueueDirty('a');
+      await Promise.resolve();
+
+      vi.advanceTimersByTime(50);
+      coalescer.enqueueDirty('b');
+      coalescer.enqueueDirty('c');
+      await Promise.resolve();
+      // The first flush ended 30 ms in, so the next may start 200 ms later.
+      vi.advanceTimersByTime(149);
+      expect(flush).toHaveBeenCalledTimes(1);
+      vi.advanceTimersByTime(1);
+      expect(flush).toHaveBeenLastCalledWith(['b', 'c']);
+
+      vi.advanceTimersByTime(500);
+      coalescer.enqueueDirty('d');
+      await Promise.resolve();
+      expect(flush).toHaveBeenLastCalledWith(['d']);
+      expect(vi.getTimerCount()).toBe(0);
+    });
+
+    it('keeps the interval when a scheduled flush finds every key discarded', async () => {
+      const flush = vi.fn();
+      const coalescer = createCrossRoomThreadDirtyCoalescer(flush);
+      coalescer.enqueueDirty('a');
+      await Promise.resolve();
+
+      vi.advanceTimersByTime(100);
+      coalescer.enqueueDirty('deleted');
+      coalescer.discardDirty('deleted');
+      vi.advanceTimersByTime(110);
+      coalescer.enqueueDirty('fresh');
+      await Promise.resolve();
+
+      expect(flush).toHaveBeenCalledTimes(2);
+      expect(flush).toHaveBeenLastCalledWith(['fresh']);
+    });
+
+    it('lets flushNow supersede a pending microtask flush', async () => {
+      const flush = vi.fn();
+      const coalescer = createCrossRoomThreadDirtyCoalescer(flush);
+
+      coalescer.enqueueDirty('a');
+      coalescer.flushNow();
+      coalescer.enqueueDirty('b');
+      // The microtask queued for 'a' must not flush 'b' inside the interval.
+      await Promise.resolve();
+      expect(flush).toHaveBeenCalledTimes(1);
+      expect(flush).toHaveBeenLastCalledWith(['a']);
+
+      vi.advanceTimersByTime(200);
+      expect(flush).toHaveBeenLastCalledWith(['b']);
+    });
+
+    it('lets flushNow supersede a pending timer and restart the interval', async () => {
+      const flush = vi.fn();
+      const coalescer = createCrossRoomThreadDirtyCoalescer(flush);
+      coalescer.enqueueDirty('a');
+      await Promise.resolve();
+
+      vi.advanceTimersByTime(50);
+      coalescer.enqueueDirty('b');
+      coalescer.flushNow();
+      expect(flush).toHaveBeenLastCalledWith(['b']);
+      expect(vi.getTimerCount()).toBe(0);
+
+      coalescer.enqueueDirty('c');
+      vi.advanceTimersByTime(199);
+      expect(flush).toHaveBeenCalledTimes(2);
+      vi.advanceTimersByTime(1);
+      expect(flush).toHaveBeenLastCalledWith(['c']);
+    });
+
+    it('cancels the pending flush on clear', async () => {
+      const flush = vi.fn();
+      const coalescer = createCrossRoomThreadDirtyCoalescer(flush);
+      coalescer.enqueueDirty('a');
+      await Promise.resolve();
+
+      coalescer.enqueueDirty('b');
+      coalescer.clear();
+
+      expect(vi.getTimerCount()).toBe(0);
+      vi.advanceTimersByTime(200);
+      expect(flush).toHaveBeenCalledTimes(1);
+    });
   });
 });

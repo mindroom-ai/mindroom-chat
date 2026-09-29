@@ -2,6 +2,43 @@
 
 ## Runbook
 
+### Large-room main-thread hot paths (2026-09-28)
+
+- Profiled a live account in headed Chrome 153: the Personal room has 523 SDK threads, 9,549 loaded thread events and 619 thread-tag state events, across 136 joined rooms.
+  A 24-minute trace of normal use (Vite dev build) spent 111 s on the main thread, and the first minute after load was saturated.
+- Tag state was re-parsed on every cross-room index flush (19.6 s of that trace; `parsePerTagStateKey` alone 14 s).
+  `aggregateThreadTagEvents` caches by array identity, but `RoomState.getStateEvents()` copies its map into a new array on every call, so `getRoomThreadTagSnapshotMap` never hit it.
+  `getRoomThreadTagSnapshotMap` now keeps one snapshot map per `RoomState` (weakly held, replaced on a miss), validated element by element: event object, plus content object or, for redacted events, the redaction flag alone (a pending local redaction reads a fresh `{}` each time).
+  Hook callers pass `useStateEvents` arrays, which stay stable between state changes, so they keep the array-identity cache.
+- Localized message previews ran the markdown-stripping pipeline three times plus a tool-count scan for every loaded message on each record, index and minimap rebuild.
+  Preview text and its localization (the tool badge's count and prose come straight from the analysis instead of being parsed back out of the text) now come from one analysis per call, and the analysis (a pure function of the body) is kept in a least-recently-used cache of 5,000 entries and 4 million characters, enough for the 523-thread room's rebuild working set.
+- The cross-room index flushed dirty keys on every microtask; SDK thread initialization and streamed edits emit updates in separate tasks, so a warm reload ran 3,065 flushes and rebuilt each of 577 entries a median of 14 times.
+  The coalescer now flushes an isolated update on the next microtask but spaces a burst until 200 ms after the previous flush ended, on the monotonic `performance.now()` clock.
+  `flushNow` supersedes the pending flush, a flush that finds every key discarded leaves the interval untouched, and bootstrap flushes pending rebuilds before it marks the index bootstrapped so filtered sidebar views never show an empty list.
+  A thread deletion drops the rebuild queued before it; a later update still re-adds the entry, as before: the SDK removes the `Thread`, but `buildCrossRoomThreadIndexEntry` falls back to `room.findEventById` for the root.
+- Streaming detection checks the last 10 events of every thread on each record build, and each check `structuredClone`d the bundled `m.replace` edit because `getEditedEvent` writes fallback metadata into the winning edit.
+  The check now passes `getEditedEvent` a copy of only the event, content and `m.new_content` it writes to (`getShallowSerializedReplacementEvent`), so the resolution path is unchanged; `getSerializedReplacementEvent` keeps its deep copy for callers that mutate more (`room_id`, decryption, `makeReplaced`).
+- Measurements on the same account, each against the state named in its row; whole-reload totals on the live account varied too much to compare, because agents kept posting and the thread cache grew between runs:
+
+  | Metric | Build | Measured change | Before | After |
+  | --- | --- | --- | ---: | ---: |
+  | Main thread quiet after a warm reload | dev, A/B/B/A | first tag and preview caches (an 8-entry tag list and a 1,000-entry preview cache) against `dev` | 27.8-29.9 s | 11.6-15.9 s |
+  | Cross-room flushes in a warm reload | production, unminified | per-room tag slots, 5,000-entry preview cache and flush throttle against `dev` | 9.6 s | 0.8 s |
+  | Tag aggregation in a warm reload | same | same | 6.2 s | 10-22 ms |
+  | Preview analysis in a warm reload | same | same | 2.2 s | 50-80 ms |
+  | Streaming detection over three thread closes | dev | uncopied bundle read against the state above | 640 ms | 155 ms |
+  | Thread record rebuilds over three thread closes | same | same | 927 ms | 457 ms |
+
+  The final review commits (tag cache per `RoomState`, one preview analysis per call, throttling inside the coalescer, and a shallow copy in place of the uncopied bundle read) were not re-measured.
+  Freed startup time is partly taken by SDK thread initialization and cache work.
+  Opening or closing a thread shows its view after about 0.5-0.8 s with or without this change; the first overview cards appear about 3 s into a dev-build reload in both.
+- Production sourcemaps map the 5 MB main chunk to only 74 sources, so production profiles and stack traces cannot be attributed; unminified production builds were used for the function-level rows.
+- Independent reviews, `pr-review` passes and the Qodo and CodeRabbit comments are addressed in this change.
+- Validation: `npm run typecheck`, `npm run lint`, `npm run build`, prettier on the changed files, and the Vitest suites under `src/app/mindroom`, `src/app/utils` and `src/app/pages/client` pass, apart from the 6 `deepTraceFailure.test.ts` cases that fail the same way on clean `dev`.
+  Timing-sensitive tests (`gapFillExecutor`, `useRoomThreadList.cache`, `roomOfflineController`, `RoomTimeline.ledgerLifecycle`) fail intermittently under full-suite load on both `dev` and this branch and pass alone.
+  Each regression test fails when its fix is removed: room-state reuse and per-room slots, in-place and local redaction, preview working set, entry and character bounds, flush bursts, discarded-only flushes, `flushNow` superseding a pending microtask or timer, deletion discard, bootstrap ordering, and a streaming check that neither deep-copies nor changes the bundle.
+- Next: remove the O(threads) `Room.findEventById` fallback cost (the SDK event mapper looks up every event and its bundled edit, and `buildCompactThreadRootData` looks up every thread root), decide whether SDK thread initialization should be deferred or throttled (it fetches a root and a recursive `/relations` page per listed thread; 208 and 114 were seen in the first two minutes here), and repair production sourcemaps.
+
 ### Compact room chrome on short screens (2026-09-28)
 
 - On a phone held sideways (667×375), the room header, thread banner, composer and receipt row left about 130px of a thread for messages.

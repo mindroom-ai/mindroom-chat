@@ -129,9 +129,19 @@ export const stripPreviewMarkdown = (value: string): string =>
     .replace(/`([^`\n]+)`/g, '$1')
     .replace(/^\s*(?:[-*_]\s*){3,}\s*$/gm, ' ');
 
-const normalizeBodyPreview = (body: unknown): string | undefined => {
-  if (typeof body !== 'string') return undefined;
+export type ThreadPreviewLocalization =
+  | { kind: 'voice' | 'audio' | 'image' | 'video' | 'file' }
+  | { kind: 'tools'; count: number; prose: string };
 
+/** Preview text and, for generated copy such as the tool badge, where it came from. */
+type ThreadPreview = {
+  text: string | undefined;
+  localization: ThreadPreviewLocalization | undefined;
+};
+
+const NO_PREVIEW: ThreadPreview = { text: undefined, localization: undefined };
+
+const computeBodyPreview = (body: string): ThreadPreview => {
   const withoutReply = trimReplyFromBody(body);
   const { body: withoutToolMarkers, toolCallCount } = extractPreviewTools(withoutReply);
   const boundedSource =
@@ -147,34 +157,76 @@ const normalizeBodyPreview = (body: unknown): string | undefined => {
     // threadOverviewCacheHydration) run hasLikelyIncompleteStreamingBody on
     // this preview text; prefixing the badge would hide the "Thinking" prefix
     // they match on, so pass the placeholder through unbadged.
-    if (hasLikelyIncompleteStreamingBody(cleanedProse)) return cleanedProse;
-    return /[\p{L}\p{N}]/u.test(cleanedProse)
-      ? `${formatToolCallSummary(toolCallCount)} · ${cleanedProse}`
-      : formatToolCallSummary(toolCallCount);
+    if (hasLikelyIncompleteStreamingBody(cleanedProse)) {
+      return { text: cleanedProse, localization: undefined };
+    }
+    const badgeProse = /[\p{L}\p{N}]/u.test(cleanedProse) ? cleanedProse : '';
+    const badge = formatToolCallSummary(toolCallCount);
+    return {
+      text: badgeProse ? `${badge} · ${badgeProse}` : badge,
+      localization: { kind: 'tools', count: toolCallCount, prose: badgeProse },
+    };
   }
 
-  return prose.length > 0 ? prose : undefined;
+  return { text: prose.length > 0 ? prose : undefined, localization: undefined };
 };
 
-const getMediaFallbackPreviewText = (content: Record<string, unknown>): string | undefined => {
+// Thread records, cross-room index entries and the minimap preview the root
+// and latest replies of every thread on each rebuild. The analysis depends
+// only on the body, so a least-recently-used cache sized above one large
+// room's working set (523 threads) reuses it across rebuilds. The character
+// budget bounds the strings it can keep alive.
+const BODY_PREVIEW_CACHE_MAX_ENTRIES = 5000;
+const BODY_PREVIEW_CACHE_MAX_CHARS = 4_000_000;
+const bodyPreviewCache = new Map<string, ThreadPreview>();
+let bodyPreviewCacheChars = 0;
+
+const analyzeBodyPreview = (body: string): ThreadPreview => {
+  const cached = bodyPreviewCache.get(body);
+  if (cached) {
+    // Map iteration follows insertion order, so re-inserting marks it recent.
+    bodyPreviewCache.delete(body);
+    bodyPreviewCache.set(body, cached);
+    return cached;
+  }
+
+  const analysis = computeBodyPreview(body);
+  bodyPreviewCache.set(body, analysis);
+  bodyPreviewCacheChars += body.length;
+  for (const oldest of bodyPreviewCache.keys()) {
+    if (
+      bodyPreviewCache.size <= BODY_PREVIEW_CACHE_MAX_ENTRIES &&
+      bodyPreviewCacheChars <= BODY_PREVIEW_CACHE_MAX_CHARS
+    ) {
+      break;
+    }
+    bodyPreviewCache.delete(oldest);
+    bodyPreviewCacheChars -= oldest.length;
+  }
+  return analysis;
+};
+
+const getMediaFallbackPreview = (content: Record<string, unknown>): ThreadPreview | undefined => {
   switch (content.msgtype) {
     case MsgType.Audio:
-      return isVoiceMessageContent(content) ? VOICE_MESSAGE_PREVIEW_TEXT : 'Audio';
+      return { text: 'Audio', localization: { kind: 'audio' } };
     case MsgType.Image:
-      return 'Image';
+      return { text: 'Image', localization: { kind: 'image' } };
     case MsgType.Video:
-      return 'Video';
+      return { text: 'Video', localization: { kind: 'video' } };
     case MsgType.File:
-      return 'File';
+      return { text: 'File', localization: { kind: 'file' } };
     default:
       return undefined;
   }
 };
 
-export const getThreadMessagePreviewText = (
+// The preview text and the origin of its generated copy come from one
+// analysis, so a localized preview reads the body once.
+const resolveThreadPreview = (
   content: Record<string, unknown> | null | undefined
-): string | undefined => {
-  if (!content || !isRecord(content)) return undefined;
+): ThreadPreview => {
+  if (!content || !isRecord(content)) return NO_PREVIEW;
 
   const newContent = isRecord(content['m.new_content'])
     ? (content['m.new_content'] as Record<string, unknown>)
@@ -182,54 +234,28 @@ export const getThreadMessagePreviewText = (
   const previewContent = newContent ? { ...content, ...newContent } : content;
 
   if (previewContent.msgtype === MsgType.Audio && isVoiceMessageContent(previewContent)) {
-    return VOICE_MESSAGE_PREVIEW_TEXT;
+    return { text: VOICE_MESSAGE_PREVIEW_TEXT, localization: { kind: 'voice' } };
   }
 
-  const bodyPreview = normalizeBodyPreview(previewContent.body);
-  if (bodyPreview) return bodyPreview;
+  const bodyPreview =
+    typeof previewContent.body === 'string' ? analyzeBodyPreview(previewContent.body) : undefined;
+  if (bodyPreview?.text) return bodyPreview;
 
-  return getMediaFallbackPreviewText(previewContent);
+  return getMediaFallbackPreview(previewContent) ?? NO_PREVIEW;
 };
 
-export type ThreadPreviewLocalization =
-  | { kind: 'voice' | 'audio' | 'image' | 'video' | 'file' }
-  | { kind: 'tools'; count: number; prose: string };
+export const getThreadMessagePreviewText = (
+  content: Record<string, unknown> | null | undefined
+): string | undefined => resolveThreadPreview(content).text;
 
 /** Carry the origin of generated copy to the UI without translating user text or cached data. */
 export const getThreadPreviewLocalization = (
   content: Record<string, unknown> | null | undefined,
   previewText: string | undefined
 ): ThreadPreviewLocalization | undefined => {
-  if (!content || !previewText || getThreadMessagePreviewText(content) !== previewText)
-    return undefined;
-  const current = isRecord(content['m.new_content'])
-    ? { ...content, ...content['m.new_content'] }
-    : content;
-  if (current.msgtype === MsgType.Audio && isVoiceMessageContent(current)) return { kind: 'voice' };
-  const body = normalizeBodyPreview(current.body);
-  if (!body) {
-    switch (current.msgtype) {
-      case MsgType.Audio:
-        return { kind: 'audio' };
-      case MsgType.Image:
-        return { kind: 'image' };
-      case MsgType.Video:
-        return { kind: 'video' };
-      case MsgType.File:
-        return { kind: 'file' };
-      default:
-        return undefined;
-    }
-  }
-  const count =
-    typeof current.body === 'string'
-      ? extractPreviewTools(trimReplyFromBody(current.body)).toolCallCount
-      : 0;
-  const prefix = formatToolCallSummary(count);
-  if (count > 0 && (body === prefix || body.startsWith(`${prefix} · `))) {
-    return { kind: 'tools', count, prose: body.slice(prefix.length + 3) };
-  }
-  return undefined;
+  if (!previewText) return undefined;
+  const preview = resolveThreadPreview(content);
+  return preview.text === previewText ? preview.localization : undefined;
 };
 
 export const localizeThreadPreview = (
@@ -262,6 +288,6 @@ export const getLocalizedThreadMessagePreviewText = (
   content: Record<string, unknown> | null | undefined,
   t?: TFunction
 ): string | undefined => {
-  const text = getThreadMessagePreviewText(content);
-  return localizeThreadPreview(text, getThreadPreviewLocalization(content, text), t);
+  const { text, localization } = resolveThreadPreview(content);
+  return localizeThreadPreview(text, localization, t);
 };

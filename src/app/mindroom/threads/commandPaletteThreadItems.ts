@@ -122,7 +122,7 @@ const buildRecentThreadItem = ({
 }: {
   entry: RecentThreadItem;
   room: Room;
-  threadTagSnapshots: Map<string, Map<string, ThreadTagSnapshot>>;
+  threadTagSnapshots: Map<string, ReadonlyMap<string, ThreadTagSnapshot>>;
   selectedRoomId?: string | undefined;
   canonicalSelectedThreadId?: string | undefined;
   navigateRoomThread: (roomId: string, threadId: string) => void;
@@ -167,7 +167,7 @@ const buildSdkThreadItem = ({
 }: {
   room: Room;
   threadId: string;
-  threadTagSnapshots: Map<string, Map<string, ThreadTagSnapshot>>;
+  threadTagSnapshots: Map<string, ReadonlyMap<string, ThreadTagSnapshot>>;
   selectedRoomId?: string | undefined;
   canonicalSelectedThreadId?: string | undefined;
   navigateRoomThread: (roomId: string, threadId: string) => void;
@@ -245,7 +245,7 @@ export const useMindroomCommandPaletteThreadItems = ({
   const threadTagSnapshots = useMemo(() => {
     void resolutionVersion;
     void pendingPinsVersion;
-    const snapshots = new Map<string, Map<string, ThreadTagSnapshot>>();
+    const snapshots = new Map<string, ReadonlyMap<string, ThreadTagSnapshot>>();
 
     allJoinedRoomIds.forEach((roomId) => {
       const room = getRoom(roomId);

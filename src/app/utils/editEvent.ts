@@ -4,7 +4,9 @@ type StructuredCloneGlobal = typeof globalThis & {
   structuredClone?: <T>(value: T) => T;
 };
 
-export const cloneRawEvent = <TRawEvent extends Partial<IEvent>>(rawEvent: TRawEvent): TRawEvent => {
+export const cloneRawEvent = <TRawEvent extends Partial<IEvent>>(
+  rawEvent: TRawEvent
+): TRawEvent => {
   const g = globalThis as StructuredCloneGlobal;
   if (typeof g.structuredClone === 'function') {
     return g.structuredClone(rawEvent);
@@ -30,21 +32,50 @@ const isValidSerializedRelationEvent = (
   );
 };
 
-export const getSerializedRelationEvent = (
+const getRawSerializedRelationEvent = (
   mEvent: MatrixEvent,
   relationType: RelationType
-): MatrixEvent | undefined => {
+): Partial<IEvent> | undefined => {
   const relations = mEvent.getUnsigned()?.['m.relations'];
   if (!relations || typeof relations !== 'object' || Array.isArray(relations)) return undefined;
 
   const relationEvent = (relations as Record<string, unknown>)[relationType];
-  if (!isValidSerializedRelationEvent(relationEvent)) return undefined;
+  return isValidSerializedRelationEvent(relationEvent) ? relationEvent : undefined;
+};
 
-  return new MatrixEvent(cloneRawEvent(relationEvent) as IEvent);
+export const getSerializedRelationEvent = (
+  mEvent: MatrixEvent,
+  relationType: RelationType
+): MatrixEvent | undefined => {
+  const relationEvent = getRawSerializedRelationEvent(mEvent, relationType);
+  return relationEvent ? new MatrixEvent(cloneRawEvent(relationEvent)) : undefined;
 };
 
 export const getSerializedReplacementEvent = (mEvent: MatrixEvent): MatrixEvent | undefined =>
   getSerializedRelationEvent(mEvent, RelationType.Replace);
+
+/**
+ * The bundled replacement with only its event, content and `m.new_content`
+ * copied, the objects getEditedEvent fills with fallback metadata. Far cheaper
+ * than getSerializedReplacementEvent's deep copy of a large streamed edit, for
+ * callers that only pass it to getEditedEvent; nested values stay shared.
+ */
+export const getShallowSerializedReplacementEvent = (
+  mEvent: MatrixEvent
+): MatrixEvent | undefined => {
+  const relationEvent = getRawSerializedRelationEvent(mEvent, RelationType.Replace);
+  if (!relationEvent) return undefined;
+
+  const content = relationEvent.content ?? {};
+  const newContent = content['m.new_content'];
+  return new MatrixEvent({
+    ...relationEvent,
+    content:
+      newContent && typeof newContent === 'object' && !Array.isArray(newContent)
+        ? { ...content, 'm.new_content': { ...newContent } }
+        : content,
+  });
+};
 
 export const isSameSenderEditEvent = (
   targetEvent: MatrixEvent,
