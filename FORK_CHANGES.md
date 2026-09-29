@@ -7,6 +7,7 @@
 - A production profile of normal use on the live 523-thread Personal room put `Room.findEventById` (mostly `getTimelineForEvent`) at about 4 s of 61 s of main-thread work.
   Two open/close cycles made about 800,000 lookups: when an event is not in the room timeline, the SDK scans every thread, and most lookups are thread events or thread roots.
 - The SDK patch makes `Room.findEventById` remember which thread held an event and check that thread first, while the room still has it; the full scan remains for misses.
+  A stale entry is dropped when read, and the map starts over past 20,000 entries, so it cannot grow with the session's lookup history.
 - `findThreadRootEvent` in `threadUtils.ts` reads a root from the room timeline or its own thread.
   The compact overview, the room overview ordering and compact root backfill used `room.findEventById` for every root, which scanned all threads for each root not loaded in the room timeline and then fell back to `thread.rootEvent` anyway.
 - Same-conditions A/B on the live account (production build, warm reload, two thread open/close cycles): time inside `findEventById` drops from 9.4 s to 4.4 s; open shows its view after 582 ms instead of 834 ms and close after 1,018 ms instead of 1,342 ms, with worst frames down from 379 to 247 ms and from 688 to 462 ms.
