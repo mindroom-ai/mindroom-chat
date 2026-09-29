@@ -2,7 +2,7 @@
 
 ## Runbook
 
-### Thread event lookups in large rooms (2026-09-29)
+### Thread event lookups in large rooms (2026-09-28)
 
 - A production profile of normal use on the live 523-thread Personal room put `Room.findEventById` (mostly `getTimelineForEvent`) at about 4 s of 61 s of main-thread work.
   Two open/close cycles made about 800,000 lookups: when an event is not in the room timeline, the SDK scans every thread, and most lookups are thread events or thread roots.
