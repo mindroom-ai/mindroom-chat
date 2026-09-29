@@ -1813,62 +1813,47 @@ index d8a2081..f16cacd 100644
          logger.info("Clearing pending-key-bundle flag for room ".concat(roomId, " (too old: joined ").concat(new Date(pendingDetails.inviteAcceptedAtMillis).toISOString(), ")"));
          yield olmMachine.clearRoomPendingKeyBundle(new RustSdkCryptoJs.RoomId(roomId));
 diff --git a/node_modules/matrix-js-sdk/lib/store/indexeddb-backend.d.ts b/node_modules/matrix-js-sdk/lib/store/indexeddb-backend.d.ts
-index d08eb66..68b8afe 100644
+index d08eb66..5168f07 100644
 --- a/node_modules/matrix-js-sdk/lib/store/indexeddb-backend.d.ts
 +++ b/node_modules/matrix-js-sdk/lib/store/indexeddb-backend.d.ts
 @@ -10,6 +10,8 @@ export interface IIndexedDBBackend {
      getSavedSync(): Promise<ISavedSync | null>;
      getNextBatchToken(): Promise<string>;
      clearDatabase(): Promise<void>;
-+    /** Whether the browser closed the connection; the next operation reopens it. */
++    /** Whether the browser closed the connection (for example after losing its IndexedDB server). */
 +    isConnectionLost?(): boolean;
      getOutOfBandMembers(roomId: string): Promise<IStateEventWithRoomId[] | null>;
      setOutOfBandMembers(roomId: string, membershipEvents: IStateEventWithRoomId[]): Promise<void>;
      clearOutOfBandMembers(roomId: string): Promise<void>;
 diff --git a/node_modules/matrix-js-sdk/lib/store/indexeddb-local-backend.d.ts b/node_modules/matrix-js-sdk/lib/store/indexeddb-local-backend.d.ts
-index 7b41057..89192dc 100644
+index 7b41057..5d53271 100644
 --- a/node_modules/matrix-js-sdk/lib/store/indexeddb-local-backend.d.ts
 +++ b/node_modules/matrix-js-sdk/lib/store/indexeddb-local-backend.d.ts
-@@ -10,6 +10,10 @@ export declare class LocalIndexedDBStoreBackend implements IIndexedDBBackend {
+@@ -10,6 +10,7 @@ export declare class LocalIndexedDBStoreBackend implements IIndexedDBBackend {
      private readonly syncAccumulator;
      private db?;
      private disconnected;
 +    private closedByBrowser;
-+    private deliberatelyClosed;
-+    private reopening?;
-+    private onClose?;
      private _isNewlyCreated;
      private syncToDatabasePromise?;
      private pendingUserPresenceData;
-@@ -30,6 +34,15 @@ export declare class LocalIndexedDBStoreBackend implements IIndexedDBBackend {
-      * @returns Promise which resolves if successfully connected.
+@@ -31,6 +32,12 @@ export declare class LocalIndexedDBStoreBackend implements IIndexedDBBackend {
       */
      connect(onClose?: () => void): Promise<void>;
-+    private openDatabase;
+     /** @returns whether or not the database was newly created in this session. */
 +    /**
-+     * @returns the open connection, reopening one the browser closed.
-+     */
-+    private getDb;
-+    /**
-+     * @returns whether the browser closed the connection, rather than this store.
++     * @returns whether the browser closed the connection. WebKit marks every
++     * connection as closing as soon as its IndexedDB server is lost, before it
++     * reports the aborted requests and fires `close`.
 +     */
 +    isConnectionLost(): boolean;
-     /** @returns whether or not the database was newly created in this session. */
      isNewlyCreated(): Promise<boolean>;
      /**
+      * Having connected, load initial data from the database and prepare for use
 diff --git a/node_modules/matrix-js-sdk/lib/store/indexeddb-local-backend.js b/node_modules/matrix-js-sdk/lib/store/indexeddb-local-backend.js
-index 6ce0bac..9d459b0 100644
+index 6ce0bac..51c0bc9 100644
 --- a/node_modules/matrix-js-sdk/lib/store/indexeddb-local-backend.js
 +++ b/node_modules/matrix-js-sdk/lib/store/indexeddb-local-backend.js
-@@ -18,7 +18,7 @@ limitations under the License.
- */
- 
- import { SyncAccumulator } from "../sync-accumulator.js";
--import { deepCopy, promiseTry } from "../utils.js";
-+import { deepCopy } from "../utils.js";
- import { exists as idbExists } from "../indexeddb-helpers.js";
- import { logger } from "../logger.js";
- var DB_MIGRATIONS = [db => {
 @@ -99,6 +99,12 @@ function txnAsPromise(txn) {
      txn.onerror = function () {
        reject(txn.error);
@@ -1882,439 +1867,73 @@ index 6ce0bac..9d459b0 100644
    });
  }
  function reqAsEventPromise(req) {
-@@ -155,17 +161,30 @@ export class LocalIndexedDBStoreBackend {
-    * @returns Promise which resolves if successfully connected.
-    */
-   connect(onClose) {
--    var _this = this;
-     if (!this.disconnected) {
-       logger.log("LocalIndexedDBStoreBackend.connect: already connected or connecting");
-       return Promise.resolve();
-     }
-     this.disconnected = false;
-+    this.deliberatelyClosed = false;
-+    this.onClose = onClose;
-     logger.log("LocalIndexedDBStoreBackend.connect: connecting...");
-+    return this.openDatabase().then(() => this.init());
-+  }
-+  openDatabase() {
-+    var reopen = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : false;
-     var req = this.indexedDB.open(this.dbName, VERSION);
-     req.onupgradeneeded = ev => {
-       var db = req.result;
-       var oldVersion = ev.oldVersion;
-+      if (reopen && oldVersion === 0) {
-+        // The database was deleted while this connection was closed (for
-+        // example when site data was cleared); do not bring it back.
-+        logger.log("LocalIndexedDBStoreBackend: not recreating a database deleted while disconnected");
-+        this.closedByBrowser = false;
-+        req.transaction.abort();
-+        return;
-+      }
-       logger.log("LocalIndexedDBStoreBackend.connect: upgrading from ".concat(oldVersion));
-       if (oldVersion < 1) {
-         // The database did not previously exist
-@@ -179,25 +198,84 @@ export class LocalIndexedDBStoreBackend {
-       logger.log("can't yet open LocalIndexedDBStoreBackend because it is open elsewhere");
-     };
-     logger.log("LocalIndexedDBStoreBackend.connect: awaiting connection...");
--    return reqAsEventPromise(req).then(/*#__PURE__*/_asyncToGenerator(function* () {
-+    return reqAsEventPromise(req).then(() => {
-       logger.log("LocalIndexedDBStoreBackend.connect: connected");
--      _this.db = req.result;
-+      var db = req.result;
-+      if (this.deliberatelyClosed) {
-+        // Closed or cleared while this connection was opening.
-+        db.close();
-+        throw new DOMException("LocalIndexedDBStoreBackend: database was closed while opening", "InvalidStateError");
-+      }
-+      this.db = db;
-+      this.disconnected = false;
-+      this.closedByBrowser = false;
+@@ -193,6 +199,7 @@ export class LocalIndexedDBStoreBackend {
+       };
+       _this.db.onclose = () => {
+         _this.disconnected = true;
++        _this.closedByBrowser = true;
+         _this.db = undefined;
+         onClose === null || onClose === void 0 || onClose();
+       };
+@@ -200,6 +207,22 @@ export class LocalIndexedDBStoreBackend {
+     }));
+   }
  
-       // add a poorly-named listener for when deleteDatabase is called
-       // so we can close our db connections.
--      _this.db.onversionchange = () => {
--        var _this$db;
--        (_this$db = _this.db) === null || _this$db === void 0 || _this$db.close(); // this does not call onclose
--        _this.disconnected = true;
--        _this.db = undefined;
-+      db.onversionchange = () => {
-+        db.close(); // this does not call onclose
-+        if (this.db !== db) return;
-+        this.disconnected = true;
-+        this.db = undefined;
-       };
--      _this.db.onclose = () => {
--        _this.disconnected = true;
--        _this.db = undefined;
--        onClose === null || onClose === void 0 || onClose();
-+      db.onclose = () => {
-+        if (this.db !== db) return;
-+        // The browser closed the connection (for example WebKit's IndexedDB
-+        // server exited); the next operation opens a new one.
-+        this.disconnected = true;
-+        this.closedByBrowser = true;
-+        this.db = undefined;
-+        var _this$onClose;
-+        (_this$onClose = this.onClose) === null || _this$onClose === void 0 || _this$onClose.call(this);
-       };
--      yield _this.init();
--    }));
-+      return db;
-+    });
-+  }
-+
 +  /**
-+   * @returns the open connection, reopening one the browser closed.
-+   */
-+  getDb() {
-+    // A connection can be closing before its `close` event arrives.
-+    if (this.db && !this.isConnectionLost()) return Promise.resolve(this.db);
-+    if (this.deliberatelyClosed) {
-+      // Closed by this store: report a state error, which does not clear the data.
-+      return Promise.reject(new DOMException("LocalIndexedDBStoreBackend: database was closed", "InvalidStateError"));
-+    }
-+    if (!this.closedByBrowser) {
-+      return Promise.reject(new Error("LocalIndexedDBStoreBackend: database is not connected"));
-+    }
-+    if (!this.reopening) {
-+      logger.log("LocalIndexedDBStoreBackend: reopening the database after the browser closed it");
-+      var reopening = this.openDatabase(true).finally(() => {
-+        if (this.reopening === reopening) this.reopening = undefined;
-+      });
-+      this.reopening = reopening;
-+    }
-+    return this.reopening;
-+  }
-+
-+  /**
-+   * @returns whether the browser closed the connection, rather than this store.
++   * @returns whether the browser closed the connection. WebKit marks every
++   * connection as closing as soon as its IndexedDB server is lost, before it
++   * reports the aborted requests and fires `close`.
 +   */
 +  isConnectionLost() {
++    var _this$db3;
 +    if (this.closedByBrowser) return true;
-+    if (!this.db) return false;
 +    try {
-+      // WebKit marks every connection as closing as soon as its IndexedDB
-+      // server is lost, before it reports the aborted requests.
-+      this.db.transaction(["sync"], "readonly").abort();
++      (_this$db3 = this.db) === null || _this$db3 === void 0 || _this$db3.transaction(["sync"], "readonly").abort();
 +      return false;
 +    } catch (e) {
-+      var _this$onClose2;
-+      if ((e === null || e === void 0 ? void 0 : e.name) !== "InvalidStateError") return false;
-+      this.db = undefined;
-+      this.disconnected = true;
-+      this.closedByBrowser = true;
-+      // Its own `close` event is ignored once the connection is dropped here.
-+      (_this$onClose2 = this.onClose) === null || _this$onClose2 === void 0 || _this$onClose2.call(this);
-+      return true;
++      return (e === null || e === void 0 ? void 0 : e.name) === "InvalidStateError";
 +    }
-   }
- 
++  }
++
    /** @returns whether or not the database was newly created in this session. */
-@@ -232,8 +310,8 @@ export class LocalIndexedDBStoreBackend {
-    * @returns in case the members for this room haven't been stored yet
-    */
-   getOutOfBandMembers(roomId) {
--    return new Promise((resolve, reject) => {
--      var tx = this.db.transaction(["oob_membership_events"], "readonly");
-+    return this.getDb().then(db => new Promise((resolve, reject) => {
-+      var tx = db.transaction(["oob_membership_events"], "readonly");
-       var store = tx.objectStore("oob_membership_events");
-       var roomIndex = store.index("room");
-       var range = IDBKeyRange.only(roomId);
-@@ -263,9 +341,10 @@ export class LocalIndexedDBStoreBackend {
-         cursor.continue();
-       };
-       request.onerror = err => {
--        reject(err);
-+        var _request$error;
-+        reject((_request$error = request.error) !== null && _request$error !== void 0 ? _request$error : err);
-       };
--    }).then(events => {
-+    })).then(events => {
-       logger.log("LL: got ".concat(events === null || events === void 0 ? void 0 : events.length, " membershipEvents from storage for room ").concat(roomId, " ..."));
-       return events;
-     });
-@@ -281,7 +360,7 @@ export class LocalIndexedDBStoreBackend {
-     var _this2 = this;
-     return _asyncToGenerator(function* () {
-       logger.log("LL: backend about to store ".concat(membershipEvents.length) + " members for ".concat(roomId));
--      var tx = _this2.db.transaction(["oob_membership_events"], "readwrite");
-+      var tx = (yield _this2.getDb()).transaction(["oob_membership_events"], "readwrite");
-       var store = tx.objectStore("oob_membership_events");
-       membershipEvents.forEach(e => {
-         store.put(e);
-@@ -310,7 +389,7 @@ export class LocalIndexedDBStoreBackend {
-       // keys in the store.
-       // this should be way faster than deleting every member
-       // individually for a large room.
--      var readTx = _this3.db.transaction(["oob_membership_events"], "readonly");
-+      var readTx = (yield _this3.getDb()).transaction(["oob_membership_events"], "readonly");
-       var store = readTx.objectStore("oob_membership_events");
-       var roomIndex = store.index("room");
-       var roomRange = IDBKeyRange.only(roomId);
-@@ -320,7 +399,7 @@ export class LocalIndexedDBStoreBackend {
-         _yield$Promise$all2 = _slicedToArray(_yield$Promise$all, 2),
-         minStateKey = _yield$Promise$all2[0],
-         maxStateKey = _yield$Promise$all2[1];
--      var writeTx = _this3.db.transaction(["oob_membership_events"], "readwrite");
-+      var writeTx = (yield _this3.getDb()).transaction(["oob_membership_events"], "readwrite");
-       var writeStore = writeTx.objectStore("oob_membership_events");
-       var membersKeyRange = IDBKeyRange.bound([roomId, minStateKey], [roomId, maxStateKey]);
-       logger.log("LL: Deleting all users + marker in storage for room ".concat(roomId, ", with key range:"), [roomId, minStateKey], [roomId, maxStateKey]);
-@@ -338,8 +417,12 @@ export class LocalIndexedDBStoreBackend {
-       var _this$db2;
-       logger.log("Removing indexeddb instance: ".concat(this.dbName));
- 
-+      // A deliberate close must not reopen the database.
-+      this.closedByBrowser = false;
-+      this.deliberatelyClosed = true;
-       // Close the database first to avoid firing unexpected close events
-       (_this$db2 = this.db) === null || _this$db2 === void 0 || _this$db2.close();
-+      this.db = undefined;
-       var req = this.indexedDB.deleteDatabase(this.dbName);
-       req.onblocked = () => {
-         logger.log("can't yet delete indexeddb ".concat(this.dbName, " because it is open elsewhere"));
-@@ -429,8 +512,8 @@ export class LocalIndexedDBStoreBackend {
-    */
-   persistSyncData(nextBatch, roomsData) {
-     logger.log("Persisting sync data up to", nextBatch);
--    return promiseTry(() => {
--      var txn = this.db.transaction(["sync"], "readwrite");
-+    return this.getDb().then(db => {
-+      var txn = db.transaction(["sync"], "readwrite");
-       var store = txn.objectStore("sync");
-       store.put({
-         clobber: "-",
-@@ -451,8 +534,8 @@ export class LocalIndexedDBStoreBackend {
-    * @returns Promise which resolves if the events were persisted.
-    */
-   persistAccountData(accountData) {
--    return promiseTry(() => {
--      var txn = this.db.transaction(["accountData"], "readwrite");
-+    return this.getDb().then(db => {
-+      var txn = db.transaction(["accountData"], "readwrite");
-       var store = txn.objectStore("accountData");
-       for (var event of accountData) {
-         store.put(event); // put == UPSERT
-@@ -470,8 +553,8 @@ export class LocalIndexedDBStoreBackend {
-    * @returns Promise which resolves if the users were persisted.
-    */
-   persistUserPresenceEvents(tuples) {
--    return promiseTry(() => {
--      var txn = this.db.transaction(["users"], "readwrite");
-+    return this.getDb().then(db => {
-+      var txn = db.transaction(["users"], "readwrite");
-       var store = txn.objectStore("users");
-       for (var tuple of tuples) {
-         store.put({
-@@ -490,8 +573,8 @@ export class LocalIndexedDBStoreBackend {
-    * @returns A list of presence events in their raw form.
-    */
-   getUserPresenceEvents() {
--    return promiseTry(() => {
--      var txn = this.db.transaction(["users"], "readonly");
-+    return this.getDb().then(db => {
-+      var txn = db.transaction(["users"], "readonly");
-       var store = txn.objectStore("users");
-       return selectQuery(store, undefined, cursor => {
-         return [cursor.value.userId, cursor.value.event];
-@@ -505,8 +588,8 @@ export class LocalIndexedDBStoreBackend {
-    */
-   loadAccountData() {
-     logger.log("LocalIndexedDBStoreBackend: loading account data...");
--    return promiseTry(() => {
--      var txn = this.db.transaction(["accountData"], "readonly");
-+    return this.getDb().then(db => {
-+      var txn = db.transaction(["accountData"], "readonly");
-       var store = txn.objectStore("accountData");
-       return selectQuery(store, undefined, cursor => {
-         return cursor.value;
-@@ -523,8 +606,8 @@ export class LocalIndexedDBStoreBackend {
-    */
-   loadSyncData() {
-     logger.log("LocalIndexedDBStoreBackend: loading sync data...");
--    return promiseTry(() => {
--      var txn = this.db.transaction(["sync"], "readonly");
-+    return this.getDb().then(db => {
-+      var txn = db.transaction(["sync"], "readonly");
-       var store = txn.objectStore("sync");
-       return selectQuery(store, undefined, cursor => {
-         return cursor.value;
-@@ -538,8 +621,8 @@ export class LocalIndexedDBStoreBackend {
-     });
-   }
-   getClientOptions() {
--    return Promise.resolve().then(() => {
--      var txn = this.db.transaction(["client_options"], "readonly");
-+    return this.getDb().then(db => {
-+      var txn = db.transaction(["client_options"], "readonly");
-       var store = txn.objectStore("client_options");
-       return selectQuery(store, undefined, cursor => {
-         var _cursor$value;
-@@ -550,7 +633,7 @@ export class LocalIndexedDBStoreBackend {
-   storeClientOptions(options) {
-     var _this6 = this;
-     return _asyncToGenerator(function* () {
--      var txn = _this6.db.transaction(["client_options"], "readwrite");
-+      var txn = (yield _this6.getDb()).transaction(["client_options"], "readwrite");
-       var store = txn.objectStore("client_options");
-       store.put({
-         clobber: "-",
-@@ -563,7 +646,7 @@ export class LocalIndexedDBStoreBackend {
-   saveToDeviceBatches(batches) {
-     var _this7 = this;
-     return _asyncToGenerator(function* () {
--      var txn = _this7.db.transaction(["to_device_queue"], "readwrite");
-+      var txn = (yield _this7.getDb()).transaction(["to_device_queue"], "readwrite");
-       var store = txn.objectStore("to_device_queue");
-       for (var batch of batches) {
-         store.add(batch);
-@@ -574,7 +657,7 @@ export class LocalIndexedDBStoreBackend {
-   getOldestToDeviceBatch() {
-     var _this8 = this;
-     return _asyncToGenerator(function* () {
--      var txn = _this8.db.transaction(["to_device_queue"], "readonly");
-+      var txn = (yield _this8.getDb()).transaction(["to_device_queue"], "readonly");
-       var store = txn.objectStore("to_device_queue");
-       var cursor = yield reqAsCursorPromise(store.openCursor());
-       if (!cursor) return null;
-@@ -590,7 +673,7 @@ export class LocalIndexedDBStoreBackend {
-   removeToDeviceBatch(id) {
-     var _this9 = this;
-     return _asyncToGenerator(function* () {
--      var txn = _this9.db.transaction(["to_device_queue"], "readwrite");
-+      var txn = (yield _this9.getDb()).transaction(["to_device_queue"], "readwrite");
-       var store = txn.objectStore("to_device_queue");
-       store.delete(id);
-       yield txnAsPromise(txn);
-@@ -599,8 +682,8 @@ export class LocalIndexedDBStoreBackend {
-   getUserProfile(userId) {
-     var _this0 = this;
-     return _asyncToGenerator(function* () {
--      return Promise.resolve().then(() => {
--        var txn = _this0.db.transaction(["user_profile"], "readonly");
-+      return _this0.getDb().then(db => {
-+        var txn = db.transaction(["user_profile"], "readonly");
-         var store = txn.objectStore("user_profile");
-         return selectQuery(store, [userId], cursor => {
-           var _cursor$value2;
-@@ -612,7 +695,7 @@ export class LocalIndexedDBStoreBackend {
-   storeUserProfiles(userProfiles) {
-     var _this1 = this;
-     return _asyncToGenerator(function* () {
--      var txn = _this1.db.transaction(["user_profile"], "readwrite");
-+      var txn = (yield _this1.getDb()).transaction(["user_profile"], "readwrite");
-       var store = txn.objectStore("user_profile");
-       for (var _ref6 of userProfiles.entries()) {
-         var _ref5 = _slicedToArray(_ref6, 2);
-@@ -629,7 +712,7 @@ export class LocalIndexedDBStoreBackend {
-   removeUserProfiles(userIds) {
-     var _this10 = this;
-     return _asyncToGenerator(function* () {
--      var txn = _this10.db.transaction(["user_profile"], "readwrite");
-+      var txn = (yield _this10.getDb()).transaction(["user_profile"], "readwrite");
-       var store = txn.objectStore("user_profile");
-       for (var userId of userIds) {
-         store.delete([userId]);
-@@ -645,7 +728,10 @@ export class LocalIndexedDBStoreBackend {
-     var _this11 = this;
-     return _asyncToGenerator(function* () {
-       var _this11$db;
-+      _this11.closedByBrowser = false;
-+      _this11.deliberatelyClosed = true;
-       (_this11$db = _this11.db) === null || _this11$db === void 0 || _this11$db.close();
-+      _this11.db = undefined;
-     })();
-   }
- }
+   isNewlyCreated() {
+     return Promise.resolve(this._isNewlyCreated);
 diff --git a/node_modules/matrix-js-sdk/lib/store/indexeddb.js b/node_modules/matrix-js-sdk/lib/store/indexeddb.js
-index 8320c66..0c57994 100644
+index 8320c66..6b1b47c 100644
 --- a/node_modules/matrix-js-sdk/lib/store/indexeddb.js
 +++ b/node_modules/matrix-js-sdk/lib/store/indexeddb.js
-@@ -35,7 +35,23 @@ import { TypedEventEmitter } from "../models/typed-event-emitter.js";
- // often does not affect the length of the pause since the entire /sync
- // response is persisted each time.
- var WRITE_DELAY_MS = 1000 * 60 * 5; // once every 5 minutes
-+var SAVE_RETRY_DELAY_MS = 30 * 1000; // after a save failed because the connection was lost
- 
-+// Errors that describe the connection or transaction state, not the stored data.
-+// `UnknownError` is not among them: outside WebKit's server loss (which the
-+// backend's own check detects) it reports a broken backing store.
-+var CONNECTION_STATE_ERRORS = new Set(["AbortError", "InvalidStateError", "TransactionInactiveError"]);
-+function errorNames(error) {
-+  var _error$target, _error$cause;
-+  // Request handlers reject with the event, or with an error that wraps the request's error.
-+  var inner = typeof Event !== "undefined" && error instanceof Event ? (_error$target = error.target) === null || _error$target === void 0 ? void 0 : _error$target.error : error;
-+  return [inner === null || inner === void 0 ? void 0 : inner.name, inner === null || inner === void 0 || (_error$cause = inner.cause) === null || _error$cause === void 0 ? void 0 : _error$cause.name];
-+}
-+function isConnectionLoss(error, backend) {
-+  var _backend$isConnection;
-+  if (((_backend$isConnection = backend.isConnectionLost) === null || _backend$isConnection === void 0 ? void 0 : _backend$isConnection.call(backend)) === true) return true;
-+  return errorNames(error).some(name => CONNECTION_STATE_ERRORS.has(name));
-+}
- export class IndexedDBStore extends MemoryStore {
-   static exists(indexedDB, dbName) {
-     return LocalIndexedDBStoreBackend.exists(indexedDB, dbName);
-@@ -133,7 +149,12 @@ export class IndexedDBStore extends MemoryStore {
-         // note that we've saved this version of the user
-         this.userModifiedMap[u.userId] = u.getLastModifiedTime();
-       }
--      return this.backend.syncToDatabase(userTuples);
-+      return this.backend.syncToDatabase(userTuples).catch(e => {
-+        // Retry in 30 s once the backend has reopened, instead of in five
-+        // minutes, so a killed app does not restart from a stale token.
-+        if (isConnectionLoss(e, this.backend)) this.syncTs = Date.now() - WRITE_DELAY_MS + SAVE_RETRY_DELAY_MS;
-+        throw e;
-+      });
-     }, null));
-     _defineProperty(this, "setSyncData", this.degradable(syncData => {
-       return this.backend.setSyncData(syncData);
-@@ -272,9 +293,14 @@ export class IndexedDBStore extends MemoryStore {
+@@ -272,6 +272,14 @@ export class IndexedDBStore extends MemoryStore {
        try {
          return yield func.call(_this, ...args);
        } catch (e) {
--        logger.error("IndexedDBStore failure, degrading to MemoryStore", e);
--        _this.emitter.emit("degraded", e);
--        try {
-+        if (isConnectionLoss(e, _this.backend)) {
-+          // The data is intact; only the connection failed, and the backend
-+          // reopens it for the next operation. Deleting would discard the
-+          // persisted sync and force a full initial sync on the next start.
-+          logger.warn("IndexedDBStore operation failed after a lost connection; keeping its data", e);
-+        } else try {
-+          logger.error("IndexedDBStore failure, degrading to MemoryStore", e);
-+          _this.emitter.emit("degraded", e);
-           // We try to delete IndexedDB after degrading since this store is only a
-           // cache (the app will still function correctly without the data).
-           // It's possible that deleting repair IndexedDB for the next app load,
++        var _this$backend$isConne, _this$backend;
++        if (((_this$backend$isConne = (_this$backend = _this.backend).isConnectionLost) === null || _this$backend$isConne === void 0 ? void 0 : _this$backend$isConne.call(_this$backend)) === true) {
++          // Only the connection failed; the data is intact. Deleting it would
++          // force a full initial sync on the next start.
++          logger.warn("IndexedDBStore operation failed after the browser closed its connection", e);
++          if (fallbackFn) return fallbackFn.call(_this, ...args);
++          return;
++        }
+         logger.error("IndexedDBStore failure, degrading to MemoryStore", e);
+         _this.emitter.emit("degraded", e);
+         try {
 diff --git a/node_modules/matrix-js-sdk/src/store/indexeddb-backend.ts b/node_modules/matrix-js-sdk/src/store/indexeddb-backend.ts
-index 4cd5e8c..5872b29 100644
+index 4cd5e8c..bd61982 100644
 --- a/node_modules/matrix-js-sdk/src/store/indexeddb-backend.ts
 +++ b/node_modules/matrix-js-sdk/src/store/indexeddb-backend.ts
 @@ -27,6 +27,8 @@ export interface IIndexedDBBackend {
      getSavedSync(): Promise<ISavedSync | null>;
      getNextBatchToken(): Promise<string>;
      clearDatabase(): Promise<void>;
-+    /** Whether the browser closed the connection; the next operation reopens it. */
++    /** Whether the browser closed the connection (for example after losing its IndexedDB server). */
 +    isConnectionLost?(): boolean;
      getOutOfBandMembers(roomId: string): Promise<IStateEventWithRoomId[] | null>;
      setOutOfBandMembers(roomId: string, membershipEvents: IStateEventWithRoomId[]): Promise<void>;
      clearOutOfBandMembers(roomId: string): Promise<void>;
 diff --git a/node_modules/matrix-js-sdk/src/store/indexeddb-local-backend.ts b/node_modules/matrix-js-sdk/src/store/indexeddb-local-backend.ts
-index 5f58e7c..22de852 100644
+index 5f58e7c..2e7a8b9 100644
 --- a/node_modules/matrix-js-sdk/src/store/indexeddb-local-backend.ts
 +++ b/node_modules/matrix-js-sdk/src/store/indexeddb-local-backend.ts
-@@ -15,7 +15,7 @@ limitations under the License.
- */
- 
- import { type IMinimalEvent, type ISyncData, type ISyncResponse, SyncAccumulator } from "../sync-accumulator.ts";
--import { deepCopy, promiseTry } from "../utils.ts";
-+import { deepCopy } from "../utils.ts";
- import { exists as idbExists } from "../indexeddb-helpers.ts";
- import { logger } from "../logger.ts";
- import type { SyncUserProfile, IStateEventWithRoomId, IStoredClientOpts } from "../matrix.ts";
 @@ -98,6 +98,11 @@ function txnAsPromise(txn: IDBTransaction): Promise<Event> {
          txn.onerror = function (): void {
              reject(txn.error);
@@ -2327,423 +1946,59 @@ index 5f58e7c..22de852 100644
      });
  }
  
-@@ -133,6 +138,10 @@ export class LocalIndexedDBStoreBackend implements IIndexedDBBackend {
+@@ -133,6 +138,7 @@ export class LocalIndexedDBStoreBackend implements IIndexedDBBackend {
      private readonly syncAccumulator: SyncAccumulator;
      private db?: IDBDatabase;
      private disconnected = true;
 +    private closedByBrowser = false;
-+    private deliberatelyClosed = false;
-+    private reopening?: Promise<IDBDatabase>;
-+    private onClose?: () => void;
      private _isNewlyCreated = false;
      private syncToDatabasePromise?: Promise<void>;
      private pendingUserPresenceData: UserTuple[] = [];
-@@ -167,12 +176,28 @@ export class LocalIndexedDBStoreBackend implements IIndexedDBBackend {
-         }
- 
-         this.disconnected = false;
-+        this.deliberatelyClosed = false;
-+        this.onClose = onClose;
- 
-         logger.log(`LocalIndexedDBStoreBackend.connect: connecting...`);
-+        return this.openDatabase().then(async () => {
-+            await this.init();
-+        });
-+    }
-+
-+    private openDatabase(reopen = false): Promise<IDBDatabase> {
-         const req = this.indexedDB.open(this.dbName, VERSION);
-         req.onupgradeneeded = (ev): void => {
-             const db = req.result;
-             const oldVersion = ev.oldVersion;
-+            if (reopen && oldVersion === 0) {
-+                // The database was deleted while this connection was closed (for
-+                // example when site data was cleared); do not bring it back.
-+                logger.log("LocalIndexedDBStoreBackend: not recreating a database deleted while disconnected");
-+                this.closedByBrowser = false;
-+                req.transaction!.abort();
-+                return;
-+            }
-             logger.log(`LocalIndexedDBStoreBackend.connect: upgrading from ${oldVersion}`);
-             if (oldVersion < 1) {
-                 // The database did not previously exist
-@@ -188,27 +213,86 @@ export class LocalIndexedDBStoreBackend implements IIndexedDBBackend {
-         };
- 
-         logger.log(`LocalIndexedDBStoreBackend.connect: awaiting connection...`);
--        return reqAsEventPromise(req).then(async () => {
-+        return reqAsEventPromise(req).then(() => {
-             logger.log(`LocalIndexedDBStoreBackend.connect: connected`);
--            this.db = req.result;
-+            const db = req.result;
-+            if (this.deliberatelyClosed) {
-+                // Closed or cleared while this connection was opening.
-+                db.close();
-+                throw new DOMException("LocalIndexedDBStoreBackend: database was closed while opening", "InvalidStateError");
-+            }
-+            this.db = db;
-+            this.disconnected = false;
-+            this.closedByBrowser = false;
- 
-             // add a poorly-named listener for when deleteDatabase is called
-             // so we can close our db connections.
--            this.db.onversionchange = (): void => {
--                this.db?.close(); // this does not call onclose
-+            db.onversionchange = (): void => {
-+                db.close(); // this does not call onclose
-+                if (this.db !== db) return;
-                 this.disconnected = true;
-                 this.db = undefined;
+@@ -201,6 +207,7 @@ export class LocalIndexedDBStoreBackend implements IIndexedDBBackend {
              };
--            this.db.onclose = (): void => {
-+            db.onclose = (): void => {
-+                if (this.db !== db) return;
-+                // The browser closed the connection (for example WebKit's IndexedDB
-+                // server exited); the next operation opens a new one.
+             this.db.onclose = (): void => {
                  this.disconnected = true;
 +                this.closedByBrowser = true;
                  this.db = undefined;
--                onClose?.();
-+                this.onClose?.();
+                 onClose?.();
              };
--
--            await this.init();
-+            return db;
+@@ -209,6 +216,21 @@ export class LocalIndexedDBStoreBackend implements IIndexedDBBackend {
          });
      }
  
 +    /**
-+     * @returns the open connection, reopening one the browser closed.
-+     */
-+    private getDb(): Promise<IDBDatabase> {
-+        // A connection can be closing before its `close` event arrives.
-+        if (this.db && !this.isConnectionLost()) return Promise.resolve(this.db);
-+        if (this.deliberatelyClosed) {
-+            // Closed by this store: report a state error, which does not clear the data.
-+            return Promise.reject(
-+                new DOMException("LocalIndexedDBStoreBackend: database was closed", "InvalidStateError"),
-+            );
-+        }
-+        if (!this.closedByBrowser) {
-+            return Promise.reject(new Error("LocalIndexedDBStoreBackend: database is not connected"));
-+        }
-+        if (!this.reopening) {
-+            logger.log("LocalIndexedDBStoreBackend: reopening the database after the browser closed it");
-+            const reopening = this.openDatabase(true).finally(() => {
-+                if (this.reopening === reopening) this.reopening = undefined;
-+            });
-+            this.reopening = reopening;
-+        }
-+        return this.reopening;
-+    }
-+
-+    /**
-+     * @returns whether the browser closed the connection, rather than this store.
++     * @returns whether the browser closed the connection. WebKit marks every
++     * connection as closing as soon as its IndexedDB server is lost, before it
++     * reports the aborted requests and fires `close`.
 +     */
 +    public isConnectionLost(): boolean {
 +        if (this.closedByBrowser) return true;
-+        if (!this.db) return false;
 +        try {
-+            // WebKit marks every connection as closing as soon as its IndexedDB
-+            // server is lost, before it reports the aborted requests.
-+            this.db.transaction(["sync"], "readonly").abort();
++            this.db?.transaction(["sync"], "readonly").abort();
 +            return false;
 +        } catch (e) {
-+            if ((e as Error | undefined)?.name !== "InvalidStateError") return false;
-+            this.db = undefined;
-+            this.disconnected = true;
-+            this.closedByBrowser = true;
-+            // Its own `close` event is ignored once the connection is dropped here.
-+            this.onClose?.();
-+            return true;
++            return (e as Error | undefined)?.name === "InvalidStateError";
 +        }
 +    }
 +
      /** @returns whether or not the database was newly created in this session. */
      public isNewlyCreated(): Promise<boolean> {
          return Promise.resolve(this._isNewlyCreated);
-@@ -241,8 +325,8 @@ export class LocalIndexedDBStoreBackend implements IIndexedDBBackend {
-      * @returns in case the members for this room haven't been stored yet
-      */
-     public getOutOfBandMembers(roomId: string): Promise<IStateEventWithRoomId[] | null> {
--        return new Promise<IStateEventWithRoomId[] | null>((resolve, reject) => {
--            const tx = this.db!.transaction(["oob_membership_events"], "readonly");
-+        const reading = this.getDb().then((db) => new Promise<IStateEventWithRoomId[] | null>((resolve, reject) => {
-+            const tx = db.transaction(["oob_membership_events"], "readonly");
-             const store = tx.objectStore("oob_membership_events");
-             const roomIndex = store.index("room");
-             const range = IDBKeyRange.only(roomId);
-@@ -274,9 +358,10 @@ export class LocalIndexedDBStoreBackend implements IIndexedDBBackend {
-                 cursor.continue();
-             };
-             request.onerror = (err): void => {
--                reject(err);
-+                reject(request.error ?? err);
-             };
--        }).then((events) => {
-+        }));
-+        return reading.then((events) => {
-             logger.log(`LL: got ${events?.length} membershipEvents from storage for room ${roomId} ...`);
-             return events;
-         });
-@@ -290,7 +375,7 @@ export class LocalIndexedDBStoreBackend implements IIndexedDBBackend {
-      */
-     public async setOutOfBandMembers(roomId: string, membershipEvents: IStateEventWithRoomId[]): Promise<void> {
-         logger.log(`LL: backend about to store ${membershipEvents.length}` + ` members for ${roomId}`);
--        const tx = this.db!.transaction(["oob_membership_events"], "readwrite");
-+        const tx = (await this.getDb()).transaction(["oob_membership_events"], "readwrite");
-         const store = tx.objectStore("oob_membership_events");
-         membershipEvents.forEach((e) => {
-             store.put(e);
-@@ -317,7 +402,7 @@ export class LocalIndexedDBStoreBackend implements IIndexedDBBackend {
-         // keys in the store.
-         // this should be way faster than deleting every member
-         // individually for a large room.
--        const readTx = this.db!.transaction(["oob_membership_events"], "readonly");
-+        const readTx = (await this.getDb()).transaction(["oob_membership_events"], "readonly");
-         const store = readTx.objectStore("oob_membership_events");
-         const roomIndex = store.index("room");
-         const roomRange = IDBKeyRange.only(roomId);
-@@ -330,7 +415,7 @@ export class LocalIndexedDBStoreBackend implements IIndexedDBBackend {
-         );
-         const [minStateKey, maxStateKey] = await Promise.all([minStateKeyProm, maxStateKeyProm]);
- 
--        const writeTx = this.db!.transaction(["oob_membership_events"], "readwrite");
-+        const writeTx = (await this.getDb()).transaction(["oob_membership_events"], "readwrite");
-         const writeStore = writeTx.objectStore("oob_membership_events");
-         const membersKeyRange = IDBKeyRange.bound([roomId, minStateKey], [roomId, maxStateKey]);
- 
-@@ -351,8 +436,12 @@ export class LocalIndexedDBStoreBackend implements IIndexedDBBackend {
-         return new Promise((resolve) => {
-             logger.log(`Removing indexeddb instance: ${this.dbName}`);
- 
-+            // A deliberate close must not reopen the database.
-+            this.closedByBrowser = false;
-+            this.deliberatelyClosed = true;
-             // Close the database first to avoid firing unexpected close events
-             this.db?.close();
-+            this.db = undefined;
- 
-             const req = this.indexedDB.deleteDatabase(this.dbName);
- 
-@@ -445,8 +534,8 @@ export class LocalIndexedDBStoreBackend implements IIndexedDBBackend {
-      */
-     private persistSyncData(nextBatch: string, roomsData: ISyncResponse["rooms"]): Promise<void> {
-         logger.log("Persisting sync data up to", nextBatch);
--        return promiseTry<void>(() => {
--            const txn = this.db!.transaction(["sync"], "readwrite");
-+        return this.getDb().then((db) => {
-+            const txn = db.transaction(["sync"], "readwrite");
-             const store = txn.objectStore("sync");
-             store.put({
-                 clobber: "-", // constant key so will always clobber
-@@ -466,8 +555,8 @@ export class LocalIndexedDBStoreBackend implements IIndexedDBBackend {
-      * @returns Promise which resolves if the events were persisted.
-      */
-     private persistAccountData(accountData: IMinimalEvent[]): Promise<void> {
--        return promiseTry<void>(() => {
--            const txn = this.db!.transaction(["accountData"], "readwrite");
-+        return this.getDb().then((db) => {
-+            const txn = db.transaction(["accountData"], "readwrite");
-             const store = txn.objectStore("accountData");
-             for (const event of accountData) {
-                 store.put(event); // put == UPSERT
-@@ -485,8 +574,8 @@ export class LocalIndexedDBStoreBackend implements IIndexedDBBackend {
-      * @returns Promise which resolves if the users were persisted.
-      */
-     private persistUserPresenceEvents(tuples: UserTuple[]): Promise<void> {
--        return promiseTry<void>(() => {
--            const txn = this.db!.transaction(["users"], "readwrite");
-+        return this.getDb().then((db) => {
-+            const txn = db.transaction(["users"], "readwrite");
-             const store = txn.objectStore("users");
-             for (const tuple of tuples) {
-                 store.put({
-@@ -505,8 +594,8 @@ export class LocalIndexedDBStoreBackend implements IIndexedDBBackend {
-      * @returns A list of presence events in their raw form.
-      */
-     public getUserPresenceEvents(): Promise<UserTuple[]> {
--        return promiseTry<UserTuple[]>(() => {
--            const txn = this.db!.transaction(["users"], "readonly");
-+        return this.getDb().then((db): Promise<UserTuple[]> => {
-+            const txn = db.transaction(["users"], "readonly");
-             const store = txn.objectStore("users");
-             return selectQuery(store, undefined, (cursor) => {
-                 return [cursor.value.userId, cursor.value.event];
-@@ -520,8 +609,8 @@ export class LocalIndexedDBStoreBackend implements IIndexedDBBackend {
-      */
-     private loadAccountData(): Promise<IMinimalEvent[]> {
-         logger.log(`LocalIndexedDBStoreBackend: loading account data...`);
--        return promiseTry<IMinimalEvent[]>(() => {
--            const txn = this.db!.transaction(["accountData"], "readonly");
-+        return this.getDb().then((db): Promise<IMinimalEvent[]> => {
-+            const txn = db.transaction(["accountData"], "readonly");
-             const store = txn.objectStore("accountData");
-             return selectQuery(store, undefined, (cursor) => {
-                 return cursor.value;
-@@ -538,8 +627,8 @@ export class LocalIndexedDBStoreBackend implements IIndexedDBBackend {
-      */
-     private loadSyncData(): Promise<ISyncData> {
-         logger.log(`LocalIndexedDBStoreBackend: loading sync data...`);
--        return promiseTry<ISyncData>(() => {
--            const txn = this.db!.transaction(["sync"], "readonly");
-+        return this.getDb().then((db): Promise<ISyncData> => {
-+            const txn = db.transaction(["sync"], "readonly");
-             const store = txn.objectStore("sync");
-             return selectQuery(store, undefined, (cursor) => {
-                 return cursor.value;
-@@ -554,8 +643,8 @@ export class LocalIndexedDBStoreBackend implements IIndexedDBBackend {
-     }
- 
-     public getClientOptions(): Promise<IStoredClientOpts | undefined> {
--        return Promise.resolve().then(() => {
--            const txn = this.db!.transaction(["client_options"], "readonly");
-+        return this.getDb().then((db) => {
-+            const txn = db.transaction(["client_options"], "readonly");
-             const store = txn.objectStore("client_options");
-             return selectQuery(store, undefined, (cursor) => {
-                 return cursor.value?.options;
-@@ -564,7 +653,7 @@ export class LocalIndexedDBStoreBackend implements IIndexedDBBackend {
-     }
- 
-     public async storeClientOptions(options: IStoredClientOpts): Promise<void> {
--        const txn = this.db!.transaction(["client_options"], "readwrite");
-+        const txn = (await this.getDb()).transaction(["client_options"], "readwrite");
-         const store = txn.objectStore("client_options");
-         store.put({
-             clobber: "-", // constant key so will always clobber
-@@ -574,7 +663,7 @@ export class LocalIndexedDBStoreBackend implements IIndexedDBBackend {
-     }
- 
-     public async saveToDeviceBatches(batches: ToDeviceBatchWithTxnId[]): Promise<void> {
--        const txn = this.db!.transaction(["to_device_queue"], "readwrite");
-+        const txn = (await this.getDb()).transaction(["to_device_queue"], "readwrite");
-         const store = txn.objectStore("to_device_queue");
-         for (const batch of batches) {
-             store.add(batch);
-@@ -583,7 +672,7 @@ export class LocalIndexedDBStoreBackend implements IIndexedDBBackend {
-     }
- 
-     public async getOldestToDeviceBatch(): Promise<IndexedToDeviceBatch | null> {
--        const txn = this.db!.transaction(["to_device_queue"], "readonly");
-+        const txn = (await this.getDb()).transaction(["to_device_queue"], "readonly");
-         const store = txn.objectStore("to_device_queue");
-         const cursor = await reqAsCursorPromise(store.openCursor());
-         if (!cursor) return null;
-@@ -599,15 +688,15 @@ export class LocalIndexedDBStoreBackend implements IIndexedDBBackend {
-     }
- 
-     public async removeToDeviceBatch(id: number): Promise<void> {
--        const txn = this.db!.transaction(["to_device_queue"], "readwrite");
-+        const txn = (await this.getDb()).transaction(["to_device_queue"], "readwrite");
-         const store = txn.objectStore("to_device_queue");
-         store.delete(id);
-         await txnAsPromise(txn);
-     }
- 
-     public async getUserProfile(userId: string): Promise<SyncUserProfile | undefined> {
--        return Promise.resolve().then(() => {
--            const txn = this.db!.transaction(["user_profile"], "readonly");
-+        return this.getDb().then((db) => {
-+            const txn = db.transaction(["user_profile"], "readonly");
-             const store = txn.objectStore("user_profile");
-             return selectQuery(store, [userId], (cursor) => {
-                 return cursor.value?.profile;
-@@ -616,7 +705,7 @@ export class LocalIndexedDBStoreBackend implements IIndexedDBBackend {
-     }
- 
-     public async storeUserProfiles(userProfiles: Map<string, SyncUserProfile>): Promise<void> {
--        const txn = this.db!.transaction(["user_profile"], "readwrite");
-+        const txn = (await this.getDb()).transaction(["user_profile"], "readwrite");
-         const store = txn.objectStore("user_profile");
-         for (const [userId, profile] of userProfiles.entries()) {
-             store.put({ profile, userId });
-@@ -625,7 +714,7 @@ export class LocalIndexedDBStoreBackend implements IIndexedDBBackend {
-     }
- 
-     public async removeUserProfiles(userIds: string[]): Promise<void> {
--        const txn = this.db!.transaction(["user_profile"], "readwrite");
-+        const txn = (await this.getDb()).transaction(["user_profile"], "readwrite");
-         const store = txn.objectStore("user_profile");
-         for (const userId of userIds) {
-             store.delete([userId]);
-@@ -637,6 +726,9 @@ export class LocalIndexedDBStoreBackend implements IIndexedDBBackend {
-      * Close the database
-      */
-     public async destroy(): Promise<void> {
-+        this.closedByBrowser = false;
-+        this.deliberatelyClosed = true;
-         this.db?.close();
-+        this.db = undefined;
-     }
- }
 diff --git a/node_modules/matrix-js-sdk/src/store/indexeddb.ts b/node_modules/matrix-js-sdk/src/store/indexeddb.ts
-index 25be506..7f8f06d 100644
+index 25be506..5585571 100644
 --- a/node_modules/matrix-js-sdk/src/store/indexeddb.ts
 +++ b/node_modules/matrix-js-sdk/src/store/indexeddb.ts
-@@ -40,6 +40,7 @@ import { type SyncUserProfile } from "../models/user.ts";
- // often does not affect the length of the pause since the entire /sync
- // response is persisted each time.
- const WRITE_DELAY_MS = 1000 * 60 * 5; // once every 5 minutes
-+const SAVE_RETRY_DELAY_MS = 30 * 1000; // after a save failed because the connection was lost
- 
- interface IOpts extends IBaseOpts {
-     /** The Indexed DB interface e.g. `window.indexedDB` */
-@@ -59,6 +60,25 @@ type EventHandlerMap = {
-     closed: () => void;
- };
- 
-+// Errors that describe the connection or transaction state, not the stored data.
-+// `UnknownError` is not among them: outside WebKit's server loss (which the
-+// backend's own check detects) it reports a broken backing store.
-+const CONNECTION_STATE_ERRORS = new Set(["AbortError", "InvalidStateError", "TransactionInactiveError"]);
-+
-+function errorNames(error: unknown): Array<string | undefined> {
-+    // Request handlers reject with the event, or with an error that wraps the request's error.
-+    const inner =
-+        typeof Event !== "undefined" && error instanceof Event
-+            ? (error.target as IDBRequest | null)?.error
-+            : (error as Error | undefined);
-+    return [inner?.name, (inner?.cause as Error | undefined)?.name];
-+}
-+
-+function isConnectionLoss(error: unknown, backend: IIndexedDBBackend): boolean {
-+    if (backend.isConnectionLost?.() === true) return true;
-+    return errorNames(error).some((name) => name !== undefined && CONNECTION_STATE_ERRORS.has(name));
-+}
-+
- export class IndexedDBStore extends MemoryStore {
-     public static exists(indexedDB: IDBFactory, dbName: string): Promise<boolean> {
-         return LocalIndexedDBStoreBackend.exists(indexedDB, dbName);
-@@ -253,7 +273,12 @@ export class IndexedDBStore extends MemoryStore {
-             this.userModifiedMap[u.userId] = u.getLastModifiedTime();
-         }
- 
--        return this.backend.syncToDatabase(userTuples);
-+        return this.backend.syncToDatabase(userTuples).catch((e) => {
-+            // Retry in 30 s once the backend has reopened, instead of in five
-+            // minutes, so a killed app does not restart from a stale token.
-+            if (isConnectionLoss(e, this.backend)) this.syncTs = Date.now() - WRITE_DELAY_MS + SAVE_RETRY_DELAY_MS;
-+            throw e;
-+        });
-     }, null);
- 
-     public setSyncData = this.degradable((syncData: ISyncResponse): Promise<void> => {
-@@ -321,9 +346,14 @@ export class IndexedDBStore extends MemoryStore {
+@@ -321,6 +321,13 @@ export class IndexedDBStore extends MemoryStore {
              try {
                  return await func.call(this, ...args);
              } catch (e) {
--                logger.error("IndexedDBStore failure, degrading to MemoryStore", e);
--                this.emitter.emit("degraded", e as Error);
--                try {
-+                if (isConnectionLoss(e, this.backend)) {
-+                    // The data is intact; only the connection failed, and the backend
-+                    // reopens it for the next operation. Deleting would discard the
-+                    // persisted sync and force a full initial sync on the next start.
-+                    logger.warn("IndexedDBStore operation failed after a lost connection; keeping its data", e);
-+                } else try {
-+                    logger.error("IndexedDBStore failure, degrading to MemoryStore", e);
-+                    this.emitter.emit("degraded", e as Error);
-                     // We try to delete IndexedDB after degrading since this store is only a
-                     // cache (the app will still function correctly without the data).
-                     // It's possible that deleting repair IndexedDB for the next app load,
++                if (this.backend.isConnectionLost?.() === true) {
++                    // Only the connection failed; the data is intact. Deleting it would
++                    // force a full initial sync on the next start.
++                    logger.warn("IndexedDBStore operation failed after the browser closed its connection", e);
++                    if (fallbackFn) return fallbackFn.call(this, ...args);
++                    return;
++                }
+                 logger.error("IndexedDBStore failure, degrading to MemoryStore", e);
+                 this.emitter.emit("degraded", e as Error);
+                 try {

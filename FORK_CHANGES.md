@@ -13,25 +13,24 @@
   - `/sync` advances its token before `preprocessToDeviceMessages`, which runs before rooms; with a dead crypto store that call rejects, so a response with any to-device message was dropped from the live session, thread replies included, and its to-device messages were acknowledged unprocessed.
 - SDK fixes in `patches/matrix-js-sdk+41.7.0.patch` (lib and src):
   - `txnAsPromise` rejects on `abort`.
-  - `LocalIndexedDBStoreBackend` reopens a connection the browser closed on its next operation.
-    WebKit marks a connection as closing before it reports anything, so the backend also checks the connection (`db.transaction` throwing `InvalidStateError`) before using it and after a failure.
-    It does not reopen after `clearDatabase` or `destroy`, after another context deletes the database, or to recreate a database deleted meanwhile.
-  - `degradable` keeps the data when the connection was lost or the error describes connection state (`AbortError`, `InvalidStateError`, `TransactionInactiveError`); other errors, such as quota or an `UnknownError` on a working connection, still clear it as upstream does.
-    A save that failed that way is retried after 30 s instead of five minutes.
+  - `degradable` keeps the data, and falls back to memory as before, when the browser closed the connection.
+    WebKit marks a connection as closing before it reports the aborted requests and fires `close`, so `LocalIndexedDBStoreBackend.isConnectionLost` also checks the connection (`db.transaction` throwing `InvalidStateError`).
+    Other failures, such as quota or an `UnknownError` on a working connection, still clear the database as upstream does.
   - `processSyncResponse` hands to-device messages to the crypto layer before applying anything else.
     If that fails, `doSync` keeps the previous token and requests the response again after 1, 2 and 4 s, so its room events and to-device messages survive (the server keeps unacknowledged to-device messages queued).
     After three failed retries the response is applied without its to-device messages, and later failures skip the retries until the crypto layer succeeds again, so a crypto store that stays broken cannot stall sync.
   - A failed pending-key-bundle lookup no longer fails a batch whose messages were already processed.
   - The `src/rust-crypto/rust-crypto.ts` section is regenerated with context: patch-package applied its zero-context hunks out of order, leaving a misplaced `);` in that unused source (the shipped `lib` code was correct).
   - When upgrading the SDK, keep `src/client/syncStoreConnectionLoss.test.ts`, `src/client/syncToDeviceFailure.test.ts` and `src/client/rustCryptoToDevice.test.ts`, and drop these sections once upstream handles the same cases.
-- The Rust crypto store has no reopen API, and about a dozen SDK objects hold its `olmMachine`, so it cannot be restored in place.
+- Neither store reopens in place: the Rust crypto store has no reopen API and about a dozen SDK objects hold its `olmMachine`, and reopening the sync store inside `save()` would let a hanging `indexedDB.open` stall `/sync`.
   `src/app/mindroom/matrix/indexedDbLossRecovery.ts` keeps a sentinel connection and reloads the page when the browser closes it, once the page is visible; a second loss within 60 s waits out the rest of that minute.
-  The reload only restarts encryption; message delivery no longer depends on it.
-  Composer text drafts survive it; reply targets, staged uploads and a pending voice message do not.
-- `e2e/live/thread-indexeddb-loss.spec.ts` closes every connection like WebKit does and delivers a thread reply in the same `/sync` response as a to-device message.
+  Until then the SDK keeps syncing from memory; the reload restores both stores.
+  Composer text drafts survive it; reply targets, staged uploads, a pending voice message and open dialogs (recovery-key entry, verification) do not.
+- `e2e/live/thread-indexeddb-loss.spec.ts` closes every connection like WebKit does and delivers a thread reply in the same `/sync` response as a to-device message; `playwright.indexeddb-loss.config.ts` adds a WebKit project for it.
   Before the fixes the reply never rendered; the `no reload` case blocks the sentinel, so only the SDK fixes can deliver it, and it fails with the `sync.js` fix reverted.
   A committing transaction cannot be aborted from script, so the unit tests cover the stalled save.
 - Not covered: when the crypto store fails after decrypting, its in-memory state has already moved on, so only the reload recovers it; device-list changes and one-time key counts are still processed after rooms and are lost for a response when the crypto layer fails there.
+  On iOS, Capacitor's `getLaunchUrl()` keeps returning the last opened URL and `handledOpenUrl` lives in memory, so a reload can route a `/connect` pairing link or SSO callback again; remembering the handled URL in sessionStorage is a follow-up.
 - Validation: each SDK and recovery test fails when the behavior it covers is removed, and the patch applies with patch-package to a pristine `matrix-js-sdk@41.7.0` with all 31 patched files byte-identical to the working tree.
   Results for the full suites are in the pull request.
 

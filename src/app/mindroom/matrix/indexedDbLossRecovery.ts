@@ -19,9 +19,10 @@ type Options = {
 /**
  * WebKit hosts IndexedDB in its networking process. When that process exits
  * (on iOS, typically while the app is suspended), the browser closes every
- * connection in the page and each fires `close`. The Matrix sync store
- * reconnects by itself, but the Rust crypto store cannot be reopened, so a
- * sentinel connection detects the loss and reloads the page once it is visible.
+ * connection in the page and each fires `close`. The Matrix SDK keeps syncing
+ * without them, but neither its sync store nor the Rust crypto store reopens,
+ * so a sentinel connection detects the loss and reloads the page once it is
+ * visible.
  */
 export const installIndexedDbLossRecovery = ({
   factory = globalThis.indexedDB,

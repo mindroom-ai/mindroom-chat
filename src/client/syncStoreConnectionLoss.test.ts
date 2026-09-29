@@ -11,9 +11,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
  * WebKit closes every IndexedDB connection when its networking process
- * exits: active and committing transactions abort, and each connection fires
- * `close`. The sync store must survive that without hanging or deleting the
- * persisted sync.
+ * exits: it marks each connection as closing, aborts active and committing
+ * transactions, and only then fires `close`. The sync store must not hang or
+ * delete the persisted sync; the page reload restores the connection.
  */
 describe('Matrix sync store after an IndexedDB connection loss', () => {
   let indexedDB: IDBFactory;
@@ -55,36 +55,28 @@ describe('Matrix sync store after an IndexedDB connection loss', () => {
     return reader.getSavedSyncToken();
   };
 
-  it('saves on a fresh connection after the browser closes the old one', async () => {
-    const store = await startStore();
-    const degraded = vi.fn();
-    store.on('degraded', degraded);
-    await accumulate(store, 'before-loss');
-    await store.save(true);
-
-    forceCloseDatabase(backendDatabase(store));
-    await accumulate(store, 'after-loss');
-    await store.save(true);
-
-    expect(degraded).not.toHaveBeenCalled();
-    await store.destroy();
-    expect(await persistedToken()).toBe('after-loss');
-  });
-
-  it('settles a save whose commit is aborted and keeps the saved sync', async () => {
+  const savedStore = async () => {
     const store = await startStore();
     await accumulate(store, 'saved');
     await store.save(true);
+    return store;
+  };
 
-    // The server aborts the transaction after its write succeeded, so only
-    // `abort` fires; nothing reports an error on a request.
+  it('settles a save whose commit is aborted by a lost connection', async () => {
+    const store = await savedStore();
+
+    // The write succeeds, then the lost server aborts the committing
+    // transaction: only `abort` fires, nothing reports an error on a request.
     const put = IDBObjectStore.prototype.put;
     vi.spyOn(IDBObjectStore.prototype, 'put').mockImplementationOnce(function abortAfterPut(
       this: IDBObjectStore,
       ...args: Parameters<IDBObjectStore['put']>
     ) {
       const request = put.apply(this, args);
-      request.addEventListener('success', () => this.transaction.abort());
+      request.addEventListener('success', () => {
+        this.transaction.db.close();
+        this.transaction.abort();
+      });
       return request;
     });
     await accumulate(store, 'aborted');
@@ -94,37 +86,16 @@ describe('Matrix sync store after an IndexedDB connection loss', () => {
         setTimeout(() => resolve('pending'), 500);
       }),
     ]);
+
     expect(settled).toBe('settled');
-
-    await accumulate(store, 'next');
-    await store.save(true);
-    await store.destroy();
-    expect(await persistedToken()).toBe('next');
-  });
-
-  it('still clears the store after a failure that is not a lost connection', async () => {
-    const store = await startStore();
-    await accumulate(store, 'saved');
-    await store.save(true);
-
-    vi.spyOn(IDBObjectStore.prototype, 'put').mockImplementationOnce(() => {
-      throw new DOMException('Storage is full.', 'QuotaExceededError');
-    });
-    await accumulate(store, 'failed');
-    await store.save(true);
-
-    expect(await persistedToken()).toBeUndefined();
+    expect(await persistedToken()).toBe('saved');
   });
 
   it('keeps the persisted sync when a save fails because the connection was lost', async () => {
-    const store = await startStore();
-    await accumulate(store, 'saved');
-    await store.save(true);
+    const store = await savedStore();
+    const degraded = vi.fn();
+    store.on('degraded', degraded);
 
-    const closed = vi.fn();
-    store.on('closed', closed);
-    // WebKit marks the connection as closing before it reports the failed
-    // write; its `close` event only follows later.
     vi.spyOn(IDBObjectStore.prototype, 'put').mockImplementationOnce(function lose(
       this: IDBObjectStore
     ) {
@@ -133,23 +104,28 @@ describe('Matrix sync store after an IndexedDB connection loss', () => {
     });
     await accumulate(store, 'failed');
     await store.save(true);
-    expect(closed).toHaveBeenCalledOnce();
-    // The failed save is retried after 30 s, not after five minutes.
-    expect(store.wantsSave()).toBe(false);
-    const now = Date.now();
-    vi.spyOn(Date, 'now').mockReturnValue(now + 30_001);
-    expect(store.wantsSave()).toBe(true);
-    await accumulate(store, 'retried');
-    await store.save();
-    await store.destroy();
 
-    expect(await persistedToken()).toBe('retried');
+    expect(degraded).not.toHaveBeenCalled();
+    expect(await persistedToken()).toBe('saved');
+  });
+
+  it('keeps the persisted sync when operations run after the browser closed the connection', async () => {
+    const store = await savedStore();
+    forceCloseDatabase(backendDatabase(store));
+    await new Promise((resolve) => {
+      setImmediate(resolve);
+    });
+
+    await accumulate(store, 'after-loss');
+    await store.save(true);
+    // Reads fall back to memory instead of failing.
+    expect(await store.getOutOfBandMembers('!room:example')).toBeNull();
+
+    expect(await persistedToken()).toBe('saved');
   });
 
   it('keeps the persisted sync when a read in flight fails because the connection was lost', async () => {
-    const store = await startStore();
-    await accumulate(store, 'saved');
-    await store.save(true);
+    const store = await savedStore();
 
     const openCursor = IDBIndex.prototype.openCursor;
     vi.spyOn(IDBIndex.prototype, 'openCursor').mockImplementationOnce(function lose(
@@ -162,97 +138,23 @@ describe('Matrix sync store after an IndexedDB connection loss', () => {
       transaction.abort();
       return request;
     });
-    expect(await store.getOutOfBandMembers('!room:example')).toBeNull();
-    await store.destroy();
 
+    expect(await store.getOutOfBandMembers('!room:example')).toBeNull();
     expect(await persistedToken()).toBe('saved');
   });
 
-  it('still clears the store after an unknown error on a working connection', async () => {
-    const store = await startStore();
-    await accumulate(store, 'saved');
-    await store.save(true);
+  it.each([
+    ['QuotaExceededError', 'Storage is full.'],
+    ['UnknownError', 'Internal error.'],
+  ])('still clears the store after a %s on a working connection', async (name, message) => {
+    const store = await savedStore();
 
     vi.spyOn(IDBObjectStore.prototype, 'put').mockImplementationOnce(() => {
-      throw new DOMException('Internal error.', 'UnknownError');
+      throw new DOMException(message, name);
     });
     await accumulate(store, 'failed');
     await store.save(true);
 
     expect(await persistedToken()).toBeUndefined();
-  });
-
-  it('shares one reopen between concurrent operations', async () => {
-    const store = await startStore();
-    const open = vi.spyOn(indexedDB, 'open');
-    forceCloseDatabase(backendDatabase(store));
-
-    await accumulate(store, 'after-loss');
-    await Promise.all([
-      store.save(true),
-      store.getOutOfBandMembers('!room:example'),
-      store.getClientOptions(),
-    ]);
-
-    expect(open).toHaveBeenCalledOnce();
-  });
-
-  it('does not recreate a database deleted while its connection was closed', async () => {
-    const store = await startStore();
-    await accumulate(store, 'saved');
-    await store.save(true);
-    forceCloseDatabase(backendDatabase(store));
-    await new Promise<void>((resolve, reject) => {
-      const request = indexedDB.deleteDatabase('matrix-js-sdk:connection-loss');
-      request.onsuccess = () => resolve();
-      request.onerror = () => reject(request.error);
-    });
-
-    await accumulate(store, 'after-delete');
-    await store.save(true);
-
-    expect((await indexedDB.databases()).map(({ name }) => name)).not.toContain(
-      'matrix-js-sdk:connection-loss'
-    );
-  });
-
-  it.each([
-    ['destroy', 'saved'],
-    ['deleteAllData', undefined],
-  ] as const)(
-    'does not reopen after %s, even while a reopen is in flight',
-    async (close, remaining) => {
-      const store = await startStore();
-      await accumulate(store, 'saved');
-      await store.save(true);
-      forceCloseDatabase(backendDatabase(store));
-      await accumulate(store, 'after-loss');
-      const saving = store.save(true);
-      await store[close]();
-      await saving;
-
-      expect(backendDatabase(store)).toBeUndefined();
-      const open = vi.spyOn(indexedDB, 'open');
-      await store.save(true);
-      expect(open).not.toHaveBeenCalled();
-      open.mockRestore();
-      // Closing keeps the persisted sync; only deleting removes it.
-      expect(await persistedToken()).toBe(remaining);
-    }
-  );
-
-  it('does not reopen after another context deletes the database', async () => {
-    const store = await startStore();
-    await new Promise<void>((resolve, reject) => {
-      const request = indexedDB.deleteDatabase('matrix-js-sdk:connection-loss');
-      request.onsuccess = () => resolve();
-      request.onerror = () => reject(request.error);
-      request.onblocked = () => reject(new Error('the store blocked the deletion'));
-    });
-
-    const open = vi.spyOn(indexedDB, 'open');
-    await accumulate(store, 'after-delete');
-    await store.save(true);
-    expect(open).not.toHaveBeenCalled();
   });
 });
