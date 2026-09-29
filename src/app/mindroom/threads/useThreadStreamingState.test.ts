@@ -227,10 +227,7 @@ describe('useThreadStreamingState', () => {
     const olderEdit = makeEditEvent('$older', 250, '$reply', {
       'io.mindroom.tool_trace': { version: 1, events: [] },
     });
-    relationMap.set(
-      '$reply',
-      Object.assign(makeRelations(), { getRelations: () => [olderEdit] }) as MockRelations
-    );
+    relationMap.set('$reply', Object.assign(makeRelations(), { getRelations: () => [olderEdit] }));
     const thread = makeThread({ lastReply: replyEvent, relationMap });
     const room = makeRoom({
       rootEventId: '$root',

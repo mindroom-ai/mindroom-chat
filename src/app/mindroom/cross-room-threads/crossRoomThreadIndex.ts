@@ -619,38 +619,26 @@ export type CrossRoomThreadDirtyCoalescer = {
 
 export const CROSS_ROOM_INDEX_FLUSH_INTERVAL_MS = 200;
 
-export type CrossRoomThreadCoalescerClock = {
-  now: () => number;
-  setTimer: (callback: () => void, delayMs: number) => unknown;
-  clearTimer: (timer: unknown) => void;
-};
-
-const monotonicClock: CrossRoomThreadCoalescerClock = {
-  now: () => performance.now(),
-  setTimer: (callback, delayMs) => globalThis.setTimeout(callback, delayMs),
-  clearTimer: (timer) => globalThis.clearTimeout(timer as ReturnType<typeof setTimeout>),
-};
-
 /**
  * Coalesces dirty keys into flushes with a leading edge: an isolated update
  * flushes on the next microtask, while a burst waits until `minIntervalMs`
- * after the previous flush ended. SDK thread initialization and streamed edits
- * emit many updates per thread in separate tasks; flushing on every microtask
+ * after the previous flush ended, measured on the monotonic
+ * `performance.now()` clock. SDK thread initialization and streamed edits emit
+ * many updates per thread in separate tasks; flushing on every microtask
  * rebuilt each entry a median of 14 times at startup (3,065 flushes for 577
  * threads on a large account). `flushNow` supersedes the pending flush, and a
  * flush that finds no keys leaves the interval untouched.
  */
 export const createCrossRoomThreadDirtyCoalescer = (
   flushDirtyKeys: (keys: string[]) => void,
-  minIntervalMs = 0,
-  clock: CrossRoomThreadCoalescerClock = monotonicClock
+  minIntervalMs: number
 ): CrossRoomThreadDirtyCoalescer => {
   const dirtyKeys = new Set<string>();
   let lastFlushEndedAt = Number.NEGATIVE_INFINITY;
-  let pending: { timer?: unknown } | undefined;
+  let pending: { timer?: ReturnType<typeof setTimeout> } | undefined;
 
   const cancelPending = () => {
-    if (pending?.timer !== undefined) clock.clearTimer(pending.timer);
+    if (pending?.timer !== undefined) clearTimeout(pending.timer);
     pending = undefined;
   };
 
@@ -663,20 +651,20 @@ export const createCrossRoomThreadDirtyCoalescer = (
     try {
       flushDirtyKeys(keys);
     } finally {
-      lastFlushEndedAt = clock.now();
+      lastFlushEndedAt = performance.now();
     }
   };
 
   const schedule = () => {
-    const run: { timer?: unknown } = {};
+    const run: { timer?: ReturnType<typeof setTimeout> } = {};
     pending = run;
     // A superseded run (flushNow or clear) must not flush later keys early.
     const fire = () => {
       if (pending === run) flushNow();
     };
-    const waitMs = lastFlushEndedAt + minIntervalMs - clock.now();
+    const waitMs = lastFlushEndedAt + minIntervalMs - performance.now();
     if (waitMs <= 0) queueMicrotask(fire);
-    else run.timer = clock.setTimer(fire, waitMs);
+    else run.timer = setTimeout(fire, waitMs);
   };
 
   return {

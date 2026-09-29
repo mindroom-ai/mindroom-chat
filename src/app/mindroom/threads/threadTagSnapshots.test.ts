@@ -7,16 +7,21 @@ import { MINDROOM_THREAD_TAGS_EVENT } from './threadTags';
 const ISO_1 = '2026-04-04T18:00:00.000Z';
 const ISO_2 = '2026-04-04T18:05:00.000Z';
 
-const makeTagEvent = (stateKey: string, content: Record<string, unknown>): MatrixEvent =>
-  new MatrixEvent({
+let nextEventNumber = 0;
+
+// Each state change is a new event with its own id, as in the SDK.
+const makeTagEvent = (stateKey: string, content: Record<string, unknown>): MatrixEvent => {
+  nextEventNumber += 1;
+  return new MatrixEvent({
     content,
-    event_id: `$tags-${stateKey}-${JSON.stringify(content).length}`,
+    event_id: `$tags-${nextEventNumber}`,
     origin_server_ts: 1,
     room_id: '!room:example.org',
     sender: '@alice:example.org',
     state_key: stateKey,
     type: MINDROOM_THREAD_TAGS_EVENT,
   });
+};
 
 const makeRedaction = (redacts: MatrixEvent) =>
   new MatrixEvent({
@@ -120,8 +125,7 @@ describe('getRoomThreadTagSnapshotMap', () => {
     const first = getRoomThreadTagSnapshotMap(room);
 
     // The SDK keeps the event and its content object, stripping the keys.
-    // State events have no thread, so the room argument is not read.
-    tagEvents[0].makeRedacted(makeRedaction(tagEvents[0]), undefined as never);
+    tagEvents[0].makeRedacted(makeRedaction(tagEvents[0]), room);
     const redacted = getRoomThreadTagSnapshotMap(room);
 
     expect(redacted).not.toBe(first);

@@ -129,12 +129,17 @@ export const stripPreviewMarkdown = (value: string): string =>
     .replace(/`([^`\n]+)`/g, '$1')
     .replace(/^\s*(?:[-*_]\s*){3,}\s*$/gm, ' ');
 
-type BodyPreviewAnalysis = {
-  preview: string | undefined;
-  toolCallCount: number;
+export type ThreadPreviewLocalization =
+  | { kind: 'voice' | 'audio' | 'image' | 'video' | 'file' }
+  | { kind: 'tools'; count: number; prose: string };
+
+/** Preview text and, for generated copy such as the tool badge, where it came from. */
+type ThreadPreview = {
+  text: string | undefined;
+  localization: ThreadPreviewLocalization | undefined;
 };
 
-const computeBodyPreviewAnalysis = (body: string): BodyPreviewAnalysis => {
+const computeBodyPreview = (body: string): ThreadPreview => {
   const withoutReply = trimReplyFromBody(body);
   const { body: withoutToolMarkers, toolCallCount } = extractPreviewTools(withoutReply);
   const boundedSource =
@@ -151,17 +156,17 @@ const computeBodyPreviewAnalysis = (body: string): BodyPreviewAnalysis => {
     // this preview text; prefixing the badge would hide the "Thinking" prefix
     // they match on, so pass the placeholder through unbadged.
     if (hasLikelyIncompleteStreamingBody(cleanedProse)) {
-      return { preview: cleanedProse, toolCallCount };
+      return { text: cleanedProse, localization: undefined };
     }
+    const badgeProse = /[\p{L}\p{N}]/u.test(cleanedProse) ? cleanedProse : '';
+    const badge = formatToolCallSummary(toolCallCount);
     return {
-      preview: /[\p{L}\p{N}]/u.test(cleanedProse)
-        ? `${formatToolCallSummary(toolCallCount)} · ${cleanedProse}`
-        : formatToolCallSummary(toolCallCount),
-      toolCallCount,
+      text: badgeProse ? `${badge} · ${badgeProse}` : badge,
+      localization: { kind: 'tools', count: toolCallCount, prose: badgeProse },
     };
   }
 
-  return { preview: prose.length > 0 ? prose : undefined, toolCallCount };
+  return { text: prose.length > 0 ? prose : undefined, localization: undefined };
 };
 
 // Thread records, cross-room index entries and the minimap preview the root
@@ -172,10 +177,10 @@ const computeBodyPreviewAnalysis = (body: string): BodyPreviewAnalysis => {
 const BODY_PREVIEW_CACHE_MAX_ENTRIES = 5000;
 const BODY_PREVIEW_CACHE_MAX_CHARS = 4_000_000;
 const BODY_PREVIEW_CACHE_MAX_BODY_CHARS = 64_000;
-const bodyPreviewCache = new Map<string, BodyPreviewAnalysis>();
+const bodyPreviewCache = new Map<string, ThreadPreview>();
 let bodyPreviewCacheChars = 0;
 
-const analyzeBodyPreview = (body: string): BodyPreviewAnalysis => {
+const analyzeBodyPreview = (body: string): ThreadPreview => {
   const cached = bodyPreviewCache.get(body);
   if (cached) {
     // Map iteration follows insertion order, so re-inserting marks it recent.
@@ -184,7 +189,7 @@ const analyzeBodyPreview = (body: string): BodyPreviewAnalysis => {
     return cached;
   }
 
-  const analysis = computeBodyPreviewAnalysis(body);
+  const analysis = computeBodyPreview(body);
   if (body.length > BODY_PREVIEW_CACHE_MAX_BODY_CHARS) return analysis;
 
   bodyPreviewCache.set(body, analysis);
@@ -201,10 +206,6 @@ const analyzeBodyPreview = (body: string): BodyPreviewAnalysis => {
   }
   return analysis;
 };
-
-export type ThreadPreviewLocalization =
-  | { kind: 'voice' | 'audio' | 'image' | 'video' | 'file' }
-  | { kind: 'tools'; count: number; prose: string };
 
 const getMediaFallbackPreview = (
   content: Record<string, unknown>
@@ -223,11 +224,6 @@ const getMediaFallbackPreview = (
   }
 };
 
-type ThreadPreview = {
-  text: string | undefined;
-  localization: ThreadPreviewLocalization | undefined;
-};
-
 // The preview text and the origin of its generated copy come from one
 // analysis, so a localized preview reads the body once.
 const resolveThreadPreview = (
@@ -244,20 +240,9 @@ const resolveThreadPreview = (
     return { text: VOICE_MESSAGE_PREVIEW_TEXT, localization: { kind: 'voice' } };
   }
 
-  const analysis =
+  const bodyPreview =
     typeof previewContent.body === 'string' ? analyzeBodyPreview(previewContent.body) : undefined;
-  if (analysis?.preview) {
-    const { preview, toolCallCount } = analysis;
-    const prefix = formatToolCallSummary(toolCallCount);
-    const hasToolBadge =
-      toolCallCount > 0 && (preview === prefix || preview.startsWith(`${prefix} · `));
-    return {
-      text: preview,
-      localization: hasToolBadge
-        ? { kind: 'tools', count: toolCallCount, prose: preview.slice(prefix.length + 3) }
-        : undefined,
-    };
-  }
+  if (bodyPreview?.text) return bodyPreview;
 
   const media = getMediaFallbackPreview(previewContent);
   return { text: media?.text, localization: media?.localization };
