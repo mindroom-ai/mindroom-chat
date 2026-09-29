@@ -48,7 +48,7 @@ export const getSerializedRelationEvent = (
   relationType: RelationType
 ): MatrixEvent | undefined => {
   const relationEvent = getRawSerializedRelationEvent(mEvent, relationType);
-  return relationEvent ? new MatrixEvent(cloneRawEvent(relationEvent) as IEvent) : undefined;
+  return relationEvent ? new MatrixEvent(cloneRawEvent(relationEvent)) : undefined;
 };
 
 export const getSerializedReplacementEvent = (mEvent: MatrixEvent): MatrixEvent | undefined =>
@@ -64,7 +64,7 @@ export const getSerializedReplacementEvent = (mEvent: MatrixEvent): MatrixEvent 
  */
 export const getSerializedReplacementEventView = (mEvent: MatrixEvent): MatrixEvent | undefined => {
   const relationEvent = getRawSerializedRelationEvent(mEvent, RelationType.Replace);
-  return relationEvent ? new MatrixEvent(relationEvent as IEvent) : undefined;
+  return relationEvent ? new MatrixEvent(relationEvent) : undefined;
 };
 
 export const isSameSenderEditEvent = (

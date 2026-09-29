@@ -21,23 +21,23 @@
   When the bundled view wins, the fill goes into shallow copies of its event, content and `m.new_content`; a winning live SDK edit is still filled in place because `stopReaction.ts` reads that edit's content directly.
   The SDK event mapper builds that live edit over the same raw bundle and wins same-id ties, so in that case the bundle is filled exactly as before.
   `getSerializedReplacementEvent` keeps its deep copy for callers that mutate the result (`room_id`, decryption, `makeReplaced`).
-- Measurements (same account; whole-reload totals on the live account varied too much to compare, because agents kept posting and the thread cache grew between runs):
+- Measurements on the same account, each against the state named in its row; whole-reload totals on the live account varied too much to compare, because agents kept posting and the thread cache grew between runs:
 
-  | Metric | Build and baseline | Before | After |
-  | --- | --- | ---: | ---: |
-  | Main thread quiet after a warm reload | dev, A/B/B/A against `dev` | 27.8-29.9 s | 11.6-15.9 s |
-  | Cross-room flushes in a warm reload | production (unminified), against `dev` | 9.6 s | 0.8 s |
-  | Tag aggregation in a warm reload | production (unminified), against `dev` | 6.2 s | 10-22 ms |
-  | Preview analysis in a warm reload | production (unminified), against `dev` | 2.2 s | 50-80 ms |
-  | Streaming detection over three thread closes | dev, against the tag, preview and flush changes | 640 ms | 155 ms |
-  | Thread record rebuilds over three thread closes | same | 927 ms | 457 ms |
+  | Metric | Build | Measured change | Before | After |
+  | --- | --- | --- | ---: | ---: |
+  | Main thread quiet after a warm reload | dev, A/B/B/A | first tag and preview caches (an 8-entry tag list and a 1,000-entry preview cache) against `dev` | 27.8-29.9 s | 11.6-15.9 s |
+  | Cross-room flushes in a warm reload | production, unminified | per-room tag slots, 5,000-entry preview cache and flush throttle against `dev` | 9.6 s | 0.8 s |
+  | Tag aggregation in a warm reload | same | same | 6.2 s | 10-22 ms |
+  | Preview analysis in a warm reload | same | same | 2.2 s | 50-80 ms |
+  | Streaming detection over three thread closes | dev | in-place bundle read against the state above | 640 ms | 155 ms |
+  | Thread record rebuilds over three thread closes | same | same | 927 ms | 457 ms |
 
-  The rows were measured before review moved the tag cache into `getRoomThreadTagSnapshotMap`, merged the preview passes and moved throttling into the coalescer; those follow-ups keep the same reuse and do not remove further work from the measured paths.
+  The final review commits (tag cache per `RoomState`, one preview analysis per call, throttling inside the coalescer, shallow copies for a winning bundle) were not re-measured.
   Freed startup time is partly taken by SDK thread initialization and cache work.
   Opening or closing a thread shows its view after about 0.5-0.8 s with or without this change; the first overview cards appear about 3 s into a dev-build reload in both.
 - Production sourcemaps map the 5 MB main chunk to only 74 sources, so production profiles and stack traces cannot be attributed; unminified production builds were used for the function-level rows.
 - Two independent reviews found no blockers, and a randomized 20,000-case comparison found the old and new streaming paths identical for every status reader and for the saved event state.
-  Two zero-tolerance `pr-review` passes required changes; their findings and the Qodo and CodeRabbit comments (per-room cache retention, preview cache bounds, double analysis and badge parsing, clock and flush-supersession handling, bootstrap ordering, parity of `m.new_content`, test gaps and wording) are addressed above.
+  Three zero-tolerance `pr-review` passes required changes; their findings and the Qodo and CodeRabbit comments (per-room cache retention, preview cache bounds, double analysis and badge parsing, clock and flush-supersession handling, bootstrap ordering, parity of `m.new_content`, test gaps and wording) are addressed above.
 - Validation: `npm run typecheck`, `npm run lint`, `npm run build`, prettier on the changed files, and the Vitest suites under `src/app/mindroom`, `src/app/utils` and `src/app/pages/client` pass, apart from the 6 `deepTraceFailure.test.ts` cases that fail the same way on clean `dev`.
   Each regression test fails when its fix is removed: room-state reuse and per-room slots, in-place and local redaction, preview working set, entry and character bounds, large bodies, flush bursts, discarded-only flushes, `flushNow` superseding a pending microtask or timer, deletion discard, bootstrap ordering, streaming no-copy and no-write, and bundled-winner parity.
 - Next: remove the O(threads) `Room.findEventById` fallback cost (the SDK event mapper looks up every event and its bundled edit, and `buildCompactThreadRootData` looks up every thread root), decide whether SDK thread initialization should be deferred or throttled (it fetches a root and a recursive `/relations` page per listed thread; 208 and 114 were seen in the first two minutes here), and repair production sourcemaps.

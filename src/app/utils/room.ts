@@ -644,10 +644,7 @@ export const getLatestEditedMessageContent = (
   if (!latestEdit) return getLatestMessageContent(mEvent);
 
   const winner = latestEdit === serializedReplacement ? copyEditContainers(latestEdit) : latestEdit;
-  copyEditMetadataFallbacksToLatestEdit(
-    winner,
-    candidateEdits.map((edit) => (edit === latestEdit ? winner : edit))
-  );
+  copyEditMetadataFallbacksToLatestEdit(winner, candidateEdits);
   return getLatestMessageContent(mEvent, winner);
 };
 

@@ -1,3 +1,4 @@
+import { type TFunction } from 'i18next';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   getLocalizedThreadMessagePreviewText,
@@ -12,9 +13,7 @@ vi.mock('../../utils/room', () => ({ trimReplyFromBody }));
 
 const textContent = (body: string): Record<string, unknown> => ({ msgtype: 'm.text', body });
 const t = ((key: string, options?: { count?: number }) =>
-  `${key}:${options?.count ?? ''}`) as unknown as Parameters<
-  typeof getLocalizedThreadMessagePreviewText
->[1];
+  `${key}:${options?.count ?? ''}`) as unknown as TFunction;
 
 describe('thread message preview analysis reuse', () => {
   beforeEach(() => {

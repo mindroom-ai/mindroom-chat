@@ -619,6 +619,9 @@ export type CrossRoomThreadDirtyCoalescer = {
 
 export const CROSS_ROOM_INDEX_FLUSH_INTERVAL_MS = 200;
 
+/** A scheduled flush; the timer is unset while it waits on a microtask. */
+type PendingFlush = { timer?: ReturnType<typeof setTimeout> };
+
 /**
  * Coalesces dirty keys into flushes with a leading edge: an isolated update
  * flushes on the next microtask, while a burst waits until `minIntervalMs`
@@ -635,7 +638,7 @@ export const createCrossRoomThreadDirtyCoalescer = (
 ): CrossRoomThreadDirtyCoalescer => {
   const dirtyKeys = new Set<string>();
   let lastFlushEndedAt = Number.NEGATIVE_INFINITY;
-  let pending: { timer?: ReturnType<typeof setTimeout> } | undefined;
+  let pending: PendingFlush | undefined;
 
   const cancelPending = () => {
     if (pending?.timer !== undefined) clearTimeout(pending.timer);
@@ -656,7 +659,7 @@ export const createCrossRoomThreadDirtyCoalescer = (
   };
 
   const schedule = () => {
-    const run: { timer?: ReturnType<typeof setTimeout> } = {};
+    const run: PendingFlush = {};
     pending = run;
     // A superseded run (flushNow or clear) must not flush later keys early.
     const fire = () => {

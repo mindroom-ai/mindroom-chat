@@ -139,6 +139,8 @@ type ThreadPreview = {
   localization: ThreadPreviewLocalization | undefined;
 };
 
+const NO_PREVIEW: ThreadPreview = { text: undefined, localization: undefined };
+
 const computeBodyPreview = (body: string): ThreadPreview => {
   const withoutReply = trimReplyFromBody(body);
   const { body: withoutToolMarkers, toolCallCount } = extractPreviewTools(withoutReply);
@@ -207,9 +209,7 @@ const analyzeBodyPreview = (body: string): ThreadPreview => {
   return analysis;
 };
 
-const getMediaFallbackPreview = (
-  content: Record<string, unknown>
-): { text: string; localization: ThreadPreviewLocalization } | undefined => {
+const getMediaFallbackPreview = (content: Record<string, unknown>): ThreadPreview | undefined => {
   switch (content.msgtype) {
     case MsgType.Audio:
       return { text: 'Audio', localization: { kind: 'audio' } };
@@ -229,7 +229,7 @@ const getMediaFallbackPreview = (
 const resolveThreadPreview = (
   content: Record<string, unknown> | null | undefined
 ): ThreadPreview => {
-  if (!content || !isRecord(content)) return { text: undefined, localization: undefined };
+  if (!content || !isRecord(content)) return NO_PREVIEW;
 
   const newContent = isRecord(content['m.new_content'])
     ? (content['m.new_content'] as Record<string, unknown>)
@@ -244,8 +244,7 @@ const resolveThreadPreview = (
     typeof previewContent.body === 'string' ? analyzeBodyPreview(previewContent.body) : undefined;
   if (bodyPreview?.text) return bodyPreview;
 
-  const media = getMediaFallbackPreview(previewContent);
-  return { text: media?.text, localization: media?.localization };
+  return getMediaFallbackPreview(previewContent) ?? NO_PREVIEW;
 };
 
 export const getThreadMessagePreviewText = (
