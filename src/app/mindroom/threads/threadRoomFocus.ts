@@ -16,6 +16,7 @@ import {
   resolveThreadRecordOverviewRootIds,
 } from './threadRecordOverview';
 import type { ThreadScheduledStatus } from './threadScheduledStatus';
+import { findThreadRootEvent } from './threadUtils';
 import type { ThreadRecord } from './types';
 
 type ThreadResolutionLike = {
@@ -55,7 +56,7 @@ export const resolveOrderedRoomOverviewEvents = ({
 }: {
   orderedRootIds: string[];
   renderableEvents: MatrixEvent[];
-  room: Pick<Room, 'findEventById'>;
+  room: Pick<Room, 'getThread' | 'getUnfilteredTimelineSet'>;
   roomThreads?: Pick<Thread, 'id' | 'rootEvent'>[];
 }): MatrixEvent[] => {
   const eventMap = new Map<string, MatrixEvent>();
@@ -74,7 +75,7 @@ export const resolveOrderedRoomOverviewEvents = ({
   return orderedRootIds
     .map(
       (rootId) =>
-        eventMap.get(rootId) ?? room.findEventById(rootId) ?? threadRootEventMap.get(rootId)
+        eventMap.get(rootId) ?? findThreadRootEvent(room, rootId) ?? threadRootEventMap.get(rootId)
     )
     .filter((event): event is MatrixEvent => event !== undefined);
 };

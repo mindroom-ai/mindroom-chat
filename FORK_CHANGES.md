@@ -2,6 +2,18 @@
 
 ## Runbook
 
+### Thread event lookups in large rooms (2026-09-28)
+
+- A production profile of normal use on the live 523-thread Personal room put `Room.findEventById` (mostly `getTimelineForEvent`) at about 4 s of 61 s of main-thread work.
+  Two open/close cycles made about 800,000 lookups: when an event is not in the room timeline, the SDK scans every thread, and most lookups are thread events or thread roots.
+- The SDK patch makes `Room.findEventById` remember which thread held an event and check that thread first, while the room still has it; the full scan remains for misses.
+  A stale entry is dropped when read, and the map starts over past 20,000 entries, so it cannot grow with the session's lookup history.
+- `findThreadRootEvent` in `threadUtils.ts` reads a root from the room timeline or its own thread.
+  The compact overview, the room overview ordering and compact root backfill used `room.findEventById` for every root, which scanned all threads for each root not loaded in the room timeline and then fell back to `thread.rootEvent` anyway.
+- Same-conditions A/B on the live account (production build, warm reload, two thread open/close cycles): time inside `findEventById` drops from 9.4 s to 4.4 s; open shows its view after 582 ms instead of 834 ms and close after 1,018 ms instead of 1,342 ms, with worst frames down from 379 to 247 ms and from 688 to 462 ms.
+- Not changed: lookups of events that exist nowhere locally (the SDK event mapper, redaction checks) still scan every thread; making them fast needs an index kept in sync with every thread timeline change.
+- Validation: the new SDK test fails without the memo and without the thread-membership check, and the patch applies to a pristine `matrix-js-sdk@41.7.0` with all 24 patched files byte-identical to the working tree.
+
 ### Large-room main-thread hot paths (2026-09-28)
 
 - Profiled a live account in headed Chrome 153: the Personal room has 523 SDK threads, 9,549 loaded thread events and 619 thread-tag state events, across 136 joined rooms.

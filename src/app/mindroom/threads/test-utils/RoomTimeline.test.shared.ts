@@ -791,6 +791,8 @@ vi.mock('../../../state/room/roomToUnread', () => ({
 }));
 
 vi.mock('../threadUtils', () => ({
+  findThreadRootEvent: (room: { findEventById?: (id: string) => unknown }, id: string) =>
+    room.findEventById?.(id),
   buildThreadParticipantMap: (
     events: Array<{
       getId(): string | undefined;

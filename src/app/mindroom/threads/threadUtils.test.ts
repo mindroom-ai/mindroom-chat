@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { RelationType } from 'matrix-js-sdk/lib/@types/event';
 import {
   buildThreadParticipantMap,
@@ -6,6 +6,7 @@ import {
   buildVisibleThreadParticipantMap,
   buildVisibleThreadReplyCountMap,
   eventBelongsToThread,
+  findThreadRootEvent,
   getThreadReplyEventsForRoot,
   getPreferredVisibleThreadReplyEvents,
   getValidThreadRootEvent,
@@ -353,5 +354,26 @@ describe('getValidThreadRootEvent', () => {
     };
 
     expect(getValidThreadRootEvent(room as never, '$bogus')).toBeUndefined();
+  });
+});
+
+describe('findThreadRootEvent', () => {
+  it('reads the room timeline, then the root thread, without scanning every thread', () => {
+    const inRoom = { id: 'room-copy' };
+    const inThread = { id: 'thread-copy' };
+    const findEventById = vi.fn();
+    const room = {
+      findEventById,
+      getUnfilteredTimelineSet: () => ({
+        findEventById: (id: string) => (id === '$loaded' ? inRoom : undefined),
+      }),
+      getThread: (id: string) =>
+        id === '$threaded' ? { findEventById: () => inThread } : undefined,
+    };
+
+    expect(findThreadRootEvent(room as never, '$loaded')).toBe(inRoom);
+    expect(findThreadRootEvent(room as never, '$threaded')).toBe(inThread);
+    expect(findThreadRootEvent(room as never, '$unknown')).toBeUndefined();
+    expect(findEventById).not.toHaveBeenCalled();
   });
 });
