@@ -47,6 +47,18 @@ const isThreadRelation = (event: ThreadEventLike): boolean => {
   return !relationType || relationType === RelationType.Thread;
 };
 
+/**
+ * A thread root lives in the room timeline or in its own thread.
+ * `Room.findEventById` instead scans every thread's timeline when the root is
+ * not loaded in the room timeline, which is O(threads) for each root.
+ */
+export const findThreadRootEvent = (
+  room: Pick<Room, 'getUnfilteredTimelineSet' | 'getThread'>,
+  threadRootId: string
+): MatrixEvent | undefined =>
+  room.getUnfilteredTimelineSet().findEventById(threadRootId) ??
+  room.getThread(threadRootId)?.findEventById(threadRootId);
+
 export const eventBelongsToThread = (event: ThreadEventLike, threadId: string): boolean =>
   event.getId() === threadId || event.threadRootId === threadId;
 

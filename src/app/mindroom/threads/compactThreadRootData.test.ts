@@ -80,9 +80,10 @@ const makeThread = (id: string, rootEvent?: ReturnType<typeof makeEvent>) =>
 describe('buildCompactThreadRootData', () => {
   const makeRoom = (eventsById?: Record<string, ReturnType<typeof makeEvent>>) =>
     ({
-      findEventById: (eventId: string) => eventsById?.[eventId],
+      getThread: () => undefined,
       getUnfilteredTimelineSet: () =>
         ({
+          findEventById: (eventId: string) => eventsById?.[eventId],
           relations: {
             getChildEventsForEvent: () => undefined,
           },
@@ -212,8 +213,8 @@ describe('buildCompactThreadRootData', () => {
 
     const data = buildCompactThreadRootData({
       room: {
-        findEventById,
-        getUnfilteredTimelineSet: () => undefined,
+        getThread: () => undefined,
+        getUnfilteredTimelineSet: () => ({ findEventById }),
       } as never,
       visibleIds: [],
       visibleIndexMap: new Map(),

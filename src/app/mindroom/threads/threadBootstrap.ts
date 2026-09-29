@@ -2,16 +2,13 @@ import { MatrixError, RelationType } from 'matrix-js-sdk';
 import type { MatrixEvent, Room } from 'matrix-js-sdk';
 import { ErrorCode } from '../../cs-errorcode';
 import { getCompactThreadRootBodyPreviewText } from './compactThreadRootData';
-import {
-  isVisibleThreadRootEvent,
-  type TimelineEventEntry,
-} from './roomTimelineEvents';
+import { isVisibleThreadRootEvent, type TimelineEventEntry } from './roomTimelineEvents';
 import {
   hasLikelyIncompleteStreamingBody,
   shouldFetchThreadEditBackfill,
 } from './threadEditBackfill';
 import { getLinkedTimelines, getLiveTimeline } from './timelinePagination';
-import { eventBelongsToThread, isThreadReplyEvent } from './threadUtils';
+import { eventBelongsToThread, findThreadRootEvent, isThreadReplyEvent } from './threadUtils';
 import { reactionOrEditEvent } from '../../utils/room';
 import { getThreadCacheTargetId } from './eventRepository';
 import { getKnownThreadReplyCount } from './threadBadgeViewModel';
@@ -247,7 +244,7 @@ export const getCompactRootEventsNeedingBackfill = ({
   roomThreadListThreads,
   attemptedEvents,
 }: {
-  room: Pick<Room, 'findEventById' | 'getThread' | 'getUnfilteredTimelineSet'>;
+  room: Pick<Room, 'getThread' | 'getUnfilteredTimelineSet'>;
   roomSurfaceEventEntries: Array<{ event: MatrixEvent }>;
   threadRootIds: string[];
   roomThreadListThreads: Array<{ id?: string; rootEvent?: MatrixEvent }>;
@@ -258,7 +255,7 @@ export const getCompactRootEventsNeedingBackfill = ({
       threadRootId,
       events: [
         roomSurfaceEventEntries.find((entry) => entry.event.getId() === threadRootId)?.event,
-        room.findEventById(threadRootId),
+        findThreadRootEvent(room, threadRootId),
         room.getThread(threadRootId)?.rootEvent,
         roomThreadListThreads.find((thread) => thread.id === threadRootId)?.rootEvent,
       ].filter(

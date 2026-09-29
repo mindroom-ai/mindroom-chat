@@ -10,6 +10,7 @@ import {
 } from './threadRouteUtils';
 import { getThreadMessagePreviewText } from './threadMessagePreview';
 import {
+  findThreadRootEvent,
   getPreferredVisibleThreadReplyEvents,
   hasLoadedThreadReplyEvents,
   isVisibleThreadReplyEvent,
@@ -266,7 +267,7 @@ export const buildCompactThreadRootData = ({
   visibleSourceTsMap,
   threads,
 }: {
-  room: Pick<Room, 'findEventById' | 'getUnfilteredTimelineSet'>;
+  room: Pick<Room, 'getThread' | 'getUnfilteredTimelineSet'>;
   visibleIds: string[];
   visibleIndexMap: Map<string, number>;
   visibleBodyMap: Map<string, string>;
@@ -283,7 +284,7 @@ export const buildCompactThreadRootData = ({
 
   threads.forEach((thread) => {
     if (!thread.id || seen.has(thread.id) || !hasRawThreadActivity(thread)) return;
-    const rootEvent = room.findEventById(thread.id) ?? thread.rootEvent;
+    const rootEvent = findThreadRootEvent(room, thread.id) ?? thread.rootEvent;
     if (!hasCompactThreadActivity(thread, rootEvent) || isNestedThreadReplyEvent(rootEvent)) return;
 
     seen.add(thread.id);
