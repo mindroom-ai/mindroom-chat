@@ -578,6 +578,8 @@ describe('useCrossRoomThreadIndex', () => {
   });
 
   it('rebuilds a thread once for a burst of updates inside the flush interval', async () => {
+    // Vitest does not fake performance.now; freeze it so the burst stays in one interval.
+    const now = vi.spyOn(performance, 'now').mockReturnValue(1_000);
     const { room, threads, replies } = makeRoomWithThreadReplies('!room:example.org', 2);
     matrixClientMock.mockReturnValue(makeClient(room));
     const store = createStore();
@@ -607,6 +609,7 @@ describe('useCrossRoomThreadIndex', () => {
     expect(readsPerRebuild).toBeGreaterThan(0);
     expect(replyContent).toHaveBeenCalledTimes(readsPerRebuild);
     renderer.unmount();
+    now.mockRestore();
   });
 
   it('does not re-add a deleted thread from an update queued before the delete', async () => {

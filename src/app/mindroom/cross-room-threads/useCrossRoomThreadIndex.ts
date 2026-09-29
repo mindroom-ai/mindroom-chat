@@ -23,7 +23,6 @@ import {
   applyCrossRoomThreadIndexBatch,
   buildCrossRoomThreadIndexEntry,
   createCrossRoomThreadDirtyCoalescer,
-  createThrottledFlushSchedule,
   CROSS_ROOM_INDEX_FLUSH_INTERVAL_MS,
   crossRoomThreadIndexAtom,
   emptyCrossRoomThreadIndexSnapshot,
@@ -283,7 +282,7 @@ export const useCrossRoomThreadIndex = () => {
     };
     const coalescer = createCrossRoomThreadDirtyCoalescer(
       flushDirtyKeys,
-      createThrottledFlushSchedule(CROSS_ROOM_INDEX_FLUSH_INTERVAL_MS)
+      CROSS_ROOM_INDEX_FLUSH_INTERVAL_MS
     );
 
     const enqueueThread = (roomId: string, threadRootId: string | undefined) => {

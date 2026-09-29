@@ -619,61 +619,70 @@ export type CrossRoomThreadDirtyCoalescer = {
 
 export const CROSS_ROOM_INDEX_FLUSH_INTERVAL_MS = 200;
 
-/**
- * Flush schedule with a leading edge: an isolated update still flushes on the
- * next microtask, but a burst waits until `minIntervalMs` after the previous
- * flush ends. SDK thread initialization and streamed edits emit many updates per
- * thread in separate tasks; without spacing, startup rebuilt each entry a
- * median of 14 times (3,065 flushes for 577 threads on a large account).
- */
-export const createThrottledFlushSchedule = (
-  minIntervalMs: number,
-  now: () => number = () => Date.now(),
-  setTimer: (callback: () => void, delayMs: number) => unknown = (callback, delayMs) =>
-    globalThis.setTimeout(callback, delayMs)
-): ((callback: () => void) => void) => {
-  let lastFlushEndedAt = Number.NEGATIVE_INFINITY;
-
-  return (callback) => {
-    const run = () => {
-      try {
-        callback();
-      } finally {
-        lastFlushEndedAt = now();
-      }
-    };
-    // Clamped so a clock that moves backwards cannot postpone the flush.
-    const waitMs = Math.min(minIntervalMs, lastFlushEndedAt + minIntervalMs - now());
-    if (waitMs <= 0) queueMicrotask(run);
-    else setTimer(run, waitMs);
-  };
+export type CrossRoomThreadCoalescerClock = {
+  now: () => number;
+  setTimer: (callback: () => void, delayMs: number) => unknown;
+  clearTimer: (timer: unknown) => void;
 };
 
+const monotonicClock: CrossRoomThreadCoalescerClock = {
+  now: () => performance.now(),
+  setTimer: (callback, delayMs) => globalThis.setTimeout(callback, delayMs),
+  clearTimer: (timer) => globalThis.clearTimeout(timer as ReturnType<typeof setTimeout>),
+};
+
+/**
+ * Coalesces dirty keys into flushes with a leading edge: an isolated update
+ * flushes on the next microtask, while a burst waits until `minIntervalMs`
+ * after the previous flush ended. SDK thread initialization and streamed edits
+ * emit many updates per thread in separate tasks; flushing on every microtask
+ * rebuilt each entry a median of 14 times at startup (3,065 flushes for 577
+ * threads on a large account). `flushNow` supersedes the pending flush, and a
+ * flush that finds no keys leaves the interval untouched.
+ */
 export const createCrossRoomThreadDirtyCoalescer = (
   flushDirtyKeys: (keys: string[]) => void,
-  schedule: (callback: () => void) => void = queueMicrotask
+  minIntervalMs = 0,
+  clock: CrossRoomThreadCoalescerClock = monotonicClock
 ): CrossRoomThreadDirtyCoalescer => {
   const dirtyKeys = new Set<string>();
-  let scheduled = false;
+  let lastFlushEndedAt = Number.NEGATIVE_INFINITY;
+  let pending: { timer?: unknown } | undefined;
+
+  const cancelPending = () => {
+    if (pending?.timer !== undefined) clock.clearTimer(pending.timer);
+    pending = undefined;
+  };
 
   const flushNow = () => {
-    if (dirtyKeys.size === 0) {
-      scheduled = false;
-      return;
-    }
+    cancelPending();
+    if (dirtyKeys.size === 0) return;
 
     const keys = Array.from(dirtyKeys);
     dirtyKeys.clear();
-    scheduled = false;
-    flushDirtyKeys(keys);
+    try {
+      flushDirtyKeys(keys);
+    } finally {
+      lastFlushEndedAt = clock.now();
+    }
+  };
+
+  const schedule = () => {
+    const run: { timer?: unknown } = {};
+    pending = run;
+    // A superseded run (flushNow or clear) must not flush later keys early.
+    const fire = () => {
+      if (pending === run) flushNow();
+    };
+    const waitMs = lastFlushEndedAt + minIntervalMs - clock.now();
+    if (waitMs <= 0) queueMicrotask(fire);
+    else run.timer = clock.setTimer(fire, waitMs);
   };
 
   return {
     enqueueDirty: (key: string) => {
       dirtyKeys.add(key);
-      if (scheduled) return;
-      scheduled = true;
-      schedule(flushNow);
+      if (!pending) schedule();
     },
     discardDirty: (key: string) => {
       dirtyKeys.delete(key);
@@ -681,7 +690,7 @@ export const createCrossRoomThreadDirtyCoalescer = (
     flushNow,
     clear: () => {
       dirtyKeys.clear();
-      scheduled = false;
+      cancelPending();
     },
   };
 };

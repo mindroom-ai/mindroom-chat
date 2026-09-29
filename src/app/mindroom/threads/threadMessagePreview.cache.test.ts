@@ -56,12 +56,44 @@ describe('thread message preview analysis reuse', () => {
     expect(trimReplyFromBody).not.toHaveBeenCalled();
   });
 
+  it('evicts the least recently read body beyond the entry limit', () => {
+    const bodies = Array.from({ length: 5_000 }, (_, index) => `Entry limit body ${index}`);
+    bodies.forEach((body) => getThreadMessagePreviewText(textContent(body)));
+    // Reading the oldest body makes the second oldest the next to go.
+    getThreadMessagePreviewText(textContent(bodies[0]));
+    getThreadMessagePreviewText(textContent('Entry limit overflow'));
+    trimReplyFromBody.mockClear();
+
+    getThreadMessagePreviewText(textContent(bodies[0]));
+    expect(trimReplyFromBody).not.toHaveBeenCalled();
+    getThreadMessagePreviewText(textContent(bodies[1]));
+    expect(trimReplyFromBody).toHaveBeenCalledTimes(1);
+  });
+
+  it('evicts the oldest bodies beyond the character budget', () => {
+    // 67 bodies of 60,000 characters exceed the 4 million character budget.
+    const bodies = Array.from(
+      { length: 67 },
+      (_, index) => `Budget body ${String(index).padStart(2, '0')} ${'y'.repeat(60_000)}`
+    );
+    bodies.forEach((body) => getThreadMessagePreviewText(textContent(body)));
+    trimReplyFromBody.mockClear();
+
+    getThreadMessagePreviewText(textContent(bodies[66]));
+    expect(trimReplyFromBody).not.toHaveBeenCalled();
+    getThreadMessagePreviewText(textContent(bodies[0]));
+    expect(trimReplyFromBody).toHaveBeenCalledTimes(1);
+  });
+
   it('does not retain very large bodies', () => {
     const body = `Large tool output ${'x'.repeat(70_000)}`;
 
     getThreadMessagePreviewText(textContent(body));
     getThreadMessagePreviewText(textContent(body));
-
     expect(trimReplyFromBody).toHaveBeenCalledTimes(2);
+
+    // Localization shares the analysis even when the body is not retained.
+    getLocalizedThreadMessagePreviewText(textContent(body), t);
+    expect(trimReplyFromBody).toHaveBeenCalledTimes(3);
   });
 });

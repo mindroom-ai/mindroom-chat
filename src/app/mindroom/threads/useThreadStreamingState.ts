@@ -12,11 +12,7 @@ import {
 import { STOP_REACTION_KEYS } from '../messages/stopReaction';
 import { getSerializedReplacementEventView, isSameSenderEditEvent } from '../../utils/editEvent';
 import { getActiveAnnotationsByKey } from '../../utils/reactionAnnotations';
-import {
-  getEventReactions,
-  getLatestEditedMessageContent,
-  getLatestMessageContent,
-} from '../../utils/room';
+import { getEventReactions, getLatestEditedMessageContent } from '../../utils/room';
 import { DEFAULT_THREAD_TAIL_EVENT_COUNT, getThreadTailEvents } from '../../utils/thread';
 import { useThreadEventRefresh } from './useThreadEventRefresh';
 
@@ -35,7 +31,7 @@ const getPreferredEventContent = (
 ): Record<string, unknown> => {
   const replacingEventCandidate = mEvent.replacingEvent() ?? undefined;
   // Every record rebuild checks the tail of every thread, so the bundled edit
-  // is read in place instead of deep-copied. The shared resolver never writes
+  // is wrapped instead of deep-copied. The shared resolver never writes
   // through this view and still owns ordering, sender validation and metadata
   // fallbacks; a live SDK replacement built from the same bundle is filled in
   // place as before.
@@ -44,12 +40,10 @@ const getPreferredEventContent = (
     isSameSenderEditEvent(mEvent, replacingEventCandidate) ||
     isSameSenderEditEvent(mEvent, serializedReplacementView);
 
-  if (!hasResolvableReplacement || !timelineSet) {
+  const eventId = mEvent.getId();
+  if (!hasResolvableReplacement || !timelineSet || !eventId) {
     return (mEvent.getContent() as Record<string, unknown>) ?? {};
   }
-
-  const eventId = mEvent.getId();
-  if (!eventId) return getLatestMessageContent(mEvent);
 
   return getLatestEditedMessageContent(eventId, mEvent, timelineSet, serializedReplacementView);
 };

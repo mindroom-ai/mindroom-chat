@@ -1,6 +1,6 @@
 import { MatrixEvent, RelationType } from 'matrix-js-sdk';
 import { describe, expect, it, vi } from 'vitest';
-import { cloneRawEvent, getSerializedReplacementEventView } from './editEvent';
+import { getSerializedReplacementEventView } from './editEvent';
 import {
   getEditedEvent,
   getLatestEdit,
@@ -458,7 +458,7 @@ describe('getLatestEditedMessageContent', () => {
     } as any);
   const aiRun = (status: string) => ({ version: 1, status });
 
-  it('matches getEditedEvent when a bundled edit wins, without writing to the bundle', () => {
+  it('returns the getEditedEvent content when a bundled edit wins, leaving the bundle untouched', () => {
     const makeTarget = () => {
       const target = makeMessageEvent('$target', 1000);
       target.event.unsigned = {
@@ -481,7 +481,7 @@ describe('getLatestEditedMessageContent', () => {
     );
     const target = makeTarget();
     const bundle = target.getUnsigned()['m.relations']?.['m.replace'];
-    const bundleBefore = cloneRawEvent(bundle as object);
+    const bundleBefore = structuredClone(bundle);
 
     const resolved = getLatestEditedMessageContent(
       '$target',
@@ -490,14 +490,11 @@ describe('getLatestEditedMessageContent', () => {
       getSerializedReplacementEventView(target)
     );
 
-    const { 'm.new_content': expectedNewContent, ...expectedTopLevel } = expected;
-    const { 'm.new_content': resolvedNewContent, ...resolvedTopLevel } = resolved;
-    expect(resolvedTopLevel).toEqual(expectedTopLevel);
-    expect(resolvedTopLevel['io.mindroom.stream_status']).toBe('completed');
-    expect((resolvedNewContent as Record<string, unknown>).body).toBe(
-      (expectedNewContent as Record<string, unknown>).body
-    );
-    expect(target.getUnsigned()['m.relations']?.['m.replace']).toEqual(bundleBefore);
+    expect(resolved).toEqual(expected);
+    expect(resolved['io.mindroom.stream_status']).toBe('completed');
+    expect(resolved['m.new_content']).toMatchObject({ 'io.mindroom.stream_status': 'completed' });
+    expect(resolved['m.new_content']).not.toBe(bundle.content['m.new_content']);
+    expect(bundle).toEqual(bundleBefore);
   });
 
   it('fills a winning live edit in place, as getEditedEvent does', () => {
@@ -532,9 +529,7 @@ describe('getLatestEditedMessageContent', () => {
           'm.replace': metadataEdit('$bundled', 3000, { body: 'bundled final' }).event,
         },
       };
-      target.makeReplaced(
-        new MatrixEvent(target.getUnsigned()['m.relations']?.['m.replace'] as never)
-      );
+      target.makeReplaced(new MatrixEvent(target.getUnsigned()['m.relations']?.['m.replace']));
       return target;
     };
     const olderEdit = () =>

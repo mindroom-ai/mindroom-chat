@@ -16,39 +16,7 @@ export const MAX_TAG_LENGTH = 50;
 const PERSISTED_TAG_NAME = /^[a-z0-9-]{1,50}$/;
 const ISO_8601_PATTERN =
   /^\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})?)?$/;
-// RoomState.getStateEvents() returns a new array on every call, so results
-// cannot be keyed by array identity. Each input is instead matched element by
-// element against the last aggregation that started with the same event, which
-// gives every room its own weakly held slot. A state change replaces the
-// MatrixEvent; redaction keeps the event but marks it redacted, and a redacted
-// custom state event always reads as empty content (a local redaction returns
-// a fresh `{}` on each read), so redacted events are compared by flag alone.
-type ThreadTagAggregationInput = {
-  events: MatrixEvent[];
-  contents: unknown[];
-};
-const threadTagAggregationsByFirstEvent = new WeakMap<
-  MatrixEvent,
-  { input: ThreadTagAggregationInput; aggregated: ReadonlyMap<string, ThreadTagsContent> }
->();
-const EMPTY_THREAD_TAG_AGGREGATION: ReadonlyMap<string, ThreadTagsContent> = new Map();
-
-const getTagEventContentKey = (event: MatrixEvent): unknown =>
-  event.isRedacted?.() === true ? null : event.getContent();
-
-const matchesThreadTagAggregationInput = (
-  input: ThreadTagAggregationInput,
-  events: MatrixEvent[]
-): boolean => {
-  if (input.events.length !== events.length) return false;
-  for (let index = 0; index < events.length; index += 1) {
-    const event = events[index];
-    if (input.events[index] !== event || input.contents[index] !== getTagEventContentKey(event)) {
-      return false;
-    }
-  }
-  return true;
-};
+const aggregatedThreadTagEventsCache = new WeakMap<MatrixEvent[], Map<string, ThreadTagsContent>>();
 
 export type TagMetadata = {
   set_by: string;
@@ -282,13 +250,10 @@ export const buildPerTagEventContent = (
  * Merge legacy per-thread events with canonical per-tag records for one room.
  * Per-tag tombstones remove legacy tags, and per-tag records override legacy data.
  */
-export const aggregateThreadTagEvents = (
-  events: MatrixEvent[]
-): ReadonlyMap<string, ThreadTagsContent> => {
-  if (events.length === 0) return EMPTY_THREAD_TAG_AGGREGATION;
-  const cached = threadTagAggregationsByFirstEvent.get(events[0]);
-  if (cached && matchesThreadTagAggregationInput(cached.input, events)) {
-    return cached.aggregated;
+export const aggregateThreadTagEvents = (events: MatrixEvent[]): Map<string, ThreadTagsContent> => {
+  const cached = aggregatedThreadTagEventsCache.get(events);
+  if (cached) {
+    return cached;
   }
 
   const legacyTagsByThread = new Map<string, Record<string, TagMetadata>>();
@@ -353,10 +318,7 @@ export const aggregateThreadTagEvents = (
       }
     });
 
-  threadTagAggregationsByFirstEvent.set(events[0], {
-    input: { events: events.slice(), contents: events.map(getTagEventContentKey) },
-    aggregated,
-  });
+  aggregatedThreadTagEventsCache.set(events, aggregated);
   return aggregated;
 };
 

@@ -134,7 +134,7 @@ type BodyPreviewAnalysis = {
   toolCallCount: number;
 };
 
-const computeBodyPreview = (body: string): BodyPreviewAnalysis => {
+const computeBodyPreviewAnalysis = (body: string): BodyPreviewAnalysis => {
   const withoutReply = trimReplyFromBody(body);
   const { body: withoutToolMarkers, toolCallCount } = extractPreviewTools(withoutReply);
   const boundedSource =
@@ -165,11 +165,10 @@ const computeBodyPreview = (body: string): BodyPreviewAnalysis => {
 };
 
 // Thread records, cross-room index entries and the minimap preview the root
-// and latest replies of every thread on each rebuild, and localization derives
-// the same preview again. The result depends only on the body, so a
-// least-recently-used cache sized above one large room's working set (523
-// threads) reuses the analysis across rebuilds. The character budget and the
-// per-body limit bound the strings it can keep alive.
+// and latest replies of every thread on each rebuild. The analysis depends
+// only on the body, so a least-recently-used cache sized above one large
+// room's working set (523 threads) reuses it across rebuilds. The character
+// budget and the per-body limit bound the strings it can keep alive.
 const BODY_PREVIEW_CACHE_MAX_ENTRIES = 5000;
 const BODY_PREVIEW_CACHE_MAX_CHARS = 4_000_000;
 const BODY_PREVIEW_CACHE_MAX_BODY_CHARS = 64_000;
@@ -185,45 +184,56 @@ const analyzeBodyPreview = (body: string): BodyPreviewAnalysis => {
     return cached;
   }
 
-  const analysis = computeBodyPreview(body);
+  const analysis = computeBodyPreviewAnalysis(body);
   if (body.length > BODY_PREVIEW_CACHE_MAX_BODY_CHARS) return analysis;
 
   bodyPreviewCache.set(body, analysis);
   bodyPreviewCacheChars += body.length;
-  while (
-    bodyPreviewCache.size > BODY_PREVIEW_CACHE_MAX_ENTRIES ||
-    bodyPreviewCacheChars > BODY_PREVIEW_CACHE_MAX_CHARS
-  ) {
-    const oldest = bodyPreviewCache.keys().next().value;
-    if (oldest === undefined) break;
+  for (const oldest of bodyPreviewCache.keys()) {
+    if (
+      bodyPreviewCache.size <= BODY_PREVIEW_CACHE_MAX_ENTRIES &&
+      bodyPreviewCacheChars <= BODY_PREVIEW_CACHE_MAX_CHARS
+    ) {
+      break;
+    }
     bodyPreviewCache.delete(oldest);
     bodyPreviewCacheChars -= oldest.length;
   }
   return analysis;
 };
 
-const normalizeBodyPreview = (body: unknown): string | undefined =>
-  typeof body === 'string' ? analyzeBodyPreview(body).preview : undefined;
+export type ThreadPreviewLocalization =
+  | { kind: 'voice' | 'audio' | 'image' | 'video' | 'file' }
+  | { kind: 'tools'; count: number; prose: string };
 
-const getMediaFallbackPreviewText = (content: Record<string, unknown>): string | undefined => {
+const getMediaFallbackPreview = (
+  content: Record<string, unknown>
+): { text: string; localization: ThreadPreviewLocalization } | undefined => {
   switch (content.msgtype) {
     case MsgType.Audio:
-      return isVoiceMessageContent(content) ? VOICE_MESSAGE_PREVIEW_TEXT : 'Audio';
+      return { text: 'Audio', localization: { kind: 'audio' } };
     case MsgType.Image:
-      return 'Image';
+      return { text: 'Image', localization: { kind: 'image' } };
     case MsgType.Video:
-      return 'Video';
+      return { text: 'Video', localization: { kind: 'video' } };
     case MsgType.File:
-      return 'File';
+      return { text: 'File', localization: { kind: 'file' } };
     default:
       return undefined;
   }
 };
 
-export const getThreadMessagePreviewText = (
+type ThreadPreview = {
+  text: string | undefined;
+  localization: ThreadPreviewLocalization | undefined;
+};
+
+// The preview text and the origin of its generated copy come from one
+// analysis, so a localized preview reads the body once.
+const resolveThreadPreview = (
   content: Record<string, unknown> | null | undefined
-): string | undefined => {
-  if (!content || !isRecord(content)) return undefined;
+): ThreadPreview => {
+  if (!content || !isRecord(content)) return { text: undefined, localization: undefined };
 
   const newContent = isRecord(content['m.new_content'])
     ? (content['m.new_content'] as Record<string, unknown>)
@@ -231,52 +241,40 @@ export const getThreadMessagePreviewText = (
   const previewContent = newContent ? { ...content, ...newContent } : content;
 
   if (previewContent.msgtype === MsgType.Audio && isVoiceMessageContent(previewContent)) {
-    return VOICE_MESSAGE_PREVIEW_TEXT;
+    return { text: VOICE_MESSAGE_PREVIEW_TEXT, localization: { kind: 'voice' } };
   }
 
-  const bodyPreview = normalizeBodyPreview(previewContent.body);
-  if (bodyPreview) return bodyPreview;
+  const analysis =
+    typeof previewContent.body === 'string' ? analyzeBodyPreview(previewContent.body) : undefined;
+  if (analysis?.preview) {
+    const { preview, toolCallCount } = analysis;
+    const prefix = formatToolCallSummary(toolCallCount);
+    const hasToolBadge =
+      toolCallCount > 0 && (preview === prefix || preview.startsWith(`${prefix} · `));
+    return {
+      text: preview,
+      localization: hasToolBadge
+        ? { kind: 'tools', count: toolCallCount, prose: preview.slice(prefix.length + 3) }
+        : undefined,
+    };
+  }
 
-  return getMediaFallbackPreviewText(previewContent);
+  const media = getMediaFallbackPreview(previewContent);
+  return { text: media?.text, localization: media?.localization };
 };
 
-export type ThreadPreviewLocalization =
-  | { kind: 'voice' | 'audio' | 'image' | 'video' | 'file' }
-  | { kind: 'tools'; count: number; prose: string };
+export const getThreadMessagePreviewText = (
+  content: Record<string, unknown> | null | undefined
+): string | undefined => resolveThreadPreview(content).text;
 
 /** Carry the origin of generated copy to the UI without translating user text or cached data. */
 export const getThreadPreviewLocalization = (
   content: Record<string, unknown> | null | undefined,
   previewText: string | undefined
 ): ThreadPreviewLocalization | undefined => {
-  if (!content || !previewText || getThreadMessagePreviewText(content) !== previewText)
-    return undefined;
-  const current = isRecord(content['m.new_content'])
-    ? { ...content, ...content['m.new_content'] }
-    : content;
-  if (current.msgtype === MsgType.Audio && isVoiceMessageContent(current)) return { kind: 'voice' };
-  const body = normalizeBodyPreview(current.body);
-  if (!body) {
-    switch (current.msgtype) {
-      case MsgType.Audio:
-        return { kind: 'audio' };
-      case MsgType.Image:
-        return { kind: 'image' };
-      case MsgType.Video:
-        return { kind: 'video' };
-      case MsgType.File:
-        return { kind: 'file' };
-      default:
-        return undefined;
-    }
-  }
-  const count =
-    typeof current.body === 'string' ? analyzeBodyPreview(current.body).toolCallCount : 0;
-  const prefix = formatToolCallSummary(count);
-  if (count > 0 && (body === prefix || body.startsWith(`${prefix} · `))) {
-    return { kind: 'tools', count, prose: body.slice(prefix.length + 3) };
-  }
-  return undefined;
+  if (!previewText) return undefined;
+  const preview = resolveThreadPreview(content);
+  return preview.text === previewText ? preview.localization : undefined;
 };
 
 export const localizeThreadPreview = (
@@ -309,6 +307,6 @@ export const getLocalizedThreadMessagePreviewText = (
   content: Record<string, unknown> | null | undefined,
   t?: TFunction
 ): string | undefined => {
-  const text = getThreadMessagePreviewText(content);
-  return localizeThreadPreview(text, getThreadPreviewLocalization(content, text), t);
+  const { text, localization } = resolveThreadPreview(content);
+  return localizeThreadPreview(text, localization, t);
 };

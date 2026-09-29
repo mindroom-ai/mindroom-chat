@@ -4,43 +4,43 @@
 
 ### Large-room main-thread hot paths (2026-09-28)
 
-- Profiled a live account on the Vite dev build in headed Chrome 153: Personal room with 523 SDK threads, 9,549 loaded thread events and 619 thread-tag state events; 136 joined rooms with 3,913 tag events.
-  A 24-minute trace of normal use spent 111 s on the main thread, and the first minute after login was saturated.
-- Tag state was re-parsed on every cross-room index flush (19.6 s of the trace, `parsePerTagStateKey` alone 14 s).
-  `aggregateThreadTagEvents` cached by array identity, but `RoomState.getStateEvents()` returns a new array per call, so the cache never hit for live state.
-  Each input is now matched element by element (event object, plus content object or redaction flag) against the last aggregation that started with the same event, which gives every room its own weakly held slot; rooms without tag state share one empty map.
-  `buildThreadTagSnapshotMap` reuses one read-only snapshot map per aggregation.
-- Message previews ran the full markdown-stripping pipeline three times per localized preview, for every loaded message on every overview, record and minimap rebuild.
-  The body analysis (preview text and tool-call count) is a pure function of the body and is now memoized in a least-recently-used cache of 5,000 entries and 4 million characters that skips bodies over 64,000 characters.
-  One localized preview now analyzes its body once instead of four times, and the cache holds the 523-thread room's rebuild working set.
-- A/B on warm reloads (base, fix, fix, base; dev build): the main thread goes quiet after 11.6-15.9 s instead of 27.8-29.9 s, with 15.0-19.2 s of main-thread work instead of 26.0-27.4 s.
-  Thread open/close improves less (close work about 2.8 s to 2.3 s, noisy); first cards appear after about 3 s in both.
-- Production (unminified build, one warm reload each, function-level): cross-room flushes 9.6 s to 0.8 s, tag aggregation 6.2 s to 10-22 ms, and preview analysis 2.2 s to 50-80 ms.
-  Whole-reload totals on the live account varied too much to compare (agents kept posting and the thread cache grew between runs), so freed time was partly taken by SDK thread initialization and cache work.
-- Startup rebuilt each cross-room index entry a median 14 times (3,065 microtask flushes, 8,386 entry builds for 577 threads), because SDK thread initialization and streamed edits emit updates in separate tasks and the coalescer flushed on every microtask.
-  The flush schedule now has a leading edge: an isolated update still flushes on the next microtask, while a burst waits until 200 ms after the previous flush.
+- Profiled a live account in headed Chrome 153: the Personal room has 523 SDK threads, 9,549 loaded thread events and 619 thread-tag state events, across 136 joined rooms.
+  A 24-minute trace of normal use (Vite dev build) spent 111 s on the main thread, and the first minute after load was saturated.
+- Tag state was re-parsed on every cross-room index flush (19.6 s of that trace; `parsePerTagStateKey` alone 14 s).
+  `aggregateThreadTagEvents` caches by array identity, but `RoomState.getStateEvents()` copies its map into a new array on every call, so `getRoomThreadTagSnapshotMap` never hit it.
+  `getRoomThreadTagSnapshotMap` now keeps one snapshot map per `RoomState` (weakly held, replaced on a miss), validated element by element: event object, plus content object or, for redacted events, the redaction flag alone (a pending local redaction reads a fresh `{}` each time).
+  Hook callers pass `useStateEvents` arrays, which stay stable between state changes, so they keep the array-identity cache.
+- Localized message previews ran the markdown-stripping pipeline three times plus a tool-count scan for every loaded message on each record, index and minimap rebuild.
+  Preview text and its localization now come from one analysis per call, and the analysis (a pure function of the body) is kept in a least-recently-used cache of 5,000 entries and 4 million characters that skips bodies over 64,000 characters, enough for the 523-thread room's rebuild working set.
+- The cross-room index flushed dirty keys on every microtask; SDK thread initialization and streamed edits emit updates in separate tasks, so a warm reload ran 3,065 flushes and rebuilt each of 577 entries a median of 14 times.
+  The coalescer now flushes an isolated update on the next microtask but spaces a burst until 200 ms after the previous flush ended, on the monotonic `performance.now()` clock.
+  `flushNow` supersedes the pending flush, a flush that finds every key discarded leaves the interval untouched, and bootstrap flushes pending rebuilds before it marks the index bootstrapped so filtered sidebar views never show an empty list.
   A thread deletion drops the rebuild queued before it; a later update still re-adds the entry, as before, because the SDK keeps the `Thread`.
-  The wait is capped at the interval, so a clock that moves backwards cannot stall the index, and bootstrap flushes pending rebuilds before it marks the index bootstrapped, so filtered sidebar views never show an empty list while scanned threads wait.
-  Cross-room flush time on a warm reload drops from 3.8 s to 0.8 s; total startup work drops from 14.7-16.7 s to 13.0-15.1 s, and the worst frame from about 507 ms to 284-364 ms.
-- Streaming detection checks the last 10 events of every thread on each record build, and each check deep-copied the bundled `m.replace` edit (`structuredClone`) because `getEditedEvent` writes fallback metadata into the winning edit.
-  Other consumers still mutate their copies (`room_id`, decryption, `makeReplaced`), so `getSerializedReplacementEvent` keeps copying.
-  The streaming check now reads the bundle through `getSerializedReplacementEventView` (no copy) and resolves content with `getLatestEditedMessageContent`, which shares `getEditedEvent`'s candidate selection.
-  When the bundled view wins, the other edits' metadata is passed as fallbacks instead of being written into it; the resulting top-level content and precedence match, and readers check `m.new_content` before the top level.
-  When a live SDK edit wins it is still filled in place, because `stopReaction.ts` reads that edit's content directly.
-  The SDK event mapper builds that live replacement over the same raw bundle and wins same-id ties, so the bundle is still filled in that case, exactly as before; the old deep copy lost that tie and was discarded.
-  Over three thread closes on the dev build, `getThreadStreamingSnapshot` drops from 640 ms to 155 ms and `buildThreadRecordMap` from 927 ms to 457 ms.
-- Production sourcemaps map a 5 MB chunk to only 74 sources, so production profiles and stack traces cannot be attributed; unminified production builds were used for function-level comparisons instead.
-- Remaining findings: `Room.findEventById` scans every thread on a miss, so the SDK event mapper (twice per event with a bundled edit) and `buildCompactThreadRootData` (once per thread) cost O(threads) per lookup.
-  The SDK's per-thread initialization still fetches 208 roots and 114 recursive `/relations` pages at startup, and its logger stays at DEBUG (duplicate-event and receipt warnings cost about 1.7 s with DevTools attached).
-- Independent review of the tag and preview change found no blockers and confirmed the element-wise match against the SDK's state replacement, `makeRedacted` and local-redaction paths.
-  It found that an 8-entry recency list thrashed when a caller cycles through more than 8 tagged rooms and that a 1,000-entry first-in-first-out preview cache could not hold one rebuild; both are replaced as described above.
-- A second independent review of the flush throttle and the streaming change found no blockers.
-  A randomized comparison of 20,000 cases found the old and new streaming paths identical for every status reader and for the saved event state.
-  Its findings (backwards clock, bootstrap flag before pending rebuilds, untested deletion discard, a streaming no-write test that could not fail, missing tie coverage, and wording) are addressed above.
-- Validation: tag, snapshot, preview, cross-room index, streaming and edit-resolution tests pass; typecheck, lint and prettier pass on the changed files.
-  The reuse, many-room, local-redaction, working-set, large-body, burst, deletion, bootstrap, backwards-clock and streaming no-write tests fail when their fix is removed; the invalidation and parity tests guard behavior and pass on both.
-  `deepTraceFailure.test.ts` fails the same 6 cases on clean `dev`; `RoomTimeline.cache.test.ts` "keeps folding mid-flight bands" failed once under load and passes alone with and without these changes.
-- Next: remove the O(threads) `Room.findEventById` fallback cost (SDK patch or app-side lookups), decide whether background SDK thread initialization should be deferred or throttled, and repair production sourcemaps.
+- Streaming detection checks the last 10 events of every thread on each record build, and each check `structuredClone`d the bundled `m.replace` edit because `getEditedEvent` writes fallback metadata into the winning edit.
+  It now wraps the bundle without copying (`getSerializedReplacementEventView`) and resolves content with `getLatestEditedMessageContent`, which shares `getEditedEvent`'s candidate selection and returns the same content.
+  When the bundled view wins, the fill goes into shallow copies of its event, content and `m.new_content`; a winning live SDK edit is still filled in place because `stopReaction.ts` reads that edit's content directly.
+  The SDK event mapper builds that live edit over the same raw bundle and wins same-id ties, so in that case the bundle is filled exactly as before.
+  `getSerializedReplacementEvent` keeps its deep copy for callers that mutate the result (`room_id`, decryption, `makeReplaced`).
+- Measurements (same account; whole-reload totals on the live account varied too much to compare, because agents kept posting and the thread cache grew between runs):
+
+  | Metric | Build and baseline | Before | After |
+  | --- | --- | ---: | ---: |
+  | Main thread quiet after a warm reload | dev, A/B/B/A against `dev` | 27.8-29.9 s | 11.6-15.9 s |
+  | Cross-room flushes in a warm reload | production (unminified), against `dev` | 9.6 s | 0.8 s |
+  | Tag aggregation in a warm reload | production (unminified), against `dev` | 6.2 s | 10-22 ms |
+  | Preview analysis in a warm reload | production (unminified), against `dev` | 2.2 s | 50-80 ms |
+  | Streaming detection over three thread closes | dev, against the tag, preview and flush changes | 640 ms | 155 ms |
+  | Thread record rebuilds over three thread closes | same | 927 ms | 457 ms |
+
+  The rows were measured before review moved the tag cache into `getRoomThreadTagSnapshotMap`, merged the preview passes and moved throttling into the coalescer; those follow-ups keep the same reuse and do not remove further work from the measured paths.
+  Freed startup time is partly taken by SDK thread initialization and cache work.
+  Opening or closing a thread shows its view after about 0.5-0.8 s with or without this change; the first overview cards appear about 3 s into a dev-build reload in both.
+- Production sourcemaps map the 5 MB main chunk to only 74 sources, so production profiles and stack traces cannot be attributed; unminified production builds were used for the function-level rows.
+- Two independent reviews and a zero-tolerance `pr-review` pass found no blockers; a randomized 20,000-case comparison found the old and new streaming paths identical for every status reader and for the saved event state.
+  Their findings (per-room cache retention, preview cache bounds and double analysis, clock and flush-supersession handling, bootstrap ordering, parity of `m.new_content`, test gaps and wording) are addressed above.
+- Validation: `npm run typecheck`, `npm run lint`, `npm run build`, prettier on the changed files, and the Vitest suites under `src/app/mindroom`, `src/app/utils` and `src/app/pages/client` pass, apart from the 6 `deepTraceFailure.test.ts` cases that fail the same way on clean `dev`.
+  Each regression test fails when its fix is removed: room-state reuse and per-room slots, in-place and local redaction, preview working set, entry and character bounds, large bodies, flush bursts, discarded-only flushes, `flushNow` supersession, deletion discard, bootstrap ordering, streaming no-copy and no-write, and bundled-winner parity.
+- Next: remove the O(threads) `Room.findEventById` fallback cost (the SDK event mapper looks up every event and its bundled edit, and `buildCompactThreadRootData` looks up every thread root), decide whether SDK thread initialization should be deferred or throttled (it fetches a root and a recursive `/relations` page per listed thread; 208 and 114 were seen in the first two minutes here), and repair production sourcemaps.
 
 ### Compact room chrome on short screens (2026-09-28)
 

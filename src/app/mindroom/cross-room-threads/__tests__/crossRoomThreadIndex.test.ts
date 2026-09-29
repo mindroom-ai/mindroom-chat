@@ -8,7 +8,6 @@ import {
   areCrossRoomThreadIndexEntriesEquivalent,
   buildCrossRoomThreadIndexEntry,
   createCrossRoomThreadDirtyCoalescer,
-  createThrottledFlushSchedule,
   CROSS_ROOM_INDEX_EVICTION_SLACK,
   emptyCrossRoomThreadIndexSnapshot,
   getCrossRoomThreadIndexKey,
@@ -73,7 +72,7 @@ const makeThread = (root: MatrixEvent, replies: MatrixEvent[] = []): Thread =>
     length: replies.length,
     lastReply: () => replies.at(-1) ?? null,
     getUnfilteredTimelineSet: () => makeTimelineSet([...replies, root]),
-  } as Thread);
+  } as unknown as Thread);
 
 const tagSnapshot: ThreadTagSnapshot = {
   content: { tags: { urgent: { set_by: '@alice:example.org', set_at: '2026-05-06T00:00:00Z' } } },
@@ -574,86 +573,135 @@ describe('crossRoomThreadIndex', () => {
     ).toEqual([`$root${total - 1}`]);
   });
 
-  it('coalesces dirty keys into one scheduled flush', () => {
-    const callbacks: Array<() => void> = [];
+  const makeClock = (start = 1_000) => {
+    const timers = new Map<number, { callback: () => void; delayMs: number }>();
+    let nextTimer = 0;
+    const clock = {
+      now: start,
+      timers,
+      runTimers: () => {
+        const due = [...timers.values()];
+        timers.clear();
+        due.forEach(({ callback }) => callback());
+      },
+      api: {
+        now: () => clock.now,
+        setTimer: (callback: () => void, delayMs: number) => {
+          nextTimer += 1;
+          timers.set(nextTimer, { callback, delayMs });
+          return nextTimer;
+        },
+        clearTimer: (timer: unknown) => {
+          timers.delete(timer as number);
+        },
+      },
+    };
+    return clock;
+  };
+
+  it('coalesces dirty keys into one flush on the next microtask', async () => {
     const flush = vi.fn();
-    const coalescer = createCrossRoomThreadDirtyCoalescer(flush, (callback) =>
-      callbacks.push(callback)
-    );
+    const coalescer = createCrossRoomThreadDirtyCoalescer(flush, 200, makeClock().api);
 
     coalescer.enqueueDirty('a');
     coalescer.enqueueDirty('b');
     coalescer.enqueueDirty('a');
-
-    expect(callbacks).toHaveLength(1);
-    callbacks[0]();
+    expect(flush).not.toHaveBeenCalled();
+    await Promise.resolve();
 
     expect(flush).toHaveBeenCalledTimes(1);
     expect(flush).toHaveBeenCalledWith(['a', 'b']);
   });
 
-  it('drops a discarded key from the pending flush', () => {
-    const callbacks: Array<() => void> = [];
+  it('drops a discarded key from the pending flush', async () => {
     const flush = vi.fn();
-    const coalescer = createCrossRoomThreadDirtyCoalescer(flush, (callback) =>
-      callbacks.push(callback)
-    );
+    const coalescer = createCrossRoomThreadDirtyCoalescer(flush, 200, makeClock().api);
 
     coalescer.enqueueDirty('a');
     coalescer.enqueueDirty('b');
     coalescer.discardDirty('a');
-    callbacks[0]();
+    await Promise.resolve();
 
     expect(flush).toHaveBeenCalledWith(['b']);
   });
 
-  it('flushes an isolated update on the next microtask and spaces out bursts', async () => {
-    let now = 1_000;
-    const timers: Array<{ callback: () => void; delayMs: number }> = [];
-    const schedule = createThrottledFlushSchedule(
-      200,
-      () => now,
-      (callback, delayMs) => timers.push({ callback, delayMs })
-    );
-    const runs: number[] = [];
-
-    schedule(() => runs.push(now));
-    expect(runs).toEqual([]);
+  it('spaces a burst until the interval after the previous flush ended', async () => {
+    const clock = makeClock();
+    const flush = vi.fn(() => {
+      clock.now += 30;
+    });
+    const coalescer = createCrossRoomThreadDirtyCoalescer(flush, 200, clock.api);
+    coalescer.enqueueDirty('a');
     await Promise.resolve();
-    expect(runs).toEqual([1_000]);
 
-    now = 1_050;
-    schedule(() => runs.push(now));
+    clock.now = 1_080;
+    coalescer.enqueueDirty('b');
+    coalescer.enqueueDirty('c');
     await Promise.resolve();
-    expect(runs).toEqual([1_000]);
-    expect(timers).toHaveLength(1);
-    expect(timers[0].delayMs).toBe(150);
+    expect(flush).toHaveBeenCalledTimes(1);
+    // The first flush ended at 1,030, so the next may start at 1,230.
+    expect([...clock.timers.values()].map(({ delayMs }) => delayMs)).toEqual([150]);
 
-    now = 1_200;
-    timers[0].callback();
-    expect(runs).toEqual([1_000, 1_200]);
+    clock.now = 1_230;
+    clock.runTimers();
+    expect(flush).toHaveBeenLastCalledWith(['b', 'c']);
 
-    now = 1_500;
-    schedule(() => runs.push(now));
+    clock.now = 1_500;
+    coalescer.enqueueDirty('d');
     await Promise.resolve();
-    expect(runs).toEqual([1_000, 1_200, 1_500]);
-    expect(timers).toHaveLength(1);
+    expect(flush).toHaveBeenLastCalledWith(['d']);
+    expect(clock.timers.size).toBe(0);
   });
 
-  it('never waits longer than the interval when the clock moves backwards', async () => {
-    let now = 10_000;
-    const timers: Array<{ callback: () => void; delayMs: number }> = [];
-    const schedule = createThrottledFlushSchedule(
-      200,
-      () => now,
-      (callback, delayMs) => timers.push({ callback, delayMs })
-    );
-    schedule(() => {});
+  it('keeps the interval when a scheduled flush finds every key discarded', async () => {
+    const clock = makeClock();
+    const flush = vi.fn();
+    const coalescer = createCrossRoomThreadDirtyCoalescer(flush, 200, clock.api);
+    coalescer.enqueueDirty('a');
     await Promise.resolve();
 
-    now = 4_000;
-    schedule(() => {});
+    clock.now = 1_100;
+    coalescer.enqueueDirty('deleted');
+    coalescer.discardDirty('deleted');
+    clock.now = 1_200;
+    clock.runTimers();
+    clock.now = 1_210;
+    coalescer.enqueueDirty('fresh');
+    await Promise.resolve();
 
-    expect(timers).toEqual([{ callback: expect.any(Function), delayMs: 200 }]);
+    expect(flush).toHaveBeenCalledTimes(2);
+    expect(flush).toHaveBeenLastCalledWith(['fresh']);
+  });
+
+  it('lets flushNow supersede the pending flush and restart the interval', async () => {
+    const clock = makeClock();
+    const flush = vi.fn();
+    const coalescer = createCrossRoomThreadDirtyCoalescer(flush, 200, clock.api);
+    coalescer.enqueueDirty('a');
+    await Promise.resolve();
+
+    clock.now = 1_050;
+    coalescer.enqueueDirty('b');
+    coalescer.flushNow();
+    expect(flush).toHaveBeenLastCalledWith(['b']);
+    expect(clock.timers.size).toBe(0);
+
+    coalescer.enqueueDirty('c');
+    expect([...clock.timers.values()].map(({ delayMs }) => delayMs)).toEqual([200]);
+  });
+
+  it('cancels the pending flush on clear', async () => {
+    const clock = makeClock();
+    const flush = vi.fn();
+    const coalescer = createCrossRoomThreadDirtyCoalescer(flush, 200, clock.api);
+    coalescer.enqueueDirty('a');
+    await Promise.resolve();
+
+    coalescer.enqueueDirty('b');
+    coalescer.clear();
+    clock.runTimers();
+
+    expect(clock.timers.size).toBe(0);
+    expect(flush).toHaveBeenCalledTimes(1);
   });
 });

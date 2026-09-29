@@ -605,14 +605,29 @@ export const getEditedEvent = (
   return latestEdit;
 };
 
+// getEditedEvent writes fallback metadata only into the winning edit's
+// `m.new_content`, so copying the event, its content and that object is enough
+// to keep the fill away from data the copy was taken from.
+const copyEditContainers = (edit: MatrixEvent): MatrixEvent => {
+  const content = edit.getContent() as Record<string, unknown>;
+  const newContent = content['m.new_content'];
+  return new MatrixEvent({
+    ...edit.event,
+    content:
+      newContent && typeof newContent === 'object' && !Array.isArray(newContent)
+        ? { ...content, 'm.new_content': { ...newContent } }
+        : { ...content },
+  });
+};
+
 /**
- * Resolve the content `getLatestMessageContent(mEvent, getEditedEvent(...))`
- * returns, for callers that only read it. The bundled replacement may be a
- * read-only view over the target's unsigned data (see
- * getSerializedReplacementEventView): when it wins, the other edits' metadata
- * is supplied as fallbacks instead of being written into it. A winning live
- * SDK edit is filled in place exactly as getEditedEvent does, because other
- * readers see that edit's content directly.
+ * Returns what `getLatestMessageContent(mEvent, getEditedEvent(...))` returns,
+ * without deep-copying the bundled replacement. `serializedReplacementView` may
+ * wrap the target's unsigned data (see getSerializedReplacementEventView): when
+ * it wins, the metadata fill goes into shallow copies of its containers, so the
+ * bundle is left untouched; nested values stay shared and must not be mutated.
+ * A winning live SDK edit is filled in place exactly as getEditedEvent does,
+ * because other readers see that edit's content directly.
  */
 export const getLatestEditedMessageContent = (
   mEventId: string,
@@ -627,11 +642,13 @@ export const getLatestEditedMessageContent = (
     serializedReplacementView
   );
   if (!latestEdit) return getLatestMessageContent(mEvent);
-  if (latestEdit === serializedReplacement) {
-    return getLatestMessageContent(mEvent, latestEdit, candidateEdits);
-  }
-  copyEditMetadataFallbacksToLatestEdit(latestEdit, candidateEdits);
-  return getLatestMessageContent(mEvent, latestEdit);
+
+  const winner = latestEdit === serializedReplacement ? copyEditContainers(latestEdit) : latestEdit;
+  copyEditMetadataFallbacksToLatestEdit(
+    winner,
+    candidateEdits.map((edit) => (edit === latestEdit ? winner : edit))
+  );
+  return getLatestMessageContent(mEvent, winner);
 };
 
 export const getLatestMessageContent = (
