@@ -23,7 +23,6 @@ import {
   applyCrossRoomThreadIndexBatch,
   buildCrossRoomThreadIndexEntry,
   createCrossRoomThreadDirtyCoalescer,
-  CROSS_ROOM_INDEX_FLUSH_INTERVAL_MS,
   crossRoomThreadIndexAtom,
   emptyCrossRoomThreadIndexSnapshot,
   getCrossRoomThreadRootsForEvent,
@@ -280,10 +279,7 @@ export const useCrossRoomThreadIndex = () => {
         return applyCrossRoomThreadIndexBatch(current, { upserts, removals });
       });
     };
-    const coalescer = createCrossRoomThreadDirtyCoalescer(
-      flushDirtyKeys,
-      CROSS_ROOM_INDEX_FLUSH_INTERVAL_MS
-    );
+    const coalescer = createCrossRoomThreadDirtyCoalescer(flushDirtyKeys);
 
     const enqueueThread = (roomId: string, threadRootId: string | undefined) => {
       if (!isEffectCurrent()) return;

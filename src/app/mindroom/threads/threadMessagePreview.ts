@@ -175,10 +175,9 @@ const computeBodyPreview = (body: string): ThreadPreview => {
 // and latest replies of every thread on each rebuild. The analysis depends
 // only on the body, so a least-recently-used cache sized above one large
 // room's working set (523 threads) reuses it across rebuilds. The character
-// budget and the per-body limit bound the strings it can keep alive.
+// budget bounds the strings it can keep alive.
 const BODY_PREVIEW_CACHE_MAX_ENTRIES = 5000;
 const BODY_PREVIEW_CACHE_MAX_CHARS = 4_000_000;
-const BODY_PREVIEW_CACHE_MAX_BODY_CHARS = 64_000;
 const bodyPreviewCache = new Map<string, ThreadPreview>();
 let bodyPreviewCacheChars = 0;
 
@@ -192,8 +191,6 @@ const analyzeBodyPreview = (body: string): ThreadPreview => {
   }
 
   const analysis = computeBodyPreview(body);
-  if (body.length > BODY_PREVIEW_CACHE_MAX_BODY_CHARS) return analysis;
-
   bodyPreviewCache.set(body, analysis);
   bodyPreviewCacheChars += body.length;
   for (const oldest of bodyPreviewCache.keys()) {

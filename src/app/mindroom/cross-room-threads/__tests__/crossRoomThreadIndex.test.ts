@@ -584,7 +584,7 @@ describe('crossRoomThreadIndex', () => {
 
     it('coalesces dirty keys into one flush on the next microtask', async () => {
       const flush = vi.fn();
-      const coalescer = createCrossRoomThreadDirtyCoalescer(flush, 200);
+      const coalescer = createCrossRoomThreadDirtyCoalescer(flush);
 
       coalescer.enqueueDirty('a');
       coalescer.enqueueDirty('b');
@@ -598,7 +598,7 @@ describe('crossRoomThreadIndex', () => {
 
     it('drops a discarded key from the pending flush', async () => {
       const flush = vi.fn();
-      const coalescer = createCrossRoomThreadDirtyCoalescer(flush, 200);
+      const coalescer = createCrossRoomThreadDirtyCoalescer(flush);
 
       coalescer.enqueueDirty('a');
       coalescer.enqueueDirty('b');
@@ -612,7 +612,7 @@ describe('crossRoomThreadIndex', () => {
       const flush = vi.fn(() => {
         vi.advanceTimersByTime(30);
       });
-      const coalescer = createCrossRoomThreadDirtyCoalescer(flush, 200);
+      const coalescer = createCrossRoomThreadDirtyCoalescer(flush);
       coalescer.enqueueDirty('a');
       await Promise.resolve();
 
@@ -635,7 +635,7 @@ describe('crossRoomThreadIndex', () => {
 
     it('keeps the interval when a scheduled flush finds every key discarded', async () => {
       const flush = vi.fn();
-      const coalescer = createCrossRoomThreadDirtyCoalescer(flush, 200);
+      const coalescer = createCrossRoomThreadDirtyCoalescer(flush);
       coalescer.enqueueDirty('a');
       await Promise.resolve();
 
@@ -652,7 +652,7 @@ describe('crossRoomThreadIndex', () => {
 
     it('lets flushNow supersede a pending microtask flush', async () => {
       const flush = vi.fn();
-      const coalescer = createCrossRoomThreadDirtyCoalescer(flush, 200);
+      const coalescer = createCrossRoomThreadDirtyCoalescer(flush);
 
       coalescer.enqueueDirty('a');
       coalescer.flushNow();
@@ -668,7 +668,7 @@ describe('crossRoomThreadIndex', () => {
 
     it('lets flushNow supersede a pending timer and restart the interval', async () => {
       const flush = vi.fn();
-      const coalescer = createCrossRoomThreadDirtyCoalescer(flush, 200);
+      const coalescer = createCrossRoomThreadDirtyCoalescer(flush);
       coalescer.enqueueDirty('a');
       await Promise.resolve();
 
@@ -687,7 +687,7 @@ describe('crossRoomThreadIndex', () => {
 
     it('cancels the pending flush on clear', async () => {
       const flush = vi.fn();
-      const coalescer = createCrossRoomThreadDirtyCoalescer(flush, 200);
+      const coalescer = createCrossRoomThreadDirtyCoalescer(flush);
       coalescer.enqueueDirty('a');
       await Promise.resolve();
 

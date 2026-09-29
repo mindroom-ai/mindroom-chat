@@ -83,16 +83,4 @@ describe('thread message preview analysis reuse', () => {
     getThreadMessagePreviewText(textContent(bodies[0]));
     expect(trimReplyFromBody).toHaveBeenCalledTimes(1);
   });
-
-  it('does not retain very large bodies', () => {
-    const body = `Large tool output ${'x'.repeat(70_000)}`;
-
-    getThreadMessagePreviewText(textContent(body));
-    getThreadMessagePreviewText(textContent(body));
-    expect(trimReplyFromBody).toHaveBeenCalledTimes(2);
-
-    // Localization shares the analysis even when the body is not retained.
-    getLocalizedThreadMessagePreviewText(textContent(body), t);
-    expect(trimReplyFromBody).toHaveBeenCalledTimes(3);
-  });
 });

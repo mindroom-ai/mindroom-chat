@@ -617,14 +617,14 @@ export type CrossRoomThreadDirtyCoalescer = {
   clear: () => void;
 };
 
-export const CROSS_ROOM_INDEX_FLUSH_INTERVAL_MS = 200;
+const FLUSH_INTERVAL_MS = 200;
 
 /** A scheduled flush; the timer is unset while it waits on a microtask. */
 type PendingFlush = { timer?: ReturnType<typeof setTimeout> };
 
 /**
  * Coalesces dirty keys into flushes with a leading edge: an isolated update
- * flushes on the next microtask, while a burst waits until `minIntervalMs`
+ * flushes on the next microtask, while a burst waits until 200 ms
  * after the previous flush ended, measured on the monotonic
  * `performance.now()` clock. SDK thread initialization and streamed edits emit
  * many updates per thread in separate tasks; flushing on every microtask
@@ -633,8 +633,7 @@ type PendingFlush = { timer?: ReturnType<typeof setTimeout> };
  * flush that finds no keys leaves the interval untouched.
  */
 export const createCrossRoomThreadDirtyCoalescer = (
-  flushDirtyKeys: (keys: string[]) => void,
-  minIntervalMs: number
+  flushDirtyKeys: (keys: string[]) => void
 ): CrossRoomThreadDirtyCoalescer => {
   const dirtyKeys = new Set<string>();
   let lastFlushEndedAt = Number.NEGATIVE_INFINITY;
@@ -651,11 +650,8 @@ export const createCrossRoomThreadDirtyCoalescer = (
 
     const keys = Array.from(dirtyKeys);
     dirtyKeys.clear();
-    try {
-      flushDirtyKeys(keys);
-    } finally {
-      lastFlushEndedAt = performance.now();
-    }
+    flushDirtyKeys(keys);
+    lastFlushEndedAt = performance.now();
   };
 
   const schedule = () => {
@@ -665,7 +661,7 @@ export const createCrossRoomThreadDirtyCoalescer = (
     const fire = () => {
       if (pending === run) flushNow();
     };
-    const waitMs = lastFlushEndedAt + minIntervalMs - performance.now();
+    const waitMs = lastFlushEndedAt + FLUSH_INTERVAL_MS - performance.now();
     if (waitMs <= 0) queueMicrotask(fire);
     else run.timer = setTimeout(fire, waitMs);
   };
