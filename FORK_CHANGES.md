@@ -22,7 +22,7 @@
     If that fails, `doSync` keeps the previous token and requests the response again after 1, 2 and 4 s, so its room events and to-device messages survive (the server keeps unacknowledged to-device messages queued).
     After three failed retries the response is applied without its to-device messages, and later failures skip the retries until the crypto layer succeeds again, so a crypto store that stays broken cannot stall sync.
   - A failed pending-key-bundle lookup no longer fails a batch whose messages were already processed.
-  - The patch's `src/rust-crypto/rust-crypto.ts` mirror had a misplaced `);`; the shipped `lib` code was correct.
+  - The `src/rust-crypto/rust-crypto.ts` section is regenerated with context: patch-package applied its zero-context hunks out of order, leaving a misplaced `);` in that unused source (the shipped `lib` code was correct).
   - When upgrading the SDK, keep `src/client/syncStoreConnectionLoss.test.ts`, `src/client/syncToDeviceFailure.test.ts` and `src/client/rustCryptoToDevice.test.ts`, and drop these sections once upstream handles the same cases.
 - The Rust crypto store has no reopen API, and about a dozen SDK objects hold its `olmMachine`, so it cannot be restored in place.
   `src/app/mindroom/matrix/indexedDbLossRecovery.ts` keeps a sentinel connection and reloads the page when the browser closes it, once the page is visible; a second loss within 60 s waits out the rest of that minute.
