@@ -13,6 +13,16 @@ export const getSafeLocalStorage = (): Storage | undefined => {
   }
 };
 
+/** sessionStorage counterpart of `getSafeLocalStorage`. */
+export const getSafeSessionStorage = (): Storage | undefined => {
+  try {
+    if (typeof globalThis.sessionStorage === 'undefined') return undefined;
+    return globalThis.sessionStorage;
+  } catch {
+    return undefined;
+  }
+};
+
 type StorageReader = Pick<Storage, 'getItem'>;
 type StorageWriter = Pick<Storage, 'setItem'>;
 type StorageRemover = Pick<Storage, 'removeItem'>;

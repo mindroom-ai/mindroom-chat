@@ -29,6 +29,7 @@ import { APP_BUILD_VERSION, fetchPublishedAppVersion, startAppVersionMonitor } f
 import { createServiceWorkerUrl } from './serviceWorkerRegistration';
 import { installFlightRecorder } from './app/mindroom/diagnostics/flightRecorder';
 import { initializeDeepTraceRecorder } from './app/mindroom/diagnostics/deepTrace';
+import { installIndexedDbLossRecovery } from './app/mindroom/matrix/indexedDbLossRecovery';
 
 // import i18n (needs to be bundled ;))
 import './app/i18n';
@@ -50,6 +51,12 @@ if (isNativeIOS()) {
   } catch {
     // Opt-in tracing must never block application boot.
   }
+}
+
+try {
+  installIndexedDbLossRecovery();
+} catch {
+  // Storage recovery must never block application boot.
 }
 
 if (isNativeApp()) {
