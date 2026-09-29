@@ -207,7 +207,7 @@ const renderHookHarness = (
 };
 
 describe('useThreadStreamingState', () => {
-  it('reads bundled edits in place and observes newer bundles', () => {
+  it('copies bundled edits shallowly without changing them and observes newer bundles', () => {
     const relationMap = new Map<string, MockRelations>();
     const replyEvent = makeThreadReplyEvent('$reply', 200, {
       'io.mindroom.stream_status': 'pending',
@@ -223,7 +223,7 @@ describe('useThreadStreamingState', () => {
     };
     attach('$streaming', 300, 'streaming');
     // An older live edit carries metadata the bundle lacks, so resolving the
-    // bundled winner has something it could copy into the bundle.
+    // bundled winner fills that metadata into its copy.
     const olderEdit = makeEditEvent('$older', 250, '$reply', {
       'io.mindroom.tool_trace': { version: 1, events: [] },
     });

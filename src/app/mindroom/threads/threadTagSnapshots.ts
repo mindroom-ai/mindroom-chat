@@ -32,13 +32,11 @@ export const buildThreadTagSnapshotMap = (
   return snapshots;
 };
 
-// RoomState.getStateEvents() copies its map into a new array on every call, so
-// aggregateThreadTagEvents' array-identity cache never hits for live state.
-// Each room state instead keeps its last snapshot map, validated element by
-// element. A state change replaces the MatrixEvent; redaction keeps the event
-// but marks it redacted, and a redacted custom state event always reads as
-// empty content (a pending local redaction returns a fresh `{}` on each read),
-// so redacted events are compared by that flag alone.
+// RoomState.getStateEvents() returns a new array per call, so the aggregation's
+// array-identity cache never hits here. Each room state keeps its last snapshot
+// map instead, reused while the same events and content objects come back. A
+// redacted event always reads as empty content (a pending local redaction as a
+// fresh `{}` per read), so it is compared by its redaction flag.
 type RoomTagSnapshotSlot = {
   events: MatrixEvent[];
   contents: unknown[];

@@ -10,9 +10,9 @@ import {
   hasTerminalMindroomStreamMetadata,
 } from '../messages/aiRun';
 import { STOP_REACTION_KEYS } from '../messages/stopReaction';
-import { getSerializedReplacementEventView, isSameSenderEditEvent } from '../../utils/editEvent';
+import { getShallowSerializedReplacementEvent, isSameSenderEditEvent } from '../../utils/editEvent';
 import { getActiveAnnotationsByKey } from '../../utils/reactionAnnotations';
-import { getEventReactions, getLatestEditedMessageContent } from '../../utils/room';
+import { getEditedEvent, getEventReactions, getLatestMessageContent } from '../../utils/room';
 import { DEFAULT_THREAD_TAIL_EVENT_COUNT, getThreadTailEvents } from '../../utils/thread';
 import { useThreadEventRefresh } from './useThreadEventRefresh';
 
@@ -30,22 +30,26 @@ const getPreferredEventContent = (
   timelineSet?: ReturnType<Room['getUnfilteredTimelineSet']>
 ): Record<string, unknown> => {
   const replacingEventCandidate = mEvent.replacingEvent() ?? undefined;
-  // Every record rebuild checks the tail of every thread, so the bundled edit
-  // is wrapped instead of deep-copied. The shared resolver never writes
-  // through this view and still owns ordering, sender validation and metadata
-  // fallbacks; a live SDK replacement built from the same bundle is filled in
-  // place as before.
-  const serializedReplacementView = getSerializedReplacementEventView(mEvent);
+  // Every record rebuild checks the tail of every thread, so copy only what
+  // getEditedEvent writes to instead of deep-copying each bundled edit.
+  const serializedReplacementCandidate = getShallowSerializedReplacementEvent(mEvent);
   const hasResolvableReplacement =
     isSameSenderEditEvent(mEvent, replacingEventCandidate) ||
-    isSameSenderEditEvent(mEvent, serializedReplacementView);
+    isSameSenderEditEvent(mEvent, serializedReplacementCandidate);
 
-  const eventId = mEvent.getId();
-  if (!hasResolvableReplacement || !timelineSet || !eventId) {
+  if (!hasResolvableReplacement || !timelineSet) {
     return (mEvent.getContent() as Record<string, unknown>) ?? {};
   }
 
-  return getLatestEditedMessageContent(eventId, mEvent, timelineSet, serializedReplacementView);
+  const eventId = mEvent.getId();
+  // Reuse the detached bundle from the eligibility check. The shared resolver
+  // still owns ordering, sender validation and metadata fallbacks.
+  const editedEvent =
+    eventId && timelineSet
+      ? getEditedEvent(eventId, mEvent, timelineSet, serializedReplacementCandidate)
+      : undefined;
+
+  return getLatestMessageContent(mEvent, editedEvent);
 };
 
 // Some producers wrap the stream status in a `{ status | state }` record instead

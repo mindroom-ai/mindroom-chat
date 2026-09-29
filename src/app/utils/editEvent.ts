@@ -55,16 +55,26 @@ export const getSerializedReplacementEvent = (mEvent: MatrixEvent): MatrixEvent 
   getSerializedRelationEvent(mEvent, RelationType.Replace);
 
 /**
- * The bundled replacement wrapped without copying it, for code that only reads
- * it. Callers must not write to it, decrypt it or attach it to another event:
- * it shares the target's unsigned data. Values read from it may still be
- * copied by reference into resolved content, as the SDK's own mapper-built
- * replacement already shares this object. The MatrixEvent constructor only
- * re-interns equal strings in the raw object.
+ * The bundled replacement with only its event, content and `m.new_content`
+ * copied, the objects getEditedEvent fills with fallback metadata. Far cheaper
+ * than getSerializedReplacementEvent's deep copy of a large streamed edit, for
+ * callers that only pass it to getEditedEvent; nested values stay shared.
  */
-export const getSerializedReplacementEventView = (mEvent: MatrixEvent): MatrixEvent | undefined => {
+export const getShallowSerializedReplacementEvent = (
+  mEvent: MatrixEvent
+): MatrixEvent | undefined => {
   const relationEvent = getRawSerializedRelationEvent(mEvent, RelationType.Replace);
-  return relationEvent ? new MatrixEvent(relationEvent) : undefined;
+  if (!relationEvent) return undefined;
+
+  const content = relationEvent.content ?? {};
+  const newContent = content['m.new_content'];
+  return new MatrixEvent({
+    ...relationEvent,
+    content:
+      newContent && typeof newContent === 'object' && !Array.isArray(newContent)
+        ? { ...content, 'm.new_content': { ...newContent } }
+        : content,
+  });
 };
 
 export const isSameSenderEditEvent = (

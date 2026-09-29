@@ -514,18 +514,12 @@ const copyEditMetadataFallbacksToLatestEdit = (
   ]);
 };
 
-type ResolvedEdit = {
-  latestEdit: MatrixEvent | undefined;
-  candidateEdits: MatrixEvent[];
-  serializedReplacement: MatrixEvent | undefined;
-};
-
-const resolveLatestEdit = (
+export const getEditedEvent = (
   mEventId: string,
   mEvent: MatrixEvent,
   timelineSet: EventTimelineSet,
-  serializedReplacementCandidate: MatrixEvent | undefined
-): ResolvedEdit => {
+  serializedReplacementCandidate = getSerializedReplacementEvent(mEvent)
+): MatrixEvent | undefined => {
   const replacingEventCandidate = mEvent.replacingEvent() ?? undefined;
   // CINNY-207 AC2 render-gap RG3 (2026-07-04): observability at the
   // render-pipeline seam. See cacheProbe.ts for interpretation.
@@ -584,68 +578,10 @@ const resolveLatestEdit = (
         ? 'relations'
         : 'none',
   });
-  return { latestEdit, candidateEdits, serializedReplacement };
-};
-
-export const getEditedEvent = (
-  mEventId: string,
-  mEvent: MatrixEvent,
-  timelineSet: EventTimelineSet,
-  serializedReplacementCandidate = getSerializedReplacementEvent(mEvent)
-): MatrixEvent | undefined => {
-  const { latestEdit, candidateEdits } = resolveLatestEdit(
-    mEventId,
-    mEvent,
-    timelineSet,
-    serializedReplacementCandidate
-  );
   if (latestEdit) {
     copyEditMetadataFallbacksToLatestEdit(latestEdit, candidateEdits);
   }
   return latestEdit;
-};
-
-// getEditedEvent writes fallback metadata only into the winning edit's
-// `m.new_content`, so copying the event, its content and that object is enough
-// to keep the fill away from data the copy was taken from.
-const copyEditContainers = (edit: MatrixEvent): MatrixEvent => {
-  const content = edit.getContent() as Record<string, unknown>;
-  const newContent = content['m.new_content'];
-  return new MatrixEvent({
-    ...edit.event,
-    content:
-      newContent && typeof newContent === 'object' && !Array.isArray(newContent)
-        ? { ...content, 'm.new_content': { ...newContent } }
-        : { ...content },
-  });
-};
-
-/**
- * Returns what `getLatestMessageContent(mEvent, getEditedEvent(...))` returns,
- * without deep-copying the bundled replacement. `serializedReplacementView` may
- * wrap the target's unsigned data (see getSerializedReplacementEventView): when
- * it wins, the metadata fill goes into shallow copies of its containers, so the
- * bundle is left untouched; nested values stay shared and must not be mutated.
- * A winning live SDK edit is filled in place exactly as getEditedEvent does,
- * because other readers see that edit's content directly.
- */
-export const getLatestEditedMessageContent = (
-  mEventId: string,
-  mEvent: MatrixEvent,
-  timelineSet: EventTimelineSet,
-  serializedReplacementView: MatrixEvent | undefined
-): Record<string, unknown> => {
-  const { latestEdit, candidateEdits, serializedReplacement } = resolveLatestEdit(
-    mEventId,
-    mEvent,
-    timelineSet,
-    serializedReplacementView
-  );
-  if (!latestEdit) return getLatestMessageContent(mEvent);
-
-  const winner = latestEdit === serializedReplacement ? copyEditContainers(latestEdit) : latestEdit;
-  copyEditMetadataFallbacksToLatestEdit(winner, candidateEdits);
-  return getLatestMessageContent(mEvent, winner);
 };
 
 export const getLatestMessageContent = (
