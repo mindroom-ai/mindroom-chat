@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   isNativeIOS: vi.fn(),
   installFlightRecorder: vi.fn(),
   initializeDeepTraceRecorder: vi.fn(),
+  installIndexedDbLossRecovery: vi.fn(),
   isServiceWorkerEnabled: vi.fn(),
   render: vi.fn(),
   createRoot: vi.fn(),
@@ -31,6 +32,10 @@ vi.mock('./app/mindroom/diagnostics/flightRecorder', () => ({
 
 vi.mock('./app/mindroom/diagnostics/deepTrace', () => ({
   initializeDeepTraceRecorder: mocks.initializeDeepTraceRecorder,
+}));
+
+vi.mock('./app/mindroom/matrix/indexedDbLossRecovery', () => ({
+  installIndexedDbLossRecovery: mocks.installIndexedDbLossRecovery,
 }));
 
 vi.mock('./app/theme/themeBootstrap', () => ({
@@ -136,6 +141,28 @@ describe('application bootstrap', () => {
 
     expect(mocks.installFlightRecorder).toHaveBeenCalledOnce();
     expect(mocks.initializeDeepTraceRecorder).toHaveBeenCalledOnce();
+    expect(mocks.createRoot).toHaveBeenCalledOnce();
+  });
+
+  it.each([true, false])(
+    'watches for IndexedDB server loss (native iOS: %s)',
+    async (nativeIOS) => {
+      mocks.isNativeIOS.mockReturnValue(nativeIOS);
+
+      await import('./index');
+
+      expect(mocks.installIndexedDbLossRecovery).toHaveBeenCalledOnce();
+      expect(mocks.createRoot).toHaveBeenCalledOnce();
+    }
+  );
+
+  it('continues boot when IndexedDB loss recovery setup throws', async () => {
+    mocks.installIndexedDbLossRecovery.mockImplementationOnce(() => {
+      throw new TypeError('indexeddb unavailable');
+    });
+
+    await expect(import('./index')).resolves.toBeDefined();
+
     expect(mocks.createRoot).toHaveBeenCalledOnce();
   });
 

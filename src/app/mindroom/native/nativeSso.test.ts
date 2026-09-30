@@ -302,6 +302,50 @@ describe('nativeSso', () => {
     );
   });
 
+  it('does not route the launch URL again after the page reloads', async () => {
+    const getEntriesByType = vi
+      .spyOn(performance, 'getEntriesByType')
+      .mockReturnValue([{ type: 'reload' } as PerformanceNavigationTiming]);
+    const replaceState = vi.fn();
+    Object.defineProperty(globalThis, 'window', {
+      configurable: true,
+      value: {
+        dispatchEvent: vi.fn(),
+        history: { replaceState },
+        location: { replace: vi.fn() },
+      },
+    });
+    let appUrlOpenListener: ((event: { url?: string }) => void) | undefined;
+    // Capacitor keeps returning the last opened URL after a reload.
+    const nativeAppPlugin = {
+      getLaunchUrl: vi.fn().mockResolvedValue({
+        url: 'https://chat.mindroom.chat/connect?code=ABCD',
+      }),
+      addListener: vi.fn((eventName: string, listener: (event: { url?: string }) => void) => {
+        appUrlOpenListener = listener;
+        return Promise.resolve();
+      }),
+    };
+
+    try {
+      registerNativeAppUrlCallbacks(nativeAppPlugin);
+      await nativeAppPlugin.getLaunchUrl.mock.results[0]?.value;
+      await Promise.resolve();
+      expect(getEntriesByType).toHaveBeenCalledWith('navigation');
+      expect(replaceState).not.toHaveBeenCalled();
+
+      // A URL opened after the reload is still routed.
+      appUrlOpenListener?.({ url: 'mindroom://auth/login/mindroom.chat?loginToken=open-token' });
+      expect(replaceState).toHaveBeenLastCalledWith(
+        null,
+        '',
+        '/login/mindroom.chat?loginToken=open-token'
+      );
+    } finally {
+      getEntriesByType.mockRestore();
+    }
+  });
+
   it('exchanges native Apple credentials for a Matrix login token and routes it', async () => {
     vi.mocked(Capacitor.isNativePlatform).mockReturnValue(true);
     vi.mocked(Capacitor.getPlatform).mockReturnValue('ios');

@@ -735,36 +735,53 @@ index 871875d..bf0480b 100644
  
          if (!this.processRootEventPromise) {
 diff --git a/node_modules/matrix-js-sdk/lib/rust-crypto/rust-crypto.js b/node_modules/matrix-js-sdk/lib/rust-crypto/rust-crypto.js
-index 217e159..d8b0c26 100644
+index 217e159..3462ca3 100644
 --- a/node_modules/matrix-js-sdk/lib/rust-crypto/rust-crypto.js
 +++ b/node_modules/matrix-js-sdk/lib/rust-crypto/rust-crypto.js
-@@ -34 +34 @@
+@@ -31,7 +31,7 @@ import { OutgoingRequestProcessor } from "./OutgoingRequestProcessor.js";
+ import { KeyClaimManager } from "./KeyClaimManager.js";
+ import { MapWithDefault } from "../utils.js";
+ import { AllDevicesIsolationMode, CrossSigningKey, CryptoEvent, DecryptionFailureCode, DecryptionKeyDoesNotMatchError, deriveRecoveryKeyFromPassphrase, DeviceIsolationModeKind, DeviceVerificationStatus, encodeRecoveryKey, EventShieldColour, EventShieldReason, ImportRoomKeyStage, UserVerificationStatus } from "../crypto-api/index.js";
 -import { deviceKeysToDeviceMap, rustDeviceToJsDevice } from "./device-converter.js";
 +import { rustDeviceToJsDevice } from "./device-converter.js";
-@@ -450 +450,4 @@
+ import { SECRET_STORAGE_ALGORITHM_V1_AES } from "../secret-storage.js";
+ import { CrossSigningIdentity } from "./CrossSigningIdentity.js";
+ import { secretStorageContainsCrossSigningKeys } from "./secret-storage.js";
+@@ -447,31 +447,40 @@ export class RustCrypto extends TypedEventEmitter {
+ 
+       // Convert RustSdkCryptoJs.UserId to a `Set<string>`
+       var trackedUsers = new Set();
 -      rustTrackedUsers.forEach(rustUserId => trackedUsers.add(rustUserId.toString()));
 +      rustTrackedUsers.forEach(rustUserId => {
 +        trackedUsers.add(rustUserId.toString());
 +        rustUserId.free();
 +      });
-@@ -452 +455 @@
+ 
 -      // Keep untracked user to download their keys after
 +      // Keep users which need a key query before their devices can be read from the Rust store.
-@@ -453,0 +457 @@
 +      var usersNeedingQuery = new Set();
-@@ -459 +463,5 @@
+       var untrackedUsers = new Set();
+       for (var _userId of userIds) {
+         // if this is a tracked user, we can just fetch the device list from the rust-sdk
+         // (NB: this is probably ok even if we race with a leave event such that we stop tracking the user's
+         // devices: the rust-sdk will return the last-known device list, which will be good enough.)
+         if (trackedUsers.has(_userId)) {
 -          deviceMapByUserId.set(_userId, yield _this13.getUserDevices(_userId));
 +          var devices = yield _this13.getUserDevices(_userId);
 +          deviceMapByUserId.set(_userId, devices);
 +          if (downloadUncached && devices.size === 0) {
 +            usersNeedingQuery.add(_userId);
 +          }
-@@ -465,2 +473,2 @@
+         } else {
+           untrackedUsers.add(_userId);
+         }
+       }
+ 
 -      // for any users whose device lists we are not tracking, fall back to downloading the device list
 -      // over HTTP.
 +      // Tracking a new user queues a key query in the Rust SDK. Processing that query through the Rust SDK is
 +      // important: it verifies the response and persists the devices for later trust checks and encryption.
-@@ -468,7 +476,8 @@
+       if (downloadUncached && untrackedUsers.size >= 1) {
 -        var queryResult = yield _this13.downloadDeviceList(untrackedUsers);
 -        Object.entries(queryResult.device_keys).forEach(_ref => {
 -          var _ref2 = _slicedToArray(_ref, 2),
@@ -780,43 +797,80 @@ index 217e159..d8b0c26 100644
 +        for (var userId of usersNeedingQuery) {
 +          deviceMapByUserId.set(userId, yield _this13.getUserDevices(userId));
 +        }
+       }
+       return deviceMapByUserId;
+     })();
+@@ -1619,7 +1628,14 @@ export class RustCrypto extends TypedEventEmitter {
+               // received a new room key bundle that we might be able to download.
+               if (isRoomKeyBundleMessage(parsedMessage)) {
+                 var roomId = parsedMessage.content.room_id;
+-                var pendingDetails = yield _this60.olmMachine.getPendingKeyBundleDetailsForRoom(new RustSdkCryptoJs.RoomId(roomId));
++                var pendingDetails = void 0;
++                try {
++                  pendingDetails = yield _this60.olmMachine.getPendingKeyBundleDetailsForRoom(new RustSdkCryptoJs.RoomId(roomId));
++                } catch (err) {
++                  // The messages are already processed; failing the whole batch here
++                  // would make `/sync` feed them to the crypto layer again.
++                  _this60.logger.error("Could not check for a pending key bundle in room ".concat(roomId), err);
++                }
+                 // Only accept the key bundle if we joined the room less than 24 hours ago.
+                 if (!pendingDetails) {
+                   _this60.logger.debug("Not yet accepting key bundle for room where we are not awaiting a bundle: ".concat(roomId));
 diff --git a/node_modules/matrix-js-sdk/src/rust-crypto/rust-crypto.ts b/node_modules/matrix-js-sdk/src/rust-crypto/rust-crypto.ts
-index fa3b8f0..52c1311 100644
+index fa3b8f0..48b7a85 100644
 --- a/node_modules/matrix-js-sdk/src/rust-crypto/rust-crypto.ts
 +++ b/node_modules/matrix-js-sdk/src/rust-crypto/rust-crypto.ts
-@@ -75 +75 @@
+@@ -72,7 +72,7 @@ import {
+     UserVerificationStatus,
+     type VerificationRequest,
+ } from "../crypto-api/index.ts";
 -import { deviceKeysToDeviceMap, rustDeviceToJsDevice } from "./device-converter.ts";
 +import { rustDeviceToJsDevice } from "./device-converter.ts";
-@@ -560 +560,4 @@
+ import { type IDownloadKeyResult, type IQueryKeysRequest } from "../client.ts";
+ import { type Device, type DeviceMap } from "../models/device.ts";
+ import {
+@@ -557,9 +557,13 @@ export class RustCrypto extends TypedEventEmitter<RustCryptoEvents, CryptoEventH
+ 
+         // Convert RustSdkCryptoJs.UserId to a `Set<string>`
+         const trackedUsers = new Set<string>();
 -        rustTrackedUsers.forEach((rustUserId) => trackedUsers.add(rustUserId.toString()));
 +        rustTrackedUsers.forEach((rustUserId) => {
 +            trackedUsers.add(rustUserId.toString());
 +            rustUserId.free();
 +        });
-@@ -562 +565 @@
+ 
 -        // Keep untracked user to download their keys after
 +        // Keep users which need a key query before their devices can be read from the Rust store.
-@@ -563,0 +567 @@
 +        const usersNeedingQuery: Set<string> = new Set();
-@@ -570 +574,5 @@
+         const untrackedUsers: Set<string> = new Set();
+ 
+         for (const userId of userIds) {
+@@ -567,19 +571,30 @@ export class RustCrypto extends TypedEventEmitter<RustCryptoEvents, CryptoEventH
+             // (NB: this is probably ok even if we race with a leave event such that we stop tracking the user's
+             // devices: the rust-sdk will return the last-known device list, which will be good enough.)
+             if (trackedUsers.has(userId)) {
 -                deviceMapByUserId.set(userId, await this.getUserDevices(userId));
 +                const devices = await this.getUserDevices(userId);
 +                deviceMapByUserId.set(userId, devices);
 +                if (downloadUncached && devices.size === 0) {
 +                    usersNeedingQuery.add(userId);
 +                }
-@@ -576,2 +584,2 @@
+             } else {
+                 untrackedUsers.add(userId);
+             }
+         }
+ 
 -        // for any users whose device lists we are not tracking, fall back to downloading the device list
 -        // over HTTP.
 +        // Tracking a new user queues a key query in the Rust SDK. Processing that query through the Rust SDK is
 +        // important: it verifies the response and persists the devices for later trust checks and encryption.
-@@ -579,3 +587,2 @@
+         if (downloadUncached && untrackedUsers.size >= 1) {
 -            const queryResult = await this.downloadDeviceList(untrackedUsers);
 -            Object.entries(queryResult.device_keys).forEach(([userId, deviceKeys]) =>
 -                deviceMapByUserId.set(userId, deviceKeysToDeviceMap(deviceKeys)),
 +            await this.olmMachine.updateTrackedUsers(
 +                Array.from(untrackedUsers, (userId) => new RustSdkCryptoJs.UserId(userId)),
-@@ -582,0 +590,8 @@
+             );
 +            untrackedUsers.forEach((userId) => usersNeedingQuery.add(userId));
 +        }
 +
@@ -825,6 +879,29 @@ index fa3b8f0..52c1311 100644
 +            for (const userId of usersNeedingQuery) {
 +                deviceMapByUserId.set(userId, await this.getUserDevices(userId));
 +            }
+         }
+ 
+         return deviceMapByUserId;
+@@ -1741,9 +1756,16 @@ export class RustCrypto extends TypedEventEmitter<RustCryptoEvents, CryptoEventH
+                     // received a new room key bundle that we might be able to download.
+                     if (isRoomKeyBundleMessage(parsedMessage)) {
+                         const roomId = parsedMessage.content.room_id;
+-                        const pendingDetails = await this.olmMachine.getPendingKeyBundleDetailsForRoom(
+-                            new RustSdkCryptoJs.RoomId(roomId),
+-                        );
++                        let pendingDetails: RustSdkCryptoJs.RoomPendingKeyBundleDetails | undefined;
++                        try {
++                            pendingDetails = await this.olmMachine.getPendingKeyBundleDetailsForRoom(
++                                new RustSdkCryptoJs.RoomId(roomId),
++                            );
++                        } catch (err) {
++                            // The messages are already processed; failing the whole batch here
++                            // would make `/sync` feed them to the crypto layer again.
++                            this.logger.error(`Could not check for a pending key bundle in room ${roomId}`, err);
++                        }
+                         // Only accept the key bundle if we joined the room less than 24 hours ago.
+                         if (!pendingDetails) {
+                             this.logger.debug(
 diff --git a/node_modules/matrix-js-sdk/src/@types/requests.ts b/node_modules/matrix-js-sdk/src/@types/requests.ts
 --- a/node_modules/matrix-js-sdk/src/@types/requests.ts
 +++ b/node_modules/matrix-js-sdk/src/@types/requests.ts
@@ -1282,10 +1359,10 @@ index 9df5083..299339d 100644
      urlPreviewCache: {
          [key: string]: Promise<IPreviewUrlResponse>;
 diff --git a/node_modules/matrix-js-sdk/lib/sync.d.ts b/node_modules/matrix-js-sdk/lib/sync.d.ts
-index 2dd8c1f..15cacdd 100644
+index 2dd8c1f..540c1ab 100644
 --- a/node_modules/matrix-js-sdk/lib/sync.d.ts
 +++ b/node_modules/matrix-js-sdk/lib/sync.d.ts
-@@ -85,6 +85,7 @@ export declare class SyncApi {
+@@ -85,10 +85,12 @@ export declare class SyncApi {
      private syncStateData?;
      private catchingUp;
      private running;
@@ -1293,7 +1370,12 @@ index 2dd8c1f..15cacdd 100644
      private keepAliveTimer?;
      private connectionReturnedResolvers?;
      private notifEvents;
-@@ -163,6 +164,8 @@ export declare class SyncApi {
+     private failedSyncCount;
++    private toDeviceFailures;
+     private storeIsInvalid;
+     private presence?;
+     /**
+@@ -163,6 +165,8 @@ export declare class SyncApi {
      private storeClientOptions;
      private getFilter;
      private savedSyncPromise?;
@@ -1302,11 +1384,49 @@ index 2dd8c1f..15cacdd 100644
      /**
       * Main entry point
       */
+@@ -195,6 +199,7 @@ export declare class SyncApi {
+      */
+     setPresence(presence?: SetPresence): void;
+     private onSyncError;
++    private preprocessToDeviceMessages;
+     /**
+      * Process data returned from a sync response and propagate it
+      * into the model objects
 diff --git a/node_modules/matrix-js-sdk/lib/sync.js b/node_modules/matrix-js-sdk/lib/sync.js
-index 2741877..bb734d4 100644
+index 2741877..559b77b 100644
 --- a/node_modules/matrix-js-sdk/lib/sync.js
 +++ b/node_modules/matrix-js-sdk/lib/sync.js
-@@ -132,6 +132,7 @@ export class SyncApi {
+@@ -30,7 +30,7 @@ limitations under the License.
+ 
+ import { User } from "./models/user.js";
+ import { NotificationCountType, Room, RoomEvent } from "./models/room.js";
+-import { deepCopy, noUnsafeEventProps, unsafeProp } from "./utils.js";
++import { deepCopy, noUnsafeEventProps, sleep, unsafeProp } from "./utils.js";
+ import { Filter } from "./filter.js";
+ import { EventTimeline } from "./models/event-timeline.js";
+ import { logger } from "./logger.js";
+@@ -55,6 +55,20 @@ var BUFFER_PERIOD_MS = 80 * 1000;
+ // to RECONNECTING. This is needed to inform the client of server issues when the
+ // keepAlive is successful but the server /sync fails.
+ var FAILED_SYNC_ERROR_THRESHOLD = 3;
++
++// A response whose to-device messages the crypto layer cannot take is requested
++// again this many times, after 1, 2, 4, ... 32 seconds (about a minute in total),
++// before it is applied without them. Until then it is not acknowledged, so the
++// server keeps them queued, and an app that restores a lost crypto store (for
++// example by reloading) has that long to do so.
++var TO_DEVICE_RETRY_LIMIT = 6;
++class ToDeviceProcessingError extends Error {
++  constructor(cause) {
++    super("The crypto layer could not process to-device messages");
++    this.name = "ToDeviceProcessingError";
++    this.cause = cause;
++  }
++}
+ export var SyncState = /*#__PURE__*/function (SyncState) {
+   /** Emitted after we try to sync more than `FAILED_SYNC_ERROR_THRESHOLD`
+    * times and are still failing. Or when we enounter a hard error like the
+@@ -132,11 +146,14 @@ export class SyncApi {
      // additional data (eg. error object for failed sync)
      _defineProperty(this, "catchingUp", false);
      _defineProperty(this, "running", false);
@@ -1314,7 +1434,14 @@ index 2741877..bb734d4 100644
      _defineProperty(this, "keepAliveTimer", void 0);
      _defineProperty(this, "connectionReturnedResolvers", void 0);
      _defineProperty(this, "notifEvents", []);
-@@ -576,12 +577,24 @@ export class SyncApi {
+     // accumulator of sync events in the current sync response
+     _defineProperty(this, "failedSyncCount", 0);
++    // Consecutive responses whose to-device messages could not be processed
++    _defineProperty(this, "toDeviceFailures", 0);
+     // Number of consecutive failed /sync requests
+     _defineProperty(this, "storeIsInvalid", false);
+     // flag set if the store needs to be cleared before we can start
+@@ -576,12 +593,24 @@ export class SyncApi {
      return false;
    }
    /**
@@ -1340,7 +1467,7 @@ index 2741877..bb734d4 100644
        _this5.running = true;
        _this5.abortController = new AbortController();
        (_globalThis$window = globalThis.window) === null || _globalThis$window === void 0 || (_globalThis$window$ad = _globalThis$window.addEventListener) === null || _globalThis$window$ad === void 0 || _globalThis$window$ad.call(_globalThis$window, "online", _this5.onOnline, false);
-@@ -598,14 +611,7 @@ export class SyncApi {
+@@ -598,14 +627,7 @@ export class SyncApi {
          _this5.syncOpts.logger.debug("Got saved sync token");
          return tok;
        });
@@ -1356,7 +1483,7 @@ index 2741877..bb734d4 100644
  
        // We need to do one-off checks before we can begin the /sync loop.
        // These are:
-@@ -669,6 +675,7 @@ export class SyncApi {
+@@ -669,6 +691,7 @@ export class SyncApi {
    stop() {
      var _globalThis$window2, _globalThis$window2$r, _this$abortController2;
      this.syncOpts.logger.debug("SyncApi.stop");
@@ -1364,7 +1491,7 @@ index 2741877..bb734d4 100644
      // It is necessary to check for the existance of
      // globalThis.window AND globalThis.window.removeEventListener.
      // Some platforms (e.g. React Native) register globalThis.window,
-@@ -730,7 +737,7 @@ export class SyncApi {
+@@ -730,7 +753,7 @@ export class SyncApi {
        // Don't emit a prepared if we've bailed because the store is invalid:
        // in this case the client will not be usable until stopped & restarted
        // so this would be useless and misleading.
@@ -1373,17 +1500,126 @@ index 2741877..bb734d4 100644
          _this6.updateSyncState(SyncState.Prepared, syncEventData);
        }
      })();
-@@ -1812,4 +1819,3 @@ export function processToDeviceMessages(toDeviceMessages, client) {
+@@ -773,6 +796,15 @@ export class SyncApi {
+         try {
+           yield _this7.processSyncResponse(syncEventData, data);
+         } catch (e) {
++          if (e instanceof ToDeviceProcessingError) {
++            _this7.toDeviceFailures += 1;
++            _this7.syncOpts.logger.warn("Requesting the /sync response again after a to-device failure (".concat(_this7.toDeviceFailures, ")"), e.cause);
++            // Nothing of the response was applied. Requesting it again with the
++            // previous token keeps its to-device messages and room events.
++            _this7.client.store.setSyncToken(syncToken);
++            yield sleep(1000 * Math.pow(2, _this7.toDeviceFailures - 1));
++            continue;
++          }
+           // log the exception with stack if we have it, else fall back
+           // to the plain description
+           _this7.syncOpts.logger.error("Caught /sync error", e);
+@@ -928,6 +960,29 @@ export class SyncApi {
+     })();
+   }
+ 
++  preprocessToDeviceMessages(toDeviceMessages) {
++    var _this = this;
++    return _asyncToGenerator(function* () {
++      if (!_this.syncOpts.cryptoCallbacks) {
++        // Crypto is not enabled, so we just return the events.
++        return toDeviceMessages.map(rawEvent => ({
++          message: rawEvent,
++          encryptionInfo: null
++        }));
++      }
++      try {
++        var received = yield _this.syncOpts.cryptoCallbacks.preprocessToDeviceMessages(toDeviceMessages);
++        _this.toDeviceFailures = 0;
++        return received;
++      } catch (e) {
++        if (_this.toDeviceFailures < TO_DEVICE_RETRY_LIMIT) throw new ToDeviceProcessingError(e);
++        // Retrying did not help: apply the rest of the response rather than stall sync.
++        _this.syncOpts.logger.error("Dropping to-device messages the crypto layer could not process", e);
++        _this.client.emit(ClientEvent.SyncUnexpectedError, e);
++        return [];
++      }
++    })();
++  }
+   /**
+    * Process data returned from a sync response and propagate it
+    * into the model objects
+@@ -941,6 +996,11 @@ export class SyncApi {
+       var _data$presence, _data$account_data, _data$users, _this9$syncOpts$crypt, _data$device_unused_f;
+       var client = _this9.client;
+ 
++      // Let the crypto layer take the to-device messages before anything of this
++      // response is applied, so that a failure can retry the whole response.
++      var hasToDeviceMessages = data.to_device && Array.isArray(data.to_device.events) && data.to_device.events.length > 0;
++      var receivedToDeviceMessages = hasToDeviceMessages ? yield _this9.preprocessToDeviceMessages(data.to_device.events.filter(noUnsafeEventProps)) : [];
++
+       // data looks like:
+       // {
+       //    next_batch: $token,
+@@ -1061,19 +1121,7 @@ export class SyncApi {
+       }
+ 
+       // handle to-device events
+-      if (data.to_device && Array.isArray(data.to_device.events) && data.to_device.events.length > 0) {
+-        var toDeviceMessages = data.to_device.events.filter(noUnsafeEventProps);
+-        var receivedToDeviceMessages;
+-        if (_this9.syncOpts.cryptoCallbacks) {
+-          receivedToDeviceMessages = yield _this9.syncOpts.cryptoCallbacks.preprocessToDeviceMessages(toDeviceMessages);
+-        } else {
+-          receivedToDeviceMessages = toDeviceMessages.map(rawEvent => (
+-          // Crypto is not enabled, so we just return the events.
+-          {
+-            message: rawEvent,
+-            encryptionInfo: null
+-          }));
+-        }
++      if (hasToDeviceMessages) {
+         processToDeviceMessages(receivedToDeviceMessages, client);
+       } else {
+         // no more to-device events: we can stop polling with a short timeout.
+@@ -1812,4 +1860,3 @@ export function processToDeviceMessages(toDeviceMessages, client) {
      client.emit(ClientEvent.ReceivedToDeviceMessage, processedEvent);
    });
  }
 -//# sourceMappingURL=sync.js.map
 \ No newline at end of file
 diff --git a/node_modules/matrix-js-sdk/src/sync.ts b/node_modules/matrix-js-sdk/src/sync.ts
-index e731161..abed9c4 100644
+index e731161..f463d1a 100644
 --- a/node_modules/matrix-js-sdk/src/sync.ts
 +++ b/node_modules/matrix-js-sdk/src/sync.ts
-@@ -213,6 +213,7 @@ export class SyncApi {
+@@ -26,7 +26,7 @@ limitations under the License.
+ import type { SyncCryptoCallbacks } from "./common-crypto/CryptoBackend.ts";
+ import { type SyncUserProfile, User } from "./models/user.ts";
+ import { NotificationCountType, Room, RoomEvent } from "./models/room.ts";
+-import { deepCopy, noUnsafeEventProps, unsafeProp } from "./utils.ts";
++import { deepCopy, noUnsafeEventProps, sleep, unsafeProp } from "./utils.ts";
+ import { Filter } from "./filter.ts";
+ import { EventTimeline } from "./models/event-timeline.ts";
+ import { logger, type Logger } from "./logger.ts";
+@@ -77,6 +77,20 @@ const BUFFER_PERIOD_MS = 80 * 1000;
+ // keepAlive is successful but the server /sync fails.
+ const FAILED_SYNC_ERROR_THRESHOLD = 3;
+ 
++// A response whose to-device messages the crypto layer cannot take is requested
++// again this many times, after 1, 2, 4, ... 32 seconds (about a minute in total),
++// before it is applied without them. Until then it is not acknowledged, so the
++// server keeps them queued, and an app that restores a lost crypto store (for
++// example by reloading) has that long to do so.
++const TO_DEVICE_RETRY_LIMIT = 6;
++
++class ToDeviceProcessingError extends Error {
++    public constructor(public readonly cause: unknown) {
++        super("The crypto layer could not process to-device messages");
++        this.name = "ToDeviceProcessingError";
++    }
++}
++
+ export enum SyncState {
+     /** Emitted after we try to sync more than `FAILED_SYNC_ERROR_THRESHOLD`
+      * times and are still failing. Or when we enounter a hard error like the
+@@ -213,10 +227,12 @@ export class SyncApi {
      private syncStateData?: ISyncStateData; // additional data (eg. error object for failed sync)
      private catchingUp = false;
      private running = false;
@@ -1391,7 +1627,12 @@ index e731161..abed9c4 100644
      private keepAliveTimer?: ReturnType<typeof setTimeout>;
      private connectionReturnedResolvers?: PromiseWithResolvers<boolean>;
      private notifEvents: MatrixEvent[] = []; // accumulator of sync events in the current sync response
-@@ -696,10 +697,27 @@ export class SyncApi {
+     private failedSyncCount = 0; // Number of consecutive failed /sync requests
++    private toDeviceFailures = 0; // Consecutive responses whose to-device messages could not be processed
+     private storeIsInvalid = false; // flag set if the store needs to be cleared before we can start
+     private presence?: SetPresence;
+ 
+@@ -696,10 +712,27 @@ export class SyncApi {
  
      private savedSyncPromise?: Promise<void>;
  
@@ -1419,7 +1660,7 @@ index e731161..abed9c4 100644
          this.running = true;
          this.abortController = new AbortController();
  
-@@ -719,17 +737,7 @@ export class SyncApi {
+@@ -719,17 +752,7 @@ export class SyncApi {
              return tok;
          });
  
@@ -1438,7 +1679,7 @@ index e731161..abed9c4 100644
  
          // We need to do one-off checks before we can begin the /sync loop.
          // These are:
-@@ -788,6 +796,7 @@ export class SyncApi {
+@@ -788,6 +811,7 @@ export class SyncApi {
       */
      public stop(): void {
          this.syncOpts.logger.debug("SyncApi.stop");
@@ -1446,7 +1687,7 @@ index e731161..abed9c4 100644
          // It is necessary to check for the existance of
          // globalThis.window AND globalThis.window.removeEventListener.
          // Some platforms (e.g. React Native) register globalThis.window,
-@@ -850,7 +859,7 @@ export class SyncApi {
+@@ -850,7 +874,7 @@ export class SyncApi {
          // Don't emit a prepared if we've bailed because the store is invalid:
          // in this case the client will not be usable until stopped & restarted
          // so this would be useless and misleading.
@@ -1455,6 +1696,92 @@ index e731161..abed9c4 100644
              this.updateSyncState(SyncState.Prepared, syncEventData);
          }
      }
+@@ -893,6 +917,18 @@ export class SyncApi {
+             try {
+                 await this.processSyncResponse(syncEventData, data);
+             } catch (e) {
++                if (e instanceof ToDeviceProcessingError) {
++                    this.toDeviceFailures += 1;
++                    this.syncOpts.logger.warn(
++                        `Requesting the /sync response again after a to-device failure (${this.toDeviceFailures})`,
++                        e.cause,
++                    );
++                    // Nothing of the response was applied. Requesting it again with the
++                    // previous token keeps its to-device messages and room events.
++                    this.client.store.setSyncToken(syncToken!);
++                    await sleep(1000 * 2 ** (this.toDeviceFailures - 1));
++                    continue;
++                }
+                 // log the exception with stack if we have it, else fall back
+                 // to the plain description
+                 this.syncOpts.logger.error("Caught /sync error", e);
+@@ -1062,6 +1098,26 @@ export class SyncApi {
+         return false;
+     }
+ 
++    private async preprocessToDeviceMessages(
++        toDeviceMessages: IToDeviceEvent[],
++    ): Promise<ReceivedToDeviceMessage[]> {
++        if (!this.syncOpts.cryptoCallbacks) {
++            // Crypto is not enabled, so we just return the events.
++            return toDeviceMessages.map((rawEvent) => ({ message: rawEvent, encryptionInfo: null }));
++        }
++        try {
++            const received = await this.syncOpts.cryptoCallbacks.preprocessToDeviceMessages(toDeviceMessages);
++            this.toDeviceFailures = 0;
++            return received;
++        } catch (e) {
++            if (this.toDeviceFailures < TO_DEVICE_RETRY_LIMIT) throw new ToDeviceProcessingError(e);
++            // Retrying did not help: apply the rest of the response rather than stall sync.
++            this.syncOpts.logger.error("Dropping to-device messages the crypto layer could not process", e);
++            this.client.emit(ClientEvent.SyncUnexpectedError, e as Error);
++            return [];
++        }
++    }
++
+     /**
+      * Process data returned from a sync response and propagate it
+      * into the model objects
+@@ -1072,6 +1128,14 @@ export class SyncApi {
+     private async processSyncResponse(syncEventData: ISyncStateData, data: ISyncResponse): Promise<void> {
+         const client = this.client;
+ 
++        // Let the crypto layer take the to-device messages before anything of this
++        // response is applied, so that a failure can retry the whole response.
++        const hasToDeviceMessages =
++            data.to_device && Array.isArray(data.to_device.events) && data.to_device.events.length > 0;
++        const receivedToDeviceMessages = hasToDeviceMessages
++            ? await this.preprocessToDeviceMessages(data.to_device!.events.filter(noUnsafeEventProps))
++            : [];
++
+         // data looks like:
+         // {
+         //    next_batch: $token,
+@@ -1187,23 +1251,7 @@ export class SyncApi {
+         }
+ 
+         // handle to-device events
+-        if (data.to_device && Array.isArray(data.to_device.events) && data.to_device.events.length > 0) {
+-            const toDeviceMessages: IToDeviceEvent[] = data.to_device.events.filter(noUnsafeEventProps);
+-
+-            let receivedToDeviceMessages: ReceivedToDeviceMessage[];
+-            if (this.syncOpts.cryptoCallbacks) {
+-                receivedToDeviceMessages =
+-                    await this.syncOpts.cryptoCallbacks.preprocessToDeviceMessages(toDeviceMessages);
+-            } else {
+-                receivedToDeviceMessages = toDeviceMessages.map((rawEvent) =>
+-                    // Crypto is not enabled, so we just return the events.
+-                    ({
+-                        message: rawEvent,
+-                        encryptionInfo: null,
+-                    }),
+-                );
+-            }
+-
++        if (hasToDeviceMessages) {
+             processToDeviceMessages(receivedToDeviceMessages, client);
+         } else {
+             // no more to-device events: we can stop polling with a short timeout.
 diff --git a/node_modules/matrix-js-sdk/src/rust-crypto/index.ts b/node_modules/matrix-js-sdk/src/rust-crypto/index.ts
 index cf0686a..32a3d9b 100644
 --- a/node_modules/matrix-js-sdk/src/rust-crypto/index.ts
@@ -1489,3 +1816,201 @@ index d8a2081..f16cacd 100644
        } else {
          logger.info("Clearing pending-key-bundle flag for room ".concat(roomId, " (too old: joined ").concat(new Date(pendingDetails.inviteAcceptedAtMillis).toISOString(), ")"));
          yield olmMachine.clearRoomPendingKeyBundle(new RustSdkCryptoJs.RoomId(roomId));
+diff --git a/node_modules/matrix-js-sdk/lib/store/indexeddb-backend.d.ts b/node_modules/matrix-js-sdk/lib/store/indexeddb-backend.d.ts
+index d08eb66..a1f0c08 100644
+--- a/node_modules/matrix-js-sdk/lib/store/indexeddb-backend.d.ts
++++ b/node_modules/matrix-js-sdk/lib/store/indexeddb-backend.d.ts
+@@ -10,6 +10,8 @@ export interface IIndexedDBBackend {
+     getSavedSync(): Promise<ISavedSync | null>;
+     getNextBatchToken(): Promise<string>;
+     clearDatabase(): Promise<void>;
++    /** Whether the connection is closed or closing, for example because the browser lost its IndexedDB server. */
++    isConnectionLost?(): boolean;
+     getOutOfBandMembers(roomId: string): Promise<IStateEventWithRoomId[] | null>;
+     setOutOfBandMembers(roomId: string, membershipEvents: IStateEventWithRoomId[]): Promise<void>;
+     clearOutOfBandMembers(roomId: string): Promise<void>;
+diff --git a/node_modules/matrix-js-sdk/lib/store/indexeddb-local-backend.d.ts b/node_modules/matrix-js-sdk/lib/store/indexeddb-local-backend.d.ts
+index 7b41057..2a51149 100644
+--- a/node_modules/matrix-js-sdk/lib/store/indexeddb-local-backend.d.ts
++++ b/node_modules/matrix-js-sdk/lib/store/indexeddb-local-backend.d.ts
+@@ -10,6 +10,7 @@ export declare class LocalIndexedDBStoreBackend implements IIndexedDBBackend {
+     private readonly syncAccumulator;
+     private db?;
+     private disconnected;
++    private closedByBrowser;
+     private _isNewlyCreated;
+     private syncToDatabasePromise?;
+     private pendingUserPresenceData;
+@@ -30,6 +31,12 @@ export declare class LocalIndexedDBStoreBackend implements IIndexedDBBackend {
+      * @returns Promise which resolves if successfully connected.
+      */
+     connect(onClose?: () => void): Promise<void>;
++    /**
++     * @returns whether the connection is closed or closing, for example because
++     * the browser lost its IndexedDB server. WebKit marks every connection as
++     * closing before it reports the aborted requests and fires `close`.
++     */
++    isConnectionLost(): boolean;
+     /** @returns whether or not the database was newly created in this session. */
+     isNewlyCreated(): Promise<boolean>;
+     /**
+diff --git a/node_modules/matrix-js-sdk/lib/store/indexeddb-local-backend.js b/node_modules/matrix-js-sdk/lib/store/indexeddb-local-backend.js
+index 6ce0bac..79774f1 100644
+--- a/node_modules/matrix-js-sdk/lib/store/indexeddb-local-backend.js
++++ b/node_modules/matrix-js-sdk/lib/store/indexeddb-local-backend.js
+@@ -99,6 +99,12 @@ function txnAsPromise(txn) {
+     txn.onerror = function () {
+       reject(txn.error);
+     };
++    // A transaction aborted by the browser (for example when the IndexedDB
++    // server connection is lost while it commits) fires only `abort`.
++    txn.onabort = function () {
++      var _txn$error;
++      reject((_txn$error = txn.error) !== null && _txn$error !== void 0 ? _txn$error : new DOMException("Transaction aborted", "AbortError"));
++    };
+   });
+ }
+ function reqAsEventPromise(req) {
+@@ -142,6 +148,7 @@ export class LocalIndexedDBStoreBackend {
+     _defineProperty(this, "syncAccumulator", void 0);
+     _defineProperty(this, "db", void 0);
+     _defineProperty(this, "disconnected", true);
++    _defineProperty(this, "closedByBrowser", false);
+     _defineProperty(this, "_isNewlyCreated", false);
+     _defineProperty(this, "syncToDatabasePromise", void 0);
+     _defineProperty(this, "pendingUserPresenceData", []);
+@@ -193,6 +200,7 @@ export class LocalIndexedDBStoreBackend {
+       };
+       _this.db.onclose = () => {
+         _this.disconnected = true;
++        _this.closedByBrowser = true;
+         _this.db = undefined;
+         onClose === null || onClose === void 0 || onClose();
+       };
+@@ -200,6 +208,22 @@ export class LocalIndexedDBStoreBackend {
+     }));
+   }
+ 
++  /**
++   * @returns whether the connection is closed or closing, for example because
++   * the browser lost its IndexedDB server. WebKit marks every connection as
++   * closing before it reports the aborted requests and fires `close`.
++   */
++  isConnectionLost() {
++    var _this$db3;
++    if (this.closedByBrowser) return true;
++    try {
++      (_this$db3 = this.db) === null || _this$db3 === void 0 || _this$db3.transaction(["sync"], "readonly").abort();
++      return false;
++    } catch (e) {
++      return (e === null || e === void 0 ? void 0 : e.name) === "InvalidStateError";
++    }
++  }
++
+   /** @returns whether or not the database was newly created in this session. */
+   isNewlyCreated() {
+     return Promise.resolve(this._isNewlyCreated);
+diff --git a/node_modules/matrix-js-sdk/lib/store/indexeddb.js b/node_modules/matrix-js-sdk/lib/store/indexeddb.js
+index 8320c66..7228597 100644
+--- a/node_modules/matrix-js-sdk/lib/store/indexeddb.js
++++ b/node_modules/matrix-js-sdk/lib/store/indexeddb.js
+@@ -272,6 +272,14 @@ export class IndexedDBStore extends MemoryStore {
+       try {
+         return yield func.call(_this, ...args);
+       } catch (e) {
++        var _this$backend$isConne, _this$backend;
++        if (((_this$backend$isConne = (_this$backend = _this.backend).isConnectionLost) === null || _this$backend$isConne === void 0 ? void 0 : _this$backend$isConne.call(_this$backend)) === true) {
++          // Only the connection failed; the data is intact. Deleting it would
++          // force a full initial sync on the next start.
++          logger.warn("IndexedDBStore operation failed on a closed connection; keeping its data", e);
++          if (fallbackFn) return fallbackFn.call(_this, ...args);
++          return;
++        }
+         logger.error("IndexedDBStore failure, degrading to MemoryStore", e);
+         _this.emitter.emit("degraded", e);
+         try {
+diff --git a/node_modules/matrix-js-sdk/src/store/indexeddb-backend.ts b/node_modules/matrix-js-sdk/src/store/indexeddb-backend.ts
+index 4cd5e8c..1b058f8 100644
+--- a/node_modules/matrix-js-sdk/src/store/indexeddb-backend.ts
++++ b/node_modules/matrix-js-sdk/src/store/indexeddb-backend.ts
+@@ -27,6 +27,8 @@ export interface IIndexedDBBackend {
+     getSavedSync(): Promise<ISavedSync | null>;
+     getNextBatchToken(): Promise<string>;
+     clearDatabase(): Promise<void>;
++    /** Whether the connection is closed or closing, for example because the browser lost its IndexedDB server. */
++    isConnectionLost?(): boolean;
+     getOutOfBandMembers(roomId: string): Promise<IStateEventWithRoomId[] | null>;
+     setOutOfBandMembers(roomId: string, membershipEvents: IStateEventWithRoomId[]): Promise<void>;
+     clearOutOfBandMembers(roomId: string): Promise<void>;
+diff --git a/node_modules/matrix-js-sdk/src/store/indexeddb-local-backend.ts b/node_modules/matrix-js-sdk/src/store/indexeddb-local-backend.ts
+index 5f58e7c..7d7e9ba 100644
+--- a/node_modules/matrix-js-sdk/src/store/indexeddb-local-backend.ts
++++ b/node_modules/matrix-js-sdk/src/store/indexeddb-local-backend.ts
+@@ -98,6 +98,11 @@ function txnAsPromise(txn: IDBTransaction): Promise<Event> {
+         txn.onerror = function (): void {
+             reject(txn.error);
+         };
++        // A transaction aborted by the browser (for example when the IndexedDB
++        // server connection is lost while it commits) fires only `abort`.
++        txn.onabort = function (): void {
++            reject(txn.error ?? new DOMException("Transaction aborted", "AbortError"));
++        };
+     });
+ }
+ 
+@@ -133,6 +138,7 @@ export class LocalIndexedDBStoreBackend implements IIndexedDBBackend {
+     private readonly syncAccumulator: SyncAccumulator;
+     private db?: IDBDatabase;
+     private disconnected = true;
++    private closedByBrowser = false;
+     private _isNewlyCreated = false;
+     private syncToDatabasePromise?: Promise<void>;
+     private pendingUserPresenceData: UserTuple[] = [];
+@@ -201,6 +207,7 @@ export class LocalIndexedDBStoreBackend implements IIndexedDBBackend {
+             };
+             this.db.onclose = (): void => {
+                 this.disconnected = true;
++                this.closedByBrowser = true;
+                 this.db = undefined;
+                 onClose?.();
+             };
+@@ -209,6 +216,21 @@ export class LocalIndexedDBStoreBackend implements IIndexedDBBackend {
+         });
+     }
+ 
++    /**
++     * @returns whether the connection is closed or closing, for example because
++     * the browser lost its IndexedDB server. WebKit marks every connection as
++     * closing before it reports the aborted requests and fires `close`.
++     */
++    public isConnectionLost(): boolean {
++        if (this.closedByBrowser) return true;
++        try {
++            this.db?.transaction(["sync"], "readonly").abort();
++            return false;
++        } catch (e) {
++            return (e as Error | undefined)?.name === "InvalidStateError";
++        }
++    }
++
+     /** @returns whether or not the database was newly created in this session. */
+     public isNewlyCreated(): Promise<boolean> {
+         return Promise.resolve(this._isNewlyCreated);
+diff --git a/node_modules/matrix-js-sdk/src/store/indexeddb.ts b/node_modules/matrix-js-sdk/src/store/indexeddb.ts
+index 25be506..be62de5 100644
+--- a/node_modules/matrix-js-sdk/src/store/indexeddb.ts
++++ b/node_modules/matrix-js-sdk/src/store/indexeddb.ts
+@@ -321,6 +321,13 @@ export class IndexedDBStore extends MemoryStore {
+             try {
+                 return await func.call(this, ...args);
+             } catch (e) {
++                if (this.backend.isConnectionLost?.() === true) {
++                    // Only the connection failed; the data is intact. Deleting it would
++                    // force a full initial sync on the next start.
++                    logger.warn("IndexedDBStore operation failed on a closed connection; keeping its data", e);
++                    if (fallbackFn) return fallbackFn.call(this, ...args);
++                    return;
++                }
+                 logger.error("IndexedDBStore failure, degrading to MemoryStore", e);
+                 this.emitter.emit("degraded", e as Error);
+                 try {

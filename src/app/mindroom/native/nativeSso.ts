@@ -133,6 +133,20 @@ const getAppPathFromPairingUrl = (incomingUrl: string): string | undefined => {
   return getConnectPath(url.searchParams.get('code') ?? undefined);
 };
 
+// Capacitor keeps returning the last opened URL from `getLaunchUrl()` after the
+// page reloads (for example to recover from a lost IndexedDB server). That URL
+// was handled before the reload; later URLs arrive through `appUrlOpen`.
+const isPageReload = (): boolean => {
+  try {
+    const [navigation] = performance.getEntriesByType(
+      'navigation'
+    ) as PerformanceNavigationTiming[];
+    return navigation?.type === 'reload';
+  } catch {
+    return false;
+  }
+};
+
 export const registerNativeAppUrlCallbacks = (nativeApp: NativeAppUrlPlugin): void => {
   let handledOpenUrl = false;
   const handleNativeAppUrl = (url: string): boolean => {
@@ -152,7 +166,7 @@ export const registerNativeAppUrlCallbacks = (nativeApp: NativeAppUrlPlugin): vo
     .getLaunchUrl()
     .then((launchUrl) => {
       const url = launchUrl?.url;
-      if (url && !handledOpenUrl) handleNativeAppUrl(url);
+      if (url && !handledOpenUrl && !isPageReload()) handleNativeAppUrl(url);
     })
     .catch(() => undefined);
 
