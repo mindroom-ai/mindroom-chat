@@ -3,6 +3,7 @@ import { act, create } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import { ClientConfigProvider } from '../../hooks/useClientConfig';
 import { MindroomThinkingPlaceholder } from './MindroomThinkingPlaceholder';
+import thinkingMark from './thinking-mark.svg?raw';
 import {
   DEFAULT_MINDROOM_THINKING_PLACEHOLDER_MESSAGES,
   resolveMindroomThinkingPlaceholderMessages,
@@ -106,5 +107,14 @@ describe('MindroomThinkingPlaceholder', () => {
     );
 
     renderer.unmount();
+  });
+});
+
+describe('thinking mark artwork', () => {
+  it('opens the frame behind the turning core', () => {
+    // Copy MindRoom's assets/logo/logo-mark-movable-cube.svg; its logo-mark.svg keeps a solid frame that shows a navy slab behind the flip.
+    const frame = thinkingMark.match(/<path id="structural-frame"[^>]*>/)?.[0] ?? '';
+    expect(frame).toContain('fill-rule="evenodd"');
+    expect(frame.match(/ Z/g)).toHaveLength(2);
   });
 });
