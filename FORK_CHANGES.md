@@ -19,18 +19,22 @@
   - `processSyncResponse` hands to-device messages to the crypto layer before applying anything else.
     If that fails, `doSync` keeps the previous token and requests the response again after 1, 2, 4, 8, 16 and 32 s, so its room events and to-device messages survive (the server keeps unacknowledged to-device messages queued).
     That minute is longer than the recovery reload's 60 s guard below, so after a lost connection the reloaded page receives them.
-    After six failed retries the response is applied without its to-device messages, and later failures skip the retries until the crypto layer succeeds again, so a crypto store that stays broken for another reason cannot stall sync.
+    After six failed retries the response is applied without its to-device messages, and later failures skip the retries until the crypto layer succeeds again, so a crypto store that stays broken for another reason cannot stall sync; room events then wait about a minute once per failure streak.
   - A failed pending-key-bundle lookup no longer fails a batch whose messages were already processed.
   - The `src/rust-crypto/rust-crypto.ts` section is regenerated with context: patch-package applied its zero-context hunks out of order, leaving a misplaced `);` in that unused source (the shipped `lib` code was correct).
   - When upgrading the SDK, keep `src/client/syncStoreConnectionLoss.test.ts`, `src/client/syncToDeviceFailure.test.ts` and `src/client/rustCryptoToDevice.test.ts`, and drop these sections once upstream handles the same cases.
 - Neither store reopens in place: the Rust crypto store has no reopen API and about a dozen SDK objects hold its `olmMachine`, and reopening the sync store inside `save()` would let a hanging `indexedDB.open` stall `/sync`.
-  `src/app/mindroom/matrix/indexedDbLossRecovery.ts` keeps a sentinel connection and reloads the page when the browser closes it, once the page is visible; a second loss within 60 s waits out the rest of that minute.
+  `src/app/mindroom/matrix/indexedDbLossRecovery.ts` keeps a sentinel connection and reloads the page when the browser closes it; a second loss within 60 s waits out the rest of that minute.
+  It reloads a hidden page too (on iOS the `close` event arrives on resume anyway), because the reload must come within the minute of SDK retries.
+  The time of the last recovery reload is kept in localStorage: WebKit loses sessionStorage with its networking process, while localStorage writes made after the loss survive the reload (measured in the closed #337).
+  If the loss recurs on every start, the page reloads at most once a minute and stays usable in between.
   Until then the SDK keeps syncing from memory; the reload restores both stores.
   Composer text drafts survive it; reply targets, staged uploads, a pending voice message and open dialogs (recovery-key entry, verification) do not.
-  Capacitor keeps returning the last opened URL from `getLaunchUrl()` after a reload, so `registerNativeAppUrlCallbacks` records in sessionStorage that this session already handled an app URL and does not route a `/connect` pairing link or SSO callback again; URLs opened later still arrive through `appUrlOpen`.
+  Capacitor keeps returning the last opened URL from `getLaunchUrl()` after a reload, so `registerNativeAppUrlCallbacks` ignores it when the navigation type is `reload` instead of routing a `/connect` pairing link or SSO callback again; URLs opened later still arrive through `appUrlOpen`.
 - `e2e/live/thread-indexeddb-loss.spec.ts` closes every connection like WebKit does and delivers a thread reply in the same `/sync` response as a to-device message; `playwright.indexeddb-loss.config.ts` adds a WebKit project for it.
   Before the fixes the reply never rendered; the `no reload` case blocks the sentinel, so only the SDK fixes can deliver it (after the minute of retries), and it fails with the `sync.js` fix reverted.
   Playwright WebKit never routes the client's `/sync` requests, so both same-response cases run in Chromium only; WebKit runs the reload case.
+  A WebKit-only case kills the real networking process (`SIGKILL`) in a persistent profile, as the closed #337 did: the sentinel reloads the page, the reload guard written after the loss is still in localStorage, and a later reply renders.
   The retried to-device path is covered by unit tests with a fake crypto backend, not by real encrypted messages.
   A committing transaction cannot be aborted from script, so the unit tests cover the stalled save.
 - Not covered: when the crypto store fails after decrypting, its in-memory state has already moved on, so only the reload recovers it; device-list changes and one-time key counts are still processed after rooms and are lost for a response when the crypto layer fails there.

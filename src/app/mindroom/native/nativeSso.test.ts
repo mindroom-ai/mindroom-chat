@@ -303,12 +303,9 @@ describe('nativeSso', () => {
   });
 
   it('does not route the launch URL again after the page reloads', async () => {
-    const values = new Map<string, string>();
-    vi.stubGlobal('sessionStorage', {
-      getItem: (key: string) => values.get(key) ?? null,
-      setItem: (key: string, value: string) => values.set(key, value),
-      removeItem: (key: string) => values.delete(key),
-    });
+    const getEntriesByType = vi
+      .spyOn(performance, 'getEntriesByType')
+      .mockReturnValue([{ type: 'reload' } as PerformanceNavigationTiming]);
     const replaceState = vi.fn();
     Object.defineProperty(globalThis, 'window', {
       configurable: true,
@@ -320,28 +317,22 @@ describe('nativeSso', () => {
     });
     let appUrlOpenListener: ((event: { url?: string }) => void) | undefined;
     // Capacitor keeps returning the last opened URL after a reload.
-    const nativeAppPlugin = () => ({
-      getLaunchUrl: vi
-        .fn()
-        .mockResolvedValue({ url: 'https://chat.mindroom.chat/connect?code=ABCD' }),
+    const nativeAppPlugin = {
+      getLaunchUrl: vi.fn().mockResolvedValue({
+        url: 'https://chat.mindroom.chat/connect?code=ABCD',
+      }),
       addListener: vi.fn((eventName: string, listener: (event: { url?: string }) => void) => {
         appUrlOpenListener = listener;
         return Promise.resolve();
       }),
-    });
+    };
 
     try {
-      const firstPage = nativeAppPlugin();
-      registerNativeAppUrlCallbacks(firstPage);
-      await firstPage.getLaunchUrl.mock.results[0]?.value;
+      registerNativeAppUrlCallbacks(nativeAppPlugin);
+      await nativeAppPlugin.getLaunchUrl.mock.results[0]?.value;
       await Promise.resolve();
-      expect(replaceState).toHaveBeenCalledOnce();
-
-      const reloadedPage = nativeAppPlugin();
-      registerNativeAppUrlCallbacks(reloadedPage);
-      await reloadedPage.getLaunchUrl.mock.results[0]?.value;
-      await Promise.resolve();
-      expect(replaceState).toHaveBeenCalledOnce();
+      expect(getEntriesByType).toHaveBeenCalledWith('navigation');
+      expect(replaceState).not.toHaveBeenCalled();
 
       // A URL opened after the reload is still routed.
       appUrlOpenListener?.({ url: 'mindroom://auth/login/mindroom.chat?loginToken=open-token' });
@@ -351,7 +342,7 @@ describe('nativeSso', () => {
         '/login/mindroom.chat?loginToken=open-token'
       );
     } finally {
-      vi.unstubAllGlobals();
+      getEntriesByType.mockRestore();
     }
   });
 

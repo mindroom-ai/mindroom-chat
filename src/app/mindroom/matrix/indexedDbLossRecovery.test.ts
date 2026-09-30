@@ -19,7 +19,7 @@ describe('IndexedDB server loss recovery', () => {
   let dispose: (() => void) | undefined;
 
   beforeEach(() => {
-    window.sessionStorage.clear();
+    window.localStorage.clear();
     setVisibility('visible');
     connections = [];
     const open = IDBFactory.prototype.open;
@@ -58,31 +58,24 @@ describe('IndexedDB server loss recovery', () => {
     forceCloseDatabase(await sentinel());
 
     await vi.waitFor(() => expect(reload).toHaveBeenCalledOnce());
-    expect(window.sessionStorage.getItem(INDEXED_DB_LOSS_RELOAD_KEY)).toBe('1000');
+    expect(window.localStorage.getItem(INDEXED_DB_LOSS_RELOAD_KEY)).toBe('1000');
   });
 
-  it.each(['visibilitychange', 'pageshow'])(
-    'waits for a hidden page to show again (%s) before reloading',
-    async (event) => {
-      const reload = vi.fn();
-      setVisibility('hidden');
-      dispose = installIndexedDbLossRecovery({ reload });
+  it('reloads a hidden page without waiting for it to be shown', async () => {
+    // The SDK acknowledges unprocessed to-device messages after a minute of retries.
+    const reload = vi.fn();
+    setVisibility('hidden');
+    dispose = installIndexedDbLossRecovery({ reload });
 
-      forceCloseDatabase(await sentinel());
-      await closeEvent();
-      expect(reload).not.toHaveBeenCalled();
+    forceCloseDatabase(await sentinel());
 
-      setVisibility('visible');
-      if (event === 'pageshow') window.dispatchEvent(new Event('pageshow'));
-      else document.dispatchEvent(new Event('visibilitychange'));
-      expect(reload).toHaveBeenCalledOnce();
-    }
-  );
+    await vi.waitFor(() => expect(reload).toHaveBeenCalledOnce());
+  });
 
   it('postpones a reload within a minute of the previous one', async () => {
     let now = 100_000;
     const reload = vi.fn();
-    window.sessionStorage.setItem(INDEXED_DB_LOSS_RELOAD_KEY, String(now - 10_000));
+    window.localStorage.setItem(INDEXED_DB_LOSS_RELOAD_KEY, String(now - 10_000));
     dispose = installIndexedDbLossRecovery({ reload, now: () => now });
     const db = await sentinel();
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
@@ -96,12 +89,12 @@ describe('IndexedDB server loss recovery', () => {
     now += 1;
     await vi.advanceTimersByTimeAsync(1);
     expect(reload).toHaveBeenCalledOnce();
-    expect(window.sessionStorage.getItem(INDEXED_DB_LOSS_RELOAD_KEY)).toBe(String(now));
+    expect(window.localStorage.getItem(INDEXED_DB_LOSS_RELOAD_KEY)).toBe(String(now));
   });
 
   it('ignores a reload time from the future', async () => {
     const reload = vi.fn();
-    window.sessionStorage.setItem(INDEXED_DB_LOSS_RELOAD_KEY, String(5_000_000));
+    window.localStorage.setItem(INDEXED_DB_LOSS_RELOAD_KEY, String(5_000_000));
     dispose = installIndexedDbLossRecovery({ reload, now: () => 1_000 });
 
     forceCloseDatabase(await sentinel());
@@ -117,7 +110,7 @@ describe('IndexedDB server loss recovery', () => {
         throw new DOMException('denied', 'SecurityError');
       },
     } as unknown as Storage;
-    dispose = installIndexedDbLossRecovery({ reload, sessionStorage: blocked });
+    dispose = installIndexedDbLossRecovery({ reload, storage: blocked });
 
     forceCloseDatabase(await sentinel());
     await closeEvent();

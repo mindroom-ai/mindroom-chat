@@ -1,11 +1,15 @@
 import {
-  getSafeSessionStorage,
+  getSafeLocalStorage,
   getStorageItemSafe,
   setStorageItemSafe,
 } from '../../utils/safeLocalStorage';
 
 export const INDEXED_DB_LOSS_SENTINEL_DB_NAME = 'mindroom-indexeddb-sentinel-v1';
-/** sessionStorage: time of this tab's last recovery reload, to avoid reload loops. */
+/**
+ * Time of the last recovery reload, to avoid reload loops. Kept in localStorage:
+ * WebKit loses sessionStorage with its networking process, while localStorage
+ * writes made after that loss survive the reload.
+ */
 export const INDEXED_DB_LOSS_RELOAD_KEY = 'mindroom.indexedDbLoss.reloadAt.v1';
 const RELOAD_GUARD_MS = 60_000;
 
@@ -13,7 +17,7 @@ type Options = {
   factory?: IDBFactory;
   reload?: () => void;
   now?: () => number;
-  sessionStorage?: Storage;
+  storage?: Storage;
 };
 
 /**
@@ -21,14 +25,15 @@ type Options = {
  * (on iOS, typically while the app is suspended), the browser closes every
  * connection in the page and each fires `close`. The Matrix SDK keeps syncing
  * without them, but neither its sync store nor the Rust crypto store reopens,
- * so a sentinel connection detects the loss and reloads the page once it is
- * visible.
+ * so a sentinel connection detects the loss and reloads the page. The reload
+ * must come within the minute the SDK keeps retrying unprocessed to-device
+ * messages, so it does not wait for a hidden page to be shown.
  */
 export const installIndexedDbLossRecovery = ({
   factory = globalThis.indexedDB,
   reload = () => window.location.reload(),
   now = Date.now,
-  sessionStorage = getSafeSessionStorage(),
+  storage = getSafeLocalStorage(),
 }: Options = {}): (() => void) => {
   if (!factory) return () => undefined;
   let disposed = false;
@@ -36,21 +41,10 @@ export const installIndexedDbLossRecovery = ({
   let connection: IDBDatabase | undefined;
   let guardTimer: number | undefined;
 
-  const stopWaiting = () => {
-    document.removeEventListener('visibilitychange', recover);
-    window.removeEventListener('pageshow', recover);
-  };
-
   function recover() {
     if (disposed || !lost) return;
-    if (document.visibilityState !== 'visible') {
-      document.addEventListener('visibilitychange', recover);
-      window.addEventListener('pageshow', recover);
-      return;
-    }
-    stopWaiting();
     const at = now();
-    const lastReload = Number(getStorageItemSafe(sessionStorage, INDEXED_DB_LOSS_RELOAD_KEY));
+    const lastReload = Number(getStorageItemSafe(storage, INDEXED_DB_LOSS_RELOAD_KEY));
     // A loss right after a recovery reload waits out the rest of the interval.
     if (lastReload > 0 && lastReload <= at && at - lastReload < RELOAD_GUARD_MS) {
       guardTimer ??= window.setTimeout(() => {
@@ -60,7 +54,7 @@ export const installIndexedDbLossRecovery = ({
       return;
     }
     // Without a stored guard a failing reload could loop; stay on this page.
-    if (!setStorageItemSafe(sessionStorage, INDEXED_DB_LOSS_RELOAD_KEY, String(at))) return;
+    if (!setStorageItemSafe(storage, INDEXED_DB_LOSS_RELOAD_KEY, String(at))) return;
     reload();
   }
 
@@ -101,7 +95,6 @@ export const installIndexedDbLossRecovery = ({
 
   return () => {
     disposed = true;
-    stopWaiting();
     if (guardTimer !== undefined) window.clearTimeout(guardTimer);
     connection?.close();
   };
