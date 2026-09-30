@@ -28,8 +28,14 @@ import { migrateLegacyIOSPushEnabled } from './app/mindroom/native/iosPush';
 import { APP_BUILD_VERSION, fetchPublishedAppVersion, startAppVersionMonitor } from './appVersion';
 import { createServiceWorkerUrl } from './serviceWorkerRegistration';
 import { installFlightRecorder } from './app/mindroom/diagnostics/flightRecorder';
-import { initializeDeepTraceRecorder } from './app/mindroom/diagnostics/deepTrace';
-import { installIndexedDbLossRecovery } from './app/mindroom/matrix/indexedDbLossRecovery';
+import {
+  initializeDeepTraceRecorder,
+  recordDeepTraceEvent,
+} from './app/mindroom/diagnostics/deepTrace';
+import {
+  installIndexedDbLossRecovery,
+  readRecoveryReloadAge,
+} from './app/mindroom/matrix/indexedDbLossRecovery';
 
 // import i18n (needs to be bundled ;))
 import './app/i18n';
@@ -51,6 +57,15 @@ if (isNativeIOS()) {
   } catch {
     // Opt-in tracing must never block application boot.
   }
+}
+
+try {
+  const reloadAge = readRecoveryReloadAge();
+  if (reloadAge !== undefined) {
+    recordDeepTraceEvent('storage.indexeddb_loss_reload', { reload_ms_ago: reloadAge });
+  }
+} catch {
+  // Diagnostics must never block application boot.
 }
 
 try {

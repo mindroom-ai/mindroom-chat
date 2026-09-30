@@ -7,6 +7,8 @@ const mocks = vi.hoisted(() => ({
   installFlightRecorder: vi.fn(),
   initializeDeepTraceRecorder: vi.fn(),
   installIndexedDbLossRecovery: vi.fn(),
+  readRecoveryReloadAge: vi.fn(),
+  recordDeepTraceEvent: vi.fn(),
   isServiceWorkerEnabled: vi.fn(),
   render: vi.fn(),
   createRoot: vi.fn(),
@@ -32,10 +34,12 @@ vi.mock('./app/mindroom/diagnostics/flightRecorder', () => ({
 
 vi.mock('./app/mindroom/diagnostics/deepTrace', () => ({
   initializeDeepTraceRecorder: mocks.initializeDeepTraceRecorder,
+  recordDeepTraceEvent: mocks.recordDeepTraceEvent,
 }));
 
 vi.mock('./app/mindroom/matrix/indexedDbLossRecovery', () => ({
   installIndexedDbLossRecovery: mocks.installIndexedDbLossRecovery,
+  readRecoveryReloadAge: mocks.readRecoveryReloadAge,
 }));
 
 vi.mock('./app/theme/themeBootstrap', () => ({
@@ -155,6 +159,31 @@ describe('application bootstrap', () => {
       expect(mocks.createRoot).toHaveBeenCalledOnce();
     }
   );
+
+  it('records a recovery reload after the deep trace recorder starts', async () => {
+    mocks.isNativeIOS.mockReturnValue(true);
+    mocks.readRecoveryReloadAge.mockReturnValueOnce(1_500);
+
+    await import('./index');
+
+    expect(mocks.recordDeepTraceEvent).toHaveBeenCalledWith('storage.indexeddb_loss_reload', {
+      reload_ms_ago: 1_500,
+    });
+    // Recorded earlier, the event would be dropped silently.
+    expect(mocks.initializeDeepTraceRecorder.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.recordDeepTraceEvent.mock.invocationCallOrder[0]
+    );
+    expect(mocks.installIndexedDbLossRecovery).toHaveBeenCalledOnce();
+  });
+
+  it('records nothing without a recovery reload', async () => {
+    mocks.readRecoveryReloadAge.mockReturnValueOnce(undefined);
+
+    await import('./index');
+
+    expect(mocks.recordDeepTraceEvent).not.toHaveBeenCalled();
+    expect(mocks.installIndexedDbLossRecovery).toHaveBeenCalledOnce();
+  });
 
   it('continues boot when IndexedDB loss recovery setup throws', async () => {
     mocks.installIndexedDbLossRecovery.mockImplementationOnce(() => {

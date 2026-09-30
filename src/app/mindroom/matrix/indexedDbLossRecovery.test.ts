@@ -7,6 +7,7 @@ import {
   INDEXED_DB_LOSS_RELOAD_KEY,
   INDEXED_DB_LOSS_SENTINEL_DB_NAME,
   installIndexedDbLossRecovery,
+  readRecoveryReloadAge,
 } from './indexedDbLossRecovery';
 
 const setVisibility = (state: DocumentVisibilityState) => {
@@ -165,5 +166,35 @@ describe('IndexedDB server loss recovery', () => {
     forceCloseDatabase(db);
     await closeEvent();
     expect(reload).not.toHaveBeenCalled();
+  });
+
+  describe('recovery reload age', () => {
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    const navigation = (type: NavigationTimingType) =>
+      vi
+        .spyOn(performance, 'getEntriesByType')
+        .mockReturnValue([{ type } as PerformanceNavigationTiming]);
+
+    it('reports how long ago the recovery reload of this page happened', () => {
+      navigation('reload');
+      window.localStorage.setItem(INDEXED_DB_LOSS_RELOAD_KEY, '10000');
+
+      expect(readRecoveryReloadAge(window.localStorage, 12_500)).toBe(2_500);
+    });
+
+    it.each([
+      ['a fresh start', 'navigate', '10000', 12_500],
+      ['a reload a minute later', 'reload', '10000', 70_000],
+      ['a reload without a recovery', 'reload', null, 12_500],
+      ['a time from the future', 'reload', '20000', 12_500],
+    ] as const)('reports nothing after %s', (_case, type, lastReload, at) => {
+      navigation(type);
+      if (lastReload) window.localStorage.setItem(INDEXED_DB_LOSS_RELOAD_KEY, lastReload);
+
+      expect(readRecoveryReloadAge(window.localStorage, at)).toBeUndefined();
+    });
   });
 });
