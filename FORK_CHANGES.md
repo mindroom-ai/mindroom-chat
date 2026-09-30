@@ -2091,7 +2091,7 @@
 - The original geometry, gradients, masks, and layer order are preserved in one shared SVG definition set; Glowing core animates the original central cube.
 - The outer frame's fill has a hole under the central cube, inset 2% so the cube still overlaps the frame's edge, so while the core turns the page shows through instead of the frame's navy fill.
   At rest the cube covers the hole; only antialiased pixels along the cube's thin inner seams change (in Chromium at 32 px, 27 pixels by at most 40 of 255 levels).
-  This departs from MindRoom's generated `assets/logo/logo-mark.svg`, which has no moving cube; keep the opening when copying new artwork, which `MindroomThinkingPlaceholder.test.ts` checks.
+  The artwork is a verbatim copy of MindRoom's generated `assets/logo/logo-mark-movable-cube.svg` (mindroom-ai/mindroom#2483), which adds this opening to `logo-mark.svg`; copy that file, not `logo-mark.svg`, when the artwork changes, which `MindroomThinkingPlaceholder.test.ts` checks.
 - Initial fidelity checks verified source artwork and geometry, but the comparison page's inline definitions masked the WebKit external-gradient failure.
   The follow-up above adds isolated painted-pixel coverage in the real component fixture.
 - PR #255 merged the selected 32 px marker and shorter pauses; the rendering fix is tracked above.

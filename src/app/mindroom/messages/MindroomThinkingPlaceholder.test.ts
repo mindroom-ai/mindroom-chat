@@ -112,7 +112,7 @@ describe('MindroomThinkingPlaceholder', () => {
 
 describe('thinking mark artwork', () => {
   it('opens the frame behind the turning core', () => {
-    // MindRoom's logo mark has a solid frame; a fresh copy of it would show a navy slab behind the flip.
+    // Copy MindRoom's assets/logo/logo-mark-movable-cube.svg; its logo-mark.svg keeps a solid frame that shows a navy slab behind the flip.
     const frame = thinkingMark.match(/<path id="structural-frame"[^>]*>/)?.[0] ?? '';
     expect(frame).toContain('fill-rule="evenodd"');
     expect(frame.match(/ Z/g)).toHaveLength(2);
