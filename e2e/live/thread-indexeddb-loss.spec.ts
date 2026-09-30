@@ -95,7 +95,7 @@ const threadReply = (rootId: string, body: string) => ({
 
 test.describe('thread live updates after IndexedDB connection loss', () => {
   test.skip(!hasPrimaryCredentials(), 'E2E_USERNAME / E2E_PASSWORD not set');
-  test.setTimeout(180_000);
+  test.setTimeout(240_000);
 
   for (const recovery of ['reload', 'no reload'] as const) {
     test(`renders a reply that shares its sync response with a to-device message (${recovery})`, async ({
@@ -181,8 +181,9 @@ test.describe('thread live updates after IndexedDB connection loss', () => {
       await expect.poll(() => heldSyncs, { timeout: 40_000 }).toBeGreaterThan(0);
       holdSync = false;
 
+      // Without the reload, the SDK applies the response after about a minute of retries.
       await expect(page.locator(`[data-message-id="${replyId}"]`)).toContainText(replyBody, {
-        timeout: 30_000,
+        timeout: recovery === 'reload' ? 30_000 : 90_000,
       });
       if (recovery === 'no reload') expect(loads).toBe(0);
     });

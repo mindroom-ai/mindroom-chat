@@ -1,6 +1,11 @@
 import { Browser } from '@capacitor/browser';
 import { Capacitor, registerPlugin } from '@capacitor/core';
 import { getConnectPath } from '../../pages/pathUtils';
+import {
+  getSafeSessionStorage,
+  getStorageItemSafe,
+  setStorageItemSafe,
+} from '../../utils/safeLocalStorage';
 
 const NATIVE_SSO_SCHEME = 'mindroom';
 const NATIVE_SSO_HOST = 'auth';
@@ -133,8 +138,17 @@ const getAppPathFromPairingUrl = (incomingUrl: string): string | undefined => {
   return getConnectPath(url.searchParams.get('code') ?? undefined);
 };
 
+// Capacitor keeps returning the last opened URL from `getLaunchUrl()` after the
+// page reloads (for example to recover from a lost IndexedDB server), so a URL
+// handled in this session must not be routed again.
+const APP_URL_HANDLED_KEY = 'mindroom.native.appUrlHandled.v1';
+
 export const registerNativeAppUrlCallbacks = (nativeApp: NativeAppUrlPlugin): void => {
   let handledOpenUrl = false;
+  const markHandled = () => {
+    handledOpenUrl = true;
+    setStorageItemSafe(getSafeSessionStorage(), APP_URL_HANDLED_KEY, '1');
+  };
   const handleNativeAppUrl = (url: string): boolean => {
     if (routeNativeSsoCallback(url)) return true;
     const appPath = getAppPathFromPairingUrl(url);
@@ -152,13 +166,15 @@ export const registerNativeAppUrlCallbacks = (nativeApp: NativeAppUrlPlugin): vo
     .getLaunchUrl()
     .then((launchUrl) => {
       const url = launchUrl?.url;
-      if (url && !handledOpenUrl) handleNativeAppUrl(url);
+      if (!url || handledOpenUrl) return;
+      if (getStorageItemSafe(getSafeSessionStorage(), APP_URL_HANDLED_KEY) === '1') return;
+      if (handleNativeAppUrl(url)) markHandled();
     })
     .catch(() => undefined);
 
   nativeApp
     .addListener('appUrlOpen', (event) => {
-      if (event.url && handleNativeAppUrl(event.url)) handledOpenUrl = true;
+      if (event.url && handleNativeAppUrl(event.url)) markHandled();
     })
     .catch(() => undefined);
 };

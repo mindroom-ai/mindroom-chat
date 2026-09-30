@@ -20,6 +20,8 @@ describe('native pairing links', () => {
   };
 
   beforeEach(() => {
+    // Each case is a fresh app session; a handled launch URL is remembered per session.
+    window.sessionStorage.clear();
     window.history.replaceState(null, '', '/home');
     vi.clearAllMocks();
     warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
