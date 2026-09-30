@@ -86,14 +86,26 @@ const expectMatrixStoresLost = (lost: string[]) => {
   );
 };
 
-// WebKit's networking process ("WebKitNetworkProcess", truncated by `ps`).
-const findWebKitNetworkProcesses = (): number[] => {
+// WebKit networking processes ("WebKitNetworkProcess", truncated by `ps`) that
+// this worker started, so other browsers on the same host are left alone.
+const findOwnWebKitNetworkProcesses = (): number[] => {
   try {
-    return execSync('ps -eo pid,comm', { encoding: 'utf8' })
+    const rows = execSync('ps -eo pid,ppid,comm', { encoding: 'utf8' })
       .split('\n')
-      .filter((line) => /NetworkProce/.test(line))
-      .map((line) => Number(line.trim().split(/\s+/)[0]))
-      .filter((pid) => Number.isInteger(pid) && pid > 0);
+      .slice(1)
+      .map((line) => line.trim().split(/\s+/))
+      .filter((fields) => fields.length >= 3);
+    const parents = new Map(rows.map(([pid, ppid]) => [Number(pid), Number(ppid)]));
+    const descendsFromWorker = (pid: number): boolean => {
+      for (let current = parents.get(pid); current; current = parents.get(current)) {
+        if (current === process.pid) return true;
+      }
+      return false;
+    };
+    return rows
+      .filter(([, , comm]) => /NetworkProce/.test(comm))
+      .map(([pid]) => Number(pid))
+      .filter(descendsFromWorker);
   } catch {
     return [];
   }
@@ -269,6 +281,7 @@ test.describe('thread live updates after IndexedDB connection loss', () => {
     // A persistent profile, like the app's: an ephemeral one also loses the
     // Web Storage (and with it the login) written before the kill.
     const profile = mkdtempSync(join(tmpdir(), 'idb-loss-'));
+    const existing = new Set(findOwnWebKitNetworkProcesses());
     const context = await webkit.launchPersistentContext(profile, {
       baseURL: test.info().project.use.baseURL,
     });
@@ -288,7 +301,8 @@ test.describe('thread live updates after IndexedDB connection loss', () => {
         loads += 1;
       });
 
-      const pids = findWebKitNetworkProcesses();
+      // Only the networking process of the persistent context launched above.
+      const pids = findOwnWebKitNetworkProcesses().filter((pid) => !existing.has(pid));
       test.skip(pids.length === 0, 'No WebKit networking process visible to this runner');
       pids.forEach((pid) => process.kill(pid, 'SIGKILL'));
 

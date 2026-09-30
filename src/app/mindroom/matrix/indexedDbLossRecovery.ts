@@ -37,25 +37,27 @@ export const installIndexedDbLossRecovery = ({
 }: Options = {}): (() => void) => {
   if (!factory) return () => undefined;
   let disposed = false;
-  let lost = false;
   let connection: IDBDatabase | undefined;
   let guardTimer: number | undefined;
 
+  function reloadNow() {
+    if (disposed) return;
+    // Without a stored guard a failing reload could loop; stay on this page.
+    if (!setStorageItemSafe(storage, INDEXED_DB_LOSS_RELOAD_KEY, String(now()))) return;
+    reload();
+  }
+
   function recover() {
-    if (disposed || !lost) return;
+    if (disposed || guardTimer !== undefined) return;
     const at = now();
     const lastReload = Number(getStorageItemSafe(storage, INDEXED_DB_LOSS_RELOAD_KEY));
     // A loss right after a recovery reload waits out the rest of the interval.
+    // The deadline is fixed here: reloads of other tabs must not extend it.
     if (lastReload > 0 && lastReload <= at && at - lastReload < RELOAD_GUARD_MS) {
-      guardTimer ??= window.setTimeout(() => {
-        guardTimer = undefined;
-        recover();
-      }, lastReload + RELOAD_GUARD_MS - at);
+      guardTimer = window.setTimeout(reloadNow, lastReload + RELOAD_GUARD_MS - at);
       return;
     }
-    // Without a stored guard a failing reload could loop; stay on this page.
-    if (!setStorageItemSafe(storage, INDEXED_DB_LOSS_RELOAD_KEY, String(at))) return;
-    reload();
+    reloadNow();
   }
 
   function arm() {
@@ -78,10 +80,7 @@ export const installIndexedDbLossRecovery = ({
       }
       connection = opened;
       // `close` fires only when the browser closes the connection itself.
-      opened.onclose = () => {
-        lost = true;
-        recover();
-      };
+      opened.onclose = recover;
       // Another context deleting the database is not a loss; do not block it,
       // and reopen afterwards (the open waits for the deletion).
       opened.onversionchange = () => {

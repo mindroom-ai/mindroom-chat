@@ -92,6 +92,26 @@ describe('IndexedDB server loss recovery', () => {
     expect(window.localStorage.getItem(INDEXED_DB_LOSS_RELOAD_KEY)).toBe(String(now));
   });
 
+  it("does not let another tab's reload extend the wait", async () => {
+    let now = 100_000;
+    const reload = vi.fn();
+    window.localStorage.setItem(INDEXED_DB_LOSS_RELOAD_KEY, String(now - 10_000));
+    dispose = installIndexedDbLossRecovery({ reload, now: () => now });
+    const db = await sentinel();
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+
+    forceCloseDatabase(db);
+    await closeEvent();
+    // Another tab reloads meanwhile and records its own time.
+    now += 30_000;
+    window.localStorage.setItem(INDEXED_DB_LOSS_RELOAD_KEY, String(now));
+    now += 20_000;
+    await vi.advanceTimersByTimeAsync(50_000);
+
+    // The SDK keeps unprocessed to-device messages for about a minute only.
+    expect(reload).toHaveBeenCalledOnce();
+  });
+
   it('ignores a reload time from the future', async () => {
     const reload = vi.fn();
     window.localStorage.setItem(INDEXED_DB_LOSS_RELOAD_KEY, String(5_000_000));

@@ -28,6 +28,8 @@
   It reloads a hidden page too (on iOS the `close` event arrives on resume anyway), because the reload must come within the minute of SDK retries.
   The time of the last recovery reload is kept in localStorage: WebKit loses sessionStorage with its networking process, while localStorage writes made after the loss survive the reload (measured in the closed #337).
   If the loss recurs on every start, the page reloads at most once a minute and stays usable in between.
+  Each page fixes its deadline when it sees the loss, so other tabs' reloads (the guard is shared through localStorage) cannot push a page's reload past the SDK's minute of retries.
+  Reloading a hidden page can also interrupt background audio or a voice capture, but on iOS the `close` event normally arrives on resume.
   Until then the SDK keeps syncing from memory; the reload restores both stores.
   Composer text drafts survive it; reply targets, staged uploads, a pending voice message and open dialogs (recovery-key entry, verification) do not.
   Capacitor keeps returning the last opened URL from `getLaunchUrl()` after a reload, so `registerNativeAppUrlCallbacks` ignores it when the navigation type is `reload` instead of routing a `/connect` pairing link or SSO callback again; URLs opened later still arrive through `appUrlOpen`.
@@ -35,6 +37,7 @@
   Before the fixes the reply never rendered; the `no reload` case blocks the sentinel, so only the SDK fixes can deliver it (after the minute of retries), and it fails with the `sync.js` fix reverted.
   Playwright WebKit never routes the client's `/sync` requests, so both same-response cases run in Chromium only; WebKit runs the reload case.
   A WebKit-only case kills the real networking process (`SIGKILL`) in a persistent profile, as the closed #337 did: the sentinel reloads the page, the reload guard written after the loss is still in localStorage, and a later reply renders.
+  It kills only networking processes started by its own worker after it launched the profile.
   The retried to-device path is covered by unit tests with a fake crypto backend, not by real encrypted messages.
   A committing transaction cannot be aborted from script, so the unit tests cover the stalled save.
 - Not covered: when the crypto store fails after decrypting, its in-memory state has already moved on, so only the reload recovers it; device-list changes and one-time key counts are still processed after rooms and are lost for a response when the crypto layer fails there.
