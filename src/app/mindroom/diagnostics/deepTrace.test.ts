@@ -218,6 +218,20 @@ describe('opt-in deep diagnostic trace', () => {
     expect(JSON.stringify(snapshot)).not.toContain('private');
   });
 
+  it('records an IndexedDB loss recovery reload with its age', async () => {
+    await setDeepTraceEnabled(true, storage);
+
+    recordDeepTraceEvent('storage.indexeddb_loss_reload', { reload_ms_ago: 1_500 });
+
+    const snapshot = await readDeepTraceSnapshot();
+    expect(snapshot.events).toContainEqual(
+      expect.objectContaining({
+        name: 'storage.indexeddb_loss_reload',
+        data: { reload_ms_ago: 1_500 },
+      })
+    );
+  });
+
   it('captures JavaScriptCore stack locations without retaining stack text', async () => {
     await setDeepTraceEnabled(true, storage);
     const reason = new TypeError('private rejection message');

@@ -169,6 +169,10 @@ describe('IndexedDB server loss recovery', () => {
   });
 
   describe('recovery reload age', () => {
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
     const navigation = (type: NavigationTimingType) =>
       vi
         .spyOn(performance, 'getEntriesByType')

@@ -13,6 +13,12 @@ export const INDEXED_DB_LOSS_SENTINEL_DB_NAME = 'mindroom-indexeddb-sentinel-v1'
 export const INDEXED_DB_LOSS_RELOAD_KEY = 'mindroom.indexedDbLoss.reloadAt.v1';
 const RELOAD_GUARD_MS = 60_000;
 
+/** @returns the time since a stored recovery reload, while it still guards against another. */
+const guardedReloadAge = (lastReload: number, at: number): number | undefined =>
+  lastReload > 0 && lastReload <= at && at - lastReload < RELOAD_GUARD_MS
+    ? at - lastReload
+    : undefined;
+
 /**
  * @returns how long ago this page's recovery reload happened, when the page was
  * loaded by one; used to record the recovery in diagnostics.
@@ -29,9 +35,7 @@ export const readRecoveryReloadAge = (
   } catch {
     return undefined;
   }
-  const lastReload = Number(getStorageItemSafe(storage, INDEXED_DB_LOSS_RELOAD_KEY));
-  if (!(lastReload > 0) || lastReload > at || at - lastReload >= RELOAD_GUARD_MS) return undefined;
-  return at - lastReload;
+  return guardedReloadAge(Number(getStorageItemSafe(storage, INDEXED_DB_LOSS_RELOAD_KEY)), at);
 };
 
 type Options = {
@@ -70,12 +74,14 @@ export const installIndexedDbLossRecovery = ({
 
   function recover() {
     if (disposed || guardTimer !== undefined) return;
-    const at = now();
-    const lastReload = Number(getStorageItemSafe(storage, INDEXED_DB_LOSS_RELOAD_KEY));
+    const age = guardedReloadAge(
+      Number(getStorageItemSafe(storage, INDEXED_DB_LOSS_RELOAD_KEY)),
+      now()
+    );
     // A loss right after a recovery reload waits out the rest of the interval.
     // The deadline is fixed here: reloads of other tabs must not extend it.
-    if (lastReload > 0 && lastReload <= at && at - lastReload < RELOAD_GUARD_MS) {
-      guardTimer = window.setTimeout(reloadNow, lastReload + RELOAD_GUARD_MS - at);
+    if (age !== undefined) {
+      guardTimer = window.setTimeout(reloadNow, RELOAD_GUARD_MS - age);
       return;
     }
     reloadNow();

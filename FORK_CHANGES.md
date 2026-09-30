@@ -4,9 +4,10 @@
 
 ### Record IndexedDB loss recovery reloads (2026-09-30)
 
-- The boot after a recovery reload from #349 records `storage.indexeddb_loss_reload` in the deep trace, with `reload_ms_ago` (time since the reload was triggered), so an iOS export shows whether the recovery fired.
-  `readRecoveryReloadAge` reports only a `reload` navigation within the 60 s guard after the stored reload time, so a fresh start or a later reload does not count.
-- The trace from before the loss is not kept: the deep trace goes memory-only on the loss and the reload discards that tail; the reloaded page records normally.
+- The boot after a recovery reload from #349 records `storage.indexeddb_loss_reload` in the deep trace, with `reload_ms_ago` (time since the reload was triggered), so an iOS export with deep trace enabled shows whether the recovery fired.
+  `readRecoveryReloadAge` reports only a `reload` navigation within the 60 s guard after the stored reload time, sharing the guard's window, so a fresh start or a later reload does not count.
+  Another reload within that minute (for example authentication recovery) is reported too; its larger `reload_ms_ago` tells it apart.
+- The previous page's trace ends at its last successful write: the failed batch and events recorded between the loss and the reload were memory-only and are lost, and `deepTraceHealth.lastFailure` keeps the flush failure.
 - Next: in the next iOS export after a background resume, look for this event next to `lifecycle.pageshow`, then for `performance.event_loop_stall` and `thread.*` phases if a freeze recurs.
 
 ### Survive WebKit IndexedDB server loss (2026-09-29)
