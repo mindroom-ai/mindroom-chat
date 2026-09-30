@@ -1393,7 +1393,7 @@ index 2dd8c1f..540c1ab 100644
       * Process data returned from a sync response and propagate it
       * into the model objects
 diff --git a/node_modules/matrix-js-sdk/lib/sync.js b/node_modules/matrix-js-sdk/lib/sync.js
-index 2741877..4c16ebe 100644
+index 2741877..559b77b 100644
 --- a/node_modules/matrix-js-sdk/lib/sync.js
 +++ b/node_modules/matrix-js-sdk/lib/sync.js
 @@ -30,7 +30,7 @@ limitations under the License.
@@ -1405,15 +1405,17 @@ index 2741877..4c16ebe 100644
  import { Filter } from "./filter.js";
  import { EventTimeline } from "./models/event-timeline.js";
  import { logger } from "./logger.js";
-@@ -55,6 +55,18 @@ var BUFFER_PERIOD_MS = 80 * 1000;
+@@ -55,6 +55,20 @@ var BUFFER_PERIOD_MS = 80 * 1000;
  // to RECONNECTING. This is needed to inform the client of server issues when the
  // keepAlive is successful but the server /sync fails.
  var FAILED_SYNC_ERROR_THRESHOLD = 3;
 +
 +// A response whose to-device messages the crypto layer cannot take is requested
-+// again this many times, after 1, 2 and 4 seconds, before it is applied without
-+// them. Until then it is not acknowledged, so the server keeps them queued.
-+var TO_DEVICE_RETRY_LIMIT = 3;
++// again this many times, after 1, 2, 4, ... 32 seconds (about a minute in total),
++// before it is applied without them. Until then it is not acknowledged, so the
++// server keeps them queued, and an app that restores a lost crypto store (for
++// example by reloading) has that long to do so.
++var TO_DEVICE_RETRY_LIMIT = 6;
 +class ToDeviceProcessingError extends Error {
 +  constructor(cause) {
 +    super("The crypto layer could not process to-device messages");
@@ -1424,7 +1426,7 @@ index 2741877..4c16ebe 100644
  export var SyncState = /*#__PURE__*/function (SyncState) {
    /** Emitted after we try to sync more than `FAILED_SYNC_ERROR_THRESHOLD`
     * times and are still failing. Or when we enounter a hard error like the
-@@ -132,11 +144,14 @@ export class SyncApi {
+@@ -132,11 +146,14 @@ export class SyncApi {
      // additional data (eg. error object for failed sync)
      _defineProperty(this, "catchingUp", false);
      _defineProperty(this, "running", false);
@@ -1439,7 +1441,7 @@ index 2741877..4c16ebe 100644
      // Number of consecutive failed /sync requests
      _defineProperty(this, "storeIsInvalid", false);
      // flag set if the store needs to be cleared before we can start
-@@ -576,12 +591,24 @@ export class SyncApi {
+@@ -576,12 +593,24 @@ export class SyncApi {
      return false;
    }
    /**
@@ -1465,7 +1467,7 @@ index 2741877..4c16ebe 100644
        _this5.running = true;
        _this5.abortController = new AbortController();
        (_globalThis$window = globalThis.window) === null || _globalThis$window === void 0 || (_globalThis$window$ad = _globalThis$window.addEventListener) === null || _globalThis$window$ad === void 0 || _globalThis$window$ad.call(_globalThis$window, "online", _this5.onOnline, false);
-@@ -598,14 +625,7 @@ export class SyncApi {
+@@ -598,14 +627,7 @@ export class SyncApi {
          _this5.syncOpts.logger.debug("Got saved sync token");
          return tok;
        });
@@ -1481,7 +1483,7 @@ index 2741877..4c16ebe 100644
  
        // We need to do one-off checks before we can begin the /sync loop.
        // These are:
-@@ -669,6 +689,7 @@ export class SyncApi {
+@@ -669,6 +691,7 @@ export class SyncApi {
    stop() {
      var _globalThis$window2, _globalThis$window2$r, _this$abortController2;
      this.syncOpts.logger.debug("SyncApi.stop");
@@ -1489,7 +1491,7 @@ index 2741877..4c16ebe 100644
      // It is necessary to check for the existance of
      // globalThis.window AND globalThis.window.removeEventListener.
      // Some platforms (e.g. React Native) register globalThis.window,
-@@ -730,7 +751,7 @@ export class SyncApi {
+@@ -730,7 +753,7 @@ export class SyncApi {
        // Don't emit a prepared if we've bailed because the store is invalid:
        // in this case the client will not be usable until stopped & restarted
        // so this would be useless and misleading.
@@ -1498,7 +1500,7 @@ index 2741877..4c16ebe 100644
          _this6.updateSyncState(SyncState.Prepared, syncEventData);
        }
      })();
-@@ -773,6 +794,15 @@ export class SyncApi {
+@@ -773,6 +796,15 @@ export class SyncApi {
          try {
            yield _this7.processSyncResponse(syncEventData, data);
          } catch (e) {
@@ -1514,7 +1516,7 @@ index 2741877..4c16ebe 100644
            // log the exception with stack if we have it, else fall back
            // to the plain description
            _this7.syncOpts.logger.error("Caught /sync error", e);
-@@ -928,6 +958,29 @@ export class SyncApi {
+@@ -928,6 +960,29 @@ export class SyncApi {
      })();
    }
  
@@ -1544,7 +1546,7 @@ index 2741877..4c16ebe 100644
    /**
     * Process data returned from a sync response and propagate it
     * into the model objects
-@@ -941,6 +994,11 @@ export class SyncApi {
+@@ -941,6 +996,11 @@ export class SyncApi {
        var _data$presence, _data$account_data, _data$users, _this9$syncOpts$crypt, _data$device_unused_f;
        var client = _this9.client;
  
@@ -1556,7 +1558,7 @@ index 2741877..4c16ebe 100644
        // data looks like:
        // {
        //    next_batch: $token,
-@@ -1061,19 +1119,7 @@ export class SyncApi {
+@@ -1061,19 +1121,7 @@ export class SyncApi {
        }
  
        // handle to-device events
@@ -1577,14 +1579,14 @@ index 2741877..4c16ebe 100644
          processToDeviceMessages(receivedToDeviceMessages, client);
        } else {
          // no more to-device events: we can stop polling with a short timeout.
-@@ -1812,4 +1858,3 @@ export function processToDeviceMessages(toDeviceMessages, client) {
+@@ -1812,4 +1860,3 @@ export function processToDeviceMessages(toDeviceMessages, client) {
      client.emit(ClientEvent.ReceivedToDeviceMessage, processedEvent);
    });
  }
 -//# sourceMappingURL=sync.js.map
 \ No newline at end of file
 diff --git a/node_modules/matrix-js-sdk/src/sync.ts b/node_modules/matrix-js-sdk/src/sync.ts
-index e731161..34cad6f 100644
+index e731161..f463d1a 100644
 --- a/node_modules/matrix-js-sdk/src/sync.ts
 +++ b/node_modules/matrix-js-sdk/src/sync.ts
 @@ -26,7 +26,7 @@ limitations under the License.
@@ -1596,14 +1598,16 @@ index e731161..34cad6f 100644
  import { Filter } from "./filter.ts";
  import { EventTimeline } from "./models/event-timeline.ts";
  import { logger, type Logger } from "./logger.ts";
-@@ -77,6 +77,18 @@ const BUFFER_PERIOD_MS = 80 * 1000;
+@@ -77,6 +77,20 @@ const BUFFER_PERIOD_MS = 80 * 1000;
  // keepAlive is successful but the server /sync fails.
  const FAILED_SYNC_ERROR_THRESHOLD = 3;
  
 +// A response whose to-device messages the crypto layer cannot take is requested
-+// again this many times, after 1, 2 and 4 seconds, before it is applied without
-+// them. Until then it is not acknowledged, so the server keeps them queued.
-+const TO_DEVICE_RETRY_LIMIT = 3;
++// again this many times, after 1, 2, 4, ... 32 seconds (about a minute in total),
++// before it is applied without them. Until then it is not acknowledged, so the
++// server keeps them queued, and an app that restores a lost crypto store (for
++// example by reloading) has that long to do so.
++const TO_DEVICE_RETRY_LIMIT = 6;
 +
 +class ToDeviceProcessingError extends Error {
 +    public constructor(public readonly cause: unknown) {
@@ -1615,7 +1619,7 @@ index e731161..34cad6f 100644
  export enum SyncState {
      /** Emitted after we try to sync more than `FAILED_SYNC_ERROR_THRESHOLD`
       * times and are still failing. Or when we enounter a hard error like the
-@@ -213,10 +225,12 @@ export class SyncApi {
+@@ -213,10 +227,12 @@ export class SyncApi {
      private syncStateData?: ISyncStateData; // additional data (eg. error object for failed sync)
      private catchingUp = false;
      private running = false;
@@ -1628,7 +1632,7 @@ index e731161..34cad6f 100644
      private storeIsInvalid = false; // flag set if the store needs to be cleared before we can start
      private presence?: SetPresence;
  
-@@ -696,10 +710,27 @@ export class SyncApi {
+@@ -696,10 +712,27 @@ export class SyncApi {
  
      private savedSyncPromise?: Promise<void>;
  
@@ -1656,7 +1660,7 @@ index e731161..34cad6f 100644
          this.running = true;
          this.abortController = new AbortController();
  
-@@ -719,17 +750,7 @@ export class SyncApi {
+@@ -719,17 +752,7 @@ export class SyncApi {
              return tok;
          });
  
@@ -1675,7 +1679,7 @@ index e731161..34cad6f 100644
  
          // We need to do one-off checks before we can begin the /sync loop.
          // These are:
-@@ -788,6 +809,7 @@ export class SyncApi {
+@@ -788,6 +811,7 @@ export class SyncApi {
       */
      public stop(): void {
          this.syncOpts.logger.debug("SyncApi.stop");
@@ -1683,7 +1687,7 @@ index e731161..34cad6f 100644
          // It is necessary to check for the existance of
          // globalThis.window AND globalThis.window.removeEventListener.
          // Some platforms (e.g. React Native) register globalThis.window,
-@@ -850,7 +872,7 @@ export class SyncApi {
+@@ -850,7 +874,7 @@ export class SyncApi {
          // Don't emit a prepared if we've bailed because the store is invalid:
          // in this case the client will not be usable until stopped & restarted
          // so this would be useless and misleading.
@@ -1692,7 +1696,7 @@ index e731161..34cad6f 100644
              this.updateSyncState(SyncState.Prepared, syncEventData);
          }
      }
-@@ -893,6 +915,18 @@ export class SyncApi {
+@@ -893,6 +917,18 @@ export class SyncApi {
              try {
                  await this.processSyncResponse(syncEventData, data);
              } catch (e) {
@@ -1711,7 +1715,7 @@ index e731161..34cad6f 100644
                  // log the exception with stack if we have it, else fall back
                  // to the plain description
                  this.syncOpts.logger.error("Caught /sync error", e);
-@@ -1062,6 +1096,26 @@ export class SyncApi {
+@@ -1062,6 +1098,26 @@ export class SyncApi {
          return false;
      }
  
@@ -1738,7 +1742,7 @@ index e731161..34cad6f 100644
      /**
       * Process data returned from a sync response and propagate it
       * into the model objects
-@@ -1072,6 +1126,14 @@ export class SyncApi {
+@@ -1072,6 +1128,14 @@ export class SyncApi {
      private async processSyncResponse(syncEventData: ISyncStateData, data: ISyncResponse): Promise<void> {
          const client = this.client;
  
@@ -1753,7 +1757,7 @@ index e731161..34cad6f 100644
          // data looks like:
          // {
          //    next_batch: $token,
-@@ -1187,23 +1249,7 @@ export class SyncApi {
+@@ -1187,23 +1251,7 @@ export class SyncApi {
          }
  
          // handle to-device events
@@ -1813,20 +1817,20 @@ index d8a2081..f16cacd 100644
          logger.info("Clearing pending-key-bundle flag for room ".concat(roomId, " (too old: joined ").concat(new Date(pendingDetails.inviteAcceptedAtMillis).toISOString(), ")"));
          yield olmMachine.clearRoomPendingKeyBundle(new RustSdkCryptoJs.RoomId(roomId));
 diff --git a/node_modules/matrix-js-sdk/lib/store/indexeddb-backend.d.ts b/node_modules/matrix-js-sdk/lib/store/indexeddb-backend.d.ts
-index d08eb66..5168f07 100644
+index d08eb66..a1f0c08 100644
 --- a/node_modules/matrix-js-sdk/lib/store/indexeddb-backend.d.ts
 +++ b/node_modules/matrix-js-sdk/lib/store/indexeddb-backend.d.ts
 @@ -10,6 +10,8 @@ export interface IIndexedDBBackend {
      getSavedSync(): Promise<ISavedSync | null>;
      getNextBatchToken(): Promise<string>;
      clearDatabase(): Promise<void>;
-+    /** Whether the browser closed the connection (for example after losing its IndexedDB server). */
++    /** Whether the connection is closed or closing, for example because the browser lost its IndexedDB server. */
 +    isConnectionLost?(): boolean;
      getOutOfBandMembers(roomId: string): Promise<IStateEventWithRoomId[] | null>;
      setOutOfBandMembers(roomId: string, membershipEvents: IStateEventWithRoomId[]): Promise<void>;
      clearOutOfBandMembers(roomId: string): Promise<void>;
 diff --git a/node_modules/matrix-js-sdk/lib/store/indexeddb-local-backend.d.ts b/node_modules/matrix-js-sdk/lib/store/indexeddb-local-backend.d.ts
-index 7b41057..5d53271 100644
+index 7b41057..2a51149 100644
 --- a/node_modules/matrix-js-sdk/lib/store/indexeddb-local-backend.d.ts
 +++ b/node_modules/matrix-js-sdk/lib/store/indexeddb-local-backend.d.ts
 @@ -10,6 +10,7 @@ export declare class LocalIndexedDBStoreBackend implements IIndexedDBBackend {
@@ -1837,21 +1841,21 @@ index 7b41057..5d53271 100644
      private _isNewlyCreated;
      private syncToDatabasePromise?;
      private pendingUserPresenceData;
-@@ -31,6 +32,12 @@ export declare class LocalIndexedDBStoreBackend implements IIndexedDBBackend {
+@@ -30,6 +31,12 @@ export declare class LocalIndexedDBStoreBackend implements IIndexedDBBackend {
+      * @returns Promise which resolves if successfully connected.
       */
      connect(onClose?: () => void): Promise<void>;
-     /** @returns whether or not the database was newly created in this session. */
 +    /**
-+     * @returns whether the browser closed the connection. WebKit marks every
-+     * connection as closing as soon as its IndexedDB server is lost, before it
-+     * reports the aborted requests and fires `close`.
++     * @returns whether the connection is closed or closing, for example because
++     * the browser lost its IndexedDB server. WebKit marks every connection as
++     * closing before it reports the aborted requests and fires `close`.
 +     */
 +    isConnectionLost(): boolean;
+     /** @returns whether or not the database was newly created in this session. */
      isNewlyCreated(): Promise<boolean>;
      /**
-      * Having connected, load initial data from the database and prepare for use
 diff --git a/node_modules/matrix-js-sdk/lib/store/indexeddb-local-backend.js b/node_modules/matrix-js-sdk/lib/store/indexeddb-local-backend.js
-index 6ce0bac..51c0bc9 100644
+index 6ce0bac..79774f1 100644
 --- a/node_modules/matrix-js-sdk/lib/store/indexeddb-local-backend.js
 +++ b/node_modules/matrix-js-sdk/lib/store/indexeddb-local-backend.js
 @@ -99,6 +99,12 @@ function txnAsPromise(txn) {
@@ -1867,7 +1871,15 @@ index 6ce0bac..51c0bc9 100644
    });
  }
  function reqAsEventPromise(req) {
-@@ -193,6 +199,7 @@ export class LocalIndexedDBStoreBackend {
+@@ -142,6 +148,7 @@ export class LocalIndexedDBStoreBackend {
+     _defineProperty(this, "syncAccumulator", void 0);
+     _defineProperty(this, "db", void 0);
+     _defineProperty(this, "disconnected", true);
++    _defineProperty(this, "closedByBrowser", false);
+     _defineProperty(this, "_isNewlyCreated", false);
+     _defineProperty(this, "syncToDatabasePromise", void 0);
+     _defineProperty(this, "pendingUserPresenceData", []);
+@@ -193,6 +200,7 @@ export class LocalIndexedDBStoreBackend {
        };
        _this.db.onclose = () => {
          _this.disconnected = true;
@@ -1875,14 +1887,14 @@ index 6ce0bac..51c0bc9 100644
          _this.db = undefined;
          onClose === null || onClose === void 0 || onClose();
        };
-@@ -200,6 +207,22 @@ export class LocalIndexedDBStoreBackend {
+@@ -200,6 +208,22 @@ export class LocalIndexedDBStoreBackend {
      }));
    }
  
 +  /**
-+   * @returns whether the browser closed the connection. WebKit marks every
-+   * connection as closing as soon as its IndexedDB server is lost, before it
-+   * reports the aborted requests and fires `close`.
++   * @returns whether the connection is closed or closing, for example because
++   * the browser lost its IndexedDB server. WebKit marks every connection as
++   * closing before it reports the aborted requests and fires `close`.
 +   */
 +  isConnectionLost() {
 +    var _this$db3;
@@ -1899,7 +1911,7 @@ index 6ce0bac..51c0bc9 100644
    isNewlyCreated() {
      return Promise.resolve(this._isNewlyCreated);
 diff --git a/node_modules/matrix-js-sdk/lib/store/indexeddb.js b/node_modules/matrix-js-sdk/lib/store/indexeddb.js
-index 8320c66..6b1b47c 100644
+index 8320c66..7228597 100644
 --- a/node_modules/matrix-js-sdk/lib/store/indexeddb.js
 +++ b/node_modules/matrix-js-sdk/lib/store/indexeddb.js
 @@ -272,6 +272,14 @@ export class IndexedDBStore extends MemoryStore {
@@ -1910,7 +1922,7 @@ index 8320c66..6b1b47c 100644
 +        if (((_this$backend$isConne = (_this$backend = _this.backend).isConnectionLost) === null || _this$backend$isConne === void 0 ? void 0 : _this$backend$isConne.call(_this$backend)) === true) {
 +          // Only the connection failed; the data is intact. Deleting it would
 +          // force a full initial sync on the next start.
-+          logger.warn("IndexedDBStore operation failed after the browser closed its connection", e);
++          logger.warn("IndexedDBStore operation failed on a closed connection; keeping its data", e);
 +          if (fallbackFn) return fallbackFn.call(_this, ...args);
 +          return;
 +        }
@@ -1918,20 +1930,20 @@ index 8320c66..6b1b47c 100644
          _this.emitter.emit("degraded", e);
          try {
 diff --git a/node_modules/matrix-js-sdk/src/store/indexeddb-backend.ts b/node_modules/matrix-js-sdk/src/store/indexeddb-backend.ts
-index 4cd5e8c..bd61982 100644
+index 4cd5e8c..1b058f8 100644
 --- a/node_modules/matrix-js-sdk/src/store/indexeddb-backend.ts
 +++ b/node_modules/matrix-js-sdk/src/store/indexeddb-backend.ts
 @@ -27,6 +27,8 @@ export interface IIndexedDBBackend {
      getSavedSync(): Promise<ISavedSync | null>;
      getNextBatchToken(): Promise<string>;
      clearDatabase(): Promise<void>;
-+    /** Whether the browser closed the connection (for example after losing its IndexedDB server). */
++    /** Whether the connection is closed or closing, for example because the browser lost its IndexedDB server. */
 +    isConnectionLost?(): boolean;
      getOutOfBandMembers(roomId: string): Promise<IStateEventWithRoomId[] | null>;
      setOutOfBandMembers(roomId: string, membershipEvents: IStateEventWithRoomId[]): Promise<void>;
      clearOutOfBandMembers(roomId: string): Promise<void>;
 diff --git a/node_modules/matrix-js-sdk/src/store/indexeddb-local-backend.ts b/node_modules/matrix-js-sdk/src/store/indexeddb-local-backend.ts
-index 5f58e7c..2e7a8b9 100644
+index 5f58e7c..7d7e9ba 100644
 --- a/node_modules/matrix-js-sdk/src/store/indexeddb-local-backend.ts
 +++ b/node_modules/matrix-js-sdk/src/store/indexeddb-local-backend.ts
 @@ -98,6 +98,11 @@ function txnAsPromise(txn: IDBTransaction): Promise<Event> {
@@ -1967,9 +1979,9 @@ index 5f58e7c..2e7a8b9 100644
      }
  
 +    /**
-+     * @returns whether the browser closed the connection. WebKit marks every
-+     * connection as closing as soon as its IndexedDB server is lost, before it
-+     * reports the aborted requests and fires `close`.
++     * @returns whether the connection is closed or closing, for example because
++     * the browser lost its IndexedDB server. WebKit marks every connection as
++     * closing before it reports the aborted requests and fires `close`.
 +     */
 +    public isConnectionLost(): boolean {
 +        if (this.closedByBrowser) return true;
@@ -1985,7 +1997,7 @@ index 5f58e7c..2e7a8b9 100644
      public isNewlyCreated(): Promise<boolean> {
          return Promise.resolve(this._isNewlyCreated);
 diff --git a/node_modules/matrix-js-sdk/src/store/indexeddb.ts b/node_modules/matrix-js-sdk/src/store/indexeddb.ts
-index 25be506..5585571 100644
+index 25be506..be62de5 100644
 --- a/node_modules/matrix-js-sdk/src/store/indexeddb.ts
 +++ b/node_modules/matrix-js-sdk/src/store/indexeddb.ts
 @@ -321,6 +321,13 @@ export class IndexedDBStore extends MemoryStore {
@@ -1995,7 +2007,7 @@ index 25be506..5585571 100644
 +                if (this.backend.isConnectionLost?.() === true) {
 +                    // Only the connection failed; the data is intact. Deleting it would
 +                    // force a full initial sync on the next start.
-+                    logger.warn("IndexedDBStore operation failed after the browser closed its connection", e);
++                    logger.warn("IndexedDBStore operation failed on a closed connection; keeping its data", e);
 +                    if (fallbackFn) return fallbackFn.call(this, ...args);
 +                    return;
 +                }

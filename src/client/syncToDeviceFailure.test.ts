@@ -175,6 +175,15 @@ describe('Matrix sync when the crypto store cannot take to-device messages', () 
     expect(attempts(sync)).toBe(expected);
   };
 
+  // The six retries wait 1, 2, 4, 8, 16 and 32 s; this runs up to the last wait.
+  const retryUntilLastWait = async (sync: Awaited<ReturnType<typeof startClient>>) => {
+    await settle(() => attempts(sync) === 1);
+    for (const [index, delayMs] of [1_000, 2_000, 4_000, 8_000, 16_000].entries()) {
+      // eslint-disable-next-line no-await-in-loop -- each retry waits for the previous one.
+      await retryAfter(sync, delayMs, index + 2);
+    }
+  };
+
   it('retries a response whose to-device messages failed, without losing its room events', async () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
     const sync = await startClient({ failures: 1 });
@@ -236,19 +245,17 @@ describe('Matrix sync when the crypto store cannot take to-device messages', () 
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
     const sync = await startClient({ failures: Number.POSITIVE_INFINITY });
 
-    await settle(() => attempts(sync) === 1);
-    await retryAfter(sync, 1_000, 2);
-    await retryAfter(sync, 2_000, 3);
-    await retryAfter(sync, 4_000, 4);
+    await retryUntilLastWait(sync);
+    // Nothing is acknowledged within the minute an app has to restore the crypto store.
+    expect(sync.sinceTokens).not.toContain('after-reply');
+    await vi.advanceTimersByTimeAsync(32_000);
     await settle(() => sync.eventIds().includes('$reply'));
 
-    // Three retries, then the response is applied without its to-device messages.
-    expect(sync.sinceTokens.slice(0, 6)).toEqual([
+    // Six retries, then the response is applied without its to-device messages.
+    expect(attempts(sync)).toBe(7);
+    expect(sync.sinceTokens.slice(0, 9)).toEqual([
       null,
-      'initial',
-      'initial',
-      'initial',
-      'initial',
+      ...Array(7).fill('initial'),
       'after-reply',
     ]);
     expect(sync.toDeviceEvents).toEqual([]);
@@ -257,8 +264,8 @@ describe('Matrix sync when the crypto store cannot take to-device messages', () 
   it('skips the retries while the crypto store stays broken, until it works again', async () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
     const sync = await startClient({
-      // Broken for the first response's four attempts and the next response; working after.
-      failures: (call) => call <= 5,
+      // Broken for the first response's seven attempts and the next response; working after.
+      failures: (call) => call <= 8,
       responses: {
         ...replyAfterInitial,
         'after-reply': {
@@ -274,20 +281,14 @@ describe('Matrix sync when the crypto store cannot take to-device messages', () 
       },
     });
 
-    await settle(() => attempts(sync) === 1);
-    await retryAfter(sync, 1_000, 2);
-    await retryAfter(sync, 2_000, 3);
-    // The fourth attempt falls back; later attempts run without waiting.
-    await vi.advanceTimersByTimeAsync(4_000);
+    await retryUntilLastWait(sync);
+    await vi.advanceTimersByTimeAsync(32_000);
     // The second response fails too and is applied at once, without waiting.
     await settle(() => sync.eventIds().includes('$third'));
 
-    expect(sync.sinceTokens.slice(0, 8)).toEqual([
+    expect(sync.sinceTokens.slice(0, 11)).toEqual([
       null,
-      'initial',
-      'initial',
-      'initial',
-      'initial',
+      ...Array(7).fill('initial'),
       'after-reply',
       'second',
       'third',
@@ -299,7 +300,7 @@ describe('Matrix sync when the crypto store cannot take to-device messages', () 
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
     const sync = await startClient({
       // Broken for the first response, working for the second, broken once for the third.
-      failures: (call) => call <= 4 || call === 6,
+      failures: (call) => call <= 7 || call === 9,
       responses: {
         ...replyAfterInitial,
         'after-reply': {
@@ -315,15 +316,12 @@ describe('Matrix sync when the crypto store cannot take to-device messages', () 
       },
     });
 
-    await settle(() => attempts(sync) === 1);
-    await retryAfter(sync, 1_000, 2);
-    await retryAfter(sync, 2_000, 3);
-    // The fourth attempt falls back; later attempts run without waiting.
-    await vi.advanceTimersByTimeAsync(4_000);
-    await settle(() => attempts(sync) === 6);
+    await retryUntilLastWait(sync);
+    await vi.advanceTimersByTimeAsync(32_000);
+    await settle(() => attempts(sync) === 9);
     // The success reset the streak, so the third response is retried again.
     expect(sync.eventIds()).not.toContain('$third');
-    await retryAfter(sync, 1_000, 7);
+    await retryAfter(sync, 1_000, 10);
     await settle(() => sync.eventIds().includes('$third'));
 
     expect(sync.toDeviceEvents).toEqual([{ ping: 2 }, { ping: 3 }]);
