@@ -13,6 +13,27 @@ export const INDEXED_DB_LOSS_SENTINEL_DB_NAME = 'mindroom-indexeddb-sentinel-v1'
 export const INDEXED_DB_LOSS_RELOAD_KEY = 'mindroom.indexedDbLoss.reloadAt.v1';
 const RELOAD_GUARD_MS = 60_000;
 
+/**
+ * @returns how long ago this page's recovery reload happened, when the page was
+ * loaded by one; used to record the recovery in diagnostics.
+ */
+export const readRecoveryReloadAge = (
+  storage: Storage | undefined = getSafeLocalStorage(),
+  at = Date.now()
+): number | undefined => {
+  try {
+    const [navigation] = performance.getEntriesByType(
+      'navigation'
+    ) as PerformanceNavigationTiming[];
+    if (navigation?.type !== 'reload') return undefined;
+  } catch {
+    return undefined;
+  }
+  const lastReload = Number(getStorageItemSafe(storage, INDEXED_DB_LOSS_RELOAD_KEY));
+  if (!(lastReload > 0) || lastReload > at || at - lastReload >= RELOAD_GUARD_MS) return undefined;
+  return at - lastReload;
+};
+
 type Options = {
   factory?: IDBFactory;
   reload?: () => void;

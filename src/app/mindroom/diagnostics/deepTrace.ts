@@ -242,6 +242,7 @@ const STATIC_EVENT_NAMES = new Set([
   'network.online',
   'performance.event_loop_stall',
   'performance.scheduler_wakeup_replaced',
+  'storage.indexeddb_loss_reload',
   'trace.build.known',
   'trace.build.unknown',
   'trace.session.start',

@@ -7,6 +7,8 @@ const mocks = vi.hoisted(() => ({
   installFlightRecorder: vi.fn(),
   initializeDeepTraceRecorder: vi.fn(),
   installIndexedDbLossRecovery: vi.fn(),
+  readRecoveryReloadAge: vi.fn(),
+  recordDeepTraceEvent: vi.fn(),
   isServiceWorkerEnabled: vi.fn(),
   render: vi.fn(),
   createRoot: vi.fn(),
@@ -32,10 +34,12 @@ vi.mock('./app/mindroom/diagnostics/flightRecorder', () => ({
 
 vi.mock('./app/mindroom/diagnostics/deepTrace', () => ({
   initializeDeepTraceRecorder: mocks.initializeDeepTraceRecorder,
+  recordDeepTraceEvent: mocks.recordDeepTraceEvent,
 }));
 
 vi.mock('./app/mindroom/matrix/indexedDbLossRecovery', () => ({
   installIndexedDbLossRecovery: mocks.installIndexedDbLossRecovery,
+  readRecoveryReloadAge: mocks.readRecoveryReloadAge,
 }));
 
 vi.mock('./app/theme/themeBootstrap', () => ({
@@ -155,6 +159,23 @@ describe('application bootstrap', () => {
       expect(mocks.createRoot).toHaveBeenCalledOnce();
     }
   );
+
+  it.each([
+    [1_500, 1],
+    [undefined, 0],
+  ])('records a recovery reload %s ms ago', async (reloadAge, records) => {
+    mocks.readRecoveryReloadAge.mockReturnValueOnce(reloadAge);
+
+    await import('./index');
+
+    expect(mocks.recordDeepTraceEvent).toHaveBeenCalledTimes(records);
+    if (records) {
+      expect(mocks.recordDeepTraceEvent).toHaveBeenCalledWith('storage.indexeddb_loss_reload', {
+        reload_ms_ago: reloadAge,
+      });
+    }
+    expect(mocks.installIndexedDbLossRecovery).toHaveBeenCalledOnce();
+  });
 
   it('continues boot when IndexedDB loss recovery setup throws', async () => {
     mocks.installIndexedDbLossRecovery.mockImplementationOnce(() => {
