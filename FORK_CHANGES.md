@@ -11,6 +11,9 @@
   The header is unchanged in rooms without pending invites.
 - New `featureUi.room.membersDrawer.invitedCount` plural strings are machine-authored for the 16 non-English catalogs.
 - Unit tests cover the count and the click, the kept filter when a join request arrives, and the unchanged header without invites; the first two fail before the change.
+- Validation: the drawer and i18n tests pass, as do typecheck, lint and build, and two independent reviews approved the change.
+  The header has not yet been checked in a running client.
+- Next: after deploy, open the members drawer in a room with a pending invite and confirm the count and the switch to Invited.
 
 ### Let "Sign in again" always reach sign-in (2026-09-30)
 
