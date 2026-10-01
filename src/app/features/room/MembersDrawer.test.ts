@@ -118,6 +118,7 @@ vi.mock('../../hooks/useElementSizeObserver', () => ({
 vi.mock('./MembersDrawer.css', () => ({
   DrawerVirtualItem: 'DrawerVirtualItem',
   MemberDrawerContentBase: 'MemberDrawerContentBase',
+  MembersHeaderControl: 'MembersHeaderControl',
   MembersDrawer: 'MembersDrawer',
   MembersGroupLabel: 'MembersGroupLabel',
 }));

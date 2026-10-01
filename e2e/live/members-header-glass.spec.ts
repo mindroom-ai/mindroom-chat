@@ -118,7 +118,12 @@ for (const themeId of ['dark-theme', 'silver-theme']) {
       await drawer.screenshot({ path: testInfo.outputPath('members-scrolled.png') });
       await expectFloatingNavHeader(header);
       const bounds = (await header.boundingBox())!;
+      const idleHeader = await page.screenshot({ clip: bounds });
       await page.mouse.move(bounds.x + 10, bounds.y + 10);
+      expect(
+        (await page.screenshot({ clip: bounds })).equals(idleHeader),
+        'Header does not glow on hover'
+      ).toBe(true);
       await expectFloatingNavHeader(header);
       expect(
         await header.evaluate((element) => getComputedStyle(element, '::before').display)
@@ -140,6 +145,42 @@ for (const themeId of ['dark-theme', 'silver-theme']) {
           return element.contains(document.elementFromPoint(box.x + 10, box.y + 10));
         })
       ).toBe(true);
+      const invited = header.getByRole('button', { name: '1 Invited', exact: true });
+      const invitedBounds = (await invited.boundingBox())!;
+      await page.mouse.move(invitedBounds.x + 4, invitedBounds.y + 4);
+      await drawer.screenshot({ path: testInfo.outputPath('members-invited-hover.png') });
+      await page.mouse.move(500, 600);
+      const controls = header.locator('button');
+      const expectClearControl = async (index: number) => {
+        const material = await controls.nth(index).evaluate((element) => {
+          const css = getComputedStyle(element);
+          return {
+            background: css.backgroundColor,
+            image: css.backgroundImage,
+            shadow: css.boxShadow,
+          };
+        });
+        expect(material).toEqual({ background: 'rgba(0, 0, 0, 0)', image: 'none', shadow: 'none' });
+      };
+      for (let index = 0; index < (await controls.count()); index += 1) {
+        // Check resting, hover, and press without triggering the button's action.
+        // eslint-disable-next-line no-await-in-loop
+        await expectClearControl(index);
+        // eslint-disable-next-line no-await-in-loop
+        const controlBounds = (await controls.nth(index).boundingBox())!;
+        // eslint-disable-next-line no-await-in-loop
+        await page.mouse.move(controlBounds.x + 4, controlBounds.y + 4);
+        // eslint-disable-next-line no-await-in-loop
+        await expectClearControl(index);
+        // eslint-disable-next-line no-await-in-loop
+        await page.mouse.down();
+        // eslint-disable-next-line no-await-in-loop
+        await expectClearControl(index);
+        // eslint-disable-next-line no-await-in-loop
+        await page.mouse.move(500, 600);
+        // eslint-disable-next-line no-await-in-loop
+        await page.mouse.up();
+      }
       const toTop = drawer.getByRole('button', { name: 'Scroll to Top', exact: true });
       await expect(toTop).toBeVisible();
       expect((await toTop.boundingBox())!.y).toBeGreaterThanOrEqual(bounds.y + bounds.height);
@@ -155,6 +196,15 @@ for (const themeId of ['dark-theme', 'silver-theme']) {
         drawer.getByRole('button', { name: 'Studio member 29', exact: true })
       ).toBeVisible();
       await expectFloatingNavHeader(header);
+      // Flat hover must preserve visible keyboard focus.
+      await invited.focus();
+      await page.keyboard.press('Tab');
+      const invitePeople = header.getByRole('button', { name: 'Invite people', exact: true });
+      await expect(invitePeople).toBeFocused();
+      expect(
+        await invitePeople.evaluate((element) => parseFloat(getComputedStyle(element).outlineWidth))
+      ).toBeGreaterThan(0);
+      await invitePeople.evaluate((element) => (element as HTMLElement).blur());
       await header.getByRole('button', { name: 'Close', exact: true }).click();
       await expect(header).toHaveCount(0);
     } finally {

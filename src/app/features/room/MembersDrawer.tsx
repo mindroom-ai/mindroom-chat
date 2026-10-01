@@ -111,7 +111,13 @@ function MemberDrawerHeader({ room, canInvite, onShowInvited }: MemberDrawerHead
               <Text size="H5" priority="300" aria-hidden="true">
                 ·
               </Text>
-              <Chip variant="Background" size="400" radii="300" onClick={onShowInvited}>
+              <Chip
+                className={css.MembersHeaderControl}
+                variant="Background"
+                size="400"
+                radii="300"
+                onClick={onShowInvited}
+              >
                 <Text size="T200">
                   {t('featureUi.room.membersDrawer.invitedCount', { count: invitedCount })}
                 </Text>
@@ -133,6 +139,7 @@ function MemberDrawerHeader({ room, canInvite, onShowInvited }: MemberDrawerHead
             {(triggerRef) => (
               <IconButton
                 ref={triggerRef}
+                className={css.MembersHeaderControl}
                 aria-label={t('featureUi.room.membersDrawer.invitePeople')}
                 aria-pressed={invitePrompt}
                 disabled={!canInvite}
@@ -156,6 +163,7 @@ function MemberDrawerHeader({ room, canInvite, onShowInvited }: MemberDrawerHead
             {(triggerRef) => (
               <IconButton
                 ref={triggerRef}
+                className={css.MembersHeaderControl}
                 variant="Background"
                 onClick={() => setPeopleDrawer(false)}
                 aria-label={t('featureUi.room.membersDrawer.close')}

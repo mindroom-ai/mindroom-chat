@@ -10,6 +10,14 @@ export const MemberDrawerContentBase = style({
   overflow: 'hidden',
 });
 
+export const MembersHeaderControl = style({
+  selectors: {
+    // Keep the header backdrop visible through Folds' hover/pressed fills.
+    // Keyboard focus still uses the native outline.
+    '&&&': { backgroundColor: 'transparent' },
+  },
+});
+
 export const MembersGroupLabel = style({
   padding: config.space.S200,
   selectors: {

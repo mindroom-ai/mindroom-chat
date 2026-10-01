@@ -5,6 +5,8 @@
 ### Flatten the Members drawer header (2026-10-01)
 
 - The Members title strip now uses the same flat, translucent `PageNavHeader` and `PageNavContent` as the navigation sidebars, without a border, specular rim, shadow, or pointer-driven optics.
+- The invited-count chip and header icons also keep their backgrounds transparent at rest, on hover, and while pressed; native keyboard focus outlines remain visible.
+  The browser regression checks these states and verifies that hovering the header does not change its rendered pixels.
 - Members scroll behind the sticky header, while the shared inset scrollbar and scroll-to-top button stay below it.
   The virtualizer measures the list origin after the header and filters, including content-size changes, and subtracts that offset when positioning rows.
 - The shared drawer covers both rooms and spaces, including invited members and join requests.
