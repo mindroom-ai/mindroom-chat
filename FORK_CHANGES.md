@@ -2,6 +2,15 @@
 
 ## Runbook
 
+### Preserve the selected space when opening threads (2026-10-01)
+
+- Reproduced in the hosted Chrome tab: opening a thread from a space's sidebar navigated to `/home/...` and replaced the space's room list.
+  Simple mode's early return in `useRoomNavigate` ignored the selected space.
+- Room navigation now preserves the selected space when it contains the destination room, including descendants of nested spaces, before applying the Home/Direct fallback.
+  This shared path covers sidebar threads, Recently Opened, room overview threads, and focused events.
+- Validation on current `dev`: all 5,684 unit tests, application and changed-test typechecks, production build, formatting, and lint pass with the existing 17 warnings.
+  Six unit regressions fail before the fix; both installed-Chrome browser cases pass across all three thread entry points in Simple and normal modes, and independent review found no blockers.
+
 ### Show the agent shield for agents in unencrypted rooms (2026-10-01)
 
 - The agent shield read device lists with `getUserDeviceInfo([userId])`, which returns nothing for users the client does not track.

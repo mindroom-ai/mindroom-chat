@@ -10,7 +10,7 @@ import {
   withSearchParam,
 } from '../pages/pathUtils';
 import { useMatrixClient } from './useMatrixClient';
-import { getOrphanParents, guessPerfectParent } from '../utils/room';
+import { getAllParents, getOrphanParents, guessPerfectParent } from '../utils/room';
 import { roomToParentsAtom } from '../state/room/roomToParents';
 import { mDirectAtom } from '../state/mDirectList';
 import { useSelectedSpace } from './router/useSelectedSpace';
@@ -41,6 +41,17 @@ export const useRoomNavigate = () => {
     (roomId: string, eventId?: string) => {
       const roomIdOrAlias = getCanonicalAliasOrRoomId(mx, roomId);
       const openSpaceTimeline = developerTools && spaceSelectedId === roomId;
+
+      if (
+        spaceSelectedId &&
+        (openSpaceTimeline || getAllParents(roomToParents, roomId).has(spaceSelectedId))
+      ) {
+        return getSpaceRoomPath(
+          getCanonicalAliasOrRoomId(mx, spaceSelectedId),
+          openSpaceTimeline ? roomId : roomIdOrAlias,
+          eventId
+        );
+      }
 
       if (simpleMode) {
         return mDirects.has(roomId)
