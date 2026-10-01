@@ -91,6 +91,36 @@ export function installAuthenticationRecovery(window: AuthenticationRecoveryWind
     });
   }
 
+  /** Unregisters only the app's controlling worker, so a legacy worker cannot answer the navigation. */
+  async function releaseWorker(): Promise<boolean> {
+    const workers = window.navigator.serviceWorker;
+    const controller = workers && workers.controller;
+    if (!controller) return true;
+    const registration = await deadline(workers.getRegistration(window.location.href));
+    // A missing registration means another tab already unregistered it.
+    if (!registration) return true;
+    if (registration.active !== controller) return false;
+    await deadline(registration.unregister());
+    return true;
+  }
+
+  function leave(): AuthenticationRecoveryResult {
+    const target = new URL(
+      config && config.navigation ? config.navigation.href : window.location.href
+    );
+    if (!target.hash) target.hash = new URL(window.location.href).hash;
+    target.searchParams.set(marker, '1');
+    const source = new URL(window.location.href);
+    if (target.pathname === source.pathname && target.search === source.search) {
+      // Assigning an equal URL (or only a new fragment) is a same-document navigation.
+      window.history.replaceState(window.history.state, '', target.href);
+      window.location.reload();
+    } else {
+      window.location.assign(target.href);
+    }
+    return 'navigating';
+  }
+
   function navigate(): Promise<AuthenticationRecoveryResult> {
     if (navigating) return navigating;
     navigating = (async (): Promise<AuthenticationRecoveryResult> => {
@@ -98,32 +128,7 @@ export function installAuthenticationRecovery(window: AuthenticationRecoveryWind
         // Record before any side effect. If storage is denied, do not risk a boot loop.
         if (window.sessionStorage.getItem(storageKey)) return 'blocked';
         window.sessionStorage.setItem(storageKey, '1');
-        const workers = window.navigator.serviceWorker;
-        const controller = workers && workers.controller;
-        if (controller) {
-          const registration = await deadline(workers.getRegistration(window.location.href));
-          // A missing registration means another tab already unregistered it.
-          if (registration) {
-            if (registration.active !== controller) {
-              return 'blocked';
-            }
-            await deadline(registration.unregister());
-          }
-        }
-        const target = new URL(
-          config && config.navigation ? config.navigation.href : window.location.href
-        );
-        if (!target.hash) target.hash = new URL(window.location.href).hash;
-        target.searchParams.set(marker, '1');
-        const source = new URL(window.location.href);
-        if (target.pathname === source.pathname && target.search === source.search) {
-          // Assigning an equal URL (or only a new fragment) is a same-document navigation.
-          window.history.replaceState(window.history.state, '', target.href);
-          window.location.reload();
-        } else {
-          window.location.assign(target.href);
-        }
-        return 'navigating';
+        return (await releaseWorker()) ? leave() : 'blocked';
       } catch {
         return 'blocked';
       }
@@ -135,24 +140,32 @@ export function installAuthenticationRecovery(window: AuthenticationRecoveryWind
     return navigating;
   }
 
+  function probe(url: URL): Promise<Response> {
+    const abort = new AbortController();
+    const timer = setTimeout(() => {
+      abort.abort();
+    }, timeout);
+    return window
+      .fetch(url.href, {
+        method: 'GET',
+        cache: 'no-store',
+        credentials: 'same-origin',
+        redirect: 'manual',
+        signal: abort.signal,
+      })
+      .finally(() => {
+        clearTimeout(timer);
+      });
+  }
+
   function check(): Promise<AuthenticationRecoveryResult> {
     if (!config) return Promise.resolve('disabled');
     if (navigating) return navigating;
     if (checking) return checking;
     const pending = (async (): Promise<AuthenticationRecoveryResult> => {
       if (window.navigator.onLine === false) return 'unavailable';
-      const abort = new AbortController();
-      const timer = setTimeout(() => {
-        abort.abort();
-      }, timeout);
       try {
-        const response = await window.fetch(config.probe.href, {
-          method: 'GET',
-          cache: 'no-store',
-          credentials: 'same-origin',
-          redirect: 'manual',
-          signal: abort.signal,
-        });
+        const response = await probe(config.probe);
         if (response.status === 401 || response.type === 'opaqueredirect') return await navigate();
         // 403 can mean authenticated but unauthorized. Only the probe's exact 204 is healthy.
         if (response.status !== 204) return response.status === 403 ? 'denied' : 'unavailable';
@@ -164,14 +177,51 @@ export function installAuthenticationRecovery(window: AuthenticationRecoveryWind
         return 'healthy';
       } catch {
         return 'unavailable';
-      } finally {
-        clearTimeout(timer);
       }
     })().finally(() => {
       if (checking === pending) checking = undefined;
     });
     checking = pending;
     return checking;
+  }
+
+  /** A click cannot loop, so only a healthy probe, a failed probe, or offline state keeps it from navigating. */
+  async function signIn(): Promise<AuthenticationRecoveryResult> {
+    // Navigating offline would replace the usable offline screen with a browser error page.
+    const offline = () => !!config && window.navigator.onLine === false;
+    if (config) {
+      if (offline()) return 'unavailable';
+      let response: Response;
+      try {
+        // Probe separately: a pending automatic check would answer with its own result.
+        response = await probe(config.probe);
+      } catch {
+        // Expiry answers with 401 or an unfollowed redirect, so a failed probe means no network.
+        return 'unavailable';
+      }
+      if (response.status === 204) {
+        try {
+          window.sessionStorage.removeItem(storageKey);
+        } catch {
+          /* Keep app usable. */
+        }
+        return 'healthy';
+      }
+    }
+    if (offline()) return 'unavailable';
+    try {
+      // Ignore an earlier attempt, but record this one so automatic checks stay bounded.
+      window.sessionStorage.setItem(storageKey, '1');
+    } catch {
+      /* Keep sign-in available. */
+    }
+    try {
+      await releaseWorker();
+    } catch {
+      /* The current worker sends marked navigations to the network. */
+    }
+    if (offline()) return 'unavailable';
+    return leave();
   }
 
   function automaticCheck(): void {
@@ -193,8 +243,8 @@ export function installAuthenticationRecovery(window: AuthenticationRecoveryWind
         }
       }
     },
-    // The existing sign-in action uses the same proof and budget when configured.
-    navigate: config ? check : navigate,
+    // The sign-in action ignores the automatic budget; only automatic navigations can loop.
+    navigate: signIn,
   };
   window.addEventListener('pageshow', (event) => {
     if (!event.persisted) return;

@@ -31,8 +31,8 @@ The image serves `/authentication-recovery-probe` with HTTP 204 and `Cache-Contr
 Protect this exact endpoint with the same reverse-proxy session policy as the application.
 An expired session must return HTTP 401 or redirect to interactive sign-in.
 The client uses a credentialed, uncached request with manual redirect handling.
-Only HTTP 204 confirms a healthy session; HTTP 403 means access denied and does not trigger recovery.
-HTTP 200, other statuses, network errors, offline state, and timeouts do not trigger recovery.
+Only HTTP 204 confirms a healthy session; HTTP 403 means access denied and does not trigger automatic recovery.
+HTTP 200, other statuses, network errors, offline state, and timeouts do not trigger automatic recovery.
 Do not return a public 204 before the authentication check, and do not exempt chat, configuration, Matrix, or API routes from authentication.
 The navigation destination must initiate the normal protected sign-in flow and return the user to the application.
 Recovery adds or replaces the `authentication-recovery-navigation=1` query marker without dropping other query values or the current fragment.
@@ -63,11 +63,13 @@ The built script fills absent settings with defaults and loads recovery relative
 Serve the combined file as the deployment's `runtime-config.js` alongside the built `authentication-recovery.js`.
 
 The bootstrap is idempotent and exposes `window.__AUTHENTICATION_RECOVERY__.check()` and `.navigate()`.
-The existing configuration-error sign-in action delegates to this owner and shares its probe and retry budget.
-For configured deployments, `navigate()` confirms expiry using the probe before any navigation.
+The existing configuration-error sign-in action delegates to this owner and shares its probe, but not its retry budget.
+For configured deployments, `navigate()` sends its own probe, so a pending automatic check cannot answer the click.
+Any response other than an exact HTTP 204 navigates, even when worker removal fails, because a click cannot loop.
+A failed or timed out probe, or the browser going offline before the navigation, returns `unavailable` and keeps the offline screen.
 If the probe instead confirms a healthy session, the configuration-error sign-in action retries fresh configuration and keeps cached configuration gated until the request succeeds or the user continues offline.
-Without configuration, the explicit sign-in action still uses scoped worker removal and the retry bound.
-A successfully fetched and validated fresh client configuration notifies the owner through `configurationLoaded()` to reset only that unconfigured manual budget; cached configuration and failed loads never reset it.
+Without configuration, the explicit sign-in action navigates on every click and still records the attempt for the page origin.
+A successfully fetched and validated fresh client configuration notifies the owner through `configurationLoaded()` to reset only that unconfigured record; cached configuration and failed loads never reset it.
 
 A cached predecessor HTML page can receive this fix if it already fetches mutable `runtime-config.js` from the network.
 A page that precaches that script, contains all its bootstrap code inline, or never references a mutable asset cannot consume new code merely because the server changed.
@@ -83,11 +85,12 @@ An equal path/query forces a full reload instead of a fragment-only navigation.
 Unrelated service-worker registrations and every cache remain intact.
 The current document may remain controlled until it unloads, which is expected.
 
-One attempt is allowed per tab and probe URL until a later HTTP 204 confirms restored authentication.
+One automatic attempt is allowed per tab and probe URL until a later HTTP 204 confirms restored authentication.
 A failed unregister, timeout, unavailable session storage, or repeated expiry stops automatic navigation.
 When browser history restores a previous document from the back-forward cache, recovery discards its stale in-memory navigation state and probes again.
 The retry budget stays in session storage until an exact HTTP 204 confirms restored authentication.
 The configuration error screen retains its retry/offline options and reports recovery failure.
+Its sign-in action ignores this budget, so a user can always leave a cached shell whose session expired while the tab was idle.
 Closing the tab ends its session-storage budget; an explicit connection retry does not clear the budget.
 Authentication policy and cross-tab coordination remain the deployment's responsibility.
 

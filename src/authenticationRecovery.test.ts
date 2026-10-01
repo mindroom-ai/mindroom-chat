@@ -7,13 +7,14 @@ const source = () => assets['authentication-recovery.js'];
 const setup = (
   config: unknown = { probeUrl: '/probe', navigationUrl: '/login' },
   values = new Map<string, string>(),
-  href = 'https://chat.example/room?tab=one#event'
+  href = 'https://chat.example/room?tab=one#event',
+  reply: unknown = { status: 204, ok: true }
 ) => {
   const controller = { scriptURL: 'https://chat.example/sw.js' };
   const unregister = vi.fn().mockResolvedValue(true);
   const registration = { active: controller, unregister };
   const assign = vi.fn();
-  const fetch = vi.fn().mockResolvedValue({ status: 204, ok: true });
+  const fetch = vi.fn().mockResolvedValue(reply);
   const window = {
     __AUTHENTICATION_RECOVERY_CONFIG__: config,
     location: { href, assign },
@@ -49,6 +50,7 @@ const setup = (
   ).__AUTHENTICATION_RECOVERY__;
   return { window, api, assign, fetch, unregister, registration, values };
 };
+type Settle = { resolve: (value: unknown) => void; reject: (reason: unknown) => void };
 afterEach(() => vi.useRealTimers());
 
 describe('native authentication recovery', () => {
@@ -182,11 +184,147 @@ describe('native authentication recovery', () => {
     }
   );
 
-  it('treats forbidden as authorization denial and bounds the existing sign-in action', async () => {
+  it('treats forbidden as denial for automatic checks but signs in on a click', async () => {
     const { api, fetch, assign } = setup();
     await api.check();
     fetch.mockResolvedValue({ status: 403 });
-    expect(await api.navigate()).toBe('denied');
+    expect(await api.check()).toBe('denied');
+    expect(assign).not.toHaveBeenCalled();
+    expect(await api.navigate()).toBe('navigating');
+    expect(assign).toHaveBeenCalledWith(
+      'https://chat.example/login?authentication-recovery-navigation=1#event'
+    );
+  });
+
+  it.each([
+    ['expiry', { status: 401 }],
+    ['a redirect', { status: 0, type: 'opaqueredirect' }],
+    ['denial', { status: 403 }],
+    ['a server failure', { status: 502 }],
+  ])('signs in again on a click after %s even when the tab spent its attempt', async (_, reply) => {
+    const { api, fetch, assign, unregister, values } = setup();
+    await api.check();
+    values.set('mindroom.authentication-recovery:https://chat.example/probe', '1');
+    fetch.mockResolvedValue(reply);
+    expect(await api.navigate()).toBe('navigating');
+    expect(unregister).toHaveBeenCalledTimes(1);
+    expect(assign).toHaveBeenCalledTimes(1);
+    expect(values.size).toBe(1);
+  });
+
+  it('keeps automatic checks bounded after a click navigated', async () => {
+    const values = new Map<string, string>();
+    const first = setup(undefined, values);
+    await first.api.check();
+    first.fetch.mockResolvedValue({ status: 401 });
+    expect(await first.api.navigate()).toBe('navigating');
+    // The navigation returned the cached shell to a tab whose session is still expired.
+    const returned = setup(undefined, values, undefined, { status: 401 });
+    expect(await returned.api.check()).toBe('blocked');
+    expect(returned.assign).not.toHaveBeenCalled();
+    expect(await returned.api.navigate()).toBe('navigating');
+    expect(returned.assign).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not let a pending automatic check answer a click', async () => {
+    const { api, fetch, assign, values } = setup();
+    await api.check();
+    values.set('mindroom.authentication-recovery:https://chat.example/probe', '1');
+    let finish!: (value: unknown) => void;
+    fetch.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        })
+    );
+    // Clicking into an unfocused window starts an automatic check just before the click.
+    const automatic = api.check();
+    fetch.mockResolvedValue({ status: 401 });
+    const click = api.navigate();
+    finish({ status: 401 });
+    expect(await click).toBe('navigating');
+    expect(await automatic).toBe('blocked');
+    expect(assign).toHaveBeenCalledTimes(1);
+  });
+
+  it('signs in on a click when the worker cannot be removed', async () => {
+    const { api, fetch, unregister, assign } = setup();
+    await api.check();
+    unregister.mockRejectedValue(new Error('denied'));
+    fetch.mockResolvedValue({ status: 401 });
+    expect(await api.navigate()).toBe('navigating');
+    const other = setup();
+    await other.api.check();
+    other.registration.active = { scriptURL: 'https://chat.example/sw.js' };
+    other.fetch.mockResolvedValue({ status: 401 });
+    expect(await other.api.navigate()).toBe('navigating');
+    expect(other.unregister).not.toHaveBeenCalled();
+    expect(assign).toHaveBeenCalledTimes(1);
+    expect(other.assign).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps the offline screen on a click when the probe fails or times out', async () => {
+    vi.useFakeTimers();
+    const { api, fetch, unregister, assign } = setup();
+    await api.check();
+    fetch.mockRejectedValue(new TypeError('network failure'));
+    expect(await api.navigate()).toBe('unavailable');
+    fetch.mockImplementation(
+      (_url, init) =>
+        new Promise((_resolve, reject) => {
+          init.signal.addEventListener('abort', () => reject(new Error('aborted')));
+        })
+    );
+    const pending = api.navigate();
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(await pending).toBe('unavailable');
+    expect(unregister).not.toHaveBeenCalled();
+    expect(assign).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['rejects', (finish: Settle) => finish.reject(new TypeError('network failure'))],
+    ['still answers expiry', (finish: Settle) => finish.resolve({ status: 401 })],
+  ])('keeps the offline screen when connectivity drops while the probe %s', async (_, settle) => {
+    const { api, window, fetch, unregister, assign } = setup();
+    await api.check();
+    let finish!: Settle;
+    fetch.mockImplementation(
+      () =>
+        new Promise((resolve, reject) => {
+          finish = { resolve, reject };
+        })
+    );
+    const click = api.navigate();
+    window.navigator.onLine = false;
+    settle(finish);
+    expect(await click).toBe('unavailable');
+    expect(unregister).not.toHaveBeenCalled();
+    expect(assign).not.toHaveBeenCalled();
+  });
+
+  it('keeps the offline screen when connectivity drops while the worker is removed', async () => {
+    const { api, window, fetch, unregister, assign } = setup();
+    await api.check();
+    fetch.mockResolvedValue({ status: 401 });
+    unregister.mockImplementation(async () => {
+      window.navigator.onLine = false;
+      return true;
+    });
+    expect(await api.navigate()).toBe('unavailable');
+    expect(assign).not.toHaveBeenCalled();
+  });
+
+  it('does not navigate on a click while offline or when the session is healthy', async () => {
+    const { api, window, fetch, assign, values } = setup();
+    await api.check();
+    window.navigator.onLine = false;
+    expect(await api.navigate()).toBe('unavailable');
+    expect(fetch).toHaveBeenCalledTimes(1);
+    window.navigator.onLine = true;
+    values.set('mindroom.authentication-recovery:https://chat.example/probe', '1');
+    expect(await api.navigate()).toBe('healthy');
+    expect(values.size).toBe(0);
     expect(assign).not.toHaveBeenCalled();
   });
 
@@ -329,12 +467,13 @@ describe('native authentication recovery', () => {
     expect(await api.check()).toBe('navigating');
     expect(assign).toHaveBeenCalledTimes(1);
   });
-  it('resets only manual recovery after fresh configuration succeeds across two sign-ins', async () => {
+  it('signs in again on every unconfigured click and resets only that record on fresh configuration', async () => {
     const values = new Map<string, string>();
     const first = setup(null, values);
     expect(await first.api.navigate()).toBe('navigating');
     const stillExpired = setup(null, values);
-    expect(await stillExpired.api.navigate()).toBe('blocked');
+    expect(await stillExpired.api.navigate()).toBe('navigating');
+    expect(stillExpired.assign).toHaveBeenCalledTimes(1);
     const signedIn = setup(null, values);
     signedIn.api.configurationLoaded();
     expect(values.size).toBe(0);

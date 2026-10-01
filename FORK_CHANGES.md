@@ -2,6 +2,19 @@
 
 ## Runbook
 
+### Let "Sign in again" always reach sign-in (2026-09-30)
+
+- When an access proxy in front of the client expired the session while a tab was idle, a tab that had already spent its one automatic recovery navigation could not sign in again.
+  The configuration screen's "Sign in again" action shared the automatic path, which returned `blocked` once the per-tab record existed, and HTTP 403 from the probe returned `denied`.
+  Retry fetched configuration again and brought back the expired-session screen, and reloads kept serving the cached shell, so the tab stayed stuck.
+- The sign-in action now sends its own probe and navigates on any response other than exactly HTTP 204.
+  It ignores the earlier record and worker-removal failures, and still records its attempt so automatic checks after the navigation stay bounded.
+  A failed or timed out probe returns `unavailable`, as before: the probe uses manual redirects, so an expired session always answers with a response.
+  Connectivity is checked again after the probe and after worker removal, so going offline mid-click keeps the offline screen.
+- Automatic checks keep the once-per-tab bound.
+- Unit regressions cover a spent record with 401, redirect, 403 and 502 probes, a pending automatic check during the click, worker-removal failures, failed and timed out probes, connectivity loss during the probe or worker removal, and automatic checks after a click.
+  They fail before the change and pass afterward; the returned-shell browser case now expects the click to reach sign-in once more while automatic checks stay blocked.
+
 ### Record IndexedDB loss recovery reloads (2026-09-30)
 
 - The boot after a recovery reload from #349 records `storage.indexeddb_loss_reload` in the deep trace, with `reload_ms_ago` (time since the reload was triggered), so an iOS export with deep trace enabled shows whether the recovery fired.
