@@ -18,7 +18,6 @@ import {
   Input,
   PopOut,
   RectCords,
-  Scroll,
   Spinner,
   Text,
   Tooltip,
@@ -30,8 +29,11 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import classNames from 'classnames';
 
 import { useTranslation } from 'react-i18next';
-import { Header, MenuItem } from '../../components/glass/GlassPrimitives';
+import { MenuItem } from '../../components/glass/GlassPrimitives';
 import * as css from './MembersDrawer.css';
+import { PageNavContent, PageNavHeader } from '../../components/page/Page';
+import { PageScrollToTop } from '../../components/page/style.css';
+import { useElementSizeObserver } from '../../hooks/useElementSizeObserver';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { UseStateProvider } from '../../components/UseStateProvider';
 import {
@@ -88,7 +90,7 @@ function MemberDrawerHeader({ room, canInvite, onShowInvited }: MemberDrawerHead
   const invitedCount = room.getInvitedMemberCount();
 
   return (
-    <Header className={css.MembersDrawerHeader} variant="Background" size="600">
+    <PageNavHeader>
       {invitePrompt && <InviteUserPrompt room={room} requestClose={() => setInvitePrompt(false)} />}
       <Box grow="Yes" alignItems="Center" gap="200">
         <Box grow="Yes" alignItems="Center" gap="200">
@@ -164,7 +166,7 @@ function MemberDrawerHeader({ room, canInvite, onShowInvited }: MemberDrawerHead
           </TooltipProvider>
         </Box>
       </Box>
-    </Header>
+    </PageNavHeader>
   );
 }
 
@@ -251,6 +253,23 @@ export function MembersDrawer({ room, members }: MembersDrawerProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const scrollTopAnchorRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const memberListRef = useRef<HTMLDivElement>(null);
+  const [scrollMargin, setScrollMargin] = useState(0);
+
+  useElementSizeObserver(
+    useCallback(() => contentRef.current, []),
+    useCallback(() => {
+      const scroll = scrollRef.current;
+      const list = memberListRef.current;
+      if (scroll && list) {
+        // Include the sticky header and filters in the virtualizer's scroll coordinates.
+        setScrollMargin(
+          list.getBoundingClientRect().top - scroll.getBoundingClientRect().top + scroll.scrollTop
+        );
+      }
+    }, [])
+  );
   const powerLevels = usePowerLevelsContext();
   const creators = useRoomCreators(room);
   const getPowerTag = useGetMemberPowerTag(room, creators, powerLevels);
@@ -352,6 +371,7 @@ export function MembersDrawer({ room, members }: MembersDrawerProps) {
     getScrollElement: () => scrollRef.current,
     estimateSize: () => (showingJoinRequests ? 164 : 40),
     overscan: 10,
+    scrollMargin,
   });
 
   const handleSearchChange: ChangeEventHandler<HTMLInputElement> = useDebounce(
@@ -378,11 +398,15 @@ export function MembersDrawer({ room, members }: MembersDrawerProps) {
       shrink="No"
       direction="Column"
     >
-      <MemberDrawerHeader room={room} canInvite={canInvite} onShowInvited={showInvited} />
       <Box className={css.MemberDrawerContentBase} grow="Yes">
-        <Scroll ref={scrollRef} variant="Background" size="300" visibility="Hover" hideTrack>
-          <Box className={css.MemberDrawerContent} direction="Column" gap="200">
-            <Box ref={scrollTopAnchorRef} className={css.DrawerGroup} direction="Column" gap="200">
+        <PageNavContent
+          scrollRef={scrollRef}
+          header={
+            <MemberDrawerHeader room={room} canInvite={canInvite} onShowInvited={showInvited} />
+          }
+        >
+          <Box ref={contentRef} direction="Column" gap="200">
+            <Box ref={scrollTopAnchorRef} direction="Column" gap="200">
               <Box alignItems="Center" justifyContent="SpaceBetween" gap="200">
                 <UseStateProvider initial={undefined}>
                   {(anchor: RectCords | undefined, setAnchor) => (
@@ -495,7 +519,12 @@ export function MembersDrawer({ room, members }: MembersDrawerProps) {
               </Box>
             </Box>
 
-            <ScrollTopContainer scrollRef={scrollRef} anchorRef={scrollTopAnchorRef}>
+            <ScrollTopContainer
+              className={PageScrollToTop}
+              scrollRef={scrollRef}
+              anchorRef={scrollTopAnchorRef}
+              respectScrollPadding
+            >
               <IconButton
                 onClick={() => virtualizer.scrollToOffset(0)}
                 variant="Surface"
@@ -518,8 +547,9 @@ export function MembersDrawer({ room, members }: MembersDrawerProps) {
               </Text>
             )}
 
-            <Box className={css.MembersGroup} direction="Column" gap="100">
+            <Box direction="Column" gap="100">
               <div
+                ref={memberListRef}
                 style={{
                   position: 'relative',
                   height: virtualizer.getTotalSize(),
@@ -531,7 +561,7 @@ export function MembersDrawer({ room, members }: MembersDrawerProps) {
                     return (
                       <Text
                         style={{
-                          transform: `translateY(${vItem.start}px)`,
+                          transform: `translateY(${vItem.start - scrollMargin}px)`,
                         }}
                         data-index={vItem.index}
                         ref={virtualizer.measureElement}
@@ -548,7 +578,7 @@ export function MembersDrawer({ room, members }: MembersDrawerProps) {
                   return (
                     <div
                       style={{
-                        transform: `translateY(${vItem.start}px)`,
+                        transform: `translateY(${vItem.start - scrollMargin}px)`,
                       }}
                       className={css.DrawerVirtualItem}
                       data-index={vItem.index}
@@ -591,7 +621,7 @@ export function MembersDrawer({ room, members }: MembersDrawerProps) {
               </Box>
             )}
           </Box>
-        </Scroll>
+        </PageNavContent>
       </Box>
     </Box>
   );

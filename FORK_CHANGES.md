@@ -2,6 +2,16 @@
 
 ## Runbook
 
+### Flatten the Members drawer header (2026-10-01)
+
+- The Members title strip now uses the same flat, translucent `PageNavHeader` and `PageNavContent` as the navigation sidebars, without a border, specular rim, shadow, or pointer-driven optics.
+- Members scroll behind the sticky header, while the shared inset scrollbar and scroll-to-top button stay below it.
+  The virtualizer measures the list origin after the header and filters, including content-size changes, and subtracts that offset when positioning rows.
+- The shared drawer covers both rooms and spaces, including invited members and join requests.
+  A live browser regression checks the rendered material, hover, overlapping rows, first/last member access, scrollbar controls, the invited filter, and closing the drawer in both themes.
+- Validation and browser screenshots are recorded in the follow-up PR.
+  Linux Playwright WebKit verifies transparency and layout but does not paint native backdrop blur in this environment; real Safari blur still needs an Apple-device check.
+
 ### Show the agent shield for agents in unencrypted rooms (2026-10-01)
 
 - The agent shield read device lists with `getUserDeviceInfo([userId])`, which returns nothing for users the client does not track.
