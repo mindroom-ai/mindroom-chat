@@ -1852,6 +1852,8 @@
         "noResults": "沒有結果",
         "requestCount_one": "請求 ({{count}})",
         "requestCount_other": "請求 ({{count}})",
+        "invitedCount_one": "{{count}} 人受邀",
+        "invitedCount_other": "{{count}} 人受邀",
         "resultCount_one": "{{count}} 結果",
         "resultCount_other": "{{count}} 個結果",
         "formattedMemberCount_one": "{{formattedCount}} 名成員",

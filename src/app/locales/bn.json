@@ -522,6 +522,8 @@
         "noResults": "কোন ফলাফল নেই",
         "requestCount_one": "অনুরোধ ({{count}})",
         "requestCount_other": "অনুরোধ ({{count}})",
+        "invitedCount_one": "{{count}} জন আমন্ত্রিত",
+        "invitedCount_other": "{{count}} জন আমন্ত্রিত",
         "resultCount_one": "{{count}} ফলাফল",
         "resultCount_other": "{{count}} ফলাফল",
         "scrollToTop": "উপরে স্ক্রোল করুন",

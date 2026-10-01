@@ -1852,6 +1852,8 @@
         "noResults": "Geen resultaten",
         "requestCount_one": "Verzoeken ({{count}})",
         "requestCount_other": "Verzoeken ({{count}})",
+        "invitedCount_one": "{{count}} uitgenodigd",
+        "invitedCount_other": "{{count}} uitgenodigd",
         "resultCount_one": "{{count}} resultaat",
         "resultCount_other": "{{count}} resultaten",
         "formattedMemberCount_one": "{{formattedCount}} lid",

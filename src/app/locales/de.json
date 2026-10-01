@@ -1852,6 +1852,8 @@
         "noResults": "Keine Ergebnisse",
         "requestCount_one": "Anfragen ({{count}})",
         "requestCount_other": "Anfragen ({{count}})",
+        "invitedCount_one": "{{count}} eingeladen",
+        "invitedCount_other": "{{count}} eingeladen",
         "resultCount_one": "{{count}} Ergebnis",
         "resultCount_other": "{{count}} Ergebnisse",
         "formattedMemberCount_one": "{{formattedCount}} Mitglied",

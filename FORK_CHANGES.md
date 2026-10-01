@@ -2,6 +2,16 @@
 
 ## Runbook
 
+### Show pending invites in the members drawer header (2026-10-01)
+
+- The members drawer header showed only the joined count, and its list opens on the Joined filter, so open invites were visible only after choosing Invited.
+  Room owners could miss an invite that was never accepted, while agents that compare the room's member count with its joined count still count the invitee.
+- When `room.getInvitedMemberCount()` is above zero, the header now shows the invited count next to the member count (for example "4 Members · 1 Invited").
+  Clicking it switches the drawer to the Invited filter and counts as a manual filter choice, so join requests that arrive later do not switch the filter to Requests.
+  The header is unchanged in rooms without pending invites.
+- New `featureUi.room.membersDrawer.invitedCount` plural strings are machine-authored for the 16 non-English catalogs.
+- Unit tests cover the count and the click, the kept filter when a join request arrives, and the unchanged header without invites; the first two fail before the change.
+
 ### Let "Sign in again" always reach sign-in (2026-09-30)
 
 - When an access proxy in front of the client expired the session while a tab was idle, a tab that had already spent its one automatic recovery navigation could not sign in again.

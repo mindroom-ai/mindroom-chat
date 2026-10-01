@@ -1852,6 +1852,8 @@
         "noResults": "結果はありません",
         "requestCount_one": "リクエスト ({{count}})",
         "requestCount_other": "リクエスト ({{count}})",
+        "invitedCount_one": "{{count}} 人招待中",
+        "invitedCount_other": "{{count}} 人招待中",
         "resultCount_one": "{{count}} 結果",
         "resultCount_other": "{{count}} 件の結果",
         "formattedMemberCount_one": "{{formattedCount}} メンバー",

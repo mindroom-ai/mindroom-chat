@@ -1852,6 +1852,8 @@
         "noResults": "Sonuç yok",
         "requestCount_one": "İstekler ({{count}})",
         "requestCount_other": "İstekler ({{count}})",
+        "invitedCount_one": "{{count}} davetli",
+        "invitedCount_other": "{{count}} davetli",
         "resultCount_one": "{{count}} sonuç",
         "resultCount_other": "{{count}} sonuç",
         "formattedMemberCount_one": "{{formattedCount}} üye",
