@@ -1852,6 +1852,8 @@
         "noResults": "Tidak ada hasil",
         "requestCount_one": "Permintaan ({{count}})",
         "requestCount_other": "Permintaan ({{count}})",
+        "invitedCount_one": "{{count}} diundang",
+        "invitedCount_other": "{{count}} diundang",
         "resultCount_one": "{{count}} hasil",
         "resultCount_other": "{{count}} hasil",
         "formattedMemberCount_one": "{{formattedCount}} anggota",

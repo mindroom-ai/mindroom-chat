@@ -522,6 +522,8 @@
         "noResults": "कोई परिणाम नहीं",
         "requestCount_one": "अनुरोध ({{count}})",
         "requestCount_other": "अनुरोध ({{count}})",
+        "invitedCount_one": "{{count}} आमंत्रित",
+        "invitedCount_other": "{{count}} आमंत्रित",
         "resultCount_one": "{{count}} परिणाम",
         "resultCount_other": "{{count}} परिणाम",
         "scrollToTop": "शीर्ष तक स्क्रॉल करें",

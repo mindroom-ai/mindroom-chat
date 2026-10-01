@@ -139,18 +139,26 @@ vi.mock('../../hooks/useRoomTypingMembers', () => ({
   useRoomTypingMember: () => [],
 }));
 
-vi.mock('../../hooks/useMemberFilter', () => ({
-  MembershipFilter: {
-    filterKnocked: (member: { membership: string }) => member.membership === 'knock',
-  },
-  useMembershipFilter: (
-    index: number,
-    items: Array<{ name: string; filterFn: (member: { membership: string }) => boolean }>
-  ) => items[index] ?? items[0],
-  useMembershipFilterMenu: () => [
-    { name: 'Joined', filterFn: (member: { membership: string }) => member.membership === 'join' },
-  ],
-}));
+vi.mock('../../hooks/useMemberFilter', () => {
+  const filterInvited = (member: { membership: string }) => member.membership === 'invite';
+  return {
+    MembershipFilter: {
+      filterInvited,
+      filterKnocked: (member: { membership: string }) => member.membership === 'knock',
+    },
+    useMembershipFilter: (
+      index: number,
+      items: Array<{ name: string; filterFn: (member: { membership: string }) => boolean }>
+    ) => items[index] ?? items[0],
+    useMembershipFilterMenu: () => [
+      {
+        name: 'Joined',
+        filterFn: (member: { membership: string }) => member.membership === 'join',
+      },
+      { name: 'Invited', filterFn: filterInvited },
+    ],
+  };
+});
 
 vi.mock('../../hooks/useMemberSort', () => ({
   MemberSort: {
@@ -274,14 +282,22 @@ vi.mock('../../plugins/millify', () => ({
   millify: (value: number) => String(value),
 }));
 
-const createRoom = (): Room =>
+const createRoom = (invitedCount = 0): Room =>
   ({
     roomId: '!room:example.org',
     getJoinedMemberCount: () => 3,
+    getInvitedMemberCount: () => invitedCount,
   } as Room);
 
 const hasVisibleFilterLabel = (renderer: ReactTestRenderer | undefined, label: string): boolean =>
   renderer?.root.findAllByType('span').some((element) => element.children.includes(label)) ?? false;
+
+const findButtonsWithLabel = (renderer: ReactTestRenderer | undefined, label: string) =>
+  renderer?.root
+    .findAllByType('button')
+    .filter((button) =>
+      button.findAllByType('span').some((element) => element.children.includes(label))
+    ) ?? [];
 
 describe('MembersDrawer', () => {
   beforeEach(() => {
@@ -411,6 +427,65 @@ describe('MembersDrawer', () => {
     expect(hasVisibleFilterLabel(renderer, 'Joined')).toBe(true);
   });
 
+  it('shows pending invites next to the member count and opens the Invited filter on click', () => {
+    let renderer: ReactTestRenderer | undefined;
+
+    act(() => {
+      renderer = create(React.createElement(MembersDrawer, { room: createRoom(1), members: [] }));
+    });
+    expect(hasVisibleFilterLabel(renderer, 'Joined')).toBe(true);
+
+    const invitedButtons = findButtonsWithLabel(renderer, '1 Invited');
+    expect(invitedButtons).toHaveLength(1);
+
+    act(() => {
+      invitedButtons[0].props.onClick();
+    });
+
+    expect(hasVisibleFilterLabel(renderer, 'Invited')).toBe(true);
+  });
+
+  it('keeps the Invited filter chosen from the header when join requests arrive', () => {
+    const room = createRoom(2);
+    let renderer: ReactTestRenderer | undefined;
+
+    act(() => {
+      renderer = create(React.createElement(MembersDrawer, { room, members: [] }));
+    });
+    act(() => {
+      findButtonsWithLabel(renderer, '2 Invited')[0].props.onClick();
+    });
+    expect(hasVisibleFilterLabel(renderer, 'Invited')).toBe(true);
+
+    act(() => {
+      renderer?.update(
+        React.createElement(MembersDrawer, {
+          room,
+          members: [{ membership: 'knock', userId: '@alice:example.org' }],
+        })
+      );
+    });
+
+    expect(hasVisibleFilterLabel(renderer, 'Invited')).toBe(true);
+  });
+
+  it('shows only the member count when there are no pending invites', () => {
+    let renderer: ReactTestRenderer | undefined;
+
+    act(() => {
+      renderer = create(React.createElement(MembersDrawer, { room: createRoom(), members: [] }));
+    });
+
+    expect(hasVisibleFilterLabel(renderer, '3 Members')).toBe(true);
+    expect(
+      renderer?.root
+        .findAllByType('span')
+        .some((element) =>
+          element.children.some((child) => typeof child === 'string' && /Invited|·/.test(child))
+        )
+    ).toBe(false);
+  });
+
   it('does not expose join requests when the current user cannot approve or decline them', () => {
     permissionState.canInvite = false;
     permissionState.canKick = false;
@@ -425,7 +500,7 @@ describe('MembersDrawer', () => {
       );
     });
 
-    expect(renderer?.root.findAllByProps({ 'data-testid': 'membership-filter-1' })).toHaveLength(0);
+    expect(renderer?.root.findAllByProps({ 'data-testid': 'membership-filter-2' })).toHaveLength(0);
   });
 
   it('resets the selected filter when request-review permission is removed', () => {

@@ -79,11 +79,13 @@ import { JoinRequestItem } from './JoinRequestItem';
 type MemberDrawerHeaderProps = {
   room: Room;
   canInvite: boolean;
+  onShowInvited: () => void;
 };
-function MemberDrawerHeader({ room, canInvite }: MemberDrawerHeaderProps) {
+function MemberDrawerHeader({ room, canInvite, onShowInvited }: MemberDrawerHeaderProps) {
   const { t } = useTranslation();
   const [, setPeopleDrawer] = useMembersDrawer();
   const [invitePrompt, setInvitePrompt] = useState(false);
+  const invitedCount = room.getInvitedMemberCount();
 
   return (
     <Header className={css.MembersDrawerHeader} variant="Background" size="600">
@@ -102,6 +104,18 @@ function MemberDrawerHeader({ room, canInvite }: MemberDrawerHeaderProps) {
               formattedCount: millify(room.getJoinedMemberCount()),
             })}
           </Text>
+          {invitedCount > 0 && (
+            <>
+              <Text size="H5" priority="300" aria-hidden="true">
+                ·
+              </Text>
+              <Chip variant="Background" size="400" radii="300" onClick={onShowInvited}>
+                <Text size="T200">
+                  {t('featureUi.room.membersDrawer.invitedCount', { count: invitedCount })}
+                </Text>
+              </Chip>
+            </>
+          )}
         </Box>
         <Box shrink="No" alignItems="Center" gap="100">
           <TooltipProvider
@@ -301,6 +315,13 @@ export function MembersDrawer({ room, members }: MembersDrawerProps) {
     }
   }, [membershipFilterIndex, selectedMembershipFilterIndex]);
 
+  const showInvited = () => {
+    membershipFilterTouchedRef.current = true;
+    setMembershipFilterIndex(
+      membershipFilterMenu.findIndex((item) => item.filterFn === MembershipFilter.filterInvited)
+    );
+  };
+
   const membershipFilter = useMembershipFilter(selectedMembershipFilterIndex, membershipFilterMenu);
   const showingJoinRequests = membershipFilter.filterFn === MembershipFilter.filterKnocked;
   const memberSort = useMemberSort(sortFilterIndex, sortFilterMenu);
@@ -357,7 +378,7 @@ export function MembersDrawer({ room, members }: MembersDrawerProps) {
       shrink="No"
       direction="Column"
     >
-      <MemberDrawerHeader room={room} canInvite={canInvite} />
+      <MemberDrawerHeader room={room} canInvite={canInvite} onShowInvited={showInvited} />
       <Box className={css.MemberDrawerContentBase} grow="Yes">
         <Scroll ref={scrollRef} variant="Background" size="300" visibility="Hover" hideTrack>
           <Box className={css.MemberDrawerContent} direction="Column" gap="200">

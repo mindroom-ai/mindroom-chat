@@ -1852,6 +1852,8 @@
         "noResults": "결과 없음",
         "requestCount_one": "요청 ({{count}})",
         "requestCount_other": "요청 ({{count}})",
+        "invitedCount_one": "초대 {{count}}명",
+        "invitedCount_other": "초대 {{count}}명",
         "resultCount_one": "결과 {{count}}개",
         "resultCount_other": "결과 {{count}}개",
         "formattedMemberCount_one": "멤버 {{formattedCount}}명",
