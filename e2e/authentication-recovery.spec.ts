@@ -349,22 +349,31 @@ test('a misconfigured sign-in destination cannot reload the cached app repeatedl
   await page.reload();
   await expect.poll(() => loginVisits).toBe(1);
   await expect(page.getByRole('heading')).toHaveText('Cached chats');
-  const result = await page.evaluate(async () => {
-    const recovery = window as typeof window & {
-      __AUTHENTICATION_RECOVERY_READY__: Promise<unknown>;
-      __AUTHENTICATION_RECOVERY__: {
-        check: () => Promise<string>;
-        navigate: () => Promise<string>;
+  const check = () =>
+    page.evaluate(async () => {
+      const recovery = window as typeof window & {
+        __AUTHENTICATION_RECOVERY_READY__: Promise<unknown>;
+        __AUTHENTICATION_RECOVERY__: { check: () => Promise<string> };
       };
-    };
-    await recovery.__AUTHENTICATION_RECOVERY_READY__;
-    return Promise.all([
-      recovery.__AUTHENTICATION_RECOVERY__.check(),
-      recovery.__AUTHENTICATION_RECOVERY__.navigate(),
-    ]);
-  });
-  expect(result).toEqual(['blocked', 'blocked']);
+      await recovery.__AUTHENTICATION_RECOVERY_READY__;
+      return recovery.__AUTHENTICATION_RECOVERY__.check();
+    });
+  expect(await check()).toBe('blocked');
   expect(loginVisits).toBe(1);
+  // A click is not a loop, so it reaches the sign-in destination again.
+  await Promise.all([
+    page.waitForEvent('load'),
+    page.evaluate(() => {
+      void (
+        window as typeof window & {
+          __AUTHENTICATION_RECOVERY__: { navigate: () => Promise<string> };
+        }
+      ).__AUTHENTICATION_RECOVERY__.navigate();
+    }),
+  ]);
+  expect(loginVisits).toBe(2);
+  expect(await check()).toBe('blocked');
+  expect(loginVisits).toBe(2);
 });
 
 test('current HTML retains explicit recovery with an unchanged custom runtime script', async ({
