@@ -2,6 +2,15 @@
 
 ## Runbook
 
+### Show the agent shield for agents in unencrypted rooms (2026-10-01)
+
+- The agent shield read device lists with `getUserDeviceInfo([userId])`, which returns nothing for users the client does not track.
+  The client only tracks users who share an encrypted room with the viewer, so agents met only in unencrypted managed rooms reported no devices and never showed the shield, even though every device was cross-signed.
+- `collectAgentDeviceSignatures` now passes `downloadUncached: true`, as `modelDeviceTrust.ts` already does, so the Rust store downloads and validates the agent's keys before the per-device `signedByOwner` check.
+  The all-devices-signed rule and the fail-safe handling are unchanged.
+- Validation: a unit test pins the download flag and fails before the change; the matrix trust tests, typecheck, lint, and prettier pass.
+- Next: after deploy, open the members drawer of an unencrypted agent room and confirm each cross-signed agent shows the shield.
+
 ### Show pending invites in the members drawer header (2026-10-01)
 
 - The members drawer header showed only the joined count, and its list opens on the Joined filter, so open invites were visible only after choosing Invited.
@@ -5104,7 +5113,7 @@ A `mindroom_`-prefixed agent on the viewer's own homeserver whose devices are AL
 The signal is the SDK's `DeviceVerificationStatus.signedByOwner` (device signed by the account's own self-signing key), NOT `crossSigningVerified` — the latter requires the local user to have verified the agent, which is a deliberate non-goal (bots auto-accept, so per-user SAS adds ceremony without trust).
 `signedByOwner` is exactly what mindroom-nio D2 produces and what MSC4153 keys off.
 New: `deviceSignedByOwner` in `matrix-crypto.ts`, `useAgentDeviceCrossSigned` hook + `allDevicesSignedByOwner` classifier over an extracted `collectAgentDeviceSignatures` per-device pipeline, and the `AgentVerifiedBadge` component (renders null for non-agents, cross-homeserver users, agents with any un-cross-signed device, or when crypto is absent, and fails safe to hidden on any crypto error).
-The whole-user check enumerates devices via `crypto.getUserDeviceInfo([userId])`.
+The whole-user check enumerates devices via `crypto.getUserDeviceInfo([userId], true)`, downloading untracked agents.
 
 Threat model.
 `signedByOwner` is self-attestation, and `isMindroomAgentUserId` is a bare `localpart.startsWith('mindroom_')` — the combination alone would let anyone who registers `@mindroom_*:anyserver.org` and bootstraps their own cross-signing earn the shield in shared rooms.

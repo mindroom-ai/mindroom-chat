@@ -28,7 +28,9 @@ export const collectAgentDeviceSignatures = async (
   crypto: CryptoApi,
   userId: string
 ): Promise<Array<boolean | null>> => {
-  const deviceMap = await crypto.getUserDeviceInfo([userId]);
+  // Agents often share only unencrypted rooms with the viewer, so their device
+  // lists are not tracked; download them instead of reporting no devices.
+  const deviceMap = await crypto.getUserDeviceInfo([userId], true);
   const deviceIds = Array.from(deviceMap.get(userId)?.keys() ?? []);
   return Promise.all(deviceIds.map((deviceId) => deviceSignedByOwner(crypto, userId, deviceId)));
 };
