@@ -185,7 +185,7 @@ export function installAuthenticationRecovery(window: AuthenticationRecoveryWind
     return checking;
   }
 
-  /** A click cannot loop, so only a healthy probe or offline state keeps it from navigating. */
+  /** A click cannot loop, so only a healthy probe, a failed probe, or offline state keeps it from navigating. */
   async function signIn(): Promise<AuthenticationRecoveryResult> {
     // Navigating offline would replace the usable offline screen with a browser error page.
     const offline = () => !!config && window.navigator.onLine === false;

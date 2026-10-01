@@ -68,7 +68,7 @@ For configured deployments, `navigate()` sends its own probe, so a pending autom
 Any response other than an exact HTTP 204 navigates, even when worker removal fails, because a click cannot loop.
 A failed or timed out probe, or the browser going offline before the navigation, returns `unavailable` and keeps the offline screen.
 If the probe instead confirms a healthy session, the configuration-error sign-in action retries fresh configuration and keeps cached configuration gated until the request succeeds or the user continues offline.
-Without configuration, the explicit sign-in action navigates on every click.
+Without configuration, the explicit sign-in action navigates on every click and still records the attempt for the page origin.
 A successfully fetched and validated fresh client configuration notifies the owner through `configurationLoaded()` to reset only that unconfigured record; cached configuration and failed loads never reset it.
 
 A cached predecessor HTML page can receive this fix if it already fetches mutable `runtime-config.js` from the network.
