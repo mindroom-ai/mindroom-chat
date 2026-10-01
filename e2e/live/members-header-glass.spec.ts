@@ -19,44 +19,57 @@ for (const themeId of ['dark-theme', 'silver-theme']) {
     const credentials = getPrimaryCredentials();
     const viewer = await loginToMatrix(homeserver, credentials.username, credentials.password);
     const runId = randomUUID().slice(0, 8);
-    const people = await Promise.all(
-      Array.from({ length: 29 }, async (_, index) => {
-        const person = await matrixFetch<{ access_token: string; user_id: string }>(
-          homeserver,
-          '/register',
-          {
-            method: 'POST',
-            body: JSON.stringify({
-              username: `glass_${runId}_${index}`,
-              password: randomUUID(),
-              auth: { type: 'm.login.dummy' },
-            }),
-          }
-        );
-        await matrixFetch(
-          homeserver,
-          `/profile/${encodeURIComponent(person.user_id)}/displayname`,
-          {
-            method: 'PUT',
-            accessToken: person.access_token,
-            body: JSON.stringify({
-              displayname: `Studio member ${String(index + 1).padStart(2, '0')}`,
-            }),
-          }
-        );
-        return person;
-      })
-    );
-    const roomId = await createPrivateRoom(homeserver, viewer.accessToken, {
-      name: 'Design studio',
-      topic: 'Shared projects and creative ideas',
-      invite: people.map((person) => person.user_id),
-    });
-    const restoreSettings = await setFullInterfaceModeForSession(homeserver, viewer);
+    const registered: Array<{ access_token: string; user_id: string; password: string }> = [];
+    let roomId: string | undefined;
+    let restoreSettings: (() => Promise<unknown>) | undefined;
     try {
-      await Promise.all(
-        people.slice(0, -1).map((person) => joinRoom(homeserver, person.access_token, roomId))
+      // Wait for every registration before teardown, including partially failed setup.
+      const registrations = await Promise.allSettled(
+        Array.from({ length: 29 }, async (_, index) => {
+          const password = randomUUID();
+          const person = await matrixFetch<{ access_token: string; user_id: string }>(
+            homeserver,
+            '/register',
+            {
+              method: 'POST',
+              body: JSON.stringify({
+                username: `glass_${runId}_${index}`,
+                password,
+                auth: { type: 'm.login.dummy' },
+              }),
+            }
+          );
+          registered.push({ ...person, password });
+          await matrixFetch(
+            homeserver,
+            `/profile/${encodeURIComponent(person.user_id)}/displayname`,
+            {
+              method: 'PUT',
+              accessToken: person.access_token,
+              body: JSON.stringify({
+                displayname: `Studio member ${String(index + 1).padStart(2, '0')}`,
+              }),
+            }
+          );
+          return person;
+        })
       );
+      const people = registrations.map((result) => {
+        if (result.status === 'rejected') throw result.reason;
+        return result.value;
+      });
+      roomId = await createPrivateRoom(homeserver, viewer.accessToken, {
+        name: 'Design studio',
+        topic: 'Shared projects and creative ideas',
+        invite: people.map((person) => person.user_id),
+      });
+      restoreSettings = await setFullInterfaceModeForSession(homeserver, viewer);
+      const joins = await Promise.allSettled(
+        people.slice(0, -1).map((person) => joinRoom(homeserver, person.access_token, roomId!))
+      );
+      joins.forEach((result) => {
+        if (result.status === 'rejected') throw result.reason;
+      });
       await page.setViewportSize({ width: 1280, height: 800 });
       await page.addInitScript(
         ({ theme, userId }) => {
@@ -145,23 +158,42 @@ for (const themeId of ['dark-theme', 'silver-theme']) {
       await header.getByRole('button', { name: 'Close', exact: true }).click();
       await expect(header).toHaveCount(0);
     } finally {
-      await restoreSettings();
-      await Promise.all(
-        [viewer.accessToken, ...people.map((person) => person.access_token)].map(
-          async (accessToken) => {
-            await matrixFetch(homeserver, `/rooms/${encodeURIComponent(roomId)}/leave`, {
-              method: 'POST',
-              accessToken,
-              body: '{}',
-            });
-            await matrixFetch(homeserver, `/rooms/${encodeURIComponent(roomId)}/forget`, {
-              method: 'POST',
-              accessToken,
-              body: '{}',
-            });
-          }
+      const cleanup = await Promise.allSettled([
+        restoreSettings?.(),
+        (async () => {
+          if (!roomId) return;
+          await matrixFetch(homeserver, `/rooms/${encodeURIComponent(roomId)}/leave`, {
+            method: 'POST',
+            accessToken: viewer.accessToken,
+            body: '{}',
+          });
+          await matrixFetch(homeserver, `/rooms/${encodeURIComponent(roomId)}/forget`, {
+            method: 'POST',
+            accessToken: viewer.accessToken,
+            body: '{}',
+          });
+        })(),
+        ...registered.map((person) =>
+          matrixFetch(homeserver, '/account/deactivate', {
+            method: 'POST',
+            accessToken: person.access_token,
+            body: JSON.stringify({
+              erase: true,
+              auth: {
+                type: 'm.login.password',
+                identifier: { type: 'm.id.user', user: person.user_id },
+                password: person.password,
+              },
+            }),
+          })
+        ),
+      ]);
+      expect
+        .soft(
+          cleanup.filter((result) => result.status === 'rejected'),
+          'Fixture cleanup'
         )
-      );
+        .toEqual([]);
     }
   });
 }

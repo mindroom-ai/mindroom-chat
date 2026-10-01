@@ -9,7 +9,9 @@
   The virtualizer measures the list origin after the header and filters, including content-size changes, and subtracts that offset when positioning rows.
 - The shared drawer covers both rooms and spaces, including invited members and join requests.
   A live browser regression checks the rendered material, hover, overlapping rows, first/last member access, scrollbar controls, the invited filter, and closing the drawer in both themes.
-- Validation and browser screenshots are recorded in the follow-up PR.
+- Validation: 5,674 unit tests, typecheck, production build, changed-file lint, and all four Chromium/WebKit cases pass.
+  The regression is included in the glass suite, and fixture teardown deactivates registered users even after partial setup or settings-restoration failures.
+  Independent review and before/after screenshots are recorded in the follow-up PR.
   Linux Playwright WebKit verifies transparency and layout but does not paint native backdrop blur in this environment; real Safari blur still needs an Apple-device check.
 
 ### Show the agent shield for agents in unencrypted rooms (2026-10-01)
