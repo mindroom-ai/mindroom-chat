@@ -5113,7 +5113,7 @@ A `mindroom_`-prefixed agent on the viewer's own homeserver whose devices are AL
 The signal is the SDK's `DeviceVerificationStatus.signedByOwner` (device signed by the account's own self-signing key), NOT `crossSigningVerified` — the latter requires the local user to have verified the agent, which is a deliberate non-goal (bots auto-accept, so per-user SAS adds ceremony without trust).
 `signedByOwner` is exactly what mindroom-nio D2 produces and what MSC4153 keys off.
 New: `deviceSignedByOwner` in `matrix-crypto.ts`, `useAgentDeviceCrossSigned` hook + `allDevicesSignedByOwner` classifier over an extracted `collectAgentDeviceSignatures` per-device pipeline, and the `AgentVerifiedBadge` component (renders null for non-agents, cross-homeserver users, agents with any un-cross-signed device, or when crypto is absent, and fails safe to hidden on any crypto error).
-The whole-user check enumerates devices via `crypto.getUserDeviceInfo([userId])`.
+The whole-user check enumerates devices via `crypto.getUserDeviceInfo([userId], true)`, downloading untracked agents.
 
 Threat model.
 `signedByOwner` is self-attestation, and `isMindroomAgentUserId` is a bare `localpart.startsWith('mindroom_')` — the combination alone would let anyone who registers `@mindroom_*:anyserver.org` and bootstraps their own cross-signing earn the shield in shared rooms.
