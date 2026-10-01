@@ -60,6 +60,19 @@ describe('collectAgentDeviceSignatures', () => {
     expect(statuses).toEqual([true]);
   });
 
+  it('downloads device keys for agents the viewer shares no encrypted room with', async () => {
+    // Without downloadUncached the SDK omits untracked users entirely, so an
+    // agent that only shares unencrypted rooms with the viewer would report no
+    // devices and never show the badge.
+    const crypto = cryptoWithDevices('@mindroom_code:example.org', {
+      DEV1: { signedByOwner: true, crossSigningVerified: false },
+    });
+
+    await collectAgentDeviceSignatures(crypto, '@mindroom_code:example.org');
+
+    expect(crypto.getUserDeviceInfo).toHaveBeenCalledWith(['@mindroom_code:example.org'], true);
+  });
+
   it('returns each device status independently, in device-id order', async () => {
     const crypto = cryptoWithDevices('@mindroom_code:example.org', {
       DEV1: { signedByOwner: true, crossSigningVerified: false },

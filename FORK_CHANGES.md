@@ -2,6 +2,15 @@
 
 ## Runbook
 
+### Show the agent shield for agents in unencrypted rooms (2026-10-01)
+
+- The agent shield read device lists with `getUserDeviceInfo([userId])`, which returns nothing for users the client does not track.
+  The client only tracks users who share an encrypted room with the viewer, so agents met only in unencrypted managed rooms reported no devices and never showed the shield, even though every device was cross-signed.
+- `collectAgentDeviceSignatures` now passes `downloadUncached: true`, as `modelDeviceTrust.ts` already does, so the Rust store downloads and validates the agent's keys before the per-device `signedByOwner` check.
+  The all-devices-signed rule and the fail-safe handling are unchanged.
+- Validation: a unit test pins the download flag and fails before the change; the matrix trust tests, typecheck, lint, and prettier pass.
+- Next: after deploy, open the members drawer of an unencrypted agent room and confirm each cross-signed agent shows the shield.
+
 ### Show pending invites in the members drawer header (2026-10-01)
 
 - The members drawer header showed only the joined count, and its list opens on the Joined filter, so open invites were visible only after choosing Invited.
