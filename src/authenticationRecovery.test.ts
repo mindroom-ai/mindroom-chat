@@ -50,6 +50,7 @@ const setup = (
   ).__AUTHENTICATION_RECOVERY__;
   return { window, api, assign, fetch, unregister, registration, values };
 };
+type Settle = { resolve: (value: unknown) => void; reject: (reason: unknown) => void };
 afterEach(() => vi.useRealTimers());
 
 describe('native authentication recovery', () => {
@@ -246,7 +247,7 @@ describe('native authentication recovery', () => {
     expect(assign).toHaveBeenCalledTimes(1);
   });
 
-  it('signs in on a click when the worker cannot be removed or the probe fails', async () => {
+  it('signs in on a click when the worker cannot be removed', async () => {
     const { api, fetch, unregister, assign } = setup();
     await api.check();
     unregister.mockRejectedValue(new Error('denied'));
@@ -255,11 +256,63 @@ describe('native authentication recovery', () => {
     const other = setup();
     await other.api.check();
     other.registration.active = { scriptURL: 'https://chat.example/sw.js' };
-    other.fetch.mockRejectedValue(new TypeError('network failure'));
+    other.fetch.mockResolvedValue({ status: 401 });
     expect(await other.api.navigate()).toBe('navigating');
     expect(other.unregister).not.toHaveBeenCalled();
     expect(assign).toHaveBeenCalledTimes(1);
     expect(other.assign).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps the offline screen on a click when the probe fails or times out', async () => {
+    vi.useFakeTimers();
+    const { api, fetch, unregister, assign } = setup();
+    await api.check();
+    fetch.mockRejectedValue(new TypeError('network failure'));
+    expect(await api.navigate()).toBe('unavailable');
+    fetch.mockImplementation(
+      (_url, init) =>
+        new Promise((_resolve, reject) => {
+          init.signal.addEventListener('abort', () => reject(new Error('aborted')));
+        })
+    );
+    const pending = api.navigate();
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(await pending).toBe('unavailable');
+    expect(unregister).not.toHaveBeenCalled();
+    expect(assign).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['rejects', (finish: Settle) => finish.reject(new TypeError('network failure'))],
+    ['still answers expiry', (finish: Settle) => finish.resolve({ status: 401 })],
+  ])('keeps the offline screen when connectivity drops while the probe %s', async (_, settle) => {
+    const { api, window, fetch, unregister, assign } = setup();
+    await api.check();
+    let finish!: Settle;
+    fetch.mockImplementation(
+      () =>
+        new Promise((resolve, reject) => {
+          finish = { resolve, reject };
+        })
+    );
+    const click = api.navigate();
+    window.navigator.onLine = false;
+    settle(finish);
+    expect(await click).toBe('unavailable');
+    expect(unregister).not.toHaveBeenCalled();
+    expect(assign).not.toHaveBeenCalled();
+  });
+
+  it('keeps the offline screen when connectivity drops while the worker is removed', async () => {
+    const { api, window, fetch, unregister, assign } = setup();
+    await api.check();
+    fetch.mockResolvedValue({ status: 401 });
+    unregister.mockImplementation(async () => {
+      window.navigator.onLine = false;
+      return true;
+    });
+    expect(await api.navigate()).toBe('unavailable');
+    expect(assign).not.toHaveBeenCalled();
   });
 
   it('does not navigate on a click while offline or when the session is healthy', async () => {

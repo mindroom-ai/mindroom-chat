@@ -65,10 +65,10 @@ Serve the combined file as the deployment's `runtime-config.js` alongside the bu
 The bootstrap is idempotent and exposes `window.__AUTHENTICATION_RECOVERY__.check()` and `.navigate()`.
 The existing configuration-error sign-in action delegates to this owner and shares its probe, but not its retry budget.
 For configured deployments, `navigate()` sends its own probe, so a pending automatic check cannot answer the click.
-Only an exact HTTP 204 or offline state stops the click; any other response, a failed probe, or a failed worker removal still navigates, because a click cannot loop.
+Any response other than an exact HTTP 204 navigates, even when worker removal fails, because a click cannot loop.
+A failed or timed out probe, or the browser going offline before the navigation, returns `unavailable` and keeps the offline screen.
 If the probe instead confirms a healthy session, the configuration-error sign-in action retries fresh configuration and keeps cached configuration gated until the request succeeds or the user continues offline.
 Without configuration, the explicit sign-in action navigates on every click.
-Each click records an attempt, so automatic checks after its navigation stay bounded.
 A successfully fetched and validated fresh client configuration notifies the owner through `configurationLoaded()` to reset only that unconfigured record; cached configuration and failed loads never reset it.
 
 A cached predecessor HTML page can receive this fix if it already fetches mutable `runtime-config.js` from the network.

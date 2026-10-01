@@ -187,22 +187,28 @@ export function installAuthenticationRecovery(window: AuthenticationRecoveryWind
 
   /** A click cannot loop, so only a healthy probe or offline state keeps it from navigating. */
   async function signIn(): Promise<AuthenticationRecoveryResult> {
+    // Navigating offline would replace the usable offline screen with a browser error page.
+    const offline = () => !!config && window.navigator.onLine === false;
     if (config) {
-      if (window.navigator.onLine === false) return 'unavailable';
+      if (offline()) return 'unavailable';
+      let response: Response;
       try {
         // Probe separately: a pending automatic check would answer with its own result.
-        if ((await probe(config.probe)).status === 204) {
-          try {
-            window.sessionStorage.removeItem(storageKey);
-          } catch {
-            /* Keep app usable. */
-          }
-          return 'healthy';
-        }
+        response = await probe(config.probe);
       } catch {
-        /* A failed probe does not prove the session healthy. */
+        // Expiry answers with 401 or an unfollowed redirect, so a failed probe means no network.
+        return 'unavailable';
+      }
+      if (response.status === 204) {
+        try {
+          window.sessionStorage.removeItem(storageKey);
+        } catch {
+          /* Keep app usable. */
+        }
+        return 'healthy';
       }
     }
+    if (offline()) return 'unavailable';
     try {
       // Ignore an earlier attempt, but record this one so automatic checks stay bounded.
       window.sessionStorage.setItem(storageKey, '1');
@@ -214,6 +220,7 @@ export function installAuthenticationRecovery(window: AuthenticationRecoveryWind
     } catch {
       /* The current worker sends marked navigations to the network. */
     }
+    if (offline()) return 'unavailable';
     return leave();
   }
 
