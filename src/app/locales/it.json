@@ -2685,6 +2685,11 @@
         "messageFailedToSend": "Invio del messaggio non riuscito",
         "notSent": "Non inviato"
       },
+      "failedSendActions": {
+        "notSent": "Non inviato",
+        "retry": "Riprova",
+        "delete": "Elimina"
+      },
       "aiRunDisplay": {
         "inputTokens": "in {{formattedCount}}",
         "outputTokens": "out {{formattedCount}}",

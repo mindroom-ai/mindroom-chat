@@ -2642,6 +2642,11 @@
         "messageFailedToSend": "Bericht kon niet worden verzonden",
         "notSent": "Niet verstuurd"
       },
+      "failedSendActions": {
+        "notSent": "Niet verstuurd",
+        "retry": "Opnieuw proberen",
+        "delete": "Verwijderen"
+      },
       "aiRunDisplay": {
         "inputTokens": "in {{formattedCount}}",
         "outputTokens": "uit {{formattedCount}}",

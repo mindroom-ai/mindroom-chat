@@ -2814,6 +2814,11 @@
         "messageFailedToSend": "فشل إرسال الرسالة",
         "notSent": "لم يُرسل"
       },
+      "failedSendActions": {
+        "notSent": "لم يُرسل",
+        "retry": "إعادة المحاولة",
+        "delete": "حذف"
+      },
       "aiRunDisplay": {
         "inputTokens": "مدخلات ⁨{{formattedCount}}⁩",
         "outputTokens": "مخرجات ⁨{{formattedCount}}⁩",

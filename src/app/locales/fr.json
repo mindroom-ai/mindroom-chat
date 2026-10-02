@@ -2685,6 +2685,11 @@
         "messageFailedToSend": "Échec de l'envoi du message",
         "notSent": "Non envoyé"
       },
+      "failedSendActions": {
+        "notSent": "Non envoyé",
+        "retry": "Réessayer",
+        "delete": "Supprimer"
+      },
       "aiRunDisplay": {
         "inputTokens": "entrée {{formattedCount}}",
         "outputTokens": "sortie {{formattedCount}}",

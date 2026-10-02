@@ -2728,6 +2728,11 @@
         "messageFailedToSend": "Не удалось отправить сообщение",
         "notSent": "Не отправлено"
       },
+      "failedSendActions": {
+        "notSent": "Не отправлено",
+        "retry": "Повторить",
+        "delete": "Удалить"
+      },
       "aiRunDisplay": {
         "inputTokens": "вход: {{formattedCount}}",
         "outputTokens": "выход: {{formattedCount}}",

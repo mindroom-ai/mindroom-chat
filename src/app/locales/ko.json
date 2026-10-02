@@ -2642,6 +2642,11 @@
         "messageFailedToSend": "메시지 전송 실패",
         "notSent": "전송되지 않음"
       },
+      "failedSendActions": {
+        "notSent": "전송되지 않음",
+        "retry": "다시 시도",
+        "delete": "삭제"
+      },
       "aiRunDisplay": {
         "inputTokens": "입력 {{formattedCount}}",
         "outputTokens": "출력 {{formattedCount}}",

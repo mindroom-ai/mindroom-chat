@@ -1,5 +1,6 @@
 import React from 'react';
 import { Provider, createStore } from 'jotai';
+import { createClient, EventStatus, MatrixEvent, PendingEventOrdering, Room } from 'matrix-js-sdk';
 import { act, create } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
@@ -31,6 +32,7 @@ const {
   roomTimelineType,
   simpleModeState,
   navigateRoomFocusEventMock,
+  navigateRoomMock,
   navigateRoomThreadMock,
   threadContextBannerState,
   useKeyDownMock,
@@ -64,6 +66,7 @@ const {
   roomTimelineType: 'room-timeline',
   simpleModeState: { enabled: false },
   navigateRoomFocusEventMock: vi.fn(),
+  navigateRoomMock: vi.fn(),
   navigateRoomThreadMock: vi.fn(),
   threadContextBannerState: {
     props: undefined as MockThreadContextBannerProps | undefined,
@@ -359,6 +362,7 @@ vi.mock('../../../hooks/useRoomCreators', () => ({
 vi.mock('../../../hooks/useRoomNavigate', () => ({
   useRoomNavigate: () => ({
     navigatePath: navigatePathMock,
+    navigateRoom: navigateRoomMock,
     navigateRoomFocusEvent: navigateRoomFocusEventMock,
     navigateRoomThread: navigateRoomThreadMock,
   }),
@@ -421,6 +425,8 @@ const makeRoom = (roomId: string) => ({
   roomId,
   getThread: () => undefined,
   findEventById: () => undefined,
+  on: vi.fn(),
+  removeListener: vi.fn(),
 });
 let roomIdSeed = 0;
 const nextRoomId = (label: string) => `!${label}-${roomIdSeed++}:example.org`;
@@ -500,6 +506,7 @@ describe('RoomView', () => {
     isNativeIOSMock.mockReturnValue(false);
     navigatePathMock.mockReset();
     navigateRoomFocusEventMock.mockReset();
+    navigateRoomMock.mockReset();
     navigateRoomThreadMock.mockReset();
     pageState.props = undefined;
     simpleModeState.enabled = false;
@@ -1799,6 +1806,69 @@ describe('RoomView', () => {
     expect(JSON.stringify(renderer?.toJSON())).toContain(
       'Replies are available after this message is confirmed.'
     );
+  });
+
+  const renderFailedLocalRoot = async () => {
+    const { RoomView } = await import('../../../features/room/RoomView');
+    const roomId = nextRoomId('room-a');
+    const mx = createClient({ baseUrl: 'https://example.org', userId: '@alice:example.org' });
+    const room = new Room(roomId, mx, '@alice:example.org', {
+      pendingEventOrdering: PendingEventOrdering.Chronological,
+    });
+    const root = new MatrixEvent({
+      event_id: `~${roomId}:txn-root`,
+      room_id: roomId,
+      sender: '@alice:example.org',
+      type: 'm.room.message',
+      content: { msgtype: 'm.text', body: 'Hello' },
+    });
+    root.setStatus(EventStatus.SENDING);
+    room.addPendingEvent(root, 'txn-root');
+    room.updatePendingEvent(root, EventStatus.NOT_SENT);
+    useThreadRootEventMock.mockReturnValue(root.getId());
+
+    let renderer: ReturnType<typeof create> | undefined;
+    await act(async () => {
+      renderer = create(React.createElement(RoomView, { room, threadId: root.getId()! }));
+    });
+    return { renderer: renderer!, room, root };
+  };
+
+  it('offers Retry and Delete instead of waiting when a local-echo thread root failed', async () => {
+    const { renderer, room, root } = await renderFailedLocalRoot();
+
+    // The real room is circular, so read rendered strings instead of serializing the tree.
+    const renderedText = () =>
+      renderer.root
+        .findAll(() => true)
+        .flatMap((node) => node.children.filter((child) => typeof child === 'string'))
+        .join('|');
+    expect(renderer.root.findAllByType('room-input')).toHaveLength(0);
+    expect(renderedText()).toContain('Not sent|Retry|Delete');
+    expect(renderedText()).not.toContain('Replies are available after this message is confirmed.');
+
+    await act(async () => {
+      room.updatePendingEvent(root, EventStatus.SENDING);
+    });
+
+    expect(renderedText()).toContain('Replies are available after this message is confirmed.');
+    expect(renderedText()).not.toContain('Not sent');
+  });
+
+  it('leaves the thread when its unsent local-echo root is deleted', async () => {
+    const { room, root } = await renderFailedLocalRoot();
+    expect(navigateRoomMock).not.toHaveBeenCalled();
+
+    await act(async () => {
+      room.updatePendingEvent(root, EventStatus.CANCELLED);
+    });
+
+    // The root is gone, so neither focus it in the room nor offer it to swipe-forward.
+    const { getDefaultStore } = await import('jotai');
+    const { lastExitedThreadAtom } = await import('../lastExitedThread');
+    expect(navigateRoomMock).toHaveBeenCalledWith(room.roomId, undefined, { replace: true });
+    expect(navigateRoomFocusEventMock).not.toHaveBeenCalled();
+    expect(getDefaultStore().get(lastExitedThreadAtom)).toBeNull();
   });
 
   it('does not open successful sends as new threads in classic mode', async () => {

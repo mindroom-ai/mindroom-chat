@@ -1216,6 +1216,11 @@
           "submitted": "प्रस्तुत किया गया"
         }
       },
+      "failedSendActions": {
+        "delete": "मिटाएँ",
+        "notSent": "नहीं भेजा गया",
+        "retry": "पुन: प्रयास करें"
+      },
       "messageCopyActions": {
         "copyLink": "लिंक की प्रतिलिपि करें",
         "copyText": "टेक्स्ट कॉपी करें",

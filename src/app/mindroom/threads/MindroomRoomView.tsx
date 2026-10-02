@@ -32,6 +32,9 @@ import { hasBlockingPortalOverlay } from '../../utils/portalOverlay';
 import { ThreadContextBanner } from './ThreadContextBanner';
 import { useRoomViewThreadState } from './useRoomViewThreadState';
 import { isConfirmedMatrixEventId, isLocalEchoEventId } from './threadRouteUtils';
+import { usePendingThreadRoot } from './usePendingThreadRoot';
+import { isFailedLocalEchoEvent } from '../messages/pendingLocalEcho';
+import { FailedSendActions } from '../messages/FailedSendActions';
 import { ThreadApprovalProvider } from '../messages/ThreadApprovalProvider';
 import { ThreadApprovalQueue } from '../messages/ThreadApprovalControls';
 import { computerOwnsKeyboardEvent, computerOwnsKeyboardFocus } from '../computer/computerFocus';
@@ -122,6 +125,7 @@ export function RoomView({
     handleApplyPreset,
     handleCycleTag,
     handleExitThread,
+    handleThreadRootDeleted,
     handleRemoveTag,
     handleReset,
     handleRoomMessageSent,
@@ -160,6 +164,11 @@ export function RoomView({
     return () => observer.disconnect();
   }, [roomId, effectiveThreadId]);
   const pendingThreadRoot = isLocalEchoEventId(effectiveThreadId);
+  const pendingRootEvent = usePendingThreadRoot(
+    room,
+    pendingThreadRoot ? effectiveThreadId : undefined,
+    handleThreadRootDeleted
+  );
 
   useKeyDown(
     window,
@@ -280,11 +289,15 @@ export function RoomView({
                   alignItems="Center"
                   justifyContent="Center"
                 >
-                  <Text align="Center">
-                    {t(
-                      'mindroomUi.threads.mindroomRoomView.repliesAreAvailableAfterThisMessageIsConfirmed'
-                    )}
-                  </Text>
+                  {pendingRootEvent && isFailedLocalEchoEvent(pendingRootEvent) ? (
+                    <FailedSendActions room={room} event={pendingRootEvent} />
+                  ) : (
+                    <Text align="Center">
+                      {t(
+                        'mindroomUi.threads.mindroomRoomView.repliesAreAvailableAfterThisMessageIsConfirmed'
+                      )}
+                    </Text>
+                  )}
                 </RoomInputPlaceholder>
               )}
               {!canMessage && (

@@ -2,6 +2,38 @@
 
 ## Runbook
 
+### Recover messages that failed to send (2026-10-02)
+
+- An iPhone export from build `57e4c56e` shows a new thread root that stayed "not sent" for good.
+  Its `PUT /send` failed after 10.26 s at the same instant as six typing `PUT`s, and no network response arrived between 17:16:00 and 17:17:30, so the connection had dropped for a while.
+  The six typing failures were reported as `error.unhandled_rejection`.
+- `createClient` uses `new MatrixScheduler()`, whose retry algorithm calls `calculateRetryBackoff(err, attempts, false)`: it retries server errors and rate limits but returns `-1` for `ConnectionError`, so one network error marked the message `NOT_SENT`.
+  The client had no way to send it again: failed messages showed only a small warning icon, and a failed new thread root left the thread showing "Replies are available after this message is confirmed." with no composer.
+- `createMatrixClient` now uses `MessageSendScheduler`, which also retries connection errors with the SDK's backoff (2, 4, 8 and 16 s) and the same transaction ID, so the server drops a copy that already arrived.
+  Client errors, aborts and oversized events still fail at once, and messages stay queued in order.
+  A message is only sent within one minute of being queued (by its send or a Retry), also when it waits behind a slow message or iOS suspends the app, because a late `stop` or other command could surprise an agent; there is deliberately no resend after reconnecting.
+  When `/sync` delivers the server's copy while a retry waits (the earlier response was lost), the event counts as sent; otherwise the SDK fails to mark the confirmed event as sending again and stalls the message queue for the whole window.
+  A network failure while sharing an encrypted room's key happens before the scheduler and still fails at once.
+- A message whose retries ran out now shows "Not sent" with Retry and Delete below it (`FailedSendActions`, from `TimelineMessageBody` for the message or its failed edit).
+  Retry calls `resendEvent`, which reuses the event, its transaction ID and, in encrypted rooms, its ciphertext; Delete calls `cancelPendingEvent`.
+  In a thread opened on its failed root, the footer shows these actions instead of the confirmation text, and the root row leaves them to the footer.
+  Deleting that root leaves the thread through the same history exit, but without remembering it for swipe-forward or focusing it in the room.
+- A failed composer send now has one way to try again.
+  Composer paths that keep the content for their own retry (text returned to the composer, staged attachments, the voice recorder) discard the unsent echo, as thread summary actions already did.
+  A new thread root that the compact overview opened as a thread is not returned to the composer, so its echo keeps Retry and Delete.
+- Typing notices ignore failures instead of leaving unhandled rejections.
+- New strings are machine-authored for the 16 non-English catalogs.
+- Validation: unit tests cover the retry with the same transaction, giving up and resending, the queue continuing after `/sync` confirms a waiting message, stopping after an iOS suspension (also for a queued message), no retry after a 403, the Retry and Delete actions, the actions for a failed message and a failed edit, the failed root footer and leaving the thread on delete, echo discards for text, attachments and voice, and handled typing failures; each fails before its change.
+  Another test pins the SDK behavior that a copy arriving through `/sync` replaces an unsent echo.
+  Results of the full suites are in the pull request.
+- Not covered:
+  - Unsent echoes are not persisted with chronological pending events, so a failed root disappears after a reload and can drop out of the room timeline after a limited `/sync`; text that returned to the composer survives in its draft.
+  - The composer ignores Enter while its previous message is still sending, which can now last up to the retry window during an outage.
+  - The model picker resends a failed `!model` command once more, with a new window, after the scheduler gives up.
+  - A failed edit offers both Save in the still open editor and Retry once the editor closes; the latest edit wins either way.
+  - The window starts after encryption, so a key share held up by a suspension can still be followed by a send.
+  - No browser check against a homeserver yet; after deploy, send a message with the network off, wait about a minute, then retry and delete a failed new thread root.
+
 ### Flatten the Members drawer header (2026-10-01)
 
 - The Members title strip now uses the same flat, translucent `PageNavHeader` and `PageNavContent` as the navigation sidebars, without a border, specular rim, shadow, or pointer-driven optics.
