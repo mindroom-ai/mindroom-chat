@@ -225,7 +225,6 @@ it.each(['reply', 'root', 'joined-reply', 'pending-bootstrap'] as const)(
       if (!thread) return new Promise(() => {});
       // getThreadTimeline fills the timeline directly, without Thread.NewReply.
       thread.timelineSet.addEventsToTimeline([reply], true, false, thread.liveTimeline, null);
-      if (mode === 'pending-bootstrap') return new Promise(() => {});
       return thread.liveTimeline;
     });
     vi.spyOn(mx, 'getEventTimeline').mockResolvedValue(room.getLiveTimeline());
@@ -302,6 +301,11 @@ it.each(['reply', 'root', 'joined-reply', 'pending-bootstrap'] as const)(
         ).toBeTruthy();
       }
       if (mode === 'pending-bootstrap') {
+        // The open waits for the SDK's own initialization, whose root request never returns.
+        expect(mx.getThreadTimeline).not.toHaveBeenCalled();
+        await act(async () => {
+          thread!.timelineSet.addEventsToTimeline([reply], true, false, thread!.liveTimeline, null);
+        });
         expect(sdkReady).toBe(false);
         expect(cacheHydrated).toBe(false);
       }

@@ -135,6 +135,65 @@ describe('runThreadOpenSdkBootstrap', () => {
     }
   );
 
+  it.each([true, false])(
+    'initializes an unopened SDK thread before reading its timeline (mounted=%s)',
+    async (stayMounted) => {
+      const root = makeEvent('$root', { isThreadRoot: true, ts: 1 });
+      let finishInitialization!: () => void;
+      const initialization = new Promise<void>((resolve) => {
+        finishInitialization = resolve;
+      });
+      const threadTimeline = {
+        getEvents: () => [],
+        getNeighbouringTimeline: () => null,
+        getPaginationToken: () => null,
+        setPaginationToken: vi.fn(),
+      };
+      const thread = {
+        id: '$root',
+        events: [root],
+        rootEvent: root,
+        initialize: vi.fn(() => initialization),
+        flushPendingTimelineReset: vi.fn(),
+        setEventMetadata: vi.fn(),
+        getUnfilteredTimelineSet: () => ({
+          getLiveTimeline: () => threadTimeline,
+          addEventsToTimeline: vi.fn(),
+        }),
+      };
+      const room = makeRoom({ liveEvents: [root], threads: [thread as never] });
+      const mx = {
+        fetchRelations: vi.fn().mockResolvedValue({ chunk: [] }),
+        getEventMapper: vi.fn(),
+        getEventTimeline: vi.fn(),
+        getThreadTimeline: vi.fn().mockResolvedValue(undefined),
+      };
+      let mounted = true;
+      const work = runThreadOpenSdkBootstrap({
+        debugTraceId: 'test',
+        isMounted: () => mounted,
+        mx: mx as never,
+        persistThreadEventCache: vi.fn(),
+        pinThreadToBottomOnOpen: vi.fn(),
+        room: room as never,
+        setSupplementalThreadEvents: vi.fn(),
+        onBootstrap: vi.fn(),
+        shouldScrollToLatestOnOpen: true,
+        threadId: '$root',
+      });
+      await flushAsyncWork();
+      expect(thread.initialize).toHaveBeenCalledOnce();
+      expect(thread.flushPendingTimelineReset).not.toHaveBeenCalled();
+      expect(mx.getThreadTimeline).not.toHaveBeenCalled();
+
+      mounted = stayMounted;
+      finishInitialization();
+
+      expect(await work).toBe(stayMounted);
+      expect(mx.getThreadTimeline).toHaveBeenCalledTimes(stayMounted ? 1 : 0);
+    }
+  );
+
   it('creates an initialized SDK thread and runs first-open timeline bootstrap', async () => {
     const root = makeEvent('$root', { isThreadRoot: true, ts: 1 });
     const room = makeRoom({ liveEvents: [root] });
