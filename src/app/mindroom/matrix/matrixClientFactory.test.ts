@@ -95,8 +95,8 @@ describe('createMatrixClient message sends', () => {
   });
 
   // Each entry answers one send request: an event ID, an HTTP error status, or a dropped
-  // connection, noticed at once, after iOS suspended the app for two hours ('suspended'),
-  // or when the test calls dropPending() ('pending').
+  // connection, noticed at once, after 10 s ('slow'), after iOS suspended the app for two
+  // hours ('suspended'), or when the test calls dropPending() ('pending').
   const setup = (responses: Array<string | number>) => {
     vi.useFakeTimers();
     let dropPending: () => void = () => undefined;
@@ -104,12 +104,13 @@ describe('createMatrixClient message sends', () => {
       const response = responses.shift();
       if (response === undefined) throw new Error('Unexpected request');
       if (response === 'suspended') vi.setSystemTime(Date.now() + TWO_HOURS_MS);
+      if (response === 'slow') await new Promise((resolve) => setTimeout(resolve, 10_000));
       if (response === 'pending') {
         await new Promise<void>((resolve) => {
           dropPending = resolve;
         });
       }
-      if (['offline', 'suspended', 'pending'].includes(String(response))) {
+      if (['offline', 'suspended', 'slow', 'pending'].includes(String(response))) {
         throw new TypeError('Load failed');
       }
       if (typeof response === 'number') {
@@ -239,6 +240,21 @@ describe('createMatrixClient message sends', () => {
       expect(await second.outcome).toEqual({ event_id: '$second' });
     }
   );
+
+  it('gives up within the window when each attempt takes 10 s to fail, as on the iPhone', async () => {
+    const { send, fetchFn } = setup(['slow', 'slow', 'slow', 'slow', 'slow']);
+    const { outcome, event } = send();
+
+    // Attempts start at 0, 12, 26 and 44 s; a fifth would start at 70 s, past the window.
+    await vi.advanceTimersByTimeAsync(54_000 - 1);
+    expect(event.status).toBe(EventStatus.SENDING);
+    await vi.advanceTimersByTimeAsync(1);
+
+    expect(event.status).toBe(EventStatus.NOT_SENT);
+    expect(fetchFn).toHaveBeenCalledTimes(4);
+    expect(vi.getTimerCount()).toBe(0);
+    expect(await outcome).toMatchObject({ name: 'ConnectionError' });
+  });
 
   it.each([
     ['while a retry waits', ['offline'], TWO_HOURS_MS],
