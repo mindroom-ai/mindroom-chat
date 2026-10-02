@@ -7,6 +7,7 @@ import {
   type MatrixEvent,
 } from 'matrix-js-sdk';
 import { traceDeepDiagnosticFetch } from '../diagnostics/deepTrace';
+import { bindHomeserverReachability, createHomeserverReachability } from './homeserverReachability';
 
 type MindroomCreateClientOpts = ICreateClientOpts & {
   threadSupport?: boolean;
@@ -105,9 +106,16 @@ class MessageSendScheduler extends MatrixScheduler {
   }
 }
 
-export const createMatrixClient = (options: MindroomCreateClientOpts) =>
-  createClient({
+export const createMatrixClient = (options: MindroomCreateClientOpts) => {
+  const reachability = createHomeserverReachability(
+    createMatrixFetchFn(options.fetchFn ?? globalThis.fetch),
+    options.baseUrl
+  );
+  const mx = createClient({
     ...options,
-    fetchFn: createMatrixFetchFn(options.fetchFn ?? globalThis.fetch),
+    fetchFn: reachability.fetchFn,
     scheduler: options.scheduler ?? new MessageSendScheduler(),
   } as ICreateClientOpts);
+  bindHomeserverReachability(mx, reachability);
+  return mx;
+};

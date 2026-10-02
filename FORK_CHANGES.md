@@ -50,6 +50,32 @@
 - Not changed: a thread whose root is outside the synced window still fetches that root at startup (one request); the app's own scheduled prefetch and reconcile requests are unchanged.
 - Next: in the next iOS export, check that a session's first minute has no request bursts and that `/sync` starts within seconds of boot.
 
+### Show when the homeserver cannot be reached (2026-10-02)
+
+- An iPhone export from build `57e4c56e` shows a message that never sent and no sign of a connection problem.
+  The session started from the cached client shell at 17:15:39; after 17:15:59 no Matrix request got a response, and at 17:16:15 seven PUTs, including the message send and typing notifications, failed with network errors (no HTTP status).
+  The first `/sync` request had not started yet; it began around 17:17:27, after the app had been in the background from 17:16:40 to 17:17:23.
+- `SyncStatus` derived its banners only from the SDK sync state, which becomes `Reconnecting` or `Error` only when one of the sync loop's own requests fails (its startup requests, `/sync`, or the `/versions` keepalive).
+  While those are pending, as the startup requests were here, failures of other requests leave the state unchanged, so nothing was shown.
+- `createMatrixClient` now wraps the client's fetch with `homeserverReachability.ts`.
+  When a request fails at the network level, it checks `/_matrix/client/versions` right away, bypassing the HTTP cache and waiting at most 8 s.
+  The homeserver is unreachable when nothing, the check included, was answered while the check ran.
+  Any HTTP response, error statuses included, marks it reachable again; while it is unreachable the check repeats every 5 s, so the banner also clears when nothing else is sent.
+  `SyncStatus` shows the existing "Connection Lost!" banner while it is unreachable, ahead of "Catching up..."; the SDK's "Connection Lost! Reconnecting..." keeps precedence.
+- A one-off failure while the homeserver still answers, such as a single failed endpoint, shows nothing.
+  Aborted requests (intentional aborts and the SDK's local timeouts, which the sync loop reports itself) do not count, nor do requests or checks during which the page was hidden at any point.
+  WebKit fails requests that were in flight while the app was suspended, and those failures arrive around resume without saying anything about the server.
+  A check that started while the page was visible and got no answer before it was hidden is ignored, and a fresh check runs once the page is shown again, so an outage that began before backgrounding is still detected after resume without another app request.
+  Checks repeat only while `SyncStatus` is mounted, so clients used for login or token refresh send at most one check per failure.
+- Not changed: why the first `/sync` started late is a separate fix, and a request that hangs without failing shows nothing until it fails.
+  Any HTTP response counts as reachable, including responses from other origins (such as the OIDC issuer) and 502/503/504 from the reverse proxy, so a dead homeserver behind a working proxy shows no banner before `/sync` starts; once it syncs, the SDK keepalive reports it.
+- Validation: unit tests cover each rule and fail when it is removed; two `SyncStatus` tests and the `createMatrixClient` test fail before the change.
+  `e2e/connection-status.spec.ts` (Chromium) reloads into the cached shell while homeserver reads get no answer and writes fail, as in the export.
+  Before the change no banner appears; after it "Connection Lost!" appears once the writes fail and the check gets no answer, and clears once the held requests are answered.
+  A second case fails only sends while everything else works, waits for the check to be answered, and checks that the banner never appeared; it fails against a build that shows the banner without the check.
+  Typecheck, build, changed-file lint and prettier pass; full-suite results are in the pull request.
+- Next: on an iPhone, confirm that the banner appears when sending with the homeserver unreachable, clears when it is reachable again, and does not appear after resuming the app with a working connection.
+
 ### Recover messages that failed to send (2026-10-02)
 
 - An iPhone export from build `57e4c56e` shows a new thread root that stayed "not sent" for good.
