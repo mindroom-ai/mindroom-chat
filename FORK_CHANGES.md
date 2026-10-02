@@ -23,7 +23,7 @@
   A new thread root that the compact overview opened as a thread is not returned to the composer, so its echo keeps Retry and Delete.
 - The model picker no longer resends a failed `!model` command itself; that fallback dated from the scheduler without retries and would have opened a second window, so a failed command now reports the selection as unconfirmed.
 - Typing notices ignore failures instead of leaving unhandled rejections.
-- New strings are machine-authored for the 16 non-English catalogs.
+- The new Retry and Delete strings are machine-authored for the 16 non-English catalogs; "Not sent" reuses the existing indicator string.
 - Validation: unit tests cover the retry with the same transaction, giving up and resending, the queue continuing after `/sync` confirms a waiting message, stopping after an iOS suspension (also for a queued message), no retry after a 403, the Retry and Delete actions, the actions for a failed message and a failed edit, the failed root footer and leaving the thread on delete, echo discards for text, attachments and voice, and handled typing failures; each fails before its change.
   Another test pins the SDK behavior that a copy arriving through `/sync` replaces an unsent echo.
   Results of the full suites are in the pull request.

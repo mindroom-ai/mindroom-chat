@@ -1218,7 +1218,6 @@
       },
       "failedSendActions": {
         "delete": "मिटाएँ",
-        "notSent": "नहीं भेजा गया",
         "retry": "पुन: प्रयास करें"
       },
       "messageCopyActions": {

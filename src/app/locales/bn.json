@@ -1218,7 +1218,6 @@
       },
       "failedSendActions": {
         "delete": "মুছুন",
-        "notSent": "পাঠানো হয়নি",
         "retry": "আবার চেষ্টা করুন"
       },
       "messageCopyActions": {

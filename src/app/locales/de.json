@@ -2643,7 +2643,6 @@
         "notSent": "Nicht gesendet"
       },
       "failedSendActions": {
-        "notSent": "Nicht gesendet",
         "retry": "Erneut versuchen",
         "delete": "Löschen"
       },

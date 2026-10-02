@@ -2729,7 +2729,6 @@
         "notSent": "Не отправлено"
       },
       "failedSendActions": {
-        "notSent": "Не отправлено",
         "retry": "Повторить",
         "delete": "Удалить"
       },

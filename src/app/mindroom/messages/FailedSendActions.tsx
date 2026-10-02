@@ -24,7 +24,7 @@ export function FailedSendActions({ room, event, style }: FailedSendActionsProps
   return (
     <Box style={style} alignItems="Center" gap="200" wrap="Wrap">
       <Text as="span" size="T200" style={{ color: color.Critical.Main }}>
-        {t('mindroomUi.messages.failedSendActions.notSent')}
+        {t('mindroomUi.messages.pendingSendIndicator.notSent')}
       </Text>
       <Chip
         as="button"

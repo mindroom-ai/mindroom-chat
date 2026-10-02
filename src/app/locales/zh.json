@@ -2643,7 +2643,6 @@
         "notSent": "未发送"
       },
       "failedSendActions": {
-        "notSent": "未发送",
         "retry": "重试",
         "delete": "删除"
       },

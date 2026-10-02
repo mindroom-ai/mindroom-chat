@@ -2686,7 +2686,6 @@
         "notSent": "Não enviado"
       },
       "failedSendActions": {
-        "notSent": "Não enviado",
         "retry": "Tentar novamente",
         "delete": "Eliminar"
       },

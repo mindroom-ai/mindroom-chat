@@ -2815,7 +2815,6 @@
         "notSent": "لم يُرسل"
       },
       "failedSendActions": {
-        "notSent": "لم يُرسل",
         "retry": "إعادة المحاولة",
         "delete": "حذف"
       },

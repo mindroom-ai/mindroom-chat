@@ -2643,7 +2643,6 @@
         "notSent": "Gönderilmedi"
       },
       "failedSendActions": {
-        "notSent": "Gönderilmedi",
         "retry": "Tekrar dene",
         "delete": "Sil"
       },

@@ -2643,7 +2643,6 @@
         "notSent": "Belum dikirim"
       },
       "failedSendActions": {
-        "notSent": "Belum dikirim",
         "retry": "Coba lagi",
         "delete": "Hapus"
       },
