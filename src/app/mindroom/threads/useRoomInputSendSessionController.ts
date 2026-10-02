@@ -12,6 +12,7 @@ import type { RoomInputAttachmentAccess } from '../room-input/roomInputAttachmen
 import { TUploadContent } from '../../utils/matrix';
 import { isSignalBridgeRoom } from '../bridges/bridgeDetection';
 import { createMindroomPasteMarker } from '../messages/pasteAttachmentMarker';
+import { discardFailedLocalEcho } from '../messages/pendingLocalEcho';
 import {
   createRoomInputSendSessionState,
   getTextRelationForSendSession,
@@ -197,7 +198,14 @@ export const useRoomInputSendSessionController = ({
         notifyRoomMessageSent(localEventId);
       }
 
-      const response = await sendPromise;
+      const response = await sendPromise.catch((error: unknown) => {
+        // Unless the timeline owns the failed message, its text goes back into the
+        // composer; drop the unsent echo so the message cannot be sent twice.
+        if (!session.textTimelineOwned) {
+          discardFailedLocalEcho(mx, session.room.getEventForTxnId(txnId));
+        }
+        throw error;
+      });
       notifyRoomMessageSent(response.event_id);
 
       session.textPending = false;
@@ -223,7 +231,14 @@ export const useRoomInputSendSessionController = ({
             'm.relates_to': relation,
           }
         : content;
-      const response = await mx.sendMessage(session.roomId, contentWithRelation as any);
+      const txnId = mx.makeTxnId();
+      const response = await mx
+        .sendMessage(session.roomId, contentWithRelation as any, txnId)
+        .catch((error: unknown) => {
+          // The composer keeps the attachment to send again; drop the unsent echo.
+          discardFailedLocalEcho(mx, session.room.getEventForTxnId(txnId));
+          throw error;
+        });
       const sentEventIdToNotify = getRoomMessageSentNotificationEventId({
         eventId: response.event_id,
         relation,

@@ -2642,6 +2642,10 @@
         "messageFailedToSend": "Message failed to send",
         "notSent": "Not sent"
       },
+      "failedSendActions": {
+        "retry": "Retry",
+        "delete": "Delete"
+      },
       "aiRunDisplay": {
         "inputTokens": "in {{formattedCount}}",
         "outputTokens": "out {{formattedCount}}",
