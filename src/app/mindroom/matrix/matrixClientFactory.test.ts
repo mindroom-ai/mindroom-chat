@@ -104,7 +104,11 @@ describe('createMatrixClient message sends', () => {
       const response = responses.shift();
       if (response === undefined) throw new Error('Unexpected request');
       if (response === 'suspended') vi.setSystemTime(Date.now() + TWO_HOURS_MS);
-      if (response === 'slow') await new Promise((resolve) => setTimeout(resolve, 10_000));
+      if (response === 'slow') {
+        await new Promise((resolve) => {
+          setTimeout(resolve, 10_000);
+        });
+      }
       if (response === 'pending') {
         await new Promise<void>((resolve) => {
           dropPending = resolve;
