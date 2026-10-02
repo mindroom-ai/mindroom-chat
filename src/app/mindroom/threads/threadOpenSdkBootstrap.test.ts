@@ -29,6 +29,7 @@ describe('runThreadOpenSdkBootstrap', () => {
       },
     };
     const thread = {
+      initialize: vi.fn(() => undefined),
       id: '$root',
       rootEvent: root,
       events,
@@ -88,6 +89,7 @@ describe('runThreadOpenSdkBootstrap', () => {
         setPaginationToken: vi.fn(),
       };
       const thread = {
+        initialize: vi.fn(() => undefined),
         id: '$root',
         events: [],
         addEvents: vi.fn(),
@@ -258,6 +260,7 @@ describe('runThreadOpenSdkBootstrap', () => {
       setPaginationToken: vi.fn(),
     };
     const thread = {
+      initialize: vi.fn(() => undefined),
       id: '$root',
       events: [reply],
       rootEvent: root,

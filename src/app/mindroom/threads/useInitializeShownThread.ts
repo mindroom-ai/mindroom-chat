@@ -74,7 +74,7 @@ export const useInitializeShownThread = (roomId: string, threadRootId: string | 
   useEffect(() => {
     if (!thread || !visible || liveSyncCount === 0) return undefined;
     const timer = setTimeout(() => {
-      void thread.initialize?.();
+      void thread.initialize();
     }, SHOWN_THREAD_DWELL_MS);
     return () => clearTimeout(timer);
   }, [thread, visible, liveSyncCount]);

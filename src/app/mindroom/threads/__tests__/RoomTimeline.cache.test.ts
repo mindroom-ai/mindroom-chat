@@ -397,6 +397,7 @@ describe('RoomTimeline', () => {
         getTimelineForEvent: () => undefined,
       };
       const threadModel = {
+        initialize: () => undefined,
         rootEvent,
         events: threadEvents.slice(1),
         getUnfilteredTimelineSet: () => threadTimelineSet,
@@ -460,6 +461,7 @@ describe('RoomTimeline', () => {
         getTimelineForEvent: () => undefined,
       };
       const threadModel = {
+        initialize: () => undefined,
         rootEvent,
         events: threadEvents.slice(1),
         getUnfilteredTimelineSet: () => threadTimelineSet,
@@ -525,6 +527,7 @@ describe('RoomTimeline', () => {
         getTimelineForEvent: () => undefined,
       };
       const threadModel = {
+        initialize: () => undefined,
         rootEvent,
         events: threadEvents.slice(1),
         getUnfilteredTimelineSet: () => threadTimelineSet,
@@ -603,6 +606,7 @@ describe('RoomTimeline', () => {
         getTimelineForEvent: () => undefined,
       };
       const threadModel = {
+        initialize: () => undefined,
         rootEvent,
         events: initialThreadEvents,
         getUnfilteredTimelineSet: () => threadTimelineSet,
@@ -876,6 +880,7 @@ describe('RoomTimeline', () => {
         getTimelineForEvent: () => undefined,
       };
       const threadModel = {
+        initialize: () => undefined,
         rootEvent,
         events: initialThreadEvents,
         getUnfilteredTimelineSet: () => threadTimelineSet,
@@ -1015,6 +1020,7 @@ describe('RoomTimeline', () => {
         getTimelineForEvent: () => undefined,
       };
       const threadModel = {
+        initialize: () => undefined,
         rootEvent,
         events: initialThreadEvents,
         getUnfilteredTimelineSet: () => threadTimelineSet,
@@ -1132,6 +1138,7 @@ describe('RoomTimeline', () => {
         getTimelineForEvent: () => undefined,
       };
       const threadModel = {
+        initialize: () => undefined,
         rootEvent,
         events: initialThreadEvents,
         getUnfilteredTimelineSet: () => threadTimelineSet,
@@ -1242,6 +1249,7 @@ describe('RoomTimeline', () => {
         getTimelineForEvent: () => undefined,
       };
       const threadModel = {
+        initialize: () => undefined,
         rootEvent,
         events: initialThreadEvents,
         getUnfilteredTimelineSet: () => threadTimelineSet,
@@ -3120,6 +3128,7 @@ describe('RoomTimeline', () => {
           [threadId, '$thread-reply-2'].includes(eventId) ? threadTimeline : undefined,
       };
       const threadModel = {
+        initialize: () => undefined,
         rootEvent,
         events: [secondReply],
         getUnfilteredTimelineSet: () => threadTimelineSet,
@@ -3231,6 +3240,7 @@ describe('RoomTimeline', () => {
             : undefined,
       };
       const threadModel = {
+        initialize: () => undefined,
         rootEvent,
         events: [firstReply, secondReply],
         getUnfilteredTimelineSet: () => threadTimelineSet,
@@ -4540,6 +4550,7 @@ describe('RoomTimeline', () => {
       const threadEvents = [rootEvent];
       room.getThread = () =>
         ({
+          initialize: () => undefined,
           setEventMetadata: vi.fn(),
           flushPendingTimelineReset: vi.fn(),
           addEvents: (added: ReturnType<typeof makeEvent>[]) => {
@@ -4787,6 +4798,7 @@ describe('RoomTimeline', () => {
       });
       room.getThread = () =>
         ({
+          initialize: () => undefined,
           events: [rootEvent, firstReply],
           getUnfilteredTimelineSet: () => threadTimelineSet,
           rootEvent,
@@ -4946,6 +4958,7 @@ describe('RoomTimeline', () => {
       });
       room.getThread = () =>
         ({
+          initialize: () => undefined,
           events: [rootEvent, threadReply],
           getUnfilteredTimelineSet: () => threadTimelineSet,
           rootEvent,

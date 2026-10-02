@@ -523,6 +523,7 @@ describe('buildCompactThreadRootData', () => {
           rootEvent: redactedRoot,
           events: [],
           length: 1,
+          initialEventsFetched: true,
           getUnfilteredTimelineSet: () => ({ getLiveTimeline: () => liveTimeline }),
         } as never,
       ],

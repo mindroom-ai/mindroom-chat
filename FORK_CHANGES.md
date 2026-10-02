@@ -15,8 +15,9 @@
 - SDK patch (`patches/matrix-js-sdk+41.7.0.patch`, `src/models/thread.ts`, `room.ts`, `client.ts` and their `lib` builds):
   - A thread defers its network initialization until `Thread.initialize()`; until then it processes the summary (reply count, latest reply, participation) locally and fetches only a missing root, and no encrypted edits.
   - Unopened threads append live replies and buffer edits for the first page, as the SDK does while loading; only the newest edit of each reply is kept.
+    A redaction of a buffered edit or reaction (`Room.takeBufferedThreadRelation`) removes it from that buffer and from the reaction counts.
   - An edit of a reply that the thread knows only from the summary finds that reply (`Room.findUnopenedThreadReply`) instead of fetching it once per edit.
-  - `/threads` responses refresh the summary of unopened threads (`Room.refreshListedThreadRoots`), unless the thread already shows a newer reply or a live reply with the same timestamp, so cached cards upgrade without a root request.
+  - `/threads` responses refresh the summary of known unopened threads (`Room.processListedThreadRoots`), unless the thread already shows a newer reply or a live reply with the same timestamp, so cached cards upgrade without a root request.
   - A thread ignores timeline resets of other threads; only a room gap invalidates its root.
     Unopened threads coalesce room sync gaps like untouched initialized ones.
   - A failed first page returns the thread to the unopened state, keeping its buffered edits, so later events neither reset its timeline nor reject.
@@ -48,7 +49,7 @@
   Existing tests that held the SDK's root request or first page to create pending states now use unopened threads or pending discovery instead.
   When upgrading the SDK, keep these files and drop the patch sections once upstream stops initializing threads at creation.
 - Not changed: a thread whose root is outside the synced window still fetches that root at startup (one request); the app's own scheduled prefetch and reconcile requests are unchanged.
-- Validation: 5,740 unit tests pass; the only failures are the three `xcodeCloudPostClone` tests that need `/bin/bash` and `useRoomInputSendSessionController`'s caption case, which fail the same way on `dev`.
+- Validation: 5,742 unit tests pass; the only failures are the three `xcodeCloudPostClone` tests that need `/bin/bash` and `useRoomInputSendSessionController`'s caption case, which fail the same way on `dev`.
   Typecheck, production build, prettier and lint (0 errors, 17 existing warnings) pass, and the patch applies to a pristine `matrix-js-sdk@41.7.0` with every patched file byte-identical to the tested tree.
   The live spec passes in Chromium and WebKit, 30 thread-related live jobs pass in Chromium, and `offline-thread-overview` and `thread-indexeddb-loss` pass in WebKit (Playwright container).
   `cinny069-room-resume-thread-preload` and `cinny070-thread-prepend-scroll` fail with the same assertions on unchanged `dev`.

@@ -289,6 +289,58 @@ describe('SDK thread bootstrap requests', () => {
     );
   });
 
+  it.each([false, true])(
+    'drops an edit and a reaction redacted before opening (after a failed first page: %s)',
+    async (failedFirst) => {
+      const rootId = rootIdAt(1);
+      const f = server({ roots: [summarizedRoot(rootId, 3)] });
+      const room = roomFor(f.client);
+      room.processThreadRoots([f.client.getEventMapper()(summarizedRoot(rootId, 3))], true);
+      const thread = room.getThread(rootId)!;
+      const replyId = `${rootId}-reply-3`;
+      await room.addLiveEvents([new MatrixEvent(reply(rootId, 3, 10))], { addToState: false });
+      if (failedFirst) {
+        f.network.relationsDown = true;
+        await thread.initialize();
+        f.network.relationsDown = false;
+        await room.addLiveEvents([new MatrixEvent(reply(rootId, 3, 10))], { addToState: false });
+      }
+      const reaction = new MatrixEvent(
+        message('$reaction', 11, {
+          'm.relates_to': { rel_type: 'm.annotation', event_id: replyId, key: '🛑' },
+        })
+      );
+      reaction.event.type = 'm.reaction';
+      const redaction = (eventId: string, ts: number) =>
+        new MatrixEvent({
+          ...message(`$redaction-${ts}`, ts),
+          type: 'm.room.redaction',
+          redacts: eventId,
+          content: { redacts: eventId },
+        });
+      const reactionCount = () =>
+        thread.timelineSet.relations
+          .getChildEventsForEvent(replyId, 'm.annotation', 'm.reaction')
+          ?.getSortedAnnotationsByKey()
+          ?.find(([key]) => key === '🛑')?.[1].size ?? 0;
+      await room.addLiveEvents([reaction, edit(replyId, 'deleted edit', 12)], {
+        addToState: false,
+      });
+      expect(reactionCount()).toBe(1);
+
+      await room.addLiveEvents([redaction('$reaction', 13), redaction('$edit-12', 14)], {
+        addToState: false,
+      });
+      expect(reactionCount()).toBe(0);
+      await thread.initialize();
+      await settle();
+
+      expect(thread.initialEventsFetched).toBe(true);
+      expect(reactionCount()).toBe(0);
+      expect(thread.findEventById(replyId)!.getContent().body).toBe(replyId);
+    }
+  );
+
   it('retries opening a thread whose first page failed', async () => {
     const root = summarizedRoot(rootIdAt(1), 2);
     const f = server({ roots: [root] });
@@ -505,7 +557,7 @@ describe('SDK thread bootstrap requests', () => {
 
     // The mapper merges a later listing into the same root object.
     root.setUnsigned(listedRoot('final answer', 6).unsigned!);
-    room.refreshListedThreadRoots([root]);
+    room.processListedThreadRoots([root], true);
     await settle();
 
     expect(thread.replyToEvent?.getContent().body).toBe('final answer');
@@ -521,7 +573,7 @@ describe('SDK thread bootstrap requests', () => {
     await room.addLiveEvents([liveReply], { addToState: false });
 
     // A listing taken just before that reply, whose latest reply has the same timestamp.
-    room.refreshListedThreadRoots([f.client.getEventMapper()(summarizedRoot(rootId, 1, 9))]);
+    room.processListedThreadRoots([f.client.getEventMapper()(summarizedRoot(rootId, 1, 9))], true);
     await settle();
 
     expect(thread.replyToEvent).toBe(liveReply);

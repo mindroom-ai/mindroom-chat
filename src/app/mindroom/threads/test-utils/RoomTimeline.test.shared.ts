@@ -1435,6 +1435,7 @@ const makeRoom = ({
         rootEvent,
         events: threadEvents,
         initialEventsFetched: false,
+        initialize: vi.fn(() => undefined),
         replayEvents: [] as ReturnType<typeof makeEvent>[] | null,
         timeline: threadEvents,
         get length() {
