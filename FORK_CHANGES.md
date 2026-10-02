@@ -14,6 +14,20 @@
   Six unit regressions fail before the fix; both installed-Chrome browser cases pass across all three thread entry points in Simple and normal modes, and independent review found no blockers.
   A follow-up run alongside the build hit the unchanged gap-fill checkpoint timing test; its 26 tests and a subsequent full suite passed without concurrent build/browser work.
 
+### Flatten the Members drawer header (2026-10-01)
+
+- The Members title strip now uses the same flat, translucent `PageNavHeader` and `PageNavContent` as the navigation sidebars, without a border, specular rim, shadow, or pointer-driven optics.
+- The invited-count chip and header icons also keep their backgrounds transparent at rest, on hover, and while pressed; native keyboard focus outlines remain visible.
+  The browser regression checks these states and verifies that hovering the header does not change its rendered pixels.
+- Members scroll behind the sticky header, while the shared inset scrollbar and scroll-to-top button stay below it.
+  The virtualizer measures the list origin after the header and filters, including content-size changes, and subtracts that offset when positioning rows.
+- The shared drawer covers both rooms and spaces, including invited members and join requests.
+  A live browser regression checks the rendered material, hover, overlapping rows, first/last member access, scrollbar controls, the invited filter, and closing the drawer in both themes.
+- Validation: 5,674 unit tests, typecheck, production build, changed-file lint, and all four Chromium/WebKit cases pass.
+  The regression is included in the glass suite, and fixture teardown deactivates registered users even after partial setup or settings-restoration failures.
+  Independent review and before/after screenshots are recorded in the follow-up PR.
+  Linux Playwright WebKit verifies transparency and layout but does not paint native backdrop blur in this environment; real Safari blur still needs an Apple-device check.
+
 ### Show the agent shield for agents in unencrypted rooms (2026-10-01)
 
 - The agent shield read device lists with `getUserDeviceInfo([userId])`, which returns nothing for users the client does not track.
