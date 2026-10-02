@@ -21,6 +21,7 @@
 - A failed composer send now has one way to try again.
   Composer paths that keep the content for their own retry (text returned to the composer, staged attachments, the voice recorder) discard the unsent echo, as thread summary actions already did.
   A new thread root that the compact overview opened as a thread is not returned to the composer, so its echo keeps Retry and Delete.
+- The model picker no longer resends a failed `!model` command itself; that fallback dated from the scheduler without retries and would have opened a second window, so a failed command now reports the selection as unconfirmed.
 - Typing notices ignore failures instead of leaving unhandled rejections.
 - New strings are machine-authored for the 16 non-English catalogs.
 - Validation: unit tests cover the retry with the same transaction, giving up and resending, the queue continuing after `/sync` confirms a waiting message, stopping after an iOS suspension (also for a queued message), no retry after a 403, the Retry and Delete actions, the actions for a failed message and a failed edit, the failed root footer and leaving the thread on delete, echo discards for text, attachments and voice, and handled typing failures; each fails before its change.
@@ -29,7 +30,6 @@
 - Not covered:
   - Unsent echoes are not persisted with chronological pending events, so a failed root disappears after a reload and can drop out of the room timeline after a limited `/sync`; text that returned to the composer survives in its draft.
   - The composer ignores Enter while its previous message is still sending, which can now last up to the retry window during an outage.
-  - The model picker resends a failed `!model` command once more, with a new window, after the scheduler gives up.
   - A failed edit offers both Save in the still open editor and Retry once the editor closes; the latest edit wins either way.
   - The window starts after encryption, so a key share held up by a suspension can still be followed by a send.
   - No browser check against a homeserver yet; after deploy, send a message with the network off, wait about a minute, then retry and delete a failed new thread root.
