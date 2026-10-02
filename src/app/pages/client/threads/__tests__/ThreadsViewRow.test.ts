@@ -8,6 +8,9 @@ const { navigateRoomThreadMock } = vi.hoisted(() => ({
   navigateRoomThreadMock: vi.fn(),
 }));
 
+vi.mock('../../../../mindroom/threads/useInitializeShownThread', () => ({
+  useInitializeShownThread: () => undefined,
+}));
 vi.mock('../ThreadsView.css', () => ({
   Row: 'row',
   RowChrome: 'row-chrome',

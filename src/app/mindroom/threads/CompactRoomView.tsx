@@ -20,6 +20,7 @@ import { InsetScrollbar } from '../../components/inset-scrollbar/InsetScrollbar'
 import * as overlay from './RoomOverlay.css';
 import { useThreadPinning } from './useThreadPinning';
 import { isConfirmedMatrixEventId } from './threadRouteUtils';
+import { useInitializeShownThread } from './useInitializeShownThread';
 
 const ThreadActionsMenu = lazy(() =>
   import('./ThreadActionsMenu').then((module) => ({ default: module.ThreadActionsMenu }))
@@ -82,9 +83,11 @@ const CompactThreadCardRow = React.memo(
     onOpenMenu,
   }: CompactThreadCardRowProps) => {
     const rootId = viewModel.id.threadRootId;
+    const shownRef = useInitializeShownThread(roomId, rootId);
 
     return (
       <div
+        ref={shownRef}
         className={css.CardShell}
         onContextMenu={(event) => {
           event.preventDefault();

@@ -9,7 +9,6 @@ import type { CompactThreadCardViewModel } from './types';
 import * as css from './CompactRoomView.css';
 import { FailedSendIndicator, PendingSendIndicator } from '../messages/pendingSendIndicator';
 import { ThreadStreamingDot } from './ThreadStreamingDot';
-import { useInitializeShownThread } from './useInitializeShownThread';
 
 const tagColor = (tagName: string): string => {
   let hash = 0;
@@ -50,7 +49,6 @@ function CompactThreadCardBase({ viewModel, onClick }: CompactThreadCardProps) {
     lastActivityTitle,
     primarySummaryText,
   } = viewModel;
-  const shownRef = useInitializeShownThread(id.roomId, id.threadRootId);
   const relativeTime = useRelativeTime(lastActivityTs);
   const resolvedByLabel =
     isResolved && resolvedByDisplayName
@@ -77,7 +75,6 @@ function CompactThreadCardBase({ viewModel, onClick }: CompactThreadCardProps) {
 
   return (
     <button
-      ref={shownRef}
       className={isResolved ? `${css.Card} ${css.CardResolved}` : css.Card}
       type="button"
       onClick={() => onClick(id.threadRootId, primarySummaryText)}

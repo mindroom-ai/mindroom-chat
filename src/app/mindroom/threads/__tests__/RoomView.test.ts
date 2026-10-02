@@ -126,6 +126,7 @@ vi.stubGlobal('window', {
   },
 });
 
+vi.mock('../useInitializeShownThread', () => ({ useInitializeShownThread: () => undefined }));
 vi.mock('../../engine/engineContext', () => ({ useMindroomSyncEngine: () => syncEngine }));
 
 vi.mock('folds', async (importOriginal) => {
