@@ -2,6 +2,18 @@
 
 ## Runbook
 
+### Preserve the selected space when opening threads (2026-10-01)
+
+- Reproduced in the hosted Chrome tab: opening a thread from a space's sidebar navigated to `/home/...` and replaced the space's room list.
+  Simple mode's early return in `useRoomNavigate` ignored the selected space.
+- Room navigation now preserves the selected space when it contains the destination room, including descendants of nested spaces, before applying the Home/Direct fallback.
+  This shared path covers sidebar threads, Recently Opened, room overview threads, and focused events.
+- Qodo review confirmed an unreachable selected-parent fallback and browser fixtures that overwrote local account preferences.
+  Removed the redundant fallback; fixtures now preserve all preferences and restore the original account settings in `finally`.
+- Validation on current `dev`: all 5,684 unit tests, application and changed-test typechecks, production build, formatting, and lint pass with the existing 17 warnings.
+  Six unit regressions fail before the fix; both installed-Chrome browser cases pass across all three thread entry points in Simple and normal modes, and independent review found no blockers.
+  A follow-up run alongside the build hit the unchanged gap-fill checkpoint timing test; its 26 tests and a subsequent full suite passed without concurrent build/browser work.
+
 ### Load threads when they are shown, not when they are listed (2026-10-02)
 
 - An iPhone export from build `57e4c56e` shows about 800 `GET /rooms/{id}/event` and 170-320 `/relations` requests in the first minute of every session.
