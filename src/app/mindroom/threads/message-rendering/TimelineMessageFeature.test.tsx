@@ -1,5 +1,11 @@
 import React, { createRef } from 'react';
-import { MatrixEvent, MatrixEventEvent, type Room, type EventTimelineSet } from 'matrix-js-sdk';
+import {
+  EventStatus,
+  MatrixEvent,
+  MatrixEventEvent,
+  type Room,
+  type EventTimelineSet,
+} from 'matrix-js-sdk';
 import { createEditor } from 'slate';
 import { act } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
@@ -282,6 +288,20 @@ describe('timeline message feature', () => {
     expect(replacement.listenerCount(MatrixEventEvent.Decrypted)).toBe(1);
     act(() => renderer.unmount());
     expect(replacement.listenerCount(MatrixEventEvent.Decrypted)).toBe(0);
+  });
+
+  it('leaves the failed root of an open thread to the thread footer', async () => {
+    const { FailedSendActions } = await import('../../messages/FailedSendActions');
+    const [root, reply] = ['~root', '~reply'].map((id) => {
+      const event = makeEvent(id, { content: { body: id } }) as unknown as MatrixEvent;
+      event.status = EventStatus.NOT_SENT;
+      return event;
+    });
+    const { renderer } = await mountFeature([rowFor(root), rowFor(reply, 1, '~root')], '~root');
+
+    expect(renderer.root.findAllByType(FailedSendActions).map((node) => node.props.event)).toEqual([
+      reply,
+    ]);
   });
 
   it('resolves edits on mutable events again when the feature rerenders', async () => {

@@ -2642,6 +2642,10 @@
         "messageFailedToSend": "Mesaj gönderilemedi",
         "notSent": "Gönderilmedi"
       },
+      "failedSendActions": {
+        "retry": "Tekrar dene",
+        "delete": "Sil"
+      },
       "aiRunDisplay": {
         "inputTokens": "girdi {{formattedCount}}",
         "outputTokens": "çıktı {{formattedCount}}",

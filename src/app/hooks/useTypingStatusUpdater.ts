@@ -9,13 +9,16 @@ export const useTypingStatusUpdater = (mx: MatrixClient, roomId: string): Typing
 
   const sendTypingStatus: TypingStatusUpdater = useMemo(() => {
     statusSentTsRef.current = 0;
+    // Typing notices are best effort; ignore failures such as a dropped connection.
+    const sendTyping = (typing: boolean) =>
+      mx.sendTyping(roomId, typing, TYPING_TIMEOUT_MS).catch(() => undefined);
     return (typing) => {
       if (typing) {
         if (Date.now() - statusSentTsRef.current < TYPING_TIMEOUT_MS) {
           return;
         }
 
-        mx.sendTyping(roomId, true, TYPING_TIMEOUT_MS);
+        sendTyping(true);
         const sentTs = Date.now();
         statusSentTsRef.current = sentTs;
 
@@ -23,7 +26,7 @@ export const useTypingStatusUpdater = (mx: MatrixClient, roomId: string): Typing
         // Clear typing status after timeout if already not;
         setTimeout(() => {
           if (statusSentTsRef.current === sentTs) {
-            mx.sendTyping(roomId, false, TYPING_TIMEOUT_MS);
+            sendTyping(false);
             statusSentTsRef.current = 0;
           }
         }, TYPING_TIMEOUT_MS);
@@ -31,7 +34,7 @@ export const useTypingStatusUpdater = (mx: MatrixClient, roomId: string): Typing
       }
 
       if (Date.now() - statusSentTsRef.current < TYPING_TIMEOUT_MS) {
-        mx.sendTyping(roomId, false, TYPING_TIMEOUT_MS);
+        sendTyping(false);
       }
       statusSentTsRef.current = 0;
     };

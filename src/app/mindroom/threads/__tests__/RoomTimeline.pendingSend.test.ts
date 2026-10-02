@@ -11,8 +11,9 @@ import {
 } from '../test-utils/RoomTimeline.test.shared';
 
 describe('RoomTimeline pending-send wiring', () => {
-  it('passes local-echo status into rendered message content', async () => {
+  it('passes local-echo status into rendered message content and failed-send actions', async () => {
     const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+    const { FailedSendActions } = await import('../../messages/FailedSendActions');
     const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
     const pendingEvent = makeEvent('$pending', { content: { body: 'pending' } }) as ReturnType<
       typeof makeEvent
@@ -30,9 +31,17 @@ describe('RoomTimeline pending-send wiring', () => {
       typeof makeEvent
     > & { status?: EventStatus };
     failedEvent.status = EventStatus.NOT_SENT;
+    const failedEdit = makeEvent('$failed-edit', {
+      content: { body: 'failed edit' },
+    }) as ReturnType<typeof makeEvent> & { status?: EventStatus };
+    failedEdit.status = EventStatus.NOT_SENT;
+    const failedEditBase = makeEvent('$failed-edit-base', {
+      content: { body: 'original' },
+    }) as ReturnType<typeof makeEvent> & { __editedEvent?: typeof failedEdit };
+    failedEditBase.__editedEvent = failedEdit;
     const confirmedEvent = makeEvent('$confirmed', { content: { body: 'confirmed' } });
     const room = makeRoom({
-      liveEvents: [pendingEvent, editedBaseEvent, failedEvent, confirmedEvent],
+      liveEvents: [pendingEvent, editedBaseEvent, failedEvent, failedEditBase, confirmedEvent],
     });
 
     let renderer: ReturnType<typeof create> | undefined;
@@ -57,8 +66,13 @@ describe('RoomTimeline pending-send wiring', () => {
         { body: 'pending', pendingSend: true, failedSend: false },
         { body: 'pending edit', pendingSend: true, failedSend: false },
         { body: 'failed', pendingSend: false, failedSend: true },
+        { body: 'failed edit', pendingSend: false, failedSend: true },
         { body: 'confirmed', pendingSend: false, failedSend: false },
       ])
+    );
+    // Only failed sends offer Retry and Delete, aimed at the event that failed.
+    expect(renderer!.root.findAllByType(FailedSendActions).map((node) => node.props.event)).toEqual(
+      [failedEvent, failedEdit]
     );
   });
 });

@@ -1,6 +1,6 @@
 import React, { MutableRefObject, useEffect, useMemo, useRef } from 'react';
 import { act, create } from 'react-test-renderer';
-import { MatrixError } from 'matrix-js-sdk';
+import { EventStatus, MatrixError } from 'matrix-js-sdk';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { IReplyDraft, TUploadItem } from '../../state/room/roomInputDrafts';
 import { Upload, UploadStatus } from '../../state/upload';
@@ -109,6 +109,7 @@ const TestHarness = ({
   onReady: (api: HarnessApi) => void;
   onRoomMessageSent?: (eventId: string) => boolean | void;
   mx: {
+    cancelPendingEvent: ReturnType<typeof vi.fn>;
     getEventForTxnId: ReturnType<typeof vi.fn>;
     makeTxnId: ReturnType<typeof vi.fn>;
     sendMessage: ReturnType<typeof vi.fn>;
@@ -210,8 +211,9 @@ const renderHarness = (
 ) => {
   let sentEvents = 0;
   let transactionIds = 0;
-  const localEvents = new Map<string, { getId: () => string }>();
+  const localEvents = new Map<string, { getId: () => string; status?: EventStatus }>();
   const mx = {
+    cancelPendingEvent: vi.fn(),
     getEventForTxnId: vi.fn((txnId: string) => localEvents.get(txnId)),
     makeTxnId: vi.fn(() => `txn-${transactionIds++}`),
     sendMessage: vi.fn(async (targetRoomId: string, _content: unknown, txnId?: string) => {
@@ -302,6 +304,36 @@ describe('useRoomInputSendSessionController active session query', () => {
 
     expect(api.hasActiveSendSession()).toBe(false);
     expect(mx.sendMessage).toHaveBeenCalledTimes(3);
+  });
+
+  it('drops the unsent echo of a failed upload that stays staged for another try', async () => {
+    const { api, localEvents, mx } = renderHarness();
+    const file = createFile('file.txt');
+    api.selectedFilesRef.current = [createUploadItem(file)];
+    api.uploadsRef.current = [successUpload(file)];
+    mx.sendMessage.mockImplementationOnce(
+      async (targetRoomId: string, _content: unknown, txnId: string) => {
+        localEvents.set(txnId, {
+          getId: () => `~${targetRoomId}:${txnId}`,
+          status: EventStatus.NOT_SENT,
+        });
+        throw new Error('upload send failed');
+      }
+    );
+
+    await act(async () => {
+      await api.startSendSession();
+    });
+
+    expect(mx.cancelPendingEvent).toHaveBeenCalledWith(localEvents.get('txn-0'));
+    expect(api.selectedFilesRef.current.map((item) => item.file)).toEqual([file]);
+
+    await act(async () => {
+      await api.startSendSession();
+    });
+
+    expect(mx.sendMessage).toHaveBeenCalledTimes(2);
+    expect(api.hasActiveSendSession()).toBe(false);
   });
 
   it.each([
@@ -559,7 +591,7 @@ describe('useRoomInputSendSessionController caption send failures', () => {
           },
           context: {
             roomId: '!room:example.org',
-            room: {} as never,
+            room: { getEventForTxnId: () => undefined } as never,
             threadId: '$retry',
             replyDraft: undefined,
             threadingEnabled: true,
@@ -876,11 +908,14 @@ describe('useRoomInputSendSessionController optimistic room roots', () => {
     expect(mocks.restoreEditorContent).not.toHaveBeenCalled();
 
     await act(async () => {
+      localEvents.get('txn-0')!.status = EventStatus.NOT_SENT;
       send.reject(new Error('root send failed'));
       await sendPromise;
     });
 
+    // The unsent root stays in the timeline, where it can be retried or deleted.
     expect(mocks.restoreEditorContent).not.toHaveBeenCalled();
+    expect(mx.cancelPendingEvent).not.toHaveBeenCalled();
 
     await act(async () => {
       await api.startSendSession({
@@ -936,6 +971,7 @@ describe('useRoomInputSendSessionController optimistic room roots', () => {
         textContent: { msgtype: 'm.text', body: 'root message' },
       });
       await Promise.resolve();
+      localEvents.get('txn-0')!.status = EventStatus.NOT_SENT;
       send.reject(new Error('root send failed'));
       await sendPromise;
     });
@@ -944,5 +980,7 @@ describe('useRoomInputSendSessionController optimistic room roots', () => {
     expect(mocks.restoreEditorContent).toHaveBeenCalledWith(editor, [
       { type: 'paragraph', children: [{ text: 'caption draft' }] },
     ]);
+    // The composer has the text again, so the unsent echo must not offer a second send.
+    expect(mx.cancelPendingEvent).toHaveBeenCalledWith(localEvents.get('txn-0'));
   });
 });
