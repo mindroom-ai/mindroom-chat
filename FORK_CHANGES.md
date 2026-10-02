@@ -48,6 +48,10 @@
   Existing tests that held the SDK's root request or first page to create pending states now use unopened threads or pending discovery instead.
   When upgrading the SDK, keep these files and drop the patch sections once upstream stops initializing threads at creation.
 - Not changed: a thread whose root is outside the synced window still fetches that root at startup (one request); the app's own scheduled prefetch and reconcile requests are unchanged.
+- Validation: 5,740 unit tests pass; the only failures are the three `xcodeCloudPostClone` tests that need `/bin/bash` and `useRoomInputSendSessionController`'s caption case, which fail the same way on `dev`.
+  Typecheck, production build, prettier and lint (0 errors, 17 existing warnings) pass, and the patch applies to a pristine `matrix-js-sdk@41.7.0` with every patched file byte-identical to the tested tree.
+  The live spec passes in Chromium and WebKit, 30 thread-related live jobs pass in Chromium, and `offline-thread-overview` and `thread-indexeddb-loss` pass in WebKit (Playwright container).
+  `cinny069-room-resume-thread-preload` and `cinny070-thread-prepend-scroll` fail with the same assertions on unchanged `dev`.
 - Next: in the next iOS export, check that a session's first minute has no request bursts and that `/sync` starts within seconds of boot.
 
 ### Show when the homeserver cannot be reached (2026-10-02)
