@@ -12,18 +12,20 @@
   No recovery reload from #349 followed, so the connection itself stayed open and only the write was aborted.
 - The recorder treated one failed write as permanent: it dropped the pending queue and stayed memory-only until the page reloaded or tracing was turned off and on.
 - A failed write now releases the recorder's connection, puts the failed batch back at the front of the queue, and retries on a new connection after 1, 2 and 4 s.
-  Flushes requested by recorded events meanwhile, including ones that waited on the failed write, wait for that retry; an export or opt-out still writes at once.
+  Flushes requested by recorded events meanwhile, including ones that waited on the failed write, wait for that retry; an export or opt-out still writes at once, and an export that waited on the failed write retries it before reading.
   A successful write or clear resets the count; a fourth consecutive failure makes the recorder memory-only as before, so unusable storage is not retried in a loop.
   A failed transaction stores nothing, so the batch is written once and in order, and batches committed before it are not written again.
   If the pending queue overflows meanwhile, its oldest events go first, starting with the failed batch, and are counted as dropped as before.
   While a retry is pending the status stays `recording`, and `deepTraceHealth.lastFailure` keeps the failure until the trace is cleared, so exports still show it.
-- Tests: unit regressions cover a write aborted on a live connection and a connection closed by the browser (the failed batch and later events are written once and in order after the delay, not before it), the 1, 2 and 4 s retries ending memory-only, and the count reset after a successful write or clear; the aborted-write, closed-connection and bounded-retry tests fail before the change.
+- Tests: unit regressions cover a write aborted on a live connection and a connection closed by the browser (the failed batch and later events are written once and in order after the delay, not before it), the 1, 2 and 4 s retries ending memory-only, an export that waited on the failed write, and the count reset after a successful write or clear; the aborted-write, closed-connection, export and bounded-retry tests fail before the change.
   `e2e/diagnostics-storage-fallback.spec.ts` now expects the trace to recover after a real Chromium connection close, and its export with failing storage still carries the memory tail and the latest failure; it fails before the change.
-- Validation: the 95 diagnostics unit tests, the Chromium spec above, typecheck, build, lint (0 errors, the existing 17 warnings) and prettier pass.
+- Validation: the 96 diagnostics unit tests, the Chromium spec above, typecheck, build, lint (0 errors, the existing 17 warnings) and prettier pass.
   The full unit suite passes apart from the three `xcodeCloudPostClone` tests (no `/bin/bash` on this NixOS host) and one `useRoomInputSendSessionController` caption test, which fail the same way on unchanged `dev`.
 - Not covered: after a real IndexedDB server loss the #349 sentinel reloads the page, so the failed batch and the events recorded until the reload are still lost, as #350 notes.
   A commit that reached disk just before such a loss could be written again after it; the repeated `sequence` would show it.
   Playwright WebKit was not run on this host.
+- Review: an independent review found an unpinned count reset, a missing reset on clear, and Runbook overstatements, all fixed.
+  Qodo and CodeRabbit found that an export waiting on a failed write skipped it, now fixed; Sourcery's note on events recorded during a clear describes the existing, documented clear behavior.
 - Next: in the next iOS export after a background resume, confirm the persisted trace continues past the resume, with `lastFailure` near a `scene.foreground`.
 
 ### Flatten the Members drawer header (2026-10-01)

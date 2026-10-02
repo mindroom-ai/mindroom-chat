@@ -359,7 +359,7 @@ const readStoredEvents = async (): Promise<{
   };
 };
 
-const flush = async (target: Runtime): Promise<void> => {
+const flush = async (target: Runtime, force = false): Promise<void> => {
   if (target.flushTimer !== undefined) {
     window.clearTimeout(target.flushTimer);
     target.flushTimer = undefined;
@@ -367,12 +367,17 @@ const flush = async (target: Runtime): Promise<void> => {
   while (target.flushPromise) {
     await target.flushPromise;
   }
+  if (target.flushFailures > 0 && target.flushTimer !== undefined) {
+    // A write failed while this call waited and scheduled its retry; only an
+    // export writes now instead.
+    if (!force) return;
+    window.clearTimeout(target.flushTimer);
+    target.flushTimer = undefined;
+  }
   if (
     (target.queue.length === 0 && target.droppedQueueEvents === 0) ||
     target.unavailable ||
-    target.starting ||
-    // A write failed while this call waited; its retry is already scheduled.
-    (target.flushFailures > 0 && target.flushTimer !== undefined)
+    target.starting
   ) {
     return;
   }
@@ -1021,7 +1026,7 @@ export const clearDeepTrace = async (): Promise<void> => {
 
 export const readDeepTraceSnapshot = async (): Promise<DeepTraceSnapshot> => {
   const target = runtime;
-  if (target) await flush(target);
+  if (target) await flush(target, true);
   const { stats, events } = await readStoredEvents();
   return {
     schemaVersion: DEEP_TRACE_SCHEMA_VERSION,

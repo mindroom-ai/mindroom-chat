@@ -404,6 +404,46 @@ describe('deep diagnostic trace storage failure', () => {
     }
   );
 
+  it('writes a failed batch at once for an export that waited on it', async () => {
+    const actual = await vi.importActual<typeof import('idb')>('idb');
+    let database: Awaited<ReturnType<typeof actual.openDB>> | undefined;
+    mocks.openDB.mockImplementation(async (...args: Parameters<typeof actual.openDB>) => {
+      database = await actual.openDB(...args);
+      return database;
+    });
+    const storage = window.localStorage;
+    storage.clear();
+    const dispose = trace.initializeDeepTraceRecorder(storage);
+    try {
+      expect(await trace.setDeepTraceEnabled(true, storage)).toBe(true);
+      await trace.clearDeepTrace();
+      let abortWrite!: (error: Error) => void;
+      const writing = new Promise<never>((_resolve, reject) => {
+        abortWrite = reject;
+      });
+      vi.spyOn(database!, 'transaction').mockReturnValueOnce({
+        objectStore: (name: string) =>
+          name === 'events' ? { add: () => writing } : { get: async () => undefined },
+        done: Promise.resolve(),
+      } as never);
+
+      trace.recordDeepTraceEvent('test.failed_batch', undefined, { flush: true });
+      const reading = trace.readDeepTraceSnapshot();
+      abortWrite(new DOMException('private failure detail', 'UnknownError'));
+
+      const { events } = await reading;
+      expect(events.filter((event) => event.name === 'test.failed_batch')).toHaveLength(1);
+      expect(trace.getDeepTraceHealthSnapshot()).toMatchObject({
+        status: 'recording',
+        pendingEventCount: 0,
+        lastFailure: { stage: 'flush', errorName: 'UnknownError' },
+      });
+    } finally {
+      await trace.setDeepTraceEnabled(false, storage);
+      dispose();
+    }
+  });
+
   it('stops retrying and records in memory while IndexedDB stays unavailable', async () => {
     const actual = await vi.importActual<typeof import('idb')>('idb');
     let database: Awaited<ReturnType<typeof actual.openDB>> | undefined;
