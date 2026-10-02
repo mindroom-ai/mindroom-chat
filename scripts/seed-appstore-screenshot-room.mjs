@@ -209,22 +209,12 @@ async function setUserAvatar(accessToken, userId, avatarAssetPath) {
   return avatarUrl;
 }
 
-async function ensureFixtureUser({ username, password, displayName, avatarAssetPath, required }) {
+async function ensureFixtureUser({ username, password, displayName, avatarAssetPath }) {
   let session;
   try {
     session = await login(username, password);
-  } catch (loginError) {
-    try {
-      session = await registerWithDummyAuth(username, password);
-    } catch (registrationError) {
-      if (required) throw registrationError;
-      log(
-        `Skipping optional fixture user ${username}: ${
-          registrationError.message || loginError.message
-        }`
-      );
-      return undefined;
-    }
+  } catch {
+    session = await registerWithDummyAuth(username, password);
   }
 
   let avatarUrl;
@@ -438,10 +428,7 @@ async function main() {
 
   const agentSessions = {};
   for (const agent of getAppStoreFixtureAgentDefinitions()) {
-    agentSessions[agent.key] = await ensureFixtureUser({
-      ...agent,
-      required: true,
-    });
+    agentSessions[agent.key] = await ensureFixtureUser(agent);
   }
 
   const roomId = await resolveOrCreateRoom(primarySession.accessToken);
@@ -450,7 +437,6 @@ async function main() {
   }
 
   for (const session of Object.values(agentSessions)) {
-    if (!session) continue;
     await joinRoom(session.accessToken, roomId);
     await updateMemberProfile(session, roomId);
   }
@@ -478,12 +464,9 @@ async function main() {
   log(`  Room: ${roomId}`);
   log(`  Alias: ${ROOM_ALIAS}`);
   log(
-    `  Agents: ${
-      Object.values(agentSessions)
-        .filter(Boolean)
-        .map((agent) => agent.displayName)
-        .join(', ') || 'primary account fallback'
-    }`
+    `  Agents: ${Object.values(agentSessions)
+      .map((agent) => agent.displayName)
+      .join(', ')}`
   );
 }
 

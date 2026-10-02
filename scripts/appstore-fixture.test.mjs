@@ -248,6 +248,59 @@ test('seeder reuses parsed registration challenge bodies', async () => {
   );
 });
 
+test('seeder stops when a required agent cannot log in or register', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'appstore-agent-failure-'));
+  try {
+    const mockPath = join(root, 'mock-matrix.mjs');
+    await writeFile(
+      mockPath,
+      `globalThis.fetch = async (url, options) => {
+        const body = JSON.parse(options.body);
+        const path = new URL(url).pathname;
+        console.error('REQUEST', path);
+        if (path.endsWith('/login') && body.identifier.user === 'fixture-primary') {
+          return Response.json({ access_token: 'test-token', user_id: '@fixture-primary:matrix.localhost' });
+        }
+        if (path.endsWith('/login') || path.endsWith('/register')) {
+          return Response.json({ errcode: 'M_FORBIDDEN', error: 'agent setup denied' }, { status: 403 });
+        }
+        throw new Error('Unexpected request after failed agent setup');
+      };`
+    );
+    const result = spawnSync(
+      process.execPath,
+      ['--import', mockPath, fileURLToPath(SEED_SCRIPT_URL)],
+      {
+        env: {
+          PATH: process.env.PATH,
+          E2E_HOMESERVER: 'http://matrix.localhost',
+          E2E_USERNAME: 'fixture-primary',
+          E2E_PASSWORD: 'fixture-password',
+          APPSTORE_FIXTURE_SET_PRIMARY_PROFILE: '0',
+        },
+        encoding: 'utf8',
+        timeout: 10_000,
+      }
+    );
+    assert.equal(result.status, 1);
+    assert.match(
+      result.stderr,
+      /seeding failed: Matrix API error: M_FORBIDDEN - agent setup denied/
+    );
+    assert.deepEqual(
+      result.stderr.split('\n').filter((line) => line.startsWith('REQUEST')),
+      [
+        'REQUEST /_matrix/client/v3/login',
+        'REQUEST /_matrix/client/v3/login',
+        'REQUEST /_matrix/client/v3/register',
+      ]
+    );
+    assert.doesNotMatch(result.stderr, /fixture ready|fallback|Unexpected request/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test('bundles every demo avatar as a PNG without external profile downloads', async () => {
   const avatars = [
     APPSTORE_FIXTURE_PRIMARY_AVATAR_ASSET_PATH,

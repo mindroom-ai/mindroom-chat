@@ -4,14 +4,15 @@
 
 ### Reproduce Rivera household App Store screenshots (2026-10-01)
 
-- Status: implementation, local validation, and independent review complete; PR CI and AI review remain pending.
+- Status: Rivera screenshot fixture implemented and independently reviewed.
 - Bundle Sam Rivera, Hearth, Pantry, and Atlas avatars from `mindroom-ai/demo` commit `fc39fb8a9e4af01c3c848e191f32c25b7da694a2` under `scripts/fixtures/appstore/avatars/`.
 - Capture five family scenes per device: workspace overview, meal planning, home tools, Lisbon trip, and a reminder.
 - Capture and scheduled fixtures use UTC so tomorrow at four always displays 4:00 PM, including DST boundaries.
 - Preserve existing release filenames, count actual seeded messages, require agent setup, wait for all visible avatars, and stop on setup errors.
-- Validation: full unit suite passes (620 files / 5,674 tests), fixture tests pass (23), and browser validation passes (missing-avatar regression plus both device captures).
+- Validation: full unit suite passes (620 files / 5,674 tests), fixture tests pass (24), and browser validation passes (missing-avatar regression plus both device captures).
 - Typecheck, production/PWA build, App Store preflight, parallel-runner tests, changed-file formatting, shell syntax, and lint pass; full lint retains 17 existing warnings.
 - Independent review caught avatars disappearing after a failed image request; capture now requires each expected demo profile, and a browser regression proves a missing agent cannot pass.
+- Qodo review caught obsolete optional-agent fallback paths; agent registration failures now propagate directly, with an executable failure regression.
 - Ready PR: [#356](https://github.com/mindroom-ai/mindroom-chat/pull/356).
 - Next: address CI or AI review findings, then merge after approval.
 
