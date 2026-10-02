@@ -50,7 +50,7 @@ function CompactThreadCardBase({ viewModel, onClick }: CompactThreadCardProps) {
     lastActivityTitle,
     primarySummaryText,
   } = viewModel;
-  useInitializeShownThread(id.roomId, id.threadRootId);
+  const shownRef = useInitializeShownThread(id.roomId, id.threadRootId);
   const relativeTime = useRelativeTime(lastActivityTs);
   const resolvedByLabel =
     isResolved && resolvedByDisplayName
@@ -77,6 +77,7 @@ function CompactThreadCardBase({ viewModel, onClick }: CompactThreadCardProps) {
 
   return (
     <button
+      ref={shownRef}
       className={isResolved ? `${css.Card} ${css.CardResolved}` : css.Card}
       type="button"
       onClick={() => onClick(id.threadRootId, primarySummaryText)}

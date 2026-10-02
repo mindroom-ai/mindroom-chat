@@ -2,7 +2,7 @@
 
 ## Runbook
 
-### Stop fetching every listed thread (2026-10-02)
+### Load threads when they are shown, not when they are listed (2026-10-02)
 
 - An iPhone export from build `57e4c56e` shows about 800 `GET /rooms/{id}/event` and 170-320 `/relations` requests in the first minute of every session.
   Opening the overview of the 523-thread room started about 540 requests within 9 ms; GET latency reached p50 3.3 s and p90 14 s, and a message send queued behind them failed when the connection dropped.
@@ -10,47 +10,44 @@
 - Root cause: every SDK `Thread` ran its network initialization when it was created: it fetched its root ("Always fetch the root event, even if we already have it") and then the first page of replies.
   The app creates threads in bulk: the overview restores every cached root (`restoreCachedRoomThreads`, and the cache grows with every listed root), pages `/threads` to the end, and the saved-sync replay creates a thread for every thread in each room's 500-event window.
   Each initialization also reset the thread's timeline, which the room re-emits to every thread; each thread took it for a room sync gap and fetched its root again, so a listed thread cost two root requests and a page.
-- SDK patch (`patches/matrix-js-sdk+41.7.0.patch`, `src/models/thread.ts`, `relations.ts`, `room.ts`, `client.ts` and their `lib` builds):
-  - A thread defers its network initialization until `Thread.initialize()`; until then its root's thread summary (reply count, latest reply, participation) is processed locally, and only a missing root is fetched.
-  - Unopened threads still append live replies, and they apply edits and reactions at once instead of buffering them for a replay, so cards keep streaming.
-    Opening replaces the thread's timeline with its first page, so `Relations` now follows a reply recreated under the same ID and applies the newest edit it holds, unless the page's bundled edit is newer.
-  - `/threads` responses refresh the summary of unopened threads (`Room.refreshListedThreadRoots`) unless the thread already shows a newer reply (or a live reply with the same timestamp), so cached cards upgrade without a root request; cached roots never replace it.
-  - When an unopened thread's latest reply is redacted, it fetches its root, as upstream does, instead of rebuilding the summary from the stored root.
+- Rule: a thread loads (root and first page) only when the app opens it or shows its card; live events, including a catch-up `/sync`, never load it.
+  Until then its root's thread summary stands in, so only threads on screen send requests.
+- SDK patch (`patches/matrix-js-sdk+41.7.0.patch`, `src/models/thread.ts`, `room.ts`, `client.ts` and their `lib` builds):
+  - A thread defers its network initialization until `Thread.initialize()`; until then it processes the summary (reply count, latest reply, participation) locally and fetches only a missing root, and no encrypted edits.
+  - Unopened threads append live replies and buffer edits for the first page, as the SDK does while loading; only the newest edit of each reply is kept.
+  - An edit of a reply that the thread knows only from the summary finds that reply (`Room.findUnopenedThreadReply`) instead of fetching it once per edit.
+  - `/threads` responses refresh the summary of unopened threads (`Room.refreshListedThreadRoots`), unless the thread already shows a newer reply or a live reply with the same timestamp, so cached cards upgrade without a root request.
   - A thread ignores timeline resets of other threads; only a room gap invalidates its root.
-  - Unopened threads coalesce room sync gaps like untouched initialized ones.
-  - A failed first page returns the thread to the unopened state and applies the edits that arrived meanwhile: later events no longer reset its timeline or reject, and the next opening retries.
-- The thread open materializes a recorded sync gap first, so its conversion errors still reach the open, and then awaits `initialize()` before `getThreadTimeline` and its cache writes: an uninitialized live timeline has no backward token, which the cache would read as complete history.
-  For the same reason, the compact overview no longer treats that empty token as proof of complete history when it decides whether a thread with a deleted root has replies left.
-  Opening a thread therefore costs its root request and first page at open instead of at creation; the cache-first view still renders cached replies meanwhile.
-  `initialize()` returns nothing for an initialized thread, so synchronous callers stay synchronous.
+    Unopened threads coalesce room sync gaps like untouched initialized ones.
+  - A failed first page returns the thread to the unopened state, keeping its buffered edits, so later events neither reset its timeline nor reject.
+- App:
+  - `useInitializeShownThread` initializes the thread of a compact card, thread indicator or sidebar entry once the card has been on screen for 500 ms (one shared `IntersectionObserver`; thread lists render every card) and the client has finished its first live `/sync`, and again after a reconnect if that failed.
+    Initialization is idempotent, so re-renders and remounts send nothing more.
+  - The thread open materializes a recorded sync gap, then awaits `initialize()` before `getThreadTimeline` and its cache writes: an uninitialized live timeline has no backward token, which the cache would read as complete history.
+    For the same reason, the compact overview does not treat that empty token as complete history when it decides whether a thread with a deleted root has replies left.
+  - Unread state and activity use the newest of the loaded replies and the summary's latest reply.
+- Counts of threads that are never shown can drift from the server (for example replies that arrived inside a sync gap); showing the thread loads the server count.
 - The first `/sync` started 108 s after boot in session `4bbace3b`.
   `startClient` replays the saved sync and only then sends `/pushrules`, `/filter` and `/sync` one after another; replayed threads' requests went out first, and the overview added about 540 more at 18 s.
   From 33 s until the app was hidden at 74 s no Matrix request succeeded; seven message sends failed together at 49 s.
   The last request sent before that stall (33.5 s) is consistent with the filter request, and `/sync` started about 4 s after the app returned at 117 s.
   With this fix the replay sends only missing roots ahead of `/sync`; the replay-before-sync ordering and the network stall itself are unchanged.
-- Measurements, production Chromium build against local Tuwunel, 120-thread room (`e2e/live/thread-bootstrap-requests.spec.ts` phases, before → after; root and `/relations` requests in that room):
+- Measurements, production Chromium build against local Tuwunel, 120-thread room on a phone-sized viewport showing 6 cards (`e2e/live/thread-bootstrap-requests.spec.ts` phases, before → after; root and `/relations` requests in that room):
 
   | Phase | Root requests | `/relations` | All Matrix requests |
   | --- | ---: | ---: | ---: |
-  | Overview open after login (cold page load) | 240 → 0 | 120 → 0 | 382 → 23 |
-  | Reopen after a sync gap | 240 → 0 | 120 → 0 | 379 → 21 |
+  | Overview open after login | 240 → 6 | 120 → 6 | 382 → 35 |
+  | Reopen after a sync gap (catch-up `/sync`) | 240 → 6 | 120 → 6 | 379 → 33 |
   | Cold start, before the first `/sync` | 121 → 1 | 30 → 0 | 164 → 14 |
-  | Cold start, total | 360 → 1 | 120 → 0 | 499 → 22 |
-  | Opening one thread | 1 → 2 | 4 → 5 | 6 → 8 |
+  | Cold start, total | 361 → 7 | 120 → 6 | 500 → 34 |
+  | Opening a thread whose card was not shown | 1 → 2 | 4 → 5 | 6 → 8 |
 
-  The real-SDK unit tests count the same for 100 restored roots (200 root requests and 100 pages before, none after) and 90 listed roots (180 and 90 before, only the four `/threads` pages after).
-- Tests: `matrixSdkThreadBootstrapRequests.test.ts` drives a real client through its fetch transport; each SDK change above has a case that fails when it is reverted.
+  The real-SDK unit tests count 300 requests before and none after for 100 restored roots, 270 and only the four `/threads` pages for 90 listed roots, and none for a catch-up `/sync` with a new reply and an edit in each of 40 threads.
+- Tests: `matrixSdkThreadBootstrapRequests.test.ts` drives a real client through its fetch transport, and `useInitializeShownThread.test.tsx` covers the live-sync wait, the dwell, off-screen cards, remounts, reconnects, counts and unread state; each change has a case that fails when it is reverted.
+  The live spec checks the per-phase bounds and that a shown card's count goes from 26 to 27 messages with a live reply.
   Existing tests that held the SDK's root request or first page to create pending states now use unopened threads or pending discovery instead.
-  When upgrading the SDK, keep this file and drop the patch sections once upstream stops initializing threads at creation.
+  When upgrading the SDK, keep these files and drop the patch sections once upstream stops initializing threads at creation.
 - Not changed: a thread whose root is outside the synced window still fetches that root at startup (one request); the app's own scheduled prefetch and reconcile requests are unchanged.
-- Design: Codex's consultation favored deferring the saved-sync replay's threads too, rather than only listed ones or a request queue, so that sends and `/sync` never wait behind thread initialization.
-  An independent review found that a failed opening could later wipe the thread's timeline, that edits made after opening went to discarded reply objects, and three smaller gaps; all are fixed and covered by the tests above.
-  Qodo's review found the gap-conversion ordering, the redacted latest reply, the timestamp tie and the history-token reading above; they are fixed and covered too.
-  Its fifth finding, that opening now waits for the root and first page before `getThreadTimeline`, is kept: an opened thread sends the same requests it sent at creation before, and the cache-first view renders meanwhile.
-- Validation: 5,691 unit tests pass; the only failures are the three `xcodeCloudPostClone` tests that need `/bin/bash` and `useRoomInputSendSessionController`'s caption case, which fail the same way on `dev`.
-  Typecheck, production build, prettier and lint (0 errors, 17 existing warnings) pass, and the patch applies to a pristine `matrix-js-sdk@41.7.0` with all 34 patched files byte-identical to the tested tree.
-  The new live spec passes in Chromium and WebKit; 30 thread-related live jobs pass in Chromium, and `offline-thread-overview` and `thread-indexeddb-loss` pass in WebKit (Playwright container).
-  `cinny069-room-resume-thread-preload` and `cinny070-thread-prepend-scroll` fail with the same assertions on unchanged `dev`.
 - Next: in the next iOS export, check that a session's first minute has no request bursts and that `/sync` starts within seconds of boot.
 
 ### Recover messages that failed to send (2026-10-02)

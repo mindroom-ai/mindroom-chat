@@ -22,7 +22,7 @@ export const RecentThreadEntry = memo(
   ({ room, threadId, openedAt, summaryText }: RecentThreadEntryProps) => {
     const { t } = useTranslation();
     const viewModel = useRecentThreadViewModel(room, threadId, openedAt, summaryText);
-    useInitializeShownThread(room.roomId, viewModel.id.threadRootId);
+    const shownRef = useInitializeShownThread(room.roomId, viewModel.id.threadRootId);
     const relativeTime = useRelativeTime(openedAt);
     const { navigateRoom, navigateRoomThreadDirect } = useRoomNavigate();
     const { viewMode } = useRoomViewMode(room.roomId);
@@ -74,7 +74,7 @@ export const RecentThreadEntry = memo(
         >
           <NavItemContent as="span">
             <Box as="span" grow="Yes" direction="Column" style={{ minWidth: 0 }}>
-              <Text as="span" size="T300" truncate>
+              <Text as="span" size="T300" truncate ref={shownRef}>
                 {viewModel.summaryText}
               </Text>
               <Box as="span" alignItems="Center" justifyContent="SpaceBetween" gap="100">

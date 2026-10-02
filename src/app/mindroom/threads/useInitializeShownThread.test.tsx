@@ -49,7 +49,7 @@ const listedRoot = (count: number): IEvent => ({
   },
 });
 
-const fixture = () => {
+const fixture = (createNodeMock: () => unknown = () => ({})) => {
   const requests: string[] = [];
   const json = (body: unknown) =>
     new Response(JSON.stringify(body), { headers: { 'Content-Type': 'application/json' } });
@@ -78,10 +78,7 @@ const fixture = () => {
       content: { $read: { [ReceiptType.Read]: { [me]: { thread_id: rootId, ts: 200 } } } },
     })
   );
-  const Card = () => {
-    useInitializeShownThread(roomId, rootId);
-    return null;
-  };
+  const Card = () => <div ref={useInitializeShownThread(roomId, rootId)} />;
   let renderer: ReactTestRenderer | undefined;
   const render = () =>
     act(() => {
@@ -91,7 +88,8 @@ const fixture = () => {
         </MatrixClientProvider>
       );
       if (renderer) renderer.update(element);
-      else renderer = create(element);
+      // Node has no IntersectionObserver, so a mounted card counts as on screen.
+      else renderer = create(element, { createNodeMock });
     });
   const unmount = () =>
     act(() => {
@@ -160,6 +158,41 @@ describe('useInitializeShownThread', () => {
     expect(getThreadUnread(f.room, f.thread, me)).toBe(true);
     expect(f.requests).toHaveLength(loaded);
     f.unmount();
+  });
+
+  it('loads only cards that stay on screen', async () => {
+    let report!: (visible: boolean) => void;
+    vi.stubGlobal(
+      'IntersectionObserver',
+      class {
+        constructor(callback: (entries: Array<Partial<IntersectionObserverEntry>>) => void) {
+          report = (visible) => callback([{ target: card, isIntersecting: visible }]);
+        }
+
+        observe = vi.fn();
+
+        unobserve = vi.fn();
+      }
+    );
+    const card = {} as Element;
+    const f = fixture(() => card);
+    const initialize = vi.spyOn(f.thread, 'initialize').mockReturnValue(undefined);
+    f.render();
+    f.goLive();
+    await f.settle();
+    // Rendered below the fold.
+    expect(initialize).not.toHaveBeenCalled();
+
+    act(() => report(true));
+    act(() => report(false));
+    await f.settle();
+    expect(initialize).not.toHaveBeenCalled();
+
+    act(() => report(true));
+    await f.settle();
+    expect(initialize).toHaveBeenCalledOnce();
+    f.unmount();
+    vi.unstubAllGlobals();
   });
 
   it('skips cards scrolled past and retries a failed load after reconnecting', async () => {

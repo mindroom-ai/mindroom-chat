@@ -25,6 +25,19 @@ const recordMatrixRequests = (page: Page, homeserver: string) => {
   });
   return requests;
 };
+/** Thread cards at least partly inside the viewport. */
+const countShownCards = (page: Page) =>
+  page.evaluate(
+    () =>
+      new Set(
+        Array.from(document.querySelectorAll('[data-thread-root-id]'))
+          .filter((element) => {
+            const { top, bottom } = element.getBoundingClientRect();
+            return bottom > 0 && top < window.innerHeight;
+          })
+          .map((element) => element.getAttribute('data-thread-root-id'))
+      ).size
+  );
 const countThreadRequests = (requests: MatrixRequest[]) => ({
   roots: requests.filter(({ path }) => /\/rooms\/[^/]+\/event\//.test(path)).length,
   relations: requests.filter(({ path }) => path.includes('/relations/')).length,
@@ -90,8 +103,11 @@ test('lists and reopens a large thread overview without a request per thread', a
   await expect(page.getByText(`Showing ${THREADS} threads`, { exact: true })).toHaveCount(1);
   await expect(page.locator(`[data-thread-root-id="${roots[5]}"]`)).toContainText('First reply 5');
   await page.waitForTimeout(5_000);
-  // Each listed thread used to fetch its root (twice) and a first page of replies.
-  expect(countRoomThreadRequests(firstOpen)).toEqual({ roots: 0, relations: 0 });
+  // Each listed thread used to fetch its root (twice) and a first page; now only shown cards load.
+  const shownAtFirstOpen = await countShownCards(page);
+  expect(shownAtFirstOpen).toBeLessThan(THREADS / 4);
+  expect(countRoomThreadRequests(firstOpen).roots).toBeLessThanOrEqual(shownAtFirstOpen);
+  expect(countRoomThreadRequests(firstOpen).relations).toBeLessThanOrEqual(shownAtFirstOpen);
 
   // While the app is closed, one thread changes inside a gap that the next /sync omits.
   await page.goto('about:blank');
@@ -106,9 +122,17 @@ test('lists and reopens a large thread overview without a request per thread', a
   );
   await expect(page.locator(`[data-thread-root-id="${roots[4]}"]`)).toContainText('Later reply 24');
   await page.waitForTimeout(5_000);
-  // A thread first seen through replies whose root is outside the synced window still fetches that root.
-  expect(countRoomThreadRequests(reopen).relations).toBe(0);
-  expect(countRoomThreadRequests(reopen).roots).toBeLessThanOrEqual(1);
+  // Shown cards load again after a page load; one root outside the synced window is fetched too.
+  const shownAtReopen = await countShownCards(page);
+  expect(countRoomThreadRequests(reopen).relations).toBeLessThanOrEqual(shownAtReopen);
+  expect(countRoomThreadRequests(reopen).roots).toBeLessThanOrEqual(shownAtReopen + 1);
+
+  // A shown card keeps an exact count as live replies arrive.
+  const liveCard = page.locator(`[data-thread-root-id="${roots[4]}"]`);
+  await expect(liveCard).toContainText('26 msgs');
+  await send('Live reply on a shown card', roots[4]);
+  await expect(liveCard).toContainText('Live reply on a shown card');
+  await expect(liveCard).toContainText('27 msgs');
 
   const coldStart = recordMatrixRequests(page, homeserver);
   await page.reload();
@@ -121,7 +145,8 @@ test('lists and reopens a large thread overview without a request per thread', a
   expect(countRoomThreadRequests(beforeSync).relations).toBe(0);
   expect(countRoomThreadRequests(beforeSync).roots).toBeLessThanOrEqual(1);
 
-  // Opening a thread initializes that thread alone.
+  // Let the cards shown after the reload load first; opening a thread then loads that thread alone.
+  await page.waitForTimeout(3_000);
   const opening = recordMatrixRequests(page, homeserver);
   await page.locator(`[data-thread-root-id="${roots[7]}"]`).click();
   await expect(page.getByText('First reply 7', { exact: true })).toBeVisible();
