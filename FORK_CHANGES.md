@@ -2,6 +2,28 @@
 
 ## Runbook
 
+### Keep persisting the deep trace after a failed IndexedDB write (2026-10-02)
+
+- An iPhone export from build `57e4c56e` reports `deepTraceHealth.status` `memory-only`, with a `flush` failure (`UnknownError`) 24 ms after the app returned to the foreground.
+  Session `71cb6120`'s persisted trace ends just before its first background, and the following six minutes, including the user's first failed message send, existed only in the memory tail and were lost when the app was force-quit.
+  That tail holds 1,000 events, about 7 s at this session's request rate.
+- WebKit aborts IndexedDB writes in flight when it suspends the app (`UnknownError` on resume) and closes every connection for good when it loses its IndexedDB server.
+  Both sessions in the export stop persisting right before a background, without the `lifecycle.hidden` event whose flush was then in flight.
+  No recovery reload from #349 followed, so the connection itself stayed open and only the write was aborted.
+- The recorder treated one failed write as permanent: it dropped the pending queue and stayed memory-only until the page reloaded.
+- A failed write now releases the recorder's connection, puts the failed batch back at the front of the queue, and retries on a new connection after 1, 2 and 4 s.
+  Flush requests made meanwhile, including ones that waited on the failed write, wait for that retry instead of retrying at once.
+  A successful write resets the count; a fourth consecutive failure makes the recorder memory-only as before, so unusable storage is not retried in a loop.
+  A failed transaction stores nothing, so the batch is written once and in order; batches committed before it are not written again.
+  While a retry is pending the status stays `recording`, and `deepTraceHealth.lastFailure` keeps the failure until the trace is cleared, so exports still show the loss.
+- Tests: unit regressions cover a write aborted on a live connection and a connection closed by the browser (the failed batch and later events are written once and in order after the delay, not before it), and bounded retries ending memory-only; all three fail before the change.
+  `e2e/diagnostics-storage-fallback.spec.ts` now expects the trace to recover after a real Chromium connection close, and its export with failing storage still carries the memory tail and the latest failure; it fails before the change.
+- Validation: the 95 diagnostics unit tests, the Chromium spec above, typecheck, build, lint (0 errors, the existing 17 warnings) and prettier pass.
+  The full unit suite passes apart from the three `xcodeCloudPostClone` tests (no `/bin/bash` on this NixOS host) and one `useRoomInputSendSessionController` caption test, which fail the same way on unchanged `dev`.
+- Not covered: after a real IndexedDB server loss the #349 sentinel reloads the page, so the failed batch and the events recorded until the reload are still lost, as #350 notes.
+  Playwright WebKit was not run on this host.
+- Next: in the next iOS export after a background resume, confirm the persisted trace continues past the resume, with `lastFailure` near a `scene.foreground`.
+
 ### Flatten the Members drawer header (2026-10-01)
 
 - The Members title strip now uses the same flat, translucent `PageNavHeader` and `PageNavContent` as the navigation sidebars, without a border, specular rim, shadow, or pointer-driven optics.

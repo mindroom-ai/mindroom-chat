@@ -1,7 +1,9 @@
 // @vitest-environment jsdom
 
 import 'fake-indexeddb/auto';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { forceCloseDatabase } from 'fake-indexeddb';
+import { unwrap } from 'idb';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   openDB: vi.fn(),
@@ -23,6 +25,10 @@ describe('deep diagnostic trace storage failure', () => {
     const actual = await vi.importActual<typeof import('idb')>('idb');
     mocks.openDB.mockReset().mockImplementation(actual.openDB);
     trace = await import('./deepTrace');
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it.each([
@@ -195,7 +201,7 @@ describe('deep diagnostic trace storage failure', () => {
     expect(await trace.setDeepTraceEnabled(true, storage)).toBe(true);
     database?.close();
     trace.recordDeepTraceEvent('test.closed_database', undefined, { flush: true });
-    await vi.waitFor(() => expect(trace.getDeepTraceRuntimeStatus()).toBe('memory-only'));
+    await vi.waitFor(() => expect(trace.getDeepTraceHealthSnapshot().lastFailure).not.toBeNull());
 
     expect(trace.getDeepTraceHealthSnapshot().lastFailure).toMatchObject({
       stage: 'flush',
@@ -262,6 +268,8 @@ describe('deep diagnostic trace storage failure', () => {
     const dispose = trace.initializeDeepTraceRecorder(storage);
     try {
       await trace.setDeepTraceEnabled(true, storage);
+      // Hold the delayed retry so it cannot reopen the database during the checks.
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
       database!.close();
       trace.recordDeepTraceEvent('test.failed_batch', undefined, { flush: true });
       await vi.waitFor(() => expect(trace.getDeepTraceHealthSnapshot().lastFailure).not.toBeNull());
@@ -291,10 +299,6 @@ describe('deep diagnostic trace storage failure', () => {
       expect(JSON.stringify(snapshot)).not.toContain('secret');
       expect(mocks.openDB).toHaveBeenCalledTimes(1);
       expect(fetch).toHaveBeenCalledOnce();
-      expect(trace.getDeepTraceHealthSnapshot()).toMatchObject({
-        status: 'memory-only',
-        pendingEventCount: 0,
-      });
 
       await trace.setDeepTraceEnabled(false, storage);
       trace.recordDeepTraceEvent('test.after_opt_out');
@@ -306,6 +310,124 @@ describe('deep diagnostic trace storage failure', () => {
       );
       await trace.clearDeepTrace();
       expect(trace.readDeepTraceMemorySnapshot().events).toEqual([]);
+    } finally {
+      dispose();
+    }
+  });
+
+  it.each([
+    ['aborts a write in flight', 'UnknownError'],
+    ['closes the connection', 'InvalidStateError'],
+  ] as const)(
+    'writes the failed batch once on a new connection after IndexedDB %s',
+    async (loss, errorName) => {
+      const actual = await vi.importActual<typeof import('idb')>('idb');
+      let database: Awaited<ReturnType<typeof actual.openDB>> | undefined;
+      mocks.openDB.mockImplementation(async (...args: Parameters<typeof actual.openDB>) => {
+        database = await actual.openDB(...args);
+        return database;
+      });
+      const storage = window.localStorage;
+      storage.clear();
+      const dispose = trace.initializeDeepTraceRecorder(storage);
+      try {
+        expect(await trace.setDeepTraceEnabled(true, storage)).toBe(true);
+        await trace.clearDeepTrace();
+        let abortWrite: ((error: Error) => void) | undefined;
+        if (loss === 'aborts a write in flight') {
+          // WebKit aborts writes in flight when it suspends the app; the error arrives on resume.
+          const writing = new Promise<never>((_resolve, reject) => {
+            abortWrite = reject;
+          });
+          vi.spyOn(database!, 'transaction').mockReturnValueOnce({
+            objectStore: (name: string) =>
+              name === 'events' ? { add: () => writing } : { get: async () => undefined },
+            done: Promise.resolve(),
+          } as never);
+        } else {
+          // fake-indexeddb 6.2 declares a constructor here but accepts a connection.
+          forceCloseDatabase(unwrap(database!) as never);
+        }
+        vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+
+        trace.recordDeepTraceEvent('test.failed_batch', undefined, { flush: true });
+        trace.recordDeepTraceEvent('test.during_write', undefined, { flush: true });
+        abortWrite?.(new DOMException('private failure detail', 'UnknownError'));
+        await vi.waitFor(() =>
+          expect(trace.getDeepTraceHealthSnapshot()).toMatchObject({
+            flushing: false,
+            lastFailure: { stage: 'flush', errorName },
+          })
+        );
+        trace.recordDeepTraceEvent('test.after_failure', undefined, { flush: true });
+        // Neither the flush requested during the write nor a later one retries at once.
+        expect(mocks.openDB).toHaveBeenCalledTimes(1);
+
+        await vi.advanceTimersByTimeAsync(1_000);
+        await vi.waitFor(() =>
+          expect(trace.getDeepTraceHealthSnapshot()).toMatchObject({
+            pendingEventCount: 0,
+            flushing: false,
+          })
+        );
+        expect(mocks.openDB).toHaveBeenCalledTimes(2);
+        vi.useRealTimers();
+
+        const { events } = await trace.readDeepTraceSnapshot();
+        expect(
+          events.map((event) => event.name).filter((name) => name.startsWith('test.'))
+        ).toEqual(['test.failed_batch', 'test.during_write', 'test.after_failure']);
+        expect(trace.getDeepTraceHealthSnapshot()).toMatchObject({
+          status: 'recording',
+          lastFailure: { stage: 'flush', errorName },
+        });
+      } finally {
+        vi.useRealTimers();
+        await trace.setDeepTraceEnabled(false, storage);
+        dispose();
+      }
+    }
+  );
+
+  it('stops retrying and records in memory while IndexedDB stays unavailable', async () => {
+    const actual = await vi.importActual<typeof import('idb')>('idb');
+    let database: Awaited<ReturnType<typeof actual.openDB>> | undefined;
+    mocks.openDB.mockImplementation(async (...args: Parameters<typeof actual.openDB>) => {
+      database = await actual.openDB(...args);
+      return database;
+    });
+    const storage = window.localStorage;
+    storage.clear();
+    const dispose = trace.initializeDeepTraceRecorder(storage);
+    try {
+      expect(await trace.setDeepTraceEnabled(true, storage)).toBe(true);
+      mocks.openDB.mockRejectedValue(new DOMException('private open failure', 'UnknownError'));
+      forceCloseDatabase(unwrap(database!) as never);
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+
+      trace.recordDeepTraceEvent('test.failed_batch', undefined, { flush: true });
+      await vi.waitFor(() => expect(trace.getDeepTraceHealthSnapshot().lastFailure).not.toBeNull());
+      for (const [delay, opens] of [
+        [1_000, 2],
+        [2_000, 3],
+        [4_000, 4],
+      ]) {
+        expect(trace.getDeepTraceRuntimeStatus()).toBe('recording');
+        await vi.advanceTimersByTimeAsync(delay);
+        await vi.waitFor(() => expect(mocks.openDB).toHaveBeenCalledTimes(opens));
+      }
+      await vi.waitFor(() => expect(trace.getDeepTraceRuntimeStatus()).toBe('memory-only'));
+
+      trace.recordDeepTraceEvent('test.after_giving_up', undefined, { flush: true });
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(mocks.openDB).toHaveBeenCalledTimes(4);
+      expect(trace.readDeepTraceMemorySnapshot().events.map((event) => event.name)).toEqual(
+        expect.arrayContaining(['test.failed_batch', 'test.after_giving_up'])
+      );
+      expect(trace.getDeepTraceHealthSnapshot()).toMatchObject({
+        pendingEventCount: 0,
+        lastFailure: { stage: 'flush', errorName: 'UnknownError' },
+      });
     } finally {
       dispose();
     }

@@ -30,11 +30,23 @@ test('exports thread and network evidence after a real IndexedDB connection is c
     };
     trace.recordDeepTraceEvent('thread.open.start', { trace_id: 100 }, { flush: true });
   }, TRACE);
+  // The failed batch is written once on a new connection, and the failure stays visible.
   await expect
     .poll(() =>
-      page.evaluate(async (path) => (await import(path)).getDeepTraceRuntimeStatus(), TRACE)
+      page.evaluate(async (path) => (await import(path)).getDeepTraceHealthSnapshot(), TRACE)
     )
-    .toBe('memory-only');
+    .toMatchObject({
+      status: 'recording',
+      pendingEventCount: 0,
+      lastFailure: { stage: 'flush', errorName: 'InvalidStateError' },
+    });
+  const persisted = await page.evaluate(
+    async (path) => (await (await import(path)).readDeepTraceSnapshot()).events,
+    TRACE
+  );
+  expect(persisted.filter((event: { name: string }) => event.name === 'thread.open.start')).toEqual(
+    [expect.objectContaining({ data: { trace_id: 100 } })]
+  );
 
   const payload = await page.evaluate(
     async ([tracePath, exportPath, threadPath]) => {
@@ -64,10 +76,9 @@ test('exports thread and network evidence after a real IndexedDB connection is c
 
   expect(payload.metadata.exportSchemaVersion).toBe(4);
   expect(payload.deepTrace.status).toBe('unavailable');
-  expect(payload.deepTraceHealth.status).toBe('memory-only');
   expect(payload.deepTraceHealth.lastFailure).toMatchObject({
     stage: 'flush',
-    errorName: 'InvalidStateError',
+    errorName: 'UnknownError',
   });
   expect(payload.deepTraceMemory.storage).toBe('memory');
   expect(payload.deepTraceMemory.events).toEqual(
