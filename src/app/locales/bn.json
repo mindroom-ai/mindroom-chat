@@ -1216,6 +1216,10 @@
           "submitted": "জমা দেওয়া হয়েছে"
         }
       },
+      "failedSendActions": {
+        "delete": "মুছুন",
+        "retry": "আবার চেষ্টা করুন"
+      },
       "messageCopyActions": {
         "copyLink": "লিংক কপি করুন",
         "copyText": "টেক্সট কপি করুন",

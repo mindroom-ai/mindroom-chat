@@ -2642,6 +2642,10 @@
         "messageFailedToSend": "消息发送失败",
         "notSent": "未发送"
       },
+      "failedSendActions": {
+        "retry": "重试",
+        "delete": "删除"
+      },
       "aiRunDisplay": {
         "inputTokens": "输入 {{formattedCount}}",
         "outputTokens": "输出 {{formattedCount}}",
