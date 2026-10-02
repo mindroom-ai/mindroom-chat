@@ -29,6 +29,7 @@ const {
   navigatePathMock,
   pageState,
   passthrough,
+  permissionState,
   roomTimelineType,
   simpleModeState,
   navigateRoomFocusEventMock,
@@ -63,6 +64,7 @@ const {
     props: undefined as MockPageProps | undefined,
   },
   passthrough: 'div',
+  permissionState: { canMessage: true },
   roomTimelineType: 'room-timeline',
   simpleModeState: { enabled: false },
   navigateRoomFocusEventMock: vi.fn(),
@@ -351,7 +353,7 @@ vi.mock('../../../state/hooks/settings', () => ({
 
 vi.mock('../../../hooks/useRoomPermissions', () => ({
   useRoomPermissions: () => ({
-    event: () => true,
+    event: () => permissionState.canMessage,
   }),
 }));
 
@@ -509,6 +511,7 @@ describe('RoomView', () => {
     navigateRoomMock.mockReset();
     navigateRoomThreadMock.mockReset();
     pageState.props = undefined;
+    permissionState.canMessage = true;
     simpleModeState.enabled = false;
     threadContextBannerState.props = undefined;
     useKeyDownMock.mockClear();
@@ -1853,6 +1856,18 @@ describe('RoomView', () => {
 
     expect(renderedText()).toContain('Replies are available after this message is confirmed.');
     expect(renderedText()).not.toContain('Not sent');
+  });
+
+  it('keeps Retry and Delete for a failed local-echo root after losing permission to post', async () => {
+    permissionState.canMessage = false;
+    const { renderer } = await renderFailedLocalRoot();
+
+    const rendered = renderer.root
+      .findAll(() => true)
+      .flatMap((node) => node.children.filter((child) => typeof child === 'string'))
+      .join('|');
+    expect(rendered).toContain('Not sent|Retry|Delete');
+    expect(rendered).not.toContain('You do not have permission to post in this room');
   });
 
   it('leaves the thread when its unsent local-echo root is deleted', async () => {

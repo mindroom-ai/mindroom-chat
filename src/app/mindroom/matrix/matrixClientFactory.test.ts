@@ -1,5 +1,6 @@
 import { EventStatus, MatrixEvent, PendingEventOrdering, Room } from 'matrix-js-sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { createMatrixClient, createMatrixFetchFn } from './matrixClientFactory';
 
 const mocks = vi.hoisted(() => ({
   traceDeepDiagnosticFetch: vi.fn(
@@ -11,8 +12,6 @@ const mocks = vi.hoisted(() => ({
 vi.mock('../diagnostics/deepTrace', () => ({
   traceDeepDiagnosticFetch: mocks.traceDeepDiagnosticFetch,
 }));
-
-import { createMatrixClient, createMatrixFetchFn } from './matrixClientFactory';
 
 describe('createMatrixFetchFn', () => {
   beforeEach(() => {

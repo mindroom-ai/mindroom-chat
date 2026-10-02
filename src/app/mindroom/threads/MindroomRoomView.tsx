@@ -169,6 +169,7 @@ export function RoomView({
     pendingThreadRoot ? effectiveThreadId : undefined,
     handleThreadRootDeleted
   );
+  const failedRootEvent = isFailedLocalEchoEvent(pendingRootEvent) ? pendingRootEvent : undefined;
 
   useKeyDown(
     window,
@@ -260,7 +261,18 @@ export function RoomView({
         <RoomViewTyping room={room} />
         <div ref={setApprovalQueueHost} />
         <div style={{ padding: `0 ${config.space.S400}` }}>
-          {tombstoneEvent ? (
+          {failedRootEvent ? (
+            <RoomInputPlaceholder
+              style={{
+                padding: config.space.S200,
+                paddingBottom: `calc(${config.space.S200} + env(safe-area-inset-bottom, 0px))`,
+              }}
+              alignItems="Center"
+              justifyContent="Center"
+            >
+              <FailedSendActions room={room} event={failedRootEvent} />
+            </RoomInputPlaceholder>
+          ) : tombstoneEvent ? (
             <RoomTombstone
               roomId={roomId}
               body={tombstoneEvent.getContent().body}
@@ -289,15 +301,11 @@ export function RoomView({
                   alignItems="Center"
                   justifyContent="Center"
                 >
-                  {pendingRootEvent && isFailedLocalEchoEvent(pendingRootEvent) ? (
-                    <FailedSendActions room={room} event={pendingRootEvent} />
-                  ) : (
-                    <Text align="Center">
-                      {t(
-                        'mindroomUi.threads.mindroomRoomView.repliesAreAvailableAfterThisMessageIsConfirmed'
-                      )}
-                    </Text>
-                  )}
+                  <Text align="Center">
+                    {t(
+                      'mindroomUi.threads.mindroomRoomView.repliesAreAvailableAfterThisMessageIsConfirmed'
+                    )}
+                  </Text>
                 </RoomInputPlaceholder>
               )}
               {!canMessage && (

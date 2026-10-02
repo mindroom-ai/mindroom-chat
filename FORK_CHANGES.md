@@ -16,7 +16,7 @@
   A network failure while sharing an encrypted room's key happens before the scheduler and still fails at once.
 - A message whose retries ran out now shows "Not sent" with Retry and Delete below it (`FailedSendActions`, from `TimelineMessageBody` for the message or its failed edit).
   Retry calls `resendEvent`, which reuses the event, its transaction ID and, in encrypted rooms, its ciphertext; Delete calls `cancelPendingEvent`.
-  In a thread opened on its failed root, the footer shows these actions instead of the confirmation text, and the root row leaves them to the footer.
+  In a thread opened on its failed root, the footer shows these actions instead of the confirmation text, also when posting is no longer allowed, and the root row leaves them to the footer.
   Deleting that root leaves the thread through the same history exit, but without remembering it for swipe-forward or focusing it in the room.
 - A failed composer send now has one way to try again.
   Composer paths that keep the content for their own retry (text returned to the composer, staged attachments, the voice recorder) discard the unsent echo, as thread summary actions already did.
