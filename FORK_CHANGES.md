@@ -23,7 +23,7 @@
   - A failed first page returns the thread to the unopened state, keeping its buffered edits, so later events neither reset its timeline nor reject.
 - App:
   - `useInitializeShownThread` initializes the thread of a compact card, thread indicator or sidebar entry once the card has been on screen for 500 ms (one shared `IntersectionObserver`; thread lists render every card) and the client has finished its first live `/sync`, and again after a reconnect if that failed.
-    Initialization is idempotent, so re-renders and remounts send nothing more.
+    Initialization is idempotent, so re-renders and remounts send nothing more; a card rendered before its thread exists waits for `ThreadEvent.New`.
   - The thread open materializes a recorded sync gap, then awaits `initialize()` before `getThreadTimeline` and its cache writes: an uninitialized live timeline has no backward token, which the cache would read as complete history.
     For the same reason, the compact overview does not treat that empty token as complete history when it decides whether a thread with a deleted root has replies left.
   - Unread state and activity use the newest of the loaded replies and the summary's latest reply.
@@ -49,7 +49,7 @@
   Existing tests that held the SDK's root request or first page to create pending states now use unopened threads or pending discovery instead.
   When upgrading the SDK, keep these files and drop the patch sections once upstream stops initializing threads at creation.
 - Not changed: a thread whose root is outside the synced window still fetches that root at startup (one request); the app's own scheduled prefetch and reconcile requests are unchanged.
-- Validation: 5,742 unit tests pass; the only failures are the three `xcodeCloudPostClone` tests that need `/bin/bash` and `useRoomInputSendSessionController`'s caption case, which fail the same way on `dev`.
+- Validation: 5,743 unit tests pass; the only failures are the three `xcodeCloudPostClone` tests that need `/bin/bash` and `useRoomInputSendSessionController`'s caption case, which fail the same way on `dev`.
   Typecheck, production build, prettier and lint (0 errors, 17 existing warnings) pass, and the patch applies to a pristine `matrix-js-sdk@41.7.0` with every patched file byte-identical to the tested tree.
   The live spec passes in Chromium and WebKit, 30 thread-related live jobs pass in Chromium, and `offline-thread-overview` and `thread-indexeddb-loss` pass in WebKit (Playwright container).
   `cinny069-room-resume-thread-preload` and `cinny070-thread-prepend-scroll` fail with the same assertions on unchanged `dev`.

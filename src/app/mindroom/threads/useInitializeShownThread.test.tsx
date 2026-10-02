@@ -195,6 +195,29 @@ describe('useInitializeShownThread', () => {
     vi.unstubAllGlobals();
   });
 
+  it('loads a thread that the SDK creates after its card rendered', async () => {
+    const f = fixture();
+    const Card = () => <div ref={useInitializeShownThread(roomId, '$later')} />;
+    act(() => {
+      create(
+        <MatrixClientProvider value={f.mx}>
+          <Card />
+        </MatrixClientProvider>,
+        { createNodeMock: () => ({}) }
+      );
+    });
+    f.goLive();
+    await f.settle();
+
+    f.room.processThreadRoots(
+      [f.mx.getEventMapper()({ ...listedRoot(1), event_id: '$later' })],
+      true
+    );
+    await f.settle();
+
+    expect(f.room.getThread('$later')!.initialEventsFetched).toBe(true);
+  });
+
   it('skips cards scrolled past and retries a failed load after reconnecting', async () => {
     const f = fixture();
     f.render();

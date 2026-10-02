@@ -1,5 +1,5 @@
-import { ClientEvent, SyncState, type MatrixClient } from 'matrix-js-sdk';
-import { useEffect, useState, useSyncExternalStore } from 'react';
+import { ClientEvent, SyncState, ThreadEvent, type MatrixClient, type Thread } from 'matrix-js-sdk';
+import { useEffect, useReducer, useState, useSyncExternalStore } from 'react';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 
 /** Cards scrolled past within this time do not load their thread. */
@@ -69,7 +69,21 @@ export const useInitializeShownThread = (roomId: string, threadRootId: string | 
   const [element, setElement] = useState<Element | null>(null);
   const [visible, setVisible] = useState(false);
   useEffect(() => (element ? observeVisibility(element, setVisible) : undefined), [element]);
-  const thread = threadRootId ? mx.getRoom(roomId)?.getThread(threadRootId) : undefined;
+  const room = mx.getRoom(roomId);
+  const thread = threadRootId ? room?.getThread(threadRootId) : undefined;
+  const [, rerender] = useReducer((count: number) => count + 1, 0);
+  // A card can render before the SDK creates its thread.
+  useEffect(() => {
+    if (thread || !room || !threadRootId) return undefined;
+    const onNewThread = (created: Thread) => {
+      if (created.id === threadRootId) rerender();
+    };
+    room.on(ThreadEvent.New, onNewThread);
+    if (room.getThread(threadRootId)) rerender();
+    return () => {
+      room.removeListener(ThreadEvent.New, onNewThread);
+    };
+  }, [room, thread, threadRootId]);
 
   useEffect(() => {
     if (!thread || !visible || liveSyncCount === 0) return undefined;
