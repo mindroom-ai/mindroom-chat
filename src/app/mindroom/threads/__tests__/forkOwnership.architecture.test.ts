@@ -66,6 +66,10 @@ const OWNERSHIP_EDGES = [
     consumer: appFile('components/AuthFlowsLoader.tsx'),
     owner: mindroomFile('matrix/matrixClientFactory.ts'),
   },
+  {
+    consumer: appFile('pages/client/SyncStatus.tsx'),
+    owner: mindroomFile('matrix/homeserverReachability.ts'),
+  },
   ...[
     'pages/auth/AuthFooter.tsx',
     'pages/auth/AuthLayout.tsx',

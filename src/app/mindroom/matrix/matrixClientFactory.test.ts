@@ -1,6 +1,15 @@
-import { EventStatus, MatrixEvent, PendingEventOrdering, Room } from 'matrix-js-sdk';
+import React from 'react';
+import { act, create, type ReactTestRenderer } from 'react-test-renderer';
+import {
+  EventStatus,
+  MatrixEvent,
+  PendingEventOrdering,
+  Room,
+  type MatrixClient,
+} from 'matrix-js-sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createMatrixClient, createMatrixFetchFn } from './matrixClientFactory';
+import { useHomeserverUnreachable } from './homeserverReachability';
 
 const mocks = vi.hoisted(() => ({
   traceDeepDiagnosticFetch: vi.fn(
@@ -131,7 +140,11 @@ describe('createMatrixClient message sends', () => {
       baseUrl: 'https://matrix.example',
       userId: '@alice:example.org',
       accessToken: 'token',
-      fetchFn,
+      // A dropped connection makes the client check /versions; keep that out of the sends.
+      fetchFn: (input, init) =>
+        String(input).endsWith('/_matrix/client/versions')
+          ? Promise.reject(new TypeError('Load failed'))
+          : (fetchFn as unknown as typeof fetch)(input, init),
     });
     const room = new Room('!room:example.org', mx, '@alice:example.org', {
       pendingEventOrdering: PendingEventOrdering.Chronological,
@@ -312,5 +325,48 @@ describe('createMatrixClient message sends', () => {
     expect(await outcome).toMatchObject({ errcode: 'M_FORBIDDEN' });
     expect(event.status).toBe(EventStatus.NOT_SENT);
     expect(fetchFn).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('createMatrixClient', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('tracks whether its requests reach the homeserver', async () => {
+    vi.useFakeTimers();
+    const baseFetch = vi
+      .fn()
+      .mockRejectedValueOnce(new TypeError('Load failed'))
+      .mockRejectedValueOnce(new TypeError('Load failed'))
+      .mockResolvedValueOnce(new Response('{}', { status: 200 }));
+    const mx = createMatrixClient({
+      baseUrl: 'https://matrix.example',
+      accessToken: 'token',
+      userId: '@alice:matrix.example',
+      fetchFn: baseFetch as unknown as typeof fetch,
+    });
+
+    const seen = { unreachable: false };
+    const Observer = ({ client }: { client: MatrixClient }) => {
+      seen.unreachable = useHomeserverUnreachable(client);
+      return null;
+    };
+    let renderer!: ReactTestRenderer;
+    act(() => {
+      renderer = create(React.createElement(Observer, { client: mx }));
+    });
+
+    await act(async () => {
+      await expect(mx.sendTyping('!room:matrix.example', true, 1000)).rejects.toThrow();
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(seen.unreachable).toBe(true);
+
+    await act(async () => {
+      await mx.sendTyping('!room:matrix.example', false, 0);
+    });
+    expect(seen.unreachable).toBe(false);
+    act(() => renderer.unmount());
   });
 });
