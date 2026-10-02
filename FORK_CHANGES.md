@@ -12,7 +12,8 @@
 - Validation: full unit suite passes (620 files / 5,674 tests), fixture tests pass (23), and browser validation passes (missing-avatar regression plus both device captures).
 - Typecheck, production/PWA build, App Store preflight, parallel-runner tests, changed-file formatting, shell syntax, and lint pass; full lint retains 17 existing warnings.
 - Independent review caught avatars disappearing after a failed image request; capture now requires each expected demo profile, and a browser regression proves a missing agent cannot pass.
-- Next: open the ready PR and address CI or AI review findings.
+- Ready PR: [#356](https://github.com/mindroom-ai/mindroom-chat/pull/356).
+- Next: address CI or AI review findings, then merge after approval.
 
 ### App Store update 4.12.320 (2026-10-01)
 
