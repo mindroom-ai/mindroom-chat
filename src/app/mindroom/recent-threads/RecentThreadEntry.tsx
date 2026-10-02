@@ -8,6 +8,7 @@ import { useRelativeTime } from '../../hooks/useRelativeTime';
 import { bumpRecentThread, rekeyRecentThread } from './recentThreads';
 import { useRecentThreadViewModel } from '../threads/recentThreadViewModel';
 import { useRoomViewMode } from '../threads/useRoomViewMode';
+import { useInitializeShownThread } from '../threads/useInitializeShownThread';
 import * as css from './threadNav.css';
 
 type RecentThreadEntryProps = {
@@ -21,6 +22,7 @@ export const RecentThreadEntry = memo(
   ({ room, threadId, openedAt, summaryText }: RecentThreadEntryProps) => {
     const { t } = useTranslation();
     const viewModel = useRecentThreadViewModel(room, threadId, openedAt, summaryText);
+    useInitializeShownThread(room.roomId, viewModel.id.threadRootId);
     const relativeTime = useRelativeTime(openedAt);
     const { navigateRoom, navigateRoomThreadDirect } = useRoomNavigate();
     const { viewMode } = useRoomViewMode(room.roomId);

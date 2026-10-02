@@ -178,7 +178,7 @@ export const runThreadOpenSdkBootstrap = async ({
       return false;
     }
   }
-  // Listed threads skip the SDK's root and first-page requests until they are opened.
+  // Listed threads skip the SDK's root and first-page requests until they are shown or opened.
   // A failed initialization leaves the thread uninitialized; the requests below still run.
   const initializing = threadModel.initialize?.();
   if (initializing) {

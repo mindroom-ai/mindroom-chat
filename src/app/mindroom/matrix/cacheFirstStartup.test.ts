@@ -214,7 +214,7 @@ describe('cached Matrix startup before server discovery', () => {
     ).toBe('cached-token');
   });
 
-  it('keeps cached edits applied when discovery removes prior server thread support', async () => {
+  it('applies buffered cached edits when discovery removes prior server thread support', async () => {
     Thread.hasServerSideSupport = FeatureSupport.Stable;
     const snapshot = structuredClone(savedSync);
     snapshot.roomsData.join[roomId].timeline.events.push({
@@ -233,8 +233,7 @@ describe('cached Matrix startup before server discovery', () => {
     );
     const thread = f.mx.getRoom(roomId)!.getThread('$root')!;
     const cachedReply = thread.findEventById('$cached-reply')!;
-    // Unopened threads apply cached edits at once instead of buffering them until initialization.
-    await vi.waitFor(() => expect(cachedReply.getContent().body).toBe('corrected reply'));
+    expect(cachedReply.getContent().body).toBe('$cached-reply');
 
     f.releaseVersions(['v1.3']);
     await starting;

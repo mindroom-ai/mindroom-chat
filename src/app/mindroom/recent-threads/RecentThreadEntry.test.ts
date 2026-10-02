@@ -98,6 +98,9 @@ vi.mock('../threads/useRoomViewMode', () => ({
   useRoomViewMode: () => ({ viewMode: roomViewModeState.value }),
 }));
 
+vi.mock('../threads/useInitializeShownThread', () => ({
+  useInitializeShownThread: () => undefined,
+}));
 vi.mock('../../hooks/useRelativeTime', () => ({
   useRelativeTime: () => '1m ago',
 }));

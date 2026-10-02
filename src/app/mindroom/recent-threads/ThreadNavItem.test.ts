@@ -108,6 +108,9 @@ vi.mock('../../hooks/useRoomNavigate', () => ({
     navigateRoomThreadDirect: navigateRoomThreadDirectMock,
   }),
 }));
+vi.mock('../threads/useInitializeShownThread', () => ({
+  useInitializeShownThread: () => undefined,
+}));
 vi.mock('../../hooks/useRelativeTime', () => ({ useRelativeTime: () => '1m ago' }));
 vi.mock('../threads/compactThreadCardViewModel', () => ({
   buildCompactThreadCardViewModelFromRecord: buildViewModelMock,

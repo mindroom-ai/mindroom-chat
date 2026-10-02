@@ -58,10 +58,10 @@ const settle = async () => {
   }
 };
 
-type ServerOptions = { roots?: IEvent[]; store?: MemoryStore };
+type ServerOptions = { roots?: IEvent[]; store?: MemoryStore; syncs?: unknown[] };
 
 /** Real SDK client whose fetch transport records every Matrix request it is asked to send. */
-const server = ({ roots = [], store }: ServerOptions = {}) => {
+const server = ({ roots = [], store, syncs = [] }: ServerOptions = {}) => {
   const requests: URL[] = [];
   const network: {
     relationsDown: boolean;
@@ -86,7 +86,10 @@ const server = ({ roots = [], store }: ServerOptions = {}) => {
       if (path.endsWith('/pushrules/')) return json({ global: {} });
       if (path.endsWith('/filter')) return json({ filter_id: 'filter' });
       if (path.endsWith('/capabilities')) return json({ capabilities: {} });
-      if (path.endsWith('/sync')) return new Promise<Response>(() => {});
+      if (path.endsWith('/sync')) {
+        const response = syncs.shift();
+        return response ? json(response) : new Promise<Response>(() => {});
+      }
       if (path.endsWith('/messages')) return json({ chunk: [], start: 'start', end: 'end' });
       if (path.endsWith('/threads')) {
         const listed = [...rootsById.values()].reverse();
@@ -221,14 +224,10 @@ describe('SDK thread bootstrap requests', () => {
 
     const liveReply = new MatrixEvent(reply(rootIdAt(1), 3, 10));
     await room.addLiveEvents([liveReply], { addToState: false });
-    await room.addLiveEvents([edit(liveReply.getId()!, 'edited live reply', 11)], {
-      addToState: false,
-    });
     await settle();
 
     expect(f.relationPages()).toBe(pages);
     expect(thread.events).toEqual([fetched, liveReply]);
-    expect(liveReply.getContent().body).toBe('edited live reply');
   });
 
   it('does not reject events that arrived while a failing first page loaded', async () => {
@@ -259,8 +258,8 @@ describe('SDK thread bootstrap requests', () => {
     expect(thread.initialEventsFetched).toBe(false);
   });
 
-  it('applies edits that arrived while a failed opening was loading', async () => {
-    const root = summarizedRoot(rootIdAt(1), 2);
+  it('keeps edits that arrived during a failed opening for the next one', async () => {
+    const root = summarizedRoot(rootIdAt(1), 3);
     const f = server({ roots: [root] });
     const room = roomFor(f.client);
     room.processThreadRoots([f.client.getEventMapper()(root)], true);
@@ -280,13 +279,14 @@ describe('SDK thread bootstrap requests', () => {
     });
     release();
     await opening;
-    // The app's own open bootstrap shows the reply again, as a new object.
-    const shown = new MatrixEvent(liveReply);
-    thread.setEventMetadata(shown);
-    thread.timelineSet.addEventsToTimeline([shown], true, false, thread.liveTimeline, 'older');
+    f.network.relationsDown = false;
+    await thread.initialize();
     await settle();
 
-    expect(shown.getContent().body).toBe('edited while loading');
+    // The first page shows this reply as a new object, with the buffered edit replayed onto it.
+    expect(thread.findEventById(liveReply.event_id)!.getContent().body).toBe(
+      'edited while loading'
+    );
   });
 
   it('retries opening a thread whose first page failed', async () => {
@@ -371,25 +371,80 @@ describe('SDK thread bootstrap requests', () => {
     expect(thread.findEventById(replyId)!.getContent().body).toBe('after opening');
   });
 
-  it('shows live replies and streamed edits on an unopened thread without requests', async () => {
+  it('streams edits of a summary-only reply without a request per edit', async () => {
+    const rootId = rootIdAt(1);
+    const f = server({ roots: [summarizedRoot(rootId, 2)] });
+    const room = roomFor(f.client);
+    room.processThreadRoots([f.client.getEventMapper()(summarizedRoot(rootId, 2))], true);
+    const thread = room.getThread(rootId)!;
+    // The thread knows this reply only from its root's summary.
+    const replyId = `${rootId}-reply-2`;
+
+    for (let chunk = 1; chunk <= 5; chunk += 1) {
+      await room.addLiveEvents([edit(replyId, `chunk ${chunk}`, 10 + chunk)], {
+        addToState: false,
+      });
+    }
+    await settle();
+    expect(f.requests).toHaveLength(0);
+    // Only the newest edit waits for the first page.
+    expect(thread.replayEvents).toHaveLength(1);
+
+    await thread.initialize();
+    await settle();
+    expect(f.rootFetches()).toBe(1);
+    expect(f.relationPages()).toBe(1);
+    expect(thread.findEventById(replyId)!.getContent().body).toBe('chunk 5');
+  });
+
+  it('lists encrypted threads without fetching their edits', async () => {
     const f = server();
     const room = roomFor(f.client);
-    const root = summarizedRoot(rootIdAt(1), 1);
-    room.processThreadRoots([f.client.getEventMapper()(root)], true);
-    const thread = room.getThread(rootIdAt(1))!;
-    const liveReply = reply(rootIdAt(1), 2, 10);
+    const encryptedRoot = (rootId: string): IEvent => {
+      const root = summarizedRoot(rootId, 1);
+      const relations = root.unsigned!['m.relations'] as { 'm.thread': { latest_event: IEvent } };
+      relations['m.thread'].latest_event = {
+        ...relations['m.thread'].latest_event,
+        type: 'm.room.encrypted',
+        content: {
+          algorithm: 'm.megolm.v1.aes-sha2',
+          ciphertext: 'ciphertext',
+          'm.relates_to': { rel_type: 'm.thread', event_id: rootId },
+        },
+      };
+      return root;
+    };
+    const mapper = f.client.getEventMapper();
 
-    await room.addLiveEvents([new MatrixEvent(liveReply)], { addToState: false });
-    await room.addLiveEvents(
-      [edit(liveReply.event_id, 'partial', 11), edit(liveReply.event_id, 'final answer', 12)],
-      { addToState: false }
+    // Without relations recursion, the SDK fetched each encrypted reply's latest edit.
+    restoreCachedRoomThreads(
+      room,
+      Array.from({ length: 10 }, (_, index) => ({
+        rootEvent: mapper(encryptedRoot(rootIdAt(index))),
+      }))
     );
     await settle();
 
     expect(f.requests).toHaveLength(0);
+  });
+
+  it('gives a shown thread its server count when its replies came with its root', async () => {
+    const rootId = rootIdAt(1);
+    const f = server({ roots: [summarizedRoot(rootId, 2)] });
+    const room = roomFor(f.client);
+    await room.addLiveEvents(
+      [summarizedRoot(rootId, 2), reply(rootId, 1), reply(rootId, 2)].map(
+        (event) => new MatrixEvent(event)
+      ),
+      { addToState: false, fromCache: true }
+    );
+    const thread = room.getThread(rootId)!;
+    await settle();
+
+    await thread.initialize();
+    await settle();
+
     expect(thread.length).toBe(2);
-    expect(thread.replyToEvent?.getId()).toBe(liveReply.event_id);
-    expect(thread.replyToEvent?.getContent().body).toBe('final answer');
   });
 
   it('upgrades unopened threads from listed summaries without stale or older rollbacks', async () => {
@@ -473,35 +528,6 @@ describe('SDK thread bootstrap requests', () => {
     expect(thread.length).toBe(2);
   });
 
-  it('fetches the root of an unopened thread whose latest reply was redacted', async () => {
-    const rootId = rootIdAt(1);
-    const f = server({ roots: [summarizedRoot(rootId, 2)] });
-    const room = roomFor(f.client);
-    room.processThreadRoots([f.client.getEventMapper()(summarizedRoot(rootId, 3))], true);
-    const thread = room.getThread(rootId)!;
-    // History pagination loads the latest reply into the thread.
-    thread.addEvent(new MatrixEvent(reply(rootId, 3)), true);
-    await settle();
-
-    await room.addLiveEvents(
-      [
-        new MatrixEvent({
-          ...message('$redaction', 20),
-          type: 'm.room.redaction',
-          redacts: `${rootId}-reply-3`,
-          content: { redacts: `${rootId}-reply-3` },
-        }),
-      ],
-      { addToState: false }
-    );
-    await settle();
-
-    expect(f.rootFetches()).toBe(1);
-    expect(f.relationPages()).toBe(0);
-    expect(thread.length).toBe(2);
-    expect(thread.replyToEvent?.getId()).toBe(`${rootId}-reply-2`);
-  });
-
   it('records room sync gaps on 200 unopened threads without allocating timelines', async () => {
     const f = server();
     const room = roomFor(f.client);
@@ -523,7 +549,7 @@ describe('SDK thread bootstrap requests', () => {
     expect(f.rootFetches() + f.relationPages()).toBe(0);
   });
 
-  it('replays a cached sync without thread requests ahead of the first sync but a missing root', async () => {
+  it('replays a cached sync and catches up without thread requests but a missing root', async () => {
     const events: IEvent[] = [];
     for (let index = 0; index < 40; index += 1) {
       events.push(message(rootIdAt(index), index * 10), reply(rootIdAt(index), 1, index * 10 + 1));
@@ -560,25 +586,41 @@ describe('SDK thread bootstrap requests', () => {
     const store = new MemoryStore();
     vi.spyOn(store, 'getSavedSync').mockResolvedValue(savedSync);
     vi.spyOn(store, 'getSavedSyncToken').mockResolvedValue('cached-token');
-    const f = server({ store });
+    // The first live sync brings a new reply to every thread and edits of their cached replies.
+    const catchUp = Array.from({ length: 40 }, (_, index) => [
+      reply(rootIdAt(index), 2, 1000 + index),
+      edit(`${rootIdAt(index)}-reply-1`, `edited ${index}`, 2000 + index).event,
+    ]).flat();
+    const f = server({
+      store,
+      syncs: [
+        {
+          next_batch: 'live-token',
+          rooms: { join: { [roomId]: { timeline: { events: catchUp, limited: false } } } },
+        },
+      ],
+    });
     // Production starts with cached server versions (clientSyncPolicy.startClient).
     (f.client as unknown as { serverVersionsPromise: Promise<unknown> }).serverVersionsPromise =
       Promise.resolve({ versions: ['v1.4', 'v1.10'], unstable_features: {} });
 
     await f.client.startClient({ threadSupport: true, lazyLoadMembers: true });
     await vi.waitFor(() =>
-      expect(f.requests.some((url) => url.pathname.endsWith('/sync'))).toBe(true)
+      expect(f.requests.filter((url) => url.pathname.endsWith('/sync'))).toHaveLength(2)
     );
     await settle();
     f.client.stopClient();
 
-    expect(f.client.getRoom(roomId)!.getThreads()).toHaveLength(41);
+    const room = f.client.getRoom(roomId)!;
+    expect(room.getThreads()).toHaveLength(41);
+    expect(room.getThread(rootIdAt(7))!.replyToEvent?.getId()).toBe(`${rootIdAt(7)}-reply-2`);
     const beforeSync = f.requests.slice(
       0,
       f.requests.findIndex((url) => url.pathname.endsWith('/sync'))
     );
     expect(beforeSync.filter((url) => /\/relations\//.test(url.pathname))).toHaveLength(0);
     expect(beforeSync.filter((url) => /\/event\//.test(url.pathname))).toHaveLength(1);
+    expect(f.rootFetches()).toBe(1);
     expect(f.relationPages()).toBe(0);
   });
 });

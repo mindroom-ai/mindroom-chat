@@ -15,6 +15,7 @@ import { useToggleThreadResolution } from '../threads/useRoomThreadTags';
 import { usePinnedEventIds } from '../threads/useThreadPinning';
 import { useRoomViewMode } from '../threads/useRoomViewMode';
 import { createThreadNavLocationState } from './threadNavCategoryUtils';
+import { useInitializeShownThread } from '../threads/useInitializeShownThread';
 import * as css from './threadNav.css';
 
 type ThreadNavItemProps = {
@@ -88,6 +89,7 @@ export const ThreadNavItem = memo(
     const language = useAppLanguageCode();
     const mx = useMatrixClient();
     const useAuthentication = useMediaAuthentication();
+    useInitializeShownThread(entry.roomId, entry.threadRootId);
     const room = mx.getRoom(entry.roomId);
     const viewModel = useMemo(() => {
       if (!room) return undefined;

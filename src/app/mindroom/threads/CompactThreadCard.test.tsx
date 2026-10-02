@@ -40,6 +40,7 @@ vi.mock('../messages/PendingSendIndicator.css', () => ({
   Container: 'PendingSendIndicator',
 }));
 
+vi.mock('./useInitializeShownThread', () => ({ useInitializeShownThread: () => undefined }));
 vi.mock('../../hooks/useRelativeTime', () => ({
   useRelativeTime: () => '',
 }));
