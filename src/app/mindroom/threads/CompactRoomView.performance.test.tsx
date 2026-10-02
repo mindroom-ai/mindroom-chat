@@ -35,6 +35,7 @@ vi.mock('folds', async (importOriginal) => {
   };
 });
 
+vi.mock('./useInitializeShownThread', () => ({ useInitializeShownThread: () => undefined }));
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }));

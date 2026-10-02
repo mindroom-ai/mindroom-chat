@@ -259,6 +259,52 @@ describe('buildCompactThreadRootData', () => {
     expect(data.ids).toEqual([]);
   });
 
+  it.each([
+    [false, ['$redacted-root']],
+    [true, []],
+  ])(
+    'treats an empty history token as complete only once the SDK thread loaded (loaded=%s)',
+    (initialEventsFetched, ids) => {
+      const redactedRoot = makeEvent('$redacted-root', 'Deleted root', undefined, undefined, {
+        isRedacted: true,
+      });
+      const redactedReply = makeEvent(
+        '$redacted-reply',
+        'Deleted reply',
+        undefined,
+        {
+          event_id: '$redacted-root',
+          rel_type: 'm.thread',
+        },
+        { isRedacted: true, threadRootId: '$redacted-root' }
+      );
+      const liveTimeline = {
+        getEvents: () => [redactedReply],
+        getPaginationToken: () => null,
+        getNeighbouringTimeline: () => null,
+      };
+
+      const data = buildCompactThreadRootData({
+        room: makeRoom({ '$redacted-root': redactedRoot }),
+        visibleIds: [],
+        visibleIndexMap: new Map(),
+        visibleBodyMap: new Map(),
+        threads: [
+          {
+            id: '$redacted-root',
+            rootEvent: redactedRoot,
+            events: [redactedReply],
+            length: 1,
+            initialEventsFetched,
+            getUnfilteredTimelineSet: () => ({ getLiveTimeline: () => liveTimeline }),
+          } as never,
+        ],
+      });
+
+      expect(data.ids).toEqual(ids);
+    }
+  );
+
   it('keeps a redacted root when a visible reply remains', () => {
     const redactedRoot = makeEvent('$redacted-root', 'Deleted root', undefined, undefined, {
       isRedacted: true,
@@ -477,6 +523,7 @@ describe('buildCompactThreadRootData', () => {
           rootEvent: redactedRoot,
           events: [],
           length: 1,
+          initialEventsFetched: true,
           getUnfilteredTimelineSet: () => ({ getLiveTimeline: () => liveTimeline }),
         } as never,
       ],

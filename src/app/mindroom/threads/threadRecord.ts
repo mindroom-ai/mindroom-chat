@@ -8,7 +8,11 @@ import { getThreadStreamingState } from './useThreadStreamingState';
 import { getThreadLastActivityTs } from './useThreadLastActivityTs';
 import { resolveRecentThreadSummaryText } from '../recent-threads/recentThreadSummaryUtils';
 import { isZeroReplyStandaloneThreadRootEvent } from './compactThreadRootData';
-import { getEffectiveThreadReadUpToTs, getThreadUnread } from './roomThreadList';
+import {
+  getEffectiveThreadReadUpToTs,
+  getLatestVisibleReply,
+  getThreadUnread,
+} from './roomThreadList';
 import { getEffectiveThreadRootActivityTs } from './threadRouteUtils';
 import {
   getThreadPrimarySummaryText,
@@ -216,7 +220,7 @@ const getThreadUnreadFromReadUpToTs = (
   if (readUpToTs === undefined || !thread || !currentUserId) return undefined;
   const effectiveReadUpToTs = getEffectiveThreadReadUpToTs(thread, currentUserId, readUpToTs);
 
-  const latestReply = replyEvents[replyEvents.length - 1];
+  const latestReply = getLatestVisibleReply(thread, replyEvents);
   if (!latestReply) return false;
   if (latestReply.getSender() === currentUserId) return false;
   if (effectiveReadUpToTs === null) return true;

@@ -253,7 +253,9 @@ describe('deferred thread sync gaps', () => {
   it('does not defer resets during initial metadata loading', async () => {
     const { room, threads } = fixture();
     await settle();
+    // An opened thread whose first page is still loading.
     threads[0].initialEventsFetched = false;
+    (threads[0] as unknown as { initializationDeferred: boolean }).initializationDeferred = false;
     const old = threads[0].liveTimeline;
     room.resetLiveTimeline('back', 'forward');
     expect(threads[0].liveTimeline === old).toBe(false);

@@ -15,6 +15,7 @@ import { useToggleThreadResolution } from '../threads/useRoomThreadTags';
 import { usePinnedEventIds } from '../threads/useThreadPinning';
 import { useRoomViewMode } from '../threads/useRoomViewMode';
 import { createThreadNavLocationState } from './threadNavCategoryUtils';
+import { useInitializeShownThread } from '../threads/useInitializeShownThread';
 import * as css from './threadNav.css';
 
 type ThreadNavItemProps = {
@@ -88,6 +89,7 @@ export const ThreadNavItem = memo(
     const language = useAppLanguageCode();
     const mx = useMatrixClient();
     const useAuthentication = useMediaAuthentication();
+    const shownRef = useInitializeShownThread(entry.roomId, entry.threadRootId);
     const room = mx.getRoom(entry.roomId);
     const viewModel = useMemo(() => {
       if (!room) return undefined;
@@ -193,6 +195,7 @@ export const ThreadNavItem = memo(
                 <NavItemContent>
                   <Box as="span" grow="Yes" alignItems="Center" gap="200">
                     <Text
+                      ref={shownRef}
                       className={css.EntrySummary}
                       priority={entry.isUnread ? '500' : '300'}
                       as="span"

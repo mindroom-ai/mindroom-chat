@@ -1,12 +1,5 @@
-import {
-  createClient,
-  Direction,
-  MatrixClient,
-  MatrixEvent,
-  Room,
-  type IEvent,
-} from 'matrix-js-sdk';
-import { FeatureSupport, Thread, ThreadEvent } from 'matrix-js-sdk/lib/models/thread';
+import { createClient, Direction, MatrixClient, MatrixEvent, Room } from 'matrix-js-sdk';
+import { FeatureSupport, Thread } from 'matrix-js-sdk/lib/models/thread';
 import { describe, expect, it, vi } from 'vitest';
 import { getLinkedTimelines, getThreadTimelineEvents } from '../linkedTimelines';
 import {
@@ -43,20 +36,14 @@ const makeDeferredThread = () => {
     timelineSupport: true,
   });
   const root = makeEvent('$root', 1);
-  let finishRootFetch!: (event: IEvent) => void;
-  const rootFetch = new Promise<IEvent>((resolve) => {
-    finishRootFetch = resolve;
-  });
-  vi.spyOn(mx, 'fetchRoomEvent').mockReturnValue(rootFetch);
+  vi.spyOn(mx, 'fetchRoomEvent');
   const thread = createInitializedThreadForRoot(room, root);
-  const finishDeferredMetadata = async () => {
-    const updated = new Promise<void>((resolve) => {
-      thread.once(ThreadEvent.Update, () => resolve());
+  // The SDK processes a known root locally; let that metadata update settle.
+  const settleMetadata = () =>
+    new Promise((resolve) => {
+      setTimeout(resolve, 0);
     });
-    finishRootFetch(root.event as IEvent);
-    await updated;
-  };
-  return { mx, room, root, thread, finishDeferredMetadata };
+  return { mx, room, root, thread, settleMetadata };
 };
 
 describe('threadBootstrapSdk', () => {
@@ -64,7 +51,7 @@ describe('threadBootstrapSdk', () => {
     const previousSupport = Thread.hasServerSideSupport;
     Thread.hasServerSideSupport = FeatureSupport.Stable;
     try {
-      const { mx, room, thread, finishDeferredMetadata } = makeDeferredThread();
+      const { mx, room, thread, settleMetadata } = makeDeferredThread();
       let finishConversion!: (value: { chunk: never[]; start: string; end: string }) => void;
       const conversion = new Promise<{ chunk: never[]; start: string; end: string }>((resolve) => {
         finishConversion = resolve;
@@ -79,7 +66,7 @@ describe('threadBootstrapSdk', () => {
       expect(thread.liveTimeline.getPaginationToken(Direction.Backward)).toBe('relations-older');
       finishConversion({ chunk: [], start: 'converted-forward', end: 'converted-back' });
       await thread.flushPendingTimelineReset();
-      await finishDeferredMetadata();
+      await settleMetadata();
       expect(thread.liveTimeline.getPaginationToken(Direction.Backward)).toBe('relations-older');
     } finally {
       Thread.hasServerSideSupport = previousSupport;
@@ -90,7 +77,7 @@ describe('threadBootstrapSdk', () => {
     const previousSupport = Thread.hasServerSideSupport;
     Thread.hasServerSideSupport = FeatureSupport.Stable;
     try {
-      const { thread, finishDeferredMetadata } = makeDeferredThread();
+      const { thread, settleMetadata } = makeDeferredThread();
       const older = makeEvent('$older', 2, true);
       const middle = makeEvent('$middle', 3, true);
       const newer = makeEvent('$newer', 4, true);
@@ -103,7 +90,7 @@ describe('threadBootstrapSdk', () => {
         events: [older, middle, newer],
         nextBatch: 'before-older',
       });
-      await finishDeferredMetadata();
+      await settleMetadata();
       expect(getThreadTimelineEvents(thread)).toEqual([older, middle, newer]);
       expect(thread.lastReply()).toBe(newer);
       expect(
@@ -114,18 +101,18 @@ describe('threadBootstrapSdk', () => {
       vi.restoreAllMocks();
     }
   });
-  it('preserves a racing reply when constructor-started SDK metadata completes', async () => {
+  it('keeps a reply added while the thread metadata settles without refetching the root', async () => {
     const previousSupport = Thread.hasServerSideSupport;
     Thread.hasServerSideSupport = FeatureSupport.Stable;
     try {
-      const { mx, room, root, thread, finishDeferredMetadata } = makeDeferredThread();
+      const { mx, room, root, thread, settleMetadata } = makeDeferredThread();
       const paginate = vi.spyOn(mx, 'paginateEventTimeline');
       const reply = makeEvent('$reply', 2, true);
       expect(thread.rootEvent).toBe(root);
       expect(room.getThread('$root')).toBe(thread);
 
       await thread.addEvent(reply, false);
-      await finishDeferredMetadata();
+      await settleMetadata();
 
       expect(thread.events).toContain(reply);
       expect(thread.findEventById('$reply')).toBe(reply);
@@ -133,6 +120,7 @@ describe('threadBootstrapSdk', () => {
         thread.liveTimeline
       );
       expect(paginate).not.toHaveBeenCalled();
+      expect(mx.fetchRoomEvent).not.toHaveBeenCalled();
       expect(thread.initialEventsFetched).toBe(true);
       expect(thread.replayEvents).toBeNull();
     } finally {
@@ -173,7 +161,7 @@ describe('threadBootstrapSdk', () => {
       const previousSupport = Thread.hasServerSideSupport;
       Thread.hasServerSideSupport = FeatureSupport.Stable;
       try {
-        const { thread, finishDeferredMetadata } = makeDeferredThread();
+        const { thread, settleMetadata } = makeDeferredThread();
         const firstTimeline = thread.liveTimeline;
         firstTimeline.setPaginationToken('previous', Direction.Backward);
         const reply = makeEvent('$reply', 2, true);
@@ -184,7 +172,7 @@ describe('threadBootstrapSdk', () => {
           events: [reply, newerReply],
           nextBatch,
         });
-        await finishDeferredMetadata();
+        await settleMetadata();
 
         // Native backward pagination accepts newest first and stores chronological order.
         expect(thread.events).toEqual([reply, newerReply]);
@@ -201,14 +189,14 @@ describe('threadBootstrapSdk', () => {
     const previousSupport = Thread.hasServerSideSupport;
     Thread.hasServerSideSupport = FeatureSupport.Stable;
     try {
-      const { thread, finishDeferredMetadata } = makeDeferredThread();
+      const { thread, settleMetadata } = makeDeferredThread();
       const reply = makeEvent('$reply', 2, true);
       appendThreadBootstrapRelations({
         thread,
         events: [reply],
         nextBatch: undefined,
       });
-      await finishDeferredMetadata();
+      await settleMetadata();
 
       expect(thread.events).toContain(reply);
       expect(thread.findEventById('$reply')).toBe(reply);
