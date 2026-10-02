@@ -6,6 +6,10 @@ import {
   type Thread,
 } from 'matrix-js-sdk';
 
+/** An unopened thread has not loaded its first page, so its empty backward token proves nothing. */
+export const hasLoadedFirstThreadPage = (thread: Pick<Thread, 'initialEventsFetched'>): boolean =>
+  thread.initialEventsFetched !== false;
+
 /** Caller supplies an identified root and retains the subsequent server bootstrap. */
 export function createInitializedThreadForRoot(room: Room, root: MatrixEvent): Thread {
   const thread = room.createThread(root.getId()!, root, [], false);

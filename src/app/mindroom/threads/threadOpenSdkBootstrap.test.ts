@@ -182,8 +182,10 @@ describe('runThreadOpenSdkBootstrap', () => {
         threadId: '$root',
       });
       await flushAsyncWork();
-      expect(thread.initialize).toHaveBeenCalledOnce();
-      expect(thread.flushPendingTimelineReset).not.toHaveBeenCalled();
+      // A recorded sync gap is materialized first, so its conversion errors still reach the open.
+      expect(thread.flushPendingTimelineReset.mock.invocationCallOrder[0]).toBeLessThan(
+        thread.initialize.mock.invocationCallOrder[0]
+      );
       expect(mx.getThreadTimeline).not.toHaveBeenCalled();
 
       mounted = stayMounted;

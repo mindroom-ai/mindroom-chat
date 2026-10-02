@@ -169,14 +169,6 @@ export const runThreadOpenSdkBootstrap = async ({
     return true;
   }
 
-  // Listed threads skip the SDK's root and first-page requests until they are opened.
-  // A failed initialization leaves the thread uninitialized; the requests below still run.
-  const initializing = threadModel.initialize?.();
-  if (initializing) {
-    await to(initializing);
-    if (!isMounted()) return false;
-  }
-
   const pendingReset = flushThreadSyncGap(threadModel, isMounted);
   if (pendingReset) {
     const [resetError] = await to(pendingReset);
@@ -185,6 +177,13 @@ export const runThreadOpenSdkBootstrap = async ({
       onBootstrap({ kind: 'load-error' });
       return false;
     }
+  }
+  // Listed threads skip the SDK's root and first-page requests until they are opened.
+  // A failed initialization leaves the thread uninitialized; the requests below still run.
+  const initializing = threadModel.initialize?.();
+  if (initializing) {
+    await to(initializing);
+    if (!isMounted()) return false;
   }
   const loadedThreadTimelineSet = threadModel.getUnfilteredTimelineSet();
   const [err] = await to(mx.getThreadTimeline(loadedThreadTimelineSet, threadId));

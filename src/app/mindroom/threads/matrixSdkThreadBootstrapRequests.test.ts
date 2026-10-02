@@ -456,6 +456,52 @@ describe('SDK thread bootstrap requests', () => {
     expect(thread.replyToEvent?.getContent().body).toBe('final answer');
   });
 
+  it('keeps a live reply over a listing with the same timestamp', async () => {
+    const rootId = rootIdAt(1);
+    const f = server();
+    const room = roomFor(f.client);
+    room.processThreadRoots([f.client.getEventMapper()(summarizedRoot(rootId, 1))], true);
+    const thread = room.getThread(rootId)!;
+    const liveReply = new MatrixEvent(reply(rootId, 2, 10));
+    await room.addLiveEvents([liveReply], { addToState: false });
+
+    // A listing taken just before that reply, whose latest reply has the same timestamp.
+    room.refreshListedThreadRoots([f.client.getEventMapper()(summarizedRoot(rootId, 1, 9))]);
+    await settle();
+
+    expect(thread.replyToEvent).toBe(liveReply);
+    expect(thread.length).toBe(2);
+  });
+
+  it('fetches the root of an unopened thread whose latest reply was redacted', async () => {
+    const rootId = rootIdAt(1);
+    const f = server({ roots: [summarizedRoot(rootId, 2)] });
+    const room = roomFor(f.client);
+    room.processThreadRoots([f.client.getEventMapper()(summarizedRoot(rootId, 3))], true);
+    const thread = room.getThread(rootId)!;
+    // History pagination loads the latest reply into the thread.
+    thread.addEvent(new MatrixEvent(reply(rootId, 3)), true);
+    await settle();
+
+    await room.addLiveEvents(
+      [
+        new MatrixEvent({
+          ...message('$redaction', 20),
+          type: 'm.room.redaction',
+          redacts: `${rootId}-reply-3`,
+          content: { redacts: `${rootId}-reply-3` },
+        }),
+      ],
+      { addToState: false }
+    );
+    await settle();
+
+    expect(f.rootFetches()).toBe(1);
+    expect(f.relationPages()).toBe(0);
+    expect(thread.length).toBe(2);
+    expect(thread.replyToEvent?.getId()).toBe(`${rootId}-reply-2`);
+  });
+
   it('records room sync gaps on 200 unopened threads without allocating timelines', async () => {
     const f = server();
     const room = roomFor(f.client);

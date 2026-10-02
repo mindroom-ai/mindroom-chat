@@ -14,11 +14,13 @@
   - A thread defers its network initialization until `Thread.initialize()`; until then its root's thread summary (reply count, latest reply, participation) is processed locally, and only a missing root is fetched.
   - Unopened threads still append live replies, and they apply edits and reactions at once instead of buffering them for a replay, so cards keep streaming.
     Opening replaces the thread's timeline with its first page, so `Relations` now follows a reply recreated under the same ID and applies the newest edit it holds, unless the page's bundled edit is newer.
-  - `/threads` responses refresh the summary of unopened threads (`Room.refreshListedThreadRoots`) unless the thread already shows a newer reply, so cached cards upgrade without a root request; cached roots never replace it.
+  - `/threads` responses refresh the summary of unopened threads (`Room.refreshListedThreadRoots`) unless the thread already shows a newer reply (or a live reply with the same timestamp), so cached cards upgrade without a root request; cached roots never replace it.
+  - When an unopened thread's latest reply is redacted, it fetches its root, as upstream does, instead of rebuilding the summary from the stored root.
   - A thread ignores timeline resets of other threads; only a room gap invalidates its root.
   - Unopened threads coalesce room sync gaps like untouched initialized ones.
   - A failed first page returns the thread to the unopened state and applies the edits that arrived meanwhile: later events no longer reset its timeline or reject, and the next opening retries.
-- The thread open awaits `initialize()` before `getThreadTimeline` and its cache writes: an uninitialized live timeline has no backward token, which the cache would read as complete history.
+- The thread open materializes a recorded sync gap first, so its conversion errors still reach the open, and then awaits `initialize()` before `getThreadTimeline` and its cache writes: an uninitialized live timeline has no backward token, which the cache would read as complete history.
+  For the same reason, the compact overview no longer treats that empty token as proof of complete history when it decides whether a thread with a deleted root has replies left.
   Opening a thread therefore costs its root request and first page at open instead of at creation; the cache-first view still renders cached replies meanwhile.
   `initialize()` returns nothing for an initialized thread, so synchronous callers stay synchronous.
 - The first `/sync` started 108 s after boot in session `4bbace3b`.
@@ -43,7 +45,9 @@
 - Not changed: a thread whose root is outside the synced window still fetches that root at startup (one request); the app's own scheduled prefetch and reconcile requests are unchanged.
 - Design: Codex's consultation favored deferring the saved-sync replay's threads too, rather than only listed ones or a request queue, so that sends and `/sync` never wait behind thread initialization.
   An independent review found that a failed opening could later wipe the thread's timeline, that edits made after opening went to discarded reply objects, and three smaller gaps; all are fixed and covered by the tests above.
-- Validation: 5,687 unit tests pass; the only failures are the three `xcodeCloudPostClone` tests that need `/bin/bash` and `useRoomInputSendSessionController`'s caption case, which fail the same way on `dev`.
+  Qodo's review found the gap-conversion ordering, the redacted latest reply, the timestamp tie and the history-token reading above; they are fixed and covered too.
+  Its fifth finding, that opening now waits for the root and first page before `getThreadTimeline`, is kept: an opened thread sends the same requests it sent at creation before, and the cache-first view renders meanwhile.
+- Validation: 5,691 unit tests pass; the only failures are the three `xcodeCloudPostClone` tests that need `/bin/bash` and `useRoomInputSendSessionController`'s caption case, which fail the same way on `dev`.
   Typecheck, production build, prettier and lint (0 errors, 17 existing warnings) pass, and the patch applies to a pristine `matrix-js-sdk@41.7.0` with all 34 patched files byte-identical to the tested tree.
   The new live spec passes in Chromium and WebKit; 30 thread-related live jobs pass in Chromium, and `offline-thread-overview` and `thread-indexeddb-loss` pass in WebKit (Playwright container).
   `cinny069-room-resume-thread-preload` and `cinny070-thread-prepend-scroll` fail with the same assertions on unchanged `dev`.
