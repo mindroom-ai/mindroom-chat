@@ -17,12 +17,14 @@
 - A one-off failure while the homeserver still answers, such as a single failed endpoint, shows nothing.
   Aborted requests (intentional aborts and the SDK's local timeouts, which the sync loop reports itself) do not count, nor do requests or checks during which the page was hidden at any point.
   WebKit fails requests that were in flight while the app was suspended, and those failures arrive around resume without saying anything about the server.
+  A check that started while the page was visible and got no answer before it was hidden is ignored, and a fresh check runs once the page is shown again, so an outage that began before backgrounding is still detected after resume without another app request.
   Checks repeat only while `SyncStatus` is mounted, so clients used for login or token refresh send at most one check per failure.
 - Not changed: why the first `/sync` started late is a separate fix, and a request that hangs without failing shows nothing until it fails.
+  Any HTTP response counts as reachable, including responses from other origins (such as the OIDC issuer) and 502/503/504 from the reverse proxy, so a dead homeserver behind a working proxy shows no banner before `/sync` starts; once it syncs, the SDK keepalive reports it.
 - Validation: unit tests cover each rule and fail when it is removed; two `SyncStatus` tests and the `createMatrixClient` test fail before the change.
   `e2e/connection-status.spec.ts` (Chromium) reloads into the cached shell while homeserver reads get no answer and writes fail, as in the export.
   Before the change no banner appears; after it "Connection Lost!" appears once the writes fail and the check gets no answer, and clears once the held requests are answered.
-  A second case fails only sends while everything else works and checks that the banner never appears; it fails against a build that shows the banner without the check.
+  A second case fails only sends while everything else works, waits for the check to be answered, and checks that the banner never appeared; it fails against a build that shows the banner without the check.
   Typecheck, build, changed-file lint and prettier pass; full-suite results are in the pull request.
 - Next: on an iPhone, confirm that the banner appears when sending with the homeserver unreachable, clears when it is reachable again, and does not appear after resuming the app with a working connection.
 

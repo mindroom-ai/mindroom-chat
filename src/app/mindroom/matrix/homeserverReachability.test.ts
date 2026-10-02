@@ -30,10 +30,10 @@ const pending = () => {
 const track = (baseFetch: ReturnType<typeof vi.fn>, { shown = true } = {}) => {
   const reachability = createHomeserverReachability(baseFetch as unknown as typeof fetch, BASE_URL);
   const listener = vi.fn();
-  if (shown) reachability.subscribe(listener);
+  const unsubscribe = shown ? reachability.subscribe(listener) : () => undefined;
   const request = (url = SEND_URL, init?: RequestInit) =>
     reachability.fetchFn(url, init).catch(() => undefined);
-  return { reachability, listener, request };
+  return { reachability, listener, request, unsubscribe };
 };
 
 const checkCalls = (baseFetch: ReturnType<typeof vi.fn>) =>
@@ -179,19 +179,75 @@ describe('homeserver reachability', () => {
     expect(reachability.isUnreachable()).toBe(false);
   });
 
-  it('ignores a check that was in flight while the page was hidden', async () => {
-    const check = pending();
-    const { reachability, request } = track(
-      vi.fn().mockRejectedValueOnce(networkError()).mockReturnValueOnce(check.promise)
-    );
+  it('ignores a check suspended with the page and checks again once the page is shown', async () => {
+    const suspendedCheck = pending();
+    const baseFetch = vi
+      .fn()
+      .mockRejectedValueOnce(networkError())
+      .mockReturnValueOnce(suspendedCheck.promise)
+      .mockRejectedValue(networkError());
+    const { reachability, listener, request } = track(baseFetch);
+
+    await request();
+    setVisibility('hidden');
+    suspendedCheck.reject(networkError());
+    await vi.advanceTimersByTimeAsync(HOMESERVER_RECHECK_INTERVAL_MS * 2);
+    expect(checkCalls(baseFetch)).toHaveLength(1);
+    expect(reachability.isUnreachable()).toBe(false);
+
+    setVisibility('visible');
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(checkCalls(baseFetch)).toHaveLength(2);
+    expect(reachability.isUnreachable()).toBe(true);
+    expect(listener).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not report an outage after the page is shown when the homeserver answers then', async () => {
+    const suspendedCheck = pending();
+    const baseFetch = vi
+      .fn()
+      .mockRejectedValueOnce(networkError())
+      .mockReturnValueOnce(suspendedCheck.promise)
+      .mockResolvedValue(new Response('{}'));
+    const { reachability, listener, request } = track(baseFetch);
+
+    await request();
+    setVisibility('hidden');
+    suspendedCheck.reject(networkError());
+    await vi.advanceTimersByTimeAsync(0);
+    setVisibility('visible');
+    await vi.advanceTimersByTimeAsync(0);
+    setVisibility('hidden');
+    setVisibility('visible');
+    await vi.advanceTimersByTimeAsync(HOMESERVER_RECHECK_INTERVAL_MS * 2);
+
+    expect(checkCalls(baseFetch)).toHaveLength(2);
+    expect(reachability.isUnreachable()).toBe(false);
+    expect(listener).not.toHaveBeenCalled();
+  });
+
+  it('checks again right away when a suspended check ends after the page is shown', async () => {
+    const suspendedCheck = pending();
+    const freshCheck = pending();
+    const baseFetch = vi
+      .fn()
+      .mockRejectedValueOnce(networkError())
+      .mockReturnValueOnce(suspendedCheck.promise)
+      .mockReturnValueOnce(freshCheck.promise);
+    const { reachability, request } = track(baseFetch);
 
     await request();
     setVisibility('hidden');
     setVisibility('visible');
-    check.reject(networkError());
-    await vi.advanceTimersByTimeAsync(HOMESERVER_CHECK_TIMEOUT_MS);
-
+    suspendedCheck.reject(networkError());
+    await vi.advanceTimersByTimeAsync(0);
+    expect(checkCalls(baseFetch)).toHaveLength(2);
     expect(reachability.isUnreachable()).toBe(false);
+
+    freshCheck.reject(networkError());
+    await vi.advanceTimersByTimeAsync(0);
+    expect(reachability.isUnreachable()).toBe(true);
   });
 
   it('checks the homeserver again while it is shown as unreachable, until it answers', async () => {
@@ -252,5 +308,23 @@ describe('homeserver reachability', () => {
 
     expect(checkCalls(baseFetch)).toHaveLength(1);
     expect(reachability.isUnreachable()).toBe(false);
+  });
+
+  it('stops checking again once nothing shows the connection status', async () => {
+    const baseFetch = vi.fn().mockRejectedValue(networkError());
+    const { reachability, request, unsubscribe } = track(baseFetch);
+
+    await request();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(reachability.isUnreachable()).toBe(true);
+    const unsubscribeSecond = reachability.subscribe(() => undefined);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(checkCalls(baseFetch)).toHaveLength(2);
+
+    unsubscribeSecond();
+    unsubscribe();
+    await vi.advanceTimersByTimeAsync(HOMESERVER_RECHECK_INTERVAL_MS * 3);
+
+    expect(checkCalls(baseFetch)).toHaveLength(2);
   });
 });

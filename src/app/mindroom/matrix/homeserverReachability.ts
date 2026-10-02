@@ -21,18 +21,24 @@ const reachabilityByClient = new WeakMap<MatrixClient, HomeserverReachability>()
 // failure only counts when the page stayed visible for the whole request.
 let visibilityChanges = 0;
 let watchingVisibility = false;
+const checksOwedOnShow = new Set<() => void>();
+
+const isPageHidden = (): boolean =>
+  typeof document !== 'undefined' && document.visibilityState === 'hidden';
 
 const watchVisibility = (): void => {
   if (watchingVisibility || typeof document === 'undefined') return;
   watchingVisibility = true;
   document.addEventListener('visibilitychange', () => {
     visibilityChanges += 1;
+    const checks = [...checksOwedOnShow];
+    checksOwedOnShow.clear();
+    checks.forEach((check) => check());
   });
 };
 
 const stayedVisible = (visibilityChangesAtStart: number): boolean =>
-  visibilityChanges === visibilityChangesAtStart &&
-  (typeof document === 'undefined' || document.visibilityState !== 'hidden');
+  visibilityChanges === visibilityChangesAtStart && !isPageHidden();
 
 const isAbort = (error: unknown, init?: RequestInit): boolean =>
   init?.signal?.aborted === true || (error as Error | undefined)?.name === 'AbortError';
@@ -103,8 +109,12 @@ export const createHomeserverReachability = (
       .finally(() => {
         clearTimeout(timeout);
         checking = false;
-        if (responses === responsesAtStart && stayedVisible(visibilityChangesAtStart)) {
-          setUnreachable(true);
+        if (responses === responsesAtStart) {
+          if (stayedVisible(visibilityChangesAtStart)) setUnreachable(true);
+          // A check suspended with the page says nothing, so check again once
+          // the page is shown.
+          else if (isPageHidden()) checksOwedOnShow.add(check);
+          else check();
         }
         scheduleRecheck();
       });
@@ -133,9 +143,6 @@ export const bindHomeserverReachability = (
 ): void => {
   reachabilityByClient.set(mx, reachability);
 };
-
-export const getHomeserverReachability = (mx: MatrixClient): HomeserverReachability | undefined =>
-  reachabilityByClient.get(mx);
 
 const subscribeNever = () => () => undefined;
 const alwaysReachable = () => false;

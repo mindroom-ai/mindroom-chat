@@ -77,12 +77,22 @@ test('does not show a lost connection when one request fails while the homeserve
   const sendFailed = page.waitForEvent('requestfailed', (request) =>
     request.url().includes('/send/')
   );
+  // The failed send starts a check of the homeserver; once it is answered,
+  // nothing can show the banner for this failure.
+  const checkAnswered = page.waitForResponse(
+    (response) => new URL(response.url()).pathname === '/_matrix/client/versions'
+  );
   await composer.fill('Sent while only sends fail');
   await page.getByRole('button', { name: 'Send message' }).click();
   await sendFailed;
-  // The homeserver answers the check within milliseconds here, while a banner
-  // shown for the failure itself would appear right away.
-  await page.waitForTimeout(2_000);
+  const checkResponse = await checkAnswered;
+  expect(checkResponse.ok()).toBe(true);
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve) => {
+        window.requestAnimationFrame(() => window.requestAnimationFrame(() => resolve()));
+      })
+  );
 
   expect(
     await page.evaluate(

@@ -1,3 +1,6 @@
+import React from 'react';
+import { act, create, type ReactTestRenderer } from 'react-test-renderer';
+import type { MatrixClient } from 'matrix-js-sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
@@ -12,7 +15,7 @@ vi.mock('../diagnostics/deepTrace', () => ({
 }));
 
 import { createMatrixClient, createMatrixFetchFn } from './matrixClientFactory';
-import { getHomeserverReachability, HOMESERVER_CHECK_TIMEOUT_MS } from './homeserverReachability';
+import { useHomeserverUnreachable } from './homeserverReachability';
 
 describe('createMatrixFetchFn', () => {
   beforeEach(() => {
@@ -92,11 +95,26 @@ describe('createMatrixClient', () => {
       fetchFn: baseFetch as unknown as typeof fetch,
     });
 
-    await expect(mx.sendTyping('!room:matrix.example', true, 1000)).rejects.toThrow();
-    await vi.advanceTimersByTimeAsync(HOMESERVER_CHECK_TIMEOUT_MS);
-    expect(getHomeserverReachability(mx)?.isUnreachable()).toBe(true);
+    const seen = { unreachable: false };
+    const Observer = ({ client }: { client: MatrixClient }) => {
+      seen.unreachable = useHomeserverUnreachable(client);
+      return null;
+    };
+    let renderer!: ReactTestRenderer;
+    act(() => {
+      renderer = create(React.createElement(Observer, { client: mx }));
+    });
 
-    await mx.sendTyping('!room:matrix.example', false, 0);
-    expect(getHomeserverReachability(mx)?.isUnreachable()).toBe(false);
+    await act(async () => {
+      await expect(mx.sendTyping('!room:matrix.example', true, 1000)).rejects.toThrow();
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(seen.unreachable).toBe(true);
+
+    await act(async () => {
+      await mx.sendTyping('!room:matrix.example', false, 0);
+    });
+    expect(seen.unreachable).toBe(false);
+    act(() => renderer.unmount());
   });
 });
