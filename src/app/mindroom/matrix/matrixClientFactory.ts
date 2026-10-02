@@ -1,5 +1,6 @@
 import { createClient, type ICreateClientOpts } from 'matrix-js-sdk';
 import { traceDeepDiagnosticFetch } from '../diagnostics/deepTrace';
+import { bindHomeserverReachability, createHomeserverReachability } from './homeserverReachability';
 
 type MindroomCreateClientOpts = ICreateClientOpts & {
   threadSupport?: boolean;
@@ -44,8 +45,12 @@ export const createMatrixFetchFn =
           credentials: 'include',
         });
 
-export const createMatrixClient = (options: MindroomCreateClientOpts) =>
-  createClient({
-    ...options,
-    fetchFn: createMatrixFetchFn(options.fetchFn ?? globalThis.fetch),
-  } as ICreateClientOpts);
+export const createMatrixClient = (options: MindroomCreateClientOpts) => {
+  const reachability = createHomeserverReachability(
+    createMatrixFetchFn(options.fetchFn ?? globalThis.fetch),
+    options.baseUrl
+  );
+  const mx = createClient({ ...options, fetchFn: reachability.fetchFn } as ICreateClientOpts);
+  bindHomeserverReachability(mx, reachability);
+  return mx;
+};

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   traceDeepDiagnosticFetch: vi.fn(
@@ -11,7 +11,8 @@ vi.mock('../diagnostics/deepTrace', () => ({
   traceDeepDiagnosticFetch: mocks.traceDeepDiagnosticFetch,
 }));
 
-import { createMatrixFetchFn } from './matrixClientFactory';
+import { createMatrixClient, createMatrixFetchFn } from './matrixClientFactory';
+import { getHomeserverReachability, HOMESERVER_CHECK_TIMEOUT_MS } from './homeserverReachability';
 
 describe('createMatrixFetchFn', () => {
   beforeEach(() => {
@@ -69,5 +70,33 @@ describe('createMatrixFetchFn', () => {
 
     expect(mocks.traceDeepDiagnosticFetch).toHaveBeenCalledTimes(3);
     expect(baseFetch).toHaveBeenCalledTimes(3);
+  });
+});
+
+describe('createMatrixClient', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('tracks whether its requests reach the homeserver', async () => {
+    vi.useFakeTimers();
+    const baseFetch = vi
+      .fn()
+      .mockRejectedValueOnce(new TypeError('Load failed'))
+      .mockRejectedValueOnce(new TypeError('Load failed'))
+      .mockResolvedValueOnce(new Response('{}', { status: 200 }));
+    const mx = createMatrixClient({
+      baseUrl: 'https://matrix.example',
+      accessToken: 'token',
+      userId: '@alice:matrix.example',
+      fetchFn: baseFetch as unknown as typeof fetch,
+    });
+
+    await expect(mx.sendTyping('!room:matrix.example', true, 1000)).rejects.toThrow();
+    await vi.advanceTimersByTimeAsync(HOMESERVER_CHECK_TIMEOUT_MS);
+    expect(getHomeserverReachability(mx)?.isUnreachable()).toBe(true);
+
+    await mx.sendTyping('!room:matrix.example', false, 0);
+    expect(getHomeserverReachability(mx)?.isUnreachable()).toBe(false);
   });
 });
