@@ -414,7 +414,7 @@ const flush = async (target: Runtime): Promise<void> => {
     // WebKit aborts writes in flight when it suspends the app, and closes every
     // connection for good when it loses its IndexedDB server. A failed write
     // stores nothing, so retry its batch on a new connection; the next recorded
-    // event trims the queue back to its bounds.
+    // event trims the queue back to its bounds, oldest events first.
     releaseDatabase();
     target.queue.unshift(...batch);
     target.queueBytes += batchBytes;
@@ -1013,7 +1013,10 @@ export const clearDeepTrace = async (): Promise<void> => {
   await tx.objectStore(META_STORE).put({ ...EMPTY_STATS }, STATS_KEY);
   await tx.done;
   removeStorageItemSafe(storage, DEEP_TRACE_FAILURE_KEY);
-  if (target) target.lastFailure = null;
+  if (target) {
+    target.lastFailure = null;
+    target.flushFailures = 0;
+  }
 };
 
 export const readDeepTraceSnapshot = async (): Promise<DeepTraceSnapshot> => {

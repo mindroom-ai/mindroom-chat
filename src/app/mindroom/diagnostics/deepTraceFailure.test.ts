@@ -351,19 +351,25 @@ describe('deep diagnostic trace storage failure', () => {
         vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
 
         trace.recordDeepTraceEvent('test.failed_batch', undefined, { flush: true });
+        // Recorded while that write is in flight, with and without an immediate flush.
         trace.recordDeepTraceEvent('test.during_write', undefined, { flush: true });
+        trace.recordDeepTraceEvent('test.queued_during_write');
         abortWrite?.(new DOMException('private failure detail', 'UnknownError'));
-        await vi.waitFor(() =>
-          expect(trace.getDeepTraceHealthSnapshot()).toMatchObject({
-            flushing: false,
-            lastFailure: { stage: 'flush', errorName },
-          })
+        // Polling every 1 ms keeps the fake clock, which `waitFor` advances, near the failure.
+        await vi.waitFor(
+          () =>
+            expect(trace.getDeepTraceHealthSnapshot()).toMatchObject({
+              flushing: false,
+              lastFailure: { stage: 'flush', errorName },
+            }),
+          { interval: 1 }
         );
         trace.recordDeepTraceEvent('test.after_failure', undefined, { flush: true });
-        // Neither the flush requested during the write nor a later one retries at once.
+        // No flush, requested during the write or after it, retries before the delay.
+        await vi.advanceTimersByTimeAsync(500);
         expect(mocks.openDB).toHaveBeenCalledTimes(1);
 
-        await vi.advanceTimersByTimeAsync(1_000);
+        await vi.advanceTimersByTimeAsync(500);
         await vi.waitFor(() =>
           expect(trace.getDeepTraceHealthSnapshot()).toMatchObject({
             pendingEventCount: 0,
@@ -371,12 +377,21 @@ describe('deep diagnostic trace storage failure', () => {
           })
         );
         expect(mocks.openDB).toHaveBeenCalledTimes(2);
+        // After a successful write, an immediate flush starts at once again.
+        trace.recordDeepTraceEvent('test.after_recovery', undefined, { flush: true });
+        expect(trace.getDeepTraceHealthSnapshot().pendingEventCount).toBe(0);
         vi.useRealTimers();
 
         const { events } = await trace.readDeepTraceSnapshot();
         expect(
           events.map((event) => event.name).filter((name) => name.startsWith('test.'))
-        ).toEqual(['test.failed_batch', 'test.during_write', 'test.after_failure']);
+        ).toEqual([
+          'test.failed_batch',
+          'test.during_write',
+          'test.queued_during_write',
+          'test.after_failure',
+          'test.after_recovery',
+        ]);
         expect(trace.getDeepTraceHealthSnapshot()).toMatchObject({
           status: 'recording',
           lastFailure: { stage: 'flush', errorName },
@@ -406,15 +421,20 @@ describe('deep diagnostic trace storage failure', () => {
       vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
 
       trace.recordDeepTraceEvent('test.failed_batch', undefined, { flush: true });
-      await vi.waitFor(() => expect(trace.getDeepTraceHealthSnapshot().lastFailure).not.toBeNull());
+      await vi.waitFor(
+        () => expect(trace.getDeepTraceHealthSnapshot().lastFailure).not.toBeNull(),
+        { interval: 1 }
+      );
       for (const [delay, opens] of [
         [1_000, 2],
         [2_000, 3],
         [4_000, 4],
       ]) {
         expect(trace.getDeepTraceRuntimeStatus()).toBe('recording');
-        await vi.advanceTimersByTimeAsync(delay);
-        await vi.waitFor(() => expect(mocks.openDB).toHaveBeenCalledTimes(opens));
+        await vi.advanceTimersByTimeAsync(delay - 50);
+        expect(mocks.openDB).toHaveBeenCalledTimes(opens - 1);
+        await vi.advanceTimersByTimeAsync(50);
+        await vi.waitFor(() => expect(mocks.openDB).toHaveBeenCalledTimes(opens), { interval: 1 });
       }
       await vi.waitFor(() => expect(trace.getDeepTraceRuntimeStatus()).toBe('memory-only'));
 
@@ -507,6 +527,9 @@ describe('deep diagnostic trace storage failure', () => {
 
     expect(trace.getDeepTraceHealthSnapshot().lastFailure).toBeNull();
     expect(storage.getItem(trace.DEEP_TRACE_FAILURE_KEY)).toBeNull();
+    // Clearing wrote to storage, so the next flush does not wait for a retry.
+    trace.recordDeepTraceEvent('test.after_clear', undefined, { flush: true });
+    expect(trace.getDeepTraceHealthSnapshot().pendingEventCount).toBe(0);
 
     await trace.setDeepTraceEnabled(false, storage);
     dispose();
