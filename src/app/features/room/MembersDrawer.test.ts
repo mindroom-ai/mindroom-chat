@@ -101,15 +101,25 @@ vi.mock('@tanstack/react-virtual', () => ({
   }),
 }));
 
+vi.mock('../../components/page/style.css', () => ({
+  PageNavHeader: 'nav-header',
+  PageNavHeaderMaterial: 'flat-header',
+  PageNavHeaderScroll: 'nav-scroll',
+  PageNavContent: 'nav-content',
+  PageNavScrollbar: 'nav-scrollbar',
+  PageScrollToTop: 'scroll-to-top',
+}));
+
+// The live browser spec exercises real layout/ResizeObserver behavior.
+vi.mock('../../hooks/useElementSizeObserver', () => ({
+  useElementSizeObserver: () => undefined,
+}));
+
 vi.mock('./MembersDrawer.css', () => ({
-  DrawerGroup: 'DrawerGroup',
-  DrawerScrollTop: 'DrawerScrollTop',
   DrawerVirtualItem: 'DrawerVirtualItem',
-  MemberDrawerContent: 'MemberDrawerContent',
   MemberDrawerContentBase: 'MemberDrawerContentBase',
+  MembersHeaderControl: 'MembersHeaderControl',
   MembersDrawer: 'MembersDrawer',
-  MembersDrawerHeader: 'MembersDrawerHeader',
-  MembersGroup: 'MembersGroup',
   MembersGroupLabel: 'MembersGroupLabel',
 }));
 
