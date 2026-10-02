@@ -3,6 +3,7 @@ import { getEditedEvent, getLatestEdit, getLatestMessageContent } from '../../ut
 import type { CachedThreadEventPage } from './eventRepository';
 import { applySerializedCachedReplaceRelations } from './eventCacheEditUtils';
 import { getLinkedTimelines } from './linkedTimelines';
+import { hasLoadedFirstThreadPage } from './sdk/threadBootstrapSdk';
 import { hasLikelyIncompleteStreamingBody } from './threadEditBackfill';
 import {
   getEffectiveThreadRootActivityTs,
@@ -112,7 +113,9 @@ const getLinkedThreadReplyState = (
   return {
     hasLoadedEvents: linkedEvents.length > 0,
     hasVisibleReply: linkedEvents.some(isVisibleThreadReplyEvent),
-    historyComplete: firstTimeline.getPaginationToken(Direction.Backward) === null,
+    historyComplete:
+      hasLoadedFirstThreadPage(thread) &&
+      firstTimeline.getPaginationToken(Direction.Backward) === null,
   };
 };
 

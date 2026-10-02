@@ -20,6 +20,7 @@ import { getThreadRootReplyCount } from './threadIndicatorViewModel';
 import * as css from './ThreadIndicator.css';
 import { useAppLanguageCode } from '../../hooks/useAppLanguageCode';
 import { ThreadStreamingDot } from './ThreadStreamingDot';
+import { useInitializeShownThread } from './useInitializeShownThread';
 
 type ThreadIndicatorViewProps = {
   className?: string;
@@ -52,6 +53,7 @@ const ThreadIndicatorView = as<'div', ThreadIndicatorViewProps>(
     const { t } = useTranslation();
     const language = useAppLanguageCode();
     const mx = useMatrixClient();
+    const shownRef = useInitializeShownThread(room.roomId, threadRootId);
     const useAuthentication = useMediaAuthentication();
     const lastActivityTs = useThreadLastActivityTs(room, threadRootId);
     const relativeTime = useRelativeTime(lastActivityTs);
@@ -144,7 +146,9 @@ const ThreadIndicatorView = as<'div', ThreadIndicatorViewProps>(
         )}
         {isResolved && <Icon size="100" src={Icons.CheckTwice} />}
         <Icon size="100" src={Icons.Thread} />
-        <Text size="T200">{t('thread.chip')}</Text>
+        <Text size="T200" ref={shownRef}>
+          {t('thread.chip')}
+        </Text>
         {isResolved && <Text size="T200">{t('thread.resolved')}</Text>}
         {isUnread && (
           <span

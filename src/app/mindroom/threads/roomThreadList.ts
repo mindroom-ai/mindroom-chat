@@ -7,15 +7,22 @@ import type { Room } from 'matrix-js-sdk/lib/models/room';
 import { Thread } from 'matrix-js-sdk/lib/models/thread';
 import { isVisibleThreadReplyEvent } from './threadUtils';
 
-const getLatestVisibleReply = (thread: Thread): MatrixEvent | undefined => {
-  const events = thread.events ?? [];
+/** A thread that has not loaded its latest page knows its newest reply from the root's summary. */
+export const getLatestVisibleReply = (
+  thread: Thread,
+  events: MatrixEvent[] = thread.events ?? []
+): MatrixEvent | undefined => {
+  let loaded: MatrixEvent | undefined;
   for (let index = events.length - 1; index >= 0; index -= 1) {
     const event = events[index];
-    if (isVisibleThreadReplyEvent(event)) return event;
+    if (isVisibleThreadReplyEvent(event)) {
+      loaded = event;
+      break;
+    }
   }
-  return thread.replyToEvent && isVisibleThreadReplyEvent(thread.replyToEvent)
-    ? thread.replyToEvent
-    : undefined;
+  const summary = thread.replyToEvent;
+  if (!summary || !isVisibleThreadReplyEvent(summary)) return loaded;
+  return loaded && loaded.getTs() >= summary.getTs() ? loaded : summary;
 };
 
 const findThreadReceiptEvent = (thread: Thread, eventId: string): MatrixEvent | undefined => {

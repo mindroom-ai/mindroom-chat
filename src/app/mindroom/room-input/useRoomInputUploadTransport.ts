@@ -18,6 +18,7 @@ import {
 import { encryptFile, toMatrixUploadError, uploadContent } from '../../utils/matrix';
 import { safeFile } from '../../utils/mimeTypes';
 import { withMindroomPasteAttachmentMetadata } from '../messages/pasteAttachmentMarker';
+import { discardFailedLocalEcho } from '../messages/pendingLocalEcho';
 import { getRoomMessageSentNotificationEventId } from '../threads/roomMessageSent';
 import {
   getMindroomRoomInputVoiceUploadRelation,
@@ -180,7 +181,14 @@ export const useRoomInputUploadTransport = (
           }
         : content;
 
-      const response = await mx.sendMessage(context.roomId, contentWithRelation as any);
+      const txnId = mx.makeTxnId();
+      const response = await mx
+        .sendMessage(context.roomId, contentWithRelation as any, txnId)
+        .catch((error: unknown) => {
+          // The recorder keeps the recording to send again; drop the unsent echo.
+          discardFailedLocalEcho(mx, context.room.getEventForTxnId(txnId));
+          throw error;
+        });
       return getRoomMessageSentNotificationEventId({
         eventId: response.event_id,
         relation,

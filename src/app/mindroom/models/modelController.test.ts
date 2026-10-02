@@ -641,27 +641,22 @@ describe('model mutation acknowledgement', () => {
       expect(h.snapshot().pending).toBe(kind !== 'valid');
     }
   );
-  it('retries the SDK local event with its original transaction on transport failure', async () => {
+  it('does not send the command again after its send fails', async () => {
     const h = setup();
     await h.discover();
     h.send.mockRestore();
+    // A synced client re-emits room local echo updates; the old fallback resent from those.
     h.mx.reEmitter.reEmit(h.room, [RoomEvent.LocalEchoUpdated]);
-    const paths: string[] = [];
+    const sends: string[] = [];
     vi.spyOn(h.mx.http, 'authedRequest').mockImplementation(async (_method, path) => {
-      paths.push(path);
-      if (paths.length === 1) throw new Error('offline');
-      return { event_id: '$command' };
+      if (path.includes('/send/')) sends.push(path);
+      throw new Error('offline');
     });
     h.controller.selectModel(h.room, '$root', 'fast');
     await flush();
-    expect(paths[0]).toContain('/send/');
     await flush();
-    expect(paths).toHaveLength(2);
-    expect(paths[0]).toBe(paths[1]);
-    expect(h.snapshot().pending).toBe(true);
-    h.ack();
-    await flush();
-    expect(h.snapshot().override).toBe('fast');
+    expect(sends).toHaveLength(1);
+    expect(h.snapshot().error).toBe('Model selection unconfirmed. Refresh before trying again.');
   });
   it('sends reset without a model key and applies only a confirmed null override', async () => {
     const h = setup();
@@ -718,8 +713,7 @@ describe('model mutation acknowledgement', () => {
           operation: 'set',
           model: 'reset',
         },
-      }),
-      expect.any(String)
+      })
     );
     expect(h.snapshot().pending).toBe(true);
     expect(h.snapshot().override).toBeNull();

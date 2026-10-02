@@ -8,6 +8,7 @@ import { useMediaAuthentication } from '../../../hooks/useMediaAuthentication';
 import { useRoomNavigate } from '../../../hooks/useRoomNavigate';
 import { CompactThreadCard } from '../../../mindroom/threads/CompactThreadCard';
 import { buildCompactThreadCardViewModelFromRecord } from '../../../mindroom/threads/compactThreadCardViewModel';
+import { useInitializeShownThread } from '../../../mindroom/threads/useInitializeShownThread';
 import * as css from './ThreadsView.css';
 
 type ThreadsViewRowProps = {
@@ -21,6 +22,7 @@ export function ThreadsViewRow({ entry }: ThreadsViewRowProps) {
   const useAuthentication = useMediaAuthentication();
   const { navigateRoomThread } = useRoomNavigate();
   const room = mx.getRoom(entry.roomId);
+  const shownRef = useInitializeShownThread(entry.roomId, entry.threadRootId);
   const viewModel = useMemo(() => {
     if (!room) return undefined;
 
@@ -38,7 +40,7 @@ export function ThreadsViewRow({ entry }: ThreadsViewRowProps) {
   if (!room || !viewModel) return null;
 
   return (
-    <Box className={css.Row}>
+    <Box className={css.Row} ref={shownRef}>
       <Box className={css.RowChrome}>
         <Avatar size="200" radii="400">
           <Icon size="100" src={room.isSpaceRoom?.() ? Icons.Space : Icons.Hash} />

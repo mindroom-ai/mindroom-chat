@@ -4,6 +4,7 @@ import React, { useCallback, useState } from 'react';
 import { Box, config, Line, Text } from 'folds';
 import { useSyncState } from '../../hooks/useSyncState';
 import { ContainerColor } from '../../styles/ContainerColor.css';
+import { useHomeserverUnreachable } from '../../mindroom/matrix/homeserverReachability';
 
 type StateData = {
   current: SyncState | null;
@@ -31,8 +32,10 @@ export function SyncStatus({ mx }: SyncStatusProps) {
       });
     }, [])
   );
+  const unreachable = useHomeserverUnreachable(mx);
 
   if (
+    !unreachable &&
     (stateData.current === SyncState.Prepared ||
       stateData.current === SyncState.Syncing ||
       stateData.current === SyncState.Catchup) &&
@@ -69,7 +72,7 @@ export function SyncStatus({ mx }: SyncStatusProps) {
     );
   }
 
-  if (stateData.current === SyncState.Error) {
+  if (stateData.current === SyncState.Error || unreachable) {
     return (
       <Box data-testid="client-sync-status" direction="Column" shrink="No">
         <Box

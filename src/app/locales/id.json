@@ -2642,6 +2642,10 @@
         "messageFailedToSend": "Pesan gagal dikirim",
         "notSent": "Belum dikirim"
       },
+      "failedSendActions": {
+        "retry": "Coba lagi",
+        "delete": "Hapus"
+      },
       "aiRunDisplay": {
         "inputTokens": "masuk {{formattedCount}}",
         "outputTokens": "keluar {{formattedCount}}",

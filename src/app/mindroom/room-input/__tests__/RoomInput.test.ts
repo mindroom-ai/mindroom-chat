@@ -88,6 +88,7 @@ const {
         ({
           roomId,
           name: roomId,
+          getEventForTxnId: () => undefined,
           hasEncryptionStateEvent: () => false,
           getMember: () => undefined,
           getMembers: () => [],
@@ -898,6 +899,7 @@ afterEach(() => {
       ({
         roomId,
         name: roomId,
+        getEventForTxnId: () => undefined,
         hasEncryptionStateEvent: () => false,
         getMember: () => undefined,
         getMembers: () => [],
@@ -1543,7 +1545,8 @@ describe('RoomInput', () => {
           event_id: '$thread',
           rel_type: RelationType.Thread,
         }),
-      })
+      }),
+      'txn-room-input'
     );
     const sentContent = mxState.sendMessage.mock.calls[0][1] as Record<string, unknown>;
     expect(
@@ -1658,7 +1661,8 @@ describe('RoomInput', () => {
         'm.relates_to': {
           'm.in_reply_to': { event_id: '$reply-added' },
         },
-      })
+      }),
+      'txn-room-input'
     );
     expect(store.get(roomIdToReplyDraftAtomFamily(ROOM_ID))).toBeUndefined();
 
@@ -2663,7 +2667,8 @@ describe('RoomInput', () => {
           event_id: '$thread-b',
           rel_type: RelationType.Thread,
         }),
-      })
+      }),
+      'txn-room-input'
     );
 
     renderer.unmount();
@@ -2814,7 +2819,8 @@ describe('RoomInput', () => {
           event_id: '$thread-a',
           rel_type: RelationType.Thread,
         }),
-      })
+      }),
+      'txn-room-input'
     );
 
     renderer.unmount();
@@ -2855,7 +2861,8 @@ describe('RoomInput', () => {
           event_id: '$thread-a',
           rel_type: RelationType.Thread,
         }),
-      })
+      }),
+      'txn-room-input'
     );
 
     renderer.unmount();
@@ -2909,7 +2916,8 @@ describe('RoomInput', () => {
           event_id: '$thread-a',
           rel_type: RelationType.Thread,
         }),
-      })
+      }),
+      'txn-room-input'
     );
     expect(store.get(roomIdToUploadItemsAtomFamily(ROOM_ID))).toEqual([]);
     expect(store.get(roomIdToUploadItemsAtomFamily(OTHER_ROOM_ID))).toEqual([]);
@@ -2965,7 +2973,8 @@ describe('RoomInput', () => {
           event_id: '$thread-a',
           rel_type: RelationType.Thread,
         }),
-      })
+      }),
+      'txn-room-input'
     );
     expect(store.get(roomIdToUploadItemsAtomFamily(ROOM_ID))).toEqual([]);
     expect(store.get(roomIdToUploadItemsAtomFamily(OTHER_ROOM_ID))).toEqual([]);
@@ -3049,7 +3058,8 @@ describe('RoomInput', () => {
           event_id: '$thread-a',
           rel_type: RelationType.Thread,
         }),
-      })
+      }),
+      'txn-room-input'
     );
     expect(store.get(voiceAutoSendPendingAtom)).toBe(false);
     expect(store.get(roomIdToUploadItemsAtomFamily(ROOM_ID))).toEqual([]);
@@ -3126,7 +3136,8 @@ describe('RoomInput', () => {
         body: 'voice.m4a',
         msgtype: 'm.audio',
         url: 'mxc://mindroom/voice',
-      })
+      }),
+      'txn-room-input'
     );
 
     renderer.unmount();
@@ -3229,7 +3240,8 @@ describe('RoomInput', () => {
           event_id: '$thread-a',
           rel_type: RelationType.Thread,
         }),
-      })
+      }),
+      'txn-room-input'
     );
     expect(store.get(voiceAutoSendPendingAtom)).toBe(false);
     consoleError.mockRestore();

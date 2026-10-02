@@ -1,6 +1,6 @@
 import React, { type ComponentProps } from 'react';
 import { MsgType, type Room } from 'matrix-js-sdk';
-import { Text } from 'folds';
+import { Text, config } from 'folds';
 import { getEventAttachmentOwner } from '../../messages/eventAttachments';
 import {
   ImageContent,
@@ -17,6 +17,7 @@ import { getEditedEvent, getLatestMessageContent, getMemberDisplayName } from '.
 import { getMxIdLocalPart } from '../../../utils/matrix';
 import { MessageEvent, type GetContentCallback } from '../../../../types/matrix/room';
 import { isFailedLocalEchoEvent, isPendingLocalEchoEvent } from '../../messages/pendingLocalEcho';
+import { FailedSendActions } from '../../messages/FailedSendActions';
 import { ApprovalHistory } from '../../messages/ThreadApprovalControls';
 import { CollapsibleMessage } from '../CollapsibleMessage';
 import {
@@ -162,12 +163,22 @@ export function TimelineMessageBody({
       </Text>
     );
   };
+  const failedEvent = [event, messageContent?.editedEvent].find(isFailedLocalEchoEvent);
+  // The footer of a thread opened on its failed root offers these actions instead.
+  const footerOwnsFailedEvent = failedEvent === event && eventId === threadId;
   return (
     <>
       {kind === 'encrypted' ? (
         <EncryptedContent mEvent={event}>{() => renderContent(true)}</EncryptedContent>
       ) : (
         renderContent(false)
+      )}
+      {failedEvent && !footerOwnsFailedEvent && (
+        <FailedSendActions
+          room={room}
+          event={failedEvent}
+          style={{ marginTop: config.space.S100 }}
+        />
       )}
       {(kind === 'message' || kind === 'encrypted') && (
         <ApprovalHistory

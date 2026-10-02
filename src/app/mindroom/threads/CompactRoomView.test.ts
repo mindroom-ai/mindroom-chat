@@ -23,6 +23,7 @@ const pinningMocks = vi.hoisted(() => ({
   updating: false,
   error: undefined,
 }));
+vi.mock('./useInitializeShownThread', () => ({ useInitializeShownThread: () => undefined }));
 vi.mock('./useThreadPinning', () => ({ useThreadPinning: () => pinningMocks }));
 
 const {

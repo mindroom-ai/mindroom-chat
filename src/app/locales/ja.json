@@ -2642,6 +2642,10 @@
         "messageFailedToSend": "メッセージの送信に失敗しました",
         "notSent": "送信されませんでした"
       },
+      "failedSendActions": {
+        "retry": "再試行",
+        "delete": "削除"
+      },
       "aiRunDisplay": {
         "inputTokens": "入力 {{formattedCount}}",
         "outputTokens": "出力 {{formattedCount}}",

@@ -32,6 +32,9 @@ import { hasBlockingPortalOverlay } from '../../utils/portalOverlay';
 import { ThreadContextBanner } from './ThreadContextBanner';
 import { useRoomViewThreadState } from './useRoomViewThreadState';
 import { isConfirmedMatrixEventId, isLocalEchoEventId } from './threadRouteUtils';
+import { usePendingThreadRoot } from './usePendingThreadRoot';
+import { isFailedLocalEchoEvent } from '../messages/pendingLocalEcho';
+import { FailedSendActions } from '../messages/FailedSendActions';
 import { ThreadApprovalProvider } from '../messages/ThreadApprovalProvider';
 import { ThreadApprovalQueue } from '../messages/ThreadApprovalControls';
 import { computerOwnsKeyboardEvent, computerOwnsKeyboardFocus } from '../computer/computerFocus';
@@ -122,6 +125,7 @@ export function RoomView({
     handleApplyPreset,
     handleCycleTag,
     handleExitThread,
+    handleThreadRootDeleted,
     handleRemoveTag,
     handleReset,
     handleRoomMessageSent,
@@ -160,6 +164,12 @@ export function RoomView({
     return () => observer.disconnect();
   }, [roomId, effectiveThreadId]);
   const pendingThreadRoot = isLocalEchoEventId(effectiveThreadId);
+  const pendingRootEvent = usePendingThreadRoot(
+    room,
+    pendingThreadRoot ? effectiveThreadId : undefined,
+    handleThreadRootDeleted
+  );
+  const failedRootEvent = isFailedLocalEchoEvent(pendingRootEvent) ? pendingRootEvent : undefined;
 
   useKeyDown(
     window,
@@ -251,7 +261,18 @@ export function RoomView({
         <RoomViewTyping room={room} />
         <div ref={setApprovalQueueHost} />
         <div style={{ padding: `0 ${config.space.S400}` }}>
-          {tombstoneEvent ? (
+          {failedRootEvent ? (
+            <RoomInputPlaceholder
+              style={{
+                padding: config.space.S200,
+                paddingBottom: `calc(${config.space.S200} + env(safe-area-inset-bottom, 0px))`,
+              }}
+              alignItems="Center"
+              justifyContent="Center"
+            >
+              <FailedSendActions room={room} event={failedRootEvent} />
+            </RoomInputPlaceholder>
+          ) : tombstoneEvent ? (
             <RoomTombstone
               roomId={roomId}
               body={tombstoneEvent.getContent().body}

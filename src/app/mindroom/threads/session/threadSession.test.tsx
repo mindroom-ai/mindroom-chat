@@ -50,6 +50,7 @@ const openFixture = () => {
   const thread = {
     rootEvent: root,
     events: [reply],
+    initialize: () => undefined,
     getUnfilteredTimelineSet: () => room.getUnfilteredTimelineSet(),
   };
   vi.spyOn(room, 'getThread').mockImplementation(() => thread as never);

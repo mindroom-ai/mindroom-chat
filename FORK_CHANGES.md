@@ -14,6 +14,143 @@
   Six unit regressions fail before the fix; both installed-Chrome browser cases pass across all three thread entry points in Simple and normal modes, and independent review found no blockers.
   A follow-up run alongside the build hit the unchanged gap-fill checkpoint timing test; its 26 tests and a subsequent full suite passed without concurrent build/browser work.
 
+### Load threads when they are shown, not when they are listed (2026-10-02)
+
+- An iPhone export from build `57e4c56e` shows about 800 `GET /rooms/{id}/event` and 170-320 `/relations` requests in the first minute of every session.
+  Opening the overview of the 523-thread room started about 540 requests within 9 ms; GET latency reached p50 3.3 s and p90 14 s, and a message send queued behind them failed when the connection dropped.
+  The deep trace records no URLs; the request pairs (each root request followed by a `/relations` request when it completes) and the local measurements below identify the source.
+- Root cause: every SDK `Thread` ran its network initialization when it was created: it fetched its root ("Always fetch the root event, even if we already have it") and then the first page of replies.
+  The app creates threads in bulk: the overview restores every cached root (`restoreCachedRoomThreads`, and the cache grows with every listed root), pages `/threads` to the end, and the saved-sync replay creates a thread for every thread in each room's 500-event window.
+  Each initialization also reset the thread's timeline, which the room re-emits to every thread; each thread took it for a room sync gap and fetched its root again, so a listed thread cost two root requests and a page.
+- Rule: a thread loads (root and first page) only when the app opens it or shows its card; live events, including a catch-up `/sync`, never load it.
+  Until then its root's thread summary stands in, so only threads on screen send requests.
+- SDK patch (`patches/matrix-js-sdk+41.7.0.patch`, `src/models/thread.ts`, `room.ts`, `client.ts` and their `lib` builds):
+  - A thread defers its network initialization until `Thread.initialize()`; until then it processes the summary (reply count, latest reply, participation) locally and fetches only a missing root, and no encrypted edits.
+  - Unopened threads append live replies and buffer edits for the first page, as the SDK does while loading; only the newest edit of each reply is kept.
+    A redaction of a buffered edit or reaction (`Room.takeBufferedThreadRelation`) removes it from that buffer and from the reaction counts.
+  - An edit of a reply that the thread knows only from the summary finds that reply (`Room.findUnopenedThreadReply`) instead of fetching it once per edit.
+  - `/threads` responses refresh the summary of known unopened threads (`Room.processListedThreadRoots`), unless the thread already shows a newer reply or a live reply with the same timestamp, so cached cards upgrade without a root request.
+  - A thread ignores timeline resets of other threads; only a room gap invalidates its root.
+    Unopened threads coalesce room sync gaps like untouched initialized ones.
+  - A failed first page returns the thread to the unopened state, keeping its buffered edits, so later events neither reset its timeline nor reject.
+- App:
+  - `useInitializeShownThread` initializes the thread of a compact card, thread indicator or sidebar entry once the card has been on screen for 500 ms (one shared `IntersectionObserver`; thread lists render every card) and the client has finished its first live `/sync`, and again after a reconnect if that failed.
+    Initialization is idempotent, so re-renders and remounts send nothing more; a card rendered before its thread exists waits for `ThreadEvent.New`.
+  - The thread open materializes a recorded sync gap, then awaits `initialize()` before `getThreadTimeline` and its cache writes: an uninitialized live timeline has no backward token, which the cache would read as complete history.
+    For the same reason, the compact overview does not treat that empty token as complete history when it decides whether a thread with a deleted root has replies left.
+  - Unread state and activity use the newest of the loaded replies and the summary's latest reply.
+- Counts of threads that are never shown can drift from the server (for example replies that arrived inside a sync gap); showing the thread loads the server count.
+- The first `/sync` started 108 s after boot in session `4bbace3b`.
+  `startClient` replays the saved sync and only then sends `/pushrules`, `/filter` and `/sync` one after another; replayed threads' requests went out first, and the overview added about 540 more at 18 s.
+  From 33 s until the app was hidden at 74 s no Matrix request succeeded; seven message sends failed together at 49 s.
+  The last request sent before that stall (33.5 s) is consistent with the filter request, and `/sync` started about 4 s after the app returned at 117 s.
+  With this fix the replay sends only missing roots ahead of `/sync`; the replay-before-sync ordering and the network stall itself are unchanged.
+- Measurements, production Chromium build against local Tuwunel, 120-thread room on a phone-sized viewport showing 6 cards (`e2e/live/thread-bootstrap-requests.spec.ts` phases, before → after; root and `/relations` requests in that room):
+
+  | Phase | Root requests | `/relations` | All Matrix requests |
+  | --- | ---: | ---: | ---: |
+  | Overview open after login | 240 → 6 | 120 → 6 | 382 → 35 |
+  | Reopen after a sync gap (catch-up `/sync`) | 240 → 6 | 120 → 6 | 379 → 33 |
+  | Cold start, before the first `/sync` | 121 → 1 | 30 → 0 | 164 → 14 |
+  | Cold start, total | 361 → 7 | 120 → 6 | 500 → 34 |
+  | Opening a thread whose card was not shown | 1 → 2 | 4 → 5 | 6 → 8 |
+
+  The real-SDK unit tests count 300 requests before and none after for 100 restored roots, 270 and only the four `/threads` pages for 90 listed roots, and none for a catch-up `/sync` with a new reply and an edit in each of 40 threads.
+- Tests: `matrixSdkThreadBootstrapRequests.test.ts` drives a real client through its fetch transport, and `useInitializeShownThread.test.tsx` covers the live-sync wait, the dwell, off-screen cards, remounts, reconnects, counts and unread state; each change has a case that fails when it is reverted.
+  The live spec checks the per-phase bounds and that a shown card's count goes from 26 to 27 messages with a live reply.
+  Existing tests that held the SDK's root request or first page to create pending states now use unopened threads or pending discovery instead.
+  When upgrading the SDK, keep these files and drop the patch sections once upstream stops initializing threads at creation.
+- Not changed: a thread whose root is outside the synced window still fetches that root at startup (one request); the app's own scheduled prefetch and reconcile requests are unchanged.
+- Validation: 5,743 unit tests pass; the only failures are the three `xcodeCloudPostClone` tests that need `/bin/bash` and `useRoomInputSendSessionController`'s caption case, which fail the same way on `dev`.
+  Typecheck, production build, prettier and lint (0 errors, 17 existing warnings) pass, and the patch applies to a pristine `matrix-js-sdk@41.7.0` with every patched file byte-identical to the tested tree.
+  The live spec passes in Chromium and WebKit, 30 thread-related live jobs pass in Chromium, and `offline-thread-overview` and `thread-indexeddb-loss` pass in WebKit (Playwright container).
+  `cinny069-room-resume-thread-preload` and `cinny070-thread-prepend-scroll` fail with the same assertions on unchanged `dev`.
+- Next: in the next iOS export, check that a session's first minute has no request bursts and that `/sync` starts within seconds of boot.
+
+### Show when the homeserver cannot be reached (2026-10-02)
+
+- An iPhone export from build `57e4c56e` shows a message that never sent and no sign of a connection problem.
+  The session started from the cached client shell at 17:15:39; after 17:15:59 no Matrix request got a response, and at 17:16:15 seven PUTs, including the message send and typing notifications, failed with network errors (no HTTP status).
+  The first `/sync` request had not started yet; it began around 17:17:27, after the app had been in the background from 17:16:40 to 17:17:23.
+- `SyncStatus` derived its banners only from the SDK sync state, which becomes `Reconnecting` or `Error` only when one of the sync loop's own requests fails (its startup requests, `/sync`, or the `/versions` keepalive).
+  While those are pending, as the startup requests were here, failures of other requests leave the state unchanged, so nothing was shown.
+- `createMatrixClient` now wraps the client's fetch with `homeserverReachability.ts`.
+  When a request fails at the network level, it checks `/_matrix/client/versions` right away, bypassing the HTTP cache and waiting at most 8 s.
+  The homeserver is unreachable when nothing, the check included, was answered while the check ran.
+  Any HTTP response, error statuses included, marks it reachable again; while it is unreachable the check repeats every 5 s, so the banner also clears when nothing else is sent.
+  `SyncStatus` shows the existing "Connection Lost!" banner while it is unreachable, ahead of "Catching up..."; the SDK's "Connection Lost! Reconnecting..." keeps precedence.
+- A one-off failure while the homeserver still answers, such as a single failed endpoint, shows nothing.
+  Aborted requests (intentional aborts and the SDK's local timeouts, which the sync loop reports itself) do not count, nor do requests or checks during which the page was hidden at any point.
+  WebKit fails requests that were in flight while the app was suspended, and those failures arrive around resume without saying anything about the server.
+  A check that started while the page was visible and got no answer before it was hidden is ignored, and a fresh check runs once the page is shown again, so an outage that began before backgrounding is still detected after resume without another app request.
+  Checks repeat only while `SyncStatus` is mounted, so clients used for login or token refresh send at most one check per failure.
+- Not changed: why the first `/sync` started late is a separate fix, and a request that hangs without failing shows nothing until it fails.
+  Any HTTP response counts as reachable, including responses from other origins (such as the OIDC issuer) and 502/503/504 from the reverse proxy, so a dead homeserver behind a working proxy shows no banner before `/sync` starts; once it syncs, the SDK keepalive reports it.
+- Validation: unit tests cover each rule and fail when it is removed; two `SyncStatus` tests and the `createMatrixClient` test fail before the change.
+  `e2e/connection-status.spec.ts` (Chromium) reloads into the cached shell while homeserver reads get no answer and writes fail, as in the export.
+  Before the change no banner appears; after it "Connection Lost!" appears once the writes fail and the check gets no answer, and clears once the held requests are answered.
+  A second case fails only sends while everything else works, waits for the check to be answered, and checks that the banner never appeared; it fails against a build that shows the banner without the check.
+  Typecheck, build, changed-file lint and prettier pass; full-suite results are in the pull request.
+- Next: on an iPhone, confirm that the banner appears when sending with the homeserver unreachable, clears when it is reachable again, and does not appear after resuming the app with a working connection.
+
+### Recover messages that failed to send (2026-10-02)
+
+- An iPhone export from build `57e4c56e` shows a new thread root that stayed "not sent" for good.
+  Its `PUT /send` failed after 10.26 s at the same instant as six typing `PUT`s, and no network response arrived between 17:16:00 and 17:17:30, so the connection had dropped for a while.
+  The six typing failures were reported as `error.unhandled_rejection`.
+- `createClient` uses `new MatrixScheduler()`, whose retry algorithm calls `calculateRetryBackoff(err, attempts, false)`: it retries server errors and rate limits but returns `-1` for `ConnectionError`, so one network error marked the message `NOT_SENT`.
+  The client had no way to send it again: failed messages showed only a small warning icon, and a failed new thread root left the thread showing "Replies are available after this message is confirmed." with no composer.
+- `createMatrixClient` now uses `MessageSendScheduler`, which also retries connection errors with the SDK's backoff (2, 4, 8 and 16 s) and the same transaction ID, so the server drops a copy that already arrived.
+  Client errors, aborts and oversized events still fail at once, and messages stay queued in order.
+  A message is only sent within one minute of being queued (by its send or a Retry), also when it waits behind a slow message or iOS suspends the app, because a late `stop` or other command could surprise an agent; there is deliberately no resend after reconnecting.
+  When `/sync` delivers the server's copy while a retry waits or a request is in flight (an earlier response was lost), the event counts as sent, also if that request then fails; otherwise the SDK fails to mark the confirmed event as sending again and stalls the queue, or gives up and rejects the delivered message and every message queued behind it.
+  Sharing an encrypted room's key happens before the scheduler; the Rust crypto layer already retries those requests after connection errors with the same backoff.
+- A message whose retries ran out now shows "Not sent" with Retry and Delete below it (`FailedSendActions`, from `TimelineMessageBody` for the message or its failed edit).
+  Retry calls `resendEvent`, which reuses the event, its transaction ID and, in encrypted rooms, its ciphertext; Delete calls `cancelPendingEvent`.
+  In a thread opened on its failed root, the footer shows these actions instead of the confirmation text, also when posting is no longer allowed, and the root row leaves them to the footer.
+  Deleting that root leaves the thread through the same history exit, but without remembering it for swipe-forward or focusing it in the room.
+- A failed composer send now has one way to try again.
+  Composer paths that keep the content for their own retry (text returned to the composer, staged attachments, the voice recorder) discard the unsent echo, as thread summary actions already did.
+  A new thread root that the compact overview opened as a thread is not returned to the composer, so its echo keeps Retry and Delete.
+- The model picker no longer resends a failed `!model` command itself; that fallback dated from the scheduler without retries and would have opened a second window, so a failed command now reports the selection as unconfirmed.
+- Typing notices ignore failures instead of leaving unhandled rejections.
+- The new Retry and Delete strings are machine-authored for the 16 non-English catalogs; "Not sent" reuses the existing indicator string.
+- Validation: unit tests cover the retry with the same transaction, giving up and resending, the queue continuing after `/sync` confirms a waiting or in-flight message, giving up at 54 s when each attempt takes 10 s to fail as on the iPhone, stopping after an iOS suspension (also for a queued message), no retry after a 403, no second `!model` send, the Retry and Delete actions, the actions for a failed message and a failed edit, the failed root footer and leaving the thread on delete, echo discards for text, attachments and voice, and handled typing failures; each fails before its change.
+  Another test pins the SDK behavior that a copy arriving through `/sync` replaces an unsent echo.
+  Results of the full suites are in the pull request.
+- Not covered:
+  - Unsent echoes are not persisted with chronological pending events, so a failed root disappears after a reload and can drop out of the room timeline after a limited `/sync`; text that returned to the composer survives in its draft.
+  - The composer ignores Enter while its previous message is still sending, which can now last up to the retry window during an outage.
+  - A failed edit offers both Save in the still open editor and Retry once the editor closes; the latest edit wins either way.
+  - The window starts after encryption, so a key share held up by a suspension can still be followed by a send.
+  - No browser check against a homeserver yet; after deploy, send a message with the network off, wait about a minute, then retry and delete a failed new thread root.
+
+### Keep persisting the deep trace after a failed IndexedDB write (2026-10-02)
+
+- An iPhone export from build `57e4c56e` reports `deepTraceHealth.status` `memory-only`, with a `flush` failure (`UnknownError`) 24 ms after the app returned to the foreground.
+  Session `71cb6120`'s persisted trace ends just before its first background, and the following six minutes, including the user's first failed message send, were recorded only in the memory tail.
+  That tail keeps 1,000 events, about the last 7 s at this session's request rate, and it was lost when the app was force-quit.
+- WebKit aborts IndexedDB writes in flight when it suspends the app (`UnknownError` on resume) and closes every connection for good when it loses its IndexedDB server.
+  Both sessions in the export stop persisting right before a background, without the `lifecycle.hidden` event whose flush was then in flight.
+  No recovery reload from #349 followed, so the connection itself stayed open and only the write was aborted.
+- The recorder treated one failed write as permanent: it dropped the pending queue and stayed memory-only until the page reloaded or tracing was turned off and on.
+- A failed write now releases the recorder's connection, puts the failed batch back at the front of the queue, and retries on a new connection after 1, 2 and 4 s.
+  Flushes requested by recorded events meanwhile, including ones that waited on the failed write, wait for that retry; an export or opt-out still writes at once, and an export that waited on the failed write retries it before reading.
+  A successful write or clear resets the count; a fourth consecutive failure makes the recorder memory-only as before, so unusable storage is not retried in a loop.
+  A failed transaction stores nothing, so the batch is written once and in order, and batches committed before it are not written again.
+  If the pending queue overflows meanwhile, its oldest events go first, starting with the failed batch, and are counted as dropped as before.
+  While a retry is pending the status stays `recording`, and `deepTraceHealth.lastFailure` keeps the failure until the trace is cleared, so exports still show it.
+- Tests: unit regressions cover a write aborted on a live connection and a connection closed by the browser (the failed batch and later events are written once and in order after the delay, not before it), the 1, 2 and 4 s retries ending memory-only, an export that waited on the failed write, and the count reset after a successful write or clear; the aborted-write, closed-connection, export and bounded-retry tests fail before the change.
+  `e2e/diagnostics-storage-fallback.spec.ts` now expects the trace to recover after a real Chromium connection close, and its export with failing storage still carries the memory tail and the latest failure; it fails before the change.
+- Validation: the 96 diagnostics unit tests, the Chromium spec above, typecheck, build, lint (0 errors, the existing 17 warnings) and prettier pass.
+  The full unit suite passes apart from the three `xcodeCloudPostClone` tests (no `/bin/bash` on this NixOS host) and one `useRoomInputSendSessionController` caption test, which fail the same way on unchanged `dev`.
+- Not covered: after a real IndexedDB server loss the #349 sentinel reloads the page, so the failed batch and the events recorded until the reload are still lost, as #350 notes.
+  A commit that reached disk just before such a loss could be written again after it; the repeated `sequence` would show it.
+  Playwright WebKit was not run on this host.
+- Review: an independent review found an unpinned count reset, a missing reset on clear, and Runbook overstatements, all fixed.
+  Qodo and CodeRabbit found that an export waiting on a failed write skipped it, now fixed; Sourcery's note on events recorded during a clear describes the existing, documented clear behavior.
+- Next: in the next iOS export after a background resume, confirm the persisted trace continues past the resume, with `lastFailure` near a `scene.foreground`.
+
 ### Flatten the Members drawer header (2026-10-01)
 
 - The Members title strip now uses the same flat, translucent `PageNavHeader` and `PageNavContent` as the navigation sidebars, without a border, specular rim, shadow, or pointer-driven optics.
