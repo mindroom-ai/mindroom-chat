@@ -148,9 +148,10 @@ Current automated path, from the repository root:
 npm run appstore:screenshots
 ```
 
-This starts the local Docker Matrix stack, provisions an isolated disposable account and room for each run, and seeds a public-safe fake `Personal` room with Bas Nijholt as the user.
-It downloads the public `nijho.lt` profile avatar at seed time, provisions AI agent users and avatars, and uses Playwright to write exact iPhone 6.9-inch (`1320 x 2868`) and iPad 13-inch (`2064 x 2752`) PNGs into `fastlane/screenshots/en-US/`.
-The five-scene set mixes explicit light and dark themes and tells distinct personal-agent stories: a daily workspace overview, Mind's public-safe Markdown explanation of MindRoom, a campground watcher with expanded tool calls, car research, and a household reminder batch.
+This starts the local Docker Matrix stack, provisions an isolated disposable account and room for each run, and seeds the fictional Rivera household from `mindroom-ai/demo`.
+Sam Rivera talks to Hearth, Pantry, and Atlas using bundled avatars from `scripts/fixtures/appstore/avatars/`; capture does not download profile images or require a demo checkout.
+Playwright writes exact iPhone 6.9-inch (`1320 x 2868`) and iPad 13-inch (`2064 x 2752`) PNGs into `ios/App/fastlane/screenshots/en-US/`.
+The five scenes show the family workspace, vegetarian meal planning, home automation with expanded tool calls, a Lisbon trip, and a reminder.
 Capture fails if two scenes within a device class produce byte-identical PNGs.
 The wrapper starts a fresh Vite server on an available port by default so dependency-cache changes cannot reuse a stale localhost build.
 
@@ -163,7 +164,9 @@ npm run appstore:fixture
 Live or existing account capture is intentionally unsupported for App Store screenshots because it can expose private rooms, profiles, or existing account state.
 Use the local fixture path for release assets.
 
-Fixture thread summaries use topic-specific emoji, and the seeded summary metadata uses varied message counts so the overview looks like a real personal-agent workspace rather than a tiny demo room.
+Fixture summaries count the messages actually seeded and use topic-specific emoji.
+Capture uses UTC, matching the fixture scheduler, so tomorrow-at-four reminders display 4:00 PM regardless of the host timezone.
+The local fixture server enables legacy Matrix media downloads for avatars; production homeserver settings are unaffected.
 
 Fastlane `snapshot` remains a future option, but it requires adding an Xcode UI-test target and shared scheme to `App.xcodeproj`.
 The Playwright path is the repo-native procedure for this Capacitor webview until that target exists.

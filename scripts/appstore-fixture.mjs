@@ -1,10 +1,9 @@
 export const APPSTORE_FIXTURE_ROOM_ALIAS = '#mindroom-app-store-personal-showcase:matrix.localhost';
-export const APPSTORE_FIXTURE_ROOM_NAME = 'Personal';
-export const APPSTORE_FIXTURE_ROOM_TOPIC =
-  'Personal agent workspace for chat-native AI assistants, watchers, tools, and persistent memory.';
-export const APPSTORE_FIXTURE_PRIMARY_DISPLAY_NAME = 'Bas Nijholt';
-export const APPSTORE_FIXTURE_PRIMARY_AVATAR_URL =
-  'https://media.githubusercontent.com/media/basnijholt/nijho.lt/refs/heads/main/content/authors/admin/avatar.jpg';
+export const APPSTORE_FIXTURE_ROOM_NAME = 'Family';
+export const APPSTORE_FIXTURE_ROOM_TOPIC = 'The Rivera household';
+export const APPSTORE_FIXTURE_PRIMARY_DISPLAY_NAME = 'Sam Rivera';
+export const APPSTORE_FIXTURE_PRIMARY_AVATAR_ASSET_PATH =
+  'scripts/fixtures/appstore/avatars/sam.png';
 
 export const APPSTORE_FIXTURE_AGENT_PASSWORD = 'Pwappstoreagent123!';
 
@@ -128,15 +127,15 @@ export const noticeMessage = (body, extraContent = {}) => ({
   ...extraContent,
 });
 
-const buildAiRunMetadata = ({ runId, toolCount = 0, outputTokens = 0 }) => ({
+const buildAiRunMetadata = ({ runId, toolCount = 0, outputTokens = 0, modelConfig = 'astra' }) => ({
   'io.mindroom.ai_run': {
     version: 1,
     status: 'completed',
     run_id: runId,
     model: {
-      provider: 'mindroom',
-      id: 'fake-release-agent',
-      config: 'app-store-screenshot-fixture',
+      provider: modelConfig === 'opus' ? 'anthropic' : 'openai',
+      id: modelConfig === 'opus' ? 'claude-opus-5-5' : 'gpt-6-astra',
+      config: modelConfig,
     },
     usage: {
       input_tokens: 1280,
@@ -160,18 +159,25 @@ const buildToolTraceMetadata = (events) => ({
 
 export const getAppStoreFixtureAgentDefinitions = () => [
   {
-    key: 'mind',
-    username: 'mindroom_mind',
+    key: 'hearth',
+    username: 'mindroom_hearth',
     password: APPSTORE_FIXTURE_AGENT_PASSWORD,
-    displayName: 'Mind',
-    avatarAssetPath: 'public/res/branding/mindroom-logo-square.png',
+    displayName: 'Hearth',
+    avatarAssetPath: 'scripts/fixtures/appstore/avatars/hearth.png',
   },
   {
-    key: 'router',
-    username: 'mindroom_router',
+    key: 'pantry',
+    username: 'mindroom_pantry',
     password: APPSTORE_FIXTURE_AGENT_PASSWORD,
-    displayName: 'RouterAgent',
-    avatarAssetPath: 'public/res/branding/mindroom-favicon.png',
+    displayName: 'Pantry',
+    avatarAssetPath: 'scripts/fixtures/appstore/avatars/pantry.png',
+  },
+  {
+    key: 'atlas',
+    username: 'mindroom_atlas',
+    password: APPSTORE_FIXTURE_AGENT_PASSWORD,
+    displayName: 'Atlas',
+    avatarAssetPath: 'scripts/fixtures/appstore/avatars/atlas.png',
   },
 ];
 
@@ -188,254 +194,103 @@ const summaryContent = ({ emoji, summary, messageCount }) => {
   });
 };
 
-const scheduledAtDaysFromNow = (days, hourUtc, minuteUtc) => {
-  const scheduled = new Date(Date.now() + days * 24 * 60 * 60 * 1000);
+const scheduledAtDaysFromNow = (now, days, hourUtc, minuteUtc) => {
+  const scheduled = new Date(now);
+  scheduled.setUTCDate(scheduled.getUTCDate() + days);
   scheduled.setUTCHours(hourUtc, minuteUtc, 0, 0);
   return scheduled.toISOString();
 };
 
-export const buildAppStoreFixtureThreads = ({ primaryUserId, agentUserIds }) => [
-  {
-    id: 'personal-workspace',
-    root: {
-      sender: 'primary',
-      body: 'What should I pay attention to today?',
-      content: textMessage('What should I pay attention to today?'),
-    },
-    replies: [
-      {
-        sender: 'router',
-        content: textMessage(
-          [
-            'I grouped the active personal-agent work into watchers, decisions, and follow-ups.',
-            '',
-            '## Current focus for Bas',
-            '- **Campground monitor:** healthy, scheduled, and quiet until an opening appears.',
-            '- **Car search:** two promising leads are waiting for comparison.',
-            '- **MindRoom overview:** Mind answered the public product explanation prompt.',
-            '- **Home reminders:** batched for the evening check-in.',
-          ].join('\n'),
-          buildAiRunMetadata({
-            runId: 'fixture-router-personal-standup',
-            outputTokens: 214,
-          })
-        ),
-      },
-    ],
-    summary: {
-      sender: 'mind',
-      content: summaryContent({
-        emoji: '🧭',
-        summary:
-          'Today: campground watcher is healthy, car search has new leads, and Mind explained the personal-agent workflow.',
-        messageCount: 34,
-      }),
-    },
-    tags: ['daily', 'personal'],
-    scheduledAt: scheduledAtDaysFromNow(7, 18, 0),
-  },
-  {
-    id: 'mindroom-explained',
-    root: {
-      sender: 'primary',
-      body: 'Mind, explain what MindRoom is and what you can do as a personal agent.',
-      content: textMessage(
-        'Mind, explain what MindRoom is and what you can do as a personal agent.'
-      ),
-    },
-    replies: [
-      {
-        sender: 'mind',
-        content: textMessage(
-          [
-            'MindRoom is a personal AI agent platform that lives in chat.',
-            '',
-            '## What I can do',
-            '',
-            'You can talk to specialized agents in Matrix rooms, threads, DMs, or bridged apps. Agents can answer questions, use tools, remember useful context, coordinate with each other, handle files and attachments, search the web, run code, schedule follow-ups, and help manage ongoing projects.',
-            '',
-            'It is built for practical everyday assistance: less "chatbot in a box," more capable digital teammate you can reach from the conversations you already use.',
-            '',
-            '## Everyday examples',
-            '- Watch for **campground cancellations** and send a clean status update.',
-            '- Compare **car listings**, summarize trade-offs, and prepare negotiation notes.',
-            '- Keep long-running personal projects organized in Matrix threads.',
-            '- Remember preferences that should carry across future conversations.',
-            '- Use tools when needed, then show the work in the same thread.',
-          ].join('\n'),
-          buildAiRunMetadata({
-            runId: 'fixture-mindroom-explainer',
-            outputTokens: 356,
-          })
-        ),
-      },
-      {
-        sender: 'primary',
-        content: textMessage('Good. This is the clearer personal-agent story for the screenshots.'),
-      },
-    ],
-    summary: {
-      sender: 'mind',
-      content: summaryContent({
-        emoji: '💬',
-        summary:
-          'MindRoom overview: chat-native personal agents, tools, memory, and scheduled follow-ups.',
-        messageCount: 27,
-      }),
-    },
-    tags: ['product'],
-  },
-  {
-    id: 'campground-monitor',
-    root: {
-      sender: 'primary',
-      body: 'Keep watching for a weekend campground cancellation and let me know if a good site opens.',
-      content: textMessage(
-        'Keep watching for a weekend campground cancellation and let me know if a good site opens.'
-      ),
-    },
-    replies: [
-      {
-        sender: 'mind',
-        content: textMessage(
-          [
-            'Daily watcher status:',
-            '',
-            '🔧 `check campground availability` [1]',
-            '🔧 `update watchlist state` [2]',
-            '🔧 `schedule next scan` [3]',
-            '',
-            '## Result',
-            '- **No matching weekend openings yet.**',
-            '- The monitor is healthy and checked all saved criteria.',
-            '- Next scan is scheduled for `30 minutes` from now.',
-            '',
-            '## Next update',
-            'I will keep this thread updated only when there is a meaningful change, so the room stays quiet until action is useful.',
-          ].join('\n'),
-          {
-            ...buildAiRunMetadata({
-              runId: 'fixture-campground-monitor',
-              toolCount: 3,
-              outputTokens: 244,
-            }),
-            ...buildToolTraceMetadata([
-              {
+const demoThread = (id, prompt, sender, body, emoji, summary, tags, tools = [], scheduledAt) => ({
+  id,
+  root: { sender: 'primary', body: prompt, content: textMessage(prompt) },
+  replies: [
+    {
+      sender,
+      content: textMessage(body, {
+        ...buildAiRunMetadata({
+          runId: `demo-${id}`,
+          toolCount: tools.length,
+          outputTokens: 180,
+          modelConfig: sender === 'atlas' ? 'opus' : 'astra',
+        }),
+        ...(tools.length
+          ? buildToolTraceMetadata(
+              tools.map(([toolName, argsPreview, resultPreview]) => ({
                 type: 'tool_call_completed',
-                tool_name: 'check campground availability',
-                args_preview: 'date_range=next-weekend filters=lakefront,walkable',
-                result_preview: 'No matching cancellations found.',
-              },
-              {
-                type: 'tool_call_completed',
-                tool_name: 'update watchlist state',
-                args_preview: 'watcher=campground-weekend-v1',
-                result_preview: 'Saved latest healthy check timestamp.',
-              },
-              {
-                type: 'tool_call_completed',
-                tool_name: 'schedule next scan',
-                args_preview: 'interval=30m quiet_until=availability-change',
-                result_preview: 'Next watcher run scheduled.',
-              },
-            ]),
-          }
-        ),
-      },
-    ],
-    summary: {
-      sender: 'mind',
-      content: summaryContent({
-        emoji: '🏕️',
-        summary:
-          'Campground monitor: daily watcher healthy, no matching openings yet, next scan scheduled.',
-        messageCount: 103,
+                tool_name: toolName,
+                args_preview: argsPreview,
+                result_preview: resultPreview,
+              }))
+            )
+          : {}),
       }),
     },
-    tags: ['watcher', 'camping'],
-    scheduledAt: scheduledAtDaysFromNow(7, 16, 30),
-  },
-  {
-    id: 'car-search',
-    root: {
-      sender: 'primary',
-      body: 'Help me compare the latest car options and prep negotiation notes.',
-      content: textMessage('Help me compare the latest car options and prep negotiation notes.'),
-    },
-    replies: [
-      {
-        sender: 'router',
-        content: textMessage(
-          'Routing this to Mind because it needs remembered preferences, research, and a practical shortlist.',
-          buildAiRunMetadata({
-            runId: 'fixture-router-car-search',
-            outputTokens: 78,
-          })
-        ),
-      },
-      {
-        sender: 'mind',
-        content: textMessage(
-          [
-            'I updated the shortlist with two promising options and one backup.',
-            '',
-            '- **Option A:** better value if the service history checks out.',
-            '- **Option B:** cleaner photos, weaker price signal.',
-            '- **Prep:** three negotiation points and a pre-purchase inspection checklist.',
-          ].join('\n'),
-          buildAiRunMetadata({
-            runId: 'fixture-mind-car-shortlist',
-            outputTokens: 184,
-          })
-        ),
-      },
-    ],
-    summary: {
-      sender: 'mind',
-      content: summaryContent({
-        emoji: '🚗',
-        summary:
-          'Car search: shortlist updated with two promising options and one negotiation checklist.',
-        messageCount: 68,
-      }),
-    },
-    tags: ['research', 'car'],
-  },
-  {
-    id: 'home-reminders',
-    root: {
-      sender: 'primary',
-      body: 'Batch the household reminders for tonight.',
-      content: textMessage('Batch the household reminders for tonight.'),
-    },
-    replies: [
-      {
-        sender: 'mind',
-        content: textMessage(
-          [
-            "Tonight's batch is ready:",
-            '',
-            '- **Package:** confirm the pickup window.',
-            '- **Calendar:** add the maintenance note.',
-            '- **Morning summary:** keep low-priority errands out.',
-          ].join('\n'),
-          buildAiRunMetadata({
-            runId: 'fixture-mind-home-reminders',
-            outputTokens: 128,
-          })
-        ),
-      },
-    ],
-    summary: {
-      sender: 'mind',
-      content: summaryContent({
-        emoji: '🏠',
-        summary: 'Home reminders: package pickup and maintenance note are queued for tonight.',
-        messageCount: 9,
-      }),
-    },
-    tags: ['home'],
-  },
+  ],
+  summary: { sender, content: summaryContent({ emoji, summary, messageCount: 2 }) },
+  tags,
+  scheduledAt,
+});
+
+// Adapted from mindroom-ai/demo's fictional Rivera household scenes.
+// Keep scene IDs stable for the existing release screenshot filenames.
+export const buildAppStoreFixtureThreads = ({ now = new Date() } = {}) => [
+  demoThread(
+    'personal-workspace',
+    "What's happening this week?",
+    'atlas',
+    '## Your week, together\n\n- **Lisbon:** three weekend plans under €900 for two.\n- **Dinner:** five vegetarian meals, all within 30 minutes.\n- **Home:** lights, locks, and heating handled.\n- **Reminders:** call Rosa at four.\n\nEverything stays in its own thread.',
+    '🧭',
+    'Your week: Lisbon plans, quick dinners, a cozy home, and one timely reminder.',
+    ['this-week']
+  ),
+  demoThread(
+    'mindroom-explained',
+    "Pantry, plan dinners for next week. Leo's vegetarian now, and weeknights need to be within 30 minutes.",
+    'pantry',
+    'Noted for good: **Leo is vegetarian**, and weeknights stay within 30 minutes.\n\n## Dinner, sorted\n\n- **Mon:** Lemony chickpea orzo · 25 min\n- **Tue:** Black bean tacos with lime slaw · 20 min\n- **Wed:** Coconut red lentil dal · 30 min\n- **Thu:** Halloumi and peppers · 30 min\n- **Fri:** Pesto gnocchi with peas · 15 min\n\n## Groceries\n\nChickpeas, orzo, lemons, black beans, tortillas, cabbage, limes, lentils, coconut milk, halloumi, peppers, gnocchi, pesto, and peas.',
+    '🥗',
+    'Vegetarian weeknight dinners: five quick meals and one grocery list.',
+    ['meal-plan', 'vegetarian']
+  ),
+  demoThread(
+    'campground-monitor',
+    "Hearth, we're heading out. Turn off the lights, lock the front door, and set the heat to 17 degrees.",
+    'hearth',
+    '## All set. Have a lovely evening!\n\n- **Lights:** off throughout the house.\n- **Front door:** locked and checked.\n- **Heating:** set to 17°C.\n\n🔧 `call_service` [1]\n🔧 `call_service` [2]\n🔧 `get_state` [3]',
+    '🏡',
+    'Heading out: lights off, front door locked, heating set to 17°C.',
+    ['home', 'automation'],
+    [
+      ['call_service', 'light.turn_off · all lights', 'All lights are off.'],
+      [
+        'call_service',
+        'lock.lock · front door; climate.set_temperature · 17°C',
+        'Door locked; heating set to 17°C.',
+      ],
+      ['get_state', 'lock.front_door', 'locked'],
+    ]
+  ),
+  demoThread(
+    'car-search',
+    'Atlas, plan a weekend in Lisbon for Leo and me. Under €900 for both of us.',
+    'atlas',
+    "You're both free that weekend. Three ways to do it under €900:\n\n## 🏛️ Old town · €842\nTAP flights + Casa do Bairro, Alfama. Two nights, river views.\n\n## 🌊 By the sea · €860\nKLM flights + Farol Bay, Cascais. A quiet stay by the sea.\n\n## 🌿 A long weekend · €795\nTransavia flights + Jardim Suites. More time for the city.\n\n**Which one should I plan around?**",
+    '🇵🇹',
+    'Lisbon weekend for two: old town, by the sea, or a long weekend.',
+    ['lisbon', 'weekend']
+  ),
+  demoThread(
+    'home-reminders',
+    'Hearth, remind me tomorrow at four to call Rosa back.',
+    'hearth',
+    "⏰ Got it. I'll remind you tomorrow at **4:00 PM** to call Rosa back.\n\n## One less thing to remember\n\nThe reminder stays here in this thread, so the conversation is easy to pick up later.",
+    '⏰',
+    'Call Rosa at four: reminder scheduled in this thread.',
+    ['reminders'],
+    [],
+    scheduledAtDaysFromNow(now, 1, 16, 0)
+  ),
 ];
 
 export const buildScheduledTaskContent = (threadRootId, executeAt) => ({

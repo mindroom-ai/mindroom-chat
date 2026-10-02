@@ -1,13 +1,15 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { readFile } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 import {
   APPSTORE_FIXTURE_ROOM_ALIAS,
   APPSTORE_FIXTURE_ROOM_NAME,
-  APPSTORE_FIXTURE_PRIMARY_AVATAR_URL,
+  APPSTORE_FIXTURE_PRIMARY_AVATAR_ASSET_PATH,
   APPSTORE_FIXTURE_PRIMARY_DISPLAY_NAME,
   bodyToFormattedHtml,
   buildAppStoreFixtureThreads,
@@ -30,11 +32,11 @@ test('declares the public-safe App Store screenshot fixture room', () => {
     APPSTORE_FIXTURE_ROOM_ALIAS,
     '#mindroom-app-store-personal-showcase:matrix.localhost'
   );
-  assert.equal(APPSTORE_FIXTURE_ROOM_NAME, 'Personal');
-  assert.equal(APPSTORE_FIXTURE_PRIMARY_DISPLAY_NAME, 'Bas Nijholt');
+  assert.equal(APPSTORE_FIXTURE_ROOM_NAME, 'Family');
+  assert.equal(APPSTORE_FIXTURE_PRIMARY_DISPLAY_NAME, 'Sam Rivera');
   assert.equal(
-    APPSTORE_FIXTURE_PRIMARY_AVATAR_URL,
-    'https://media.githubusercontent.com/media/basnijholt/nijho.lt/refs/heads/main/content/authors/admin/avatar.jpg'
+    APPSTORE_FIXTURE_PRIMARY_AVATAR_ASSET_PATH,
+    'scripts/fixtures/appstore/avatars/sam.png'
   );
 });
 
@@ -44,8 +46,9 @@ test('defines fake AI agents with localpart prefixes and avatar assets', () => {
   assert.deepEqual(
     agents.map((agent) => [agent.username, agent.displayName, agent.avatarAssetPath]),
     [
-      ['mindroom_mind', 'Mind', 'public/res/branding/mindroom-logo-square.png'],
-      ['mindroom_router', 'RouterAgent', 'public/res/branding/mindroom-favicon.png'],
+      ['mindroom_hearth', 'Hearth', 'scripts/fixtures/appstore/avatars/hearth.png'],
+      ['mindroom_pantry', 'Pantry', 'scripts/fixtures/appstore/avatars/pantry.png'],
+      ['mindroom_atlas', 'Atlas', 'scripts/fixtures/appstore/avatars/atlas.png'],
     ]
   );
 });
@@ -66,54 +69,42 @@ test('formats fixture markdown as Matrix HTML for richer screenshots', () => {
 });
 
 test('builds fake fixture threads with AI run, tool trace, and summary metadata', () => {
-  const threads = buildAppStoreFixtureThreads({
-    primaryUserId: '@appstorescreenshots:matrix.localhost',
-    agentUserIds: {
-      mind: '@mindroom_mind:matrix.localhost',
-      router: '@mindroom_router:matrix.localhost',
-    },
-  });
+  const threads = buildAppStoreFixtureThreads();
 
   const mindroomThread = threads.find((thread) => thread.id === 'mindroom-explained');
   const toolThread = threads.find((thread) => thread.id === 'campground-monitor');
   assert.ok(mindroomThread);
   assert.ok(toolThread);
 
-  assert.match(mindroomThread.root.body, /what MindRoom is/);
-  assert.equal(mindroomThread.replies[0].sender, 'mind');
-  assert.match(mindroomThread.replies[0].content.body, /personal AI agent platform/);
-  assert.match(mindroomThread.replies[0].content.body, /campground cancellations/);
-  assert.match(mindroomThread.replies[0].content.formatted_body, /<h2>Everyday examples<\/h2>/);
-  assert.match(mindroomThread.replies[0].content.formatted_body, /<ul><li>Watch for/);
+  assert.match(mindroomThread.root.body, /plan dinners/);
+  assert.equal(mindroomThread.replies[0].sender, 'pantry');
+  assert.match(mindroomThread.replies[0].content.body, /Leo is vegetarian/);
+  assert.match(mindroomThread.replies[0].content.body, /chickpea orzo/);
+  assert.match(mindroomThread.replies[0].content.formatted_body, /<h2>Dinner, sorted<\/h2>/);
+  assert.match(mindroomThread.replies[0].content.formatted_body, /<ul><li><strong>Mon:/);
   assert.equal(mindroomThread.replies[0].content['io.mindroom.ai_run'].status, 'completed');
   assert.equal(mindroomThread.summary.content['io.mindroom.thread_summary'].version, 1);
 
-  assert.match(toolThread.root.body, /campground cancellation/);
-  assert.match(toolThread.replies[0].content.body, /🔧 `check campground availability` \[1\]/u);
+  assert.match(toolThread.root.body, /heading out/);
+  assert.match(toolThread.replies[0].content.body, /🔧 `call_service` \[1\]/u);
   assert.equal(toolThread.replies[0].content['io.mindroom.tool_trace'].version, 2);
   assert.equal(
     toolThread.replies[0].content['io.mindroom.tool_trace'].events[0].tool_name,
-    'check campground availability'
+    'call_service'
   );
 });
 
-test('uses topic-specific summary emoji and varied realistic thread depths', () => {
-  const threads = buildAppStoreFixtureThreads({
-    primaryUserId: '@appstorescreenshots:matrix.localhost',
-    agentUserIds: {
-      mind: '@mindroom_mind:matrix.localhost',
-      router: '@mindroom_router:matrix.localhost',
-    },
-  });
+test('uses topic-specific summary emoji and accurate thread depths', () => {
+  const threads = buildAppStoreFixtureThreads();
   const messageCounts = threads.map(
     (thread) => thread.summary.content['io.mindroom.thread_summary'].message_count
   );
   const expectedSummaryEmojiByThread = new Map([
     ['personal-workspace', '🧭'],
-    ['mindroom-explained', '💬'],
-    ['campground-monitor', '🏕️'],
-    ['car-search', '🚗'],
-    ['home-reminders', '🏠'],
+    ['mindroom-explained', '🥗'],
+    ['campground-monitor', '🏡'],
+    ['car-search', '🇵🇹'],
+    ['home-reminders', '⏰'],
   ]);
   const summaryEmoji = new Set();
 
@@ -133,17 +124,9 @@ test('uses topic-specific summary emoji and varied realistic thread depths', () 
     summaryEmoji.add(expectedEmoji);
   });
   assert.equal(summaryEmoji.size, threads.length, 'summary emoji should vary per thread');
-  assert.ok(
-    messageCounts.some((count) => count >= 100),
-    'at least one thread should look like a long-running thread'
-  );
-  assert.ok(
-    messageCounts.some((count) => count <= 12),
-    'at least one thread should remain a short thread'
-  );
-  assert.ok(
-    new Set(messageCounts).size >= 4,
-    'thread depths should be varied enough for a realistic overview'
+  assert.deepEqual(
+    messageCounts,
+    threads.map((thread) => 1 + thread.replies.length)
   );
 });
 
@@ -158,34 +141,26 @@ test('builds scheduled task and canonical tag state payloads for thread cards', 
   assert.equal(buildCanonicalThreadTagStateKey('$thread', 'watcher'), '["$thread","watcher"]');
 });
 
-test('keeps seeded scheduled tasks safely in the future', () => {
-  const threads = buildAppStoreFixtureThreads({
-    primaryUserId: '@appstorescreenshots:matrix.localhost',
-    agentUserIds: {
-      mind: '@mindroom_mind:matrix.localhost',
-      router: '@mindroom_router:matrix.localhost',
-    },
-  });
-  const minimumFutureTime = Date.now() + 6 * 24 * 60 * 60 * 1000;
-  const scheduledThreads = threads.filter((thread) => thread.scheduledAt);
-
-  assert.equal(scheduledThreads.length, 2);
-  scheduledThreads.forEach((thread) => {
-    assert.ok(
-      Date.parse(thread.scheduledAt) > minimumFutureTime,
-      `${thread.id} scheduledAt should not expire immediately`
-    );
-  });
+test('schedules tomorrow at four UTC, including DST and year boundaries', () => {
+  for (const [now, expected] of [
+    ['2026-10-01T23:30:00.000Z', '2026-10-02T16:00:00.000Z'],
+    ['2026-11-01T08:30:00.000Z', '2026-11-02T16:00:00.000Z'],
+    ['2026-12-31T23:59:00.000Z', '2027-01-01T16:00:00.000Z'],
+  ]) {
+    const threads = buildAppStoreFixtureThreads({ now: new Date(now) });
+    const scheduledThreads = threads.filter((thread) => thread.scheduledAt);
+    assert.equal(scheduledThreads.length, 1);
+    const reminder = scheduledThreads[0];
+    assert.equal(reminder.id, 'home-reminders');
+    assert.equal(reminder.scheduledAt, expected);
+    assert.ok(Date.parse(reminder.scheduledAt) > Date.parse(now));
+    assert.match(reminder.root.body, /tomorrow at four/);
+    assert.match(reminder.replies[0].content.body, /tomorrow at \*\*4:00 PM\*\*/);
+  }
 });
 
 test('uses only Matrix-safe integer numbers in event payloads', () => {
-  const threads = buildAppStoreFixtureThreads({
-    primaryUserId: '@appstorescreenshots:matrix.localhost',
-    agentUserIds: {
-      mind: '@mindroom_mind:matrix.localhost',
-      router: '@mindroom_router:matrix.localhost',
-    },
-  });
+  const threads = buildAppStoreFixtureThreads();
 
   const visit = (value, path = 'payload') => {
     if (typeof value === 'number') {
@@ -205,15 +180,7 @@ test('uses only Matrix-safe integer numbers in event payloads', () => {
 });
 
 test('keeps the screenshot fixture free of copied private-room examples', () => {
-  const serialized = JSON.stringify(
-    buildAppStoreFixtureThreads({
-      primaryUserId: '@appstorescreenshots:matrix.localhost',
-      agentUserIds: {
-        mind: '@mindroom_mind:matrix.localhost',
-        router: '@mindroom_router:matrix.localhost',
-      },
-    })
-  ).toLowerCase();
+  const serialized = JSON.stringify(buildAppStoreFixtureThreads()).toLowerCase();
 
   ['mullvad', 'daycare', 'fetish', 'erotic'].forEach((term) => {
     assert.equal(serialized.includes(term), false, `fixture should not include ${term}`);
@@ -230,7 +197,7 @@ test('standalone setup script starts Matrix and seeds the fixture room', async (
   assert.match(script, /appstorescreenshots\$\{SAFE_RUN_ID\}/);
   assert.ok(
     script.includes(
-      'E2E_FIXTURE_ROOM_ALIAS="#mindroom-app-store-personal-showcase-${SAFE_RUN_ID}:matrix.localhost"'
+      `E2E_FIXTURE_ROOM_ALIAS="#mindroom-app-store-personal-showcase-\${SAFE_RUN_ID}:matrix.localhost"`
     )
   );
 });
@@ -281,16 +248,44 @@ test('seeder reuses parsed registration challenge bodies', async () => {
   );
 });
 
-test('seeder downloads the public Bas Nijholt avatar at runtime', async () => {
-  const fixture = await readFile(new URL('./appstore-fixture.mjs', import.meta.url), 'utf8');
+test('bundles every demo avatar as a PNG without external profile downloads', async () => {
+  const avatars = [
+    APPSTORE_FIXTURE_PRIMARY_AVATAR_ASSET_PATH,
+    ...getAppStoreFixtureAgentDefinitions().map((agent) => agent.avatarAssetPath),
+  ];
+  for (const path of avatars) {
+    assert.ok(path.startsWith('scripts/fixtures/appstore/avatars/'));
+    const bytes = await readFile(new URL(`../${path}`, import.meta.url));
+    assert.deepEqual([...bytes.subarray(0, 8)], [137, 80, 78, 71, 13, 10, 26, 10]);
+    assert.ok(bytes.readUInt32BE(16) > 0);
+    assert.ok(bytes.readUInt32BE(20) > 0);
+  }
   const script = await readFile(SEED_SCRIPT_URL, 'utf8');
+  assert.match(script, /APPSTORE_FIXTURE_PRIMARY_AVATAR_ASSET_PATH/);
+  assert.doesNotMatch(script, /setUserAvatarFromUrl/);
+});
 
-  assert.match(fixture, /APPSTORE_FIXTURE_PRIMARY_AVATAR_URL/);
-  assert.doesNotMatch(fixture, /bas-nijholt-avatar\.jpg/);
-  assert.match(script, /async function setUserAvatarFromUrl/);
-  assert.match(script, /await fetch\(avatarUrl\)/);
-  assert.match(script, /APPSTORE_FIXTURE_PRIMARY_AVATAR_URL/);
-  assert.doesNotMatch(script, /APPSTORE_FIXTURE_PRIMARY_AVATAR_ASSET_PATH/);
+test('each demo sender has an agent profile and the configured demo model', () => {
+  const profiles = new Map(getAppStoreFixtureAgentDefinitions().map((agent) => [agent.key, agent]));
+  for (const thread of buildAppStoreFixtureThreads()) {
+    assert.equal(thread.root.sender, 'primary');
+    for (const reply of thread.replies) {
+      assert.ok(profiles.has(reply.sender));
+      const model = reply.content['io.mindroom.ai_run'].model;
+      assert.deepEqual(
+        model,
+        reply.sender === 'atlas'
+          ? { provider: 'anthropic', id: 'claude-opus-5-5', config: 'opus' }
+          : { provider: 'openai', id: 'gpt-6-astra', config: 'astra' }
+      );
+    }
+    assert.ok(profiles.has(thread.summary.sender));
+  }
+});
+
+test('capture renders tomorrow-at-four reminders in the same UTC timezone', async () => {
+  const spec = await readFile(APP_STORE_SCREENSHOTS_SPEC_URL, 'utf8');
+  assert.match(spec, /timezoneId: 'UTC'/);
 });
 
 test('screenshot capture removes every stale file from the locale folder', async () => {
@@ -313,3 +308,44 @@ test('standalone setup script rejects existing live-account mode', () => {
   assert.notEqual(result.status, 0);
   assert.match(result.stderr, /Existing live-account screenshot capture is not supported/);
 });
+
+for (const setup of ['capture', 'account']) {
+  test(`stops before the next stage when ${setup} setup fails`, async () => {
+    const root = await mkdtemp(join(tmpdir(), 'appstore-setup-failure-'));
+    try {
+      await mkdir(join(root, 'scripts'));
+      await mkdir(join(root, 'bin'));
+      const mainScript = setup === 'capture' ? SCREENSHOT_SCRIPT_URL : SETUP_SCRIPT_URL;
+      const mainPath = join(root, 'scripts', 'main.sh');
+      await writeFile(mainPath, await readFile(mainScript, 'utf8'));
+      const failingScript =
+        setup === 'capture' ? 'appstore-fixture-up.sh' : 'ensure-e2e-account.sh';
+      const failurePath = join(root, 'scripts', failingScript);
+      await writeFile(failurePath, '#!/bin/sh\necho setup-failed >&2\nexit 42\n');
+      await chmod(failurePath, 0o755);
+      if (setup === 'account') {
+        const serverPath = join(root, 'scripts', 'e2e-matrix-up.sh');
+        await writeFile(serverPath, '#!/bin/sh\nexit 0\n');
+        await chmod(serverPath, 0o755);
+      }
+      for (const name of ['node', 'npx']) {
+        const nextPath = join(root, 'bin', name);
+        await writeFile(nextPath, '#!/bin/sh\necho NEXT-STAGE >&2\nexit 0\n');
+        await chmod(nextPath, 0o755);
+      }
+      const result = spawnSync('bash', [mainPath], {
+        env: {
+          PATH: `${join(root, 'bin')}:${process.env.PATH}`,
+          E2E_PORT: '4173',
+          APPSTORE_SCREENSHOT_RUN_ID: 'failure-test',
+        },
+        encoding: 'utf8',
+      });
+      assert.equal(result.status, 42);
+      assert.match(result.stderr, /setup-failed/);
+      assert.doesNotMatch(result.stderr, /NEXT-STAGE/);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+}
