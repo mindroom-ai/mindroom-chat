@@ -76,6 +76,7 @@ test('exports thread and network evidence after a real IndexedDB connection is c
 
   expect(payload.metadata.exportSchemaVersion).toBe(4);
   expect(payload.deepTrace.status).toBe('unavailable');
+  expect(payload.deepTraceHealth.status).toBe('recording');
   expect(payload.deepTraceHealth.lastFailure).toMatchObject({
     stage: 'flush',
     errorName: 'UnknownError',

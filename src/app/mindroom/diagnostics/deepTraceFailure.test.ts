@@ -364,6 +364,12 @@ describe('deep diagnostic trace storage failure', () => {
             }),
           { interval: 1 }
         );
+        // Nothing is stored yet: the failed batch is pending again with the events queued meanwhile.
+        const unsaved = trace.readDeepTraceMemorySnapshot().events;
+        expect(trace.getDeepTraceHealthSnapshot()).toMatchObject({
+          pendingEventCount: unsaved.length,
+          pendingBytes: unsaved.reduce((total, event) => total + JSON.stringify(event).length, 0),
+        });
         trace.recordDeepTraceEvent('test.after_failure', undefined, { flush: true });
         // No flush, requested during the write or after it, retries before the delay.
         await vi.advanceTimersByTimeAsync(500);
