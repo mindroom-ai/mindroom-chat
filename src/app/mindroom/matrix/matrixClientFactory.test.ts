@@ -95,14 +95,23 @@ describe('createMatrixClient message sends', () => {
   });
 
   // Each entry answers one send request: an event ID, an HTTP error status, or a dropped
-  // connection, optionally noticed only after iOS suspended the app for two hours.
+  // connection, noticed at once, after iOS suspended the app for two hours ('suspended'),
+  // or when the test calls dropPending() ('pending').
   const setup = (responses: Array<string | number>) => {
     vi.useFakeTimers();
+    let dropPending: () => void = () => undefined;
     const fetchFn = vi.fn(async () => {
       const response = responses.shift();
       if (response === undefined) throw new Error('Unexpected request');
       if (response === 'suspended') vi.setSystemTime(Date.now() + TWO_HOURS_MS);
-      if (response === 'offline' || response === 'suspended') throw new TypeError('Load failed');
+      if (response === 'pending') {
+        await new Promise<void>((resolve) => {
+          dropPending = resolve;
+        });
+      }
+      if (['offline', 'suspended', 'pending'].includes(String(response))) {
+        throw new TypeError('Load failed');
+      }
       if (typeof response === 'number') {
         return new Response(JSON.stringify({ errcode: 'M_FORBIDDEN', error: 'Forbidden' }), {
           status: response,
@@ -131,7 +140,7 @@ describe('createMatrixClient message sends', () => {
     };
     const requestPaths = () =>
       fetchFn.mock.calls.map((call) => new URL(String((call as unknown[])[0])).pathname);
-    return { mx, room, send, fetchFn, requestPaths };
+    return { mx, room, send, fetchFn, requestPaths, dropPending: () => dropPending() };
   };
 
   it('retries a message after a dropped connection with the same transaction', async () => {
@@ -206,6 +215,30 @@ describe('createMatrixClient message sends', () => {
     expect(await first.outcome).toEqual({ event_id: '$first' });
     expect(await second.outcome).toEqual({ event_id: '$second' });
   });
+
+  it.each([
+    ['on its last attempt', ['offline', 'offline', 'offline', 'offline'], 30_000, 0],
+    ['after the retry window', [], 0, TWO_HOURS_MS],
+  ])(
+    'counts a message as sent when /sync confirms it before its request fails %s',
+    async (_when, failures, untilLastAttemptMs, suspendedMs) => {
+      const { room, send, fetchFn, dropPending } = setup([...failures, 'pending', '$second']);
+      const first = send('txn-1');
+      await vi.advanceTimersByTimeAsync(untilLastAttemptMs);
+      vi.setSystemTime(Date.now() + suspendedMs);
+      const second = send('txn-2');
+
+      // The request reached the server, then the connection dropped before its response.
+      await receiveFromSync(room, 'txn-1', '$first');
+      dropPending();
+      await vi.advanceTimersByTimeAsync(0);
+
+      expect(fetchFn).toHaveBeenCalledTimes(failures.length + 2);
+      expect(second.event.status).toBe(EventStatus.SENT);
+      expect(await first.outcome).toEqual({ event_id: '$first' });
+      expect(await second.outcome).toEqual({ event_id: '$second' });
+    }
+  );
 
   it.each([
     ['while a retry waits', ['offline'], TWO_HOURS_MS],

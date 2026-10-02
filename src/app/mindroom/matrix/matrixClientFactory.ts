@@ -61,10 +61,11 @@ const isPastRetryWindow = (event: MatrixEvent | null, delayMs = 0): boolean => {
 
 const retryMessageSend: MatrixScheduler['retryAlgorithm'] = (event, attempts, err) => {
   const delayMs = calculateRetryBackoff(err, attempts, true);
-  if (delayMs >= 0 && !isPastRetryWindow(event, delayMs)) return delayMs;
-  if (event) queuedAt.delete(event);
-  return -1;
+  return delayMs >= 0 && !isPastRetryWindow(event, delayMs) ? delayMs : -1;
 };
+
+// Receiving the server's copy through /sync clears the local echo's status.
+const isConfirmedBySync = (event: MatrixEvent): boolean => event.status === null;
 
 /**
  * The SDK's default scheduler retries server errors but marks a message unsent on its
@@ -88,17 +89,18 @@ class MessageSendScheduler extends MatrixScheduler {
 
   public setProcessFunction(send: (event: MatrixEvent) => Promise<ISendEventResponse>): void {
     super.setProcessFunction(async (event) => {
-      // The server's copy can arrive through /sync while a retry waits, when an earlier
-      // attempt arrived but its response was lost. The SDK would fail to mark that event as
-      // sending again and stall the queue, so treat it as sent.
-      if (event.status === null) {
-        queuedAt.delete(event);
-        return { event_id: event.getId()! };
-      }
+      // The server's copy can arrive through /sync while a retry waits or a request is in
+      // flight, when an earlier attempt arrived but its response was lost. Treat the event as
+      // sent: the SDK would otherwise fail to mark it as sending again, or give up on it and
+      // reject the messages queued behind it.
+      if (isConfirmedBySync(event)) return { event_id: event.getId()! };
       if (isPastRetryWindow(event)) throw new Error('The message retry window has passed.');
-      const response = await send(event);
-      queuedAt.delete(event);
-      return response;
+      try {
+        return await send(event);
+      } catch (error) {
+        if (isConfirmedBySync(event)) return { event_id: event.getId()! };
+        throw error;
+      }
     });
   }
 }
