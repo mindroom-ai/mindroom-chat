@@ -12,8 +12,8 @@
 - `createMatrixClient` now uses `MessageSendScheduler`, which also retries connection errors with the SDK's backoff (2, 4, 8 and 16 s) and the same transaction ID, so the server drops a copy that already arrived.
   Client errors, aborts and oversized events still fail at once, and messages stay queued in order.
   A message is only sent within one minute of being queued (by its send or a Retry), also when it waits behind a slow message or iOS suspends the app, because a late `stop` or other command could surprise an agent; there is deliberately no resend after reconnecting.
-  When `/sync` delivers the server's copy while a retry waits (the earlier response was lost), the event counts as sent; otherwise the SDK fails to mark the confirmed event as sending again and stalls the message queue for the whole window.
-  A network failure while sharing an encrypted room's key happens before the scheduler and still fails at once.
+  When `/sync` delivers the server's copy while a retry waits or a request is in flight (an earlier response was lost), the event counts as sent, also if that request then fails; otherwise the SDK fails to mark the confirmed event as sending again and stalls the queue, or gives up and rejects the delivered message and every message queued behind it.
+  Sharing an encrypted room's key happens before the scheduler; the Rust crypto layer already retries those requests after connection errors with the same backoff.
 - A message whose retries ran out now shows "Not sent" with Retry and Delete below it (`FailedSendActions`, from `TimelineMessageBody` for the message or its failed edit).
   Retry calls `resendEvent`, which reuses the event, its transaction ID and, in encrypted rooms, its ciphertext; Delete calls `cancelPendingEvent`.
   In a thread opened on its failed root, the footer shows these actions instead of the confirmation text, also when posting is no longer allowed, and the root row leaves them to the footer.
@@ -24,7 +24,7 @@
 - The model picker no longer resends a failed `!model` command itself; that fallback dated from the scheduler without retries and would have opened a second window, so a failed command now reports the selection as unconfirmed.
 - Typing notices ignore failures instead of leaving unhandled rejections.
 - The new Retry and Delete strings are machine-authored for the 16 non-English catalogs; "Not sent" reuses the existing indicator string.
-- Validation: unit tests cover the retry with the same transaction, giving up and resending, the queue continuing after `/sync` confirms a waiting message, stopping after an iOS suspension (also for a queued message), no retry after a 403, the Retry and Delete actions, the actions for a failed message and a failed edit, the failed root footer and leaving the thread on delete, echo discards for text, attachments and voice, and handled typing failures; each fails before its change.
+- Validation: unit tests cover the retry with the same transaction, giving up and resending, the queue continuing after `/sync` confirms a waiting or in-flight message, giving up at 54 s when each attempt takes 10 s to fail as on the iPhone, stopping after an iOS suspension (also for a queued message), no retry after a 403, no second `!model` send, the Retry and Delete actions, the actions for a failed message and a failed edit, the failed root footer and leaving the thread on delete, echo discards for text, attachments and voice, and handled typing failures; each fails before its change.
   Another test pins the SDK behavior that a copy arriving through `/sync` replaces an unsent echo.
   Results of the full suites are in the pull request.
 - Not covered:
