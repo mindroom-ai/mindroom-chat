@@ -36,6 +36,8 @@ const META_STORE = 'meta';
 const STATS_KEY = 'stats';
 const FLUSH_INTERVAL_MS = 500;
 const FLUSH_BATCH_SIZE = 50;
+const FLUSH_RETRY_DELAY_MS = 1_000;
+const MAX_FLUSH_RETRIES = 3;
 const LOOP_INTERVAL_MS = 1_000;
 const LOOP_STALL_THRESHOLD_MS = 250;
 
@@ -119,6 +121,7 @@ type Runtime = {
   droppedMemoryEvents: number;
   flushTimer?: number;
   flushPromise?: Promise<void>;
+  flushFailures: number;
   activationPromise?: Promise<boolean>;
   activationSequence: number;
   starting: boolean;
@@ -356,13 +359,20 @@ const readStoredEvents = async (): Promise<{
   };
 };
 
-const flush = async (target: Runtime): Promise<void> => {
+const flush = async (target: Runtime, force = false): Promise<void> => {
   if (target.flushTimer !== undefined) {
     window.clearTimeout(target.flushTimer);
     target.flushTimer = undefined;
   }
   while (target.flushPromise) {
     await target.flushPromise;
+  }
+  if (target.flushFailures > 0 && target.flushTimer !== undefined) {
+    // A write failed while this call waited and scheduled its retry; only an
+    // export writes now instead.
+    if (!force) return;
+    window.clearTimeout(target.flushTimer);
+    target.flushTimer = undefined;
   }
   if (
     (target.queue.length === 0 && target.droppedQueueEvents === 0) ||
@@ -373,20 +383,22 @@ const flush = async (target: Runtime): Promise<void> => {
   }
 
   const flushSequence = target.activationSequence;
+  let batch: DeepTraceEvent[] = [];
+  let batchBytes = 0;
+  let droppedEventCount = 0;
   const drain = (async () => {
     while (
       (target.queue.length > 0 || target.droppedQueueEvents > 0) &&
       !target.unavailable &&
       target.activationSequence === flushSequence
     ) {
-      const batch = target.queue.splice(0, FLUSH_BATCH_SIZE);
-      target.queueBytes = Math.max(
-        0,
-        target.queueBytes - batch.reduce((total, event) => total + JSON.stringify(event).length, 0)
-      );
-      const droppedEventCount = target.droppedQueueEvents;
+      batch = target.queue.splice(0, FLUSH_BATCH_SIZE);
+      batchBytes = batch.reduce((total, event) => total + JSON.stringify(event).length, 0);
+      target.queueBytes = Math.max(0, target.queueBytes - batchBytes);
+      droppedEventCount = target.droppedQueueEvents;
       target.droppedQueueEvents = 0;
       await appendStoredEvents(batch, droppedEventCount);
+      target.flushFailures = 0;
     }
   })().catch((error: unknown) => {
     if (runtime !== target || target.disposed || target.activationSequence !== flushSequence) {
@@ -399,7 +411,22 @@ const flush = async (target: Runtime): Promise<void> => {
       return;
     }
     retainFailure(target, 'flush', error);
-    markUnavailable(target);
+    target.flushFailures += 1;
+    if (target.flushFailures > MAX_FLUSH_RETRIES) {
+      markUnavailable(target);
+      return;
+    }
+    // WebKit aborts writes in flight when it suspends the app, and closes every
+    // connection for good when it loses its IndexedDB server. A failed write
+    // stores nothing, so retry its batch on a new connection; the next recorded
+    // event trims the queue back to its bounds, oldest events first.
+    releaseDatabase();
+    target.queue.unshift(...batch);
+    target.queueBytes += batchBytes;
+    target.droppedQueueEvents += droppedEventCount;
+    if (target.flushTimer !== undefined) window.clearTimeout(target.flushTimer);
+    target.flushTimer = undefined;
+    scheduleFlush(target);
   });
   target.flushPromise = drain;
   await drain;
@@ -408,15 +435,21 @@ const flush = async (target: Runtime): Promise<void> => {
 
 const scheduleFlush = (target: Runtime, immediate = false): void => {
   if (target.unavailable || target.starting) return;
-  if (immediate || target.queue.length >= FLUSH_BATCH_SIZE) {
+  if (target.flushFailures === 0 && (immediate || target.queue.length >= FLUSH_BATCH_SIZE)) {
     void flush(target);
     return;
   }
   if (target.flushTimer !== undefined) return;
-  target.flushTimer = window.setTimeout(() => {
-    target.flushTimer = undefined;
-    void flush(target);
-  }, FLUSH_INTERVAL_MS);
+  target.flushTimer = window.setTimeout(
+    () => {
+      target.flushTimer = undefined;
+      void flush(target);
+    },
+    // Each retry after a failed write waits twice as long as the previous one.
+    target.flushFailures > 0
+      ? FLUSH_RETRY_DELAY_MS * 2 ** (target.flushFailures - 1)
+      : FLUSH_INTERVAL_MS
+  );
 };
 
 export const recordDeepTraceEvent = (
@@ -848,6 +881,7 @@ const activate = (target: Runtime): Promise<boolean> => {
   if (target.enabled) return Promise.resolve(true);
 
   target.unavailable = false;
+  target.flushFailures = 0;
   target.starting = true;
   const activationSequence = target.activationSequence + 1;
   target.activationSequence = activationSequence;
@@ -919,6 +953,7 @@ export const initializeDeepTraceRecorder = (
     queue: [],
     queueBytes: 0,
     droppedQueueEvents: 0,
+    flushFailures: 0,
     memory: new Set(),
     memoryBytes: 0,
     droppedMemoryEvents: 0,
@@ -983,12 +1018,15 @@ export const clearDeepTrace = async (): Promise<void> => {
   await tx.objectStore(META_STORE).put({ ...EMPTY_STATS }, STATS_KEY);
   await tx.done;
   removeStorageItemSafe(storage, DEEP_TRACE_FAILURE_KEY);
-  if (target) target.lastFailure = null;
+  if (target) {
+    target.lastFailure = null;
+    target.flushFailures = 0;
+  }
 };
 
 export const readDeepTraceSnapshot = async (): Promise<DeepTraceSnapshot> => {
   const target = runtime;
-  if (target) await flush(target);
+  if (target) await flush(target, true);
   const { stats, events } = await readStoredEvents();
   return {
     schemaVersion: DEEP_TRACE_SCHEMA_VERSION,
