@@ -8,8 +8,8 @@ import {
   APPSTORE_FIXTURE_ROOM_ALIAS,
   APPSTORE_FIXTURE_ROOM_NAME,
   APPSTORE_FIXTURE_ROOM_TOPIC,
-  APPSTORE_FIXTURE_PRIMARY_AVATAR_URL,
   APPSTORE_FIXTURE_PRIMARY_DISPLAY_NAME,
+  APPSTORE_FIXTURE_PRIMARY_AVATAR_ASSET_PATH,
   buildAppStoreFixtureThreads,
   buildCanonicalThreadTagStateKey,
   buildScheduledTaskContent,
@@ -196,21 +196,6 @@ const contentTypeForPath = (path) => {
   }
 };
 
-const filenameForUrl = (url) => {
-  try {
-    const pathname = new URL(url).pathname;
-    const filename = pathname.split('/').filter(Boolean).pop();
-    return filename || 'avatar.jpg';
-  } catch {
-    return 'avatar.jpg';
-  }
-};
-
-const contentTypeForUrl = (url, response) => {
-  const contentType = response.headers.get('content-type')?.split(';')[0]?.trim();
-  return contentType || contentTypeForPath(filenameForUrl(url));
-};
-
 async function setUserAvatar(accessToken, userId, avatarAssetPath) {
   const absolutePath = resolve(ROOT_DIR, avatarAssetPath);
   const data = await readFile(absolutePath);
@@ -224,39 +209,12 @@ async function setUserAvatar(accessToken, userId, avatarAssetPath) {
   return avatarUrl;
 }
 
-async function setUserAvatarFromUrl(accessToken, userId, avatarUrl) {
-  const response = await fetch(avatarUrl);
-  if (!response.ok) {
-    throw new Error(`Failed to download avatar ${avatarUrl}: HTTP ${response.status}`);
-  }
-
-  const data = new Uint8Array(await response.arrayBuffer());
-  const uploadedAvatarUrl = await uploadMedia(
-    accessToken,
-    data,
-    contentTypeForUrl(avatarUrl, response),
-    filenameForUrl(avatarUrl)
-  );
-  await setAvatarUrl(accessToken, userId, uploadedAvatarUrl);
-  return uploadedAvatarUrl;
-}
-
-async function ensureFixtureUser({ username, password, displayName, avatarAssetPath, required }) {
+async function ensureFixtureUser({ username, password, displayName, avatarAssetPath }) {
   let session;
   try {
     session = await login(username, password);
-  } catch (loginError) {
-    try {
-      session = await registerWithDummyAuth(username, password);
-    } catch (registrationError) {
-      if (required) throw registrationError;
-      log(
-        `Skipping optional fixture user ${username}: ${
-          registrationError.message || loginError.message
-        }`
-      );
-      return undefined;
-    }
+  } catch {
+    session = await registerWithDummyAuth(username, password);
   }
 
   let avatarUrl;
@@ -456,10 +414,10 @@ async function main() {
   };
 
   if (SET_PRIMARY_PROFILE === '1') {
-    primarySession.avatarUrl = await setUserAvatarFromUrl(
+    primarySession.avatarUrl = await setUserAvatar(
       primarySession.accessToken,
       primarySession.userId,
-      APPSTORE_FIXTURE_PRIMARY_AVATAR_URL
+      APPSTORE_FIXTURE_PRIMARY_AVATAR_ASSET_PATH
     );
     await setDisplayName(
       primarySession.accessToken,
@@ -470,10 +428,7 @@ async function main() {
 
   const agentSessions = {};
   for (const agent of getAppStoreFixtureAgentDefinitions()) {
-    agentSessions[agent.key] = await ensureFixtureUser({
-      ...agent,
-      required: false,
-    });
+    agentSessions[agent.key] = await ensureFixtureUser(agent);
   }
 
   const roomId = await resolveOrCreateRoom(primarySession.accessToken);
@@ -482,24 +437,16 @@ async function main() {
   }
 
   for (const session of Object.values(agentSessions)) {
-    if (!session) continue;
     await joinRoom(session.accessToken, roomId);
     await updateMemberProfile(session, roomId);
   }
 
   const senders = {
     primary: primarySession,
-    mind: agentSessions.mind ?? primarySession,
-    router: agentSessions.router ?? primarySession,
+    ...agentSessions,
   };
 
-  const threads = buildAppStoreFixtureThreads({
-    primaryUserId: primarySession.userId,
-    agentUserIds: {
-      mind: senders.mind.userId,
-      router: senders.router.userId,
-    },
-  });
+  const threads = buildAppStoreFixtureThreads();
 
   const messages = await getMessages(primarySession.accessToken, roomId);
   for (const thread of threads) {
@@ -517,12 +464,9 @@ async function main() {
   log(`  Room: ${roomId}`);
   log(`  Alias: ${ROOM_ALIAS}`);
   log(
-    `  Agents: ${
-      Object.values(agentSessions)
-        .filter(Boolean)
-        .map((agent) => agent.displayName)
-        .join(', ') || 'primary account fallback'
-    }`
+    `  Agents: ${Object.values(agentSessions)
+      .map((agent) => agent.displayName)
+      .join(', ')}`
   );
 }
 

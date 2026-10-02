@@ -2,6 +2,39 @@
 
 ## Runbook
 
+### Reproduce Rivera household App Store screenshots (2026-10-01)
+
+- Status: Rivera screenshot fixture implemented and independently reviewed.
+- Bundle Sam Rivera, Hearth, Pantry, and Atlas avatars from `mindroom-ai/demo` commit `fc39fb8a9e4af01c3c848e191f32c25b7da694a2` under `scripts/fixtures/appstore/avatars/`.
+- Capture five family scenes per device: workspace overview, meal planning, home tools, Lisbon trip, and a reminder.
+- Capture and scheduled fixtures use UTC so tomorrow at four always displays 4:00 PM, including DST boundaries.
+- Preserve existing release filenames, count actual seeded messages, require agent setup, wait for all visible avatars, and stop on setup errors.
+- Validation: full unit suite passes (620 files / 5,674 tests), fixture tests pass (24), and browser validation passes (missing-avatar regression plus both device captures).
+- Typecheck, production/PWA build, App Store preflight, parallel-runner tests, changed-file formatting, shell syntax, and lint pass; full lint retains 17 existing warnings.
+- Independent review caught avatars disappearing after a failed image request; capture now requires each expected demo profile, and a browser regression proves a missing agent cannot pass.
+- Qodo review caught obsolete optional-agent fallback paths; agent registration failures now propagate directly, with an executable failure regression.
+- Ready PR: [#356](https://github.com/mindroom-ai/mindroom-chat/pull/356).
+- Next: address CI or AI review findings, then merge after approval.
+
+### App Store update 4.12.320 (2026-10-01)
+
+- Status: Apple accepted `4.12.320 (314)` for App Review on October 1, 2026 at 4:41 PM PDT; the confirmed status at submission was `Waiting for Review`.
+- Submission ID: `365d186d-8c3e-453a-bc2b-3b7ba1abb66e`; release remains manual after approval.
+- Ten screenshots used fictional Rivera household scenes and avatars from `mindroom-ai/demo`, captured with the real client at build commit `25426642175c011b4e068635464e4519aa0ffdc1`.
+- Updated release notes and reviewer instructions were saved, and the existing reviewer account was retained.
+- Apple API verified the exact build and reviewer fields; screenshot upload and Fastlane metadata/URL precheck succeeded.
+- Release validation passed: 620 files / 5,673 tests, typecheck, production/PWA build, App Store preflight, both device captures, and independent screenshot review.
+- Node 26 validation required `NODE_OPTIONS=--no-experimental-webstorage` to avoid native StorageEvent conflicts with jsdom.
+- Next: await Apple's decision, address any reviewer request, then manually release the approved version.
+- [Submission record](https://appstoreconnect.apple.com/apps/6760272172/distribution/reviewsubmissions/details/365d186d-8c3e-453a-bc2b-3b7ba1abb66e).
+
+### Xcode Cloud agreement gate (2026-10-01)
+
+- Build 313 on `dev`, commit `25426642175c011b4e068635464e4519aa0ffdc1`, failed archive preparation because an Apple program agreement required acceptance (GitHub check `110506381365`).
+- The account holder accepted the updated program agreement, and App Store Connect confirmed the Free Apps Agreement active from October 1, 2026.
+- Clean rebuild 314 (`5e0311df-20ed-4d51-acb3-bb0d9dc140e5`) archived, exported, uploaded, and finished TestFlight processing as `4.12.320 (314)`, ready for submission.
+- No application, signing-key, or CI change was needed to clear the agreement gate.
+
 ### Flatten the Members drawer header (2026-10-01)
 
 - The Members title strip now uses the same flat, translucent `PageNavHeader` and `PageNavContent` as the navigation sidebars, without a border, specular rim, shadow, or pointer-driven optics.
