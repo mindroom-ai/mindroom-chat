@@ -1,4 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { EventStatus, MatrixEvent, PendingEventOrdering, Room } from 'matrix-js-sdk';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   traceDeepDiagnosticFetch: vi.fn(
@@ -11,7 +12,7 @@ vi.mock('../diagnostics/deepTrace', () => ({
   traceDeepDiagnosticFetch: mocks.traceDeepDiagnosticFetch,
 }));
 
-import { createMatrixFetchFn } from './matrixClientFactory';
+import { createMatrixClient, createMatrixFetchFn } from './matrixClientFactory';
 
 describe('createMatrixFetchFn', () => {
   beforeEach(() => {
@@ -69,5 +70,195 @@ describe('createMatrixFetchFn', () => {
 
     expect(mocks.traceDeepDiagnosticFetch).toHaveBeenCalledTimes(3);
     expect(baseFetch).toHaveBeenCalledTimes(3);
+  });
+});
+
+const TWO_HOURS_MS = 2 * 60 * 60 * 1000;
+
+const receiveFromSync = (room: Room, txnId: string, eventId: string) =>
+  room.addLiveEvents(
+    [
+      new MatrixEvent({
+        event_id: eventId,
+        room_id: room.roomId,
+        sender: '@alice:example.org',
+        type: 'm.room.message',
+        content: { msgtype: 'm.text', body: 'hello' },
+        unsigned: { transaction_id: txnId },
+      }),
+    ],
+    { addToState: false }
+  );
+
+describe('createMatrixClient message sends', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  // Each entry answers one send request: an event ID, an HTTP error status, or a dropped
+  // connection, optionally noticed only after iOS suspended the app for two hours.
+  const setup = (responses: Array<string | number>) => {
+    vi.useFakeTimers();
+    const fetchFn = vi.fn(async () => {
+      const response = responses.shift();
+      if (response === undefined) throw new Error('Unexpected request');
+      if (response === 'suspended') vi.setSystemTime(Date.now() + TWO_HOURS_MS);
+      if (response === 'offline' || response === 'suspended') throw new TypeError('Load failed');
+      if (typeof response === 'number') {
+        return new Response(JSON.stringify({ errcode: 'M_FORBIDDEN', error: 'Forbidden' }), {
+          status: response,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+      return new Response(JSON.stringify({ event_id: response }), {
+        headers: { 'Content-Type': 'application/json' },
+      });
+    });
+    const mx = createMatrixClient({
+      baseUrl: 'https://matrix.example',
+      userId: '@alice:example.org',
+      accessToken: 'token',
+      fetchFn,
+    });
+    const room = new Room('!room:example.org', mx, '@alice:example.org', {
+      pendingEventOrdering: PendingEventOrdering.Chronological,
+    });
+    mx.store.storeRoom(room);
+    const send = (txnId = 'txn-1') => {
+      const sending = mx.sendMessage(room.roomId, { msgtype: 'm.text', body: 'hello' }, txnId);
+      // Attach immediately: the send can reject while timers advance.
+      const outcome = sending.catch((error: Error) => error);
+      return { outcome, event: room.getEventForTxnId(txnId)! };
+    };
+    const requestPaths = () =>
+      fetchFn.mock.calls.map((call) => new URL(String((call as unknown[])[0])).pathname);
+    return { mx, room, send, fetchFn, requestPaths };
+  };
+
+  it('retries a message after a dropped connection with the same transaction', async () => {
+    const { send, requestPaths } = setup(['offline', '$sent']);
+    const { outcome, event } = send();
+
+    await vi.advanceTimersByTimeAsync(0);
+    expect(event.status).toBe(EventStatus.SENDING);
+    await vi.advanceTimersByTimeAsync(2000);
+
+    expect(await outcome).toEqual({ event_id: '$sent' });
+    expect(event.status).toBe(EventStatus.SENT);
+    expect(requestPaths()).toEqual([
+      '/_matrix/client/v3/rooms/!room%3Aexample.org/send/m.room.message/txn-1',
+      '/_matrix/client/v3/rooms/!room%3Aexample.org/send/m.room.message/txn-1',
+    ]);
+  });
+
+  it('gives up after the bounded backoff and resends with the same transaction', async () => {
+    const { mx, room, send, fetchFn, requestPaths } = setup([
+      'offline',
+      'offline',
+      'offline',
+      'offline',
+      'offline',
+      '$resent',
+    ]);
+    const { outcome, event } = send();
+
+    await vi.advanceTimersByTimeAsync(2000 + 4000 + 8000 + 16000 - 1);
+    expect(event.status).toBe(EventStatus.SENDING);
+    await vi.advanceTimersByTimeAsync(1);
+
+    expect(await outcome).toMatchObject({ name: 'ConnectionError' });
+    expect(event.status).toBe(EventStatus.NOT_SENT);
+    expect(fetchFn).toHaveBeenCalledTimes(5);
+
+    await expect(mx.resendEvent(event, room)).resolves.toEqual({ event_id: '$resent' });
+    expect(event.status).toBe(EventStatus.SENT);
+    expect(new Set(requestPaths())).toEqual(
+      new Set(['/_matrix/client/v3/rooms/!room%3Aexample.org/send/m.room.message/txn-1'])
+    );
+  });
+
+  it('replaces an unsent message with the copy the server did receive', async () => {
+    const { room, send } = setup(['offline', 'offline', 'offline', 'offline', 'offline']);
+    const { outcome, event } = send();
+    await vi.advanceTimersByTimeAsync(30000);
+    expect(await outcome).toMatchObject({ name: 'ConnectionError' });
+    expect(event.status).toBe(EventStatus.NOT_SENT);
+
+    await receiveFromSync(room, 'txn-1', '$received');
+
+    expect(event.getId()).toBe('$received');
+    expect(event.status).toBeNull();
+    expect(room.getLiveTimeline().getEvents()).toEqual([event]);
+  });
+
+  it('keeps the queue going when /sync confirms a message while its retry waits', async () => {
+    const { room, send, fetchFn } = setup(['offline', '$second']);
+    const first = send('txn-1');
+    const second = send('txn-2');
+    await vi.advanceTimersByTimeAsync(0);
+    expect(second.event.status).toBe(EventStatus.QUEUED);
+
+    // The first attempt reached the server, but its response was lost.
+    await receiveFromSync(room, 'txn-1', '$first');
+    await vi.advanceTimersByTimeAsync(2000);
+
+    expect(fetchFn).toHaveBeenCalledTimes(2);
+    expect(second.event.status).toBe(EventStatus.SENT);
+    expect(await first.outcome).toEqual({ event_id: '$first' });
+    expect(await second.outcome).toEqual({ event_id: '$second' });
+  });
+
+  it.each([
+    ['while a retry waits', ['offline'], TWO_HOURS_MS],
+    ['during an attempt', ['suspended'], 0],
+  ])('stops retrying when iOS suspends the app %s', async (_when, responses, suspendedMs) => {
+    const { send, fetchFn } = setup([...responses]);
+    const { outcome, event } = send();
+    await vi.advanceTimersByTimeAsync(0);
+
+    vi.setSystemTime(Date.now() + suspendedMs);
+    await vi.advanceTimersByTimeAsync(2000);
+
+    expect(fetchFn).toHaveBeenCalledTimes(1);
+    expect(event.status).toBe(EventStatus.NOT_SENT);
+    expect(await outcome).toBeInstanceOf(Error);
+  });
+
+  it('fails a queued message instead of sending it after iOS suspends the app', async () => {
+    const { mx, room, send, fetchFn } = setup(['$resent']);
+    let respond!: (response: Response) => void;
+    fetchFn.mockImplementationOnce(
+      () =>
+        new Promise<Response>((resolve) => {
+          respond = resolve;
+        })
+    );
+    const first = send('txn-1');
+    const second = send('txn-2');
+    await vi.advanceTimersByTimeAsync(0);
+
+    vi.setSystemTime(Date.now() + TWO_HOURS_MS);
+    respond(
+      new Response(JSON.stringify({ event_id: '$first' }), {
+        headers: { 'Content-Type': 'application/json' },
+      })
+    );
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(fetchFn).toHaveBeenCalledTimes(1);
+    expect(second.event.status).toBe(EventStatus.NOT_SENT);
+    expect(await first.outcome).toEqual({ event_id: '$first' });
+    await expect(mx.resendEvent(second.event, room)).resolves.toEqual({ event_id: '$resent' });
+  });
+
+  it('does not retry a message the server rejected', async () => {
+    const { send, fetchFn } = setup([403]);
+    const { outcome, event } = send();
+
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(await outcome).toMatchObject({ errcode: 'M_FORBIDDEN' });
+    expect(event.status).toBe(EventStatus.NOT_SENT);
+    expect(fetchFn).toHaveBeenCalledTimes(1);
   });
 });
