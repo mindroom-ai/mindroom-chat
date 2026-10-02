@@ -8,8 +8,11 @@
   Simple mode's early return in `useRoomNavigate` ignored the selected space.
 - Room navigation now preserves the selected space when it contains the destination room, including descendants of nested spaces, before applying the Home/Direct fallback.
   This shared path covers sidebar threads, Recently Opened, room overview threads, and focused events.
+- Qodo review confirmed an unreachable selected-parent fallback and browser fixtures that overwrote local account preferences.
+  Removed the redundant fallback; fixtures now preserve all preferences and restore the original account settings in `finally`.
 - Validation on current `dev`: all 5,684 unit tests, application and changed-test typechecks, production build, formatting, and lint pass with the existing 17 warnings.
   Six unit regressions fail before the fix; both installed-Chrome browser cases pass across all three thread entry points in Simple and normal modes, and independent review found no blockers.
+  A follow-up run alongside the build hit the unchanged gap-fill checkpoint timing test; its 26 tests and a subsequent full suite passed without concurrent build/browser work.
 
 ### Show the agent shield for agents in unencrypted rooms (2026-10-01)
 

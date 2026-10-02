@@ -59,22 +59,12 @@ export const useRoomNavigate = () => {
           : getHomeRoomPath(roomIdOrAlias, eventId);
       }
 
-      const orphanParents = openSpaceTimeline ? [roomId] : getOrphanParents(roomToParents, roomId);
+      const orphanParents = getOrphanParents(roomToParents, roomId);
       if (orphanParents.length > 0) {
-        let parentSpace: string;
-        if (spaceSelectedId && orphanParents.includes(spaceSelectedId)) {
-          parentSpace = spaceSelectedId;
-        } else {
-          parentSpace = guessPerfectParent(mx, roomId, orphanParents) ?? orphanParents[0];
-        }
-
+        const parentSpace = guessPerfectParent(mx, roomId, orphanParents) ?? orphanParents[0];
         const pSpaceIdOrAlias = getCanonicalAliasOrRoomId(mx, parentSpace);
 
-        return getSpaceRoomPath(
-          pSpaceIdOrAlias,
-          openSpaceTimeline ? roomId : roomIdOrAlias,
-          eventId
-        );
+        return getSpaceRoomPath(pSpaceIdOrAlias, roomIdOrAlias, eventId);
       }
 
       if (mDirects.has(roomId)) {
