@@ -29,6 +29,8 @@ import { getMindroomThreadSummaryInfo } from './threadSummary';
 import { getMindroomMessageStateSuffixRenderer } from './messageStateSuffix';
 import { ChatUiActionButton } from '../ui-actions/ChatUiActionButton';
 import { CHAT_UI_ACTION_KEY } from '../ui-actions/chatUiProtocol';
+import { readCanvasResponse } from '../canvas/canvasMessages';
+import { CanvasResponseReceipt } from '../canvas/CanvasResponseReceipt';
 
 export type RenderMindroomMessageContentOptions = {
   mEvent?: MatrixEvent;
@@ -238,6 +240,9 @@ export const renderMindroomMessageContent = ({
   }
 
   if (msgType === MsgType.Text || msgType === MsgType.File) {
+    const canvasReceipt = msgType === MsgType.Text ? readCanvasResponse(content) : undefined;
+    if (canvasReceipt) return <CanvasResponseReceipt receipt={canvasReceipt} />;
+
     if (msgType === MsgType.Text && isMindroomTranscribingPlaceholder(content)) {
       return (
         <MText
@@ -374,7 +379,13 @@ export const renderMindroomMessageContent = ({
   }
 
   if (msgType === MsgType.Notice) {
-    if (mEvent && !edited && content[CHAT_UI_ACTION_KEY]) {
+    const uiAction = content[CHAT_UI_ACTION_KEY];
+    // Canvas updates are edits of the request, so an edited canvas keeps its button.
+    const editableUiAction =
+      !!uiAction &&
+      typeof uiAction === 'object' &&
+      (uiAction as Record<string, unknown>).action === 'show_canvas';
+    if (mEvent && uiAction && (!edited || editableUiAction)) {
       return (
         <MNotice
           content={content}

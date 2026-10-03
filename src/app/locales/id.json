@@ -2893,6 +2893,8 @@
     "uiActions": {
       "viewComputer": "Lihat komputer",
       "openMembers": "Buka anggota",
+      "openCanvas": "Buka panel",
+      "canvasDisabled": "Panel interaktif dinonaktifkan di aplikasi ini.",
       "computerUnavailable": "Komputer agen ini tidak tersedia.",
       "releaseControl": "Lepaskan kendali komputer sebelum membuka tampilan lain.",
       "openConversation": "Buka permintaan ini dari percakapan ruangan.",

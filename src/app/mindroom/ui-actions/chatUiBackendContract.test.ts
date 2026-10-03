@@ -23,7 +23,8 @@ type ContractFixture = {
 type ExpectedAction =
   | { action: 'show_computer' }
   | { action: 'open_settings'; section: ChatUiSettingsSection }
-  | { action: 'open_panel'; panel: 'members' };
+  | { action: 'open_panel'; panel: 'members' }
+  | { action: 'show_canvas'; canvas: { title: string; html: string } };
 
 const fixturePath =
   process.env.CHAT_UI_CONTRACT_FIXTURE ??
@@ -49,6 +50,13 @@ const expectedCases = new Map<string, ExpectedAction>();
     expectedCases.set(`${scope}/open_settings/${section}`, { action: 'open_settings', section });
   });
   expectedCases.set(`${scope}/open_panel/members`, { action: 'open_panel', panel: 'members' });
+  expectedCases.set(`${scope}/show_canvas`, {
+    action: 'show_canvas',
+    canvas: {
+      title: 'Choose a plan',
+      html: '<form data-mindroom-label="Plan chosen"><label><input type="radio" name="plan" value="pro" checked> Pro</label><button>Choose</button></form>',
+    },
+  });
 });
 
 const mx = new MatrixClient({ baseUrl: 'https://localhost', userId: contract.viewer_id });
@@ -76,11 +84,13 @@ describe('MindRoom backend Chat UI wire contract', () => {
   it.each(contract.cases)('parses the real backend notice for $id', ({ id, event }) => {
     const expected = expectedCases.get(id);
     expect(expected).toBeDefined();
-    expect(readChatUiAction(new MatrixEvent(event), contract.viewer_id, room)).toEqual({
+    const matrixEvent = new MatrixEvent(event);
+    expect(readChatUiAction(matrixEvent, contract.viewer_id, room)).toEqual({
       eventId: event.event_id,
       agentUserId: event.sender,
       threadId: id.startsWith('thread/') ? '$thread' : undefined,
       ...expected,
+      ...(expected?.action === 'show_canvas' ? { event: matrixEvent } : {}),
     });
   });
 });

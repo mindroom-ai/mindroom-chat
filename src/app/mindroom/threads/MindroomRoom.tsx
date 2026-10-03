@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo } from 'react';
+import React, { useCallback, useEffect, useMemo } from 'react';
 import { Box, Line } from 'folds';
 import { KnownMembership } from 'matrix-js-sdk';
 import { useParams, useSearchParams } from 'react-router-dom';
@@ -29,6 +29,8 @@ import { useClientConfig } from '../../hooks/useClientConfig';
 import { resolveComputerApiUrl } from '../computer/api';
 import { ComputerPanel } from '../computer/ComputerPanel';
 import { useRoomComputerState } from '../computer/useRoomComputerState';
+import { RoomCanvasPanel } from '../canvas/RoomCanvasPanel';
+import { useRoomCanvasState } from '../canvas/useRoomCanvasState';
 import type { ComputerAgent } from '../computer/types';
 import { ResizableMembersPanel } from '../sidebar/ResizableMembersPanel';
 import { useMembersDrawer } from '../sidebar/useMembersDrawer';
@@ -69,6 +71,7 @@ export function Room() {
   const members = useRoomMembers(mx, room.roomId);
   const clientConfig = useClientConfig();
   const computerApiUrl = resolveComputerApiUrl(clientConfig.mindroom?.computers?.apiUrl);
+  const canvasEnabled = clientConfig.mindroom?.canvas?.enabled === true;
   const computerAgents = useMemo<ComputerAgent[]>(
     () =>
       members
@@ -107,13 +110,25 @@ export function Room() {
     threadId: routedThreadId,
     available: computerAvailable,
   });
+  const {
+    event: canvasEvent,
+    show: showCanvas,
+    close: closeCanvas,
+  } = useRoomCanvasState({ mx, roomId: room.roomId, threadId: routedThreadId });
+  // Opening Members from the header replaces an open canvas, as it does the computer.
+  useEffect(() => {
+    if (isDrawer) closeCanvas();
+  }, [isDrawer, closeCanvas]);
   const computerThreadId = useThreadRootEvent(room, routedThreadId);
   const continuationReady =
     computerThreadId !== routedThreadId || isThreadRouteReady(room, routedThreadId);
   const handleComputerToggle = useCallback(() => {
-    if (!effectiveComputerOpen) setPeopleDrawer(false);
+    if (!effectiveComputerOpen) {
+      setPeopleDrawer(false);
+      closeCanvas();
+    }
     toggleComputer();
-  }, [effectiveComputerOpen, setPeopleDrawer, toggleComputer]);
+  }, [closeCanvas, effectiveComputerOpen, setPeopleDrawer, toggleComputer]);
   const handleThreadLoadError = useRoomThreadRouteGuards({
     eventId,
     roomId: room.roomId,
@@ -150,9 +165,13 @@ export function Room() {
       ) {
         return t('mindroomUi.uiActions.computerUnavailable');
       }
+      if (action.action === 'show_canvas' && !canvasEnabled) {
+        return t('mindroomUi.uiActions.canvasDisabled');
+      }
       return undefined;
     },
     [
+      canvasEnabled,
       callView,
       simpleMode,
       effectiveComputerOpen,
@@ -167,18 +186,24 @@ export function Room() {
     (action: ChatUiAction) => {
       if (action.action === 'show_computer') {
         setPeopleDrawer(false);
+        closeCanvas();
         showComputer(action.agentUserId);
       } else if (action.action === 'open_settings') {
         setSettingsModal({
           initialPage: UI_SETTINGS_PAGES[action.section],
           requestId: action.eventId,
         });
+      } else if (action.action === 'show_canvas') {
+        setPeopleDrawer(false);
+        closeComputer();
+        showCanvas(action.event);
       } else {
         closeComputer();
+        closeCanvas();
         setPeopleDrawer(true);
       }
     },
-    [closeComputer, setPeopleDrawer, setSettingsModal, showComputer]
+    [closeCanvas, closeComputer, setPeopleDrawer, setSettingsModal, showCanvas, showComputer]
   );
   const navigateUiAction = useCallback(
     (targetThreadId?: string) => {
@@ -264,7 +289,15 @@ export function Room() {
               />
             </>
           )}
-          {!callView && isDrawer && !effectiveComputerOpen && (
+          {!callView && canvasEnabled && !effectiveComputerOpen && canvasEvent && (
+            <>
+              {screenSize === ScreenSize.Desktop && (
+                <Line variant="Background" direction="Vertical" size="300" />
+              )}
+              <RoomCanvasPanel mx={mx} room={room} event={canvasEvent} onClose={closeCanvas} />
+            </>
+          )}
+          {!callView && isDrawer && !effectiveComputerOpen && !(canvasEnabled && canvasEvent) && (
             <ResizableMembersPanel key={room.roomId} onClose={() => setPeopleDrawer(false)}>
               <MembersDrawer room={room} members={members} />
             </ResizableMembersPanel>

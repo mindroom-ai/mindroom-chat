@@ -3109,6 +3109,8 @@
     "uiActions": {
       "viewComputer": "عرض الكمبيوتر",
       "openMembers": "فتح الأعضاء",
+      "openCanvas": "فتح اللوحة",
+      "canvasDisabled": "اللوحات التفاعلية معطّلة في هذا التطبيق.",
       "computerUnavailable": "كمبيوتر هذا الوكيل غير متاح.",
       "releaseControl": "اترك التحكم في الكمبيوتر قبل فتح عرض آخر.",
       "openConversation": "افتح هذا الطلب من محادثة الغرفة.",

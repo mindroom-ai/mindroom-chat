@@ -20,15 +20,67 @@ type ChatUiTarget = {
   threadId?: string;
 };
 
+export type ChatUiCanvas = {
+  title: string;
+  html: string;
+};
+
 export type ChatUiAction = ChatUiTarget &
   (
     | { action: 'show_computer' }
     | { action: 'open_settings'; section: ChatUiSettingsSection }
     | { action: 'open_panel'; panel: 'members' }
+    // The panel follows later edits of this request, so it keeps the event itself.
+    | { action: 'show_canvas'; canvas: ChatUiCanvas; event: MatrixEvent }
   );
+
+const MAX_CANVAS_TITLE_LENGTH = 200;
+// The backend sizes canvases against the Matrix event limit; this only bounds hostile input.
+const MAX_CANVAS_HTML_LENGTH = 128 * 1024;
 
 const record = (value: unknown): value is Record<string, unknown> =>
   !!value && typeof value === 'object' && !Array.isArray(value);
+
+const readCanvas = (value: unknown): ChatUiCanvas | undefined => {
+  if (!record(value) || typeof value.title !== 'string' || typeof value.html !== 'string') {
+    return undefined;
+  }
+  const title = value.title.trim();
+  if (
+    !title ||
+    title.length > MAX_CANVAS_TITLE_LENGTH ||
+    value.html.length > MAX_CANVAS_HTML_LENGTH
+  ) {
+    return undefined;
+  }
+  return { title, html: value.html };
+};
+
+const AUTHORITY_FIELDS = [
+  'version',
+  'action',
+  'requester_id',
+  'agent_user_id',
+  'room_id',
+  'thread_id',
+];
+
+/**
+ * Canvas updates are edits by the original sender (the SDK ignores other senders' replacements).
+ * An edit may change only the canvas itself; anything else keeps the original canvas.
+ */
+const readLatestCanvas = (
+  event: MatrixEvent,
+  original: Record<string, unknown>
+): ChatUiCanvas | undefined => {
+  const fallback = readCanvas(original.canvas);
+  if (!event.replacingEventId()) return fallback;
+  const latest = event.getContent<Record<string, unknown>>()[CHAT_UI_ACTION_KEY];
+  if (!record(latest) || AUTHORITY_FIELDS.some((field) => latest[field] !== original[field])) {
+    return fallback;
+  }
+  return readCanvas(latest.canvas) ?? fallback;
+};
 
 /** Read authority from the original Matrix event, never from rendered/edited message text. */
 export const readChatUiAction = (
@@ -44,7 +96,6 @@ export const readChatUiAction = (
     event.getType() !== 'm.room.message' ||
     event.getRoomId() !== room.roomId ||
     event.isRedacted() ||
-    event.replacingEventId() ||
     event.status ||
     !isMindroomAgentUserIdForViewer(sender, viewerId) ||
     room.getMember(sender)?.membership !== 'join' ||
@@ -57,6 +108,8 @@ export const readChatUiAction = (
   const data = content[CHAT_UI_ACTION_KEY];
   if (
     content.msgtype !== 'm.notice' ||
+    (record(content['m.relates_to']) && content['m.relates_to'].rel_type === 'm.replace') ||
+    (!!event.replacingEventId() && (!record(data) || data.action !== 'show_canvas')) ||
     !record(data) ||
     data.version !== 1 ||
     data.requester_id !== viewerId ||
@@ -95,6 +148,10 @@ export const readChatUiAction = (
   }
   if (data.action === 'open_panel' && data.panel === 'members') {
     return { ...target, action: 'open_panel', panel: 'members' };
+  }
+  if (data.action === 'show_canvas') {
+    const canvas = readLatestCanvas(event, data);
+    return canvas ? { ...target, action: 'show_canvas', canvas, event } : undefined;
   }
   return undefined;
 };

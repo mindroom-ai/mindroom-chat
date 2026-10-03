@@ -2893,6 +2893,8 @@
     "uiActions": {
       "viewComputer": "View computer",
       "openMembers": "Open Members",
+      "openCanvas": "Open panel",
+      "canvasDisabled": "Interactive panels are turned off in this app.",
       "computerUnavailable": "This agent’s computer is unavailable.",
       "releaseControl": "Release computer control before opening another view.",
       "openConversation": "Open this request from the room conversation.",

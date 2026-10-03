@@ -2947,6 +2947,8 @@
     "uiActions": {
       "viewComputer": "Ver computador",
       "openMembers": "Abrir membros",
+      "openCanvas": "Abrir painel",
+      "canvasDisabled": "Os painéis interativos estão desativados neste app.",
       "computerUnavailable": "O computador deste agente não está disponível.",
       "releaseControl": "Libere o controle do computador antes de abrir outra visualização.",
       "openConversation": "Abra esta solicitação pela conversa da sala.",

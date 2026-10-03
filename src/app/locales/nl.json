@@ -2893,6 +2893,8 @@
     "uiActions": {
       "viewComputer": "Computer bekijken",
       "openMembers": "Leden openen",
+      "openCanvas": "Paneel openen",
+      "canvasDisabled": "Interactieve panelen staan uit in deze app.",
       "computerUnavailable": "De computer van deze agent is niet beschikbaar.",
       "releaseControl": "Geef de computerbediening vrij voordat je een andere weergave opent.",
       "openConversation": "Open dit verzoek vanuit het gesprek in de kamer.",

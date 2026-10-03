@@ -1,0 +1,293 @@
+// @vitest-environment jsdom
+
+import React from 'react';
+import { createRoot, Root } from 'react-dom/client';
+import { act } from 'react-dom/test-utils';
+import type { MatrixClient } from 'matrix-js-sdk';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { CANVAS_SEND_ARM_DELAY_MS, CanvasPanel, type CanvasPanelProps } from './CanvasPanel';
+import { CANVAS_RESPONSE_KEY } from './canvasMessages';
+
+(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+
+vi.mock('folds', () => ({
+  Box: ({ children }: { children?: React.ReactNode }) => <div>{children}</div>,
+  Button: ({
+    children,
+    fill: _fill,
+    variant: _variant,
+    size: _size,
+    ...props
+  }: React.ComponentProps<'button'> & { fill?: string; variant?: string; size?: string }) => (
+    <button {...props}>{children}</button>
+  ),
+  Icon: () => <span />,
+  IconButton: ({ children, ...props }: React.ComponentProps<'button'>) => (
+    <button {...props}>{children}</button>
+  ),
+  Icons: { Cross: 'Cross', Category: 'Category' },
+  Text: ({
+    children,
+    className,
+    role,
+  }: {
+    children?: React.ReactNode;
+    className?: string;
+    role?: string;
+  }) => (
+    <span className={className} role={role}>
+      {children}
+    </span>
+  ),
+}));
+
+vi.mock('./CanvasPanel.css.ts', () => ({
+  Panel: 'Panel',
+  Header: 'Header',
+  Title: 'Title',
+  Frame: 'Frame',
+  Footer: 'Footer',
+  Error: 'Error',
+  Notice: 'Notice',
+  Staged: 'Staged',
+  Data: 'Data',
+}));
+
+const AGENT = '@mindroom_planner:example.org';
+const canvas = {
+  eventId: '$canvas',
+  revisionEventId: '$canvas',
+  agentUserId: AGENT,
+  threadId: '$thread',
+  title: 'Choose a plan',
+  html: '<button>Pro</button>',
+};
+
+let container: HTMLDivElement;
+let root: Root;
+let sendMessage: ReturnType<typeof vi.fn>;
+let txn = 0;
+const nextTxnId = () => {
+  txn += 1;
+  return `txn-${txn}`;
+};
+
+const render = (props: Partial<CanvasPanelProps> = {}) =>
+  act(() => {
+    root.render(
+      <CanvasPanel
+        mx={{ sendMessage, makeTxnId: nextTxnId } as unknown as MatrixClient}
+        roomId="!room:example.org"
+        canvas={canvas}
+        agentName="Planner"
+        colorScheme="dark"
+        onClose={() => undefined}
+        {...props}
+      />
+    );
+  });
+
+const frame = () => container.querySelector('iframe') as HTMLIFrameElement;
+const button = (selector: string) => container.querySelector(selector) as HTMLButtonElement;
+
+const post = async (data: unknown, source: unknown = frame().contentWindow) => {
+  await act(async () => {
+    window.dispatchEvent(
+      new MessageEvent('message', { data, origin: 'null', source: source as Window })
+    );
+  });
+};
+
+const submit = (label = 'Pro plan', data: unknown = { plan: 'pro' }) => ({
+  type: 'mindroom.canvas.submit',
+  version: 1,
+  data,
+  label,
+});
+
+const arm = () =>
+  act(async () => {
+    vi.advanceTimersByTime(CANVAS_SEND_ARM_DELAY_MS);
+  });
+
+const clickSend = () =>
+  act(async () => {
+    button('[data-canvas-send]').click();
+  });
+
+const touchFrame = () =>
+  act(async () => {
+    Object.defineProperty(document, 'activeElement', { configurable: true, get: () => frame() });
+    window.dispatchEvent(new Event('blur'));
+    delete (document as { activeElement?: unknown }).activeElement;
+  });
+
+beforeEach(() => {
+  vi.useFakeTimers();
+  container = document.createElement('div');
+  document.body.appendChild(container);
+  root = createRoot(container);
+  sendMessage = vi.fn().mockResolvedValue({ event_id: '$response' });
+  txn = 0;
+});
+
+afterEach(() => {
+  act(() => root.unmount());
+  container.remove();
+  vi.useRealTimers();
+});
+
+describe('CanvasPanel', () => {
+  it('renders agent HTML in an opaque-origin sandbox with provenance and disclosure', () => {
+    render();
+    const iframe = frame();
+    expect(iframe.getAttribute('sandbox')).toBe('allow-scripts allow-forms');
+    expect(iframe.getAttribute('referrerpolicy')).toBe('no-referrer');
+    expect(iframe.getAttribute('allow')).toContain("camera 'none'");
+    expect(iframe.getAttribute('srcdoc')).toContain('<button>Pro</button>');
+    expect(iframe.getAttribute('srcdoc')).toContain('content="dark"');
+    expect(container.textContent).toContain('Choose a plan');
+    expect(container.textContent).toContain('Interactive panel from Planner');
+    expect(container.textContent).toContain('what you enter here may leave this panel');
+  });
+
+  it('stages a canvas submission until the user sends it from the host', async () => {
+    render();
+    await post(submit());
+    expect(sendMessage).not.toHaveBeenCalled();
+    expect(container.textContent).toContain('Send to Planner: Pro plan');
+    expect(container.textContent).toContain('"plan": "pro"');
+    expect(button('[data-canvas-send]').disabled).toBe(true);
+    await arm();
+    await clickSend();
+    expect(sendMessage).toHaveBeenCalledTimes(1);
+    const [roomId, content, txnId] = sendMessage.mock.calls[0];
+    expect(roomId).toBe('!room:example.org');
+    expect(txnId).toBe('txn-1');
+    expect(content[CANVAS_RESPONSE_KEY]).toMatchObject({
+      canvas_event_id: '$canvas',
+      canvas_revision_event_id: '$canvas',
+      label: 'Pro plan',
+      data: { plan: 'pro' },
+    });
+    expect(container.textContent).toContain('Sent to Planner: Pro plan');
+    expect(button('[data-canvas-send]')).toBeNull();
+  });
+
+  it('keeps the pending snapshot until the user sends or discards it', async () => {
+    // Even right after a real click, a canvas cannot swap what the user is reviewing.
+    Object.defineProperty(navigator, 'userActivation', {
+      configurable: true,
+      value: { isActive: true, hasBeenActive: true },
+    });
+    render();
+    await post(submit('Basic', { plan: 'basic' }));
+    await arm();
+    await post(submit('Everything', { plan: 'everything' }));
+    expect(container.textContent).toContain('Send to Planner: Basic');
+    await act(async () => button('[data-canvas-discard]').click());
+    await act(async () => {
+      vi.advanceTimersByTime(100);
+    });
+    await post(submit('Pro plan'));
+    expect(button('[data-canvas-send]').disabled).toBe(true);
+    await clickSend();
+    expect(sendMessage).not.toHaveBeenCalled();
+    await arm();
+    await clickSend();
+    expect(sendMessage.mock.calls[0][1][CANVAS_RESPONSE_KEY].label).toBe('Pro plan');
+    delete (navigator as { userActivation?: unknown }).userActivation;
+  });
+
+  it('bounds how fast a canvas can stage snapshots', async () => {
+    render();
+    await post(submit('one'));
+    await act(async () => button('[data-canvas-discard]').click());
+    await post(submit('two'));
+    expect(button('[data-canvas-send]')).toBeNull();
+    await act(async () => {
+      vi.advanceTimersByTime(100);
+    });
+    await post(submit('three'));
+    expect(container.textContent).toContain('Send to Planner: three');
+  });
+
+  it('discards a staged snapshot', async () => {
+    render();
+    await post(submit());
+    await act(async () => button('[data-canvas-discard]').click());
+    expect(button('[data-canvas-send]')).toBeNull();
+    expect(sendMessage).not.toHaveBeenCalled();
+  });
+
+  it('ignores messages from other windows', async () => {
+    render();
+    await post(submit(), window);
+    expect(button('[data-canvas-send]')).toBeNull();
+  });
+
+  it('keeps a failed snapshot and retries it with the same transaction', async () => {
+    sendMessage.mockRejectedValueOnce(new Error('offline'));
+    render();
+    await post(submit());
+    await arm();
+    await clickSend();
+    expect(container.textContent).toContain('Could not send your response');
+    await clickSend();
+    expect(sendMessage).toHaveBeenCalledTimes(2);
+    expect(sendMessage.mock.calls[1][2]).toBe(sendMessage.mock.calls[0][2]);
+  });
+
+  it('stops a canvas that navigates away from its document', async () => {
+    render();
+    await act(async () => {
+      frame().dispatchEvent(new Event('load'));
+      frame().dispatchEvent(new Event('load'));
+    });
+    expect(frame()).toBeNull();
+    expect(container.textContent).toContain('tried to leave');
+    await act(async () => button('[data-canvas-reload]').click());
+    expect(frame()).not.toBeNull();
+  });
+
+  it('loads an update at once when the user has not worked in the panel', async () => {
+    render();
+    const first = frame();
+    render({ canvas: { ...canvas, revisionEventId: '$edit', html: '<p>Step 2</p>' } });
+    expect(frame()).not.toBe(first);
+    expect(frame().getAttribute('srcdoc')).toContain('<p>Step 2</p>');
+  });
+
+  it('loads the next step at once after the user answered the current one', async () => {
+    render();
+    await touchFrame();
+    await post(submit());
+    await arm();
+    await clickSend();
+    render({ canvas: { ...canvas, revisionEventId: '$edit', html: '<p>Step 2</p>' } });
+    expect(frame().getAttribute('srcdoc')).toContain('<p>Step 2</p>');
+  });
+
+  it('asks before an update replaces unsent work', async () => {
+    render();
+    await touchFrame();
+    await post(submit());
+    render({ canvas: { ...canvas, revisionEventId: '$edit', html: '<p>Step 2</p>' } });
+    expect(frame().getAttribute('srcdoc')).toContain('<button>Pro</button>');
+    expect(container.textContent).toContain('Planner updated this panel.');
+    expect(button('[data-canvas-send]')).toBeNull();
+    const load = [...container.querySelectorAll('button')].find((candidate) =>
+      candidate.textContent?.includes('Load update')
+    ) as HTMLButtonElement;
+    await act(async () => load.click());
+    expect(frame().getAttribute('srcdoc')).toContain('<p>Step 2</p>');
+    expect(container.textContent).not.toContain('updated this panel');
+  });
+
+  it('closes', () => {
+    const onClose = vi.fn();
+    render({ onClose });
+    act(() => button('[aria-label="Close canvas"]').click());
+    expect(onClose).toHaveBeenCalled();
+  });
+});

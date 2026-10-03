@@ -689,6 +689,52 @@ describe('renderMindroomMessageContent', () => {
     renderer.unmount();
   });
 
+  it('renders a canvas commit as a compact receipt instead of its JSON body', async () => {
+    const { buildCanvasResponseContent } = await import('../canvas/canvasMessages');
+    const content = buildCanvasResponseContent(
+      {
+        eventId: '$canvas',
+        revisionEventId: '$canvas',
+        agentUserId: '@mindroom_a:example.org',
+        agentName: 'A',
+      },
+      { data: { plan: 'pro' }, label: 'Pro plan' }
+    );
+    const renderer = await renderNode({ msgType: 'm.text', content });
+
+    const rendered = JSON.stringify(renderer.toJSON());
+
+    expect(rendered).toContain('Pro plan');
+    expect(rendered).toContain('data-canvas-receipt');
+    expect(rendered).not.toContain('"data-renderer":"text"');
+
+    renderer.unmount();
+  });
+
+  it('renders a canvas commit whose body disagrees with its metadata as ordinary text', async () => {
+    const { buildCanvasResponseContent } = await import('../canvas/canvasMessages');
+    const content = buildCanvasResponseContent(
+      {
+        eventId: '$canvas',
+        revisionEventId: '$canvas',
+        agentUserId: '@mindroom_a:example.org',
+        agentName: 'A',
+      },
+      { data: { plan: 'pro' }, label: 'Pro plan' }
+    );
+    const renderer = await renderNode({
+      msgType: 'm.text',
+      content: { ...content, body: 'Something else entirely' },
+    });
+
+    const rendered = JSON.stringify(renderer.toJSON());
+
+    expect(rendered).toContain('Something else entirely');
+    expect(rendered).not.toContain('data-canvas-receipt');
+
+    renderer.unmount();
+  });
+
   it('renders thread summary metadata through the MindRoom summary card', async () => {
     const renderer = await renderNode({
       msgType: 'm.notice',
