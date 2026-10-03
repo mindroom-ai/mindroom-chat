@@ -3,6 +3,15 @@
     "label": "جدول قابل للتمرير",
     "scrollHint": "التمرير أفقيًا"
   },
+  "messageCodeBlock": {
+    "actions": "إجراءات كتلة التعليمات البرمجية",
+    "code": "التعليمات البرمجية",
+    "copy": "نسخ التعليمات البرمجية",
+    "copied": "تم النسخ",
+    "wrap": "التفاف الأسطر",
+    "expand": "توسيع",
+    "collapse": "طي"
+  },
   "Organisms": {
     "RoomCommon": {
       "changed_room_name": " غيّر اسم الغرفة"

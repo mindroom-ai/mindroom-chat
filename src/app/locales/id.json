@@ -3,6 +3,15 @@
     "label": "Tabel yang dapat digulir",
     "scrollHint": "Gulir secara horizontal"
   },
+  "messageCodeBlock": {
+    "actions": "Tindakan blok kode",
+    "code": "Kode",
+    "copy": "Salin kode",
+    "copied": "Disalin",
+    "wrap": "Bungkus baris",
+    "expand": "Perluas",
+    "collapse": "Ciutkan"
+  },
   "Organisms": {
     "RoomCommon": {
       "changed_room_name": " mengubah nama ruang"

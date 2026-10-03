@@ -3,6 +3,15 @@
     "label": "可滚动表格",
     "scrollHint": "水平滚动"
   },
+  "messageCodeBlock": {
+    "actions": "代码块操作",
+    "code": "代码",
+    "copy": "复制代码",
+    "copied": "已复制",
+    "wrap": "自动换行",
+    "expand": "展开",
+    "collapse": "折叠"
+  },
   "Organisms": {
     "RoomCommon": {
       "changed_room_name": " 更改了房间名称"

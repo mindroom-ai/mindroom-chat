@@ -3,6 +3,15 @@
     "label": "Tabella scorrevole",
     "scrollHint": "Scorri orizzontalmente"
   },
+  "messageCodeBlock": {
+    "actions": "Azioni del blocco di codice",
+    "code": "Codice",
+    "copy": "Copia codice",
+    "copied": "Copiato",
+    "wrap": "A capo automatico",
+    "expand": "Espandi",
+    "collapse": "Comprimi"
+  },
   "Organisms": {
     "RoomCommon": {
       "changed_room_name": " ha cambiato il nome della stanza"

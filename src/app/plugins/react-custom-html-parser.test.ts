@@ -78,6 +78,9 @@ vi.mock('folds', async () => {
       }
     ),
     toRem: (value: number) => `${value / 16}rem`,
+    Tooltip: passthrough('span'),
+    TooltipProvider: ({ children }: { children: (triggerRef: () => void) => React.ReactNode }) =>
+      children(() => undefined),
   };
 });
 
@@ -88,7 +91,14 @@ vi.mock('../styles/CustomHtml.css', () => ({
   Paragraph: 'Paragraph',
   MarginSpaced: 'MarginSpaced',
   CodeBlock: 'CodeBlock',
+  MessageCodeBlock: 'MessageCodeBlock',
   CodeBlockHeader: 'CodeBlockHeader',
+  CodeBlockLabel: 'CodeBlockLabel',
+  CodeBlockLabelText: 'CodeBlockLabelText',
+  CodeBlockLanguageIcon: 'CodeBlockLanguageIcon',
+  CodeBlockActions: 'CodeBlockActions',
+  CodeBlockAction: 'CodeBlockAction',
+  CodeBlockActionIcon: 'CodeBlockActionIcon',
   CodeBlockScroll: 'CodeBlockScroll',
   CodeBlockInternal: 'CodeBlockInternal',
   CodeBlockBottomShadow: 'CodeBlockBottomShadow',
@@ -202,7 +212,9 @@ describe('CodeBlock clipboard feedback', () => {
     );
 
   const getCopyControl = (renderer: ReactTestRenderer) =>
-    renderer.root.findAllByType('span').find((node) => typeof node.props.onClick === 'function')!;
+    renderer.root.find(
+      (node) => node.type === 'button' && String(node.props['aria-label']).startsWith('Cop')
+    );
 
   it('shows Copied only after confirmed clipboard success', async () => {
     clipboardMocks.copyToClipboard.mockResolvedValue(true);
@@ -213,7 +225,7 @@ describe('CodeBlock clipboard feedback', () => {
     });
 
     expect(clipboardMocks.copyToClipboard).toHaveBeenCalledWith('copy me');
-    expect(collectTextContent(renderer.toJSON())).toContain('Copied');
+    expect(getCopyControl(renderer).props['aria-label']).toBe('Copied');
     renderer.unmount();
   });
 
@@ -225,8 +237,54 @@ describe('CodeBlock clipboard feedback', () => {
       await getCopyControl(renderer).props.onClick();
     });
 
-    expect(collectTextContent(renderer.toJSON())).toContain('Copy');
-    expect(collectTextContent(renderer.toJSON())).not.toContain('Copied');
+    expect(getCopyControl(renderer).props['aria-label']).toBe('Copy code');
+    renderer.unmount();
+  });
+});
+
+describe('CodeBlock header', () => {
+  const renderFence = (html: string) => renderCustomHtmlMarkup(html);
+
+  it('shows a known language as its icon, named for assistive technology', () => {
+    const markup = renderFence('<pre><code class="language-sh">ls</code></pre>');
+
+    expect(markup).toContain('role="img" aria-label="sh"');
+    expect(markup).toContain('data-code-icon="bash"');
+  });
+
+  it('labels filenames with the icon of their language', () => {
+    const markup = renderFence(
+      '<pre><code class="language-tsx" data-label="Greeting.tsx">x</code></pre>'
+    );
+
+    expect(markup).toContain('data-code-icon="react"');
+    expect(markup).toContain('>Greeting.tsx</span>');
+  });
+
+  it('falls back to the language name, or text, without an icon', () => {
+    expect(renderFence('<pre><code class="language-elixir">x</code></pre>')).toContain(
+      '>elixir</span>'
+    );
+    expect(renderFence('<pre><code>x</code></pre>')).toContain('>text</span>');
+  });
+
+  it('wraps lines by default and toggles wrapping from the toolbar', () => {
+    const renderer = renderCustomHtmlTree('<pre><code>x</code></pre>');
+    const pre = () => renderer.root.findByType('pre');
+    const wrapButton = () =>
+      renderer.root.find(
+        (node) => node.type === 'button' && node.props['aria-label'] === 'Wrap lines'
+      );
+
+    expect(pre().props['data-wrap']).toBe(true);
+    expect(wrapButton().props['aria-pressed']).toBe(true);
+
+    act(() => {
+      wrapButton().props.onClick();
+    });
+
+    expect(pre().props['data-wrap']).toBe(false);
+    expect(wrapButton().props['aria-pressed']).toBe(false);
     renderer.unmount();
   });
 });
@@ -694,12 +752,12 @@ describe('getReactCustomHtmlParser', () => {
     const codeTree = renderCustomHtmlTree(
       `<pre><code><a href="${matrixTo}">${userId}</a></code></pre>`
     );
-    const copyControl = codeTree.root
-      .findAllByType('span')
-      .find((node) => typeof node.props.onClick === 'function');
+    const copyControl = codeTree.root.find(
+      (node) => node.type === 'button' && node.props['aria-label'] === 'Copy code'
+    );
 
     await act(async () => {
-      await copyControl?.props.onClick();
+      await copyControl.props.onClick();
     });
 
     expect(clipboardMocks.copyToClipboard).toHaveBeenCalledWith(userId);
@@ -715,15 +773,15 @@ describe('getReactCustomHtmlParser', () => {
     const codeTree = renderCustomHtmlTree(
       `<pre><code><a href="${matrixTo}">${customLabel}</a></code></pre>`
     );
-    const copyControl = codeTree.root
-      .findAllByType('span')
-      .find((node) => typeof node.props.onClick === 'function');
+    const copyControl = codeTree.root.find(
+      (node) => node.type === 'button' && node.props['aria-label'] === 'Copy code'
+    );
 
     expect(collectTextContent(codeTree.toJSON())).toContain(customLabel);
     expect(codeTree.root.findAllByType('a')).toHaveLength(0);
 
     await act(async () => {
-      await copyControl?.props.onClick();
+      await copyControl.props.onClick();
     });
 
     expect(clipboardMocks.copyToClipboard).toHaveBeenCalledWith(customLabel);

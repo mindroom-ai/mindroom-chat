@@ -960,6 +960,15 @@
     "label": "স্ক্রোলযোগ্য টেবিল",
     "scrollHint": "অনুভূমিকভাবে স্ক্রোল করুন"
   },
+  "messageCodeBlock": {
+    "actions": "কোড ব্লকের অ্যাকশন",
+    "code": "কোড",
+    "copy": "কোড কপি করুন",
+    "copied": "কপি করা হয়েছে",
+    "wrap": "লাইন মোড়ান",
+    "expand": "বিস্তৃত করুন",
+    "collapse": "গুটিয়ে নিন"
+  },
   "mindroomUi": {
     "models": {
       "modelPicker": {

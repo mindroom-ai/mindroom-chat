@@ -3,6 +3,15 @@
     "label": "Scrollbare Tabelle",
     "scrollHint": "Horizontal scrollen"
   },
+  "messageCodeBlock": {
+    "actions": "Codeblock-Aktionen",
+    "code": "Code",
+    "copy": "Code kopieren",
+    "copied": "Kopiert",
+    "wrap": "Zeilen umbrechen",
+    "expand": "Erweitern",
+    "collapse": "Einklappen"
+  },
   "Organisms": {
     "RoomCommon": {
       "changed_room_name": " hat den Raumnamen geändert"

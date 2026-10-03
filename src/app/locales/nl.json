@@ -3,6 +3,15 @@
     "label": "Scrollbare tabel",
     "scrollHint": "Horizontaal scrollen"
   },
+  "messageCodeBlock": {
+    "actions": "Codeblokacties",
+    "code": "Code",
+    "copy": "Code kopiëren",
+    "copied": "Gekopieerd",
+    "wrap": "Regels laten teruglopen",
+    "expand": "Uitvouwen",
+    "collapse": "Inklappen"
+  },
   "Organisms": {
     "RoomCommon": {
       "changed_room_name": " heeft de kamernaam gewijzigd"

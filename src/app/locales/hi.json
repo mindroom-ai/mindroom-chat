@@ -960,6 +960,15 @@
     "label": "स्क्रॉल करने योग्य तालिका",
     "scrollHint": "क्षैतिज रूप से स्क्रॉल करें"
   },
+  "messageCodeBlock": {
+    "actions": "कोड ब्लॉक क्रियाएँ",
+    "code": "कोड",
+    "copy": "कोड कॉपी करें",
+    "copied": "कॉपी किया गया",
+    "wrap": "पंक्तियाँ रैप करें",
+    "expand": "विस्तृत करें",
+    "collapse": "समेटें"
+  },
   "mindroomUi": {
     "models": {
       "modelPicker": {

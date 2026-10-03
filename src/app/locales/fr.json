@@ -3,6 +3,15 @@
     "label": "Tableau défilant",
     "scrollHint": "Faites défiler horizontalement"
   },
+  "messageCodeBlock": {
+    "actions": "Actions du bloc de code",
+    "code": "Code",
+    "copy": "Copier le code",
+    "copied": "Copié",
+    "wrap": "Retour à la ligne",
+    "expand": "Développer",
+    "collapse": "Réduire"
+  },
   "Organisms": {
     "RoomCommon": {
       "changed_room_name": " a changé le nom de la salle"

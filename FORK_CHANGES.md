@@ -2,6 +2,19 @@
 
 ## Runbook
 
+### Code blocks in the T3 Code style (2026-10-02)
+
+- Message code blocks now follow T3 Code's design: one surface without a separate header bar, a quiet header row with the language as a colored icon (named in a tooltip), and icon-only actions with tooltips.
+  The actions are a line-wrap toggle, the existing expand/collapse for blocks over 14 lines, and copy, which swaps to a check after a confirmed copy.
+  Filename fences (```` ```Greeting.tsx ````) show the icon and the filename; languages without an icon show their name, and fences without a language show `text`, as in T3 Code.
+- Lines wrap by default, matching T3 Code's default; the toggle restores horizontal scrolling for the block.
+- The language icons are the built-in file icons of `@pierre/trees` 1.0.0-beta.4 (Apache-2.0), the set T3 Code uses, vendored as path data for 29 language groups in `codeBlockLanguageIconPaths.ts` with T3 Code's light and dark tints.
+  The package itself is not added: it needs React 18.3 and a Preact beta.
+  The toolbar glyphs are Lucide's `Copy`, `Check`, `TextWrap`, `ChevronsUpDown`, and `ChevronsDownUp` (ISC), inlined in `CodeBlockIcons.tsx`.
+- In dark themes message blocks drop their border; the composer's code block keeps it because the input field shares the block's tint.
+- Action labels are translated in all 17 catalogs under `messageCodeBlock`; `Expand`, `Collapse`, and `Copied` reuse the wording of existing settings controls.
+- `e2e/fixtures/code-blocks.html?theme=<light|silver|dark|midnight|butter>` renders sample fences in any theme for visual checks.
+
 ### Keep thread history reachable after a collapsed sync gap (2026-10-02)
 
 - An iPhone export from build `4233114f` shows a thread reopening with its root and 2 of 41 replies after the app was suspended for 17 minutes while an agent replied.
