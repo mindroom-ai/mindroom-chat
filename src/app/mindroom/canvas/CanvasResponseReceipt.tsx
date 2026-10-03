@@ -1,9 +1,6 @@
 import React from 'react';
 import { Box, Icon, Icons, Text } from 'folds';
-import type { CanvasResponseReceipt as Receipt } from './canvasMessages';
-
-// Chat caps the labels it sends; other senders' labels are cut to the same length.
-const MAX_LABEL_LENGTH = 200;
+import { CANVAS_LABEL_MAX_LENGTH, type CanvasResponseReceipt as Receipt } from './canvasMessages';
 
 // Inline styles keep this renderer free of a style module, like other message renderers.
 // A non-list-item summary has no disclosure marker.
@@ -20,15 +17,27 @@ const dataStyle: React.CSSProperties = {
 };
 
 /** A canvas commit reads as a short confirmation; clicking it reveals the exact data sent. */
-export function CanvasResponseReceipt({ receipt }: { receipt: Receipt }) {
+type CanvasResponseReceiptProps = {
+  receipt: Receipt;
+  /** A local echo that is still sending, or failed, shows its send state instead of a check. */
+  delivered: boolean;
+  renderStateSuffix?: () => React.ReactNode;
+};
+
+export function CanvasResponseReceipt({
+  receipt,
+  delivered,
+  renderStateSuffix,
+}: CanvasResponseReceiptProps) {
   return (
     <details data-canvas-receipt={receipt.canvasEventId}>
       <summary style={summaryStyle} title="Show the data sent to the agent">
         <Box as="span" alignItems="Center" gap="100">
-          <Icon size="50" src={Icons.Check} />
+          {delivered && <Icon size="50" src={Icons.Check} />}
           <Text as="span" size="T300" priority="300">
-            {receipt.label.slice(0, MAX_LABEL_LENGTH)}
+            {receipt.label.slice(0, CANVAS_LABEL_MAX_LENGTH)}
           </Text>
+          {renderStateSuffix?.()}
         </Box>
       </summary>
       <Text as="pre" size="T200" style={dataStyle}>

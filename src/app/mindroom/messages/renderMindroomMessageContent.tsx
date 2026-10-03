@@ -214,6 +214,17 @@ export const renderMindroomMessageContent = ({
       renderStateSuffix,
     });
 
+  const canvasReceipt = msgType === MsgType.Text ? readCanvasResponse(content) : undefined;
+  if (canvasReceipt) {
+    return (
+      <CanvasResponseReceipt
+        receipt={canvasReceipt}
+        delivered={!pendingSend && !failedSend}
+        renderStateSuffix={getMessageStateSuffix()}
+      />
+    );
+  }
+
   const threadSummaryInfo = getMindroomThreadSummaryInfo(content);
   if (threadSummaryInfo) {
     return (
@@ -240,9 +251,6 @@ export const renderMindroomMessageContent = ({
   }
 
   if (msgType === MsgType.Text || msgType === MsgType.File) {
-    const canvasReceipt = msgType === MsgType.Text ? readCanvasResponse(content) : undefined;
-    if (canvasReceipt) return <CanvasResponseReceipt receipt={canvasReceipt} />;
-
     if (msgType === MsgType.Text && isMindroomTranscribingPlaceholder(content)) {
       return (
         <MText

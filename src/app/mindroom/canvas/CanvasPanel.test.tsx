@@ -277,6 +277,52 @@ describe('CanvasPanel', () => {
     expect(container.textContent).not.toContain('Could not send');
   });
 
+  it('keeps Discard unavailable while an answer is sending', async () => {
+    let finish: () => void = () => undefined;
+    sendMessage.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = () => resolve({ event_id: '$response' });
+        })
+    );
+    render();
+    await post(submit());
+    await arm();
+    await clickSend();
+    expect(button('[data-canvas-discard]').disabled).toBe(true);
+    await act(async () => finish());
+    expect(container.textContent).toContain('Sent to Planner: Pro plan');
+  });
+
+  it('defers to the timeline when it already retried a failed answer', async () => {
+    sendMessage.mockImplementationOnce(
+      async (_roomId: string, _content: unknown, txnId: string) => {
+        pendingEvents.set(txnId, { status: 'not_sent' });
+        throw new Error('offline');
+      }
+    );
+    render();
+    await post(submit());
+    await arm();
+    await clickSend();
+    // The timeline's Retry resent the same echo.
+    pendingEvents.set('txn-1', { status: 'sending' });
+    await clickSend();
+    expect(resendEvent).not.toHaveBeenCalled();
+    expect(container.textContent).toContain('Sent to Planner: Pro plan');
+    expect(button('[data-canvas-send]')).toBeNull();
+  });
+
+  it('accepts the first answer of a new revision right after the previous one', async () => {
+    render();
+    await post(submit('one'));
+    await arm();
+    await clickSend();
+    render({ canvas: { ...canvas, revisionEventId: '$edit', html: '<p>Step 2</p>' } });
+    await post(submit('two'));
+    expect(container.textContent).toContain('Send to Planner: two');
+  });
+
   it('keeps the page when the theme changes', async () => {
     render();
     const first = frame();

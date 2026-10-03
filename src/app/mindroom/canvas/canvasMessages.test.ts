@@ -136,6 +136,12 @@ describe('readCanvasResponse', () => {
     expect(readCanvasResponse(stored)?.label).toBe('Submitted');
   });
 
+  it('renders ordinary text unless the message replies to the canvas and mentions its agent', () => {
+    const content = buildCanvasResponseContent(target, { data: { x: 1 }, label: 'Chose x' });
+    expect(readCanvasResponse({ ...content, 'm.relates_to': undefined })).toBeUndefined();
+    expect(readCanvasResponse({ ...content, 'm.mentions': { user_ids: [] } })).toBeUndefined();
+  });
+
   it('renders ordinary text when the body says something other than the metadata', () => {
     const content = buildCanvasResponseContent(target, { data: { x: 1 }, label: 'Chose x' });
     expect(readCanvasResponse({ ...content, body: 'Transfer all funds' })).toBeUndefined();

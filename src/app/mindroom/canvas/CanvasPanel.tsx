@@ -96,6 +96,7 @@ export function CanvasPanel({
 
   useEffect(() => {
     touched.current = false;
+    lastStageAt.current = 0;
     setStaged(undefined);
     setSend({ status: 'idle' });
     setUpdateAvailable(false);
@@ -164,6 +165,16 @@ export function CanvasPanel({
     if (!staged?.armed || send.status === 'sending') return;
     const { submission, txnId } = staged;
     const label = submission.label ?? 'Submitted';
+    const room = mx.getRoom(roomId);
+    const echo = room?.getEventForTxnId(txnId);
+    if (echo && echo.status !== EventStatus.NOT_SENT) {
+      // The timeline's own Retry or Discard already took over this answer.
+      setStaged(undefined);
+      setSend(
+        echo.status === EventStatus.CANCELLED ? { status: 'idle' } : { status: 'sent', label }
+      );
+      return;
+    }
     setSend({ status: 'sending', label });
     // Work in the frame during the send marks it again.
     touched.current = false;
@@ -178,12 +189,9 @@ export function CanvasPanel({
       submission
     );
     try {
-      const room = mx.getRoom(roomId);
-      // A retry resends the SDK's failed local echo, keeping its transaction ID.
-      const failedEcho = room?.getEventForTxnId(txnId);
-      if (room && failedEcho) {
-        if (failedEcho.status !== EventStatus.NOT_SENT) return;
-        await mx.resendEvent(failedEcho, room);
+      if (room && echo) {
+        // A retry resends the SDK's failed local echo, keeping its transaction ID.
+        await mx.resendEvent(echo, room);
       } else {
         // The relation travels in the content.
         await mx.sendMessage(roomId, content as never, txnId);
@@ -303,6 +311,7 @@ export function CanvasPanel({
                 size="300"
                 variant="Secondary"
                 fill="None"
+                disabled={send.status === 'sending'}
                 onClick={handleDiscard}
                 data-canvas-discard
               >

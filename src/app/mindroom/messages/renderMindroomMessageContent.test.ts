@@ -711,6 +711,27 @@ describe('renderMindroomMessageContent', () => {
     renderer.unmount();
   });
 
+  it('shows a canvas answer that is still sending with its send state, not as delivered', async () => {
+    const { buildCanvasResponseContent } = await import('../canvas/canvasMessages');
+    const content = buildCanvasResponseContent(
+      {
+        eventId: '$canvas',
+        revisionEventId: '$canvas',
+        agentUserId: '@mindroom_a:example.org',
+        agentName: 'A',
+      },
+      { data: { plan: 'pro' }, label: 'Pro plan' }
+    );
+    const sending = JSON.stringify(
+      (await renderNode({ msgType: 'm.text', content, pendingSend: true })).toJSON()
+    );
+    const delivered = JSON.stringify((await renderNode({ msgType: 'm.text', content })).toJSON());
+
+    expect(sending).toContain('Message sending');
+    expect(sending).toContain('data-canvas-receipt');
+    expect(delivered).not.toContain('Message sending');
+  });
+
   it('renders a canvas commit whose body disagrees with its metadata as ordinary text', async () => {
     const { buildCanvasResponseContent } = await import('../canvas/canvasMessages');
     const content = buildCanvasResponseContent(

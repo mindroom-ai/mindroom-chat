@@ -6,7 +6,7 @@ import { CANVAS_SUBMIT_MESSAGE } from './canvasDocument';
 export const CANVAS_RESPONSE_KEY = 'io.mindroom.canvas_response';
 
 const MAX_DATA_BYTES = 8 * 1024;
-const MAX_LABEL_LENGTH = 200;
+export const CANVAS_LABEL_MAX_LENGTH = 200;
 
 export type CanvasSubmission = {
   data: unknown;
@@ -75,7 +75,7 @@ export const readCanvasSubmission = (
   if (json === undefined || new TextEncoder().encode(json).length > MAX_DATA_BYTES) {
     return undefined;
   }
-  const label = message.label?.trim().slice(0, MAX_LABEL_LENGTH);
+  const label = message.label?.trim().slice(0, CANVAS_LABEL_MAX_LENGTH);
   return { data: JSON.parse(json), ...(label ? { label } : {}) };
 };
 
@@ -95,7 +95,10 @@ export const buildCanvasResponseContent = (canvas: CanvasTarget, submission: Can
   const label = submission.label ?? 'Submitted';
   const json = serialize(submission.data) ?? 'null';
   const summary = responseSummary(canvas.eventId, canvas.revisionEventId, label);
-  const relation = getMessageRelation(canvas.eventId, undefined, canvas.threadId);
+  // A reply to the canvas request always has a relation; this fallback only satisfies the type.
+  const relation = getMessageRelation(canvas.eventId, undefined, canvas.threadId) ?? {
+    'm.in_reply_to': { event_id: canvas.eventId },
+  };
   return {
     msgtype: MsgType.Text,
     body: canonicalBody(canvas.agentUserId, canvas.eventId, canvas.revisionEventId, label, json),
@@ -106,7 +109,7 @@ export const buildCanvasResponseContent = (canvas: CanvasTarget, submission: Can
       json
     )}</code></pre>`,
     'm.mentions': { user_ids: [canvas.agentUserId] },
-    ...(relation ? { 'm.relates_to': relation } : {}),
+    'm.relates_to': relation,
     [CANVAS_RESPONSE_KEY]: {
       version: 1,
       canvas_event_id: canvas.eventId,
@@ -142,6 +145,18 @@ export const readCanvasResponse = (
     typeof response.agent_user_id !== 'string' ||
     typeof response.canvas_revision_event_id !== 'string' ||
     (response.label !== undefined && typeof response.label !== 'string')
+  ) {
+    return undefined;
+  }
+  const relation = content['m.relates_to'];
+  const reply = record(relation) ? relation['m.in_reply_to'] : undefined;
+  const mentions = content['m.mentions'];
+  if (
+    !record(reply) ||
+    reply.event_id !== response.canvas_event_id ||
+    !record(mentions) ||
+    !Array.isArray(mentions.user_ids) ||
+    !mentions.user_ids.includes(response.agent_user_id)
   ) {
     return undefined;
   }
