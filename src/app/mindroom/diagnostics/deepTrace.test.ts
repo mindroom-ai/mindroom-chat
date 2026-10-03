@@ -14,6 +14,7 @@ import {
   DEEP_TRACE_MAX_PENDING_EVENTS,
   getDeepTraceEnabled,
   initializeDeepTraceRecorder,
+  isDeepTraceRecording,
   readDeepTraceSnapshot,
   recordDeepTraceEvent,
   setDeepTraceEnabled,
@@ -233,7 +234,9 @@ describe('opt-in deep diagnostic trace', () => {
   });
 
   it('records cache database stalls', async () => {
+    expect(isDeepTraceRecording()).toBe(false);
     await setDeepTraceEnabled(true, storage);
+    expect(isDeepTraceRecording()).toBe(true);
     const names = [
       'storage.cache.close',
       'storage.cache.open_settled',

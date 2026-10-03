@@ -514,6 +514,10 @@ export const recordDeepTraceEvent = (
   scheduleFlush(target, options.flush);
 };
 
+/** Cheap check for callers that would otherwise prepare events nobody records. */
+export const isDeepTraceRecording = (): boolean =>
+  !!runtime && runtime.enabled && !runtime.disposed;
+
 export const getDeepTraceEnabled = (
   storage: Storage | undefined = getSafeLocalStorage()
 ): boolean => {

@@ -1,4 +1,8 @@
-import { recordDeepTraceEvent, type DeepTraceData } from '../../diagnostics/deepTrace';
+import {
+  isDeepTraceRecording,
+  recordDeepTraceEvent,
+  type DeepTraceData,
+} from '../../diagnostics/deepTrace';
 
 // An iPhone export showed every cache read hanging after a long suspension while the
 // deep trace's own IndexedDB kept working, with nothing recorded about the cache
@@ -9,7 +13,7 @@ import { recordDeepTraceEvent, type DeepTraceData } from '../../diagnostics/deep
 export const CACHE_STALL_MS = 5_000;
 
 type OpenTransaction = { startedAt: number; readwrite: boolean };
-const openTransactions = new Map<IDBTransaction, OpenTransaction>();
+type OpenTransactions = Map<IDBTransaction, OpenTransaction>;
 
 const elapsed = (startedAt: number): number => Math.round(performance.now() - startedAt);
 
@@ -17,7 +21,11 @@ const elapsed = (startedAt: number): number => Math.round(performance.now() - st
 const storeFields = (stores: readonly string[]): DeepTraceData =>
   Object.fromEntries(stores.map((store) => [store, true]));
 
-const transactionData = (stores: readonly string[], readwrite: boolean): DeepTraceData => {
+const transactionData = (
+  openTransactions: OpenTransactions,
+  stores: readonly string[],
+  readwrite: boolean
+): DeepTraceData => {
   let oldestStartedAt = performance.now();
   let openReadwrite = 0;
   openTransactions.forEach((transaction) => {
@@ -58,16 +66,21 @@ export const traceCacheStoreOpen = (opening: Promise<IDBDatabase | undefined>): 
   );
 };
 
-/** Every cache transaction starts on its connection, so watch them there. */
+/**
+ * Every cache transaction starts on its connection, so watch them there. Each account has
+ * its own cache database, so open counts cover only this connection's transactions.
+ */
 export const traceCacheTransactions = (db: IDBDatabase): void => {
   // Resolve the inherited method per call, so it stays the browser's (or a test's) current one.
   const inherited = Object.getPrototypeOf(db) as IDBDatabase;
+  const openTransactions: OpenTransactions = new Map();
   db.transaction = ((
     storeNames: string | string[],
     mode?: IDBTransactionMode,
     options?: IDBTransactionOptions
   ) => {
     const transaction = inherited.transaction.call(db, storeNames, mode, options);
+    if (!isDeepTraceRecording()) return transaction;
     const stores = typeof storeNames === 'string' ? [storeNames] : [...storeNames];
     const readwrite = mode === 'readwrite';
     const startedAt = performance.now();
@@ -75,7 +88,10 @@ export const traceCacheTransactions = (db: IDBDatabase): void => {
     let stalled = false;
     const timer = setTimeout(() => {
       stalled = true;
-      recordDeepTraceEvent('storage.cache.transaction_stalled', transactionData(stores, readwrite));
+      recordDeepTraceEvent(
+        'storage.cache.transaction_stalled',
+        transactionData(openTransactions, stores, readwrite)
+      );
     }, CACHE_STALL_MS);
     const settle = (aborted: boolean) => () => {
       clearTimeout(timer);
