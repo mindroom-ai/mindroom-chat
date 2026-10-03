@@ -1651,6 +1651,9 @@
     "uiActions": {
       "viewComputer": "कंप्यूटर देखें",
       "openMembers": "सदस्य खोलें",
+      "openCanvas": "पैनल खोलें",
+      "canvasDisabled": "इस ऐप में इंटरैक्टिव पैनल बंद हैं।",
+      "canvasDuringCall": "इंटरैक्टिव पैनल खोलने के लिए कॉल समाप्त करें।",
       "computerUnavailable": "इस एजेंट का कंप्यूटर उपलब्ध नहीं है।",
       "releaseControl": "दूसरा दृश्य खोलने से पहले कंप्यूटर का नियंत्रण छोड़ें।",
       "openConversation": "यह अनुरोध कमरे की बातचीत से खोलें।",

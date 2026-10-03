@@ -84,4 +84,110 @@ describe('readChatUiAction', () => {
       expect(readChatUiAction(event, viewerId, room)).toBeUndefined();
     });
   });
+
+  describe('show_canvas', () => {
+    const canvas = { title: 'Choose a plan', html: '<button>Pro</button>' };
+    const canvasEdit = (metadata: Record<string, unknown>) =>
+      makeUiEvent(
+        {},
+        {
+          event_id: '$edit',
+          content: {
+            msgtype: 'm.notice',
+            body: '* Updated panel',
+            'm.relates_to': { rel_type: 'm.replace', event_id: '$request' },
+            'm.new_content': {
+              msgtype: 'm.notice',
+              body: 'Updated panel',
+              'io.mindroom.ui_action': {
+                version: 1,
+                action: 'show_canvas',
+                requester_id: viewerId,
+                agent_user_id: agentId,
+                room_id: '!room:example.org',
+                thread_id: '$thread',
+                ...metadata,
+              },
+            },
+          },
+        }
+      );
+
+    it('reads the canvas title and HTML', () => {
+      const { room } = makeUiRoom();
+      const event = makeUiEvent({ action: 'show_canvas', canvas });
+      expect(readChatUiAction(event, viewerId, room)).toEqual({
+        eventId: '$request',
+        action: 'show_canvas',
+        agentUserId: agentId,
+        threadId: '$thread',
+        canvas,
+        revisionEventId: '$request',
+        event,
+      });
+    });
+
+    it.each([
+      { canvas: undefined },
+      { canvas: { title: '', html: '<p></p>' } },
+      { canvas: { title: '   ', html: '<p></p>' } },
+      { canvas: { title: 'x'.repeat(201), html: '<p></p>' } },
+      { canvas: { title: 'Ok', html: 5 } },
+      { canvas: { title: 'Ok', html: 'x'.repeat(128 * 1024 + 1) } },
+    ])('rejects invalid canvas content %#', (metadata) => {
+      const { room } = makeUiRoom();
+      expect(
+        readChatUiAction(makeUiEvent({ action: 'show_canvas', ...metadata }), viewerId, room)
+      ).toBeUndefined();
+    });
+
+    it('shows the latest same-request edit of a canvas', () => {
+      const { room } = makeUiRoom();
+      const original = makeUiEvent({ action: 'show_canvas', canvas });
+      original.makeReplaced(canvasEdit({ canvas: { title: 'Step 2', html: '<p>2</p>' } }));
+      expect(readChatUiAction(original, viewerId, room)).toMatchObject({
+        eventId: '$request',
+        action: 'show_canvas',
+        canvas: { title: 'Step 2', html: '<p>2</p>' },
+        revisionEventId: '$edit',
+      });
+    });
+
+    it('ignores an edit from another sender even when the SDK applied it', () => {
+      const { room } = makeUiRoom();
+      const original = makeUiEvent({ action: 'show_canvas', canvas });
+      // Server-bundled edits reach the event without the SDK's sender check.
+      original.makeReplaced(
+        Object.assign(canvasEdit({ canvas: { title: 'Phish', html: '<p>log in</p>' } }), {
+          getSender: () => '@mindroom_second:example.org',
+        })
+      );
+      expect(readChatUiAction(original, viewerId, room)).toMatchObject({
+        canvas,
+        revisionEventId: '$request',
+      });
+    });
+
+    it('keeps the original canvas when an edit changes its authority', () => {
+      const { room } = makeUiRoom();
+      [
+        { requester_id: '@bob:example.org' },
+        { thread_id: '$another' },
+        { action: 'show_computer' },
+        { canvas: { title: '', html: '' } },
+      ].forEach((metadata) => {
+        const original = makeUiEvent({ action: 'show_canvas', canvas });
+        original.makeReplaced(canvasEdit({ canvas, ...metadata }));
+        expect(readChatUiAction(original, viewerId, room)).toMatchObject({
+          canvas,
+          revisionEventId: '$request',
+        });
+      });
+    });
+
+    it('never treats the edit event itself as a request', () => {
+      const { room } = makeUiRoom();
+      expect(readChatUiAction(canvasEdit({ canvas }), viewerId, room)).toBeUndefined();
+    });
+  });
 });

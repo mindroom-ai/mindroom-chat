@@ -46,6 +46,13 @@ export type ClientConfig = {
       /** Exact Matrix server names allowed to open UI automatically. Empty or absent disables it. */
       autoOpenFromHomeservers?: string[];
     };
+    canvas?: {
+      /**
+       * Run agent-made interactive panels. Absent or false keeps them as fallback text.
+       * Panels cannot reach the Matrix session, but WebRTC can still leak what a user types into one.
+       */
+      enabled?: boolean;
+    };
   };
 
   messageRendering?: {
