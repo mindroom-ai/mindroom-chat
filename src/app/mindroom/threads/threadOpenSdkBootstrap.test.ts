@@ -11,7 +11,7 @@ const flushAsyncWork = async (cycles = 5) => {
 };
 
 describe('runThreadOpenSdkBootstrap', () => {
-  it('loads replies when SDK context fails with only the root already present', async () => {
+  it('loads replies through relations without a context request when only the root is loaded', async () => {
     const root = makeEvent('$root', { isThreadRoot: true, ts: 1 });
     const reply = makeEvent('$reply', {
       relation: { rel_type: 'm.thread', event_id: '$root' },
@@ -37,6 +37,7 @@ describe('runThreadOpenSdkBootstrap', () => {
       flushPendingTimelineReset: vi.fn(),
       getUnfilteredTimelineSet: () => ({
         getLiveTimeline: () => timeline,
+        getTimelines: () => [timeline],
         addEventsToTimeline: (
           incoming: MatrixEvent[],
           _backwards: boolean,
@@ -54,7 +55,7 @@ describe('runThreadOpenSdkBootstrap', () => {
     };
     const room = makeRoom({ liveEvents: [root], threads: [thread as never] });
     const mx = {
-      getThreadTimeline: vi.fn().mockRejectedValue(new Error('context unavailable')),
+      getThreadTimeline: vi.fn(),
       fetchRelations: vi.fn().mockResolvedValue({ chunk: [reply.event], next_batch: 'older' }),
       getEventMapper: () => () => reply,
     };
@@ -71,6 +72,7 @@ describe('runThreadOpenSdkBootstrap', () => {
       shouldScrollToLatestOnOpen: true,
     });
     expect(result).toBe(true);
+    expect(mx.getThreadTimeline).not.toHaveBeenCalled();
     expect(events.map((event) => event.getId())).toEqual(['$reply', '$root']);
     expect(backward).toBe('older');
   });
@@ -93,7 +95,10 @@ describe('runThreadOpenSdkBootstrap', () => {
         id: '$root',
         events: [],
         addEvents: vi.fn(),
-        getUnfilteredTimelineSet: () => ({ getLiveTimeline: () => threadTimeline }),
+        getUnfilteredTimelineSet: () => ({
+          getLiveTimeline: () => threadTimeline,
+          getTimelines: () => [threadTimeline],
+        }),
       };
       const room = makeRoom({
         liveEvents: [],
@@ -160,6 +165,7 @@ describe('runThreadOpenSdkBootstrap', () => {
         setEventMetadata: vi.fn(),
         getUnfilteredTimelineSet: () => ({
           getLiveTimeline: () => threadTimeline,
+          getTimelines: () => [threadTimeline],
           addEventsToTimeline: vi.fn(),
         }),
       };
@@ -267,6 +273,7 @@ describe('runThreadOpenSdkBootstrap', () => {
       addEvents: vi.fn(),
       getUnfilteredTimelineSet: () => ({
         getLiveTimeline: () => threadTimeline,
+        getTimelines: () => [threadTimeline],
       }),
     };
     const room = makeRoom({ liveEvents: [root], threads: [thread as never] });

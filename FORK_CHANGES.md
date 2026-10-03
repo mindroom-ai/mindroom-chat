@@ -2,6 +2,33 @@
 
 ## Runbook
 
+### Keep thread history reachable after a collapsed sync gap (2026-10-02)
+
+- An iPhone export from build `4233114f` shows a thread reopening with its root and 2 of 41 replies after the app was suspended for 17 minutes while an agent replied.
+  The resumed `/sync` was limited: the open thread's live segment went to 0 events, and every later open logged `thread.latest.complete` with `snapshot_complete: false` and no backward token, so no older replies were requested.
+  Cache reads stalled for the rest of that session (15 `thread.cache.start`, 3 `thread.cache.read`), so neither the cached snapshot nor the reconcile that waits for it filled the thread.
+  The first reopen still rendered 37 replies, most likely from the in-memory open seed, and then saved its 5-event SDK slice as the new seed.
+- Root cause: the MindRoom Tuwunel collapses superseded edits in `/sync` (`mindroom_compact_edits_enabled`, on by default in the Helm chart).
+  A limited window of a streamed reply's edits shrinks to its newest edit, and `prev_batch` points at that edit.
+  Each thread converts the gap's `prev_batch` with `/messages?dir=f&limit=1`; nothing follows the newest event, so Tuwunel omits `end`, and the SDK stored the missing token as `null`, which marks the thread's new segment as the start of its history.
+  Reproduced against a local `mindroom-tuwunel` with compact edits enabled: the limited sync holds one event and the conversion returns only `start`.
+- With the token kept, a second defect blocked the history: every open called `getThreadTimeline`, which adds the root's context to the segment holding the root (or a new one) by prepending the first reply page newest first.
+  Once the gap has turned the old live segment into a non-live one, the first of those replies that it already holds makes it the older neighbour of the root's segment, although its replies are newer: a cycle when the root was loaded by an earlier open, or a link to an empty segment when a shown card had loaded only the latest page.
+  The next history page from the new live segment then throws `timeline already has a neighbouring timeline`, and the linked chain loses either everything behind the live segment (1 of 41 replies) or the live segment itself (40 of 41).
+- Fix:
+  - SDK patch (`src/models/thread.ts` and `lib`): the conversion falls back to `start` (the boundary itself, per the spec equal to `from`) when `/messages` omits `end`.
+  - `runThreadOpenSdkBootstrap` requests the root context only when the thread has no loaded events in any segment; otherwise backward pagination of the live segment reaches the root.
+    A root-only thread is still filled by the relations fallback that follows, and opening a loaded thread no longer sends `/context`, two `/relations` and an `/event` request first.
+    `thread.sdk.ready` records `context_requested`.
+- Tests: `matrixSdkThreadSyncGaps.test.ts` covers the conversion.
+  `threadSyncGapReopen.test.ts` drives a real client against a transport with Tuwunel's token semantics through a limited sync collapsed to one streamed edit, after an earlier open and after a shown card's initialization, then reopens: with the SDK fix reverted both load no history, with the context always requested both miss replies, and with the context skipped only for a loaded root the shown-card case still fails.
+  Thread timeline-set mocks gained `getTimelines`; tests that loaded or stalled a thread with loaded events through `getThreadTimeline` now use the relations fallback or a pending `initialize()`.
+- Validation: the real SDK and open path against a local `mindroom-tuwunel` with compact edits reopened none of the 41 replies before and all of them after.
+  Typecheck, build and lint pass; the full suite passes except four tests that also fail without this change (three Xcode Cloud script tests need `/bin/bash`, absent on the NixOS host, and the caption send-failure test in `useRoomInputSendSessionController.test.ts`).
+  The patch applies with patch-package to a pristine `matrix-js-sdk@41.7.0` with all 32 patched files byte-identical; two independent review passes found no blockers.
+- Not addressed: the stalled cache reads.
+  The deep trace records no storage operations, and the reconcile only starts after the cache read settles, so a stalled IndexedDB also stops the network repair; the next step is to record cache read stalls and let the open's reconcile start without them.
+
 ### Preserve the selected space when opening threads (2026-10-01)
 
 - Reproduced in the hosted Chrome tab: opening a thread from a space's sidebar navigated to `/home/...` and replaced the space's room list.

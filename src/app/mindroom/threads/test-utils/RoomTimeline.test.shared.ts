@@ -1426,6 +1426,7 @@ const makeRoom = ({
           timeline.setPaginationToken(token, Direction.Backward);
         },
         getLiveTimeline: () => threadLiveTimeline,
+        getTimelines: () => [threadLiveTimeline],
         getTimelineForEvent: (eventId: string) =>
           threadEvents.some((event) => event.getId() === eventId) ? threadLiveTimeline : undefined,
       };
