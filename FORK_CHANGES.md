@@ -52,7 +52,8 @@
   DNS prefetch was not tested.
   A busy canvas script can slow the Chat tab in engines that do not isolate sandboxed frames.
 - Design: two independent plans (Claude Opus 5.5 and GPT-6 Astra) were debated to consensus.
-  Rejected for v1: a custom response event with backend ingress, acknowledgements, and journal changes (the mentioned `m.text` already has durable delivery, routing, authorization, and E2EE); mxc-hosted documents; a declarative-only runtime without agent JavaScript; continuous state sync.
+  Rejected for v1: a custom response event with backend ingress, acknowledgements, and journal changes (the mentioned `m.text` already has durable delivery, routing, authorization, and E2EE); a declarative-only runtime without agent JavaScript; continuous state sync.
+  Pages hosted in Matrix media were deferred in that debate and added later for pages too large for the event (see the wire contract above).
   Spikes in Chromium, Firefox, and WebKit confirmed the sandbox, the CSP, navigation containment by the embedder's `frame-src` (as a header and as the app's meta tag), and the WebRTC residual.
 - Tests: `canvasDocument`, `canvasMessages`, `canvasTheme`, `useCanvasPage`, `CanvasPanel`, `ResizablePanel.maxWidth`, `chatUiProtocol`, `renderMindroomMessageContent`, `CallEmbed.origin`, and `Room.test.ts` cover the policy, bridge validation, canonical JSON and receipts, staging, frozen snapshots, SDK retries and discards, updates, escapes, foreign-sender edits, call exclusion, and routing.
   The backend contract fixture includes `show_canvas` and a real backend update (original plus edit) in room and thread scope, parsed by the real client parser.
