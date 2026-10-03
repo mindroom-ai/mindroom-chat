@@ -13,7 +13,6 @@ import {
   config,
   toRem,
 } from 'folds';
-import { useVirtualizer } from '@tanstack/react-virtual';
 import { useAtom } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import FocusTrap from 'focus-trap-react';
@@ -63,6 +62,10 @@ import { _RoomSearchParams } from '../../paths';
 import { RecentlyOpenedNavCategory } from '../../../mindroom/recent-threads/RecentlyOpenedNavCategory';
 import { ThreadNavCategory } from '../../../mindroom/recent-threads/ThreadNavCategory';
 import { MindroomMarkRoomsReadMenuItem } from '../../../mindroom/notifications/MindroomMarkRoomsReadMenuItem';
+import {
+  makeNavScrollMemoryKey,
+  useNavVirtualizer,
+} from '../../../mindroom/sidebar/navScrollMemory';
 
 type HomeMenuProps = {
   requestClose: () => void;
@@ -215,6 +218,7 @@ export function Home() {
   const { t } = useTranslation();
   const mx = useMatrixClient();
   const scrollRef = useRef<HTMLDivElement>(null);
+  const scrollMemoryKey = makeNavScrollMemoryKey(mx.getSafeUserId(), 'home');
   const rooms = useVisibleRooms(useHomeRooms());
   const notificationPreferences = useRoomsNotificationPreferencesContext();
   const navigate = useNavigate();
@@ -230,7 +234,7 @@ export function Home() {
     return Array.from(rooms).sort(factoryRoomIdByAtoZ(mx));
   }, [mx, rooms, closedCategories]);
 
-  const virtualizer = useVirtualizer({
+  const virtualizer = useNavVirtualizer(scrollMemoryKey, {
     count: sortedRooms.length,
     getScrollElement: () => scrollRef.current,
     estimateSize: () => 38,
@@ -365,7 +369,7 @@ export function Home() {
                 })}
               </div>
             </NavCategory>
-            <ThreadNavCategory sidebarScrollRef={scrollRef} />
+            <ThreadNavCategory />
           </Box>
         )}
       </PageNavContent>

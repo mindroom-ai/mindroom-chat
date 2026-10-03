@@ -14,7 +14,6 @@ import {
   config,
   toRem,
 } from 'folds';
-import { useVirtualizer } from '@tanstack/react-virtual';
 import FocusTrap from 'focus-trap-react';
 import { useNavigate } from 'react-router-dom';
 import { useVisibleRooms } from '../../../mindroom/rooms/archivedRooms';
@@ -47,6 +46,10 @@ import {
 } from '../../../hooks/useRoomsNotificationPreferences';
 import { useDirectCreateSelected } from '../../../hooks/router/useDirectSelected';
 import { RecentlyOpenedNavCategory } from '../../../mindroom/recent-threads/RecentlyOpenedNavCategory';
+import {
+  makeNavScrollMemoryKey,
+  useNavVirtualizer,
+} from '../../../mindroom/sidebar/navScrollMemory';
 import { MindroomMarkRoomsReadMenuItem } from '../../../mindroom/notifications/MindroomMarkRoomsReadMenuItem';
 
 type DirectMenuProps = {
@@ -152,6 +155,7 @@ export function Direct() {
   const { t } = useTranslation();
   const mx = useMatrixClient();
   const scrollRef = useRef<HTMLDivElement>(null);
+  const scrollMemoryKey = makeNavScrollMemoryKey(mx.getSafeUserId(), 'direct');
   const directs = useVisibleRooms(useDirectRooms());
   const notificationPreferences = useRoomsNotificationPreferencesContext();
   const navigate = useNavigate();
@@ -167,7 +171,7 @@ export function Direct() {
     return Array.from(directs).sort(factoryRoomIdByActivity(mx));
   }, [mx, directs, closedCategories]);
 
-  const virtualizer = useVirtualizer({
+  const virtualizer = useNavVirtualizer(scrollMemoryKey, {
     count: sortedDirects.length,
     getScrollElement: () => scrollRef.current,
     estimateSize: () => 38,

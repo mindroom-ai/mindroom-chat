@@ -2,6 +2,32 @@
 
 ## Runbook
 
+### Keep the navigation panel's scroll position when it is shown again (2026-10-02)
+
+- Report: after scrolling down the room list and opening a thread from the left sidebar, the room list is back at the top.
+- Reproduced in the local Docker Matrix stack (Chromium): on a phone-width layout the panel was at 563 px before opening a thread and at 0 after going back; on desktop, Home was at 0 after switching to a space and back.
+  Opening a thread or room whose panel stays mounted (same Home or Space panel on desktop) already kept the position; this did not reproduce locally.
+- Root cause: the Home, Direct and Space panels unmount whenever another view replaces them (every room or thread open on mobile, every switch between Home, Direct Messages and spaces, and the desktop collapse toggle), and the position lived only in the unmounted scroll element.
+  On remount, each panel's TanStack room virtualizer scrolls its new viewport to `initialOffset` (default 0) when it attaches, after child effects have run.
+  The previous thread-only restore carried the offset in `location.state` and was overwritten the same way on every remount; it only took effect while the panel stayed mounted, where nothing had moved.
+- Fix: `useNavVirtualizer` (`src/app/mindroom/sidebar/navScrollMemory.ts`) wraps the panels' `useVirtualizer`.
+  When a panel unmounts it stores the virtualizer's last observed offset and `takeSnapshot()` measurements in memory per account and panel (`home`, `direct`, or the space id; `SpaceProvider` is keyed by space, so a panel's key never changes); the next mount passes them back as `initialOffset` and `initialMeasurementsCache`, TanStack's documented restore path.
+  Restored measurements matter: with only the offset, Home rows estimated at 38 px settle to their real height and move the list by about 20 px, and Space rows estimated at 0 px leave too little height to scroll to the offset.
+  The snapshot seeds only the first layout, so a list that empties and refills (a collapsed Rooms category) is not reseeded with older sizes.
+  When the panel's content now fits, the browser clamps the restore to 0 without a scroll event, and the virtualizer kept rendering rows for the remembered offset; the hook dispatches a scroll event when the viewport and the virtualizer disagree after mount.
+  The `location.state` restore in `ThreadNavCategory` and `ThreadNavItem` is removed, so browser Back and Forward no longer move a panel that stayed mounted.
+- Tests: `navScrollMemory.test.ts` drives the real virtualizer against a jsdom viewport that clamps like a browser: remount restore, per-account and per-panel separation, and a remembered offset that no longer fits; removing `initialOffset` or the scroll-event resync each fails it.
+  `e2e/live/sidebar-scroll-memory.spec.ts` covers desktop thread opens, a desktop space switch and back, and mobile thread and room opens and back, within 1 px of the position after the virtualizer settles; against the previous code it fails at the space switch.
+  Its rooms sort last in Home so they stay rendered in an account shared with other live specs.
+- Validation: on the final code the live spec passed five of six runs against one dev server and one account, and the sixth lost its module requests to `net::ERR_NETWORK_CHANGED` before the sidebar rendered.
+  Typecheck, build and lint pass (17 existing warnings); the full suite passes except the same four tests that fail without this change.
+  An independent review found no blockers; its fixes are the clamp resync, seeding only the first layout, frame-settled e2e capture, and sort-last fixture rooms.
+- Not addressed:
+  - Outside Simple Mode, a Home thread in a room that belongs to a space opens that space (`getRoomPath`), so the Space panel replaces Home and opens at its own remembered position; this is routing, not scroll, and is unchanged.
+  - Space rows keep the default index keys, so restored sizes follow positions; if the hierarchy changed while the panel was unmounted, rows re-measure when rendered and scrolling up through them can shift slightly.
+  - WebKit (Playwright WebKit cannot launch on this NixOS host) and the native iOS shell were not run.
+    If the jump still happens on desktop while the panel stays mounted, it has a different cause, and the next step is a reproduction from that device.
+
 ### Keep thread history reachable after a collapsed sync gap (2026-10-02)
 
 - An iPhone export from build `4233114f` shows a thread reopening with its root and 2 of 41 replies after the app was suspended for 17 minutes while an agent replied.
