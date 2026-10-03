@@ -2,6 +2,22 @@
 
 ## Runbook
 
+### Collapse copied gaps before tool calls and mark the tool-call copy as its own button (2026-10-02)
+
+- Copy Text and Copy Text with Tool Calls left several blank lines between paragraphs of agent replies.
+  The backend appends every marker as `"\n\n🔧 \`tool\` [N]\n\n"` to the reply text (`_format_tool_marker` in `tool_system/events.py`, appended by the stream presentations' `start_tool`), so text that already ends in blank lines leaves a wide gap before the marker; the renderer collapses it, but the copy kept it.
+  `replaceToolMarkerLines` skipped blank lines after a marker but kept every blank line before one, contrary to its own contract that a marker never leaves a gap wider than one blank line.
+- Fix: blank lines before a marker are dropped before its replacement, so both copies leave exactly one blank line where a marker stood.
+  Bodies without displayed markers still copy byte-for-byte.
+- The side action looked like a second trailing icon of the Copy Text row (`T` then `>_`), and its hover was only a faint gray square.
+  A vertical divider now separates it from the row, and it uses the accent color (`Primary`, no fill), whose hover shows a tinted square, so the hovered target is unambiguous.
+  The labelled touch-screen row is unchanged.
+- Tests: two `messageCopyText.test.ts` cases with wide gaps before markers (plain-body fallback and `formatted_body`) fail without the fix.
+  `Message.test.ts` mocks the new `MessageCopyActions.css` module like its other style modules.
+- Validation: unit tests, typecheck, build, lint (0 errors, 17 existing warnings), and the Chromium copy spec (pointer and touch) pass; the four known failures (three `xcodeCloudPostClone` tests need `/bin/bash`, the caption send-failure test) are unchanged.
+  Light and dark fixture screenshots of the idle, Copy Text hover, and side-action hover states were compared before and after.
+- Next: the backend could avoid stacking its marker padding on the reply's own trailing blank lines.
+
 ### Render long whitespace-free text and runs of shortcodes without freezing (2026-10-02)
 
 - An iPhone export from build `4233114f` records a freeze in an open thread: about 0.8 s after the user sent a reply, the flight recorder's 2-second heartbeat stopped (last beat 01:58:37 UTC), and the app stayed frozen until it was force-quit 40 s later.

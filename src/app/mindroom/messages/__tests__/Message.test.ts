@@ -41,6 +41,10 @@ vi.mock('../MindroomModelBadge.css', () => ({
   Label: 'Label',
 }));
 
+vi.mock('../MessageCopyActions.css', () => ({
+  CopyActionDivider: 'CopyActionDivider',
+}));
+
 vi.mock('../MindroomMessageControls.css', () => ({
   AiRunInfoButton: 'AiRunInfoButton',
   AiRunContextBar: 'AiRunContextBar',
