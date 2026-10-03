@@ -7,10 +7,10 @@
 - Report: after the 2026-10-03 reconcile-freeze fix below, a reconcile that added a long thread's history to the SDK thread still cost about 0.8 s on the main thread, mostly `mergeThreadApprovalEvents` in `ActiveThreadApprovalProvider`.
 - Root cause: the provider rescanned on every room `ThreadEvent.New`, `ThreadEvent.Update` and `ThreadEvent.NewReply`, and on every client `MatrixEventEvent.Replaced`.
   A rescan copies the room's live timeline and the whole SDK thread into a queued `setHistory` merge, and the SDK emits `ThreadEvent.Update` once per event it adds to a thread, so adding about 1000 events queued about 1000 merges of about 1000 events each.
-- Fix: those signals queue one rescan per task (`setTimeout` 0, cleared on unmount).
+- Fix: those signals queue at most one pending rescan, which runs in a later task (`setTimeout` 0, cleared when the effect is torn down).
   The initial scan and the per-event `ingest` of a replaced event stay synchronous.
 - Measured in the Docker reproduction (production build, a reopen whose reconcile repairs 1007 events into a 30-event SDK thread): the reconcile's busy run went from 820 ms (two tasks of about 400 ms) to 349 ms of SDK event emission plus a separate 215 ms task serializing the repair write; `mergeThreadApprovalEvents` no longer shows in the profile.
-- Tests: `ThreadApprovalProvider.test.tsx` emits 100 `ThreadEvent.Update`s in one task and expects one rescan that still ingests the thread's approval.
+- Tests: `ThreadApprovalProvider.test.tsx` emits bursts of 100 `ThreadEvent.Update`s and then `ThreadEvent.NewReply`s and expects one rescan per burst that ingests the thread's approvals, and expects no rescan after unmounting with one queued.
 
 ### Add reconciled thread history to the SDK thread as backfill (2026-10-03)
 
