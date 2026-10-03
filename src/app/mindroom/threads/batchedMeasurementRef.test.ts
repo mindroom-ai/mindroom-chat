@@ -2,6 +2,7 @@
 import { Virtualizer } from '@tanstack/react-virtual';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createBatchedMeasurementRef, createScrollMountMeasurement } from './batchedMeasurementRef';
+import { buildMeasurementScrollCorrectionHook } from './threadRenderUtils';
 
 afterEach(() => {
   document.body.replaceChildren();
@@ -24,11 +25,12 @@ function setup() {
   );
   const scroller = document.createElement('div');
   document.body.append(scroller);
+  const scrollToFn = vi.fn();
   const virtualizer = new Virtualizer<HTMLDivElement, HTMLDivElement>({
     count: 30,
     estimateSize: () => 50,
     getScrollElement: () => scroller,
-    scrollToFn: () => {},
+    scrollToFn,
     observeElementRect: (_instance, callback) => callback({ width: 390, height: 844 }),
     observeElementOffset: (_instance, callback) => callback(0, false),
   });
@@ -44,7 +46,7 @@ function setup() {
     attach(row);
     return row;
   };
-  return { virtualizer, ref, mount, measure, unobserve, disconnect, dispose };
+  return { virtualizer, ref, mount, measure, scrollToFn, unobserve, disconnect, dispose };
 }
 
 describe('batched virtualizer measurement ref', () => {
@@ -172,6 +174,25 @@ describe('batched virtualizer measurement ref', () => {
     row.remove();
     await Promise.resolve();
     expect(virtualizer.itemSizeCache.has(0)).toBe(false);
+    dispose();
+  });
+
+  it('folds an iOS correction above the viewport into the ledger without a scroll write', async () => {
+    const { virtualizer, mount, scrollToFn, dispose } = setup();
+    const onDroppedCorrection = vi.fn();
+    virtualizer.shouldAdjustScrollPositionOnItemSizeChange = buildMeasurementScrollCorrectionHook({
+      isIOSWebKitDevice: () => true,
+      onDroppedCorrection,
+    });
+    virtualizer.scrollOffset = 1_000;
+    virtualizer.scrollDirection = 'backward';
+    virtualizer.isScrolling = true;
+    scrollToFn.mockClear();
+
+    mount(0, createBatchedMeasurementRef(createScrollMountMeasurement(virtualizer)));
+    await Promise.resolve();
+    expect(onDroppedCorrection).toHaveBeenCalledWith(30);
+    expect(scrollToFn).not.toHaveBeenCalled();
     dispose();
   });
 });

@@ -19,20 +19,13 @@
   Programmatic scrolls keep virtual-core's own measurement window; its `scrollState` is private and read through a cast, and a unit test pins the behaviour against the real core.
   Corrections still pass through `shouldAdjustScrollPositionOnItemSizeChange`, so dropped corrections fold into the ledger and iOS gets no new scroll writes.
 - Measured after the fix with the same rides: no overlap and no gap in any run; frame-time p95 stayed within run-to-run noise (67 ms in most runs of this harness, on both builds).
-- Tests: `batchedMeasurementRef.test.ts` drives the real virtualizer: a row attached during a scroll is measured before the next task (virtual-core alone leaves it unmeasured), at the height it settles on after its own nested update; removed rows are skipped, cached rows are not read again, and a smooth `scrollToIndex` still limits measurement to its target window.
+- Tests: `batchedMeasurementRef.test.ts` drives the real virtualizer: a row attached during a scroll is measured before the next task (virtual-core alone leaves it unmeasured), at the height it settles on after its own nested update; removed rows are skipped, cached rows are not read again, a smooth `scrollToIndex` still limits measurement to its target window, and an iOS correction above the viewport folds into the ledger without a scroll write.
   `batchedMeasurementRef.commit.test.tsx` renders a real `useVirtualizer` list and expects the corrected tile offsets in the DOM one microtask after rows mount during a scroll; without `flushSync` they wait for a scheduled render.
   `e2e/live/thread-fast-scroll-overlap.spec.ts` checks every seam between adjacent tiles in animation frames and from a late ResizeObserver during a 1,500 px-per-frame ride; it fails on the previous code and passes with the fix.
   The parallel runner runs it serially with the other timing-sensitive specs.
-- Validation: Typecheck (application, changed unit tests and the new spec), build, prettier and lint (0 errors, the existing 17 warnings) pass.
-  The full unit suite passes (5,818 tests) except the four that also fail on unchanged `dev`: three `xcodeCloudPostClone` tests (no `/bin/bash` on this NixOS host) and the caption send-failure test in `useRoomInputSendSessionController.test.ts`.
-  Eleven live scroll specs (26 cases) ran in Chromium against production builds of the previous code and of the fix, on one Matrix stack and account.
-  The results match except the new spec, which fails on the previous code (154 px overlap) and passes with the fix.
-  Both builds fail the same four cases: `cinny070` (prepend anchor), `cinny077` (large-room jump), `thread-ride-under-latency` compositor momentum, and, in this full-suite order, its continuous-flicking case with an identical 142 px gap; that case passed three repeats on each build when run alone.
-  A run of the first version under heavier host load (load average 13 to 17) failed four more iPhone-emulated cases; each passed three repeats on both builds afterwards.
-- Review: two independent reviews found no correctness issue.
-  The first found the 10 px gaps of the ref-callback version and asked for the `scrollState` contract test; the second checked the microtask timing for every commit source in React 18.2 and asked for the React-level test, the recheck of `scrollState` when the microtask runs, and the at-rest limit below.
-  On the PR, Qodo asked for one shared scroller lookup in the live spec and for skipping rows whose size is already cached before queuing them (virtual-core's default measure already returned the cached size without layout; the skip now also avoids an empty microtask and flush), and CodeRabbit asked the spec to require compared tile pairs so it cannot pass without checking a seam.
-  Sourcery was over its review quota.
+- Validation: typecheck, build, prettier and lint pass; the full unit suite passes except the four tests that also fail on unchanged `dev`.
+  Eleven live scroll specs give the same results on `dev` and this branch except the new spec (154 px overlap on `dev`); both fail the same known cases (`cinny070`, `cinny077`, and two `thread-ride-under-latency` cases, one only in full-suite order).
+- Findings from two independent reviews, CodeRabbit and Qodo are addressed.
 - Not covered:
   - Rows that change height after mounting (an image loading, an edit) still re-render after paint through ResizeObserver.
   - Rows that mount at rest or during a non-smooth programmatic scroll are still measured by virtual-core in the ref, before a fresh `CollapsibleMessage` drops its first-pass pill, so they can show the 10 px gap for a frame; this mostly affects overscan rows.

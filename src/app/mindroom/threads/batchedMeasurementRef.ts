@@ -1,7 +1,7 @@
 import type { Virtualizer } from '@tanstack/react-virtual';
 import { flushSync } from 'react-dom';
 
-/** Keep mount measurements synchronous; scan detached nodes once after React removes them. */
+/** Pass attached rows to `measure` at once; scan detached nodes once after React removes them. */
 export const createBatchedMeasurementRef = <T extends Element>(
   measure: (node: T | null) => void
 ) => {
@@ -27,9 +27,10 @@ export const createBatchedMeasurementRef = <T extends Element>(
 type ProgrammaticScroll = { scrollState: unknown };
 
 /**
- * virtual-core measures an attached row only at rest. During a reader's
- * scroll it waits for ResizeObserver, whose update renders after the browser
- * has painted, so a row taller than its estimate is drawn over the next row.
+ * virtual-core measures an attached row at rest or during a programmatic
+ * scroll. During a reader's scroll it waits for ResizeObserver, whose update
+ * renders after the browser has painted, so a row taller than its estimate is
+ * drawn over the next row.
  *
  * Rows attached during a scroll are measured in a microtask instead: after
  * React has flushed the synchronous updates their own mount queued (a
