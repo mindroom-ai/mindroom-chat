@@ -263,7 +263,7 @@ describe('MindroomSyncEngine (CINNY-207 P3.1)', () => {
     const confirmed = (overrides: Partial<MatrixEvent> = {}) =>
       ({ ...makeEvent(), status: null, ...overrides } as unknown as MatrixEvent);
 
-    // Still pending, and a pending echo without a previous status.
+    // Still pending, and an update without a previous status.
     mx.__emit(
       RoomEvent.LocalEchoUpdated,
       { ...makeEvent(), status: 'sent' },

@@ -38,14 +38,15 @@
   `mindroomSyncEngine.test.ts` checks which echo updates are saved.
   `useRoomThreadList.test.tsx` checks one cached-root read per room (and a retry after a failed read).
   `useRoomThreadList.cache.test.tsx` shows the overview repeatedly against real IndexedDB and expects writes only for the first mount, an edited root, and after `clearRoomCachedContent`; a second case lists a root while it decrypts and one whose decryption failed and later succeeds.
-  The own-root case passes before the change, because the list events saved the root; it guards the filter.
-  The other cases fail before the change, and the lease check, the wait for decryption, the decryption state in the revision, the confirmed-echo save, its deduplication and its redaction skip each fail a case when removed.
+  Two cases pass before the change and guard the new paths: the own root (saved before by the list events) and the single save of an own thread reply (the echo was not saved before).
+  The other cases fail before the change, and the lease check, the wait for decryption, the root's decryption failure in the revision, the confirmed-echo save, its deduplication and its redaction skip each fail a case when removed.
 - Validation: typecheck (application and changed tests), build, and lint (0 errors, the existing 17 warnings) pass.
-  The full unit suite passes (5,765 tests) except the four that also fail on unchanged `dev`: three `xcodeCloudPostClone` tests (no `/bin/bash` on this NixOS host) and the caption send-failure test in `useRoomInputSendSessionController.test.ts`.
+  The full unit suite passes (5,805 tests) except the four that also fail on unchanged `dev`: three `xcodeCloudPostClone` tests (no `/bin/bash` on this NixOS host) and the caption send-failure test in `useRoomInputSendSessionController.test.ts`.
 - Review: an independent review found no thread-list emission that carries a real room event, and found two regressions in the first version, both fixed above: encrypted listed roots kept their ciphertext revision, and own thread roots no longer reached the room cache.
   A second review found that the first confirmed-echo save stored own thread events twice (8 instead of 4 transactions per reply) and ran redaction cleanup a third time; both fixed above.
   Known limits: a root counts as saved when its write is issued, so a write aborted by an IndexedDB loss, or a wipe that bumps no lease (another tab's room cleanup, the corruption self-heal, a closed connection), is not repeated until the next page load, which writes every listed root again.
   Threads cached between mounts but missing from the SDK (for example by deep history while the server list is incomplete) are not restored until the next page load.
+  A listed root whose key arrives after it was listed is saved again only on the next overview mount; the list events used to give it a write lease, so the engine saved it on decryption.
 - Not proven: the export cannot show why the networking process exited, and the bursts above are the heaviest traffic found, not a confirmed trigger.
 - Next:
   - Each page load still writes every listed root once, because the server's root (with fresh `unsigned` fields) never matches the cached copy byte for byte; a revision key built from the event, its replacement and its thread summary would avoid that.
@@ -155,7 +156,6 @@
   5,782 unit tests pass after merging current `dev`; the three `xcodeCloudPostClone` tests that need `/bin/bash` and `useRoomInputSendSessionController`'s caption case fail the same way on unchanged `dev`.
 - Next: if the agent reply in the frozen thread held long JSON, paths, URLs or base64, this is the cause.
   Otherwise the next freeze needs evidence the deep trace cannot keep, such as a synchronous breadcrumb written before a message is parsed.
-
 
 ### Keep thread history reachable after a collapsed sync gap (2026-10-02)
 
