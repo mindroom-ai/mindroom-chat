@@ -2,6 +2,56 @@
 
 ## Runbook
 
+### Stop rewriting every thread root to IndexedDB on each overview (2026-10-02)
+
+- An iPhone export from build `4233114f` shows the page reloading 2.6 s after the user sent a new thread root, with the app in the foreground.
+  The next page recorded `storage.indexeddb_loss_reload` (`reload_ms_ago` 200), and `deepTraceHealth.lastFailure` is a `flush` `UnknownError` 1 ms before the reload: WebKit closed every IndexedDB connection, so its networking process had exited, and the #349 sentinel reloaded.
+  The deep trace flushes every 500 ms, yet nothing after the send's `PUT` start was committed, so IndexedDB had stopped committing about 2 s before the loss.
+  There was no native memory warning or WebContent termination.
+  In the 20 s before, the user had gone back from a 474-reply thread to the room overview and opened an overview again.
+- The same export has a second loss 240 ms after the app was hidden, 8 s after an overview was shown, and an earlier session whose heartbeat stopped 1 s after a send until the app was force-quit 40 s later.
+- Measurement (Playwright against a local Tuwunel, production build in iOS mode, with IndexedDB, Web Storage, Blob, MessagePort and fetch calls instrumented): the send itself is light (26-31 transactions, 29 KB), but the overview scales with the room's thread count.
+  In a 500-thread room in WebKit the first overview took 2,774 transactions and 9,909 requests (5,928/s at peak), transactions waited 646 ms on average, and each return from a thread took 550 transactions and read 8.7 MB.
+  On iOS all of this passes through WebKit's networking process.
+- Causes:
+  - The SDK adds every listed root to its thread lists (`room.threadsTimelineSets`) as a live event, and again whenever the thread gets a reply.
+    The engine took each one for a new room event and saved it with four transactions: 90 listed threads caused 120 saves.
+  - Every overview mount read all cached roots (`loadCachedThreadRootsForRoom`) and wrote every listed root again, one transaction each, although nothing had changed.
+- Fix:
+  - `mindroomSyncEngine` ignores timeline events from the SDK's thread lists.
+    Roots that arrive in the room timeline, thread replies, and the roots the overview saves are unaffected.
+  - The user's own thread roots reached the room cache only through those list events: the SDK confirms a sent event by updating its local echo in place (`RoomEvent.LocalEchoUpdated`), only a thread timeline announces it again, and the pending echo is not saved.
+    The engine now saves a confirmed local echo like a live event, unless a timeline already delivered it confirmed (thread events) or it is a redaction (the Redaction channel covers those), so the user's own room messages reach the room cache once, when the server confirms them.
+  - `useRoomThreadList` restores the cached roots of a room once per page load (again after a failed read), and keeps a hash of each saved root revision across mounts, so a mount writes only new or changed roots.
+    The revision includes the decrypted type and decryption failure of the root and its edit, because encrypted events serialize as their ciphertext, and a root whose decryption is running when it is listed is saved when the decryption finishes, if the overview is still shown.
+    The revisions belong to the room's cache write lease, so a cleared room cache gets every root again.
+- Measured in Chromium with the same setup (500 threads, 2 replies each), before and after:
+
+  | Phase | Transactions | IndexedDB requests | Read |
+  | --- | --- | --- | --- |
+  | First overview | 3,297 / 1,214 | 16,728 / 15,925 | 7.8 / 9.7 MB |
+  | Back to the overview | 531 / 28 | 5,782 / 3,018 | 12.4 / 7.0 MB |
+  | Relaunch into the overview | 4,893 / 1,005 | 16,513 / 7,765 | 17.3 / 13.4 MB |
+
+  Call stacks after the fix: the first overview's remaining writes are the one-time deep-history crawl of a fresh account (`deepHistoryJob`, one transaction per thread per page) and the first save of each listed root.
+- Tests: `threadListLiveWrites.test.ts` drives a real client and room through `loadRoomThreads` and a new reply (120 and 2 saves before the change), checks that room events and thread replies still reach the write-through, confirms an own root through its remote echo, and expects one save for a confirmed own thread reply.
+  `mindroomSyncEngine.test.ts` checks which echo updates are saved.
+  `useRoomThreadList.test.tsx` checks one cached-root read per room (and a retry after a failed read).
+  `useRoomThreadList.cache.test.tsx` shows the overview repeatedly against real IndexedDB and expects writes only for the first mount, an edited root, and after `clearRoomCachedContent`; a second case lists a root while it decrypts and one whose decryption failed and later succeeds.
+  The own-root case passes before the change, because the list events saved the root; it guards the filter.
+  The other cases fail before the change, and the lease check, the wait for decryption, the decryption state in the revision, the confirmed-echo save, its deduplication and its redaction skip each fail a case when removed.
+- Validation: typecheck (application and changed tests), build, and lint (0 errors, the existing 17 warnings) pass.
+  The full unit suite passes (5,765 tests) except the four that also fail on unchanged `dev`: three `xcodeCloudPostClone` tests (no `/bin/bash` on this NixOS host) and the caption send-failure test in `useRoomInputSendSessionController.test.ts`.
+- Review: an independent review found no thread-list emission that carries a real room event, and found two regressions in the first version, both fixed above: encrypted listed roots kept their ciphertext revision, and own thread roots no longer reached the room cache.
+  A second review found that the first confirmed-echo save stored own thread events twice (8 instead of 4 transactions per reply) and ran redaction cleanup a third time; both fixed above.
+  Known limits: a root counts as saved when its write is issued, so a write aborted by an IndexedDB loss, or a wipe that bumps no lease (another tab's room cleanup, the corruption self-heal, a closed connection), is not repeated until the next page load, which writes every listed root again.
+  Threads cached between mounts but missing from the SDK (for example by deep history while the server list is incomplete) are not restored until the next page load.
+- Not proven: the export cannot show why the networking process exited, and the bursts above are the heaviest traffic found, not a confirmed trigger.
+- Next:
+  - Each page load still writes every listed root once, because the server's root (with fresh `unsigned` fields) never matches the cached copy byte for byte; a revision key built from the event, its replacement and its thread summary would avoid that.
+  - Returning to an overview still reads about 7 MB (`loadCachedThreadOverviewRecords`).
+  - Before the recovery reload, keep the deep trace's unwritten tail (in localStorage) so the next export shows the seconds before a loss.
+
 ### Keep the navigation panel's scroll position when it is shown again (2026-10-02)
 
 - Report: after scrolling down the room list and opening a thread from the left sidebar, the room list is back at the top.
@@ -105,6 +155,7 @@
   5,782 unit tests pass after merging current `dev`; the three `xcodeCloudPostClone` tests that need `/bin/bash` and `useRoomInputSendSessionController`'s caption case fail the same way on unchanged `dev`.
 - Next: if the agent reply in the frozen thread held long JSON, paths, URLs or base64, this is the cause.
   Otherwise the next freeze needs evidence the deep trace cannot keep, such as a synchronous breadcrumb written before a message is parsed.
+
 
 ### Keep thread history reachable after a collapsed sync gap (2026-10-02)
 

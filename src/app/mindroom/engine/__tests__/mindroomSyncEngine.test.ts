@@ -254,6 +254,52 @@ describe('MindroomSyncEngine (CINNY-207 P3.1)', () => {
     engine.stop();
   });
 
+  it('saves a confirmed local echo once, except redactions and events a timeline saved', () => {
+    const mx = createMockClient(SyncState.Syncing);
+    const writeThrough: EngineWriteThrough = { handleLiveEvent: vi.fn(), flush: vi.fn() };
+    const engine = createMindroomSyncEngine({ mx, writeThrough });
+    engine.start();
+    const room = makeRoom('!r1');
+    const confirmed = (overrides: Partial<MatrixEvent> = {}) =>
+      ({ ...makeEvent(), status: null, ...overrides } as unknown as MatrixEvent);
+
+    // Still pending, and a pending echo without a previous status.
+    mx.__emit(
+      RoomEvent.LocalEchoUpdated,
+      { ...makeEvent(), status: 'sent' },
+      room,
+      '~1',
+      'sending'
+    );
+    mx.__emit(RoomEvent.LocalEchoUpdated, confirmed(), room, '~1', undefined);
+    // The Redaction channel saves confirmed redactions.
+    mx.__emit(
+      RoomEvent.LocalEchoUpdated,
+      confirmed({ isRedaction: () => true }),
+      room,
+      '~2',
+      'sent'
+    );
+    expect(writeThrough.handleLiveEvent).not.toHaveBeenCalled();
+
+    const message = confirmed();
+    mx.__emit(RoomEvent.LocalEchoUpdated, message, room, '~3', 'sent');
+    expect(writeThrough.handleLiveEvent).toHaveBeenCalledTimes(1);
+    expect(writeThrough.handleLiveEvent).toHaveBeenLastCalledWith(message, room, {
+      kind: 'timeline',
+      roomId: '!r1',
+      liveEvent: true,
+      toStartOfTimeline: false,
+    });
+
+    // A thread timeline announced this confirmed reply before its echo update.
+    const threadReply = confirmed();
+    mx.__emit(RoomEvent.Timeline, threadReply, room, false, false, { liveEvent: true });
+    mx.__emit(RoomEvent.LocalEchoUpdated, threadReply, room, '~4', 'sent');
+    expect(writeThrough.handleLiveEvent).toHaveBeenCalledTimes(2);
+    engine.stop();
+  });
+
   it('dispatches redactions through the write-through layer once live', async () => {
     const mx = createMockClient(SyncState.Syncing);
     const engine = createMindroomSyncEngine({ mx });
