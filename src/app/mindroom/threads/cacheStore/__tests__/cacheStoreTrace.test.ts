@@ -3,7 +3,7 @@ import { forceCloseDatabase } from 'fake-indexeddb';
 import { afterEach, expect, it, vi } from 'vitest';
 import { recordDeepTraceEvent } from '../../../diagnostics/deepTrace';
 import { deleteCacheStoreDb, openCacheStore } from '../cacheStoreDb';
-import { CACHE_STALL_MS, traceCacheStoreOpen } from '../cacheStoreTrace';
+import { CACHE_STALL_MS } from '../cacheStoreTrace';
 
 vi.mock('../../../diagnostics/deepTrace', () => ({ recordDeepTraceEvent: vi.fn() }));
 
@@ -67,20 +67,21 @@ it('records a cache connection that the browser closes', async () => {
 
 it('records a cache open that stalls and how it ends', async () => {
   vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
-  let finishOpen!: (db: IDBDatabase | undefined) => void;
-  traceCacheStoreOpen(
-    new Promise((resolve) => {
-      finishOpen = resolve;
-    })
-  );
-  vi.advanceTimersByTime(CACHE_STALL_MS);
-  expect(record).toHaveBeenCalledWith('storage.cache.open_stalled');
+  const request = {} as IDBOpenDBRequest;
+  const open = vi.spyOn(indexedDB, 'open').mockReturnValue(request);
+  try {
+    const opening = openCacheStore(sessionId).catch(() => undefined);
+    vi.advanceTimersByTime(CACHE_STALL_MS);
+    expect(record).toHaveBeenCalledWith('storage.cache.open_stalled');
 
-  finishOpen({} as IDBDatabase);
-  await Promise.resolve();
-  expect(record).toHaveBeenLastCalledWith('storage.cache.open_settled', {
-    duration_ms: expect.any(Number),
-    ok: true,
-    blocked: false,
-  });
+    request.onblocked?.call(request, {} as IDBVersionChangeEvent);
+    await opening;
+    expect(record).toHaveBeenLastCalledWith('storage.cache.open_settled', {
+      duration_ms: expect.any(Number),
+      ok: false,
+      blocked: true,
+    });
+  } finally {
+    open.mockRestore();
+  }
 });

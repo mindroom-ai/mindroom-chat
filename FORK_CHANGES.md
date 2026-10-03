@@ -7,15 +7,15 @@
 - The iPhone export behind #362 shows every thread cache read hanging for the rest of the session after a 17-minute suspension (15 `thread.cache.start`, 3 `thread.cache.read`), with no error, no IndexedDB loss reload, and no storage events at all.
   The deep trace's own IndexedDB connection, opened before the suspension, kept writing throughout, so the stall was specific to the cache database; the trace cannot tell whether opening it or a transaction stopped.
   The open's reconcile waits for that read, and its own scan and repair use the same database.
-- `cacheStore/cacheStoreTrace.ts` records only operations that stall (5 s), so a healthy session adds nothing:
+- `cacheStore/cacheStoreTrace.ts` records only operations still running after 5 s, so a healthy session adds little: a transaction in flight when iOS suspends the app can report a stall on resume, which its `duration_ms` and the lifecycle events tell apart.
   - `storage.cache.transaction_stalled`: mode (`readwrite`), one `true` field per store in scope, and how many cache transactions were open (`open`, `open_readwrite`) and the age of the oldest (`oldest_open_ms`), which shows a read waiting behind a write.
   - `storage.cache.transaction_settled`: how a stalled transaction ended (`duration_ms`, `aborted`).
   - `storage.cache.open_stalled` and `storage.cache.open_settled` (`duration_ms`, `ok`, `blocked`) for `openCacheStore`, including its legacy wipe.
   - `storage.cache.close` (`version_change`) when the browser or another tab closes the connection.
 - Every cache transaction starts on the connection from `openCacheStore`, so the connection's `transaction` method is wrapped there once; callers are unchanged.
   The wrapper resolves the inherited method on each call, so tests that spy on `IDBDatabase.prototype.transaction` still reach the cache's transactions.
-- Tests: `cacheStoreTrace.test.ts` holds transactions open past the threshold with fake-indexeddb, and covers fast transactions, a closed connection and a stalled open; `deepTrace.test.ts` checks the new names are exported.
-  Each fails with its wiring or allow-list entry removed.
+- Tests: `cacheStoreTrace.test.ts` holds transactions open past the threshold with fake-indexeddb, and covers fast transactions, a closed connection, and an `openCacheStore` call whose open stalls and is then blocked; `deepTrace.test.ts` checks the new names are exported.
+  The stalled-transaction, close, stalled-open and allow-list tests each fail with their wiring or allow-list entry removed.
 - Validation: typecheck, build, eslint and prettier pass; the full suite passes except the four tests that already fail on `dev` here (three Xcode Cloud script tests need `/bin/bash`, and the caption send-failure test).
 - Next: with deep trace enabled, an export after the next stall names the blocking operation; fix that cause rather than adding timeouts.
 
