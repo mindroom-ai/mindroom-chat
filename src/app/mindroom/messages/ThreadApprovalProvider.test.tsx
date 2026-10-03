@@ -1,6 +1,6 @@
 import React from 'react';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
-import { createClient, MatrixEvent, MatrixEventEvent, Room } from 'matrix-js-sdk';
+import { createClient, MatrixEvent, MatrixEventEvent, Room, ThreadEvent } from 'matrix-js-sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CryptoBackend } from 'matrix-js-sdk/lib/common-crypto/CryptoBackend';
 import { hydrateCachedEvents, serializeEventsForCache } from '../threads/eventCacheEditUtils';
@@ -821,4 +821,20 @@ it('redacts a ciphertext timeline copy when retained approval evidence is alread
   expect(cached.isRedacted()).toBe(true);
   expect(current.records).toEqual([]);
   expect(current.error).toBeUndefined();
+});
+
+it('rescans the room and thread once for a burst of SDK thread events', async () => {
+  await mount();
+  // The SDK emits one per event it adds to a thread, e.g. a reconcile's backfill.
+  const thread = { events: [event()] };
+  vi.spyOn(room, 'getThread').mockReturnValue(thread as never);
+  const rescans = vi.spyOn(room, 'getLiveTimeline');
+  await act(async () => {
+    for (let i = 0; i < 100; i += 1) room.emit(ThreadEvent.Update, thread as never);
+    await new Promise((resolve) => {
+      setTimeout(resolve, 0);
+    });
+  });
+  expect(rescans).toHaveBeenCalledTimes(1);
+  expect(current.records.map((record) => record.eventId)).toEqual(['$approval']);
 });
