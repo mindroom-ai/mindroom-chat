@@ -6,6 +6,7 @@
   "messageCodeBlock": {
     "actions": "コードブロックの操作",
     "code": "コード",
+    "language": "言語: {{language}}",
     "copy": "コードをコピー",
     "copied": "コピーされました",
     "wrap": "行を折り返す",

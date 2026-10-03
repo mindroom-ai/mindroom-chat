@@ -963,6 +963,7 @@
   "messageCodeBlock": {
     "actions": "कोड ब्लॉक क्रियाएँ",
     "code": "कोड",
+    "language": "भाषा: {{language}}",
     "copy": "कोड कॉपी करें",
     "copied": "कॉपी किया गया",
     "wrap": "पंक्तियाँ रैप करें",

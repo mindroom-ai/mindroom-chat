@@ -6,6 +6,7 @@
   "messageCodeBlock": {
     "actions": "Действия с блоком кода",
     "code": "Код",
+    "language": "Язык: {{language}}",
     "copy": "Копировать код",
     "copied": "Скопировано",
     "wrap": "Переносить строки",

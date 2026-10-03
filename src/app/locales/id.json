@@ -6,6 +6,7 @@
   "messageCodeBlock": {
     "actions": "Tindakan blok kode",
     "code": "Kode",
+    "language": "Bahasa: {{language}}",
     "copy": "Salin kode",
     "copied": "Disalin",
     "wrap": "Bungkus baris",

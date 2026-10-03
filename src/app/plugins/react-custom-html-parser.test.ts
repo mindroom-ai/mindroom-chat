@@ -250,7 +250,7 @@ describe('CodeBlock header', () => {
   it('shows a known language as its icon, named for assistive technology', () => {
     const markup = renderFence('<pre><code class="language-sh">ls</code></pre>');
 
-    expect(markup).toContain('role="img" aria-label="sh"');
+    expect(markup).toContain('role="img" aria-label="Language: sh"');
     expect(markup).toContain('data-code-icon="bash"');
   });
 
@@ -268,6 +268,23 @@ describe('CodeBlock header', () => {
       '>elixir</span>'
     );
     expect(renderFence('<pre><code>x</code></pre>')).toContain('>text</span>');
+  });
+
+  it('collapses a long wrapped line like a long block', () => {
+    const renderer = renderCustomHtmlTree(`<pre><code>${'x'.repeat(2000)}</code></pre>`);
+    const expand = () =>
+      renderer.root.findAll(
+        (node) => node.type === 'button' && node.props['aria-label'] === 'Expand'
+      );
+
+    expect(expand()).toHaveLength(1);
+    act(() => {
+      renderer.root
+        .find((node) => node.type === 'button' && node.props['aria-label'] === 'Wrap lines')
+        .props.onClick();
+    });
+    expect(expand()).toHaveLength(0);
+    renderer.unmount();
   });
 
   it('wraps lines by default and toggles wrapping from the toolbar', () => {
@@ -302,25 +319,31 @@ describe('fenced code syntax highlighting', () => {
     renderer.unmount();
   });
 
-  it('keeps search highlights instead while a search is active', () => {
+  const renderSearch = (html: string) => {
     const opts = getReactCustomHtmlParser({} as MatrixClient, undefined, {
       linkifyOpts: LINKIFY_OPTS,
       highlightRegex: /const/gi,
     });
     let renderer: ReactTestRenderer | undefined;
     act(() => {
-      renderer = create(
-        React.createElement(
-          React.Fragment,
-          null,
-          parse('<pre><code class="language-js">const a = 1;</code></pre>', opts)
-        )
-      );
+      renderer = create(React.createElement(React.Fragment, null, parse(html, opts)));
     });
+    return renderer!;
+  };
 
-    expect(renderer!.root.findAllByType(ErrorBoundary)).toHaveLength(0);
-    expect(renderer!.root.findAllByProps({ className: 'highlightText' })).toHaveLength(1);
-    renderer!.unmount();
+  it('shows search matches instead of syntax colors in a matching block', () => {
+    const renderer = renderSearch('<pre><code class="language-js">const a = 1;</code></pre>');
+
+    expect(renderer.root.findAllByType(ErrorBoundary)).toHaveLength(0);
+    expect(renderer.root.findAllByProps({ className: 'highlightText' })).toHaveLength(1);
+    renderer.unmount();
+  });
+
+  it('keeps syntax colors in blocks without a search match', () => {
+    const renderer = renderSearch('<pre><code class="language-js">let a = 1;</code></pre>');
+
+    expect(renderer.root.findAllByType(ErrorBoundary)).toHaveLength(1);
+    renderer.unmount();
   });
 });
 

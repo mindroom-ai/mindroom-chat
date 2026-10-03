@@ -6,6 +6,7 @@
   "messageCodeBlock": {
     "actions": "코드 블록 작업",
     "code": "코드",
+    "language": "언어: {{language}}",
     "copy": "코드 복사",
     "copied": "복사됨",
     "wrap": "줄 바꿈",

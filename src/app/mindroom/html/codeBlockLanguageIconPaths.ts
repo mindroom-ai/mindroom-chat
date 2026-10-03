@@ -1,7 +1,8 @@
 // Language icons from the built-in file icon set of @pierre/trees 1.0.0-beta.4
 // (Copyright 2025 Pierre Computer Company, Apache License 2.0), the set T3 Code
-// shows in its code block headers. Each icon is filled with currentColor on a
-// 16x16 grid; the faded paths are the tinted backdrop behind the glyph.
+// shows in its code block headers, converted from SVG symbols to path data.
+// License texts: CODE_BLOCK_ICONS_LICENSES.md. Each icon is filled with
+// currentColor on a 16x16 grid; the faded paths are the backdrop behind the glyph.
 
 export type CodeBlockIconPath = {
   d: string;

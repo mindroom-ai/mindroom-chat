@@ -6,6 +6,7 @@
   "messageCodeBlock": {
     "actions": "Code block actions",
     "code": "Code",
+    "language": "Language: {{language}}",
     "copy": "Copy code",
     "copied": "Copied",
     "wrap": "Wrap lines",

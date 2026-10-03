@@ -6,6 +6,7 @@
   "messageCodeBlock": {
     "actions": "Codeblokacties",
     "code": "Code",
+    "language": "Taal: {{language}}",
     "copy": "Code kopiëren",
     "copied": "Gekopieerd",
     "wrap": "Regels laten teruglopen",

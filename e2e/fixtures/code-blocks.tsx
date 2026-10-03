@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useLayoutEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import parse from 'html-react-parser';
 import { MatrixClient } from 'matrix-js-sdk';
@@ -71,13 +71,20 @@ const blocks = [
   ),
 ];
 
-// A streamed reply edits its code block in place, one line at a time.
+// A streamed reply edits its code block in place, one line at a time. Edits
+// arrive from sync rather than input events, hence the timeout.
 function StreamingBlock() {
   const [lines, setLines] = useState(1);
   const code = Array.from({ length: lines }, (_, index) => `const line${index} = ${index};`);
+  // A busy timeline's commit outlasts React's frame budget, so effects that are
+  // not layout effects run in a later task, after the browser may have painted.
+  useLayoutEffect(() => {
+    const end = performance.now() + 20;
+    while (performance.now() < end);
+  }, [lines]);
   return (
     <section aria-label="Streaming code">
-      <button type="button" onClick={() => setLines(lines + 1)}>
+      <button type="button" onClick={() => setTimeout(() => setLines((count) => count + 1))}>
         Stream another line
       </button>
       {parse(block(code.join('\n'), 'js'), parser)}

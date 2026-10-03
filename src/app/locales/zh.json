@@ -6,6 +6,7 @@
   "messageCodeBlock": {
     "actions": "代码块操作",
     "code": "代码",
+    "language": "语言：{{language}}",
     "copy": "复制代码",
     "copied": "已复制",
     "wrap": "自动换行",

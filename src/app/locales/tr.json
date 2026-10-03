@@ -6,6 +6,7 @@
   "messageCodeBlock": {
     "actions": "Kod bloğu işlemleri",
     "code": "Kod",
+    "language": "Dil: {{language}}",
     "copy": "Kodu kopyala",
     "copied": "Kopyalandı",
     "wrap": "Satırları kaydır",

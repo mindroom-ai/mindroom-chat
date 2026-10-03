@@ -7,8 +7,9 @@ import {
 import { getCodeBlockIconColors } from './codeBlockLanguage';
 import * as css from '../../styles/CustomHtml.css';
 
-// Toolbar glyphs from Lucide (ISC License, Copyright Lucide Contributors), the
-// icon set T3 Code uses on its code block actions.
+// Toolbar glyphs from Lucide (ISC License, Copyright Lucide Contributors, with
+// portions from Feather under the MIT License), the icon set T3 Code uses on its
+// code block actions. License texts: CODE_BLOCK_ICONS_LICENSES.md.
 function LucideIcon({ children }: { children: ReactNode }) {
   return (
     <svg

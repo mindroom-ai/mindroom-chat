@@ -111,7 +111,8 @@ export const CodeBlockHeader = style({
   alignItems: 'center',
   justifyContent: 'space-between',
   gap: config.space.S200,
-  padding: `${toRem(6)} ${toRem(6)} 0 ${config.space.S300}`,
+  paddingBlock: `${toRem(6)} 0`,
+  paddingInline: `${config.space.S300} ${toRem(6)}`,
   userSelect: 'none',
 });
 export const CodeBlockLabel = style([
@@ -147,6 +148,11 @@ export const CodeBlockActions = style({
   alignItems: 'center',
   gap: toRem(2),
   flexShrink: 0,
+  '@media': {
+    '(pointer: coarse)': {
+      gap: config.space.S100,
+    },
+  },
 });
 export const CodeBlockAction = style([
   DefaultReset,
@@ -163,7 +169,7 @@ export const CodeBlockAction = style([
     cursor: 'pointer',
     transition: 'background-color 120ms ease, color 120ms ease, scale 120ms ease',
     selectors: {
-      '&:hover, &[aria-pressed=true]': {
+      '&[aria-pressed=true]': {
         backgroundColor: color.SurfaceVariant.ContainerActive,
         color: color.SurfaceVariant.OnContainer,
       },
@@ -176,9 +182,18 @@ export const CodeBlockAction = style([
       },
     },
     '@media': {
+      // Touch screens keep :hover after a tap, which would read as pressed.
+      '(hover: hover)': {
+        selectors: {
+          '&:hover': {
+            backgroundColor: color.SurfaceVariant.ContainerActive,
+            color: color.SurfaceVariant.OnContainer,
+          },
+        },
+      },
       '(pointer: coarse)': {
-        width: toRem(28),
-        height: toRem(28),
+        width: toRem(32),
+        height: toRem(32),
       },
     },
   },

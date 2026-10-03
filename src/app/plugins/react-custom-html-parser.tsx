@@ -322,6 +322,7 @@ function CodeBlockAction({
  * named in a tooltip, and falls back to the language text without one.
  */
 function CodeBlockTitle({ label, language }: { label?: string; language?: string }) {
+  const { t } = useTranslation();
   const iconToken = language ? getCodeBlockLanguageIconToken(language) : undefined;
   if (label) {
     return (
@@ -349,7 +350,12 @@ function CodeBlockTitle({ label, language }: { label?: string; language?: string
       }
     >
       {(triggerRef) => (
-        <span ref={triggerRef} className={css.CodeBlockLabel} role="img" aria-label={language}>
+        <span
+          ref={triggerRef}
+          className={css.CodeBlockLabel}
+          role="img"
+          aria-label={t('messageCodeBlock.language', { language })}
+        >
           <CodeBlockLanguageIcon token={iconToken} />
         </span>
       )}
@@ -371,17 +377,16 @@ export function CodeBlock({
   const language = getCodeBlockLanguage(attribs?.class);
 
   const LINE_LIMIT = 14;
-  const largeCodeBlock = useMemo(
-    () => extractTextFromChildren(children).split('\n').length > LINE_LIMIT,
-    [children]
-  );
-
+  const text = useMemo(() => extractTextFromChildren(children), [children]);
   const [expanded, setExpand] = useState(false);
   const [wrapped, setWrapped] = useState(true);
   const [copied, setCopied] = useTimeoutToggle();
+  // Wrapped, a single long line (minified JSON, a log) grows as tall as many short ones.
+  const largeCodeBlock =
+    text.split('\n').length > LINE_LIMIT || (wrapped && text.length > LINE_LIMIT * 80);
 
   const handleCopy = async () => {
-    if (await copyToClipboard(extractTextFromChildren(children))) setCopied();
+    if (await copyToClipboard(text)) setCopied();
   };
 
   const toggleExpand = () => {
@@ -399,7 +404,7 @@ export function CodeBlock({
         <CodeBlockTitle label={customLabel} language={language} />
         <div
           className={css.CodeBlockActions}
-          role="toolbar"
+          role="group"
           aria-label={t('messageCodeBlock.actions', 'Code block actions')}
         >
           <CodeBlockAction
@@ -592,7 +597,7 @@ export const getReactCustomHtmlParser = (
                   <Suspense fallback={<code {...props}>{codeReact}</code>}>
                     {/* Prism rewrites the element, and React's next text update erases its
                         tokens; remount on each edit so streamed code stays highlighted. */}
-                    <ReactPrism key={codeReact}>
+                    <ReactPrism key={`${lang}:${codeReact}`}>
                       {(ref) => (
                         <code ref={ref} {...props} className={lang}>
                           {codeReact}
@@ -679,8 +684,12 @@ export const getReactCustomHtmlParser = (
         }
 
         // Fenced code stays a plain string so the code replacer can hand it to
-        // Prism; while searching, the match highlights win over syntax colors.
-        if (parentName === 'code' && hasAncestorTag(domNode, 'pre') && !params.highlightRegex) {
+        // Prism; a block containing a search match shows the match instead.
+        if (
+          parentName === 'code' &&
+          hasAncestorTag(domNode, 'pre') &&
+          (!params.highlightRegex || domNode.data.search(params.highlightRegex) === -1)
+        ) {
           return undefined;
         }
 
