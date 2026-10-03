@@ -73,6 +73,7 @@
   The same agent built a SaaS operations dashboard (KPI cards with sparklines, SVG line, bar, and donut charts, a sortable table) that used the theme variables and reflowed to six columns when expanded.
   It wrote a six-slide deck to `slides/deck.html`, showed it by path, and after a requested edit refreshed it in place; the panel offered **Load update** because the user was presenting.
   A 42 KB customer report and, in the encrypted room, a 32 KB inventory report arrived as uploaded media and rendered after download and decryption.
+  After the review fixes (wrapper frame, opt-in backend option), the lunch flow passed again in both rooms with the agent's `chat_ui` entry set to `enable_show_canvas: true`.
 - Review: an independent review found the call widget exposure, a broken retry against the real SDK, canonical-JSON failures, foreign-sender edits applied by the SDK, a stale revision ID, and the reCAPTCHA frame regression; all are fixed above.
   A second review of the dashboard work found the breakpoint remount, the stale theme after a switch, Expand on tablets, and read receipts from the hidden conversation; all are fixed above.
   Uploaded pages extend the original inline-only design at the owner's request.
