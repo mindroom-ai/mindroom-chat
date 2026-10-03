@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { MatrixClient, MatrixEvent, Room } from 'matrix-js-sdk';
 import { describe, expect, it } from 'vitest';
-import { readChatUiAction, type ChatUiSettingsSection } from './chatUiProtocol';
+import { readChatUiAction, type ChatUiCanvas, type ChatUiSettingsSection } from './chatUiProtocol';
 
 type ContractEvent = {
   event_id: string;
@@ -24,7 +24,7 @@ type ExpectedAction =
   | { action: 'show_computer' }
   | { action: 'open_settings'; section: ChatUiSettingsSection }
   | { action: 'open_panel'; panel: 'members' }
-  | { action: 'show_canvas'; canvas: { title: string; html: string } };
+  | { action: 'show_canvas'; canvas: ChatUiCanvas };
 
 const fixturePath =
   process.env.CHAT_UI_CONTRACT_FIXTURE ??
@@ -55,6 +55,13 @@ const expectedCases = new Map<string, ExpectedAction>();
     canvas: {
       title: 'Choose a plan',
       html: '<form data-mindroom-label="Plan chosen"><label><input type="radio" name="plan" value="pro" checked> Pro</label><button>Choose</button></form>',
+    },
+  });
+  expectedCases.set(`${scope}/show_canvas/document`, {
+    action: 'show_canvas',
+    canvas: {
+      title: 'Choose a plan',
+      document: { mxcUrl: 'mxc://localhost/canvas-document', size: 40_013 },
     },
   });
   expectedCases.set(`${scope}/show_canvas/update`, {

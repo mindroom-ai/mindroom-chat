@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { EventStatus, type MatrixClient } from 'matrix-js-sdk';
-import { Box, Button, Icon, IconButton, Icons, Text } from 'folds';
+import { Box, Button, Icon, IconButton, Icons, type IconSrc, Text } from 'folds';
 import {
   buildCanvasDocument,
   CANVAS_PERMISSIONS,
@@ -12,6 +12,7 @@ import {
   readCanvasSubmission,
   type CanvasSubmission,
 } from './canvasMessages';
+import type { CanvasTheme } from './canvasTheme';
 import * as css from './CanvasPanel.css';
 
 /** A new snapshot cannot be sent by a click that was already on its way. */
@@ -24,6 +25,8 @@ export type CanvasView = {
   threadId?: string;
   title: string;
   html: string;
+  /** An uploaded page that is still downloading, or could not be loaded. */
+  status?: 'loading' | 'failed';
 };
 
 export type CanvasPanelProps = {
@@ -32,8 +35,32 @@ export type CanvasPanelProps = {
   canvas: CanvasView;
   agentName: string;
   colorScheme: CanvasColorScheme;
+  theme: CanvasTheme;
   onClose: () => void;
+  expanded?: boolean;
+  onToggleExpanded?: () => void;
 };
+
+const ExpandIcon: IconSrc = () => (
+  <path
+    d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  />
+);
+const ShrinkIcon: IconSrc = () => (
+  <path
+    d="M9 4v5H4M20 9h-5V4M15 20v-5h5M4 15h5v5"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  />
+);
 
 type Staged = {
   submission: CanvasSubmission;
@@ -60,10 +87,10 @@ const formatData = (data: unknown): string => JSON.stringify(data, null, 2) ?? '
 
 const STAGE_INTERVAL_MS = 100;
 
-type Displayed = CanvasView & { colorScheme: CanvasColorScheme };
+type Displayed = CanvasView & { colorScheme: CanvasColorScheme; theme: CanvasTheme };
 
 const revisionKey = (canvas: CanvasView) =>
-  `${canvas.revisionEventId}\n${canvas.title}\n${canvas.html}`;
+  `${canvas.revisionEventId}\n${canvas.status ?? 'ready'}\n${canvas.title}\n${canvas.html}`;
 
 export function CanvasPanel({
   mx,
@@ -71,15 +98,22 @@ export function CanvasPanel({
   canvas,
   agentName,
   colorScheme,
+  theme,
   onClose,
+  expanded = false,
+  onToggleExpanded,
 }: CanvasPanelProps) {
   const frameRef = useRef<HTMLIFrameElement>(null);
   // The theme is fixed when a revision is shown, so switching themes cannot discard unsent work.
-  const [displayed, setDisplayed] = useState<Displayed>(() => ({ ...canvas, colorScheme }));
+  const [displayed, setDisplayed] = useState<Displayed>(() => ({
+    ...canvas,
+    colorScheme,
+    theme,
+  }));
   const [updateAvailable, setUpdateAvailable] = useState(false);
   const doc = useMemo(
-    () => buildCanvasDocument(displayed.html, displayed.colorScheme),
-    [displayed.html, displayed.colorScheme]
+    () => buildCanvasDocument(displayed.html, displayed.colorScheme, displayed.theme),
+    [displayed.html, displayed.colorScheme, displayed.theme]
   );
   const [reloads, setReloads] = useState(0);
   const frameKey = `${displayed.revisionEventId}:${documentKey(doc)}:${reloads}`;
@@ -90,8 +124,8 @@ export function CanvasPanel({
   // Whether the frame may hold work the user has not sent since it loaded or since their last send.
   const touched = useRef(false);
   const lastStageAt = useRef(0);
-  const latest = useRef({ canvas, colorScheme });
-  latest.current = { canvas, colorScheme };
+  const latest = useRef({ canvas, colorScheme, theme });
+  latest.current = { canvas, colorScheme, theme };
   const handledRevision = useRef(revisionKey(canvas));
 
   useEffect(() => {
@@ -115,7 +149,11 @@ export function CanvasPanel({
     if (handledRevision.current === incomingRevision) return;
     handledRevision.current = incomingRevision;
     if (!touched.current && document.activeElement !== frameRef.current) {
-      setDisplayed({ ...latest.current.canvas, colorScheme: latest.current.colorScheme });
+      setDisplayed({
+        ...latest.current.canvas,
+        colorScheme: latest.current.colorScheme,
+        theme: latest.current.theme,
+      });
     } else {
       setStaged(undefined);
       setUpdateAvailable(true);
@@ -234,9 +272,21 @@ export function CanvasPanel({
             </Text>
           </div>
         </Box>
-        <IconButton onClick={onClose} aria-label="Close canvas" size="300">
-          <Icon size="300" src={Icons.Cross} />
-        </IconButton>
+        <Box alignItems="Center" gap="100">
+          {onToggleExpanded && (
+            <IconButton
+              onClick={onToggleExpanded}
+              aria-label={expanded ? 'Shrink canvas' : 'Expand canvas'}
+              aria-pressed={expanded}
+              size="300"
+            >
+              <Icon size="300" src={expanded ? ShrinkIcon : ExpandIcon} />
+            </IconButton>
+          )}
+          <IconButton onClick={onClose} aria-label="Close canvas" size="300">
+            <Icon size="300" src={Icons.Cross} />
+          </IconButton>
+        </Box>
       </div>
 
       {updateAvailable && (
@@ -245,14 +295,27 @@ export function CanvasPanel({
           <Button
             size="300"
             variant="Secondary"
-            onClick={() => setDisplayed({ ...canvas, colorScheme })}
+            onClick={() => setDisplayed({ ...canvas, colorScheme, theme })}
           >
             <Text size="B300">Load update</Text>
           </Button>
         </div>
       )}
 
-      {escaped ? (
+      {displayed.status && (
+        <Box grow="Yes" direction="Column" alignItems="Center" justifyContent="Center" gap="300">
+          <Text
+            className={displayed.status === 'failed' ? css.Error : undefined}
+            size="T300"
+            role={displayed.status === 'failed' ? 'alert' : 'status'}
+          >
+            {displayed.status === 'loading'
+              ? 'Loading panel…'
+              : 'This panel could not be loaded. Close it and open it again to retry.'}
+          </Text>
+        </Box>
+      )}
+      {!displayed.status && escaped && (
         <Box grow="Yes" direction="Column" alignItems="Center" justifyContent="Center" gap="300">
           <Text className={css.Error} size="T300" role="alert">
             This panel tried to leave its sandbox and was stopped.
@@ -266,7 +329,8 @@ export function CanvasPanel({
             <Text size="B300">Reload panel</Text>
           </Button>
         </Box>
-      ) : (
+      )}
+      {!displayed.status && !escaped && (
         <iframe
           key={frameKey}
           ref={frameRef}

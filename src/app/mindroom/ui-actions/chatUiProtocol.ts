@@ -1,5 +1,6 @@
 import { type MatrixEvent, type Room } from 'matrix-js-sdk';
 import { isMindroomAgentUserIdForViewer } from '../matrix/agentIdentity';
+import type { IEncryptedFile } from '../../../types/matrix/common';
 
 export const CHAT_UI_ACTION_KEY = 'io.mindroom.ui_action';
 
@@ -20,10 +21,18 @@ type ChatUiTarget = {
   threadId?: string;
 };
 
-export type ChatUiCanvas = {
-  title: string;
-  html: string;
+/** A page too large for the event, uploaded as (encrypted) Matrix media. */
+export type ChatUiCanvasDocument = {
+  mxcUrl: string;
+  encryptedFile?: IEncryptedFile;
+  size: number;
 };
+
+export type ChatUiCanvas =
+  | { title: string; html: string }
+  | { title: string; document: ChatUiCanvasDocument };
+
+export const MAX_CANVAS_DOCUMENT_BYTES = 4 * 1024 * 1024;
 
 export type ChatUiAction = ChatUiTarget &
   (
@@ -41,19 +50,55 @@ const MAX_CANVAS_HTML_LENGTH = 128 * 1024;
 const record = (value: unknown): value is Record<string, unknown> =>
   !!value && typeof value === 'object' && !Array.isArray(value);
 
-const readCanvas = (value: unknown): ChatUiCanvas | undefined => {
-  if (!record(value) || typeof value.title !== 'string' || typeof value.html !== 'string') {
-    return undefined;
-  }
-  const title = value.title.trim();
+const isMxc = (value: unknown): value is string =>
+  typeof value === 'string' && value.startsWith('mxc://');
+
+const readEncryptedFile = (value: unknown): IEncryptedFile | undefined => {
   if (
-    !title ||
-    title.length > MAX_CANVAS_TITLE_LENGTH ||
-    value.html.length > MAX_CANVAS_HTML_LENGTH
+    !record(value) ||
+    !isMxc(value.url) ||
+    !record(value.key) ||
+    typeof value.key.k !== 'string' ||
+    typeof value.iv !== 'string' ||
+    !record(value.hashes) ||
+    typeof value.hashes.sha256 !== 'string'
   ) {
     return undefined;
   }
-  return { title, html: value.html };
+  return value as unknown as IEncryptedFile;
+};
+
+const readCanvasDocument = (value: unknown): ChatUiCanvasDocument | undefined => {
+  if (
+    !record(value) ||
+    value.mimetype !== 'text/html' ||
+    typeof value.size !== 'number' ||
+    !Number.isSafeInteger(value.size) ||
+    value.size <= 0 ||
+    value.size > MAX_CANVAS_DOCUMENT_BYTES
+  ) {
+    return undefined;
+  }
+  if (value.file !== undefined) {
+    const encryptedFile = readEncryptedFile(value.file);
+    return encryptedFile && value.url === undefined
+      ? { mxcUrl: encryptedFile.url, encryptedFile, size: value.size }
+      : undefined;
+  }
+  return isMxc(value.url) ? { mxcUrl: value.url, size: value.size } : undefined;
+};
+
+const readCanvas = (value: unknown): ChatUiCanvas | undefined => {
+  if (!record(value) || typeof value.title !== 'string') return undefined;
+  const title = value.title.trim();
+  if (!title || title.length > MAX_CANVAS_TITLE_LENGTH) return undefined;
+  if (typeof value.html === 'string') {
+    return value.document === undefined && value.html.length <= MAX_CANVAS_HTML_LENGTH
+      ? { title, html: value.html }
+      : undefined;
+  }
+  const document = readCanvasDocument(value.document);
+  return document ? { title, document } : undefined;
 };
 
 const AUTHORITY_FIELDS = [

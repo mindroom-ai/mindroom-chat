@@ -5,6 +5,7 @@ import {
   CANVAS_PERMISSIONS,
   CANVAS_SANDBOX,
 } from './canvasDocument';
+import { FALLBACK_CANVAS_THEMES } from './canvasTheme';
 
 describe('buildCanvasDocument', () => {
   it('puts the CSP before any agent markup so agent content cannot loosen it', () => {
@@ -52,5 +53,15 @@ describe('buildCanvasDocument', () => {
     expect(CANVAS_PERMISSIONS).toContain("camera 'none'");
     expect(CANVAS_PERMISSIONS).toContain("microphone 'none'");
     expect(CANVAS_PERMISSIONS).toContain("clipboard-read 'none'");
+  });
+
+  it('exposes the Chat theme as CSS variables before agent styles', () => {
+    const doc = buildCanvasDocument('<style>body{background:red}</style>', 'dark', {
+      ...FALLBACK_CANVAS_THEMES.dark,
+      accent: '#123456',
+    });
+    expect(doc.indexOf('--mr-accent:#123456')).toBeGreaterThan(0);
+    expect(doc.indexOf('--mr-accent:#123456')).toBeLessThan(doc.indexOf('body{background:red}'));
+    expect(doc).toContain('background:var(--mr-bg)');
   });
 });

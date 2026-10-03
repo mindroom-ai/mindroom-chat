@@ -4,10 +4,12 @@
 
 ### Show agent-made interactive canvases beside the conversation (2026-10-03)
 
-- Agents can show a small agent-written web page (menu, form, picker, multi-step flow) in a right-side Canvas panel and read the user's answer.
+- Agents can show an agent-made web page (dashboard, report, slides, menu, form, multi-step flow) in a right-side Canvas panel and read the user's answer.
   It is a lighter alternative to the Computer panel's remote desktop.
-  The backend tool is `chat_ui.show_canvas(title, html, canvas_event_id=None)` (mindroom-ai/mindroom#2618).
-- Wire contract: an ordinary `m.notice` whose `io.mindroom.ui_action` (version 1) carries `action: "show_canvas"` and `canvas: {title, html}`.
+  The backend tool is `chat_ui.show_canvas(title, html=None, path=None, canvas_event_id=None)` (mindroom-ai/mindroom#2618); `path` names an HTML file in the agent's workspace, such as slides the agent keeps editing.
+- Wire contract: an ordinary `m.notice` whose `io.mindroom.ui_action` (version 1) carries `action: "show_canvas"` and either `canvas: {title, html}` or, for pages too large for the event, `canvas: {title, document: {mimetype: "text/html", size, url | file}}`.
+  Uploaded pages are at most 4 MiB; `file` is the encrypted-attachment descriptor used in encrypted rooms.
+  `useCanvasPage` downloads them through the attachment repository (media authentication, byte cap, decryption, IndexedDB cache) and the panel shows loading and failure states.
   Older clients ignore the unknown action and show the fallback text.
   An update is an `m.replace` edit whose `m.new_content` carries the new canvas.
   `readChatUiAction` keeps authority on the original event and accepts the applied replacement only when it comes from the original sender (checked again, because the SDK applies server-bundled edits without that check) and its authority fields are unchanged.
@@ -19,6 +21,8 @@
   A second frame `load` replaces the frame with a reload prompt.
   The bridge removes WebRTC constructors before agent code runs, as defense in depth only.
   The panel header names the agent, and the footer says the canvas cannot access the account while input may leave the panel.
+- Design: Chat's live theme is resolved from the page's computed styles (`canvasTheme.ts`) and injected as `--mr-bg`, `--mr-surface`, `--mr-surface-raised`, `--mr-border`, `--mr-text`, `--mr-text-muted`, `--mr-accent`, `--mr-accent-text`, `--mr-success`, `--mr-warning`, `--mr-danger`, `--mr-radius`, and `--mr-font`, with complete light and dark fallbacks; the default body uses them, so pages match light and dark mode.
+  On desktop the panel sits in a `ResizablePanel` (now with a configurable maximum, 1,600 px for canvases) and an **Expand** button gives it the conversation's whole column without unmounting the conversation; phones keep the full-screen panel.
 - Calls: the Element Call widget API listens on the whole window and trusted any message naming the widget, so a canvas could have driven an active call (send or redact events through the call's capabilities, unmute media).
   `CallEmbed` now restricts the call transport to same-origin messages (`strictOriginCheck`), and no canvas runs while any call is active: a starting call closes the canvas and canvas requests explain that the call must end first.
 - Answering: interaction inside the page sends nothing.
@@ -48,11 +52,14 @@
   Spikes in Chromium, Firefox, and WebKit confirmed the sandbox, the CSP, navigation containment by the embedder's `frame-src` (as a header and as the app's meta tag), and the WebRTC residual.
 - Tests: `canvasDocument`, `canvasMessages`, `CanvasPanel`, `chatUiProtocol`, `renderMindroomMessageContent`, `CallEmbed.origin`, and `Room.test.ts` cover the policy, bridge validation, canonical JSON and receipts, staging, frozen snapshots, SDK retries and discards, updates, escapes, foreign-sender edits, call exclusion, and routing.
   The backend contract fixture includes `show_canvas` and a real backend update (original plus edit) in room and thread scope, parsed by the real client parser.
-  `e2e/agent-canvas.spec.ts` (runs with `E2E_UI_ACTIONS_HOMESERVER`) drives a real local Matrix server: auto-open, staged send, frozen snapshot, canonical response content, receipt, in-place update, ask-before-replace, no request reaching a listening server from `fetch`, an image, or navigation, a blocked foreign frame, and the Element Call frame still loading.
+  `e2e/agent-canvas.spec.ts` (runs with `E2E_UI_ACTIONS_HOMESERVER`) drives a real local Matrix server: auto-open, staged send, frozen snapshot, canonical response content, receipt, in-place update, ask-before-replace, no request reaching a listening server from `fetch`, an image, or navigation, a blocked foreign frame, the Element Call frame still loading, an uploaded page rendered from media with the theme variables, and Expand.
 - Live end-to-end (2026-10-03): a real MindRoom agent (`provider: codex`, GPT-6.1 Sol) on a disposable Tuwunel, with this production build in Chromium, showed a lunch-order canvas that opened automatically, received "Sushi", updated the same canvas in place to a drink step, received "Tea" (citing the edit as its revision), and replied "Your lunch order is Sushi with Tea."
   This passed in an unencrypted room and in an end-to-end encrypted managed room.
+  The same agent built a SaaS operations dashboard (KPI cards with sparklines, SVG line, bar, and donut charts, a sortable table) that used the theme variables and reflowed to six columns when expanded.
+  It wrote a six-slide deck to `slides/deck.html`, showed it by path, and after a requested edit refreshed it in place; the panel offered **Load update** because the user was presenting.
+  A 42 KB customer report and, in the encrypted room, a 32 KB inventory report arrived as uploaded media and rendered after download and decryption.
 - Review: an independent review found the call widget exposure, a broken retry against the real SDK, canonical-JSON failures, foreign-sender edits applied by the SDK, a stale revision ID, and the reCAPTCHA frame regression; all are fixed above.
-- Next: mxc-hosted documents for larger canvases, a state-preserving update channel, and attaching the open canvas's latest state to the user's next typed message.
+- Next: a state-preserving update channel, refreshing a path-based canvas automatically when its file changes, and attaching the open canvas's latest state to the user's next typed message.
 
 ### Stop rewriting every thread root to IndexedDB on each overview (2026-10-02)
 

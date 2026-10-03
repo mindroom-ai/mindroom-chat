@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Box, Line } from 'folds';
 import { KnownMembership } from 'matrix-js-sdk';
 import { useParams, useSearchParams } from 'react-router-dom';
@@ -124,6 +124,12 @@ export function Room() {
   useEffect(() => {
     if (callActive) closeCanvas();
   }, [callActive, closeCanvas]);
+  // An expanded canvas takes the conversation's column; closing it brings the conversation back.
+  const [canvasExpanded, setCanvasExpanded] = useState(false);
+  useEffect(() => {
+    if (!canvasEvent) setCanvasExpanded(false);
+  }, [canvasEvent]);
+  const toggleCanvasExpanded = useCallback(() => setCanvasExpanded((value) => !value), []);
   const computerThreadId = useThreadRootEvent(room, routedThreadId);
   const continuationReady =
     computerThreadId !== routedThreadId || isThreadRouteReady(room, routedThreadId);
@@ -247,7 +253,15 @@ export function Room() {
             </Box>
           )}
           {!callView && (
-            <Box grow="Yes" direction="Column">
+            <Box
+              grow="Yes"
+              direction="Column"
+              style={
+                canvasExpanded && canvasEnabled && canvasEvent && screenSize === ScreenSize.Desktop
+                  ? { display: 'none' }
+                  : undefined
+              }
+            >
               <Box grow="Yes">
                 <RoomView
                   room={room}
@@ -300,10 +314,14 @@ export function Room() {
           )}
           {!callView && canvasEnabled && !callActive && !effectiveComputerOpen && canvasEvent && (
             <>
-              {screenSize === ScreenSize.Desktop && (
-                <Line variant="Background" direction="Vertical" size="300" />
-              )}
-              <RoomCanvasPanel mx={mx} room={room} event={canvasEvent} onClose={closeCanvas} />
+              <RoomCanvasPanel
+                mx={mx}
+                room={room}
+                event={canvasEvent}
+                onClose={closeCanvas}
+                expanded={canvasExpanded}
+                onToggleExpanded={toggleCanvasExpanded}
+              />
             </>
           )}
           {!callView && isDrawer && !effectiveComputerOpen && !(canvasEnabled && canvasEvent) && (

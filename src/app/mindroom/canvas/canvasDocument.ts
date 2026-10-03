@@ -1,3 +1,5 @@
+import { canvasThemeCss, FALLBACK_CANVAS_THEMES, type CanvasTheme } from './canvasTheme';
+
 export const CANVAS_SUBMIT_MESSAGE = 'mindroom.canvas.submit';
 
 /** The iframe gets an opaque origin: no Chat storage, cookies, DOM, popups, or top navigation. */
@@ -82,17 +84,22 @@ const BRIDGE_SCRIPT = `(() => {
   );
 })();`;
 
+// Agent styles come later in the document and override these defaults.
 const BASE_STYLE =
-  'body{margin:0;padding:16px;font:14px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}';
+  'body{margin:0;padding:16px;background:var(--mr-bg);color:var(--mr-text);font:14px/1.5 var(--mr-font)}';
 
 /** Wrap agent HTML in a document whose policy and bridge are fixed before the agent's markup. */
-export const buildCanvasDocument = (html: string, colorScheme: CanvasColorScheme): string =>
+export const buildCanvasDocument = (
+  html: string,
+  colorScheme: CanvasColorScheme,
+  theme: CanvasTheme = FALLBACK_CANVAS_THEMES[colorScheme]
+): string =>
   [
     '<!doctype html><html><head><meta charset="utf-8">',
     `<meta http-equiv="Content-Security-Policy" content="${CANVAS_CSP}">`,
     `<meta name="color-scheme" content="${colorScheme}">`,
     '<meta name="viewport" content="width=device-width, initial-scale=1">',
-    `<style>${BASE_STYLE}</style>`,
+    `<style>${canvasThemeCss(theme)}${BASE_STYLE}</style>`,
     `<script>${BRIDGE_SCRIPT}</script>`,
     '</head><body>',
     html,

@@ -1,7 +1,21 @@
 import { style } from '@vanilla-extract/css';
-import { color, config } from 'folds';
+import { color, config, toRem } from 'folds';
+import { Panel as SidePanel } from '../sidebar/SidePanel.css';
 
-export { Header, Panel } from '../sidebar/SidePanel.css';
+export { Header } from '../sidebar/SidePanel.css';
+
+// The resizable wrapper owns the width on desktop; phones keep the full-screen side panel.
+export const Panel = style([
+  SidePanel,
+  {
+    '@media': {
+      [`screen and (min-width: ${toRem(751)})`]: {
+        flex: '1 1 auto',
+        width: '100%',
+      },
+    },
+  },
+]);
 
 export const Title = style({
   display: 'flex',

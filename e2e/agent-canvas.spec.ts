@@ -270,6 +270,52 @@ test('agent canvases run sandboxed, send only confirmed answers, and update in p
   await expect(panel).toBeVisible();
   await page.waitForTimeout(1_000);
   expect(escapes).toEqual([]);
+
+  // A page too large for the event arrives as uploaded media, themed like Chat, and can fill the room.
+  const largePage = `<style>main{display:grid;gap:8px;grid-template-columns:repeat(auto-fill,minmax(180px,1fr))}
+article{background:var(--mr-surface);border:1px solid var(--mr-border);border-radius:var(--mr-radius);padding:8px}</style>
+<h1 id="report">Quarterly report</h1><main>${Array.from(
+    { length: 600 },
+    (_, index) => `<article>Region ${index} <b>${index * 7}</b></article>`
+  ).join('')}</main>`;
+  const upload = await fetch(`${homeserver}/_matrix/media/v3/upload?filename=canvas.html`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${agent.access_token}`, 'Content-Type': 'text/html' },
+    body: largePage,
+  });
+  expect(upload.ok).toBe(true);
+  const { content_uri: contentUri } = (await upload.json()) as { content_uri: string };
+  await sendRoomMessage(homeserver!, agent.access_token, fixture.roomId, {
+    msgtype: 'm.notice',
+    body: 'Interactive panel: Report. Open it in MindRoom Chat to respond.',
+    'm.relates_to': { rel_type: 'm.thread', event_id: fixture.rootId },
+    'io.mindroom.ui_action': {
+      ...action(''),
+      canvas: {
+        title: 'Report',
+        document: {
+          mimetype: 'text/html',
+          size: new TextEncoder().encode(largePage).length,
+          url: contentUri,
+        },
+      },
+    },
+  });
+  await expect(panel.getByText('Report', { exact: true })).toBeVisible();
+  await expect(frame.locator('#report')).toHaveText('Quarterly report');
+  const srcdoc = (await panel.locator('iframe').getAttribute('srcdoc')) ?? '';
+  expect(srcdoc).toContain('--mr-surface:');
+  expect(srcdoc).toContain('background:var(--mr-bg)');
+  const conversation = page.getByText(fixture.replyBody, { exact: true });
+  await expect(conversation).toBeVisible();
+  await panel.getByRole('button', { name: 'Expand canvas' }).click();
+  await expect(conversation).toBeHidden();
+  const panelBox = await panel.boundingBox();
+  expect(panelBox?.width ?? 0).toBeGreaterThan(900);
+  await page.screenshot({ path: testInfo.outputPath('canvas-expanded.png') });
+  await panel.getByRole('button', { name: 'Shrink canvas' }).click();
+  await expect(conversation).toBeVisible();
+
   expect(pageErrors).toEqual([]);
   await new Promise((resolve) => {
     listener.close(resolve);

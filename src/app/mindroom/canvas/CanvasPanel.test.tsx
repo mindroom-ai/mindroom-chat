@@ -7,6 +7,7 @@ import type { MatrixClient } from 'matrix-js-sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { CANVAS_SEND_ARM_DELAY_MS, CanvasPanel, type CanvasPanelProps } from './CanvasPanel';
 import { CANVAS_RESPONSE_KEY } from './canvasMessages';
+import { FALLBACK_CANVAS_THEMES } from './canvasTheme';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -93,6 +94,7 @@ const render = (props: Partial<CanvasPanelProps> = {}) =>
         canvas={canvas}
         agentName="Planner"
         colorScheme="dark"
+        theme={{ ...FALLBACK_CANVAS_THEMES.dark, accent: '#123456' }}
         onClose={() => undefined}
         {...props}
       />
@@ -384,6 +386,36 @@ describe('CanvasPanel', () => {
     await act(async () => load.click());
     expect(frame().getAttribute('srcdoc')).toContain('<p>Step 2</p>');
     expect(container.textContent).not.toContain('updated this panel');
+  });
+
+  it('gives the page the Chat theme as CSS variables', () => {
+    render();
+    expect(frame().getAttribute('srcdoc')).toContain('--mr-accent:#123456');
+  });
+
+  it('shows a page that is still downloading, then the page itself', async () => {
+    render({ canvas: { ...canvas, html: '', status: 'loading' } });
+    expect(frame()).toBeNull();
+    expect(container.textContent).toContain('Loading panel');
+    render({ canvas: { ...canvas, html: '<p>Downloaded</p>' } });
+    expect(frame().getAttribute('srcdoc')).toContain('<p>Downloaded</p>');
+  });
+
+  it('explains a page that could not be loaded', () => {
+    render({ canvas: { ...canvas, html: '', status: 'failed' } });
+    expect(frame()).toBeNull();
+    expect(container.textContent).toContain('could not be loaded');
+  });
+
+  it('offers expanding the panel where the room allows it', () => {
+    const onToggleExpanded = vi.fn();
+    render({ onToggleExpanded });
+    act(() => button('[aria-label="Expand canvas"]').click());
+    expect(onToggleExpanded).toHaveBeenCalled();
+    render({ onToggleExpanded, expanded: true });
+    expect(button('[aria-label="Shrink canvas"]').getAttribute('aria-pressed')).toBe('true');
+    render({ onToggleExpanded: undefined });
+    expect(button('[aria-label="Expand canvas"]')).toBeNull();
   });
 
   it('closes', () => {

@@ -141,6 +141,62 @@ describe('readChatUiAction', () => {
       ).toBeUndefined();
     });
 
+    it('reads a page uploaded as media, plain or encrypted', () => {
+      const { room } = makeUiRoom();
+      const document = { mimetype: 'text/html', size: 30_000, url: 'mxc://example.org/page' };
+      expect(
+        readChatUiAction(
+          makeUiEvent({ action: 'show_canvas', canvas: { title: 'Report', document } }),
+          viewerId,
+          room
+        )
+      ).toMatchObject({
+        canvas: { title: 'Report', document: { mxcUrl: 'mxc://example.org/page', size: 30_000 } },
+      });
+      const file = {
+        url: 'mxc://example.org/enc',
+        key: { k: 'key' },
+        iv: 'iv',
+        hashes: { sha256: 'hash' },
+        v: 'v2',
+      };
+      expect(
+        readChatUiAction(
+          makeUiEvent({
+            action: 'show_canvas',
+            canvas: { title: 'Report', document: { mimetype: 'text/html', size: 10, file } },
+          }),
+          viewerId,
+          room
+        )
+      ).toMatchObject({
+        canvas: { document: { mxcUrl: 'mxc://example.org/enc', encryptedFile: file, size: 10 } },
+      });
+    });
+
+    it.each([
+      { mimetype: 'text/plain', size: 10, url: 'mxc://example.org/page' },
+      { mimetype: 'text/html', size: 0, url: 'mxc://example.org/page' },
+      { mimetype: 'text/html', size: 4 * 1024 * 1024 + 1, url: 'mxc://example.org/page' },
+      { mimetype: 'text/html', size: 10, url: 'https://evil.example/page' },
+      { mimetype: 'text/html', size: 10, file: { url: 'mxc://example.org/enc' } },
+      {
+        mimetype: 'text/html',
+        size: 10,
+        url: 'mxc://example.org/page',
+        file: { url: 'mxc://example.org/enc', key: { k: 'k' }, iv: 'iv', hashes: { sha256: 'h' } },
+      },
+    ])('rejects an unusable page reference %#', (document) => {
+      const { room } = makeUiRoom();
+      expect(
+        readChatUiAction(
+          makeUiEvent({ action: 'show_canvas', canvas: { title: 'Report', document } }),
+          viewerId,
+          room
+        )
+      ).toBeUndefined();
+    });
+
     it('shows the latest same-request edit of a canvas', () => {
       const { room } = makeUiRoom();
       const original = makeUiEvent({ action: 'show_canvas', canvas });

@@ -77,7 +77,14 @@ const { mx, navigateRoomMock, navigateRoomThreadMock, removeRecentThreadMock, ro
       callRoom: false,
       clientConfig: { mindroom: {} } as ClientConfig,
       computerPanelProps: undefined as MockComputerPanelProps | undefined,
-      canvasPanelProps: undefined as undefined | { event: MatrixEvent; onClose: () => void },
+      canvasPanelProps: undefined as
+        | undefined
+        | {
+            event: MatrixEvent;
+            onClose: () => void;
+            expanded: boolean;
+            onToggleExpanded: () => void;
+          },
       callEmbed: undefined as unknown,
       eventId: undefined as string | undefined,
       members: [] as Array<{ membership: string; userId: string }>,
@@ -88,7 +95,8 @@ const { mx, navigateRoomMock, navigateRoomThreadMock, removeRecentThreadMock, ro
   }));
 
 vi.mock('folds', () => ({
-  Box: ({ children }: { children: React.ReactNode }) => React.createElement('div', null, children),
+  Box: ({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) =>
+    React.createElement('div', { style }, children),
   Line: () => React.createElement('div'),
   Overlay: ({ children }: { children: React.ReactNode }) =>
     React.createElement(React.Fragment, null, children),
@@ -216,7 +224,12 @@ vi.mock('../../computer/ComputerPanel', () => ({
 }));
 
 vi.mock('../../canvas/RoomCanvasPanel', () => ({
-  RoomCanvasPanel: (props: { event: MatrixEvent; onClose: () => void }) => {
+  RoomCanvasPanel: (props: {
+    event: MatrixEvent;
+    onClose: () => void;
+    expanded: boolean;
+    onToggleExpanded: () => void;
+  }) => {
     roomState.canvasPanelProps = props;
     return React.createElement('mock-canvas-panel');
   },
@@ -504,6 +517,17 @@ describe('Room', () => {
     expect(canvasOpen()).toBe(true);
     expect(roomState.canvasPanelProps?.event).toBe(request);
     expect(roomState.setPeopleDrawer).toHaveBeenCalledWith(false);
+    // Expanding gives the canvas the conversation's column without unmounting the conversation.
+    const conversationHidden = () =>
+      JSON.stringify(renderer!.toJSON()).includes('"display":"none"');
+    expect(roomState.canvasPanelProps?.expanded).toBe(false);
+    expect(conversationHidden()).toBe(false);
+    await act(async () => roomState.canvasPanelProps?.onToggleExpanded());
+    expect(roomState.canvasPanelProps?.expanded).toBe(true);
+    expect(conversationHidden()).toBe(true);
+    expect(roomState.roomViewProps).toBeDefined();
+    await act(async () => roomState.canvasPanelProps?.onToggleExpanded());
+    expect(conversationHidden()).toBe(false);
 
     await act(async () => {
       emitAction('open_panel', { panel: 'members' });
