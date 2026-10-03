@@ -24,8 +24,22 @@ const CORPUS = [
 
 // Deterministic pseudo-random texts of tokens that form, break and end URL schemes.
 const randomTexts = (count: number): string[] => {
-  const tokens = ['https', 'http', 'ftp', 'mailto', 'magnet', 'x', '://', ':', '/'];
-  tokens.push(' ', '\n', '\u00a0', '*', '_');
+  const tokens = [
+    'https',
+    'http',
+    'ftp',
+    'mailto',
+    'magnet',
+    'x',
+    '://',
+    ':',
+    '/',
+    ' ',
+    '\n',
+    '\u00a0',
+    '*',
+    '_',
+  ];
   let seed = 7;
   const next = () => {
     seed = (seed * 1103515245 + 12345) % 2147483648;
