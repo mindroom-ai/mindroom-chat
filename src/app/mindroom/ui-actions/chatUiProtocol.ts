@@ -56,6 +56,7 @@ const isMxc = (value: unknown): value is string =>
 const readEncryptedFile = (value: unknown): IEncryptedFile | undefined => {
   if (
     !record(value) ||
+    value.v !== 'v2' ||
     !isMxc(value.url) ||
     !record(value.key) ||
     typeof value.key.k !== 'string' ||
@@ -65,7 +66,14 @@ const readEncryptedFile = (value: unknown): IEncryptedFile | undefined => {
   ) {
     return undefined;
   }
-  return value as unknown as IEncryptedFile;
+  // Copy only the fields decryption uses.
+  return {
+    url: value.url,
+    key: value.key,
+    iv: value.iv,
+    hashes: { sha256: value.hashes.sha256 },
+    v: value.v,
+  } as unknown as IEncryptedFile;
 };
 
 const readCanvasDocument = (value: unknown): ChatUiCanvasDocument | undefined => {

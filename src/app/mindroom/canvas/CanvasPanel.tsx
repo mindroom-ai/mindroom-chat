@@ -37,6 +37,7 @@ export type CanvasPanelProps = {
   colorScheme: CanvasColorScheme;
   theme: CanvasTheme;
   onClose: () => void;
+  onRetry?: () => void;
   expanded?: boolean;
   onToggleExpanded?: () => void;
 };
@@ -89,8 +90,8 @@ const STAGE_INTERVAL_MS = 100;
 
 type Displayed = CanvasView & { colorScheme: CanvasColorScheme; theme: CanvasTheme };
 
-const revisionKey = (canvas: CanvasView) =>
-  `${canvas.revisionEventId}\n${canvas.status ?? 'ready'}\n${canvas.title}\n${canvas.html}`;
+const revisionKey = (canvas: CanvasView, htmlKey: string) =>
+  `${canvas.revisionEventId}\n${canvas.status ?? 'ready'}\n${canvas.title}\n${htmlKey}`;
 
 export function CanvasPanel({
   mx,
@@ -100,6 +101,7 @@ export function CanvasPanel({
   colorScheme,
   theme,
   onClose,
+  onRetry,
   expanded = false,
   onToggleExpanded,
 }: CanvasPanelProps) {
@@ -116,7 +118,8 @@ export function CanvasPanel({
     [displayed.html, displayed.colorScheme, displayed.theme]
   );
   const [reloads, setReloads] = useState(0);
-  const frameKey = `${displayed.revisionEventId}:${documentKey(doc)}:${reloads}`;
+  const docKey = useMemo(() => documentKey(doc), [doc]);
+  const frameKey = `${displayed.revisionEventId}:${docKey}:${reloads}`;
   const [escapedFrame, setEscapedFrame] = useState<string>();
   const [staged, setStaged] = useState<Staged>();
   const [send, setSend] = useState<SendState>({ status: 'idle' });
@@ -126,7 +129,10 @@ export function CanvasPanel({
   const lastStageAt = useRef(0);
   const latest = useRef({ canvas, colorScheme, theme });
   latest.current = { canvas, colorScheme, theme };
-  const handledRevision = useRef(revisionKey(canvas));
+  // Pages can be megabytes, so revisions compare by a hash of their HTML.
+  const incomingHtmlKey = useMemo(() => documentKey(canvas.html), [canvas.html]);
+  const displayedHtmlKey = useMemo(() => documentKey(displayed.html), [displayed.html]);
+  const handledRevision = useRef(revisionKey(canvas, incomingHtmlKey));
 
   useEffect(() => {
     touched.current = false;
@@ -137,8 +143,10 @@ export function CanvasPanel({
   }, [frameKey]);
 
   // An update loads at once unless it would discard work the user has not sent.
-  const incomingRevision = revisionKey(canvas);
-  const displayedRevision = revisionKey(displayed);
+  const incomingRevision = revisionKey(canvas, incomingHtmlKey);
+  const displayedRevision = revisionKey(displayed, displayedHtmlKey);
+  const displayedRevisionId = displayed.revisionEventId;
+  const displayedPending = !!displayed.status;
   useEffect(() => {
     if (incomingRevision === displayedRevision) {
       handledRevision.current = incomingRevision;
@@ -148,7 +156,10 @@ export function CanvasPanel({
     // Each revision is decided once, so a later re-render cannot drop a newer staged answer.
     if (handledRevision.current === incomingRevision) return;
     handledRevision.current = incomingRevision;
-    if (!touched.current && document.activeElement !== frameRef.current) {
+    // A page that finished downloading belongs to the revision already shown.
+    const sameRevisionLoaded =
+      latest.current.canvas.revisionEventId === displayedRevisionId && displayedPending;
+    if (sameRevisionLoaded || (!touched.current && document.activeElement !== frameRef.current)) {
       setDisplayed({
         ...latest.current.canvas,
         colorScheme: latest.current.colorScheme,
@@ -158,7 +169,7 @@ export function CanvasPanel({
       setStaged(undefined);
       setUpdateAvailable(true);
     }
-  }, [incomingRevision, displayedRevision]);
+  }, [incomingRevision, displayedRevision, displayedRevisionId, displayedPending]);
 
   useEffect(() => {
     const handleBlur = () => {
@@ -276,7 +287,7 @@ export function CanvasPanel({
           {onToggleExpanded && (
             <IconButton
               onClick={onToggleExpanded}
-              aria-label={expanded ? 'Shrink canvas' : 'Expand canvas'}
+              aria-label="Expand canvas"
               aria-pressed={expanded}
               size="300"
             >
@@ -309,10 +320,13 @@ export function CanvasPanel({
             size="T300"
             role={displayed.status === 'failed' ? 'alert' : 'status'}
           >
-            {displayed.status === 'loading'
-              ? 'Loading panel…'
-              : 'This panel could not be loaded. Close it and open it again to retry.'}
+            {displayed.status === 'loading' ? 'Loading panel…' : 'This panel could not be loaded.'}
           </Text>
+          {displayed.status === 'failed' && onRetry && (
+            <Button size="300" variant="Secondary" onClick={onRetry}>
+              <Text size="B300">Retry</Text>
+            </Button>
+          )}
         </Box>
       )}
       {!displayed.status && escaped && (

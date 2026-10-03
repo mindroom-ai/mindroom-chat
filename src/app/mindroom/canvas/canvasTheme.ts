@@ -94,7 +94,11 @@ export const readCanvasTheme = (
     const name = variableName(sources[key]);
     theme[key] = safe(name ? style.getPropertyValue(name) : undefined, fallback[key]);
   });
-  theme.font = safe(style.fontFamily, fallback.font);
+  // Chat's web font cannot load inside the canvas, so system fonts follow it.
+  theme.font = safe(
+    style.fontFamily ? `${style.fontFamily}, ${SYSTEM_FONT}` : undefined,
+    fallback.font
+  );
   return theme;
 };
 

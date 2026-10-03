@@ -9,14 +9,16 @@ vi.mock('./MindroomTab.css', () => ({
 }));
 
 vi.mock('../../components/sidebar', () => ({
-  SidebarItem: ({ children }: { children: React.ReactNode }) => React.createElement('div', null, children),
+  SidebarItem: ({ children }: { children: React.ReactNode }) =>
+    React.createElement('div', null, children),
   SidebarItemBadge: ({ children }: { children: React.ReactNode }) =>
     React.createElement('div', { 'data-testid': 'mindroom-link-badge' }, children),
-  SidebarItemTooltip: ({
-    children,
-  }: {
-    children: (triggerRef: () => void) => React.ReactNode;
-  }) => React.createElement(React.Fragment, null, children(() => undefined)),
+  SidebarItemTooltip: ({ children }: { children: (triggerRef: () => void) => React.ReactNode }) =>
+    React.createElement(
+      React.Fragment,
+      null,
+      children(() => undefined)
+    ),
   SidebarAvatar: React.forwardRef<
     HTMLButtonElement,
     React.ButtonHTMLAttributes<HTMLButtonElement> & { as?: 'button' | 'div' }
@@ -26,7 +28,8 @@ vi.mock('../../components/sidebar', () => ({
 }));
 
 vi.mock('../../components/Modal500', () => ({
-  Modal500: ({ children }: { children: React.ReactNode }) => React.createElement('div', null, children),
+  Modal500: ({ children }: { children: React.ReactNode }) =>
+    React.createElement('div', null, children),
 }));
 
 vi.mock('../../features/settings', () => ({

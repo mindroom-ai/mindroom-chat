@@ -401,10 +401,24 @@ describe('CanvasPanel', () => {
     expect(frame().getAttribute('srcdoc')).toContain('<p>Downloaded</p>');
   });
 
-  it('explains a page that could not be loaded', () => {
-    render({ canvas: { ...canvas, html: '', status: 'failed' } });
+  it('explains a page that could not be loaded and offers a retry', () => {
+    const onRetry = vi.fn();
+    render({ canvas: { ...canvas, html: '', status: 'failed' }, onRetry });
     expect(frame()).toBeNull();
     expect(container.textContent).toContain('could not be loaded');
+    const retry = [...container.querySelectorAll('button')].find(
+      (candidate) => candidate.textContent === 'Retry'
+    ) as HTMLButtonElement;
+    act(() => retry.click());
+    expect(onRetry).toHaveBeenCalled();
+  });
+
+  it('shows a downloaded page at once even after the user focused the panel', async () => {
+    render({ canvas: { ...canvas, html: '', status: 'loading' } });
+    await touchFrame();
+    render({ canvas: { ...canvas, html: '<p>Downloaded</p>' } });
+    expect(frame().getAttribute('srcdoc')).toContain('<p>Downloaded</p>');
+    expect(container.textContent).not.toContain('updated this panel');
   });
 
   it('offers expanding the panel where the room allows it', () => {
@@ -412,8 +426,9 @@ describe('CanvasPanel', () => {
     render({ onToggleExpanded });
     act(() => button('[aria-label="Expand canvas"]').click());
     expect(onToggleExpanded).toHaveBeenCalled();
+    expect(button('[aria-label="Expand canvas"]').getAttribute('aria-pressed')).toBe('false');
     render({ onToggleExpanded, expanded: true });
-    expect(button('[aria-label="Shrink canvas"]').getAttribute('aria-pressed')).toBe('true');
+    expect(button('[aria-label="Expand canvas"]').getAttribute('aria-pressed')).toBe('true');
     render({ onToggleExpanded: undefined });
     expect(button('[aria-label="Expand canvas"]')).toBeNull();
   });

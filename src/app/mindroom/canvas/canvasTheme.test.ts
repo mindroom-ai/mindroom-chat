@@ -13,7 +13,7 @@ describe('canvas theme', () => {
     document.body.appendChild(element);
     element.style.fontFamily = 'Inter, sans-serif';
     const theme = readCanvasTheme('light', element);
-    expect(theme.font).toBe('Inter, sans-serif');
+    expect(theme.font).toBe('Inter, sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif');
     element.style.fontFamily = 'x}</style><script>alert(1)</script>';
     expect(readCanvasTheme('light', element).font).toBe(FALLBACK_CANVAS_THEMES.light.font);
     element.remove();

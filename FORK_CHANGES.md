@@ -22,7 +22,11 @@
   The bridge removes WebRTC constructors before agent code runs, as defense in depth only.
   The panel header names the agent, and the footer says the canvas cannot access the account while input may leave the panel.
 - Design: Chat's live theme is resolved from the page's computed styles (`canvasTheme.ts`) and injected as `--mr-bg`, `--mr-surface`, `--mr-surface-raised`, `--mr-border`, `--mr-text`, `--mr-text-muted`, `--mr-accent`, `--mr-accent-text`, `--mr-success`, `--mr-warning`, `--mr-danger`, `--mr-radius`, and `--mr-font`, with complete light and dark fallbacks; the default body uses them, so pages match light and dark mode.
-  On desktop the panel sits in a `ResizablePanel` (now with a configurable maximum, 1,600 px for canvases) and an **Expand** button gives it the conversation's whole column without unmounting the conversation; phones keep the full-screen panel.
+  On tablets and desktops the panel sits in a `ResizablePanel` (now with a configurable maximum, 1,600 px for canvases) and an **Expand** button gives it the room's whole column.
+  The expanded canvas unmounts the conversation rather than hiding it, so a hidden timeline cannot mark new messages read.
+  Phones keep the full-screen panel; the panel keeps the same component tree on every screen size (`ResizablePanel` renders no box of its own there), so rotating a phone or resizing a window never reloads the page or drops a staged answer.
+  The theme is re-read a frame after a theme switch, because the theme manager applies the new classes after the panel's own effects, and Chat's web font is followed by the system font stack because the canvas cannot load web fonts.
+  A failed download offers **Retry**, and a downloaded page always replaces the loading state of its own revision.
 - Calls: the Element Call widget API listens on the whole window and trusted any message naming the widget, so a canvas could have driven an active call (send or redact events through the call's capabilities, unmute media).
   `CallEmbed` now restricts the call transport to same-origin messages (`strictOriginCheck`), and no canvas runs while any call is active: a starting call closes the canvas and canvas requests explain that the call must end first.
 - Answering: interaction inside the page sends nothing.
@@ -50,7 +54,7 @@
 - Design: two independent plans (Claude Opus 5.5 and GPT-6 Astra) were debated to consensus.
   Rejected for v1: a custom response event with backend ingress, acknowledgements, and journal changes (the mentioned `m.text` already has durable delivery, routing, authorization, and E2EE); mxc-hosted documents; a declarative-only runtime without agent JavaScript; continuous state sync.
   Spikes in Chromium, Firefox, and WebKit confirmed the sandbox, the CSP, navigation containment by the embedder's `frame-src` (as a header and as the app's meta tag), and the WebRTC residual.
-- Tests: `canvasDocument`, `canvasMessages`, `CanvasPanel`, `chatUiProtocol`, `renderMindroomMessageContent`, `CallEmbed.origin`, and `Room.test.ts` cover the policy, bridge validation, canonical JSON and receipts, staging, frozen snapshots, SDK retries and discards, updates, escapes, foreign-sender edits, call exclusion, and routing.
+- Tests: `canvasDocument`, `canvasMessages`, `canvasTheme`, `useCanvasPage`, `CanvasPanel`, `ResizablePanel.maxWidth`, `chatUiProtocol`, `renderMindroomMessageContent`, `CallEmbed.origin`, and `Room.test.ts` cover the policy, bridge validation, canonical JSON and receipts, staging, frozen snapshots, SDK retries and discards, updates, escapes, foreign-sender edits, call exclusion, and routing.
   The backend contract fixture includes `show_canvas` and a real backend update (original plus edit) in room and thread scope, parsed by the real client parser.
   `e2e/agent-canvas.spec.ts` (runs with `E2E_UI_ACTIONS_HOMESERVER`) drives a real local Matrix server: auto-open, staged send, frozen snapshot, canonical response content, receipt, in-place update, ask-before-replace, no request reaching a listening server from `fetch`, an image, or navigation, a blocked foreign frame, the Element Call frame still loading, an uploaded page rendered from media with the theme variables, and Expand.
 - Live end-to-end (2026-10-03): a real MindRoom agent (`provider: codex`, GPT-6.1 Sol) on a disposable Tuwunel, with this production build in Chromium, showed a lunch-order canvas that opened automatically, received "Sushi", updated the same canvas in place to a drink step, received "Tea" (citing the edit as its revision), and replied "Your lunch order is Sushi with Tea."
@@ -59,6 +63,8 @@
   It wrote a six-slide deck to `slides/deck.html`, showed it by path, and after a requested edit refreshed it in place; the panel offered **Load update** because the user was presenting.
   A 42 KB customer report and, in the encrypted room, a 32 KB inventory report arrived as uploaded media and rendered after download and decryption.
 - Review: an independent review found the call widget exposure, a broken retry against the real SDK, canonical-JSON failures, foreign-sender edits applied by the SDK, a stale revision ID, and the reCAPTCHA frame regression; all are fixed above.
+  A second review of the dashboard work found the breakpoint remount, the stale theme after a switch, Expand on tablets, and read receipts from the hidden conversation; all are fixed above.
+  Uploaded pages extend the original inline-only design at the owner's request.
 - Next: a state-preserving update channel, refreshing a path-based canvas automatically when its file changes, and attaching the open canvas's latest state to the user's next typed message.
 
 ### Stop rewriting every thread root to IndexedDB on each overview (2026-10-02)

@@ -517,17 +517,32 @@ describe('Room', () => {
     expect(canvasOpen()).toBe(true);
     expect(roomState.canvasPanelProps?.event).toBe(request);
     expect(roomState.setPeopleDrawer).toHaveBeenCalledWith(false);
-    // Expanding gives the canvas the conversation's column without unmounting the conversation.
-    const conversationHidden = () =>
-      JSON.stringify(renderer!.toJSON()).includes('"display":"none"');
+    // Expanding gives the canvas the conversation's column; the conversation unmounts so it
+    // cannot mark messages read while out of view.
+    const conversationShown = () => JSON.stringify(renderer!.toJSON()).includes('mock-room-view');
     expect(roomState.canvasPanelProps?.expanded).toBe(false);
-    expect(conversationHidden()).toBe(false);
+    expect(conversationShown()).toBe(true);
     await act(async () => roomState.canvasPanelProps?.onToggleExpanded());
     expect(roomState.canvasPanelProps?.expanded).toBe(true);
-    expect(conversationHidden()).toBe(true);
-    expect(roomState.roomViewProps).toBeDefined();
+    expect(conversationShown()).toBe(false);
     await act(async () => roomState.canvasPanelProps?.onToggleExpanded());
-    expect(conversationHidden()).toBe(false);
+    expect(conversationShown()).toBe(true);
+    // Closing an expanded canvas brings the conversation back and resets Expand.
+    await act(async () => roomState.canvasPanelProps?.onToggleExpanded());
+    await act(async () => roomState.canvasPanelProps?.onClose());
+    expect(conversationShown()).toBe(true);
+    await act(async () => {
+      emitAction('show_canvas', { canvas });
+    });
+    expect(roomState.canvasPanelProps?.expanded).toBe(false);
+    // Tablets follow the same rule as desktops.
+    roomState.screenSize = 'Tablet';
+    await act(async () => renderer!.update(React.createElement(Room)));
+    await act(async () => roomState.canvasPanelProps?.onToggleExpanded());
+    expect(conversationShown()).toBe(false);
+    await act(async () => roomState.canvasPanelProps?.onToggleExpanded());
+    roomState.screenSize = 'Desktop';
+    await act(async () => renderer!.update(React.createElement(Room)));
 
     await act(async () => {
       emitAction('open_panel', { panel: 'members' });

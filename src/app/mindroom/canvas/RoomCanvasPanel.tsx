@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useReducer } from 'react';
+import React, { useEffect, useReducer, useState } from 'react';
 import { MatrixEventEvent, type MatrixClient, type MatrixEvent, type Room } from 'matrix-js-sdk';
 import { ThemeKind, useTheme } from '../../hooks/useTheme';
 import { ScreenSize, useScreenSizeContext } from '../../hooks/useScreenSize';
@@ -42,10 +42,14 @@ function LoadedCanvasPanel({
 }: Omit<RoomCanvasPanelProps, 'event'> & { action: ShowCanvas }) {
   const appTheme = useTheme();
   const colorScheme = appTheme.kind === ThemeKind.Dark ? 'dark' : 'light';
-  // The canvas copies the app theme's resolved colors, re-read whenever the app theme changes.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const theme = useMemo(() => readCanvasTheme(colorScheme), [colorScheme, appTheme.id]);
-  const page = useCanvasPage(mx, room.roomId, action.revisionEventId, action.canvas);
+  const [theme, setTheme] = useState(() => readCanvasTheme(colorScheme));
+  useEffect(() => {
+    // The theme manager applies the new theme in its own effect, after this one; read a frame later.
+    const frame = requestAnimationFrame(() => setTheme(readCanvasTheme(colorScheme)));
+    return () => cancelAnimationFrame(frame);
+  }, [colorScheme, appTheme.id]);
+  const [attempt, setAttempt] = useState(0);
+  const page = useCanvasPage(mx, room.roomId, action.revisionEventId, action.canvas, attempt);
   const mobile = useScreenSizeContext() === ScreenSize.Mobile;
   const agentName =
     getMemberDisplayName(room, action.agentUserId) ??
@@ -68,12 +72,13 @@ function LoadedCanvasPanel({
       colorScheme={colorScheme}
       theme={theme}
       onClose={onClose}
+      onRetry={() => setAttempt((count) => count + 1)}
       expanded={!mobile && expanded}
       onToggleExpanded={mobile ? undefined : onToggleExpanded}
     />
   );
-  // Phones show the canvas full screen; desktops get a resizable column.
-  if (mobile) return panel;
+  // One tree for every screen size, so crossing a breakpoint never reloads the page:
+  // phones show the panel full screen (no box of its own), wider screens a resizable column.
   return (
     <ResizablePanel
       side="end"
@@ -82,6 +87,7 @@ function LoadedCanvasPanel({
       minContentWidth={CONVERSATION_MIN_WIDTH}
       maxPanelWidth={CANVAS_MAX_WIDTH}
       fullWidth={expanded}
+      passthrough={mobile}
       resizeLabel="Resize canvas"
       collapseLabel="Close canvas"
       onCollapse={onClose}

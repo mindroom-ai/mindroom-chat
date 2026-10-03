@@ -130,6 +130,9 @@ export function Room() {
     if (!canvasEvent) setCanvasExpanded(false);
   }, [canvasEvent]);
   const toggleCanvasExpanded = useCallback(() => setCanvasExpanded((value) => !value), []);
+  // The conversation is unmounted, not hidden, so it cannot mark messages read while out of view.
+  const canvasFillsRoom =
+    canvasExpanded && canvasEnabled && !!canvasEvent && screenSize !== ScreenSize.Mobile;
   const computerThreadId = useThreadRootEvent(room, routedThreadId);
   const continuationReady =
     computerThreadId !== routedThreadId || isThreadRouteReady(room, routedThreadId);
@@ -252,16 +255,8 @@ export function Room() {
               </Box>
             </Box>
           )}
-          {!callView && (
-            <Box
-              grow="Yes"
-              direction="Column"
-              style={
-                canvasExpanded && canvasEnabled && canvasEvent && screenSize === ScreenSize.Desktop
-                  ? { display: 'none' }
-                  : undefined
-              }
-            >
+          {!callView && !canvasFillsRoom && (
+            <Box grow="Yes" direction="Column">
               <Box grow="Yes">
                 <RoomView
                   room={room}
