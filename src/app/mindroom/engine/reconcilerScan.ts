@@ -9,6 +9,8 @@ import {
   checkpointThreadReconcileContinuation,
   clearThreadReconcileContinuation,
   loadThreadReconcileContinuation,
+  loadThreadUnreachableReplyCount,
+  recordThreadUnreachableReplyCount,
   restartThreadReconcileContinuationFromHead,
   type ThreadReconcileContinuation,
 } from '../threads/cacheStore';
@@ -28,6 +30,8 @@ export type ThreadReconcileContinuationStore = {
   checkpoint: typeof checkpointThreadReconcileContinuation;
   clear: typeof clearThreadReconcileContinuation;
   restartFromHead: typeof restartThreadReconcileContinuationFromHead;
+  loadUnreachableReplyCount: typeof loadThreadUnreachableReplyCount;
+  recordUnreachableReplyCount: typeof recordThreadUnreachableReplyCount;
 };
 
 export const DEFAULT_CONTINUATION_STORE: ThreadReconcileContinuationStore = {
@@ -36,6 +40,8 @@ export const DEFAULT_CONTINUATION_STORE: ThreadReconcileContinuationStore = {
   checkpoint: checkpointThreadReconcileContinuation,
   clear: clearThreadReconcileContinuation,
   restartFromHead: restartThreadReconcileContinuationFromHead,
+  loadUnreachableReplyCount: loadThreadUnreachableReplyCount,
+  recordUnreachableReplyCount: recordThreadUnreachableReplyCount,
 };
 
 type ScanAccumulator = {
@@ -152,6 +158,7 @@ const runScanPhase = async ({
   preferLive,
   originalOverlapEventIds,
   expectedReplyCount,
+  unreachableReplyCount,
   knownReplyIds,
   initialFromToken,
   accumulator,
@@ -164,6 +171,7 @@ const runScanPhase = async ({
   preferLive: (rawEvent: Partial<IEvent>) => MatrixEvent;
   originalOverlapEventIds: ReadonlySet<string>;
   expectedReplyCount: number | undefined;
+  unreachableReplyCount: number;
   knownReplyIds: Set<string>;
   initialFromToken: string | undefined;
   accumulator: ScanAccumulator;
@@ -262,7 +270,8 @@ const runScanPhase = async ({
     }
 
     const replyShortfall =
-      typeof expectedReplyCount === 'number' && knownReplyIds.size < expectedReplyCount;
+      typeof expectedReplyCount === 'number' &&
+      knownReplyIds.size + unreachableReplyCount < expectedReplyCount;
     if (overlap && !replyShortfall) {
       return {
         aborted: false,
@@ -387,6 +396,9 @@ export const scanThreadRelations = async ({
     if (isRawThreadReply(rawEvent, threadId)) knownReplyIds.add(rawEvent.event_id as string);
   });
   const expectedReplyCount = getExpectedReplyCount(room, threadId, cachedPage);
+  const unreachableReplyCount = await continuationStore
+    .loadUnreachableReplyCount(sessionId, roomId, threadId)
+    .catch(() => 0);
   const accumulator: ScanAccumulator = {
     allMapped: [],
     allRaw: [],
@@ -414,6 +426,7 @@ export const scanThreadRelations = async ({
       preferLive,
       originalOverlapEventIds,
       expectedReplyCount,
+      unreachableReplyCount,
       knownReplyIds,
       initialFromToken: fromToken,
       accumulator,
@@ -452,6 +465,25 @@ export const scanThreadRelations = async ({
 
   if (accumulator.allMapped.length > 1) {
     accumulator.allMapped.sort((a, b) => a.getTs() - b.getTs());
+  }
+
+  // A complete drain from the head saw every reply the server can return, so
+  // any rest of the count is unreachable; without recording it, every later
+  // open would page to the start again looking for it.
+  if (
+    accumulator.drainedToExhaustion &&
+    !fetchFailed &&
+    typeof expectedReplyCount === 'number' &&
+    current()
+  ) {
+    await continuationStore
+      .recordUnreachableReplyCount(
+        sessionId,
+        roomId,
+        threadId,
+        Math.max(0, expectedReplyCount - knownReplyIds.size)
+      )
+      .catch(() => false);
   }
 
   const aborted = scanExit === 'aborted' || signal.aborted;

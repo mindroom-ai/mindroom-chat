@@ -2,6 +2,25 @@
 
 ## Runbook
 
+### Stop the thread reconcile from re-fetching and repairing a cached thread on every open (2026-10-03)
+
+- Report: the iPhone export behind the 2026-10-03 reconcile-freeze entry below showed the same thread reconciled with 13 `/relations` pages (about 1000 events) and `repaired: true` on many separate opens, including two a minute apart.
+  A reconcile is meant to be a cheap no-op when the cache already matches the server.
+- Reproduced in the local Docker Matrix stack with the same 480-reply thread (480 same-sender edits, 48 reactions, two redacted replies): after a cold open had cached the whole thread, a reopen still fetched 13 pages and repaired.
+  Temporary logging showed both causes: the scan expected 480 replies but knew 478, and the only divergence was 466 `m.replace` events missing from the cache.
+- Root causes:
+  - The cache folds each same-sender edit into its target (`setSerializedReplacement`) and keeps no record of the edit itself, but `detectDivergence` treated every fetched event id missing from the cache as new.
+    Every thread with streamed edits therefore diverged on every reconcile.
+  - Tuwunel keeps counting a redacted reply in the root's `m.thread` count while `/relations` returns it without its thread relation, so the reply shortfall check (2026-07-10 missing-middle fix) never closes and pages to the thread's start on every open.
+    The no-divergence branch records the server-confirmed start, which its comment said would stop the repeat, but nothing in the scan reads it.
+- Fix:
+  - `detectDivergence` skips a fetched same-sender edit whose cached target already carries it or a newer edit, or is redacted (`isEditKnownToRevision` in `eventRevision.ts`).
+    A newer edit, or an uncached edit from another sender (which the cache keeps as its own record), still diverges.
+  - After a complete drain from the head without fetch failures, the scan records `expected count − known replies` as `threadUnreachableReplyCount` on the thread's meta row (next to `threadReconcileContinuation`, carried through thread snapshot saves), and later scans count it as known.
+    A complete drain that reaches the count records 0, and replies missing beyond the recorded number still drive the drain.
+- Measured after the fix in the same reproduction: the cold open still drains 13 pages once; the reopen fetches one page and ends with `repaired: false`.
+- Tests: `reconciler.foldedEdits.test.ts` (carried or superseded edits are known; a newer edit, an edit of a redacted target, and another sender's edit behave as above), new cases in `reconciler.shortfall.test.ts` (the unreachable count is recorded and stops the repeat drain, real missing replies still drain, a satisfied drain clears it), and `cacheStoreLifecycle.test.ts` (the count round-trips in IndexedDB and survives a thread snapshot save; dropping the carry fails it).
+
 ### Add reconciled thread history to the SDK thread as backfill (2026-10-03)
 
 - Report: an iPhone export showed the whole app frozen for about 16 s right after a long thread opened (481 replies plus their edits and reactions); taps and text selection queued behind it.

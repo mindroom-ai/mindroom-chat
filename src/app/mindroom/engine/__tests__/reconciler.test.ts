@@ -214,6 +214,8 @@ const createContinuationStore = () => {
         return marker;
       }
     ),
+    loadUnreachableReplyCount: vi.fn(async () => 0),
+    recordUnreachableReplyCount: vi.fn(async () => true),
     getMarker: () => marker,
   } satisfies NonNullable<Parameters<typeof scheduleReconcile>[0]['continuationStore']> & {
     getMarker: () => typeof marker;

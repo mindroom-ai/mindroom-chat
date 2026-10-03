@@ -336,3 +336,95 @@ describe('reconciler shortfall drain (2026-07-10 missing-middle fix)', () => {
     expect(persistArgs.beforeTokenForEarliest).toBeUndefined();
   });
 });
+
+describe('reconciler shortfall drain: replies the server counts but cannot return', () => {
+  beforeEach(() => {
+    resetCacheProbe();
+  });
+  afterEach(() => {
+    resetCacheProbe();
+  });
+
+  // In-memory stand-in for the thread meta row the reconciler owns.
+  const makeMemoryStore = () => {
+    let unreachableReplyCount = 0;
+    return {
+      load: vi.fn(async () => undefined),
+      begin: vi.fn(async (_sessionId, _roomId, _threadId, candidate) => candidate),
+      checkpoint: vi.fn(async () => true),
+      clear: vi.fn(async () => true),
+      restartFromHead: vi.fn(async () => undefined),
+      loadUnreachableReplyCount: vi.fn(async () => unreachableReplyCount),
+      recordUnreachableReplyCount: vi.fn(async (_sessionId, _roomId, _threadId, count) => {
+        unreachableReplyCount = count;
+        return true;
+      }),
+    } satisfies NonNullable<Parameters<typeof scheduleReconcile>[0]['continuationStore']>;
+  };
+
+  // Tuwunel keeps counting a redacted reply in the root's m.thread count, but
+  // /relations returns it without its thread relation.
+  const serverPages = [
+    { chunk: [makeReplyRaw('$r5', 500), makeReplyRaw('$r4', 400)], next_batch: 'p2' },
+    { chunk: [makeReplyRaw('$r2', 200), makeReplyRaw('$r1', 100)] },
+  ];
+  const allReplies = [100, 200, 400, 500].map((ts) => makeReplyRaw(`$r${ts / 100}`, ts));
+
+  const reconcile = async (
+    continuationStore: ReturnType<typeof makeMemoryStore>,
+    cachedReplies: Partial<IEvent>[],
+    expectedReplyCount: number
+  ) => {
+    const room = makeFakeRoom();
+    const { mx, fetchRelations } = makeMockClient(room, serverPages);
+    await scheduleReconcile({
+      mx,
+      sessionId: 'session',
+      scheduler: createBackfillScheduler({ mx }),
+      roomId: '!room:example',
+      threadId: THREAD_ID,
+      cachedPage: makeCachedPage(cachedReplies, { expectedReplyCount }),
+      room,
+      persistRepair: makePersistRepairSpy() as never,
+      continuationStore,
+    });
+    return fetchRelations.mock.calls.length;
+  };
+
+  it('records the count a complete drain could not reach and does not drain for it again', async () => {
+    const store = makeMemoryStore();
+
+    expect(await reconcile(store, allReplies, 5)).toBe(2);
+    expect(store.recordUnreachableReplyCount).toHaveBeenCalledWith(
+      'session',
+      '!room:example',
+      THREAD_ID,
+      1
+    );
+
+    // The next open overlaps on its first page and stops there.
+    expect(await reconcile(store, allReplies, 5)).toBe(1);
+  });
+
+  it('still drains for replies missing beyond the unreachable count', async () => {
+    const store = makeMemoryStore();
+    await reconcile(store, allReplies, 5);
+
+    // The cache lost the thread's start: two replies short beyond the one
+    // the server cannot return.
+    expect(await reconcile(store, allReplies.slice(2), 5)).toBe(2);
+  });
+
+  it('clears the unreachable count once a complete drain reaches the expected count', async () => {
+    const store = makeMemoryStore();
+    await reconcile(store, allReplies, 5);
+
+    await reconcile(store, allReplies.slice(2), 4);
+    expect(store.recordUnreachableReplyCount).toHaveBeenLastCalledWith(
+      'session',
+      '!room:example',
+      THREAD_ID,
+      0
+    );
+  });
+});

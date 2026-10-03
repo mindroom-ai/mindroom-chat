@@ -92,3 +92,31 @@ export const clearThreadReconcileContinuation = async (
     store.put({ ...rest, updatedAt: Date.now() } satisfies CachedMetaRecord);
     return true;
   });
+
+export const loadThreadUnreachableReplyCount = async (
+  sessionId: string,
+  roomId: string,
+  threadId: string
+): Promise<number> =>
+  (await readMetaRecord(sessionId, roomId, threadId))?.threadUnreachableReplyCount ?? 0;
+
+/** Record what a complete drain from the head found; unchanged counts write nothing. */
+export const recordThreadUnreachableReplyCount = (
+  sessionId: string,
+  roomId: string,
+  threadId: string,
+  count: number
+): Promise<boolean> =>
+  updateMetaRecord(sessionId, roomId, threadId, (existing, store) => {
+    if ((existing?.threadUnreachableReplyCount ?? 0) === count) return false;
+    store.put({
+      ...(existing ?? {
+        metaKey: buildMetaKey(roomId, threadId),
+        roomId,
+        scope: threadId,
+      }),
+      updatedAt: Date.now(),
+      threadUnreachableReplyCount: count,
+    } satisfies CachedMetaRecord);
+    return true;
+  });
