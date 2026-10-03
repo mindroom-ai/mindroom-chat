@@ -1341,6 +1341,7 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
     const addEvents = vi.fn();
     const threadStub = {
       addEvents,
+      events: [],
       getUnfilteredTimelineSet: () => undefined,
     } as unknown as ReturnType<Room['getThread']>;
     const roomWithThread = {
@@ -1486,6 +1487,7 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
     const addEvents = vi.fn();
     const threadStub = {
       addEvents,
+      events: [],
       getUnfilteredTimelineSet: () => undefined,
     } as unknown as ReturnType<Room['getThread']>;
     const roomWithThread = {
@@ -1831,6 +1833,7 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
     const addEvents = vi.fn();
     const threadStub = {
       addEvents,
+      events: [],
       getUnfilteredTimelineSet: () => undefined,
     } as unknown as ReturnType<Room['getThread']>;
     const roomWithThread = {
@@ -2069,6 +2072,7 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
     const addEvents = vi.fn();
     const sdkAlreadyHasV2Thread = {
       addEvents,
+      events: [],
       getUnfilteredTimelineSet: () => undefined,
     } as unknown as ReturnType<Room['getThread']>;
     const roomSdkAhead = {
