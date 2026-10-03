@@ -31,7 +31,7 @@ import {
   mxcUrlToHttp,
 } from '../utils/matrix';
 import { getMemberDisplayName } from '../utils/room';
-import { EMOJI_PATTERN, sanitizeForRegex, URL_NEG_LB } from '../utils/regex';
+import { createInsideUrlTest, EMOJI_PATTERN, sanitizeForRegex } from '../utils/regex';
 import { getHexcodeForEmoji, getShortcodeFor } from './emoji';
 import { findAndReplace } from '../utils/findAndReplace';
 import {
@@ -48,7 +48,7 @@ import { containsSpoiler } from '../mindroom/messages/linkFaviconPolicy';
 
 const ReactPrism = lazy(() => import('./react-prism/ReactPrism'));
 
-const EMOJI_REG_G = new RegExp(`${URL_NEG_LB}(${EMOJI_PATTERN})`, 'g');
+const EMOJI_REG_G = new RegExp(`(${EMOJI_PATTERN})`, 'g');
 const TABLE_STRUCTURE_TAGS = new Set(['table', 'thead', 'tbody', 'tfoot', 'tr', 'colgroup']);
 
 const hasAncestorTag = (node: ChildNode, tagName: string): boolean => {
@@ -195,7 +195,8 @@ export const scaleSystemEmoji = (text: string): (string | JSX.Element)[] =>
         </span>
       </span>
     ),
-    (txt) => txt
+    (txt) => txt,
+    createInsideUrlTest(text)
   );
 
 export const makeHighlightRegex = (highlights: string[]): RegExp | undefined => {
