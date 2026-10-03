@@ -1,4 +1,4 @@
-import React, { memo, type MutableRefObject, useEffect, useMemo, useState } from 'react';
+import React, { memo, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Box, Icon, IconButton, Icons, Text, Tooltip, TooltipProvider, toRem } from 'folds';
 import type { Room } from 'matrix-js-sdk';
@@ -14,7 +14,6 @@ import { buildCompactThreadCardViewModelFromRecord } from '../threads/compactThr
 import { useToggleThreadResolution } from '../threads/useRoomThreadTags';
 import { usePinnedEventIds } from '../threads/useThreadPinning';
 import { useRoomViewMode } from '../threads/useRoomViewMode';
-import { createThreadNavLocationState } from './threadNavCategoryUtils';
 import { useInitializeShownThread } from '../threads/useInitializeShownThread';
 import * as css from './threadNav.css';
 
@@ -23,7 +22,6 @@ type ThreadNavItemProps = {
   onTogglePin: () => void;
   pinned: boolean;
   selected: boolean;
-  sidebarScrollRef?: MutableRefObject<HTMLDivElement | null>;
 };
 
 type ThreadNavActionsProps = {
@@ -84,7 +82,7 @@ function ThreadNavActions({ entry, onTogglePin, pinned, room }: ThreadNavActions
 }
 
 export const ThreadNavItem = memo(
-  ({ entry, onTogglePin, pinned, selected, sidebarScrollRef }: ThreadNavItemProps) => {
+  ({ entry, onTogglePin, pinned, selected }: ThreadNavItemProps) => {
     const { t } = useTranslation();
     const language = useAppLanguageCode();
     const mx = useMatrixClient();
@@ -174,21 +172,11 @@ export const ThreadNavItem = memo(
             >
               <NavButton
                 onClick={() => {
-                  const scrollTop = sidebarScrollRef?.current?.scrollTop;
-                  const navigationOptions =
-                    scrollTop === undefined
-                      ? undefined
-                      : { state: createThreadNavLocationState(scrollTop) };
                   if (viewMode === 'classic') {
-                    navigateRoom(room.roomId, viewModel.id.threadRootId, navigationOptions);
+                    navigateRoom(room.roomId, viewModel.id.threadRootId);
                     return;
                   }
-                  navigateRoomThreadDirect(
-                    room.roomId,
-                    viewModel.id.threadRootId,
-                    undefined,
-                    navigationOptions
-                  );
+                  navigateRoomThreadDirect(room.roomId, viewModel.id.threadRootId);
                 }}
                 aria-label={ariaLabel}
               >

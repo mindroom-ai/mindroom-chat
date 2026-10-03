@@ -51,6 +51,8 @@ vi.mock('@tanstack/react-virtual', () => ({
     getTotalSize: () => 0,
     getVirtualItems: () => [],
     measureElement: vi.fn(),
+    scrollOffset: 0,
+    takeSnapshot: () => [],
   }),
 }));
 
@@ -110,7 +112,7 @@ vi.mock('../../../hooks/router/useHomeSelected', () => ({
 }));
 vi.mock('./useHomeRooms', () => ({ useHomeRooms: () => homeRoomsState.roomIds }));
 vi.mock('../../../hooks/useMatrixClient', () => ({
-  useMatrixClient: () => ({ getRoom: () => null }),
+  useMatrixClient: () => ({ getRoom: () => null, getSafeUserId: () => '@alice:example.org' }),
 }));
 vi.mock('../../../components/virtualizer', () => ({ VirtualTile: 'div' }));
 vi.mock('../../../features/room-nav', () => ({
