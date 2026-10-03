@@ -923,6 +923,13 @@ describe('getReactCustomHtmlParser', () => {
     expect(markup).toContain('katex');
   });
 
+  it('scales emoji in text but not inside URLs', () => {
+    const markup = renderLatexTextMarkup('✅ https://example.org/✅ ✅');
+
+    expect(markup.match(/Emoticon"/g)).toHaveLength(2);
+    expect(markup).toContain('https://example.org/✅');
+  });
+
   it('does not split URLs that contain dollar delimiters', () => {
     const markup = renderLatexTextMarkup('https://example.com/$x$/y');
 

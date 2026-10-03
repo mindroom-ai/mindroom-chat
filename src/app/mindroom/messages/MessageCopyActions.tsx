@@ -1,10 +1,11 @@
 import { useTranslation } from 'react-i18next';
-import { Box, Icon, IconButton, Icons, Text, Tooltip, TooltipProvider, as } from 'folds';
+import { Box, Icon, IconButton, Icons, Line, Text, Tooltip, TooltipProvider, as } from 'folds';
 import React, { useMemo, useState } from 'react';
 import { MatrixEvent, Room } from 'matrix-js-sdk';
 import { MenuItem } from '../../components/glass/GlassPrimitives';
 import { getEditedEvent, getLatestMessageContent } from '../../utils/room';
 import * as css from '../../features/room/message/styles.css';
+import * as copyCss from './MessageCopyActions.css';
 import { copyToClipboard } from '../../utils/dom';
 import { getMatrixToRoomEvent } from '../../plugins/matrix-to';
 import { getViaServers } from '../../plugins/via-servers';
@@ -130,29 +131,39 @@ export const MessageCopyTextItem = as<
         {copyTextItem}
       </Box>
       {showCopyWithToolCalls && (
-        <TooltipProvider
-          position="Right"
-          offset={4}
-          tooltip={
-            <Tooltip>
-              <Text size="T300">{copyWithToolCallsLabel}</Text>
-            </Tooltip>
-          }
-        >
-          {(triggerRef) => (
-            <IconButton
-              ref={triggerRef}
-              size="300"
-              radii="300"
-              variant="Surface"
-              fill="None"
-              aria-label={copyWithToolCallsLabel}
-              onClick={handleCopyWithToolCalls}
-            >
-              <Icon size="100" src={Icons.Terminal} />
-            </IconButton>
-          )}
-        </TooltipProvider>
+        <>
+          {/* The divider and accent color set the side action apart from the
+              row's own trailing icon, so it reads as a separate button. */}
+          <Line
+            size="300"
+            variant="SurfaceVariant"
+            direction="Vertical"
+            className={copyCss.CopyActionDivider}
+          />
+          <TooltipProvider
+            position="Right"
+            offset={4}
+            tooltip={
+              <Tooltip>
+                <Text size="T300">{copyWithToolCallsLabel}</Text>
+              </Tooltip>
+            }
+          >
+            {(triggerRef) => (
+              <IconButton
+                ref={triggerRef}
+                size="300"
+                radii="300"
+                variant="Primary"
+                fill="None"
+                aria-label={copyWithToolCallsLabel}
+                onClick={handleCopyWithToolCalls}
+              >
+                <Icon size="100" src={Icons.Terminal} />
+              </IconButton>
+            )}
+          </TooltipProvider>
+        </>
       )}
     </Box>
   );
