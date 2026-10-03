@@ -58,6 +58,7 @@ import {
 import { logTimelineDebug } from '../threads/timelineDebug';
 import { countCacheProbe } from '../threads/cacheProbe';
 import { mergeThreadRenderEvents } from '../threads/threadRenderUtils';
+import { hasLoadedFirstThreadPage } from '../threads/sdk/threadBootstrapSdk';
 import type { BackfillScheduler } from './backfillScheduler';
 import { captureCacheStoreWriteLease } from '../threads/cacheStore';
 import type { HydratedThreadCachePage } from '../threads/types';
@@ -300,17 +301,22 @@ const detectDivergence = (
 /**
  * Add the fetched events (oldest first) to the SDK thread, which after an app
  * open usually holds only its latest page. Events older than that page go in
- * as backfill. Appended, the SDK announced each one as a new reply or a live
- * event, and the listeners that re-render or persist per event froze the app
- * for seconds when a reconcile fetched a long thread's history.
+ * as backfill. Appending them would make the SDK announce each one as a new
+ * reply or a live event, and listeners that re-render or persist per event
+ * froze the app for seconds when a reconcile fetched a long thread's history.
+ * An unopened thread is left alone: loading its first page replaces its
+ * timeline and replays buffered relations as new events. The repaired batch
+ * still reaches the render through `onRepaired`.
  */
 const addFetchedEventsToThread = (thread: Thread, events: MatrixEvent[]): void => {
+  if (!hasLoadedFirstThreadPage(thread)) return;
   const [earliest] = thread.events;
   // A window that starts at the root already reaches the thread's start.
-  const startsAfterRoot = earliest !== undefined && earliest.getId() !== thread.id;
-  const newerIndex = startsAfterRoot
-    ? events.findIndex((event) => event.getTs() >= earliest.getTs())
-    : 0;
+  if (earliest !== undefined && earliest.getId() === thread.id) {
+    thread.addEvents(events, false);
+    return;
+  }
+  const newerIndex = earliest ? events.findIndex((event) => event.getTs() >= earliest.getTs()) : -1;
   const backfillCount = newerIndex === -1 ? events.length : newerIndex;
   // Backfill is prepended one event at a time, so it goes in newest first.
   if (backfillCount > 0) thread.addEvents(events.slice(0, backfillCount).reverse(), true);

@@ -1,24 +1,15 @@
-import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createClient, MatrixEvent, Room, RoomEvent } from 'matrix-js-sdk';
-import type { IEvent } from 'matrix-js-sdk';
+import type { IEvent, Thread } from 'matrix-js-sdk';
 import { Feature, ServerSupport } from 'matrix-js-sdk/lib/feature';
-import { FeatureSupport, Thread, ThreadEvent } from 'matrix-js-sdk/lib/models/thread';
+import { FeatureSupport, Thread as SdkThread, ThreadEvent } from 'matrix-js-sdk/lib/models/thread';
 import { createBackfillScheduler } from '../backfillScheduler';
 import { scheduleReconcile } from '../reconciler';
+import { createInitializedThreadForRoot } from '../../threads/sdk/threadBootstrapSdk';
 import type { HydratedThreadCachePage } from '../../threads/types';
 
 const ROOT = '$root';
 const SENDER = '@agent:example.org';
-
-let support: FeatureSupport;
-beforeEach(() => {
-  support = Thread.hasServerSideSupport;
-  Thread.hasServerSideSupport = FeatureSupport.Stable;
-});
-afterEach(() => {
-  Thread.hasServerSideSupport = support;
-  vi.restoreAllMocks();
-});
 
 const reply = (index: number): Partial<IEvent> => ({
   event_id: `$reply-${index}`,
@@ -32,12 +23,6 @@ const reply = (index: number): Partial<IEvent> => ({
     'm.relates_to': { rel_type: 'm.thread', event_id: ROOT },
   },
 });
-
-// The SDK announces replies after an awaited metadata update.
-const settle = () =>
-  new Promise((resolve) => {
-    setTimeout(resolve, 0);
-  });
 
 const edit = (index: number): Partial<IEvent> => ({
   event_id: `$edit-${index}`,
@@ -53,7 +38,20 @@ const edit = (index: number): Partial<IEvent> => ({
   },
 });
 
-it('adds reconciled history older than the SDK thread window as backfill, not as new replies', async () => {
+/** Replies 1..count, each followed by its edit, in server order. */
+const thread = (count: number): Partial<IEvent>[] =>
+  Array.from({ length: count }, (_, i) => [reply(i + 1), edit(i + 1)]).flat();
+
+const ids = (events: readonly Partial<IEvent>[]): string[] =>
+  events.map((event) => event.event_id as string);
+
+// The SDK announces replies after an awaited metadata update.
+const settle = () =>
+  new Promise((resolve) => {
+    setTimeout(resolve, 0);
+  });
+
+const setup = () => {
   const mx = createClient({ baseUrl: 'https://example.org', userId: '@alice:example.org' });
   vi.spyOn(mx, 'supportsThreads').mockReturnValue(true);
   mx.canSupport.set(Feature.RelationsRecursion, ServerSupport.Stable);
@@ -67,24 +65,23 @@ it('adds reconciled history older than the SDK thread window as backfill, not as
     origin_server_ts: 1,
     content: { msgtype: 'm.text', body: 'root' },
   });
-  const history = Array.from({ length: 40 }, (_, i) => [reply(i + 1), edit(i + 1)]).flat();
-  const mapper = mx.getEventMapper();
+  return { mx, room, root, mapper: mx.getEventMapper() };
+};
 
-  // Like a fresh app open: the SDK thread holds only the latest page.
-  const thread = room.createThread(ROOT, root, [], false);
-  thread.initialEventsFetched = true;
-  thread.replayEvents = null;
-  thread.addEvents(history.slice(-6).map(mapper), false);
-  await settle();
-
+/** Records what the SDK announces while the reconcile adds `server` to `sdkThread`. */
+const reconcile = async (
+  { mx, room }: ReturnType<typeof setup>,
+  sdkThread: Thread,
+  server: Partial<IEvent>[]
+) => {
   const newReplies: string[] = [];
   const liveArrivals: string[] = [];
-  thread.on(ThreadEvent.NewReply, (_thread, event) => newReplies.push(event.getId()!));
-  thread.on(RoomEvent.Timeline, (event, _room, _toStart, _removed, data) => {
+  sdkThread.on(ThreadEvent.NewReply, (_thread, event) => newReplies.push(event.getId()!));
+  sdkThread.on(RoomEvent.Timeline, (event, _room, _toStart, _removed, data) => {
     if (data.liveEvent) liveArrivals.push(event.getId()!);
   });
-  vi.spyOn(mx, 'fetchRelations').mockResolvedValue({ chunk: history.slice().reverse() as never });
-
+  vi.spyOn(mx, 'fetchRelations').mockResolvedValue({ chunk: server.slice().reverse() as never });
+  const onRepaired = vi.fn();
   const result = await scheduleReconcile({
     mx,
     sessionId: 'session',
@@ -92,19 +89,84 @@ it('adds reconciled history older than the SDK thread window as backfill, not as
     roomId: room.roomId,
     room,
     threadId: ROOT,
-    cachedPage: {
-      events: history.slice(-6),
-      hasMoreBefore: true,
-      tailLoaded: true,
-    } as HydratedThreadCachePage,
+    cachedPage: { events: [], hasMoreBefore: true, tailLoaded: true } as HydratedThreadCachePage,
     persistRepair: () => ({ rawEvents: [], loadedReplyCount: 0, write: Promise.resolve(true) }),
+    onRepaired,
   });
   await settle();
-
   expect(result.repaired).toBe(true);
-  expect(newReplies).toEqual([]);
-  expect(liveArrivals).toEqual([]);
-  expect(thread.events.map((event) => event.getId())).toEqual(
-    history.map((event) => event.event_id)
-  );
+  return { newReplies, liveArrivals, onRepaired };
+};
+
+describe('reconciler SDK thread injection', () => {
+  let support: FeatureSupport;
+  beforeEach(() => {
+    support = SdkThread.hasServerSideSupport;
+    SdkThread.hasServerSideSupport = FeatureSupport.Stable;
+  });
+  afterEach(() => {
+    SdkThread.hasServerSideSupport = support;
+    vi.restoreAllMocks();
+  });
+
+  it('adds history older than the SDK window as backfill, not as new replies', async () => {
+    const env = setup();
+    const server = thread(40);
+    // Like a fresh app open: the SDK thread holds only the latest page.
+    const sdkThread = createInitializedThreadForRoot(env.room, env.root);
+    sdkThread.addEvents(server.slice(-6).map(env.mapper), false);
+    await settle();
+
+    const { newReplies, liveArrivals } = await reconcile(env, sdkThread, server);
+
+    expect(newReplies).toEqual([]);
+    expect(liveArrivals).toEqual([]);
+    expect(sdkThread.events.map((event) => event.getId())).toEqual(ids(server));
+  });
+
+  it('still appends events newer than the SDK window as new replies', async () => {
+    const env = setup();
+    const server = thread(40);
+    const sdkThread = createInitializedThreadForRoot(env.room, env.root);
+    sdkThread.addEvents(server.slice(68, 76).map(env.mapper), false);
+    await settle();
+
+    const { newReplies, liveArrivals } = await reconcile(env, sdkThread, server);
+
+    expect(newReplies).toEqual(['$reply-39', '$reply-40']);
+    expect(liveArrivals).toEqual(ids(server.slice(76)));
+    expect(sdkThread.events.map((event) => event.getId())).toEqual(ids(server));
+    expect(sdkThread.lastReply()?.getId()).toBe('$reply-40');
+  });
+
+  it('adds everything as backfill to an opened thread with an empty window', async () => {
+    const env = setup();
+    const server = thread(10);
+    const sdkThread = createInitializedThreadForRoot(env.room, env.root);
+
+    const { newReplies, liveArrivals } = await reconcile(env, sdkThread, server);
+
+    expect(newReplies).toEqual([]);
+    expect(liveArrivals).toEqual([]);
+    expect(sdkThread.events.map((event) => event.getId())).toEqual(ids(server));
+  });
+
+  it('leaves an unopened thread to load its own first page', async () => {
+    const env = setup();
+    const server = thread(10);
+    const sdkThread = env.room.createThread(ROOT, env.root, [], false);
+    sdkThread.addEvents(server.slice(-2).map(env.mapper), false);
+    await settle();
+    const eventsBefore = sdkThread.events.map((event) => event.getId());
+    const replayBefore = sdkThread.replayEvents?.length;
+
+    const { newReplies, onRepaired } = await reconcile(env, sdkThread, server);
+
+    expect(sdkThread.initialEventsFetched).toBe(false);
+    expect(newReplies).toEqual([]);
+    expect(sdkThread.events.map((event) => event.getId())).toEqual(eventsBefore);
+    expect(sdkThread.replayEvents?.length).toBe(replayBefore);
+    // The render still receives the repaired batch.
+    expect(onRepaired).toHaveBeenCalledTimes(1);
+  });
 });
