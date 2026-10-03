@@ -14,7 +14,8 @@ const STEP_ONE = `<p>Which plan?</p>
 <button onclick="choosePro()">Pro</button>
 <script>
   function choosePro() {
-    mindroom.submit({plan: 'pro'}, {label: 'Pro plan'});
+    // Keys out of order and a decimal: homeservers store canonical JSON and refuse decimals.
+    mindroom.submit({seats: 3, plan: 'pro', price: 12.5}, {label: 'Pro plan'});
     // A later scripted submission must not replace the snapshot the user is reviewing.
     setTimeout(() => mindroom.submit({plan: 'everything'}, {label: 'Everything'}), 1000);
   }
@@ -217,10 +218,10 @@ test('agent canvases run sandboxed, send only confirmed answers, and update in p
     canvas_revision_event_id: canvasId,
     agent_user_id: agent.user_id,
     label: 'Pro plan',
-    data: { plan: 'pro' },
+    data: { plan: 'pro', price: '12.5', seats: 3 },
   });
   expect(response.content.body).toBe(
-    `${agent.user_id} Canvas response (${canvasId}, revision ${canvasId}): Pro plan\n{"plan":"pro"}`
+    `${agent.user_id} Canvas response (${canvasId}, revision ${canvasId}): Pro plan\n{"plan":"pro","price":"12.5","seats":3}`
   );
   expect(response.content['m.mentions']).toEqual({ user_ids: [agent.user_id] });
   const receipt = page.locator(`[data-canvas-receipt="${canvasId}"]`);
