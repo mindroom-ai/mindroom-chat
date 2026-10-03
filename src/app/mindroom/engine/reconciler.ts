@@ -45,7 +45,7 @@
  * homeserver can otherwise stream tokens indefinitely.
  */
 
-import type { IEvent, MatrixClient, MatrixEvent, Room } from 'matrix-js-sdk';
+import type { IEvent, MatrixClient, MatrixEvent, Room, Thread } from 'matrix-js-sdk';
 import {
   createPreferLiveEventMapper,
   persistThreadEventCacheSnapshotCommitted,
@@ -58,6 +58,7 @@ import {
 import { logTimelineDebug } from '../threads/timelineDebug';
 import { countCacheProbe } from '../threads/cacheProbe';
 import { mergeThreadRenderEvents } from '../threads/threadRenderUtils';
+import { hasLoadedFirstThreadPage } from '../threads/sdk/threadBootstrapSdk';
 import type { BackfillScheduler } from './backfillScheduler';
 import { captureCacheStoreWriteLease } from '../threads/cacheStore';
 import type { HydratedThreadCachePage } from '../threads/types';
@@ -100,7 +101,7 @@ export type ScheduleReconcileArgs = {
    * Fired at most once per pass, and only when the reconciler actually
    * applied a repair. Receives the fully-mapped, prefer-live event
    * batch the reconciler fetched — the SAME set that was injected
-   * into the SDK thread model via `liveThread.addEvents(batch, false)`
+   * into the SDK thread model via `addFetchedEventsToThread`
    * on the SDK-side leg of the P5-GATE-FIX v3 dual-injection.
    *
    * Why the batch is handed to the callback (P5-GATE-FIX v3): the
@@ -298,6 +299,31 @@ const detectDivergence = (
 };
 
 /**
+ * Add the fetched events (oldest first) to the SDK thread, which after an app
+ * open usually holds only its latest page. Events older than that page go in
+ * as backfill. Appending them would make the SDK announce each one as a new
+ * reply or a live event, and listeners that re-render or persist per event
+ * froze the app for seconds when a reconcile fetched a long thread's history.
+ * An unopened thread is left alone: loading its first page replaces its
+ * timeline and replays buffered relations as new events. The repaired batch
+ * still reaches the render through `onRepaired`.
+ */
+const addFetchedEventsToThread = (thread: Thread, events: MatrixEvent[]): void => {
+  if (!hasLoadedFirstThreadPage(thread)) return;
+  const [earliest] = thread.events;
+  // A window that starts at the root already reaches the thread's start.
+  if (earliest !== undefined && earliest.getId() === thread.id) {
+    thread.addEvents(events, false);
+    return;
+  }
+  const newerIndex = earliest ? events.findIndex((event) => event.getTs() >= earliest.getTs()) : -1;
+  const backfillCount = newerIndex === -1 ? events.length : newerIndex;
+  // Backfill is prepended one event at a time, so it goes in newest first.
+  if (backfillCount > 0) thread.addEvents(events.slice(0, backfillCount).reverse(), true);
+  if (backfillCount < events.length) thread.addEvents(events.slice(backfillCount), false);
+};
+
+/**
  * Executor for a thread reconcile pass. Fetches `/relations` pages
  * (bounded by MAX_RECONCILE_ITERATIONS) until either the fetched chunk
  * overlaps the cached window by event id (server-truth caught up with
@@ -447,10 +473,10 @@ const runThreadReconcilePass = async ({
 
   // Inject the fetched tail before hydration so SDK thread indices and the
   // cache-first render fallback converge on the same MatrixEvent instances.
-  // `addEvents(..., false)` is idempotent by event id.
+  // `addEvents` is idempotent by event id.
   const liveThread = room.getThread(threadId);
   if (liveThread && allMapped.length > 0) {
-    liveThread.addEvents(allMapped, false);
+    addFetchedEventsToThread(liveThread, allMapped);
   } else if (!liveThread && allMapped.length > 0) {
     // Complete cache-first opens may intentionally have no SDK thread yet;
     // the repaired batch still reaches the render fallback via `onRepaired`.
