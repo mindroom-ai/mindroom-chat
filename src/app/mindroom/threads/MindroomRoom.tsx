@@ -1,4 +1,5 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Capacitor } from '@capacitor/core';
 import { Box, Line } from 'folds';
 import { KnownMembership } from 'matrix-js-sdk';
 import { useParams, useSearchParams } from 'react-router-dom';
@@ -72,6 +73,10 @@ export function Room() {
   const clientConfig = useClientConfig();
   const computerApiUrl = resolveComputerApiUrl(clientConfig.mindroom?.computers?.apiUrl);
   const canvasEnabled = clientConfig.mindroom?.canvas?.enabled === true;
+  // The native apps' plugin bridge also listens to messages from nested frames, so canvases stay
+  // in the browser until that bridge accepts only the app's own frame.
+  const nativeApp = Capacitor.isNativePlatform();
+  const canvasAllowed = canvasEnabled && !nativeApp;
   const computerAgents = useMemo<ComputerAgent[]>(
     () =>
       members
@@ -117,10 +122,15 @@ export function Room() {
     show: showCanvas,
     close: closeCanvas,
   } = useRoomCanvasState({ mx, roomId: room.roomId, threadId: routedThreadId });
-  // Opening Members from the header replaces an open canvas, as it does the computer.
+  // Opening Members from the header replaces an open canvas, as it does the computer. Crossing a
+  // breakpoint switches which Members setting applies (rotating a phone, for example), so only an
+  // opening at the same screen size counts.
+  const previousDrawer = useRef({ isDrawer, screenSize });
   useEffect(() => {
-    if (isDrawer) closeCanvas();
-  }, [isDrawer, closeCanvas]);
+    const previous = previousDrawer.current;
+    previousDrawer.current = { isDrawer, screenSize };
+    if (isDrawer && !previous.isDrawer && previous.screenSize === screenSize) closeCanvas();
+  }, [isDrawer, screenSize, closeCanvas]);
   useEffect(() => {
     if (callActive) closeCanvas();
   }, [callActive, closeCanvas]);
@@ -130,9 +140,12 @@ export function Room() {
     if (!canvasEvent) setCanvasExpanded(false);
   }, [canvasEvent]);
   const toggleCanvasExpanded = useCallback(() => setCanvasExpanded((value) => !value), []);
+  const callView = room.isCallRoom();
+  const canvasShown =
+    !callView && canvasAllowed && !callActive && !effectiveComputerOpen && !!canvasEvent;
   // The conversation is unmounted, not hidden, so it cannot mark messages read while out of view.
-  const canvasFillsRoom =
-    canvasExpanded && canvasEnabled && !!canvasEvent && screenSize !== ScreenSize.Mobile;
+  // On phones the canvas always covers the conversation.
+  const canvasFillsRoom = canvasShown && (canvasExpanded || screenSize === ScreenSize.Mobile);
   const computerThreadId = useThreadRootEvent(room, routedThreadId);
   const continuationReady =
     computerThreadId !== routedThreadId || isThreadRouteReady(room, routedThreadId);
@@ -151,7 +164,6 @@ export function Room() {
   });
   useRoomEscapeReadReceipts({ hideActivity, roomId: room.roomId, threadId: routedThreadId });
 
-  const callView = room.isCallRoom();
   const uiUnavailable = useCallback(
     (action: ChatUiAction): string | undefined => {
       if (callView) return t('mindroomUi.uiActions.openConversation');
@@ -179,6 +191,9 @@ export function Room() {
       ) {
         return t('mindroomUi.uiActions.computerUnavailable');
       }
+      if (action.action === 'show_canvas' && canvasEnabled && nativeApp) {
+        return t('mindroomUi.uiActions.canvasUnavailableInApp');
+      }
       if (action.action === 'show_canvas' && !canvasEnabled) {
         return t('mindroomUi.uiActions.canvasDisabled');
       }
@@ -189,6 +204,7 @@ export function Room() {
     },
     [
       canvasEnabled,
+      nativeApp,
       callActive,
       callView,
       simpleMode,
@@ -307,7 +323,7 @@ export function Room() {
               />
             </>
           )}
-          {!callView && canvasEnabled && !callActive && !effectiveComputerOpen && canvasEvent && (
+          {canvasShown && canvasEvent && (
             <>
               <RoomCanvasPanel
                 mx={mx}
@@ -319,7 +335,7 @@ export function Room() {
               />
             </>
           )}
-          {!callView && isDrawer && !effectiveComputerOpen && !(canvasEnabled && canvasEvent) && (
+          {!callView && isDrawer && !effectiveComputerOpen && !(canvasAllowed && canvasEvent) && (
             <ResizableMembersPanel key={room.roomId} onClose={() => setPeopleDrawer(false)}>
               <MembersDrawer room={room} members={members} />
             </ResizableMembersPanel>

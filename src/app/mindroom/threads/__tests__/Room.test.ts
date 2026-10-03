@@ -2,6 +2,7 @@ import React from 'react';
 import { act, create } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MatrixEvent } from 'matrix-js-sdk';
+import { Capacitor } from '@capacitor/core';
 import type { ClientConfig } from '../../../hooks/useClientConfig';
 
 type MockRoomViewProps = {
@@ -584,6 +585,108 @@ describe('Room', () => {
     expect(canvasOpen()).toBe(false);
     await act(async () => renderer!.unmount());
     vi.stubGlobal('document', undefined);
+  });
+
+  const renderCanvasRoom = async () => {
+    vi.stubGlobal('document', { visibilityState: 'visible', hasFocus: () => true });
+    roomState.clientConfig = {
+      mindroom: {
+        uiActions: { autoOpenFromHomeservers: ['example.org'] },
+        canvas: { enabled: true },
+      },
+    };
+    roomState.members = [
+      { membership: 'join', userId: '@mindroom_helper:example.org' },
+      { membership: 'join', userId: '@alice:example.org' },
+    ];
+    roomState.search = '?threadId=%24thread';
+    roomState.routedEvent = { getId: () => '$thread', isSending: () => false };
+    const { Room } = await import('../../../features/room/Room');
+    let renderer: ReturnType<typeof create> | undefined;
+    await act(async () => {
+      renderer = create(React.createElement(Room));
+    });
+    const view = () => JSON.stringify(renderer!.toJSON());
+    return {
+      canvasOpen: () => view().includes('mock-canvas-panel'),
+      conversationShown: () => view().includes('mock-room-view'),
+      rerender: () => act(async () => renderer!.update(React.createElement(Room))),
+      showCanvas: () =>
+        act(async () => {
+          roomState.mxListeners.get('Room.timeline')?.(
+            new MatrixEvent({
+              event_id: '$canvas-room',
+              room_id: room.roomId,
+              sender: '@mindroom_helper:example.org',
+              type: 'm.room.message',
+              origin_server_ts: Date.now(),
+              content: {
+                msgtype: 'm.notice',
+                body: 'Open this view.',
+                'm.relates_to': { rel_type: 'm.thread', event_id: '$thread' },
+                'io.mindroom.ui_action': {
+                  version: 1,
+                  action: 'show_canvas',
+                  requester_id: '@alice:example.org',
+                  agent_user_id: '@mindroom_helper:example.org',
+                  room_id: room.roomId,
+                  thread_id: '$thread',
+                  canvas: { title: 'Choose', html: '<p></p>' },
+                },
+              },
+            }),
+            room,
+            false,
+            false,
+            { liveEvent: true }
+          );
+        }),
+      unmount: async () => {
+        await act(async () => renderer!.unmount());
+        vi.stubGlobal('document', undefined);
+      },
+    };
+  };
+
+  it('keeps a canvas open across breakpoints and closes it when Members opens', async () => {
+    roomState.screenSize = 'Mobile';
+    const room = await renderCanvasRoom();
+    await room.showCanvas();
+    expect(room.canvasOpen()).toBe(true);
+    // Rotating a phone to the tablet layout switches to the saved Members setting, which may be on.
+    roomState.screenSize = 'Tablet';
+    roomState.drawer = true;
+    await room.rerender();
+    expect(room.canvasOpen()).toBe(true);
+    // Opening Members on the same screen size replaces the canvas.
+    roomState.drawer = false;
+    await room.rerender();
+    roomState.drawer = true;
+    await room.rerender();
+    expect(room.canvasOpen()).toBe(false);
+    await room.unmount();
+  });
+
+  it('unmounts the conversation under a canvas on phones', async () => {
+    roomState.screenSize = 'Mobile';
+    const room = await renderCanvasRoom();
+    expect(room.conversationShown()).toBe(true);
+    await room.showCanvas();
+    expect(room.canvasOpen()).toBe(true);
+    expect(room.conversationShown()).toBe(false);
+    await act(async () => roomState.canvasPanelProps?.onClose());
+    expect(room.conversationShown()).toBe(true);
+    await room.unmount();
+  });
+
+  it('keeps canvases out of the native apps', async () => {
+    const native = vi.spyOn(Capacitor, 'isNativePlatform').mockReturnValue(true);
+    const room = await renderCanvasRoom();
+    await room.showCanvas();
+    expect(room.canvasOpen()).toBe(false);
+    expect(roomState.canvasPanelProps).toBeUndefined();
+    native.mockRestore();
+    await room.unmount();
   });
 
   it('keeps canvas requests passive when the deployment has not enabled canvases', async () => {

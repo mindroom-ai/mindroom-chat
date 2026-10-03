@@ -1,9 +1,19 @@
 import { canvasThemeCss, FALLBACK_CANVAS_THEMES, type CanvasTheme } from './canvasTheme';
 
 export const CANVAS_SUBMIT_MESSAGE = 'mindroom.canvas.submit';
+export const CANVAS_ESCAPE_MESSAGE = 'mindroom.canvas.escaped';
 
-/** The iframe gets an opaque origin: no Chat storage, cookies, DOM, popups, or top navigation. */
+/** The canvas frame gets an opaque origin: no Chat storage, cookies, DOM, popups, or top navigation. */
 export const CANVAS_SANDBOX = 'allow-scripts allow-forms';
+
+/**
+ * The panel's frame holds only a wrapper document around the canvas frame. The embedder's
+ * `frame-src` decides where a frame may navigate, and Chat's own policy must allow its origin
+ * (for calls) and reCAPTCHA; the wrapper's `frame-src 'none'` instead stops every navigation
+ * of the canvas frame before a request leaves. The wrapper runs only its own script. A nested
+ * frame keeps every restriction of its parent, so the wrapper allows forms for the canvas's forms.
+ */
+export const CANVAS_WRAPPER_SANDBOX = 'allow-scripts allow-forms';
 
 /** Agent HTML may run inline code but cannot load or send anything over the network. */
 export const CANVAS_CSP = [
@@ -51,7 +61,7 @@ const BRIDGE_SCRIPT = `(() => {
   });
   const post = (data, options) => {
     const label = options && typeof options.label === 'string' ? options.label : undefined;
-    parent.postMessage({ type: '${CANVAS_SUBMIT_MESSAGE}', version: 1, data, label }, '*');
+    parent.parent.postMessage({ type: '${CANVAS_SUBMIT_MESSAGE}', version: 1, data, label }, '*');
   };
   const formValues = (form, submitter) => {
     let entries;
@@ -89,7 +99,7 @@ const BASE_STYLE =
   'body{margin:0;padding:16px;background:var(--mr-bg);color:var(--mr-text);font:14px/1.5 var(--mr-font)}';
 
 /** Wrap agent HTML in a document whose policy and bridge are fixed before the agent's markup. */
-export const buildCanvasDocument = (
+export const buildCanvasPage = (
   html: string,
   colorScheme: CanvasColorScheme,
   theme: CanvasTheme = FALLBACK_CANVAS_THEMES[colorScheme]
@@ -105,3 +115,42 @@ export const buildCanvasDocument = (
     html,
     '</body></html>',
   ].join('');
+
+// A JSON string is a valid script literal once "<" cannot close the script element.
+const scriptLiteral = (value: string): string => JSON.stringify(value).replace(/</g, '\\u003c');
+
+/**
+ * The document of the panel's frame: it creates the canvas frame itself, so the load listener is in
+ * place before the canvas loads. The canvas's document is inline, so a second load means it navigated.
+ */
+export const buildCanvasDocument = (
+  html: string,
+  colorScheme: CanvasColorScheme,
+  theme: CanvasTheme = FALLBACK_CANVAS_THEMES[colorScheme],
+  title = ''
+): string =>
+  [
+    '<!doctype html><html><head><meta charset="utf-8">',
+    `<meta http-equiv="Content-Security-Policy" content="${CANVAS_CSP}">`,
+    `<meta name="color-scheme" content="${colorScheme}">`,
+    '<style>html,body{margin:0;height:100%;overflow:hidden}',
+    'iframe{display:block;border:0;width:100%;height:100%}</style>',
+    '</head><body><script>(() => {',
+    "const frame = document.createElement('iframe');",
+    `frame.setAttribute('sandbox', '${CANVAS_SANDBOX}');`,
+    `frame.setAttribute('allow', ${scriptLiteral(CANVAS_PERMISSIONS)});`,
+    "frame.setAttribute('referrerpolicy', 'no-referrer');",
+    `frame.title = ${scriptLiteral(title)};`,
+    'let loads = 0;',
+    "frame.addEventListener('load', () => {",
+    '  loads += 1;',
+    `  if (loads > 1) parent.postMessage({ type: '${CANVAS_ESCAPE_MESSAGE}' }, '*');`,
+    '});',
+    `frame.srcdoc = ${scriptLiteral(buildCanvasPage(html, colorScheme, theme))};`,
+    'document.body.append(frame);',
+    '})();</script></body></html>',
+  ].join('');
+
+/** The canvas frame inside the panel's wrapper frame, whose messages the panel accepts. */
+export const canvasFrameWindow = (panelFrame: HTMLIFrameElement | null): Window | undefined =>
+  panelFrame?.contentWindow?.frames[0] ?? undefined;

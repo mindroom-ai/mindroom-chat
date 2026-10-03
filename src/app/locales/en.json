@@ -2899,7 +2899,32 @@
       "computerUnavailable": "This agent’s computer is unavailable.",
       "releaseControl": "Release computer control before opening another view.",
       "openConversation": "Open this request from the room conversation.",
-      "settingsUnavailable": "Turn off Simple Mode to open this Settings section."
+      "settingsUnavailable": "Turn off Simple Mode to open this Settings section.",
+      "canvasUnavailableInApp": "Interactive panels are not available in the app yet. Open this conversation in a browser."
+    },
+    "canvas": {
+      "panelLabel": "Canvas panel",
+      "fromAgent": "Interactive panel from {{agent}}",
+      "expand": "Expand canvas",
+      "close": "Close canvas",
+      "resize": "Resize canvas",
+      "updated": "{{agent}} updated this panel.",
+      "loadUpdate": "Load update",
+      "loading": "Loading panel…",
+      "loadFailed": "This panel could not be loaded.",
+      "retry": "Retry",
+      "escaped": "This panel tried to leave its sandbox and was stopped.",
+      "reload": "Reload panel",
+      "sendTo": "Send to {{agent}}:",
+      "changeAnswer": "To change your answer, discard this one first.",
+      "data": "Data",
+      "send": "Send",
+      "discard": "Discard",
+      "disclosure": "Made by {{agent}}. It cannot access your account; what you enter here may leave this panel.",
+      "sending": "Sending to {{agent}}…",
+      "sent": "Sent to {{agent}}: {{label}}",
+      "sendFailed": "Could not send your response. Try again.",
+      "receiptData": "Show the data sent to the agent"
     }
   },
   "roomSchedules": {

@@ -90,6 +90,16 @@ const canonicalBody = (
   json: string
 ) => `${agentUserId} ${responseSummary(canvasEventId, revisionEventId, label)}\n${json}`;
 
+/**
+ * Plaintext budget for an answer's content. Encryption grows an event by about a third, and the
+ * data appears up to three times (body, formatted body, metadata), so the 8 KiB data cap alone
+ * cannot keep an encrypted answer under Matrix's 64 KiB event limit.
+ */
+export const MAX_CANVAS_RESPONSE_CONTENT_BYTES = 40_000;
+
+const contentBytes = (content: object): number =>
+  new TextEncoder().encode(JSON.stringify(content)).length;
+
 /** A commit is an ordinary mention so the agent's existing turn pipeline receives it. */
 export const buildCanvasResponseContent = (canvas: CanvasTarget, submission: CanvasSubmission) => {
   const label = submission.label ?? 'Submitted';
@@ -99,15 +109,14 @@ export const buildCanvasResponseContent = (canvas: CanvasTarget, submission: Can
   const relation = getMessageRelation(canvas.eventId, undefined, canvas.threadId) ?? {
     'm.in_reply_to': { event_id: canvas.eventId },
   };
-  return {
+  const mention = `<a href="https://matrix.to/#/${encodeURIComponent(
+    canvas.agentUserId
+  )}">${sanitizeText(canvas.agentName)}</a> ${sanitizeText(summary)}`;
+  const content = {
     msgtype: MsgType.Text,
     body: canonicalBody(canvas.agentUserId, canvas.eventId, canvas.revisionEventId, label, json),
     format: 'org.matrix.custom.html',
-    formatted_body: `<a href="https://matrix.to/#/${encodeURIComponent(
-      canvas.agentUserId
-    )}">${sanitizeText(canvas.agentName)}</a> ${sanitizeText(summary)}<pre><code>${sanitizeText(
-      json
-    )}</code></pre>`,
+    formatted_body: `${mention}<pre><code>${sanitizeText(json)}</code></pre>`,
     'm.mentions': { user_ids: [canvas.agentUserId] },
     'm.relates_to': relation,
     [CANVAS_RESPONSE_KEY]: {
@@ -119,6 +128,10 @@ export const buildCanvasResponseContent = (canvas: CanvasTarget, submission: Can
       data: submission.data,
     },
   };
+  // HTML escaping can multiply dense data; the plain body still carries the JSON for every client.
+  return contentBytes(content) > MAX_CANVAS_RESPONSE_CONTENT_BYTES
+    ? { ...content, formatted_body: mention }
+    : content;
 };
 
 export type CanvasResponseReceipt = {

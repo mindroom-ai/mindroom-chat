@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   buildCanvasResponseContent,
   CANVAS_RESPONSE_KEY,
+  MAX_CANVAS_RESPONSE_CONTENT_BYTES,
   readCanvasResponse,
   readCanvasSubmission,
 } from './canvasMessages';
@@ -101,6 +102,28 @@ describe('buildCanvasResponseContent', () => {
     const content = buildCanvasResponseContent({ ...canvas, threadId: undefined }, { data: 1 });
     expect(content['m.relates_to']).toEqual({ 'm.in_reply_to': { event_id: '$canvas' } });
     expect(content.body).toContain(': Submitted\n1');
+  });
+
+  it('keeps the largest answer within the event budget once HTML escaping multiplies it', () => {
+    // Ampersands and quotes grow the most when escaped into the formatted body.
+    const submission = readCanvasSubmission(
+      message(submit({ data: { text: '&"'.repeat(2700) }, label: 'Dense' })),
+      frame
+    );
+    expect(submission).toBeDefined();
+    const content = buildCanvasResponseContent(canvas, submission!);
+    const bytes = new TextEncoder().encode(JSON.stringify(content)).length;
+    expect(bytes).toBeLessThanOrEqual(MAX_CANVAS_RESPONSE_CONTENT_BYTES);
+    expect(content.formatted_body).not.toContain('<pre>');
+    expect(content.body).toContain('&\\"&');
+    expect(readCanvasResponse(content as never)?.label).toBe('Dense');
+  });
+
+  it('shows ordinary answers as JSON in the formatted body', () => {
+    const content = buildCanvasResponseContent(canvas, { data: { plan: 'pro' } });
+    expect(content.formatted_body).toContain(
+      '<pre><code>{&quot;plan&quot;:&quot;pro&quot;}</code></pre>'
+    );
   });
 
   it('escapes the agent name in the mention pill', () => {

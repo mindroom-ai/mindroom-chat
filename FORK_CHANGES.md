@@ -15,10 +15,13 @@
   `readChatUiAction` keeps authority on the original event and accepts the applied replacement only when it comes from the original sender (checked again, because the SDK applies server-bundled edits without that check) and its authority fields are unchanged.
   Every other action still rejects edited originals.
   The action reports the event whose content it shows as `revisionEventId`.
-- Rendering (`mindroom/canvas/`): `CanvasPanel` renders the page in an `<iframe sandbox="allow-scripts allow-forms" srcdoc>` with an opaque origin and explicit Permissions-Policy denials.
+- Rendering (`mindroom/canvas/`): the page runs in a canvas frame, `<iframe sandbox="allow-scripts allow-forms" srcdoc>` with an opaque origin and explicit Permissions-Policy denials.
   A CSP meta tag comes before any agent markup: `default-src 'none'`, inline script and style only, `data:`/`blob:` media, and `'none'` for `connect-src`, `form-action`, `frame-src`, `worker-src`, and `base-uri`.
-  `index.html` adds an app-wide `frame-src 'self'` meta policy (plus the reCAPTCHA frame origins used by registration), which stops a canvas from navigating itself to another origin in Chromium, Firefox, and WebKit; Element Call's same-origin frame still loads.
-  A second frame `load` replaces the frame with a reload prompt.
+  Where a frame may navigate is decided by its parent's `frame-src`, and Chat's own policy must admit Chat's origin (Element Call) and reCAPTCHA, so a canvas framed directly by Chat could navigate itself there and send data in the URL.
+  The panel's frame therefore holds a wrapper document (same sandbox and policy, so `frame-src 'none'`) whose only script creates the canvas frame; every navigation of the canvas frame is refused before a request leaves, in Chromium, Firefox, and WebKit.
+  The bridge posts to `parent.parent`, and the panel accepts answers only from the canvas frame (`canvasFrameWindow`).
+  `index.html` adds an app-wide `frame-src 'self'` meta policy (plus the reCAPTCHA frame origins used by registration) as an outer layer; Element Call's same-origin frame still loads.
+  The wrapper reports a second load of the canvas frame (Chromium and WebKit replace a refused navigation with an error page; Firefox keeps the page), and a second load of the wrapper itself is treated the same way: the panel replaces the frame with a reload prompt.
   The bridge removes WebRTC constructors before agent code runs, as defense in depth only.
   The panel header names the agent, and the footer says the canvas cannot access the account while input may leave the panel.
 - Design: Chat's live theme is resolved from the page's computed styles (`canvasTheme.ts`) and injected as `--mr-bg`, `--mr-surface`, `--mr-surface-raised`, `--mr-border`, `--mr-text`, `--mr-text-muted`, `--mr-accent`, `--mr-accent-text`, `--mr-success`, `--mr-warning`, `--mr-danger`, `--mr-radius`, and `--mr-font`, with complete light and dark fallbacks; the default body uses them, so pages match light and dark mode.
@@ -34,19 +37,26 @@
   Host chrome shows "Send to <agent>: <label>" with the exact data, and only **Send**, armed 500 ms after staging, sends it.
   A pending snapshot stays frozen until Send or Discard, so a script cannot swap what the user is reviewing.
   A retry resends the SDK's failed local echo with its transaction ID, and Discard cancels that echo.
+  The panel's sending and failed states name their answer's transaction, so a late result of an earlier answer cannot change what the panel shows for a newer revision's answer, and the panel follows the local echo's status, so a retry started from the timeline shows as sending until it is sent or fails.
   The answer is a user `m.text` that mentions the agent and replies in the canvas thread, with body `<agent> Canvas response (<canvas>, revision <revision>): <label>` plus the JSON, and `io.mindroom.canvas_response {version, canvas_event_id, canvas_revision_event_id, agent_user_id, label, data}`.
   Data is serialized as Matrix canonical JSON (sorted keys); numbers that are not safe integers are sent as text, because homeservers refuse them in unencrypted events.
+  The data appears three times and HTML escaping can multiply it, so an answer whose content would exceed 40,000 bytes leaves the JSON out of `formatted_body` and stays under the 64 KiB event limit once encrypted.
   The agent reads the answer as its next turn through the existing message pipeline.
 - Timeline: `renderMindroomMessageContent` shows such a message as a one-line receipt (expandable to the JSON, label capped at 200 characters) only when the body equals the canonical body regenerated from the metadata; anything else renders as ordinary text.
   Canvas notices keep their **Open panel** button when edited.
 - Updates: a new revision loads at once unless the user focused the frame since it loaded or since their last send; then the panel keeps the current page and offers **Load update**.
-  Each revision is decided once, and a new revision drops a pending snapshot.
+  Each revision is decided once, and a new revision drops a pending snapshot (and a failed answer's message, whose retry stays in the timeline).
   The theme is fixed per displayed revision, so switching themes does not discard unsent work.
 - Room integration: `useRoomCanvasState` owns the open canvas per conversation; Canvas, Computer, and Members share the right-hand slot and opening one closes the others.
+  Opening Members closes a canvas only at the same screen size, because crossing the phone/tablet breakpoint switches which Members setting applies.
+  On phones the canvas covers the conversation, which is unmounted, as with Expand.
+  `RoomCanvasPanel` follows edits of the request by event ID through the client's re-emitted `Replaced`, so an edit that lands on another copy of the event (a cached thread page, a reset timeline) still updates the panel.
+  Host text is translated in all 17 locales (`mindroomUi.canvas.*`).
   The shared desktop/mobile panel layout moved to `sidebar/SidePanel.css.ts`.
-- Opt-in: canvases run only with `mindroom.canvas.enabled: true` in the runtime `config.json`.
+- Opt-in: canvases run only with `mindroom.canvas.enabled: true` in the runtime `config.json`, and agents get `show_canvas` only when their `chat_ui` entry sets `enable_show_canvas: true`.
   The code default and the shipped `config.mindroom.json` keep them off until the owner accepts the residual risks below.
   When off, the notice keeps its fallback text and its button explains that interactive panels are turned off.
+  The native apps never run canvases: Capacitor's iOS message handler accepts plugin calls from every frame without checking the sender, so a canvas could open URLs or sign-in sheets; the button says panels are not available in the app yet.
   Automatic opening still follows `mindroom.uiActions.autoOpenFromHomeservers`.
 - Residual risks before enabling: WebRTC/STUN traffic (Chromium and WebKit in the spikes; no page policy can block it) can leak what a user types into a canvas, and removing the constructors can likely be bypassed through a nested frame.
   DNS prefetch was not tested.
@@ -55,9 +65,9 @@
   Rejected for v1: a custom response event with backend ingress, acknowledgements, and journal changes (the mentioned `m.text` already has durable delivery, routing, authorization, and E2EE); a declarative-only runtime without agent JavaScript; continuous state sync.
   Pages hosted in Matrix media were deferred in that debate and added later for pages too large for the event (see the wire contract above).
   Spikes in Chromium, Firefox, and WebKit confirmed the sandbox, the CSP, navigation containment by the embedder's `frame-src` (as a header and as the app's meta tag), and the WebRTC residual.
-- Tests: `canvasDocument`, `canvasMessages`, `canvasTheme`, `useCanvasPage`, `CanvasPanel`, `ResizablePanel.maxWidth`, `chatUiProtocol`, `renderMindroomMessageContent`, `CallEmbed.origin`, and `Room.test.ts` cover the policy, bridge validation, canonical JSON and receipts, staging, frozen snapshots, SDK retries and discards, updates, escapes, foreign-sender edits, call exclusion, and routing.
+- Tests: `canvasDocument`, `canvasMessages`, `canvasTheme`, `useCanvasPage`, `CanvasPanel`, `RoomCanvasPanel`, `ResizablePanel.maxWidth`, `chatUiProtocol`, `renderMindroomMessageContent`, `CallEmbed.origin`, and `Room.test.ts` cover the policy and wrapper, bridge validation, canonical JSON, receipts and the content budget, staging, frozen snapshots, SDK retries and discards, overlapping sends, timeline-started retries, updates, escapes, edits on other event copies, foreign-sender edits, call exclusion, breakpoints, phones, the native apps, and routing.
   The backend contract fixture includes `show_canvas` and a real backend update (original plus edit) in room and thread scope, parsed by the real client parser.
-  `e2e/agent-canvas.spec.ts` (runs with `E2E_UI_ACTIONS_HOMESERVER`) drives a real local Matrix server: auto-open, staged send, frozen snapshot, canonical response content, receipt, in-place update, ask-before-replace, no request reaching a listening server from `fetch`, an image, or navigation, a blocked foreign frame, the Element Call frame still loading, an uploaded page rendered from media with the theme variables, and Expand.
+  `e2e/agent-canvas.spec.ts` (runs with `E2E_UI_ACTIONS_HOMESERVER`) drives a real local Matrix server: auto-open, staged send, frozen snapshot, canonical response content, receipt, in-place update, ask-before-replace, no request reaching a listening server from `fetch` or an image, no navigation reaching Chat's own origin or reCAPTCHA (it fails if the wrapper allows navigation), a blocked foreign frame, the Element Call frame still loading, an uploaded page rendered from media with the theme variables, and Expand.
 - Live end-to-end (2026-10-03): a real MindRoom agent (`provider: codex`, GPT-6.1 Sol) on a disposable Tuwunel, with this production build in Chromium, showed a lunch-order canvas that opened automatically, received "Sushi", updated the same canvas in place to a drink step, received "Tea" (citing the edit as its revision), and replied "Your lunch order is Sushi with Tea."
   This passed in an unencrypted room and in an end-to-end encrypted managed room.
   The same agent built a SaaS operations dashboard (KPI cards with sparklines, SVG line, bar, and donut charts, a sortable table) that used the theme variables and reflowed to six columns when expanded.
@@ -66,6 +76,7 @@
 - Review: an independent review found the call widget exposure, a broken retry against the real SDK, canonical-JSON failures, foreign-sender edits applied by the SDK, a stale revision ID, and the reCAPTCHA frame regression; all are fixed above.
   A second review of the dashboard work found the breakpoint remount, the stale theme after a switch, Expand on tablets, and read receipts from the hidden conversation; all are fixed above.
   Uploaded pages extend the original inline-only design at the owner's request.
+  Cross-model reviews of the whole PR by GPT-6 Astra and Claude Opus 5.5 found the navigation to Chat's own origin and reCAPTCHA, overlapping sends across revisions, a timeline retry shown as sent too early, a phone rotation closing the canvas, the iOS plugin bridge, the answer size, a failed answer stranded by an update, the phone overlay over a mounted conversation, edits landing on another event copy, and untranslated host text; all are fixed above.
 - Next: a state-preserving update channel, refreshing a path-based canvas automatically when its file changes, and attaching the open canvas's latest state to the user's next typed message.
 
 ### Measure rows that mount during a fast scroll before they paint (2026-10-03)

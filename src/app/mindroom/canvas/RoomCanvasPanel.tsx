@@ -1,5 +1,6 @@
 import React, { useEffect, useReducer, useState } from 'react';
 import { MatrixEventEvent, type MatrixClient, type MatrixEvent, type Room } from 'matrix-js-sdk';
+import { useTranslation } from 'react-i18next';
 import { ThemeKind, useTheme } from '../../hooks/useTheme';
 import { ScreenSize, useScreenSizeContext } from '../../hooks/useScreenSize';
 import { getMxIdLocalPart } from '../../utils/matrix';
@@ -40,6 +41,7 @@ function LoadedCanvasPanel({
   expanded,
   onToggleExpanded,
 }: Omit<RoomCanvasPanelProps, 'event'> & { action: ShowCanvas }) {
+  const { t } = useTranslation();
   const appTheme = useTheme();
   const colorScheme = appTheme.kind === ThemeKind.Dark ? 'dark' : 'light';
   const [theme, setTheme] = useState(() => readCanvasTheme(colorScheme));
@@ -88,8 +90,8 @@ function LoadedCanvasPanel({
       maxPanelWidth={CANVAS_MAX_WIDTH}
       fullWidth={expanded}
       passthrough={mobile}
-      resizeLabel="Resize canvas"
-      collapseLabel="Close canvas"
+      resizeLabel={t('mindroomUi.canvas.resize')}
+      collapseLabel={t('mindroomUi.canvas.close')}
       onCollapse={onClose}
       testId="resizable-canvas-panel"
     >
@@ -102,18 +104,32 @@ function LoadedCanvasPanel({
 export function RoomCanvasPanel({ event, ...props }: RoomCanvasPanelProps) {
   const { mx, room, onClose } = props;
   const [, refresh] = useReducer((count: number) => count + 1, 0);
+  // The timeline can hold another copy of the request (a cached thread page, a reset timeline), so
+  // an edit may land on a different object; follow the newest copy with this event ID.
+  const [request, setRequest] = useState(event);
+  useEffect(() => setRequest(event), [event]);
+  useEffect(() => {
+    const eventId = event.getId();
+    const followCopy = (replaced: MatrixEvent) => {
+      if (replaced.getId() === eventId) setRequest(replaced);
+    };
+    mx.on(MatrixEventEvent.Replaced, followCopy);
+    return () => {
+      mx.off(MatrixEventEvent.Replaced, followCopy);
+    };
+  }, [mx, event]);
   useEffect(() => {
     // The SDK announces a redaction before applying it, so re-read afterwards.
     const afterRedaction = () => queueMicrotask(refresh);
-    event.on(MatrixEventEvent.Replaced, refresh);
-    event.on(MatrixEventEvent.BeforeRedaction, afterRedaction);
+    request.on(MatrixEventEvent.Replaced, refresh);
+    request.on(MatrixEventEvent.BeforeRedaction, afterRedaction);
     return () => {
-      event.off(MatrixEventEvent.Replaced, refresh);
-      event.off(MatrixEventEvent.BeforeRedaction, afterRedaction);
+      request.off(MatrixEventEvent.Replaced, refresh);
+      request.off(MatrixEventEvent.BeforeRedaction, afterRedaction);
     };
-  }, [event]);
+  }, [request]);
 
-  const action = readChatUiAction(event, mx.getSafeUserId(), room);
+  const action = readChatUiAction(request, mx.getSafeUserId(), room);
   const valid = action?.action === 'show_canvas';
   useEffect(() => {
     if (!valid) onClose();

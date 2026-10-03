@@ -2899,7 +2899,32 @@
       "computerUnavailable": "De computer van deze agent is niet beschikbaar.",
       "releaseControl": "Geef de computerbediening vrij voordat je een andere weergave opent.",
       "openConversation": "Open dit verzoek vanuit het gesprek in de kamer.",
-      "settingsUnavailable": "Schakel de eenvoudige modus uit om dit onderdeel van de instellingen te openen."
+      "settingsUnavailable": "Schakel de eenvoudige modus uit om dit onderdeel van de instellingen te openen.",
+      "canvasUnavailableInApp": "Interactieve panelen zijn nog niet beschikbaar in de app. Open dit gesprek in een browser."
+    },
+    "canvas": {
+      "panelLabel": "Interactief paneel",
+      "fromAgent": "Interactief paneel van {{agent}}",
+      "expand": "Paneel uitklappen",
+      "close": "Paneel sluiten",
+      "resize": "Paneel vergroten of verkleinen",
+      "updated": "{{agent}} heeft dit paneel bijgewerkt.",
+      "loadUpdate": "Update laden",
+      "loading": "Paneel laden…",
+      "loadFailed": "Dit paneel kon niet worden geladen.",
+      "retry": "Opnieuw proberen",
+      "escaped": "Dit paneel probeerde zijn sandbox te verlaten en is gestopt.",
+      "reload": "Paneel opnieuw laden",
+      "sendTo": "Versturen naar {{agent}}:",
+      "changeAnswer": "Verwijder eerst dit antwoord als je het wilt wijzigen.",
+      "data": "Gegevens",
+      "send": "Versturen",
+      "discard": "Verwijderen",
+      "disclosure": "Gemaakt door {{agent}}. Het paneel heeft geen toegang tot je account, maar wat je hier invoert, kan het paneel verlaten.",
+      "sending": "Wordt verstuurd naar {{agent}}…",
+      "sent": "Verstuurd naar {{agent}}: {{label}}",
+      "sendFailed": "Je antwoord kon niet worden verstuurd. Probeer het opnieuw.",
+      "receiptData": "Gegevens tonen die naar de agent zijn verstuurd"
     }
   },
   "roomSchedules": {

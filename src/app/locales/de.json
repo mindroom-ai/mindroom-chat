@@ -2899,7 +2899,32 @@
       "computerUnavailable": "Der Computer dieses Agenten ist nicht verfügbar.",
       "releaseControl": "Gib die Computersteuerung frei, bevor du eine andere Ansicht öffnest.",
       "openConversation": "Öffne diese Anfrage über das Gespräch im Raum.",
-      "settingsUnavailable": "Deaktiviere den einfachen Modus, um diesen Einstellungsbereich zu öffnen."
+      "settingsUnavailable": "Deaktiviere den einfachen Modus, um diesen Einstellungsbereich zu öffnen.",
+      "canvasUnavailableInApp": "Interaktive Panels sind in der App noch nicht verfügbar. Öffne dieses Gespräch im Browser."
+    },
+    "canvas": {
+      "panelLabel": "Interaktives Panel",
+      "fromAgent": "Interaktives Panel von {{agent}}",
+      "expand": "Panel vergrößern",
+      "close": "Panel schließen",
+      "resize": "Panelgröße ändern",
+      "updated": "{{agent}} hat dieses Panel aktualisiert.",
+      "loadUpdate": "Aktualisierung laden",
+      "loading": "Panel wird geladen…",
+      "loadFailed": "Dieses Panel konnte nicht geladen werden.",
+      "retry": "Erneut versuchen",
+      "escaped": "Dieses Panel hat versucht, seine Sandbox zu verlassen, und wurde gestoppt.",
+      "reload": "Panel neu laden",
+      "sendTo": "An {{agent}} senden:",
+      "changeAnswer": "Um deine Antwort zu ändern, verwirf zuerst diese.",
+      "data": "Daten",
+      "send": "Senden",
+      "discard": "Verwerfen",
+      "disclosure": "Erstellt von {{agent}}. Das Panel hat keinen Zugriff auf dein Konto, aber deine Eingaben hier können das Panel verlassen.",
+      "sending": "Wird an {{agent}} gesendet…",
+      "sent": "An {{agent}} gesendet: {{label}}",
+      "sendFailed": "Deine Antwort konnte nicht gesendet werden. Versuche es erneut.",
+      "receiptData": "An den Agenten gesendete Daten anzeigen"
     }
   },
   "roomSchedules": {

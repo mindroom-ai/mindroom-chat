@@ -2899,7 +2899,32 @@
       "computerUnavailable": "Komputer agen ini tidak tersedia.",
       "releaseControl": "Lepaskan kendali komputer sebelum membuka tampilan lain.",
       "openConversation": "Buka permintaan ini dari percakapan ruangan.",
-      "settingsUnavailable": "Nonaktifkan Mode Sederhana untuk membuka bagian Pengaturan ini."
+      "settingsUnavailable": "Nonaktifkan Mode Sederhana untuk membuka bagian Pengaturan ini.",
+      "canvasUnavailableInApp": "Panel interaktif belum tersedia di aplikasi. Buka percakapan ini di browser."
+    },
+    "canvas": {
+      "panelLabel": "Panel interaktif",
+      "fromAgent": "Panel interaktif dari {{agent}}",
+      "expand": "Perluas panel",
+      "close": "Tutup panel",
+      "resize": "Ubah ukuran panel",
+      "updated": "{{agent}} memperbarui panel ini.",
+      "loadUpdate": "Muat pembaruan",
+      "loading": "Memuat panel…",
+      "loadFailed": "Panel ini tidak dapat dimuat.",
+      "retry": "Coba lagi",
+      "escaped": "Panel ini mencoba keluar dari sandbox-nya dan telah dihentikan.",
+      "reload": "Muat ulang panel",
+      "sendTo": "Kirim ke {{agent}}:",
+      "changeAnswer": "Untuk mengubah jawaban, buang jawaban ini terlebih dahulu.",
+      "data": "Data",
+      "send": "Kirim",
+      "discard": "Buang",
+      "disclosure": "Dibuat oleh {{agent}}. Panel ini tidak dapat mengakses akun Anda; apa yang Anda masukkan di sini dapat keluar dari panel ini.",
+      "sending": "Mengirim ke {{agent}}…",
+      "sent": "Terkirim ke {{agent}}: {{label}}",
+      "sendFailed": "Tidak dapat mengirim respons Anda. Coba lagi.",
+      "receiptData": "Tampilkan data yang dikirim ke agen"
     }
   },
   "roomSchedules": {

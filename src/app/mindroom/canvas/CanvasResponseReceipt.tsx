@@ -1,5 +1,6 @@
 import React from 'react';
 import { Box, Icon, Icons, Text } from 'folds';
+import { useTranslation } from 'react-i18next';
 import { CANVAS_LABEL_MAX_LENGTH, type CanvasResponseReceipt as Receipt } from './canvasMessages';
 
 // Inline styles keep this renderer free of a style module, like other message renderers.
@@ -29,9 +30,10 @@ export function CanvasResponseReceipt({
   delivered,
   renderStateSuffix,
 }: CanvasResponseReceiptProps) {
+  const { t } = useTranslation();
   return (
     <details data-canvas-receipt={receipt.canvasEventId}>
-      <summary style={summaryStyle} title="Show the data sent to the agent">
+      <summary style={summaryStyle} title={t('mindroomUi.canvas.receiptData')}>
         <Box as="span" alignItems="Center" gap="100">
           {delivered && <Icon size="50" src={Icons.Check} />}
           <Text as="span" size="T300" priority="300">

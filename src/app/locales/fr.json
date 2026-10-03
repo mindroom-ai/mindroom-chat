@@ -2953,7 +2953,32 @@
       "computerUnavailable": "L’ordinateur de cet agent est indisponible.",
       "releaseControl": "Relâchez le contrôle de l’ordinateur avant d’ouvrir une autre vue.",
       "openConversation": "Ouvrez cette demande depuis la conversation du salon.",
-      "settingsUnavailable": "Désactivez le mode simple pour ouvrir cette section des paramètres."
+      "settingsUnavailable": "Désactivez le mode simple pour ouvrir cette section des paramètres.",
+      "canvasUnavailableInApp": "Les panneaux interactifs ne sont pas encore disponibles dans l’app. Ouvrez cette conversation dans un navigateur."
+    },
+    "canvas": {
+      "panelLabel": "Panneau interactif",
+      "fromAgent": "Panneau interactif de {{agent}}",
+      "expand": "Agrandir le panneau",
+      "close": "Fermer le panneau",
+      "resize": "Redimensionner le panneau",
+      "updated": "{{agent}} a mis à jour ce panneau.",
+      "loadUpdate": "Charger la mise à jour",
+      "loading": "Chargement du panneau…",
+      "loadFailed": "Impossible de charger ce panneau.",
+      "retry": "Réessayer",
+      "escaped": "Ce panneau a tenté de sortir de son bac à sable et a été bloqué.",
+      "reload": "Recharger le panneau",
+      "sendTo": "Envoyer à {{agent}} :",
+      "changeAnswer": "Pour modifier votre réponse, supprimez d’abord celle-ci.",
+      "data": "Données",
+      "send": "Envoyer",
+      "discard": "Supprimer",
+      "disclosure": "Créé par {{agent}}. Ce panneau n’a pas accès à votre compte ; ce que vous saisissez ici peut en sortir.",
+      "sending": "Envoi à {{agent}}…",
+      "sent": "Envoyé à {{agent}} : {{label}}",
+      "sendFailed": "Impossible d’envoyer votre réponse. Réessayez.",
+      "receiptData": "Afficher les données envoyées à l’agent"
     }
   },
   "roomSchedules": {

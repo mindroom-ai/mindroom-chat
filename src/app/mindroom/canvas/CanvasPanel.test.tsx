@@ -3,13 +3,27 @@
 import React from 'react';
 import { createRoot, Root } from 'react-dom/client';
 import { act } from 'react-dom/test-utils';
-import type { MatrixClient } from 'matrix-js-sdk';
+import { EventStatus, MatrixEvent, type MatrixClient } from 'matrix-js-sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { CANVAS_SEND_ARM_DELAY_MS, CanvasPanel, type CanvasPanelProps } from './CanvasPanel';
 import { CANVAS_RESPONSE_KEY } from './canvasMessages';
 import { FALLBACK_CANVAS_THEMES } from './canvasTheme';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+
+// jsdom does not run the wrapper document, so each panel frame gets a stand-in canvas window.
+const canvasWindows = vi.hoisted(() => new WeakMap<object, object>());
+vi.mock('./canvasDocument', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./canvasDocument')>();
+  return {
+    ...actual,
+    canvasFrameWindow: (panelFrame: HTMLIFrameElement | null) => {
+      if (!panelFrame) return undefined;
+      if (!canvasWindows.has(panelFrame)) canvasWindows.set(panelFrame, {});
+      return canvasWindows.get(panelFrame);
+    },
+  };
+});
 
 vi.mock('folds', () => ({
   Box: ({ children }: { children?: React.ReactNode }) => <div>{children}</div>,
@@ -42,6 +56,11 @@ vi.mock('folds', () => ({
   ),
 }));
 
+vi.mock('react-i18next', async () => {
+  const { translateFromEn } = await import('../../test-utils/i18n');
+  return { useTranslation: () => ({ t: translateFromEn }) };
+});
+
 vi.mock('./CanvasPanel.css.ts', () => ({
   Panel: 'Panel',
   Header: 'Header',
@@ -69,7 +88,7 @@ let root: Root;
 let sendMessage: ReturnType<typeof vi.fn>;
 let resendEvent: ReturnType<typeof vi.fn>;
 let cancelPendingEvent: ReturnType<typeof vi.fn>;
-let pendingEvents: Map<string, { status: string }>;
+let pendingEvents: Map<string, MatrixEvent>;
 const room = { getEventForTxnId: (txnId: string) => pendingEvents.get(txnId) };
 let txn = 0;
 const nextTxnId = () => {
@@ -103,8 +122,24 @@ const render = (props: Partial<CanvasPanelProps> = {}) =>
 
 const frame = () => container.querySelector('iframe') as HTMLIFrameElement;
 const button = (selector: string) => container.querySelector(selector) as HTMLButtonElement;
+const canvasWindow = () => {
+  if (!canvasWindows.has(frame())) canvasWindows.set(frame(), {});
+  return canvasWindows.get(frame());
+};
+/** The canvas page, which the wrapper document carries as a script string. */
+const page = () => {
+  const literal = /frame\.srcdoc = ("(?:[^"\\]|\\.)*");/.exec(frame().getAttribute('srcdoc') ?? '');
+  return literal ? (JSON.parse(literal[1]) as string) : '';
+};
+const echo = (txnId: string, status: EventStatus) => {
+  const event = new MatrixEvent({ type: 'm.room.message', content: {} });
+  event.setTxnId(txnId);
+  event.setStatus(status);
+  pendingEvents.set(txnId, event);
+  return event;
+};
 
-const post = async (data: unknown, source: unknown = frame().contentWindow) => {
+const post = async (data: unknown, source: unknown = canvasWindow()) => {
   await act(async () => {
     window.dispatchEvent(
       new MessageEvent('message', { data, origin: 'null', source: source as Window })
@@ -142,7 +177,11 @@ beforeEach(() => {
   document.body.appendChild(container);
   root = createRoot(container);
   sendMessage = vi.fn().mockResolvedValue({ event_id: '$response' });
-  resendEvent = vi.fn().mockResolvedValue({ event_id: '$response' });
+  // Like the SDK, a resend marks the local echo as sending before it returns.
+  resendEvent = vi.fn((event: MatrixEvent) => {
+    event.setStatus(EventStatus.SENDING);
+    return Promise.resolve({ event_id: '$response' });
+  });
   cancelPendingEvent = vi.fn();
   pendingEvents = new Map();
   txn = 0;
@@ -158,11 +197,16 @@ describe('CanvasPanel', () => {
   it('renders agent HTML in an opaque-origin sandbox with provenance and disclosure', () => {
     render();
     const iframe = frame();
+    // The panel frame holds a wrapper whose policy keeps the canvas frame from navigating.
     expect(iframe.getAttribute('sandbox')).toBe('allow-scripts allow-forms');
     expect(iframe.getAttribute('referrerpolicy')).toBe('no-referrer');
     expect(iframe.getAttribute('allow')).toContain("camera 'none'");
-    expect(iframe.getAttribute('srcdoc')).toContain('<button>Pro</button>');
-    expect(iframe.getAttribute('srcdoc')).toContain('content="dark"');
+    expect(iframe.getAttribute('srcdoc')).toContain("frame-src 'none'");
+    expect(iframe.getAttribute('srcdoc')).toContain(
+      "setAttribute('sandbox', 'allow-scripts allow-forms')"
+    );
+    expect(page()).toContain('<button>Pro</button>');
+    expect(page()).toContain('content="dark"');
     expect(container.textContent).toContain('Choose a plan');
     expect(container.textContent).toContain('Interactive panel from Planner');
     expect(container.textContent).toContain('what you enter here may leave this panel');
@@ -247,7 +291,7 @@ describe('CanvasPanel', () => {
     sendMessage.mockImplementationOnce(
       async (_roomId: string, _content: unknown, txnId: string) => {
         // The SDK keeps the failed local echo under the transaction ID.
-        pendingEvents.set(txnId, { status: 'not_sent' });
+        echo(txnId, EventStatus.NOT_SENT);
         throw new Error('offline');
       }
     );
@@ -265,7 +309,7 @@ describe('CanvasPanel', () => {
   it('discards the failed local echo with a failed answer', async () => {
     sendMessage.mockImplementationOnce(
       async (_roomId: string, _content: unknown, txnId: string) => {
-        pendingEvents.set(txnId, { status: 'not_sent' });
+        echo(txnId, EventStatus.NOT_SENT);
         throw new Error('offline');
       }
     );
@@ -296,23 +340,85 @@ describe('CanvasPanel', () => {
     expect(container.textContent).toContain('Sent to Planner: Pro plan');
   });
 
-  it('defers to the timeline when it already retried a failed answer', async () => {
+  const failFirstSend = () =>
     sendMessage.mockImplementationOnce(
       async (_roomId: string, _content: unknown, txnId: string) => {
-        pendingEvents.set(txnId, { status: 'not_sent' });
+        echo(txnId, EventStatus.NOT_SENT);
         throw new Error('offline');
       }
     );
+
+  it('follows a retry the timeline started until it is sent', async () => {
+    failFirstSend();
     render();
     await post(submit());
     await arm();
     await clickSend();
-    // The timeline's Retry resent the same echo.
-    pendingEvents.set('txn-1', { status: 'sending' });
+    // The timeline's Retry resent the same echo, which is still on its way.
+    await act(async () => pendingEvents.get('txn-1')?.setStatus(EventStatus.SENDING));
     await clickSend();
     expect(resendEvent).not.toHaveBeenCalled();
+    expect(container.textContent).toContain('Sending to Planner');
+    expect(button('[data-canvas-discard]').disabled).toBe(true);
+    await act(async () => pendingEvents.get('txn-1')?.setStatus(EventStatus.SENT));
     expect(container.textContent).toContain('Sent to Planner: Pro plan');
     expect(button('[data-canvas-send]')).toBeNull();
+  });
+
+  it('offers Send again when a retry the timeline started fails', async () => {
+    failFirstSend();
+    render();
+    await post(submit());
+    await arm();
+    await clickSend();
+    await act(async () => pendingEvents.get('txn-1')?.setStatus(EventStatus.SENDING));
+    await clickSend();
+    await act(async () => pendingEvents.get('txn-1')?.setStatus(EventStatus.NOT_SENT));
+    expect(container.textContent).toContain('Could not send your response');
+    expect(button('[data-canvas-send]').disabled).toBe(false);
+  });
+
+  it('keeps the panel on a newer answer when an earlier send finishes late', async () => {
+    const finishes: Array<{ resolve: () => void; reject: () => void }> = [];
+    sendMessage.mockImplementation(
+      () =>
+        new Promise((resolve, reject) => {
+          finishes.push({
+            resolve: () => resolve({ event_id: '$response' }),
+            reject: () => reject(new Error('offline')),
+          });
+        })
+    );
+    render();
+    await post(submit('one'));
+    await arm();
+    await clickSend();
+    render({ canvas: { ...canvas, revisionEventId: '$edit', html: '<p>Step 2</p>' } });
+    await act(async () => {
+      vi.advanceTimersByTime(100);
+    });
+    await post(submit('two'));
+    await arm();
+    await clickSend();
+    expect(container.textContent).toContain('Sending to Planner');
+    await act(async () => finishes[0].reject());
+    expect(container.textContent).toContain('Sending to Planner');
+    expect(button('[data-canvas-discard]').disabled).toBe(true);
+    await act(async () => finishes[1].resolve());
+    expect(container.textContent).toContain('Sent to Planner: two');
+  });
+
+  it('does not strand a failed answer when an update replaces it', async () => {
+    failFirstSend();
+    render();
+    await post(submit());
+    await arm();
+    await clickSend();
+    expect(container.textContent).toContain('Could not send your response');
+    render({ canvas: { ...canvas, revisionEventId: '$edit', html: '<p>Step 2</p>' } });
+    expect(container.textContent).toContain('Planner updated this panel.');
+    expect(container.textContent).not.toContain('Could not send');
+    expect(container.textContent).toContain('what you enter here may leave this panel');
   });
 
   it('accepts the first answer of a new revision right after the previous one', async () => {
@@ -354,12 +460,21 @@ describe('CanvasPanel', () => {
     expect(frame()).not.toBeNull();
   });
 
+  it('stops a canvas whose wrapper reports that it navigated', async () => {
+    render();
+    await post({ type: 'mindroom.canvas.escaped' });
+    expect(frame()).not.toBeNull();
+    await post({ type: 'mindroom.canvas.escaped' }, frame().contentWindow);
+    expect(frame()).toBeNull();
+    expect(container.textContent).toContain('tried to leave');
+  });
+
   it('loads an update at once when the user has not worked in the panel', async () => {
     render();
     const first = frame();
     render({ canvas: { ...canvas, revisionEventId: '$edit', html: '<p>Step 2</p>' } });
     expect(frame()).not.toBe(first);
-    expect(frame().getAttribute('srcdoc')).toContain('<p>Step 2</p>');
+    expect(page()).toContain('<p>Step 2</p>');
   });
 
   it('loads the next step at once after the user answered the current one', async () => {
@@ -369,7 +484,7 @@ describe('CanvasPanel', () => {
     await arm();
     await clickSend();
     render({ canvas: { ...canvas, revisionEventId: '$edit', html: '<p>Step 2</p>' } });
-    expect(frame().getAttribute('srcdoc')).toContain('<p>Step 2</p>');
+    expect(page()).toContain('<p>Step 2</p>');
   });
 
   it('asks before an update replaces unsent work', async () => {
@@ -377,20 +492,20 @@ describe('CanvasPanel', () => {
     await touchFrame();
     await post(submit());
     render({ canvas: { ...canvas, revisionEventId: '$edit', html: '<p>Step 2</p>' } });
-    expect(frame().getAttribute('srcdoc')).toContain('<button>Pro</button>');
+    expect(page()).toContain('<button>Pro</button>');
     expect(container.textContent).toContain('Planner updated this panel.');
     expect(button('[data-canvas-send]')).toBeNull();
     const load = [...container.querySelectorAll('button')].find((candidate) =>
       candidate.textContent?.includes('Load update')
     ) as HTMLButtonElement;
     await act(async () => load.click());
-    expect(frame().getAttribute('srcdoc')).toContain('<p>Step 2</p>');
+    expect(page()).toContain('<p>Step 2</p>');
     expect(container.textContent).not.toContain('updated this panel');
   });
 
   it('gives the page the Chat theme as CSS variables', () => {
     render();
-    expect(frame().getAttribute('srcdoc')).toContain('--mr-accent:#123456');
+    expect(page()).toContain('--mr-accent:#123456');
   });
 
   it('shows a page that is still downloading, then the page itself', async () => {
@@ -398,7 +513,7 @@ describe('CanvasPanel', () => {
     expect(frame()).toBeNull();
     expect(container.textContent).toContain('Loading panel');
     render({ canvas: { ...canvas, html: '<p>Downloaded</p>' } });
-    expect(frame().getAttribute('srcdoc')).toContain('<p>Downloaded</p>');
+    expect(page()).toContain('<p>Downloaded</p>');
   });
 
   it('explains a page that could not be loaded and offers a retry', () => {
@@ -417,7 +532,7 @@ describe('CanvasPanel', () => {
     render({ canvas: { ...canvas, html: '', status: 'loading' } });
     await touchFrame();
     render({ canvas: { ...canvas, html: '<p>Downloaded</p>' } });
-    expect(frame().getAttribute('srcdoc')).toContain('<p>Downloaded</p>');
+    expect(page()).toContain('<p>Downloaded</p>');
     expect(container.textContent).not.toContain('updated this panel');
   });
 

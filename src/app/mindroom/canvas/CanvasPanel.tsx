@@ -1,10 +1,13 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { EventStatus, type MatrixClient } from 'matrix-js-sdk';
+import { EventStatus, MatrixEventEvent, type MatrixClient } from 'matrix-js-sdk';
 import { Box, Button, Icon, IconButton, Icons, type IconSrc, Text } from 'folds';
+import { useTranslation } from 'react-i18next';
 import {
   buildCanvasDocument,
+  CANVAS_ESCAPE_MESSAGE,
   CANVAS_PERMISSIONS,
-  CANVAS_SANDBOX,
+  CANVAS_WRAPPER_SANDBOX,
+  canvasFrameWindow,
   type CanvasColorScheme,
 } from './canvasDocument';
 import {
@@ -69,11 +72,13 @@ type Staged = {
   armed: boolean;
 };
 
+// Sending and failed states name their answer's transaction, so a late result of an earlier
+// answer cannot overwrite what the panel shows for a newer one.
 type SendState =
   | { status: 'idle' }
-  | { status: 'sending'; label: string }
+  | { status: 'sending'; label: string; txnId: string }
   | { status: 'sent'; label: string }
-  | { status: 'failed' };
+  | { status: 'failed'; txnId: string };
 
 /** Hash a document so a changed canvas remounts its frame and drops stale script state. */
 const documentKey = (doc: string): string => {
@@ -105,6 +110,7 @@ export function CanvasPanel({
   expanded = false,
   onToggleExpanded,
 }: CanvasPanelProps) {
+  const { t } = useTranslation();
   const frameRef = useRef<HTMLIFrameElement>(null);
   // The theme is fixed when a revision is shown, so switching themes cannot discard unsent work.
   const [displayed, setDisplayed] = useState<Displayed>(() => ({
@@ -114,8 +120,9 @@ export function CanvasPanel({
   }));
   const [updateAvailable, setUpdateAvailable] = useState(false);
   const doc = useMemo(
-    () => buildCanvasDocument(displayed.html, displayed.colorScheme, displayed.theme),
-    [displayed.html, displayed.colorScheme, displayed.theme]
+    () =>
+      buildCanvasDocument(displayed.html, displayed.colorScheme, displayed.theme, displayed.title),
+    [displayed.html, displayed.colorScheme, displayed.theme, displayed.title]
   );
   const [reloads, setReloads] = useState(0);
   const docKey = useMemo(() => documentKey(doc), [doc]);
@@ -124,6 +131,8 @@ export function CanvasPanel({
   const [staged, setStaged] = useState<Staged>();
   const [send, setSend] = useState<SendState>({ status: 'idle' });
   const loads = useRef({ frameKey, count: 0 });
+  const currentFrameKey = useRef(frameKey);
+  currentFrameKey.current = frameKey;
   // Whether the frame may hold work the user has not sent since it loaded or since their last send.
   const touched = useRef(false);
   const lastStageAt = useRef(0);
@@ -167,6 +176,8 @@ export function CanvasPanel({
       });
     } else {
       setStaged(undefined);
+      // A failed answer has no Send button once its snapshot is gone; the timeline keeps its retry.
+      setSend((current) => (current.status === 'failed' ? { status: 'idle' } : current));
       setUpdateAvailable(true);
     }
   }, [incomingRevision, displayedRevision, displayedRevisionId, displayedPending]);
@@ -176,7 +187,18 @@ export function CanvasPanel({
       if (document.activeElement === frameRef.current) touched.current = true;
     };
     const handleMessage = (event: MessageEvent) => {
-      const frame = frameRef.current?.contentWindow;
+      const wrapper = frameRef.current?.contentWindow;
+      if (
+        wrapper &&
+        event.source === wrapper &&
+        event.origin === 'null' &&
+        event.data?.type === CANVAS_ESCAPE_MESSAGE
+      ) {
+        // The wrapper reports that the canvas frame tried to load something else.
+        setEscapedFrame(currentFrameKey.current);
+        return;
+      }
+      const frame = canvasFrameWindow(frameRef.current);
       if (!frame || event.source !== frame) return;
       const now = Date.now();
       // Bound bridge traffic before parsing; a canvas cannot flood the host with snapshots.
@@ -210,6 +232,41 @@ export function CanvasPanel({
     return () => window.clearTimeout(timer);
   }, [stagedTxnId]);
 
+  // Settle only the answer still being sent; an earlier answer's late result changes nothing here.
+  const settle = useCallback((txnId: string, outcome: 'sent' | 'failed' | 'cancelled') => {
+    setSend((current) => {
+      if (current.status !== 'sending' || current.txnId !== txnId) return current;
+      if (outcome === 'sent') return { status: 'sent', label: current.label };
+      return outcome === 'failed' ? { status: 'failed', txnId } : { status: 'idle' };
+    });
+    if (outcome !== 'failed') {
+      setStaged((current) => (current?.txnId === txnId ? undefined : current));
+    }
+  }, []);
+
+  // Follow the answer's local echo, which the timeline's Retry and Discard also drive.
+  const sendingTxnId = send.status === 'sending' ? send.txnId : undefined;
+  useEffect(() => {
+    if (!sendingTxnId) return undefined;
+    const echo = mx.getRoom(roomId)?.getEventForTxnId(sendingTxnId);
+    if (!echo) return undefined;
+    const follow = () => {
+      if (echo.status === EventStatus.NOT_SENT) {
+        touched.current = true;
+        settle(sendingTxnId, 'failed');
+      } else if (echo.status === EventStatus.CANCELLED) {
+        settle(sendingTxnId, 'cancelled');
+      } else if (echo.status === null || echo.status === EventStatus.SENT) {
+        settle(sendingTxnId, 'sent');
+      }
+    };
+    follow();
+    echo.on(MatrixEventEvent.Status, follow);
+    return () => {
+      echo.off(MatrixEventEvent.Status, follow);
+    };
+  }, [mx, roomId, sendingTxnId, settle]);
+
   const handleSend = useCallback(async () => {
     if (!staged?.armed || send.status === 'sending') return;
     const { submission, txnId } = staged;
@@ -217,14 +274,19 @@ export function CanvasPanel({
     const room = mx.getRoom(roomId);
     const echo = room?.getEventForTxnId(txnId);
     if (echo && echo.status !== EventStatus.NOT_SENT) {
-      // The timeline's own Retry or Discard already took over this answer.
-      setStaged(undefined);
-      setSend(
-        echo.status === EventStatus.CANCELLED ? { status: 'idle' } : { status: 'sent', label }
-      );
+      // The timeline's own Retry or Discard already took over this answer; show where it is.
+      if (echo.status === EventStatus.CANCELLED) {
+        setStaged(undefined);
+        setSend({ status: 'idle' });
+      } else if (echo.status === null || echo.status === EventStatus.SENT) {
+        setStaged(undefined);
+        setSend({ status: 'sent', label });
+      } else {
+        setSend({ status: 'sending', label, txnId });
+      }
       return;
     }
-    setSend({ status: 'sending', label });
+    setSend({ status: 'sending', label, txnId });
     // Work in the frame during the send marks it again.
     touched.current = false;
     const content = buildCanvasResponseContent(
@@ -245,13 +307,12 @@ export function CanvasPanel({
         // The relation travels in the content.
         await mx.sendMessage(roomId, content as never, txnId);
       }
-      setStaged((current) => (current?.txnId === txnId ? undefined : current));
-      setSend({ status: 'sent', label });
+      settle(txnId, 'sent');
     } catch {
       touched.current = true;
-      setSend({ status: 'failed' });
+      settle(txnId, 'failed');
     }
-  }, [agentName, displayed, mx, roomId, send.status, staged]);
+  }, [agentName, displayed, mx, roomId, send.status, settle, staged]);
 
   const handleDiscard = useCallback(() => {
     const failedEcho = staged && mx.getRoom(roomId)?.getEventForTxnId(staged.txnId);
@@ -263,14 +324,14 @@ export function CanvasPanel({
   const handleLoad = useCallback(() => {
     if (loads.current.frameKey !== frameKey) loads.current = { frameKey, count: 0 };
     loads.current.count += 1;
-    // The document is inline, so any later load means the canvas navigated itself.
+    // The wrapper's document is inline and nothing inside may navigate it, so a later load is an escape.
     if (loads.current.count > 1) setEscapedFrame(frameKey);
   }, [frameKey]);
 
   const escaped = escapedFrame === frameKey;
 
   return (
-    <aside className={css.Panel} aria-label="Canvas panel">
+    <aside className={css.Panel} aria-label={t('mindroomUi.canvas.panelLabel')}>
       <div className={css.Header}>
         <Box alignItems="Center" gap="200">
           <Icon size="300" src={Icons.Category} />
@@ -279,7 +340,7 @@ export function CanvasPanel({
               {displayed.title}
             </Text>
             <Text size="T200" priority="300" truncate>
-              Interactive panel from {agentName}
+              {t('mindroomUi.canvas.fromAgent', { agent: agentName })}
             </Text>
           </div>
         </Box>
@@ -287,14 +348,14 @@ export function CanvasPanel({
           {onToggleExpanded && (
             <IconButton
               onClick={onToggleExpanded}
-              aria-label="Expand canvas"
+              aria-label={t('mindroomUi.canvas.expand')}
               aria-pressed={expanded}
               size="300"
             >
               <Icon size="300" src={expanded ? ShrinkIcon : ExpandIcon} />
             </IconButton>
           )}
-          <IconButton onClick={onClose} aria-label="Close canvas" size="300">
+          <IconButton onClick={onClose} aria-label={t('mindroomUi.canvas.close')} size="300">
             <Icon size="300" src={Icons.Cross} />
           </IconButton>
         </Box>
@@ -302,13 +363,13 @@ export function CanvasPanel({
 
       {updateAvailable && (
         <div className={css.Notice} role="status">
-          <Text size="T300">{agentName} updated this panel.</Text>
+          <Text size="T300">{t('mindroomUi.canvas.updated', { agent: agentName })}</Text>
           <Button
             size="300"
             variant="Secondary"
             onClick={() => setDisplayed({ ...canvas, colorScheme, theme })}
           >
-            <Text size="B300">Load update</Text>
+            <Text size="B300">{t('mindroomUi.canvas.loadUpdate')}</Text>
           </Button>
         </div>
       )}
@@ -320,11 +381,13 @@ export function CanvasPanel({
             size="T300"
             role={displayed.status === 'failed' ? 'alert' : 'status'}
           >
-            {displayed.status === 'loading' ? 'Loading panel…' : 'This panel could not be loaded.'}
+            {displayed.status === 'loading'
+              ? t('mindroomUi.canvas.loading')
+              : t('mindroomUi.canvas.loadFailed')}
           </Text>
           {displayed.status === 'failed' && onRetry && (
             <Button size="300" variant="Secondary" onClick={onRetry}>
-              <Text size="B300">Retry</Text>
+              <Text size="B300">{t('mindroomUi.canvas.retry')}</Text>
             </Button>
           )}
         </Box>
@@ -332,7 +395,7 @@ export function CanvasPanel({
       {!displayed.status && escaped && (
         <Box grow="Yes" direction="Column" alignItems="Center" justifyContent="Center" gap="300">
           <Text className={css.Error} size="T300" role="alert">
-            This panel tried to leave its sandbox and was stopped.
+            {t('mindroomUi.canvas.escaped')}
           </Text>
           <Button
             size="300"
@@ -340,7 +403,7 @@ export function CanvasPanel({
             data-canvas-reload
             onClick={() => setReloads((count) => count + 1)}
           >
-            <Text size="B300">Reload panel</Text>
+            <Text size="B300">{t('mindroomUi.canvas.reload')}</Text>
           </Button>
         </Box>
       )}
@@ -350,7 +413,7 @@ export function CanvasPanel({
           ref={frameRef}
           className={css.Frame}
           title={displayed.title}
-          sandbox={CANVAS_SANDBOX}
+          sandbox={CANVAS_WRAPPER_SANDBOX}
           allow={CANVAS_PERMISSIONS}
           srcDoc={doc}
           referrerPolicy="no-referrer"
@@ -362,15 +425,16 @@ export function CanvasPanel({
         {staged && (
           <div className={css.Staged}>
             <Text size="T300">
-              Send to {agentName}: <b>{staged.submission.label ?? 'Submitted'}</b>
+              {t('mindroomUi.canvas.sendTo', { agent: agentName })}{' '}
+              <b>{staged.submission.label ?? 'Submitted'}</b>
             </Text>
             <Text size="T200" priority="300">
-              To change your answer, discard this one first.
+              {t('mindroomUi.canvas.changeAnswer')}
             </Text>
             <details>
               <summary>
                 <Text as="span" size="T200">
-                  Data
+                  {t('mindroomUi.canvas.data')}
                 </Text>
               </summary>
               <pre className={css.Data}>{formatData(staged.submission.data)}</pre>
@@ -383,7 +447,7 @@ export function CanvasPanel({
                 onClick={handleSend}
                 data-canvas-send
               >
-                <Text size="B300">Send</Text>
+                <Text size="B300">{t('mindroomUi.canvas.send')}</Text>
               </Button>
               <Button
                 size="300"
@@ -393,7 +457,7 @@ export function CanvasPanel({
                 onClick={handleDiscard}
                 data-canvas-discard
               >
-                <Text size="B300">Discard</Text>
+                <Text size="B300">{t('mindroomUi.canvas.discard')}</Text>
               </Button>
             </Box>
           </div>
@@ -404,11 +468,11 @@ export function CanvasPanel({
           priority="300"
           className={send.status === 'failed' ? css.Error : undefined}
         >
-          {send.status === 'idle' &&
-            `Made by ${agentName}. It cannot access your account; what you enter here may leave this panel.`}
-          {send.status === 'sending' && `Sending to ${agentName}…`}
-          {send.status === 'sent' && `Sent to ${agentName}: ${send.label}`}
-          {send.status === 'failed' && 'Could not send your response. Try again.'}
+          {send.status === 'idle' && t('mindroomUi.canvas.disclosure', { agent: agentName })}
+          {send.status === 'sending' && t('mindroomUi.canvas.sending', { agent: agentName })}
+          {send.status === 'sent' &&
+            t('mindroomUi.canvas.sent', { agent: agentName, label: send.label })}
+          {send.status === 'failed' && t('mindroomUi.canvas.sendFailed')}
         </Text>
       </div>
     </aside>
