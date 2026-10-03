@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { Virtualizer } from '@tanstack/react-virtual';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createBatchedMeasurementRef } from './batchedMeasurementRef';
+import { createBatchedMeasurementRef, measureVirtualRow } from './batchedMeasurementRef';
 
 afterEach(() => {
   document.body.replaceChildren();
@@ -36,12 +36,12 @@ function setup() {
   virtualizer._willUpdate();
   const measure = vi.fn(virtualizer.measureElement);
   const ref = createBatchedMeasurementRef(measure);
-  const mount = (index: number) => {
+  const mount = (index: number, attach: (node: HTMLDivElement) => void = ref) => {
     const row = document.createElement('div');
     row.dataset.index = String(index);
     Object.defineProperty(row, 'offsetHeight', { value: 80 });
     scroller.append(row);
-    ref(row);
+    attach(row);
     return row;
   };
   return { virtualizer, ref, mount, measure, unobserve, disconnect, dispose };
@@ -90,5 +90,43 @@ describe('batched virtualizer measurement ref', () => {
     await Promise.resolve();
     expect(virtualizer.elementsCache.size).toBe(0);
     expect(disconnect).toHaveBeenCalledTimes(1);
+  });
+
+  it('measures a row attached during a live scroll in the same commit', () => {
+    const { virtualizer, mount, dispose } = setup();
+    const notify = vi.fn();
+    virtualizer.setOptions({ ...virtualizer.options, onChange: notify });
+    virtualizer.isScrolling = true;
+
+    // virtual-core alone leaves the row at its estimate until ResizeObserver
+    // reports it, which re-renders after the browser has painted.
+    mount(0, virtualizer.measureElement);
+    expect(virtualizer.itemSizeCache.has(0)).toBe(false);
+
+    const ref = createBatchedMeasurementRef<HTMLDivElement>((node) =>
+      measureVirtualRow(virtualizer, node)
+    );
+    mount(1, ref);
+    expect(virtualizer.itemSizeCache.get(1)).toBe(80);
+    expect(virtualizer.getVirtualItems()[2]?.start).toBe(50 + 80);
+    expect(notify).toHaveBeenCalled();
+    dispose();
+  });
+
+  it('reuses a cached size when a measured row remounts during a scroll', () => {
+    const { virtualizer, mount, dispose } = setup();
+    const ref = createBatchedMeasurementRef<HTMLDivElement>((node) =>
+      measureVirtualRow(virtualizer, node)
+    );
+    mount(0, ref);
+    virtualizer.isScrolling = true;
+    const remounted = document.createElement('div');
+    remounted.dataset.index = '0';
+    const offsetHeight = vi.fn(() => 120);
+    Object.defineProperty(remounted, 'offsetHeight', { get: offsetHeight });
+    ref(remounted);
+    expect(offsetHeight).not.toHaveBeenCalled();
+    expect(virtualizer.itemSizeCache.get(0)).toBe(80);
+    dispose();
   });
 });
