@@ -2,6 +2,33 @@
 
 ## Runbook
 
+### Code blocks in the T3 Code style (2026-10-02)
+
+- Message code blocks now follow T3 Code's design: one surface without a separate header bar, a quiet header row with the language as a colored icon (named in a tooltip and announced as "Language: sh"), and icon-only actions with tooltips.
+  The actions are a line-wrap toggle, the existing expand/collapse for long blocks, and copy, which swaps to a check after a confirmed copy.
+  Filename fences (```` ```Greeting.tsx ````) show the icon and the filename; languages without an icon show their name, and fences without a language show `text`, as in T3 Code.
+- Lines wrap by default, matching T3 Code's default; the toggle restores horizontal scrolling for the block.
+  A block counts as long, and collapses, past 14 lines or, while wrapped, past 1,120 characters, so one long minified line no longer wraps into an uncollapsed wall.
+- The language icons are the built-in file icons of `@pierre/trees` 1.0.0-beta.4 (Apache-2.0), the set T3 Code uses, vendored as path data in `codeBlockLanguageIconPaths.ts`: 28 language icons plus the generic file icon for unknown filenames, with T3 Code's light and dark tints.
+  The package itself is not added: it needs React 18.3 and a Preact beta.
+  The toolbar glyphs are Lucide's `Copy`, `Check`, `TextWrap`, `ChevronsUpDown`, and `ChevronsDownUp` (ISC, with Feather portions under MIT), inlined in `CodeBlockIcons.tsx`.
+  Both license texts sit beside them in `CODE_BLOCK_ICONS_LICENSES.md`.
+- In dark themes message blocks drop their border; the composer's code block keeps it because the input field shares the block's tint.
+- The header uses logical padding, so it mirrors correctly in Arabic; the code itself stays left-to-right.
+  Hover tints apply only on hover-capable pointers, so a tap does not leave a button looking pressed, and touch screens get 32 px buttons with 4 px gaps.
+- Action labels are translated in all 17 catalogs under `messageCodeBlock`; `Expand`, `Collapse`, and `Copied` reuse the wording of existing settings controls.
+- `e2e/fixtures/code-blocks.html?theme=<light|silver|dark|midnight|butter>` renders sample fences in any theme for visual checks.
+- Syntax highlighting of fenced code had been off since the KaTeX change (`92ea6bb7`): it wrapped the text of `pre > code` in a fragment, so the code replacer never received the plain string it hands to Prism.
+  Fenced code text now stays a string again, except in a block containing a search match, which shows the match highlights instead of syntax colors.
+  Emoji inside fenced code are no longer enlarged, as before `92ea6bb7` and in upstream Cinny.
+- Streaming fixes for the highlighter:
+  - A streamed edit erased Prism's tokens, because React rewrites the element's text that Prism had replaced; the highlighter now remounts per edit, keyed by the language and code text (as `TextViewer` keys it by text).
+  - It highlights in a layout effect, so a streamed edit never paints uncolored code when a busy commit pushes effects to a later task.
+  - Prism now loads in manual mode (`prismManual.ts`), so it no longer runs `highlightAll()` over the document when its chunk loads, which rewrote React-owned code such as search results.
+- Tests: unit coverage for the header, wrap toggle, long-line collapse, copy feedback, icon resolution, and the Prism hand-off with and without a search match.
+  `e2e/code-blocks.spec.ts` checks the icon tint, copy, manual mode, and highlighting across streamed edits that arrive outside input events after a 20 ms commit.
+  It fails with 0 tokens after an edit without the remount, with 2 uncolored frames using a passive effect, and on manual mode without `prismManual.ts`.
+
 ### Collapse copied gaps before tool calls and mark the tool-call copy as its own button (2026-10-02)
 
 - Copy Text and Copy Text with Tool Calls left several blank lines between paragraphs of agent replies.

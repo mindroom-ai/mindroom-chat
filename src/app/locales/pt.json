@@ -3,6 +3,16 @@
     "label": "Tabela com rolagem",
     "scrollHint": "Role horizontalmente"
   },
+  "messageCodeBlock": {
+    "actions": "Ações do bloco de código",
+    "code": "Código",
+    "language": "Linguagem: {{language}}",
+    "copy": "Copiar código",
+    "copied": "Copiado",
+    "wrap": "Quebrar linhas",
+    "expand": "Expandir",
+    "collapse": "Recolher"
+  },
   "Organisms": {
     "RoomCommon": {
       "changed_room_name": " alterou o nome da sala"

@@ -3,6 +3,16 @@
     "label": "Прокручиваемая таблица",
     "scrollHint": "Прокрутить по горизонтали"
   },
+  "messageCodeBlock": {
+    "actions": "Действия с блоком кода",
+    "code": "Код",
+    "language": "Язык: {{language}}",
+    "copy": "Копировать код",
+    "copied": "Скопировано",
+    "wrap": "Переносить строки",
+    "expand": "Развернуть",
+    "collapse": "Свернуть"
+  },
   "Organisms": {
     "RoomCommon": {
       "changed_room_name": " изменил(а) название комнаты"
