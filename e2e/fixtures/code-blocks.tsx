@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import parse from 'html-react-parser';
 import { MatrixClient } from 'matrix-js-sdk';
@@ -71,6 +71,20 @@ const blocks = [
   ),
 ];
 
+// A streamed reply edits its code block in place, one line at a time.
+function StreamingBlock() {
+  const [lines, setLines] = useState(1);
+  const code = Array.from({ length: lines }, (_, index) => `const line${index} = ${index};`);
+  return (
+    <section aria-label="Streaming code">
+      <button type="button" onClick={() => setLines(lines + 1)}>
+        Stream another line
+      </button>
+      {parse(block(code.join('\n'), 'js'), parser)}
+    </section>
+  );
+}
+
 createRoot(document.getElementById('root')!).render(
   <main
     style={{
@@ -88,5 +102,6 @@ createRoot(document.getElementById('root')!).render(
     {blocks.map((html) => (
       <section key={html}>{parse(html, parser)}</section>
     ))}
+    <StreamingBlock />
   </main>
 );

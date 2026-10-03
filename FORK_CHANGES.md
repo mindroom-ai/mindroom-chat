@@ -14,6 +14,10 @@
 - In dark themes message blocks drop their border; the composer's code block keeps it because the input field shares the block's tint.
 - Action labels are translated in all 17 catalogs under `messageCodeBlock`; `Expand`, `Collapse`, and `Copied` reuse the wording of existing settings controls.
 - `e2e/fixtures/code-blocks.html?theme=<light|silver|dark|midnight|butter>` renders sample fences in any theme for visual checks.
+- Syntax highlighting of fenced code had been off since the KaTeX change (`92ea6bb7`): it wrapped the text of `pre > code` in a fragment, so the code replacer never received the plain string it hands to Prism.
+  Fenced code text now stays a string again, except while a search is active, where the match highlights win over syntax colors.
+  A streamed edit also erased Prism's tokens, because React rewrites the element's text that Prism had replaced; the highlighter now remounts per edit (keyed by the code text, as `TextViewer` already does).
+- Tests: unit coverage for the header, wrap toggle, copy feedback, icon resolution, and the Prism hand-off; `e2e/code-blocks.spec.ts` checks the icon tint, copy, and highlighting across streamed edits, and fails with 0 tokens after an edit without the remount.
 
 ### Keep thread history reachable after a collapsed sync gap (2026-10-02)
 

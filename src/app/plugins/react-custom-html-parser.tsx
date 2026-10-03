@@ -590,7 +590,9 @@ export const getReactCustomHtmlParser = (
               return (
                 <ErrorBoundary fallback={<code {...props}>{codeReact}</code>}>
                   <Suspense fallback={<code {...props}>{codeReact}</code>}>
-                    <ReactPrism>
+                    {/* Prism rewrites the element, and React's next text update erases its
+                        tokens; remount on each edit so streamed code stays highlighted. */}
+                    <ReactPrism key={codeReact}>
                       {(ref) => (
                         <code ref={ref} {...props} className={lang}>
                           {codeReact}
@@ -674,6 +676,12 @@ export const getReactCustomHtmlParser = (
           domNode.data.trim().length === 0
         ) {
           return null;
+        }
+
+        // Fenced code stays a plain string so the code replacer can hand it to
+        // Prism; while searching, the match highlights win over syntax colors.
+        if (parentName === 'code' && hasAncestorTag(domNode, 'pre') && !params.highlightRegex) {
+          return undefined;
         }
 
         const insideCode = hasAncestorTag(domNode, 'code');

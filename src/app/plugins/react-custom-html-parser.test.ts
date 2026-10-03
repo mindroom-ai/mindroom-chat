@@ -3,6 +3,7 @@ import parse, { Element, HTMLReactParserOptions, domToReact } from 'html-react-p
 import { Text as DOMText } from 'domhandler';
 import { MatrixClient } from 'matrix-js-sdk';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { ErrorBoundary } from 'react-error-boundary';
 import {
   act,
   create,
@@ -107,6 +108,7 @@ vi.mock('../styles/CustomHtml.css', () => ({
   Spoiler: () => 'Spoiler',
   EmoticonBase: 'EmoticonBase',
   Emoticon: () => 'Emoticon',
+  highlightText: 'highlightText',
 }));
 
 vi.mock('../mindroom/html/MatrixMath.css', () => ({
@@ -286,6 +288,39 @@ describe('CodeBlock header', () => {
     expect(pre().props['data-wrap']).toBe(false);
     expect(wrapButton().props['aria-pressed']).toBe(false);
     renderer.unmount();
+  });
+});
+
+describe('fenced code syntax highlighting', () => {
+  it('hands fenced code to the Prism highlighter', () => {
+    const renderer = renderCustomHtmlTree(
+      '<pre><code class="language-js">const a = 1;</code></pre>'
+    );
+
+    expect(renderer.root.findAllByType(ErrorBoundary)).toHaveLength(1);
+    expect(collectTextContent(renderer.toJSON())).toContain('const a = 1;');
+    renderer.unmount();
+  });
+
+  it('keeps search highlights instead while a search is active', () => {
+    const opts = getReactCustomHtmlParser({} as MatrixClient, undefined, {
+      linkifyOpts: LINKIFY_OPTS,
+      highlightRegex: /const/gi,
+    });
+    let renderer: ReactTestRenderer | undefined;
+    act(() => {
+      renderer = create(
+        React.createElement(
+          React.Fragment,
+          null,
+          parse('<pre><code class="language-js">const a = 1;</code></pre>', opts)
+        )
+      );
+    });
+
+    expect(renderer!.root.findAllByType(ErrorBoundary)).toHaveLength(0);
+    expect(renderer!.root.findAllByProps({ className: 'highlightText' })).toHaveLength(1);
+    renderer!.unmount();
   });
 });
 
