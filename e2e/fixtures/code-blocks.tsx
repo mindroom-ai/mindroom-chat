@@ -89,6 +89,7 @@ createRoot(document.getElementById('root')!).render(
   <main
     style={{
       display: 'grid',
+      gridTemplateColumns: 'minmax(0, 1fr)',
       gap: 12,
       alignContent: 'start',
       minHeight: '100vh',
