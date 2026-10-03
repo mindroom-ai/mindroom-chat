@@ -245,6 +245,11 @@ const STATIC_EVENT_NAMES = new Set([
   'network.online',
   'performance.event_loop_stall',
   'performance.scheduler_wakeup_replaced',
+  'storage.cache.close',
+  'storage.cache.open_settled',
+  'storage.cache.open_stalled',
+  'storage.cache.transaction_settled',
+  'storage.cache.transaction_stalled',
   'storage.indexeddb_loss_reload',
   'trace.build.known',
   'trace.build.unknown',
@@ -508,6 +513,10 @@ export const recordDeepTraceEvent = (
   }
   scheduleFlush(target, options.flush);
 };
+
+/** Cheap check for callers that would otherwise prepare events nobody records. */
+export const isDeepTraceRecording = (): boolean =>
+  !!runtime && runtime.enabled && !runtime.disposed;
 
 export const getDeepTraceEnabled = (
   storage: Storage | undefined = getSafeLocalStorage()
