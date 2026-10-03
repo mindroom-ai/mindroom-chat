@@ -9,7 +9,7 @@
   `replaceToolMarkerLines` skipped blank lines after a marker but kept every blank line before one, contrary to its own contract that a marker never leaves a gap wider than one blank line.
 - Fix: blank lines before a marker are dropped before its replacement, so both copies leave exactly one blank line where a marker stood.
   Bodies without displayed markers still copy byte-for-byte.
-- The side action looked like a second trailing icon of the Copy Text row (`T` then `>_`), and its neutral hover was nearly invisible, most of all in dark themes.
+- The side action looked like a second trailing icon of the Copy Text row (`T` then `>_`), and its hover was only a faint gray square.
   A vertical divider now separates it from the row, and it uses the accent color (`Primary`, no fill), whose hover shows a tinted square, so the hovered target is unambiguous.
   The labelled touch-screen row is unchanged.
 - Tests: two `messageCopyText.test.ts` cases with wide gaps before markers (plain-body fallback and `formatted_body`) fail without the fix.
