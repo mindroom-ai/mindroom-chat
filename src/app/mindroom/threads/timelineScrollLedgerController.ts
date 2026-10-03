@@ -17,7 +17,7 @@ import {
 } from '@tanstack/react-virtual';
 import { threadScrollRange } from './threadScrollRange';
 import { countCacheProbe } from './cacheProbe';
-import { createBatchedMeasurementRef, measureVirtualRow } from './batchedMeasurementRef';
+import { createBatchedMeasurementRef, createScrollMountMeasurement } from './batchedMeasurementRef';
 import { installRideTraceRecorder, isRideTraceEnabled } from './rideTraceRecorder';
 import {
   hasActiveWindowTouches,
@@ -306,7 +306,7 @@ export const useTimelineScrollLedgerController = ({
   });
   const virtualizerRef = useRef(virtualizer);
   const measureElement = useMemo(
-    () => createBatchedMeasurementRef<Element>((node) => measureVirtualRow(virtualizer, node)),
+    () => createBatchedMeasurementRef(createScrollMountMeasurement(virtualizer)),
     [virtualizer]
   );
 

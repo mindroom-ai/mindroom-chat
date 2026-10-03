@@ -2,6 +2,41 @@
 
 ## Runbook
 
+### Measure rows that mount during a fast scroll before they paint (2026-10-03)
+
+- Report: scrolling up very fast through a long thread briefly draws one message's text over another.
+- Reproduced in the local Docker Matrix stack (Chromium, production build) with a 240-reply thread of tables, code blocks, lists, long paragraphs and one-liners, scrolled upward 600 to 3,000 px per frame so that rows mount inside the viewport, as in a phone fling while the main thread is busy.
+  The previous code painted overlapping rows in 1 to 22 sampled frames per ride (up to 154 px, a table reply estimated as one line) and gaps of up to 50 px between rows.
+  Wheel scrolling on desktop, also at 4× CPU throttling, mounted rows in the buffer above the viewport and showed no overlap.
+- Root cause: virtual-core's `measureElement` measures an attached row only while `isScrolling` is false.
+  During a scroll the row keeps its content estimate until virtual-core's ResizeObserver reports it, and that `resizeItem` notifies react-virtual without `flushSync`, so React commits the corrected offsets after the browser has painted the row at its real height and the rows after it at estimated positions.
+  Estimates are deliberately biased low (round 11), so this mostly shows as overlap.
+  The 2026-07-05 note that rows "still measure immediately (ResizeObserver path measures during live scroll)" holds, but that path commits a frame late.
+- Fix: `createScrollMountMeasurement` (`batchedMeasurementRef.ts`) is the measure callback of the timeline's virtual tiles.
+  A row attached during a reader's scroll is measured in a microtask inside `flushSync`: after React has flushed the synchronous updates its own mount queued, and before the browser paints.
+  A first version measured in the ref callback itself; it measured fresh one-line rows before `CollapsibleMessage` dropped its first-pass overflow pill, which left 10 px gaps for a frame.
+  Remounted rows reuse their cached size, as at rest, so they do not force layout.
+  Programmatic scrolls keep virtual-core's own measurement window; its `scrollState` is private and read through a cast, and a unit test pins the behaviour against the real core.
+  Corrections still pass through `shouldAdjustScrollPositionOnItemSizeChange`, so dropped corrections fold into the ledger and iOS gets no new scroll writes.
+- Measured after the fix with the same rides: no overlap and no gap in any run; frame-time p95 stayed within run-to-run noise (67 ms in most runs of this harness, on both builds).
+- Tests: `batchedMeasurementRef.test.ts` drives the real virtualizer: a row attached during a scroll is measured before the next task (virtual-core alone leaves it unmeasured), at the height it settles on after its own nested update; removed rows are skipped, cached rows are not read again, and a smooth `scrollToIndex` still limits measurement to its target window.
+  `batchedMeasurementRef.commit.test.tsx` renders a real `useVirtualizer` list and expects the corrected tile offsets in the DOM one microtask after rows mount during a scroll; without `flushSync` they wait for a scheduled render.
+  `e2e/live/thread-fast-scroll-overlap.spec.ts` checks every seam between adjacent tiles in animation frames and from a late ResizeObserver during a 1,500 px-per-frame ride; it fails on the previous code and passes with the fix.
+  The parallel runner runs it serially with the other timing-sensitive specs.
+- Validation: Typecheck (application, changed unit tests and the new spec), build, prettier and lint (0 errors, the existing 17 warnings) pass.
+  The full unit suite passes (5,818 tests) except the four that also fail on unchanged `dev`: three `xcodeCloudPostClone` tests (no `/bin/bash` on this NixOS host) and the caption send-failure test in `useRoomInputSendSessionController.test.ts`.
+  Eleven live scroll specs (26 cases) ran in Chromium against production builds of the previous code and of the fix, on one Matrix stack and account.
+  The results match except the new spec, which fails on the previous code (154 px overlap) and passes with the fix.
+  Both builds fail the same four cases: `cinny070` (prepend anchor), `cinny077` (large-room jump), `thread-ride-under-latency` compositor momentum, and, in this full-suite order, its continuous-flicking case with an identical 142 px gap; that case passed three repeats on each build when run alone.
+  A run of the first version under heavier host load (load average 13 to 17) failed four more iPhone-emulated cases; each passed three repeats on both builds afterwards.
+- Review: two independent reviews found no correctness issue.
+  The first found the 10 px gaps of the ref-callback version and asked for the `scrollState` contract test; the second checked the microtask timing for every commit source in React 18.2 and asked for the React-level test, the recheck of `scrollState` when the microtask runs, and the at-rest limit below.
+- Not covered:
+  - Rows that change height after mounting (an image loading, an edit) still re-render after paint through ResizeObserver.
+  - Rows that mount at rest or during a non-smooth programmatic scroll are still measured by virtual-core in the ref, before a fresh `CollapsibleMessage` drops its first-pass pill, so they can show the 10 px gap for a frame; this mostly affects overscan rows.
+  - A remounted row whose content changed while it was unmounted keeps its stale cached size until ResizeObserver reports it.
+  - WebKit (Playwright WebKit cannot launch on this NixOS host) and the native iOS shell were not run.
+
 ### Stop rewriting every thread root to IndexedDB on each overview (2026-10-02)
 
 - An iPhone export from build `4233114f` shows the page reloading 2.6 s after the user sent a new thread root, with the app in the foreground.
