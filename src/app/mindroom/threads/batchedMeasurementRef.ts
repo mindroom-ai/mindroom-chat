@@ -49,7 +49,6 @@ export const createScrollMountMeasurement = <T extends Element>(
     flushSync(() => {
       nodes.forEach((node) => {
         if (!node.isConnected) return;
-        // Without a ResizeObserver entry, a remounted row reuses its cached size.
         virtualizer.resizeItem(
           virtualizer.indexFromElement(node),
           virtualizer.options.measureElement(node, undefined, virtualizer)
@@ -60,6 +59,10 @@ export const createScrollMountMeasurement = <T extends Element>(
   return (node: T | null) => {
     virtualizer.measureElement(node);
     if (!node || !virtualizer.isScrolling || programmaticScroll()) return;
+    // A remounted row keeps its cached size, as at rest, without forcing
+    // layout; ResizeObserver reports any later change.
+    const index = virtualizer.indexFromElement(node);
+    if (index < 0 || virtualizer.itemSizeCache.has(virtualizer.options.getItemKey(index))) return;
     if (attached.size === 0) queueMicrotask(measureAttached);
     attached.add(node);
   };

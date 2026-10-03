@@ -31,6 +31,8 @@
   A run of the first version under heavier host load (load average 13 to 17) failed four more iPhone-emulated cases; each passed three repeats on both builds afterwards.
 - Review: two independent reviews found no correctness issue.
   The first found the 10 px gaps of the ref-callback version and asked for the `scrollState` contract test; the second checked the microtask timing for every commit source in React 18.2 and asked for the React-level test, the recheck of `scrollState` when the microtask runs, and the at-rest limit below.
+  On the PR, Qodo asked for one shared scroller lookup in the live spec and for skipping rows whose size is already cached before queuing them (virtual-core's default measure already returned the cached size without layout; the skip now also avoids an empty microtask and flush), and CodeRabbit asked the spec to require compared tile pairs so it cannot pass without checking a seam.
+  Sourcery was over its review quota.
 - Not covered:
   - Rows that change height after mounting (an image loading, an edit) still re-render after paint through ResizeObserver.
   - Rows that mount at rest or during a non-smooth programmatic scroll are still measured by virtual-core in the ref, before a fresh `CollapsibleMessage` drops its first-pass pill, so they can show the 10 px gap for a frame; this mostly affects overscan rows.

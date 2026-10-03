@@ -46,6 +46,7 @@ type SeamSample = {
 type SeamState = {
   frames: number;
   resizeChecks: number;
+  pairChecks: number;
   startScrollTop: number;
   minScrollTop: number;
   samples: SeamSample[];
@@ -141,9 +142,12 @@ const installSeamSampler = (page: Page) =>
     }
     if (!inner || !scroller) throw new Error('thread virtual container not found');
     const viewport = scroller;
+    // The ride scrolls exactly the element this sampler measures against.
+    viewport.dataset.e2eSeamScroller = '1';
     const state: SeamState = {
       frames: 0,
       resizeChecks: 0,
+      pairChecks: 0,
       startScrollTop: viewport.scrollTop,
       minScrollTop: viewport.scrollTop,
       samples: [],
@@ -160,6 +164,7 @@ const installSeamSampler = (page: Page) =>
         .map((tile) => ({ index: Number(tile.dataset.index), rect: tile.getBoundingClientRect() }))
         .filter((tile) => tile.rect.height > 0)
         .sort((a, b) => a.index - b.index);
+      state.pairChecks += Math.max(0, tiles.length - 1);
       let worst: SeamSample | undefined;
       for (let k = 1; k < tiles.length; k += 1) {
         const upper = tiles[k - 1];
@@ -212,12 +217,7 @@ const scrollThreadToTop = (page: Page) =>
   page.evaluate(
     (stepPx) =>
       new Promise<void>((resolve) => {
-        let scroller = document.querySelector<HTMLElement>('[data-thread-count]');
-        while (scroller) {
-          const { overflowY } = window.getComputedStyle(scroller);
-          if (overflowY === 'auto' || overflowY === 'scroll') break;
-          scroller = scroller.parentElement;
-        }
+        const scroller = document.querySelector<HTMLElement>('[data-e2e-seam-scroller="1"]');
         let frames = 0;
         const step = () => {
           if (!scroller || scroller.scrollTop <= 0 || frames >= 400) {
@@ -241,6 +241,7 @@ const readSeamReport = (page: Page) =>
     return {
       frames: state.frames,
       resizeChecks: state.resizeChecks,
+      pairChecks: state.pairChecks,
       scrolledPx: Math.round(state.startScrollTop - state.minScrollTop),
       seamFrames: state.samples.length,
       worst: [...state.samples]
@@ -280,10 +281,11 @@ test.describe('thread fast-scroll overlap', () => {
       contentType: 'application/json',
     });
 
-    // A sampler that never ran, or a ride that never left the bottom, would
-    // pass vacuously.
+    // A sampler that never ran or never compared two tiles, or a ride that
+    // never left the bottom, would pass vacuously.
     expect(report.frames).toBeGreaterThan(10);
     expect(report.resizeChecks).toBeGreaterThan(0);
+    expect(report.pairChecks).toBeGreaterThan(report.frames);
     expect(report.scrolledPx).toBeGreaterThan(10_000);
     expect(report.worst).toEqual([]);
     await expectNoUnexpectedBrowserDiagnostics(diagnostics, 'thread-fast-scroll-overlap');

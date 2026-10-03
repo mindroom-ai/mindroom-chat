@@ -136,6 +136,8 @@ describe('batched virtualizer measurement ref', () => {
     const ref = createBatchedMeasurementRef(createScrollMountMeasurement(virtualizer));
     mount(0, ref);
     virtualizer.isScrolling = true;
+    const notify = vi.fn();
+    virtualizer.setOptions({ ...virtualizer.options, onChange: notify });
     const remounted = document.createElement('div');
     remounted.dataset.index = '0';
     const offsetHeight = vi.fn(() => 120);
@@ -144,6 +146,7 @@ describe('batched virtualizer measurement ref', () => {
     ref(remounted);
     await Promise.resolve();
     expect(offsetHeight).not.toHaveBeenCalled();
+    expect(notify).not.toHaveBeenCalled();
     expect(virtualizer.itemSizeCache.get(0)).toBe(80);
     dispose();
   });
