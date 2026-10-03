@@ -162,6 +162,33 @@ describe('useRoomThreadList', () => {
 
     renderer.unmount();
   });
+  it('reads the cached roots of a room once per page, retrying after a failed read', async () => {
+    mockedLoadRoomThreads.mockResolvedValue(undefined);
+    vi.mocked(loadCachedThreadRootsForRoom).mockRejectedValueOnce(new Error('Cache closed'));
+    const room = makeRoom();
+    const mx = new MatrixClient({ baseUrl: 'https://example.org', userId: '@self:example.org' });
+    const engine = createMindroomSyncEngine({ mx });
+    const mount = async () => {
+      let renderer!: ReactTestRenderer;
+      await act(async () => {
+        renderer = create(
+          <MatrixClientProvider value={mx}>
+            <MindroomSyncEngineProvider engine={engine}>
+              <Harness enabled room={room} onRender={() => undefined} />
+            </MindroomSyncEngineProvider>
+          </MatrixClientProvider>
+        );
+      });
+      await act(async () => renderer.unmount());
+    };
+
+    await mount();
+    await mount();
+    await mount();
+
+    // The failed read is retried; the SDK keeps the threads of the successful one.
+    expect(loadCachedThreadRootsForRoom).toHaveBeenCalledTimes(2);
+  });
   it.each([false, true])(
     'keeps a cache failure separate from server success (cache first: %s)',
     async (cacheFirst) => {

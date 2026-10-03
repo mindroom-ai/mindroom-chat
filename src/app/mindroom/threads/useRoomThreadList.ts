@@ -1,4 +1,4 @@
-import { Room, ThreadEvent } from 'matrix-js-sdk';
+import { MatrixEvent, Room, ThreadEvent } from 'matrix-js-sdk';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   getRoomThreadsUnread,
@@ -15,6 +15,55 @@ import {
 } from './eventRepository';
 import { restoreCachedRoomThreads } from './sdk/roomTimelineSdk';
 
+/**
+ * Per page, not per mount: returning to a room's overview must not read every
+ * cached root again or rewrite every unchanged one. In a room with hundreds of
+ * threads each mount cost hundreds of IndexedDB transactions and megabytes of
+ * reads, all through WebKit's networking process.
+ */
+const restoredRooms = new WeakSet<Room>();
+const savedRootRevisions = new WeakMap<
+  Room,
+  { isCurrent: () => boolean; revisions: Map<string, number> }
+>();
+
+/** Root revisions saved under the room's cache write lease; a cleared room cache starts over. */
+const getSavedRootRevisions = (room: Room, isCurrent: () => boolean): Map<string, number> => {
+  const saved = savedRootRevisions.get(room);
+  if (saved?.isCurrent()) return saved.revisions;
+  const revisions = new Map<string, number>();
+  savedRootRevisions.set(room, { isCurrent, revisions });
+  return revisions;
+};
+
+/** 53-bit string hash (cyrb53): the page keeps a number per root, not its JSON. */
+const hashRevision = (value: string): number => {
+  let h1 = 0xdeadbeef;
+  let h2 = 0x41c6ce57;
+  for (let i = 0; i < value.length; i += 1) {
+    const char = value.charCodeAt(i);
+    h1 = Math.imul(h1 ^ char, 2654435761);
+    h2 = Math.imul(h2 ^ char, 1597334677);
+  }
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+  return 4294967296 * (2097151 & h2) + (h1 >>> 0);
+};
+
+const getRootRevision = (room: Room, rootEvent: MatrixEvent): number => {
+  const edit = rootEvent.replacingEvent();
+  return hashRevision(
+    JSON.stringify([
+      // Encrypted events serialize as their ciphertext; decrypting one is a new revision.
+      rootEvent.getType(),
+      rootEvent.isDecryptionFailure(),
+      edit?.getType(),
+      edit?.isDecryptionFailure(),
+      serializeThreadCacheEvents(room, [], rootEvent),
+    ])
+  );
+};
+
 export const useRoomThreadList = (room: Room, enabled = true) => {
   const mx = useMatrixClient();
   const engine = useMindroomSyncEngine();
@@ -25,11 +74,13 @@ export const useRoomThreadList = (room: Room, enabled = true) => {
   const lifecycleAbortControllerRef = useRef<AbortController>();
 
   useEffect(() => {
-    if (!enabled) return undefined;
+    // The SDK keeps the threads restored by the first mount; later ones come from the server list.
+    if (!enabled || restoredRooms.has(room)) return undefined;
     let cancelled = false;
     loadCachedThreadRootsForRoom(engine.sessionId, room.roomId)
       .then((roots) => {
         if (cancelled) return;
+        restoredRooms.add(room);
         const mapper = createPreferLiveEventMapper(room, mx.getEventMapper());
         restoreCachedRoomThreads(
           room,
@@ -56,19 +107,33 @@ export const useRoomThreadList = (room: Room, enabled = true) => {
   const loadThreads = useCallback(
     (signal: AbortSignal) => {
       const persist = engine.persist.forRoom(room);
-      const saved = new Map<string, string>();
+      const saved = getSavedRootRevisions(room, persist.isCurrent);
+      const saveRoot = (threadId: string, rootEvent: MatrixEvent) => {
+        if (signal.aborted) return;
+        // Later pages can update the same SDK object, including its edits.
+        const revision = getRootRevision(room, rootEvent);
+        if (saved.get(threadId) === revision) return;
+        saved.set(threadId, revision);
+        // A listed root is enough for the overview, not proof of cached replies.
+        persist.persistThreadEventCache(threadId, [], rootEvent);
+      };
       return loadRoomThreads(
         room,
         () => {
           if (signal.aborted) return;
-          room.getThreads().forEach((thread) => {
-            if (!thread.rootEvent) return;
-            // Later pages can update the same SDK object, including its edits.
-            const revision = JSON.stringify(serializeThreadCacheEvents(room, [], thread.rootEvent));
-            if (saved.get(thread.id) === revision) return;
-            saved.set(thread.id, revision);
-            // A listed root is enough for the overview, not proof of cached replies.
-            persist.persistThreadEventCache(thread.id, [], thread.rootEvent);
+          room.getThreads().forEach(({ id, rootEvent }) => {
+            if (!rootEvent) return;
+            // Save a root that is being decrypted with its clear content and attachments.
+            const decryption = rootEvent.isBeingDecrypted() && rootEvent.getDecryptionPromise();
+            const save = () => saveRoot(id, rootEvent);
+            if (!decryption) {
+              save();
+              return;
+            }
+            decryption.then(save, save).catch((err: unknown) => {
+              // eslint-disable-next-line no-console
+              console.warn('[threadList] saving a decrypted root failed:', err);
+            });
           });
           handleThreadListProgress();
         },
