@@ -2,7 +2,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { createInsideUrlTest, execOutsideUrl } from './regex';
+import { createInsideUrlTest, execOutsideUrl, JUMBO_EMOJI_REG } from './regex';
 
 // The lookbehind these helpers replace; V8 evaluates it in linear time, so it is the oracle.
 const FORMER_URL_LOOKBEHIND = /(?<!(https?|ftp|mailto|magnet):\/\/\S*)/y;
@@ -78,6 +78,32 @@ describe('execOutsideUrl', () => {
     const start = performance.now();
     expect(execOutsideUrl(/_(.+?)_(?!_)/g, text)?.index).toBe(text.length - 3);
     expect(performance.now() - start).toBeLessThan(1_000);
+  });
+});
+
+describe('JUMBO_EMOJI_REG', () => {
+  it.each(['👍', '👍\uFE0F 😀', ':a:', ':party-parrot: 😀 :b_c:', Array(10).fill(':a:').join(' ')])(
+    'matches %j',
+    (body) => {
+      expect(JUMBO_EMOJI_REG.test(body)).toBe(true);
+    }
+  );
+
+  it.each(['text', ':a: text', Array(11).fill(':a:').join(' '), ':a b:', ':a:b:', ': :'])(
+    'does not match %j',
+    (body) => {
+      expect(JUMBO_EMOJI_REG.test(body)).toBe(false);
+    }
+  );
+
+  it('rejects many shortcodes followed by text without backtracking', () => {
+    // A shortcode could span other shortcodes, so the ten allowed could be split among thirty
+    // in millions of ways: this took seconds in V8 and JavaScriptCore.
+    const start = performance.now();
+    expect(JUMBO_EMOJI_REG.test(`${':rocket: :white_check_mark: :tada: '.repeat(10)}ok`)).toBe(
+      false
+    );
+    expect(performance.now() - start).toBeLessThan(100);
   });
 });
 

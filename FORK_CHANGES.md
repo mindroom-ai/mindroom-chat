@@ -2,7 +2,7 @@
 
 ## Runbook
 
-### Render long whitespace-free text without freezing iOS (2026-10-02)
+### Render long whitespace-free text and runs of shortcodes without freezing (2026-10-02)
 
 - An iPhone export from build `4233114f` records a freeze in an open thread: about 0.8 s after the user sent a reply, the flight recorder's 2-second heartbeat stopped (last beat 01:58:37 UTC), and the app stayed frozen until it was force-quit 40 s later.
   The deep trace ends with the send's `PUT`, the `/sync` response that arrived with it and the next `/sync` request.
@@ -20,16 +20,19 @@
   The inline rules take their first match outside URLs through `execOutsideUrl`, which continues after the whitespace that ends a URL, because every position before it follows the scheme too.
   `findAndReplace` can skip matches, which emoji scaling and Markdown escaping use for matches inside URLs; with a regex that is not global it now stops after the first match instead of looping (no caller passes one).
   JavaScriptCore now takes 23 ms for the paths, 7 ms for the JSON and 0.8 ms for the base64; the two WebKit cases block for at most 144 ms and 160 ms.
+- `JUMBO_EMOJI_REG` let a `:shortcode:` token contain whitespace and colons, so when a body did not match, the ten allowed tokens could be split among more shortcodes in millions of ways: thirty shortcodes followed by text took 8.4 s in both V8 and JavaScriptCore.
+  A shortcode token now excludes both, like the shortcodes Cinny creates (spaces become dashes), so it matches in one way and the check takes 0.1 ms.
+  Bodies with more than ten shortcodes, or with whitespace or a colon inside one, are no longer shown as jumbo emoji, the same as bodies with more than ten emoji.
 - Tests: the new check agrees with the old lookbehind, evaluated in V8, at every position of fixed texts and 500 generated ones, most of which contain URLs.
   Markdown markers, escapes and emoji inside URLs stay literal as before, and a URL followed by 40,000 underscores is matched in linear time (3.6 s when every position of the URL is retried).
   A source check rejects lookbehinds that repeat `\S`, `\w`, `\d`, `.` or a negated class, and fails on the old code.
+  `JUMBO_EMOJI_REG` matches one to ten emoji or shortcodes, rejects the bodies above, and rejects thirty shortcodes followed by text within 100 ms.
   `e2e/live/long-unbroken-text.spec.ts` (run with `playwright.long-unbroken-text.config.ts`, WebKit in the Playwright 1.58.2 container) covers both live cases and fails in WebKit before the fix.
 - An independent review compared the old and new parsers, escaping and emoji scaling on 160,000 generated inputs and found no difference.
   It found the retry of every URL position, generated texts without URLs, a missing room topic in the live spec and a loose source check; all are fixed.
 - Not changed: `HTTP_URL_PATTERN`'s lookbehind for trailing punctuation is quadratic only in a run of punctuation after a URL, in both engines.
-  `JUMBO_EMOJI_REG` backtracks catastrophically on a body that starts with many `:shortcode:`-like segments, in both engines (8.4 s for ten followed by text).
 - Validation: typecheck, production build, prettier and lint (0 errors, 17 existing warnings) pass.
-  5,767 unit tests pass; the three `xcodeCloudPostClone` tests that need `/bin/bash` and `useRoomInputSendSessionController`'s caption case fail the same way on unchanged `dev`.
+  5,779 unit tests pass; the three `xcodeCloudPostClone` tests that need `/bin/bash` and `useRoomInputSendSessionController`'s caption case fail the same way on unchanged `dev`.
 - Next: if the agent reply in the frozen thread held long JSON, paths, URLs or base64, this is the cause.
   Otherwise the next freeze needs evidence the deep trace cannot keep, such as a synchronous breadcrumb written before a message is parsed.
 
