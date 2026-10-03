@@ -2,6 +2,37 @@
 
 ## Runbook
 
+### Render long whitespace-free text without freezing iOS (2026-10-02)
+
+- An iPhone export from build `4233114f` records a freeze in an open thread: about 0.8 s after the user sent a reply, the flight recorder's 2-second heartbeat stopped (last beat 01:58:37 UTC), and the app stayed frozen until it was force-quit 40 s later.
+  The deep trace ends with the send's `PUT`, the `/sync` response that arrived with it and the next `/sync` request.
+  It is flushed every 500 ms and records no message content, so it cannot show what ran during the freeze.
+- Chromium did not reproduce a freeze: a live run that opens a thread from the overview, sends, and has a second user answer with 30 streamed edits never blocked longer than 170 ms.
+  Audits of the thread, send and patched SDK paths found no loop that never yields.
+- WebKit can block for tens of seconds while rendering messages.
+  The inline Markdown rules and the emoji scaling of every text node used the lookbehind `(?<!(https?|ftp|mailto|magnet):\/\/\S*)` to leave URLs alone, and JavaScriptCore rescans the whole whitespace-free run behind every position for it.
+  The cost grows with the square of the run for emoji, and with its cube through the Markdown parser, which reruns every rule on the text around each match.
+  JavaScriptCore (Bun) against V8: 3.5 kB of comma-separated paths through the Markdown parser took 12.6 s against 2 ms, 2 kB of compact JSON 2.1 s against 0.7 ms, and the emoji scan of 32 kB of base64 3.8 s against 0.3 ms.
+  In Playwright WebKit, a thread reply whose code block holds a 38 kB line of JSON blocked the page for 12.6 s.
+  The body-only preview that MindRoom sends for a reply over the event size limit, holding 4.6 kB of paths, blocked it for 59.1 s.
+- That fits an iOS-only freeze while an agent answers, but the export cannot show whether the reply held such text, so this is a likely cause, not a confirmed one.
+- `createInsideUrlTest` (`src/app/utils/regex.ts`) scans the text once and reports whether a position follows a URL scheme in the same whitespace-free run, which is what the lookbehind tested.
+  The inline rules take their first match outside URLs through `execOutsideUrl`, which continues after the whitespace that ends a URL, because every position before it follows the scheme too.
+  `findAndReplace` can skip matches, which emoji scaling and Markdown escaping use for matches inside URLs; with a regex that is not global it now stops after the first match instead of looping (no caller passes one).
+  JavaScriptCore now takes 23 ms for the paths, 7 ms for the JSON and 0.8 ms for the base64; the two WebKit cases block for at most 144 ms and 160 ms.
+- Tests: the new check agrees with the old lookbehind, evaluated in V8, at every position of fixed texts and 500 generated ones, most of which contain URLs.
+  Markdown markers, escapes and emoji inside URLs stay literal as before, and a URL followed by 40,000 underscores is matched in linear time (3.6 s when every position of the URL is retried).
+  A source check rejects lookbehinds that repeat `\S`, `\w`, `\d`, `.` or a negated class, and fails on the old code.
+  `e2e/live/long-unbroken-text.spec.ts` (run with `playwright.long-unbroken-text.config.ts`, WebKit in the Playwright 1.58.2 container) covers both live cases and fails in WebKit before the fix.
+- An independent review compared the old and new parsers, escaping and emoji scaling on 160,000 generated inputs and found no difference.
+  It found the retry of every URL position, generated texts without URLs, a missing room topic in the live spec and a loose source check; all are fixed.
+- Not changed: `HTTP_URL_PATTERN`'s lookbehind for trailing punctuation is quadratic only in a run of punctuation after a URL, in both engines.
+  `JUMBO_EMOJI_REG` backtracks catastrophically on a body that starts with many `:shortcode:`-like segments, in both engines (8.4 s for ten followed by text).
+- Validation: typecheck, production build, prettier and lint (0 errors, 17 existing warnings) pass.
+  5,767 unit tests pass; the three `xcodeCloudPostClone` tests that need `/bin/bash` and `useRoomInputSendSessionController`'s caption case fail the same way on unchanged `dev`.
+- Next: if the agent reply in the frozen thread held long JSON, paths, URLs or base64, this is the cause.
+  Otherwise the next freeze needs evidence the deep trace cannot keep, such as a synchronous breadcrumb written before a message is parsed.
+
 ### Preserve the selected space when opening threads (2026-10-01)
 
 - Reproduced in the hosted Chrome tab: opening a thread from a space's sidebar navigated to `/home/...` and replaced the space's room list.

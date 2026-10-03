@@ -1,6 +1,7 @@
 import { findAndReplace } from '../../utils/findAndReplace';
+import { createInsideUrlTest } from '../../utils/regex';
 import { ESC_BLOCK_SEQ, UN_ESC_BLOCK_SEQ } from './block/rules';
-import { EscapeRule, CAP_INLINE_SEQ } from './inline/rules';
+import { EscapeRule, INLINE_SEQUENCE_SET } from './inline/rules';
 import { runInlineRule } from './inline/runner';
 import { replaceMatch } from './internal';
 
@@ -27,7 +28,7 @@ export const unescapeMarkdownInlineSequences = (text: string): string =>
  * @returns The plain-text with markdown escape sequences added (e.g., `"some \*italic\*"`)
  */
 export const escapeMarkdownInlineSequences = (text: string): string => {
-  const regex = new RegExp(`(${CAP_INLINE_SEQ})`, 'g');
+  const regex = new RegExp(`(${INLINE_SEQUENCE_SET})`, 'g');
   const parts = findAndReplace(
     text,
     regex,
@@ -35,7 +36,8 @@ export const escapeMarkdownInlineSequences = (text: string): string => {
       const [, g1] = match;
       return `\\${g1}`;
     },
-    (t) => t
+    (t) => t,
+    createInsideUrlTest(text)
   );
 
   return parts.join('');
