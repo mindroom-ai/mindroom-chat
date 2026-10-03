@@ -17,6 +17,11 @@ import {
   THREAD_SUMMARIES_STORE,
 } from './cacheStoreSchema';
 import { performLegacyDbWipe } from './cacheStoreLegacyWipe';
+import {
+  traceCacheStoreClose,
+  traceCacheStoreOpen,
+  traceCacheTransactions,
+} from './cacheStoreTrace';
 
 // The opener follows the corruption self-heal pattern from the legacy
 // `threadEventCache`: if an open succeeds but any required store is missing
@@ -163,17 +168,19 @@ export const openCacheStore = (
         return;
       }
 
-      const invalidateConnection = () => {
+      const invalidateConnection = (versionChange: boolean) => {
+        traceCacheStoreClose(versionChange);
         if (dbPromiseByName.get(dbName) === dbPromise) dbPromiseByName.delete(dbName);
         // Also settle an open interrupted during the legacy migration.
         reject(new DOMException('Cache database connection closed', 'InvalidStateError'));
       };
-      db.onclose = invalidateConnection;
+      db.onclose = () => invalidateConnection(false);
       db.onversionchange = () => {
         revokeCacheStoreWrites(sessionId);
         db.close();
-        invalidateConnection();
+        invalidateConnection(true);
       };
+      traceCacheTransactions(db);
       // D8 wipe runs after the schema is confirmed and before we hand
       // the DB out to callers.
       performLegacyDbWipe(sessionId, db)
@@ -201,6 +208,7 @@ export const openCacheStore = (
     }
   });
 
+  traceCacheStoreOpen(dbPromise);
   dbPromiseByName.set(dbName, dbPromise);
   return dbPromise;
 };

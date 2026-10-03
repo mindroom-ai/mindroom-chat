@@ -232,6 +232,21 @@ describe('opt-in deep diagnostic trace', () => {
     );
   });
 
+  it('records cache database stalls', async () => {
+    await setDeepTraceEnabled(true, storage);
+    const names = [
+      'storage.cache.close',
+      'storage.cache.open_settled',
+      'storage.cache.open_stalled',
+      'storage.cache.transaction_settled',
+      'storage.cache.transaction_stalled',
+    ];
+    names.forEach((name) => recordDeepTraceEvent(name, { readwrite: true, events: true }));
+
+    const snapshot = await readDeepTraceSnapshot();
+    expect(snapshot.events.filter((event) => names.includes(event.name))).toHaveLength(5);
+  });
+
   it('captures JavaScriptCore stack locations without retaining stack text', async () => {
     await setDeepTraceEnabled(true, storage);
     const reason = new TypeError('private rejection message');
