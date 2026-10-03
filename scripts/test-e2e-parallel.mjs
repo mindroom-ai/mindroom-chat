@@ -10,7 +10,7 @@ import { parseArgs } from 'node:util';
 const repo = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const cli = resolve(repo, 'node_modules/@playwright/test/cli.js');
 const serialSpec =
-  /(?:^|\/)(?:perf-|ios-momentum-invariants|thread-ride-under-latency|message-rendering-performance|thinking-marker|long-message-expansion-default|app-store-screenshots|minimap-verify|worker-computer|deployed-auth-shell)/;
+  /(?:^|\/)(?:perf-|ios-momentum-invariants|thread-ride-under-latency|thread-fast-scroll-overlap|message-rendering-performance|thinking-marker|long-message-expansion-default|app-store-screenshots|minimap-verify|worker-computer|deployed-auth-shell)/;
 
 export function reportPassed({ stats, errors }, code, cases) {
   const total = ['expected', 'unexpected', 'flaky', 'skipped'].reduce(
