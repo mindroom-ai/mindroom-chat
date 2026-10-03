@@ -1,7 +1,6 @@
 import { style } from '@vanilla-extract/css';
 import { recipe } from '@vanilla-extract/recipes';
 import { color, config, DefaultReset, toRem } from 'folds';
-import { ContainerColor } from './ContainerColor.css';
 
 export const MarginSpaced = style({
   marginBottom: config.space.S200,
@@ -96,19 +95,125 @@ export const CodeBlock = style([
     overflow: 'hidden',
   },
 ]);
-export const CodeBlockHeader = style([
-  ContainerColor({ variant: 'Surface' }),
+// Message code blocks follow T3 Code: one surface with a quiet header row, the
+// language as a colored icon, and icon-only actions. In dark themes the tint
+// alone separates a block from the message; the composer keeps its border
+// because the input field shares the block's tint.
+export const MessageCodeBlock = style({
+  selectors: {
+    '.prism-dark &': {
+      borderColor: 'transparent',
+    },
+  },
+});
+export const CodeBlockHeader = style({
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  gap: config.space.S200,
+  paddingBlock: `${toRem(6)} 0`,
+  paddingInline: `${config.space.S300} ${toRem(6)}`,
+  userSelect: 'none',
+});
+export const CodeBlockLabel = style([
+  CodeFont,
   {
-    padding: `0 ${config.space.S200} 0 ${config.space.S300}`,
-    borderBottomWidth: config.borderWidth.B300,
-    gap: config.space.S200,
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: toRem(6),
+    minWidth: 0,
+    fontSize: toRem(11),
+    lineHeight: toRem(16),
+    color: `color-mix(in srgb, ${color.SurfaceVariant.OnContainer} 72%, transparent)`,
   },
 ]);
+export const CodeBlockLabelText = style({
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+});
+export const CodeBlockLanguageIcon = style({
+  flexShrink: 0,
+  width: toRem(14),
+  height: toRem(14),
+  color: 'var(--mr-code-icon-light)',
+  selectors: {
+    '.prism-dark &': {
+      color: 'var(--mr-code-icon-dark)',
+    },
+  },
+});
+export const CodeBlockActions = style({
+  display: 'flex',
+  alignItems: 'center',
+  gap: toRem(2),
+  flexShrink: 0,
+  '@media': {
+    '(pointer: coarse)': {
+      gap: config.space.S100,
+    },
+  },
+});
+export const CodeBlockAction = style([
+  DefaultReset,
+  {
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: toRem(24),
+    height: toRem(24),
+    border: 'none',
+    borderRadius: config.radii.R300,
+    background: 'transparent',
+    color: `color-mix(in srgb, ${color.SurfaceVariant.OnContainer} 64%, transparent)`,
+    cursor: 'pointer',
+    transition: 'background-color 120ms ease, color 120ms ease, scale 120ms ease',
+    selectors: {
+      '&[aria-pressed=true]': {
+        backgroundColor: color.SurfaceVariant.ContainerActive,
+        color: color.SurfaceVariant.OnContainer,
+      },
+      '&:active': {
+        scale: '0.97',
+      },
+      '&:focus-visible': {
+        outline: `2px solid ${color.Primary.Main}`,
+        outlineOffset: '1px',
+      },
+    },
+    '@media': {
+      // Touch screens keep :hover after a tap, which would read as pressed.
+      '(hover: hover)': {
+        selectors: {
+          '&:hover': {
+            backgroundColor: color.SurfaceVariant.ContainerActive,
+            color: color.SurfaceVariant.OnContainer,
+          },
+        },
+      },
+      '(pointer: coarse)': {
+        width: toRem(32),
+        height: toRem(32),
+      },
+    },
+  },
+]);
+export const CodeBlockActionIcon = style({
+  width: toRem(12),
+  height: toRem(12),
+  pointerEvents: 'none',
+  '@media': {
+    '(pointer: coarse)': {
+      width: toRem(16),
+      height: toRem(16),
+    },
+  },
+});
 // Virtualized messages mount many code blocks in one commit. Native overflow
 // avoids measuring scrollbar geometry (and invalidating layout) for every block.
 export const CodeBlockScroll = style({
   overflow: 'auto',
-  paddingBottom: config.space.S200,
+  padding: `${config.space.S100} ${config.space.S100} ${config.space.S300}`,
   scrollbarWidth: 'thin',
   scrollbarColor: `var(--mr-scrollbar-thumb-color, ${color.SurfaceVariant.ContainerLine}) transparent`,
   selectors: {
@@ -139,6 +244,12 @@ export const CodeBlockInternal = style([
   {
     padding: `${config.space.S200} ${config.space.S200} 0`,
     minWidth: toRem(200),
+    selectors: {
+      '[data-wrap=true] &': {
+        whiteSpace: 'pre-wrap',
+        overflowWrap: 'anywhere',
+      },
+    },
   },
 ]);
 

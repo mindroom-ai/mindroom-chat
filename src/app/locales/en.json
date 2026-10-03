@@ -3,6 +3,16 @@
     "label": "Scrollable table",
     "scrollHint": "Scroll horizontally"
   },
+  "messageCodeBlock": {
+    "actions": "Code block actions",
+    "code": "Code",
+    "language": "Language: {{language}}",
+    "copy": "Copy code",
+    "copied": "Copied",
+    "wrap": "Wrap lines",
+    "expand": "Expand",
+    "collapse": "Collapse"
+  },
   "Organisms": {
     "RoomCommon": {
       "changed_room_name": " changed room name"

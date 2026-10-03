@@ -3,6 +3,16 @@
     "label": "可捲動表格",
     "scrollHint": "水平捲動"
   },
+  "messageCodeBlock": {
+    "actions": "程式碼區塊操作",
+    "code": "程式碼",
+    "language": "語言：{{language}}",
+    "copy": "複製程式碼",
+    "copied": "已複製",
+    "wrap": "自動換行",
+    "expand": "展開",
+    "collapse": "收合"
+  },
   "Organisms": {
     "RoomCommon": {
       "changed_room_name": " 變更了房間名稱"

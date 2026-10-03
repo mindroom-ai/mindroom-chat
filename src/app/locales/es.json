@@ -3,6 +3,16 @@
     "label": "Tabla desplazable",
     "scrollHint": "Desplázate horizontalmente"
   },
+  "messageCodeBlock": {
+    "actions": "Acciones del bloque de código",
+    "code": "Código",
+    "language": "Lenguaje: {{language}}",
+    "copy": "Copiar código",
+    "copied": "Copiado",
+    "wrap": "Ajustar líneas",
+    "expand": "Expandir",
+    "collapse": "Contraer"
+  },
   "Organisms": {
     "RoomCommon": {
       "changed_room_name": " cambió el nombre de la sala"

@@ -22,7 +22,7 @@ test('mounting code blocks does not synchronously measure scrollbar geometry', a
     }
   });
   await page.goto('/e2e/fixtures/message-rendering.html');
-  await expect(page.getByRole('button', { name: 'Copy', exact: true })).toHaveCount(12);
+  await expect(page.getByRole('button', { name: 'Copy code', exact: true })).toHaveCount(12);
   const reads = await page.evaluate(
     () => (window as Window & { codeBlockGeometry: { reads: number } }).codeBlockGeometry.reads
   );
@@ -36,6 +36,9 @@ test('long code still scrolls and expands without widening the mobile page', asy
   const scroller = block.locator('#code-block-content').locator('..');
   await expect(block.getByRole('button', { name: 'Expand', exact: true })).toBeVisible();
   expect(await scroller.evaluate((el) => el.scrollHeight > el.clientHeight)).toBe(true);
+  // Lines wrap by default; turning wrapping off restores horizontal scrolling.
+  expect(await scroller.evaluate((el) => el.scrollWidth > el.clientWidth)).toBe(false);
+  await block.getByRole('button', { name: 'Wrap lines', exact: true }).click();
   expect(await scroller.evaluate((el) => el.scrollWidth > el.clientWidth)).toBe(true);
   await scroller.evaluate((el) => {
     el.scrollLeft = 100;

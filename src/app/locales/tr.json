@@ -3,6 +3,16 @@
     "label": "Kaydırılabilir tablo",
     "scrollHint": "Yatay kaydır"
   },
+  "messageCodeBlock": {
+    "actions": "Kod bloğu işlemleri",
+    "code": "Kod",
+    "language": "Dil: {{language}}",
+    "copy": "Kodu kopyala",
+    "copied": "Kopyalandı",
+    "wrap": "Satırları kaydır",
+    "expand": "Genişlet",
+    "collapse": "Daralt"
+  },
   "Organisms": {
     "RoomCommon": {
       "changed_room_name": " oda adını değiştirdi"
