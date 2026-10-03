@@ -2895,6 +2895,7 @@
       "openMembers": "Mitglieder öffnen",
       "openCanvas": "Panel öffnen",
       "canvasDisabled": "Interaktive Panels sind in dieser App deaktiviert.",
+      "canvasDuringCall": "Beende den Anruf, um interaktive Panels zu öffnen.",
       "computerUnavailable": "Der Computer dieses Agenten ist nicht verfügbar.",
       "releaseControl": "Gib die Computersteuerung frei, bevor du eine andere Ansicht öffnest.",
       "openConversation": "Öffne diese Anfrage über das Gespräch im Raum.",

@@ -25,14 +25,34 @@ export type CanvasTarget = {
 const record = (value: unknown): value is Record<string, unknown> =>
   !!value && typeof value === 'object' && !Array.isArray(value);
 
+/**
+ * Matrix canonical JSON: servers sort object keys and refuse numbers that are not safe integers
+ * in unencrypted events. Sorting here keeps the body equal to the stored metadata.
+ */
+const sortKeys = (value: unknown): unknown => {
+  if (Array.isArray(value)) return value.map(sortKeys);
+  if (!record(value)) return value;
+  return Object.fromEntries(
+    Object.keys(value)
+      .sort()
+      .map((key) => [key, sortKeys(value[key])])
+  );
+};
+
 const serialize = (data: unknown): string | undefined => {
   try {
-    const json = JSON.stringify(data);
+    const json = JSON.stringify(sortKeys(data));
     return typeof json === 'string' ? json : undefined;
   } catch {
     return undefined;
   }
 };
+
+/** Decimal and very large numbers travel as text, the only form every homeserver accepts. */
+const matrixSafeData = (data: unknown): unknown =>
+  JSON.parse(JSON.stringify(data), (_key, value: unknown) =>
+    typeof value === 'number' && !Number.isSafeInteger(value) ? String(value) : value
+  );
 
 /** Accept only the bridge message shape, from this canvas frame, within the payload budget. */
 export const readCanvasSubmission = (
@@ -45,7 +65,13 @@ export const readCanvasSubmission = (
     return undefined;
   }
   if (message.label !== undefined && typeof message.label !== 'string') return undefined;
-  const json = serialize(message.data);
+  let data: unknown;
+  try {
+    data = matrixSafeData(message.data);
+  } catch {
+    return undefined;
+  }
+  const json = serialize(data);
   if (json === undefined || new TextEncoder().encode(json).length > MAX_DATA_BYTES) {
     return undefined;
   }

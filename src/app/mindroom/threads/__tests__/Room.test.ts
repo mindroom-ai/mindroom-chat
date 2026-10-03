@@ -78,6 +78,7 @@ const { mx, navigateRoomMock, navigateRoomThreadMock, removeRecentThreadMock, ro
       clientConfig: { mindroom: {} } as ClientConfig,
       computerPanelProps: undefined as MockComputerPanelProps | undefined,
       canvasPanelProps: undefined as undefined | { event: MatrixEvent; onClose: () => void },
+      callEmbed: undefined as unknown,
       eventId: undefined as string | undefined,
       members: [] as Array<{ membership: string; userId: string }>,
       search: '',
@@ -110,7 +111,8 @@ vi.mock('jotai', async () => {
 
   return {
     ...actual,
-    useAtomValue: () => roomState.callChat,
+    useAtomValue: (atom: { mock?: string }) =>
+      atom?.mock === 'callEmbed' ? roomState.callEmbed : roomState.callChat,
   };
 });
 
@@ -263,7 +265,8 @@ vi.mock('../MindroomCallChatView', () => ({
 }));
 
 vi.mock('../../../state/callEmbed', () => ({
-  callChatAtom: {},
+  callChatAtom: { mock: 'callChat' },
+  callEmbedAtom: { mock: 'callEmbed' },
 }));
 
 vi.stubGlobal('window', { addEventListener: vi.fn(), removeEventListener: vi.fn() });
@@ -292,6 +295,7 @@ describe('Room', () => {
     roomState.clientConfig = { mindroom: {} };
     roomState.computerPanelProps = undefined;
     roomState.canvasPanelProps = undefined;
+    roomState.callEmbed = undefined;
     roomState.eventId = undefined;
     roomState.members = [];
     roomState.search = '';
@@ -522,6 +526,22 @@ describe('Room', () => {
     expect(canvasOpen()).toBe(true);
     expect(roomState.roomViewProps?.computerOpen).toBe(false);
     await act(async () => roomState.canvasPanelProps?.onClose());
+    expect(canvasOpen()).toBe(false);
+
+    // A call's frames listen to window messages, so a call closes canvases and blocks new ones.
+    await act(async () => {
+      emitAction('show_canvas', { canvas });
+    });
+    expect(canvasOpen()).toBe(true);
+    roomState.callEmbed = { mock: 'active call' };
+    await act(async () => renderer!.update(React.createElement(Room)));
+    expect(canvasOpen()).toBe(false);
+    await act(async () => {
+      emitAction('show_canvas', { canvas });
+    });
+    expect(canvasOpen()).toBe(false);
+    roomState.callEmbed = undefined;
+    await act(async () => renderer!.update(React.createElement(Room)));
     expect(canvasOpen()).toBe(false);
     await act(async () => renderer!.unmount());
     vi.stubGlobal('document', undefined);

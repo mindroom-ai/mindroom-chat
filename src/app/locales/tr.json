@@ -2895,6 +2895,7 @@
       "openMembers": "Üyeleri aç",
       "openCanvas": "Paneli aç",
       "canvasDisabled": "Etkileşimli paneller bu uygulamada kapalı.",
+      "canvasDuringCall": "Etkileşimli panelleri açmak için aramayı sonlandırın.",
       "computerUnavailable": "Bu ajanın bilgisayarı kullanılamıyor.",
       "releaseControl": "Başka bir görünüm açmadan önce bilgisayarın kontrolünü bırakın.",
       "openConversation": "Bu isteği oda sohbetinden açın.",

@@ -157,6 +157,30 @@ test('agent canvases run sandboxed, send only confirmed answers, and update in p
       })
   );
   expect(callFrameLoaded).toBe(true);
+  // Frames from any other origin are refused before a request; reCAPTCHA registration stays allowed.
+  const framePolicy = await page.evaluate(async () => {
+    const violations: string[] = [];
+    const record = (event: SecurityPolicyViolationEvent) => violations.push(event.blockedURI);
+    document.addEventListener('securitypolicyviolation', record);
+    const probe = document.createElement('iframe');
+    probe.src = 'https://example.org/frame';
+    probe.style.display = 'none';
+    document.body.appendChild(probe);
+    await new Promise((resolve) => {
+      setTimeout(resolve, 500);
+    });
+    probe.remove();
+    document.removeEventListener('securitypolicyviolation', record);
+    const policy = document
+      .querySelector('meta[http-equiv="Content-Security-Policy"]')
+      ?.getAttribute('content');
+    return { violations, policy };
+  });
+  // Browsers report only the origin of a blocked cross-origin frame.
+  expect(framePolicy.violations).toEqual(['https://example.org']);
+  expect(framePolicy.policy).toBe(
+    "frame-src 'self' https://www.google.com/recaptcha/ https://recaptcha.google.com/recaptcha/"
+  );
 
   const panel = page.getByRole('complementary', { name: 'Canvas panel' });
   const frame = page.frameLocator('aside[aria-label="Canvas panel"] iframe');

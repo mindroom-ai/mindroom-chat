@@ -2949,6 +2949,7 @@
       "openMembers": "Apri membri",
       "openCanvas": "Apri pannello",
       "canvasDisabled": "I pannelli interattivi sono disattivati in questa app.",
+      "canvasDuringCall": "Termina la chiamata per aprire i pannelli interattivi.",
       "computerUnavailable": "Il computer di questo agente non è disponibile.",
       "releaseControl": "Rilascia il controllo del computer prima di aprire un’altra vista.",
       "openConversation": "Apri questa richiesta dalla conversazione della stanza.",

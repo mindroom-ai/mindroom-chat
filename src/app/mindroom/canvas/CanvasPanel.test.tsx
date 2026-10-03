@@ -66,6 +66,10 @@ const canvas = {
 let container: HTMLDivElement;
 let root: Root;
 let sendMessage: ReturnType<typeof vi.fn>;
+let resendEvent: ReturnType<typeof vi.fn>;
+let cancelPendingEvent: ReturnType<typeof vi.fn>;
+let pendingEvents: Map<string, { status: string }>;
+const room = { getEventForTxnId: (txnId: string) => pendingEvents.get(txnId) };
 let txn = 0;
 const nextTxnId = () => {
   txn += 1;
@@ -76,7 +80,15 @@ const render = (props: Partial<CanvasPanelProps> = {}) =>
   act(() => {
     root.render(
       <CanvasPanel
-        mx={{ sendMessage, makeTxnId: nextTxnId } as unknown as MatrixClient}
+        mx={
+          {
+            sendMessage,
+            resendEvent,
+            cancelPendingEvent,
+            getRoom: () => room,
+            makeTxnId: nextTxnId,
+          } as unknown as MatrixClient
+        }
         roomId="!room:example.org"
         canvas={canvas}
         agentName="Planner"
@@ -128,6 +140,9 @@ beforeEach(() => {
   document.body.appendChild(container);
   root = createRoot(container);
   sendMessage = vi.fn().mockResolvedValue({ event_id: '$response' });
+  resendEvent = vi.fn().mockResolvedValue({ event_id: '$response' });
+  cancelPendingEvent = vi.fn();
+  pendingEvents = new Map();
   txn = 0;
 });
 
@@ -226,16 +241,57 @@ describe('CanvasPanel', () => {
     expect(button('[data-canvas-send]')).toBeNull();
   });
 
-  it('keeps a failed snapshot and retries it with the same transaction', async () => {
-    sendMessage.mockRejectedValueOnce(new Error('offline'));
+  it('retries a failed answer by resending the SDK local echo', async () => {
+    sendMessage.mockImplementationOnce(
+      async (_roomId: string, _content: unknown, txnId: string) => {
+        // The SDK keeps the failed local echo under the transaction ID.
+        pendingEvents.set(txnId, { status: 'not_sent' });
+        throw new Error('offline');
+      }
+    );
     render();
     await post(submit());
     await arm();
     await clickSend();
     expect(container.textContent).toContain('Could not send your response');
     await clickSend();
-    expect(sendMessage).toHaveBeenCalledTimes(2);
-    expect(sendMessage.mock.calls[1][2]).toBe(sendMessage.mock.calls[0][2]);
+    expect(sendMessage).toHaveBeenCalledTimes(1);
+    expect(resendEvent).toHaveBeenCalledWith(pendingEvents.get('txn-1'), room);
+    expect(container.textContent).toContain('Sent to Planner: Pro plan');
+  });
+
+  it('discards the failed local echo with a failed answer', async () => {
+    sendMessage.mockImplementationOnce(
+      async (_roomId: string, _content: unknown, txnId: string) => {
+        pendingEvents.set(txnId, { status: 'not_sent' });
+        throw new Error('offline');
+      }
+    );
+    render();
+    await post(submit());
+    await arm();
+    await clickSend();
+    await act(async () => button('[data-canvas-discard]').click());
+    expect(cancelPendingEvent).toHaveBeenCalledWith(pendingEvents.get('txn-1'));
+    expect(button('[data-canvas-send]')).toBeNull();
+    expect(container.textContent).not.toContain('Could not send');
+  });
+
+  it('keeps the page when the theme changes', async () => {
+    render();
+    const first = frame();
+    render({ colorScheme: 'light' });
+    expect(frame()).toBe(first);
+  });
+
+  it('keeps an answer staged while an update waits for the user', async () => {
+    render();
+    await touchFrame();
+    render({ canvas: { ...canvas, revisionEventId: '$edit', html: '<p>Step 2</p>' } });
+    expect(container.textContent).toContain('Planner updated this panel.');
+    await post(submit());
+    render({ canvas: { ...canvas, revisionEventId: '$edit', html: '<p>Step 2</p>' } });
+    expect(container.textContent).toContain('Send to Planner: Pro plan');
   });
 
   it('stops a canvas that navigates away from its document', async () => {

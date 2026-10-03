@@ -122,6 +122,7 @@ describe('readChatUiAction', () => {
         agentUserId: agentId,
         threadId: '$thread',
         canvas,
+        revisionEventId: '$request',
         event,
       });
     });
@@ -148,6 +149,22 @@ describe('readChatUiAction', () => {
         eventId: '$request',
         action: 'show_canvas',
         canvas: { title: 'Step 2', html: '<p>2</p>' },
+        revisionEventId: '$edit',
+      });
+    });
+
+    it('ignores an edit from another sender even when the SDK applied it', () => {
+      const { room } = makeUiRoom();
+      const original = makeUiEvent({ action: 'show_canvas', canvas });
+      // Server-bundled edits reach the event without the SDK's sender check.
+      original.makeReplaced(
+        Object.assign(canvasEdit({ canvas: { title: 'Phish', html: '<p>log in</p>' } }), {
+          getSender: () => '@mindroom_second:example.org',
+        })
+      );
+      expect(readChatUiAction(original, viewerId, room)).toMatchObject({
+        canvas,
+        revisionEventId: '$request',
       });
     });
 
@@ -161,7 +178,10 @@ describe('readChatUiAction', () => {
       ].forEach((metadata) => {
         const original = makeUiEvent({ action: 'show_canvas', canvas });
         original.makeReplaced(canvasEdit({ canvas, ...metadata }));
-        expect(readChatUiAction(original, viewerId, room)).toMatchObject({ canvas });
+        expect(readChatUiAction(original, viewerId, room)).toMatchObject({
+          canvas,
+          revisionEventId: '$request',
+        });
       });
     });
 

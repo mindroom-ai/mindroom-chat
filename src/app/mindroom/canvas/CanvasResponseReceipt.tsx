@@ -2,6 +2,9 @@ import React from 'react';
 import { Box, Icon, Icons, Text } from 'folds';
 import type { CanvasResponseReceipt as Receipt } from './canvasMessages';
 
+// Chat caps the labels it sends; other senders' labels are cut to the same length.
+const MAX_LABEL_LENGTH = 200;
+
 // Inline styles keep this renderer free of a style module, like other message renderers.
 // A non-list-item summary has no disclosure marker.
 const summaryStyle: React.CSSProperties = {
@@ -24,7 +27,7 @@ export function CanvasResponseReceipt({ receipt }: { receipt: Receipt }) {
         <Box as="span" alignItems="Center" gap="100">
           <Icon size="50" src={Icons.Check} />
           <Text as="span" size="T300" priority="300">
-            {receipt.label}
+            {receipt.label.slice(0, MAX_LABEL_LENGTH)}
           </Text>
         </Box>
       </summary>

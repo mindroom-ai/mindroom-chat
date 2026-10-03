@@ -31,7 +31,7 @@ export type ChatUiAction = ChatUiTarget &
     | { action: 'open_settings'; section: ChatUiSettingsSection }
     | { action: 'open_panel'; panel: 'members' }
     // The panel follows later edits of this request, so it keeps the event itself.
-    | { action: 'show_canvas'; canvas: ChatUiCanvas; event: MatrixEvent }
+    | { action: 'show_canvas'; canvas: ChatUiCanvas; revisionEventId: string; event: MatrixEvent }
   );
 
 const MAX_CANVAS_TITLE_LENGTH = 200;
@@ -65,21 +65,39 @@ const AUTHORITY_FIELDS = [
   'thread_id',
 ];
 
+type LatestCanvas = {
+  canvas: ChatUiCanvas;
+  /** The event whose content is shown: the applied edit, or the request itself. */
+  revisionEventId: string;
+};
+
 /**
- * Canvas updates are edits by the original sender (the SDK ignores other senders' replacements).
- * An edit may change only the canvas itself; anything else keeps the original canvas.
+ * Canvas updates are edits by the original sender. The SDK applies some edits (server-bundled
+ * ones, thread backfill) without checking their sender, so this checks it again, and an edit may
+ * change only the canvas itself; anything else keeps the original canvas.
  */
 const readLatestCanvas = (
   event: MatrixEvent,
+  eventId: string,
+  sender: string,
   original: Record<string, unknown>
-): ChatUiCanvas | undefined => {
-  const fallback = readCanvas(original.canvas);
-  if (!event.replacingEventId()) return fallback;
-  const latest = event.getContent<Record<string, unknown>>()[CHAT_UI_ACTION_KEY];
+): LatestCanvas | undefined => {
+  const originalCanvas = readCanvas(original.canvas);
+  const fallback = originalCanvas
+    ? { canvas: originalCanvas, revisionEventId: eventId }
+    : undefined;
+  const replacement = event.replacingEvent();
+  const replacementId = replacement?.getId();
+  if (!replacement || !replacementId?.startsWith('$') || replacement.getSender() !== sender) {
+    return fallback;
+  }
+  const newContent = replacement.getContent<Record<string, unknown>>()['m.new_content'];
+  const latest = record(newContent) ? newContent[CHAT_UI_ACTION_KEY] : undefined;
   if (!record(latest) || AUTHORITY_FIELDS.some((field) => latest[field] !== original[field])) {
     return fallback;
   }
-  return readCanvas(latest.canvas) ?? fallback;
+  const canvas = readCanvas(latest.canvas);
+  return canvas ? { canvas, revisionEventId: replacementId } : fallback;
 };
 
 /** Read authority from the original Matrix event, never from rendered/edited message text. */
@@ -150,8 +168,8 @@ export const readChatUiAction = (
     return { ...target, action: 'open_panel', panel: 'members' };
   }
   if (data.action === 'show_canvas') {
-    const canvas = readLatestCanvas(event, data);
-    return canvas ? { ...target, action: 'show_canvas', canvas, event } : undefined;
+    const latest = readLatestCanvas(event, eventId, sender, data);
+    return latest ? { ...target, action: 'show_canvas', ...latest, event } : undefined;
   }
   return undefined;
 };

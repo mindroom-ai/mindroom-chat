@@ -2895,6 +2895,7 @@
       "openMembers": "打开成员列表",
       "openCanvas": "打开面板",
       "canvasDisabled": "此应用已关闭交互式面板。",
+      "canvasDuringCall": "结束通话后才能打开交互式面板。",
       "computerUnavailable": "此代理的电脑不可用。",
       "releaseControl": "打开其他视图前，请先释放电脑控制权。",
       "openConversation": "请从房间对话中打开此请求。",

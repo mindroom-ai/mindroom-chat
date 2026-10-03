@@ -45,6 +45,15 @@ describe('readCanvasSubmission', () => {
     ).toBeUndefined();
   });
 
+  it('sends decimal and unsafe numbers as text, which every homeserver accepts', () => {
+    expect(
+      readCanvasSubmission(
+        message(submit({ data: { price: 12.5, seats: 3, big: 2 ** 60, list: [0.5, 1] } })),
+        frame
+      )?.data
+    ).toEqual({ big: String(2 ** 60), list: ['0.5', 1], price: '12.5', seats: 3 });
+  });
+
   it('shortens long labels and drops empty ones', () => {
     expect(
       readCanvasSubmission(message(submit({ label: 'a'.repeat(300) })), frame)?.label
@@ -115,6 +124,16 @@ describe('readCanvasResponse', () => {
       label: 'Chose x',
       json: '{"x":1}',
     });
+  });
+
+  it('keeps a receipt after the server re-serializes data with sorted keys', () => {
+    const content = buildCanvasResponseContent(target, {
+      data: { zebra: 1, apple: { b: 2, a: 1 } },
+    });
+    expect(content.body).toContain('{"apple":{"a":1,"b":2},"zebra":1}');
+    const stored = JSON.parse(JSON.stringify(content)) as Record<string, Record<string, unknown>>;
+    stored[CANVAS_RESPONSE_KEY].data = { apple: { a: 1, b: 2 }, zebra: 1 };
+    expect(readCanvasResponse(stored)?.label).toBe('Submitted');
   });
 
   it('renders ordinary text when the body says something other than the metadata', () => {

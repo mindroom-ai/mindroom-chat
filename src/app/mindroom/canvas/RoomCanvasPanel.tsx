@@ -46,7 +46,7 @@ export function RoomCanvasPanel({ mx, room, event, onClose }: RoomCanvasPanelPro
       roomId={room.roomId}
       canvas={{
         eventId: action.eventId,
-        revisionEventId: event.replacingEventId() ?? action.eventId,
+        revisionEventId: action.revisionEventId,
         agentUserId: action.agentUserId,
         threadId: action.threadId,
         title: action.canvas.title,

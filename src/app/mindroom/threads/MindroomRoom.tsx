@@ -15,7 +15,7 @@ import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useRoomMembers } from '../../hooks/useRoomMembers';
 import { CallView } from '../../features/call/CallView';
 import { RoomViewHeader } from './MindroomRoomViewHeader';
-import { callChatAtom } from '../../state/callEmbed';
+import { callChatAtom, callEmbedAtom } from '../../state/callEmbed';
 import { MindroomCallChatView } from './MindroomCallChatView';
 import { getRoomSearchParams } from '../../pages/pathSearchParam';
 import { useRoomThreadRouteGuards } from './useRoomThreadRouteGuards';
@@ -94,6 +94,8 @@ export function Room() {
     [members]
   );
   const chat = useAtomValue(callChatAtom);
+  // A call's frames listen to window messages, so no canvas runs while any call is active.
+  const callActive = !!useAtomValue(callEmbedAtom);
   const { viewMode, setViewMode } = useRoomViewMode(room.roomId);
   const routedThreadId = viewMode === 'classic' ? undefined : threadId;
   const {
@@ -119,6 +121,9 @@ export function Room() {
   useEffect(() => {
     if (isDrawer) closeCanvas();
   }, [isDrawer, closeCanvas]);
+  useEffect(() => {
+    if (callActive) closeCanvas();
+  }, [callActive, closeCanvas]);
   const computerThreadId = useThreadRootEvent(room, routedThreadId);
   const continuationReady =
     computerThreadId !== routedThreadId || isThreadRouteReady(room, routedThreadId);
@@ -168,10 +173,14 @@ export function Room() {
       if (action.action === 'show_canvas' && !canvasEnabled) {
         return t('mindroomUi.uiActions.canvasDisabled');
       }
+      if (action.action === 'show_canvas' && callActive) {
+        return t('mindroomUi.uiActions.canvasDuringCall');
+      }
       return undefined;
     },
     [
       canvasEnabled,
+      callActive,
       callView,
       simpleMode,
       effectiveComputerOpen,
@@ -289,7 +298,7 @@ export function Room() {
               />
             </>
           )}
-          {!callView && canvasEnabled && !effectiveComputerOpen && canvasEvent && (
+          {!callView && canvasEnabled && !callActive && !effectiveComputerOpen && canvasEvent && (
             <>
               {screenSize === ScreenSize.Desktop && (
                 <Line variant="Background" direction="Vertical" size="300" />

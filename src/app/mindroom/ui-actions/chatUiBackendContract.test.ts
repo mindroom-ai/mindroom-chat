@@ -17,7 +17,7 @@ type ContractFixture = {
   version: number;
   viewer_id: string;
   room_id: string;
-  cases: Array<{ id: string; event: ContractEvent }>;
+  cases: Array<{ id: string; event: ContractEvent; replacement?: ContractEvent }>;
 };
 
 type ExpectedAction =
@@ -57,6 +57,13 @@ const expectedCases = new Map<string, ExpectedAction>();
       html: '<form data-mindroom-label="Plan chosen"><label><input type="radio" name="plan" value="pro" checked> Pro</label><button>Choose</button></form>',
     },
   });
+  expectedCases.set(`${scope}/show_canvas/update`, {
+    action: 'show_canvas',
+    canvas: {
+      title: 'Choose a plan',
+      html: '<form data-mindroom-label="Seats chosen"><input name="seats" value="3"><button>Continue</button></form>',
+    },
+  });
 });
 
 const mx = new MatrixClient({ baseUrl: 'https://localhost', userId: contract.viewer_id });
@@ -81,16 +88,23 @@ describe('MindRoom backend Chat UI wire contract', () => {
     expect(new Set(contract.cases.map(({ id }) => id))).toEqual(new Set(expectedCases.keys()));
   });
 
-  it.each(contract.cases)('parses the real backend notice for $id', ({ id, event }) => {
-    const expected = expectedCases.get(id);
-    expect(expected).toBeDefined();
-    const matrixEvent = new MatrixEvent(event);
-    expect(readChatUiAction(matrixEvent, contract.viewer_id, room)).toEqual({
-      eventId: event.event_id,
-      agentUserId: event.sender,
-      threadId: id.startsWith('thread/') ? '$thread' : undefined,
-      ...expected,
-      ...(expected?.action === 'show_canvas' ? { event: matrixEvent } : {}),
-    });
-  });
+  it.each(contract.cases)(
+    'parses the real backend notice for $id',
+    ({ id, event, replacement }) => {
+      const expected = expectedCases.get(id);
+      expect(expected).toBeDefined();
+      const matrixEvent = new MatrixEvent(event);
+      // A backend canvas update must be accepted as an edit of the original request.
+      if (replacement) matrixEvent.makeReplaced(new MatrixEvent(replacement));
+      expect(readChatUiAction(matrixEvent, contract.viewer_id, room)).toEqual({
+        eventId: event.event_id,
+        agentUserId: event.sender,
+        threadId: id.startsWith('thread/') ? '$thread' : undefined,
+        ...expected,
+        ...(expected?.action === 'show_canvas'
+          ? { event: matrixEvent, revisionEventId: replacement?.event_id ?? event.event_id }
+          : {}),
+      });
+    }
+  );
 });

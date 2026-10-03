@@ -2895,6 +2895,7 @@
       "openMembers": "メンバーを開く",
       "openCanvas": "パネルを開く",
       "canvasDisabled": "このアプリではインタラクティブパネルがオフになっています。",
+      "canvasDuringCall": "インタラクティブパネルを開くには通話を終了してください。",
       "computerUnavailable": "このエージェントのコンピューターは利用できません。",
       "releaseControl": "別の画面を開く前にコンピューターの操作権を手放してください。",
       "openConversation": "ルームの会話からこのリクエストを開いてください。",
