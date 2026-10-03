@@ -2,6 +2,26 @@
 
 ## Runbook
 
+### Add reconciled thread history to the SDK thread as backfill (2026-10-03)
+
+- Report: an iPhone export showed the whole app frozen for about 16 s right after a long thread opened (481 replies plus their edits and reactions); taps and text selection queued behind it.
+  The deep trace put the freeze between the reconcile's last `/relations` page and `thread.reconcile.complete` (`performance.event_loop_stall` 15876 ms), while the SDK thread grew from 31 to 909 events.
+- Reproduced in the local Docker Matrix stack (Chromium, production build): a thread with 480 replies, 480 `m.replace` edits and 48 reactions, the SDK thread holding its latest 30 events after a cold open, and a reconcile that fetched 1007 events in 13 pages gave an 8621 ms long task and 1687 IndexedDB transactions.
+- Root cause: the reconciler appended its whole fetched batch with `thread.addEvents(allMapped, false)`.
+  The SDK inserted each older reply by timestamp and announced it as `ThreadEvent.NewReply`, and added each older edit or reaction at the end of the timeline as a live `RoomEvent.Timeline` (`liveEvent: true`).
+  Every `NewReply` ran `setSupplementalThreadEvents`, which re-hydrates the whole render fallback with linear `findEventById` lookups (87% of the profile), and every live event was written through to IndexedDB again (about four transactions each).
+  The append also raised the SDK thread's `replyCount` once per older reply and set a local echo read receipt per event.
+  The 2026-07-04 note that `toStartOfTimeline=false` is correct because reconcile fetches the tail no longer holds: a reconcile that pages past the overlap fetches the thread's whole history.
+- Fix: `addFetchedEventsToThread` (`reconciler.ts`) adds events older than the SDK thread's earliest event as backfill, newest first (`toStartOfTimeline` true), so the SDK announces none of them; an opened thread with an empty window takes the whole batch as backfill.
+  Events at or after the window's start, and every event of a window that already starts at the root, are still appended, so genuinely new replies keep their `NewReply`.
+  An unopened thread (`initialEventsFetched` false) is left alone: loading its first page resets its timeline and replays buffered relations as new events, and newest-first edits would defeat the patched replay buffer's newest-edit dedupe.
+  The repaired batch reaches the render through `onRepaired` in every case.
+- Measured after the fix with the same reproduction: the longest task is 402 to 434 ms over two runs, and the reconcile opens 72 to 78 IndexedDB transactions.
+  The remaining reconcile cost (about 0.8 s split across tasks) is mostly the SDK's one `ThreadEvent.Update` per added event, on each of which `ActiveThreadApprovalProvider` rescans the room and thread (`mergeThreadApprovalEvents`).
+- Not addressed here: the reconcile still repairs on every open of such a thread, because the cache folds same-sender edits into their target (so `detectDivergence` sees every fetched edit id as new) and a reply count above what `/relations` yields keeps the scan paging to the start.
+- Tests: `reconciler.sdkThread.test.ts` drives a real SDK thread: history older than the window adds no `NewReply` or live events and ends in timeline order; events newer than the window are still appended with `NewReply` and become `lastReply()`; an empty window takes everything as backfill; an unopened thread is left untouched while `onRepaired` still fires.
+  All four fail on the previous reconciler, and backfilling everything, dropping the unopened-thread guard, or appending into an empty window each fails its own case.
+
 ### Measure rows that mount during a fast scroll before they paint (2026-10-03)
 
 - Report: scrolling up very fast through a long thread briefly draws one message's text over another.

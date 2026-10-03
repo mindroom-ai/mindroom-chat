@@ -861,7 +861,7 @@ describe('useThreadRenderState', () => {
   // that matches the docker AC2 in-vivo counter snapshot exactly.
   // The RG2 diagnostic showed `reconcilesThreadNull: 0` — the SDK
   // Thread was non-null at reconciler inject time, so
-  // `liveThread.addEvents(allMapped, false)` ran. The SDK dedupes on
+  // the reconciler added its batch to it. The SDK dedupes on
   // event id and KEEPS its earlier instance for the same id (the
   // fresh clone gets discarded). Result at render time:
   //
