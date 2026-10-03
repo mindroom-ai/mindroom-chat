@@ -3,6 +3,16 @@
     "label": "스크롤 가능한 표",
     "scrollHint": "가로로 스크롤"
   },
+  "messageCodeBlock": {
+    "actions": "코드 블록 작업",
+    "code": "코드",
+    "language": "언어: {{language}}",
+    "copy": "코드 복사",
+    "copied": "복사됨",
+    "wrap": "줄 바꿈",
+    "expand": "펼치기",
+    "collapse": "접기"
+  },
   "Organisms": {
     "RoomCommon": {
       "changed_room_name": " 님이 방 이름을 변경했습니다"

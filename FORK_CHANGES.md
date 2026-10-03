@@ -20,6 +20,60 @@
 - Validation: typecheck, build, eslint and prettier pass; the full suite passes except the four tests that already fail on `dev` here (three Xcode Cloud script tests need `/bin/bash`, and the caption send-failure test).
 - Next: with deep trace enabled, an export after the next stall names the blocking operation; fix that cause rather than adding timeouts.
 
+### Keep the navigation panel's scroll position when it is shown again (2026-10-02)
+
+- Report: after scrolling down the room list and opening a thread from the left sidebar, the room list is back at the top.
+- Reproduced in the local Docker Matrix stack (Chromium): on a phone-width layout the panel was at 563 px before opening a thread and at 0 after going back; on desktop, Home was at 0 after switching to a space and back.
+  Opening a thread or room whose panel stays mounted (same Home or Space panel on desktop) already kept the position; this did not reproduce locally.
+- Root cause: the Home, Direct and Space panels unmount whenever another view replaces them (every room or thread open on mobile, every switch between Home, Direct Messages and spaces, and the desktop collapse toggle), and the position lived only in the unmounted scroll element.
+  On remount, each panel's TanStack room virtualizer scrolls its new viewport to `initialOffset` (default 0) when it attaches, after child effects have run.
+  The previous thread-only restore carried the offset in `location.state` and was overwritten the same way on every remount; it only took effect while the panel stayed mounted, where nothing had moved.
+- Fix: `useNavVirtualizer` (`src/app/mindroom/sidebar/navScrollMemory.ts`) wraps the panels' `useVirtualizer`.
+  When a panel unmounts it stores the virtualizer's last observed offset and `takeSnapshot()` measurements in memory per account and panel (`home`, `direct`, or the space id; `SpaceProvider` is keyed by space, so a panel's key never changes); the next mount passes them back as `initialOffset` and `initialMeasurementsCache`, TanStack's documented restore path.
+  Restored measurements matter: with only the offset, Home rows estimated at 38 px settle to their real height and move the list by about 20 px, and Space rows estimated at 0 px leave too little height to scroll to the offset.
+  The snapshot seeds only the first layout, so a list that empties and refills (a collapsed Rooms category) is not reseeded with older sizes.
+  When the panel's content now fits, the browser clamps the restore to 0 without a scroll event, and the virtualizer kept rendering rows for the remembered offset; the hook dispatches a scroll event when the viewport and the virtualizer disagree after mount.
+  The `location.state` restore in `ThreadNavCategory` and `ThreadNavItem` is removed, so browser Back and Forward no longer move a panel that stayed mounted.
+- Tests: `navScrollMemory.test.ts` drives the real virtualizer against a jsdom viewport that clamps like a browser: remount restore, per-account and per-panel separation, and a remembered offset that no longer fits; removing `initialOffset` or the scroll-event resync each fails it.
+  `e2e/live/sidebar-scroll-memory.spec.ts` covers desktop thread opens, a desktop space switch and back, and mobile thread and room opens and back, within 1 px of the position after the virtualizer settles; against the previous code it fails at the space switch.
+  Its rooms sort last in Home so they stay rendered in an account shared with other live specs.
+- Validation: on the final code the live spec passed five of six runs against one dev server and one account, and the sixth lost its module requests to `net::ERR_NETWORK_CHANGED` before the sidebar rendered.
+  Typecheck, build and lint pass (17 existing warnings); the full suite passes except the same four tests that fail without this change.
+  An independent review found no blockers; its fixes are the clamp resync, seeding only the first layout, frame-settled e2e capture, and sort-last fixture rooms.
+- Not addressed:
+  - Outside Simple Mode, a Home thread in a room that belongs to a space opens that space (`getRoomPath`), so the Space panel replaces Home and opens at its own remembered position; this is routing, not scroll, and is unchanged.
+  - Space rows keep the default index keys, so restored sizes follow positions; if the hierarchy changed while the panel was unmounted, rows re-measure when rendered and scrolling up through them can shift slightly.
+  - WebKit (Playwright WebKit cannot launch on this NixOS host) and the native iOS shell were not run.
+    If the jump still happens on desktop while the panel stays mounted, it has a different cause, and the next step is a reproduction from that device.
+
+### Code blocks in the T3 Code style (2026-10-02)
+
+- Message code blocks now follow T3 Code's design: one surface without a separate header bar, a quiet header row with the language as a colored icon (named in a tooltip and announced as "Language: sh"), and icon-only actions with tooltips.
+  The actions are a line-wrap toggle, the existing expand/collapse for long blocks, and copy, which swaps to a check after a confirmed copy.
+  Filename fences (```` ```Greeting.tsx ````) show the icon and the filename; languages without an icon show their name, and fences without a language show `text`, as in T3 Code.
+- Lines wrap by default, matching T3 Code's default; the toggle restores horizontal scrolling for the block.
+  A block counts as long, and collapses, past 14 lines or, while wrapped, past 1,120 characters, so one long minified line no longer wraps into an uncollapsed wall.
+- The language icons are the built-in file icons of `@pierre/trees` 1.0.0-beta.4 (Apache-2.0), the set T3 Code uses, vendored as path data in `codeBlockLanguageIconPaths.ts`: 28 language icons plus the generic file icon for unknown filenames, with T3 Code's light and dark tints.
+  The package itself is not added: it needs React 18.3 and a Preact beta.
+  The toolbar glyphs are Lucide's `Copy`, `Check`, `TextWrap`, `ChevronsUpDown`, and `ChevronsDownUp` (ISC, with Feather portions under MIT), inlined in `CodeBlockIcons.tsx`.
+  Both license texts sit beside them in `CODE_BLOCK_ICONS_LICENSES.md`.
+- In dark themes message blocks drop their border; the composer's code block keeps it because the input field shares the block's tint.
+- The header uses logical padding, so it mirrors correctly in Arabic; the code itself stays left-to-right.
+  Hover tints apply only on hover-capable pointers, so a tap does not leave a button looking pressed, and touch screens get 32 px buttons with 4 px gaps.
+- Action labels are translated in all 17 catalogs under `messageCodeBlock`; `Expand`, `Collapse`, and `Copied` reuse the wording of existing settings controls.
+- `e2e/fixtures/code-blocks.html?theme=<light|silver|dark|midnight|butter>` renders sample fences in any theme for visual checks.
+- Syntax highlighting of fenced code had been off since the KaTeX change (`92ea6bb7`): it wrapped the text of `pre > code` in a fragment, so the code replacer never received the plain string it hands to Prism.
+  Fenced code text now stays a string again, except in a block containing a search match, which shows the match highlights instead of syntax colors.
+  Emoji inside fenced code are no longer enlarged, as before `92ea6bb7` and in upstream Cinny.
+- Streaming fixes for the highlighter:
+  - A streamed edit erased Prism's tokens, because React rewrites the element's text that Prism had replaced; the highlighter now remounts per edit, keyed by the language and code text (as `TextViewer` keys it by text).
+  - It highlights in a layout effect, so a streamed edit never paints uncolored code when a busy commit pushes effects to a later task.
+  - Prism now loads in manual mode (`prismManual.ts`), so it no longer runs `highlightAll()` over the document when its chunk loads, which rewrote React-owned code such as search results.
+- Tests: unit coverage for the header, wrap toggle, long-line collapse, copy feedback, icon resolution, and the Prism hand-off with and without a search match.
+  `e2e/code-blocks.spec.ts` checks the icon tint, copy, manual mode, and highlighting across streamed edits that arrive outside input events after a 20 ms commit.
+  It fails with 0 tokens after an edit without the remount, with 2 uncolored frames using a passive effect, and on manual mode without `prismManual.ts`.
+
+
 ### Collapse copied gaps before tool calls and mark the tool-call copy as its own button (2026-10-02)
 
 - Copy Text and Copy Text with Tool Calls left several blank lines between paragraphs of agent replies.
