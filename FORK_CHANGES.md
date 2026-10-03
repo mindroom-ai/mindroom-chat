@@ -32,7 +32,7 @@
   It found the retry of every URL position, generated texts without URLs, a missing room topic in the live spec and a loose source check; all are fixed.
 - Not changed: `HTTP_URL_PATTERN`'s lookbehind for trailing punctuation is quadratic only in a run of punctuation after a URL, in both engines.
 - Validation: typecheck, production build, prettier and lint (0 errors, 17 existing warnings) pass.
-  5,779 unit tests pass; the three `xcodeCloudPostClone` tests that need `/bin/bash` and `useRoomInputSendSessionController`'s caption case fail the same way on unchanged `dev`.
+  5,782 unit tests pass after merging current `dev`; the three `xcodeCloudPostClone` tests that need `/bin/bash` and `useRoomInputSendSessionController`'s caption case fail the same way on unchanged `dev`.
 - Next: if the agent reply in the frozen thread held long JSON, paths, URLs or base64, this is the cause.
   Otherwise the next freeze needs evidence the deep trace cannot keep, such as a synchronous breadcrumb written before a message is parsed.
 
