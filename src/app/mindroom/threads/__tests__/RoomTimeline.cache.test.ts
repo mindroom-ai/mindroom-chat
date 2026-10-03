@@ -394,6 +394,7 @@ describe('RoomTimeline', () => {
       const threadTimeline = makeTimeline(threadEvents, { backwardToken: null });
       const threadTimelineSet = {
         getLiveTimeline: () => threadTimeline,
+        getTimelines: () => [threadTimeline],
         getTimelineForEvent: () => undefined,
       };
       const threadModel = {
@@ -458,6 +459,7 @@ describe('RoomTimeline', () => {
       const threadTimeline = makeTimeline(threadEvents, { backwardToken: null });
       const threadTimelineSet = {
         getLiveTimeline: () => threadTimeline,
+        getTimelines: () => [threadTimeline],
         getTimelineForEvent: () => undefined,
       };
       const threadModel = {
@@ -524,6 +526,7 @@ describe('RoomTimeline', () => {
       const threadTimeline = makeTimeline(threadEvents, { backwardToken: null });
       const threadTimelineSet = {
         getLiveTimeline: () => threadTimeline,
+        getTimelines: () => [threadTimeline],
         getTimelineForEvent: () => undefined,
       };
       const threadModel = {
@@ -603,6 +606,7 @@ describe('RoomTimeline', () => {
       const threadTimeline = makeTimeline(initialThreadEvents, { backwardToken: 'tok-back' });
       const threadTimelineSet = {
         getLiveTimeline: () => threadTimeline,
+        getTimelines: () => [threadTimeline],
         getTimelineForEvent: () => undefined,
       };
       const threadModel = {
@@ -877,6 +881,7 @@ describe('RoomTimeline', () => {
       const threadTimeline = makeTimeline(initialThreadEvents, { backwardToken: 'tok-back' });
       const threadTimelineSet = {
         getLiveTimeline: () => threadTimeline,
+        getTimelines: () => [threadTimeline],
         getTimelineForEvent: () => undefined,
       };
       const threadModel = {
@@ -1017,6 +1022,7 @@ describe('RoomTimeline', () => {
       const threadTimeline = makeTimeline(initialThreadEvents, { backwardToken: 'tok-back' });
       const threadTimelineSet = {
         getLiveTimeline: () => threadTimeline,
+        getTimelines: () => [threadTimeline],
         getTimelineForEvent: () => undefined,
       };
       const threadModel = {
@@ -1135,6 +1141,7 @@ describe('RoomTimeline', () => {
       const threadTimeline = makeTimeline(initialThreadEvents, { backwardToken: 'tok-back' });
       const threadTimelineSet = {
         getLiveTimeline: () => threadTimeline,
+        getTimelines: () => [threadTimeline],
         getTimelineForEvent: () => undefined,
       };
       const threadModel = {
@@ -1246,6 +1253,7 @@ describe('RoomTimeline', () => {
       const threadTimeline = makeTimeline(initialThreadEvents, { backwardToken: 'tok-back' });
       const threadTimelineSet = {
         getLiveTimeline: () => threadTimeline,
+        getTimelines: () => [threadTimeline],
         getTimelineForEvent: () => undefined,
       };
       const threadModel = {
@@ -2177,6 +2185,7 @@ describe('RoomTimeline', () => {
             timeline: [],
             getUnfilteredTimelineSet: () => ({
               getLiveTimeline: () => threadTimeline,
+              getTimelines: () => [threadTimeline],
             }),
           },
         ],
@@ -3124,6 +3133,7 @@ describe('RoomTimeline', () => {
       });
       const threadTimelineSet = {
         getLiveTimeline: () => threadTimeline,
+        getTimelines: () => [threadTimeline],
         getTimelineForEvent: (eventId: string) =>
           [threadId, '$thread-reply-2'].includes(eventId) ? threadTimeline : undefined,
       };
@@ -3234,6 +3244,7 @@ describe('RoomTimeline', () => {
       });
       const threadTimelineSet = {
         getLiveTimeline: () => threadTimeline,
+        getTimelines: () => [threadTimeline],
         getTimelineForEvent: (eventId: string) =>
           [threadId, '$thread-reply-1', '$thread-reply-2'].includes(eventId)
             ? threadTimeline
@@ -3452,6 +3463,7 @@ describe('RoomTimeline', () => {
       });
       const partialThreadTimelineSet = {
         getLiveTimeline: () => partialThreadTimeline,
+        getTimelines: () => [partialThreadTimeline],
         getTimelineForEvent: (eventId: string) =>
           [threadId, '$thread-reply-1'].includes(eventId) ? partialThreadTimeline : undefined,
       };
@@ -4533,6 +4545,7 @@ describe('RoomTimeline', () => {
           timeline.setPaginationToken(token, Direction.Backward);
         },
         getLiveTimeline: () => staleThreadTimeline,
+        getTimelines: () => [staleThreadTimeline],
         getTimelineForEvent: (eventId: string) =>
           eventId === threadId ? staleThreadTimeline : undefined,
       };
@@ -4703,10 +4716,11 @@ describe('RoomTimeline', () => {
         // falls through to SDK bootstrap + refreshLatestThreadSlice
         // instead of drain-racing the reconciler.
         expect(matrixClientMock.fetchRelations).toHaveBeenCalledTimes(2);
-        // Fall-through evidence: SDK bootstrap ran (thread model was
-        // present so no /context call, but getThreadTimeline fired).
+        // Fall-through evidence: the second `/relations` call is the SDK
+        // bootstrap's fill for a root-only thread. The thread model
+        // already holds its root, so the open requests no context.
         expect(matrixClientMock.getEventTimeline).not.toHaveBeenCalled();
-        expect(matrixClientMock.getThreadTimeline).toHaveBeenCalledTimes(1);
+        expect(matrixClientMock.getThreadTimeline).not.toHaveBeenCalled();
         // The cached snapshot proves the thread's backward start
         // (beforeToken null), so the bootstrap adopts it and the
         // refreshLatestThreadSlice drain has nothing older to fetch —
@@ -4786,6 +4800,7 @@ describe('RoomTimeline', () => {
       const threadTimeline = makeTimeline([rootEvent, firstReply]);
       const threadTimelineSet = {
         getLiveTimeline: () => threadTimeline,
+        getTimelines: () => [threadTimeline],
         getTimelineForEvent: (eventId: string) =>
           eventId === threadId || eventId === firstReplyId ? threadTimeline : undefined,
       };
@@ -4920,11 +4935,9 @@ describe('RoomTimeline', () => {
 
     it('clears stale sdk backward tokens when complete cache arrives before bootstrap', async () => {
       let finishBootstrap!: () => void;
-      matrixClientMock.getThreadTimeline.mockReturnValue(
-        new Promise<void>((resolve) => {
-          finishBootstrap = resolve;
-        })
-      );
+      const bootstrap = new Promise<void>((resolve) => {
+        finishBootstrap = resolve;
+      });
       const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
       const { loadLatestCachedThreadEvents } = await import('../cacheStore');
       const threadId = '$thread-root';
@@ -4941,6 +4954,7 @@ describe('RoomTimeline', () => {
       });
       const threadTimelineSet = {
         getLiveTimeline: () => staleThreadTimeline,
+        getTimelines: () => [staleThreadTimeline],
         getTimelineForEvent: (eventId: string) =>
           eventId === threadId || eventId === '$thread-reply-1' ? staleThreadTimeline : undefined,
       };
@@ -4958,7 +4972,7 @@ describe('RoomTimeline', () => {
       });
       room.getThread = () =>
         ({
-          initialize: () => undefined,
+          initialize: () => bootstrap,
           events: [rootEvent, threadReply],
           getUnfilteredTimelineSet: () => threadTimelineSet,
           rootEvent,

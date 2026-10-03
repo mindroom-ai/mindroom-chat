@@ -21,7 +21,10 @@ export const THREAD_TRACE_PHASES: Record<string, readonly [string, readonly stri
   ],
   'thread-open-complete-cache-hit': ['thread.cache.complete', ['cachedCount']],
   'thread-sdk-bootstrap-start': ['thread.sdk.start', []],
-  'thread-sdk-bootstrap-ready': ['thread.sdk.ready', ['sdkEventCount', 'rootPresent']],
+  'thread-sdk-bootstrap-ready': [
+    'thread.sdk.ready',
+    ['sdkEventCount', 'rootPresent', 'contextRequested'],
+  ],
   'thread-sdk-bootstrap-context-error': ['thread.sdk.context_error', []],
   'thread-sdk-bootstrap-relations-error': ['thread.sdk.relations_error', []],
   'thread-sdk-bootstrap-get-thread-timeline-error': ['thread.sdk.timeline_error', []],
