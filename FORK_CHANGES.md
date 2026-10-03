@@ -23,9 +23,9 @@
   `batchedMeasurementRef.commit.test.tsx` renders a real `useVirtualizer` list and expects the corrected tile offsets in the DOM one microtask after rows mount during a scroll; without `flushSync` they wait for a scheduled render.
   `e2e/live/thread-fast-scroll-overlap.spec.ts` checks every seam between adjacent tiles in animation frames and from a late ResizeObserver during a 1,500 px-per-frame ride; it fails on the previous code and passes with the fix.
   The parallel runner runs it serially with the other timing-sensitive specs.
-- Validation: typecheck, build, prettier and lint pass; the full unit suite passes except the four tests that also fail on unchanged `dev`.
+- Validation: typecheck, build, prettier and lint pass; the full unit suite passes except the four tests that also fail on unchanged `dev`: three `xcodeCloudPostClone` tests (no `/bin/bash` on this NixOS host) and the caption send-failure test in `useRoomInputSendSessionController.test.ts`.
   Eleven live scroll specs give the same results on `dev` and this branch except the new spec (154 px overlap on `dev`); both fail the same known cases (`cinny070`, `cinny077`, and two `thread-ride-under-latency` cases, one only in full-suite order).
-- Findings from two independent reviews, CodeRabbit and Qodo are addressed.
+- Two independent reviews found no correctness issue; their findings and those from CodeRabbit and Qodo are addressed.
 - Not covered:
   - Rows that change height after mounting (an image loading, an edit) still re-render after paint through ResizeObserver.
   - Rows that mount at rest or during a non-smooth programmatic scroll are still measured by virtual-core in the ref, before a fresh `CollapsibleMessage` drops its first-pass pill, so they can show the 10 px gap for a frame; this mostly affects overscan rows.

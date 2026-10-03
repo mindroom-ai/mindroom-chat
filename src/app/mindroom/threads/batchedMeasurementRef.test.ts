@@ -185,7 +185,8 @@ describe('batched virtualizer measurement ref', () => {
       onDroppedCorrection,
     });
     virtualizer.scrollOffset = 1_000;
-    virtualizer.scrollDirection = 'backward';
+    // Desktop applies a forward correction as a scroll write; only iOS folds it.
+    virtualizer.scrollDirection = 'forward';
     virtualizer.isScrolling = true;
     scrollToFn.mockClear();
 

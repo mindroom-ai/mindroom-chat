@@ -1,7 +1,10 @@
 import type { Virtualizer } from '@tanstack/react-virtual';
 import { flushSync } from 'react-dom';
 
-/** Pass attached rows to `measure` at once; scan detached nodes once after React removes them. */
+/**
+ * Pass attached rows to `measure` immediately; scan detached nodes once after
+ * React removes them.
+ */
 export const createBatchedMeasurementRef = <T extends Element>(
   measure: (node: T | null) => void
 ) => {
