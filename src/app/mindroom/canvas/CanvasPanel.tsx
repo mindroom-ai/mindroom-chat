@@ -259,7 +259,7 @@ export function CanvasPanel({
       const error = readCanvasError(event, frame);
       if (error !== undefined) {
         const listed = pageErrorsNow.current;
-        // One report at a time, as with answers: errors wait while a report is sending or failed.
+        // One report at a time, as with answers: errors are dropped while a report is sending or failed.
         const unresolved =
           !!listed.report && ['sending', 'failed'].includes(answerState(listed.report.status));
         // Only listed errors are remembered, so a page throwing endlessly stores five at a time.
