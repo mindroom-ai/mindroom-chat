@@ -2,6 +2,13 @@
 
 ## Runbook
 
+### Show a pinned thread as a solid pin in the thread bar (2026-10-04)
+
+- The thread bar no longer spells out "Pinned" next to the pin button; the pin icon is solid while the thread is pinned.
+- Members who cannot unpin see a static solid pin labelled "Pinned" for assistive technology, in place of the old text.
+- The pin stays in view on short screens while the thread is pinned, as the text did; the unpinned Pin button is still hidden there.
+- Unit tests and the live `pinned-threads` spec assert the solid pin and the absence of the word; the live spec captures admin and member banner screenshots for the PR.
+
 ### Fix the failures found by a full live-suite run on `dev` (2026-10-03)
 
 - Ran every spec/project job with `npm run test:e2e:parallel -- --jobs 8` against `7990feb6` (143 jobs, 388 cases, Playwright 1.58.2 container, disposable Tuwunel, worker-computer fixture from backend `750ccb58`).
