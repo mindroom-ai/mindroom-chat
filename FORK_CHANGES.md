@@ -2,6 +2,19 @@
 
 ## Runbook
 
+### Let users switch between a canvas's versions (2026-10-04)
+
+- Why: every agent update replaced the page with no way back; Claude artifacts keep each version one click away.
+  Updates are already Matrix edits, so every version stays on the server.
+- The panel header shows `‹ Version n of m ›` once a canvas has more than one version; an earlier version shows "This is an earlier version." with **Show latest**.
+  A new update while the user views an earlier version only raises the count; on the latest version, updates follow as before (including **Load update** for unsent work).
+  Picking a version is the user's choice, so it replaces the page at once, like **Load update**; switching is disabled while an answer waits for **Send** or is sending, because that answer belongs to the shown version.
+  An answer from an earlier version names that version's revision, which the agent is already told how to read.
+- `useCanvasVersions` lists the request and its edits from `mx.relations` (decrypts in encrypted rooms, drops other senders' edits; 50 per page, at most 10 pages, newest kept), sorted in Matrix edit order, each held to the same rules as the latest edit (`readCanvasVersion`, which now shares `readCanvasEdit` with `readLatestCanvas`).
+  It reloads when the panel opens and after each update; until then, or if the server cannot answer, the original and latest versions are offered.
+- Tests: `RoomCanvasPanel.test.tsx` (paging, forged edits, choosing, staying on a chosen version, following the latest again, fallback), `CanvasPanel.test.tsx` (controls, locking, loading a chosen version over unsent work).
+  `e2e/agent-canvas.spec.ts` goes back to the first step after an update and returns to the latest.
+
 ### Let users send a canvas page's errors to its agent, and tell pages the color scheme (2026-10-04)
 
 - Why: an agent that writes a canvas cannot see it; a typo or a blocked library left the user a blank or broken panel and told the agent nothing (feedback from a live agent).

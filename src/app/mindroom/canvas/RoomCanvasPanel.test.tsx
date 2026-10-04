@@ -127,7 +127,77 @@ afterEach(() => {
   container.remove();
 });
 
+const history = (event: MatrixEvent, ...pages: MatrixEvent[][]) => {
+  const relations = vi.fn();
+  pages.forEach((events, index) =>
+    relations.mockResolvedValueOnce({
+      originalEvent: event,
+      events,
+      nextBatch: index < pages.length - 1 ? `page-${index + 1}` : null,
+    })
+  );
+  Object.assign(mx, { relations });
+  return relations;
+};
+
 describe('RoomCanvasPanel', () => {
+  it('lists every version of the canvas and shows the one the user picks', async () => {
+    const event = request();
+    const second = edit('<p>Step 2</p>', { id: '$edit-2', ts: 200 });
+    const third = edit('<p>Step 3</p>', { id: '$edit-3', ts: 300 });
+    const forged = edit('<p>Forged</p>', {
+      id: '$forged',
+      ts: 250,
+      sender: '@mindroom_x:example.org',
+    });
+    event.makeReplaced(third);
+    const relations = history(event, [third, forged], [second]);
+    render(event);
+    await act(async () => undefined);
+    expect(relations).toHaveBeenCalledWith(ROOM_ID, '$canvas', 'm.replace', 'm.room.message', {
+      dir: 'b',
+      limit: 50,
+    });
+    expect(relations).toHaveBeenLastCalledWith(ROOM_ID, '$canvas', 'm.replace', 'm.room.message', {
+      dir: 'b',
+      limit: 50,
+      from: 'page-1',
+    });
+    expect(panels.props?.version).toEqual({ current: 3, total: 3 });
+    act(() => panels.props?.onSelectVersion?.(1));
+    expect(panels.props?.canvas).toMatchObject({
+      revisionEventId: '$canvas',
+      html: '<p>Step 1</p>',
+    });
+    expect(panels.props?.version).toEqual({ current: 1, total: 3 });
+    // A later update adds a version without pulling the user away from the one they chose.
+    const fourth = edit('<p>Step 4</p>', { id: '$edit-4', ts: 400 });
+    history(event, [fourth, third, second]);
+    await act(async () => event.makeReplaced(fourth));
+    expect(panels.props?.canvas.revisionEventId).toBe('$canvas');
+    expect(panels.props?.version).toEqual({ current: 1, total: 4 });
+    act(() => panels.props?.onSelectVersion?.(4));
+    expect(panels.props?.canvas.html).toBe('<p>Step 4</p>');
+    // The newest version follows updates again.
+    const fifth = edit('<p>Step 5</p>', { id: '$edit-5', ts: 500 });
+    history(event, [fifth, fourth, third, second]);
+    await act(async () => event.makeReplaced(fifth));
+    expect(panels.props?.canvas.html).toBe('<p>Step 5</p>');
+    expect(panels.props?.version).toEqual({ current: 5, total: 5 });
+  });
+
+  it('offers no versions for a canvas never updated, and the known ones when history fails', async () => {
+    const event = request();
+    Object.assign(mx, { relations: vi.fn().mockRejectedValue(new Error('offline')) });
+    render(event);
+    await act(async () => undefined);
+    expect(panels.props?.version).toBeUndefined();
+    await act(async () => event.makeReplaced(edit()));
+    expect(panels.props?.version).toEqual({ current: 2, total: 2 });
+    act(() => panels.props?.onSelectVersion?.(1));
+    expect(panels.props?.canvas.html).toBe('<p>Step 1</p>');
+  });
+
   it('shows the request and follows its edits', () => {
     const event = request();
     render(event);

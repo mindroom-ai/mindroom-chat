@@ -10,6 +10,7 @@ import { readChatUiAction, type ChatUiCanvas } from '../ui-actions/chatUiProtoco
 import { CanvasPanel } from './CanvasPanel';
 import { readCanvasTheme } from './canvasTheme';
 import { useCanvasPage } from './useCanvasPage';
+import { useCanvasVersions } from './useCanvasVersions';
 
 type RoomCanvasPanelProps = {
   mx: MatrixClient;
@@ -37,12 +38,13 @@ const CONVERSATION_MIN_WIDTH = 360;
 function LoadedCanvasPanel({
   mx,
   room,
+  request,
   action,
   onClose,
   expanded,
   onToggleExpanded,
   libraries,
-}: Omit<RoomCanvasPanelProps, 'event'> & { action: ShowCanvas }) {
+}: Omit<RoomCanvasPanelProps, 'event'> & { request: MatrixEvent; action: ShowCanvas }) {
   const { t } = useTranslation();
   const appTheme = useTheme();
   const colorScheme = appTheme.kind === ThemeKind.Dark ? 'dark' : 'light';
@@ -53,7 +55,17 @@ function LoadedCanvasPanel({
     return () => cancelAnimationFrame(frame);
   }, [colorScheme, appTheme.id]);
   const [attempt, setAttempt] = useState(0);
-  const page = useCanvasPage(mx, room.roomId, action.revisionEventId, action.canvas, attempt);
+  const versions = useCanvasVersions(mx, room, request, {
+    canvas: action.canvas,
+    revisionEventId: action.revisionEventId,
+  });
+  // The version the user picked; none follows the latest.
+  const [chosen, setChosen] = useState<string>();
+  const shown = versions.find((version) => version.revisionEventId === chosen) ?? action;
+  const current = versions.findIndex(
+    (version) => version.revisionEventId === shown.revisionEventId
+  );
+  const page = useCanvasPage(mx, room.roomId, shown.revisionEventId, shown.canvas, attempt);
   const mobile = useScreenSizeContext() === ScreenSize.Mobile;
   const agentName =
     getMemberDisplayName(room, action.agentUserId) ??
@@ -65,10 +77,10 @@ function LoadedCanvasPanel({
       room={room}
       canvas={{
         eventId: action.eventId,
-        revisionEventId: action.revisionEventId,
+        revisionEventId: shown.revisionEventId,
         agentUserId: action.agentUserId,
         threadId: action.threadId,
-        title: action.canvas.title,
+        title: shown.canvas.title,
         html: page.status === 'ready' ? page.html : '',
         ...(page.status === 'ready' ? {} : { status: page.status }),
       }}
@@ -80,6 +92,14 @@ function LoadedCanvasPanel({
       onRetry={() => setAttempt((count) => count + 1)}
       expanded={!mobile && expanded}
       onToggleExpanded={mobile ? undefined : onToggleExpanded}
+      version={
+        versions.length > 1 && current >= 0
+          ? { current: current + 1, total: versions.length }
+          : undefined
+      }
+      onSelectVersion={(number) =>
+        setChosen(number < versions.length ? versions[number - 1]?.revisionEventId : undefined)
+      }
     />
   );
   // One tree for every screen size, so crossing a breakpoint never reloads the page:
@@ -171,5 +191,5 @@ export function RoomCanvasPanel({ event, ...props }: RoomCanvasPanelProps) {
     if (!valid) onClose();
   }, [valid, onClose]);
   if (action?.action !== 'show_canvas') return null;
-  return <LoadedCanvasPanel key={action.eventId} {...props} action={action} />;
+  return <LoadedCanvasPanel key={action.eventId} {...props} request={request} action={action} />;
 }

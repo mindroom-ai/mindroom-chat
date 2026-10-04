@@ -52,6 +52,9 @@ export type CanvasPanelProps = {
   onRetry?: () => void;
   expanded?: boolean;
   onToggleExpanded?: () => void;
+  /** Which of the canvas's versions is shown, when it has more than one. */
+  version?: { current: number; total: number };
+  onSelectVersion?: (current: number) => void;
 };
 
 const ExpandIcon: IconSrc = () => (
@@ -135,6 +138,8 @@ export function CanvasPanel({
   onRetry,
   expanded = false,
   onToggleExpanded,
+  version,
+  onSelectVersion,
 }: CanvasPanelProps) {
   const { t } = useTranslation();
   const frameRef = useRef<HTMLIFrameElement>(null);
@@ -410,6 +415,14 @@ export function CanvasPanel({
     setSendError(false);
   }, []);
 
+  // An answer waiting or sending belongs to the version shown, so the version stays until it resolves.
+  const versionLocked = !!staged || busy;
+  const selectVersion = (current: number) => {
+    // Picking a version is the user's choice, like Load update, so it replaces the page at once.
+    touched.current = false;
+    onSelectVersion?.(current);
+  };
+
   const handleLoad = useCallback(() => {
     if (loads.current.frameKey !== frameKey) loads.current = { frameKey, count: 0 };
     loads.current.count += 1;
@@ -434,6 +447,29 @@ export function CanvasPanel({
           </div>
         </Box>
         <Box alignItems="Center" gap="100">
+          {version && onSelectVersion && (
+            <Box alignItems="Center" gap="100">
+              <IconButton
+                onClick={() => selectVersion(version.current - 1)}
+                aria-label={t('mindroomUi.canvas.previousVersion')}
+                disabled={versionLocked || version.current <= 1}
+                size="300"
+              >
+                <Icon size="300" src={Icons.ChevronLeft} />
+              </IconButton>
+              <Text className={css.Version} size="T200" priority="300">
+                {t('mindroomUi.canvas.version', { current: version.current, total: version.total })}
+              </Text>
+              <IconButton
+                onClick={() => selectVersion(version.current + 1)}
+                aria-label={t('mindroomUi.canvas.nextVersion')}
+                disabled={versionLocked || version.current >= version.total}
+                size="300"
+              >
+                <Icon size="300" src={Icons.ChevronRight} />
+              </IconButton>
+            </Box>
+          )}
           {onToggleExpanded && (
             <IconButton
               onClick={onToggleExpanded}
@@ -459,6 +495,20 @@ export function CanvasPanel({
             onClick={() => setDisplayed({ ...canvas, colorScheme, theme })}
           >
             <Text size="B300">{t('mindroomUi.canvas.loadUpdate')}</Text>
+          </Button>
+        </div>
+      )}
+
+      {version && onSelectVersion && version.current < version.total && (
+        <div className={css.Notice} role="status">
+          <Text size="T300">{t('mindroomUi.canvas.earlierVersion')}</Text>
+          <Button
+            size="300"
+            variant="Secondary"
+            disabled={versionLocked}
+            onClick={() => selectVersion(version.total)}
+          >
+            <Text size="B300">{t('mindroomUi.canvas.showLatest')}</Text>
           </Button>
         </div>
       )}
