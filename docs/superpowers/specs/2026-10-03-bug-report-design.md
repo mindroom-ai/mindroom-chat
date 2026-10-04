@@ -3,7 +3,7 @@
 ## Goal
 
 Let any MindRoom Chat user report a problem with one click on a message.
-The report reaches the deployment's administrator with everything needed to reconstruct what happened: the identifiers of the room, thread, and message, the raw events as this client holds them, client state, and the existing diagnostics export.
+The report reaches the deployment's administrator with everything needed to reconstruct what happened: the identifiers of the room, thread, and message, the events as this client holds them (original content plus latest edit), client state, and the existing diagnostics export.
 The administrator hands the report to a coding agent, together with the backend data collected by `mindroom debug-report` (separate PR in the `mindroom` repository).
 
 ## Trust model
@@ -45,7 +45,7 @@ Administrators are configured per homeserver in `/.well-known/matrix/client`:
 - The client already fetches this document after login and exposes custom keys through `useAutoDiscoveryInfo()`.
 - `admins` entries that are not strings shaped like a Matrix user ID are ignored.
 - An empty or missing list means "not configured" (download fallback).
-- The key is read when the menu renders and when the report is sent, not cached at mount, because the well-known fetch may still be in flight at mount.
+- Components read the list through `useBugReportAdmins()`, which follows the discovery info instead of caching it at mount, because the well-known fetch may still be in flight at mount.
 
 ## Report room
 
@@ -54,8 +54,9 @@ Administrators are configured per homeserver in `/.well-known/matrix/client`:
 - Created without `m.room.encryption` so `matrix-mcp` (no E2EE support) can read it.
   If the homeserver encrypts it anyway, sending still works: the JSON is encrypted with the existing `encryptFile` helper and sent as `file` instead of `url`.
 - The room ID is stored in user account data `io.mindroom.bug_reports` as `{ "room_id": "!…" }`.
-- On each report the stored room is reused when the reporter is still joined; administrators who are neither joined nor invited are invited again.
-  Otherwise a new room is created and the account data is replaced.
+- On each report the stored room is reused only while it is still private to the current administrators: the reporter is joined, the join rule is `invite`, history visibility is not `world_readable`, and every other joined or invited member is a current administrator (members are loaded first).
+  Otherwise a new room is created and the account data is replaced; nobody is kicked and the old room is not left.
+- Administrators who are neither joined nor invited are invited again with `Promise.allSettled`; the report fails only when no administrator is in the room and none can be invited.
 - Concurrent reports from the same client share one in-flight room lookup, so double clicks never create two rooms.
 
 ## Report message
@@ -77,7 +78,8 @@ Its content also carries a machine-readable key so tools can parse it without do
 "io.mindroom.bug_report": { "version": 1, "room_id": "!…", "thread_id": "$…", "event_id": "$…" }
 ```
 
-The JSON file is sent as an `m.file` reply in that thread, named `mindroom-bug-report-<ISO timestamp>.json` with `application/json`.
+The JSON file (compact, no indentation) is sent as an `m.file` reply in that thread, named `mindroom-bug-report-<ISO timestamp>.json` with `application/json`.
+It is uploaded before the summary root is sent, so a failed upload leaves nothing in the report room.
 
 ## Report JSON (version 1)
 
@@ -94,15 +96,16 @@ The JSON file is sent as an `m.file` reply in that thread, named `mindroom-bug-r
     "eventId": "$selected",       // may be a local echo ID such as "~!r:…"
     "permalink": "https://…"
   },
-  "events": [                     // thread root + replies, or the main-timeline tail
+  "events": [                     // thread root + newest 200 replies, or the main-timeline tail
     {
       "eventId": "$e",
       "status": null,             // MatrixEvent.status: null when confirmed, else sending/not_sent/…
       "decryptionFailure": false,
-      "event": { /* getEffectiveEvent(): decrypted, full content incl. io.mindroom.ai_run, tool_trace, stream_status */ },
-      "latestEdit": { /* replacingEvent()?.getEffectiveEvent() */ }
+      "event": { /* getEffectiveEvent() with its original decrypted content (and wire m.relates_to), incl. io.mindroom.ai_run, tool_trace, stream_status */ },
+      "latestEdit": { /* replacingEvent()?.getEffectiveEvent(), or null */ }
     }
   ],
+  "omittedEventCount": 0,         // thread replies held but left out by the 200-reply bound
   "client": {
     "build": "…", "platform": "web|ios|android", "userAgent": "…",
     "language": "en", "timeZone": "Europe/Amsterdam",
@@ -114,10 +117,10 @@ The JSON file is sent as an `m.file` reply in that thread, named `mindroom-bug-r
 }
 ```
 
-- **Thread scope:** when the selected event has `threadRootId`, `events` is the root plus every reply the client holds (`room.getThread(id)?.events` merged with the live timeline through `getThreadReplyEventsForRoot`), sorted by timestamp.
-- **Main timeline scope:** otherwise `events` is the last 50 events up to and including the selected event, taken from the timeline that holds it (`room.getTimelineForEvent(id)`, falling back to the live timeline).
-- Only the latest edit is included per event; streaming responses can produce hundreds of edits and the latest one is what the reporter saw.
-- `diagnostics` reuses `buildDiagnosticsExport()`'s payload; that function is split so the payload object can be built without serialising it to a Blob.
+- **Thread scope:** when the selected event has `threadRootId`, `events` is the root plus the newest 200 replies the client holds (`room.getThread(id)?.events` merged with the live timeline through `getThreadReplyEventsForRoot`, sorted by timestamp), or the 200 ending at the selected reply when it is older; `omittedEventCount` counts the held replies left out.
+- **Main timeline scope:** otherwise `events` is the last 50 events up to and including the selected event, taken from the timeline that holds it (`room.getTimelineForEvent(id)`, falling back to the live timeline); `omittedEventCount` is 0.
+- `m.replace` edit events are left out of `events` (except a selected edit), and each event carries only its latest edit; streaming responses can produce hundreds of edits and the latest one is what the reporter saw.
+- `diagnostics` is `buildDiagnosticsPayload()`, split out of `buildDiagnosticsExport()` so the payload object can be built without serialising it to a Blob.
 
 ## Components
 
@@ -125,7 +128,7 @@ All new code lives in `src/app/mindroom/bug-reports/`, per the fork's file-bound
 
 | Unit | Responsibility |
 |---|---|
-| `bugReportConfig.ts` | Parse `io.mindroom.bug_reports.admins` from the well-known info |
+| `bugReportConfig.ts` | Parse `io.mindroom.bug_reports.admins` from the well-known info; `useBugReportAdmins()` for components |
 | `bugReportPayload.ts` | Build the report JSON from client, room, and event |
 | `bugReportRoom.ts` | Find, validate, or create the reporter's report room; account data; in-flight dedupe |
 | `sendBugReport.ts` | Send the summary root and the JSON file in its thread; return `{ roomId, threadRootId }` |
@@ -148,7 +151,7 @@ Each room is attempted once per session; a failed join is logged and left as a n
 
 - Room creation, invites, uploads, and sends surface as one error state on the menu item; details go to `console.warn`.
 - A failed send after room creation keeps the account data, so the retry reuses the room.
-- Waiting for a newly created room to appear in the client uses the existing `waitForJoinedRoom` (15 s timeout).
+- Waiting for a newly created room to appear in the client uses `waitForJoinedRoom` from `src/app/mindroom/matrix/waitForJoinedRoom.ts` (15 s timeout).
 
 ## Testing
 

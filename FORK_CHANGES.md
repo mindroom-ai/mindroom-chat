@@ -7,23 +7,25 @@
 - Every message menu has **Report a bug**; one click builds a JSON report and sends it to the administrators named in the homeserver's client well-known (`io.mindroom.bug_reports.admins`).
   The item is not shown in the state-event menu.
 - The report goes to the reporter's private room with the administrators (`io.mindroom.bug_reports` room type, unencrypted, ID kept in account data), as a summary message with the JSON attached in its thread, and the app opens that thread so the reporter can add details.
-- The stored room is reused only while the reporter is joined, its join rule is `invite`, and every other joined or invited member is a current administrator (members are loaded first, since the sync lazy-loads them); otherwise the report goes to a new room and the account data is replaced, without kicking anyone or leaving the old room.
+- The stored room is reused only while the reporter is joined, its join rule is `invite`, its history visibility is not `world_readable`, and every other joined or invited member is a current administrator (members are loaded first, since the sync lazy-loads them); otherwise the report goes to a new room and the account data is replaced, without kicking anyone or leaving the old room.
   Removing an administrator therefore moves future reports to new rooms but does not revoke the reports they already received.
   Missing administrators are re-invited with `Promise.allSettled`; the report fails only when no administrator is in the room and none can be invited.
+  This also runs right after room creation, because Tuwunel creates the room even when an invite fails.
 - Administrators' clients join these rooms automatically, only when the inviter is on their own homeserver and the administrator is listed in that homeserver's well-known and runs MindRoom Chat; bot and `matrix-mcp` accounts accept the invite manually.
 - The item downloads the JSON instead when the admins list is missing, empty, or invalid, and while the well-known is still loading.
+- The menu closes and opens the report thread outside the send `try`, so a failure there never offers a duplicate report.
+  The item uses a flag icon, not the moderation **Report** item's warning icon; its error label stays truncated, because the folds `MenuItem` has a fixed height and wrapping would need a layout change.
 - The report holds the target IDs and a permalink, the events around the message with their original content, latest edit (`latestEdit`) and send status, client state, and the existing diagnostics payload (`buildDiagnosticsPayload`, split out of `buildDiagnosticsExport`).
   A thread report holds the root plus the newest 200 replies (or the 200 ending at an older selected reply) and counts the rest in `omittedEventCount`; a main-timeline report holds the 50 events up to the message.
   `m.replace` edit events are left out of `events` (each event carries its latest edit as `latestEdit`); reactions are kept.
   Reports from encrypted rooms are stored decrypted in the unencrypted report room.
 - The JSON (compact, no indentation) is uploaded before the summary is sent, so a failed upload leaves nothing in the report room.
+  An upload that returns no `content_uri` fails the report.
 - Code lives in `src/app/mindroom/bug-reports/`; operator setup is in `docs/bug-reports.md`; the strings in the 16 non-English catalogs are machine-authored.
 - Validation: the bug-report unit tests, i18n coverage, architecture tests, typecheck, lint, and build pass.
   `npx vitest run src/app/mindroom src/app/i18n.test.ts` has 4 failures, all in `xcodeCloudPostClone.test.ts` and `useRoomInputSendSessionController.test.ts`, which fail identically on `origin/dev` (23af0945).
-  Live check: `e2e/bug-report.spec.ts` passes against Docker Tuwunel (reporter and admin accounts, intercepted well-known), including the admin auto-join and the second report reusing the same room.
-- Final review fix wave: the reuse privacy check and lazy member loading, `allSettled` re-invites (also after room creation, since Tuwunel creates the room when an invite fails), original event content, the 200-reply thread bound with `omittedEventCount`, compact JSON uploaded before the summary (and a missing `content_uri` is an error), menu close and navigation moved out of the send `try` so a failure there never offers a duplicate report, and the flag icon instead of the moderation **Report** item's warning icon.
-  The error label stays truncated, because the folds `MenuItem` has a fixed height and wrapping would need a layout change.
-  Validation repeated (same 4 baseline failures; lint is back to the 17 baseline warnings), and `e2e/bug-report.spec.ts` passed again on an isolated Docker Tuwunel stack, now with both browser contexts closed in `finally` and a check that the administrator can read the first report's root event.
+  Live check: `e2e/bug-report.spec.ts` passes against Docker Tuwunel (reporter and admin accounts, intercepted well-known), including the admin auto-join, the administrator reading the first report's root event, and the second report reusing the same room.
+- Simplification pass: reuse also rejects a `world_readable` room, `useBugReportAdmins` and `getReporterName` own the admin list and the reporter name, `waitForJoinedRoom` moved to `src/app/mindroom/matrix/`, and tests now pin an invite without a create event and the auto-join effect; validation (same 4 baseline failures, 17 baseline lint warnings) and `e2e/bug-report.spec.ts` on an isolated Docker stack pass again.
 - Next: add `io.mindroom.bug_reports` to a deployment's well-known and confirm a report from an iPhone reaches the administrator's client without an invite prompt.
 ### Stop the thread reconcile from repairing a cached thread on every open (2026-10-03)
 
