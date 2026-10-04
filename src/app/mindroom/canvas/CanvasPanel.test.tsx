@@ -687,6 +687,11 @@ describe('CanvasPanel', () => {
     for (const index of [1, 2, 3, 4, 5, 6]) await reportError(`Error ${index}`);
     expect(container.textContent).toContain('Error 5');
     expect(container.textContent).not.toContain('Error 6');
+    // An error the full list dropped was never shown, so it can still be offered after a report.
+    await act(async () => reportButton().click());
+    await reportError('Error 6');
+    expect(container.textContent).toContain('Error 6');
+    expect(reportButton()).not.toBeNull();
     // Error reports are not answers, so they neither stage an answer nor hold back an update.
     expect(button('[data-canvas-send]')).toBeNull();
     render({ canvas: { ...canvas, revisionEventId: '$edit', html: '<p>Step 2</p>' } });

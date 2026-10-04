@@ -68,6 +68,15 @@ describe('buildCanvasPage', () => {
     expect(doc).toContain(`type: '${CANVAS_ERROR_MESSAGE}'`);
   });
 
+  it('numbers error lines from the start of the agent markup', () => {
+    for (const scheme of ['light', 'dark'] as const) {
+      const doc = buildCanvasPage('<script>boom()</script>', scheme);
+      const offset = doc.slice(0, doc.indexOf('<script>boom()')).split('\n').length - 1;
+      expect(offset).toBeGreaterThan(0);
+      expect(doc).toContain(`(event.lineno - ${offset})`);
+    }
+  });
+
   it('defines the bridge before agent scripts run', () => {
     const doc = buildCanvasPage('<script>mindroom.submit({a: 1})</script>', 'light');
     expect(doc.indexOf('mindroom.canvas.submit')).toBeLessThan(

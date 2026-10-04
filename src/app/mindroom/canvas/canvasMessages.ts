@@ -164,8 +164,11 @@ export const readCanvasError = (
   if (!record(message) || message.type !== CANVAS_ERROR_MESSAGE || message.version !== 1) {
     return undefined;
   }
-  if (typeof message.message !== 'string' || !isText(message.message)) return undefined;
-  const text = message.message.replace(/\s+/g, ' ').trim();
+  if (typeof message.message !== 'string') return undefined;
+  // Only the start of a long message is read, so a page cannot make the host work on megabytes.
+  const start = message.message.slice(0, 2 * MAX_ERROR_LENGTH).replace(/[\uD800-\uDBFF]$/, '');
+  if (!isText(start)) return undefined;
+  const text = start.replace(/\s+/g, ' ').trim();
   if (!text) return undefined;
   // Cut between characters: half an emoji would make the report's text invalid.
   return text.length > MAX_ERROR_LENGTH
