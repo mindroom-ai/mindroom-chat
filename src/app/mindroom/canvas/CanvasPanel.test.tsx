@@ -15,6 +15,7 @@ import {
 import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest';
 import { CANVAS_SEND_ARM_DELAY_MS, CanvasPanel, type CanvasPanelProps } from './CanvasPanel';
 import { CANVAS_RESPONSE_KEY } from './canvasMessages';
+import { CANVAS_LIBRARY_SOURCE, canvasPolicy } from './canvasDocument';
 import { FALLBACK_CANVAS_THEMES } from './canvasTheme';
 import { MatrixClientProvider } from '../../hooks/useMatrixClient';
 
@@ -250,6 +251,13 @@ describe('CanvasPanel', () => {
     expect(container.textContent).toContain('Choose a plan');
     expect(container.textContent).toContain('Interactive panel from Planner');
     expect(container.textContent).toContain('what you enter here may leave this panel');
+  });
+
+  it('lets the page load libraries only when the deployment turns them on', () => {
+    render();
+    expect(frame().getAttribute('srcdoc')).not.toContain(CANVAS_LIBRARY_SOURCE);
+    render({ libraries: true });
+    expect(page()).toContain(`content="${canvasPolicy(true)}"`);
   });
 
   it('stages a canvas submission until the user sends it from the host', async () => {

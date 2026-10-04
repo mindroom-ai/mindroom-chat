@@ -4,10 +4,12 @@ import {
   buildCanvasPage,
   CANVAS_CSP,
   CANVAS_ESCAPE_MESSAGE,
+  CANVAS_LIBRARY_SOURCE,
   CANVAS_PERMISSIONS,
   CANVAS_SANDBOX,
   CANVAS_WRAPPER_SANDBOX,
   canvasFrameWindow,
+  canvasPolicy,
 } from './canvasDocument';
 import { FALLBACK_CANVAS_THEMES } from './canvasTheme';
 
@@ -22,6 +24,28 @@ describe('buildCanvasPage', () => {
     expect(cspIndex).toBeLessThan(doc.indexOf('default-src *'));
     expect(doc.indexOf('<head>')).toBeLessThan(cspIndex);
     expect(doc.indexOf('</head>')).toBeLessThan(doc.indexOf('<p>hi</p>'));
+  });
+
+  it('loads scripts, styles, and fonts from the library source only when libraries are on', () => {
+    expect(CANVAS_CSP).toBe(
+      "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; " +
+        "font-src data:; media-src data: blob:; connect-src 'none'; form-action 'none'; frame-src 'none'; " +
+        "worker-src 'none'; base-uri 'none'"
+    );
+    expect(CANVAS_LIBRARY_SOURCE).toBe('https://cdn.jsdelivr.net/npm/');
+    const policy = canvasPolicy(true);
+    const directive = (name: string) =>
+      policy.split('; ').find((candidate) => candidate.startsWith(`${name} `));
+    expect(directive('script-src')).toBe(`script-src 'unsafe-inline' ${CANVAS_LIBRARY_SOURCE}`);
+    expect(directive('style-src')).toBe(`style-src 'unsafe-inline' ${CANVAS_LIBRARY_SOURCE}`);
+    expect(directive('font-src')).toBe(`font-src data: ${CANVAS_LIBRARY_SOURCE}`);
+    // Network requests, images, frames, and every other directive stay as strict as before.
+    const others = (value: string) =>
+      value.split('; ').filter((candidate) => !/^(script|style|font)-src /.test(candidate));
+    expect(others(policy)).toEqual(others(CANVAS_CSP));
+    expect(buildCanvasPage('<p>hi</p>', 'light', FALLBACK_CANVAS_THEMES.light, true)).toContain(
+      `content="${policy}"`
+    );
   });
 
   it('defines the bridge before agent scripts run', () => {
@@ -96,6 +120,15 @@ describe('buildCanvasDocument', () => {
     expect(embeddedPage(doc)).toBe(
       buildCanvasPage('<p>hi</p>', 'dark', FALLBACK_CANVAS_THEMES.dark)
     );
+  });
+
+  it('allows the library source in the wrapper too, because the canvas frame inherits its policy', () => {
+    const doc = buildCanvasDocument('<p>hi</p>', 'dark', FALLBACK_CANVAS_THEMES.dark, '', true);
+    expect(doc.indexOf(`content="${canvasPolicy(true)}"`)).toBeGreaterThan(0);
+    expect(embeddedPage(doc)).toBe(
+      buildCanvasPage('<p>hi</p>', 'dark', FALLBACK_CANVAS_THEMES.dark, true)
+    );
+    expect(buildCanvasDocument('<p>hi</p>', 'dark')).not.toContain(CANVAS_LIBRARY_SOURCE);
   });
 
   it('keeps agent markup from closing the wrapper script', () => {
