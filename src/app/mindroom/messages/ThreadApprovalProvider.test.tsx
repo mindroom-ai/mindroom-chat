@@ -1,6 +1,6 @@
 import React from 'react';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
-import { createClient, MatrixEvent, MatrixEventEvent, Room } from 'matrix-js-sdk';
+import { createClient, MatrixEvent, MatrixEventEvent, Room, ThreadEvent } from 'matrix-js-sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CryptoBackend } from 'matrix-js-sdk/lib/common-crypto/CryptoBackend';
 import { hydrateCachedEvents, serializeEventsForCache } from '../threads/eventCacheEditUtils';
@@ -821,4 +821,42 @@ it('redacts a ciphertext timeline copy when retained approval evidence is alread
   expect(cached.isRedacted()).toBe(true);
   expect(current.records).toEqual([]);
   expect(current.error).toBeUndefined();
+});
+
+describe('thread approval provider rescans', () => {
+  const nextTask = () =>
+    new Promise((resolve) => {
+      setTimeout(resolve, 0);
+    });
+  const recordIds = () => current.records.map((record) => record.eventId).sort();
+
+  it('rescans the room and thread once per burst of SDK thread events', async () => {
+    await mount();
+    // The SDK emits one per event it adds to a thread, e.g. a reconcile's backfill.
+    const thread = { events: [event()] };
+    const rescans = vi.spyOn(room, 'getThread').mockReturnValue(thread as never);
+    const burst = (signal: ThreadEvent) =>
+      act(async () => {
+        for (let i = 0; i < 100; i += 1) room.emit(signal, thread as never);
+        await nextTask();
+      });
+
+    await burst(ThreadEvent.Update);
+    expect(rescans).toHaveBeenCalledTimes(1);
+    expect(recordIds()).toEqual(['$approval']);
+
+    thread.events.push(event('$second', { ...content, approval_id: 'two' }));
+    await burst(ThreadEvent.NewReply);
+    expect(rescans).toHaveBeenCalledTimes(2);
+    expect(recordIds()).toEqual(['$approval', '$second']);
+  });
+
+  it('drops a queued rescan when the provider unmounts', async () => {
+    await mount();
+    const rescans = vi.spyOn(room, 'getThread');
+    room.emit(ThreadEvent.Update, {} as never);
+    act(() => renderer.unmount());
+    await nextTask();
+    expect(rescans).not.toHaveBeenCalled();
+  });
 });
