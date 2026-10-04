@@ -234,7 +234,9 @@ store.set(mindroomAccountSettingsAtom, { simpleMode: false, expandLongMessagesBy
 
 createRoot(document.getElementById('root')!).render(
   <Provider store={store}>
-    <MatrixClientProvider value={createClient({ baseUrl: window.location.origin })}>
+    <MatrixClientProvider
+      value={createClient({ baseUrl: window.location.origin, userId: '@fixture:localhost' })}
+    >
       <SpecVersionsProvider value={{ versions: ['v1.10'] }}>
         {new URLSearchParams(window.location.search).has('controls') ? (
           <ChatControlsGlass />

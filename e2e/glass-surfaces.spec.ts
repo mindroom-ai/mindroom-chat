@@ -265,6 +265,16 @@ for (const theme of ['light', 'silver', 'dark', 'midnight', 'butter']) {
   }) => {
     await page.goto(`/e2e/fixtures/glass-surfaces.html?theme=${theme}`);
     await page.getByRole('button', { name: 'Open settings sheet', exact: true }).click();
+    // Sample the settled sheet, not its entrance: WebKit keeps painting the
+    // backdrop's first, undimmed fade frame until its next rendering update.
+    await page.getByTestId('settings-sheet').evaluate((element) =>
+      Promise.all(
+        element
+          .closest('body > *')!
+          .getAnimations({ subtree: true })
+          .map((animation) => animation.finished)
+      )
+    );
     const samples = [
       {
         boundaryTestId: 'settings-sheet',
