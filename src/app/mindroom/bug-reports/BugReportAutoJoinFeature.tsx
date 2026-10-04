@@ -39,6 +39,7 @@ export function BugReportAutoJoinFeature() {
       if (!shouldAutoJoinBugReportInvite(mx, mx.getRoom(roomId), admins)) return;
       attempted.current.add(roomId);
       mx.joinRoom(roomId).catch((error: unknown) => {
+        // eslint-disable-next-line no-console
         console.warn('[bug-report] could not auto-join report room', roomId, error);
       });
     });
