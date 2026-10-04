@@ -22,7 +22,8 @@
 - Native regression resources are generated from the shipping canvas document builder and outer app CSP.
   Tests probe raw plugin dispatch and native cookie prompts from ordinary and sandboxed subframes, then verify the production two-frame canvas cannot reach plugins or Matrix session storage.
   A separate native test downloads Chart.js from the allowed npm path, requires painted pixels, and retains a screenshot in the XCTest result.
-  Independent review approves the test code, but native execution is still pending.
+  Cloud CI exposed optional array inference in the test plugin declaration; the method list now uses Capacitor's explicit `[CAPPluginMethod]` type.
+  Native execution is still pending the corrected CI run.
 - Computer investigation: the lab backend accepts `https://chat.mindroom.chat` but returns HTTP 400 for native preflight; the production Matrix/provisioning origin has no computers endpoint.
   The companion backend change accepts only the exact `capacitor://localhost` literal, retains fail-closed allowlists, and tests native CORS, OpenID/bearer/tickets, WSS input, control and release.
   Operators still need to add the native literal to the computer service's deployment allowlist.

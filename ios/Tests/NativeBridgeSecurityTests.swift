@@ -8,7 +8,7 @@ import XCTest
 final class BridgeProbePlugin: CAPPlugin, CAPBridgedPlugin {
     let identifier = "BridgeProbePlugin"
     let jsName = "BridgeProbe"
-    let pluginMethods = [
+    let pluginMethods: [CAPPluginMethod] = [
         CAPPluginMethod(name: "record", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "read", returnType: CAPPluginReturnPromise)
     ]
