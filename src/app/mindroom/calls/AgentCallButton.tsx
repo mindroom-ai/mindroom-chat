@@ -9,11 +9,11 @@ import { useRoomNavigate } from '../../hooks/useRoomNavigate';
 import { webRTCSupported } from '../../utils/rtc';
 import { useCloseUserRoomProfile } from '../../state/hooks/userRoomProfile';
 import { isMindroomAgentUserIdForViewer } from '../matrix/agentIdentity';
+import { waitForJoinedRoom } from '../matrix/waitForJoinedRoom';
 import {
   cleanupCreatedAgentCall,
   createAgentVoiceRoom,
   hasMindroomVoiceCallsPresence,
-  waitForJoinedRoom,
 } from './agentCall';
 import { localizeVoiceErrorMessage } from '../voice/voiceErrorMessage';
 import { requestMicrophoneAccess } from '../voice/microphoneAccess';

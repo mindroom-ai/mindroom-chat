@@ -8,7 +8,7 @@ import {
 } from 'matrix-js-sdk';
 import { Membership } from '../../../types/matrix/room';
 import { getMxIdLocalPart } from '../../utils/matrix';
-import { waitForJoinedRoom } from '../calls/agentCall';
+import { waitForJoinedRoom } from '../matrix/waitForJoinedRoom';
 
 export const BUG_REPORTS_ROOM_TYPE = 'io.mindroom.bug_reports';
 const BUG_REPORTS_ACCOUNT_DATA_TYPE = 'io.mindroom.bug_reports';
