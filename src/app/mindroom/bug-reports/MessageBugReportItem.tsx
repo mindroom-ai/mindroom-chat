@@ -33,23 +33,25 @@ export const MessageBugReportItem = as<
   const handleClick = async () => {
     if (state === 'sending') return;
     setState('sending');
+    let sent: { roomId: string; threadRootId: string } | undefined;
     try {
       const report = await buildBugReport(mx, room, mEvent);
       if (admins.length === 0) {
         await saveFile(serializeBugReport(report), getBugReportFileName(report));
         setState('idle');
-        onClose?.();
-        return;
+      } else {
+        const reportRoom = await ensureBugReportRoom(mx, admins);
+        sent = await sendBugReport(mx, reportRoom, report);
       }
-      const reportRoom = await ensureBugReportRoom(mx, admins);
-      const { roomId, threadRootId } = await sendBugReport(mx, reportRoom, report);
-      onClose?.();
-      navigateRoomThread(roomId, threadRootId);
     } catch (error) {
       // eslint-disable-next-line no-console
       console.warn('[bug-report] could not send the report', error);
       setState('error');
+      return;
     }
+    // Outside the try: a failure after a successful send must not offer a duplicate report.
+    onClose?.();
+    if (sent) navigateRoomThread(sent.roomId, sent.threadRootId);
   };
 
   let label =
@@ -62,7 +64,7 @@ export const MessageBugReportItem = as<
   return (
     <MenuItem
       size="300"
-      after={<Icon size="100" src={Icons.Warning} />}
+      after={<Icon size="100" src={Icons.Flag} />}
       radii="300"
       onClick={handleClick}
       disabled={state === 'sending'}

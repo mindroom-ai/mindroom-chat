@@ -16,12 +16,20 @@ const mocks = vi.hoisted(() => ({
 vi.mock('folds', () => ({
   as: (render: (props: object, ref: React.Ref<unknown>) => React.ReactNode) =>
     React.forwardRef((props, ref) => render(props, ref)),
-  Icon: () => null,
-  Icons: { Warning: 'warning' },
+  Icon: ({ src }: { src: string }) => <i data-icon={src} />,
+  Icons: { Warning: 'warning', Flag: 'flag' },
   MenuItem: React.forwardRef(
-    ({ children, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>, ref) => (
+    (
+      {
+        children,
+        after,
+        ...props
+      }: React.ButtonHTMLAttributes<HTMLButtonElement> & { after?: React.ReactNode },
+      ref
+    ) => (
       <button ref={ref} type="button" {...props}>
         {children}
+        {after}
       </button>
     )
   ),
@@ -122,5 +130,30 @@ describe('MessageBugReportItem', () => {
     expect(text(renderer)).toBe("Couldn't send the report. Try again.");
     expect(renderer.root.findByType('button').props.disabled).toBe(false);
     expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("uses its own icon, not the moderation Report item's warning icon", async () => {
+    const renderer = await render();
+    expect(renderer.root.findByType('i').props['data-icon']).toBe('flag');
+  });
+
+  it('does not offer a retry when opening the thread fails after a successful send', async () => {
+    mocks.discovery = { 'io.mindroom.bug_reports': { admins: ['@admin:example.com'] } };
+    mocks.navigateRoomThread.mockImplementationOnce(() => {
+      throw new Error('navigation failed');
+    });
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const onClose = vi.fn();
+    const renderer = await render(onClose);
+    await act(async () => {
+      await expect(renderer.root.findByType('button').props.onClick()).rejects.toThrow(
+        'navigation failed'
+      );
+    });
+    expect(mocks.sendBugReport).toHaveBeenCalledTimes(1);
+    expect(onClose).toHaveBeenCalled();
+    expect(text(renderer)).not.toBe("Couldn't send the report. Try again.");
+    expect(renderer.root.findByType('button').props.disabled).toBe(true);
+    expect(warn).not.toHaveBeenCalled();
   });
 });
