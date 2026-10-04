@@ -19,6 +19,9 @@ const setVisibility = (state: DocumentVisibilityState) => {
 
 const networkError = () => new TypeError('Load failed');
 
+// What the browser dispatches when a reload or navigation starts.
+const leavePage = () => window.dispatchEvent(new Event('beforeunload'));
+
 const pending = () => {
   let reject!: (error: unknown) => void;
   const promise = new Promise<Response>((_, onReject) => {
@@ -177,6 +180,54 @@ describe('homeserver reachability', () => {
 
     expect(checkCalls(baseFetch)).toHaveLength(0);
     expect(reachability.isUnreachable()).toBe(false);
+  });
+
+  it('ignores requests cut off by leaving the page', async () => {
+    const cutOff = pending();
+    const baseFetch = vi.fn().mockReturnValueOnce(cutOff.promise);
+    const { reachability, listener, request } = track(baseFetch);
+
+    const cutOffRequest = request(SYNC_URL);
+    leavePage();
+    cutOff.reject(networkError());
+    await cutOffRequest;
+    await vi.advanceTimersByTimeAsync(HOMESERVER_CHECK_TIMEOUT_MS);
+
+    expect(checkCalls(baseFetch)).toHaveLength(0);
+    expect(reachability.isUnreachable()).toBe(false);
+    expect(listener).not.toHaveBeenCalled();
+  });
+
+  it('does not check again when a check is cut off by leaving the page', async () => {
+    const cutOffCheck = pending();
+    const baseFetch = vi
+      .fn()
+      .mockRejectedValueOnce(networkError())
+      .mockReturnValueOnce(cutOffCheck.promise)
+      .mockRejectedValue(networkError());
+    const { reachability, listener, request } = track(baseFetch);
+
+    await request();
+    leavePage();
+    cutOffCheck.reject(networkError());
+    await vi.advanceTimersByTimeAsync(HOMESERVER_RECHECK_INTERVAL_MS * 2);
+
+    expect(checkCalls(baseFetch)).toHaveLength(1);
+    expect(reachability.isUnreachable()).toBe(false);
+    expect(listener).not.toHaveBeenCalled();
+  });
+
+  it('counts failed requests again when the page stays after it started to leave', async () => {
+    // For example a cancelled navigation or a download link.
+    leavePage();
+    const baseFetch = vi.fn().mockRejectedValue(networkError());
+    const { reachability, request } = track(baseFetch);
+
+    await request();
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(checkCalls(baseFetch)).toHaveLength(1);
+    expect(reachability.isUnreachable()).toBe(true);
   });
 
   it('ignores a check suspended with the page and checks again once the page is shown', async () => {

@@ -19,26 +19,41 @@ const reachabilityByClient = new WeakMap<MatrixClient, HomeserverReachability>()
 
 // WebKit fails requests that were in flight while the app was suspended, so a
 // failure only counts when the page stayed visible for the whole request.
+// WebKit also fails in-flight requests as soon as the page starts to unload
+// (reload or navigation), before `pagehide`, and refuses new ones until the
+// next page loads, so a failure only counts when the page did not start to
+// leave during the request either.
 let visibilityChanges = 0;
-let watchingVisibility = false;
+let pageLeaves = 0;
+let watchingPage = false;
 const checksOwedOnShow = new Set<() => void>();
+
+type PageState = { visibilityChanges: number; pageLeaves: number };
+
+const pageState = (): PageState => ({ visibilityChanges, pageLeaves });
 
 const isPageHidden = (): boolean =>
   typeof document !== 'undefined' && document.visibilityState === 'hidden';
 
-const watchVisibility = (): void => {
-  if (watchingVisibility || typeof document === 'undefined') return;
-  watchingVisibility = true;
+const watchPage = (): void => {
+  if (watchingPage || typeof document === 'undefined') return;
+  watchingPage = true;
   document.addEventListener('visibilitychange', () => {
     visibilityChanges += 1;
     const checks = [...checksOwedOnShow];
     checksOwedOnShow.clear();
     checks.forEach((check) => check());
   });
+  // Only counts; it never asks the user to stay.
+  window.addEventListener('beforeunload', () => {
+    pageLeaves += 1;
+  });
 };
 
-const stayedVisible = (visibilityChangesAtStart: number): boolean =>
-  visibilityChanges === visibilityChangesAtStart && !isPageHidden();
+const startedLeaving = (atStart: PageState): boolean => pageLeaves !== atStart.pageLeaves;
+
+const stayedVisible = (atStart: PageState): boolean =>
+  !startedLeaving(atStart) && visibilityChanges === atStart.visibilityChanges && !isPageHidden();
 
 const isAbort = (error: unknown, init?: RequestInit): boolean =>
   init?.signal?.aborted === true || (error as Error | undefined)?.name === 'AbortError';
@@ -59,7 +74,7 @@ export const createHomeserverReachability = (
   baseFetch: typeof globalThis.fetch,
   baseUrl: string
 ): HomeserverReachability => {
-  watchVisibility();
+  watchPage();
   const versionsUrl = `${baseUrl.replace(/\/+$/, '')}/_matrix/client/versions`;
   const listeners = new Set<() => void>();
   let unreachable = false;
@@ -74,14 +89,14 @@ export const createHomeserverReachability = (
   };
 
   const fetchFn: typeof globalThis.fetch = async (input, init) => {
-    const visibilityChangesAtStart = visibilityChanges;
+    const pageAtStart = pageState();
     try {
       const response = await baseFetch(input, init);
       responses += 1;
       setUnreachable(false);
       return response;
     } catch (error) {
-      if (!unreachable && !isAbort(error, init) && stayedVisible(visibilityChangesAtStart)) {
+      if (!unreachable && !isAbort(error, init) && stayedVisible(pageAtStart)) {
         check();
       }
       throw error;
@@ -100,7 +115,7 @@ export const createHomeserverReachability = (
     if (checking) return;
     checking = true;
     const responsesAtStart = responses;
-    const visibilityChangesAtStart = visibilityChanges;
+    const pageAtStart = pageState();
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), HOMESERVER_CHECK_TIMEOUT_MS);
     // Bypass the HTTP cache so only the homeserver itself can answer.
@@ -110,11 +125,13 @@ export const createHomeserverReachability = (
         clearTimeout(timeout);
         checking = false;
         if (responses === responsesAtStart) {
-          if (stayedVisible(visibilityChangesAtStart)) setUnreachable(true);
+          if (stayedVisible(pageAtStart)) setUnreachable(true);
           // A check suspended with the page says nothing, so check again once
           // the page is shown.
           else if (isPageHidden()) checksOwedOnShow.add(check);
-          else check();
+          // A check cut off by leaving the page says nothing either, and a new
+          // one would be refused while the page unloads.
+          else if (!startedLeaving(pageAtStart)) check();
         }
         scheduleRecheck();
       });
