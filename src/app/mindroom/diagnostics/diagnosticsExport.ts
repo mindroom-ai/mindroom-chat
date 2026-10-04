@@ -64,7 +64,7 @@ const collectNativeDiagnostics = () =>
     createEmptyNativeDiagnosticsSnapshot('timeout')
   );
 
-export const buildDiagnosticsPayload = async (exportedAt: number = Date.now()) => {
+export const buildDiagnosticsPayload = async (exportedAt: number) => {
   let flightRecorderPayload: ReturnType<typeof buildFlightRecorderPayload>;
   let flightRecorderStatus: 'available' | 'unavailable' = 'available';
 
