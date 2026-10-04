@@ -16,6 +16,7 @@
   While an update waits behind **Load update**, the switcher is hidden, because its numbers describe the waiting update rather than the page shown.
 - Tests: `RoomCanvasPanel.test.tsx` (paging, forged edits, choosing, staying on a chosen version, following the latest again, fallback), `CanvasPanel.test.tsx` (controls, locking, loading a chosen version over unsent work).
   `e2e/agent-canvas.spec.ts` goes back to the first step after an update and returns to the latest.
+- Next: no further work.
 
 ### Let users send a canvas page's errors to its agent, and tell pages the color scheme (2026-10-04)
 
