@@ -700,6 +700,17 @@ describe('CanvasPanel', () => {
     expect(reportButton().disabled).toBe(false);
   });
 
+  it('keeps at most five errors, counting a report that is not sent yet', async () => {
+    render();
+    for (const index of [1, 2, 3, 4, 5]) await reportError(`Error ${index}`);
+    await act(async () => reportButton().click());
+    await reportError('Error 6');
+    expect(container.textContent).not.toContain('Error 6');
+    await refuse();
+    await act(async () => buttonNamed('Delete')?.click());
+    expect(container.querySelector('pre')?.textContent?.split('\n')).toHaveLength(5);
+  });
+
   it('keeps an error that arrives while a report is sending, for the next report', async () => {
     render();
     await reportError('TypeError: first');
