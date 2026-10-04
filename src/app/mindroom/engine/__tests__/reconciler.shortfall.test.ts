@@ -338,14 +338,19 @@ describe('reconciler shortfall drain (2026-07-10 missing-middle fix)', () => {
 });
 
 describe('reconciler shortfall drain: replies the server counts but cannot return', () => {
+  const DAY_MS = 24 * 60 * 60 * 1000;
+  let now = 1_000_000;
   beforeEach(() => {
     resetCacheProbe();
+    now = 1_000_000;
+    vi.spyOn(Date, 'now').mockImplementation(() => now);
   });
   afterEach(() => {
     resetCacheProbe();
+    vi.restoreAllMocks();
   });
 
-  type Unreachable = { count: number; expectedReplyCount: number };
+  type Unreachable = { count: number; expectedReplyCount: number; recordedAt: number };
   // In-memory stand-in for the thread meta row the reconciler owns.
   const makeMemoryStore = () => {
     let unreachable: Unreachable | undefined;
@@ -362,6 +367,12 @@ describe('reconciler shortfall drain: replies the server counts but cannot retur
       }),
     } satisfies NonNullable<Parameters<typeof scheduleReconcile>[0]['continuationStore']>;
   };
+  const recorded = (count: number, expectedReplyCount: number) => [
+    'session',
+    '!room:example',
+    THREAD_ID,
+    { count, expectedReplyCount, recordedAt: now },
+  ];
 
   // Tuwunel keeps counting a redacted reply in the root's m.thread count, but
   // /relations returns it without its thread relation.
@@ -404,12 +415,7 @@ describe('reconciler shortfall drain: replies the server counts but cannot retur
     const store = makeMemoryStore();
 
     expect((await reconcile(store, allReplies, 5)).calls).toBe(2);
-    expect(store.recordUnreachableReplies).toHaveBeenCalledWith(
-      'session',
-      '!room:example',
-      THREAD_ID,
-      { count: 1, expectedReplyCount: 5 }
-    );
+    expect(store.recordUnreachableReplies).toHaveBeenCalledWith(...recorded(1, 5));
 
     // The next open overlaps on its first page and stops there.
     expect((await reconcile(store, allReplies, 5)).calls).toBe(1);
@@ -433,26 +439,59 @@ describe('reconciler shortfall drain: replies the server counts but cannot retur
     expect(await reconcile(store, allReplies.slice(1), 4)).toEqual({ calls: 2, repaired: true });
   });
 
+  it('measures the unreachable count again once it is a day old', async () => {
+    const store = makeMemoryStore();
+    await reconcile(store, allReplies, 5);
+
+    now += DAY_MS;
+    expect((await reconcile(store, allReplies, 5)).calls).toBe(2);
+    expect(store.recordUnreachableReplies).toHaveBeenLastCalledWith(...recorded(1, 5));
+  });
+
   it('clears the unreachable count once a complete drain reaches the expected count', async () => {
     const store = makeMemoryStore();
     await reconcile(store, allReplies, 5);
 
     await reconcile(store, allReplies.slice(2), 4);
-    expect(store.recordUnreachableReplies).toHaveBeenLastCalledWith(
-      'session',
-      '!room:example',
-      THREAD_ID,
-      { count: 0, expectedReplyCount: 4 }
-    );
+    expect(store.recordUnreachableReplies).toHaveBeenLastCalledWith(...recorded(0, 4));
   });
 
-  it('records nothing from a pass that stopped before the thread start', async () => {
+  it('rewrites the value only when a complete drain measures something new', async () => {
     const store = makeMemoryStore();
-    // Every page carries a next_batch, so the pass ends at its page cap.
-    const endless = [{ chunk: [makeReplyRaw('$r5', 500)], next_batch: 'more' }];
+    // A short thread drains to its start on every open.
+    const onePage = [{ chunk: serverPages.flatMap((page) => page.chunk) }];
 
-    await reconcile(store, allReplies.slice(2), 5, endless);
+    await reconcile(store, allReplies, 5, onePage);
+    await reconcile(store, allReplies, 5, onePage);
+    expect(store.recordUnreachableReplies).toHaveBeenCalledTimes(1);
+
+    // A new reply raises the count; the unreachable reply is still one.
+    const r6 = makeReplyRaw('$r6', 600);
+    await reconcile(store, [...allReplies, r6], 6, [{ chunk: [r6, ...onePage[0].chunk] }]);
+    expect(store.recordUnreachableReplies).toHaveBeenLastCalledWith(...recorded(1, 6));
+  });
+
+  it('records nothing from a pass that stopped at its page cap', async () => {
+    const store = makeMemoryStore();
+    const endless = Array.from({ length: 30 }, (_, page) => ({
+      chunk: [makeReplyRaw(`$old-${page}`, 50 - page)],
+      next_batch: `page-${page + 1}`,
+    }));
+
+    const { calls } = await reconcile(store, allReplies.slice(2), 5, endless);
+    expect(calls).toBe(25);
     expect(store.recordUnreachableReplies).not.toHaveBeenCalled();
+  });
+
+  it('ignores a malformed stored value', async () => {
+    const store = makeMemoryStore();
+    store.loadUnreachableReplies.mockResolvedValue({
+      count: 'one',
+      expectedReplyCount: 5,
+      recordedAt: now,
+    } as never);
+
+    expect((await reconcile(store, allReplies, 5)).calls).toBe(2);
   });
 
   it('records nothing from an empty drain', async () => {

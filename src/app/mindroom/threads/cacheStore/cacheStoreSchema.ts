@@ -150,8 +150,8 @@ export type CachedMetaRecord = {
   /**
    * Replies the thread root's count included but the last complete
    * `/relations` drain could not return (Tuwunel keeps counting a redacted
-   * reply), with the count the drain expected. The reconciler does not page
-   * to the start again for these.
+   * reply), with the count the drain expected and when it ran. The reconciler
+   * does not page to the start again for these while the value is fresh.
    */
   threadUnreachableReplies?: ThreadUnreachableReplies;
 };
@@ -159,6 +159,7 @@ export type CachedMetaRecord = {
 export type ThreadUnreachableReplies = {
   count: number;
   expectedReplyCount: number;
+  recordedAt: number;
 };
 
 export type RoomOfflineProgress = {

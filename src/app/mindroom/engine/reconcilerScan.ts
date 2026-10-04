@@ -21,6 +21,10 @@ import { logTimelineDebug } from '../threads/timelineDebug';
 const RECONCILE_BATCH_SIZE = 200;
 const MAX_RECONCILE_ITERATIONS = 25;
 const RECONCILE_REQUEST_TIMEOUT_MS = 15_000;
+// Counts alone cannot tell a reply the server stopped counting from a reply
+// the cache lost, so a recorded unreachable count holds for a day, then one
+// complete drain measures it again.
+const UNREACHABLE_REPLIES_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 
 type ReconcileScanExit = 'overlap' | 'end' | 'fetch-failed' | 'page-cap' | 'token-loop' | 'aborted';
 
@@ -396,9 +400,19 @@ export const scanThreadRelations = async ({
     if (isRawThreadReply(rawEvent, threadId)) knownReplyIds.add(rawEvent.event_id as string);
   });
   const expectedReplyCount = getExpectedReplyCount(room, threadId, cachedPage);
-  const recordedUnreachable = await continuationStore
+  const loadedUnreachable = await continuationStore
     .loadUnreachableReplies(sessionId, roomId, threadId)
     .catch(() => undefined);
+  const recordedUnreachable =
+    loadedUnreachable &&
+    [
+      loadedUnreachable.count,
+      loadedUnreachable.expectedReplyCount,
+      loadedUnreachable.recordedAt,
+    ].every(Number.isFinite) &&
+    Date.now() - loadedUnreachable.recordedAt < UNREACHABLE_REPLIES_MAX_AGE_MS
+      ? loadedUnreachable
+      : undefined;
   // A count that has dropped since the drain may no longer include every
   // reply the drain could not return, so credit only what it still can.
   const unreachableReplyCount =
@@ -491,7 +505,9 @@ export const scanThreadRelations = async ({
     const unreachable = {
       count: Math.max(0, expectedReplyCount - knownReplyIds.size),
       expectedReplyCount,
+      recordedAt: Date.now(),
     };
+    // A fresh identical value needs no write; a stale one is renewed.
     if (
       unreachable.count !== (recordedUnreachable?.count ?? 0) ||
       (unreachable.count > 0 &&
