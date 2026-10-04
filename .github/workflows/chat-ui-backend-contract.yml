@@ -25,7 +25,7 @@ jobs:
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           repository: mindroom-ai/mindroom
-          ref: 46ccd3cf369eaa525673e17f2b2c7d12a511260f
+          ref: 8fba1289be6f410617903f35d2df341ae6aab357
           path: mindroom-contract
           persist-credentials: false
       - name: Set up uv
