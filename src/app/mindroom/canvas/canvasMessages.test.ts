@@ -76,6 +76,10 @@ describe('readCanvasSubmission', () => {
     expect(
       readCanvasSubmission(message(submit({ label: 'a'.repeat(300) })), frame)?.label
     ).toHaveLength(200);
+    // The cut falls inside an emoji; half of one is not text, so the whole emoji goes.
+    expect(
+      readCanvasSubmission(message(submit({ label: `${'a'.repeat(199)}😀` })), frame)?.label
+    ).toBe('a'.repeat(199));
     expect(readCanvasSubmission(message(submit({ label: '   ' })), frame)?.label).toBeUndefined();
   });
 });

@@ -792,6 +792,30 @@ describe('renderMindroomMessageContent', () => {
       expect(JSON.stringify(replaced.toJSON())).not.toContain('data-canvas-receipt');
       replaced.unmount();
 
+      // MindRoom reads even a replacement Chat would ignore, and finds no answer in it.
+      resolvedLongText.set(
+        'mxc://example.org/answer',
+        await downloaded({ ...content, 'm.new_content': {} })
+      );
+      const emptyReplacement = await renderNode({ msgType: 'm.file', content: preview });
+      expect(JSON.stringify(emptyReplacement.toJSON())).not.toContain('data-canvas-receipt');
+      emptyReplacement.unmount();
+
+      // A file nested deeper than MindRoom reads shows as ordinary long text, without a crash.
+      const depth = 100_000;
+      resolvedLongText.set(
+        'mxc://example.org/answer',
+        await downloaded(
+          undefined,
+          JSON.stringify(content).replace(/}$/, `,"deep":${'['.repeat(depth)}${']'.repeat(depth)}}`)
+        )
+      );
+      const deep = await renderNode({ msgType: 'm.file', content: preview });
+      const deepRendered = JSON.stringify(deep.toJSON());
+      expect(deepRendered).not.toContain('data-canvas-receipt');
+      expect(deepRendered).toContain('"data-renderer":"long-text"');
+      deep.unmount();
+
       // MindRoom refuses a file with a lone surrogate anywhere in it.
       resolvedLongText.set(
         'mxc://example.org/answer',

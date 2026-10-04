@@ -200,7 +200,10 @@ export function CanvasPanel({
         theme: latest.current.theme,
       });
     } else {
-      setStaged(undefined);
+      // An answer the user is already sending stays until it is sent or its upload fails.
+      setStaged((current) =>
+        current && current.submission === uploadingSubmission.current ? current : undefined
+      );
       setUpdateAvailable(true);
     }
   }, [incomingRevision, displayedRevision, displayedRevisionId, displayedPending]);
@@ -284,7 +287,11 @@ export function CanvasPanel({
       sending.catch(() => undefined);
       const echo = room.getEventForTxnId(txnId);
       // A newer snapshot staged during an upload stays.
-      if (stagedNow.current?.submission === submission) setStaged(undefined);
+      if (stagedNow.current?.submission === submission) {
+        setStaged(undefined);
+        // Work in the frame after this answer marks it again.
+        touched.current = false;
+      }
       setLastAnswer(echo ? { echo, label } : undefined);
       return true;
     },
@@ -306,8 +313,8 @@ export function CanvasPanel({
       submission
     );
     setSendError(false);
-    // The answer is committed now; work in the frame after this click marks it again.
-    touched.current = false;
+    // Until the answer is handed to the SDK, the frame still holds the user's work, so an update
+    // during an upload waits for "Load update" and a failed upload can be tried again.
     const refused = () => {
       setSendError(true);
       // The snapshot stays unsent, so an update must not replace the page without asking.
@@ -338,8 +345,11 @@ export function CanvasPanel({
   }, [agentName, busy, deliver, displayed, mx, room, staged, t]);
 
   const handleDiscard = useCallback(() => {
-    uploadingSubmission.current = undefined;
-    setUploading(false);
+    // Discarding the answer being uploaded cancels it; a newer snapshot leaves that upload alone.
+    if (uploadingSubmission.current === stagedNow.current?.submission) {
+      uploadingSubmission.current = undefined;
+      setUploading(false);
+    }
     setStaged(undefined);
     setSendError(false);
   }, []);

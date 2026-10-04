@@ -56,12 +56,27 @@ const serialize = (data: unknown): string | undefined => {
 const LONE_SURROGATE = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?:^|[^\uD800-\uDBFF])[\uDC00-\uDFFF]/;
 const isText = (value: string): boolean => !LONE_SURROGATE.test(value);
 
-/** Whether every string and key in a value is valid text, as MindRoom requires of a long message's file. */
+// MindRoom gives up on very deep files; far deeper than any real answer, well short of its limit.
+const MAX_TEXT_DEPTH = 1000;
+
+/**
+ * Whether every string and key in a value is valid text, as MindRoom requires of a long message's
+ * file. Deeper nesting than MindRoom reads counts as not text, and the walk keeps its own stack.
+ */
 export const isAllText = (value: unknown): boolean => {
-  if (typeof value === 'string') return isText(value);
-  if (Array.isArray(value)) return value.every(isAllText);
-  if (record(value))
-    return Object.entries(value).every(([key, item]) => isText(key) && isAllText(item));
+  const pending: [unknown, number][] = [[value, 0]];
+  while (pending.length > 0) {
+    const [item, depth] = pending.pop()!;
+    if (typeof item === 'string') {
+      if (!isText(item)) return false;
+    } else if (Array.isArray(item) || record(item)) {
+      if (depth >= MAX_TEXT_DEPTH) return false;
+      for (const [key, element] of Object.entries(item)) {
+        if (!Array.isArray(item) && !isText(key)) return false;
+        pending.push([element, depth + 1]);
+      }
+    }
+  }
   return true;
 };
 
@@ -99,7 +114,11 @@ export const readCanvasSubmission = (
   if (json === undefined || new TextEncoder().encode(json).length > MAX_DATA_BYTES) {
     return undefined;
   }
-  const label = message.label?.trim().slice(0, CANVAS_LABEL_MAX_LENGTH);
+  // Cut between characters: half an emoji would make the answer's text invalid.
+  const label = message.label
+    ?.trim()
+    .slice(0, CANVAS_LABEL_MAX_LENGTH)
+    .replace(/[\uD800-\uDBFF]$/, '');
   return { data: JSON.parse(json), ...(label ? { label } : {}) };
 };
 

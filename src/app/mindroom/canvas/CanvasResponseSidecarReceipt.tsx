@@ -39,12 +39,16 @@ export function CanvasResponseSidecarReceipt({
   // Chat's reader accepts more files than MindRoom's; a receipt claims only what the agent reads,
   // so the file must be the content itself, within MindRoom's download limit, and valid text.
   const facts = resolved && getMindroomLongTextSidecarFacts(resolved);
+  // MindRoom reads any m.new_content in the file as the message, so an answer must have none.
   const readByMindroom =
-    !!facts?.topLevelContent && facts.bytes <= MINDROOM_SIDECAR_MAX_BYTES && isAllText(resolved);
-  const receipt =
-    readByMindroom && resolved
-      ? readCanvasResponse({ ...resolved, 'm.relates_to': relation })
-      : undefined;
+    resolved !== undefined &&
+    !!facts?.topLevelContent &&
+    facts.bytes <= MINDROOM_SIDECAR_MAX_BYTES &&
+    resolved['m.new_content'] === undefined &&
+    isAllText(resolved);
+  const receipt = readByMindroom
+    ? readCanvasResponse({ ...resolved, 'm.relates_to': relation })
+    : undefined;
   if (!receipt) return <>{fallback}</>;
   return (
     <CanvasResponseReceipt
