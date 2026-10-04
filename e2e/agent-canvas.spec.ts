@@ -263,6 +263,16 @@ test('agent canvases run sandboxed, send only confirmed answers, and update in p
   await updateCanvas(canvasId, STEP_TWO, 'Seats');
   await expect(frame.getByRole('button', { name: 'Continue' })).toBeVisible();
   await expect(panel.getByText('Seats', { exact: true })).toBeVisible();
+  // Every earlier version stays one click away.
+  await expect(panel.getByText('Version 2 of 2')).toBeVisible();
+  await panel.getByRole('button', { name: 'Previous version' }).click();
+  await expect(frame.getByText('Which plan?')).toBeVisible();
+  await expect(panel.getByText('This is an earlier version.')).toBeVisible();
+  await expect(panel.getByText('Choose a plan', { exact: true })).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath('canvas-earlier-version.png') });
+  await panel.getByRole('button', { name: 'Show latest' }).click();
+  await expect(frame.getByRole('button', { name: 'Continue' })).toBeVisible();
+  await expect(panel.getByText('This is an earlier version.')).toHaveCount(0);
   await frame.getByRole('button', { name: 'Continue' }).click();
   await expect(panel.getByText('Send to')).toContainText('Seats chosen');
   await expect(send).toBeEnabled();

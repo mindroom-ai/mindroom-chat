@@ -118,17 +118,36 @@ const AUTHORITY_FIELDS = [
   'thread_id',
 ];
 
-type LatestCanvas = {
+export type LatestCanvas = {
   canvas: ChatUiCanvas;
   /** The event whose content is shown: the applied edit, or the request itself. */
   revisionEventId: string;
 };
 
 /**
+ * The canvas an edit shows, when it is a valid update of the request; otherwise undefined.
  * Canvas updates are edits by the original sender. The SDK applies some edits (server-bundled
  * ones, thread backfill) without checking their sender, so this checks it again, and an edit may
  * change only the canvas itself; anything else keeps the original canvas.
  */
+const readCanvasEdit = (
+  edit: MatrixEvent | null | undefined,
+  sender: string,
+  original: Record<string, unknown>
+): LatestCanvas | undefined => {
+  const editId = edit?.getId();
+  if (!edit || !editId?.startsWith('$') || edit.getSender() !== sender || edit.isRedacted()) {
+    return undefined;
+  }
+  const newContent = edit.getContent<Record<string, unknown>>()['m.new_content'];
+  const updated = record(newContent) ? newContent[CHAT_UI_ACTION_KEY] : undefined;
+  if (!record(updated) || AUTHORITY_FIELDS.some((field) => updated[field] !== original[field])) {
+    return undefined;
+  }
+  const canvas = readCanvas(updated.canvas);
+  return canvas ? { canvas, revisionEventId: editId } : undefined;
+};
+
 const readLatestCanvas = (
   event: MatrixEvent,
   eventId: string,
@@ -139,18 +158,28 @@ const readLatestCanvas = (
   const fallback = originalCanvas
     ? { canvas: originalCanvas, revisionEventId: eventId }
     : undefined;
-  const replacement = event.replacingEvent();
-  const replacementId = replacement?.getId();
-  if (!replacement || !replacementId?.startsWith('$') || replacement.getSender() !== sender) {
-    return fallback;
+  return readCanvasEdit(event.replacingEvent(), sender, original) ?? fallback;
+};
+
+/**
+ * One version of a canvas whose request `readChatUiAction` accepted: the request itself, or an
+ * edit held to the same rules as the latest one.
+ */
+export const readCanvasVersion = (
+  request: MatrixEvent,
+  version: MatrixEvent
+): LatestCanvas | undefined => {
+  const eventId = request.getId();
+  const sender = request.getSender();
+  const original = request.getOriginalContent<Record<string, unknown>>()[CHAT_UI_ACTION_KEY];
+  if (!eventId || !sender || !record(original)) return undefined;
+  if (version.getId() === eventId) {
+    const canvas = readCanvas(original.canvas);
+    return canvas ? { canvas, revisionEventId: eventId } : undefined;
   }
-  const newContent = replacement.getContent<Record<string, unknown>>()['m.new_content'];
-  const latest = record(newContent) ? newContent[CHAT_UI_ACTION_KEY] : undefined;
-  if (!record(latest) || AUTHORITY_FIELDS.some((field) => latest[field] !== original[field])) {
-    return fallback;
-  }
-  const canvas = readCanvas(latest.canvas);
-  return canvas ? { canvas, revisionEventId: replacementId } : fallback;
+  const relation = version.getWireContent()['m.relates_to'] as Record<string, unknown> | undefined;
+  if (relation?.rel_type !== 'm.replace' || relation.event_id !== eventId) return undefined;
+  return readCanvasEdit(version, sender, original);
 };
 
 /** Read authority from the original Matrix event, never from rendered/edited message text. */

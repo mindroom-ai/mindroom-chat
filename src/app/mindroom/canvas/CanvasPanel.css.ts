@@ -48,6 +48,10 @@ export const Error = style({
   color: color.Critical.Main,
 });
 
+export const Version = style({
+  whiteSpace: 'nowrap',
+});
+
 export const Notice = style({
   alignItems: 'center',
   backgroundColor: color.SurfaceVariant.Container,
