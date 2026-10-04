@@ -345,31 +345,42 @@ const detectDivergence = (
  * timeline and replays buffered relations as new events. The repaired batch
  * still reaches the render through `onRepaired`.
  *
- * Backfill goes in only while the live segment is the only one holding events.
- * After a sync gap, or once history is joined behind it, older segments hold
- * part of that history; backfill prepended to the live segment would then sit
- * after events older than it, and SDK pagination links such out-of-order
- * segments into a cycle that froze the app. Pagination loads that history.
+ * Only events newer than every reply an older segment holds go to the live
+ * segment. After a sync gap, or once history is joined behind it, older
+ * segments hold part of the fetched history; the rest of it belongs behind
+ * them, and prepending it to the live segment put it after newer events, which
+ * SDK pagination then linked into a segment cycle that froze the app.
+ * Pagination places that history.
  */
 const addFetchedEventsToThread = (thread: Thread, events: MatrixEvent[]): void => {
   if (!hasLoadedFirstThreadPage(thread)) return;
+  // Adding an event first applies a deferred sync-gap reset; apply it before
+  // reading the segments, so they are the ones the events go into.
+  if (events.some((event) => !thread.findEventById(event.getId()!))) {
+    void thread.flushPendingTimelineReset();
+  }
+  const timelineSet = thread.getUnfilteredTimelineSet();
+  let newestHeldElsewhere = -1;
+  events.forEach((event, index) => {
+    const holder = timelineSet.eventIdToTimeline(event.getId()!);
+    if (holder && holder !== thread.liveTimeline && event.isRelation('m.thread')) {
+      newestHeldElsewhere = index;
+    }
+  });
+  const liveEvents = events.slice(newestHeldElsewhere + 1);
   const [earliest] = thread.events;
   // A window that starts at the root already reaches the thread's start.
   if (earliest !== undefined && earliest.getId() === thread.id) {
-    thread.addEvents(events, false);
+    thread.addEvents(liveEvents, false);
     return;
   }
-  const newerIndex = earliest ? events.findIndex((event) => event.getTs() >= earliest.getTs()) : -1;
-  const backfillCount = newerIndex === -1 ? events.length : newerIndex;
-  const liveSegmentIsOnly = thread
-    .getUnfilteredTimelineSet()
-    .getTimelines()
-    .every((timeline) => timeline === thread.liveTimeline || timeline.getEvents().length === 0);
+  const newerIndex = earliest
+    ? liveEvents.findIndex((event) => event.getTs() >= earliest.getTs())
+    : -1;
+  const backfillCount = newerIndex === -1 ? liveEvents.length : newerIndex;
   // Backfill is prepended one event at a time, so it goes in newest first.
-  if (backfillCount > 0 && liveSegmentIsOnly) {
-    thread.addEvents(events.slice(0, backfillCount).reverse(), true);
-  }
-  if (backfillCount < events.length) thread.addEvents(events.slice(backfillCount), false);
+  if (backfillCount > 0) thread.addEvents(liveEvents.slice(0, backfillCount).reverse(), true);
+  if (backfillCount < liveEvents.length) thread.addEvents(liveEvents.slice(backfillCount), false);
 };
 
 /**

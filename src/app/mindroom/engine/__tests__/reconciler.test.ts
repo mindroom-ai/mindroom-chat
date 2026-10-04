@@ -1343,7 +1343,9 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
       addEvents,
       events: [],
       initialEventsFetched: true,
-      getUnfilteredTimelineSet: () => ({ getTimelines: () => [] }),
+      findEventById: () => undefined,
+      flushPendingTimelineReset: () => undefined,
+      getUnfilteredTimelineSet: () => ({ eventIdToTimeline: () => null }),
     } as unknown as ReturnType<Room['getThread']>;
     const roomWithThread = {
       roomId: '!room:example',
@@ -1493,7 +1495,9 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
       addEvents,
       events: [],
       initialEventsFetched: true,
-      getUnfilteredTimelineSet: () => ({ getTimelines: () => [] }),
+      findEventById: () => undefined,
+      flushPendingTimelineReset: () => undefined,
+      getUnfilteredTimelineSet: () => ({ eventIdToTimeline: () => null }),
     } as unknown as ReturnType<Room['getThread']>;
     const roomWithThread = {
       roomId: '!room:example',
@@ -1840,7 +1844,9 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
       addEvents,
       events: [],
       initialEventsFetched: true,
-      getUnfilteredTimelineSet: () => ({ getTimelines: () => [] }),
+      findEventById: () => undefined,
+      flushPendingTimelineReset: () => undefined,
+      getUnfilteredTimelineSet: () => ({ eventIdToTimeline: () => null }),
     } as unknown as ReturnType<Room['getThread']>;
     const roomWithThread = {
       roomId: '!room:example',
@@ -2080,7 +2086,9 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
       addEvents,
       events: [],
       initialEventsFetched: true,
-      getUnfilteredTimelineSet: () => ({ getTimelines: () => [] }),
+      findEventById: () => undefined,
+      flushPendingTimelineReset: () => undefined,
+      getUnfilteredTimelineSet: () => ({ eventIdToTimeline: () => null }),
     } as unknown as ReturnType<Room['getThread']>;
     const roomSdkAhead = {
       roomId: '!room:example',
