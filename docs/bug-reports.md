@@ -16,19 +16,35 @@ Add the administrators to the homeserver's `/.well-known/matrix/client`:
 ```
 
 The document must be served with `Access-Control-Allow-Origin: *`, as Matrix clients already require.
-Without the key, the menu item is labelled **Download bug report** and saves the JSON instead.
+The menu item is labelled **Download bug report** and saves the JSON instead when the key is missing, when the `admins` list is empty or holds no valid Matrix user IDs, and while the client is still loading the well-known.
 
 ## What happens
 
 - The reporter gets one private room, `Bug reports · <name>`, shared only with the administrators; each report is a thread in it.
 - The room has type `io.mindroom.bug_reports` and is created unencrypted so `matrix-mcp` can read it.
-- Administrators' MindRoom Chat clients join these rooms automatically when the inviter is on the same homeserver.
-- The room ID is kept in the reporter's account data `io.mindroom.bug_reports`; leaving the room makes the next report create a new one.
+  Reports from encrypted rooms are therefore stored decrypted in this unencrypted room.
+- The room ID is kept in the reporter's account data `io.mindroom.bug_reports`.
+- Each report reuses that room only while the reporter is still joined, its join rule is still `invite`, and every other joined or invited member is a current administrator.
+  Otherwise the report goes to a new room and the account data is replaced; nobody is removed from the old room.
+- Administrators who are neither joined nor invited are invited again; the report fails only when no administrator is in the room and none can be invited.
+- Removing an administrator from the list moves the reporters' future reports to new rooms, but does not revoke the reports that administrator already received.
+
+### Auto-join
+
+An administrator's client joins report-room invites without a prompt when:
+
+- the administrator is listed in the well-known of their own homeserver (each client reads only its own homeserver's well-known),
+- the administrator uses MindRoom Chat (an offline administrator's client joins when it next syncs), and
+- the inviter is on the administrator's homeserver.
+
+Bot and `matrix-mcp` accounts do not run MindRoom Chat, so they must accept the invite themselves.
 
 ## What a report contains
 
-- The room, thread, and message IDs and permalinks.
-- The raw events of the thread (or the 50 main-timeline events up to the message), each with its latest edit and local send status.
+- The room, thread, and message IDs, and a permalink to the message.
+- The events around the message, each with its original content, its latest edit as `latestEdit`, and its local send status:
+  - in a thread, the root plus the newest 200 replies this client holds, or the 200 replies ending at the message when it is older than those; `omittedEventCount` counts the replies left out;
+  - otherwise the 50 main-timeline events up to the message (`omittedEventCount` is 0).
 - Client build, platform, browser, viewport, sync state, and URL.
 - The same diagnostics as **Settings → About → Export diagnostics**.
 
