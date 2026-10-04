@@ -12,7 +12,8 @@
 - Code lives in `src/app/mindroom/messages/` (`toolApproval.ts`, `approvalActions.ts`, `ApprovalDecisionControls.tsx`, `ApprovalSchedule.tsx`, `ApprovalReceipt.tsx`); the strings in the 16 non-English catalogs are machine-authored.
 - Validation: the new `scheduledToolApproval.test.ts` and the scheduled-card case in `ApprovalReviewCall.test.tsx`, all 805 tests in `src/app/mindroom/messages` plus `src/app/i18n.test.ts`, typecheck, touched-file ESLint, and the production build pass.
   The full Vitest run passes 6,047 of 6,051 tests; the 4 failures are the `xcodeCloudPostClone.test.ts` and `useRoomInputSendSessionController.test.ts` cases that also fail on `origin/dev`.
-- Next: check the card live against a MindRoom backend running #2633.
+- Live check against a local MindRoom backend running #2633 with a stub model: the pending scheduling card (in the thread's Review sheet) showed the send time, both approve buttons, and the warning; approving any arguments showed the approved scope; the send-time call ran with different arguments under that approval; and its receipt showed who approved it while scheduling, the send time, and the scope.
+- Next: integrate together with mindroom-ai/mindroom#2633.
 
 ### Show a pinned thread as a solid pin in the thread bar (2026-10-04)
 
