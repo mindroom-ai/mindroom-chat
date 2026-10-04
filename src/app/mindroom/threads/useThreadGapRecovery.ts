@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { RelationType, type MatrixEvent, type Room } from 'matrix-js-sdk';
 import type { MindroomSyncEngine } from '../engine';
 import { hydrateThreadFromCache } from './threadOpenCacheController';
+import { compareThreadRenderOrder } from './threadRenderUtils';
 
 export type ThreadGapRecoveryOptions = {
   engine: MindroomSyncEngine;
@@ -11,9 +12,6 @@ export type ThreadGapRecoveryOptions = {
   /** The thread events currently rendered, oldest first. */
   getLoadedEvents?: () => readonly MatrixEvent[];
 };
-
-const compareThreadOrder = (left: MatrixEvent, right: MatrixEvent): number =>
-  left.getTs() - right.getTs() || (left.getId() ?? '').localeCompare(right.getId() ?? '');
 
 // Edits, reactions and redactions modify a row instead of adding one.
 const isRowModifier = (mEvent: MatrixEvent): boolean => {
@@ -29,6 +27,8 @@ const isRowModifier = (mEvent: MatrixEvent): boolean => {
  * Recovered events restore what the reader's loaded span missed: replies inside or after it, and
  * edits, reactions and redactions. Older replies stay behind Load Older, whose pagination keeps
  * the reader's scroll anchor. Adding them here would insert rows above a reader who scrolled up.
+ * "Older" uses the rendered order, so a reply that would render above the first loaded reply is
+ * held back even when the timestamps tie.
  */
 export const keepRecoveredEventsInLoadedSpan = (
   threadId: string,
@@ -44,7 +44,7 @@ export const keepRecoveredEventsInLoadedSpan = (
     (mEvent) =>
       loadedEventIds.has(mEvent.getId()) ||
       isRowModifier(mEvent) ||
-      compareThreadOrder(mEvent, earliestLoadedReply) >= 0
+      compareThreadRenderOrder(mEvent, earliestLoadedReply) >= 0
   );
 };
 
