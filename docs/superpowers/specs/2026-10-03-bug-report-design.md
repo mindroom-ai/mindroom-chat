@@ -159,7 +159,9 @@ The administrator's client joins an invited room only when all of these hold:
 
 1. The current user is in the well-known `admins` list.
 2. The invite's stripped `m.room.create` content has `type: "io.mindroom.bug_reports"`.
-3. The inviter is on the administrator's own homeserver (same server name), so a remote server cannot use auto-join to push rooms onto the administrator.
+3. The invite's stripped `m.room.join_rules` content has `join_rule: "invite"`; a missing join rule does not qualify.
+4. The sender of the stripped `m.room.create` event is the inviter, so an inviter cannot pull the administrator into a room someone else created.
+5. The inviter is on the administrator's own homeserver (same server name), so a remote server cannot use auto-join to push rooms onto the administrator.
 
 Each room is attempted once per session; a failed join is logged and left as a normal invite.
 
@@ -171,7 +173,7 @@ Each room is attempted once per session; a failed join is logged and left as a n
 
 ## Testing
 
-- Unit tests (Vitest, colocated): config parsing; payload scopes, edits, local echo status, and diagnostics inclusion; room reuse, stale-room replacement, re-inviting admins, and in-flight dedupe; root and file content including the encrypted-room branch; auto-join gating on admin, room type, and inviter server; menu item labels and states.
+- Unit tests (Vitest, colocated): config parsing; payload scopes, edits, local echo status, and diagnostics inclusion; room reuse, stale-room replacement, re-inviting admins, and in-flight dedupe; root and file content including the encrypted-room branch; auto-join gating on admin, room type, join rule, room creator, and inviter server; menu item labels and states.
 - `npm run typecheck`, `npm run lint`, `npm run build`, and the i18n coverage test.
 - Live check against a local homeserver with two accounts, the reporter and the administrator, with `io.mindroom.bug_reports` in the client well-known.
 
