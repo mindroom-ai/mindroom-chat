@@ -8,8 +8,8 @@
 - `mindroom.canvas.libraries: true` in `config.json` lets canvas pages load scripts, styles, and fonts from `https://cdn.jsdelivr.net/npm/` (`CANVAS_LIBRARY_SOURCE`), which serves any npm package at a version, including ES modules through `/+esm`.
   Absent or false keeps the policy unchanged, and `config.mindroom.json` ships it off.
   Fetch, images, frames, other jsDelivr paths such as `/gh/`, and other CDNs stay blocked; there is no `unsafe-eval`.
-- Opting in matters for privacy: opening a page that uses a library tells jsDelivr the viewer's IP address and which file they load.
-  Library code runs in the same sandbox as the agent's own code, so it gains no access to Chat or the account.
+- Opting in matters for privacy: opening a page that uses a library tells jsDelivr the viewer's IP address and which file they load, and a page can put data in the addresses it requests.
+  Library code runs in the same sandbox as the agent's own code, so it gains no access to Chat or the account; libraries that evaluate strings (Alpine, Vue in-page templates) do not run.
 - `canvasPolicy(libraries)` builds both policies: the wrapper document's and the canvas page's.
   The canvas frame inherits the wrapper's policy on top of its own, so both must allow the source; with a strict wrapper the live check's library stays blocked.
 - The backend tells an agent about the source only when its `chat_ui` entry sets `enable_canvas_libraries` (mindroom-ai/mindroom companion PR).

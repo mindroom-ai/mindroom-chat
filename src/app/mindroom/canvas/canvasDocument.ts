@@ -19,9 +19,9 @@ export const CANVAS_WRAPPER_SANDBOX = 'allow-scripts allow-forms';
 export const CANVAS_LIBRARY_SOURCE = 'https://cdn.jsdelivr.net/npm/';
 
 /**
- * Agent HTML may run inline code but cannot send anything over the network. With libraries on,
- * it may also load scripts, styles, and fonts from the library source; that reveals to the CDN
- * which library a viewer loads, so deployments opt in.
+ * Agent HTML may run inline code but cannot connect anywhere or load external images. With
+ * libraries on, it may also load scripts, styles, and fonts from the library source; the CDN then
+ * sees which files a viewer loads, and a page can put data in those addresses, so deployments opt in.
  */
 export const canvasPolicy = (libraries: boolean): string => {
   const source = libraries ? ` ${CANVAS_LIBRARY_SOURCE}` : '';

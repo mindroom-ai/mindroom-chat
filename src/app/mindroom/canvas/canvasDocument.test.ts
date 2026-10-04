@@ -27,7 +27,11 @@ describe('buildCanvasPage', () => {
   });
 
   it('loads scripts, styles, and fonts from the library source only when libraries are on', () => {
-    expect(CANVAS_CSP).toBe(canvasPolicy(false));
+    expect(CANVAS_CSP).toBe(
+      "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; " +
+        "font-src data:; media-src data: blob:; connect-src 'none'; form-action 'none'; frame-src 'none'; " +
+        "worker-src 'none'; base-uri 'none'"
+    );
     expect(CANVAS_LIBRARY_SOURCE).toBe('https://cdn.jsdelivr.net/npm/');
     const policy = canvasPolicy(true);
     const directive = (name: string) =>
