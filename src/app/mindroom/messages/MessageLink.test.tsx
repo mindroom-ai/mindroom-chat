@@ -62,6 +62,20 @@ describe('MessageLink', () => {
     renderer.unmount();
   });
 
+  it('sets the referrer policy before the icon source', () => {
+    // React DOM applies props in order, and Chromium can start a memory-cached
+    // image request as soon as src is set, before later attributes exist.
+    const renderer = create(
+      <MessageLink href="https://github.com" showFavicon>
+        Docs
+      </MessageLink>
+    );
+    const props = Object.keys(renderer.root.findByType('img').props);
+    expect(props.indexOf('referrerPolicy')).toBeLessThan(props.indexOf('src'));
+    expect(props.indexOf('loading')).toBeLessThan(props.indexOf('src'));
+    renderer.unmount();
+  });
+
   it('hides broken icons, backs off across remounts, and recovers for an edited URL', () => {
     vi.useFakeTimers();
     const link = (href: string) => (
