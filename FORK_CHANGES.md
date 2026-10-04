@@ -26,13 +26,15 @@
   A blocked load also fails; its failure is reported a moment later only if the policy did not report it, so it appears once, as blocked.
   The panel keeps up to five distinct error lines per page (each one line, at most 300 characters, valid text, read from at most the first 600 characters; `readCanvasError`), shows them, and offers **Tell <agent>**.
   Only listed errors are remembered, so a page throwing endlessly costs at most five lines between reports.
-  Nothing is sent until the user chooses it; the report is an ordinary mention in the canvas's conversation, `<agent> Canvas error (<canvas>, revision <revision>):` followed by one error per line (`buildCanvasErrorContent`).
+  Nothing is sent until the user chooses it; the report is an ordinary mention in the canvas's conversation, `<agent> Canvas error (<canvas>, revision <revision>):` followed by one error per line (`buildCanvasErrorContent`, which shares the mention and reply with answers through `toCanvasAgent`).
+  The panel follows the report's local echo: "Sending…", then "Sent", or the usual Retry/Delete when it fails; a deleted report is offered again.
   An error already sent is not offered again for the same page; a new page starts empty.
   Error reports bypass the answer throttle and never stage an answer or hold back an update.
 - `window.mindroom.colorScheme` is `light` or `dark`, the scheme the page was shown in, for choices the theme variables cannot make (chart palettes).
 - Backend: the tool brief names the report format and `colorScheme` (mindroom-ai/mindroom companion PR).
 - Tests: `canvasMessages.test.ts` (parsing, cutting, the report's content), `canvasDocument.test.ts` (listeners before agent scripts, the scheme), `CanvasPanel.test.tsx` (report, dedupe, five-error cap, other windows, new page).
   `e2e/agent-canvas.spec.ts` shows a page that throws and loads a blocked script: the panel lists both, **Tell** sends the report mentioning the agent, and the page reads its scheme.
+- Next: no further work; a preview tool that renders a page and returns a screenshot to the agent remains an idea.
 
 ### Show a pinned thread as a solid pin in the thread bar (2026-10-04)
 

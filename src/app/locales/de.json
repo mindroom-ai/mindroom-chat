@@ -2929,6 +2929,7 @@
       "pageError": "Diese Seite hat einen Fehler gemeldet.",
       "tellAgent": "{{agent}} Bescheid geben",
       "errorsSent": "Fehler an {{agent}} gesendet.",
+      "errorsNotSent": "Die Fehler konnten nicht an {{agent}} gesendet werden.",
       "sendTo": "An {{agent}} senden:",
       "changeAnswer": "Um deine Antwort zu ändern, verwirf zuerst diese.",
       "data": "Daten",

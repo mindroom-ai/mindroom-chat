@@ -89,7 +89,7 @@ type SentAnswer = { echo: MatrixEvent; label: string };
 type AnswerState = 'sending' | 'sent' | 'failed' | 'cancelled';
 
 /** Errors the page reported that the user has not sent yet, or the last ones they sent. */
-type PageErrors = { errors: string[]; sent: boolean };
+type PageErrors = { errors: string[]; sent: boolean; report?: MatrixEvent };
 const NO_PAGE_ERRORS: PageErrors = { errors: [], sent: false };
 // Enough to say what went wrong; a page cannot fill the report.
 const MAX_PAGE_ERRORS = 5;
@@ -405,14 +405,26 @@ export function CanvasPanel({
       },
       pageErrors.errors
     );
+    const txnId = mx.makeTxnId();
     try {
-      // A failure shows in the timeline, like any message.
-      mx.sendMessage(room.roomId, content as never).catch(() => undefined);
+      // A failure shows through the echo's status, here and in the timeline.
+      mx.sendMessage(room.roomId, content as never, txnId).catch(() => undefined);
     } catch {
       return;
     }
-    setPageErrors((current) => ({ ...current, sent: true }));
+    const report = room.getEventForTxnId(txnId) ?? undefined;
+    setPageErrors((current) => ({ ...current, sent: true, report }));
   }, [agentName, displayed, mx, pageErrors, room]);
+
+  const reportStatus = useLocalEchoStatus(pageErrors.report);
+  const reportState =
+    pageErrors.report && reportStatus !== undefined ? answerState(reportStatus) : undefined;
+  useEffect(() => {
+    // A report the user deleted after it failed was never sent, so it is offered again.
+    if (reportState === 'cancelled') {
+      setPageErrors((current) => ({ ...current, sent: false, report: undefined }));
+    }
+  }, [reportState]);
 
   const handleDiscard = useCallback(() => {
     // Discarding the answer being uploaded cancels it; a newer snapshot leaves that upload alone.
@@ -528,13 +540,28 @@ export function CanvasPanel({
       )}
 
       {pageErrors.errors.length > 0 && (
-        <div className={css.Notice} role={pageErrors.sent ? 'status' : 'alert'}>
+        <div
+          className={css.Notice}
+          role={pageErrors.sent && reportState !== 'failed' ? 'status' : 'alert'}
+        >
           <div className={css.Staged}>
-            <Text size="T300">
-              {pageErrors.sent
-                ? t('mindroomUi.canvas.errorsSent', { agent: agentName })
-                : t('mindroomUi.canvas.pageError')}
-            </Text>
+            {pageErrors.sent && reportState === 'failed' && pageErrors.report ? (
+              <FailedSendActions
+                room={room}
+                event={pageErrors.report}
+                message={t('mindroomUi.canvas.errorsNotSent', { agent: agentName })}
+              />
+            ) : (
+              <Text size="T300">
+                {!pageErrors.sent && t('mindroomUi.canvas.pageError')}
+                {pageErrors.sent &&
+                  reportState === 'sending' &&
+                  t('mindroomUi.canvas.sending', { agent: agentName })}
+                {pageErrors.sent &&
+                  reportState !== 'sending' &&
+                  t('mindroomUi.canvas.errorsSent', { agent: agentName })}
+              </Text>
+            )}
             {!pageErrors.sent && (
               <>
                 <pre className={css.Data}>{pageErrors.errors.join('\n')}</pre>

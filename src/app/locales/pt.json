@@ -2983,6 +2983,7 @@
       "pageError": "Esta página informou um erro.",
       "tellAgent": "Avisar {{agent}}",
       "errorsSent": "Erros enviados para {{agent}}.",
+      "errorsNotSent": "Não foi possível enviar os erros para {{agent}}.",
       "sendTo": "Enviar para {{agent}}:",
       "changeAnswer": "Para mudar sua resposta, descarte esta primeiro.",
       "data": "Dados",

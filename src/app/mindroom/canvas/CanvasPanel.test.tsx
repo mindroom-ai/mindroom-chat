@@ -669,6 +669,8 @@ describe('CanvasPanel', () => {
       `${AGENT} Canvas error ($canvas, revision $canvas):\nTypeError: boom\nBlocked https://cdn.example/x.js (script-src-elem)`
     );
     expect(reportButton()).toBeNull();
+    expect(container.textContent).toContain('Sending to Planner');
+    await accept();
     expect(container.textContent).toContain('Sent the errors to Planner.');
     // A new error after the report can be sent too; one already sent is not offered again.
     await reportError('TypeError: boom');
@@ -678,6 +680,18 @@ describe('CanvasPanel', () => {
     expect((sendMessage.mock.calls[1][1] as { body: string }).body).toBe(
       `${AGENT} Canvas error ($canvas, revision $canvas):\nRangeError: later`
     );
+  });
+
+  it('says when a report could not be sent, and offers it again once deleted', async () => {
+    render();
+    await reportError('TypeError: boom');
+    await act(async () => reportButton().click());
+    await refuse();
+    expect(container.textContent).toContain('Could not send the errors to Planner.');
+    expect(container.textContent).not.toContain('Sent the errors');
+    await act(async () => buttonNamed('Delete')?.click());
+    expect(container.textContent).toContain('This page reported an error.');
+    expect(reportButton()).not.toBeNull();
   });
 
   it('takes error reports only from the canvas, keeps five, and forgets them on a new page', async () => {
