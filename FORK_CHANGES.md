@@ -2,29 +2,19 @@
 
 ## Runbook
 
-### Stop the thread reconcile from re-fetching and repairing a cached thread on every open (2026-10-03)
+### Stop the thread reconcile from repairing a cached thread on every open (2026-10-03)
 
 - Report: the iPhone export behind the 2026-10-03 reconcile-freeze entry below showed the same thread reconciled with 13 `/relations` pages (about 1000 events) and `repaired: true` on many separate opens, including two a minute apart.
   A reconcile is meant to be a cheap no-op when the cache already matches the server.
 - Reproduced in the local Docker Matrix stack with the same 480-reply thread (480 same-sender edits, 48 reactions, two redacted replies): after a cold open had cached the whole thread, a reopen still fetched 13 pages and repaired.
-  Temporary logging showed both causes: the scan expected 480 replies but knew 478, and the only divergence was 466 `m.replace` events missing from the cache.
-- Root causes:
-  - The cache folds a same-sender edit into the target it stores (`setSerializedReplacement`) and keeps no record of the edit itself, but `detectDivergence` treated every fetched event id missing from the cache as new.
-    Every thread with streamed edits therefore diverged on every reconcile.
-  - Tuwunel keeps counting a redacted reply in the root's `m.thread` count while `/relations` returns it without its thread relation, so the reply shortfall check (2026-07-10 missing-middle fix) never closes and pages to the thread's start on every open.
-    The no-divergence branch records the server-confirmed start, which its comment said would stop the repeat, but nothing in the scan reads it.
-- Fix:
-  - `detectDivergence` skips a fetched same-sender edit whose cached target is redacted or already carries it or a newer edit (`isEditKnownToRevision` in `eventRevision.ts`), and a redacted edit the cache does not embed.
-    A newer edit, and an uncached edit from another sender (which the cache keeps as its own record, also for a redacted target), still diverge.
-  - After a complete drain from the head that fetched events without failures, the scan records `expected count − known replies`, the expected count and the time as `threadUnreachableReplies` on the thread's meta row (next to `threadReconcileContinuation`, carried through thread snapshot saves).
-    For a day, later scans count it as known, less any drop in the expected count since; replies missing beyond it still drive the drain, a drain that reaches the count records 0, and a fresh unchanged value is not written again.
-    Counts alone cannot tell a reply the server stopped counting from a reply the cache lost while the thread also grew, so a hole of up to that many replies can stay hidden until the value is a day old and one complete drain measures it again (Tuwunel's count only ever grows, so this needs another server or a stale count source).
-- Measured after the fix in the same reproduction: the cold open still drains 13 pages once; the reopen fetches one page and ends with `repaired: false`.
-- Tests: `reconciler.foldedEdits.test.ts` (carried, superseded, bundled and root edits are known, as are edits of a redacted target and redacted edits; a newer edit, another sender's edit, also of a redacted target, and a missed reply to a redacted root are repaired), new cases in `reconciler.shortfall.test.ts` (the count is recorded and stops the repeat drain; real missing replies, replies the count no longer includes, a day-old value, a value recorded ahead of the clock and a malformed value still drain; a satisfied drain clears it; a fresh unchanged value is not rewritten but a changed expected count is; page-capped and empty drains record nothing), and `cacheStoreLifecycle.test.ts` (the value round-trips in IndexedDB and survives a thread snapshot save).
-  Removing any of these guards fails at least one test.
-- Limits and next steps:
-  - Only a single pass that drains from the head records the value, so a thread longer than one pass (25 pages, about 2500 relation events) with an unreachable reply still pages to its start on every open; recording it from a resumed continuation needs the reply ids the earlier passes saw, because the cached page loaded at open is bounded.
-  - `isCompleteCachedThreadSnapshot` does not use the value yet, so such a thread still opens without the complete-coverage paint.
+  Temporary logging showed two causes: the only divergence was 466 `m.replace` events missing from the cache, and the scan expected 480 replies but could find 478.
+- Root cause fixed here: the cache folds a same-sender edit into the target it stores (`setSerializedReplacement`) and keeps no record of the edit itself, but `detectDivergence` treated every fetched event id missing from the cache as new, so every thread with streamed edits diverged on every reconcile.
+- Fix: `detectDivergence` skips a fetched same-sender edit whose cached target is redacted or already carries it or a newer edit (`isEditKnownToRevision` in `eventRevision.ts`), and a redacted edit the cache does not embed.
+  A newer edit, and an uncached edit from another sender (which the cache keeps as its own record, also for a redacted target), still diverge.
+- Measured after the fix in the same reproduction: the reopen ends with `repaired: false`, so it no longer re-hydrates or injects anything, and shows no long task beyond the app's startup.
+- Not fixed here: the 480-versus-478 shortfall still makes that reopen page to the thread's start, because Tuwunel only ever adds to a thread root's `m.thread` count and keeps counting replies after they are redacted (`update_thread_bundle_raw` in `mindroom-tuwunel`), while `/relations` returns them without their thread relation.
+  That count belongs to the homeserver, so it is fixed in `mindroom-tuwunel` rather than worked around here; the 2026-07-10 comment claiming that recording the server-confirmed start stops the repeat drain is corrected, since nothing reads it for that.
+- Tests: `reconciler.foldedEdits.test.ts`: carried, superseded, bundled and root edits are known, as are edits of a redacted target and redacted edits the cache does not embed; a newer edit, another sender's edit (also of a redacted target) and a missed reply to a redacted root are repaired.
 
 ### Add reconciled thread history to the SDK thread as backfill (2026-10-03)
 
@@ -42,7 +32,7 @@
   The repaired batch reaches the render through `onRepaired` in every case.
 - Measured after the fix with the same reproduction: the longest task is 402 to 434 ms over two runs, and the reconcile opens 72 to 78 IndexedDB transactions.
   The remaining reconcile cost (about 0.8 s split across tasks) is mostly the SDK's one `ThreadEvent.Update` per added event, on each of which `ActiveThreadApprovalProvider` rescans the room and thread (`mergeThreadApprovalEvents`).
-- Not addressed here: the reconcile still repaired on every open of such a thread; the entry above fixes that.
+- Not addressed here: the reconcile still repaired on every open of such a thread; the entry above fixes the repair, and `mindroom-tuwunel` the thread count that kept it paging.
 - Tests: `reconciler.sdkThread.test.ts` drives a real SDK thread: history older than the window adds no `NewReply` or live events and ends in timeline order; events newer than the window are still appended with `NewReply` and become `lastReply()`; an empty window takes everything as backfill; an unopened thread is left untouched while `onRepaired` still fires.
   All four fail on the previous reconciler, and backfilling everything, dropping the unopened-thread guard, or appending into an empty window each fails its own case.
 

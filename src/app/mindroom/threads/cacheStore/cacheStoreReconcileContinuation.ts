@@ -1,9 +1,5 @@
 import { readMetaRecord, updateMetaRecord } from './cacheStoreMeta';
-import {
-  buildMetaKey,
-  type CachedMetaRecord,
-  type ThreadUnreachableReplies,
-} from './cacheStoreSchema';
+import { buildMetaKey, type CachedMetaRecord } from './cacheStoreSchema';
 
 export type ThreadReconcileContinuation = NonNullable<
   CachedMetaRecord['threadReconcileContinuation']
@@ -94,32 +90,5 @@ export const clearThreadReconcileContinuation = async (
     if (!existing || current?.generation !== expectedGeneration) return false;
     const { threadReconcileContinuation: _drop, ...rest } = existing;
     store.put({ ...rest, updatedAt: Date.now() } satisfies CachedMetaRecord);
-    return true;
-  });
-
-export const loadThreadUnreachableReplies = async (
-  sessionId: string,
-  roomId: string,
-  threadId: string
-): Promise<ThreadUnreachableReplies | undefined> =>
-  (await readMetaRecord(sessionId, roomId, threadId))?.threadUnreachableReplies;
-
-/** Record what a complete drain from the head found. */
-export const recordThreadUnreachableReplies = (
-  sessionId: string,
-  roomId: string,
-  threadId: string,
-  unreachable: ThreadUnreachableReplies
-): Promise<boolean> =>
-  updateMetaRecord(sessionId, roomId, threadId, (existing, store) => {
-    store.put({
-      ...(existing ?? {
-        metaKey: buildMetaKey(roomId, threadId),
-        roomId,
-        scope: threadId,
-      }),
-      updatedAt: Date.now(),
-      threadUnreachableReplies: unreachable,
-    } satisfies CachedMetaRecord);
     return true;
   });

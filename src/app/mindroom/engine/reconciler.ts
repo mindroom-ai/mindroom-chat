@@ -480,11 +480,9 @@ const runThreadReconcilePass = async ({
     await scan.settleWithoutRepair();
     // 2026-07-10 missing-middle fix (upstream #118 review finding): a
     // shortfall-driven full drain that found no divergence still observed
-    // the server-confirmed start, so record it with the snapshot. (The scan
-    // itself records the part of the count the stream can never yield, so the
-    // drain is not repeated.)
-    // Restricted to shortfall-driven multi-page passes so the ordinary
-    // single-page "cached was right" open keeps its zero-persist D7 guarantee.
+    // the server-confirmed start, so record it with the snapshot. Restricted
+    // to shortfall-driven multi-page passes so the ordinary single-page
+    // "cached was right" open keeps its zero-persist D7 guarantee.
     if (serverConfirmedStart && pagedPastOverlapForShortfall && allMapped.length > 0) {
       const noDivergenceRootEvent =
         room.getThread(threadId)?.rootEvent ?? room.findEventById(threadId) ?? undefined;

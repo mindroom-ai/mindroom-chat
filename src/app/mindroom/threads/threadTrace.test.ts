@@ -167,8 +167,6 @@ describe('anonymous thread diagnostics', () => {
                   checkpoint: async () => undefined,
                   clear: async () => true,
                   restartFromHead: async () => undefined,
-                  loadUnreachableReplies: async () => undefined,
-                  recordUnreachableReplies: async () => true,
                 },
               }),
             setSupplementalThreadEvents: append,

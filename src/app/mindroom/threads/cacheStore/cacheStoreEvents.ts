@@ -1350,7 +1350,6 @@ const runSaveThreadEventsTxn = async (
               ),
               tailLoaded: mergeThreadCacheFlag(currentMeta?.tailLoaded, tailLoaded),
               threadReconcileContinuation: currentMeta?.threadReconcileContinuation,
-              threadUnreachableReplies: currentMeta?.threadUnreachableReplies,
               updatedAt: Date.now(),
               lastOpenedTs: currentMeta?.lastOpenedTs,
             };

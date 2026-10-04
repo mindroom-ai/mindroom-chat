@@ -117,8 +117,6 @@ export {
   checkpointThreadReconcileContinuation,
   clearThreadReconcileContinuation,
   loadThreadReconcileContinuation,
-  loadThreadUnreachableReplies,
-  recordThreadUnreachableReplies,
   restartThreadReconcileContinuationFromHead,
   type ThreadReconcileContinuation,
 } from './cacheStoreReconcileContinuation';
