@@ -3,6 +3,7 @@ import React from 'react';
 import { Icon, Icons } from 'folds';
 import { ApprovalArguments } from './ApprovalArguments';
 import { ApprovalSchedule } from './ApprovalSchedule';
+import { formatApprovalTime, scheduledScopeLabelKey } from './approvalScheduleText';
 import { getToolApprovalOperationLabel, ToolApprovalData } from './toolApproval';
 import * as css from './ThreadApprovals.css';
 import { useAppLanguageCode } from '../../hooks/useAppLanguageCode';
@@ -72,19 +73,17 @@ export function ApprovalReceipt({
             {provenance.approvedAt
               ? t('mindroomUi.messages.approvalReceipt.approvedWhenScheduledByAt', {
                   approver: provenance.approvedBy,
-                  timestamp: new Date(provenance.approvedAt).toLocaleString(language),
+                  timestamp: formatApprovalTime(provenance.approvedAt, language),
                 })
               : t('mindroomUi.messages.approvalReceipt.approvedWhenScheduledBy', {
                   approver: provenance.approvedBy,
                 })}
             <br />
             {t('mindroomUi.messages.approvalSchedule.scheduledFor', {
-              timestamp: new Date(provenance.scheduledFor).toLocaleString(language),
+              timestamp: formatApprovalTime(provenance.scheduledFor, language),
             })}
             <br />
-            {provenance.scope === 'any_arguments'
-              ? t('mindroomUi.messages.approvalSchedule.approvedAnyArguments')
-              : t('mindroomUi.messages.approvalSchedule.approvedExactArguments')}
+            {t(scheduledScopeLabelKey(provenance.scope))}
           </p>
         ) : provenance?.kind === 'timed_grant' ? (
           <p>

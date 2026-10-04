@@ -121,7 +121,7 @@ export function ApprovalDecisionControls({
               <Text size="T200">
                 {t('mindroomUi.messages.approvalDecisionControls.anyArgumentsWarning', {
                   tool: record.approval.toolName,
-                  minutes: Math.round((schedule?.windowSeconds ?? 900) / 60),
+                  minutes: (schedule?.windowSeconds ?? 0) / 60,
                 })}
               </Text>
             </div>

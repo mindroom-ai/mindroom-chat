@@ -322,8 +322,12 @@ const asSchedule = (content: Record<string, unknown>): ToolApprovalSchedule | nu
   return {
     taskId,
     scheduledFor,
+    // The approver is told the window in whole minutes, so only such a window is usable.
     windowSeconds:
-      typeof windowSeconds === 'number' && Number.isInteger(windowSeconds) && windowSeconds > 0
+      typeof windowSeconds === 'number' &&
+      Number.isInteger(windowSeconds) &&
+      windowSeconds > 0 &&
+      windowSeconds % 60 === 0
         ? windowSeconds
         : null,
     scopeOptions:

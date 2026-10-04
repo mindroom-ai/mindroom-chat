@@ -2,6 +2,7 @@ import { useTranslation } from 'react-i18next';
 import React from 'react';
 import { Text } from 'folds';
 import { ToolApprovalData } from './toolApproval';
+import { formatApprovalTime, scheduledScopeLabelKey } from './approvalScheduleText';
 import { useAppLanguageCode } from '../../hooks/useAppLanguageCode';
 
 // When a scheduled tool call will run, and which scope its requester approved.
@@ -14,15 +15,11 @@ export function ApprovalSchedule({ approval }: { approval: ToolApprovalData }) {
     <>
       <Text size="T200">
         {t('mindroomUi.messages.approvalSchedule.scheduledFor', {
-          timestamp: new Date(schedule.scheduledFor).toLocaleString(language),
+          timestamp: formatApprovalTime(schedule.scheduledFor, language),
         })}
       </Text>
       {schedule.approvedScope && (
-        <Text size="T200">
-          {schedule.approvedScope === 'any_arguments'
-            ? t('mindroomUi.messages.approvalSchedule.approvedAnyArguments')
-            : t('mindroomUi.messages.approvalSchedule.approvedExactArguments')}
-        </Text>
+        <Text size="T200">{t(scheduledScopeLabelKey(schedule.approvedScope))}</Text>
       )}
     </>
   );

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { createApprovalActions, getApprovalCapabilities } from './approvalActions';
 import { buildToolApprovalResponseContent, parseToolApprovalContent } from './toolApproval';
 import { ThreadApprovalRecord } from './threadApprovalModel';
+import { formatApprovalTime, scheduledScopeLabelKey } from './approvalScheduleText';
 
 const scheduledCard = (extra: Record<string, unknown> = {}) =>
   parseToolApprovalContent('io.mindroom.tool_approval', {
@@ -157,5 +158,41 @@ describe('scheduled tool-call approval cards', () => {
     expect(sent).toEqual([
       expect.objectContaining({ status: 'approved', scheduled_scope: 'any_arguments' }),
     ]);
+  });
+});
+
+describe('scheduled card edge cases', () => {
+  it('offers no broader scope when the card does not state a whole-minute window', () => {
+    for (const window of [undefined, 30, 0, 90.5]) {
+      const approval = scheduledCard({ scheduled_window_seconds: window });
+      expect(approval.schedule?.windowSeconds).toBeNull();
+      expect(
+        getApprovalCapabilities(record(approval), '@alice:example.org', undefined).scheduledScopes
+      ).toEqual([]);
+    }
+  });
+
+  it('never offers timed auto-approval on a scheduling card', () => {
+    const approval = scheduledCard({ auto_approve_options: [300, 600, 1800] });
+    expect(approval.autoApproveOptions).toEqual([300, 600, 1800]);
+    expect(
+      getApprovalCapabilities(record(approval), '@alice:example.org', undefined).durations
+    ).toEqual([]);
+  });
+
+  it('formats backend timestamps with sub-millisecond fractions', () => {
+    expect(formatApprovalTime('2026-10-04T13:00:00.123456+00:00', 'en')).toBe(
+      new Date(Date.UTC(2026, 9, 4, 13, 0, 0, 123)).toLocaleString('en')
+    );
+    expect(formatApprovalTime('not a time', 'en')).toBe('not a time');
+  });
+
+  it('labels each scope with one shared message', () => {
+    expect(scheduledScopeLabelKey('any_arguments')).toBe(
+      'mindroomUi.messages.approvalSchedule.approvedAnyArguments'
+    );
+    expect(scheduledScopeLabelKey('exact_arguments')).toBe(
+      'mindroomUi.messages.approvalSchedule.approvedExactArguments'
+    );
   });
 });

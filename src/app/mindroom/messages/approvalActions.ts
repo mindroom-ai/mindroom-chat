@@ -69,11 +69,13 @@ export const getApprovalCapabilities = (
     approve,
     deny,
     durations:
-      approve && originalApprover && record.approval.threadId
+      approve && originalApprover && record.approval.threadId && !record.approval.schedule
         ? record.approval.autoApproveOptions
         : [],
     scheduledScopes:
-      approve && originalApprover ? record.approval.schedule?.scopeOptions ?? [] : [],
+      approve && originalApprover && record.approval.schedule?.windowSeconds
+        ? record.approval.schedule.scopeOptions
+        : [],
     revoke:
       originalApprover &&
       !!record.approval.threadId &&
