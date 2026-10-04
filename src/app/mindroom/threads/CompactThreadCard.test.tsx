@@ -5,9 +5,9 @@ import { CompactThreadCard } from './CompactThreadCard';
 import type { CompactThreadCardViewModel } from './types';
 
 vi.mock('./CompactRoomView.css', () => ({
-  AttentionDot: vi.fn(() => 'AttentionDot'),
   Card: 'Card',
   CardResolved: 'CardResolved',
+  LeadingSlot: 'LeadingSlot',
   MessagePreview: 'MessagePreview',
   MessageRow: 'MessageRow',
   MessageText: 'MessageText',
@@ -15,17 +15,14 @@ vi.mock('./CompactRoomView.css', () => ({
   ParticipantAvatar: 'ParticipantAvatar',
   Participants: 'Participants',
   ScheduledIndicator: 'ScheduledIndicator',
-  ScreenReaderText: 'ScreenReaderText',
   StatBadge: 'StatBadge',
   Stats: 'Stats',
   StatusChip: 'StatusChip',
-  TouchResolutionByline: 'TouchResolutionByline',
+  ResolutionByline: 'ResolutionByline',
   TimeText: 'TimeText',
   TitleLead: 'TitleLead',
   TitleRow: 'TitleRow',
   TitleText: 'TitleText',
-  UnreadDot: 'UnreadDot',
-  UnreadWrap: 'UnreadWrap',
 }));
 
 vi.mock('./ThreadIndicator.css', () => ({
@@ -121,7 +118,32 @@ describe('CompactThreadCard', () => {
     renderer.unmount();
   });
 
-  it('reveals the resolver from the resolved status dot and accessible card label', () => {
+  it('marks only unread threads with a leading dot and no attention-state color', () => {
+    const readRenderer = create(
+      <CompactThreadCard
+        viewModel={makeViewModel({
+          attentionState: 'needs-attention',
+          attentionStatusText: 'Needs attention',
+        })}
+        onClick={vi.fn()}
+      />
+    );
+    expect(readRenderer.root.findAllByProps({ 'data-thread-unread-dot': 'true' })).toHaveLength(0);
+    expect(JSON.stringify(readRenderer.toJSON())).not.toContain('ThreadUnreadDot');
+    readRenderer.unmount();
+
+    const unreadRenderer = create(
+      <CompactThreadCard viewModel={makeViewModel({ isUnread: true })} onClick={vi.fn()} />
+    );
+    const dot = unreadRenderer.root.findByProps({ 'data-thread-unread-dot': 'true' });
+    const button = unreadRenderer.root.findByType('button');
+
+    expect(dot.props.title).toBe('Unread messages');
+    expect(button.props['aria-label']).toContain('Unread messages');
+    unreadRenderer.unmount();
+  });
+
+  it('keeps the attention state on the card for the accessible label and test hooks', () => {
     const viewModel = makeViewModel({
       attentionState: 'resolved',
       attentionStatusText: 'Resolved',
@@ -129,15 +151,15 @@ describe('CompactThreadCard', () => {
       resolvedByDisplayName: 'Alice',
     } as Partial<CompactThreadCardViewModel> & { resolvedByDisplayName: string });
     const renderer = create(<CompactThreadCard viewModel={viewModel} onClick={vi.fn()} />);
-    const resolvedDot = renderer.root.findByProps({ 'data-attention-state': 'resolved' });
+    const button = renderer.root.findByType('button');
 
-    expect(resolvedDot.props.title).toBe('Resolved by Alice');
-    expect(renderer.root.findByType('button').props['aria-label']).toContain('Resolved by Alice');
+    expect(button.props['data-attention-state']).toBe('resolved');
+    expect(button.props['aria-label']).toContain('Resolved by Alice');
 
     renderer.unmount();
   });
 
-  it('renders an explicit touch-layout resolver byline for resolved cards', () => {
+  it('renders an explicit resolver byline for resolved cards', () => {
     const viewModel = makeViewModel({
       attentionState: 'resolved',
       attentionStatusText: 'Resolved',
@@ -146,7 +168,7 @@ describe('CompactThreadCard', () => {
     } as Partial<CompactThreadCardViewModel> & { resolvedByDisplayName: string });
     const renderer = create(<CompactThreadCard viewModel={viewModel} onClick={vi.fn()} />);
     const resolverByline = renderer.root.findByProps({
-      'data-thread-resolution-touch-byline': 'true',
+      'data-compact-card-resolution-byline': 'true',
     });
 
     expect(resolverByline.findByType('span').children).toContain('Resolved by Alice');

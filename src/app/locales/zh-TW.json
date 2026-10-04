@@ -2733,8 +2733,6 @@
       "compactThreadCard": {
         "streaming": "串流回應",
         "unreadMessages": "未讀訊息",
-        "unread": "未讀",
-        "threadStatus": "討論串狀態：{{status}}",
         "lastActivity": "上次活動 {{time}}"
       },
       "mindroomCallChatView": {

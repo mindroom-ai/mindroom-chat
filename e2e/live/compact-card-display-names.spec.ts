@@ -106,10 +106,10 @@ test.describe('compact card display names', () => {
     await expect(page.locator('[data-compact-room-view="true"]')).toBeVisible({ timeout: 30_000 });
     await expect(threadCard).toBeVisible({ timeout: 30_000 });
     await expect(threadCard).toHaveAccessibleName(new RegExp(`Resolved by ${displayName}`));
-    await expect(threadCard.locator('[data-attention-state="resolved"]')).toHaveAttribute(
-      'title',
-      `Resolved by ${displayName}`
-    );
+    await expect(threadCard).toHaveAttribute('data-attention-state', 'resolved');
+    const cardResolverByline = threadCard.locator('[data-compact-card-resolution-byline="true"]');
+    await expect(cardResolverByline).toBeVisible();
+    await expect(cardResolverByline).toHaveText(`Resolved by ${displayName}`);
 
     if (process.env.E2E_EXPECT_RAW_MATRIX_ID === '1') {
       await expect(threadCard).toContainText(session.userId);
@@ -127,11 +127,8 @@ test.describe('compact card display names', () => {
     }
 
     await page.setViewportSize({ width: 390, height: 844 });
-    const compactResolverByline = threadCard.locator(
-      '[data-thread-resolution-touch-byline="true"]'
-    );
-    await expect(compactResolverByline).toBeVisible();
-    await expect(compactResolverByline).toHaveText(`Resolved by ${displayName}`);
+    await expect(cardResolverByline).toBeVisible();
+    await expect(cardResolverByline).toHaveText(`Resolved by ${displayName}`);
     if (screenshotVariant) {
       await threadCard.screenshot({
         path: `ui-audit/compact-card-touch-resolver-${screenshotVariant}.png`,

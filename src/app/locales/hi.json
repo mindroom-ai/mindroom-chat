@@ -1461,8 +1461,6 @@
       "compactThreadCard": {
         "lastActivity": "अंतिम गतिविधि {{time}}",
         "streaming": "स्ट्रीमिंग",
-        "threadStatus": "थ्रेड स्थिति: {{status}}",
-        "unread": "अपठित",
         "unreadMessages": "अपठित संदेश"
       },
       "compactThreadCardUtils": {

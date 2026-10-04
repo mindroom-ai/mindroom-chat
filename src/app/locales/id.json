@@ -2733,8 +2733,6 @@
       "compactThreadCard": {
         "streaming": "mengalir",
         "unreadMessages": "Pesan belum dibaca",
-        "unread": "belum dibaca",
-        "threadStatus": "Status utas: {{status}}",
         "lastActivity": "Aktivitas terakhir {{time}}"
       },
       "mindroomCallChatView": {

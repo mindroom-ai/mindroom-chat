@@ -84,7 +84,7 @@ test('clears thread dots through room mark-read and opening a thread', async ({ 
   await roomLink.click();
   const firstCard = page.locator(`[data-thread-root-id="${rootIds[0]}"]`);
   const secondCard = page.locator(`[data-thread-root-id="${rootIds[1]}"]`);
-  const dot = (card: typeof firstCard) => card.getByRole('img', { name: 'Unread messages' });
+  const dot = (card: typeof firstCard) => card.locator('[data-thread-unread-dot="true"]');
   await expect(firstCard).toBeVisible();
   await expect(secondCard).toBeVisible();
 

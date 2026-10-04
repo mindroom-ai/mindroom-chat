@@ -71,7 +71,7 @@ function CompactThreadCardBase({ viewModel, onClick }: CompactThreadCardProps) {
   ]
     .filter(Boolean)
     .join('. ');
-  const hasMetadata = participants.length > 0 || tags.length > 0 || isStreaming || isUnread;
+  const hasMetadata = participants.length > 0 || tags.length > 0 || isStreaming;
 
   return (
     <button
@@ -79,21 +79,23 @@ function CompactThreadCardBase({ viewModel, onClick }: CompactThreadCardProps) {
       type="button"
       onClick={() => onClick(id.threadRootId, primarySummaryText)}
       data-thread-root-id={id.threadRootId}
+      data-attention-state={attentionState}
       aria-label={ariaLabel}
     >
       <Box className={css.TitleRow}>
         <Box className={css.TitleLead}>
+          {/* Leading slot is reserved on every card so titles stay aligned;
+              it only fills in for unread threads, the inbox convention. */}
           <span
-            className={css.AttentionDot({ state: attentionState })}
-            data-attention-state={attentionState}
-            title={resolvedByLabel}
+            className={
+              isUnread
+                ? `${threadIndicatorCss.ThreadUnreadDot} ${css.LeadingSlot}`
+                : css.LeadingSlot
+            }
+            data-thread-unread-dot={isUnread ? 'true' : undefined}
+            title={isUnread ? t('mindroomUi.threads.compactThreadCard.unreadMessages') : undefined}
             aria-hidden="true"
           />
-          <span className={css.ScreenReaderText}>
-            {t('mindroomUi.threads.compactThreadCard.threadStatus', {
-              status: attentionStatusText,
-            })}
-          </span>
           <Text className={css.TitleText} size="B300" title={titleText}>
             {displayTitleText}
           </Text>
@@ -163,8 +165,8 @@ function CompactThreadCardBase({ viewModel, onClick }: CompactThreadCardProps) {
       {resolvedByLabel && (
         <Text
           as="span"
-          className={css.TouchResolutionByline}
-          data-thread-resolution-touch-byline="true"
+          className={css.ResolutionByline}
+          data-compact-card-resolution-byline="true"
           size="T200"
           priority="300"
           truncate
@@ -232,18 +234,6 @@ function CompactThreadCardBase({ viewModel, onClick }: CompactThreadCardProps) {
                 </Text>
               </Box>
             </Chip>
-          )}
-          {isUnread && (
-            <Box as="span" className={css.UnreadWrap} alignItems="Center" gap="100">
-              <span
-                className={`${threadIndicatorCss.ThreadUnreadDot} ${css.UnreadDot}`}
-                role="img"
-                aria-label={t('mindroomUi.threads.compactThreadCard.unreadMessages')}
-              />
-              <Text as="span" size="T200" priority="300">
-                {t('mindroomUi.threads.compactThreadCard.unread')}
-              </Text>
-            </Box>
           )}
         </Box>
       )}
