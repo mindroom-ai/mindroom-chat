@@ -30,7 +30,7 @@
   Only listed errors are remembered, so a page throwing endlessly costs at most five lines between reports.
   Nothing is sent until the user chooses it; the report is an ordinary mention in the canvas's conversation, `<agent> Canvas error (<canvas>, revision <revision>):` followed by one error per line (`buildCanvasErrorContent`, which shares the mention and reply with answers through `toCanvasAgent`).
   The panel follows the report's local echo: "Sending…", then "Sent", or the usual Retry/Delete when it fails; a deleted report is offered again.
-  One report at a time, as with answers: new errors are dropped while a report is sending or failed.
+  One report at a time, as with answers: while a report is sending or failed, new errors keep collecting and **Tell** waits; a deleted report's errors return to the list.
   An error already sent is not offered again for the same page; a new page starts empty.
   Error reports bypass the answer throttle and never stage an answer or hold back an update.
 - `window.mindroom.colorScheme` is `light` or `dark`, the scheme the page was shown in, for choices the theme variables cannot make (chart palettes).

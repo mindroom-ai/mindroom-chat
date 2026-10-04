@@ -689,14 +689,29 @@ describe('CanvasPanel', () => {
     await refuse();
     expect(container.textContent).toContain('Could not send the errors to Planner.');
     expect(container.textContent).not.toContain('Sent the errors');
-    // A new error waits while the report is unresolved, so its Retry and Delete stay.
+    // A new error is kept while the report is unresolved; its Retry and Delete stay, Tell waits.
     await reportError('RangeError: later');
     expect(container.textContent).toContain('Could not send the errors to Planner.');
-    expect(container.textContent).not.toContain('RangeError: later');
+    expect(container.textContent).toContain('RangeError: later');
+    expect(reportButton().disabled).toBe(true);
     await act(async () => buttonNamed('Delete')?.click());
-    expect(container.textContent).toContain('This page reported an error.');
-    expect(container.textContent).toContain('TypeError: boom');
-    expect(reportButton()).not.toBeNull();
+    expect(container.textContent).not.toContain('Could not send');
+    expect(container.textContent).toContain('TypeError: boom\nRangeError: later');
+    expect(reportButton().disabled).toBe(false);
+  });
+
+  it('keeps an error that arrives while a report is sending, for the next report', async () => {
+    render();
+    await reportError('TypeError: first');
+    await act(async () => reportButton().click());
+    await reportError('TypeError: second');
+    expect(reportButton().disabled).toBe(true);
+    await accept();
+    expect(container.textContent).toContain('Sent the errors to Planner.');
+    await act(async () => reportButton().click());
+    expect((sendMessage.mock.calls[1][1] as { body: string }).body).toBe(
+      `${AGENT} Canvas error ($canvas, revision $canvas):\nTypeError: second`
+    );
   });
 
   it('takes error reports only from the canvas, keeps five, and forgets them on a new page', async () => {

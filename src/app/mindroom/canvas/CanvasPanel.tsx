@@ -89,8 +89,8 @@ type SentAnswer = { echo: MatrixEvent; label: string };
 type AnswerState = 'sending' | 'sent' | 'failed' | 'cancelled';
 
 /** Errors the page reported that the user has not sent yet, or the last ones they sent. */
-type PageErrors = { errors: string[]; sent: boolean; report?: MatrixEvent };
-const NO_PAGE_ERRORS: PageErrors = { errors: [], sent: false };
+type PageErrors = { errors: string[]; report?: { echo?: MatrixEvent; errors: string[] } };
+const NO_PAGE_ERRORS: PageErrors = { errors: [] };
 // Enough to say what went wrong; a page cannot fill the report.
 const MAX_PAGE_ERRORS = 5;
 
@@ -259,21 +259,10 @@ export function CanvasPanel({
       const error = readCanvasError(event, frame);
       if (error !== undefined) {
         const listed = pageErrorsNow.current;
-        // One report at a time, as with answers: errors are dropped while a report is sending or failed.
-        const unresolved =
-          !!listed.report && ['sending', 'failed'].includes(answerState(listed.report.status));
         // Only listed errors are remembered, so a page throwing endlessly stores five at a time.
-        if (
-          seenErrors.current.has(error) ||
-          unresolved ||
-          (!listed.sent && listed.errors.length >= MAX_PAGE_ERRORS)
-        ) {
-          return;
-        }
+        if (seenErrors.current.has(error) || listed.errors.length >= MAX_PAGE_ERRORS) return;
         seenErrors.current.add(error);
-        const next = listed.sent
-          ? { errors: [error], sent: false }
-          : { errors: [...listed.errors, error], sent: false };
+        const next = { ...listed, errors: [...listed.errors, error] };
         pageErrorsNow.current = next;
         setPageErrors(next);
         return;
@@ -396,9 +385,24 @@ export function CanvasPanel({
       });
   }, [agentName, busy, deliver, displayed, mx, room, staged, t]);
 
+  const reportStatus = useLocalEchoStatus(pageErrors.report?.echo);
+  const reportState =
+    pageErrors.report?.echo && reportStatus !== undefined ? answerState(reportStatus) : undefined;
+  // One report at a time, as with answers; new errors keep collecting meanwhile.
+  const reportOpen = reportState === 'sending' || reportState === 'failed';
+  useEffect(() => {
+    // A report the user deleted after it failed was never sent, so its errors are offered again.
+    if (reportState === 'cancelled') {
+      setPageErrors((current) => ({
+        errors: [...(current.report?.errors ?? []), ...current.errors],
+      }));
+    }
+  }, [reportState]);
+
   // The user sees the errors before choosing to send them, as with an answer.
   const handleReport = useCallback(() => {
-    if (pageErrors.sent || pageErrors.errors.length === 0) return;
+    if (reportOpen || pageErrors.errors.length === 0) return;
+    const sent = pageErrors.errors;
     const content = buildCanvasErrorContent(
       {
         eventId: displayed.eventId,
@@ -407,7 +411,7 @@ export function CanvasPanel({
         agentName,
         threadId: displayed.threadId,
       },
-      pageErrors.errors
+      sent
     );
     const txnId = mx.makeTxnId();
     try {
@@ -416,19 +420,12 @@ export function CanvasPanel({
     } catch {
       return;
     }
-    const report = room.getEventForTxnId(txnId) ?? undefined;
-    setPageErrors((current) => ({ ...current, sent: true, report }));
-  }, [agentName, displayed, mx, pageErrors, room]);
-
-  const reportStatus = useLocalEchoStatus(pageErrors.report);
-  const reportState =
-    pageErrors.report && reportStatus !== undefined ? answerState(reportStatus) : undefined;
-  useEffect(() => {
-    // A report the user deleted after it failed was never sent, so it is offered again.
-    if (reportState === 'cancelled') {
-      setPageErrors((current) => ({ ...current, sent: false, report: undefined }));
-    }
-  }, [reportState]);
+    const echo = room.getEventForTxnId(txnId) ?? undefined;
+    setPageErrors((current) => ({
+      errors: current.errors.filter((error) => !sent.includes(error)),
+      report: { echo, errors: sent },
+    }));
+  }, [agentName, displayed, mx, pageErrors, reportOpen, room]);
 
   const handleDiscard = useCallback(() => {
     // Discarding the answer being uploaded cancels it; a newer snapshot leaves that upload alone.
@@ -543,34 +540,38 @@ export function CanvasPanel({
         </div>
       )}
 
-      {pageErrors.errors.length > 0 && (
+      {(pageErrors.errors.length > 0 || pageErrors.report) && (
         <div
           className={css.Notice}
-          role={pageErrors.sent && reportState !== 'failed' ? 'status' : 'alert'}
+          role={pageErrors.errors.length > 0 || reportState === 'failed' ? 'alert' : 'status'}
         >
           <div className={css.Staged}>
-            {pageErrors.sent && reportState === 'failed' && pageErrors.report ? (
-              <FailedSendActions
-                room={room}
-                event={pageErrors.report}
-                message={t('mindroomUi.canvas.errorsNotSent', { agent: agentName })}
-              />
-            ) : (
-              <Text size="T300">
-                {!pageErrors.sent && t('mindroomUi.canvas.pageError')}
-                {pageErrors.sent &&
-                  reportState === 'sending' &&
-                  t('mindroomUi.canvas.sending', { agent: agentName })}
-                {pageErrors.sent &&
-                  reportState !== 'sending' &&
-                  t('mindroomUi.canvas.errorsSent', { agent: agentName })}
-              </Text>
-            )}
-            {!pageErrors.sent && (
+            {pageErrors.report &&
+              (reportState === 'failed' && pageErrors.report.echo ? (
+                <FailedSendActions
+                  room={room}
+                  event={pageErrors.report.echo}
+                  message={t('mindroomUi.canvas.errorsNotSent', { agent: agentName })}
+                />
+              ) : (
+                <Text size="T300">
+                  {reportState === 'sending'
+                    ? t('mindroomUi.canvas.sending', { agent: agentName })
+                    : t('mindroomUi.canvas.errorsSent', { agent: agentName })}
+                </Text>
+              ))}
+            {pageErrors.errors.length > 0 && (
               <>
+                <Text size="T300">{t('mindroomUi.canvas.pageError')}</Text>
                 <pre className={css.Data}>{pageErrors.errors.join('\n')}</pre>
                 <Box>
-                  <Button size="300" variant="Secondary" onClick={handleReport} data-canvas-report>
+                  <Button
+                    size="300"
+                    variant="Secondary"
+                    disabled={reportOpen}
+                    onClick={handleReport}
+                    data-canvas-report
+                  >
                     <Text size="B300" truncate>
                       {t('mindroomUi.canvas.tellAgent', { agent: agentName })}
                     </Text>
