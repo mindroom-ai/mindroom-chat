@@ -97,7 +97,9 @@ const bridgeScript = (colorScheme: CanvasColorScheme, lineOffset: number): strin
   const blocked = new Set();
   addEventListener('error', (event) => {
     const target = event.target;
-    const url = target && target !== window && (target.src || target.href);
+    // An SVG image's href is an object holding the address in baseVal.
+    const href = target && typeof target.href === 'object' && target.href ? target.href.baseVal : target && target.href;
+    const url = target && target !== window && (target.src || href);
     if (url) {
       // A load the policy blocked fails too; it is reported once, as blocked.
       setTimeout(() => {

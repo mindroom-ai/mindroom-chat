@@ -688,8 +688,13 @@ describe('CanvasPanel', () => {
     await refuse();
     expect(container.textContent).toContain('Could not send the errors to Planner.');
     expect(container.textContent).not.toContain('Sent the errors');
+    // A new error waits while the report is unresolved, so its Retry and Delete stay.
+    await reportError('RangeError: later');
+    expect(container.textContent).toContain('Could not send the errors to Planner.');
+    expect(container.textContent).not.toContain('RangeError: later');
     await act(async () => buttonNamed('Delete')?.click());
     expect(container.textContent).toContain('This page reported an error.');
+    expect(container.textContent).toContain('TypeError: boom');
     expect(reportButton()).not.toBeNull();
   });
 
@@ -702,6 +707,7 @@ describe('CanvasPanel', () => {
     expect(container.textContent).not.toContain('Error 6');
     // An error the full list dropped was never shown, so it can still be offered after a report.
     await act(async () => reportButton().click());
+    await accept();
     await reportError('Error 6');
     expect(container.textContent).toContain('Error 6');
     expect(reportButton()).not.toBeNull();
