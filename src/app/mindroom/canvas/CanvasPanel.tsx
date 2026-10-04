@@ -1,18 +1,5 @@
-import React, {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  useSyncExternalStore,
-} from 'react';
-import {
-  EventStatus,
-  MatrixEventEvent,
-  type MatrixClient,
-  type MatrixEvent,
-  type Room,
-} from 'matrix-js-sdk';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { EventStatus, type MatrixClient, type MatrixEvent, type Room } from 'matrix-js-sdk';
 import { Box, Button, Icon, IconButton, Icons, type IconSrc, Text } from 'folds';
 import { useTranslation } from 'react-i18next';
 import {
@@ -30,6 +17,7 @@ import {
 } from './canvasMessages';
 import type { CanvasTheme } from './canvasTheme';
 import { FailedSendActions } from '../messages/FailedSendActions';
+import { useLocalEchoStatus } from '../messages/useLocalEchoStatus';
 import * as css from './CanvasPanel.css';
 
 /** A new snapshot cannot be sent by a click that was already on its way. */
@@ -102,20 +90,6 @@ const answerState = (status: EventStatus | null): AnswerState => {
 const isUnresolved = (answer?: SentAnswer): boolean => {
   const state = answer && answerState(answer.echo.status);
   return state === 'sending' || state === 'failed';
-};
-
-/** The local echo's status, read on every SDK status change of that object. */
-const useEchoStatus = (echo?: MatrixEvent): EventStatus | null | undefined => {
-  const subscribe = useCallback(
-    (onChange: () => void) => {
-      echo?.on(MatrixEventEvent.Status, onChange);
-      return () => {
-        echo?.off(MatrixEventEvent.Status, onChange);
-      };
-    },
-    [echo]
-  );
-  return useSyncExternalStore(subscribe, () => (echo ? echo.status : undefined));
 };
 
 /** Hash a document so a changed canvas remounts its frame and drops stale script state. */
@@ -272,7 +246,7 @@ export function CanvasPanel({
     return () => window.clearTimeout(timer);
   }, [stagedSubmission]);
 
-  const answerStatus = useEchoStatus(lastAnswer?.echo);
+  const answerStatus = useLocalEchoStatus(lastAnswer?.echo);
   const answer = lastAnswer && answerStatus !== undefined ? answerState(answerStatus) : undefined;
   const answerOpen = answer === 'sending' || answer === 'failed';
 
@@ -467,14 +441,18 @@ export function CanvasPanel({
             />
           ) : (
             <Text size="T200" priority="300" className={sendError ? css.Error : undefined}>
-              {answer === 'sending' && t('mindroomUi.canvas.sending', { agent: agentName })}
-              {answer === 'sent' &&
+              {/* A refused send happens only while no answer is open, so it takes priority. */}
+              {sendError && t('mindroomUi.canvas.sendFailed')}
+              {!sendError &&
+                answer === 'sending' &&
+                t('mindroomUi.canvas.sending', { agent: agentName })}
+              {!sendError &&
+                answer === 'sent' &&
                 lastAnswer &&
                 t('mindroomUi.canvas.sent', { agent: agentName, label: lastAnswer.label })}
-              {(answer === undefined || answer === 'cancelled') &&
-                (sendError
-                  ? t('mindroomUi.canvas.sendFailed')
-                  : t('mindroomUi.canvas.disclosure', { agent: agentName }))}
+              {!sendError &&
+                (answer === undefined || answer === 'cancelled') &&
+                t('mindroomUi.canvas.disclosure', { agent: agentName })}
             </Text>
           )}
         </div>

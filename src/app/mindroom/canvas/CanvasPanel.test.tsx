@@ -393,7 +393,7 @@ describe('CanvasPanel', () => {
     expect(status()).toContain('what you enter here may leave this panel');
   });
 
-  it('shows a failure that happened before the panel subscribed', async () => {
+  it('shows a failure the server returns at once', async () => {
     vi.mocked(mx.http.authedRequest).mockImplementationOnce(() =>
       Promise.reject(new MatrixError({ errcode: 'M_FORBIDDEN', error: 'No' }, 403))
     );
@@ -420,6 +420,13 @@ describe('CanvasPanel', () => {
     expect(sendMessage).toHaveBeenCalledTimes(2);
     await accept();
     expect(status()).toContain('Sent to Planner: two');
+    // A sent answer leaves the panel free for the next one on the same page.
+    await act(async () => {
+      vi.advanceTimersByTime(100);
+    });
+    await post(submit('three'));
+    await arm();
+    expect(button('[data-canvas-send]').disabled).toBe(false);
   });
 
   it("keeps a failed answer's Retry and Delete across a new page", async () => {
@@ -451,6 +458,22 @@ describe('CanvasPanel', () => {
     expect(container.textContent).toContain('Planner updated this panel.');
     expect(button('[data-canvas-send]')).toBeNull();
     expect(status()).toContain('Not sent to Planner: Pro plan');
+  });
+
+  it('reports a refused send rather than the previous answer', async () => {
+    render();
+    await answer('one');
+    await accept();
+    sendMessage.mockImplementationOnce(() => {
+      throw new Error('Room is not known');
+    });
+    await act(async () => {
+      vi.advanceTimersByTime(100);
+    });
+    await answer('two');
+    expect(status()).toContain('Could not send your response');
+    expect(status()).not.toContain('Sent to Planner: one');
+    expect(container.textContent).toContain('Send to Planner: two');
   });
 
   it('keeps the snapshot when the SDK refuses the send outright', async () => {
