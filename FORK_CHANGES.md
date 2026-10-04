@@ -21,6 +21,7 @@
     The fixture check now asserts the frosted material instead of transparency.
     Every navigation header also ended 8 px short of its viewport: folds' size-300 `Scroll` pads its inline end for an overlay scrollbar whenever the native one measures 0 px, which the hidden-scrollbar navigation viewport always does, so a strip of the list or modal showed beside the header (#296 had hidden it with transparency).
     The header now spans that padding and adds it to its own end padding, so its contents stay put; the live header check asserts the header spans the viewport's full width.
+    Lobby and Explore page headers had the same 16 px gap from folds' default `Scroll` and get the same treatment through a variable that `PageScrollHeader` sets for `PageHeader`.
   - Rows that first mount at rest are re-read in the existing pre-paint microtask (closes the rows-mounted-at-rest item under "Not covered" in the 2026-10-03 fast-scroll entry).
     virtual-core measured the thread root in its ref before `CollapsibleMessage` dropped its first-pass pill (78 instead of 68 px), the row unmounted before ResizeObserver reported it, and a later remount during a scroll reused the stale size, leaving a 10 px gap for a frame.
 - Test and tooling fixes (each verified to still fail on the defect it guards where one exists):
