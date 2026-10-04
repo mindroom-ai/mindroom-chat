@@ -2491,6 +2491,12 @@
         "copyTextWithToolCalls": "도구 호출 포함 텍스트 복사",
         "copyLink": "링크 복사"
       },
+      "bugReport": {
+        "report": "버그 신고",
+        "download": "버그 보고서 다운로드",
+        "sending": "보고서 전송 중…",
+        "failed": "보고서를 보내지 못했습니다. 다시 시도해 주세요."
+      },
       "messageInspectionActions": {
         "readReceipts": "읽음 확인",
         "viewSource": "소스 보기"

@@ -2619,6 +2619,12 @@
         "copyTextWithToolCalls": "نسخ النص مع استدعاءات الأدوات",
         "copyLink": "نسخ الرابط"
       },
+      "bugReport": {
+        "report": "الإبلاغ عن خطأ",
+        "download": "تنزيل تقرير الخطأ",
+        "sending": "جارٍ إرسال التقرير…",
+        "failed": "تعذّر إرسال التقرير. حاول مرة أخرى."
+      },
       "messageInspectionActions": {
         "readReceipts": "إيصالات القراءة",
         "viewSource": "عرض المصدر"

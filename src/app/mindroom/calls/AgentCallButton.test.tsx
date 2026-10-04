@@ -22,8 +22,9 @@ vi.mock('./agentCall', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./agentCall')>()),
   createAgentVoiceRoom: mocks.createAgentVoiceRoom,
   cleanupCreatedAgentCall: mocks.cleanupCreatedAgentCall,
-  waitForJoinedRoom: mocks.waitForJoinedRoom,
 }));
+
+vi.mock('../matrix/waitForJoinedRoom', () => ({ waitForJoinedRoom: mocks.waitForJoinedRoom }));
 
 vi.mock('../voice/microphoneAccess', () => ({
   requestMicrophoneAccess: mocks.requestMicrophoneAccess,

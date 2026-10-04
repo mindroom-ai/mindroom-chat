@@ -35,7 +35,11 @@ vi.mock('./nativeDiagnostics', () => ({
   readNativeDiagnostics: mocks.readNativeDiagnostics,
 }));
 
-import { buildDiagnosticsExport } from './diagnosticsExport';
+import {
+  DIAGNOSTICS_EXPORT_SCHEMA_VERSION,
+  buildDiagnosticsExport,
+  buildDiagnosticsPayload,
+} from './diagnosticsExport';
 
 describe('combined diagnostics export', () => {
   beforeEach(() => {
@@ -299,4 +303,10 @@ describe('combined diagnostics export', () => {
       expect(vi.getTimerCount()).toBe(0);
     }
   );
+
+  it('builds the same payload object without serialising it', async () => {
+    const payload = await buildDiagnosticsPayload(1_784_513_628_415);
+    expect(payload.metadata.exportSchemaVersion).toBe(DIAGNOSTICS_EXPORT_SCHEMA_VERSION);
+    expect(JSON.parse(await (await buildDiagnosticsExport()).blob.text())).toEqual(payload);
+  });
 });

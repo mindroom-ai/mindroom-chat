@@ -2491,6 +2491,12 @@
         "copyTextWithToolCalls": "Copy Text with Tool Calls",
         "copyLink": "Copy Link"
       },
+      "bugReport": {
+        "report": "Report a bug",
+        "download": "Download bug report",
+        "sending": "Sending report…",
+        "failed": "Couldn't send the report. Try again."
+      },
       "messageInspectionActions": {
         "readReceipts": "Read Receipts",
         "viewSource": "View Source"

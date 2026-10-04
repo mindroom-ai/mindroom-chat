@@ -1,11 +1,10 @@
-import { ClientEvent, Room } from 'matrix-js-sdk';
+import { Room } from 'matrix-js-sdk';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { StateEvent } from '../../../types/matrix/room';
 import {
   cleanupMindroomAgentCall,
   createAgentVoiceRoom,
   hasMindroomVoiceCallsPresence,
-  waitForJoinedRoom,
 } from './agentCall';
 
 const createRoom = vi.fn();
@@ -17,9 +16,6 @@ const mx = {
   createRoom,
   getSafeUserId: () => '@alice:mindroom.test',
   getUserId: () => '@alice:mindroom.test',
-  getRoom: vi.fn(),
-  on: vi.fn(),
-  removeListener: vi.fn(),
   kick,
   leave,
   forget,
@@ -111,20 +107,6 @@ describe('MindRoom agent calls', () => {
     expect(hasMindroomVoiceCallsPresence('🤖 Model: openai/gpt-5.5 | 📞 Voice calls')).toBe(true);
     expect(hasMindroomVoiceCallsPresence('💼 Discusses voice calls')).toBe(false);
     expect(hasMindroomVoiceCallsPresence(undefined)).toBe(false);
-  });
-
-  it('waits for the created room to arrive through sync', async () => {
-    mx.getRoom.mockReturnValue(null);
-    const pending = waitForJoinedRoom(mx, '!call:mindroom.test', 1_000);
-    const listener = mx.on.mock.calls.find(
-      ([event]: [ClientEvent]) => event === ClientEvent.Room
-    )?.[1];
-    const room = ephemeralRoom();
-
-    listener(room);
-
-    await expect(pending).resolves.toBe(room);
-    expect(mx.removeListener).toHaveBeenCalledWith(ClientEvent.Room, listener);
   });
 
   it('kicks the agent, leaves, and forgets a creator-owned ephemeral room', async () => {

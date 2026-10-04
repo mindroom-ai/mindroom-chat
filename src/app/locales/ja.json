@@ -2491,6 +2491,12 @@
         "copyTextWithToolCalls": "ツール呼び出しを含めてテキストをコピーする",
         "copyLink": "リンクをコピー"
       },
+      "bugReport": {
+        "report": "バグを報告",
+        "download": "バグレポートをダウンロード",
+        "sending": "レポートを送信中…",
+        "failed": "レポートを送信できませんでした。もう一度お試しください。"
+      },
       "messageInspectionActions": {
         "readReceipts": "既読通知",
         "viewSource": "ソースを見る"

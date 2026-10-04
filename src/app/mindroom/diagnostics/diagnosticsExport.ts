@@ -64,8 +64,7 @@ const collectNativeDiagnostics = () =>
     createEmptyNativeDiagnosticsSnapshot('timeout')
   );
 
-export const buildDiagnosticsExport = async (): Promise<{ fileName: string; blob: Blob }> => {
-  const exportedAt = Date.now();
+export const buildDiagnosticsPayload = async (exportedAt: number) => {
   let flightRecorderPayload: ReturnType<typeof buildFlightRecorderPayload>;
   let flightRecorderStatus: 'available' | 'unavailable' = 'available';
 
@@ -94,7 +93,7 @@ export const buildDiagnosticsExport = async (): Promise<{ fileName: string; blob
   ]);
   const deepTraceHealth = getDeepTraceHealthSnapshot();
 
-  const payload = {
+  return {
     ...flightRecorderPayload,
     flightRecorderStatus,
     metadata: {
@@ -110,6 +109,13 @@ export const buildDiagnosticsExport = async (): Promise<{ fileName: string; blob
     deepTraceHealth,
     nativeDiagnostics,
   };
+};
+
+export type DiagnosticsPayload = Awaited<ReturnType<typeof buildDiagnosticsPayload>>;
+
+export const buildDiagnosticsExport = async (): Promise<{ fileName: string; blob: Blob }> => {
+  const exportedAt = Date.now();
+  const payload = await buildDiagnosticsPayload(exportedAt);
   const timestamp = new Date(exportedAt).toISOString().replace(/[:.]/g, '-');
   return {
     fileName: `mindroom-diagnostics-${timestamp}.json`,

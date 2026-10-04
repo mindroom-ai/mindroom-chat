@@ -1236,6 +1236,12 @@
         "copyTextWithToolCalls": "টুল কলসহ টেক্সট কপি করুন",
         "copyTextLoading": "টেক্সট কপি করুন (লোড হচ্ছে...)"
       },
+      "bugReport": {
+        "report": "বাগ রিপোর্ট করুন",
+        "download": "বাগ রিপোর্ট ডাউনলোড করুন",
+        "sending": "রিপোর্ট পাঠানো হচ্ছে…",
+        "failed": "রিপোর্ট পাঠানো যায়নি। আবার চেষ্টা করুন।"
+      },
       "messageInspectionActions": {
         "readReceipts": "পড়ার সূচক",
         "viewSource": "উৎস দেখুন"

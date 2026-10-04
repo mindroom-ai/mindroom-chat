@@ -2491,6 +2491,12 @@
         "copyTextWithToolCalls": "Metni araç çağrılarıyla kopyala",
         "copyLink": "Bağlantıyı kopyala"
       },
+      "bugReport": {
+        "report": "Hata bildir",
+        "download": "Hata raporunu indir",
+        "sending": "Rapor gönderiliyor…",
+        "failed": "Rapor gönderilemedi. Tekrar deneyin."
+      },
       "messageInspectionActions": {
         "readReceipts": "Okundu bilgileri",
         "viewSource": "Kaynağı görüntüle"
