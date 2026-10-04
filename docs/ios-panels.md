@@ -6,9 +6,12 @@ The app reads `capacitor://localhost/config.json` from its bundle on each launch
 It does not fetch the web deployment's configuration.
 
 `config.mindroom.ios.json` overlays the ordinary `config.mindroom.json` for this hosted iOS build.
-It enables canvases and jsDelivr npm libraries and selects `https://mindroom.lab.mindroom.chat` for computers, which already accepts the hosted web Chat origin.
-Only agents managed by that computer service can open computers there.
-Operators can select a different service with `MINDROOM_IOS_COMPUTER_API_URL=https://computer.example.org npm run build:ios`, or disable computers by setting the variable to an empty string.
+It enables canvases and jsDelivr npm libraries; computers remain disabled until a compatible service is deployed.
+Only agents managed by the configured computer service can open computers there.
+After deploying [the native-origin backend change](https://github.com/mindroom-ai/mindroom/pull/2680) and updating its allowlist, set `MINDROOM_IOS_COMPUTER_API_URL=https://mindroom.lab.mindroom.chat` in the build environment to enable the lab service.
+The hosted Matrix/provisioning origin has no computers endpoint; the lab service currently rejects native origins.
+For Xcode Cloud, set the variable in the workflow environment before building.
+Operators can select another compatible service with this variable, or disable computers by setting it to an empty string.
 Change the overlay's canvas switches to disable canvases or library loading.
 Ordinary web builds retain their existing defaults and runtime deployment switches.
 

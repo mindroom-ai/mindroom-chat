@@ -9,15 +9,14 @@ const settings = JSON.parse(
 );
 
 describe('bundled iOS client config', () => {
-  it('enables canvases and libraries and configures the hosted computer API only in iOS builds', () => {
+  it('enables canvases and libraries in iOS and keeps computers opt-in until deployment', () => {
     const base = JSON.parse(source);
     const ios = JSON.parse(iosClientConfig(source, settings));
     expect(base.mindroom.canvas).toEqual({ enabled: false, libraries: false });
     expect(base.mindroom.computers.apiUrl).toBe('');
     expect(ios.mindroom.canvas).toEqual({ enabled: true, libraries: true });
-    expect(resolveComputerApiUrl(ios.mindroom.computers.apiUrl)).toBe(
-      'https://mindroom.lab.mindroom.chat'
-    );
+    expect(ios.mindroom.computers.apiUrl).toBe('');
+    expect(resolveComputerApiUrl(ios.mindroom.computers.apiUrl)).toBeUndefined();
     expect({
       ...ios,
       mindroom: { ...ios.mindroom, canvas: undefined, computers: undefined },
@@ -28,6 +27,10 @@ describe('bundled iOS client config', () => {
   });
 
   it('lets operators select or disable the computer service without modifying shared config', () => {
+    const lab = JSON.parse(iosClientConfig(source, settings, 'https://mindroom.lab.mindroom.chat'));
+    expect(resolveComputerApiUrl(lab.mindroom.computers.apiUrl)).toBe(
+      'https://mindroom.lab.mindroom.chat'
+    );
     expect(
       JSON.parse(iosClientConfig(source, settings, 'https://computer.example.org')).mindroom
         .computers.apiUrl

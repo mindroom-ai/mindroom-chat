@@ -10,7 +10,7 @@
   A native main-document page-commit hook preserves Android viewport inset handling.
 - Configuration: Vite copies `config.mindroom.json` into `dist/config.json`, which Capacitor bundles locally; the app does not fetch chat.mindroom.chat's configuration.
   The ordinary build still disables canvases and has no computer API URL.
-  `npm run build:ios` overlays `config.mindroom.ios.json`: canvases and npm libraries enabled, computer API `https://mindroom.lab.mindroom.chat`; an explicit empty or alternative `MINDROOM_IOS_COMPUTER_API_URL` overrides it.
+  `npm run build:ios` overlays `config.mindroom.ios.json`: canvases and npm libraries enabled; computers stay off until `MINDROOM_IOS_COMPUTER_API_URL` selects a deployed compatible service.
   Xcode Cloud, Fastlane, phone builds, and native build documentation use the iOS build.
   Native startup reads the bundled asset before mounting the router, so an older cached config cannot hide the new switches on the first launch after upgrading.
   The native canvas gate and obsolete locale string are removed; runtime deployment switches and the existing call exclusion remain.
@@ -26,7 +26,10 @@
 - Computer investigation: the lab backend accepts `https://chat.mindroom.chat` but returns HTTP 400 for native preflight; the production Matrix/provisioning origin has no computers endpoint.
   The companion backend change accepts only the exact `capacitor://localhost` literal, retains fail-closed allowlists, and tests native CORS, OpenID/bearer/tickets, WSS input, control and release.
   Operators still need to add the native literal to the computer service's deployment allowlist.
-- Next: finish browser/CI validation, capture native evidence when a configured simulator is available, and open linked ready PRs without merging.
+- AI review confirmed the lab service must not be bundled as an active default before backend rollout.
+  The iOS computer setting is opt-in; deploy backend PR #2680, update the allowlist, then configure the iOS build environment.
+- Ready PRs: [Chat #384](https://github.com/mindroom-ai/mindroom-chat/pull/384) and [backend #2680](https://github.com/mindroom-ai/mindroom/pull/2680); neither is merged.
+  Next: finish browser/CI validation and capture native evidence when a configured simulator is available.
 
 
 ### Let users switch between a canvas's versions (2026-10-04)
