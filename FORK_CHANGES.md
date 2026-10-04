@@ -8,7 +8,7 @@
 - The leading slot now shows the existing primary-colored unread dot only on unread threads, the inbox convention, and is reserved on read cards so titles stay aligned. The separate "unread" label in the metadata row is gone.
 - The "Resolved by" byline now shows on every layout instead of only touch layouts, since the hover title on the old dot was the only desktop place it appeared. Resolved cards keep their green card styling.
 - `data-attention-state` moved to the card button as a non-visual hook; the attention state still feeds the card's accessible label. The unused `compactThreadCard.unread` and `compactThreadCard.threadStatus` strings were removed from every locale.
-- Validation: unit tests, typecheck, build and lint pass; before and after screenshots (390 px and desktop) were taken against a disposable Tuwunel with one unread, one read, one waiting and one resolved thread. The three edited live specs were not rerun.
+- Validation: unit tests, typecheck, build and lint pass; before and after screenshots (390 px and desktop) were taken against a disposable Tuwunel with one unread, one read, one waiting and one resolved thread. Live `compact-card-display-names` and `thread-unread-receipts` pass on Chromium; `perf-large-room-streaming` (only its selector changed) was not rerun.
 
 ### Show a pinned thread as a solid pin in the thread bar (2026-10-04)
 
