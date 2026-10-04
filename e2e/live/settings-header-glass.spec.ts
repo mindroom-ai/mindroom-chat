@@ -33,6 +33,7 @@ for (const themeId of ['dark-theme', 'silver-theme']) {
             useSystemTheme: false,
             themeId: theme,
             isPeopleDrawer: false,
+            dateFormatString: '',
           })
         );
       }, themeId);
@@ -60,10 +61,10 @@ for (const themeId of ['dark-theme', 'silver-theme']) {
         if (!overlaysContent) return;
         await expectFloatingNavHeader(header);
         const bounds = (await header.boundingBox())!;
-        const idle = await page.screenshot({ clip: bounds });
+        const idle = await page.screenshot({ clip: bounds, animations: 'disabled' });
         await page.mouse.move(bounds.x + 4, bounds.y + 4);
         expect(
-          (await page.screenshot({ clip: bounds })).equals(idle),
+          (await page.screenshot({ clip: bounds, animations: 'disabled' })).equals(idle),
           `${name}: no hover glow`
         ).toBe(true);
         if (name === 'account') {
@@ -87,6 +88,28 @@ for (const themeId of ['dark-theme', 'silver-theme']) {
           .locator('header')
           .filter({ has: page.getByText(name, { exact: true }) });
         await checkHeader(header, name.toLowerCase().replaceAll(/[^a-z]+/g, '-'));
+        if (name === 'General') {
+          await page.setViewportSize({ width: 390, height: 620 });
+          await page
+            .locator('form:has(input[name="customDateFormatInput"]) button[aria-pressed]')
+            .click();
+          const hints = page
+            .locator('header')
+            .filter({ has: page.getByText('Formatting', { exact: true }) });
+          const hintScroll = await expectFloatingNavHeader(hints);
+          await hintScroll.evaluate((element) => {
+            element.scrollTop = 180;
+          });
+          await expectFloatingNavHeader(hints);
+          await page.screenshot({
+            path: testInfo.outputPath('date-format-hints.png'),
+            scale: 'css',
+          });
+          await page.keyboard.press('Escape');
+          await expect(hints).toBeHidden();
+          await page.setViewportSize({ width: 390, height: 844 });
+        }
+
         await header.getByRole('button').last().click();
       }
       // Desktop keeps the navigation alongside the same content header.

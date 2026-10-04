@@ -146,4 +146,29 @@ describe('shared surface appearance', () => {
     act(() => root.render(renderHeader(true, false)));
     expect(pointAt(element)).toBe('75%');
   });
+  it.each([Menu, Modal, Dialog, Surface])(
+    'does not leak scrolling chrome through nested overlay portals',
+    (Overlay) => {
+      act(() =>
+        root.render(
+          <ScrollHeaderProvider value>
+            <Header data-testid="title">
+              {createPortal(
+                <Overlay>
+                  <Header data-testid="dialog-title" />
+                </Overlay>,
+                container
+              )}
+            </Header>
+          </ScrollHeaderProvider>
+        )
+      );
+      expect(
+        container.querySelector('[data-testid="title"]')?.getAttribute('data-glass-flat')
+      ).toBe('true');
+      expect(
+        container.querySelector('[data-testid="dialog-title"]')?.hasAttribute('data-glass-flat')
+      ).toBe(false);
+    }
+  );
 });

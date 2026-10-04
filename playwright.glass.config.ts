@@ -5,8 +5,10 @@ export default defineConfig(config, {
   testMatch: [
     '**/card-glass-highlight.spec.ts',
     '**/glass-surfaces.spec.ts',
+    '**/dialog-menu-glass.spec.ts',
     '**/live/following-glass.spec.ts',
     '**/live/composer-glass.spec.ts',
+    '**/live/approval-glass.spec.ts',
     '**/live/space-header-glass.spec.ts',
     '**/live/navigation-header-glass.spec.ts',
     '**/live/members-header-glass.spec.ts',

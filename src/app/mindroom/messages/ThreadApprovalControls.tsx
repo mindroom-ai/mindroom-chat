@@ -14,6 +14,7 @@ import {
   OverlayCenter,
   Text,
 } from 'folds';
+import { PageScroll } from '../../components/page';
 import { Dialog, Header } from '../../components/glass/GlassPrimitives';
 import { useGlassHighlight } from '../../components/glass/liquid/useLiquidGlass';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
@@ -61,19 +62,25 @@ function ApprovalDialog({
             style={{ width: '40rem', maxWidth: 'calc(100vw - 24px)' }}
             aria-label={title}
           >
-            <Header size="500" variant="Surface" style={{ padding: '0 12px' }}>
-              <Box grow="Yes">
-                <Text size="H4">{title}</Text>
-              </Box>
-              <IconButton
-                size="300"
-                aria-label={t('mindroomUi.messages.threadApprovalControls.close')}
-                onClick={onClose}
-              >
-                <Icon src={Icons.Cross} />
-              </IconButton>
-            </Header>
-            <div className={css.DialogBody}>{children}</div>
+            <PageScroll
+              className={css.DialogScroll}
+              header={
+                <Header size="500" variant="Surface" style={{ padding: '0 12px' }}>
+                  <Box grow="Yes">
+                    <Text size="H4">{title}</Text>
+                  </Box>
+                  <IconButton
+                    size="300"
+                    aria-label={t('mindroomUi.messages.threadApprovalControls.close')}
+                    onClick={onClose}
+                  >
+                    <Icon src={Icons.Cross} />
+                  </IconButton>
+                </Header>
+              }
+            >
+              <div className={css.DialogBody}>{children}</div>
+            </PageScroll>
           </Dialog>
         </FocusTrap>
       </OverlayCenter>

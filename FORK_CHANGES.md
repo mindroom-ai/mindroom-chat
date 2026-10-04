@@ -6,14 +6,18 @@
 
 - Settings subpages placed their title outside the scroll viewport, so their own content could never pass beneath it.
   Seventeen personal, room, space, and nested settings views now use `PageScroll`, together with the room topic, readers, reactions, text viewer, room/space creation, add-existing, schedule, pinned-message, and room-pack dialogs.
+  Approval/permission dialogs, format hints, editor/invite autocomplete, mobile thread filters, and model selection now share that layout too.
 - `PageScroll` supplies flat native glass to its header slot through the shared `Header` primitive, including inside a glass modal.
   Titles have no border, rim, shadow, or pointer glow; moving over their controls also clears the enclosing panel's pointer light.
   The actual header height controls focus scrolling and the inset scrollbar, including smaller titles and responsive header appearance.
+  Header context stops at surface boundaries so dialogs opened through a title do not inherit its scrolling treatment.
+  Composite pickers keep focus on their search field or selected option when dragging a scrollbar.
 - Member, add-existing, and pinned-message virtual lists measure their offset after the header and filters and subtract it when placing rows.
   Sticky search controls remain below the title.
   Fixed JSON/event editors retain their existing internal text scrolling.
 - Regression coverage includes mobile/desktop personal and room settings, both themes and engines, header material and hover behavior, scrollbar dragging/keyboard navigation, short/long topic dialogs, the pack selector, and virtual member-list navigation.
-  `playwright.glass.config.ts` includes both new browser specs.
+  Additional menu coverage checks approval scrolling, format hints, model search/selection, autocomplete focus, and short mobile filter sheets.
+  `playwright.glass.config.ts` includes the new browser specs.
 
 ### Let users switch between a canvas's versions (2026-10-04)
 

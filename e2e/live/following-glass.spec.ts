@@ -198,7 +198,9 @@ test('following glass appears only while another reader follows the latest messa
     await expect(page.getByText('Catching up...', { exact: true })).toHaveCount(0);
     await page.screenshot({ path: testInfo.outputPath('following-reader.png') });
     await readerButton.click();
-    const readers = page.getByText('Seen by', { exact: true }).locator('xpath=../../..');
+    const readers = page
+      .getByText('Seen by', { exact: true })
+      .locator('xpath=ancestor::*[@data-y-scrollbar-width][1]');
     await expect(readers).toBeVisible();
     await expect(readers.getByText('Avery', { exact: true })).toBeVisible();
     await page.keyboard.press('Escape');

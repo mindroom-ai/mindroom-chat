@@ -14,7 +14,12 @@ import {
 import { ContainerColor as containerColor } from '../../styles/ContainerColor.css';
 import { glassFlat, glassFloating, glassOutline, glassSurface } from '../../styles/Glass.css';
 import { useLiquidGlass } from './liquid/useLiquidGlass';
-import { SurfaceProvider, useScrollHeaderContext, useSurfaceContext } from './SurfaceContext';
+import {
+  ScrollHeaderProvider,
+  SurfaceProvider,
+  useScrollHeaderContext,
+  useSurfaceContext,
+} from './SurfaceContext';
 import { inheritSurface } from './Surface.css';
 
 export type SurfaceAppearance = 'glass' | 'plain' | 'inherit';
@@ -94,18 +99,20 @@ export const Surface = as<'div', SurfaceProps>(
   ) => {
     const surface = useSurface(ref, appearance, level, variant);
     return (
-      <SurfaceProvider value={surface.context}>
-        <As
-          {...props}
-          ref={surface.ref}
-          className={classNames(
-            containerColor({ variant }),
-            surface.className,
-            appearance === 'glass' && level === 'overlay' && glassFloating,
-            className
-          )}
-        />
-      </SurfaceProvider>
+      <ScrollHeaderProvider value={false}>
+        <SurfaceProvider value={surface.context}>
+          <As
+            {...props}
+            ref={surface.ref}
+            className={classNames(
+              containerColor({ variant }),
+              surface.className,
+              appearance === 'glass' && level === 'overlay' && glassFloating,
+              className
+            )}
+          />
+        </SurfaceProvider>
+      </ScrollHeaderProvider>
     );
   }
 );
@@ -115,18 +122,20 @@ export const Menu = as<'div', MenuProps>(
   ({ className, variant = 'Surface', appearance = 'glass', ...props }, ref) => {
     const surface = useSurface(ref, appearance, 'overlay', variant);
     return (
-      <SurfaceProvider value={surface.context}>
-        <FoldsMenu
-          {...props}
-          ref={surface.ref}
-          variant={variant}
-          className={classNames(
-            surface.className,
-            appearance === 'glass' && glassFloating,
-            className
-          )}
-        />
-      </SurfaceProvider>
+      <ScrollHeaderProvider value={false}>
+        <SurfaceProvider value={surface.context}>
+          <FoldsMenu
+            {...props}
+            ref={surface.ref}
+            variant={variant}
+            className={classNames(
+              surface.className,
+              appearance === 'glass' && glassFloating,
+              className
+            )}
+          />
+        </SurfaceProvider>
+      </ScrollHeaderProvider>
     );
   }
 );
@@ -137,14 +146,16 @@ export const Modal = as<'div', ModalProps>(
   ({ className, variant = 'Surface', appearance = 'glass', ...props }, ref) => {
     const surface = useSurface(ref, appearance, 'overlay', variant);
     return (
-      <SurfaceProvider value={surface.context}>
-        <FoldsModal
-          {...props}
-          ref={surface.ref}
-          variant={variant}
-          className={classNames(surface.className, className)}
-        />
-      </SurfaceProvider>
+      <ScrollHeaderProvider value={false}>
+        <SurfaceProvider value={surface.context}>
+          <FoldsModal
+            {...props}
+            ref={surface.ref}
+            variant={variant}
+            className={classNames(surface.className, className)}
+          />
+        </SurfaceProvider>
+      </ScrollHeaderProvider>
     );
   }
 );
@@ -154,14 +165,16 @@ export const Dialog = as<'div', DialogProps>(
   ({ className, variant = 'Surface', appearance = 'glass', ...props }, ref) => {
     const surface = useSurface(ref, appearance, 'overlay', variant);
     return (
-      <SurfaceProvider value={surface.context}>
-        <FoldsDialog
-          {...props}
-          ref={surface.ref}
-          variant={variant}
-          className={classNames(surface.className, className)}
-        />
-      </SurfaceProvider>
+      <ScrollHeaderProvider value={false}>
+        <SurfaceProvider value={surface.context}>
+          <FoldsDialog
+            {...props}
+            ref={surface.ref}
+            variant={variant}
+            className={classNames(surface.className, className)}
+          />
+        </SurfaceProvider>
+      </ScrollHeaderProvider>
     );
   }
 );
@@ -182,21 +195,23 @@ export const Header = as<'header', HeaderProps>(
       variant
     );
     return (
-      <SurfaceProvider value={isFlat || surface.context}>
-        <FoldsHeader
-          {...props}
-          data-glass-flat={isFlat || undefined}
-          ref={surface.ref}
-          variant={variant}
-          className={classNames(
-            surface.className,
-            isFlat && glassSurface({ level: 'panel', variant }),
-            isFlat && glassFlat,
-            isFlat && glassFloating,
-            className
-          )}
-        />
-      </SurfaceProvider>
+      <ScrollHeaderProvider value={false}>
+        <SurfaceProvider value={isFlat || surface.context}>
+          <FoldsHeader
+            {...props}
+            data-glass-flat={isFlat || undefined}
+            ref={surface.ref}
+            variant={variant}
+            className={classNames(
+              surface.className,
+              isFlat && glassSurface({ level: 'panel', variant }),
+              isFlat && glassFlat,
+              isFlat && glassFloating,
+              className
+            )}
+          />
+        </SurfaceProvider>
+      </ScrollHeaderProvider>
     );
   }
 );

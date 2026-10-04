@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { expect, test, type Page } from '@playwright/test';
 import { getHomeserver, getPrimaryCredentials } from '../env';
+import { expectFloatingNavHeader } from '../helpers/glassVisual';
 import { loginWithPassword, setFullInterfaceModeForSession } from '../helpers/auth';
 import {
   addRoomToSpace,
@@ -163,6 +164,11 @@ async function verifyPortaledInviteMenu(page: Page, surface: string, mindQuery: 
   expect(menuBox!.y + menuBox!.height).toBeGreaterThan(formBox!.y + formBox!.height);
   expect(menuBox!.y + menuBox!.height).toBeLessThanOrEqual(viewport!.height + 1);
 
+  await expectFloatingNavHeader(menu.locator('header'));
+  await expect(menu.getByRole('scrollbar', { includeHidden: true })).toHaveAttribute(
+    'tabindex',
+    '-1'
+  );
   await page.screenshot({ path: `${SHOT_DIR}/${surface}.png` });
 
   // Clicking a portaled option commits it without closing the dialog.

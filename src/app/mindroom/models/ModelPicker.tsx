@@ -22,7 +22,8 @@ import { useTranslation } from 'react-i18next';
 import { usePreventScroll } from 'react-aria';
 import { ScreenSize, useScreenSizeContext } from '../../hooks/useScreenSize';
 import { stopPropagation } from '../../utils/keyboard';
-import { Modal, Surface } from '../../components/glass/GlassPrimitives';
+import { PageScroll } from '../../components/page';
+import { Header, Modal, Surface } from '../../components/glass/GlassPrimitives';
 import type { ModelCatalogEntry } from './modelProtocol';
 import { ModelIcon } from './ModelIcon';
 import { useModelPicker, type ModelPickerState } from './useModelPicker';
@@ -150,187 +151,200 @@ function ModelPickerPanel({ state, mobile, requestClose, onCommand }: ModelPicke
       aria-labelledby={`${listId}-title`}
       data-model-picker-sheet={mobile ? 'mobile' : 'desktop'}
     >
-      <div className={css.Header}>
-        <div className={css.HeaderText}>
-          <span id={`${listId}-title`} className={css.Title}>
-            {t('mindroomUi.models.modelPicker.modelForThread')}
-          </span>
-          <span className={css.Subtitle}>{t('mindroomUi.models.modelPicker.appliesToThread')}</span>
-        </div>
-        <button
-          type="button"
-          className={css.IconButton}
-          aria-label={t('mindroomUi.models.modelPicker.close')}
-          onClick={requestClose}
-        >
-          <IconX size={18} />
-        </button>
-      </div>
+      <PageScroll
+        scrollRef={resultsRef}
+        scrollbarTabIndex={-1}
+        header={
+          <Header as="div" className={css.Controls}>
+            <div className={css.Header}>
+              <div className={css.HeaderText}>
+                <span id={`${listId}-title`} className={css.Title}>
+                  {t('mindroomUi.models.modelPicker.modelForThread')}
+                </span>
+                <span className={css.Subtitle}>
+                  {t('mindroomUi.models.modelPicker.appliesToThread')}
+                </span>
+              </div>
+              <button
+                type="button"
+                className={css.IconButton}
+                aria-label={t('mindroomUi.models.modelPicker.close')}
+                onClick={requestClose}
+              >
+                <IconX size={18} />
+              </button>
+            </div>
 
-      <div className={css.SearchRow}>
-        <IconSearch size={16} aria-hidden="true" />
-        <input
-          ref={inputRef}
-          className={css.SearchInput}
-          role="searchbox"
-          aria-label={t('mindroomUi.models.modelPicker.search')}
-          aria-controls={listId}
-          aria-activedescendant={
-            activeItem ? optionId(listId, pickerItemId(activeItem)) : undefined
-          }
-          autoComplete="off"
-          spellCheck={false}
-          value={query}
-          onChange={handleQuery}
-          onKeyDown={handleKeyDown}
-        />
-        <button
-          type="button"
-          className={css.IconButton}
-          aria-label={t('mindroomUi.models.modelPicker.refresh')}
-          onClick={state.refresh}
-        >
-          <IconRefresh size={16} />
-        </button>
-      </div>
+            <div className={css.SearchRow}>
+              <IconSearch size={16} aria-hidden="true" />
+              <input
+                ref={inputRef}
+                className={css.SearchInput}
+                role="searchbox"
+                aria-label={t('mindroomUi.models.modelPicker.search')}
+                aria-controls={listId}
+                aria-activedescendant={
+                  activeItem ? optionId(listId, pickerItemId(activeItem)) : undefined
+                }
+                autoComplete="off"
+                spellCheck={false}
+                value={query}
+                onChange={handleQuery}
+                onKeyDown={handleKeyDown}
+              />
+              <button
+                type="button"
+                className={css.IconButton}
+                aria-label={t('mindroomUi.models.modelPicker.refresh')}
+                onClick={state.refresh}
+              >
+                <IconRefresh size={16} />
+              </button>
+            </div>
 
-      {state.runtimes.length > 1 && (
-        <div className={css.RuntimeRow}>
-          <span className={css.RuntimeLabel}>{t('mindroomUi.models.modelPicker.runtime')}</span>
-          <select
-            className={css.RuntimeSelect}
-            aria-label={t('mindroomUi.models.modelPicker.runtime')}
-            value={state.runtime?.id ?? ''}
-            onChange={(event) => state.chooseRuntime(event.currentTarget.value)}
-          >
-            {!state.runtime && (
-              <option value="" disabled>
-                {t('mindroomUi.models.modelPicker.chooseRuntime')}
-              </option>
+            {state.runtimes.length > 1 && (
+              <div className={css.RuntimeRow}>
+                <span className={css.RuntimeLabel}>
+                  {t('mindroomUi.models.modelPicker.runtime')}
+                </span>
+                <select
+                  className={css.RuntimeSelect}
+                  aria-label={t('mindroomUi.models.modelPicker.runtime')}
+                  value={state.runtime?.id ?? ''}
+                  onChange={(event) => state.chooseRuntime(event.currentTarget.value)}
+                >
+                  {!state.runtime && (
+                    <option value="" disabled>
+                      {t('mindroomUi.models.modelPicker.chooseRuntime')}
+                    </option>
+                  )}
+                  {state.runtimes.map((runtime) => (
+                    <option key={runtime.id} value={runtime.id}>
+                      {t('mindroomUi.models.modelPicker.runtimeLabel', {
+                        userId: runtime.userId,
+                        deviceId: runtime.deviceId,
+                      })}
+                    </option>
+                  ))}
+                </select>
+              </div>
             )}
-            {state.runtimes.map((runtime) => (
-              <option key={runtime.id} value={runtime.id}>
-                {t('mindroomUi.models.modelPicker.runtimeLabel', {
-                  userId: runtime.userId,
-                  deviceId: runtime.deviceId,
+
+            {(state.loading || state.pending) && (
+              <div className={css.StatusRow} role="status">
+                <Spinner size="100" variant="Secondary" />
+                {state.pending
+                  ? t('mindroomUi.models.modelPicker.pending')
+                  : t('mindroomUi.models.modelPicker.loading')}
+              </div>
+            )}
+
+            {state.error && (
+              <div className={css.Error} role="alert">
+                <div>{state.error}</div>
+                <div>{t('mindroomUi.models.modelPicker.commandFallback')}</div>
+                <div className={css.ErrorActions}>
+                  <button
+                    type="button"
+                    className={css.TextButton}
+                    aria-label={t('mindroomUi.models.modelPicker.retry')}
+                    onClick={state.refresh}
+                  >
+                    {t('mindroomUi.models.modelPicker.retry')}
+                  </button>
+                </div>
+              </div>
+            )}
+          </Header>
+        }
+      >
+        <div className={css.Results}>
+          <div id={listId} role="listbox" aria-label={t('mindroomUi.models.modelPicker.models')}>
+            {defaultVisible && (
+              // Keyboard activation belongs to the searchbox, which retains DOM focus.
+              // eslint-disable-next-line jsx-a11y/click-events-have-key-events
+              <div
+                id={optionId(listId, 'default-action')}
+                role="option"
+                aria-selected={state.override === null}
+                aria-disabled={mutationsDisabled}
+                className={css.Option}
+                data-active={activeItem?.kind === 'default'}
+                tabIndex={-1}
+                onMouseDown={(event) => event.preventDefault()}
+                onPointerMove={() =>
+                  setActiveIndex(items.findIndex((item) => item.kind === 'default'))
+                }
+                onClick={() => selectItem({ kind: 'default' })}
+              >
+                <span className={css.OptionIcon} aria-hidden="true">
+                  <IconRotateClockwise size={18} />
+                </span>
+                <span className={css.OptionText}>
+                  <span className={css.OptionTitle}>
+                    {t('mindroomUi.models.modelPicker.useRoomDefault')}
+                  </span>
+                  <span className={css.OptionDetail}>
+                    {t('mindroomUi.models.modelPicker.roomDefaultDescription')}
+                  </span>
+                </span>
+                {state.override === null && <IconCheck className={css.Check} size={18} />}
+              </div>
+            )}
+
+            {groups.map(([provider, models]) => (
+              <div key={provider} className={css.Group} role="group" aria-label={provider}>
+                <div className={css.GroupTitle}>{provider}</div>
+                {models.map((model) => {
+                  const index = items.findIndex(
+                    (item) => item.kind === 'model' && item.model.key === model.key
+                  );
+                  const selected = state.override === model.key;
+                  return (
+                    // Keyboard activation belongs to the searchbox, which retains DOM focus.
+                    // eslint-disable-next-line jsx-a11y/click-events-have-key-events
+                    <div
+                      key={model.key}
+                      id={optionId(listId, `model:${model.key}`)}
+                      role="option"
+                      aria-selected={selected}
+                      aria-disabled={mutationsDisabled}
+                      className={css.Option}
+                      data-active={
+                        activeItem?.kind === 'model' && activeItem.model.key === model.key
+                      }
+                      tabIndex={-1}
+                      onMouseDown={(event) => event.preventDefault()}
+                      onPointerMove={() => setActiveIndex(index)}
+                      onClick={() => selectItem({ kind: 'model', model })}
+                    >
+                      <span className={css.OptionIcon} aria-hidden="true">
+                        <ModelIcon
+                          provider={model.provider}
+                          id={model.id}
+                          iconUrl={model.icon_url}
+                          size={20}
+                        />
+                      </span>
+                      <span className={css.OptionText}>
+                        <span className={css.OptionTitle}>{model.display_name}</span>
+                        <span className={css.OptionDetail}>
+                          {model.key} · {model.provider}
+                        </span>
+                      </span>
+                      {selected && <IconCheck className={css.Check} size={18} />}
+                    </div>
+                  );
                 })}
-              </option>
+              </div>
             ))}
-          </select>
-        </div>
-      )}
 
-      {(state.loading || state.pending) && (
-        <div className={css.StatusRow} role="status">
-          <Spinner size="100" variant="Secondary" />
-          {state.pending
-            ? t('mindroomUi.models.modelPicker.pending')
-            : t('mindroomUi.models.modelPicker.loading')}
-        </div>
-      )}
-
-      {state.error && (
-        <div className={css.Error} role="alert">
-          <div>{state.error}</div>
-          <div>{t('mindroomUi.models.modelPicker.commandFallback')}</div>
-          <div className={css.ErrorActions}>
-            <button
-              type="button"
-              className={css.TextButton}
-              aria-label={t('mindroomUi.models.modelPicker.retry')}
-              onClick={state.refresh}
-            >
-              {t('mindroomUi.models.modelPicker.retry')}
-            </button>
+            {items.length === 0 && (
+              <div className={css.Empty}>{t('mindroomUi.models.modelPicker.noResults')}</div>
+            )}
           </div>
         </div>
-      )}
-
-      <div ref={resultsRef} className={css.Results}>
-        <div id={listId} role="listbox" aria-label={t('mindroomUi.models.modelPicker.models')}>
-          {defaultVisible && (
-            // Keyboard activation belongs to the searchbox, which retains DOM focus.
-            // eslint-disable-next-line jsx-a11y/click-events-have-key-events
-            <div
-              id={optionId(listId, 'default-action')}
-              role="option"
-              aria-selected={state.override === null}
-              aria-disabled={mutationsDisabled}
-              className={css.Option}
-              data-active={activeItem?.kind === 'default'}
-              tabIndex={-1}
-              onMouseDown={(event) => event.preventDefault()}
-              onPointerMove={() =>
-                setActiveIndex(items.findIndex((item) => item.kind === 'default'))
-              }
-              onClick={() => selectItem({ kind: 'default' })}
-            >
-              <span className={css.OptionIcon} aria-hidden="true">
-                <IconRotateClockwise size={18} />
-              </span>
-              <span className={css.OptionText}>
-                <span className={css.OptionTitle}>
-                  {t('mindroomUi.models.modelPicker.useRoomDefault')}
-                </span>
-                <span className={css.OptionDetail}>
-                  {t('mindroomUi.models.modelPicker.roomDefaultDescription')}
-                </span>
-              </span>
-              {state.override === null && <IconCheck className={css.Check} size={18} />}
-            </div>
-          )}
-
-          {groups.map(([provider, models]) => (
-            <div key={provider} className={css.Group} role="group" aria-label={provider}>
-              <div className={css.GroupTitle}>{provider}</div>
-              {models.map((model) => {
-                const index = items.findIndex(
-                  (item) => item.kind === 'model' && item.model.key === model.key
-                );
-                const selected = state.override === model.key;
-                return (
-                  // Keyboard activation belongs to the searchbox, which retains DOM focus.
-                  // eslint-disable-next-line jsx-a11y/click-events-have-key-events
-                  <div
-                    key={model.key}
-                    id={optionId(listId, `model:${model.key}`)}
-                    role="option"
-                    aria-selected={selected}
-                    aria-disabled={mutationsDisabled}
-                    className={css.Option}
-                    data-active={activeItem?.kind === 'model' && activeItem.model.key === model.key}
-                    tabIndex={-1}
-                    onMouseDown={(event) => event.preventDefault()}
-                    onPointerMove={() => setActiveIndex(index)}
-                    onClick={() => selectItem({ kind: 'model', model })}
-                  >
-                    <span className={css.OptionIcon} aria-hidden="true">
-                      <ModelIcon
-                        provider={model.provider}
-                        id={model.id}
-                        iconUrl={model.icon_url}
-                        size={20}
-                      />
-                    </span>
-                    <span className={css.OptionText}>
-                      <span className={css.OptionTitle}>{model.display_name}</span>
-                      <span className={css.OptionDetail}>
-                        {model.key} · {model.provider}
-                      </span>
-                    </span>
-                    {selected && <IconCheck className={css.Check} size={18} />}
-                  </div>
-                );
-              })}
-            </div>
-          ))}
-
-          {items.length === 0 && (
-            <div className={css.Empty}>{t('mindroomUi.models.modelPicker.noResults')}</div>
-          )}
-        </div>
-      </div>
-
+      </PageScroll>
       <div className={css.Footer}>
         <span className={css.FooterText}>
           {state.inherited.length > 0

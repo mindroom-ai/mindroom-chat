@@ -154,10 +154,16 @@ export const PageHeader = as<
 export function PageScroll({
   header,
   scrollRef,
+  className,
+  onKeyDown,
+  scrollbarTabIndex,
   children,
 }: {
   header?: ReactNode;
   scrollRef?: MutableRefObject<HTMLDivElement | null>;
+  className?: string;
+  onKeyDown?: React.KeyboardEventHandler<HTMLDivElement>;
+  scrollbarTabIndex?: 0 | -1;
   children: ReactNode;
 }) {
   const { t } = useTranslation();
@@ -176,6 +182,7 @@ export function PageScroll({
     <Box
       grow="Yes"
       direction="Column"
+      className={className}
       style={{
         position: 'relative',
         [css.pageScrollHeaderHeight.slice(4, -1)]:
@@ -185,6 +192,7 @@ export function PageScroll({
       <Scroll
         ref={viewportRef}
         className={css.PageScroll({ header: hasHeader })}
+        onKeyDown={onKeyDown}
         hideTrack
         visibility="Hover"
       >
@@ -203,6 +211,7 @@ export function PageScroll({
           contentRef={contentRef}
           className={css.PageScrollbar({ header: hasHeader })}
           label={t('commandPalette.navigate')}
+          tabIndex={scrollbarTabIndex}
         />
       </Scroll>
     </Box>

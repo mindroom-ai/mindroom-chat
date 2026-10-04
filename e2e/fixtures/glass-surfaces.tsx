@@ -32,6 +32,7 @@ import { mindroomAccountSettingsAtom } from '../../src/app/mindroom/settings/use
 import { Modal500 } from '../../src/app/components/Modal500';
 import * as threadBannerCss from '../../src/app/mindroom/threads/ThreadContextBanner.css';
 import { MessageGlass } from './MessageGlass';
+import { DialogMenusGlass } from './DialogMenusGlass';
 import { ChatControlsGlass } from './ChatControlsGlass';
 
 const themes = {
@@ -238,7 +239,9 @@ createRoot(document.getElementById('root')!).render(
       value={createClient({ baseUrl: window.location.origin, userId: '@fixture:localhost' })}
     >
       <SpecVersionsProvider value={{ versions: ['v1.10'] }}>
-        {new URLSearchParams(window.location.search).has('controls') ? (
+        {new URLSearchParams(window.location.search).has('menus') ? (
+          <DialogMenusGlass />
+        ) : new URLSearchParams(window.location.search).has('controls') ? (
           <ChatControlsGlass />
         ) : new URLSearchParams(window.location.search).has('messages') ? (
           <MessageGlass />
