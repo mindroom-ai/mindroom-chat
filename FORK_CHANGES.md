@@ -37,9 +37,10 @@
   - The scheduler runs `device-pairing` against the development server, and `docs/testing.md` starts that server with `MINDROOM_E2E_PROVISIONING_URL` so pairing accounts resolve to its own origin.
   - Vite prebundles `workbox-precaching`, `workbox-routing` and `@vanilla-extract/recipes/createRuntimeFn`; discovering them on first use re-optimized dependencies and reloaded every open page, which failed whichever spec first reached the development server.
 - Validation: typecheck, lint, prettier and the unit suite pass except the three `xcodeCloudPostClone` tests that need `/bin/bash` (they pass in the Ubuntu Playwright image).
-  The last full live suite passed 132 of 143 jobs; all nine other failures passed on rerun.
-  Four of them had `net::ERR_NETWORK_CHANGED` in their traces (other Docker workloads on the host changing networks), and five timed out at login together while every Matrix request was about ten times slower.
-  Still failing: `perf-thread-streaming` (thread drift, below) and the compositor-flick blank-frame check in `thread-ride-under-latency`, which is already documented as unresolved on software rendering.
+  The last full live suite, rebased on `1d8af50d`, passed 141 of 145 jobs.
+  Of the other four, `glass-surfaces` had `net::ERR_NETWORK_CHANGED` in its traces (other Docker workloads on the host changing networks) and passed on rerun, `page-header-glass` led to the Lobby and Explore header fix and then passed, and `long-message-expansion-default` (immediate fold-anchor displacement) and the compositor-flick blank-frame check in `thread-ride-under-latency` are the failures `docs/testing.md` already lists as unresolved on software rendering; the fold-anchor check passed on rerun.
+  Earlier runs also saw jobs time out at login together while every Matrix request was about ten times slower; they passed on rerun.
+  `perf-thread-streaming` passed in that run but fails intermittently on the thread drift below.
 - Not covered:
   - Settings shows "Catching up..." for one full 30-second long poll after a cached start on a quiet account, even though the first `timeout=0` sync already caught up.
   - The offline history page re-downloads the same newest page the timeline just fetched, using the automatic allowance on metered connections.
