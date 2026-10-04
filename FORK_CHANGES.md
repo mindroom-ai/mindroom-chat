@@ -27,6 +27,7 @@
   Live check: `e2e/bug-report.spec.ts` passes against Docker Tuwunel (reporter and admin accounts, intercepted well-known), including the admin auto-join, the administrator reading the first report's root event, and the second report reusing the same room.
 - Simplification pass: reuse also rejects a `world_readable` room, `useBugReportAdmins` and `getReporterName` own the admin list and the reporter name, `waitForJoinedRoom` moved to `src/app/mindroom/matrix/`, and tests now pin an invite without a create event and the auto-join effect; validation (same 4 baseline failures, 17 baseline lint warnings) and `e2e/bug-report.spec.ts` on an isolated Docker stack pass again.
 - Next: add `io.mindroom.bug_reports` to a deployment's well-known and confirm a report from an iPhone reaches the administrator's client without an invite prompt.
+
 ### Send large canvas answers as long-text sidecars (2026-10-03)
 
 - Why: a canvas answer was capped at 8 KiB of data, too small for a document the user edits in a canvas.
