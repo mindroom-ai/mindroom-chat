@@ -17,12 +17,15 @@ const room = (
     lazyMembers?: Memberships;
     joinRule?: string;
     historyVisibility?: string;
+    /** The create event's `type`; `null` leaves the room untyped. */
+    type?: string | null;
   } = {}
 ) => {
   const members: Memberships = { [ME]: myMembership, ...opts.members };
   return {
     roomId,
     getMyMembership: () => myMembership,
+    getType: () => (opts.type === null ? undefined : opts.type ?? 'io.mindroom.bug_reports'),
     getJoinRule: () => opts.joinRule ?? 'invite',
     getHistoryVisibility: () => opts.historyVisibility ?? 'shared',
     loadMembersIfNeeded: vi.fn(async () => {
@@ -178,6 +181,25 @@ describe('ensureBugReportRoom', () => {
     const result = await ensureBugReportRoom(mx as never, ['@admin:example.com']);
     expectNewRoomReplacingStored(mx, result);
   });
+
+  it.each([
+    ['another type', 'm.space'],
+    ['no type', null],
+  ])(
+    'moves to a new room when the stored room has %s instead of the report room type',
+    async (_label, type) => {
+      const stored = room('!stored:example.com', 'join', {
+        members: { '@admin:example.com': 'join' },
+        type,
+      });
+      const mx = client({
+        storedRoomId: '!stored:example.com',
+        rooms: { '!stored:example.com': stored },
+      });
+      const result = await ensureBugReportRoom(mx as never, ['@admin:example.com']);
+      expectNewRoomReplacingStored(mx, result);
+    }
+  );
 
   it('moves to a new room when the stored room history became world-readable', async () => {
     const stored = room('!stored:example.com', 'join', {

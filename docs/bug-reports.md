@@ -24,7 +24,7 @@ The menu item is labelled **Download bug report** and saves the JSON instead whe
 - The room has type `io.mindroom.bug_reports` and is created unencrypted so `matrix-mcp` can read it.
   Reports from encrypted rooms are therefore stored decrypted in this unencrypted room.
 - The room ID is kept in the reporter's account data `io.mindroom.bug_reports`.
-- Each report reuses that room only while the reporter is still joined, its join rule is still `invite`, its history is not `world_readable`, and every other joined or invited member is a current administrator.
+- Each report reuses that room only while the reporter is still joined, its create type is still `io.mindroom.bug_reports`, its join rule is still `invite`, its history is not `world_readable`, and every other joined or invited member is a current administrator.
   Otherwise the report goes to a new room and the account data is replaced; nobody is removed from the old room.
 - Administrators who are neither joined nor invited are invited again; the report fails only when no administrator is in the room and none can be invited.
 - Removing an administrator from the list moves the reporters' future reports to new rooms, but does not revoke the reports that administrator already received.

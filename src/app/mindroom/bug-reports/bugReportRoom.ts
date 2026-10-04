@@ -22,8 +22,9 @@ const getStoredRoomId = (mx: MatrixClient): string | undefined => {
   return typeof content?.room_id === 'string' ? content.room_id : undefined;
 };
 
-/** Reports stay visible only to the reporter and the current admins. */
-const isPrivateToAdmins = (room: Room, myUserId: string, admins: string[]): boolean =>
+/** A report room is typed, invite-only, and visible only to the reporter and the current admins. */
+const isReusableReportRoom = (room: Room, myUserId: string, admins: string[]): boolean =>
+  room.getType() === BUG_REPORTS_ROOM_TYPE &&
   room.getJoinRule() === JoinRule.Invite &&
   room.getHistoryVisibility() !== HistoryVisibility.WorldReadable &&
   room
@@ -35,7 +36,7 @@ const isPrivateToAdmins = (room: Room, myUserId: string, admins: string[]): bool
         admins.includes(member.userId)
     );
 
-/** The stored room, if the reporter is still in it and it is still private to the admins. */
+/** The stored room, if the reporter is still in it and it is still a private report room. */
 const findReusableRoom = async (
   mx: MatrixClient,
   myUserId: string,
@@ -46,7 +47,7 @@ const findReusableRoom = async (
   if (!stored || stored.getMyMembership() !== Membership.Join) return undefined;
   // The sync lazy-loads members, so admins who never spoke may be missing until loaded.
   await stored.loadMembersIfNeeded();
-  return isPrivateToAdmins(stored, myUserId, admins) ? stored : undefined;
+  return isReusableReportRoom(stored, myUserId, admins) ? stored : undefined;
 };
 
 /**
