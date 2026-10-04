@@ -1,7 +1,7 @@
 import { MsgType } from 'matrix-js-sdk';
 import { sanitizeText } from '../../utils/sanitize';
 import { getMessageRelation } from '../threads/composeMessageRelation';
-import { CANVAS_SUBMIT_MESSAGE } from './canvasDocument';
+import { CANVAS_ERROR_MESSAGE, CANVAS_SUBMIT_MESSAGE } from './canvasDocument';
 
 export const CANVAS_RESPONSE_KEY = 'io.mindroom.canvas_response';
 
@@ -151,18 +151,66 @@ const MAX_MENTION_NAME_LENGTH = 100;
 const mentionName = (name: string): string =>
   name.length > MAX_MENTION_NAME_LENGTH ? `${name.slice(0, MAX_MENTION_NAME_LENGTH - 1)}…` : name;
 
+/** What every message to a canvas's agent shares: the mention pill and the reply to the canvas. */
+const toCanvasAgent = (canvas: CanvasTarget) => ({
+  mention: `<a href="https://matrix.to/#/${encodeURIComponent(canvas.agentUserId)}">${sanitizeText(
+    mentionName(canvas.agentName)
+  )}</a>`,
+  // A reply to the canvas request always has a relation; this fallback only satisfies the type.
+  relation: getMessageRelation(canvas.eventId, undefined, canvas.threadId) ?? {
+    'm.in_reply_to': { event_id: canvas.eventId },
+  },
+});
+
+/** One error line a canvas may report; longer ones are cut. */
+const MAX_ERROR_LENGTH = 300;
+
+/** Accept one error report from this canvas frame as a single line of text. */
+export const readCanvasError = (
+  event: MessageEvent,
+  frame: Window | null | undefined
+): string | undefined => {
+  if (!frame || event.source !== frame || event.origin !== 'null') return undefined;
+  const message = event.data;
+  if (!record(message) || message.type !== CANVAS_ERROR_MESSAGE || message.version !== 1) {
+    return undefined;
+  }
+  if (typeof message.message !== 'string') return undefined;
+  // Only the start of a long message is read, so a page cannot make the host work on megabytes.
+  const start = message.message.slice(0, 2 * MAX_ERROR_LENGTH).replace(/[\uD800-\uDBFF]$/, '');
+  if (!isText(start)) return undefined;
+  const text = start.replace(/\s+/g, ' ').trim();
+  if (!text) return undefined;
+  // Cut between characters: half an emoji would make the report's text invalid.
+  return text.length > MAX_ERROR_LENGTH
+    ? `${text.slice(0, MAX_ERROR_LENGTH - 1).replace(/[\uD800-\uDBFF]$/, '')}…`
+    : text;
+};
+
+/** Errors the page reported, sent on the user's request as a mention in the canvas's conversation. */
+export const buildCanvasErrorContent = (canvas: CanvasTarget, errors: string[]) => {
+  const summary = `Canvas error (${canvas.eventId}, revision ${canvas.revisionEventId}):`;
+  const lines = errors.join('\n');
+  const { mention, relation } = toCanvasAgent(canvas);
+  return {
+    msgtype: MsgType.Text,
+    body: `${canvas.agentUserId} ${summary}\n${lines}`,
+    format: 'org.matrix.custom.html',
+    formatted_body: `${mention} ${sanitizeText(summary)}<pre><code>${sanitizeText(
+      lines
+    )}</code></pre>`,
+    'm.mentions': { user_ids: [canvas.agentUserId] },
+    'm.relates_to': relation,
+  };
+};
+
 /** A commit is an ordinary mention so the agent's existing turn pipeline receives it. */
 export const buildCanvasResponseContent = (canvas: CanvasTarget, submission: CanvasSubmission) => {
   const label = submission.label ?? CANVAS_DEFAULT_LABEL;
   const json = serialize(submission.data) ?? 'null';
   const summary = responseSummary(canvas.eventId, canvas.revisionEventId, label);
-  // A reply to the canvas request always has a relation; this fallback only satisfies the type.
-  const relation = getMessageRelation(canvas.eventId, undefined, canvas.threadId) ?? {
-    'm.in_reply_to': { event_id: canvas.eventId },
-  };
-  const mention = `<a href="https://matrix.to/#/${encodeURIComponent(
-    canvas.agentUserId
-  )}">${sanitizeText(mentionName(canvas.agentName))}</a> ${sanitizeText(summary)}`;
+  const { mention: pill, relation } = toCanvasAgent(canvas);
+  const mention = `${pill} ${sanitizeText(summary)}`;
   const content = {
     msgtype: MsgType.Text,
     body: canonicalBody(canvas.agentUserId, canvas.eventId, canvas.revisionEventId, label, json),

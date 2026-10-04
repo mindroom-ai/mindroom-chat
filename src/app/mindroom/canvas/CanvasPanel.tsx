@@ -11,9 +11,11 @@ import {
   type CanvasColorScheme,
 } from './canvasDocument';
 import {
+  buildCanvasErrorContent,
   buildCanvasResponseContent,
   buildCanvasResponsePreview,
   canvasResponseFitsInEvent,
+  readCanvasError,
   readCanvasSubmission,
   type CanvasSubmission,
 } from './canvasMessages';
@@ -50,6 +52,9 @@ export type CanvasPanelProps = {
   onRetry?: () => void;
   expanded?: boolean;
   onToggleExpanded?: () => void;
+  /** Which of the canvas's versions is shown, when it has more than one. */
+  version?: { current: number; total: number };
+  onSelectVersion?: (current: number) => void;
 };
 
 const ExpandIcon: IconSrc = () => (
@@ -82,6 +87,12 @@ type Staged = {
 type SentAnswer = { echo: MatrixEvent; label: string };
 
 type AnswerState = 'sending' | 'sent' | 'failed' | 'cancelled';
+
+/** Errors the page reported that the user has not sent yet, or the last ones they sent. */
+type PageErrors = { errors: string[]; report?: { echo?: MatrixEvent; errors: string[] } };
+const NO_PAGE_ERRORS: PageErrors = { errors: [] };
+// Enough to say what went wrong; a page cannot fill the report.
+const MAX_PAGE_ERRORS = 5;
 
 // SENT counts as sent: the server has the message even if /sync never brings its copy.
 const answerState = (status: EventStatus | null): AnswerState => {
@@ -127,6 +138,8 @@ export function CanvasPanel({
   onRetry,
   expanded = false,
   onToggleExpanded,
+  version,
+  onSelectVersion,
 }: CanvasPanelProps) {
   const { t } = useTranslation();
   const frameRef = useRef<HTMLIFrameElement>(null);
@@ -158,6 +171,12 @@ export function CanvasPanel({
   const [sendError, setSendError] = useState(false);
   // An answer too large for one event is uploaded before its event exists.
   const [uploading, setUploading] = useState(false);
+  const [pageErrors, setPageErrors] = useState(NO_PAGE_ERRORS);
+  // The listed errors as of the last message, read by the message handler.
+  const pageErrorsNow = useRef(pageErrors);
+  pageErrorsNow.current = pageErrors;
+  // Every error this page reported, so one already sent is not offered again.
+  const seenErrors = useRef(new Set<string>());
   // The answer being uploaded; Discard clears it, which cancels sending it.
   const uploadingSubmission = useRef<CanvasSubmission>();
   const stagedNow = useRef(staged);
@@ -183,6 +202,8 @@ export function CanvasPanel({
     // An answer still sending or failed stays, with its Retry and Delete, across a new page.
     setLastAnswer((current) => (isUnresolved(current) ? current : undefined));
     setUpdateAvailable(false);
+    setPageErrors(NO_PAGE_ERRORS);
+    seenErrors.current = new Set();
   }, [frameKey]);
 
   // An update loads at once unless it would discard work the user has not sent.
@@ -235,6 +256,23 @@ export function CanvasPanel({
       }
       const frame = canvasFrameWindow(frameRef.current);
       if (!frame || event.source !== frame) return;
+      const error = readCanvasError(event, frame);
+      if (error !== undefined) {
+        const listed = pageErrorsNow.current;
+        // A report still sending or failed may return to the list, so its errors count toward the five.
+        const { report } = listed;
+        const held =
+          report?.echo && ['sending', 'failed'].includes(answerState(report.echo.status))
+            ? report.errors.length
+            : 0;
+        // Only listed errors are remembered, so a page throwing endlessly stores five at a time.
+        if (seenErrors.current.has(error) || listed.errors.length + held >= MAX_PAGE_ERRORS) return;
+        seenErrors.current.add(error);
+        const next = { ...listed, errors: [...listed.errors, error] };
+        pageErrorsNow.current = next;
+        setPageErrors(next);
+        return;
+      }
       const now = Date.now();
       // Bound bridge traffic before parsing; a canvas cannot flood the host with snapshots.
       if (now - lastStageAt.current < STAGE_INTERVAL_MS) return;
@@ -353,6 +391,48 @@ export function CanvasPanel({
       });
   }, [agentName, busy, deliver, displayed, mx, room, staged, t]);
 
+  const reportStatus = useLocalEchoStatus(pageErrors.report?.echo);
+  const reportState =
+    pageErrors.report?.echo && reportStatus !== undefined ? answerState(reportStatus) : undefined;
+  // One report at a time, as with answers; new errors keep collecting meanwhile.
+  const reportOpen = reportState === 'sending' || reportState === 'failed';
+  useEffect(() => {
+    // A report the user deleted after it failed was never sent, so its errors are offered again.
+    if (reportState === 'cancelled') {
+      setPageErrors((current) => ({
+        errors: [...(current.report?.errors ?? []), ...current.errors],
+      }));
+    }
+  }, [reportState]);
+
+  // The user sees the errors before choosing to send them, as with an answer.
+  const handleReport = useCallback(() => {
+    if (reportOpen || pageErrors.errors.length === 0) return;
+    const sent = pageErrors.errors;
+    const content = buildCanvasErrorContent(
+      {
+        eventId: displayed.eventId,
+        revisionEventId: displayed.revisionEventId,
+        agentUserId: displayed.agentUserId,
+        agentName,
+        threadId: displayed.threadId,
+      },
+      sent
+    );
+    const txnId = mx.makeTxnId();
+    try {
+      // A failure shows through the echo's status, here and in the timeline.
+      mx.sendMessage(room.roomId, content as never, txnId).catch(() => undefined);
+    } catch {
+      return;
+    }
+    const echo = room.getEventForTxnId(txnId) ?? undefined;
+    setPageErrors((current) => ({
+      errors: current.errors.filter((error) => !sent.includes(error)),
+      report: { echo, errors: sent },
+    }));
+  }, [agentName, displayed, mx, pageErrors, reportOpen, room]);
+
   const handleDiscard = useCallback(() => {
     // Discarding the answer being uploaded cancels it; a newer snapshot leaves that upload alone.
     if (uploadingSubmission.current === stagedNow.current?.submission) {
@@ -362,6 +442,16 @@ export function CanvasPanel({
     setStaged(undefined);
     setSendError(false);
   }, []);
+
+  // An answer waiting or sending belongs to the version shown, so the version stays until it resolves.
+  const versionLocked = !!staged || busy;
+  // While an update waits behind Load update, the numbers describe that update, not the page shown.
+  const versions = updateAvailable ? undefined : version;
+  const selectVersion = (current: number) => {
+    // Picking a version is the user's choice, like Load update, so it replaces the page at once.
+    touched.current = false;
+    onSelectVersion?.(current);
+  };
 
   const handleLoad = useCallback(() => {
     if (loads.current.frameKey !== frameKey) loads.current = { frameKey, count: 0 };
@@ -387,6 +477,32 @@ export function CanvasPanel({
           </div>
         </Box>
         <Box alignItems="Center" gap="100">
+          {versions && onSelectVersion && (
+            <Box alignItems="Center" gap="100">
+              <IconButton
+                onClick={() => selectVersion(versions.current - 1)}
+                aria-label={t('mindroomUi.canvas.previousVersion')}
+                disabled={versionLocked || versions.current <= 1}
+                size="300"
+              >
+                <Icon size="300" src={Icons.ChevronLeft} />
+              </IconButton>
+              <Text className={css.Version} size="T200" priority="300">
+                {t('mindroomUi.canvas.version', {
+                  current: versions.current,
+                  total: versions.total,
+                })}
+              </Text>
+              <IconButton
+                onClick={() => selectVersion(versions.current + 1)}
+                aria-label={t('mindroomUi.canvas.nextVersion')}
+                disabled={versionLocked || versions.current >= versions.total}
+                size="300"
+              >
+                <Icon size="300" src={Icons.ChevronRight} />
+              </IconButton>
+            </Box>
+          )}
           {onToggleExpanded && (
             <IconButton
               onClick={onToggleExpanded}
@@ -413,6 +529,63 @@ export function CanvasPanel({
           >
             <Text size="B300">{t('mindroomUi.canvas.loadUpdate')}</Text>
           </Button>
+        </div>
+      )}
+
+      {versions && onSelectVersion && versions.current < versions.total && (
+        <div className={css.Notice} role="status">
+          <Text size="T300">{t('mindroomUi.canvas.earlierVersion')}</Text>
+          <Button
+            size="300"
+            variant="Secondary"
+            disabled={versionLocked}
+            onClick={() => selectVersion(versions.total)}
+          >
+            <Text size="B300">{t('mindroomUi.canvas.showLatest')}</Text>
+          </Button>
+        </div>
+      )}
+
+      {(pageErrors.errors.length > 0 || pageErrors.report) && (
+        <div
+          className={css.Notice}
+          role={pageErrors.errors.length > 0 || reportState === 'failed' ? 'alert' : 'status'}
+        >
+          <div className={css.Staged}>
+            {pageErrors.report &&
+              (reportState === 'failed' && pageErrors.report.echo ? (
+                <FailedSendActions
+                  room={room}
+                  event={pageErrors.report.echo}
+                  message={t('mindroomUi.canvas.errorsNotSent', { agent: agentName })}
+                />
+              ) : (
+                <Text size="T300">
+                  {reportState === 'sending'
+                    ? t('mindroomUi.canvas.sending', { agent: agentName })
+                    : t('mindroomUi.canvas.errorsSent', { agent: agentName })}
+                </Text>
+              ))}
+            {pageErrors.errors.length > 0 && (
+              <>
+                <Text size="T300">{t('mindroomUi.canvas.pageError')}</Text>
+                <pre className={css.Data}>{pageErrors.errors.join('\n')}</pre>
+                <Box>
+                  <Button
+                    size="300"
+                    variant="Secondary"
+                    disabled={reportOpen}
+                    onClick={handleReport}
+                    data-canvas-report
+                  >
+                    <Text size="B300" truncate>
+                      {t('mindroomUi.canvas.tellAgent', { agent: agentName })}
+                    </Text>
+                  </Button>
+                </Box>
+              </>
+            )}
+          </div>
         </div>
       )}
 

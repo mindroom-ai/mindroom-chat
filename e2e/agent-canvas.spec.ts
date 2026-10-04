@@ -263,6 +263,16 @@ test('agent canvases run sandboxed, send only confirmed answers, and update in p
   await updateCanvas(canvasId, STEP_TWO, 'Seats');
   await expect(frame.getByRole('button', { name: 'Continue' })).toBeVisible();
   await expect(panel.getByText('Seats', { exact: true })).toBeVisible();
+  // Every earlier version stays one click away.
+  await expect(panel.getByText('Version 2 of 2')).toBeVisible();
+  await panel.getByRole('button', { name: 'Previous version' }).click();
+  await expect(frame.getByText('Which plan?')).toBeVisible();
+  await expect(panel.getByText('This is an earlier version.')).toBeVisible();
+  await expect(panel.getByText('Choose a plan', { exact: true })).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath('canvas-earlier-version.png') });
+  await panel.getByRole('button', { name: 'Show latest' }).click();
+  await expect(frame.getByRole('button', { name: 'Continue' })).toBeVisible();
+  await expect(panel.getByText('This is an earlier version.')).toHaveCount(0);
   await frame.getByRole('button', { name: 'Continue' }).click();
   await expect(panel.getByText('Send to')).toContainText('Seats chosen');
   await expect(send).toBeEnabled();
@@ -429,6 +439,38 @@ article{background:var(--mr-surface);border:1px solid var(--mr-border);border-ra
   expect([...libraryRequests].sort()).toEqual([npmStyle, npmScript].sort());
 
   expect(pageErrors).toEqual([]);
+
+  // A page's errors and blocked loads reach the agent only when the user sends them.
+  await showCanvas(`<p id="scheme"></p>
+<script>document.getElementById('scheme').textContent = mindroom.colorScheme;</script>
+<script src="https://unpkg.com/canvas-probe@1.0.0/probe.js"></script>
+<svg width="10" height="10"><image href="https://unpkg.com/canvas-probe@1.0.0/probe.png" width="10" height="10"/></svg>
+<script>missingFunction();</script>`);
+  await expect(frame.locator('#scheme')).toHaveText(/^(light|dark)$/);
+  await expect(panel.getByText('This page reported an error.')).toBeVisible();
+  const reported = panel.locator('pre');
+  await expect(reported).toContainText('missingFunction is not defined (line 5)');
+  await expect(reported).toContainText('Blocked https://unpkg.com');
+  await expect(reported).toContainText('Blocked https://unpkg.com/canvas-probe@1.0.0/probe.png');
+  // A blocked load is reported once, as blocked, SVG images included.
+  await expect(reported).not.toContainText('Could not load');
+  await page.screenshot({ path: testInfo.outputPath('canvas-error-report.png') });
+  await panel.getByRole('button', { name: /^Tell / }).click();
+  await expect(panel.getByText(/^Sent the errors to /)).toBeVisible();
+  await expect
+    .poll(async () =>
+      (
+        await viewerMessages()
+      ).find((event) => String(event.content.body).includes('Canvas error ('))
+    )
+    .toBeTruthy();
+  const errorReport = (await viewerMessages()).find((event) =>
+    String(event.content.body).includes('Canvas error (')
+  )!;
+  expect(String(errorReport.content.body)).toContain('missingFunction is not defined');
+  expect(errorReport.content['m.mentions']).toEqual({ user_ids: [agent.user_id] });
+  expect(libraryRequests.some((url) => url.startsWith('https://unpkg.com'))).toBe(false);
+
   await new Promise((resolve) => {
     listener.close(resolve);
   });

@@ -95,6 +95,7 @@ vi.mock('./CanvasPanel.css.ts', () => ({
   Notice: 'Notice',
   Staged: 'Staged',
   Data: 'Data',
+  Version: 'Version',
 }));
 
 const AGENT = '@mindroom_planner:example.org';
@@ -200,6 +201,10 @@ const touchFrame = () =>
     window.dispatchEvent(new Event('blur'));
     delete (document as { activeElement?: unknown }).activeElement;
   });
+
+const reportError = (text: string, source?: unknown) =>
+  post({ type: 'mindroom.canvas.error', version: 1, message: text }, source);
+const reportButton = () => button('[data-canvas-report]');
 
 const answer = async (label = 'Pro plan') => {
   await post(submit(label));
@@ -648,6 +653,141 @@ describe('CanvasPanel', () => {
     await post(submit());
     render({ canvas: { ...canvas, revisionEventId: '$edit', html: '<p>Step 2</p>' } });
     expect(container.textContent).toContain('Send to Planner: Pro plan');
+  });
+
+  it('offers to tell the agent about errors the page reports', async () => {
+    render();
+    expect(reportButton()).toBeNull();
+    await reportError('TypeError: boom');
+    await reportError('TypeError: boom');
+    await reportError('Blocked https://cdn.example/x.js (script-src-elem)');
+    expect(container.textContent).toContain('This page reported an error.');
+    expect(container.textContent).toContain('TypeError: boom');
+    await act(async () => reportButton().click());
+    expect(sendMessage).toHaveBeenCalledTimes(1);
+    expect((sendMessage.mock.calls[0][1] as { body: string }).body).toBe(
+      `${AGENT} Canvas error ($canvas, revision $canvas):\nTypeError: boom\nBlocked https://cdn.example/x.js (script-src-elem)`
+    );
+    expect(reportButton()).toBeNull();
+    expect(container.textContent).toContain('Sending to Planner');
+    await accept();
+    expect(container.textContent).toContain('Sent the errors to Planner.');
+    // A new error after the report can be sent too; one already sent is not offered again.
+    await reportError('TypeError: boom');
+    expect(reportButton()).toBeNull();
+    await reportError('RangeError: later');
+    await act(async () => reportButton().click());
+    expect((sendMessage.mock.calls[1][1] as { body: string }).body).toBe(
+      `${AGENT} Canvas error ($canvas, revision $canvas):\nRangeError: later`
+    );
+  });
+
+  it('says when a report could not be sent, and offers it again once deleted', async () => {
+    render();
+    await reportError('TypeError: boom');
+    await act(async () => reportButton().click());
+    await refuse();
+    expect(container.textContent).toContain('Could not send the errors to Planner.');
+    expect(container.textContent).not.toContain('Sent the errors');
+    // A new error is kept while the report is unresolved; its Retry and Delete stay, Tell waits.
+    await reportError('RangeError: later');
+    expect(container.textContent).toContain('Could not send the errors to Planner.');
+    expect(container.textContent).toContain('RangeError: later');
+    expect(reportButton().disabled).toBe(true);
+    await act(async () => buttonNamed('Delete')?.click());
+    expect(container.textContent).not.toContain('Could not send');
+    expect(container.textContent).toContain('TypeError: boom\nRangeError: later');
+    expect(reportButton().disabled).toBe(false);
+  });
+
+  it('keeps at most five errors, counting a report that is not sent yet', async () => {
+    render();
+    for (const index of [1, 2, 3, 4, 5]) await reportError(`Error ${index}`);
+    await act(async () => reportButton().click());
+    await reportError('Error 6');
+    expect(container.textContent).not.toContain('Error 6');
+    await refuse();
+    await act(async () => buttonNamed('Delete')?.click());
+    expect(container.querySelector('pre')?.textContent?.split('\n')).toHaveLength(5);
+  });
+
+  it('keeps an error that arrives while a report is sending, for the next report', async () => {
+    render();
+    await reportError('TypeError: first');
+    await act(async () => reportButton().click());
+    await reportError('TypeError: second');
+    expect(reportButton().disabled).toBe(true);
+    await accept();
+    expect(container.textContent).toContain('Sent the errors to Planner.');
+    await act(async () => reportButton().click());
+    expect((sendMessage.mock.calls[1][1] as { body: string }).body).toBe(
+      `${AGENT} Canvas error ($canvas, revision $canvas):\nTypeError: second`
+    );
+  });
+
+  it('takes error reports only from the canvas, keeps five, and forgets them on a new page', async () => {
+    render();
+    await reportError('from elsewhere', {});
+    expect(reportButton()).toBeNull();
+    for (const index of [1, 2, 3, 4, 5, 6]) await reportError(`Error ${index}`);
+    expect(container.textContent).toContain('Error 5');
+    expect(container.textContent).not.toContain('Error 6');
+    // An error the full list dropped was never shown, so it can still be offered after a report.
+    await act(async () => reportButton().click());
+    await accept();
+    await reportError('Error 6');
+    expect(container.textContent).toContain('Error 6');
+    expect(reportButton()).not.toBeNull();
+    // Error reports are not answers, so they neither stage an answer nor hold back an update.
+    expect(button('[data-canvas-send]')).toBeNull();
+    render({ canvas: { ...canvas, revisionEventId: '$edit', html: '<p>Step 2</p>' } });
+    expect(page()).toContain('<p>Step 2</p>');
+    expect(reportButton()).toBeNull();
+  });
+
+  it('switches versions from the header, but not while an answer waits', async () => {
+    const onSelectVersion = vi.fn();
+    render({ version: { current: 2, total: 3 }, onSelectVersion });
+    expect(container.textContent).toContain('Version 2 of 3');
+    expect(container.textContent).toContain('This is an earlier version.');
+    await act(async () => button('[aria-label="Previous version"]').click());
+    expect(onSelectVersion).toHaveBeenLastCalledWith(1);
+    await act(async () => button('[aria-label="Next version"]').click());
+    expect(onSelectVersion).toHaveBeenLastCalledWith(3);
+    await act(async () => buttonNamed('Show latest')?.click());
+    expect(onSelectVersion).toHaveBeenLastCalledWith(3);
+    await post(submit());
+    expect(button('[aria-label="Previous version"]').disabled).toBe(true);
+    expect(buttonNamed('Show latest')?.disabled).toBe(true);
+    render({ version: { current: 3, total: 3 }, onSelectVersion });
+    expect(container.textContent).not.toContain('earlier version');
+    render();
+    expect(button('[aria-label="Previous version"]')).toBeNull();
+  });
+
+  it('hides the version switcher while an update waits behind Load update', async () => {
+    const latest = { ...canvas, revisionEventId: '$edit', html: '<p>Step 2</p>' };
+    const onSelectVersion = vi.fn();
+    render({ canvas: latest, version: { current: 2, total: 2 }, onSelectVersion });
+    await touchFrame();
+    const next = { ...canvas, revisionEventId: '$edit-3', html: '<p>Step 3</p>' };
+    render({ canvas: next, version: { current: 3, total: 3 }, onSelectVersion });
+    expect(container.textContent).toContain('Planner updated this panel.');
+    expect(container.textContent).not.toContain('Version 3 of 3');
+    expect(button('[aria-label="Previous version"]')).toBeNull();
+    await act(async () => buttonNamed('Load update')?.click());
+    expect(page()).toContain('<p>Step 3</p>');
+    expect(container.textContent).toContain('Version 3 of 3');
+  });
+
+  it('loads the version the user picks at once, even after they worked in the page', async () => {
+    const latest = { ...canvas, revisionEventId: '$edit', html: '<p>Step 2</p>' };
+    render({ canvas: latest, version: { current: 2, total: 2 }, onSelectVersion: () => undefined });
+    await touchFrame();
+    await act(async () => button('[aria-label="Previous version"]').click());
+    render({ canvas, version: { current: 1, total: 2 }, onSelectVersion: () => undefined });
+    expect(page()).toContain('<button>Pro</button>');
+    expect(container.textContent).not.toContain('updated this panel');
   });
 
   it('stops a canvas that navigates away from its document', async () => {

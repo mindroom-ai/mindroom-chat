@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
+  buildCanvasErrorContent,
   buildCanvasResponseContent,
   buildCanvasResponsePreview,
   canvasResponseFitsInEvent,
   CANVAS_RESPONSE_KEY,
   MAX_CANVAS_RESPONSE_CONTENT_BYTES,
+  readCanvasError,
   readCanvasResponse,
   readCanvasSubmission,
 } from './canvasMessages';
@@ -241,5 +243,79 @@ describe('readCanvasResponse', () => {
     expect(
       readCanvasResponse({ msgtype: 'm.text', body: 'hi', [CANVAS_RESPONSE_KEY]: { version: 2 } })
     ).toBeUndefined();
+  });
+});
+
+describe('readCanvasError', () => {
+  const error = (text: unknown, extra: Record<string, unknown> = {}) => ({
+    type: 'mindroom.canvas.error',
+    version: 1,
+    message: text,
+    ...extra,
+  });
+
+  it('accepts one line of error text from the canvas frame', () => {
+    expect(
+      readCanvasError(message(error('  TypeError: x is undefined\n  at line 3 ')), frame)
+    ).toBe('TypeError: x is undefined at line 3');
+  });
+
+  it('reads only the start of a huge error', () => {
+    const text = readCanvasError(message(error(`${'b'.repeat(1_000_000)}\uD800`)), frame);
+    expect(text).toBe(`${'b'.repeat(299)}…`);
+  });
+
+  it('cuts long errors between characters', () => {
+    const text = readCanvasError(message(error(`${'a'.repeat(299)}😀😀`)), frame);
+    expect(text).toBe(`${'a'.repeat(299)}…`);
+  });
+
+  it.each([
+    ['another window', message(error('boom'), { source: {} as Window })],
+    ['a real origin', message(error('boom'), { origin: 'https://evil.example' })],
+    ['a submission', message(submit())],
+    ['an unknown version', message(error('boom', { version: 2 }))],
+    ['a non-string message', message(error(5))],
+    ['an empty message', message(error('   '))],
+    ['a lone surrogate', message(error('bad \uD800 text'))],
+  ])('rejects %s', (_name, event) => {
+    expect(readCanvasError(event, frame)).toBeUndefined();
+  });
+});
+
+describe('buildCanvasErrorContent', () => {
+  const canvas = {
+    eventId: '$canvas',
+    revisionEventId: '$edit',
+    agentUserId: '@mindroom_planner:example.org',
+    agentName: 'Planner <b>',
+    threadId: '$thread',
+  };
+
+  it('mentions the agent in the canvas thread with one error per line', () => {
+    const content = buildCanvasErrorContent(canvas, [
+      'TypeError: x <y>',
+      'Blocked https://a.example/x.js',
+    ]);
+    expect(content.msgtype).toBe('m.text');
+    expect(content.body).toBe(
+      '@mindroom_planner:example.org Canvas error ($canvas, revision $edit):\nTypeError: x <y>\nBlocked https://a.example/x.js'
+    );
+    expect(content.formatted_body).toBe(
+      '<a href="https://matrix.to/#/%40mindroom_planner%3Aexample.org">Planner &lt;b&gt;</a> Canvas error ($canvas, revision $edit):<pre><code>TypeError: x &lt;y&gt;\nBlocked https://a.example/x.js</code></pre>'
+    );
+    expect(content['m.mentions']).toEqual({ user_ids: ['@mindroom_planner:example.org'] });
+    expect(content['m.relates_to']).toEqual({
+      rel_type: 'm.thread',
+      event_id: '$thread',
+      is_falling_back: false,
+      'm.in_reply_to': { event_id: '$canvas' },
+    });
+    expect(content).not.toHaveProperty(CANVAS_RESPONSE_KEY);
+  });
+
+  it('replies to a room-level canvas without a thread', () => {
+    const content = buildCanvasErrorContent({ ...canvas, threadId: undefined }, ['boom']);
+    expect(content['m.relates_to']).toEqual({ 'm.in_reply_to': { event_id: '$canvas' } });
   });
 });

@@ -18,6 +18,52 @@
 - Live check against a local MindRoom backend running #2633 with a stub model: the pending scheduling card (in the thread's Review sheet) showed the send time, both approve buttons, and the warning; approving any arguments showed the approved scope; the send-time call ran with different arguments under that approval; and its receipt showed who approved it while scheduling, the send time, and the scope.
 - Next: integrate together with mindroom-ai/mindroom#2633.
 
+### Let users switch between a canvas's versions (2026-10-04)
+
+- Why: every agent update replaced the page with no way back; Claude artifacts keep each version one click away.
+  Updates are already Matrix edits, so every version stays on the server.
+- The panel header shows `‹ Version n of m ›` once a canvas has more than one version; an earlier version shows "This is an earlier version." with **Show latest**.
+  A new update while the user views an earlier version only raises the count; on the latest version, updates follow as before (including **Load update** for unsent work).
+  Picking a version is the user's choice, so it replaces the page at once, like **Load update**; switching is disabled while an answer waits for **Send** or is sending, because that answer belongs to the shown version.
+  An answer from an earlier version names that version's revision, which the agent is already told how to read.
+- `useCanvasVersions` lists the request and its edits from `mx.relations` (decrypts in encrypted rooms, drops other senders' edits; 50 per page, at most 10 pages, newest kept), sorted in Matrix edit order, each held to the same rules as the latest edit (`readCanvasVersion`, which now shares `readCanvasEdit` with `readLatestCanvas`).
+  It loads when the panel opens and after each update, except for a canvas never updated; until then, or if the server cannot answer, the original and latest versions are offered.
+  Deleted IDs are remembered, so a history load that started before a deletion cannot bring the version back, and choosing a version compares with the shown revision, so every listed version stays reachable.
+  A deleted version leaves the list at once (redactions on `RoomEvent.Timeline`, which also sees deletions of edits the client never loaded); if it was chosen, the panel falls back to the latest.
+  While an update waits behind **Load update**, the switcher is hidden, because its numbers describe the waiting update rather than the page shown.
+- Tests: `RoomCanvasPanel.test.tsx` (paging, forged edits, choosing, staying on a chosen version, following the latest again, fallback), `CanvasPanel.test.tsx` (controls, locking, loading a chosen version over unsent work).
+  `e2e/agent-canvas.spec.ts` goes back to the first step after an update and returns to the latest.
+- Next: no further work.
+
+### Let users send a canvas page's errors to its agent, and tell pages the color scheme (2026-10-04)
+
+- Why: an agent that writes a canvas cannot see it; a typo or a blocked library left the user a blank or broken panel and told the agent nothing (feedback from a live agent).
+  Claude artifacts solve this with "Try fixing with Claude".
+- The canvas bridge reports uncaught errors, unhandled rejections, failed loads, and loads the policy blocks, to the panel as `mindroom.canvas.error` messages (`canvasDocument.ts`).
+  Lines count from the start of the agent's markup: `buildCanvasPage` measures the line breaks of Chat's own head and the bridge subtracts them.
+  A blocked load also fails; its failure is reported a moment later only if the policy did not report it, so it appears once, as blocked.
+  The panel keeps up to five distinct error lines per page (each one line, at most 300 characters, valid text, read from at most the first 600 characters; `readCanvasError`), shows them, and offers **Tell <agent>**.
+  Only listed errors are remembered, so a page throwing endlessly costs at most five lines between reports.
+  Nothing is sent until the user chooses it; the report is an ordinary mention in the canvas's conversation, `<agent> Canvas error (<canvas>, revision <revision>):` followed by one error per line (`buildCanvasErrorContent`, which shares the mention and reply with answers through `toCanvasAgent`).
+  The panel follows the report's local echo: "Sending…", then "Sent", or the usual Retry/Delete when it fails; a deleted report is offered again.
+  One report at a time, as with answers: while a report is sending or failed, new errors keep collecting and **Tell** waits; a deleted report's errors return to the list.
+  A report still sending or failed counts toward the five lines, so the list never grows past five.
+  An error already sent is not offered again for the same page; a new page starts empty.
+  Error reports bypass the answer throttle and never stage an answer or hold back an update.
+- `window.mindroom.colorScheme` is `light` or `dark`, the scheme the page was shown in, for choices the theme variables cannot make (chart palettes).
+- Backend: the tool brief names the report format and `colorScheme` (mindroom-ai/mindroom companion PR).
+- Tests: `canvasMessages.test.ts` (parsing, cutting, the report's content), `canvasDocument.test.ts` (listeners before agent scripts, the scheme), `CanvasPanel.test.tsx` (report, dedupe, five-error cap, other windows, new page).
+  `e2e/agent-canvas.spec.ts` shows a page that throws and loads a blocked script: the panel lists both, **Tell** sends the report mentioning the agent, and the page reads its scheme.
+- Next: no further work; a preview tool that renders a page and returns a screenshot to the agent remains an idea.
+
+### Replace the compact card's status dot with an unread dot (2026-10-04)
+
+- The compact thread card no longer leads with a colored attention dot. It was red ("needs attention") whenever someone other than the viewer sent the last message, which in agent rooms is almost every unresolved thread, so the dot carried no signal and its meaning was not discoverable.
+- The leading slot now shows the existing primary-colored unread dot only on unread threads, the inbox convention, and is reserved on read cards so titles stay aligned. The separate "unread" label in the metadata row is gone.
+- The "Resolved by" byline now shows on every layout instead of only touch layouts, since the hover title on the old dot was the only desktop place it appeared. Resolved cards keep their green card styling.
+- `data-attention-state` moved to the card button as a non-visual hook; the attention state still feeds the card's accessible label. The unused `compactThreadCard.unread` and `compactThreadCard.threadStatus` strings were removed from every locale.
+- Validation: unit tests, typecheck, build and lint pass; before and after screenshots (390 px and desktop) were taken against a disposable Tuwunel with one unread, one read, one waiting and one resolved thread. Live `compact-card-display-names` and `thread-unread-receipts` pass on Chromium; `perf-large-room-streaming` (only its selector changed) was not rerun.
+
 ### Show a pinned thread as a solid pin in the thread bar (2026-10-04)
 
 - The thread bar no longer spells out "Pinned" next to the pin button; the pin icon is solid while the thread is pinned.
