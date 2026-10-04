@@ -35,7 +35,7 @@ An administrator's client joins report-room invites without a prompt when:
 
 - the administrator is listed in the well-known of their own homeserver (each client reads only its own homeserver's well-known),
 - the administrator uses MindRoom Chat (an offline administrator's client joins when it next syncs), and
-- the inviter is on the administrator's homeserver.
+- the invite shows an invite-only report room that the inviter created, and the inviter is on the administrator's homeserver.
 
 Bot and `matrix-mcp` accounts do not run MindRoom Chat, so they must accept the invite themselves.
 

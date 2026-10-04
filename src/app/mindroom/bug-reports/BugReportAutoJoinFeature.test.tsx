@@ -12,23 +12,41 @@ import {
 
 const mx = (userId = '@admin:example.com') => ({ getUserId: () => userId });
 
-/** `type: null` leaves the invite without an m.room.create event. */
+/**
+ * `type: null` leaves the invite without an m.room.create event and `joinRule: null`
+ * without an m.room.join_rules event, like stripped invite state that omits them.
+ */
 const invitedRoom = (
-  opts: { type?: string | null; inviter?: string; membership?: string } = {}
-) => ({
-  getMyMembership: () => opts.membership ?? 'invite',
-  getLiveTimeline: () => ({
-    getState: () => ({
-      getStateEvents: (eventType: string) =>
-        eventType === 'm.room.create' && opts.type !== null
-          ? { getContent: () => ({ type: opts.type ?? 'io.mindroom.bug_reports' }) }
-          : null,
+  opts: {
+    type?: string | null;
+    creator?: string;
+    joinRule?: string | null;
+    inviter?: string;
+    membership?: string;
+  } = {}
+) => {
+  const inviter = opts.inviter ?? '@alice:example.com';
+  const stateEvents: Record<string, unknown> = {
+    'm.room.create':
+      opts.type === null
+        ? null
+        : {
+            getContent: () => ({ type: opts.type ?? 'io.mindroom.bug_reports' }),
+            getSender: () => opts.creator ?? inviter,
+          },
+    'm.room.join_rules':
+      opts.joinRule === null
+        ? null
+        : { getContent: () => ({ join_rule: opts.joinRule ?? 'invite' }) },
+  };
+  return {
+    getMyMembership: () => opts.membership ?? 'invite',
+    getLiveTimeline: () => ({
+      getState: () => ({ getStateEvents: (eventType: string) => stateEvents[eventType] ?? null }),
     }),
-  }),
-  getMember: () => ({
-    events: { member: { getSender: () => opts.inviter ?? '@alice:example.com' } },
-  }),
-});
+    getMember: () => ({ events: { member: { getSender: () => inviter } } }),
+  };
+};
 
 const admins = ['@admin:example.com'];
 
@@ -64,6 +82,32 @@ describe('shouldAutoJoinBugReportInvite', () => {
       shouldAutoJoinBugReportInvite(
         mx() as never,
         invitedRoom({ inviter: '@mallory:evil.example' }) as never,
+        admins
+      )
+    ).toBe(false);
+  });
+
+  it('ignores rooms that are not invite-only', () => {
+    expect(
+      shouldAutoJoinBugReportInvite(
+        mx() as never,
+        invitedRoom({ joinRule: 'public' }) as never,
+        admins
+      )
+    ).toBe(false);
+  });
+
+  it('ignores invites without a join rule', () => {
+    expect(
+      shouldAutoJoinBugReportInvite(mx() as never, invitedRoom({ joinRule: null }) as never, admins)
+    ).toBe(false);
+  });
+
+  it('ignores rooms created by someone other than the inviter', () => {
+    expect(
+      shouldAutoJoinBugReportInvite(
+        mx() as never,
+        invitedRoom({ creator: '@carol:example.com', inviter: '@alice:example.com' }) as never,
         admins
       )
     ).toBe(false);

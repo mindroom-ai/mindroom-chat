@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { useAtomValue } from 'jotai';
+import { JoinRule } from 'matrix-js-sdk';
 import type { MatrixClient, Room } from 'matrix-js-sdk';
 import { Membership, StateEvent } from '../../../types/matrix/room';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
@@ -9,7 +10,10 @@ import { getStateEvent } from '../../utils/room';
 import { useBugReportAdmins } from './bugReportConfig';
 import { BUG_REPORTS_ROOM_TYPE } from './bugReportRoom';
 
-/** Admins join report rooms without accepting invites; only from reporters on their own homeserver. */
+/**
+ * Admins join report rooms without accepting invites. The invite's stripped state must show
+ * an invite-only report room that the inviter created, on the admin's own homeserver.
+ */
 export const shouldAutoJoinBugReportInvite = (
   mx: MatrixClient,
   room: Room | null,
@@ -21,8 +25,12 @@ export const shouldAutoJoinBugReportInvite = (
   if (getStateEvent(room, StateEvent.RoomCreate)?.getContent().type !== BUG_REPORTS_ROOM_TYPE) {
     return false;
   }
+  if (getStateEvent(room, StateEvent.RoomJoinRules)?.getContent().join_rule !== JoinRule.Invite) {
+    return false;
+  }
   const inviter = room.getMember(myUserId)?.events.member?.getSender();
-  return !!inviter && getMxIdServer(inviter) === getMxIdServer(myUserId);
+  const creator = getStateEvent(room, StateEvent.RoomCreate)?.getSender();
+  return !!inviter && creator === inviter && getMxIdServer(inviter) === getMxIdServer(myUserId);
 };
 
 export function BugReportAutoJoinFeature() {
