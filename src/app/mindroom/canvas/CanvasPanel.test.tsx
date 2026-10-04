@@ -460,6 +460,135 @@ describe('CanvasPanel', () => {
     expect(status()).toContain('Not sent to Planner: Pro plan');
   });
 
+  it('uploads an answer too large for one event and sends a preview that points at it', async () => {
+    let finishUpload: () => void = () => undefined;
+    const uploadContent = vi.spyOn(mx, 'uploadContent').mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          finishUpload = () => resolve({ content_uri: 'mxc://example.org/answer' });
+        }) as never
+    );
+    render();
+    await post(submit('Edited draft', { text: 'A long paragraph. '.repeat(4000) }));
+    await arm();
+    await clickSend();
+    expect(uploadContent).toHaveBeenCalledTimes(1);
+    expect(sendMessage).not.toHaveBeenCalled();
+    expect(status()).toContain('Sending to Planner');
+    expect(button('[data-canvas-send]').disabled).toBe(true);
+    await act(async () => finishUpload());
+    expect(sendMessage).toHaveBeenCalledTimes(1);
+    const preview = sendMessage.mock.calls[0][1];
+    expect(preview).toMatchObject({
+      msgtype: 'm.file',
+      url: 'mxc://example.org/answer',
+      'io.mindroom.long_text': { version: 2, encoding: 'matrix_event_content_json' },
+      [CANVAS_RESPONSE_KEY]: { canvas_event_id: '$canvas', label: 'Edited draft' },
+    });
+    expect(preview[CANVAS_RESPONSE_KEY].data).toBeUndefined();
+    expect(button('[data-canvas-send]')).toBeNull();
+    await accept();
+    expect(status()).toContain('Sent to Planner: Edited draft');
+  });
+
+  const slowUpload = () => {
+    const uploads: Array<{ finish: () => void; fail: () => void }> = [];
+    vi.spyOn(mx, 'uploadContent').mockImplementation(
+      () =>
+        new Promise((resolve, reject) => {
+          uploads.push({
+            finish: () => resolve({ content_uri: 'mxc://example.org/answer' }),
+            fail: () => reject(new Error('offline')),
+          });
+        }) as never
+    );
+    return uploads;
+  };
+  const update = () =>
+    render({ canvas: { ...canvas, revisionEventId: '$edit', html: '<p>Step 2</p>' } });
+  const largeAnswer = (label: string) =>
+    submit(label, { text: `${label}: ${'A long paragraph. '.repeat(4000)}` });
+
+  it('cancels a large answer discarded during its upload and keeps a newer one', async () => {
+    const uploads = slowUpload();
+    render();
+    await post(largeAnswer('First'));
+    await arm();
+    await clickSend();
+    await act(async () => button('[data-canvas-discard]').click());
+    await act(async () => {
+      vi.advanceTimersByTime(100);
+    });
+    await post(largeAnswer('Second'));
+    await act(async () => uploads[0].finish());
+    expect(sendMessage).not.toHaveBeenCalled();
+    expect(container.textContent).toContain('Send to Planner: Second');
+    expect(button('[data-canvas-send]')).not.toBeNull();
+  });
+
+  it('holds a new page behind Load update while a large answer uploads, then sends it', async () => {
+    const uploads = slowUpload();
+    render();
+    await post(largeAnswer('First'));
+    await arm();
+    await clickSend();
+    // Until the answer is sent, the page holds the user's work, so the update waits for them.
+    update();
+    expect(page()).toContain('<button>Pro</button>');
+    expect(container.textContent).toContain('Planner updated this panel.');
+    expect(container.textContent).toContain('Send to Planner: First');
+    await act(async () => uploads[0].finish());
+    expect(sendMessage).toHaveBeenCalledTimes(1);
+    expect(sendMessage.mock.calls[0][1][CANVAS_RESPONSE_KEY].label).toBe('First');
+    expect(button('[data-canvas-send]')).toBeNull();
+    await act(async () => buttonNamed('Load update')?.click());
+    expect(page()).toContain('<p>Step 2</p>');
+  });
+
+  it('keeps a large answer for another try when its upload fails after an update arrived', async () => {
+    const uploads = slowUpload();
+    render();
+    await post(largeAnswer('First'));
+    await arm();
+    await clickSend();
+    update();
+    await act(async () => uploads[0].fail());
+    expect(sendMessage).not.toHaveBeenCalled();
+    expect(status()).toContain('Could not send your response');
+    expect(page()).toContain('<button>Pro</button>');
+    expect(container.textContent).toContain('Send to Planner: First');
+    expect(button('[data-canvas-send]').disabled).toBe(false);
+  });
+
+  it('still sends a large answer when the user loads a new page and discards an answer there', async () => {
+    const uploads = slowUpload();
+    render();
+    await post(largeAnswer('First'));
+    await arm();
+    await clickSend();
+    update();
+    await act(async () => buttonNamed('Load update')?.click());
+    expect(page()).toContain('<p>Step 2</p>');
+    // The user committed the first answer; discarding one on the new page leaves it alone.
+    await post(largeAnswer('Second'));
+    await act(async () => button('[data-canvas-discard]').click());
+    await act(async () => uploads[0].finish());
+    expect(sendMessage).toHaveBeenCalledTimes(1);
+    expect(sendMessage.mock.calls[0][1][CANVAS_RESPONSE_KEY].label).toBe('First');
+  });
+
+  it('keeps a large answer for another try when its upload fails', async () => {
+    vi.spyOn(mx, 'uploadContent').mockRejectedValue(new Error('offline'));
+    render();
+    await post(submit('Edited draft', { text: 'A long paragraph. '.repeat(4000) }));
+    await arm();
+    await clickSend();
+    expect(sendMessage).not.toHaveBeenCalled();
+    expect(status()).toContain('Could not send your response');
+    expect(container.textContent).toContain('Send to Planner: Edited draft');
+    expect(button('[data-canvas-send]').disabled).toBe(false);
+  });
+
   it('reports a refused send rather than the previous answer', async () => {
     render();
     await answer('one');

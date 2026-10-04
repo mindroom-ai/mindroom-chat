@@ -29,8 +29,9 @@ import { getMindroomThreadSummaryInfo } from './threadSummary';
 import { getMindroomMessageStateSuffixRenderer } from './messageStateSuffix';
 import { ChatUiActionButton } from '../ui-actions/ChatUiActionButton';
 import { CHAT_UI_ACTION_KEY } from '../ui-actions/chatUiProtocol';
-import { readCanvasResponse } from '../canvas/canvasMessages';
+import { CANVAS_RESPONSE_KEY, readCanvasResponse } from '../canvas/canvasMessages';
 import { CanvasResponseReceipt } from '../canvas/CanvasResponseReceipt';
+import { CanvasResponseSidecarReceipt } from '../canvas/CanvasResponseSidecarReceipt';
 
 export type RenderMindroomMessageContentOptions = {
   mEvent?: MatrixEvent;
@@ -276,7 +277,7 @@ export const renderMindroomMessageContent = ({
 
     const longTextSource = getRenderableLongTextSource(content);
     if (longTextSource) {
-      return (
+      const longText = (
         <MindroomLongTextText
           kind={MindroomLongTextKind.Text}
           edited={edited}
@@ -304,6 +305,20 @@ export const renderMindroomMessageContent = ({
           renderUrlsPreview={renderUrlsPreview}
         />
       );
+      // A canvas answer too large for one event arrives as a sidecar; its receipt waits for the file.
+      if (msgType === MsgType.File && content[CANVAS_RESPONSE_KEY]) {
+        return (
+          <CanvasResponseSidecarReceipt
+            source={{ ...longTextSource, owner: getEventAttachmentOwner(mEvent) }}
+            relation={content['m.relates_to']}
+            hydrate={hydrateLongText}
+            delivered={!pendingSend && !failedSend}
+            renderStateSuffix={getMessageStateSuffix()}
+            fallback={longText}
+          />
+        );
+      }
+      return longText;
     }
 
     if (msgType === MsgType.File) {
