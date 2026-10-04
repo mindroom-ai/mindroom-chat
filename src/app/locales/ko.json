@@ -2733,8 +2733,6 @@
       "compactThreadCard": {
         "streaming": "응답 생성 중",
         "unreadMessages": "읽지 않은 메시지",
-        "unread": "읽지 않음",
-        "threadStatus": "스레드 상태: {{status}}",
         "lastActivity": "최근 활동 {{time}}"
       },
       "mindroomCallChatView": {

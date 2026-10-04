@@ -2780,8 +2780,6 @@
       "compactThreadCard": {
         "streaming": "em transmissão",
         "unreadMessages": "Mensagens não lidas",
-        "unread": "não lido",
-        "threadStatus": "Estado do tópico: {{status}}",
         "lastActivity": "Última atividade: {{time}}"
       },
       "mindroomCallChatView": {

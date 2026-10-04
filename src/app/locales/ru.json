@@ -2827,8 +2827,6 @@
       "compactThreadCard": {
         "streaming": "передача",
         "unreadMessages": "Непрочитанные сообщения",
-        "unread": "не прочитано",
-        "threadStatus": "Статус ветки: {{status}}",
         "lastActivity": "Последняя активность: {{time}}"
       },
       "mindroomCallChatView": {

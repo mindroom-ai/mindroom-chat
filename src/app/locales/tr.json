@@ -2733,8 +2733,6 @@
       "compactThreadCard": {
         "streaming": "akışta",
         "unreadMessages": "Okunmamış mesajlar",
-        "unread": "okunmamış",
-        "threadStatus": "Konu durumu: {{status}}",
         "lastActivity": "Son etkinlik {{time}}"
       },
       "mindroomCallChatView": {
