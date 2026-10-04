@@ -2924,6 +2924,7 @@
       "pageError": "Halaman ini melaporkan kesalahan.",
       "tellAgent": "Beri tahu {{agent}}",
       "errorsSent": "Kesalahan dikirim ke {{agent}}.",
+      "errorsNotSent": "Kesalahan tidak dapat dikirim ke {{agent}}.",
       "sendTo": "Kirim ke {{agent}}:",
       "changeAnswer": "Untuk mengubah jawaban, buang jawaban ini terlebih dahulu.",
       "data": "Data",

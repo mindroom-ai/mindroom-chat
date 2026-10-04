@@ -2924,6 +2924,7 @@
       "pageError": "Bu sayfa bir hata bildirdi.",
       "tellAgent": "{{agent}} ajanına bildir",
       "errorsSent": "Hatalar {{agent}} ajanına gönderildi.",
+      "errorsNotSent": "Hatalar {{agent}} ajanına gönderilemedi.",
       "sendTo": "{{agent}} ajanına gönder:",
       "changeAnswer": "Yanıtınızı değiştirmek için önce bunu silin.",
       "data": "Veriler",

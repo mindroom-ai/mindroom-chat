@@ -2924,6 +2924,7 @@
       "pageError": "此頁面回報了一個錯誤。",
       "tellAgent": "告訴 {{agent}}",
       "errorsSent": "已將錯誤傳送給 {{agent}}。",
+      "errorsNotSent": "無法將錯誤傳送給 {{agent}}。",
       "sendTo": "傳送給 {{agent}}：",
       "changeAnswer": "如需變更回答，請先丟棄目前的回答。",
       "data": "資料",

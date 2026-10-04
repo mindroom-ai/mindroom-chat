@@ -2924,6 +2924,7 @@
       "pageError": "이 페이지에서 오류를 보고했습니다.",
       "tellAgent": "{{agent}}에게 알리기",
       "errorsSent": "오류를 {{agent}}에게 보냈습니다.",
+      "errorsNotSent": "오류를 {{agent}}에게 보내지 못했습니다.",
       "sendTo": "{{agent}}에게 보내기:",
       "changeAnswer": "답변을 바꾸려면 먼저 이 답변을 삭제하세요.",
       "data": "데이터",

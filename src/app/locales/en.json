@@ -2924,6 +2924,7 @@
       "pageError": "This page reported an error.",
       "tellAgent": "Tell {{agent}}",
       "errorsSent": "Sent the errors to {{agent}}.",
+      "errorsNotSent": "Could not send the errors to {{agent}}.",
       "sendTo": "Send to {{agent}}:",
       "changeAnswer": "To change your answer, discard this one first.",
       "data": "Data",

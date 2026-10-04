@@ -2978,6 +2978,7 @@
       "pageError": "Questa pagina ha segnalato un errore.",
       "tellAgent": "Avvisa {{agent}}",
       "errorsSent": "Errori inviati a {{agent}}.",
+      "errorsNotSent": "Impossibile inviare gli errori a {{agent}}.",
       "sendTo": "Invia a {{agent}}:",
       "changeAnswer": "Per cambiare risposta, scarta prima questa.",
       "data": "Dati",

@@ -2924,6 +2924,7 @@
       "pageError": "このページがエラーを報告しました。",
       "tellAgent": "{{agent}} に伝える",
       "errorsSent": "エラーを {{agent}} に送信しました。",
+      "errorsNotSent": "エラーを {{agent}} に送信できませんでした。",
       "sendTo": "{{agent}} に送信:",
       "changeAnswer": "回答を変更するには、まずこの回答を破棄してください。",
       "data": "データ",
