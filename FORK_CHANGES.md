@@ -2,6 +2,20 @@
 
 ## Runbook
 
+### Enable native canvases and computer panels safely (2026-10-04, in progress)
+
+- Bridge step implemented and independently reviewed: reject every subframe in Capacitor's iOS plugin message handler and synchronous cookie/HTTP prompt handler before parsing its payload.
+  Capacitor 8.5.2 already injects bridge, Cordova, and plugin scripts with `forMainFrameOnly: true`; native sender checks are still required because WebKit exposes message handlers to subframes.
+  Android's modern bridge already checks the frame; the legacy fallback now fails closed, and synchronous cookie/HTTP/SystemBars interfaces are never registered.
+  A native main-document page-commit hook preserves Android viewport inset handling.
+- Configuration investigation: Vite copies `config.mindroom.json` into `dist/config.json`, which Capacitor bundles locally; the app does not fetch chat.mindroom.chat's configuration.
+  The shipped configuration disables canvases and has no computer API URL.
+  Phones already use a full-screen canvas and unmount the underlying conversation.
+- Validation so far: native security contract tests, typecheck, lint, and web build pass.
+  Xcode 26.6 cannot compile or run simulator tests because CoreSimulator 1051.49 is older than its required 1051.55 and the iOS 26.5 platform is unavailable; completing setup requires administrator authentication.
+- Next: prove the bridge boundary in the simulator, enable the iOS deployment switches, reproduce computer API/auth/stream behavior, run repository checks, and open ready PRs against `dev` without merging.
+
+
 ### Let users switch between a canvas's versions (2026-10-04)
 
 - Why: every agent update replaced the page with no way back; Claude artifacts keep each version one click away.
