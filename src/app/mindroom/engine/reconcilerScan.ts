@@ -403,14 +403,13 @@ export const scanThreadRelations = async ({
   const loadedUnreachable = await continuationStore
     .loadUnreachableReplies(sessionId, roomId, threadId)
     .catch(() => undefined);
+  const unreachableAge = loadedUnreachable ? Date.now() - loadedUnreachable.recordedAt : NaN;
   const recordedUnreachable =
     loadedUnreachable &&
-    [
-      loadedUnreachable.count,
-      loadedUnreachable.expectedReplyCount,
-      loadedUnreachable.recordedAt,
-    ].every(Number.isFinite) &&
-    Date.now() - loadedUnreachable.recordedAt < UNREACHABLE_REPLIES_MAX_AGE_MS
+    [loadedUnreachable.count, loadedUnreachable.expectedReplyCount].every(Number.isFinite) &&
+    // A time ahead of the clock was written by a skewed clock, so it is no age.
+    unreachableAge >= 0 &&
+    unreachableAge < UNREACHABLE_REPLIES_MAX_AGE_MS
       ? loadedUnreachable
       : undefined;
   // A count that has dropped since the drain may no longer include every

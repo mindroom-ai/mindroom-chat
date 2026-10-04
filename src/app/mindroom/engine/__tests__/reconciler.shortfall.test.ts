@@ -483,6 +483,17 @@ describe('reconciler shortfall drain: replies the server counts but cannot retur
     expect(store.recordUnreachableReplies).not.toHaveBeenCalled();
   });
 
+  it('ignores a value recorded ahead of the clock', async () => {
+    const store = makeMemoryStore();
+    store.loadUnreachableReplies.mockResolvedValue({
+      count: 1,
+      expectedReplyCount: 5,
+      recordedAt: now + DAY_MS,
+    });
+
+    expect((await reconcile(store, allReplies, 5)).calls).toBe(2);
+  });
+
   it('ignores a malformed stored value', async () => {
     const store = makeMemoryStore();
     store.loadUnreachableReplies.mockResolvedValue({
