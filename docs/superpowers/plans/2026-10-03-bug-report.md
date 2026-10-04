@@ -1448,3 +1448,124 @@ Expected: all PASS (record pre-existing failures, if any, by re-running the same
 git add docs/bug-reports.md FORK_CHANGES.md
 git commit -m "docs: document one-click bug reports"
 ```
+
+---
+
+### Task 9: Live end-to-end check against a real homeserver
+
+**Files:**
+- Create: `e2e/bug-report.spec.ts`
+
+**Interfaces:**
+- Consumes: the whole feature; e2e helpers `getHomeserver`, `getPrimaryCredentials`, `getSecondaryCredentials` (`e2e/env.ts`), `loginWithPassword`, `setFullInterfaceModeForCredentials`, `expectLoggedInShellStable` (`e2e/helpers/auth.ts`), `loginToMatrix`, `createPrivateRoom`, `sendRoomMessage`, `matrixFetch` (`e2e/helpers/matrix.ts`), `attachBrowserDiagnostics`/`expectNoUnexpectedBrowserDiagnostics` (`e2e/helpers/browserDiagnostics.ts`).
+- Produces: a Playwright spec run by `npm run test:e2e:docker-matrix` (Docker Tuwunel at `http://127.0.0.1:28008`, server name `matrix.localhost`, with `E2E_*` and `E2E_SECOND_*` accounts).
+
+Why: the spec's Testing section requires a live check with a reporter and an administrator. Unit tests mock the Matrix client; only a real homeserver proves room creation, invites, auto-join, uploads, and navigation work together.
+
+The client fetches `https://matrix.localhost/.well-known/matrix/client` (the server name of `@user:matrix.localhost`), which does not resolve in the Docker stack, so the spec intercepts it with `context.route` and serves the administrators key. This is test scaffolding only; no production code changes.
+
+- [ ] **Step 1: Write the spec** with this shape (adapt selectors to the real DOM; read `e2e/account-switching.spec.ts` and one spec that opens a live room for patterns):
+
+```ts
+import { expect, test, type BrowserContext } from '@playwright/test';
+import { getHomeserver, getPrimaryCredentials, getSecondaryCredentials } from './env';
+import { expectLoggedInShellStable, loginWithPassword, setFullInterfaceModeForCredentials } from './helpers/auth';
+import { createPrivateRoom, loginToMatrix, matrixFetch, sendRoomMessage } from './helpers/matrix';
+
+const serveBugReportWellKnown = async (context: BrowserContext, homeserver: string, admin: string) => {
+  await context.route('**/.well-known/matrix/client', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      headers: { 'Access-Control-Allow-Origin': '*' },
+      body: JSON.stringify({
+        'm.homeserver': { base_url: homeserver },
+        'io.mindroom.bug_reports': { admins: [admin] },
+      }),
+    })
+  );
+};
+
+test('one click sends a bug report the administrator receives without accepting an invite', async ({ browser }) => {
+  const adminCredentials = getSecondaryCredentials();
+  test.skip(!adminCredentials, 'Set E2E_SECOND_USERNAME and E2E_SECOND_PASSWORD to run the bug report e2e flow.');
+  test.slow();
+  const homeserver = getHomeserver();
+  const reporterCredentials = getPrimaryCredentials();
+  const reporter = await loginToMatrix(homeserver, reporterCredentials.username, reporterCredentials.password);
+  const admin = await loginToMatrix(homeserver, adminCredentials!.username, adminCredentials!.password);
+  await Promise.all([
+    setFullInterfaceModeForCredentials(homeserver, reporterCredentials),
+    setFullInterfaceModeForCredentials(homeserver, adminCredentials!),
+  ]);
+
+  // A private room the administrator is NOT in: the report must still reach them.
+  const marker = `bug report e2e ${Date.now()}`;
+  const roomId = await createPrivateRoom(homeserver, reporter.accessToken, { name: `Bug report source ${Date.now()}` });
+  await sendRoomMessage(/* homeserver, reporter.accessToken, roomId, marker — match the helper's real signature */);
+
+  // Administrator signs in first so its client is running when the invite arrives.
+  const adminContext = await browser.newContext();
+  await serveBugReportWellKnown(adminContext, homeserver, admin.userId);
+  const adminPage = await adminContext.newPage();
+  await loginWithPassword(adminPage, { homeserver, ...adminCredentials! });
+  await expectLoggedInShellStable(adminPage);
+
+  const reporterContext = await browser.newContext();
+  await serveBugReportWellKnown(reporterContext, homeserver, admin.userId);
+  const reporterPage = await reporterContext.newPage();
+  await loginWithPassword(reporterPage, { homeserver, ...reporterCredentials });
+  await expectLoggedInShellStable(reporterPage);
+
+  // Open the source room, open the marker message's menu, click Report a bug.
+  // (Navigate to the room by its route or the room list; hover the message and open its options menu.)
+  await reporterPage.getByRole('menuitem', { name: 'Report a bug' }).click();
+
+  // The reporter lands in the report thread with the summary and the attached JSON.
+  await expect(reporterPage).toHaveURL(/threadId=/);
+  await expect(reporterPage.getByText(/Bug report from/).first()).toBeVisible();
+  await expect(reporterPage.getByText(/mindroom-bug-report-.*\.json/).first()).toBeVisible();
+
+  // The report room is recorded in account data, typed, unencrypted, and the administrator joined it unprompted.
+  const { room_id: reportRoomId } = await matrixFetch<{ room_id: string }>(
+    homeserver,
+    `/user/${encodeURIComponent(reporter.userId)}/account_data/io.mindroom.bug_reports`,
+    { accessToken: reporter.accessToken }
+  );
+  const create = await matrixFetch<{ type?: string }>(
+    homeserver,
+    `/rooms/${encodeURIComponent(reportRoomId)}/state/m.room.create/`,
+    { accessToken: reporter.accessToken }
+  );
+  expect(create.type).toBe('io.mindroom.bug_reports');
+  await expect
+    .poll(async () => {
+      const { joined_rooms } = await matrixFetch<{ joined_rooms: string[] }>(homeserver, '/joined_rooms', {
+        accessToken: admin.accessToken,
+      });
+      return joined_rooms.includes(reportRoomId);
+    }, { timeout: 30_000 })
+    .toBe(true);
+
+  // A second report reuses the same room.
+  // (Report the same message again from the source room and assert the account data room_id is unchanged.)
+
+  await reporterContext.close();
+  await adminContext.close();
+});
+```
+
+Also assert that `/rooms/{reportRoomId}/state/m.room.encryption/` returns 404 (unencrypted); `matrixFetch` throws on non-2xx, so wrap it and check the error carries 404/`M_NOT_FOUND`.
+
+- [ ] **Step 2: Run it against the Docker homeserver**
+
+Run: `E2E_MATRIX_AUTO_DOWN=1 npm run test:e2e:docker-matrix -- e2e/bug-report.spec.ts`
+Expected: PASS. If the script runs more than the given spec, read `scripts/test-e2e-docker-matrix.sh` and pass the spec path the way it expects. If the Docker stack cannot start, report BLOCKED with the exact error.
+If the spec fails, it is a real integration bug until proven otherwise: report the failure with evidence (trace/screenshot path) as DONE_WITH_CONCERNS rather than weakening assertions.
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add e2e/bug-report.spec.ts
+git commit -m "test(e2e): cover one-click bug reports against a real homeserver"
+```
