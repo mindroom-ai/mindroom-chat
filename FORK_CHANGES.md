@@ -2,6 +2,21 @@
 
 ## Runbook
 
+### Stop the thread reconcile from repairing a cached thread on every open (2026-10-03)
+
+- Report: the iPhone export behind the 2026-10-03 reconcile-freeze entry below showed the same thread reconciled with 13 `/relations` pages (about 1000 events) and `repaired: true` on many separate opens, including two a minute apart.
+  A reconcile is meant to be a cheap no-op when the cache already matches the server.
+- Reproduced in the local Docker Matrix stack with the same 480-reply thread (480 same-sender edits, 48 reactions, two redacted replies): after a cold open had cached the whole thread, a reopen still fetched 13 pages and repaired.
+  Temporary logging showed two causes: the only divergence was 466 `m.replace` events missing from the cache, and the scan expected 480 replies but could find 478.
+- Root cause fixed here: the cache folds a same-sender edit into the target it stores (`setSerializedReplacement`) and keeps no record of the edit itself, but `detectDivergence` treated every fetched event id missing from the cache as new, so every thread with streamed edits diverged on every reconcile.
+- Fix: `detectDivergence` skips a fetched same-sender edit whose cached target is redacted or already carries it or a newer edit (`isEditKnownToRevision` in `eventRevision.ts`).
+  A newer edit, and an uncached edit from another sender (which the cache keeps as its own record, also for a redacted target), still diverge.
+  A fetched edit that has itself been redacted loses its relation when the reconciler maps it (`makeRedacted`), so it still diverges once; the repair stores it as its own record, and later opens find it cached.
+- Measured after the fix in the same reproduction: the reopen ends with `repaired: false`, so it no longer re-hydrates or injects anything, and shows no long task beyond the app's startup.
+- Not fixed here: the 480-versus-478 shortfall still makes that reopen page to the thread's start, because Tuwunel only ever adds to a thread root's `m.thread` count and keeps counting replies after they are redacted (`update_thread_bundle_raw` in `mindroom-tuwunel`), while `/relations` returns them without their thread relation.
+  That count belongs to the homeserver, so it is fixed in `mindroom-tuwunel` rather than worked around here; the 2026-07-10 comment claiming that recording the server-confirmed start stops the repeat drain is corrected, since nothing reads it for that.
+- Tests: `reconciler.foldedEdits.test.ts`: carried, superseded, bundled and root edits are known, as are edits of a redacted target; a newer edit, another sender's edit (also of a redacted target) and a missed reply to a redacted root are repaired.
+
 ### Show agent-made interactive canvases beside the conversation (2026-10-03)
 
 - Agents can show an agent-made web page (dashboard, report, slides, menu, form, multi-step flow) in a right-side Canvas panel and read the user's answer.
@@ -115,7 +130,7 @@
   The repaired batch reaches the render through `onRepaired` in every case.
 - Measured after the fix with the same reproduction: the longest task is 402 to 434 ms over two runs, and the reconcile opens 72 to 78 IndexedDB transactions.
   The remaining reconcile cost (about 0.8 s split across tasks) is mostly the SDK's one `ThreadEvent.Update` per added event, on each of which `ActiveThreadApprovalProvider` rescans the room and thread (`mergeThreadApprovalEvents`).
-- Not addressed here: the reconcile still repairs on every open of such a thread, because the cache folds same-sender edits into their target (so `detectDivergence` sees every fetched edit id as new) and a reply count above what `/relations` yields keeps the scan paging to the start.
+- Not addressed here: the reconcile still repaired on every open of such a thread; the entry above fixes the repair, and `mindroom-tuwunel` the thread count that kept it paging.
 - Tests: `reconciler.sdkThread.test.ts` drives a real SDK thread: history older than the window adds no `NewReply` or live events and ends in timeline order; events newer than the window are still appended with `NewReply` and become `lastReply()`; an empty window takes everything as backfill; an unopened thread is left untouched while `onRepaired` still fires.
   All four fail on the previous reconciler, and backfilling everything, dropping the unopened-thread guard, or appending into an empty window each fails its own case.
 

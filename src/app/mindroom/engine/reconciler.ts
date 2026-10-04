@@ -45,6 +45,7 @@
  * homeserver can otherwise stream tokens indefinitely.
  */
 
+import { RelationType } from 'matrix-js-sdk';
 import type { IEvent, MatrixClient, MatrixEvent, Room, Thread } from 'matrix-js-sdk';
 import {
   createPreferLiveEventMapper,
@@ -67,6 +68,7 @@ import {
   collectExplicitRedactedEventIds,
   describeRawEventRevision,
   hasEventRevisionUpgrade,
+  isEditKnownToRevision,
   mergeEventRevisionDescriptors,
   type EventRevisionDescriptor,
 } from '../threads/eventRevision';
@@ -255,6 +257,37 @@ const buildCachedRevisionMap = (
   return revisions;
 };
 
+const buildCachedSenderMap = (cachedPage: HydratedThreadCachePage): Map<string, string> => {
+  const senders = new Map<string, string>();
+  [cachedPage.rootEvent, ...cachedPage.events].forEach((rawEvent) => {
+    if (typeof rawEvent?.event_id === 'string' && typeof rawEvent.sender === 'string') {
+      senders.set(rawEvent.event_id, rawEvent.sender);
+    }
+  });
+  return senders;
+};
+
+/**
+ * The cache folds a same-sender edit into the target it stores and keeps no
+ * record of the edit itself, so such a fetched edit is only news when the
+ * cached target does not already carry it or a newer one.
+ */
+const isEditFoldedIntoCache = (
+  rawEvent: Partial<IEvent>,
+  cachedRevisions: ReadonlyMap<string, EventRevisionDescriptor>,
+  cachedSenders: ReadonlyMap<string, string>
+): boolean => {
+  const relation = (rawEvent.content as Record<string, unknown> | undefined)?.['m.relates_to'] as
+    | { rel_type?: string; event_id?: string }
+    | undefined;
+  if (relation?.rel_type !== RelationType.Replace || typeof relation.event_id !== 'string') {
+    return false;
+  }
+  const target = cachedRevisions.get(relation.event_id);
+  if (!target) return false;
+  return isEditKnownToRevision(rawEvent, cachedSenders.get(relation.event_id), target);
+};
+
 /**
  * True when the diff between the fetched page and the cache introduces
  * an in-place change: a new event id, a redaction whose target was in
@@ -265,6 +298,7 @@ const buildCachedRevisionMap = (
 const detectDivergence = (
   fetched: Partial<IEvent>[],
   cachedRevisions: Map<string, EventRevisionDescriptor>,
+  cachedSenders: ReadonlyMap<string, string>,
   cachedEmbeddedRelationEventIds: ReadonlySet<string>
 ): boolean => {
   // Redaction targets known to the fetch: divergent when the cache still
@@ -287,7 +321,10 @@ const detectDivergence = (
     // New event we did not have. Covers "message the server has that
     // we missed" and "reaction added while offline".
     const cachedRevision = cachedRevisions.get(id);
-    if (!cachedRevision) return true;
+    if (!cachedRevision) {
+      if (isEditFoldedIntoCache(rawEvent, cachedRevisions, cachedSenders)) continue;
+      return true;
+    }
 
     if (
       hasEventRevisionUpgrade(describeRawEventRevision(rawEvent), cachedRevision, 'authoritative')
@@ -360,6 +397,7 @@ const runThreadReconcilePass = async ({
   const cachedRevisions = cachedPage
     ? buildCachedRevisionMap(cachedPage)
     : new Map<string, EventRevisionDescriptor>();
+  const cachedSenders = cachedPage ? buildCachedSenderMap(cachedPage) : new Map<string, string>();
   const cachedEmbeddedRelationEventIds = collectEmbeddedRelationEventIds(
     cachedPage
       ? [...(cachedPage.rootEvent ? [cachedPage.rootEvent] : []), ...cachedPage.events]
@@ -429,15 +467,18 @@ const runThreadReconcilePass = async ({
   // negative here proves the applier would be a no-op — skip both the
   // hydrate call and the onRepaired tick to keep the "cached was right"
   // path zero-cost.
-  const diverged = detectDivergence(allRaw, cachedRevisions, cachedEmbeddedRelationEventIds);
+  const diverged = detectDivergence(
+    allRaw,
+    cachedRevisions,
+    cachedSenders,
+    cachedEmbeddedRelationEventIds
+  );
 
   if (!diverged) {
     await scan.settleWithoutRepair();
     // 2026-07-10 missing-middle fix (upstream #118 review finding): a
     // shortfall-driven full drain that found no divergence still observed
-    // the server-confirmed start. Without recording it, the phantom-high-
-    // count shape (expected count above what the stream can ever yield)
-    // would re-drain on every open with nothing to show for it. Restricted
+    // the server-confirmed start, so record it with the snapshot. Restricted
     // to shortfall-driven multi-page passes so the ordinary single-page
     // "cached was right" open keeps its zero-persist D7 guarantee.
     if (serverConfirmedStart && pagedPastOverlapForShortfall && allMapped.length > 0) {
