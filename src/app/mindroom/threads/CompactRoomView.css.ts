@@ -1,5 +1,4 @@
 import { globalStyle, style } from '@vanilla-extract/css';
-import { recipe } from '@vanilla-extract/recipes';
 import { DefaultReset, color, config } from 'folds';
 import { footerInset, topInset, Scroll } from './RoomOverlay.css';
 import { transition } from '../../styles/transition';
@@ -216,15 +215,10 @@ export const ScheduledIndicator = style({
   whiteSpace: 'nowrap',
 });
 
-export const TouchResolutionByline = style({
-  display: 'none',
+export const ResolutionByline = style({
+  display: 'block',
   minWidth: 0,
   maxWidth: '100%',
-  '@media': {
-    '(max-width: 480px), (hover: none)': {
-      display: 'block',
-    },
-  },
 });
 
 export const MetadataRow = style({
@@ -250,51 +244,8 @@ export const StatusChip = style({
   flexShrink: 0,
 });
 
-export const UnreadWrap = style({
+export const LeadingSlot = style({
+  width: '0.5rem',
+  height: '0.5rem',
   flexShrink: 0,
-  color: color.SurfaceVariant.OnContainer,
-});
-
-export const UnreadDot = style({
-  display: 'inline-block',
-});
-
-export const ScreenReaderText = style({
-  border: 0,
-  clip: 'rect(0 0 0 0)',
-  height: '1px',
-  margin: '-1px',
-  overflow: 'hidden',
-  padding: 0,
-  position: 'absolute',
-  whiteSpace: 'nowrap',
-  width: '1px',
-});
-
-export const AttentionDot = recipe({
-  base: {
-    width: '0.5rem',
-    height: '0.5rem',
-    borderRadius: '999px',
-    flexShrink: 0,
-  },
-  variants: {
-    state: {
-      'needs-attention': {
-        backgroundColor: color.Critical.Main,
-      },
-      waiting: {
-        backgroundColor: color.Success.Main,
-      },
-      streaming: {
-        backgroundColor: color.Primary.Main,
-      },
-      resolved: {
-        backgroundColor: color.SurfaceVariant.OnContainer,
-      },
-      idle: {
-        backgroundColor: color.SurfaceVariant.ContainerLine,
-      },
-    },
-  },
 });

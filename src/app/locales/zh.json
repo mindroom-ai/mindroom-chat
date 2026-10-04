@@ -2733,8 +2733,6 @@
       "compactThreadCard": {
         "streaming": "流式响应",
         "unreadMessages": "未读消息",
-        "unread": "未读",
-        "threadStatus": "讨论串状态：{{status}}",
         "lastActivity": "上次活动 {{time}}"
       },
       "mindroomCallChatView": {
