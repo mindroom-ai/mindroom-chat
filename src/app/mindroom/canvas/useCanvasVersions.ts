@@ -3,6 +3,7 @@ import {
   Direction,
   EventType,
   RelationType,
+  RoomEvent,
   type MatrixClient,
   type MatrixEvent,
   type Room,
@@ -79,5 +80,16 @@ export function useCanvasVersions(
     // `latest` changes identity on every render; its ID marks a new version.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mx, room, request, latestId]);
+  useEffect(() => {
+    // A deleted version leaves the list at once; a chosen one falls back to the latest.
+    const forget = (redaction: MatrixEvent) => {
+      const redacted = redaction.event.redacts ?? redaction.getContent().redacts;
+      setVersions((current) => current.filter((version) => version.revisionEventId !== redacted));
+    };
+    room.on(RoomEvent.Redaction, forget);
+    return () => {
+      room.off(RoomEvent.Redaction, forget);
+    };
+  }, [room]);
   return versions;
 }

@@ -426,6 +426,8 @@ export function CanvasPanel({
 
   // An answer waiting or sending belongs to the version shown, so the version stays until it resolves.
   const versionLocked = !!staged || busy;
+  // While an update waits behind Load update, the numbers describe that update, not the page shown.
+  const versions = updateAvailable ? undefined : version;
   const selectVersion = (current: number) => {
     // Picking a version is the user's choice, like Load update, so it replaces the page at once.
     touched.current = false;
@@ -456,23 +458,26 @@ export function CanvasPanel({
           </div>
         </Box>
         <Box alignItems="Center" gap="100">
-          {version && onSelectVersion && (
+          {versions && onSelectVersion && (
             <Box alignItems="Center" gap="100">
               <IconButton
-                onClick={() => selectVersion(version.current - 1)}
+                onClick={() => selectVersion(versions.current - 1)}
                 aria-label={t('mindroomUi.canvas.previousVersion')}
-                disabled={versionLocked || version.current <= 1}
+                disabled={versionLocked || versions.current <= 1}
                 size="300"
               >
                 <Icon size="300" src={Icons.ChevronLeft} />
               </IconButton>
               <Text className={css.Version} size="T200" priority="300">
-                {t('mindroomUi.canvas.version', { current: version.current, total: version.total })}
+                {t('mindroomUi.canvas.version', {
+                  current: versions.current,
+                  total: versions.total,
+                })}
               </Text>
               <IconButton
-                onClick={() => selectVersion(version.current + 1)}
+                onClick={() => selectVersion(versions.current + 1)}
                 aria-label={t('mindroomUi.canvas.nextVersion')}
-                disabled={versionLocked || version.current >= version.total}
+                disabled={versionLocked || versions.current >= versions.total}
                 size="300"
               >
                 <Icon size="300" src={Icons.ChevronRight} />
@@ -508,14 +513,14 @@ export function CanvasPanel({
         </div>
       )}
 
-      {version && onSelectVersion && version.current < version.total && (
+      {versions && onSelectVersion && versions.current < versions.total && (
         <div className={css.Notice} role="status">
           <Text size="T300">{t('mindroomUi.canvas.earlierVersion')}</Text>
           <Button
             size="300"
             variant="Secondary"
             disabled={versionLocked}
-            onClick={() => selectVersion(version.total)}
+            onClick={() => selectVersion(versions.total)}
           >
             <Text size="B300">{t('mindroomUi.canvas.showLatest')}</Text>
           </Button>

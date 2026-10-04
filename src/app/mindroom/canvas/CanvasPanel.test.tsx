@@ -719,6 +719,21 @@ describe('CanvasPanel', () => {
     expect(button('[aria-label="Previous version"]')).toBeNull();
   });
 
+  it('hides the version switcher while an update waits behind Load update', async () => {
+    const latest = { ...canvas, revisionEventId: '$edit', html: '<p>Step 2</p>' };
+    const onSelectVersion = vi.fn();
+    render({ canvas: latest, version: { current: 2, total: 2 }, onSelectVersion });
+    await touchFrame();
+    const next = { ...canvas, revisionEventId: '$edit-3', html: '<p>Step 3</p>' };
+    render({ canvas: next, version: { current: 3, total: 3 }, onSelectVersion });
+    expect(container.textContent).toContain('Planner updated this panel.');
+    expect(container.textContent).not.toContain('Version 3 of 3');
+    expect(button('[aria-label="Previous version"]')).toBeNull();
+    await act(async () => buttonNamed('Load update')?.click());
+    expect(page()).toContain('<p>Step 3</p>');
+    expect(container.textContent).toContain('Version 3 of 3');
+  });
+
   it('loads the version the user picks at once, even after they worked in the page', async () => {
     const latest = { ...canvas, revisionEventId: '$edit', html: '<p>Step 2</p>' };
     render({ canvas: latest, version: { current: 2, total: 2 }, onSelectVersion: () => undefined });

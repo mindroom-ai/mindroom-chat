@@ -4,7 +4,13 @@ import React from 'react';
 import { EventEmitter } from 'events';
 import { createRoot, Root } from 'react-dom/client';
 import { act } from 'react-dom/test-utils';
-import { MatrixEvent, MatrixEventEvent, type MatrixClient, type Room } from 'matrix-js-sdk';
+import {
+  MatrixEvent,
+  MatrixEventEvent,
+  RoomEvent,
+  type MatrixClient,
+  type Room,
+} from 'matrix-js-sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CanvasPanelProps } from './CanvasPanel';
 import { RoomCanvasPanel } from './RoomCanvasPanel';
@@ -184,6 +190,39 @@ describe('RoomCanvasPanel', () => {
     await act(async () => event.makeReplaced(fifth));
     expect(panels.props?.canvas.html).toBe('<p>Step 5</p>');
     expect(panels.props?.version).toEqual({ current: 5, total: 5 });
+  });
+
+  it('keeps the known versions when the history does not reach the shown one', async () => {
+    const event = request();
+    const second = edit('<p>Step 2</p>', { id: '$edit-2', ts: 200 });
+    const third = edit('<p>Step 3</p>', { id: '$edit-3', ts: 300 });
+    event.makeReplaced(third);
+    history(event, [second]);
+    render(event);
+    await act(async () => undefined);
+    expect(panels.props?.version).toEqual({ current: 2, total: 2 });
+    expect(panels.props?.canvas.revisionEventId).toBe('$edit-3');
+  });
+
+  it('drops a deleted version, and leaves it for the latest when it was chosen', async () => {
+    const event = request();
+    const second = edit('<p>Step 2</p>', { id: '$edit-2', ts: 200 });
+    const third = edit('<p>Step 3</p>', { id: '$edit-3', ts: 300 });
+    event.makeReplaced(third);
+    history(event, [third, second]);
+    render(event);
+    await act(async () => undefined);
+    act(() => panels.props?.onSelectVersion?.(2));
+    expect(panels.props?.canvas.html).toBe('<p>Step 2</p>');
+    act(() => {
+      room.emit(
+        RoomEvent.Redaction,
+        new MatrixEvent({ type: 'm.room.redaction', redacts: '$edit-2', content: {} }),
+        room
+      );
+    });
+    expect(panels.props?.canvas.html).toBe('<p>Step 3</p>');
+    expect(panels.props?.version).toEqual({ current: 2, total: 2 });
   });
 
   it('offers no versions for a canvas never updated, and the known ones when history fails', async () => {
