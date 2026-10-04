@@ -168,16 +168,6 @@ describe('reconciler divergence with edits folded into the cache', () => {
     expect(result.repaired).toBe(false);
   });
 
-  it('treats a redacted edit the cache does not embed as known', async () => {
-    const { result } = await reconcile(
-      [foldedReply('$reply', 100, v1)],
-      // A stale server copy keeps the redacted edit's relation.
-      [reply('$reply', 100), v1, { ...v2, unsigned: { redacted_because: { event_id: '$x' } } }]
-    );
-
-    expect(result.repaired).toBe(false);
-  });
-
   it('repairs an uncached edit from another sender, which the cache keeps as its own record', async () => {
     const { result } = await reconcile(
       [foldedReply('$reply', 100, v2)],

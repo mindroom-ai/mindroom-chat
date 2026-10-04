@@ -270,8 +270,7 @@ const buildCachedSenderMap = (cachedPage: HydratedThreadCachePage): Map<string, 
 /**
  * The cache folds a same-sender edit into the target it stores and keeps no
  * record of the edit itself, so such a fetched edit is only news when the
- * cached target does not already carry it or a newer one. A redacted edit the
- * cache does not embed (that case diverges above) changes nothing either.
+ * cached target does not already carry it or a newer one.
  */
 const isEditFoldedIntoCache = (
   rawEvent: Partial<IEvent>,
@@ -286,7 +285,6 @@ const isEditFoldedIntoCache = (
   }
   const target = cachedRevisions.get(relation.event_id);
   if (!target) return false;
-  if (rawEvent.unsigned?.redacted_because) return true;
   return isEditKnownToRevision(rawEvent, cachedSenders.get(relation.event_id), target);
 };
 
