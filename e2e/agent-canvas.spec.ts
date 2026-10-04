@@ -444,13 +444,15 @@ article{background:var(--mr-surface);border:1px solid var(--mr-border);border-ra
   await showCanvas(`<p id="scheme"></p>
 <script>document.getElementById('scheme').textContent = mindroom.colorScheme;</script>
 <script src="https://unpkg.com/canvas-probe@1.0.0/probe.js"></script>
+<svg width="10" height="10"><image href="https://unpkg.com/canvas-probe@1.0.0/probe.png" width="10" height="10"/></svg>
 <script>missingFunction();</script>`);
   await expect(frame.locator('#scheme')).toHaveText(/^(light|dark)$/);
   await expect(panel.getByText('This page reported an error.')).toBeVisible();
   const reported = panel.locator('pre');
-  await expect(reported).toContainText('missingFunction is not defined (line 4)');
+  await expect(reported).toContainText('missingFunction is not defined (line 5)');
   await expect(reported).toContainText('Blocked https://unpkg.com');
-  // A blocked load is reported once, as blocked.
+  await expect(reported).toContainText('Blocked https://unpkg.com/canvas-probe@1.0.0/probe.png');
+  // A blocked load is reported once, as blocked, SVG images included.
   await expect(reported).not.toContainText('Could not load');
   await page.screenshot({ path: testInfo.outputPath('canvas-error-report.png') });
   await panel.getByRole('button', { name: /^Tell / }).click();
