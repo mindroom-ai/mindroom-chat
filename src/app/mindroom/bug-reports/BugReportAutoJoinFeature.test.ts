@@ -3,12 +3,15 @@ import { shouldAutoJoinBugReportInvite } from './BugReportAutoJoinFeature';
 
 const mx = (userId = '@admin:example.com') => ({ getUserId: () => userId });
 
-const invitedRoom = (opts: { type?: string; inviter?: string; membership?: string } = {}) => ({
+/** `type: null` leaves the invite without an m.room.create event. */
+const invitedRoom = (
+  opts: { type?: string | null; inviter?: string; membership?: string } = {}
+) => ({
   getMyMembership: () => opts.membership ?? 'invite',
   getLiveTimeline: () => ({
     getState: () => ({
       getStateEvents: (eventType: string) =>
-        eventType === 'm.room.create'
+        eventType === 'm.room.create' && opts.type !== null
           ? { getContent: () => ({ type: opts.type ?? 'io.mindroom.bug_reports' }) }
           : null,
     }),
@@ -39,12 +42,11 @@ describe('shouldAutoJoinBugReportInvite', () => {
         admins
       )
     ).toBe(false);
+  });
+
+  it('ignores invites without a create event', () => {
     expect(
-      shouldAutoJoinBugReportInvite(
-        mx() as never,
-        invitedRoom({ type: undefined, inviter: '@a:example.com' }) as never,
-        []
-      )
+      shouldAutoJoinBugReportInvite(mx() as never, invitedRoom({ type: null }) as never, admins)
     ).toBe(false);
   });
 
