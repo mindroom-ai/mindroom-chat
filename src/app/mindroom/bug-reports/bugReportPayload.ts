@@ -48,11 +48,25 @@ export type BugReport = {
   diagnostics: DiagnosticsPayload;
 };
 
+/**
+ * The decrypted event as it was sent. getEffectiveEvent() alone would carry the latest
+ * edit's m.new_content (which has no m.relates_to) instead of the original content.
+ */
+const getOriginalEvent = (event: MatrixEvent): RawEvent => {
+  const content: RawEvent = { ...event.getOriginalContent() };
+  // Encrypted events keep m.relates_to in the wire content, outside the ciphertext.
+  const wireRelation = event.getWireContent()['m.relates_to'];
+  if (content['m.relates_to'] === undefined && wireRelation !== undefined) {
+    content['m.relates_to'] = wireRelation;
+  }
+  return { ...(event.getEffectiveEvent() as unknown as RawEvent), content };
+};
+
 const serializeEvent = (event: MatrixEvent): BugReportEvent => ({
   eventId: event.getId() ?? null,
   status: event.status ?? null,
   decryptionFailure: event.isDecryptionFailure(),
-  event: event.getEffectiveEvent() as unknown as RawEvent,
+  event: getOriginalEvent(event),
   latestEdit: (event.replacingEvent()?.getEffectiveEvent() as RawEvent | undefined) ?? null,
 });
 

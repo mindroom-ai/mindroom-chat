@@ -16,7 +16,9 @@ const fakeEvent = (
     threadRootId?: string;
     replaces?: string;
     status?: string | null;
-    edit?: Record<string, unknown>;
+    body?: string;
+    encrypted?: boolean;
+    edit?: { event_id: string; content: Record<string, unknown> };
   } = {}
 ) => {
   const relation = () => {
@@ -26,20 +28,34 @@ const fakeEvent = (
     }
     return null;
   };
+  const relatesTo = relation() ? { 'm.relates_to': relation() } : {};
+  // Encrypted events keep m.relates_to in the clear wire content, outside the ciphertext.
+  const originalContent = { body: opts.body ?? id, ...(opts.encrypted ? {} : relatesTo) };
+  const wireContent = opts.encrypted
+    ? { algorithm: 'm.megolm.v1.aes-sha2', ciphertext: 'secret', ...relatesTo }
+    : originalContent;
+  // Like the SDK: once an edit is applied, getContent() is the edit's m.new_content.
+  const getContent = () =>
+    opts.edit ? (opts.edit.content['m.new_content'] as Record<string, unknown>) : originalContent;
   return {
     getId: () => id,
     getTs: () => ts,
     threadRootId: opts.threadRootId,
     status: opts.status ?? null,
     isDecryptionFailure: () => false,
-    getEffectiveEvent: () => ({ event_id: id, origin_server_ts: ts, content: { body: id } }),
+    getOriginalContent: () => originalContent,
+    getWireContent: () => wireContent,
+    getContent,
+    // Like the SDK: built from getContent(), plus wire keys missing from it for encrypted events.
+    getEffectiveEvent: () => ({
+      event_id: id,
+      type: 'm.room.message',
+      origin_server_ts: ts,
+      content: opts.encrypted ? { ...relatesTo, ...getContent() } : { ...getContent() },
+    }),
     replacingEvent: () => (opts.edit ? { getEffectiveEvent: () => opts.edit } : null),
     isRelation: () => relation() !== null,
     getRelation: relation,
-    getContent: () => {
-      const current = relation();
-      return current ? { 'm.relates_to': current } : {};
-    },
   };
 };
 
@@ -136,19 +152,20 @@ describe('collectReportEvents', () => {
 });
 
 describe('buildBugReport', () => {
-  it('captures identifiers, raw events with latest edits, client state, and diagnostics', async () => {
+  const mx = {
+    getSafeUserId: () => '@alice:example.com',
+    getDeviceId: () => 'DEVICE',
+    getHomeserverUrl: () => 'https://hs.example.com',
+    getSyncState: () => 'SYNCING',
+  };
+
+  it('captures identifiers, events with latest edits, client state, and diagnostics', async () => {
     const root = fakeEvent('$root', 1, { threadRootId: '$root' });
     const reply = fakeEvent('$reply', 2, {
       threadRootId: '$root',
       edit: { event_id: '$edit', content: { 'm.new_content': { body: 'final' } } },
     });
     const room = fakeRoom({ live: [root, reply], thread: { id: '$root', root, events: [reply] } });
-    const mx = {
-      getSafeUserId: () => '@alice:example.com',
-      getDeviceId: () => 'DEVICE',
-      getHomeserverUrl: () => 'https://hs.example.com',
-      getSyncState: () => 'SYNCING',
-    };
     const report = await buildBugReport(
       mx as never,
       room as never,
@@ -180,5 +197,41 @@ describe('buildBugReport', () => {
       metadata: { exportedAt: Date.parse('2026-10-03T12:00:00.000Z') },
     });
     expect(getBugReportFileName(report)).toBe('mindroom-bug-report-2026-10-03T12-00-00-000Z.json');
+  });
+
+  it('keeps the original content and relation of an edited event next to its latest edit', async () => {
+    const root = fakeEvent('$root', 1, { threadRootId: '$root' });
+    const edit = {
+      event_id: '$edit',
+      content: {
+        body: '* final',
+        'm.new_content': { body: 'final' },
+        'm.relates_to': { rel_type: 'm.replace', event_id: '$reply' },
+      },
+    };
+    const reply = fakeEvent('$reply', 2, { threadRootId: '$root', body: 'draft', edit });
+    const room = fakeRoom({ live: [root, reply], thread: { id: '$root', root, events: [reply] } });
+    const report = await buildBugReport(mx as never, room as never, reply as never);
+    expect(report.events[1].event).toMatchObject({ event_id: '$reply', origin_server_ts: 2 });
+    expect(report.events[1].event.content).toEqual({
+      body: 'draft',
+      'm.relates_to': { rel_type: 'm.thread', event_id: '$root' },
+    });
+    expect(report.events[1].latestEdit).toEqual(edit);
+  });
+
+  it('keeps the wire relation of an encrypted event without its ciphertext', async () => {
+    const root = fakeEvent('$root', 1, { threadRootId: '$root' });
+    const reply = fakeEvent('$reply', 2, {
+      threadRootId: '$root',
+      body: 'secret',
+      encrypted: true,
+    });
+    const room = fakeRoom({ live: [root, reply], thread: { id: '$root', root, events: [reply] } });
+    const report = await buildBugReport(mx as never, room as never, reply as never);
+    expect(report.events[1].event.content).toEqual({
+      body: 'secret',
+      'm.relates_to': { rel_type: 'm.thread', event_id: '$root' },
+    });
   });
 });
