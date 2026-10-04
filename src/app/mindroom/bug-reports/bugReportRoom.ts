@@ -15,6 +15,9 @@ export const BUG_REPORTS_ACCOUNT_DATA_TYPE = 'io.mindroom.bug_reports';
 
 const inFlight = new WeakMap<MatrixClient, Promise<Room>>();
 
+export const getReporterName = (mx: MatrixClient, userId: string): string =>
+  mx.getUser(userId)?.displayName ?? getMxIdLocalPart(userId) ?? userId;
+
 const isJoinedOrInvited = (membership: string | undefined): boolean =>
   membership === Membership.Join || membership === Membership.Invite;
 
@@ -71,12 +74,10 @@ const inviteMissingAdmins = async (mx: MatrixClient, room: Room, admins: string[
   }
 };
 
-const createReportRoom = async (mx: MatrixClient, admins: string[]): Promise<Room> => {
-  const userId = mx.getSafeUserId();
-  const displayName = mx.getUser(userId)?.displayName ?? getMxIdLocalPart(userId) ?? userId;
+const createReportRoom = async (mx: MatrixClient, myUserId: string, admins: string[]) => {
   // No m.room.encryption: matrix-mcp, which coding agents use to read reports, has no E2EE.
   const { room_id: roomId } = await mx.createRoom({
-    name: `Bug reports · ${displayName}`,
+    name: `Bug reports · ${getReporterName(mx, myUserId)}`,
     preset: Preset.PrivateChat,
     visibility: Visibility.Private,
     invite: admins,
@@ -102,7 +103,7 @@ export const ensureBugReportRoom = (mx: MatrixClient, admins: string[]): Promise
   const lookup = (async () => {
     const room =
       (await findReusableRoom(mx, myUserId, otherAdmins)) ??
-      (await createReportRoom(mx, otherAdmins));
+      (await createReportRoom(mx, myUserId, otherAdmins));
     await inviteMissingAdmins(mx, room, otherAdmins);
     return room;
   })().finally(() => inFlight.delete(mx));

@@ -33,7 +33,6 @@ const client = () => {
   const calls: string[] = [];
   return {
     calls,
-    getSafeUserId: () => '@alice:example.com',
     getUser: () => ({ displayName: 'Alice' }),
     sendMessage: vi.fn(async (_roomId: string, threadIdOrContent: unknown) => {
       const isRoot = !!threadIdOrContent && typeof threadIdOrContent === 'object';

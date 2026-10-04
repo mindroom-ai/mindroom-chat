@@ -3,7 +3,7 @@ import type { RoomMessageEventContent } from 'matrix-js-sdk/lib/@types/events';
 import { getFileMsgContent } from '../../features/room/msgContent';
 import { getMatrixToRoomEvent } from '../../plugins/matrix-to';
 import type { TUploadItem } from '../../state/room/roomInputDrafts';
-import { encryptFile, getMxIdLocalPart } from '../../utils/matrix';
+import { encryptFile } from '../../utils/matrix';
 import { getMessageRelation } from '../threads/composeMessageRelation';
 import {
   BUG_REPORT_TYPE,
@@ -12,6 +12,7 @@ import {
   serializeBugReport,
   type BugReport,
 } from './bugReportPayload';
+import { getReporterName } from './bugReportRoom';
 
 /** English on purpose: Matrix content is read by administrators and agents, not localized. */
 export const buildBugReportSummary = (report: BugReport, reporterName: string): string => {
@@ -54,11 +55,9 @@ export const sendBugReport = async (
 ): Promise<{ roomId: string; threadRootId: string }> => {
   // Upload first: a failed upload must not leave a summary without its attachment.
   const fileContent = await uploadReportFile(mx, reportRoom, report);
-  const userId = mx.getSafeUserId();
-  const reporterName = mx.getUser(userId)?.displayName ?? getMxIdLocalPart(userId) ?? userId;
   const { event_id: threadRootId } = await mx.sendMessage(reportRoom.roomId, {
     msgtype: MsgType.Text,
-    body: buildBugReportSummary(report, reporterName),
+    body: buildBugReportSummary(report, getReporterName(mx, report.reporter.userId)),
     [BUG_REPORT_TYPE]: {
       version: BUG_REPORT_VERSION,
       room_id: report.target.roomId,
