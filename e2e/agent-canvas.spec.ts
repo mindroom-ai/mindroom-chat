@@ -121,6 +121,21 @@ test('agent canvases run sandboxed, send only confirmed answers, and update in p
   });
   const pageErrors: string[] = [];
   page.on('pageerror', (error) => pageErrors.push(error.message));
+  // Stand-ins for CDN libraries; a request reaching one of these routes passed the canvas policy.
+  let libraries = false;
+  const libraryRequests: string[] = [];
+  await context.route(/^https:\/\/(cdn\.jsdelivr\.net|unpkg\.com)\//, async (route) => {
+    const url = route.request().url();
+    libraryRequests.push(url);
+    await route.fulfill(
+      url.endsWith('.css')
+        ? { contentType: 'text/css', body: '#library { color: rgb(1, 2, 3); }' }
+        : {
+            contentType: 'text/javascript',
+            body: "document.getElementById('library').textContent = 'loaded';",
+          }
+    );
+  });
   await context.route('**/config.json', async (route) => {
     const response = await route.fetch();
     const config = await response.json();
@@ -134,7 +149,7 @@ test('agent canvases run sandboxed, send only confirmed answers, and update in p
         auth: { allowRegistration: false, disablePasswordLogin: false },
         mindroom: {
           ...config.mindroom,
-          canvas: { enabled: true },
+          canvas: { enabled: true, libraries },
           uiActions: { autoOpenFromHomeservers: [server] },
         },
       },
@@ -385,6 +400,33 @@ article{background:var(--mr-surface);border:1px solid var(--mr-border);border-ra
   );
   expect(fullAnswer.body).toContain('Canvas response (');
   await expect(page.locator(`[data-canvas-receipt="${editorId}"]`)).toContainText('Edited draft');
+
+  // Pages load libraries only from jsDelivr's npm path, and only when the deployment allows it.
+  const npmScript = 'https://cdn.jsdelivr.net/npm/canvas-probe@1.0.0/probe.js';
+  const npmStyle = 'https://cdn.jsdelivr.net/npm/canvas-probe@1.0.0/probe.css';
+  await showCanvas(`<link rel="stylesheet" href="${npmStyle}">
+<p id="library">not loaded</p>
+<script src="${npmScript}"></script>
+<script src="https://cdn.jsdelivr.net/gh/canvas/probe@1.0.0/probe.js"></script>
+<script src="https://unpkg.com/canvas-probe@1.0.0/probe.js"></script>`);
+  await expect(frame.locator('#library')).toHaveText('not loaded');
+  await page.waitForTimeout(1_000);
+  await expect(frame.locator('#library')).toHaveText('not loaded');
+  expect(libraryRequests).toEqual([]);
+  libraries = true;
+  // Chat starts from its cached configuration, so drop it to apply the new setting on this load.
+  await page.evaluate(() => {
+    for (const key of Object.keys(localStorage)) {
+      if (key.startsWith('io.cinny.client-config:')) localStorage.removeItem(key);
+    }
+  });
+  await page.reload();
+  await expect(conversation).toBeVisible();
+  await page.getByRole('button', { name: 'Open panel', exact: true }).last().click();
+  await expect(frame.locator('#library')).toHaveText('loaded');
+  await expect(frame.locator('#library')).toHaveCSS('color', 'rgb(1, 2, 3)');
+  await page.waitForTimeout(1_000);
+  expect([...libraryRequests].sort()).toEqual([npmStyle, npmScript].sort());
 
   expect(pageErrors).toEqual([]);
   await new Promise((resolve) => {

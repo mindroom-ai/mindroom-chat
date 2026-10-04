@@ -44,6 +44,8 @@ export type CanvasPanelProps = {
   agentName: string;
   colorScheme: CanvasColorScheme;
   theme: CanvasTheme;
+  /** The deployment lets pages load libraries from the library source. */
+  libraries?: boolean;
   onClose: () => void;
   onRetry?: () => void;
   expanded?: boolean;
@@ -120,6 +122,7 @@ export function CanvasPanel({
   agentName,
   colorScheme,
   theme,
+  libraries = false,
   onClose,
   onRetry,
   expanded = false,
@@ -136,8 +139,14 @@ export function CanvasPanel({
   const [updateAvailable, setUpdateAvailable] = useState(false);
   const doc = useMemo(
     () =>
-      buildCanvasDocument(displayed.html, displayed.colorScheme, displayed.theme, displayed.title),
-    [displayed.html, displayed.colorScheme, displayed.theme, displayed.title]
+      buildCanvasDocument(
+        displayed.html,
+        displayed.colorScheme,
+        displayed.theme,
+        displayed.title,
+        libraries
+      ),
+    [displayed.html, displayed.colorScheme, displayed.theme, displayed.title, libraries]
   );
   const [reloads, setReloads] = useState(0);
   const docKey = useMemo(() => documentKey(doc), [doc]);
