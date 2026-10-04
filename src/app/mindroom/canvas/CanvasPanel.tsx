@@ -137,6 +137,8 @@ export function CanvasPanel({
   const touched = useRef(false);
   // The answer this revision's panel last sent; another answer's late result cannot mark the frame.
   const activeTxnId = useRef<string>();
+  // An answer on its way keeps its snapshot, so a failure still offers Send and Discard.
+  const inFlightTxnId = useRef<string>();
   const lastStageAt = useRef(0);
   const latest = useRef({ canvas, colorScheme, theme });
   latest.current = { canvas, colorScheme, theme };
@@ -148,6 +150,7 @@ export function CanvasPanel({
   useEffect(() => {
     touched.current = false;
     activeTxnId.current = undefined;
+    inFlightTxnId.current = undefined;
     lastStageAt.current = 0;
     setStaged(undefined);
     setSend({ status: 'idle' });
@@ -178,7 +181,9 @@ export function CanvasPanel({
         theme: latest.current.theme,
       });
     } else {
-      setStaged(undefined);
+      setStaged((current) =>
+        current && current.txnId === inFlightTxnId.current ? current : undefined
+      );
       // A failed answer has no Send button once its snapshot is gone; the timeline keeps its retry.
       setSend((current) => (current.status === 'failed' ? { status: 'idle' } : current));
       setUpdateAvailable(true);
@@ -250,6 +255,9 @@ export function CanvasPanel({
         if (outcome === 'failed') return { status: 'failed', label: current.label, txnId };
         return { status: 'idle' };
       });
+      if (outcome !== 'sending' && inFlightTxnId.current === txnId)
+        inFlightTxnId.current = undefined;
+      if (outcome === 'sending') inFlightTxnId.current = txnId;
       if (outcome === 'sent' || outcome === 'cancelled') {
         setStaged((current) => (current?.txnId === txnId ? undefined : current));
       }
@@ -297,10 +305,12 @@ export function CanvasPanel({
         setSend({ status: 'sent', label });
       } else {
         setSend({ status: 'sending', label, txnId });
+        inFlightTxnId.current = txnId;
       }
       return;
     }
     setSend({ status: 'sending', label, txnId });
+    inFlightTxnId.current = txnId;
     // Work in the frame during the send marks it again.
     touched.current = false;
     const content = buildCanvasResponseContent(

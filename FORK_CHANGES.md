@@ -48,13 +48,13 @@
 - Timeline: `renderMindroomMessageContent` shows such a message as a one-line receipt (expandable to the JSON, label capped at 200 characters) only when the body equals the canonical body regenerated from the metadata; anything else renders as ordinary text.
   Canvas notices keep their **Open panel** button when edited.
 - Updates: a new revision loads at once unless the user focused the frame since it loaded or since their last send; then the panel keeps the current page and offers **Load update**.
-  Each revision is decided once, and a new revision drops a pending snapshot (and a failed answer's message, whose retry stays in the timeline).
+  Each revision is decided once, and a new revision drops a pending snapshot (and a failed answer's message, whose retry stays in the timeline), except an answer that is still sending: it keeps its snapshot so a failure still offers Send and Discard.
   The theme is fixed per displayed revision, so switching themes does not discard unsent work.
 - Room integration: `useRoomCanvasState` owns the open canvas per conversation; Canvas, Computer, and Members share the right-hand slot and opening one closes the others.
   The header's Members button treats an open canvas like an open computer: Members shows as closed, and one click replaces the canvas with Members.
   Nothing else closes a canvas for Members, so crossing the phone/tablet breakpoint (which switches which saved Members setting applies) keeps it open.
   On phones the canvas covers the conversation, which is unmounted, as with Expand.
-  `RoomCanvasPanel` follows edits of the request by event ID through the client's re-emitted `Replaced`, so an edit that lands on another copy of the event (a cached thread page, a reset timeline) still updates the panel; a copy is followed only when its edit from the request's sender is newer than the shown one, so the page never rolls back.
+  `RoomCanvasPanel` follows edits of the request by event ID through the client's re-emitted `Replaced`, so an edit that lands on another copy of the event (a cached thread page, a reset timeline) still updates the panel; a copy is followed only when the UI-action parser accepts its edit and that edit comes after the shown one in Matrix edit order (timestamp, then event ID), so the page never rolls back. A deletion that lands on another copy closes the panel too.
   Host text is translated in all 17 locales (`mindroomUi.canvas.*`).
   The shared desktop/mobile panel layout moved to `sidebar/SidePanel.css.ts`.
 - Opt-in: canvases run only with `mindroom.canvas.enabled: true` in the runtime `config.json`, and agents get `show_canvas` only when their `chat_ui` entry sets `enable_show_canvas: true`.
@@ -83,6 +83,7 @@
   Uploaded pages extend the original inline-only design at the owner's request.
   Cross-model reviews of the whole PR by GPT-6 Astra and Claude Opus 5.5 found the navigation to Chat's own origin and reCAPTCHA, overlapping sends across revisions, a timeline retry shown as sent too early, a phone rotation closing the canvas, the iOS plugin bridge, the answer size, a failed answer stranded by an update, the phone overlay over a mounted conversation, edits landing on another event copy, and untranslated host text; all are fixed above.
   GPT-6 Astra's re-check of those fixes confirmed the wrapper and found that a failed answer stopped following its echo, that a copy could roll the page back to an older edit, that a long display name broke the answer budget, that a late failure still marked a newer revision as worked on, that unlabeled answers showed English, and that the header's Members button needed two clicks after a rotation; all are fixed above.
+  A final round (GPT-6 Astra and a Claude Opus 5.5 verification of its own findings) found that copies with a rejected or same-millisecond edit were ranked wrongly, that an update arriving mid-send could still strand a failure, and that a deletion on another copy kept the panel open; all are fixed above.
 - Next: a state-preserving update channel, refreshing a path-based canvas automatically when its file changes, and attaching the open canvas's latest state to the user's next typed message.
 
 ### Add reconciled thread history to the SDK thread as backfill (2026-10-03)

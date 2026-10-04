@@ -44,10 +44,10 @@ const ROOM_ID = '!room:example.org';
 const AGENT = '@mindroom_planner:example.org';
 const VIEWER = '@alice:example.org';
 
-const room = {
+const room = Object.assign(new EventEmitter(), {
   roomId: ROOM_ID,
   getMember: (userId: string) => ({ userId, membership: 'join', rawDisplayName: 'Planner' }),
-} as unknown as Room;
+}) as unknown as Room;
 
 const metadata = (html: string) => ({
   version: 1,
@@ -166,6 +166,53 @@ describe('RoomCanvasPanel', () => {
     });
     expect(panels.props?.canvas.html).toBe('<p>Step 3</p>');
     expect(panels.props?.canvas.revisionEventId).toBe('$edit-3');
+  });
+
+  it('ignores a newer copy whose edit the protocol rejects', () => {
+    const event = request();
+    render(event);
+    act(() => event.makeReplaced(edit('<p>Step 3</p>', { id: '$edit-3', ts: 300 })));
+    const broken = request();
+    const invalid = edit('<p>Broken</p>', { id: '$edit-4', ts: 400 });
+    (invalid.getContent()['m.new_content'] as Record<string, Record<string, unknown>>)[
+      'io.mindroom.ui_action'
+    ].canvas = { title: '', html: '<p>Broken</p>' };
+    broken.makeReplaced(invalid);
+    act(() => {
+      mx.emit(MatrixEventEvent.Replaced, broken);
+    });
+    expect(panels.props?.canvas.html).toBe('<p>Step 3</p>');
+    expect(panels.props?.canvas.revisionEventId).toBe('$edit-3');
+  });
+
+  it('breaks a same-millisecond tie between edits by event ID, like Matrix', () => {
+    const event = request();
+    render(event);
+    act(() => event.makeReplaced(edit('<p>A</p>', { id: '$edit-a', ts: 300 })));
+    const copy = request();
+    copy.makeReplaced(edit('<p>B</p>', { id: '$edit-b', ts: 300 }));
+    act(() => {
+      mx.emit(MatrixEventEvent.Replaced, copy);
+    });
+    expect(panels.props?.canvas.html).toBe('<p>B</p>');
+  });
+
+  it('closes when another copy of the request is deleted', async () => {
+    const onClose = vi.fn();
+    render(request(), onClose);
+    const copy = request();
+    await act(async () => {
+      room.emit(
+        MatrixEventEvent.BeforeRedaction,
+        copy,
+        new MatrixEvent({ type: 'm.room.redaction' })
+      );
+      copy.makeRedacted(
+        new MatrixEvent({ type: 'm.room.redaction', redacts: '$canvas', content: {} }),
+        room
+      );
+    });
+    expect(onClose).toHaveBeenCalled();
   });
 
   it('ignores edits of other events', () => {

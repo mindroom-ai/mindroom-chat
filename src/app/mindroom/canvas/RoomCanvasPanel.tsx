@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { ThemeKind, useTheme } from '../../hooks/useTheme';
 import { ScreenSize, useScreenSizeContext } from '../../hooks/useScreenSize';
 import { getMxIdLocalPart } from '../../utils/matrix';
-import { getMemberDisplayName } from '../../utils/room';
+import { getMemberDisplayName, isEventOrderedAfter } from '../../utils/room';
 import { ResizablePanel } from '../sidebar/ResizablePanel';
 import { readChatUiAction, type ChatUiCanvas } from '../ui-actions/chatUiProtocol';
 import { CanvasPanel } from './CanvasPanel';
@@ -100,10 +100,18 @@ function LoadedCanvasPanel({
   );
 }
 
-/** When the request's applied edit was sent, or -1 without an edit from the request's sender. */
-const editTime = (request: MatrixEvent): number => {
+/** The request's applied edit, when the UI-action protocol accepts it as the canvas to show. */
+const acceptedEdit = (
+  request: MatrixEvent,
+  viewerId: string,
+  room: Room
+): MatrixEvent | undefined => {
   const edit = request.replacingEvent();
-  return edit && edit.getSender() === request.getSender() ? edit.getTs() : -1;
+  if (!edit) return undefined;
+  const action = readChatUiAction(request, viewerId, room);
+  return action?.action === 'show_canvas' && action.revisionEventId === edit.getId()
+    ? edit
+    : undefined;
 };
 
 /** Resolve the open request (and its latest same-sender edit) into the sandboxed panel. */
@@ -111,21 +119,38 @@ export function RoomCanvasPanel({ event, ...props }: RoomCanvasPanelProps) {
   const { mx, room, onClose } = props;
   const [, refresh] = useReducer((count: number) => count + 1, 0);
   // The timeline can hold another copy of the request (a cached thread page, a reset timeline), so
-  // an edit may land on a different object. A copy is followed only when its edit from the original
-  // sender is newer than the shown one, so notification order can never roll the page back.
+  // an edit may land on a different object. A copy is followed only when the protocol accepts its edit
+  // and that edit comes after the shown one in Matrix edit order, so notification order can never roll
+  // the page back.
   const [request, setRequest] = useState(event);
   useEffect(() => setRequest(event), [event]);
   useEffect(() => {
     const eventId = event.getId();
+    const viewerId = mx.getSafeUserId();
     const followCopy = (replaced: MatrixEvent) => {
       if (replaced.getId() !== eventId) return;
-      setRequest((current) => (editTime(replaced) > editTime(current) ? replaced : current));
+      const candidate = acceptedEdit(replaced, viewerId, room);
+      if (!candidate) return;
+      setRequest((current) => {
+        const shown = acceptedEdit(current, viewerId, room);
+        return !shown || isEventOrderedAfter(candidate, shown) ? replaced : current;
+      });
+    };
+    // A deletion can also land on another copy; the deleted copy no longer reads as a canvas.
+    const followDeletion = (deleted: MatrixEvent) => {
+      if (deleted.getId() !== eventId) return;
+      queueMicrotask(() => {
+        setRequest(deleted);
+        refresh();
+      });
     };
     mx.on(MatrixEventEvent.Replaced, followCopy);
+    room.on(MatrixEventEvent.BeforeRedaction, followDeletion);
     return () => {
       mx.off(MatrixEventEvent.Replaced, followCopy);
+      room.off(MatrixEventEvent.BeforeRedaction, followDeletion);
     };
-  }, [mx, event]);
+  }, [mx, room, event]);
   useEffect(() => {
     // The SDK announces a redaction before applying it, so re-read afterwards.
     const afterRedaction = () => queueMicrotask(refresh);

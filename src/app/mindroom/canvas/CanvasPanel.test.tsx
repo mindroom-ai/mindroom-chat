@@ -456,6 +456,32 @@ describe('CanvasPanel', () => {
     expect(container.textContent).toContain('Sent to Planner: two');
   });
 
+  it('keeps an answer that is still sending when an update waits, so a failure can be retried', async () => {
+    let fail: () => void = () => undefined;
+    sendMessage.mockImplementationOnce(
+      (_roomId: string, _content: unknown, txnId: string) =>
+        new Promise((_resolve, reject) => {
+          fail = () => {
+            echo(txnId, EventStatus.NOT_SENT);
+            reject(new Error('offline'));
+          };
+        })
+    );
+    render();
+    await post(submit());
+    await arm();
+    await clickSend();
+    // The user goes back into the page while the answer is on its way, then an update arrives.
+    await touchFrame();
+    render({ canvas: { ...canvas, revisionEventId: '$edit', html: '<p>Step 2</p>' } });
+    expect(container.textContent).toContain('Planner updated this panel.');
+    expect(container.textContent).toContain('Send to Planner: Pro plan');
+    await act(async () => fail());
+    expect(container.textContent).toContain('Could not send your response');
+    expect(button('[data-canvas-send]').disabled).toBe(false);
+    expect(button('[data-canvas-discard]').disabled).toBe(false);
+  });
+
   it('does not strand a failed answer when an update replaces it', async () => {
     failFirstSend();
     render();
