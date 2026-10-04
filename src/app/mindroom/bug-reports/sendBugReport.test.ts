@@ -62,8 +62,7 @@ describe('buildBugReportSummary', () => {
 describe('sendBugReport', () => {
   it('posts the summary root and the JSON file as a reply in its thread', async () => {
     const mx = client();
-    const reportRoom = { roomId: '!reports:example.com', hasEncryptionStateEvent: () => false };
-    const result = await sendBugReport(mx as never, reportRoom as never, report);
+    const result = await sendBugReport(mx as never, plainRoom as never, report);
     expect(result).toEqual({ roomId: '!reports:example.com', threadRootId: '$summary' });
 
     const [summaryRoomId, summaryContent] = mx.sendMessage.mock.calls[0];

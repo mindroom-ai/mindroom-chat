@@ -17,7 +17,7 @@ vi.mock('folds', () => ({
   as: (render: (props: object, ref: React.Ref<unknown>) => React.ReactNode) =>
     React.forwardRef((props, ref) => render(props, ref)),
   Icon: ({ src }: { src: string }) => <i data-icon={src} />,
-  Icons: { Warning: 'warning', Flag: 'flag' },
+  Icons: { Flag: 'flag' },
   MenuItem: React.forwardRef(
     (
       {

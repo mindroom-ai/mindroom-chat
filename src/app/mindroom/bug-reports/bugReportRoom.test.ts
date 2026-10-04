@@ -48,7 +48,6 @@ const client = (
   const rooms = { ...opts.rooms };
   const mx = {
     getSafeUserId: () => ME,
-    getUserId: () => ME,
     getUser: () => ({ displayName: 'Alice' }),
     getAccountData: vi.fn(() =>
       opts.storedRoomId ? { getContent: () => ({ room_id: opts.storedRoomId }) } : undefined
@@ -70,8 +69,6 @@ const client = (
       });
       return { room_id: '!new:example.com' };
     }),
-    on: vi.fn(),
-    removeListener: vi.fn(),
   };
   return mx;
 };

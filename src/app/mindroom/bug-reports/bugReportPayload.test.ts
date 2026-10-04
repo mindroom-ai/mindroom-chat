@@ -83,6 +83,16 @@ const fakeRoom = (opts: {
   getMembers: () => [],
 });
 
+/** A thread of 250 events: the root and the replies $r0..$r248. */
+const longThread = () => {
+  const root = fakeEvent('$root', 0, { threadRootId: '$root' });
+  const replies = Array.from({ length: 249 }, (_, i) =>
+    fakeEvent(`$r${i}`, i + 1, { threadRootId: '$root' })
+  );
+  const room = fakeRoom({ live: [], thread: { id: '$root', root, events: replies } });
+  return { root, replies, room };
+};
+
 describe('collectReportEvents', () => {
   it('returns the thread root and every known reply, oldest first, without duplicates', () => {
     const root = fakeEvent('$root', 1, { threadRootId: '$root' });
@@ -92,8 +102,9 @@ describe('collectReportEvents', () => {
       live: [root, b],
       thread: { id: '$root', root, events: [a, b] },
     });
-    const ids = collectReportEvents(room as never, b as never).events.map((e) => e.getId());
-    expect(ids).toEqual(['$root', '$a', '$b']);
+    const collected = collectReportEvents(room as never, b as never);
+    expect(collected.events.map((e) => e.getId())).toEqual(['$root', '$a', '$b']);
+    expect(collected.omittedEventCount).toBe(0);
   });
 
   it('includes a failed local echo that is only known as the selected event', () => {
@@ -135,12 +146,12 @@ describe('collectReportEvents', () => {
   it('takes the 50 events up to the selected main-timeline event', () => {
     const events = Array.from({ length: 80 }, (_, i) => fakeEvent(`$e${i}`, i));
     const room = fakeRoom({ live: events, timelineFor: events });
-    const ids = collectReportEvents(room as never, events[59] as never).events.map((e) =>
-      e.getId()
-    );
+    const collected = collectReportEvents(room as never, events[59] as never);
+    const ids = collected.events.map((e) => e.getId());
     expect(ids).toHaveLength(50);
     expect(ids[0]).toBe('$e10');
     expect(ids[49]).toBe('$e59');
+    expect(collected.omittedEventCount).toBe(0);
   });
 
   it('does not count or include m.replace edits in the main-timeline window', () => {
@@ -156,15 +167,12 @@ describe('collectReportEvents', () => {
     expect(ids[49]).toBe('$e59');
     expect(ids.some((id) => id?.startsWith('$edit'))).toBe(false);
   });
+
   it('keeps the root and the newest 200 replies of a longer thread', () => {
-    const root = fakeEvent('$root', 0, { threadRootId: '$root' });
-    const replies = Array.from({ length: 249 }, (_, i) =>
-      fakeEvent(`$r${i}`, i + 1, { threadRootId: '$root' })
-    );
-    const room = fakeRoom({ live: [], thread: { id: '$root', root, events: replies } });
+    const { replies, room } = longThread();
     const { events, omittedEventCount } = collectReportEvents(room as never, replies[248] as never);
     const ids = events.map((e) => e.getId());
-    // 250 events = root + 249 replies; the newest 200 replies are $r49..$r248.
+    // The newest 200 replies are $r49..$r248.
     expect(ids).toHaveLength(201);
     expect(ids[0]).toBe('$root');
     expect(ids[1]).toBe('$r49');
@@ -173,11 +181,7 @@ describe('collectReportEvents', () => {
   });
 
   it('ends the thread window at a selected reply older than the newest 200', () => {
-    const root = fakeEvent('$root', 0, { threadRootId: '$root' });
-    const replies = Array.from({ length: 249 }, (_, i) =>
-      fakeEvent(`$r${i}`, i + 1, { threadRootId: '$root' })
-    );
-    const room = fakeRoom({ live: [], thread: { id: '$root', root, events: replies } });
+    const { replies, room } = longThread();
     const { events, omittedEventCount } = collectReportEvents(room as never, replies[20] as never);
     const ids = events.map((e) => e.getId());
     expect(ids).toHaveLength(22);
@@ -188,34 +192,13 @@ describe('collectReportEvents', () => {
   });
 
   it('keeps the newest 200 replies when the thread root itself is reported', () => {
-    const root = fakeEvent('$root', 0, { threadRootId: '$root' });
-    const replies = Array.from({ length: 249 }, (_, i) =>
-      fakeEvent(`$r${i}`, i + 1, { threadRootId: '$root' })
-    );
-    const room = fakeRoom({ live: [], thread: { id: '$root', root, events: replies } });
+    const { root, room } = longThread();
     const { events, omittedEventCount } = collectReportEvents(room as never, root as never);
     const ids = events.map((e) => e.getId());
     expect(ids).toHaveLength(201);
     expect(ids[0]).toBe('$root');
     expect(ids[1]).toBe('$r49');
     expect(omittedEventCount).toBe(49);
-  });
-
-  it('omits nothing from a short thread or the main timeline', () => {
-    const root = fakeEvent('$root', 1, { threadRootId: '$root' });
-    const a = fakeEvent('$a', 2, { threadRootId: '$root' });
-    const b = fakeEvent('$b', 3, { threadRootId: '$root' });
-    const threadRoom = fakeRoom({ live: [], thread: { id: '$root', root, events: [a, b] } });
-    expect(collectReportEvents(threadRoom as never, a as never)).toMatchObject({
-      omittedEventCount: 0,
-    });
-    expect(
-      collectReportEvents(threadRoom as never, a as never).events.map((e) => e.getId())
-    ).toEqual(['$root', '$a', '$b']);
-
-    const events = Array.from({ length: 80 }, (_, i) => fakeEvent(`$e${i}`, i));
-    const mainRoom = fakeRoom({ live: events, timelineFor: events });
-    expect(collectReportEvents(mainRoom as never, events[59] as never).omittedEventCount).toBe(0);
   });
 });
 
