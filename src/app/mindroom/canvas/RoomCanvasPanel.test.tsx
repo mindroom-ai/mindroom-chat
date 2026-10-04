@@ -107,6 +107,7 @@ const render = (event: MatrixEvent, onClose = vi.fn()) =>
         onClose={onClose}
         expanded={false}
         onToggleExpanded={() => undefined}
+        libraries={false}
       />
     );
   });

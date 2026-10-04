@@ -45,7 +45,8 @@
       "apiUrl": ""
     },
     "canvas": {
-      "enabled": false
+      "enabled": false,
+      "libraries": false
     },
     "thinkingPlaceholderMessages": [
       "Thinking",

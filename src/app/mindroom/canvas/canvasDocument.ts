@@ -15,20 +15,32 @@ export const CANVAS_SANDBOX = 'allow-scripts allow-forms';
  */
 export const CANVAS_WRAPPER_SANDBOX = 'allow-scripts allow-forms';
 
-/** Agent HTML may run inline code but cannot load or send anything over the network. */
-export const CANVAS_CSP = [
-  "default-src 'none'",
-  "script-src 'unsafe-inline'",
-  "style-src 'unsafe-inline'",
-  'img-src data: blob:',
-  'font-src data:',
-  'media-src data: blob:',
-  "connect-src 'none'",
-  "form-action 'none'",
-  "frame-src 'none'",
-  "worker-src 'none'",
-  "base-uri 'none'",
-].join('; ');
+/** Any npm package at a version; the only source a deployment can let canvases load libraries from. */
+export const CANVAS_LIBRARY_SOURCE = 'https://cdn.jsdelivr.net/npm/';
+
+/**
+ * Agent HTML may run inline code but cannot send anything over the network. With libraries on,
+ * it may also load scripts, styles, and fonts from the library source; that reveals to the CDN
+ * which library a viewer loads, so deployments opt in.
+ */
+export const canvasPolicy = (libraries: boolean): string => {
+  const source = libraries ? ` ${CANVAS_LIBRARY_SOURCE}` : '';
+  return [
+    "default-src 'none'",
+    `script-src 'unsafe-inline'${source}`,
+    `style-src 'unsafe-inline'${source}`,
+    'img-src data: blob:',
+    `font-src data:${source}`,
+    'media-src data: blob:',
+    "connect-src 'none'",
+    "form-action 'none'",
+    "frame-src 'none'",
+    "worker-src 'none'",
+    "base-uri 'none'",
+  ].join('; ');
+};
+
+export const CANVAS_CSP = canvasPolicy(false);
 
 export type CanvasColorScheme = 'light' | 'dark';
 
@@ -102,11 +114,12 @@ const BASE_STYLE =
 export const buildCanvasPage = (
   html: string,
   colorScheme: CanvasColorScheme,
-  theme: CanvasTheme = FALLBACK_CANVAS_THEMES[colorScheme]
+  theme: CanvasTheme = FALLBACK_CANVAS_THEMES[colorScheme],
+  libraries = false
 ): string =>
   [
     '<!doctype html><html><head><meta charset="utf-8">',
-    `<meta http-equiv="Content-Security-Policy" content="${CANVAS_CSP}">`,
+    `<meta http-equiv="Content-Security-Policy" content="${canvasPolicy(libraries)}">`,
     `<meta name="color-scheme" content="${colorScheme}">`,
     '<meta name="viewport" content="width=device-width, initial-scale=1">',
     `<style>${canvasThemeCss(theme)}${BASE_STYLE}</style>`,
@@ -122,16 +135,18 @@ const scriptLiteral = (value: string): string => JSON.stringify(value).replace(/
 /**
  * The document of the panel's frame: it creates the canvas frame itself, so the load listener is in
  * place before the canvas loads. The canvas's document is inline, so a second load means it navigated.
+ * The canvas frame inherits this policy on top of its own, so it allows the same library source.
  */
 export const buildCanvasDocument = (
   html: string,
   colorScheme: CanvasColorScheme,
   theme: CanvasTheme = FALLBACK_CANVAS_THEMES[colorScheme],
-  title = ''
+  title = '',
+  libraries = false
 ): string =>
   [
     '<!doctype html><html><head><meta charset="utf-8">',
-    `<meta http-equiv="Content-Security-Policy" content="${CANVAS_CSP}">`,
+    `<meta http-equiv="Content-Security-Policy" content="${canvasPolicy(libraries)}">`,
     `<meta name="color-scheme" content="${colorScheme}">`,
     '<style>html,body{margin:0;height:100%;overflow:hidden}',
     'iframe{display:block;border:0;width:100%;height:100%}</style>',
@@ -146,7 +161,7 @@ export const buildCanvasDocument = (
     '  loads += 1;',
     `  if (loads > 1) parent.postMessage({ type: '${CANVAS_ESCAPE_MESSAGE}' }, '*');`,
     '});',
-    `frame.srcdoc = ${scriptLiteral(buildCanvasPage(html, colorScheme, theme))};`,
+    `frame.srcdoc = ${scriptLiteral(buildCanvasPage(html, colorScheme, theme, libraries))};`,
     'document.body.append(frame);',
     '})();</script></body></html>',
   ].join('');

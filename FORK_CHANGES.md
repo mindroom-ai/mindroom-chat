@@ -2,6 +2,21 @@
 
 ## Runbook
 
+### Let canvases load libraries from jsDelivr when a deployment allows it (2026-10-04)
+
+- Why: an agent drawing a chart, diagram, or formula had to inline every library, or redraw it by hand in SVG; Claude artifacts load libraries from CDNs.
+- `mindroom.canvas.libraries: true` in `config.json` lets canvas pages load scripts, styles, and fonts from `https://cdn.jsdelivr.net/npm/` (`CANVAS_LIBRARY_SOURCE`), which serves any npm package at a version, including ES modules through `/+esm`.
+  Absent or false keeps the policy unchanged, and `config.mindroom.json` ships it off.
+  Fetch, images, frames, other jsDelivr paths such as `/gh/`, and other CDNs stay blocked; there is no `unsafe-eval`.
+- Opting in matters for privacy: opening a page that uses a library tells jsDelivr the viewer's IP address and which file they load.
+  Library code runs in the same sandbox as the agent's own code, so it gains no access to Chat or the account.
+- `canvasPolicy(libraries)` builds both policies: the wrapper document's and the canvas page's.
+  The canvas frame inherits the wrapper's policy on top of its own, so both must allow the source; with a strict wrapper the live check's library stays blocked.
+- The backend tells an agent about the source only when its `chat_ui` entry sets `enable_canvas_libraries` (mindroom-ai/mindroom companion PR).
+- Tests: `canvasDocument.test.ts` pins the three widened directives and every other directive unchanged; `CanvasPanel.test.tsx` covers the switch.
+  `e2e/agent-canvas.spec.ts` serves stand-in files for jsDelivr and unpkg URLs: with the switch off nothing is requested, and with it on the `/npm/` script and stylesheet apply while `/gh/` and unpkg are never requested.
+  Chat starts from its cached configuration, so the check clears it before reloading with the new setting.
+
 ### Add one-click bug reports (2026-10-03)
 
 - Every message menu has **Report a bug**; one click builds a JSON report and sends it to the administrators named in the homeserver's client well-known (`io.mindroom.bug_reports.admins`).

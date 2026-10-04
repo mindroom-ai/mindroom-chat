@@ -73,6 +73,7 @@ export function Room() {
   const clientConfig = useClientConfig();
   const computerApiUrl = resolveComputerApiUrl(clientConfig.mindroom?.computers?.apiUrl);
   const canvasEnabled = clientConfig.mindroom?.canvas?.enabled === true;
+  const canvasLibraries = clientConfig.mindroom?.canvas?.libraries === true;
   // The native apps' plugin bridge also listens to messages from nested frames, so canvases stay
   // in the browser until that bridge accepts only the app's own frame.
   const nativeApp = Capacitor.isNativePlatform();
@@ -325,6 +326,7 @@ export function Room() {
                 onClose={closeCanvas}
                 expanded={canvasExpanded}
                 onToggleExpanded={toggleCanvasExpanded}
+                libraries={canvasLibraries}
               />
             </>
           )}

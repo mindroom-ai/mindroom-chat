@@ -52,6 +52,8 @@ export type ClientConfig = {
        * Panels cannot reach the Matrix session, but WebRTC can still leak what a user types into one.
        */
       enabled?: boolean;
+      /** Let panels load scripts, styles, and fonts from jsDelivr's npm CDN. Absent or false blocks them. */
+      libraries?: boolean;
     };
   };
 

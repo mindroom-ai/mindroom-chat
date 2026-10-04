@@ -18,6 +18,7 @@ type RoomCanvasPanelProps = {
   onClose: () => void;
   expanded: boolean;
   onToggleExpanded: () => void;
+  libraries: boolean;
 };
 
 type ShowCanvas = {
@@ -40,6 +41,7 @@ function LoadedCanvasPanel({
   onClose,
   expanded,
   onToggleExpanded,
+  libraries,
 }: Omit<RoomCanvasPanelProps, 'event'> & { action: ShowCanvas }) {
   const { t } = useTranslation();
   const appTheme = useTheme();
@@ -73,6 +75,7 @@ function LoadedCanvasPanel({
       agentName={agentName}
       colorScheme={colorScheme}
       theme={theme}
+      libraries={libraries}
       onClose={onClose}
       onRetry={() => setAttempt((count) => count + 1)}
       expanded={!mobile && expanded}
