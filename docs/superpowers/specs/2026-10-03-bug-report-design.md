@@ -54,7 +54,7 @@ Administrators are configured per homeserver in `/.well-known/matrix/client`:
 - Created without `m.room.encryption` so `matrix-mcp` (no E2EE support) can read it.
   If the homeserver encrypts it anyway, sending still works: the JSON is encrypted with the existing `encryptFile` helper and sent as `file` instead of `url`.
 - The room ID is stored in user account data `io.mindroom.bug_reports` as `{ "room_id": "!…" }`.
-- On each report the stored room is reused only while it is still private to the current administrators: the reporter is joined, the join rule is `invite`, history visibility is not `world_readable`, and every other joined or invited member is a current administrator (members are loaded first).
+- On each report the stored room is reused only while it is still a private report room for the current administrators: its create type is `io.mindroom.bug_reports`, the reporter is joined, the join rule is `invite`, history visibility is not `world_readable`, and every other joined or invited member is a current administrator (members are loaded first).
   Otherwise a new room is created and the account data is replaced; nobody is kicked and the old room is not left.
 - Administrators who are neither joined nor invited are invited again with `Promise.allSettled`; the report fails only when no administrator is in the room and none can be invited.
 - Concurrent reports from the same client share one in-flight room lookup, so double clicks never create two rooms.

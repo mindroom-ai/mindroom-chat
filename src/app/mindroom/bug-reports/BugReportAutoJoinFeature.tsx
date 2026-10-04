@@ -22,15 +22,17 @@ export const shouldAutoJoinBugReportInvite = (
   const myUserId = mx.getUserId();
   if (!room || !myUserId || !admins.includes(myUserId)) return false;
   if (room.getMyMembership() !== Membership.Invite) return false;
-  if (getStateEvent(room, StateEvent.RoomCreate)?.getContent().type !== BUG_REPORTS_ROOM_TYPE) {
-    return false;
-  }
+  const create = getStateEvent(room, StateEvent.RoomCreate);
+  if (create?.getContent().type !== BUG_REPORTS_ROOM_TYPE) return false;
   if (getStateEvent(room, StateEvent.RoomJoinRules)?.getContent().join_rule !== JoinRule.Invite) {
     return false;
   }
   const inviter = room.getMember(myUserId)?.events.member?.getSender();
-  const creator = getStateEvent(room, StateEvent.RoomCreate)?.getSender();
-  return !!inviter && creator === inviter && getMxIdServer(inviter) === getMxIdServer(myUserId);
+  return (
+    !!inviter &&
+    create.getSender() === inviter &&
+    getMxIdServer(inviter) === getMxIdServer(myUserId)
+  );
 };
 
 export function BugReportAutoJoinFeature() {
