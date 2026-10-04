@@ -378,6 +378,54 @@ describe('CanvasPanel', () => {
     expect(button('[data-canvas-send]').disabled).toBe(false);
   });
 
+  it('follows a retry or cancellation the timeline starts after a failure', async () => {
+    failFirstSend();
+    render();
+    await post(submit());
+    await arm();
+    await clickSend();
+    expect(container.textContent).toContain('Could not send your response');
+    // The timeline's Retry resends the echo without any click in the panel.
+    await act(async () => pendingEvents.get('txn-1')?.setStatus(EventStatus.SENDING));
+    expect(container.textContent).toContain('Sending to Planner');
+    expect(button('[data-canvas-discard]').disabled).toBe(true);
+    await act(async () => pendingEvents.get('txn-1')?.setStatus(EventStatus.NOT_SENT));
+    expect(container.textContent).toContain('Could not send your response');
+    await act(async () => pendingEvents.get('txn-1')?.setStatus(EventStatus.CANCELLED));
+    expect(button('[data-canvas-send]')).toBeNull();
+    expect(container.textContent).not.toContain('Could not send');
+  });
+
+  it('does not mark a newer revision as worked on when an earlier answer fails late', async () => {
+    const finishes: Array<{ resolve: () => void; reject: () => void }> = [];
+    sendMessage.mockImplementation(
+      () =>
+        new Promise((resolve, reject) => {
+          finishes.push({
+            resolve: () => resolve({ event_id: '$response' }),
+            reject: () => reject(new Error('offline')),
+          });
+        })
+    );
+    render();
+    await post(submit('one'));
+    await arm();
+    await clickSend();
+    render({ canvas: { ...canvas, revisionEventId: '$edit', html: '<p>Step 2</p>' } });
+    await act(async () => {
+      vi.advanceTimersByTime(100);
+    });
+    await post(submit('two'));
+    await arm();
+    await clickSend();
+    await act(async () => finishes[0].reject());
+    await act(async () => finishes[1].resolve());
+    // The next step loads at once: nothing unsent is in the frame since the answer to step 2.
+    render({ canvas: { ...canvas, revisionEventId: '$edit-2', html: '<p>Step 3</p>' } });
+    expect(page()).toContain('<p>Step 3</p>');
+    expect(container.textContent).not.toContain('updated this panel');
+  });
+
   it('keeps the panel on a newer answer when an earlier send finishes late', async () => {
     const finishes: Array<{ resolve: () => void; reject: () => void }> = [];
     sendMessage.mockImplementation(

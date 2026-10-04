@@ -2924,7 +2924,8 @@
       "sending": "Sending to {{agent}}…",
       "sent": "Sent to {{agent}}: {{label}}",
       "sendFailed": "Could not send your response. Try again.",
-      "receiptData": "Show the data sent to the agent"
+      "receiptData": "Show the data sent to the agent",
+      "unlabeled": "Submitted"
     }
   },
   "roomSchedules": {

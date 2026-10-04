@@ -119,6 +119,16 @@ describe('buildCanvasResponseContent', () => {
     expect(readCanvasResponse(content as never)?.label).toBe('Dense');
   });
 
+  it('stays within the event budget when the agent has a very long display name', () => {
+    const content = buildCanvasResponseContent(
+      { ...canvas, agentName: 'A'.repeat(50_000) },
+      { data: { text: '&"'.repeat(2700) }, label: 'Dense' }
+    );
+    const bytes = new TextEncoder().encode(JSON.stringify(content)).length;
+    expect(bytes).toBeLessThanOrEqual(MAX_CANVAS_RESPONSE_CONTENT_BYTES);
+    expect(readCanvasResponse(content as never)?.label).toBe('Dense');
+  });
+
   it('shows ordinary answers as JSON in the formatted body', () => {
     const content = buildCanvasResponseContent(canvas, { data: { plan: 'pro' } });
     expect(content.formatted_body).toContain(
@@ -149,6 +159,12 @@ describe('readCanvasResponse', () => {
     });
   });
 
+  it('leaves the label of an unlabeled answer for Chat to translate', () => {
+    const content = buildCanvasResponseContent(target, { data: { x: 1 } });
+    expect(content.body).toContain(': Submitted\n');
+    expect(readCanvasResponse(content)).toEqual({ canvasEventId: '$canvas', json: '{"x":1}' });
+  });
+
   it('keeps a receipt after the server re-serializes data with sorted keys', () => {
     const content = buildCanvasResponseContent(target, {
       data: { zebra: 1, apple: { b: 2, a: 1 } },
@@ -156,7 +172,7 @@ describe('readCanvasResponse', () => {
     expect(content.body).toContain('{"apple":{"a":1,"b":2},"zebra":1}');
     const stored = JSON.parse(JSON.stringify(content)) as Record<string, Record<string, unknown>>;
     stored[CANVAS_RESPONSE_KEY].data = { apple: { a: 1, b: 2 }, zebra: 1 };
-    expect(readCanvasResponse(stored)?.label).toBe('Submitted');
+    expect(readCanvasResponse(stored)?.json).toBe('{"apple":{"a":1,"b":2},"zebra":1}');
   });
 
   it('renders ordinary text unless the message replies to the canvas and mentions its agent', () => {

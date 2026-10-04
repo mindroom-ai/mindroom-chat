@@ -100,18 +100,26 @@ function LoadedCanvasPanel({
   );
 }
 
+/** When the request's applied edit was sent, or -1 without an edit from the request's sender. */
+const editTime = (request: MatrixEvent): number => {
+  const edit = request.replacingEvent();
+  return edit && edit.getSender() === request.getSender() ? edit.getTs() : -1;
+};
+
 /** Resolve the open request (and its latest same-sender edit) into the sandboxed panel. */
 export function RoomCanvasPanel({ event, ...props }: RoomCanvasPanelProps) {
   const { mx, room, onClose } = props;
   const [, refresh] = useReducer((count: number) => count + 1, 0);
   // The timeline can hold another copy of the request (a cached thread page, a reset timeline), so
-  // an edit may land on a different object; follow the newest copy with this event ID.
+  // an edit may land on a different object. A copy is followed only when its edit from the original
+  // sender is newer than the shown one, so notification order can never roll the page back.
   const [request, setRequest] = useState(event);
   useEffect(() => setRequest(event), [event]);
   useEffect(() => {
     const eventId = event.getId();
     const followCopy = (replaced: MatrixEvent) => {
-      if (replaced.getId() === eventId) setRequest(replaced);
+      if (replaced.getId() !== eventId) return;
+      setRequest((current) => (editTime(replaced) > editTime(current) ? replaced : current));
     };
     mx.on(MatrixEventEvent.Replaced, followCopy);
     return () => {

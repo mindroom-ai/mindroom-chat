@@ -2978,7 +2978,8 @@
       "sending": "Invio a {{agent}}…",
       "sent": "Inviato a {{agent}}: {{label}}",
       "sendFailed": "Impossibile inviare la risposta. Riprova.",
-      "receiptData": "Mostra i dati inviati all’agente"
+      "receiptData": "Mostra i dati inviati all’agente",
+      "unlabeled": "Inviato"
     }
   },
   "roomSchedules": {

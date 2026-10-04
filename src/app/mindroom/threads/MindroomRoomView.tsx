@@ -79,6 +79,8 @@ export function RoomView({
   computerAvailable = false,
   computerOpen = false,
   onComputerToggle,
+  canvasOpen = false,
+  onCanvasClose,
   hasMindroomAgents = true,
   joinRequestCount = 0,
   eventId,
@@ -90,6 +92,8 @@ export function RoomView({
   computerAvailable?: boolean;
   computerOpen?: boolean;
   onComputerToggle?: () => void;
+  canvasOpen?: boolean;
+  onCanvasClose?: () => void;
   hasMindroomAgents?: boolean;
   joinRequestCount?: number;
   eventId?: string;
@@ -203,6 +207,8 @@ export function RoomView({
             computerAvailable={computerAvailable}
             computerOpen={computerOpen}
             onComputerToggle={onComputerToggle}
+            canvasOpen={canvasOpen}
+            onCanvasClose={onCanvasClose}
             threadId={effectiveThreadId}
             joinRequestCount={joinRequestCount}
           />

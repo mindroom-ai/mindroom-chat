@@ -74,20 +74,20 @@ const request = () =>
     },
   });
 
-const edit = () =>
+const edit = (html = '<p>Step 2</p>', { id = '$edit', ts = 2, sender = AGENT } = {}) =>
   new MatrixEvent({
-    event_id: '$edit',
+    event_id: id,
     room_id: ROOM_ID,
-    sender: AGENT,
+    sender,
     type: 'm.room.message',
-    origin_server_ts: 2,
+    origin_server_ts: ts,
     content: {
       msgtype: 'm.notice',
       body: '* Interactive panel: Plans.',
       'm.new_content': {
         msgtype: 'm.notice',
         body: 'Interactive panel: Plans.',
-        'io.mindroom.ui_action': metadata('<p>Step 2</p>'),
+        'io.mindroom.ui_action': metadata(html),
       },
       'm.relates_to': { rel_type: 'm.replace', event_id: '$canvas' },
     },
@@ -145,6 +145,27 @@ describe('RoomCanvasPanel', () => {
       mx.emit(MatrixEventEvent.Replaced, copy);
     });
     expect(panels.props?.canvas.html).toBe('<p>Step 2</p>');
+  });
+
+  it('never rolls back to an older edit or an edit from someone else on another copy', () => {
+    const event = request();
+    render(event);
+    act(() => event.makeReplaced(edit('<p>Step 3</p>', { id: '$edit-3', ts: 300 })));
+    const older = request();
+    older.makeReplaced(edit('<p>Step 2</p>', { id: '$edit-2', ts: 200 }));
+    act(() => {
+      mx.emit(MatrixEventEvent.Replaced, older);
+    });
+    expect(panels.props?.canvas.html).toBe('<p>Step 3</p>');
+    const foreign = request();
+    foreign.makeReplaced(
+      edit('<p>Forged</p>', { id: '$forged', ts: 400, sender: '@mindroom_other:example.org' })
+    );
+    act(() => {
+      mx.emit(MatrixEventEvent.Replaced, foreign);
+    });
+    expect(panels.props?.canvas.html).toBe('<p>Step 3</p>');
+    expect(panels.props?.canvas.revisionEventId).toBe('$edit-3');
   });
 
   it('ignores edits of other events', () => {

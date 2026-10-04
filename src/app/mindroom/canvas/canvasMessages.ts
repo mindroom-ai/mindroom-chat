@@ -100,9 +100,17 @@ export const MAX_CANVAS_RESPONSE_CONTENT_BYTES = 40_000;
 const contentBytes = (content: object): number =>
   new TextEncoder().encode(JSON.stringify(content)).length;
 
+/** The label the wire format uses for an answer without one; Chat shows a translated word instead. */
+export const CANVAS_DEFAULT_LABEL = 'Submitted';
+
+// A display name can be as long as a membership event allows; the mention pill needs only a name.
+const MAX_MENTION_NAME_LENGTH = 100;
+const mentionName = (name: string): string =>
+  name.length > MAX_MENTION_NAME_LENGTH ? `${name.slice(0, MAX_MENTION_NAME_LENGTH - 1)}…` : name;
+
 /** A commit is an ordinary mention so the agent's existing turn pipeline receives it. */
 export const buildCanvasResponseContent = (canvas: CanvasTarget, submission: CanvasSubmission) => {
-  const label = submission.label ?? 'Submitted';
+  const label = submission.label ?? CANVAS_DEFAULT_LABEL;
   const json = serialize(submission.data) ?? 'null';
   const summary = responseSummary(canvas.eventId, canvas.revisionEventId, label);
   // A reply to the canvas request always has a relation; this fallback only satisfies the type.
@@ -111,7 +119,7 @@ export const buildCanvasResponseContent = (canvas: CanvasTarget, submission: Can
   };
   const mention = `<a href="https://matrix.to/#/${encodeURIComponent(
     canvas.agentUserId
-  )}">${sanitizeText(canvas.agentName)}</a> ${sanitizeText(summary)}`;
+  )}">${sanitizeText(mentionName(canvas.agentName))}</a> ${sanitizeText(summary)}`;
   const content = {
     msgtype: MsgType.Text,
     body: canonicalBody(canvas.agentUserId, canvas.eventId, canvas.revisionEventId, label, json),
@@ -129,14 +137,18 @@ export const buildCanvasResponseContent = (canvas: CanvasTarget, submission: Can
     },
   };
   // HTML escaping can multiply dense data; the plain body still carries the JSON for every client.
-  return contentBytes(content) > MAX_CANVAS_RESPONSE_CONTENT_BYTES
-    ? { ...content, formatted_body: mention }
-    : content;
+  if (contentBytes(content) <= MAX_CANVAS_RESPONSE_CONTENT_BYTES) return content;
+  const withoutJson = { ...content, formatted_body: mention };
+  if (contentBytes(withoutJson) <= MAX_CANVAS_RESPONSE_CONTENT_BYTES) return withoutJson;
+  // The body and metadata alone are bounded by the data and label caps.
+  const { format: _format, formatted_body: _formatted, ...plain } = content;
+  return plain;
 };
 
 export type CanvasResponseReceipt = {
   canvasEventId: string;
-  label: string;
+  /** Missing when the answer had no label; Chat shows a translated word instead. */
+  label?: string;
   json: string;
 };
 
@@ -173,7 +185,7 @@ export const readCanvasResponse = (
   ) {
     return undefined;
   }
-  const label = typeof response.label === 'string' ? response.label : 'Submitted';
+  const label = typeof response.label === 'string' ? response.label : CANVAS_DEFAULT_LABEL;
   const json = serialize(response.data);
   if (
     json === undefined ||
@@ -188,5 +200,9 @@ export const readCanvasResponse = (
   ) {
     return undefined;
   }
-  return { canvasEventId: response.canvas_event_id, label, json };
+  return {
+    canvasEventId: response.canvas_event_id,
+    label: typeof response.label === 'string' ? response.label : undefined,
+    json,
+  };
 };

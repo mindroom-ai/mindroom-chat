@@ -8,6 +8,8 @@ import type { ClientConfig } from '../../../hooks/useClientConfig';
 type MockRoomViewProps = {
   computerAvailable?: boolean;
   computerOpen?: boolean;
+  canvasOpen?: boolean;
+  onCanvasClose?: () => void;
   hasMindroomAgents?: boolean;
   joinRequestCount?: number;
   eventId?: string;
@@ -658,12 +660,11 @@ describe('Room', () => {
     roomState.drawer = true;
     await room.rerender();
     expect(room.canvasOpen()).toBe(true);
-    // Opening Members on the same screen size replaces the canvas.
-    roomState.drawer = false;
-    await room.rerender();
-    roomState.drawer = true;
-    await room.rerender();
+    // The header knows the canvas holds the side panel, and its Members button replaces it.
+    expect(roomState.roomViewProps?.canvasOpen).toBe(true);
+    await act(async () => roomState.roomViewProps?.onCanvasClose?.());
     expect(room.canvasOpen()).toBe(false);
+    expect(roomState.roomViewProps?.canvasOpen).toBe(false);
     await room.unmount();
   });
 

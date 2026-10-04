@@ -2924,7 +2924,8 @@
       "sending": "{{agent}} ajanına gönderiliyor…",
       "sent": "{{agent}} ajanına gönderildi: {{label}}",
       "sendFailed": "Yanıtınız gönderilemedi. Tekrar deneyin.",
-      "receiptData": "Ajana gönderilen verileri göster"
+      "receiptData": "Ajana gönderilen verileri göster",
+      "unlabeled": "Gönderildi"
     }
   },
   "roomSchedules": {

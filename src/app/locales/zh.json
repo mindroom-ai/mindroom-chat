@@ -2924,7 +2924,8 @@
       "sending": "正在发送给 {{agent}}…",
       "sent": "已发送给 {{agent}}：{{label}}",
       "sendFailed": "无法发送您的回复。请重试。",
-      "receiptData": "显示发送给代理的数据"
+      "receiptData": "显示发送给代理的数据",
+      "unlabeled": "已提交"
     }
   },
   "roomSchedules": {

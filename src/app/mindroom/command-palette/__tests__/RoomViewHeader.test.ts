@@ -311,6 +311,8 @@ const renderHeader = async (
     computerAvailable?: boolean;
     computerOpen?: boolean;
     onComputerToggle?: () => void;
+    canvasOpen?: boolean;
+    onCanvasClose?: () => void;
   } = {}
 ) => {
   const store = createStore();
@@ -388,6 +390,25 @@ describe('RoomViewHeader', () => {
       const button = renderer.root.findByProps({ 'aria-label': 'Show Members' });
       await act(async () => button.props.onClick());
       expect(onComputerToggle).toHaveBeenCalledTimes(1);
+      expect(membersState.setOpen).toHaveBeenCalledWith(true);
+      act(() => renderer.unmount());
+    }
+  );
+
+  it.each(
+    ['Desktop', 'Tablet'].flatMap((screen) =>
+      [false, true].map((storedOpen) => ({ screen, storedOpen }))
+    )
+  )(
+    'replaces an open canvas with Members in one click on $screen with stored visibility $storedOpen',
+    async ({ screen, storedOpen }) => {
+      screenSizeState.value = screen;
+      membersState.open = storedOpen;
+      const onCanvasClose = vi.fn();
+      const { renderer } = await renderHeader(0, { canvasOpen: true, onCanvasClose });
+      const button = renderer.root.findByProps({ 'aria-label': 'Show Members' });
+      await act(async () => button.props.onClick());
+      expect(onCanvasClose).toHaveBeenCalledTimes(1);
       expect(membersState.setOpen).toHaveBeenCalledWith(true);
       act(() => renderer.unmount());
     }

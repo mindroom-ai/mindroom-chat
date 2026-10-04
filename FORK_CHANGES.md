@@ -37,10 +37,13 @@
   Host chrome shows "Send to <agent>: <label>" with the exact data, and only **Send**, armed 500 ms after staging, sends it.
   A pending snapshot stays frozen until Send or Discard, so a script cannot swap what the user is reviewing.
   A retry resends the SDK's failed local echo with its transaction ID, and Discard cancels that echo.
-  The panel's sending and failed states name their answer's transaction, so a late result of an earlier answer cannot change what the panel shows for a newer revision's answer, and the panel follows the local echo's status, so a retry started from the timeline shows as sending until it is sent or fails.
+  The panel's sending and failed states name their answer's transaction, so a late result of an earlier answer cannot change what the panel shows (or mark the frame as worked on) for a newer revision's answer.
+  The panel follows the answer's local echo through failures and retries, so a retry or cancellation started from the timeline shows in the panel without a click there, and Discard stays unavailable while any retry is sending.
   The answer is a user `m.text` that mentions the agent and replies in the canvas thread, with body `<agent> Canvas response (<canvas>, revision <revision>): <label>` plus the JSON, and `io.mindroom.canvas_response {version, canvas_event_id, canvas_revision_event_id, agent_user_id, label, data}`.
   Data is serialized as Matrix canonical JSON (sorted keys); numbers that are not safe integers are sent as text, because homeservers refuse them in unencrypted events.
-  The data appears three times and HTML escaping can multiply it, so an answer whose content would exceed 40,000 bytes leaves the JSON out of `formatted_body` and stays under the 64 KiB event limit once encrypted.
+  The data appears three times and HTML escaping can multiply it, so an answer whose content would exceed 40,000 bytes leaves the JSON out of `formatted_body`, and if it still would, sends no formatted body at all; the mention pill shows at most 100 characters of the agent's display name.
+  Together with the 8 KiB data cap and 200-character label, this keeps answers under the 64 KiB event limit once encrypted.
+  An answer without a label is sent with the label `Submitted` (part of the canonical body) but shown in the panel and receipt with a translated word.
   The agent reads the answer as its next turn through the existing message pipeline.
 - Timeline: `renderMindroomMessageContent` shows such a message as a one-line receipt (expandable to the JSON, label capped at 200 characters) only when the body equals the canonical body regenerated from the metadata; anything else renders as ordinary text.
   Canvas notices keep their **Open panel** button when edited.
@@ -48,9 +51,10 @@
   Each revision is decided once, and a new revision drops a pending snapshot (and a failed answer's message, whose retry stays in the timeline).
   The theme is fixed per displayed revision, so switching themes does not discard unsent work.
 - Room integration: `useRoomCanvasState` owns the open canvas per conversation; Canvas, Computer, and Members share the right-hand slot and opening one closes the others.
-  Opening Members closes a canvas only at the same screen size, because crossing the phone/tablet breakpoint switches which Members setting applies.
+  The header's Members button treats an open canvas like an open computer: Members shows as closed, and one click replaces the canvas with Members.
+  Nothing else closes a canvas for Members, so crossing the phone/tablet breakpoint (which switches which saved Members setting applies) keeps it open.
   On phones the canvas covers the conversation, which is unmounted, as with Expand.
-  `RoomCanvasPanel` follows edits of the request by event ID through the client's re-emitted `Replaced`, so an edit that lands on another copy of the event (a cached thread page, a reset timeline) still updates the panel.
+  `RoomCanvasPanel` follows edits of the request by event ID through the client's re-emitted `Replaced`, so an edit that lands on another copy of the event (a cached thread page, a reset timeline) still updates the panel; a copy is followed only when its edit from the request's sender is newer than the shown one, so the page never rolls back.
   Host text is translated in all 17 locales (`mindroomUi.canvas.*`).
   The shared desktop/mobile panel layout moved to `sidebar/SidePanel.css.ts`.
 - Opt-in: canvases run only with `mindroom.canvas.enabled: true` in the runtime `config.json`, and agents get `show_canvas` only when their `chat_ui` entry sets `enable_show_canvas: true`.
@@ -78,6 +82,7 @@
   A second review of the dashboard work found the breakpoint remount, the stale theme after a switch, Expand on tablets, and read receipts from the hidden conversation; all are fixed above.
   Uploaded pages extend the original inline-only design at the owner's request.
   Cross-model reviews of the whole PR by GPT-6 Astra and Claude Opus 5.5 found the navigation to Chat's own origin and reCAPTCHA, overlapping sends across revisions, a timeline retry shown as sent too early, a phone rotation closing the canvas, the iOS plugin bridge, the answer size, a failed answer stranded by an update, the phone overlay over a mounted conversation, edits landing on another event copy, and untranslated host text; all are fixed above.
+  GPT-6 Astra's re-check of those fixes confirmed the wrapper and found that a failed answer stopped following its echo, that a copy could roll the page back to an older edit, that a long display name broke the answer budget, that a late failure still marked a newer revision as worked on, that unlabeled answers showed English, and that the header's Members button needed two clicks after a rotation; all are fixed above.
 - Next: a state-preserving update channel, refreshing a path-based canvas automatically when its file changes, and attaching the open canvas's latest state to the user's next typed message.
 
 ### Add reconciled thread history to the SDK thread as backfill (2026-10-03)

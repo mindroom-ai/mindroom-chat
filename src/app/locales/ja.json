@@ -2924,7 +2924,8 @@
       "sending": "{{agent}} に送信中…",
       "sent": "{{agent}} に送信しました: {{label}}",
       "sendFailed": "応答を送信できませんでした。もう一度お試しください。",
-      "receiptData": "エージェントに送信したデータを表示"
+      "receiptData": "エージェントに送信したデータを表示",
+      "unlabeled": "送信済み"
     }
   },
   "roomSchedules": {

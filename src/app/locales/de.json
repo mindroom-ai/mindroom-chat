@@ -2924,7 +2924,8 @@
       "sending": "Wird an {{agent}} gesendet…",
       "sent": "An {{agent}} gesendet: {{label}}",
       "sendFailed": "Deine Antwort konnte nicht gesendet werden. Versuche es erneut.",
-      "receiptData": "An den Agenten gesendete Daten anzeigen"
+      "receiptData": "An den Agenten gesendete Daten anzeigen",
+      "unlabeled": "Abgeschickt"
     }
   },
   "roomSchedules": {

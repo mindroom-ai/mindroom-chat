@@ -2924,7 +2924,8 @@
       "sending": "{{agent}}에게 보내는 중…",
       "sent": "{{agent}}에게 보냈습니다: {{label}}",
       "sendFailed": "응답을 보내지 못했습니다. 다시 시도하세요.",
-      "receiptData": "에이전트에게 보낸 데이터 보기"
+      "receiptData": "에이전트에게 보낸 데이터 보기",
+      "unlabeled": "제출됨"
     }
   },
   "roomSchedules": {

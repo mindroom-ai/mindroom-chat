@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { Box, Line } from 'folds';
 import { KnownMembership } from 'matrix-js-sdk';
@@ -122,15 +122,6 @@ export function Room() {
     show: showCanvas,
     close: closeCanvas,
   } = useRoomCanvasState({ mx, roomId: room.roomId, threadId: routedThreadId });
-  // Opening Members from the header replaces an open canvas, as it does the computer. Crossing a
-  // breakpoint switches which Members setting applies (rotating a phone, for example), so only an
-  // opening at the same screen size counts.
-  const previousDrawer = useRef({ isDrawer, screenSize });
-  useEffect(() => {
-    const previous = previousDrawer.current;
-    previousDrawer.current = { isDrawer, screenSize };
-    if (isDrawer && !previous.isDrawer && previous.screenSize === screenSize) closeCanvas();
-  }, [isDrawer, screenSize, closeCanvas]);
   useEffect(() => {
     if (callActive) closeCanvas();
   }, [callActive, closeCanvas]);
@@ -279,6 +270,8 @@ export function Room() {
                   computerAvailable={computerAvailable}
                   computerOpen={effectiveComputerOpen}
                   onComputerToggle={handleComputerToggle}
+                  canvasOpen={canvasShown}
+                  onCanvasClose={closeCanvas}
                   hasMindroomAgents={hasMindroomAgents}
                   joinRequestCount={joinRequestCount}
                   eventId={eventId}

@@ -37,7 +37,7 @@ export function CanvasResponseReceipt({
         <Box as="span" alignItems="Center" gap="100">
           {delivered && <Icon size="50" src={Icons.Check} />}
           <Text as="span" size="T300" priority="300">
-            {receipt.label.slice(0, CANVAS_LABEL_MAX_LENGTH)}
+            {receipt.label?.slice(0, CANVAS_LABEL_MAX_LENGTH) ?? t('mindroomUi.canvas.unlabeled')}
           </Text>
           {renderStateSuffix?.()}
         </Box>
