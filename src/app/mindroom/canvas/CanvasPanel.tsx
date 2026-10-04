@@ -254,8 +254,14 @@ export function CanvasPanel({
       const error = readCanvasError(event, frame);
       if (error !== undefined) {
         const listed = pageErrorsNow.current;
+        // A report still sending or failed may return to the list, so its errors count toward the five.
+        const { report } = listed;
+        const held =
+          report?.echo && ['sending', 'failed'].includes(answerState(report.echo.status))
+            ? report.errors.length
+            : 0;
         // Only listed errors are remembered, so a page throwing endlessly stores five at a time.
-        if (seenErrors.current.has(error) || listed.errors.length >= MAX_PAGE_ERRORS) return;
+        if (seenErrors.current.has(error) || listed.errors.length + held >= MAX_PAGE_ERRORS) return;
         seenErrors.current.add(error);
         const next = { ...listed, errors: [...listed.errors, error] };
         pageErrorsNow.current = next;
