@@ -12,25 +12,36 @@ type FakeEvent = ReturnType<typeof fakeEvent>;
 const fakeEvent = (
   id: string,
   ts: number,
-  opts: { threadRootId?: string; status?: string | null; edit?: Record<string, unknown> } = {}
-) => ({
-  getId: () => id,
-  getTs: () => ts,
-  threadRootId: opts.threadRootId,
-  status: opts.status ?? null,
-  isDecryptionFailure: () => false,
-  getEffectiveEvent: () => ({ event_id: id, origin_server_ts: ts, content: { body: id } }),
-  replacingEvent: () => (opts.edit ? { getEffectiveEvent: () => opts.edit } : null),
-  isRelation: () => opts.threadRootId !== undefined && opts.threadRootId !== id,
-  getRelation: () =>
-    opts.threadRootId && opts.threadRootId !== id
-      ? { rel_type: 'm.thread', event_id: opts.threadRootId }
-      : null,
-  getContent: () =>
-    opts.threadRootId && opts.threadRootId !== id
-      ? { 'm.relates_to': { rel_type: 'm.thread', event_id: opts.threadRootId } }
-      : {},
-});
+  opts: {
+    threadRootId?: string;
+    replaces?: string;
+    status?: string | null;
+    edit?: Record<string, unknown>;
+  } = {}
+) => {
+  const relation = () => {
+    if (opts.replaces) return { rel_type: 'm.replace', event_id: opts.replaces };
+    if (opts.threadRootId && opts.threadRootId !== id) {
+      return { rel_type: 'm.thread', event_id: opts.threadRootId };
+    }
+    return null;
+  };
+  return {
+    getId: () => id,
+    getTs: () => ts,
+    threadRootId: opts.threadRootId,
+    status: opts.status ?? null,
+    isDecryptionFailure: () => false,
+    getEffectiveEvent: () => ({ event_id: id, origin_server_ts: ts, content: { body: id } }),
+    replacingEvent: () => (opts.edit ? { getEffectiveEvent: () => opts.edit } : null),
+    isRelation: () => relation() !== null,
+    getRelation: relation,
+    getContent: () => {
+      const current = relation();
+      return current ? { 'm.relates_to': current } : {};
+    },
+  };
+};
 
 const fakeRoom = (opts: {
   live: FakeEvent[];
@@ -75,6 +86,31 @@ describe('collectReportEvents', () => {
     expect(ids).toEqual(['$root', '~!room:example.com:m1']);
   });
 
+  it('leaves m.replace edits out of the thread events', () => {
+    const root = fakeEvent('$root', 1, { threadRootId: '$root' });
+    const a = fakeEvent('$a', 2, { threadRootId: '$root' });
+    const edit = fakeEvent('$edit', 3, { threadRootId: '$root', replaces: '$a' });
+    const b = fakeEvent('$b', 4, { threadRootId: '$root' });
+    const room = fakeRoom({
+      live: [root, a, edit, b],
+      thread: { id: '$root', root, events: [a, edit, b] },
+    });
+    const ids = collectReportEvents(room as never, b as never).map((e) => e.getId());
+    expect(ids).toEqual(['$root', '$a', '$b']);
+  });
+
+  it('keeps the selected event even when it is an m.replace edit', () => {
+    const root = fakeEvent('$root', 1, { threadRootId: '$root' });
+    const a = fakeEvent('$a', 2, { threadRootId: '$root' });
+    const edit = fakeEvent('$edit', 3, { threadRootId: '$root', replaces: '$a' });
+    const room = fakeRoom({
+      live: [root, a, edit],
+      thread: { id: '$root', root, events: [a, edit] },
+    });
+    const ids = collectReportEvents(room as never, edit as never).map((e) => e.getId());
+    expect(ids).toEqual(['$root', '$a', '$edit']);
+  });
+
   it('takes the 50 events up to the selected main-timeline event', () => {
     const events = Array.from({ length: 80 }, (_, i) => fakeEvent(`$e${i}`, i));
     const room = fakeRoom({ live: events, timelineFor: events });
@@ -82,6 +118,20 @@ describe('collectReportEvents', () => {
     expect(ids).toHaveLength(50);
     expect(ids[0]).toBe('$e10');
     expect(ids[49]).toBe('$e59');
+  });
+
+  it('does not count or include m.replace edits in the main-timeline window', () => {
+    const events = Array.from({ length: 80 }, (_, i) => [
+      fakeEvent(`$e${i}`, i * 2),
+      fakeEvent(`$edit${i}`, i * 2 + 1, { replaces: `$e${i}` }),
+    ]).flat();
+    const room = fakeRoom({ live: events, timelineFor: events });
+    const selected = events.find((e) => e.getId() === '$e59');
+    const ids = collectReportEvents(room as never, selected as never).map((e) => e.getId());
+    expect(ids).toHaveLength(50);
+    expect(ids[0]).toBe('$e10');
+    expect(ids[49]).toBe('$e59');
+    expect(ids.some((id) => id?.startsWith('$edit'))).toBe(false);
   });
 });
 

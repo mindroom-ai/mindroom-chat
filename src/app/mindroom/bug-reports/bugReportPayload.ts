@@ -1,5 +1,5 @@
 import { Capacitor } from '@capacitor/core';
-import type { MatrixClient, MatrixEvent, Room } from 'matrix-js-sdk';
+import { RelationType, type MatrixClient, type MatrixEvent, type Room } from 'matrix-js-sdk';
 import { APP_BUILD_VERSION } from '../../../appVersion';
 import { getMatrixToRoomEvent } from '../../plugins/matrix-to';
 import { getViaServers } from '../../plugins/via-servers';
@@ -56,14 +56,24 @@ const serializeEvent = (event: MatrixEvent): BugReportEvent => ({
   latestEdit: (event.replacingEvent()?.getEffectiveEvent() as RawEvent | undefined) ?? null,
 });
 
-/** The events an administrator needs to see the reported message in context. */
+const isEditEvent = (event: MatrixEvent): boolean =>
+  event.getRelation()?.rel_type === RelationType.Replace;
+
+/**
+ * The events an administrator needs to see the reported message in context.
+ * `m.replace` edits are left out (streaming produces hundreds); each event's
+ * latest edit is attached to it instead. Reactions are kept.
+ */
 export const collectReportEvents = (room: Room, mEvent: MatrixEvent): MatrixEvent[] => {
+  const eventId = mEvent.getId();
+  const isReportable = (event: MatrixEvent) => event.getId() === eventId || !isEditEvent(event);
+
   const threadId = mEvent.threadRootId;
   if (threadId) {
     const byId = new Map<string, MatrixEvent>();
     const add = (event: MatrixEvent | null | undefined) => {
       const id = event?.getId();
-      if (event && id && !byId.has(id)) byId.set(id, event);
+      if (event && id && isReportable(event) && !byId.has(id)) byId.set(id, event);
     };
     const thread = room.getThread(threadId);
     add(room.findEventById(threadId) ?? thread?.rootEvent);
@@ -73,9 +83,8 @@ export const collectReportEvents = (room: Room, mEvent: MatrixEvent): MatrixEven
     return [...byId.values()].sort((a, b) => a.getTs() - b.getTs());
   }
 
-  const eventId = mEvent.getId();
   const timeline = (eventId ? room.getTimelineForEvent(eventId) : null) ?? room.getLiveTimeline();
-  const events = timeline.getEvents();
+  const events = timeline.getEvents().filter(isReportable);
   const index = events.findIndex((event) => event.getId() === eventId);
   if (index === -1) return [...events.slice(-(MAIN_TIMELINE_EVENT_LIMIT - 1)), mEvent];
   return events.slice(Math.max(0, index + 1 - MAIN_TIMELINE_EVENT_LIMIT), index + 1);
