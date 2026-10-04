@@ -148,11 +148,17 @@ export type CachedMetaRecord = {
     overlapEventIds: string[];
   };
   /**
-   * Replies the thread root's count includes but the last complete
+   * Replies the thread root's count included but the last complete
    * `/relations` drain could not return (Tuwunel keeps counting a redacted
-   * reply). The reconciler does not page to the start again for these.
+   * reply), with the count the drain expected. The reconciler does not page
+   * to the start again for these.
    */
-  threadUnreachableReplyCount?: number;
+  threadUnreachableReplies?: ThreadUnreachableReplies;
+};
+
+export type ThreadUnreachableReplies = {
+  count: number;
+  expectedReplyCount: number;
 };
 
 export type RoomOfflineProgress = {

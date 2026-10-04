@@ -530,17 +530,17 @@ export const hasEventRevisionUpgrade = (
 };
 
 /**
- * True when `edit` adds nothing to a target with revision `target`: the target
- * is redacted, or already carries this same-sender edit or a newer one.
+ * True when a same-sender `edit` adds nothing to a target with revision
+ * `target`: the target is redacted, or already carries this edit or a newer one.
  */
 export const isEditKnownToRevision = (
   edit: Partial<IEvent>,
   targetSender: string | undefined,
   target: EventRevisionDescriptor
 ): boolean => {
-  if (target.redacted) return true;
   const replacement = getReplacementRevision(targetSender, edit);
-  return !!replacement && compareReplacementRevision(replacement, target.replacement) <= 0;
+  if (!replacement) return false;
+  return target.redacted || compareReplacementRevision(replacement, target.replacement) <= 0;
 };
 
 /**

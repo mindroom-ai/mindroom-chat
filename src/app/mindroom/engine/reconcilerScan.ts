@@ -9,8 +9,8 @@ import {
   checkpointThreadReconcileContinuation,
   clearThreadReconcileContinuation,
   loadThreadReconcileContinuation,
-  loadThreadUnreachableReplyCount,
-  recordThreadUnreachableReplyCount,
+  loadThreadUnreachableReplies,
+  recordThreadUnreachableReplies,
   restartThreadReconcileContinuationFromHead,
   type ThreadReconcileContinuation,
 } from '../threads/cacheStore';
@@ -30,8 +30,8 @@ export type ThreadReconcileContinuationStore = {
   checkpoint: typeof checkpointThreadReconcileContinuation;
   clear: typeof clearThreadReconcileContinuation;
   restartFromHead: typeof restartThreadReconcileContinuationFromHead;
-  loadUnreachableReplyCount: typeof loadThreadUnreachableReplyCount;
-  recordUnreachableReplyCount: typeof recordThreadUnreachableReplyCount;
+  loadUnreachableReplies: typeof loadThreadUnreachableReplies;
+  recordUnreachableReplies: typeof recordThreadUnreachableReplies;
 };
 
 export const DEFAULT_CONTINUATION_STORE: ThreadReconcileContinuationStore = {
@@ -40,8 +40,8 @@ export const DEFAULT_CONTINUATION_STORE: ThreadReconcileContinuationStore = {
   checkpoint: checkpointThreadReconcileContinuation,
   clear: clearThreadReconcileContinuation,
   restartFromHead: restartThreadReconcileContinuationFromHead,
-  loadUnreachableReplyCount: loadThreadUnreachableReplyCount,
-  recordUnreachableReplyCount: recordThreadUnreachableReplyCount,
+  loadUnreachableReplies: loadThreadUnreachableReplies,
+  recordUnreachableReplies: recordThreadUnreachableReplies,
 };
 
 type ScanAccumulator = {
@@ -396,9 +396,19 @@ export const scanThreadRelations = async ({
     if (isRawThreadReply(rawEvent, threadId)) knownReplyIds.add(rawEvent.event_id as string);
   });
   const expectedReplyCount = getExpectedReplyCount(room, threadId, cachedPage);
-  const unreachableReplyCount = await continuationStore
-    .loadUnreachableReplyCount(sessionId, roomId, threadId)
-    .catch(() => 0);
+  const recordedUnreachable = await continuationStore
+    .loadUnreachableReplies(sessionId, roomId, threadId)
+    .catch(() => undefined);
+  // A count that has dropped since the drain may no longer include every
+  // reply the drain could not return, so credit only what it still can.
+  const unreachableReplyCount =
+    recordedUnreachable && typeof expectedReplyCount === 'number'
+      ? Math.max(
+          0,
+          recordedUnreachable.count -
+            Math.max(0, recordedUnreachable.expectedReplyCount - expectedReplyCount)
+        )
+      : 0;
   const accumulator: ScanAccumulator = {
     allMapped: [],
     allRaw: [],
@@ -469,21 +479,28 @@ export const scanThreadRelations = async ({
 
   // A complete drain from the head saw every reply the server can return, so
   // any rest of the count is unreachable; without recording it, every later
-  // open would page to the start again looking for it.
+  // open would page to the start again looking for it. An empty drain proves
+  // nothing about the replies the cache holds.
   if (
     accumulator.drainedToExhaustion &&
     !fetchFailed &&
+    accumulator.fetchedCount > 0 &&
     typeof expectedReplyCount === 'number' &&
     current()
   ) {
-    await continuationStore
-      .recordUnreachableReplyCount(
-        sessionId,
-        roomId,
-        threadId,
-        Math.max(0, expectedReplyCount - knownReplyIds.size)
-      )
-      .catch(() => false);
+    const unreachable = {
+      count: Math.max(0, expectedReplyCount - knownReplyIds.size),
+      expectedReplyCount,
+    };
+    if (
+      unreachable.count !== (recordedUnreachable?.count ?? 0) ||
+      (unreachable.count > 0 &&
+        unreachable.expectedReplyCount !== recordedUnreachable?.expectedReplyCount)
+    ) {
+      await continuationStore
+        .recordUnreachableReplies(sessionId, roomId, threadId, unreachable)
+        .catch(() => false);
+    }
   }
 
   const aborted = scanExit === 'aborted' || signal.aborted;

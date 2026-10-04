@@ -9,17 +9,21 @@
 - Reproduced in the local Docker Matrix stack with the same 480-reply thread (480 same-sender edits, 48 reactions, two redacted replies): after a cold open had cached the whole thread, a reopen still fetched 13 pages and repaired.
   Temporary logging showed both causes: the scan expected 480 replies but knew 478, and the only divergence was 466 `m.replace` events missing from the cache.
 - Root causes:
-  - The cache folds each same-sender edit into its target (`setSerializedReplacement`) and keeps no record of the edit itself, but `detectDivergence` treated every fetched event id missing from the cache as new.
+  - The cache folds a same-sender edit into the target it stores (`setSerializedReplacement`) and keeps no record of the edit itself, but `detectDivergence` treated every fetched event id missing from the cache as new.
     Every thread with streamed edits therefore diverged on every reconcile.
   - Tuwunel keeps counting a redacted reply in the root's `m.thread` count while `/relations` returns it without its thread relation, so the reply shortfall check (2026-07-10 missing-middle fix) never closes and pages to the thread's start on every open.
     The no-divergence branch records the server-confirmed start, which its comment said would stop the repeat, but nothing in the scan reads it.
 - Fix:
-  - `detectDivergence` skips a fetched same-sender edit whose cached target already carries it or a newer edit, or is redacted (`isEditKnownToRevision` in `eventRevision.ts`).
-    A newer edit, or an uncached edit from another sender (which the cache keeps as its own record), still diverges.
-  - After a complete drain from the head without fetch failures, the scan records `expected count − known replies` as `threadUnreachableReplyCount` on the thread's meta row (next to `threadReconcileContinuation`, carried through thread snapshot saves), and later scans count it as known.
-    A complete drain that reaches the count records 0, and replies missing beyond the recorded number still drive the drain.
+  - `detectDivergence` skips a fetched same-sender edit whose cached target is redacted or already carries it or a newer edit (`isEditKnownToRevision` in `eventRevision.ts`), and a redacted edit the cache does not embed.
+    A newer edit, and an uncached edit from another sender (which the cache keeps as its own record, also for a redacted target), still diverge.
+  - After a complete drain from the head that fetched events without failures, the scan records `expected count − known replies` with that expected count as `threadUnreachableReplies` on the thread's meta row (next to `threadReconcileContinuation`, carried through thread snapshot saves).
+    Later scans count it as known, less any drop in the expected count since, so a server that stops counting the redacted reply does not hide a real gap; replies missing beyond it still drive the drain, a drain that reaches the count records 0, and an unchanged value is not written again.
 - Measured after the fix in the same reproduction: the cold open still drains 13 pages once; the reopen fetches one page and ends with `repaired: false`.
-- Tests: `reconciler.foldedEdits.test.ts` (carried or superseded edits are known; a newer edit, an edit of a redacted target, and another sender's edit behave as above), new cases in `reconciler.shortfall.test.ts` (the unreachable count is recorded and stops the repeat drain, real missing replies still drain, a satisfied drain clears it), and `cacheStoreLifecycle.test.ts` (the count round-trips in IndexedDB and survives a thread snapshot save; dropping the carry fails it).
+- Tests: `reconciler.foldedEdits.test.ts` (carried, superseded, bundled and root edits are known, as are edits of a redacted target and redacted edits; a newer edit, another sender's edit, also of a redacted target, and a missed reply to a redacted root are repaired), new cases in `reconciler.shortfall.test.ts` (the count is recorded and stops the repeat drain; real missing replies, and replies the count no longer includes, still drain; a satisfied drain clears it; page-capped and empty drains record nothing), and `cacheStoreLifecycle.test.ts` (the value round-trips in IndexedDB and survives a thread snapshot save).
+  Removing any of the new guards fails at least one of them.
+- Limits and next steps:
+  - Only a single pass that drains from the head records the value, so a thread longer than one pass (25 pages, about 2500 relation events) with an unreachable reply still pages to its start on every open; recording it from a resumed continuation needs the reply ids the earlier passes saw, because the cached page loaded at open is bounded.
+  - `isCompleteCachedThreadSnapshot` does not use the value yet, so such a thread still opens without the complete-coverage paint.
 
 ### Add reconciled thread history to the SDK thread as backfill (2026-10-03)
 
@@ -37,7 +41,7 @@
   The repaired batch reaches the render through `onRepaired` in every case.
 - Measured after the fix with the same reproduction: the longest task is 402 to 434 ms over two runs, and the reconcile opens 72 to 78 IndexedDB transactions.
   The remaining reconcile cost (about 0.8 s split across tasks) is mostly the SDK's one `ThreadEvent.Update` per added event, on each of which `ActiveThreadApprovalProvider` rescans the room and thread (`mergeThreadApprovalEvents`).
-- Not addressed here: the reconcile still repairs on every open of such a thread, because the cache folds same-sender edits into their target (so `detectDivergence` sees every fetched edit id as new) and a reply count above what `/relations` yields keeps the scan paging to the start.
+- Not addressed here: the reconcile still repaired on every open of such a thread; the entry above fixes that.
 - Tests: `reconciler.sdkThread.test.ts` drives a real SDK thread: history older than the window adds no `NewReply` or live events and ends in timeline order; events newer than the window are still appended with `NewReply` and become `lastReply()`; an empty window takes everything as backfill; an unopened thread is left untouched while `onRepaired` still fires.
   All four fail on the previous reconciler, and backfilling everything, dropping the unopened-thread guard, or appending into an empty window each fails its own case.
 

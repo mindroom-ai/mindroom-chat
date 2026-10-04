@@ -329,15 +329,16 @@ it('recovers after another runtime deletes the database without reviving old ses
 
 it('keeps a thread unreachable reply count across thread snapshot saves', async () => {
   const writer = await createRuntime();
-  expect(await writer.loadThreadUnreachableReplyCount(sessionId, roomId, '$root')).toBe(0);
+  const unreachable = { count: 2, expectedReplyCount: 480 };
+  expect(await writer.loadThreadUnreachableReplies(sessionId, roomId, '$root')).toBeUndefined();
 
-  expect(await writer.recordThreadUnreachableReplyCount(sessionId, roomId, '$root', 2)).toBe(true);
-  expect(await writer.recordThreadUnreachableReplyCount(sessionId, roomId, '$root', 2)).toBe(false);
+  expect(await writer.recordThreadUnreachableReplies(sessionId, roomId, '$root', unreachable)).toBe(
+    true
+  );
   expect(
     await writer.saveThreadEventsToCacheCommitted(sessionId, roomId, '$root', [rawEvent])
   ).toBe(true);
-  expect(await writer.loadThreadUnreachableReplyCount(sessionId, roomId, '$root')).toBe(2);
-
-  expect(await writer.recordThreadUnreachableReplyCount(sessionId, roomId, '$root', 0)).toBe(true);
-  expect(await writer.loadThreadUnreachableReplyCount(sessionId, roomId, '$root')).toBe(0);
+  expect(await writer.loadThreadUnreachableReplies(sessionId, roomId, '$root')).toEqual(
+    unreachable
+  );
 });

@@ -345,18 +345,19 @@ describe('reconciler shortfall drain: replies the server counts but cannot retur
     resetCacheProbe();
   });
 
+  type Unreachable = { count: number; expectedReplyCount: number };
   // In-memory stand-in for the thread meta row the reconciler owns.
   const makeMemoryStore = () => {
-    let unreachableReplyCount = 0;
+    let unreachable: Unreachable | undefined;
     return {
       load: vi.fn(async () => undefined),
       begin: vi.fn(async (_sessionId, _roomId, _threadId, candidate) => candidate),
       checkpoint: vi.fn(async () => true),
       clear: vi.fn(async () => true),
       restartFromHead: vi.fn(async () => undefined),
-      loadUnreachableReplyCount: vi.fn(async () => unreachableReplyCount),
-      recordUnreachableReplyCount: vi.fn(async (_sessionId, _roomId, _threadId, count) => {
-        unreachableReplyCount = count;
+      loadUnreachableReplies: vi.fn(async () => unreachable),
+      recordUnreachableReplies: vi.fn(async (_sessionId, _roomId, _threadId, value) => {
+        unreachable = value;
         return true;
       }),
     } satisfies NonNullable<Parameters<typeof scheduleReconcile>[0]['continuationStore']>;
@@ -364,20 +365,28 @@ describe('reconciler shortfall drain: replies the server counts but cannot retur
 
   // Tuwunel keeps counting a redacted reply in the root's m.thread count, but
   // /relations returns it without its thread relation.
+  const redactedR3 = {
+    event_id: '$r3',
+    type: 'm.room.message',
+    origin_server_ts: 300,
+    content: {},
+    unsigned: { redacted_because: { event_id: '$redaction' } },
+  } as Partial<IEvent>;
   const serverPages = [
     { chunk: [makeReplyRaw('$r5', 500), makeReplyRaw('$r4', 400)], next_batch: 'p2' },
-    { chunk: [makeReplyRaw('$r2', 200), makeReplyRaw('$r1', 100)] },
+    { chunk: [redactedR3, makeReplyRaw('$r2', 200), makeReplyRaw('$r1', 100)] },
   ];
   const allReplies = [100, 200, 400, 500].map((ts) => makeReplyRaw(`$r${ts / 100}`, ts));
 
   const reconcile = async (
     continuationStore: ReturnType<typeof makeMemoryStore>,
     cachedReplies: Partial<IEvent>[],
-    expectedReplyCount: number
+    expectedReplyCount: number,
+    pages: Array<{ chunk: Partial<IEvent>[]; next_batch?: string }> = serverPages
   ) => {
     const room = makeFakeRoom();
-    const { mx, fetchRelations } = makeMockClient(room, serverPages);
-    await scheduleReconcile({
+    const { mx, fetchRelations } = makeMockClient(room, pages);
+    const result = await scheduleReconcile({
       mx,
       sessionId: 'session',
       scheduler: createBackfillScheduler({ mx }),
@@ -388,22 +397,23 @@ describe('reconciler shortfall drain: replies the server counts but cannot retur
       persistRepair: makePersistRepairSpy() as never,
       continuationStore,
     });
-    return fetchRelations.mock.calls.length;
+    return { calls: fetchRelations.mock.calls.length, repaired: result.repaired };
   };
 
   it('records the count a complete drain could not reach and does not drain for it again', async () => {
     const store = makeMemoryStore();
 
-    expect(await reconcile(store, allReplies, 5)).toBe(2);
-    expect(store.recordUnreachableReplyCount).toHaveBeenCalledWith(
+    expect((await reconcile(store, allReplies, 5)).calls).toBe(2);
+    expect(store.recordUnreachableReplies).toHaveBeenCalledWith(
       'session',
       '!room:example',
       THREAD_ID,
-      1
+      { count: 1, expectedReplyCount: 5 }
     );
 
     // The next open overlaps on its first page and stops there.
-    expect(await reconcile(store, allReplies, 5)).toBe(1);
+    expect((await reconcile(store, allReplies, 5)).calls).toBe(1);
+    expect(store.recordUnreachableReplies).toHaveBeenCalledTimes(1);
   });
 
   it('still drains for replies missing beyond the unreachable count', async () => {
@@ -412,7 +422,15 @@ describe('reconciler shortfall drain: replies the server counts but cannot retur
 
     // The cache lost the thread's start: two replies short beyond the one
     // the server cannot return.
-    expect(await reconcile(store, allReplies.slice(2), 5)).toBe(2);
+    expect(await reconcile(store, allReplies.slice(2), 5)).toEqual({ calls: 2, repaired: true });
+  });
+
+  it('stops crediting replies the count no longer includes', async () => {
+    const store = makeMemoryStore();
+    await reconcile(store, allReplies, 5);
+
+    // The server stopped counting the redacted reply, and the cache lost one.
+    expect(await reconcile(store, allReplies.slice(1), 4)).toEqual({ calls: 2, repaired: true });
   });
 
   it('clears the unreachable count once a complete drain reaches the expected count', async () => {
@@ -420,11 +438,27 @@ describe('reconciler shortfall drain: replies the server counts but cannot retur
     await reconcile(store, allReplies, 5);
 
     await reconcile(store, allReplies.slice(2), 4);
-    expect(store.recordUnreachableReplyCount).toHaveBeenLastCalledWith(
+    expect(store.recordUnreachableReplies).toHaveBeenLastCalledWith(
       'session',
       '!room:example',
       THREAD_ID,
-      0
+      { count: 0, expectedReplyCount: 4 }
     );
+  });
+
+  it('records nothing from a pass that stopped before the thread start', async () => {
+    const store = makeMemoryStore();
+    // Every page carries a next_batch, so the pass ends at its page cap.
+    const endless = [{ chunk: [makeReplyRaw('$r5', 500)], next_batch: 'more' }];
+
+    await reconcile(store, allReplies.slice(2), 5, endless);
+    expect(store.recordUnreachableReplies).not.toHaveBeenCalled();
+  });
+
+  it('records nothing from an empty drain', async () => {
+    const store = makeMemoryStore();
+
+    await reconcile(store, allReplies, 5, [{ chunk: [] }]);
+    expect(store.recordUnreachableReplies).not.toHaveBeenCalled();
   });
 });

@@ -57,7 +57,18 @@ const edit = (id: string, targetId: string, ts: number, sender = AGENT): Partial
 const foldedReply = (id: string, ts: number, newestEdit: Partial<IEvent>): Partial<IEvent> =>
   reply(id, ts, { 'm.relations': { 'm.replace': newestEdit } } as never);
 
-const reconcile = async (cachedEvents: Partial<IEvent>[], serverEvents: Partial<IEvent>[]) => {
+const redacted = (raw: Partial<IEvent>): Partial<IEvent> =>
+  ({
+    ...raw,
+    content: {},
+    unsigned: { redacted_because: { event_id: '$redaction' } },
+  } as Partial<IEvent>);
+
+const reconcile = async (
+  cachedEvents: Partial<IEvent>[],
+  serverEvents: Partial<IEvent>[],
+  cachedRoot?: Partial<IEvent>
+) => {
   const room = {
     roomId: '!room:example',
     findEventById: () => null,
@@ -78,6 +89,7 @@ const reconcile = async (cachedEvents: Partial<IEvent>[], serverEvents: Partial<
     threadId: THREAD_ID,
     cachedPage: {
       events: cachedEvents,
+      rootEvent: cachedRoot,
       hasMoreBefore: false,
       tailLoaded: true,
     } as HydratedThreadCachePage,
@@ -110,6 +122,35 @@ describe('reconciler divergence with edits folded into the cache', () => {
     expect(getCacheProbeSnapshot().reconcilesNoDivergence).toBe(1);
   });
 
+  it('treats the newest edit Tuwunel bundles onto the reply as known', async () => {
+    const { result } = await reconcile(
+      [foldedReply('$reply', 100, v2)],
+      [foldedReply('$reply', 100, v2), v2]
+    );
+
+    expect(result.repaired).toBe(false);
+  });
+
+  it('treats an edit folded into the cached root as known', async () => {
+    const rootEdit = edit('$root-edit', THREAD_ID, 20);
+    const root = {
+      event_id: THREAD_ID,
+      type: 'm.room.message',
+      sender: AGENT,
+      origin_server_ts: 10,
+      content: { body: 'root' },
+      unsigned: { 'm.relations': { 'm.replace': rootEdit } },
+    } as Partial<IEvent>;
+
+    const { result } = await reconcile(
+      [foldedReply('$reply', 100, v2)],
+      [reply('$reply', 100), v2, rootEdit],
+      root
+    );
+
+    expect(result.repaired).toBe(false);
+  });
+
   it('repairs an edit newer than the one folded into the cache', async () => {
     const { result } = await reconcile(
       [foldedReply('$reply', 100, v1)],
@@ -120,13 +161,19 @@ describe('reconciler divergence with edits folded into the cache', () => {
   });
 
   it('treats edits of a redacted cached target as known', async () => {
-    const redactedReply = {
-      ...reply('$reply', 100),
-      content: {},
-      unsigned: { redacted_because: { event_id: '$redaction' } },
-    } as Partial<IEvent>;
+    const redactedReply = redacted(reply('$reply', 100));
 
     const { result } = await reconcile([redactedReply], [redactedReply, v1, v2]);
+
+    expect(result.repaired).toBe(false);
+  });
+
+  it('treats a redacted edit the cache does not embed as known', async () => {
+    const { result } = await reconcile(
+      [foldedReply('$reply', 100, v1)],
+      // A stale server copy keeps the redacted edit's relation.
+      [reply('$reply', 100), v1, { ...v2, unsigned: { redacted_because: { event_id: '$x' } } }]
+    );
 
     expect(result.repaired).toBe(false);
   });
@@ -134,7 +181,35 @@ describe('reconciler divergence with edits folded into the cache', () => {
   it('repairs an uncached edit from another sender, which the cache keeps as its own record', async () => {
     const { result } = await reconcile(
       [foldedReply('$reply', 100, v2)],
-      [reply('$reply', 100), v2, edit('$edit-other', '$reply', 130, '@mallory:example')]
+      [reply('$reply', 100), v2, edit('$edit-other', '$reply', 115, '@mallory:example')]
+    );
+
+    expect(result.repaired).toBe(true);
+  });
+
+  it('repairs an uncached edit from another sender of a redacted target', async () => {
+    const redactedReply = redacted(reply('$reply', 100));
+
+    const { result } = await reconcile(
+      [redactedReply],
+      [redactedReply, edit('$edit-other', '$reply', 115, '@mallory:example')]
+    );
+
+    expect(result.repaired).toBe(true);
+  });
+
+  it('repairs a missed reply to a redacted root', async () => {
+    const root = redacted({
+      event_id: THREAD_ID,
+      type: 'm.room.message',
+      sender: AGENT,
+      origin_server_ts: 10,
+    });
+
+    const { result } = await reconcile(
+      [reply('$reply', 100)],
+      [reply('$reply', 100), reply('$missed', 200)],
+      root
     );
 
     expect(result.repaired).toBe(true);

@@ -268,9 +268,10 @@ const buildCachedSenderMap = (cachedPage: HydratedThreadCachePage): Map<string, 
 };
 
 /**
- * The cache folds each same-sender edit into its target and keeps no record
- * of the edit itself, so a fetched edit is only news when the cached target
- * does not already carry it or a newer one.
+ * The cache folds a same-sender edit into the target it stores and keeps no
+ * record of the edit itself, so such a fetched edit is only news when the
+ * cached target does not already carry it or a newer one. A redacted edit the
+ * cache does not embed (that case diverges above) changes nothing either.
  */
 const isEditFoldedIntoCache = (
   rawEvent: Partial<IEvent>,
@@ -284,10 +285,9 @@ const isEditFoldedIntoCache = (
     return false;
   }
   const target = cachedRevisions.get(relation.event_id);
-  return (
-    target !== undefined &&
-    isEditKnownToRevision(rawEvent, cachedSenders.get(relation.event_id), target)
-  );
+  if (!target) return false;
+  if (rawEvent.unsigned?.redacted_because) return true;
+  return isEditKnownToRevision(rawEvent, cachedSenders.get(relation.event_id), target);
 };
 
 /**
@@ -480,9 +480,9 @@ const runThreadReconcilePass = async ({
     await scan.settleWithoutRepair();
     // 2026-07-10 missing-middle fix (upstream #118 review finding): a
     // shortfall-driven full drain that found no divergence still observed
-    // the server-confirmed start; recording it lets the next open paint the
-    // cached thread as complete. (The scan itself records the part of the
-    // count the stream can never yield, so the drain is not repeated.)
+    // the server-confirmed start, so record it with the snapshot. (The scan
+    // itself records the part of the count the stream can never yield, so the
+    // drain is not repeated.)
     // Restricted to shortfall-driven multi-page passes so the ordinary
     // single-page "cached was right" open keeps its zero-persist D7 guarantee.
     if (serverConfirmedStart && pagedPastOverlapForShortfall && allMapped.length > 0) {
