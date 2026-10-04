@@ -167,6 +167,9 @@ export function CanvasPanel({
   // An answer too large for one event is uploaded before its event exists.
   const [uploading, setUploading] = useState(false);
   const [pageErrors, setPageErrors] = useState(NO_PAGE_ERRORS);
+  // The listed errors as of the last message, read by the message handler.
+  const pageErrorsNow = useRef(pageErrors);
+  pageErrorsNow.current = pageErrors;
   // Every error this page reported, so one already sent is not offered again.
   const seenErrors = useRef(new Set<string>());
   // The answer being uploaded; Discard clears it, which cancels sending it.
@@ -250,14 +253,20 @@ export function CanvasPanel({
       if (!frame || event.source !== frame) return;
       const error = readCanvasError(event, frame);
       if (error !== undefined) {
-        if (seenErrors.current.has(error)) return;
-        setPageErrors((current) => {
-          if (current.sent) return { errors: [error], sent: false };
-          return current.errors.length < MAX_PAGE_ERRORS
-            ? { errors: [...current.errors, error], sent: false }
-            : current;
-        });
+        const listed = pageErrorsNow.current;
+        // Only listed errors are remembered, so a page throwing endlessly stores five at a time.
+        if (
+          seenErrors.current.has(error) ||
+          (!listed.sent && listed.errors.length >= MAX_PAGE_ERRORS)
+        ) {
+          return;
+        }
         seenErrors.current.add(error);
+        const next = listed.sent
+          ? { errors: [error], sent: false }
+          : { errors: [...listed.errors, error], sent: false };
+        pageErrorsNow.current = next;
+        setPageErrors(next);
         return;
       }
       const now = Date.now();

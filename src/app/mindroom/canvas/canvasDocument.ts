@@ -68,7 +68,7 @@ export const CANVAS_PERMISSIONS = [
 // which only offers a snapshot to the host. The host decides whether to send it.
 // Errors, failed loads, and loads the policy blocks are reported so the user can pass them on.
 // Removing WebRTC constructors is defense in depth: CSP cannot block STUN traffic.
-const bridgeScript = (colorScheme: CanvasColorScheme): string => `(() => {
+const bridgeScript = (colorScheme: CanvasColorScheme, lineOffset: number): string => `(() => {
   ['RTCPeerConnection', 'webkitRTCPeerConnection', 'RTCDataChannel', 'RTCIceCandidate'].forEach((name) => {
     try { delete window[name]; } catch (error) {}
     try { Object.defineProperty(window, name, { value: undefined, configurable: false }); } catch (error) {}
@@ -94,19 +94,30 @@ const bridgeScript = (colorScheme: CanvasColorScheme): string => `(() => {
   const report = (message) => {
     parent.parent.postMessage({ type: '${CANVAS_ERROR_MESSAGE}', version: 1, message: String(message) }, '*');
   };
+  const blocked = new Set();
   addEventListener('error', (event) => {
     const target = event.target;
-    if (target && target !== window && (target.src || target.href)) {
-      report('Could not load ' + (target.src || target.href));
-    } else {
-      report((event.message || 'Script error') + (event.lineno ? ' (line ' + event.lineno + ')' : ''));
+    const url = target && target !== window && (target.src || target.href);
+    if (url) {
+      // A load the policy blocked fails too; it is reported once, as blocked.
+      setTimeout(() => {
+        if (!blocked.has(url)) report('Could not load ' + url);
+      });
+      return;
     }
+    // Lines count from the start of the agent's markup, after Chat's own.
+    const inPage = !event.filename || event.filename === location.href;
+    const where = !event.lineno ? '' : inPage
+      ? ' (line ' + (event.lineno - ${lineOffset}) + ')'
+      : ' (' + event.filename + ' line ' + event.lineno + ')';
+    report((event.message || 'Script error') + where);
   }, true);
   addEventListener('unhandledrejection', (event) => {
     const reason = event.reason;
     report('Unhandled rejection: ' + (reason && reason.message ? reason.message : String(reason)));
   });
   document.addEventListener('securitypolicyviolation', (event) => {
+    blocked.add(event.blockedURI);
     report('Blocked ' + (event.blockedURI || 'inline code') + ' (' + event.effectiveDirective + ')');
   });
   Object.defineProperty(window, 'mindroom', {
@@ -138,18 +149,21 @@ export const buildCanvasPage = (
   colorScheme: CanvasColorScheme,
   theme: CanvasTheme = FALLBACK_CANVAS_THEMES[colorScheme],
   libraries = false
-): string =>
-  [
-    '<!doctype html><html><head><meta charset="utf-8">',
-    `<meta http-equiv="Content-Security-Policy" content="${canvasPolicy(libraries)}">`,
-    `<meta name="color-scheme" content="${colorScheme}">`,
-    '<meta name="viewport" content="width=device-width, initial-scale=1">',
-    `<style>${canvasThemeCss(theme)}${BASE_STYLE}</style>`,
-    `<script>${bridgeScript(colorScheme)}</script>`,
-    '</head><body>',
-    html,
-    '</body></html>',
-  ].join('');
+): string => {
+  const head = (lineOffset: number) =>
+    [
+      '<!doctype html><html><head><meta charset="utf-8">',
+      `<meta http-equiv="Content-Security-Policy" content="${canvasPolicy(libraries)}">`,
+      `<meta name="color-scheme" content="${colorScheme}">`,
+      '<meta name="viewport" content="width=device-width, initial-scale=1">',
+      `<style>${canvasThemeCss(theme)}${BASE_STYLE}</style>`,
+      `<script>${bridgeScript(colorScheme, lineOffset)}</script>`,
+      '</head><body>',
+    ].join('');
+  // The agent's markup starts on the line after this many line breaks; the number adds none.
+  const lineOffset = head(0).split('\n').length - 1;
+  return `${head(lineOffset)}${html}</body></html>`;
+};
 
 // A JSON string is a valid script literal once "<" cannot close the script element.
 const scriptLiteral = (value: string): string => JSON.stringify(value).replace(/</g, '\\u003c');

@@ -260,6 +260,11 @@ describe('readCanvasError', () => {
     ).toBe('TypeError: x is undefined at line 3');
   });
 
+  it('reads only the start of a huge error', () => {
+    const text = readCanvasError(message(error(`${'b'.repeat(1_000_000)}\uD800`)), frame);
+    expect(text).toBe(`${'b'.repeat(299)}…`);
+  });
+
   it('cuts long errors between characters', () => {
     const text = readCanvasError(message(error(`${'a'.repeat(299)}😀😀`)), frame);
     expect(text).toBe(`${'a'.repeat(299)}…`);

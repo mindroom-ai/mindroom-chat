@@ -438,8 +438,10 @@ article{background:var(--mr-surface);border:1px solid var(--mr-border);border-ra
   await expect(frame.locator('#scheme')).toHaveText(/^(light|dark)$/);
   await expect(panel.getByText('This page reported an error.')).toBeVisible();
   const reported = panel.locator('pre');
-  await expect(reported).toContainText('missingFunction is not defined');
+  await expect(reported).toContainText('missingFunction is not defined (line 4)');
   await expect(reported).toContainText('Blocked https://unpkg.com');
+  // A blocked load is reported once, as blocked.
+  await expect(reported).not.toContainText('Could not load');
   await page.screenshot({ path: testInfo.outputPath('canvas-error-report.png') });
   await panel.getByRole('button', { name: /^Tell / }).click();
   await expect(panel.getByText(/^Sent the errors to /)).toBeVisible();

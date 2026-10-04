@@ -6,8 +6,11 @@
 
 - Why: an agent that writes a canvas cannot see it; a typo or a blocked library left the user a blank or broken panel and told the agent nothing (feedback from a live agent).
   Claude artifacts solve this with "Try fixing with Claude".
-- The canvas bridge reports uncaught errors (with their line), unhandled rejections, failed loads, and loads the policy blocks, to the panel as `mindroom.canvas.error` messages (`canvasDocument.ts`).
-  The panel keeps up to five distinct error lines per page (each one line, at most 300 characters, valid text; `readCanvasError`), shows them, and offers **Tell <agent>**.
+- The canvas bridge reports uncaught errors, unhandled rejections, failed loads, and loads the policy blocks, to the panel as `mindroom.canvas.error` messages (`canvasDocument.ts`).
+  Lines count from the start of the agent's markup: `buildCanvasPage` measures the line breaks of Chat's own head and the bridge subtracts them.
+  A blocked load also fails; its failure is reported a moment later only if the policy did not report it, so it appears once, as blocked.
+  The panel keeps up to five distinct error lines per page (each one line, at most 300 characters, valid text, read from at most the first 600 characters; `readCanvasError`), shows them, and offers **Tell <agent>**.
+  Only listed errors are remembered, so a page throwing endlessly costs at most five lines between reports.
   Nothing is sent until the user chooses it; the report is an ordinary mention in the canvas's conversation, `<agent> Canvas error (<canvas>, revision <revision>):` followed by one error per line (`buildCanvasErrorContent`).
   An error already sent is not offered again for the same page; a new page starts empty.
   Error reports bypass the answer throttle and never stage an answer or hold back an update.
