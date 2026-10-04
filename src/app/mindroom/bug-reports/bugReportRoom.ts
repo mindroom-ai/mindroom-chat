@@ -1,4 +1,11 @@
-import { JoinRule, Preset, Visibility, type MatrixClient, type Room } from 'matrix-js-sdk';
+import {
+  HistoryVisibility,
+  JoinRule,
+  Preset,
+  Visibility,
+  type MatrixClient,
+  type Room,
+} from 'matrix-js-sdk';
 import { Membership } from '../../../types/matrix/room';
 import { getMxIdLocalPart } from '../../utils/matrix';
 import { waitForJoinedRoom } from '../calls/agentCall';
@@ -21,6 +28,7 @@ const getStoredRoomId = (mx: MatrixClient): string | undefined => {
 /** Reports stay visible only to the reporter and the current admins. */
 const isPrivateToAdmins = (room: Room, myUserId: string, admins: string[]): boolean =>
   room.getJoinRule() === JoinRule.Invite &&
+  room.getHistoryVisibility() !== HistoryVisibility.WorldReadable &&
   room
     .getMembers()
     .every(

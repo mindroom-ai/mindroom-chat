@@ -12,13 +12,19 @@ type Memberships = Record<string, string>;
 const room = (
   roomId: string,
   myMembership: string,
-  opts: { members?: Memberships; lazyMembers?: Memberships; joinRule?: string } = {}
+  opts: {
+    members?: Memberships;
+    lazyMembers?: Memberships;
+    joinRule?: string;
+    historyVisibility?: string;
+  } = {}
 ) => {
   const members: Memberships = { [ME]: myMembership, ...opts.members };
   return {
     roomId,
     getMyMembership: () => myMembership,
     getJoinRule: () => opts.joinRule ?? 'invite',
+    getHistoryVisibility: () => opts.historyVisibility ?? 'shared',
     loadMembersIfNeeded: vi.fn(async () => {
       Object.assign(members, opts.lazyMembers);
       return true;
@@ -167,6 +173,19 @@ describe('ensureBugReportRoom', () => {
     const stored = room('!stored:example.com', 'join', {
       members: { '@admin:example.com': 'join' },
       joinRule: 'public',
+    });
+    const mx = client({
+      storedRoomId: '!stored:example.com',
+      rooms: { '!stored:example.com': stored },
+    });
+    const result = await ensureBugReportRoom(mx as never, ['@admin:example.com']);
+    expectNewRoomReplacingStored(mx, result);
+  });
+
+  it('moves to a new room when the stored room history became world-readable', async () => {
+    const stored = room('!stored:example.com', 'join', {
+      members: { '@admin:example.com': 'join' },
+      historyVisibility: 'world_readable',
     });
     const mx = client({
       storedRoomId: '!stored:example.com',
