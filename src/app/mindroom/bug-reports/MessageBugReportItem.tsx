@@ -1,0 +1,77 @@
+import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { Icon, Icons, Text, as } from 'folds';
+import type { MatrixEvent, Room } from 'matrix-js-sdk';
+import { MenuItem } from '../../components/glass/GlassPrimitives';
+import * as css from '../../features/room/message/styles.css';
+import { useAutoDiscoveryInfo } from '../../hooks/useAutoDiscoveryInfo';
+import { useMatrixClient } from '../../hooks/useMatrixClient';
+import { useRoomNavigate } from '../../hooks/useRoomNavigate';
+import { saveFile } from '../native/nativeFileSave';
+import { getBugReportAdmins } from './bugReportConfig';
+import { buildBugReport, getBugReportFileName, serializeBugReport } from './bugReportPayload';
+import { ensureBugReportRoom } from './bugReportRoom';
+import { sendBugReport } from './sendBugReport';
+
+type SendState = 'idle' | 'sending' | 'error';
+
+export const MessageBugReportItem = as<
+  'button',
+  {
+    room: Room;
+    mEvent: MatrixEvent;
+    onClose?: () => void;
+  }
+>(({ room, mEvent, onClose, ...props }, ref) => {
+  const { t } = useTranslation();
+  const mx = useMatrixClient();
+  // Read on every render: the well-known fetch may finish after the timeline mounts.
+  const admins = getBugReportAdmins(useAutoDiscoveryInfo());
+  const { navigateRoomThread } = useRoomNavigate();
+  const [state, setState] = useState<SendState>('idle');
+
+  const handleClick = async () => {
+    if (state === 'sending') return;
+    setState('sending');
+    try {
+      const report = await buildBugReport(mx, room, mEvent);
+      if (admins.length === 0) {
+        await saveFile(serializeBugReport(report), getBugReportFileName(report));
+        setState('idle');
+        onClose?.();
+        return;
+      }
+      const reportRoom = await ensureBugReportRoom(mx, admins);
+      const { roomId, threadRootId } = await sendBugReport(mx, reportRoom, report);
+      onClose?.();
+      navigateRoomThread(roomId, threadRootId);
+    } catch (error) {
+      // eslint-disable-next-line no-console
+      console.warn('[bug-report] could not send the report', error);
+      setState('error');
+    }
+  };
+
+  let label =
+    admins.length > 0
+      ? t('mindroomUi.messages.bugReport.report')
+      : t('mindroomUi.messages.bugReport.download');
+  if (state === 'sending') label = t('mindroomUi.messages.bugReport.sending');
+  if (state === 'error') label = t('mindroomUi.messages.bugReport.failed');
+
+  return (
+    <MenuItem
+      size="300"
+      after={<Icon size="100" src={Icons.Warning} />}
+      radii="300"
+      onClick={handleClick}
+      disabled={state === 'sending'}
+      {...props}
+      ref={ref}
+    >
+      <Text className={css.MessageMenuItemText} as="span" size="T300" truncate>
+        {label}
+      </Text>
+    </MenuItem>
+  );
+});

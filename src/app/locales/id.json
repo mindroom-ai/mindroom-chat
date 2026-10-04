@@ -2491,6 +2491,12 @@
         "copyTextWithToolCalls": "Salin teks dengan panggilan alat",
         "copyLink": "Salin tautan"
       },
+      "bugReport": {
+        "report": "Laporkan bug",
+        "download": "Unduh laporan bug",
+        "sending": "Mengirim laporan…",
+        "failed": "Tidak dapat mengirim laporan. Coba lagi."
+      },
       "messageInspectionActions": {
         "readReceipts": "Tanda dibaca",
         "viewSource": "Lihat sumber"

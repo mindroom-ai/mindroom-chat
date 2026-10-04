@@ -52,6 +52,7 @@ import {
   MessageCopyTextItem,
 } from './MessageCopyActions';
 import { MessageDeleteItem, MessagePinItem, MessageReportItem } from './MessageModerationActions';
+import { MessageBugReportItem } from '../bug-reports/MessageBugReportItem';
 
 export type { ReactionHandler } from './MessageReactionActions';
 export { MessageQuickReactions, MessageAllReactionItem } from './MessageReactionActions';
@@ -563,6 +564,7 @@ export const Message = as<'div', MessageProps>(
                             {serverEventActionsAllowed && canPinEvent && (
                               <MessagePinItem room={room} mEvent={mEvent} onClose={closeMenu} />
                             )}
+                            <MessageBugReportItem room={room} mEvent={mEvent} onClose={closeMenu} />
                           </Box>
                           {serverEventActionsAllowed &&
                             ((!mEvent.isRedacted() && canDelete) ||

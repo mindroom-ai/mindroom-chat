@@ -2491,6 +2491,12 @@
         "copyTextWithToolCalls": "Tekst kopiëren met gereedschapsaanroepen",
         "copyLink": "Link kopiëren"
       },
+      "bugReport": {
+        "report": "Een bug melden",
+        "download": "Bugrapport downloaden",
+        "sending": "Rapport verzenden…",
+        "failed": "Het rapport kon niet worden verzonden. Probeer het opnieuw."
+      },
       "messageInspectionActions": {
         "readReceipts": "Leesbevestigingen",
         "viewSource": "Bron weergeven"

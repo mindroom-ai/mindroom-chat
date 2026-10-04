@@ -2491,6 +2491,12 @@
         "copyTextWithToolCalls": "Text mit Werkzeugaufrufen kopieren",
         "copyLink": "Link kopieren"
       },
+      "bugReport": {
+        "report": "Fehler melden",
+        "download": "Fehlerbericht herunterladen",
+        "sending": "Bericht wird gesendet…",
+        "failed": "Der Bericht konnte nicht gesendet werden. Versuche es erneut."
+      },
       "messageInspectionActions": {
         "readReceipts": "Lesebestätigungen",
         "viewSource": "Quelle anzeigen"

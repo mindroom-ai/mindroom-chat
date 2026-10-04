@@ -2523,6 +2523,12 @@
         "copyTextWithToolCalls": "Copia testo con chiamate strumento",
         "copyLink": "Copia link"
       },
+      "bugReport": {
+        "report": "Segnala un bug",
+        "download": "Scarica il report del bug",
+        "sending": "Invio del report…",
+        "failed": "Impossibile inviare il report. Riprova."
+      },
       "messageInspectionActions": {
         "readReceipts": "Conferme di lettura",
         "viewSource": "Visualizza sorgente"

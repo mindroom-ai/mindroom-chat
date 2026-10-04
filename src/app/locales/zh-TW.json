@@ -2491,6 +2491,12 @@
         "copyTextWithToolCalls": "複製文字（含工具呼叫）",
         "copyLink": "複製連結"
       },
+      "bugReport": {
+        "report": "回報問題",
+        "download": "下載問題報告",
+        "sending": "正在傳送報告…",
+        "failed": "無法傳送報告，請再試一次。"
+      },
       "messageInspectionActions": {
         "readReceipts": "已讀回條",
         "viewSource": "檢視原始碼"

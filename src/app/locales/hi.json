@@ -1236,6 +1236,12 @@
         "copyTextWithToolCalls": "टूल कॉल सहित टेक्स्ट कॉपी करें",
         "copyTextLoading": "टेक्स्ट कॉपी करें (लोड हो रहा है...)"
       },
+      "bugReport": {
+        "report": "बग की रिपोर्ट करें",
+        "download": "बग रिपोर्ट डाउनलोड करें",
+        "sending": "रिपोर्ट भेजी जा रही है…",
+        "failed": "रिपोर्ट नहीं भेजी जा सकी। फिर से कोशिश करें।"
+      },
       "messageInspectionActions": {
         "readReceipts": "पढ़े जाने की सूचनाएँ",
         "viewSource": "स्रोत देखें"
