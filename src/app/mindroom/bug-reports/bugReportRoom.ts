@@ -1,11 +1,5 @@
-import {
-  HistoryVisibility,
-  JoinRule,
-  Preset,
-  Visibility,
-  type MatrixClient,
-  type Room,
-} from 'matrix-js-sdk';
+import { HistoryVisibility, JoinRule, Preset, Visibility } from 'matrix-js-sdk';
+import type { MatrixClient, Room } from 'matrix-js-sdk';
 import { Membership } from '../../../types/matrix/room';
 import { getMxIdLocalPart } from '../../utils/matrix';
 import { waitForJoinedRoom } from '../matrix/waitForJoinedRoom';
