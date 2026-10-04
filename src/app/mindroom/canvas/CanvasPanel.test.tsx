@@ -1,0 +1,622 @@
+// @vitest-environment jsdom
+
+import React from 'react';
+import { createRoot, Root } from 'react-dom/client';
+import { act } from 'react-dom/test-utils';
+import {
+  createClient,
+  EventStatus,
+  MatrixError,
+  MatrixEvent,
+  PendingEventOrdering,
+  Room,
+  type MatrixClient,
+} from 'matrix-js-sdk';
+import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest';
+import { CANVAS_SEND_ARM_DELAY_MS, CanvasPanel, type CanvasPanelProps } from './CanvasPanel';
+import { CANVAS_RESPONSE_KEY } from './canvasMessages';
+import { FALLBACK_CANVAS_THEMES } from './canvasTheme';
+import { MatrixClientProvider } from '../../hooks/useMatrixClient';
+
+(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+
+// jsdom does not run the wrapper document, so each panel frame gets a stand-in canvas window.
+const canvasWindows = vi.hoisted(() => new WeakMap<object, object>());
+vi.mock('./canvasDocument', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./canvasDocument')>();
+  return {
+    ...actual,
+    canvasFrameWindow: (panelFrame: HTMLIFrameElement | null) => {
+      if (!panelFrame) return undefined;
+      if (!canvasWindows.has(panelFrame)) canvasWindows.set(panelFrame, {});
+      return canvasWindows.get(panelFrame);
+    },
+  };
+});
+
+vi.mock('folds', () => ({
+  Box: ({ children }: { children?: React.ReactNode }) => <div>{children}</div>,
+  Button: ({
+    children,
+    fill: _fill,
+    variant: _variant,
+    size: _size,
+    ...props
+  }: React.ComponentProps<'button'> & { fill?: string; variant?: string; size?: string }) => (
+    <button {...props}>{children}</button>
+  ),
+  Chip: ({
+    children,
+    as: _as,
+    variant: _variant,
+    radii: _radii,
+    outlined: _outlined,
+    ...props
+  }: React.ComponentProps<'button'> & {
+    as?: string;
+    variant?: string;
+    radii?: string;
+    outlined?: boolean;
+  }) => <button {...props}>{children}</button>,
+  color: { Critical: { Main: 'red' } },
+  Icon: () => <span />,
+  IconButton: ({ children, ...props }: React.ComponentProps<'button'>) => (
+    <button {...props}>{children}</button>
+  ),
+  Icons: { Cross: 'Cross', Category: 'Category' },
+  Text: ({
+    children,
+    className,
+    role,
+  }: {
+    children?: React.ReactNode;
+    className?: string;
+    role?: string;
+  }) => (
+    <span className={className} role={role}>
+      {children}
+    </span>
+  ),
+}));
+
+vi.mock('react-i18next', async () => {
+  const { translateFromEn } = await import('../../test-utils/i18n');
+  return { useTranslation: () => ({ t: translateFromEn }) };
+});
+
+vi.mock('./CanvasPanel.css.ts', () => ({
+  Panel: 'Panel',
+  Header: 'Header',
+  Title: 'Title',
+  Frame: 'Frame',
+  Footer: 'Footer',
+  Error: 'Error',
+  Notice: 'Notice',
+  Staged: 'Staged',
+  Data: 'Data',
+}));
+
+const AGENT = '@mindroom_planner:example.org';
+const ME = '@alice:example.org';
+const canvas = {
+  eventId: '$canvas',
+  revisionEventId: '$canvas',
+  agentUserId: AGENT,
+  threadId: '$thread',
+  title: 'Choose a plan',
+  html: '<button>Pro</button>',
+};
+
+let container: HTMLDivElement;
+let root: Root;
+// A real SDK client and room: the local echo, scheduler, and status changes are the SDK's own.
+let mx: MatrixClient;
+let room: Room;
+let sendMessage: MockInstance;
+// Each send waits here until a test answers it, as a homeserver would.
+let requests: Array<{ resolve: (value: unknown) => void; reject: (error: unknown) => void }>;
+
+const render = (props: Partial<CanvasPanelProps> = {}) =>
+  act(() => {
+    root.render(
+      <MatrixClientProvider value={mx}>
+        <CanvasPanel
+          mx={mx}
+          room={room}
+          canvas={canvas}
+          agentName="Planner"
+          colorScheme="dark"
+          theme={{ ...FALLBACK_CANVAS_THEMES.dark, accent: '#123456' }}
+          onClose={() => undefined}
+          {...props}
+        />
+      </MatrixClientProvider>
+    );
+  });
+
+const frame = () => container.querySelector('iframe') as HTMLIFrameElement;
+const button = (selector: string) => container.querySelector(selector) as HTMLButtonElement;
+const buttonNamed = (name: string) =>
+  [...container.querySelectorAll('button')].find((candidate) => candidate.textContent === name) as
+    | HTMLButtonElement
+    | undefined;
+const canvasWindow = () => {
+  if (!canvasWindows.has(frame())) canvasWindows.set(frame(), {});
+  return canvasWindows.get(frame());
+};
+/** The canvas page, which the wrapper document carries as a script string. */
+const page = () => {
+  const literal = /frame\.srcdoc = ("(?:[^"\\]|\\.)*");/.exec(frame().getAttribute('srcdoc') ?? '');
+  return literal ? (JSON.parse(literal[1]) as string) : '';
+};
+/** The local echo of the last answer, held before the SDK forgets its transaction ID. */
+const lastEcho = (): MatrixEvent => {
+  const txnId = sendMessage.mock.calls.at(-1)?.[2] as string;
+  return room.getEventForTxnId(txnId) as MatrixEvent;
+};
+const status = () => container.querySelector('[data-canvas-status]')?.textContent ?? '';
+
+const post = async (data: unknown, source: unknown = canvasWindow()) => {
+  await act(async () => {
+    window.dispatchEvent(
+      new MessageEvent('message', { data, origin: 'null', source: source as Window })
+    );
+  });
+};
+
+const submit = (label = 'Pro plan', data: unknown = { plan: 'pro' }) => ({
+  type: 'mindroom.canvas.submit',
+  version: 1,
+  data,
+  label,
+});
+
+const arm = () =>
+  act(async () => {
+    vi.advanceTimersByTime(CANVAS_SEND_ARM_DELAY_MS);
+  });
+
+const clickSend = () =>
+  act(async () => {
+    button('[data-canvas-send]').click();
+  });
+
+/** The homeserver accepts the oldest waiting send. */
+const accept = () =>
+  act(async () => {
+    requests.shift()?.resolve({ event_id: '$response' });
+  });
+
+/** The homeserver refuses the oldest waiting send; the SDK does not retry a 403. */
+const refuse = () =>
+  act(async () => {
+    requests.shift()?.reject(new MatrixError({ errcode: 'M_FORBIDDEN', error: 'No' }, 403));
+  });
+
+const touchFrame = () =>
+  act(async () => {
+    Object.defineProperty(document, 'activeElement', { configurable: true, get: () => frame() });
+    window.dispatchEvent(new Event('blur'));
+    delete (document as { activeElement?: unknown }).activeElement;
+  });
+
+const answer = async (label = 'Pro plan') => {
+  await post(submit(label));
+  await arm();
+  await clickSend();
+};
+
+beforeEach(() => {
+  vi.useFakeTimers();
+  container = document.createElement('div');
+  document.body.appendChild(container);
+  root = createRoot(container);
+  mx = createClient({ baseUrl: 'https://example.org', userId: ME });
+  room = new Room('!room:example.org', mx, ME, {
+    pendingEventOrdering: PendingEventOrdering.Chronological,
+  });
+  mx.store.storeRoom(room);
+  requests = [];
+  vi.spyOn(mx.http, 'authedRequest').mockImplementation(
+    () =>
+      new Promise((resolve, reject) => {
+        requests.push({ resolve, reject });
+      }) as never
+  );
+  sendMessage = vi.spyOn(mx, 'sendMessage');
+});
+
+afterEach(() => {
+  act(() => root.unmount());
+  container.remove();
+  mx.stopClient();
+  vi.useRealTimers();
+});
+
+describe('CanvasPanel', () => {
+  it('renders agent HTML in an opaque-origin sandbox with provenance and disclosure', () => {
+    render();
+    const iframe = frame();
+    // The panel frame holds a wrapper whose policy keeps the canvas frame from navigating.
+    expect(iframe.getAttribute('sandbox')).toBe('allow-scripts allow-forms');
+    expect(iframe.getAttribute('referrerpolicy')).toBe('no-referrer');
+    expect(iframe.getAttribute('allow')).toContain("camera 'none'");
+    expect(iframe.getAttribute('srcdoc')).toContain("frame-src 'none'");
+    expect(iframe.getAttribute('srcdoc')).toContain(
+      "setAttribute('sandbox', 'allow-scripts allow-forms')"
+    );
+    expect(page()).toContain('<button>Pro</button>');
+    expect(page()).toContain('content="dark"');
+    expect(container.textContent).toContain('Choose a plan');
+    expect(container.textContent).toContain('Interactive panel from Planner');
+    expect(container.textContent).toContain('what you enter here may leave this panel');
+  });
+
+  it('stages a canvas submission until the user sends it from the host', async () => {
+    render();
+    await post(submit());
+    expect(sendMessage).not.toHaveBeenCalled();
+    expect(container.textContent).toContain('Send to Planner: Pro plan');
+    expect(container.textContent).toContain('"plan": "pro"');
+    expect(button('[data-canvas-send]').disabled).toBe(true);
+    await arm();
+    await clickSend();
+    expect(sendMessage).toHaveBeenCalledTimes(1);
+    const [roomId, content] = sendMessage.mock.calls[0];
+    expect(roomId).toBe('!room:example.org');
+    expect(content[CANVAS_RESPONSE_KEY]).toMatchObject({
+      canvas_event_id: '$canvas',
+      canvas_revision_event_id: '$canvas',
+      label: 'Pro plan',
+      data: { plan: 'pro' },
+    });
+    // The snapshot is handed to the SDK: the panel shows the message's status, not a copy.
+    expect(button('[data-canvas-send]')).toBeNull();
+    expect(status()).toContain('Sending to Planner');
+    await accept();
+    expect(status()).toContain('Sent to Planner: Pro plan');
+  });
+
+  it('keeps the pending snapshot until the user sends or discards it', async () => {
+    // Even right after a real click, a canvas cannot swap what the user is reviewing.
+    Object.defineProperty(navigator, 'userActivation', {
+      configurable: true,
+      value: { isActive: true, hasBeenActive: true },
+    });
+    render();
+    await post(submit('Basic', { plan: 'basic' }));
+    await arm();
+    await post(submit('Everything', { plan: 'everything' }));
+    expect(container.textContent).toContain('Send to Planner: Basic');
+    await act(async () => button('[data-canvas-discard]').click());
+    await act(async () => {
+      vi.advanceTimersByTime(100);
+    });
+    await post(submit('Pro plan'));
+    expect(button('[data-canvas-send]').disabled).toBe(true);
+    await clickSend();
+    expect(sendMessage).not.toHaveBeenCalled();
+    await arm();
+    await clickSend();
+    expect(sendMessage.mock.calls[0][1][CANVAS_RESPONSE_KEY].label).toBe('Pro plan');
+    delete (navigator as { userActivation?: unknown }).userActivation;
+  });
+
+  it('bounds how fast a canvas can stage snapshots', async () => {
+    render();
+    await post(submit('one'));
+    await act(async () => button('[data-canvas-discard]').click());
+    await post(submit('two'));
+    expect(button('[data-canvas-send]')).toBeNull();
+    await act(async () => {
+      vi.advanceTimersByTime(100);
+    });
+    await post(submit('three'));
+    expect(container.textContent).toContain('Send to Planner: three');
+  });
+
+  it('discards a staged snapshot', async () => {
+    render();
+    await post(submit());
+    await act(async () => button('[data-canvas-discard]').click());
+    expect(button('[data-canvas-send]')).toBeNull();
+    expect(sendMessage).not.toHaveBeenCalled();
+  });
+
+  it('ignores messages from other windows', async () => {
+    render();
+    await post(submit(), window);
+    expect(button('[data-canvas-send]')).toBeNull();
+  });
+
+  it('counts an answer as sent once the server accepts it, and after its copy arrives', async () => {
+    render();
+    await answer();
+    const echo = lastEcho();
+    await accept();
+    expect(echo.status).toBe(EventStatus.SENT);
+    expect(status()).toContain('Sent to Planner: Pro plan');
+    // The copy from /sync replaces the echo, and the SDK forgets the transaction ID.
+    await act(async () => {
+      room.handleRemoteEcho(
+        new MatrixEvent({
+          event_id: '$response',
+          room_id: room.roomId,
+          sender: ME,
+          type: 'm.room.message',
+          origin_server_ts: 1,
+          content: echo.getContent(),
+          unsigned: { transaction_id: sendMessage.mock.calls[0][2] as string },
+        }),
+        echo
+      );
+    });
+    expect(echo.status).toBeNull();
+    expect(room.getEventForTxnId(sendMessage.mock.calls[0][2] as string)).toBeUndefined();
+    expect(status()).toContain('Sent to Planner: Pro plan');
+  });
+
+  it("offers the timeline's Retry and Delete for a failed answer, naming it", async () => {
+    render();
+    await answer();
+    await refuse();
+    expect(lastEcho().status).toBe(EventStatus.NOT_SENT);
+    expect(status()).toContain('Not sent to Planner: Pro plan');
+    await act(async () => buttonNamed('Retry')?.click());
+    expect(status()).toContain('Sending to Planner');
+    expect(requests).toHaveLength(1);
+    await accept();
+    expect(status()).toContain('Sent to Planner: Pro plan');
+  });
+
+  it('returns to the disclosure when a failed answer is deleted', async () => {
+    render();
+    await answer();
+    await refuse();
+    await act(async () => buttonNamed('Delete')?.click());
+    expect(lastEcho().status).toBe(EventStatus.CANCELLED);
+    expect(status()).toContain('what you enter here may leave this panel');
+  });
+
+  it('shows a retry or deletion started from the timeline', async () => {
+    render();
+    await answer();
+    await refuse();
+    const echo = lastEcho();
+    await act(async () => {
+      mx.resendEvent(echo, room).catch(() => undefined);
+    });
+    expect(status()).toContain('Sending to Planner');
+    await refuse();
+    expect(status()).toContain('Not sent to Planner');
+    await act(async () => mx.cancelPendingEvent(echo));
+    expect(status()).toContain('what you enter here may leave this panel');
+  });
+
+  it('shows a failure the server returns at once', async () => {
+    vi.mocked(mx.http.authedRequest).mockImplementationOnce(() =>
+      Promise.reject(new MatrixError({ errcode: 'M_FORBIDDEN', error: 'No' }, 403))
+    );
+    render();
+    await answer();
+    expect(status()).toContain('Not sent to Planner: Pro plan');
+  });
+
+  it('holds one unresolved answer at a time', async () => {
+    render();
+    await answer('one');
+    await act(async () => {
+      vi.advanceTimersByTime(100);
+    });
+    await post(submit('two'));
+    await arm();
+    // The first answer is still sending, so the second cannot be sent yet.
+    expect(button('[data-canvas-send]').disabled).toBe(true);
+    await refuse();
+    expect(button('[data-canvas-send]').disabled).toBe(true);
+    await act(async () => buttonNamed('Delete')?.click());
+    expect(button('[data-canvas-send]').disabled).toBe(false);
+    await clickSend();
+    expect(sendMessage).toHaveBeenCalledTimes(2);
+    await accept();
+    expect(status()).toContain('Sent to Planner: two');
+    // A sent answer leaves the panel free for the next one on the same page.
+    await act(async () => {
+      vi.advanceTimersByTime(100);
+    });
+    await post(submit('three'));
+    await arm();
+    expect(button('[data-canvas-send]').disabled).toBe(false);
+  });
+
+  it("keeps a failed answer's Retry and Delete across a new page", async () => {
+    render();
+    await answer();
+    // The next step loads at once (nothing unsent in the frame), then the answer fails.
+    render({ canvas: { ...canvas, revisionEventId: '$edit', html: '<p>Step 2</p>' } });
+    expect(page()).toContain('<p>Step 2</p>');
+    await refuse();
+    expect(status()).toContain('Not sent to Planner: Pro plan');
+    expect(buttonNamed('Retry')).toBeDefined();
+    // A sent answer does not follow the panel to the next page.
+    await act(async () => buttonNamed('Retry')?.click());
+    await accept();
+    render({ canvas: { ...canvas, revisionEventId: '$edit-2', html: '<p>Step 3</p>' } });
+    expect(status()).toContain('what you enter here may leave this panel');
+  });
+
+  it('keeps the status and drops only the snapshot when an update waits', async () => {
+    render();
+    await answer();
+    await refuse();
+    await touchFrame();
+    await act(async () => {
+      vi.advanceTimersByTime(100);
+    });
+    await post(submit('Basic'));
+    render({ canvas: { ...canvas, revisionEventId: '$edit', html: '<p>Step 2</p>' } });
+    expect(container.textContent).toContain('Planner updated this panel.');
+    expect(button('[data-canvas-send]')).toBeNull();
+    expect(status()).toContain('Not sent to Planner: Pro plan');
+  });
+
+  it('reports a refused send rather than the previous answer', async () => {
+    render();
+    await answer('one');
+    await accept();
+    sendMessage.mockImplementationOnce(() => {
+      throw new Error('Room is not known');
+    });
+    await act(async () => {
+      vi.advanceTimersByTime(100);
+    });
+    await answer('two');
+    expect(status()).toContain('Could not send your response');
+    expect(status()).not.toContain('Sent to Planner: one');
+    expect(container.textContent).toContain('Send to Planner: two');
+  });
+
+  it('keeps the snapshot when the SDK refuses the send outright', async () => {
+    sendMessage.mockImplementationOnce(() => {
+      throw new Error('Room is not known');
+    });
+    render();
+    await answer();
+    expect(container.textContent).toContain('Send to Planner: Pro plan');
+    expect(status()).toContain('Could not send your response');
+    expect(button('[data-canvas-send]').disabled).toBe(false);
+  });
+
+  it('accepts the first answer of a new revision right after the previous one', async () => {
+    render();
+    await answer('one');
+    await accept();
+    render({ canvas: { ...canvas, revisionEventId: '$edit', html: '<p>Step 2</p>' } });
+    await post(submit('two'));
+    expect(container.textContent).toContain('Send to Planner: two');
+  });
+
+  it('keeps the page when the theme changes', async () => {
+    render();
+    const first = frame();
+    render({ colorScheme: 'light' });
+    expect(frame()).toBe(first);
+  });
+
+  it('keeps an answer staged while an update waits for the user', async () => {
+    render();
+    await touchFrame();
+    render({ canvas: { ...canvas, revisionEventId: '$edit', html: '<p>Step 2</p>' } });
+    expect(container.textContent).toContain('Planner updated this panel.');
+    await post(submit());
+    render({ canvas: { ...canvas, revisionEventId: '$edit', html: '<p>Step 2</p>' } });
+    expect(container.textContent).toContain('Send to Planner: Pro plan');
+  });
+
+  it('stops a canvas that navigates away from its document', async () => {
+    render();
+    await act(async () => {
+      frame().dispatchEvent(new Event('load'));
+      frame().dispatchEvent(new Event('load'));
+    });
+    expect(frame()).toBeNull();
+    expect(container.textContent).toContain('tried to leave');
+    await act(async () => button('[data-canvas-reload]').click());
+    expect(frame()).not.toBeNull();
+  });
+
+  it('stops a canvas whose wrapper reports that it navigated', async () => {
+    render();
+    await post({ type: 'mindroom.canvas.escaped' });
+    expect(frame()).not.toBeNull();
+    await post({ type: 'mindroom.canvas.escaped' }, frame().contentWindow);
+    expect(frame()).toBeNull();
+    expect(container.textContent).toContain('tried to leave');
+  });
+
+  it('loads an update at once when the user has not worked in the panel', async () => {
+    render();
+    const first = frame();
+    render({ canvas: { ...canvas, revisionEventId: '$edit', html: '<p>Step 2</p>' } });
+    expect(frame()).not.toBe(first);
+    expect(page()).toContain('<p>Step 2</p>');
+  });
+
+  it('loads the next step at once after the user answered the current one', async () => {
+    render();
+    await touchFrame();
+    await post(submit());
+    await arm();
+    await clickSend();
+    render({ canvas: { ...canvas, revisionEventId: '$edit', html: '<p>Step 2</p>' } });
+    expect(page()).toContain('<p>Step 2</p>');
+  });
+
+  it('asks before an update replaces unsent work', async () => {
+    render();
+    await touchFrame();
+    await post(submit());
+    render({ canvas: { ...canvas, revisionEventId: '$edit', html: '<p>Step 2</p>' } });
+    expect(page()).toContain('<button>Pro</button>');
+    expect(container.textContent).toContain('Planner updated this panel.');
+    expect(button('[data-canvas-send]')).toBeNull();
+    const load = [...container.querySelectorAll('button')].find((candidate) =>
+      candidate.textContent?.includes('Load update')
+    ) as HTMLButtonElement;
+    await act(async () => load.click());
+    expect(page()).toContain('<p>Step 2</p>');
+    expect(container.textContent).not.toContain('updated this panel');
+  });
+
+  it('gives the page the Chat theme as CSS variables', () => {
+    render();
+    expect(page()).toContain('--mr-accent:#123456');
+  });
+
+  it('shows a page that is still downloading, then the page itself', async () => {
+    render({ canvas: { ...canvas, html: '', status: 'loading' } });
+    expect(frame()).toBeNull();
+    expect(container.textContent).toContain('Loading panel');
+    render({ canvas: { ...canvas, html: '<p>Downloaded</p>' } });
+    expect(page()).toContain('<p>Downloaded</p>');
+  });
+
+  it('explains a page that could not be loaded and offers a retry', () => {
+    const onRetry = vi.fn();
+    render({ canvas: { ...canvas, html: '', status: 'failed' }, onRetry });
+    expect(frame()).toBeNull();
+    expect(container.textContent).toContain('could not be loaded');
+    const retry = [...container.querySelectorAll('button')].find(
+      (candidate) => candidate.textContent === 'Retry'
+    ) as HTMLButtonElement;
+    act(() => retry.click());
+    expect(onRetry).toHaveBeenCalled();
+  });
+
+  it('shows a downloaded page at once even after the user focused the panel', async () => {
+    render({ canvas: { ...canvas, html: '', status: 'loading' } });
+    await touchFrame();
+    render({ canvas: { ...canvas, html: '<p>Downloaded</p>' } });
+    expect(page()).toContain('<p>Downloaded</p>');
+    expect(container.textContent).not.toContain('updated this panel');
+  });
+
+  it('offers expanding the panel where the room allows it', () => {
+    const onToggleExpanded = vi.fn();
+    render({ onToggleExpanded });
+    act(() => button('[aria-label="Expand canvas"]').click());
+    expect(onToggleExpanded).toHaveBeenCalled();
+    expect(button('[aria-label="Expand canvas"]').getAttribute('aria-pressed')).toBe('false');
+    render({ onToggleExpanded, expanded: true });
+    expect(button('[aria-label="Expand canvas"]').getAttribute('aria-pressed')).toBe('true');
+    render({ onToggleExpanded: undefined });
+    expect(button('[aria-label="Expand canvas"]')).toBeNull();
+  });
+
+  it('closes', () => {
+    const onClose = vi.fn();
+    render({ onClose });
+    act(() => button('[aria-label="Close canvas"]').click());
+    expect(onClose).toHaveBeenCalled();
+  });
+});

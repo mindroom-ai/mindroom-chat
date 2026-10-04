@@ -13,10 +13,10 @@ const COLLAPSE_WIDTH = MIN_WIDTH - 40;
 const COLLAPSE_HYSTERESIS = 20;
 const clamp = (width: number, max: number) =>
   Math.min(Math.max(Math.min(MIN_WIDTH, max), width), max);
-const readWidth = (key: string): number | undefined => {
+const readWidth = (key: string, max: number): number | undefined => {
   const value = getLocalStorageItem<unknown>(key, undefined);
   return typeof value === 'number' && Number.isFinite(value) && value > 0
-    ? clamp(value, MAX_WIDTH)
+    ? clamp(value, max)
     : undefined;
 };
 
@@ -35,8 +35,10 @@ export function ResizablePanel({
   storageKey,
   defaultWidth = 256,
   fullWidth = false,
+  passthrough = false,
   side = 'start',
   minContentWidth = 320,
+  maxPanelWidth = MAX_WIDTH,
   resizeLabel,
   collapseLabel,
   testId,
@@ -46,25 +48,30 @@ export function ResizablePanel({
   storageKey: string;
   defaultWidth?: number;
   fullWidth?: boolean;
+  /** Render no box of its own, for a child that positions itself (such as a full-screen phone panel). */
+  passthrough?: boolean;
   side?: 'start' | 'end';
   minContentWidth?: number;
+  /** The widest the panel may be dragged; the content beside it keeps minContentWidth. */
+  maxPanelWidth?: number;
   resizeLabel: string;
   collapseLabel: string;
   testId: string;
 }) {
   const widthAtom = useMemo(
-    () => atomWithLocalStorage(storageKey, readWidth, setLocalStorageItem),
-    [storageKey]
+    () =>
+      atomWithLocalStorage(storageKey, (key) => readWidth(key, maxPanelWidth), setLocalStorageItem),
+    [storageKey, maxPanelWidth]
   );
   const [preferredWidth, setPreferredWidth] = useAtom(widthAtom);
   const [previewWidth, setPreviewWidth] = useState<number>();
-  const [availableWidth, setAvailableWidth] = useState(MAX_WIDTH);
+  const [availableWidth, setAvailableWidth] = useState(maxPanelWidth);
   const panelRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<Drag>();
   const collapsePreview = !fullWidth && !!onCollapse && previewWidth === 0;
   const maxWidth = Math.max(
     Math.min(MIN_WIDTH, availableWidth),
-    Math.min(MAX_WIDTH, availableWidth - minContentWidth)
+    Math.min(maxPanelWidth, availableWidth - minContentWidth)
   );
   const width = collapsePreview
     ? 0
@@ -76,7 +83,7 @@ export function ResizablePanel({
   };
 
   useLayoutEffect(() => {
-    if (fullWidth) {
+    if (fullWidth || passthrough) {
       dragRef.current = undefined;
       setPreviewWidth(undefined);
       return undefined;
@@ -93,7 +100,7 @@ export function ResizablePanel({
     const observer = new ResizeObserver(measure);
     observer.observe(parent);
     return () => observer.disconnect();
-  }, [fullWidth]);
+  }, [fullWidth, passthrough]);
 
   const startResize = (event: React.PointerEvent<HTMLDivElement>) => {
     if (event.button !== 0 || !event.isPrimary || dragRef.current) return;
@@ -162,7 +169,7 @@ export function ResizablePanel({
     <div
       ref={panelRef}
       className={css.Panel}
-      style={{ width: fullWidth ? '100%' : width }}
+      style={passthrough ? { display: 'contents' } : { width: fullWidth ? '100%' : width }}
       data-testid={testId}
       data-side={side}
       data-collapse-preview={collapsePreview || undefined}
@@ -170,7 +177,7 @@ export function ResizablePanel({
       {children}
       {/* A focusable separator implements the adjustable splitter pattern. */}
       {/* eslint-disable jsx-a11y/no-noninteractive-element-interactions, jsx-a11y/no-noninteractive-tabindex */}
-      {!fullWidth && (
+      {!fullWidth && !passthrough && (
         <div
           className={css.Handle}
           role="separator"

@@ -1,0 +1,208 @@
+import { MsgType } from 'matrix-js-sdk';
+import { sanitizeText } from '../../utils/sanitize';
+import { getMessageRelation } from '../threads/composeMessageRelation';
+import { CANVAS_SUBMIT_MESSAGE } from './canvasDocument';
+
+export const CANVAS_RESPONSE_KEY = 'io.mindroom.canvas_response';
+
+const MAX_DATA_BYTES = 8 * 1024;
+export const CANVAS_LABEL_MAX_LENGTH = 200;
+
+export type CanvasSubmission = {
+  data: unknown;
+  label?: string;
+};
+
+export type CanvasTarget = {
+  eventId: string;
+  /** The edit (or the original request) whose document the user answered. */
+  revisionEventId: string;
+  agentUserId: string;
+  agentName: string;
+  threadId?: string;
+};
+
+const record = (value: unknown): value is Record<string, unknown> =>
+  !!value && typeof value === 'object' && !Array.isArray(value);
+
+/**
+ * Matrix canonical JSON: servers sort object keys and refuse numbers that are not safe integers
+ * in unencrypted events. Sorting here keeps the body equal to the stored metadata.
+ */
+const sortKeys = (value: unknown): unknown => {
+  if (Array.isArray(value)) return value.map(sortKeys);
+  if (!record(value)) return value;
+  return Object.fromEntries(
+    Object.keys(value)
+      .sort()
+      .map((key) => [key, sortKeys(value[key])])
+  );
+};
+
+const serialize = (data: unknown): string | undefined => {
+  try {
+    const json = JSON.stringify(sortKeys(data));
+    return typeof json === 'string' ? json : undefined;
+  } catch {
+    return undefined;
+  }
+};
+
+/** Decimal and very large numbers travel as text, the only form every homeserver accepts. */
+const matrixSafeData = (data: unknown): unknown =>
+  JSON.parse(JSON.stringify(data), (_key, value: unknown) =>
+    typeof value === 'number' && !Number.isSafeInteger(value) ? String(value) : value
+  );
+
+/** Accept only the bridge message shape, from this canvas frame, within the payload budget. */
+export const readCanvasSubmission = (
+  event: MessageEvent,
+  frame: Window | null | undefined
+): CanvasSubmission | undefined => {
+  if (!frame || event.source !== frame || event.origin !== 'null') return undefined;
+  const message = event.data;
+  if (!record(message) || message.type !== CANVAS_SUBMIT_MESSAGE || message.version !== 1) {
+    return undefined;
+  }
+  if (message.label !== undefined && typeof message.label !== 'string') return undefined;
+  let data: unknown;
+  try {
+    data = matrixSafeData(message.data);
+  } catch {
+    return undefined;
+  }
+  const json = serialize(data);
+  if (json === undefined || new TextEncoder().encode(json).length > MAX_DATA_BYTES) {
+    return undefined;
+  }
+  const label = message.label?.trim().slice(0, CANVAS_LABEL_MAX_LENGTH);
+  return { data: JSON.parse(json), ...(label ? { label } : {}) };
+};
+
+const responseSummary = (canvasEventId: string, revisionEventId: string, label: string) =>
+  `Canvas response (${canvasEventId}, revision ${revisionEventId}): ${label}`;
+
+const canonicalBody = (
+  agentUserId: string,
+  canvasEventId: string,
+  revisionEventId: string,
+  label: string,
+  json: string
+) => `${agentUserId} ${responseSummary(canvasEventId, revisionEventId, label)}\n${json}`;
+
+/**
+ * Plaintext budget for an answer's content. Encryption grows an event by about a third, and the
+ * data appears up to three times (body, formatted body, metadata), so the 8 KiB data cap alone
+ * cannot keep an encrypted answer under Matrix's 64 KiB event limit.
+ */
+export const MAX_CANVAS_RESPONSE_CONTENT_BYTES = 40_000;
+
+const contentBytes = (content: object): number =>
+  new TextEncoder().encode(JSON.stringify(content)).length;
+
+/** The label the wire format uses for an answer without one; Chat shows a translated word instead. */
+export const CANVAS_DEFAULT_LABEL = 'Submitted';
+
+// A display name can be as long as a membership event allows; the mention pill needs only a name.
+const MAX_MENTION_NAME_LENGTH = 100;
+const mentionName = (name: string): string =>
+  name.length > MAX_MENTION_NAME_LENGTH ? `${name.slice(0, MAX_MENTION_NAME_LENGTH - 1)}…` : name;
+
+/** A commit is an ordinary mention so the agent's existing turn pipeline receives it. */
+export const buildCanvasResponseContent = (canvas: CanvasTarget, submission: CanvasSubmission) => {
+  const label = submission.label ?? CANVAS_DEFAULT_LABEL;
+  const json = serialize(submission.data) ?? 'null';
+  const summary = responseSummary(canvas.eventId, canvas.revisionEventId, label);
+  // A reply to the canvas request always has a relation; this fallback only satisfies the type.
+  const relation = getMessageRelation(canvas.eventId, undefined, canvas.threadId) ?? {
+    'm.in_reply_to': { event_id: canvas.eventId },
+  };
+  const mention = `<a href="https://matrix.to/#/${encodeURIComponent(
+    canvas.agentUserId
+  )}">${sanitizeText(mentionName(canvas.agentName))}</a> ${sanitizeText(summary)}`;
+  const content = {
+    msgtype: MsgType.Text,
+    body: canonicalBody(canvas.agentUserId, canvas.eventId, canvas.revisionEventId, label, json),
+    format: 'org.matrix.custom.html',
+    formatted_body: `${mention}<pre><code>${sanitizeText(json)}</code></pre>`,
+    'm.mentions': { user_ids: [canvas.agentUserId] },
+    'm.relates_to': relation,
+    [CANVAS_RESPONSE_KEY]: {
+      version: 1,
+      canvas_event_id: canvas.eventId,
+      canvas_revision_event_id: canvas.revisionEventId,
+      agent_user_id: canvas.agentUserId,
+      ...(submission.label ? { label: submission.label } : {}),
+      data: submission.data,
+    },
+  };
+  // HTML escaping can multiply dense data; the plain body still carries the JSON for every client.
+  if (contentBytes(content) <= MAX_CANVAS_RESPONSE_CONTENT_BYTES) return content;
+  const withoutJson = { ...content, formatted_body: mention };
+  if (contentBytes(withoutJson) <= MAX_CANVAS_RESPONSE_CONTENT_BYTES) return withoutJson;
+  // The body and metadata alone are bounded by the data and label caps.
+  const { format: _format, formatted_body: _formatted, ...plain } = content;
+  return plain;
+};
+
+export type CanvasResponseReceipt = {
+  canvasEventId: string;
+  /** Missing when the answer had no label; Chat shows a translated word instead. */
+  label?: string;
+  json: string;
+};
+
+/**
+ * Chat shows a commit as a receipt; other clients and the agent read its body.
+ * Only a body that says exactly what the metadata says may be replaced by the receipt.
+ */
+export const readCanvasResponse = (
+  content: Record<string, unknown>
+): CanvasResponseReceipt | undefined => {
+  const response = content[CANVAS_RESPONSE_KEY];
+  if (
+    content.msgtype !== MsgType.Text ||
+    typeof content.body !== 'string' ||
+    !record(response) ||
+    response.version !== 1 ||
+    typeof response.canvas_event_id !== 'string' ||
+    !response.canvas_event_id.startsWith('$') ||
+    typeof response.agent_user_id !== 'string' ||
+    typeof response.canvas_revision_event_id !== 'string' ||
+    (response.label !== undefined && typeof response.label !== 'string')
+  ) {
+    return undefined;
+  }
+  const relation = content['m.relates_to'];
+  const reply = record(relation) ? relation['m.in_reply_to'] : undefined;
+  const mentions = content['m.mentions'];
+  if (
+    !record(reply) ||
+    reply.event_id !== response.canvas_event_id ||
+    !record(mentions) ||
+    !Array.isArray(mentions.user_ids) ||
+    !mentions.user_ids.includes(response.agent_user_id)
+  ) {
+    return undefined;
+  }
+  const label = typeof response.label === 'string' ? response.label : CANVAS_DEFAULT_LABEL;
+  const json = serialize(response.data);
+  if (
+    json === undefined ||
+    content.body !==
+      canonicalBody(
+        response.agent_user_id,
+        response.canvas_event_id,
+        response.canvas_revision_event_id,
+        label,
+        json
+      )
+  ) {
+    return undefined;
+  }
+  return {
+    canvasEventId: response.canvas_event_id,
+    label: typeof response.label === 'string' ? response.label : undefined,
+    json,
+  };
+};

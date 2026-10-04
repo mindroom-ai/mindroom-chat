@@ -2893,10 +2893,40 @@
     "uiActions": {
       "viewComputer": "檢視電腦",
       "openMembers": "開啟成員清單",
+      "openCanvas": "開啟面板",
+      "canvasDisabled": "此應用程式已關閉互動式面板。",
+      "canvasDuringCall": "結束通話後才能開啟互動式面板。",
       "computerUnavailable": "此代理的電腦無法使用。",
       "releaseControl": "開啟其他檢視前，請先釋放電腦控制權。",
       "openConversation": "請從聊天室對話中開啟此請求。",
-      "settingsUnavailable": "關閉簡易模式以開啟此設定區段。"
+      "settingsUnavailable": "關閉簡易模式以開啟此設定區段。",
+      "canvasUnavailableInApp": "應用程式中尚不支援互動式面板。請在瀏覽器中開啟此對話。"
+    },
+    "canvas": {
+      "panelLabel": "互動式面板",
+      "fromAgent": "來自 {{agent}} 的互動式面板",
+      "expand": "展開面板",
+      "close": "關閉面板",
+      "resize": "調整面板大小",
+      "updated": "{{agent}} 更新了此面板。",
+      "loadUpdate": "載入更新",
+      "loading": "正在載入面板…",
+      "loadFailed": "無法載入此面板。",
+      "retry": "重試",
+      "escaped": "此面板試圖離開沙箱，已被阻擋。",
+      "reload": "重新載入面板",
+      "sendTo": "傳送給 {{agent}}：",
+      "changeAnswer": "如需變更回答，請先丟棄目前的回答。",
+      "data": "資料",
+      "send": "傳送",
+      "discard": "丟棄",
+      "disclosure": "由 {{agent}} 建立。它無法存取您的帳戶；您在此輸入的內容可能會離開此面板。",
+      "sending": "正在傳送給 {{agent}}…",
+      "sent": "已傳送給 {{agent}}：{{label}}",
+      "sendFailed": "無法傳送您的回覆。請重試。",
+      "receiptData": "顯示傳送給代理的資料",
+      "unlabeled": "已提交",
+      "notSent": "未傳送給 {{agent}}：{{label}}"
     }
   },
   "roomSchedules": {

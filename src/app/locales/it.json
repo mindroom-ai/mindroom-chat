@@ -2947,10 +2947,40 @@
     "uiActions": {
       "viewComputer": "Visualizza computer",
       "openMembers": "Apri membri",
+      "openCanvas": "Apri pannello",
+      "canvasDisabled": "I pannelli interattivi sono disattivati in questa app.",
+      "canvasDuringCall": "Termina la chiamata per aprire i pannelli interattivi.",
       "computerUnavailable": "Il computer di questo agente non è disponibile.",
       "releaseControl": "Rilascia il controllo del computer prima di aprire un’altra vista.",
       "openConversation": "Apri questa richiesta dalla conversazione della stanza.",
-      "settingsUnavailable": "Disattiva la modalità semplice per aprire questa sezione delle impostazioni."
+      "settingsUnavailable": "Disattiva la modalità semplice per aprire questa sezione delle impostazioni.",
+      "canvasUnavailableInApp": "I pannelli interattivi non sono ancora disponibili nell’app. Apri questa conversazione in un browser."
+    },
+    "canvas": {
+      "panelLabel": "Pannello interattivo",
+      "fromAgent": "Pannello interattivo di {{agent}}",
+      "expand": "Espandi pannello",
+      "close": "Chiudi pannello",
+      "resize": "Ridimensiona pannello",
+      "updated": "{{agent}} ha aggiornato questo pannello.",
+      "loadUpdate": "Carica aggiornamento",
+      "loading": "Caricamento pannello…",
+      "loadFailed": "Impossibile caricare questo pannello.",
+      "retry": "Riprova",
+      "escaped": "Questo pannello ha tentato di uscire dalla sandbox ed è stato bloccato.",
+      "reload": "Ricarica pannello",
+      "sendTo": "Invia a {{agent}}:",
+      "changeAnswer": "Per cambiare risposta, scarta prima questa.",
+      "data": "Dati",
+      "send": "Invia",
+      "discard": "Scarta",
+      "disclosure": "Creato da {{agent}}. Non può accedere al tuo account; ciò che inserisci qui può uscire dal pannello.",
+      "sending": "Invio a {{agent}}…",
+      "sent": "Inviato a {{agent}}: {{label}}",
+      "sendFailed": "Impossibile inviare la risposta. Riprova.",
+      "receiptData": "Mostra i dati inviati all’agente",
+      "unlabeled": "Inviato",
+      "notSent": "Non inviato a {{agent}}: {{label}}"
     }
   },
   "roomSchedules": {

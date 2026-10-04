@@ -2893,10 +2893,40 @@
     "uiActions": {
       "viewComputer": "컴퓨터 보기",
       "openMembers": "멤버 열기",
+      "openCanvas": "패널 열기",
+      "canvasDisabled": "이 앱에서는 대화형 패널이 꺼져 있습니다.",
+      "canvasDuringCall": "대화형 패널을 열려면 통화를 종료하세요.",
       "computerUnavailable": "이 에이전트의 컴퓨터를 사용할 수 없습니다.",
       "releaseControl": "다른 화면을 열기 전에 컴퓨터 제어를 해제하세요.",
       "openConversation": "방 대화에서 이 요청을 여세요.",
-      "settingsUnavailable": "이 설정 항목을 열려면 단순 모드를 끄세요."
+      "settingsUnavailable": "이 설정 항목을 열려면 단순 모드를 끄세요.",
+      "canvasUnavailableInApp": "대화형 패널은 아직 앱에서 사용할 수 없습니다. 브라우저에서 이 대화를 여세요."
+    },
+    "canvas": {
+      "panelLabel": "대화형 패널",
+      "fromAgent": "{{agent}}의 대화형 패널",
+      "expand": "패널 확대",
+      "close": "패널 닫기",
+      "resize": "패널 크기 조절",
+      "updated": "{{agent}} 에이전트가 이 패널을 업데이트했습니다.",
+      "loadUpdate": "업데이트 불러오기",
+      "loading": "패널을 불러오는 중…",
+      "loadFailed": "이 패널을 불러오지 못했습니다.",
+      "retry": "다시 시도",
+      "escaped": "이 패널이 샌드박스를 벗어나려고 해서 차단했습니다.",
+      "reload": "패널 새로고침",
+      "sendTo": "{{agent}}에게 보내기:",
+      "changeAnswer": "답변을 바꾸려면 먼저 이 답변을 삭제하세요.",
+      "data": "데이터",
+      "send": "보내기",
+      "discard": "삭제",
+      "disclosure": "{{agent}} 에이전트가 만들었습니다. 이 패널은 계정에 접근할 수 없지만, 여기에 입력한 내용은 패널 밖으로 전송될 수 있습니다.",
+      "sending": "{{agent}}에게 보내는 중…",
+      "sent": "{{agent}}에게 보냈습니다: {{label}}",
+      "sendFailed": "응답을 보내지 못했습니다. 다시 시도하세요.",
+      "receiptData": "에이전트에게 보낸 데이터 보기",
+      "unlabeled": "제출됨",
+      "notSent": "{{agent}}에게 보내지 못함: {{label}}"
     }
   },
   "roomSchedules": {
