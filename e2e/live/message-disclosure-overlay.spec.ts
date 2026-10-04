@@ -84,10 +84,15 @@ for (const surface of ['room', 'thread'] as const) {
             return scroll.evaluate((el) => el.scrollTop);
           })
           .toBeLessThan(2);
-        await page.mouse.wheel(0, 200);
-        await expect.poll(() => scroll.evaluate((el) => el.scrollTop)).toBeGreaterThan(100);
         const contentId = (await collapse.getAttribute('aria-controls'))!;
         const content = page.locator(`[id="${contentId}"]`);
+        // Pagination may still prepend rows after the top check, so scroll relative to
+        // the message rather than the timeline start. Its body must still reach above
+        // the composer at the short height, or its sticky control stays inside it.
+        const contentOffset = async () =>
+          (await content.boundingBox())!.y - (await scroll.boundingBox())!.y;
+        await page.mouse.wheel(0, (await contentOffset()) - 150);
+        await expect.poll(contentOffset).toBeLessThan(200);
         const contentBox = (await content.boundingBox())!;
         expect(contentBox.y + contentBox.height).toBeGreaterThan(
           (await footer.boundingBox())!.y + 200
@@ -120,6 +125,9 @@ for (const surface of ['room', 'thread'] as const) {
         await expect.poll(async () => (await footer.boundingBox())!.height).toBeGreaterThan(height);
         await expectClearControl();
         await page.setViewportSize({ width, height: 568 });
+        expect((await content.boundingBox())!.y).toBeLessThan(
+          (await footer.boundingBox())!.y - 100
+        );
         await expectClearControl();
         await collapse.click();
         await expect(expand).toBeVisible();

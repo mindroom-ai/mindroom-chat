@@ -56,23 +56,18 @@ export function PageNav({ size, children }: ClientDrawerLayoutProps & css.PageNa
   );
 }
 
-export const PageNavHeader = as<'header'>(({ className, ...props }, ref) => {
-  const enclosingSurface = useSurfaceContext();
-  return (
-    <Header
-      className={classNames(
-        css.PageNavHeader,
-        !enclosingSurface && css.PageNavHeaderMaterial,
-        className
-      )}
-      appearance={enclosingSurface ? 'inherit' : 'plain'}
-      variant="Background"
-      size="600"
-      {...props}
-      ref={ref}
-    />
-  );
-});
+// Navigation lists scroll under this sticky header, so it keeps its own frosted
+// material inside settings modals too; a transparent header let rows overlap its title.
+export const PageNavHeader = as<'header'>(({ className, ...props }, ref) => (
+  <Header
+    className={classNames(css.PageNavHeader, css.PageNavHeaderMaterial, className)}
+    appearance="plain"
+    variant="Background"
+    size="600"
+    {...props}
+    ref={ref}
+  />
+));
 
 export function PageNavContent({
   scrollRef,

@@ -468,6 +468,12 @@ vi.mock('@tanstack/react-virtual', () => {
         },
         measureElement: (node: Element | null) =>
           roomTimelineVirtualizerState.measureElementMock(node),
+        // virtual-core reads the row index from `data-index`; node mocks have none.
+        indexFromElement: (node: Element) => {
+          const value = node.getAttribute?.('data-index');
+          const index = value == null ? Number.NaN : Number(value);
+          return Number.isInteger(index) ? index : -1;
+        },
         scrollToIndex: (...args: unknown[]) =>
           roomTimelineVirtualizerState.scrollToIndexMock(...args),
         scrollToOffset: (...args: unknown[]) =>

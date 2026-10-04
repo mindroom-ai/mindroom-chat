@@ -594,6 +594,10 @@ export const pickPreferredThreadRenderEvent = (
   return incomingEvent;
 };
 
+/** Thread rows render oldest first; equal timestamps fall back to event ID. */
+export const compareThreadRenderOrder = (a: MatrixEvent, b: MatrixEvent): number =>
+  a.getTs() - b.getTs() || (a.getId() ?? '').localeCompare(b.getId() ?? '');
+
 export const mergeThreadRenderEvents = (
   existingEvents: MatrixEvent[],
   incomingEvents: MatrixEvent[],
@@ -813,11 +817,7 @@ export const mergeThreadRenderEvents = (
     countCacheProbe('mergeSawIncomingEditRelation');
   }
 
-  const merged = Array.from(new Set(eventMap.values())).sort((a, b) => {
-    const tsDiff = a.getTs() - b.getTs();
-    if (tsDiff !== 0) return tsDiff;
-    return (a.getId() ?? '').localeCompare(b.getId() ?? '');
-  });
+  const merged = Array.from(new Set(eventMap.values())).sort(compareThreadRenderOrder);
 
   // CINNY-207 AC2 render-gap RG1 (2026-07-04): observability at the
   // merge seam — bumps once per incoming m.replace whose target IS

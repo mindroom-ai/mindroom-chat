@@ -89,7 +89,11 @@ test('cleans up session-scoped browser storage after account removal and final l
   secondaryDbNames.forEach((name) => expect(afterRemovalIndexedDbNames).toContain(name));
   foreignDbNames.forEach((name) => expect(afterRemovalIndexedDbNames).toContain(name));
 
+  // The final logout shows sign-in, clears local data, then reloads the app;
+  // navigating before that reload races it.
+  const reloaded = page.waitForEvent('load');
   await logoutActiveAccount(page);
+  await reloaded;
   await expect(page.locator('input[name="serverInput"]')).toBeVisible();
   await page.goto(buildLoginPath(homeserver));
   await expect(page.locator('input[name="serverInput"]')).toHaveValue(homeserver);

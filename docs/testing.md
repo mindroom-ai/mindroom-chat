@@ -20,8 +20,10 @@ Keep these servers running in separate terminals from the same checkout:
 
 ```sh
 npm run preview -- --host 127.0.0.1 --port 4173 --strictPort
-npm run start -- --host 127.0.0.1 --port 4188 --strictPort
+MINDROOM_E2E_PROVISIONING_URL=http://127.0.0.1:4188 npm run start -- --host 127.0.0.1 --port 4188 --strictPort
 ```
+
+The development server serves fixture pages, and the provisioning override points its Local MindRoom config at its own origin so pairing tests never reach production.
 
 Back in the first terminal:
 
@@ -67,7 +69,7 @@ docker run --rm --init --network host --ipc host --user "$(id -u):$(id -g)" \
 
 Keep an external worker fixture JSON inside the mounted checkout or mount its path too.
 Known unresolved checks remain strict: immediate fold-anchor displacement and native momentum blank frames on software graphics (also reproduced on static HTML).
-The settings-header live check also expects its own blur although settings now inherit the modal material; direct Playwright execution reproduces this failure without the scheduler.
+`perf-thread-streaming` also fails intermittently while a reader at the latest reply drifts as opening history pages land after Load Older; see the 2026-10-03 live-suite entry in `FORK_CHANGES.md`.
 The scheduler does not relax assertions or add retries.
 Unit tests remain `npm test`; the scheduler's focused tests run through `npm run test:e2e:runner` in PR CI.
 

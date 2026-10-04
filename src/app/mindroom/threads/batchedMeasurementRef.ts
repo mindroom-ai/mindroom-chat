@@ -39,12 +39,22 @@ type ProgrammaticScroll = { scrollState: unknown };
  * React has flushed the synchronous updates their own mount queued (a
  * first-pass collapse check, for example), but before the browser paints.
  * The synchronous flush commits the corrected offsets in that same paint.
+ *
+ * A new row attached at rest is read again in that microtask. virtual-core
+ * measures it in the ref, before those updates, and returns that cached size
+ * for every later mount, so a row that unmounts before ResizeObserver reports
+ * it would keep its first-pass height.
  */
 export const createScrollMountMeasurement = <T extends Element>(
   virtualizer: Virtualizer<HTMLDivElement, T>
 ) => {
   const attached = new Set<T>();
   const programmaticScroll = () => !!(virtualizer as unknown as ProgrammaticScroll).scrollState;
+  // virtual-core's default measurement without its cached-size shortcut.
+  const readSize = (node: T) => {
+    const element = node as unknown as HTMLElement;
+    return virtualizer.options.horizontal ? element.offsetWidth : element.offsetHeight;
+  };
   const measureAttached = () => {
     const nodes = Array.from(attached);
     attached.clear();
@@ -53,20 +63,22 @@ export const createScrollMountMeasurement = <T extends Element>(
     flushSync(() => {
       nodes.forEach((node) => {
         if (!node.isConnected) return;
-        virtualizer.resizeItem(
-          virtualizer.indexFromElement(node),
-          virtualizer.options.measureElement(node, undefined, virtualizer)
-        );
+        virtualizer.resizeItem(virtualizer.indexFromElement(node), readSize(node));
       });
     });
   };
   return (node: T | null) => {
-    virtualizer.measureElement(node);
-    if (!node || !virtualizer.isScrolling || programmaticScroll()) return;
-    // A remounted row keeps its cached size, as at rest, without forcing
-    // layout; ResizeObserver reports any later change.
+    if (!node || programmaticScroll()) {
+      virtualizer.measureElement(node);
+      return;
+    }
+    // A remounted row keeps its cached size without forcing layout;
+    // ResizeObserver reports any later change.
     const index = virtualizer.indexFromElement(node);
-    if (index < 0 || virtualizer.itemSizeCache.has(virtualizer.options.getItemKey(index))) return;
+    const isNew =
+      index >= 0 && !virtualizer.itemSizeCache.has(virtualizer.options.getItemKey(index));
+    virtualizer.measureElement(node);
+    if (!isNew) return;
     if (attached.size === 0) queueMicrotask(measureAttached);
     attached.add(node);
   };

@@ -107,11 +107,19 @@ test.describe('CINNY-077: classic large room loading scroll stability', () => {
       viewMode: 'classic',
       filterState: createDefaultThreadFilterState(),
     });
-    let backPaginationRequests = 0;
+    // The visible timeline pages backward from its sync token. The engine's
+    // offline save of the focused room starts at the live end (no `from`),
+    // because this fresh account has no committed offline cursor yet.
+    const timelineBackPages: string[] = [];
+    let offlineHistoryPages = 0;
     const backfillReleases: number[] = [];
     await page.route(/\/rooms\/.*\/messages(?:\?|$)/, async (route) => {
-      if (new URL(route.request().url()).searchParams.get('dir') === 'b')
-        backPaginationRequests += 1;
+      const params = new URL(route.request().url()).searchParams;
+      if (params.get('dir') === 'b') {
+        const from = params.get('from');
+        if (from) timelineBackPages.push(from);
+        else offlineHistoryPages += 1;
+      }
       await new Promise((resolve) => {
         setTimeout(resolve, 250);
       });
@@ -347,7 +355,8 @@ test.describe('CINNY-077: classic large room loading scroll stability', () => {
         {
           latestEventId,
           anchorEventId,
-          backPaginationRequests,
+          timelineBackPages,
+          offlineHistoryPages,
           backfillReleases,
           samples,
           painted,
@@ -385,6 +394,11 @@ test.describe('CINNY-077: classic large room loading scroll stability', () => {
       Math.max(...paintDrifts, ...totalPaintDrifts, ...anchorPaintDrifts),
       'Painted latest-event displacement, corrected for viewport and own row resize'
     ).toBeLessThanOrEqual(2);
-    expect(backPaginationRequests).toBeLessThanOrEqual(1);
+    expect(timelineBackPages, 'Visible timeline must fill with one backward page').toHaveLength(1);
+    // Unknown (non-Wi-Fi) connections allow one 200-event offline page per visit.
+    expect(
+      offlineHistoryPages,
+      'Offline history must stay within its visit allowance'
+    ).toBeLessThanOrEqual(1);
   });
 });

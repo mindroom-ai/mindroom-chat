@@ -89,16 +89,48 @@ test.describe('room resume thread preload', () => {
           rootBody,
           rootId,
           replyBody,
+          latestReplyBody: `CINNY-069 reply latest ${index} ${stamp}`,
         };
       })
     );
 
     const threadLoadPattern = /\/_matrix\/client\/v1\/rooms\/.*\/(threads|relations)\b/;
-    let blockedThreadLoadCount = 0;
+    const blockedThreadLoadUrls: string[] = [];
     await page.route(threadLoadPattern, async (route) => {
-      blockedThreadLoadCount += 1;
+      blockedThreadLoadUrls.push(decodeURIComponent(route.request().url()));
       await route.abort();
     });
+
+    // While suspended, the page gets no new room data, as when its network stalls:
+    // /sync responses are held (the long poll only looks slow) and room history
+    // responses are dropped. Resuming re-enables thread loads alone, so only the
+    // resume refresh can bring the cards up to date.
+    let suspension: Promise<void> | undefined;
+    let endSuspension = () => {};
+    let heldSyncResponseCount = 0;
+    await page.route(/\/_matrix\/client\/v3\/sync(\?|$)/, async (route) => {
+      const response = await route.fetch({ timeout: 0 }).catch(() => undefined);
+      if (!response) {
+        await route.abort().catch(() => undefined);
+        return;
+      }
+      if (suspension) {
+        heldSyncResponseCount += 1;
+        await suspension;
+      }
+      await route.fulfill({ response }).catch(() => undefined);
+    });
+    await page.route(
+      /\/_matrix\/client\/v3\/rooms\/[^/]+\/(messages|event|context)\b/,
+      async (route) => {
+        const response = await route.fetch().catch(() => undefined);
+        if (!response || suspension) {
+          await route.abort().catch(() => undefined);
+          return;
+        }
+        await route.fulfill({ response }).catch(() => undefined);
+      }
+    );
 
     await loginWithPassword(page, { homeserver, username, password });
     await expectLoggedInShellStable(page);
@@ -110,42 +142,70 @@ test.describe('room resume thread preload', () => {
       filterState: createDefaultThreadFilterState(),
     });
 
+    blockedThreadLoadUrls.length = 0;
     await page.goto(`/home/${encodeURIComponent(roomId)}`);
     await expect(page.locator('[data-compact-room-view="true"]')).toBeVisible({ timeout: 30_000 });
 
     const cards = threads.map(({ rootId }) => page.locator(`[data-thread-root-id="${rootId}"]`));
     await Promise.all(cards.map((card) => card.waitFor({ timeout: 30_000 })));
+    // Each root's synced latest-reply bundle fills its card without loading the thread.
+    await Promise.all(
+      cards.map((card, index) =>
+        expect(card).toContainText(threads[index].replyBody, { timeout: 30_000 })
+      )
+    );
+    // Shown cards load their threads once the client is live; let those loads fail first.
+    await expect
+      .poll(
+        () =>
+          threads.every(({ rootId }) =>
+            blockedThreadLoadUrls.some((url) => url.includes(`/relations/${rootId}`))
+          ),
+        { timeout: 60_000 }
+      )
+      .toBe(true);
 
+    suspension = new Promise((resolve) => {
+      endSuspension = resolve;
+    });
+    await Promise.all(
+      threads.map(({ rootId, latestReplyBody }) =>
+        sendRoomMessage(
+          homeserver,
+          session.accessToken,
+          roomId,
+          {
+            msgtype: 'm.text',
+            body: latestReplyBody,
+            'm.relates_to': buildThreadRelation(rootId),
+          },
+          'cinny-069'
+        )
+      )
+    );
+    // /sync has answered since the replies were sent, but the page has not seen it.
+    await expect.poll(() => heldSyncResponseCount, { timeout: 40_000 }).toBeGreaterThan(0);
     const staleCardTexts = await Promise.all(cards.map((card) => card.innerText()));
     staleCardTexts.forEach((cardText, index) => {
-      expect(cardText).not.toContain(threads[index].replyBody);
       expect(cardText).toContain(threads[index].rootBody);
+      expect(cardText).toContain(threads[index].replyBody);
+      expect(cardText).not.toContain(threads[index].latestReplyBody);
     });
-    expect(blockedThreadLoadCount).toBeGreaterThan(0);
-
-    const latestReplyBody = `CINNY-069 reply latest ${stamp}`;
-    await sendRoomMessage(
-      homeserver,
-      session.accessToken,
-      roomId,
-      {
-        msgtype: 'm.text',
-        body: latestReplyBody,
-        'm.relates_to': buildThreadRelation(threads[0].rootId),
-      },
-      'cinny-069'
-    );
 
     await page.unroute(threadLoadPattern);
     await dispatchResumeSignals(page);
 
-    await expect(cards[0]).toContainText(latestReplyBody, { timeout: 30_000 });
-    await expect(cards[1]).toContainText(threads[1].replyBody, { timeout: 30_000 });
-    await expect(cards[2]).toContainText(threads[2].replyBody, { timeout: 30_000 });
+    await Promise.all(
+      cards.map((card, index) =>
+        expect(card).toContainText(threads[index].latestReplyBody, { timeout: 30_000 })
+      )
+    );
+    endSuspension();
+    suspension = undefined;
 
     await cards[0].click();
     await expect(page.getByText('Thread View')).toBeVisible({ timeout: 30_000 });
-    await expect(page.getByText(latestReplyBody)).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByText(threads[0].latestReplyBody)).toBeVisible({ timeout: 30_000 });
 
     await expectNoUnexpectedBrowserDiagnostics(diagnostics, 'cinny-069-room-resume-thread-preload');
   });

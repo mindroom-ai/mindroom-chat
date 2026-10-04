@@ -244,6 +244,10 @@ export default defineConfig({
     __MINDROOM_BUILD_VERSION__: JSON.stringify(buildVersion),
   },
   optimizeDeps: {
+    // The dependency scan misses imports from the dev service worker and from
+    // vanilla-extract's transformed styles. Discovering them on first use
+    // re-optimizes dependencies and reloads every open page.
+    include: ['workbox-precaching', 'workbox-routing', '@vanilla-extract/recipes/createRuntimeFn'],
     esbuildOptions: {
       define: {
         global: 'globalThis',
