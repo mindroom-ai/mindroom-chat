@@ -2893,10 +2893,40 @@
     "uiActions": {
       "viewComputer": "Bilgisayarı görüntüle",
       "openMembers": "Üyeleri aç",
+      "openCanvas": "Paneli aç",
+      "canvasDisabled": "Etkileşimli paneller bu uygulamada kapalı.",
+      "canvasDuringCall": "Etkileşimli panelleri açmak için aramayı sonlandırın.",
       "computerUnavailable": "Bu ajanın bilgisayarı kullanılamıyor.",
       "releaseControl": "Başka bir görünüm açmadan önce bilgisayarın kontrolünü bırakın.",
       "openConversation": "Bu isteği oda sohbetinden açın.",
-      "settingsUnavailable": "Bu Ayarlar bölümünü açmak için Basit Modu kapatın."
+      "settingsUnavailable": "Bu Ayarlar bölümünü açmak için Basit Modu kapatın.",
+      "canvasUnavailableInApp": "Etkileşimli paneller uygulamada henüz kullanılamıyor. Bu sohbeti bir tarayıcıda açın."
+    },
+    "canvas": {
+      "panelLabel": "Etkileşimli panel",
+      "fromAgent": "Etkileşimli panel · {{agent}}",
+      "expand": "Paneli genişlet",
+      "close": "Paneli kapat",
+      "resize": "Paneli yeniden boyutlandır",
+      "updated": "{{agent}} bu paneli güncelledi.",
+      "loadUpdate": "Güncellemeyi yükle",
+      "loading": "Panel yükleniyor…",
+      "loadFailed": "Bu panel yüklenemedi.",
+      "retry": "Tekrar dene",
+      "escaped": "Bu panel korumalı alanının dışına çıkmaya çalıştı ve durduruldu.",
+      "reload": "Paneli yeniden yükle",
+      "sendTo": "{{agent}} ajanına gönder:",
+      "changeAnswer": "Yanıtınızı değiştirmek için önce bunu silin.",
+      "data": "Veriler",
+      "send": "Gönder",
+      "discard": "Sil",
+      "disclosure": "{{agent}} tarafından oluşturuldu. Hesabınıza erişemez; buraya girdikleriniz bu panelin dışına çıkabilir.",
+      "sending": "{{agent}} ajanına gönderiliyor…",
+      "sent": "{{agent}} ajanına gönderildi: {{label}}",
+      "sendFailed": "Yanıtınız gönderilemedi. Tekrar deneyin.",
+      "receiptData": "Ajana gönderilen verileri göster",
+      "unlabeled": "Gönderildi",
+      "notSent": "{{agent}} ajanına gönderilemedi: {{label}}"
     }
   },
   "roomSchedules": {

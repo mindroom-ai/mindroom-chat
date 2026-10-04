@@ -179,21 +179,31 @@ function ActiveThreadApprovalProvider({
   useEffect(() => {
     const scan = () =>
       ingest([...room.getLiveTimeline().getEvents(), ...(room.getThread(threadId)?.events ?? [])]);
+    // The SDK emits these once per event it adds to a thread, and a scan copies
+    // the whole room timeline and thread, so a burst gets one scan per task.
+    let queuedScan: ReturnType<typeof setTimeout> | undefined;
+    const queueScan = () => {
+      queuedScan ??= setTimeout(() => {
+        queuedScan = undefined;
+        scan();
+      }, 0);
+    };
     const changed = (event: MatrixEvent) => {
       ingest([event]);
-      scan();
+      queueScan();
     };
     scan();
-    room.on(ThreadEvent.New, scan);
-    room.on(ThreadEvent.Update, scan);
-    room.on(ThreadEvent.NewReply, scan);
+    room.on(ThreadEvent.New, queueScan);
+    room.on(ThreadEvent.Update, queueScan);
+    room.on(ThreadEvent.NewReply, queueScan);
     room.on(RoomEvent.TimelineRefresh, refresh);
     mx.on(MatrixEventEvent.Decrypted, decrypted);
     mx.on(MatrixEventEvent.Replaced, changed);
     return () => {
-      room.off(ThreadEvent.New, scan);
-      room.off(ThreadEvent.Update, scan);
-      room.off(ThreadEvent.NewReply, scan);
+      clearTimeout(queuedScan);
+      room.off(ThreadEvent.New, queueScan);
+      room.off(ThreadEvent.Update, queueScan);
+      room.off(ThreadEvent.NewReply, queueScan);
       room.off(RoomEvent.TimelineRefresh, refresh);
       mx.off(MatrixEventEvent.Decrypted, decrypted);
       mx.off(MatrixEventEvent.Replaced, changed);

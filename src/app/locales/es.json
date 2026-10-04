@@ -2947,10 +2947,40 @@
     "uiActions": {
       "viewComputer": "Ver ordenador",
       "openMembers": "Abrir miembros",
+      "openCanvas": "Abrir panel",
+      "canvasDisabled": "Los paneles interactivos están desactivados en esta app.",
+      "canvasDuringCall": "Finaliza la llamada para abrir paneles interactivos.",
       "computerUnavailable": "El ordenador de este agente no está disponible.",
       "releaseControl": "Libera el control del ordenador antes de abrir otra vista.",
       "openConversation": "Abre esta solicitud desde la conversación de la sala.",
-      "settingsUnavailable": "Desactiva el modo simple para abrir esta sección de ajustes."
+      "settingsUnavailable": "Desactiva el modo simple para abrir esta sección de ajustes.",
+      "canvasUnavailableInApp": "Los paneles interactivos aún no están disponibles en la app. Abre esta conversación en un navegador."
+    },
+    "canvas": {
+      "panelLabel": "Panel interactivo",
+      "fromAgent": "Panel interactivo de {{agent}}",
+      "expand": "Expandir panel",
+      "close": "Cerrar panel",
+      "resize": "Cambiar el tamaño del panel",
+      "updated": "{{agent}} ha actualizado este panel.",
+      "loadUpdate": "Cargar actualización",
+      "loading": "Cargando panel…",
+      "loadFailed": "No se pudo cargar este panel.",
+      "retry": "Reintentar",
+      "escaped": "Este panel intentó salir de su entorno aislado y fue bloqueado.",
+      "reload": "Recargar panel",
+      "sendTo": "Enviar a {{agent}}:",
+      "changeAnswer": "Para cambiar tu respuesta, descarta primero esta.",
+      "data": "Datos",
+      "send": "Enviar",
+      "discard": "Descartar",
+      "disclosure": "Creado por {{agent}}. No puede acceder a tu cuenta; lo que escribas aquí puede salir de este panel.",
+      "sending": "Enviando a {{agent}}…",
+      "sent": "Enviado a {{agent}}: {{label}}",
+      "sendFailed": "No se pudo enviar tu respuesta. Inténtalo de nuevo.",
+      "receiptData": "Mostrar los datos enviados al agente",
+      "unlabeled": "Enviado",
+      "notSent": "No enviado a {{agent}}: {{label}}"
     }
   },
   "roomSchedules": {

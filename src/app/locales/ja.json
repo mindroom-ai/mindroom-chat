@@ -2893,10 +2893,40 @@
     "uiActions": {
       "viewComputer": "コンピューターを表示",
       "openMembers": "メンバーを開く",
+      "openCanvas": "パネルを開く",
+      "canvasDisabled": "このアプリではインタラクティブパネルがオフになっています。",
+      "canvasDuringCall": "インタラクティブパネルを開くには通話を終了してください。",
       "computerUnavailable": "このエージェントのコンピューターは利用できません。",
       "releaseControl": "別の画面を開く前にコンピューターの操作権を手放してください。",
       "openConversation": "ルームの会話からこのリクエストを開いてください。",
-      "settingsUnavailable": "この設定項目を開くには、シンプルモードをオフにしてください。"
+      "settingsUnavailable": "この設定項目を開くには、シンプルモードをオフにしてください。",
+      "canvasUnavailableInApp": "インタラクティブパネルはアプリではまだ利用できません。ブラウザでこの会話を開いてください。"
+    },
+    "canvas": {
+      "panelLabel": "インタラクティブパネル",
+      "fromAgent": "{{agent}} からのインタラクティブパネル",
+      "expand": "パネルを拡大",
+      "close": "パネルを閉じる",
+      "resize": "パネルのサイズを変更",
+      "updated": "{{agent}} がこのパネルを更新しました。",
+      "loadUpdate": "更新を読み込む",
+      "loading": "パネルを読み込み中…",
+      "loadFailed": "このパネルを読み込めませんでした。",
+      "retry": "再試行",
+      "escaped": "このパネルがサンドボックスの外に出ようとしたため、停止しました。",
+      "reload": "パネルを再読み込み",
+      "sendTo": "{{agent}} に送信:",
+      "changeAnswer": "回答を変更するには、まずこの回答を破棄してください。",
+      "data": "データ",
+      "send": "送信",
+      "discard": "破棄",
+      "disclosure": "{{agent}} が作成しました。アカウントにはアクセスできませんが、ここに入力した内容はパネルの外に送信される可能性があります。",
+      "sending": "{{agent}} に送信中…",
+      "sent": "{{agent}} に送信しました: {{label}}",
+      "sendFailed": "応答を送信できませんでした。もう一度お試しください。",
+      "receiptData": "エージェントに送信したデータを表示",
+      "unlabeled": "送信済み",
+      "notSent": "{{agent}} に送信されていません: {{label}}"
     }
   },
   "roomSchedules": {
