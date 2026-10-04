@@ -2921,8 +2921,6 @@
       "compactThreadCard": {
         "streaming": "قيد البث",
         "unreadMessages": "رسائل غير مقروءة",
-        "unread": "غير مقروء",
-        "threadStatus": "حالة سلسلة المحادثة: ⁨{{status}}⁩",
         "lastActivity": "آخر نشاط ⁨{{time}}⁩"
       },
       "mindroomCallChatView": {

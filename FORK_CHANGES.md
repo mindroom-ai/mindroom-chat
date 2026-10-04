@@ -2,6 +2,14 @@
 
 ## Runbook
 
+### Replace the compact card's status dot with an unread dot (2026-10-04)
+
+- The compact thread card no longer leads with a colored attention dot. It was red ("needs attention") whenever someone other than the viewer sent the last message, which in agent rooms is almost every unresolved thread, so the dot carried no signal and its meaning was not discoverable.
+- The leading slot now shows the existing primary-colored unread dot only on unread threads, the inbox convention, and is reserved on read cards so titles stay aligned. The separate "unread" label in the metadata row is gone.
+- The "Resolved by" byline now shows on every layout instead of only touch layouts, since the hover title on the old dot was the only desktop place it appeared. Resolved cards keep their green card styling.
+- `data-attention-state` moved to the card button as a non-visual hook; the attention state still feeds the card's accessible label. The unused `compactThreadCard.unread` and `compactThreadCard.threadStatus` strings were removed from every locale.
+- Next: confirm on a phone that unread threads read clearly at a glance.
+
 ### Show a pinned thread as a solid pin in the thread bar (2026-10-04)
 
 - The thread bar no longer spells out "Pinned" next to the pin button; the pin icon is solid while the thread is pinned.

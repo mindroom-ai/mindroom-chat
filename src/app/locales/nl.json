@@ -2733,8 +2733,6 @@
       "compactThreadCard": {
         "streaming": "streaming",
         "unreadMessages": "Ongelezen berichten",
-        "unread": "ongelezen",
-        "threadStatus": "Threadstatus: {{status}}",
         "lastActivity": "Laatste activiteit {{time}}"
       },
       "mindroomCallChatView": {
