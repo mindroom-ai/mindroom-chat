@@ -27,45 +27,47 @@
 
 ## File Structure
 
-| File | Responsibility |
-|---|---|
-| `src/app/mindroom/diagnostics/diagnosticsExport.ts` (modify) | Export `buildDiagnosticsPayload()`; `buildDiagnosticsExport()` wraps it |
-| `src/app/mindroom/bug-reports/bugReportConfig.ts` | `getBugReportAdmins(info)` |
-| `src/app/mindroom/bug-reports/bugReportPayload.ts` | `BugReport` type, `collectReportEvents`, `buildBugReport`, file name, Blob |
-| `src/app/mindroom/bug-reports/bugReportRoom.ts` | `ensureBugReportRoom(mx, admins)` |
-| `src/app/mindroom/bug-reports/sendBugReport.ts` | `buildBugReportSummary`, `sendBugReport` |
-| `src/app/mindroom/bug-reports/MessageBugReportItem.tsx` | Menu item UI and flow |
-| `src/app/mindroom/bug-reports/BugReportAutoJoinFeature.tsx` | `shouldAutoJoinBugReportInvite`, `BugReportAutoJoinFeature` |
-| `src/app/mindroom/messages/MindroomMessage.tsx` (modify) | Render `MessageBugReportItem` |
-| `src/app/mindroom/client/MindroomClientNonUIFeatures.tsx` (modify) | Mount `BugReportAutoJoinFeature` |
-| `src/app/locales/*.json` (modify) | `mindroomUi.messages.bugReport.*` strings |
-| `docs/bug-reports.md` | Operator setup |
-| `FORK_CHANGES.md` (modify) | Runbook entry |
+| File                                                               | Responsibility                                                             |
+| ------------------------------------------------------------------ | -------------------------------------------------------------------------- |
+| `src/app/mindroom/diagnostics/diagnosticsExport.ts` (modify)       | Export `buildDiagnosticsPayload()`; `buildDiagnosticsExport()` wraps it    |
+| `src/app/mindroom/bug-reports/bugReportConfig.ts`                  | `getBugReportAdmins(info)`                                                 |
+| `src/app/mindroom/bug-reports/bugReportPayload.ts`                 | `BugReport` type, `collectReportEvents`, `buildBugReport`, file name, Blob |
+| `src/app/mindroom/bug-reports/bugReportRoom.ts`                    | `ensureBugReportRoom(mx, admins)`                                          |
+| `src/app/mindroom/bug-reports/sendBugReport.ts`                    | `buildBugReportSummary`, `sendBugReport`                                   |
+| `src/app/mindroom/bug-reports/MessageBugReportItem.tsx`            | Menu item UI and flow                                                      |
+| `src/app/mindroom/bug-reports/BugReportAutoJoinFeature.tsx`        | `shouldAutoJoinBugReportInvite`, `BugReportAutoJoinFeature`                |
+| `src/app/mindroom/messages/MindroomMessage.tsx` (modify)           | Render `MessageBugReportItem`                                              |
+| `src/app/mindroom/client/MindroomClientNonUIFeatures.tsx` (modify) | Mount `BugReportAutoJoinFeature`                                           |
+| `src/app/locales/*.json` (modify)                                  | `mindroomUi.messages.bugReport.*` strings                                  |
+| `docs/bug-reports.md`                                              | Operator setup                                                             |
+| `FORK_CHANGES.md` (modify)                                         | Runbook entry                                                              |
 
 ---
 
 ### Task 1: Reusable diagnostics payload
 
 **Files:**
+
 - Modify: `src/app/mindroom/diagnostics/diagnosticsExport.ts`
 - Test: `src/app/mindroom/diagnostics/diagnosticsExport.test.ts`
 
 **Interfaces:**
+
 - Produces: `buildDiagnosticsPayload(exportedAt?: number): Promise<DiagnosticsPayload>` and `type DiagnosticsPayload`; `buildDiagnosticsExport()` keeps its signature and output.
 
 - [ ] **Step 1: Write the failing test** — append inside the existing `describe('combined diagnostics export', …)` block in `diagnosticsExport.test.ts`, reusing the file's existing mock setup (read the file's `beforeEach` first and set the mocks the same way the neighbouring tests do):
 
 ```ts
-  it('builds the same payload object without serialising it', async () => {
-    const { buildDiagnosticsPayload } = await import('./diagnosticsExport');
-    const payload = await buildDiagnosticsPayload(1_700_000_000_000);
-    expect(payload.metadata.exportSchemaVersion).toBe(4);
-    expect(payload.metadata.exportedAt).toBe(1_700_000_000_000);
-    expect(payload).toHaveProperty('deepTrace');
-    expect(payload).toHaveProperty('deepTraceMemory');
-    expect(payload).toHaveProperty('deepTraceHealth');
-    expect(payload).toHaveProperty('nativeDiagnostics');
-  });
+it('builds the same payload object without serialising it', async () => {
+  const { buildDiagnosticsPayload } = await import('./diagnosticsExport');
+  const payload = await buildDiagnosticsPayload(1_700_000_000_000);
+  expect(payload.metadata.exportSchemaVersion).toBe(4);
+  expect(payload.metadata.exportedAt).toBe(1_700_000_000_000);
+  expect(payload).toHaveProperty('deepTrace');
+  expect(payload).toHaveProperty('deepTraceMemory');
+  expect(payload).toHaveProperty('deepTraceHealth');
+  expect(payload).toHaveProperty('nativeDiagnostics');
+});
 ```
 
 - [ ] **Step 2: Run it to verify it fails**
@@ -153,10 +155,12 @@ git commit -m "refactor(diagnostics): expose the export payload builder"
 ### Task 2: Well-known admins parser
 
 **Files:**
+
 - Create: `src/app/mindroom/bug-reports/bugReportConfig.ts`
 - Test: `src/app/mindroom/bug-reports/bugReportConfig.test.ts`
 
 **Interfaces:**
+
 - Produces: `BUG_REPORTS_WELL_KNOWN_KEY = 'io.mindroom.bug_reports'`; `getBugReportAdmins(info: AutoDiscoveryInfo | null | undefined): string[]`.
 
 - [ ] **Step 1: Write the failing test**
@@ -167,7 +171,7 @@ import type { AutoDiscoveryInfo } from '../../cs-api';
 import { getBugReportAdmins } from './bugReportConfig';
 
 const info = (extra: Record<string, unknown>): AutoDiscoveryInfo =>
-  ({ 'm.homeserver': { base_url: 'https://hs.example' }, ...extra }) as AutoDiscoveryInfo;
+  ({ 'm.homeserver': { base_url: 'https://hs.example' }, ...extra } as AutoDiscoveryInfo);
 
 describe('getBugReportAdmins', () => {
   it('returns valid, unique admin user IDs', () => {
@@ -185,7 +189,11 @@ describe('getBugReportAdmins', () => {
   it('ignores entries that are not Matrix user IDs', () => {
     expect(
       getBugReportAdmins(
-        info({ 'io.mindroom.bug_reports': { admins: ['admin', 42, '!room:example.com', '@ok:example.com'] } })
+        info({
+          'io.mindroom.bug_reports': {
+            admins: ['admin', 42, '!room:example.com', '@ok:example.com'],
+          },
+        })
       )
     ).toEqual(['@ok:example.com']);
   });
@@ -194,7 +202,9 @@ describe('getBugReportAdmins', () => {
     expect(getBugReportAdmins(null)).toEqual([]);
     expect(getBugReportAdmins(info({}))).toEqual([]);
     expect(getBugReportAdmins(info({ 'io.mindroom.bug_reports': [] }))).toEqual([]);
-    expect(getBugReportAdmins(info({ 'io.mindroom.bug_reports': { admins: '@a:b.c' } }))).toEqual([]);
+    expect(getBugReportAdmins(info({ 'io.mindroom.bug_reports': { admins: '@a:b.c' } }))).toEqual(
+      []
+    );
   });
 });
 ```
@@ -219,7 +229,9 @@ export const getBugReportAdmins = (info: AutoDiscoveryInfo | null | undefined): 
   const { admins } = section as { admins?: unknown };
   if (!Array.isArray(admins)) return [];
   return [
-    ...new Set(admins.filter((admin): admin is string => typeof admin === 'string' && isUserId(admin))),
+    ...new Set(
+      admins.filter((admin): admin is string => typeof admin === 'string' && isUserId(admin))
+    ),
   ];
 };
 ```
@@ -241,12 +253,15 @@ git commit -m "feat(bug-reports): read report admins from the client well-known"
 ### Task 3: Report payload builder
 
 **Files:**
+
 - Create: `src/app/mindroom/bug-reports/bugReportPayload.ts`
 - Test: `src/app/mindroom/bug-reports/bugReportPayload.test.ts`
 
 **Interfaces:**
+
 - Consumes: `buildDiagnosticsPayload`, `DiagnosticsPayload` (Task 1).
 - Produces:
+
   - `BUG_REPORT_TYPE = 'io.mindroom.bug_report'`, `BUG_REPORT_VERSION = 1`
   - `type BugReportEvent`, `type BugReport`
   - `collectReportEvents(room: Room, mEvent: MatrixEvent): MatrixEvent[]`
@@ -325,7 +340,10 @@ describe('collectReportEvents', () => {
 
   it('includes a failed local echo that is only known as the selected event', () => {
     const root = fakeEvent('$root', 1, { threadRootId: '$root' });
-    const failed = fakeEvent('~!room:example.com:m1', 5, { threadRootId: '$root', status: 'not_sent' });
+    const failed = fakeEvent('~!room:example.com:m1', 5, {
+      threadRootId: '$root',
+      status: 'not_sent',
+    });
     const room = fakeRoom({ live: [root], thread: { id: '$root', root, events: [] } });
     const ids = collectReportEvents(room as never, failed as never).map((e) => e.getId());
     expect(ids).toEqual(['$root', '~!room:example.com:m1']);
@@ -382,7 +400,9 @@ describe('buildBugReport', () => {
     });
     expect(report.client.syncState).toBe('SYNCING');
     expect(report.client.platform).toBe('web');
-    expect(report.diagnostics).toEqual({ metadata: { exportedAt: Date.parse('2026-10-03T12:00:00.000Z') } });
+    expect(report.diagnostics).toEqual({
+      metadata: { exportedAt: Date.parse('2026-10-03T12:00:00.000Z') },
+    });
     expect(getBugReportFileName(report)).toBe('mindroom-bug-report-2026-10-03T12-00-00-000Z.json');
   });
 });
@@ -553,10 +573,12 @@ git commit -m "feat(bug-reports): build the bug report payload"
 ### Task 4: Report room lookup and creation
 
 **Files:**
+
 - Create: `src/app/mindroom/bug-reports/bugReportRoom.ts`
 - Test: `src/app/mindroom/bug-reports/bugReportRoom.test.ts`
 
 **Interfaces:**
+
 - Consumes: `waitForJoinedRoom(mx, roomId, timeoutMs?)` from `src/app/mindroom/calls/agentCall.ts`.
 - Produces: `BUG_REPORTS_ROOM_TYPE`, `BUG_REPORTS_ACCOUNT_DATA_TYPE` (both `'io.mindroom.bug_reports'`); `ensureBugReportRoom(mx: MatrixClient, admins: string[]): Promise<Room>`.
 
@@ -572,7 +594,10 @@ const room = (roomId: string, myMembership: string, members: Record<string, stri
   getMember: (userId: string) => (members[userId] ? { membership: members[userId] } : null),
 });
 
-const client = (opts: { storedRoomId?: string; rooms?: Record<string, ReturnType<typeof room>> }) => {
+const client = (opts: {
+  storedRoomId?: string;
+  rooms?: Record<string, ReturnType<typeof room>>;
+}) => {
   const rooms = { ...(opts.rooms ?? {}) };
   const mx = {
     getSafeUserId: () => '@alice:example.com',
@@ -600,8 +625,14 @@ describe('ensureBugReportRoom', () => {
       '@admin:example.com': 'join',
       '@ops:example.com': 'leave',
     });
-    const mx = client({ storedRoomId: '!stored:example.com', rooms: { '!stored:example.com': stored } });
-    const result = await ensureBugReportRoom(mx as never, ['@admin:example.com', '@ops:example.com']);
+    const mx = client({
+      storedRoomId: '!stored:example.com',
+      rooms: { '!stored:example.com': stored },
+    });
+    const result = await ensureBugReportRoom(mx as never, [
+      '@admin:example.com',
+      '@ops:example.com',
+    ]);
     expect(result).toBe(stored);
     expect(mx.createRoom).not.toHaveBeenCalled();
     expect(mx.invite).toHaveBeenCalledTimes(1);
@@ -613,7 +644,10 @@ describe('ensureBugReportRoom', () => {
       storedRoomId: '!old:example.com',
       rooms: { '!old:example.com': room('!old:example.com', 'leave') },
     });
-    const result = await ensureBugReportRoom(mx as never, ['@admin:example.com', '@alice:example.com']);
+    const result = await ensureBugReportRoom(mx as never, [
+      '@admin:example.com',
+      '@alice:example.com',
+    ]);
     expect(result.roomId).toBe('!new:example.com');
     const request = mx.createRoom.mock.calls[0][0] as Record<string, unknown>;
     expect(request).toMatchObject({
@@ -729,10 +763,12 @@ git commit -m "feat(bug-reports): find or create the reporter's private report r
 ### Task 5: Sending the report
 
 **Files:**
+
 - Create: `src/app/mindroom/bug-reports/sendBugReport.ts`
 - Test: `src/app/mindroom/bug-reports/sendBugReport.test.ts`
 
 **Interfaces:**
+
 - Consumes: `BugReport`, `BUG_REPORT_TYPE`, `getBugReportFileName`, `serializeBugReport` (Task 3); `getFileMsgContent(item, mxc)` from `src/app/features/room/msgContent.ts`; `encryptFile(file)` from `src/app/utils/matrix.ts`; `getMessageRelation(undefined, undefined, threadId)` from `src/app/mindroom/threads/composeMessageRelation.ts`.
 - Produces: `buildBugReportSummary(report: BugReport, reporterName: string): string`; `sendBugReport(mx: MatrixClient, reportRoom: Room, report: BugReport): Promise<{ roomId: string; threadRootId: string }>`.
 
@@ -774,7 +810,9 @@ const client = () => ({
   getSafeUserId: () => '@alice:example.com',
   getUser: () => ({ displayName: 'Alice' }),
   sendMessage: vi.fn(async (_roomId: string, threadIdOrContent: unknown) =>
-    threadIdOrContent && typeof threadIdOrContent === 'object' ? { event_id: '$summary' } : { event_id: '$file' }
+    threadIdOrContent && typeof threadIdOrContent === 'object'
+      ? { event_id: '$summary' }
+      : { event_id: '$file' }
   ),
   uploadContent: vi.fn(async () => ({ content_uri: 'mxc://example.com/abc' })),
 });
@@ -875,7 +913,12 @@ const uploadReportFile = async (mx: MatrixClient, reportRoom: Room, report: BugR
   const plain = new File([serializeBugReport(report)], fileName, { type: 'application/json' });
   const item = reportRoom.hasEncryptionStateEvent()
     ? { ...(await encryptFile(plain)), metadata: { markedAsSpoiler: false } }
-    : { file: plain, originalFile: plain, encInfo: undefined, metadata: { markedAsSpoiler: false } };
+    : {
+        file: plain,
+        originalFile: plain,
+        encInfo: undefined,
+        metadata: { markedAsSpoiler: false },
+      };
   const { content_uri: mxc } = await mx.uploadContent(item.file, {
     name: fileName,
     type: item.encInfo ? 'application/octet-stream' : 'application/json',
@@ -931,12 +974,14 @@ git commit -m "feat(bug-reports): send the summary and JSON into a report thread
 ### Task 6: Menu item, strings, and wiring
 
 **Files:**
+
 - Create: `src/app/mindroom/bug-reports/MessageBugReportItem.tsx`
 - Test: `src/app/mindroom/bug-reports/MessageBugReportItem.test.tsx`
 - Modify: `src/app/mindroom/messages/MindroomMessage.tsx` (menu block around the `MessagePinItem` render, ~line 572)
 - Modify: `src/app/locales/en.json` and the 16 other `src/app/locales/*.json`
 
 **Interfaces:**
+
 - Consumes: `getBugReportAdmins` (Task 2); `buildBugReport`, `getBugReportFileName`, `serializeBugReport` (Task 3); `ensureBugReportRoom` (Task 4); `sendBugReport` (Task 5); `useAutoDiscoveryInfo()`; `useRoomNavigate().navigateRoomThread(roomId, threadId)`; `saveFile(blob, fileName)` from `src/app/mindroom/native/nativeFileSave.ts`.
 - Produces: `MessageBugReportItem` (`as<'button', { room: Room; mEvent: MatrixEvent; onClose?: () => void }>`).
 
@@ -987,7 +1032,9 @@ vi.mock('folds', () => ({
 }));
 vi.mock('../../features/room/message/styles.css', () => ({ MessageMenuItemText: 'text' }));
 vi.mock('../../hooks/useMatrixClient', () => ({ useMatrixClient: () => ({}) }));
-vi.mock('../../hooks/useAutoDiscoveryInfo', () => ({ useAutoDiscoveryInfo: () => mocks.discovery }));
+vi.mock('../../hooks/useAutoDiscoveryInfo', () => ({
+  useAutoDiscoveryInfo: () => mocks.discovery,
+}));
 vi.mock('../../hooks/useRoomNavigate', () => ({
   useRoomNavigate: () => ({ navigateRoomThread: mocks.navigateRoomThread }),
 }));
@@ -1145,7 +1192,10 @@ export const MessageBugReportItem = as<
     }
   };
 
-  let label = admins.length > 0 ? t('mindroomUi.messages.bugReport.report') : t('mindroomUi.messages.bugReport.download');
+  let label =
+    admins.length > 0
+      ? t('mindroomUi.messages.bugReport.report')
+      : t('mindroomUi.messages.bugReport.download');
   if (state === 'sending') label = t('mindroomUi.messages.bugReport.sending');
   if (state === 'error') label = t('mindroomUi.messages.bugReport.failed');
 
@@ -1176,10 +1226,12 @@ import { MessageBugReportItem } from '../bug-reports/MessageBugReportItem';
 ```
 
 ```tsx
-                            {serverEventActionsAllowed && canPinEvent && (
-                              <MessagePinItem room={room} mEvent={mEvent} onClose={closeMenu} />
-                            )}
-                            <MessageBugReportItem room={room} mEvent={mEvent} onClose={closeMenu} />
+{
+  serverEventActionsAllowed && canPinEvent && (
+    <MessagePinItem room={room} mEvent={mEvent} onClose={closeMenu} />
+  );
+}
+<MessageBugReportItem room={room} mEvent={mEvent} onClose={closeMenu} />;
 ```
 
 It is deliberately not gated on `serverEventActionsAllowed`: failed and pending local echoes are prime bug-report targets.
@@ -1202,11 +1254,13 @@ git commit -m "feat(bug-reports): add one-click Report a bug to the message menu
 ### Task 7: Administrator auto-join
 
 **Files:**
+
 - Create: `src/app/mindroom/bug-reports/BugReportAutoJoinFeature.tsx`
 - Test: `src/app/mindroom/bug-reports/BugReportAutoJoinFeature.test.ts`
 - Modify: `src/app/mindroom/client/MindroomClientNonUIFeatures.tsx` (`MindroomClientNonUIFeatures` at the end of the file)
 
 **Interfaces:**
+
 - Consumes: `getBugReportAdmins` (Task 2); `BUG_REPORTS_ROOM_TYPE` (Task 4); `allInvitesAtom` from `src/app/state/room-list/inviteList.ts`; `getStateEvent` from `src/app/utils/room.ts`; `getMxIdServer` from `src/app/utils/matrix.ts`.
 - Produces: `shouldAutoJoinBugReportInvite(mx: MatrixClient, room: Room | null, admins: string[]): boolean`; `BugReportAutoJoinFeature()` (renders `null`).
 
@@ -1248,10 +1302,18 @@ describe('shouldAutoJoinBugReportInvite', () => {
 
   it('ignores other room types', () => {
     expect(
-      shouldAutoJoinBugReportInvite(mx() as never, invitedRoom({ type: 'm.space' }) as never, admins)
+      shouldAutoJoinBugReportInvite(
+        mx() as never,
+        invitedRoom({ type: 'm.space' }) as never,
+        admins
+      )
     ).toBe(false);
     expect(
-      shouldAutoJoinBugReportInvite(mx() as never, invitedRoom({ type: undefined, inviter: '@a:example.com' }) as never, [])
+      shouldAutoJoinBugReportInvite(
+        mx() as never,
+        invitedRoom({ type: undefined, inviter: '@a:example.com' }) as never,
+        []
+      )
     ).toBe(false);
   });
 
@@ -1267,7 +1329,11 @@ describe('shouldAutoJoinBugReportInvite', () => {
 
   it('ignores rooms that are not pending invites', () => {
     expect(
-      shouldAutoJoinBugReportInvite(mx() as never, invitedRoom({ membership: 'join' }) as never, admins)
+      shouldAutoJoinBugReportInvite(
+        mx() as never,
+        invitedRoom({ membership: 'join' }) as never,
+        admins
+      )
     ).toBe(false);
     expect(shouldAutoJoinBugReportInvite(mx() as never, null, admins)).toBe(false);
   });
@@ -1376,6 +1442,7 @@ Include `src/app/mindroom/client/MindroomClientNonUIFeatures.test.ts` in the `gi
 ### Task 8: Operator docs, runbook, full validation
 
 **Files:**
+
 - Create: `docs/bug-reports.md`
 - Modify: `FORK_CHANGES.md` (new entry directly under `## Runbook`)
 
@@ -1454,9 +1521,11 @@ git commit -m "docs: document one-click bug reports"
 ### Task 9: Live end-to-end check against a real homeserver
 
 **Files:**
+
 - Create: `e2e/bug-report.spec.ts`
 
 **Interfaces:**
+
 - Consumes: the whole feature; e2e helpers `getHomeserver`, `getPrimaryCredentials`, `getSecondaryCredentials` (`e2e/env.ts`), `loginWithPassword`, `setFullInterfaceModeForCredentials`, `expectLoggedInShellStable` (`e2e/helpers/auth.ts`), `loginToMatrix`, `createPrivateRoom`, `sendRoomMessage`, `matrixFetch` (`e2e/helpers/matrix.ts`), `attachBrowserDiagnostics`/`expectNoUnexpectedBrowserDiagnostics` (`e2e/helpers/browserDiagnostics.ts`).
 - Produces: a Playwright spec run by `npm run test:e2e:docker-matrix` (Docker Tuwunel at `http://127.0.0.1:28008`, server name `matrix.localhost`, with `E2E_*` and `E2E_SECOND_*` accounts).
 
@@ -1469,10 +1538,18 @@ The client fetches `https://matrix.localhost/.well-known/matrix/client` (the ser
 ```ts
 import { expect, test, type BrowserContext } from '@playwright/test';
 import { getHomeserver, getPrimaryCredentials, getSecondaryCredentials } from './env';
-import { expectLoggedInShellStable, loginWithPassword, setFullInterfaceModeForCredentials } from './helpers/auth';
+import {
+  expectLoggedInShellStable,
+  loginWithPassword,
+  setFullInterfaceModeForCredentials,
+} from './helpers/auth';
 import { createPrivateRoom, loginToMatrix, matrixFetch, sendRoomMessage } from './helpers/matrix';
 
-const serveBugReportWellKnown = async (context: BrowserContext, homeserver: string, admin: string) => {
+const serveBugReportWellKnown = async (
+  context: BrowserContext,
+  homeserver: string,
+  admin: string
+) => {
   await context.route('**/.well-known/matrix/client', (route) =>
     route.fulfill({
       status: 200,
@@ -1486,14 +1563,27 @@ const serveBugReportWellKnown = async (context: BrowserContext, homeserver: stri
   );
 };
 
-test('one click sends a bug report the administrator receives without accepting an invite', async ({ browser }) => {
+test('one click sends a bug report the administrator receives without accepting an invite', async ({
+  browser,
+}) => {
   const adminCredentials = getSecondaryCredentials();
-  test.skip(!adminCredentials, 'Set E2E_SECOND_USERNAME and E2E_SECOND_PASSWORD to run the bug report e2e flow.');
+  test.skip(
+    !adminCredentials,
+    'Set E2E_SECOND_USERNAME and E2E_SECOND_PASSWORD to run the bug report e2e flow.'
+  );
   test.slow();
   const homeserver = getHomeserver();
   const reporterCredentials = getPrimaryCredentials();
-  const reporter = await loginToMatrix(homeserver, reporterCredentials.username, reporterCredentials.password);
-  const admin = await loginToMatrix(homeserver, adminCredentials!.username, adminCredentials!.password);
+  const reporter = await loginToMatrix(
+    homeserver,
+    reporterCredentials.username,
+    reporterCredentials.password
+  );
+  const admin = await loginToMatrix(
+    homeserver,
+    adminCredentials!.username,
+    adminCredentials!.password
+  );
   await Promise.all([
     setFullInterfaceModeForCredentials(homeserver, reporterCredentials),
     setFullInterfaceModeForCredentials(homeserver, adminCredentials!),
@@ -1501,7 +1591,9 @@ test('one click sends a bug report the administrator receives without accepting 
 
   // A private room the administrator is NOT in: the report must still reach them.
   const marker = `bug report e2e ${Date.now()}`;
-  const roomId = await createPrivateRoom(homeserver, reporter.accessToken, { name: `Bug report source ${Date.now()}` });
+  const roomId = await createPrivateRoom(homeserver, reporter.accessToken, {
+    name: `Bug report source ${Date.now()}`,
+  });
   await sendRoomMessage(/* homeserver, reporter.accessToken, roomId, marker — match the helper's real signature */);
 
   // Administrator signs in first so its client is running when the invite arrives.
@@ -1539,12 +1631,19 @@ test('one click sends a bug report the administrator receives without accepting 
   );
   expect(create.type).toBe('io.mindroom.bug_reports');
   await expect
-    .poll(async () => {
-      const { joined_rooms } = await matrixFetch<{ joined_rooms: string[] }>(homeserver, '/joined_rooms', {
-        accessToken: admin.accessToken,
-      });
-      return joined_rooms.includes(reportRoomId);
-    }, { timeout: 30_000 })
+    .poll(
+      async () => {
+        const { joined_rooms } = await matrixFetch<{ joined_rooms: string[] }>(
+          homeserver,
+          '/joined_rooms',
+          {
+            accessToken: admin.accessToken,
+          }
+        );
+        return joined_rooms.includes(reportRoomId);
+      },
+      { timeout: 30_000 }
+    )
     .toBe(true);
 
   // A second report reuses the same room.

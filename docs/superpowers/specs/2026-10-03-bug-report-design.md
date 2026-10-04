@@ -88,32 +88,48 @@ It is uploaded before the summary root is sent, so a failed upload leaves nothin
   "type": "io.mindroom.bug_report",
   "version": 1,
   "reportedAt": "2026-10-03T12:00:00.000Z",
-  "reporter": { "userId": "@alice:company.com", "deviceId": "ABC", "homeserver": "https://matrix.company.com" },
+  "reporter": {
+    "userId": "@alice:company.com",
+    "deviceId": "ABC",
+    "homeserver": "https://matrix.company.com"
+  },
   "target": {
     "roomId": "!r:company.com",
     "roomName": "Lobby",
-    "threadId": "$root",          // null when the message is not in a thread
-    "eventId": "$selected",       // may be a local echo ID such as "~!r:…"
+    "threadId": "$root", // null when the message is not in a thread
+    "eventId": "$selected", // may be a local echo ID such as "~!r:…"
     "permalink": "https://…"
   },
-  "events": [                     // thread root + newest 200 replies, or the main-timeline tail
+  "events": [
+    // thread root + newest 200 replies, or the main-timeline tail
     {
       "eventId": "$e",
-      "status": null,             // MatrixEvent.status: null when confirmed, else sending/not_sent/…
+      "status": null, // MatrixEvent.status: null when confirmed, else sending/not_sent/…
       "decryptionFailure": false,
-      "event": { /* getEffectiveEvent() with its original decrypted content (and wire m.relates_to), incl. io.mindroom.ai_run, tool_trace, stream_status */ },
-      "latestEdit": { /* replacingEvent()?.getEffectiveEvent(), or null */ }
+      "event": {
+        /* getEffectiveEvent() with its original decrypted content (and wire m.relates_to), incl. io.mindroom.ai_run, tool_trace, stream_status */
+      },
+      "latestEdit": {
+        /* replacingEvent()?.getEffectiveEvent(), or null */
+      }
     }
   ],
-  "omittedEventCount": 0,         // thread replies held but left out by the 200-reply bound
+  "omittedEventCount": 0, // thread replies held but left out by the 200-reply bound
   "client": {
-    "build": "…", "platform": "web|ios|android", "userAgent": "…",
-    "language": "en", "timeZone": "Europe/Amsterdam",
+    "build": "…",
+    "platform": "web|ios|android",
+    "userAgent": "…",
+    "language": "en",
+    "timeZone": "Europe/Amsterdam",
     "viewport": { "width": 390, "height": 844, "devicePixelRatio": 3 },
-    "online": true, "visibility": "visible", "syncState": "SYNCING",
+    "online": true,
+    "visibility": "visible",
+    "syncState": "SYNCING",
     "location": "https://chat…/home/!r…?threadId=$root"
   },
-  "diagnostics": { /* exactly the payload of the existing diagnostics export */ }
+  "diagnostics": {
+    /* exactly the payload of the existing diagnostics export */
+  }
 }
 ```
 
@@ -126,14 +142,14 @@ It is uploaded before the summary root is sent, so a failed upload leaves nothin
 
 All new code lives in `src/app/mindroom/bug-reports/`, per the fork's file-boundary policy.
 
-| Unit | Responsibility |
-|---|---|
-| `bugReportConfig.ts` | Parse `io.mindroom.bug_reports.admins` from the well-known info; `useBugReportAdmins()` for components |
-| `bugReportPayload.ts` | Build the report JSON from client, room, and event |
-| `bugReportRoom.ts` | Find, validate, or create the reporter's report room; account data; in-flight dedupe |
-| `sendBugReport.ts` | Send the summary root and the JSON file in its thread; return `{ roomId, threadRootId }` |
-| `MessageBugReportItem.tsx` | Menu item: send or download, sending and error states, navigation on success |
-| `BugReportAutoJoinFeature.tsx` | Administrator-side auto-join, mounted in `MindroomClientNonUIFeatures` |
+| Unit                           | Responsibility                                                                                         |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------ |
+| `bugReportConfig.ts`           | Parse `io.mindroom.bug_reports.admins` from the well-known info; `useBugReportAdmins()` for components |
+| `bugReportPayload.ts`          | Build the report JSON from client, room, and event                                                     |
+| `bugReportRoom.ts`             | Find, validate, or create the reporter's report room; account data; in-flight dedupe                   |
+| `sendBugReport.ts`             | Send the summary root and the JSON file in its thread; return `{ roomId, threadRootId }`               |
+| `MessageBugReportItem.tsx`     | Menu item: send or download, sending and error states, navigation on success                           |
+| `BugReportAutoJoinFeature.tsx` | Administrator-side auto-join, mounted in `MindroomClientNonUIFeatures`                                 |
 
 Upstream-facing changes are limited to rendering `MessageBugReportItem` in `MindroomMessage.tsx` (already a fork file) and splitting `diagnosticsExport.ts`.
 
