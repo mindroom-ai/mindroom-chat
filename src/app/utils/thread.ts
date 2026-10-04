@@ -4,8 +4,7 @@ import { Thread } from 'matrix-js-sdk/lib/models/thread';
 
 export const DEFAULT_THREAD_TAIL_EVENT_COUNT = 10;
 
-const isThreadTailMessageEvent = (event: MatrixEvent): boolean =>
-  event.isRelation('m.thread');
+const isThreadTailMessageEvent = (event: MatrixEvent): boolean => event.isRelation('m.thread');
 
 export const getThreadTailEvents = (
   thread: Thread | null | undefined,
@@ -31,12 +30,15 @@ export const getThreadTailEvents = (
   };
 
   const liveTimeline = thread.getUnfilteredTimelineSet().getLiveTimeline();
+  // SDK segment links can form a cycle; walking one would never end.
+  const visitedTimelines = new Set<EventTimeline>();
 
   for (
     let timeline: EventTimeline | undefined = liveTimeline;
-    timeline && tailEvents.length < count;
+    timeline && !visitedTimelines.has(timeline) && tailEvents.length < count;
     timeline = timeline.getNeighbouringTimeline(Direction.Backward) ?? undefined
   ) {
+    visitedTimelines.add(timeline);
     const timelineEvents = timeline.getEvents();
     for (
       let eventIndex = timelineEvents.length - 1;

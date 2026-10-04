@@ -2,6 +2,47 @@
 
 ## Runbook
 
+### Stop the reconcile from linking thread segments into a cycle that froze the app (2026-10-04)
+
+- Report: an iPhone export from build `515acd2c` shows the whole app frozen right after it came back from 130 s in the background, with a long thread open (968 SDK events) while an agent was typing.
+  Only the typing dots (a compositor animation) still moved; two app switches did not help, and the app stayed frozen until it was force-quit about 68 s later.
+  The flight recorder's last beat is the resume's `visible` checkpoint, and the deep trace ends 0.9 s later with the catch-up `/sync` request, a tap on the timeline and an unchanged thread render sample.
+  The native log has two more background/foreground switches with no `lifecycle.*` event from the page, so the main thread blocked about 1–2 s after the resume, when a catch-up `/sync` usually arrives, and never ran again.
+- Where it hangs: matrix-js-sdk's `EventTimelineSet.compareEventOrdering` follows `getNeighbouringTimeline` forwards and then backwards, with no visited set, until it meets the other event's segment; on a cycle of segment links that segment is not on, it never returns.
+  Every new live thread event reaches it synchronously: `Thread.onTimelineEvent` adds a local echo receipt for the sender, and `RoomReceipts` orders it against the sender's previous receipt.
+  While both events sit in one segment the comparison returns early; a limited `/sync` after a suspension gives the thread a new live segment that is not linked to the old ones, so the first agent event after the resume walks the whole chain.
+- Root cause: the reconcile's SDK injection (#370, `addFetchedEventsToThread` in `engine/reconciler.ts`) prepended every fetched event older than the live segment's start to the live segment.
+  After a sync gap and one history page, the live segment is linked after an older segment holding only the latest page from before the gap, so history older than that page landed in the live segment, on the newer side of the page.
+  After the next gap, a history page for the older segment held events of the now non-live segment, whose newer side was already linked, so `addEventsToTimeline` set the older segment's backward link and then threw `timeline already has a neighbouring timeline`, leaving a backward cycle.
+  `threadSyncGapReopen.test.ts` reproduces the freeze with the real client, the real `scheduleReconcile`, Tuwunel's token semantics and the thread view's first-segment pagination (gap, page, reconcile, page, gap, page, page): before this change the second page throws, and the agent's next streamed reply then walks the cycle without end in its receipt.
+- Earlier cycles came from other sources: the 2026-07-20 production stack overflow in `getFirstLinkedTimeline`, and the root context request fixed by #362 (2026-10-02).
+  The 2026-10-02 freeze 0.8 s after a send, from a build without #362 and attributed to regexes as "a likely cause, not a confirmed one", fits the same hang: the sent reply's echo from the server adds a receipt when it lands in the thread.
+- Fix:
+  - The reconcile adds to the live segment only the fetched events newer (by `origin_server_ts`) than every event an older segment holds: replies from a gap still go there, while older history, including a late edit of an older reply and a page from deep in the history that overlaps no segment, reaches the render through `onRepaired`, as for an unopened thread, and SDK pagination places it in the SDK thread.
+    It first applies a deferred sync-gap reset, which adding an event applies anyway, so it reads the segments the events go into.
+    With a single segment it backfills as #370 did.
+  - SDK patch (`src/models/event-timeline-set.ts` and `lib`): `addEventsToTimeline` refuses a join that would form a cycle and a join whose existing segment already has a neighbour on that side, logs it, and goes on with the rest of the page, as it already does for a join that would splice in the live segment.
+    The conflict used to set one link and throw, dropping the rest of the page; that one-sided link is what closed the cycle above.
+  - `compareEventOrdering`, and the app's `getThreadTailEvents` (`src/app/utils/thread.ts`, run for every thread card's streaming and last-activity state), stop at a segment they have already visited, so a cycle from a source not yet known cannot freeze the app.
+- Ruled out: an audit of the message render path in JavaScriptCore (Bun and Playwright WebKit) found no loop that never ends; its super-linear cases (linkifyjs, the inline Markdown link rule, the 🔧 marker scan, `trimReplyFromBody`, Prism's Markdown title rule) need single runs of tens of KB.
+  The engine, gap-recovery, pagination, IndexedDB-retry and resume paths all wait on a timer, the network or IndexedDB between passes.
+- Tests:
+  - `threadSyncGapReopen.test.ts` runs that sequence, expects the replies in order with no refused join, then delivers the agent's next reply after another gap and expects it in the live segment with the agent's receipt moved to it from the older segment; with only the SDK patch the replies come out of order, with only the reconcile change it passes, and with neither it throws at the cycle.
+    A second case starts with a gap whose window holds no thread event, so the thread's reset is still deferred when the reconcile runs; it fails without applying that reset first.
+  - `matrixSdkTimelineCycles.test.ts` drives the SDK's `EventTimelineSet` through a simulated gap (`resetLiveTimeline`) and a misordered history page, a join that conflicts with an existing neighbour, and a comparison across an existing two-segment cycle; `thread.test.ts` adds a backward cycle.
+    A neighbour-read limit turns a hang into a failure; each fails before the change, and removing the cycle check, the neighbour check or a visited set fails its own test.
+  - `reconciler.sdkThread.test.ts` checks every event in each segment after a deferred reset (history stays out of the new live segment), an empty live segment after a gap (the gap's replies go in, and `lastReply()` is the newest), a fetched page from deep in the history, and a late edit of a reply in the older segment; the reconciler on `dev` fails all four, removing the boundary fails all four, and removing the reset fails the first.
+  - Four `reconciler.test.ts` thread stubs gained `flushPendingTimelineReset`, `eventIdToTimeline` and `getTimelines`.
+- Validation: the patch applies with patch-package to a pristine `matrix-js-sdk@41.7.0` and reproduces the patched tree byte for byte.
+  Typecheck, the production build and lint (0 errors, the existing 17 warnings) pass.
+  The full unit suite passes (6,080 tests) except the four that also fail on unchanged `dev`: three `xcodeCloudPostClone` tests (no `/bin/bash` on this NixOS host) and the caption send-failure test in `useRoomInputSendSessionController.test.ts`.
+- Not changed:
+  - The SDK's other unbounded walks, `TimelineWindow.getEvents` and `Room.getOrCreateFilteredTimelineSet`, which this app does not call.
+  - With a single segment the reconcile still backfills as #370 did, which assumes the fetched history ends where the segment starts; a saved scan position that resumes deep in the history can leave a hole that later pages fill out of order inside that segment (no cycle).
+  - The boundary trusts `origin_server_ts` order; history older than an older segment but stamped later (clock skew between servers) would still be prepended to the live segment.
+  - `findAndReplace` never advances past an empty match, and `makeHighlightRegex` (`react-custom-html-parser.tsx`) keeps empty terms, so a room-search query with two spaces in a row loops forever when a room name contains it (`Search.tsx`, `AddExisting.tsx`); message search builds its highlights with the same function from the server's terms.
+- Next: record refused joins in the deep trace so an export names any other page that would form a cycle, and flush the deep trace when a `/sync` response arrives so an export shows whether it came before a freeze.
+
 ### Let users switch between a canvas's versions (2026-10-04)
 
 - Why: every agent update replaced the page with no way back; Claude artifacts keep each version one click away.

@@ -8,11 +8,7 @@ type MockTimeline = {
   getNeighbouringTimeline: () => MockTimeline | null;
 };
 
-const makeThreadReplyEvent = (
-  eventId: string,
-  ts: number,
-  type = 'm.room.message'
-): MatrixEvent =>
+const makeThreadReplyEvent = (eventId: string, ts: number, type = 'm.room.message'): MatrixEvent =>
   new MatrixEvent({
     content: {
       body: eventId,
@@ -153,6 +149,31 @@ describe('getThreadTailEvents', () => {
       lastReply: reply2,
       rootEvent,
     });
+
+    expect(getThreadTailEvents(thread, 10).map((event) => event.getId())).toEqual([
+      '$root',
+      '$reply-1',
+      '$reply-2',
+    ]);
+  });
+
+  it('reads each timeline once when SDK segments link into a cycle', () => {
+    const rootEvent = makeRootEvent();
+    const reply1 = makeThreadReplyEvent('$reply-1', 101);
+    const reply2 = makeThreadReplyEvent('$reply-2', 102);
+    let neighbourReads = 0;
+    let olderNeighbour: MockTimeline | null = null;
+    const olderTimeline: MockTimeline = {
+      getEvents: () => [reply1],
+      getNeighbouringTimeline: () => {
+        neighbourReads += 1;
+        if (neighbourReads > 100) throw new Error('walked a timeline cycle');
+        return olderNeighbour;
+      },
+    };
+    const liveTimeline = makeTimeline([reply2], olderTimeline);
+    olderNeighbour = liveTimeline;
+    const thread = makeThread({ liveTimeline, lastReply: reply2, rootEvent });
 
     expect(getThreadTailEvents(thread, 10).map((event) => event.getId())).toEqual([
       '$root',
