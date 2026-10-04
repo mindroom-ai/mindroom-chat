@@ -4,8 +4,7 @@ import { Thread } from 'matrix-js-sdk/lib/models/thread';
 
 export const DEFAULT_THREAD_TAIL_EVENT_COUNT = 10;
 
-const isThreadTailMessageEvent = (event: MatrixEvent): boolean =>
-  event.isRelation('m.thread');
+const isThreadTailMessageEvent = (event: MatrixEvent): boolean => event.isRelation('m.thread');
 
 export const getThreadTailEvents = (
   thread: Thread | null | undefined,

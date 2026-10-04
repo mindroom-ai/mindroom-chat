@@ -8,11 +8,7 @@ type MockTimeline = {
   getNeighbouringTimeline: () => MockTimeline | null;
 };
 
-const makeThreadReplyEvent = (
-  eventId: string,
-  ts: number,
-  type = 'm.room.message'
-): MatrixEvent =>
+const makeThreadReplyEvent = (eventId: string, ts: number, type = 'm.room.message'): MatrixEvent =>
   new MatrixEvent({
     content: {
       body: eventId,
