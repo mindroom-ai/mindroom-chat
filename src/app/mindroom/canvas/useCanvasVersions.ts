@@ -81,14 +81,16 @@ export function useCanvasVersions(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mx, room, request, latestId]);
   useEffect(() => {
-    // A deleted version leaves the list at once; a chosen one falls back to the latest.
-    const forget = (redaction: MatrixEvent) => {
-      const redacted = redaction.event.redacts ?? redaction.getContent().redacts;
+    // A deleted version leaves the list at once; a chosen one falls back to the latest. Versions come
+    // from the server, so their edits may not be loaded, and only the timeline sees every deletion.
+    const forget = (event: MatrixEvent) => {
+      if (!event.isRedaction()) return;
+      const redacted = event.event.redacts ?? event.getContent().redacts;
       setVersions((current) => current.filter((version) => version.revisionEventId !== redacted));
     };
-    room.on(RoomEvent.Redaction, forget);
+    room.on(RoomEvent.Timeline, forget);
     return () => {
-      room.off(RoomEvent.Redaction, forget);
+      room.off(RoomEvent.Timeline, forget);
     };
   }, [room]);
   return versions;

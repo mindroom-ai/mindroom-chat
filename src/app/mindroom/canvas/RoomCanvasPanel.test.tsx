@@ -192,6 +192,18 @@ describe('RoomCanvasPanel', () => {
     expect(panels.props?.version).toEqual({ current: 5, total: 5 });
   });
 
+  it('lists only edits of this canvas', async () => {
+    const event = request();
+    const second = edit('<p>Step 2</p>', { id: '$edit-2', ts: 200 });
+    const elsewhere = edit('<p>Elsewhere</p>', { id: '$elsewhere', ts: 150 });
+    (elsewhere.getContent()['m.relates_to'] as { event_id: string }).event_id = '$other';
+    event.makeReplaced(second);
+    history(event, [elsewhere, second]);
+    render(event);
+    await act(async () => undefined);
+    expect(panels.props?.version).toEqual({ current: 2, total: 2 });
+  });
+
   it('keeps the known versions when the history does not reach the shown one', async () => {
     const event = request();
     const second = edit('<p>Step 2</p>', { id: '$edit-2', ts: 200 });
@@ -215,10 +227,12 @@ describe('RoomCanvasPanel', () => {
     act(() => panels.props?.onSelectVersion?.(2));
     expect(panels.props?.canvas.html).toBe('<p>Step 2</p>');
     act(() => {
+      // The edit was only fetched, never loaded, so the timeline is where its deletion shows.
       room.emit(
-        RoomEvent.Redaction,
+        RoomEvent.Timeline,
         new MatrixEvent({ type: 'm.room.redaction', redacts: '$edit-2', content: {} }),
-        room
+        room,
+        false
       );
     });
     expect(panels.props?.canvas.html).toBe('<p>Step 3</p>');

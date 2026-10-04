@@ -12,7 +12,7 @@
   An answer from an earlier version names that version's revision, which the agent is already told how to read.
 - `useCanvasVersions` lists the request and its edits from `mx.relations` (decrypts in encrypted rooms, drops other senders' edits; 50 per page, at most 10 pages, newest kept), sorted in Matrix edit order, each held to the same rules as the latest edit (`readCanvasVersion`, which now shares `readCanvasEdit` with `readLatestCanvas`).
   It reloads when the panel opens and after each update; until then, or if the server cannot answer, the original and latest versions are offered.
-  A deleted version leaves the list at once (`RoomEvent.Redaction`); if it was chosen, the panel falls back to the latest.
+  A deleted version leaves the list at once (redactions on `RoomEvent.Timeline`, which also sees deletions of edits the client never loaded); if it was chosen, the panel falls back to the latest.
   While an update waits behind **Load update**, the switcher is hidden, because its numbers describe the waiting update rather than the page shown.
 - Tests: `RoomCanvasPanel.test.tsx` (paging, forged edits, choosing, staying on a chosen version, following the latest again, fallback), `CanvasPanel.test.tsx` (controls, locking, loading a chosen version over unsent work).
   `e2e/agent-canvas.spec.ts` goes back to the first step after an update and returns to the latest.
