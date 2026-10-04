@@ -52,6 +52,69 @@ final class NativeBridgeSecurityTests: XCTestCase {
         return try XCTUnwrap(result as? Int)
     }
 
+    private func runCanvas(_ name: String, in webView: WKWebView) async throws -> [String: Any] {
+        let url = try XCTUnwrap(Bundle(for: Self.self).url(forResource: "canvas-fixtures", withExtension: "json"))
+        let fixtures = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: String])
+        let result = try await webView.callAsyncJavaScript("""
+            return await new Promise(resolve => {
+              const frame = document.createElement('iframe');
+              const policy = document.createElement('meta');
+              policy.httpEquiv = 'Content-Security-Policy';
+              policy.content = appFramePolicy;
+              document.head.append(policy);
+              frame.setAttribute('sandbox', sandbox);
+              frame.setAttribute('allow', permissions);
+              frame.style.cssText = 'position:fixed;inset:0;border:0;width:100%;height:100%';
+              const errors = [];
+              const finish = result => {
+                clearTimeout(timeout);
+                removeEventListener('message', receive);
+                resolve(result);
+              };
+              const receive = event => {
+                if (event.source !== frame.contentWindow?.frames[0]) return;
+                if (event.data?.type === 'mindroom.canvas.error') errors.push(event.data.message);
+                if (event.data?.nativeCanvasProbe) finish(event.data);
+              };
+              const timeout = setTimeout(() => finish({timeout:true,errors}), 15000);
+              addEventListener('message', receive);
+              frame.srcdoc = canvasDocument;
+              window.nativeCanvasFrame = frame;
+              window.document.body.replaceChildren(frame);
+            });
+            """, arguments: ["canvasDocument": try XCTUnwrap(fixtures[name]),
+                              "sandbox": try XCTUnwrap(fixtures["sandbox"]),
+                              "permissions": try XCTUnwrap(fixtures["permissions"]),
+                              "appFramePolicy": try XCTUnwrap(fixtures["appFramePolicy"])], in: nil, contentWorld: .page)
+        return try XCTUnwrap(result as? [String: Any])
+    }
+
+    func testProductionCanvasCannotReachPluginsOrMatrixSessionStorage() async throws {
+        let webView = try await fixture()
+        let before = try await count(webView, method: "record")
+        XCTAssertEqual(before, 1)
+        let result = try await runCanvas("attack", in: webView)
+        XCTAssertNil(result["timeout"], "The production canvas must execute the hostile script: \(result)")
+        XCTAssertEqual(result["bridge"] as? String, "undefined")
+        XCTAssertEqual(result["sessionAccess"] as? Bool, false)
+        XCTAssertTrue(["posted", "unavailable"].contains(result["handler"] as? String ?? ""))
+        let after = try await count(webView)
+        XCTAssertEqual(after, before, "An opaque nested canvas must not dispatch a plugin")
+    }
+
+    func testProductionCanvasLoadsAndPaintsChartJsFromAllowedNpmSource() async throws {
+        let webView = try await fixture()
+        let result = try await runCanvas("chart", in: webView)
+        XCTAssertNil(result["timeout"], "Chart.js must load through both production CSPs: \(result)")
+        XCTAssertEqual(result["chart"] as? String, "function")
+        XCTAssertEqual(result["painted"] as? Bool, true)
+        let image = try await webView.takeSnapshot(configuration: nil)
+        let attachment = XCTAttachment(image: image)
+        attachment.name = "native-canvas-chart-js"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+
     func testEveryBridgeScriptIsMainFrameOnly() async throws {
         let webView = try await fixture()
         let scripts = webView.configuration.userContentController.userScripts

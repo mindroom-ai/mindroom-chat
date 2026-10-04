@@ -19,7 +19,14 @@
 - Validation so far: 6,081 unit tests pass under Node 24.13.1, along with typecheck, lint (17 existing warnings), web build, and the iOS build.
   Independent review approved the native boundary and the configuration/cache step after correcting Android first-navigation exposure and Fastlane build wiring.
   Xcode 26.6 cannot compile or run simulator tests because CoreSimulator 1051.49 is older than its required 1051.55 and the iOS 26.5 platform is unavailable; completing setup requires administrator authentication.
-- Next: prove the bridge boundary in the simulator, enable the iOS deployment switches, reproduce computer API/auth/stream behavior, run repository checks, and open ready PRs against `dev` without merging.
+- Native regression resources are generated from the shipping canvas document builder and outer app CSP.
+  Tests probe raw plugin dispatch and native cookie prompts from ordinary and sandboxed subframes, then verify the production two-frame canvas cannot reach plugins or Matrix session storage.
+  A separate native test downloads Chart.js from the allowed npm path, requires painted pixels, and retains a screenshot in the XCTest result.
+  Independent review approves the test code, but native execution is still pending.
+- Computer investigation: the lab backend accepts `https://chat.mindroom.chat` but returns HTTP 400 for native preflight; the production Matrix/provisioning origin has no computers endpoint.
+  The companion backend change accepts only the exact `capacitor://localhost` literal, retains fail-closed allowlists, and tests native CORS, OpenID/bearer/tickets, WSS input, control and release.
+  Operators still need to add the native literal to the computer service's deployment allowlist.
+- Next: finish browser/CI validation, capture native evidence when a configured simulator is available, and open linked ready PRs without merging.
 
 
 ### Let users switch between a canvas's versions (2026-10-04)

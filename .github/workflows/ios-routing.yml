@@ -4,10 +4,14 @@ on:
   pull_request:
     paths:
       - 'ios/**'
+      - 'index.html'
       - 'patches/@capacitor+ios+*.patch'
       - 'package.json'
       - 'package-lock.json'
       - 'scripts/*ios-routing*'
+      - 'scripts/ios-canvas-test-fixtures.mjs'
+      - 'src/app/mindroom/canvas/canvasDocument.ts'
+      - 'src/app/mindroom/canvas/canvasTheme.ts'
       - 'src/app/pages/paths.ts'
       - 'src/app/pages/Router.tsx'
       - '.github/workflows/ios-routing.yml'

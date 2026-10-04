@@ -24,5 +24,6 @@ The native bridge checks WebKit's frame metadata before plugin/Cordova messages 
 Android also requires its frame-aware bridge; legacy bridge fallbacks and synchronous interfaces are disabled, with SystemBars viewport handling invoked from a native page-commit callback.
 
 Run `bash scripts/test-ios-routing.sh` for simulator bridge security and native routing tests.
+The native suite renders the production canvas documents under the app frame policy and retains a screenshot after Chart.js paints from the allowed npm source.
 The security tests check actual plugin side effects and cookie mutation from both ordinary and opaque sandboxed subframes, with working main-frame controls.
 No acceptance code, test plugins, or test fixtures enter the shipping app.
