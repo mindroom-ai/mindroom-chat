@@ -1,14 +1,22 @@
-import React, { ComponentProps, MutableRefObject, ReactNode, useRef } from 'react';
+import React, {
+  ComponentProps,
+  MutableRefObject,
+  ReactNode,
+  useCallback,
+  useRef,
+  useState,
+} from 'react';
 import { Box, Line, Scroll, Text, as } from 'folds';
 import classNames from 'classnames';
 import { useTranslation } from 'react-i18next';
 import { Header } from '../glass/GlassPrimitives';
-import { useSurfaceContext } from '../glass/SurfaceContext';
+import { ScrollHeaderProvider, useSurfaceContext } from '../glass/SurfaceContext';
 import { inheritSurface } from '../glass/Surface.css';
 import { ContainerColor } from '../../styles/ContainerColor.css';
 import * as css from './style.css';
 import { ScreenSize, useScreenSizeContext } from '../../hooks/useScreenSize';
 import { InsetScrollbar } from '../inset-scrollbar/InsetScrollbar';
+import { useElementSizeObserver } from '../../hooks/useElementSizeObserver';
 
 type PageRootProps = {
   nav: ReactNode;
@@ -60,8 +68,8 @@ export function PageNav({ size, children }: ClientDrawerLayoutProps & css.PageNa
 // material inside settings modals too; a transparent header let rows overlap its title.
 export const PageNavHeader = as<'header'>(({ className, ...props }, ref) => (
   <Header
-    className={classNames(css.PageNavHeader, css.PageNavHeaderMaterial, className)}
-    appearance="plain"
+    className={classNames(css.PageNavHeader, className)}
+    flat
     variant="Background"
     size="600"
     {...props}
@@ -134,12 +142,9 @@ export const PageHeader = as<
   <Header
     as="header"
     size="600"
-    appearance={flat ? 'plain' : appearance}
-    className={classNames(
-      css.PageHeader({ balance, outlined: flat ? false : outlined }),
-      flat && css.PageHeaderMaterial,
-      className
-    )}
+    appearance={appearance}
+    flat={flat}
+    className={classNames(css.PageHeader({ balance, outlined }), className)}
     {...props}
     ref={ref}
   />
@@ -160,9 +165,23 @@ export function PageScroll({
   const viewportRef = scrollRef ?? fallbackScrollRef;
   const contentRef = useRef<HTMLDivElement>(null);
   const hasHeader = !!header;
+  const headerRef = useRef<HTMLDivElement>(null);
+  const [headerHeight, setHeaderHeight] = useState<number>();
+  useElementSizeObserver(
+    useCallback(() => (hasHeader ? headerRef.current : null), [hasHeader]),
+    useCallback((_width, height) => setHeaderHeight(height), [])
+  );
 
   return (
-    <Box grow="Yes" direction="Column" style={{ position: 'relative' }}>
+    <Box
+      grow="Yes"
+      direction="Column"
+      style={{
+        position: 'relative',
+        [css.pageScrollHeaderHeight.slice(4, -1)]:
+          headerHeight === undefined ? undefined : `${headerHeight}px`,
+      }}
+    >
       <Scroll
         ref={viewportRef}
         className={css.PageScroll({ header: hasHeader })}
@@ -170,7 +189,13 @@ export function PageScroll({
         visibility="Hover"
       >
         <div ref={contentRef} className={css.PageScrollContent}>
-          {hasHeader && <div className={css.PageScrollHeader}>{header}</div>}
+          {hasHeader && (
+            <ScrollHeaderProvider value>
+              <div ref={headerRef} className={css.PageScrollHeader}>
+                {header}
+              </div>
+            </ScrollHeaderProvider>
+          )}
           <div className={css.PageScrollBody}>{children}</div>
         </div>
         <InsetScrollbar

@@ -2,6 +2,19 @@
 
 ## Runbook
 
+### Unify scrolling settings and dialog headers (2026-10-04)
+
+- Settings subpages placed their title outside the scroll viewport, so their own content could never pass beneath it.
+  Seventeen personal, room, space, and nested settings views now use `PageScroll`, together with the room topic, readers, reactions, text viewer, room/space creation, add-existing, schedule, pinned-message, and room-pack dialogs.
+- `PageScroll` supplies flat native glass to its header slot through the shared `Header` primitive, including inside a glass modal.
+  Titles have no border, rim, shadow, or pointer glow; moving over their controls also clears the enclosing panel's pointer light.
+  The actual header height controls focus scrolling and the inset scrollbar, including smaller titles and responsive header appearance.
+- Member, add-existing, and pinned-message virtual lists measure their offset after the header and filters and subtract it when placing rows.
+  Sticky search controls remain below the title.
+  Fixed JSON/event editors retain their existing internal text scrolling.
+- Regression coverage includes mobile/desktop personal and room settings, both themes and engines, header material and hover behavior, scrollbar dragging/keyboard navigation, short/long topic dialogs, the pack selector, and virtual member-list navigation.
+  `playwright.glass.config.ts` includes both new browser specs.
+
 ### Let users switch between a canvas's versions (2026-10-04)
 
 - Why: every agent update replaced the page with no way back; Claude artifacts keep each version one click away.

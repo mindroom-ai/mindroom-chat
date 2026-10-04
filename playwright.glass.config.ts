@@ -10,6 +10,8 @@ export default defineConfig(config, {
     '**/live/space-header-glass.spec.ts',
     '**/live/navigation-header-glass.spec.ts',
     '**/live/members-header-glass.spec.ts',
+    '**/live/settings-header-glass.spec.ts',
+    '**/live/dialog-header-layout.spec.ts',
     '**/live/room-glass-overlays.spec.ts',
     '**/live/thread-banner-overlay.spec.ts',
     '**/live/message-disclosure-overlay.spec.ts',

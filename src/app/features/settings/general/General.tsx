@@ -28,7 +28,7 @@ import { isKeyHotkey } from 'is-hotkey';
 import FocusTrap from 'focus-trap-react';
 import { useTranslation } from 'react-i18next';
 import { Menu, Header, MenuItem } from '../../../components/glass/GlassPrimitives';
-import { Page, PageContent, PageHeader } from '../../../components/page';
+import { Page, PageContent, PageHeader, PageScroll } from '../../../components/page';
 import { SequenceCard } from '../../../components/sequence-card';
 import { useSetting } from '../../../state/hooks/settings';
 import {
@@ -1139,38 +1139,39 @@ export function General({ requestClose }: GeneralProps) {
   const simpleMode = useSimpleMode();
   return (
     <Page>
-      <PageHeader outlined={false}>
-        <Box grow="Yes" gap="200">
-          <Box grow="Yes" alignItems="Center" gap="200">
-            <Text size="H3" truncate>
-              {t('settings.general.title')}
-            </Text>
-          </Box>
-          <Box shrink="No">
-            <IconButton onClick={requestClose} variant="Surface">
-              <Icon src={Icons.Cross} />
-            </IconButton>
-          </Box>
-        </Box>
-      </PageHeader>
-      <Box grow="Yes">
-        <Scroll hideTrack visibility="Hover">
-          <PageContent>
-            <Box direction="Column" gap="700">
-              <MindroomInterfaceSettings className={SequenceCardStyle} />
-              <Language />
-              <Appearance />
-              {!simpleMode && (
-                <>
-                  <DateAndTime />
-                  <Editor />
-                  <Messages />
-                </>
-              )}
+      <PageScroll
+        header={
+          <PageHeader outlined={false}>
+            <Box grow="Yes" gap="200">
+              <Box grow="Yes" alignItems="Center" gap="200">
+                <Text size="H3" truncate>
+                  {t('settings.general.title')}
+                </Text>
+              </Box>
+              <Box shrink="No">
+                <IconButton onClick={requestClose} variant="Surface">
+                  <Icon src={Icons.Cross} />
+                </IconButton>
+              </Box>
             </Box>
-          </PageContent>
-        </Scroll>
-      </Box>
+          </PageHeader>
+        }
+      >
+        <PageContent>
+          <Box direction="Column" gap="700">
+            <MindroomInterfaceSettings className={SequenceCardStyle} />
+            <Language />
+            <Appearance />
+            {!simpleMode && (
+              <>
+                <DateAndTime />
+                <Editor />
+                <Messages />
+              </>
+            )}
+          </Box>
+        </PageContent>
+      </PageScroll>
     </Page>
   );
 }
