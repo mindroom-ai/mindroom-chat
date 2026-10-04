@@ -1,9 +1,20 @@
-import { createClient, Direction, Room, type IEvent, type MatrixClient } from 'matrix-js-sdk';
+import {
+  createClient,
+  Direction,
+  EventTimeline,
+  Room,
+  type IEvent,
+  type MatrixClient,
+} from 'matrix-js-sdk';
+import { logger } from 'matrix-js-sdk/lib/logger';
 import { FeatureSupport, Thread } from 'matrix-js-sdk/lib/models/thread';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { createBackfillScheduler } from '../engine/backfillScheduler';
+import { scheduleReconcile } from '../engine/reconciler';
 import { getLinkedTimelines, getThreadTimelineEvents } from './linkedTimelines';
 import { refreshLatestThreadSlice } from './threadOpenCacheController';
 import { runThreadOpenSdkBootstrap } from './threadOpenSdkBootstrap';
+import type { HydratedThreadCachePage } from './types';
 
 const roomId = '!room:example.org';
 const userId = '@mindroom:example.org';
@@ -188,3 +199,63 @@ it.each(['opened', 'shown'] as const)(
     });
   }
 );
+
+it('keeps thread segments in order when a reconcile repairs a thread between sync gaps', async () => {
+  const joinWarnings: string[] = [];
+  vi.spyOn(logger, 'warn').mockImplementation((...args: unknown[]) => {
+    const message = args.map(String).join(' ');
+    if (message.startsWith('Refusing')) joinWarnings.push(message);
+  });
+  // A walk around a segment cycle never ends; fail instead of hanging the run.
+  const { getNeighbouringTimeline } = EventTimeline.prototype;
+  let neighbourReads = 0;
+  vi.spyOn(EventTimeline.prototype, 'getNeighbouringTimeline').mockImplementation(
+    function countedNeighbour(this: EventTimeline, direction) {
+      neighbourReads += 1;
+      if (neighbourReads > 1_000_000) throw new Error('walked a timeline cycle');
+      return getNeighbouringTimeline.call(this, direction);
+    }
+  );
+  const server = tuwunel();
+  server.send('$before');
+  server.send(rootId);
+  for (let index = 0; index < 100; index += 1) server.reply(index);
+  server.room.processThreadRoots([server.client.getEventMapper()(server.root())], true);
+  const thread = server.room.getThread(rootId)!;
+  // A shown card loads only the latest page.
+  await thread.initialize();
+  const timelineSet = thread.getUnfilteredTimelineSet();
+  // The thread view pages the first segment linked to the live one while it has a cursor.
+  const paginateHistory = async () => {
+    const [first] = getLinkedTimelines(timelineSet.getLiveTimeline());
+    if (!first.getPaginationToken(Direction.Backward)) return;
+    await server.client.paginateEventTimeline(first, { backwards: true, limit: 30 });
+  };
+
+  await syncStreamedReplyAfterGap(server, 100);
+  await paginateHistory();
+  const result = await scheduleReconcile({
+    mx: server.client,
+    sessionId: 'session',
+    scheduler: createBackfillScheduler({ mx: server.client }),
+    roomId,
+    room: server.room,
+    threadId: rootId,
+    cachedPage: { events: [], hasMoreBefore: true, tailLoaded: true } as HydratedThreadCachePage,
+    persistRepair: () => ({ rawEvents: [], loadedReplyCount: 0, write: Promise.resolve(true) }),
+    onRepaired: vi.fn(),
+  });
+  expect(result.repaired).toBe(true);
+  await paginateHistory();
+  await syncStreamedReplyAfterGap(server, 101);
+  await paginateHistory();
+  await paginateHistory();
+
+  const replyIds = getThreadTimelineEvents(thread)
+    .filter((event) => event.isRelation('m.thread'))
+    .map((event) => event.getId());
+  expect(replyIds).toEqual(Array.from({ length: 92 }, (_, index) => `$reply-${index + 10}`));
+  expect(joinWarnings).toEqual([]);
+  // The agent's next streamed reply orders its receipt against one in the older segments.
+  await syncStreamedReplyAfterGap(server, 102);
+});
