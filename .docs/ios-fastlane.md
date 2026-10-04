@@ -12,7 +12,7 @@ What fastlane owns in this repo:
 | Upload App Store metadata only    | `upload_metadata`    | Manual copy-paste from `.docs/APP_STORE_SUBMISSION_PACKET.md` into App Store Connect        |
 | Upload App Store screenshots only | `upload_screenshots` | Manual drag-and-drop per device class in App Store Connect                                  |
 | Local TestFlight build            | `beta`               | Xcode → Product → Archive → Organizer → Distribute when Xcode Cloud is unavailable          |
-| Web build and Capacitor sync      | `sync_web`           | `npm run build && npx cap sync ios`                                                         |
+| Web build and Capacitor sync      | `sync_web`           | `npm run build:ios && npx cap sync ios`                                                         |
 
 ## Install
 

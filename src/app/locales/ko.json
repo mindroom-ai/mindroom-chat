@@ -2903,8 +2903,7 @@
       "computerUnavailable": "이 에이전트의 컴퓨터를 사용할 수 없습니다.",
       "releaseControl": "다른 화면을 열기 전에 컴퓨터 제어를 해제하세요.",
       "openConversation": "방 대화에서 이 요청을 여세요.",
-      "settingsUnavailable": "이 설정 항목을 열려면 단순 모드를 끄세요.",
-      "canvasUnavailableInApp": "대화형 패널은 아직 앱에서 사용할 수 없습니다. 브라우저에서 이 대화를 여세요."
+      "settingsUnavailable": "이 설정 항목을 열려면 단순 모드를 끄세요."
     },
     "canvas": {
       "panelLabel": "대화형 패널",

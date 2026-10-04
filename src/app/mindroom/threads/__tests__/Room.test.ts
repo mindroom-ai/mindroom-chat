@@ -680,12 +680,12 @@ describe('Room', () => {
     await room.unmount();
   });
 
-  it('keeps canvases out of the native apps', async () => {
+  it('opens enabled canvases in the native apps', async () => {
     const native = vi.spyOn(Capacitor, 'isNativePlatform').mockReturnValue(true);
     const room = await renderCanvasRoom();
     await room.showCanvas();
-    expect(room.canvasOpen()).toBe(false);
-    expect(roomState.canvasPanelProps).toBeUndefined();
+    expect(room.canvasOpen()).toBe(true);
+    expect(roomState.canvasPanelProps).toBeDefined();
     native.mockRestore();
     await room.unmount();
   });

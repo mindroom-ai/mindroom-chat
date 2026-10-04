@@ -10,6 +10,7 @@
   "scripts": {
     "start": "vite",
     "build": "vite build && node scripts/verify-element-call-background.mjs",
+    "build:ios": "MINDROOM_BUILD_TARGET=ios npm run build",
     "preview": "vite preview",
     "lint": "npm run check:eslint",
     "check:eslint": "eslint \"src/**/*.{js,jsx,ts,tsx}\"",

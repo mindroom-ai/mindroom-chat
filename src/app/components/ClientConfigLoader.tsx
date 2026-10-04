@@ -1,6 +1,7 @@
 import { ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
 import { AsyncStatus, useAsyncCallback } from '../hooks/useAsyncCallback';
 import { ClientConfig } from '../hooks/useClientConfig';
+import { shouldUseCachedClientConfig } from '../mindroom/native/nativeClientConfig';
 import { appUrl, getAppBasePath } from '../utils/basePath';
 import {
   getSafeLocalStorage,
@@ -116,7 +117,9 @@ export function ClientConfigLoader({ fallback, error, children }: ClientConfigLo
   const [state, load] = useAsyncCallback(fetchClientConfig);
   const [ignoreError, setIgnoreError] = useState(false);
   const [recoveryError, setRecoveryError] = useState<Error>();
-  const [cachedConfig] = useState(() => readCachedClientConfig());
+  const [cachedConfig] = useState(() =>
+    shouldUseCachedClientConfig() ? readCachedClientConfig() : undefined
+  );
   const [waitForFreshConfig, setWaitForFreshConfig] = useState(false);
 
   const ignoreCallback = useCallback(() => setIgnoreError(true), []);

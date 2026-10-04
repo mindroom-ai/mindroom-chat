@@ -2903,8 +2903,7 @@
       "computerUnavailable": "Komputer agen ini tidak tersedia.",
       "releaseControl": "Lepaskan kendali komputer sebelum membuka tampilan lain.",
       "openConversation": "Buka permintaan ini dari percakapan ruangan.",
-      "settingsUnavailable": "Nonaktifkan Mode Sederhana untuk membuka bagian Pengaturan ini.",
-      "canvasUnavailableInApp": "Panel interaktif belum tersedia di aplikasi. Buka percakapan ini di browser."
+      "settingsUnavailable": "Nonaktifkan Mode Sederhana untuk membuka bagian Pengaturan ini."
     },
     "canvas": {
       "panelLabel": "Panel interaktif",

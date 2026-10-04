@@ -2903,8 +2903,7 @@
       "computerUnavailable": "This agent’s computer is unavailable.",
       "releaseControl": "Release computer control before opening another view.",
       "openConversation": "Open this request from the room conversation.",
-      "settingsUnavailable": "Turn off Simple Mode to open this Settings section.",
-      "canvasUnavailableInApp": "Interactive panels are not available in the app yet. Open this conversation in a browser."
+      "settingsUnavailable": "Turn off Simple Mode to open this Settings section."
     },
     "canvas": {
       "panelLabel": "Canvas panel",

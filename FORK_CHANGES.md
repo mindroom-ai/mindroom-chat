@@ -8,10 +8,16 @@
   Capacitor 8.5.2 already injects bridge, Cordova, and plugin scripts with `forMainFrameOnly: true`; native sender checks are still required because WebKit exposes message handlers to subframes.
   Android's modern bridge already checks the frame; the legacy fallback now fails closed, and synchronous cookie/HTTP/SystemBars interfaces are never registered.
   A native main-document page-commit hook preserves Android viewport inset handling.
-- Configuration investigation: Vite copies `config.mindroom.json` into `dist/config.json`, which Capacitor bundles locally; the app does not fetch chat.mindroom.chat's configuration.
-  The shipped configuration disables canvases and has no computer API URL.
+- Configuration: Vite copies `config.mindroom.json` into `dist/config.json`, which Capacitor bundles locally; the app does not fetch chat.mindroom.chat's configuration.
+  The ordinary build still disables canvases and has no computer API URL.
+  `npm run build:ios` overlays `config.mindroom.ios.json`: canvases and npm libraries enabled, computer API `https://mindroom.lab.mindroom.chat`; an explicit empty or alternative `MINDROOM_IOS_COMPUTER_API_URL` overrides it.
+  Xcode Cloud, Fastlane, phone builds, and native build documentation use the iOS build.
+  Native startup reads the bundled asset before mounting the router, so an older cached config cannot hide the new switches on the first launch after upgrading.
+  The native canvas gate and obsolete locale string are removed; runtime deployment switches and the existing call exclusion remain.
+  The canvas's sandbox and CSP are unchanged.
   Phones already use a full-screen canvas and unmount the underlying conversation.
-- Validation so far: native security contract tests, typecheck, lint, and web build pass.
+- Validation so far: 6,081 unit tests pass under Node 24.13.1, along with typecheck, lint (17 existing warnings), web build, and the iOS build.
+  Independent review approved the native boundary and the configuration/cache step after correcting Android first-navigation exposure and Fastlane build wiring.
   Xcode 26.6 cannot compile or run simulator tests because CoreSimulator 1051.49 is older than its required 1051.55 and the iOS 26.5 platform is unavailable; completing setup requires administrator authentication.
 - Next: prove the bridge boundary in the simulator, enable the iOS deployment switches, reproduce computer API/auth/stream behavior, run repository checks, and open ready PRs against `dev` without merging.
 

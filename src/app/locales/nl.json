@@ -2903,8 +2903,7 @@
       "computerUnavailable": "De computer van deze agent is niet beschikbaar.",
       "releaseControl": "Geef de computerbediening vrij voordat je een andere weergave opent.",
       "openConversation": "Open dit verzoek vanuit het gesprek in de kamer.",
-      "settingsUnavailable": "Schakel de eenvoudige modus uit om dit onderdeel van de instellingen te openen.",
-      "canvasUnavailableInApp": "Interactieve panelen zijn nog niet beschikbaar in de app. Open dit gesprek in een browser."
+      "settingsUnavailable": "Schakel de eenvoudige modus uit om dit onderdeel van de instellingen te openen."
     },
     "canvas": {
       "panelLabel": "Interactief paneel",
