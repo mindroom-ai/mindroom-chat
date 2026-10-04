@@ -3,6 +3,7 @@ import {
   buildCanvasDocument,
   buildCanvasPage,
   CANVAS_CSP,
+  CANVAS_ERROR_MESSAGE,
   CANVAS_ESCAPE_MESSAGE,
   CANVAS_LIBRARY_SOURCE,
   CANVAS_PERMISSIONS,
@@ -46,6 +47,25 @@ describe('buildCanvasPage', () => {
     expect(buildCanvasPage('<p>hi</p>', 'light', FALLBACK_CANVAS_THEMES.light, true)).toContain(
       `content="${policy}"`
     );
+  });
+
+  it('tells the page the color scheme it is shown in', () => {
+    expect(buildCanvasPage('', 'dark')).toContain('colorScheme: "dark"');
+    expect(buildCanvasPage('', 'light')).toContain('colorScheme: "light"');
+  });
+
+  it('reports errors, failed loads, and blocked loads before agent scripts run', () => {
+    const doc = buildCanvasPage('<script>boom()</script>', 'light');
+    const agentScript = doc.indexOf('boom()');
+    for (const listener of [
+      "addEventListener('error'",
+      "addEventListener('unhandledrejection'",
+      "addEventListener('securitypolicyviolation'",
+    ]) {
+      expect(doc.indexOf(listener)).toBeGreaterThan(0);
+      expect(doc.indexOf(listener)).toBeLessThan(agentScript);
+    }
+    expect(doc).toContain(`type: '${CANVAS_ERROR_MESSAGE}'`);
   });
 
   it('defines the bridge before agent scripts run', () => {

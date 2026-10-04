@@ -201,6 +201,10 @@ const touchFrame = () =>
     delete (document as { activeElement?: unknown }).activeElement;
   });
 
+const reportError = (text: string, source?: unknown) =>
+  post({ type: 'mindroom.canvas.error', version: 1, message: text }, source);
+const reportButton = () => button('[data-canvas-report]');
+
 const answer = async (label = 'Pro plan') => {
   await post(submit(label));
   await arm();
@@ -648,6 +652,45 @@ describe('CanvasPanel', () => {
     await post(submit());
     render({ canvas: { ...canvas, revisionEventId: '$edit', html: '<p>Step 2</p>' } });
     expect(container.textContent).toContain('Send to Planner: Pro plan');
+  });
+
+  it('offers to tell the agent about errors the page reports', async () => {
+    render();
+    expect(reportButton()).toBeNull();
+    await reportError('TypeError: boom');
+    await reportError('TypeError: boom');
+    await reportError('Blocked https://cdn.example/x.js (script-src-elem)');
+    expect(container.textContent).toContain('This page reported an error.');
+    expect(container.textContent).toContain('TypeError: boom');
+    await act(async () => reportButton().click());
+    expect(sendMessage).toHaveBeenCalledTimes(1);
+    expect((sendMessage.mock.calls[0][1] as { body: string }).body).toBe(
+      `${AGENT} Canvas error ($canvas, revision $canvas):\nTypeError: boom\nBlocked https://cdn.example/x.js (script-src-elem)`
+    );
+    expect(reportButton()).toBeNull();
+    expect(container.textContent).toContain('Sent the errors to Planner.');
+    // A new error after the report can be sent too; one already sent is not offered again.
+    await reportError('TypeError: boom');
+    expect(reportButton()).toBeNull();
+    await reportError('RangeError: later');
+    await act(async () => reportButton().click());
+    expect((sendMessage.mock.calls[1][1] as { body: string }).body).toBe(
+      `${AGENT} Canvas error ($canvas, revision $canvas):\nRangeError: later`
+    );
+  });
+
+  it('takes error reports only from the canvas, keeps five, and forgets them on a new page', async () => {
+    render();
+    await reportError('from elsewhere', {});
+    expect(reportButton()).toBeNull();
+    for (const index of [1, 2, 3, 4, 5, 6]) await reportError(`Error ${index}`);
+    expect(container.textContent).toContain('Error 5');
+    expect(container.textContent).not.toContain('Error 6');
+    // Error reports are not answers, so they neither stage an answer nor hold back an update.
+    expect(button('[data-canvas-send]')).toBeNull();
+    render({ canvas: { ...canvas, revisionEventId: '$edit', html: '<p>Step 2</p>' } });
+    expect(page()).toContain('<p>Step 2</p>');
+    expect(reportButton()).toBeNull();
   });
 
   it('stops a canvas that navigates away from its document', async () => {

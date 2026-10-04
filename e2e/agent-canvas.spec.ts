@@ -429,6 +429,34 @@ article{background:var(--mr-surface);border:1px solid var(--mr-border);border-ra
   expect([...libraryRequests].sort()).toEqual([npmStyle, npmScript].sort());
 
   expect(pageErrors).toEqual([]);
+
+  // A page's errors and blocked loads reach the agent only when the user sends them.
+  await showCanvas(`<p id="scheme"></p>
+<script>document.getElementById('scheme').textContent = mindroom.colorScheme;</script>
+<script src="https://unpkg.com/canvas-probe@1.0.0/probe.js"></script>
+<script>missingFunction();</script>`);
+  await expect(frame.locator('#scheme')).toHaveText(/^(light|dark)$/);
+  await expect(panel.getByText('This page reported an error.')).toBeVisible();
+  const reported = panel.locator('pre');
+  await expect(reported).toContainText('missingFunction is not defined');
+  await expect(reported).toContainText('Blocked https://unpkg.com');
+  await page.screenshot({ path: testInfo.outputPath('canvas-error-report.png') });
+  await panel.getByRole('button', { name: /^Tell / }).click();
+  await expect(panel.getByText(/^Sent the errors to /)).toBeVisible();
+  await expect
+    .poll(async () =>
+      (
+        await viewerMessages()
+      ).find((event) => String(event.content.body).includes('Canvas error ('))
+    )
+    .toBeTruthy();
+  const errorReport = (await viewerMessages()).find((event) =>
+    String(event.content.body).includes('Canvas error (')
+  )!;
+  expect(String(errorReport.content.body)).toContain('missingFunction is not defined');
+  expect(errorReport.content['m.mentions']).toEqual({ user_ids: [agent.user_id] });
+  expect(libraryRequests.some((url) => url.startsWith('https://unpkg.com'))).toBe(false);
+
   await new Promise((resolve) => {
     listener.close(resolve);
   });

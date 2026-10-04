@@ -2,6 +2,7 @@ import { canvasThemeCss, FALLBACK_CANVAS_THEMES, type CanvasTheme } from './canv
 
 export const CANVAS_SUBMIT_MESSAGE = 'mindroom.canvas.submit';
 export const CANVAS_ESCAPE_MESSAGE = 'mindroom.canvas.escaped';
+export const CANVAS_ERROR_MESSAGE = 'mindroom.canvas.error';
 
 /** The canvas frame gets an opaque origin: no Chat storage, cookies, DOM, popups, or top navigation. */
 export const CANVAS_SANDBOX = 'allow-scripts allow-forms';
@@ -65,8 +66,9 @@ export const CANVAS_PERMISSIONS = [
 // Runs before any agent script. Forms are captured here because the sandbox
 // cannot submit them anywhere; everything else calls window.mindroom.submit,
 // which only offers a snapshot to the host. The host decides whether to send it.
+// Errors, failed loads, and loads the policy blocks are reported so the user can pass them on.
 // Removing WebRTC constructors is defense in depth: CSP cannot block STUN traffic.
-const BRIDGE_SCRIPT = `(() => {
+const bridgeScript = (colorScheme: CanvasColorScheme): string => `(() => {
   ['RTCPeerConnection', 'webkitRTCPeerConnection', 'RTCDataChannel', 'RTCIceCandidate'].forEach((name) => {
     try { delete window[name]; } catch (error) {}
     try { Object.defineProperty(window, name, { value: undefined, configurable: false }); } catch (error) {}
@@ -89,8 +91,28 @@ const BRIDGE_SCRIPT = `(() => {
     });
     return values;
   };
+  const report = (message) => {
+    parent.parent.postMessage({ type: '${CANVAS_ERROR_MESSAGE}', version: 1, message: String(message) }, '*');
+  };
+  addEventListener('error', (event) => {
+    const target = event.target;
+    if (target && target !== window && (target.src || target.href)) {
+      report('Could not load ' + (target.src || target.href));
+    } else {
+      report((event.message || 'Script error') + (event.lineno ? ' (line ' + event.lineno + ')' : ''));
+    }
+  }, true);
+  addEventListener('unhandledrejection', (event) => {
+    const reason = event.reason;
+    report('Unhandled rejection: ' + (reason && reason.message ? reason.message : String(reason)));
+  });
+  document.addEventListener('securitypolicyviolation', (event) => {
+    report('Blocked ' + (event.blockedURI || 'inline code') + ' (' + event.effectiveDirective + ')');
+  });
   Object.defineProperty(window, 'mindroom', {
-    value: Object.freeze({ submit: (data, options) => post(data, options) }),
+    value: Object.freeze({ submit: (data, options) => post(data, options), colorScheme: ${JSON.stringify(
+      colorScheme
+    )} }),
   });
   document.addEventListener(
     'submit',
@@ -123,7 +145,7 @@ export const buildCanvasPage = (
     `<meta name="color-scheme" content="${colorScheme}">`,
     '<meta name="viewport" content="width=device-width, initial-scale=1">',
     `<style>${canvasThemeCss(theme)}${BASE_STYLE}</style>`,
-    `<script>${BRIDGE_SCRIPT}</script>`,
+    `<script>${bridgeScript(colorScheme)}</script>`,
     '</head><body>',
     html,
     '</body></html>',

@@ -2,6 +2,20 @@
 
 ## Runbook
 
+### Let users send a canvas page's errors to its agent, and tell pages the color scheme (2026-10-04)
+
+- Why: an agent that writes a canvas cannot see it; a typo or a blocked library left the user a blank or broken panel and told the agent nothing (feedback from a live agent).
+  Claude artifacts solve this with "Try fixing with Claude".
+- The canvas bridge reports uncaught errors (with their line), unhandled rejections, failed loads, and loads the policy blocks, to the panel as `mindroom.canvas.error` messages (`canvasDocument.ts`).
+  The panel keeps up to five distinct error lines per page (each one line, at most 300 characters, valid text; `readCanvasError`), shows them, and offers **Tell <agent>**.
+  Nothing is sent until the user chooses it; the report is an ordinary mention in the canvas's conversation, `<agent> Canvas error (<canvas>, revision <revision>):` followed by one error per line (`buildCanvasErrorContent`).
+  An error already sent is not offered again for the same page; a new page starts empty.
+  Error reports bypass the answer throttle and never stage an answer or hold back an update.
+- `window.mindroom.colorScheme` is `light` or `dark`, the scheme the page was shown in, for choices the theme variables cannot make (chart palettes).
+- Backend: the tool brief names the report format and `colorScheme` (mindroom-ai/mindroom companion PR).
+- Tests: `canvasMessages.test.ts` (parsing, cutting, the report's content), `canvasDocument.test.ts` (listeners before agent scripts, the scheme), `CanvasPanel.test.tsx` (report, dedupe, five-error cap, other windows, new page).
+  `e2e/agent-canvas.spec.ts` shows a page that throws and loads a blocked script: the panel lists both, **Tell** sends the report mentioning the agent, and the page reads its scheme.
+
 ### Show a pinned thread as a solid pin in the thread bar (2026-10-04)
 
 - The thread bar no longer spells out "Pinned" next to the pin button; the pin icon is solid while the thread is pinned.

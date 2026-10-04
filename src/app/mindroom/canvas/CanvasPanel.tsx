@@ -11,9 +11,11 @@ import {
   type CanvasColorScheme,
 } from './canvasDocument';
 import {
+  buildCanvasErrorContent,
   buildCanvasResponseContent,
   buildCanvasResponsePreview,
   canvasResponseFitsInEvent,
+  readCanvasError,
   readCanvasSubmission,
   type CanvasSubmission,
 } from './canvasMessages';
@@ -82,6 +84,12 @@ type Staged = {
 type SentAnswer = { echo: MatrixEvent; label: string };
 
 type AnswerState = 'sending' | 'sent' | 'failed' | 'cancelled';
+
+/** Errors the page reported that the user has not sent yet, or the last ones they sent. */
+type PageErrors = { errors: string[]; sent: boolean };
+const NO_PAGE_ERRORS: PageErrors = { errors: [], sent: false };
+// Enough to say what went wrong; a page cannot fill the report.
+const MAX_PAGE_ERRORS = 5;
 
 // SENT counts as sent: the server has the message even if /sync never brings its copy.
 const answerState = (status: EventStatus | null): AnswerState => {
@@ -158,6 +166,9 @@ export function CanvasPanel({
   const [sendError, setSendError] = useState(false);
   // An answer too large for one event is uploaded before its event exists.
   const [uploading, setUploading] = useState(false);
+  const [pageErrors, setPageErrors] = useState(NO_PAGE_ERRORS);
+  // Every error this page reported, so one already sent is not offered again.
+  const seenErrors = useRef(new Set<string>());
   // The answer being uploaded; Discard clears it, which cancels sending it.
   const uploadingSubmission = useRef<CanvasSubmission>();
   const stagedNow = useRef(staged);
@@ -183,6 +194,8 @@ export function CanvasPanel({
     // An answer still sending or failed stays, with its Retry and Delete, across a new page.
     setLastAnswer((current) => (isUnresolved(current) ? current : undefined));
     setUpdateAvailable(false);
+    setPageErrors(NO_PAGE_ERRORS);
+    seenErrors.current = new Set();
   }, [frameKey]);
 
   // An update loads at once unless it would discard work the user has not sent.
@@ -235,6 +248,18 @@ export function CanvasPanel({
       }
       const frame = canvasFrameWindow(frameRef.current);
       if (!frame || event.source !== frame) return;
+      const error = readCanvasError(event, frame);
+      if (error !== undefined) {
+        if (seenErrors.current.has(error)) return;
+        setPageErrors((current) => {
+          if (current.sent) return { errors: [error], sent: false };
+          return current.errors.length < MAX_PAGE_ERRORS
+            ? { errors: [...current.errors, error], sent: false }
+            : current;
+        });
+        seenErrors.current.add(error);
+        return;
+      }
       const now = Date.now();
       // Bound bridge traffic before parsing; a canvas cannot flood the host with snapshots.
       if (now - lastStageAt.current < STAGE_INTERVAL_MS) return;
@@ -353,6 +378,28 @@ export function CanvasPanel({
       });
   }, [agentName, busy, deliver, displayed, mx, room, staged, t]);
 
+  // The user sees the errors before choosing to send them, as with an answer.
+  const handleReport = useCallback(() => {
+    if (pageErrors.sent || pageErrors.errors.length === 0) return;
+    const content = buildCanvasErrorContent(
+      {
+        eventId: displayed.eventId,
+        revisionEventId: displayed.revisionEventId,
+        agentUserId: displayed.agentUserId,
+        agentName,
+        threadId: displayed.threadId,
+      },
+      pageErrors.errors
+    );
+    try {
+      // A failure shows in the timeline, like any message.
+      mx.sendMessage(room.roomId, content as never).catch(() => undefined);
+    } catch {
+      return;
+    }
+    setPageErrors((current) => ({ ...current, sent: true }));
+  }, [agentName, displayed, mx, pageErrors, room]);
+
   const handleDiscard = useCallback(() => {
     // Discarding the answer being uploaded cancels it; a newer snapshot leaves that upload alone.
     if (uploadingSubmission.current === stagedNow.current?.submission) {
@@ -413,6 +460,30 @@ export function CanvasPanel({
           >
             <Text size="B300">{t('mindroomUi.canvas.loadUpdate')}</Text>
           </Button>
+        </div>
+      )}
+
+      {pageErrors.errors.length > 0 && (
+        <div className={css.Notice} role={pageErrors.sent ? 'status' : 'alert'}>
+          <div className={css.Staged}>
+            <Text size="T300">
+              {pageErrors.sent
+                ? t('mindroomUi.canvas.errorsSent', { agent: agentName })
+                : t('mindroomUi.canvas.pageError')}
+            </Text>
+            {!pageErrors.sent && (
+              <>
+                <pre className={css.Data}>{pageErrors.errors.join('\n')}</pre>
+                <Box>
+                  <Button size="300" variant="Secondary" onClick={handleReport} data-canvas-report>
+                    <Text size="B300" truncate>
+                      {t('mindroomUi.canvas.tellAgent', { agent: agentName })}
+                    </Text>
+                  </Button>
+                </Box>
+              </>
+            )}
+          </div>
         </div>
       )}
 
