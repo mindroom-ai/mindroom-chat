@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildCanvasResponseContent,
+  buildCanvasResponsePreview,
+  canvasResponseFitsInEvent,
   CANVAS_RESPONSE_KEY,
   MAX_CANVAS_RESPONSE_CONTENT_BYTES,
   readCanvasResponse,
@@ -41,9 +43,24 @@ describe('readCanvasSubmission', () => {
     const cyclic: Record<string, unknown> = {};
     cyclic.self = cyclic;
     expect(readCanvasSubmission(message(submit({ data: cyclic })), frame)).toBeUndefined();
+    // A long piece of text fits; the cap is 512 KiB of JSON.
     expect(
-      readCanvasSubmission(message(submit({ data: 'x'.repeat(9000) })), frame)
+      readCanvasSubmission(message(submit({ data: 'x'.repeat(500 * 1024) })), frame)
+    ).toBeDefined();
+    expect(
+      readCanvasSubmission(message(submit({ data: 'x'.repeat(512 * 1024) })), frame)
     ).toBeUndefined();
+  });
+
+  it('refuses text with a lone surrogate, which MindRoom cannot read back from a file', () => {
+    expect(readCanvasSubmission(message(submit({ data: { doc: 'abc\ud83d' } })), frame)).toBe(
+      undefined
+    );
+    expect(readCanvasSubmission(message(submit({ data: { '\udc00': 1 } })), frame)).toBe(undefined);
+    expect(readCanvasSubmission(message(submit({ label: 'x\ud800' })), frame)).toBeUndefined();
+    expect(
+      readCanvasSubmission(message(submit({ data: { doc: 'Waves \ud83c\udf0a' } })), frame)?.data
+    ).toEqual({ doc: 'Waves \ud83c\udf0a' });
   });
 
   it('sends decimal and unsafe numbers as text, which every homeserver accepts', () => {
@@ -59,6 +76,10 @@ describe('readCanvasSubmission', () => {
     expect(
       readCanvasSubmission(message(submit({ label: 'a'.repeat(300) })), frame)?.label
     ).toHaveLength(200);
+    // The cut falls inside an emoji; half of one is not text, so the whole emoji goes.
+    expect(
+      readCanvasSubmission(message(submit({ label: `${'a'.repeat(199)}😀` })), frame)?.label
+    ).toBe('a'.repeat(199));
     expect(readCanvasSubmission(message(submit({ label: '   ' })), frame)?.label).toBeUndefined();
   });
 });
@@ -127,6 +148,29 @@ describe('buildCanvasResponseContent', () => {
     const bytes = new TextEncoder().encode(JSON.stringify(content)).length;
     expect(bytes).toBeLessThanOrEqual(MAX_CANVAS_RESPONSE_CONTENT_BYTES);
     expect(readCanvasResponse(content as never)?.label).toBe('Dense');
+  });
+
+  it('sends an answer too large for one event as a preview of its summary line', () => {
+    const text = 'Line one\nLine "two"\n'.repeat(3000);
+    const content = buildCanvasResponseContent(canvas, { data: { text }, label: 'Edited draft' });
+    expect(canvasResponseFitsInEvent(content)).toBe(false);
+    expect(canvasResponseFitsInEvent(buildCanvasResponseContent(canvas, { data: 1 }))).toBe(true);
+    const preview = buildCanvasResponsePreview(content);
+    // Whoever sees only the preview is told the rest is in the file, as with MindRoom's replies.
+    expect(preview.body).toBe(
+      '@mindroom_planner:example.org Canvas response ($canvas, revision $edit): Edited draft\n\n[Message continues in attached file]'
+    );
+    expect(preview['m.mentions']).toEqual(content['m.mentions']);
+    expect(preview['m.relates_to']).toEqual(content['m.relates_to']);
+    // The data travels only in the uploaded file.
+    expect(preview[CANVAS_RESPONSE_KEY]).toEqual({
+      version: 1,
+      canvas_event_id: '$canvas',
+      canvas_revision_event_id: '$edit',
+      agent_user_id: '@mindroom_planner:example.org',
+      label: 'Edited draft',
+    });
+    expect(readCanvasResponse(content as never)?.label).toBe('Edited draft');
   });
 
   it('shows ordinary answers as JSON in the formatted body', () => {

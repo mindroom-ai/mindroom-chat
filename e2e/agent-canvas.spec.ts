@@ -349,6 +349,43 @@ article{background:var(--mr-surface);border:1px solid var(--mr-border);border-ra
   await expand.click();
   await expect(conversation).toBeVisible();
 
+  // An edited text too large for one event goes out as a long-text sidecar, as MindRoom's long replies do.
+  const paragraph = 'A long paragraph the user edited in the canvas. ';
+  const draft = paragraph.repeat(2500);
+  const editorId = await showCanvas(`<textarea id="draft"></textarea>
+<button onclick="mindroom.submit({text: document.getElementById('draft').value}, {label: 'Edited draft'})">Send edits</button>
+<script>document.getElementById('draft').value = '${paragraph}'.repeat(2500);</script>`);
+  await frame.getByRole('button', { name: 'Send edits' }).click();
+  await expect(panel.getByText('Send to')).toContainText('Edited draft');
+  await send.click();
+  await expect(panel.getByText(/Sent to .*Edited draft/)).toBeVisible();
+  type AnswerEvent = { content: Record<string, unknown> };
+  const isLargeAnswer = (event: AnswerEvent) =>
+    !!event.content['io.mindroom.long_text'] &&
+    (event.content['io.mindroom.canvas_response'] as { canvas_event_id?: string } | undefined)
+      ?.canvas_event_id === editorId;
+  await expect.poll(async () => (await viewerMessages()).some(isLargeAnswer)).toBe(true);
+  const largeAnswer = (await viewerMessages()).find(isLargeAnswer)!;
+  expect(largeAnswer.content.msgtype).toBe('m.file');
+  expect(largeAnswer.content['m.mentions']).toEqual({ user_ids: [agent.user_id] });
+  expect((largeAnswer.content['io.mindroom.canvas_response'] as { data?: unknown }).data).toBe(
+    undefined
+  );
+  const [mediaServer, mediaId] = String(largeAnswer.content.url).slice('mxc://'.length).split('/');
+  const sidecar = await fetch(
+    `${homeserver}/_matrix/client/v1/media/download/${mediaServer}/${mediaId}`,
+    {
+      headers: { Authorization: `Bearer ${agent.access_token}` },
+    }
+  );
+  expect(sidecar.ok).toBe(true);
+  const fullAnswer = (await sidecar.json()) as Record<string, Record<string, unknown> | string>;
+  expect((fullAnswer['io.mindroom.canvas_response'] as { data: { text: string } }).data.text).toBe(
+    draft
+  );
+  expect(fullAnswer.body).toContain('Canvas response (');
+  await expect(page.locator(`[data-canvas-receipt="${editorId}"]`)).toContainText('Edited draft');
+
   expect(pageErrors).toEqual([]);
   await new Promise((resolve) => {
     listener.close(resolve);

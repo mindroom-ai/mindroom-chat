@@ -5,7 +5,10 @@ import { CANVAS_SUBMIT_MESSAGE } from './canvasDocument';
 
 export const CANVAS_RESPONSE_KEY = 'io.mindroom.canvas_response';
 
-const MAX_DATA_BYTES = 8 * 1024;
+// An answer too large for one event travels as a long-text sidecar, which MindRoom downloads up to
+// 2 MiB; escaped into the body and repeated in the metadata, the data can take about three times
+// its own size there.
+const MAX_DATA_BYTES = 512 * 1024;
 export const CANVAS_LABEL_MAX_LENGTH = 200;
 
 export type CanvasSubmission = {
@@ -49,10 +52,41 @@ const serialize = (data: unknown): string | undefined => {
 };
 
 /** Decimal and very large numbers travel as text, the only form every homeserver accepts. */
+// A lone surrogate is not text: MindRoom refuses a long answer's file that holds one.
+const LONE_SURROGATE = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?:^|[^\uD800-\uDBFF])[\uDC00-\uDFFF]/;
+const isText = (value: string): boolean => !LONE_SURROGATE.test(value);
+
+// MindRoom gives up on very deep files; far deeper than any real answer, well short of its limit.
+const MAX_TEXT_DEPTH = 1000;
+
+/**
+ * Whether every string and key in a value is valid text, as MindRoom requires of a long message's
+ * file. Deeper nesting than MindRoom reads counts as not text, and the walk keeps its own stack.
+ */
+export const isAllText = (value: unknown): boolean => {
+  const pending: [unknown, number][] = [[value, 0]];
+  while (pending.length > 0) {
+    const [item, depth] = pending.pop()!;
+    if (typeof item === 'string') {
+      if (!isText(item)) return false;
+    } else if (Array.isArray(item) || record(item)) {
+      if (depth >= MAX_TEXT_DEPTH) return false;
+      for (const [key, element] of Object.entries(item)) {
+        if (!Array.isArray(item) && !isText(key)) return false;
+        pending.push([element, depth + 1]);
+      }
+    }
+  }
+  return true;
+};
+
 const matrixSafeData = (data: unknown): unknown =>
-  JSON.parse(JSON.stringify(data), (_key, value: unknown) =>
-    typeof value === 'number' && !Number.isSafeInteger(value) ? String(value) : value
-  );
+  JSON.parse(JSON.stringify(data), (key, value: unknown) => {
+    if (!isText(key) || (typeof value === 'string' && !isText(value))) {
+      throw new Error('Canvas answers must be valid text.');
+    }
+    return typeof value === 'number' && !Number.isSafeInteger(value) ? String(value) : value;
+  });
 
 /** Accept only the bridge message shape, from this canvas frame, within the payload budget. */
 export const readCanvasSubmission = (
@@ -64,7 +98,12 @@ export const readCanvasSubmission = (
   if (!record(message) || message.type !== CANVAS_SUBMIT_MESSAGE || message.version !== 1) {
     return undefined;
   }
-  if (message.label !== undefined && typeof message.label !== 'string') return undefined;
+  if (
+    message.label !== undefined &&
+    (typeof message.label !== 'string' || !isText(message.label))
+  ) {
+    return undefined;
+  }
   let data: unknown;
   try {
     data = matrixSafeData(message.data);
@@ -75,7 +114,11 @@ export const readCanvasSubmission = (
   if (json === undefined || new TextEncoder().encode(json).length > MAX_DATA_BYTES) {
     return undefined;
   }
-  const label = message.label?.trim().slice(0, CANVAS_LABEL_MAX_LENGTH);
+  // Cut between characters: half an emoji would make the answer's text invalid.
+  const label = message.label
+    ?.trim()
+    .slice(0, CANVAS_LABEL_MAX_LENGTH)
+    .replace(/[\uD800-\uDBFF]$/, '');
   return { data: JSON.parse(json), ...(label ? { label } : {}) };
 };
 
@@ -91,9 +134,9 @@ const canonicalBody = (
 ) => `${agentUserId} ${responseSummary(canvasEventId, revisionEventId, label)}\n${json}`;
 
 /**
- * Plaintext budget for an answer's content. Encryption grows an event by about a third, and the
- * data appears up to three times (body, formatted body, metadata), so the 8 KiB data cap alone
- * cannot keep an encrypted answer under Matrix's 64 KiB event limit.
+ * Plaintext budget for an answer sent as one event. Encryption grows an event by about a third, and
+ * the data appears up to three times (body, formatted body, metadata), so a larger answer is sent
+ * as a long-text sidecar instead, to stay under Matrix's 64 KiB event limit.
  */
 export const MAX_CANVAS_RESPONSE_CONTENT_BYTES = 40_000;
 
@@ -137,12 +180,36 @@ export const buildCanvasResponseContent = (canvas: CanvasTarget, submission: Can
     },
   };
   // HTML escaping can multiply dense data; the plain body still carries the JSON for every client.
-  if (contentBytes(content) <= MAX_CANVAS_RESPONSE_CONTENT_BYTES) return content;
-  const withoutJson = { ...content, formatted_body: mention };
-  if (contentBytes(withoutJson) <= MAX_CANVAS_RESPONSE_CONTENT_BYTES) return withoutJson;
-  // The body and metadata alone are bounded by the data and label caps.
-  const { format: _format, formatted_body: _formatted, ...plain } = content;
-  return plain;
+  return contentBytes(content) <= MAX_CANVAS_RESPONSE_CONTENT_BYTES
+    ? content
+    : { ...content, formatted_body: mention };
+};
+
+export type CanvasResponseContent = ReturnType<typeof buildCanvasResponseContent>;
+
+/** MindRoom downloads a long message's file up to this size (`_MXC_TEXT_MAX_BYTES`). */
+export const MINDROOM_SIDECAR_MAX_BYTES = 2 * 1024 * 1024;
+
+const LONG_ANSWER_NOTE = '\n\n[Message continues in attached file]';
+
+/** Whether an answer fits one event; a larger one is sent as a long-text sidecar. */
+export const canvasResponseFitsInEvent = (content: CanvasResponseContent): boolean =>
+  contentBytes(content) <= MAX_CANVAS_RESPONSE_CONTENT_BYTES;
+
+/**
+ * The event for an answer sent as a long-text sidecar: the summary line, the mention and reply
+ * that route it, and the answer's metadata without its data, which only the uploaded file carries.
+ */
+export const buildCanvasResponsePreview = (content: CanvasResponseContent) => {
+  const { data: _data, ...marker } = content[CANVAS_RESPONSE_KEY];
+  return {
+    // Canonical JSON has no raw line break, so the last one ends the summary line. The note is the
+    // one MindRoom's own long replies carry, for whoever sees only the preview.
+    body: `${content.body.slice(0, content.body.lastIndexOf('\n'))}${LONG_ANSWER_NOTE}`,
+    'm.mentions': content['m.mentions'],
+    'm.relates_to': content['m.relates_to'],
+    [CANVAS_RESPONSE_KEY]: marker,
+  };
 };
 
 export type CanvasResponseReceipt = {

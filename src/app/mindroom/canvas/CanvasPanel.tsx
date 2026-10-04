@@ -12,12 +12,15 @@ import {
 } from './canvasDocument';
 import {
   buildCanvasResponseContent,
+  buildCanvasResponsePreview,
+  canvasResponseFitsInEvent,
   readCanvasSubmission,
   type CanvasSubmission,
 } from './canvasMessages';
 import type { CanvasTheme } from './canvasTheme';
 import { FailedSendActions } from '../messages/FailedSendActions';
 import { useLocalEchoStatus } from '../messages/useLocalEchoStatus';
+import { uploadMindroomLongTextSidecar } from '../messages/longTextSidecarUpload';
 import * as css from './CanvasPanel.css';
 
 /** A new snapshot cannot be sent by a click that was already on its way. */
@@ -144,6 +147,12 @@ export function CanvasPanel({
   // Once sent, an answer belongs to the SDK and the timeline; the panel only shows its status.
   const [lastAnswer, setLastAnswer] = useState<SentAnswer>();
   const [sendError, setSendError] = useState(false);
+  // An answer too large for one event is uploaded before its event exists.
+  const [uploading, setUploading] = useState(false);
+  // The answer being uploaded; Discard clears it, which cancels sending it.
+  const uploadingSubmission = useRef<CanvasSubmission>();
+  const stagedNow = useRef(staged);
+  stagedNow.current = staged;
   const loads = useRef({ frameKey, count: 0 });
   const currentFrameKey = useRef(frameKey);
   currentFrameKey.current = frameKey;
@@ -191,7 +200,10 @@ export function CanvasPanel({
         theme: latest.current.theme,
       });
     } else {
-      setStaged(undefined);
+      // An answer the user is already sending stays until it is sent or its upload fails.
+      setStaged((current) =>
+        current && current.submission === uploadingSubmission.current ? current : undefined
+      );
       setUpdateAvailable(true);
     }
   }, [incomingRevision, displayedRevision, displayedRevisionId, displayedPending]);
@@ -250,9 +262,46 @@ export function CanvasPanel({
   const answer = lastAnswer && answerStatus !== undefined ? answerState(answerStatus) : undefined;
   const answerOpen = answer === 'sending' || answer === 'failed';
 
+  const busy = answerOpen || uploading;
+  // A refused send or an upload happen only while no answer is open, so they take priority.
+  let footer: AnswerState | 'idle' | 'refused' = answer ?? 'idle';
+  if (uploading) footer = 'sending';
+  if (sendError) footer = 'refused';
+
+  // Hands one event to the SDK; from then on its local echo carries the answer's status.
+  const deliver = useCallback(
+    (
+      eventContent: Record<string, unknown>,
+      label: string,
+      submission: CanvasSubmission
+    ): boolean => {
+      const txnId = mx.makeTxnId();
+      let sending: Promise<unknown>;
+      try {
+        // The relation travels in the content. The SDK adds the local echo before this returns.
+        sending = mx.sendMessage(room.roomId, eventContent as never, txnId);
+      } catch {
+        return false;
+      }
+      // A failure shows through the echo's status, here and in the timeline.
+      sending.catch(() => undefined);
+      const echo = room.getEventForTxnId(txnId);
+      // A newer snapshot staged during an upload stays.
+      if (stagedNow.current?.submission === submission) {
+        setStaged(undefined);
+        // Work in the frame after this answer marks it again.
+        touched.current = false;
+      }
+      setLastAnswer(echo ? { echo, label } : undefined);
+      return true;
+    },
+    [mx, room]
+  );
+
   const handleSend = useCallback(() => {
-    if (!staged?.armed || answerOpen) return;
+    if (!staged?.armed || busy) return;
     const { submission } = staged;
+    const label = submission.label ?? t('mindroomUi.canvas.unlabeled');
     const content = buildCanvasResponseContent(
       {
         eventId: displayed.eventId,
@@ -263,28 +312,44 @@ export function CanvasPanel({
       },
       submission
     );
-    const txnId = mx.makeTxnId();
-    let sending: Promise<unknown>;
-    try {
-      // The relation travels in the content. The SDK adds the local echo before this returns.
-      sending = mx.sendMessage(room.roomId, content as never, txnId);
-    } catch {
+    setSendError(false);
+    // Until the answer is handed to the SDK, the frame still holds the user's work, so an update
+    // during an upload waits for "Load update" and a failed upload can be tried again.
+    const refused = () => {
       setSendError(true);
+      // The snapshot stays unsent, so an update must not replace the page without asking.
+      touched.current = true;
+    };
+    if (canvasResponseFitsInEvent(content)) {
+      if (!deliver(content, label, submission)) refused();
       return;
     }
-    // A failure shows through the echo's status, here and in the timeline.
-    sending.catch(() => undefined);
-    const echo = room.getEventForTxnId(txnId);
-    setSendError(false);
-    setStaged(undefined);
-    setLastAnswer(
-      echo ? { echo, label: submission.label ?? t('mindroomUi.canvas.unlabeled') } : undefined
-    );
-    // Work in the frame after this answer marks it again.
-    touched.current = false;
-  }, [agentName, answerOpen, displayed, mx, room, staged, t]);
+    // Too large for one event: upload the whole answer and send a preview that points at it,
+    // as MindRoom sends long replies. The snapshot stays until the preview is handed to the SDK,
+    // and Discard until then cancels the answer.
+    uploadingSubmission.current = submission;
+    setUploading(true);
+    const current = () => uploadingSubmission.current === submission;
+    uploadMindroomLongTextSidecar(mx, room, content, buildCanvasResponsePreview(content))
+      .then((preview) => {
+        if (current() && !deliver(preview, label, submission)) refused();
+      })
+      .catch(() => {
+        if (current()) refused();
+      })
+      .finally(() => {
+        if (!current()) return;
+        uploadingSubmission.current = undefined;
+        setUploading(false);
+      });
+  }, [agentName, busy, deliver, displayed, mx, room, staged, t]);
 
   const handleDiscard = useCallback(() => {
+    // Discarding the answer being uploaded cancels it; a newer snapshot leaves that upload alone.
+    if (uploadingSubmission.current === stagedNow.current?.submission) {
+      uploadingSubmission.current = undefined;
+      setUploading(false);
+    }
     setStaged(undefined);
     setSendError(false);
   }, []);
@@ -411,7 +476,7 @@ export function CanvasPanel({
               <Button
                 size="300"
                 variant="Primary"
-                disabled={!staged.armed || answerOpen}
+                disabled={!staged.armed || busy}
                 onClick={handleSend}
                 data-canvas-send
               >
@@ -441,17 +506,12 @@ export function CanvasPanel({
             />
           ) : (
             <Text size="T200" priority="300" className={sendError ? css.Error : undefined}>
-              {/* A refused send happens only while no answer is open, so it takes priority. */}
-              {sendError && t('mindroomUi.canvas.sendFailed')}
-              {!sendError &&
-                answer === 'sending' &&
-                t('mindroomUi.canvas.sending', { agent: agentName })}
-              {!sendError &&
-                answer === 'sent' &&
+              {footer === 'refused' && t('mindroomUi.canvas.sendFailed')}
+              {footer === 'sending' && t('mindroomUi.canvas.sending', { agent: agentName })}
+              {footer === 'sent' &&
                 lastAnswer &&
                 t('mindroomUi.canvas.sent', { agent: agentName, label: lastAnswer.label })}
-              {!sendError &&
-                (answer === undefined || answer === 'cancelled') &&
+              {(footer === 'idle' || footer === 'cancelled') &&
                 t('mindroomUi.canvas.disclosure', { agent: agentName })}
             </Text>
           )}
