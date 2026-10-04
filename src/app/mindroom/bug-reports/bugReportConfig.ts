@@ -3,7 +3,7 @@ import type { AutoDiscoveryInfo } from '../../cs-api';
 import { useAutoDiscoveryInfo } from '../../hooks/useAutoDiscoveryInfo';
 import { isUserId } from '../../utils/matrix';
 
-export const BUG_REPORTS_WELL_KNOWN_KEY = 'io.mindroom.bug_reports';
+const BUG_REPORTS_WELL_KNOWN_KEY = 'io.mindroom.bug_reports';
 
 /** Administrators that receive bug reports, from the homeserver's client well-known. */
 export const getBugReportAdmins = (info: AutoDiscoveryInfo): string[] => {

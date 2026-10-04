@@ -76,20 +76,19 @@ const serializeEvent = (event: MatrixEvent): BugReportEvent => ({
 const isEditEvent = (event: MatrixEvent): boolean =>
   event.getRelation()?.rel_type === RelationType.Replace;
 
-export type ReportEvents = { events: MatrixEvent[]; omittedEventCount: number };
-
 /**
  * The events an administrator needs to see the reported message in context.
  * `m.replace` edits are left out (streaming produces hundreds); each event's
  * latest edit is attached to it instead. Reactions are kept.
  *
- * Thread scope: the root plus the newest 200 replies, or, when the selected reply is
- * older than those, the 200 replies ending at it; `omittedEventCount` is the number of
- * held replies left out (a 250-event thread reported at its newest reply keeps the
- * root and 200 replies and omits 49).
+ * Thread scope: the root plus the newest 200 replies, or the 200 ending at an older
+ * selected reply; `omittedEventCount` counts the held replies left out.
  * Main-timeline scope: the 50 events up to the selected event; nothing is counted as omitted.
  */
-export const collectReportEvents = (room: Room, mEvent: MatrixEvent): ReportEvents => {
+export const collectReportEvents = (
+  room: Room,
+  mEvent: MatrixEvent
+): { events: MatrixEvent[]; omittedEventCount: number } => {
   const eventId = mEvent.getId();
   const isReportable = (event: MatrixEvent) => event.getId() === eventId || !isEditEvent(event);
 

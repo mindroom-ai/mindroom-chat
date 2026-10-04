@@ -11,7 +11,7 @@ import { getMxIdLocalPart } from '../../utils/matrix';
 import { waitForJoinedRoom } from '../calls/agentCall';
 
 export const BUG_REPORTS_ROOM_TYPE = 'io.mindroom.bug_reports';
-export const BUG_REPORTS_ACCOUNT_DATA_TYPE = 'io.mindroom.bug_reports';
+const BUG_REPORTS_ACCOUNT_DATA_TYPE = 'io.mindroom.bug_reports';
 
 const inFlight = new WeakMap<MatrixClient, Promise<Room>>();
 

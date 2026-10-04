@@ -29,7 +29,6 @@ export const MessageBugReportItem = as<
   const [state, setState] = useState<SendState>('idle');
 
   const handleClick = async () => {
-    if (state === 'sending') return;
     setState('sending');
     let sent: { roomId: string; threadRootId: string } | undefined;
     try {
