@@ -2,6 +2,20 @@
 
 ## Runbook
 
+### Add one-click bug reports (2026-10-03)
+
+- Every message menu has **Report a bug**; one click builds a JSON report and sends it to the administrators named in the homeserver's client well-known (`io.mindroom.bug_reports.admins`).
+  The item is not shown in the state-event menu.
+- The report goes to the reporter's private room with the administrators (`io.mindroom.bug_reports` room type, unencrypted, ID kept in account data), as a summary message with the JSON attached in its thread, and the app opens that thread so the reporter can add details.
+- Administrators' clients join these rooms automatically, only when the inviter is on their own homeserver.
+- Without configured administrators the item downloads the JSON instead.
+- The report holds the target IDs and permalinks, the raw thread events with latest edits and send status, client state, and the existing diagnostics payload (`buildDiagnosticsPayload`, split out of `buildDiagnosticsExport`).
+  `m.replace` edit events are left out of `events` (each event carries its latest edit as `latestEdit`); reactions are kept.
+- Code lives in `src/app/mindroom/bug-reports/`; operator setup is in `docs/bug-reports.md`; the 16 non-English strings are machine-authored.
+- Validation: the bug-report unit tests, i18n coverage, architecture tests, typecheck, lint, and build pass.
+  `npx vitest run src/app/mindroom src/app/i18n.test.ts` has 4 failures, all in `xcodeCloudPostClone.test.ts` and `useRoomInputSendSessionController.test.ts`, which fail identically on `origin/dev` (23af0945).
+  Live check: `e2e/bug-report.spec.ts` passes against Docker Tuwunel (reporter and admin accounts, intercepted well-known), including the admin auto-join and the second report reusing the same room.
+- Next: add `io.mindroom.bug_reports` to a deployment's well-known and confirm a report from an iPhone reaches the administrator's client without an invite prompt.
 ### Stop the thread reconcile from repairing a cached thread on every open (2026-10-03)
 
 - Report: the iPhone export behind the 2026-10-03 reconcile-freeze entry below showed the same thread reconciled with 13 `/relations` pages (about 1000 events) and `repaired: true` on many separate opens, including two a minute apart.
