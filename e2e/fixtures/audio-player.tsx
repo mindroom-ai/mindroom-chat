@@ -29,7 +29,9 @@ const content = {
 
 createRoot(document.getElementById('root')!).render(
   <Provider>
-    <MatrixClientProvider value={createClient({ baseUrl: window.location.origin })}>
+    <MatrixClientProvider
+      value={createClient({ baseUrl: window.location.origin, userId: '@fixture:localhost' })}
+    >
       <SpecVersionsProvider value={{ versions: ['v1.10'] }}>
         <div
           style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 24 }}

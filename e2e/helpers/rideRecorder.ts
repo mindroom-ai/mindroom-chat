@@ -277,8 +277,22 @@ export const runFlickRide = (
       const rect = scroller.getBoundingClientRect();
       const top = rect.top + rect.height * 0.1;
       const bottom = rect.bottom - rect.height * 0.1;
-      const tiles = Array.from(scroller.querySelectorAll('[data-index]'))
-        .map((tile) => tile.getBoundingClientRect())
+      const covering = Array.from(scroller.querySelectorAll('[data-index]')).map((tile) =>
+        tile.getBoundingClientRect()
+      );
+      // Content laid out above the virtual list (at the top of a thread: its
+      // banner and the "Loading..." divider) is not a blank band. Only content
+      // that ends above the list's own box counts, so a missing row or a ledger
+      // margin before the list still does.
+      const list = scroller.querySelector('[data-thread-count]');
+      if (list?.parentElement) {
+        const listTop = list.getBoundingClientRect().top;
+        Array.from(list.parentElement.children).forEach((child) => {
+          const r = child.getBoundingClientRect();
+          if (child !== list && r.bottom <= listTop + 0.5) covering.push(r);
+        });
+      }
+      const tiles = covering
         .filter((r) => r.bottom > top && r.top < bottom)
         .sort((a, b) => a.top - b.top);
       let cursor = top;
@@ -492,8 +506,22 @@ export const startRideSampling = (
       const rect = scroller.getBoundingClientRect();
       const top = rect.top + rect.height * 0.1;
       const bottom = rect.bottom - rect.height * 0.1;
-      const tiles = Array.from(scroller.querySelectorAll('[data-index]'))
-        .map((tile) => tile.getBoundingClientRect())
+      const covering = Array.from(scroller.querySelectorAll('[data-index]')).map((tile) =>
+        tile.getBoundingClientRect()
+      );
+      // Content laid out above the virtual list (at the top of a thread: its
+      // banner and the "Loading..." divider) is not a blank band. Only content
+      // that ends above the list's own box counts, so a missing row or a ledger
+      // margin before the list still does.
+      const list = scroller.querySelector('[data-thread-count]');
+      if (list?.parentElement) {
+        const listTop = list.getBoundingClientRect().top;
+        Array.from(list.parentElement.children).forEach((child) => {
+          const r = child.getBoundingClientRect();
+          if (child !== list && r.bottom <= listTop + 0.5) covering.push(r);
+        });
+      }
+      const tiles = covering
         .filter((r) => r.bottom > top && r.top < bottom)
         .sort((a, b) => a.top - b.top);
       let cursor = top;

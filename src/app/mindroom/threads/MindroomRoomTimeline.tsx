@@ -739,7 +739,16 @@ export function RoomTimeline({
   // room-bound persist facade off the engine and hands the fns down
   // to the fetch controllers (same shapes as the pre-strip props).
   const syncEngine = useMindroomSyncEngine();
-  useThreadGapRecovery({ engine: syncEngine, room, threadId, append: setSupplementalThreadEvents });
+  const loadedThreadEventsRef = useRef(threadEvents);
+  loadedThreadEventsRef.current = threadEvents;
+  const getLoadedThreadEvents = useCallback(() => loadedThreadEventsRef.current, []);
+  useThreadGapRecovery({
+    engine: syncEngine,
+    room,
+    threadId,
+    append: setSupplementalThreadEvents,
+    getLoadedEvents: getLoadedThreadEvents,
+  });
   const beginRoomCacheWrite = useCallback(
     () => syncEngine.persist.forRoom(room).persistRoomEventCache,
     [syncEngine, room]

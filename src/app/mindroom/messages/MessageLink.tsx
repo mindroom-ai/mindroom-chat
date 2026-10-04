@@ -54,17 +54,19 @@ function SiteIcon({ src }: { src: string }) {
   const [failed, setFailed] = useState(false);
   const retryAt = failedIcons.get(src);
   if (failed || (retryAt !== undefined && retryAt > Date.now())) return null;
+  // React applies DOM props in order; set request policy before src so a
+  // memory-cached icon cannot start loading with the default referrer.
   return (
     <img
+      referrerPolicy="no-referrer"
+      loading="lazy"
+      decoding="async"
       src={src}
       alt=""
       aria-hidden="true"
       width={16}
       height={16}
       style={iconStyle}
-      loading="lazy"
-      decoding="async"
-      referrerPolicy="no-referrer"
       draggable={false}
       onError={() => {
         failedIcons.delete(src);

@@ -110,6 +110,16 @@ test.describe('PERF: large thread with streaming edits', () => {
     const mountedRowsAfterOpen = await page.locator('[data-message-item]').count();
 
     const loadOlderClicks = await loadAllOlderThreadMessages(page);
+    // The chip can disappear while the opening history chain is still landing
+    // pages, so wait for the complete thread before measuring and streaming.
+    await expect(page.locator('[data-thread-count]')).toHaveAttribute(
+      'data-thread-count',
+      String(REPLY_COUNT + 1),
+      { timeout: 60_000 }
+    );
+    // History landing above must not move a reader who opened at the latest reply.
+    const latestReply = page.locator(`[data-message-id="${lastReplyId}"]`);
+    await expect(latestReply).toBeInViewport();
 
     const mountedRowsAfterLoadAll = await page.locator('[data-message-item]').count();
     const domNodeCount = await page.evaluate(() => document.getElementsByTagName('*').length);
@@ -118,14 +128,17 @@ test.describe('PERF: large thread with streaming edits', () => {
       return memory ? Math.round(memory.usedJSHeapSize / 1024 / 1024) : null;
     });
 
-    // Scroll to the bottom so the edited message is in view (realistic streaming UX).
-    await page.evaluate(() => {
-      const lastRow = Array.from(
-        document.querySelectorAll<HTMLElement>('[data-message-item]')
-      ).pop();
-      lastRow?.scrollIntoView({ block: 'end' });
+    // Scroll the thread to its end so the edited message is in view (realistic
+    // streaming UX). The last mounted row only ends the virtual window.
+    await latestReply.evaluate((row) => {
+      let scroller = row.parentElement;
+      while (scroller && !/^(auto|scroll)$/.test(window.getComputedStyle(scroller).overflowY)) {
+        scroller = scroller.parentElement;
+      }
+      scroller?.scrollTo({ top: scroller.scrollHeight, behavior: 'instant' });
     });
     await page.waitForTimeout(1_000);
+    await expect(latestReply).toBeInViewport();
 
     const cdp = await page.context().newCDPSession(page);
     await cdp.send('Performance.enable');

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback, useEffect, useRef } from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { createClient, Direction, MatrixEvent, Room, RoomEvent, type IEvent } from 'matrix-js-sdk';
 import 'fake-indexeddb/auto';
@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createMindroomSyncEngine, type MindroomSyncEngine } from '../engine';
 import { deleteCacheStoreDb, loadLatestCachedThreadEvents } from './cacheStore';
 import { useThreadTimelineState } from './useThreadTimelineState';
-import { useThreadGapRecovery } from './useThreadGapRecovery';
+import { keepRecoveredEventsInLoadedSpan, useThreadGapRecovery } from './useThreadGapRecovery';
 import * as cacheController from './threadOpenCacheController';
 
 const ROOM_ID = '!recovery:example.org';
@@ -30,17 +30,31 @@ function Harness({
   engine,
   room,
   threadId,
+  loaded,
 }: {
   engine: MindroomSyncEngine;
   room: Room;
   threadId: string;
+  loaded?: MatrixEvent[];
 }) {
   const { threadEvents, setSupplementalThreadEvents } = useThreadTimelineState({
     room,
     threadId,
     threadInitialCacheHydrated: true,
   });
-  useThreadGapRecovery({ engine, room, threadId, append: setSupplementalThreadEvents });
+  const loadedEventsRef = useRef(threadEvents);
+  loadedEventsRef.current = threadEvents;
+  const getLoadedEvents = useCallback(() => loadedEventsRef.current, []);
+  useEffect(() => {
+    if (loaded) setSupplementalThreadEvents(threadId, loaded);
+  }, [loaded, setSupplementalThreadEvents, threadId]);
+  useThreadGapRecovery({
+    engine,
+    room,
+    threadId,
+    append: setSupplementalThreadEvents,
+    getLoadedEvents,
+  });
   return (
     <>
       {threadEvents.map((event) => (
@@ -56,7 +70,7 @@ afterEach(async () => {
   vi.restoreAllMocks();
 });
 
-const setup = (chunks: Partial<IEvent>[][]) => {
+const setup = (chunks: Partial<IEvent>[][], loaded?: MatrixEvent[]) => {
   const fetchFn = vi.fn(
     async () =>
       new Response(
@@ -85,7 +99,7 @@ const setup = (chunks: Partial<IEvent>[][]) => {
   engine.start();
   let renderer: ReactTestRenderer;
   act(() => {
-    renderer = create(<Harness engine={engine} room={room} threadId={ROOT_ID} />);
+    renderer = create(<Harness engine={engine} room={room} threadId={ROOT_ID} loaded={loaded} />);
   });
   cleanups.push(async () => {
     act(() => renderer.unmount());
@@ -197,5 +211,55 @@ describe('mounted thread gap recovery', () => {
       );
     });
     expect(JSON.stringify(renderer.toJSON())).not.toContain('Recovered');
+  });
+
+  it('measures the loaded span from replies, not edits or reactions rendered among them', () => {
+    const at = (event: Partial<IEvent>, ts: number) =>
+      new MatrixEvent({ ...event, origin_server_ts: ts });
+    const reaction = at(
+      {
+        event_id: '$reaction',
+        room_id: ROOM_ID,
+        sender: USER_ID,
+        type: 'm.reaction',
+        content: { 'm.relates_to': { rel_type: 'm.annotation', event_id: ROOT_ID, key: '👍' } },
+      },
+      5
+    );
+    const loaded = [
+      at(message(ROOT_ID, 'Root'), 1),
+      reaction,
+      at(message('$loaded', 'Loaded'), 20),
+    ];
+    const older = at(message('$older', 'Older history'), 10);
+    const missed = at(message('$missed', 'Missed reply'), 30);
+
+    expect(
+      keepRecoveredEventsInLoadedSpan(ROOT_ID, [older, missed], loaded).map((e) => e.getId())
+    ).toEqual(['$missed']);
+  });
+
+  it('restores recovered replies inside the loaded span but leaves older history to Load Older', async () => {
+    const loaded = new MatrixEvent({ ...message('$loaded', 'Loaded'), origin_server_ts: 20 });
+    const older = { ...message('$older', 'Older history'), origin_server_ts: 5 };
+    const missed = { ...message('$missed', 'Missed reply'), origin_server_ts: 30 };
+    const { engine, renderer, recover } = setup([[missed, older]], [loaded]);
+    await act(async () => {
+      await vi.waitFor(() => expect(JSON.stringify(renderer.toJSON())).toContain('Loaded'));
+    });
+    await act(async () => {
+      recover();
+      await vi.waitFor(async () =>
+        expect(
+          (
+            await loadLatestCachedThreadEvents(engine.sessionId, ROOM_ID, ROOT_ID, 20)
+          ).events
+        ).toHaveLength(2)
+      );
+    });
+    await act(async () => {
+      await vi.waitFor(() => expect(JSON.stringify(renderer.toJSON())).toContain('Missed reply'));
+    });
+    expect(JSON.stringify(renderer.toJSON())).not.toContain('Older history');
   });
 });

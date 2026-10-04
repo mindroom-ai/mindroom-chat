@@ -17,6 +17,53 @@
   `e2e/agent-canvas.spec.ts` serves stand-in files for jsDelivr and unpkg URLs: with the switch off nothing is requested, and with it on the `/npm/` script and stylesheet apply while `/gh/` and unpkg are never requested.
   Chat starts from its cached configuration, so the check clears it before reloading with the new setting.
 
+### Fix the failures found by a full live-suite run on `dev` (2026-10-03)
+
+- Ran every spec/project job with `npm run test:e2e:parallel -- --jobs 8` against `7990feb6` (143 jobs, 388 cases, Playwright 1.58.2 container, disposable Tuwunel, worker-computer fixture from backend `750ccb58`).
+  The first run had 18 failing jobs; each was reproduced in isolation, bisected where it was a regression, and fixed at its root cause.
+- Product fixes:
+  - Favicon requests leaked the chat origin as `Referer` to DuckDuckGo when a second icon for an already-loaded host mounted (an edited link, a new message).
+    React 18 applies DOM props in JSX order, and Chromium starts a memory-cached image request as soon as `src` is set, before the later `referrerPolicy` exists.
+    `SiteIcon` now sets `referrerPolicy`, `loading` and `decoding` before `src`; a unit test pins the order.
+  - The homeserver reachability check (#359) showed a false red "Connection Lost!" banner in WebKit on every reload or navigation.
+    WebKit fails the in-flight `/sync` at `beforeunload`, before `pagehide`, so the visibility guard passed and the follow-up `/versions` check was refused while unloading.
+    Failures of requests in flight when the page started to leave no longer count, and a check cut off that way is not retried; a counter, not a flag, keeps a cancelled navigation from disabling the check.
+  - Opening a thread and reading older replies jumped the reader (#298, CINNY-070).
+    The room's offline history page calls the recovery listeners, and `useThreadGapRecovery` appended up to 200 cached replies older than the reader's loaded span without a scroll anchor.
+    Recovery now restores only replies inside or after the loaded span plus edits, reactions and redactions; older history stays behind Load Older, whose pagination keeps the anchor.
+  - Settings navigation headers keep their own frosted material again (the flat, borderless glass of the other navigation headers).
+    Since #296 they inherited the transparent modal material, and at short heights the scrolled navigation list drew over the "Settings" title; the live header checks that caught it were documented as stale.
+    The fixture check now asserts the frosted material instead of transparency.
+    Every navigation header also ended 8 px short of its viewport: folds' size-300 `Scroll` pads its inline end for an overlay scrollbar whenever the native one measures 0 px, which the hidden-scrollbar navigation viewport always does, so a strip of the list or modal showed beside the header (#296 had hidden it with transparency).
+    The header now spans that padding and adds it to its own end padding, so its contents stay put; the live header check asserts the header spans the viewport's full width.
+    Lobby and Explore page headers had the same 16 px gap from folds' default `Scroll` and get the same treatment through a variable that `PageScrollHeader` sets for `PageHeader`.
+  - Rows that first mount at rest are re-read in the existing pre-paint microtask (closes the at-rest half of the rows-mounted-at-rest item under "Not covered" in the 2026-10-03 fast-scroll entry).
+    virtual-core measured the thread root in its ref before `CollapsibleMessage` dropped its first-pass pill (78 instead of 68 px), the row unmounted before ResizeObserver reported it, and a later remount during a scroll reused the stale size, leaving a 10 px gap for a frame.
+- Test and tooling fixes (each verified to still fail on the defect it guards where one exists):
+  - Fixtures for `audio-player` and `glass-surfaces` create their client with a `userId`; attachment downloads (#298) call `getSafeUserId()`, so playback silently never started.
+  - `cinny069` asserted that cards stay empty while thread loads are blocked, which stopped holding when cards started showing the synced bundled reply (#309); it now holds new replies away from the page and requires the resume refresh to deliver them to every card.
+  - `cinny077` counted the offline history page (#298) as a second timeline back-pagination; it now counts timeline pages (with `from`) and the offline page separately.
+  - `following-glass` waits for the initial catch-up long poll like `composer-glass` already did.
+  - `message-disclosure-overlay` scrolls relative to the measured message instead of the timeline start, which late history prepends shifted.
+  - `account-storage` waits for the post-logout reload before navigating.
+  - `space-header-glass` ignores page errors only while its own navigation leaves the signed-in page: WebKit reports the cancelled `/sync` long poll and requests refused during unload as page errors, which the old blur failure had hidden.
+  - `glass-surfaces` waits for the settings overlay's entrance animations before sampling contrast; WebKit screenshots painted the undimmed first frame under load.
+  - The ride recorders count the thread banner and loading chip above the virtual list as content, so the compositor-flick gap budget (120 px) measures real blank bands again.
+  - The scheduler runs `device-pairing` against the development server, and `docs/testing.md` starts that server with `MINDROOM_E2E_PROVISIONING_URL` so pairing accounts resolve to its own origin.
+  - Vite prebundles `workbox-precaching`, `workbox-routing` and `@vanilla-extract/recipes/createRuntimeFn`; discovering them on first use re-optimized dependencies and reloaded every open page, which failed whichever spec first reached the development server.
+- Validation: typecheck, lint, prettier and the unit suite pass except the three `xcodeCloudPostClone` tests that need `/bin/bash` (they pass in the Ubuntu Playwright image).
+  The last full live suite, rebased on `1d8af50d`, passed 141 of 145 jobs.
+  Of the other four, `glass-surfaces` had `net::ERR_NETWORK_CHANGED` in its traces (other Docker workloads on the host changing networks) and passed on rerun, `page-header-glass` led to the Lobby and Explore header fix and then passed, and `long-message-expansion-default` (immediate fold-anchor displacement) and the compositor-flick blank-frame check in `thread-ride-under-latency` are the failures `docs/testing.md` already lists as unresolved on software rendering; the fold-anchor check passed on rerun.
+  Earlier runs also saw jobs time out at login together while every Matrix request was about ten times slower; they passed on rerun.
+  `perf-thread-streaming` passed in that run but fails intermittently on the thread drift below.
+- Not covered:
+  - Rows that mount during a non-smooth programmatic scroll are still measured by virtual-core in the ref and can show the 10 px first-pass gap for a frame.
+  - Settings shows "Catching up..." for one full 30-second long poll after a cached start on a quiet account, even though the first `timeout=0` sync already caught up.
+  - The offline history page re-downloads the same newest page the timeline just fetched, using the automatic allowance on metered connections.
+  - A thread reader drifts by thousands of pixels when pages of the opening history chain land after Load Older or a scroll gesture suppressed the opening bottom pin: those pages arrive without a ledger prepend capture, the scroller has `overflowAnchor: 'none'`, and virtual-core corrects resizes, not insertions.
+    `perf-thread-streaming` now fails at its in-viewport check when this happens (1 of 3 baseline runs) instead of timing out on an unmounted row.
+    A standing prepend capture fixes the drift, but a review found it folds later mid-thread insertions below a reader who has since scrolled and that a root-anchored request capture blocks re-arming, so it needs another pass before landing.
+
 ### Add one-click bug reports (2026-10-03)
 
 - Every message menu has **Report a bug**; one click builds a JSON report and sends it to the administrators named in the homeserver's client well-known (`io.mindroom.bug_reports.admins`).

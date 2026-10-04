@@ -133,6 +133,41 @@ describe('batched virtualizer measurement ref', () => {
     dispose();
   });
 
+  it('caches the height a row mounted at rest settles on, even if it unmounts before ResizeObserver', async () => {
+    const { virtualizer, dispose } = setup();
+    const ref = createBatchedMeasurementRef(createScrollMountMeasurement(virtualizer));
+    const notify = vi.fn();
+    virtualizer.setOptions({ ...virtualizer.options, onChange: notify });
+    const row = document.createElement('div');
+    row.dataset.index = '0';
+    let height = 90;
+    Object.defineProperty(row, 'offsetHeight', { get: () => height });
+    virtualizer.scrollElement?.append(row);
+    ref(row);
+    // virtual-core measures at rest in the ref, before the row's first-pass
+    // child update has flushed.
+    expect(virtualizer.itemSizeCache.get(0)).toBe(90);
+    height = 80;
+    await Promise.resolve();
+    expect(virtualizer.itemSizeCache.get(0)).toBe(80);
+    expect(virtualizer.getVirtualItems()[1]?.start).toBe(80);
+    expect(notify).toHaveBeenCalled();
+
+    // The row unmounts before any ResizeObserver entry; a remount during a
+    // scroll reuses the settled height rather than the first pass.
+    ref(null);
+    row.remove();
+    virtualizer.isScrolling = true;
+    const remounted = document.createElement('div');
+    remounted.dataset.index = '0';
+    Object.defineProperty(remounted, 'offsetHeight', { value: 80 });
+    virtualizer.scrollElement?.append(remounted);
+    ref(remounted);
+    await Promise.resolve();
+    expect(virtualizer.itemSizeCache.get(0)).toBe(80);
+    dispose();
+  });
+
   it('reuses a cached size when a measured row remounts during a scroll', async () => {
     const { virtualizer, mount, dispose } = setup();
     const ref = createBatchedMeasurementRef(createScrollMountMeasurement(virtualizer));

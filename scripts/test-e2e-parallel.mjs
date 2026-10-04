@@ -288,7 +288,7 @@ async function main() {
     const source = readFileSync(resolve(repo, job.file), 'utf8');
     if (
       source.includes('/e2e/fixtures/') ||
-      /diagnostics-storage-fallback|cinny124-flight-recorder/.test(job.file)
+      /diagnostics-storage-fallback|cinny124-flight-recorder|device-pairing/.test(job.file)
     )
       env.E2E_BASE_URL = development;
     env.PLAYWRIGHT_JSON_OUTPUT_FILE = resolve(output, 'report.json');
