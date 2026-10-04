@@ -5,7 +5,10 @@ import { CANVAS_SUBMIT_MESSAGE } from './canvasDocument';
 
 export const CANVAS_RESPONSE_KEY = 'io.mindroom.canvas_response';
 
-const MAX_DATA_BYTES = 8 * 1024;
+// An answer too large for one event travels as a long-text sidecar, which MindRoom downloads up to
+// 2 MiB; escaped into the body and repeated in the metadata, the data can take about three times
+// its own size there.
+const MAX_DATA_BYTES = 512 * 1024;
 export const CANVAS_LABEL_MAX_LENGTH = 200;
 
 export type CanvasSubmission = {
@@ -91,9 +94,9 @@ const canonicalBody = (
 ) => `${agentUserId} ${responseSummary(canvasEventId, revisionEventId, label)}\n${json}`;
 
 /**
- * Plaintext budget for an answer's content. Encryption grows an event by about a third, and the
- * data appears up to three times (body, formatted body, metadata), so the 8 KiB data cap alone
- * cannot keep an encrypted answer under Matrix's 64 KiB event limit.
+ * Plaintext budget for an answer sent as one event. Encryption grows an event by about a third, and
+ * the data appears up to three times (body, formatted body, metadata), so a larger answer is sent
+ * as a long-text sidecar instead, to stay under Matrix's 64 KiB event limit.
  */
 export const MAX_CANVAS_RESPONSE_CONTENT_BYTES = 40_000;
 
@@ -137,12 +140,30 @@ export const buildCanvasResponseContent = (canvas: CanvasTarget, submission: Can
     },
   };
   // HTML escaping can multiply dense data; the plain body still carries the JSON for every client.
-  if (contentBytes(content) <= MAX_CANVAS_RESPONSE_CONTENT_BYTES) return content;
-  const withoutJson = { ...content, formatted_body: mention };
-  if (contentBytes(withoutJson) <= MAX_CANVAS_RESPONSE_CONTENT_BYTES) return withoutJson;
-  // The body and metadata alone are bounded by the data and label caps.
-  const { format: _format, formatted_body: _formatted, ...plain } = content;
-  return plain;
+  return contentBytes(content) <= MAX_CANVAS_RESPONSE_CONTENT_BYTES
+    ? content
+    : { ...content, formatted_body: mention };
+};
+
+export type CanvasResponseContent = ReturnType<typeof buildCanvasResponseContent>;
+
+/** Whether an answer fits one event; a larger one is sent as a long-text sidecar. */
+export const canvasResponseFitsInEvent = (content: CanvasResponseContent): boolean =>
+  contentBytes(content) <= MAX_CANVAS_RESPONSE_CONTENT_BYTES;
+
+/**
+ * The event for an answer sent as a long-text sidecar: the summary line, the mention and reply
+ * that route it, and the answer's metadata without its data, which only the uploaded file carries.
+ */
+export const buildCanvasResponsePreview = (content: CanvasResponseContent) => {
+  const { data: _data, ...marker } = content[CANVAS_RESPONSE_KEY];
+  return {
+    // Canonical JSON has no raw line break, so the last one ends the summary line.
+    body: content.body.slice(0, content.body.lastIndexOf('\n')),
+    'm.mentions': content['m.mentions'],
+    'm.relates_to': content['m.relates_to'],
+    [CANVAS_RESPONSE_KEY]: marker,
+  };
 };
 
 export type CanvasResponseReceipt = {

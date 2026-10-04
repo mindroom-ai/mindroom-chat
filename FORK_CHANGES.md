@@ -2,6 +2,32 @@
 
 ## Runbook
 
+### Send large canvas answers as long-text sidecars (2026-10-03)
+
+- Why: a canvas answer was capped at 8 KiB of data, too small for a document the user edits in a canvas.
+  Matrix limits an event to 64 KiB, and an answer carries its data up to three times (body, formatted body, metadata), so the cap was not about Matrix alone.
+- Answers now carry up to 512 KiB of data (`canvasMessages.ts`).
+  An answer that fits one event (40,000-byte content budget) is sent as before.
+  A larger one is sent the way MindRoom's backend sends long replies: the whole content is uploaded as JSON, encrypted in encrypted rooms, and the event is an `m.file` preview marked `io.mindroom.long_text` version 2 (`matrix_event_content_json`) with the summary line, the mention, the reply relation, and the answer's metadata without its data.
+  512 KiB keeps the uploaded file under MindRoom's 2 MiB sidecar download limit even when escaping triples the data.
+- Reuse: the writer sits next to the reader.
+  `messages/longText.ts` adds `withMindroomLongTextSidecarMetadata`, so the format constants stay in one module.
+  `messages/longTextSidecarUpload.ts` builds the sidecar from the existing upload helpers: `createMindroomRoomUploadItems` (encrypts when needed), `uploadContent`, and `getFileMsgContent`.
+- Panel: the answer is uploaded first, then its preview is handed to the SDK as before, so the status and Retry/Delete follow its local echo.
+  The panel shows "Sending…" and keeps Send disabled during the upload; if the upload fails, the snapshot stays for another try.
+- Timeline: a canvas-answer sidecar shows as the receipt once its downloaded content passes `readCanvasResponse`, judged with the event's own reply relation (as MindRoom does), through `CanvasResponseSidecarReceipt` and the existing `useMindroomLongTextResolvedContent`; until then, or if it does not pass, it shows as ordinary long text.
+  `shouldForceCollapsibleMessageOverflow` no longer forces "Show more" on canvas answers, which render as one-line receipts; this also fixes long in-event answers.
+- Backend: no code change; MindRoom already dispatches a user's sidecar preview through the text pipeline with the downloaded content (`prepare_file_sidecar_text_event`).
+  Its tool brief and docs state the new limit (mindroom-ai/mindroom companion PR).
+- Tests:
+  - `longTextSidecarUpload.test.ts` uploads through the real helpers in plain and encrypted rooms and parses the result back with Chat's reader, decrypting the ciphertext with real WebCrypto.
+  - `canvasMessages.test.ts` covers the new cap and the preview.
+  - `CanvasPanel.test.tsx` uploads, then sends the preview on a real SDK client and room, and covers a failed upload.
+  - `renderMindroomMessageContent.test.ts` covers the receipt after download, the fallback before it, and the event's relation winning over the file's.
+  - `RoomTimelineCollapsible.test.ts` covers the receipt not being forced to fold.
+  - `e2e/agent-canvas.spec.ts` sends a 122 KB answer, then downloads the uploaded file and checks the full text and the receipt.
+- Live (2026-10-03): a real MindRoom agent (`provider: codex`, GPT-6.1 Sol) on a disposable Tuwunel received a 138 KB edited draft from a canvas and quoted its last three words, which exist only at the very end; the turn's prompt was about 31,000 tokens.
+
 ### Stop the thread reconcile from repairing a cached thread on every open (2026-10-03)
 
 - Report: the iPhone export behind the 2026-10-03 reconcile-freeze entry below showed the same thread reconciled with 13 `/relations` pages (about 1000 events) and `repaired: true` on many separate opens, including two a minute apart.

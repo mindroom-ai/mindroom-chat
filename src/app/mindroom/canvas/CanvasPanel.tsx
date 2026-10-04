@@ -12,12 +12,15 @@ import {
 } from './canvasDocument';
 import {
   buildCanvasResponseContent,
+  buildCanvasResponsePreview,
+  canvasResponseFitsInEvent,
   readCanvasSubmission,
   type CanvasSubmission,
 } from './canvasMessages';
 import type { CanvasTheme } from './canvasTheme';
 import { FailedSendActions } from '../messages/FailedSendActions';
 import { useLocalEchoStatus } from '../messages/useLocalEchoStatus';
+import { uploadMindroomLongTextSidecar } from '../messages/longTextSidecarUpload';
 import * as css from './CanvasPanel.css';
 
 /** A new snapshot cannot be sent by a click that was already on its way. */
@@ -144,6 +147,8 @@ export function CanvasPanel({
   // Once sent, an answer belongs to the SDK and the timeline; the panel only shows its status.
   const [lastAnswer, setLastAnswer] = useState<SentAnswer>();
   const [sendError, setSendError] = useState(false);
+  // An answer too large for one event is uploaded before its event exists.
+  const [uploading, setUploading] = useState(false);
   const loads = useRef({ frameKey, count: 0 });
   const currentFrameKey = useRef(frameKey);
   currentFrameKey.current = frameKey;
@@ -250,9 +255,39 @@ export function CanvasPanel({
   const answer = lastAnswer && answerStatus !== undefined ? answerState(answerStatus) : undefined;
   const answerOpen = answer === 'sending' || answer === 'failed';
 
+  const busy = answerOpen || uploading;
+  // A refused send or an upload happen only while no answer is open, so they take priority.
+  let footer: AnswerState | 'idle' | 'refused' = answer ?? 'idle';
+  if (uploading) footer = 'sending';
+  if (sendError) footer = 'refused';
+
+  // Hands one event to the SDK; from then on its local echo carries the answer's status.
+  const deliver = useCallback(
+    (eventContent: Record<string, unknown>, label: string): boolean => {
+      const txnId = mx.makeTxnId();
+      let sending: Promise<unknown>;
+      try {
+        // The relation travels in the content. The SDK adds the local echo before this returns.
+        sending = mx.sendMessage(room.roomId, eventContent as never, txnId);
+      } catch {
+        return false;
+      }
+      // A failure shows through the echo's status, here and in the timeline.
+      sending.catch(() => undefined);
+      const echo = room.getEventForTxnId(txnId);
+      setStaged(undefined);
+      setLastAnswer(echo ? { echo, label } : undefined);
+      // Work in the frame after this answer marks it again.
+      touched.current = false;
+      return true;
+    },
+    [mx, room]
+  );
+
   const handleSend = useCallback(() => {
-    if (!staged?.armed || answerOpen) return;
+    if (!staged?.armed || busy) return;
     const { submission } = staged;
+    const label = submission.label ?? t('mindroomUi.canvas.unlabeled');
     const content = buildCanvasResponseContent(
       {
         eventId: displayed.eventId,
@@ -263,26 +298,21 @@ export function CanvasPanel({
       },
       submission
     );
-    const txnId = mx.makeTxnId();
-    let sending: Promise<unknown>;
-    try {
-      // The relation travels in the content. The SDK adds the local echo before this returns.
-      sending = mx.sendMessage(room.roomId, content as never, txnId);
-    } catch {
-      setSendError(true);
+    setSendError(false);
+    if (canvasResponseFitsInEvent(content)) {
+      if (!deliver(content, label)) setSendError(true);
       return;
     }
-    // A failure shows through the echo's status, here and in the timeline.
-    sending.catch(() => undefined);
-    const echo = room.getEventForTxnId(txnId);
-    setSendError(false);
-    setStaged(undefined);
-    setLastAnswer(
-      echo ? { echo, label: submission.label ?? t('mindroomUi.canvas.unlabeled') } : undefined
-    );
-    // Work in the frame after this answer marks it again.
-    touched.current = false;
-  }, [agentName, answerOpen, displayed, mx, room, staged, t]);
+    // Too large for one event: upload the whole answer and send a preview that points at it,
+    // as MindRoom sends long replies. The snapshot stays until the preview is handed to the SDK.
+    setUploading(true);
+    uploadMindroomLongTextSidecar(mx, room, content, buildCanvasResponsePreview(content))
+      .then((preview) => {
+        if (!deliver(preview, label)) setSendError(true);
+      })
+      .catch(() => setSendError(true))
+      .finally(() => setUploading(false));
+  }, [agentName, busy, deliver, displayed, mx, room, staged, t]);
 
   const handleDiscard = useCallback(() => {
     setStaged(undefined);
@@ -411,7 +441,7 @@ export function CanvasPanel({
               <Button
                 size="300"
                 variant="Primary"
-                disabled={!staged.armed || answerOpen}
+                disabled={!staged.armed || busy}
                 onClick={handleSend}
                 data-canvas-send
               >
@@ -441,17 +471,12 @@ export function CanvasPanel({
             />
           ) : (
             <Text size="T200" priority="300" className={sendError ? css.Error : undefined}>
-              {/* A refused send happens only while no answer is open, so it takes priority. */}
-              {sendError && t('mindroomUi.canvas.sendFailed')}
-              {!sendError &&
-                answer === 'sending' &&
-                t('mindroomUi.canvas.sending', { agent: agentName })}
-              {!sendError &&
-                answer === 'sent' &&
+              {footer === 'refused' && t('mindroomUi.canvas.sendFailed')}
+              {footer === 'sending' && t('mindroomUi.canvas.sending', { agent: agentName })}
+              {footer === 'sent' &&
                 lastAnswer &&
                 t('mindroomUi.canvas.sent', { agent: agentName, label: lastAnswer.label })}
-              {!sendError &&
-                (answer === undefined || answer === 'cancelled') &&
+              {(footer === 'idle' || footer === 'cancelled') &&
                 t('mindroomUi.canvas.disclosure', { agent: agentName })}
             </Text>
           )}

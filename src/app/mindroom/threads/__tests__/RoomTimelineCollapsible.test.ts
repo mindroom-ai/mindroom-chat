@@ -1576,6 +1576,30 @@ describe('RoomTimeline collapsible wiring', () => {
     expect(shouldForceCollapsibleMessageOverflow(longTextContent)).toBe(true);
   });
 
+  it('does not force "Show more" on a canvas answer, which shows as a one-line receipt', async () => {
+    const { shouldForceCollapsibleMessageOverflow } = await import('../threadCollapsibleMessages');
+    const marker = { version: 1, canvas_event_id: '$canvas' };
+
+    expect(
+      shouldForceCollapsibleMessageOverflow({
+        msgtype: 'm.text',
+        body: `@agent:example.org Canvas response ($canvas, revision $canvas): Draft\n${'x'.repeat(
+          2000
+        )}`,
+        'io.mindroom.canvas_response': marker,
+      })
+    ).toBe(false);
+    expect(
+      shouldForceCollapsibleMessageOverflow({
+        msgtype: 'm.file',
+        body: 'Canvas response',
+        url: 'mxc://server/answer',
+        'io.mindroom.long_text': { version: 2, encoding: 'matrix_event_content_json' },
+        'io.mindroom.canvas_response': marker,
+      })
+    ).toBe(false);
+  });
+
   it('marks visible live thread replies for initially-expanded mode', async () => {
     const { getCollapsibleMessageMode, shouldTrackLiveCollapsibleMessage } = await import(
       '../threadCollapsibleMessages'

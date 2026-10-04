@@ -1,12 +1,13 @@
 import 'fake-indexeddb/auto';
 import React from 'react';
 import { create } from 'react-test-renderer';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { persistAttachmentEvents } from '../threads/__tests__/attachmentFixtures';
 import { MINDROOM_MESSAGE_EXTRAS_KEY } from './messageExtrasData';
 
 const toolApprovalCardMock = vi.hoisted(() => vi.fn());
 const longTextTextMock = vi.hoisted(() => vi.fn());
+const resolvedLongText = vi.hoisted(() => new Map<string, Record<string, unknown>>());
 const pasteAttachmentContentMock = vi.hoisted(() => vi.fn());
 const toolTraceParserOptionsMock = vi.hoisted(() => vi.fn((options: unknown) => options));
 
@@ -66,6 +67,9 @@ vi.mock('./MindroomToolApprovalCard', () => ({
 }));
 
 vi.mock('./MindroomLongTextText', () => ({
+  // Sidecar contents the tests have "downloaded", by MXC URI.
+  useMindroomLongTextResolvedContent: (source: { mxcUri: string } | undefined) =>
+    source ? resolvedLongText.get(source.mxcUri) : undefined,
   MindroomLongTextKind: {
     Text: 'text',
     Emote: 'emote',
@@ -709,6 +713,77 @@ describe('renderMindroomMessageContent', () => {
     expect(rendered).not.toContain('"data-renderer":"text"');
 
     renderer.unmount();
+  });
+
+  describe('a canvas answer sent as a long-text sidecar', () => {
+    const sidecarAnswer = async () => {
+      const { buildCanvasResponseContent, buildCanvasResponsePreview } = await import(
+        '../canvas/canvasMessages'
+      );
+      const content = buildCanvasResponseContent(
+        {
+          eventId: '$canvas',
+          revisionEventId: '$canvas',
+          agentUserId: '@mindroom_a:example.org',
+          agentName: 'A',
+          threadId: '$thread',
+        },
+        { data: { text: 'Long draft '.repeat(5000) }, label: 'Edited draft' }
+      );
+      const preview = {
+        ...buildCanvasResponsePreview(content),
+        msgtype: 'm.file',
+        url: 'mxc://example.org/answer',
+        'io.mindroom.long_text': { version: 2, encoding: 'matrix_event_content_json' },
+      };
+      return { content, preview };
+    };
+
+    afterEach(() => resolvedLongText.clear());
+
+    it('shows the receipt once the downloaded answer proves it', async () => {
+      const { content, preview } = await sidecarAnswer();
+      resolvedLongText.set('mxc://example.org/answer', content);
+
+      const renderer = await renderNode({ msgType: 'm.file', content: preview });
+      const rendered = JSON.stringify(renderer.toJSON());
+
+      expect(rendered).toContain('data-canvas-receipt');
+      expect(rendered).toContain('Edited draft');
+      expect(rendered).not.toContain('"data-renderer":"long-text"');
+      renderer.unmount();
+    });
+
+    it('shows the ordinary long text until the answer is downloaded', async () => {
+      const { preview } = await sidecarAnswer();
+
+      const renderer = await renderNode({ msgType: 'm.file', content: preview });
+      const rendered = JSON.stringify(renderer.toJSON());
+
+      expect(rendered).not.toContain('data-canvas-receipt');
+      expect(rendered).toContain('long-text');
+      renderer.unmount();
+    });
+
+    it('judges the reply by the event, not by the downloaded file', async () => {
+      const { content, preview } = await sidecarAnswer();
+      // The file claims the canvas, but the event itself replies elsewhere.
+      resolvedLongText.set('mxc://example.org/answer', content);
+      const elsewhere = {
+        ...preview,
+        'm.relates_to': {
+          rel_type: 'm.thread',
+          event_id: '$thread',
+          'm.in_reply_to': { event_id: '$other' },
+        },
+      };
+
+      const renderer = await renderNode({ msgType: 'm.file', content: elsewhere });
+      const rendered = JSON.stringify(renderer.toJSON());
+
+      expect(rendered).not.toContain('data-canvas-receipt');
+      renderer.unmount();
+    });
   });
 
   it('shows a canvas answer that is still sending with its send state, not as delivered', async () => {

@@ -266,6 +266,24 @@ export const getMindroomLongTextSource = (
 export const getMindroomLongTextMxcUri = (content: Record<string, unknown>): string | undefined =>
   getMindroomLongTextSource(content)?.mxcUri;
 
+/**
+ * Marks a preview as a v2 long-text sidecar, as MindRoom's backend writes them: the event is a
+ * short `m.file` preview, and the file it points at holds the message's whole content as JSON.
+ */
+export const withMindroomLongTextSidecarMetadata = (
+  preview: Record<string, unknown> & { body: string },
+  originalSize: number
+): Record<string, unknown> => ({
+  ...preview,
+  [LONG_TEXT_TAG]: {
+    version: 2,
+    encoding: LONG_TEXT_V2_ENCODING,
+    original_event_size: originalSize,
+    preview_size: preview.body.length,
+    is_complete_content: true,
+  },
+});
+
 export const getCachedMindroomLongTextContent = (
   source: MindroomLongTextSource,
   cacheOwner: object

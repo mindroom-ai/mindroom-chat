@@ -1,6 +1,7 @@
 import { type IContent, type MatrixEvent, RelationType, type Room } from 'matrix-js-sdk';
 import { hasMindroomMessageExtras } from '../messages/messageExtrasData';
 import { getMindroomLongTextMxcUri } from '../messages/longText';
+import { CANVAS_RESPONSE_KEY } from '../canvas/canvasMessages';
 import { hasMindroomThreadSummary } from '../messages/threadSummary';
 import type { ThreadFilterState } from './roomThreadOverviewModel';
 import { isRenderableEvent } from './roomTimelineEvents';
@@ -15,6 +16,9 @@ const isCollapsibleTextMessageEvent = (mEvent: MatrixEvent): boolean =>
 const FORCE_COLLAPSED_OVERFLOW_BODY_LENGTH = 1200;
 
 export const shouldForceCollapsibleMessageOverflow = (content: IContent): boolean => {
+  // A canvas answer shows as a one-line receipt however long its data is; a forged one that
+  // renders as text still folds by its measured height.
+  if (content[CANVAS_RESPONSE_KEY] !== undefined) return false;
   if (getMindroomLongTextMxcUri(content as Record<string, unknown>)) return true;
 
   const body = content.body;

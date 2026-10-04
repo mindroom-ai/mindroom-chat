@@ -460,6 +460,49 @@ describe('CanvasPanel', () => {
     expect(status()).toContain('Not sent to Planner: Pro plan');
   });
 
+  it('uploads an answer too large for one event and sends a preview that points at it', async () => {
+    let finishUpload: () => void = () => undefined;
+    const uploadContent = vi.spyOn(mx, 'uploadContent').mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          finishUpload = () => resolve({ content_uri: 'mxc://example.org/answer' });
+        }) as never
+    );
+    render();
+    await post(submit('Edited draft', { text: 'A long paragraph. '.repeat(4000) }));
+    await arm();
+    await clickSend();
+    expect(uploadContent).toHaveBeenCalledTimes(1);
+    expect(sendMessage).not.toHaveBeenCalled();
+    expect(status()).toContain('Sending to Planner');
+    expect(button('[data-canvas-send]').disabled).toBe(true);
+    await act(async () => finishUpload());
+    expect(sendMessage).toHaveBeenCalledTimes(1);
+    const preview = sendMessage.mock.calls[0][1];
+    expect(preview).toMatchObject({
+      msgtype: 'm.file',
+      url: 'mxc://example.org/answer',
+      'io.mindroom.long_text': { version: 2, encoding: 'matrix_event_content_json' },
+      [CANVAS_RESPONSE_KEY]: { canvas_event_id: '$canvas', label: 'Edited draft' },
+    });
+    expect(preview[CANVAS_RESPONSE_KEY].data).toBeUndefined();
+    expect(button('[data-canvas-send]')).toBeNull();
+    await accept();
+    expect(status()).toContain('Sent to Planner: Edited draft');
+  });
+
+  it('keeps a large answer for another try when its upload fails', async () => {
+    vi.spyOn(mx, 'uploadContent').mockRejectedValue(new Error('offline'));
+    render();
+    await post(submit('Edited draft', { text: 'A long paragraph. '.repeat(4000) }));
+    await arm();
+    await clickSend();
+    expect(sendMessage).not.toHaveBeenCalled();
+    expect(status()).toContain('Could not send your response');
+    expect(container.textContent).toContain('Send to Planner: Edited draft');
+    expect(button('[data-canvas-send]').disabled).toBe(false);
+  });
+
   it('reports a refused send rather than the previous answer', async () => {
     render();
     await answer('one');
