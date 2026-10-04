@@ -31,7 +31,6 @@ describe('getBugReportAdmins', () => {
   });
 
   it('treats a missing or malformed key as not configured', () => {
-    expect(getBugReportAdmins(null)).toEqual([]);
     expect(getBugReportAdmins(info({}))).toEqual([]);
     expect(getBugReportAdmins(info({ 'io.mindroom.bug_reports': [] }))).toEqual([]);
     expect(getBugReportAdmins(info({ 'io.mindroom.bug_reports': { admins: '@a:b.c' } }))).toEqual(

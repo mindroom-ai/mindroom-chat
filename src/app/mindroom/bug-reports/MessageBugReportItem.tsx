@@ -4,11 +4,10 @@ import { Icon, Icons, Text, as } from 'folds';
 import type { MatrixEvent, Room } from 'matrix-js-sdk';
 import { MenuItem } from '../../components/glass/GlassPrimitives';
 import * as css from '../../features/room/message/styles.css';
-import { useAutoDiscoveryInfo } from '../../hooks/useAutoDiscoveryInfo';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useRoomNavigate } from '../../hooks/useRoomNavigate';
 import { saveFile } from '../native/nativeFileSave';
-import { getBugReportAdmins } from './bugReportConfig';
+import { useBugReportAdmins } from './bugReportConfig';
 import { buildBugReport, getBugReportFileName, serializeBugReport } from './bugReportPayload';
 import { ensureBugReportRoom } from './bugReportRoom';
 import { sendBugReport } from './sendBugReport';
@@ -25,8 +24,7 @@ export const MessageBugReportItem = as<
 >(({ room, mEvent, onClose, ...props }, ref) => {
   const { t } = useTranslation();
   const mx = useMatrixClient();
-  // Read on every render: the well-known fetch may finish after the timeline mounts.
-  const admins = getBugReportAdmins(useAutoDiscoveryInfo());
+  const admins = useBugReportAdmins();
   const { navigateRoomThread } = useRoomNavigate();
   const [state, setState] = useState<SendState>('idle');
 

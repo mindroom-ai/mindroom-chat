@@ -1,13 +1,12 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { useAtomValue } from 'jotai';
 import type { MatrixClient, Room } from 'matrix-js-sdk';
 import { Membership, StateEvent } from '../../../types/matrix/room';
-import { useAutoDiscoveryInfo } from '../../hooks/useAutoDiscoveryInfo';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { allInvitesAtom } from '../../state/room-list/inviteList';
 import { getMxIdServer } from '../../utils/matrix';
 import { getStateEvent } from '../../utils/room';
-import { getBugReportAdmins } from './bugReportConfig';
+import { useBugReportAdmins } from './bugReportConfig';
 import { BUG_REPORTS_ROOM_TYPE } from './bugReportRoom';
 
 /** Admins join report rooms without accepting invites; only from reporters on their own homeserver. */
@@ -29,8 +28,7 @@ export const shouldAutoJoinBugReportInvite = (
 export function BugReportAutoJoinFeature() {
   const mx = useMatrixClient();
   const invites = useAtomValue(allInvitesAtom);
-  const discovery = useAutoDiscoveryInfo();
-  const admins = useMemo(() => getBugReportAdmins(discovery), [discovery]);
+  const admins = useBugReportAdmins();
   const attempted = useRef(new Set<string>());
 
   useEffect(() => {
