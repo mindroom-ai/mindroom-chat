@@ -2,6 +2,13 @@
 
 ## Runbook
 
+### Show a pinned thread as a solid pin in the thread bar (2026-10-04)
+
+- The thread bar no longer spells out "Pinned" next to the pin button; the pin icon is solid while the thread is pinned.
+- Members who cannot unpin see a static solid pin labelled "Pinned" for assistive technology, in place of the old text.
+- The pin stays in view on short screens while the thread is pinned, as the text did; the unpinned Pin button is still hidden there.
+- Unit tests and the live `pinned-threads` spec assert the solid pin and the absence of the word; the live spec captures admin and member banner screenshots for the PR.
+
 ### Let canvases load libraries from jsDelivr when a deployment allows it (2026-10-04)
 
 - Why: an agent drawing a chart, diagram, or formula had to inline every library, or redraw it by hand in SVG; Claude artifacts load libraries from CDNs.

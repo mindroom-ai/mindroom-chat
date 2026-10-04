@@ -487,20 +487,24 @@ describe('ThreadContextBanner rendering', () => {
     renderer.unmount();
   });
 
-  it('replaces Resolve with a pinned status and allows only admins to unpin', () => {
+  it('replaces Resolve with a solid pin and allows only admins to unpin', () => {
     pinningMocks.pinnedEventIds = ['$root'];
     bannerMocks.useThreadHeaderInfo.mockReturnValue({ scheduledTaskCount: 0 });
     const member = renderBanner();
-    expect(JSON.stringify(member.toJSON())).toContain('Pinned');
     expect(JSON.stringify(member.toJSON())).not.toContain('Resolve');
+    const pinnedStatus = member.root.findByProps({ role: 'img', 'aria-label': 'Pinned' });
+    expect(pinnedStatus.findByType('i').props.filled).toBe(true);
+    expect(member.root.findAll((node) => node.children.includes('Pinned'))).toHaveLength(0);
     expect(member.root.findAllByProps({ 'aria-label': 'Unpin thread' })).toHaveLength(0);
     member.unmount();
     pinningMocks.canPin = true;
     const admin = renderBanner();
+    expect(admin.root.findAll((node) => node.children.includes('Pinned'))).toHaveLength(0);
     const unpin = admin.root
       .findAllByType('button')
       .find((button) => button.props['aria-label'] === 'Unpin thread');
     expect(unpin).toBeDefined();
+    expect(unpin!.findByType('i').props.filled).toBe(true);
     unpin!.props.onClick();
     expect(pinningMocks.setPinned).toHaveBeenCalledWith('$root', false);
     admin.unmount();
@@ -566,19 +570,12 @@ describe('ThreadContextBanner rendering', () => {
     expect(hidden(resolved)).not.toContain('ResolveChip');
     resolved.unmount();
 
-    // The pinned status replaces Resolve and stays in view.
+    // The solid pin replaces Resolve and stays in view.
     pinningMocks.pinnedEventIds = ['$root'];
     const pinned = renderBanner('A concise thread summary');
-    expect(JSON.stringify(pinned.toJSON())).toContain('Pinned');
     expect(hidden(pinned)).not.toContain('ResolveChip');
-    expect(
-      pinned.root.findAll(
-        (node) =>
-          node.type === 'span' &&
-          node.children.includes('Pinned') &&
-          String(node.props.className ?? '').includes('ShortViewportHidden')
-      )
-    ).toHaveLength(0);
+    expect(hidden(pinned)).not.toContain('Unpin thread');
+    expect(pinned.root.findByProps({ 'aria-label': 'Unpin thread' })).toBeDefined();
     pinned.unmount();
   });
 

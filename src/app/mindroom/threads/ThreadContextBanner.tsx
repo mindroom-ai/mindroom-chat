@@ -338,10 +338,9 @@ export function ThreadContextBanner({
             >
               <Icon src={Icons.VerticalDots} size="100" />
             </IconButton>
-            {isPinned && <Text size="T200">{t('threadNav.pinned')}</Text>}
-            {pinning.canPin && mutableThreadRootId && (
+            {pinning.canPin && mutableThreadRootId ? (
               <IconButton
-                className={css.ShortViewportHidden}
+                className={isPinned ? undefined : css.ShortViewportHidden}
                 size="300"
                 radii="300"
                 aria-label={t(isPinned ? 'threadNav.unpin' : 'threadNav.pin')}
@@ -350,8 +349,19 @@ export function ThreadContextBanner({
                 disabled={pinning.updating || updating}
                 onClick={() => pinning.setPinned(mutableThreadRootId, !isPinned)}
               >
-                <Icon src={Icons.Pin} size="100" />
+                <Icon src={Icons.Pin} size="100" filled={isPinned} />
               </IconButton>
+            ) : (
+              isPinned && (
+                <Box
+                  as="span"
+                  role="img"
+                  aria-label={t('threadNav.pinned')}
+                  title={t('threadNav.pinned')}
+                >
+                  <Icon src={Icons.Pin} size="100" filled />
+                </Box>
+              )
             )}
             {!isPinned && (
               // Resolve is in More, but a resolved status stays visible for readers.
