@@ -29,4 +29,10 @@ Android also requires its frame-aware bridge; legacy bridge fallbacks and synchr
 Run `bash scripts/test-ios-routing.sh` for simulator bridge security and native routing tests.
 The native suite renders the production canvas documents under the app frame policy and retains a screenshot after Chart.js paints from the allowed npm source.
 The security tests check actual plugin side effects and cookie mutation from both ordinary and opaque sandboxed subframes, with working main-frame controls.
+The native origin test records a real WebKit OPTIONS preflight and bearer-header GET against a disposable loopback API using the shipping transport settings.
 No acceptance code, test plugins, or test fixtures enter the shipping app.
+
+The [simulator CI run](https://github.com/mindroom-ai/mindroom-chat/actions/runs/37243530319) passed all 25 routing/security tests and retained this screenshot of the production canvas document loading Chart.js from jsDelivr.
+This checks the native canvas document and bridge; full application version switching, sending errors to an agent, and controlling a deployed computer still require app acceptance verification.
+
+![Production canvas document in the native simulator test](screenshots/ios-canvas-chart-js.png)

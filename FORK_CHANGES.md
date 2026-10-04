@@ -23,9 +23,12 @@
   Tests probe raw plugin dispatch and native cookie prompts from ordinary and sandboxed subframes, then verify the production two-frame canvas cannot reach plugins or Matrix session storage.
   A separate native test downloads Chart.js from the allowed npm path, requires painted pixels, and retains a screenshot in the XCTest result.
   Cloud CI exposed optional array inference in the test plugin declaration; the method list now uses Capacitor's explicit `[CAPPluginMethod]` type.
-  Native execution is still pending the corrected CI run.
+  The corrected [native simulator CI run](https://github.com/mindroom-ai/mindroom-chat/actions/runs/37243530319) passed all 25 tests, including real plugin/cookie attacks, production canvas session isolation, and Chart.js painting.
+  The retained screenshot is `docs/screenshots/ios-canvas-chart-js.png`.
+  A follow-up native loopback test observes the actual CORS preflight and bearer-header fetch origin with shipping ATS settings; its CI run is pending.
 - Computer investigation: the lab backend accepts `https://chat.mindroom.chat` but returns HTTP 400 for native preflight; the production Matrix/provisioning origin has no computers endpoint.
   The companion backend change accepts only the exact `capacitor://localhost` literal, retains fail-closed allowlists, and tests native CORS, OpenID/bearer/tickets, WSS input, control and release.
+  Backend full pytest CI passed 29,096 tests with 20 skips; all 99 targeted computer API tests and pre-commit checks also pass.
   Operators still need to add the native literal to the computer service's deployment allowlist.
 - AI review confirmed the lab service must not be bundled as an active default before backend rollout.
   The iOS computer setting is opt-in; deploy backend PR #2680, update the allowlist, then configure the iOS build environment.
