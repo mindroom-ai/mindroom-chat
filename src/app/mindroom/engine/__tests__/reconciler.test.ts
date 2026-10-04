@@ -1343,9 +1343,8 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
       addEvents,
       events: [],
       initialEventsFetched: true,
-      findEventById: () => undefined,
       flushPendingTimelineReset: () => undefined,
-      getUnfilteredTimelineSet: () => ({ eventIdToTimeline: () => null }),
+      getUnfilteredTimelineSet: () => ({ eventIdToTimeline: () => null, getTimelines: () => [] }),
     } as unknown as ReturnType<Room['getThread']>;
     const roomWithThread = {
       roomId: '!room:example',
@@ -1495,9 +1494,8 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
       addEvents,
       events: [],
       initialEventsFetched: true,
-      findEventById: () => undefined,
       flushPendingTimelineReset: () => undefined,
-      getUnfilteredTimelineSet: () => ({ eventIdToTimeline: () => null }),
+      getUnfilteredTimelineSet: () => ({ eventIdToTimeline: () => null, getTimelines: () => [] }),
     } as unknown as ReturnType<Room['getThread']>;
     const roomWithThread = {
       roomId: '!room:example',
@@ -1844,9 +1842,8 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
       addEvents,
       events: [],
       initialEventsFetched: true,
-      findEventById: () => undefined,
       flushPendingTimelineReset: () => undefined,
-      getUnfilteredTimelineSet: () => ({ eventIdToTimeline: () => null }),
+      getUnfilteredTimelineSet: () => ({ eventIdToTimeline: () => null, getTimelines: () => [] }),
     } as unknown as ReturnType<Room['getThread']>;
     const roomWithThread = {
       roomId: '!room:example',
@@ -2086,9 +2083,8 @@ describe('scheduleReconcile (CINNY-207 P5.1)', () => {
       addEvents,
       events: [],
       initialEventsFetched: true,
-      findEventById: () => undefined,
       flushPendingTimelineReset: () => undefined,
-      getUnfilteredTimelineSet: () => ({ eventIdToTimeline: () => null }),
+      getUnfilteredTimelineSet: () => ({ eventIdToTimeline: () => null, getTimelines: () => [] }),
     } as unknown as ReturnType<Room['getThread']>;
     const roomSdkAhead = {
       roomId: '!room:example',

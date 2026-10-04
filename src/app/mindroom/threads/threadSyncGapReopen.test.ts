@@ -276,7 +276,19 @@ it.each(['streamed', 'quiet'] as const)(
       Array.from({ length: 102 - oldest }, (_, index) => `$reply-${index + oldest}`)
     );
     expect(joinWarnings).toEqual([]);
-    // The agent's next streamed reply orders its receipt against one in the older segments.
-    await expect(syncStreamedReplyAfterGap(server, 102)).resolves.toBeUndefined();
+    // The agent's next reply arrives after another gap; ordering its receipt against the
+    // previous one, now in an older segment, is the walk that froze the app.
+    const previousReceipt = thread.getEventReadUpTo(userId)!;
+    const oldSyncToken = String(server.stream.length - 1);
+    const nextReply = server.reply(102);
+    server.room.resetLiveTimeline(String(server.stream.indexOf(nextReply)), oldSyncToken);
+    await server.room.addLiveEvents([server.client.getEventMapper()(nextReply)], {
+      addToState: false,
+    });
+
+    expect(timelineSet.eventIdToTimeline(previousReceipt)).not.toBe(thread.liveTimeline);
+    expect(thread.liveTimeline.getEvents().map((event) => event.getId())).toEqual(['$reply-102']);
+    expect(thread.getEventReadUpTo(userId)).toBe('$reply-102');
+    expect(joinWarnings).toEqual([]);
   }
 );

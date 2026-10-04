@@ -345,29 +345,30 @@ const detectDivergence = (
  * timeline and replays buffered relations as new events. The repaired batch
  * still reaches the render through `onRepaired`.
  *
- * Only events newer than every reply an older segment holds go to the live
+ * Only events newer than every event an older segment holds go to the live
  * segment. After a sync gap, or once history is joined behind it, older
- * segments hold part of the fetched history; the rest of it belongs behind
- * them, and prepending it to the live segment put it after newer events, which
- * SDK pagination then linked into a segment cycle that froze the app.
- * Pagination places that history.
+ * segments hold part of the history; anything not newer than them belongs in
+ * or behind them, and prepending it to the live segment put it after newer
+ * events, which SDK pagination then linked into a segment cycle that froze the
+ * app. Pagination places that history, even when the fetched page does not
+ * overlap the older segments.
  */
 const addFetchedEventsToThread = (thread: Thread, events: MatrixEvent[]): void => {
   if (!hasLoadedFirstThreadPage(thread)) return;
+  const timelineSet = thread.getUnfilteredTimelineSet();
   // Adding an event first applies a deferred sync-gap reset; apply it before
   // reading the segments, so they are the ones the events go into.
-  if (events.some((event) => !thread.findEventById(event.getId()!))) {
+  if (events.some((event) => !timelineSet.eventIdToTimeline(event.getId()!))) {
     void thread.flushPendingTimelineReset();
   }
-  const timelineSet = thread.getUnfilteredTimelineSet();
-  let newestHeldElsewhere = -1;
-  events.forEach((event, index) => {
-    const holder = timelineSet.eventIdToTimeline(event.getId()!);
-    if (holder && holder !== thread.liveTimeline && event.isRelation('m.thread')) {
-      newestHeldElsewhere = index;
-    }
+  let newestElsewhereTs = -Infinity;
+  timelineSet.getTimelines().forEach((timeline) => {
+    if (timeline === thread.liveTimeline) return;
+    timeline.getEvents().forEach((event) => {
+      newestElsewhereTs = Math.max(newestElsewhereTs, event.getTs());
+    });
   });
-  const liveEvents = events.slice(newestHeldElsewhere + 1);
+  const liveEvents = events.filter((event) => event.getTs() > newestElsewhereTs);
   const [earliest] = thread.events;
   // A window that starts at the root already reaches the thread's start.
   if (earliest !== undefined && earliest.getId() === thread.id) {
