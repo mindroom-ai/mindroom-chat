@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createMindroomSyncEngine, type MindroomSyncEngine } from '../engine';
 import { deleteCacheStoreDb, loadLatestCachedThreadEvents } from './cacheStore';
 import { useThreadTimelineState } from './useThreadTimelineState';
-import { useThreadGapRecovery } from './useThreadGapRecovery';
+import { keepRecoveredEventsInLoadedSpan, useThreadGapRecovery } from './useThreadGapRecovery';
 import * as cacheController from './threadOpenCacheController';
 
 const ROOM_ID = '!recovery:example.org';
@@ -211,6 +211,32 @@ describe('mounted thread gap recovery', () => {
       );
     });
     expect(JSON.stringify(renderer.toJSON())).not.toContain('Recovered');
+  });
+
+  it('measures the loaded span from replies, not edits or reactions rendered among them', () => {
+    const at = (event: Partial<IEvent>, ts: number) =>
+      new MatrixEvent({ ...event, origin_server_ts: ts });
+    const reaction = at(
+      {
+        event_id: '$reaction',
+        room_id: ROOM_ID,
+        sender: USER_ID,
+        type: 'm.reaction',
+        content: { 'm.relates_to': { rel_type: 'm.annotation', event_id: ROOT_ID, key: '👍' } },
+      },
+      5
+    );
+    const loaded = [
+      at(message(ROOT_ID, 'Root'), 1),
+      reaction,
+      at(message('$loaded', 'Loaded'), 20),
+    ];
+    const older = at(message('$older', 'Older history'), 10);
+    const missed = at(message('$missed', 'Missed reply'), 30);
+
+    expect(
+      keepRecoveredEventsInLoadedSpan(ROOT_ID, [older, missed], loaded).map((e) => e.getId())
+    ).toEqual(['$missed']);
   });
 
   it('restores recovered replies inside the loaded span but leaves older history to Load Older', async () => {

@@ -15,6 +15,16 @@ export type ThreadGapRecoveryOptions = {
 const compareThreadOrder = (left: MatrixEvent, right: MatrixEvent): number =>
   left.getTs() - right.getTs() || (left.getId() ?? '').localeCompare(right.getId() ?? '');
 
+// Edits, reactions and redactions modify a row instead of adding one.
+const isRowModifier = (mEvent: MatrixEvent): boolean => {
+  const relationType = mEvent.getRelation()?.rel_type;
+  return (
+    relationType === RelationType.Replace ||
+    relationType === RelationType.Annotation ||
+    mEvent.isRedaction()
+  );
+};
+
 /**
  * Recovered events restore what the reader's loaded span missed: replies inside or after it, and
  * edits, reactions and redactions. Older replies stay behind Load Older, whose pagination keeps
@@ -25,19 +35,17 @@ export const keepRecoveredEventsInLoadedSpan = (
   recoveredEvents: MatrixEvent[],
   loadedEvents: readonly MatrixEvent[]
 ): MatrixEvent[] => {
-  const earliestLoadedReply = loadedEvents.find((mEvent) => mEvent.getId() !== threadId);
+  const earliestLoadedReply = loadedEvents.find(
+    (mEvent) => mEvent.getId() !== threadId && !isRowModifier(mEvent)
+  );
   if (!earliestLoadedReply) return recoveredEvents;
   const loadedEventIds = new Set(loadedEvents.map((mEvent) => mEvent.getId()));
-  return recoveredEvents.filter((mEvent) => {
-    const relationType = mEvent.getRelation()?.rel_type;
-    return (
+  return recoveredEvents.filter(
+    (mEvent) =>
       loadedEventIds.has(mEvent.getId()) ||
-      relationType === RelationType.Replace ||
-      relationType === RelationType.Annotation ||
-      mEvent.isRedaction() ||
+      isRowModifier(mEvent) ||
       compareThreadOrder(mEvent, earliestLoadedReply) >= 0
-    );
-  });
+  );
 };
 
 export const useThreadGapRecovery = ({
