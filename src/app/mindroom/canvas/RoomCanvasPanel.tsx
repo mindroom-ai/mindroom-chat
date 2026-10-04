@@ -97,9 +97,10 @@ function LoadedCanvasPanel({
           ? { current: current + 1, total: versions.length }
           : undefined
       }
-      onSelectVersion={(number) =>
-        setChosen(number < versions.length ? versions[number - 1]?.revisionEventId : undefined)
-      }
+      onSelectVersion={(number) => {
+        const picked = versions[number - 1]?.revisionEventId;
+        setChosen(picked === action.revisionEventId ? undefined : picked);
+      }}
     />
   );
   // One tree for every screen size, so crossing a breakpoint never reloads the page:

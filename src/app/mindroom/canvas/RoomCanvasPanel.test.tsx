@@ -204,6 +204,58 @@ describe('RoomCanvasPanel', () => {
     expect(panels.props?.version).toEqual({ current: 2, total: 2 });
   });
 
+  it('keeps a version deleted while its history was still loading out of the list', async () => {
+    const event = request();
+    const second = edit('<p>Step 2</p>', { id: '$edit-2', ts: 200 });
+    const third = edit('<p>Step 3</p>', { id: '$edit-3', ts: 300 });
+    event.makeReplaced(third);
+    let finish: (value: unknown) => void = () => undefined;
+    const relations = vi
+      .fn()
+      .mockResolvedValueOnce({ originalEvent: event, events: [third, second], nextBatch: 'page-1' })
+      .mockReturnValueOnce(
+        new Promise((resolve) => {
+          finish = resolve;
+        })
+      );
+    Object.assign(mx, { relations });
+    render(event);
+    await act(async () => undefined);
+    act(() => {
+      room.emit(
+        RoomEvent.Timeline,
+        new MatrixEvent({ type: 'm.room.redaction', redacts: '$edit-2', content: {} }),
+        room,
+        false
+      );
+    });
+    await act(async () => finish({ originalEvent: event, events: [], nextBatch: null }));
+    expect(panels.props?.version).toEqual({ current: 2, total: 2 });
+  });
+
+  it('reaches every listed version when the shown one is not the newest listed', async () => {
+    const event = request();
+    const second = edit('<p>Step 2</p>', { id: '$edit-2', ts: 200 });
+    const third = edit('<p>Step 3</p>', { id: '$edit-3', ts: 300 });
+    event.makeReplaced(third);
+    history(event, [third, second]);
+    render(event);
+    await act(async () => undefined);
+    // The newest edit is deleted and the client knows no other, so it shows the request again.
+    act(() => {
+      room.emit(
+        RoomEvent.Timeline,
+        new MatrixEvent({ type: 'm.room.redaction', redacts: '$edit-3', content: {} }),
+        room,
+        false
+      );
+      event.makeReplaced(undefined);
+    });
+    expect(panels.props?.version).toEqual({ current: 1, total: 2 });
+    act(() => panels.props?.onSelectVersion?.(2));
+    expect(panels.props?.canvas.html).toBe('<p>Step 2</p>');
+  });
+
   it('keeps the known versions when the history does not reach the shown one', async () => {
     const event = request();
     const second = edit('<p>Step 2</p>', { id: '$edit-2', ts: 200 });

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   Direction,
   EventType,
@@ -60,6 +60,8 @@ export function useCanvasVersions(
   latest: LatestCanvas
 ): LatestCanvas[] {
   const [versions, setVersions] = useState(() => known(request, latest));
+  // Deleted versions stay out even when a history load that started earlier still lists them.
+  const deleted = useRef(new Set<string>());
   const latestId = latest.revisionEventId;
   useEffect(() => {
     let alive = true;
@@ -68,12 +70,16 @@ export function useCanvasVersions(
         ? current
         : [...current, latest]
     );
-    fetchVersions(mx, room, request)
-      .then((fetched) => {
-        // The history must end at the shown version; otherwise keep what is known.
-        if (alive && fetched.at(-1)?.revisionEventId === latestId) setVersions(fetched);
-      })
-      .catch(() => undefined);
+    // A canvas never updated has no history to load.
+    if (latestId !== request.getId()) {
+      fetchVersions(mx, room, request)
+        .then((fetched) => {
+          const kept = fetched.filter((version) => !deleted.current.has(version.revisionEventId));
+          // The history must end at the shown version; otherwise keep what is known.
+          if (alive && kept.at(-1)?.revisionEventId === latestId) setVersions(kept);
+        })
+        .catch(() => undefined);
+    }
     return () => {
       alive = false;
     };
@@ -86,6 +92,8 @@ export function useCanvasVersions(
     const forget = (event: MatrixEvent) => {
       if (!event.isRedaction()) return;
       const redacted = event.event.redacts ?? event.getContent().redacts;
+      if (typeof redacted !== 'string') return;
+      deleted.current.add(redacted);
       setVersions((current) => current.filter((version) => version.revisionEventId !== redacted));
     };
     room.on(RoomEvent.Timeline, forget);
