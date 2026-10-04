@@ -6,6 +6,9 @@ import { Viewport } from '../inset-scrollbar/InsetScrollbar.css';
 
 // Match the size-600 navigation header and its native focus-scroll inset.
 const pageNavHeaderHeight = toRem(54);
+// folds' size-300 Scroll pads its inline end for an overlay scrollbar whenever the
+// native one measures 0 px, which the navigation viewport always does.
+const pageNavScrollEndPadding = toRem(8);
 
 // Size-600 page chrome shares the navigation header's flat native material.
 export const PageHeaderMaterial = style([
@@ -67,6 +70,10 @@ export const PageNavHeader = style({
   zIndex: 1,
   height: pageNavHeaderHeight,
   padding: `0 ${config.space.S200} 0 ${config.space.S300}`,
+  // Span the viewport's end padding so no strip of the list shows beside the
+  // header; the extra padding keeps its contents in place.
+  marginInlineEnd: `calc(-1 * ${pageNavScrollEndPadding})`,
+  paddingInlineEnd: `calc(${config.space.S200} + ${pageNavScrollEndPadding})`,
   flexShrink: 0,
   selectors: {
     'button&': {

@@ -234,27 +234,28 @@ for (const theme of ['light', 'dark']) {
     await session.detach();
   });
 
-  test(`settings navigation shares the modal surface in ${theme}`, async ({ page }) => {
+  test(`settings navigation header frosts the list behind it in ${theme}`, async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto(`/e2e/fixtures/glass-surfaces.html?theme=${theme}`);
     const header = page.getByTestId('settings-nav-header');
     await expect(header).toBeVisible();
-    expect(
-      await header.evaluate((element) => {
-        const style = getComputedStyle(element);
-        return {
-          background: style.backgroundColor,
-          image: style.backgroundImage,
-          filter: style.backdropFilter,
-          shadow: style.boxShadow,
-        };
-      })
-    ).toEqual({
-      background: 'rgba(0, 0, 0, 0)',
-      image: 'none',
-      filter: 'none',
-      shadow: 'none',
+    // The navigation list scrolls under this sticky header, so it keeps the
+    // flat frosted material of the other navigation headers.
+    const material = await header.evaluate((element) => {
+      const style = getComputedStyle(element);
+      return {
+        alpha: Number(style.backgroundColor.split('/')[1]?.replace(')', '').trim()),
+        image: style.backgroundImage,
+        filter: style.backdropFilter,
+        shadow: style.boxShadow,
+        border: style.borderTopWidth,
+      };
     });
+    expect(material.alpha).toBeGreaterThan(0);
+    expect(material.alpha).toBeLessThan(1);
+    expect(material.filter).toContain('blur(');
+    expect(material.filter).not.toContain('url(');
+    expect(material).toMatchObject({ image: 'none', shadow: 'none', border: '0px' });
   });
 }
 
