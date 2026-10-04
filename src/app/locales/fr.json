@@ -2467,6 +2467,9 @@
         "autoApproveMinutes_one": "Approuver automatiquement pendant {{count}} minute",
         "autoApproveMinutes_other": "Approuver automatiquement pendant {{count}} minutes",
         "denyCallReasonOptional": "Motif du refus de l’appel {{number}} (facultatif)",
+        "approveExactCall": "Approuver exactement cet appel",
+        "approveAnyArguments": "Approuver n'importe quels arguments",
+        "anyArgumentsWarning": "Avec n'importe quels arguments, l'agent peut faire un appel {{tool}} avec les arguments de son choix, dans les {{minutes}} minutes autour de l'heure prévue.",
         "autoApproveMinutes_many": "Approuver automatiquement pendant {{count}} minutes"
       },
       "approvalGrantStatus": {
@@ -2502,7 +2505,14 @@
         "toolAndServer": "Outil : {{tool}} · Serveur : {{server}}",
         "tool": "Outil : {{tool}}",
         "reason": "Motif : {{reason}}",
+        "approvedWhenScheduledByAt": "Approuvé lors de la planification par {{approver}} · {{timestamp}}",
+        "approvedWhenScheduledBy": "Approuvé lors de la planification par {{approver}}",
         "timedPermissionMinutes_many": "Autorisation temporaire · {{count}} minutes"
+      },
+      "approvalSchedule": {
+        "scheduledFor": "Prévu pour {{timestamp}}",
+        "approvedExactArguments": "Approuvé pour ces arguments exacts",
+        "approvedAnyArguments": "Approuvé pour n'importe quels arguments de cet outil"
       },
       "approvalReviewCall": {
         "pending": "en attente",

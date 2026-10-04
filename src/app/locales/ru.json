@@ -2496,6 +2496,9 @@
         "autoApproveMinutes_one": "Автоодобрение на {{count}} минуту",
         "autoApproveMinutes_other": "Автоодобрение на {{count}} минут",
         "denyCallReasonOptional": "Причина запрета вызова {{number}} (необязательно)",
+        "approveExactCall": "Одобрить именно этот вызов",
+        "approveAnyArguments": "Одобрить любые аргументы",
+        "anyArgumentsWarning": "С любыми аргументами агент может один раз вызвать {{tool}} с выбранными им аргументами в пределах {{minutes}} мин от запланированного времени.",
         "autoApproveMinutes_few": "Автоодобрение на {{count}} минуты",
         "autoApproveMinutes_many": "Автоодобрение на {{count}} минут"
       },
@@ -2533,8 +2536,15 @@
         "toolAndServer": "Инструмент: {{tool}} · сервер: {{server}}",
         "tool": "Инструмент: {{tool}}",
         "reason": "Причина: {{reason}}",
+        "approvedWhenScheduledByAt": "Одобрено при планировании пользователем {{approver}} · {{timestamp}}",
+        "approvedWhenScheduledBy": "Одобрено при планировании пользователем {{approver}}",
         "timedPermissionMinutes_few": "Временное разрешение · {{count}} минуты",
         "timedPermissionMinutes_many": "Временное разрешение · {{count}} минут"
+      },
+      "approvalSchedule": {
+        "scheduledFor": "Запланировано на {{timestamp}}",
+        "approvedExactArguments": "Одобрено для этих точных аргументов",
+        "approvedAnyArguments": "Одобрено для любых аргументов этого инструмента"
       },
       "approvalReviewCall": {
         "pending": "ожидает",

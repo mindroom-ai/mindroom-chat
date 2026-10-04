@@ -1176,6 +1176,9 @@
         "denialReasonOptional": "अस्वीकार करने का कारण (वैकल्पिक)",
         "deny": "अस्वीकार करें",
         "denyCallReasonOptional": "कॉल {{number}} अस्वीकार करने का कारण (वैकल्पिक)",
+        "approveExactCall": "ठीक यही कॉल स्वीकृत करें",
+        "approveAnyArguments": "कोई भी आर्ग्युमेंट स्वीकृत करें",
+        "anyArgumentsWarning": "कोई भी आर्ग्युमेंट चुनने पर एजेंट तय समय के {{minutes}} मिनट के भीतर अपनी पसंद से {{tool}} को एक बार कॉल कर सकता है।",
         "denyReasonOptional": "अस्वीकार करने का कारण (वैकल्पिक)",
         "submittedWaitingForRoomUpdate": "प्रस्तुत किया गया। रूम अद्यतन की प्रतीक्षा की जा रही है.",
         "thisRequestCannotBeApprovedHere": "इस अनुरोध को यहां स्वीकृत नहीं किया जा सकता."
@@ -1198,6 +1201,8 @@
         "grantedByAt": "{{grantor}} द्वारा प्रदान किया गया · {{timestamp}}",
         "originalFixedExpiry": "मूल निश्चित समाप्ति समय: {{timestamp}}",
         "reason": "कारण: {{reason}}",
+        "approvedWhenScheduledByAt": "शेड्यूल करते समय {{approver}} द्वारा स्वीकृत · {{timestamp}}",
+        "approvedWhenScheduledBy": "शेड्यूल करते समय {{approver}} द्वारा स्वीकृत",
         "requestedBy": "{{agent}} · {{requester}} द्वारा अनुरोध किया गया",
         "resolvedAt": "{{status}} · {{timestamp}}",
         "resolvedBy": "{{resolver}} द्वारा {{status}}",
@@ -1212,6 +1217,11 @@
         "tool": "उपकरण: {{tool}}",
         "toolAndServer": "टूल: {{tool}} · सर्वर: {{server}}",
         "unknown": "अज्ञात"
+      },
+      "approvalSchedule": {
+        "scheduledFor": "{{timestamp}} के लिए निर्धारित",
+        "approvedExactArguments": "ठीक इन्हीं आर्ग्युमेंट के लिए स्वीकृत",
+        "approvedAnyArguments": "इस टूल के किसी भी आर्ग्युमेंट के लिए स्वीकृत"
       },
       "approvalReviewCall": {
         "callStatus": "कॉल {{number}} · {{status}}",

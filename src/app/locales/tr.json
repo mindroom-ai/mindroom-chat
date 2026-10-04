@@ -2437,7 +2437,10 @@
         "cancel": "İptal",
         "autoApproveMinutes_one": "{{count}} dakika boyunca otomatik onayla",
         "autoApproveMinutes_other": "{{count}} dakika boyunca otomatik onayla",
-        "denyCallReasonOptional": "{{number}} numaralı çağrı için ret nedeni (isteğe bağlı)"
+        "denyCallReasonOptional": "{{number}} numaralı çağrı için ret nedeni (isteğe bağlı)",
+        "approveExactCall": "Tam olarak bu çağrıyı onayla",
+        "approveAnyArguments": "Herhangi bir bağımsız değişkeni onayla",
+        "anyArgumentsWarning": "Herhangi bir bağımsız değişkenle aracı, planlanan zamanın {{minutes}} dakika yakınında kendi seçtiği değerlerle bir {{tool}} çağrısı yapabilir."
       },
       "approvalGrantStatus": {
         "autoApprovalActive": "Otomatik onay etkin",
@@ -2470,7 +2473,14 @@
         "originalFixedExpiry": "İlk sabit bitiş zamanı: {{timestamp}}",
         "toolAndServer": "Araç: {{tool}} · Sunucu: {{server}}",
         "tool": "Araç: {{tool}}",
-        "reason": "Neden: {{reason}}"
+        "reason": "Neden: {{reason}}",
+        "approvedWhenScheduledByAt": "Planlanırken {{approver}} tarafından onaylandı · {{timestamp}}",
+        "approvedWhenScheduledBy": "Planlanırken {{approver}} tarafından onaylandı"
+      },
+      "approvalSchedule": {
+        "scheduledFor": "{{timestamp}} için planlandı",
+        "approvedExactArguments": "Tam olarak bu bağımsız değişkenler için onaylandı",
+        "approvedAnyArguments": "Bu aracın herhangi bir bağımsız değişkeni için onaylandı"
       },
       "approvalReviewCall": {
         "pending": "bekliyor",

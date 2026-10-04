@@ -5,6 +5,7 @@ import {
   parseToolApprovalExpiryTimestamp,
   ToolApprovalDuration,
   ToolApprovalData,
+  ToolApprovalScheduledScope,
 } from './toolApproval';
 
 export type ApprovalActionState = {
@@ -13,8 +14,13 @@ export type ApprovalActionState = {
   error?: string;
 };
 export type ApprovalAction =
-  | { status: 'approved'; duration?: ToolApprovalDuration; reason?: string }
-  | { status: 'denied'; reason?: string; duration?: never }
+  | {
+      status: 'approved';
+      duration?: ToolApprovalDuration;
+      scheduledScope?: ToolApprovalScheduledScope;
+      reason?: string;
+    }
+  | { status: 'denied'; reason?: string; duration?: never; scheduledScope?: never }
   | { revoke: true };
 
 export type ApprovalControlProps = {
@@ -66,6 +72,8 @@ export const getApprovalCapabilities = (
       approve && originalApprover && record.approval.threadId
         ? record.approval.autoApproveOptions
         : [],
+    scheduledScopes:
+      approve && originalApprover ? record.approval.schedule?.scopeOptions ?? [] : [],
     revoke:
       originalApprover &&
       !!record.approval.threadId &&
@@ -130,6 +138,9 @@ export const createApprovalActions = ({
     } else {
       if (!(action.status === 'approved' ? capabilities.approve : capabilities.deny)) return;
       if (action.duration && !capabilities.durations.includes(action.duration)) return;
+      if (action.scheduledScope && !capabilities.scheduledScopes.includes(action.scheduledScope))
+        return;
+      if (action.duration && action.scheduledScope) return;
     }
     const affected =
       'status' in action && action.status === 'approved' && action.duration && approval.scope
@@ -157,7 +168,8 @@ export const createApprovalActions = ({
               threadId,
               eventId,
               action.reason,
-              action.duration
+              action.duration,
+              action.scheduledScope
             )
       );
       result = { kind, status: 'submitted' };
