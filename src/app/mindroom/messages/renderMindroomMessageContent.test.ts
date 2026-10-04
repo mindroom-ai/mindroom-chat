@@ -741,9 +741,21 @@ describe('renderMindroomMessageContent', () => {
 
     afterEach(() => resolvedLongText.clear());
 
+    // What Chat's real hydration returns after downloading a file with these bytes.
+    const downloaded = async (file: unknown, raw = JSON.stringify(file)) => {
+      const { hydrateMindroomLongTextSource } = await vi.importActual<typeof import('./longText')>(
+        './longText'
+      );
+      return hydrateMindroomLongTextSource(
+        { previewContent: { body: '' }, mxcUri: `mxc://test/${raw.length}`, isV2ContentJson: true },
+        async () => raw,
+        {}
+      );
+    };
+
     it('shows the receipt once the downloaded answer proves it', async () => {
       const { content, preview } = await sidecarAnswer();
-      resolvedLongText.set('mxc://example.org/answer', content);
+      resolvedLongText.set('mxc://example.org/answer', await downloaded(content));
 
       const renderer = await renderNode({ msgType: 'm.file', content: preview });
       const rendered = JSON.stringify(renderer.toJSON());
@@ -752,6 +764,42 @@ describe('renderMindroomMessageContent', () => {
       expect(rendered).toContain('Edited draft');
       expect(rendered).not.toContain('"data-renderer":"long-text"');
       renderer.unmount();
+    });
+
+    it('shows no receipt for a file MindRoom would not read the same way', async () => {
+      const { content, preview } = await sidecarAnswer();
+      // Chat also reads a nested content object; MindRoom reads only the top level.
+      resolvedLongText.set('mxc://example.org/answer', await downloaded({ content }));
+      const nested = await renderNode({ msgType: 'm.file', content: preview });
+      expect(JSON.stringify(nested.toJSON())).not.toContain('data-canvas-receipt');
+      nested.unmount();
+
+      // MindRoom does not download a file over 2 MiB, so the agent would read only the preview.
+      resolvedLongText.set(
+        'mxc://example.org/answer',
+        await downloaded({ ...content, padding: 'x'.repeat(2 * 1024 * 1024) })
+      );
+      const oversized = await renderNode({ msgType: 'm.file', content: preview });
+      expect(JSON.stringify(oversized.toJSON())).not.toContain('data-canvas-receipt');
+      oversized.unmount();
+
+      // MindRoom reads a replacement inside the file; Chat would copy the answer's body into it.
+      resolvedLongText.set(
+        'mxc://example.org/answer',
+        await downloaded({ ...content, 'm.new_content': { msgtype: 'm.text' } })
+      );
+      const replaced = await renderNode({ msgType: 'm.file', content: preview });
+      expect(JSON.stringify(replaced.toJSON())).not.toContain('data-canvas-receipt');
+      replaced.unmount();
+
+      // MindRoom refuses a file with a lone surrogate anywhere in it.
+      resolvedLongText.set(
+        'mxc://example.org/answer',
+        await downloaded({ ...content, note: 'x\ud800' })
+      );
+      const malformed = await renderNode({ msgType: 'm.file', content: preview });
+      expect(JSON.stringify(malformed.toJSON())).not.toContain('data-canvas-receipt');
+      malformed.unmount();
     });
 
     it('shows the ordinary long text until the answer is downloaded', async () => {
@@ -768,7 +816,7 @@ describe('renderMindroomMessageContent', () => {
     it('judges the reply by the event, not by the downloaded file', async () => {
       const { content, preview } = await sidecarAnswer();
       // The file claims the canvas, but the event itself replies elsewhere.
-      resolvedLongText.set('mxc://example.org/answer', content);
+      resolvedLongText.set('mxc://example.org/answer', await downloaded(content));
       const elsewhere = {
         ...preview,
         'm.relates_to': {

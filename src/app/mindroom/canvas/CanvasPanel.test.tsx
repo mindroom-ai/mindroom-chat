@@ -491,6 +491,56 @@ describe('CanvasPanel', () => {
     expect(status()).toContain('Sent to Planner: Edited draft');
   });
 
+  const slowUpload = () => {
+    const finishes: Array<() => void> = [];
+    vi.spyOn(mx, 'uploadContent').mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          finishes.push(() => resolve({ content_uri: 'mxc://example.org/answer' }));
+        }) as never
+    );
+    return finishes;
+  };
+  const largeAnswer = (label: string) =>
+    submit(label, { text: `${label}: ${'A long paragraph. '.repeat(4000)}` });
+
+  it('cancels a large answer discarded during its upload and keeps a newer one', async () => {
+    const finishes = slowUpload();
+    render();
+    await post(largeAnswer('First'));
+    await arm();
+    await clickSend();
+    await act(async () => button('[data-canvas-discard]').click());
+    await act(async () => {
+      vi.advanceTimersByTime(100);
+    });
+    await post(largeAnswer('Second'));
+    await act(async () => finishes[0]());
+    expect(sendMessage).not.toHaveBeenCalled();
+    expect(container.textContent).toContain('Send to Planner: Second');
+    expect(button('[data-canvas-send]')).not.toBeNull();
+  });
+
+  it('still sends a large answer when a new page arrives during its upload', async () => {
+    const finishes = slowUpload();
+    render();
+    await post(largeAnswer('First'));
+    await arm();
+    await clickSend();
+    // The user committed the answer, so an agent update does not cancel it.
+    render({ canvas: { ...canvas, revisionEventId: '$edit', html: '<p>Step 2</p>' } });
+    expect(page()).toContain('<p>Step 2</p>');
+    await act(async () => {
+      vi.advanceTimersByTime(100);
+    });
+    await post(largeAnswer('Second'));
+    await act(async () => finishes[0]());
+    expect(sendMessage).toHaveBeenCalledTimes(1);
+    expect(sendMessage.mock.calls[0][1][CANVAS_RESPONSE_KEY].label).toBe('First');
+    // Work staged on the new page stays.
+    expect(container.textContent).toContain('Send to Planner: Second');
+  });
+
   it('keeps a large answer for another try when its upload fails', async () => {
     vi.spyOn(mx, 'uploadContent').mockRejectedValue(new Error('offline'));
     render();

@@ -52,10 +52,26 @@ const serialize = (data: unknown): string | undefined => {
 };
 
 /** Decimal and very large numbers travel as text, the only form every homeserver accepts. */
+// A lone surrogate is not text: MindRoom refuses a long answer's file that holds one.
+const LONE_SURROGATE = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?:^|[^\uD800-\uDBFF])[\uDC00-\uDFFF]/;
+const isText = (value: string): boolean => !LONE_SURROGATE.test(value);
+
+/** Whether every string and key in a value is valid text, as MindRoom requires of a long message's file. */
+export const isAllText = (value: unknown): boolean => {
+  if (typeof value === 'string') return isText(value);
+  if (Array.isArray(value)) return value.every(isAllText);
+  if (record(value))
+    return Object.entries(value).every(([key, item]) => isText(key) && isAllText(item));
+  return true;
+};
+
 const matrixSafeData = (data: unknown): unknown =>
-  JSON.parse(JSON.stringify(data), (_key, value: unknown) =>
-    typeof value === 'number' && !Number.isSafeInteger(value) ? String(value) : value
-  );
+  JSON.parse(JSON.stringify(data), (key, value: unknown) => {
+    if (!isText(key) || (typeof value === 'string' && !isText(value))) {
+      throw new Error('Canvas answers must be valid text.');
+    }
+    return typeof value === 'number' && !Number.isSafeInteger(value) ? String(value) : value;
+  });
 
 /** Accept only the bridge message shape, from this canvas frame, within the payload budget. */
 export const readCanvasSubmission = (
@@ -67,7 +83,12 @@ export const readCanvasSubmission = (
   if (!record(message) || message.type !== CANVAS_SUBMIT_MESSAGE || message.version !== 1) {
     return undefined;
   }
-  if (message.label !== undefined && typeof message.label !== 'string') return undefined;
+  if (
+    message.label !== undefined &&
+    (typeof message.label !== 'string' || !isText(message.label))
+  ) {
+    return undefined;
+  }
   let data: unknown;
   try {
     data = matrixSafeData(message.data);
@@ -147,6 +168,11 @@ export const buildCanvasResponseContent = (canvas: CanvasTarget, submission: Can
 
 export type CanvasResponseContent = ReturnType<typeof buildCanvasResponseContent>;
 
+/** MindRoom downloads a long message's file up to this size (`_MXC_TEXT_MAX_BYTES`). */
+export const MINDROOM_SIDECAR_MAX_BYTES = 2 * 1024 * 1024;
+
+const LONG_ANSWER_NOTE = '\n\n[Message continues in attached file]';
+
 /** Whether an answer fits one event; a larger one is sent as a long-text sidecar. */
 export const canvasResponseFitsInEvent = (content: CanvasResponseContent): boolean =>
   contentBytes(content) <= MAX_CANVAS_RESPONSE_CONTENT_BYTES;
@@ -158,8 +184,9 @@ export const canvasResponseFitsInEvent = (content: CanvasResponseContent): boole
 export const buildCanvasResponsePreview = (content: CanvasResponseContent) => {
   const { data: _data, ...marker } = content[CANVAS_RESPONSE_KEY];
   return {
-    // Canonical JSON has no raw line break, so the last one ends the summary line.
-    body: content.body.slice(0, content.body.lastIndexOf('\n')),
+    // Canonical JSON has no raw line break, so the last one ends the summary line. The note is the
+    // one MindRoom's own long replies carry, for whoever sees only the preview.
+    body: `${content.body.slice(0, content.body.lastIndexOf('\n'))}${LONG_ANSWER_NOTE}`,
     'm.mentions': content['m.mentions'],
     'm.relates_to': content['m.relates_to'],
     [CANVAS_RESPONSE_KEY]: marker,

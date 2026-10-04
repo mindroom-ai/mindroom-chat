@@ -191,13 +191,37 @@ export const clearMindroomLongTextHydrationCache = () => {
   mindroomLongTextInflight = new WeakMap();
 };
 
+/** How a long text was read from its sidecar file; MindRoom's own reader is stricter than Chat's. */
+export type MindroomLongTextSidecarFacts = {
+  /** The file was the message content itself, the only shape MindRoom reads. */
+  topLevelContent: boolean;
+  bytes: number;
+};
+
+const SIDECAR_FACTS = Symbol('mindroomLongTextSidecarFacts');
+
+export const getMindroomLongTextSidecarFacts = (
+  content: Record<string, unknown>
+): MindroomLongTextSidecarFacts | undefined =>
+  (content as Record<symbol, MindroomLongTextSidecarFacts | undefined>)[SIDECAR_FACTS];
+
 export const parseMindroomLongTextJsonSidecar = (
   rawSidecar: string
 ): Record<string, unknown> | undefined => {
   try {
     const parsed = JSON.parse(rawSidecar);
     if (!isRecord(parsed)) return undefined;
-    return extractMessageContentFromSidecarPayload(parsed);
+    const content = extractMessageContentFromSidecarPayload(parsed);
+    if (content) {
+      // Not enumerable, so the facts never reach rendering, copies, or JSON.
+      Object.defineProperty(content, SIDECAR_FACTS, {
+        value: {
+          topLevelContent: content === parsed,
+          bytes: new TextEncoder().encode(rawSidecar).length,
+        } satisfies MindroomLongTextSidecarFacts,
+      });
+    }
+    return content;
   } catch {
     return undefined;
   }

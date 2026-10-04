@@ -149,6 +149,10 @@ export function CanvasPanel({
   const [sendError, setSendError] = useState(false);
   // An answer too large for one event is uploaded before its event exists.
   const [uploading, setUploading] = useState(false);
+  // The answer being uploaded; Discard clears it, which cancels sending it.
+  const uploadingSubmission = useRef<CanvasSubmission>();
+  const stagedNow = useRef(staged);
+  stagedNow.current = staged;
   const loads = useRef({ frameKey, count: 0 });
   const currentFrameKey = useRef(frameKey);
   currentFrameKey.current = frameKey;
@@ -263,7 +267,11 @@ export function CanvasPanel({
 
   // Hands one event to the SDK; from then on its local echo carries the answer's status.
   const deliver = useCallback(
-    (eventContent: Record<string, unknown>, label: string): boolean => {
+    (
+      eventContent: Record<string, unknown>,
+      label: string,
+      submission: CanvasSubmission
+    ): boolean => {
       const txnId = mx.makeTxnId();
       let sending: Promise<unknown>;
       try {
@@ -275,10 +283,9 @@ export function CanvasPanel({
       // A failure shows through the echo's status, here and in the timeline.
       sending.catch(() => undefined);
       const echo = room.getEventForTxnId(txnId);
-      setStaged(undefined);
+      // A newer snapshot staged during an upload stays.
+      if (stagedNow.current?.submission === submission) setStaged(undefined);
       setLastAnswer(echo ? { echo, label } : undefined);
-      // Work in the frame after this answer marks it again.
-      touched.current = false;
       return true;
     },
     [mx, room]
@@ -299,22 +306,40 @@ export function CanvasPanel({
       submission
     );
     setSendError(false);
+    // The answer is committed now; work in the frame after this click marks it again.
+    touched.current = false;
+    const refused = () => {
+      setSendError(true);
+      // The snapshot stays unsent, so an update must not replace the page without asking.
+      touched.current = true;
+    };
     if (canvasResponseFitsInEvent(content)) {
-      if (!deliver(content, label)) setSendError(true);
+      if (!deliver(content, label, submission)) refused();
       return;
     }
     // Too large for one event: upload the whole answer and send a preview that points at it,
-    // as MindRoom sends long replies. The snapshot stays until the preview is handed to the SDK.
+    // as MindRoom sends long replies. The snapshot stays until the preview is handed to the SDK,
+    // and Discard until then cancels the answer.
+    uploadingSubmission.current = submission;
     setUploading(true);
+    const current = () => uploadingSubmission.current === submission;
     uploadMindroomLongTextSidecar(mx, room, content, buildCanvasResponsePreview(content))
       .then((preview) => {
-        if (!deliver(preview, label)) setSendError(true);
+        if (current() && !deliver(preview, label, submission)) refused();
       })
-      .catch(() => setSendError(true))
-      .finally(() => setUploading(false));
+      .catch(() => {
+        if (current()) refused();
+      })
+      .finally(() => {
+        if (!current()) return;
+        uploadingSubmission.current = undefined;
+        setUploading(false);
+      });
   }, [agentName, busy, deliver, displayed, mx, room, staged, t]);
 
   const handleDiscard = useCallback(() => {
+    uploadingSubmission.current = undefined;
+    setUploading(false);
     setStaged(undefined);
     setSendError(false);
   }, []);

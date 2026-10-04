@@ -1,7 +1,11 @@
-import React, { type ReactNode } from 'react';
-import type { MindroomLongTextSource } from '../messages/longText';
+import React, { type ReactNode, useMemo } from 'react';
+import {
+  getMindroomLongTextSidecarFacts,
+  getMindroomLongTextSourceIdentity,
+  type MindroomLongTextSource,
+} from '../messages/longText';
 import { useMindroomLongTextResolvedContent } from '../messages/MindroomLongTextText';
-import { readCanvasResponse } from './canvasMessages';
+import { isAllText, MINDROOM_SIDECAR_MAX_BYTES, readCanvasResponse } from './canvasMessages';
 import { CanvasResponseReceipt } from './CanvasResponseReceipt';
 
 type CanvasResponseSidecarReceiptProps = {
@@ -24,8 +28,23 @@ export function CanvasResponseSidecarReceipt({
   renderStateSuffix,
   fallback,
 }: CanvasResponseSidecarReceiptProps) {
-  const resolved = useMindroomLongTextResolvedContent(source, hydrate);
-  const receipt = resolved && readCanvasResponse({ ...resolved, 'm.relates_to': relation });
+  // The parent builds a new source (and owner) object on every render; the download hook keys on
+  // the object, so keep one per file and owner.
+  const key = `${getMindroomLongTextSourceIdentity(source)}\n${JSON.stringify(
+    source.owner ?? null
+  )}`;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const stableSource = useMemo(() => source, [key]);
+  const resolved = useMindroomLongTextResolvedContent(stableSource, hydrate);
+  // Chat's reader accepts more files than MindRoom's; a receipt claims only what the agent reads,
+  // so the file must be the content itself, within MindRoom's download limit, and valid text.
+  const facts = resolved && getMindroomLongTextSidecarFacts(resolved);
+  const readByMindroom =
+    !!facts?.topLevelContent && facts.bytes <= MINDROOM_SIDECAR_MAX_BYTES && isAllText(resolved);
+  const receipt =
+    readByMindroom && resolved
+      ? readCanvasResponse({ ...resolved, 'm.relates_to': relation })
+      : undefined;
   if (!receipt) return <>{fallback}</>;
   return (
     <CanvasResponseReceipt

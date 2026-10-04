@@ -52,6 +52,17 @@ describe('readCanvasSubmission', () => {
     ).toBeUndefined();
   });
 
+  it('refuses text with a lone surrogate, which MindRoom cannot read back from a file', () => {
+    expect(readCanvasSubmission(message(submit({ data: { doc: 'abc\ud83d' } })), frame)).toBe(
+      undefined
+    );
+    expect(readCanvasSubmission(message(submit({ data: { '\udc00': 1 } })), frame)).toBe(undefined);
+    expect(readCanvasSubmission(message(submit({ label: 'x\ud800' })), frame)).toBeUndefined();
+    expect(
+      readCanvasSubmission(message(submit({ data: { doc: 'Waves \ud83c\udf0a' } })), frame)?.data
+    ).toEqual({ doc: 'Waves \ud83c\udf0a' });
+  });
+
   it('sends decimal and unsafe numbers as text, which every homeserver accepts', () => {
     expect(
       readCanvasSubmission(
@@ -141,8 +152,9 @@ describe('buildCanvasResponseContent', () => {
     expect(canvasResponseFitsInEvent(content)).toBe(false);
     expect(canvasResponseFitsInEvent(buildCanvasResponseContent(canvas, { data: 1 }))).toBe(true);
     const preview = buildCanvasResponsePreview(content);
+    // Whoever sees only the preview is told the rest is in the file, as with MindRoom's replies.
     expect(preview.body).toBe(
-      '@mindroom_planner:example.org Canvas response ($canvas, revision $edit): Edited draft'
+      '@mindroom_planner:example.org Canvas response ($canvas, revision $edit): Edited draft\n\n[Message continues in attached file]'
     );
     expect(preview['m.mentions']).toEqual(content['m.mentions']);
     expect(preview['m.relates_to']).toEqual(content['m.relates_to']);
