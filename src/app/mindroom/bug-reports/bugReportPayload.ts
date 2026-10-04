@@ -9,6 +9,7 @@ import { getThreadReplyEventsForRoot } from '../threads/threadUtils';
 export const BUG_REPORT_TYPE = 'io.mindroom.bug_report';
 export const BUG_REPORT_VERSION = 1;
 const MAIN_TIMELINE_EVENT_LIMIT = 50;
+const THREAD_REPLY_LIMIT = 200;
 
 type RawEvent = Record<string, unknown>;
 
@@ -33,6 +34,8 @@ export type BugReport = {
     permalink: string;
   };
   events: BugReportEvent[];
+  /** Thread replies this client holds that the 200-reply bound left out of `events`. */
+  omittedEventCount: number;
   client: {
     build: string;
     platform: string;
@@ -73,12 +76,20 @@ const serializeEvent = (event: MatrixEvent): BugReportEvent => ({
 const isEditEvent = (event: MatrixEvent): boolean =>
   event.getRelation()?.rel_type === RelationType.Replace;
 
+export type ReportEvents = { events: MatrixEvent[]; omittedEventCount: number };
+
 /**
  * The events an administrator needs to see the reported message in context.
  * `m.replace` edits are left out (streaming produces hundreds); each event's
  * latest edit is attached to it instead. Reactions are kept.
+ *
+ * Thread scope: the root plus the newest 200 replies, or, when the selected reply is
+ * older than those, the 200 replies ending at it; `omittedEventCount` is the number of
+ * held replies left out (a 250-event thread reported at its newest reply keeps the
+ * root and 200 replies and omits 49).
+ * Main-timeline scope: the 50 events up to the selected event; nothing is counted as omitted.
  */
-export const collectReportEvents = (room: Room, mEvent: MatrixEvent): MatrixEvent[] => {
+export const collectReportEvents = (room: Room, mEvent: MatrixEvent): ReportEvents => {
   const eventId = mEvent.getId();
   const isReportable = (event: MatrixEvent) => event.getId() === eventId || !isEditEvent(event);
 
@@ -94,14 +105,30 @@ export const collectReportEvents = (room: Room, mEvent: MatrixEvent): MatrixEven
     (thread?.events ?? []).forEach(add);
     getThreadReplyEventsForRoot(room.getLiveTimeline().getEvents(), threadId).forEach(add);
     add(mEvent);
-    return [...byId.values()].sort((a, b) => a.getTs() - b.getTs());
+    const root = byId.get(threadId);
+    const replies = [...byId.values()]
+      .filter((event) => event !== root)
+      .sort((a, b) => a.getTs() - b.getTs());
+    const selected = replies.findIndex((event) => event.getId() === eventId);
+    const end =
+      selected === -1 || selected >= replies.length - THREAD_REPLY_LIMIT
+        ? replies.length
+        : selected + 1;
+    const kept = replies.slice(Math.max(0, end - THREAD_REPLY_LIMIT), end);
+    return {
+      events: root ? [root, ...kept] : kept,
+      omittedEventCount: replies.length - kept.length,
+    };
   }
 
   const timeline = (eventId ? room.getTimelineForEvent(eventId) : null) ?? room.getLiveTimeline();
   const events = timeline.getEvents().filter(isReportable);
   const index = events.findIndex((event) => event.getId() === eventId);
-  if (index === -1) return [...events.slice(-(MAIN_TIMELINE_EVENT_LIMIT - 1)), mEvent];
-  return events.slice(Math.max(0, index + 1 - MAIN_TIMELINE_EVENT_LIMIT), index + 1);
+  const tail =
+    index === -1
+      ? [...events.slice(-(MAIN_TIMELINE_EVENT_LIMIT - 1)), mEvent]
+      : events.slice(Math.max(0, index + 1 - MAIN_TIMELINE_EVENT_LIMIT), index + 1);
+  return { events: tail, omittedEventCount: 0 };
 };
 
 const buildClientState = (mx: MatrixClient): BugReport['client'] => ({
@@ -128,6 +155,7 @@ export const buildBugReport = async (
   now: Date = new Date()
 ): Promise<BugReport> => {
   const eventId = mEvent.getId() ?? '';
+  const { events, omittedEventCount } = collectReportEvents(room, mEvent);
   return {
     type: BUG_REPORT_TYPE,
     version: BUG_REPORT_VERSION,
@@ -144,7 +172,8 @@ export const buildBugReport = async (
       eventId,
       permalink: getMatrixToRoomEvent(room.roomId, eventId, getViaServers(room)),
     },
-    events: collectReportEvents(room, mEvent).map(serializeEvent),
+    events: events.map(serializeEvent),
+    omittedEventCount,
     client: buildClientState(mx),
     diagnostics: await buildDiagnosticsPayload(now.getTime()),
   };
@@ -154,4 +183,4 @@ export const getBugReportFileName = (report: BugReport): string =>
   `mindroom-bug-report-${report.reportedAt.replace(/[:.]/g, '-')}.json`;
 
 export const serializeBugReport = (report: BugReport): Blob =>
-  new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' });
+  new Blob([JSON.stringify(report)], { type: 'application/json' });

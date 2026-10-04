@@ -5,7 +5,12 @@ vi.mock('../diagnostics/diagnosticsExport', () => ({
   buildDiagnosticsPayload: vi.fn(async (exportedAt: number) => ({ metadata: { exportedAt } })),
 }));
 
-import { buildBugReport, collectReportEvents, getBugReportFileName } from './bugReportPayload';
+import {
+  buildBugReport,
+  collectReportEvents,
+  getBugReportFileName,
+  serializeBugReport,
+} from './bugReportPayload';
 
 type FakeEvent = ReturnType<typeof fakeEvent>;
 
@@ -87,7 +92,7 @@ describe('collectReportEvents', () => {
       live: [root, b],
       thread: { id: '$root', root, events: [a, b] },
     });
-    const ids = collectReportEvents(room as never, b as never).map((e) => e.getId());
+    const ids = collectReportEvents(room as never, b as never).events.map((e) => e.getId());
     expect(ids).toEqual(['$root', '$a', '$b']);
   });
 
@@ -98,7 +103,7 @@ describe('collectReportEvents', () => {
       status: 'not_sent',
     });
     const room = fakeRoom({ live: [root], thread: { id: '$root', root, events: [] } });
-    const ids = collectReportEvents(room as never, failed as never).map((e) => e.getId());
+    const ids = collectReportEvents(room as never, failed as never).events.map((e) => e.getId());
     expect(ids).toEqual(['$root', '~!room:example.com:m1']);
   });
 
@@ -111,7 +116,7 @@ describe('collectReportEvents', () => {
       live: [root, a, edit, b],
       thread: { id: '$root', root, events: [a, edit, b] },
     });
-    const ids = collectReportEvents(room as never, b as never).map((e) => e.getId());
+    const ids = collectReportEvents(room as never, b as never).events.map((e) => e.getId());
     expect(ids).toEqual(['$root', '$a', '$b']);
   });
 
@@ -123,14 +128,16 @@ describe('collectReportEvents', () => {
       live: [root, a, edit],
       thread: { id: '$root', root, events: [a, edit] },
     });
-    const ids = collectReportEvents(room as never, edit as never).map((e) => e.getId());
+    const ids = collectReportEvents(room as never, edit as never).events.map((e) => e.getId());
     expect(ids).toEqual(['$root', '$a', '$edit']);
   });
 
   it('takes the 50 events up to the selected main-timeline event', () => {
     const events = Array.from({ length: 80 }, (_, i) => fakeEvent(`$e${i}`, i));
     const room = fakeRoom({ live: events, timelineFor: events });
-    const ids = collectReportEvents(room as never, events[59] as never).map((e) => e.getId());
+    const ids = collectReportEvents(room as never, events[59] as never).events.map((e) =>
+      e.getId()
+    );
     expect(ids).toHaveLength(50);
     expect(ids[0]).toBe('$e10');
     expect(ids[49]).toBe('$e59');
@@ -143,11 +150,90 @@ describe('collectReportEvents', () => {
     ]).flat();
     const room = fakeRoom({ live: events, timelineFor: events });
     const selected = events.find((e) => e.getId() === '$e59');
-    const ids = collectReportEvents(room as never, selected as never).map((e) => e.getId());
+    const ids = collectReportEvents(room as never, selected as never).events.map((e) => e.getId());
     expect(ids).toHaveLength(50);
     expect(ids[0]).toBe('$e10');
     expect(ids[49]).toBe('$e59');
     expect(ids.some((id) => id?.startsWith('$edit'))).toBe(false);
+  });
+  it('keeps the root and the newest 200 replies of a longer thread', () => {
+    const root = fakeEvent('$root', 0, { threadRootId: '$root' });
+    const replies = Array.from({ length: 249 }, (_, i) =>
+      fakeEvent(`$r${i}`, i + 1, { threadRootId: '$root' })
+    );
+    const room = fakeRoom({ live: [], thread: { id: '$root', root, events: replies } });
+    const { events, omittedEventCount } = collectReportEvents(room as never, replies[248] as never);
+    const ids = events.map((e) => e.getId());
+    // 250 events = root + 249 replies; the newest 200 replies are $r49..$r248.
+    expect(ids).toHaveLength(201);
+    expect(ids[0]).toBe('$root');
+    expect(ids[1]).toBe('$r49');
+    expect(ids[200]).toBe('$r248');
+    expect(omittedEventCount).toBe(49);
+  });
+
+  it('ends the thread window at a selected reply older than the newest 200', () => {
+    const root = fakeEvent('$root', 0, { threadRootId: '$root' });
+    const replies = Array.from({ length: 249 }, (_, i) =>
+      fakeEvent(`$r${i}`, i + 1, { threadRootId: '$root' })
+    );
+    const room = fakeRoom({ live: [], thread: { id: '$root', root, events: replies } });
+    const { events, omittedEventCount } = collectReportEvents(room as never, replies[20] as never);
+    const ids = events.map((e) => e.getId());
+    expect(ids).toHaveLength(22);
+    expect(ids[0]).toBe('$root');
+    expect(ids[1]).toBe('$r0');
+    expect(ids[21]).toBe('$r20');
+    expect(omittedEventCount).toBe(228);
+  });
+
+  it('keeps the newest 200 replies when the thread root itself is reported', () => {
+    const root = fakeEvent('$root', 0, { threadRootId: '$root' });
+    const replies = Array.from({ length: 249 }, (_, i) =>
+      fakeEvent(`$r${i}`, i + 1, { threadRootId: '$root' })
+    );
+    const room = fakeRoom({ live: [], thread: { id: '$root', root, events: replies } });
+    const { events, omittedEventCount } = collectReportEvents(room as never, root as never);
+    const ids = events.map((e) => e.getId());
+    expect(ids).toHaveLength(201);
+    expect(ids[0]).toBe('$root');
+    expect(ids[1]).toBe('$r49');
+    expect(omittedEventCount).toBe(49);
+  });
+
+  it('omits nothing from a short thread or the main timeline', () => {
+    const root = fakeEvent('$root', 1, { threadRootId: '$root' });
+    const a = fakeEvent('$a', 2, { threadRootId: '$root' });
+    const b = fakeEvent('$b', 3, { threadRootId: '$root' });
+    const threadRoom = fakeRoom({ live: [], thread: { id: '$root', root, events: [a, b] } });
+    expect(collectReportEvents(threadRoom as never, a as never)).toMatchObject({
+      omittedEventCount: 0,
+    });
+    expect(
+      collectReportEvents(threadRoom as never, a as never).events.map((e) => e.getId())
+    ).toEqual(['$root', '$a', '$b']);
+
+    const events = Array.from({ length: 80 }, (_, i) => fakeEvent(`$e${i}`, i));
+    const mainRoom = fakeRoom({ live: events, timelineFor: events });
+    expect(collectReportEvents(mainRoom as never, events[59] as never).omittedEventCount).toBe(0);
+  });
+});
+
+// jsdom's Blob has no text().
+const readBlob = (blob: Blob) =>
+  new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = () => reject(reader.error);
+    reader.readAsText(blob);
+  });
+
+describe('serializeBugReport', () => {
+  it('writes compact JSON', async () => {
+    const report = { type: 'io.mindroom.bug_report', events: [{ eventId: '$a' }] };
+    const text = await readBlob(serializeBugReport(report as never));
+    expect(text).toBe(JSON.stringify(report));
+    expect(text).not.toContain('\n');
   });
 });
 
@@ -187,6 +273,7 @@ describe('buildBugReport', () => {
     });
     expect(report.target.permalink).toContain('$reply');
     expect(report.events.map((e) => e.eventId)).toEqual(['$root', '$reply']);
+    expect(report.omittedEventCount).toBe(0);
     expect(report.events[1].latestEdit).toEqual({
       event_id: '$edit',
       content: { 'm.new_content': { body: 'final' } },

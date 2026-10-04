@@ -43,6 +43,7 @@ const uploadReportFile = async (mx: MatrixClient, reportRoom: Room, report: BugR
     type: item.encInfo ? 'application/octet-stream' : 'application/json',
     includeFilename: !item.encInfo,
   });
+  if (!mxc) throw new Error('The bug report upload returned no content URI.');
   return getFileMsgContent(item, mxc);
 };
 
@@ -51,6 +52,8 @@ export const sendBugReport = async (
   reportRoom: Room,
   report: BugReport
 ): Promise<{ roomId: string; threadRootId: string }> => {
+  // Upload first: a failed upload must not leave a summary without its attachment.
+  const fileContent = await uploadReportFile(mx, reportRoom, report);
   const userId = mx.getSafeUserId();
   const reporterName = mx.getUser(userId)?.displayName ?? getMxIdLocalPart(userId) ?? userId;
   const { event_id: threadRootId } = await mx.sendMessage(reportRoom.roomId, {
@@ -64,7 +67,6 @@ export const sendBugReport = async (
     },
   } as RoomMessageEventContent);
 
-  const fileContent = await uploadReportFile(mx, reportRoom, report);
   await mx.sendMessage(reportRoom.roomId, threadRootId, {
     ...fileContent,
     'm.relates_to': getMessageRelation(undefined, undefined, threadRootId),

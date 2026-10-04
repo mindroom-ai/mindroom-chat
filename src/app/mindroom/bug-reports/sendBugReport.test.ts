@@ -29,16 +29,25 @@ const report = {
   diagnostics: {},
 } as unknown as BugReport;
 
-const client = () => ({
-  getSafeUserId: () => '@alice:example.com',
-  getUser: () => ({ displayName: 'Alice' }),
-  sendMessage: vi.fn(async (_roomId: string, threadIdOrContent: unknown) =>
-    threadIdOrContent && typeof threadIdOrContent === 'object'
-      ? { event_id: '$summary' }
-      : { event_id: '$file' }
-  ),
-  uploadContent: vi.fn(async () => ({ content_uri: 'mxc://example.com/abc' })),
-});
+const client = () => {
+  const calls: string[] = [];
+  return {
+    calls,
+    getSafeUserId: () => '@alice:example.com',
+    getUser: () => ({ displayName: 'Alice' }),
+    sendMessage: vi.fn(async (_roomId: string, threadIdOrContent: unknown) => {
+      const isRoot = !!threadIdOrContent && typeof threadIdOrContent === 'object';
+      calls.push(isRoot ? 'send summary' : 'send file');
+      return isRoot ? { event_id: '$summary' } : { event_id: '$file' };
+    }),
+    uploadContent: vi.fn(async (_file: File): Promise<{ content_uri?: string }> => {
+      calls.push('upload');
+      return { content_uri: 'mxc://example.com/abc' };
+    }),
+  };
+};
+
+const plainRoom = { roomId: '!reports:example.com', hasEncryptionStateEvent: () => false };
 
 describe('buildBugReportSummary', () => {
   it('lists who, where, and which client, with permalinks', () => {
@@ -88,5 +97,29 @@ describe('sendBugReport', () => {
     const fileContent = mx.sendMessage.mock.calls[1][2] as Record<string, unknown>;
     expect(fileContent.url).toBeUndefined();
     expect(fileContent.file).toMatchObject({ url: 'mxc://example.com/abc', iv: 'iv' });
+  });
+
+  it('uploads compact JSON before posting the summary root', async () => {
+    const mx = client();
+    await sendBugReport(mx as never, plainRoom as never, report);
+    expect(mx.calls).toEqual(['upload', 'send summary', 'send file']);
+    const uploaded = mx.uploadContent.mock.calls[0][0];
+    expect(await uploaded.text()).toBe(JSON.stringify(report));
+  });
+
+  it('leaves nothing in the report room when the upload fails', async () => {
+    const mx = client();
+    mx.uploadContent.mockRejectedValueOnce(new Error('M_TOO_LARGE'));
+    await expect(sendBugReport(mx as never, plainRoom as never, report)).rejects.toThrow(
+      'M_TOO_LARGE'
+    );
+    expect(mx.sendMessage).not.toHaveBeenCalled();
+  });
+
+  it('fails without sending anything when the upload returns no content URI', async () => {
+    const mx = client();
+    mx.uploadContent.mockResolvedValueOnce({});
+    await expect(sendBugReport(mx as never, plainRoom as never, report)).rejects.toThrow();
+    expect(mx.sendMessage).not.toHaveBeenCalled();
   });
 });
