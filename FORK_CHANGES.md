@@ -22,7 +22,7 @@
     Every navigation header also ended 8 px short of its viewport: folds' size-300 `Scroll` pads its inline end for an overlay scrollbar whenever the native one measures 0 px, which the hidden-scrollbar navigation viewport always does, so a strip of the list or modal showed beside the header (#296 had hidden it with transparency).
     The header now spans that padding and adds it to its own end padding, so its contents stay put; the live header check asserts the header spans the viewport's full width.
     Lobby and Explore page headers had the same 16 px gap from folds' default `Scroll` and get the same treatment through a variable that `PageScrollHeader` sets for `PageHeader`.
-  - Rows that first mount at rest are re-read in the existing pre-paint microtask (closes the rows-mounted-at-rest item under "Not covered" in the 2026-10-03 fast-scroll entry).
+  - Rows that first mount at rest are re-read in the existing pre-paint microtask (closes the at-rest half of the rows-mounted-at-rest item under "Not covered" in the 2026-10-03 fast-scroll entry).
     virtual-core measured the thread root in its ref before `CollapsibleMessage` dropped its first-pass pill (78 instead of 68 px), the row unmounted before ResizeObserver reported it, and a later remount during a scroll reused the stale size, leaving a 10 px gap for a frame.
 - Test and tooling fixes (each verified to still fail on the defect it guards where one exists):
   - Fixtures for `audio-player` and `glass-surfaces` create their client with a `userId`; attachment downloads (#298) call `getSafeUserId()`, so playback silently never started.
@@ -42,6 +42,7 @@
   Earlier runs also saw jobs time out at login together while every Matrix request was about ten times slower; they passed on rerun.
   `perf-thread-streaming` passed in that run but fails intermittently on the thread drift below.
 - Not covered:
+  - Rows that mount during a non-smooth programmatic scroll are still measured by virtual-core in the ref and can show the 10 px first-pass gap for a frame.
   - Settings shows "Catching up..." for one full 30-second long poll after a cached start on a quiet account, even though the first `timeout=0` sync already caught up.
   - The offline history page re-downloads the same newest page the timeline just fetched, using the automatic allowance on metered connections.
   - A thread reader drifts by thousands of pixels when pages of the opening history chain land after Load Older or a scroll gesture suppressed the opening bottom pin: those pages arrive without a ledger prepend capture, the scroller has `overflowAnchor: 'none'`, and virtual-core corrects resizes, not insertions.
