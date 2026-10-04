@@ -35,7 +35,7 @@ vi.mock('./nativeDiagnostics', () => ({
   readNativeDiagnostics: mocks.readNativeDiagnostics,
 }));
 
-import { buildDiagnosticsExport } from './diagnosticsExport';
+import { buildDiagnosticsExport, buildDiagnosticsPayload } from './diagnosticsExport';
 
 describe('combined diagnostics export', () => {
   beforeEach(() => {
@@ -299,4 +299,14 @@ describe('combined diagnostics export', () => {
       expect(vi.getTimerCount()).toBe(0);
     }
   );
+
+  it('builds the same payload object without serialising it', async () => {
+    const payload = await buildDiagnosticsPayload(1_700_000_000_000);
+    expect(payload.metadata.exportSchemaVersion).toBe(4);
+    expect(payload.metadata.exportedAt).toBe(1_700_000_000_000);
+    expect(payload).toHaveProperty('deepTrace');
+    expect(payload).toHaveProperty('deepTraceMemory');
+    expect(payload).toHaveProperty('deepTraceHealth');
+    expect(payload).toHaveProperty('nativeDiagnostics');
+  });
 });
