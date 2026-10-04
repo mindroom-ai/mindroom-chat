@@ -1,5 +1,18 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { EventStatus, MatrixEventEvent, type MatrixClient } from 'matrix-js-sdk';
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from 'react';
+import {
+  EventStatus,
+  MatrixEventEvent,
+  type MatrixClient,
+  type MatrixEvent,
+  type Room,
+} from 'matrix-js-sdk';
 import { Box, Button, Icon, IconButton, Icons, type IconSrc, Text } from 'folds';
 import { useTranslation } from 'react-i18next';
 import {
@@ -16,6 +29,7 @@ import {
   type CanvasSubmission,
 } from './canvasMessages';
 import type { CanvasTheme } from './canvasTheme';
+import { FailedSendActions } from '../messages/FailedSendActions';
 import * as css from './CanvasPanel.css';
 
 /** A new snapshot cannot be sent by a click that was already on its way. */
@@ -34,7 +48,7 @@ export type CanvasView = {
 
 export type CanvasPanelProps = {
   mx: MatrixClient;
-  roomId: string;
+  room: Room;
   canvas: CanvasView;
   agentName: string;
   colorScheme: CanvasColorScheme;
@@ -68,17 +82,41 @@ const ShrinkIcon: IconSrc = () => (
 
 type Staged = {
   submission: CanvasSubmission;
-  txnId: string;
   armed: boolean;
 };
 
-// Sending and failed states name their answer's transaction, so a late result of an earlier
-// answer cannot overwrite what the panel shows for a newer one.
-type SendState =
-  | { status: 'idle' }
-  | { status: 'sending'; label: string; txnId: string }
-  | { status: 'sent'; label: string }
-  | { status: 'failed'; label: string; txnId: string };
+/** The last answer this panel sent: its SDK local echo, which also drives the timeline. */
+type SentAnswer = { echo: MatrixEvent; label: string };
+
+type AnswerState = 'sending' | 'sent' | 'failed' | 'cancelled';
+
+// SENT counts as sent: the server has the message even if /sync never brings its copy.
+const answerState = (status: EventStatus | null): AnswerState => {
+  if (status === EventStatus.NOT_SENT) return 'failed';
+  if (status === EventStatus.CANCELLED) return 'cancelled';
+  if (status === null || status === EventStatus.SENT) return 'sent';
+  return 'sending';
+};
+
+/** An answer still sending or failed holds the panel: one unresolved answer at a time. */
+const isUnresolved = (answer?: SentAnswer): boolean => {
+  const state = answer && answerState(answer.echo.status);
+  return state === 'sending' || state === 'failed';
+};
+
+/** The local echo's status, read on every SDK status change of that object. */
+const useEchoStatus = (echo?: MatrixEvent): EventStatus | null | undefined => {
+  const subscribe = useCallback(
+    (onChange: () => void) => {
+      echo?.on(MatrixEventEvent.Status, onChange);
+      return () => {
+        echo?.off(MatrixEventEvent.Status, onChange);
+      };
+    },
+    [echo]
+  );
+  return useSyncExternalStore(subscribe, () => (echo ? echo.status : undefined));
+};
 
 /** Hash a document so a changed canvas remounts its frame and drops stale script state. */
 const documentKey = (doc: string): string => {
@@ -100,7 +138,7 @@ const revisionKey = (canvas: CanvasView, htmlKey: string) =>
 
 export function CanvasPanel({
   mx,
-  roomId,
+  room,
   canvas,
   agentName,
   colorScheme,
@@ -129,16 +167,14 @@ export function CanvasPanel({
   const frameKey = `${displayed.revisionEventId}:${docKey}:${reloads}`;
   const [escapedFrame, setEscapedFrame] = useState<string>();
   const [staged, setStaged] = useState<Staged>();
-  const [send, setSend] = useState<SendState>({ status: 'idle' });
+  // Once sent, an answer belongs to the SDK and the timeline; the panel only shows its status.
+  const [lastAnswer, setLastAnswer] = useState<SentAnswer>();
+  const [sendError, setSendError] = useState(false);
   const loads = useRef({ frameKey, count: 0 });
   const currentFrameKey = useRef(frameKey);
   currentFrameKey.current = frameKey;
   // Whether the frame may hold work the user has not sent since it loaded or since their last send.
   const touched = useRef(false);
-  // The answer this revision's panel last sent; another answer's late result cannot mark the frame.
-  const activeTxnId = useRef<string>();
-  // An answer on its way keeps its snapshot, so a failure still offers Send and Discard.
-  const inFlightTxnId = useRef<string>();
   const lastStageAt = useRef(0);
   const latest = useRef({ canvas, colorScheme, theme });
   latest.current = { canvas, colorScheme, theme };
@@ -149,11 +185,11 @@ export function CanvasPanel({
 
   useEffect(() => {
     touched.current = false;
-    activeTxnId.current = undefined;
-    inFlightTxnId.current = undefined;
     lastStageAt.current = 0;
     setStaged(undefined);
-    setSend({ status: 'idle' });
+    setSendError(false);
+    // An answer still sending or failed stays, with its Retry and Delete, across a new page.
+    setLastAnswer((current) => (isUnresolved(current) ? current : undefined));
     setUpdateAvailable(false);
   }, [frameKey]);
 
@@ -181,11 +217,7 @@ export function CanvasPanel({
         theme: latest.current.theme,
       });
     } else {
-      setStaged((current) =>
-        current && current.txnId === inFlightTxnId.current ? current : undefined
-      );
-      // A failed answer has no Send button once its snapshot is gone; the timeline keeps its retry.
-      setSend((current) => (current.status === 'failed' ? { status: 'idle' } : current));
+      setStaged(undefined);
       setUpdateAvailable(true);
     }
   }, [incomingRevision, displayedRevision, displayedRevisionId, displayedPending]);
@@ -217,7 +249,7 @@ export function CanvasPanel({
       touched.current = true;
       // A pending snapshot stays exactly what the user is reviewing until they send or discard
       // it, so a canvas cannot swap the payload under the user's click.
-      setStaged((current) => current ?? { submission, txnId: mx.makeTxnId(), armed: false });
+      setStaged((current) => current ?? { submission, armed: false });
     };
     window.addEventListener('blur', handleBlur);
     window.addEventListener('message', handleMessage);
@@ -227,92 +259,26 @@ export function CanvasPanel({
     };
   }, [mx]);
 
-  const stagedTxnId = staged?.txnId;
+  const stagedSubmission = staged?.submission;
   useEffect(() => {
-    if (!stagedTxnId) return undefined;
+    if (!stagedSubmission) return undefined;
     const timer = window.setTimeout(
       () =>
         setStaged((current) =>
-          current?.txnId === stagedTxnId ? { ...current, armed: true } : current
+          current?.submission === stagedSubmission ? { ...current, armed: true } : current
         ),
       CANVAS_SEND_ARM_DELAY_MS
     );
     return () => window.clearTimeout(timer);
-  }, [stagedTxnId]);
+  }, [stagedSubmission]);
 
-  // Report only on the answer the panel shows; an earlier answer's late result changes nothing here.
-  const settle = useCallback(
-    (txnId: string, outcome: 'sending' | 'sent' | 'failed' | 'cancelled') => {
-      setSend((current) => {
-        if (
-          (current.status !== 'sending' && current.status !== 'failed') ||
-          current.txnId !== txnId
-        ) {
-          return current;
-        }
-        if (outcome === 'sending') return { status: 'sending', label: current.label, txnId };
-        if (outcome === 'sent') return { status: 'sent', label: current.label };
-        if (outcome === 'failed') return { status: 'failed', label: current.label, txnId };
-        return { status: 'idle' };
-      });
-      if (outcome !== 'sending' && inFlightTxnId.current === txnId)
-        inFlightTxnId.current = undefined;
-      if (outcome === 'sending') inFlightTxnId.current = txnId;
-      if (outcome === 'sent' || outcome === 'cancelled') {
-        setStaged((current) => (current?.txnId === txnId ? undefined : current));
-      }
-      // A failed answer is still unsent work in this frame.
-      if (outcome === 'failed' && activeTxnId.current === txnId) touched.current = true;
-    },
-    []
-  );
+  const answerStatus = useEchoStatus(lastAnswer?.echo);
+  const answer = lastAnswer && answerStatus !== undefined ? answerState(answerStatus) : undefined;
+  const answerOpen = answer === 'sending' || answer === 'failed';
 
-  // Follow the answer's local echo through failures and retries, which the timeline can also start.
-  const followedTxnId =
-    send.status === 'sending' || send.status === 'failed' ? send.txnId : undefined;
-  useEffect(() => {
-    if (!followedTxnId) return undefined;
-    const echo = mx.getRoom(roomId)?.getEventForTxnId(followedTxnId);
-    if (!echo) return undefined;
-    const follow = () => {
-      if (echo.status === EventStatus.NOT_SENT) settle(followedTxnId, 'failed');
-      else if (echo.status === EventStatus.CANCELLED) settle(followedTxnId, 'cancelled');
-      else if (echo.status === null || echo.status === EventStatus.SENT) {
-        settle(followedTxnId, 'sent');
-      } else settle(followedTxnId, 'sending');
-    };
-    follow();
-    echo.on(MatrixEventEvent.Status, follow);
-    return () => {
-      echo.off(MatrixEventEvent.Status, follow);
-    };
-  }, [mx, roomId, followedTxnId, settle]);
-
-  const handleSend = useCallback(async () => {
-    if (!staged?.armed || send.status === 'sending') return;
-    const { submission, txnId } = staged;
-    const label = submission.label ?? t('mindroomUi.canvas.unlabeled');
-    const room = mx.getRoom(roomId);
-    const echo = room?.getEventForTxnId(txnId);
-    activeTxnId.current = txnId;
-    if (echo && echo.status !== EventStatus.NOT_SENT) {
-      // The timeline's own Retry or Discard already took over this answer; show where it is.
-      if (echo.status === EventStatus.CANCELLED) {
-        setStaged(undefined);
-        setSend({ status: 'idle' });
-      } else if (echo.status === null || echo.status === EventStatus.SENT) {
-        setStaged(undefined);
-        setSend({ status: 'sent', label });
-      } else {
-        setSend({ status: 'sending', label, txnId });
-        inFlightTxnId.current = txnId;
-      }
-      return;
-    }
-    setSend({ status: 'sending', label, txnId });
-    inFlightTxnId.current = txnId;
-    // Work in the frame during the send marks it again.
-    touched.current = false;
+  const handleSend = useCallback(() => {
+    if (!staged?.armed || answerOpen) return;
+    const { submission } = staged;
     const content = buildCanvasResponseContent(
       {
         eventId: displayed.eventId,
@@ -323,26 +289,31 @@ export function CanvasPanel({
       },
       submission
     );
+    const txnId = mx.makeTxnId();
+    let sending: Promise<unknown>;
     try {
-      if (room && echo) {
-        // A retry resends the SDK's failed local echo, keeping its transaction ID.
-        await mx.resendEvent(echo, room);
-      } else {
-        // The relation travels in the content.
-        await mx.sendMessage(roomId, content as never, txnId);
-      }
-      settle(txnId, 'sent');
+      // The relation travels in the content. The SDK adds the local echo before this returns.
+      sending = mx.sendMessage(room.roomId, content as never, txnId);
     } catch {
-      settle(txnId, 'failed');
+      setSendError(true);
+      return;
     }
-  }, [agentName, displayed, mx, roomId, send.status, settle, staged, t]);
+    // A failure shows through the echo's status, here and in the timeline.
+    sending.catch(() => undefined);
+    const echo = room.getEventForTxnId(txnId);
+    setSendError(false);
+    setStaged(undefined);
+    setLastAnswer(
+      echo ? { echo, label: submission.label ?? t('mindroomUi.canvas.unlabeled') } : undefined
+    );
+    // Work in the frame after this answer marks it again.
+    touched.current = false;
+  }, [agentName, answerOpen, displayed, mx, room, staged, t]);
 
   const handleDiscard = useCallback(() => {
-    const failedEcho = staged && mx.getRoom(roomId)?.getEventForTxnId(staged.txnId);
-    if (failedEcho?.status === EventStatus.NOT_SENT) mx.cancelPendingEvent(failedEcho);
     setStaged(undefined);
-    setSend((current) => (current.status === 'failed' ? { status: 'idle' } : current));
-  }, [mx, roomId, staged]);
+    setSendError(false);
+  }, []);
 
   const handleLoad = useCallback(() => {
     if (loads.current.frameKey !== frameKey) loads.current = { frameKey, count: 0 };
@@ -466,7 +437,7 @@ export function CanvasPanel({
               <Button
                 size="300"
                 variant="Primary"
-                disabled={!staged.armed || send.status === 'sending'}
+                disabled={!staged.armed || answerOpen}
                 onClick={handleSend}
                 data-canvas-send
               >
@@ -476,7 +447,6 @@ export function CanvasPanel({
                 size="300"
                 variant="Secondary"
                 fill="None"
-                disabled={send.status === 'sending'}
                 onClick={handleDiscard}
                 data-canvas-discard
               >
@@ -485,18 +455,29 @@ export function CanvasPanel({
             </Box>
           </div>
         )}
-        <Text
-          size="T200"
-          role="status"
-          priority="300"
-          className={send.status === 'failed' ? css.Error : undefined}
-        >
-          {send.status === 'idle' && t('mindroomUi.canvas.disclosure', { agent: agentName })}
-          {send.status === 'sending' && t('mindroomUi.canvas.sending', { agent: agentName })}
-          {send.status === 'sent' &&
-            t('mindroomUi.canvas.sent', { agent: agentName, label: send.label })}
-          {send.status === 'failed' && t('mindroomUi.canvas.sendFailed')}
-        </Text>
+        <div role="status" data-canvas-status>
+          {answer === 'failed' && lastAnswer ? (
+            <FailedSendActions
+              room={room}
+              event={lastAnswer.echo}
+              message={t('mindroomUi.canvas.notSent', {
+                agent: agentName,
+                label: lastAnswer.label,
+              })}
+            />
+          ) : (
+            <Text size="T200" priority="300" className={sendError ? css.Error : undefined}>
+              {answer === 'sending' && t('mindroomUi.canvas.sending', { agent: agentName })}
+              {answer === 'sent' &&
+                lastAnswer &&
+                t('mindroomUi.canvas.sent', { agent: agentName, label: lastAnswer.label })}
+              {(answer === undefined || answer === 'cancelled') &&
+                (sendError
+                  ? t('mindroomUi.canvas.sendFailed')
+                  : t('mindroomUi.canvas.disclosure', { agent: agentName }))}
+            </Text>
+          )}
+        </div>
       </div>
     </aside>
   );

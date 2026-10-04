@@ -2925,7 +2925,8 @@
       "sent": "Verstuurd naar {{agent}}: {{label}}",
       "sendFailed": "Je antwoord kon niet worden verstuurd. Probeer het opnieuw.",
       "receiptData": "Gegevens tonen die naar de agent zijn verstuurd",
-      "unlabeled": "Verzonden"
+      "unlabeled": "Verzonden",
+      "notSent": "Niet verzonden naar {{agent}}: {{label}}"
     }
   },
   "roomSchedules": {

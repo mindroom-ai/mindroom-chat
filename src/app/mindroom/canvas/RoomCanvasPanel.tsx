@@ -60,7 +60,7 @@ function LoadedCanvasPanel({
   const panel = (
     <CanvasPanel
       mx={mx}
-      roomId={room.roomId}
+      room={room}
       canvas={{
         eventId: action.eventId,
         revisionEventId: action.revisionEventId,

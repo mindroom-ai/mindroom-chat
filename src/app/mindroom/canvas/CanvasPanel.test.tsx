@@ -3,11 +3,20 @@
 import React from 'react';
 import { createRoot, Root } from 'react-dom/client';
 import { act } from 'react-dom/test-utils';
-import { EventStatus, MatrixEvent, type MatrixClient } from 'matrix-js-sdk';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+  createClient,
+  EventStatus,
+  MatrixError,
+  MatrixEvent,
+  PendingEventOrdering,
+  Room,
+  type MatrixClient,
+} from 'matrix-js-sdk';
+import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest';
 import { CANVAS_SEND_ARM_DELAY_MS, CanvasPanel, type CanvasPanelProps } from './CanvasPanel';
 import { CANVAS_RESPONSE_KEY } from './canvasMessages';
 import { FALLBACK_CANVAS_THEMES } from './canvasTheme';
+import { MatrixClientProvider } from '../../hooks/useMatrixClient';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -36,6 +45,20 @@ vi.mock('folds', () => ({
   }: React.ComponentProps<'button'> & { fill?: string; variant?: string; size?: string }) => (
     <button {...props}>{children}</button>
   ),
+  Chip: ({
+    children,
+    as: _as,
+    variant: _variant,
+    radii: _radii,
+    outlined: _outlined,
+    ...props
+  }: React.ComponentProps<'button'> & {
+    as?: string;
+    variant?: string;
+    radii?: string;
+    outlined?: boolean;
+  }) => <button {...props}>{children}</button>,
+  color: { Critical: { Main: 'red' } },
   Icon: () => <span />,
   IconButton: ({ children, ...props }: React.ComponentProps<'button'>) => (
     <button {...props}>{children}</button>
@@ -74,6 +97,7 @@ vi.mock('./CanvasPanel.css.ts', () => ({
 }));
 
 const AGENT = '@mindroom_planner:example.org';
+const ME = '@alice:example.org';
 const canvas = {
   eventId: '$canvas',
   revisionEventId: '$canvas',
@@ -85,43 +109,37 @@ const canvas = {
 
 let container: HTMLDivElement;
 let root: Root;
-let sendMessage: ReturnType<typeof vi.fn>;
-let resendEvent: ReturnType<typeof vi.fn>;
-let cancelPendingEvent: ReturnType<typeof vi.fn>;
-let pendingEvents: Map<string, MatrixEvent>;
-const room = { getEventForTxnId: (txnId: string) => pendingEvents.get(txnId) };
-let txn = 0;
-const nextTxnId = () => {
-  txn += 1;
-  return `txn-${txn}`;
-};
+// A real SDK client and room: the local echo, scheduler, and status changes are the SDK's own.
+let mx: MatrixClient;
+let room: Room;
+let sendMessage: MockInstance;
+// Each send waits here until a test answers it, as a homeserver would.
+let requests: Array<{ resolve: (value: unknown) => void; reject: (error: unknown) => void }>;
 
 const render = (props: Partial<CanvasPanelProps> = {}) =>
   act(() => {
     root.render(
-      <CanvasPanel
-        mx={
-          {
-            sendMessage,
-            resendEvent,
-            cancelPendingEvent,
-            getRoom: () => room,
-            makeTxnId: nextTxnId,
-          } as unknown as MatrixClient
-        }
-        roomId="!room:example.org"
-        canvas={canvas}
-        agentName="Planner"
-        colorScheme="dark"
-        theme={{ ...FALLBACK_CANVAS_THEMES.dark, accent: '#123456' }}
-        onClose={() => undefined}
-        {...props}
-      />
+      <MatrixClientProvider value={mx}>
+        <CanvasPanel
+          mx={mx}
+          room={room}
+          canvas={canvas}
+          agentName="Planner"
+          colorScheme="dark"
+          theme={{ ...FALLBACK_CANVAS_THEMES.dark, accent: '#123456' }}
+          onClose={() => undefined}
+          {...props}
+        />
+      </MatrixClientProvider>
     );
   });
 
 const frame = () => container.querySelector('iframe') as HTMLIFrameElement;
 const button = (selector: string) => container.querySelector(selector) as HTMLButtonElement;
+const buttonNamed = (name: string) =>
+  [...container.querySelectorAll('button')].find((candidate) => candidate.textContent === name) as
+    | HTMLButtonElement
+    | undefined;
 const canvasWindow = () => {
   if (!canvasWindows.has(frame())) canvasWindows.set(frame(), {});
   return canvasWindows.get(frame());
@@ -131,13 +149,12 @@ const page = () => {
   const literal = /frame\.srcdoc = ("(?:[^"\\]|\\.)*");/.exec(frame().getAttribute('srcdoc') ?? '');
   return literal ? (JSON.parse(literal[1]) as string) : '';
 };
-const echo = (txnId: string, status: EventStatus) => {
-  const event = new MatrixEvent({ type: 'm.room.message', content: {} });
-  event.setTxnId(txnId);
-  event.setStatus(status);
-  pendingEvents.set(txnId, event);
-  return event;
+/** The local echo of the last answer, held before the SDK forgets its transaction ID. */
+const lastEcho = (): MatrixEvent => {
+  const txnId = sendMessage.mock.calls.at(-1)?.[2] as string;
+  return room.getEventForTxnId(txnId) as MatrixEvent;
 };
+const status = () => container.querySelector('[data-canvas-status]')?.textContent ?? '';
 
 const post = async (data: unknown, source: unknown = canvasWindow()) => {
   await act(async () => {
@@ -164,6 +181,18 @@ const clickSend = () =>
     button('[data-canvas-send]').click();
   });
 
+/** The homeserver accepts the oldest waiting send. */
+const accept = () =>
+  act(async () => {
+    requests.shift()?.resolve({ event_id: '$response' });
+  });
+
+/** The homeserver refuses the oldest waiting send; the SDK does not retry a 403. */
+const refuse = () =>
+  act(async () => {
+    requests.shift()?.reject(new MatrixError({ errcode: 'M_FORBIDDEN', error: 'No' }, 403));
+  });
+
 const touchFrame = () =>
   act(async () => {
     Object.defineProperty(document, 'activeElement', { configurable: true, get: () => frame() });
@@ -171,25 +200,36 @@ const touchFrame = () =>
     delete (document as { activeElement?: unknown }).activeElement;
   });
 
+const answer = async (label = 'Pro plan') => {
+  await post(submit(label));
+  await arm();
+  await clickSend();
+};
+
 beforeEach(() => {
   vi.useFakeTimers();
   container = document.createElement('div');
   document.body.appendChild(container);
   root = createRoot(container);
-  sendMessage = vi.fn().mockResolvedValue({ event_id: '$response' });
-  // Like the SDK, a resend marks the local echo as sending before it returns.
-  resendEvent = vi.fn((event: MatrixEvent) => {
-    event.setStatus(EventStatus.SENDING);
-    return Promise.resolve({ event_id: '$response' });
+  mx = createClient({ baseUrl: 'https://example.org', userId: ME });
+  room = new Room('!room:example.org', mx, ME, {
+    pendingEventOrdering: PendingEventOrdering.Chronological,
   });
-  cancelPendingEvent = vi.fn();
-  pendingEvents = new Map();
-  txn = 0;
+  mx.store.storeRoom(room);
+  requests = [];
+  vi.spyOn(mx.http, 'authedRequest').mockImplementation(
+    () =>
+      new Promise((resolve, reject) => {
+        requests.push({ resolve, reject });
+      }) as never
+  );
+  sendMessage = vi.spyOn(mx, 'sendMessage');
 });
 
 afterEach(() => {
   act(() => root.unmount());
   container.remove();
+  mx.stopClient();
   vi.useRealTimers();
 });
 
@@ -222,17 +262,19 @@ describe('CanvasPanel', () => {
     await arm();
     await clickSend();
     expect(sendMessage).toHaveBeenCalledTimes(1);
-    const [roomId, content, txnId] = sendMessage.mock.calls[0];
+    const [roomId, content] = sendMessage.mock.calls[0];
     expect(roomId).toBe('!room:example.org');
-    expect(txnId).toBe('txn-1');
     expect(content[CANVAS_RESPONSE_KEY]).toMatchObject({
       canvas_event_id: '$canvas',
       canvas_revision_event_id: '$canvas',
       label: 'Pro plan',
       data: { plan: 'pro' },
     });
-    expect(container.textContent).toContain('Sent to Planner: Pro plan');
+    // The snapshot is handed to the SDK: the panel shows the message's status, not a copy.
     expect(button('[data-canvas-send]')).toBeNull();
+    expect(status()).toContain('Sending to Planner');
+    await accept();
+    expect(status()).toContain('Sent to Planner: Pro plan');
   });
 
   it('keeps the pending snapshot until the user sends or discards it', async () => {
@@ -287,219 +329,145 @@ describe('CanvasPanel', () => {
     expect(button('[data-canvas-send]')).toBeNull();
   });
 
-  it('retries a failed answer by resending the SDK local echo', async () => {
-    sendMessage.mockImplementationOnce(
-      async (_roomId: string, _content: unknown, txnId: string) => {
-        // The SDK keeps the failed local echo under the transaction ID.
-        echo(txnId, EventStatus.NOT_SENT);
-        throw new Error('offline');
-      }
+  it('counts an answer as sent once the server accepts it, and after its copy arrives', async () => {
+    render();
+    await answer();
+    const echo = lastEcho();
+    await accept();
+    expect(echo.status).toBe(EventStatus.SENT);
+    expect(status()).toContain('Sent to Planner: Pro plan');
+    // The copy from /sync replaces the echo, and the SDK forgets the transaction ID.
+    await act(async () => {
+      room.handleRemoteEcho(
+        new MatrixEvent({
+          event_id: '$response',
+          room_id: room.roomId,
+          sender: ME,
+          type: 'm.room.message',
+          origin_server_ts: 1,
+          content: echo.getContent(),
+          unsigned: { transaction_id: sendMessage.mock.calls[0][2] as string },
+        }),
+        echo
+      );
+    });
+    expect(echo.status).toBeNull();
+    expect(room.getEventForTxnId(sendMessage.mock.calls[0][2] as string)).toBeUndefined();
+    expect(status()).toContain('Sent to Planner: Pro plan');
+  });
+
+  it("offers the timeline's Retry and Delete for a failed answer, naming it", async () => {
+    render();
+    await answer();
+    await refuse();
+    expect(lastEcho().status).toBe(EventStatus.NOT_SENT);
+    expect(status()).toContain('Not sent to Planner: Pro plan');
+    await act(async () => buttonNamed('Retry')?.click());
+    expect(status()).toContain('Sending to Planner');
+    expect(requests).toHaveLength(1);
+    await accept();
+    expect(status()).toContain('Sent to Planner: Pro plan');
+  });
+
+  it('returns to the disclosure when a failed answer is deleted', async () => {
+    render();
+    await answer();
+    await refuse();
+    await act(async () => buttonNamed('Delete')?.click());
+    expect(lastEcho().status).toBe(EventStatus.CANCELLED);
+    expect(status()).toContain('what you enter here may leave this panel');
+  });
+
+  it('shows a retry or deletion started from the timeline', async () => {
+    render();
+    await answer();
+    await refuse();
+    const echo = lastEcho();
+    await act(async () => {
+      mx.resendEvent(echo, room).catch(() => undefined);
+    });
+    expect(status()).toContain('Sending to Planner');
+    await refuse();
+    expect(status()).toContain('Not sent to Planner');
+    await act(async () => mx.cancelPendingEvent(echo));
+    expect(status()).toContain('what you enter here may leave this panel');
+  });
+
+  it('shows a failure that happened before the panel subscribed', async () => {
+    vi.mocked(mx.http.authedRequest).mockImplementationOnce(() =>
+      Promise.reject(new MatrixError({ errcode: 'M_FORBIDDEN', error: 'No' }, 403))
     );
     render();
-    await post(submit());
-    await arm();
-    await clickSend();
-    expect(container.textContent).toContain('Could not send your response');
-    await clickSend();
-    expect(sendMessage).toHaveBeenCalledTimes(1);
-    expect(resendEvent).toHaveBeenCalledWith(pendingEvents.get('txn-1'), room);
-    expect(container.textContent).toContain('Sent to Planner: Pro plan');
+    await answer();
+    expect(status()).toContain('Not sent to Planner: Pro plan');
   });
 
-  it('discards the failed local echo with a failed answer', async () => {
-    sendMessage.mockImplementationOnce(
-      async (_roomId: string, _content: unknown, txnId: string) => {
-        echo(txnId, EventStatus.NOT_SENT);
-        throw new Error('offline');
-      }
-    );
+  it('holds one unresolved answer at a time', async () => {
     render();
-    await post(submit());
-    await arm();
-    await clickSend();
-    await act(async () => button('[data-canvas-discard]').click());
-    expect(cancelPendingEvent).toHaveBeenCalledWith(pendingEvents.get('txn-1'));
-    expect(button('[data-canvas-send]')).toBeNull();
-    expect(container.textContent).not.toContain('Could not send');
-  });
-
-  it('keeps Discard unavailable while an answer is sending', async () => {
-    let finish: () => void = () => undefined;
-    sendMessage.mockImplementationOnce(
-      () =>
-        new Promise((resolve) => {
-          finish = () => resolve({ event_id: '$response' });
-        })
-    );
-    render();
-    await post(submit());
-    await arm();
-    await clickSend();
-    expect(button('[data-canvas-discard]').disabled).toBe(true);
-    await act(async () => finish());
-    expect(container.textContent).toContain('Sent to Planner: Pro plan');
-  });
-
-  const failFirstSend = () =>
-    sendMessage.mockImplementationOnce(
-      async (_roomId: string, _content: unknown, txnId: string) => {
-        echo(txnId, EventStatus.NOT_SENT);
-        throw new Error('offline');
-      }
-    );
-
-  it('follows a retry the timeline started until it is sent', async () => {
-    failFirstSend();
-    render();
-    await post(submit());
-    await arm();
-    await clickSend();
-    // The timeline's Retry resent the same echo, which is still on its way.
-    await act(async () => pendingEvents.get('txn-1')?.setStatus(EventStatus.SENDING));
-    await clickSend();
-    expect(resendEvent).not.toHaveBeenCalled();
-    expect(container.textContent).toContain('Sending to Planner');
-    expect(button('[data-canvas-discard]').disabled).toBe(true);
-    await act(async () => pendingEvents.get('txn-1')?.setStatus(EventStatus.SENT));
-    expect(container.textContent).toContain('Sent to Planner: Pro plan');
-    expect(button('[data-canvas-send]')).toBeNull();
-  });
-
-  it('offers Send again when a retry the timeline started fails', async () => {
-    failFirstSend();
-    render();
-    await post(submit());
-    await arm();
-    await clickSend();
-    await act(async () => pendingEvents.get('txn-1')?.setStatus(EventStatus.SENDING));
-    await clickSend();
-    await act(async () => pendingEvents.get('txn-1')?.setStatus(EventStatus.NOT_SENT));
-    expect(container.textContent).toContain('Could not send your response');
-    expect(button('[data-canvas-send]').disabled).toBe(false);
-  });
-
-  it('follows a retry or cancellation the timeline starts after a failure', async () => {
-    failFirstSend();
-    render();
-    await post(submit());
-    await arm();
-    await clickSend();
-    expect(container.textContent).toContain('Could not send your response');
-    // The timeline's Retry resends the echo without any click in the panel.
-    await act(async () => pendingEvents.get('txn-1')?.setStatus(EventStatus.SENDING));
-    expect(container.textContent).toContain('Sending to Planner');
-    expect(button('[data-canvas-discard]').disabled).toBe(true);
-    await act(async () => pendingEvents.get('txn-1')?.setStatus(EventStatus.NOT_SENT));
-    expect(container.textContent).toContain('Could not send your response');
-    await act(async () => pendingEvents.get('txn-1')?.setStatus(EventStatus.CANCELLED));
-    expect(button('[data-canvas-send]')).toBeNull();
-    expect(container.textContent).not.toContain('Could not send');
-  });
-
-  it('does not mark a newer revision as worked on when an earlier answer fails late', async () => {
-    const finishes: Array<{ resolve: () => void; reject: () => void }> = [];
-    sendMessage.mockImplementation(
-      () =>
-        new Promise((resolve, reject) => {
-          finishes.push({
-            resolve: () => resolve({ event_id: '$response' }),
-            reject: () => reject(new Error('offline')),
-          });
-        })
-    );
-    render();
-    await post(submit('one'));
-    await arm();
-    await clickSend();
-    render({ canvas: { ...canvas, revisionEventId: '$edit', html: '<p>Step 2</p>' } });
+    await answer('one');
     await act(async () => {
       vi.advanceTimersByTime(100);
     });
     await post(submit('two'));
     await arm();
+    // The first answer is still sending, so the second cannot be sent yet.
+    expect(button('[data-canvas-send]').disabled).toBe(true);
+    await refuse();
+    expect(button('[data-canvas-send]').disabled).toBe(true);
+    await act(async () => buttonNamed('Delete')?.click());
+    expect(button('[data-canvas-send]').disabled).toBe(false);
     await clickSend();
-    await act(async () => finishes[0].reject());
-    await act(async () => finishes[1].resolve());
-    // The next step loads at once: nothing unsent is in the frame since the answer to step 2.
+    expect(sendMessage).toHaveBeenCalledTimes(2);
+    await accept();
+    expect(status()).toContain('Sent to Planner: two');
+  });
+
+  it("keeps a failed answer's Retry and Delete across a new page", async () => {
+    render();
+    await answer();
+    // The next step loads at once (nothing unsent in the frame), then the answer fails.
+    render({ canvas: { ...canvas, revisionEventId: '$edit', html: '<p>Step 2</p>' } });
+    expect(page()).toContain('<p>Step 2</p>');
+    await refuse();
+    expect(status()).toContain('Not sent to Planner: Pro plan');
+    expect(buttonNamed('Retry')).toBeDefined();
+    // A sent answer does not follow the panel to the next page.
+    await act(async () => buttonNamed('Retry')?.click());
+    await accept();
     render({ canvas: { ...canvas, revisionEventId: '$edit-2', html: '<p>Step 3</p>' } });
-    expect(page()).toContain('<p>Step 3</p>');
-    expect(container.textContent).not.toContain('updated this panel');
+    expect(status()).toContain('what you enter here may leave this panel');
   });
 
-  it('keeps the panel on a newer answer when an earlier send finishes late', async () => {
-    const finishes: Array<{ resolve: () => void; reject: () => void }> = [];
-    sendMessage.mockImplementation(
-      () =>
-        new Promise((resolve, reject) => {
-          finishes.push({
-            resolve: () => resolve({ event_id: '$response' }),
-            reject: () => reject(new Error('offline')),
-          });
-        })
-    );
+  it('keeps the status and drops only the snapshot when an update waits', async () => {
     render();
-    await post(submit('one'));
-    await arm();
-    await clickSend();
-    render({ canvas: { ...canvas, revisionEventId: '$edit', html: '<p>Step 2</p>' } });
+    await answer();
+    await refuse();
+    await touchFrame();
     await act(async () => {
       vi.advanceTimersByTime(100);
     });
-    await post(submit('two'));
-    await arm();
-    await clickSend();
-    expect(container.textContent).toContain('Sending to Planner');
-    await act(async () => finishes[0].reject());
-    expect(container.textContent).toContain('Sending to Planner');
-    expect(button('[data-canvas-discard]').disabled).toBe(true);
-    await act(async () => finishes[1].resolve());
-    expect(container.textContent).toContain('Sent to Planner: two');
-  });
-
-  it('keeps an answer that is still sending when an update waits, so a failure can be retried', async () => {
-    let fail: () => void = () => undefined;
-    sendMessage.mockImplementationOnce(
-      (_roomId: string, _content: unknown, txnId: string) =>
-        new Promise((_resolve, reject) => {
-          fail = () => {
-            echo(txnId, EventStatus.NOT_SENT);
-            reject(new Error('offline'));
-          };
-        })
-    );
-    render();
-    await post(submit());
-    await arm();
-    await clickSend();
-    // The user goes back into the page while the answer is on its way, then an update arrives.
-    await touchFrame();
+    await post(submit('Basic'));
     render({ canvas: { ...canvas, revisionEventId: '$edit', html: '<p>Step 2</p>' } });
     expect(container.textContent).toContain('Planner updated this panel.');
+    expect(button('[data-canvas-send]')).toBeNull();
+    expect(status()).toContain('Not sent to Planner: Pro plan');
+  });
+
+  it('keeps the snapshot when the SDK refuses the send outright', async () => {
+    sendMessage.mockImplementationOnce(() => {
+      throw new Error('Room is not known');
+    });
+    render();
+    await answer();
     expect(container.textContent).toContain('Send to Planner: Pro plan');
-    await act(async () => fail());
-    expect(container.textContent).toContain('Could not send your response');
+    expect(status()).toContain('Could not send your response');
     expect(button('[data-canvas-send]').disabled).toBe(false);
-    expect(button('[data-canvas-discard]').disabled).toBe(false);
-  });
-
-  it('does not strand a failed answer when an update replaces it', async () => {
-    failFirstSend();
-    render();
-    await post(submit());
-    await arm();
-    await clickSend();
-    expect(container.textContent).toContain('Could not send your response');
-    render({ canvas: { ...canvas, revisionEventId: '$edit', html: '<p>Step 2</p>' } });
-    expect(container.textContent).toContain('Planner updated this panel.');
-    expect(container.textContent).not.toContain('Could not send');
-    expect(container.textContent).toContain('what you enter here may leave this panel');
   });
 
   it('accepts the first answer of a new revision right after the previous one', async () => {
     render();
-    await post(submit('one'));
-    await arm();
-    await clickSend();
+    await answer('one');
+    await accept();
     render({ canvas: { ...canvas, revisionEventId: '$edit', html: '<p>Step 2</p>' } });
     await post(submit('two'));
     expect(container.textContent).toContain('Send to Planner: two');

@@ -3141,7 +3141,8 @@
       "sent": "تم الإرسال إلى ⁨{{agent}}⁩: ⁨{{label}}⁩",
       "sendFailed": "تعذّر إرسال ردك. حاول مرة أخرى.",
       "receiptData": "عرض البيانات المُرسلة إلى الوكيل",
-      "unlabeled": "تم الإرسال"
+      "unlabeled": "تم الإرسال",
+      "notSent": "لم يُرسل إلى ⁨{{agent}}⁩: ⁨{{label}}⁩"
     }
   },
   "roomSchedules": {

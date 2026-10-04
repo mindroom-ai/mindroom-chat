@@ -2925,7 +2925,8 @@
       "sent": "Terkirim ke {{agent}}: {{label}}",
       "sendFailed": "Tidak dapat mengirim respons Anda. Coba lagi.",
       "receiptData": "Tampilkan data yang dikirim ke agen",
-      "unlabeled": "Terkirim"
+      "unlabeled": "Terkirim",
+      "notSent": "Tidak terkirim ke {{agent}}: {{label}}"
     }
   },
   "roomSchedules": {

@@ -2979,7 +2979,8 @@
       "sent": "Enviado a {{agent}}: {{label}}",
       "sendFailed": "No se pudo enviar tu respuesta. Inténtalo de nuevo.",
       "receiptData": "Mostrar los datos enviados al agente",
-      "unlabeled": "Enviado"
+      "unlabeled": "Enviado",
+      "notSent": "No enviado a {{agent}}: {{label}}"
     }
   },
   "roomSchedules": {

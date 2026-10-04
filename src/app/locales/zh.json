@@ -2925,7 +2925,8 @@
       "sent": "已发送给 {{agent}}：{{label}}",
       "sendFailed": "无法发送您的回复。请重试。",
       "receiptData": "显示发送给代理的数据",
-      "unlabeled": "已提交"
+      "unlabeled": "已提交",
+      "notSent": "未发送给 {{agent}}：{{label}}"
     }
   },
   "roomSchedules": {
