@@ -2,6 +2,21 @@
 
 ## Runbook
 
+### Keep a thread reader in place when the thread banner changes height (2026-10-04)
+
+- Report: in a thread, every row moved by the change whenever the banner above them changed height: a summary arriving (+11.75 px on a desktop viewport), the thread being resolved (+22 px for the "by <name>" byline) or reopened.
+  The previous entry listed this as not covered.
+- Root cause: the banner (`ThreadContextBanner` in `ThreadTimelineHeader`) is sticky but sits in the scroll content above the rows, and the thread scroller has native scroll anchoring off, so nothing held the reader against it.
+  Most of its changes never reach the ledger's render or commit: tags, resolution, pins and scheduled tasks are the banner's own state, and wrapping commits nothing; only a summary arrives with a timeline commit.
+  The header's ResizeObserver sees every change, but only after layout: a margin written there resizes the scroll content the inset scrollbar already observed in that loop ("ResizeObserver loop completed with undelivered notifications", a page error in WebKit; checked in Chromium and WebKit), and a shrink at the bottom has already clamped the scroll by then.
+- Fix: the header keeps its last height while the banner resizes inside it, so no row moves when the banner does.
+  Its next-frame update, which already published `scroll-padding-top`, now also sets the new height and first reports the change to the ledger (`foldThreadBannerResize`), before that frame's layout.
+  When the reader has a row (the previous entry's anchor), the ledger takes the change as margin in that same layout, so the content above the rows keeps its height and nothing clamps; the forced commit pairs it with virtual-core and the fold settles at rest.
+  A reader above the first row sees the banner push the content, as with Load Older.
+  The reader's line (`scroll-padding-top`) now changes in the same frame as the rows, so the commit after a banner resize no longer reads a stale inset (review note N1); the first commit after opening still reads the header-only inset.
+- Tests: `ThreadTimelineHeader.test.tsx` (keeps its height until the frame, then reports the change and sets height and padding); `timelineScrollLedgerController.test.ts` (a held reader gets the change as painted margin at once and in the next commit's ledger; a reader above the rows does not).
+  `e2e/live/thread-banner-height-anchor.spec.ts` requires the reply nearest the middle of the view to stay within 1 px when a summary arrives and when the thread is resolved and reopened, mid-thread and at the latest reply (which must stay at the bottom), with no ResizeObserver loop error; all three cases fail on the base (by 11.75, 22 and 25 px).
+
 ### Keep a thread reader in place when rows or Load Older change above them (2026-10-04)
 
 - Report: a reader at the latest reply of a long thread drifted up by thousands of pixels when older history finished loading after Load Older or a scroll.
@@ -18,7 +33,7 @@
 - Rows above the reader now stay unmeasured more often (the reader is no longer pushed through them), which exposed a stale offset in the same hook: right after a programmatic scroll (a reply-quote jump), virtual-core's cached `scrollOffset` lags the element until the next scroll event, so corrections were applied as scroll writes from the old offset and dragged the view back.
   The hook now judges against the scroller's live `scrollTop` and has virtual-core apply the correction from it by folding the difference into its pending adjustments.
   It leaves virtual-core's cached offset alone: overwriting it made virtual-core drop the write's own scroll event as already seen, losing the backward direction that routes corrections into the ledger during a scroll; that made the known `long-message-expansion-default` fold-anchor check fail in 5 of 10 runs (1 of 6 after this change, 1 of 12 on `dev`).
-- Not covered: height changes of the thread banner itself (tags, alerts) still move the rows, as on `dev`.
+- Height changes of the thread banner itself are held by the entry above.
 - Tests: `threadScrollLedger.test.ts` covers rows added above or below the reader, the root, removed rows and a lost anchor; `timelineScrollLedgerController.test.ts` covers the painted row, a scroll that commits nothing, the sticky-header inset, the content above the rows going, shrinking, growing or being in view, and corrections judged against the reader's top, including in the commit that drops Load Older; `virtualizerIOSScrollContract.test.ts` pins the live-offset judgement and correction, the write's scroll event, and the reader-top judgement against the real virtualizer; `RoomTimeline.cache.test.ts` now requires a band that lands without Load Older to fold (it previously pinned the drift).
   `e2e/live/thread-open-chain-prepend-anchor.spec.ts` holds the thread's older pages until after a Load Older click, a wheel scroll, or a scroll to the root, then requires the reader's row (for the root, with the reader's line 20 px into it) to stay within 1 px while every page lands and the chip goes.
 

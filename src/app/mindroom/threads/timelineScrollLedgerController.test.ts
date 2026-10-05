@@ -566,6 +566,7 @@ describe('useTimelineScrollLedgerController', () => {
       });
     // Row measurement refs fire inside the commit, before the parent's layout effects.
     let measureInCommit: (() => void) | undefined;
+    let foldBanner: (deltaPx: number) => void = () => undefined;
     const MeasuredRow = () => {
       useLayoutEffect(() => measureInCommit?.());
       return null;
@@ -595,6 +596,7 @@ describe('useTimelineScrollLedgerController', () => {
       (controller.threadLeadingRef as { current: unknown }).current = leading;
       (controller.virtualInnerRef as { current: unknown }).current = inner;
       ledgerPxs.push(controller.ledgerPxAtRender);
+      foldBanner = controller.foldThreadBannerResize;
       return React.createElement(MeasuredRow);
     };
     let renderer: ReturnType<typeof create>;
@@ -671,6 +673,27 @@ describe('useTimelineScrollLedgerController', () => {
       };
       show('', 0);
       expect(latestLedgerPx()).toBe(152);
+    });
+
+    it('holds a reader in the rows when the banner above them changes height', () => {
+      show('', 0);
+      act(() => {
+        foldBanner(22);
+        // Painted at once: the header reports it before the layout that moves the rows.
+        expect(inner.style.marginTop).toBe('-22px');
+      });
+      expect(latestLedgerPx()).toBe(22);
+      act(() => foldBanner(-22));
+      expect(inner.style.marginTop).toBe('');
+      expect(latestLedgerPx()).toBe(0);
+    });
+
+    it('lets a reader above the rows see the banner change', () => {
+      listTopRef.current = 150;
+      show('', 0);
+      act(() => foldBanner(22));
+      expect(inner.style.marginTop).toBe('');
+      expect(latestLedgerPx()).toBe(0);
     });
   });
 });

@@ -465,11 +465,11 @@ export const useTimelineScrollLedgerController = ({
   );
 
   // The banner above the rows changes height mostly without a timeline
-  // commit (tags, pins, wrapping). Its header keeps its height and reports
-  // the change before the next layout; a held reader's rows get it as
-  // margin there, so the content above them keeps its height and nothing
-  // clamps the scroll. A margin written after layout, from a resize
-  // observer, would resize observed boxes inside the observer loop.
+  // commit (tags, resolution, pins, wrapping). Its header reports the change
+  // in a frame callback, before the layout that moves the rows; a held
+  // reader's rows take it as margin in that layout, so the content above
+  // them keeps its height and a shrink cannot clamp the scroll. (A margin
+  // written from a ResizeObserver, after layout, is a resize loop error.)
   const foldThreadBannerResize = useCallback(
     (deltaPx: number) => {
       const inner = virtualInnerRef.current;

@@ -27,8 +27,8 @@ export function ThreadTimelineHeader({
     const previousPadding = scroll.style.scrollPaddingTop;
     let height: number | undefined;
     const updatePadding = () => {
-      // The header keeps its height until here, before a layout, so the
-      // timeline can hold its reader in the layout that moves the rows.
+      // The banner resizes inside a header that keeps its last height, so the
+      // rows move only here, before a layout, where the timeline folds it.
       const next = content.getBoundingClientRect().height;
       if (height !== undefined && next !== height) onResize(next - height);
       height = next;
