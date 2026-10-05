@@ -1,6 +1,6 @@
 import React from 'react';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
-import { EventType, MatrixEvent, RoomEvent } from 'matrix-js-sdk';
+import { EventType, MatrixEvent, Room, RoomEvent } from 'matrix-js-sdk';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { CALL_FAILURE_CONTENT_KEY } from './callFailureNotice';
 import { useCallFailureNotice } from './useCallFailureNotice';
@@ -24,14 +24,10 @@ vi.mock('../../hooks/useMatrixClient', () => ({
   useMatrixClient: () => mocks.mx,
 }));
 
-vi.mock('../../hooks/useRoom', () => ({
-  useRoom: () => mocks.room,
-}));
-
 let observed: ReturnType<typeof useCallFailureNotice>;
 
 function Probe({ joined }: { joined: boolean }) {
-  observed = useCallFailureNotice(joined);
+  observed = useCallFailureNotice(mocks.room as unknown as Room, joined);
   return null;
 }
 

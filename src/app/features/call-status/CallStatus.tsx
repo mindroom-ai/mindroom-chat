@@ -1,5 +1,6 @@
 import React from 'react';
-import { Box, Spinner } from 'folds';
+import { useTranslation } from 'react-i18next';
+import { Box, color, Icon, IconButton, Icons, Spinner, Text } from 'folds';
 import classNames from 'classnames';
 import { LiveChip } from './LiveChip';
 import * as css from './styles.css';
@@ -14,24 +15,31 @@ import { CallEmbed } from '../../plugins/call/CallEmbed';
 import { useCallJoined } from '../../hooks/useCallEmbed';
 import { useCallSpeakers } from '../../hooks/useCallSpeakers';
 import { MemberSpeaking } from './MemberSpeaking';
+import { useSelectedRoom } from '../../hooks/router/useSelectedRoom';
+import { useCallFailureNotice } from '../../mindroom/calls/useCallFailureNotice';
+import { useCallFailureDismissal } from '../../mindroom/calls/useCallFailureDismissal';
 
 type CallStatusProps = {
   callEmbed: CallEmbed;
 };
 export function CallStatus({ callEmbed }: CallStatusProps) {
+  const { t } = useTranslation();
   const { room } = callEmbed;
+  const selectedRoom = useSelectedRoom();
 
   const callSession = useCallSession(room);
   const callMembers = useCallMembers(callSession);
   const screenSize = useScreenSize();
   const callJoined = useCallJoined(callEmbed);
   const speakers = useCallSpeakers(callEmbed);
+  const callFailure = useCallFailureNotice(room, callJoined);
+  const { visibleFailure, dismissFailure } = useCallFailureDismissal(callJoined, callFailure);
 
   const compact = screenSize === ScreenSize.Mobile;
 
   const memberVisible = callJoined && callMembers.length > 0;
 
-  return (
+  const statusBar = (
     <Box
       className={classNames(css.CallStatus, ContainerColor({ variant: 'Background' }))}
       shrink="No"
@@ -77,5 +85,33 @@ export function CallStatus({ callEmbed }: CallStatusProps) {
         <CallControl callJoined={callJoined} compact={compact} callEmbed={callEmbed} />
       </Box>
     </Box>
+  );
+  // The call view shows the agent's failure notices; the bar shows them while the user is elsewhere.
+  if (!visibleFailure || selectedRoom === room.roomId) return statusBar;
+
+  return (
+    <>
+      <Box
+        className={css.CallStatus}
+        style={{ backgroundColor: color.Critical.Container, color: color.Critical.OnContainer }}
+        role="alert"
+        shrink="No"
+        alignItems="Center"
+        gap="200"
+      >
+        <Text size="T300" style={{ flexGrow: 1 }}>
+          {visibleFailure.message}
+        </Text>
+        <IconButton
+          aria-label={t('featureUi.call.callView.dismissVoiceCallError')}
+          size="300"
+          radii="300"
+          onClick={dismissFailure}
+        >
+          <Icon src={Icons.Cross} size="100" />
+        </IconButton>
+      </Box>
+      {statusBar}
+    </>
   );
 }

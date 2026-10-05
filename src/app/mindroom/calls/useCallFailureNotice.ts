@@ -1,7 +1,12 @@
 import { useEffect, useState } from 'react';
-import { EventTimelineSetHandlerMap, MatrixClient, MatrixEvent, RoomEvent } from 'matrix-js-sdk';
+import {
+  EventTimelineSetHandlerMap,
+  MatrixClient,
+  MatrixEvent,
+  Room,
+  RoomEvent,
+} from 'matrix-js-sdk';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
-import { useRoom } from '../../hooks/useRoom';
 import { getCallFailureNotice } from './callFailureNotice';
 
 export type CallFailureNotice = {
@@ -22,9 +27,11 @@ const decryptEvent = async (event: MatrixEvent, mx: MatrixClient): Promise<boole
   }
 };
 
-export const useCallFailureNotice = (joined: boolean): CallFailureNotice | undefined => {
+export const useCallFailureNotice = (
+  room: Room,
+  joined: boolean
+): CallFailureNotice | undefined => {
   const mx = useMatrixClient();
-  const room = useRoom();
   const [notice, setNotice] = useState<CallFailureNotice>();
 
   useEffect(() => {
