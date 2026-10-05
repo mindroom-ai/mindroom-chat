@@ -2,6 +2,26 @@
 
 ## Runbook
 
+### Keep the panel rim sharp behind scrolling titles in Chromium (2026-10-05)
+
+- Report: in dark themes, the top-left of the "Review tool calls" dialog looked hazy: along the title's left and right edges the panel's 1px rim turned into a soft band about 10 px wide, and the rim stopped where the title ended.
+  The same happens in every floating glass panel with a scrolling title (dialogs, `Modal` sheets such as the thread filters, menus).
+- Root cause: `PageScroll` puts the title in a sticky wrapper with `z-index: 1`, so it paints after the panel's rim (`::before`, `z-index: auto`).
+  The flat title has its own `backdrop-filter: blur(3px)`, and Chromium includes the rim in that backdrop, so the title blurs the rim and covers the crisp copy.
+  With the title's blur turned off the rim was crisp again (pixels `67 42 29 29…` instead of `48 46 44 40 36 33 31 30`).
+  WebKit already drew it crisp beside the title.
+- Fix: `glassScrollPanel` lifts the rim to `z-index: 2` on panels that hold a flat title.
+  These panels are already `isolation: isolate`, so the rim stays inside them; it is a 1px masked ring with `pointer-events: none`.
+  The rule is kept to `glassScrollPanel` rather than the shared material, so glass cards in the timeline gain no `:has()` rule to recheck while streaming.
+  Visible change in every engine: the text viewer ("View source", text file previews) now shows the rim like every other glass modal; before, the `PageScroll` box with its opaque canvas painted over the rim, so that panel had only its border.
+  The rim also covers the outer 1px of the inset scrollbar's focus ring where the track meets the edge; the rim is nearly transparent there.
+- Tests: `e2e/dialog-menu-glass.spec.ts` "scrolling titles leave the panel rim sharp" opens the filters sheet once its entrance animation ends and samples one row of the title: the rim column must differ from the title 24 px in by more than 60 (the rim is drawn), and the title 3 px in must match it within 9 (no smear).
+  Without the fix it fails on the rim (difference 48, three of three runs); with the rim hidden it fails too (3); with the fix it passes (189).
+  It runs in dark only: silver's rim is too close to its background to tell drawn from smeared.
+- Validation: the glass suite passes in Chromium (50 passed, 25 live specs skipped without Matrix credentials) and in WebKit in the Playwright 1.58.2 container (48 passed, 27 skipped); after the test was tightened, `dialog-menu-glass.spec.ts` passes in both (9 passed, the silver case skipped).
+  Typecheck, lint, build and the glass and approval unit tests pass.
+  Before and after screenshots of the approval dialog were taken from a throwaway fixture.
+
 ### Calm the approval buttons and drop the bulk row for a single call (2026-10-05)
 
 - Report: the "Review tool calls" dialog felt loud (solid pastel green, red and purple buttons), and a group with one call still showed "Approve all 1 once", "Deny all 1" and a "Reason for denying all" field that repeat the call's own Approve and Deny.
