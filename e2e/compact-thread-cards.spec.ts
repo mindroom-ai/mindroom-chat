@@ -60,4 +60,26 @@ test('compact cards give the title and preview the full width on a phone', async
     'none'
   );
   await page.screenshot({ path: testInfo.outputPath('compact-thread-cards-phone.png') });
+
+  // A resolver name wider than the row ends in an ellipsis inside the card.
+  const byline = await page
+    .locator('[data-compact-card-resolution-byline="true"] span')
+    .last()
+    .evaluate((label) => {
+      label.textContent = `Resolved by ${'A very long display name '.repeat(6)}`;
+      const card = label.closest<HTMLElement>('[data-thread-root-id]')!;
+      const style = getComputedStyle(card);
+      return {
+        clipped: label.scrollWidth > label.clientWidth,
+        textOverflow: getComputedStyle(label).textOverflow,
+        labelRight: label.getBoundingClientRect().right,
+        contentRight:
+          card.getBoundingClientRect().right -
+          Number.parseFloat(style.borderRightWidth) -
+          Number.parseFloat(style.paddingRight),
+      };
+    });
+  expect(byline.clipped).toBe(true);
+  expect(byline.textOverflow).toBe('ellipsis');
+  expect(byline.labelRight).toBeLessThanOrEqual(byline.contentRight);
 });

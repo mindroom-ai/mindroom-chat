@@ -15,6 +15,7 @@ vi.mock('./CompactRoomView.css', () => ({
   Participants: 'Participants',
   ReplyCount: 'ReplyCount',
   ResolutionByline: 'ResolutionByline',
+  ResolutionBylineLabel: 'ResolutionBylineLabel',
   ScheduledIndicator: 'ScheduledIndicator',
   Stats: 'Stats',
   StreamingStatus: 'StreamingStatus',

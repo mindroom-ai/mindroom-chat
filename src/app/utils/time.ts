@@ -147,7 +147,7 @@ const getCompactDateFormatter = (language: string, withYear: boolean) => {
 
 /**
  * Age without the "ago" suffix, for dense lists: "now", "5m", "3h", "2d", then
- * the date ("28 Sep") after a week, with the year once it is not this year.
+ * the date ("Sep 28" in English) after a week, with the year once it is not this year.
  */
 export const formatCompactRelativeTime = (ts: number, language = 'en'): string => {
   const nowTs = Date.now();

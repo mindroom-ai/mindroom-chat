@@ -141,10 +141,9 @@ function CompactThreadCardBase({ viewModel, onClick }: CompactThreadCardProps) {
             className={css.ResolutionByline}
             data-compact-card-resolution-byline="true"
             size="T200"
-            truncate
           >
             <Icon size="50" src={Icons.Check} aria-hidden="true" />
-            <span>{resolvedByLabel}</span>
+            <span className={css.ResolutionBylineLabel}>{resolvedByLabel}</span>
           </Text>
         )}
         {tags.map((tagName) => (

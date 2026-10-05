@@ -200,9 +200,13 @@ export const MetadataRow = style({
   minWidth: 0,
   minHeight: toRem(24),
   flexWrap: 'wrap',
+});
+
+// Room for the menu button that sits at the end of this row on touch; only
+// the compact view's card shell has that button.
+globalStyle(`${CardShell} ${MetadataRow}`, {
   '@media': {
     [touchActions]: {
-      // Room for the menu button that sits at the end of this row on touch.
       paddingInlineEnd: toRem(32),
     },
   },
@@ -225,6 +229,13 @@ export const ResolutionByline = style({
   minWidth: 0,
   maxWidth: '100%',
   color: color.Success.Main,
+});
+
+export const ResolutionBylineLabel = style({
+  minWidth: 0,
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
 });
 
 export const StreamingStatus = style({

@@ -249,8 +249,8 @@ for (const touch of [false, true]) {
         };
       });
       expect(layout.shellHeight).toBe(layout.cardHeight);
-      // RTL: the button sits at the start of the last row, inside the room
-      // that row reserves for it, and never over the title or preview.
+      // RTL: the button sits at the start of the last row, centered on it and
+      // beside the row's content; the title and preview rows reserve nothing.
       expect(layout.actionLeft).toBeGreaterThanOrEqual(layout.cardLeft);
       expect(layout.actionRight).toBeLessThanOrEqual(
         layout.metadataLeft + layout.metadataInlineEnd
