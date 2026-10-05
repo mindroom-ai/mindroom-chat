@@ -65,6 +65,7 @@ import {
   useTimelineDebugTraceIds,
 } from './timelineDebugController';
 import { CompactRoomView } from './CompactRoomView';
+import type { ScrollAnchorMemory } from '../scroll/scrollAnchorMemory';
 import { RoomThreadOverview } from './RoomThreadOverview';
 import {
   getRenderableEventEntries,
@@ -205,7 +206,7 @@ export type RoomTimelineProps = {
   onThreadLoadError?: (threadId: string) => void;
   roomInputRef: RefObject<HTMLElement>;
   roomFooterRef?: RefObject<HTMLElement>;
-  compactRoomScrollStateRef: MutableRefObject<Map<string, number>>;
+  compactRoomScrollStateRef: MutableRefObject<ScrollAnchorMemory>;
   editor: Editor;
 };
 

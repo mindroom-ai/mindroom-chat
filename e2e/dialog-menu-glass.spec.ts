@@ -94,6 +94,34 @@ for (const theme of ['silver', 'dark']) {
     await expect(title).toHaveCSS('background-color', /^rgb\(/);
   });
 
+  test(`scrolling titles leave the panel rim sharp in ${theme}`, async ({ page }) => {
+    test.skip(theme !== 'dark', "Silver's rim is too close to its background to measure");
+    await page.setViewportSize({ width: 390, height: 480 });
+    await page.goto(`/e2e/fixtures/glass-surfaces.html?menus&theme=${theme}`);
+    await page.getByRole('button', { name: 'Open filters' }).click();
+    const title = page.locator('header').filter({ hasText: 'Filters' });
+    await title.evaluate((element) =>
+      Promise.all(
+        element
+          .closest('body > *')!
+          .getAnimations({ subtree: true })
+          .map((animation) => animation.finished)
+      )
+    );
+    await page.mouse.move(1, 1);
+    const bounds = (await title.boundingBox())!;
+    // Chromium's title blur otherwise smears the panel's 1px rim into a band along the edge.
+    // Sample below the title text and clear of the rounded corner.
+    const y = bounds.y + bounds.height - 10;
+    const [rim, edge, inner] = await sampleScreenshot(page, [
+      { x: bounds.x, y },
+      { x: bounds.x + 3, y },
+      { x: bounds.x + 24, y },
+    ]);
+    expect(pixelDifference(rim, inner), 'Rim is drawn crisply over the title').toBeGreaterThan(60);
+    expect(pixelDifference(edge, inner), 'Title edge matches its interior').toBeLessThan(9);
+  });
+
   test(`custom menus keep flat scrolling titles and keyboard selection in ${theme}`, async ({
     page,
   }, testInfo) => {

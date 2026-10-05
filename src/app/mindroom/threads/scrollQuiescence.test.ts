@@ -61,6 +61,87 @@ describe('waitForScrollQuiescence', () => {
     expect(isSettled()).toBe(true);
   });
 
+  it.each([
+    { name: 'into the top edge', scrollTop: 0, init: { deltaY: -100 } },
+    { name: 'sideways', scrollTop: 400, init: { deltaX: 100 } },
+  ])(
+    'a wheel $name cannot move the scroller and leaves the quiet window alone',
+    async ({ scrollTop, init }) => {
+      // A reader pushing at the top must not hold back the settle that reveals
+      // the rows folded in above them.
+      el.scrollTop = scrollTop;
+      const isSettled = settledFlag(
+        waitForScrollQuiescence(el, { idleMs: 150, maxWaitMs: Infinity })
+      );
+      vi.advanceTimersByTime(140);
+      el.dispatchEvent(new WheelEvent('wheel', init));
+      vi.advanceTimersByTime(10);
+      await flushMicrotasks();
+      expect(isSettled()).toBe(true);
+    }
+  );
+
+  // jsdom lays nothing out: give elements the geometry a wheel is judged by.
+  const setGeometry = (
+    node: HTMLElement,
+    scrollTop: number,
+    scrollHeight: number,
+    clientHeight: number
+  ) => {
+    Object.entries({ scrollTop, scrollHeight, clientHeight }).forEach(([key, value]) => {
+      Object.defineProperty(node, key, { configurable: true, writable: true, value });
+    });
+  };
+
+  const settledAfterWheel = async (target: Element, init: WheelEventInit) => {
+    const isSettled = settledFlag(
+      waitForScrollQuiescence(el, { idleMs: 150, maxWaitMs: Infinity })
+    );
+    vi.advanceTimersByTime(140);
+    target.dispatchEvent(new WheelEvent('wheel', { bubbles: true, cancelable: true, ...init }));
+    vi.advanceTimersByTime(10);
+    await flushMicrotasks();
+    return isSettled();
+  };
+
+  it('a zoom wheel, cancelled after the scroller sees it, leaves the quiet window alone', async () => {
+    // usePinchToZoom cancels ctrl+wheel (and trackpad pinch) from a window
+    // bubble listener, after the waiter's capture listener has run.
+    setGeometry(el, 400, 1500, 300);
+    const cancelZoom = (event: Event) => event.preventDefault();
+    window.addEventListener('wheel', cancelZoom);
+    try {
+      expect(await settledAfterWheel(el, { deltaY: -100, ctrlKey: true })).toBe(true);
+    } finally {
+      window.removeEventListener('wheel', cancelZoom);
+    }
+  });
+
+  it.each([
+    { name: 'consumed by a scrollable', codeScrollTop: 40, overflowY: 'auto', settled: true },
+    { name: 'chained past a scrollable', codeScrollTop: 0, overflowY: 'auto', settled: false },
+    { name: 'over a clipped', codeScrollTop: 40, overflowY: 'hidden', settled: false },
+  ])(
+    'a wheel $name descendant follows what the scroller does',
+    async ({ codeScrollTop, overflowY, settled }) => {
+      // A collapsed code block scrolls by itself until its top edge; from
+      // there the wheel chains to the timeline. Clipped content
+      // (MessageDisclosure, MatrixMath) never takes the wheel.
+      setGeometry(el, 400, 1500, 300);
+      const code = document.createElement('pre');
+      code.style.overflowY = overflowY;
+      setGeometry(code, codeScrollTop, 400, 200);
+      el.appendChild(code);
+      expect(await settledAfterWheel(code, { deltaY: -100 })).toBe(settled);
+    }
+  );
+
+  it('a wheel down at a fractional bottom edge leaves the quiet window alone', async () => {
+    // At DPR 1.25 the native maximum scrollTop was 1199.2 against 1500 - 300.
+    setGeometry(el, 1199.2, 1500, 300);
+    expect(await settledAfterWheel(el, { deltaY: 100 })).toBe(true);
+  });
+
   it('keeps waiting while sampled scrollTop changes without scroll events', async () => {
     el.scrollTop = 400;
     const isSettled = settledFlag(
@@ -311,6 +392,25 @@ describe('waitForScrollQuiescence', () => {
       expect(isSettled()).toBe(true);
     });
 
+    it('a wheel holds the settle like the first event of its scroll', async () => {
+      // WebKit cancels a wheel scroll that a scrollTop write lands on before
+      // its first step, and that step's scroll event can come a frame, or
+      // over a second after a heavy frame, after the wheel.
+      el.scrollTop = 400;
+      const isSettled = settledFlag(
+        waitForScrollQuiescence(el, { idleMs: 150, maxWaitMs: Infinity })
+      );
+      vi.advanceTimersByTime(140);
+      el.dispatchEvent(new WheelEvent('wheel', { deltaY: -100 }));
+      vi.advanceTimersByTime(1_000);
+      await flushMicrotasks();
+      expect(isSettled()).toBe(false);
+      el.dispatchEvent(new Event('scrollend'));
+      vi.advanceTimersByTime(150);
+      await flushMicrotasks();
+      expect(isSettled()).toBe(true);
+    });
+
     it('platforms without scrollend keep the plain idle window', async () => {
       // Remove the native property for this test only: a scroll event
       // must not open a session that only scrollend could close.
@@ -323,6 +423,27 @@ describe('waitForScrollQuiescence', () => {
         );
         el.dispatchEvent(new Event('scroll'));
         vi.advanceTimersByTime(150);
+        await flushMicrotasks();
+        expect(isSettled()).toBe(true);
+      } finally {
+        if (descriptor) Object.defineProperty(window, 'onscrollend', descriptor);
+      }
+    });
+
+    it('platforms without scrollend restart the idle window on a wheel', async () => {
+      const descriptor = Object.getOwnPropertyDescriptor(window, 'onscrollend');
+      delete (window as { onscrollend?: unknown }).onscrollend;
+      try {
+        el.scrollTop = 400;
+        const isSettled = settledFlag(
+          waitForScrollQuiescence(el, { idleMs: 150, maxWaitMs: Infinity })
+        );
+        vi.advanceTimersByTime(140);
+        el.dispatchEvent(new WheelEvent('wheel', { deltaY: -100 }));
+        vi.advanceTimersByTime(149);
+        await flushMicrotasks();
+        expect(isSettled()).toBe(false);
+        vi.advanceTimersByTime(1);
         await flushMicrotasks();
         expect(isSettled()).toBe(true);
       } finally {

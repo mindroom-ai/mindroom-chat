@@ -236,6 +236,9 @@ export const glassScrollPanel = style({
           backdropFilter: 'none',
           WebkitBackdropFilter: 'none',
         },
+        // PageScroll's sticky title (z-index 1) would otherwise paint over the rim,
+        // and Chromium's title blur smears the 1px rim into a band along the edge.
+        '&:has([data-glass-flat="true"])::before': { zIndex: 2 },
         '&:has([data-glass-flat="true"])::after': {
           content: '""',
           position: 'absolute',

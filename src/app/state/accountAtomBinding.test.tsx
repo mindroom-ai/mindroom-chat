@@ -55,6 +55,7 @@ describe('account atom binding resets', () => {
       roomId: '!room-a:example.org',
       userId: '@alice:example.org',
       ts: Date.now(),
+      isTyping: () => true,
     });
     const client = createClient();
 

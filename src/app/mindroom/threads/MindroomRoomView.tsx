@@ -40,6 +40,7 @@ import { ThreadApprovalQueue } from '../messages/ThreadApprovalControls';
 import { computerOwnsKeyboardEvent, computerOwnsKeyboardFocus } from '../computer/computerFocus';
 
 import { useMindroomSyncEngine } from '../engine/engineContext';
+import type { ScrollAnchorMemory } from '../scroll/scrollAnchorMemory';
 
 import * as overlay from './RoomOverlay.css';
 
@@ -107,7 +108,7 @@ export function RoomView({
   const headerRef = useRef<HTMLDivElement>(null);
   const footerRef = useRef<HTMLDivElement>(null);
   const [approvalQueueHost, setApprovalQueueHost] = useState<HTMLDivElement | null>(null);
-  const compactRoomScrollStateRef = useRef(new Map<string, number>());
+  const compactRoomScrollStateRef = useRef<ScrollAnchorMemory>(new Map());
 
   const [hideActivity] = useSetting(settingsAtom, 'hideActivity');
 
