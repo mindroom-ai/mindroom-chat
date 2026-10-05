@@ -41,9 +41,9 @@ type RowPlacement = {
 
 // Rows that kept their order agree on one scroll position. A row that moved,
 // such as the thread just opened now sorting first, points somewhere else, so
-// the first restore takes the position most rows agree on, and on a tie the
-// nearer one. Later steps keep the rows that restore placed, or none if those
-// rows no longer agree.
+// take the position most rows agree on, and on a tie the nearer one. Once a
+// write has placed rows, later steps keep those rows, or none if they no
+// longer agree; until then (no saved row rendered yet), each step votes.
 const placeRows = (
   view: HTMLElement,
   snapshot: ScrollAnchorSnapshot,

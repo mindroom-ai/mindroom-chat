@@ -15,7 +15,7 @@
   On unmount it saves the offset and each row in view with its top relative to the viewport; on the next mount each saved row that is still rendered proposes the scroll position that puts it back, and the list takes the position most rows agree on (ties go to the one nearest the saved offset).
   So a row that moved, such as the visited thread now sorting first, is outvoted even when it was the first row in view.
   With no saved row rendered it restores the saved offset; a list left at the top stays at the top, where threads that moved up show.
-  It waits for `ready` (rows rendered), and re-applies on resizes of the viewport and of `contentRef` while the rows it placed move together (on a phone the header padding settles from 54 to 120 px after the restore), following those rows rather than voting again.
+  It waits for `ready` (rows rendered), and re-applies on resizes of the viewport and of `contentRef` while the rows it placed move together (on a phone the header padding settles from 54 to 120 px after the restore), following the rows a write placed rather than voting again (until a saved row renders, each step votes).
   It stops for good once the reader scrolls (a scroll event away from its last write, even if they come back), those rows move apart (a card in view leaving under the unresolved filter), or rows already in the list change order (a thread below the view sorting first), so a change the reader saw is not undone by a later resize.
   This replaces the compact overview's clamped-restore retry; a list that unmounts before its rows render keeps the earlier snapshot.
   The owner holds the memory: Recently Opened keeps one per account at module level, and the compact overview keeps using the room view's per-room map (so a position still does not outlive the room view).
@@ -33,6 +33,7 @@
   Re-review approved with nits: a tie could flip during the follow and end it early, so later steps now follow the placed rows; its note that the collapse test shares module memory with the file's other tests needs no change, because the test scrolls the list itself before collapsing.
   PR review, round 1: GPT-6 Astra approved, noting that scrolling away and back left the follow on; Opus 5.5 found the blocker that a re-sort with no resize left it on, so the next resize moved the rows back (300 to 340 px), and that no test separated the vote from nearest-wins or checked `contentRef` was observed.
   The follow now also ends on a reader scroll event and on a change in row order, and the tests cover all three.
+  Round 2: both approved; Opus's note that the vote still runs after an offset fallback is now in the comment, and its other notes (strict `scrollTop` equality, carried over from the old compact code; the phone Recently Opened step not separating vote from pixel restore) need no change.
 - Not addressed:
   - A re-sort that arrives while the reader is looking at the list (no remount) still moves the rows in view; that is live scroll anchoring, not restore.
   - The thread exit button has no accessible name, so the live spec finds it from the Thread View label like `cinny015`.
