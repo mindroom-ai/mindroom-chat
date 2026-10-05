@@ -62,6 +62,7 @@ export function ApprovalDecisionControls({
               <Button
                 size="300"
                 variant="Success"
+                fill="Soft"
                 outlined
                 disabled={disabled}
                 onClick={() => {
@@ -87,6 +88,7 @@ export function ApprovalDecisionControls({
               ref={denyTrigger}
               size="300"
               variant="Critical"
+              fill="Soft"
               outlined
               disabled={disabled}
               onClick={() => {
@@ -106,6 +108,7 @@ export function ApprovalDecisionControls({
                   type="button"
                   size="300"
                   variant="Warning"
+                  fill="Soft"
                   outlined
                   disabled={disabled}
                   onClick={() => {
@@ -137,6 +140,8 @@ export function ApprovalDecisionControls({
                   key={duration}
                   type="button"
                   size="300"
+                  variant="Secondary"
+                  fill="Soft"
                   outlined
                   disabled={disabled}
                   onClick={() => {
@@ -176,7 +181,14 @@ export function ApprovalDecisionControls({
             onChange={(event) => setReason(event.currentTarget.value)}
           />
           <div className={css.Actions}>
-            <Button type="submit" size="300" variant="Critical" disabled={disabled}>
+            <Button
+              type="submit"
+              size="300"
+              variant="Critical"
+              fill="Soft"
+              outlined
+              disabled={disabled}
+            >
               <Text size="B300">
                 {index === undefined
                   ? t('mindroomUi.messages.approvalDecisionControls.confirmDeny')
@@ -186,6 +198,8 @@ export function ApprovalDecisionControls({
             <Button
               type="button"
               size="300"
+              variant="Secondary"
+              fill="Soft"
               outlined
               disabled={disabled}
               onClick={() => {

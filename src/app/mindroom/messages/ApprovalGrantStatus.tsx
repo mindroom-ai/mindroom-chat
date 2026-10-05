@@ -49,6 +49,7 @@ export function ApprovalGrantStatus({
         <Button
           size="300"
           variant="Critical"
+          fill="Soft"
           outlined
           disabled={!!action && action.status !== 'error'}
           onClick={() => {

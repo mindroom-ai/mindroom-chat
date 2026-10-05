@@ -2,6 +2,23 @@
 
 ## Runbook
 
+### Calm the approval buttons and drop the bulk row for a single call (2026-10-05)
+
+- Report: the "Review tool calls" dialog felt loud (solid pastel green, red and purple buttons), and a group with one call still showed "Approve all 1 once", "Deny all 1" and a "Reason for denying all" field that repeat the call's own Approve and Deny.
+  Inline approval cards in a thread render the same group with one record (`MindroomToolApprovalCard`), so every inline card had that row too.
+- Fix: approval buttons use folds `fill="Soft"` with `outlined`: Approve is Success, Deny and Confirm deny are Critical, Approve any arguments is Warning, and the timed "Allow for N minutes"/"Auto-approve for N minutes" buttons and Cancel are neutral Secondary (no more purple).
+  Stop auto-approval in `ApprovalGrantStatus` is Critical Soft as well.
+  `ApprovalReviewGroup` shows "Deny all" and its reason only when more than one call is still actionable (`available.length > 1`), and "Approve all" only when more than one is approvable (`approvable.length > 1`), so a group whose other calls were already decided, or cannot be approved here, does not offer "all 1" either.
+  A group with no actionable calls (another approver's, or all sent) no longer shows the bulk buttons disabled; the row also unmounts once a bulk click sends, leaving focus on the dialog's body, as the per-call buttons already did.
+  The timed permission buttons stay, since they are not per call.
+- Decision: neutral buttons use Secondary `Soft`, not `None` outlined.
+  In the dark themes `Secondary.Container` equals the group's `SurfaceVariant.Container`, so they read as bordered pills; `None` outlined draws a full-contrast `Secondary.Main` border, which compared harsher in both themes and with `prefers-contrast: more`.
+- Tests: `ThreadApprovalControls.test.tsx` renders groups of 2 calls, 1 call, 2 calls with one submitted, and 2 calls with one unapprovable, and checks the exact bulk labels and the reason field for each; the last three fail on the base, and the unapprovable one fails with the approve gate loosened to `> 0`.
+  The glass fixture's approval group (`e2e/fixtures/MessageGlass.tsx`) uses the new fills.
+- Validation: typecheck, lint (0 errors), build and the approval unit tests pass.
+  The full unit run has 4 failures in `xcodeCloudPostClone.test.ts` and `useRoomInputSendSessionController.test.ts` that fail the same way on the base commit.
+  Screenshots of the dialog (1 and 2 calls, dark and light, denying) and the inline card were taken from a throwaway fixture that stubbed the approvals context; it was not committed.
+
 ### Keep a thread reader in place when the thread banner changes height (2026-10-04)
 
 - Report: in a thread, every row moved by the change whenever the banner above them changed height: a summary arriving (+11.75 px on a desktop viewport), the thread being resolved (+22 px for the "by <name>" byline) or reopened.
