@@ -46,7 +46,9 @@ vi.mock('../../mindroom/calls/useCallFailureNotice', () => ({
 const render = () => {
   let renderer!: ReactTestRenderer;
   act(() => {
-    renderer = create(<CallStatus callEmbed={{ room: CALL_ROOM } as unknown as CallEmbed} />);
+    renderer = create(
+      <CallStatus callEmbed={{ room: CALL_ROOM, startedAt: 1 } as unknown as CallEmbed} />
+    );
   });
   return renderer;
 };
@@ -67,7 +69,7 @@ describe('CallStatus', () => {
   it('shows an agent call failure in the bar until dismissed while the user is elsewhere', () => {
     const renderer = render();
 
-    expect(state.failureArgs).toEqual([CALL_ROOM, true]);
+    expect(state.failureArgs).toEqual([CALL_ROOM, true, 1]);
     expect(alerts(renderer).map(nodeText)).toEqual([FAILURE.message]);
 
     act(() =>

@@ -26,8 +26,8 @@ vi.mock('../../hooks/useMatrixClient', () => ({
 
 let observed: ReturnType<typeof useCallFailureNotice>;
 
-function Probe({ joined }: { joined: boolean }) {
-  observed = useCallFailureNotice(mocks.room as unknown as Room, joined);
+function Probe({ joined, startedAt = 0 }: { joined: boolean; startedAt?: number }) {
+  observed = useCallFailureNotice(mocks.room as unknown as Room, joined, startedAt);
   return null;
 }
 
@@ -131,6 +131,24 @@ describe('useCallFailureNotice', () => {
     });
 
     expect(observed?.eventId).toBe('$failure');
+    act(() => renderer.unmount());
+  });
+
+  it("ignores an earlier call's notice in the reused room, not this call's", async () => {
+    const startedAt = Date.now();
+    mocks.liveEvents = [markedEvent({ eventId: '$previous', timestamp: startedAt - 10_000 })];
+
+    await act(async () => {
+      renderer = create(<Probe joined startedAt={startedAt} />);
+      await Promise.resolve();
+    });
+    await act(async () =>
+      emitTimeline(markedEvent({ eventId: '$late', timestamp: startedAt - 1 }))
+    );
+    expect(observed).toBeUndefined();
+
+    await act(async () => emitTimeline(markedEvent({ eventId: '$current', timestamp: startedAt })));
+    expect(observed?.eventId).toBe('$current');
     act(() => renderer.unmount());
   });
 

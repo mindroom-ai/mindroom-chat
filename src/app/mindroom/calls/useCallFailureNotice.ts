@@ -24,7 +24,8 @@ const decryptEvent = async (event: MatrixEvent, mx: MatrixClient): Promise<boole
 
 export const useCallFailureNotice = (
   room: Room,
-  joined: boolean
+  joined: boolean,
+  startedAt: number
 ): CallFailureNotice | undefined => {
   const mx = useMatrixClient();
   const [notice, setNotice] = useState<CallFailureNotice>();
@@ -34,7 +35,8 @@ export const useCallFailureNotice = (
     if (!joined) return undefined;
 
     let active = true;
-    let latestEventTs = 0;
+    // The call room is reused, so notices from before this call started belong to an earlier one.
+    let latestEventTs = startedAt - 1;
     const inspectEvent = async (event: MatrixEvent): Promise<boolean> => {
       if (!active || !(await decryptEvent(event, mx))) return false;
 
@@ -68,7 +70,7 @@ export const useCallFailureNotice = (
     };
 
     mx.on(RoomEvent.Timeline, handleTimelineEvent);
-    const recentCutoff = Date.now() - RECENT_NOTICE_WINDOW_MS;
+    const recentCutoff = Math.max(Date.now() - RECENT_NOTICE_WINDOW_MS, startedAt);
     const recentEvents = room
       .getLiveTimeline()
       .getEvents()
@@ -85,7 +87,7 @@ export const useCallFailureNotice = (
       active = false;
       mx.removeListener(RoomEvent.Timeline, handleTimelineEvent);
     };
-  }, [joined, mx, room]);
+  }, [joined, mx, room, startedAt]);
 
   return notice;
 };

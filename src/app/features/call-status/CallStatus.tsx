@@ -32,7 +32,7 @@ export function CallStatus({ callEmbed }: CallStatusProps) {
   const screenSize = useScreenSize();
   const callJoined = useCallJoined(callEmbed);
   const speakers = useCallSpeakers(callEmbed);
-  const callFailure = useCallFailureNotice(room, callJoined);
+  const callFailure = useCallFailureNotice(room, callJoined, callEmbed.startedAt);
   const { visibleFailure, dismissFailure } = useCallFailureDismissal(callJoined, callFailure);
 
   const compact = screenSize === ScreenSize.Mobile;

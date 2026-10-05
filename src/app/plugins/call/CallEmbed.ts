@@ -52,6 +52,9 @@ export class CallEmbed {
 
   public joined = false;
 
+  /** Agent failure notices from before this belong to an earlier call in the same room. */
+  public readonly startedAt = Date.now();
+
   public readonly control: CallControl;
 
   private readonly container: HTMLElement;
