@@ -29,7 +29,7 @@
 - Fix: approval buttons use folds `fill="Soft"` with `outlined`: Approve is Success, Deny and Confirm deny are Critical, Approve any arguments is Warning, and the timed "Allow for N minutes"/"Auto-approve for N minutes" buttons and Cancel are neutral Secondary (no more purple).
   Stop auto-approval in `ApprovalGrantStatus` is Critical Soft as well.
   `ApprovalReviewGroup` shows "Deny all" and its reason only when more than one call is still actionable (`available.length > 1`), and "Approve all" only when more than one is approvable (`approvable.length > 1`), so a group whose other calls were already decided, or cannot be approved here, does not offer "all 1" either.
-  A group with no actionable calls (another approver's, or all sent) no longer shows the bulk buttons disabled; the row also unmounts once a bulk click sends, leaving focus on the dialog's body, as the per-call buttons already did.
+  A group with no actionable calls (another approver's, or all sent) no longer shows the bulk buttons disabled; the row also unmounts once a bulk click sends, so focus falls to the document body, as with the per-call buttons; Tab returns into the dialog.
   The timed permission buttons stay, since they are not per call.
 - Decision: neutral buttons use Secondary `Soft`, not `None` outlined.
   In the dark themes `Secondary.Container` equals the group's `SurfaceVariant.Container`, so they read as bordered pills; `None` outlined draws a full-contrast `Secondary.Main` border, which compared harsher in both themes and with `prefers-contrast: more`.
