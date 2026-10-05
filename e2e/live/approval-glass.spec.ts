@@ -7,7 +7,14 @@ import {
 } from '../env';
 import { expectFloatingNavHeader } from '../helpers/glassVisual';
 import { expectInsetScrollbar } from '../helpers/insetScrollbar';
-import { createPrivateRoom, loginToMatrix, matrixFetch, sendRoomMessage } from '../helpers/matrix';
+import {
+  createPrivateRoom,
+  joinRoom,
+  loginToMatrix,
+  matrixFetch,
+  registerAgentAccount,
+  sendRoomMessage,
+} from '../helpers/matrix';
 
 const headerGeometry = (header: Locator) =>
   header.evaluate((element) => {
@@ -54,10 +61,13 @@ for (const viewport of [
     });
     const credentials = getPrimaryCredentials();
     const session = await loginToMatrix(homeserver, credentials.username, credentials.password);
+    const router = await registerAgentAccount(homeserver, 'router');
     const roomId = await createPrivateRoom(homeserver, session.accessToken, {
       name: 'Design notes',
       topic: 'Local approval and tool control fixture',
+      invite: [router.userId],
     });
+    await joinRoom(homeserver, router.accessToken, roomId);
     try {
       const rootId = await sendRoomMessage(homeserver, session.accessToken, roomId, {
         msgtype: 'm.text',
@@ -92,7 +102,7 @@ for (const viewport of [
           `/rooms/${encodeURIComponent(roomId)}/send/io.mindroom.tool_approval/${status}-${index}`,
           {
             method: 'PUT',
-            accessToken: session.accessToken,
+            accessToken: router.accessToken,
             body: JSON.stringify({
               msgtype: 'io.mindroom.tool_approval',
               body: 'Approval required: save_note',
