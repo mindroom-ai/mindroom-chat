@@ -43,9 +43,12 @@ export const saveCanvasState = async (
     const tx = db.transaction('states', 'readwrite');
     // A failed request fails the transaction too; the caller hears of the request's failure only.
     tx.done.catch(() => undefined);
-    await tx.store.put({ canvasId, json, savedAt: Date.now() });
+    const byAge = tx.store.index('savedAt');
+    // Each save sorts after all others even if the clock went back, so the oldest is forgotten first.
+    const newest = (await byAge.openCursor(null, 'prev'))?.value.savedAt ?? 0;
+    await tx.store.put({ canvasId, json, savedAt: Math.max(Date.now(), newest + 1) });
     let extra = (await tx.store.count()) - MAX_STORED_CANVAS_STATES;
-    let cursor = extra > 0 ? await tx.store.index('savedAt').openCursor() : null;
+    let cursor = extra > 0 ? await byAge.openCursor() : null;
     while (cursor && extra > 0) {
       // eslint-disable-next-line no-await-in-loop
       await cursor.delete();

@@ -35,6 +35,21 @@ describe('canvasStateStore', () => {
     );
   });
 
+  it('forgets the oldest canvas even after the clock went back', async () => {
+    const now = vi.spyOn(Date, 'now');
+    for (let index = 0; index < MAX_STORED_CANVAS_STATES; index += 1) {
+      now.mockReturnValue(1_000 + index);
+      // eslint-disable-next-line no-await-in-loop
+      await saveCanvasState('session-a', `$canvas-${index}`, `${index}`);
+    }
+    now.mockReturnValue(1);
+    await saveCanvasState('session-a', '$late', '"late"');
+    now.mockRestore();
+    expect(await loadCanvasState('session-a', '$late')).toBe('"late"');
+    expect(await loadCanvasState('session-a', '$canvas-0')).toBeUndefined();
+    expect(await loadCanvasState('session-a', '$canvas-1')).toBe('1');
+  });
+
   it('reports a failed write once and keeps the state saved before it', async () => {
     await saveCanvasState('session-a', '$canvas', '"before"');
     const unhandled = vi.fn();

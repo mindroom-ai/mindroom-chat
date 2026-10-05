@@ -68,7 +68,7 @@ function LoadedCanvasPanel({
   );
   const page = useCanvasPage(mx, room.roomId, shown.revisionEventId, shown.canvas, attempt);
   const saved = useCanvasSavedState(mx, action.eventId);
-  // The page waits for its saved state, so it never starts without it.
+  // The page waits until its saved state is read, so it starts from it.
   const loaded = page.status === 'ready' && saved.ready ? page : undefined;
   const mobile = useScreenSizeContext() === ScreenSize.Mobile;
   const agentName =

@@ -7,7 +7,7 @@ import { loadCanvasState, saveCanvasState } from './canvasStateStore';
 const SAVE_INTERVAL_MS = 500;
 
 export type CanvasSavedState = {
-  /** False until the saved state is read, so the page never starts without it. */
+  /** False until the saved state is read or fails to be, so the page starts from any state there is. */
   ready: boolean;
   /** The latest state, including saves not yet written. */
   read: () => string | undefined;

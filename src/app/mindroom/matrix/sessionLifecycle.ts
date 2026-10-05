@@ -216,7 +216,11 @@ export const removeCurrentClientSessionAndReload = async (
     (storedSession) => storedSession.userId === identity.userId
   );
   try {
-    await clearMatrixClientStores(mx);
+    await Promise.all([
+      clearMatrixClientStores(mx),
+      // Saved canvas state needs only the session ID, so it is deleted here too.
+      deleteNamedDatabase(getCanvasStateDbName(identity.sessionId)).catch(() => undefined),
+    ]);
     clearSessionScopedUiState(identity, clearUserScopedState);
   } finally {
     clearLegacySessionStorage();
