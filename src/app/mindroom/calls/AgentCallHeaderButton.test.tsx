@@ -4,6 +4,7 @@ import { act, create, ReactTestInstance, ReactTestRenderer } from 'react-test-re
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { MatrixClient, MatrixEvent, User } from 'matrix-js-sdk';
 import { ReEmitter } from 'matrix-js-sdk/lib/ReEmitter';
+import FocusTrap from 'focus-trap-react';
 import { Tooltip } from 'folds';
 import { AgentCallHeaderButton } from './AgentCallHeaderButton';
 
@@ -249,5 +250,30 @@ describe('AgentCallHeaderButton', () => {
     );
     expect(notices()).toHaveLength(0);
     expect(renderer.root.findAllByType(Tooltip)).toHaveLength(1);
+  });
+
+  it('returns focus to the button when the menu or the notice closes', async () => {
+    addVoiceAgent(HELPER);
+    addVoiceAgent(ANALYST);
+    state.startAgentCall.mockImplementationOnce(async () => {
+      state.call.error = 'No microphone was found on this device.';
+      return false;
+    });
+    const renderer = render();
+    const returnsFocus = () =>
+      renderer.root
+        .findAllByType(FocusTrap)
+        .map((trap) => trap.props.focusTrapOptions.returnFocusOnDeactivate);
+
+    act(() => headerButton(renderer).props.onClick(anchorEvent));
+    expect(text(renderer)).toContain('Choose an agent to call');
+    expect(returnsFocus()).toEqual([true]);
+
+    const items = renderer.root.findAll(
+      (node) => node.type === 'button' && !node.props['aria-label']
+    );
+    await act(async () => items[0].props.onClick());
+    expect(text(renderer)).toContain('No microphone was found on this device.');
+    expect(returnsFocus()).toEqual([true]);
   });
 });

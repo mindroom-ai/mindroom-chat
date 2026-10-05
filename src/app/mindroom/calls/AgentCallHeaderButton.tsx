@@ -142,7 +142,7 @@ export function AgentCallHeaderButton({ threadId }: { threadId?: string }) {
           <FocusTrap
             focusTrapOptions={{
               initialFocus: false,
-              returnFocusOnDeactivate: false,
+              returnFocusOnDeactivate: true,
               onDeactivate: () => setMenuAnchor(undefined),
               clickOutsideDeactivates: true,
               isKeyForward: (evt: KeyboardEvent) => evt.key === 'ArrowDown',
@@ -183,7 +183,7 @@ export function AgentCallHeaderButton({ threadId }: { threadId?: string }) {
           <FocusTrap
             focusTrapOptions={{
               initialFocus: false,
-              returnFocusOnDeactivate: false,
+              returnFocusOnDeactivate: true,
               onDeactivate: () => setNoticeAnchor(undefined),
               clickOutsideDeactivates: true,
               escapeDeactivates: stopPropagation,
