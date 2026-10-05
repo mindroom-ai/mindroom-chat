@@ -2,6 +2,17 @@
 
 ## Runbook
 
+### Keep "X is typing…" while the server still reports typing (2026-10-05)
+
+- Report: "X is typing…" disappeared about 5 s after it appeared even though the sender kept typing; during a long MindRoom agent turn users thought the agent had stopped.
+- Root cause: `typingMembers.ts` deleted every typing receipt `TYPING_TIMEOUT_MS` (5 s) after it arrived.
+  The backend refreshes typing with a 30 s timeout well before it lapses, and Tuwunel sends a new `m.typing` for each refresh, but the SDK emits `RoomMember.typing` only when a member's state flips, so the client never heard from the member again and the indicator stayed hidden.
+  Live on `dev`: a typing PUT with `timeout: 30000`, refreshed every 10 s, hid after 5.2 s; a 15 s PUT hid after 5.6 s, before the server had timed it out.
+- Fix: the 5 s check now keeps a receipt while the SDK's current room member is still typing and checks again later; typing off and the server's timeout both arrive as a flip and delete it at once, as before.
+  The check remains for one purpose: a gappy (`limited`) sync resets the live timeline and replaces the room's members with fresh, non-typing ones without an event, so the typing off after it flips nothing; without the check such a receipt would stay until the member types again.
+- Tests: `typingMembers.test.tsx` uses the real SDK room: a member stays across 30 s of refreshes and goes when `m.typing` drops them (fails on `dev`); a member is dropped after a gappy-sync reset (fails with the check removed or with the captured, replaced member read instead of the room's current one).
+  `composer-glass` no longer re-sends typing before **Drop Typing Status** (the previous entry's workaround for the 5 s expiry); its check after the click now fails if the button does nothing, which on `dev` passed because the notice hid by itself.
+
 ### Keep a thread reader in place when the thread banner changes height (2026-10-04)
 
 - Report: in a thread, every row moved by the change whenever the banner above them changed height: a summary arriving (+11.75 px on a desktop viewport), the thread being resolved (+22 px for the "by <name>" byline) or reopened.

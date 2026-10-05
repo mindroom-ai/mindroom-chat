@@ -18,6 +18,8 @@ type TypingMemberPutAction = {
   roomId: string;
   userId: string;
   ts: number;
+  // Whether the SDK still reports the member as typing.
+  isTyping: () => boolean;
 };
 type TypingMemberDeleteAction = {
   type: 'DELETE';
@@ -64,20 +66,6 @@ const deleteTypingMember = (
   return roomToMembers;
 };
 
-const timeoutReceipt = (
-  roomToMembers: IRoomIdToTypingMembers,
-  roomId: string,
-  userId: string,
-  timeout: number
-): boolean | undefined => {
-  const typingMembers = roomToMembers.get(roomId) ?? [];
-
-  const target = typingMembers.find((receipt) => receipt.userId === userId);
-  if (!target) return undefined;
-
-  return Date.now() - target.ts >= timeout;
-};
-
 export const roomIdToTypingMembersAtom = atom<
   IRoomIdToTypingMembers,
   [IRoomIdToTypingMembersAction],
@@ -98,29 +86,25 @@ export const roomIdToTypingMembersAtom = atom<
         produce(rToTyping, (draft) => putTypingMember(draft, action))
       );
 
-      // remove typing receipt after some timeout
-      // to prevent stuck typing members
-      setTimeout(() => {
-        const { roomId, userId } = action;
-        const timeout = timeoutReceipt(
-          get(baseRoomIdToTypingMembersAtom),
-          roomId,
-          userId,
-          TYPING_TIMEOUT_MS
-        );
-        if (timeout) {
-          set(
-            baseRoomIdToTypingMembersAtom,
-            produce(get(baseRoomIdToTypingMembersAtom), (draft) =>
-              deleteTypingMember(draft, {
-                type: 'DELETE',
-                roomId,
-                userId,
-              })
-            )
-          );
+      // Keep the receipt while the SDK reports the member as typing: the SDK emits
+      // only changes, and the server times typing out itself. A gappy sync swaps in
+      // fresh, non-typing members without an event, so recheck to avoid a stuck one.
+      const { roomId, userId, ts, isTyping } = action;
+      const expire = () => {
+        const receipts = get(baseRoomIdToTypingMembersAtom).get(roomId);
+        if (receipts?.find((receipt) => receipt.userId === userId)?.ts !== ts) return;
+        if (isTyping()) {
+          setTimeout(expire, TYPING_TIMEOUT_MS);
+          return;
         }
-      }, TYPING_TIMEOUT_MS);
+        set(
+          baseRoomIdToTypingMembersAtom,
+          produce(get(baseRoomIdToTypingMembersAtom), (draft) =>
+            deleteTypingMember(draft, { type: 'DELETE', roomId, userId })
+          )
+        );
+      };
+      setTimeout(expire, TYPING_TIMEOUT_MS);
     }
 
     if (
@@ -157,6 +141,7 @@ export const useBindRoomIdToTypingMembersAtom = (
         roomId: member.roomId,
         userId: member.userId,
         ts: Date.now(),
+        isTyping: () => mx.getRoom(member.roomId)?.getMember(member.userId)?.typing === true,
       });
     };
 
