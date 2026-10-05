@@ -484,6 +484,8 @@ const createCompactScrollElement = () => ({
   scrollTop: 0,
   getBoundingClientRect: () => ({ top: 0, bottom: 0 }),
   querySelectorAll: () => [],
+  addEventListener: () => {},
+  removeEventListener: () => {},
 });
 
 describe('RoomView', () => {

@@ -274,7 +274,8 @@ describe('CompactRoomView', () => {
     renderer.unmount();
   });
 
-  const resizeCallbacks = new Set<() => void>();
+  // Each connected observer's callback, with the elements it watches.
+  const resizeCallbacks = new Map<() => void, Set<unknown>>();
   afterEach(() => {
     vi.unstubAllGlobals();
     resizeCallbacks.clear();
@@ -288,8 +289,11 @@ describe('CompactRoomView', () => {
       class {
         constructor(private callback: () => void) {}
 
-        observe() {
-          resizeCallbacks.add(this.callback);
+        observe(target: unknown) {
+          resizeCallbacks.set(
+            this.callback,
+            (resizeCallbacks.get(this.callback) ?? new Set()).add(target)
+          );
         }
 
         disconnect() {
@@ -561,10 +565,19 @@ describe('CompactRoomView', () => {
       },
       getBoundingClientRect: () => ({ top: 0, bottom: 0 }),
       querySelectorAll: () => [],
+      addEventListener: () => {},
+      removeEventListener: () => {},
     };
   };
   const savedAt = (scrollTop: number) => ({ scrollTop, anchors: [] });
-  const resize = () => act(() => resizeCallbacks.forEach((callback) => callback()));
+  const resize = () => act(() => resizeCallbacks.forEach((_targets, callback) => callback()));
+  // Cards loading grow the overview's content, not its viewport.
+  const resizeCards = (view: unknown) =>
+    act(() =>
+      resizeCallbacks.forEach((targets, callback) => {
+        if ([...targets].some((target) => target !== view)) callback();
+      })
+    );
   const renderOverview = (
     room: Room,
     rootIds: string[],
@@ -682,7 +695,7 @@ describe('CompactRoomView', () => {
     act(() => {
       renderer?.update(renderOverview(room, ['$thread-1', '$thread-2'], compactRoomScrollStateRef));
     });
-    resize();
+    resizeCards(scrollElement);
 
     expect(scrollElement.scrollTop).toBe(418);
 
@@ -692,7 +705,7 @@ describe('CompactRoomView', () => {
         renderOverview(room, ['$thread-1', '$thread-2', '$thread-3'], compactRoomScrollStateRef)
       );
     });
-    resize();
+    resizeCards(scrollElement);
 
     expect(scrollElement.scrollTop).toBe(315);
 

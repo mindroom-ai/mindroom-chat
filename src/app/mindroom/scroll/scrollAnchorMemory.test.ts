@@ -69,7 +69,8 @@ function AnchoredList({
 
 describe('useScrollAnchorMemory', () => {
   let renderer: ReactTestRenderer | undefined;
-  const resizeCallbacks = new Set<() => void>();
+  // Each connected observer's callback, with the elements it watches.
+  const observers = new Map<() => void, Set<Element>>();
 
   beforeEach(() => {
     vi.stubGlobal(
@@ -77,12 +78,12 @@ describe('useScrollAnchorMemory', () => {
       class {
         constructor(private callback: () => void) {}
 
-        observe() {
-          resizeCallbacks.add(this.callback);
+        observe(target: Element) {
+          observers.set(this.callback, (observers.get(this.callback) ?? new Set()).add(target));
         }
 
         disconnect() {
-          resizeCallbacks.delete(this.callback);
+          observers.delete(this.callback);
         }
       }
     );
@@ -91,7 +92,7 @@ describe('useScrollAnchorMemory', () => {
   afterEach(() => {
     act(() => renderer?.unmount());
     renderer = undefined;
-    resizeCallbacks.clear();
+    observers.clear();
     vi.unstubAllGlobals();
   });
 
@@ -115,7 +116,18 @@ describe('useScrollAnchorMemory', () => {
     renderer = undefined;
   };
 
-  const resize = () => act(() => resizeCallbacks.forEach((callback) => callback()));
+  /** Resizes `target`, or every observed element. */
+  const resize = (target?: Element) =>
+    act(() =>
+      observers.forEach((targets, callback) => {
+        if (!target || targets.has(target)) callback();
+      })
+    );
+
+  const scrollReaderTo = (layout: Layout, scrollTop: number) => {
+    layout.view.scrollTop = scrollTop;
+    layout.view.dispatchEvent(new Event('scroll'));
+  };
 
   const leaveAt = (memory: ScrollAnchorMemory, keys: string[], scrollTop: number) => {
     const layout = createLayout(keys);
@@ -161,6 +173,20 @@ describe('useScrollAnchorMemory', () => {
 
     expect(layout.offsetOf('row-8')).toBe(before.get('row-8'));
     expect(layout.view.scrollTop).toBe(280);
+  });
+
+  it('takes the position most rows agree on over the nearest one', () => {
+    const memory: ScrollAnchorMemory = new Map();
+    const keys = rowKeys(20);
+    const before = leaveAt(memory, keys, 300);
+
+    // row-11 sat low in view; the rows above it, most of the view, moved down
+    // a row when it sorted first, and only row-12 below it stayed.
+    const layout = createLayout(['row-11', ...keys.filter((key) => key !== 'row-11')]);
+    mount(memory, layout);
+
+    expect(layout.offsetOf('row-8')).toBe(before.get('row-8'));
+    expect(layout.offsetOf('row-9')).toBe(before.get('row-9'));
   });
 
   it('takes the nearer position when a moved row and an unmoved row disagree', () => {
@@ -231,14 +257,14 @@ describe('useScrollAnchorMemory', () => {
     expect(layout.view.scrollTop).toBe(ROW_HEIGHT);
 
     layout.setRows(keys);
-    resize();
+    resize(layout.content);
     expect(layout.offsetOf('row-10')).toBe(before.get('row-10'));
 
     layout.view.scrollTop = 120;
     layout.setRows(['new-row', ...keys]);
     resize();
     expect(layout.view.scrollTop).toBe(120);
-    expect(resizeCallbacks.size).toBe(0);
+    expect(observers.size).toBe(0);
   });
 
   it('follows its rows while they move together', () => {
@@ -249,10 +275,42 @@ describe('useScrollAnchorMemory', () => {
     const layout = createLayout(keys);
     mount(memory, layout);
     layout.setRows(['new-row-1', 'new-row-2', ...keys]);
-    resize();
+    resize(layout.content);
 
     expect(layout.offsetOf('row-10')).toBe(before.get('row-10'));
-    expect(resizeCallbacks.size).toBe(1);
+    expect(observers.size).toBe(1);
+  });
+
+  it('stops following once rows already in the list change order', () => {
+    const memory: ScrollAnchorMemory = new Map();
+    const keys = rowKeys(20);
+    leaveAt(memory, keys, 300);
+
+    const layout = createLayout(keys);
+    mount(memory, layout);
+    // A thread below the view gets a reply and sorts first while the reader
+    // looks on; a later resize must not move the rows back up.
+    layout.setRows(['row-19', ...keys.filter((key) => key !== 'row-19')]);
+    resize(layout.content);
+
+    expect(layout.view.scrollTop).toBe(300);
+    expect(observers.size).toBe(0);
+  });
+
+  it('stops following once the reader scrolls, even back to the same place', () => {
+    const memory: ScrollAnchorMemory = new Map();
+    const keys = rowKeys(20);
+    leaveAt(memory, keys, 300);
+
+    const layout = createLayout(keys);
+    mount(memory, layout);
+    scrollReaderTo(layout, 340);
+    scrollReaderTo(layout, 300);
+    layout.setRows(['new-row', ...keys]);
+    resize(layout.content);
+
+    expect(layout.view.scrollTop).toBe(300);
+    expect(observers.size).toBe(0);
   });
 
   it('stops following once rows in view move apart', () => {
@@ -271,7 +329,7 @@ describe('useScrollAnchorMemory', () => {
     layout.setRows(['new-row', ...keys.filter((key) => key !== 'row-8')]);
     resize();
     expect(layout.view.scrollTop).toBe(300);
-    expect(resizeCallbacks.size).toBe(0);
+    expect(observers.size).toBe(0);
   });
 
   it('waits for its rows before restoring', () => {

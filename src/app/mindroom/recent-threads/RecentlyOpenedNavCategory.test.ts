@@ -456,6 +456,8 @@ describe('RecentlyOpenedNavCategory', () => {
       scrollTop: 0,
       getBoundingClientRect: () => ({ top: 0, bottom: 0 }),
       querySelectorAll: () => [],
+      addEventListener: () => {},
+      removeEventListener: () => {},
     });
     let list = createList();
     seedJoinedThreads(3);
