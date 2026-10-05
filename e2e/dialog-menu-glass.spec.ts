@@ -1,8 +1,49 @@
 /* eslint-disable no-await-in-loop -- Menus share focus and must open sequentially. */
 import { expect, test } from '@playwright/test';
-import { expectFloatingNavHeader } from './helpers/glassVisual';
+import { expectFloatingNavHeader, pixelDifference, sampleScreenshot } from './helpers/glassVisual';
 
 for (const theme of ['silver', 'dark']) {
+  test(`nested titles keep the surrounding panel color in ${theme}`, async ({
+    page,
+    browserName,
+  }) => {
+    await page.setViewportSize({ width: 390, height: 480 });
+    await page.goto(`/e2e/fixtures/glass-surfaces.html?menus&theme=${theme}`);
+    await page.getByRole('button', { name: 'Open filters' }).click();
+    const title = page.locator('header').filter({ hasText: 'Filters' });
+    const scroll = await expectFloatingNavHeader(title);
+    await page.mouse.move(1, 1);
+    const bounds = (await title.boundingBox())!;
+    // Empty regions above/below the seam must match, not form a separately tinted band.
+    const [header, body] = await sampleScreenshot(page, [
+      { x: bounds.x + bounds.width - 68, y: bounds.y + bounds.height / 2 },
+      { x: bounds.x + bounds.width - 68, y: bounds.y + bounds.height + 22 },
+    ]);
+    expect(pixelDifference(header, body), 'Header matches its enclosing panel').toBeLessThan(9);
+    if (browserName === 'chromium') {
+      // A new backdrop root can match the colors by disabling nested blur entirely.
+      // Verify painted blur over real scrolling text, not just its computed CSS.
+      await scroll.evaluate((element) => {
+        element.scrollTop = 145;
+      });
+      const points = Array.from({ length: 200 }, (_, index) => ({
+        x: bounds.x + 24 + (index % 40) * 3,
+        y: bounds.y + bounds.height - 18 + Math.floor(index / 40) * 3,
+      }));
+      const blurred = await sampleScreenshot(page, points);
+      await title.evaluate((element) => element.style.setProperty('backdrop-filter', 'none'));
+      const unblurred = await sampleScreenshot(page, points);
+      await title.evaluate((element) => element.style.removeProperty('backdrop-filter'));
+      expect(
+        blurred.reduce((sum, pixel, index) => sum + pixelDifference(pixel, unblurred[index]), 0),
+        'Scrolling text is visibly blurred beneath the title'
+      ).toBeGreaterThan(500);
+    }
+    await page.emulateMedia({ contrast: 'more' });
+    await expect(title).toHaveCSS('backdrop-filter', 'none');
+    await expect(title).toHaveCSS('background-color', /^rgb\(/);
+  });
+
   test(`custom menus keep flat scrolling titles and keyboard selection in ${theme}`, async ({
     page,
   }, testInfo) => {

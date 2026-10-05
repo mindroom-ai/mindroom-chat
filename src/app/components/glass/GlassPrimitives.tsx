@@ -12,7 +12,14 @@ import {
   as,
 } from 'folds';
 import { ContainerColor as containerColor } from '../../styles/ContainerColor.css';
-import { glassFlat, glassFloating, glassOutline, glassSurface } from '../../styles/Glass.css';
+import {
+  glassFlat,
+  glassFloating,
+  glassInheritTint,
+  glassOutline,
+  glassScrollPanel,
+  glassSurface,
+} from '../../styles/Glass.css';
 import { useLiquidGlass } from './liquid/useLiquidGlass';
 import {
   ScrollHeaderProvider,
@@ -107,6 +114,7 @@ export const Surface = as<'div', SurfaceProps>(
             className={classNames(
               containerColor({ variant }),
               surface.className,
+              appearance === 'glass' && level === 'overlay' && glassScrollPanel,
               appearance === 'glass' && level === 'overlay' && glassFloating,
               className
             )}
@@ -130,6 +138,7 @@ export const Menu = as<'div', MenuProps>(
             variant={variant}
             className={classNames(
               surface.className,
+              appearance === 'glass' && glassScrollPanel,
               appearance === 'glass' && glassFloating,
               className
             )}
@@ -152,7 +161,11 @@ export const Modal = as<'div', ModalProps>(
             {...props}
             ref={surface.ref}
             variant={variant}
-            className={classNames(surface.className, className)}
+            className={classNames(
+              surface.className,
+              appearance === 'glass' && glassScrollPanel,
+              className
+            )}
           />
         </SurfaceProvider>
       </ScrollHeaderProvider>
@@ -171,7 +184,11 @@ export const Dialog = as<'div', DialogProps>(
             {...props}
             ref={surface.ref}
             variant={variant}
-            className={classNames(surface.className, className)}
+            className={classNames(
+              surface.className,
+              appearance === 'glass' && glassScrollPanel,
+              className
+            )}
           />
         </SurfaceProvider>
       </ScrollHeaderProvider>
@@ -207,6 +224,7 @@ export const Header = as<'header', HeaderProps>(
               isFlat && glassSurface({ level: 'panel', variant }),
               isFlat && glassFlat,
               isFlat && glassFloating,
+              isFlat && enclosingSurface && neutral && glassInheritTint,
               className
             )}
           />

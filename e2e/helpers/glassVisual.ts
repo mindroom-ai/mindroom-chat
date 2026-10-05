@@ -188,7 +188,7 @@ export async function expectFloatingNavHeader(header: Locator) {
   expect(material.highlight).toBe('none');
   expect(material.filter).toContain('blur(');
   expect(material.filter).not.toContain('url(');
-  expect(material.alpha).toBeGreaterThan(0);
+  expect(material.alpha).toBeGreaterThanOrEqual(0);
   expect(material.alpha).toBeLessThan(1);
   const scrollbar = scroll.getByRole('scrollbar', { includeHidden: true });
   await expect(scrollbar).toHaveCount(1);

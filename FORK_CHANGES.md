@@ -9,6 +9,8 @@
   Approval/permission dialogs, format hints, editor/invite autocomplete, mobile thread filters, and model selection now share that layout too.
 - `PageScroll` supplies flat native glass to its header slot through the shared `Header` primitive, including inside a glass modal.
   Titles have no border, rim, shadow, or pointer glow; moving over their controls also clears the enclosing panel's pointer light.
+  Neutral titles inside glass panels use the enclosing tint without adding a second pale band; native blur and opaque accessibility fallbacks remain.
+  Panels with scrolling titles paint their backdrop filter on a separate decorative layer so Chromium does not apply the enclosing tint twice; a pixel regression also verifies that header blur still paints.
   The actual header height controls focus scrolling and the inset scrollbar, including smaller titles and responsive header appearance.
   Header context stops at surface boundaries so dialogs opened through a title do not inherit its scrolling treatment.
   Composite pickers keep focus on their search field or selected option when dragging a scrollbar.
