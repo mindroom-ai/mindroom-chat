@@ -201,13 +201,9 @@ test.describe('CINNY-217 invite menu portal', () => {
     // Full navigation is required here, but the shared account's preferences survive the run.
     restoreSettings = await setFullInterfaceModeForSession(homeserver, viewer);
 
-    // Tuwunel answers a directory search with the first `limit` matches in
-    // user-ID order, not the best ones, and the shared homeserver collects
-    // users from every run: other runs' `mindroom_*` agents take the 12 slots
-    // for `mind` ahead of this run's Mind, and other runs' accounts fill the
-    // 500-user bootstrap. Every fixture MXID carries runId, so searching for
-    // runId instead returns exactly this run's users; the client still ranks
-    // them for the typed query.
+    // Tuwunel returns the first `limit` directory matches to finish, not the
+    // best, so other runs' users can crowd out this run's Mind. Searching for
+    // runId (in every fixture MXID) returns only this run's users.
     await page.route('**/user_directory/search', (route) =>
       route.continue({
         postData: JSON.stringify({ ...route.request().postDataJSON(), search_term: fixture.runId }),

@@ -5,13 +5,15 @@
 ### Scope the invite menu live spec's user directory to its own users (2026-10-04)
 
 - Report: `e2e/live/cinny217-invite-menu-portal.spec.ts` failed on every run from about 15:00 on 2026-10-04, on `dev` and other branches alike: the first suggestion for `mind` was another run's `mindroom_lv…_agent 💕` (Tuwunel's default display name) instead of the spec's `Mind`.
-- Root cause, in the spec: Tuwunel answers `/user_directory/search` with the first `limit` matches in user-ID order, not the best ones, and the shared test homeserver keeps every run's users.
-  In the failing traces the 500-user `@` bootstrap held only other runs' `@lv…` accounts, and the 12 results for `mind` were 8 of the spec's own agents (alpha to kappa sort before `mind`) plus 4 or 5 other runs' agents from public fixture rooms, so the spec's `Mind` never reached the client.
+- Root cause, in the spec: Tuwunel answers `/user_directory/search` with the first `limit` matches to finish, not the best ones (it walks users in user-ID order but checks them concurrently, `buffer_unordered`), and the shared test homeserver keeps every run's users.
+  In the failing traces the 500-user `@` bootstrap held only other runs' `@lv…` accounts, and the 12 results for `mind` were 7 to 9 of the spec's own agents plus 3 to 5 other runs' agents from public fixture rooms, so the spec's `Mind` never reached the client.
+  With 3 other agents in the window, `Mind` made it into some requests and not others, since the order changes from request to request.
   The ranking is right: the client never received `Mind`, and given the spec's users it ranks `Mind` first.
-  A real user hits this only when more than 500 users are visible to them and more than 12 visible users match the query ahead of the agent; the client cannot rank a user the server does not return (see CINNY-216).
+  A real user hits this only when more than 500 users are visible to them and more than 12 visible users match the query; the client cannot rank a user the server does not return (see CINNY-216).
 - Fix: the spec sends every directory search for its run ID, which every fixture MXID carries, so the server returns exactly the run's 12 users and the client ranks them for the typed query.
   It now expects its own `Mind`, not any `@mindroom_mind` user.
-- Tests: test-only change. Same build, base spec against fixed spec: the base spec failed every run and the fixed spec passed every run; with the tier comparison reversed in `rankUsers`, the fixed spec fails (`Alpha …` first).
+- Tests: test-only change. Same build, base spec against fixed spec: the base spec failed every run and the fixed spec passed every run.
+  The spec catches gross ranking regressions (with the tier comparison reversed in `rankUsers` it fails with `Alpha …` first), not a revert of the CINNY-216 refinements; `userDirectorySearch.test.ts` and `useInviteUserSearch.test.ts` cover those.
 
 ### Let canvas pages keep their own state on this device (2026-10-04)
 
