@@ -90,6 +90,7 @@ const stateLiteral = (state: string | undefined): string =>
 // page redraws, and from then on keeps each value that changes, merged into those kept before.
 // Only changed values are kept, so a control the user never touched cannot replace a value kept
 // in another version, and nothing is kept before the restore, so a page's own startup events cannot.
+// A control that appears later gets its kept value when the bridge first sees it.
 const inputsScript = (inputs: string | undefined): string => `
   const inputs = Object.assign(Object.create(null), ${stateLiteral(inputs)});
   const unsaved = ['password', 'file', 'hidden', 'submit', 'button', 'reset', 'image'];
@@ -119,10 +120,41 @@ const inputsScript = (inputs: string | undefined): string => `
   const assign = (control, property, value) =>
     Object.getOwnPropertyDescriptor(Object.getPrototypeOf(control), property).set.call(control, value);
   let seen;
-  const saveInputs = () => {
+  const restore = (entries) => {
+    // Every value is set before any event, so the page sees them all when it redraws.
+    const restored = entries.flatMap((entry) => {
+      const { key, control } = entry;
+      const value = inputs[key];
+      if (value === undefined || JSON.stringify(value) === JSON.stringify(valueOf(entry))) return [];
+      if (control.type === 'radio') {
+        const button = group(control).find((item) => item.value === value);
+        if (button) assign(button, 'checked', true);
+        return button ? [button] : [];
+      }
+      if (control.type === 'checkbox') assign(control, 'checked', value === true);
+      else if (control.type === 'select-multiple') {
+        [...control.options].forEach((option) => { option.selected = [].concat(value).includes(option.value); });
+      } else if (control.type === 'select-one' && ![...control.options].some((option) => option.value === value)) {
+        return [];
+      } else assign(control, 'value', String(value));
+      return [control];
+    });
+    entries.forEach((entry) => { seen[entry.key] = JSON.stringify(valueOf(entry)); });
+    restored.forEach((control) => {
+      control.dispatchEvent(new Event('input', { bubbles: true }));
+      control.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+  };
+  const saveInputs = (event) => {
     if (!seen) return;
+    const entries = controls();
+    // A control the page drew later, such as the next step of a form, gets its kept value first,
+    // unless the user just changed it.
+    const target = event && event.target;
+    const changedNow = ({ key, control }) => control === target || (control.type === 'radio' && target && target.name === key);
+    restore(entries.filter((entry) => !(entry.key in seen) && !changedNow(entry)));
     let changed = false;
-    controls().forEach((entry) => {
+    entries.forEach((entry) => {
       const text = JSON.stringify(valueOf(entry));
       if (seen[entry.key] === text) return;
       seen[entry.key] = text;
@@ -135,31 +167,11 @@ const inputsScript = (inputs: string | undefined): string => `
   };
   document.addEventListener('input', saveInputs, true);
   document.addEventListener('change', saveInputs, true);
-  // Buttons such as Reset change values without input events.
-  document.addEventListener('click', () => setTimeout(saveInputs), true);
+  // Buttons such as Reset change values without input events, and may draw new controls.
+  document.addEventListener('click', () => setTimeout(() => saveInputs()), true);
   document.addEventListener('DOMContentLoaded', () => setTimeout(() => {
-    // Every value is set before any event, so the page sees them all when it redraws.
-    const restored = controls().flatMap((entry) => {
-      const { key, control } = entry;
-      const value = inputs[key];
-      if (value === undefined || JSON.stringify(value) === JSON.stringify(valueOf(entry))) return [];
-      if (control.type === 'radio') {
-        const button = group(control).find((item) => item.value === value);
-        if (button) assign(button, 'checked', true);
-        return button ? [button] : [];
-      }
-      if (control.type === 'checkbox') assign(control, 'checked', value === true);
-      else if (control.type === 'select-multiple') {
-        [...control.options].forEach((option) => { option.selected = [].concat(value).includes(option.value); });
-      } else assign(control, 'value', String(value));
-      return [control];
-    });
-    restored.forEach((control) => {
-      control.dispatchEvent(new Event('input', { bubbles: true }));
-      control.dispatchEvent(new Event('change', { bubbles: true }));
-    });
     seen = Object.create(null);
-    controls().forEach((entry) => { seen[entry.key] = JSON.stringify(valueOf(entry)); });
+    restore(controls());
   }));`;
 
 // Runs before any agent script. Forms are captured here because the sandbox

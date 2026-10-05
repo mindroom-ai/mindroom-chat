@@ -328,6 +328,57 @@ describe('kept inputs', () => {
     expect(back.$('[value=s]').checked).toBe(true);
   });
 
+  it('gives a control the page draws later its kept value, rather than keeping its default', async () => {
+    const page = open(
+      `<div id="step"></div><button onclick="document.getElementById('step').innerHTML = '<input id=\\'seats\\' value=\\'1\\'>'">Next</button>`,
+      JSON.stringify({ '#seats': '4' })
+    );
+    await settle();
+    page.$<HTMLButtonElement>('button').click();
+    await settle();
+    expect(page.$('#seats').value).toBe('4');
+    expect(page.kept()).toEqual({});
+  });
+
+  it('keeps the first change to a control the page drew later', async () => {
+    const page = open(
+      `<div id="step"></div><script>setTimeout(() => { document.getElementById('step').innerHTML = '<select name="unit"><option>m</option><option>km</option></select>'; }, 5);</script>`
+    );
+    await settle();
+    page.use(
+      'select',
+      (control) => {
+        control.value = 'km';
+      },
+      'change'
+    );
+    await settle();
+    expect(page.kept()).toEqual({ unit: 'km' });
+  });
+
+  it('leaves a select showing its own choice when this version lacks the kept one', async () => {
+    const page = open(
+      '<select name="unit"><option>m</option></select>',
+      JSON.stringify({ unit: 'km' })
+    );
+    await settle();
+    expect(page.$<HTMLSelectElement>('select').value).toBe('m');
+  });
+
+  it('redraws a page that fires an event before it listens for one', async () => {
+    const page = open(
+      `<input id="rate" type="range" min="0" max="10" value="2"><output id="shown"></output>
+<script>
+  const rate = document.getElementById('rate');
+  rate.dispatchEvent(new Event('input', { bubbles: true }));
+  rate.addEventListener('input', () => { document.getElementById('shown').textContent = rate.value; });
+</script>`,
+      JSON.stringify({ '#rate': '7' })
+    );
+    await settle();
+    expect(page.$('#shown').textContent).toBe('7');
+  });
+
   it("ignores the page's own events until the kept values are back", async () => {
     const page = open(
       `${RATE}<script>document.addEventListener('DOMContentLoaded', () => rate.dispatchEvent(new Event('input', { bubbles: true })));</script>`,
