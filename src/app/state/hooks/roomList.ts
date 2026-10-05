@@ -1,10 +1,14 @@
 import { Atom, useAtomValue } from 'jotai';
 import { selectAtom } from 'jotai/utils';
-import { MatrixClient } from 'matrix-js-sdk';
+import { MatrixClient, Room } from 'matrix-js-sdk';
 import { useCallback, useMemo } from 'react';
 import { getAllParents, isRoom, isSpace, isUnsupportedRoom } from '../../utils/room';
 import { compareRoomsEqual } from '../room-list/utils';
 import { RoomToParents } from '../../../types/matrix/room';
+import { isMindroomAgentCallRoom } from '../../mindroom/calls/agentCall';
+
+// Permanent agent call rooms open from the call bar; listing them would only add clutter.
+const isListedRoom = (room: Room | null): boolean => isRoom(room) && !isMindroomAgentCallRoom(room);
 
 export type RoomsAtom = Atom<string[]>;
 export type RoomSelector = (roomId: string) => boolean | undefined;
@@ -28,7 +32,7 @@ export const useRecursiveChildScopeFactory = (
 ): SpaceChildSelectorFactory =>
   useCallback(
     (parentId: string) => (roomId) =>
-      isRoom(mx.getRoom(roomId)) &&
+      isListedRoom(mx.getRoom(roomId)) &&
       roomToParents.has(roomId) &&
       getAllParents(roomToParents, roomId).has(parentId),
     [mx, roomToParents]
@@ -63,7 +67,7 @@ export const useChildRoomScopeFactory = (
 ): SpaceChildSelectorFactory =>
   useCallback(
     (parentId: string) => (roomId) =>
-      isRoom(mx.getRoom(roomId)) &&
+      isListedRoom(mx.getRoom(roomId)) &&
       !mDirects.has(roomId) &&
       roomToParents.get(roomId)?.has(parentId),
     [mx, mDirects, roomToParents]
@@ -76,7 +80,7 @@ export const useRecursiveChildRoomScopeFactory = (
 ): SpaceChildSelectorFactory =>
   useCallback(
     (parentId: string) => (roomId) =>
-      isRoom(mx.getRoom(roomId)) &&
+      isListedRoom(mx.getRoom(roomId)) &&
       !mDirects.has(roomId) &&
       roomToParents.has(roomId) &&
       getAllParents(roomToParents, roomId).has(parentId),
@@ -90,7 +94,7 @@ export const useChildDirectScopeFactory = (
 ): SpaceChildSelectorFactory =>
   useCallback(
     (parentId: string) => (roomId) =>
-      isRoom(mx.getRoom(roomId)) &&
+      isListedRoom(mx.getRoom(roomId)) &&
       mDirects.has(roomId) &&
       roomToParents.get(roomId)?.has(parentId),
     [mx, mDirects, roomToParents]
@@ -103,7 +107,7 @@ export const useRecursiveChildDirectScopeFactory = (
 ): SpaceChildSelectorFactory =>
   useCallback(
     (parentId: string) => (roomId) =>
-      isRoom(mx.getRoom(roomId)) &&
+      isListedRoom(mx.getRoom(roomId)) &&
       mDirects.has(roomId) &&
       roomToParents.has(roomId) &&
       getAllParents(roomToParents, roomId).has(parentId),
@@ -141,7 +145,7 @@ export const useOrphanSpaces = (
 
 export const useRooms = (mx: MatrixClient, roomsAtom: RoomsAtom, mDirects: Set<string>) => {
   const selector: RoomSelector = useCallback(
-    (roomId: string) => isRoom(mx.getRoom(roomId)) && !mDirects.has(roomId),
+    (roomId: string) => isListedRoom(mx.getRoom(roomId)) && !mDirects.has(roomId),
     [mx, mDirects]
   );
   return useSelectedRooms(roomsAtom, selector);
@@ -154,7 +158,8 @@ export const useOrphanRooms = (
   roomToParents: RoomToParents
 ) => {
   const selector: RoomSelector = useCallback(
-    (roomId) => isRoom(mx.getRoom(roomId)) && !mDirects.has(roomId) && !roomToParents.has(roomId),
+    (roomId) =>
+      isListedRoom(mx.getRoom(roomId)) && !mDirects.has(roomId) && !roomToParents.has(roomId),
     [mx, mDirects, roomToParents]
   );
   return useSelectedRooms(roomsAtom, selector);
@@ -162,7 +167,7 @@ export const useOrphanRooms = (
 
 export const useDirects = (mx: MatrixClient, roomsAtom: RoomsAtom, mDirects: Set<string>) => {
   const selector: RoomSelector = useCallback(
-    (roomId) => isRoom(mx.getRoom(roomId)) && mDirects.has(roomId),
+    (roomId) => isListedRoom(mx.getRoom(roomId)) && mDirects.has(roomId),
     [mx, mDirects]
   );
   return useSelectedRooms(roomsAtom, selector);
