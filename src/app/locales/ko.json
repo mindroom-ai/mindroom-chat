@@ -135,6 +135,17 @@
         "urlPreview": "URL 미리보기",
         "urlPreviewEncrypted": "암호화된 방에서 URL 미리보기",
         "showHiddenEvents": "숨겨진 이벤트 표시"
+      },
+      "computers": {
+        "sectionTitle": "컴퓨터",
+        "apiUrl": "컴퓨터 서비스 URL",
+        "description": "신뢰할 수 있는 MindRoom 백엔드를 선택하세요. 유효 기간이 짧은 로그인 토큰이 전송됩니다. 이 기기에 저장됩니다. 비워 두면 컴퓨터가 비활성화됩니다.",
+        "save": "컴퓨터 서비스 저장",
+        "lab": "MindRoom Lab 사용",
+        "reset": "앱 기본값 사용",
+        "invalidUrl": "인증 정보, 경로, 쿼리 또는 프래그먼트가 없는 HTTPS 출처를 입력하세요. HTTP는 localhost에서만 허용됩니다.",
+        "saveFailed": "이 기기에 컴퓨터 서비스를 저장할 수 없습니다.",
+        "saved": "컴퓨터 서비스를 저장했습니다."
       }
     }
   },

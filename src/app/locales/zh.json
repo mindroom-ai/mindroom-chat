@@ -135,6 +135,17 @@
         "urlPreview": "网址预览",
         "urlPreviewEncrypted": "加密房间网址预览",
         "showHiddenEvents": "显示隐藏的事件"
+      },
+      "computers": {
+        "sectionTitle": "计算机",
+        "apiUrl": "计算机服务 URL",
+        "description": "请选择可信的 MindRoom 后端；它会收到短期有效的登录令牌。保存在此设备上。留空可关闭计算机。",
+        "save": "保存计算机服务",
+        "lab": "使用 MindRoom Lab",
+        "reset": "使用应用默认值",
+        "invalidUrl": "请输入不含凭据、路径、查询或片段的 HTTPS 来源。HTTP 仅允许用于 localhost。",
+        "saveFailed": "无法在此设备上保存计算机服务。",
+        "saved": "计算机服务已保存。"
       }
     }
   },

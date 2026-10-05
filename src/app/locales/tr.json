@@ -135,6 +135,17 @@
         "urlPreview": "URL önizlemesi",
         "urlPreviewEncrypted": "Şifreli odada URL önizlemesi",
         "showHiddenEvents": "Gizli olayları göster"
+      },
+      "computers": {
+        "sectionTitle": "Bilgisayarlar",
+        "apiUrl": "Bilgisayar hizmeti URL’si",
+        "description": "Güvenilir bir MindRoom sunucusu seçin; kısa süreli bir oturum açma belirteci alır. Bu cihazda kaydedilir. Bilgisayarları kapatmak için boş bırakın.",
+        "save": "Bilgisayar hizmetini kaydet",
+        "lab": "MindRoom Lab kullan",
+        "reset": "Uygulama varsayılanını kullan",
+        "invalidUrl": "Kimlik bilgisi, yol, sorgu veya parça içermeyen bir HTTPS kaynağı girin. HTTP yalnızca localhost için kullanılabilir.",
+        "saveFailed": "Bilgisayar hizmeti bu cihazda kaydedilemedi.",
+        "saved": "Bilgisayar hizmeti kaydedildi."
       }
     }
   },

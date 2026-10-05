@@ -2,7 +2,7 @@
 
 ## Runbook
 
-### Enable native canvases and computer panels safely (2026-10-04, in progress)
+### Enable native canvases and computer panels safely (2026-10-04)
 
 - Bridge step implemented and independently reviewed: reject every subframe in Capacitor's iOS plugin message handler and synchronous cookie/HTTP prompt handler before parsing its payload.
   Capacitor 8.5.2 already injects bridge, Cordova, and plugin scripts with `forMainFrameOnly: true`; native sender checks are still required because WebKit exposes message handlers to subframes.
@@ -16,29 +16,48 @@
   The native canvas gate and obsolete locale string are removed; runtime deployment switches and the existing call exclusion remain.
   The canvas's sandbox and CSP are unchanged.
   Phones already use a full-screen canvas and unmount the underlying conversation.
-- Validation so far: 6,092 unit tests pass under Node 24.13.1, along with typecheck, lint (17 existing warnings), web build, and the iOS build.
+- Validation so far: 6,115 unit tests in 659 files pass under Node 24.13.1, along with typecheck, lint (17 existing warnings), web build, and the iOS build.
   Independent review approved the native boundary and the configuration/cache step after correcting Android first-navigation exposure and Fastlane build wiring.
-  Xcode 26.6 cannot compile or run simulator tests because CoreSimulator 1051.49 is older than its required 1051.55 and the iOS 26.5 platform is unavailable; completing setup requires administrator authentication.
+  The local Xcode 26.6 compiler has an incomplete platform upgrade, so CI built the app with Xcode 26.2 and the installed CoreSimulator tools ran it locally on iOS 26.2.
 - Native regression resources are generated from the shipping canvas document builder and outer app CSP.
   Tests probe raw plugin dispatch and native cookie prompts from ordinary and sandboxed subframes, then verify the production two-frame canvas cannot reach plugins or Matrix session storage.
   A separate native test downloads Chart.js from the allowed npm path, requires painted pixels, and retains a screenshot in the XCTest result.
   Cloud CI exposed optional array inference in the test plugin declaration; the method list now uses Capacitor's explicit `[CAPPluginMethod]` type.
-  The corrected [native simulator CI run](https://github.com/mindroom-ai/mindroom-chat/actions/runs/37243530319) passed all 25 tests, including real plugin/cookie attacks, production canvas session isolation, and Chart.js painting.
-  The retained screenshot is `docs/screenshots/ios-canvas-chart-js.png`.
-  A follow-up native loopback test passed and observed `capacitor://localhost` on both the actual preflight and bearer-header request with shipping ATS settings.
-  That run exposed a cold-start race in the first bridge fixture; the independently reviewed helper now waits for the initial boot before loading a fresh test document.
-  Native CI also builds and archives the full unsigned arm64 simulator app for panel acceptance checks on the installed local iOS 26.2 runtime.
+  The [native simulator CI run](https://github.com/mindroom-ai/mindroom-chat/actions/runs/37246969297) built the full shipping app and passed all 26 tests, including real plugin/cookie attacks, production canvas session isolation, and Chart.js painting.
+  The native origin test observed `capacitor://localhost` on actual preflight and bearer-header requests with shipping ATS settings.
+  The fixture waits for the initial boot before loading another document, avoiding a cold-start navigation race.
+  CI archives the unsigned arm64 simulator app before running native tests.
+- Full app acceptance passed on the disposable iPhone 17 Pro / iOS 26.2 simulator: real Chart.js rendering and touch interaction, Matrix version updates and previous-version selection, canvas error reporting, and real worker computer control/typing/resume.
+  The Matrix error report's agent mention and originating thread were checked on the disposable server.
+  The agent browser snapshot and input readback both contained `native-ios-control` after resume.
+  Screenshots are under `docs/screenshots/ios-app-*`; test credentials stayed in private fixture state and app data.
 - Computer investigation: the lab backend accepts `https://chat.mindroom.chat` but returns HTTP 400 for native preflight; the production Matrix/provisioning origin has no computers endpoint.
   The companion backend change accepts only the exact `capacitor://localhost` literal, retains fail-closed allowlists, and tests native CORS, OpenID/bearer/tickets, WSS input, control and release.
   Backend full pytest CI passed 29,096 tests with 20 skips; all 99 targeted computer API tests and pre-commit checks also pass.
   Operators still need to add the native literal to the computer service's deployment allowlist.
 - AI review confirmed the lab service must not be bundled as an active default before backend rollout.
-  The iOS computer setting is opt-in; deploy backend PR #2680, update the allowlist, then configure the iOS build environment.
+  Computers remain opt-in; deploy backend PR #2680 and update the allowlist, then select the service in Settings → General → Computers or configure the optional build default.
+- User-requested in-app configuration is implemented: a device-only computer URL override with a MindRoom Lab preset, explicit Save, blank-to-disable, and reset-to-deployment-default controls.
+  URL validation reuses the HTTPS/loopback origin boundary and refuses credential-bearing URLs, paths, queries, and fragments.
+  Persistence failures leave the active service unchanged and show feedback.
+  Backend changes close the old panel/session and reset control ownership; a focused hook test checks stale callbacks cannot lock the new service.
+  All 17 locales include the new settings group, including the chosen backend's short-lived sign-in token disclosure.
+  Independent computer review approved the implementation after correcting save confirmation and reset display, and strengthening the stale-callback test.
+- Independent native screenshot review caught a clipped canvas version control under a long title.
+  The title can now shrink while controls keep their width; the browser regression checks all controls at 320px before and after selecting a long-title version.
+  Independent bridge review approved the layout and fixture changes.
+  The user completed Xcode first-launch setup; CoreSimulator now reports the required version and the disposable device boots normally.
+  Xcode still reports a missing iOS 26.5 platform; a local build and fresh validation are in progress.
 - Ready PRs: [Chat #384](https://github.com/mindroom-ai/mindroom-chat/pull/384) and [backend #2680](https://github.com/mindroom-ai/mindroom/pull/2680); neither is merged.
   Current dev was merged after its thread-cycle fix advanced the base; both Runbook entries are preserved.
-  The full browser scheduler ran all 145 jobs with eight parallel slots: 108 passed, 36 failed, and the external worker fixture was unavailable.
-  Failed jobs are being rerun with two slots after unit/build work finished to separate resource contention from reproducible failures.
-  Next: finish browser reruns, exercise the full app on the disposable simulator, and retain panel screenshots.
+  The full browser scheduler ran all 145 jobs with eight parallel slots: 108 passed, 36 failed, and the external worker fixture was initially unavailable.
+  A quiet rerun recovered resource-sensitive failures; canvas/UI action fixtures now align real sync delivery with a disposable Docker server clock running about 64 ms ahead, restore foreground before new requests, and clean up long polls at teardown.
+  Navigation attack tests use explicit clicks to preserve a deterministic rendered-page assertion.
+  The command-palette fixture uses the browser platform's shortcut modifier.
+  Canvas, UI actions, command palette, and the real worker-computer spec all pass after focused reruns.
+  The combined latest results cover 142 passing jobs; three unchanged WebKit jobs still fail on this Mac: glass-surfaces and members-header-glass assume button Tab navigation, and room-glass-overlays measures geometry about 6.5 px away from its expected position.
+  Independent review approved each logical implementation and fixture step.
+  Both PRs remain ready for review and unmerged; computers require the documented backend deployment and build opt-in.
 
 ### Stop the reconcile from linking thread segments into a cycle that froze the app (2026-10-04)
 

@@ -62,6 +62,17 @@
     },
     "general": {
       "title": "General",
+      "computers": {
+        "sectionTitle": "Computers",
+        "apiUrl": "Computer service URL",
+        "description": "Choose a trusted MindRoom backend; it receives a short-lived sign-in token. Saved on this device. Leave blank to turn computers off.",
+        "save": "Save computer service",
+        "lab": "Use MindRoom Lab",
+        "reset": "Use app default",
+        "invalidUrl": "Enter an HTTPS origin without credentials, a path, query, or fragment. HTTP is allowed only for localhost.",
+        "saveFailed": "Could not save the computer service on this device.",
+        "saved": "Computer service saved."
+      },
       "interface": {
         "sectionTitle": "Interface",
         "simpleMode": "Simple Mode",

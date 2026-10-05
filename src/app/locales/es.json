@@ -135,6 +135,17 @@
         "urlPreview": "Vista previa de URL",
         "urlPreviewEncrypted": "Vista previa de URL en salas cifradas",
         "showHiddenEvents": "Mostrar eventos ocultos"
+      },
+      "computers": {
+        "sectionTitle": "Ordenadores",
+        "apiUrl": "URL del servicio de ordenadores",
+        "description": "Elige un backend MindRoom de confianza; recibirá un token de inicio de sesión de corta duración. Se guarda en este dispositivo. Déjalo vacío para desactivar los ordenadores.",
+        "save": "Guardar servicio de ordenadores",
+        "lab": "Usar MindRoom Lab",
+        "reset": "Usar configuración de la app",
+        "invalidUrl": "Introduce un origen HTTPS sin credenciales, ruta, consulta ni fragmento. HTTP solo se permite para localhost.",
+        "saveFailed": "No se pudo guardar el servicio de ordenadores en este dispositivo.",
+        "saved": "Servicio de ordenadores guardado."
       }
     }
   },

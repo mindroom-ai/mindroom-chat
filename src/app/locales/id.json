@@ -135,6 +135,17 @@
         "urlPreview": "Pratinjau URL",
         "urlPreviewEncrypted": "Pratinjau URL di ruang terenkripsi",
         "showHiddenEvents": "Tampilkan peristiwa tersembunyi"
+      },
+      "computers": {
+        "sectionTitle": "Komputer",
+        "apiUrl": "URL layanan komputer",
+        "description": "Pilih backend MindRoom tepercaya; backend menerima token masuk berumur pendek. Disimpan di perangkat ini. Kosongkan untuk menonaktifkan komputer.",
+        "save": "Simpan layanan komputer",
+        "lab": "Gunakan MindRoom Lab",
+        "reset": "Gunakan bawaan aplikasi",
+        "invalidUrl": "Masukkan origin HTTPS tanpa kredensial, jalur, kueri, atau fragmen. HTTP hanya diizinkan untuk localhost.",
+        "saveFailed": "Layanan komputer tidak dapat disimpan di perangkat ini.",
+        "saved": "Layanan komputer disimpan."
       }
     }
   },

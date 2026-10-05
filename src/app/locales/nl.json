@@ -135,6 +135,17 @@
         "urlPreview": "URL-voorvertoning",
         "urlPreviewEncrypted": "URL-voorvertoning in versleutelde kamers",
         "showHiddenEvents": "Verborgen gebeurtenissen tonen"
+      },
+      "computers": {
+        "sectionTitle": "Computers",
+        "apiUrl": "URL van computerservice",
+        "description": "Kies een vertrouwde MindRoom-backend; die ontvangt een kort geldig aanmeldingstoken. Opgeslagen op dit apparaat. Laat leeg om computers uit te schakelen.",
+        "save": "Computerservice opslaan",
+        "lab": "MindRoom Lab gebruiken",
+        "reset": "Appstandaard gebruiken",
+        "invalidUrl": "Voer een HTTPS-oorsprong in zonder inloggegevens, pad, query of fragment. HTTP is alleen toegestaan voor localhost.",
+        "saveFailed": "De computerservice kon niet op dit apparaat worden opgeslagen.",
+        "saved": "Computerservice opgeslagen."
       }
     }
   },

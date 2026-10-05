@@ -26,7 +26,7 @@ import { isThreadRouteReady } from './threadRouteUtils';
 import { hasActiveMindroomAgent, isMindroomAgentUserId } from '../matrix/agentIdentity';
 import { MembershipFilter } from '../../hooks/useMemberFilter';
 import { useClientConfig } from '../../hooks/useClientConfig';
-import { resolveComputerApiUrl } from '../computer/api';
+import { useComputerApiUrl } from '../computer/useComputerApiUrl';
 import { ComputerPanel } from '../computer/ComputerPanel';
 import { useRoomComputerState } from '../computer/useRoomComputerState';
 import { RoomCanvasPanel } from '../canvas/RoomCanvasPanel';
@@ -70,7 +70,7 @@ export function Room() {
   const powerLevels = usePowerLevels(room);
   const members = useRoomMembers(mx, room.roomId);
   const clientConfig = useClientConfig();
-  const computerApiUrl = resolveComputerApiUrl(clientConfig.mindroom?.computers?.apiUrl);
+  const computerApiUrl = useComputerApiUrl();
   const canvasEnabled = clientConfig.mindroom?.canvas?.enabled === true;
   const canvasLibraries = clientConfig.mindroom?.canvas?.libraries === true;
   const computerAgents = useMemo<ComputerAgent[]>(
@@ -112,6 +112,7 @@ export function Room() {
     roomId: room.roomId,
     threadId: routedThreadId,
     available: computerAvailable,
+    apiUrl: computerApiUrl,
   });
   const {
     event: canvasEvent,
@@ -296,6 +297,7 @@ export function Room() {
                 <Line variant="Background" direction="Vertical" size="300" />
               )}
               <ComputerPanel
+                key={computerApiUrl}
                 agents={computerAgents}
                 apiUrl={computerApiUrl}
                 mx={mx}
