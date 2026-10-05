@@ -2565,6 +2565,9 @@
         "autoApproveMinutes_one": "موافقة تلقائية لمدة ⁨{{count}}⁩ دقيقة",
         "autoApproveMinutes_other": "موافقة تلقائية لمدة ⁨{{count}}⁩ دقائق",
         "denyCallReasonOptional": "سبب رفض الاستدعاء ⁨{{number}}⁩ (اختياري)",
+        "approveExactCall": "الموافقة على هذا الاستدعاء بعينه",
+        "approveAnyArguments": "الموافقة على أي وسائط",
+        "anyArgumentsWarning": "مع أي وسائط، يمكن للوكيل إجراء استدعاء واحد لـ ⁨{{tool}}⁩ بما يقرره، خلال ⁨{{minutes}}⁩ دقيقة من الوقت المحدد.",
         "autoApproveMinutes_few": "موافقة تلقائية لمدة ⁨{{count}}⁩ دقيقة",
         "autoApproveMinutes_many": "موافقة تلقائية لمدة ⁨{{count}}⁩ دقيقة",
         "autoApproveMinutes_two": "موافقة تلقائية لمدة ⁨{{count}}⁩ دقيقتين",
@@ -2606,10 +2609,17 @@
         "toolAndServer": "الأداة: ⁨{{tool}}⁩ · الخادم: ⁨{{server}}⁩",
         "tool": "الأداة: ⁨{{tool}}⁩",
         "reason": "السبب: ⁨{{reason}}⁩",
+        "approvedWhenScheduledByAt": "وافق عليه ⁨{{approver}}⁩ عند الجدولة · ⁨{{timestamp}}⁩",
+        "approvedWhenScheduledBy": "وافق عليه ⁨{{approver}}⁩ عند الجدولة",
         "timedPermissionMinutes_few": "إذن مؤقت · ⁨{{count}}⁩ دقيقة",
         "timedPermissionMinutes_many": "إذن مؤقت · ⁨{{count}}⁩ دقيقة",
         "timedPermissionMinutes_two": "إذن مؤقت · ⁨{{count}}⁩ دقيقة",
         "timedPermissionMinutes_zero": "إذن مؤقت · ⁨{{count}}⁩ دقيقة"
+      },
+      "approvalSchedule": {
+        "scheduledFor": "مجدول في ⁨{{timestamp}}⁩",
+        "approvedExactArguments": "تمت الموافقة على هذه الوسائط بعينها",
+        "approvedAnyArguments": "تمت الموافقة على أي وسائط لهذه الأداة"
       },
       "approvalReviewCall": {
         "pending": "معلق",

@@ -8,6 +8,8 @@ export type ToolApprovalScope = {
   operation: { toolName: string; mcpServerId: string | null; mcpToolName: string | null };
 };
 
+export type ToolApprovalScheduledScope = 'exact_arguments' | 'any_arguments';
+
 export type ToolApprovalProvenance =
   | { kind: 'once' }
   | {
@@ -18,7 +20,23 @@ export type ToolApprovalProvenance =
       grantedAt: string | null;
       durationSeconds: ToolApprovalDuration | null;
       expiresAt: string;
+    }
+  | {
+      kind: 'scheduled_approval';
+      approvedBy: string;
+      approvedAt: string | null;
+      scheduledFor: string;
+      scope: ToolApprovalScheduledScope;
     };
+
+// A card asking to approve a tool call that a scheduled task will make later.
+export type ToolApprovalSchedule = {
+  taskId: string;
+  scheduledFor: string;
+  windowSeconds: number | null;
+  scopeOptions: ToolApprovalScheduledScope[];
+  approvedScope: ToolApprovalScheduledScope | null;
+};
 
 export type ApprovalArgumentSource = { mxcUri: string; encryptedFile?: IEncryptedFile };
 
@@ -58,6 +76,7 @@ export interface ToolApprovalData {
   argumentsTruncated: boolean;
   fullArguments: Record<string, unknown> | null;
   argumentSource: ApprovalArgumentSource | null;
+  schedule: ToolApprovalSchedule | null;
 }
 
 type ToolApprovalResponseStatus = 'approved' | 'denied';
@@ -66,6 +85,7 @@ type ToolApprovalResponseContent = {
   status: ToolApprovalResponseStatus;
   reason?: string | null;
   auto_approve_seconds?: ToolApprovalDuration;
+  scheduled_scope?: ToolApprovalScheduledScope;
   'm.relates_to': {
     rel_type: RelationType.Thread;
     event_id: string;
@@ -89,6 +109,10 @@ const TOOL_APPROVAL_STATUSES = new Set<ToolApprovalStatus>([
   'expired',
 ]);
 const TOOL_APPROVAL_DURATIONS: readonly ToolApprovalDuration[] = [300, 600, 1800];
+const TOOL_APPROVAL_SCHEDULED_SCOPES: readonly ToolApprovalScheduledScope[] = [
+  'exact_arguments',
+  'any_arguments',
+];
 
 const RFC3339_TIMESTAMP =
   /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d+))?(Z|([+-])(\d{2}):(\d{2}))$/;
@@ -197,6 +221,11 @@ const immutableRequestFields = new Set([
   'full_arguments_file',
   'full_arguments_url',
   'full_arguments_info',
+  'approval_target',
+  'scheduled_task_id',
+  'scheduled_for',
+  'scheduled_window_seconds',
+  'scheduled_scope_options',
 ]);
 
 const pickCandidateValue = (content: Record<string, unknown>, key: string): unknown | undefined => {
@@ -275,9 +304,59 @@ const asScope = (value: unknown): ToolApprovalScope | null => {
   return { id, entityName, invokingAgent, operation: { toolName, mcpServerId, mcpToolName } };
 };
 
+const isTimestamp = (value: string | undefined): value is string =>
+  !!value && parseToolApprovalExpiryTimestamp(value) !== undefined;
+
+const asScheduledScope = (value: unknown): ToolApprovalScheduledScope | null =>
+  TOOL_APPROVAL_SCHEDULED_SCOPES.includes(value as ToolApprovalScheduledScope)
+    ? (value as ToolApprovalScheduledScope)
+    : null;
+
+const asSchedule = (content: Record<string, unknown>): ToolApprovalSchedule | null => {
+  if (pickCandidateValue(content, 'approval_target') !== 'scheduled_call') return null;
+  const taskId = asString(pickCandidateValue(content, 'scheduled_task_id'));
+  const scheduledFor = asString(pickCandidateValue(content, 'scheduled_for'));
+  if (!taskId || !isTimestamp(scheduledFor)) return null;
+  const windowSeconds = pickCandidateValue(content, 'scheduled_window_seconds');
+  const scopeOptions = pickCandidateValue(content, 'scheduled_scope_options');
+  return {
+    taskId,
+    scheduledFor,
+    // The approver is told the window in whole minutes, so only such a window is usable.
+    windowSeconds:
+      typeof windowSeconds === 'number' &&
+      Number.isInteger(windowSeconds) &&
+      windowSeconds > 0 &&
+      windowSeconds % 60 === 0
+        ? windowSeconds
+        : null,
+    scopeOptions:
+      Array.isArray(scopeOptions) &&
+      scopeOptions.length === TOOL_APPROVAL_SCHEDULED_SCOPES.length &&
+      TOOL_APPROVAL_SCHEDULED_SCOPES.every((scope, index) => scopeOptions[index] === scope)
+        ? [...TOOL_APPROVAL_SCHEDULED_SCOPES]
+        : [],
+    approvedScope: asScheduledScope(pickCandidateValue(content, 'scheduled_scope')),
+  };
+};
+
 const asProvenance = (value: unknown): ToolApprovalProvenance | null => {
   if (!isRecord(value)) return null;
   if (value.kind === 'once') return { kind: 'once' };
+  if (value.kind === 'scheduled_approval') {
+    const approvedBy = asString(value.approved_by);
+    const approvedAt = asString(value.approved_at);
+    const scheduledFor = asString(value.scheduled_for);
+    const scope = asScheduledScope(value.scope);
+    if (!approvedBy || !isTimestamp(scheduledFor) || !scope) return null;
+    return {
+      kind: 'scheduled_approval',
+      approvedBy,
+      approvedAt: isTimestamp(approvedAt) ? approvedAt : null,
+      scheduledFor,
+      scope,
+    };
+  }
   const grantId = asString(value.grant_id);
   const grantCardEventId = asString(value.grant_card_event_id);
   const grantedBy = asString(value.granted_by);
@@ -397,6 +476,7 @@ export const parseToolApprovalContent = (
     argumentsTruncated: pickCandidateValue(content, 'arguments_truncated') === true,
     fullArguments: asArguments(pickCandidateValue(content, 'full_arguments')) ?? null,
     argumentSource: asArgumentSource(content),
+    schedule: asSchedule(content),
   };
 };
 
@@ -433,12 +513,16 @@ export const buildToolApprovalResponseContent = (
   threadId: string,
   eventId: string,
   reason?: string,
-  autoApproveSeconds?: ToolApprovalDuration
+  autoApproveSeconds?: ToolApprovalDuration,
+  scheduledScope?: ToolApprovalScheduledScope
 ): ToolApprovalResponseContent => ({
   status,
   ...(status === 'denied' ? { reason: reason?.trim() ? reason.trim() : null } : {}),
   ...(status === 'approved' && autoApproveSeconds !== undefined
     ? { auto_approve_seconds: autoApproveSeconds }
+    : {}),
+  ...(status === 'approved' && scheduledScope !== undefined
+    ? { scheduled_scope: scheduledScope }
     : {}),
   'm.relates_to': buildToolApprovalRelation(threadId, eventId),
 });

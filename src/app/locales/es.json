@@ -2478,6 +2478,9 @@
         "autoApproveMinutes_one": "Aprobar automáticamente durante {{count}} minuto",
         "autoApproveMinutes_other": "Aprobar automáticamente durante {{count}} minutos",
         "denyCallReasonOptional": "Motivo para denegar la llamada {{number}} (opcional)",
+        "approveExactCall": "Aprobar esta llamada exacta",
+        "approveAnyArguments": "Aprobar cualquier argumento",
+        "anyArgumentsWarning": "Con cualquier argumento, el agente puede hacer una llamada a {{tool}} con lo que decida, dentro de {{minutes}} minutos de la hora programada.",
         "autoApproveMinutes_many": "Aprobar automáticamente durante {{count}} minutos"
       },
       "approvalGrantStatus": {
@@ -2513,7 +2516,14 @@
         "toolAndServer": "Herramienta: {{tool}} · Servidor: {{server}}",
         "tool": "Herramienta: {{tool}}",
         "reason": "Motivo: {{reason}}",
+        "approvedWhenScheduledByAt": "Aprobado al programarse por {{approver}} · {{timestamp}}",
+        "approvedWhenScheduledBy": "Aprobado al programarse por {{approver}}",
         "timedPermissionMinutes_many": "Permiso temporal · {{count}} minutos"
+      },
+      "approvalSchedule": {
+        "scheduledFor": "Programado para {{timestamp}}",
+        "approvedExactArguments": "Aprobado para estos argumentos exactos",
+        "approvedAnyArguments": "Aprobado para cualquier argumento de esta herramienta"
       },
       "approvalReviewCall": {
         "pending": "pendiente",

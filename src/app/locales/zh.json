@@ -2448,7 +2448,10 @@
         "cancel": "取消",
         "autoApproveMinutes_one": "自动批准 {{count}} 分钟",
         "autoApproveMinutes_other": "自动批准 {{count}} 分钟",
-        "denyCallReasonOptional": "拒绝调用 {{number}} 的原因（可选）"
+        "denyCallReasonOptional": "拒绝调用 {{number}} 的原因（可选）",
+        "approveExactCall": "批准这次确切调用",
+        "approveAnyArguments": "批准任意参数",
+        "anyArgumentsWarning": "选择任意参数后，智能体可在预定时间前后 {{minutes}} 分钟内，按自己决定的内容调用一次 {{tool}}。"
       },
       "approvalGrantStatus": {
         "autoApprovalActive": "自动批准已激活",
@@ -2481,7 +2484,14 @@
         "originalFixedExpiry": "原始固定到期日：{{timestamp}}",
         "toolAndServer": "工具：{{tool}} · 服务器：{{server}}",
         "tool": "工具：{{tool}}",
-        "reason": "原因：{{reason}}"
+        "reason": "原因：{{reason}}",
+        "approvedWhenScheduledByAt": "安排时由 {{approver}} 批准 · {{timestamp}}",
+        "approvedWhenScheduledBy": "安排时由 {{approver}} 批准"
+      },
+      "approvalSchedule": {
+        "scheduledFor": "预定于 {{timestamp}}",
+        "approvedExactArguments": "已按这些确切参数批准",
+        "approvedAnyArguments": "已批准此工具的任意参数"
       },
       "approvalReviewCall": {
         "pending": "待处理",

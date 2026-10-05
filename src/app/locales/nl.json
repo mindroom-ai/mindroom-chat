@@ -2448,7 +2448,10 @@
         "cancel": "Annuleren",
         "autoApproveMinutes_one": "Automatisch goedkeuren gedurende {{count}} minuut",
         "autoApproveMinutes_other": "Automatisch goedkeuren gedurende {{count}} minuten",
-        "denyCallReasonOptional": "Reden voor weigering van aanroep {{number}} (optioneel)"
+        "denyCallReasonOptional": "Reden voor weigering van aanroep {{number}} (optioneel)",
+        "approveExactCall": "Precies deze aanroep goedkeuren",
+        "approveAnyArguments": "Willekeurige argumenten goedkeuren",
+        "anyArgumentsWarning": "Met willekeurige argumenten mag de agent binnen {{minutes}} minuten van het geplande tijdstip één {{tool}}-aanroep doen met wat hij kiest."
       },
       "approvalGrantStatus": {
         "autoApprovalActive": "Automatische goedkeuring actief",
@@ -2481,7 +2484,14 @@
         "originalFixedExpiry": "Oorspronkelijke vaste vervaltijd: {{timestamp}}",
         "toolAndServer": "Gereedschap: {{tool}} · Server: {{server}}",
         "tool": "Gereedschap: {{tool}}",
-        "reason": "Reden: {{reason}}"
+        "reason": "Reden: {{reason}}",
+        "approvedWhenScheduledByAt": "Goedgekeurd bij het plannen door {{approver}} · {{timestamp}}",
+        "approvedWhenScheduledBy": "Goedgekeurd bij het plannen door {{approver}}"
+      },
+      "approvalSchedule": {
+        "scheduledFor": "Gepland voor {{timestamp}}",
+        "approvedExactArguments": "Goedgekeurd voor precies deze argumenten",
+        "approvedAnyArguments": "Goedgekeurd voor willekeurige argumenten van deze tool"
       },
       "approvalReviewCall": {
         "pending": "in behandeling",

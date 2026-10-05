@@ -2448,7 +2448,10 @@
         "cancel": "취소",
         "autoApproveMinutes_one": "{{count}}분 동안 자동 승인",
         "autoApproveMinutes_other": "{{count}}분 동안 자동 승인",
-        "denyCallReasonOptional": "호출 {{number}}의 거부 사유 (선택 사항)"
+        "denyCallReasonOptional": "호출 {{number}}의 거부 사유 (선택 사항)",
+        "approveExactCall": "이 호출 그대로 승인",
+        "approveAnyArguments": "모든 인수 승인",
+        "anyArgumentsWarning": "모든 인수를 승인하면 에이전트가 예약 시간 전후 {{minutes}}분 안에 원하는 내용으로 {{tool}}을(를) 한 번 호출할 수 있습니다."
       },
       "approvalGrantStatus": {
         "autoApprovalActive": "자동 승인 활성",
@@ -2481,7 +2484,14 @@
         "originalFixedExpiry": "원래 고정 만료 시각: {{timestamp}}",
         "toolAndServer": "도구: {{tool}} · 서버: {{server}}",
         "tool": "도구: {{tool}}",
-        "reason": "사유: {{reason}}"
+        "reason": "사유: {{reason}}",
+        "approvedWhenScheduledByAt": "예약 시 {{approver}}님이 승인 · {{timestamp}}",
+        "approvedWhenScheduledBy": "예약 시 {{approver}}님이 승인"
+      },
+      "approvalSchedule": {
+        "scheduledFor": "{{timestamp}}에 예약됨",
+        "approvedExactArguments": "이 인수 그대로 승인됨",
+        "approvedAnyArguments": "이 도구의 모든 인수에 대해 승인됨"
       },
       "approvalReviewCall": {
         "pending": "대기 중",
