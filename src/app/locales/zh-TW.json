@@ -2282,6 +2282,11 @@
         "browserUnsupported": "您的瀏覽器不支援 WebRTC。",
         "endCurrentCall": "請先結束目前的通話。",
         "failedToStart": "無法開始通話。"
+      },
+      "agentCallHeaderButton": {
+        "call": "與 AI 代理通話",
+        "callAgent": "與 {{name}} 通話",
+        "chooseAgent": "選擇要通話的 AI 代理"
       }
     },
     "commands": {

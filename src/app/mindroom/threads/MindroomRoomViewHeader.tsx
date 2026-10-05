@@ -79,6 +79,7 @@ import {
   PendingJoinRequestBadge,
 } from '../../features/room/PendingJoinRequestBadge';
 import { ComputerHeaderButton } from '../computer/ComputerHeaderButton';
+import { AgentCallHeaderButton } from '../calls/AgentCallHeaderButton';
 
 type RoomMenuProps = {
   room: Room;
@@ -572,6 +573,7 @@ export function RoomViewHeader({
             </>
           )}
 
+          {hasMindroomAgents && !callView && <AgentCallHeaderButton threadId={threadId} />}
           <TooltipProvider
             position="Bottom"
             offset={4}

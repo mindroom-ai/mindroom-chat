@@ -14,9 +14,12 @@ const mocks = vi.hoisted(() => ({
   startCall: vi.fn(),
   navigateRoom: vi.fn(),
   closeProfile: vi.fn(),
+  selectedRoomId: undefined as string | undefined,
+  searchParams: new URLSearchParams(),
 }));
 
 const VOICE_CALLS_STATUS = '🤖 Model: openai/gpt-5.5 | 📞 Voice calls';
+const ROOM_ID = '!room:mindroom.test';
 
 vi.mock('./agentCall', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./agentCall')>()),
@@ -62,21 +65,36 @@ vi.mock('../../state/hooks/userRoomProfile', () => ({
   useCloseUserRoomProfile: () => mocks.closeProfile,
 }));
 
+vi.mock('../../hooks/router/useSelectedRoom', () => ({
+  useSelectedRoom: () => mocks.selectedRoomId,
+}));
+
+vi.mock('react-router-dom', () => ({
+  useSearchParams: () => [mocks.searchParams],
+}));
+
 describe('AgentCallButton', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.selectedRoomId = ROOM_ID;
+    mocks.searchParams = new URLSearchParams({ threadId: '$root' });
     mocks.requestMicrophoneAccess.mockResolvedValue(undefined);
     mocks.createAgentVoiceRoom.mockResolvedValue('!call:mindroom.test');
     mocks.waitForJoinedRoom.mockResolvedValue({ roomId: '!call:mindroom.test' });
   });
 
   it('is only offered for a same-homeserver MindRoom agent', () => {
-    const human = create(<AgentCallButton userId="@bob:mindroom.test" />);
+    const human = create(<AgentCallButton roomId={ROOM_ID} userId="@bob:mindroom.test" />);
     const foreignAgent = create(
-      <AgentCallButton userId="@mindroom_helper:elsewhere.test" displayName="Helper" />
+      <AgentCallButton
+        roomId={ROOM_ID}
+        userId="@mindroom_helper:elsewhere.test"
+        displayName="Helper"
+      />
     );
     const localAgentWithoutCalls = create(
       <AgentCallButton
+        roomId={ROOM_ID}
         userId="@mindroom_helper:mindroom.test"
         displayName="Helper"
         presenceStatus="🤖 Model: openai/gpt-5.5"
@@ -84,6 +102,7 @@ describe('AgentCallButton', () => {
     );
     const localVoiceAgent = create(
       <AgentCallButton
+        roomId={ROOM_ID}
         userId="@mindroom_helper:mindroom.test"
         displayName="Helper"
         presenceStatus={VOICE_CALLS_STATUS}
@@ -96,9 +115,10 @@ describe('AgentCallButton', () => {
     expect(JSON.stringify(localVoiceAgent.toJSON())).toContain('Call');
   });
 
-  it('creates, opens, and immediately joins the private audio room', async () => {
+  it('creates and joins the private audio room without leaving the conversation', async () => {
     const renderer = create(
       <AgentCallButton
+        roomId={ROOM_ID}
         userId="@mindroom_helper:mindroom.test"
         displayName="Helper"
         presenceStatus={VOICE_CALLS_STATUS}
@@ -118,16 +138,45 @@ describe('AgentCallButton', () => {
       expect.anything(),
       '@mindroom_helper:mindroom.test',
       'Helper',
-      true
+      true,
+      { room_id: ROOM_ID, thread_id: '$root' }
     );
     expect(mocks.waitForJoinedRoom).toHaveBeenCalledWith(expect.anything(), '!call:mindroom.test');
     expect(mocks.startCall).toHaveBeenCalledWith(
       { roomId: '!call:mindroom.test' },
       { microphone: true, video: false, sound: true }
     );
-    expect(mocks.navigateRoom).toHaveBeenCalledWith('!call:mindroom.test');
+    expect(mocks.navigateRoom).not.toHaveBeenCalled();
     expect(mocks.closeProfile).toHaveBeenCalledOnce();
     expect(renderer.root.findByType('button').props.disabled).toBe(false);
+  });
+
+  it.each([
+    ['another room is selected', '!elsewhere:mindroom.test', 'threadId=$root'],
+    ['the route has no thread', ROOM_ID, ''],
+  ])('stamps only the room when %s', async (_case, selectedRoomId, search) => {
+    mocks.selectedRoomId = selectedRoomId;
+    mocks.searchParams = new URLSearchParams(search);
+    const renderer = create(
+      <AgentCallButton
+        roomId={ROOM_ID}
+        userId="@mindroom_helper:mindroom.test"
+        displayName="Helper"
+        presenceStatus={VOICE_CALLS_STATUS}
+      />
+    );
+
+    await act(async () => {
+      await renderer.root.findByType('button').props.onClick();
+    });
+
+    expect(mocks.createAgentVoiceRoom).toHaveBeenCalledWith(
+      expect.anything(),
+      '@mindroom_helper:mindroom.test',
+      'Helper',
+      true,
+      { room_id: ROOM_ID, thread_id: null }
+    );
   });
 
   it('does not create a call room when microphone access is denied', async () => {
@@ -138,6 +187,7 @@ describe('AgentCallButton', () => {
     );
     const renderer = create(
       <AgentCallButton
+        roomId={ROOM_ID}
         userId="@mindroom_helper:mindroom.test"
         displayName="Helper"
         presenceStatus={VOICE_CALLS_STATUS}
@@ -164,6 +214,7 @@ describe('AgentCallButton', () => {
     );
     const renderer = create(
       <AgentCallButton
+        roomId={ROOM_ID}
         userId="@mindroom_helper:mindroom.test"
         displayName="Helper"
         presenceStatus={VOICE_CALLS_STATUS}
@@ -189,33 +240,13 @@ describe('AgentCallButton', () => {
     expect(mocks.closeProfile).not.toHaveBeenCalled();
   });
 
-  it('does not tear down a started call when navigation fails', async () => {
-    mocks.navigateRoom.mockImplementationOnce(() => {
-      throw new Error('router unavailable');
-    });
-    const renderer = create(
-      <AgentCallButton
-        userId="@mindroom_helper:mindroom.test"
-        displayName="Helper"
-        presenceStatus={VOICE_CALLS_STATUS}
-      />
-    );
-
-    await act(async () => {
-      await renderer.root.findByType('button').props.onClick();
-    });
-
-    expect(mocks.startCall).toHaveBeenCalledOnce();
-    expect(mocks.cleanupCreatedAgentCall).not.toHaveBeenCalled();
-    expect(JSON.stringify(renderer.toJSON())).toContain('Failed to start the call.');
-  });
-
   it('cleans up when call start fails before ownership transfers', async () => {
     mocks.startCall.mockImplementationOnce(() => {
       throw new Error('embed unavailable');
     });
     const renderer = create(
       <AgentCallButton
+        roomId={ROOM_ID}
         userId="@mindroom_helper:mindroom.test"
         displayName="Helper"
         presenceStatus={VOICE_CALLS_STATUS}
@@ -239,6 +270,7 @@ describe('AgentCallButton', () => {
     mocks.waitForJoinedRoom.mockRejectedValueOnce(new Error('sync failed'));
     const renderer = create(
       <AgentCallButton
+        roomId={ROOM_ID}
         userId="@mindroom_helper:mindroom.test"
         displayName="Helper"
         presenceStatus={VOICE_CALLS_STATUS}
@@ -288,6 +320,7 @@ it('updates a retained microphone failure when the language changes', async () =
     renderer = create(
       <I18nextProvider i18n={language}>
         <AgentCallButton
+          roomId={ROOM_ID}
           userId="@mindroom_helper:mindroom.test"
           presenceStatus={VOICE_CALLS_STATUS}
         />

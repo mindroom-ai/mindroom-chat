@@ -2310,6 +2310,11 @@
         "browserUnsupported": "Il tuo browser non supporta WebRTC.",
         "endCurrentCall": "Termina prima la chiamata in corso.",
         "failedToStart": "Impossibile avviare la chiamata."
+      },
+      "agentCallHeaderButton": {
+        "call": "Chiama un agente",
+        "callAgent": "Chiama {{name}}",
+        "chooseAgent": "Scegli un agente da chiamare"
       }
     },
     "commands": {

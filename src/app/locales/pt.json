@@ -2310,6 +2310,11 @@
         "browserUnsupported": "O seu navegador não suporta WebRTC.",
         "endCurrentCall": "Termine primeiro a chamada atual.",
         "failedToStart": "Não foi possível iniciar a chamada."
+      },
+      "agentCallHeaderButton": {
+        "call": "Chamar um agente",
+        "callAgent": "Chamar {{name}}",
+        "chooseAgent": "Escolha um agente para chamar"
       }
     },
     "commands": {

@@ -2282,6 +2282,11 @@
         "browserUnsupported": "이 브라우저는 WebRTC를 지원하지 않습니다.",
         "endCurrentCall": "먼저 현재 통화를 종료하세요.",
         "failedToStart": "통화를 시작하지 못했습니다."
+      },
+      "agentCallHeaderButton": {
+        "call": "에이전트에게 전화",
+        "callAgent": "{{name}}에게 전화",
+        "chooseAgent": "전화할 에이전트를 선택하세요"
       }
     },
     "commands": {

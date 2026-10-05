@@ -63,7 +63,6 @@ export function useStartAgentCall(): StartAgentCall {
     setError(undefined);
 
     let roomId: string | undefined;
-    let callStarted = false;
     try {
       await requestMicrophoneAccess();
       if (!mountedRef.current) return false;
@@ -86,10 +85,9 @@ export function useStartAgentCall(): StartAgentCall {
       }
       setLoading(false);
       startCall(room, { microphone: true, video: false, sound: true });
-      callStarted = true;
       return true;
     } catch (callError) {
-      if (roomId && !callStarted) await cleanupCreatedAgentCall(mx, roomId, agent.userId);
+      if (roomId) await cleanupCreatedAgentCall(mx, roomId, agent.userId);
       if (!mountedRef.current) return false;
       setError(callError instanceof Error ? callError.message : 'Failed to start the call.');
       setLoading(false);

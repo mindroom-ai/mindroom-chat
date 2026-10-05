@@ -2282,6 +2282,11 @@
         "browserUnsupported": "Tarayıcınız WebRTC desteklemiyor.",
         "endCurrentCall": "Önce mevcut aramanızı sonlandırın.",
         "failedToStart": "Arama başlatılamadı."
+      },
+      "agentCallHeaderButton": {
+        "call": "Bir ajanla arama başlat",
+        "callAgent": "{{name}} ile arama başlat",
+        "chooseAgent": "Aranacak ajanı seçin"
       }
     },
     "commands": {

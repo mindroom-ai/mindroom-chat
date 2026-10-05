@@ -2282,6 +2282,11 @@
         "browserUnsupported": "お使いのブラウザは WebRTC をサポートしていません。",
         "endCurrentCall": "まず現在の通話を終了してください。",
         "failedToStart": "通話の開始に失敗しました。"
+      },
+      "agentCallHeaderButton": {
+        "call": "エージェントと通話",
+        "callAgent": "{{name}} と通話",
+        "chooseAgent": "通話するエージェントを選択"
       }
     },
     "commands": {

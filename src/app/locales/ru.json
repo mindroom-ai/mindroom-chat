@@ -2338,6 +2338,11 @@
         "browserUnsupported": "Ваш браузер не поддерживает WebRTC.",
         "endCurrentCall": "Сначала завершите текущий звонок.",
         "failedToStart": "Не удалось начать звонок."
+      },
+      "agentCallHeaderButton": {
+        "call": "Позвонить агенту",
+        "callAgent": "Позвонить {{name}}",
+        "chooseAgent": "Выберите агента для звонка"
       }
     },
     "commands": {

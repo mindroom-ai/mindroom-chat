@@ -2282,6 +2282,11 @@
         "browserUnsupported": "Je browser ondersteunt WebRTC niet.",
         "endCurrentCall": "Beëindig eerst je huidige oproep.",
         "failedToStart": "De oproep kon niet worden gestart."
+      },
+      "agentCallHeaderButton": {
+        "call": "Een agent bellen",
+        "callAgent": "{{name}} bellen",
+        "chooseAgent": "Kies een agent om te bellen"
       }
     },
     "commands": {

@@ -2394,6 +2394,11 @@
         "browserUnsupported": "لا يدعم متصفحك WebRTC.",
         "endCurrentCall": "أنهِ مكالمتك الحالية أولًا.",
         "failedToStart": "تعذر بدء المكالمة."
+      },
+      "agentCallHeaderButton": {
+        "call": "الاتصال بوكيل",
+        "callAgent": "الاتصال بـ ⁨{{name}}⁩",
+        "chooseAgent": "اختر وكيلًا للاتصال به"
       }
     },
     "commands": {
