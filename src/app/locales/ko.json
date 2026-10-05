@@ -135,6 +135,18 @@
         "urlPreview": "URL 미리보기",
         "urlPreviewEncrypted": "암호화된 방에서 URL 미리보기",
         "showHiddenEvents": "숨겨진 이벤트 표시"
+      },
+      "computers": {
+        "sectionTitle": "컴퓨터",
+        "apiUrl": "컴퓨터 서비스 URL",
+        "description": "신뢰할 수 있는 MindRoom 백엔드를 선택하세요. 유효 기간이 짧은 로그인 토큰이 전송됩니다. 이 기기에 저장됩니다. 비워 두면 컴퓨터가 비활성화됩니다.",
+        "save": "컴퓨터 서비스 저장",
+        "lab": "MindRoom Lab 사용",
+        "reset": "앱 기본값 사용",
+        "invalidUrl": "인증 정보, 경로, 쿼리 또는 프래그먼트가 없는 오리진을 입력하세요. HTTPS를 사용하거나 localhost 또는 사설 LAN IP 주소에 HTTP를 사용하세요.",
+        "httpNotice": "HTTP는 로그인 정보나 컴퓨터 트래픽을 암호화하지 않습니다. 신뢰할 수 있는 로컬 네트워크에서만 사용하세요.",
+        "saveFailed": "이 기기에 컴퓨터 서비스를 저장할 수 없습니다.",
+        "saved": "컴퓨터 서비스를 저장했습니다."
       }
     }
   },
@@ -2903,8 +2915,7 @@
       "computerUnavailable": "이 에이전트의 컴퓨터를 사용할 수 없습니다.",
       "releaseControl": "다른 화면을 열기 전에 컴퓨터 제어를 해제하세요.",
       "openConversation": "방 대화에서 이 요청을 여세요.",
-      "settingsUnavailable": "이 설정 항목을 열려면 단순 모드를 끄세요.",
-      "canvasUnavailableInApp": "대화형 패널은 아직 앱에서 사용할 수 없습니다. 브라우저에서 이 대화를 여세요."
+      "settingsUnavailable": "이 설정 항목을 열려면 단순 모드를 끄세요."
     },
     "canvas": {
       "panelLabel": "대화형 패널",

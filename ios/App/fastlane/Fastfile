@@ -16,9 +16,9 @@ require "shellwords"
 default_platform(:ios)
 
 platform :ios do
-  desc "Build web assets and sync them into the iOS project (npm run build + cap sync)"
+  desc "Build web assets and sync them into the iOS project (npm run build:ios + cap sync)"
   lane :sync_web do
-    sh("cd ../../.. && npm run build && npx cap sync ios")
+    sh("cd ../../.. && npm run build:ios && npx cap sync ios")
   end
 
   desc "Build a signed release archive and upload it to TestFlight"
@@ -86,7 +86,7 @@ platform :ios do
     sh("cd ../../.. && npm run appstore:preflight")
     sh("cd ../../.. && npm run typecheck")
     sh("cd ../../.. && npm test")
-    sh("cd ../../.. && npm run build")
+    sh("cd ../../.. && npm run build:ios")
 
     api_key = asc_api_key
     verify_release_target(

@@ -12,9 +12,21 @@ import {
   as,
 } from 'folds';
 import { ContainerColor as containerColor } from '../../styles/ContainerColor.css';
-import { glassFloating, glassOutline, glassSurface } from '../../styles/Glass.css';
+import {
+  glassFlat,
+  glassFloating,
+  glassInheritTint,
+  glassOutline,
+  glassScrollPanel,
+  glassSurface,
+} from '../../styles/Glass.css';
 import { useLiquidGlass } from './liquid/useLiquidGlass';
-import { SurfaceProvider, useSurfaceContext } from './SurfaceContext';
+import {
+  ScrollHeaderProvider,
+  SurfaceProvider,
+  useScrollHeaderContext,
+  useSurfaceContext,
+} from './SurfaceContext';
 import { inheritSurface } from './Surface.css';
 
 export type SurfaceAppearance = 'glass' | 'plain' | 'inherit';
@@ -94,18 +106,21 @@ export const Surface = as<'div', SurfaceProps>(
   ) => {
     const surface = useSurface(ref, appearance, level, variant);
     return (
-      <SurfaceProvider value={surface.context}>
-        <As
-          {...props}
-          ref={surface.ref}
-          className={classNames(
-            containerColor({ variant }),
-            surface.className,
-            appearance === 'glass' && level === 'overlay' && glassFloating,
-            className
-          )}
-        />
-      </SurfaceProvider>
+      <ScrollHeaderProvider value={false}>
+        <SurfaceProvider value={surface.context}>
+          <As
+            {...props}
+            ref={surface.ref}
+            className={classNames(
+              containerColor({ variant }),
+              surface.className,
+              appearance === 'glass' && level === 'overlay' && glassScrollPanel,
+              appearance === 'glass' && level === 'overlay' && glassFloating,
+              className
+            )}
+          />
+        </SurfaceProvider>
+      </ScrollHeaderProvider>
     );
   }
 );
@@ -115,18 +130,21 @@ export const Menu = as<'div', MenuProps>(
   ({ className, variant = 'Surface', appearance = 'glass', ...props }, ref) => {
     const surface = useSurface(ref, appearance, 'overlay', variant);
     return (
-      <SurfaceProvider value={surface.context}>
-        <FoldsMenu
-          {...props}
-          ref={surface.ref}
-          variant={variant}
-          className={classNames(
-            surface.className,
-            appearance === 'glass' && glassFloating,
-            className
-          )}
-        />
-      </SurfaceProvider>
+      <ScrollHeaderProvider value={false}>
+        <SurfaceProvider value={surface.context}>
+          <FoldsMenu
+            {...props}
+            ref={surface.ref}
+            variant={variant}
+            className={classNames(
+              surface.className,
+              appearance === 'glass' && glassScrollPanel,
+              appearance === 'glass' && glassFloating,
+              className
+            )}
+          />
+        </SurfaceProvider>
+      </ScrollHeaderProvider>
     );
   }
 );
@@ -137,14 +155,20 @@ export const Modal = as<'div', ModalProps>(
   ({ className, variant = 'Surface', appearance = 'glass', ...props }, ref) => {
     const surface = useSurface(ref, appearance, 'overlay', variant);
     return (
-      <SurfaceProvider value={surface.context}>
-        <FoldsModal
-          {...props}
-          ref={surface.ref}
-          variant={variant}
-          className={classNames(surface.className, className)}
-        />
-      </SurfaceProvider>
+      <ScrollHeaderProvider value={false}>
+        <SurfaceProvider value={surface.context}>
+          <FoldsModal
+            {...props}
+            ref={surface.ref}
+            variant={variant}
+            className={classNames(
+              surface.className,
+              appearance === 'glass' && glassScrollPanel,
+              className
+            )}
+          />
+        </SurfaceProvider>
+      </ScrollHeaderProvider>
     );
   }
 );
@@ -154,39 +178,58 @@ export const Dialog = as<'div', DialogProps>(
   ({ className, variant = 'Surface', appearance = 'glass', ...props }, ref) => {
     const surface = useSurface(ref, appearance, 'overlay', variant);
     return (
-      <SurfaceProvider value={surface.context}>
-        <FoldsDialog
-          {...props}
-          ref={surface.ref}
-          variant={variant}
-          className={classNames(surface.className, className)}
-        />
-      </SurfaceProvider>
+      <ScrollHeaderProvider value={false}>
+        <SurfaceProvider value={surface.context}>
+          <FoldsDialog
+            {...props}
+            ref={surface.ref}
+            variant={variant}
+            className={classNames(
+              surface.className,
+              appearance === 'glass' && glassScrollPanel,
+              className
+            )}
+          />
+        </SurfaceProvider>
+      </ScrollHeaderProvider>
     );
   }
 );
 
-type HeaderProps = Pick<ComponentProps<typeof FoldsHeader>, 'variant' | 'size'> & AppearanceProps;
+type HeaderProps = Pick<ComponentProps<typeof FoldsHeader>, 'variant' | 'size'> &
+  AppearanceProps & { flat?: boolean };
 export const Header = as<'header', HeaderProps>(
-  ({ className, variant = 'Surface', appearance, ...props }, ref) => {
+  ({ className, variant = 'Surface', appearance, flat, ...props }, ref) => {
     const enclosingSurface = useSurfaceContext();
+    const scrollHeader = useScrollHeaderContext();
+    const isFlat = flat ?? scrollHeader;
     // Semantic foregrounds need their matching fill to retain text contrast.
     const neutral = ['Background', 'Surface', 'SurfaceVariant'].includes(variant);
     const surface = useSurface(
       ref,
-      appearance ?? (enclosingSurface && neutral ? 'inherit' : 'glass'),
+      isFlat ? 'plain' : appearance ?? (enclosingSurface && neutral ? 'inherit' : 'glass'),
       'panel',
       variant
     );
     return (
-      <SurfaceProvider value={surface.context}>
-        <FoldsHeader
-          {...props}
-          ref={surface.ref}
-          variant={variant}
-          className={classNames(surface.className, className)}
-        />
-      </SurfaceProvider>
+      <ScrollHeaderProvider value={false}>
+        <SurfaceProvider value={isFlat || surface.context}>
+          <FoldsHeader
+            {...props}
+            data-glass-flat={isFlat || undefined}
+            ref={surface.ref}
+            variant={variant}
+            className={classNames(
+              surface.className,
+              isFlat && glassSurface({ level: 'panel', variant }),
+              isFlat && glassFlat,
+              isFlat && glassFloating,
+              isFlat && enclosingSurface && neutral && glassInheritTint,
+              className
+            )}
+          />
+        </SurfaceProvider>
+      </ScrollHeaderProvider>
     );
   }
 );

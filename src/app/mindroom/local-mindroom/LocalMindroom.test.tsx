@@ -46,7 +46,13 @@ vi.mock('../../components/page', async () => {
   const reactModule = await import('react');
   const passthrough = ({ children }: { children?: React.ReactNode }) =>
     reactModule.createElement('section', null, children);
-  return { Page: passthrough, PageContent: passthrough, PageHeader: passthrough };
+  return {
+    Page: passthrough,
+    PageContent: passthrough,
+    PageHeader: passthrough,
+    PageScroll: ({ header, children }: React.PropsWithChildren<{ header?: React.ReactNode }>) =>
+      reactModule.createElement('section', null, header, children),
+  };
 });
 
 vi.mock('../../components/sequence-card', async () => {

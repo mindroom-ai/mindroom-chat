@@ -28,7 +28,7 @@ import { isKeyHotkey } from 'is-hotkey';
 import FocusTrap from 'focus-trap-react';
 import { useTranslation } from 'react-i18next';
 import { Menu, Header, MenuItem } from '../../../components/glass/GlassPrimitives';
-import { Page, PageContent, PageHeader } from '../../../components/page';
+import { Page, PageContent, PageHeader, PageScroll } from '../../../components/page';
 import { SequenceCard } from '../../../components/sequence-card';
 import { useSetting } from '../../../state/hooks/settings';
 import {
@@ -505,127 +505,131 @@ function DateHint({ hasChanges, handleReset }: DateHintProps) {
             escapeDeactivates: stopPropagation,
           }}
         >
-          <Menu style={{ maxHeight: '85vh', overflowY: 'auto' }}>
-            <Header size="300" style={{ padding: `0 ${config.space.S200}` }}>
-              <Text size="L400">{t('settings.general.dateTime.formatHints.title')}</Text>
-            </Header>
+          <Menu style={{ maxHeight: '85vh', display: 'flex', flexDirection: 'column' }}>
+            <PageScroll
+              header={
+                <Header size="300" style={{ padding: `0 ${config.space.S200}` }}>
+                  <Text size="L400">{t('settings.general.dateTime.formatHints.title')}</Text>
+                </Header>
+              }
+            >
+              <Box direction="Column">
+                <Box style={categoryPadding} direction="Column">
+                  <Header size="300">
+                    <Text size="L400">{t('settings.general.dateTime.formatHints.year')}</Text>
+                  </Header>
+                  <Box direction="Column" tabIndex={0} gap="100">
+                    <Text size="T300">
+                      YY
+                      <Text as="span" size="Inherit" priority="300">
+                        {': '}
+                        {t('settings.general.dateTime.formatHints.twoDigitYear')}
+                      </Text>{' '}
+                    </Text>
+                    <Text size="T300">
+                      YYYY
+                      <Text as="span" size="Inherit" priority="300">
+                        {': '}
+                        {t('settings.general.dateTime.formatHints.fourDigitYear')}
+                      </Text>
+                    </Text>
+                  </Box>
+                </Box>
 
-            <Box direction="Column">
-              <Box style={categoryPadding} direction="Column">
-                <Header size="300">
-                  <Text size="L400">{t('settings.general.dateTime.formatHints.year')}</Text>
-                </Header>
-                <Box direction="Column" tabIndex={0} gap="100">
-                  <Text size="T300">
-                    YY
-                    <Text as="span" size="Inherit" priority="300">
-                      {': '}
-                      {t('settings.general.dateTime.formatHints.twoDigitYear')}
-                    </Text>{' '}
-                  </Text>
-                  <Text size="T300">
-                    YYYY
-                    <Text as="span" size="Inherit" priority="300">
-                      {': '}
-                      {t('settings.general.dateTime.formatHints.fourDigitYear')}
+                <Box style={categoryPadding} direction="Column">
+                  <Header size="300">
+                    <Text size="L400">{t('settings.general.dateTime.formatHints.month')}</Text>
+                  </Header>
+                  <Box direction="Column" tabIndex={0} gap="100">
+                    <Text size="T300">
+                      M
+                      <Text as="span" size="Inherit" priority="300">
+                        {': '}
+                        {t('settings.general.dateTime.formatHints.theMonth')}
+                      </Text>
                     </Text>
-                  </Text>
+                    <Text size="T300">
+                      MM
+                      <Text as="span" size="Inherit" priority="300">
+                        {': '}
+                        {t('settings.general.dateTime.formatHints.twoDigitMonth')}
+                      </Text>{' '}
+                    </Text>
+                    <Text size="T300">
+                      MMM
+                      <Text as="span" size="Inherit" priority="300">
+                        {': '}
+                        {t('settings.general.dateTime.formatHints.shortMonthName')}
+                      </Text>
+                    </Text>
+                    <Text size="T300">
+                      MMMM
+                      <Text as="span" size="Inherit" priority="300">
+                        {': '}
+                        {t('settings.general.dateTime.formatHints.fullMonthName')}
+                      </Text>
+                    </Text>
+                  </Box>
                 </Box>
-              </Box>
 
-              <Box style={categoryPadding} direction="Column">
-                <Header size="300">
-                  <Text size="L400">{t('settings.general.dateTime.formatHints.month')}</Text>
-                </Header>
-                <Box direction="Column" tabIndex={0} gap="100">
-                  <Text size="T300">
-                    M
-                    <Text as="span" size="Inherit" priority="300">
-                      {': '}
-                      {t('settings.general.dateTime.formatHints.theMonth')}
+                <Box style={categoryPadding} direction="Column">
+                  <Header size="300">
+                    <Text size="L400">{t('settings.general.dateTime.formatHints.dayOfMonth')}</Text>
+                  </Header>
+                  <Box direction="Column" tabIndex={0} gap="100">
+                    <Text size="T300">
+                      D
+                      <Text as="span" size="Inherit" priority="300">
+                        {': '}
+                        {t('settings.general.dateTime.formatHints.theDayOfMonth')}
+                      </Text>
                     </Text>
-                  </Text>
-                  <Text size="T300">
-                    MM
-                    <Text as="span" size="Inherit" priority="300">
-                      {': '}
-                      {t('settings.general.dateTime.formatHints.twoDigitMonth')}
-                    </Text>{' '}
-                  </Text>
-                  <Text size="T300">
-                    MMM
-                    <Text as="span" size="Inherit" priority="300">
-                      {': '}
-                      {t('settings.general.dateTime.formatHints.shortMonthName')}
+                    <Text size="T300">
+                      DD
+                      <Text as="span" size="Inherit" priority="300">
+                        {': '}
+                        {t('settings.general.dateTime.formatHints.twoDigitDayOfMonth')}
+                      </Text>
                     </Text>
-                  </Text>
-                  <Text size="T300">
-                    MMMM
-                    <Text as="span" size="Inherit" priority="300">
-                      {': '}
-                      {t('settings.general.dateTime.formatHints.fullMonthName')}
+                  </Box>
+                </Box>
+                <Box style={categoryPadding} direction="Column">
+                  <Header size="300">
+                    <Text size="L400">{t('settings.general.dateTime.formatHints.dayOfWeek')}</Text>
+                  </Header>
+                  <Box direction="Column" tabIndex={0} gap="100">
+                    <Text size="T300">
+                      d
+                      <Text as="span" size="Inherit" priority="300">
+                        {': '}
+                        {t('settings.general.dateTime.formatHints.theDayOfWeek')}
+                      </Text>
                     </Text>
-                  </Text>
+                    <Text size="T300">
+                      dd
+                      <Text as="span" size="Inherit" priority="300">
+                        {': '}
+                        {t('settings.general.dateTime.formatHints.twoLetterDayName')}
+                      </Text>
+                    </Text>
+                    <Text size="T300">
+                      ddd
+                      <Text as="span" size="Inherit" priority="300">
+                        {': '}
+                        {t('settings.general.dateTime.formatHints.shortDayName')}
+                      </Text>
+                    </Text>
+                    <Text size="T300">
+                      dddd
+                      <Text as="span" size="Inherit" priority="300">
+                        {': '}
+                        {t('settings.general.dateTime.formatHints.fullDayName')}
+                      </Text>
+                    </Text>
+                  </Box>
                 </Box>
               </Box>
-
-              <Box style={categoryPadding} direction="Column">
-                <Header size="300">
-                  <Text size="L400">{t('settings.general.dateTime.formatHints.dayOfMonth')}</Text>
-                </Header>
-                <Box direction="Column" tabIndex={0} gap="100">
-                  <Text size="T300">
-                    D
-                    <Text as="span" size="Inherit" priority="300">
-                      {': '}
-                      {t('settings.general.dateTime.formatHints.theDayOfMonth')}
-                    </Text>
-                  </Text>
-                  <Text size="T300">
-                    DD
-                    <Text as="span" size="Inherit" priority="300">
-                      {': '}
-                      {t('settings.general.dateTime.formatHints.twoDigitDayOfMonth')}
-                    </Text>
-                  </Text>
-                </Box>
-              </Box>
-              <Box style={categoryPadding} direction="Column">
-                <Header size="300">
-                  <Text size="L400">{t('settings.general.dateTime.formatHints.dayOfWeek')}</Text>
-                </Header>
-                <Box direction="Column" tabIndex={0} gap="100">
-                  <Text size="T300">
-                    d
-                    <Text as="span" size="Inherit" priority="300">
-                      {': '}
-                      {t('settings.general.dateTime.formatHints.theDayOfWeek')}
-                    </Text>
-                  </Text>
-                  <Text size="T300">
-                    dd
-                    <Text as="span" size="Inherit" priority="300">
-                      {': '}
-                      {t('settings.general.dateTime.formatHints.twoLetterDayName')}
-                    </Text>
-                  </Text>
-                  <Text size="T300">
-                    ddd
-                    <Text as="span" size="Inherit" priority="300">
-                      {': '}
-                      {t('settings.general.dateTime.formatHints.shortDayName')}
-                    </Text>
-                  </Text>
-                  <Text size="T300">
-                    dddd
-                    <Text as="span" size="Inherit" priority="300">
-                      {': '}
-                      {t('settings.general.dateTime.formatHints.fullDayName')}
-                    </Text>
-                  </Text>
-                </Box>
-              </Box>
-            </Box>
+            </PageScroll>
           </Menu>
         </FocusTrap>
       }
@@ -1139,38 +1143,39 @@ export function General({ requestClose }: GeneralProps) {
   const simpleMode = useSimpleMode();
   return (
     <Page>
-      <PageHeader outlined={false}>
-        <Box grow="Yes" gap="200">
-          <Box grow="Yes" alignItems="Center" gap="200">
-            <Text size="H3" truncate>
-              {t('settings.general.title')}
-            </Text>
-          </Box>
-          <Box shrink="No">
-            <IconButton onClick={requestClose} variant="Surface">
-              <Icon src={Icons.Cross} />
-            </IconButton>
-          </Box>
-        </Box>
-      </PageHeader>
-      <Box grow="Yes">
-        <Scroll hideTrack visibility="Hover">
-          <PageContent>
-            <Box direction="Column" gap="700">
-              <MindroomInterfaceSettings className={SequenceCardStyle} />
-              <Language />
-              <Appearance />
-              {!simpleMode && (
-                <>
-                  <DateAndTime />
-                  <Editor />
-                  <Messages />
-                </>
-              )}
+      <PageScroll
+        header={
+          <PageHeader outlined={false}>
+            <Box grow="Yes" gap="200">
+              <Box grow="Yes" alignItems="Center" gap="200">
+                <Text size="H3" truncate>
+                  {t('settings.general.title')}
+                </Text>
+              </Box>
+              <Box shrink="No">
+                <IconButton onClick={requestClose} variant="Surface">
+                  <Icon src={Icons.Cross} />
+                </IconButton>
+              </Box>
             </Box>
-          </PageContent>
-        </Scroll>
-      </Box>
+          </PageHeader>
+        }
+      >
+        <PageContent>
+          <Box direction="Column" gap="700">
+            <MindroomInterfaceSettings className={SequenceCardStyle} />
+            <Language />
+            <Appearance />
+            {!simpleMode && (
+              <>
+                <DateAndTime />
+                <Editor />
+                <Messages />
+              </>
+            )}
+          </Box>
+        </PageContent>
+      </PageScroll>
     </Page>
   );
 }

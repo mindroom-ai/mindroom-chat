@@ -1,7 +1,7 @@
 import React, { useCallback, useState } from 'react';
-import { Box, Text, IconButton, Icon, Icons, Scroll, Switch, Button } from 'folds';
+import { Box, Text, IconButton, Icon, Icons, Switch, Button } from 'folds';
 import { useTranslation } from 'react-i18next';
-import { Page, PageContent, PageHeader } from '../../../components/page';
+import { Page, PageContent, PageHeader, PageScroll } from '../../../components/page';
 import { SequenceCard } from '../../../components/sequence-card';
 import { SequenceCardStyle } from '../styles.css';
 import { SettingTile } from '../../../components/setting-tile';
@@ -47,28 +47,42 @@ export function DeveloperTools({ requestClose }: DeveloperToolsProps) {
 
   return (
     <Page>
-      <PageHeader outlined={false}>
-        <Box grow="Yes" gap="200">
-          <Box grow="Yes" alignItems="Center" gap="200">
-            <Text size="H3" truncate>
-              {t('featureUi.settings.developerTools.developTools.developerTools')}
-            </Text>
-          </Box>
-          <Box shrink="No">
-            <IconButton onClick={requestClose} variant="Surface">
-              <Icon src={Icons.Cross} />
-            </IconButton>
-          </Box>
-        </Box>
-      </PageHeader>
-      <Box grow="Yes">
-        <Scroll hideTrack visibility="Hover">
-          <PageContent>
-            <Box direction="Column" gap="700">
-              <Box direction="Column" gap="100">
-                <Text size="L400">
-                  {t('featureUi.settings.developerTools.developTools.options')}
+      <PageScroll
+        header={
+          <PageHeader outlined={false}>
+            <Box grow="Yes" gap="200">
+              <Box grow="Yes" alignItems="Center" gap="200">
+                <Text size="H3" truncate>
+                  {t('featureUi.settings.developerTools.developTools.developerTools')}
                 </Text>
+              </Box>
+              <Box shrink="No">
+                <IconButton onClick={requestClose} variant="Surface">
+                  <Icon src={Icons.Cross} />
+                </IconButton>
+              </Box>
+            </Box>
+          </PageHeader>
+        }
+      >
+        <PageContent>
+          <Box direction="Column" gap="700">
+            <Box direction="Column" gap="100">
+              <Text size="L400">{t('featureUi.settings.developerTools.developTools.options')}</Text>
+              <SequenceCard
+                className={SequenceCardStyle}
+                variant="SurfaceVariant"
+                direction="Column"
+                gap="400"
+              >
+                <SettingTile
+                  title={t('featureUi.settings.developerTools.developTools.enableDeveloperTools')}
+                  after={
+                    <Switch variant="Primary" value={developerTools} onChange={setDeveloperTools} />
+                  }
+                />
+              </SequenceCard>
+              {developerTools && (
                 <SequenceCard
                   className={SequenceCardStyle}
                   variant="SurfaceVariant"
@@ -76,59 +90,40 @@ export function DeveloperTools({ requestClose }: DeveloperToolsProps) {
                   gap="400"
                 >
                   <SettingTile
-                    title={t('featureUi.settings.developerTools.developTools.enableDeveloperTools')}
+                    title={t('featureUi.settings.developerTools.developTools.accessToken')}
+                    description={t(
+                      'featureUi.settings.developerTools.developTools.copyAccessTokenToClipboard'
+                    )}
                     after={
-                      <Switch
-                        variant="Primary"
-                        value={developerTools}
-                        onChange={setDeveloperTools}
-                      />
+                      <Button
+                        onClick={() =>
+                          copyToClipboard(mx.getAccessToken() ?? '<NO_ACCESS_TOKEN_FOUND>')
+                        }
+                        variant="Secondary"
+                        fill="Soft"
+                        size="300"
+                        radii="300"
+                        outlined
+                      >
+                        <Text size="B300">
+                          {t('featureUi.settings.developerTools.developTools.copy')}
+                        </Text>
+                      </Button>
                     }
                   />
                 </SequenceCard>
-                {developerTools && (
-                  <SequenceCard
-                    className={SequenceCardStyle}
-                    variant="SurfaceVariant"
-                    direction="Column"
-                    gap="400"
-                  >
-                    <SettingTile
-                      title={t('featureUi.settings.developerTools.developTools.accessToken')}
-                      description={t(
-                        'featureUi.settings.developerTools.developTools.copyAccessTokenToClipboard'
-                      )}
-                      after={
-                        <Button
-                          onClick={() =>
-                            copyToClipboard(mx.getAccessToken() ?? '<NO_ACCESS_TOKEN_FOUND>')
-                          }
-                          variant="Secondary"
-                          fill="Soft"
-                          size="300"
-                          radii="300"
-                          outlined
-                        >
-                          <Text size="B300">
-                            {t('featureUi.settings.developerTools.developTools.copy')}
-                          </Text>
-                        </Button>
-                      }
-                    />
-                  </SequenceCard>
-                )}
-              </Box>
-              {developerTools && (
-                <AccountData
-                  expand={expand}
-                  onExpandToggle={setExpend}
-                  onSelect={setAccountDataType}
-                />
               )}
             </Box>
-          </PageContent>
-        </Scroll>
-      </Box>
+            {developerTools && (
+              <AccountData
+                expand={expand}
+                onExpandToggle={setExpend}
+                onSelect={setAccountDataType}
+              />
+            )}
+          </Box>
+        </PageContent>
+      </PageScroll>
     </Page>
   );
 }

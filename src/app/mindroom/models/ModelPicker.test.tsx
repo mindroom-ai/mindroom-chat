@@ -18,9 +18,26 @@ const mocks = vi.hoisted(() => ({
   mxcUrlToHttp: vi.fn(() => 'https://matrix.example/media/icon'),
 }));
 
+vi.mock('../../components/page', () => ({
+  PageScroll: ({
+    header,
+    children,
+    scrollRef,
+  }: {
+    header?: React.ReactNode;
+    children: React.ReactNode;
+    scrollRef?: React.RefObject<HTMLDivElement>;
+  }) => (
+    <div ref={scrollRef}>
+      {header}
+      {children}
+    </div>
+  ),
+}));
 vi.mock('./ModelPicker.css', () => ({
   Check: 'Check',
   ComposerRow: 'ComposerRow',
+  Controls: 'Controls',
   Empty: 'Empty',
   Error: 'Error',
   ErrorActions: 'ErrorActions',
@@ -110,6 +127,9 @@ vi.mock('folds', async (importOriginal) => ({
 }));
 
 vi.mock('../../components/glass/GlassPrimitives', () => ({
+  Header: ({ children, className }: { children?: React.ReactNode; className?: string }) => (
+    <div className={className}>{children}</div>
+  ),
   Surface: ({
     children,
     appearance = 'glass',

@@ -8,6 +8,7 @@ import {
   MAX_CANVAS_RESPONSE_CONTENT_BYTES,
   readCanvasError,
   readCanvasResponse,
+  readCanvasState,
   readCanvasSubmission,
 } from './canvasMessages';
 
@@ -317,5 +318,29 @@ describe('buildCanvasErrorContent', () => {
   it('replies to a room-level canvas without a thread', () => {
     const content = buildCanvasErrorContent({ ...canvas, threadId: undefined }, ['boom']);
     expect(content['m.relates_to']).toEqual({ 'm.in_reply_to': { event_id: '$canvas' } });
+  });
+});
+
+describe('readCanvasState', () => {
+  const state = (json: unknown, extra: Record<string, unknown> = {}) => ({
+    type: 'mindroom.canvas.state',
+    version: 1,
+    json,
+    ...extra,
+  });
+
+  it('accepts the JSON a page saves', () => {
+    expect(readCanvasState(message(state('{"slots":[1]}')), frame)).toBe('{"slots":[1]}');
+  });
+
+  it.each([
+    ['another window', message(state('1'), { source: {} as Window })],
+    ['a real origin', message(state('1'), { origin: 'https://evil.example' })],
+    ['an unknown version', message(state('1', { version: 2 }))],
+    ['a non-string', message(state({ slots: [1] }))],
+    ['text that is not JSON', message(state('{oops'))],
+    ['a state over the limit', message(state(`"${'a'.repeat(256 * 1024)}"`))],
+  ])('rejects %s', (_name, event) => {
+    expect(readCanvasState(event, frame)).toBeUndefined();
   });
 });
