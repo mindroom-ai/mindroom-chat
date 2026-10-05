@@ -1,38 +1,111 @@
 import { ICreateRoomStateEvent, MatrixClient, Preset, Room, Visibility } from 'matrix-js-sdk';
-import { RoomType, StateEvent } from '../../../types/matrix/room';
+import { Membership, RoomType, StateEvent } from '../../../types/matrix/room';
 import {
   createRoomCallState,
   createRoomEncryptionState,
   createVoiceRoomPowerLevelsOverride,
 } from '../../components/create-room/utils';
+import {
+  RoomNotificationMode,
+  setRoomNotificationPreference,
+} from '../../hooks/useRoomsNotificationPreferences';
 import { getMxIdLocalPart } from '../../utils/matrix';
 import { getStateEvent } from '../../utils/room';
+import { setRoomArchived } from '../rooms/archivedRooms';
+import { isConfirmedMatrixEventId } from '../threads/threadRouteUtils';
 
 export const MINDROOM_VOICE_CALLS_PRESENCE = '📞 Voice calls';
 
 export const hasMindroomVoiceCallsPresence = (status: string | undefined): boolean =>
   status?.split(' | ').includes(MINDROOM_VOICE_CALLS_PRESENCE) ?? false;
 
+export type MindroomAgentCallOrigin = { room_id: string; thread_id: string | null };
+
+/** A new thread's root is a local echo until it is sent; the backend can only resolve a real event. */
+export const toAgentCallOrigin = (
+  roomId: string,
+  threadId: string | undefined
+): MindroomAgentCallOrigin => ({
+  room_id: roomId,
+  thread_id: isConfirmedMatrixEventId(threadId) ? threadId : null,
+});
+
 export type MindroomAgentCallContent = {
   version: 1;
   agent_user_id: string;
   creator_user_id: string;
-  ephemeral: true;
+  /** Legacy throwaway rooms are `true`; the permanent per-caller rooms are `false`. */
+  ephemeral: boolean;
+  origin?: MindroomAgentCallOrigin;
 };
 
-const createAgentCallState = (
-  creatorUserId: string,
-  agentUserId: string
-): ICreateRoomStateEvent => ({
-  type: StateEvent.MindroomAgentCall,
-  state_key: '',
-  content: {
-    version: 1,
-    agent_user_id: agentUserId,
-    creator_user_id: creatorUserId,
-    ephemeral: true,
-  } satisfies MindroomAgentCallContent,
+const agentCallContent = (
+  mx: MatrixClient,
+  agentUserId: string,
+  origin?: MindroomAgentCallOrigin
+): MindroomAgentCallContent => ({
+  version: 1,
+  agent_user_id: agentUserId,
+  creator_user_id: mx.getSafeUserId(),
+  ephemeral: false,
+  ...(origin && { origin }),
 });
+
+const writeTails = new WeakMap<MatrixClient, Map<string, Promise<unknown>>>();
+
+/** The SDK sends state writes independently, so an earlier clear could land after a newer stamp. */
+const sendAgentCall = (
+  mx: MatrixClient,
+  roomId: string,
+  agentUserId: string,
+  origin?: MindroomAgentCallOrigin
+) => {
+  const tails = writeTails.get(mx) ?? new Map<string, Promise<unknown>>();
+  writeTails.set(mx, tails);
+  const write = (tails.get(roomId) ?? Promise.resolve())
+    .catch(() => undefined)
+    .then(() =>
+      mx.sendStateEvent(
+        roomId,
+        StateEvent.MindroomAgentCall as any,
+        agentCallContent(mx, agentUserId, origin),
+        ''
+      )
+    );
+  tails.set(roomId, write);
+  return write;
+};
+
+/** A later join without a fresh stamp, such as the call room's own Join, must not reuse an old thread. */
+export const clearAgentCallOrigin = (mx: MatrixClient, roomId: string, agentUserId: string) => {
+  sendAgentCall(mx, roomId, agentUserId).catch(() => undefined);
+};
+
+/** The agent call state of a room, when I created the room and wrote that state myself. */
+const getOwnAgentCall = (mx: MatrixClient, room: Room): MindroomAgentCallContent | undefined => {
+  const event = getStateEvent(room, StateEvent.MindroomAgentCall);
+  const content = event?.getContent();
+  const userId = mx.getUserId();
+  return content?.version === 1 &&
+    typeof content.agent_user_id === 'string' &&
+    event?.getSender() === userId &&
+    content.creator_user_id === userId
+    ? (content as MindroomAgentCallContent)
+    : undefined;
+};
+
+const createdAt = (room: Room): number => getStateEvent(room, StateEvent.RoomCreate)?.getTs() ?? 0;
+
+/** My permanent call room with this agent; two devices racing on the first call agree on the oldest. */
+export const findAgentCallRoom = (mx: MatrixClient, agentUserId: string): Room | undefined =>
+  mx
+    .getRooms()
+    .filter((room) => {
+      if (room.getMyMembership() !== Membership.Join || !room.isCallRoom()) return false;
+      const call = getOwnAgentCall(mx, room);
+      return call?.ephemeral === false && call.agent_user_id === agentUserId;
+    })
+    .sort((a, b) => createdAt(a) - createdAt(b) || (a.roomId < b.roomId ? -1 : 1))[0];
 
 export const createAgentVoiceRoom = async (
   mx: MatrixClient,
@@ -42,7 +115,11 @@ export const createAgentVoiceRoom = async (
 ): Promise<string> => {
   const initialState: ICreateRoomStateEvent[] = [
     createRoomCallState(),
-    createAgentCallState(mx.getSafeUserId(), agentUserId),
+    {
+      type: StateEvent.MindroomAgentCall,
+      state_key: '',
+      content: agentCallContent(mx, agentUserId),
+    },
   ];
   if (encrypted) initialState.unshift(createRoomEncryptionState());
 
@@ -57,17 +134,48 @@ export const createAgentVoiceRoom = async (
     power_level_content_override: createVoiceRoomPowerLevelsOverride(),
     initial_state: initialState,
   });
+  // Calls open the room from the call bar, so it is archived out of navigation, and muted so its
+  // side-chat messages raise no notifications nobody can find. Archiving waits for its sync echo.
+  setRoomArchived(mx, result.room_id, true).catch(() => undefined);
+  await setRoomNotificationPreference(
+    mx,
+    result.room_id,
+    RoomNotificationMode.Mute,
+    RoomNotificationMode.Unset
+  ).catch(() => undefined);
 
   return result.room_id;
 };
 
-export const cleanupCreatedAgentCall = async (
+/**
+ * Re-invites an agent that left and overwrites the previous call's origin.
+ * The backend reads this state when the agent joins the call, so it must be written before the call starts.
+ */
+export const prepareAgentCallRoom = async (
   mx: MatrixClient,
-  roomId: string,
-  agentUserId: string
+  room: Room,
+  agentUserId: string,
+  origin: MindroomAgentCallOrigin
 ): Promise<void> => {
+  // Members are lazy-loaded; inviting an agent that is already joined would fail.
+  await room.loadMembersIfNeeded();
+  const membership = room.getMember(agentUserId)?.membership;
+  if (membership !== Membership.Join && membership !== Membership.Invite) {
+    await mx.invite(room.roomId, agentUserId);
+  }
+  await sendAgentCall(mx, room.roomId, agentUserId, origin);
+};
+
+export const cleanupMindroomAgentCall = async (mx: MatrixClient, room: Room): Promise<void> => {
+  const call = getOwnAgentCall(mx, room);
+  // Permanent call rooms stay for the next call, minus this call's origin; legacy rooms are torn down.
+  // The cached state may not show this call's origin yet, so the clear is always sent.
+  if (call?.ephemeral === false) clearAgentCallOrigin(mx, room.roomId, call.agent_user_id);
+  if (call?.ephemeral !== true) return;
+
+  const { roomId } = room;
   try {
-    await mx.kick(roomId, agentUserId, 'MindRoom agent call ended');
+    await mx.kick(roomId, call.agent_user_id, 'MindRoom agent call ended');
   } catch {
     // The agent may not have joined yet or may already have left.
   }
@@ -82,21 +190,4 @@ export const cleanupCreatedAgentCall = async (
   } catch {
     // A failed leave remains visible and can be retried from the room menu.
   }
-};
-
-export const cleanupMindroomAgentCall = async (mx: MatrixClient, room: Room): Promise<void> => {
-  const event = getStateEvent(room, StateEvent.MindroomAgentCall);
-  const content = event?.getContent();
-  const userId = mx.getUserId();
-  if (
-    content?.version !== 1 ||
-    content?.ephemeral !== true ||
-    typeof content?.agent_user_id !== 'string' ||
-    event?.getSender() !== userId ||
-    content?.creator_user_id !== userId
-  ) {
-    return;
-  }
-
-  await cleanupCreatedAgentCall(mx, room.roomId, content.agent_user_id);
 };

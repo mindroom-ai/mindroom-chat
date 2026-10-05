@@ -46,7 +46,13 @@ describe('backend approval wire contract', () => {
           undefined,
           Date.parse('2026-09-12T12:02:00Z')
         )
-      ).toEqual({ approve: false, deny: false, durations: [], revoke: kind === 'timed_origin' });
+      ).toEqual({
+        approve: false,
+        deny: false,
+        durations: [],
+        scheduledScopes: [],
+        revoke: kind === 'timed_origin',
+      });
       expect(approval?.resolvedBy).toBe(kind === 'expired' ? null : '@alice:example.org');
       expect(approval?.resolutionReason).toBe(
         kind === 'denied'

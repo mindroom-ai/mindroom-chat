@@ -84,6 +84,7 @@ export function UserRoomProfile({ userId }: UserRoomProfileProps) {
             {userId !== myUserId && (
               <Box shrink="No" gap="200">
                 <AgentCallButton
+                  roomId={room.roomId}
                   userId={userId}
                   displayName={displayName}
                   presenceStatus={presence?.status}
