@@ -135,6 +135,18 @@
         "urlPreview": "URL-Vorschau",
         "urlPreviewEncrypted": "URL-Vorschau in verschlüsselten Räumen",
         "showHiddenEvents": "Versteckte Ereignisse anzeigen"
+      },
+      "computers": {
+        "sectionTitle": "Computer",
+        "apiUrl": "URL des Computerdienstes",
+        "description": "Wähle ein vertrauenswürdiges MindRoom-Backend; es erhält ein kurzlebiges Anmeldetoken. Auf diesem Gerät gespeichert. Leer lassen, um Computer zu deaktivieren.",
+        "save": "Computerdienst speichern",
+        "lab": "MindRoom Lab verwenden",
+        "reset": "App-Standard verwenden",
+        "invalidUrl": "Gib eine Origin ohne Zugangsdaten, Pfad, Abfrage oder Fragment ein. Verwende HTTPS oder HTTP mit localhost oder einer privaten LAN-IP-Adresse.",
+        "httpNotice": "HTTP verschlüsselt weder deine Anmeldung noch den Computer-Datenverkehr. Verwende es nur in einem vertrauenswürdigen lokalen Netzwerk.",
+        "saveFailed": "Der Computerdienst konnte auf diesem Gerät nicht gespeichert werden.",
+        "saved": "Computerdienst gespeichert."
       }
     }
   },
@@ -2913,8 +2925,7 @@
       "computerUnavailable": "Der Computer dieses Agenten ist nicht verfügbar.",
       "releaseControl": "Gib die Computersteuerung frei, bevor du eine andere Ansicht öffnest.",
       "openConversation": "Öffne diese Anfrage über das Gespräch im Raum.",
-      "settingsUnavailable": "Deaktiviere den einfachen Modus, um diesen Einstellungsbereich zu öffnen.",
-      "canvasUnavailableInApp": "Interaktive Panels sind in der App noch nicht verfügbar. Öffne dieses Gespräch im Browser."
+      "settingsUnavailable": "Deaktiviere den einfachen Modus, um diesen Einstellungsbereich zu öffnen."
     },
     "canvas": {
       "panelLabel": "Interaktives Panel",

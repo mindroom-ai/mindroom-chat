@@ -208,9 +208,11 @@ for (const [themeId, width] of [
         .getByRole('button', { name: 'General', exact: true })
         .locator('xpath=ancestor::*[@data-y-scrollbar-width][1]')
         .locator('header');
-      await expectFloatingNavHeader(settingsHeader);
+      await expectFloatingNavHeader(settingsHeader, { inheritsPanelTint: true });
       await page.setViewportSize({ width, height: 360 });
-      const settingsScroll = await expectFloatingNavHeader(settingsHeader);
+      const settingsScroll = await expectFloatingNavHeader(settingsHeader, {
+        inheritsPanelTint: true,
+      });
       await expectInsetScrollbar(page, settingsScroll, settingsHeader);
       const logout = (await page
         .getByRole('button', { name: 'Logout', exact: true })
@@ -231,9 +233,11 @@ for (const [themeId, width] of [
         .getByRole('button', { name: 'General', exact: true })
         .locator('xpath=ancestor::*[@data-y-scrollbar-width][1]')
         .locator('header');
-      await expectFloatingNavHeader(roomSettingsHeader);
+      await expectFloatingNavHeader(roomSettingsHeader, { inheritsPanelTint: true });
       await page.setViewportSize({ width, height: 240 });
-      const roomSettingsScroll = await expectFloatingNavHeader(roomSettingsHeader);
+      const roomSettingsScroll = await expectFloatingNavHeader(roomSettingsHeader, {
+        inheritsPanelTint: true,
+      });
       await expectInsetScrollbar(page, roomSettingsScroll, roomSettingsHeader);
       await roomSettingsScroll.getByRole('scrollbar').hover();
       await page.screenshot({

@@ -44,6 +44,7 @@ import {
   getLegacyThreadEventCacheDbName as getThreadEventCacheDbName,
   getLegacyThreadSummaryCacheDbName as getThreadSummaryCacheDbName,
 } from '../app/mindroom/threads/cacheStore';
+import { getCanvasStateDbName } from '../app/mindroom/canvas/canvasStateStore';
 import { clearIOSPushState } from '../app/mindroom/native/iosPush';
 import { clearRecentThreadsStore } from '../app/mindroom/recent-threads/recentThreads';
 import { clearRecentThreadViewModelSharedState } from '../app/mindroom/threads/recentThreadViewModel';
@@ -1314,23 +1315,23 @@ describe('clearAllCacheAndReload', () => {
 
     const deleteDatabase = createDeleteDatabaseMock();
     const indexedDbMock = {
-      databases: vi
-        .fn()
-        .mockResolvedValue([
-          { name: getSessionIndexedDbStoreName(activeSession).sync },
-          { name: getSessionIndexedDbStoreName(inactiveSession).crypto },
-          { name: getSessionRustCryptoStoreNames(inactiveSession)[0] },
-          { name: getLegacySessionRustCryptoStoreNames(activeSession)[1] },
-          { name: getThreadEventCacheDbName(activeSession.sessionId) },
-          { name: getRoomEventCacheDbName(inactiveSession.sessionId) },
-          { name: getSessionIndexedDbStoreName(liveSession).sync },
-          { name: getThreadEventCacheDbName(liveSession.sessionId) },
-          { name: 'matrix-js-sdk:web-sync-store' },
-          { name: 'crypto-store' },
-          { name: 'matrix-js-sdk::matrix-sdk-crypto' },
-          { name: 'matrix-js-sdk::matrix-sdk-crypto-meta' },
-          { name: 'unrelated-db' },
-        ]),
+      databases: vi.fn().mockResolvedValue([
+        { name: getSessionIndexedDbStoreName(activeSession).sync },
+        { name: getSessionIndexedDbStoreName(inactiveSession).crypto },
+        { name: getSessionRustCryptoStoreNames(inactiveSession)[0] },
+        { name: getLegacySessionRustCryptoStoreNames(activeSession)[1] },
+        { name: getThreadEventCacheDbName(activeSession.sessionId) },
+        { name: getRoomEventCacheDbName(inactiveSession.sessionId) },
+        { name: getSessionIndexedDbStoreName(liveSession).sync },
+        { name: getThreadEventCacheDbName(liveSession.sessionId) },
+        // Saved canvas state is the user's data, so clearing caches keeps it.
+        { name: getCanvasStateDbName(activeSession.sessionId) },
+        { name: 'matrix-js-sdk:web-sync-store' },
+        { name: 'crypto-store' },
+        { name: 'matrix-js-sdk::matrix-sdk-crypto' },
+        { name: 'matrix-js-sdk::matrix-sdk-crypto-meta' },
+        { name: 'unrelated-db' },
+      ]),
       deleteDatabase,
     };
     const replace = vi.fn();
@@ -1722,6 +1723,43 @@ describe('logoutClient', () => {
       expect(storageState.has(key)).toBe(false);
     });
     expect(stopClient).toHaveBeenCalled();
+    expect(reload).toHaveBeenCalledTimes(1);
+  });
+
+  it("deletes the account's saved canvas state when the client has no device ID", async () => {
+    const { storage: localStorageMock } = createStorageMock();
+    const deleteDatabase = createDeleteDatabaseMock();
+    const reload = vi.fn();
+    Object.defineProperty(globalThis, 'localStorage', {
+      value: localStorageMock,
+      configurable: true,
+    });
+    Object.defineProperty(globalThis, 'indexedDB', {
+      value: { deleteDatabase },
+      configurable: true,
+    });
+    Object.defineProperty(globalThis, 'window', {
+      value: {
+        localStorage: localStorageMock,
+        dispatchEvent: vi.fn(),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        location: { reload },
+      },
+      configurable: true,
+    });
+
+    await removeCurrentClientSessionAndReload({
+      clearStores: vi.fn().mockResolvedValue(undefined),
+      getDeviceId: vi.fn().mockReturnValue(undefined),
+      getHomeserverUrl: vi.fn().mockReturnValue('https://example.com'),
+      getSafeUserId: vi.fn().mockReturnValue('@alice:example.com'),
+      stopClient: vi.fn(),
+    } as never);
+
+    expect(deleteDatabase).toHaveBeenCalledWith(
+      getCanvasStateDbName(createSessionId('https://example.com', '@alice:example.com'))
+    );
     expect(reload).toHaveBeenCalledTimes(1);
   });
 
@@ -2212,6 +2250,7 @@ describe('removeStoredSession', () => {
     expect(deleteDatabase).toHaveBeenCalledWith(legacyRustCryptoStoreNames[1]);
     expect(deleteDatabase).toHaveBeenCalledWith(previousDeviceRustCryptoStoreNames[0]);
     expect(deleteDatabase).toHaveBeenCalledWith(previousDeviceRustCryptoStoreNames[1]);
+    expect(deleteDatabase).toHaveBeenCalledWith(getCanvasStateDbName(inactiveSession.sessionId));
     // CINNY-207 P2.3: the three legacy delete-cache functions collapsed
     // to a single deleteCacheStoreDb call inside sessionCleanup; the
     // legacy per-session DB names are also deleted via

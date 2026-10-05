@@ -4,7 +4,17 @@ import { type SettingsPage } from '../../features/settings/settingsPages';
 import { renderLocalMindroomSettingsPage } from '../local-mindroom/settingsRenderer';
 import { MindroomPrefetchSettings } from './MindroomPrefetchSettings';
 
-export { MindroomInterfaceSettings } from './MindroomInterfaceSettings';
+import { MindroomInterfaceSettings as InterfaceSettings } from './MindroomInterfaceSettings';
+import { MindroomComputerSettings } from './MindroomComputerSettings';
+
+export function MindroomInterfaceSettings({ className }: { className?: string }) {
+  return (
+    <>
+      <InterfaceSettings className={className} />
+      <MindroomComputerSettings className={className} />
+    </>
+  );
+}
 
 type MindroomGeneralMessageSettingsProps = {
   className?: string;

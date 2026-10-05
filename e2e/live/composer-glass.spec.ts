@@ -202,6 +202,10 @@ for (const [themeId, width] of [
         )
       ).toEqual([]);
 
+      // The client drops a typing notice five seconds after it arrives, and the checks
+      // above can take most of that under load; dismiss a fresh notice instead.
+      await setTyping(false);
+      await setTyping(true);
       await page.getByRole('button', { name: 'Drop Typing Status' }).click();
       await expect(typing).toHaveCount(0);
       // A new remote update should restore the strip after local dismissal.

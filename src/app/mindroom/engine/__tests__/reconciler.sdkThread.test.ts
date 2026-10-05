@@ -151,6 +151,89 @@ describe('reconciler SDK thread injection', () => {
     expect(sdkThread.events.map((event) => event.getId())).toEqual(ids(server));
   });
 
+  // A sync gap leaves the window in an older segment; the SDK defers the new live
+  // segment until an event is added to the thread.
+  const gappedThread = (env: ReturnType<typeof setup>, server: Partial<IEvent>[]) => {
+    const sdkThread = createInitializedThreadForRoot(env.room, env.root);
+    sdkThread.addEvents(server.slice(-6).map(env.mapper), false);
+    sdkThread.deferLiveTimelineReset('gap-back', 'gap-forward');
+    return sdkThread;
+  };
+  const segmentEventIds = (sdkThread: Thread) =>
+    sdkThread
+      .getUnfilteredTimelineSet()
+      .getTimelines()
+      .map((timeline) => timeline.getEvents().map((event) => event.getId()));
+  const flushGap = (sdkThread: Thread) => {
+    // The new segment exists at once; converting its tokens needs a server.
+    void sdkThread.flushPendingTimelineReset()?.catch(() => undefined);
+  };
+
+  it('leaves history behind an older segment out of the live segment after a sync gap', async () => {
+    const env = setup();
+    const server = thread(40);
+    const sdkThread = gappedThread(env, server);
+    await settle();
+
+    await reconcile(env, sdkThread, server);
+
+    // The older history belongs behind the older segment; pagination places it there.
+    expect(segmentEventIds(sdkThread)).toEqual([ids(server.slice(-6)), []]);
+  });
+
+  it('adds replies newer than an older segment to an empty live segment after a sync gap', async () => {
+    const env = setup();
+    const sdkThread = gappedThread(env, thread(40));
+    flushGap(sdkThread);
+    await settle();
+
+    await reconcile(env, sdkThread, thread(42));
+
+    expect(segmentEventIds(sdkThread)).toEqual([
+      ids(thread(40).slice(-6)),
+      ids(thread(42).slice(-4)),
+    ]);
+    expect(sdkThread.lastReply()?.getId()).toBe('$reply-42');
+  });
+
+  it('leaves a fetched page from deep in the history out of the live segment', async () => {
+    const env = setup();
+    const sdkThread = gappedThread(env, thread(40));
+    flushGap(sdkThread);
+    sdkThread.addEvents(thread(42).slice(-4).map(env.mapper), false);
+    await settle();
+
+    // A scan resumed from a saved position can fetch only an old page.
+    await reconcile(env, sdkThread, thread(10));
+
+    expect(segmentEventIds(sdkThread)).toEqual([
+      ids(thread(40).slice(-6)),
+      ids(thread(42).slice(-4)),
+    ]);
+  });
+
+  it('leaves a late edit of an older reply out of the live segment', async () => {
+    const env = setup();
+    const sdkThread = gappedThread(env, thread(40));
+    flushGap(sdkThread);
+    await settle();
+    // Sent after reply 40 but before its edit, both of which the older segment holds.
+    const lateEdit = { ...edit(39), event_id: '$edit-39-late', origin_server_ts: 4005 };
+
+    await reconcile(env, sdkThread, [
+      ...thread(40).slice(0, -1),
+      lateEdit,
+      edit(40),
+      reply(41),
+      edit(41),
+    ]);
+
+    expect(segmentEventIds(sdkThread)).toEqual([
+      ids(thread(40).slice(-6)),
+      ['$reply-41', '$edit-41'],
+    ]);
+  });
+
   it('leaves an unopened thread to load its own first page', async () => {
     const env = setup();
     const server = thread(10);

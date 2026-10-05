@@ -18,6 +18,208 @@
 - Live check against a local MindRoom backend running #2633 with a stub model: the pending scheduling card (in the thread's Review sheet) showed the send time, both approve buttons, and the warning; approving any arguments showed the approved scope; the send-time call ran with different arguments under that approval; and its receipt showed who approved it while scheduling, the send time, and the scope.
 - Next: integrate together with mindroom-ai/mindroom#2633.
 
+### Fix three live specs that failed intermittently in full runs (2026-10-04)
+
+- Report: in full live-suite runs (`--jobs 8`), `thread-arrow-up-edit`, `composer-glass` on WebKit and `offline-invited-account` failed now and then, also on `dev`, and passed when rerun alone.
+  None of the failure traces contain `net::ERR_NETWORK_CHANGED`; all three are test races, and the app behaves correctly in each.
+- `thread-arrow-up-edit`: the composer still held the draft (`Unsent draft`, or `nsent draft`) when the spec pressed Up, so Up rightly did nothing.
+  `fill('')` selects the text by script and presses Delete at once; Slate learns of a selection from the `selectionchange` event, which Chromium dispatches after input that is already waiting.
+  After a cached start the first live `/sync` keeps the page busy just then, so Slate deletes at its old caret.
+  Fix: clear the composer until it is empty (`toPass`) before pressing Up.
+- `composer-glass` (WebKit): the client hides a typing notice five seconds after it arrives (`TYPING_TIMEOUT_MS`); the screenshot and style checks plus a slow stability wait took longer, so **Drop Typing Status** disappeared under the click and the click waited until the test timed out.
+  Fix: send a fresh typing notice right before the click.
+- `offline-invited-account`: the SDK saves its first sync after startup and then at most every five minutes, and the spec froze the clock six minutes ahead to get the next sync saved.
+  When the startup save ran after that (the room shows during the first sync, the save comes at its end), it took the frozen time and no later sync was saved.
+  Fix: move the clock only after the thread root shows, then send a read receipt so another real sync arrives and is saved.
+- Tests: with the page's CPU slowed 6x, base `thread-arrow-up-edit` failed 4 of 4 (`nsent draft` each time) and `offline-invited-account` 2 of 4; with the fixes both passed 4 of 4.
+  With a 5.5 s pause added before the dismissal, base `composer-glass` timed out in all 4 cases (both themes, Chromium and WebKit) and the fix passed all 4.
+  Without slowing anything, three rounds of the three specs (4 jobs each, base and fix side by side) passed on both, so those rounds do not tell them apart.
+- Not changed: Slate applies a delete to its old caret whenever the key arrives before `selectionchange`, which a person could only hit by selecting and deleting during one long task.
+
+### Scope the invite menu live spec's user directory to its own users (2026-10-04)
+
+- Report: `e2e/live/cinny217-invite-menu-portal.spec.ts` failed on every run from about 15:00 on 2026-10-04, on `dev` and other branches alike: the first suggestion for `mind` was another run's `mindroom_lv…_agent 💕` (Tuwunel's default display name) instead of the spec's `Mind`.
+- Root cause, in the spec: Tuwunel answers `/user_directory/search` with the first `limit` matches to finish, not the best ones (it walks users in user-ID order but checks them concurrently, `buffer_unordered`), and the shared test homeserver keeps every run's users.
+  In the failing traces the 500-user `@` bootstrap held only other runs' `@lv…` accounts, and the 12 results for `mind` were 7 to 9 of the spec's own agents plus 3 to 5 other runs' agents from public fixture rooms, so the spec's `Mind` never reached the client.
+  With 3 other agents in the window, `Mind` made it into some requests and not others, since the order changes from request to request.
+  The ranking is right: the client never received `Mind`, and given the spec's users it ranks `Mind` first.
+  A real user hits this only when more than 500 users are visible to them and more than 12 visible users match the query; the client cannot rank a user the server does not return (see CINNY-216).
+- Fix: the spec sends every directory search for its run ID, which every fixture MXID carries, so the server returns exactly the run's 12 users and the client ranks them for the typed query.
+  It now expects its own `Mind`, not any `@mindroom_mind` user.
+- Tests: test-only change. Same build, base spec against fixed spec: the base spec failed every run and the fixed spec passed every run.
+  The spec catches gross ranking regressions (with the tier comparison reversed in `rankUsers` it fails with `Alpha …` first), not a revert of the CINNY-216 refinements; `userDirectorySearch.test.ts` and `useInviteUserSearch.test.ts` cover those.
+
+### Allow local HTTP computer services (2026-10-05)
+
+- Follow-up to merged Chat #384 and backend #2680, requested for MindRoom servers hosted on a local network without TLS.
+  The existing URL field and explicit Save accept HTTP for loopback, literal RFC 1918 IPv4 addresses, and IPv6 unique-local addresses (fc00::/7).
+  Public IPs and DNS names still require HTTPS; credentials, paths, queries and fragments remain refused.
+  The settings form explains that HTTP leaves sign-in and computer traffic unencrypted before Save; no extra setting or backend API is added.
+- A disposable iOS 26.2 simulator running the shipping native shell reached the Mac’s RFC 1918 LAN IP over HTTP with actual native-origin preflight and a bearer header, then exchanged data over WebSocket.
+  Shipping ATS settings were unchanged; only the copied test artifact’s index page was replaced by a transport probe with dummy credentials.
+  Physical-device verification is unavailable because no iPhone is connected, and the local Xcode platform remains incomplete.
+- Validation: all 6,162 unit tests in 661 files pass, including 66 focused computer/settings/config tests; typecheck, lint (17 existing warnings), web build and iOS build pass.
+  This is a separate follow-up with independent Astra, GPT-6.1 Sol and Vertex Opus 5.5 review required before merge.
+  The first three-model review approved the implementation; Qodo then identified a redundant IPv4 length check, which is removed before final review.
+
+### Enable native canvases and computer panels safely (2026-10-04)
+
+- Bridge step implemented and independently reviewed: reject every subframe in Capacitor's iOS plugin message handler and synchronous cookie/HTTP prompt handler before parsing its payload.
+  Capacitor 8.5.2 already injects bridge, Cordova, and plugin scripts with `forMainFrameOnly: true`; native sender checks are still required because WebKit exposes message handlers to subframes.
+  Android's modern bridge already checks the frame; the legacy fallback now fails closed, and synchronous cookie/HTTP/SystemBars interfaces are never registered.
+  A native main-document page-commit hook preserves Android viewport inset handling.
+- Configuration: Vite copies `config.mindroom.json` into `dist/config.json`, which Capacitor bundles locally; the app does not fetch chat.mindroom.chat's configuration.
+  The ordinary build still disables canvases and has no computer API URL.
+  `npm run build:ios` overlays `config.mindroom.ios.json`: canvases and npm libraries enabled; computers stay off until a compatible service is selected in Settings or through the optional `MINDROOM_IOS_COMPUTER_API_URL` build default.
+  Xcode Cloud, Fastlane, phone builds, and native build documentation use the iOS build.
+  Native startup reads the bundled asset before mounting the router, so an older cached config cannot hide the new switches on the first launch after upgrading.
+  The native canvas gate and obsolete locale string are removed; runtime deployment switches and the existing call exclusion remain.
+  The canvas's sandbox and CSP are unchanged.
+  Phones already use a full-screen canvas and unmount the underlying conversation.
+- Validation so far: 6,115 unit tests in 659 files pass under Node 24.13.1, along with typecheck, lint (17 existing warnings), web build, and the iOS build.
+  Independent review approved the native boundary and the configuration/cache step after correcting Android first-navigation exposure and Fastlane build wiring.
+  The local Xcode 26.6 compiler has an incomplete platform upgrade, so CI built the app with Xcode 26.2 and the installed CoreSimulator tools ran it locally on iOS 26.2.
+- Native regression resources are generated from the shipping canvas document builder and outer app CSP.
+  Tests probe raw plugin dispatch and native cookie prompts from ordinary and sandboxed subframes, then verify the production two-frame canvas cannot reach plugins or Matrix session storage.
+  A separate native test downloads Chart.js from the allowed npm path, requires painted pixels, and retains a screenshot in the XCTest result.
+  Cloud CI exposed optional array inference in the test plugin declaration; the method list now uses Capacitor's explicit `[CAPPluginMethod]` type.
+  The [native simulator CI run](https://github.com/mindroom-ai/mindroom-chat/actions/runs/37250210887) built the full shipping app and passed all 26 tests, including real plugin/cookie attacks, production canvas session isolation, and Chart.js painting.
+  The native origin test observed `capacitor://localhost` on actual preflight and bearer-header requests with shipping ATS settings.
+  The fixture waits for the initial boot before loading another document, avoiding a cold-start navigation race.
+  CI archives the unsigned arm64 simulator app before running native tests.
+- Full app acceptance passed on the disposable iPhone 17 Pro / iOS 26.2 simulator: real Chart.js rendering and touch interaction, Matrix version updates and previous-version selection, canvas error reporting, and real worker computer control/typing/resume.
+  The Matrix error report's agent mention and originating thread were checked on the disposable server.
+  The agent browser snapshot and input readback both contained `native-ios-control` after resume.
+  Screenshots are under `docs/screenshots/ios-app-*`; test credentials stayed in private fixture state and app data.
+- Computer investigation: the lab backend accepts `https://chat.mindroom.chat` but returns HTTP 400 for native preflight; the production Matrix/provisioning origin has no computers endpoint.
+  The companion backend change accepts only the exact `capacitor://localhost` literal, retains fail-closed allowlists, and tests native CORS, OpenID/bearer/tickets, WSS input, control and release.
+  Backend full pytest CI passed 29,096 tests with 20 skips; all 99 targeted computer API tests and pre-commit checks also pass.
+  Operators still need to add the native literal to the computer service's deployment allowlist.
+- AI review confirmed the lab service must not be bundled as an active default before backend rollout.
+  Computers remain opt-in; deploy backend PR #2680 and update the allowlist, then select the service in Settings → General → Computers or configure the optional build default.
+- User-requested in-app configuration is implemented: a device-only computer URL override with a MindRoom Lab preset, explicit Save, blank-to-disable, and reset-to-deployment-default controls.
+  URL validation reuses the HTTPS/loopback origin boundary and refuses credential-bearing URLs, paths, queries, and fragments.
+  Persistence failures leave the active service unchanged and show feedback.
+  Backend changes close the old panel/session and reset control ownership; a focused hook test checks stale callbacks cannot lock the new service.
+  All 17 locales include the new settings group, including the chosen backend's short-lived sign-in token disclosure.
+  Independent computer review approved the implementation after correcting save confirmation and reset display, and strengthening the stale-callback test.
+- Independent native screenshot review caught a clipped canvas version control under a long title.
+  The title can now shrink while controls keep their width; the browser regression checks all controls at 320px before and after selecting a long-title version.
+  Independent bridge review approved the layout and fixture changes.
+  The user completed Xcode first-launch setup; CoreSimulator now reports the required version and the disposable device boots normally.
+  Xcode still reports a missing iOS 26.5 platform, and the local native build fails before compilation.
+  Final CI built the shipping app successfully; all 26 native tests pass.
+  That final app ran locally with an empty bundled computer default; native Settings selected the fixture service, persisted across installation/relaunch, and controlled the worker through native keyboard input and Resume.
+  Fresh screenshots cover the settings preset, Chart.js touch tooltip, unclipped version controls, current error delivery, and computer control/resume.
+  The focused browser canvas and settings-driven worker computer tests both pass.
+- Delivery: [backend #2680](https://github.com/mindroom-ai/mindroom/pull/2680) and [Chat #384](https://github.com/mindroom-ai/mindroom-chat/pull/384) are merged.
+  Updated Chat head passed CI, including the native tests, and fresh Astra, GPT-6.1 Sol and Vertex Opus 5.5 reviews approved it before merge.
+  Current dev was merged after its thread-cycle fix advanced the base; both Runbook entries are preserved.
+  The full browser scheduler ran all 145 jobs with eight parallel slots: 108 passed, 36 failed, and the external worker fixture was initially unavailable.
+  A quiet rerun recovered resource-sensitive failures; canvas/UI action fixtures now align real sync delivery with a disposable Docker server clock running about 64 ms ahead, restore foreground before new requests, and clean up long polls at teardown.
+  Navigation attack tests use explicit clicks to preserve a deterministic rendered-page assertion.
+  The command-palette fixture uses the browser platform's shortcut modifier.
+  Canvas, UI actions, command palette, and the real worker-computer spec all pass after focused reruns.
+  The combined latest results cover 142 passing jobs; three unchanged WebKit jobs still fail on this Mac: glass-surfaces and members-header-glass assume button Tab navigation, and room-glass-overlays measures geometry about 6.5 px away from its expected position.
+  Independent review approved each logical implementation and fixture step.
+  Independent Astra, GPT-6.1 Sol and Vertex Opus 5.5 reviews approved both implementation heads.
+  User authorized merging both PRs, then adding private LAN HTTP support in a separate follow-up.
+  The latest dev merge preserves the canvas-state Runbook entry; only that document conflicted.
+  Integration validation passes all 6,135 unit tests, typecheck, lint (17 existing warnings), and the iOS web build.
+  Computers require the documented backend deployment and a configured service through Settings or the optional build default.
+
+### Let canvas pages keep their own state on this device (2026-10-04)
+
+- Why: a canvas page lost everything the user did in it whenever Chat reloaded, the panel reopened, or the agent updated the page; Claude artifacts give pages storage that persists.
+  A canvas runs with an opaque origin, so its own `localStorage` and IndexedDB are unavailable.
+- Pages read `window.mindroom.state` (the JSON value last saved, or `undefined`), which is set before their scripts run, and call `window.mindroom.saveState(value)`.
+  `saveState` throws for a value that is not JSON or whose JSON is longer than 256 K characters (`CANVAS_STATE_MAX_LENGTH`); Chat checks the message again (`readCanvasState`).
+  The page parses the saved JSON from an escaped string, so saved text cannot close the script and every JSON value, `__proto__` keys included, comes back as saved.
+- State belongs to the canvas (its request event ID), so every version and every agent update starts from it; it stays on this device and is never sent to the room or the agent.
+  A page that wants the agent to see it sends it with `mindroom.submit`.
+- `useCanvasSavedState` reads the state before the page starts (the panel shows loading until then) and keeps the latest save in memory, writing to IndexedDB at most every 500 ms and when the panel unmounts.
+  Saving never rebuilds the frame; every page `CanvasPanel` shows (an update, **Load update**, a version switch, even one with the same HTML) and **Reload panel** embed the latest state.
+  If the read fails (no IndexedDB, or a lost connection), the page starts without state and saves stay in memory, so they cannot overwrite what is stored.
+- `canvasStateStore.ts` keeps one IndexedDB database per session, `mindroom-canvas-state::<session>`, which holds the states of at most 100 canvases and forgets the ones saved longest ago; each save sorts after all others, even if the clock went back.
+  Saved state is the user's data rather than a cache, so **Clear cache and reload** keeps it and only removing the account deletes it (`deleteSessionLocalData` in `sessionLifecycle.ts`, and the no-device-ID fallback in `removeCurrentClientSessionAndReload`).
+  The account is removed from the session list before its data is deleted, and the hook drops pending saves for a session no longer listed, so a late write cannot recreate the database.
+- Tests (removing each fix fails its test):
+  - `canvasStateStore.test.ts`: one state per canvas and session, the limit (also after the clock went back), a failed write that rejects once without an unhandled rejection.
+  - `useCanvasSavedState.test.tsx`: the read, a failed read, quick saves written once, the unmount write (which a panel reopened at once reads), no write after the account is removed.
+  - `canvasDocument.test.ts`: `</script>` and a `__proto__` key round-trip; `canvasMessages.test.ts`: the message checks.
+  - `CanvasPanel.test.tsx`: a save does not reload the page; the next page and a same-HTML revision start from the latest state. `RoomCanvasPanel.test.tsx`: the page waits for the read.
+  - `initMatrix.test.ts`: account removal deletes the database, also without a device ID; clearing caches keeps it even when the browser lists it.
+  - `e2e/agent-canvas.spec.ts` types into a page that saves, reloads Chat, and sees the text again, then again after an agent update.
+- Validation: typecheck, lint and the e2e spec pass; the full unit suite passes except the three `xcodeCloudPostClone` tests that need `/bin/bash` (they fail on unchanged `dev` on this host too).
+  Live with a real agent (GPT-6.1 Sol, backend with mindroom-ai/mindroom#2683): asked for a packing checklist that remembers ticks, it used `mindroom.state` and `saveState` unprompted; ticks survived a Chat reload and the agent's update that added an item.
+- Not changed:
+  - A save in the last half second before the browser closes the tab can be lost, since a page unload does not unmount React.
+  - Two tabs showing the same canvas keep separate copies; the last save wins, and a tab sees the other's saves only when its panel opens again.
+  - The page waits for the read with no time limit; a read that never settles would leave the canvas loading. Not seen: the 2026-10-02 iOS stalls hit the cache database while other databases kept working, and this one opens a connection per operation.
+- Next: if pages with saved state become common, let an agent update load at once even over unsent work in a page that saves.
+
+### Unify scrolling settings and dialog headers (2026-10-04)
+
+- Settings subpages placed their title outside the scroll viewport, so their own content could never pass beneath it.
+  Seventeen personal, room, space, and nested settings views now use `PageScroll`, together with the room topic, readers, reactions, text viewer, room/space creation, add-existing, schedule, pinned-message, and room-pack dialogs.
+  Approval/permission dialogs, format hints, editor/invite autocomplete, mobile thread filters, and model selection now share that layout too.
+- `PageScroll` supplies flat native glass to its header slot through the shared `Header` primitive, including inside a glass modal.
+  Titles have no border, rim, shadow, or pointer glow; moving over their controls also clears the enclosing panel's pointer light.
+  Neutral titles inside glass panels use the enclosing tint without adding a second pale band; native blur and opaque accessibility fallbacks remain.
+  Panels with scrolling titles paint their backdrop filter on a separate decorative layer so Chromium does not apply the enclosing tint twice; a pixel regression also verifies that header blur still paints.
+  The actual header height controls focus scrolling and the inset scrollbar, including smaller titles and responsive header appearance.
+  Header context stops at surface boundaries so dialogs opened through a title do not inherit its scrolling treatment.
+  Composite pickers keep focus on their search field or selected option when dragging a scrollbar.
+- Member, add-existing, and pinned-message virtual lists measure their offset after the header and filters and subtract it when placing rows.
+  Sticky search controls remain below the title.
+  The image-pack editor's unsaved-changes bar also follows the measured title height, and text viewers keep their background across the full viewport, including short files.
+  Fixed JSON/event editors retain their existing internal text scrolling.
+- Regression coverage includes mobile/desktop personal and room settings, both themes and engines, header material and hover behavior, scrollbar dragging/keyboard navigation, short/long topic dialogs, the pack selector, and virtual member-list navigation.
+  Additional menu coverage checks approval scrolling, format hints, model search/selection, autocomplete focus, and short mobile filter sheets.
+  `playwright.glass.config.ts` includes the new browser specs.
+  Header tint assertions distinguish inherited panel tint from standalone chrome; hover comparisons clear prior panel illumination and wait for pointer paint before comparing pixels.
+
+### Stop the reconcile from linking thread segments into a cycle that froze the app (2026-10-04)
+
+- Report: an iPhone export from build `515acd2c` shows the whole app frozen right after it came back from 130 s in the background, with a long thread open (968 SDK events) while an agent was typing.
+  Only the typing dots (a compositor animation) still moved; two app switches did not help, and the app stayed frozen until it was force-quit about 68 s later.
+  The flight recorder's last beat is the resume's `visible` checkpoint, and the deep trace ends 0.9 s later with the catch-up `/sync` request, a tap on the timeline and an unchanged thread render sample.
+  The native log has two more background/foreground switches with no `lifecycle.*` event from the page, so the main thread blocked about 1–2 s after the resume, when a catch-up `/sync` usually arrives, and never ran again.
+- Where it hangs: matrix-js-sdk's `EventTimelineSet.compareEventOrdering` follows `getNeighbouringTimeline` forwards and then backwards, with no visited set, until it meets the other event's segment; on a cycle of segment links that segment is not on, it never returns.
+  Every new live thread event reaches it synchronously: `Thread.onTimelineEvent` adds a local echo receipt for the sender, and `RoomReceipts` orders it against the sender's previous receipt.
+  While both events sit in one segment the comparison returns early; a limited `/sync` after a suspension gives the thread a new live segment that is not linked to the old ones, so the first agent event after the resume walks the whole chain.
+- Root cause: the reconcile's SDK injection (#370, `addFetchedEventsToThread` in `engine/reconciler.ts`) prepended every fetched event older than the live segment's start to the live segment.
+  After a sync gap and one history page, the live segment is linked after an older segment holding only the latest page from before the gap, so history older than that page landed in the live segment, on the newer side of the page.
+  After the next gap, a history page for the older segment held events of the now non-live segment, whose newer side was already linked, so `addEventsToTimeline` set the older segment's backward link and then threw `timeline already has a neighbouring timeline`, leaving a backward cycle.
+  `threadSyncGapReopen.test.ts` reproduces the freeze with the real client, the real `scheduleReconcile`, Tuwunel's token semantics and the thread view's first-segment pagination (gap, page, reconcile, page, gap, page, page): before this change the second page throws, and the agent's next streamed reply then walks the cycle without end in its receipt.
+- Earlier cycles came from other sources: the 2026-07-20 production stack overflow in `getFirstLinkedTimeline`, and the root context request fixed by #362 (2026-10-02).
+  The 2026-10-02 freeze 0.8 s after a send, from a build without #362 and attributed to regexes as "a likely cause, not a confirmed one", fits the same hang: the sent reply's echo from the server adds a receipt when it lands in the thread.
+- Fix:
+  - The reconcile adds to the live segment only the fetched events newer (by `origin_server_ts`) than every event an older segment holds: replies from a gap still go there, while older history, including a late edit of an older reply and a page from deep in the history that overlaps no segment, reaches the render through `onRepaired`, as for an unopened thread, and SDK pagination places it in the SDK thread.
+    It first applies a deferred sync-gap reset, which adding an event applies anyway, so it reads the segments the events go into.
+    With a single segment it backfills as #370 did.
+  - SDK patch (`src/models/event-timeline-set.ts` and `lib`): `addEventsToTimeline` refuses a join that would form a cycle and a join whose existing segment already has a neighbour on that side, logs it, and goes on with the rest of the page, as it already does for a join that would splice in the live segment.
+    The conflict used to set one link and throw, dropping the rest of the page; that one-sided link is what closed the cycle above.
+  - `compareEventOrdering`, and the app's `getThreadTailEvents` (`src/app/utils/thread.ts`, run for every thread card's streaming and last-activity state), stop at a segment they have already visited, so a cycle from a source not yet known cannot freeze the app.
+- Ruled out: an audit of the message render path in JavaScriptCore (Bun and Playwright WebKit) found no loop that never ends; its super-linear cases (linkifyjs, the inline Markdown link rule, the 🔧 marker scan, `trimReplyFromBody`, Prism's Markdown title rule) need single runs of tens of KB.
+  The engine, gap-recovery, pagination, IndexedDB-retry and resume paths all wait on a timer, the network or IndexedDB between passes.
+- Tests:
+  - `threadSyncGapReopen.test.ts` runs that sequence, expects the replies in order with no refused join, then delivers the agent's next reply after another gap and expects it in the live segment with the agent's receipt moved to it from the older segment; with only the SDK patch the replies come out of order, with only the reconcile change it passes, and with neither it throws at the cycle.
+    A second case starts with a gap whose window holds no thread event, so the thread's reset is still deferred when the reconcile runs; it fails without applying that reset first.
+  - `matrixSdkTimelineCycles.test.ts` drives the SDK's `EventTimelineSet` through a simulated gap (`resetLiveTimeline`) and a misordered history page, a join that conflicts with an existing neighbour, and a comparison across an existing two-segment cycle; `thread.test.ts` adds a backward cycle.
+    A neighbour-read limit turns a hang into a failure; each fails before the change, and removing the cycle check, the neighbour check or a visited set fails its own test.
+  - `reconciler.sdkThread.test.ts` checks every event in each segment after a deferred reset (history stays out of the new live segment), an empty live segment after a gap (the gap's replies go in, and `lastReply()` is the newest), a fetched page from deep in the history, and a late edit of a reply in the older segment; the reconciler on `dev` fails all four, removing the boundary fails all four, and removing the reset fails the first.
+  - Four `reconciler.test.ts` thread stubs gained `flushPendingTimelineReset`, `eventIdToTimeline` and `getTimelines`.
+- Validation: the patch applies with patch-package to a pristine `matrix-js-sdk@41.7.0` and reproduces the patched tree byte for byte.
+  Typecheck, the production build and lint (0 errors, the existing 17 warnings) pass.
+  The full unit suite passes (6,080 tests) except the four that also fail on unchanged `dev`: three `xcodeCloudPostClone` tests (no `/bin/bash` on this NixOS host) and the caption send-failure test in `useRoomInputSendSessionController.test.ts`.
+- Not changed:
+  - The SDK's other unbounded walks, `TimelineWindow.getEvents` and `Room.getOrCreateFilteredTimelineSet`, which this app does not call.
+  - With a single segment the reconcile still backfills as #370 did, which assumes the fetched history ends where the segment starts; a saved scan position that resumes deep in the history can leave a hole that later pages fill out of order inside that segment (no cycle).
+  - The boundary trusts `origin_server_ts` order; history older than an older segment but stamped later (clock skew between servers) would still be prepended to the live segment.
+  - `findAndReplace` never advances past an empty match, and `makeHighlightRegex` (`react-custom-html-parser.tsx`) keeps empty terms, so a room-search query with two spaces in a row loops forever when a room name contains it (`Search.tsx`, `AddExisting.tsx`); message search builds its highlights with the same function from the server's terms.
+- Next: record refused joins in the deep trace so an export names any other page that would form a cycle, and flush the deep trace when a `/sync` response arrives so an export shows whether it came before a freeze.
+
 ### Let users switch between a canvas's versions (2026-10-04)
 
 - Why: every agent update replaced the page with no way back; Claude artifacts keep each version one click away.

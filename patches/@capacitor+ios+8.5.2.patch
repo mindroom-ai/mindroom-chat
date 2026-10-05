@@ -94,3 +94,25 @@ diff --git a/node_modules/@capacitor/ios/Capacitor/Capacitor/WebViewDelegationHa
          CAPLog.print("⚡️  WebView process terminated")
          bridge?.reset()
          webView.reload()
+@@ -190,6 +203,9 @@ open class WebViewDelegationHandler: NSObject, WKNavigationDelegate, WKUIDelegat
+     // MARK: - WKScriptMessageHandler
+ 
+     open func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
++        // WebKit exposes message handlers to every frame, including opaque canvas sandboxes.
++        // Trust the native sender metadata, never a field supplied by JavaScript.
++        guard message.frameInfo.isMainFrame else { return }
+         guard let bridge = bridge else {
+             return
+         }
+@@ -269,6 +285,11 @@ open class WebViewDelegationHandler: NSObject, WKNavigationDelegate, WKUIDelegat
+     }
+ 
+     open func webView(_ webView: WKWebView, runJavaScriptTextInputPanelWithPrompt prompt: String, defaultText: String?, initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping (String?) -> Void) {
++        // Synchronous cookie/HTTP bridge calls also arrive through prompt(), outside postMessage.
++        guard frame.isMainFrame else {
++            completionHandler(nil)
++            return
++        }
+ 
+         // Check if this is synchronous cookie or http call
+         do {
