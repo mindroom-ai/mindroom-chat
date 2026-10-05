@@ -6,26 +6,37 @@ import { headerInset } from './RoomOverlay.css';
 export function ThreadTimelineHeader({
   children,
   expansionControl,
+  onResize,
   scrollRef,
 }: {
   children: ReactNode;
   expansionControl: ReactNode;
+  /** Gets each height change, and the offset before it, ahead of the layout that moves the rows. */
+  onResize: (deltaPx: number, scrollTop: number) => void;
   scrollRef: RefObject<HTMLDivElement>;
 }) {
   const headerRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
 
   // The scroll container is an ancestor; its ref attaches after child layout effects.
   useEffect(() => {
     const header = headerRef.current;
+    const content = contentRef.current;
     const scroll = scrollRef.current;
-    if (!header || !scroll) return undefined;
+    if (!header || !content || !scroll) return undefined;
     const previousPadding = scroll.style.scrollPaddingTop;
+    let height: number | undefined;
     const updatePadding = () => {
-      scroll.style.scrollPaddingTop = `calc(${headerInset} + ${header.offsetHeight}px)`;
-      scroll.parentElement?.style.setProperty(
-        '--room-thread-header-height',
-        `${header.offsetHeight}px`
-      );
+      // The banner resizes inside a header that keeps its last height, so the
+      // rows move only here, before a layout. Read the offset first: at the
+      // bottom, a layout of the shrunk header clamps it.
+      const next = content.offsetHeight;
+      const { scrollTop } = scroll;
+      header.style.height = `${next}px`;
+      if (height !== undefined && next !== height) onResize(next - height, scrollTop);
+      height = next;
+      scroll.style.scrollPaddingTop = `calc(${headerInset} + ${next}px)`;
+      scroll.parentElement?.style.setProperty('--room-thread-header-height', `${next}px`);
     };
     updatePadding();
     let frame = 0;
@@ -38,14 +49,14 @@ export function ThreadTimelineHeader({
         updatePadding();
       });
     });
-    observer.observe(header);
+    observer.observe(content);
     return () => {
       observer.disconnect();
       cancelAnimationFrame(frame);
       scroll.style.scrollPaddingTop = previousPadding;
       scroll.parentElement?.style.removeProperty('--room-thread-header-height');
     };
-  }, [scrollRef]);
+  }, [onResize, scrollRef]);
 
   return (
     <div
@@ -55,13 +66,13 @@ export function ThreadTimelineHeader({
         top: headerInset,
         zIndex: 3,
         flexShrink: 0,
-        display: 'flow-root',
-        paddingBottom: config.space.S600,
         pointerEvents: 'none',
       }}
     >
-      {children}
-      <div style={{ position: 'relative', pointerEvents: 'auto' }}>{expansionControl}</div>
+      <div ref={contentRef} style={{ display: 'flow-root', paddingBottom: config.space.S600 }}>
+        {children}
+        <div style={{ position: 'relative', pointerEvents: 'auto' }}>{expansionControl}</div>
+      </div>
     </div>
   );
 }

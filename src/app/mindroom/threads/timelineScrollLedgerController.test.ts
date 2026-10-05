@@ -566,6 +566,7 @@ describe('useTimelineScrollLedgerController', () => {
       });
     // Row measurement refs fire inside the commit, before the parent's layout effects.
     let measureInCommit: (() => void) | undefined;
+    let holdBanner: (deltaPx: number, scrollTop: number) => void = () => undefined;
     const MeasuredRow = () => {
       useLayoutEffect(() => measureInCommit?.());
       return null;
@@ -595,6 +596,7 @@ describe('useTimelineScrollLedgerController', () => {
       (controller.threadLeadingRef as { current: unknown }).current = leading;
       (controller.virtualInnerRef as { current: unknown }).current = inner;
       ledgerPxs.push(controller.ledgerPxAtRender);
+      holdBanner = controller.holdThreadBannerResize;
       return React.createElement(MeasuredRow);
     };
     let renderer: ReturnType<typeof create>;
@@ -609,6 +611,7 @@ describe('useTimelineScrollLedgerController', () => {
     beforeEach(() => {
       virtualizer.getVirtualItemForOffset = rootThenReplies;
       // The viewport top is 100px into the list: the first reply.
+      scroller.scrollTop = 300;
       listTopRef.current = 0;
       ledgerPxs.length = 0;
       measureInCommit = undefined;
@@ -671,6 +674,56 @@ describe('useTimelineScrollLedgerController', () => {
       };
       show('', 0);
       expect(latestLedgerPx()).toBe(152);
+    });
+
+    it('holds a reader in the rows when the banner above them changes height', () => {
+      show('', 0);
+      holdBanner(22, 300);
+      expect(scroller.scrollTop).toBe(322);
+      // At the bottom, the layout of the shrunk header has clamped the live offset.
+      scroller.scrollTop = 310;
+      holdBanner(-22, 322);
+      expect(scroller.scrollTop).toBe(300);
+      // A single change, not a ledger debt left to settle at rest.
+      expect(latestLedgerPx()).toBe(0);
+    });
+
+    it('lets a reader above the rows see the banner change', () => {
+      listTopRef.current = 150;
+      show('', 0);
+      holdBanner(22, 300);
+      expect(scroller.scrollTop).toBe(300);
+    });
+
+    it('leaves a reader at the very top there', () => {
+      // The reader's line is the root's top: the root is the anchor.
+      scroller.scrollTop = 0;
+      listTopRef.current = 100;
+      show('', 0);
+      holdBanner(22, 0);
+      expect(scroller.scrollTop).toBe(0);
+    });
+
+    it('does not take the banner write for a reverted settle', async () => {
+      scroller.addEventListener.mockClear();
+      show('', 0);
+      // A row above the reader shrinks by 48px into the ledger; it settles at rest.
+      correct(90, -48);
+      expect(inner.style.marginTop).toBe('48px');
+      await act(async () => {
+        settleWaits.forEach((resolve) => resolve());
+      });
+      expect(scroller.scrollTop).toBe(252);
+      expect(inner.style.marginTop).toBe('');
+      // The banner then grows by about as much, inside the discard watch.
+      holdBanner(40, 252);
+      act(() => {
+        scroller.addEventListener.mock.calls
+          .filter(([type]) => type === 'scroll')
+          .forEach(([, listener]) => (listener as EventListener)(new Event('scroll')));
+      });
+      // A reverted settle would restore its margin.
+      expect(inner.style.marginTop).toBe('');
     });
   });
 });

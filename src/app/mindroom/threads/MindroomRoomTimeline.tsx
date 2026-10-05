@@ -1085,6 +1085,7 @@ export function RoomTimeline({
   // mid-momentum (the trace's full-screen settle flash): an unsettled
   // ledger is coherent, so it can wait indefinitely.
   const {
+    holdThreadBannerResize,
     ledgerPxAtRender,
     measureElement: measureTimelineElement,
     threadLeadingRef,
@@ -2215,6 +2216,7 @@ export function RoomTimeline({
               >
                 {threadHeader && (
                   <ThreadTimelineHeader
+                    onResize={holdThreadBannerResize}
                     scrollRef={scrollRef}
                     expansionControl={messageFeature.expansionControl}
                   >
