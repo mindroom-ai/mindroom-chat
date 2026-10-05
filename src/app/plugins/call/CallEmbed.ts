@@ -52,6 +52,9 @@ export class CallEmbed {
 
   public joined = false;
 
+  /** Server timestamp of the room's newest event when the call started; earlier failure notices belong to an earlier call. */
+  public readonly startedAfterTs: number | undefined;
+
   public readonly control: CallControl;
 
   private readonly container: HTMLElement;
@@ -197,6 +200,7 @@ export class CallEmbed {
     this.mx = mx;
     this.call = call;
     this.room = room;
+    this.startedAfterTs = room.getLiveTimeline().getEvents().at(-1)?.getTs();
     this.iframe = iframe;
     this.container = container;
     this.callWidgetDriver = callWidgetDriver;

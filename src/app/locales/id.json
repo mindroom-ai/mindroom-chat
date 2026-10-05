@@ -2293,6 +2293,12 @@
         "browserUnsupported": "Browser Anda tidak mendukung WebRTC.",
         "endCurrentCall": "Akhiri panggilan Anda saat ini terlebih dahulu.",
         "failedToStart": "Gagal memulai panggilan."
+      },
+      "agentCallHeaderButton": {
+        "call": "Panggil agen",
+        "callAgent": "Panggil {{name}}",
+        "chooseAgent": "Pilih agen untuk dipanggil",
+        "close": "Tutup"
       }
     },
     "commands": {

@@ -1003,6 +1003,12 @@
         "endCurrentCall": "আগে বর্তমান কল শেষ করুন।",
         "failedToStart": "কল শুরু করা যায়নি।",
         "homeserverUnsupported": "আপনার হোমসার্ভার কল সমর্থন করে না।"
+      },
+      "agentCallHeaderButton": {
+        "call": "একটি এজেন্টকে কল করুন",
+        "callAgent": "{{name}}-কে কল করুন",
+        "chooseAgent": "কল করার জন্য একটি এজেন্ট বেছে নিন",
+        "close": "বন্ধ করুন"
       }
     },
     "commands": {

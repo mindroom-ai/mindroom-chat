@@ -73,6 +73,32 @@
   This is a separate follow-up with independent Astra, GPT-6.1 Sol and Vertex Opus 5.5 review required before merge.
   The first three-model review approved the implementation; Qodo then identified a redundant IPv4 length check, which is removed before final review.
 
+### Call agents from the thread you are in (2026-10-04)
+
+- Why: **Call** on an agent profile opened a new call room and moved the user into it, so the call was cut off from its conversation and the agent joined knowing nothing about it.
+- The room header has a phone button (room view and open thread, not in call rooms) for joined MindRoom agents on the viewer's homeserver whose presence advertises `📞 Voice calls` (`getAgentCallCandidates`, sorted by name).
+  It follows `User.lastPresenceTs`, because MindRoom toggles calls by changing the status message, which `User.presence` does not report.
+  In a thread with a confirmed root, only agents that sent the root or a loaded reply count (`keepThreadSenders`), so the button appears once one replies.
+  One candidate is called directly and several open a menu; no candidate, MatrixRTC or WebRTC hides the button, and another active call disables it with the reason as tooltip.
+  A failed start opens a dismissible notice under the button, because phones have no hover; the error describes the button only while the notice is open, and closing the menu or notice returns focus to the button.
+- The profile's **Call** stays; it stamps the open thread when the profile's room is the selected room, and otherwise the room.
+- Both entry points share `useStartAgentCall` (microphone, find or create the room, re-invite the agent, stamp the origin, start), which runs one start at a time, never replaces a call that became active meanwhile, and never navigates.
+  The `CallStatus` bar shows the call and, while the call room is not open, the backend's failure notices (`useCallFailureNotice`) as a dismissible row.
+  The history scan ignores notices at or before the newest event in the room when the call started (`CallEmbed.startedAfterTs`, a server timestamp, so a wrong device clock cannot hide a current notice), because the reused room keeps earlier calls' notices; notices delivered live always count.
+- Each caller has one permanent call room per agent, never shared between users.
+  `findAgentCallRoom` picks my joined call room whose `io.mindroom.agent_call` state I sent with `ephemeral: false`, me as creator and this agent; after a first-call race on two devices, both pick the oldest.
+  `createAgentVoiceRoom` creates it when missing, mutes it with the existing push-rule setter, and archives it with the per-user `io.mindroom.archived` account data, so it stays out of room lists and badges while the bar can still open it.
+  Before every call `prepareAgentCallRoom` re-invites the agent unless it is joined or invited and rewrites the state with this call's origin; the call starts only after that write succeeds.
+  On hang-up, and when a start gives up after stamping, Chat rewrites the state without `origin` (`clearAgentCallOrigin`); for my permanent rooms it always does, since the cached state may not show the stamp yet.
+  Writes per room are serialized, so a late clear cannot erase a newer stamp.
+  Permanent rooms are never kicked, left or forgotten; legacy `ephemeral: true` rooms keep their teardown and are not archived.
+  A start on a second device of mine joins the running call, which keeps its brief.
+- Contract: `io.mindroom.agent_call` gains an optional `origin: { room_id, thread_id }` (`thread_id` is `null` for the main timeline or a local-echo root), `version` stays `1`, and an older backend ignores it.
+  The backend trusts only an origin sent by the creator and sole caller, re-checks access, and reads it when the agent joins (https://github.com/mindroom-ai/mindroom/pull/2684); realtime calls need a fresh backend session per call (https://github.com/mindroom-ai/mindroom/pull/2689).
+- Known limits: call rooms stay findable in search and on the Archived page; a crash before the origin clear lets a manual join reuse the last origin; the thread filter sees only loaded events.
+- Files: `calls/` (`agentCall.ts`, `useStartAgentCall.ts`, `agentCallCandidates.ts`, `useCallFailureNotice.ts`, `AgentCallHeaderButton.tsx`, `AgentCallButton.tsx`), `threads/MindroomRoomViewHeader.tsx`, `components/user-profile/UserRoomProfile.tsx`, `features/call-status/CallStatus.tsx`, `features/call/CallView.tsx`, `plugins/call/CallEmbed.ts`, and four `mindroomUi.calls.agentCallHeaderButton` strings in all 17 catalogs; tests sit beside the code.
+- Validation: unit tests, typecheck, production build, ESLint and Prettier; the live check against a disposable Tuwunel (one-agent button, two-agent menu, the no-microphone notice at phone width) predates the permanent rooms.
+
 ### Enable native canvases and computer panels safely (2026-10-04)
 
 - Bridge step implemented and independently reviewed: reject every subframe in Capacitor's iOS plugin message handler and synchronous cookie/HTTP prompt handler before parsing its payload.
