@@ -2,6 +2,28 @@
 
 ## Runbook
 
+### Keep one message from freezing or crashing the client for everyone (2026-10-05)
+
+- Problem: five message render paths could freeze the client, or replace it with the error page, for everyone who viewed one message.
+  - URL previews: `URL_REG` ended in a lookbehind that repeated its punctuation class, so it read a run of punctuation back from every position a URL could end at; `http://` followed by 100,000 dots took 3.4 s.
+  - Reply fallbacks: `trimReplyFromBody` let every `> ` end the quoted sender and, with the `m` flag, every line start a fallback, and each try rescanned the rest; a 40 KB line of `> ` pairs took 1.2 s, and 8,000 quote lines with no closing blank line took 0.8 s.
+    The `m` flag also matched a quote later in the body and then sliced that match's length off the start of the body.
+  - Display math: `tokenizeTextWithLatex` and `findDisplayLatexBlockMatch` rescanned to the end of the text from every line-start `$$` with no closing `$$`; 64 KB of `$$x` lines took about 3 s in each.
+  - Tool markers: `getToolRefPrefixFromElement` ran the marker regex over every prefix of a paragraph's leading children; a 64 KB paragraph took 2 s, and one with 20,000 `<code>` children took 6 s.
+  - File events: `MFile`, `MVideo` and `MAudio` passed `filename`, `body` and `info.mimetype` on unchecked, so a number or object threw in `FileHeader`, `FileContent` or the audio player, and the error page replaced the whole app until the event was redacted.
+- Fix:
+  - `URL_REG` checks only the character before the end: a repeated class ends at a position exactly when that character is in the class.
+  - `trimReplyFromBody` matches only at the start of the body, and the quoted sender ends at the first `> `, the only split that can match; a fallback at the start of the body is trimmed as before.
+  - Each text gets one display-math matcher, which remembers where a scan that reached a backtick or the end of the text stopped; a later opener before that point cannot close either and fails without scanning.
+  - `getToolRefPrefixFromElement` joins the leading children once and runs one anchored marker match; the marker prefixes are exactly those that end between the marker's `]` and the end of that match, so it takes the longest one that ends inside a text child or after another child, as before.
+  - The file renderers use `filename` or `body` only when it is a string, else their existing fallback name, and `MFile` uses `info.mimetype` only when it is a string, else `application/octet-stream`; `MVideo` and `MAudio` already normalized the MIME type.
+  - The URL, reply-fallback and file-field changes are in code inherited from Cinny and stay self-contained, so they can be offered upstream unchanged.
+- Tests: `regex.test.ts` (`URL_REG`), `room.test.ts` (`trimReplyFromBody`, including a quote later in the body that stays), the new `math.test.ts` (both display-math scans, including an opener after a code span), `toolRefDom.test.ts` (`getToolRefPrefixFromElement` on markers with a pending icon, a split `<span>` and a long paragraph), and the new `MsgTypeRenderers.file.test.ts` (file, video and audio events with a numeric `body`, an object `filename` and a numeric MIME type, through the real `FileHeader` and `FileContent`).
+  Each fails on `dev`: the four scans exceed their time limits and the file event throws `mimeType.lastIndexOf is not a function`.
+  Randomized comparisons against the previous implementations (300,000 URL texts, 500,000 reply bodies, 100,000 math texts and 40,000 marker paragraphs) found no difference apart from that quote later in the body.
+- Validation: typecheck, the production build, and ESLint and Prettier on the touched files pass.
+  The full unit suite passes except the four tests that also fail on unchanged `dev` on this host: three `xcodeCloudPostClone` tests (no `/bin/bash`) and the caption send-failure test in `useRoomInputSendSessionController.test.ts`.
+
 ### Keep hearing room members after a gappy sync (2026-10-05)
 
 - Report: found while reviewing PR #399. After a gappy (`limited`) sync, for example when a backgrounded tab or a sleeping phone catches up, the client stopped hearing typing for everyone already in the room until reload; an agent that started typing showed nothing.
