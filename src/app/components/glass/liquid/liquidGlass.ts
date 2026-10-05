@@ -227,6 +227,11 @@ export const attachLiquidGlass = (
     queueMap();
   };
   const onPointerMove = (event: PointerEvent) => {
+    // Flat scrolling chrome must not move the light on its enclosing glass panel either.
+    if (event.target instanceof Element && event.target.closest('[data-glass-flat="true"]')) {
+      clearLight();
+      return;
+    }
     if (!permitsMotion() || event.pointerType === 'touch') return;
     pointerX = event.clientX;
     pointerY = event.clientY;

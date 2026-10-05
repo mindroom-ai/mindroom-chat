@@ -1,0 +1,11 @@
+{
+  "mindroom": {
+    "canvas": {
+      "enabled": true,
+      "libraries": true
+    },
+    "computers": {
+      "apiUrl": ""
+    }
+  }
+}

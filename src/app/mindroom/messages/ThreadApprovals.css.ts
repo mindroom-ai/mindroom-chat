@@ -99,10 +99,11 @@ globalStyle(`${HistoryBody} > ${Receipt}::before`, { display: 'none' });
 globalStyle(`${HistoryBody} > ${Receipt}:not(:last-child)`, {
   borderBottom: `1px solid ${color.Surface.ContainerLine}`,
 });
+export const DialogScroll = style({
+  maxHeight: 'min(80dvh, calc(100dvh - 24px))',
+});
 export const DialogBody = style({
   padding: config.space.S400,
-  overflowY: 'auto',
-  maxHeight: '70dvh',
   display: 'flex',
   flexDirection: 'column',
   gap: 16,

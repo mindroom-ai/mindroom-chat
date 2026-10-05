@@ -1,5 +1,4 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Capacitor } from '@capacitor/core';
 import { Box, Line } from 'folds';
 import { KnownMembership } from 'matrix-js-sdk';
 import { useParams, useSearchParams } from 'react-router-dom';
@@ -27,7 +26,7 @@ import { isThreadRouteReady } from './threadRouteUtils';
 import { hasActiveMindroomAgent, isMindroomAgentUserId } from '../matrix/agentIdentity';
 import { MembershipFilter } from '../../hooks/useMemberFilter';
 import { useClientConfig } from '../../hooks/useClientConfig';
-import { resolveComputerApiUrl } from '../computer/api';
+import { useComputerApiUrl } from '../computer/useComputerApiUrl';
 import { ComputerPanel } from '../computer/ComputerPanel';
 import { useRoomComputerState } from '../computer/useRoomComputerState';
 import { RoomCanvasPanel } from '../canvas/RoomCanvasPanel';
@@ -71,13 +70,9 @@ export function Room() {
   const powerLevels = usePowerLevels(room);
   const members = useRoomMembers(mx, room.roomId);
   const clientConfig = useClientConfig();
-  const computerApiUrl = resolveComputerApiUrl(clientConfig.mindroom?.computers?.apiUrl);
+  const computerApiUrl = useComputerApiUrl();
   const canvasEnabled = clientConfig.mindroom?.canvas?.enabled === true;
   const canvasLibraries = clientConfig.mindroom?.canvas?.libraries === true;
-  // The native apps' plugin bridge also listens to messages from nested frames, so canvases stay
-  // in the browser until that bridge accepts only the app's own frame.
-  const nativeApp = Capacitor.isNativePlatform();
-  const canvasAllowed = canvasEnabled && !nativeApp;
   const computerAgents = useMemo<ComputerAgent[]>(
     () =>
       members
@@ -117,6 +112,7 @@ export function Room() {
     roomId: room.roomId,
     threadId: routedThreadId,
     available: computerAvailable,
+    apiUrl: computerApiUrl,
   });
   const {
     event: canvasEvent,
@@ -134,7 +130,7 @@ export function Room() {
   const toggleCanvasExpanded = useCallback(() => setCanvasExpanded((value) => !value), []);
   const callView = room.isCallRoom();
   const canvasShown =
-    !callView && canvasAllowed && !callActive && !effectiveComputerOpen && !!canvasEvent;
+    !callView && canvasEnabled && !callActive && !effectiveComputerOpen && !!canvasEvent;
   // The conversation is unmounted, not hidden, so it cannot mark messages read while out of view.
   // On phones the canvas always covers the conversation.
   const canvasFillsRoom = canvasShown && (canvasExpanded || screenSize === ScreenSize.Mobile);
@@ -183,9 +179,6 @@ export function Room() {
       ) {
         return t('mindroomUi.uiActions.computerUnavailable');
       }
-      if (action.action === 'show_canvas' && canvasEnabled && nativeApp) {
-        return t('mindroomUi.uiActions.canvasUnavailableInApp');
-      }
       if (action.action === 'show_canvas' && !canvasEnabled) {
         return t('mindroomUi.uiActions.canvasDisabled');
       }
@@ -196,7 +189,6 @@ export function Room() {
     },
     [
       canvasEnabled,
-      nativeApp,
       callActive,
       callView,
       simpleMode,
@@ -305,6 +297,7 @@ export function Room() {
                 <Line variant="Background" direction="Vertical" size="300" />
               )}
               <ComputerPanel
+                key={computerApiUrl}
                 agents={computerAgents}
                 apiUrl={computerApiUrl}
                 mx={mx}
@@ -330,7 +323,7 @@ export function Room() {
               />
             </>
           )}
-          {!callView && isDrawer && !effectiveComputerOpen && !(canvasAllowed && canvasEvent) && (
+          {!callView && isDrawer && !effectiveComputerOpen && !(canvasEnabled && canvasEvent) && (
             <ResizableMembersPanel key={room.roomId} onClose={() => setPeopleDrawer(false)}>
               <MembersDrawer room={room} members={members} />
             </ResizableMembersPanel>

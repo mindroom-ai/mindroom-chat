@@ -122,8 +122,11 @@ vi.mock('jotai', async () => {
 
   return {
     ...actual,
-    useAtomValue: (atom: { mock?: string }) =>
-      atom?.mock === 'callEmbed' ? roomState.callEmbed : roomState.callChat,
+    useAtomValue: (atom: { mock?: string }) => {
+      if (atom?.mock === 'callEmbed') return roomState.callEmbed;
+      if (atom?.mock === 'callChat') return roomState.callChat;
+      return actual.useAtomValue(atom as Parameters<typeof actual.useAtomValue>[0]);
+    },
   };
 });
 
@@ -680,12 +683,12 @@ describe('Room', () => {
     await room.unmount();
   });
 
-  it('keeps canvases out of the native apps', async () => {
+  it('opens enabled canvases in the native apps', async () => {
     const native = vi.spyOn(Capacitor, 'isNativePlatform').mockReturnValue(true);
     const room = await renderCanvasRoom();
     await room.showCanvas();
-    expect(room.canvasOpen()).toBe(false);
-    expect(roomState.canvasPanelProps).toBeUndefined();
+    expect(room.canvasOpen()).toBe(true);
+    expect(roomState.canvasPanelProps).toBeDefined();
     native.mockRestore();
     await room.unmount();
   });
@@ -835,6 +838,37 @@ describe('Room', () => {
       await act(async () => renderer!.unmount());
     }
   );
+
+  it('closes the computer and ignores old control callbacks when the service changes', async () => {
+    roomState.clientConfig = {
+      mindroom: { computers: { apiUrl: 'https://computer.example.org' } },
+    };
+    roomState.members = [{ membership: 'join', userId: '@mindroom_helper:example.org' }];
+    const { Room } = await import('../../../features/room/Room');
+    let renderer: ReturnType<typeof create>;
+    await act(async () => {
+      renderer = create(React.createElement(Room));
+    });
+    await act(async () => roomState.roomViewProps?.onComputerToggle?.());
+    const previousInteractionChange = roomState.computerPanelProps?.onInteractionChange;
+    await act(async () =>
+      previousInteractionChange?.({ locked: true, agentUserId: '@mindroom_helper:example.org' })
+    );
+    roomState.clientConfig = {
+      mindroom: { computers: { apiUrl: 'https://other-computer.example.org' } },
+    };
+    await act(async () => renderer!.update(React.createElement(Room)));
+    expect(roomState.roomViewProps?.computerOpen).toBe(false);
+    expect(roomState.panelDisposals).toBe(1);
+    await act(async () => roomState.roomViewProps?.onComputerToggle?.());
+    expect(roomState.computerPanelProps?.apiUrl).toBe('https://other-computer.example.org');
+    await act(async () =>
+      previousInteractionChange?.({ locked: true, agentUserId: '@mindroom_helper:example.org' })
+    );
+    await act(async () => roomState.roomViewProps?.onComputerToggle?.());
+    expect(roomState.roomViewProps?.computerOpen).toBe(false);
+    await act(async () => renderer!.unmount());
+  });
 
   it('closes an open computer panel when the routed thread changes', async () => {
     roomState.clientConfig = {

@@ -8,11 +8,11 @@ import {
   Overlay,
   OverlayBackdrop,
   OverlayCenter,
-  Scroll,
   Text,
 } from 'folds';
 import FocusTrap from 'focus-trap-react';
 import { useTranslation } from 'react-i18next';
+import { PageScroll } from '../../components/page';
 import { Modal, Header } from '../../components/glass/GlassPrimitives';
 import { useAllJoinedRoomsSet, useGetRoom } from '../../hooks/useGetRoom';
 import { SpaceProvider } from '../../hooks/useSpace';
@@ -51,27 +51,30 @@ function CreateRoomModal({ state }: CreateRoomModalProps) {
           >
             <Modal size="300" flexHeight>
               <Box direction="Column">
-                <Header
-                  size="500"
-                  style={{
-                    padding: config.space.S200,
-                    paddingInlineStart: config.space.S400,
-                  }}
+                <PageScroll
+                  header={
+                    <Header
+                      size="500"
+                      style={{
+                        padding: config.space.S200,
+                        paddingInlineStart: config.space.S400,
+                      }}
+                    >
+                      <Box grow="Yes">
+                        <Text size="H4">
+                          {type === CreateRoomType.VoiceRoom
+                            ? t('featureUi.createRoom.newVoiceRoom')
+                            : t('featureUi.createRoom.newChatRoom')}
+                        </Text>
+                      </Box>
+                      <Box shrink="No">
+                        <IconButton size="300" radii="300" onClick={closeDialog}>
+                          <Icon src={Icons.Cross} />
+                        </IconButton>
+                      </Box>
+                    </Header>
+                  }
                 >
-                  <Box grow="Yes">
-                    <Text size="H4">
-                      {type === CreateRoomType.VoiceRoom
-                        ? t('featureUi.createRoom.newVoiceRoom')
-                        : t('featureUi.createRoom.newChatRoom')}
-                    </Text>
-                  </Box>
-                  <Box shrink="No">
-                    <IconButton size="300" radii="300" onClick={closeDialog}>
-                      <Icon src={Icons.Cross} />
-                    </IconButton>
-                  </Box>
-                </Header>
-                <Scroll size="300" hideTrack>
                   <Box
                     style={{
                       padding: config.space.S400,
@@ -82,7 +85,7 @@ function CreateRoomModal({ state }: CreateRoomModalProps) {
                   >
                     <CreateRoomForm space={space} onCreate={closeDialog} defaultType={type} />
                   </Box>
-                </Scroll>
+                </PageScroll>
               </Box>
             </Modal>
           </FocusTrap>

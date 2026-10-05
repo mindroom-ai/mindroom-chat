@@ -7,6 +7,7 @@ type Conversation = {
   roomId: string;
   threadId?: string;
   available: boolean;
+  apiUrl?: string;
 };
 
 type ComputerView = {
@@ -25,7 +26,8 @@ export function useRoomComputerState(conversation: Conversation) {
     stored.conversation.mx !== conversation.mx ||
     stored.conversation.roomId !== conversation.roomId ||
     stored.conversation.threadId !== conversation.threadId ||
-    stored.conversation.available !== conversation.available
+    stored.conversation.available !== conversation.available ||
+    stored.conversation.apiUrl !== conversation.apiUrl
   ) {
     current = { conversation, view: closedView() };
     // Reset before children render, so a previous view never starts a session in the new route.

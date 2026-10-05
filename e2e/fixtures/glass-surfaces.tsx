@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { createRoot } from 'react-dom/client';
-import { createClient, MsgType } from 'matrix-js-sdk';
+import { createClient, MatrixEvent, MemoryStore, MsgType } from 'matrix-js-sdk';
 import { Provider, createStore } from 'jotai';
 import { AvatarFallback, Text, color, config } from 'folds';
 import { Header, Menu, MenuItem, Modal } from '../../src/app/components/glass/GlassPrimitives';
@@ -32,7 +32,9 @@ import { mindroomAccountSettingsAtom } from '../../src/app/mindroom/settings/use
 import { Modal500 } from '../../src/app/components/Modal500';
 import * as threadBannerCss from '../../src/app/mindroom/threads/ThreadContextBanner.css';
 import { MessageGlass } from './MessageGlass';
+import { DialogMenusGlass } from './DialogMenusGlass';
 import { ChatControlsGlass } from './ChatControlsGlass';
+import { AccountDataEvent } from '../../src/types/matrix/accountData';
 
 const themes = {
   light: LightTheme,
@@ -231,14 +233,35 @@ function Fixture() {
 
 const store = createStore();
 store.set(mindroomAccountSettingsAtom, { simpleMode: false, expandLongMessagesByDefault: true });
+const matrixClient = createClient({
+  baseUrl: window.location.origin,
+  userId: '@fixture:localhost',
+  store: new MemoryStore(),
+});
+if (new URLSearchParams(window.location.search).get('viewer') === 'pack') {
+  matrixClient.store.storeAccountDataEvents([
+    new MatrixEvent({
+      type: AccountDataEvent.PoniesUserEmotes,
+      content: {
+        pack: { display_name: 'Studio pack' },
+        images: Object.fromEntries(
+          Array.from({ length: 25 }, (_, index) => [
+            `image-${index}`,
+            { url: `mxc://fixture/pack-${index}` },
+          ])
+        ),
+      },
+    }),
+  ]);
+}
 
 createRoot(document.getElementById('root')!).render(
   <Provider store={store}>
-    <MatrixClientProvider
-      value={createClient({ baseUrl: window.location.origin, userId: '@fixture:localhost' })}
-    >
+    <MatrixClientProvider value={matrixClient}>
       <SpecVersionsProvider value={{ versions: ['v1.10'] }}>
-        {new URLSearchParams(window.location.search).has('controls') ? (
+        {new URLSearchParams(window.location.search).has('menus') ? (
+          <DialogMenusGlass />
+        ) : new URLSearchParams(window.location.search).has('controls') ? (
           <ChatControlsGlass />
         ) : new URLSearchParams(window.location.search).has('messages') ? (
           <MessageGlass />

@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { expect, test } from '@playwright/test';
 import { loginWithPassword } from './helpers/auth';
+import { openSettingsFromAccountRail } from './helpers/accounts';
 
 // Only this explicit fixture file enables the spec. Never use the default homeserver.
 const fixturePath = process.env.E2E_COMPUTER_FIXTURE;
@@ -50,7 +51,7 @@ test('watch, type, resume in the originating thread, and recover on desktop/mobi
         allowCustomHomeservers: true,
         hashRouter: { enabled: false },
         auth: { allowRegistration: false, disablePasswordLogin: false },
-        mindroom: { ...config.mindroom, computers: { apiUrl: fixture.api_origin } },
+        mindroom: { ...config.mindroom, computers: { apiUrl: '' } },
       },
     });
   });
@@ -62,6 +63,17 @@ test('watch, type, resume in the originating thread, and recover on desktop/mobi
       encodeURIComponent(fixture.thread_id)
   );
   const showComputer = page.getByRole('button', { name: 'Show Computer', exact: true });
+  await expect(showComputer).toHaveCount(0);
+  await openSettingsFromAccountRail(page);
+  await page.getByRole('button', { name: 'General', exact: true }).click();
+  const serviceInput = page.getByRole('textbox', { name: 'Computer service URL', exact: true });
+  await serviceInput.fill(fixture.api_origin);
+  await page.getByRole('button', { name: 'Save computer service', exact: true }).click();
+  await expect(
+    page.getByRole('status').filter({ hasText: 'Computer service saved.' })
+  ).toBeVisible();
+  await page.reload();
+  await expect(showComputer).toBeVisible();
   await showComputer.click();
   const panel = page.getByRole('complementary', { name: 'Computer panel' });
   await expect(panel.getByText('Watch mode', { exact: true })).toBeVisible();
@@ -144,6 +156,15 @@ test('watch, type, resume in the originating thread, and recover on desktop/mobi
   await expect(panel.getByText('Watch mode', { exact: true })).toBeVisible();
   await panel.getByRole('button', { name: 'Close computer', exact: true }).click();
   await expect(panel).toHaveCount(0);
+  await page.setViewportSize({ width: 1600, height: 1000 });
+  await openSettingsFromAccountRail(page);
+  await page.getByRole('button', { name: 'General', exact: true }).click();
+  await expect(serviceInput).toHaveValue(fixture.api_origin);
+  await serviceInput.fill('');
+  await page.getByRole('button', { name: 'Save computer service', exact: true }).click();
+  await page.reload();
+  await expect(page.locator('[data-slate-editor="true"]').first()).toBeVisible();
+  await expect(showComputer).toHaveCount(0);
   expect(continuations).toHaveLength(1);
   expect(pageErrors).toEqual([]);
 });
