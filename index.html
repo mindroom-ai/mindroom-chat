@@ -1,7 +1,11 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" translate="no">
   <head>
     <meta charset="UTF-8" />
+    <!-- Browser page translation moves React-owned text nodes into <font>
+         wrappers, and the next render crashes with NotFoundError on removeChild.
+         See the notranslate entry in FORK_CHANGES.md before removing. -->
+    <meta name="google" content="notranslate" />
     <base href="/" />
     <meta name="theme-color" content="#1A1A1A" />
     <meta name="color-scheme" content="dark light" />
