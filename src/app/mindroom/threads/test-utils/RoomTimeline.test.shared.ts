@@ -22,6 +22,7 @@ import {
   type MindroomSyncEngine,
 } from '../../engine';
 import type { useThreadAwareTimelineRefresh } from '../useThreadAwareTimelineRefresh';
+import type { ScrollAnchorMemory } from '../../scroll/scrollAnchorMemory';
 
 const {
   passthrough,
@@ -1749,7 +1750,7 @@ const createControlledRoomTimelineHarness = (
   RoomTimelineComponent: (props: Record<string, unknown>) => React.ReactElement | null
 ) => {
   const roomInputRef = createRef<HTMLElement>();
-  const compactRoomScrollStateRef = { current: new Map<string, number>() };
+  const compactRoomScrollStateRef: { current: ScrollAnchorMemory } = { current: new Map() };
   const editor = {} as Editor;
   const defaultSummaryMap = new Map();
   const defaultOnStoreThreadSummary = vi.fn();
