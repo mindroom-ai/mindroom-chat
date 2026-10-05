@@ -134,7 +134,7 @@ const expectReaderHeld = async (page: Page, change: () => Promise<void>) => {
   const height = await bannerHeight(page);
   await change();
   await expect.poll(() => bannerHeight(page)).not.toBe(height);
-  // Let the ledger settle at rest.
+  // Let the timeline settle.
   await page.waitForTimeout(1_000);
   expect(Math.abs((await rowTops(page))[readerId] - readerTop)).toBeLessThanOrEqual(1);
   expect(

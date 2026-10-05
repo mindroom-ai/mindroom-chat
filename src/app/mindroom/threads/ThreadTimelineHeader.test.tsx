@@ -69,8 +69,12 @@ describe('ThreadTimelineHeader', () => {
       )
     );
     const scroll = scrollRef.current!;
-    Object.defineProperty(scroll, 'scrollTop', { configurable: true, value: 300 });
     const header = scroll.firstElementChild as HTMLElement;
+    // At the bottom, a layout of the resized header clamps the offset.
+    Object.defineProperty(scroll, 'scrollTop', {
+      configurable: true,
+      get: () => (header.style.height === '80px' ? 300 : 278),
+    });
     expect(header.style.height).toBe('80px');
 
     // A tag row appears: the rows below must not move before the timeline knows.

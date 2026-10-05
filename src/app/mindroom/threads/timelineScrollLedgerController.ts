@@ -367,21 +367,6 @@ export const useTimelineScrollLedgerController = ({
     scrollElement.addEventListener('scroll', onScroll, { passive: true });
     return () => scrollElement.removeEventListener('scroll', onScroll);
   }, [anchorThreadLedgerAt, getScrollElement, threadId]);
-  // The banner above the rows changes height mostly without a timeline
-  // commit (tags, resolution, pins, wrapping). Its header resizes in a frame
-  // callback, before layout, and reports the change with the offset it had;
-  // a reader with a row keeps it in place, as with native scroll anchoring.
-  // One discrete change is written at once: folded into the ledger, its
-  // settle at rest lands after any scroll the reader starts meanwhile.
-  const holdThreadBannerResize = useCallback(
-    (deltaPx: number, scrollTop: number) => {
-      const scrollElement = getScrollElement();
-      if (!scrollElement || !threadId || threadLedgerAnchorRef.current?.threadId !== threadId)
-        return;
-      scrollElement.scrollTop = scrollTop + deltaPx;
-    },
-    [getScrollElement, threadId]
-  );
 
   // Last native/programmatic offset observed by the direction-aware ledger
   // boundary guard (upstream #119). Settlement writes update this
@@ -402,6 +387,28 @@ export const useTimelineScrollLedgerController = ({
   const settleDiscardWatchRef = useRef<
     { px: number; preSettleScrollTop: number; settledScrollTop: number; at: number } | undefined
   >(undefined);
+
+  // The banner above the rows changes height mostly without a timeline
+  // commit (tags, resolution, pins, wrapping). Its header resizes in a frame
+  // callback, before layout, and reports the change with the offset it had;
+  // a reader with a row keeps it in place, as with native scroll anchoring.
+  // One discrete change is written at once: folded into the ledger, its
+  // settle at rest lands after any scroll the reader starts meanwhile. A
+  // reader at the very top stays there.
+  const holdThreadBannerResize = useCallback(
+    (deltaPx: number, scrollTop: number) => {
+      const scrollElement = getScrollElement();
+      if (!scrollElement || !threadId || threadLedgerAnchorRef.current?.threadId !== threadId)
+        return;
+      if (scrollTop <= 0) return;
+      scrollElement.scrollTop = scrollTop + deltaPx;
+      // As after a settle: this write is not a discarded settle's reversal,
+      // and its scroll event must not read as the reader's direction.
+      settleDiscardWatchRef.current = undefined;
+      ledgerBoundaryScrollTopRef.current = scrollElement.scrollTop;
+    },
+    [getScrollElement, threadId]
+  );
 
   // The settle is one synchronous block. Clearing the DOM margin, shifting
   // scrollTop, and resetting virtual-core's scrollMargin may not be split
