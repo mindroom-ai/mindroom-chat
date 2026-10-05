@@ -588,6 +588,56 @@ describe('kept inputs', () => {
     expect(page.kept()).toEqual({ '#rate': '7' });
   });
 
+  it('tells a page about a restored disabled checkbox the way it hears about clicks, so enabling it keeps the value', async () => {
+    const page = open(
+      `<input type="checkbox" id="flag" disabled><button id="enable">Enable</button>
+<script>
+  const state = { flag: false };
+  const flag = document.getElementById('flag');
+  flag.addEventListener('click', () => { state.flag = flag.checked; });
+  document.getElementById('enable').addEventListener('click', () => { flag.disabled = false; flag.checked = state.flag; });
+</script>`,
+      JSON.stringify({ '#flag': true })
+    );
+    await settle();
+    page.$<HTMLButtonElement>('#enable').click();
+    await settle();
+    expect(page.$('#flag').checked).toBe(true);
+  });
+
+  it("restores controls drawn later only after the page has handled the user's change", async () => {
+    // The page writes its state into every control when the checkbox changes.
+    const page = open(
+      `<div id="step"></div>
+<script>
+  const state = { size: 's', flag: false };
+  setTimeout(() => {
+    document.getElementById('step').innerHTML = '<input type="radio" name="size" value="s" checked><input type="radio" name="size" value="l"><input type="checkbox" id="flag">';
+    const render = () => {
+      document.querySelector('[value=' + state.size + ']').checked = true;
+      document.getElementById('flag').checked = state.flag;
+    };
+    document.getElementById('step').addEventListener('change', (event) => {
+      if (event.target.name === 'size') state.size = event.target.value;
+    });
+    document.getElementById('flag').addEventListener('click', () => { state.flag = document.getElementById('flag').checked; render(); });
+  }, 5);
+</script>`,
+      JSON.stringify({ '#flag': true })
+    );
+    await settle();
+    page.$('[value=l]').click();
+    await settle();
+    expect([page.$('[value=l]').checked, page.$('#flag').checked]).toEqual([true, true]);
+    expect(page.kept()).toEqual({ '#flag': true, size: 'l' });
+  });
+
+  it('leaves a checkbox alone when its kept value is not a choice', async () => {
+    const page = open('<input type="checkbox" id="flag">', JSON.stringify({ '#flag': 'yes' }));
+    await settle();
+    expect(page.$('#flag').checked).toBe(false);
+  });
+
   it('drops the longest values once all kept values outgrow what Chat keeps, so the others are still kept', async () => {
     const fields = Array.from(
       { length: 9 },

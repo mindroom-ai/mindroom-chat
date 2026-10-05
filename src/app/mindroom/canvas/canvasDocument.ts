@@ -129,27 +129,26 @@ const inputsScript = (inputs: string | undefined): string => `
     Object.getOwnPropertyDescriptor(Object.getPrototypeOf(control), property).set.call(control, value);
   let seen;
   let restoring = false;
-  const fire = (control) => {
-    control.dispatchEvent(new Event('input', { bubbles: true }));
-    control.dispatchEvent(new Event('change', { bubbles: true }));
-  };
   const restore = (keys) => {
     restoring = true;
-    // One control at a time, set and then told, and found again each time, since a page may
-    // redraw its other controls (React, or a list rebuilt from its own state) when one changes.
+    let live = new Map(controls().map((entry) => [entry.key, entry]));
     keys.forEach((key) => {
-      const entry = controls().find((item) => item.key === key);
       const value = inputs[key];
-      if (!entry || value === undefined || JSON.stringify(value) === JSON.stringify(valueOf(entry))) return;
+      if (value === undefined) return;
+      let entry = live.get(key);
+      // A page may replace its controls when one changes (a list rebuilt from its own state).
+      if (entry && !entry.control.isConnected) {
+        live = new Map(controls().map((item) => [item.key, item]));
+        entry = live.get(key);
+      }
+      if (!entry || JSON.stringify(value) === JSON.stringify(valueOf(entry))) return;
       const { control } = entry;
+      // One control at a time, set and then told, since a page may redraw the others when one changes.
       if (control.type === 'radio' || control.type === 'checkbox') {
         const target = control.type === 'radio' ? group(control).find((item) => item.value === value) : control;
-        if (!target) return;
-        // A click is what frameworks (React) listen to for these; a disabled control ignores clicks.
-        if (!target.matches(':disabled')) target.click();
-        else {
-          assign(target, 'checked', control.type === 'radio' || value === true);
-          fire(target);
+        // A click is what frameworks (React) listen to for these, and a dispatched one also reaches a disabled control.
+        if (target && (control.type === 'radio' || typeof value === 'boolean')) {
+          target.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
         }
         return;
       }
@@ -158,17 +157,20 @@ const inputsScript = (inputs: string | undefined): string => `
       } else if (control.type === 'select-one' && ![...control.options].some((option) => option.value === value)) {
         return;
       } else assign(control, 'value', String(value));
-      fire(control);
+      control.dispatchEvent(new Event('input', { bubbles: true }));
+      control.dispatchEvent(new Event('change', { bubbles: true }));
     });
-    controls().forEach((entry) => { if (keys.includes(entry.key)) seen[entry.key] = JSON.stringify(valueOf(entry)); });
+    const restored = new Set(keys);
+    controls().forEach((entry) => { if (restored.has(entry.key)) seen[entry.key] = JSON.stringify(valueOf(entry)); });
     restoring = false;
   };
-  const saveInputs = (event) => {
-    if (!seen || restoring) return;
+  const saveInputs = (events) => {
+    if (!seen) return;
     // A control the page drew later, such as the next step of a form, gets its kept value first,
     // unless the user just changed it (events a page fires itself are not trusted).
-    const target = event && event.isTrusted && event.target;
-    const changedNow = ({ key, control }) => control === target || (control.type === 'radio' && target && target.name === key);
+    const targets = events.filter((event) => event.isTrusted).map((event) => event.target);
+    const changedNow = ({ key, control }) =>
+      targets.some((target) => target === control || (control.type === 'radio' && target.type === 'radio' && target.name === key));
     const late = controls().filter((entry) => !(entry.key in seen) && !changedNow(entry));
     if (late.length) restore(late.map((entry) => entry.key));
     let changed = false;
@@ -191,10 +193,22 @@ const inputsScript = (inputs: string | undefined): string => `
     }
     parent.parent.postMessage({ type: '${CANVAS_STATE_MESSAGE}', version: 1, inputs: json }, '*');
   };
-  document.addEventListener('input', saveInputs, true);
-  document.addEventListener('change', saveInputs, true);
-  // Buttons such as Reset change values without input events, and may draw new controls.
-  document.addEventListener('click', () => setTimeout(() => saveInputs()), true);
+  // Changes are kept a task later, once the page has handled them, so a restore cannot undo them;
+  // buttons such as Reset change values without input events, so clicks count too.
+  let queued;
+  const later = (event) => {
+    if (restoring) return;
+    if (!queued) {
+      queued = [];
+      setTimeout(() => {
+        const events = queued;
+        queued = undefined;
+        saveInputs(events);
+      });
+    }
+    queued.push(event);
+  };
+  ['input', 'change', 'click'].forEach((type) => document.addEventListener(type, later, true));
   document.addEventListener('DOMContentLoaded', () => setTimeout(() => {
     seen = Object.create(null);
     restore(controls().map((entry) => entry.key));

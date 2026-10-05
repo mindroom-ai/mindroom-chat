@@ -540,6 +540,7 @@ article{background:var(--mr-surface);border:1px solid var(--mr-border);border-ra
   // Sliders and fields keep their values in every version without the page saving anything.
   const ratesPage = (heading: string) => `<h2>${heading}</h2>
 <input id="rate" type="range" min="0" max="10" value="2"><output id="shown">2</output>
+<label><input type="checkbox" id="monthly"> Monthly</label>
 <script>
   const rate = document.getElementById('rate');
   rate.addEventListener('input', () => { document.getElementById('shown').textContent = rate.value; });
@@ -552,6 +553,7 @@ article{background:var(--mr-surface);border:1px solid var(--mr-border);border-ra
   });
   await expect(frame.getByText('Rates', { exact: true })).toBeVisible();
   await frame.locator('#rate').fill('7');
+  await frame.locator('#monthly').check();
   await expect(frame.locator('#shown')).toHaveText('7');
   await page.waitForTimeout(1_000);
   await page.reload();
@@ -560,12 +562,14 @@ article{background:var(--mr-surface);border:1px solid var(--mr-border);border-ra
   await expect(frame.getByText('Rates', { exact: true })).toBeVisible();
   await expect(frame.locator('#rate')).toHaveValue('7');
   await expect(frame.locator('#shown')).toHaveText('7');
+  await expect(frame.locator('#monthly')).toBeChecked();
   await frame.locator('#rate').fill('8');
   await updateCanvas(ratesId, ratesPage('Rates, updated'), 'Rates');
   await panel.getByRole('button', { name: 'Load update' }).click();
   await expect(frame.getByText('Rates, updated')).toBeVisible();
   await expect(frame.locator('#rate')).toHaveValue('8');
   await expect(frame.locator('#shown')).toHaveText('8');
+  await expect(frame.locator('#monthly')).toBeChecked();
   await panel.getByRole('button', { name: 'Previous version' }).click();
   await expect(frame.getByText('Rates', { exact: true })).toBeVisible();
   await expect(frame.locator('#shown')).toHaveText('8');
