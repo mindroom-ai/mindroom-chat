@@ -2758,9 +2758,7 @@
         "noThreads": "スレッドはありません"
       },
       "compactThreadCard": {
-        "streaming": "ストリーミング",
-        "unreadMessages": "未読メッセージ",
-        "lastActivity": "最後のアクティビティ {{time}}"
+        "streaming": "ストリーミング"
       },
       "mindroomCallChatView": {
         "chat": "チャット",

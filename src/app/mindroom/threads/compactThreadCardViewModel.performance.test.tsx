@@ -113,19 +113,20 @@ describe('compact card formatting work', () => {
     const format = vi.spyOn(Intl.NumberFormat.prototype, 'format', 'get');
     const harness = mount(room, [record('$a'), record('$b')]);
     const original = harness.models;
-    expect(format).toHaveBeenCalledTimes(2);
+    // Each built card formats its count twice: the label and the bare number.
+    expect(format).toHaveBeenCalledTimes(4);
     const rebuilt = [record('$a'), record('$b')];
     rebuilt[0].absoluteIndex = 10;
     rebuilt[0].cache.eventCount = 500;
     harness.update(rebuilt);
     expect(harness.models[0]).toBe(original[0]);
     expect(harness.models[1]).toBe(original[1]);
-    expect(format).toHaveBeenCalledTimes(2);
+    expect(format).toHaveBeenCalledTimes(4);
 
     harness.update([record('$a', 1001), record('$b')]);
     expect(harness.models[0].messageCount).toBe(1001);
     expect(harness.models[1]).toBe(original[1]);
-    expect(format).toHaveBeenCalledTimes(3);
+    expect(format).toHaveBeenCalledTimes(6);
     harness.unmount();
   });
 

@@ -151,6 +151,7 @@ const viewModel = {
   id: { roomId: entry.roomId, threadRootId: entry.threadRootId },
   displayTitleText: 'Ship the sidebar',
   messageCountLabel: '4 msgs',
+  messageCountText: '4',
   participants: [
     { userId: '@me:example.org', displayName: 'Me' },
     { userId: '@mindroom_research:example.org', displayName: 'Research Agent' },

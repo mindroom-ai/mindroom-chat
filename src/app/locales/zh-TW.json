@@ -2758,9 +2758,7 @@
         "noThreads": "沒有討論串"
       },
       "compactThreadCard": {
-        "streaming": "串流回應",
-        "unreadMessages": "未讀訊息",
-        "lastActivity": "上次活動 {{time}}"
+        "streaming": "串流回應"
       },
       "mindroomCallChatView": {
         "chat": "聊天",

@@ -16,6 +16,7 @@ const cards: CompactThreadCardViewModel[] = Array.from({ length: 200 }, (_, inde
   previewText: 'An agent is streaming a response.',
   messageCount: 1,
   messageCountLabel: '1 msg',
+  messageCountText: '1',
   attentionState: 'streaming',
   attentionStatusText: 'Agent streaming',
   participants: [],
