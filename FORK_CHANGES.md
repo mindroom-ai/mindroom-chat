@@ -52,7 +52,7 @@
   That final app ran locally with an empty bundled computer default; native Settings selected the fixture service, persisted across installation/relaunch, and controlled the worker through native keyboard input and Resume.
   Fresh screenshots cover the settings preset, Chart.js touch tooltip, unclipped version controls, current error delivery, and computer control/resume.
   The focused browser canvas and settings-driven worker computer tests both pass.
-- Ready PRs: [Chat #384](https://github.com/mindroom-ai/mindroom-chat/pull/384) and [backend #2680](https://github.com/mindroom-ai/mindroom/pull/2680); neither is merged.
+- Delivery: [backend #2680](https://github.com/mindroom-ai/mindroom/pull/2680) is merged; [Chat #384](https://github.com/mindroom-ai/mindroom-chat/pull/384) is being updated with current dev before its authorized merge.
   Current dev was merged after its thread-cycle fix advanced the base; both Runbook entries are preserved.
   The full browser scheduler ran all 145 jobs with eight parallel slots: 108 passed, 36 failed, and the external worker fixture was initially unavailable.
   A quiet rerun recovered resource-sensitive failures; canvas/UI action fixtures now align real sync delivery with a disposable Docker server clock running about 64 ms ahead, restore foreground before new requests, and clean up long polls at teardown.
@@ -61,7 +61,41 @@
   Canvas, UI actions, command palette, and the real worker-computer spec all pass after focused reruns.
   The combined latest results cover 142 passing jobs; three unchanged WebKit jobs still fail on this Mac: glass-surfaces and members-header-glass assume button Tab navigation, and room-glass-overlays measures geometry about 6.5 px away from its expected position.
   Independent review approved each logical implementation and fixture step.
-  Both PRs remain ready for review and unmerged; computers require the documented backend deployment and a configured service through Settings or the optional build default.
+  Independent Astra, GPT-6.1 Sol and Vertex Opus 5.5 reviews approved both implementation heads.
+  User authorized merging both PRs, then adding private LAN HTTP support in a separate follow-up.
+  The latest dev merge preserves the canvas-state Runbook entry; only that document conflicted.
+  Integration validation passes all 6,135 unit tests, typecheck, lint (17 existing warnings), and the iOS web build.
+  Computers require the documented backend deployment and a configured service through Settings or the optional build default.
+
+### Let canvas pages keep their own state on this device (2026-10-04)
+
+- Why: a canvas page lost everything the user did in it whenever Chat reloaded, the panel reopened, or the agent updated the page; Claude artifacts give pages storage that persists.
+  A canvas runs with an opaque origin, so its own `localStorage` and IndexedDB are unavailable.
+- Pages read `window.mindroom.state` (the JSON value last saved, or `undefined`), which is set before their scripts run, and call `window.mindroom.saveState(value)`.
+  `saveState` throws for a value that is not JSON or whose JSON is longer than 256 K characters (`CANVAS_STATE_MAX_LENGTH`); Chat checks the message again (`readCanvasState`).
+  The page parses the saved JSON from an escaped string, so saved text cannot close the script and every JSON value, `__proto__` keys included, comes back as saved.
+- State belongs to the canvas (its request event ID), so every version and every agent update starts from it; it stays on this device and is never sent to the room or the agent.
+  A page that wants the agent to see it sends it with `mindroom.submit`.
+- `useCanvasSavedState` reads the state before the page starts (the panel shows loading until then) and keeps the latest save in memory, writing to IndexedDB at most every 500 ms and when the panel unmounts.
+  Saving never rebuilds the frame; every page `CanvasPanel` shows (an update, **Load update**, a version switch, even one with the same HTML) and **Reload panel** embed the latest state.
+  If the read fails (no IndexedDB, or a lost connection), the page starts without state and saves stay in memory, so they cannot overwrite what is stored.
+- `canvasStateStore.ts` keeps one IndexedDB database per session, `mindroom-canvas-state::<session>`, which holds the states of at most 100 canvases and forgets the ones saved longest ago; each save sorts after all others, even if the clock went back.
+  Saved state is the user's data rather than a cache, so **Clear cache and reload** keeps it and only removing the account deletes it (`deleteSessionLocalData` in `sessionLifecycle.ts`, and the no-device-ID fallback in `removeCurrentClientSessionAndReload`).
+  The account is removed from the session list before its data is deleted, and the hook drops pending saves for a session no longer listed, so a late write cannot recreate the database.
+- Tests (removing each fix fails its test):
+  - `canvasStateStore.test.ts`: one state per canvas and session, the limit (also after the clock went back), a failed write that rejects once without an unhandled rejection.
+  - `useCanvasSavedState.test.tsx`: the read, a failed read, quick saves written once, the unmount write (which a panel reopened at once reads), no write after the account is removed.
+  - `canvasDocument.test.ts`: `</script>` and a `__proto__` key round-trip; `canvasMessages.test.ts`: the message checks.
+  - `CanvasPanel.test.tsx`: a save does not reload the page; the next page and a same-HTML revision start from the latest state. `RoomCanvasPanel.test.tsx`: the page waits for the read.
+  - `initMatrix.test.ts`: account removal deletes the database, also without a device ID; clearing caches keeps it even when the browser lists it.
+  - `e2e/agent-canvas.spec.ts` types into a page that saves, reloads Chat, and sees the text again, then again after an agent update.
+- Validation: typecheck, lint and the e2e spec pass; the full unit suite passes except the three `xcodeCloudPostClone` tests that need `/bin/bash` (they fail on unchanged `dev` on this host too).
+  Live with a real agent (GPT-6.1 Sol, backend with mindroom-ai/mindroom#2683): asked for a packing checklist that remembers ticks, it used `mindroom.state` and `saveState` unprompted; ticks survived a Chat reload and the agent's update that added an item.
+- Not changed:
+  - A save in the last half second before the browser closes the tab can be lost, since a page unload does not unmount React.
+  - Two tabs showing the same canvas keep separate copies; the last save wins, and a tab sees the other's saves only when its panel opens again.
+  - The page waits for the read with no time limit; a read that never settles would leave the canvas loading. Not seen: the 2026-10-02 iOS stalls hit the cache database while other databases kept working, and this one opens a connection per operation.
+- Next: if pages with saved state become common, let an agent update load at once even over unsent work in a page that saves.
 
 ### Stop the reconcile from linking thread segments into a cycle that froze the app (2026-10-04)
 
