@@ -44,7 +44,13 @@ test('Up-arrow edits the latest own thread reply and preserves normal room editi
   await expect(page.getByRole('button', { name: 'Save', exact: true })).toHaveCount(0);
   await expect(composer).toHaveText('Unsent draft');
 
-  await composer.fill('');
+  // fill('') selects the draft by script and presses Delete at once. While the client
+  // catches up after a cached start, Chromium can deliver the key before the
+  // selectionchange event, so the editor deletes at its old caret; clear until empty.
+  await expect(async () => {
+    await composer.fill('');
+    await expect(composer.locator('[data-slate-string]')).toHaveCount(0, { timeout: 1_000 });
+  }).toPass();
   await composer.press('ArrowUp');
   await expect(editBox).toBeFocused();
   await editBox.fill('Updated thread reply');

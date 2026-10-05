@@ -12,6 +12,7 @@ import path from 'path';
 import { execFileSync } from 'child_process';
 import buildConfig from './build.config';
 import { authenticationRecoveryAssets } from './scripts/authentication-recovery-assets.mjs';
+import { iosClientConfig } from './scripts/ios-client-config.mjs';
 import { e2eClientConfig } from './scripts/e2e-client-config.mjs';
 import { resolveBuildVersion } from './scripts/build-version.mjs';
 import { injectElementCallTransparentBackground } from './scripts/element-call-background.mjs';
@@ -76,6 +77,15 @@ export const copyFiles = {
       src: 'config.mindroom.json',
       dest: '',
       rename: 'config.json',
+      transform:
+        process.env.MINDROOM_BUILD_TARGET === 'ios'
+          ? (source) =>
+              iosClientConfig(
+                source,
+                JSON.parse(fs.readFileSync('config.mindroom.ios.json', 'utf8')),
+                process.env.MINDROOM_IOS_COMPUTER_API_URL
+              )
+          : undefined,
     },
     {
       src: 'public/manifest.json',

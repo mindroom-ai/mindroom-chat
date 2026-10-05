@@ -49,6 +49,8 @@ vi.mock('folds', () => ({
 vi.mock('jotai', () => ({ useAtomValue: () => new Map() }));
 vi.mock('react-colorful', () => ({ HexColorPicker: () => null }));
 vi.mock('../../../components/page', () => ({
+  PageScroll: ({ header, children }: React.PropsWithChildren<{ header?: React.ReactNode }>) =>
+    React.createElement('div', null, header, children),
   Page: ({ children }: React.PropsWithChildren) => React.createElement('main', null, children),
   PageContent: ({ children }: React.PropsWithChildren) =>
     React.createElement('div', null, children),

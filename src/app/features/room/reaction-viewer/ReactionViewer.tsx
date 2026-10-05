@@ -4,6 +4,7 @@ import { Avatar, Box, Icon, IconButton, Icons, Line, Scroll, Text, as, config } 
 import { MatrixEvent, Room, RoomMember } from 'matrix-js-sdk';
 import { Relations } from 'matrix-js-sdk/lib/models/relations';
 import { useTranslation } from 'react-i18next';
+import { PageScroll } from '../../../components/page';
 import { Header, MenuItem } from '../../../components/glass/GlassPrimitives';
 import { getMemberDisplayName } from '../../../utils/room';
 import { eventWithShortcode, getMxIdLocalPart, mxcUrlToHttp } from '../../../utils/matrix';
@@ -87,69 +88,69 @@ export const ReactionViewer = as<'div', ReactionViewerProps>(
         </Box>
         <Line variant="Surface" direction="Vertical" size="300" />
         <Box grow="Yes" direction="Column">
-          <Header className={css.Header} variant="Surface" size="600">
-            <Box grow="Yes">
-              <Text size="H3" truncate>
-                {t('featureUi.room.reactionViewer.reactedWith', {
-                  shortcode: selectedShortcode,
-                })}
-              </Text>
+          <PageScroll
+            header={
+              <Header className={css.Header} variant="Surface" size="600">
+                <Box grow="Yes">
+                  <Text size="H3" truncate>
+                    {t('featureUi.room.reactionViewer.reactedWith', {
+                      shortcode: selectedShortcode,
+                    })}
+                  </Text>
+                </Box>
+                <IconButton size="300" onClick={requestClose}>
+                  <Icon src={Icons.Cross} />
+                </IconButton>
+              </Header>
+            }
+          >
+            <Box className={css.Content} direction="Column">
+              {selectedReactions.map((mEvent) => {
+                const senderId = mEvent.getSender();
+                if (!senderId) return null;
+                const member = room.getMember(senderId);
+                const name = (member ? getName(member) : getMxIdLocalPart(senderId)) ?? senderId;
+
+                const avatarMxcUrl = member?.getMxcAvatarUrl();
+                const avatarUrl = avatarMxcUrl
+                  ? mxcUrlToHttp(mx, avatarMxcUrl, useAuthentication, 100, 100, 'crop')
+                  : undefined;
+
+                return (
+                  <MenuItem
+                    key={senderId}
+                    style={{ padding: `0 ${config.space.S200}` }}
+                    radii="400"
+                    onClick={(event: React.MouseEvent<HTMLButtonElement>) => {
+                      openProfile(
+                        room.roomId,
+                        space?.roomId,
+                        senderId,
+                        getMouseEventCords(event.nativeEvent),
+                        'Bottom'
+                      );
+                    }}
+                    before={
+                      <Avatar size="200">
+                        <UserAvatar
+                          userId={senderId}
+                          src={avatarUrl ?? undefined}
+                          alt={name}
+                          renderFallback={() => <Icon size="50" src={Icons.User} filled />}
+                        />
+                      </Avatar>
+                    }
+                  >
+                    <Box grow="Yes">
+                      <Text size="T400" truncate>
+                        {name}
+                      </Text>
+                    </Box>
+                  </MenuItem>
+                );
+              })}
             </Box>
-            <IconButton size="300" onClick={requestClose}>
-              <Icon src={Icons.Cross} />
-            </IconButton>
-          </Header>
-
-          <Box grow="Yes">
-            <Scroll visibility="Hover" hideTrack size="300">
-              <Box className={css.Content} direction="Column">
-                {selectedReactions.map((mEvent) => {
-                  const senderId = mEvent.getSender();
-                  if (!senderId) return null;
-                  const member = room.getMember(senderId);
-                  const name = (member ? getName(member) : getMxIdLocalPart(senderId)) ?? senderId;
-
-                  const avatarMxcUrl = member?.getMxcAvatarUrl();
-                  const avatarUrl = avatarMxcUrl
-                    ? mxcUrlToHttp(mx, avatarMxcUrl, useAuthentication, 100, 100, 'crop')
-                    : undefined;
-
-                  return (
-                    <MenuItem
-                      key={senderId}
-                      style={{ padding: `0 ${config.space.S200}` }}
-                      radii="400"
-                      onClick={(event: React.MouseEvent<HTMLButtonElement>) => {
-                        openProfile(
-                          room.roomId,
-                          space?.roomId,
-                          senderId,
-                          getMouseEventCords(event.nativeEvent),
-                          'Bottom'
-                        );
-                      }}
-                      before={
-                        <Avatar size="200">
-                          <UserAvatar
-                            userId={senderId}
-                            src={avatarUrl ?? undefined}
-                            alt={name}
-                            renderFallback={() => <Icon size="50" src={Icons.User} filled />}
-                          />
-                        </Avatar>
-                      }
-                    >
-                      <Box grow="Yes">
-                        <Text size="T400" truncate>
-                          {name}
-                        </Text>
-                      </Box>
-                    </MenuItem>
-                  );
-                })}
-              </Box>
-            </Scroll>
-          </Box>
+          </PageScroll>
         </Box>
       </Box>
     );

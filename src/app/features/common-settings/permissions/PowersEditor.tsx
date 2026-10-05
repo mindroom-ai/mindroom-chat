@@ -6,7 +6,6 @@ import {
   Icon,
   Icons,
   IconButton,
-  Scroll,
   Button,
   Input,
   RectCords,
@@ -21,7 +20,7 @@ import { HexColorPicker } from 'react-colorful';
 import { useAtomValue } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import { Menu } from '../../../components/glass/GlassPrimitives';
-import { Page, PageContent, PageHeader } from '../../../components/page';
+import { Page, PageContent, PageHeader, PageScroll } from '../../../components/page';
 import { IPowerLevels } from '../../../hooks/usePowerLevels';
 import { SequenceCard } from '../../../components/sequence-card';
 import { SequenceCardStyle } from '../styles.css';
@@ -369,261 +368,259 @@ export function PowersEditor({ powerLevels, requestClose }: PowersEditorProps) {
   const powerTags = { ...powerLevelTags, ...editedPowerTags };
   return (
     <Page>
-      <PageHeader outlined={false} balance>
-        <Box alignItems="Center" grow="Yes" gap="200">
-          <Box alignItems="Inherit" grow="Yes" gap="200">
-            <Chip
-              size="500"
-              radii="Pill"
-              onClick={requestClose}
-              before={<Icon data-directional size="100" src={Icons.ArrowLeft} />}
-            >
-              <Text size="T300">
-                {t('featureUi.commonSettings.permissions.powersEditor.permissions')}
-              </Text>
-            </Chip>
-          </Box>
-          <Box shrink="No">
-            <IconButton onClick={requestClose} variant="Surface">
-              <Icon src={Icons.Cross} />
-            </IconButton>
-          </Box>
-        </Box>
-      </PageHeader>
-      <Box grow="Yes">
-        <Scroll hideTrack visibility="Hover">
-          <PageContent>
-            <Box direction="Column" gap="700">
-              <Box direction="Column" gap="100">
-                <Box alignItems="Baseline" gap="200" justifyContent="SpaceBetween">
-                  <Text size="L400">
-                    {t('featureUi.commonSettings.permissions.powersEditor.powerLevels')}
-                  </Text>
-                  <BetaNoticeBadge />
-                </Box>
-                <SequenceCard
-                  variant="SurfaceVariant"
-                  className={SequenceCardStyle}
-                  direction="Column"
-                  gap="400"
+      <PageScroll
+        header={
+          <PageHeader outlined={false} balance>
+            <Box alignItems="Center" grow="Yes" gap="200">
+              <Box alignItems="Inherit" grow="Yes" gap="200">
+                <Chip
+                  size="500"
+                  radii="Pill"
+                  onClick={requestClose}
+                  before={<Icon data-directional size="100" src={Icons.ArrowLeft} />}
                 >
-                  <SettingTile
-                    title={t('featureUi.commonSettings.permissions.powersEditor.newPowerLevel')}
-                    description={t(
-                      'featureUi.commonSettings.permissions.powersEditor.createANewPowerLevel'
-                    )}
-                    after={
-                      !createTag && (
-                        <Button
-                          onClick={() => setCreateTag(true)}
-                          variant="Secondary"
-                          fill="Soft"
-                          size="300"
-                          radii="300"
-                          outlined
-                          disabled={applyingChanges}
-                        >
-                          <Text size="B300">
-                            {t('featureUi.commonSettings.permissions.powersEditor.create')}
-                          </Text>
-                        </Button>
-                      )
-                    }
-                  />
-                  {createTag && (
-                    <EditPower
-                      maxPower={maxPower}
-                      onSave={handleSaveTag}
-                      onClose={() => setCreateTag(false)}
-                    />
+                  <Text size="T300">
+                    {t('featureUi.commonSettings.permissions.powersEditor.permissions')}
+                  </Text>
+                </Chip>
+              </Box>
+              <Box shrink="No">
+                <IconButton onClick={requestClose} variant="Surface">
+                  <Icon src={Icons.Cross} />
+                </IconButton>
+              </Box>
+            </Box>
+          </PageHeader>
+        }
+      >
+        <PageContent>
+          <Box direction="Column" gap="700">
+            <Box direction="Column" gap="100">
+              <Box alignItems="Baseline" gap="200" justifyContent="SpaceBetween">
+                <Text size="L400">
+                  {t('featureUi.commonSettings.permissions.powersEditor.powerLevels')}
+                </Text>
+                <BetaNoticeBadge />
+              </Box>
+              <SequenceCard
+                variant="SurfaceVariant"
+                className={SequenceCardStyle}
+                direction="Column"
+                gap="400"
+              >
+                <SettingTile
+                  title={t('featureUi.commonSettings.permissions.powersEditor.newPowerLevel')}
+                  description={t(
+                    'featureUi.commonSettings.permissions.powersEditor.createANewPowerLevel'
                   )}
-                </SequenceCard>
-                {getPowers(powerTags).map((power) => {
-                  const tag = powerTags[power];
-                  const tagIconSrc =
-                    tag.icon && getPowerTagIconSrc(mx, useAuthentication, tag.icon);
+                  after={
+                    !createTag && (
+                      <Button
+                        onClick={() => setCreateTag(true)}
+                        variant="Secondary"
+                        fill="Soft"
+                        size="300"
+                        radii="300"
+                        outlined
+                        disabled={applyingChanges}
+                      >
+                        <Text size="B300">
+                          {t('featureUi.commonSettings.permissions.powersEditor.create')}
+                        </Text>
+                      </Button>
+                    )
+                  }
+                />
+                {createTag && (
+                  <EditPower
+                    maxPower={maxPower}
+                    onSave={handleSaveTag}
+                    onClose={() => setCreateTag(false)}
+                  />
+                )}
+              </SequenceCard>
+              {getPowers(powerTags).map((power) => {
+                const tag = powerTags[power];
+                const tagIconSrc = tag.icon && getPowerTagIconSrc(mx, useAuthentication, tag.icon);
 
-                  return (
-                    <SequenceCard
-                      key={power}
-                      variant={deleted.has(power) ? 'Critical' : 'SurfaceVariant'}
-                      className={SequenceCardStyle}
-                      direction="Column"
-                      gap="400"
-                    >
-                      <UseStateProvider initial={false}>
-                        {(edit, setEdit) =>
-                          edit ? (
-                            <EditPower
-                              maxPower={maxPower}
-                              power={power}
-                              tag={tag}
-                              onSave={handleSaveTag}
-                              onClose={() => setEdit(false)}
-                            />
-                          ) : (
-                            <SettingTile
-                              before={<PowerColorBadge color={tag.color} />}
-                              title={
-                                <Box as="span" alignItems="Center" gap="200">
-                                  <b>{deleted.has(power) ? <s>{tag.name}</s> : tag.name}</b>
-                                  <Box as="span" shrink="No" alignItems="Inherit" gap="Inherit">
-                                    {tagIconSrc && <PowerIcon size="50" iconSrc={tagIconSrc} />}
-                                    <Text as="span" size="T200" priority="300">
-                                      ({power})
-                                    </Text>
-                                  </Box>
+                return (
+                  <SequenceCard
+                    key={power}
+                    variant={deleted.has(power) ? 'Critical' : 'SurfaceVariant'}
+                    className={SequenceCardStyle}
+                    direction="Column"
+                    gap="400"
+                  >
+                    <UseStateProvider initial={false}>
+                      {(edit, setEdit) =>
+                        edit ? (
+                          <EditPower
+                            maxPower={maxPower}
+                            power={power}
+                            tag={tag}
+                            onSave={handleSaveTag}
+                            onClose={() => setEdit(false)}
+                          />
+                        ) : (
+                          <SettingTile
+                            before={<PowerColorBadge color={tag.color} />}
+                            title={
+                              <Box as="span" alignItems="Center" gap="200">
+                                <b>{deleted.has(power) ? <s>{tag.name}</s> : tag.name}</b>
+                                <Box as="span" shrink="No" alignItems="Inherit" gap="Inherit">
+                                  {tagIconSrc && <PowerIcon size="50" iconSrc={tagIconSrc} />}
+                                  <Text as="span" size="T200" priority="300">
+                                    ({power})
+                                  </Text>
                                 </Box>
-                              }
-                              after={
-                                deleted.has(power) ? (
-                                  <Chip
-                                    variant="Critical"
-                                    radii="Pill"
-                                    disabled={applyingChanges}
-                                    onClick={() => handleToggleDelete(power)}
-                                  >
-                                    <Text size="B300">
-                                      {t('featureUi.commonSettings.permissions.powersEditor.undo')}
-                                    </Text>
-                                  </Chip>
-                                ) : (
-                                  <Box shrink="No" alignItems="Center" gap="200">
-                                    <TooltipProvider
-                                      tooltip={
-                                        <Tooltip style={{ maxWidth: toRem(200) }}>
-                                          {usedPowers.has(power) ? (
-                                            <Box direction="Column">
-                                              <Text size="L400">
-                                                {t(
-                                                  'featureUi.commonSettings.permissions.powersEditor.usedPowerLevel'
-                                                )}
-                                              </Text>
-                                              <Text size="T200">
-                                                {t(
-                                                  'featureUi.commonSettings.permissions.powersEditor.youHaveToRemoveItsUseBefore'
-                                                )}
-                                              </Text>
-                                            </Box>
-                                          ) : (
-                                            <Text>
+                              </Box>
+                            }
+                            after={
+                              deleted.has(power) ? (
+                                <Chip
+                                  variant="Critical"
+                                  radii="Pill"
+                                  disabled={applyingChanges}
+                                  onClick={() => handleToggleDelete(power)}
+                                >
+                                  <Text size="B300">
+                                    {t('featureUi.commonSettings.permissions.powersEditor.undo')}
+                                  </Text>
+                                </Chip>
+                              ) : (
+                                <Box shrink="No" alignItems="Center" gap="200">
+                                  <TooltipProvider
+                                    tooltip={
+                                      <Tooltip style={{ maxWidth: toRem(200) }}>
+                                        {usedPowers.has(power) ? (
+                                          <Box direction="Column">
+                                            <Text size="L400">
                                               {t(
-                                                'featureUi.commonSettings.permissions.powersEditor.delete'
+                                                'featureUi.commonSettings.permissions.powersEditor.usedPowerLevel'
                                               )}
                                             </Text>
-                                          )}
-                                        </Tooltip>
-                                      }
-                                    >
-                                      {(triggerRef) => (
-                                        <Chip
-                                          ref={triggerRef}
-                                          variant="Secondary"
-                                          fill="None"
-                                          radii="Pill"
-                                          disabled={applyingChanges}
-                                          aria-disabled={usedPowers.has(power)}
-                                          onClick={
-                                            usedPowers.has(power)
-                                              ? undefined
-                                              : () => handleToggleDelete(power)
-                                          }
-                                        >
-                                          <Icon size="50" src={Icons.Delete} />
-                                        </Chip>
-                                      )}
-                                    </TooltipProvider>
-                                    <Chip
-                                      variant="Secondary"
-                                      radii="Pill"
-                                      disabled={applyingChanges}
-                                      onClick={() => setEdit(true)}
-                                    >
-                                      <Text size="B300">
-                                        {t(
-                                          'featureUi.commonSettings.permissions.powersEditor.edit'
+                                            <Text size="T200">
+                                              {t(
+                                                'featureUi.commonSettings.permissions.powersEditor.youHaveToRemoveItsUseBefore'
+                                              )}
+                                            </Text>
+                                          </Box>
+                                        ) : (
+                                          <Text>
+                                            {t(
+                                              'featureUi.commonSettings.permissions.powersEditor.delete'
+                                            )}
+                                          </Text>
                                         )}
-                                      </Text>
-                                    </Chip>
-                                  </Box>
-                                )
-                              }
-                            />
-                          )
-                        }
-                      </UseStateProvider>
-                    </SequenceCard>
-                  );
-                })}
-              </Box>
-              {hasChanges && (
-                <Menu
-                  style={{
-                    position: 'sticky',
-                    padding: config.space.S200,
-                    paddingInlineStart: config.space.S400,
-                    bottom: config.space.S400,
-                    left: config.space.S400,
-                    right: 0,
-                    zIndex: 1,
-                  }}
-                  variant="Success"
-                >
-                  <Box alignItems="Center" gap="400">
-                    <Box grow="Yes" direction="Column">
-                      {applyState.status === AsyncStatus.Error ? (
-                        <Text size="T200">
-                          <b>
-                            {t(
-                              'featureUi.commonSettings.permissions.powersEditor.failedToApplyChangesPleaseTryAgain'
-                            )}
-                          </b>
-                        </Text>
-                      ) : (
-                        <Text size="T200">
-                          <b>
-                            {t(
-                              'featureUi.commonSettings.permissions.powersEditor.changesSavedApplyWhenReady'
-                            )}
-                          </b>
-                        </Text>
-                      )}
-                    </Box>
-                    <Box shrink="No" gap="200">
-                      <Button
-                        size="300"
-                        variant="Success"
-                        fill="None"
-                        radii="300"
-                        disabled={applyingChanges}
-                        onClick={resetChanges}
-                      >
-                        <Text size="B300">
-                          {t('featureUi.commonSettings.permissions.powersEditor.reset')}
-                        </Text>
-                      </Button>
-                      <Button
-                        size="300"
-                        variant="Success"
-                        radii="300"
-                        disabled={applyingChanges}
-                        before={
-                          applyingChanges && <Spinner variant="Success" fill="Solid" size="100" />
-                        }
-                        onClick={handleApplyChanges}
-                      >
-                        <Text size="B300">
-                          {t('featureUi.commonSettings.permissions.powersEditor.applyChanges')}
-                        </Text>
-                      </Button>
-                    </Box>
-                  </Box>
-                </Menu>
-              )}
+                                      </Tooltip>
+                                    }
+                                  >
+                                    {(triggerRef) => (
+                                      <Chip
+                                        ref={triggerRef}
+                                        variant="Secondary"
+                                        fill="None"
+                                        radii="Pill"
+                                        disabled={applyingChanges}
+                                        aria-disabled={usedPowers.has(power)}
+                                        onClick={
+                                          usedPowers.has(power)
+                                            ? undefined
+                                            : () => handleToggleDelete(power)
+                                        }
+                                      >
+                                        <Icon size="50" src={Icons.Delete} />
+                                      </Chip>
+                                    )}
+                                  </TooltipProvider>
+                                  <Chip
+                                    variant="Secondary"
+                                    radii="Pill"
+                                    disabled={applyingChanges}
+                                    onClick={() => setEdit(true)}
+                                  >
+                                    <Text size="B300">
+                                      {t('featureUi.commonSettings.permissions.powersEditor.edit')}
+                                    </Text>
+                                  </Chip>
+                                </Box>
+                              )
+                            }
+                          />
+                        )
+                      }
+                    </UseStateProvider>
+                  </SequenceCard>
+                );
+              })}
             </Box>
-          </PageContent>
-        </Scroll>
-      </Box>
+            {hasChanges && (
+              <Menu
+                style={{
+                  position: 'sticky',
+                  padding: config.space.S200,
+                  paddingInlineStart: config.space.S400,
+                  bottom: config.space.S400,
+                  left: config.space.S400,
+                  right: 0,
+                  zIndex: 1,
+                }}
+                variant="Success"
+              >
+                <Box alignItems="Center" gap="400">
+                  <Box grow="Yes" direction="Column">
+                    {applyState.status === AsyncStatus.Error ? (
+                      <Text size="T200">
+                        <b>
+                          {t(
+                            'featureUi.commonSettings.permissions.powersEditor.failedToApplyChangesPleaseTryAgain'
+                          )}
+                        </b>
+                      </Text>
+                    ) : (
+                      <Text size="T200">
+                        <b>
+                          {t(
+                            'featureUi.commonSettings.permissions.powersEditor.changesSavedApplyWhenReady'
+                          )}
+                        </b>
+                      </Text>
+                    )}
+                  </Box>
+                  <Box shrink="No" gap="200">
+                    <Button
+                      size="300"
+                      variant="Success"
+                      fill="None"
+                      radii="300"
+                      disabled={applyingChanges}
+                      onClick={resetChanges}
+                    >
+                      <Text size="B300">
+                        {t('featureUi.commonSettings.permissions.powersEditor.reset')}
+                      </Text>
+                    </Button>
+                    <Button
+                      size="300"
+                      variant="Success"
+                      radii="300"
+                      disabled={applyingChanges}
+                      before={
+                        applyingChanges && <Spinner variant="Success" fill="Solid" size="100" />
+                      }
+                      onClick={handleApplyChanges}
+                    >
+                      <Text size="B300">
+                        {t('featureUi.commonSettings.permissions.powersEditor.applyChanges')}
+                      </Text>
+                    </Button>
+                  </Box>
+                </Box>
+              </Menu>
+            )}
+          </Box>
+        </PageContent>
+      </PageScroll>
     </Page>
   );
 }

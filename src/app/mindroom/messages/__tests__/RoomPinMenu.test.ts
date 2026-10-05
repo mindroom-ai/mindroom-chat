@@ -2,7 +2,16 @@ import React from 'react';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+vi.mock('../../../components/page', () => ({
+  PageScroll: ({ header, children }: React.PropsWithChildren<{ header?: React.ReactNode }>) =>
+    React.createElement('div', null, header, children),
+}));
+
 const APPROVAL_EVENT_TYPE = 'io.mindroom.tool_approval';
+
+vi.mock('../../../hooks/useVirtualListScrollMargin', () => ({
+  useVirtualListScrollMargin: () => 0,
+}));
 
 const {
   getEditedEventMock,

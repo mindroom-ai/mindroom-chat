@@ -135,6 +135,17 @@
         "urlPreview": "Anteprima URL",
         "urlPreviewEncrypted": "Anteprima URL nelle stanze crittografate",
         "showHiddenEvents": "Mostra eventi nascosti"
+      },
+      "computers": {
+        "sectionTitle": "Computer",
+        "apiUrl": "URL del servizio computer",
+        "description": "Scegli un backend MindRoom affidabile; riceverà un token di accesso di breve durata. Salvato su questo dispositivo. Lascia vuoto per disattivare i computer.",
+        "save": "Salva servizio computer",
+        "reset": "Usa impostazione dell’app",
+        "invalidUrl": "Inserisci un’origine senza credenziali, percorso, query o frammento. Usa HTTPS, oppure HTTP con localhost o un indirizzo IP LAN privato.",
+        "httpNotice": "HTTP non crittografa l’accesso o il traffico del computer. Usalo solo su una rete locale attendibile.",
+        "saveFailed": "Impossibile salvare il servizio computer su questo dispositivo.",
+        "saved": "Servizio computer salvato."
       }
     }
   },
@@ -2310,6 +2321,12 @@
         "browserUnsupported": "Il tuo browser non supporta WebRTC.",
         "endCurrentCall": "Termina prima la chiamata in corso.",
         "failedToStart": "Impossibile avviare la chiamata."
+      },
+      "agentCallHeaderButton": {
+        "call": "Chiama un agente",
+        "callAgent": "Chiama {{name}}",
+        "chooseAgent": "Scegli un agente da chiamare",
+        "close": "Chiudi"
       }
     },
     "commands": {
@@ -2467,6 +2484,9 @@
         "autoApproveMinutes_one": "Approva automaticamente per {{count}} minuto",
         "autoApproveMinutes_other": "Approva automaticamente per {{count}} minuti",
         "denyCallReasonOptional": "Motivo del rifiuto della chiamata {{number}} (facoltativo)",
+        "approveExactCall": "Approva esattamente questa chiamata",
+        "approveAnyArguments": "Approva qualsiasi argomento",
+        "anyArgumentsWarning": "Con qualsiasi argomento, l'agente può effettuare una chiamata a {{tool}} con ciò che decide, entro {{minutes}} minuti dall'orario programmato.",
         "autoApproveMinutes_many": "Approva automaticamente per {{count}} minuti"
       },
       "approvalGrantStatus": {
@@ -2502,7 +2522,14 @@
         "toolAndServer": "Strumento: {{tool}} · Server: {{server}}",
         "tool": "Strumento: {{tool}}",
         "reason": "Motivo: {{reason}}",
+        "approvedWhenScheduledByAt": "Approvato alla programmazione da {{approver}} · {{timestamp}}",
+        "approvedWhenScheduledBy": "Approvato alla programmazione da {{approver}}",
         "timedPermissionMinutes_many": "Autorizzazione a tempo · {{count}} minuti"
+      },
+      "approvalSchedule": {
+        "scheduledFor": "Programmato per {{timestamp}}",
+        "approvedExactArguments": "Approvato per questi argomenti esatti",
+        "approvedAnyArguments": "Approvato per qualsiasi argomento di questo strumento"
       },
       "approvalReviewCall": {
         "pending": "in sospeso",
@@ -2778,9 +2805,7 @@
         "noThreads": "Nessun thread"
       },
       "compactThreadCard": {
-        "streaming": "streaming",
-        "unreadMessages": "Messaggi non letti",
-        "lastActivity": "Ultima attività {{time}}"
+        "streaming": "streaming"
       },
       "mindroomCallChatView": {
         "chat": "Chat",
@@ -2957,8 +2982,7 @@
       "computerUnavailable": "Il computer di questo agente non è disponibile.",
       "releaseControl": "Rilascia il controllo del computer prima di aprire un’altra vista.",
       "openConversation": "Apri questa richiesta dalla conversazione della stanza.",
-      "settingsUnavailable": "Disattiva la modalità semplice per aprire questa sezione delle impostazioni.",
-      "canvasUnavailableInApp": "I pannelli interattivi non sono ancora disponibili nell’app. Apri questa conversazione in un browser."
+      "settingsUnavailable": "Disattiva la modalità semplice per aprire questa sezione delle impostazioni."
     },
     "canvas": {
       "panelLabel": "Pannello interattivo",

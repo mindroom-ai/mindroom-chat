@@ -16,6 +16,7 @@ import {
   buildCanvasResponsePreview,
   canvasResponseFitsInEvent,
   readCanvasError,
+  readCanvasState,
   readCanvasSubmission,
   type CanvasSubmission,
 } from './canvasMessages';
@@ -54,6 +55,9 @@ export type CanvasPanelProps = {
   onToggleExpanded?: () => void;
   /** Which of the canvas's versions is shown, when it has more than one. */
   version?: { current: number; total: number };
+  /** The canvas's saved state, read whenever a page loads, so it holds what the previous page saved. */
+  savedState?: () => string | undefined;
+  onSaveState?: (json: string) => void;
   onSelectVersion?: (current: number) => void;
 };
 
@@ -140,6 +144,8 @@ export function CanvasPanel({
   onToggleExpanded,
   version,
   onSelectVersion,
+  savedState,
+  onSaveState,
 }: CanvasPanelProps) {
   const { t } = useTranslation();
   const frameRef = useRef<HTMLIFrameElement>(null);
@@ -150,6 +156,8 @@ export function CanvasPanel({
     theme,
   }));
   const [updateAvailable, setUpdateAvailable] = useState(false);
+  const [reloads, setReloads] = useState(0);
+  // Saving never rebuilds the page; every page shown, and every reload, starts from the latest saved state.
   const doc = useMemo(
     () =>
       buildCanvasDocument(
@@ -157,11 +165,12 @@ export function CanvasPanel({
         displayed.colorScheme,
         displayed.theme,
         displayed.title,
-        libraries
+        libraries,
+        savedState?.()
       ),
-    [displayed.html, displayed.colorScheme, displayed.theme, displayed.title, libraries]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [displayed, libraries, reloads]
   );
-  const [reloads, setReloads] = useState(0);
   const docKey = useMemo(() => documentKey(doc), [doc]);
   const frameKey = `${displayed.revisionEventId}:${docKey}:${reloads}`;
   const [escapedFrame, setEscapedFrame] = useState<string>();
@@ -187,8 +196,8 @@ export function CanvasPanel({
   // Whether the frame may hold work the user has not sent since it loaded or since their last send.
   const touched = useRef(false);
   const lastStageAt = useRef(0);
-  const latest = useRef({ canvas, colorScheme, theme });
-  latest.current = { canvas, colorScheme, theme };
+  const latest = useRef({ canvas, colorScheme, theme, onSaveState });
+  latest.current = { canvas, colorScheme, theme, onSaveState };
   // Pages can be megabytes, so revisions compare by a hash of their HTML.
   const incomingHtmlKey = useMemo(() => documentKey(canvas.html), [canvas.html]);
   const displayedHtmlKey = useMemo(() => documentKey(displayed.html), [displayed.html]);
@@ -256,6 +265,11 @@ export function CanvasPanel({
       }
       const frame = canvasFrameWindow(frameRef.current);
       if (!frame || event.source !== frame) return;
+      const state = readCanvasState(event, frame);
+      if (state !== undefined) {
+        latest.current.onSaveState?.(state);
+        return;
+      }
       const error = readCanvasError(event, frame);
       if (error !== undefined) {
         const listed = pageErrorsNow.current;
@@ -465,7 +479,7 @@ export function CanvasPanel({
   return (
     <aside className={css.Panel} aria-label={t('mindroomUi.canvas.panelLabel')}>
       <div className={css.Header}>
-        <Box alignItems="Center" gap="200">
+        <Box className={css.TitleGroup} alignItems="Center" gap="200">
           <Icon size="300" src={Icons.Category} />
           <div className={css.Title}>
             <Text size="H4" truncate>
@@ -476,7 +490,7 @@ export function CanvasPanel({
             </Text>
           </div>
         </Box>
-        <Box alignItems="Center" gap="100">
+        <Box className={css.Controls} alignItems="Center" gap="100">
           {versions && onSelectVersion && (
             <Box alignItems="Center" gap="100">
               <IconButton

@@ -214,7 +214,7 @@ test.describe('live threads', () => {
       .locator('[data-thread-root-id="' + canonicalRootId + '"]');
     await expect(compactThreadButton).toBeVisible({ timeout: 30_000 });
     await expect(compactThreadButton).toContainText(rootBody);
-    await expect(compactThreadButton).toContainText('0 replies');
+    await expect(compactThreadButton).toHaveAccessibleName(/\b0 replies\b/);
 
     await compactThreadButton.click();
     await expect(page.getByText('Thread View')).toBeVisible({ timeout: 30_000 });

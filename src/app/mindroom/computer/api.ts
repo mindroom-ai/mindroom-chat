@@ -22,8 +22,26 @@ export class ComputerApiError extends Error {
   }
 }
 
-const isLoopbackHost = (hostname: string): boolean =>
-  hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '[::1]';
+const isLocalComputerHost = (hostname: string): boolean => {
+  // HTTP is limited to loopback and literal RFC 1918 / IPv6 unique-local addresses.
+  // DNS names still require HTTPS, even when they currently resolve to a private IP.
+  if (
+    hostname === 'localhost' ||
+    hostname === '127.0.0.1' ||
+    hostname === '[::1]' ||
+    /^\[f[cd][\da-f]{2}:/i.test(hostname)
+  ) {
+    return true;
+  }
+  if (!/^\d{1,3}(?:\.\d{1,3}){3}$/.test(hostname)) return false;
+  const octets = hostname.split('.').map(Number);
+  return (
+    octets.every((octet) => Number.isInteger(octet) && octet >= 0 && octet <= 255) &&
+    (octets[0] === 10 ||
+      (octets[0] === 172 && octets[1] >= 16 && octets[1] <= 31) ||
+      (octets[0] === 192 && octets[1] === 168))
+  );
+};
 
 export const resolveComputerApiUrl = (configuredUrl?: string): string | undefined => {
   const value = configuredUrl?.trim();
@@ -32,7 +50,7 @@ export const resolveComputerApiUrl = (configuredUrl?: string): string | undefine
   try {
     const url = new URL(value);
     const supportedProtocol =
-      url.protocol === 'https:' || (url.protocol === 'http:' && isLoopbackHost(url.hostname));
+      url.protocol === 'https:' || (url.protocol === 'http:' && isLocalComputerHost(url.hostname));
     if (
       !supportedProtocol ||
       url.username ||

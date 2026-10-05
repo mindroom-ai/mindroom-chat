@@ -69,6 +69,6 @@ elif [[ -n "${CI:-}" || -n "${CI_BUILD_NUMBER:-}" || -n "${CI_XCODEBUILD_ACTION:
   exit 1
 fi
 
-npm run build
+npm run build:ios
 npx cap sync ios
 npm run appstore:preflight

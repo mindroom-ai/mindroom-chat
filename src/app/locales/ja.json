@@ -135,6 +135,17 @@
         "urlPreview": "URL プレビュー",
         "urlPreviewEncrypted": "暗号化されたルームでの URL プレビュー",
         "showHiddenEvents": "非表示のイベントを表示"
+      },
+      "computers": {
+        "sectionTitle": "コンピューター",
+        "apiUrl": "コンピューターサービスのURL",
+        "description": "信頼できるMindRoomバックエンドを選択してください。短期間有効なサインイントークンが送信されます。このデバイスに保存されます。空欄にするとコンピューターが無効になります。",
+        "save": "コンピューターサービスを保存",
+        "reset": "アプリの既定値を使用",
+        "invalidUrl": "認証情報、パス、クエリ、フラグメントを含まないオリジンを入力してください。HTTPS、または localhost やプライベート LAN IP アドレスで HTTP を使用してください。",
+        "httpNotice": "HTTP はサインイン情報やコンピューターの通信を暗号化しません。信頼できるローカルネットワークでのみ使用してください。",
+        "saveFailed": "このデバイスにコンピューターサービスを保存できませんでした。",
+        "saved": "コンピューターサービスを保存しました。"
       }
     }
   },
@@ -2282,6 +2293,12 @@
         "browserUnsupported": "お使いのブラウザは WebRTC をサポートしていません。",
         "endCurrentCall": "まず現在の通話を終了してください。",
         "failedToStart": "通話の開始に失敗しました。"
+      },
+      "agentCallHeaderButton": {
+        "call": "エージェントと通話",
+        "callAgent": "{{name}} と通話",
+        "chooseAgent": "通話するエージェントを選択",
+        "close": "閉じる"
       }
     },
     "commands": {
@@ -2437,7 +2454,10 @@
         "cancel": "キャンセル",
         "autoApproveMinutes_one": "{{count}} 分間自動承認します",
         "autoApproveMinutes_other": "{{count}} 分間自動承認します",
-        "denyCallReasonOptional": "呼び出し {{number}} を拒否する理由（任意）"
+        "denyCallReasonOptional": "呼び出し {{number}} を拒否する理由（任意）",
+        "approveExactCall": "この呼び出しをそのまま承認",
+        "approveAnyArguments": "任意の引数を承認",
+        "anyArgumentsWarning": "任意の引数を承認すると、エージェントは予定時刻の前後 {{minutes}} 分以内に、自分で決めた内容で {{tool}} を 1 回呼び出せます。"
       },
       "approvalGrantStatus": {
         "autoApprovalActive": "自動承認が有効です",
@@ -2470,7 +2490,14 @@
         "originalFixedExpiry": "元の固定有効期限: {{timestamp}}",
         "toolAndServer": "ツール: {{tool}} · サーバー: {{server}}",
         "tool": "ツール: {{tool}}",
-        "reason": "理由: {{reason}}"
+        "reason": "理由: {{reason}}",
+        "approvedWhenScheduledByAt": "予定作成時に {{approver}} が承認 · {{timestamp}}",
+        "approvedWhenScheduledBy": "予定作成時に {{approver}} が承認"
+      },
+      "approvalSchedule": {
+        "scheduledFor": "{{timestamp}} に予定",
+        "approvedExactArguments": "この引数どおりで承認済み",
+        "approvedAnyArguments": "このツールの任意の引数で承認済み"
       },
       "approvalReviewCall": {
         "pending": "保留中",
@@ -2731,9 +2758,7 @@
         "noThreads": "スレッドはありません"
       },
       "compactThreadCard": {
-        "streaming": "ストリーミング",
-        "unreadMessages": "未読メッセージ",
-        "lastActivity": "最後のアクティビティ {{time}}"
+        "streaming": "ストリーミング"
       },
       "mindroomCallChatView": {
         "chat": "チャット",
@@ -2903,8 +2928,7 @@
       "computerUnavailable": "このエージェントのコンピューターは利用できません。",
       "releaseControl": "別の画面を開く前にコンピューターの操作権を手放してください。",
       "openConversation": "ルームの会話からこのリクエストを開いてください。",
-      "settingsUnavailable": "この設定項目を開くには、シンプルモードをオフにしてください。",
-      "canvasUnavailableInApp": "インタラクティブパネルはアプリではまだ利用できません。ブラウザでこの会話を開いてください。"
+      "settingsUnavailable": "この設定項目を開くには、シンプルモードをオフにしてください。"
     },
     "canvas": {
       "panelLabel": "インタラクティブパネル",

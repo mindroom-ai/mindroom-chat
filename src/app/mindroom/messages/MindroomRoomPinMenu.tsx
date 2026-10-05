@@ -11,7 +11,6 @@ import {
   Icon,
   IconButton,
   Icons,
-  Scroll,
   Spinner,
   Text,
   toRem,
@@ -19,6 +18,8 @@ import {
 import { Opts as LinkifyOpts } from 'linkifyjs';
 import { HTMLReactParserOptions } from 'html-react-parser';
 import { useVirtualizer } from '@tanstack/react-virtual';
+import { PageScroll } from '../../components/page';
+import { useVirtualListScrollMargin } from '../../hooks/useVirtualListScrollMargin';
 import { getEventAttachmentOwner } from './eventAttachments';
 import { Menu, Header } from '../../components/glass/GlassPrimitives';
 import { useRoomPinnedEvents } from '../../hooks/useRoomPinnedEvents';
@@ -289,10 +290,13 @@ export const RoomPinMenu = forwardRef<HTMLDivElement, RoomPinMenuProps>(
 
     const { navigateRoom } = useRoomNavigate();
     const scrollRef = useRef<HTMLDivElement>(null);
+    const listRef = useRef<HTMLDivElement>(null);
+    const scrollMargin = useVirtualListScrollMargin(scrollRef, listRef);
 
     const virtualizer = useVirtualizer({
       count: sortedPinnedEvent.length,
       getScrollElement: () => scrollRef.current,
+      scrollMargin,
       estimateSize: () => 75,
       overscan: 4,
     });
@@ -501,94 +505,102 @@ export const RoomPinMenu = forwardRef<HTMLDivElement, RoomPinMenuProps>(
     return (
       <Menu ref={ref} className={css.PinMenu}>
         <Box grow="Yes" direction="Column">
-          <Header className={css.PinMenuHeader} size="500">
-            <Box grow="Yes">
-              <Text size="H5">{t('mindroomUi.messages.mindroomRoomPinMenu.pinnedMessages')}</Text>
-            </Box>
-            <Box shrink="No">
-              <IconButton size="300" onClick={requestClose} radii="300">
-                <Icon src={Icons.Cross} size="400" />
-              </IconButton>
-            </Box>
-          </Header>
-          <Box grow="Yes">
-            <Scroll ref={scrollRef} size="300" hideTrack visibility="Hover">
-              <Box className={css.PinMenuContent} direction="Column" gap="100">
-                {sortedPinnedEvent.length > 0 ? (
-                  <div
-                    style={{
-                      position: 'relative',
-                      height: virtualizer.getTotalSize(),
-                    }}
-                  >
-                    {virtualizer.getVirtualItems().map((vItem) => {
-                      const eventId = sortedPinnedEvent[vItem.index];
-                      if (!eventId) return null;
+          <PageScroll
+            scrollRef={scrollRef}
+            header={
+              <Header className={css.PinMenuHeader} size="500">
+                <Box grow="Yes">
+                  <Text size="H5">
+                    {t('mindroomUi.messages.mindroomRoomPinMenu.pinnedMessages')}
+                  </Text>
+                </Box>
+                <Box shrink="No">
+                  <IconButton size="300" onClick={requestClose} radii="300">
+                    <Icon src={Icons.Cross} size="400" />
+                  </IconButton>
+                </Box>
+              </Header>
+            }
+          >
+            <Box className={css.PinMenuContent} direction="Column" gap="100">
+              {sortedPinnedEvent.length > 0 ? (
+                <div
+                  ref={listRef}
+                  style={{
+                    position: 'relative',
+                    height: virtualizer.getTotalSize(),
+                  }}
+                >
+                  {virtualizer.getVirtualItems().map((vItem) => {
+                    const eventId = sortedPinnedEvent[vItem.index];
+                    if (!eventId) return null;
 
-                      return (
-                        <VirtualTile
-                          virtualItem={vItem}
-                          style={{ paddingBottom: config.space.S200 }}
-                          ref={virtualizer.measureElement}
-                          key={vItem.index}
+                    return (
+                      <VirtualTile
+                        virtualItem={vItem}
+                        style={{
+                          top: vItem.start - scrollMargin,
+                          paddingBottom: config.space.S200,
+                        }}
+                        ref={virtualizer.measureElement}
+                        key={vItem.index}
+                      >
+                        <SequenceCard
+                          style={{ padding: config.space.S400, borderRadius: config.radii.R300 }}
+                          variant="SurfaceVariant"
+                          direction="Column"
                         >
-                          <SequenceCard
-                            style={{ padding: config.space.S400, borderRadius: config.radii.R300 }}
-                            variant="SurfaceVariant"
-                            direction="Column"
-                          >
-                            <PinnedMessage
-                              room={room}
-                              eventId={eventId}
-                              renderContent={renderMatrixEvent}
-                              onOpen={handleOpen}
-                              canPinEvent={canPinEvent}
-                              getMemberPowerTag={getMemberPowerTag}
-                              accessibleTagColors={accessibleTagColors}
-                              legacyUsernameColor={legacyUsernameColor || direct}
-                              hour24Clock={hour24Clock}
-                              dateFormatString={dateFormatString}
-                            />
-                          </SequenceCard>
-                        </VirtualTile>
-                      );
-                    })}
-                  </div>
-                ) : (
+                          <PinnedMessage
+                            room={room}
+                            eventId={eventId}
+                            renderContent={renderMatrixEvent}
+                            onOpen={handleOpen}
+                            canPinEvent={canPinEvent}
+                            getMemberPowerTag={getMemberPowerTag}
+                            accessibleTagColors={accessibleTagColors}
+                            legacyUsernameColor={legacyUsernameColor || direct}
+                            hour24Clock={hour24Clock}
+                            dateFormatString={dateFormatString}
+                          />
+                        </SequenceCard>
+                      </VirtualTile>
+                    );
+                  })}
+                </div>
+              ) : (
+                <Box
+                  className={ContainerColor({ variant: 'SurfaceVariant' })}
+                  style={{
+                    marginBottom: config.space.S200,
+                    padding: `${config.space.S700} ${config.space.S400} ${toRem(60)}`,
+                    borderRadius: config.radii.R300,
+                  }}
+                  grow="Yes"
+                  direction="Column"
+                  gap="400"
+                  justifyContent="Center"
+                  alignItems="Center"
+                >
+                  <Icon src={Icons.Pin} size="600" />
                   <Box
-                    className={ContainerColor({ variant: 'SurfaceVariant' })}
-                    style={{
-                      marginBottom: config.space.S200,
-                      padding: `${config.space.S700} ${config.space.S400} ${toRem(60)}`,
-                      borderRadius: config.radii.R300,
-                    }}
-                    grow="Yes"
+                    style={{ maxWidth: toRem(300) }}
                     direction="Column"
-                    gap="400"
-                    justifyContent="Center"
+                    gap="200"
                     alignItems="Center"
                   >
-                    <Icon src={Icons.Pin} size="600" />
-                    <Box
-                      style={{ maxWidth: toRem(300) }}
-                      direction="Column"
-                      gap="200"
-                      alignItems="Center"
-                    >
-                      <Text size="H4" align="Center">
-                        {t('mindroomUi.messages.mindroomRoomPinMenu.noPinnedMessages')}
-                      </Text>
-                      <Text size="T400" align="Center">
-                        {t(
-                          'mindroomUi.messages.mindroomRoomPinMenu.usersWithSufficientPowerLevelCanPinAMessagesFrom'
-                        )}
-                      </Text>
-                    </Box>
+                    <Text size="H4" align="Center">
+                      {t('mindroomUi.messages.mindroomRoomPinMenu.noPinnedMessages')}
+                    </Text>
+                    <Text size="T400" align="Center">
+                      {t(
+                        'mindroomUi.messages.mindroomRoomPinMenu.usersWithSufficientPowerLevelCanPinAMessagesFrom'
+                      )}
+                    </Text>
                   </Box>
-                )}
-              </Box>
-            </Scroll>
-          </Box>
+                </Box>
+              )}
+            </Box>
+          </PageScroll>
         </Box>
       </Menu>
     );

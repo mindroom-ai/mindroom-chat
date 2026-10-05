@@ -251,8 +251,8 @@ for (const theme of ['light', 'dark']) {
         border: style.borderTopWidth,
       };
     });
-    expect(material.alpha).toBeGreaterThan(0);
-    expect(material.alpha).toBeLessThan(1);
+    // The enclosing glass modal supplies the tint; its header only adds blur.
+    expect(material.alpha).toBe(0);
     expect(material.filter).toContain('blur(');
     expect(material.filter).not.toContain('url(');
     expect(material).toMatchObject({ image: 'none', shadow: 'none', border: '0px' });

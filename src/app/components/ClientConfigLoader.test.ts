@@ -1,4 +1,5 @@
 import React from 'react';
+import { Capacitor } from '@capacitor/core';
 import { act, create } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createMemoryRouter, RouterProvider } from 'react-router-dom';
@@ -43,6 +44,7 @@ beforeEach(() => {
 afterEach(() => {
   globalThis.fetch = originalFetch;
   vi.unstubAllGlobals();
+  vi.restoreAllMocks();
 });
 
 describe('client configuration loading', () => {
@@ -152,6 +154,44 @@ describe('client configuration loading', () => {
 
     expect(renderedConfig).toEqual(cachedConfig);
     expect(renderer.root.findByType('span').children).toEqual(['Cached chats']);
+    act(() => renderer.unmount());
+  });
+
+  it('loads this native app build config before mounting a router even with an older cached config', async () => {
+    const oldConfig = { mindroom: { canvas: { enabled: false } } };
+    globalThis.fetch = vi.fn().mockResolvedValue(response({ json: async () => oldConfig }));
+    await fetchClientConfig();
+    vi.spyOn(Capacitor, 'isNativePlatform').mockReturnValue(true);
+    let finish!: (value: Response) => void;
+    globalThis.fetch = vi.fn(
+      () =>
+        new Promise<Response>((resolve) => {
+          finish = resolve;
+        })
+    );
+    const renderedConfigs: unknown[] = [];
+    let renderer!: ReturnType<typeof create>;
+    await act(async () => {
+      renderer = create(
+        React.createElement(
+          ClientConfigLoader,
+          {
+            fallback: () => React.createElement('span', null, 'Loading bundled config'),
+          },
+          (config) => {
+            renderedConfigs.push(config);
+            return React.createElement('span', null, 'Ready');
+          }
+        )
+      );
+    });
+    expect(renderedConfigs).toEqual([]);
+    expect(renderer.root.findByType('span').children).toEqual(['Loading bundled config']);
+    const bundledConfig = { mindroom: { canvas: { enabled: true, libraries: true } } };
+    await act(async () => {
+      finish(response({ json: async () => bundledConfig }));
+    });
+    expect(renderedConfigs).toEqual([bundledConfig]);
     act(() => renderer.unmount());
   });
 

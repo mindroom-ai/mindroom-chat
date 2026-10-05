@@ -1,7 +1,8 @@
 import React, { ReactNode } from 'react';
 import FocusTrap from 'focus-trap-react';
 import { isKeyHotkey } from 'is-hotkey';
-import { Scroll, config } from 'folds';
+import { config } from 'folds';
+import { PageScroll } from '../../page';
 import { Menu, Header } from '../../glass/GlassPrimitives';
 
 import * as css from './AutocompleteMenu.css';
@@ -39,12 +40,17 @@ export function AutocompleteMenu({ headerContent, requestClose, children }: Auto
           }}
         >
           <Menu className={css.AutocompleteMenu}>
-            <Header className={css.AutocompleteMenuHeader} size="400">
-              {headerContent}
-            </Header>
-            <Scroll style={{ flexGrow: 1 }} onKeyDown={preventScrollWithArrowKey}>
+            <PageScroll
+              header={
+                <Header className={css.AutocompleteMenuHeader} size="400">
+                  {headerContent}
+                </Header>
+              }
+              onKeyDown={preventScrollWithArrowKey}
+              scrollbarTabIndex={-1}
+            >
               <div style={{ padding: config.space.S200 }}>{children}</div>
-            </Scroll>
+            </PageScroll>
           </Menu>
         </FocusTrap>
       </div>

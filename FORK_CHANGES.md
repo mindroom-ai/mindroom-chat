@@ -32,6 +32,246 @@
 - Tests: `threadScrollLedger.test.ts` covers rows added above or below the reader, the root, removed rows and a lost anchor; `timelineScrollLedgerController.test.ts` covers the painted row, a scroll that commits nothing, the sticky-header inset, the content above the rows going, shrinking, growing or being in view, and corrections judged against the reader's top, including in the commit that drops Load Older; `virtualizerIOSScrollContract.test.ts` pins the live-offset judgement and correction, the write's scroll event, and the reader-top judgement against the real virtualizer; `RoomTimeline.cache.test.ts` now requires a band that lands without Load Older to fold (it previously pinned the drift).
   `e2e/live/thread-open-chain-prepend-anchor.spec.ts` holds the thread's older pages until after a Load Older click, a wheel scroll, or a scroll to the root, then requires the reader's row (for the root, with the reader's line 20 px into it) to stay within 1 px while every page lands and the chip goes.
 
+### Give compact thread cards' text the full card width (2026-10-05)
+
+- Report: on a phone the compact room view wasted space.
+  Every card reserved a leading slot for the unread dot (indenting the title against the preview), the touch menu button reserved `3rem` at the end of every row, the reply-count pill sat beside the preview and cut it short, and long relative times (`2 dgn geleden`) wrapped titles.
+- Unread threads now show a primary accent edge on the card's leading side and a primary, bold time; the dot and its reserved slot are gone.
+  The card carries `data-thread-unread="true"` for tests in place of the old `data-thread-unread-dot` element.
+- The time is compact (`now`, `5m`, `3h`, `2d`, then the date after a week, with the year for earlier years) via `formatCompactRelativeTime` and `useRelativeTime(ts, 'compact')`; other surfaces keep the `2d ago` form.
+  The time's tooltip and the card's accessible label give the full timestamp.
+- The preview row holds only the preview (plus pending/failed send state).
+  The reply count moved to the end of the last row as a thread icon and the bare number (`messageCountText` on the view model); the full label stays in its tooltip and the card's accessible label.
+- Titles clamp at two lines (full title in the tooltip and accessible label).
+  "Resolved by" joins the last row with a check icon instead of taking its own line (a long name ends in an ellipsis); avatars, tags, streaming state and the schedule share that row.
+- On touch layouts the menu button sits at the end of the last row, and only that row reserves room for it (`32px`), so the title and preview rows use the full width.
+  The reservation applies inside the compact view's card shell only; the global Threads page shows the same card without a menu button.
+- Tags use the shared `ThreadTagPill`, so a tag has the same color on the card as in the thread bar; the card's own copy of the hash gave a different hue for some names.
+- The unused `compactThreadCard.unreadMessages` and `compactThreadCard.lastActivity` strings were removed from every locale; the latter's only caller passed `timestamp` to a `{{time}}` placeholder.
+- Alternatives explored for the PR, kept on local branches: `alt/compact-card-inbox-list` (flat rows with dividers, two-line preview) and `alt/compact-card-dense` (two rows per card); the chosen design combines the first layout with the dense variant's unread edge and time.
+- Fixture: `e2e/fixtures/compact-thread-cards.html` renders the production card in the compact view's shell with realistic agent threads (`?lang=`, `?theme=dark`); `e2e/compact-thread-cards.spec.ts` checks at 390 px that title and preview start at the content edge, the preview reaches the content end, the menu button is centered on the last row, only unread cards have the accent edge, and a long resolver name ends in an ellipsis inside the card.
+- Tests: unit tests cover the compact formatter (boundaries, earlier years, Dutch), the hook's compact ticking, the count formatting, and the card's unread marker, time, reply count and resolved byline.
+  `compact-resolve-hover` now asserts the menu button sits inside the last row's reserved room and is centered on it (also in RTL); `thread-bootstrap-requests` and `threads` read the count from the accessible name; `thread-unread-receipts` reads `data-thread-unread`.
+- Not changed: on touch the 40 px menu button extends 8 px above the 24 px last row, so its transparent tap area covers the bottom 4 px at the end of the preview row; making it smaller would shrink the touch target, and making the row taller would give back height.
+- Validation: typecheck, build and lint pass; `npm test` passes apart from four failures in `xcodeCloudPostClone` and `useRoomInputSendSessionController` that fail the same way on `dev`.
+  `compact-thread-cards`, `streaming-cards`, `compact-card-display-names`, `compact-resolve-hover` (desktop and Dutch touch), `thread-bootstrap-requests`, `thread-unread-receipts` and `threads` pass on Chromium against a disposable Tuwunel.
+- Review: GPT-6 Astra approved the first round; Opus 5.5 found the `threads` spec still reading `0 replies` from the card text, plus the byline ellipsis (also found by Qodo), the Threads page padding and a doc example, all fixed.
+  Both approved the second round; Opus's note that the date tests used UTC noon (the next local day from UTC+12) is fixed with local dates, checked from `Pacific/Kiritimati` to `Pacific/Pago_Pago`.
+
+### Approve scheduled tool calls exactly or for any arguments (2026-10-04)
+
+- Pairs with mindroom-ai/mindroom#2633, where an agent can schedule an approval-gated tool call and MindRoom posts its approval card when the call is scheduled (`approval_target: scheduled_call`).
+- Pending scheduling cards show the send time from `scheduled_for`.
+- When the card lists `scheduled_scope_options`, the named approver gets **Approve this exact call** and **Approve any arguments**, with a warning that the broader scope lets the agent make one call to that tool with whatever it decides, within the send window from `scheduled_window_seconds`.
+  The scope buttons appear only when that window is a whole number of minutes, so the warning never states an invented window.
+- Approval responses carry `scheduled_scope` (`exact_arguments` or `any_arguments`); the action capability check allows only a scope the card offered, only for the named approver, and never together with a timed-approval duration.
+  Scheduling cards never offer timed approvals, because the approval belongs to one scheduled call rather than the thread.
+- Resolved scheduling cards show the send time and the approved scope from the card edit's `scheduled_scope`; send-time receipts with `scheduled_approval` provenance show who approved the call while scheduling it, when, the scheduled time, and the scope.
+  Times are parsed like approval expiries, so backend timestamps with microseconds display correctly.
+- Code lives in `src/app/mindroom/messages/` (`toolApproval.ts`, `approvalActions.ts`, `ApprovalDecisionControls.tsx`, `ApprovalSchedule.tsx`, `approvalScheduleText.ts`, `ApprovalReceipt.tsx`); the strings in the 16 non-English catalogs are machine-authored.
+- Validation: the new `scheduledToolApproval.test.ts` and the scheduled-card case in `ApprovalReviewCall.test.tsx`, all 809 tests in `src/app/mindroom/messages` plus `src/app/i18n.test.ts`, typecheck, touched-file ESLint, and the production build pass.
+  The full Vitest run passes 6,047 of 6,051 tests; the 4 failures are the `xcodeCloudPostClone.test.ts` and `useRoomInputSendSessionController.test.ts` cases that also fail on `origin/dev`.
+- Live check against a local MindRoom backend running #2633 with a stub model: the pending scheduling card (in the thread's Review sheet) showed the send time, both approve buttons, and the warning; approving any arguments showed the approved scope; the send-time call ran with different arguments under that approval; and its receipt showed who approved it while scheduling, the send time, and the scope.
+- Next: integrate together with mindroom-ai/mindroom#2633.
+
+### Remove the private computer deployment preset (2026-10-05)
+
+- The proposed settings cleanup had not been implemented: the computer form still suggested the author's private deployment through a placeholder and preset button.
+  Remove that button, URL constant and placeholder, along with all 17 translated preset labels, deployment-specific setup guidance and its obsolete screenshot.
+  The shipped iOS computer default remains empty; services explicitly saved by users remain active and editable.
+- Validation covers an empty first-use form with no server suggestion or preset, explicit manual Save, retained saved services, the LAN HTTP notice, and generic custom-build configuration.
+  Keep this correction focused on the private preset; settings navigation remains a separate design discussion.
+  All 6,172 unit tests in 661 files pass, along with typecheck, lint (17 existing warnings), web build and iOS build.
+  The generated iOS config has an empty computer URL, and its shipping text assets contain no private deployment URL or preset text.
+  Independent review and CI are required before the user-authorized squash merge.
+
+### Fix three live specs that failed intermittently in full runs (2026-10-04)
+
+- Report: in full live-suite runs (`--jobs 8`), `thread-arrow-up-edit`, `composer-glass` on WebKit and `offline-invited-account` failed now and then, also on `dev`, and passed when rerun alone.
+  None of the failure traces contain `net::ERR_NETWORK_CHANGED`; all three are test races, and the app behaves correctly in each.
+- `thread-arrow-up-edit`: the composer still held the draft (`Unsent draft`, or `nsent draft`) when the spec pressed Up, so Up rightly did nothing.
+  `fill('')` selects the text by script and presses Delete at once; Slate learns of a selection from the `selectionchange` event, which Chromium dispatches after input that is already waiting.
+  After a cached start the first live `/sync` keeps the page busy just then, so Slate deletes at its old caret.
+  Fix: clear the composer until it is empty (`toPass`) before pressing Up.
+- `composer-glass` (WebKit): the client hides a typing notice five seconds after it arrives (`TYPING_TIMEOUT_MS`); the screenshot and style checks plus a slow stability wait took longer, so **Drop Typing Status** disappeared under the click and the click waited until the test timed out.
+  Fix: send a fresh typing notice right before the click.
+- `offline-invited-account`: the SDK saves its first sync after startup and then at most every five minutes, and the spec froze the clock six minutes ahead to get the next sync saved.
+  When the startup save ran after that (the room shows during the first sync, the save comes at its end), it took the frozen time and no later sync was saved.
+  Fix: move the clock only after the thread root shows, then send a read receipt so another real sync arrives and is saved.
+- Tests: with the page's CPU slowed 6x, base `thread-arrow-up-edit` failed 4 of 4 (`nsent draft` each time) and `offline-invited-account` 2 of 4; with the fixes both passed 4 of 4.
+  With a 5.5 s pause added before the dismissal, base `composer-glass` timed out in all 4 cases (both themes, Chromium and WebKit) and the fix passed all 4.
+  Without slowing anything, three rounds of the three specs (4 jobs each, base and fix side by side) passed on both, so those rounds do not tell them apart.
+- Not changed: Slate applies a delete to its old caret whenever the key arrives before `selectionchange`, which a person could only hit by selecting and deleting during one long task.
+
+### Scope the invite menu live spec's user directory to its own users (2026-10-04)
+
+- Report: `e2e/live/cinny217-invite-menu-portal.spec.ts` failed on every run from about 15:00 on 2026-10-04, on `dev` and other branches alike: the first suggestion for `mind` was another run's `mindroom_lv…_agent 💕` (Tuwunel's default display name) instead of the spec's `Mind`.
+- Root cause, in the spec: Tuwunel answers `/user_directory/search` with the first `limit` matches to finish, not the best ones (it walks users in user-ID order but checks them concurrently, `buffer_unordered`), and the shared test homeserver keeps every run's users.
+  In the failing traces the 500-user `@` bootstrap held only other runs' `@lv…` accounts, and the 12 results for `mind` were 7 to 9 of the spec's own agents plus 3 to 5 other runs' agents from public fixture rooms, so the spec's `Mind` never reached the client.
+  With 3 other agents in the window, `Mind` made it into some requests and not others, since the order changes from request to request.
+  The ranking is right: the client never received `Mind`, and given the spec's users it ranks `Mind` first.
+  A real user hits this only when more than 500 users are visible to them and more than 12 visible users match the query; the client cannot rank a user the server does not return (see CINNY-216).
+- Fix: the spec sends every directory search for its run ID, which every fixture MXID carries, so the server returns exactly the run's 12 users and the client ranks them for the typed query.
+  It now expects its own `Mind`, not any `@mindroom_mind` user.
+- Tests: test-only change. Same build, base spec against fixed spec: the base spec failed every run and the fixed spec passed every run.
+  The spec catches gross ranking regressions (with the tier comparison reversed in `rankUsers` it fails with `Alpha …` first), not a revert of the CINNY-216 refinements; `userDirectorySearch.test.ts` and `useInviteUserSearch.test.ts` cover those.
+
+### Allow local HTTP computer services (2026-10-05)
+
+- Follow-up to merged Chat #384 and backend #2680, requested for MindRoom servers hosted on a local network without TLS.
+  The existing URL field and explicit Save accept HTTP for loopback, literal RFC 1918 IPv4 addresses, and IPv6 unique-local addresses (fc00::/7).
+  Public IPs and DNS names still require HTTPS; credentials, paths, queries and fragments remain refused.
+  The settings form explains that HTTP leaves sign-in and computer traffic unencrypted before Save; no extra setting or backend API is added.
+- A disposable iOS 26.2 simulator running the shipping native shell reached the Mac’s RFC 1918 LAN IP over HTTP with actual native-origin preflight and a bearer header, then exchanged data over WebSocket.
+  Shipping ATS settings were unchanged; only the copied test artifact’s index page was replaced by a transport probe with dummy credentials.
+  Physical-device verification is unavailable because no iPhone is connected, and the local Xcode platform remains incomplete.
+- Validation: all 6,162 unit tests in 661 files pass, including 66 focused computer/settings/config tests; typecheck, lint (17 existing warnings), web build and iOS build pass.
+  This is a separate follow-up with independent Astra, GPT-6.1 Sol and Vertex Opus 5.5 review required before merge.
+  The first three-model review approved the implementation; Qodo then identified a redundant IPv4 length check, which is removed before final review.
+
+### Call agents from the thread you are in (2026-10-04)
+
+- Why: **Call** on an agent profile opened a new call room and moved the user into it, so the call was cut off from its conversation and the agent joined knowing nothing about it.
+- The room header has a phone button (room view and open thread, not in call rooms) for joined MindRoom agents on the viewer's homeserver whose presence advertises `📞 Voice calls` (`getAgentCallCandidates`, sorted by name).
+  It follows `User.lastPresenceTs`, because MindRoom toggles calls by changing the status message, which `User.presence` does not report.
+  In a thread with a confirmed root, only agents that sent the root or a loaded reply count (`keepThreadSenders`), so the button appears once one replies.
+  One candidate is called directly and several open a menu; no candidate, MatrixRTC or WebRTC hides the button, and another active call disables it with the reason as tooltip.
+  A failed start opens a dismissible notice under the button, because phones have no hover; the error describes the button only while the notice is open, and closing the menu or notice returns focus to the button.
+- The profile's **Call** stays; it stamps the open thread when the profile's room is the selected room, and otherwise the room.
+- Both entry points share `useStartAgentCall` (microphone, find or create the room, re-invite the agent, stamp the origin, start), which runs one start at a time, never replaces a call that became active meanwhile, and never navigates.
+  The `CallStatus` bar shows the call and, while the call room is not open, the backend's failure notices (`useCallFailureNotice`) as a dismissible row.
+  The history scan ignores notices at or before the newest event in the room when the call started (`CallEmbed.startedAfterTs`, a server timestamp, so a wrong device clock cannot hide a current notice), because the reused room keeps earlier calls' notices; notices delivered live always count.
+- Each caller has one permanent call room per agent, never shared between users.
+  `findAgentCallRoom` picks my joined call room whose `io.mindroom.agent_call` state I sent with `ephemeral: false`, me as creator and this agent; after a first-call race on two devices, both pick the oldest.
+  `createAgentVoiceRoom` creates it when missing, mutes it with the existing push-rule setter, and archives it with the per-user `io.mindroom.archived` account data, so it stays out of room lists and badges while the bar can still open it.
+  Before every call `prepareAgentCallRoom` re-invites the agent unless it is joined or invited and rewrites the state with this call's origin; the call starts only after that write succeeds.
+  On hang-up, and when a start gives up after stamping, Chat rewrites the state without `origin` (`clearAgentCallOrigin`); for my permanent rooms it always does, since the cached state may not show the stamp yet.
+  Writes per room are serialized, so a late clear cannot erase a newer stamp.
+  Permanent rooms are never kicked, left or forgotten; legacy `ephemeral: true` rooms keep their teardown and are not archived.
+  A start on a second device of mine joins the running call, which keeps its brief.
+- Contract: `io.mindroom.agent_call` gains an optional `origin: { room_id, thread_id }` (`thread_id` is `null` for the main timeline or a local-echo root), `version` stays `1`, and an older backend ignores it.
+  The backend trusts only an origin sent by the creator and sole caller, re-checks access, and reads it when the agent joins (https://github.com/mindroom-ai/mindroom/pull/2684); realtime calls need a fresh backend session per call (https://github.com/mindroom-ai/mindroom/pull/2689).
+- Known limits: call rooms stay findable in search and on the Archived page; a crash before the origin clear lets a manual join reuse the last origin; the thread filter sees only loaded events.
+- Files: `calls/` (`agentCall.ts`, `useStartAgentCall.ts`, `agentCallCandidates.ts`, `useCallFailureNotice.ts`, `AgentCallHeaderButton.tsx`, `AgentCallButton.tsx`), `threads/MindroomRoomViewHeader.tsx`, `components/user-profile/UserRoomProfile.tsx`, `features/call-status/CallStatus.tsx`, `features/call/CallView.tsx`, `plugins/call/CallEmbed.ts`, and four `mindroomUi.calls.agentCallHeaderButton` strings in all 17 catalogs; tests sit beside the code.
+- Validation: unit tests, typecheck, production build, ESLint and Prettier; the live check against a disposable Tuwunel (one-agent button, two-agent menu, the no-microphone notice at phone width) predates the permanent rooms.
+
+### Enable native canvases and computer panels safely (2026-10-04)
+
+- Bridge step implemented and independently reviewed: reject every subframe in Capacitor's iOS plugin message handler and synchronous cookie/HTTP prompt handler before parsing its payload.
+  Capacitor 8.5.2 already injects bridge, Cordova, and plugin scripts with `forMainFrameOnly: true`; native sender checks are still required because WebKit exposes message handlers to subframes.
+  Android's modern bridge already checks the frame; the legacy fallback now fails closed, and synchronous cookie/HTTP/SystemBars interfaces are never registered.
+  A native main-document page-commit hook preserves Android viewport inset handling.
+- Configuration: Vite copies `config.mindroom.json` into `dist/config.json`, which Capacitor bundles locally; the app does not fetch chat.mindroom.chat's configuration.
+  The ordinary build still disables canvases and has no computer API URL.
+  `npm run build:ios` overlays `config.mindroom.ios.json`: canvases and npm libraries enabled; computers stay off until a compatible service is selected in Settings or through the optional `MINDROOM_IOS_COMPUTER_API_URL` build default.
+  Xcode Cloud, Fastlane, phone builds, and native build documentation use the iOS build.
+  Native startup reads the bundled asset before mounting the router, so an older cached config cannot hide the new switches on the first launch after upgrading.
+  The native canvas gate and obsolete locale string are removed; runtime deployment switches and the existing call exclusion remain.
+  The canvas's sandbox and CSP are unchanged.
+  Phones already use a full-screen canvas and unmount the underlying conversation.
+- Validation so far: 6,115 unit tests in 659 files pass under Node 24.13.1, along with typecheck, lint (17 existing warnings), web build, and the iOS build.
+  Independent review approved the native boundary and the configuration/cache step after correcting Android first-navigation exposure and Fastlane build wiring.
+  The local Xcode 26.6 compiler has an incomplete platform upgrade, so CI built the app with Xcode 26.2 and the installed CoreSimulator tools ran it locally on iOS 26.2.
+- Native regression resources are generated from the shipping canvas document builder and outer app CSP.
+  Tests probe raw plugin dispatch and native cookie prompts from ordinary and sandboxed subframes, then verify the production two-frame canvas cannot reach plugins or Matrix session storage.
+  A separate native test downloads Chart.js from the allowed npm path, requires painted pixels, and retains a screenshot in the XCTest result.
+  Cloud CI exposed optional array inference in the test plugin declaration; the method list now uses Capacitor's explicit `[CAPPluginMethod]` type.
+  The [native simulator CI run](https://github.com/mindroom-ai/mindroom-chat/actions/runs/37250210887) built the full shipping app and passed all 26 tests, including real plugin/cookie attacks, production canvas session isolation, and Chart.js painting.
+  The native origin test observed `capacitor://localhost` on actual preflight and bearer-header requests with shipping ATS settings.
+  The fixture waits for the initial boot before loading another document, avoiding a cold-start navigation race.
+  CI archives the unsigned arm64 simulator app before running native tests.
+- Full app acceptance passed on the disposable iPhone 17 Pro / iOS 26.2 simulator: real Chart.js rendering and touch interaction, Matrix version updates and previous-version selection, canvas error reporting, and real worker computer control/typing/resume.
+  The Matrix error report's agent mention and originating thread were checked on the disposable server.
+  The agent browser snapshot and input readback both contained `native-ios-control` after resume.
+  Screenshots are under `docs/screenshots/ios-app-*`; test credentials stayed in private fixture state and app data.
+- Computer investigation: the lab backend accepts `https://chat.mindroom.chat` but returns HTTP 400 for native preflight; the production Matrix/provisioning origin has no computers endpoint.
+  The companion backend change accepts only the exact `capacitor://localhost` literal, retains fail-closed allowlists, and tests native CORS, OpenID/bearer/tickets, WSS input, control and release.
+  Backend full pytest CI passed 29,096 tests with 20 skips; all 99 targeted computer API tests and pre-commit checks also pass.
+  Operators still need to add the native literal to the computer service's deployment allowlist.
+- AI review confirmed the lab service must not be bundled as an active default before backend rollout.
+  Computers remain opt-in; deploy backend PR #2680 and update the allowlist, then select the service in Settings → General → Computers or configure the optional build default.
+- User-requested in-app configuration is implemented: a device-only computer URL override with a MindRoom Lab preset, explicit Save, blank-to-disable, and reset-to-deployment-default controls.
+  URL validation reuses the HTTPS/loopback origin boundary and refuses credential-bearing URLs, paths, queries, and fragments.
+  Persistence failures leave the active service unchanged and show feedback.
+  Backend changes close the old panel/session and reset control ownership; a focused hook test checks stale callbacks cannot lock the new service.
+  All 17 locales include the new settings group, including the chosen backend's short-lived sign-in token disclosure.
+  Independent computer review approved the implementation after correcting save confirmation and reset display, and strengthening the stale-callback test.
+- Independent native screenshot review caught a clipped canvas version control under a long title.
+  The title can now shrink while controls keep their width; the browser regression checks all controls at 320px before and after selecting a long-title version.
+  Independent bridge review approved the layout and fixture changes.
+  The user completed Xcode first-launch setup; CoreSimulator now reports the required version and the disposable device boots normally.
+  Xcode still reports a missing iOS 26.5 platform, and the local native build fails before compilation.
+  Final CI built the shipping app successfully; all 26 native tests pass.
+  That final app ran locally with an empty bundled computer default; native Settings selected the fixture service, persisted across installation/relaunch, and controlled the worker through native keyboard input and Resume.
+  Fresh screenshots cover the settings preset, Chart.js touch tooltip, unclipped version controls, current error delivery, and computer control/resume.
+  The focused browser canvas and settings-driven worker computer tests both pass.
+- Delivery: [backend #2680](https://github.com/mindroom-ai/mindroom/pull/2680) and [Chat #384](https://github.com/mindroom-ai/mindroom-chat/pull/384) are merged.
+  Updated Chat head passed CI, including the native tests, and fresh Astra, GPT-6.1 Sol and Vertex Opus 5.5 reviews approved it before merge.
+  Current dev was merged after its thread-cycle fix advanced the base; both Runbook entries are preserved.
+  The full browser scheduler ran all 145 jobs with eight parallel slots: 108 passed, 36 failed, and the external worker fixture was initially unavailable.
+  A quiet rerun recovered resource-sensitive failures; canvas/UI action fixtures now align real sync delivery with a disposable Docker server clock running about 64 ms ahead, restore foreground before new requests, and clean up long polls at teardown.
+  Navigation attack tests use explicit clicks to preserve a deterministic rendered-page assertion.
+  The command-palette fixture uses the browser platform's shortcut modifier.
+  Canvas, UI actions, command palette, and the real worker-computer spec all pass after focused reruns.
+  The combined latest results cover 142 passing jobs; three unchanged WebKit jobs still fail on this Mac: glass-surfaces and members-header-glass assume button Tab navigation, and room-glass-overlays measures geometry about 6.5 px away from its expected position.
+  Independent review approved each logical implementation and fixture step.
+  Independent Astra, GPT-6.1 Sol and Vertex Opus 5.5 reviews approved both implementation heads.
+  User authorized merging both PRs, then adding private LAN HTTP support in a separate follow-up.
+  The latest dev merge preserves the canvas-state Runbook entry; only that document conflicted.
+  Integration validation passes all 6,135 unit tests, typecheck, lint (17 existing warnings), and the iOS web build.
+  Computers require the documented backend deployment and a configured service through Settings or the optional build default.
+
+### Let canvas pages keep their own state on this device (2026-10-04)
+
+- Why: a canvas page lost everything the user did in it whenever Chat reloaded, the panel reopened, or the agent updated the page; Claude artifacts give pages storage that persists.
+  A canvas runs with an opaque origin, so its own `localStorage` and IndexedDB are unavailable.
+- Pages read `window.mindroom.state` (the JSON value last saved, or `undefined`), which is set before their scripts run, and call `window.mindroom.saveState(value)`.
+  `saveState` throws for a value that is not JSON or whose JSON is longer than 256 K characters (`CANVAS_STATE_MAX_LENGTH`); Chat checks the message again (`readCanvasState`).
+  The page parses the saved JSON from an escaped string, so saved text cannot close the script and every JSON value, `__proto__` keys included, comes back as saved.
+- State belongs to the canvas (its request event ID), so every version and every agent update starts from it; it stays on this device and is never sent to the room or the agent.
+  A page that wants the agent to see it sends it with `mindroom.submit`.
+- `useCanvasSavedState` reads the state before the page starts (the panel shows loading until then) and keeps the latest save in memory, writing to IndexedDB at most every 500 ms and when the panel unmounts.
+  Saving never rebuilds the frame; every page `CanvasPanel` shows (an update, **Load update**, a version switch, even one with the same HTML) and **Reload panel** embed the latest state.
+  If the read fails (no IndexedDB, or a lost connection), the page starts without state and saves stay in memory, so they cannot overwrite what is stored.
+- `canvasStateStore.ts` keeps one IndexedDB database per session, `mindroom-canvas-state::<session>`, which holds the states of at most 100 canvases and forgets the ones saved longest ago; each save sorts after all others, even if the clock went back.
+  Saved state is the user's data rather than a cache, so **Clear cache and reload** keeps it and only removing the account deletes it (`deleteSessionLocalData` in `sessionLifecycle.ts`, and the no-device-ID fallback in `removeCurrentClientSessionAndReload`).
+  The account is removed from the session list before its data is deleted, and the hook drops pending saves for a session no longer listed, so a late write cannot recreate the database.
+- Tests (removing each fix fails its test):
+  - `canvasStateStore.test.ts`: one state per canvas and session, the limit (also after the clock went back), a failed write that rejects once without an unhandled rejection.
+  - `useCanvasSavedState.test.tsx`: the read, a failed read, quick saves written once, the unmount write (which a panel reopened at once reads), no write after the account is removed.
+  - `canvasDocument.test.ts`: `</script>` and a `__proto__` key round-trip; `canvasMessages.test.ts`: the message checks.
+  - `CanvasPanel.test.tsx`: a save does not reload the page; the next page and a same-HTML revision start from the latest state. `RoomCanvasPanel.test.tsx`: the page waits for the read.
+  - `initMatrix.test.ts`: account removal deletes the database, also without a device ID; clearing caches keeps it even when the browser lists it.
+  - `e2e/agent-canvas.spec.ts` types into a page that saves, reloads Chat, and sees the text again, then again after an agent update.
+- Validation: typecheck, lint and the e2e spec pass; the full unit suite passes except the three `xcodeCloudPostClone` tests that need `/bin/bash` (they fail on unchanged `dev` on this host too).
+  Live with a real agent (GPT-6.1 Sol, backend with mindroom-ai/mindroom#2683): asked for a packing checklist that remembers ticks, it used `mindroom.state` and `saveState` unprompted; ticks survived a Chat reload and the agent's update that added an item.
+- Not changed:
+  - A save in the last half second before the browser closes the tab can be lost, since a page unload does not unmount React.
+  - Two tabs showing the same canvas keep separate copies; the last save wins, and a tab sees the other's saves only when its panel opens again.
+  - The page waits for the read with no time limit; a read that never settles would leave the canvas loading. Not seen: the 2026-10-02 iOS stalls hit the cache database while other databases kept working, and this one opens a connection per operation.
+- Next: if pages with saved state become common, let an agent update load at once even over unsent work in a page that saves.
+
+### Unify scrolling settings and dialog headers (2026-10-04)
+
+- Settings subpages placed their title outside the scroll viewport, so their own content could never pass beneath it.
+  Seventeen personal, room, space, and nested settings views now use `PageScroll`, together with the room topic, readers, reactions, text viewer, room/space creation, add-existing, schedule, pinned-message, and room-pack dialogs.
+  Approval/permission dialogs, format hints, editor/invite autocomplete, mobile thread filters, and model selection now share that layout too.
+- `PageScroll` supplies flat native glass to its header slot through the shared `Header` primitive, including inside a glass modal.
+  Titles have no border, rim, shadow, or pointer glow; moving over their controls also clears the enclosing panel's pointer light.
+  Neutral titles inside glass panels use the enclosing tint without adding a second pale band; native blur and opaque accessibility fallbacks remain.
+  Panels with scrolling titles paint their backdrop filter on a separate decorative layer so Chromium does not apply the enclosing tint twice; a pixel regression also verifies that header blur still paints.
+  The actual header height controls focus scrolling and the inset scrollbar, including smaller titles and responsive header appearance.
+  Header context stops at surface boundaries so dialogs opened through a title do not inherit its scrolling treatment.
+  Composite pickers keep focus on their search field or selected option when dragging a scrollbar.
+- Member, add-existing, and pinned-message virtual lists measure their offset after the header and filters and subtract it when placing rows.
+  Sticky search controls remain below the title.
+  The image-pack editor's unsaved-changes bar also follows the measured title height, and text viewers keep their background across the full viewport, including short files.
+  Fixed JSON/event editors retain their existing internal text scrolling.
+- Regression coverage includes mobile/desktop personal and room settings, both themes and engines, header material and hover behavior, scrollbar dragging/keyboard navigation, short/long topic dialogs, the pack selector, and virtual member-list navigation.
+  Additional menu coverage checks approval scrolling, format hints, model search/selection, autocomplete focus, and short mobile filter sheets.
+  `playwright.glass.config.ts` includes the new browser specs.
+  Header tint assertions distinguish inherited panel tint from standalone chrome; hover comparisons clear prior panel illumination and wait for pointer paint before comparing pixels.
+
 ### Stop the reconcile from linking thread segments into a cycle that froze the app (2026-10-04)
 
 - Report: an iPhone export from build `515acd2c` shows the whole app frozen right after it came back from 130 s in the background, with a long thread open (968 SDK events) while an agent was typing.

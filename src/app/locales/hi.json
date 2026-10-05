@@ -1003,6 +1003,12 @@
         "endCurrentCall": "पहले अपनी वर्तमान कॉल समाप्त करें।",
         "failedToStart": "कॉल शुरू नहीं हो सकी।",
         "homeserverUnsupported": "आपका होमसर्वर कॉल का समर्थन नहीं करता।"
+      },
+      "agentCallHeaderButton": {
+        "call": "किसी एजेंट को कॉल करें",
+        "callAgent": "{{name}} को कॉल करें",
+        "chooseAgent": "कॉल करने के लिए एक एजेंट चुनें",
+        "close": "बंद करें"
       }
     },
     "commands": {
@@ -1176,6 +1182,9 @@
         "denialReasonOptional": "अस्वीकार करने का कारण (वैकल्पिक)",
         "deny": "अस्वीकार करें",
         "denyCallReasonOptional": "कॉल {{number}} अस्वीकार करने का कारण (वैकल्पिक)",
+        "approveExactCall": "ठीक यही कॉल स्वीकृत करें",
+        "approveAnyArguments": "कोई भी आर्ग्युमेंट स्वीकृत करें",
+        "anyArgumentsWarning": "कोई भी आर्ग्युमेंट चुनने पर एजेंट तय समय के {{minutes}} मिनट के भीतर अपनी पसंद से {{tool}} को एक बार कॉल कर सकता है।",
         "denyReasonOptional": "अस्वीकार करने का कारण (वैकल्पिक)",
         "submittedWaitingForRoomUpdate": "प्रस्तुत किया गया। रूम अद्यतन की प्रतीक्षा की जा रही है.",
         "thisRequestCannotBeApprovedHere": "इस अनुरोध को यहां स्वीकृत नहीं किया जा सकता."
@@ -1198,6 +1207,8 @@
         "grantedByAt": "{{grantor}} द्वारा प्रदान किया गया · {{timestamp}}",
         "originalFixedExpiry": "मूल निश्चित समाप्ति समय: {{timestamp}}",
         "reason": "कारण: {{reason}}",
+        "approvedWhenScheduledByAt": "शेड्यूल करते समय {{approver}} द्वारा स्वीकृत · {{timestamp}}",
+        "approvedWhenScheduledBy": "शेड्यूल करते समय {{approver}} द्वारा स्वीकृत",
         "requestedBy": "{{agent}} · {{requester}} द्वारा अनुरोध किया गया",
         "resolvedAt": "{{status}} · {{timestamp}}",
         "resolvedBy": "{{resolver}} द्वारा {{status}}",
@@ -1212,6 +1223,11 @@
         "tool": "उपकरण: {{tool}}",
         "toolAndServer": "टूल: {{tool}} · सर्वर: {{server}}",
         "unknown": "अज्ञात"
+      },
+      "approvalSchedule": {
+        "scheduledFor": "{{timestamp}} के लिए निर्धारित",
+        "approvedExactArguments": "ठीक इन्हीं आर्ग्युमेंट के लिए स्वीकृत",
+        "approvedAnyArguments": "इस टूल के किसी भी आर्ग्युमेंट के लिए स्वीकृत"
       },
       "approvalReviewCall": {
         "callStatus": "कॉल {{number}} · {{status}}",
@@ -1459,9 +1475,7 @@
         "noThreads": "कोई थ्रेड नहीं"
       },
       "compactThreadCard": {
-        "lastActivity": "अंतिम गतिविधि {{time}}",
-        "streaming": "स्ट्रीमिंग",
-        "unreadMessages": "अपठित संदेश"
+        "streaming": "स्ट्रीमिंग"
       },
       "compactThreadCardUtils": {
         "atTime": "{{time}} पर",
@@ -1661,8 +1675,7 @@
       "computerUnavailable": "इस एजेंट का कंप्यूटर उपलब्ध नहीं है।",
       "releaseControl": "दूसरा दृश्य खोलने से पहले कंप्यूटर का नियंत्रण छोड़ें।",
       "openConversation": "यह अनुरोध कमरे की बातचीत से खोलें।",
-      "settingsUnavailable": "सेटिंग का यह अनुभाग खोलने के लिए सरल मोड बंद करें।",
-      "canvasUnavailableInApp": "इंटरैक्टिव पैनल अभी ऐप में उपलब्ध नहीं हैं। यह बातचीत ब्राउज़र में खोलें।"
+      "settingsUnavailable": "सेटिंग का यह अनुभाग खोलने के लिए सरल मोड बंद करें।"
     },
     "canvas": {
       "panelLabel": "इंटरैक्टिव पैनल",
@@ -1842,7 +1855,18 @@
         "urlPreview": "यूआरएल पूर्वावलोकन",
         "urlPreviewEncrypted": "एन्क्रिप्टेड रूम में URL पूर्वावलोकन"
       },
-      "title": "सामान्य"
+      "title": "सामान्य",
+      "computers": {
+        "sectionTitle": "कंप्यूटर",
+        "apiUrl": "कंप्यूटर सेवा URL",
+        "description": "विश्वसनीय MindRoom बैकएंड चुनें; उसे कम अवधि का साइन-इन टोकन मिलेगा। इस डिवाइस पर सहेजा जाता है। कंप्यूटर बंद करने के लिए खाली छोड़ें।",
+        "save": "कंप्यूटर सेवा सहेजें",
+        "reset": "ऐप का डिफ़ॉल्ट इस्तेमाल करें",
+        "invalidUrl": "क्रेडेंशियल, पाथ, क्वेरी या फ़्रैगमेंट के बिना एक ओरिजिन दर्ज करें। HTTPS का उपयोग करें, या localhost या निजी LAN IP पते के साथ HTTP का उपयोग करें।",
+        "httpNotice": "HTTP आपके साइन-इन या कंप्यूटर के ट्रैफ़िक को एन्क्रिप्ट नहीं करता। इसे केवल विश्वसनीय स्थानीय नेटवर्क पर उपयोग करें।",
+        "saveFailed": "इस डिवाइस पर कंप्यूटर सेवा सहेजी नहीं जा सकी।",
+        "saved": "कंप्यूटर सेवा सहेजी गई।"
+      }
     },
     "logout": "लॉग आउट",
     "nav": {

@@ -12,6 +12,7 @@ import {
 import * as css from './MindroomToolApprovalCard.css';
 import { ApprovalReceipt } from './ApprovalReceipt';
 import { ApprovalArguments } from './ApprovalArguments';
+import { ApprovalSchedule } from './ApprovalSchedule';
 import { useThreadApprovals } from './ThreadApprovalProvider';
 import { ApprovalReviewGroup } from './ThreadApprovalControls';
 import {
@@ -214,6 +215,7 @@ function StandaloneToolApprovalCard({
         </Box>
       )}
 
+      <ApprovalSchedule approval={approval} />
       <ApprovalArguments approval={approval} />
       <ApprovalDecisionControls {...controls} showDurations />
     </Box>

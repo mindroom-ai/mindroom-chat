@@ -107,7 +107,10 @@ const adjustmentWrites = (scrollToFn: ReturnType<typeof vi.fn>) =>
 // a device where the finger comes back down within the debounce window)
 // while each newly mounted above-viewport row measures BIGGER than its
 // estimate — the exact shape of the device report.
-function runUpwardFlickSequence(virtualizer: Virtualizer<Element, Element>, scroll: ScrollCallback) {
+function runUpwardFlickSequence(
+  virtualizer: Virtualizer<Element, Element>,
+  scroll: ScrollCallback
+) {
   let offset = START_OFFSET;
   let index = Math.floor(START_OFFSET / ROW_ESTIMATE) - 1;
   for (let flick = 0; flick < FLICKS; flick += 1) {
@@ -173,7 +176,7 @@ describe('virtualizer iOS scroll contract (production hook)', () => {
       expect(scrollToFn).toHaveBeenCalledTimes(1);
       const [, options] = scrollToFn.mock.calls[0] as [
         number,
-        { adjustments?: number; behavior?: ScrollBehavior },
+        { adjustments?: number; behavior?: ScrollBehavior }
       ];
       expect(options.adjustments).toBe(BANKED_ERROR);
     });

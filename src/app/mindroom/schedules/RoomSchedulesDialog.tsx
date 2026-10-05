@@ -1,6 +1,7 @@
 import React, { forwardRef, useEffect, useId, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Badge, Box, Button, Icon, IconButton, Icons, Scroll, Text } from 'folds';
+import { Badge, Box, Button, Icon, IconButton, Icons, Text } from 'folds';
+import { PageScroll } from '../../components/page';
 import { Header, Modal } from '../../components/glass/GlassPrimitives';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useMentionClickHandler } from '../../hooks/useMentionClickHandler';
@@ -232,21 +233,29 @@ export const RoomSchedulesDialog = forwardRef<
       aria-modal="true"
       aria-labelledby={titleId}
     >
-      <Header size="500" className={css.Header}>
-        <Box grow="Yes" alignItems="Center" gap="200">
-          <Icon size="200" src={Icons.Clock} />
-          <Text as="h2" id={titleId} size="H4">
-            {t('roomSchedules.title')}
-          </Text>
-          <Text size="T200" priority="300">
-            {tasks.length}
-          </Text>
-        </Box>
-        <IconButton size="300" radii="300" aria-label={t('roomSchedules.close')} onClick={onClose}>
-          <Icon src={Icons.Cross} />
-        </IconButton>
-      </Header>
-      <Scroll className={css.Scroll} size="300" hideTrack>
+      <PageScroll
+        header={
+          <Header size="500" className={css.Header}>
+            <Box grow="Yes" alignItems="Center" gap="200">
+              <Icon size="200" src={Icons.Clock} />
+              <Text as="h2" id={titleId} size="H4">
+                {t('roomSchedules.title')}
+              </Text>
+              <Text size="T200" priority="300">
+                {tasks.length}
+              </Text>
+            </Box>
+            <IconButton
+              size="300"
+              radii="300"
+              aria-label={t('roomSchedules.close')}
+              onClick={onClose}
+            >
+              <Icon src={Icons.Cross} />
+            </IconButton>
+          </Header>
+        }
+      >
         <Box direction="Column" gap="300" className={css.Content}>
           {tasks.length === 0 ? (
             <Box direction="Column" gap="200" className={css.Empty}>
@@ -268,7 +277,7 @@ export const RoomSchedulesDialog = forwardRef<
             ))
           )}
         </Box>
-      </Scroll>
+      </PageScroll>
     </Modal>
   );
 });

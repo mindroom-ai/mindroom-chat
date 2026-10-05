@@ -1,7 +1,12 @@
 import { MsgType } from 'matrix-js-sdk';
 import { sanitizeText } from '../../utils/sanitize';
 import { getMessageRelation } from '../threads/composeMessageRelation';
-import { CANVAS_ERROR_MESSAGE, CANVAS_SUBMIT_MESSAGE } from './canvasDocument';
+import {
+  CANVAS_ERROR_MESSAGE,
+  CANVAS_STATE_MAX_LENGTH,
+  CANVAS_STATE_MESSAGE,
+  CANVAS_SUBMIT_MESSAGE,
+} from './canvasDocument';
 
 export const CANVAS_RESPONSE_KEY = 'io.mindroom.canvas_response';
 
@@ -161,6 +166,26 @@ const toCanvasAgent = (canvas: CanvasTarget) => ({
     'm.in_reply_to': { event_id: canvas.eventId },
   },
 });
+
+/** Accept the JSON this canvas frame saves as its state; it is written back into the page as is. */
+export const readCanvasState = (
+  event: MessageEvent,
+  frame: Window | null | undefined
+): string | undefined => {
+  if (!frame || event.source !== frame || event.origin !== 'null') return undefined;
+  const message = event.data;
+  if (!record(message) || message.type !== CANVAS_STATE_MESSAGE || message.version !== 1) {
+    return undefined;
+  }
+  const { json } = message;
+  if (typeof json !== 'string' || json.length > CANVAS_STATE_MAX_LENGTH) return undefined;
+  try {
+    JSON.parse(json);
+  } catch {
+    return undefined;
+  }
+  return json;
+};
 
 /** One error line a canvas may report; longer ones are cut. */
 const MAX_ERROR_LENGTH = 300;

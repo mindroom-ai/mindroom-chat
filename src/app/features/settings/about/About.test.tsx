@@ -58,6 +58,8 @@ vi.mock('folds', () => ({
 }));
 
 vi.mock('../../../components/page', () => ({
+  PageScroll: ({ header, children }: React.PropsWithChildren<{ header?: React.ReactNode }>) =>
+    React.createElement('section', null, header, children),
   Page: ({ children }: { children?: React.ReactNode }) =>
     React.createElement('main', null, children),
   PageContent: ({ children }: { children?: React.ReactNode }) =>

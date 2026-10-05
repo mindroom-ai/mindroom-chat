@@ -9,9 +9,6 @@ export const ModalHeader = style({
   padding: `0 ${config.space.S200} 0 ${config.space.S400}`,
   borderBottomWidth: config.borderWidth.B300,
 });
-export const ModalScroll = style({
-  flexGrow: 1,
-});
 export const ModalContent = style({
   padding: config.space.S400,
   paddingInlineEnd: config.space.S200,

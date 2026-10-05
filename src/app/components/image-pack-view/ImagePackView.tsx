@@ -1,8 +1,8 @@
 import { useTranslation } from 'react-i18next';
 import React from 'react';
-import { Box, IconButton, Text, Icon, Icons, Scroll, Chip } from 'folds';
+import { Box, IconButton, Text, Icon, Icons, Chip } from 'folds';
 import { PackAddress } from '../../plugins/custom-emoji';
-import { Page, PageHeader, PageContent } from '../page';
+import { Page, PageHeader, PageContent, PageScroll } from '../page';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { RoomImagePack } from './RoomImagePack';
 import { UserImagePack } from './UserImagePack';
@@ -18,36 +18,37 @@ export function ImagePackView({ address, requestClose }: ImagePackViewProps) {
 
   return (
     <Page>
-      <PageHeader outlined={false} balance>
-        <Box alignItems="Center" grow="Yes" gap="200">
-          <Box alignItems="Inherit" grow="Yes" gap="200">
-            <Chip
-              size="500"
-              radii="Pill"
-              onClick={requestClose}
-              before={<Icon data-directional size="100" src={Icons.ArrowLeft} />}
-            >
-              <Text size="T300">{t('sharedUi.imagePackView.emojisStickers')}</Text>
-            </Chip>
-          </Box>
-          <Box shrink="No">
-            <IconButton onClick={requestClose} variant="Surface">
-              <Icon src={Icons.Cross} />
-            </IconButton>
-          </Box>
-        </Box>
-      </PageHeader>
-      <Box grow="Yes">
-        <Scroll hideTrack visibility="Hover">
-          <PageContent>
-            {room && address ? (
-              <RoomImagePack room={room} stateKey={address.stateKey} />
-            ) : (
-              <UserImagePack />
-            )}
-          </PageContent>
-        </Scroll>
-      </Box>
+      <PageScroll
+        header={
+          <PageHeader outlined={false} balance>
+            <Box alignItems="Center" grow="Yes" gap="200">
+              <Box alignItems="Inherit" grow="Yes" gap="200">
+                <Chip
+                  size="500"
+                  radii="Pill"
+                  onClick={requestClose}
+                  before={<Icon data-directional size="100" src={Icons.ArrowLeft} />}
+                >
+                  <Text size="T300">{t('sharedUi.imagePackView.emojisStickers')}</Text>
+                </Chip>
+              </Box>
+              <Box shrink="No">
+                <IconButton onClick={requestClose} variant="Surface">
+                  <Icon src={Icons.Cross} />
+                </IconButton>
+              </Box>
+            </Box>
+          </PageHeader>
+        }
+      >
+        <PageContent>
+          {room && address ? (
+            <RoomImagePack room={room} stateKey={address.stateKey} />
+          ) : (
+            <UserImagePack />
+          )}
+        </PageContent>
+      </PageScroll>
     </Page>
   );
 }
