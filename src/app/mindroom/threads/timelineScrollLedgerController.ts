@@ -9,6 +9,7 @@ import {
   type MutableRefObject,
   type RefObject,
 } from 'react';
+import { flushSync } from 'react-dom';
 import {
   observeElementRect,
   useVirtualizer,
@@ -463,6 +464,26 @@ export const useTimelineScrollLedgerController = ({
     [armSettleAtRest]
   );
 
+  // virtual-core writes an applied correction at once, in a ResizeObserver
+  // callback, but the rows it moves render in React's next task, after the
+  // browser has painted them unmoved: the reader's view jumps by the
+  // correction for a frame. Render them in a microtask, before the paint, and
+  // until then let the hook judge rows in the layout React rendered.
+  const unrenderedCorrectionPxRef = useRef(0);
+  const handleAppliedCorrection = useCallback((deltaPx: number) => {
+    if (unrenderedCorrectionPxRef.current === 0) {
+      queueMicrotask(() => {
+        if (unrenderedCorrectionPxRef.current === 0) return;
+        flushSync(() => setLedgerCommitTick((tick) => tick + 1));
+      });
+    }
+    unrenderedCorrectionPxRef.current += deltaPx;
+  }, []);
+  const unrenderedCorrectionPx = useCallback(() => unrenderedCorrectionPxRef.current, []);
+  useInsertionEffect(() => {
+    unrenderedCorrectionPxRef.current = 0;
+  });
+
   // Ledger boundary guard (upstream #119, direction-aware): negative ledger
   // can expose a real top margin, while positive ledger can clamp the
   // bottom, so those edges retain a direction-aware two-viewport guard.
@@ -613,8 +634,17 @@ export const useTimelineScrollLedgerController = ({
         shouldDeferAutomaticFillCorrection: (item) =>
           !!isAutomaticFillActive?.() && (item.index ?? itemCount) < itemCount - 1,
         viewportTopOffset: readerTopOffset,
+        onAppliedCorrection: handleAppliedCorrection,
+        unrenderedCorrectionPx,
       }),
-    [isAutomaticFillActive, handleDroppedCorrection, itemCount, readerTopOffset]
+    [
+      isAutomaticFillActive,
+      handleAppliedCorrection,
+      handleDroppedCorrection,
+      itemCount,
+      readerTopOffset,
+      unrenderedCorrectionPx,
+    ]
   );
 
   useLayoutEffect(() => {

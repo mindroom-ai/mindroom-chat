@@ -15,6 +15,16 @@
   Exempting message bodies would not help, because they are the nodes that crash.
 - Validation: `src/indexHtml.test.ts` passes and fails with either marker stripped; typecheck, build (both markers in `dist/index.html`), lint and prettier pass.
 
+### Move rows in the same frame as an applied scroll correction (2026-10-04)
+
+- Report: `long-message-expansion-default` failed about 1 run in 6 at its fold-anchor check (listed in `docs/testing.md` as known unresolved): after turning "expand long messages" off, the anchor message read 609, 634 or 659 px from where it was.
+- Root cause, found by logging every correction, scroll write and React commit around the toggle: rows above the reader remount folded and shrink 634 px, and on desktop virtual-core applies those corrections as scroll writes inside the ResizeObserver callback, while the rows they move render only in React's next task, after the browser has painted.
+  For that frame (15-200 ms on the test host) the reader's view sits 634 px off, and the check read it there; the 609/659 readings add a 25 px "Catching up…" banner that left between the check's two reads.
+  Rows later in the same batch are reported at their positions from before the batch, so one whose row above had just been corrected was judged in view; its shrink was neither applied nor ledgered, and the view jumped 634 px up until the bulk-expansion anchor loop put it back.
+- Fix: the timeline controller sums the corrections applied since its last render and renders the moved rows in a microtask, before the paint; until then the correction hook judges rows against the offset minus that sum, the layout virtual-core still reports.
+- Tests: `virtualizerIOSScrollContract.test.ts` folds two rows in one batch against the real virtual-core and requires both corrections; `timelineScrollLedgerController.commit.test.tsx` requires the render one microtask after an applied correction and the judgement to return to the live offset after it.
+  Live, the spec passed 26 of 26 runs against 18 of 26 on the base, interleaved under the same load.
+
 ### Keep a thread reader in place when rows or Load Older change above them (2026-10-04)
 
 - Report: a reader at the latest reply of a long thread drifted up by thousands of pixels when older history finished loading after Load Older or a scroll.
