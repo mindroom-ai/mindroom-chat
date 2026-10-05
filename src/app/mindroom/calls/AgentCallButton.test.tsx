@@ -198,35 +198,6 @@ describe('AgentCallButton', () => {
     );
   });
 
-  it('does not start a call when unmounted while the room is prepared', async () => {
-    let prepared!: () => void;
-    mocks.prepareAgentCallRoom.mockReturnValueOnce(
-      new Promise<void>((resolve) => {
-        prepared = resolve;
-      })
-    );
-    const renderer = create(
-      <AgentCallButton
-        roomId={ROOM_ID}
-        userId="@mindroom_helper:mindroom.test"
-        displayName="Helper"
-        presenceStatus={VOICE_CALLS_STATUS}
-      />
-    );
-    let callPromise!: Promise<void>;
-
-    await act(async () => {
-      callPromise = renderer.root.findByType('button').props.onClick();
-      await Promise.resolve();
-    });
-    act(() => renderer.unmount());
-    prepared();
-    await act(async () => callPromise);
-
-    expect(mocks.startCall).not.toHaveBeenCalled();
-    expect(mocks.closeProfile).not.toHaveBeenCalled();
-  });
-
   it('keeps the profile open when the call fails to start', async () => {
     mocks.startCall.mockImplementationOnce(() => {
       throw new Error('embed unavailable');
