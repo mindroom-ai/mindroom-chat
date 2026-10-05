@@ -55,7 +55,14 @@ jobs:
             ARCHS=arm64 CODE_SIGNING_ALLOWED=NO \
             2>&1 | tee .claude/evidence/ios-app/xcodebuild.log
           tar -czf .claude/evidence/ios-app/App.app.tar.gz \
-            -C .claude/evidence/ios-app/DerivedData/Build/Products/Debug-iphonesimulator App.app
+            -C .claude/evidence/ios-app/DerivedData/Build/Products/Debug-iphonesimulator MindRoom.chat.app
+      - name: Upload simulator app
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ios-simulator-app
+          path: .claude/evidence/ios-app/App.app.tar.gz
+          include-hidden-files: true
+          retention-days: 14
       - name: Run native routing tests
         run: bash scripts/test-ios-routing.sh
       - name: Upload native results and screenshots
