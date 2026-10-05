@@ -143,7 +143,8 @@
         "save": "Simpan layanan komputer",
         "lab": "Gunakan MindRoom Lab",
         "reset": "Gunakan bawaan aplikasi",
-        "invalidUrl": "Masukkan origin HTTPS tanpa kredensial, jalur, kueri, atau fragmen. HTTP hanya diizinkan untuk localhost.",
+        "invalidUrl": "Masukkan origin tanpa kredensial, jalur, kueri, atau fragmen. Gunakan HTTPS, atau HTTP dengan localhost atau alamat IP LAN privat.",
+        "httpNotice": "HTTP tidak mengenkripsi proses masuk atau lalu lintas komputer Anda. Gunakan hanya pada jaringan lokal tepercaya.",
         "saveFailed": "Layanan komputer tidak dapat disimpan di perangkat ini.",
         "saved": "Layanan komputer disimpan."
       }

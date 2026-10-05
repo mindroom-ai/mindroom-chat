@@ -143,7 +143,8 @@
         "save": "Computerdienst speichern",
         "lab": "MindRoom Lab verwenden",
         "reset": "App-Standard verwenden",
-        "invalidUrl": "Gib einen HTTPS-Ursprung ohne Zugangsdaten, Pfad, Abfrage oder Fragment ein. HTTP ist nur für localhost erlaubt.",
+        "invalidUrl": "Gib eine Origin ohne Zugangsdaten, Pfad, Abfrage oder Fragment ein. Verwende HTTPS oder HTTP mit localhost oder einer privaten LAN-IP-Adresse.",
+        "httpNotice": "HTTP verschlüsselt weder deine Anmeldung noch den Computer-Datenverkehr. Verwende es nur in einem vertrauenswürdigen lokalen Netzwerk.",
         "saveFailed": "Der Computerdienst konnte auf diesem Gerät nicht gespeichert werden.",
         "saved": "Computerdienst gespeichert."
       }

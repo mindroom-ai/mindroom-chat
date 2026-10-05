@@ -143,7 +143,8 @@
         "save": "Salvar serviço de computadores",
         "lab": "Usar MindRoom Lab",
         "reset": "Usar padrão do aplicativo",
-        "invalidUrl": "Insira uma origem HTTPS sem credenciais, caminho, consulta ou fragmento. HTTP só é permitido para localhost.",
+        "invalidUrl": "Introduza uma origem sem credenciais, caminho, consulta ou fragmento. Use HTTPS, ou HTTP com localhost ou um endereço IP privado da rede local.",
+        "httpNotice": "HTTP não encripta o início de sessão nem o tráfego do computador. Use-o apenas numa rede local de confiança.",
         "saveFailed": "Não foi possível salvar o serviço de computadores neste dispositivo.",
         "saved": "Serviço de computadores salvo."
       }

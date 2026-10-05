@@ -143,7 +143,8 @@
         "save": "컴퓨터 서비스 저장",
         "lab": "MindRoom Lab 사용",
         "reset": "앱 기본값 사용",
-        "invalidUrl": "인증 정보, 경로, 쿼리 또는 프래그먼트가 없는 HTTPS 출처를 입력하세요. HTTP는 localhost에서만 허용됩니다.",
+        "invalidUrl": "인증 정보, 경로, 쿼리 또는 프래그먼트가 없는 오리진을 입력하세요. HTTPS를 사용하거나 localhost 또는 사설 LAN IP 주소에 HTTP를 사용하세요.",
+        "httpNotice": "HTTP는 로그인 정보나 컴퓨터 트래픽을 암호화하지 않습니다. 신뢰할 수 있는 로컬 네트워크에서만 사용하세요.",
         "saveFailed": "이 기기에 컴퓨터 서비스를 저장할 수 없습니다.",
         "saved": "컴퓨터 서비스를 저장했습니다."
       }
