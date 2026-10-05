@@ -58,22 +58,7 @@ private final class ComputerOriginProbeServer {
 @MainActor
 final class NativeComputerOriginTests: XCTestCase {
     func testComputerCorsUsesBundledNativeOriginForPreflightAndAuthenticatedFetch() async throws {
-        let controller = try XCTUnwrap(UIApplication.shared.connectedScenes
-            .compactMap { $0 as? UIWindowScene }.flatMap { $0.windows }
-            .compactMap { $0.rootViewController as? MindRoomBridgeViewController }.first)
-        let webView = try XCTUnwrap(controller.webView)
-        webView.load(URLRequest(url: URL(string: "capacitor://localhost/")!))
-        let deadline = Date().addingTimeInterval(15)
-        var booted = false
-        while Date() < deadline {
-            if !webView.isLoading, (try? await webView.evaluateJavaScript("!!window.routingBootId")) as? Bool == true {
-                booted = true
-                break
-            }
-            try await Task.sleep(nanoseconds: 100_000_000)
-        }
-        XCTAssertTrue(booted, "The bundled native document must load before testing its wire origin")
-        guard booted else { return }
+        let (_, webView) = try await loadNativeTestFixture()
         let server = try ComputerOriginProbeServer()
         defer { server.stop() }
         for _ in 0..<100 {

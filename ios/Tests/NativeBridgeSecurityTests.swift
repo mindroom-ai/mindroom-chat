@@ -27,21 +27,8 @@ final class BridgeProbePlugin: CAPPlugin, CAPBridgedPlugin {
 @MainActor
 final class NativeBridgeSecurityTests: XCTestCase {
     private func fixture() async throws -> WKWebView {
-        let controller = try XCTUnwrap(UIApplication.shared.connectedScenes
-            .compactMap { $0 as? UIWindowScene }
-            .flatMap { $0.windows }
-            .compactMap { $0.rootViewController as? MindRoomBridgeViewController }.first)
-        let webView = try XCTUnwrap(controller.webView)
-        webView.load(URLRequest(url: URL(string: "capacitor://localhost/")!))
-        let deadline = Date().addingTimeInterval(15)
-        while Date() < deadline {
-            if !webView.isLoading, (try? await webView.evaluateJavaScript("!!window.routingBootId")) as? Bool == true {
-                controller.bridge?.registerPluginInstance(BridgeProbePlugin())
-                return webView
-            }
-            try await Task.sleep(nanoseconds: 100_000_000)
-        }
-        XCTFail("Bundled app must load before probing its bridge")
+        let (controller, webView) = try await loadNativeTestFixture()
+        controller.bridge?.registerPluginInstance(BridgeProbePlugin())
         return webView
     }
 

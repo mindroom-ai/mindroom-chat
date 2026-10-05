@@ -16,7 +16,7 @@
   The native canvas gate and obsolete locale string are removed; runtime deployment switches and the existing call exclusion remain.
   The canvas's sandbox and CSP are unchanged.
   Phones already use a full-screen canvas and unmount the underlying conversation.
-- Validation so far: 6,081 unit tests pass under Node 24.13.1, along with typecheck, lint (17 existing warnings), web build, and the iOS build.
+- Validation so far: 6,092 unit tests pass under Node 24.13.1, along with typecheck, lint (17 existing warnings), web build, and the iOS build.
   Independent review approved the native boundary and the configuration/cache step after correcting Android first-navigation exposure and Fastlane build wiring.
   Xcode 26.6 cannot compile or run simulator tests because CoreSimulator 1051.49 is older than its required 1051.55 and the iOS 26.5 platform is unavailable; completing setup requires administrator authentication.
 - Native regression resources are generated from the shipping canvas document builder and outer app CSP.
@@ -25,7 +25,9 @@
   Cloud CI exposed optional array inference in the test plugin declaration; the method list now uses Capacitor's explicit `[CAPPluginMethod]` type.
   The corrected [native simulator CI run](https://github.com/mindroom-ai/mindroom-chat/actions/runs/37243530319) passed all 25 tests, including real plugin/cookie attacks, production canvas session isolation, and Chart.js painting.
   The retained screenshot is `docs/screenshots/ios-canvas-chart-js.png`.
-  A follow-up native loopback test observes the actual CORS preflight and bearer-header fetch origin with shipping ATS settings; its CI run is pending.
+  A follow-up native loopback test passed and observed `capacitor://localhost` on both the actual preflight and bearer-header request with shipping ATS settings.
+  That run exposed a cold-start race in the first bridge fixture; the independently reviewed helper now waits for the initial boot before loading a fresh test document.
+  Native CI also builds and archives the full unsigned arm64 simulator app for panel acceptance checks on the installed local iOS 26.2 runtime.
 - Computer investigation: the lab backend accepts `https://chat.mindroom.chat` but returns HTTP 400 for native preflight; the production Matrix/provisioning origin has no computers endpoint.
   The companion backend change accepts only the exact `capacitor://localhost` literal, retains fail-closed allowlists, and tests native CORS, OpenID/bearer/tickets, WSS input, control and release.
   Backend full pytest CI passed 29,096 tests with 20 skips; all 99 targeted computer API tests and pre-commit checks also pass.
@@ -34,7 +36,9 @@
   The iOS computer setting is opt-in; deploy backend PR #2680, update the allowlist, then configure the iOS build environment.
 - Ready PRs: [Chat #384](https://github.com/mindroom-ai/mindroom-chat/pull/384) and [backend #2680](https://github.com/mindroom-ai/mindroom/pull/2680); neither is merged.
   Current dev was merged after its thread-cycle fix advanced the base; both Runbook entries are preserved.
-  Next: finish browser/CI validation and capture native evidence when a configured simulator is available.
+  The full browser scheduler ran all 145 jobs with eight parallel slots: 108 passed, 36 failed, and the external worker fixture was unavailable.
+  Failed jobs are being rerun with two slots after unit/build work finished to separate resource contention from reproducible failures.
+  Next: finish browser reruns, exercise the full app on the disposable simulator, and retain panel screenshots.
 
 ### Stop the reconcile from linking thread segments into a cycle that froze the app (2026-10-04)
 
