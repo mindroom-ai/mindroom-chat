@@ -1003,6 +1003,12 @@
         "endCurrentCall": "আগে বর্তমান কল শেষ করুন।",
         "failedToStart": "কল শুরু করা যায়নি।",
         "homeserverUnsupported": "আপনার হোমসার্ভার কল সমর্থন করে না।"
+      },
+      "agentCallHeaderButton": {
+        "call": "একটি এজেন্টকে কল করুন",
+        "callAgent": "{{name}}-কে কল করুন",
+        "chooseAgent": "কল করার জন্য একটি এজেন্ট বেছে নিন",
+        "close": "বন্ধ করুন"
       }
     },
     "commands": {
@@ -1176,6 +1182,9 @@
         "denialReasonOptional": "প্রত্যাখ্যানের কারণ (ঐচ্ছিক)",
         "deny": "প্রত্যাখ্যান করুন",
         "denyCallReasonOptional": "কল {{number}} প্রত্যাখ্যানের কারণ (ঐচ্ছিক)",
+        "approveExactCall": "ঠিক এই কলটি অনুমোদন করুন",
+        "approveAnyArguments": "যেকোনো আর্গুমেন্ট অনুমোদন করুন",
+        "anyArgumentsWarning": "যেকোনো আর্গুমেন্ট বেছে নিলে এজেন্ট নির্ধারিত সময়ের {{minutes}} মিনিটের মধ্যে নিজের পছন্দমতো {{tool}} একবার কল করতে পারবে।",
         "denyReasonOptional": "প্রত্যাখ্যানের কারণ (ঐচ্ছিক)",
         "submittedWaitingForRoomUpdate": "জমা দেওয়া হয়েছে। রুম আপডেটের জন্য অপেক্ষা করছি।",
         "thisRequestCannotBeApprovedHere": "এই অনুরোধ এখানে অনুমোদন করা যাবে না."
@@ -1198,6 +1207,8 @@
         "grantedByAt": "{{grantor}} · {{timestamp}} দ্বারা মঞ্জুর করা হয়েছে",
         "originalFixedExpiry": "প্রথমে নির্ধারিত মেয়াদ শেষের সময়: {{timestamp}}",
         "reason": "কারণ: {{reason}}",
+        "approvedWhenScheduledByAt": "নির্ধারণের সময় {{approver}} অনুমোদন করেছেন · {{timestamp}}",
+        "approvedWhenScheduledBy": "নির্ধারণের সময় {{approver}} অনুমোদন করেছেন",
         "requestedBy": "{{agent}} · {{requester}} দ্বারা অনুরোধ করা হয়েছে",
         "resolvedAt": "{{status}} · {{timestamp}}",
         "resolvedBy": "{{resolver}} দ্বারা {{status}}",
@@ -1212,6 +1223,11 @@
         "tool": "টুল: {{tool}}",
         "toolAndServer": "টুল: {{tool}} · সার্ভার: {{server}}",
         "unknown": "অজানা"
+      },
+      "approvalSchedule": {
+        "scheduledFor": "{{timestamp}}-এর জন্য নির্ধারিত",
+        "approvedExactArguments": "ঠিক এই আর্গুমেন্টগুলোর জন্য অনুমোদিত",
+        "approvedAnyArguments": "এই টুলের যেকোনো আর্গুমেন্টের জন্য অনুমোদিত"
       },
       "approvalReviewCall": {
         "callStatus": "কল {{number}} · {{status}}",
@@ -1847,7 +1863,6 @@
         "apiUrl": "কম্পিউটার পরিষেবার URL",
         "description": "একটি বিশ্বস্ত MindRoom ব্যাকএন্ড বেছে নিন; এটি স্বল্পমেয়াদি সাইন-ইন টোকেন পাবে। এই ডিভাইসে সংরক্ষিত হয়। কম্পিউটার বন্ধ করতে ফাঁকা রাখুন।",
         "save": "কম্পিউটার পরিষেবা সংরক্ষণ করুন",
-        "lab": "MindRoom Lab ব্যবহার করুন",
         "reset": "অ্যাপের ডিফল্ট ব্যবহার করুন",
         "invalidUrl": "পরিচয়পত্র, পাথ, কোয়েরি বা ফ্র্যাগমেন্ট ছাড়া একটি অরিজিন লিখুন। HTTPS ব্যবহার করুন, অথবা localhost বা ব্যক্তিগত LAN IP ঠিকানার জন্য HTTP ব্যবহার করুন।",
         "httpNotice": "HTTP আপনার সাইন-ইন বা কম্পিউটারের ডেটা এনক্রিপ্ট করে না। এটি কেবল বিশ্বস্ত স্থানীয় নেটওয়ার্কে ব্যবহার করুন।",

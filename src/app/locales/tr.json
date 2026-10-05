@@ -141,7 +141,6 @@
         "apiUrl": "Bilgisayar hizmeti URL’si",
         "description": "Güvenilir bir MindRoom sunucusu seçin; kısa süreli bir oturum açma belirteci alır. Bu cihazda kaydedilir. Bilgisayarları kapatmak için boş bırakın.",
         "save": "Bilgisayar hizmetini kaydet",
-        "lab": "MindRoom Lab kullan",
         "reset": "Uygulama varsayılanını kullan",
         "invalidUrl": "Kimlik bilgisi, yol, sorgu veya parça içermeyen bir origin girin. HTTPS veya localhost ya da özel bir LAN IP adresiyle HTTP kullanın.",
         "httpNotice": "HTTP, oturum açma bilgilerinizi veya bilgisayar trafiğini şifrelemez. Yalnızca güvenilir bir yerel ağda kullanın.",
@@ -2294,6 +2293,12 @@
         "browserUnsupported": "Tarayıcınız WebRTC desteklemiyor.",
         "endCurrentCall": "Önce mevcut aramanızı sonlandırın.",
         "failedToStart": "Arama başlatılamadı."
+      },
+      "agentCallHeaderButton": {
+        "call": "Bir ajanla arama başlat",
+        "callAgent": "{{name}} ile arama başlat",
+        "chooseAgent": "Aranacak ajanı seçin",
+        "close": "Kapat"
       }
     },
     "commands": {
@@ -2449,7 +2454,10 @@
         "cancel": "İptal",
         "autoApproveMinutes_one": "{{count}} dakika boyunca otomatik onayla",
         "autoApproveMinutes_other": "{{count}} dakika boyunca otomatik onayla",
-        "denyCallReasonOptional": "{{number}} numaralı çağrı için ret nedeni (isteğe bağlı)"
+        "denyCallReasonOptional": "{{number}} numaralı çağrı için ret nedeni (isteğe bağlı)",
+        "approveExactCall": "Tam olarak bu çağrıyı onayla",
+        "approveAnyArguments": "Herhangi bir bağımsız değişkeni onayla",
+        "anyArgumentsWarning": "Herhangi bir bağımsız değişkenle aracı, planlanan zamanın {{minutes}} dakika yakınında kendi seçtiği değerlerle bir {{tool}} çağrısı yapabilir."
       },
       "approvalGrantStatus": {
         "autoApprovalActive": "Otomatik onay etkin",
@@ -2482,7 +2490,14 @@
         "originalFixedExpiry": "İlk sabit bitiş zamanı: {{timestamp}}",
         "toolAndServer": "Araç: {{tool}} · Sunucu: {{server}}",
         "tool": "Araç: {{tool}}",
-        "reason": "Neden: {{reason}}"
+        "reason": "Neden: {{reason}}",
+        "approvedWhenScheduledByAt": "Planlanırken {{approver}} tarafından onaylandı · {{timestamp}}",
+        "approvedWhenScheduledBy": "Planlanırken {{approver}} tarafından onaylandı"
+      },
+      "approvalSchedule": {
+        "scheduledFor": "{{timestamp}} için planlandı",
+        "approvedExactArguments": "Tam olarak bu bağımsız değişkenler için onaylandı",
+        "approvedAnyArguments": "Bu aracın herhangi bir bağımsız değişkeni için onaylandı"
       },
       "approvalReviewCall": {
         "pending": "bekliyor",

@@ -119,6 +119,7 @@ describe('parseToolApproval', () => {
       argumentsTruncated: false,
       fullArguments: null,
       argumentSource: null,
+      schedule: null,
     });
   });
 
@@ -179,6 +180,7 @@ describe('parseToolApproval', () => {
       argumentsTruncated: false,
       fullArguments: null,
       argumentSource: null,
+      schedule: null,
     });
   });
 
@@ -258,6 +260,7 @@ describe('parseToolApproval', () => {
       argumentsTruncated: false,
       fullArguments: null,
       argumentSource: null,
+      schedule: null,
     });
   });
 
@@ -315,6 +318,7 @@ describe('parseToolApproval', () => {
       argumentsTruncated: false,
       fullArguments: null,
       argumentSource: null,
+      schedule: null,
     });
   });
 
@@ -427,6 +431,7 @@ describe('parseToolApproval', () => {
       argumentsTruncated: false,
       fullArguments: null,
       argumentSource: null,
+      schedule: null,
     });
   });
 

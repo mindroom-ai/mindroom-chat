@@ -146,3 +146,51 @@ it('removes individual actions while the submitted call awaits its Matrix decisi
   expect(renderer.root.findAllByType('button')).toHaveLength(0);
   expect(JSON.stringify(renderer.toJSON())).toContain('Submitted');
 });
+it('offers exact and any-arguments approval for a scheduled call', () => {
+  const scheduled: ThreadApprovalRecord = {
+    ...record('$scheduled'),
+    approval: parseToolApprovalContent('io.mindroom.tool_approval', {
+      approval_id: 'scheduled-approval:task-1',
+      tool_name: 'post_slack_message',
+      agent_name: 'assistant',
+      arguments: { channel: 'U123' },
+      status: 'pending',
+      requested_at: '2026-10-03T22:00:00Z',
+      expires_at: '2999-10-04T13:00:00Z',
+      approver_user_id: '@alice:example.org',
+      approval_target: 'scheduled_call',
+      scheduled_task_id: 'task-1',
+      scheduled_for: '2999-10-04T13:00:00+00:00',
+      scheduled_window_seconds: 900,
+      scheduled_scope_options: ['exact_arguments', 'any_arguments'],
+    })!,
+  };
+  act(() => {
+    renderer = create(
+      <ApprovalReviewCall
+        record={scheduled}
+        index={0}
+        userId="@alice:example.org"
+        action={undefined}
+        now={Date.now()}
+        submit={mocks.submit}
+      />
+    );
+  });
+  const text = (node: { children: unknown[] }): string =>
+    node.children
+      .map((child) => (typeof child === 'string' ? child : text(child as never)))
+      .join('');
+  const buttons = renderer.root.findAllByType('button');
+  expect(buttons.map((button) => text(button))).toEqual([
+    'Approve this exact call',
+    'Deny',
+    'Approve any arguments',
+  ]);
+  act(() => buttons[0].props.onClick());
+  act(() => buttons[2].props.onClick());
+  expect(mocks.submit.mock.calls).toEqual([
+    [scheduled, { status: 'approved', scheduledScope: 'exact_arguments' }],
+    [scheduled, { status: 'approved', scheduledScope: 'any_arguments' }],
+  ]);
+});

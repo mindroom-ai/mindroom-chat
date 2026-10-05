@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { EventTimelineSetHandlerMap, MatrixClient, MatrixEvent, RoomEvent } from 'matrix-js-sdk';
+import type { Room } from 'matrix-js-sdk';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
-import { useRoom } from '../../hooks/useRoom';
 import { getCallFailureNotice } from './callFailureNotice';
 
 export type CallFailureNotice = {
@@ -22,9 +22,12 @@ const decryptEvent = async (event: MatrixEvent, mx: MatrixClient): Promise<boole
   }
 };
 
-export const useCallFailureNotice = (joined: boolean): CallFailureNotice | undefined => {
+export const useCallFailureNotice = (
+  room: Room,
+  joined: boolean,
+  startedAfterTs?: number
+): CallFailureNotice | undefined => {
   const mx = useMatrixClient();
-  const room = useRoom();
   const [notice, setNotice] = useState<CallFailureNotice>();
 
   useEffect(() => {
@@ -32,7 +35,7 @@ export const useCallFailureNotice = (joined: boolean): CallFailureNotice | undef
     if (!joined) return undefined;
 
     let active = true;
-    let latestEventTs = 0;
+    let latestEventTs = Number.NEGATIVE_INFINITY;
     const inspectEvent = async (event: MatrixEvent): Promise<boolean> => {
       if (!active || !(await decryptEvent(event, mx))) return false;
 
@@ -70,7 +73,13 @@ export const useCallFailureNotice = (joined: boolean): CallFailureNotice | undef
     const recentEvents = room
       .getLiveTimeline()
       .getEvents()
-      .filter((event) => event.getTs() >= recentCutoff)
+      // The call room is reused: history at or before the newest event from when the call started
+      // belongs to an earlier call. Server order, because the device clock may differ.
+      .filter(
+        (event) =>
+          event.getTs() >= recentCutoff &&
+          event.getTs() > (startedAfterTs ?? Number.NEGATIVE_INFINITY)
+      )
       .reverse();
     void (async () => {
       for (const event of recentEvents) {
@@ -83,7 +92,7 @@ export const useCallFailureNotice = (joined: boolean): CallFailureNotice | undef
       active = false;
       mx.removeListener(RoomEvent.Timeline, handleTimelineEvent);
     };
-  }, [joined, mx, room]);
+  }, [joined, mx, room, startedAfterTs]);
 
   return notice;
 };

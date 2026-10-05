@@ -7,7 +7,6 @@ import {
 import { resolveComputerApiUrl } from './api';
 
 export const COMPUTER_SERVICE_STORAGE_KEY = 'mindroomComputerService.v1';
-export const MINDROOM_LAB_COMPUTER_API_URL = 'https://mindroom.lab.mindroom.chat';
 
 // null follows the deployment, an empty string disables computers, and an origin overrides it.
 // Keep this preference on this device, rather than accepting endpoints from Matrix account data.

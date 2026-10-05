@@ -141,7 +141,6 @@
         "apiUrl": "عنوان خدمة الكمبيوتر",
         "description": "اختر خادم MindRoom موثوقًا؛ يتلقى رمز تسجيل دخول قصير المدة. يُحفظ على هذا الجهاز. اتركه فارغًا لتعطيل أجهزة الكمبيوتر.",
         "save": "حفظ خدمة الكمبيوتر",
-        "lab": "استخدام MindRoom Lab",
         "reset": "استخدام إعداد التطبيق الافتراضي",
         "invalidUrl": "أدخل أصل عنوان دون بيانات اعتماد أو مسار أو استعلام أو جزء. استخدم HTTPS، أو HTTP مع localhost أو عنوان IP خاص للشبكة المحلية.",
         "httpNotice": "لا يقوم HTTP بتشفير بيانات تسجيل الدخول أو حركة بيانات الكمبيوتر. استخدمه فقط على شبكة محلية موثوقة.",
@@ -2406,6 +2405,12 @@
         "browserUnsupported": "لا يدعم متصفحك WebRTC.",
         "endCurrentCall": "أنهِ مكالمتك الحالية أولًا.",
         "failedToStart": "تعذر بدء المكالمة."
+      },
+      "agentCallHeaderButton": {
+        "call": "الاتصال بوكيل",
+        "callAgent": "الاتصال بـ ⁨{{name}}⁩",
+        "chooseAgent": "اختر وكيلًا للاتصال به",
+        "close": "إغلاق"
       }
     },
     "commands": {
@@ -2566,6 +2571,9 @@
         "autoApproveMinutes_one": "موافقة تلقائية لمدة ⁨{{count}}⁩ دقيقة",
         "autoApproveMinutes_other": "موافقة تلقائية لمدة ⁨{{count}}⁩ دقائق",
         "denyCallReasonOptional": "سبب رفض الاستدعاء ⁨{{number}}⁩ (اختياري)",
+        "approveExactCall": "الموافقة على هذا الاستدعاء بعينه",
+        "approveAnyArguments": "الموافقة على أي وسائط",
+        "anyArgumentsWarning": "مع أي وسائط، يمكن للوكيل إجراء استدعاء واحد لـ ⁨{{tool}}⁩ بما يقرره، خلال ⁨{{minutes}}⁩ دقيقة من الوقت المحدد.",
         "autoApproveMinutes_few": "موافقة تلقائية لمدة ⁨{{count}}⁩ دقيقة",
         "autoApproveMinutes_many": "موافقة تلقائية لمدة ⁨{{count}}⁩ دقيقة",
         "autoApproveMinutes_two": "موافقة تلقائية لمدة ⁨{{count}}⁩ دقيقتين",
@@ -2607,10 +2615,17 @@
         "toolAndServer": "الأداة: ⁨{{tool}}⁩ · الخادم: ⁨{{server}}⁩",
         "tool": "الأداة: ⁨{{tool}}⁩",
         "reason": "السبب: ⁨{{reason}}⁩",
+        "approvedWhenScheduledByAt": "وافق عليه ⁨{{approver}}⁩ عند الجدولة · ⁨{{timestamp}}⁩",
+        "approvedWhenScheduledBy": "وافق عليه ⁨{{approver}}⁩ عند الجدولة",
         "timedPermissionMinutes_few": "إذن مؤقت · ⁨{{count}}⁩ دقيقة",
         "timedPermissionMinutes_many": "إذن مؤقت · ⁨{{count}}⁩ دقيقة",
         "timedPermissionMinutes_two": "إذن مؤقت · ⁨{{count}}⁩ دقيقة",
         "timedPermissionMinutes_zero": "إذن مؤقت · ⁨{{count}}⁩ دقيقة"
+      },
+      "approvalSchedule": {
+        "scheduledFor": "مجدول في ⁨{{timestamp}}⁩",
+        "approvedExactArguments": "تمت الموافقة على هذه الوسائط بعينها",
+        "approvedAnyArguments": "تمت الموافقة على أي وسائط لهذه الأداة"
       },
       "approvalReviewCall": {
         "pending": "معلق",

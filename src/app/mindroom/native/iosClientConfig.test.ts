@@ -27,14 +27,10 @@ describe('bundled iOS client config', () => {
   });
 
   it('lets operators select or disable the computer service without modifying shared config', () => {
-    const lab = JSON.parse(iosClientConfig(source, settings, 'https://mindroom.lab.mindroom.chat'));
-    expect(resolveComputerApiUrl(lab.mindroom.computers.apiUrl)).toBe(
-      'https://mindroom.lab.mindroom.chat'
+    const custom = JSON.parse(iosClientConfig(source, settings, 'https://computer.example.org'));
+    expect(resolveComputerApiUrl(custom.mindroom.computers.apiUrl)).toBe(
+      'https://computer.example.org'
     );
-    expect(
-      JSON.parse(iosClientConfig(source, settings, 'https://computer.example.org')).mindroom
-        .computers.apiUrl
-    ).toBe('https://computer.example.org');
     expect(JSON.parse(iosClientConfig(source, settings, '')).mindroom.computers.apiUrl).toBe('');
   });
 

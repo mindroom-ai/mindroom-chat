@@ -141,7 +141,6 @@
         "apiUrl": "URL layanan komputer",
         "description": "Pilih backend MindRoom tepercaya; backend menerima token masuk berumur pendek. Disimpan di perangkat ini. Kosongkan untuk menonaktifkan komputer.",
         "save": "Simpan layanan komputer",
-        "lab": "Gunakan MindRoom Lab",
         "reset": "Gunakan bawaan aplikasi",
         "invalidUrl": "Masukkan origin tanpa kredensial, jalur, kueri, atau fragmen. Gunakan HTTPS, atau HTTP dengan localhost atau alamat IP LAN privat.",
         "httpNotice": "HTTP tidak mengenkripsi proses masuk atau lalu lintas komputer Anda. Gunakan hanya pada jaringan lokal tepercaya.",
@@ -2294,6 +2293,12 @@
         "browserUnsupported": "Browser Anda tidak mendukung WebRTC.",
         "endCurrentCall": "Akhiri panggilan Anda saat ini terlebih dahulu.",
         "failedToStart": "Gagal memulai panggilan."
+      },
+      "agentCallHeaderButton": {
+        "call": "Panggil agen",
+        "callAgent": "Panggil {{name}}",
+        "chooseAgent": "Pilih agen untuk dipanggil",
+        "close": "Tutup"
       }
     },
     "commands": {
@@ -2449,7 +2454,10 @@
         "cancel": "Batal",
         "autoApproveMinutes_one": "Setujui otomatis selama {{count}} menit",
         "autoApproveMinutes_other": "Setujui otomatis selama {{count}} menit",
-        "denyCallReasonOptional": "Alasan menolak panggilan {{number}} (opsional)"
+        "denyCallReasonOptional": "Alasan menolak panggilan {{number}} (opsional)",
+        "approveExactCall": "Setujui panggilan persis ini",
+        "approveAnyArguments": "Setujui argumen apa pun",
+        "anyArgumentsWarning": "Dengan argumen apa pun, agen dapat melakukan satu panggilan {{tool}} dengan isi pilihannya, dalam {{minutes}} menit dari waktu terjadwal."
       },
       "approvalGrantStatus": {
         "autoApprovalActive": "Persetujuan otomatis aktif",
@@ -2482,7 +2490,14 @@
         "originalFixedExpiry": "Waktu kedaluwarsa tetap awal: {{timestamp}}",
         "toolAndServer": "Alat: {{tool}} · Server: {{server}}",
         "tool": "Alat: {{tool}}",
-        "reason": "Alasan: {{reason}}"
+        "reason": "Alasan: {{reason}}",
+        "approvedWhenScheduledByAt": "Disetujui saat dijadwalkan oleh {{approver}} · {{timestamp}}",
+        "approvedWhenScheduledBy": "Disetujui saat dijadwalkan oleh {{approver}}"
+      },
+      "approvalSchedule": {
+        "scheduledFor": "Dijadwalkan untuk {{timestamp}}",
+        "approvedExactArguments": "Disetujui untuk argumen persis ini",
+        "approvedAnyArguments": "Disetujui untuk argumen apa pun pada alat ini"
       },
       "approvalReviewCall": {
         "pending": "menunggu",
