@@ -44,6 +44,7 @@ import {
   getLegacyThreadEventCacheDbName as getThreadEventCacheDbName,
   getLegacyThreadSummaryCacheDbName as getThreadSummaryCacheDbName,
 } from '../app/mindroom/threads/cacheStore';
+import { getCanvasStateDbName } from '../app/mindroom/canvas/canvasStateStore';
 import { clearIOSPushState } from '../app/mindroom/native/iosPush';
 import { clearRecentThreadsStore } from '../app/mindroom/recent-threads/recentThreads';
 import { clearRecentThreadViewModelSharedState } from '../app/mindroom/threads/recentThreadViewModel';
@@ -2212,6 +2213,7 @@ describe('removeStoredSession', () => {
     expect(deleteDatabase).toHaveBeenCalledWith(legacyRustCryptoStoreNames[1]);
     expect(deleteDatabase).toHaveBeenCalledWith(previousDeviceRustCryptoStoreNames[0]);
     expect(deleteDatabase).toHaveBeenCalledWith(previousDeviceRustCryptoStoreNames[1]);
+    expect(deleteDatabase).toHaveBeenCalledWith(getCanvasStateDbName(inactiveSession.sessionId));
     // CINNY-207 P2.3: the three legacy delete-cache functions collapsed
     // to a single deleteCacheStoreDb call inside sessionCleanup; the
     // legacy per-session DB names are also deleted via

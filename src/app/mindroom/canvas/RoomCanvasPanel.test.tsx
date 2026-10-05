@@ -125,6 +125,7 @@ beforeEach(() => {
   panels.props = undefined;
   mx = Object.assign(new EventEmitter(), {
     getSafeUserId: () => VIEWER,
+    getHomeserverUrl: () => 'https://example.org',
   }) as unknown as MatrixClient;
 });
 

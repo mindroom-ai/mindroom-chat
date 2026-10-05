@@ -2,6 +2,23 @@
 
 ## Runbook
 
+### Let canvas pages keep their own state on this device (2026-10-04)
+
+- Why: a canvas page lost everything the user did in it whenever Chat reloaded, the panel reopened, or the agent updated the page; Claude artifacts give pages storage that persists.
+  A canvas runs with an opaque origin, so its own `localStorage` and IndexedDB are unavailable.
+- Pages read `window.mindroom.state` (the JSON value last saved, or `undefined`), which is set before their scripts run, and call `window.mindroom.saveState(value)`.
+  `saveState` throws for a value that is not JSON or whose JSON is longer than 256 K characters (`CANVAS_STATE_MAX_LENGTH`); Chat checks the message again (`readCanvasState`).
+- State belongs to the canvas (its request event ID), so every version and every agent update starts from it; it stays on this device and is never sent to the room or the agent.
+  A page that wants the agent to see it sends it with `mindroom.submit`.
+- `useCanvasState` reads the state before the page starts (the panel shows loading until then) and keeps the latest save in memory, writing to IndexedDB at most every 500 ms and when the panel unmounts.
+  Saving never rebuilds the frame: the next page, **Load update**, a version switch, or **Reload panel** embeds the latest state.
+- `canvasStateStore.ts` keeps one IndexedDB database per session, `mindroom-canvas-state::<session>`, which holds the states of at most 100 canvases and forgets the ones saved longest ago.
+  Saved state is the user's data rather than a cache, so **Clear cache and reload** keeps it and only removing the account deletes it (`deleteSessionLocalData` in `sessionLifecycle.ts`).
+- Tests: `canvasStateStore.test.ts` (per canvas and session, the limit), `initMatrix.test.ts` (account removal deletes it; the clear-cache lists stay unchanged), `useCanvasState.test.tsx` (read before the page may start, quick saves written once, the unmount write), `canvasDocument.test.ts` (embedding, including `</script>` in saved JSON), `canvasMessages.test.ts`, and `CanvasPanel.test.tsx` (a save does not reload the page, the next page starts from it).
+  `e2e/agent-canvas.spec.ts` types into a page that saves, reloads Chat, and sees the text again, then again after an agent update.
+- Not changed: a save in the last half second before the browser closes the tab can be lost, since a page unload does not unmount React.
+- Next: if pages with saved state become common, let an agent update load at once even over unsent work in a page that saves.
+
 ### Stop the reconcile from linking thread segments into a cycle that froze the app (2026-10-04)
 
 - Report: an iPhone export from build `515acd2c` shows the whole app frozen right after it came back from 130 s in the background, with a long thread open (968 SDK events) while an agent was typing.

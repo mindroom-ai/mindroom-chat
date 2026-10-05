@@ -6,6 +6,7 @@ import {
   CANVAS_ERROR_MESSAGE,
   CANVAS_ESCAPE_MESSAGE,
   CANVAS_LIBRARY_SOURCE,
+  CANVAS_STATE_MESSAGE,
   CANVAS_PERMISSIONS,
   CANVAS_SANDBOX,
   CANVAS_WRAPPER_SANDBOX,
@@ -47,6 +48,22 @@ describe('buildCanvasPage', () => {
     expect(buildCanvasPage('<p>hi</p>', 'light', FALLBACK_CANVAS_THEMES.light, true)).toContain(
       `content="${policy}"`
     );
+  });
+
+  it('gives the page its saved state before its scripts run, and a way to save it', () => {
+    expect(buildCanvasPage('', 'light')).toContain('state: undefined');
+    const doc = buildCanvasPage(
+      '<script>render(mindroom.state)</script>',
+      'light',
+      FALLBACK_CANVAS_THEMES.light,
+      false,
+      '{"note":"</script><b>"}'
+    );
+    // The state cannot close the bridge script it is written into.
+    expect(doc).toContain('state: {"note":"\\u003c/script>\\u003cb>"}');
+    expect(doc.split('</script>')).toHaveLength(3);
+    expect(doc.indexOf('state: {')).toBeLessThan(doc.indexOf('render(mindroom.state)'));
+    expect(doc).toContain(`type: '${CANVAS_STATE_MESSAGE}'`);
   });
 
   it('tells the page the color scheme it is shown in', () => {

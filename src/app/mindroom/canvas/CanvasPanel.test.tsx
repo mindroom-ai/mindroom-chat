@@ -790,6 +790,28 @@ describe('CanvasPanel', () => {
     expect(container.textContent).not.toContain('updated this panel');
   });
 
+  it('starts each page from the saved state and saves what the page sends without reloading', async () => {
+    let saved: string | undefined = '{"slots":[1]}';
+    const onSaveState = vi.fn((json: string) => {
+      saved = json;
+    });
+    render({ savedState: () => saved, onSaveState });
+    expect(page()).toContain('state: {"slots":[1]}');
+    const first = frame();
+    await post({ type: 'mindroom.canvas.state', version: 1, json: '{"slots":[1,2]}' });
+    await post({ type: 'mindroom.canvas.state', version: 1, json: '{"slots":[1,2,3]}' }, {});
+    expect(onSaveState.mock.calls).toEqual([['{"slots":[1,2]}']]);
+    expect(frame()).toBe(first);
+    // Saving is not an answer, so the next page still loads at once, starting from that state.
+    render({
+      canvas: { ...canvas, revisionEventId: '$edit', html: '<p>Step 2</p>' },
+      savedState: () => saved,
+      onSaveState,
+    });
+    expect(page()).toContain('<p>Step 2</p>');
+    expect(page()).toContain('state: {"slots":[1,2]}');
+  });
+
   it('stops a canvas that navigates away from its document', async () => {
     render();
     await act(async () => {
