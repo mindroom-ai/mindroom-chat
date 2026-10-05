@@ -11,7 +11,6 @@ import {
   Overlay,
   OverlayBackdrop,
   OverlayCenter,
-  Scroll,
   Spinner,
   Text,
 } from 'folds';
@@ -27,6 +26,9 @@ import { useAtomValue } from 'jotai';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { Room } from 'matrix-js-sdk';
 import { useTranslation } from 'react-i18next';
+import { PageScroll } from '../../components/page';
+import { useVirtualListScrollMargin } from '../../hooks/useVirtualListScrollMargin';
+import { pageScrollHeaderHeight } from '../../components/page/style.css';
 import { Menu, Modal, Header, MenuItem } from '../../components/glass/GlassPrimitives';
 import { stopPropagation } from '../../utils/keyboard';
 import { useDirects, useRooms, useSpaces } from '../../state/hooks/roomList';
@@ -80,6 +82,8 @@ export function AddExistingModal({ parentId, space, requestClose }: AddExistingM
   const directs = useDirects(mx, allRoomsAtom, mDirects);
   const roomIdToParents = useAtomValue(roomToParentsAtom);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+  const scrollMargin = useVirtualListScrollMargin(scrollRef, listRef);
 
   const [selected, setSelected] = useState<string[]>([]);
 
@@ -113,6 +117,7 @@ export function AddExistingModal({ parentId, space, requestClose }: AddExistingM
   const virtualizer = useVirtualizer({
     count: items.length,
     getScrollElement: () => scrollRef.current,
+    scrollMargin,
     estimateSize: () => 32,
     overscan: 5,
   });
@@ -191,200 +196,208 @@ export function AddExistingModal({ parentId, space, requestClose }: AddExistingM
         >
           <Modal size="300">
             <Box grow="Yes" direction="Column">
-              <Header
-                size="500"
-                style={{
-                  padding: config.space.S200,
-                  paddingInlineStart: config.space.S400,
-                }}
-              >
-                <Box grow="Yes">
-                  <Text size="H4">{t('featureUi.addExisting.addExisting')}</Text>
-                </Box>
-                <Box shrink="No">
-                  <IconButton size="300" radii="300" onClick={requestClose}>
-                    <Icon src={Icons.Cross} />
-                  </IconButton>
-                </Box>
-              </Header>
-              <Box grow="Yes">
-                <Scroll ref={scrollRef} size="300" hideTrack>
-                  <Box
-                    style={{ padding: config.space.S300, paddingInlineEnd: 0 }}
-                    direction="Column"
-                    gap="500"
+              <PageScroll
+                scrollRef={scrollRef}
+                header={
+                  <Header
+                    size="500"
+                    style={{
+                      padding: config.space.S200,
+                      paddingInlineStart: config.space.S400,
+                    }}
                   >
-                    <Box
-                      direction="Column"
-                      style={{ position: 'sticky', top: config.space.S300, zIndex: 1 }}
-                    >
-                      <Input
-                        onChange={handleSearchChange}
-                        before={<Icon size="200" src={Icons.Search} />}
-                        placeholder={t('featureUi.addExisting.search')}
-                        size="400"
-                        variant="Background"
-                        outlined
-                      />
+                    <Box grow="Yes">
+                      <Text size="H4">{t('featureUi.addExisting.addExisting')}</Text>
                     </Box>
-                    {vItems.length === 0 && (
-                      <Box
-                        style={{ paddingTop: config.space.S700 }}
-                        grow="Yes"
-                        alignItems="Center"
-                        justifyContent="Center"
-                        direction="Column"
-                        gap="100"
-                      >
-                        <Text size="H6" align="Center">
-                          {searchResult
-                            ? t('featureUi.addExisting.noMatchFound')
-                            : space
-                            ? t('featureUi.addExisting.noSpaces')
-                            : t('featureUi.addExisting.noRooms')}
-                        </Text>
-                        <Text size="T200" align="Center">
-                          {searchResult
-                            ? t('featureUi.addExisting.noMatchForQuery', {
-                                query: searchResult.query,
-                              })
-                            : space
-                            ? t('featureUi.addExisting.noSpacesDescription')
-                            : t('featureUi.addExisting.noRoomsDescription')}
-                        </Text>
-                      </Box>
-                    )}
-                    <Box
-                      style={{
-                        position: 'relative',
-                        height: virtualizer.getTotalSize(),
-                      }}
-                    >
-                      {vItems.map((vItem) => {
-                        const roomId = items[vItem.index];
-                        const room = getRoom(roomId);
-                        if (!room) return null;
-                        const selectedItem = selected?.includes(roomId);
-                        const dm = mDirects.has(room.roomId);
-
-                        return (
-                          <VirtualTile
-                            virtualItem={vItem}
-                            style={{ paddingBottom: config.space.S100 }}
-                            ref={virtualizer.measureElement}
-                            key={vItem.index}
-                          >
-                            <MenuItem
-                              data-room-id={roomId}
-                              onClick={handleRoomClick}
-                              variant={selectedItem ? 'Success' : 'Surface'}
-                              size="400"
-                              radii="400"
-                              disabled={applyingChanges}
-                              aria-pressed={selectedItem}
-                              before={
-                                <Avatar size="200" radii={dm ? '400' : '300'}>
-                                  {dm || room.isSpaceRoom() ? (
-                                    <RoomAvatar
-                                      roomId={room.roomId}
-                                      src={
-                                        dm
-                                          ? getDirectRoomAvatarUrl(mx, room, 96, useAuthentication)
-                                          : getRoomAvatarUrl(mx, room, 96, useAuthentication)
-                                      }
-                                      alt={room.name}
-                                      renderFallback={() => (
-                                        <Text as="span" size="H6">
-                                          {nameInitials(room.name)}
-                                        </Text>
-                                      )}
-                                    />
-                                  ) : (
-                                    <RoomIcon
-                                      size="200"
-                                      joinRule={room.getJoinRule()}
-                                      roomType={room.getType()}
-                                    />
-                                  )}
-                                </Avatar>
-                              }
-                              after={selectedItem && <Icon size="200" src={Icons.Check} />}
-                            >
-                              <Box grow="Yes">
-                                <Text truncate size="T400">
-                                  {queryHighlighRegex
-                                    ? highlightText(queryHighlighRegex, [room.name])
-                                    : room.name}
-                                </Text>
-                              </Box>
-                            </MenuItem>
-                          </VirtualTile>
-                        );
-                      })}
+                    <Box shrink="No">
+                      <IconButton size="300" radii="300" onClick={requestClose}>
+                        <Icon src={Icons.Cross} />
+                      </IconButton>
                     </Box>
-                    {selected.length > 0 && (
-                      <Menu
-                        style={{
-                          position: 'sticky',
-                          padding: config.space.S200,
-                          paddingInlineStart: config.space.S400,
-                          bottom: config.space.S400,
-                          left: config.space.S400,
-                          right: 0,
-                          zIndex: 1,
-                        }}
-                        variant="Success"
-                      >
-                        <Box alignItems="Center" gap="400">
-                          <Box grow="Yes" direction="Column">
-                            {applyState.status === AsyncStatus.Error ? (
-                              <Text size="T200">
-                                <b>
-                                  {t('featureUi.addExisting.failedToApplyChangesPleaseTryAgain')}
-                                </b>
-                              </Text>
-                            ) : (
-                              <Text size="T200">
-                                <b>
-                                  {t('featureUi.addExisting.applyWhenReadySelected', {
-                                    count: selected.length,
-                                  })}
-                                </b>
-                              </Text>
-                            )}
-                          </Box>
-                          <Box shrink="No" gap="200">
-                            <Button
-                              size="300"
-                              variant="Success"
-                              fill="None"
-                              radii="300"
-                              disabled={applyingChanges}
-                              onClick={resetChanges}
-                            >
-                              <Text size="B300">{t('featureUi.addExisting.reset')}</Text>
-                            </Button>
-                            <Button
-                              size="300"
-                              variant="Success"
-                              radii="300"
-                              disabled={applyingChanges}
-                              before={
-                                applyingChanges && (
-                                  <Spinner variant="Success" fill="Solid" size="100" />
-                                )
-                              }
-                              onClick={handleApplyChanges}
-                            >
-                              <Text size="B300">{t('featureUi.addExisting.applyChanges')}</Text>
-                            </Button>
-                          </Box>
-                        </Box>
-                      </Menu>
-                    )}
+                  </Header>
+                }
+              >
+                <Box
+                  style={{ padding: config.space.S300, paddingInlineEnd: 0 }}
+                  direction="Column"
+                  gap="500"
+                >
+                  <Box
+                    direction="Column"
+                    style={{
+                      position: 'sticky',
+                      top: `calc(${pageScrollHeaderHeight} + ${config.space.S300})`,
+                      zIndex: 1,
+                    }}
+                  >
+                    <Input
+                      onChange={handleSearchChange}
+                      before={<Icon size="200" src={Icons.Search} />}
+                      placeholder={t('featureUi.addExisting.search')}
+                      size="400"
+                      variant="Background"
+                      outlined
+                    />
                   </Box>
-                </Scroll>
-              </Box>
+                  {vItems.length === 0 && (
+                    <Box
+                      style={{ paddingTop: config.space.S700 }}
+                      grow="Yes"
+                      alignItems="Center"
+                      justifyContent="Center"
+                      direction="Column"
+                      gap="100"
+                    >
+                      <Text size="H6" align="Center">
+                        {searchResult
+                          ? t('featureUi.addExisting.noMatchFound')
+                          : space
+                          ? t('featureUi.addExisting.noSpaces')
+                          : t('featureUi.addExisting.noRooms')}
+                      </Text>
+                      <Text size="T200" align="Center">
+                        {searchResult
+                          ? t('featureUi.addExisting.noMatchForQuery', {
+                              query: searchResult.query,
+                            })
+                          : space
+                          ? t('featureUi.addExisting.noSpacesDescription')
+                          : t('featureUi.addExisting.noRoomsDescription')}
+                      </Text>
+                    </Box>
+                  )}
+                  <Box
+                    ref={listRef}
+                    style={{
+                      position: 'relative',
+                      height: virtualizer.getTotalSize(),
+                    }}
+                  >
+                    {vItems.map((vItem) => {
+                      const roomId = items[vItem.index];
+                      const room = getRoom(roomId);
+                      if (!room) return null;
+                      const selectedItem = selected?.includes(roomId);
+                      const dm = mDirects.has(room.roomId);
+
+                      return (
+                        <VirtualTile
+                          virtualItem={vItem}
+                          style={{
+                            top: vItem.start - scrollMargin,
+                            paddingBottom: config.space.S100,
+                          }}
+                          ref={virtualizer.measureElement}
+                          key={vItem.index}
+                        >
+                          <MenuItem
+                            data-room-id={roomId}
+                            onClick={handleRoomClick}
+                            variant={selectedItem ? 'Success' : 'Surface'}
+                            size="400"
+                            radii="400"
+                            disabled={applyingChanges}
+                            aria-pressed={selectedItem}
+                            before={
+                              <Avatar size="200" radii={dm ? '400' : '300'}>
+                                {dm || room.isSpaceRoom() ? (
+                                  <RoomAvatar
+                                    roomId={room.roomId}
+                                    src={
+                                      dm
+                                        ? getDirectRoomAvatarUrl(mx, room, 96, useAuthentication)
+                                        : getRoomAvatarUrl(mx, room, 96, useAuthentication)
+                                    }
+                                    alt={room.name}
+                                    renderFallback={() => (
+                                      <Text as="span" size="H6">
+                                        {nameInitials(room.name)}
+                                      </Text>
+                                    )}
+                                  />
+                                ) : (
+                                  <RoomIcon
+                                    size="200"
+                                    joinRule={room.getJoinRule()}
+                                    roomType={room.getType()}
+                                  />
+                                )}
+                              </Avatar>
+                            }
+                            after={selectedItem && <Icon size="200" src={Icons.Check} />}
+                          >
+                            <Box grow="Yes">
+                              <Text truncate size="T400">
+                                {queryHighlighRegex
+                                  ? highlightText(queryHighlighRegex, [room.name])
+                                  : room.name}
+                              </Text>
+                            </Box>
+                          </MenuItem>
+                        </VirtualTile>
+                      );
+                    })}
+                  </Box>
+                  {selected.length > 0 && (
+                    <Menu
+                      style={{
+                        position: 'sticky',
+                        padding: config.space.S200,
+                        paddingInlineStart: config.space.S400,
+                        bottom: config.space.S400,
+                        left: config.space.S400,
+                        right: 0,
+                        zIndex: 1,
+                      }}
+                      variant="Success"
+                    >
+                      <Box alignItems="Center" gap="400">
+                        <Box grow="Yes" direction="Column">
+                          {applyState.status === AsyncStatus.Error ? (
+                            <Text size="T200">
+                              <b>{t('featureUi.addExisting.failedToApplyChangesPleaseTryAgain')}</b>
+                            </Text>
+                          ) : (
+                            <Text size="T200">
+                              <b>
+                                {t('featureUi.addExisting.applyWhenReadySelected', {
+                                  count: selected.length,
+                                })}
+                              </b>
+                            </Text>
+                          )}
+                        </Box>
+                        <Box shrink="No" gap="200">
+                          <Button
+                            size="300"
+                            variant="Success"
+                            fill="None"
+                            radii="300"
+                            disabled={applyingChanges}
+                            onClick={resetChanges}
+                          >
+                            <Text size="B300">{t('featureUi.addExisting.reset')}</Text>
+                          </Button>
+                          <Button
+                            size="300"
+                            variant="Success"
+                            radii="300"
+                            disabled={applyingChanges}
+                            before={
+                              applyingChanges && (
+                                <Spinner variant="Success" fill="Solid" size="100" />
+                              )
+                            }
+                            onClick={handleApplyChanges}
+                          >
+                            <Text size="B300">{t('featureUi.addExisting.applyChanges')}</Text>
+                          </Button>
+                        </Box>
+                      </Box>
+                    </Menu>
+                  )}
+                </Box>
+              </PageScroll>
             </Box>
           </Modal>
         </FocusTrap>

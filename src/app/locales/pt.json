@@ -135,6 +135,18 @@
         "urlPreview": "Pré-visualização de URL",
         "urlPreviewEncrypted": "Pré-visualização de URL em salas encriptadas",
         "showHiddenEvents": "Mostrar eventos ocultos"
+      },
+      "computers": {
+        "sectionTitle": "Computadores",
+        "apiUrl": "URL do serviço de computadores",
+        "description": "Escolha um backend MindRoom confiável; ele receberá um token de login de curta duração. Salvo neste dispositivo. Deixe em branco para desativar os computadores.",
+        "save": "Salvar serviço de computadores",
+        "lab": "Usar MindRoom Lab",
+        "reset": "Usar padrão do aplicativo",
+        "invalidUrl": "Introduza uma origem sem credenciais, caminho, consulta ou fragmento. Use HTTPS, ou HTTP com localhost ou um endereço IP privado da rede local.",
+        "httpNotice": "HTTP não encripta o início de sessão nem o tráfego do computador. Use-o apenas numa rede local de confiança.",
+        "saveFailed": "Não foi possível salvar o serviço de computadores neste dispositivo.",
+        "saved": "Serviço de computadores salvo."
       }
     }
   },
@@ -2957,8 +2969,7 @@
       "computerUnavailable": "O computador deste agente não está disponível.",
       "releaseControl": "Libere o controle do computador antes de abrir outra visualização.",
       "openConversation": "Abra esta solicitação pela conversa da sala.",
-      "settingsUnavailable": "Desative o modo simples para abrir esta seção das configurações.",
-      "canvasUnavailableInApp": "Os painéis interativos ainda não estão disponíveis no app. Abra esta conversa em um navegador."
+      "settingsUnavailable": "Desative o modo simples para abrir esta seção das configurações."
     },
     "canvas": {
       "panelLabel": "Painel interativo",

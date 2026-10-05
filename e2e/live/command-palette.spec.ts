@@ -1,7 +1,12 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 import { getHomeserver, getPrimaryCredentials, hasPrimaryCredentials } from '../env';
 import { loginWithPassword } from '../helpers/auth';
 import { createPrivateRoom, loginToMatrix } from '../helpers/matrix';
+
+const openCommandPalette = async (page: Page) => {
+  const mac = await page.evaluate(() => /Mac|iPod|iPhone|iPad/.test(navigator.platform));
+  await page.keyboard.press(mac ? 'Meta+k' : 'Control+k');
+};
 
 test.describe('command palette', () => {
   test.skip(!hasPrimaryCredentials(), 'Requires a Matrix test account');
@@ -22,7 +27,7 @@ test.describe('command palette', () => {
       topic: 'A room for command palette navigation checks',
     });
     await loginWithPassword(page, { homeserver, ...credentials });
-    await page.keyboard.press('Control+k');
+    await openCommandPalette(page);
     const dialog = page.getByRole('dialog', { name: 'Command palette', exact: true });
     const input = dialog.getByRole('combobox');
     await expect(input).toBeFocused();
@@ -75,7 +80,7 @@ test.describe('command palette', () => {
     }, testInfo) => {
       await page.setViewportSize(viewport);
       await loginWithPassword(page, { homeserver: getHomeserver(), ...getPrimaryCredentials() });
-      await page.keyboard.press('Control+k');
+      await openCommandPalette(page);
       const dialog = page.getByRole('dialog', { name: 'Command palette', exact: true });
       const input = dialog.getByRole('combobox');
       await expect(input).toBeFocused();

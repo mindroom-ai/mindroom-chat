@@ -172,9 +172,11 @@ for (const [themeId, width, simpleMode] of [
         .getByRole('button', { name: 'General', exact: true })
         .locator('xpath=ancestor::*[@data-y-scrollbar-width][1]')
         .locator('header');
-      await expectFloatingNavHeader(settingsHeader);
+      await expectFloatingNavHeader(settingsHeader, { inheritsPanelTint: true });
       await page.setViewportSize({ width, height: 240 });
-      const settingsScroll = await expectFloatingNavHeader(settingsHeader);
+      const settingsScroll = await expectFloatingNavHeader(settingsHeader, {
+        inheritsPanelTint: true,
+      });
       await expectInsetScrollbar(page, settingsScroll, settingsHeader);
       await settingsScroll.getByRole('scrollbar').hover();
       await page.screenshot({

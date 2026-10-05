@@ -1,12 +1,16 @@
 import { randomUUID } from 'node:crypto';
 import { expect, test } from '@playwright/test';
 import { loginWithPassword } from './helpers/auth';
+import { alignUiActionSync } from './helpers/uiActionSync';
 import { createThreadFixture, joinRoom, matrixFetch, sendRoomMessage } from './helpers/matrix';
 
 // Explicit opt-in to an isolated, disposable local Matrix server with open registration.
 const homeserver = process.env.E2E_UI_ACTIONS_HOMESERVER;
 const computerApi = 'http://127.0.0.1:28179';
 test.use({ video: 'off' });
+test.afterEach(async ({ context }) => {
+  await context.unrouteAll({ behavior: 'ignoreErrors' });
+});
 
 test('agent requests open the active conversation and leave passive history buttons', async ({
   page,
@@ -73,6 +77,7 @@ test('agent requests open the active conversation and leave passive history butt
     // Exercise real authenticated viewer creation without depending on a running worker/VNC.
     return route.fulfill({ status: 503, json: { detail: 'Local fixture computer unavailable' } });
   });
+  await alignUiActionSync(context, page, homeserver!);
   await context.route('**/config.json', async (route) => {
     const response = await route.fetch();
     const config = await response.json();

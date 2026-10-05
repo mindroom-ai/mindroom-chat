@@ -142,6 +142,29 @@ describe('liquid glass rendering lifecycle', () => {
     expect(document.querySelector('[data-liquid-glass-defs]')).toBeNull();
   });
 
+  it('does not light the enclosing panel when the pointer moves over flat header controls', () => {
+    vi.spyOn(element, 'getBoundingClientRect').mockReturnValue({
+      left: 0,
+      top: 0,
+      width: 200,
+      height: 100,
+    } as DOMRect);
+    const header = document.createElement('header');
+    header.dataset.glassFlat = 'true';
+    const button = document.createElement('button');
+    header.append(button);
+    element.append(header);
+    cleanup = attachLiquidGlass(element, { refraction: false });
+    element.dispatchEvent(new MouseEvent('pointermove', { clientX: 150, clientY: 25 }));
+    // Cancel even a pending light frame when crossing into the flat header.
+    button.dispatchEvent(
+      new MouseEvent('pointermove', { bubbles: true, clientX: 30, clientY: 10 })
+    );
+    vi.runAllTimers();
+    expect(element.style.getPropertyValue('--liquid-glass-light-x')).toBe('');
+    expect(element.style.getPropertyValue('--liquid-glass-light-y')).toBe('');
+  });
+
   it.each([
     '(prefers-reduced-transparency: reduce)',
     '(prefers-contrast: more)',

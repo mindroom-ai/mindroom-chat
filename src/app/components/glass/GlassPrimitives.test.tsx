@@ -5,6 +5,7 @@ import { createRoot, Root } from 'react-dom/client';
 import { act } from 'react-dom/test-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Dialog, Header, Menu, Modal, Surface } from './GlassPrimitives';
+import { ScrollHeaderProvider } from './SurfaceContext';
 
 vi.unmock('./GlassPrimitives');
 vi.mock('../../styles/ContainerColor.css', () => ({
@@ -124,6 +125,50 @@ describe('shared surface appearance', () => {
         )
       );
       expect(pointAt(header)).toBe('');
+    }
+  );
+
+  it('keeps scrolling titles free of pointer lighting while preserving explicit raised headers', () => {
+    const ref = createRef<HTMLElement>();
+    const renderHeader = (scrolling: boolean, flat?: boolean) => (
+      <ScrollHeaderProvider value={scrolling}>
+        <Header ref={ref} flat={flat} />
+      </ScrollHeaderProvider>
+    );
+    act(() => root.render(renderHeader(false)));
+    const element = ref.current!;
+    expect(pointAt(element)).toBe('75%');
+    act(() => root.render(renderHeader(true)));
+    expect(ref.current).toBe(element);
+    expect(element.style.getPropertyValue('--liquid-glass-light-x')).toBe('');
+    expect(pointAt(element)).toBe('');
+    expect(element.hasAttribute('flat')).toBe(false);
+    act(() => root.render(renderHeader(true, false)));
+    expect(pointAt(element)).toBe('75%');
+  });
+  it.each([Menu, Modal, Dialog, Surface])(
+    'does not leak scrolling chrome through nested overlay portals',
+    (Overlay) => {
+      act(() =>
+        root.render(
+          <ScrollHeaderProvider value>
+            <Header data-testid="title">
+              {createPortal(
+                <Overlay>
+                  <Header data-testid="dialog-title" />
+                </Overlay>,
+                container
+              )}
+            </Header>
+          </ScrollHeaderProvider>
+        )
+      );
+      expect(
+        container.querySelector('[data-testid="title"]')?.getAttribute('data-glass-flat')
+      ).toBe('true');
+      expect(
+        container.querySelector('[data-testid="dialog-title"]')?.hasAttribute('data-glass-flat')
+      ).toBe(false);
     }
   );
 });

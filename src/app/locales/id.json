@@ -135,6 +135,18 @@
         "urlPreview": "Pratinjau URL",
         "urlPreviewEncrypted": "Pratinjau URL di ruang terenkripsi",
         "showHiddenEvents": "Tampilkan peristiwa tersembunyi"
+      },
+      "computers": {
+        "sectionTitle": "Komputer",
+        "apiUrl": "URL layanan komputer",
+        "description": "Pilih backend MindRoom tepercaya; backend menerima token masuk berumur pendek. Disimpan di perangkat ini. Kosongkan untuk menonaktifkan komputer.",
+        "save": "Simpan layanan komputer",
+        "lab": "Gunakan MindRoom Lab",
+        "reset": "Gunakan bawaan aplikasi",
+        "invalidUrl": "Masukkan origin tanpa kredensial, jalur, kueri, atau fragmen. Gunakan HTTPS, atau HTTP dengan localhost atau alamat IP LAN privat.",
+        "httpNotice": "HTTP tidak mengenkripsi proses masuk atau lalu lintas komputer Anda. Gunakan hanya pada jaringan lokal tepercaya.",
+        "saveFailed": "Layanan komputer tidak dapat disimpan di perangkat ini.",
+        "saved": "Layanan komputer disimpan."
       }
     }
   },
@@ -2903,8 +2915,7 @@
       "computerUnavailable": "Komputer agen ini tidak tersedia.",
       "releaseControl": "Lepaskan kendali komputer sebelum membuka tampilan lain.",
       "openConversation": "Buka permintaan ini dari percakapan ruangan.",
-      "settingsUnavailable": "Nonaktifkan Mode Sederhana untuk membuka bagian Pengaturan ini.",
-      "canvasUnavailableInApp": "Panel interaktif belum tersedia di aplikasi. Buka percakapan ini di browser."
+      "settingsUnavailable": "Nonaktifkan Mode Sederhana untuk membuka bagian Pengaturan ini."
     },
     "canvas": {
       "panelLabel": "Panel interaktif",
