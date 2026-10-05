@@ -30,7 +30,7 @@ It shows what chat apps made only for people cannot: replies that stream with ev
 | Web | [chat.mindroom.chat](https://chat.mindroom.chat) |
 | iPhone and iPad | [App Store](https://apps.apple.com/us/app/mindroom-ai/id6760272172) |
 | Mac | The App Store app on Apple silicon Macs, or the [MindRoom macOS app](https://docs.mindroom.chat/installation/macos-app/), which also runs your agents |
-| Android | In beta |
+| Android | In beta: internal testing on Google Play, not yet public |
 | Your own server | The `ghcr.io/mindroom-ai/mindroom-chat` image or a static build; see [Self-hosting](#self-hosting) |
 
 Sign in with any Matrix account; for hosted MindRoom, the homeserver is `https://mindroom.chat`.
@@ -65,8 +65,8 @@ These are stills from the [showcase](https://docs.mindroom.chat/showcase/) recor
 
 - **Live replies**: agent replies stream in place, with collapsible tool traces, the model and run details, and a button to stop them.
 - **Approvals and questions**: approval cards and multiple-choice questions sit in the conversation, one tap away.
-- **Canvases**: an agent can open a page it wrote, such as a dashboard, a slide deck, or a form, beside the conversation.
-- **Computer**: watch an agent's browser live, take control for a login or passkey, and hand it back.
+- **Canvases**: an agent can open a page it wrote, such as a dashboard, a slide deck, or a form, beside the conversation; they are on in the web app at chat.mindroom.chat and the App Store app, and self-hosted builds turn them on with `mindroom.canvas.enabled`.
+- **Computer**: watch an agent's browser live, take control for a login or passkey, and hand it back; choose the computer service under Settings → General → Computers, or set a default with `mindroom.computers.apiUrl`.
 - **Threads first**: a thread-aware composer, deep links, search, unread state, and timeline recovery keep long agent conversations easy to follow, and very long replies arrive whole.
 - **Voice**: record voice messages, and call an agent through MatrixRTC with embedded Element Call.
 - **Commands**: `!` commands autocomplete as you type.
@@ -77,6 +77,9 @@ These are stills from the [showcase](https://docs.mindroom.chat/showcase/) recor
 MindRoom Chat began as a Cinny fork, but it is now developed as an independent product for Matrix-based AI-agent workflows.
 It keeps Cinny's Matrix foundation while owning its product direction, release cadence, native apps, deployment model, and MindRoom integrations.
 
+<details>
+<summary><b>What MindRoom Chat changes</b></summary>
+
 | Area | MindRoom Chat direction |
 | --- | --- |
 | Product | Independent MindRoom branding, roadmap, defaults, onboarding, CI, and releases |
@@ -86,6 +89,8 @@ It keeps Cinny's Matrix foundation while owning its product direction, release c
 | Native iOS | Capacitor packaging, Apple-oriented authentication, APNs/Sygnal push support, voice recording behavior, and App Store release tooling |
 | Deployment | Runtime configuration and base-path support for root or subpath hosting, plus fork-owned Docker and release workflows |
 | Engineering | A large regression suite and a maintained compatibility ledger for product, Matrix SDK, deployment, and native-app changes |
+
+</details>
 
 Cinny remains the upstream foundation and is credited in [Upstream attribution](#upstream-attribution).
 Compatible upstream improvements continue to be evaluated for incorporation, while MindRoom Chat's product behavior and release decisions are owned here.
@@ -143,7 +148,9 @@ Each prefix excludes its exact path and descendants without excluding similarly 
 
 ## Configuration
 
-The runtime configuration file is [`config.json`](./config.json).
+MindRoom Chat reads `config.json` from the root it is served from.
+Builds and the development server generate it from [`config.mindroom.json`](./config.mindroom.json), and iOS builds also apply [`config.mindroom.ios.json`](./config.mindroom.ios.json); the repository's `config.json` is Cinny's upstream sample and is not used.
+With the Docker image, mount your own file at `/app/config.json`, for example `docker run -p 8080:80 -v "$PWD/config.json:/app/config.json:ro" ghcr.io/mindroom-ai/mindroom-chat:latest`.
 
 Notable options:
 
@@ -151,6 +158,8 @@ Notable options:
 - auth behavior (including `allowRegistration`, support/privacy/terms links),
 - splash loading copy via `splash.loadingMessages`,
 - MindRoom placeholder copy via `mindroom.thinkingPlaceholderMessages`,
+- canvases and their npm library loading via `mindroom.canvas.enabled` and `mindroom.canvas.libraries`,
+- the default computer service via `mindroom.computers.apiUrl`,
 - agent UI automatic-opening policy via `mindroom.uiActions.autoOpenFromHomeservers`,
 - additional application-link schemes via `messageRendering.additionalAllowedUriSchemes`,
 - sidebar entry points including `sidebar.showThreads` and `sidebar.showExploreCommunityInSimpleMode`,
@@ -159,7 +168,7 @@ Notable options:
 <details>
 <summary><b>Opening agent panels automatically</b></summary>
 
-Agent requests can open Computer, Settings, or Members automatically only when the agent's Matrix server name is explicitly trusted by the deployment:
+Agent requests can open a canvas, Computer, Settings, or Members automatically only when the agent's Matrix server name is explicitly trusted by the deployment:
 
 ```json
 {
@@ -184,7 +193,7 @@ Live delivery, focus, conversation, and computer authorization checks continue t
 <summary><b>Explorer in Simple Mode</b></summary>
 
 Explorer is hidden from the sidebar by default in Simple Mode.
-To show it in Simple Mode, set `sidebar.showExploreCommunityInSimpleMode` to `true` in `config.json`:
+To show it in Simple Mode, set `sidebar.showExploreCommunityInSimpleMode` to `true` in the served `config.json`:
 
 ```json
 {
@@ -302,9 +311,9 @@ See [iOS pairing links](docs/ios-pairing-links.md) for association-file hosting,
 The Xcode Cloud workflow should archive the iOS app with the `Archive - iOS` action.
 Set that action's `Distribution Preparation` to `TestFlight (Internal Testing Only)` so successful archives are prepared for TestFlight.
 If that setting changes after a successful archive, rerun the workflow because existing archives are not prepared for TestFlight retroactively.
-The source release tag can stay tied to upstream Cinny, for example `v4.11.1-mindroom.80`, while the App Store marketing version advances independently.
-For the current iOS train, Xcode Cloud publishes Apple version `4.11.2`; release tags ending in `-mindroom.<n>` provide the App Store build number, so `v4.11.1-mindroom.80` uploads as `4.11.2 (80)`.
-Branch-triggered builds fall back to the checked-in Xcode build number, currently `80`.
+[`scripts/ios-ci-version.mjs`](./scripts/ios-ci-version.mjs) chooses the App Store version and build number.
+The build number is `IOS_BUILD_NUMBER` when set, otherwise Xcode Cloud's `CI_BUILD_NUMBER`, otherwise the `<n>` of a `v<version>-mindroom.<n>` release tag, otherwise the checked-in Xcode build number.
+With `CI_BUILD_NUMBER`, the marketing version adds that counter to the patch of the newer of the `package.json` version and the checked-in `MARKETING_VERSION`, so version `4.12.6` with build `64` uploads as `4.12.70 (64)`.
 Set `IOS_MARKETING_VERSION` or `IOS_BUILD_NUMBER` in Xcode Cloud only when overriding those defaults is intentional.
 
 </details>
@@ -315,7 +324,7 @@ Set `IOS_MARKETING_VERSION` or `IOS_BUILD_NUMBER` in Xcode Cloud only when overr
 Native iOS push plumbing is included in this fork (`@capacitor/push-notifications` + Matrix pusher registration).
 To turn it on for a deployment:
 
-1. Configure `config.json`:
+1. Configure `push.ios` in `config.mindroom.json`, which iOS builds bundle:
 
 ```json
 {
@@ -347,7 +356,7 @@ Encrypted rooms use a generic notification because the homeserver cannot read th
 <details>
 <summary><b>Android Play internal releases</b></summary>
 
-- The same `dev` push release workflow builds a signed Android App Bundle and publishes it to the Google Play `internal` track when it creates a new MindRoom GitHub release.
+- The `dev` push release workflow (see [Releases](#releases)) also builds a signed Android App Bundle and publishes it to the Google Play `internal` track when it creates a new MindRoom GitHub release.
 - Required GitHub secrets:
   `ANDROID_UPLOAD_KEYSTORE_BASE64`,
   `ANDROID_UPLOAD_KEYSTORE_PASSWORD`,
