@@ -56,6 +56,7 @@ export const TextViewer = as<'div', TextViewerProps>(
         ref={ref}
       >
         <PageScroll
+          className={css.TextViewerContent}
           header={
             <Header className={css.TextViewerHeader} size="400">
               <Box grow="Yes" alignItems="Center" gap="200">
@@ -74,13 +75,7 @@ export const TextViewer = as<'div', TextViewerProps>(
             </Header>
           }
         >
-          <div className={css.TextViewerContent}>
-            <TextViewerContent
-              className={css.TextViewerPrePadding}
-              text={text}
-              langName={langName}
-            />
-          </div>
+          <TextViewerContent className={css.TextViewerPrePadding} text={text} langName={langName} />
         </PageScroll>
       </Box>
     );

@@ -85,7 +85,7 @@ for (const themeId of ['dark-theme', 'silver-theme']) {
         await scroll.evaluate((element) => {
           element.scrollTop = 230;
         });
-        await expectFloatingNavHeader(header);
+        await expectFloatingNavHeader(header, { inheritsPanelTint: true });
         const bounds = (await scroll.boundingBox())!;
         expect(bounds.y).toBeGreaterThanOrEqual(0);
         expect(bounds.y + bounds.height).toBeLessThanOrEqual(621);
@@ -111,7 +111,7 @@ for (const themeId of ['dark-theme', 'silver-theme']) {
       await scroll.evaluate((element) => {
         element.scrollTop = 500;
       });
-      await expectFloatingNavHeader(header);
+      await expectFloatingNavHeader(header, { inheritsPanelTint: true });
       await expectScrollbarBounds(scroll, header);
       // Scroll through estimated virtual rows so their real heights are measured.
       await expect(async () => {
@@ -149,7 +149,7 @@ for (const themeId of ['dark-theme', 'silver-theme']) {
       const packsHeader = page
         .locator('header')
         .filter({ has: page.getByText('Room Packs', { exact: true }) });
-      await expectFloatingNavHeader(packsHeader);
+      await expectFloatingNavHeader(packsHeader, { inheritsPanelTint: true });
       await page.screenshot({ path: testInfo.outputPath('room-packs.png'), scale: 'css' });
     } finally {
       const cleanup = await Promise.allSettled([

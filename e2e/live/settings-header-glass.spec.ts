@@ -8,6 +8,8 @@ import { createPrivateRoom, loginToMatrix, matrixFetch } from '../helpers/matrix
 
 for (const themeId of ['dark-theme', 'silver-theme']) {
   test(`settings pages scroll beneath flat headers in ${themeId}`, async ({ page }, testInfo) => {
+    // This single workflow visits every personal and room settings page, including screenshots.
+    test.setTimeout(180_000);
     test.skip(!hasPrimaryCredentials(), 'Local Matrix credentials required');
     const homeserver = getHomeserver();
     test.skip(
@@ -59,14 +61,42 @@ for (const themeId of ['dark-theme', 'silver-theme']) {
         await page.screenshot({ path: testInfo.outputPath(`${name}.png`), scale: 'css' });
         expect.soft(overlaysContent, `${name}: content must scroll behind the header`).toBe(true);
         if (!overlaysContent) return;
-        await expectFloatingNavHeader(header);
+        await expectFloatingNavHeader(header, { inheritsPanelTint: true });
         const bounds = (await header.boundingBox())!;
+        // Navigation can leave the enclosing panel's old pointer light behind.
+        // Enter the flat title first so the baseline uses its real cleared state.
+        await page.mouse.move(bounds.x + 4, bounds.y + 4);
+        const waitForPointerPaint = () =>
+          page.evaluate(
+            () =>
+              new Promise<void>((resolve) => {
+                requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+              })
+          );
+        await waitForPointerPaint();
+        await expect
+          .poll(() =>
+            header.evaluate((element) => {
+              const lights: string[] = [];
+              for (let node: HTMLElement | null = element; node; node = node.parentElement) {
+                lights.push(node.style.getPropertyValue('--liquid-glass-light-x'));
+                lights.push(node.style.getPropertyValue('--liquid-glass-light-y'));
+              }
+              return lights.filter(Boolean);
+            })
+          )
+          .toEqual([]);
+        await page.mouse.move(2, 2);
+        await waitForPointerPaint();
         const idle = await page.screenshot({ clip: bounds, animations: 'disabled' });
         await page.mouse.move(bounds.x + 4, bounds.y + 4);
-        expect(
-          (await page.screenshot({ clip: bounds, animations: 'disabled' })).equals(idle),
-          `${name}: no hover glow`
-        ).toBe(true);
+        await waitForPointerPaint();
+        const hovered = await page.screenshot({ clip: bounds, animations: 'disabled' });
+        if (!hovered.equals(idle)) {
+          await testInfo.attach(`${name}-idle`, { body: idle, contentType: 'image/png' });
+          await testInfo.attach(`${name}-hovered`, { body: hovered, contentType: 'image/png' });
+        }
+        expect(hovered.equals(idle), `${name}: no hover glow`).toBe(true);
         if (name === 'account') {
           expect(await scroll.evaluate((element) => element.scrollTop)).toBeGreaterThan(100);
           await expectInsetScrollbar(page, scroll, header);
@@ -96,11 +126,11 @@ for (const themeId of ['dark-theme', 'silver-theme']) {
           const hints = page
             .locator('header')
             .filter({ has: page.getByText('Formatting', { exact: true }) });
-          const hintScroll = await expectFloatingNavHeader(hints);
+          const hintScroll = await expectFloatingNavHeader(hints, { inheritsPanelTint: true });
           await hintScroll.evaluate((element) => {
             element.scrollTop = 180;
           });
-          await expectFloatingNavHeader(hints);
+          await expectFloatingNavHeader(hints, { inheritsPanelTint: true });
           await page.screenshot({
             path: testInfo.outputPath('date-format-hints.png'),
             scale: 'css',

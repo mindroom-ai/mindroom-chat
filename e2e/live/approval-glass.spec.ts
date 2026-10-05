@@ -208,11 +208,11 @@ for (const viewport of [
       await page.screenshot({ path: testInfo.outputPath('approval-dialog.png') });
       await page.setViewportSize({ ...viewport, height: 480 });
       const title = dialog.locator('header');
-      const dialogScroll = await expectFloatingNavHeader(title);
+      const dialogScroll = await expectFloatingNavHeader(title, { inheritsPanelTint: true });
       await dialogScroll.evaluate((element) => {
         element.scrollTop = 160;
       });
-      await expectFloatingNavHeader(title);
+      await expectFloatingNavHeader(title, { inheritsPanelTint: true });
       await expectInsetScrollbar(page, dialogScroll, title);
       await page.screenshot({ path: testInfo.outputPath('approval-dialog-scrolled.png') });
 

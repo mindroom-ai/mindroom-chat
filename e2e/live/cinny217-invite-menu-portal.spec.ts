@@ -164,7 +164,7 @@ async function verifyPortaledInviteMenu(page: Page, surface: string, mindQuery: 
   expect(menuBox!.y + menuBox!.height).toBeGreaterThan(formBox!.y + formBox!.height);
   expect(menuBox!.y + menuBox!.height).toBeLessThanOrEqual(viewport!.height + 1);
 
-  await expectFloatingNavHeader(menu.locator('header'));
+  await expectFloatingNavHeader(menu.locator('header'), { inheritsPanelTint: true });
   await expect(menu.getByRole('scrollbar', { includeHidden: true })).toHaveAttribute(
     'tabindex',
     '-1'

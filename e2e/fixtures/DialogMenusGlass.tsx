@@ -5,6 +5,9 @@ import { ScreenSizeProvider, useScreenSize } from '../../src/app/hooks/useScreen
 import { FilterBarMobileSheet } from '../../src/app/pages/client/threads/FilterBarMobileSheet';
 import { InviteAutocompleteMenu } from '../../src/app/components/invite-user-prompt/InviteAutocompleteMenu';
 import { AutocompleteMenu } from '../../src/app/components/editor/autocomplete/AutocompleteMenu';
+import { ImagePackView } from '../../src/app/components/image-pack-view';
+import { TextViewer } from '../../src/app/components/text-viewer/TextViewer';
+import { Modal } from '../../src/app/components/glass/GlassPrimitives';
 
 /** Real menu components with deterministic data; no backend or external model calls. */
 export function DialogMenusGlass() {
@@ -13,6 +16,25 @@ export function DialogMenusGlass() {
   const [autocomplete, setAutocomplete] = useState(false);
   const [selected, setSelected] = useState('');
   const [inviting, setInviting] = useState(false);
+  const viewer = new URLSearchParams(window.location.search).get('viewer');
+  if (viewer) {
+    return (
+      <Modal
+        style={{ position: 'fixed', inset: 16, width: 'auto', height: 'auto', maxWidth: 'none' }}
+      >
+        {viewer === 'pack' ? (
+          <ImagePackView address={undefined} requestClose={() => {}} />
+        ) : (
+          <TextViewer
+            name="notes.txt"
+            text="Short file"
+            langName="plaintext"
+            requestClose={() => {}}
+          />
+        )}
+      </Modal>
+    );
+  }
   return (
     <ScreenSizeProvider value={screenSize}>
       <main

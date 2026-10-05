@@ -3,6 +3,56 @@ import { expect, test } from '@playwright/test';
 import { expectFloatingNavHeader, pixelDifference, sampleScreenshot } from './helpers/glassVisual';
 
 for (const theme of ['silver', 'dark']) {
+  test(`pack actions stay below the scrolling title in ${theme}`, async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 620 });
+    await page.goto(`/e2e/fixtures/glass-surfaces.html?menus&viewer=pack&theme=${theme}`);
+    const title = page.locator('header');
+    const scroll = title.locator('xpath=ancestor::*[@data-y-scrollbar-width][1]');
+    await page.getByRole('button', { name: 'Both', exact: true }).click();
+    await page.getByRole('button', { name: 'Emoji', exact: true }).click();
+    const actions = page
+      .getByRole('button', { name: 'Apply Changes', exact: true })
+      .locator('xpath=../../..');
+    await scroll.evaluate((element) => {
+      element.scrollTop = 250;
+    });
+    const expectBelowTitle = async () => {
+      await expect
+        .poll(async () => {
+          const header = (await title.boundingBox())!;
+          return (await actions.boundingBox())!.y - header.y - header.height;
+        })
+        .toBeGreaterThan(0);
+    };
+    await expectBelowTitle();
+    // Follow the measured height when a responsive title gets taller.
+    await title.evaluate((element) => {
+      element.style.height = '86px';
+    });
+    await expectBelowTitle();
+  });
+
+  test(`short text viewers fill their scrolling canvas in ${theme}`, async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 620 });
+    await page.goto(`/e2e/fixtures/glass-surfaces.html?menus&viewer=text&theme=${theme}`);
+    const pre = page.locator('pre');
+    await expect(pre).toHaveText('Short file');
+    const text = (await pre.boundingBox())!;
+    const viewport = (await pre
+      .locator('xpath=ancestor::*[@data-y-scrollbar-width][1]')
+      .boundingBox())!;
+    const [canvas, right, bottom] = await sampleScreenshot(page, [
+      { x: text.x + 4, y: text.y + 8 },
+      { x: viewport.x + viewport.width - 20, y: text.y + 8 },
+      { x: viewport.x + viewport.width / 2, y: viewport.y + viewport.height - 24 },
+    ]);
+    expect(pixelDifference(canvas, right), 'Canvas fills scrollbar gutter').toBeLessThan(3);
+    expect(
+      pixelDifference(canvas, bottom),
+      'Canvas fills empty area below short text'
+    ).toBeLessThan(3);
+  });
+
   test(`nested titles keep the surrounding panel color in ${theme}`, async ({
     page,
     browserName,
@@ -11,7 +61,7 @@ for (const theme of ['silver', 'dark']) {
     await page.goto(`/e2e/fixtures/glass-surfaces.html?menus&theme=${theme}`);
     await page.getByRole('button', { name: 'Open filters' }).click();
     const title = page.locator('header').filter({ hasText: 'Filters' });
-    const scroll = await expectFloatingNavHeader(title);
+    const scroll = await expectFloatingNavHeader(title, { inheritsPanelTint: true });
     await page.mouse.move(1, 1);
     const bounds = (await title.boundingBox())!;
     // Empty regions above/below the seam must match, not form a separately tinted band.
@@ -53,7 +103,7 @@ for (const theme of ['silver', 'dark']) {
       await page.getByRole('button', { name: 'Choose model', exact: true }).click();
       const dialog = page.getByRole('dialog', { name: 'Model for this thread' });
       const title = dialog.locator('[data-glass-flat="true"]').first();
-      const scroll = await expectFloatingNavHeader(title);
+      const scroll = await expectFloatingNavHeader(title, { inheritsPanelTint: true });
       const search = dialog.getByRole('searchbox');
       await expect(search).toBeFocused();
       const track = scroll.getByRole('scrollbar');
@@ -71,10 +121,16 @@ for (const theme of ['silver', 'dark']) {
       await scroll.evaluate((element) => {
         element.scrollTop = 160;
       });
-      await expectFloatingNavHeader(title);
+      await expectFloatingNavHeader(title, { inheritsPanelTint: true });
       await page.mouse.move(1, 1);
       await page.screenshot({ path: testInfo.outputPath(`models-${width}.png`), scale: 'css' });
       await search.fill('Studio model 24');
+      const match = dialog.getByRole('option', { name: /^Studio model 24 / });
+      await expect(match).toBeVisible();
+      await expect(search).toHaveAttribute(
+        'aria-activedescendant',
+        (await match.getAttribute('id'))!
+      );
       await page.keyboard.press('Enter');
       await expect(page.locator('output')).toHaveText('model-24');
       await dialog.getByRole('button', { name: 'Close model picker' }).click();
@@ -84,11 +140,11 @@ for (const theme of ['silver', 'dark']) {
     await page.setViewportSize({ width: 390, height: 480 });
     await page.getByRole('button', { name: 'Open filters' }).click();
     const title = page.locator('header').filter({ hasText: 'Filters' });
-    const scroll = await expectFloatingNavHeader(title);
+    const scroll = await expectFloatingNavHeader(title, { inheritsPanelTint: true });
     await scroll.evaluate((element) => {
       element.scrollTop = 200;
     });
-    await expectFloatingNavHeader(title);
+    await expectFloatingNavHeader(title, { inheritsPanelTint: true });
     await page.screenshot({ path: testInfo.outputPath('thread-filters.png'), scale: 'css' });
     await scroll.getByRole('scrollbar').press('End');
     await page.getByRole('button', { name: 'Filter option 20' }).click();
@@ -98,7 +154,7 @@ for (const theme of ['silver', 'dark']) {
     const invite = page.getByRole('textbox', { name: 'Invite search' });
     await invite.focus();
     const inviteHeader = page.locator('header').filter({ hasText: 'Invite people' });
-    const inviteScroll = await expectFloatingNavHeader(inviteHeader);
+    const inviteScroll = await expectFloatingNavHeader(inviteHeader, { inheritsPanelTint: true });
     const inviteTrack = (await inviteScroll.getByRole('scrollbar').boundingBox())!;
     await page.mouse.click(
       inviteTrack.x + inviteTrack.width / 2,
@@ -106,14 +162,16 @@ for (const theme of ['silver', 'dark']) {
     );
     await expect(invite).toBeFocused();
     expect(await inviteScroll.evaluate((element) => element.scrollTop)).toBeGreaterThan(100);
-    await expectFloatingNavHeader(inviteHeader);
+    await expectFloatingNavHeader(inviteHeader, { inheritsPanelTint: true });
     await page.screenshot({ path: testInfo.outputPath('invite-autocomplete.png'), scale: 'css' });
     await page.keyboard.press('Escape');
     await expect(inviteHeader).toBeHidden();
 
     await page.getByRole('button', { name: 'Open autocomplete' }).click();
     const suggestions = page.locator('header').filter({ hasText: 'Suggestions' });
-    const suggestionsScroll = await expectFloatingNavHeader(suggestions);
+    const suggestionsScroll = await expectFloatingNavHeader(suggestions, {
+      inheritsPanelTint: true,
+    });
     const first = page.getByRole('button', { name: 'Suggestion 1', exact: true });
     const last = page.getByRole('button', { name: 'Suggestion 20', exact: true });
     await last.focus();
@@ -127,7 +185,7 @@ for (const theme of ['silver', 'dark']) {
     await suggestionsScroll.evaluate((element) => {
       element.scrollTop = 100;
     });
-    await expectFloatingNavHeader(suggestions);
+    await expectFloatingNavHeader(suggestions, { inheritsPanelTint: true });
     await page.screenshot({ path: testInfo.outputPath('autocomplete.png'), scale: 'css' });
     await page.keyboard.press('Escape');
     await expect(suggestions).toBeHidden();

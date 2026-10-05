@@ -46,10 +46,12 @@
   Composite pickers keep focus on their search field or selected option when dragging a scrollbar.
 - Member, add-existing, and pinned-message virtual lists measure their offset after the header and filters and subtract it when placing rows.
   Sticky search controls remain below the title.
+  The image-pack editor's unsaved-changes bar also follows the measured title height, and text viewers keep their background across the full viewport, including short files.
   Fixed JSON/event editors retain their existing internal text scrolling.
 - Regression coverage includes mobile/desktop personal and room settings, both themes and engines, header material and hover behavior, scrollbar dragging/keyboard navigation, short/long topic dialogs, the pack selector, and virtual member-list navigation.
   Additional menu coverage checks approval scrolling, format hints, model search/selection, autocomplete focus, and short mobile filter sheets.
   `playwright.glass.config.ts` includes the new browser specs.
+  Header tint assertions distinguish inherited panel tint from standalone chrome; hover comparisons clear prior panel illumination and wait for pointer paint before comparing pixels.
 
 ### Stop the reconcile from linking thread segments into a cycle that froze the app (2026-10-04)
 
