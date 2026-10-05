@@ -21,6 +21,16 @@
   `e2e/live/thread-banner-height-anchor.spec.ts` requires the reply nearest the middle of the view to stay within 1 px when a summary arrives and when the thread is resolved and reopened, mid-thread and at the latest reply (which must stay at the bottom), with no ResizeObserver loop error; all three cases fail on the base (by 11.75, 22 and 22 px).
   It hides the "Catching up" sync bar, which goes with the sync that brings the change and would move the scroller during the check.
 
+### Move rows in the same frame as an applied scroll correction (2026-10-04)
+
+- Report: `long-message-expansion-default` failed about 1 run in 6 at its fold-anchor check (listed in `docs/testing.md` as known unresolved): after turning "expand long messages" off, the anchor message read 609, 634 or 659 px from where it was.
+- Root cause, found by logging every correction, scroll write and React commit around the toggle: rows above the reader remount folded and shrink 634 px, and on desktop virtual-core applies those corrections as scroll writes inside the ResizeObserver callback, while the rows they move render only in React's next task, after the browser has painted.
+  For that frame (15-200 ms on the test host) the reader's view sits 634 px off, and the check read it there; the 609/659 readings add a 25 px "Catching up…" banner that left between the check's two reads.
+  Rows later in the same batch are reported at their positions from before the batch, so one whose row above had just been corrected was judged in view; its shrink was neither applied nor ledgered, and the view jumped 634 px up until the bulk-expansion anchor loop put it back.
+- Fix: the timeline controller sums the corrections applied since its last render and renders the moved rows in a microtask, before the paint; until then the correction hook judges rows against the offset minus that sum, the layout virtual-core still reports.
+- Tests: `virtualizerIOSScrollContract.test.ts` folds two rows in one batch against the real virtual-core and requires both corrections; `timelineScrollLedgerController.commit.test.tsx` requires the render one microtask after an applied correction and the judgement to return to the live offset after it.
+  Live, the spec passed 26 of 26 runs against 18 of 26 on the base, interleaved under the same load.
+
 ### Keep a thread reader in place when rows or Load Older change above them (2026-10-04)
 
 - Report: a reader at the latest reply of a long thread drifted up by thousands of pixels when older history finished loading after Load Older or a scroll.
@@ -37,9 +47,93 @@
 - Rows above the reader now stay unmeasured more often (the reader is no longer pushed through them), which exposed a stale offset in the same hook: right after a programmatic scroll (a reply-quote jump), virtual-core's cached `scrollOffset` lags the element until the next scroll event, so corrections were applied as scroll writes from the old offset and dragged the view back.
   The hook now judges against the scroller's live `scrollTop` and has virtual-core apply the correction from it by folding the difference into its pending adjustments.
   It leaves virtual-core's cached offset alone: overwriting it made virtual-core drop the write's own scroll event as already seen, losing the backward direction that routes corrections into the ledger during a scroll; that made the known `long-message-expansion-default` fold-anchor check fail in 5 of 10 runs (1 of 6 after this change, 1 of 12 on `dev`).
-- Height changes of the thread banner itself are held by the entry above.
+- Height changes of the thread banner itself are held too; see "Keep a thread reader in place when the thread banner changes height".
 - Tests: `threadScrollLedger.test.ts` covers rows added above or below the reader, the root, removed rows and a lost anchor; `timelineScrollLedgerController.test.ts` covers the painted row, a scroll that commits nothing, the sticky-header inset, the content above the rows going, shrinking, growing or being in view, and corrections judged against the reader's top, including in the commit that drops Load Older; `virtualizerIOSScrollContract.test.ts` pins the live-offset judgement and correction, the write's scroll event, and the reader-top judgement against the real virtualizer; `RoomTimeline.cache.test.ts` now requires a band that lands without Load Older to fold (it previously pinned the drift).
   `e2e/live/thread-open-chain-prepend-anchor.spec.ts` holds the thread's older pages until after a Load Older click, a wheel scroll, or a scroll to the root, then requires the reader's row (for the root, with the reader's line 20 px into it) to stay within 1 px while every page lands and the chip goes.
+
+### Give compact thread cards' text the full card width (2026-10-05)
+
+- Report: on a phone the compact room view wasted space.
+  Every card reserved a leading slot for the unread dot (indenting the title against the preview), the touch menu button reserved `3rem` at the end of every row, the reply-count pill sat beside the preview and cut it short, and long relative times (`2 dgn geleden`) wrapped titles.
+- Unread threads now show a primary accent edge on the card's leading side and a primary, bold time; the dot and its reserved slot are gone.
+  The card carries `data-thread-unread="true"` for tests in place of the old `data-thread-unread-dot` element.
+- The time is compact (`now`, `5m`, `3h`, `2d`, then the date after a week, with the year for earlier years) via `formatCompactRelativeTime` and `useRelativeTime(ts, 'compact')`; other surfaces keep the `2d ago` form.
+  The time's tooltip and the card's accessible label give the full timestamp.
+- The preview row holds only the preview (plus pending/failed send state).
+  The reply count moved to the end of the last row as a thread icon and the bare number (`messageCountText` on the view model); the full label stays in its tooltip and the card's accessible label.
+- Titles clamp at two lines (full title in the tooltip and accessible label).
+  "Resolved by" joins the last row with a check icon instead of taking its own line (a long name ends in an ellipsis); avatars, tags, streaming state and the schedule share that row.
+- On touch layouts the menu button sits at the end of the last row, and only that row reserves room for it (`32px`), so the title and preview rows use the full width.
+  The reservation applies inside the compact view's card shell only; the global Threads page shows the same card without a menu button.
+- Tags use the shared `ThreadTagPill`, so a tag has the same color on the card as in the thread bar; the card's own copy of the hash gave a different hue for some names.
+- The unused `compactThreadCard.unreadMessages` and `compactThreadCard.lastActivity` strings were removed from every locale; the latter's only caller passed `timestamp` to a `{{time}}` placeholder.
+- Alternatives explored for the PR, kept on local branches: `alt/compact-card-inbox-list` (flat rows with dividers, two-line preview) and `alt/compact-card-dense` (two rows per card); the chosen design combines the first layout with the dense variant's unread edge and time.
+- Fixture: `e2e/fixtures/compact-thread-cards.html` renders the production card in the compact view's shell with realistic agent threads (`?lang=`, `?theme=dark`); `e2e/compact-thread-cards.spec.ts` checks at 390 px that title and preview start at the content edge, the preview reaches the content end, the menu button is centered on the last row, only unread cards have the accent edge, and a long resolver name ends in an ellipsis inside the card.
+- Tests: unit tests cover the compact formatter (boundaries, earlier years, Dutch), the hook's compact ticking, the count formatting, and the card's unread marker, time, reply count and resolved byline.
+  `compact-resolve-hover` now asserts the menu button sits inside the last row's reserved room and is centered on it (also in RTL); `thread-bootstrap-requests` and `threads` read the count from the accessible name; `thread-unread-receipts` reads `data-thread-unread`.
+- Not changed: on touch the 40 px menu button extends 8 px above the 24 px last row, so its transparent tap area covers the bottom 4 px at the end of the preview row; making it smaller would shrink the touch target, and making the row taller would give back height.
+- Validation: typecheck, build and lint pass; `npm test` passes apart from four failures in `xcodeCloudPostClone` and `useRoomInputSendSessionController` that fail the same way on `dev`.
+  `compact-thread-cards`, `streaming-cards`, `compact-card-display-names`, `compact-resolve-hover` (desktop and Dutch touch), `thread-bootstrap-requests`, `thread-unread-receipts` and `threads` pass on Chromium against a disposable Tuwunel.
+- Review: GPT-6 Astra approved the first round; Opus 5.5 found the `threads` spec still reading `0 replies` from the card text, plus the byline ellipsis (also found by Qodo), the Threads page padding and a doc example, all fixed.
+  Both approved the second round; Opus's note that the date tests used UTC noon (the next local day from UTC+12) is fixed with local dates, checked from `Pacific/Kiritimati` to `Pacific/Pago_Pago`.
+
+### Approve scheduled tool calls exactly or for any arguments (2026-10-04)
+
+- Pairs with mindroom-ai/mindroom#2633, where an agent can schedule an approval-gated tool call and MindRoom posts its approval card when the call is scheduled (`approval_target: scheduled_call`).
+- Pending scheduling cards show the send time from `scheduled_for`.
+- When the card lists `scheduled_scope_options`, the named approver gets **Approve this exact call** and **Approve any arguments**, with a warning that the broader scope lets the agent make one call to that tool with whatever it decides, within the send window from `scheduled_window_seconds`.
+  The scope buttons appear only when that window is a whole number of minutes, so the warning never states an invented window.
+- Approval responses carry `scheduled_scope` (`exact_arguments` or `any_arguments`); the action capability check allows only a scope the card offered, only for the named approver, and never together with a timed-approval duration.
+  Scheduling cards never offer timed approvals, because the approval belongs to one scheduled call rather than the thread.
+- Resolved scheduling cards show the send time and the approved scope from the card edit's `scheduled_scope`; send-time receipts with `scheduled_approval` provenance show who approved the call while scheduling it, when, the scheduled time, and the scope.
+  Times are parsed like approval expiries, so backend timestamps with microseconds display correctly.
+- Code lives in `src/app/mindroom/messages/` (`toolApproval.ts`, `approvalActions.ts`, `ApprovalDecisionControls.tsx`, `ApprovalSchedule.tsx`, `approvalScheduleText.ts`, `ApprovalReceipt.tsx`); the strings in the 16 non-English catalogs are machine-authored.
+- Validation: the new `scheduledToolApproval.test.ts` and the scheduled-card case in `ApprovalReviewCall.test.tsx`, all 809 tests in `src/app/mindroom/messages` plus `src/app/i18n.test.ts`, typecheck, touched-file ESLint, and the production build pass.
+  The full Vitest run passes 6,047 of 6,051 tests; the 4 failures are the `xcodeCloudPostClone.test.ts` and `useRoomInputSendSessionController.test.ts` cases that also fail on `origin/dev`.
+- Live check against a local MindRoom backend running #2633 with a stub model: the pending scheduling card (in the thread's Review sheet) showed the send time, both approve buttons, and the warning; approving any arguments showed the approved scope; the send-time call ran with different arguments under that approval; and its receipt showed who approved it while scheduling, the send time, and the scope.
+- Next: integrate together with mindroom-ai/mindroom#2633.
+
+### Remove the private computer deployment preset (2026-10-05)
+
+- The proposed settings cleanup had not been implemented: the computer form still suggested the author's private deployment through a placeholder and preset button.
+  Remove that button, URL constant and placeholder, along with all 17 translated preset labels, deployment-specific setup guidance and its obsolete screenshot.
+  The shipped iOS computer default remains empty; services explicitly saved by users remain active and editable.
+- Validation covers an empty first-use form with no server suggestion or preset, explicit manual Save, retained saved services, the LAN HTTP notice, and generic custom-build configuration.
+  Keep this correction focused on the private preset; settings navigation remains a separate design discussion.
+  All 6,172 unit tests in 661 files pass, along with typecheck, lint (17 existing warnings), web build and iOS build.
+  The generated iOS config has an empty computer URL, and its shipping text assets contain no private deployment URL or preset text.
+  Independent review and CI are required before the user-authorized squash merge.
+
+### Fix three live specs that failed intermittently in full runs (2026-10-04)
+
+- Report: in full live-suite runs (`--jobs 8`), `thread-arrow-up-edit`, `composer-glass` on WebKit and `offline-invited-account` failed now and then, also on `dev`, and passed when rerun alone.
+  None of the failure traces contain `net::ERR_NETWORK_CHANGED`; all three are test races, and the app behaves correctly in each.
+- `thread-arrow-up-edit`: the composer still held the draft (`Unsent draft`, or `nsent draft`) when the spec pressed Up, so Up rightly did nothing.
+  `fill('')` selects the text by script and presses Delete at once; Slate learns of a selection from the `selectionchange` event, which Chromium dispatches after input that is already waiting.
+  After a cached start the first live `/sync` keeps the page busy just then, so Slate deletes at its old caret.
+  Fix: clear the composer until it is empty (`toPass`) before pressing Up.
+- `composer-glass` (WebKit): the client hides a typing notice five seconds after it arrives (`TYPING_TIMEOUT_MS`); the screenshot and style checks plus a slow stability wait took longer, so **Drop Typing Status** disappeared under the click and the click waited until the test timed out.
+  Fix: send a fresh typing notice right before the click.
+- `offline-invited-account`: the SDK saves its first sync after startup and then at most every five minutes, and the spec froze the clock six minutes ahead to get the next sync saved.
+  When the startup save ran after that (the room shows during the first sync, the save comes at its end), it took the frozen time and no later sync was saved.
+  Fix: move the clock only after the thread root shows, then send a read receipt so another real sync arrives and is saved.
+- Tests: with the page's CPU slowed 6x, base `thread-arrow-up-edit` failed 4 of 4 (`nsent draft` each time) and `offline-invited-account` 2 of 4; with the fixes both passed 4 of 4.
+  With a 5.5 s pause added before the dismissal, base `composer-glass` timed out in all 4 cases (both themes, Chromium and WebKit) and the fix passed all 4.
+  Without slowing anything, three rounds of the three specs (4 jobs each, base and fix side by side) passed on both, so those rounds do not tell them apart.
+- Not changed: Slate applies a delete to its old caret whenever the key arrives before `selectionchange`, which a person could only hit by selecting and deleting during one long task.
+
+### Scope the invite menu live spec's user directory to its own users (2026-10-04)
+
+- Report: `e2e/live/cinny217-invite-menu-portal.spec.ts` failed on every run from about 15:00 on 2026-10-04, on `dev` and other branches alike: the first suggestion for `mind` was another run's `mindroom_lv…_agent 💕` (Tuwunel's default display name) instead of the spec's `Mind`.
+- Root cause, in the spec: Tuwunel answers `/user_directory/search` with the first `limit` matches to finish, not the best ones (it walks users in user-ID order but checks them concurrently, `buffer_unordered`), and the shared test homeserver keeps every run's users.
+  In the failing traces the 500-user `@` bootstrap held only other runs' `@lv…` accounts, and the 12 results for `mind` were 7 to 9 of the spec's own agents plus 3 to 5 other runs' agents from public fixture rooms, so the spec's `Mind` never reached the client.
+  With 3 other agents in the window, `Mind` made it into some requests and not others, since the order changes from request to request.
+  The ranking is right: the client never received `Mind`, and given the spec's users it ranks `Mind` first.
+  A real user hits this only when more than 500 users are visible to them and more than 12 visible users match the query; the client cannot rank a user the server does not return (see CINNY-216).
+- Fix: the spec sends every directory search for its run ID, which every fixture MXID carries, so the server returns exactly the run's 12 users and the client ranks them for the typed query.
+  It now expects its own `Mind`, not any `@mindroom_mind` user.
+- Tests: test-only change. Same build, base spec against fixed spec: the base spec failed every run and the fixed spec passed every run.
+  The spec catches gross ranking regressions (with the tier comparison reversed in `rankUsers` it fails with `Alpha …` first), not a revert of the CINNY-216 refinements; `userDirectorySearch.test.ts` and `useInviteUserSearch.test.ts` cover those.
 
 ### Allow local HTTP computer services (2026-10-05)
 
@@ -53,6 +147,32 @@
 - Validation: all 6,162 unit tests in 661 files pass, including 66 focused computer/settings/config tests; typecheck, lint (17 existing warnings), web build and iOS build pass.
   This is a separate follow-up with independent Astra, GPT-6.1 Sol and Vertex Opus 5.5 review required before merge.
   The first three-model review approved the implementation; Qodo then identified a redundant IPv4 length check, which is removed before final review.
+
+### Call agents from the thread you are in (2026-10-04)
+
+- Why: **Call** on an agent profile opened a new call room and moved the user into it, so the call was cut off from its conversation and the agent joined knowing nothing about it.
+- The room header has a phone button (room view and open thread, not in call rooms) for joined MindRoom agents on the viewer's homeserver whose presence advertises `📞 Voice calls` (`getAgentCallCandidates`, sorted by name).
+  It follows `User.lastPresenceTs`, because MindRoom toggles calls by changing the status message, which `User.presence` does not report.
+  In a thread with a confirmed root, only agents that sent the root or a loaded reply count (`keepThreadSenders`), so the button appears once one replies.
+  One candidate is called directly and several open a menu; no candidate, MatrixRTC or WebRTC hides the button, and another active call disables it with the reason as tooltip.
+  A failed start opens a dismissible notice under the button, because phones have no hover; the error describes the button only while the notice is open, and closing the menu or notice returns focus to the button.
+- The profile's **Call** stays; it stamps the open thread when the profile's room is the selected room, and otherwise the room.
+- Both entry points share `useStartAgentCall` (microphone, find or create the room, re-invite the agent, stamp the origin, start), which runs one start at a time, never replaces a call that became active meanwhile, and never navigates.
+  The `CallStatus` bar shows the call and, while the call room is not open, the backend's failure notices (`useCallFailureNotice`) as a dismissible row.
+  The history scan ignores notices at or before the newest event in the room when the call started (`CallEmbed.startedAfterTs`, a server timestamp, so a wrong device clock cannot hide a current notice), because the reused room keeps earlier calls' notices; notices delivered live always count.
+- Each caller has one permanent call room per agent, never shared between users.
+  `findAgentCallRoom` picks my joined call room whose `io.mindroom.agent_call` state I sent with `ephemeral: false`, me as creator and this agent; after a first-call race on two devices, both pick the oldest.
+  `createAgentVoiceRoom` creates it when missing, mutes it with the existing push-rule setter, and archives it with the per-user `io.mindroom.archived` account data, so it stays out of room lists and badges while the bar can still open it.
+  Before every call `prepareAgentCallRoom` re-invites the agent unless it is joined or invited and rewrites the state with this call's origin; the call starts only after that write succeeds.
+  On hang-up, and when a start gives up after stamping, Chat rewrites the state without `origin` (`clearAgentCallOrigin`); for my permanent rooms it always does, since the cached state may not show the stamp yet.
+  Writes per room are serialized, so a late clear cannot erase a newer stamp.
+  Permanent rooms are never kicked, left or forgotten; legacy `ephemeral: true` rooms keep their teardown and are not archived.
+  A start on a second device of mine joins the running call, which keeps its brief.
+- Contract: `io.mindroom.agent_call` gains an optional `origin: { room_id, thread_id }` (`thread_id` is `null` for the main timeline or a local-echo root), `version` stays `1`, and an older backend ignores it.
+  The backend trusts only an origin sent by the creator and sole caller, re-checks access, and reads it when the agent joins (https://github.com/mindroom-ai/mindroom/pull/2684); realtime calls need a fresh backend session per call (https://github.com/mindroom-ai/mindroom/pull/2689).
+- Known limits: call rooms stay findable in search and on the Archived page; a crash before the origin clear lets a manual join reuse the last origin; the thread filter sees only loaded events.
+- Files: `calls/` (`agentCall.ts`, `useStartAgentCall.ts`, `agentCallCandidates.ts`, `useCallFailureNotice.ts`, `AgentCallHeaderButton.tsx`, `AgentCallButton.tsx`), `threads/MindroomRoomViewHeader.tsx`, `components/user-profile/UserRoomProfile.tsx`, `features/call-status/CallStatus.tsx`, `features/call/CallView.tsx`, `plugins/call/CallEmbed.ts`, and four `mindroomUi.calls.agentCallHeaderButton` strings in all 17 catalogs; tests sit beside the code.
+- Validation: unit tests, typecheck, production build, ESLint and Prettier; the live check against a disposable Tuwunel (one-agent button, two-agent menu, the no-microphone notice at phone width) predates the permanent rooms.
 
 ### Enable native canvases and computer panels safely (2026-10-04)
 

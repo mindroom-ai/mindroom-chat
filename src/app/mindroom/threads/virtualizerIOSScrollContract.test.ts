@@ -107,7 +107,10 @@ const adjustmentWrites = (scrollToFn: ReturnType<typeof vi.fn>) =>
 // a device where the finger comes back down within the debounce window)
 // while each newly mounted above-viewport row measures BIGGER than its
 // estimate — the exact shape of the device report.
-function runUpwardFlickSequence(virtualizer: Virtualizer<Element, Element>, scroll: ScrollCallback) {
+function runUpwardFlickSequence(
+  virtualizer: Virtualizer<Element, Element>,
+  scroll: ScrollCallback
+) {
   let offset = START_OFFSET;
   let index = Math.floor(START_OFFSET / ROW_ESTIMATE) - 1;
   for (let flick = 0; flick < FLICKS; flick += 1) {
@@ -173,7 +176,7 @@ describe('virtualizer iOS scroll contract (production hook)', () => {
       expect(scrollToFn).toHaveBeenCalledTimes(1);
       const [, options] = scrollToFn.mock.calls[0] as [
         number,
-        { adjustments?: number; behavior?: ScrollBehavior },
+        { adjustments?: number; behavior?: ScrollBehavior }
       ];
       expect(options.adjustments).toBe(BANKED_ERROR);
     });
@@ -354,6 +357,34 @@ describe('virtualizer iOS scroll contract (production hook)', () => {
     expect(droppedDeltas).toEqual([-20]);
     scroll(START_OFFSET - 40, true);
     expect(virtualizer.scrollDirection).toBe('backward');
+  });
+
+  it('judges the rest of a batch in the layout its applied corrections have not moved yet', () => {
+    // virtual-core reports a batch's rows where they were before the batch,
+    // but each applied correction has already moved the offset.
+    let element: { scrollTop: number } | undefined;
+    const scrollToFn = vi.fn((offset: number, options: { adjustments?: number }) => {
+      if (element) element.scrollTop = offset + (options.adjustments ?? 0);
+    });
+    const { virtualizer, holder } = makeVirtualizer(scrollToFn);
+    element = holder.element;
+    let unrenderedPx = 0;
+    virtualizer.shouldAdjustScrollPositionOnItemSizeChange = buildMeasurementScrollCorrectionHook({
+      isIOSWebKitDevice: () => false,
+      onDroppedCorrection: () => {},
+      onAppliedCorrection: (deltaPx) => {
+        unrenderedPx += deltaPx;
+      },
+      unrenderedCorrectionPx: () => unrenderedPx,
+    });
+
+    // The two rows just above the reader fold by 40px each.
+    const lastRowAbove = START_OFFSET / ROW_ESTIMATE - 1;
+    virtualizer.resizeItem(lastRowAbove - 1, ROW_ESTIMATE - 40);
+    virtualizer.resizeItem(lastRowAbove, ROW_ESTIMATE - 40);
+
+    expect(holder.element.scrollTop).toBe(START_OFFSET - 80);
+    expect(unrenderedPx).toBe(-80);
   });
 
   it('judges a resize against the row painted at the viewport top, below content above the list', () => {

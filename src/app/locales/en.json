@@ -67,7 +67,6 @@
         "apiUrl": "Computer service URL",
         "description": "Choose a trusted MindRoom backend; it receives a short-lived sign-in token. Saved on this device. Leave blank to turn computers off.",
         "save": "Save computer service",
-        "lab": "Use MindRoom Lab",
         "reset": "Use app default",
         "invalidUrl": "Enter an origin without credentials, a path, query, or fragment. Use HTTPS, or HTTP with localhost or a private LAN IP address.",
         "httpNotice": "HTTP does not encrypt your sign-in or computer traffic. Use it only on a trusted local network.",
@@ -2294,6 +2293,12 @@
         "browserUnsupported": "Your browser does not support WebRTC.",
         "endCurrentCall": "End your current call first.",
         "failedToStart": "Failed to start the call."
+      },
+      "agentCallHeaderButton": {
+        "call": "Call an agent",
+        "callAgent": "Call {{name}}",
+        "chooseAgent": "Choose an agent to call",
+        "close": "Close"
       }
     },
     "commands": {
@@ -2449,7 +2454,10 @@
         "cancel": "Cancel",
         "autoApproveMinutes_one": "Auto-approve for {{count}} minute",
         "autoApproveMinutes_other": "Auto-approve for {{count}} minutes",
-        "denyCallReasonOptional": "Reason for denying call {{number}} (optional)"
+        "denyCallReasonOptional": "Reason for denying call {{number}} (optional)",
+        "approveExactCall": "Approve this exact call",
+        "approveAnyArguments": "Approve any arguments",
+        "anyArgumentsWarning": "Any arguments lets the agent make one {{tool}} call with whatever it decides, within {{minutes}} minutes of the scheduled time."
       },
       "approvalGrantStatus": {
         "autoApprovalActive": "Auto-approval active",
@@ -2482,7 +2490,14 @@
         "originalFixedExpiry": "Original fixed expiry: {{timestamp}}",
         "toolAndServer": "Tool: {{tool}} · Server: {{server}}",
         "tool": "Tool: {{tool}}",
-        "reason": "Reason: {{reason}}"
+        "reason": "Reason: {{reason}}",
+        "approvedWhenScheduledByAt": "Approved when scheduled by {{approver}} · {{timestamp}}",
+        "approvedWhenScheduledBy": "Approved when scheduled by {{approver}}"
+      },
+      "approvalSchedule": {
+        "scheduledFor": "Scheduled for {{timestamp}}",
+        "approvedExactArguments": "Approved for these exact arguments",
+        "approvedAnyArguments": "Approved for any arguments to this tool"
       },
       "approvalReviewCall": {
         "pending": "pending",
@@ -2743,9 +2758,7 @@
         "noThreads": "No threads"
       },
       "compactThreadCard": {
-        "streaming": "streaming",
-        "unreadMessages": "Unread messages",
-        "lastActivity": "Last activity {{time}}"
+        "streaming": "streaming"
       },
       "mindroomCallChatView": {
         "chat": "Chat",

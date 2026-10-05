@@ -7,20 +7,20 @@ import type { CompactThreadCardViewModel } from './types';
 vi.mock('./CompactRoomView.css', () => ({
   Card: 'Card',
   CardResolved: 'CardResolved',
-  LeadingSlot: 'LeadingSlot',
+  CardUnread: 'CardUnread',
   MessagePreview: 'MessagePreview',
-  MessageRow: 'MessageRow',
   MessageText: 'MessageText',
   MetadataRow: 'MetadataRow',
   ParticipantAvatar: 'ParticipantAvatar',
   Participants: 'Participants',
-  ScheduledIndicator: 'ScheduledIndicator',
-  StatBadge: 'StatBadge',
-  Stats: 'Stats',
-  StatusChip: 'StatusChip',
+  ReplyCount: 'ReplyCount',
   ResolutionByline: 'ResolutionByline',
+  ResolutionBylineLabel: 'ResolutionBylineLabel',
+  ScheduledIndicator: 'ScheduledIndicator',
+  Stats: 'Stats',
+  StreamingStatus: 'StreamingStatus',
   TimeText: 'TimeText',
-  TitleLead: 'TitleLead',
+  TimeTextUnread: 'TimeTextUnread',
   TitleRow: 'TitleRow',
   TitleText: 'TitleText',
 }));
@@ -30,15 +30,24 @@ vi.mock('./ThreadIndicator.css', () => ({
   ThreadScheduledIcon: 'ThreadScheduledIcon',
   ThreadScheduledIndicator: 'ThreadScheduledIndicator',
   ThreadStreamingDot: 'ThreadStreamingDot',
-  ThreadUnreadDot: 'ThreadUnreadDot',
 }));
 
 vi.mock('../messages/PendingSendIndicator.css', () => ({
   Container: 'PendingSendIndicator',
 }));
 
+const relativeTime = vi.hoisted(() => ({ value: '', format: undefined as string | undefined }));
+
 vi.mock('../../hooks/useRelativeTime', () => ({
-  useRelativeTime: () => '',
+  useRelativeTime: (_ts: number | undefined, format?: string) => {
+    relativeTime.format = format;
+    return relativeTime.value;
+  },
+}));
+
+vi.mock('./ThreadTagPill', () => ({
+  ThreadTagPill: ({ name }: { name: string }) =>
+    React.createElement('span', { 'data-tag-pill': name }, name),
 }));
 
 vi.mock('../../components/user-avatar', () => ({
@@ -70,6 +79,7 @@ const makeViewModel = (
   previewText: 'Me: Pending reply body',
   messageCount: 1,
   messageCountLabel: '1 msg',
+  messageCountText: '1',
   attentionState: 'waiting',
   attentionStatusText: 'Waiting on response',
   participants: [],
@@ -118,7 +128,8 @@ describe('CompactThreadCard', () => {
     renderer.unmount();
   });
 
-  it('marks only unread threads with a leading dot and no attention-state color', () => {
+  it('marks unread threads with an accent edge and accented time instead of a dot', () => {
+    relativeTime.value = '2d';
     const readRenderer = create(
       <CompactThreadCard
         viewModel={makeViewModel({
@@ -128,19 +139,79 @@ describe('CompactThreadCard', () => {
         onClick={vi.fn()}
       />
     );
-    expect(readRenderer.root.findAllByProps({ 'data-thread-unread-dot': 'true' })).toHaveLength(0);
-    expect(JSON.stringify(readRenderer.toJSON())).not.toContain('ThreadUnreadDot');
+    const readButton = readRenderer.root.findByType('button');
+    expect(readButton.props.className).toBe('Card');
+    expect(readButton.props['data-thread-unread']).toBeUndefined();
+    expect(readRenderer.root.findByProps({ className: 'TimeText' }).props.children).toBe('2d');
     readRenderer.unmount();
 
     const unreadRenderer = create(
-      <CompactThreadCard viewModel={makeViewModel({ isUnread: true })} onClick={vi.fn()} />
+      <CompactThreadCard
+        viewModel={makeViewModel({ isUnread: true, isResolved: true })}
+        onClick={vi.fn()}
+      />
     );
-    const dot = unreadRenderer.root.findByProps({ 'data-thread-unread-dot': 'true' });
     const button = unreadRenderer.root.findByType('button');
 
-    expect(dot.props.title).toBe('Unread messages');
+    expect(button.props.className).toBe('Card CardResolved CardUnread');
+    expect(button.props['data-thread-unread']).toBe('true');
+    expect(
+      unreadRenderer.root.findByProps({ className: 'TimeText TimeTextUnread' }).props.children
+    ).toBe('2d');
+    expect(JSON.stringify(unreadRenderer.toJSON())).not.toContain('UnreadDot');
     expect(button.props['aria-label']).toContain('Unread messages');
     unreadRenderer.unmount();
+    relativeTime.value = '';
+  });
+
+  it('asks for the compact time and reads the full timestamp to assistive technology', () => {
+    relativeTime.value = '2d';
+    const renderer = create(
+      <CompactThreadCard
+        viewModel={makeViewModel({
+          lastActivityTs: 1,
+          lastActivityTitle: 'Oct 2, 2026, 14:00',
+        })}
+        onClick={vi.fn()}
+      />
+    );
+
+    expect(relativeTime.format).toBe('compact');
+    expect(renderer.root.findByProps({ className: 'TimeText' }).props.title).toBe(
+      'Oct 2, 2026, 14:00'
+    );
+    expect(renderer.root.findByType('button').props['aria-label']).toContain(
+      'Last activity Oct 2, 2026, 14:00'
+    );
+    renderer.unmount();
+    relativeTime.value = '';
+  });
+
+  it('leaves the preview row to the preview and counts replies in the metadata row', () => {
+    const renderer = create(
+      <CompactThreadCard
+        viewModel={makeViewModel({
+          messageCount: 1234,
+          messageCountLabel: '1,234 msgs',
+          messageCountText: '1,234',
+          tags: ['blog'],
+        })}
+        onClick={vi.fn()}
+      />
+    );
+    const preview = renderer.root.findByProps({ className: 'MessagePreview' });
+    const metadata = renderer.root.findByProps({ className: 'MetadataRow' });
+    const replyCount = metadata.findByProps({ 'data-compact-card-reply-count': 'true' });
+
+    expect(JSON.stringify(preview.findByProps({ className: 'MessageText' }).props.children)).toBe(
+      JSON.stringify('Me: Pending reply body')
+    );
+    expect(preview.findAllByProps({ 'data-compact-card-reply-count': 'true' })).toHaveLength(0);
+    expect(replyCount.props.title).toBe('1,234 msgs');
+    expect(replyCount.props.children).toContain('1,234');
+    expect(metadata.findByProps({ 'data-tag-pill': 'blog' })).toBeTruthy();
+    expect(renderer.root.findByType('button').props['aria-label']).toContain('1,234 msgs');
+    renderer.unmount();
   });
 
   it('keeps the attention state on the card for the accessible label and test hooks', () => {
@@ -167,11 +238,16 @@ describe('CompactThreadCard', () => {
       resolvedByDisplayName: 'Alice',
     } as Partial<CompactThreadCardViewModel> & { resolvedByDisplayName: string });
     const renderer = create(<CompactThreadCard viewModel={viewModel} onClick={vi.fn()} />);
-    const resolverByline = renderer.root.findByProps({
+    const metadata = renderer.root.findByProps({ className: 'MetadataRow' });
+    const resolverByline = metadata.findByProps({
       'data-compact-card-resolution-byline': 'true',
     });
 
-    expect(resolverByline.findByType('span').children).toContain('Resolved by Alice');
+    expect(
+      resolverByline.findAll(
+        (node) => node.type === 'span' && node.children.includes('Resolved by Alice')
+      )
+    ).toHaveLength(1);
 
     renderer.unmount();
   });

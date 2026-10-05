@@ -152,6 +152,11 @@ type MeasurementScrollCorrectionHookDeps = {
   // offset, when sticky headers and content above the list (a thread's
   // banner and Load Older) set them apart.
   viewportTopOffset?: (scrollOffset: number) => number | undefined;
+  // virtual-core writes an applied correction at once, but reports rows where
+  // they were when React last rendered them: the caller sums the corrections
+  // applied since then and renders them before the browser paints.
+  onAppliedCorrection?: (deltaPx: number) => void;
+  unrenderedCorrectionPx?: () => number;
 };
 
 // virtual-core takes a scroll event within this of its own last write as
@@ -169,6 +174,8 @@ export const buildMeasurementScrollCorrectionHook =
     onDroppedCorrection,
     shouldDeferAutomaticFillCorrection,
     viewportTopOffset,
+    onAppliedCorrection,
+    unrenderedCorrectionPx,
   }: MeasurementScrollCorrectionHookDeps) =>
   (
     item: { end: number; index?: number },
@@ -195,7 +202,10 @@ export const buildMeasurementScrollCorrectionHook =
         liveOffset - cachedOffset;
     }
     const scrollOffset = liveOffset ?? cachedOffset;
-    const itemFullyAboveViewport = item.end <= (viewportTopOffset?.(scrollOffset) ?? scrollOffset);
+    // Judge the row in the rendered layout, where the reader has not moved yet.
+    const renderedOffset = scrollOffset - (unrenderedCorrectionPx?.() ?? 0);
+    const itemFullyAboveViewport =
+      item.end <= (viewportTopOffset?.(renderedOffset) ?? renderedOffset);
     const automaticFillPredecessor = shouldDeferAutomaticFillCorrection?.(item) ?? false;
     const apply =
       !automaticFillPredecessor &&
@@ -212,6 +222,7 @@ export const buildMeasurementScrollCorrectionHook =
     if (!apply && (itemFullyAboveViewport || automaticFillPredecessor)) {
       onDroppedCorrection(delta);
     }
+    if (apply) onAppliedCorrection?.(delta);
     return apply;
   };
 

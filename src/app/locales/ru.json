@@ -141,7 +141,6 @@
         "apiUrl": "URL сервиса компьютеров",
         "description": "Выберите доверенный сервер MindRoom; он получит краткосрочный токен входа. Сохраняется на этом устройстве. Оставьте пустым, чтобы отключить компьютеры.",
         "save": "Сохранить сервис компьютеров",
-        "lab": "Использовать MindRoom Lab",
         "reset": "Использовать настройку приложения",
         "invalidUrl": "Введите источник без учётных данных, пути, запроса или фрагмента. Используйте HTTPS либо HTTP с localhost или частным IP-адресом локальной сети.",
         "httpNotice": "HTTP не шифрует данные входа или трафик компьютера. Используйте его только в доверенной локальной сети.",
@@ -2350,6 +2349,12 @@
         "browserUnsupported": "Ваш браузер не поддерживает WebRTC.",
         "endCurrentCall": "Сначала завершите текущий звонок.",
         "failedToStart": "Не удалось начать звонок."
+      },
+      "agentCallHeaderButton": {
+        "call": "Позвонить агенту",
+        "callAgent": "Позвонить {{name}}",
+        "chooseAgent": "Выберите агента для звонка",
+        "close": "Закрыть"
       }
     },
     "commands": {
@@ -2508,6 +2513,9 @@
         "autoApproveMinutes_one": "Автоодобрение на {{count}} минуту",
         "autoApproveMinutes_other": "Автоодобрение на {{count}} минут",
         "denyCallReasonOptional": "Причина запрета вызова {{number}} (необязательно)",
+        "approveExactCall": "Одобрить именно этот вызов",
+        "approveAnyArguments": "Одобрить любые аргументы",
+        "anyArgumentsWarning": "С любыми аргументами агент может один раз вызвать {{tool}} с выбранными им аргументами в пределах {{minutes}} мин от запланированного времени.",
         "autoApproveMinutes_few": "Автоодобрение на {{count}} минуты",
         "autoApproveMinutes_many": "Автоодобрение на {{count}} минут"
       },
@@ -2545,8 +2553,15 @@
         "toolAndServer": "Инструмент: {{tool}} · сервер: {{server}}",
         "tool": "Инструмент: {{tool}}",
         "reason": "Причина: {{reason}}",
+        "approvedWhenScheduledByAt": "Одобрено при планировании пользователем {{approver}} · {{timestamp}}",
+        "approvedWhenScheduledBy": "Одобрено при планировании пользователем {{approver}}",
         "timedPermissionMinutes_few": "Временное разрешение · {{count}} минуты",
         "timedPermissionMinutes_many": "Временное разрешение · {{count}} минут"
+      },
+      "approvalSchedule": {
+        "scheduledFor": "Запланировано на {{timestamp}}",
+        "approvedExactArguments": "Одобрено для этих точных аргументов",
+        "approvedAnyArguments": "Одобрено для любых аргументов этого инструмента"
       },
       "approvalReviewCall": {
         "pending": "ожидает",
@@ -2837,9 +2852,7 @@
         "noThreads": "Нет веток"
       },
       "compactThreadCard": {
-        "streaming": "передача",
-        "unreadMessages": "Непрочитанные сообщения",
-        "lastActivity": "Последняя активность: {{time}}"
+        "streaming": "передача"
       },
       "mindroomCallChatView": {
         "chat": "Чат",

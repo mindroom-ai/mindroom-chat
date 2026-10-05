@@ -146,14 +146,18 @@ for (const touch of [false, true]) {
       expect(titleBeforeHover, 'title bounding box before hover').not.toBeNull();
       const restingPadding = await threadCard.evaluate((card) => {
         const style = getComputedStyle(card);
+        const metadata = card.querySelector<HTMLElement>('[data-compact-card-metadata="true"]')!;
         return {
           inlineStart: Number.parseFloat(style.paddingInlineStart),
           inlineEnd: Number.parseFloat(style.paddingInlineEnd),
+          metadataInlineEnd: Number.parseFloat(getComputedStyle(metadata).paddingInlineEnd),
         };
       });
-      if (staticActions)
-        expect(restingPadding.inlineEnd).toBeGreaterThan(restingPadding.inlineStart);
-      else expect(restingPadding.inlineEnd).toBe(restingPadding.inlineStart);
+      // Title and preview use the full card width; on touch only the last row
+      // makes room for the menu button.
+      expect(restingPadding.inlineEnd).toBe(restingPadding.inlineStart);
+      if (staticActions) expect(restingPadding.metadataInlineEnd).toBeGreaterThan(0);
+      else expect(restingPadding.metadataInlineEnd).toBe(0);
 
       if (!staticActions) {
         await cardShell.hover();
@@ -221,28 +225,37 @@ for (const touch of [false, true]) {
       await expect(moreButton).toBeVisible();
       const layout = await cardShell.evaluate((shell) => {
         const card = shell.querySelector<HTMLElement>('[data-thread-root-id]')!;
+        const metadata = card.querySelector<HTMLElement>('[data-compact-card-metadata="true"]')!;
         const action = shell.querySelector<HTMLElement>('[aria-haspopup="menu"]')!;
         const cardRect = card.getBoundingClientRect();
+        const metadataRect = metadata.getBoundingClientRect();
         const actionRect = action.getBoundingClientRect();
-        const style = getComputedStyle(card);
         return {
           shellHeight: shell.getBoundingClientRect().height,
           cardHeight: cardRect.height,
           cardLeft: cardRect.left,
           cardTop: cardRect.top,
           cardBottom: cardRect.bottom,
+          metadataLeft: metadataRect.left,
+          metadataCenter: (metadataRect.top + metadataRect.bottom) / 2,
+          metadataInlineEnd: Number.parseFloat(getComputedStyle(metadata).paddingInlineEnd),
           actionLeft: actionRect.left,
           actionRight: actionRect.right,
           actionTop: actionRect.top,
           actionBottom: actionRect.bottom,
+          actionCenter: (actionRect.top + actionRect.bottom) / 2,
           actionWidth: actionRect.width,
           actionHeight: actionRect.height,
-          paddingInlineEnd: Number.parseFloat(style.paddingInlineEnd),
         };
       });
       expect(layout.shellHeight).toBe(layout.cardHeight);
+      // RTL: the button sits at the start of the last row, centered on it and
+      // beside the row's content; the title and preview rows reserve nothing.
       expect(layout.actionLeft).toBeGreaterThanOrEqual(layout.cardLeft);
-      expect(layout.actionRight).toBeLessThanOrEqual(layout.cardLeft + layout.paddingInlineEnd);
+      expect(layout.actionRight).toBeLessThanOrEqual(
+        layout.metadataLeft + layout.metadataInlineEnd
+      );
+      expect(Math.abs(layout.actionCenter - layout.metadataCenter)).toBeLessThanOrEqual(1);
       expect(layout.actionTop).toBeGreaterThanOrEqual(layout.cardTop);
       expect(layout.actionBottom).toBeLessThanOrEqual(layout.cardBottom);
       expect(layout.actionWidth).toBeGreaterThanOrEqual(32);

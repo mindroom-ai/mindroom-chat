@@ -141,7 +141,6 @@
         "apiUrl": "컴퓨터 서비스 URL",
         "description": "신뢰할 수 있는 MindRoom 백엔드를 선택하세요. 유효 기간이 짧은 로그인 토큰이 전송됩니다. 이 기기에 저장됩니다. 비워 두면 컴퓨터가 비활성화됩니다.",
         "save": "컴퓨터 서비스 저장",
-        "lab": "MindRoom Lab 사용",
         "reset": "앱 기본값 사용",
         "invalidUrl": "인증 정보, 경로, 쿼리 또는 프래그먼트가 없는 오리진을 입력하세요. HTTPS를 사용하거나 localhost 또는 사설 LAN IP 주소에 HTTP를 사용하세요.",
         "httpNotice": "HTTP는 로그인 정보나 컴퓨터 트래픽을 암호화하지 않습니다. 신뢰할 수 있는 로컬 네트워크에서만 사용하세요.",
@@ -2294,6 +2293,12 @@
         "browserUnsupported": "이 브라우저는 WebRTC를 지원하지 않습니다.",
         "endCurrentCall": "먼저 현재 통화를 종료하세요.",
         "failedToStart": "통화를 시작하지 못했습니다."
+      },
+      "agentCallHeaderButton": {
+        "call": "에이전트에게 전화",
+        "callAgent": "{{name}}에게 전화",
+        "chooseAgent": "전화할 에이전트를 선택하세요",
+        "close": "닫기"
       }
     },
     "commands": {
@@ -2449,7 +2454,10 @@
         "cancel": "취소",
         "autoApproveMinutes_one": "{{count}}분 동안 자동 승인",
         "autoApproveMinutes_other": "{{count}}분 동안 자동 승인",
-        "denyCallReasonOptional": "호출 {{number}}의 거부 사유 (선택 사항)"
+        "denyCallReasonOptional": "호출 {{number}}의 거부 사유 (선택 사항)",
+        "approveExactCall": "이 호출 그대로 승인",
+        "approveAnyArguments": "모든 인수 승인",
+        "anyArgumentsWarning": "모든 인수를 승인하면 에이전트가 예약 시간 전후 {{minutes}}분 안에 원하는 내용으로 {{tool}}을(를) 한 번 호출할 수 있습니다."
       },
       "approvalGrantStatus": {
         "autoApprovalActive": "자동 승인 활성",
@@ -2482,7 +2490,14 @@
         "originalFixedExpiry": "원래 고정 만료 시각: {{timestamp}}",
         "toolAndServer": "도구: {{tool}} · 서버: {{server}}",
         "tool": "도구: {{tool}}",
-        "reason": "사유: {{reason}}"
+        "reason": "사유: {{reason}}",
+        "approvedWhenScheduledByAt": "예약 시 {{approver}}님이 승인 · {{timestamp}}",
+        "approvedWhenScheduledBy": "예약 시 {{approver}}님이 승인"
+      },
+      "approvalSchedule": {
+        "scheduledFor": "{{timestamp}}에 예약됨",
+        "approvedExactArguments": "이 인수 그대로 승인됨",
+        "approvedAnyArguments": "이 도구의 모든 인수에 대해 승인됨"
       },
       "approvalReviewCall": {
         "pending": "대기 중",
@@ -2743,9 +2758,7 @@
         "noThreads": "스레드 없음"
       },
       "compactThreadCard": {
-        "streaming": "응답 생성 중",
-        "unreadMessages": "읽지 않은 메시지",
-        "lastActivity": "최근 활동 {{time}}"
+        "streaming": "응답 생성 중"
       },
       "mindroomCallChatView": {
         "chat": "채팅",
