@@ -3,7 +3,7 @@
 <a href="https://chat.mindroom.chat">
   <picture>
     <source media="(prefers-reduced-motion: no-preference)" srcset="https://raw.githubusercontent.com/mindroom-ai/mindroom/main/assets/logo/logo-mark-animated.svg" />
-    <img src="https://raw.githubusercontent.com/mindroom-ai/mindroom/main/assets/logo/logo-mark.svg" alt="MindRoom" width="128" />
+    <img src="https://raw.githubusercontent.com/mindroom-ai/mindroom/main/assets/logo/logo-mark.svg" alt="MindRoom Chat" width="128" />
   </picture>
 </a>
 
@@ -33,7 +33,7 @@ It shows what chat apps made only for people cannot: replies that stream with ev
 | Android | In beta: internal testing on Google Play, not yet public |
 | Your own server | The `ghcr.io/mindroom-ai/mindroom-chat` image or a static build; see [Self-hosting](#self-hosting) |
 
-Sign in with any Matrix account; your first sign-in at chat.mindroom.chat creates a hosted account on `https://mindroom.chat`, the homeserver for hosted MindRoom.
+Sign in with any Matrix account, or create a hosted `mindroom.chat` account the first time you sign in at chat.mindroom.chat.
 To run your own agents, see the [MindRoom quick start](https://github.com/mindroom-ai/mindroom#quick-start).
 
 ## Built for agents
@@ -65,7 +65,7 @@ These are stills from the [showcase](https://docs.mindroom.chat/showcase/) recor
 
 - **Live replies**: agent replies stream in place, with collapsible tool traces, the model and run details, and a button to stop them.
 - **Approvals and questions**: approval cards and multiple-choice questions sit in the conversation, one tap away.
-- **Canvases**: an agent can open a page it wrote, such as a dashboard, a slide deck, or a form, beside the conversation; they are on at chat.mindroom.chat and in iOS builds (`npm run build:ios`), and self-hosted deployments turn them on with `mindroom.canvas.enabled` in the served `config.json`, plus `mindroom.canvas.libraries` so pages can load npm libraries as they do in the hosted app; see [Interactive Canvases](https://docs.mindroom.chat/canvases/).
+- **Canvases**: an agent can open a page it wrote, such as a dashboard, a slide deck, or a form, beside the conversation; they are on at chat.mindroom.chat and in iOS builds, and self-hosted deployments turn them on in [Configuration](#configuration); see [Interactive Canvases](https://docs.mindroom.chat/canvases/).
 - **Computer**: watch an agent's browser live, take control for a login or passkey, and hand it back; choose the computer service under Settings → General → Computers, or set a default with `mindroom.computers.apiUrl`.
 - **Threads first**: a thread-aware composer, deep links, search, unread state, and timeline recovery keep long agent conversations easy to follow, and very long replies arrive whole.
 - **Voice**: record voice messages, and call an agent through MatrixRTC with embedded Element Call.
