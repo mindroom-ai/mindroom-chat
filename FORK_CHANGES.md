@@ -21,6 +21,8 @@
 - Tests: `regex.test.ts` (`URL_REG`), `room.test.ts` (`trimReplyFromBody`, including a quote later in the body that stays), the new `math.test.ts` (both display-math scans, including an opener after a code span), `toolRefDom.test.ts` (`getToolRefPrefixFromElement` on markers with a pending icon, a split `<span>` and a long paragraph), and the new `MsgTypeRenderers.file.test.ts` (file, video and audio events with a numeric `body`, an object `filename` and a numeric MIME type, through the real `FileHeader` and `FileContent`).
   Each fails on `dev`: the four scans exceed their time limits and the file event throws `mimeType.lastIndexOf is not a function`.
   Randomized comparisons against the previous implementations (300,000 URL texts, 500,000 reply bodies, 100,000 math texts and 40,000 marker paragraphs) found no difference apart from that quote later in the body.
+- Validation: typecheck, the production build, and ESLint and Prettier on the touched files pass.
+  The full unit suite passes except the four tests that also fail on unchanged `dev` on this host: three `xcodeCloudPostClone` tests (no `/bin/bash`) and the caption send-failure test in `useRoomInputSendSessionController.test.ts`.
 
 ### Rewrite the README around the product (2026-10-05)
 
