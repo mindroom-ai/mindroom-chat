@@ -2743,9 +2743,7 @@
         "noThreads": "Tidak ada utas"
       },
       "compactThreadCard": {
-        "streaming": "mengalir",
-        "unreadMessages": "Pesan belum dibaca",
-        "lastActivity": "Aktivitas terakhir {{time}}"
+        "streaming": "mengalir"
       },
       "mindroomCallChatView": {
         "chat": "Obrolan",

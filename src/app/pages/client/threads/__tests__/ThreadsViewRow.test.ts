@@ -57,6 +57,7 @@ vi.mock('../../../../mindroom/threads/compactThreadCardViewModel', () => ({
     previewText: 'Preview',
     messageCount: 1,
     messageCountLabel: '1 msg',
+    messageCountText: '1',
     attentionState: 'idle',
     attentionStatusText: 'Idle',
     participants: [],

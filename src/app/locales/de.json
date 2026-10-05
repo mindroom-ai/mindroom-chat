@@ -2743,9 +2743,7 @@
         "noThreads": "Keine Threads"
       },
       "compactThreadCard": {
-        "streaming": "Streaming",
-        "unreadMessages": "Ungelesene Nachrichten",
-        "lastActivity": "Letzte Aktivität {{time}}"
+        "streaming": "Streaming"
       },
       "mindroomCallChatView": {
         "chat": "Chat",

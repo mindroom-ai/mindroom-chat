@@ -84,28 +84,31 @@ test('clears thread dots through room mark-read and opening a thread', async ({ 
   await roomLink.click();
   const firstCard = page.locator(`[data-thread-root-id="${rootIds[0]}"]`);
   const secondCard = page.locator(`[data-thread-root-id="${rootIds[1]}"]`);
-  const dot = (card: typeof firstCard) => card.locator('[data-thread-unread-dot="true"]');
+  const expectUnread = (card: typeof firstCard, unread: boolean) =>
+    unread
+      ? expect(card).toHaveAttribute('data-thread-unread', 'true')
+      : expect(card).not.toHaveAttribute('data-thread-unread');
   await expect(firstCard).toBeVisible();
   await expect(secondCard).toBeVisible();
 
   await sendReply(rootIds[0], 'First new unread reply');
   await sendReply(rootIds[1], 'Second new unread reply');
-  await expect(dot(firstCard)).toBeVisible();
-  await expect(dot(secondCard)).toBeVisible();
+  await expectUnread(firstCard, true);
+  await expectUnread(secondCard, true);
   await expect(roomLink.locator('..')).toHaveAttribute('data-highlight', 'false');
 
   await roomLink.click({ button: 'right' });
   await page.getByRole('button', { name: 'Mark as Read', exact: true }).click();
-  await expect(dot(firstCard)).toHaveCount(0);
-  await expect(dot(secondCard)).toHaveCount(0);
+  await expectUnread(firstCard, false);
+  await expectUnread(secondCard, false);
 
   await page.reload();
   await expect(firstCard).toBeVisible();
-  await expect(dot(firstCard)).toHaveCount(0);
-  await expect(dot(secondCard)).toHaveCount(0);
+  await expectUnread(firstCard, false);
+  await expectUnread(secondCard, false);
 
   const latestReply = await sendReply(rootIds[0], 'Reply to read by opening');
-  await expect(dot(firstCard)).toBeVisible();
+  await expectUnread(firstCard, true);
   const threadReceipt = page.waitForRequest(
     (request) =>
       request.method() === 'POST' &&
@@ -117,5 +120,5 @@ test('clears thread dots through room mark-read and opening a thread', async ({ 
   await expect(page.getByText('Reply to read by opening', { exact: true })).toBeVisible();
   await page.goBack();
   await expect(firstCard).toBeVisible();
-  await expect(dot(firstCard)).toHaveCount(0);
+  await expectUnread(firstCard, false);
 });

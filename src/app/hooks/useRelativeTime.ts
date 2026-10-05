@@ -1,6 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useAppLanguageCode } from './useAppLanguageCode';
-import { daysToMs, formatRelativeTime, hoursToMs, minutesToMs, secondsToMs } from '../utils/time';
+import {
+  daysToMs,
+  formatCompactRelativeTime,
+  formatRelativeTime,
+  hoursToMs,
+  minutesToMs,
+  secondsToMs,
+} from '../utils/time';
 
 type RelativeTimeClockListener = () => void;
 
@@ -57,8 +64,20 @@ export const getRelativeTimeUpdateInterval = (ts: number, now = Date.now()): num
   return minutesToMs(5);
 };
 
-export const useRelativeTime = (ts: number | undefined): string => {
+/** `relative` reads "2d ago"; `compact` drops the suffix ("2d") and shows a date after a week. */
+export type RelativeTimeFormat = 'relative' | 'compact';
+
+const formatters: Record<RelativeTimeFormat, (ts: number, language: string) => string> = {
+  relative: formatRelativeTime,
+  compact: formatCompactRelativeTime,
+};
+
+export const useRelativeTime = (
+  ts: number | undefined,
+  format: RelativeTimeFormat = 'relative'
+): string => {
   const language = useAppLanguageCode();
+  const formatTime = formatters[format];
   const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
@@ -69,7 +88,7 @@ export const useRelativeTime = (ts: number | undefined): string => {
     () => (ts === undefined ? -1 : getRelativeTimeUpdateInterval(ts, now)),
     [ts, now]
   );
-  const relativeTime = ts === undefined ? '' : formatRelativeTime(ts, language);
+  const relativeTime = ts === undefined ? '' : formatTime(ts, language);
 
   useEffect(() => {
     if (intervalMs < 0 || ts === undefined) return undefined;
@@ -79,13 +98,13 @@ export const useRelativeTime = (ts: number | undefined): string => {
       // Most ticks do not change their minute/hour label; avoid rerendering
       // the entire card until its visible text or clock cadence changes.
       if (
-        formatRelativeTime(ts, language) !== relativeTime ||
+        formatTime(ts, language) !== relativeTime ||
         getRelativeTimeUpdateInterval(ts) !== intervalMs
       ) {
         setNow(Date.now());
       }
     });
-  }, [intervalMs, language, relativeTime, ts]);
+  }, [formatTime, intervalMs, language, relativeTime, ts]);
 
   return relativeTime;
 };

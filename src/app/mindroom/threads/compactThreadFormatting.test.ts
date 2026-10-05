@@ -1,5 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
-import { getCompactThreadMessageCountLabel } from './compactThreadCardViewModel';
+import {
+  formatCompactThreadMessageCount,
+  getCompactThreadMessageCountLabel,
+} from './compactThreadCardViewModel';
 
 describe('compact thread count formatting under streaming refreshes', () => {
   it('reuses the current locale formatter across changing counts and follows language changes', () => {
@@ -13,6 +16,9 @@ describe('compact thread count formatting under streaming refreshes', () => {
       expect(constructor).toHaveBeenCalledTimes(2);
       expect(getCompactThreadMessageCountLabel(1, undefined, 'en-US')).toBe('1 msg');
       expect(getCompactThreadMessageCountLabel(0, undefined, 'en-US')).toBe('0 replies');
+      expect(formatCompactThreadMessageCount(1234, 'en-US')).toBe('1,234');
+      expect(formatCompactThreadMessageCount(0, 'en-US')).toBe('0');
+      expect(constructor).toHaveBeenCalledTimes(3);
     } finally {
       constructor.mockRestore();
     }

@@ -129,10 +129,10 @@ test('lists and reopens a large thread overview without a request per thread', a
 
   // A shown card keeps an exact count as live replies arrive.
   const liveCard = page.locator(`[data-thread-root-id="${roots[4]}"]`);
-  await expect(liveCard).toContainText('26 msgs');
+  await expect(liveCard).toHaveAccessibleName(/\b26 msgs\b/);
   await send('Live reply on a shown card', roots[4]);
   await expect(liveCard).toContainText('Live reply on a shown card');
-  await expect(liveCard).toContainText('27 msgs');
+  await expect(liveCard).toHaveAccessibleName(/\b27 msgs\b/);
 
   const coldStart = recordMatrixRequests(page, homeserver);
   await page.reload();

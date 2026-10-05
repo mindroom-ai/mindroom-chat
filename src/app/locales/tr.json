@@ -2743,9 +2743,7 @@
         "noThreads": "Konu yok"
       },
       "compactThreadCard": {
-        "streaming": "akışta",
-        "unreadMessages": "Okunmamış mesajlar",
-        "lastActivity": "Son etkinlik {{time}}"
+        "streaming": "akışta"
       },
       "mindroomCallChatView": {
         "chat": "Sohbet",

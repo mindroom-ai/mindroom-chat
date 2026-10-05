@@ -2,6 +2,28 @@
 
 ## Runbook
 
+### Give compact thread cards' text the full card width (2026-10-05)
+
+- Report: on a phone the compact room view wasted space.
+  Every card reserved a leading slot for the unread dot (indenting the title against the preview), the touch menu button reserved `3rem` at the end of every row, the reply-count pill sat beside the preview and cut it short, and long relative times (`2 dgn geleden`) wrapped titles.
+- Unread threads now show a primary accent edge on the card's leading side and a primary, bold time; the dot and its reserved slot are gone.
+  The card carries `data-thread-unread="true"` for tests in place of the old `data-thread-unread-dot` element.
+- The time is compact (`now`, `5m`, `3h`, `2d`, then the date after a week, with the year for earlier years) via `formatCompactRelativeTime` and `useRelativeTime(ts, 'compact')`; other surfaces keep the `2d ago` form.
+  The time's tooltip and the card's accessible label give the full timestamp.
+- The preview row holds only the preview (plus pending/failed send state).
+  The reply count moved to the end of the last row as a thread icon and the bare number (`messageCountText` on the view model, formatted once together with the label); the full label stays in its tooltip and the card's accessible label.
+- Titles clamp at two lines (full title in the tooltip and accessible label).
+  "Resolved by" joins the last row with a check icon instead of taking its own line; avatars, tags, streaming state and the schedule share that row.
+- On touch layouts the menu button sits at the end of the last row, and only that row reserves room for it (`32px`), so the title and preview rows use the full width.
+- Tags use the shared `ThreadTagPill`, so a tag has the same color on the card as in the thread bar; the card's own copy of the hash gave a different hue for some names.
+- The unused `compactThreadCard.unreadMessages` and `compactThreadCard.lastActivity` strings were removed from every locale; the latter's only caller passed `timestamp` to a `{{time}}` placeholder.
+- Alternatives explored for the PR, kept on local branches: `alt/compact-card-inbox-list` (flat rows with dividers, two-line preview) and `alt/compact-card-dense` (two rows per card); the chosen design combines the first layout with the dense variant's unread edge and time.
+- Fixture: `e2e/fixtures/compact-thread-cards.html` renders the production card in the compact view's shell with realistic agent threads (`?lang=`, `?theme=dark`); `e2e/compact-thread-cards.spec.ts` checks at 390 px that title and preview start at the content edge, the preview reaches the content end, the menu button is centered on the last row, and only unread cards have the accent edge.
+- Tests: unit tests cover the compact formatter (boundaries, earlier years, Dutch), the hook's compact ticking, the count formatting, and the card's unread marker, time, reply count and resolved byline.
+  `compact-resolve-hover` now asserts the menu button sits inside the last row's reserved room and is centered on it (also in RTL); `thread-bootstrap-requests` reads the count from the accessible name; `thread-unread-receipts` reads `data-thread-unread`.
+- Validation: typecheck, build and lint pass; `npm test` passes apart from four failures in `xcodeCloudPostClone` and `useRoomInputSendSessionController` that fail the same way on `dev`.
+  `compact-thread-cards`, `streaming-cards`, `compact-card-display-names`, `compact-resolve-hover` (desktop and Dutch touch), `thread-bootstrap-requests` and `thread-unread-receipts` pass on Chromium against a disposable Tuwunel.
+
 ### Fix three live specs that failed intermittently in full runs (2026-10-04)
 
 - Report: in full live-suite runs (`--jobs 8`), `thread-arrow-up-edit`, `composer-glass` on WebKit and `offline-invited-account` failed now and then, also on `dev`, and passed when rerun alone.

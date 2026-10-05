@@ -46,18 +46,22 @@ export const replaceMatrixUserIdsWithDisplayNames = (room: Room, text: string): 
     return candidate;
   });
 
+export const formatCompactThreadMessageCount = (messageCount: number, locale?: string): string => {
+  if (!countFormatter || countFormatter.locale !== locale) {
+    countFormatter = { locale, value: new Intl.NumberFormat(locale) };
+  }
+  return countFormatter.value.format(messageCount);
+};
+
 export const getCompactThreadMessageCountLabel = (
   messageCount: number,
   t?: TFunction,
-  locale?: string
+  locale?: string,
+  formattedCount = messageCount === 0 ? '0' : formatCompactThreadMessageCount(messageCount, locale)
 ): string => {
   if (messageCount === 0)
     return t?.('mindroomUi.threads.compactThreadCardViewModel.noReplies') ?? '0 replies';
 
-  if (!countFormatter || countFormatter.locale !== locale) {
-    countFormatter = { locale, value: new Intl.NumberFormat(locale) };
-  }
-  const formattedCount = countFormatter.value.format(messageCount);
   return (
     t?.('mindroomUi.threads.compactThreadCardViewModel.messageCount', {
       count: messageCount,
@@ -209,6 +213,8 @@ export const buildCompactThreadCardViewModelFromRecord = ({
     t
   );
   const resolvedByDisplayName = getThreadResolverDisplayName(room, status.resolvedByUserId);
+  // Formatted once: the label and the card's bare count share it.
+  const messageCountText = formatCompactThreadMessageCount(presentation.messageCount, locale);
 
   return {
     id: {
@@ -221,7 +227,13 @@ export const buildCompactThreadCardViewModelFromRecord = ({
     primarySummaryText: getThreadPrimarySummaryText(presentation),
     recentThreadSummaryText: presentation.recentThreadSummaryText,
     messageCount: presentation.messageCount,
-    messageCountLabel: getCompactThreadMessageCountLabel(presentation.messageCount, t, locale),
+    messageCountLabel: getCompactThreadMessageCountLabel(
+      presentation.messageCount,
+      t,
+      locale,
+      messageCountText
+    ),
+    messageCountText,
     attentionState,
     attentionStatusText: getCompactThreadAttentionStatusText(attentionState, t),
     participants: getCompactThreadParticipants({

@@ -260,6 +260,7 @@ describe('buildCompactThreadCardViewModelFromRecord', () => {
     expect(model.previewText).toBe('Agent: Latest reply body');
     expect(model.messageCount).toBe(9);
     expect(model.messageCountLabel).toBe('9 msgs');
+    expect(model.messageCountText).toBe('9');
     expect(model.tags).toEqual(['agent']);
     expect(model.isResolved).toBe(true);
     expect(model.isUnread).toBe(true);

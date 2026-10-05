@@ -117,6 +117,58 @@ export const formatRelativeTime = (
   return relativeTime.format(-ageDays, 'day');
 };
 
+const compactFormatterCache = new Map<string, Intl.NumberFormat | Intl.DateTimeFormat>();
+
+const getCompactUnitFormatter = (language: string, unit: 'minute' | 'hour' | 'day') => {
+  const cacheKey = `${language}:unit:${unit}`;
+  const cached = compactFormatterCache.get(cacheKey);
+  if (cached) return cached;
+  const formatter = new Intl.NumberFormat(language, {
+    style: 'unit',
+    unit,
+    unitDisplay: 'narrow',
+  });
+  compactFormatterCache.set(cacheKey, formatter);
+  return formatter;
+};
+
+const getCompactDateFormatter = (language: string, withYear: boolean) => {
+  const cacheKey = `${language}:date:${withYear}`;
+  const cached = compactFormatterCache.get(cacheKey);
+  if (cached) return cached;
+  const formatter = new Intl.DateTimeFormat(language, {
+    day: 'numeric',
+    month: 'short',
+    year: withYear ? 'numeric' : undefined,
+  });
+  compactFormatterCache.set(cacheKey, formatter);
+  return formatter;
+};
+
+/**
+ * Age without the "ago" suffix, for dense lists: "now", "5m", "3h", "2d", then
+ * the date ("28 Sep") after a week, with the year once it is not this year.
+ */
+export const formatCompactRelativeTime = (ts: number, language = 'en'): string => {
+  const nowTs = Date.now();
+  const ageMs = Math.max(0, nowTs - ts);
+
+  if (ageMs < minutesToMs(1)) {
+    return getRelativeTimeFormatter(language, 'auto', 'narrow').format(0, 'second');
+  }
+  if (ageMs < hoursToMs(1)) {
+    return getCompactUnitFormatter(language, 'minute').format(Math.floor(ageMs / minutesToMs(1)));
+  }
+  if (ageMs < daysToMs(1)) {
+    return getCompactUnitFormatter(language, 'hour').format(Math.floor(ageMs / hoursToMs(1)));
+  }
+  if (ageMs < daysToMs(7)) {
+    return getCompactUnitFormatter(language, 'day').format(Math.floor(ageMs / daysToMs(1)));
+  }
+  const withYear = new Date(ts).getFullYear() !== new Date(nowTs).getFullYear();
+  return getCompactDateFormatter(language, withYear).format(ts);
+};
+
 export const getToday = () => {
   const nowTs = Date.now();
   const date = dayjs(nowTs);

@@ -2743,9 +2743,7 @@
         "noThreads": "没有讨论串"
       },
       "compactThreadCard": {
-        "streaming": "流式响应",
-        "unreadMessages": "未读消息",
-        "lastActivity": "上次活动 {{time}}"
+        "streaming": "流式响应"
       },
       "mindroomCallChatView": {
         "chat": "聊天",

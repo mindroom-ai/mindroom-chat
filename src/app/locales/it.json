@@ -2790,9 +2790,7 @@
         "noThreads": "Nessun thread"
       },
       "compactThreadCard": {
-        "streaming": "streaming",
-        "unreadMessages": "Messaggi non letti",
-        "lastActivity": "Ultima attività {{time}}"
+        "streaming": "streaming"
       },
       "mindroomCallChatView": {
         "chat": "Chat",

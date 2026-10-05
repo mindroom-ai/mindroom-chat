@@ -101,6 +101,7 @@ const makeViewModel = (
   recentThreadSummaryText: 'Recent summary',
   messageCount: 2,
   messageCountLabel: '2 msgs',
+  messageCountText: '2',
   attentionState: 'idle',
   attentionStatusText: 'Idle',
   participants: [],

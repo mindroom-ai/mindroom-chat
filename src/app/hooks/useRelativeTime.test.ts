@@ -2,7 +2,11 @@ import React from 'react';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { daysToMs, formatRelativeTime, hoursToMs, minutesToMs, secondsToMs } from '../utils/time';
-import { getRelativeTimeUpdateInterval, useRelativeTime } from './useRelativeTime';
+import {
+  getRelativeTimeUpdateInterval,
+  type RelativeTimeFormat,
+  useRelativeTime,
+} from './useRelativeTime';
 
 const languageState = vi.hoisted(() => ({ value: 'en' }));
 
@@ -14,11 +18,12 @@ vi.mock('react-i18next', () => ({
 
 type HarnessProps = {
   ts: number | undefined;
+  format?: RelativeTimeFormat;
   onRender: (value: string) => void;
 };
 
-function Harness({ ts, onRender }: HarnessProps) {
-  const value = useRelativeTime(ts);
+function Harness({ ts, format, onRender }: HarnessProps) {
+  const value = useRelativeTime(ts, format);
   onRender(value);
   return null;
 }
@@ -220,6 +225,22 @@ describe('useRelativeTime', () => {
     });
     expect(onRender).toHaveBeenLastCalledWith(formatRelativeTime(ts, 'de'));
     expect(onRender.mock.lastCall?.[0]).not.toBe(english);
+    act(() => renderer.unmount());
+  });
+
+  it('ticks the compact label across its own boundaries', () => {
+    const onRender = vi.fn();
+    const ts = Date.now() - secondsToMs(59);
+    let renderer!: ReactTestRenderer;
+    act(() => {
+      renderer = create(React.createElement(Harness, { ts, format: 'compact', onRender }));
+    });
+    expect(onRender).toHaveBeenLastCalledWith('now');
+
+    act(() => {
+      vi.advanceTimersByTime(secondsToMs(1));
+    });
+    expect(onRender).toHaveBeenLastCalledWith('1m');
     act(() => renderer.unmount());
   });
 });
