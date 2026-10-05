@@ -330,7 +330,17 @@ describe('readCanvasState', () => {
   });
 
   it('accepts the JSON a page saves', () => {
-    expect(readCanvasState(message(state('{"slots":[1]}')), frame)).toBe('{"slots":[1]}');
+    expect(readCanvasState(message(state('{"slots":[1]}')), frame)).toEqual({
+      json: '{"slots":[1]}',
+    });
+  });
+
+  it('accepts the control values a page sends', () => {
+    const inputs = { type: 'mindroom.canvas.state', version: 1, inputs: '{"#rate":"7"}' };
+    expect(readCanvasState(message(inputs), frame)).toEqual({ inputs: '{"#rate":"7"}' });
+    expect(
+      readCanvasState(message({ ...inputs, inputs: { '#rate': '7' } }), frame)
+    ).toBeUndefined();
   });
 
   it.each([
