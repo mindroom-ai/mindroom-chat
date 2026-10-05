@@ -92,11 +92,11 @@ export function MessageGlass() {
             <b>web_search · 2 calls</b>
             <small>Research · Requested by Avery</small>
             <div className={approvals.Actions}>
-              <Button size="300" variant="Success">
-                Approve all once
+              <Button size="300" variant="Success" fill="Soft" outlined>
+                Approve all 2 once
               </Button>
-              <Button size="300" variant="Critical">
-                Deny all
+              <Button size="300" variant="Critical" fill="Soft" outlined>
+                Deny all 2
               </Button>
             </div>
           </ApprovalGroup>
