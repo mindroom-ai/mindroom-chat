@@ -6,6 +6,7 @@ import {
   CANVAS_CSP,
   CANVAS_ERROR_MESSAGE,
   CANVAS_INPUT_MAX_LENGTH,
+  CANVAS_STATE_MAX_LENGTH,
   CANVAS_ESCAPE_MESSAGE,
   CANVAS_LIBRARY_SOURCE,
   CANVAS_STATE_MESSAGE,
@@ -340,20 +341,106 @@ describe('kept inputs', () => {
     expect(page.kept()).toEqual({});
   });
 
-  it('keeps the first change to a control the page drew later', async () => {
+  it("keeps the user's first change to a control the page drew later, but not the page's own event on it", async () => {
     const page = open(
-      `<div id="step"></div><script>setTimeout(() => { document.getElementById('step').innerHTML = '<select name="unit"><option>m</option><option>km</option></select>'; }, 5);</script>`
+      `<div id="step"></div><output id="shown"></output>
+<script>
+  setTimeout(() => {
+    document.getElementById('step').innerHTML = '<input type="radio" name="size" value="s"><input type="radio" name="size" value="l"><input id="rate" type="range" min="0" max="10" value="2">';
+    const rate = document.getElementById('rate');
+    rate.addEventListener('input', () => { document.getElementById('shown').textContent = rate.value; });
+    rate.dispatchEvent(new Event('input', { bubbles: true }));
+  }, 5);
+</script>`,
+      JSON.stringify({ '#rate': '7' })
     );
     await settle();
-    page.use(
-      'select',
-      (control) => {
-        control.value = 'km';
-      },
-      'change'
+    expect(page.$('#rate').value).toBe('7');
+    expect(page.$('#shown').textContent).toBe('7');
+    page.$('[value=l]').click();
+    await settle();
+    expect(page.kept()).toEqual({ '#rate': '7', size: 'l' });
+  });
+
+  it('keeps a choice made on a control the bridge has not seen yet', async () => {
+    const page = open(
+      `<div id="step"></div>
+<script>
+  setTimeout(() => {
+    document.getElementById('step').innerHTML = '<input type="radio" name="size" value="s"><input type="radio" name="size" value="l">';
+  }, 5);
+</script>`
     );
     await settle();
-    expect(page.kept()).toEqual({ unit: 'km' });
+    page.$('[value=l]').click();
+    await settle();
+    expect(page.kept()).toEqual({ size: 'l' });
+  });
+
+  it('restores one control at a time, for pages that redraw every control from their own state', async () => {
+    // Like a framework's controlled inputs: the page writes its state back into every control on each change.
+    const page = open(
+      `<input id="rate" value="2"><input id="zoom" value="1"><input type="checkbox" id="flag">
+<input type="checkbox" id="all"><input type="checkbox" id="one"><input type="checkbox" id="two">
+<script>
+  const state = { rate: '2', zoom: '1', flag: false };
+  const $ = (id) => document.getElementById(id);
+  const render = () => { $('rate').value = state.rate; $('zoom').value = state.zoom; $('flag').checked = state.flag; };
+  $('rate').addEventListener('input', () => { state.rate = $('rate').value; render(); });
+  $('zoom').addEventListener('input', () => { state.zoom = $('zoom').value; render(); });
+  $('flag').addEventListener('click', () => { state.flag = $('flag').checked; render(); });
+  // Select all checks the others.
+  $('all').addEventListener('click', () => { $('one').checked = $('all').checked; $('two').checked = $('all').checked; });
+</script>`,
+      JSON.stringify({
+        '#rate': '7',
+        '#zoom': '3',
+        '#flag': true,
+        '#all': true,
+        '#one': true,
+        '#two': false,
+      })
+    );
+    await settle();
+    expect([page.$('#rate').value, page.$('#zoom').value, page.$('#flag').checked]).toEqual([
+      '7',
+      '3',
+      true,
+    ]);
+    expect([page.$('#all').checked, page.$('#one').checked, page.$('#two').checked]).toEqual([
+      true,
+      true,
+      false,
+    ]);
+  });
+
+  it('restores every item of a list the page rebuilds on each change, and keeps them', async () => {
+    const page = open(
+      `<div id="list"></div>
+<script>
+  const state = { a: false, b: false, c: false };
+  const list = document.getElementById('list');
+  const draw = () => {
+    list.innerHTML = Object.keys(state).map((id) => '<input type="checkbox" id="' + id + '"' + (state[id] ? ' checked' : '') + '>').join('');
+  };
+  list.addEventListener('change', (event) => { state[event.target.id] = event.target.checked; draw(); });
+  draw();
+</script>`,
+      JSON.stringify({ '#a': true, '#b': true, '#c': true })
+    );
+    await settle();
+    expect(['#a', '#b', '#c'].map((id) => page.$(id).checked)).toEqual([true, true, true]);
+    expect(page.sent).toEqual([]);
+  });
+
+  it('restores disabled checkboxes and radio buttons, which ignore clicks', async () => {
+    const page = open(
+      `<input type="checkbox" id="flag" disabled><fieldset disabled><input type="radio" name="size" value="s" checked><input type="radio" name="size" value="l"></fieldset>`,
+      JSON.stringify({ '#flag': true, size: 'l' })
+    );
+    await settle();
+    expect(page.$('#flag').checked).toBe(true);
+    expect(page.$('[value=l]').checked).toBe(true);
   });
 
   it('leaves a select showing its own choice when this version lacks the kept one', async () => {
@@ -499,6 +586,43 @@ describe('kept inputs', () => {
     });
     await settle();
     expect(page.kept()).toEqual({ '#rate': '7' });
+  });
+
+  it('drops the longest values once all kept values outgrow what Chat keeps, so the others are still kept', async () => {
+    const fields = Array.from(
+      { length: 9 },
+      (_, index) => `<textarea id="t${index}"></textarea>`
+    ).join('');
+    const page = open(`${RATE}${fields}`);
+    await settle();
+    for (let index = 0; index < 9; index += 1) {
+      page.use(`#t${index}`, (control) => {
+        control.value = 'x'.repeat(30_000 + index);
+      });
+    }
+    page.use('#rate', (control) => {
+      control.value = '7';
+    });
+    await settle();
+    const last = page.sent.at(-1) ?? '';
+    expect(last.length).toBeLessThanOrEqual(CANVAS_STATE_MAX_LENGTH);
+    expect(JSON.parse(last)['#rate']).toBe('7');
+    expect(JSON.parse(last)['#t8']).toBeUndefined();
+  });
+
+  it('reads autocomplete as whole tokens, so a street field in an "office" section is kept', async () => {
+    const page = open(
+      `<input id="street" autocomplete="section-office street-address"><input id="pin" autocomplete="section-login one-time-code current-password">`
+    );
+    await settle();
+    page.use('#street', (control) => {
+      control.value = 'Main St 1';
+    });
+    page.use('#pin', (control) => {
+      control.value = 'hunter2';
+    });
+    await settle();
+    expect(page.kept()).toEqual({ '#street': 'Main St 1' });
   });
 
   it('restores through the native setter, so a framework tracking the value sees the change', async () => {

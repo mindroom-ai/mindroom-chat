@@ -102,7 +102,8 @@ const inputsScript = (inputs: string | undefined): string => `
   const types = new MutationObserver(revealed);
   types.observe(document, { subtree: true, attributeFilter: ['type'], attributeOldValue: true });
   const declines = (control) => unsaved.includes(control.type) || secret.has(control)
-    || /off|password/i.test(control.getAttribute('autocomplete') || (control.form && control.form.getAttribute('autocomplete')) || '');
+    || (control.getAttribute('autocomplete') || (control.form && control.form.getAttribute('autocomplete')) || '')
+      .toLowerCase().split(/\\s+/).some((token) => token === 'off' || token.endsWith('password'));
   const controls = () => {
     // Records still queued, so a field revealed in this same task counts too.
     revealed(types.takeRecords());
@@ -128,45 +129,50 @@ const inputsScript = (inputs: string | undefined): string => `
     Object.getOwnPropertyDescriptor(Object.getPrototypeOf(control), property).set.call(control, value);
   let seen;
   let restoring = false;
-  const restore = (entries) => {
+  const fire = (control) => {
+    control.dispatchEvent(new Event('input', { bubbles: true }));
+    control.dispatchEvent(new Event('change', { bubbles: true }));
+  };
+  const restore = (keys) => {
     restoring = true;
-    // Values are set before any event, so the page sees them all when it redraws. Checkboxes and
-    // radio buttons are clicked, which fires the click that frameworks (React) listen to.
-    const clicks = [];
-    const restored = entries.flatMap((entry) => {
-      const { key, control } = entry;
+    // One control at a time, set and then told, and found again each time, since a page may
+    // redraw its other controls (React, or a list rebuilt from its own state) when one changes.
+    keys.forEach((key) => {
+      const entry = controls().find((item) => item.key === key);
       const value = inputs[key];
-      if (value === undefined || JSON.stringify(value) === JSON.stringify(valueOf(entry))) return [];
+      if (!entry || value === undefined || JSON.stringify(value) === JSON.stringify(valueOf(entry))) return;
+      const { control } = entry;
       if (control.type === 'radio' || control.type === 'checkbox') {
         const target = control.type === 'radio' ? group(control).find((item) => item.value === value) : control;
-        if (target) clicks.push(target);
-        return [];
+        if (!target) return;
+        // A click is what frameworks (React) listen to for these; a disabled control ignores clicks.
+        if (!target.matches(':disabled')) target.click();
+        else {
+          assign(target, 'checked', control.type === 'radio' || value === true);
+          fire(target);
+        }
+        return;
       }
       if (control.type === 'select-multiple') {
         [...control.options].forEach((option) => { option.selected = [].concat(value).includes(option.value); });
       } else if (control.type === 'select-one' && ![...control.options].some((option) => option.value === value)) {
-        return [];
+        return;
       } else assign(control, 'value', String(value));
-      return [control];
+      fire(control);
     });
-    clicks.forEach((control) => control.click());
-    restored.forEach((control) => {
-      control.dispatchEvent(new Event('input', { bubbles: true }));
-      control.dispatchEvent(new Event('change', { bubbles: true }));
-    });
-    entries.forEach((entry) => { seen[entry.key] = JSON.stringify(valueOf(entry)); });
+    controls().forEach((entry) => { if (keys.includes(entry.key)) seen[entry.key] = JSON.stringify(valueOf(entry)); });
     restoring = false;
   };
   const saveInputs = (event) => {
     if (!seen || restoring) return;
-    const entries = controls();
     // A control the page drew later, such as the next step of a form, gets its kept value first,
-    // unless the user just changed it.
-    const target = event && event.target;
+    // unless the user just changed it (events a page fires itself are not trusted).
+    const target = event && event.isTrusted && event.target;
     const changedNow = ({ key, control }) => control === target || (control.type === 'radio' && target && target.name === key);
-    restore(entries.filter((entry) => !(entry.key in seen) && !changedNow(entry)));
+    const late = controls().filter((entry) => !(entry.key in seen) && !changedNow(entry));
+    if (late.length) restore(late.map((entry) => entry.key));
     let changed = false;
-    entries.forEach((entry) => {
+    controls().forEach((entry) => {
       const text = JSON.stringify(valueOf(entry));
       if (seen[entry.key] === text) return;
       seen[entry.key] = text;
@@ -175,7 +181,15 @@ const inputsScript = (inputs: string | undefined): string => `
       if (text === undefined || text.length > ${CANVAS_INPUT_MAX_LENGTH}) delete inputs[entry.key];
       else inputs[entry.key] = JSON.parse(text);
     });
-    if (changed) parent.parent.postMessage({ type: '${CANVAS_STATE_MESSAGE}', version: 1, inputs: JSON.stringify(inputs) }, '*');
+    if (!changed) return;
+    let json = JSON.stringify(inputs);
+    // Past what Chat keeps, the longest values go first, so the others are still kept.
+    while (json.length > ${CANVAS_STATE_MAX_LENGTH}) {
+      const longest = Object.keys(inputs).reduce((a, b) => (JSON.stringify(inputs[a]).length >= JSON.stringify(inputs[b]).length ? a : b));
+      delete inputs[longest];
+      json = JSON.stringify(inputs);
+    }
+    parent.parent.postMessage({ type: '${CANVAS_STATE_MESSAGE}', version: 1, inputs: json }, '*');
   };
   document.addEventListener('input', saveInputs, true);
   document.addEventListener('change', saveInputs, true);
@@ -183,7 +197,7 @@ const inputsScript = (inputs: string | undefined): string => `
   document.addEventListener('click', () => setTimeout(() => saveInputs()), true);
   document.addEventListener('DOMContentLoaded', () => setTimeout(() => {
     seen = Object.create(null);
-    restore(controls());
+    restore(controls().map((entry) => entry.key));
   }));`;
 
 // Runs before any agent script. Forms are captured here because the sandbox
