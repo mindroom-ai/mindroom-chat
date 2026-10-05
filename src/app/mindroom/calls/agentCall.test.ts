@@ -5,6 +5,7 @@ import {
   cleanupMindroomAgentCall,
   createAgentVoiceRoom,
   hasMindroomVoiceCallsPresence,
+  toAgentCallOrigin,
 } from './agentCall';
 
 const createRoom = vi.fn();
@@ -124,6 +125,17 @@ describe('MindRoom agent calls', () => {
       (event: { type: string }) => event.type === StateEvent.MindroomAgentCall
     ).content;
     expect(content).not.toHaveProperty('origin');
+  });
+
+  it.each([
+    ['$root', '$root'],
+    [undefined, null],
+    ['~!room:mindroom.test:m1791165951526.3', null],
+  ])('builds an origin from thread %s with thread id %s', (threadId, expected) => {
+    expect(toAgentCallOrigin('!room:mindroom.test', threadId)).toEqual({
+      room_id: '!room:mindroom.test',
+      thread_id: expected,
+    });
   });
 
   it('creates an unencrypted room when client policy disables encryption', async () => {

@@ -24,9 +24,8 @@ import { useRoom } from '../../hooks/useRoom';
 import { useRoomMembers } from '../../hooks/useRoomMembers';
 import { stopPropagation } from '../../utils/keyboard';
 import { isMindroomAgentUserIdForViewer } from '../matrix/agentIdentity';
-import { isConfirmedMatrixEventId } from '../threads/threadRouteUtils';
 import { localizeVoiceErrorMessage } from '../voice/voiceErrorMessage';
-import { MindroomAgentCallOrigin } from './agentCall';
+import { toAgentCallOrigin } from './agentCall';
 import { AgentCallCandidate, getAgentCallCandidates } from './agentCallCandidates';
 import { useStartAgentCall } from './useStartAgentCall';
 
@@ -62,11 +61,7 @@ export function AgentCallHeaderButton({ threadId }: { threadId?: string }) {
   // An unsupported homeserver or browser hides the button for good; only an active call disables it.
   if (!supported || candidates.length === 0 || room.isCallRoom()) return null;
 
-  // A new thread's root is a local echo until it is sent; the backend can only resolve a real event.
-  const origin: MindroomAgentCallOrigin = {
-    room_id: room.roomId,
-    thread_id: isConfirmedMatrixEventId(threadId) ? threadId : null,
-  };
+  const origin = toAgentCallOrigin(room.roomId, threadId);
   const disabled = loading || !!unavailableReason;
   const errorText = localizeVoiceErrorMessage(
     t,

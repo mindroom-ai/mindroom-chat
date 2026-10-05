@@ -7,6 +7,7 @@ import {
 } from '../../components/create-room/utils';
 import { getMxIdLocalPart } from '../../utils/matrix';
 import { getStateEvent } from '../../utils/room';
+import { isConfirmedMatrixEventId } from '../threads/threadRouteUtils';
 
 export const MINDROOM_VOICE_CALLS_PRESENCE = '📞 Voice calls';
 
@@ -14,6 +15,15 @@ export const hasMindroomVoiceCallsPresence = (status: string | undefined): boole
   status?.split(' | ').includes(MINDROOM_VOICE_CALLS_PRESENCE) ?? false;
 
 export type MindroomAgentCallOrigin = { room_id: string; thread_id: string | null };
+
+/** A new thread's root is a local echo until it is sent; the backend can only resolve a real event. */
+export const toAgentCallOrigin = (
+  roomId: string,
+  threadId: string | undefined
+): MindroomAgentCallOrigin => ({
+  room_id: roomId,
+  thread_id: isConfirmedMatrixEventId(threadId) ? threadId : null,
+});
 
 export type MindroomAgentCallContent = {
   version: 1;

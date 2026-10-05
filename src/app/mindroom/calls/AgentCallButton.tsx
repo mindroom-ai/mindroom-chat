@@ -7,8 +7,7 @@ import { useSelectedRoom } from '../../hooks/router/useSelectedRoom';
 import { getRoomSearchParams } from '../../pages/pathSearchParam';
 import { useCloseUserRoomProfile } from '../../state/hooks/userRoomProfile';
 import { isMindroomAgentUserIdForViewer } from '../matrix/agentIdentity';
-import { isConfirmedMatrixEventId } from '../threads/threadRouteUtils';
-import { hasMindroomVoiceCallsPresence, MindroomAgentCallOrigin } from './agentCall';
+import { hasMindroomVoiceCallsPresence, toAgentCallOrigin } from './agentCall';
 import { useStartAgentCall } from './useStartAgentCall';
 import { localizeVoiceErrorMessage } from '../voice/voiceErrorMessage';
 
@@ -41,11 +40,7 @@ export function AgentCallButton({
   }
 
   const handleCall = async () => {
-    const origin: MindroomAgentCallOrigin = {
-      room_id: roomId,
-      // A new thread's root is a local echo until it is sent; the backend can only resolve a real event.
-      thread_id: selectedRoomId === roomId && isConfirmedMatrixEventId(threadId) ? threadId : null,
-    };
+    const origin = toAgentCallOrigin(roomId, selectedRoomId === roomId ? threadId : undefined);
     if (await startAgentCall({ userId, displayName }, origin)) closeUserRoomProfile();
   };
 
