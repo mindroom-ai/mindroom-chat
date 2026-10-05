@@ -194,18 +194,6 @@ describe('useStartAgentCall', () => {
     expect(mocks.startCall).toHaveBeenCalledOnce();
   });
 
-  it('stamps the call state without an origin when none is given', async () => {
-    existingRoom();
-    const { result } = renderHook();
-
-    await act(async () => {
-      await result.current.startAgentCall(AGENT);
-    });
-
-    expect(mx.sendStateEvent.mock.calls[0][2]).toEqual(agentCallState());
-    expect(mx.sendStateEvent.mock.calls[0][2]).not.toHaveProperty('origin');
-  });
-
   it('reports a failed origin stamp and does not start the call', async () => {
     existingRoom();
     mx.sendStateEvent.mockRejectedValueOnce(new Error('M_FORBIDDEN'));

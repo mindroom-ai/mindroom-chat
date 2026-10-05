@@ -20,7 +20,7 @@ import {
 type AgentCallTarget = { userId: string; displayName?: string };
 
 type StartAgentCall = {
-  startAgentCall: (agent: AgentCallTarget, origin?: MindroomAgentCallOrigin) => Promise<boolean>;
+  startAgentCall: (agent: AgentCallTarget, origin: MindroomAgentCallOrigin) => Promise<boolean>;
   /** False when the homeserver or browser cannot place calls at all. */
   supported: boolean;
   loading: boolean;
@@ -65,7 +65,7 @@ export function useStartAgentCall(): StartAgentCall {
 
   const startAgentCall = async (
     agent: AgentCallTarget,
-    origin?: MindroomAgentCallOrigin
+    origin: MindroomAgentCallOrigin
   ): Promise<boolean> => {
     if (store.get(agentCallStartingAtom) || unavailableReason) return false;
     store.set(agentCallStartingAtom, true);
@@ -83,7 +83,7 @@ export function useStartAgentCall(): StartAgentCall {
         room = await waitForJoinedRoom(mx, roomId);
       }
       await prepareAgentCallRoom(mx, room, agent.userId, origin);
-      if (origin) unusedOriginRoomId = room.roomId;
+      unusedOriginRoomId = room.roomId;
       // A call answered meanwhile must not be replaced by this one; the room stays for the next call.
       if (!mountedRef.current || store.get(callEmbedAtom)) return false;
       startCall(room, { microphone: true, video: false, sound: true });

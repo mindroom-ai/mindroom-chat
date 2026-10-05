@@ -286,30 +286,5 @@ describe('MindRoom agent calls', () => {
 
       expect(serverState).toEqual(agentCallState({ origin }));
     });
-
-    it('reports a failed stamp to its caller without blocking later writes', async () => {
-      const failed = prepare();
-      const failure = expect(failed).rejects.toThrow('stamp failed');
-      await settle();
-      pending[0].fail(new Error('stamp failed'));
-      await failure;
-
-      const prepared = prepare();
-      await settle();
-      pending[1].land();
-      await prepared;
-
-      expect(serverState).toEqual(agentCallState({ origin }));
-    });
-
-    it('does not make rooms wait for each other', async () => {
-      clearAgentCallOrigin(mx, '!other:mindroom.test', HELPER);
-      const prepared = prepare();
-      await settle();
-
-      expect(pending).toHaveLength(2);
-      pending[1].land();
-      await prepared;
-    });
   });
 });

@@ -155,7 +155,7 @@ export const prepareAgentCallRoom = async (
   mx: MatrixClient,
   room: Room,
   agentUserId: string,
-  origin?: MindroomAgentCallOrigin
+  origin: MindroomAgentCallOrigin
 ): Promise<void> => {
   // Members are lazy-loaded; inviting an agent that is already joined would fail.
   await room.loadMembersIfNeeded();
