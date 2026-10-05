@@ -2,6 +2,24 @@
 
 ## Runbook
 
+### Fix three live specs that failed intermittently in full runs (2026-10-04)
+
+- Report: in full live-suite runs (`--jobs 8`), `thread-arrow-up-edit`, `composer-glass` on WebKit and `offline-invited-account` failed now and then, also on `dev`, and passed when rerun alone.
+  None of the failure traces contain `net::ERR_NETWORK_CHANGED`; all three are test races, and the app behaves correctly in each.
+- `thread-arrow-up-edit`: the composer still held the draft (`Unsent draft`, or `nsent draft`) when the spec pressed Up, so Up rightly did nothing.
+  `fill('')` selects the text by script and presses Delete at once; Slate learns of a selection from the `selectionchange` event, which Chromium dispatches after input that is already waiting.
+  After a cached start the first live `/sync` keeps the page busy just then, so Slate deletes at its old caret.
+  Fix: clear the composer until it is empty (`toPass`) before pressing Up.
+- `composer-glass` (WebKit): the client hides a typing notice five seconds after it arrives (`TYPING_TIMEOUT_MS`); the screenshot and style checks plus a slow stability wait took longer, so **Drop Typing Status** disappeared under the click and the click waited until the test timed out.
+  Fix: send a fresh typing notice right before the click.
+- `offline-invited-account`: the SDK saves its first sync after startup and then at most every five minutes, and the spec froze the clock six minutes ahead to get the next sync saved.
+  When the startup save ran after that (the room shows during the first sync, the save comes at its end), it took the frozen time and no later sync was saved.
+  Fix: move the clock only after the thread root shows, then send a read receipt so another real sync arrives and is saved.
+- Tests: with the page's CPU slowed 6x, base `thread-arrow-up-edit` failed 4 of 4 (`nsent draft` each time) and `offline-invited-account` 2 of 4; with the fixes both passed 4 of 4.
+  With a 5.5 s pause added before the dismissal, base `composer-glass` timed out in all 4 cases (both themes, Chromium and WebKit) and the fix passed all 4.
+  Without slowing anything, three rounds of the three specs (4 jobs each, base and fix side by side) passed on both, so those rounds do not tell them apart.
+- Not changed: Slate applies a delete to its old caret whenever the key arrives before `selectionchange`, which a person could only hit by selecting and deleting during one long task.
+
 ### Let canvas pages keep their own state on this device (2026-10-04)
 
 - Why: a canvas page lost everything the user did in it whenever Chat reloaded, the panel reopened, or the agent updated the page; Claude artifacts give pages storage that persists.
