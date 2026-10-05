@@ -67,15 +67,19 @@ export const CANVAS_PERMISSIONS = [
   .map((feature) => `${feature} 'none'`)
   .join('; ');
 
+// A JSON string is a valid script literal once "<" cannot close the script element.
+const scriptLiteral = (value: string): string => JSON.stringify(value).replace(/</g, '\\u003c');
+
+// Parsing the saved JSON, rather than writing it out as code, restores exactly the value saved
+// (an object literal treats a "__proto__" key differently).
+const stateLiteral = (state: string | undefined): string =>
+  state === undefined ? 'undefined' : `JSON.parse(${scriptLiteral(state)})`;
+
 // Runs before any agent script. Forms are captured here because the sandbox
 // cannot submit them anywhere; everything else calls window.mindroom.submit,
 // which only offers a snapshot to the host. The host decides whether to send it.
 // Errors, failed loads, and loads the policy blocks are reported so the user can pass them on.
 // Removing WebRTC constructors is defense in depth: CSP cannot block STUN traffic.
-// Saved JSON can hold "</script>"; escaping "<" keeps it inside the bridge script.
-const stateLiteral = (state: string | undefined): string =>
-  state === undefined ? 'undefined' : state.replace(/</g, '\\u003c');
-
 const bridgeScript = (
   colorScheme: CanvasColorScheme,
   lineOffset: number,
@@ -190,9 +194,6 @@ export const buildCanvasPage = (
   const lineOffset = head(0).split('\n').length - 1;
   return `${head(lineOffset)}${html}</body></html>`;
 };
-
-// A JSON string is a valid script literal once "<" cannot close the script element.
-const scriptLiteral = (value: string): string => JSON.stringify(value).replace(/</g, '\\u003c');
 
 /**
  * The document of the panel's frame: it creates the canvas frame itself, so the load listener is in

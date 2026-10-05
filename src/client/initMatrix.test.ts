@@ -1315,23 +1315,23 @@ describe('clearAllCacheAndReload', () => {
 
     const deleteDatabase = createDeleteDatabaseMock();
     const indexedDbMock = {
-      databases: vi
-        .fn()
-        .mockResolvedValue([
-          { name: getSessionIndexedDbStoreName(activeSession).sync },
-          { name: getSessionIndexedDbStoreName(inactiveSession).crypto },
-          { name: getSessionRustCryptoStoreNames(inactiveSession)[0] },
-          { name: getLegacySessionRustCryptoStoreNames(activeSession)[1] },
-          { name: getThreadEventCacheDbName(activeSession.sessionId) },
-          { name: getRoomEventCacheDbName(inactiveSession.sessionId) },
-          { name: getSessionIndexedDbStoreName(liveSession).sync },
-          { name: getThreadEventCacheDbName(liveSession.sessionId) },
-          { name: 'matrix-js-sdk:web-sync-store' },
-          { name: 'crypto-store' },
-          { name: 'matrix-js-sdk::matrix-sdk-crypto' },
-          { name: 'matrix-js-sdk::matrix-sdk-crypto-meta' },
-          { name: 'unrelated-db' },
-        ]),
+      databases: vi.fn().mockResolvedValue([
+        { name: getSessionIndexedDbStoreName(activeSession).sync },
+        { name: getSessionIndexedDbStoreName(inactiveSession).crypto },
+        { name: getSessionRustCryptoStoreNames(inactiveSession)[0] },
+        { name: getLegacySessionRustCryptoStoreNames(activeSession)[1] },
+        { name: getThreadEventCacheDbName(activeSession.sessionId) },
+        { name: getRoomEventCacheDbName(inactiveSession.sessionId) },
+        { name: getSessionIndexedDbStoreName(liveSession).sync },
+        { name: getThreadEventCacheDbName(liveSession.sessionId) },
+        // Saved canvas state is the user's data, so clearing caches keeps it.
+        { name: getCanvasStateDbName(activeSession.sessionId) },
+        { name: 'matrix-js-sdk:web-sync-store' },
+        { name: 'crypto-store' },
+        { name: 'matrix-js-sdk::matrix-sdk-crypto' },
+        { name: 'matrix-js-sdk::matrix-sdk-crypto-meta' },
+        { name: 'unrelated-db' },
+      ]),
       deleteDatabase,
     };
     const replace = vi.fn();

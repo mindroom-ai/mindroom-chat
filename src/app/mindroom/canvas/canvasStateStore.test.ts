@@ -1,6 +1,6 @@
 import 'fake-indexeddb/auto';
 import { IDBFactory } from 'fake-indexeddb';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   getCanvasStateDbName,
   loadCanvasState,
@@ -33,6 +33,28 @@ describe('canvasStateStore', () => {
     expect(await loadCanvasState('session-a', `$canvas-${MAX_STORED_CANVAS_STATES}`)).toBe(
       `${MAX_STORED_CANVAS_STATES}`
     );
+  });
+
+  it('reports a failed write once and keeps the state saved before it', async () => {
+    await saveCanvasState('session-a', '$canvas', '"before"');
+    const unhandled = vi.fn();
+    process.on('unhandledRejection', unhandled);
+    const { put } = IDBObjectStore.prototype;
+    const failedPut = vi
+      .spyOn(IDBObjectStore.prototype, 'put')
+      .mockImplementation(function abortedPut(this: IDBObjectStore, ...args) {
+        const request = put.apply(this, args);
+        this.transaction.abort();
+        return request;
+      });
+    await expect(saveCanvasState('session-a', '$canvas', '"after"')).rejects.toThrow();
+    failedPut.mockRestore();
+    await new Promise((resolve) => {
+      setTimeout(resolve, 20);
+    });
+    process.off('unhandledRejection', unhandled);
+    expect(unhandled).not.toHaveBeenCalled();
+    expect(await loadCanvasState('session-a', '$canvas')).toBe('"before"');
   });
 
   it('names one database per session, so logout can delete it', () => {

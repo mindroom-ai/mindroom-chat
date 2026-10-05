@@ -20,9 +20,6 @@ const openStateDb = (sessionId: string): Promise<IDBPDatabase<CanvasStateDb>> =>
     },
   });
 
-// Saves in the same millisecond still get a strict order, so the oldest is always forgotten first.
-let lastSavedAt = 0;
-
 /** The JSON a canvas page last saved in this session, if any. */
 export const loadCanvasState = async (
   sessionId: string,
@@ -44,8 +41,9 @@ export const saveCanvasState = async (
   const db = await openStateDb(sessionId);
   try {
     const tx = db.transaction('states', 'readwrite');
-    lastSavedAt = Math.max(Date.now(), lastSavedAt + 1);
-    await tx.store.put({ canvasId, json, savedAt: lastSavedAt });
+    // A failed request fails the transaction too; the caller hears of the request's failure only.
+    tx.done.catch(() => undefined);
+    await tx.store.put({ canvasId, json, savedAt: Date.now() });
     let extra = (await tx.store.count()) - MAX_STORED_CANVAS_STATES;
     let cursor = extra > 0 ? await tx.store.index('savedAt').openCursor() : null;
     while (cursor && extra > 0) {

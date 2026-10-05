@@ -52,17 +52,20 @@ describe('buildCanvasPage', () => {
 
   it('gives the page its saved state before its scripts run, and a way to save it', () => {
     expect(buildCanvasPage('', 'light')).toContain('state: undefined');
+    const json = '{"note":"</script><b>","__proto__":{"kept":true}}';
     const doc = buildCanvasPage(
       '<script>render(mindroom.state)</script>',
       'light',
       FALLBACK_CANVAS_THEMES.light,
       false,
-      '{"note":"</script><b>"}'
+      json
     );
-    // The state cannot close the bridge script it is written into.
-    expect(doc).toContain('state: {"note":"\\u003c/script>\\u003cb>"}');
+    // The state cannot close the bridge script it is written into, and comes back exactly as saved.
     expect(doc.split('</script>')).toHaveLength(3);
-    expect(doc.indexOf('state: {')).toBeLessThan(doc.indexOf('render(mindroom.state)'));
+    const restore = doc.match(/state: (JSON\.parse\(.*?\)),/)?.[1];
+    // eslint-disable-next-line no-new-func
+    expect(JSON.stringify(new Function(`return ${restore}`)())).toBe(json);
+    expect(doc.indexOf('state: JSON.parse(')).toBeLessThan(doc.indexOf('render(mindroom.state)'));
     expect(doc).toContain(`type: '${CANVAS_STATE_MESSAGE}'`);
   });
 

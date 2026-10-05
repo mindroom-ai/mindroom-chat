@@ -795,8 +795,11 @@ describe('CanvasPanel', () => {
     const onSaveState = vi.fn((json: string) => {
       saved = json;
     });
-    render({ savedState: () => saved, onSaveState });
-    expect(page()).toContain('state: {"slots":[1]}');
+    const stateIn = (json: string) => `state: JSON.parse(${JSON.stringify(json)})`;
+    // One theme throughout, so only the revision tells the panel to build a new page.
+    const theme = { ...FALLBACK_CANVAS_THEMES.dark, accent: '#123456' };
+    render({ savedState: () => saved, onSaveState, theme });
+    expect(page()).toContain(stateIn('{"slots":[1]}'));
     const first = frame();
     await post({ type: 'mindroom.canvas.state', version: 1, json: '{"slots":[1,2]}' });
     await post({ type: 'mindroom.canvas.state', version: 1, json: '{"slots":[1,2,3]}' }, {});
@@ -807,9 +810,19 @@ describe('CanvasPanel', () => {
       canvas: { ...canvas, revisionEventId: '$edit', html: '<p>Step 2</p>' },
       savedState: () => saved,
       onSaveState,
+      theme,
     });
     expect(page()).toContain('<p>Step 2</p>');
-    expect(page()).toContain('state: {"slots":[1,2]}');
+    expect(page()).toContain(stateIn('{"slots":[1,2]}'));
+    // A revision with the same page gets a new frame, which starts from the latest state too.
+    await post({ type: 'mindroom.canvas.state', version: 1, json: '{"slots":[4]}' });
+    render({
+      canvas: { ...canvas, revisionEventId: '$edit2', html: '<p>Step 2</p>' },
+      savedState: () => saved,
+      onSaveState,
+      theme,
+    });
+    expect(page()).toContain(stateIn('{"slots":[4]}'));
   });
 
   it('stops a canvas that navigates away from its document', async () => {

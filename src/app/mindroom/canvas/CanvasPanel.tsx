@@ -157,9 +157,7 @@ export function CanvasPanel({
   }));
   const [updateAvailable, setUpdateAvailable] = useState(false);
   const [reloads, setReloads] = useState(0);
-  // Saving never rebuilds the page; the next page, or a reload, starts from the latest saved state.
-  const savedStateNow = useRef(savedState);
-  savedStateNow.current = savedState;
+  // Saving never rebuilds the page; every page shown, and every reload, starts from the latest saved state.
   const doc = useMemo(
     () =>
       buildCanvasDocument(
@@ -168,11 +166,10 @@ export function CanvasPanel({
         displayed.theme,
         displayed.title,
         libraries,
-        savedStateNow.current?.()
+        savedState?.()
       ),
-    // A reload rebuilds the page so it starts from the latest saved state too.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [displayed.html, displayed.colorScheme, displayed.theme, displayed.title, libraries, reloads]
+    [displayed, libraries, reloads]
   );
   const docKey = useMemo(() => documentKey(doc), [doc]);
   const frameKey = `${displayed.revisionEventId}:${docKey}:${reloads}`;

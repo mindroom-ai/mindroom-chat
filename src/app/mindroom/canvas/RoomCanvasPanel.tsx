@@ -11,7 +11,7 @@ import { CanvasPanel } from './CanvasPanel';
 import { readCanvasTheme } from './canvasTheme';
 import { useCanvasPage } from './useCanvasPage';
 import { useCanvasVersions } from './useCanvasVersions';
-import { useCanvasState } from './useCanvasState';
+import { useCanvasSavedState } from './useCanvasSavedState';
 
 type RoomCanvasPanelProps = {
   mx: MatrixClient;
@@ -67,9 +67,9 @@ function LoadedCanvasPanel({
     (version) => version.revisionEventId === shown.revisionEventId
   );
   const page = useCanvasPage(mx, room.roomId, shown.revisionEventId, shown.canvas, attempt);
-  const state = useCanvasState(mx, action.eventId);
+  const saved = useCanvasSavedState(mx, action.eventId);
   // The page waits for its saved state, so it never starts without it.
-  const loaded = page.status === 'ready' && state.ready ? page : undefined;
+  const loaded = page.status === 'ready' && saved.ready ? page : undefined;
   const mobile = useScreenSizeContext() === ScreenSize.Mobile;
   const agentName =
     getMemberDisplayName(room, action.agentUserId) ??
@@ -101,8 +101,8 @@ function LoadedCanvasPanel({
           ? { current: current + 1, total: versions.length }
           : undefined
       }
-      savedState={state.read}
-      onSaveState={state.save}
+      savedState={saved.read}
+      onSaveState={saved.save}
       onSelectVersion={(number) => {
         const picked = versions[number - 1]?.revisionEventId;
         setChosen(picked === action.revisionEventId ? undefined : picked);
