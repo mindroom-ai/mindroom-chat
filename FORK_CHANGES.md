@@ -2,6 +2,17 @@
 
 ## Runbook
 
+### Remove the private computer deployment preset (2026-10-05)
+
+- The proposed settings cleanup had not been implemented: the computer form still suggested the author's private deployment through a placeholder and preset button.
+  Remove that button, URL constant and placeholder, along with all 17 translated preset labels, deployment-specific setup guidance and its obsolete screenshot.
+  The shipped iOS computer default remains empty; services explicitly saved by users remain active and editable.
+- Validation covers an empty first-use form with no server suggestion or preset, explicit manual Save, retained saved services, the LAN HTTP notice, and generic custom-build configuration.
+  Keep this correction focused on the private preset; settings navigation remains a separate design discussion.
+  All 6,172 unit tests in 661 files pass, along with typecheck, lint (17 existing warnings), web build and iOS build.
+  The generated iOS config has an empty computer URL, and its shipping text assets contain no private deployment URL or preset text.
+  Independent review and CI are required before the user-authorized squash merge.
+
 ### Fix three live specs that failed intermittently in full runs (2026-10-04)
 
 - Report: in full live-suite runs (`--jobs 8`), `thread-arrow-up-edit`, `composer-glass` on WebKit and `offline-invited-account` failed now and then, also on `dev`, and passed when rerun alone.

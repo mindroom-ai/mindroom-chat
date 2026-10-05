@@ -70,6 +70,23 @@ const render = (deploymentUrl = '') =>
   });
 
 describe('computer service settings', () => {
+  it('starts unconfigured without a suggested server or deployment preset', () => {
+    render();
+    expect(input().props.value).toBe('');
+    expect(input().props.placeholder).toBeUndefined();
+    expect(loadComputerServicePreference()).toBeNull();
+    expect(
+      renderer.root.findAllByType('button').map((node) => node.findByType('span').children.join(''))
+    ).toEqual(['Save computer service', 'Use app default']);
+  });
+
+  it('keeps a service the user previously saved', () => {
+    act(() => store.set(computerServicePreferenceAtom, 'https://custom.example'));
+    render();
+    expect(input().props.value).toBe('https://custom.example');
+    expect(loadComputerServicePreference()).toBe('https://custom.example');
+  });
+
   it('explains LAN HTTP before Save, persists it, and clears the notice for HTTPS', () => {
     render();
     edit('http://192.168.1.50:8765/');
@@ -81,17 +98,17 @@ describe('computer service settings', () => {
     expect(loadComputerServicePreference()).toBe('http://192.168.1.50:8765');
     expect(input().props.value).toBe('http://192.168.1.50:8765');
     expect(message('note')).toBeDefined();
-    click('Use MindRoom Lab');
+    edit('https://custom.example');
     expect(message('note')).toBeUndefined();
   });
 
-  it('offers a lab preset that requires Save, persists it, and keeps confirmation visible', () => {
+  it('requires Save for an entered service, persists it, and keeps confirmation visible', () => {
     render();
-    click('Use MindRoom Lab');
-    expect(input().props.value).toBe('https://mindroom.lab.mindroom.chat');
+    edit('https://custom.example');
+    expect(input().props.value).toBe('https://custom.example');
     expect(loadComputerServicePreference()).toBeNull();
     click('Save computer service');
-    expect(loadComputerServicePreference()).toBe('https://mindroom.lab.mindroom.chat');
+    expect(loadComputerServicePreference()).toBe('https://custom.example');
     expect(message('status').children).toEqual(['Computer service saved.']);
   });
 

@@ -141,7 +141,6 @@
         "apiUrl": "URL van computerservice",
         "description": "Kies een vertrouwde MindRoom-backend; die ontvangt een kort geldig aanmeldingstoken. Opgeslagen op dit apparaat. Laat leeg om computers uit te schakelen.",
         "save": "Computerservice opslaan",
-        "lab": "MindRoom Lab gebruiken",
         "reset": "Appstandaard gebruiken",
         "invalidUrl": "Voer een origin in zonder inloggegevens, pad, query of fragment. Gebruik HTTPS, of HTTP met localhost of een privé-IP-adres op het lokale netwerk.",
         "httpNotice": "HTTP versleutelt je aanmelding of computerverkeer niet. Gebruik het alleen op een vertrouwd lokaal netwerk.",

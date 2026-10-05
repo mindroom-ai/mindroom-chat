@@ -8,7 +8,6 @@ import { useClientConfig } from '../../hooks/useClientConfig';
 import { resolveComputerApiUrl } from '../computer/api';
 import {
   computerServicePreferenceAtom,
-  MINDROOM_LAB_COMPUTER_API_URL,
   resolveComputerServiceUrl,
 } from '../computer/computerServiceSettings';
 import { useComputerApiUrl } from '../computer/useComputerApiUrl';
@@ -54,7 +53,6 @@ export function MindroomComputerSettings({ className }: { className?: string }) 
               autoCapitalize="none"
               autoCorrect="off"
               spellCheck={false}
-              placeholder="https://mindroom.lab.mindroom.chat"
               value={input}
               onChange={(event) => {
                 setInput(event.currentTarget.value);
@@ -69,16 +67,6 @@ export function MindroomComputerSettings({ className }: { className?: string }) 
             <Box gap="200" wrap="Wrap">
               <Button size="300" variant="Primary" onClick={() => save(input)}>
                 <Text size="T300">{t('settings.general.computers.save')}</Text>
-              </Button>
-              <Button
-                size="300"
-                variant="Secondary"
-                onClick={() => {
-                  setInput(MINDROOM_LAB_COMPUTER_API_URL);
-                  setMessage(undefined);
-                }}
-              >
-                <Text size="T300">{t('settings.general.computers.lab')}</Text>
               </Button>
               <Button size="300" variant="Secondary" onClick={() => save(null)}>
                 <Text size="T300">{t('settings.general.computers.reset')}</Text>
