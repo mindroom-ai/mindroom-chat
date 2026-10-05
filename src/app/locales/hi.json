@@ -1007,7 +1007,8 @@
       "agentCallHeaderButton": {
         "call": "किसी एजेंट को कॉल करें",
         "callAgent": "{{name}} को कॉल करें",
-        "chooseAgent": "कॉल करने के लिए एक एजेंट चुनें"
+        "chooseAgent": "कॉल करने के लिए एक एजेंट चुनें",
+        "close": "बंद करें"
       }
     },
     "commands": {

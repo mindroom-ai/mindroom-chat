@@ -2286,7 +2286,8 @@
       "agentCallHeaderButton": {
         "call": "Bir ajanla arama başlat",
         "callAgent": "{{name}} ile arama başlat",
-        "chooseAgent": "Aranacak ajanı seçin"
+        "chooseAgent": "Aranacak ajanı seçin",
+        "close": "Kapat"
       }
     },
     "commands": {

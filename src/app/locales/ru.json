@@ -2342,7 +2342,8 @@
       "agentCallHeaderButton": {
         "call": "Позвонить агенту",
         "callAgent": "Позвонить {{name}}",
-        "chooseAgent": "Выберите агента для звонка"
+        "chooseAgent": "Выберите агента для звонка",
+        "close": "Закрыть"
       }
     },
     "commands": {

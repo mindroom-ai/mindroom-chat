@@ -1007,7 +1007,8 @@
       "agentCallHeaderButton": {
         "call": "একটি এজেন্টকে কল করুন",
         "callAgent": "{{name}}-কে কল করুন",
-        "chooseAgent": "কল করার জন্য একটি এজেন্ট বেছে নিন"
+        "chooseAgent": "কল করার জন্য একটি এজেন্ট বেছে নিন",
+        "close": "বন্ধ করুন"
       }
     },
     "commands": {

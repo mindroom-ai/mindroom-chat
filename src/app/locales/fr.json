@@ -2314,7 +2314,8 @@
       "agentCallHeaderButton": {
         "call": "Appeler un agent",
         "callAgent": "Appeler {{name}}",
-        "chooseAgent": "Choisissez un agent à appeler"
+        "chooseAgent": "Choisissez un agent à appeler",
+        "close": "Fermer"
       }
     },
     "commands": {

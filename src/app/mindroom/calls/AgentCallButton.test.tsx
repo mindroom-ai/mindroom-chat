@@ -154,6 +154,7 @@ describe('AgentCallButton', () => {
   it.each([
     ['another room is selected', '!elsewhere:mindroom.test', 'threadId=$root'],
     ['the route has no thread', ROOM_ID, ''],
+    ['the thread root is still a local echo', ROOM_ID, 'threadId=~local-echo'],
   ])('stamps only the room when %s', async (_case, selectedRoomId, search) => {
     mocks.selectedRoomId = selectedRoomId;
     mocks.searchParams = new URLSearchParams(search);

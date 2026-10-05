@@ -2286,7 +2286,8 @@
       "agentCallHeaderButton": {
         "call": "エージェントと通話",
         "callAgent": "{{name}} と通話",
-        "chooseAgent": "通話するエージェントを選択"
+        "chooseAgent": "通話するエージェントを選択",
+        "close": "閉じる"
       }
     },
     "commands": {

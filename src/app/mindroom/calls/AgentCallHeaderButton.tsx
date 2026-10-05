@@ -1,9 +1,10 @@
-import React, { MouseEventHandler, useEffect, useState } from 'react';
+import React, { MouseEventHandler, useEffect, useId, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import FocusTrap from 'focus-trap-react';
 import { UserEvent, UserEventHandlerMap } from 'matrix-js-sdk';
 import {
   Box,
+  color,
   config,
   Icon,
   IconButton,
@@ -22,6 +23,7 @@ import { useRoom } from '../../hooks/useRoom';
 import { useRoomMembers } from '../../hooks/useRoomMembers';
 import { stopPropagation } from '../../utils/keyboard';
 import { isMindroomAgentUserIdForViewer } from '../matrix/agentIdentity';
+import { isConfirmedMatrixEventId } from '../threads/threadRouteUtils';
 import { localizeVoiceErrorMessage } from '../voice/voiceErrorMessage';
 import { MindroomAgentCallOrigin } from './agentCall';
 import { AgentCallCandidate, getAgentCallCandidates } from './agentCallCandidates';
@@ -35,6 +37,8 @@ export function AgentCallHeaderButton({ threadId }: { threadId?: string }) {
   const members = useRoomMembers(mx, room.roomId);
   const { startAgentCall, loading, error, unavailableReason } = useStartAgentCall();
   const [menuAnchor, setMenuAnchor] = useState<RectCords>();
+  const [noticeAnchor, setNoticeAnchor] = useState<RectCords>();
+  const reasonId = useId();
   const [, setPresenceChanges] = useState(0);
   const viewerUserId = mx.getUserId() ?? undefined;
 
@@ -57,27 +61,39 @@ export function AgentCallHeaderButton({ threadId }: { threadId?: string }) {
   );
   if (candidates.length === 0 || room.isCallRoom()) return null;
 
-  const origin: MindroomAgentCallOrigin = { room_id: room.roomId, thread_id: threadId ?? null };
+  // A new thread's root is a local echo until it is sent; the backend can only resolve a real event.
+  const origin: MindroomAgentCallOrigin = {
+    room_id: room.roomId,
+    thread_id: isConfirmedMatrixEventId(threadId) ? threadId : null,
+  };
   const disabled = loading || !!unavailableReason;
+  const errorText = localizeVoiceErrorMessage(
+    t,
+    error,
+    t('mindroomUi.calls.agentCallButton.failedToStart')
+  );
+  const reason = unavailableReason ?? errorText;
+  const noticeOpen = !!errorText && !!noticeAnchor;
   const label =
-    unavailableReason ??
-    localizeVoiceErrorMessage(t, error, t('mindroomUi.calls.agentCallButton.failedToStart')) ??
-    (candidates.length === 1
+    candidates.length === 1
       ? t('mindroomUi.calls.agentCallHeaderButton.callAgent', { name: candidates[0].displayName })
-      : t('mindroomUi.calls.agentCallHeaderButton.call'));
+      : t('mindroomUi.calls.agentCallHeaderButton.call');
 
-  const handleCall = (candidate: AgentCallCandidate) => {
+  const handleCall = async (candidate: AgentCallCandidate, anchor: RectCords) => {
     setMenuAnchor(undefined);
-    startAgentCall(candidate, origin);
+    setNoticeAnchor(undefined);
+    // Touch devices have no hover, so a failed start is shown next to the button, not only in its tooltip.
+    if (!(await startAgentCall(candidate, origin))) setNoticeAnchor(anchor);
   };
 
   const handleClick: MouseEventHandler<HTMLButtonElement> = (evt) => {
     if (disabled) return;
+    const anchor = evt.currentTarget.getBoundingClientRect();
     if (candidates.length === 1) {
-      handleCall(candidates[0]);
+      handleCall(candidates[0], anchor);
       return;
     }
-    setMenuAnchor(evt.currentTarget.getBoundingClientRect());
+    setMenuAnchor(anchor);
   };
 
   return (
@@ -86,9 +102,12 @@ export function AgentCallHeaderButton({ threadId }: { threadId?: string }) {
         position="Bottom"
         offset={4}
         tooltip={
-          <Tooltip>
-            <Text>{label}</Text>
-          </Tooltip>
+          // The notice already shows the error; a hover tooltip would cover it with the same text.
+          noticeOpen ? null : (
+            <Tooltip>
+              <Text>{reason ?? label}</Text>
+            </Tooltip>
+          )
         }
       >
         {(triggerRef) => (
@@ -97,6 +116,7 @@ export function AgentCallHeaderButton({ threadId }: { threadId?: string }) {
             ref={triggerRef}
             onClick={handleClick}
             aria-label={label}
+            aria-describedby={reason ? reasonId : undefined}
             aria-disabled={disabled}
             aria-haspopup={candidates.length > 1 ? 'menu' : undefined}
             aria-expanded={candidates.length > 1 ? !!menuAnchor : undefined}
@@ -109,6 +129,11 @@ export function AgentCallHeaderButton({ threadId }: { threadId?: string }) {
           </IconButton>
         )}
       </TooltipProvider>
+      {reason && (
+        <span id={reasonId} hidden>
+          {reason}
+        </span>
+      )}
       <PopOut
         anchor={menuAnchor}
         position="Bottom"
@@ -132,7 +157,9 @@ export function AgentCallHeaderButton({ threadId }: { threadId?: string }) {
                 {candidates.map((candidate) => (
                   <MenuItem
                     key={candidate.userId}
-                    onClick={() => handleCall(candidate)}
+                    onClick={() => {
+                      if (menuAnchor) handleCall(candidate, menuAnchor);
+                    }}
                     size="300"
                     after={<Icon size="100" src={Icons.Phone} />}
                     radii="300"
@@ -142,6 +169,39 @@ export function AgentCallHeaderButton({ threadId }: { threadId?: string }) {
                     </Text>
                   </MenuItem>
                 ))}
+              </Box>
+            </Menu>
+          </FocusTrap>
+        }
+      />
+      <PopOut
+        anchor={noticeOpen ? noticeAnchor : undefined}
+        position="Bottom"
+        align="End"
+        content={
+          <FocusTrap
+            focusTrapOptions={{
+              initialFocus: false,
+              returnFocusOnDeactivate: false,
+              onDeactivate: () => setNoticeAnchor(undefined),
+              clickOutsideDeactivates: true,
+              escapeDeactivates: stopPropagation,
+            }}
+          >
+            <Menu style={{ maxWidth: toRem(280), width: '100vw' }}>
+              <Box alignItems="Start" gap="200" style={{ padding: config.space.S300 }}>
+                <Text role="alert" size="T300" style={{ flexGrow: 1, color: color.Critical.Main }}>
+                  {errorText}
+                </Text>
+                <IconButton
+                  size="300"
+                  radii="300"
+                  fill="None"
+                  onClick={() => setNoticeAnchor(undefined)}
+                  aria-label={t('mindroomUi.calls.agentCallHeaderButton.close')}
+                >
+                  <Icon size="100" src={Icons.Cross} />
+                </IconButton>
               </Box>
             </Menu>
           </FocusTrap>

@@ -1,6 +1,7 @@
 import React from 'react';
 import { act, create, ReactTestInstance, ReactTestRenderer } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { Tooltip } from 'folds';
 import { AgentCallHeaderButton } from './AgentCallHeaderButton';
 
 const VOICE_CALLS_STATUS = '🤖 Model: openai/gpt-5.5 | 📞 Voice calls';
@@ -167,6 +168,18 @@ describe('AgentCallHeaderButton', () => {
     expect(text(renderer)).not.toContain('Choose an agent to call');
   });
 
+  it('stamps no thread while the thread root is still a local echo', async () => {
+    addVoiceAgent(HELPER);
+    const renderer = render('~!room:mindroom.test:m1791165951526.3');
+
+    await act(async () => headerButton(renderer).props.onClick(anchorEvent));
+
+    expect(state.startAgentCall).toHaveBeenCalledWith(HELPER, {
+      room_id: ROOM_ID,
+      thread_id: null,
+    });
+  });
+
   it('explains why calling is unavailable and ignores clicks', () => {
     addVoiceAgent(HELPER);
     state.call.unavailableReason = 'End your current call first.';
@@ -174,15 +187,40 @@ describe('AgentCallHeaderButton', () => {
 
     act(() => headerButton(renderer).props.onClick(anchorEvent));
 
-    expect(headerButton(renderer).props['aria-label']).toBe('End your current call first.');
+    expect(headerButton(renderer).props['aria-label']).toBe('Call Helper');
+    const reason = renderer.root.find(
+      (node) => node.props.id === headerButton(renderer).props['aria-describedby']
+    );
+    expect(nodeText(reason)).toBe('End your current call first.');
     expect(headerButton(renderer).props['aria-disabled']).toBe(true);
     expect(state.startAgentCall).not.toHaveBeenCalled();
   });
 
-  it('shows a failed start in the tooltip', () => {
+  it('shows a failed start visibly until dismissed', async () => {
     addVoiceAgent(HELPER);
-    state.call.error = 'sync failed';
+    state.startAgentCall.mockImplementationOnce(async () => {
+      state.call.error =
+        'Microphone access is blocked. Allow microphone access for MindRoom Chat in iPhone settings and try again.';
+      return false;
+    });
+    const renderer = render('$root');
+    const notices = () =>
+      renderer.root.findAll((node) => typeof node.type === 'string' && node.props.role === 'alert');
+    expect(notices()).toHaveLength(0);
 
-    expect(headerButton(render()).props['aria-label']).toBe('Failed to start the call.');
+    await act(async () => headerButton(renderer).props.onClick(anchorEvent));
+
+    expect(notices().map(nodeText)).toEqual([
+      'Microphone access is blocked. Allow microphone access for MindRoom Chat in iPhone settings and try again.',
+    ]);
+    expect(renderer.root.findAllByType(Tooltip)).toHaveLength(0);
+    expect(headerButton(renderer).props['aria-label']).toBe('Call Helper');
+    act(() =>
+      renderer.root
+        .findAll((node) => node.type === 'button' && node.props['aria-label'] === 'Close')[0]
+        .props.onClick()
+    );
+    expect(notices()).toHaveLength(0);
+    expect(renderer.root.findAllByType(Tooltip)).toHaveLength(1);
   });
 });

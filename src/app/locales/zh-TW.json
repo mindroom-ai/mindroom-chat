@@ -2286,7 +2286,8 @@
       "agentCallHeaderButton": {
         "call": "與 AI 代理通話",
         "callAgent": "與 {{name}} 通話",
-        "chooseAgent": "選擇要通話的 AI 代理"
+        "chooseAgent": "選擇要通話的 AI 代理",
+        "close": "關閉"
       }
     },
     "commands": {

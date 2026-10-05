@@ -2286,7 +2286,8 @@
       "agentCallHeaderButton": {
         "call": "에이전트에게 전화",
         "callAgent": "{{name}}에게 전화",
-        "chooseAgent": "전화할 에이전트를 선택하세요"
+        "chooseAgent": "전화할 에이전트를 선택하세요",
+        "close": "닫기"
       }
     },
     "commands": {

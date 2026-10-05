@@ -2286,7 +2286,8 @@
       "agentCallHeaderButton": {
         "call": "与智能体通话",
         "callAgent": "与 {{name}} 通话",
-        "chooseAgent": "选择要通话的智能体"
+        "chooseAgent": "选择要通话的智能体",
+        "close": "关闭"
       }
     },
     "commands": {

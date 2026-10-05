@@ -2286,7 +2286,8 @@
       "agentCallHeaderButton": {
         "call": "Panggil agen",
         "callAgent": "Panggil {{name}}",
-        "chooseAgent": "Pilih agen untuk dipanggil"
+        "chooseAgent": "Pilih agen untuk dipanggil",
+        "close": "Tutup"
       }
     },
     "commands": {
