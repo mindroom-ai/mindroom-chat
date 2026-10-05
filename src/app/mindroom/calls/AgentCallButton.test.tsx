@@ -7,9 +7,8 @@ import en from '../../locales/en.json';
 import { AgentCallButton } from './AgentCallButton';
 
 const mocks = vi.hoisted(() => ({
-  createAgentVoiceRoom: vi.fn(),
-  cleanupCreatedAgentCall: vi.fn(),
-  waitForJoinedRoom: vi.fn(),
+  findAgentCallRoom: vi.fn(),
+  prepareAgentCallRoom: vi.fn(),
   requestMicrophoneAccess: vi.fn(),
   startCall: vi.fn(),
   closeProfile: vi.fn(),
@@ -22,11 +21,9 @@ const ROOM_ID = '!room:mindroom.test';
 
 vi.mock('./agentCall', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./agentCall')>()),
-  createAgentVoiceRoom: mocks.createAgentVoiceRoom,
-  cleanupCreatedAgentCall: mocks.cleanupCreatedAgentCall,
+  findAgentCallRoom: mocks.findAgentCallRoom,
+  prepareAgentCallRoom: mocks.prepareAgentCallRoom,
 }));
-
-vi.mock('../matrix/waitForJoinedRoom', () => ({ waitForJoinedRoom: mocks.waitForJoinedRoom }));
 
 vi.mock('../voice/microphoneAccess', () => ({
   requestMicrophoneAccess: mocks.requestMicrophoneAccess,
@@ -74,8 +71,8 @@ describe('AgentCallButton', () => {
     mocks.selectedRoomId = ROOM_ID;
     mocks.searchParams = new URLSearchParams({ threadId: '$root' });
     mocks.requestMicrophoneAccess.mockResolvedValue(undefined);
-    mocks.createAgentVoiceRoom.mockResolvedValue('!call:mindroom.test');
-    mocks.waitForJoinedRoom.mockResolvedValue({ roomId: '!call:mindroom.test' });
+    mocks.findAgentCallRoom.mockReturnValue({ roomId: '!call:mindroom.test' });
+    mocks.prepareAgentCallRoom.mockResolvedValue(undefined);
   });
 
   it('is only offered for a same-homeserver MindRoom agent', () => {
@@ -110,7 +107,7 @@ describe('AgentCallButton', () => {
     expect(JSON.stringify(localVoiceAgent.toJSON())).toContain('Call');
   });
 
-  it('creates and joins the private audio room without leaving the conversation', async () => {
+  it('starts the call in the agent call room without leaving the conversation', async () => {
     const renderer = create(
       <AgentCallButton
         roomId={ROOM_ID}
@@ -127,16 +124,14 @@ describe('AgentCallButton', () => {
 
     expect(mocks.requestMicrophoneAccess).toHaveBeenCalledOnce();
     expect(mocks.requestMicrophoneAccess.mock.invocationCallOrder[0]).toBeLessThan(
-      mocks.createAgentVoiceRoom.mock.invocationCallOrder[0]
+      mocks.prepareAgentCallRoom.mock.invocationCallOrder[0]
     );
-    expect(mocks.createAgentVoiceRoom).toHaveBeenCalledWith(
+    expect(mocks.prepareAgentCallRoom).toHaveBeenCalledWith(
       expect.anything(),
+      { roomId: '!call:mindroom.test' },
       '@mindroom_helper:mindroom.test',
-      'Helper',
-      true,
       { room_id: ROOM_ID, thread_id: '$root' }
     );
-    expect(mocks.waitForJoinedRoom).toHaveBeenCalledWith(expect.anything(), '!call:mindroom.test');
     expect(mocks.startCall).toHaveBeenCalledWith(
       { roomId: '!call:mindroom.test' },
       { microphone: true, video: false, sound: true }
@@ -165,16 +160,15 @@ describe('AgentCallButton', () => {
       await renderer.root.findByType('button').props.onClick();
     });
 
-    expect(mocks.createAgentVoiceRoom).toHaveBeenCalledWith(
+    expect(mocks.prepareAgentCallRoom).toHaveBeenCalledWith(
       expect.anything(),
+      { roomId: '!call:mindroom.test' },
       '@mindroom_helper:mindroom.test',
-      'Helper',
-      true,
       { room_id: ROOM_ID, thread_id: null }
     );
   });
 
-  it('does not create a call room when microphone access is denied', async () => {
+  it('does not prepare a call room when microphone access is denied', async () => {
     mocks.requestMicrophoneAccess.mockRejectedValueOnce(
       new Error(
         'Microphone access is blocked. Allow microphone access for MindRoom Chat in iPhone settings and try again.'
@@ -193,18 +187,18 @@ describe('AgentCallButton', () => {
       await renderer.root.findByType('button').props.onClick();
     });
 
-    expect(mocks.createAgentVoiceRoom).not.toHaveBeenCalled();
+    expect(mocks.prepareAgentCallRoom).not.toHaveBeenCalled();
     expect(mocks.startCall).not.toHaveBeenCalled();
     expect(JSON.stringify(renderer.toJSON())).toContain(
       'Allow microphone access for MindRoom Chat'
     );
   });
 
-  it('cleans up without starting a call when unmounted during room sync', async () => {
-    let resolveRoom!: (room: { roomId: string }) => void;
-    mocks.waitForJoinedRoom.mockReturnValueOnce(
-      new Promise((resolve) => {
-        resolveRoom = resolve;
+  it('does not start a call when unmounted while the room is prepared', async () => {
+    let prepared!: () => void;
+    mocks.prepareAgentCallRoom.mockReturnValueOnce(
+      new Promise<void>((resolve) => {
+        prepared = resolve;
       })
     );
     const renderer = create(
@@ -222,19 +216,14 @@ describe('AgentCallButton', () => {
       await Promise.resolve();
     });
     act(() => renderer.unmount());
-    resolveRoom({ roomId: '!call:mindroom.test' });
+    prepared();
     await act(async () => callPromise);
 
-    expect(mocks.cleanupCreatedAgentCall).toHaveBeenCalledWith(
-      expect.anything(),
-      '!call:mindroom.test',
-      '@mindroom_helper:mindroom.test'
-    );
     expect(mocks.startCall).not.toHaveBeenCalled();
     expect(mocks.closeProfile).not.toHaveBeenCalled();
   });
 
-  it('cleans up when call start fails before ownership transfers', async () => {
+  it('keeps the profile open when the call fails to start', async () => {
     mocks.startCall.mockImplementationOnce(() => {
       throw new Error('embed unavailable');
     });
@@ -251,16 +240,11 @@ describe('AgentCallButton', () => {
       await renderer.root.findByType('button').props.onClick();
     });
 
-    expect(mocks.cleanupCreatedAgentCall).toHaveBeenCalledWith(
-      expect.anything(),
-      '!call:mindroom.test',
-      '@mindroom_helper:mindroom.test'
-    );
     expect(mocks.closeProfile).not.toHaveBeenCalled();
   });
 
-  it('cleans up the temporary room when joining fails', async () => {
-    mocks.waitForJoinedRoom.mockRejectedValueOnce(new Error('sync failed'));
+  it('shows a failure when the call room cannot be prepared', async () => {
+    mocks.prepareAgentCallRoom.mockRejectedValueOnce(new Error('M_FORBIDDEN'));
     const renderer = create(
       <AgentCallButton
         roomId={ROOM_ID}
@@ -274,11 +258,7 @@ describe('AgentCallButton', () => {
       await renderer.root.findByType('button').props.onClick();
     });
 
-    expect(mocks.cleanupCreatedAgentCall).toHaveBeenCalledWith(
-      expect.anything(),
-      '!call:mindroom.test',
-      '@mindroom_helper:mindroom.test'
-    );
+    expect(mocks.startCall).not.toHaveBeenCalled();
     expect(JSON.stringify(renderer.toJSON())).toContain('Failed to start the call.');
   });
 });

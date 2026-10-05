@@ -10,9 +10,10 @@ import { webRTCSupported } from '../../utils/rtc';
 import { waitForJoinedRoom } from '../matrix/waitForJoinedRoom';
 import { requestMicrophoneAccess } from '../voice/microphoneAccess';
 import {
-  cleanupCreatedAgentCall,
   createAgentVoiceRoom,
+  findAgentCallRoom,
   MindroomAgentCallOrigin,
+  prepareAgentCallRoom,
 } from './agentCall';
 
 type AgentCallTarget = { userId: string; displayName?: string };
@@ -30,7 +31,7 @@ type StartAgentCall = {
 const agentCallStartingAtom = atom(false);
 
 /**
- * Creates an ephemeral call room with a MindRoom agent and starts the embedded call.
+ * Starts the embedded call in the caller's permanent call room with a MindRoom agent, creating it on first use.
  * Resolves `true` once the call has started and never navigates; callers decide what to show next.
  */
 export function useStartAgentCall(): StartAgentCall {
@@ -69,32 +70,22 @@ export function useStartAgentCall(): StartAgentCall {
     store.set(agentCallStartingAtom, true);
     setError(undefined);
 
-    let roomId: string | undefined;
     try {
       await requestMicrophoneAccess();
       if (!mountedRef.current) return false;
 
-      roomId = await createAgentVoiceRoom(
-        mx,
-        agent.userId,
-        agent.displayName,
-        createRoom?.defaultEncryption ?? true,
-        origin
-      );
-      if (!mountedRef.current) {
-        await cleanupCreatedAgentCall(mx, roomId, agent.userId);
-        return false;
+      let room = findAgentCallRoom(mx, agent.userId);
+      if (!room) {
+        const encrypted = createRoom?.defaultEncryption ?? true;
+        const roomId = await createAgentVoiceRoom(mx, agent.userId, agent.displayName, encrypted);
+        room = await waitForJoinedRoom(mx, roomId);
       }
-      const room = await waitForJoinedRoom(mx, roomId);
-      // A call answered meanwhile must not be replaced by this one.
-      if (!mountedRef.current || store.get(callEmbedAtom)) {
-        await cleanupCreatedAgentCall(mx, roomId, agent.userId);
-        return false;
-      }
+      await prepareAgentCallRoom(mx, room, agent.userId, origin);
+      // A call answered meanwhile must not be replaced by this one; the room stays for the next call.
+      if (!mountedRef.current || store.get(callEmbedAtom)) return false;
       startCall(room, { microphone: true, video: false, sound: true });
       return true;
     } catch (callError) {
-      if (roomId) await cleanupCreatedAgentCall(mx, roomId, agent.userId);
       if (!mountedRef.current) return false;
       setError(callError instanceof Error ? callError.message : 'Failed to start the call.');
       return false;

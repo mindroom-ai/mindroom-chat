@@ -3,33 +3,41 @@ import { act, create } from 'react-test-renderer';
 import { getDefaultStore } from 'jotai';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { callEmbedAtom } from '../../state/callEmbed';
+import { StateEvent } from '../../../types/matrix/room';
+import { agentCallState, ALICE, fakeRoom, HELPER } from '../../test-utils/agentCallRoom';
 import { MindroomAgentCallOrigin } from './agentCall';
 import { useStartAgentCall } from './useStartAgentCall';
 
 const mocks = vi.hoisted(() => ({
-  createAgentVoiceRoom: vi.fn(),
-  cleanupCreatedAgentCall: vi.fn(),
-  waitForJoinedRoom: vi.fn(),
   requestMicrophoneAccess: vi.fn(),
   startCall: vi.fn(),
   callEmbed: undefined as unknown,
 }));
 
-vi.mock('./agentCall', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('./agentCall')>()),
-  createAgentVoiceRoom: mocks.createAgentVoiceRoom,
-  cleanupCreatedAgentCall: mocks.cleanupCreatedAgentCall,
-}));
-
-vi.mock('../matrix/waitForJoinedRoom', () => ({ waitForJoinedRoom: mocks.waitForJoinedRoom }));
-
 vi.mock('../voice/microphoneAccess', () => ({
   requestMicrophoneAccess: mocks.requestMicrophoneAccess,
 }));
 
+const NEW_ROOM = '!new:mindroom.test';
+const rooms = new Map<string, ReturnType<typeof fakeRoom>>();
 const mx = {
-  getUserId: () => '@alice:mindroom.test',
-  getSafeUserId: () => '@alice:mindroom.test',
+  getUserId: () => ALICE,
+  getSafeUserId: () => ALICE,
+  getRooms: () => [...rooms.values()],
+  getRoom: (roomId: string) => rooms.get(roomId) ?? null,
+  createRoom: vi.fn(async () => {
+    rooms.set(
+      NEW_ROOM,
+      fakeRoom({ roomId: NEW_ROOM, call: agentCallState(), agentMembership: 'invite' })
+    );
+    return { room_id: NEW_ROOM };
+  }),
+  addPushRule: vi.fn(),
+  invite: vi.fn(),
+  sendStateEvent: vi.fn(),
+  kick: vi.fn(),
+  leave: vi.fn(),
+  forget: vi.fn(),
 };
 
 vi.mock('../../hooks/useMatrixClient', () => ({
@@ -53,7 +61,7 @@ vi.mock('../../utils/rtc', () => ({
   webRTCSupported: () => true,
 }));
 
-const AGENT = { userId: '@mindroom_helper:mindroom.test', displayName: 'Helper' };
+const AGENT = { userId: HELPER, displayName: 'Helper' };
 const ORIGIN: MindroomAgentCallOrigin = { room_id: '!origin:mindroom.test', thread_id: '$root' };
 
 type StartAgentCall = ReturnType<typeof useStartAgentCall>;
@@ -71,17 +79,127 @@ const renderHook = () => {
   return { result, renderer };
 };
 
+const deferred = () => {
+  let resolve!: () => void;
+  const promise = new Promise<void>((done) => {
+    resolve = done;
+  });
+  return { promise, resolve };
+};
+
+const existingRoom = (agentMembership = 'join') => {
+  const room = fakeRoom({ call: agentCallState(), agentMembership });
+  rooms.set(room.roomId, room);
+  return room;
+};
+
+const expectNoCleanup = () => {
+  expect(mx.kick).not.toHaveBeenCalled();
+  expect(mx.leave).not.toHaveBeenCalled();
+  expect(mx.forget).not.toHaveBeenCalled();
+};
+
 describe('useStartAgentCall', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    rooms.clear();
     mocks.callEmbed = undefined;
     getDefaultStore().set(callEmbedAtom, undefined);
     mocks.requestMicrophoneAccess.mockResolvedValue(undefined);
-    mocks.createAgentVoiceRoom.mockResolvedValue('!call:mindroom.test');
-    mocks.waitForJoinedRoom.mockResolvedValue({ roomId: '!call:mindroom.test' });
+    mx.addPushRule.mockResolvedValue({});
+    mx.invite.mockResolvedValue({});
+    mx.sendStateEvent.mockResolvedValue({});
   });
 
-  it('creates the room with the origin and starts the call', async () => {
+  it('reuses the call room and starts the call only after the origin is stamped', async () => {
+    const room = existingRoom();
+    const stamp = deferred();
+    mx.sendStateEvent.mockReturnValueOnce(stamp.promise);
+    const { result } = renderHook();
+    let start!: Promise<boolean>;
+
+    await act(async () => {
+      start = result.current.startAgentCall(AGENT, ORIGIN);
+    });
+    expect(mx.sendStateEvent).toHaveBeenCalledWith(
+      room.roomId,
+      StateEvent.MindroomAgentCall,
+      agentCallState({ origin: ORIGIN }),
+      ''
+    );
+    expect(mocks.startCall).not.toHaveBeenCalled();
+    stamp.resolve();
+    let started: boolean | undefined;
+    await act(async () => {
+      started = await start;
+    });
+
+    expect(started).toBe(true);
+    expect(mocks.requestMicrophoneAccess.mock.invocationCallOrder[0]).toBeLessThan(
+      mx.sendStateEvent.mock.invocationCallOrder[0]
+    );
+    expect(mx.createRoom).not.toHaveBeenCalled();
+    expect(mx.invite).not.toHaveBeenCalled();
+    expect(mocks.startCall).toHaveBeenCalledWith(room, {
+      microphone: true,
+      video: false,
+      sound: true,
+    });
+    expect(result.current.loading).toBe(false);
+    expect(result.current.error).toBeUndefined();
+  });
+
+  it('creates a muted call room when there is none and reuses it for the next call', async () => {
+    const { result } = renderHook();
+
+    await act(async () => {
+      await result.current.startAgentCall(AGENT, ORIGIN);
+    });
+    await act(async () => {
+      await result.current.startAgentCall(AGENT, ORIGIN);
+    });
+
+    expect(mx.createRoom).toHaveBeenCalledOnce();
+    expect(mx.addPushRule).toHaveBeenCalledWith('global', 'override', NEW_ROOM, expect.anything());
+    expect(mx.invite).not.toHaveBeenCalled();
+    expect(mocks.startCall).toHaveBeenCalledTimes(2);
+    expect(mocks.startCall).toHaveBeenLastCalledWith(rooms.get(NEW_ROOM), expect.anything());
+  });
+
+  it.each([
+    ['has left', 'leave', true],
+    ['was never a member', undefined, true],
+    ['is joined', 'join', false],
+    ['is invited', 'invite', false],
+  ])('invites the agent again only when it %s', async (_case, membership, invited) => {
+    const room = fakeRoom({ call: agentCallState(), agentMembership: membership });
+    rooms.set(room.roomId, room);
+    const { result } = renderHook();
+
+    await act(async () => {
+      await result.current.startAgentCall(AGENT, ORIGIN);
+    });
+
+    expect(mx.invite).toHaveBeenCalledTimes(invited ? 1 : 0);
+    if (invited) expect(mx.invite).toHaveBeenCalledWith(room.roomId, HELPER);
+    expect(mocks.startCall).toHaveBeenCalledOnce();
+  });
+
+  it('stamps the call state without an origin when none is given', async () => {
+    existingRoom();
+    const { result } = renderHook();
+
+    await act(async () => {
+      await result.current.startAgentCall(AGENT);
+    });
+
+    expect(mx.sendStateEvent.mock.calls[0][2]).toEqual(agentCallState());
+    expect(mx.sendStateEvent.mock.calls[0][2]).not.toHaveProperty('origin');
+  });
+
+  it('reports a failed origin stamp and does not start the call', async () => {
+    existingRoom();
+    mx.sendStateEvent.mockRejectedValueOnce(new Error('M_FORBIDDEN'));
     const { result } = renderHook();
     let started: boolean | undefined;
 
@@ -89,43 +207,15 @@ describe('useStartAgentCall', () => {
       started = await result.current.startAgentCall(AGENT, ORIGIN);
     });
 
-    expect(started).toBe(true);
-    expect(mocks.requestMicrophoneAccess.mock.invocationCallOrder[0]).toBeLessThan(
-      mocks.createAgentVoiceRoom.mock.invocationCallOrder[0]
-    );
-    expect(mocks.createAgentVoiceRoom).toHaveBeenCalledWith(
-      mx,
-      '@mindroom_helper:mindroom.test',
-      'Helper',
-      true,
-      ORIGIN
-    );
-    expect(mocks.waitForJoinedRoom).toHaveBeenCalledWith(mx, '!call:mindroom.test');
-    expect(mocks.startCall).toHaveBeenCalledWith(
-      { roomId: '!call:mindroom.test' },
-      { microphone: true, video: false, sound: true }
-    );
+    expect(started).toBe(false);
+    expect(mocks.startCall).not.toHaveBeenCalled();
+    expect(result.current.error).toBe('M_FORBIDDEN');
     expect(result.current.loading).toBe(false);
-    expect(result.current.error).toBeUndefined();
+    expectNoCleanup();
   });
 
-  it('creates a room without an origin when none is given', async () => {
-    const { result } = renderHook();
-
-    await act(async () => {
-      await result.current.startAgentCall(AGENT);
-    });
-
-    expect(mocks.createAgentVoiceRoom).toHaveBeenCalledWith(
-      mx,
-      '@mindroom_helper:mindroom.test',
-      'Helper',
-      true,
-      undefined
-    );
-  });
-
-  it('cleans up the room and reports the error when the call fails to start', async () => {
+  it('reports the error when the call fails to start', async () => {
+    existingRoom();
     mocks.startCall.mockImplementationOnce(() => {
       throw new Error('embed unavailable');
     });
@@ -137,33 +227,12 @@ describe('useStartAgentCall', () => {
     });
 
     expect(started).toBe(false);
-    expect(mocks.cleanupCreatedAgentCall).toHaveBeenCalledWith(
-      mx,
-      '!call:mindroom.test',
-      '@mindroom_helper:mindroom.test'
-    );
     expect(result.current.error).toBe('embed unavailable');
     expect(result.current.loading).toBe(false);
+    expectNoCleanup();
   });
 
-  it('cleans up the temporary room when joining fails', async () => {
-    mocks.waitForJoinedRoom.mockRejectedValueOnce(new Error('sync failed'));
-    const { result } = renderHook();
-
-    await act(async () => {
-      await result.current.startAgentCall(AGENT, ORIGIN);
-    });
-
-    expect(mocks.cleanupCreatedAgentCall).toHaveBeenCalledWith(
-      mx,
-      '!call:mindroom.test',
-      '@mindroom_helper:mindroom.test'
-    );
-    expect(mocks.startCall).not.toHaveBeenCalled();
-    expect(result.current.error).toBe('sync failed');
-  });
-
-  it('does not create a room when microphone access is denied', async () => {
+  it('does not touch any room when microphone access is denied', async () => {
     mocks.requestMicrophoneAccess.mockRejectedValueOnce(new Error('Microphone access is blocked.'));
     const { result } = renderHook();
     let started: boolean | undefined;
@@ -173,8 +242,8 @@ describe('useStartAgentCall', () => {
     });
 
     expect(started).toBe(false);
-    expect(mocks.createAgentVoiceRoom).not.toHaveBeenCalled();
-    expect(mocks.cleanupCreatedAgentCall).not.toHaveBeenCalled();
+    expect(mx.createRoom).not.toHaveBeenCalled();
+    expect(mx.sendStateEvent).not.toHaveBeenCalled();
     expect(result.current.error).toBe('Microphone access is blocked.');
   });
 
@@ -190,47 +259,36 @@ describe('useStartAgentCall', () => {
     expect(started).toBe(false);
     expect(result.current.unavailableReason).toBeDefined();
     expect(mocks.requestMicrophoneAccess).not.toHaveBeenCalled();
-    expect(mocks.createAgentVoiceRoom).not.toHaveBeenCalled();
+    expect(mx.sendStateEvent).not.toHaveBeenCalled();
     expect(mocks.startCall).not.toHaveBeenCalled();
   });
 
-  it('cleans up without starting a call when unmounted during room sync', async () => {
-    let resolveRoom!: (room: { roomId: string }) => void;
-    mocks.waitForJoinedRoom.mockReturnValueOnce(
-      new Promise((resolve) => {
-        resolveRoom = resolve;
-      })
-    );
+  it('does not start a call when unmounted while the room is prepared', async () => {
+    existingRoom();
+    const stamp = deferred();
+    mx.sendStateEvent.mockReturnValueOnce(stamp.promise);
     const { result, renderer } = renderHook();
     let callPromise!: Promise<boolean>;
 
     await act(async () => {
       callPromise = result.current.startAgentCall(AGENT, ORIGIN);
-      await Promise.resolve();
     });
     act(() => renderer.unmount());
-    resolveRoom({ roomId: '!call:mindroom.test' });
+    stamp.resolve();
     let started: boolean | undefined;
     await act(async () => {
       started = await callPromise;
     });
 
     expect(started).toBe(false);
-    expect(mocks.cleanupCreatedAgentCall).toHaveBeenCalledWith(
-      mx,
-      '!call:mindroom.test',
-      '@mindroom_helper:mindroom.test'
-    );
     expect(mocks.startCall).not.toHaveBeenCalled();
+    expectNoCleanup();
   });
 
   it('runs one start at a time and never replaces a call that started meanwhile', async () => {
-    let resolveRoom!: (room: { roomId: string }) => void;
-    mocks.waitForJoinedRoom.mockReturnValueOnce(
-      new Promise((resolve) => {
-        resolveRoom = resolve;
-      })
-    );
+    existingRoom();
+    const stamp = deferred();
+    mx.sendStateEvent.mockReturnValueOnce(stamp.promise);
     const header = renderHook();
     const profile = renderHook();
     let headerStart!: Promise<boolean>;
@@ -245,20 +303,16 @@ describe('useStartAgentCall', () => {
 
     const incomingCall = { dispose: vi.fn() };
     act(() => getDefaultStore().set(callEmbedAtom, incomingCall as never));
-    resolveRoom({ roomId: '!call:mindroom.test' });
+    stamp.resolve();
     let headerStarted: boolean | undefined;
     await act(async () => {
       headerStarted = await headerStart;
     });
 
     expect(headerStarted).toBe(false);
-    expect(mocks.createAgentVoiceRoom).toHaveBeenCalledOnce();
+    expect(mx.sendStateEvent).toHaveBeenCalledOnce();
     expect(mocks.startCall).not.toHaveBeenCalled();
-    expect(mocks.cleanupCreatedAgentCall).toHaveBeenCalledWith(
-      mx,
-      '!call:mindroom.test',
-      '@mindroom_helper:mindroom.test'
-    );
+    expectNoCleanup();
     expect(getDefaultStore().get(callEmbedAtom)).toBe(incomingCall);
     expect(incomingCall.dispose).not.toHaveBeenCalled();
     expect(profile.result.current.loading).toBe(false);

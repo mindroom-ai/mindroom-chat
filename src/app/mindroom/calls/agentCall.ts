@@ -1,10 +1,14 @@
 import { ICreateRoomStateEvent, MatrixClient, Preset, Room, Visibility } from 'matrix-js-sdk';
-import { RoomType, StateEvent } from '../../../types/matrix/room';
+import { Membership, RoomType, StateEvent } from '../../../types/matrix/room';
 import {
   createRoomCallState,
   createRoomEncryptionState,
   createVoiceRoomPowerLevelsOverride,
 } from '../../components/create-room/utils';
+import {
+  RoomNotificationMode,
+  setRoomNotificationPreference,
+} from '../../hooks/useRoomsNotificationPreferences';
 import { getMxIdLocalPart } from '../../utils/matrix';
 import { getStateEvent } from '../../utils/room';
 import { isConfirmedMatrixEventId } from '../threads/threadRouteUtils';
@@ -29,36 +33,66 @@ export type MindroomAgentCallContent = {
   version: 1;
   agent_user_id: string;
   creator_user_id: string;
-  ephemeral: true;
+  /** Legacy throwaway rooms are `true`; the permanent per-caller rooms are `false`. */
+  ephemeral: boolean;
   origin?: MindroomAgentCallOrigin;
 };
 
-const createAgentCallState = (
-  creatorUserId: string,
+const agentCallContent = (
+  mx: MatrixClient,
   agentUserId: string,
   origin?: MindroomAgentCallOrigin
-): ICreateRoomStateEvent => ({
-  type: StateEvent.MindroomAgentCall,
-  state_key: '',
-  content: {
-    version: 1,
-    agent_user_id: agentUserId,
-    creator_user_id: creatorUserId,
-    ephemeral: true,
-    ...(origin && { origin }),
-  } satisfies MindroomAgentCallContent,
+): MindroomAgentCallContent => ({
+  version: 1,
+  agent_user_id: agentUserId,
+  creator_user_id: mx.getSafeUserId(),
+  ephemeral: false,
+  ...(origin && { origin }),
 });
+
+/** The agent call state of a room, when I created the room and wrote that state myself. */
+const getOwnAgentCall = (mx: MatrixClient, room: Room): MindroomAgentCallContent | undefined => {
+  const event = getStateEvent(room, StateEvent.MindroomAgentCall);
+  const content = event?.getContent();
+  const userId = mx.getUserId();
+  return content?.version === 1 &&
+    typeof content.agent_user_id === 'string' &&
+    event?.getSender() === userId &&
+    content.creator_user_id === userId
+    ? (content as MindroomAgentCallContent)
+    : undefined;
+};
+
+/** Permanent agent call rooms are reached through their calls, so room lists leave them out. */
+export const isMindroomAgentCallRoom = (room: Room | null): boolean =>
+  !!room && getStateEvent(room, StateEvent.MindroomAgentCall)?.getContent().ephemeral === false;
+
+const createdAt = (room: Room): number => getStateEvent(room, StateEvent.RoomCreate)?.getTs() ?? 0;
+
+/** My permanent call room with this agent; two devices racing on the first call agree on the oldest. */
+export const findAgentCallRoom = (mx: MatrixClient, agentUserId: string): Room | undefined =>
+  mx
+    .getRooms()
+    .filter((room) => {
+      if (room.getMyMembership() !== Membership.Join || !room.isCallRoom()) return false;
+      const call = getOwnAgentCall(mx, room);
+      return call?.ephemeral === false && call.agent_user_id === agentUserId;
+    })
+    .sort((a, b) => createdAt(a) - createdAt(b) || (a.roomId < b.roomId ? -1 : 1))[0];
 
 export const createAgentVoiceRoom = async (
   mx: MatrixClient,
   agentUserId: string,
   displayName: string | undefined,
-  encrypted: boolean,
-  origin?: MindroomAgentCallOrigin
+  encrypted: boolean
 ): Promise<string> => {
   const initialState: ICreateRoomStateEvent[] = [
     createRoomCallState(),
-    createAgentCallState(mx.getSafeUserId(), agentUserId, origin),
+    {
+      type: StateEvent.MindroomAgentCall,
+      state_key: '',
+      content: agentCallContent(mx, agentUserId),
+    },
   ];
   if (encrypted) initialState.unshift(createRoomEncryptionState());
 
@@ -73,17 +107,49 @@ export const createAgentVoiceRoom = async (
     power_level_content_override: createVoiceRoomPowerLevelsOverride(),
     initial_state: initialState,
   });
+  // The room is hidden, so its side-chat messages must not raise notifications nobody can find.
+  await setRoomNotificationPreference(
+    mx,
+    result.room_id,
+    RoomNotificationMode.Mute,
+    RoomNotificationMode.Unset
+  ).catch(() => undefined);
 
   return result.room_id;
 };
 
-export const cleanupCreatedAgentCall = async (
+/**
+ * Re-invites an agent that left and overwrites the previous call's origin.
+ * The backend reads this state when the agent joins the call, so it must be written before the call starts.
+ */
+export const prepareAgentCallRoom = async (
   mx: MatrixClient,
-  roomId: string,
-  agentUserId: string
+  room: Room,
+  agentUserId: string,
+  origin?: MindroomAgentCallOrigin
 ): Promise<void> => {
+  // Members are lazy-loaded; inviting an agent that is already joined would fail.
+  await room.loadMembersIfNeeded();
+  const membership = room.getMember(agentUserId)?.membership;
+  if (membership !== Membership.Join && membership !== Membership.Invite) {
+    await mx.invite(room.roomId, agentUserId);
+  }
+  await mx.sendStateEvent(
+    room.roomId,
+    StateEvent.MindroomAgentCall as any,
+    agentCallContent(mx, agentUserId, origin),
+    ''
+  );
+};
+
+export const cleanupMindroomAgentCall = async (mx: MatrixClient, room: Room): Promise<void> => {
+  const call = getOwnAgentCall(mx, room);
+  // Permanent call rooms are reused for the next call; only legacy throwaway rooms are torn down.
+  if (call?.ephemeral !== true) return;
+
+  const { roomId } = room;
   try {
-    await mx.kick(roomId, agentUserId, 'MindRoom agent call ended');
+    await mx.kick(roomId, call.agent_user_id, 'MindRoom agent call ended');
   } catch {
     // The agent may not have joined yet or may already have left.
   }
@@ -98,21 +164,4 @@ export const cleanupCreatedAgentCall = async (
   } catch {
     // A failed leave remains visible and can be retried from the room menu.
   }
-};
-
-export const cleanupMindroomAgentCall = async (mx: MatrixClient, room: Room): Promise<void> => {
-  const event = getStateEvent(room, StateEvent.MindroomAgentCall);
-  const content = event?.getContent();
-  const userId = mx.getUserId();
-  if (
-    content?.version !== 1 ||
-    content?.ephemeral !== true ||
-    typeof content?.agent_user_id !== 'string' ||
-    event?.getSender() !== userId ||
-    content?.creator_user_id !== userId
-  ) {
-    return;
-  }
-
-  await cleanupCreatedAgentCall(mx, room.roomId, content.agent_user_id);
 };

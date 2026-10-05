@@ -1,61 +1,50 @@
-import { Room } from 'matrix-js-sdk';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { StateEvent } from '../../../types/matrix/room';
+import { agentCallState, ALICE, fakeRoom, HELPER } from '../../test-utils/agentCallRoom';
 import {
   cleanupMindroomAgentCall,
   createAgentVoiceRoom,
+  findAgentCallRoom,
   hasMindroomVoiceCallsPresence,
   toAgentCallOrigin,
 } from './agentCall';
 
 const createRoom = vi.fn();
+const addPushRule = vi.fn();
 const kick = vi.fn();
 const leave = vi.fn();
 const forget = vi.fn();
+let rooms: ReturnType<typeof fakeRoom>[] = [];
 
 const mx = {
   createRoom,
-  getSafeUserId: () => '@alice:mindroom.test',
-  getUserId: () => '@alice:mindroom.test',
+  addPushRule,
+  getRooms: () => rooms,
+  getSafeUserId: () => ALICE,
+  getUserId: () => ALICE,
   kick,
   leave,
   forget,
 } as any;
 
-const ephemeralRoom = (
-  creatorUserId = '@alice:mindroom.test',
-  eventSender = '@alice:mindroom.test'
-): Room =>
-  ({
-    roomId: '!call:mindroom.test',
-    getLiveTimeline: () => ({
-      getState: () => ({
-        getStateEvents: (eventType: string) =>
-          eventType === StateEvent.MindroomAgentCall
-            ? {
-                getSender: () => eventSender,
-                getContent: () => ({
-                  version: 1,
-                  agent_user_id: '@mindroom_helper:mindroom.test',
-                  creator_user_id: creatorUserId,
-                  ephemeral: true,
-                }),
-              }
-            : undefined,
-      }),
-    }),
-  } as unknown as Room);
+const ephemeralRoom = (creatorUserId = ALICE, eventSender = ALICE) =>
+  fakeRoom({
+    call: agentCallState({ creator_user_id: creatorUserId, ephemeral: true }),
+    callSender: eventSender,
+  });
 
 describe('MindRoom agent calls', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    rooms = [];
     createRoom.mockResolvedValue({ room_id: '!call:mindroom.test' });
+    addPushRule.mockResolvedValue({});
     kick.mockResolvedValue({});
     leave.mockResolvedValue({});
     forget.mockResolvedValue({});
   });
 
-  it('creates a private encrypted voice room tagged for one invited agent', async () => {
+  it('creates a private encrypted, muted voice room tagged as a permanent call with one agent', async () => {
     await expect(
       createAgentVoiceRoom(mx, '@mindroom_helper:mindroom.test', 'Helper', true)
     ).resolves.toBe('!call:mindroom.test');
@@ -83,48 +72,23 @@ describe('MindRoom agent calls', () => {
             version: 1,
             agent_user_id: '@mindroom_helper:mindroom.test',
             creator_user_id: '@alice:mindroom.test',
-            ephemeral: true,
+            ephemeral: false,
           },
         },
       ],
     });
-  });
-
-  it('stamps the originating room and thread on the call state when given', async () => {
-    const origin = { room_id: '!origin:mindroom.test', thread_id: '$root' };
-
-    await createAgentVoiceRoom(mx, '@mindroom_helper:mindroom.test', 'Helper', true, origin);
-
-    const { initial_state: initialState } = createRoom.mock.calls[0][0];
-    expect(
-      initialState.find((event: { type: string }) => event.type === StateEvent.MindroomAgentCall)
-        .content
-    ).toEqual({
-      version: 1,
-      agent_user_id: '@mindroom_helper:mindroom.test',
-      creator_user_id: '@alice:mindroom.test',
-      ephemeral: true,
-      origin,
+    expect(addPushRule).toHaveBeenCalledWith('global', 'override', '!call:mindroom.test', {
+      conditions: [{ kind: 'event_match', key: 'room_id', pattern: '!call:mindroom.test' }],
+      actions: [],
     });
   });
 
-  it('keeps a null thread id in the stamped origin', async () => {
-    const origin = { room_id: '!origin:mindroom.test', thread_id: null };
+  it('still returns the new room when muting it fails', async () => {
+    addPushRule.mockRejectedValueOnce(new Error('push rules unavailable'));
 
-    await createAgentVoiceRoom(mx, '@mindroom_helper:mindroom.test', 'Helper', false, origin);
-
-    const { initial_state: initialState } = createRoom.mock.calls[0][0];
-    expect(initialState[1].content.origin).toEqual(origin);
-  });
-
-  it('omits the origin key when no origin is given', async () => {
-    await createAgentVoiceRoom(mx, '@mindroom_helper:mindroom.test', 'Helper', true);
-
-    const { initial_state: initialState } = createRoom.mock.calls[0][0];
-    const content = initialState.find(
-      (event: { type: string }) => event.type === StateEvent.MindroomAgentCall
-    ).content;
-    expect(content).not.toHaveProperty('origin');
+    await expect(createAgentVoiceRoom(mx, HELPER, 'Helper', true)).resolves.toBe(
+      '!call:mindroom.test'
+    );
   });
 
   it.each([
@@ -156,6 +120,41 @@ describe('MindRoom agent calls', () => {
     expect(hasMindroomVoiceCallsPresence('🤖 Model: openai/gpt-5.5 | 📞 Voice calls')).toBe(true);
     expect(hasMindroomVoiceCallsPresence('💼 Discusses voice calls')).toBe(false);
     expect(hasMindroomVoiceCallsPresence(undefined)).toBe(false);
+  });
+
+  it('finds my permanent call room with the agent', () => {
+    const callRoom = fakeRoom({ call: agentCallState() });
+    rooms = [fakeRoom({ roomId: '!plain:mindroom.test', callRoom: false }), callRoom];
+
+    expect(findAgentCallRoom(mx, HELPER)).toBe(callRoom);
+  });
+
+  it.each([
+    [
+      'created by someone else',
+      { call: agentCallState({ creator_user_id: '@bob:mindroom.test' }) },
+    ],
+    [
+      'with another agent',
+      { call: agentCallState({ agent_user_id: '@mindroom_other:mindroom.test' }) },
+    ],
+    ['that is ephemeral', { call: agentCallState({ ephemeral: true }) }],
+    ['stamped by another sender', { call: agentCallState(), callSender: '@mallory:mindroom.test' }],
+    ['that I have left', { call: agentCallState(), membership: 'leave' }],
+    ['without the call room type', { call: agentCallState(), callRoom: false }],
+    ['with another state version', { call: agentCallState({ version: 2 }) }],
+  ])('ignores a call room %s', (_case, options) => {
+    rooms = [fakeRoom(options)];
+
+    expect(findAgentCallRoom(mx, HELPER)).toBeUndefined();
+  });
+
+  it('picks the oldest of duplicate call rooms, then the lowest room id', () => {
+    const room = (roomId: string, createdTs: number) =>
+      fakeRoom({ roomId, createdTs, call: agentCallState() });
+    rooms = [room('!c:mindroom.test', 2), room('!b:mindroom.test', 1), room('!a:mindroom.test', 1)];
+
+    expect(findAgentCallRoom(mx, HELPER)?.roomId).toBe('!a:mindroom.test');
   });
 
   it('kicks the agent, leaves, and forgets a creator-owned ephemeral room', async () => {
@@ -191,6 +190,14 @@ describe('MindRoom agent calls', () => {
       mx,
       ephemeralRoom('@alice:mindroom.test', '@mallory:mindroom.test')
     );
+
+    expect(kick).not.toHaveBeenCalled();
+    expect(leave).not.toHaveBeenCalled();
+    expect(forget).not.toHaveBeenCalled();
+  });
+
+  it('never kicks, leaves, or forgets a permanent call room on hang-up', async () => {
+    await cleanupMindroomAgentCall(mx, fakeRoom({ call: agentCallState() }));
 
     expect(kick).not.toHaveBeenCalled();
     expect(leave).not.toHaveBeenCalled();
