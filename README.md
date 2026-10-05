@@ -65,7 +65,7 @@ These are stills from the [showcase](https://docs.mindroom.chat/showcase/) recor
 
 - **Live replies**: agent replies stream in place, with collapsible tool traces, the model and run details, and a button to stop them.
 - **Approvals and questions**: approval cards and multiple-choice questions sit in the conversation, one tap away.
-- **Canvases**: an agent can open a page it wrote, such as a dashboard, a slide deck, or a form, beside the conversation; they are on in the web app at chat.mindroom.chat and the App Store app, and self-hosted builds turn them on with `mindroom.canvas.enabled`.
+- **Canvases**: an agent can open a page it wrote, such as a dashboard, a slide deck, or a form, beside the conversation; they are on at chat.mindroom.chat and in iOS builds (`npm run build:ios`), and self-hosted builds turn them on with `mindroom.canvas.enabled`.
 - **Computer**: watch an agent's browser live, take control for a login or passkey, and hand it back; choose the computer service under Settings → General → Computers, or set a default with `mindroom.computers.apiUrl`.
 - **Threads first**: a thread-aware composer, deep links, search, unread state, and timeline recovery keep long agent conversations easy to follow, and very long replies arrive whole.
 - **Voice**: record voice messages, and call an agent through MatrixRTC with embedded Element Call.
@@ -149,8 +149,14 @@ Each prefix excludes its exact path and descendants without excluding similarly 
 ## Configuration
 
 MindRoom Chat reads `config.json` from the root it is served from.
-Builds and the development server generate it from [`config.mindroom.json`](./config.mindroom.json), and iOS builds also apply [`config.mindroom.ios.json`](./config.mindroom.ios.json); the repository's `config.json` is Cinny's upstream sample and is not used.
-With the Docker image, mount your own file at `/app/config.json`, for example `docker run -p 8080:80 -v "$PWD/config.json:/app/config.json:ro" ghcr.io/mindroom-ai/mindroom-chat:latest`.
+Builds and the development server generate it from [`config.mindroom.json`](./config.mindroom.json), and iOS builds also apply [`config.mindroom.ios.json`](./config.mindroom.ios.json); the repository's `config.json` is Cinny's upstream sample, used only as a fallback by the end-to-end tests.
+With the Docker image, mount your own file at `/app/config.json`.
+A mounted file replaces the bundled configuration entirely, so start from a copy of `config.mindroom.json`:
+
+```bash
+cp config.mindroom.json my-config.json
+docker run -p 8080:80 -v "$PWD/my-config.json:/app/config.json:ro" ghcr.io/mindroom-ai/mindroom-chat:latest
+```
 
 Notable options:
 
@@ -205,7 +211,7 @@ To show it in Simple Mode, set `sidebar.showExploreCommunityInSimpleMode` to `tr
 
 Setting it to `false` or omitting it keeps Explorer hidden in Simple Mode.
 This option does not affect the full interface, where Explorer remains visible by default.
-The existing `sidebar.showExploreCommunity` option continues to control Explorer in the full interface and defaults to `true`.
+The existing `sidebar.showExploreCommunity` option continues to control Explorer in the full interface; its code default is `true`, but MindRoom's shipped configuration sets it to `false`, so set it to `true` as well to show Explorer there.
 
 </details>
 
