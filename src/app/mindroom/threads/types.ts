@@ -119,6 +119,8 @@ export type CompactThreadCardViewModel = {
   recentThreadSummaryText?: string;
   messageCount: number;
   messageCountLabel: string;
+  /** Locale-formatted count alone, for the compact card's icon + number. */
+  messageCountText: string;
   attentionState: CompactThreadAttentionState;
   attentionStatusText: string;
   participants: ThreadParticipantViewModel[];

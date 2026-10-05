@@ -2946,9 +2946,7 @@
         "noThreads": "لا توجد سلاسل محادثات"
       },
       "compactThreadCard": {
-        "streaming": "قيد البث",
-        "unreadMessages": "رسائل غير مقروءة",
-        "lastActivity": "آخر نشاط ⁨{{time}}⁩"
+        "streaming": "قيد البث"
       },
       "mindroomCallChatView": {
         "chat": "الدردشة",

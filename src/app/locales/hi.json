@@ -1475,9 +1475,7 @@
         "noThreads": "कोई थ्रेड नहीं"
       },
       "compactThreadCard": {
-        "lastActivity": "अंतिम गतिविधि {{time}}",
-        "streaming": "स्ट्रीमिंग",
-        "unreadMessages": "अपठित संदेश"
+        "streaming": "स्ट्रीमिंग"
       },
       "compactThreadCardUtils": {
         "atTime": "{{time}} पर",

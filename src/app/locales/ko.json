@@ -2758,9 +2758,7 @@
         "noThreads": "스레드 없음"
       },
       "compactThreadCard": {
-        "streaming": "응답 생성 중",
-        "unreadMessages": "읽지 않은 메시지",
-        "lastActivity": "최근 활동 {{time}}"
+        "streaming": "응답 생성 중"
       },
       "mindroomCallChatView": {
         "chat": "채팅",

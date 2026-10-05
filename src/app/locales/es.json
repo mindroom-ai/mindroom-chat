@@ -2805,9 +2805,7 @@
         "noThreads": "No hay hilos"
       },
       "compactThreadCard": {
-        "streaming": "transmitiendo",
-        "unreadMessages": "Mensajes sin leer",
-        "lastActivity": "Última actividad: {{time}}"
+        "streaming": "transmitiendo"
       },
       "mindroomCallChatView": {
         "chat": "Chat",

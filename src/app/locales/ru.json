@@ -2852,9 +2852,7 @@
         "noThreads": "Нет веток"
       },
       "compactThreadCard": {
-        "streaming": "передача",
-        "unreadMessages": "Непрочитанные сообщения",
-        "lastActivity": "Последняя активность: {{time}}"
+        "streaming": "передача"
       },
       "mindroomCallChatView": {
         "chat": "Чат",

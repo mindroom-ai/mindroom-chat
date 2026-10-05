@@ -1475,9 +1475,7 @@
         "noThreads": "কোনো থ্রেড নেই"
       },
       "compactThreadCard": {
-        "lastActivity": "শেষ কার্যকলাপ {{time}}",
-        "streaming": "স্ট্রিমিং",
-        "unreadMessages": "অপঠিত বার্তা"
+        "streaming": "স্ট্রিমিং"
       },
       "compactThreadCardUtils": {
         "atTime": "{{time}} এ",
