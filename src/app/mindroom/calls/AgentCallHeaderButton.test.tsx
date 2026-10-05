@@ -310,7 +310,7 @@ describe('AgentCallHeaderButton', () => {
         .props.onClick()
     );
     expect(notices()).toHaveLength(0);
-    expect(renderer.root.findAllByType(Tooltip)).toHaveLength(1);
+    expect(nodeText(renderer.root.findByType(Tooltip))).toBe('Call Helper');
   });
 
   it('returns focus to the button when the menu or the notice closes', async () => {

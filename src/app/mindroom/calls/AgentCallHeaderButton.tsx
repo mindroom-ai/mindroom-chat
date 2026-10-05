@@ -93,8 +93,9 @@ export function AgentCallHeaderButton({ threadId }: { threadId?: string }) {
     error,
     t('mindroomUi.calls.agentCallButton.failedToStart')
   );
-  const reason = unavailableReason ?? errorText;
   const noticeOpen = !!errorText && !!noticeAnchor;
+  // Once the notice is closed the error may be stale (a fixed microphone permission), so it is no reason.
+  const reason = unavailableReason ?? (noticeOpen ? errorText : undefined);
   const label =
     candidates.length === 1
       ? t('mindroomUi.calls.agentCallHeaderButton.callAgent', { name: candidates[0].displayName })
