@@ -300,18 +300,18 @@ export const useTimelineScrollLedgerController = ({
   // row there is no anchor.
   const threadLedgerViewRef = useRef<{
     rows: Omit<ThreadLedgerAnchor, 'eventId' | 'index'>;
-    listTop?: number;
+    listTop: number;
     inset: number;
   }>();
   const readerTopOffset = useCallback((scrollTop: number) => {
     const view = threadLedgerViewRef.current;
-    return view?.listTop === undefined ? undefined : scrollTop + view.inset - view.listTop;
+    return view ? scrollTop + view.inset - view.listTop : undefined;
   }, []);
   useInsertionEffect(() => {
     // Rows measured in this commit are judged before the layout effect
     // re-reads the list's offset; the leading content it changed moves it.
     const view = threadLedgerViewRef.current;
-    if (view?.listTop !== undefined) view.listTop += threadLeadingPx - committedLeading.px;
+    if (view) view.listTop += threadLeadingPx - committedLeading.px;
   });
   const anchorThreadLedgerAt = useCallback(
     (scrollTop: number) => {
@@ -342,14 +342,13 @@ export const useTimelineScrollLedgerController = ({
     }
     const scrollElement = getScrollElement();
     const inner = virtualInnerRef.current;
-    const rows = { threadId, events: threadEvents, priceRow: priceThreadRowForLedger };
     if (!scrollElement || !inner) {
-      threadLedgerViewRef.current = { rows, inset: 0 };
+      threadLedgerViewRef.current = undefined;
       threadLedgerAnchorRef.current = undefined;
       return;
     }
     threadLedgerViewRef.current = {
-      rows,
+      rows: { threadId, events: threadEvents, priceRow: priceThreadRowForLedger },
       // A row at virtual-core offset s paints at inner.top + s + ledger.
       listTop:
         scrollElement.scrollTop -

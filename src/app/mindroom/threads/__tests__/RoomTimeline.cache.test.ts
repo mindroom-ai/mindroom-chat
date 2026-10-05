@@ -1213,7 +1213,7 @@ describe('RoomTimeline', () => {
       }
     });
 
-    it('folds a Load Older prepend without any coarse re-anchor scroll', async () => {
+    it('makes no coarse re-anchor scroll for a Load Older prepend', async () => {
       const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
       const threadId = '$prepend-thread-root';
       const rootEvent = makeEvent(threadId, { isThreadRoot: true, ts: 0 });

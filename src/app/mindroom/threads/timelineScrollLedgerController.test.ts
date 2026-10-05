@@ -657,6 +657,9 @@ describe('useTimelineScrollLedgerController', () => {
       // Ends above it: held (dropped into the ledger on iOS).
       correct(90, 200);
       expect(latestLedgerPx()).toBe(200);
+      // The reader's top stays put while that fold waits to settle.
+      correct(150, 10);
+      expect(latestLedgerPx()).toBe(200);
     });
 
     it('judges a row measured in the commit that drops it against the moved list', () => {
