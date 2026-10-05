@@ -219,6 +219,7 @@ describe('batched virtualizer measurement ref', () => {
       isIOSWebKitDevice: () => true,
       onDroppedCorrection,
     });
+    virtualizer.scrollElement!.scrollTop = 1_000;
     virtualizer.scrollOffset = 1_000;
     // Desktop applies a forward correction as a scroll write; only iOS folds it.
     virtualizer.scrollDirection = 'forward';

@@ -864,40 +864,6 @@ describe('RoomTimeline', () => {
     expect(isAnchorVisibleInScroll(anchor, scroll, 100)).toBe(false);
         });
 
-  it('captures the first visible thread message as the prepend scroll anchor', async () => {
-    const { captureThreadPrependScrollAnchor } = await import(
-      '../timelineScrollUtils'
-    );
-
-    const aboveViewport = {
-      getAttribute: vi.fn().mockReturnValue('$above'),
-      getBoundingClientRect: vi.fn().mockReturnValue({
-        top: 40,
-        bottom: 90,
-      }),
-    };
-    const anchor = {
-      getAttribute: vi.fn().mockReturnValue('$anchor'),
-      getBoundingClientRect: vi.fn().mockReturnValue({
-        top: 140,
-        bottom: 180,
-      }),
-    };
-    const scroll = {
-      getBoundingClientRect: vi.fn().mockReturnValue({
-        top: 100,
-        bottom: 500,
-      }),
-      querySelector: vi.fn().mockReturnValue(aboveViewport),
-      querySelectorAll: vi.fn().mockReturnValue([aboveViewport, anchor]),
-    } as unknown as HTMLElement;
-
-    expect(captureThreadPrependScrollAnchor(scroll)).toEqual({
-      eventId: '$anchor',
-      top: 140,
-    });
-  });
-
       });
     });
 });

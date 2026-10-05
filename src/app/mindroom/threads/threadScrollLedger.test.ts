@@ -1,129 +1,101 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   planThreadLedgerRender,
+  type ThreadLedgerAnchor,
   type ThreadLedgerEvent,
-  type ThreadVirtualPrependCapture,
 } from './threadScrollLedger';
 
 const event = (eventId: string): ThreadLedgerEvent => ({ getId: () => eventId });
+const events = (...ids: string[]) => ids.map(event);
+const indexMap = (list: readonly ThreadLedgerEvent[]) =>
+  new Map(list.map((item, index) => [item.getId()!, index]));
 
-const capture = (
-  foldedEvents: unknown,
-  overrides: Partial<ThreadVirtualPrependCapture> = {}
-): ThreadVirtualPrependCapture => ({
+const anchorOn = (
+  list: readonly ThreadLedgerEvent[],
+  eventId: string,
+  priceRow: ThreadLedgerAnchor['priceRow'] = () => 10
+): ThreadLedgerAnchor => ({
   threadId: '$root',
-  anchorEventId: '$anchor',
-  anchorSeq: 7,
-  abovePrices: new Map([['$old', 40]]),
-  foldedEvents,
-  ...overrides,
+  eventId,
+  index: list.findIndex((item) => item.getId() === eventId),
+  events: list,
+  priceRow,
 });
 
+const plan = (
+  anchor: ThreadLedgerAnchor | undefined,
+  threadEvents: readonly ThreadLedgerEvent[],
+  priceRow: (eventId: string, index: number) => number = () => 10
+) =>
+  planThreadLedgerRender({
+    anchor,
+    eventIndexMap: indexMap(threadEvents),
+    priceRow,
+    threadEvents,
+    threadId: '$root',
+  });
+
 describe('planThreadLedgerRender', () => {
-  it('is a no-op for an unchanged event list', () => {
-    const events = [event('$root'), event('$old'), event('$anchor')];
-    const currentCapture = capture(events);
+  it('folds nothing without a committed anchor or for the anchored list itself', () => {
+    const list = events('$root', '$a', '$b');
+    expect(plan(undefined, list)).toEqual({ foldPx: 0 });
+    expect(plan(anchorOn(list, '$b'), list)).toEqual({ foldPx: 0 });
+  });
 
-    expect(
-      planThreadLedgerRender({
-        capture: currentCapture,
-        eventIndexMap: new Map([
-          ['$old', 1],
-          ['$anchor', 2],
-        ]),
-        paginatingBack: false,
-        pendingAnchorSeq: 7,
-        priceRow: vi.fn(),
-        threadEvents: events,
-        threadId: '$root',
-      })
-    ).toEqual({
-      clearPendingAnchor: false,
+  it('folds rows that land above the reader, whoever added them', () => {
+    const previous = events('$root', '$a', '$reader', '$c');
+    const next = events('$root', '$old1', '$old2', '$a', '$reader', '$c');
+    const priceRow = vi.fn((eventId: string) => (eventId === '$old1' ? 30 : 50));
+
+    expect(plan(anchorOn(previous, '$reader'), next, priceRow)).toEqual({ foldPx: 80 });
+    expect(priceRow.mock.calls.map(([eventId]) => eventId)).toEqual(['$old1', '$old2']);
+  });
+
+  it('leaves rows that land below the reader, such as new replies and edits', () => {
+    const previous = events('$root', '$a', '$reader');
+    const next = events('$root', '$a', '$reader', '$edit', '$new');
+    const priceRow = vi.fn(() => 10);
+
+    expect(plan(anchorOn(previous, '$reader'), next, priceRow)).toEqual({ foldPx: 0 });
+    expect(priceRow).not.toHaveBeenCalled();
+  });
+
+  it('keeps the root in place when the reader is looking at it', () => {
+    const previous = events('$root', '$a');
+    const next = events('$root', '$old', '$a');
+
+    expect(plan(anchorOn(previous, '$root'), next)).toEqual({ foldPx: 0 });
+  });
+
+  it('prices a removed row above the reader with the list it was committed in', () => {
+    const previous = events('$root', '$gone', '$a', '$reader');
+    const next = events('$root', '$a', '$reader');
+    const previousPrice = vi.fn((_eventId: string, index: number) => (index === 1 ? 70 : 0));
+
+    expect(plan(anchorOn(previous, '$reader', previousPrice), next)).toEqual({ foldPx: -70 });
+    expect(previousPrice).toHaveBeenCalledWith('$gone', 1);
+  });
+
+  it('anchors on the nearest surviving row above a reader row that left', () => {
+    const previous = events('$root', '$a', '$reader');
+    const next = events('$root', '$old', '$a', '$replacement');
+
+    expect(plan(anchorOn(previous, '$reader'), next)).toEqual({
+      foldPx: 10,
+      probe: 'threadPrependFoldAnchorFallback',
+    });
+    expect(plan(anchorOn(previous, '$reader'), events('$root', '$other'))).toEqual({
       foldPx: 0,
-      nextCapture: currentCapture,
+      probe: 'threadPrependFoldAnchorLost',
     });
   });
 
-  it('plans an inserted-row fold without mutating the capture', () => {
-    const previousEvents = [event('$root'), event('$old'), event('$anchor')];
-    const currentCapture = capture(previousEvents);
-    const events = [event('$root'), event('$new'), event('$old'), event('$anchor')];
+  it('ignores an anchor from another thread', () => {
+    const previous = events('$root', '$a', '$reader');
+    const next = events('$root', '$old', '$a', '$reader');
 
-    const plan = planThreadLedgerRender({
-      capture: currentCapture,
-      eventIndexMap: new Map([
-        ['$new', 1],
-        ['$old', 2],
-        ['$anchor', 3],
-      ]),
-      paginatingBack: true,
-      pendingAnchorSeq: 7,
-      priceRow: (_eventId, index) => index * 10,
-      threadEvents: events,
-      threadId: '$root',
+    expect(plan({ ...anchorOn(previous, '$reader'), threadId: '$other' }, next)).toEqual({
+      foldPx: 0,
     });
-
-    expect(plan.foldPx).toBe(10);
-    expect(plan.clearPendingAnchor).toBe(false);
-    expect(plan.nextCapture?.foldedEvents).toBe(events);
-    expect(currentCapture.foldedEvents).toBe(previousEvents);
-    expect(currentCapture.abovePrices).toEqual(new Map([['$old', 40]]));
-  });
-
-  it('consumes the pagination anchor once inserted rows commit', () => {
-    const events = [event('$root'), event('$new'), event('$old'), event('$anchor')];
-    const plan = planThreadLedgerRender({
-      capture: capture([]),
-      eventIndexMap: new Map([
-        ['$new', 1],
-        ['$old', 2],
-        ['$anchor', 3],
-      ]),
-      paginatingBack: false,
-      pendingAnchorSeq: 7,
-      priceRow: () => 25,
-      threadEvents: events,
-      threadId: '$root',
-    });
-
-    expect(plan).toMatchObject({
-      clearPendingAnchor: true,
-      foldPx: 25,
-      nextCapture: undefined,
-    });
-  });
-
-  it('falls back to the nearest surviving baseline row', () => {
-    const events = [event('$root'), event('$old')];
-    const plan = planThreadLedgerRender({
-      capture: capture([], { anchorEventId: '$missing' }),
-      eventIndexMap: new Map([['$old', 1]]),
-      paginatingBack: true,
-      pendingAnchorSeq: 7,
-      priceRow: () => 40,
-      threadEvents: events,
-      threadId: '$root',
-    });
-
-    expect(plan.probe).toBe('threadPrependFoldAnchorFallback');
-    expect(plan.nextCapture?.anchorEventId).toBe('$old');
-  });
-
-  it('drops stale captures for another thread or pagination generation', () => {
-    const currentCapture = capture([]);
-    const common = {
-      capture: currentCapture,
-      eventIndexMap: new Map<string, number>(),
-      paginatingBack: false,
-      priceRow: vi.fn(),
-      threadEvents: [] as ThreadLedgerEvent[],
-    };
-
-    expect(
-      planThreadLedgerRender({ ...common, pendingAnchorSeq: 7, threadId: '$other' }).nextCapture
-    ).toBeUndefined();
-    expect(
-      planThreadLedgerRender({ ...common, pendingAnchorSeq: 8, threadId: '$root' }).nextCapture
-    ).toBeUndefined();
   });
 });

@@ -2,6 +2,26 @@
 
 ## Runbook
 
+### Keep a thread reader in place when rows or Load Older change above them (2026-10-04)
+
+- Report: a reader at the latest reply of a long thread drifted up by thousands of pixels when older history finished loading after Load Older or a scroll.
+  Tightening the new live spec to 1 px found that the reader still slid 48 px when the Load Older chip went with the last page, including a reader looking at the root.
+- Root cause: the thread scroller disables native scroll anchoring, so the ledger must hold the reader against changes above them, and it did not.
+  It folded inserted rows only under a request-owned DOM anchor capture, so pages of the opening history chain, reconciled pages and other bands slid the reader once the opening pin let go.
+  It ignored the content between the banner and the rows (load error, Load Older), whose removal moves every row.
+  And the measurement-correction hook judges "above the viewport" in virtual-core's offsets, which ignore the content above the list; with Load Older showing, that line sits the chip's height below the reader's, so a reply measured just below the reader's row could be corrected without being folded, and each correction put the next reply "above" too (a cascade of thousands of pixels, found by instrumentation).
+- Fix: the ledger records the reader's first visible row after every commit and scroll and folds the height of any rows a later render adds above it, whoever added them, like native scroll anchoring.
+  The reader's view starts below the sticky headers (the scroller's `scroll-padding-top`, as explicit jumps already use), and the row there is found from the list's offset in the scroll content; above the first row there is none.
+  The measurement-correction hook judges whether a row is above the reader against that same line; once Load Older is gone this matches `dev`'s judgement.
+  The content between the banner and the rows is priced like a row: a render that changes what it shows folds all of its committed height (so nothing can read layout and clamp the scroll first), and the commit folds whatever it then shows before paint.
+  The request capture, its anchor sequence, the commit-time recapture retries and the DOM anchor helper are removed; Load Older keeps only its request lock, the opening-pin hand-off and the wait for scroll rest.
+- Rows above the reader now stay unmeasured more often (the reader is no longer pushed through them), which exposed a stale offset in the same hook: right after a programmatic scroll (a reply-quote jump), virtual-core's cached `scrollOffset` lags the element until the next scroll event, so corrections were applied as scroll writes from the old offset and dragged the view back.
+  The hook now judges against the scroller's live `scrollTop` and has virtual-core apply the correction from it by folding the difference into its pending adjustments.
+  It leaves virtual-core's cached offset alone: overwriting it made virtual-core drop the write's own scroll event as already seen, losing the backward direction that routes corrections into the ledger during a scroll; that made the known `long-message-expansion-default` fold-anchor check fail in 5 of 10 runs (1 of 6 after this change, 1 of 12 on `dev`).
+- Not covered: height changes of the thread banner itself (tags, alerts) still move the rows, as on `dev`.
+- Tests: `threadScrollLedger.test.ts` covers rows added above or below the reader, the root, removed rows and a lost anchor; `timelineScrollLedgerController.test.ts` covers the painted row, a scroll that commits nothing, the sticky-header inset, the content above the rows going, shrinking, growing or being in view, and corrections judged against the reader's top, including in the commit that drops Load Older; `virtualizerIOSScrollContract.test.ts` pins the live-offset judgement and correction, the write's scroll event, and the reader-top judgement against the real virtualizer; `RoomTimeline.cache.test.ts` now requires a band that lands without Load Older to fold (it previously pinned the drift).
+  `e2e/live/thread-open-chain-prepend-anchor.spec.ts` holds the thread's older pages until after a Load Older click, a wheel scroll, or a scroll to the root, then requires the reader's row (for the root, with the reader's line 20 px into it) to stay within 1 px while every page lands and the chip goes.
+
 ### Stop the reconcile from linking thread segments into a cycle that froze the app (2026-10-04)
 
 - Report: an iPhone export from build `515acd2c` shows the whole app frozen right after it came back from 130 s in the background, with a long thread open (968 SDK events) while an agent was typing.
@@ -154,9 +174,7 @@
   - Rows that mount during a non-smooth programmatic scroll are still measured by virtual-core in the ref and can show the 10 px first-pass gap for a frame.
   - Settings shows "Catching up..." for one full 30-second long poll after a cached start on a quiet account, even though the first `timeout=0` sync already caught up.
   - The offline history page re-downloads the same newest page the timeline just fetched, using the automatic allowance on metered connections.
-  - A thread reader drifts by thousands of pixels when pages of the opening history chain land after Load Older or a scroll gesture suppressed the opening bottom pin: those pages arrive without a ledger prepend capture, the scroller has `overflowAnchor: 'none'`, and virtual-core corrects resizes, not insertions.
-    `perf-thread-streaming` now fails at its in-viewport check when this happens (1 of 3 baseline runs) instead of timing out on an unmounted row.
-    A standing prepend capture fixes the drift, but a review found it folds later mid-thread insertions below a reader who has since scrolled and that a root-anchored request capture blocks re-arming, so it needs another pass before landing.
+  - A thread reader drifted by thousands of pixels when the opening history chain landed after Load Older or a scroll gesture; fixed in the 2026-10-04 entry above.
 
 ### Add one-click bug reports (2026-10-03)
 

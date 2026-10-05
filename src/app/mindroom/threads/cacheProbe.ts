@@ -350,16 +350,14 @@ export type CacheProbeCounters = {
   threadPaginateBackNoThread: number;
   threadPaginateBackNoToken: number;
   threadPaginateBackNetworkErrors: number;
-  // Cache-hit commit skipped: no restore anchor could be captured.
-  threadPaginateBackCommitSkippedNoAnchor: number;
   // Thread switched mid-flight; pagination abandoned.
   threadPaginateBackStaleThreadBails: number;
-  // Ledger fold: the capture's anchor event vanished from the render list
-  // (redaction/dedup) and the diff re-anchored on the nearest surviving
-  // baseline row instead of silently skipping the compensation.
+  // Ledger fold: the reader's anchor row vanished from the render list
+  // (redaction/dedup) and the fold re-anchored on the nearest surviving
+  // row above it instead of silently skipping the compensation.
   threadPrependFoldAnchorFallback: number;
-  // Ledger fold: anchor AND every baseline row vanished — no boundary to
-  // diff against; the capture was dropped uncompensated.
+  // Ledger fold: the anchor AND every row above it vanished — no boundary
+  // to diff against; the change landed uncompensated.
   threadPrependFoldAnchorLost: number;
   // Offset-ledger settlement causes. Both counters increment only when
   // the component performs the non-zero cancelling scrollTop write:
@@ -434,7 +432,6 @@ const createEmptyCounters = (): CacheProbeCounters => ({
   threadPaginateBackNoThread: 0,
   threadPaginateBackNoToken: 0,
   threadPaginateBackNetworkErrors: 0,
-  threadPaginateBackCommitSkippedNoAnchor: 0,
   threadPaginateBackStaleThreadBails: 0,
   threadPrependFoldAnchorFallback: 0,
   threadPrependFoldAnchorLost: 0,

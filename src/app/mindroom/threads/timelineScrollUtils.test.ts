@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import {
-  captureThreadPrependScrollAnchor,
   getEventElementById,
   isScrollNearBottom,
   isTimelineAtLiveEnd,
@@ -184,78 +183,4 @@ describe('thread prepend scroll anchors', () => {
     expect(getEventElementById(container, '$target')).toBe(target);
     expect(getEventElementById(container, '$missing')).toBeNull();
   });
-
-  it('captures the first visible thread message as the prepend scroll anchor', () => {
-    const aboveViewport = {
-      getAttribute: () => '$above',
-      getBoundingClientRect: () => ({
-        top: 40,
-        bottom: 90,
-      }),
-    };
-    const anchor = {
-      getAttribute: () => '$anchor',
-      getBoundingClientRect: () => ({
-        top: 140,
-        bottom: 180,
-      }),
-    };
-    const scroll = {
-      getBoundingClientRect: () => ({
-        top: 100,
-        bottom: 500,
-      }),
-      querySelector: () => aboveViewport,
-      querySelectorAll: () => [aboveViewport, anchor],
-    } as unknown as HTMLElement;
-
-    expect(captureThreadPrependScrollAnchor(scroll)).toEqual({
-      eventId: '$anchor',
-      top: 140,
-    });
-  });
-
-  it('captures visibility against the timeline scroll root, not an overflowing content wrapper', () => {
-    const overflowWrapper = {
-      getBoundingClientRect: () => ({
-        top: -1000,
-        bottom: 2000,
-      }),
-      scrollHeight: 3000,
-      clientHeight: 400,
-      parentElement: null as HTMLElement | null,
-    };
-    const aboveViewport = {
-      getAttribute: () => '$above',
-      getBoundingClientRect: () => ({
-        top: -100,
-        bottom: 50,
-      }),
-      parentElement: overflowWrapper,
-    };
-    const anchor = {
-      getAttribute: () => '$anchor',
-      getBoundingClientRect: () => ({
-        top: 140,
-        bottom: 180,
-      }),
-      parentElement: overflowWrapper,
-    };
-    const scroll = {
-      getBoundingClientRect: () => ({
-        top: 100,
-        bottom: 500,
-      }),
-      querySelector: () => aboveViewport,
-      querySelectorAll: () => [aboveViewport, anchor],
-    } as unknown as HTMLElement;
-    overflowWrapper.parentElement = scroll;
-
-    expect(captureThreadPrependScrollAnchor(scroll)).toEqual({
-      eventId: '$anchor',
-      top: 140,
-    });
-  });
-
-
 });

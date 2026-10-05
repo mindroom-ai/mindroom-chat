@@ -1,75 +1,27 @@
 import { useMemo, type RefObject } from 'react';
 import type { ThreadBackPaginationController } from './threadBackPaginationController';
-import type {
-  ThreadPaginationRequest,
-  ThreadPrependViewportPort,
-} from './session/threadSessionTypes';
+import type { ThreadPrependViewportPort } from './session/threadSessionTypes';
 import { waitForScrollQuiescence } from './scrollQuiescence';
 
-type ThreadPrependCapture = {
-  threadId: string;
-  anchorEventId: string;
-  anchorIndex: number;
-  anchorSeq: number;
-};
-
-/** Bind DOM capture to the ledger only after its committed event index is available. */
+/**
+ * Backward requests hand the reader over from the opening pin and commit at
+ * scroll rest. The scroll ledger keeps the reader's rows in place for every
+ * page that lands above them, so requests no longer capture an anchor.
+ */
 export const useThreadPrependViewport = ({
   controller,
   scrollRef,
-  eventIndex,
-  capture,
-  clearCapture,
 }: {
   controller: ThreadBackPaginationController;
   scrollRef: RefObject<HTMLDivElement>;
-  eventIndex: RefObject<Map<string, number>>;
-  capture: (anchor: ThreadPrependCapture) => void;
-  clearCapture: () => void;
 }): ThreadPrependViewportPort =>
-  useMemo(() => {
-    const captureLedger = (request: ThreadPaginationRequest) => {
-      const anchorEventId = controller.getPendingAnchorEventId();
-      const anchorSeq = controller.getPendingAnchorSeq();
-      const anchorIndex =
-        anchorEventId === undefined ? undefined : eventIndex.current?.get(anchorEventId);
-      if (
-        anchorEventId !== undefined &&
-        anchorSeq !== undefined &&
-        typeof anchorIndex === 'number'
-      ) {
-        capture({ threadId: request.lease.threadId, anchorEventId, anchorIndex, anchorSeq });
-      }
-    };
-    const clear = (request: ThreadPaginationRequest) => {
-      if (!controller.owns(request)) return;
-      controller.clear(request);
-      clearCapture();
-    };
-    return {
-      begin: (request, eventCount) => {
-        if (!controller.begin(request, scrollRef.current, eventCount)) return false;
-        clearCapture();
-        captureLedger(request);
-        return true;
-      },
+  useMemo(
+    () => ({
+      begin: (request) => controller.begin(request),
       waitForQuiescence: async (request) => {
         if (controller.owns(request)) await waitForScrollQuiescence(scrollRef.current);
       },
-      recapture: (request, eventCount) => {
-        if (!controller.owns(request)) return false;
-        if (!controller.recaptureAnchor(request, scrollRef.current, eventCount)) {
-          clear(request);
-          return false;
-        }
-        captureLedger(request);
-        return true;
-      },
-      clear,
-      finish: (request, committed) => {
-        if (!controller.owns(request)) return;
-        if (!committed) clear(request);
-        controller.finish(request, committed);
-      },
-    };
-  }, [controller, scrollRef, eventIndex, capture, clearCapture]);
+      finish: (request) => controller.finish(request),
+    }),
+    [controller, scrollRef]
+  );
