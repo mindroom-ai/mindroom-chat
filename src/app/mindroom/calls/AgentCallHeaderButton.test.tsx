@@ -1,15 +1,17 @@
 import React from 'react';
+import { EventEmitter } from 'events';
 import { act, create, ReactTestInstance, ReactTestRenderer } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { MatrixClient, MatrixEvent, User } from 'matrix-js-sdk';
+import { ReEmitter } from 'matrix-js-sdk/lib/ReEmitter';
 import { Tooltip } from 'folds';
 import { AgentCallHeaderButton } from './AgentCallHeaderButton';
 
-const VOICE_CALLS_STATUS = '🤖 Model: openai/gpt-5.5 | 📞 Voice calls';
+const MODEL_STATUS = '🤖 Model: openai/gpt-5.5';
+const VOICE_CALLS_STATUS = `${MODEL_STATUS} | 📞 Voice calls`;
 const ROOM_ID = '!room:mindroom.test';
 const HELPER = { userId: '@mindroom_helper:mindroom.test', displayName: 'Helper' };
 const ANALYST = { userId: '@mindroom_analyst:mindroom.test', displayName: 'Analyst' };
-
-type PresenceListener = (event: unknown, user: { userId: string }) => void;
 
 const state = vi.hoisted(() => ({
   startAgentCall: vi.fn(),
@@ -19,18 +21,28 @@ const state = vi.hoisted(() => ({
     unavailableReason: undefined as string | undefined,
   },
   members: [] as Array<{ userId: string; name: string; membership: string }>,
-  statuses: {} as Record<string, string | undefined>,
   callRoom: false,
-  presenceListeners: new Set<PresenceListener>(),
 }));
 
-const mx = vi.hoisted(() => ({
+// A client that re-emits its users' events, as the SDK's User.createUser wires them up.
+const users = new Map<string, User>();
+const mx = Object.assign(new EventEmitter(), {
   getUserId: () => '@alice:mindroom.test',
-  getUser: (userId: string) => ({ userId, presenceStatusMsg: state.statuses[userId] }),
-  on: (_event: string, listener: PresenceListener) => state.presenceListeners.add(listener),
-  removeListener: (_event: string, listener: PresenceListener) =>
-    state.presenceListeners.delete(listener),
-}));
+  getUser: (userId: string) => users.get(userId) ?? null,
+});
+Object.assign(mx, { reEmitter: new ReEmitter(mx) });
+
+const setStatus = (userId: string, status: string) => {
+  const user = users.get(userId) ?? User.createUser(userId, mx as unknown as MatrixClient);
+  users.set(userId, user);
+  user.setPresenceEvent(
+    new MatrixEvent({
+      type: 'm.presence',
+      sender: userId,
+      content: { presence: 'online', status_msg: status },
+    })
+  );
+};
 
 vi.mock('./useStartAgentCall', () => ({
   useStartAgentCall: () => ({ startAgentCall: state.startAgentCall, ...state.call }),
@@ -68,7 +80,7 @@ vi.mock('folds', async (importOriginal) => ({
 
 const addVoiceAgent = (agent: { userId: string; displayName: string }) => {
   state.members.push({ userId: agent.userId, name: agent.displayName, membership: 'join' });
-  state.statuses[agent.userId] = VOICE_CALLS_STATUS;
+  setStatus(agent.userId, VOICE_CALLS_STATUS);
 };
 
 const render = (threadId?: string) => {
@@ -96,15 +108,15 @@ describe('AgentCallHeaderButton', () => {
     vi.clearAllMocks();
     state.call = { loading: false, error: undefined, unavailableReason: undefined };
     state.members = [{ userId: '@bob:mindroom.test', name: 'Bob', membership: 'join' }];
-    state.statuses = {};
+    users.clear();
+    mx.removeAllListeners();
     state.callRoom = false;
-    state.presenceListeners.clear();
     state.startAgentCall.mockResolvedValue(true);
   });
 
   it('renders nothing without a voice-capable agent in the room', () => {
     state.members.push({ userId: HELPER.userId, name: 'Helper', membership: 'join' });
-    state.statuses[HELPER.userId] = '🤖 Model: openai/gpt-5.5';
+    setStatus(HELPER.userId, MODEL_STATUS);
 
     expect(render('$root').toJSON()).toBeNull();
   });
@@ -116,15 +128,17 @@ describe('AgentCallHeaderButton', () => {
     expect(render().toJSON()).toBeNull();
   });
 
-  it('appears once an agent starts advertising voice calls', () => {
+  it('follows an agent turning voice calls on and off while it stays online', () => {
     state.members.push({ userId: HELPER.userId, name: 'Helper', membership: 'join' });
+    setStatus(HELPER.userId, MODEL_STATUS);
     const renderer = render();
     expect(renderer.toJSON()).toBeNull();
 
-    state.statuses[HELPER.userId] = VOICE_CALLS_STATUS;
-    act(() => state.presenceListeners.forEach((listener) => listener(undefined, HELPER)));
-
+    act(() => setStatus(HELPER.userId, VOICE_CALLS_STATUS));
     expect(headerButton(renderer).props['aria-label']).toBe('Call Helper');
+
+    act(() => setStatus(HELPER.userId, MODEL_STATUS));
+    expect(renderer.toJSON()).toBeNull();
   });
 
   it.each([

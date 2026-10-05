@@ -18,6 +18,7 @@ import {
   TooltipProvider,
 } from 'folds';
 import { Menu, MenuItem } from '../../components/glass/GlassPrimitives';
+import { useForceUpdate } from '../../hooks/useForceUpdate';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useRoom } from '../../hooks/useRoom';
 import { useRoomMembers } from '../../hooks/useRoomMembers';
@@ -39,20 +40,19 @@ export function AgentCallHeaderButton({ threadId }: { threadId?: string }) {
   const [menuAnchor, setMenuAnchor] = useState<RectCords>();
   const [noticeAnchor, setNoticeAnchor] = useState<RectCords>();
   const reasonId = useId();
-  const [, setPresenceChanges] = useState(0);
+  const [, forceUpdate] = useForceUpdate();
   const viewerUserId = mx.getUserId() ?? undefined;
 
   useEffect(() => {
-    const handlePresence: UserEventHandlerMap[UserEvent.Presence] = (_event, user) => {
-      if (isMindroomAgentUserIdForViewer(user.userId, viewerUserId)) {
-        setPresenceChanges((count) => count + 1);
-      }
+    // Fires for every m.presence; `Presence` fires only when online/offline changes, not the status.
+    const handlePresence: UserEventHandlerMap[UserEvent.LastPresenceTs] = (_event, user) => {
+      if (isMindroomAgentUserIdForViewer(user.userId, viewerUserId)) forceUpdate();
     };
-    mx.on(UserEvent.Presence, handlePresence);
+    mx.on(UserEvent.LastPresenceTs, handlePresence);
     return () => {
-      mx.removeListener(UserEvent.Presence, handlePresence);
+      mx.removeListener(UserEvent.LastPresenceTs, handlePresence);
     };
-  }, [mx, viewerUserId]);
+  }, [mx, viewerUserId, forceUpdate]);
 
   const candidates = getAgentCallCandidates(
     members,
