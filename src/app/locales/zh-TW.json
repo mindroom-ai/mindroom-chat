@@ -141,7 +141,6 @@
         "apiUrl": "電腦服務 URL",
         "description": "請選擇可信任的 MindRoom 後端；它會收到短期有效的登入權杖。儲存在此裝置上。留空可關閉電腦。",
         "save": "儲存電腦服務",
-        "lab": "使用 MindRoom Lab",
         "reset": "使用應用程式預設值",
         "invalidUrl": "請輸入不含憑證、路徑、查詢或片段的來源。請使用 HTTPS，或對 localhost 或私人區域網路 IP 位址使用 HTTP。",
         "httpNotice": "HTTP 不會加密您的登入資訊或電腦流量。請僅在可信任的區域網路上使用。",

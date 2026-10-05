@@ -141,7 +141,6 @@
         "apiUrl": "URL du service d’ordinateurs",
         "description": "Choisissez un backend MindRoom de confiance ; il recevra un jeton de connexion de courte durée. Enregistré sur cet appareil. Laissez vide pour désactiver les ordinateurs.",
         "save": "Enregistrer le service",
-        "lab": "Utiliser MindRoom Lab",
         "reset": "Utiliser la valeur de l’app",
         "invalidUrl": "Saisissez une origine sans identifiants, chemin, requête ni fragment. Utilisez HTTPS, ou HTTP avec localhost ou une adresse IP privée du réseau local.",
         "httpNotice": "HTTP ne chiffre ni votre connexion ni le trafic de l’ordinateur. Utilisez-le uniquement sur un réseau local de confiance.",

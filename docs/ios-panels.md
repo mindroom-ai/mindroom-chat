@@ -8,7 +8,9 @@ It does not fetch the web deployment's configuration.
 `config.mindroom.ios.json` overlays the ordinary `config.mindroom.json` for this hosted iOS build.
 It enables canvases and jsDelivr npm libraries; computers remain disabled until a service is configured.
 Only agents managed by the configured computer service can open computers there.
-In **Settings → General → Computers**, choose **Use MindRoom Lab**, then **Save computer service**, or enter the origin of another trusted compatible backend.
+In **Settings → General → Computers**, enter the origin of your trusted compatible backend, then choose **Save computer service**.
+On a fresh installation of the shipped app, the URL field starts empty, with no suggested server or built-in deployment preset.
+URLs users have explicitly saved remain active after an upgrade.
 HTTP is also accepted for localhost, literal private IPv4 addresses (`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`), and IPv6 unique-local addresses (`fc00::/7`).
 The form shows an unencrypted-traffic notice before saving an HTTP service; use it only on a trusted local network.
 Public addresses and DNS names, including `.local` names, still require HTTPS.
@@ -18,9 +20,9 @@ The setting is stored only on this device and persists across launches; it does 
 The chosen backend receives a short-lived Matrix OpenID sign-in token, never the Matrix access token.
 Save a blank URL to disable computers, or choose **Use app default** to restore deployment configuration.
 Changing the service closes the existing computer session and clears its control state.
-Lab usage requires deployment of [the native-origin backend change](https://github.com/mindroom-ai/mindroom/pull/2680) and an updated allowlist.
-Operators can optionally set `MINDROOM_IOS_COMPUTER_API_URL=https://mindroom.lab.mindroom.chat` in the build environment after rollout to make it the app default.
-The hosted Matrix/provisioning origin has no computers endpoint; the lab service currently rejects native origins.
+Native usage requires a backend version that includes [the native-origin support](https://github.com/mindroom-ai/mindroom/pull/2680) and an updated allowlist.
+Operators of a custom app build can optionally set `MINDROOM_IOS_COMPUTER_API_URL=https://computer.example.org` in the build environment to select their own service as its default.
+The hosted Matrix/provisioning origin has no computers endpoint; the shipped iOS configuration leaves the computer service empty.
 For Xcode Cloud, set the variable in the workflow environment before building.
 Operators can select another compatible service with this variable, or disable computers by setting it to an empty string.
 Change the overlay's canvas switches to disable canvases or library loading.
@@ -58,7 +60,6 @@ A Matrix edit offered **Load update**, loaded version two, and the version contr
 The computer displayed the real worker browser, accepted **Take control**, received `native-ios-control` through the simulator keyboard, and returned to Watch mode with **Resume agent**.
 The agent's browser snapshot and input readback both contained that value.
 
-![Computer settings with the Lab preset filled before Save](screenshots/ios-app-computer-settings.png)
 ![Chart.js in the full iOS app](screenshots/ios-app-canvas-chart-js.png)
 ![Returning to canvas version one](screenshots/ios-app-canvas-version-one.png)
 ![Canvas errors sent to the agent](screenshots/ios-app-canvas-error-sent.png)

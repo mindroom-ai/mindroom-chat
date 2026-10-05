@@ -141,7 +141,6 @@
         "apiUrl": "URL do serviço de computadores",
         "description": "Escolha um backend MindRoom confiável; ele receberá um token de login de curta duração. Salvo neste dispositivo. Deixe em branco para desativar os computadores.",
         "save": "Salvar serviço de computadores",
-        "lab": "Usar MindRoom Lab",
         "reset": "Usar padrão do aplicativo",
         "invalidUrl": "Introduza uma origem sem credenciais, caminho, consulta ou fragmento. Use HTTPS, ou HTTP com localhost ou um endereço IP privado da rede local.",
         "httpNotice": "HTTP não encripta o início de sessão nem o tráfego do computador. Use-o apenas numa rede local de confiança.",
