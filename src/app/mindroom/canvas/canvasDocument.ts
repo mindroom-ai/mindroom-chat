@@ -8,6 +8,15 @@ export const CANVAS_STATE_MESSAGE = 'mindroom.canvas.state';
 /** The JSON a page may save as its state, in characters. */
 export const CANVAS_STATE_MAX_LENGTH = 256 * 1024;
 
+/**
+ * What a canvas keeps on this device, as JSON text: the state its pages save with
+ * `mindroom.saveState`, and the values of its form controls, which Chat keeps itself.
+ */
+export type CanvasSaved = { json?: string; inputs?: string };
+
+/** A control value longer than this, in characters of JSON, is not kept; pages can save it with `saveState`. */
+export const CANVAS_INPUT_MAX_LENGTH = CANVAS_STATE_MAX_LENGTH / 8;
+
 /** The canvas frame gets an opaque origin: no Chat storage, cookies, DOM, popups, or top navigation. */
 export const CANVAS_SANDBOX = 'allow-scripts allow-forms';
 
@@ -75,6 +84,140 @@ const scriptLiteral = (value: string): string => JSON.stringify(value).replace(/
 const stateLiteral = (state: string | undefined): string =>
   state === undefined ? 'undefined' : `JSON.parse(${scriptLiteral(state)})`;
 
+// Controls with an id or name keep their values, shared by every version of the canvas and matched
+// by that key; a radio group keeps its checked value under its name. Once a page's scripts and
+// DOMContentLoaded handlers have run, the bridge sets the kept values, fires input and change so the
+// page redraws, and from then on keeps each value that changes, merged into those kept before.
+// Only changed values are kept, so a control the user never touched cannot replace a value kept
+// in another version, and nothing is kept before the restore, so a page's own startup events cannot.
+// A control that appears later gets its kept value when the bridge first sees it.
+const inputsScript = (inputs: string | undefined): string => `
+  const inputs = Object.assign(Object.create(null), ${stateLiteral(inputs)});
+  const unsaved = ['password', 'file', 'hidden', 'submit', 'button', 'reset', 'image'];
+  // A field that was a password once is never kept, even after the page reveals it.
+  const secret = new WeakSet();
+  const revealed = (records) => records.forEach((record) => {
+    if ((record.oldValue || '').toLowerCase() === 'password') secret.add(record.target);
+  });
+  const types = new MutationObserver(revealed);
+  types.observe(document, { subtree: true, attributeFilter: ['type'], attributeOldValue: true });
+  const declines = (control) => unsaved.includes(control.type) || secret.has(control)
+    || (control.getAttribute('autocomplete') || (control.form && control.form.getAttribute('autocomplete')) || '')
+      .toLowerCase().split(/\\s+/).some((token) => token === 'off' || token.endsWith('password'));
+  const controls = () => {
+    // Records still queued, so a field revealed in this same task counts too.
+    revealed(types.takeRecords());
+    const groups = new Set();
+    return [...document.querySelectorAll('input, select, textarea')].flatMap((control) => {
+      if (declines(control)) return [];
+      if (control.type === 'radio') {
+        if (!control.name || groups.has(control.name)) return [];
+        groups.add(control.name);
+        return group(control).some(declines) ? [] : [{ key: control.name, control }];
+      }
+      const key = control.id ? '#' + control.id : control.name && (control.type === 'checkbox' ? control.name + '=' + control.value : control.name);
+      return key ? [{ key, control }] : [];
+    });
+  };
+  const group = (radio) => [...document.getElementsByName(radio.name)].filter((item) => item.type === 'radio');
+  const valueOf = ({ control }) => control.type === 'radio' ? (group(control).find((item) => item.checked) || {}).value
+    : control.type === 'checkbox' ? control.checked
+    : control.type === 'select-multiple' ? [...control.selectedOptions].map((option) => option.value)
+    : control.value;
+  // The native setter, so a framework that tracks the value (React) sees the change.
+  const assign = (control, property, value) =>
+    Object.getOwnPropertyDescriptor(Object.getPrototypeOf(control), property).set.call(control, value);
+  let seen;
+  let restoring = false;
+  const restore = (keys) => {
+    restoring = true;
+    let live = new Map(controls().map((entry) => [entry.key, entry]));
+    keys.forEach((key) => {
+      const value = inputs[key];
+      if (value === undefined) return;
+      let entry = live.get(key);
+      // A page may replace its controls when one changes (a list rebuilt from its own state).
+      if (entry && !entry.control.isConnected) {
+        live = new Map(controls().map((item) => [item.key, item]));
+        entry = live.get(key);
+      }
+      if (!entry || JSON.stringify(value) === JSON.stringify(valueOf(entry))) return;
+      const { control } = entry;
+      // One control at a time, set and then told, since a page may redraw the others when one changes.
+      if (control.type === 'radio' || control.type === 'checkbox') {
+        const target = control.type === 'radio' ? group(control).find((item) => item.value === value) : control;
+        // A click is what frameworks (React) listen to for these, and a dispatched one also reaches a disabled control.
+        if (target && (control.type === 'radio' || typeof value === 'boolean')) {
+          target.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+        }
+        return;
+      }
+      if (control.type === 'select-multiple') {
+        [...control.options].forEach((option) => { option.selected = [].concat(value).includes(option.value); });
+      } else if (control.type === 'select-one' && ![...control.options].some((option) => option.value === value)) {
+        return;
+      } else assign(control, 'value', String(value));
+      control.dispatchEvent(new Event('input', { bubbles: true }));
+      control.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    const restored = new Set(keys);
+    controls().forEach((entry) => { if (restored.has(entry.key)) seen[entry.key] = JSON.stringify(valueOf(entry)); });
+    restoring = false;
+    // Controls the restore itself made the page draw (a field a kept checkbox reveals) get their values next.
+    later(new Event('restored'));
+  };
+  const saveInputs = (events) => {
+    if (!seen) return;
+    // A control the page drew later, such as the next step of a form, gets its kept value first,
+    // unless the user just changed it (events a page fires itself are not trusted).
+    const targets = events.filter((event) => event.isTrusted).map((event) => event.target);
+    const changedNow = ({ key, control }) =>
+      targets.some((target) => target === control || (control.type === 'radio' && target.type === 'radio' && target.name === key));
+    const late = controls().filter((entry) => !(entry.key in seen) && !changedNow(entry));
+    if (late.length) restore(late.map((entry) => entry.key));
+    let changed = false;
+    controls().forEach((entry) => {
+      // A control the restore just made the page draw is restored by the next batch, not kept as it is.
+      if (!(entry.key in seen) && !changedNow(entry)) return;
+      const text = JSON.stringify(valueOf(entry));
+      if (seen[entry.key] === text) return;
+      seen[entry.key] = text;
+      changed = true;
+      // A long text is left to saveState, so it cannot crowd out every other value.
+      if (text === undefined || text.length > ${CANVAS_INPUT_MAX_LENGTH}) delete inputs[entry.key];
+      else inputs[entry.key] = JSON.parse(text);
+    });
+    if (!changed) return;
+    let json = JSON.stringify(inputs);
+    // Past what Chat keeps, the longest values go first, so the others are still kept.
+    while (json.length > ${CANVAS_STATE_MAX_LENGTH}) {
+      const longest = Object.keys(inputs).reduce((a, b) => (JSON.stringify(inputs[a]).length >= JSON.stringify(inputs[b]).length ? a : b));
+      delete inputs[longest];
+      json = JSON.stringify(inputs);
+    }
+    parent.parent.postMessage({ type: '${CANVAS_STATE_MESSAGE}', version: 1, inputs: json }, '*');
+  };
+  // Changes are kept a task later, once the page has handled them, so a restore cannot undo them;
+  // buttons such as Reset change values without input events, so clicks count too.
+  let queued;
+  const later = (event) => {
+    if (restoring) return;
+    if (!queued) {
+      queued = [];
+      setTimeout(() => {
+        const events = queued;
+        queued = undefined;
+        saveInputs(events);
+      });
+    }
+    queued.push(event);
+  };
+  ['input', 'change', 'click'].forEach((type) => document.addEventListener(type, later, true));
+  document.addEventListener('DOMContentLoaded', () => setTimeout(() => {
+    seen = Object.create(null);
+    restore(controls().map((entry) => entry.key));
+  }));`;
+
 // Runs before any agent script. Forms are captured here because the sandbox
 // cannot submit them anywhere; everything else calls window.mindroom.submit,
 // which only offers a snapshot to the host. The host decides whether to send it.
@@ -83,7 +226,7 @@ const stateLiteral = (state: string | undefined): string =>
 const bridgeScript = (
   colorScheme: CanvasColorScheme,
   lineOffset: number,
-  state: string | undefined
+  saved: CanvasSaved
 ): string => `(() => {
   ['RTCPeerConnection', 'webkitRTCPeerConnection', 'RTCDataChannel', 'RTCIceCandidate'].forEach((name) => {
     try { delete window[name]; } catch (error) {}
@@ -150,10 +293,10 @@ const bridgeScript = (
     value: Object.freeze({
       submit: (data, options) => post(data, options),
       colorScheme: ${JSON.stringify(colorScheme)},
-      state: ${stateLiteral(state)},
+      state: ${stateLiteral(saved.json)},
       saveState,
     }),
-  });
+  });${inputsScript(saved.inputs)}
   document.addEventListener(
     'submit',
     (event) => {
@@ -178,7 +321,7 @@ export const buildCanvasPage = (
   colorScheme: CanvasColorScheme,
   theme: CanvasTheme = FALLBACK_CANVAS_THEMES[colorScheme],
   libraries = false,
-  state?: string
+  saved: CanvasSaved = {}
 ): string => {
   const head = (lineOffset: number) =>
     [
@@ -187,7 +330,7 @@ export const buildCanvasPage = (
       `<meta name="color-scheme" content="${colorScheme}">`,
       '<meta name="viewport" content="width=device-width, initial-scale=1">',
       `<style>${canvasThemeCss(theme)}${BASE_STYLE}</style>`,
-      `<script>${bridgeScript(colorScheme, lineOffset, state)}</script>`,
+      `<script>${bridgeScript(colorScheme, lineOffset, saved)}</script>`,
       '</head><body>',
     ].join('');
   // The agent's markup starts on the line after this many line breaks; the number adds none.
@@ -206,7 +349,7 @@ export const buildCanvasDocument = (
   theme: CanvasTheme = FALLBACK_CANVAS_THEMES[colorScheme],
   title = '',
   libraries = false,
-  state?: string
+  saved: CanvasSaved = {}
 ): string =>
   [
     '<!doctype html><html><head><meta charset="utf-8">',
@@ -225,11 +368,14 @@ export const buildCanvasDocument = (
     '  loads += 1;',
     `  if (loads > 1) parent.postMessage({ type: '${CANVAS_ESCAPE_MESSAGE}' }, '*');`,
     '});',
-    `frame.srcdoc = ${scriptLiteral(buildCanvasPage(html, colorScheme, theme, libraries, state))};`,
+    `frame.srcdoc = ${scriptLiteral(buildCanvasPage(html, colorScheme, theme, libraries, saved))};`,
     'document.body.append(frame);',
     '})();</script></body></html>',
   ].join('');
 
 /** The canvas frame inside the panel's wrapper frame, whose messages the panel accepts. */
-export const canvasFrameWindow = (panelFrame: HTMLIFrameElement | null): Window | undefined =>
-  panelFrame?.contentWindow?.frames[0] ?? undefined;
+export const canvasFrameWindow = (panelFrame: HTMLIFrameElement | null): Window | undefined => {
+  const wrapper = panelFrame?.contentWindow;
+  // The wrapper is cross-origin, where reading a frame it does not hold yet throws.
+  return wrapper && wrapper.frames.length > 0 ? wrapper.frames[0] : undefined;
+};

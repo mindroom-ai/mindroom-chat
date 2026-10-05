@@ -1,9 +1,10 @@
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
+import type { CanvasSaved } from './canvasDocument';
 
 /** Canvases whose saved state is kept per session; the ones saved longest ago are forgotten first. */
 export const MAX_STORED_CANVAS_STATES = 100;
 
-type StoredCanvasState = { canvasId: string; json: string; savedAt: number };
+type StoredCanvasState = CanvasSaved & { canvasId: string; savedAt: number };
 
 interface CanvasStateDb extends DBSchema {
   states: { key: string; value: StoredCanvasState; indexes: { savedAt: number } };
@@ -20,14 +21,15 @@ const openStateDb = (sessionId: string): Promise<IDBPDatabase<CanvasStateDb>> =>
     },
   });
 
-/** The JSON a canvas page last saved in this session, if any. */
+/** What a canvas last saved in this session, if anything. */
 export const loadCanvasState = async (
   sessionId: string,
   canvasId: string
-): Promise<string | undefined> => {
+): Promise<CanvasSaved | undefined> => {
   const db = await openStateDb(sessionId);
   try {
-    return (await db.get('states', canvasId))?.json;
+    const stored = await db.get('states', canvasId);
+    return stored && { json: stored.json, inputs: stored.inputs };
   } finally {
     db.close();
   }
@@ -36,7 +38,7 @@ export const loadCanvasState = async (
 export const saveCanvasState = async (
   sessionId: string,
   canvasId: string,
-  json: string
+  saved: CanvasSaved
 ): Promise<void> => {
   const db = await openStateDb(sessionId);
   try {
@@ -46,7 +48,7 @@ export const saveCanvasState = async (
     const byAge = tx.store.index('savedAt');
     // Each save sorts after all others even if the clock went back, so the oldest is forgotten first.
     const newest = (await byAge.openCursor(null, 'prev'))?.value.savedAt ?? 0;
-    await tx.store.put({ canvasId, json, savedAt: Math.max(Date.now(), newest + 1) });
+    await tx.store.put({ ...saved, canvasId, savedAt: Math.max(Date.now(), newest + 1) });
     let extra = (await tx.store.count()) - MAX_STORED_CANVAS_STATES;
     let cursor = extra > 0 ? await byAge.openCursor() : null;
     while (cursor && extra > 0) {
