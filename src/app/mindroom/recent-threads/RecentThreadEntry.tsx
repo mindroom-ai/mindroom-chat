@@ -59,7 +59,12 @@ export const RecentThreadEntry = memo(
     ]);
 
     return (
-      <NavItem className={css.RecentlyOpenedEntry} variant="Background" radii="400">
+      <NavItem
+        className={css.RecentlyOpenedEntry}
+        data-scroll-anchor={`${room.roomId}|${threadId}`}
+        variant="Background"
+        radii="400"
+      >
         <NavButton
           type="button"
           onClick={() => {
