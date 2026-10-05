@@ -190,7 +190,10 @@ describe('RoomTimeline ledger lifecycle', () => {
       scrollTop: 0,
       scrollTo: vi.fn(),
     };
-    const innerElement = { style: {} as Record<string, string> };
+    const innerElement = {
+      style: {} as Record<string, string>,
+      getBoundingClientRect: () => ({ top: 0 }),
+    };
     const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
     const roomElement = () =>
       React.createElement(ControlledRoomTimeline, {
@@ -272,24 +275,22 @@ describe('RoomTimeline ledger lifecycle', () => {
       eventId === threadA ? (a.model as never) : eventId === threadB ? (b.model as never) : null;
     setThreadEvents(a.initialEvents);
 
-    let anchorId = '$ga-100';
-    let anchorMounted = true;
-    const anchorElement = {
-      getAttribute: vi.fn((name: string) => (name === 'data-message-id' ? anchorId : null)),
-      getBoundingClientRect: vi.fn(() => ({ top: 10, bottom: 50 })),
-    };
+    roomTimelineVirtualizerState.firstVisibleKey = '$ga-100';
     const scrollElement = {
       addEventListener: vi.fn(),
       removeEventListener: vi.fn(),
       getBoundingClientRect: vi.fn(() => ({ top: 0, bottom: 600 })),
       querySelector: vi.fn(() => undefined),
-      querySelectorAll: vi.fn(() => (anchorMounted ? [anchorElement] : [])),
+      querySelectorAll: vi.fn(() => []),
       scrollHeight: 4000,
       clientHeight: 600,
       scrollTop: 0,
       scrollTo: vi.fn(),
     };
-    const innerElement = { style: {} as Record<string, string> };
+    const innerElement = {
+      style: {} as Record<string, string>,
+      getBoundingClientRect: () => ({ top: 0 }),
+    };
     matrixClientMock.paginateEventTimeline.mockImplementation(async () => false);
     const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
     let renderer: ReturnType<typeof create> | undefined;
@@ -319,7 +320,6 @@ describe('RoomTimeline ledger lifecycle', () => {
         await flushAsyncWork(10);
       });
       await act(async () => {
-        anchorMounted = false;
         setThreadEvents(a.prependedEvents);
         renderer!.update(React.createElement(ControlledRoomTimeline, { room, threadId: threadA }));
         await flushAsyncWork(10);
@@ -332,8 +332,7 @@ describe('RoomTimeline ledger lifecycle', () => {
       // render-time reset must zero the ledger for B.
       roomTimelineVirtualizerState.optionsHistory.length = 0;
       await act(async () => {
-        anchorId = '$gb-100';
-        anchorMounted = true;
+        roomTimelineVirtualizerState.firstVisibleKey = '$gb-100';
         setThreadEvents(b.initialEvents);
         renderer!.update(React.createElement(ControlledRoomTimeline, { room, threadId: threadB }));
         await flushAsyncWork(10);
@@ -357,7 +356,6 @@ describe('RoomTimeline ledger lifecycle', () => {
         await flushAsyncWork(10);
       });
       await act(async () => {
-        anchorMounted = false;
         setThreadEvents(b.prependedEvents);
         renderer!.update(React.createElement(ControlledRoomTimeline, { room, threadId: threadB }));
         await flushAsyncWork(10);
@@ -410,7 +408,10 @@ describe('RoomTimeline ledger lifecycle', () => {
       scrollTop: 0,
       scrollTo: vi.fn(),
     };
-    const innerElement = { style: {} as Record<string, string> };
+    const innerElement = {
+      style: {} as Record<string, string>,
+      getBoundingClientRect: () => ({ top: 0 }),
+    };
     const tileElement = {};
     const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
     let renderer: ReturnType<typeof create> | undefined;
@@ -501,7 +502,10 @@ describe('RoomTimeline ledger lifecycle', () => {
       scrollTop: 0,
       scrollTo: vi.fn(),
     };
-    const innerElement = { style: {} as Record<string, string> };
+    const innerElement = {
+      style: {} as Record<string, string>,
+      getBoundingClientRect: () => ({ top: 0 }),
+    };
     const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
     let renderer: ReturnType<typeof create> | undefined;
 
@@ -1104,7 +1108,10 @@ describe('RoomTimeline ledger lifecycle', () => {
       },
       scrollTo: vi.fn(),
     };
-    const innerElement = { style: {} as Record<string, string> };
+    const innerElement = {
+      style: {} as Record<string, string>,
+      getBoundingClientRect: () => ({ top: 0 }),
+    };
     return { scrollElement, innerElement };
   };
 

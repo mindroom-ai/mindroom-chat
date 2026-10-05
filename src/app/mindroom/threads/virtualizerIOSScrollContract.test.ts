@@ -83,14 +83,18 @@ function makeVirtualizer(scrollToFn: ReturnType<typeof vi.fn>) {
   // _willUpdate issues a mount-sync write; the tests only care about
   // measurement-correction writes after this point.
   scrollToFn.mockClear();
-  const scroll: ScrollCallback = (offset, isScrolling) => scrollCallback!(offset, isScrolling);
+  // A real scroll event reports the element's own scrollTop.
+  const scroll: ScrollCallback = (offset, isScrolling) => {
+    holder.element.scrollTop = offset;
+    scrollCallback!(offset, isScrolling);
+  };
   // A new element identity makes the next _willUpdate run cleanup() and
   // re-attach — what a thread switch's scroller remount does in the app.
   const swapToFreshElement = () => {
     holder.element = makeScrollElement();
     virtualizer._willUpdate();
   };
-  return { virtualizer, scroll, swapToFreshElement };
+  return { virtualizer, scroll, swapToFreshElement, holder };
 }
 
 const adjustmentWrites = (scrollToFn: ReturnType<typeof vi.fn>) =>
@@ -103,7 +107,10 @@ const adjustmentWrites = (scrollToFn: ReturnType<typeof vi.fn>) =>
 // a device where the finger comes back down within the debounce window)
 // while each newly mounted above-viewport row measures BIGGER than its
 // estimate — the exact shape of the device report.
-function runUpwardFlickSequence(virtualizer: Virtualizer<Element, Element>, scroll: ScrollCallback) {
+function runUpwardFlickSequence(
+  virtualizer: Virtualizer<Element, Element>,
+  scroll: ScrollCallback
+) {
   let offset = START_OFFSET;
   let index = Math.floor(START_OFFSET / ROW_ESTIMATE) - 1;
   for (let flick = 0; flick < FLICKS; flick += 1) {
@@ -169,7 +176,7 @@ describe('virtualizer iOS scroll contract (production hook)', () => {
       expect(scrollToFn).toHaveBeenCalledTimes(1);
       const [, options] = scrollToFn.mock.calls[0] as [
         number,
-        { adjustments?: number; behavior?: ScrollBehavior },
+        { adjustments?: number; behavior?: ScrollBehavior }
       ];
       expect(options.adjustments).toBe(BANKED_ERROR);
     });
@@ -298,6 +305,82 @@ describe('virtualizer iOS scroll contract (production hook)', () => {
     expect(droppedDeltas).toEqual([]);
   });
 
+  it('judges a resize against the live offset right after a programmatic jump', () => {
+    // A programmatic scroll writes the element; virtual-core's cached offset
+    // only follows on the next scroll event. A row that mounts and resizes in
+    // between sits above the stale offset but below the viewport the reader
+    // now sees, so it must reflow instead of dragging the view back down.
+    const scrollToFn = vi.fn();
+    const { virtualizer, holder } = makeVirtualizer(scrollToFn);
+    const droppedDeltas: number[] = [];
+    virtualizer.shouldAdjustScrollPositionOnItemSizeChange = buildMeasurementScrollCorrectionHook({
+      isIOSWebKitDevice: () => false,
+      onDroppedCorrection: (deltaPx) => droppedDeltas.push(deltaPx),
+    });
+    holder.element.scrollTop = 1500;
+    const belowLiveViewport = 2400 / ROW_ESTIMATE;
+
+    virtualizer.resizeItem(belowLiveViewport, ROW_ESTIMATE - 20);
+
+    expect(adjustmentWrites(scrollToFn)).toHaveLength(0);
+    expect(droppedDeltas).toEqual([]);
+  });
+
+  it('judges and corrects from the live offset, an unseen upward write being a backward scroll', () => {
+    // App writes (a jump, a bulk-expansion restore) move the element; rows
+    // resize before their scroll event arrives.
+    let element: { scrollTop: number } | undefined;
+    const scrollToFn = vi.fn((offset: number, options: { adjustments?: number }) => {
+      if (element) element.scrollTop = offset + (options.adjustments ?? 0);
+    });
+    const { virtualizer, scroll, holder } = makeVirtualizer(scrollToFn);
+    element = holder.element;
+    const droppedDeltas: number[] = [];
+    virtualizer.shouldAdjustScrollPositionOnItemSizeChange = buildMeasurementScrollCorrectionHook({
+      isIOSWebKitDevice: () => false,
+      onDroppedCorrection: (deltaPx) => droppedDeltas.push(deltaPx),
+    });
+
+    // Down 600px: rows above the reader shrink; each correction lands once,
+    // on the live offset.
+    holder.element.scrollTop = START_OFFSET + 600;
+    virtualizer.resizeItem(1000 / ROW_ESTIMATE, ROW_ESTIMATE - 20);
+    virtualizer.resizeItem(1050 / ROW_ESTIMATE, ROW_ESTIMATE - 20);
+    expect(holder.element.scrollTop).toBe(START_OFFSET + 560);
+    scroll(START_OFFSET + 560, false);
+    // Up 600px: a row in view reflows, a row above goes to the ledger, and
+    // virtual-core still reads the write's event as backward.
+    holder.element.scrollTop = START_OFFSET - 40;
+    virtualizer.resizeItem(5000 / ROW_ESTIMATE, ROW_ESTIMATE + 20);
+    virtualizer.resizeItem(1100 / ROW_ESTIMATE, ROW_ESTIMATE - 20);
+    expect(holder.element.scrollTop).toBe(START_OFFSET - 40);
+    expect(droppedDeltas).toEqual([-20]);
+    scroll(START_OFFSET - 40, true);
+    expect(virtualizer.scrollDirection).toBe('backward');
+  });
+
+  it('judges a resize against the row painted at the viewport top, below content above the list', () => {
+    // 200px of banner and Load Older sit above the list, which virtual-core's
+    // offsets do not include: at scrollTop 1500 the reader sees offset 1300.
+    // A row that resizes inside those 200px is in view and must reflow.
+    const scrollToFn = vi.fn();
+    const { virtualizer, scroll } = makeVirtualizer(scrollToFn);
+    const droppedDeltas: number[] = [];
+    virtualizer.shouldAdjustScrollPositionOnItemSizeChange = buildMeasurementScrollCorrectionHook({
+      isIOSWebKitDevice: () => false,
+      onDroppedCorrection: (deltaPx) => droppedDeltas.push(deltaPx),
+      viewportTopOffset: (scrollOffset) => scrollOffset - 200,
+    });
+    scroll(1500, false);
+
+    virtualizer.resizeItem(1350 / ROW_ESTIMATE, ROW_ACTUAL);
+    expect(adjustmentWrites(scrollToFn)).toHaveLength(0);
+    // A row that ends above the painted viewport top still keeps the reader.
+    virtualizer.resizeItem(1200 / ROW_ESTIMATE, ROW_ACTUAL);
+    expect(adjustmentWrites(scrollToFn)).toHaveLength(1);
+    expect(droppedDeltas).toEqual([]);
+  });
+
   // OFFSET-LEDGER COHERENCE (device round 10 replacement design): the
   // round-8 transform compensation shifted PAINT while the window math
   // stayed ignorant — the on-device trace showed ±3000px accumulated
@@ -356,6 +439,7 @@ describe('virtualizer iOS scroll contract (production hook)', () => {
       );
 
       // Live scroll; snapshot the rendered window and painted positions.
+      element.scrollTop = START_OFFSET - 40;
       scrollCallback!(START_OFFSET - 40, true);
       const before = virtualizer.getVirtualItems();
       const beforeKeys = before.map((item) => item.key);

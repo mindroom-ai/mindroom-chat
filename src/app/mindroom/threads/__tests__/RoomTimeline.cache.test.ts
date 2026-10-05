@@ -624,19 +624,8 @@ describe('RoomTimeline', () => {
         );
       };
       setThreadEvents(initialThreadEvents);
-      const anchorElement = {
-        getAttribute: vi.fn((name: string) => (name === 'data-message-id' ? '$te-100' : null)),
-        getBoundingClientRect: vi.fn(() => ({ top: 10, bottom: 50 })),
-      };
-      // Prepending 100 rows above the viewport unmounts the anchor row in
-      // production (virtual indexes shift while scrollTop stays), which is the
-      // case the coarse re-anchor compensation exists for. The flag stays
-      // TRUE through the begin-time capture AND the commit-time recapture
-      // (task #125 follow-up: in production the prepend has not rendered when
-      // either capture runs, so the anchor row is still mounted) and flips
-      // FALSE when the test applies the prepend render — exactly when the
-      // unmount happens in production.
-      let anchorMounted = true;
+      // The reader's first visible row; the ledger anchors on it after each commit.
+      roomTimelineVirtualizerState.firstVisibleKey = '$te-100';
       // Settle-order log (mutant audit 2026-07-07, survivors 6a/6b): the
       // settle's atomic block must write scrollTop BEFORE setOptions —
       // setOptions can notify a synchronous re-render that must see the
@@ -654,7 +643,7 @@ describe('RoomTimeline', () => {
         removeEventListener: vi.fn(),
         getBoundingClientRect: vi.fn(() => ({ top: 0, bottom: 600 })),
         querySelector: vi.fn(() => undefined),
-        querySelectorAll: vi.fn(() => (anchorMounted ? [anchorElement] : [])),
+        querySelectorAll: vi.fn(() => []),
         scrollHeight: 4000,
         clientHeight: 600,
         get scrollTop() {
@@ -673,16 +662,17 @@ describe('RoomTimeline', () => {
       // Inner virtual container: the ledger fold's visible output is its
       // marginTop (adversarial review on PR #88 — without this pin, fold
       // deletion, ΔH off-by-one and unconsumed-anchor mutants all passed).
-      const innerElement = { style: {} as Record<string, string> };
+      const innerElement = {
+        style: {} as Record<string, string>,
+        getBoundingClientRect: () => ({ top: 0 }),
+      };
       // The thread-open bootstrap may also paginate; only the explicit
       // Load Older Messages pagination should prepend the older rows.
-      // Task #125 follow-up sequencing: the paginate mock must NOT
-      // apply the prepend to the RENDER state — in production the
-      // paginate mutates only the SDK timeline, and the render list /
-      // index map update at the (quiescence-deferred) commit. The
-      // commit-time anchor recapture must read the PRE-prepend index
-      // map; the test applies the prepend afterwards, as the commit's
-      // re-render does in production.
+      // The paginate mock must NOT apply the prepend to the RENDER state:
+      // in production the paginate mutates only the SDK timeline, and the
+      // render list / index map update at the (quiescence-deferred) commit.
+      // The test applies the prepend afterwards, as the commit's re-render
+      // does in production.
       matrixClientMock.paginateEventTimeline.mockImplementation(async () => false);
       const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
       let renderer: ReturnType<typeof create> | undefined;
@@ -715,9 +705,7 @@ describe('RoomTimeline', () => {
           // Task #125 follow-up: the prepend RENDER COMMIT waits for
           // scroll quiescence (150ms with no scroll events, wall
           // clock) before it lands — see scrollQuiescence.ts. This
-          // suite section runs real timers, so wait it out; the
-          // commit-time recapture runs here against the pre-prepend
-          // index map.
+          // suite section runs real timers, so wait it out.
           await new Promise((resolve) => {
             setTimeout(resolve, 250);
           });
@@ -725,12 +713,8 @@ describe('RoomTimeline', () => {
         });
 
         // The commit's re-render delivers the prepended render state in
-        // production; the harness applies it explicitly. The prepend
-        // unmounts the anchor row (virtual indexes shift while
-        // scrollTop stays) — the case the coarse re-anchor exists
-        // for.
+        // production; the harness applies it explicitly.
         await act(async () => {
-          anchorMounted = false;
           setThreadEvents(prependedThreadEvents);
           renderer!.update(
             React.createElement(ControlledRoomTimeline, {
@@ -781,8 +765,7 @@ describe('RoomTimeline', () => {
         expect(scrollElement.scrollTo).not.toHaveBeenCalled();
         expect(roomTimelineVirtualizerState.getOffsetForIndexMock).not.toHaveBeenCalled();
         // ΔH pin (adversarial review on PR #88 — without it, fold
-        // deletion, pricing off-by-one and unconsumed-anchor mutants all
-        // passed green): 100 prepended one-liner replies at the
+        // deletion and pricing off-by-one mutants all passed green): 100 prepended one-liner replies at the
         // calibrated COMPACT estimate (base 6 + one 20px line = 26; the
         // harness renders compact layout) fold to EXACTLY 2600px,
         // delivered by the settle as scrollTop += 2600 with the margin
@@ -801,10 +784,9 @@ describe('RoomTimeline', () => {
         expect(ledgerOps.indexOf('scrollTop')).toBeLessThan(ledgerOps.indexOf('setOptions'));
         expect(getCacheProbeSnapshot().ledgerQuiescenceSettles).toBe(quiescenceSettlesBefore + 1);
 
-        // Consumption pin: the fold must consume the pagination anchor at
-        // the commit. A further prepend WITHOUT a new Load Older (no
-        // begin(), e.g. a background band) must not fold against the
-        // stale capture — an unconsumed anchor would add 5 x 26px here.
+        // A band that lands above the reader WITHOUT a Load Older (the
+        // opening history chain, a reconciled page) keeps the reader in
+        // place too: 5 more one-liners fold to 5 x 26px and settle.
         const bandPrependedThreadEvents = [
           rootEvent,
           ...Array.from({ length: 5 }, (_value, index) =>
@@ -828,7 +810,7 @@ describe('RoomTimeline', () => {
           });
           await flushAsyncWork(5);
         });
-        expect(scrollElement.scrollTop).toBe(2600);
+        expect(scrollElement.scrollTop).toBe(2730);
         expect(innerElement.style.marginTop).toBe('');
       } finally {
         roomTimelineVirtualizerState.setOptionsMock.mockReset();
@@ -899,22 +881,22 @@ describe('RoomTimeline', () => {
         );
       };
       setThreadEvents(initialThreadEvents);
-      const anchorElement = {
-        getAttribute: vi.fn((name: string) => (name === 'data-message-id' ? '$anchor' : null)),
-        getBoundingClientRect: vi.fn(() => ({ top: 10, bottom: 50 })),
-      };
+      roomTimelineVirtualizerState.firstVisibleKey = '$anchor';
       const scrollElement = {
         addEventListener: vi.fn(),
         removeEventListener: vi.fn(),
         getBoundingClientRect: vi.fn(() => ({ top: 0, bottom: 600 })),
         querySelector: vi.fn(() => undefined),
-        querySelectorAll: vi.fn(() => [anchorElement]),
+        querySelectorAll: vi.fn(() => []),
         scrollHeight: 4000,
         clientHeight: 600,
         scrollTop: 0,
         scrollTo: vi.fn(),
       };
-      const innerElement = { style: {} as Record<string, string> };
+      const innerElement = {
+        style: {} as Record<string, string>,
+        getBoundingClientRect: () => ({ top: 0 }),
+      };
       matrixClientMock.paginateEventTimeline.mockImplementation(async () => false);
       const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
       let renderer: ReturnType<typeof create> | undefined;
@@ -942,8 +924,7 @@ describe('RoomTimeline', () => {
         await act(async () => {
           loadOlderChip.props.onClick();
           await flushAsyncWork(10);
-          // Quiescence-deferred commit window (150ms idle, real timers);
-          // the commit-time recapture reads the pre-prepend index map.
+          // Quiescence-deferred commit window (150ms idle, real timers).
           await new Promise((resolve) => {
             setTimeout(resolve, 250);
           });
@@ -981,8 +962,8 @@ describe('RoomTimeline', () => {
 
     it('re-anchors the fold on the nearest surviving baseline row when the anchor is redacted mid-flight', async () => {
       // Full-surface adversarial review (2026-07-07), ledger finding L2:
-      // if the captured anchor event vanishes from the render list
-      // between capture and commit (redaction acknowledged, dedup
+      // if the reader's anchor event vanishes from the render list
+      // before the page commits (redaction acknowledged, dedup
       // collapse), the old fold silently skipped the whole compensation
       // and the prepend landed as a visible jump. The key-diff fold must
       // fall back to the nearest surviving baseline row: inserted rows
@@ -1040,22 +1021,22 @@ describe('RoomTimeline', () => {
         );
       };
       setThreadEvents(initialThreadEvents);
-      const anchorElement = {
-        getAttribute: vi.fn((name: string) => (name === 'data-message-id' ? '$anchor' : null)),
-        getBoundingClientRect: vi.fn(() => ({ top: 10, bottom: 50 })),
-      };
+      roomTimelineVirtualizerState.firstVisibleKey = '$anchor';
       const scrollElement = {
         addEventListener: vi.fn(),
         removeEventListener: vi.fn(),
         getBoundingClientRect: vi.fn(() => ({ top: 0, bottom: 600 })),
         querySelector: vi.fn(() => undefined),
-        querySelectorAll: vi.fn(() => [anchorElement]),
+        querySelectorAll: vi.fn(() => []),
         scrollHeight: 4000,
         clientHeight: 600,
         scrollTop: 0,
         scrollTo: vi.fn(),
       };
-      const innerElement = { style: {} as Record<string, string> };
+      const innerElement = {
+        style: {} as Record<string, string>,
+        getBoundingClientRect: () => ({ top: 0 }),
+      };
       matrixClientMock.paginateEventTimeline.mockImplementation(async () => false);
       const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
       let renderer: ReturnType<typeof create> | undefined;
@@ -1118,13 +1099,11 @@ describe('RoomTimeline', () => {
       }
     });
 
-    it('keeps folding mid-flight bands against a rebased baseline until the pagination commit lands', async () => {
+    it('folds every band that lands above the reader while a pagination is in flight', async () => {
       // Mutant audit 2026-07-07, survivor 2 (PR #88's own mid-flight-band
-      // major had no pin): while a pagination is IN FLIGHT, each band that
-      // lands must fold AND leave the capture armed (rebased) for the next
-      // one. Under always-consume, the FIRST band eats the capture and the
-      // second band lands uncompensated. Two bands, 5 + 3 one-liners at
-      // compact estimate 26: the ledger must read 130 then 208.
+      // major had no pin): each band that lands above the reader must fold,
+      // not only the first. Two bands, 5 + 3 one-liners at compact
+      // estimate 26: the ledger must read 130 then 208.
       const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
       const threadId = '$midflight-band-thread-root';
       const rootEvent = makeEvent(threadId, { isThreadRoot: true, ts: 0 });
@@ -1159,23 +1138,23 @@ describe('RoomTimeline', () => {
         );
       };
       setThreadEvents(initialThreadEvents);
-      const anchorElement = {
-        getAttribute: vi.fn((name: string) => (name === 'data-message-id' ? '$te-100' : null)),
-        getBoundingClientRect: vi.fn(() => ({ top: 10, bottom: 50 })),
-      };
+      roomTimelineVirtualizerState.firstVisibleKey = '$te-100';
       const scrollElement = {
         isConnected: true,
         addEventListener: vi.fn(),
         removeEventListener: vi.fn(),
         getBoundingClientRect: vi.fn(() => ({ top: 0, bottom: 600 })),
         querySelector: vi.fn(() => undefined),
-        querySelectorAll: vi.fn(() => [anchorElement]),
+        querySelectorAll: vi.fn(() => []),
         scrollHeight: 4000,
         clientHeight: 600,
         scrollTop: 0,
         scrollTo: vi.fn(),
       };
-      const innerElement = { style: {} as Record<string, string> };
+      const innerElement = {
+        style: {} as Record<string, string>,
+        getBoundingClientRect: () => ({ top: 0 }),
+      };
       // The pagination NEVER resolves inside the pinned phase — both
       // bands land strictly mid-flight.
       let resolvePaginate: ((value: boolean) => void) | undefined;
@@ -1225,8 +1204,7 @@ describe('RoomTimeline', () => {
           renderer!.update(React.createElement(ControlledRoomTimeline, { room, threadId }));
           await flushAsyncWork(5);
         });
-        // The second band only folds if the first band's fold REBASED the
-        // capture instead of consuming it.
+        // The second band folds against the anchor recorded after the first.
         expect(innerElement.style.marginTop).toBe('-208px');
         expect(scrollElement.scrollTo).not.toHaveBeenCalled();
       } finally {
@@ -1235,7 +1213,7 @@ describe('RoomTimeline', () => {
       }
     });
 
-    it('skips the coarse re-anchor scroll when the captured row stays mounted through the prepend', async () => {
+    it('makes no coarse re-anchor scroll for a Load Older prepend', async () => {
       const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
       const threadId = '$prepend-thread-root';
       const rootEvent = makeEvent(threadId, { isThreadRoot: true, ts: 0 });
@@ -1271,16 +1249,13 @@ describe('RoomTimeline', () => {
         );
       };
       setThreadEvents(initialThreadEvents);
-      const anchorElement = {
-        getAttribute: vi.fn((name: string) => (name === 'data-message-id' ? '$te-100' : null)),
-        getBoundingClientRect: vi.fn(() => ({ top: 10, bottom: 50 })),
-      };
+      roomTimelineVirtualizerState.firstVisibleKey = '$te-100';
       const scrollElement = {
         addEventListener: vi.fn(),
         removeEventListener: vi.fn(),
         getBoundingClientRect: vi.fn(() => ({ top: 0, bottom: 600 })),
         querySelector: vi.fn(() => undefined),
-        querySelectorAll: vi.fn(() => [anchorElement]),
+        querySelectorAll: vi.fn(() => []),
         scrollHeight: 4000,
         clientHeight: 600,
         scrollTop: 0,
@@ -1353,7 +1328,10 @@ describe('RoomTimeline', () => {
         scrollTop: 0,
         scrollTo: vi.fn(),
       };
-      const innerElement = { style: {} as Record<string, string> };
+      const innerElement = {
+        style: {} as Record<string, string>,
+        getBoundingClientRect: () => ({ top: 0 }),
+      };
       let renderer: ReturnType<typeof create> | undefined;
 
       // CINNY-207 P6.1 / D4: prefetchDepth sanitizer clamps to

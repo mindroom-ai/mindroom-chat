@@ -32,7 +32,6 @@ const measureCoverage = (
   const Harness = () => {
     const controller = useTimelineScrollLedgerController({
       alive: () => true,
-      clearPendingThreadAnchor: () => {},
       estimateSize: (index = 0) => sizes[index],
       getItemKey: (index) => index,
       getScrollElement: () => null,
@@ -44,7 +43,6 @@ const measureCoverage = (
       threadEvents: [],
       threadId: threadId ?? undefined,
       threadInitialRenderMode: 'live',
-      threadPaginatingBack: false,
     });
     instance = controller.virtualizer;
     return null;
@@ -117,7 +115,6 @@ describe('thread scroll coverage with real virtual-core ranges', () => {
         renders += 1;
         const controller = useTimelineScrollLedgerController({
           alive: () => true,
-          clearPendingThreadAnchor: () => {},
           estimateSize: (index = 0) => sizes[index],
           getItemKey: (index) => index,
           getScrollElement,
@@ -129,7 +126,6 @@ describe('thread scroll coverage with real virtual-core ranges', () => {
           threadEvents: [],
           threadId,
           threadInitialRenderMode: 'live',
-          threadPaginatingBack: false,
         });
         instance = controller.virtualizer;
         renderedBefore = 6000 - instance.getVirtualItems()[0].start;

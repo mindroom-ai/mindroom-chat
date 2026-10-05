@@ -148,7 +148,15 @@ type MeasurementScrollCorrectionHookDeps = {
   // The delta is folded into the offset ledger to preserve the owned
   // anchor: normally the viewport, or the latest event during room fill.
   onDroppedCorrection: (deltaPx: number) => void;
+  // The virtual-core offset at the top of the reader's view for a scroll
+  // offset, when sticky headers and content above the list (a thread's
+  // banner and Load Older) set them apart.
+  viewportTopOffset?: (scrollOffset: number) => number | undefined;
 };
+
+// virtual-core takes a scroll event within this of its own last write as
+// that write (a zoomed page rounds fractional offsets).
+const VIRTUAL_CORE_WRITE_TOLERANCE_PX = 1.5;
 
 // Builds the exact shouldAdjustScrollPositionOnItemSizeChange closure the
 // timeline installs on its virtualizer instance. Extracted so the iOS
@@ -160,6 +168,7 @@ export const buildMeasurementScrollCorrectionHook =
     isIOSWebKitDevice,
     onDroppedCorrection,
     shouldDeferAutomaticFillCorrection,
+    viewportTopOffset,
   }: MeasurementScrollCorrectionHookDeps) =>
   (
     item: { end: number; index?: number },
@@ -167,16 +176,35 @@ export const buildMeasurementScrollCorrectionHook =
     instance: {
       scrollOffset: number | null;
       scrollDirection: 'forward' | 'backward' | null;
+      scrollElement?: { scrollTop: number } | null;
     }
   ): boolean => {
-    const itemFullyAboveViewport = item.end <= (instance.scrollOffset ?? 0);
+    // A programmatic scroll writes the element before its scroll event
+    // updates virtual-core's cached offset. Judge this resize against the
+    // live offset, and make virtual-core apply any adjustment from it: its
+    // applyScrollAdjustment (3.17.3) writes scrollOffset + its pending
+    // adjustments, so fold the difference into those (the iOS contract test
+    // pins this). scrollOffset stays as it is, or virtual-core would ignore
+    // the scroll event as already seen and lose its direction and reset.
+    // An upward write it has not seen yet is a backward scroll: applying a
+    // correction now would fold that move away before its event.
+    const cachedOffset = instance.scrollOffset ?? 0;
+    const liveOffset = instance.scrollElement?.scrollTop;
+    if (typeof liveOffset === 'number') {
+      (instance as unknown as { scrollAdjustments: number }).scrollAdjustments =
+        liveOffset - cachedOffset;
+    }
+    const scrollOffset = liveOffset ?? cachedOffset;
+    const itemFullyAboveViewport = item.end <= (viewportTopOffset?.(scrollOffset) ?? scrollOffset);
     const automaticFillPredecessor = shouldDeferAutomaticFillCorrection?.(item) ?? false;
     const apply =
       !automaticFillPredecessor &&
       shouldApplyMeasurementScrollCorrection({
         itemFullyAboveViewport,
         isIOSWebKitDevice: isIOSWebKitDevice(),
-        isScrollingBackward: instance.scrollDirection === 'backward',
+        isScrollingBackward:
+          instance.scrollDirection === 'backward' ||
+          scrollOffset < cachedOffset - VIRTUAL_CORE_WRITE_TOLERANCE_PX,
       });
     // During latest-open fill, visible predecessors also move the retained
     // latest anchor. Its own height cannot move its start and is excluded by

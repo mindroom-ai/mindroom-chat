@@ -69,7 +69,6 @@ docker run --rm --init --network host --ipc host --user "$(id -u):$(id -g)" \
 
 Keep an external worker fixture JSON inside the mounted checkout or mount its path too.
 Known unresolved checks remain strict: immediate fold-anchor displacement and native momentum blank frames on software graphics (also reproduced on static HTML).
-`perf-thread-streaming` also fails intermittently while a reader at the latest reply drifts as opening history pages land after Load Older; see the 2026-10-03 live-suite entry in `FORK_CHANGES.md`.
 The scheduler does not relax assertions or add retries.
 Unit tests remain `npm test`; the scheduler's focused tests run through `npm run test:e2e:runner` in PR CI.
 

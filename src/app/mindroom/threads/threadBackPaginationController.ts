@@ -1,83 +1,36 @@
 import { useState, type MutableRefObject } from 'react';
-import {
-  captureThreadPrependScrollAnchor,
-  type ThreadPrependScrollAnchor,
-} from './timelineScrollUtils';
 import type { ThreadPaginationRequest } from './session/threadSessionTypes';
-
-type PendingThreadBackPaginationAnchor = ThreadPrependScrollAnchor & {
-  eventCount?: number;
-  seq: number;
-};
 
 type ScrollToBottomState = {
   count: number;
   smooth: boolean;
 };
 
-/** Owns viewport capture plus opening-pin suppression and provenance. */
+/** Owns the backward request lock plus opening-pin suppression and provenance. */
 export const useThreadBackPaginationController = () => {
   const [controller] = useState(() => {
     let owner: ThreadPaginationRequest | undefined;
-    let capturing = false;
     let suppressed = false;
-    let anchor: PendingThreadBackPaginationAnchor | undefined;
     let pendingOpenBottomPinCount: number | undefined;
     let canceledOpenBottomPinCount: number | undefined;
-    let sequence = 0;
-    const capture = (scrollRoot: HTMLElement | null | undefined, eventCount?: number) => {
-      const captured = captureThreadPrependScrollAnchor(scrollRoot);
-      sequence += 1;
-      anchor = captured ? { ...captured, eventCount, seq: sequence } : undefined;
-      return !!anchor;
-    };
     return {
       reset: () => {
         owner = undefined;
-        capturing = false;
         suppressed = false;
-        anchor = undefined;
         pendingOpenBottomPinCount = undefined;
         canceledOpenBottomPinCount = undefined;
       },
-      begin: (
-        request: ThreadPaginationRequest,
-        scrollRoot: HTMLElement | null | undefined,
-        eventCount?: number
-      ) => {
-        if (capturing) return false;
+      // A reader who asks for older history takes over from the opening pin.
+      begin: (request: ThreadPaginationRequest) => {
+        if (owner) return false;
         owner = request;
-        capturing = true;
         suppressed = true;
-        capture(scrollRoot, eventCount);
         return true;
       },
       owns: (request: ThreadPaginationRequest) => owner === request,
-      finish: (request: ThreadPaginationRequest, committed: boolean) => {
-        if (owner !== request) return;
-        capturing = false;
-        if (!committed) {
-          anchor = undefined;
-          owner = undefined;
-        }
+      finish: (request: ThreadPaginationRequest) => {
+        if (owner === request) owner = undefined;
       },
-      recaptureAnchor: (
-        request: ThreadPaginationRequest,
-        scrollRoot: HTMLElement | null | undefined,
-        eventCount?: number
-      ) => {
-        if (owner !== request || !capturing) return false;
-        return capture(scrollRoot, eventCount);
-      },
-      clear: (request: ThreadPaginationRequest) => {
-        if (owner === request) anchor = undefined;
-      },
-      // The ledger consumes the current capture synchronously in its layout phase.
-      clearPendingAnchor: () => {
-        anchor = undefined;
-      },
-      getPendingAnchorEventId: () => anchor?.eventId,
-      getPendingAnchorSeq: () => anchor?.seq,
       isOpenBottomPinSuppressed: () => suppressed,
       suppressOpenBottomPin: () => {
         suppressed = true;

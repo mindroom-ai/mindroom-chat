@@ -150,6 +150,9 @@ const {
     optionsHistory: [] as { count: number; scrollMargin?: number }[],
     virtualIndexes: undefined as number[] | undefined,
     totalSize: undefined as number | undefined,
+    // The row at the reader's top. Like virtual-core's offset lookup, it
+    // follows that row's index across renders; without it there is none.
+    firstVisibleKey: undefined as unknown,
     // The mock instance of the current test tree (mutant audit 2026-07-07:
     // the drop-path pins call the component-installed
     // shouldAdjustScrollPositionOnItemSizeChange hook directly).
@@ -439,6 +442,17 @@ vi.mock('@tanstack/react-virtual', () => {
           instance!.options = next;
         },
         itemSizeCache: new Map(),
+        getVirtualItemForOffset: (offset: number) => {
+          const opts = optionsRef.current;
+          const { firstVisibleKey } = roomTimelineVirtualizerState;
+          if (firstVisibleKey === undefined) return undefined;
+          for (let index = 0; index < opts.count; index += 1) {
+            if ((opts.getItemKey?.(index) ?? index) === firstVisibleKey) {
+              return { index, start: offset };
+            }
+          }
+          return undefined;
+        },
         getTotalSize: () => {
           const opts = optionsRef.current;
           const estimatedSize = opts.estimateSize?.() ?? 100;
@@ -1280,6 +1294,8 @@ vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
 
 vi.stubGlobal('cancelAnimationFrame', vi.fn());
 
+vi.stubGlobal('getComputedStyle', () => ({ scrollPaddingTop: '0px' }));
+
 const makeEvent = (
   eventId: string,
   opts: {
@@ -1566,6 +1582,7 @@ beforeEach(() => {
   roomTimelineVirtualizerState.lastOptions = undefined;
   roomTimelineVirtualizerState.virtualIndexes = undefined;
   roomTimelineVirtualizerState.totalSize = undefined;
+  roomTimelineVirtualizerState.firstVisibleKey = undefined;
   roomTimelineVirtualizerState.measureElementMock.mockClear();
   roomTimelineVirtualizerState.scrollToIndexMock.mockClear();
   roomTimelineVirtualizerState.scrollToOffsetMock.mockClear();
