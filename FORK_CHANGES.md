@@ -13,6 +13,7 @@
 - Cost: users can no longer machine-translate message content in the browser.
   The UI itself is localized through the language picker (17 locales); `i18n.ts` writes only `lang` and `dir` on the root, so the attribute stays.
   Exempting message bodies would not help, because they are the nodes that crash.
+- Validation: `src/indexHtml.test.ts` passes and fails with either marker stripped; typecheck, build (both markers in `dist/index.html`), lint and prettier pass.
 
 ### Keep a thread reader in place when rows or Load Older change above them (2026-10-04)
 
