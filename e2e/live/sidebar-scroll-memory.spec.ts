@@ -159,3 +159,120 @@ test('the navigation panel keeps its scroll position across thread and room open
     await expectNavScrollRestored(page, before);
   });
 });
+
+const RECENT_THREAD_COUNT = 10;
+const RECENT_LIST = '[data-testid="recently-opened-nav-list"]';
+
+// Each fully visible Recently Opened row's top relative to the list's
+// viewport, by its title, once the list has stopped moving.
+const settledRecentRowOffsets = (page: Page) =>
+  page.evaluate(async (selector) => {
+    const list = document.querySelector<HTMLElement>(selector);
+    if (!list) return {};
+    let previous = list.scrollTop;
+    for (let stableFrames = 0, frames = 0; stableFrames < 5 && frames < 120; frames += 1) {
+      await new Promise((resolve) => {
+        requestAnimationFrame(resolve);
+      });
+      stableFrames = list.scrollTop === previous ? stableFrames + 1 : 0;
+      previous = list.scrollTop;
+    }
+    const { top, bottom } = list.getBoundingClientRect();
+    const offsets: Record<string, number> = {};
+    list.querySelectorAll<HTMLButtonElement>('button[title]').forEach((row) => {
+      const rect = row.getBoundingClientRect();
+      if (rect.top >= top && rect.bottom <= bottom) offsets[row.title] = rect.top - top;
+    });
+    return offsets;
+  }, RECENT_LIST);
+
+test('Recently Opened keeps its rows in place across thread opens', async ({ page }) => {
+  test.skip(!hasPrimaryCredentials(), 'Local Matrix credentials required');
+  const homeserver = getHomeserver();
+  test.skip(
+    !['localhost', '127.0.0.1', '[::1]'].includes(new URL(homeserver).hostname),
+    'Local fixture only'
+  );
+  const credentials = getPrimaryCredentials();
+  const session = await loginToMatrix(homeserver, credentials.username, credentials.password);
+  const runTag = Date.now().toString(36);
+  const roomId = await createPrivateRoom(homeserver, session.accessToken, {
+    name: `Recent scroll ${runTag}`,
+  });
+  const threads: ThreadSeed[] = [];
+  for (let index = 0; index < RECENT_THREAD_COUNT; index += 1) {
+    const body = `Recent scroll ${runTag} thread ${index}`;
+    const rootId = await sendRoomMessage(homeserver, session.accessToken, roomId, {
+      msgtype: 'm.text',
+      body,
+    });
+    threads.push({ roomId, rootId, body });
+  }
+
+  await loginWithPassword(page, { homeserver, ...credentials });
+  await page.evaluate(
+    ({ userId, entries }) => {
+      localStorage.setItem(`recentThreads:${userId}`, JSON.stringify({ v: 1, entries }));
+    },
+    {
+      userId: session.userId,
+      entries: threads.map((thread, index) => ({
+        roomId: thread.roomId,
+        threadId: thread.rootId,
+        openedAt: Date.now() - index * 1000,
+        summaryText: thread.body,
+      })),
+    }
+  );
+  const categoryButton = page.locator('button[data-category-id="mindroom|recently-opened"]');
+  const rows = page.locator(`${RECENT_LIST} button[title]`);
+  const showRecentlyOpened = async () => {
+    await expect(categoryButton).toBeVisible();
+    if ((await page.locator(RECENT_LIST).count()) === 0) await categoryButton.click();
+    await expect(rows).toHaveCount(RECENT_THREAD_COUNT);
+  };
+
+  // Opens the second row in view, which moves to the top of the list; after
+  // `returnToList`, the rows below it must be exactly where they were.
+  const openRowAndReturn = async (returnToList: () => Promise<void>) => {
+    await page.evaluate((selector) => {
+      document.querySelector<HTMLElement>(selector)!.scrollTop = 90;
+    }, RECENT_LIST);
+    const before = await settledRecentRowOffsets(page);
+    const inView = Object.keys(before);
+    const below = inView.slice(2);
+    expect(below.length).toBeGreaterThan(2);
+    const opened = threads.find((thread) => inView[1].endsWith(thread.body))!;
+    await rows.filter({ hasText: opened.body }).click();
+    await expect(page).toHaveURL(new RegExp(`threadId=${encodeURIComponent(opened.rootId)}`));
+    await expect(page.getByText(opened.body).last()).toBeVisible();
+
+    await returnToList();
+    await expect(rows.first()).toHaveAttribute('title', new RegExp(`${opened.body}$`));
+    const after = await settledRecentRowOffsets(page);
+    for (const title of below) {
+      expect(
+        Math.abs(after[title] - before[title]),
+        `${title} moved from ${before[title]} to ${after[title]}`
+      ).toBeLessThanOrEqual(1);
+    }
+  };
+
+  await test.step('desktop collapse and expand', async () => {
+    await page.setViewportSize({ width: 1280, height: 720 });
+    await page.goto('/home/');
+    await showRecentlyOpened();
+    await openRowAndReturn(async () => {
+      await categoryButton.click();
+      await expect(page.locator(RECENT_LIST)).toHaveCount(0);
+      await categoryButton.click();
+    });
+  });
+
+  await test.step('mobile thread open and back', async () => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto('/home/');
+    await showRecentlyOpened();
+    await openRowAndReturn(() => page.goBack());
+  });
+});
