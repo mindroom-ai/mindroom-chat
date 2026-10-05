@@ -3,6 +3,10 @@ import { canvasThemeCss, FALLBACK_CANVAS_THEMES, type CanvasTheme } from './canv
 export const CANVAS_SUBMIT_MESSAGE = 'mindroom.canvas.submit';
 export const CANVAS_ESCAPE_MESSAGE = 'mindroom.canvas.escaped';
 export const CANVAS_ERROR_MESSAGE = 'mindroom.canvas.error';
+export const CANVAS_STATE_MESSAGE = 'mindroom.canvas.state';
+
+/** The JSON a page may save as its state, in characters. */
+export const CANVAS_STATE_MAX_LENGTH = 256 * 1024;
 
 /** The canvas frame gets an opaque origin: no Chat storage, cookies, DOM, popups, or top navigation. */
 export const CANVAS_SANDBOX = 'allow-scripts allow-forms';
@@ -63,12 +67,24 @@ export const CANVAS_PERMISSIONS = [
   .map((feature) => `${feature} 'none'`)
   .join('; ');
 
+// A JSON string is a valid script literal once "<" cannot close the script element.
+const scriptLiteral = (value: string): string => JSON.stringify(value).replace(/</g, '\\u003c');
+
+// Parsing the saved JSON, rather than writing it out as code, restores exactly the value saved
+// (an object literal treats a "__proto__" key differently).
+const stateLiteral = (state: string | undefined): string =>
+  state === undefined ? 'undefined' : `JSON.parse(${scriptLiteral(state)})`;
+
 // Runs before any agent script. Forms are captured here because the sandbox
 // cannot submit them anywhere; everything else calls window.mindroom.submit,
 // which only offers a snapshot to the host. The host decides whether to send it.
 // Errors, failed loads, and loads the policy blocks are reported so the user can pass them on.
 // Removing WebRTC constructors is defense in depth: CSP cannot block STUN traffic.
-const bridgeScript = (colorScheme: CanvasColorScheme, lineOffset: number): string => `(() => {
+const bridgeScript = (
+  colorScheme: CanvasColorScheme,
+  lineOffset: number,
+  state: string | undefined
+): string => `(() => {
   ['RTCPeerConnection', 'webkitRTCPeerConnection', 'RTCDataChannel', 'RTCIceCandidate'].forEach((name) => {
     try { delete window[name]; } catch (error) {}
     try { Object.defineProperty(window, name, { value: undefined, configurable: false }); } catch (error) {}
@@ -122,10 +138,21 @@ const bridgeScript = (colorScheme: CanvasColorScheme, lineOffset: number): strin
     blocked.add(event.blockedURI);
     report('Blocked ' + (event.blockedURI || 'inline code') + ' (' + event.effectiveDirective + ')');
   });
+  const saveState = (value) => {
+    const json = JSON.stringify(value);
+    if (json === undefined) throw new TypeError('mindroom.saveState needs a JSON value.');
+    if (json.length > ${CANVAS_STATE_MAX_LENGTH}) {
+      throw new RangeError('mindroom.saveState holds at most ${CANVAS_STATE_MAX_LENGTH} characters of JSON.');
+    }
+    parent.parent.postMessage({ type: '${CANVAS_STATE_MESSAGE}', version: 1, json }, '*');
+  };
   Object.defineProperty(window, 'mindroom', {
-    value: Object.freeze({ submit: (data, options) => post(data, options), colorScheme: ${JSON.stringify(
-      colorScheme
-    )} }),
+    value: Object.freeze({
+      submit: (data, options) => post(data, options),
+      colorScheme: ${JSON.stringify(colorScheme)},
+      state: ${stateLiteral(state)},
+      saveState,
+    }),
   });
   document.addEventListener(
     'submit',
@@ -150,7 +177,8 @@ export const buildCanvasPage = (
   html: string,
   colorScheme: CanvasColorScheme,
   theme: CanvasTheme = FALLBACK_CANVAS_THEMES[colorScheme],
-  libraries = false
+  libraries = false,
+  state?: string
 ): string => {
   const head = (lineOffset: number) =>
     [
@@ -159,16 +187,13 @@ export const buildCanvasPage = (
       `<meta name="color-scheme" content="${colorScheme}">`,
       '<meta name="viewport" content="width=device-width, initial-scale=1">',
       `<style>${canvasThemeCss(theme)}${BASE_STYLE}</style>`,
-      `<script>${bridgeScript(colorScheme, lineOffset)}</script>`,
+      `<script>${bridgeScript(colorScheme, lineOffset, state)}</script>`,
       '</head><body>',
     ].join('');
   // The agent's markup starts on the line after this many line breaks; the number adds none.
   const lineOffset = head(0).split('\n').length - 1;
   return `${head(lineOffset)}${html}</body></html>`;
 };
-
-// A JSON string is a valid script literal once "<" cannot close the script element.
-const scriptLiteral = (value: string): string => JSON.stringify(value).replace(/</g, '\\u003c');
 
 /**
  * The document of the panel's frame: it creates the canvas frame itself, so the load listener is in
@@ -180,7 +205,8 @@ export const buildCanvasDocument = (
   colorScheme: CanvasColorScheme,
   theme: CanvasTheme = FALLBACK_CANVAS_THEMES[colorScheme],
   title = '',
-  libraries = false
+  libraries = false,
+  state?: string
 ): string =>
   [
     '<!doctype html><html><head><meta charset="utf-8">',
@@ -199,7 +225,7 @@ export const buildCanvasDocument = (
     '  loads += 1;',
     `  if (loads > 1) parent.postMessage({ type: '${CANVAS_ESCAPE_MESSAGE}' }, '*');`,
     '});',
-    `frame.srcdoc = ${scriptLiteral(buildCanvasPage(html, colorScheme, theme, libraries))};`,
+    `frame.srcdoc = ${scriptLiteral(buildCanvasPage(html, colorScheme, theme, libraries, state))};`,
     'document.body.append(frame);',
     '})();</script></body></html>',
   ].join('');

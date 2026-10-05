@@ -471,6 +471,35 @@ article{background:var(--mr-surface);border:1px solid var(--mr-border);border-ra
   expect(errorReport.content['m.mentions']).toEqual({ user_ids: [agent.user_id] });
   expect(libraryRequests.some((url) => url.startsWith('https://unpkg.com'))).toBe(false);
 
+  // A page keeps what it saves on this device, across a Chat reload and the agent's updates.
+  const notesPage = (heading: string) => `<h2>${heading}</h2><textarea id="notes"></textarea>
+<script>
+  const notes = document.getElementById('notes');
+  notes.value = mindroom.state?.notes ?? '';
+  notes.addEventListener('input', () => mindroom.saveState({ notes: notes.value }));
+</script>`;
+  const notesId = await sendRoomMessage(homeserver!, agent.access_token, fixture.roomId, {
+    msgtype: 'm.notice',
+    body: 'Interactive panel: Notes. Open it in MindRoom Chat to respond.',
+    'm.relates_to': { rel_type: 'm.thread', event_id: fixture.rootId },
+    'io.mindroom.ui_action': action(notesPage('Notes'), 'Notes'),
+  });
+  await frame.locator('#notes').pressSequentially('Remember the milk');
+  // Typing never reloads the page, so focus and every keystroke stay.
+  await expect(frame.locator('#notes')).toBeFocused();
+  await expect(frame.locator('#notes')).toHaveValue('Remember the milk');
+  // Saves reach storage within half a second.
+  await page.waitForTimeout(1_000);
+  await page.reload();
+  await expect(page.getByText('Interactive panel: Notes.', { exact: false })).toBeVisible();
+  await page.getByRole('button', { name: 'Open panel', exact: true }).last().click();
+  await expect(panel.getByText('Notes', { exact: true })).toBeVisible();
+  await expect(frame.locator('#notes')).toHaveValue('Remember the milk');
+  await updateCanvas(notesId, notesPage('Notes, updated'), 'Notes');
+  await expect(frame.getByText('Notes, updated')).toBeVisible();
+  await expect(frame.locator('#notes')).toHaveValue('Remember the milk');
+  await page.screenshot({ path: testInfo.outputPath('canvas-saved-state.png') });
+
   await new Promise((resolve) => {
     listener.close(resolve);
   });
