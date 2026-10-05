@@ -32,21 +32,18 @@ vi.mock('react-i18next', async () => {
   return { useTranslation: () => ({ t: translateFromEn }) };
 });
 vi.mock('folds', () => ({
-  Scroll: ({
-    children,
-    direction,
-    hideTrack,
-    size,
-    variant,
-    visibility,
-    ...props
-  }: React.HTMLAttributes<HTMLDivElement> & {
-    direction?: string;
-    hideTrack?: boolean;
-    size?: string;
-    variant?: string;
-    visibility?: string;
-  }) => React.createElement('div', props, children),
+  Scroll: React.forwardRef<
+    HTMLDivElement,
+    React.HTMLAttributes<HTMLDivElement> & {
+      direction?: string;
+      hideTrack?: boolean;
+      size?: string;
+      variant?: string;
+      visibility?: string;
+    }
+  >(({ children, direction, hideTrack, size, variant, visibility, ...props }, ref) =>
+    React.createElement('div', { ...props, ref }, children)
+  ),
   Text: ({
     as: asElement = 'span',
     children,
@@ -138,7 +135,10 @@ describe('RecentlyOpenedNavCategory', () => {
     }
   };
 
-  const renderCategory = (limit?: number) => {
+  const renderCategory = (
+    limit?: number,
+    createNodeMock?: (element: React.ReactElement) => unknown
+  ) => {
     const closedCategoriesAtom = makeClosedNavCategoriesAtom(USER_ID);
     act(() => {
       renderer = create(
@@ -150,11 +150,21 @@ describe('RecentlyOpenedNavCategory', () => {
             { value: closedCategoriesAtom },
             React.createElement(RecentlyOpenedNavCategory, { limit })
           )
-        )
+        ),
+        createNodeMock ? { createNodeMock } : undefined
       );
     });
     return closedCategoriesAtom;
   };
+
+  const toggleCategory = () =>
+    act(() => {
+      renderer!.root
+        .findByProps({ 'data-category-id': RECENTLY_OPENED_NAV_CATEGORY_ID })
+        .props.onClick({
+          currentTarget: { getAttribute: () => RECENTLY_OPENED_NAV_CATEGORY_ID },
+        });
+    });
 
   const renderedThreadIds = () =>
     renderer!.root
@@ -416,13 +426,7 @@ describe('RecentlyOpenedNavCategory', () => {
     seedJoinedThreads(1);
     const closedCategoriesAtom = renderCategory();
 
-    act(() => {
-      renderer!.root
-        .findByProps({ 'data-category-id': RECENTLY_OPENED_NAV_CATEGORY_ID })
-        .props.onClick({
-          currentTarget: { getAttribute: () => RECENTLY_OPENED_NAV_CATEGORY_ID },
-        });
-    });
+    toggleCategory();
 
     expect(store.get(closedCategoriesAtom)).toContain(RECENTLY_OPENED_NAV_CATEGORY_ID);
     expect(
@@ -436,5 +440,34 @@ describe('RecentlyOpenedNavCategory', () => {
     expect(
       renderer!.root.findAllByProps({ 'data-testid': 'recently-opened-resize-handle' })
     ).toHaveLength(0);
+  });
+
+  it('reopens the list where it was left after a collapse', () => {
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        observe() {}
+
+        disconnect() {}
+      }
+    );
+    // No rows to measure here, so the list restores its saved offset.
+    const createList = () => ({
+      scrollTop: 0,
+      getBoundingClientRect: () => ({ top: 0, bottom: 0 }),
+      querySelectorAll: () => [],
+    });
+    let list = createList();
+    seedJoinedThreads(3);
+    renderCategory(undefined, (element) =>
+      element.props['data-testid'] === 'recently-opened-nav-list' ? list : null
+    );
+
+    list.scrollTop = 90;
+    toggleCategory();
+    list = createList();
+    toggleCategory();
+
+    expect(list.scrollTop).toBe(90);
   });
 });

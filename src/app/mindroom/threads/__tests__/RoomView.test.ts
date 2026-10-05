@@ -7,6 +7,7 @@ import {
   ROOM_THREAD_EXIT_TARGET_STATE_KEY,
   setRoomThreadExitTargetForHistoryState,
 } from '../roomNavigateState';
+import type { ScrollAnchorMemory } from '../../scroll/scrollAnchorMemory';
 
 type MockThreadContextBannerProps = {
   onExitThread?: () => void;
@@ -272,7 +273,7 @@ vi.mock('../MindroomRoomTimeline', async () => {
   const { CompactRoomView } = await import('../CompactRoomView');
 
   type MockRoomTimelineProps = {
-    compactRoomScrollStateRef: React.MutableRefObject<Map<string, number>>;
+    compactRoomScrollStateRef: React.MutableRefObject<ScrollAnchorMemory>;
     room: { roomId: string };
     threadId?: string;
     threadHeader?: React.ReactNode;
@@ -457,7 +458,7 @@ const getTimeline = (renderer: ReturnType<typeof create>) =>
       onSortDirectionChange: () => void;
       onToggleThreadSortFreeze: () => void;
       onReset: () => void;
-      compactRoomScrollStateRef: React.MutableRefObject<Map<string, number>>;
+      compactRoomScrollStateRef: React.MutableRefObject<ScrollAnchorMemory>;
       threadId?: string;
       threadFilterState: {
         resolved: string;
@@ -476,6 +477,14 @@ const getTimeline = (renderer: ReturnType<typeof create>) =>
       } | null;
     };
   };
+
+// The compact overview measures its cards when it saves its position; these
+// tests render none, so it saves the plain offset.
+const createCompactScrollElement = () => ({
+  scrollTop: 0,
+  getBoundingClientRect: () => ({ top: 0, bottom: 0 }),
+  querySelectorAll: () => [],
+});
 
 describe('RoomView', () => {
   const originalResizeObserver = globalThis.ResizeObserver;
@@ -625,7 +634,7 @@ describe('RoomView', () => {
     compactRoomTimelineState.onThreadClick.mockImplementation((threadRootId: string) => {
       navigateRoomThreadMock(room.roomId, threadRootId);
     });
-    let scrollElement = { scrollTop: 0 };
+    let scrollElement = createCompactScrollElement();
     const createNodeMock = (element: React.ReactElement) => {
       if (element.props['data-compact-room-view'] === 'true') return scrollElement;
       return null;
@@ -665,7 +674,7 @@ describe('RoomView', () => {
 
     expect(historyBackMock).toHaveBeenCalledOnce();
 
-    scrollElement = { scrollTop: 0 };
+    scrollElement = createCompactScrollElement();
     await act(async () => {
       renderer?.update(React.createElement(RoomView, { room: room as never }));
     });
@@ -679,7 +688,7 @@ describe('RoomView', () => {
     const { RoomView } = await import('../../../features/room/RoomView');
     const room = makeRoom(nextRoomId('room-a'));
     const exitPath = `/home/${encodeURIComponent(room.roomId)}`;
-    let scrollElement = { scrollTop: 0 };
+    let scrollElement = createCompactScrollElement();
     const createNodeMock = (element: React.ReactElement) => {
       if (element.props['data-compact-room-view'] === 'true') return scrollElement;
       return null;
@@ -715,7 +724,7 @@ describe('RoomView', () => {
 
     expect(navigatePathMock).toHaveBeenCalledWith(exitPath, { replace: true });
 
-    scrollElement = { scrollTop: 0 };
+    scrollElement = createCompactScrollElement();
     await act(async () => {
       renderer?.update(React.createElement(RoomView, { room: room as never }));
     });
@@ -728,7 +737,7 @@ describe('RoomView', () => {
     const { RoomView } = await import('../../../features/room/RoomView');
     const roomA = makeRoom(nextRoomId('room-a'));
     const roomB = makeRoom(nextRoomId('room-b'));
-    let scrollElement = { scrollTop: 0 };
+    let scrollElement = createCompactScrollElement();
     const createNodeMock = (element: React.ReactElement) => {
       if (element.props['data-compact-room-view'] === 'true') return scrollElement;
       return null;
@@ -748,7 +757,7 @@ describe('RoomView', () => {
       );
     });
 
-    scrollElement = { scrollTop: 0 };
+    scrollElement = createCompactScrollElement();
     await act(async () => {
       renderer?.update(React.createElement(RoomView, { room: roomB as never }));
     });

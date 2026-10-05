@@ -2,6 +2,39 @@
 
 ## Runbook
 
+### Keep Recently Opened and the compact overview on the same rows after a thread visit (2026-10-05)
+
+- Report: like the room list (#366), Recently Opened and the compact room overview should be where the reader left them after opening a thread and going back.
+- Reproduced in the local Docker Matrix stack (Chromium):
+  - Recently Opened lost its position on every unmount (a phone thread open and Back, a switch between Home, Direct Messages and spaces, a collapse and expand): 152 px before, 0 after.
+    On a desktop where the panel stays mounted it kept its offset.
+  - The compact overview already restored its pixel offset across the keyed timeline remount (#165), and when only the visited thread re-sorted, the cards below it stayed put (the cards above it shift down into its old slot).
+    When another thread moved above the cards in view during the visit (agents replying elsewhere, a new thread), every card in view was one card lower on return.
+- Fix: `useScrollAnchorMemory` (`src/app/mindroom/scroll/scrollAnchorMemory.ts`) restores a plain scroll list by its rows, not its offset.
+  Rows carry `data-scroll-anchor` (`roomId|threadId` in Recently Opened, the root id in the compact overview).
+  On unmount it saves the offset and each row in view with its top relative to the viewport; on the next mount each saved row that is still rendered proposes the scroll position that puts it back, and the list takes the position most rows agree on (ties go to the one nearest the saved offset).
+  So a row that moved, such as the visited thread now sorting first, is outvoted even when it was the first row in view.
+  With no saved row rendered it restores the saved offset; a list left at the top stays at the top, where threads that moved up show.
+  It waits for `ready` (rows rendered), and re-applies on resizes of the viewport and of `contentRef` while the rows it placed move together (on a phone the header padding settles from 54 to 120 px after the restore), following those rows rather than voting again; it stops once the reader scrolls or those rows move apart, such as a card in view leaving under the unresolved filter, so a change in view is not undone.
+  This replaces the compact overview's clamped-restore retry; a list that unmounts before its rows render keeps the earlier snapshot.
+  The owner holds the memory: Recently Opened keeps one per account at module level, and the compact overview keeps using the room view's per-room map (so a position still does not outlive the room view).
+- Recently Opened's list moved into `RecentlyOpenedList` (keyed by account), which mounts with the list's `Scroll`, so a collapse saves and an expand restores.
+- Tests: `scrollAnchorMemory.test.ts` drives the hook against a jsdom viewport that clamps like a browser: remount, a moved row (also as the first row in view), the tie-break, top stays top, the offset fallback, late rows until the reader scrolls, rows added above, a tie that would flip after rows load above, a row in view leaving, waiting for rows, unmounting before rows, separate keys.
+  Removing the vote, the tie-break, the following, the top rule, the stop on reader scroll, the stop on rows moving apart, or the before-rows guard each fails it.
+  `CompactRoomView` and `RoomView` tests keep their remount, retry and history/native exit coverage on the new memory; `RecentlyOpenedNavCategory` covers a collapse and expand (its `Scroll` mock now forwards the ref); `RecentThreadEntry` and `CompactRoomView` pin the anchor keys.
+  Live: `compact-scroll-memory.spec.ts` opens a card, has its thread and the last thread in the list get replies, and returns by Back and by the exit button on desktop and by Back on a phone; `sidebar-scroll-memory.spec.ts` covers Recently Opened across a desktop collapse and a phone thread open.
+  Against the previous code both fail (cards and rows 90 px off); both pass now, as do `sidebar-scroll-memory`, `cinny015-thread-exit-scroll`, `cinny073-recent-threads-mobile` and `compact-thread-cards`.
+  The compact spec clicks with `page.mouse`, because a locator click first scrolls a card the glass header overlaps, which moved the overview 30 px before it was left.
+- Validation: typecheck, build and lint pass (17 existing warnings); `npm test` passes apart from the four `xcodeCloudPostClone` and `useRoomInputSendSessionController` failures that fail the same way on `dev`.
+  The two live specs passed twice more after the review fixes.
+- Review: an independent subagent review found that the first version kept re-applying the saved rows on every resize until the reader scrolled, so a card leaving in view made the list jump a card (reproduced: 300 to 260 px); the follow now stops when the placed rows move apart.
+  It also found the `Scroll` mock dropping the ref; the mock forwards it and the collapse test covers the wiring.
+  Re-review approved with nits: a tie could flip during the follow and end it early, so later steps now follow the placed rows; its note that the collapse test shares module memory with the file's other tests needs no change, because the test scrolls the list itself before collapsing.
+- Not addressed:
+  - A re-sort that arrives while the reader is looking at the list (no remount) still moves the rows in view, and the follow reacts only to resizes, so a re-sort right after the restore is not re-applied; that is live scroll anchoring, not restore.
+  - The thread exit button has no accessible name, so the live spec finds it from the Thread View label like `cinny015`.
+  - WebKit and the native iOS shell were not run.
+
 ### Keep a thread reader in place when the thread banner changes height (2026-10-04)
 
 - Report: in a thread, every row moved by the change whenever the banner above them changed height: a summary arriving (+11.75 px on a desktop viewport), the thread being resolved (+22 px for the "by <name>" byline) or reopened.

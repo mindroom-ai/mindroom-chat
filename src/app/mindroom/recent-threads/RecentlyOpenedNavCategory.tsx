@@ -10,6 +10,7 @@ import { useCategoryHandler } from '../../hooks/useCategoryHandler';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useClosedNavCategoriesAtom } from '../../state/hooks/closedNavCategories';
 import { allRoomsAtom } from '../../state/room-list/roomList';
+import { type ScrollAnchorMemory, useScrollAnchorMemory } from '../scroll/scrollAnchorMemory';
 import { makeRecentThreadsAtom, type RecentThreadItem } from './recentThreads';
 import { RecentThreadEntry } from './RecentThreadEntry';
 import { RECENTLY_OPENED_NAV_CATEGORY_ID } from './recentlyOpenedCategory';
@@ -42,6 +43,11 @@ type RecentlyOpenedNavCategoryProps = {
   limit?: number;
 };
 
+// The list unmounts with its navigation panel on every phone thread open, a
+// switch between Home, Direct Messages and spaces, and a collapse, so its
+// position lives here, per account.
+const recentlyOpenedScrollMemory: ScrollAnchorMemory = new Map();
+
 const clampPanelHeight = (height: number, maxHeight: number): number =>
   Math.min(
     Math.max(MIN_RECENTLY_OPENED_PANEL_HEIGHT, Math.round(height)),
@@ -63,6 +69,59 @@ const getPanelMaxHeight = (panel?: HTMLElement | null): number => {
     )
   );
 };
+
+type RecentlyOpenedListProps = {
+  entries: VisibleRecentThreadItem[];
+  userId: string;
+};
+
+function RecentlyOpenedList({ entries, userId }: RecentlyOpenedListProps) {
+  const { t } = useTranslation();
+  const scrollRef = useRef<HTMLDivElement>(null);
+  // Opening a thread moves its row to the top, so restore by the rows in view.
+  useScrollAnchorMemory({
+    memory: recentlyOpenedScrollMemory,
+    memoryKey: userId,
+    scrollRef,
+    ready: entries.length > 0,
+  });
+
+  return (
+    <div className={css.RecentlyOpenedListViewport}>
+      {/* Same Scroll settings as PageNavContent, which scrolls the room
+          list directly above this panel. This list used to be a plain
+          overflow: auto div, so it was the one place in the sidebar that
+          showed the platform's own scrollbar. */}
+      <Scroll
+        ref={scrollRef}
+        className={css.RecentlyOpenedList}
+        data-testid="recently-opened-nav-list"
+        direction="Vertical"
+        hideTrack
+        id="recently-opened-nav-list"
+        size="300"
+        variant="Background"
+        visibility="Hover"
+      >
+        {entries.length === 0 ? (
+          <Text className={css.CategoryState} as="p" size="T200">
+            {t('recentThreads.empty')}
+          </Text>
+        ) : (
+          entries.map((entry) => (
+            <RecentThreadEntry
+              key={`${entry.roomId}|${entry.threadId}`}
+              room={entry.room}
+              threadId={entry.threadId}
+              openedAt={entry.openedAt}
+              summaryText={entry.summaryText}
+            />
+          ))
+        )}
+      </Scroll>
+    </div>
+  );
+}
 
 export function RecentlyOpenedNavCategory({
   limit = DEFAULT_RECENTLY_OPENED_THREAD_LIMIT,
@@ -234,40 +293,7 @@ export function RecentlyOpenedNavCategory({
             {t('recentThreads.title')}
           </RoomNavCategoryButton>
         </NavCategoryHeader>
-        {!closed && (
-          <div className={css.RecentlyOpenedListViewport}>
-            {/* Same Scroll settings as PageNavContent, which scrolls the room
-                list directly above this panel. This list used to be a plain
-                overflow: auto div, so it was the one place in the sidebar that
-                showed the platform's own scrollbar. */}
-            <Scroll
-              className={css.RecentlyOpenedList}
-              data-testid="recently-opened-nav-list"
-              direction="Vertical"
-              hideTrack
-              id="recently-opened-nav-list"
-              size="300"
-              variant="Background"
-              visibility="Hover"
-            >
-              {entries.length === 0 ? (
-                <Text className={css.CategoryState} as="p" size="T200">
-                  {t('recentThreads.empty')}
-                </Text>
-              ) : (
-                entries.map((entry) => (
-                  <RecentThreadEntry
-                    key={`${entry.roomId}|${entry.threadId}`}
-                    room={entry.room}
-                    threadId={entry.threadId}
-                    openedAt={entry.openedAt}
-                    summaryText={entry.summaryText}
-                  />
-                ))
-              )}
-            </Scroll>
-          </div>
-        )}
+        {!closed && <RecentlyOpenedList key={userId} entries={entries} userId={userId} />}
       </NavCategory>
     </div>
   );
