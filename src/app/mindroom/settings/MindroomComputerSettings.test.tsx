@@ -70,6 +70,21 @@ const render = (deploymentUrl = '') =>
   });
 
 describe('computer service settings', () => {
+  it('explains LAN HTTP before Save, persists it, and clears the notice for HTTPS', () => {
+    render();
+    edit('http://192.168.1.50:8765/');
+    expect(message('note').children).toEqual([
+      'HTTP does not encrypt your sign-in or computer traffic. Use it only on a trusted local network.',
+    ]);
+    expect(loadComputerServicePreference()).toBeNull();
+    click('Save computer service');
+    expect(loadComputerServicePreference()).toBe('http://192.168.1.50:8765');
+    expect(input().props.value).toBe('http://192.168.1.50:8765');
+    expect(message('note')).toBeDefined();
+    click('Use MindRoom Lab');
+    expect(message('note')).toBeUndefined();
+  });
+
   it('offers a lab preset that requires Save, persists it, and keeps confirmation visible', () => {
     render();
     click('Use MindRoom Lab');

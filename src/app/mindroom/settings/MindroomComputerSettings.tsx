@@ -61,6 +61,11 @@ export function MindroomComputerSettings({ className }: { className?: string }) 
                 setMessage(undefined);
               }}
             />
+            {resolveComputerApiUrl(input)?.startsWith('http:') && (
+              <Text size="T200" role="note">
+                {t('settings.general.computers.httpNotice')}
+              </Text>
+            )}
             <Box gap="200" wrap="Wrap">
               <Button size="300" variant="Primary" onClick={() => save(input)}>
                 <Text size="T300">{t('settings.general.computers.save')}</Text>

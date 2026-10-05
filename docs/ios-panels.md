@@ -8,7 +8,12 @@ It does not fetch the web deployment's configuration.
 `config.mindroom.ios.json` overlays the ordinary `config.mindroom.json` for this hosted iOS build.
 It enables canvases and jsDelivr npm libraries; computers remain disabled until a service is configured.
 Only agents managed by the configured computer service can open computers there.
-In **Settings → General → Computers**, choose **Use MindRoom Lab**, then **Save computer service**, or enter the HTTPS origin of another trusted compatible backend.
+In **Settings → General → Computers**, choose **Use MindRoom Lab**, then **Save computer service**, or enter the origin of another trusted compatible backend.
+HTTP is also accepted for localhost, literal private IPv4 addresses (`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`), and IPv6 unique-local addresses (`fc00::/7`).
+The form shows an unencrypted-traffic notice before saving an HTTP service; use it only on a trusted local network.
+Public addresses and DNS names, including `.local` names, still require HTTPS.
+On a physical iPhone, localhost refers to the phone; use your server’s LAN IP and port, such as `http://192.168.1.50:8765`, to reach another machine.
+HTTPS-hosted web clients may still block HTTP services through their browser’s mixed-content policy.
 The setting is stored only on this device and persists across launches; it does not sync through Matrix account data.
 The chosen backend receives a short-lived Matrix OpenID sign-in token, never the Matrix access token.
 Save a blank URL to disable computers, or choose **Use app default** to restore deployment configuration.
@@ -22,7 +27,7 @@ Change the overlay's canvas switches to disable canvases or library loading.
 Ordinary web builds retain their existing defaults and runtime deployment switches.
 
 The computer runtime must support the bundled native origin and explicitly include `"capacitor://localhost"` in `MINDROOM_COMPUTER_ALLOWED_ORIGINS`, alongside its trusted web origins.
-Matrix OpenID authenticates the viewer; bearer credentials authorize REST calls and single-use stream tickets authorize noVNC over WSS.
+Matrix OpenID authenticates the viewer; bearer credentials authorize REST calls and single-use stream tickets authorize noVNC over WSS (WS for a local HTTP service).
 Cookies, embedded remote pages, WebRTC, and additional App Transport Security exceptions are unnecessary.
 See [the computer deployment guide](https://docs.mindroom.chat/tools/worker-computer/) for worker prerequisites.
 

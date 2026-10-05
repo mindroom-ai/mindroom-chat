@@ -143,7 +143,8 @@
         "save": "Computerservice opslaan",
         "lab": "MindRoom Lab gebruiken",
         "reset": "Appstandaard gebruiken",
-        "invalidUrl": "Voer een HTTPS-oorsprong in zonder inloggegevens, pad, query of fragment. HTTP is alleen toegestaan voor localhost.",
+        "invalidUrl": "Voer een origin in zonder inloggegevens, pad, query of fragment. Gebruik HTTPS, of HTTP met localhost of een privé-IP-adres op het lokale netwerk.",
+        "httpNotice": "HTTP versleutelt je aanmelding of computerverkeer niet. Gebruik het alleen op een vertrouwd lokaal netwerk.",
         "saveFailed": "De computerservice kon niet op dit apparaat worden opgeslagen.",
         "saved": "Computerservice opgeslagen."
       }
