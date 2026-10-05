@@ -3,8 +3,14 @@ import type { ClientConfig } from '../../hooks/useClientConfig';
 export const MINDROOM_HOMESERVER = 'mindroom.chat';
 export const MINDROOM_TENANT_HOMESERVER_SUFFIX = '.matrix.mindroom.chat';
 
-export const normalizeHomeserverName = (server: string): string =>
-  server.replace(/^https?:\/\//i, '').replace(/\/+$/, '').toLowerCase();
+// Only the hostname identifies a server; a base URL's path, query or userinfo must not count.
+export const normalizeHomeserverName = (server: string): string => {
+  try {
+    return new URL(/^https?:\/\//i.test(server) ? server : `https://${server}`).hostname;
+  } catch {
+    return '';
+  }
+};
 
 export const isPrimaryMindroomHomeserver = (server: string): boolean =>
   normalizeHomeserverName(server) === MINDROOM_HOMESERVER;

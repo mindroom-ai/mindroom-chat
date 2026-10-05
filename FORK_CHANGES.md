@@ -2,6 +2,14 @@
 
 ## Runbook
 
+### Match MindRoom homeservers by hostname (2026-10-05)
+
+- Problem: `normalizeHomeserverName` in `src/app/mindroom/auth/authPolicy.ts` only stripped the scheme and trailing slashes, so `isMindroomHomeserver` suffix-matched the host plus the path.
+  A base URL such as `https://example.org/x.matrix.mindroom.chat` counted as a MindRoom tenant, and on iOS the Apple provider then took the native Apple exchange, which posts the Apple credential to that base URL.
+- Fix: `normalizeHomeserverName` parses the server as a URL (adding `https://` to bare server names) and returns its hostname, or an empty string when it does not parse, so the exact `mindroom.chat` match and the dot-bounded `.matrix.mindroom.chat` suffix match apply to the hostname only.
+- Validation: `src/app/mindroom/auth/authPolicy.test.ts` pins that a path ending in the tenant suffix does not match; it fails before the fix and passes after.
+  `npm run typecheck`, `npm run build`, and ESLint and Prettier on the touched files pass; `npm test` fails only in `xcodeCloudPostClone.test.ts`, which needs `/bin/bash`, and one `useRoomInputSendSessionController.test.ts` case, which also fails on `dev`.
+
 ### Rewrite the README around the product (2026-10-05)
 
 - Status: implementation, review, and publication on `docs/readme-product-first`; PR #397 tracks the change.
