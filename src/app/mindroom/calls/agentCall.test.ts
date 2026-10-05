@@ -40,6 +40,8 @@ const ephemeralRoom = (creatorUserId = ALICE, eventSender = ALICE) =>
     callSender: eventSender,
   });
 
+const origin = { room_id: '!room:mindroom.test', thread_id: '$root' };
+
 describe('MindRoom agent calls', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -208,15 +210,17 @@ describe('MindRoom agent calls', () => {
     expect(forget).not.toHaveBeenCalled();
   });
 
-  it('keeps a permanent call room on hang-up and drops its origin', async () => {
-    const origin = { room_id: '!room:mindroom.test', thread_id: '$root' };
-    await cleanupMindroomAgentCall(mx, fakeRoom({ call: agentCallState({ origin }) }));
+  it('keeps a permanent call room on hang-up and drops its origin before the stamp synced back', async () => {
+    // The stamp landed on the server, but the room's cached state does not show its origin yet.
+    const room = fakeRoom({ call: agentCallState(), agentMembership: 'join' });
+    await prepareAgentCallRoom(mx, room, HELPER, origin);
+    await cleanupMindroomAgentCall(mx, room);
 
     expect(kick).not.toHaveBeenCalled();
     expect(leave).not.toHaveBeenCalled();
     expect(forget).not.toHaveBeenCalled();
     await vi.waitFor(() =>
-      expect(sendStateEvent).toHaveBeenCalledWith(
+      expect(sendStateEvent).toHaveBeenLastCalledWith(
         '!call:mindroom.test',
         StateEvent.MindroomAgentCall,
         agentCallState(),
@@ -225,14 +229,7 @@ describe('MindRoom agent calls', () => {
     );
   });
 
-  it('does not rewrite a permanent call room without an origin on hang-up', async () => {
-    await cleanupMindroomAgentCall(mx, fakeRoom({ call: agentCallState() }));
-
-    expect(sendStateEvent).not.toHaveBeenCalled();
-  });
-
   describe('ordering state writes', () => {
-    const origin = { room_id: '!room:mindroom.test', thread_id: '$root' };
     const settle = () =>
       new Promise((resolve) => {
         setTimeout(resolve, 0);

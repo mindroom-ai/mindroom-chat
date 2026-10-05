@@ -175,9 +175,8 @@ export const prepareAgentCallRoom = async (
 export const cleanupMindroomAgentCall = async (mx: MatrixClient, room: Room): Promise<void> => {
   const call = getOwnAgentCall(mx, room);
   // Permanent call rooms stay for the next call, minus this call's origin; legacy rooms are torn down.
-  if (call?.ephemeral === false && call.origin) {
-    clearAgentCallOrigin(mx, room.roomId, call.agent_user_id);
-  }
+  // The cached state may not show this call's origin yet, so the clear is always sent.
+  if (call?.ephemeral === false) clearAgentCallOrigin(mx, room.roomId, call.agent_user_id);
   if (call?.ephemeral !== true) return;
 
   const { roomId } = room;
