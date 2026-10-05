@@ -11,6 +11,7 @@ import {
 } from '../../hooks/useRoomsNotificationPreferences';
 import { getMxIdLocalPart } from '../../utils/matrix';
 import { getStateEvent } from '../../utils/room';
+import { setRoomArchived } from '../rooms/archivedRooms';
 import { isConfirmedMatrixEventId } from '../threads/threadRouteUtils';
 
 export const MINDROOM_VOICE_CALLS_PRESENCE = '📞 Voice calls';
@@ -63,10 +64,6 @@ const getOwnAgentCall = (mx: MatrixClient, room: Room): MindroomAgentCallContent
     : undefined;
 };
 
-/** Permanent agent call rooms are reached through their calls, so room lists leave them out. */
-export const isMindroomAgentCallRoom = (room: Room | null): boolean =>
-  !!room && getStateEvent(room, StateEvent.MindroomAgentCall)?.getContent().ephemeral === false;
-
 const createdAt = (room: Room): number => getStateEvent(room, StateEvent.RoomCreate)?.getTs() ?? 0;
 
 /** My permanent call room with this agent; two devices racing on the first call agree on the oldest. */
@@ -107,7 +104,9 @@ export const createAgentVoiceRoom = async (
     power_level_content_override: createVoiceRoomPowerLevelsOverride(),
     initial_state: initialState,
   });
-  // The room is hidden, so its side-chat messages must not raise notifications nobody can find.
+  // Calls open the room from the call bar, so it is archived out of navigation, and muted so its
+  // side-chat messages raise no notifications nobody can find. Archiving waits for its sync echo.
+  setRoomArchived(mx, result.room_id, true).catch(() => undefined);
   await setRoomNotificationPreference(
     mx,
     result.room_id,

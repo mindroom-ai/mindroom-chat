@@ -24,7 +24,7 @@ type FakeRoomOptions = {
   agentMembership?: string;
 };
 
-/** Just enough of a Room for the agent call helpers and the room-list selectors. */
+/** Just enough of a Room for the agent call helpers. */
 export const fakeRoom = ({
   roomId = '!call:mindroom.test',
   call,

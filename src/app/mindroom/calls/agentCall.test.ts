@@ -9,6 +9,9 @@ import {
   toAgentCallOrigin,
 } from './agentCall';
 
+const setRoomArchived = vi.hoisted(() => vi.fn());
+vi.mock('../rooms/archivedRooms', () => ({ setRoomArchived }));
+
 const createRoom = vi.fn();
 const addPushRule = vi.fn();
 const kick = vi.fn();
@@ -39,12 +42,14 @@ describe('MindRoom agent calls', () => {
     rooms = [];
     createRoom.mockResolvedValue({ room_id: '!call:mindroom.test' });
     addPushRule.mockResolvedValue({});
+    // Archiving waits for its sync echo, which never arrives here; the room must not wait for it.
+    setRoomArchived.mockReturnValue(new Promise(() => {}));
     kick.mockResolvedValue({});
     leave.mockResolvedValue({});
     forget.mockResolvedValue({});
   });
 
-  it('creates a private encrypted, muted voice room tagged as a permanent call with one agent', async () => {
+  it('creates a private encrypted, muted, archived voice room tagged as a permanent call with one agent', async () => {
     await expect(
       createAgentVoiceRoom(mx, '@mindroom_helper:mindroom.test', 'Helper', true)
     ).resolves.toBe('!call:mindroom.test');
@@ -81,10 +86,12 @@ describe('MindRoom agent calls', () => {
       conditions: [{ kind: 'event_match', key: 'room_id', pattern: '!call:mindroom.test' }],
       actions: [],
     });
+    expect(setRoomArchived).toHaveBeenCalledWith(mx, '!call:mindroom.test', true);
   });
 
-  it('still returns the new room when muting it fails', async () => {
+  it('still returns the new room when muting and archiving it fail', async () => {
     addPushRule.mockRejectedValueOnce(new Error('push rules unavailable'));
+    setRoomArchived.mockRejectedValueOnce(new Error('account data unavailable'));
 
     await expect(createAgentVoiceRoom(mx, HELPER, 'Helper', true)).resolves.toBe(
       '!call:mindroom.test'
