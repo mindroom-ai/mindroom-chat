@@ -68,6 +68,15 @@ const openThread = async (page: Page): Promise<Fixture> => {
   await expect(page.getByText(`Banner anchor reply ${REPLY_COUNT}`, { exact: false })).toBeVisible({
     timeout: 60_000,
   });
+  // The whole thread, so no page or Load Older fold lands during a check.
+  await expect(page.locator('[data-thread-count]')).toHaveAttribute(
+    'data-thread-count',
+    String(REPLY_COUNT + 1),
+    { timeout: 60_000 }
+  );
+  await expect(page.getByRole('button', { name: 'Load Older Messages', exact: true })).toHaveCount(
+    0
+  );
   return { homeserver, session, roomId, rootId };
 };
 
@@ -187,7 +196,12 @@ test.describe('thread banner height changes keep the reader in place', () => {
   }) => {
     const diagnostics = attachBrowserDiagnostics(page);
     const fixture = await openThread(page);
-    await expect.poll(() => bottomGap(page)).toBeLessThan(1);
+    // The opening can rest a few pixels short of the bottom.
+    await scroller(page).evaluate((element) => {
+      element.scrollTop = element.scrollHeight;
+    });
+    await waitForRest(page);
+    expect(await bottomGap(page)).toBeLessThan(1);
     await expectReaderHeld(page, () => resolve(fixture, true));
     expect(await bottomGap(page)).toBeLessThan(1);
     await expectReaderHeld(page, () => resolve(fixture, false));

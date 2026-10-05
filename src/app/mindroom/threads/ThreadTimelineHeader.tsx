@@ -11,8 +11,8 @@ export function ThreadTimelineHeader({
 }: {
   children: ReactNode;
   expansionControl: ReactNode;
-  /** Gets each height change before it reaches the rows below. */
-  onResize: (deltaPx: number) => void;
+  /** Gets each height change, and the offset before it, ahead of the layout that moves the rows. */
+  onResize: (deltaPx: number, scrollTop: number) => void;
   scrollRef: RefObject<HTMLDivElement>;
 }) {
   const headerRef = useRef<HTMLDivElement>(null);
@@ -28,12 +28,12 @@ export function ThreadTimelineHeader({
     let height: number | undefined;
     const updatePadding = () => {
       // The banner resizes inside a header that keeps its last height, so the
-      // rows move only here, before a layout, where the timeline folds it.
-      // Nothing may read layout between the two writes: at the bottom, a
-      // layout with only one of them would clamp the scroll.
+      // rows move only here, before a layout. Read the offset first: at the
+      // bottom, a layout of the shrunk header clamps it.
       const next = content.offsetHeight;
+      const { scrollTop } = scroll;
       header.style.height = `${next}px`;
-      if (height !== undefined && next !== height) onResize(next - height);
+      if (height !== undefined && next !== height) onResize(next - height, scrollTop);
       height = next;
       scroll.style.scrollPaddingTop = `calc(${headerInset} + ${next}px)`;
       scroll.parentElement?.style.setProperty('--room-thread-header-height', `${next}px`);

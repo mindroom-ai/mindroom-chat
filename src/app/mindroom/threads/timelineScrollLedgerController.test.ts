@@ -566,7 +566,7 @@ describe('useTimelineScrollLedgerController', () => {
       });
     // Row measurement refs fire inside the commit, before the parent's layout effects.
     let measureInCommit: (() => void) | undefined;
-    let foldBanner: (deltaPx: number) => void = () => undefined;
+    let holdBanner: (deltaPx: number, scrollTop: number) => void = () => undefined;
     const MeasuredRow = () => {
       useLayoutEffect(() => measureInCommit?.());
       return null;
@@ -596,7 +596,7 @@ describe('useTimelineScrollLedgerController', () => {
       (controller.threadLeadingRef as { current: unknown }).current = leading;
       (controller.virtualInnerRef as { current: unknown }).current = inner;
       ledgerPxs.push(controller.ledgerPxAtRender);
-      foldBanner = controller.foldThreadBannerResize;
+      holdBanner = controller.holdThreadBannerResize;
       return React.createElement(MeasuredRow);
     };
     let renderer: ReturnType<typeof create>;
@@ -611,6 +611,7 @@ describe('useTimelineScrollLedgerController', () => {
     beforeEach(() => {
       virtualizer.getVirtualItemForOffset = rootThenReplies;
       // The viewport top is 100px into the list: the first reply.
+      scroller.scrollTop = 300;
       listTopRef.current = 0;
       ledgerPxs.length = 0;
       measureInCommit = undefined;
@@ -677,23 +678,19 @@ describe('useTimelineScrollLedgerController', () => {
 
     it('holds a reader in the rows when the banner above them changes height', () => {
       show('', 0);
-      act(() => {
-        foldBanner(22);
-        // Painted at once: the header reports it before the layout that moves the rows.
-        expect(inner.style.marginTop).toBe('-22px');
-      });
-      expect(latestLedgerPx()).toBe(22);
-      act(() => foldBanner(-22));
-      expect(inner.style.marginTop).toBe('');
+      holdBanner(22, 300);
+      expect(scroller.scrollTop).toBe(322);
+      holdBanner(-22, 322);
+      expect(scroller.scrollTop).toBe(300);
+      // A single change, not a ledger debt left to settle at rest.
       expect(latestLedgerPx()).toBe(0);
     });
 
     it('lets a reader above the rows see the banner change', () => {
       listTopRef.current = 150;
       show('', 0);
-      act(() => foldBanner(22));
-      expect(inner.style.marginTop).toBe('');
-      expect(latestLedgerPx()).toBe(0);
+      holdBanner(22, 300);
+      expect(scroller.scrollTop).toBe(300);
     });
   });
 });

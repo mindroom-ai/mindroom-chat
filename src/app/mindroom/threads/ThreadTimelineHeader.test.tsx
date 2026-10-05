@@ -55,7 +55,7 @@ describe('ThreadTimelineHeader', () => {
 
   it('keeps its height until the next frame and reports each change before it', () => {
     const scrollRef = createRef<HTMLDivElement>();
-    // The header has its new height when the timeline folds the change.
+    // The header has its new height when the timeline holds the reader.
     const onResize = vi.fn(
       () => (scrollRef.current!.firstElementChild as HTMLElement).style.height
     );
@@ -69,6 +69,7 @@ describe('ThreadTimelineHeader', () => {
       )
     );
     const scroll = scrollRef.current!;
+    Object.defineProperty(scroll, 'scrollTop', { configurable: true, value: 300 });
     const header = scroll.firstElementChild as HTMLElement;
     expect(header.style.height).toBe('80px');
 
@@ -79,7 +80,7 @@ describe('ThreadTimelineHeader', () => {
     expect(onResize).not.toHaveBeenCalled();
 
     frame?.(0);
-    expect(onResize).toHaveBeenCalledWith(22);
+    expect(onResize).toHaveBeenCalledWith(22, 300);
     expect(onResize).toHaveReturnedWith('102px');
     expect(header.style.height).toBe('102px');
     expect(scroll.style.scrollPaddingTop).toBe('calc(var(--room-header-height, 0px) + 102px)');

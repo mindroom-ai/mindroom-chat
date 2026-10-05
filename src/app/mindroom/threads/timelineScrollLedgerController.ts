@@ -63,7 +63,7 @@ export type TimelineScrollLedgerControllerOptions = {
 };
 
 export type TimelineScrollLedgerController = {
-  foldThreadBannerResize: (deltaPx: number) => void;
+  holdThreadBannerResize: (deltaPx: number, scrollTop: number) => void;
   ledgerPxAtRender: number;
   measureElement: (node: Element | null) => void;
   threadLeadingRef: RefObject<HTMLDivElement>;
@@ -367,6 +367,21 @@ export const useTimelineScrollLedgerController = ({
     scrollElement.addEventListener('scroll', onScroll, { passive: true });
     return () => scrollElement.removeEventListener('scroll', onScroll);
   }, [anchorThreadLedgerAt, getScrollElement, threadId]);
+  // The banner above the rows changes height mostly without a timeline
+  // commit (tags, resolution, pins, wrapping). Its header resizes in a frame
+  // callback, before layout, and reports the change with the offset it had;
+  // a reader with a row keeps it in place, as with native scroll anchoring.
+  // One discrete change is written at once: folded into the ledger, its
+  // settle at rest lands after any scroll the reader starts meanwhile.
+  const holdThreadBannerResize = useCallback(
+    (deltaPx: number, scrollTop: number) => {
+      const scrollElement = getScrollElement();
+      if (!scrollElement || !threadId || threadLedgerAnchorRef.current?.threadId !== threadId)
+        return;
+      scrollElement.scrollTop = scrollTop + deltaPx;
+    },
+    [getScrollElement, threadId]
+  );
 
   // Last native/programmatic offset observed by the direction-aware ledger
   // boundary guard (upstream #119). Settlement writes update this
@@ -462,26 +477,6 @@ export const useTimelineScrollLedgerController = ({
       armSettleAtRest();
     },
     [armSettleAtRest]
-  );
-
-  // The banner above the rows changes height mostly without a timeline
-  // commit (tags, resolution, pins, wrapping). Its header reports the change
-  // in a frame callback, before the layout that moves the rows; a held
-  // reader's rows take it as margin in that layout, so the content above
-  // them keeps its height and a shrink cannot clamp the scroll. (A margin
-  // written from a ResizeObserver, after layout, is a resize loop error.)
-  const foldThreadBannerResize = useCallback(
-    (deltaPx: number) => {
-      const inner = virtualInnerRef.current;
-      if (!inner || !threadId || threadLedgerAnchorRef.current?.threadId !== threadId) return;
-      // Move the painted snapshot before anything reads layout (the header
-      // already has its new height); the forced commit pairs it with
-      // virtual-core.
-      const marginPx = (Number.parseFloat(inner.style.marginTop) || 0) - deltaPx;
-      inner.style.marginTop = marginPx === 0 ? '' : `${marginPx}px`;
-      handleDroppedCorrection(deltaPx);
-    },
-    [handleDroppedCorrection, threadId]
   );
 
   // Ledger boundary guard (upstream #119, direction-aware): negative ledger
@@ -686,7 +681,7 @@ export const useTimelineScrollLedgerController = ({
   ]);
 
   return {
-    foldThreadBannerResize,
+    holdThreadBannerResize,
     ledgerPxAtRender,
     measureElement,
     threadLeadingRef,
