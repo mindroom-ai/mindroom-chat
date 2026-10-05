@@ -135,6 +135,17 @@
         "urlPreview": "URL プレビュー",
         "urlPreviewEncrypted": "暗号化されたルームでの URL プレビュー",
         "showHiddenEvents": "非表示のイベントを表示"
+      },
+      "computers": {
+        "sectionTitle": "コンピューター",
+        "apiUrl": "コンピューターサービスのURL",
+        "description": "信頼できるMindRoomバックエンドを選択してください。短期間有効なサインイントークンが送信されます。このデバイスに保存されます。空欄にするとコンピューターが無効になります。",
+        "save": "コンピューターサービスを保存",
+        "lab": "MindRoom Labを使用",
+        "reset": "アプリの既定値を使用",
+        "invalidUrl": "認証情報、パス、クエリ、フラグメントを含まないHTTPSオリジンを入力してください。HTTPはlocalhostのみ許可されます。",
+        "saveFailed": "このデバイスにコンピューターサービスを保存できませんでした。",
+        "saved": "コンピューターサービスを保存しました。"
       }
     }
   },
@@ -2903,8 +2914,7 @@
       "computerUnavailable": "このエージェントのコンピューターは利用できません。",
       "releaseControl": "別の画面を開く前にコンピューターの操作権を手放してください。",
       "openConversation": "ルームの会話からこのリクエストを開いてください。",
-      "settingsUnavailable": "この設定項目を開くには、シンプルモードをオフにしてください。",
-      "canvasUnavailableInApp": "インタラクティブパネルはアプリではまだ利用できません。ブラウザでこの会話を開いてください。"
+      "settingsUnavailable": "この設定項目を開くには、シンプルモードをオフにしてください。"
     },
     "canvas": {
       "panelLabel": "インタラクティブパネル",

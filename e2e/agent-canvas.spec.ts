@@ -3,11 +3,15 @@ import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { expect, test } from '@playwright/test';
 import { loginWithPassword } from './helpers/auth';
+import { alignUiActionSync } from './helpers/uiActionSync';
 import { createThreadFixture, joinRoom, matrixFetch, sendRoomMessage } from './helpers/matrix';
 
 // Explicit opt-in to an isolated, disposable local Matrix server with open registration.
 const homeserver = process.env.E2E_UI_ACTIONS_HOMESERVER;
 test.use({ video: 'off' });
+test.afterEach(async ({ context }) => {
+  await context.unrouteAll({ behavior: 'ignoreErrors' });
+});
 
 const STEP_ONE = `<p>Which plan?</p>
 <button onclick="mindroom.submit({plan: 'basic'}, {label: 'Basic plan'})">Basic</button>
@@ -28,11 +32,11 @@ const escapeAttempt = (
   exfiltrationOrigin: string,
   navigateTo: string
 ) => `<p id="state">Trying to leave</p>
+<button onclick="location.href = '${navigateTo}'">Try navigation</button>
 <script>
   fetch('${exfiltrationOrigin}/fetch').catch(() => undefined);
   const image = new Image();
   image.src = '${exfiltrationOrigin}/image';
-  setTimeout(() => { location.href = '${navigateTo}'; }, 200);
 </script>`;
 
 test('agent canvases run sandboxed, send only confirmed answers, and update in place', async ({
@@ -62,7 +66,8 @@ test('agent canvases run sandboxed, send only confirmed answers, and update in p
     invite: [agent.user_id],
   });
   await joinRoom(homeserver!, agent.access_token, fixture.roomId);
-  const action = (html: string, title = 'Choose a plan') => ({
+  const originalTitle = 'Choose a plan with a long native panel title';
+  const action = (html: string, title = originalTitle) => ({
     version: 1,
     action: 'show_canvas',
     requester_id: viewer.user_id,
@@ -71,13 +76,19 @@ test('agent canvases run sandboxed, send only confirmed answers, and update in p
     thread_id: fixture.rootId,
     canvas: { title, html },
   });
-  const showCanvas = (html: string) =>
-    sendRoomMessage(homeserver!, agent.access_token, fixture.roomId, {
+  const showCanvas = async (html: string) => {
+    await page.bringToFront();
+    const close = page.getByRole('button', { name: 'Close canvas', exact: true });
+    if (await close.isVisible()) await close.focus();
+    else await page.locator('[data-slate-editor="true"]').click();
+    await expect.poll(() => page.evaluate(() => document.hasFocus())).toBe(true);
+    return sendRoomMessage(homeserver!, agent.access_token, fixture.roomId, {
       msgtype: 'm.notice',
       body: 'Interactive panel: Choose a plan. Open it in MindRoom Chat to respond.',
       'm.relates_to': { rel_type: 'm.thread', event_id: fixture.rootId },
       'io.mindroom.ui_action': action(html),
     });
+  };
   const updateCanvas = (canvasId: string, html: string, title?: string) =>
     sendRoomMessage(homeserver!, agent.access_token, fixture.roomId, {
       msgtype: 'm.notice',
@@ -136,6 +147,7 @@ test('agent canvases run sandboxed, send only confirmed answers, and update in p
           }
     );
   });
+  await alignUiActionSync(context, page, homeserver!);
   await context.route('**/config.json', async (route) => {
     const response = await route.fetch();
     const config = await response.json();
@@ -265,12 +277,26 @@ test('agent canvases run sandboxed, send only confirmed answers, and update in p
   await expect(panel.getByText('Seats', { exact: true })).toBeVisible();
   // Every earlier version stays one click away.
   await expect(panel.getByText('Version 2 of 2')).toBeVisible();
+  await page.setViewportSize({ width: 320, height: 760 });
+  for (const name of ['Previous version', 'Next version', 'Close canvas']) {
+    const control = panel.getByRole('button', { name, exact: true });
+    await expect(control).toBeInViewport({ ratio: 1 });
+    const bounds = await control.boundingBox();
+    expect(bounds!.width).toBeGreaterThanOrEqual(30);
+  }
   await panel.getByRole('button', { name: 'Previous version' }).click();
   await expect(frame.getByText('Which plan?')).toBeVisible();
   await expect(panel.getByText('This is an earlier version.')).toBeVisible();
-  await expect(panel.getByText('Choose a plan', { exact: true })).toBeVisible();
+  await expect(panel.getByText(originalTitle, { exact: true })).toBeVisible();
+  for (const name of ['Previous version', 'Next version', 'Close canvas']) {
+    const control = panel.getByRole('button', { name, exact: true });
+    await expect(control).toBeInViewport({ ratio: 1 });
+    const bounds = await control.boundingBox();
+    expect(bounds!.width).toBeGreaterThanOrEqual(30);
+  }
   await page.screenshot({ path: testInfo.outputPath('canvas-earlier-version.png') });
   await panel.getByRole('button', { name: 'Show latest' }).click();
+  await page.setViewportSize({ width: 1600, height: 1000 });
   await expect(frame.getByRole('button', { name: 'Continue' })).toBeVisible();
   await expect(panel.getByText('This is an earlier version.')).toHaveCount(0);
   await frame.getByRole('button', { name: 'Continue' }).click();
@@ -303,6 +329,7 @@ test('agent canvases run sandboxed, send only confirmed answers, and update in p
   await expect(frame.getByRole('textbox')).toHaveValue('5');
   await panel.getByRole('button', { name: 'Load update' }).click();
   await expect(frame.locator('#state')).toHaveText('Trying to leave');
+  await frame.getByRole('button', { name: 'Try navigation' }).click();
   // Whether a browser reports the blocked navigation or not, no request may leave.
   await page.waitForTimeout(1_500);
   expect(escapes).toEqual([]);
@@ -313,7 +340,11 @@ test('agent canvases run sandboxed, send only confirmed answers, and update in p
     escapeAttempt(exfiltrationOrigin, 'https://www.google.com/recaptcha/canvas-escape-probe'),
     'Escape attempt'
   );
+  // Focusing the first attack marks the page as touched, so loading remains explicit.
+  await expect(panel.getByText(/updated this panel/)).toBeVisible();
+  await panel.getByRole('button', { name: 'Load update' }).click();
   await expect(frame.locator('#state')).toHaveText('Trying to leave');
+  await frame.getByRole('button', { name: 'Try navigation' }).click();
   await page.waitForTimeout(1_500);
   expect(escapes).toEqual([]);
   expect(allowedOriginProbes).toEqual([]);
@@ -324,8 +355,11 @@ test('agent canvases run sandboxed, send only confirmed answers, and update in p
   await expect(openPanel).toBeVisible();
   await openPanel.click();
   await expect(panel).toBeVisible();
+  await expect(frame.locator('#state')).toHaveText('Trying to leave');
+  await frame.getByRole('button', { name: 'Try navigation' }).click();
   await page.waitForTimeout(1_000);
   expect(escapes).toEqual([]);
+  expect(allowedOriginProbes).toEqual([]);
 
   // A page too large for the event arrives as uploaded media, themed like Chat, and can fill the room.
   const largePage = `<style>main{display:grid;gap:8px;grid-template-columns:repeat(auto-fill,minmax(180px,1fr))}
@@ -341,6 +375,9 @@ article{background:var(--mr-surface);border:1px solid var(--mr-border);border-ra
   });
   expect(upload.ok).toBe(true);
   const { content_uri: contentUri } = (await upload.json()) as { content_uri: string };
+  await page.bringToFront();
+  await panel.getByRole('button', { name: 'Close canvas', exact: true }).focus();
+  await expect.poll(() => page.evaluate(() => document.hasFocus())).toBe(true);
   await sendRoomMessage(homeserver!, agent.access_token, fixture.roomId, {
     msgtype: 'm.notice',
     body: 'Interactive panel: Report. Open it in MindRoom Chat to respond.',

@@ -135,6 +135,17 @@
         "urlPreview": "網址預覽",
         "urlPreviewEncrypted": "加密房間網址預覽",
         "showHiddenEvents": "顯示隱藏的事件"
+      },
+      "computers": {
+        "sectionTitle": "電腦",
+        "apiUrl": "電腦服務 URL",
+        "description": "請選擇可信任的 MindRoom 後端；它會收到短期有效的登入權杖。儲存在此裝置上。留空可關閉電腦。",
+        "save": "儲存電腦服務",
+        "lab": "使用 MindRoom Lab",
+        "reset": "使用應用程式預設值",
+        "invalidUrl": "請輸入不含憑證、路徑、查詢或片段的 HTTPS 來源。HTTP 僅允許用於 localhost。",
+        "saveFailed": "無法在此裝置上儲存電腦服務。",
+        "saved": "電腦服務已儲存。"
       }
     }
   },
@@ -2903,8 +2914,7 @@
       "computerUnavailable": "此代理的電腦無法使用。",
       "releaseControl": "開啟其他檢視前，請先釋放電腦控制權。",
       "openConversation": "請從聊天室對話中開啟此請求。",
-      "settingsUnavailable": "關閉簡易模式以開啟此設定區段。",
-      "canvasUnavailableInApp": "應用程式中尚不支援互動式面板。請在瀏覽器中開啟此對話。"
+      "settingsUnavailable": "關閉簡易模式以開啟此設定區段。"
     },
     "canvas": {
       "panelLabel": "互動式面板",
