@@ -433,6 +433,20 @@ describe('kept inputs', () => {
     expect(page.sent).toEqual([]);
   });
 
+  it('gives a field that a restored checkbox reveals its kept value too', async () => {
+    const page = open(
+      `<input type="checkbox" id="adv"><div id="more"></div><script>
+  document.getElementById('adv').addEventListener('change', (event) => {
+    document.getElementById('more').innerHTML = event.target.checked ? '<input id="extra">' : '';
+  });
+</script>`,
+      JSON.stringify({ '#adv': true, '#extra': 'hello' })
+    );
+    await settle();
+    await settle();
+    expect(page.$('#extra').value).toBe('hello');
+  });
+
   it('restores disabled checkboxes and radio buttons, which ignore clicks', async () => {
     const page = open(
       `<input type="checkbox" id="flag" disabled><fieldset disabled><input type="radio" name="size" value="s" checked><input type="radio" name="size" value="l"></fieldset>`,

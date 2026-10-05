@@ -163,6 +163,8 @@ const inputsScript = (inputs: string | undefined): string => `
     const restored = new Set(keys);
     controls().forEach((entry) => { if (restored.has(entry.key)) seen[entry.key] = JSON.stringify(valueOf(entry)); });
     restoring = false;
+    // Controls the restore itself made the page draw (a field a kept checkbox reveals) get their values next.
+    later(new Event('restored'));
   };
   const saveInputs = (events) => {
     if (!seen) return;
