@@ -60,6 +60,11 @@ const openThread = async (page: Page): Promise<Fixture> => {
   });
   await loginWithPassword(page, { homeserver, username, password });
   await page.goto(`/home/${encodeURIComponent(roomId)}?threadId=${encodeURIComponent(rootId)}`);
+  // The "Catching up" bar above the room goes with the next sync, which the
+  // banner change itself brings, and would move the scroller mid-check.
+  await page.addStyleTag({
+    content: '[data-testid="client-sync-status"] { display: none !important; }',
+  });
   await expect(page.getByText(`Banner anchor reply ${REPLY_COUNT}`, { exact: false })).toBeVisible({
     timeout: 60_000,
   });

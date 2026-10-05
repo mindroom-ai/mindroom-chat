@@ -474,7 +474,9 @@ export const useTimelineScrollLedgerController = ({
     (deltaPx: number) => {
       const inner = virtualInnerRef.current;
       if (!inner || !threadId || threadLedgerAnchorRef.current?.threadId !== threadId) return;
-      // Move the painted snapshot; the forced commit pairs it with virtual-core.
+      // Move the painted snapshot before anything reads layout (the header
+      // already has its new height); the forced commit pairs it with
+      // virtual-core.
       const marginPx = (Number.parseFloat(inner.style.marginTop) || 0) - deltaPx;
       inner.style.marginTop = marginPx === 0 ? '' : `${marginPx}px`;
       handleDroppedCorrection(deltaPx);

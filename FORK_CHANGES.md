@@ -10,12 +10,14 @@
   Most of its changes never reach the ledger's render or commit: tags, resolution, pins and scheduled tasks are the banner's own state, and wrapping commits nothing; only a summary arrives with a timeline commit.
   The header's ResizeObserver sees every change, but only after layout: a margin written there resizes the scroll content the inset scrollbar already observed in that loop ("ResizeObserver loop completed with undelivered notifications", a page error in WebKit; checked in Chromium and WebKit), and a shrink at the bottom has already clamped the scroll by then.
 - Fix: the header keeps its last height while the banner resizes inside it, so no row moves when the banner does.
-  Its next-frame update, which already published `scroll-padding-top`, now also sets the new height and first reports the change to the ledger (`foldThreadBannerResize`), before that frame's layout.
+  Its next-frame update, which already published `scroll-padding-top`, now also sets the new height and then reports the change to the ledger (`foldThreadBannerResize`), before that frame's layout.
   When the reader has a row (the previous entry's anchor), the ledger takes the change as margin in that same layout, so the content above the rows keeps its height and nothing clamps; the forced commit pairs it with virtual-core and the fold settles at rest.
+  Nothing reads layout between the header's height and the margin: the settle's wait reads `scrollTop`, and with the margin written first that read clamped a reader at the latest reply by the banner's growth.
   A reader above the first row sees the banner push the content, as with Load Older.
   The reader's line (`scroll-padding-top`) now changes in the same frame as the rows, so the commit after a banner resize no longer reads a stale inset (review note N1); the first commit after opening still reads the header-only inset.
-- Tests: `ThreadTimelineHeader.test.tsx` (keeps its height until the frame, then reports the change and sets height and padding); `timelineScrollLedgerController.test.ts` (a held reader gets the change as painted margin at once and in the next commit's ledger; a reader above the rows does not).
-  `e2e/live/thread-banner-height-anchor.spec.ts` requires the reply nearest the middle of the view to stay within 1 px when a summary arrives and when the thread is resolved and reopened, mid-thread and at the latest reply (which must stay at the bottom), with no ResizeObserver loop error; all three cases fail on the base (by 11.75, 22 and 25 px).
+- Tests: `ThreadTimelineHeader.test.tsx` (keeps its height until the frame, then sets height and padding and reports the change with the new height already set); `timelineScrollLedgerController.test.ts` (a held reader gets the change as painted margin at once and in the next commit's ledger; a reader above the rows does not).
+  `e2e/live/thread-banner-height-anchor.spec.ts` requires the reply nearest the middle of the view to stay within 1 px when a summary arrives and when the thread is resolved and reopened, mid-thread and at the latest reply (which must stay at the bottom), with no ResizeObserver loop error; all three cases fail on the base (by 11.75, 22 and 22 px).
+  It hides the "Catching up" sync bar, which goes with the sync that brings the change and would move the scroller during the check.
 
 ### Keep a thread reader in place when rows or Load Older change above them (2026-10-04)
 

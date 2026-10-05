@@ -29,10 +29,12 @@ export function ThreadTimelineHeader({
     const updatePadding = () => {
       // The banner resizes inside a header that keeps its last height, so the
       // rows move only here, before a layout, where the timeline folds it.
-      const next = content.getBoundingClientRect().height;
+      // Nothing may read layout between the two writes: at the bottom, a
+      // layout with only one of them would clamp the scroll.
+      const next = content.offsetHeight;
+      header.style.height = `${next}px`;
       if (height !== undefined && next !== height) onResize(next - height);
       height = next;
-      header.style.height = `${next}px`;
       scroll.style.scrollPaddingTop = `calc(${headerInset} + ${next}px)`;
       scroll.parentElement?.style.setProperty('--room-thread-header-height', `${next}px`);
     };

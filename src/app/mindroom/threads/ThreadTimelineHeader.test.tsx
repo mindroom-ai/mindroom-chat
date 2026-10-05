@@ -36,11 +36,10 @@ describe('ThreadTimelineHeader', () => {
     );
     bannerHeight = 80;
     // The banner and its controls, inside the sticky header.
-    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function rect(
+    vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockImplementation(function height(
       this: HTMLElement
     ) {
-      const height = this.parentElement?.style.position === 'sticky' ? bannerHeight : 0;
-      return { height } as DOMRect;
+      return this.parentElement?.style.position === 'sticky' ? bannerHeight : 0;
     });
     host = document.createElement('div');
     document.body.append(host);
@@ -56,7 +55,10 @@ describe('ThreadTimelineHeader', () => {
 
   it('keeps its height until the next frame and reports each change before it', () => {
     const scrollRef = createRef<HTMLDivElement>();
-    const onResize = vi.fn();
+    // The header has its new height when the timeline folds the change.
+    const onResize = vi.fn(
+      () => (scrollRef.current!.firstElementChild as HTMLElement).style.height
+    );
     act(() =>
       root.render(
         <div ref={scrollRef}>
@@ -78,6 +80,7 @@ describe('ThreadTimelineHeader', () => {
 
     frame?.(0);
     expect(onResize).toHaveBeenCalledWith(22);
+    expect(onResize).toHaveReturnedWith('102px');
     expect(header.style.height).toBe('102px');
     expect(scroll.style.scrollPaddingTop).toBe('calc(var(--room-header-height, 0px) + 102px)');
   });
