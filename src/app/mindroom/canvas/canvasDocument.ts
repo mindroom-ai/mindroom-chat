@@ -177,6 +177,8 @@ const inputsScript = (inputs: string | undefined): string => `
     if (late.length) restore(late.map((entry) => entry.key));
     let changed = false;
     controls().forEach((entry) => {
+      // A control the restore just made the page draw is restored by the next batch, not kept as it is.
+      if (!(entry.key in seen) && !changedNow(entry)) return;
       const text = JSON.stringify(valueOf(entry));
       if (seen[entry.key] === text) return;
       seen[entry.key] = text;

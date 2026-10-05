@@ -447,6 +447,28 @@ describe('kept inputs', () => {
     expect(page.$('#extra').value).toBe('hello');
   });
 
+  it('restores a field revealed by a control that was itself restored later', async () => {
+    const page = open(
+      `<input type="checkbox" id="adv"><div id="more"></div><script>
+  const more = document.getElementById('more');
+  document.getElementById('adv').addEventListener('change', (event) => {
+    more.innerHTML = event.target.checked ? '<input type="checkbox" id="opt"><span id="sub"></span>' : '';
+    document.getElementById('opt')?.addEventListener('change', (inner) => {
+      document.getElementById('sub').innerHTML = inner.target.checked ? '<input id="note">' : '';
+    });
+  });
+</script>`,
+      JSON.stringify({ '#adv': true, '#opt': true, '#note': 'keep me' })
+    );
+    for (let pass = 0; pass < 4; pass += 1) {
+      // eslint-disable-next-line no-await-in-loop
+      await settle();
+    }
+    expect(page.$('#note').value).toBe('keep me');
+    // Restoring keeps nothing new, so no default replaces a kept value.
+    expect(page.sent).toEqual([]);
+  });
+
   it('restores disabled checkboxes and radio buttons, which ignore clicks', async () => {
     const page = open(
       `<input type="checkbox" id="flag" disabled><fieldset disabled><input type="radio" name="size" value="s" checked><input type="radio" name="size" value="l"></fieldset>`,
