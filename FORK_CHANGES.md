@@ -14,6 +14,82 @@
 - Tests: `typingMembers.test.tsx` uses the real SDK room: a member stays across 30 s of refreshes and goes when `m.typing` drops them (fails on `dev`); a member is dropped after a gappy-sync reset (fails with the check removed or with the captured, replaced member read instead of the room's current one); a left room and an unmounted binder leave no receipt and no pending check (each fails without its guard).
   `composer-glass` no longer re-sends typing before **Drop Typing Status** (the previous entry's workaround for the 5 s expiry); its check after the click now fails if the button does nothing, which on `dev` passed because the notice hid by itself.
 
+### Keep the panel rim sharp behind scrolling titles in Chromium (2026-10-05)
+
+- Report: in dark themes, the top-left of the "Review tool calls" dialog looked hazy: along the title's left and right edges the panel's 1px rim turned into a soft band about 10 px wide, and the rim stopped where the title ended.
+  The same happens in every floating glass panel with a scrolling title (dialogs, `Modal` sheets such as the thread filters, menus).
+- Root cause: `PageScroll` puts the title in a sticky wrapper with `z-index: 1`, so it paints after the panel's rim (`::before`, `z-index: auto`).
+  The flat title has its own `backdrop-filter: blur(3px)`, and Chromium includes the rim in that backdrop, so the title blurs the rim and covers the crisp copy.
+  With the title's blur turned off the rim was crisp again (pixels `67 42 29 29…` instead of `48 46 44 40 36 33 31 30`).
+  WebKit already drew it crisp beside the title.
+- Fix: `glassScrollPanel` lifts the rim to `z-index: 2` on panels that hold a flat title.
+  These panels are already `isolation: isolate`, so the rim stays inside them; it is a 1px masked ring with `pointer-events: none`.
+  The rule is kept to `glassScrollPanel` rather than the shared material, so glass cards in the timeline gain no `:has()` rule to recheck while streaming.
+  Visible change in every engine: the text viewer ("View source", text file previews) now shows the rim like every other glass modal; before, the `PageScroll` box with its opaque canvas painted over the rim, so that panel had only its border.
+  The rim also covers the outer 1px of the inset scrollbar's focus ring where the track meets the edge; the rim is nearly transparent there.
+- Tests: `e2e/dialog-menu-glass.spec.ts` "scrolling titles leave the panel rim sharp" opens the filters sheet once its entrance animation ends and samples one row of the title: the rim column must differ from the title 24 px in by more than 60 (the rim is drawn), and the title 3 px in must match it within 9 (no smear).
+  Without the fix it fails on the rim (difference 48, three of three runs); with the rim hidden it fails too (3); with the fix it passes (189).
+  It runs in dark only: silver's rim is too close to its background to tell drawn from smeared.
+- Validation: the glass suite passes in Chromium (50 passed, 25 live specs skipped without Matrix credentials) and in WebKit in the Playwright 1.58.2 container (48 passed, 27 skipped); after the test was tightened, `dialog-menu-glass.spec.ts` passes in both (9 passed, the silver case skipped).
+  Typecheck, lint, build and the glass and approval unit tests pass.
+  Before and after screenshots of the approval dialog were taken from a throwaway fixture.
+
+### Calm the approval buttons and drop the bulk row for a single call (2026-10-05)
+
+- Report: the "Review tool calls" dialog felt loud (solid pastel green, red and purple buttons), and a group with one call still showed "Approve all 1 once", "Deny all 1" and a "Reason for denying all" field that repeat the call's own Approve and Deny.
+  Inline approval cards in a thread render the same group with one record (`MindroomToolApprovalCard`), so every inline card had that row too.
+- Fix: approval buttons use folds `fill="Soft"` with `outlined`: Approve is Success, Deny and Confirm deny are Critical, Approve any arguments is Warning, and the timed "Allow for N minutes"/"Auto-approve for N minutes" buttons and Cancel are neutral Secondary (no more purple).
+  Stop auto-approval in `ApprovalGrantStatus` is Critical Soft as well.
+  `ApprovalReviewGroup` shows "Deny all" and its reason only when more than one call is still actionable (`available.length > 1`), and "Approve all" only when more than one is approvable (`approvable.length > 1`), so a group whose other calls were already decided, or cannot be approved here, does not offer "all 1" either.
+  A group with no actionable calls (another approver's, or all sent) no longer shows the bulk buttons disabled; the row also unmounts once a bulk click sends, so focus falls to the document body, as with the per-call buttons; Tab returns into the dialog.
+  The timed permission buttons stay, since they are not per call.
+- Decision: neutral buttons use Secondary `Soft`, not `None` outlined.
+  In the dark themes `Secondary.Container` equals the group's `SurfaceVariant.Container`, so they read as bordered pills; `None` outlined draws a full-contrast `Secondary.Main` border, which compared harsher in both themes and with `prefers-contrast: more`.
+- Tests: `ThreadApprovalControls.test.tsx` renders groups of 2 calls, 1 call, 2 calls with one submitted, and 2 calls with one unapprovable, and checks the exact bulk labels and the reason field for each; the last three fail on the base, and the unapprovable one fails with the approve gate loosened to `> 0`.
+  The glass fixture's approval group (`e2e/fixtures/MessageGlass.tsx`) uses the new fills.
+- Validation: typecheck, lint (0 errors), build and the approval unit tests pass.
+  The full unit run has 4 failures in `xcodeCloudPostClone.test.ts` and `useRoomInputSendSessionController.test.ts` that fail the same way on the base commit.
+  Screenshots of the dialog (1 and 2 calls, dark and light, denying) and the inline card were taken from a throwaway fixture that stubbed the approvals context; it was not committed.
+
+### Keep Recently Opened and the compact overview on the same rows after a thread visit (2026-10-05)
+
+- Report: like the room list (#366), Recently Opened and the compact room overview should be where the reader left them after opening a thread and going back.
+- Reproduced in the local Docker Matrix stack (Chromium):
+  - Recently Opened lost its position on every unmount (a phone thread open and Back, a switch between Home, Direct Messages and spaces, a collapse and expand): 152 px before, 0 after.
+    On a desktop where the panel stays mounted it kept its offset.
+  - The compact overview already restored its pixel offset across the keyed timeline remount (#165), and when only the visited thread re-sorted, the cards below it stayed put (the cards above it shift down into its old slot).
+    When another thread moved above the cards in view during the visit (agents replying elsewhere, a new thread), every card in view was one card lower on return.
+- Fix: `useScrollAnchorMemory` (`src/app/mindroom/scroll/scrollAnchorMemory.ts`) restores a plain scroll list by its rows, not its offset.
+  Rows carry `data-scroll-anchor` (`roomId|threadId` in Recently Opened, the root id in the compact overview).
+  On unmount it saves the offset and each row in view with its top relative to the viewport; on the next mount each saved row that is still rendered proposes the scroll position that puts it back, and the list takes the position most rows agree on (ties go to the one nearest the saved offset).
+  So a row that moved, such as the visited thread now sorting first, is outvoted even when it was the first row in view.
+  With no saved row rendered it restores the saved offset; a list left at the top stays at the top, where threads that moved up show.
+  It waits for `ready` (rows rendered), and re-applies on resizes of the viewport and of `contentRef` while the rows it placed move together (on a phone the header padding settles from 54 to 120 px after the restore), following the rows a write placed rather than voting again (until a saved row renders, each step votes).
+  It stops for good once the reader scrolls (a scroll event away from its last write, even if they come back), those rows move apart (a card in view leaving under the unresolved filter), or rows already in the list change order (a thread below the view sorting first), so a change the reader saw is not undone by a later resize.
+  This replaces the compact overview's clamped-restore retry; a list that unmounts without its rows (before they render, or after they all went) keeps the earlier snapshot.
+  The owner holds the memory: Recently Opened keeps one per account at module level, and the compact overview keeps using the room view's per-room map (so a position still does not outlive the room view).
+- Recently Opened's list moved into `RecentlyOpenedList` (keyed by account), which mounts with the list's `Scroll`, so a collapse saves and an expand restores; its rows sit in a content `div` it passes as `contentRef`, like the compact overview, so rows that render after the restore are followed too.
+- Tests: `scrollAnchorMemory.test.ts` drives the hook against a jsdom viewport that clamps like a browser: remount, a moved row (also as the first row in view), the tie-break, top stays top, the offset fallback, majority over nearest, late rows until the reader scrolls, rows added above, a tie that would flip after rows load above, a row in view leaving, a row sorting past the others, scrolling away and back, waiting for rows, unmounting before rows, unmounting after the rows went, separate keys; its `ResizeObserver` stub fires only the element that resized.
+  Removing the vote, the tie-break, the following, observing `contentRef`, the top rule, any of the three stops, or the before-rows guard each fails it, and so does `CompactRoomView` not passing `contentRef`.
+  `CompactRoomView` and `RoomView` tests keep their remount, retry and history/native exit coverage on the new memory; `RecentlyOpenedNavCategory` covers a collapse and expand, and rows rendering after it (its `Scroll` mock now forwards the ref); `RecentThreadEntry` and `CompactRoomView` pin the anchor keys.
+  Live: `compact-scroll-memory.spec.ts` opens a card, has its thread and the last thread in the list get replies, and returns by Back and by the exit button on desktop and by Back on a phone; `sidebar-scroll-memory.spec.ts` covers Recently Opened across a desktop collapse and a phone thread open.
+  Against the previous code both fail (cards and rows 90 px off); both pass now, as do `sidebar-scroll-memory`, `cinny015-thread-exit-scroll`, `cinny073-recent-threads-mobile` and `compact-thread-cards`.
+  The compact spec clicks with `page.mouse`, because a locator click first scrolls a card the glass header overlaps, which moved the overview 30 px before it was left.
+- Validation: typecheck, build and lint pass (18 existing warnings on `dev`); `npm test` passes apart from the four `xcodeCloudPostClone` and `useRoomInputSendSessionController` failures that fail the same way on `dev`.
+  The two live specs passed twice more after the review fixes, and again with `cinny015-thread-exit-scroll` after rebasing onto `dev` at #394.
+  After the Qodo fixes, typecheck, lint, build and `npm test` (same four failures) were rerun, and `compact-scroll-memory`, `sidebar-scroll-memory`, `cinny073-recent-threads-mobile` (row pitch with the new content `div`), `cinny015-thread-exit-scroll` and `compact-thread-cards` passed 12 of 12.
+- Review: an independent subagent review found that the first version kept re-applying the saved rows on every resize until the reader scrolled, so a card leaving in view made the list jump a card (reproduced: 300 to 260 px); the follow now stops when the placed rows move apart.
+  It also found the `Scroll` mock dropping the ref; the mock forwards it and the collapse test covers the wiring.
+  Re-review approved with nits: a tie could flip during the follow and end it early, so later steps now follow the placed rows; its note that the collapse test shares module memory with the file's other tests needs no change, because the test scrolls the list itself before collapsing.
+  PR review, round 1: GPT-6 Astra approved, noting that scrolling away and back left the follow on; Opus 5.5 found the blocker that a re-sort with no resize left it on, so the next resize moved the rows back (300 to 340 px), and that no test separated the vote from nearest-wins or checked `contentRef` was observed.
+  The follow now also ends on a reader scroll event and on a change in row order, and the tests cover all three.
+  Round 2: both approved; Opus's note that the vote still runs after an offset fallback is now in the comment, and its other notes (strict `scrollTop` equality, carried over from the old compact code; the phone Recently Opened step not separating vote from pixel restore) need no change.
+  Qodo then found that Recently Opened did not pass `contentRef` (rows rendering after a clamped restore were not followed) and that a list emptied before it unmounted saved over the earlier snapshot; both fixed with tests that fail without them, and its two style notes (shared settle helper for the live specs, the unreachable null checks) need no change.
+- Not addressed:
+  - A re-sort that arrives while the reader is looking at the list (no remount) still moves the rows in view; that is live scroll anchoring, not restore.
+  - The thread exit button has no accessible name, so the live spec finds it from the Thread View label like `cinny015`.
+  - WebKit and the native iOS shell were not run.
+
 ### Keep a thread reader in place when the thread banner changes height (2026-10-04)
 
 - Report: in a thread, every row moved by the change whenever the banner above them changed height: a summary arriving (+11.75 px on a desktop viewport), the thread being resolved (+22 px for the "by <name>" byline) or reopened.
