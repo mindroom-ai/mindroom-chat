@@ -141,7 +141,6 @@
         "apiUrl": "コンピューターサービスのURL",
         "description": "信頼できるMindRoomバックエンドを選択してください。短期間有効なサインイントークンが送信されます。このデバイスに保存されます。空欄にするとコンピューターが無効になります。",
         "save": "コンピューターサービスを保存",
-        "lab": "MindRoom Labを使用",
         "reset": "アプリの既定値を使用",
         "invalidUrl": "認証情報、パス、クエリ、フラグメントを含まないオリジンを入力してください。HTTPS、または localhost やプライベート LAN IP アドレスで HTTP を使用してください。",
         "httpNotice": "HTTP はサインイン情報やコンピューターの通信を暗号化しません。信頼できるローカルネットワークでのみ使用してください。",
@@ -2455,7 +2454,10 @@
         "cancel": "キャンセル",
         "autoApproveMinutes_one": "{{count}} 分間自動承認します",
         "autoApproveMinutes_other": "{{count}} 分間自動承認します",
-        "denyCallReasonOptional": "呼び出し {{number}} を拒否する理由（任意）"
+        "denyCallReasonOptional": "呼び出し {{number}} を拒否する理由（任意）",
+        "approveExactCall": "この呼び出しをそのまま承認",
+        "approveAnyArguments": "任意の引数を承認",
+        "anyArgumentsWarning": "任意の引数を承認すると、エージェントは予定時刻の前後 {{minutes}} 分以内に、自分で決めた内容で {{tool}} を 1 回呼び出せます。"
       },
       "approvalGrantStatus": {
         "autoApprovalActive": "自動承認が有効です",
@@ -2488,7 +2490,14 @@
         "originalFixedExpiry": "元の固定有効期限: {{timestamp}}",
         "toolAndServer": "ツール: {{tool}} · サーバー: {{server}}",
         "tool": "ツール: {{tool}}",
-        "reason": "理由: {{reason}}"
+        "reason": "理由: {{reason}}",
+        "approvedWhenScheduledByAt": "予定作成時に {{approver}} が承認 · {{timestamp}}",
+        "approvedWhenScheduledBy": "予定作成時に {{approver}} が承認"
+      },
+      "approvalSchedule": {
+        "scheduledFor": "{{timestamp}} に予定",
+        "approvedExactArguments": "この引数どおりで承認済み",
+        "approvedAnyArguments": "このツールの任意の引数で承認済み"
       },
       "approvalReviewCall": {
         "pending": "保留中",

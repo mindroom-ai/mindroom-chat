@@ -141,7 +141,6 @@
         "apiUrl": "電腦服務 URL",
         "description": "請選擇可信任的 MindRoom 後端；它會收到短期有效的登入權杖。儲存在此裝置上。留空可關閉電腦。",
         "save": "儲存電腦服務",
-        "lab": "使用 MindRoom Lab",
         "reset": "使用應用程式預設值",
         "invalidUrl": "請輸入不含憑證、路徑、查詢或片段的來源。請使用 HTTPS，或對 localhost 或私人區域網路 IP 位址使用 HTTP。",
         "httpNotice": "HTTP 不會加密您的登入資訊或電腦流量。請僅在可信任的區域網路上使用。",
@@ -2455,7 +2454,10 @@
         "cancel": "取消",
         "autoApproveMinutes_one": "自動批准 {{count}} 分鐘",
         "autoApproveMinutes_other": "自動批准 {{count}} 分鐘",
-        "denyCallReasonOptional": "拒絕呼叫 {{number}} 的原因（選填）"
+        "denyCallReasonOptional": "拒絕呼叫 {{number}} 的原因（選填）",
+        "approveExactCall": "核准這次確切呼叫",
+        "approveAnyArguments": "核准任意引數",
+        "anyArgumentsWarning": "選擇任意引數後，代理可在預定時間前後 {{minutes}} 分鐘內，依自己決定的內容呼叫一次 {{tool}}。"
       },
       "approvalGrantStatus": {
         "autoApprovalActive": "自動批准已啟用",
@@ -2488,7 +2490,14 @@
         "originalFixedExpiry": "原始固定到期日：{{timestamp}}",
         "toolAndServer": "工具：{{tool}} · 伺服器：{{server}}",
         "tool": "工具：{{tool}}",
-        "reason": "原因：{{reason}}"
+        "reason": "原因：{{reason}}",
+        "approvedWhenScheduledByAt": "排程時由 {{approver}} 核准 · {{timestamp}}",
+        "approvedWhenScheduledBy": "排程時由 {{approver}} 核准"
+      },
+      "approvalSchedule": {
+        "scheduledFor": "預定於 {{timestamp}}",
+        "approvedExactArguments": "已依這些確切引數核准",
+        "approvedAnyArguments": "已核准此工具的任意引數"
       },
       "approvalReviewCall": {
         "pending": "待處理",

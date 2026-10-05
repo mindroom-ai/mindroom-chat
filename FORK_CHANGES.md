@@ -2,6 +2,33 @@
 
 ## Runbook
 
+### Approve scheduled tool calls exactly or for any arguments (2026-10-04)
+
+- Pairs with mindroom-ai/mindroom#2633, where an agent can schedule an approval-gated tool call and MindRoom posts its approval card when the call is scheduled (`approval_target: scheduled_call`).
+- Pending scheduling cards show the send time from `scheduled_for`.
+- When the card lists `scheduled_scope_options`, the named approver gets **Approve this exact call** and **Approve any arguments**, with a warning that the broader scope lets the agent make one call to that tool with whatever it decides, within the send window from `scheduled_window_seconds`.
+  The scope buttons appear only when that window is a whole number of minutes, so the warning never states an invented window.
+- Approval responses carry `scheduled_scope` (`exact_arguments` or `any_arguments`); the action capability check allows only a scope the card offered, only for the named approver, and never together with a timed-approval duration.
+  Scheduling cards never offer timed approvals, because the approval belongs to one scheduled call rather than the thread.
+- Resolved scheduling cards show the send time and the approved scope from the card edit's `scheduled_scope`; send-time receipts with `scheduled_approval` provenance show who approved the call while scheduling it, when, the scheduled time, and the scope.
+  Times are parsed like approval expiries, so backend timestamps with microseconds display correctly.
+- Code lives in `src/app/mindroom/messages/` (`toolApproval.ts`, `approvalActions.ts`, `ApprovalDecisionControls.tsx`, `ApprovalSchedule.tsx`, `approvalScheduleText.ts`, `ApprovalReceipt.tsx`); the strings in the 16 non-English catalogs are machine-authored.
+- Validation: the new `scheduledToolApproval.test.ts` and the scheduled-card case in `ApprovalReviewCall.test.tsx`, all 809 tests in `src/app/mindroom/messages` plus `src/app/i18n.test.ts`, typecheck, touched-file ESLint, and the production build pass.
+  The full Vitest run passes 6,047 of 6,051 tests; the 4 failures are the `xcodeCloudPostClone.test.ts` and `useRoomInputSendSessionController.test.ts` cases that also fail on `origin/dev`.
+- Live check against a local MindRoom backend running #2633 with a stub model: the pending scheduling card (in the thread's Review sheet) showed the send time, both approve buttons, and the warning; approving any arguments showed the approved scope; the send-time call ran with different arguments under that approval; and its receipt showed who approved it while scheduling, the send time, and the scope.
+- Next: integrate together with mindroom-ai/mindroom#2633.
+
+### Remove the private computer deployment preset (2026-10-05)
+
+- The proposed settings cleanup had not been implemented: the computer form still suggested the author's private deployment through a placeholder and preset button.
+  Remove that button, URL constant and placeholder, along with all 17 translated preset labels, deployment-specific setup guidance and its obsolete screenshot.
+  The shipped iOS computer default remains empty; services explicitly saved by users remain active and editable.
+- Validation covers an empty first-use form with no server suggestion or preset, explicit manual Save, retained saved services, the LAN HTTP notice, and generic custom-build configuration.
+  Keep this correction focused on the private preset; settings navigation remains a separate design discussion.
+  All 6,172 unit tests in 661 files pass, along with typecheck, lint (17 existing warnings), web build and iOS build.
+  The generated iOS config has an empty computer URL, and its shipping text assets contain no private deployment URL or preset text.
+  Independent review and CI are required before the user-authorized squash merge.
+
 ### Fix three live specs that failed intermittently in full runs (2026-10-04)
 
 - Report: in full live-suite runs (`--jobs 8`), `thread-arrow-up-edit`, `composer-glass` on WebKit and `offline-invited-account` failed now and then, also on `dev`, and passed when rerun alone.

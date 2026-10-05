@@ -141,7 +141,6 @@
         "apiUrl": "URL du service d’ordinateurs",
         "description": "Choisissez un backend MindRoom de confiance ; il recevra un jeton de connexion de courte durée. Enregistré sur cet appareil. Laissez vide pour désactiver les ordinateurs.",
         "save": "Enregistrer le service",
-        "lab": "Utiliser MindRoom Lab",
         "reset": "Utiliser la valeur de l’app",
         "invalidUrl": "Saisissez une origine sans identifiants, chemin, requête ni fragment. Utilisez HTTPS, ou HTTP avec localhost ou une adresse IP privée du réseau local.",
         "httpNotice": "HTTP ne chiffre ni votre connexion ni le trafic de l’ordinateur. Utilisez-le uniquement sur un réseau local de confiance.",
@@ -2485,6 +2484,9 @@
         "autoApproveMinutes_one": "Approuver automatiquement pendant {{count}} minute",
         "autoApproveMinutes_other": "Approuver automatiquement pendant {{count}} minutes",
         "denyCallReasonOptional": "Motif du refus de l’appel {{number}} (facultatif)",
+        "approveExactCall": "Approuver exactement cet appel",
+        "approveAnyArguments": "Approuver n'importe quels arguments",
+        "anyArgumentsWarning": "Avec n'importe quels arguments, l'agent peut faire un appel {{tool}} avec les arguments de son choix, dans les {{minutes}} minutes autour de l'heure prévue.",
         "autoApproveMinutes_many": "Approuver automatiquement pendant {{count}} minutes"
       },
       "approvalGrantStatus": {
@@ -2520,7 +2522,14 @@
         "toolAndServer": "Outil : {{tool}} · Serveur : {{server}}",
         "tool": "Outil : {{tool}}",
         "reason": "Motif : {{reason}}",
+        "approvedWhenScheduledByAt": "Approuvé lors de la planification par {{approver}} · {{timestamp}}",
+        "approvedWhenScheduledBy": "Approuvé lors de la planification par {{approver}}",
         "timedPermissionMinutes_many": "Autorisation temporaire · {{count}} minutes"
+      },
+      "approvalSchedule": {
+        "scheduledFor": "Prévu pour {{timestamp}}",
+        "approvedExactArguments": "Approuvé pour ces arguments exacts",
+        "approvedAnyArguments": "Approuvé pour n'importe quels arguments de cet outil"
       },
       "approvalReviewCall": {
         "pending": "en attente",

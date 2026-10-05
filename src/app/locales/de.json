@@ -141,7 +141,6 @@
         "apiUrl": "URL des Computerdienstes",
         "description": "Wähle ein vertrauenswürdiges MindRoom-Backend; es erhält ein kurzlebiges Anmeldetoken. Auf diesem Gerät gespeichert. Leer lassen, um Computer zu deaktivieren.",
         "save": "Computerdienst speichern",
-        "lab": "MindRoom Lab verwenden",
         "reset": "App-Standard verwenden",
         "invalidUrl": "Gib eine Origin ohne Zugangsdaten, Pfad, Abfrage oder Fragment ein. Verwende HTTPS oder HTTP mit localhost oder einer privaten LAN-IP-Adresse.",
         "httpNotice": "HTTP verschlüsselt weder deine Anmeldung noch den Computer-Datenverkehr. Verwende es nur in einem vertrauenswürdigen lokalen Netzwerk.",
@@ -2455,7 +2454,10 @@
         "cancel": "Abbrechen",
         "autoApproveMinutes_one": "Für {{count}} Minute automatisch genehmigen",
         "autoApproveMinutes_other": "Für {{count}} Minuten automatisch genehmigen",
-        "denyCallReasonOptional": "Grund für die Ablehnung des Aufrufs {{number}} (optional)"
+        "denyCallReasonOptional": "Grund für die Ablehnung des Aufrufs {{number}} (optional)",
+        "approveExactCall": "Genau diesen Aufruf genehmigen",
+        "approveAnyArguments": "Beliebige Argumente genehmigen",
+        "anyArgumentsWarning": "Mit beliebigen Argumenten darf der Agent innerhalb von {{minutes}} Minuten um die geplante Zeit einen {{tool}}-Aufruf mit selbst gewählten Argumenten ausführen."
       },
       "approvalGrantStatus": {
         "autoApprovalActive": "Automatische Genehmigung aktiv",
@@ -2488,7 +2490,14 @@
         "originalFixedExpiry": "Ursprünglicher fester Ablaufzeitpunkt: {{timestamp}}",
         "toolAndServer": "Werkzeug: {{tool}} · Server: {{server}}",
         "tool": "Werkzeug: {{tool}}",
-        "reason": "Grund: {{reason}}"
+        "reason": "Grund: {{reason}}",
+        "approvedWhenScheduledByAt": "Beim Planen genehmigt von {{approver}} · {{timestamp}}",
+        "approvedWhenScheduledBy": "Beim Planen genehmigt von {{approver}}"
+      },
+      "approvalSchedule": {
+        "scheduledFor": "Geplant für {{timestamp}}",
+        "approvedExactArguments": "Für genau diese Argumente genehmigt",
+        "approvedAnyArguments": "Für beliebige Argumente dieses Werkzeugs genehmigt"
       },
       "approvalReviewCall": {
         "pending": "ausstehend",

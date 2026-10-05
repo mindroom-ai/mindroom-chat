@@ -141,7 +141,6 @@
         "apiUrl": "URL do serviço de computadores",
         "description": "Escolha um backend MindRoom confiável; ele receberá um token de login de curta duração. Salvo neste dispositivo. Deixe em branco para desativar os computadores.",
         "save": "Salvar serviço de computadores",
-        "lab": "Usar MindRoom Lab",
         "reset": "Usar padrão do aplicativo",
         "invalidUrl": "Introduza uma origem sem credenciais, caminho, consulta ou fragmento. Use HTTPS, ou HTTP com localhost ou um endereço IP privado da rede local.",
         "httpNotice": "HTTP não encripta o início de sessão nem o tráfego do computador. Use-o apenas numa rede local de confiança.",
@@ -2485,6 +2484,9 @@
         "autoApproveMinutes_one": "Aprovar automaticamente durante {{count}} minuto",
         "autoApproveMinutes_other": "Aprovar automaticamente durante {{count}} minutos",
         "denyCallReasonOptional": "Motivo para recusar a chamada {{number}} (opcional)",
+        "approveExactCall": "Aprovar esta chamada exata",
+        "approveAnyArguments": "Aprovar quaisquer argumentos",
+        "anyArgumentsWarning": "Com quaisquer argumentos, o agente pode fazer uma chamada a {{tool}} com o que decidir, dentro de {{minutes}} minutos do horário agendado.",
         "autoApproveMinutes_many": "Aprovar automaticamente durante {{count}} minutos"
       },
       "approvalGrantStatus": {
@@ -2520,7 +2522,14 @@
         "toolAndServer": "Ferramenta: {{tool}} · Servidor: {{server}}",
         "tool": "Ferramenta: {{tool}}",
         "reason": "Motivo: {{reason}}",
+        "approvedWhenScheduledByAt": "Aprovado ao agendar por {{approver}} · {{timestamp}}",
+        "approvedWhenScheduledBy": "Aprovado ao agendar por {{approver}}",
         "timedPermissionMinutes_many": "Permissão temporária · {{count}} minutos"
+      },
+      "approvalSchedule": {
+        "scheduledFor": "Agendado para {{timestamp}}",
+        "approvedExactArguments": "Aprovado para estes argumentos exatos",
+        "approvedAnyArguments": "Aprovado para quaisquer argumentos desta ferramenta"
       },
       "approvalReviewCall": {
         "pending": "pendente",

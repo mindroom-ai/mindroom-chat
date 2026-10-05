@@ -141,7 +141,6 @@
         "apiUrl": "URL del servizio computer",
         "description": "Scegli un backend MindRoom affidabile; riceverà un token di accesso di breve durata. Salvato su questo dispositivo. Lascia vuoto per disattivare i computer.",
         "save": "Salva servizio computer",
-        "lab": "Usa MindRoom Lab",
         "reset": "Usa impostazione dell’app",
         "invalidUrl": "Inserisci un’origine senza credenziali, percorso, query o frammento. Usa HTTPS, oppure HTTP con localhost o un indirizzo IP LAN privato.",
         "httpNotice": "HTTP non crittografa l’accesso o il traffico del computer. Usalo solo su una rete locale attendibile.",
@@ -2485,6 +2484,9 @@
         "autoApproveMinutes_one": "Approva automaticamente per {{count}} minuto",
         "autoApproveMinutes_other": "Approva automaticamente per {{count}} minuti",
         "denyCallReasonOptional": "Motivo del rifiuto della chiamata {{number}} (facoltativo)",
+        "approveExactCall": "Approva esattamente questa chiamata",
+        "approveAnyArguments": "Approva qualsiasi argomento",
+        "anyArgumentsWarning": "Con qualsiasi argomento, l'agente può effettuare una chiamata a {{tool}} con ciò che decide, entro {{minutes}} minuti dall'orario programmato.",
         "autoApproveMinutes_many": "Approva automaticamente per {{count}} minuti"
       },
       "approvalGrantStatus": {
@@ -2520,7 +2522,14 @@
         "toolAndServer": "Strumento: {{tool}} · Server: {{server}}",
         "tool": "Strumento: {{tool}}",
         "reason": "Motivo: {{reason}}",
+        "approvedWhenScheduledByAt": "Approvato alla programmazione da {{approver}} · {{timestamp}}",
+        "approvedWhenScheduledBy": "Approvato alla programmazione da {{approver}}",
         "timedPermissionMinutes_many": "Autorizzazione a tempo · {{count}} minuti"
+      },
+      "approvalSchedule": {
+        "scheduledFor": "Programmato per {{timestamp}}",
+        "approvedExactArguments": "Approvato per questi argomenti esatti",
+        "approvedAnyArguments": "Approvato per qualsiasi argomento di questo strumento"
       },
       "approvalReviewCall": {
         "pending": "in sospeso",
