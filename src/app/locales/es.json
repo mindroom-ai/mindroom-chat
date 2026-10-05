@@ -141,7 +141,6 @@
         "apiUrl": "URL del servicio de ordenadores",
         "description": "Elige un backend MindRoom de confianza; recibirá un token de inicio de sesión de corta duración. Se guarda en este dispositivo. Déjalo vacío para desactivar los ordenadores.",
         "save": "Guardar servicio de ordenadores",
-        "lab": "Usar MindRoom Lab",
         "reset": "Usar configuración de la app",
         "invalidUrl": "Introduce un origen sin credenciales, ruta, consulta ni fragmento. Usa HTTPS, o HTTP con localhost o una dirección IP privada de la red local.",
         "httpNotice": "HTTP no cifra el inicio de sesión ni el tráfico del ordenador. Úsalo solo en una red local de confianza.",

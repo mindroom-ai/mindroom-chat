@@ -141,7 +141,6 @@
         "apiUrl": "URL layanan komputer",
         "description": "Pilih backend MindRoom tepercaya; backend menerima token masuk berumur pendek. Disimpan di perangkat ini. Kosongkan untuk menonaktifkan komputer.",
         "save": "Simpan layanan komputer",
-        "lab": "Gunakan MindRoom Lab",
         "reset": "Gunakan bawaan aplikasi",
         "invalidUrl": "Masukkan origin tanpa kredensial, jalur, kueri, atau fragmen. Gunakan HTTPS, atau HTTP dengan localhost atau alamat IP LAN privat.",
         "httpNotice": "HTTP tidak mengenkripsi proses masuk atau lalu lintas komputer Anda. Gunakan hanya pada jaringan lokal tepercaya.",

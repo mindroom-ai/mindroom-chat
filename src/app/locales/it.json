@@ -141,7 +141,6 @@
         "apiUrl": "URL del servizio computer",
         "description": "Scegli un backend MindRoom affidabile; riceverà un token di accesso di breve durata. Salvato su questo dispositivo. Lascia vuoto per disattivare i computer.",
         "save": "Salva servizio computer",
-        "lab": "Usa MindRoom Lab",
         "reset": "Usa impostazione dell’app",
         "invalidUrl": "Inserisci un’origine senza credenziali, percorso, query o frammento. Usa HTTPS, oppure HTTP con localhost o un indirizzo IP LAN privato.",
         "httpNotice": "HTTP non crittografa l’accesso o il traffico del computer. Usalo solo su una rete locale attendibile.",
