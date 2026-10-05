@@ -479,7 +479,7 @@ export function CanvasPanel({
   return (
     <aside className={css.Panel} aria-label={t('mindroomUi.canvas.panelLabel')}>
       <div className={css.Header}>
-        <Box alignItems="Center" gap="200">
+        <Box className={css.TitleGroup} alignItems="Center" gap="200">
           <Icon size="300" src={Icons.Category} />
           <div className={css.Title}>
             <Text size="H4" truncate>
@@ -490,7 +490,7 @@ export function CanvasPanel({
             </Text>
           </div>
         </Box>
-        <Box alignItems="Center" gap="100">
+        <Box className={css.Controls} alignItems="Center" gap="100">
           {versions && onSelectVersion && (
             <Box alignItems="Center" gap="100">
               <IconButton

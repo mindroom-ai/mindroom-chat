@@ -7,10 +7,18 @@ type InsetScrollbarProps = {
   contentRef: RefObject<HTMLElement>;
   label: string;
   className: string;
+  /** Composite widgets retain their own arrow-key focus order. */
+  tabIndex?: 0 | -1;
 };
 
 /** Keep native scrolling, with an indicator bounded by the unobscured viewport. */
-export function InsetScrollbar({ scrollRef, contentRef, label, className }: InsetScrollbarProps) {
+export function InsetScrollbar({
+  scrollRef,
+  contentRef,
+  label,
+  className,
+  tabIndex = 0,
+}: InsetScrollbarProps) {
   const id = useId();
   const trackRef = useRef<HTMLDivElement>(null);
   const thumbRef = useRef<HTMLDivElement>(null);
@@ -77,7 +85,7 @@ export function InsetScrollbar({ scrollRef, contentRef, label, className }: Inse
     const onPointerDown = (event: PointerEvent) => {
       if (!event.isPrimary || event.button !== 0) return;
       event.preventDefault();
-      track.focus({ preventScroll: true });
+      if (tabIndex === 0) track.focus({ preventScroll: true });
       const { thumbHeight } = geometry();
       const grabOffset =
         event.target === thumb
@@ -138,14 +146,14 @@ export function InsetScrollbar({ scrollRef, contentRef, label, className }: Inse
       track.removeEventListener('keydown', onKeyDown);
       if (!previousId && scroll.id === id) scroll.removeAttribute('id');
     };
-  }, [scrollRef, contentRef, id]);
+  }, [scrollRef, contentRef, id, tabIndex]);
 
   return (
     <div
       ref={trackRef}
       className={classNames(css.Track, className)}
       role="scrollbar"
-      tabIndex={0}
+      tabIndex={tabIndex}
       aria-label={label}
       aria-controls={id}
       aria-orientation="vertical"

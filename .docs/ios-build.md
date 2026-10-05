@@ -15,7 +15,7 @@ cd mindroom-chat
 
 # Install dependencies and build web assets
 npm install
-npm run build
+npm run build:ios
 
 # Sync web assets and install CocoaPods dependencies
 npx cap sync ios
@@ -25,7 +25,7 @@ Recommended preflight checks before opening Xcode:
 
 ```bash
 npm run test
-npm run build
+npm run build:ios
 npm run ios:icons
 npm run appstore:preflight
 ```
@@ -101,7 +101,7 @@ metadata, and screenshot upload steps — see `.docs/ios-fastlane.md`.
 After making changes to the web app:
 
 ```bash
-npm run build
+npm run build:ios
 npx cap sync ios
 ```
 

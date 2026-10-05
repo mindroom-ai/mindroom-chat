@@ -8,6 +8,22 @@ import { ThreadApprovals } from './ThreadApprovalProvider';
 import { parseToolApprovalContent } from './toolApproval';
 
 let current: ThreadApprovals;
+vi.mock('../../components/page', () => ({
+  PageScroll: ({
+    header,
+    children,
+    scrollRef,
+  }: {
+    header?: React.ReactNode;
+    children: React.ReactNode;
+    scrollRef?: React.RefObject<HTMLDivElement>;
+  }) => (
+    <div ref={scrollRef}>
+      {header}
+      {children}
+    </div>
+  ),
+}));
 vi.mock('./ThreadApprovalProvider', () => ({ useThreadApprovals: () => current }));
 vi.mock('../../hooks/useMatrixClient', () => ({
   useMatrixClient: () => ({ getUserId: () => '@alice:example.org' }),
@@ -31,6 +47,7 @@ vi.mock('./ThreadApprovals.css', () => ({
   Stack: 'Stack',
   HistoryBody: 'HistoryBody',
   DialogBody: 'DialogBody',
+  DialogScroll: 'DialogScroll',
   Group: 'Group',
   Actions: 'Actions',
   Call: 'Call',

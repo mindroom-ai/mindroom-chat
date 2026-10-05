@@ -88,6 +88,8 @@ vi.mock('react-i18next', async () => {
 vi.mock('./CanvasPanel.css.ts', () => ({
   Panel: 'Panel',
   Header: 'Header',
+  TitleGroup: 'TitleGroup',
+  Controls: 'Controls',
   Title: 'Title',
   Frame: 'Frame',
   Footer: 'Footer',
