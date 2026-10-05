@@ -356,6 +356,34 @@ describe('virtualizer iOS scroll contract (production hook)', () => {
     expect(virtualizer.scrollDirection).toBe('backward');
   });
 
+  it('judges the rest of a batch in the layout its applied corrections have not moved yet', () => {
+    // virtual-core reports a batch's rows where they were before the batch,
+    // but each applied correction has already moved the offset.
+    let element: { scrollTop: number } | undefined;
+    const scrollToFn = vi.fn((offset: number, options: { adjustments?: number }) => {
+      if (element) element.scrollTop = offset + (options.adjustments ?? 0);
+    });
+    const { virtualizer, holder } = makeVirtualizer(scrollToFn);
+    element = holder.element;
+    let unrenderedPx = 0;
+    virtualizer.shouldAdjustScrollPositionOnItemSizeChange = buildMeasurementScrollCorrectionHook({
+      isIOSWebKitDevice: () => false,
+      onDroppedCorrection: () => {},
+      onAppliedCorrection: (deltaPx) => {
+        unrenderedPx += deltaPx;
+      },
+      unrenderedCorrectionPx: () => unrenderedPx,
+    });
+
+    // The two rows just above the reader fold by 40px each.
+    const lastRowAbove = START_OFFSET / ROW_ESTIMATE - 1;
+    virtualizer.resizeItem(lastRowAbove - 1, ROW_ESTIMATE - 40);
+    virtualizer.resizeItem(lastRowAbove, ROW_ESTIMATE - 40);
+
+    expect(holder.element.scrollTop).toBe(START_OFFSET - 80);
+    expect(unrenderedPx).toBe(-80);
+  });
+
   it('judges a resize against the row painted at the viewport top, below content above the list', () => {
     // 200px of banner and Load Older sit above the list, which virtual-core's
     // offsets do not include: at scrollTop 1500 the reader sees offset 1300.
