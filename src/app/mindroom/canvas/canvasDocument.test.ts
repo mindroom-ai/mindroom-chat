@@ -422,6 +422,69 @@ describe('kept inputs', () => {
     expect(page.kept()).toEqual({ '#rate': '7' });
   });
 
+  it('never keeps a password the page reveals, at startup or on a later field', async () => {
+    const page = open(
+      `${RATE}<input id="early" type="password"><script>document.getElementById('early').type = 'text';</script>
+<div id="login"></div>
+<script>
+  function draw() { document.getElementById('login').innerHTML = '<input id="late" type="password">'; }
+</script>
+<button id="draw" onclick="draw()">Log in</button>
+<button id="show" onclick="document.getElementById('late').type = 'text'">Show</button>`
+    );
+    await settle();
+    page.$<HTMLButtonElement>('#draw').click();
+    page.$<HTMLButtonElement>('#show').click();
+    await settle();
+    page.use('#early', (control) => {
+      control.value = 'hunter2';
+    });
+    page.use('#late', (control) => {
+      control.value = 'hunter3';
+    });
+    page.use('#rate', (control) => {
+      control.value = '7';
+    });
+    await settle();
+    expect(page.kept()).toEqual({ '#rate': '7' });
+  });
+
+  it('declines a whole radio group when one of its buttons turns autocomplete off, in any case', async () => {
+    const page = open(
+      `${RATE}<input id="code" autocomplete="OFF"><input type="radio" name="plan" value="a"><input type="radio" name="plan" value="b" autocomplete="off">`
+    );
+    await settle();
+    page.use('#code', (control) => {
+      control.value = '123456';
+    });
+    page.use(
+      '[value=b]',
+      (control) => {
+        control.checked = true;
+      },
+      'change'
+    );
+    page.use('#rate', (control) => {
+      control.value = '7';
+    });
+    await settle();
+    expect(page.kept()).toEqual({ '#rate': '7' });
+  });
+
+  it('clicks kept checkboxes and radio buttons, which is what frameworks listen to', async () => {
+    const page = open(
+      `<input type="checkbox" id="flag"><input type="radio" name="size" value="s" checked><input type="radio" name="size" value="l">
+<script>window.clicked = []; document.addEventListener('click', (event) => window.clicked.push(event.target.id || event.target.value));</script>`,
+      JSON.stringify({ '#flag': true, size: 'l' })
+    );
+    await settle();
+    expect(page.$('#flag').checked).toBe(true);
+    expect(page.$('[value=l]').checked).toBe(true);
+    expect((page.window as unknown as { clicked: string[] }).clicked).toEqual(['flag', 'l']);
+    // Giving the values back keeps nothing new.
+    expect(page.sent).toEqual([]);
+  });
+
   it('leaves a long text to saveState, so it cannot stop other values from being kept', async () => {
     const page = open(
       `${RATE}<textarea id="notes"></textarea>`,

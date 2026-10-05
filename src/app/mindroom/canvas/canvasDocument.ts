@@ -94,18 +94,25 @@ const stateLiteral = (state: string | undefined): string =>
 const inputsScript = (inputs: string | undefined): string => `
   const inputs = Object.assign(Object.create(null), ${stateLiteral(inputs)});
   const unsaved = ['password', 'file', 'hidden', 'submit', 'button', 'reset', 'image'];
-  // A field shown as a password once stays unkept, so revealing it cannot keep it.
+  // A field that was a password once is never kept, even after the page reveals it.
   const secret = new WeakSet();
+  const revealed = (records) => records.forEach((record) => {
+    if ((record.oldValue || '').toLowerCase() === 'password') secret.add(record.target);
+  });
+  const types = new MutationObserver(revealed);
+  types.observe(document, { subtree: true, attributeFilter: ['type'], attributeOldValue: true });
+  const declines = (control) => unsaved.includes(control.type) || secret.has(control)
+    || /off|password/i.test(control.getAttribute('autocomplete') || (control.form && control.form.getAttribute('autocomplete')) || '');
   const controls = () => {
+    // Records still queued, so a field revealed in this same task counts too.
+    revealed(types.takeRecords());
     const groups = new Set();
     return [...document.querySelectorAll('input, select, textarea')].flatMap((control) => {
-      if (control.type === 'password') secret.add(control);
-      const declined = /off|password/.test(control.getAttribute('autocomplete') || (control.form && control.form.getAttribute('autocomplete')) || '');
-      if (unsaved.includes(control.type) || secret.has(control) || declined) return [];
+      if (declines(control)) return [];
       if (control.type === 'radio') {
         if (!control.name || groups.has(control.name)) return [];
         groups.add(control.name);
-        return [{ key: control.name, control }];
+        return group(control).some(declines) ? [] : [{ key: control.name, control }];
       }
       const key = control.id ? '#' + control.id : control.name && (control.type === 'checkbox' ? control.name + '=' + control.value : control.name);
       return key ? [{ key, control }] : [];
@@ -120,33 +127,38 @@ const inputsScript = (inputs: string | undefined): string => `
   const assign = (control, property, value) =>
     Object.getOwnPropertyDescriptor(Object.getPrototypeOf(control), property).set.call(control, value);
   let seen;
+  let restoring = false;
   const restore = (entries) => {
-    // Every value is set before any event, so the page sees them all when it redraws.
+    restoring = true;
+    // Values are set before any event, so the page sees them all when it redraws. Checkboxes and
+    // radio buttons are clicked, which fires the click that frameworks (React) listen to.
+    const clicks = [];
     const restored = entries.flatMap((entry) => {
       const { key, control } = entry;
       const value = inputs[key];
       if (value === undefined || JSON.stringify(value) === JSON.stringify(valueOf(entry))) return [];
-      if (control.type === 'radio') {
-        const button = group(control).find((item) => item.value === value);
-        if (button) assign(button, 'checked', true);
-        return button ? [button] : [];
+      if (control.type === 'radio' || control.type === 'checkbox') {
+        const target = control.type === 'radio' ? group(control).find((item) => item.value === value) : control;
+        if (target) clicks.push(target);
+        return [];
       }
-      if (control.type === 'checkbox') assign(control, 'checked', value === true);
-      else if (control.type === 'select-multiple') {
+      if (control.type === 'select-multiple') {
         [...control.options].forEach((option) => { option.selected = [].concat(value).includes(option.value); });
       } else if (control.type === 'select-one' && ![...control.options].some((option) => option.value === value)) {
         return [];
       } else assign(control, 'value', String(value));
       return [control];
     });
-    entries.forEach((entry) => { seen[entry.key] = JSON.stringify(valueOf(entry)); });
+    clicks.forEach((control) => control.click());
     restored.forEach((control) => {
       control.dispatchEvent(new Event('input', { bubbles: true }));
       control.dispatchEvent(new Event('change', { bubbles: true }));
     });
+    entries.forEach((entry) => { seen[entry.key] = JSON.stringify(valueOf(entry)); });
+    restoring = false;
   };
   const saveInputs = (event) => {
-    if (!seen) return;
+    if (!seen || restoring) return;
     const entries = controls();
     // A control the page drew later, such as the next step of a form, gets its kept value first,
     // unless the user just changed it.
