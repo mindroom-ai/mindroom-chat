@@ -29,6 +29,14 @@
   - Each change sends every kept value; Chat still writes at most once every 500 ms.
   - Events that a page, a widget or a test tool dispatches are not trusted, so they never count as the user's change on a control drawn later; browser tests should use real clicks and typing.
 
+### Rewrite the README around the product (2026-10-05)
+
+- Status: implementation, review, and publication on `docs/readme-product-first`; PR #397 tracks the change.
+- Problem: the README opened as a fork description and went straight into App Store and TestFlight steps, so visitors learned little about what MindRoom Chat is for or how to get it, and several carried-over instructions had gone stale.
+- Change: lead with the product (tagline, the MindRoom film, where to get the app, a gallery and feature list), keep the Cinny foundation and attribution, and regroup every earlier self-hosting, configuration, development, native-app, and release instruction, collapsing the long operator sections.
+  The configuration section now names the served `config.json` and its source `config.mindroom.json`, shows how to mount one into the Docker image, and documents the canvas and computer switches; the TestFlight notes follow `scripts/ios-ci-version.mjs`.
+- Validation: rendered on GitHub in light and dark, a line-by-line comparison against the previous README, and review rounds by Opus 5.5, GPT-6.1 Sol, and GPT-6 Astra.
+
 ### Let a wheel that starts as the ledger settles move the view (2026-10-05)
 
 - Report: on desktop WebKit, a wheel scroll could fail to start while older thread history landed above the reader.
