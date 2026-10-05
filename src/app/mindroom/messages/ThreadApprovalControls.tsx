@@ -149,53 +149,58 @@ export function ApprovalReviewGroup({ records }: { records: readonly ThreadAppro
           submit={context.submit}
         />
       ))}
-      <div className={css.Actions}>
-        <Button
-          size="300"
-          variant="Success"
-          onClick={() => {
-            approvable.forEach((record) => {
-              void context.submit(record, { status: 'approved' });
-            });
-          }}
-          disabled={approvable.length === 0}
-        >
-          <Text size="B300">
-            {t('mindroomUi.messages.threadApprovalControls.approveAllOnce', {
-              count: approvable.length || records.length,
-            })}
-          </Text>
-        </Button>
-        <Button
-          size="300"
-          variant="Critical"
-          outlined
-          disabled={available.length === 0}
-          onClick={() => {
-            available.forEach((record) => {
-              void context.submit(record, { status: 'denied', reason });
-            });
-          }}
-        >
-          <Text size="B300">
-            {t('mindroomUi.messages.threadApprovalControls.denyAll', {
-              count: available.length || records.length,
-            })}
-          </Text>
-        </Button>
-      </div>
-      {available.length > 0 && (
-        <div>
-          <small id={reasonId}>
-            {t('mindroomUi.messages.threadApprovalControls.reasonForDenyingAllOptional')}
-          </small>
-          <Input
-            aria-labelledby={reasonId}
-            value={reason}
-            onChange={(event) => setReason(event.currentTarget.value)}
-            style={{ display: 'block', width: '100%', padding: 6 }}
-          />
-        </div>
+      {available.length > 1 && (
+        <>
+          <div className={css.Actions}>
+            {approvable.length > 1 && (
+              <Button
+                size="300"
+                variant="Success"
+                fill="Soft"
+                outlined
+                onClick={() => {
+                  approvable.forEach((record) => {
+                    void context.submit(record, { status: 'approved' });
+                  });
+                }}
+              >
+                <Text size="B300">
+                  {t('mindroomUi.messages.threadApprovalControls.approveAllOnce', {
+                    count: approvable.length,
+                  })}
+                </Text>
+              </Button>
+            )}
+            <Button
+              size="300"
+              variant="Critical"
+              fill="Soft"
+              outlined
+              onClick={() => {
+                available.forEach((record) => {
+                  void context.submit(record, { status: 'denied', reason });
+                });
+              }}
+            >
+              <Text size="B300">
+                {t('mindroomUi.messages.threadApprovalControls.denyAll', {
+                  count: available.length,
+                })}
+              </Text>
+            </Button>
+          </div>
+          <div>
+            <small id={reasonId}>
+              {t('mindroomUi.messages.threadApprovalControls.reasonForDenyingAllOptional')}
+            </small>
+            <Input
+              aria-labelledby={reasonId}
+              value={reason}
+              onChange={(event) => setReason(event.currentTarget.value)}
+              style={{ display: 'block', width: '100%', padding: 6 }}
+            />
+          </div>
+        </>
       )}
       {timed.length > 0 && (
         <>
@@ -209,6 +214,8 @@ export function ApprovalReviewGroup({ records }: { records: readonly ThreadAppro
               <Button
                 key={duration}
                 size="300"
+                variant="Secondary"
+                fill="Soft"
                 outlined
                 disabled={approvable.length === 0}
                 onClick={() => {
