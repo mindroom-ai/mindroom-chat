@@ -165,6 +165,40 @@ describe('InsetScrollbar', () => {
     expect(scroll.scrollTop).toBe(300);
   });
 
+  it.each([0, -1] as const)('preserves composite focus when tabIndex is %s', (tabIndex) => {
+    const scrollRef = createRef<HTMLDivElement>();
+    const contentRef = createRef<HTMLDivElement>();
+    act(() =>
+      root.render(
+        <div ref={scrollRef}>
+          <input aria-label="Search" />
+          <div ref={contentRef} />
+          <InsetScrollbar
+            scrollRef={scrollRef}
+            contentRef={contentRef}
+            label="Options"
+            className="placement"
+            tabIndex={tabIndex}
+          />
+        </div>
+      )
+    );
+    const input = host.querySelector('input')!;
+    const bar = host.querySelector<HTMLElement>('[role="scrollbar"]')!;
+    bar.setPointerCapture = vi.fn();
+    input.focus();
+    const event = new MouseEvent('pointerdown', {
+      button: 0,
+      clientY: 180,
+      bubbles: true,
+      cancelable: true,
+    });
+    Object.defineProperties(event, { isPrimary: { value: true }, pointerId: { value: 1 } });
+    bar.dispatchEvent(event);
+    expect(scrollRef.current!.scrollTop).toBeGreaterThan(0);
+    expect(document.activeElement).toBe(tabIndex === -1 ? input : bar);
+  });
+
   it('cleans up observers, scheduled work, and event listeners when unmounted', () => {
     scroll.dispatchEvent(new Event('scroll'));
     expect(frame).toBeDefined();

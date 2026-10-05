@@ -172,7 +172,7 @@ path and descendants without excluding similarly named client routes.
 ## iOS Build / Archive
 
 ```bash
-npm run build
+npm run build:ios
 npm run ios:icons
 npm run appstore:preflight
 npx cap sync ios

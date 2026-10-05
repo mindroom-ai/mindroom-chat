@@ -6,6 +6,7 @@ import {
   CANVAS_ERROR_MESSAGE,
   CANVAS_ESCAPE_MESSAGE,
   CANVAS_LIBRARY_SOURCE,
+  CANVAS_STATE_MESSAGE,
   CANVAS_PERMISSIONS,
   CANVAS_SANDBOX,
   CANVAS_WRAPPER_SANDBOX,
@@ -47,6 +48,25 @@ describe('buildCanvasPage', () => {
     expect(buildCanvasPage('<p>hi</p>', 'light', FALLBACK_CANVAS_THEMES.light, true)).toContain(
       `content="${policy}"`
     );
+  });
+
+  it('gives the page its saved state before its scripts run, and a way to save it', () => {
+    expect(buildCanvasPage('', 'light')).toContain('state: undefined');
+    const json = '{"note":"</script><b>","__proto__":{"kept":true}}';
+    const doc = buildCanvasPage(
+      '<script>render(mindroom.state)</script>',
+      'light',
+      FALLBACK_CANVAS_THEMES.light,
+      false,
+      json
+    );
+    // The state cannot close the bridge script it is written into, and comes back exactly as saved.
+    expect(doc.split('</script>')).toHaveLength(3);
+    const restore = doc.match(/state: (JSON\.parse\(.*?\)),/)?.[1];
+    // eslint-disable-next-line no-new-func
+    expect(JSON.stringify(new Function(`return ${restore}`)())).toBe(json);
+    expect(doc.indexOf('state: JSON.parse(')).toBeLessThan(doc.indexOf('render(mindroom.state)'));
+    expect(doc).toContain(`type: '${CANVAS_STATE_MESSAGE}'`);
   });
 
   it('tells the page the color scheme it is shown in', () => {

@@ -1,6 +1,7 @@
 import React, { ReactNode, useCallback, useLayoutEffect, useRef, useState } from 'react';
 import FocusTrap from 'focus-trap-react';
-import { PopOut, Scroll, config, type RectCords } from 'folds';
+import { PopOut, config, type RectCords } from 'folds';
+import { PageScroll } from '../page';
 import { Menu, Header } from '../glass/GlassPrimitives';
 
 import { useAlive } from '../../hooks/useAlive';
@@ -132,12 +133,17 @@ export function InviteAutocompleteMenu({
                 className={css.InviteAutocompleteMenu}
                 style={{ maxHeight }}
               >
-                <Header className={css.InviteAutocompleteMenuHeader} size="400">
-                  {headerContent}
-                </Header>
-                <Scroll style={{ flexGrow: 1 }} onKeyDown={preventScrollWithArrowKey}>
+                <PageScroll
+                  header={
+                    <Header className={css.InviteAutocompleteMenuHeader} size="400">
+                      {headerContent}
+                    </Header>
+                  }
+                  onKeyDown={preventScrollWithArrowKey}
+                  scrollbarTabIndex={-1}
+                >
                   <div style={{ padding: config.space.S200 }}>{children}</div>
-                </Scroll>
+                </PageScroll>
               </Menu>
             </div>
           }

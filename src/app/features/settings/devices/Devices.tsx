@@ -1,7 +1,7 @@
 import React from 'react';
-import { Box, Text, IconButton, Icon, Icons, Scroll } from 'folds';
+import { Box, Text, IconButton, Icon, Icons } from 'folds';
 import { useTranslation } from 'react-i18next';
-import { Page, PageContent, PageHeader } from '../../../components/page';
+import { Page, PageContent, PageHeader, PageScroll } from '../../../components/page';
 import { SequenceCard } from '../../../components/sequence-card';
 import { SequenceCardStyle } from '../styles.css';
 import { SettingTile } from '../../../components/setting-tile';
@@ -68,102 +68,101 @@ export function Devices({ requestClose }: DevicesProps) {
 
   return (
     <Page>
-      <PageHeader outlined={false}>
-        <Box grow="Yes" gap="200">
-          <Box grow="Yes" alignItems="Center" gap="200">
-            <Text size="H3" truncate>
-              {t('featureUi.settings.devices.devices')}
-            </Text>
-          </Box>
-          <Box shrink="No">
-            <IconButton onClick={requestClose} variant="Surface">
-              <Icon src={Icons.Cross} />
-            </IconButton>
-          </Box>
-        </Box>
-      </PageHeader>
-      <Box grow="Yes">
-        <Scroll hideTrack visibility="Hover">
-          <PageContent>
-            <Box direction="Column" gap="700">
-              <Box direction="Column" gap="100">
-                <Text size="L400">{t('featureUi.settings.devices.security')}</Text>
+      <PageScroll
+        header={
+          <PageHeader outlined={false}>
+            <Box grow="Yes" gap="200">
+              <Box grow="Yes" alignItems="Center" gap="200">
+                <Text size="H3" truncate>
+                  {t('featureUi.settings.devices.devices')}
+                </Text>
+              </Box>
+              <Box shrink="No">
+                <IconButton onClick={requestClose} variant="Surface">
+                  <Icon src={Icons.Cross} />
+                </IconButton>
+              </Box>
+            </Box>
+          </PageHeader>
+        }
+      >
+        <PageContent>
+          <Box direction="Column" gap="700">
+            <Box direction="Column" gap="100">
+              <Text size="L400">{t('featureUi.settings.devices.security')}</Text>
+              <SequenceCard
+                className={SequenceCardStyle}
+                variant="SurfaceVariant"
+                direction="Column"
+                gap="400"
+              >
+                <SettingTile
+                  title={t('featureUi.settings.devices.deviceVerification')}
+                  description={t('featureUi.settings.devices.toVerifyDeviceIdentityAndGrantAccess')}
+                  after={
+                    <>
+                      <EnableVerification visible={!crossSigningActive} />
+                      {crossSigningActive && (
+                        <Box gap="200" alignItems="Center">
+                          <VerificationStatusBadge
+                            verificationStatus={verificationStatus}
+                            otherUnverifiedCount={unverifiedDeviceCount}
+                          />
+                          <DeviceVerificationOptions />
+                        </Box>
+                      )}
+                    </>
+                  }
+                />
+              </SequenceCard>
+            </Box>
+            <Box direction="Column" gap="100">
+              <Text size="L400">{t('featureUi.settings.devices.current')}</Text>
+              {currentDevice ? (
                 <SequenceCard
                   className={SequenceCardStyle}
                   variant="SurfaceVariant"
                   direction="Column"
                   gap="400"
                 >
-                  <SettingTile
-                    title={t('featureUi.settings.devices.deviceVerification')}
-                    description={t(
-                      'featureUi.settings.devices.toVerifyDeviceIdentityAndGrantAccess'
-                    )}
-                    after={
-                      <>
-                        <EnableVerification visible={!crossSigningActive} />
-                        {crossSigningActive && (
-                          <Box gap="200" alignItems="Center">
-                            <VerificationStatusBadge
-                              verificationStatus={verificationStatus}
-                              otherUnverifiedCount={unverifiedDeviceCount}
-                            />
-                            <DeviceVerificationOptions />
-                          </Box>
-                        )}
-                      </>
-                    }
-                  />
-                </SequenceCard>
-              </Box>
-              <Box direction="Column" gap="100">
-                <Text size="L400">{t('featureUi.settings.devices.current')}</Text>
-                {currentDevice ? (
-                  <SequenceCard
-                    className={SequenceCardStyle}
-                    variant="SurfaceVariant"
-                    direction="Column"
-                    gap="400"
+                  <DeviceTile
+                    device={currentDevice}
+                    refreshDeviceList={refreshDeviceList}
+                    options={<DeviceLogoutBtn />}
                   >
-                    <DeviceTile
-                      device={currentDevice}
-                      refreshDeviceList={refreshDeviceList}
-                      options={<DeviceLogoutBtn />}
-                    >
-                      {crypto && <DeviceKeyDetails crypto={crypto} />}
-                    </DeviceTile>
-                    {crossSigningActive &&
-                      verificationStatus === VerificationStatus.Unverified &&
-                      defaultSecretStorageKeyId &&
-                      defaultSecretStorageKeyContent && (
-                        <VerifyCurrentDeviceTile
-                          secretStorageKeyId={defaultSecretStorageKeyId}
-                          secretStorageKeyContent={defaultSecretStorageKeyContent}
-                        />
-                      )}
-                    {crypto && verificationStatus === VerificationStatus.Verified && (
-                      <BackupRestoreTile crypto={crypto} />
+                    {crypto && <DeviceKeyDetails crypto={crypto} />}
+                  </DeviceTile>
+                  {crossSigningActive &&
+                    verificationStatus === VerificationStatus.Unverified &&
+                    defaultSecretStorageKeyId &&
+                    defaultSecretStorageKeyContent && (
+                      <VerifyCurrentDeviceTile
+                        secretStorageKeyId={defaultSecretStorageKeyId}
+                        secretStorageKeyContent={defaultSecretStorageKeyContent}
+                      />
                     )}
-                  </SequenceCard>
-                ) : (
-                  <DeviceTilePlaceholder />
-                )}
-              </Box>
-              {devices === undefined && <DevicesPlaceholder />}
-              {otherDevices && (
-                <OtherDevices
-                  devices={otherDevices}
-                  refreshDeviceList={refreshDeviceList}
-                  showVerification={
-                    crossSigningActive && verificationStatus === VerificationStatus.Verified
-                  }
-                />
+                  {crypto && verificationStatus === VerificationStatus.Verified && (
+                    <BackupRestoreTile crypto={crypto} />
+                  )}
+                </SequenceCard>
+              ) : (
+                <DeviceTilePlaceholder />
               )}
-              <LocalBackup />
             </Box>
-          </PageContent>
-        </Scroll>
-      </Box>
+            {devices === undefined && <DevicesPlaceholder />}
+            {otherDevices && (
+              <OtherDevices
+                devices={otherDevices}
+                refreshDeviceList={refreshDeviceList}
+                showVerification={
+                  crossSigningActive && verificationStatus === VerificationStatus.Verified
+                }
+              />
+            )}
+            <LocalBackup />
+          </Box>
+        </PageContent>
+      </PageScroll>
     </Page>
   );
 }

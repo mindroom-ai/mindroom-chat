@@ -8,6 +8,8 @@ import en from './app/locales/en.json';
 vi.mock('./app/styles/Glass.css', () => ({
   glassShadow: '--glass-shadow',
   glassFloating: 'glass-floating',
+  glassInheritTint: 'glass-inherit-tint',
+  glassScrollPanel: 'glass-scroll-panel',
   glassFlat: 'glass-flat',
   glassOutline: 'glass-outline',
   glassSurface: () => 'glass-surface',

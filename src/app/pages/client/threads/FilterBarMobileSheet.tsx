@@ -2,6 +2,7 @@ import React, { ReactNode, useRef } from 'react';
 import { Box, config, Icon, IconButton, Icons, Overlay, OverlayBackdrop, Text } from 'folds';
 import { useTranslation } from 'react-i18next';
 import { FocusScope, mergeProps, useDialog, useOverlay, usePreventScroll } from 'react-aria';
+import { PageScroll } from '../../../components/page';
 import { Modal, Header } from '../../../components/glass/GlassPrimitives';
 import * as css from './FilterBarMobileSheet.css';
 
@@ -47,20 +48,25 @@ export function FilterBarMobileSheet({ open, requestClose, children }: FilterBar
               style={{ display: 'flex', flex: '1 1 auto', flexDirection: 'column', minHeight: 0 }}
               {...mergeProps(overlayProps, dialogProps)}
             >
-              <Header size="500">
-                <Box grow="Yes">
-                  <Text size="H4">{t('thread.filters.open')}</Text>
-                </Box>
-                <IconButton
-                  aria-label={t('thread.filters.closeAria')}
-                  size="300"
-                  radii="300"
-                  onClick={requestClose}
-                >
-                  <Icon src={Icons.Cross} />
-                </IconButton>
-              </Header>
-              <div className={css.SheetBody}>{children}</div>
+              <PageScroll
+                header={
+                  <Header size="500">
+                    <Box grow="Yes">
+                      <Text size="H4">{t('thread.filters.open')}</Text>
+                    </Box>
+                    <IconButton
+                      aria-label={t('thread.filters.closeAria')}
+                      size="300"
+                      radii="300"
+                      onClick={requestClose}
+                    >
+                      <Icon src={Icons.Cross} />
+                    </IconButton>
+                  </Header>
+                }
+              >
+                <div className={css.SheetBody}>{children}</div>
+              </PageScroll>
             </div>
           </Modal>
         </FocusScope>

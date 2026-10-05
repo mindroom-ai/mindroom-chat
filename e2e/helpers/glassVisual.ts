@@ -155,7 +155,10 @@ export const expectVerticalGlassRim = async (page: Page, surface: Locator) => {
 
 // Catch a header outside its scrolling viewport, a strip of the list showing beside
 // it, an opaque material, or raised edges reappearing between navigation sections.
-export async function expectFloatingNavHeader(header: Locator) {
+export async function expectFloatingNavHeader(
+  header: Locator,
+  { inheritsPanelTint = false }: { inheritsPanelTint?: boolean } = {}
+) {
   await expect(header).toBeVisible();
   const scroll = header.locator('xpath=ancestor::*[@data-y-scrollbar-width][1]');
   await expect(scroll).toHaveCount(1);
@@ -188,7 +191,8 @@ export async function expectFloatingNavHeader(header: Locator) {
   expect(material.highlight).toBe('none');
   expect(material.filter).toContain('blur(');
   expect(material.filter).not.toContain('url(');
-  expect(material.alpha).toBeGreaterThan(0);
+  if (inheritsPanelTint) expect(material.alpha).toBe(0);
+  else expect(material.alpha).toBeGreaterThan(0);
   expect(material.alpha).toBeLessThan(1);
   const scrollbar = scroll.getByRole('scrollbar', { includeHidden: true });
   await expect(scrollbar).toHaveCount(1);

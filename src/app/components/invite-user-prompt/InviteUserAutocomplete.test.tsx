@@ -20,6 +20,10 @@ const directUsersMock = vi.hoisted(() => ({
 type WindowKeyHandler = (event: KeyboardEvent) => void;
 const windowListeners = new Map<string, Set<WindowKeyHandler>>();
 
+vi.mock('../page', () => ({
+  PageScroll: ({ header, children }: { header?: React.ReactNode; children?: React.ReactNode }) =>
+    React.createElement('div', null, header, children),
+}));
 vi.mock('focus-trap-react', () => ({
   default: ({
     active,
