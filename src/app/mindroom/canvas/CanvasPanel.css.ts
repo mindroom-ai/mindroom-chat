@@ -17,7 +17,17 @@ export const Panel = style([
   },
 ]);
 
+export const TitleGroup = style({
+  flex: '1 1 auto',
+  minWidth: 0,
+});
+
+export const Controls = style({
+  flex: '0 0 auto',
+});
+
 export const Title = style({
+  flex: '1 1 auto',
   display: 'flex',
   flexDirection: 'column',
   minWidth: 0,
