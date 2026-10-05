@@ -187,6 +187,7 @@ export function RenderMessageContent({
 
   const mindroomContent = renderMindroomMessageContent({
     mEvent,
+    fromMindroomAgent,
     displayName,
     eventType,
     roomId,

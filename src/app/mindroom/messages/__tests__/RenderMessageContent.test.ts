@@ -346,6 +346,7 @@ describe('RenderMessageContent', () => {
 
     const renderer = create(
       React.createElement(RenderMessageContent, {
+        mEvent: messageFrom(AGENT),
         displayName: 'MindRoom',
         eventType: 'io.mindroom.tool_approval',
         roomId: '!room:example.org',
@@ -377,6 +378,7 @@ describe('RenderMessageContent', () => {
     expect(rendered).not.toContain('unsupported');
     expect(renderMindroomMessageContentMock).toHaveBeenCalledWith(
       expect.objectContaining({
+        fromMindroomAgent: true,
         eventType: 'io.mindroom.tool_approval',
         roomId: '!room:example.org',
         eventId: '$approval',
