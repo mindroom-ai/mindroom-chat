@@ -28,12 +28,12 @@ It shows what chat apps made only for people cannot: replies that stream with ev
 | Where | How |
 | --- | --- |
 | Web | [chat.mindroom.chat](https://chat.mindroom.chat) |
-| iPhone and iPad | [App Store](https://apps.apple.com/us/app/mindroom-ai/id6760272172) |
+| iPhone and iPad | [Mindroom AI on the App Store](https://apps.apple.com/us/app/mindroom-ai/id6760272172) |
 | Mac | The App Store app on Apple silicon Macs, or the [MindRoom macOS app](https://docs.mindroom.chat/installation/macos-app/), which also runs your agents |
 | Android | In beta: internal testing on Google Play, not yet public |
 | Your own server | The `ghcr.io/mindroom-ai/mindroom-chat` image or a static build; see [Self-hosting](#self-hosting) |
 
-Sign in with any Matrix account; for hosted MindRoom, the homeserver is `https://mindroom.chat`.
+Sign in with any Matrix account; your first sign-in at chat.mindroom.chat creates a hosted account on `https://mindroom.chat`, the homeserver for hosted MindRoom.
 To run your own agents, see the [MindRoom quick start](https://github.com/mindroom-ai/mindroom#quick-start).
 
 ## Built for agents
@@ -65,7 +65,7 @@ These are stills from the [showcase](https://docs.mindroom.chat/showcase/) recor
 
 - **Live replies**: agent replies stream in place, with collapsible tool traces, the model and run details, and a button to stop them.
 - **Approvals and questions**: approval cards and multiple-choice questions sit in the conversation, one tap away.
-- **Canvases**: an agent can open a page it wrote, such as a dashboard, a slide deck, or a form, beside the conversation; they are on at chat.mindroom.chat and in iOS builds (`npm run build:ios`), and self-hosted builds turn them on with `mindroom.canvas.enabled`.
+- **Canvases**: an agent can open a page it wrote, such as a dashboard, a slide deck, or a form, beside the conversation; they are on at chat.mindroom.chat and in iOS builds (`npm run build:ios`), and self-hosted deployments turn them on with `mindroom.canvas.enabled` in the served `config.json`, plus `mindroom.canvas.libraries` so pages can load npm libraries as they do in the hosted app; see [Interactive Canvases](https://docs.mindroom.chat/canvases/).
 - **Computer**: watch an agent's browser live, take control for a login or passkey, and hand it back; choose the computer service under Settings → General → Computers, or set a default with `mindroom.computers.apiUrl`.
 - **Threads first**: a thread-aware composer, deep links, search, unread state, and timeline recovery keep long agent conversations easy to follow, and very long replies arrive whole.
 - **Voice**: record voice messages, and call an agent through MatrixRTC with embedded Element Call.
@@ -210,8 +210,7 @@ To show it in Simple Mode, set `sidebar.showExploreCommunityInSimpleMode` to `tr
 ```
 
 Setting it to `false` or omitting it keeps Explorer hidden in Simple Mode.
-This option does not affect the full interface, where Explorer remains visible by default.
-The existing `sidebar.showExploreCommunity` option continues to control Explorer in the full interface; its code default is `true`, but MindRoom's shipped configuration sets it to `false`, so set it to `true` as well to show Explorer there.
+This option does not affect the full interface, which `sidebar.showExploreCommunity` controls; its code default is `true`, but MindRoom's shipped configuration sets it to `false`, so set it to `true` as well to show Explorer there.
 
 </details>
 
@@ -249,7 +248,8 @@ Start a local development server with `npm start`.
 <summary><b>Dockerized Matrix end-to-end tests</b></summary>
 
 The Docker boundary for local e2e is the Matrix stack, not the MindRoom Chat app itself.
-MindRoom Chat and Playwright stay on the host. Docker only runs a disposable Tuwunel homeserver.
+MindRoom Chat and Playwright stay on the host.
+Docker only runs a disposable Tuwunel homeserver.
 
 Start or stop the local Matrix stack:
 
@@ -305,6 +305,7 @@ App Store submission docs:
 - Checklist: [`APP_STORE_COMPLIANCE.md`](./.docs/APP_STORE_COMPLIANCE.md)
 - Submission metadata/review notes packet: [`APP_STORE_SUBMISSION_PACKET.md`](./.docs/APP_STORE_SUBMISSION_PACKET.md)
 - Build guide: [`ios-build.md`](./.docs/ios-build.md)
+- Canvases and computers in iOS builds: [`ios-panels.md`](./docs/ios-panels.md)
 
 ### iOS pairing links
 

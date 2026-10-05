@@ -2,6 +2,14 @@
 
 ## Runbook
 
+### Rewrite the README around the product (2026-10-05)
+
+- Status: implementation, review, and publication on `docs/readme-product-first`; PR #397 tracks the change.
+- Problem: the README opened as a fork description and went straight into App Store and TestFlight steps, so visitors learned little about what MindRoom Chat is for or how to get it, and several carried-over instructions had gone stale.
+- Change: lead with the product (tagline, the MindRoom film, where to get the app, a gallery and feature list), keep the Cinny foundation and attribution, and regroup every earlier self-hosting, configuration, development, native-app, and release instruction, collapsing the long operator sections.
+  The configuration section now names the served `config.json` and its source `config.mindroom.json`, shows how to mount one into the Docker image, and documents the canvas and computer switches; the TestFlight notes follow `scripts/ios-ci-version.mjs`.
+- Validation: rendered on GitHub in light and dark, `prettier --check README.md`, a line-by-line comparison against the previous README, and review rounds by Opus 5.5, GPT-6.1 Sol, and GPT-6 Astra.
+
 ### Keep a thread reader in place when the thread banner changes height (2026-10-04)
 
 - Report: in a thread, every row moved by the change whenever the banner above them changed height: a summary arriving (+11.75 px on a desktop viewport), the thread being resolved (+22 px for the "by <name>" byline) or reopened.
