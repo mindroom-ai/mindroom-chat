@@ -19,6 +19,8 @@ type AgentCallTarget = { userId: string; displayName?: string };
 
 type StartAgentCall = {
   startAgentCall: (agent: AgentCallTarget, origin?: MindroomAgentCallOrigin) => Promise<boolean>;
+  /** False when the homeserver or browser cannot place calls at all. */
+  supported: boolean;
   loading: boolean;
   error?: string;
   unavailableReason?: string;
@@ -102,5 +104,6 @@ export function useStartAgentCall(): StartAgentCall {
     }
   };
 
-  return { startAgentCall, loading, error, unavailableReason };
+  const supported = livekitSupported && rtcSupported;
+  return { startAgentCall, supported, loading, error, unavailableReason };
 }

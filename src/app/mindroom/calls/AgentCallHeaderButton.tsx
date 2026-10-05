@@ -36,7 +36,7 @@ export function AgentCallHeaderButton({ threadId }: { threadId?: string }) {
   const mx = useMatrixClient();
   const room = useRoom();
   const members = useRoomMembers(mx, room.roomId);
-  const { startAgentCall, loading, error, unavailableReason } = useStartAgentCall();
+  const { startAgentCall, supported, loading, error, unavailableReason } = useStartAgentCall();
   const [menuAnchor, setMenuAnchor] = useState<RectCords>();
   const [noticeAnchor, setNoticeAnchor] = useState<RectCords>();
   const reasonId = useId();
@@ -59,7 +59,8 @@ export function AgentCallHeaderButton({ threadId }: { threadId?: string }) {
     viewerUserId,
     (userId) => mx.getUser(userId)?.presenceStatusMsg
   );
-  if (candidates.length === 0 || room.isCallRoom()) return null;
+  // An unsupported homeserver or browser hides the button for good; only an active call disables it.
+  if (!supported || candidates.length === 0 || room.isCallRoom()) return null;
 
   // A new thread's root is a local echo until it is sent; the backend can only resolve a real event.
   const origin: MindroomAgentCallOrigin = {

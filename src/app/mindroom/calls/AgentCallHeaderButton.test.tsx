@@ -16,6 +16,7 @@ const ANALYST = { userId: '@mindroom_analyst:mindroom.test', displayName: 'Analy
 const state = vi.hoisted(() => ({
   startAgentCall: vi.fn(),
   call: {
+    supported: true,
     loading: false,
     error: undefined as string | undefined,
     unavailableReason: undefined as string | undefined,
@@ -106,7 +107,12 @@ const nodeText = (node: ReactTestInstance): string =>
 describe('AgentCallHeaderButton', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    state.call = { loading: false, error: undefined, unavailableReason: undefined };
+    state.call = {
+      supported: true,
+      loading: false,
+      error: undefined,
+      unavailableReason: undefined,
+    };
     state.members = [{ userId: '@bob:mindroom.test', name: 'Bob', membership: 'join' }];
     users.clear();
     mx.removeAllListeners();
@@ -119,6 +125,13 @@ describe('AgentCallHeaderButton', () => {
     setStatus(HELPER.userId, MODEL_STATUS);
 
     expect(render('$root').toJSON()).toBeNull();
+  });
+
+  it('renders nothing where calling is not supported', () => {
+    addVoiceAgent(HELPER);
+    state.call.supported = false;
+
+    expect(render().toJSON()).toBeNull();
   });
 
   it('renders nothing inside a call room', () => {
