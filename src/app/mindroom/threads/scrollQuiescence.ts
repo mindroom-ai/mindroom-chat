@@ -226,17 +226,25 @@ export const waitForScrollQuiescence = (
     // A wheel starts a scroll whose first scroll event comes a frame or
     // more later (over a second after a heavy WebKit frame), and WebKit
     // cancels a wheel scroll that a scrollTop write lands on before it
-    // moves. So a wheel counts as that scroll's first event. One that cannot
-    // move the scroller (sideways, or into an edge) does not: a reader
-    // pushing at the top still gets the settle that reveals the rows folded
-    // in above.
+    // moves. So a wheel counts as that scroll's first event, unless it
+    // cannot move this scroller: sideways, into an edge (a reader pushing at
+    // the top still gets the settle that reveals the rows folded in above),
+    // a zoom (ctrl, pinch), or consumed by a scrollable descendant. The
+    // bottom edge allows 1px: at fractional zoom the native maximum sits
+    // just below scrollHeight - clientHeight.
+    const canScroll = (element: Element, deltaY: number) =>
+      deltaY < 0
+        ? element.scrollTop > 0
+        : deltaY > 0 && element.scrollTop < element.scrollHeight - element.clientHeight - 1;
     function onWheel(event: WheelEvent) {
-      const { scrollTop, scrollHeight, clientHeight } = event.currentTarget as HTMLElement;
-      const canMove =
-        event.deltaY < 0
-          ? scrollTop > 0
-          : event.deltaY > 0 && scrollTop < scrollHeight - clientHeight;
-      if (canMove) onActivity();
+      const scroller = event.currentTarget as Element;
+      if (event.ctrlKey || !canScroll(scroller, event.deltaY)) return;
+      for (let node = event.target as Element | null; node && node !== scroller; ) {
+        const overflowY = canScroll(node, event.deltaY) && getComputedStyle(node).overflowY;
+        if (overflowY === 'auto' || overflowY === 'scroll') return;
+        node = node.parentElement;
+      }
+      onActivity();
     }
 
     scrollElement.addEventListener('scroll', onActivity, { passive: true });

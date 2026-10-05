@@ -81,6 +81,65 @@ describe('waitForScrollQuiescence', () => {
     }
   );
 
+  // jsdom lays nothing out: give elements the geometry a wheel is judged by.
+  const setGeometry = (
+    node: HTMLElement,
+    scrollTop: number,
+    scrollHeight: number,
+    clientHeight: number
+  ) => {
+    Object.entries({ scrollTop, scrollHeight, clientHeight }).forEach(([key, value]) => {
+      Object.defineProperty(node, key, { configurable: true, writable: true, value });
+    });
+  };
+
+  const settledAfterWheel = async (target: Element, init: WheelEventInit) => {
+    const isSettled = settledFlag(
+      waitForScrollQuiescence(el, { idleMs: 150, maxWaitMs: Infinity })
+    );
+    vi.advanceTimersByTime(140);
+    target.dispatchEvent(new WheelEvent('wheel', { bubbles: true, cancelable: true, ...init }));
+    vi.advanceTimersByTime(10);
+    await flushMicrotasks();
+    return isSettled();
+  };
+
+  it('a zoom wheel, cancelled after the scroller sees it, leaves the quiet window alone', async () => {
+    // usePinchToZoom cancels ctrl+wheel (and trackpad pinch) from a window
+    // bubble listener, after the waiter's capture listener has run.
+    setGeometry(el, 400, 1500, 300);
+    const cancelZoom = (event: Event) => event.preventDefault();
+    window.addEventListener('wheel', cancelZoom);
+    try {
+      expect(await settledAfterWheel(el, { deltaY: -100, ctrlKey: true })).toBe(true);
+    } finally {
+      window.removeEventListener('wheel', cancelZoom);
+    }
+  });
+
+  it.each([
+    { name: 'consumed by', codeScrollTop: 40, settled: true },
+    { name: 'chained past', codeScrollTop: 0, settled: false },
+  ])(
+    'a wheel $name a scrollable descendant follows what the scroller does',
+    async ({ codeScrollTop, settled }) => {
+      // A collapsed code block scrolls by itself until its top edge; from
+      // there the wheel chains to the timeline.
+      setGeometry(el, 400, 1500, 300);
+      const code = document.createElement('pre');
+      code.style.overflowY = 'auto';
+      setGeometry(code, codeScrollTop, 400, 200);
+      el.appendChild(code);
+      expect(await settledAfterWheel(code, { deltaY: -100 })).toBe(settled);
+    }
+  );
+
+  it('a wheel down at a fractional bottom edge leaves the quiet window alone', async () => {
+    // At DPR 1.25 the native maximum scrollTop was 1199.2 against 1500 - 300.
+    setGeometry(el, 1199.2, 1500, 300);
+    expect(await settledAfterWheel(el, { deltaY: 100 })).toBe(true);
+  });
+
   it('keeps waiting while sampled scrollTop changes without scroll events', async () => {
     el.scrollTop = 400;
     const isSettled = settledFlag(
