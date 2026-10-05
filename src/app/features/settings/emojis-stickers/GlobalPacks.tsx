@@ -15,14 +15,13 @@ import {
   PopOut,
   Checkbox,
   toRem,
-  Scroll,
-  Line,
   Chip,
 } from 'folds';
 import FocusTrap from 'focus-trap-react';
 import { useAtomValue } from 'jotai';
 import { Room } from 'matrix-js-sdk';
 import { useTranslation } from 'react-i18next';
+import { PageScroll } from '../../../components/page';
 import { Menu, Header } from '../../../components/glass/GlassPrimitives';
 import { useGlobalImagePacks, useRoomsImagePacks } from '../../../hooks/useImagePacks';
 import { SequenceCardStyle } from '../styles.css';
@@ -105,158 +104,158 @@ function GlobalPackSelector({
   const hasSelected = selected.length > 0;
   return (
     <Box grow="Yes" direction="Column">
-      <Header size="400" variant="Surface" style={{ padding: `0 ${config.space.S300}` }}>
-        <Box grow="Yes">
-          <Text size="L400" truncate>
-            {t('featureUi.settings.emojisStickers.globalPacks.roomPacks')}
-          </Text>
-        </Box>
-        <Box shrink="No">
-          <Chip
-            radii="Pill"
-            variant={hasSelected ? 'Success' : 'SurfaceVariant'}
-            outlined={hasSelected}
-            onClick={() => onSelect(selected)}
-          >
-            <Text size="B300">
-              {hasSelected
-                ? t('featureUi.settings.emojisStickers.globalPacks.save')
-                : t('featureUi.settings.emojisStickers.globalPacks.close')}
-            </Text>
-          </Chip>
-        </Box>
-      </Header>
-      <Line variant="Surface" size="300" />
-      <Box grow="Yes">
-        <Scroll size="300" hideTrack visibility="Hover">
-          <Box
-            direction="Column"
-            gap="400"
-            style={{
-              paddingInlineStart: config.space.S300,
-              paddingTop: config.space.S300,
-              paddingBottom: config.space.S300,
-              paddingInlineEnd: config.space.S100,
-            }}
-          >
-            {Array.from(roomToPacks.entries()).map(([roomId, roomPacks]) => {
-              const room = mx.getRoom(roomId);
-              if (!room) return null;
-              const roomPackAddresses = roomPacks
-                .map((pack) => pack.address)
-                .filter((addr): addr is PackAddress => addr !== undefined);
-              const allSelected = roomPackAddresses.every((addr) =>
-                selected.find((address) => packAddressEqual(addr, address))
-              );
-
-              return (
-                <Box key={roomId} direction="Column" gap="100">
-                  <Box alignItems="Center">
-                    <Box grow="Yes">
-                      <Text size="L400">{room.name}</Text>
-                    </Box>
-                    <Box shrink="No">
-                      <Chip
-                        variant={allSelected ? 'Critical' : 'Surface'}
-                        radii="Pill"
-                        onClick={() => {
-                          if (allSelected) {
-                            removeSelected(roomPackAddresses);
-                            return;
-                          }
-                          addSelected(roomPackAddresses);
-                        }}
-                      >
-                        <Text size="B300">
-                          {allSelected
-                            ? t('featureUi.settings.emojisStickers.globalPacks.unselectAll')
-                            : t('featureUi.settings.emojisStickers.globalPacks.selectAll')}
-                        </Text>
-                      </Chip>
-                    </Box>
-                  </Box>
-                  {roomPacks.map((pack) => {
-                    const avatarMxc = pack.getAvatarUrl(ImageUsage.Emoticon);
-                    const avatarUrl = avatarMxc
-                      ? mxcUrlToHttp(mx, avatarMxc, useAuthentication)
-                      : undefined;
-                    const { address } = pack;
-                    if (!address) return null;
-
-                    const added = !!selected.find((addr) => packAddressEqual(addr, address));
-                    return (
-                      <SequenceCard
-                        key={pack.id}
-                        className={SequenceCardStyle}
-                        variant={added ? 'Success' : 'SurfaceVariant'}
-                        direction="Column"
-                        gap="400"
-                      >
-                        <SettingTile
-                          title={
-                            pack.meta.name ??
-                            t('featureUi.settings.emojisStickers.globalPacks.unknown')
-                          }
-                          description={<span className={LineClamp2}>{pack.meta.attribution}</span>}
-                          before={
-                            <Box alignItems="Center" gap="300">
-                              <Avatar size="300" radii="300">
-                                {avatarUrl ? (
-                                  <AvatarImage style={{ objectFit: 'contain' }} src={avatarUrl} />
-                                ) : (
-                                  <AvatarFallback>
-                                    <Icon size="400" src={Icons.Sticker} filled />
-                                  </AvatarFallback>
-                                )}
-                              </Avatar>
-                            </Box>
-                          }
-                          after={
-                            <Checkbox
-                              checked={added}
-                              variant="Success"
-                              onClick={() => toggleSelect(address)}
-                            />
-                          }
-                        />
-                      </SequenceCard>
-                    );
-                  })}
-                </Box>
-              );
-            })}
-
-            {roomToPacks.size === 0 && (
-              <SequenceCard
-                className={SequenceCardStyle}
-                variant="SurfaceVariant"
-                direction="Column"
-                gap="400"
+      <PageScroll
+        header={
+          <Header size="400" variant="Surface" style={{ padding: `0 ${config.space.S300}` }}>
+            <Box grow="Yes">
+              <Text size="L400" truncate>
+                {t('featureUi.settings.emojisStickers.globalPacks.roomPacks')}
+              </Text>
+            </Box>
+            <Box shrink="No">
+              <Chip
+                radii="Pill"
+                variant={hasSelected ? 'Success' : 'SurfaceVariant'}
+                outlined={hasSelected}
+                onClick={() => onSelect(selected)}
               >
-                <Box
-                  justifyContent="Center"
-                  direction="Column"
-                  gap="200"
-                  style={{
-                    padding: `${config.space.S700} ${config.space.S400}`,
-                    maxWidth: toRem(300),
-                    margin: 'auto',
-                  }}
-                >
-                  <Text size="H5" align="Center">
-                    {t('featureUi.settings.emojisStickers.globalPacks.noPacks')}
-                  </Text>
-                  <Text size="T200" align="Center">
-                    {t(
-                      'featureUi.settings.emojisStickers.globalPacks.packFromRoomsWillAppearHereYou'
-                    )}
-                  </Text>
+                <Text size="B300">
+                  {hasSelected
+                    ? t('featureUi.settings.emojisStickers.globalPacks.save')
+                    : t('featureUi.settings.emojisStickers.globalPacks.close')}
+                </Text>
+              </Chip>
+            </Box>
+          </Header>
+        }
+      >
+        <Box
+          direction="Column"
+          gap="400"
+          style={{
+            paddingInlineStart: config.space.S300,
+            paddingTop: config.space.S300,
+            paddingBottom: config.space.S300,
+            paddingInlineEnd: config.space.S100,
+          }}
+        >
+          {Array.from(roomToPacks.entries()).map(([roomId, roomPacks]) => {
+            const room = mx.getRoom(roomId);
+            if (!room) return null;
+            const roomPackAddresses = roomPacks
+              .map((pack) => pack.address)
+              .filter((addr): addr is PackAddress => addr !== undefined);
+            const allSelected = roomPackAddresses.every((addr) =>
+              selected.find((address) => packAddressEqual(addr, address))
+            );
+
+            return (
+              <Box key={roomId} direction="Column" gap="100">
+                <Box alignItems="Center">
+                  <Box grow="Yes">
+                    <Text size="L400">{room.name}</Text>
+                  </Box>
+                  <Box shrink="No">
+                    <Chip
+                      variant={allSelected ? 'Critical' : 'Surface'}
+                      radii="Pill"
+                      onClick={() => {
+                        if (allSelected) {
+                          removeSelected(roomPackAddresses);
+                          return;
+                        }
+                        addSelected(roomPackAddresses);
+                      }}
+                    >
+                      <Text size="B300">
+                        {allSelected
+                          ? t('featureUi.settings.emojisStickers.globalPacks.unselectAll')
+                          : t('featureUi.settings.emojisStickers.globalPacks.selectAll')}
+                      </Text>
+                    </Chip>
+                  </Box>
                 </Box>
-              </SequenceCard>
-            )}
-          </Box>
-        </Scroll>
-      </Box>
+                {roomPacks.map((pack) => {
+                  const avatarMxc = pack.getAvatarUrl(ImageUsage.Emoticon);
+                  const avatarUrl = avatarMxc
+                    ? mxcUrlToHttp(mx, avatarMxc, useAuthentication)
+                    : undefined;
+                  const { address } = pack;
+                  if (!address) return null;
+
+                  const added = !!selected.find((addr) => packAddressEqual(addr, address));
+                  return (
+                    <SequenceCard
+                      key={pack.id}
+                      className={SequenceCardStyle}
+                      variant={added ? 'Success' : 'SurfaceVariant'}
+                      direction="Column"
+                      gap="400"
+                    >
+                      <SettingTile
+                        title={
+                          pack.meta.name ??
+                          t('featureUi.settings.emojisStickers.globalPacks.unknown')
+                        }
+                        description={<span className={LineClamp2}>{pack.meta.attribution}</span>}
+                        before={
+                          <Box alignItems="Center" gap="300">
+                            <Avatar size="300" radii="300">
+                              {avatarUrl ? (
+                                <AvatarImage style={{ objectFit: 'contain' }} src={avatarUrl} />
+                              ) : (
+                                <AvatarFallback>
+                                  <Icon size="400" src={Icons.Sticker} filled />
+                                </AvatarFallback>
+                              )}
+                            </Avatar>
+                          </Box>
+                        }
+                        after={
+                          <Checkbox
+                            checked={added}
+                            variant="Success"
+                            onClick={() => toggleSelect(address)}
+                          />
+                        }
+                      />
+                    </SequenceCard>
+                  );
+                })}
+              </Box>
+            );
+          })}
+
+          {roomToPacks.size === 0 && (
+            <SequenceCard
+              className={SequenceCardStyle}
+              variant="SurfaceVariant"
+              direction="Column"
+              gap="400"
+            >
+              <Box
+                justifyContent="Center"
+                direction="Column"
+                gap="200"
+                style={{
+                  padding: `${config.space.S700} ${config.space.S400}`,
+                  maxWidth: toRem(300),
+                  margin: 'auto',
+                }}
+              >
+                <Text size="H5" align="Center">
+                  {t('featureUi.settings.emojisStickers.globalPacks.noPacks')}
+                </Text>
+                <Text size="T200" align="Center">
+                  {t(
+                    'featureUi.settings.emojisStickers.globalPacks.packFromRoomsWillAppearHereYou'
+                  )}
+                </Text>
+              </Box>
+            </SequenceCard>
+          )}
+        </Box>
+      </PageScroll>
     </Box>
   );
 }

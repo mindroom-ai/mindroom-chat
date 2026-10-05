@@ -97,6 +97,27 @@
   - The page waits for the read with no time limit; a read that never settles would leave the canvas loading. Not seen: the 2026-10-02 iOS stalls hit the cache database while other databases kept working, and this one opens a connection per operation.
 - Next: if pages with saved state become common, let an agent update load at once even over unsent work in a page that saves.
 
+### Unify scrolling settings and dialog headers (2026-10-04)
+
+- Settings subpages placed their title outside the scroll viewport, so their own content could never pass beneath it.
+  Seventeen personal, room, space, and nested settings views now use `PageScroll`, together with the room topic, readers, reactions, text viewer, room/space creation, add-existing, schedule, pinned-message, and room-pack dialogs.
+  Approval/permission dialogs, format hints, editor/invite autocomplete, mobile thread filters, and model selection now share that layout too.
+- `PageScroll` supplies flat native glass to its header slot through the shared `Header` primitive, including inside a glass modal.
+  Titles have no border, rim, shadow, or pointer glow; moving over their controls also clears the enclosing panel's pointer light.
+  Neutral titles inside glass panels use the enclosing tint without adding a second pale band; native blur and opaque accessibility fallbacks remain.
+  Panels with scrolling titles paint their backdrop filter on a separate decorative layer so Chromium does not apply the enclosing tint twice; a pixel regression also verifies that header blur still paints.
+  The actual header height controls focus scrolling and the inset scrollbar, including smaller titles and responsive header appearance.
+  Header context stops at surface boundaries so dialogs opened through a title do not inherit its scrolling treatment.
+  Composite pickers keep focus on their search field or selected option when dragging a scrollbar.
+- Member, add-existing, and pinned-message virtual lists measure their offset after the header and filters and subtract it when placing rows.
+  Sticky search controls remain below the title.
+  The image-pack editor's unsaved-changes bar also follows the measured title height, and text viewers keep their background across the full viewport, including short files.
+  Fixed JSON/event editors retain their existing internal text scrolling.
+- Regression coverage includes mobile/desktop personal and room settings, both themes and engines, header material and hover behavior, scrollbar dragging/keyboard navigation, short/long topic dialogs, the pack selector, and virtual member-list navigation.
+  Additional menu coverage checks approval scrolling, format hints, model search/selection, autocomplete focus, and short mobile filter sheets.
+  `playwright.glass.config.ts` includes the new browser specs.
+  Header tint assertions distinguish inherited panel tint from standalone chrome; hover comparisons clear prior panel illumination and wait for pointer paint before comparing pixels.
+
 ### Stop the reconcile from linking thread segments into a cycle that froze the app (2026-10-04)
 
 - Report: an iPhone export from build `515acd2c` shows the whole app frozen right after it came back from 130 s in the background, with a long thread open (968 SDK events) while an agent was typing.
