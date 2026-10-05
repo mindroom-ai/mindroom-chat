@@ -32,8 +32,6 @@ export const localizeVoiceErrorMessage = (
       return t('mindroomUi.voice.errors.sendBusy');
     case 'Failed to send voice message.':
       return t('mindroomUi.voice.errors.sendFailed');
-    case 'End your current call first.':
-      return t('mindroomUi.calls.agentCallButton.endCurrentCall');
     default:
       return fallback;
   }

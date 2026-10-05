@@ -12,7 +12,6 @@ const mocks = vi.hoisted(() => ({
   requestMicrophoneAccess: vi.fn(),
   startCall: vi.fn(),
   closeProfile: vi.fn(),
-  callMembers: [] as { userId: string; isExpired: () => boolean }[],
   selectedRoomId: undefined as string | undefined,
   searchParams: new URLSearchParams(),
 }));
@@ -35,7 +34,6 @@ vi.mock('../../hooks/useMatrixClient', () => ({
   useMatrixClient: () => ({
     getUserId: () => '@alice:mindroom.test',
     getSafeUserId: () => '@alice:mindroom.test',
-    matrixRTC: { getRoomSession: () => ({ memberships: mocks.callMembers }) },
   }),
 }));
 
@@ -71,7 +69,6 @@ vi.mock('react-router-dom', () => ({
 describe('AgentCallButton', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.callMembers = [];
     mocks.selectedRoomId = ROOM_ID;
     mocks.searchParams = new URLSearchParams({ threadId: '$root' });
     mocks.requestMicrophoneAccess.mockResolvedValue(undefined);
@@ -216,25 +213,6 @@ describe('AgentCallButton', () => {
     });
 
     expect(mocks.closeProfile).not.toHaveBeenCalled();
-  });
-
-  it('asks to end the current call when I am in the agent call on another device', async () => {
-    mocks.callMembers = [{ userId: '@alice:mindroom.test', isExpired: () => false }];
-    const renderer = create(
-      <AgentCallButton
-        roomId={ROOM_ID}
-        userId="@mindroom_helper:mindroom.test"
-        displayName="Helper"
-        presenceStatus={VOICE_CALLS_STATUS}
-      />
-    );
-
-    await act(async () => {
-      await renderer.root.findByType('button').props.onClick();
-    });
-
-    expect(mocks.prepareAgentCallRoom).not.toHaveBeenCalled();
-    expect(JSON.stringify(renderer.toJSON())).toContain('End your current call first.');
   });
 
   it('shows a failure when the call room cannot be prepared', async () => {

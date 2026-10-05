@@ -94,12 +94,6 @@ const getOwnAgentCall = (mx: MatrixClient, room: Room): MindroomAgentCallContent
     : undefined;
 };
 
-/** Whether one of my devices is in this room's call; the agent's membership does not count. */
-export const isInAgentCall = (mx: MatrixClient, room: Room): boolean =>
-  mx.matrixRTC
-    .getRoomSession(room)
-    .memberships.some((member) => member.userId === mx.getUserId() && !member.isExpired());
-
 const createdAt = (room: Room): number => getStateEvent(room, StateEvent.RoomCreate)?.getTs() ?? 0;
 
 /** My permanent call room with this agent; two devices racing on the first call agree on the oldest. */
