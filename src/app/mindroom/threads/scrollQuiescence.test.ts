@@ -118,16 +118,18 @@ describe('waitForScrollQuiescence', () => {
   });
 
   it.each([
-    { name: 'consumed by', codeScrollTop: 40, settled: true },
-    { name: 'chained past', codeScrollTop: 0, settled: false },
+    { name: 'consumed by a scrollable', codeScrollTop: 40, overflowY: 'auto', settled: true },
+    { name: 'chained past a scrollable', codeScrollTop: 0, overflowY: 'auto', settled: false },
+    { name: 'over a clipped', codeScrollTop: 40, overflowY: 'hidden', settled: false },
   ])(
-    'a wheel $name a scrollable descendant follows what the scroller does',
-    async ({ codeScrollTop, settled }) => {
+    'a wheel $name descendant follows what the scroller does',
+    async ({ codeScrollTop, overflowY, settled }) => {
       // A collapsed code block scrolls by itself until its top edge; from
-      // there the wheel chains to the timeline.
+      // there the wheel chains to the timeline. Clipped content
+      // (MessageDisclosure, MatrixMath) never takes the wheel.
       setGeometry(el, 400, 1500, 300);
       const code = document.createElement('pre');
-      code.style.overflowY = 'auto';
+      code.style.overflowY = overflowY;
       setGeometry(code, codeScrollTop, 400, 200);
       el.appendChild(code);
       expect(await settledAfterWheel(code, { deltaY: -100 })).toBe(settled);
