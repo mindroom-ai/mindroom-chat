@@ -61,6 +61,26 @@ describe('waitForScrollQuiescence', () => {
     expect(isSettled()).toBe(true);
   });
 
+  it.each([
+    { name: 'into the top edge', scrollTop: 0, init: { deltaY: -100 } },
+    { name: 'sideways', scrollTop: 400, init: { deltaX: 100 } },
+  ])(
+    'a wheel $name cannot move the scroller and leaves the quiet window alone',
+    async ({ scrollTop, init }) => {
+      // A reader pushing at the top must not hold back the settle that reveals
+      // the rows folded in above them.
+      el.scrollTop = scrollTop;
+      const isSettled = settledFlag(
+        waitForScrollQuiescence(el, { idleMs: 150, maxWaitMs: Infinity })
+      );
+      vi.advanceTimersByTime(140);
+      el.dispatchEvent(new WheelEvent('wheel', init));
+      vi.advanceTimersByTime(10);
+      await flushMicrotasks();
+      expect(isSettled()).toBe(true);
+    }
+  );
+
   it('keeps waiting while sampled scrollTop changes without scroll events', async () => {
     el.scrollTop = 400;
     const isSettled = settledFlag(
@@ -311,6 +331,25 @@ describe('waitForScrollQuiescence', () => {
       expect(isSettled()).toBe(true);
     });
 
+    it('a wheel holds the settle like the first event of its scroll', async () => {
+      // WebKit cancels a wheel scroll that a scrollTop write lands on before
+      // its first step, and that step's scroll event can come a frame, or
+      // over a second after a heavy frame, after the wheel.
+      el.scrollTop = 400;
+      const isSettled = settledFlag(
+        waitForScrollQuiescence(el, { idleMs: 150, maxWaitMs: Infinity })
+      );
+      vi.advanceTimersByTime(140);
+      el.dispatchEvent(new WheelEvent('wheel', { deltaY: -100 }));
+      vi.advanceTimersByTime(1_000);
+      await flushMicrotasks();
+      expect(isSettled()).toBe(false);
+      el.dispatchEvent(new Event('scrollend'));
+      vi.advanceTimersByTime(150);
+      await flushMicrotasks();
+      expect(isSettled()).toBe(true);
+    });
+
     it('platforms without scrollend keep the plain idle window', async () => {
       // Remove the native property for this test only: a scroll event
       // must not open a session that only scrollend could close.
@@ -323,6 +362,27 @@ describe('waitForScrollQuiescence', () => {
         );
         el.dispatchEvent(new Event('scroll'));
         vi.advanceTimersByTime(150);
+        await flushMicrotasks();
+        expect(isSettled()).toBe(true);
+      } finally {
+        if (descriptor) Object.defineProperty(window, 'onscrollend', descriptor);
+      }
+    });
+
+    it('platforms without scrollend restart the idle window on a wheel', async () => {
+      const descriptor = Object.getOwnPropertyDescriptor(window, 'onscrollend');
+      delete (window as { onscrollend?: unknown }).onscrollend;
+      try {
+        el.scrollTop = 400;
+        const isSettled = settledFlag(
+          waitForScrollQuiescence(el, { idleMs: 150, maxWaitMs: Infinity })
+        );
+        vi.advanceTimersByTime(140);
+        el.dispatchEvent(new WheelEvent('wheel', { deltaY: -100 }));
+        vi.advanceTimersByTime(149);
+        await flushMicrotasks();
+        expect(isSettled()).toBe(false);
+        vi.advanceTimersByTime(1);
         await flushMicrotasks();
         expect(isSettled()).toBe(true);
       } finally {

@@ -14,12 +14,12 @@
  * through the offset ledger without a commit-time scroll write; this
  * waiter also gates the later exactly-cancelling ledger settlement, which
  * DOES write `scrollTop` and therefore must only run at true rest.
- * Quiescence means no scroll events for `idleMs`, no sampled `scrollTop`
- * movement during that window, and no active touch. Sampling matters on
- * iOS because compositor momentum can keep changing the offset while
- * JavaScript scroll-event delivery pauses. A clamped scroller (momentum
- * slammed into the top edge) stops moving, so the edge case resolves
- * through the same idle path.
+ * Quiescence means no scroll events (or wheels that can still start one)
+ * for `idleMs`, no sampled `scrollTop` movement during that window, and no
+ * active touch. Sampling matters on iOS because compositor momentum can
+ * keep changing the offset while JavaScript scroll-event delivery pauses.
+ * A clamped scroller (momentum slammed into the top edge) stops moving,
+ * so the edge case resolves through the same idle path.
  *
  * `maxWaitMs` caps finite pagination waits so a pathological continuous
  * scroller still gets content instead of being starved. Ledger-settlement
@@ -158,6 +158,7 @@ export const waitForScrollQuiescence = (
       if (capTimer !== undefined) clearTimeout(capTimer);
       scrollElement.removeEventListener('scroll', onActivity);
       scrollElement.removeEventListener('scrollend', onScrollSessionEnd);
+      scrollElement.removeEventListener('wheel', onWheel, true);
     };
 
     const settle = () => {
@@ -222,7 +223,24 @@ export const waitForScrollQuiescence = (
       armIdleTimer();
     }
 
+    // A wheel starts a scroll whose first scroll event comes a frame or
+    // more later (over a second after a heavy WebKit frame), and WebKit
+    // cancels a wheel scroll that a scrollTop write lands on before it
+    // moves. So a wheel counts as that scroll's first event. One that cannot
+    // move the scroller (sideways, or into an edge) does not: a reader
+    // pushing at the top still gets the settle that reveals the rows folded
+    // in above.
+    function onWheel(event: WheelEvent) {
+      const { scrollTop, scrollHeight, clientHeight } = event.currentTarget as HTMLElement;
+      const canMove =
+        event.deltaY < 0
+          ? scrollTop > 0
+          : event.deltaY > 0 && scrollTop < scrollHeight - clientHeight;
+      if (canMove) onActivity();
+    }
+
     scrollElement.addEventListener('scroll', onActivity, { passive: true });
+    scrollElement.addEventListener('wheel', onWheel, { passive: true, capture: true });
     // Harmless where unsupported: the event simply never fires, and the
     // session flag is only ever set on scrollend-capable platforms.
     scrollElement.addEventListener('scrollend', onScrollSessionEnd, { passive: true });

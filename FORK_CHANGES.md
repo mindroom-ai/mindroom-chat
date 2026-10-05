@@ -2,6 +2,19 @@
 
 ## Runbook
 
+### Let a wheel that starts as the ledger settles move the view (2026-10-05)
+
+- Report: on desktop WebKit, a wheel scroll could fail to start while older thread history landed above the reader.
+  PR #394 saw the same race with a banner fold (`thread-banner-overlay` on WebKit failed 3 of 4 runs), and #385 now folds every row inserted above the reader, so these settles are common.
+- Root cause: the ledger settle waits for `waitForScrollQuiescence`, which only saw scroll events, sampled `scrollTop` and touches.
+  A wheel's first scroll event comes a frame or more after the wheel, so a quiet window that ended in between let the settle write `scrollTop`, and WebKit cancels a wheel scroll that a write lands on before its first step.
+  A live run on WebKit without any harness caught it: wheel 154 ms after the fold, settle write 1 ms later, the view did not move. Chromium applies the wheel from the new offset and keeps it.
+- Fix: a wheel on the scroller counts as the first event of the scroll it starts: it restarts the quiet window and, where `scrollend` exists, opens the scroll session that only the scroll's `scrollend` (or the stale TTL) closes, so a first step delayed by a heavy frame is covered too.
+  A wheel that cannot move the scroller (sideways, or into the top or bottom edge) does not count, so a reader pushing at the top still gets the settle that reveals the rows folded in above.
+  The settle design is unchanged; touch-only iOS scrolling has no wheel events.
+- Tests: `scrollQuiescence.test.ts` (a wheel holds the wait until its scroll's `scrollend`, or restarts the window without `scrollend`; a wheel into the edge or sideways does not).
+  `e2e/live/thread-wheel-at-settle.spec.ts` (Chromium and WebKit, `playwright.thread-wheel-settle.config.ts`) holds older pages, lets one land above the reader and ends the settle's quiet window right after a wheel's dispatch, the timing of the live run above; the wheel must move the view. WebKit fails on the base (the view moves 0 px) and passes with the fix.
+
 ### Keep a thread reader in place when the thread banner changes height (2026-10-04)
 
 - Report: in a thread, every row moved by the change whenever the banner above them changed height: a summary arriving (+11.75 px on a desktop viewport), the thread being resolved (+22 px for the "by <name>" byline) or reopened.
