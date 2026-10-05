@@ -1,7 +1,7 @@
 import React from 'react';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { EventType, MatrixEvent, Room, RoomEvent } from 'matrix-js-sdk';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { CALL_FAILURE_CONTENT_KEY } from './callFailureNotice';
 import { useCallFailureNotice } from './useCallFailureNotice';
 
@@ -26,8 +26,8 @@ vi.mock('../../hooks/useMatrixClient', () => ({
 
 let observed: ReturnType<typeof useCallFailureNotice>;
 
-function Probe({ joined, startedAt = 0 }: { joined: boolean; startedAt?: number }) {
-  observed = useCallFailureNotice(mocks.room as unknown as Room, joined, startedAt);
+function Probe({ joined, startedAfterTs }: { joined: boolean; startedAfterTs?: number }) {
+  observed = useCallFailureNotice(mocks.room as unknown as Room, joined, startedAfterTs);
   return null;
 }
 
@@ -134,22 +134,62 @@ describe('useCallFailureNotice', () => {
     act(() => renderer.unmount());
   });
 
-  it("ignores an earlier call's notice in the reused room, not this call's", async () => {
-    const startedAt = Date.now();
-    mocks.liveEvents = [markedEvent({ eventId: '$previous', timestamp: startedAt - 10_000 })];
+  it("ignores an earlier call's notice in the history scan, not this call's", async () => {
+    const newestAtStart = Date.now() - 10_000;
+    mocks.liveEvents = [markedEvent({ eventId: '$previous', timestamp: newestAtStart })];
 
     await act(async () => {
-      renderer = create(<Probe joined startedAt={startedAt} />);
+      renderer = create(<Probe joined startedAfterTs={newestAtStart} />);
       await Promise.resolve();
     });
-    await act(async () =>
-      emitTimeline(markedEvent({ eventId: '$late', timestamp: startedAt - 1 }))
-    );
     expect(observed).toBeUndefined();
+    act(() => renderer.unmount());
 
-    await act(async () => emitTimeline(markedEvent({ eventId: '$current', timestamp: startedAt })));
+    mocks.liveEvents.push(markedEvent({ eventId: '$current', timestamp: newestAtStart + 1 }));
+    await act(async () => {
+      renderer = create(<Probe joined startedAfterTs={newestAtStart} />);
+      await Promise.resolve();
+    });
     expect(observed?.eventId).toBe('$current');
     act(() => renderer.unmount());
+  });
+
+  describe('with the device clock ahead of the homeserver', () => {
+    const serverNow = Date.now();
+
+    beforeEach(() => {
+      vi.spyOn(Date, 'now').mockReturnValue(serverNow + 30_000);
+    });
+
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it('shows a current notice found by the history scan', async () => {
+      mocks.liveEvents = [markedEvent({ eventId: '$current', timestamp: serverNow })];
+
+      await act(async () => {
+        renderer = create(<Probe joined startedAfterTs={serverNow - 5_000} />);
+        await Promise.resolve();
+      });
+
+      expect(observed?.eventId).toBe('$current');
+      act(() => renderer.unmount());
+    });
+
+    it('shows a notice delivered live, whatever its timestamp', async () => {
+      await act(async () => {
+        renderer = create(<Probe joined startedAfterTs={serverNow} />);
+        await Promise.resolve();
+      });
+
+      await act(async () =>
+        emitTimeline(markedEvent({ eventId: '$live', timestamp: serverNow - 1 }))
+      );
+
+      expect(observed?.eventId).toBe('$live');
+      act(() => renderer.unmount());
+    });
   });
 
   it('does not let a slower historical decryption replace a newer live failure', async () => {

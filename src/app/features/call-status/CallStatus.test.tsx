@@ -47,7 +47,7 @@ const render = () => {
   let renderer!: ReactTestRenderer;
   act(() => {
     renderer = create(
-      <CallStatus callEmbed={{ room: CALL_ROOM, startedAt: 1 } as unknown as CallEmbed} />
+      <CallStatus callEmbed={{ room: CALL_ROOM, startedAfterTs: 1 } as unknown as CallEmbed} />
     );
   });
   return renderer;

@@ -84,7 +84,7 @@
 - The profile's **Call** stays; it stamps the open thread when the profile's room is the selected room, and otherwise the room.
 - Both entry points share `useStartAgentCall` (microphone, find or create the room, re-invite the agent, stamp the origin, start), which runs one start at a time, never replaces a call that became active meanwhile, and never navigates.
   The `CallStatus` bar shows the call and, while the call room is not open, the backend's failure notices (`useCallFailureNotice`) as a dismissible row.
-  Notices from before the call started (`CallEmbed.startedAt`) are ignored, because the reused room keeps earlier calls' notices.
+  The history scan ignores notices at or before the newest event in the room when the call started (`CallEmbed.startedAfterTs`, a server timestamp, so a wrong device clock cannot hide a current notice), because the reused room keeps earlier calls' notices; notices delivered live always count.
 - Each caller has one permanent call room per agent, never shared between users.
   `findAgentCallRoom` picks my joined call room whose `io.mindroom.agent_call` state I sent with `ephemeral: false`, me as creator and this agent; after a first-call race on two devices, both pick the oldest.
   `createAgentVoiceRoom` creates it when missing, mutes it with the existing push-rule setter, and archives it with the per-user `io.mindroom.archived` account data, so it stays out of room lists and badges while the bar can still open it.

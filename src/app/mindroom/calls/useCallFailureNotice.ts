@@ -25,7 +25,7 @@ const decryptEvent = async (event: MatrixEvent, mx: MatrixClient): Promise<boole
 export const useCallFailureNotice = (
   room: Room,
   joined: boolean,
-  startedAt: number
+  startedAfterTs?: number
 ): CallFailureNotice | undefined => {
   const mx = useMatrixClient();
   const [notice, setNotice] = useState<CallFailureNotice>();
@@ -35,8 +35,7 @@ export const useCallFailureNotice = (
     if (!joined) return undefined;
 
     let active = true;
-    // The call room is reused, so notices from before this call started belong to an earlier one.
-    let latestEventTs = startedAt - 1;
+    let latestEventTs = Number.NEGATIVE_INFINITY;
     const inspectEvent = async (event: MatrixEvent): Promise<boolean> => {
       if (!active || !(await decryptEvent(event, mx))) return false;
 
@@ -70,11 +69,17 @@ export const useCallFailureNotice = (
     };
 
     mx.on(RoomEvent.Timeline, handleTimelineEvent);
-    const recentCutoff = Math.max(Date.now() - RECENT_NOTICE_WINDOW_MS, startedAt);
+    const recentCutoff = Date.now() - RECENT_NOTICE_WINDOW_MS;
     const recentEvents = room
       .getLiveTimeline()
       .getEvents()
-      .filter((event) => event.getTs() >= recentCutoff)
+      // The call room is reused: history at or before the newest event from when the call started
+      // belongs to an earlier call. Server order, because the device clock may differ.
+      .filter(
+        (event) =>
+          event.getTs() >= recentCutoff &&
+          event.getTs() > (startedAfterTs ?? Number.NEGATIVE_INFINITY)
+      )
       .reverse();
     void (async () => {
       for (const event of recentEvents) {
@@ -87,7 +92,7 @@ export const useCallFailureNotice = (
       active = false;
       mx.removeListener(RoomEvent.Timeline, handleTimelineEvent);
     };
-  }, [joined, mx, room, startedAt]);
+  }, [joined, mx, room, startedAfterTs]);
 
   return notice;
 };

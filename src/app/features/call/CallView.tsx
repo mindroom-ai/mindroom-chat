@@ -152,7 +152,7 @@ type CallJoinedProps = {
 function CallJoined({ joined, containerRef }: CallJoinedProps) {
   const { t } = useTranslation();
   const callEmbed = useCallEmbed();
-  const callFailure = useCallFailureNotice(useRoom(), joined, callEmbed?.startedAt ?? 0);
+  const callFailure = useCallFailureNotice(useRoom(), joined, callEmbed?.startedAfterTs);
   const { visibleFailure, dismissFailure } = useCallFailureDismissal(joined, callFailure);
 
   return (
