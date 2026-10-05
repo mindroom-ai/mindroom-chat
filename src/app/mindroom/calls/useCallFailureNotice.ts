@@ -1,11 +1,6 @@
 import { useEffect, useState } from 'react';
-import {
-  EventTimelineSetHandlerMap,
-  MatrixClient,
-  MatrixEvent,
-  Room,
-  RoomEvent,
-} from 'matrix-js-sdk';
+import { EventTimelineSetHandlerMap, MatrixClient, MatrixEvent, RoomEvent } from 'matrix-js-sdk';
+import type { Room } from 'matrix-js-sdk';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { getCallFailureNotice } from './callFailureNotice';
 

@@ -95,9 +95,8 @@ export function useStartAgentCall(): StartAgentCall {
       return true;
     } catch (callError) {
       if (roomId) await cleanupCreatedAgentCall(mx, roomId, agent.userId);
-      if (mountedRef.current) {
-        setError(callError instanceof Error ? callError.message : 'Failed to start the call.');
-      }
+      if (!mountedRef.current) return false;
+      setError(callError instanceof Error ? callError.message : 'Failed to start the call.');
       return false;
     } finally {
       store.set(agentCallStartingAtom, false);
