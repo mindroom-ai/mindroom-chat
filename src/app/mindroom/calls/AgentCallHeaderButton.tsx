@@ -1,4 +1,4 @@
-import React, { MouseEventHandler, useEffect, useId, useState } from 'react';
+import React, { MouseEventHandler, useEffect, useId, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import FocusTrap from 'focus-trap-react';
 import { UserEvent, UserEventHandlerMap } from 'matrix-js-sdk';
@@ -39,6 +39,7 @@ export function AgentCallHeaderButton({ threadId }: { threadId?: string }) {
   const [menuAnchor, setMenuAnchor] = useState<RectCords>();
   const [noticeAnchor, setNoticeAnchor] = useState<RectCords>();
   const reasonId = useId();
+  const triggerEl = useRef<HTMLElement | null>(null);
   const [, forceUpdate] = useForceUpdate();
   const viewerUserId = mx.getUserId() ?? undefined;
 
@@ -75,6 +76,9 @@ export function AgentCallHeaderButton({ threadId }: { threadId?: string }) {
       ? t('mindroomUi.calls.agentCallHeaderButton.callAgent', { name: candidates[0].displayName })
       : t('mindroomUi.calls.agentCallHeaderButton.call');
 
+  // The menu item that opened a failure notice is gone by then, so the traps cannot save the trigger themselves.
+  const returnFocusToTrigger = () => triggerEl.current ?? false;
+
   const handleCall = async (candidate: AgentCallCandidate, anchor: RectCords) => {
     setMenuAnchor(undefined);
     setNoticeAnchor(undefined);
@@ -109,7 +113,10 @@ export function AgentCallHeaderButton({ threadId }: { threadId?: string }) {
         {(triggerRef) => (
           <IconButton
             fill="None"
-            ref={triggerRef}
+            ref={(node: HTMLButtonElement | null) => {
+              triggerRef(node);
+              triggerEl.current = node;
+            }}
             onClick={handleClick}
             aria-label={label}
             aria-describedby={reason ? reasonId : undefined}
@@ -138,6 +145,7 @@ export function AgentCallHeaderButton({ threadId }: { threadId?: string }) {
             focusTrapOptions={{
               initialFocus: false,
               returnFocusOnDeactivate: true,
+              setReturnFocus: returnFocusToTrigger,
               onDeactivate: () => setMenuAnchor(undefined),
               clickOutsideDeactivates: true,
               isKeyForward: (evt: KeyboardEvent) => evt.key === 'ArrowDown',
@@ -179,6 +187,7 @@ export function AgentCallHeaderButton({ threadId }: { threadId?: string }) {
             focusTrapOptions={{
               initialFocus: false,
               returnFocusOnDeactivate: true,
+              setReturnFocus: returnFocusToTrigger,
               onDeactivate: () => setNoticeAnchor(undefined),
               clickOutsideDeactivates: true,
               escapeDeactivates: stopPropagation,

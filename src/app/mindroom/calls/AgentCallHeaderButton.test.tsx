@@ -85,10 +85,16 @@ const addVoiceAgent = (agent: { userId: string; displayName: string }) => {
   setStatus(agent.userId, VOICE_CALLS_STATUS);
 };
 
+// The header trigger is the only host node that gets a DOM element, so refs to it can be checked.
+const triggerNode = {};
+
 const render = (threadId?: string) => {
   let renderer!: ReactTestRenderer;
   act(() => {
-    renderer = create(<AgentCallHeaderButton threadId={threadId} />);
+    renderer = create(<AgentCallHeaderButton threadId={threadId} />, {
+      createNodeMock: (element) =>
+        String(element.props?.['aria-label']).startsWith('Call ') ? triggerNode : null,
+    });
   });
   return renderer;
 };
@@ -260,14 +266,16 @@ describe('AgentCallHeaderButton', () => {
       return false;
     });
     const renderer = render();
-    const returnsFocus = () =>
-      renderer.root
-        .findAllByType(FocusTrap)
-        .map((trap) => trap.props.focusTrapOptions.returnFocusOnDeactivate);
+    const trapOptions = () =>
+      renderer.root.findAllByType(FocusTrap).map((trap) => trap.props.focusTrapOptions);
+    const returnsFocus = () => trapOptions().map((options) => options.returnFocusOnDeactivate);
+    const returnTargets = () => trapOptions().map((options) => options.setReturnFocus());
 
     act(() => headerButton(renderer).props.onClick(anchorEvent));
     expect(text(renderer)).toContain('Choose an agent to call');
     expect(returnsFocus()).toEqual([true]);
+    expect(returnTargets()).toEqual([triggerNode]);
+    const [menuReturnFocus] = trapOptions().map((options) => options.setReturnFocus);
 
     const items = renderer.root.findAll(
       (node) => node.type === 'button' && !node.props['aria-label']
@@ -275,5 +283,10 @@ describe('AgentCallHeaderButton', () => {
     await act(async () => items[0].props.onClick());
     expect(text(renderer)).toContain('No microphone was found on this device.');
     expect(returnsFocus()).toEqual([true]);
+    // The menu item is gone, so the notice's trap would otherwise save BODY.
+    expect(returnTargets()).toEqual([triggerNode]);
+
+    act(() => renderer.unmount());
+    expect(menuReturnFocus()).toBe(false);
   });
 });
