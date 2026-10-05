@@ -2,6 +2,18 @@
 
 ## Runbook
 
+### Opt the app out of browser page translation (notranslate, 2026-10-05)
+
+- Report: a user on Dutch Chrome kept losing the whole app to react-router's error page with `NotFoundError: Failed to execute 'removeChild' on 'Node': The node to be removed is not a child of this node.` on a thread.
+  The first report came in August; the fix (#209) was never merged and was stranded when `dev` was rebuilt on 2026-09-13, so no build had it.
+- Root cause: Chrome's page translator moves React-owned text nodes into injected `<font>` wrappers; React's next render removes the original node from a parent that no longer holds it and throws (facebook/react#11538).
+  Streaming replies edit messages constantly, so a translated thread crashes quickly.
+  The screenshot proves translation was on: the stack's `at` was rendered as `op` and `bij`, and the heading was react-router's English `Unexpected Application Error!` in Dutch.
+- Fix: `index.html` sets `translate="no"` on `<html>` and adds `<meta name="google" content="notranslate">`; `src/indexHtml.test.ts` pins both.
+- Cost: users can no longer machine-translate message content in the browser.
+  The UI itself is localized through the language picker (17 locales); `i18n.ts` writes only `lang` and `dir` on the root, so the attribute stays.
+  Exempting message bodies would not help, because they are the nodes that crash.
+
 ### Keep a thread reader in place when rows or Load Older change above them (2026-10-04)
 
 - Report: a reader at the latest reply of a long thread drifted up by thousands of pixels when older history finished loading after Load Older or a scroll.
