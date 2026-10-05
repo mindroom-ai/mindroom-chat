@@ -3,7 +3,14 @@ import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { createStore, Provider } from 'jotai';
 import { enableMapSet } from 'immer';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { MatrixClient, MatrixEvent, MemoryStore, Room, RoomMemberEvent } from 'matrix-js-sdk';
+import {
+  KnownMembership,
+  MatrixClient,
+  MatrixEvent,
+  MemoryStore,
+  Room,
+  RoomMemberEvent,
+} from 'matrix-js-sdk';
 import {
   TYPING_TIMEOUT_MS,
   roomIdToTypingMembersAtom,
@@ -34,6 +41,7 @@ const setup = () => {
   });
   const room = new Room(ROOM_ID, mx, '@me:example.org', { timelineSupport: true });
   mx.store.storeRoom(room);
+  room.updateMyMembership(KnownMembership.Join);
   room.currentState.setStateEvents([
     new MatrixEvent({
       type: 'm.room.member',
@@ -102,4 +110,31 @@ it('drops a member the SDK stopped reporting as typing without an event', async 
   expect(room.getMember(AGENT)?.typing).toBe(false);
   await act(() => vi.advanceTimersByTimeAsync(TYPING_TIMEOUT_MS));
   expect(shown()).toEqual([]);
+});
+
+it('stops checking a room we left, which gets no more m.typing', async () => {
+  const { room, serverTyping, shown } = setup();
+  const timers = vi.getTimerCount();
+  serverTyping([AGENT]);
+  expect(shown()).toEqual([AGENT]);
+
+  // Leaving or being kicked keeps the room and its typing members in the SDK.
+  room.updateMyMembership(KnownMembership.Leave);
+  expect(room.getMember(AGENT)?.typing).toBe(true);
+  await act(() => vi.advanceTimersByTimeAsync(TYPING_TIMEOUT_MS));
+  expect(shown()).toEqual([]);
+  expect(vi.getTimerCount()).toBe(timers);
+});
+
+it('stops checking once the binder unmounts', async () => {
+  const { serverTyping, shown } = setup();
+  const timers = vi.getTimerCount();
+  serverTyping([AGENT]);
+  expect(shown()).toEqual([AGENT]);
+
+  act(() => renderer?.unmount());
+  renderer = undefined;
+  await act(() => vi.advanceTimersByTimeAsync(TYPING_TIMEOUT_MS));
+  expect(shown()).toEqual([]);
+  expect(vi.getTimerCount()).toBe(timers);
 });

@@ -1,6 +1,11 @@
 import produce from 'immer';
 import { atom, useSetAtom } from 'jotai';
-import { MatrixClient, RoomMemberEvent, RoomMemberEventHandlerMap } from 'matrix-js-sdk';
+import {
+  KnownMembership,
+  MatrixClient,
+  RoomMemberEvent,
+  RoomMemberEventHandlerMap,
+} from 'matrix-js-sdk';
 import { useEffect } from 'react';
 import { useSetting } from './hooks/settings';
 import { settingsAtom } from './settings';
@@ -88,7 +93,7 @@ export const roomIdToTypingMembersAtom = atom<
 
       // Keep the receipt while the SDK reports the member as typing: the SDK emits
       // only changes, and the server times typing out itself. A gappy sync swaps in
-      // fresh, non-typing members without an event, so recheck to avoid a stuck one.
+      // fresh members whose typing changes we no longer hear, so recheck them.
       const { roomId, userId, ts, isTyping } = action;
       const expire = () => {
         const receipts = get(baseRoomIdToTypingMembersAtom).get(roomId);
@@ -141,13 +146,22 @@ export const useBindRoomIdToTypingMembersAtom = (
         roomId: member.roomId,
         userId: member.userId,
         ts: Date.now(),
-        isTyping: () => mx.getRoom(member.roomId)?.getMember(member.userId)?.typing === true,
+        isTyping: () => {
+          const room = mx.getRoom(member.roomId);
+          // A room we left gets no more m.typing, so its members never stop typing.
+          return (
+            room?.getMyMembership() === KnownMembership.Join &&
+            room.getMember(member.userId)?.typing === true
+          );
+        },
       });
     };
 
     mx.on(RoomMemberEvent.Typing, handleTypingEvent);
     return () => {
       mx.removeListener(RoomMemberEvent.Typing, handleTypingEvent);
+      // End the pending checks, which would otherwise keep renewing for this client.
+      setTypingMembers({ type: 'RESET' });
     };
   }, [mx, setTypingMembers, hideActivity]);
 };
