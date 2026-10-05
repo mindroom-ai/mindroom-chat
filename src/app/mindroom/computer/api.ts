@@ -36,7 +36,6 @@ const isLocalComputerHost = (hostname: string): boolean => {
   if (!/^\d{1,3}(?:\.\d{1,3}){3}$/.test(hostname)) return false;
   const octets = hostname.split('.').map(Number);
   return (
-    octets.length === 4 &&
     octets.every((octet) => Number.isInteger(octet) && octet >= 0 && octet <= 255) &&
     (octets[0] === 10 ||
       (octets[0] === 172 && octets[1] >= 16 && octets[1] <= 31) ||

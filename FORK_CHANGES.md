@@ -13,6 +13,7 @@
   Physical-device verification is unavailable because no iPhone is connected, and the local Xcode platform remains incomplete.
 - Validation: all 6,162 unit tests in 661 files pass, including 66 focused computer/settings/config tests; typecheck, lint (17 existing warnings), web build and iOS build pass.
   This is a separate follow-up with independent Astra, GPT-6.1 Sol and Vertex Opus 5.5 review required before merge.
+  The first three-model review approved the implementation; Qodo then identified a redundant IPv4 length check, which is removed before final review.
 
 ### Enable native canvases and computer panels safely (2026-10-04)
 
