@@ -1,5 +1,6 @@
 import React from 'react';
 import { create } from 'react-test-renderer';
+import { MatrixEvent } from 'matrix-js-sdk';
 import { describe, expect, it, vi } from 'vitest';
 
 const toolApprovalCardMock = vi.hoisted(() => vi.fn());
@@ -131,27 +132,65 @@ vi.mock('../../../plugins/react-custom-html-parser', () => ({
   withMindroomToolTraceMarkerParserOptions: (options: unknown) => options,
 }));
 
+vi.mock('../../../hooks/useMatrixClient', () => ({
+  useMatrixClient: () => ({ getUserId: () => '@viewer:example.org' }),
+}));
+
+const AGENT = '@mindroom_research:example.org';
+const HUMAN = '@alice:example.org';
+const messageFrom = (sender: string) =>
+  new MatrixEvent({ type: 'm.room.message', sender, content: { msgtype: 'm.text' } });
+
 describe('RenderMessageContent', () => {
   it.each([
-    ['streaming agent', { 'io.mindroom.stream_status': 'streaming' }, false],
-    ['completed agent', { 'io.mindroom.stream_status': 'completed' }, false],
-    ['agent run', { 'io.mindroom.ai_run': { version: 1, status: 'completed' } }, false],
-    ['agent tool trace', { 'io.mindroom.tool_trace': { version: 2, events: [] } }, false],
+    ['streaming agent', AGENT, { 'io.mindroom.stream_status': 'streaming' }, false],
+    ['completed agent', AGENT, { 'io.mindroom.stream_status': 'completed' }, false],
+    ['agent run', AGENT, { 'io.mindroom.ai_run': { version: 1, status: 'completed' } }, false],
+    ['agent tool trace', AGENT, { 'io.mindroom.tool_trace': { version: 2, events: [] } }, false],
     [
       'nested agent metadata',
+      AGENT,
       { 'm.new_content': { 'io.mindroom.stream_status': 'completed' } },
       false,
     ],
-    ['human', {}, true],
-    ['human with unrelated metadata', { 'io.mindroom.paste_attachment': { version: 1 } }, true],
-    ['router transcript', { 'com.mindroom.visible_router_voice_echo': true }, false],
-    ['disabled router voice echo', { 'com.mindroom.visible_router_voice_echo': false }, true],
-    ['invalid router voice echo', { 'com.mindroom.visible_router_voice_echo': 'true' }, true],
-    ['human voice transcript', { 'com.mindroom.voice_transcript': true }, true],
-    ['human quoting router status', { body: 'Router agent is transcribing…' }, true],
+    ['human', HUMAN, {}, true],
+    [
+      'human with unrelated metadata',
+      HUMAN,
+      { 'io.mindroom.paste_attachment': { version: 1 } },
+      true,
+    ],
+    ['router transcript', AGENT, { 'com.mindroom.visible_router_voice_echo': true }, false],
+    [
+      'disabled router voice echo',
+      AGENT,
+      { 'com.mindroom.visible_router_voice_echo': false },
+      true,
+    ],
+    [
+      'invalid router voice echo',
+      AGENT,
+      { 'com.mindroom.visible_router_voice_echo': 'true' },
+      true,
+    ],
+    ['human voice transcript', HUMAN, { 'com.mindroom.voice_transcript': true }, true],
+    ['human quoting router status', HUMAN, { body: 'Router agent is transcribing…' }, true],
+    ['human with agent metadata', HUMAN, { 'io.mindroom.stream_status': 'completed' }, true],
+    [
+      'human with a router transcript flag',
+      HUMAN,
+      { 'com.mindroom.visible_router_voice_echo': true },
+      true,
+    ],
+    [
+      'foreign-server agent',
+      '@mindroom_research:other.example',
+      { 'io.mindroom.stream_status': 'completed' },
+      true,
+    ],
   ])(
     'passes the edited-label policy for %s messages to the content renderer',
-    async (_, metadata, edited) => {
+    async (_, sender, metadata, edited) => {
       const { RenderMessageContent } = await import('../../../components/RenderMessageContent');
       renderMindroomMessageContentMock.mockReset();
       renderMindroomMessageContentMock.mockReturnValue(null);
@@ -159,6 +198,7 @@ describe('RenderMessageContent', () => {
 
       const renderer = create(
         React.createElement(RenderMessageContent, {
+          mEvent: messageFrom(sender),
           displayName: 'Sender',
           msgType: 'm.text',
           ts: 0,
@@ -351,17 +391,18 @@ describe('RenderMessageContent', () => {
   });
 
   it.each([
-    ['human', {}, true],
-    ['agent', { 'io.mindroom.stream_status': 'completed' }, false],
+    ['human', HUMAN, {}, true],
+    ['agent', AGENT, { 'io.mindroom.stream_status': 'completed' }, false],
   ])(
     'keeps send status on %s image captions while applying the edited-label policy',
-    async (_, metadata, showEdited) => {
+    async (_, sender, metadata, showEdited) => {
       const { RenderMessageContent } = await import('../../../components/RenderMessageContent');
       renderMindroomMessageContentMock.mockReset();
       renderMindroomMessageContentMock.mockReturnValue(undefined);
 
       const renderer = create(
         React.createElement(RenderMessageContent, {
+          mEvent: messageFrom(sender),
           displayName: 'MindRoom',
           msgType: 'm.image',
           ts: 0,
