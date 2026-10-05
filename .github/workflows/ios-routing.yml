@@ -41,6 +41,8 @@ jobs:
       - name: Install test project generator
         run: gem install --user-install --no-document xcodeproj -v 1.27.0
       - name: Build bundled iOS simulator app
+        env:
+          NODE_OPTIONS: --max-old-space-size=6144
         run: |
           set -euo pipefail
           npm run build:ios
