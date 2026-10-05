@@ -12,6 +12,7 @@ import { requestMicrophoneAccess } from '../voice/microphoneAccess';
 import {
   createAgentVoiceRoom,
   findAgentCallRoom,
+  isInAgentCall,
   MindroomAgentCallOrigin,
   prepareAgentCallRoom,
 } from './agentCall';
@@ -79,6 +80,9 @@ export function useStartAgentCall(): StartAgentCall {
         const encrypted = createRoom?.defaultEncryption ?? true;
         const roomId = await createAgentVoiceRoom(mx, agent.userId, agent.displayName, encrypted);
         room = await waitForJoinedRoom(mx, roomId);
+      } else if (isInAgentCall(mx, room)) {
+        // Another tab or device is in this call; joining it would also replace its origin.
+        throw new Error('End your current call first.');
       }
       await prepareAgentCallRoom(mx, room, agent.userId, origin);
       // A call answered meanwhile must not be replaced by this one; the room stays for the next call.

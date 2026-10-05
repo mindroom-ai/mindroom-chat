@@ -20,7 +20,9 @@ vi.mock('../voice/microphoneAccess', () => ({
 
 const NEW_ROOM = '!new:mindroom.test';
 const rooms = new Map<string, ReturnType<typeof fakeRoom>>();
+let callMembers: { userId: string; isExpired: () => boolean }[] = [];
 const mx = {
+  matrixRTC: { getRoomSession: () => ({ memberships: callMembers }) },
   getUserId: () => ALICE,
   getSafeUserId: () => ALICE,
   getRooms: () => [...rooms.values()],
@@ -103,6 +105,7 @@ describe('useStartAgentCall', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     rooms.clear();
+    callMembers = [];
     mocks.callEmbed = undefined;
     getDefaultStore().set(callEmbedAtom, undefined);
     mocks.requestMicrophoneAccess.mockResolvedValue(undefined);
@@ -245,6 +248,38 @@ describe('useStartAgentCall', () => {
     expect(mx.createRoom).not.toHaveBeenCalled();
     expect(mx.sendStateEvent).not.toHaveBeenCalled();
     expect(result.current.error).toBe('Microphone access is blocked.');
+  });
+
+  it('refuses to join the call I am already in on another device', async () => {
+    existingRoom();
+    // Nothing is embedded in this tab; my other device's membership is all there is.
+    callMembers = [{ userId: ALICE, isExpired: () => false }];
+    const { result } = renderHook();
+    let started: boolean | undefined;
+
+    await act(async () => {
+      started = await result.current.startAgentCall(AGENT, ORIGIN);
+    });
+
+    expect(started).toBe(false);
+    expect(mx.sendStateEvent).not.toHaveBeenCalled();
+    expect(mocks.startCall).not.toHaveBeenCalled();
+    expect(result.current.error).toBe('End your current call first.');
+  });
+
+  it.each([
+    ['the agent', HELPER, false],
+    ['my expired membership', ALICE, true],
+  ])('starts the call despite %s in the call room', async (_case, userId, expired) => {
+    existingRoom();
+    callMembers = [{ userId, isExpired: () => expired }];
+    const { result } = renderHook();
+
+    await act(async () => {
+      await result.current.startAgentCall(AGENT, ORIGIN);
+    });
+
+    expect(mocks.startCall).toHaveBeenCalledOnce();
   });
 
   it('refuses to start while another call is embedded', async () => {
