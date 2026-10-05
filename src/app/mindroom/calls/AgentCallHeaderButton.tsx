@@ -1,7 +1,7 @@
 import React, { MouseEventHandler, useEffect, useId, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import FocusTrap from 'focus-trap-react';
-import { UserEvent, UserEventHandlerMap } from 'matrix-js-sdk';
+import { Thread, ThreadEvent, UserEvent, UserEventHandlerMap } from 'matrix-js-sdk';
 import {
   Box,
   color,
@@ -24,12 +24,17 @@ import { useRoom } from '../../hooks/useRoom';
 import { useRoomMembers } from '../../hooks/useRoomMembers';
 import { stopPropagation } from '../../utils/keyboard';
 import { isMindroomAgentUserIdForViewer } from '../matrix/agentIdentity';
+import { isConfirmedMatrixEventId } from '../threads/threadRouteUtils';
 import { localizeVoiceErrorMessage } from '../voice/voiceErrorMessage';
 import { toAgentCallOrigin } from './agentCall';
-import { AgentCallCandidate, getAgentCallCandidates } from './agentCallCandidates';
+import {
+  AgentCallCandidate,
+  getAgentCallCandidates,
+  keepThreadSenders,
+} from './agentCallCandidates';
 import { useStartAgentCall } from './useStartAgentCall';
 
-/** Calls a voice-capable agent in this room about the open thread (or the room) without leaving it. */
+/** Calls a voice-capable agent that took part in the open thread (or any in the room) without leaving it. */
 export function AgentCallHeaderButton({ threadId }: { threadId?: string }) {
   const { t } = useTranslation();
   const mx = useMatrixClient();
@@ -42,6 +47,7 @@ export function AgentCallHeaderButton({ threadId }: { threadId?: string }) {
   const triggerEl = useRef<HTMLElement | null>(null);
   const [, forceUpdate] = useForceUpdate();
   const viewerUserId = mx.getUserId() ?? undefined;
+  const inThread = isConfirmedMatrixEventId(threadId);
 
   useEffect(() => {
     // Fires for every m.presence; `Presence` fires only when online/offline changes, not the status.
@@ -54,11 +60,29 @@ export function AgentCallHeaderButton({ threadId }: { threadId?: string }) {
     };
   }, [mx, viewerUserId, forceUpdate]);
 
-  const candidates = getAgentCallCandidates(
+  useEffect(() => {
+    if (!inThread) return undefined;
+    // The room re-emits its threads' updates and replies; `New` covers a thread the SDK creates later.
+    const handleThread = (thread: Thread) => {
+      if (thread.id === threadId) forceUpdate();
+    };
+    room.on(ThreadEvent.New, handleThread);
+    room.on(ThreadEvent.Update, handleThread);
+    room.on(ThreadEvent.NewReply, handleThread);
+    return () => {
+      room.removeListener(ThreadEvent.New, handleThread);
+      room.removeListener(ThreadEvent.Update, handleThread);
+      room.removeListener(ThreadEvent.NewReply, handleThread);
+    };
+  }, [room, threadId, inThread, forceUpdate]);
+
+  const roomCandidates = getAgentCallCandidates(
     members,
     viewerUserId,
     (userId) => mx.getUser(userId)?.presenceStatusMsg
   );
+  // In a thread, only agents that took part in it can be called about it.
+  const candidates = inThread ? keepThreadSenders(roomCandidates, room, threadId) : roomCandidates;
   // An unsupported homeserver or browser hides the button for good; only an active call disables it.
   if (!supported || candidates.length === 0 || room.isCallRoom()) return null;
 

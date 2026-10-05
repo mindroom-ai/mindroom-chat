@@ -2,7 +2,7 @@ import React from 'react';
 import { EventEmitter } from 'events';
 import { act, create, ReactTestInstance, ReactTestRenderer } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { MatrixClient, MatrixEvent, User } from 'matrix-js-sdk';
+import { MatrixClient, MatrixEvent, ThreadEvent, User } from 'matrix-js-sdk';
 import { ReEmitter } from 'matrix-js-sdk/lib/ReEmitter';
 import FocusTrap from 'focus-trap-react';
 import { Tooltip } from 'folds';
@@ -24,6 +24,7 @@ const state = vi.hoisted(() => ({
   },
   members: [] as Array<{ userId: string; name: string; membership: string }>,
   callRoom: false,
+  thread: null as { id: string; rootEvent: MatrixEvent; events: MatrixEvent[] } | null,
 }));
 
 // A client that re-emits its users' events, as the SDK's User.createUser wires them up.
@@ -52,9 +53,15 @@ vi.mock('./useStartAgentCall', () => ({
 
 vi.mock('../../hooks/useMatrixClient', () => ({ useMatrixClient: () => mx }));
 
-vi.mock('../../hooks/useRoom', () => ({
-  useRoom: () => ({ roomId: ROOM_ID, isCallRoom: () => state.callRoom }),
-}));
+// A room that emits thread events, as the SDK room re-emits them from its threads.
+const room = Object.assign(new EventEmitter(), {
+  roomId: ROOM_ID,
+  isCallRoom: () => state.callRoom,
+  getThread: (threadId: string) => (threadId === state.thread?.id ? state.thread : null),
+  findEventById: () => undefined,
+});
+
+vi.mock('../../hooks/useRoom', () => ({ useRoom: () => room }));
 
 vi.mock('../../hooks/useRoomMembers', () => ({ useRoomMembers: () => state.members }));
 
@@ -83,6 +90,15 @@ vi.mock('folds', async (importOriginal) => ({
 const addVoiceAgent = (agent: { userId: string; displayName: string }) => {
   state.members.push({ userId: agent.userId, name: agent.displayName, membership: 'join' });
   setStatus(agent.userId, VOICE_CALLS_STATUS);
+};
+
+const message = (sender: string) => new MatrixEvent({ type: 'm.room.message', sender });
+
+/** Opens thread `$root`, started by the viewer, with one reply from each sender. */
+const replyInThread = (...senders: string[]) => {
+  const root = message('@alice:mindroom.test');
+  state.thread = { id: '$root', rootEvent: root, events: [root, ...senders.map(message)] };
+  return state.thread;
 };
 
 // The header trigger is the only host node that gets a DOM element, so refs to it can be checked.
@@ -123,7 +139,9 @@ describe('AgentCallHeaderButton', () => {
     state.members = [{ userId: '@bob:mindroom.test', name: 'Bob', membership: 'join' }];
     users.clear();
     mx.removeAllListeners();
+    room.removeAllListeners();
     state.callRoom = false;
+    state.thread = null;
     state.startAgentCall.mockResolvedValue(true);
   });
 
@@ -166,6 +184,7 @@ describe('AgentCallHeaderButton', () => {
     [undefined, null],
   ])('calls the only agent from thread %s with origin thread %s', async (threadId, expected) => {
     addVoiceAgent(HELPER);
+    replyInThread(HELPER.userId);
     const renderer = render(threadId);
 
     await act(async () => headerButton(renderer).props.onClick(anchorEvent));
@@ -180,6 +199,7 @@ describe('AgentCallHeaderButton', () => {
   it('lets the user choose between several agents', async () => {
     addVoiceAgent(HELPER);
     addVoiceAgent(ANALYST);
+    replyInThread(HELPER.userId, ANALYST.userId);
     const renderer = render('$root');
     expect(headerButton(renderer).props['aria-label']).toBe('Call an agent');
     expect(text(renderer)).not.toContain('Choose an agent to call');
@@ -201,6 +221,40 @@ describe('AgentCallHeaderButton', () => {
     });
     expect(text(renderer)).not.toContain('Choose an agent to call');
   });
+
+  it('renders nothing in a thread no agent has taken part in', () => {
+    addVoiceAgent(HELPER);
+    replyInThread('@bob:mindroom.test');
+
+    expect(render('$root').toJSON()).toBeNull();
+  });
+
+  it('offers only the agents that took part in the open thread', () => {
+    addVoiceAgent(HELPER);
+    addVoiceAgent(ANALYST);
+    replyInThread(HELPER.userId);
+
+    expect(headerButton(render('$root')).props['aria-label']).toBe('Call Helper');
+    expect(headerButton(render()).props['aria-label']).toBe('Call an agent');
+  });
+
+  it.each([ThreadEvent.NewReply, ThreadEvent.Update, ThreadEvent.New])(
+    'shows the button once an agent reply in the open thread arrives with %s',
+    (eventName) => {
+      addVoiceAgent(HELPER);
+      const thread = replyInThread();
+      const renderer = render('$root');
+      expect(renderer.toJSON()).toBeNull();
+
+      const reply = message(HELPER.userId);
+      act(() => {
+        thread.events.push(reply);
+        room.emit(eventName, thread, reply);
+      });
+
+      expect(headerButton(renderer).props['aria-label']).toBe('Call Helper');
+    }
+  );
 
   it('stamps no thread while the thread root is still a local echo', async () => {
     addVoiceAgent(HELPER);
@@ -232,6 +286,7 @@ describe('AgentCallHeaderButton', () => {
 
   it('shows a failed start visibly until dismissed', async () => {
     addVoiceAgent(HELPER);
+    replyInThread(HELPER.userId);
     state.startAgentCall.mockImplementationOnce(async () => {
       state.call.error =
         'Microphone access is blocked. Allow microphone access for MindRoom Chat in iPhone settings and try again.';

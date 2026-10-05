@@ -1,6 +1,6 @@
-import type { RoomMember } from 'matrix-js-sdk';
+import { MatrixEvent, type Room, type RoomMember } from 'matrix-js-sdk';
 import { describe, expect, it } from 'vitest';
-import { getAgentCallCandidates } from './agentCallCandidates';
+import { getAgentCallCandidates, keepThreadSenders } from './agentCallCandidates';
 
 const VIEWER = '@alice:mindroom.test';
 const VOICE_CALLS_STATUS = '🤖 Model: openai/gpt-5.5 | 📞 Voice calls';
@@ -45,5 +45,38 @@ describe('getAgentCallCandidates', () => {
         ({ displayName }) => displayName
       )
     ).toEqual(['alpha', 'Beta', 'Zeta']);
+  });
+});
+
+describe('keepThreadSenders', () => {
+  const HELPER = { userId: '@mindroom_helper:mindroom.test', displayName: 'Helper' };
+  const ANALYST = { userId: '@mindroom_analyst:mindroom.test', displayName: 'Analyst' };
+  const event = (sender: string) => new MatrixEvent({ type: 'm.room.message', sender });
+  const room = (
+    thread: { rootEvent?: MatrixEvent; events: MatrixEvent[] } | null,
+    root?: MatrixEvent
+  ) => ({ getThread: () => thread, findEventById: () => root } as unknown as Room);
+
+  it('keeps only candidates who replied in the thread', () => {
+    const root = event(VIEWER);
+    const thread = { rootEvent: root, events: [root, event(HELPER.userId), event(VIEWER)] };
+
+    expect(keepThreadSenders([ANALYST, HELPER], room(thread), '$root')).toEqual([HELPER]);
+  });
+
+  it('keeps nobody in a thread with only human senders', () => {
+    const root = event(VIEWER);
+    const thread = { rootEvent: root, events: [root, event('@bob:mindroom.test')] };
+
+    expect(keepThreadSenders([ANALYST, HELPER], room(thread), '$root')).toEqual([]);
+  });
+
+  it('counts the root sender, also before the SDK has a thread for it', () => {
+    const root = event(ANALYST.userId);
+
+    expect(
+      keepThreadSenders([ANALYST, HELPER], room({ rootEvent: root, events: [] }), '$root')
+    ).toEqual([ANALYST]);
+    expect(keepThreadSenders([ANALYST, HELPER], room(null, root), '$root')).toEqual([ANALYST]);
   });
 });
