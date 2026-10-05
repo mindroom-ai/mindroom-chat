@@ -3,9 +3,11 @@ import { StateEvent } from '../../../types/matrix/room';
 import { agentCallState, ALICE, fakeRoom, HELPER } from '../../test-utils/agentCallRoom';
 import {
   cleanupMindroomAgentCall,
+  clearAgentCallOrigin,
   createAgentVoiceRoom,
   findAgentCallRoom,
   hasMindroomVoiceCallsPresence,
+  prepareAgentCallRoom,
   toAgentCallOrigin,
 } from './agentCall';
 
@@ -213,11 +215,13 @@ describe('MindRoom agent calls', () => {
     expect(kick).not.toHaveBeenCalled();
     expect(leave).not.toHaveBeenCalled();
     expect(forget).not.toHaveBeenCalled();
-    expect(sendStateEvent).toHaveBeenCalledWith(
-      '!call:mindroom.test',
-      StateEvent.MindroomAgentCall,
-      agentCallState(),
-      ''
+    await vi.waitFor(() =>
+      expect(sendStateEvent).toHaveBeenCalledWith(
+        '!call:mindroom.test',
+        StateEvent.MindroomAgentCall,
+        agentCallState(),
+        ''
+      )
     );
   });
 
@@ -225,5 +229,90 @@ describe('MindRoom agent calls', () => {
     await cleanupMindroomAgentCall(mx, fakeRoom({ call: agentCallState() }));
 
     expect(sendStateEvent).not.toHaveBeenCalled();
+  });
+
+  describe('ordering state writes', () => {
+    const origin = { room_id: '!room:mindroom.test', thread_id: '$root' };
+    const settle = () =>
+      new Promise((resolve) => {
+        setTimeout(resolve, 0);
+      });
+    let serverState: unknown;
+    let pending: { content: unknown; land: () => void; fail: (error: Error) => void }[];
+
+    beforeEach(() => {
+      serverState = undefined;
+      pending = [];
+      // Each request lands on the server only when the test lets it, like independent HTTP writes.
+      sendStateEvent.mockImplementation(
+        (_roomId: string, _type: string, content: unknown) =>
+          new Promise((resolve, reject) => {
+            pending.push({
+              content,
+              land: () => {
+                serverState = content;
+                resolve({});
+              },
+              fail: reject,
+            });
+          })
+      );
+    });
+
+    const prepare = () =>
+      prepareAgentCallRoom(mx, fakeRoom({ agentMembership: 'join' }), HELPER, origin);
+
+    it('sends a new call stamp only after an earlier origin clear settled', async () => {
+      clearAgentCallOrigin(mx, '!call:mindroom.test', HELPER);
+      const prepared = prepare();
+      await settle();
+
+      expect(pending).toHaveLength(1);
+      pending[0].land();
+      await settle();
+      expect(pending).toHaveLength(2);
+      pending[1].land();
+      await prepared;
+
+      expect(serverState).toEqual(agentCallState({ origin }));
+    });
+
+    it('still stamps the new call when the earlier clear failed', async () => {
+      clearAgentCallOrigin(mx, '!call:mindroom.test', HELPER);
+      const prepared = prepare();
+      await settle();
+
+      pending[0].fail(new Error('clear failed'));
+      await settle();
+      pending[1].land();
+      await prepared;
+
+      expect(serverState).toEqual(agentCallState({ origin }));
+    });
+
+    it('reports a failed stamp to its caller without blocking later writes', async () => {
+      const failed = prepare();
+      const failure = expect(failed).rejects.toThrow('stamp failed');
+      await settle();
+      pending[0].fail(new Error('stamp failed'));
+      await failure;
+
+      const prepared = prepare();
+      await settle();
+      pending[1].land();
+      await prepared;
+
+      expect(serverState).toEqual(agentCallState({ origin }));
+    });
+
+    it('does not make rooms wait for each other', async () => {
+      clearAgentCallOrigin(mx, '!other:mindroom.test', HELPER);
+      const prepared = prepare();
+      await settle();
+
+      expect(pending).toHaveLength(2);
+      pending[1].land();
+      await prepared;
+    });
   });
 });

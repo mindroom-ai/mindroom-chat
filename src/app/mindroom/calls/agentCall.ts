@@ -51,18 +51,30 @@ const agentCallContent = (
   ...(origin && { origin }),
 });
 
+const writeTails = new WeakMap<MatrixClient, Map<string, Promise<unknown>>>();
+
+/** The SDK sends state writes independently, so an earlier clear could land after a newer stamp. */
 const sendAgentCall = (
   mx: MatrixClient,
   roomId: string,
   agentUserId: string,
   origin?: MindroomAgentCallOrigin
-) =>
-  mx.sendStateEvent(
-    roomId,
-    StateEvent.MindroomAgentCall as any,
-    agentCallContent(mx, agentUserId, origin),
-    ''
-  );
+) => {
+  const tails = writeTails.get(mx) ?? new Map<string, Promise<unknown>>();
+  writeTails.set(mx, tails);
+  const write = (tails.get(roomId) ?? Promise.resolve())
+    .catch(() => undefined)
+    .then(() =>
+      mx.sendStateEvent(
+        roomId,
+        StateEvent.MindroomAgentCall as any,
+        agentCallContent(mx, agentUserId, origin),
+        ''
+      )
+    );
+  tails.set(roomId, write);
+  return write;
+};
 
 /** A later join without a fresh stamp, such as the call room's own Join, must not reuse an old thread. */
 export const clearAgentCallOrigin = (mx: MatrixClient, roomId: string, agentUserId: string) => {
