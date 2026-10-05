@@ -442,34 +442,63 @@ describe('RecentlyOpenedNavCategory', () => {
     ).toHaveLength(0);
   });
 
-  it('reopens the list where it was left after a collapse', () => {
+  it('reopens the list where it was left after a collapse, also when rows render late', () => {
+    // Each connected observer's callback, with the elements it watches.
+    const observers = new Map<() => void, Set<unknown>>();
     vi.stubGlobal(
       'ResizeObserver',
       class {
-        observe() {}
+        constructor(private callback: () => void) {}
 
-        disconnect() {}
+        observe(target: unknown) {
+          observers.set(this.callback, (observers.get(this.callback) ?? new Set()).add(target));
+        }
+
+        disconnect() {
+          observers.delete(this.callback);
+        }
       }
     );
     // No rows to measure here, so the list restores its saved offset.
-    const createList = () => ({
-      scrollTop: 0,
-      getBoundingClientRect: () => ({ top: 0, bottom: 0 }),
-      querySelectorAll: () => [],
-      addEventListener: () => {},
-      removeEventListener: () => {},
-    });
-    let list = createList();
+    const createList = (initialMaxScrollTop: number) => {
+      let maxScrollTop = initialMaxScrollTop;
+      let scrollTop = 0;
+      return {
+        get scrollTop() {
+          return scrollTop;
+        },
+        set scrollTop(value: number) {
+          scrollTop = Math.min(value, maxScrollTop);
+        },
+        setMaxScrollTop: (value: number) => {
+          maxScrollTop = value;
+        },
+        getBoundingClientRect: () => ({ top: 0, bottom: 0 }),
+        querySelectorAll: () => [],
+        addEventListener: () => {},
+        removeEventListener: () => {},
+      };
+    };
+    let list = createList(Number.POSITIVE_INFINITY);
     seedJoinedThreads(3);
     renderCategory(undefined, (element) =>
-      element.props['data-testid'] === 'recently-opened-nav-list' ? list : null
+      element.props['data-testid'] === 'recently-opened-nav-list' ? list : {}
     );
 
     list.scrollTop = 90;
     toggleCategory();
-    list = createList();
+    // The list reopens too short for the saved offset, then more rows render
+    // and grow its content, not its viewport.
+    list = createList(40);
     toggleCategory();
+    expect(list.scrollTop).toBe(40);
 
+    list.setMaxScrollTop(Number.POSITIVE_INFINITY);
+    act(() =>
+      observers.forEach((targets, callback) => {
+        if ([...targets].some((target) => target !== list)) callback();
+      })
+    );
     expect(list.scrollTop).toBe(90);
   });
 });

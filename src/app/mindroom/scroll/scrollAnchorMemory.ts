@@ -112,7 +112,7 @@ type ScrollAnchorMemoryOptions = {
   /** The scroll container, rendered for the component's whole lifetime. */
   scrollRef: RefObject<HTMLElement>;
   /** The rows' container, so rows that render or resize late are followed. */
-  contentRef?: RefObject<HTMLElement>;
+  contentRef: RefObject<HTMLElement>;
   /** False until the rows to restore against have rendered. */
   ready: boolean;
 };
@@ -133,6 +133,10 @@ export function useScrollAnchorMemory({
   ready,
 }: ScrollAnchorMemoryOptions): void {
   const restoreRef = useRef<RestoreState>();
+  const readyRef = useRef(ready);
+  useLayoutEffect(() => {
+    readyRef.current = ready;
+  }, [ready]);
 
   useLayoutEffect(() => {
     const view = scrollRef.current;
@@ -187,7 +191,7 @@ export function useScrollAnchorMemory({
 
     observer = new ResizeObserver(restore);
     observer.observe(view);
-    if (contentRef?.current) observer.observe(contentRef.current);
+    if (contentRef.current) observer.observe(contentRef.current);
     view.addEventListener('scroll', handleScroll);
     return () => {
       observer?.disconnect();
@@ -198,8 +202,9 @@ export function useScrollAnchorMemory({
   useLayoutEffect(() => {
     const view = scrollRef.current;
     return () => {
-      // A list that never rendered its rows keeps the position saved before it.
-      if (view && restoreRef.current?.memoryKey === memoryKey) {
+      // A list without its rows, before they render or after they all went,
+      // keeps the position saved before it.
+      if (view && readyRef.current) {
         memory.set(memoryKey, captureScrollAnchors(view));
       }
     };

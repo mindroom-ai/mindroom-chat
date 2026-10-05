@@ -78,11 +78,13 @@ type RecentlyOpenedListProps = {
 function RecentlyOpenedList({ entries, userId }: RecentlyOpenedListProps) {
   const { t } = useTranslation();
   const scrollRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
   // Opening a thread moves its row to the top, so restore by the rows in view.
   useScrollAnchorMemory({
     memory: recentlyOpenedScrollMemory,
     memoryKey: userId,
     scrollRef,
+    contentRef,
     ready: entries.length > 0,
   });
 
@@ -103,21 +105,23 @@ function RecentlyOpenedList({ entries, userId }: RecentlyOpenedListProps) {
         variant="Background"
         visibility="Hover"
       >
-        {entries.length === 0 ? (
-          <Text className={css.CategoryState} as="p" size="T200">
-            {t('recentThreads.empty')}
-          </Text>
-        ) : (
-          entries.map((entry) => (
-            <RecentThreadEntry
-              key={`${entry.roomId}|${entry.threadId}`}
-              room={entry.room}
-              threadId={entry.threadId}
-              openedAt={entry.openedAt}
-              summaryText={entry.summaryText}
-            />
-          ))
-        )}
+        <div ref={contentRef}>
+          {entries.length === 0 ? (
+            <Text className={css.CategoryState} as="p" size="T200">
+              {t('recentThreads.empty')}
+            </Text>
+          ) : (
+            entries.map((entry) => (
+              <RecentThreadEntry
+                key={`${entry.roomId}|${entry.threadId}`}
+                room={entry.room}
+                threadId={entry.threadId}
+                openedAt={entry.openedAt}
+                summaryText={entry.summaryText}
+              />
+            ))
+          )}
+        </div>
       </Scroll>
     </div>
   );

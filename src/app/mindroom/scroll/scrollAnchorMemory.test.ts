@@ -356,6 +356,20 @@ describe('useScrollAnchorMemory', () => {
     expect(memory.get('list')).toBe(saved);
   });
 
+  it('keeps the previous position when its rows are gone by the time it unmounts', () => {
+    const memory: ScrollAnchorMemory = new Map();
+    leaveAt(memory, rowKeys(20), 300);
+    const saved = memory.get('list');
+
+    const layout = createLayout(rowKeys(20));
+    const list = mount(memory, layout);
+    layout.setRows([]);
+    list.setReady(false);
+    unmount();
+
+    expect(memory.get('list')).toBe(saved);
+  });
+
   it('keeps each key separate', () => {
     const memory: ScrollAnchorMemory = new Map();
     leaveAt(memory, rowKeys(20), 300);
