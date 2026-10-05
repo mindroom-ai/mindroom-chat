@@ -48,7 +48,7 @@ const schedule = (
     room_id: room.roomId,
     state_key: id,
     event_id: `$${id}-${status}`,
-    sender: '@agent:example.org',
+    sender: '@mindroom_agent:example.org',
     origin_server_ts: Date.now(),
     content: {
       status,
