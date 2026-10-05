@@ -1,9 +1,20 @@
-import { createClient, Direction, Room, type IEvent, type MatrixClient } from 'matrix-js-sdk';
+import {
+  createClient,
+  Direction,
+  EventTimeline,
+  Room,
+  type IEvent,
+  type MatrixClient,
+} from 'matrix-js-sdk';
+import { logger } from 'matrix-js-sdk/lib/logger';
 import { FeatureSupport, Thread } from 'matrix-js-sdk/lib/models/thread';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { createBackfillScheduler } from '../engine/backfillScheduler';
+import { scheduleReconcile } from '../engine/reconciler';
 import { getLinkedTimelines, getThreadTimelineEvents } from './linkedTimelines';
 import { refreshLatestThreadSlice } from './threadOpenCacheController';
 import { runThreadOpenSdkBootstrap } from './threadOpenSdkBootstrap';
+import type { HydratedThreadCachePage } from './types';
 
 const roomId = '!room:example.org';
 const userId = '@mindroom:example.org';
@@ -186,5 +197,98 @@ it.each(['opened', 'shown'] as const)(
       root: true,
       backward: null,
     });
+  }
+);
+
+/** A limited /sync whose window holds no event of the thread, so the thread's reset stays deferred. */
+const syncQuietGapAfterReply = async (server: ReturnType<typeof tuwunel>, index: number) => {
+  const oldSyncToken = String(server.stream.length - 1);
+  server.reply(index);
+  const other = server.send(`$other-${index}`);
+  server.room.resetLiveTimeline(String(server.stream.indexOf(other)), oldSyncToken);
+  await server.room.addLiveEvents([server.client.getEventMapper()(other)], { addToState: false });
+};
+
+it.each(['streamed', 'quiet'] as const)(
+  'keeps thread segments in order when a reconcile repairs a thread between sync gaps (%s first gap)',
+  async (firstGap) => {
+    const joinWarnings: string[] = [];
+    vi.spyOn(logger, 'warn').mockImplementation((...args: unknown[]) => {
+      const message = args.map(String).join(' ');
+      if (message.startsWith('Refusing')) joinWarnings.push(message);
+    });
+    // A walk around a segment cycle never ends; fail instead of hanging the run.
+    const { getNeighbouringTimeline } = EventTimeline.prototype;
+    let neighbourReads = 0;
+    vi.spyOn(EventTimeline.prototype, 'getNeighbouringTimeline').mockImplementation(
+      function countedNeighbour(this: EventTimeline, direction) {
+        neighbourReads += 1;
+        if (neighbourReads > 1_000_000) throw new Error('walked a timeline cycle');
+        return getNeighbouringTimeline.call(this, direction);
+      }
+    );
+    const server = tuwunel();
+    server.send('$before');
+    server.send(rootId);
+    for (let index = 0; index < 100; index += 1) server.reply(index);
+    server.room.processThreadRoots([server.client.getEventMapper()(server.root())], true);
+    const thread = server.room.getThread(rootId)!;
+    // A shown card loads only the latest page.
+    await thread.initialize();
+    const timelineSet = thread.getUnfilteredTimelineSet();
+    // The thread view pages the first segment linked to the live one while it has a cursor.
+    const paginateHistory = async () => {
+      const [first] = getLinkedTimelines(timelineSet.getLiveTimeline());
+      if (!first.getPaginationToken(Direction.Backward)) return;
+      await server.client.paginateEventTimeline(first, { backwards: true, limit: 30 });
+    };
+
+    if (firstGap === 'streamed') {
+      await syncStreamedReplyAfterGap(server, 100);
+      await paginateHistory();
+    } else {
+      // Nothing applies the thread's deferred reset before the reconcile.
+      await syncQuietGapAfterReply(server, 100);
+    }
+    const result = await scheduleReconcile({
+      mx: server.client,
+      sessionId: 'session',
+      scheduler: createBackfillScheduler({ mx: server.client }),
+      roomId,
+      room: server.room,
+      threadId: rootId,
+      cachedPage: { events: [], hasMoreBefore: true, tailLoaded: true } as HydratedThreadCachePage,
+      persistRepair: () => ({ rawEvents: [], loadedReplyCount: 0, write: Promise.resolve(true) }),
+      onRepaired: vi.fn(),
+    });
+    expect(result.repaired).toBe(true);
+    await paginateHistory();
+    await syncStreamedReplyAfterGap(server, 101);
+    await paginateHistory();
+    await paginateHistory();
+
+    const replyIds = getThreadTimelineEvents(thread)
+      .filter((event) => event.isRelation('m.thread'))
+      .map((event) => event.getId());
+    // The streamed case pages once more, before the reconcile.
+    const oldest = firstGap === 'streamed' ? 10 : 40;
+    expect(replyIds).toEqual(
+      Array.from({ length: 102 - oldest }, (_, index) => `$reply-${index + oldest}`)
+    );
+    expect(joinWarnings).toEqual([]);
+    // The agent's next reply arrives after another gap; ordering its receipt against the
+    // previous one, now in an older segment, is the walk that froze the app.
+    const previousReceipt = thread.getEventReadUpTo(userId)!;
+    const oldSyncToken = String(server.stream.length - 1);
+    const nextReply = server.reply(102);
+    server.room.resetLiveTimeline(String(server.stream.indexOf(nextReply)), oldSyncToken);
+    await server.room.addLiveEvents([server.client.getEventMapper()(nextReply)], {
+      addToState: false,
+    });
+
+    expect(timelineSet.eventIdToTimeline(previousReceipt)).not.toBe(thread.liveTimeline);
+    expect(thread.liveTimeline.getEvents().map((event) => event.getId())).toEqual(['$reply-102']);
+    expect(thread.getEventReadUpTo(userId)).toBe('$reply-102');
+    expect(joinWarnings).toEqual([]);
   }
 );
