@@ -37,7 +37,7 @@ test('clears thread unread indicators through room mark-read and opening a threa
     invite: [writer.userId],
   });
   await joinRoom(homeserver, writer.accessToken, roomId);
-  // Keep room notification counts at zero while unread replies still produce thread dots.
+  // Keep room notification counts at zero while unread replies still mark their threads unread.
   await matrixFetch(homeserver, `/pushrules/global/room/${encodeURIComponent(roomId)}`, {
     method: 'PUT',
     accessToken: reader.accessToken,
