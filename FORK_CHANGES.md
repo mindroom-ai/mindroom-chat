@@ -2,6 +2,37 @@
 
 ## Runbook
 
+### Fix three live specs that failed intermittently in full runs (2026-10-04)
+
+- Report: in full live-suite runs (`--jobs 8`), `thread-arrow-up-edit`, `composer-glass` on WebKit and `offline-invited-account` failed now and then, also on `dev`, and passed when rerun alone.
+  None of the failure traces contain `net::ERR_NETWORK_CHANGED`; all three are test races, and the app behaves correctly in each.
+- `thread-arrow-up-edit`: the composer still held the draft (`Unsent draft`, or `nsent draft`) when the spec pressed Up, so Up rightly did nothing.
+  `fill('')` selects the text by script and presses Delete at once; Slate learns of a selection from the `selectionchange` event, which Chromium dispatches after input that is already waiting.
+  After a cached start the first live `/sync` keeps the page busy just then, so Slate deletes at its old caret.
+  Fix: clear the composer until it is empty (`toPass`) before pressing Up.
+- `composer-glass` (WebKit): the client hides a typing notice five seconds after it arrives (`TYPING_TIMEOUT_MS`); the screenshot and style checks plus a slow stability wait took longer, so **Drop Typing Status** disappeared under the click and the click waited until the test timed out.
+  Fix: send a fresh typing notice right before the click.
+- `offline-invited-account`: the SDK saves its first sync after startup and then at most every five minutes, and the spec froze the clock six minutes ahead to get the next sync saved.
+  When the startup save ran after that (the room shows during the first sync, the save comes at its end), it took the frozen time and no later sync was saved.
+  Fix: move the clock only after the thread root shows, then send a read receipt so another real sync arrives and is saved.
+- Tests: with the page's CPU slowed 6x, base `thread-arrow-up-edit` failed 4 of 4 (`nsent draft` each time) and `offline-invited-account` 2 of 4; with the fixes both passed 4 of 4.
+  With a 5.5 s pause added before the dismissal, base `composer-glass` timed out in all 4 cases (both themes, Chromium and WebKit) and the fix passed all 4.
+  Without slowing anything, three rounds of the three specs (4 jobs each, base and fix side by side) passed on both, so those rounds do not tell them apart.
+- Not changed: Slate applies a delete to its old caret whenever the key arrives before `selectionchange`, which a person could only hit by selecting and deleting during one long task.
+
+### Scope the invite menu live spec's user directory to its own users (2026-10-04)
+
+- Report: `e2e/live/cinny217-invite-menu-portal.spec.ts` failed on every run from about 15:00 on 2026-10-04, on `dev` and other branches alike: the first suggestion for `mind` was another run's `mindroom_lv…_agent 💕` (Tuwunel's default display name) instead of the spec's `Mind`.
+- Root cause, in the spec: Tuwunel answers `/user_directory/search` with the first `limit` matches to finish, not the best ones (it walks users in user-ID order but checks them concurrently, `buffer_unordered`), and the shared test homeserver keeps every run's users.
+  In the failing traces the 500-user `@` bootstrap held only other runs' `@lv…` accounts, and the 12 results for `mind` were 7 to 9 of the spec's own agents plus 3 to 5 other runs' agents from public fixture rooms, so the spec's `Mind` never reached the client.
+  With 3 other agents in the window, `Mind` made it into some requests and not others, since the order changes from request to request.
+  The ranking is right: the client never received `Mind`, and given the spec's users it ranks `Mind` first.
+  A real user hits this only when more than 500 users are visible to them and more than 12 visible users match the query; the client cannot rank a user the server does not return (see CINNY-216).
+- Fix: the spec sends every directory search for its run ID, which every fixture MXID carries, so the server returns exactly the run's 12 users and the client ranks them for the typed query.
+  It now expects its own `Mind`, not any `@mindroom_mind` user.
+- Tests: test-only change. Same build, base spec against fixed spec: the base spec failed every run and the fixed spec passed every run.
+  The spec catches gross ranking regressions (with the tier comparison reversed in `rankUsers` it fails with `Alpha …` first), not a revert of the CINNY-216 refinements; `userDirectorySearch.test.ts` and `useInviteUserSearch.test.ts` cover those.
+
 ### Allow local HTTP computer services (2026-10-05)
 
 - Follow-up to merged Chat #384 and backend #2680, requested for MindRoom servers hosted on a local network without TLS.

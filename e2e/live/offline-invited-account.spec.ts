@@ -5,6 +5,7 @@ import { loginWithPassword } from '../helpers/auth';
 import {
   createPrivateRoom,
   loginToMatrix,
+  matrixFetch,
   seedRoomOverviewState,
   sendRoomMessage,
 } from '../helpers/matrix';
@@ -42,13 +43,20 @@ test('reopens an accepted invitation offline and catches up after reconnect', as
   const roomPath = `/home/${encodeURIComponent(roomId)}`;
   await page.goto(roomPath);
   await expect(page.getByText(roomName, { exact: true })).toBeVisible();
-  // Move past the SDK's five-minute save throttle, then deliver another real sync.
-  await page.clock.setFixedTime(new Date(Date.now() + 6 * 60_000));
   const rootId = await sendRoomMessage(homeserver, inviter.accessToken, roomId, {
     msgtype: 'm.text',
     body: 'Saved before going offline',
   });
   await expect(page.locator(`[data-thread-root-id="${rootId}"]`)).toBeVisible();
+  // The SDK saves its first sync after startup, then at most every five minutes. That
+  // save precedes the root's sync, so only now move past the throttle; the inviter's
+  // read receipt then delivers another real sync.
+  await page.clock.setFixedTime(new Date(Date.now() + 6 * 60_000));
+  await matrixFetch(
+    homeserver,
+    `/rooms/${encodeURIComponent(roomId)}/receipt/m.read/${encodeURIComponent(rootId)}`,
+    { method: 'POST', accessToken: inviter.accessToken, body: '{}' }
+  );
   const { activeSessionId } = await readSessionStore(page);
   // Wait for the application's own saved sync; do not manufacture a cache snapshot.
   await expect
