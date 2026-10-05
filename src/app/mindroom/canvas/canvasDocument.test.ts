@@ -400,9 +400,9 @@ describe('kept inputs', () => {
     expect(page.kept()).toEqual({ '#rate': '2' });
   });
 
-  it('never keeps a password, even while it is shown, nor a field that turns autocomplete off', async () => {
+  it('never keeps a password, even while it is shown, nor a field or form that turns autocomplete off', async () => {
     const page = open(
-      `${RATE}<input id="secret" type="password"><input id="code" autocomplete="off">`
+      `${RATE}<input id="secret" type="password"><input id="code" autocomplete="off"><form autocomplete="off"><input id="pin"></form>`
     );
     await settle();
     page.use('#secret', (control) => {
@@ -411,6 +411,9 @@ describe('kept inputs', () => {
     });
     page.use('#code', (control) => {
       control.value = '123456';
+    });
+    page.use('#pin', (control) => {
+      control.value = '0000';
     });
     page.use('#rate', (control) => {
       control.value = '7';

@@ -100,7 +100,7 @@ const inputsScript = (inputs: string | undefined): string => `
     const groups = new Set();
     return [...document.querySelectorAll('input, select, textarea')].flatMap((control) => {
       if (control.type === 'password') secret.add(control);
-      const declined = /off|password/.test(control.getAttribute('autocomplete') || '');
+      const declined = /off|password/.test(control.getAttribute('autocomplete') || (control.form && control.form.getAttribute('autocomplete')) || '');
       if (unsaved.includes(control.type) || secret.has(control) || declined) return [];
       if (control.type === 'radio') {
         if (!control.name || groups.has(control.name)) return [];

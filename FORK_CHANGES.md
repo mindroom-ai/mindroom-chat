@@ -6,7 +6,7 @@
 
 - Why: sliders and numbers reset when the user switched versions, reopened the panel or reloaded Chat, unless the agent's page happened to call `mindroom.saveState`; users expect a page's controls to keep their values.
 - The bridge keeps the value of every `input`, `select` and `textarea` with an `id` or `name`: key `#id`, else the name, `name=value` for a checkbox, and the group's name for radio buttons, which keeps the checked button's value.
-  Never kept: password, file, hidden and button inputs, a field that was a password once (so revealing it cannot keep it), a field whose `autocomplete` is `off` or a password, and a value longer than `CANVAS_INPUT_MAX_LENGTH` (32 K characters of JSON), which is left to `saveState` so one long text cannot stop the rest from being kept.
+  Never kept: password, file, hidden and button inputs, a field that was a password once (so revealing it cannot keep it), a field whose `autocomplete`, or its form's, is `off` or a password, and a value longer than `CANVAS_INPUT_MAX_LENGTH` (32 K characters of JSON), which is left to `saveState` so one long text cannot stop the rest from being kept.
 - Values are shared by every version of the canvas and matched by key, so they also survive the agent's updates (the agreed design).
   When a page loads, once its scripts and `DOMContentLoaded` handlers have run, the bridge sets every kept value through the element's native setter (so React-style frameworks see it), then fires `input` and `change` on each control it changed, so the page redraws.
   From then on, each `input` or `change` event, and each click (buttons such as Reset change values without events), keeps the values that changed since the page loaded, merged into those kept before, and sends them as `inputs` JSON in the existing `mindroom.canvas.state` message.
@@ -21,8 +21,9 @@
   - `e2e/agent-canvas.spec.ts`: a slider page that saves nothing keeps its value across a Chat reload, **Load update**, and a switch to the earlier version.
 - Not changed:
   - Controls without an `id` or `name`, and values a script sets with no `input`, `change` or click around it (a timer), are not kept; a control a timer draws shows its default until the next event restores it.
-  - A control whose key means something else in another version gets that version's value (browsers clamp ranges and ignore missing options).
+  - A control whose key means something else in another version gets that version's value (browsers clamp ranges; a select keeps its own choice when it lacks the kept option).
   - Radio buttons and checkboxes without a `value` attribute share the value `on`, so a group of them keeps no choice.
+  - A page that rebuilds all its controls from its own state on every change (a checklist redrawn on each tick) shows only the first restored value, since the rest are set on controls it then replaces; such pages keep their state with `saveState`.
   - Each change sends every kept value; a page with several long texts sends that much per keystroke (Chat still writes at most once every 500 ms).
 
 ### Keep a thread reader in place when the thread banner changes height (2026-10-04)
