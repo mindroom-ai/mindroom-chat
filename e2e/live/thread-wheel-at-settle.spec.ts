@@ -44,6 +44,8 @@ const installHarness = (page: Page) =>
     while (!/^(auto|scroll)$/.test(window.getComputedStyle(scroller).overflowY)) {
       scroller = scroller.parentElement!;
     }
+    // Timers armed while the harness dispatches a scrollend are the settle
+    // wait's quiet window; one the wait clears has been replaced.
     const realSetTimeout = window.setTimeout;
     const realClearTimeout = window.clearTimeout;
     const cleared = new Set<number | undefined>();
@@ -85,6 +87,7 @@ const installHarness = (page: Page) =>
         const due = quietTimers;
         if (due.length === 0) return;
         wheelWithSettleDue = true;
+        // A message runs after this dispatch and before the next frame.
         const channel = new MessageChannel();
         channel.port1.onmessage = () => {
           due
