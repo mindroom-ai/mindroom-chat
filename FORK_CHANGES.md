@@ -5,17 +5,23 @@
 ### Keep the values of a canvas page's sliders and fields without the page saving them (2026-10-05)
 
 - Why: sliders and numbers reset when the user switched versions, reopened the panel or reloaded Chat, unless the agent's page happened to call `mindroom.saveState`; users expect a page's controls to keep their values.
-- The bridge keeps the value of every `input`, `select` and `textarea` with an `id` or `name` (key `#id`, else the name, and `name=value` for checkboxes and radio buttons), except password, file, hidden and button inputs.
-  Each `input` or `change` event sends all of them as `inputs` JSON in the existing `mindroom.canvas.state` message, merged into those saved before, so a version without some controls keeps their values for the versions that have them.
-- Values are shared by every version of the canvas and matched by key, so they also survive the agent's updates.
-  When a page loads, once its scripts and `DOMContentLoaded` handlers have run, the bridge sets every saved value and then fires `input` and `change` on each control it changed, so the page redraws from them.
+- The bridge keeps the value of every `input`, `select` and `textarea` with an `id` or `name`: key `#id`, else the name, `name=value` for a checkbox, and the group's name for radio buttons, which keeps the checked button's value.
+  Never kept: password, file, hidden and button inputs, a field that was a password once (so revealing it cannot keep it), a field whose `autocomplete` is `off` or a password, and a value longer than `CANVAS_INPUT_MAX_LENGTH` (32 K characters of JSON), which is left to `saveState` so one long text cannot stop the rest from being kept.
+- Values are shared by every version of the canvas and matched by key, so they also survive the agent's updates (the agreed design).
+  When a page loads, once its scripts and `DOMContentLoaded` handlers have run, the bridge sets every kept value through the element's native setter (so React-style frameworks see it), then fires `input` and `change` on each control it changed, so the page redraws.
+  From then on, each `input` or `change` event, and each click (buttons such as Reset change values without events), keeps the values that changed since the page loaded, merged into those kept before, and sends them as `inputs` JSON in the existing `mindroom.canvas.state` message.
+  Only changed values are kept, so a control the user never touched cannot replace a value kept in another version (an option or radio button this version lacks), and nothing is kept before the restore, so a page's own startup events cannot overwrite kept values.
 - Chat keeps them with the page's saved state: the stored record, `useCanvasSavedState` and `readCanvasState` now carry `{ json, inputs }`; same limit, write batching, eviction and logout deletion. Records saved before this change still load.
 - `canvasFrameWindow` reads the canvas frame only when the cross-origin wrapper holds one: reading a missing frame index of a cross-origin window throws, which the far more frequent control messages hit while a new page was being built (`Failed to read an indexed property [0] from 'Window'`).
 - Tests (removing each piece fails its test):
-  - `canvasDocument.test.ts` runs the bridge in JSDOM: values are sent for named controls only (no passwords), come back in the next page with redraw events after all are set, and are kept for controls a version lacks; `canvasFrameWindow` with an empty cross-origin wrapper.
-  - `canvasMessages.test.ts`, `canvasStateStore.test.ts`, `useCanvasSavedState.test.tsx` (both parts written as one), `CanvasPanel.test.tsx`.
+  - `canvasDocument.test.ts` runs the bridge in JSDOM: named controls (including select-multiple, checkbox and radio group) come back in the next page with redraw events, and none for a control already showing its value; values a version cannot show are kept for the versions that can; a radio choice survives a version with only part of its group; startup events, buttons, passwords (also revealed), `autocomplete="off"`, long texts, and the native setter; `canvasFrameWindow` with an empty cross-origin wrapper.
+  - `canvasMessages.test.ts`, `canvasStateStore.test.ts`, `useCanvasSavedState.test.tsx` (both parts written as one), `CanvasPanel.test.tsx`, `RoomCanvasPanel.test.tsx` (saving one part keeps the other).
   - `e2e/agent-canvas.spec.ts`: a slider page that saves nothing keeps its value across a Chat reload, **Load update**, and a switch to the earlier version.
-- Not changed: controls without an `id` or `name` are not kept, nor are values a page's script sets without an `input` or `change` event; a control whose key means something else in another version gets that version's value (browsers clamp ranges and ignore missing options).
+- Not changed:
+  - Controls without an `id` or `name`, and values a script sets with no `input`, `change` or click around it (a timer), are not kept.
+  - A control whose key means something else in another version gets that version's value (browsers clamp ranges and ignore missing options).
+  - Radio buttons and checkboxes without a `value` attribute share the value `on`, so a group of them keeps no choice.
+  - Each change sends every kept value; a page with several long texts sends that much per keystroke (Chat still writes at most once every 500 ms).
 
 ### Keep a thread reader in place when the thread banner changes height (2026-10-04)
 

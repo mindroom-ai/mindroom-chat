@@ -5,6 +5,7 @@ import {
   buildCanvasPage,
   CANVAS_CSP,
   CANVAS_ERROR_MESSAGE,
+  CANVAS_INPUT_MAX_LENGTH,
   CANVAS_ESCAPE_MESSAGE,
   CANVAS_LIBRARY_SOURCE,
   CANVAS_STATE_MESSAGE,
@@ -68,87 +69,6 @@ describe('buildCanvasPage', () => {
     expect(JSON.stringify(new Function(`return ${restore}`)())).toBe(json);
     expect(doc.indexOf('state: JSON.parse(')).toBeLessThan(doc.indexOf('render(mindroom.state)'));
     expect(doc).toContain(`type: '${CANVAS_STATE_MESSAGE}'`);
-  });
-
-  it('keeps the values of controls with an id or name, for every version, and redraws the page from them', async () => {
-    const controls = `<input id="rate" type="range" min="0" max="10" value="2">
-<select name="unit"><option>m</option><option>km</option></select>
-<input type="checkbox" name="extras" value="map">
-<input type="radio" name="size" value="s" checked><input type="radio" name="size" value="l">
-<input type="password" id="secret"><input placeholder="no id or name">
-<output id="shown"></output>
-<script>
-  const rate = document.getElementById('rate');
-  const show = () => { document.getElementById('shown').textContent = rate.value; };
-  rate.addEventListener('input', show);
-  show();
-</script>`;
-    const open = (html: string, inputs?: string) => {
-      const { window } = new JSDOM(buildCanvasPage(html, 'light', undefined, false, { inputs }), {
-        runScripts: 'dangerously',
-      });
-      const sent: string[] = [];
-      window.addEventListener('message', (event) => sent.push(event.data.inputs));
-      return { window, sent, $: (selector: string) => window.document.querySelector(selector) };
-    };
-    const settle = () =>
-      new Promise((resolve) => {
-        setTimeout(resolve, 20);
-      });
-    const change = (control: Element | null, set: (control: HTMLInputElement) => void) => {
-      set(control as HTMLInputElement);
-      control?.dispatchEvent(
-        new (control.ownerDocument.defaultView as Window).Event('change', { bubbles: true })
-      );
-    };
-
-    const first = open(controls);
-    await settle();
-    change(first.$('#rate'), (control) => {
-      control.value = '7';
-    });
-    change(first.$('select'), (control) => {
-      control.value = 'km';
-    });
-    change(first.$('[name=extras]'), (control) => {
-      control.checked = true;
-    });
-    change(first.$('[value=l]'), (control) => {
-      control.checked = true;
-    });
-    change(first.$('#secret'), (control) => {
-      control.value = 'hunter2';
-    });
-    await settle();
-    const inputs = first.sent.at(-1);
-    // Passwords, and controls the page cannot name, are never kept.
-    expect(JSON.parse(inputs ?? '')).toEqual({
-      '#rate': '7',
-      unit: 'km',
-      'extras=map': true,
-      'size=s': false,
-      'size=l': true,
-    });
-
-    const second = open(controls, inputs);
-    await settle();
-    expect((second.$('#rate') as HTMLInputElement).value).toBe('7');
-    expect(second.$('#shown')?.textContent).toBe('7');
-    expect((second.$('select') as HTMLSelectElement).value).toBe('km');
-    expect((second.$('[name=extras]') as HTMLInputElement).checked).toBe(true);
-    expect((second.$('[value=l]') as HTMLInputElement).checked).toBe(true);
-
-    // A version without some controls keeps their values for the versions that have them.
-    const third = open(
-      '<select name="unit"><option>m</option><option>km</option></select>',
-      inputs
-    );
-    await settle();
-    change(third.$('select'), (control) => {
-      control.value = 'm';
-    });
-    await settle();
-    expect(JSON.parse(third.sent.at(-1) ?? '')).toMatchObject({ '#rate': '7', unit: 'm' });
   });
 
   it('tells the page the color scheme it is shown in', () => {
@@ -278,6 +198,208 @@ describe('buildCanvasDocument', () => {
     expect(doc.indexOf("addEventListener('load'")).toBeLessThan(
       doc.indexOf('document.body.append(frame)')
     );
+  });
+});
+
+describe('kept inputs', () => {
+  // Runs the bridge for real, so these are the page's own scripts and events.
+  const open = (html: string, inputs?: string) => {
+    const { window } = new JSDOM(buildCanvasPage(html, 'light', undefined, false, { inputs }), {
+      runScripts: 'dangerously',
+    });
+    const sent: string[] = [];
+    window.addEventListener('message', (event) => sent.push(event.data.inputs));
+    const $ = <T extends Element = HTMLInputElement>(selector: string) =>
+      window.document.querySelector(selector) as unknown as T;
+    const use = (selector: string, set: (control: HTMLInputElement) => void, type = 'input') => {
+      set($(selector));
+      $(selector).dispatchEvent(new window.Event(type, { bubbles: true }));
+    };
+    const kept = () => JSON.parse(sent.at(-1) ?? '{}');
+    return { window, sent, $, use, kept };
+  };
+  const settle = () =>
+    new Promise((resolve) => {
+      setTimeout(resolve, 20);
+    });
+  const RATE = `<input id="rate" type="range" min="0" max="10" value="2"><output id="shown"></output>
+<script>
+  const rate = document.getElementById('rate');
+  const show = () => { document.getElementById('shown').textContent = rate.value; };
+  rate.addEventListener('input', show);
+  show();
+</script>`;
+
+  it('keeps named controls and gives them back to the next page, which redraws from them', async () => {
+    const controls = `${RATE}
+<select name="unit"><option>m</option><option>km</option></select>
+<select name="days" multiple><option>mon</option><option>tue</option><option>wed</option></select>
+<input type="checkbox" name="extras" value="map">
+<input type="radio" name="size" value="s" checked><input type="radio" name="size" value="l">
+<input id="untouched" value="same"><input placeholder="no id or name">`;
+    const first = open(controls);
+    await settle();
+    first.use('#rate', (control) => {
+      control.value = '7';
+    });
+    first.use(
+      'select',
+      (control) => {
+        control.value = 'km';
+      },
+      'change'
+    );
+    first.use(
+      '[name=days]',
+      (control) => {
+        [...(control as unknown as HTMLSelectElement).options].forEach((option) => {
+          option.selected = option.value !== 'tue';
+        });
+      },
+      'change'
+    );
+    first.use(
+      '[name=extras]',
+      (control) => {
+        control.checked = true;
+      },
+      'change'
+    );
+    first.use(
+      '[value=l]',
+      (control) => {
+        control.checked = true;
+      },
+      'change'
+    );
+    await settle();
+    // Only changed values are kept, and a radio group keeps the value of its checked button.
+    expect(first.kept()).toEqual({
+      '#rate': '7',
+      unit: 'km',
+      days: ['mon', 'wed'],
+      'extras=map': true,
+      size: 'l',
+    });
+
+    // A kept value the control already shows needs no redraw.
+    const second = open(controls, JSON.stringify({ ...first.kept(), '#untouched': 'same' }));
+    const untouchedEvents: string[] = [];
+    second.$('#untouched').addEventListener('input', () => untouchedEvents.push('input'));
+    await settle();
+    expect(second.$('#rate').value).toBe('7');
+    expect(second.$('#shown').textContent).toBe('7');
+    expect(second.$('select').value).toBe('km');
+    expect(
+      [...second.$<HTMLSelectElement>('[name=days]').selectedOptions].map((o) => o.value)
+    ).toEqual(['mon', 'wed']);
+    expect(second.$('[name=extras]').checked).toBe(true);
+    expect(second.$('[value=l]').checked).toBe(true);
+    expect(untouchedEvents).toEqual([]);
+  });
+
+  it('keeps values a version cannot show for the versions that can', async () => {
+    const saved = JSON.stringify({ '#rate': '7', unit: 'km', size: 'l' });
+    // No #rate, no "km" option, and only one of the radio buttons.
+    const other = open(
+      '<select name="unit"><option>m</option></select><input type="radio" name="size" value="s"><input id="zoom" value="1">',
+      saved
+    );
+    await settle();
+    other.use('#zoom', (control) => {
+      control.value = '2';
+    });
+    await settle();
+    expect(other.kept()).toEqual({ '#rate': '7', unit: 'km', size: 'l', '#zoom': '2' });
+    other.use(
+      '[value=s]',
+      (control) => {
+        control.checked = true;
+      },
+      'change'
+    );
+    await settle();
+    expect(other.kept().size).toBe('s');
+    const back = open(
+      '<input type="radio" name="size" value="s"><input type="radio" name="size" value="l" checked>',
+      other.sent.at(-1)
+    );
+    await settle();
+    expect(back.$('[value=s]').checked).toBe(true);
+  });
+
+  it("ignores the page's own events until the kept values are back", async () => {
+    const page = open(
+      `${RATE}<script>document.addEventListener('DOMContentLoaded', () => rate.dispatchEvent(new Event('input', { bubbles: true })));</script>`,
+      JSON.stringify({ '#rate': '7' })
+    );
+    await settle();
+    expect(page.$('#rate').value).toBe('7');
+    expect(page.sent).toEqual([]);
+  });
+
+  it('keeps values a button changes without an input event', async () => {
+    const page = open(
+      `${RATE}<button onclick="rate.value = '2'; show()">Reset</button>`,
+      JSON.stringify({ '#rate': '7' })
+    );
+    await settle();
+    page.$<HTMLButtonElement>('button').click();
+    await settle();
+    expect(page.kept()).toEqual({ '#rate': '2' });
+  });
+
+  it('never keeps a password, even while it is shown, nor a field that turns autocomplete off', async () => {
+    const page = open(
+      `${RATE}<input id="secret" type="password"><input id="code" autocomplete="off">`
+    );
+    await settle();
+    page.use('#secret', (control) => {
+      control.type = 'text';
+      control.value = 'hunter2';
+    });
+    page.use('#code', (control) => {
+      control.value = '123456';
+    });
+    page.use('#rate', (control) => {
+      control.value = '7';
+    });
+    await settle();
+    expect(page.kept()).toEqual({ '#rate': '7' });
+  });
+
+  it('leaves a long text to saveState, so it cannot stop other values from being kept', async () => {
+    const page = open(
+      `${RATE}<textarea id="notes"></textarea>`,
+      JSON.stringify({ '#notes': 'short' })
+    );
+    await settle();
+    page.use('#notes', (control) => {
+      control.value = 'x'.repeat(CANVAS_INPUT_MAX_LENGTH);
+    });
+    page.use('#rate', (control) => {
+      control.value = '7';
+    });
+    await settle();
+    expect(page.kept()).toEqual({ '#rate': '7' });
+  });
+
+  it('restores through the native setter, so a framework tracking the value sees the change', async () => {
+    // React keeps its own copy of the value in a setter on the element and skips onChange when they match.
+    const page = open(
+      `${RATE}<script>
+  const native = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value');
+  window.tracked = [];
+  Object.defineProperty(rate, 'value', {
+    get() { return native.get.call(this); },
+    set(value) { window.tracked.push(value); native.set.call(this, value); },
+  });
+</script>`,
+      JSON.stringify({ '#rate': '7' })
+    );
+    await settle();
+    expect(page.$('#rate').value).toBe('7');
+    expect((page.window as unknown as { tracked: string[] }).tracked).toEqual([]);
   });
 });
 

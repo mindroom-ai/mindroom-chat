@@ -14,6 +14,9 @@ export const CANVAS_STATE_MAX_LENGTH = 256 * 1024;
  */
 export type CanvasSaved = { json?: string; inputs?: string };
 
+/** A control value longer than this, in characters of JSON, is not kept; pages can save it with `saveState`. */
+export const CANVAS_INPUT_MAX_LENGTH = CANVAS_STATE_MAX_LENGTH / 8;
+
 /** The canvas frame gets an opaque origin: no Chat storage, cookies, DOM, popups, or top navigation. */
 export const CANVAS_SANDBOX = 'allow-scripts allow-forms';
 
@@ -81,45 +84,82 @@ const scriptLiteral = (value: string): string => JSON.stringify(value).replace(/
 const stateLiteral = (state: string | undefined): string =>
   state === undefined ? 'undefined' : `JSON.parse(${scriptLiteral(state)})`;
 
-// Controls with an id or name keep their values, shared by every version of the canvas:
-// each change sends all of them, merged into those saved before, and a new page gets them back
-// once its scripts have run, with input and change events so it redraws from them.
+// Controls with an id or name keep their values, shared by every version of the canvas and matched
+// by that key; a radio group keeps its checked value under its name. Once a page's scripts and
+// DOMContentLoaded handlers have run, the bridge sets the kept values, fires input and change so the
+// page redraws, and from then on keeps each value that changes, merged into those kept before.
+// Only changed values are kept, so a control the user never touched cannot replace a value kept
+// in another version, and nothing is kept before the restore, so a page's own startup events cannot.
 const inputsScript = (inputs: string | undefined): string => `
   const inputs = Object.assign(Object.create(null), ${stateLiteral(inputs)});
   const unsaved = ['password', 'file', 'hidden', 'submit', 'button', 'reset', 'image'];
-  const controls = () => [...document.querySelectorAll('input, select, textarea')].flatMap((control) => {
-    if (unsaved.includes(control.type)) return [];
-    const checkable = control.type === 'checkbox' || control.type === 'radio';
-    const key = control.id ? '#' + control.id : control.name && (checkable ? control.name + '=' + control.value : control.name);
-    return key ? [{ key, control, checkable }] : [];
-  });
-  const valueOf = ({ control, checkable }) => checkable ? control.checked
+  // A field shown as a password once stays unkept, so revealing it cannot keep it.
+  const secret = new WeakSet();
+  const controls = () => {
+    const groups = new Set();
+    return [...document.querySelectorAll('input, select, textarea')].flatMap((control) => {
+      if (control.type === 'password') secret.add(control);
+      const declined = /off|password/.test(control.getAttribute('autocomplete') || '');
+      if (unsaved.includes(control.type) || secret.has(control) || declined) return [];
+      if (control.type === 'radio') {
+        if (!control.name || groups.has(control.name)) return [];
+        groups.add(control.name);
+        return [{ key: control.name, control }];
+      }
+      const key = control.id ? '#' + control.id : control.name && (control.type === 'checkbox' ? control.name + '=' + control.value : control.name);
+      return key ? [{ key, control }] : [];
+    });
+  };
+  const group = (radio) => [...document.getElementsByName(radio.name)].filter((item) => item.type === 'radio');
+  const valueOf = ({ control }) => control.type === 'radio' ? (group(control).find((item) => item.checked) || {}).value
+    : control.type === 'checkbox' ? control.checked
     : control.type === 'select-multiple' ? [...control.selectedOptions].map((option) => option.value)
     : control.value;
+  // The native setter, so a framework that tracks the value (React) sees the change.
+  const assign = (control, property, value) =>
+    Object.getOwnPropertyDescriptor(Object.getPrototypeOf(control), property).set.call(control, value);
+  let seen;
   const saveInputs = () => {
-    controls().forEach((entry) => { inputs[entry.key] = valueOf(entry); });
-    parent.parent.postMessage({ type: '${CANVAS_STATE_MESSAGE}', version: 1, inputs: JSON.stringify(inputs) }, '*');
+    if (!seen) return;
+    let changed = false;
+    controls().forEach((entry) => {
+      const text = JSON.stringify(valueOf(entry));
+      if (seen[entry.key] === text) return;
+      seen[entry.key] = text;
+      changed = true;
+      // A long text is left to saveState, so it cannot crowd out every other value.
+      if (text === undefined || text.length > ${CANVAS_INPUT_MAX_LENGTH}) delete inputs[entry.key];
+      else inputs[entry.key] = JSON.parse(text);
+    });
+    if (changed) parent.parent.postMessage({ type: '${CANVAS_STATE_MESSAGE}', version: 1, inputs: JSON.stringify(inputs) }, '*');
   };
   document.addEventListener('input', saveInputs, true);
   document.addEventListener('change', saveInputs, true);
+  // Buttons such as Reset change values without input events.
+  document.addEventListener('click', () => setTimeout(saveInputs), true);
   document.addEventListener('DOMContentLoaded', () => setTimeout(() => {
-    // Every value is set before any event, so the page, and the values sent back, see them all.
-    const restored = controls().filter((entry) => {
-      const { key, control, checkable } = entry;
+    // Every value is set before any event, so the page sees them all when it redraws.
+    const restored = controls().flatMap((entry) => {
+      const { key, control } = entry;
       const value = inputs[key];
-      // Checking one radio button unchecks the rest of its group.
-      if (value === undefined || (control.type === 'radio' && value !== true)) return false;
-      if (JSON.stringify(value) === JSON.stringify(valueOf(entry))) return false;
-      if (checkable) control.checked = value === true;
+      if (value === undefined || JSON.stringify(value) === JSON.stringify(valueOf(entry))) return [];
+      if (control.type === 'radio') {
+        const button = group(control).find((item) => item.value === value);
+        if (button) assign(button, 'checked', true);
+        return button ? [button] : [];
+      }
+      if (control.type === 'checkbox') assign(control, 'checked', value === true);
       else if (control.type === 'select-multiple') {
         [...control.options].forEach((option) => { option.selected = [].concat(value).includes(option.value); });
-      } else control.value = String(value);
-      return true;
+      } else assign(control, 'value', String(value));
+      return [control];
     });
-    restored.forEach(({ control }) => {
+    restored.forEach((control) => {
       control.dispatchEvent(new Event('input', { bubbles: true }));
       control.dispatchEvent(new Event('change', { bubbles: true }));
     });
+    seen = Object.create(null);
+    controls().forEach((entry) => { seen[entry.key] = JSON.stringify(valueOf(entry)); });
   }));`;
 
 // Runs before any agent script. Forms are captured here because the sandbox
