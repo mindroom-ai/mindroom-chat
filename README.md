@@ -349,7 +349,7 @@ To turn it on for a deployment:
 }
 ```
 
-2. Sync iOS project artifacts after config/dependency changes: `npx cap sync ios`.
+2. Rebuild and sync the iOS project after config or dependency changes: `npm run build:ios && npx cap sync ios`.
 3. In Xcode, confirm `Signing & Capabilities` includes `Push Notifications`.
 4. Run the app on a physical iPhone and enable `Settings -> Notifications -> iOS Push Notifications` inside MindRoom Chat.
 5. Ensure your Matrix push gateway is configured server-side to accept APNs tokens for your app.
