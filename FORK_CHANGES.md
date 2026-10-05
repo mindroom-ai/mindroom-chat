@@ -21,6 +21,19 @@
   `e2e/live/thread-banner-height-anchor.spec.ts` requires the reply nearest the middle of the view to stay within 1 px when a summary arrives and when the thread is resolved and reopened, mid-thread and at the latest reply (which must stay at the bottom), with no ResizeObserver loop error; all three cases fail on the base (by 11.75, 22 and 22 px).
   It hides the "Catching up" sync bar, which goes with the sync that brings the change and would move the scroller during the check.
 
+### Opt the app out of browser page translation (notranslate, 2026-10-05)
+
+- Report: a user on Dutch Chrome kept losing the whole app to react-router's error page with `NotFoundError: Failed to execute 'removeChild' on 'Node': The node to be removed is not a child of this node.` on a thread.
+  The first report came in August; the fix (#209) was never merged and was stranded when `dev` was rebuilt on 2026-09-13, so no build had it.
+- Root cause: Chrome's page translator moves React-owned text nodes into injected `<font>` wrappers; React's next render removes the original node from a parent that no longer holds it and throws (facebook/react#11538).
+  Streaming replies edit messages constantly, so a translated thread crashes quickly.
+  The screenshot proves translation was on: the stack's `at` was rendered as `op` and `bij`, and the heading was react-router's English `Unexpected Application Error!` in Dutch.
+- Fix: `index.html` sets `translate="no"` on `<html>` and adds `<meta name="google" content="notranslate">`; `src/indexHtml.test.ts` pins both.
+- Cost: users can no longer machine-translate message content in the browser.
+  The UI itself is localized through the language picker (17 locales); `i18n.ts` writes only `lang` and `dir` on the root, so the attribute stays.
+  Exempting message bodies would not help, because they are the nodes that crash.
+- Validation: `src/indexHtml.test.ts` passes and fails with either marker stripped; typecheck, build (both markers in `dist/index.html`), lint and prettier pass.
+
 ### Move rows in the same frame as an applied scroll correction (2026-10-04)
 
 - Report: `long-message-expansion-default` failed about 1 run in 6 at its fold-anchor check (listed in `docs/testing.md` as known unresolved): after turning "expand long messages" off, the anchor message read 609, 634 or 659 px from where it was.
