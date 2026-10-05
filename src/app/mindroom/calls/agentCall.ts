@@ -13,16 +13,20 @@ export const MINDROOM_VOICE_CALLS_PRESENCE = '📞 Voice calls';
 export const hasMindroomVoiceCallsPresence = (status: string | undefined): boolean =>
   status?.split(' | ').includes(MINDROOM_VOICE_CALLS_PRESENCE) ?? false;
 
+export type MindroomAgentCallOrigin = { room_id: string; thread_id: string | null };
+
 export type MindroomAgentCallContent = {
   version: 1;
   agent_user_id: string;
   creator_user_id: string;
   ephemeral: true;
+  origin?: MindroomAgentCallOrigin;
 };
 
 const createAgentCallState = (
   creatorUserId: string,
-  agentUserId: string
+  agentUserId: string,
+  origin?: MindroomAgentCallOrigin
 ): ICreateRoomStateEvent => ({
   type: StateEvent.MindroomAgentCall,
   state_key: '',
@@ -31,6 +35,7 @@ const createAgentCallState = (
     agent_user_id: agentUserId,
     creator_user_id: creatorUserId,
     ephemeral: true,
+    ...(origin && { origin }),
   } satisfies MindroomAgentCallContent,
 });
 
@@ -38,11 +43,12 @@ export const createAgentVoiceRoom = async (
   mx: MatrixClient,
   agentUserId: string,
   displayName: string | undefined,
-  encrypted: boolean
+  encrypted: boolean,
+  origin?: MindroomAgentCallOrigin
 ): Promise<string> => {
   const initialState: ICreateRoomStateEvent[] = [
     createRoomCallState(),
-    createAgentCallState(mx.getSafeUserId(), agentUserId),
+    createAgentCallState(mx.getSafeUserId(), agentUserId, origin),
   ];
   if (encrypted) initialState.unshift(createRoomEncryptionState());
 

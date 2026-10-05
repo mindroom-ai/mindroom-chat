@@ -89,6 +89,43 @@ describe('MindRoom agent calls', () => {
     });
   });
 
+  it('stamps the originating room and thread on the call state when given', async () => {
+    const origin = { room_id: '!origin:mindroom.test', thread_id: '$root' };
+
+    await createAgentVoiceRoom(mx, '@mindroom_helper:mindroom.test', 'Helper', true, origin);
+
+    const { initial_state: initialState } = createRoom.mock.calls[0][0];
+    expect(
+      initialState.find((event: { type: string }) => event.type === StateEvent.MindroomAgentCall)
+        .content
+    ).toEqual({
+      version: 1,
+      agent_user_id: '@mindroom_helper:mindroom.test',
+      creator_user_id: '@alice:mindroom.test',
+      ephemeral: true,
+      origin,
+    });
+  });
+
+  it('keeps a null thread id in the stamped origin', async () => {
+    const origin = { room_id: '!origin:mindroom.test', thread_id: null };
+
+    await createAgentVoiceRoom(mx, '@mindroom_helper:mindroom.test', 'Helper', false, origin);
+
+    const { initial_state: initialState } = createRoom.mock.calls[0][0];
+    expect(initialState[1].content.origin).toEqual(origin);
+  });
+
+  it('omits the origin key when no origin is given', async () => {
+    await createAgentVoiceRoom(mx, '@mindroom_helper:mindroom.test', 'Helper', true);
+
+    const { initial_state: initialState } = createRoom.mock.calls[0][0];
+    const content = initialState.find(
+      (event: { type: string }) => event.type === StateEvent.MindroomAgentCall
+    ).content;
+    expect(content).not.toHaveProperty('origin');
+  });
+
   it('creates an unencrypted room when client policy disables encryption', async () => {
     await createAgentVoiceRoom(mx, '@mindroom_helper:mindroom.test', undefined, false);
 
