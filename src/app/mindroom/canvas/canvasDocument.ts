@@ -8,6 +8,12 @@ export const CANVAS_STATE_MESSAGE = 'mindroom.canvas.state';
 /** The JSON a page may save as its state, in characters. */
 export const CANVAS_STATE_MAX_LENGTH = 256 * 1024;
 
+/**
+ * What a canvas keeps on this device, as JSON text: the state its pages save with
+ * `mindroom.saveState`, and the values of its form controls, which Chat keeps itself.
+ */
+export type CanvasSaved = { json?: string; inputs?: string };
+
 /** The canvas frame gets an opaque origin: no Chat storage, cookies, DOM, popups, or top navigation. */
 export const CANVAS_SANDBOX = 'allow-scripts allow-forms';
 
@@ -75,6 +81,47 @@ const scriptLiteral = (value: string): string => JSON.stringify(value).replace(/
 const stateLiteral = (state: string | undefined): string =>
   state === undefined ? 'undefined' : `JSON.parse(${scriptLiteral(state)})`;
 
+// Controls with an id or name keep their values, shared by every version of the canvas:
+// each change sends all of them, merged into those saved before, and a new page gets them back
+// once its scripts have run, with input and change events so it redraws from them.
+const inputsScript = (inputs: string | undefined): string => `
+  const inputs = Object.assign(Object.create(null), ${stateLiteral(inputs)});
+  const unsaved = ['password', 'file', 'hidden', 'submit', 'button', 'reset', 'image'];
+  const controls = () => [...document.querySelectorAll('input, select, textarea')].flatMap((control) => {
+    if (unsaved.includes(control.type)) return [];
+    const checkable = control.type === 'checkbox' || control.type === 'radio';
+    const key = control.id ? '#' + control.id : control.name && (checkable ? control.name + '=' + control.value : control.name);
+    return key ? [{ key, control, checkable }] : [];
+  });
+  const valueOf = ({ control, checkable }) => checkable ? control.checked
+    : control.type === 'select-multiple' ? [...control.selectedOptions].map((option) => option.value)
+    : control.value;
+  const saveInputs = () => {
+    controls().forEach((entry) => { inputs[entry.key] = valueOf(entry); });
+    parent.parent.postMessage({ type: '${CANVAS_STATE_MESSAGE}', version: 1, inputs: JSON.stringify(inputs) }, '*');
+  };
+  document.addEventListener('input', saveInputs, true);
+  document.addEventListener('change', saveInputs, true);
+  document.addEventListener('DOMContentLoaded', () => setTimeout(() => {
+    // Every value is set before any event, so the page, and the values sent back, see them all.
+    const restored = controls().filter((entry) => {
+      const { key, control, checkable } = entry;
+      const value = inputs[key];
+      // Checking one radio button unchecks the rest of its group.
+      if (value === undefined || (control.type === 'radio' && value !== true)) return false;
+      if (JSON.stringify(value) === JSON.stringify(valueOf(entry))) return false;
+      if (checkable) control.checked = value === true;
+      else if (control.type === 'select-multiple') {
+        [...control.options].forEach((option) => { option.selected = [].concat(value).includes(option.value); });
+      } else control.value = String(value);
+      return true;
+    });
+    restored.forEach(({ control }) => {
+      control.dispatchEvent(new Event('input', { bubbles: true }));
+      control.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+  }));`;
+
 // Runs before any agent script. Forms are captured here because the sandbox
 // cannot submit them anywhere; everything else calls window.mindroom.submit,
 // which only offers a snapshot to the host. The host decides whether to send it.
@@ -83,7 +130,7 @@ const stateLiteral = (state: string | undefined): string =>
 const bridgeScript = (
   colorScheme: CanvasColorScheme,
   lineOffset: number,
-  state: string | undefined
+  saved: CanvasSaved
 ): string => `(() => {
   ['RTCPeerConnection', 'webkitRTCPeerConnection', 'RTCDataChannel', 'RTCIceCandidate'].forEach((name) => {
     try { delete window[name]; } catch (error) {}
@@ -150,10 +197,10 @@ const bridgeScript = (
     value: Object.freeze({
       submit: (data, options) => post(data, options),
       colorScheme: ${JSON.stringify(colorScheme)},
-      state: ${stateLiteral(state)},
+      state: ${stateLiteral(saved.json)},
       saveState,
     }),
-  });
+  });${inputsScript(saved.inputs)}
   document.addEventListener(
     'submit',
     (event) => {
@@ -178,7 +225,7 @@ export const buildCanvasPage = (
   colorScheme: CanvasColorScheme,
   theme: CanvasTheme = FALLBACK_CANVAS_THEMES[colorScheme],
   libraries = false,
-  state?: string
+  saved: CanvasSaved = {}
 ): string => {
   const head = (lineOffset: number) =>
     [
@@ -187,7 +234,7 @@ export const buildCanvasPage = (
       `<meta name="color-scheme" content="${colorScheme}">`,
       '<meta name="viewport" content="width=device-width, initial-scale=1">',
       `<style>${canvasThemeCss(theme)}${BASE_STYLE}</style>`,
-      `<script>${bridgeScript(colorScheme, lineOffset, state)}</script>`,
+      `<script>${bridgeScript(colorScheme, lineOffset, saved)}</script>`,
       '</head><body>',
     ].join('');
   // The agent's markup starts on the line after this many line breaks; the number adds none.
@@ -206,7 +253,7 @@ export const buildCanvasDocument = (
   theme: CanvasTheme = FALLBACK_CANVAS_THEMES[colorScheme],
   title = '',
   libraries = false,
-  state?: string
+  saved: CanvasSaved = {}
 ): string =>
   [
     '<!doctype html><html><head><meta charset="utf-8">',
@@ -225,11 +272,14 @@ export const buildCanvasDocument = (
     '  loads += 1;',
     `  if (loads > 1) parent.postMessage({ type: '${CANVAS_ESCAPE_MESSAGE}' }, '*');`,
     '});',
-    `frame.srcdoc = ${scriptLiteral(buildCanvasPage(html, colorScheme, theme, libraries, state))};`,
+    `frame.srcdoc = ${scriptLiteral(buildCanvasPage(html, colorScheme, theme, libraries, saved))};`,
     'document.body.append(frame);',
     '})();</script></body></html>',
   ].join('');
 
 /** The canvas frame inside the panel's wrapper frame, whose messages the panel accepts. */
-export const canvasFrameWindow = (panelFrame: HTMLIFrameElement | null): Window | undefined =>
-  panelFrame?.contentWindow?.frames[0] ?? undefined;
+export const canvasFrameWindow = (panelFrame: HTMLIFrameElement | null): Window | undefined => {
+  const wrapper = panelFrame?.contentWindow;
+  // The wrapper is cross-origin, where reading a frame it does not hold yet throws.
+  return wrapper && wrapper.frames.length > 0 ? wrapper.frames[0] : undefined;
+};

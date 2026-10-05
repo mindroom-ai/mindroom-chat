@@ -537,6 +537,40 @@ article{background:var(--mr-surface);border:1px solid var(--mr-border);border-ra
   await expect(frame.locator('#notes')).toHaveValue('Remember the milk');
   await page.screenshot({ path: testInfo.outputPath('canvas-saved-state.png') });
 
+  // Sliders and fields keep their values in every version without the page saving anything.
+  const ratesPage = (heading: string) => `<h2>${heading}</h2>
+<input id="rate" type="range" min="0" max="10" value="2"><output id="shown">2</output>
+<script>
+  const rate = document.getElementById('rate');
+  rate.addEventListener('input', () => { document.getElementById('shown').textContent = rate.value; });
+</script>`;
+  const ratesId = await sendRoomMessage(homeserver!, agent.access_token, fixture.roomId, {
+    msgtype: 'm.notice',
+    body: 'Interactive panel: Rates. Open it in MindRoom Chat to respond.',
+    'm.relates_to': { rel_type: 'm.thread', event_id: fixture.rootId },
+    'io.mindroom.ui_action': action(ratesPage('Rates'), 'Rates'),
+  });
+  await expect(frame.getByText('Rates', { exact: true })).toBeVisible();
+  await frame.locator('#rate').fill('7');
+  await expect(frame.locator('#shown')).toHaveText('7');
+  await page.waitForTimeout(1_000);
+  await page.reload();
+  await expect(page.getByText('Interactive panel: Rates.', { exact: false })).toBeVisible();
+  await page.getByRole('button', { name: 'Open panel', exact: true }).last().click();
+  await expect(frame.getByText('Rates', { exact: true })).toBeVisible();
+  await expect(frame.locator('#rate')).toHaveValue('7');
+  await expect(frame.locator('#shown')).toHaveText('7');
+  await frame.locator('#rate').fill('8');
+  await updateCanvas(ratesId, ratesPage('Rates, updated'), 'Rates');
+  await panel.getByRole('button', { name: 'Load update' }).click();
+  await expect(frame.getByText('Rates, updated')).toBeVisible();
+  await expect(frame.locator('#rate')).toHaveValue('8');
+  await expect(frame.locator('#shown')).toHaveText('8');
+  await panel.getByRole('button', { name: 'Previous version' }).click();
+  await expect(frame.getByText('Rates', { exact: true })).toBeVisible();
+  await expect(frame.locator('#shown')).toHaveText('8');
+  await page.screenshot({ path: testInfo.outputPath('canvas-kept-inputs.png') });
+
   await new Promise((resolve) => {
     listener.close(resolve);
   });

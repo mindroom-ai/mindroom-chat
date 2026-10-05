@@ -1,3 +1,4 @@
+import { JSDOM } from 'jsdom';
 import { describe, expect, it } from 'vitest';
 import {
   buildCanvasDocument,
@@ -58,7 +59,7 @@ describe('buildCanvasPage', () => {
       'light',
       FALLBACK_CANVAS_THEMES.light,
       false,
-      json
+      { json }
     );
     // The state cannot close the bridge script it is written into, and comes back exactly as saved.
     expect(doc.split('</script>')).toHaveLength(3);
@@ -67,6 +68,87 @@ describe('buildCanvasPage', () => {
     expect(JSON.stringify(new Function(`return ${restore}`)())).toBe(json);
     expect(doc.indexOf('state: JSON.parse(')).toBeLessThan(doc.indexOf('render(mindroom.state)'));
     expect(doc).toContain(`type: '${CANVAS_STATE_MESSAGE}'`);
+  });
+
+  it('keeps the values of controls with an id or name, for every version, and redraws the page from them', async () => {
+    const controls = `<input id="rate" type="range" min="0" max="10" value="2">
+<select name="unit"><option>m</option><option>km</option></select>
+<input type="checkbox" name="extras" value="map">
+<input type="radio" name="size" value="s" checked><input type="radio" name="size" value="l">
+<input type="password" id="secret"><input placeholder="no id or name">
+<output id="shown"></output>
+<script>
+  const rate = document.getElementById('rate');
+  const show = () => { document.getElementById('shown').textContent = rate.value; };
+  rate.addEventListener('input', show);
+  show();
+</script>`;
+    const open = (html: string, inputs?: string) => {
+      const { window } = new JSDOM(buildCanvasPage(html, 'light', undefined, false, { inputs }), {
+        runScripts: 'dangerously',
+      });
+      const sent: string[] = [];
+      window.addEventListener('message', (event) => sent.push(event.data.inputs));
+      return { window, sent, $: (selector: string) => window.document.querySelector(selector) };
+    };
+    const settle = () =>
+      new Promise((resolve) => {
+        setTimeout(resolve, 20);
+      });
+    const change = (control: Element | null, set: (control: HTMLInputElement) => void) => {
+      set(control as HTMLInputElement);
+      control?.dispatchEvent(
+        new (control.ownerDocument.defaultView as Window).Event('change', { bubbles: true })
+      );
+    };
+
+    const first = open(controls);
+    await settle();
+    change(first.$('#rate'), (control) => {
+      control.value = '7';
+    });
+    change(first.$('select'), (control) => {
+      control.value = 'km';
+    });
+    change(first.$('[name=extras]'), (control) => {
+      control.checked = true;
+    });
+    change(first.$('[value=l]'), (control) => {
+      control.checked = true;
+    });
+    change(first.$('#secret'), (control) => {
+      control.value = 'hunter2';
+    });
+    await settle();
+    const inputs = first.sent.at(-1);
+    // Passwords, and controls the page cannot name, are never kept.
+    expect(JSON.parse(inputs ?? '')).toEqual({
+      '#rate': '7',
+      unit: 'km',
+      'extras=map': true,
+      'size=s': false,
+      'size=l': true,
+    });
+
+    const second = open(controls, inputs);
+    await settle();
+    expect((second.$('#rate') as HTMLInputElement).value).toBe('7');
+    expect(second.$('#shown')?.textContent).toBe('7');
+    expect((second.$('select') as HTMLSelectElement).value).toBe('km');
+    expect((second.$('[name=extras]') as HTMLInputElement).checked).toBe(true);
+    expect((second.$('[value=l]') as HTMLInputElement).checked).toBe(true);
+
+    // A version without some controls keeps their values for the versions that have them.
+    const third = open(
+      '<select name="unit"><option>m</option><option>km</option></select>',
+      inputs
+    );
+    await settle();
+    change(third.$('select'), (control) => {
+      control.value = 'm';
+    });
+    await settle();
+    expect(JSON.parse(third.sent.at(-1) ?? '')).toMatchObject({ '#rate': '7', unit: 'm' });
   });
 
   it('tells the page the color scheme it is shown in', () => {
@@ -205,5 +287,17 @@ describe('canvasFrameWindow', () => {
     const panelFrame = { contentWindow: { frames: [inner] } } as unknown as HTMLIFrameElement;
     expect(canvasFrameWindow(panelFrame)).toBe(inner);
     expect(canvasFrameWindow(null)).toBeUndefined();
+  });
+
+  it('reads nothing while the cross-origin wrapper holds no canvas frame yet', () => {
+    // Like a browser, a cross-origin window throws for a frame index it does not hold.
+    const frames = new Proxy([] as Window[], {
+      get: (target, key) => {
+        if (key === '0') throw new DOMException('Blocked a frame', 'SecurityError');
+        return Reflect.get(target, key);
+      },
+    });
+    const panelFrame = { contentWindow: { frames } } as unknown as HTMLIFrameElement;
+    expect(canvasFrameWindow(panelFrame)).toBeUndefined();
   });
 });
