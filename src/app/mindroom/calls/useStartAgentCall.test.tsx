@@ -10,8 +10,6 @@ const mocks = vi.hoisted(() => ({
   waitForJoinedRoom: vi.fn(),
   requestMicrophoneAccess: vi.fn(),
   startCall: vi.fn(),
-  navigateRoom: vi.fn(),
-  closeProfile: vi.fn(),
   callEmbed: undefined as unknown,
 }));
 
@@ -49,16 +47,8 @@ vi.mock('../../hooks/useLivekitSupport', () => ({
   useLivekitSupport: () => true,
 }));
 
-vi.mock('../../hooks/useRoomNavigate', () => ({
-  useRoomNavigate: () => ({ navigateRoom: mocks.navigateRoom }),
-}));
-
 vi.mock('../../utils/rtc', () => ({
   webRTCSupported: () => true,
-}));
-
-vi.mock('../../state/hooks/userRoomProfile', () => ({
-  useCloseUserRoomProfile: () => mocks.closeProfile,
 }));
 
 const AGENT = { userId: '@mindroom_helper:mindroom.test', displayName: 'Helper' };
@@ -88,7 +78,7 @@ describe('useStartAgentCall', () => {
     mocks.waitForJoinedRoom.mockResolvedValue({ roomId: '!call:mindroom.test' });
   });
 
-  it('creates the room with the origin, starts the call, and never navigates', async () => {
+  it('creates the room with the origin and starts the call', async () => {
     const { result } = renderHook();
     let started: boolean | undefined;
 
@@ -112,8 +102,6 @@ describe('useStartAgentCall', () => {
       { roomId: '!call:mindroom.test' },
       { microphone: true, video: false, sound: true }
     );
-    expect(mocks.navigateRoom).not.toHaveBeenCalled();
-    expect(mocks.closeProfile).not.toHaveBeenCalled();
     expect(result.current.loading).toBe(false);
     expect(result.current.error).toBeUndefined();
   });

@@ -12,7 +12,6 @@ const mocks = vi.hoisted(() => ({
   waitForJoinedRoom: vi.fn(),
   requestMicrophoneAccess: vi.fn(),
   startCall: vi.fn(),
-  navigateRoom: vi.fn(),
   closeProfile: vi.fn(),
   selectedRoomId: undefined as string | undefined,
   searchParams: new URLSearchParams(),
@@ -51,10 +50,6 @@ vi.mock('../../hooks/useCallEmbed', () => ({
 
 vi.mock('../../hooks/useLivekitSupport', () => ({
   useLivekitSupport: () => true,
-}));
-
-vi.mock('../../hooks/useRoomNavigate', () => ({
-  useRoomNavigate: () => ({ navigateRoom: mocks.navigateRoom }),
 }));
 
 vi.mock('../../utils/rtc', () => ({
@@ -146,7 +141,6 @@ describe('AgentCallButton', () => {
       { roomId: '!call:mindroom.test' },
       { microphone: true, video: false, sound: true }
     );
-    expect(mocks.navigateRoom).not.toHaveBeenCalled();
     expect(mocks.closeProfile).toHaveBeenCalledOnce();
     expect(renderer.root.findByType('button').props.disabled).toBe(false);
   });
@@ -237,7 +231,6 @@ describe('AgentCallButton', () => {
       '@mindroom_helper:mindroom.test'
     );
     expect(mocks.startCall).not.toHaveBeenCalled();
-    expect(mocks.navigateRoom).not.toHaveBeenCalled();
     expect(mocks.closeProfile).not.toHaveBeenCalled();
   });
 
@@ -263,7 +256,6 @@ describe('AgentCallButton', () => {
       '!call:mindroom.test',
       '@mindroom_helper:mindroom.test'
     );
-    expect(mocks.navigateRoom).not.toHaveBeenCalled();
     expect(mocks.closeProfile).not.toHaveBeenCalled();
   });
 
