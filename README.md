@@ -65,7 +65,8 @@ These are stills from the [showcase](https://docs.mindroom.chat/showcase/) recor
 
 - **Live replies**: agent replies stream in place, with collapsible tool traces, the model and run details, and a button to stop them.
 - **Approvals and questions**: approval cards and multiple-choice questions sit in the conversation, one tap away.
-- **Canvases**: an agent can open a page it wrote, such as a dashboard, a slide deck, or a form, beside the conversation; they are on at chat.mindroom.chat and in iOS builds, and self-hosted deployments turn them on in [Configuration](#configuration); see [Interactive Canvases](https://docs.mindroom.chat/canvases/).
+- **Canvases**: an agent can open a page it wrote, such as a dashboard, a slide deck, or a form, beside the conversation ([Interactive Canvases](https://docs.mindroom.chat/canvases/)).
+  Canvases are on at chat.mindroom.chat and in iOS builds, and self-hosted deployments turn them on in [Configuration](#configuration).
 - **Computer**: watch an agent's browser live, take control for a login or passkey, and hand it back; choose the computer service under Settings → General → Computers, or set a default with `mindroom.computers.apiUrl`.
 - **Threads first**: a thread-aware composer, deep links, search, unread state, and timeline recovery keep long agent conversations easy to follow, and very long replies arrive whole.
 - **Voice**: record voice messages, and call an agent through MatrixRTC with embedded Element Call.
@@ -351,7 +352,7 @@ To turn it on for a deployment:
 
 2. Rebuild and sync the iOS project after config or dependency changes: `npm run build:ios && npx cap sync ios`.
 3. In Xcode, confirm `Signing & Capabilities` includes `Push Notifications`.
-4. Run the app on a physical iPhone and enable `Settings -> Notifications -> iOS Push Notifications` inside MindRoom Chat.
+4. Run the app on a physical iPhone and enable `Settings → Notifications → iOS Push Notifications` inside MindRoom Chat.
 5. Ensure your Matrix push gateway is configured server-side to accept APNs tokens for your app.
 
 `format: "full"` is an explicit opt-in that lets a Sygnal-compatible gateway receive the sender and message preview for unencrypted rooms.
