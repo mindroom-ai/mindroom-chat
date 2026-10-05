@@ -9,6 +9,7 @@ import {
   CANVAS_WRAPPER_SANDBOX,
   canvasFrameWindow,
   type CanvasColorScheme,
+  type CanvasSaved,
 } from './canvasDocument';
 import {
   buildCanvasErrorContent,
@@ -56,8 +57,8 @@ export type CanvasPanelProps = {
   /** Which of the canvas's versions is shown, when it has more than one. */
   version?: { current: number; total: number };
   /** The canvas's saved state, read whenever a page loads, so it holds what the previous page saved. */
-  savedState?: () => string | undefined;
-  onSaveState?: (json: string) => void;
+  savedState?: () => CanvasSaved;
+  onSaveState?: (change: CanvasSaved) => void;
   onSelectVersion?: (current: number) => void;
 };
 
@@ -265,9 +266,9 @@ export function CanvasPanel({
       }
       const frame = canvasFrameWindow(frameRef.current);
       if (!frame || event.source !== frame) return;
-      const state = readCanvasState(event, frame);
-      if (state !== undefined) {
-        latest.current.onSaveState?.(state);
+      const saved = readCanvasState(event, frame);
+      if (saved !== undefined) {
+        latest.current.onSaveState?.(saved);
         return;
       }
       const error = readCanvasError(event, frame);
