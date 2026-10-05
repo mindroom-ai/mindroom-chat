@@ -1,27 +1,81 @@
+<div align="center">
+
+<a href="https://chat.mindroom.chat">
+  <picture>
+    <source media="(prefers-reduced-motion: no-preference)" srcset="https://raw.githubusercontent.com/mindroom-ai/mindroom/main/assets/logo/logo-mark-animated.svg" />
+    <img src="https://raw.githubusercontent.com/mindroom-ai/mindroom/main/assets/logo/logo-mark.svg" alt="MindRoom" width="128" />
+  </picture>
+</a>
+
 # MindRoom Chat
 
-<picture>
-  <source media="(prefers-reduced-motion: no-preference)" srcset="https://raw.githubusercontent.com/mindroom-ai/mindroom/main/assets/logo/logo-mark-animated.svg" />
-  <img src="https://raw.githubusercontent.com/mindroom-ai/mindroom/main/assets/logo/logo-mark.svg" alt="MindRoom Logo" align="right" width="120" />
-</picture>
+**The chat app built for AI agents.**
 
-MindRoom Chat is a Matrix client focused on AI-agent workflows.
-It is built on Cinny, with substantial product and UX changes for MindRoom use cases.
+Open source under AGPL-3.0 · Web, Mac, iPhone, iPad, and Android (beta) · Works with any Matrix homeserver
 
-## What MindRoom Chat Is
+[Open MindRoom Chat](https://chat.mindroom.chat) · [App Store](https://apps.apple.com/us/app/mindroom-ai/id6760272172) · [MindRoom](https://github.com/mindroom-ai/mindroom) · [Docs](https://docs.mindroom.chat) · [Showcase](https://docs.mindroom.chat/showcase/)
 
-MindRoom Chat is designed for teams that use Matrix as the execution and collaboration layer for AI-assisted work.
-The app prioritizes:
+</div>
 
-- reliable streaming/edit rendering,
-- thread-first workflows,
-- tool-call and run-metadata visibility,
-- predictable deployment under root and subpath hosting,
-- iOS distribution readiness.
+https://github.com/user-attachments/assets/f8325b3c-7ed0-4cd7-bc77-0c4cd74f226e
 
-## What Is Different From Upstream Cinny
+MindRoom Chat is the client for [MindRoom](https://github.com/mindroom-ai/mindroom), the open-source platform for AI agents that know you and your work.
+MindRoom agents are real Matrix users, so MindRoom Chat is a full Matrix client, built on [Cinny](https://cinny.in).
+It shows what chat apps made only for people cannot: replies that stream with every tool call visible, approval cards, interactive canvases, and the agent's own browser.
 
-MindRoom Chat began as a Cinny fork, but it is now developed as an independent product for Matrix-based AI-agent workflows. It retains Cinny's Matrix foundation while owning its product direction, release cadence, native apps, deployment model, and MindRoom integrations.
+## Get the app
+
+| Where | How |
+| --- | --- |
+| Web | [chat.mindroom.chat](https://chat.mindroom.chat) |
+| iPhone and iPad | [App Store](https://apps.apple.com/us/app/mindroom-ai/id6760272172) |
+| Mac | The App Store app on Apple silicon Macs, or the [MindRoom macOS app](https://docs.mindroom.chat/installation/macos-app/), which also runs your agents |
+| Android | In beta |
+| Your own server | The `ghcr.io/mindroom-ai/mindroom-chat` image or a static build; see [Self-hosting](#self-hosting) |
+
+Sign in with any Matrix account; for hosted MindRoom, the homeserver is `https://mindroom.chat`.
+To run your own agents, see the [MindRoom quick start](https://github.com/mindroom-ai/mindroom#quick-start).
+
+## Built for agents
+
+<table>
+<tr>
+<td width="50%" valign="top">
+<a href="https://docs.mindroom.chat/showcase/#ask-approve-done"><picture><source media="(prefers-color-scheme: dark)" srcset="https://github.com/user-attachments/assets/5e389c59-c81a-4f70-9c5d-de7406ff95f4" /><img src="https://github.com/user-attachments/assets/bc6194b1-9398-47f5-b649-2ea17dbb6b9f" alt="A review dialog where the user approves an agent's calendar booking" /></picture></a>
+<p><b>Approve before it acts</b><br />Actions you choose wait for your OK, with the exact arguments in view.</p>
+</td>
+<td width="50%" valign="top">
+<a href="https://docs.mindroom.chat/showcase/#one-thread-the-whole-team"><picture><source media="(prefers-color-scheme: dark)" srcset="https://github.com/user-attachments/assets/635ce3ef-217d-494a-a8e5-01e3dd78454d" /><img src="https://github.com/user-attachments/assets/fbd1295d-025d-41d1-9ee8-0cc674706b98" alt="Three colleagues see the same agent thread side by side" /></picture></a>
+<p><b>The whole team, one thread</b><br />Colleagues share an agent in a thread and see every answer stream in live.</p>
+</td>
+</tr>
+<tr>
+<td width="50%" valign="top">
+<a href="https://docs.mindroom.chat/showcase/#canvases"><picture><source media="(prefers-color-scheme: dark)" srcset="https://github.com/user-attachments/assets/7fc2bc01-1ec5-40d1-971f-5e6f33ba0f18" /><img src="https://github.com/user-attachments/assets/8eb3e6d8-8e9f-4ebb-a51b-bbb5913536e3" alt="Two agent canvases: a week grid of free meeting slots and a weekend trip planner with a budget" /></picture></a>
+<p><b>Canvases you can click</b><br />An agent lays out free slots or a trip budget beside the chat and acts on what you pick.</p>
+</td>
+<td width="50%" valign="top">
+<a href="https://docs.mindroom.chat/showcase/#it-drives-you-take-the-wheel"><picture><source media="(prefers-color-scheme: dark)" srcset="https://github.com/user-attachments/assets/ddf9402f-a451-4f50-b070-1b50aab739c8" /><img src="https://github.com/user-attachments/assets/6b7a2673-d9b9-446a-b9a7-4e4240241489" alt="The agent hands over the passkey step next to its browser on the order page" /></picture></a>
+<p><b>It drives, you take the wheel</b><br />Watch an agent work in its own browser and take over when it needs your passkey.</p>
+</td>
+</tr>
+</table>
+
+These are stills from the [showcase](https://docs.mindroom.chat/showcase/) recordings: MindRoom Chat and a real MindRoom backend, with a fictional company and scripted model responses.
+
+- **Live replies**: agent replies stream in place, with collapsible tool traces, the model and run details, and a button to stop them.
+- **Approvals and questions**: approval cards and multiple-choice questions sit in the conversation, one tap away.
+- **Canvases**: an agent can open a page it wrote, such as a dashboard, a slide deck, or a form, beside the conversation.
+- **Computer**: watch an agent's browser live, take control for a login or passkey, and hand it back.
+- **Threads first**: a thread-aware composer, deep links, search, unread state, and timeline recovery keep long agent conversations easy to follow, and very long replies arrive whole.
+- **Voice**: record voice messages, and call an agent through MatrixRTC with embedded Element Call.
+- **Commands**: `!` commands autocomplete as you type.
+- **17 languages**, including Arabic and both Chinese scripts; choose yours under Settings → General → Language, and see the [localization guide](./docs/localization.md) to help translate.
+
+## Built on Cinny
+
+MindRoom Chat began as a Cinny fork, but it is now developed as an independent product for Matrix-based AI-agent workflows.
+It keeps Cinny's Matrix foundation while owning its product direction, release cadence, native apps, deployment model, and MindRoom integrations.
 
 | Area | MindRoom Chat direction |
 | --- | --- |
@@ -33,45 +87,63 @@ MindRoom Chat began as a Cinny fork, but it is now developed as an independent p
 | Deployment | Runtime configuration and base-path support for root or subpath hosting, plus fork-owned Docker and release workflows |
 | Engineering | A large regression suite and a maintained compatibility ledger for product, Matrix SDK, deployment, and native-app changes |
 
-Cinny remains the upstream foundation and is credited in [Upstream Attribution](#upstream-attribution). Compatible upstream improvements continue to be evaluated for incorporation, while MindRoom Chat's product behavior and release decisions are owned here.
-
+Cinny remains the upstream foundation and is credited in [Upstream attribution](#upstream-attribution).
+Compatible upstream improvements continue to be evaluated for incorporation, while MindRoom Chat's product behavior and release decisions are owned here.
 For the implementation history and rationale behind individual changes, see [`FORK_CHANGES.md`](./FORK_CHANGES.md).
 
-## App Store / iOS Submission Docs
+## Self-hosting
 
-- Checklist: [`APP_STORE_COMPLIANCE.md`](./.docs/APP_STORE_COMPLIANCE.md)
-- Submission metadata/review notes packet: [`APP_STORE_SUBMISSION_PACKET.md`](./.docs/APP_STORE_SUBMISSION_PACKET.md)
-- Build guide: [`ios-build.md`](./.docs/ios-build.md)
-
-### TestFlight via Xcode Cloud
-
-The Xcode Cloud workflow should archive the iOS app with the `Archive - iOS` action.
-Set that action's `Distribution Preparation` to `TestFlight (Internal Testing Only)` so successful archives are prepared for TestFlight.
-If that setting changes after a successful archive, rerun the workflow because existing archives are not prepared for TestFlight retroactively.
-The source release tag can stay tied to upstream Cinny, for example `v4.11.1-mindroom.80`, while the App Store marketing version advances independently.
-For the current iOS train, Xcode Cloud publishes Apple version `4.11.2`; release tags ending in `-mindroom.<n>` provide the App Store build number, so `v4.11.1-mindroom.80` uploads as `4.11.2 (80)`.
-Branch-triggered builds fall back to the checked-in Xcode build number, currently `80`.
-Set `IOS_MARKETING_VERSION` or `IOS_BUILD_NUMBER` in Xcode Cloud only when overriding those defaults is intentional.
-
-## Quick Start
+Run the published image:
 
 ```bash
-npm ci
-npm run test
-npm run build
+docker run -p 8080:80 ghcr.io/mindroom-ai/mindroom-chat:latest
 ```
 
-## Languages
+Or build the image yourself:
 
-The interface supports 17 languages, including Arabic and both Chinese scripts.
-Choose your language under Settings → General → Language.
-See the [localization guide](./docs/localization.md) for supported languages and contribution guidance.
+```bash
+docker build -t mindroom-chat:latest .
+docker run -p 8080:80 mindroom-chat:latest
+```
 
-## Runtime Configuration
+To run MindRoom, a Matrix homeserver, and MindRoom Chat together, use [mindroom-stack](https://github.com/mindroom-ai/mindroom-stack).
 
-Main runtime config file:
+### Static hosting
 
-- [`config.json`](./config.json)
+Build and serve `dist/` with your preferred web server.
+
+### Runtime base path (single build artifact)
+
+- Build once with relative assets: `npm run build`
+- At runtime set `APP_BASE_PATH` to `/` or `/mindroom`
+- Example: `APP_BASE_PATH=/mindroom ./your-server`
+
+Containerized runtime also supports:
+
+- `APP_ENABLE_SERVICE_WORKER` (enabled by default in container runtime config)
+
+When the client shares an origin with sibling applications, add their root-relative path prefixes to the runtime config so the PWA app-shell fallback leaves those navigations to the network:
+
+```js
+window.__SERVICE_WORKER_NAVIGATION_FALLBACK_EXCLUDE_PATHS__ = ['/other-app'];
+```
+
+Only root-relative paths without a query or fragment are accepted.
+Each prefix excludes its exact path and descendants without excluding similarly named client routes.
+
+### Build-time base path
+
+- `APP_BUILD_BASE_PATH=/mindroom npm run build`
+
+### Reverse-proxy examples
+
+- Netlify: [`netlify.toml`](./netlify.toml)
+- Nginx: [`contrib/nginx/mindroom-chat.domain.tld.conf`](./contrib/nginx/mindroom-chat.domain.tld.conf)
+- Caddy: [`contrib/caddy/caddyfile`](./contrib/caddy/caddyfile)
+
+## Configuration
+
+The runtime configuration file is [`config.json`](./config.json).
 
 Notable options:
 
@@ -83,6 +155,9 @@ Notable options:
 - additional application-link schemes via `messageRendering.additionalAllowedUriSchemes`,
 - sidebar entry points including `sidebar.showThreads` and `sidebar.showExploreCommunityInSimpleMode`,
 - welcome-page behavior.
+
+<details>
+<summary><b>Opening agent panels automatically</b></summary>
 
 Agent requests can open Computer, Settings, or Members automatically only when the agent's Matrix server name is explicitly trusted by the deployment:
 
@@ -103,6 +178,11 @@ The existing checks for joined `mindroom_` agents on the viewer's own homeserver
 Only list homeservers whose operators control the agent username namespace; this setting trusts that operator policy, not every account on the server.
 Live delivery, focus, conversation, and computer authorization checks continue to apply.
 
+</details>
+
+<details>
+<summary><b>Explorer in Simple Mode</b></summary>
+
 Explorer is hidden from the sidebar by default in Simple Mode.
 To show it in Simple Mode, set `sidebar.showExploreCommunityInSimpleMode` to `true` in `config.json`:
 
@@ -117,6 +197,11 @@ To show it in Simple Mode, set `sidebar.showExploreCommunityInSimpleMode` to `tr
 Setting it to `false` or omitting it keeps Explorer hidden in Simple Mode.
 This option does not affect the full interface, where Explorer remains visible by default.
 The existing `sidebar.showExploreCommunity` option continues to control Explorer in the full interface and defaults to `true`.
+
+</details>
+
+<details>
+<summary><b>Additional link schemes</b></summary>
 
 Formatted message links can allow additional desktop application URI schemes:
 
@@ -133,108 +218,20 @@ Trailing `:` or `://` delimiters are normalized if supplied.
 The configured list is additive to the built-in safe schemes.
 Browser-sensitive schemes including `javascript`, `data`, `file`, `blob`, `vbscript`, `about`, `chrome`, `chrome-extension`, `filesystem`, `resource`, and `view-source` are always ignored.
 
-## Self-Hosting
+</details>
 
-### Standard static hosting
-
-Build and serve `dist/` with your preferred web server.
-
-### Runtime base-path (single build artifact)
-
-- Build once with relative assets: `npm run build`
-- At runtime set `APP_BASE_PATH` to `/` or `/mindroom`
-- Example: `APP_BASE_PATH=/mindroom ./your-server`
-
-Containerized runtime also supports:
-
-- `APP_ENABLE_SERVICE_WORKER` (enabled by default in container runtime config)
-
-When the client shares an origin with sibling applications, add their root-relative path prefixes
-to the runtime config so the PWA app-shell fallback leaves those navigations to the network:
-
-```js
-window.__SERVICE_WORKER_NAVIGATION_FALLBACK_EXCLUDE_PATHS__ = ['/other-app'];
-```
-
-Only root-relative paths without a query or fragment are accepted. Each prefix excludes its exact
-path and descendants without excluding similarly named client routes.
-
-### Optional build-time base path
-
-- `APP_BUILD_BASE_PATH=/mindroom npm run build`
-
-### Reverse-proxy examples
-
-- Netlify: [`netlify.toml`](./netlify.toml)
-- Nginx: [`contrib/nginx/mindroom-chat.domain.tld.conf`](./contrib/nginx/mindroom-chat.domain.tld.conf)
-- Caddy: [`contrib/caddy/caddyfile`](./contrib/caddy/caddyfile)
-
-## iOS Build / Archive
-
-```bash
-npm run build:ios
-npm run ios:icons
-npm run appstore:preflight
-npx cap sync ios
-npx cap open ios
-```
-
-Then archive from Xcode (`App` scheme, `Any iOS Device (arm64)`).
-
-### iOS pairing links
-
-The iOS app opens hosted `/connect?code=…` links on its approval page using the accounts already signed in to the app.
-See [iOS pairing links](docs/ios-pairing-links.md) for association-file hosting, Apple Developer capability/profile setup, self-hosted forks, and device verification.
-
-## iOS Push Notifications (APNs + Matrix)
-
-Native iOS push plumbing is included in this fork (`@capacitor/push-notifications` + Matrix pusher
-registration). To turn it on for a deployment:
-
-1. Configure `config.json`:
-
-```json
-{
-  "push": {
-    "ios": {
-      "enabled": true,
-      "appId": "chat.mindroom.app",
-      "gatewayUrl": "https://YOUR-PUSH-GATEWAY/_matrix/push/v1/notify",
-      "appDisplayName": "MindRoom Chat iOS",
-      "deviceDisplayName": "MindRoom Chat iOS",
-      "append": true,
-      "format": "full"
-    }
-  }
-}
-```
-
-2. Sync iOS project artifacts after config/dependency changes: `npx cap sync ios`.
-3. In Xcode, confirm `Signing & Capabilities` includes `Push Notifications`.
-4. Run the app on a physical iPhone and enable `Settings -> Notifications -> iOS Push Notifications`
-   inside MindRoom Chat.
-5. Ensure your Matrix push gateway is configured server-side to accept APNs tokens for your app.
-
-`format: "full"` is an explicit opt-in that lets a Sygnal-compatible gateway receive the sender and
-message preview for unencrypted rooms. Omitting it uses the privacy-preserving `event_id_only`
-fallback. Encrypted rooms use a generic notification because the homeserver cannot read their
-message content.
-
-## Local Development
+## Development
 
 ```bash
 npm ci
-npm start
+npm run test
+npm run build
 ```
 
-## Docker
+Start a local development server with `npm start`.
 
-```bash
-docker build -t mindroom-chat:latest .
-docker run -p 8080:80 mindroom-chat:latest
-```
-
-## Dockerized Matrix E2E
+<details>
+<summary><b>Dockerized Matrix end-to-end tests</b></summary>
 
 The Docker boundary for local e2e is the Matrix stack, not the MindRoom Chat app itself.
 MindRoom Chat and Playwright stay on the host. Docker only runs a disposable Tuwunel homeserver.
@@ -262,10 +259,8 @@ npm run test:e2e:docker-matrix -- --grep "three stored accounts"
 Notes:
 
 - The stack is defined in [`e2e/docker-compose.matrix.yaml`](./e2e/docker-compose.matrix.yaml).
-- The wrapper provisions three local e2e accounts, seeds the shared fixture room, and starts a
-  static built preview on `http://127.0.0.1:28090` for the deployed clear-cache spec.
-- The main app under test still runs from the host via Playwright's normal `webServer`
-  (`npm run start -- --host 127.0.0.1 --port 4173 --strictPort`) unless `E2E_NO_WEB_SERVER=1`.
+- The wrapper provisions three local e2e accounts, seeds the shared fixture room, and starts a static built preview on `http://127.0.0.1:28090` for the deployed clear-cache spec.
+- The main app under test still runs from the host via Playwright's normal `webServer` (`npm run start -- --host 127.0.0.1 --port 4173 --strictPort`) unless `E2E_NO_WEB_SERVER=1`.
 - Useful overrides:
   `E2E_MATRIX_PORT`,
   `E2E_MATRIX_SERVER_NAME`,
@@ -274,36 +269,113 @@ Notes:
   `E2E_SERVER_COMMAND`,
   `MINDROOM_TUWUNEL_IMAGE`.
 
-## Releases
+</details>
 
-- Every push to `dev` creates an automated GitHub release tag in the format
-  `v<base_version>-mindroom.<n>`.
-- `base_version` is read from [`package.json`](./package.json) by default
-  (or `BASE_VERSION` if set), with upstream-style semver tags as fallback;
-  `<n>` increments from existing fork tags for that base version.
-- The Python helper is reusable across forks via env vars:
-  `RELEASE_TAG_PREFIX`, `RELEASE_TAG_SUFFIX`, `BASE_TAG_PREFIX`, `BASE_VERSION`.
-- Local preview of the next tag:
+## Native apps
+
+### iOS build and archive
 
 ```bash
-npm run release:next-tag
+npm run build:ios
+npm run ios:icons
+npm run appstore:preflight
+npx cap sync ios
+npx cap open ios
 ```
 
-### Android Play internal releases
+Then archive from Xcode (`App` scheme, `Any iOS Device (arm64)`).
 
-- The same `dev` push release workflow builds a signed Android App Bundle and
-  publishes it to the Google Play `internal` track when it creates a new
-  MindRoom GitHub release.
+App Store submission docs:
+
+- Checklist: [`APP_STORE_COMPLIANCE.md`](./.docs/APP_STORE_COMPLIANCE.md)
+- Submission metadata/review notes packet: [`APP_STORE_SUBMISSION_PACKET.md`](./.docs/APP_STORE_SUBMISSION_PACKET.md)
+- Build guide: [`ios-build.md`](./.docs/ios-build.md)
+
+### iOS pairing links
+
+The iOS app opens hosted `/connect?code=…` links on its approval page using the accounts already signed in to the app.
+See [iOS pairing links](docs/ios-pairing-links.md) for association-file hosting, Apple Developer capability/profile setup, self-hosted forks, and device verification.
+
+<details>
+<summary><b>TestFlight via Xcode Cloud</b></summary>
+
+The Xcode Cloud workflow should archive the iOS app with the `Archive - iOS` action.
+Set that action's `Distribution Preparation` to `TestFlight (Internal Testing Only)` so successful archives are prepared for TestFlight.
+If that setting changes after a successful archive, rerun the workflow because existing archives are not prepared for TestFlight retroactively.
+The source release tag can stay tied to upstream Cinny, for example `v4.11.1-mindroom.80`, while the App Store marketing version advances independently.
+For the current iOS train, Xcode Cloud publishes Apple version `4.11.2`; release tags ending in `-mindroom.<n>` provide the App Store build number, so `v4.11.1-mindroom.80` uploads as `4.11.2 (80)`.
+Branch-triggered builds fall back to the checked-in Xcode build number, currently `80`.
+Set `IOS_MARKETING_VERSION` or `IOS_BUILD_NUMBER` in Xcode Cloud only when overriding those defaults is intentional.
+
+</details>
+
+<details>
+<summary><b>iOS push notifications (APNs + Matrix)</b></summary>
+
+Native iOS push plumbing is included in this fork (`@capacitor/push-notifications` + Matrix pusher registration).
+To turn it on for a deployment:
+
+1. Configure `config.json`:
+
+```json
+{
+  "push": {
+    "ios": {
+      "enabled": true,
+      "appId": "chat.mindroom.app",
+      "gatewayUrl": "https://YOUR-PUSH-GATEWAY/_matrix/push/v1/notify",
+      "appDisplayName": "MindRoom Chat iOS",
+      "deviceDisplayName": "MindRoom Chat iOS",
+      "append": true,
+      "format": "full"
+    }
+  }
+}
+```
+
+2. Sync iOS project artifacts after config/dependency changes: `npx cap sync ios`.
+3. In Xcode, confirm `Signing & Capabilities` includes `Push Notifications`.
+4. Run the app on a physical iPhone and enable `Settings -> Notifications -> iOS Push Notifications` inside MindRoom Chat.
+5. Ensure your Matrix push gateway is configured server-side to accept APNs tokens for your app.
+
+`format: "full"` is an explicit opt-in that lets a Sygnal-compatible gateway receive the sender and message preview for unencrypted rooms.
+Omitting it uses the privacy-preserving `event_id_only` fallback.
+Encrypted rooms use a generic notification because the homeserver cannot read their message content.
+
+</details>
+
+<details>
+<summary><b>Android Play internal releases</b></summary>
+
+- The same `dev` push release workflow builds a signed Android App Bundle and publishes it to the Google Play `internal` track when it creates a new MindRoom GitHub release.
 - Required GitHub secrets:
   `ANDROID_UPLOAD_KEYSTORE_BASE64`,
   `ANDROID_UPLOAD_KEYSTORE_PASSWORD`,
   `ANDROID_UPLOAD_KEY_ALIAS`,
   `ANDROID_UPLOAD_KEY_PASSWORD`,
   and `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON`.
-- The keystore secret should be the base64-encoded upload keystore file. The
-  Play service account must have permission to release `com.mindroom_ai.app`.
+- The keystore secret should be the base64-encoded upload keystore file.
+  The Play service account must have permission to release `com.mindroom_ai.app`.
 
-## Upstream Attribution
+</details>
+
+## Releases
+
+- Every push to `dev` creates an automated GitHub release tag in the format `v<base_version>-mindroom.<n>`.
+- `base_version` is read from [`package.json`](./package.json) by default (or `BASE_VERSION` if set), with upstream-style semver tags as fallback; `<n>` increments from existing fork tags for that base version.
+- The Python helper is reusable across forks via env vars: `RELEASE_TAG_PREFIX`, `RELEASE_TAG_SUFFIX`, `BASE_TAG_PREFIX`, `BASE_VERSION`.
+- Local preview of the next tag:
+
+```bash
+npm run release:next-tag
+```
+
+## Contributing
+
+See [`CONTRIBUTING.md`](./CONTRIBUTING.md) and the [code of conduct](./CODE_OF_CONDUCT.md).
+Changes that apply generally to Cinny are often best contributed upstream; changes for MindRoom agent workflows belong here.
+
+## Upstream attribution
 
 This project is built on top of Cinny and Matrix ecosystem libraries.
 
