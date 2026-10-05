@@ -5,7 +5,7 @@
 ### Remove the private computer deployment preset (2026-10-05)
 
 - The proposed settings cleanup had not been implemented: the computer form still suggested the author's private deployment through a placeholder and preset button.
-  Remove that button, URL constant and placeholder, along with all 17 translated preset labels and deployment-specific setup guidance.
+  Remove that button, URL constant and placeholder, along with all 17 translated preset labels, deployment-specific setup guidance and its obsolete screenshot.
   The shipped iOS computer default remains empty; services explicitly saved by users remain active and editable.
 - Validation covers an empty first-use form with no server suggestion or preset, explicit manual Save, retained saved services, the LAN HTTP notice, and generic custom-build configuration.
   Keep this correction focused on the private preset; settings navigation remains a separate design discussion.
