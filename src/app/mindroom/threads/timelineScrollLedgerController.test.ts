@@ -11,10 +11,9 @@ const virtualizer = vi.hoisted(() => ({
   setOptions: vi.fn(),
   shouldAdjustScrollPositionOnItemSizeChange: undefined as unknown,
   getVirtualItems: () => [],
-  range: null as { startIndex: number; endIndex: number } | null,
-  getVirtualItemForOffset: undefined as
-    | undefined
-    | ((offset: number) => { index: number; start: number }),
+  getVirtualItemForOffset: (() => undefined) as (
+    offset: number
+  ) => { index: number; start: number } | undefined,
 }));
 const settleWaits = vi.hoisted(() => [] as Array<() => void>);
 
@@ -56,8 +55,7 @@ beforeEach(() => {
   virtualizer.options = {};
   virtualizer.setOptions.mockClear();
   virtualizer.shouldAdjustScrollPositionOnItemSizeChange = undefined;
-  virtualizer.range = null;
-  virtualizer.getVirtualItemForOffset = undefined;
+  virtualizer.getVirtualItemForOffset = () => undefined;
   settleWaits.length = 0;
 });
 
@@ -364,12 +362,16 @@ describe('useTimelineScrollLedgerController', () => {
     const older = event('$older');
     const newer = event('$newer');
     virtualizer.itemSizeCache = new Map([['$older', 30]]);
-    // virtual-core's first visible index; it follows the reader's row.
+    // The row at the reader's top; it follows the reader's row.
     let readerIndex = 1;
-    Object.defineProperty(virtualizer, 'range', {
-      configurable: true,
-      get: () => ({ startIndex: readerIndex, endIndex: readerIndex }),
-    });
+    virtualizer.getVirtualItemForOffset = (offset) => ({ index: readerIndex, start: offset });
+    const scroller = {
+      getBoundingClientRect: () => ({ top: 0 }),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      scrollTop: 0,
+    };
+    const inner = { getBoundingClientRect: () => ({ top: 0 }), style: { marginTop: '' } };
     let latestLedgerPx = 0;
 
     const Harness = ({ events }: { events: ThreadLedgerEvent[] }) => {
@@ -377,11 +379,11 @@ describe('useTimelineScrollLedgerController', () => {
       const roomFoldPriceRef = useRef<(key: string | number | bigint, index: number) => number>(
         () => 10
       );
-      latestLedgerPx = useTimelineScrollLedgerController({
+      const controller = useTimelineScrollLedgerController({
         alive: () => true,
         estimateSize: () => 10,
         getItemKey: (index) => events[index]?.getId() ?? index,
-        getScrollElement: () => null,
+        getScrollElement: () => scroller as unknown as HTMLDivElement,
         itemCount: events.length,
         pendingRoomFoldPxRef,
         roomFoldPriceRef,
@@ -390,7 +392,9 @@ describe('useTimelineScrollLedgerController', () => {
         threadEvents: events,
         threadId: '$root',
         threadInitialRenderMode: 'live',
-      }).ledgerPxAtRender;
+      });
+      (controller.virtualInnerRef as { current: unknown }).current = inner;
+      latestLedgerPx = controller.ledgerPxAtRender;
       return null;
     };
 
@@ -409,13 +413,7 @@ describe('useTimelineScrollLedgerController', () => {
       renderer.update(React.createElement(Harness, { events: [root, older, reader, newer] }));
     });
     expect(latestLedgerPx).toBe(30);
-
     renderer!.unmount();
-    Object.defineProperty(virtualizer, 'range', {
-      configurable: true,
-      writable: true,
-      value: null,
-    });
   });
 
   it('anchors on the row painted at the viewport top, even above the list start', () => {
@@ -425,7 +423,6 @@ describe('useTimelineScrollLedgerController', () => {
     const first = event('$first');
     const older = event('$older');
     virtualizer.itemSizeCache = new Map([['$older', 30]]);
-    virtualizer.range = { startIndex: 1, endIndex: 1 };
     virtualizer.getVirtualItemForOffset = rootThenReplies;
     const rect = (top: number) => ({
       getBoundingClientRect: () => ({ top }),

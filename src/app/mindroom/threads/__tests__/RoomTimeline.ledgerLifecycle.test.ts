@@ -190,7 +190,10 @@ describe('RoomTimeline ledger lifecycle', () => {
       scrollTop: 0,
       scrollTo: vi.fn(),
     };
-    const innerElement = { style: {} as Record<string, string> };
+    const innerElement = {
+      style: {} as Record<string, string>,
+      getBoundingClientRect: () => ({ top: 0 }),
+    };
     const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
     const roomElement = () =>
       React.createElement(ControlledRoomTimeline, {
@@ -284,7 +287,10 @@ describe('RoomTimeline ledger lifecycle', () => {
       scrollTop: 0,
       scrollTo: vi.fn(),
     };
-    const innerElement = { style: {} as Record<string, string> };
+    const innerElement = {
+      style: {} as Record<string, string>,
+      getBoundingClientRect: () => ({ top: 0 }),
+    };
     matrixClientMock.paginateEventTimeline.mockImplementation(async () => false);
     const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
     let renderer: ReturnType<typeof create> | undefined;
@@ -402,7 +408,10 @@ describe('RoomTimeline ledger lifecycle', () => {
       scrollTop: 0,
       scrollTo: vi.fn(),
     };
-    const innerElement = { style: {} as Record<string, string> };
+    const innerElement = {
+      style: {} as Record<string, string>,
+      getBoundingClientRect: () => ({ top: 0 }),
+    };
     const tileElement = {};
     const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
     let renderer: ReturnType<typeof create> | undefined;
@@ -493,7 +502,10 @@ describe('RoomTimeline ledger lifecycle', () => {
       scrollTop: 0,
       scrollTo: vi.fn(),
     };
-    const innerElement = { style: {} as Record<string, string> };
+    const innerElement = {
+      style: {} as Record<string, string>,
+      getBoundingClientRect: () => ({ top: 0 }),
+    };
     const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
     let renderer: ReturnType<typeof create> | undefined;
 
@@ -1096,7 +1108,10 @@ describe('RoomTimeline ledger lifecycle', () => {
       },
       scrollTo: vi.fn(),
     };
-    const innerElement = { style: {} as Record<string, string> };
+    const innerElement = {
+      style: {} as Record<string, string>,
+      getBoundingClientRect: () => ({ top: 0 }),
+    };
     return { scrollElement, innerElement };
   };
 

@@ -662,7 +662,10 @@ describe('RoomTimeline', () => {
       // Inner virtual container: the ledger fold's visible output is its
       // marginTop (adversarial review on PR #88 — without this pin, fold
       // deletion, ΔH off-by-one and unconsumed-anchor mutants all passed).
-      const innerElement = { style: {} as Record<string, string> };
+      const innerElement = {
+        style: {} as Record<string, string>,
+        getBoundingClientRect: () => ({ top: 0 }),
+      };
       // The thread-open bootstrap may also paginate; only the explicit
       // Load Older Messages pagination should prepend the older rows.
       // The paginate mock must NOT apply the prepend to the RENDER state:
@@ -890,7 +893,10 @@ describe('RoomTimeline', () => {
         scrollTop: 0,
         scrollTo: vi.fn(),
       };
-      const innerElement = { style: {} as Record<string, string> };
+      const innerElement = {
+        style: {} as Record<string, string>,
+        getBoundingClientRect: () => ({ top: 0 }),
+      };
       matrixClientMock.paginateEventTimeline.mockImplementation(async () => false);
       const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
       let renderer: ReturnType<typeof create> | undefined;
@@ -1027,7 +1033,10 @@ describe('RoomTimeline', () => {
         scrollTop: 0,
         scrollTo: vi.fn(),
       };
-      const innerElement = { style: {} as Record<string, string> };
+      const innerElement = {
+        style: {} as Record<string, string>,
+        getBoundingClientRect: () => ({ top: 0 }),
+      };
       matrixClientMock.paginateEventTimeline.mockImplementation(async () => false);
       const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
       let renderer: ReturnType<typeof create> | undefined;
@@ -1142,7 +1151,10 @@ describe('RoomTimeline', () => {
         scrollTop: 0,
         scrollTo: vi.fn(),
       };
-      const innerElement = { style: {} as Record<string, string> };
+      const innerElement = {
+        style: {} as Record<string, string>,
+        getBoundingClientRect: () => ({ top: 0 }),
+      };
       // The pagination NEVER resolves inside the pinned phase — both
       // bands land strictly mid-flight.
       let resolvePaginate: ((value: boolean) => void) | undefined;
@@ -1316,7 +1328,10 @@ describe('RoomTimeline', () => {
         scrollTop: 0,
         scrollTo: vi.fn(),
       };
-      const innerElement = { style: {} as Record<string, string> };
+      const innerElement = {
+        style: {} as Record<string, string>,
+        getBoundingClientRect: () => ({ top: 0 }),
+      };
       let renderer: ReturnType<typeof create> | undefined;
 
       // CINNY-207 P6.1 / D4: prefetchDepth sanitizer clamps to

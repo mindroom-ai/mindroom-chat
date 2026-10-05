@@ -150,8 +150,8 @@ const {
     optionsHistory: [] as { count: number; scrollMargin?: number }[],
     virtualIndexes: undefined as number[] | undefined,
     totalSize: undefined as number | undefined,
-    // The reader's first visible row. Like virtual-core's range, it follows
-    // that row's index across renders; without it the mock has no range.
+    // The row at the reader's top. Like virtual-core's offset lookup, it
+    // follows that row's index across renders; without it there is none.
     firstVisibleKey: undefined as unknown,
     // The mock instance of the current test tree (mutant audit 2026-07-07:
     // the drop-path pins call the component-installed
@@ -442,16 +442,16 @@ vi.mock('@tanstack/react-virtual', () => {
           instance!.options = next;
         },
         itemSizeCache: new Map(),
-        get range() {
+        getVirtualItemForOffset: (offset: number) => {
           const opts = optionsRef.current;
           const { firstVisibleKey } = roomTimelineVirtualizerState;
-          if (firstVisibleKey === undefined) return null;
+          if (firstVisibleKey === undefined) return undefined;
           for (let index = 0; index < opts.count; index += 1) {
             if ((opts.getItemKey?.(index) ?? index) === firstVisibleKey) {
-              return { startIndex: index, endIndex: Math.min(index + 10, opts.count - 1) };
+              return { index, start: offset };
             }
           }
-          return null;
+          return undefined;
         },
         getTotalSize: () => {
           const opts = optionsRef.current;

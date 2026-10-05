@@ -302,21 +302,6 @@ describe('virtualizer iOS scroll contract (production hook)', () => {
     expect(droppedDeltas).toEqual([]);
   });
 
-  // OFFSET-LEDGER COHERENCE (device round 10 replacement design): the
-  // round-8 transform compensation shifted PAINT while the window math
-  // stayed ignorant — the on-device trace showed ±3000px accumulated
-  // divergence rendering the viewport blank for 30% of a 40s ride, and a
-  // non-atomic settle flashing full-screen jumps. The replacement folds
-  // dropped corrections into virtual-core's OWN coordinate space instead:
-  // the inner container gets a real layout offset (marginTop ledger) and
-  // options.scrollMargin tracks (base container offset + ledger) in the
-  // same commit. This contract pins the algebra against the real library:
-  // after (drop, ledger += -delta, scrollMargin += -delta), the rendered
-  // item set for the SAME scrollOffset is unchanged and every painted
-  // position (item.start - scrollMargin) shifts by exactly -ledgerDelta —
-  // which the container's ledger margin cancels in the DOM, so the visual
-  // outcome is a no-op WITHOUT any scrollTop write and WITHOUT any
-  // window/paint divergence, by construction.
   it('judges a resize against the live offset right after a programmatic jump', () => {
     // A programmatic scroll writes the element; virtual-core's cached offset
     // only follows on the next scroll event. A row that mounts and resizes in
@@ -393,6 +378,21 @@ describe('virtualizer iOS scroll contract (production hook)', () => {
     expect(droppedDeltas).toEqual([]);
   });
 
+  // OFFSET-LEDGER COHERENCE (device round 10 replacement design): the
+  // round-8 transform compensation shifted PAINT while the window math
+  // stayed ignorant — the on-device trace showed ±3000px accumulated
+  // divergence rendering the viewport blank for 30% of a 40s ride, and a
+  // non-atomic settle flashing full-screen jumps. The replacement folds
+  // dropped corrections into virtual-core's OWN coordinate space instead:
+  // the inner container gets a real layout offset (marginTop ledger) and
+  // options.scrollMargin tracks (base container offset + ledger) in the
+  // same commit. This contract pins the algebra against the real library:
+  // after (drop, ledger += -delta, scrollMargin += -delta), the rendered
+  // item set for the SAME scrollOffset is unchanged and every painted
+  // position (item.start - scrollMargin) shifts by exactly -ledgerDelta —
+  // which the container's ledger margin cancels in the DOM, so the visual
+  // outcome is a no-op WITHOUT any scrollTop write and WITHOUT any
+  // window/paint divergence, by construction.
   it('offset ledger: scrollMargin absorbs a dropped above-viewport shrink coherently', () => {
     withFakeIOSUserAgent(() => {
       const scrollToFn = vi.fn();

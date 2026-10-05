@@ -78,12 +78,6 @@ type LedgerSettleVirtualizer<TOptions extends { scrollMargin?: number }> = {
 
 const LEDGER_SNAPSHOT_EPSILON_PX = 0.01;
 
-// The row painted at a virtual-core offset; none above the first row.
-const threadRowAtOffset = (
-  item: { index: number; start: number } | undefined,
-  offset: number
-): number | undefined => (item && item.start <= offset ? item.index : undefined);
-
 /**
  * The inline margin is the ledger snapshot React actually committed to the
  * DOM. The mutable accumulator can already contain a newer measurement while
@@ -319,12 +313,19 @@ export const useTimelineScrollLedgerController = ({
     const view = threadLedgerViewRef.current;
     if (view?.listTop !== undefined) view.listTop += threadLeadingPx - committedLeading.px;
   });
-  const anchorThreadLedgerRow = useCallback((index: number | undefined) => {
-    const rows = threadLedgerViewRef.current?.rows;
-    const eventId = index === undefined ? undefined : rows?.events[index]?.getId();
-    threadLedgerAnchorRef.current =
-      rows && index !== undefined && eventId ? { ...rows, eventId, index } : undefined;
-  }, []);
+  const anchorThreadLedgerAt = useCallback(
+    (scrollTop: number) => {
+      const view = threadLedgerViewRef.current;
+      const offset = readerTopOffset(scrollTop);
+      const item =
+        offset === undefined ? undefined : virtualizerRef.current.getVirtualItemForOffset(offset);
+      const index = item && offset !== undefined && item.start <= offset ? item.index : undefined;
+      const eventId = index === undefined ? undefined : view?.rows.events[index]?.getId();
+      threadLedgerAnchorRef.current =
+        view && index !== undefined && eventId ? { ...view.rows, eventId, index } : undefined;
+    },
+    [readerTopOffset]
+  );
   useLayoutEffect(() => {
     if (!threadId) {
       threadLedgerViewRef.current = undefined;
@@ -340,38 +341,32 @@ export const useTimelineScrollLedgerController = ({
       setLedgerCommitTick((tick) => tick + 1);
     }
     const scrollElement = getScrollElement();
-    const viewportTop = scrollElement?.getBoundingClientRect?.().top;
-    const innerTop = virtualInnerRef.current?.getBoundingClientRect?.().top;
-    threadLedgerViewRef.current = {
-      rows: { threadId, events: threadEvents, priceRow: priceThreadRowForLedger },
-      inset: 0,
-    };
-    if (scrollElement && viewportTop !== undefined && innerTop !== undefined) {
-      // A row at virtual-core offset s paints at inner.top + s + ledger.
-      threadLedgerViewRef.current.listTop =
-        scrollElement.scrollTop - (viewportTop - innerTop - ledgerPxAtRender);
-      threadLedgerViewRef.current.inset =
-        Number.parseFloat(getComputedStyle(scrollElement).scrollPaddingTop) || 0;
+    const inner = virtualInnerRef.current;
+    const rows = { threadId, events: threadEvents, priceRow: priceThreadRowForLedger };
+    if (!scrollElement || !inner) {
+      threadLedgerViewRef.current = { rows, inset: 0 };
+      threadLedgerAnchorRef.current = undefined;
+      return;
     }
-    const offset = scrollElement ? readerTopOffset(scrollElement.scrollTop) : undefined;
-    anchorThreadLedgerRow(
-      offset !== undefined && virtualizer.getVirtualItemForOffset
-        ? threadRowAtOffset(virtualizer.getVirtualItemForOffset(offset), offset)
-        : virtualizer.range?.startIndex
-    );
+    threadLedgerViewRef.current = {
+      rows,
+      // A row at virtual-core offset s paints at inner.top + s + ledger.
+      listTop:
+        scrollElement.scrollTop -
+        (scrollElement.getBoundingClientRect().top -
+          inner.getBoundingClientRect().top -
+          ledgerPxAtRender),
+      inset: Number.parseFloat(getComputedStyle(scrollElement).scrollPaddingTop) || 0,
+    };
+    anchorThreadLedgerAt(scrollElement.scrollTop);
   });
   useEffect(() => {
     const scrollElement = getScrollElement();
     if (!scrollElement || !threadId) return undefined;
-    const onScroll = () => {
-      const offset = readerTopOffset(scrollElement.scrollTop);
-      const instance = virtualizerRef.current;
-      if (offset === undefined || !instance.getVirtualItemForOffset) return;
-      anchorThreadLedgerRow(threadRowAtOffset(instance.getVirtualItemForOffset(offset), offset));
-    };
+    const onScroll = () => anchorThreadLedgerAt(scrollElement.scrollTop);
     scrollElement.addEventListener('scroll', onScroll, { passive: true });
     return () => scrollElement.removeEventListener('scroll', onScroll);
-  }, [anchorThreadLedgerRow, getScrollElement, readerTopOffset, threadId]);
+  }, [anchorThreadLedgerAt, getScrollElement, threadId]);
 
   // Last native/programmatic offset observed by the direction-aware ledger
   // boundary guard (upstream #119). Settlement writes update this
