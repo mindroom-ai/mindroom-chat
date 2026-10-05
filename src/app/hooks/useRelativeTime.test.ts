@@ -2,11 +2,7 @@ import React from 'react';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { daysToMs, formatRelativeTime, hoursToMs, minutesToMs, secondsToMs } from '../utils/time';
-import {
-  getRelativeTimeUpdateInterval,
-  type RelativeTimeFormat,
-  useRelativeTime,
-} from './useRelativeTime';
+import { getRelativeTimeUpdateInterval, useRelativeTime } from './useRelativeTime';
 
 const languageState = vi.hoisted(() => ({ value: 'en' }));
 
@@ -18,7 +14,7 @@ vi.mock('react-i18next', () => ({
 
 type HarnessProps = {
   ts: number | undefined;
-  format?: RelativeTimeFormat;
+  format?: 'relative' | 'compact';
   onRender: (value: string) => void;
 };
 

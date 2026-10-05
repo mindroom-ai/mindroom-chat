@@ -16,7 +16,9 @@ import {
   sendRoomMessage,
 } from '../helpers/matrix';
 
-test('clears thread dots through room mark-read and opening a thread', async ({ page }) => {
+test('clears thread unread indicators through room mark-read and opening a thread', async ({
+  page,
+}) => {
   test.skip(!hasPrimaryCredentials() || !getSecondaryCredentials(), 'Two Matrix accounts required');
   const homeserver = getHomeserver();
   const credentials = getPrimaryCredentials();

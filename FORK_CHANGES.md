@@ -11,7 +11,7 @@
 - The time is compact (`now`, `5m`, `3h`, `2d`, then the date after a week, with the year for earlier years) via `formatCompactRelativeTime` and `useRelativeTime(ts, 'compact')`; other surfaces keep the `2d ago` form.
   The time's tooltip and the card's accessible label give the full timestamp.
 - The preview row holds only the preview (plus pending/failed send state).
-  The reply count moved to the end of the last row as a thread icon and the bare number (`messageCountText` on the view model, formatted once together with the label); the full label stays in its tooltip and the card's accessible label.
+  The reply count moved to the end of the last row as a thread icon and the bare number (`messageCountText` on the view model); the full label stays in its tooltip and the card's accessible label.
 - Titles clamp at two lines (full title in the tooltip and accessible label).
   "Resolved by" joins the last row with a check icon instead of taking its own line (a long name ends in an ellipsis); avatars, tags, streaming state and the schedule share that row.
 - On touch layouts the menu button sits at the end of the last row, and only that row reserves room for it (`32px`), so the title and preview rows use the full width.

@@ -56,12 +56,12 @@ export const formatCompactThreadMessageCount = (messageCount: number, locale?: s
 export const getCompactThreadMessageCountLabel = (
   messageCount: number,
   t?: TFunction,
-  locale?: string,
-  formattedCount = messageCount === 0 ? '0' : formatCompactThreadMessageCount(messageCount, locale)
+  locale?: string
 ): string => {
   if (messageCount === 0)
     return t?.('mindroomUi.threads.compactThreadCardViewModel.noReplies') ?? '0 replies';
 
+  const formattedCount = formatCompactThreadMessageCount(messageCount, locale);
   return (
     t?.('mindroomUi.threads.compactThreadCardViewModel.messageCount', {
       count: messageCount,
@@ -213,8 +213,6 @@ export const buildCompactThreadCardViewModelFromRecord = ({
     t
   );
   const resolvedByDisplayName = getThreadResolverDisplayName(room, status.resolvedByUserId);
-  // Formatted once: the label and the card's bare count share it.
-  const messageCountText = formatCompactThreadMessageCount(presentation.messageCount, locale);
 
   return {
     id: {
@@ -227,13 +225,8 @@ export const buildCompactThreadCardViewModelFromRecord = ({
     primarySummaryText: getThreadPrimarySummaryText(presentation),
     recentThreadSummaryText: presentation.recentThreadSummaryText,
     messageCount: presentation.messageCount,
-    messageCountLabel: getCompactThreadMessageCountLabel(
-      presentation.messageCount,
-      t,
-      locale,
-      messageCountText
-    ),
-    messageCountText,
+    messageCountLabel: getCompactThreadMessageCountLabel(presentation.messageCount, t, locale),
+    messageCountText: formatCompactThreadMessageCount(presentation.messageCount, locale),
     attentionState,
     attentionStatusText: getCompactThreadAttentionStatusText(attentionState, t),
     participants: getCompactThreadParticipants({

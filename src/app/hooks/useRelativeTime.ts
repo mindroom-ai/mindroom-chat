@@ -64,20 +64,13 @@ export const getRelativeTimeUpdateInterval = (ts: number, now = Date.now()): num
   return minutesToMs(5);
 };
 
-/** `relative` reads "2d ago"; `compact` drops the suffix ("2d") and shows a date after a week. */
-export type RelativeTimeFormat = 'relative' | 'compact';
-
-const formatters: Record<RelativeTimeFormat, (ts: number, language: string) => string> = {
-  relative: formatRelativeTime,
-  compact: formatCompactRelativeTime,
-};
-
+// `relative` reads "2d ago"; `compact` drops the suffix ("2d") and shows a date after a week.
 export const useRelativeTime = (
   ts: number | undefined,
-  format: RelativeTimeFormat = 'relative'
+  format: 'relative' | 'compact' = 'relative'
 ): string => {
   const language = useAppLanguageCode();
-  const formatTime = formatters[format];
+  const formatTime = format === 'compact' ? formatCompactRelativeTime : formatRelativeTime;
   const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {

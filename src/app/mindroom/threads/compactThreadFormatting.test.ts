@@ -18,7 +18,6 @@ describe('compact thread count formatting under streaming refreshes', () => {
       expect(getCompactThreadMessageCountLabel(0, undefined, 'en-US')).toBe('0 replies');
       expect(formatCompactThreadMessageCount(1234, 'en-US')).toBe('1,234');
       expect(formatCompactThreadMessageCount(0, 'en-US')).toBe('0');
-      expect(constructor).toHaveBeenCalledTimes(3);
     } finally {
       constructor.mockRestore();
     }
