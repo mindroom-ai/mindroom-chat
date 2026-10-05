@@ -15,7 +15,7 @@ import {
 import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest';
 import { CANVAS_SEND_ARM_DELAY_MS, CanvasPanel, type CanvasPanelProps } from './CanvasPanel';
 import { CANVAS_RESPONSE_KEY } from './canvasMessages';
-import { CANVAS_LIBRARY_SOURCE, canvasPolicy } from './canvasDocument';
+import { CANVAS_LIBRARY_SOURCE, canvasPolicy, type CanvasSaved } from './canvasDocument';
 import { FALLBACK_CANVAS_THEMES } from './canvasTheme';
 import { MatrixClientProvider } from '../../hooks/useMatrixClient';
 
@@ -793,9 +793,9 @@ describe('CanvasPanel', () => {
   });
 
   it('starts each page from the saved state and saves what the page sends without reloading', async () => {
-    let saved: string | undefined = '{"slots":[1]}';
-    const onSaveState = vi.fn((json: string) => {
-      saved = json;
+    let saved: CanvasSaved = { json: '{"slots":[1]}' };
+    const onSaveState = vi.fn((change: CanvasSaved) => {
+      saved = { ...saved, ...change };
     });
     const stateIn = (json: string) => `state: JSON.parse(${JSON.stringify(json)})`;
     // One theme throughout, so only the revision tells the panel to build a new page.
@@ -805,7 +805,11 @@ describe('CanvasPanel', () => {
     const first = frame();
     await post({ type: 'mindroom.canvas.state', version: 1, json: '{"slots":[1,2]}' });
     await post({ type: 'mindroom.canvas.state', version: 1, json: '{"slots":[1,2,3]}' }, {});
-    expect(onSaveState.mock.calls).toEqual([['{"slots":[1,2]}']]);
+    await post({ type: 'mindroom.canvas.state', version: 1, inputs: '{"#rate":"7"}' });
+    expect(onSaveState.mock.calls).toEqual([
+      [{ json: '{"slots":[1,2]}' }],
+      [{ inputs: '{"#rate":"7"}' }],
+    ]);
     expect(frame()).toBe(first);
     // Saving is not an answer, so the next page still loads at once, starting from that state.
     render({

@@ -100,16 +100,19 @@ it('shows a member until the server stops listing them as typing', async () => {
   expect(shown()).toEqual([]);
 });
 
-it('drops a member the SDK stopped reporting as typing without an event', async () => {
+it('keeps hearing typing after a gappy sync', async () => {
   const { room, serverTyping, shown } = setup();
   serverTyping([AGENT]);
+
+  // A gappy sync resets the live timeline while the agent is typing.
+  room.resetLiveTimeline('back-token', 'forward-token');
+  await act(() => vi.advanceTimersByTimeAsync(TYPING_TIMEOUT_MS));
   expect(shown()).toEqual([AGENT]);
 
-  // A gappy sync resets the live timeline with fresh, non-typing members and no event.
-  room.resetLiveTimeline('back-token', 'forward-token');
-  expect(room.getMember(AGENT)?.typing).toBe(false);
-  await act(() => vi.advanceTimersByTimeAsync(TYPING_TIMEOUT_MS));
+  serverTyping([]);
   expect(shown()).toEqual([]);
+  serverTyping([AGENT]);
+  expect(shown()).toEqual([AGENT]);
 });
 
 it('stops checking a room we left, which gets no more m.typing', async () => {

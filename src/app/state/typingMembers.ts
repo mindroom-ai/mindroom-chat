@@ -92,8 +92,8 @@ export const roomIdToTypingMembersAtom = atom<
       );
 
       // Keep the receipt while the SDK reports the member as typing: the SDK emits
-      // only changes, and the server times typing out itself. A gappy sync swaps in
-      // fresh members whose typing changes we no longer hear, so recheck them.
+      // only changes, and the server times typing out itself. Recheck it, because a
+      // room we left never hears the stop.
       const { roomId, userId, ts, isTyping } = action;
       const expire = () => {
         const receipts = get(baseRoomIdToTypingMembersAtom).get(roomId);

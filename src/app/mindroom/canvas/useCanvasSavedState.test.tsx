@@ -37,7 +37,7 @@ const render = () =>
     root.render(<Probe />);
   });
 
-const writes = () => vi.mocked(saveCanvasState).mock.calls.map(([, , json]) => json);
+const writes = () => vi.mocked(saveCanvasState).mock.calls.map(([, , saved]) => saved.json);
 
 beforeEach(() => {
   globalThis.indexedDB = new IDBFactory();
@@ -59,15 +59,15 @@ afterEach(() => {
 
 describe('useCanvasSavedState', () => {
   it('reads the saved state before the page may start', async () => {
-    await saveCanvasState(sessionId, '$canvas', '{"slots":[1]}');
+    await saveCanvasState(sessionId, '$canvas', { json: '{"slots":[1]}' });
     render();
     expect(state.ready).toBe(false);
     await vi.waitFor(() => expect(state.ready).toBe(true));
-    expect(state.read()).toBe('{"slots":[1]}');
+    expect(state.read().json).toBe('{"slots":[1]}');
   });
 
   it('starts without state when it cannot be read, and keeps saves from overwriting it', async () => {
-    await saveCanvasState(sessionId, '$canvas', '{"slots":[1]}');
+    await saveCanvasState(sessionId, '$canvas', { json: '{"slots":[1]}' });
     vi.mocked(saveCanvasState).mockClear();
     const open = vi.spyOn(globalThis.indexedDB, 'open').mockImplementationOnce(() => {
       throw new DOMException('Connection to Indexed Database server lost.', 'UnknownError');
@@ -75,29 +75,29 @@ describe('useCanvasSavedState', () => {
     render();
     await vi.waitFor(() => expect(state.ready).toBe(true));
     open.mockRestore();
-    expect(state.read()).toBeUndefined();
-    act(() => state.save('{"slots":[]}'));
-    expect(state.read()).toBe('{"slots":[]}');
+    expect(state.read().json).toBeUndefined();
+    act(() => state.save({ json: '{"slots":[]}' }));
+    expect(state.read().json).toBe('{"slots":[]}');
     act(() => root.unmount());
     root = createRoot(container);
     expect(writes()).toEqual([]);
-    expect(await loadCanvasState(sessionId, '$canvas')).toBe('{"slots":[1]}');
+    expect((await loadCanvasState(sessionId, '$canvas'))?.json).toBe('{"slots":[1]}');
   });
 
   it('writes the latest of quick saves once, and on leaving at the latest', async () => {
     render();
     await vi.waitFor(() => expect(state.ready).toBe(true));
     act(() => {
-      state.save('{"draft":"a"}');
-      state.save('{"draft":"ab"}');
+      state.save({ json: '{"draft":"a"}' });
+      state.save({ json: '{"draft":"ab"}' });
     });
-    expect(state.read()).toBe('{"draft":"ab"}');
-    expect(await loadCanvasState(sessionId, '$canvas')).toBeUndefined();
+    expect(state.read().json).toBe('{"draft":"ab"}');
+    expect((await loadCanvasState(sessionId, '$canvas'))?.json).toBeUndefined();
     await vi.waitFor(async () =>
-      expect(await loadCanvasState(sessionId, '$canvas')).toBe('{"draft":"ab"}')
+      expect((await loadCanvasState(sessionId, '$canvas'))?.json).toBe('{"draft":"ab"}')
     );
     expect(writes()).toEqual(['{"draft":"ab"}']);
-    act(() => state.save('{"draft":"abc"}'));
+    act(() => state.save({ json: '{"draft":"abc"}' }));
     act(() => root.unmount());
     // Leaving writes at once rather than when the save interval ends.
     expect(writes()).toEqual(['{"draft":"ab"}', '{"draft":"abc"}']);
@@ -105,13 +105,27 @@ describe('useCanvasSavedState', () => {
     root = createRoot(container);
     render();
     await vi.waitFor(() => expect(state.ready).toBe(true));
-    expect(state.read()).toBe('{"draft":"abc"}');
+    expect(state.read().json).toBe('{"draft":"abc"}');
+  });
+
+  it('writes the page state and the control values as one', async () => {
+    render();
+    await vi.waitFor(() => expect(state.ready).toBe(true));
+    act(() => {
+      state.save({ json: '{"slots":[1]}' });
+      state.save({ inputs: '{"#rate":"7"}' });
+    });
+    act(() => root.unmount());
+    root = createRoot(container);
+    expect(vi.mocked(saveCanvasState).mock.calls.map(([, , saved]) => saved)).toEqual([
+      { json: '{"slots":[1]}', inputs: '{"#rate":"7"}' },
+    ]);
   });
 
   it('writes nothing once its account is removed, so the deleted state stays deleted', async () => {
     render();
     await vi.waitFor(() => expect(state.ready).toBe(true));
-    act(() => state.save('{"draft":"secret"}'));
+    act(() => state.save({ json: '{"draft":"secret"}' }));
     removeSession(sessionId);
     act(() => root.unmount());
     root = createRoot(container);
