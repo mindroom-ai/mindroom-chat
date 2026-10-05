@@ -22,6 +22,7 @@ const ROOM_ID = '!room:mindroom.test';
 
 vi.mock('./agentCall', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./agentCall')>()),
+  clearAgentCallOrigin: vi.fn(),
   findAgentCallRoom: mocks.findAgentCallRoom,
   prepareAgentCallRoom: mocks.prepareAgentCallRoom,
 }));

@@ -95,6 +95,14 @@ const existingRoom = (agentMembership = 'join') => {
   return room;
 };
 
+const expectOriginCleared = (roomId: string) =>
+  expect(mx.sendStateEvent).toHaveBeenLastCalledWith(
+    roomId,
+    StateEvent.MindroomAgentCall,
+    agentCallState(),
+    ''
+  );
+
 const expectNoCleanup = () => {
   expect(mx.kick).not.toHaveBeenCalled();
   expect(mx.leave).not.toHaveBeenCalled();
@@ -143,6 +151,7 @@ describe('useStartAgentCall', () => {
     );
     expect(mx.createRoom).not.toHaveBeenCalled();
     expect(mx.invite).not.toHaveBeenCalled();
+    expect(mx.sendStateEvent).toHaveBeenCalledOnce();
     expect(mocks.startCall).toHaveBeenCalledWith(room, {
       microphone: true,
       video: false,
@@ -217,8 +226,8 @@ describe('useStartAgentCall', () => {
     expectNoCleanup();
   });
 
-  it('reports the error when the call fails to start', async () => {
-    existingRoom();
+  it('reports the error when the call fails to start and drops its origin', async () => {
+    const room = existingRoom();
     mocks.startCall.mockImplementationOnce(() => {
       throw new Error('embed unavailable');
     });
@@ -232,6 +241,7 @@ describe('useStartAgentCall', () => {
     expect(started).toBe(false);
     expect(result.current.error).toBe('embed unavailable');
     expect(result.current.loading).toBe(false);
+    expectOriginCleared(room.roomId);
     expectNoCleanup();
   });
 
@@ -298,8 +308,8 @@ describe('useStartAgentCall', () => {
     expect(mocks.startCall).not.toHaveBeenCalled();
   });
 
-  it('does not start a call when unmounted while the room is prepared', async () => {
-    existingRoom();
+  it('drops the origin and does not start a call when unmounted while the room is prepared', async () => {
+    const room = existingRoom();
     const stamp = deferred();
     mx.sendStateEvent.mockReturnValueOnce(stamp.promise);
     const { result, renderer } = renderHook();
@@ -317,11 +327,12 @@ describe('useStartAgentCall', () => {
 
     expect(started).toBe(false);
     expect(mocks.startCall).not.toHaveBeenCalled();
+    expectOriginCleared(room.roomId);
     expectNoCleanup();
   });
 
   it('runs one start at a time and never replaces a call that started meanwhile', async () => {
-    existingRoom();
+    const room = existingRoom();
     const stamp = deferred();
     mx.sendStateEvent.mockReturnValueOnce(stamp.promise);
     const header = renderHook();
@@ -345,7 +356,8 @@ describe('useStartAgentCall', () => {
     });
 
     expect(headerStarted).toBe(false);
-    expect(mx.sendStateEvent).toHaveBeenCalledOnce();
+    expect(mx.sendStateEvent).toHaveBeenCalledTimes(2);
+    expectOriginCleared(room.roomId);
     expect(mocks.startCall).not.toHaveBeenCalled();
     expectNoCleanup();
     expect(getDefaultStore().get(callEmbedAtom)).toBe(incomingCall);

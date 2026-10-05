@@ -51,6 +51,24 @@ const agentCallContent = (
   ...(origin && { origin }),
 });
 
+const sendAgentCall = (
+  mx: MatrixClient,
+  roomId: string,
+  agentUserId: string,
+  origin?: MindroomAgentCallOrigin
+) =>
+  mx.sendStateEvent(
+    roomId,
+    StateEvent.MindroomAgentCall as any,
+    agentCallContent(mx, agentUserId, origin),
+    ''
+  );
+
+/** A later join without a fresh stamp, such as the call room's own Join, must not reuse an old thread. */
+export const clearAgentCallOrigin = (mx: MatrixClient, roomId: string, agentUserId: string) => {
+  sendAgentCall(mx, roomId, agentUserId).catch(() => undefined);
+};
+
 /** The agent call state of a room, when I created the room and wrote that state myself. */
 const getOwnAgentCall = (mx: MatrixClient, room: Room): MindroomAgentCallContent | undefined => {
   const event = getStateEvent(room, StateEvent.MindroomAgentCall);
@@ -139,17 +157,15 @@ export const prepareAgentCallRoom = async (
   if (membership !== Membership.Join && membership !== Membership.Invite) {
     await mx.invite(room.roomId, agentUserId);
   }
-  await mx.sendStateEvent(
-    room.roomId,
-    StateEvent.MindroomAgentCall as any,
-    agentCallContent(mx, agentUserId, origin),
-    ''
-  );
+  await sendAgentCall(mx, room.roomId, agentUserId, origin);
 };
 
 export const cleanupMindroomAgentCall = async (mx: MatrixClient, room: Room): Promise<void> => {
   const call = getOwnAgentCall(mx, room);
-  // Permanent call rooms are reused for the next call; only legacy throwaway rooms are torn down.
+  // Permanent call rooms stay for the next call, minus this call's origin; legacy rooms are torn down.
+  if (call?.ephemeral === false && call.origin) {
+    clearAgentCallOrigin(mx, room.roomId, call.agent_user_id);
+  }
   if (call?.ephemeral !== true) return;
 
   const { roomId } = room;

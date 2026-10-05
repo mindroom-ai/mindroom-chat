@@ -10,6 +10,7 @@ import { webRTCSupported } from '../../utils/rtc';
 import { waitForJoinedRoom } from '../matrix/waitForJoinedRoom';
 import { requestMicrophoneAccess } from '../voice/microphoneAccess';
 import {
+  clearAgentCallOrigin,
   createAgentVoiceRoom,
   findAgentCallRoom,
   isInAgentCall,
@@ -70,6 +71,7 @@ export function useStartAgentCall(): StartAgentCall {
     if (store.get(agentCallStartingAtom) || unavailableReason) return false;
     store.set(agentCallStartingAtom, true);
     setError(undefined);
+    let unusedOriginRoomId: string | undefined;
 
     try {
       await requestMicrophoneAccess();
@@ -85,9 +87,11 @@ export function useStartAgentCall(): StartAgentCall {
         throw new Error('End your current call first.');
       }
       await prepareAgentCallRoom(mx, room, agent.userId, origin);
+      if (origin) unusedOriginRoomId = room.roomId;
       // A call answered meanwhile must not be replaced by this one; the room stays for the next call.
       if (!mountedRef.current || store.get(callEmbedAtom)) return false;
       startCall(room, { microphone: true, video: false, sound: true });
+      unusedOriginRoomId = undefined;
       return true;
     } catch (callError) {
       if (!mountedRef.current) return false;
@@ -95,6 +99,7 @@ export function useStartAgentCall(): StartAgentCall {
       return false;
     } finally {
       store.set(agentCallStartingAtom, false);
+      if (unusedOriginRoomId) clearAgentCallOrigin(mx, unusedOriginRoomId, agent.userId);
     }
   };
 

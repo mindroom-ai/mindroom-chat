@@ -17,6 +17,7 @@ const addPushRule = vi.fn();
 const kick = vi.fn();
 const leave = vi.fn();
 const forget = vi.fn();
+const sendStateEvent = vi.fn();
 let rooms: ReturnType<typeof fakeRoom>[] = [];
 
 const mx = {
@@ -28,6 +29,7 @@ const mx = {
   kick,
   leave,
   forget,
+  sendStateEvent,
 } as any;
 
 const ephemeralRoom = (creatorUserId = ALICE, eventSender = ALICE) =>
@@ -47,6 +49,7 @@ describe('MindRoom agent calls', () => {
     kick.mockResolvedValue({});
     leave.mockResolvedValue({});
     forget.mockResolvedValue({});
+    sendStateEvent.mockResolvedValue({});
   });
 
   it('creates a private encrypted, muted, archived voice room tagged as a permanent call with one agent', async () => {
@@ -203,11 +206,24 @@ describe('MindRoom agent calls', () => {
     expect(forget).not.toHaveBeenCalled();
   });
 
-  it('never kicks, leaves, or forgets a permanent call room on hang-up', async () => {
-    await cleanupMindroomAgentCall(mx, fakeRoom({ call: agentCallState() }));
+  it('keeps a permanent call room on hang-up and drops its origin', async () => {
+    const origin = { room_id: '!room:mindroom.test', thread_id: '$root' };
+    await cleanupMindroomAgentCall(mx, fakeRoom({ call: agentCallState({ origin }) }));
 
     expect(kick).not.toHaveBeenCalled();
     expect(leave).not.toHaveBeenCalled();
     expect(forget).not.toHaveBeenCalled();
+    expect(sendStateEvent).toHaveBeenCalledWith(
+      '!call:mindroom.test',
+      StateEvent.MindroomAgentCall,
+      agentCallState(),
+      ''
+    );
+  });
+
+  it('does not rewrite a permanent call room without an origin on hang-up', async () => {
+    await cleanupMindroomAgentCall(mx, fakeRoom({ call: agentCallState() }));
+
+    expect(sendStateEvent).not.toHaveBeenCalled();
   });
 });
