@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { MatrixClient } from 'matrix-js-sdk';
 import { createSessionId, listSessions } from '../../state/sessions';
+import type { CanvasSaved } from './canvasDocument';
 import { loadCanvasState, saveCanvasState } from './canvasStateStore';
 
 // A page may save on every keystroke; the store sees at most one write per interval.
@@ -9,31 +10,32 @@ const SAVE_INTERVAL_MS = 500;
 export type CanvasSavedState = {
   /** False until the saved state is read or fails to be, so the page starts from any state there is. */
   ready: boolean;
-  /** The latest state, including saves not yet written. */
-  read: () => string | undefined;
-  save: (json: string) => void;
+  /** The latest saved state, including saves not yet written. */
+  read: () => CanvasSaved;
+  /** Replaces the parts of the saved state the change holds. */
+  save: (change: CanvasSaved) => void;
 };
 
 /** The state a canvas's pages save on this device, shared by all versions of the canvas. */
 export function useCanvasSavedState(mx: MatrixClient, canvasId: string): CanvasSavedState {
   const sessionId = createSessionId(mx.getHomeserverUrl(), mx.getSafeUserId());
   const [ready, setReady] = useState(false);
-  const latest = useRef<string>();
+  const latest = useRef<CanvasSaved>({});
   // Saves stay in memory when the saved state could not be read, so they cannot overwrite it.
   const writable = useRef(false);
-  const pending = useRef<{ json: string; timer: number }>();
+  const timer = useRef<number>();
   const flushNow = useRef<() => void>(() => undefined);
 
   useEffect(() => {
     let alive = true;
-    latest.current = undefined;
+    latest.current = {};
     writable.current = false;
     setReady(false);
     // Without IndexedDB (private browsing in some browsers) the read fails and pages start without state.
     loadCanvasState(sessionId, canvasId).then(
-      (json) => {
+      (saved) => {
         if (!alive) return;
-        latest.current = json;
+        latest.current = saved ?? {};
         writable.current = true;
         setReady(true);
       },
@@ -42,13 +44,12 @@ export function useCanvasSavedState(mx: MatrixClient, canvasId: string): CanvasS
       }
     );
     const flush = () => {
-      if (!pending.current) return;
-      window.clearTimeout(pending.current.timer);
-      const { json } = pending.current;
-      pending.current = undefined;
+      if (timer.current === undefined) return;
+      window.clearTimeout(timer.current);
+      timer.current = undefined;
       // Removing an account deletes its saved state before the panel unmounts; a write now would restore it.
       if (!listSessions().some((session) => session.sessionId === sessionId)) return;
-      saveCanvasState(sessionId, canvasId, json).catch(() => undefined);
+      saveCanvasState(sessionId, canvasId, latest.current).catch(() => undefined);
     };
     flushNow.current = flush;
     return () => {
@@ -57,17 +58,10 @@ export function useCanvasSavedState(mx: MatrixClient, canvasId: string): CanvasS
     };
   }, [sessionId, canvasId]);
 
-  const save = useCallback((json: string) => {
-    latest.current = json;
-    if (!writable.current) return;
-    if (pending.current) {
-      pending.current.json = json;
-      return;
-    }
-    pending.current = {
-      json,
-      timer: window.setTimeout(() => flushNow.current(), SAVE_INTERVAL_MS),
-    };
+  const save = useCallback((change: CanvasSaved) => {
+    latest.current = { ...latest.current, ...change };
+    if (!writable.current || timer.current !== undefined) return;
+    timer.current = window.setTimeout(() => flushNow.current(), SAVE_INTERVAL_MS);
   }, []);
   const read = useCallback(() => latest.current, []);
 
