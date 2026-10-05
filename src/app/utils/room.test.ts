@@ -424,7 +424,12 @@ describe('room edit helpers', () => {
 
   it("never takes MindRoom metadata from another sender's edit", () => {
     const targetEvent = makeMessageEvent('$target', 1000, '@mindroom_research:example.org');
-    const agentEdit = makeEditEvent('$agent-edit', 2000, '$target', '@mindroom_research:example.org');
+    const agentEdit = makeEditEvent(
+      '$agent-edit',
+      2000,
+      '$target',
+      '@mindroom_research:example.org'
+    );
     const foreignEdit = makeEditEvent('$foreign-edit', 3000, '$target', '@mallory:example.org');
     foreignEdit.getContent()['m.new_content']['com.mindroom.message_extras'] = {
       version: 1,
