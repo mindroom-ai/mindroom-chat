@@ -26,6 +26,7 @@
 - Validation: typecheck, build and lint pass; `npm test` passes apart from four failures in `xcodeCloudPostClone` and `useRoomInputSendSessionController` that fail the same way on `dev`.
   `compact-thread-cards`, `streaming-cards`, `compact-card-display-names`, `compact-resolve-hover` (desktop and Dutch touch), `thread-bootstrap-requests`, `thread-unread-receipts` and `threads` pass on Chromium against a disposable Tuwunel.
 - Review: GPT-6 Astra approved the first round; Opus 5.5 found the `threads` spec still reading `0 replies` from the card text, plus the byline ellipsis (also found by Qodo), the Threads page padding and a doc example, all fixed.
+  Both approved the second round; Opus's note that the date tests used UTC noon (the next local day from UTC+12) is fixed with local dates, checked from `Pacific/Kiritimati` to `Pacific/Pago_Pago`.
 
 ### Fix three live specs that failed intermittently in full runs (2026-10-04)
 

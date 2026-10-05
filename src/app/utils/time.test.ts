@@ -101,11 +101,10 @@ describe('formatCompactRelativeTime', () => {
     expect(formatCompactRelativeTime(now - daysToMs(7) + 1)).toBe('6d');
   });
 
+  // Local noon, so the expected day holds in every timezone.
   it('shows the date after a week, with the year only for earlier years', () => {
-    expect(formatCompactRelativeTime(Date.parse('2026-03-01T12:00:00.000Z'))).toBe('Mar 1');
-    expect(formatCompactRelativeTime(Date.parse('2025-11-20T12:00:00.000Z'))).toBe(
-      'Nov 20, 2025'
-    );
+    expect(formatCompactRelativeTime(new Date(2026, 2, 1, 12).getTime())).toBe('Mar 1');
+    expect(formatCompactRelativeTime(new Date(2025, 10, 20, 12).getTime())).toBe('Nov 20, 2025');
   });
 
   it('uses the selected app language', () => {
@@ -114,6 +113,6 @@ describe('formatCompactRelativeTime', () => {
     expect(formatCompactRelativeTime(now, 'nl')).toBe('nu');
     expect(formatCompactRelativeTime(now - daysToMs(2), 'nl')).toBe('2 d');
     expect(formatCompactRelativeTime(now - hoursToMs(3), 'nl')).toBe('3 u');
-    expect(formatCompactRelativeTime(Date.parse('2026-03-01T12:00:00.000Z'), 'nl')).toBe('1 mrt');
+    expect(formatCompactRelativeTime(new Date(2026, 2, 1, 12).getTime(), 'nl')).toBe('1 mrt');
   });
 });
