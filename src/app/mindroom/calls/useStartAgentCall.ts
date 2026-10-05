@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { atom, useAtomValue, useStore } from 'jotai';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useClientConfig } from '../../hooks/useClientConfig';
 import { useCallEmbed, useCallStart } from '../../hooks/useCallEmbed';
 import { useLivekitSupport } from '../../hooks/useLivekitSupport';
+import { callEmbedAtom } from '../../state/callEmbed';
 import { webRTCSupported } from '../../utils/rtc';
 import { waitForJoinedRoom } from '../matrix/waitForJoinedRoom';
 import { requestMicrophoneAccess } from '../voice/microphoneAccess';
@@ -22,6 +24,9 @@ type StartAgentCall = {
   unavailableReason?: string;
 };
 
+// Shared by every entry point, so a second start cannot begin while one is being set up.
+const agentCallStartingAtom = atom(false);
+
 /**
  * Creates an ephemeral call room with a MindRoom agent and starts the embedded call.
  * Resolves `true` once the call has started and never navigates; callers decide what to show next.
@@ -34,7 +39,8 @@ export function useStartAgentCall(): StartAgentCall {
   const callEmbed = useCallEmbed();
   const livekitSupported = useLivekitSupport();
   const rtcSupported = webRTCSupported();
-  const [loading, setLoading] = useState(false);
+  const store = useStore();
+  const loading = useAtomValue(agentCallStartingAtom);
   const [error, setError] = useState<string>();
   const mountedRef = useRef(true);
 
@@ -45,7 +51,6 @@ export function useStartAgentCall(): StartAgentCall {
     };
   }, []);
 
-  const unavailable = !livekitSupported || !rtcSupported || !!callEmbed;
   const unavailableReason = !livekitSupported
     ? t('mindroomUi.calls.agentCallButton.homeserverUnsupported')
     : !rtcSupported
@@ -58,8 +63,8 @@ export function useStartAgentCall(): StartAgentCall {
     agent: AgentCallTarget,
     origin?: MindroomAgentCallOrigin
   ): Promise<boolean> => {
-    if (loading || unavailable) return false;
-    setLoading(true);
+    if (store.get(agentCallStartingAtom) || unavailableReason) return false;
+    store.set(agentCallStartingAtom, true);
     setError(undefined);
 
     let roomId: string | undefined;
@@ -79,19 +84,21 @@ export function useStartAgentCall(): StartAgentCall {
         return false;
       }
       const room = await waitForJoinedRoom(mx, roomId);
-      if (!mountedRef.current) {
+      // A call answered meanwhile must not be replaced by this one.
+      if (!mountedRef.current || store.get(callEmbedAtom)) {
         await cleanupCreatedAgentCall(mx, roomId, agent.userId);
         return false;
       }
-      setLoading(false);
       startCall(room, { microphone: true, video: false, sound: true });
       return true;
     } catch (callError) {
       if (roomId) await cleanupCreatedAgentCall(mx, roomId, agent.userId);
-      if (!mountedRef.current) return false;
-      setError(callError instanceof Error ? callError.message : 'Failed to start the call.');
-      setLoading(false);
+      if (mountedRef.current) {
+        setError(callError instanceof Error ? callError.message : 'Failed to start the call.');
+      }
       return false;
+    } finally {
+      store.set(agentCallStartingAtom, false);
     }
   };
 

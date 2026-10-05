@@ -1,6 +1,8 @@
 import React from 'react';
 import { act, create } from 'react-test-renderer';
+import { getDefaultStore } from 'jotai';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { callEmbedAtom } from '../../state/callEmbed';
 import { MindroomAgentCallOrigin } from './agentCall';
 import { useStartAgentCall } from './useStartAgentCall';
 
@@ -73,6 +75,7 @@ describe('useStartAgentCall', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.callEmbed = undefined;
+    getDefaultStore().set(callEmbedAtom, undefined);
     mocks.requestMicrophoneAccess.mockResolvedValue(undefined);
     mocks.createAgentVoiceRoom.mockResolvedValue('!call:mindroom.test');
     mocks.waitForJoinedRoom.mockResolvedValue({ roomId: '!call:mindroom.test' });
@@ -219,5 +222,45 @@ describe('useStartAgentCall', () => {
       '@mindroom_helper:mindroom.test'
     );
     expect(mocks.startCall).not.toHaveBeenCalled();
+  });
+
+  it('runs one start at a time and never replaces a call that started meanwhile', async () => {
+    let resolveRoom!: (room: { roomId: string }) => void;
+    mocks.waitForJoinedRoom.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveRoom = resolve;
+      })
+    );
+    const header = renderHook();
+    const profile = renderHook();
+    let headerStart!: Promise<boolean>;
+    let profileStarted: boolean | undefined;
+
+    await act(async () => {
+      headerStart = header.result.current.startAgentCall(AGENT, ORIGIN);
+      profileStarted = await profile.result.current.startAgentCall(AGENT, ORIGIN);
+    });
+    expect(profileStarted).toBe(false);
+    expect(profile.result.current.loading).toBe(true);
+
+    const incomingCall = { dispose: vi.fn() };
+    act(() => getDefaultStore().set(callEmbedAtom, incomingCall as never));
+    resolveRoom({ roomId: '!call:mindroom.test' });
+    let headerStarted: boolean | undefined;
+    await act(async () => {
+      headerStarted = await headerStart;
+    });
+
+    expect(headerStarted).toBe(false);
+    expect(mocks.createAgentVoiceRoom).toHaveBeenCalledOnce();
+    expect(mocks.startCall).not.toHaveBeenCalled();
+    expect(mocks.cleanupCreatedAgentCall).toHaveBeenCalledWith(
+      mx,
+      '!call:mindroom.test',
+      '@mindroom_helper:mindroom.test'
+    );
+    expect(getDefaultStore().get(callEmbedAtom)).toBe(incomingCall);
+    expect(incomingCall.dispose).not.toHaveBeenCalled();
+    expect(profile.result.current.loading).toBe(false);
   });
 });
