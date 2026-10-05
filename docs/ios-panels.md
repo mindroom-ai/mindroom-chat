@@ -6,9 +6,15 @@ The app reads `capacitor://localhost/config.json` from its bundle on each launch
 It does not fetch the web deployment's configuration.
 
 `config.mindroom.ios.json` overlays the ordinary `config.mindroom.json` for this hosted iOS build.
-It enables canvases and jsDelivr npm libraries; computers remain disabled until a compatible service is deployed.
+It enables canvases and jsDelivr npm libraries; computers remain disabled until a service is configured.
 Only agents managed by the configured computer service can open computers there.
-After deploying [the native-origin backend change](https://github.com/mindroom-ai/mindroom/pull/2680) and updating its allowlist, set `MINDROOM_IOS_COMPUTER_API_URL=https://mindroom.lab.mindroom.chat` in the build environment to enable the lab service.
+In **Settings → General → Computers**, choose **Use MindRoom Lab**, then **Save computer service**, or enter the HTTPS origin of another trusted compatible backend.
+The setting is stored only on this device and persists across launches; it does not sync through Matrix account data.
+The chosen backend receives a short-lived Matrix OpenID sign-in token, never the Matrix access token.
+Save a blank URL to disable computers, or choose **Use app default** to restore deployment configuration.
+Changing the service closes the existing computer session and clears its control state.
+Lab usage requires deployment of [the native-origin backend change](https://github.com/mindroom-ai/mindroom/pull/2680) and an updated allowlist.
+Operators can optionally set `MINDROOM_IOS_COMPUTER_API_URL=https://mindroom.lab.mindroom.chat` in the build environment after rollout to make it the app default.
 The hosted Matrix/provisioning origin has no computers endpoint; the lab service currently rejects native origins.
 For Xcode Cloud, set the variable in the workflow environment before building.
 Operators can select another compatible service with this variable, or disable computers by setting it to an empty string.
@@ -23,6 +29,7 @@ See [the computer deployment guide](https://docs.mindroom.chat/tools/worker-comp
 Canvases retain their opaque sandbox, restrictive CSP, and two-frame navigation containment.
 Library loading permits only `https://cdn.jsdelivr.net/npm/` scripts, styles, and fonts.
 Phones use the existing full-screen panel, including safe-area padding and a close button; the hidden canvas conversation is unmounted.
+Long canvas titles shrink while the version controls and close button keep their full width, verified at a 320px viewport.
 The native bridge checks WebKit's frame metadata before plugin/Cordova messages or synchronous cookie/HTTP prompts, and Capacitor injects bridge scripts only into the main frame.
 Android also requires its frame-aware bridge; legacy bridge fallbacks and synchronous interfaces are disabled, with SystemBars viewport handling invoked from a native page-commit callback.
 
@@ -32,7 +39,23 @@ The security tests check actual plugin side effects and cookie mutation from bot
 The native origin test records a real WebKit OPTIONS preflight and bearer-header GET against a disposable loopback API using the shipping transport settings.
 No acceptance code, test plugins, or test fixtures enter the shipping app.
 
-The [simulator CI run](https://github.com/mindroom-ai/mindroom-chat/actions/runs/37243530319) passed all 25 routing/security tests and retained this screenshot of the production canvas document loading Chart.js from jsDelivr.
-This checks the native canvas document and bridge; full application version switching, sending errors to an agent, and controlling a deployed computer still require app acceptance verification.
+The [simulator CI run](https://github.com/mindroom-ai/mindroom-chat/actions/runs/37250210887) built the shipping app and passed all 26 routing/security/origin tests.
+It uploads an unsigned arm64 simulator app as `ios-simulator-app`, plus the native XCTest result and logs as `ios-routing-results`.
 
-![Production canvas document in the native simulator test](screenshots/ios-canvas-chart-js.png)
+Full application acceptance used that app on a disposable iPhone 17 Pro simulator running iOS 26.2.
+Only the downloaded test artifact's Matrix/UI-action configuration was changed to select disposable fixtures; the bundled computer default stayed empty.
+The compatible loopback computer service, running the backend PR with an explicit native-origin allowlist, was selected through the app's Settings.
+The saved service persisted through installation and relaunch of the final CI app.
+Credentials were seeded into simulator app data, never the bundle or repository.
+Chart.js loaded from the real allowed jsDelivr npm URL, rendered, and responded to a tap.
+A Matrix edit offered **Load update**, loaded version two, and the version control returned to the original Chart.js page.
+**Tell Writer** sent the canvas error, with its agent mention and originating thread verified on Matrix.
+The computer displayed the real worker browser, accepted **Take control**, received `native-ios-control` through the simulator keyboard, and returned to Watch mode with **Resume agent**.
+The agent's browser snapshot and input readback both contained that value.
+
+![Computer settings with the Lab preset filled before Save](screenshots/ios-app-computer-settings.png)
+![Chart.js in the full iOS app](screenshots/ios-app-canvas-chart-js.png)
+![Returning to canvas version one](screenshots/ios-app-canvas-version-one.png)
+![Canvas errors sent to the agent](screenshots/ios-app-canvas-error-sent.png)
+![Controlling and typing into the worker browser](screenshots/ios-app-computer-control.png)
+![Worker returned to Watch mode after resuming the agent](screenshots/ios-app-computer-resumed.png)
