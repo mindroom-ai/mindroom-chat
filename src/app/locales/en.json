@@ -69,7 +69,8 @@
         "save": "Save computer service",
         "lab": "Use MindRoom Lab",
         "reset": "Use app default",
-        "invalidUrl": "Enter an HTTPS origin without credentials, a path, query, or fragment. HTTP is allowed only for localhost.",
+        "invalidUrl": "Enter an origin without credentials, a path, query, or fragment. Use HTTPS, or HTTP with localhost or a private LAN IP address.",
+        "httpNotice": "HTTP does not encrypt your sign-in or computer traffic. Use it only on a trusted local network.",
         "saveFailed": "Could not save the computer service on this device.",
         "saved": "Computer service saved."
       },

@@ -143,7 +143,8 @@
         "save": "Bilgisayar hizmetini kaydet",
         "lab": "MindRoom Lab kullan",
         "reset": "Uygulama varsayılanını kullan",
-        "invalidUrl": "Kimlik bilgisi, yol, sorgu veya parça içermeyen bir HTTPS kaynağı girin. HTTP yalnızca localhost için kullanılabilir.",
+        "invalidUrl": "Kimlik bilgisi, yol, sorgu veya parça içermeyen bir origin girin. HTTPS veya localhost ya da özel bir LAN IP adresiyle HTTP kullanın.",
+        "httpNotice": "HTTP, oturum açma bilgilerinizi veya bilgisayar trafiğini şifrelemez. Yalnızca güvenilir bir yerel ağda kullanın.",
         "saveFailed": "Bilgisayar hizmeti bu cihazda kaydedilemedi.",
         "saved": "Bilgisayar hizmeti kaydedildi."
       }

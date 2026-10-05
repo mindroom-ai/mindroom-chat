@@ -143,7 +143,8 @@
         "save": "儲存電腦服務",
         "lab": "使用 MindRoom Lab",
         "reset": "使用應用程式預設值",
-        "invalidUrl": "請輸入不含憑證、路徑、查詢或片段的 HTTPS 來源。HTTP 僅允許用於 localhost。",
+        "invalidUrl": "請輸入不含憑證、路徑、查詢或片段的來源。請使用 HTTPS，或對 localhost 或私人區域網路 IP 位址使用 HTTP。",
+        "httpNotice": "HTTP 不會加密您的登入資訊或電腦流量。請僅在可信任的區域網路上使用。",
         "saveFailed": "無法在此裝置上儲存電腦服務。",
         "saved": "電腦服務已儲存。"
       }

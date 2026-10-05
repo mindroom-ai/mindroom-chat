@@ -2,6 +2,19 @@
 
 ## Runbook
 
+### Allow local HTTP computer services (2026-10-05)
+
+- Follow-up to merged Chat #384 and backend #2680, requested for MindRoom servers hosted on a local network without TLS.
+  The existing URL field and explicit Save accept HTTP for loopback, literal RFC 1918 IPv4 addresses, and IPv6 unique-local addresses (fc00::/7).
+  Public IPs and DNS names still require HTTPS; credentials, paths, queries and fragments remain refused.
+  The settings form explains that HTTP leaves sign-in and computer traffic unencrypted before Save; no extra setting or backend API is added.
+- A disposable iOS 26.2 simulator running the shipping native shell reached the Mac’s RFC 1918 LAN IP over HTTP with actual native-origin preflight and a bearer header, then exchanged data over WebSocket.
+  Shipping ATS settings were unchanged; only the copied test artifact’s index page was replaced by a transport probe with dummy credentials.
+  Physical-device verification is unavailable because no iPhone is connected, and the local Xcode platform remains incomplete.
+- Validation: all 6,162 unit tests in 661 files pass, including 66 focused computer/settings/config tests; typecheck, lint (17 existing warnings), web build and iOS build pass.
+  This is a separate follow-up with independent Astra, GPT-6.1 Sol and Vertex Opus 5.5 review required before merge.
+  The first three-model review approved the implementation; Qodo then identified a redundant IPv4 length check, which is removed before final review.
+
 ### Enable native canvases and computer panels safely (2026-10-04)
 
 - Bridge step implemented and independently reviewed: reject every subframe in Capacitor's iOS plugin message handler and synchronous cookie/HTTP prompt handler before parsing its payload.
@@ -52,7 +65,8 @@
   That final app ran locally with an empty bundled computer default; native Settings selected the fixture service, persisted across installation/relaunch, and controlled the worker through native keyboard input and Resume.
   Fresh screenshots cover the settings preset, Chart.js touch tooltip, unclipped version controls, current error delivery, and computer control/resume.
   The focused browser canvas and settings-driven worker computer tests both pass.
-- Delivery: [backend #2680](https://github.com/mindroom-ai/mindroom/pull/2680) is merged; [Chat #384](https://github.com/mindroom-ai/mindroom-chat/pull/384) is being updated with current dev before its authorized merge.
+- Delivery: [backend #2680](https://github.com/mindroom-ai/mindroom/pull/2680) and [Chat #384](https://github.com/mindroom-ai/mindroom-chat/pull/384) are merged.
+  Updated Chat head passed CI, including the native tests, and fresh Astra, GPT-6.1 Sol and Vertex Opus 5.5 reviews approved it before merge.
   Current dev was merged after its thread-cycle fix advanced the base; both Runbook entries are preserved.
   The full browser scheduler ran all 145 jobs with eight parallel slots: 108 passed, 36 failed, and the external worker fixture was initially unavailable.
   A quiet rerun recovered resource-sensitive failures; canvas/UI action fixtures now align real sync delivery with a disposable Docker server clock running about 64 ms ahead, restore foreground before new requests, and clean up long polls at teardown.

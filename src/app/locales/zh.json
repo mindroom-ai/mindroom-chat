@@ -143,7 +143,8 @@
         "save": "保存计算机服务",
         "lab": "使用 MindRoom Lab",
         "reset": "使用应用默认值",
-        "invalidUrl": "请输入不含凭据、路径、查询或片段的 HTTPS 来源。HTTP 仅允许用于 localhost。",
+        "invalidUrl": "请输入不含凭据、路径、查询或片段的源。请使用 HTTPS，或对 localhost 或私有局域网 IP 地址使用 HTTP。",
+        "httpNotice": "HTTP 不会加密您的登录信息或计算机流量。请仅在可信任的局域网上使用。",
         "saveFailed": "无法在此设备上保存计算机服务。",
         "saved": "计算机服务已保存。"
       }

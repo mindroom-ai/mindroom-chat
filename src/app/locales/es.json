@@ -143,7 +143,8 @@
         "save": "Guardar servicio de ordenadores",
         "lab": "Usar MindRoom Lab",
         "reset": "Usar configuración de la app",
-        "invalidUrl": "Introduce un origen HTTPS sin credenciales, ruta, consulta ni fragmento. HTTP solo se permite para localhost.",
+        "invalidUrl": "Introduce un origen sin credenciales, ruta, consulta ni fragmento. Usa HTTPS, o HTTP con localhost o una dirección IP privada de la red local.",
+        "httpNotice": "HTTP no cifra el inicio de sesión ni el tráfico del ordenador. Úsalo solo en una red local de confianza.",
         "saveFailed": "No se pudo guardar el servicio de ordenadores en este dispositivo.",
         "saved": "Servicio de ordenadores guardado."
       }
