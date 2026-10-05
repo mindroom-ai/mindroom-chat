@@ -28,6 +28,7 @@
   The compact spec clicks with `page.mouse`, because a locator click first scrolls a card the glass header overlaps, which moved the overview 30 px before it was left.
 - Validation: typecheck, build and lint pass (18 existing warnings on `dev`); `npm test` passes apart from the four `xcodeCloudPostClone` and `useRoomInputSendSessionController` failures that fail the same way on `dev`.
   The two live specs passed twice more after the review fixes, and again with `cinny015-thread-exit-scroll` after rebasing onto `dev` at #394.
+  After the Qodo fixes, typecheck, lint, build and `npm test` (same four failures) were rerun, and `compact-scroll-memory`, `sidebar-scroll-memory`, `cinny073-recent-threads-mobile` (row pitch with the new content `div`), `cinny015-thread-exit-scroll` and `compact-thread-cards` passed 12 of 12.
 - Review: an independent subagent review found that the first version kept re-applying the saved rows on every resize until the reader scrolled, so a card leaving in view made the list jump a card (reproduced: 300 to 260 px); the follow now stops when the placed rows move apart.
   It also found the `Scroll` mock dropping the ref; the mock forwards it and the collapse test covers the wiring.
   Re-review approved with nits: a tie could flip during the follow and end it early, so later steps now follow the placed rows; its note that the collapse test shares module memory with the file's other tests needs no change, because the test scrolls the list itself before collapsing.
