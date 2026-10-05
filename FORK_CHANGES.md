@@ -2,6 +2,16 @@
 
 ## Runbook
 
+### Keep hearing room members after a gappy sync (2026-10-05)
+
+- Report: found while reviewing PR #399. After a gappy (`limited`) sync, for example when a backgrounded tab or a sleeping phone catches up, the client stopped hearing typing for everyone already in the room until reload; an agent that started typing showed nothing.
+- Root cause: matrix-js-sdk `EventTimelineSet.resetLiveTimeline`. With timeline support and a forward token (mindroom-chat sets `timelineSupport: true` and no `canResetEntireTimeline`, so every gappy sync takes this path), the new live timeline got `fork()`, a clone of the room state with new `RoomMember` objects.
+  Sync forwards a member's `Typing`, `Name`, `PowerLevel` and `Membership` events to the client when the live state first emits `NewMember` for it, and the clone emitted those before anything listened, so the new members stayed silent. The clone also dropped each member's typing state.
+  The function's own comment says the live state moves to the new live timeline so its listeners stay attached, and the full-reset path (`forkLive`) does that. Upstream `b33a47e253` (2017, "Fix member events breaking on timeline reset") moved it on both paths; the 2018 lazy-loading refactor `88f2f62945` brought the clone back on this one, and upstream `develop` (v43) still has it.
+- Fix: the SDK patch uses `forkLive` on both paths, so the new live timeline keeps the live state and its members, and the old timeline gets the copy, as on the full-reset path. One line in `src` and `lib`, upstreamable as is; upstream's `should reset the legacy timeline fields` spec would then expect no `CurrentStateUpdated` with timeline support either.
+  The typing recheck from #399 is now needed only for rooms we left, and its comment says so.
+- Tests: `typingMembers.test.tsx` replaces #399's test of the replaced members: after a gappy-sync reset a typing agent stays shown, and its stop and next start are heard (fails without the SDK change).
+
 ### Rewrite the README around the product (2026-10-05)
 
 - Status: implementation, review, and publication on `docs/readme-product-first`; PR #397 tracks the change.
