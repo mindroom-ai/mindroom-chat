@@ -8,19 +8,23 @@
 - The room header has a phone button in rooms with MindRoom agents, in the room view and in an open thread, but not in a call room.
   Its candidates are joined members that are MindRoom agents on the viewer's homeserver and whose presence advertises `📞 Voice calls`, sorted by display name (`getAgentCallCandidates`); the button follows presence changes.
   With one candidate a click starts the call; with several it opens a menu to choose from; with none the button is hidden.
-  While calling is unavailable (no MatrixRTC, no WebRTC, or another call is active) the button is disabled and its tooltip says why; a failed start shows in the tooltip.
+  While calling is unavailable (no MatrixRTC, no WebRTC, or another call is active) the button is disabled and its tooltip says why.
+  A failed start (for example, a blocked microphone) opens a small dismissible notice under the button, because phones have no hover to show a tooltip; the tooltip is held back while the notice is open so it cannot cover it.
+  The button's accessible name stays the action (**Call Helper**, **Call an agent**), and the reason is its description.
 - The profile's **Call** stays.
   It stamps the open thread when the profile's room is the selected room and the route has a `threadId`, and otherwise stamps the room; the profile closes once the call starts.
+- Both entry points stamp a thread only when its id is a confirmed Matrix event id (`isConfirmedMatrixEventId`); while a new thread's root is still a local echo, the call stamps the room.
 - Both entry points share `useStartAgentCall` (microphone check, room creation, join wait, start, cleanup on failure), and neither navigates any more.
   The user stays in the thread; the `CallStatus` bar shows the call with mute and hang-up, and clicking it opens the call room.
 - The `io.mindroom.agent_call` state gains an optional `origin: { room_id, thread_id }`, where `thread_id` is `null` for a call from a room's main timeline.
   `version` stays `1`, and an older backend ignores the field.
   The backend checks the origin before it reads the thread into the call and posts the transcript back (mindroom-ai/mindroom companion PR).
 - Files: `calls/agentCall.ts`, `calls/useStartAgentCall.ts`, `calls/agentCallCandidates.ts`, `calls/AgentCallHeaderButton.tsx`, `calls/AgentCallButton.tsx`, `threads/MindroomRoomViewHeader.tsx`, `components/user-profile/UserRoomProfile.tsx`, and three strings under `mindroomUi.calls.agentCallHeaderButton` in all 17 catalogs.
-- Tests: `agentCall.test.ts` (origin stamp), `useStartAgentCall.test.tsx` (start flow without navigation), `agentCallCandidates.test.ts`, `AgentCallHeaderButton.test.tsx` (hidden, one agent, several, presence, unavailable, error), `AgentCallButton.test.tsx` (origin from the route, no navigation), and `RoomViewHeader.test.ts` (placed before Members).
+- Tests: `agentCall.test.ts` (origin stamp), `useStartAgentCall.test.tsx` (start flow without navigation), `agentCallCandidates.test.ts`, `AgentCallHeaderButton.test.tsx` (hidden, one agent, several, presence, local-echo root, unavailable, visible failure notice), `AgentCallButton.test.tsx` (origin from the route, local-echo root, no navigation), and `RoomViewHeader.test.ts` (placed before Members).
 - Validation: typecheck, production build, ESLint and Prettier on the touched files pass.
   The full unit suite passes (6,102 tests) except the four that also fail on unchanged `dev` (three `xcodeCloudPostClone` tests and the caption send-failure test).
   Against a disposable Tuwunel with three agents (two advertising voice calls), the header shows **Call Helper** in a one-agent room and a two-entry menu in a three-agent room, and choosing an agent starts the call while the URL stays on the thread.
+  At phone width with no microphone available, the click shows the notice "No microphone was found on this device." under the button, and **Close** dismisses it.
 - Next: hide ephemeral agent-call rooms from the room list together with a startup sweep for orphaned ones, and rank candidates by thread participation.
 
 ### Stop the reconcile from linking thread segments into a cycle that froze the app (2026-10-04)
