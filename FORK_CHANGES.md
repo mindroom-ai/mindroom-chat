@@ -13,6 +13,7 @@
   Its next-frame update, which already published `scroll-padding-top`, now reads the scroll offset, sets the new height and reports the change (`holdThreadBannerResize`), all before that frame's layout.
   When the reader has a row (the previous entry's anchor), the offset moves by the change, as native scroll anchoring would; written from the offset read first, it cannot be clamped at the bottom.
   A reader above the first row sees the banner push the content, as with Load Older.
+  A reader at the very top (`scrollTop` 0, whose anchor is the root) is left there, and the write clears the settle-discard watch and reseeds the boundary baseline, as a settle does.
   The change is written at once rather than folded into the ledger: a fold's settle at rest landed after a scroll the reader started meanwhile, cancelling a wheel scroll that had not moved yet in WebKit, or, once that waited, leaving a reader who scrolled to the top 11 px short of it (`thread-banner-overlay` on WebKit failed 3 of 4 runs).
   A banner change during iOS momentum would stop it; the banner changes rarely and not in response to scrolling.
   The reader's line (`scroll-padding-top`) now changes in the same frame as the rows, so the commit after a banner resize no longer reads a stale inset (review note N1); the first commit after opening still reads the header-only inset.
