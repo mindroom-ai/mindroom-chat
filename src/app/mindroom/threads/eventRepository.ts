@@ -20,7 +20,6 @@ import {
   normalizeCachedThreadEvents,
   saveRoomEventsToCache as saveRoomEventsToCacheToStorage,
   saveRoomEventsToCacheCommitted,
-  saveThreadEventsToCache as saveThreadEventsToCacheToStorage,
   saveThreadEventsToCacheCommitted,
   type CachedRoomEventPage,
   type CachedThreadEvent,
@@ -138,7 +137,7 @@ export const createPreferLiveEventMapper =
 type ThreadCursorAnchor = ReturnType<typeof getCachedThreadCursorAnchor>;
 
 type SaveThreadEventsToCache = (
-  ...args: Parameters<typeof saveThreadEventsToCacheToStorage>
+  ...args: Parameters<typeof saveThreadEventsToCacheCommitted>
 ) => Promise<void | boolean>;
 type SaveRoomEventsToCache = (
   ...args: Parameters<typeof saveRoomEventsToCacheToStorage>
@@ -927,7 +926,7 @@ export const persistThreadEventCacheSnapshot = ({
   relationSnapshotMode,
   authoritativeRawEvents,
   writeLease,
-  save = saveThreadEventsToCacheToStorage,
+  save = saveThreadEventsToCacheCommitted,
 }: PersistThreadEventCacheSnapshotArgs): ThreadEventCacheSnapshotWrite => {
   const resolvedRootEvent = rootEvent ?? undefined;
   const loadedReplyCount = buildThreadReplyCountMap(events).get(threadId) ?? 0;
@@ -1032,7 +1031,7 @@ export const persistThreadCacheFromRoomEventsSnapshot = ({
   opts,
   getSeedSnapshot = getThreadOpenSeedSnapshot,
   saveSeedSnapshot = saveThreadOpenSeedSnapshot,
-  saveThreadSnapshot = saveThreadEventsToCacheToStorage,
+  saveThreadSnapshot = saveThreadEventsToCacheCommitted,
 }: {
   sessionId: string;
   room: Room;

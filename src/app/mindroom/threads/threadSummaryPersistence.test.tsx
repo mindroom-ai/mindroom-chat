@@ -563,3 +563,66 @@ it('publishes no summary when the event write does not commit', async () => {
   expect(getThreadSummaryStateSnapshot(sessionId, roomId).has('$root')).toBe(false);
   clearThreadSummarySharedState(sessionId);
 });
+
+it('does not publish an edited title whose write did not commit', async () => {
+  const sessionId = 'summary-uncommitted-edit';
+  const roomId = '!summary-uncommitted-edit:test';
+  const mx = createClient({ baseUrl: 'https://matrix.example', userId: '@reader:example' });
+  const room = new Room(roomId, mx, mx.getSafeUserId());
+  persistThreadEventCacheSnapshot({
+    sessionId,
+    room,
+    threadId: '$root',
+    events: [summaryNotice(roomId, '$summary', 'First title', 1000)],
+  });
+  await vi.waitFor(async () => {
+    expect((await loadCachedThreadSummaries(sessionId, roomId)).get('$root')?.summaryText).toBe(
+      'First title'
+    );
+  });
+  const edited = summaryNotice(roomId, '$summary', 'First title', 1000);
+  edited.makeReplaced(
+    new MatrixEvent({
+      event_id: '$edit',
+      room_id: roomId,
+      type: 'm.room.message',
+      origin_server_ts: 2000,
+      content: {
+        msgtype: 'm.notice',
+        body: '* Edited title',
+        'm.new_content': {
+          msgtype: 'm.notice',
+          body: 'Edited title',
+          'io.mindroom.thread_summary': {
+            version: 1,
+            summary: 'Edited title',
+            generated_at: new Date(2000).toISOString(),
+          },
+        },
+        'm.relates_to': { rel_type: 'm.replace', event_id: '$summary' },
+      },
+    })
+  );
+  // The cache still holds the unedited notice, so only the commit result can stop this title.
+  const transaction = vi.spyOn(IDBDatabase.prototype, 'transaction').mockImplementationOnce(() => {
+    throw new DOMException('Temporarily unavailable', 'InvalidStateError');
+  });
+  try {
+    const { write } = persistThreadEventCacheSnapshot({
+      sessionId,
+      room,
+      threadId: '$root',
+      events: [edited],
+    });
+    expect(await write).toBe(false);
+  } finally {
+    transaction.mockRestore();
+  }
+  await new Promise((resolve) => {
+    setTimeout(resolve, 50);
+  });
+  expect(getThreadSummaryStateSnapshot(sessionId, roomId).get('$root')?.summaryText).toBe(
+    'First title'
+  );
+  clearThreadSummarySharedState(sessionId);
+});

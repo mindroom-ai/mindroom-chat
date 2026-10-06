@@ -11,6 +11,7 @@
 - Fix: `persistThreadEventCacheSnapshot`, which every thread cache write goes through (live write-through, thread fetches, reconciler repairs, and room history batches grouped by thread root), publishes the batch's summary notices through `storeThreadSummaryInState` once the batch's cache write has committed.
   It first reads each notice back from the thread cache (`loadCachedThreadEvent`) and publishes only those stored unredacted, because the save refuses a copy of a notice whose redaction it recorded, in the same batch or in an earlier write.
   A write that does not commit publishes nothing, and nothing is published once the write's cache lease is revoked, for example when a room's offline content is cleared.
+  The thread snapshot writers now default to `saveThreadEventsToCacheCommitted` instead of `saveThreadEventsToCache`, which resolves without that result, so writes through the persist facade (thread fetches and room pagination) report it too; live write-through, history chunks and reconciler repairs already did.
   The existing selection rules pick the title, and the shared state saves it to `thread_summaries`, so the overview card and the thread banner read it from the same place with no room view mounted.
   The event write does not wait for any of this, and a batch without a summary notice does no summary work.
   Room cache writes need no change, because they leave out thread replies, which reach the thread writer.
@@ -19,18 +20,25 @@
   A batch without summary notices opens no `thread_summaries` transaction.
   A stale unredacted copy of a notice does not become the title when its redaction is in the same batch (thread history and a reconciler repair) or was cached by an earlier write; the earlier-write case failed before the read-back.
   A write that does not commit, or whose lease is revoked before the title is published, publishes no summary; the uncommitted case failed before the change to publish after the commit.
+  An edit of a cached notice whose write fails through the default writer is not published, although the read-back finds the unedited notice; it fails without the commit check and with the previous default writer.
   `e2e/live/thread-summary-background-cache.spec.ts`: a summary sent while another room is open, followed by 60 replies, shows on the overview card and the thread banner after an offline reload whose saved SDK sync no longer holds the notice.
   It failed 3 of 3 runs on a `dev` build (the card showed the root and latest reply) and passed 3 of 3 with the fix, on a local Tuwunel stack in Chromium.
   After the change to publish only after the commit, it passed 3 of 3 runs again.
-- Validation: 6,434 of 6,437 unit tests pass; the 3 `xcodeCloudPostClone.test.ts` failures come from a shell script that needs `bash` in `/usr/bin` or `/bin`, which this NixOS host lacks.
+- Validation: 6,434 of 6,438 unit tests pass; the 3 `xcodeCloudPostClone.test.ts` failures come from a shell script that needs `bash` in `/usr/bin` or `/bin`, which this NixOS host lacks, and one `canvasDocument.test.ts` case failed in the full run and passes 3 of 3 runs with its file alone.
   Typecheck, lint (0 errors, 18 existing warnings), production build, and Prettier on the touched files pass.
-  The live specs `cinny060-thread-summary-consistency`, `cinny061-thread-summary-cache-upgrade` and `cinny207-stop-emoji-redaction` pass in Chromium, and `offline-thread-overview` passed in Chromium before that change; WebKit cannot start on this host.
+  The live specs `cinny060-thread-summary-consistency`, `cinny061-thread-summary-cache-upgrade` and `cinny207-stop-emoji-redaction` pass in Chromium after the change to publish only after the commit, and `offline-thread-overview` passed in Chromium before that change; WebKit cannot start on this host.
+  The live specs were not run again after the writer default changed.
 - Review: an independent review found no blockers; its findings added the lease check and the skip for notices without text.
   Qodo then found that a title was published before its write committed, and that a stale copy of a notice redacted in an earlier write could bring its title back; publishing after the commit, only what the cache stored, fixes both.
+  A later review found that the default writer discarded the commit result, which the change of default fixes.
 - Not changed:
   - Caches written before this change are not repaired, and there is no background scan; opening a thread still publishes its summary, and summary notices cached from now on are recorded.
   - The room view's own summary publishers are unchanged; prefetch can still publish a fetched stale copy of a notice whose redaction was already saved, as before this change.
-  - A redaction that arrives while a room's first summary read is pending, or while a just-cached notice is being read back, can still bring its title back; each window lasts one IndexedDB read, and room view writers could already hit the first.
+  - A redaction that arrives while a room's first summary read is pending can still bring its title back; room view writers could already hit this.
+  - A redaction that arrives while a just-cached notice is being read back can also bring its title back.
+    A redaction that arrives during the save creates its scrub transaction before the read-back's read, so the read-back sees it; the window is that single read.
+  - A stale fetched copy of a notice that carries an edit redacted earlier can still publish the edit's text, because the read-back checks the notice, not its edit.
+    Servers prune redacted edits, so this needs a copy from the homeserver's short stale-copy window, and encrypted rooms cache ciphertext, so the cached record cannot supply the title instead.
 
 ### Reproduce Rivera household App Store screenshots (2026-10-01)
 
