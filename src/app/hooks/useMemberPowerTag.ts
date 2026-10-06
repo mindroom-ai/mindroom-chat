@@ -8,6 +8,7 @@ import { useRoomCreatorsTag } from './useRoomCreatorsTag';
 import { ThemeKind } from './useTheme';
 import { accessibleColor } from '../plugins/color';
 import { mxcUrlToHttp } from '../utils/mediaUrl';
+import { JUMBO_EMOJI_REG } from '../utils/regex';
 
 export type GetMemberPowerTag = (userId: string) => MemberPowerTag;
 
@@ -39,10 +40,15 @@ export const getPowerTagIconSrc = (
   mx: MatrixClient,
   useAuthentication: boolean,
   icon: MemberPowerTagIcon
-): string | undefined =>
-  icon?.key?.startsWith('mxc://')
-    ? mxcUrlToHttp(mx, icon.key, useAuthentication, 96, 96, 'scale') ?? '🌻'
-    : icon?.key;
+): string | undefined => {
+  const key = icon?.key;
+  if (!key) return undefined;
+  if (key.startsWith('mxc://')) {
+    return mxcUrlToHttp(mx, key, useAuthentication, 96, 96, 'scale') ?? '🌻';
+  }
+  // Any other key must be an emoji; never load it as an image URL.
+  return JUMBO_EMOJI_REG.test(key) ? key : undefined;
+};
 
 export const useAccessiblePowerTagColors = (
   themeKind: ThemeKind,
