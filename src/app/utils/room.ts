@@ -355,7 +355,9 @@ export const getDirectRoomAvatarUrl = (
 };
 
 export const trimReplyFromBody = (body: string): string => {
-  const match = body.match(/^> <.+?> .+\n(>.*\n)*?\n/m);
+  // The fallback starts the body, and its sender ends at the first `> `: trying every later
+  // start or split backtracked quadratically on bodies with no closing blank line.
+  const match = body.match(/^> <.(?:(?!> ).)*> .+\n(?:>.*\n)*\n/);
   if (!match) return body;
   return body.slice(match[0].length);
 };
@@ -556,8 +558,10 @@ export const getEditedEvent = (
 
   const edits = getEventEdits(timelineSet, mEventId, mEvent.getType());
   const relations = edits?.getRelations() ?? [];
+  // The SDK aggregates edits from every sender; only the original sender's may
+  // pick the shown edit or supply its metadata fallbacks.
   const candidateEdits = [...relations, replacingEvent, serializedReplacement].filter(
-    (editEvent): editEvent is MatrixEvent => !!editEvent
+    (editEvent): editEvent is MatrixEvent => isSameSenderEditEvent(mEvent, editEvent)
   );
   const latestEdit = getLatestEdit(mEvent, candidateEdits);
   logEditDebug('getEditedEvent:resolved', {

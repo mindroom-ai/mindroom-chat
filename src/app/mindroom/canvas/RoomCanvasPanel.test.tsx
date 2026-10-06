@@ -13,6 +13,7 @@ import {
 } from 'matrix-js-sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CanvasPanelProps } from './CanvasPanel';
+import type { CanvasSaved } from './canvasDocument';
 import { RoomCanvasPanel } from './RoomCanvasPanel';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -31,13 +32,13 @@ vi.mock('./useCanvasPage', () => ({
     canvas.html === undefined ? { status: 'loading' } : { status: 'ready', html: canvas.html },
 }));
 // Saved state is read from IndexedDB; these tests decide when it is ready.
-const saved = vi.hoisted(() => ({ ready: true, json: undefined as string | undefined }));
+const saved = vi.hoisted(() => ({ ready: true, value: {} as CanvasSaved }));
 vi.mock('./useCanvasSavedState', () => ({
   useCanvasSavedState: () => ({
     ready: saved.ready,
-    read: () => saved.json,
-    save: (json: string) => {
-      saved.json = json;
+    read: () => saved.value,
+    save: (change: CanvasSaved) => {
+      saved.value = { ...saved.value, ...change };
     },
   }),
 }));
@@ -135,7 +136,7 @@ beforeEach(() => {
   root = createRoot(container);
   panels.props = undefined;
   saved.ready = true;
-  saved.json = undefined;
+  saved.value = {};
   mx = Object.assign(new EventEmitter(), {
     getSafeUserId: () => VIEWER,
   }) as unknown as MatrixClient;
@@ -318,14 +319,23 @@ describe('RoomCanvasPanel', () => {
 
   it('starts the page only once its saved state is read', () => {
     saved.ready = false;
-    saved.json = '{"slots":[1]}';
+    saved.value = { json: '{"slots":[1]}', inputs: '{"#rate":"7"}' };
     render(request());
     expect(panels.props?.canvas).toMatchObject({ html: '', status: 'loading' });
     saved.ready = true;
     render(request());
     expect(panels.props?.canvas.html).toBe('<p>Step 1</p>');
     expect(panels.props?.canvas.status).toBeUndefined();
-    expect(panels.props?.savedState?.()).toBe('{"slots":[1]}');
+    expect(panels.props?.savedState?.()).toEqual({
+      json: '{"slots":[1]}',
+      inputs: '{"#rate":"7"}',
+    });
+    // Saving one part keeps the other.
+    panels.props?.onSaveState?.({ inputs: '{"#rate":"8"}' });
+    expect(panels.props?.savedState?.()).toEqual({
+      json: '{"slots":[1]}',
+      inputs: '{"#rate":"8"}',
+    });
   });
 
   it('shows the request and follows its edits', () => {

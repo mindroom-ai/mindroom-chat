@@ -31,8 +31,12 @@ import { testMatrixTo } from '../plugins/matrix-to';
 import { IImageContent } from '../../types/matrix/common';
 import { renderMindroomMessageContent } from '../mindroom/messages/renderMindroomMessageContent';
 import { getMindroomMessageStateSuffixRenderer } from '../mindroom/messages/messageStateSuffix';
-import { hasMindroomAgentMessageMetadata } from '../mindroom/matrix/agentIdentity';
+import {
+  hasMindroomAgentMessageMetadata,
+  isMindroomAgentUserIdForViewer,
+} from '../mindroom/matrix/agentIdentity';
 import { isMindroomVisibleRouterVoiceEcho } from '../mindroom/messages/transcribingPlaceholder';
+import { useMatrixClient } from '../hooks/useMatrixClient';
 
 type RenderMessageContentProps = {
   mEvent?: MatrixEvent;
@@ -78,15 +82,23 @@ export function RenderMessageContent({
   pendingSend,
   failedSend,
 }: RenderMessageContentProps) {
+  const mx = useMatrixClient();
   const content = getContent<Record<string, unknown>>();
   // MatrixEvent mutates in place when a replacement changes its content.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const owner = React.useMemo(() => getEventAttachmentOwner(mEvent), [mEvent, content]);
+  // Any sender can write MindRoom content keys, so they count only from MindRoom's own accounts.
+  const fromMindroomAgent = isMindroomAgentUserIdForViewer(
+    mEvent?.getSender(),
+    mx.getUserId() ?? undefined
+  );
   // Agent streaming and router transcription use edits to finish their messages.
   const edited =
     messageEdited &&
-    !hasMindroomAgentMessageMetadata(content) &&
-    !isMindroomVisibleRouterVoiceEcho(content);
+    !(
+      fromMindroomAgent &&
+      (hasMindroomAgentMessageMetadata(content) || isMindroomVisibleRouterVoiceEcho(content))
+    );
 
   const renderUrlsPreview = (urls: string[]) => {
     const filteredUrls = urls.filter((url) => !testMatrixTo(url));
@@ -175,6 +187,7 @@ export function RenderMessageContent({
 
   const mindroomContent = renderMindroomMessageContent({
     mEvent,
+    fromMindroomAgent,
     displayName,
     eventType,
     roomId,

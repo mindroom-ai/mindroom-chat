@@ -17,6 +17,11 @@ describe('MindRoom auth policy', () => {
     expect(isMindroomHomeserver('matrix.org')).toBe(false);
   });
 
+  it('matches the hosted homeserver by hostname, not by a path that ends like one', () => {
+    expect(isMindroomHomeserver('https://example.org/x.matrix.mindroom.chat')).toBe(false);
+    expect(isMindroomHomeserver('example.org/x.matrix.mindroom.chat')).toBe(false);
+  });
+
   it('forces the hosted homeserver onto SSO-only auth', () => {
     expect(shouldDisablePasswordLogin('mindroom.chat', undefined)).toBe(true);
     expect(shouldDisablePasswordLogin('https://123.matrix.mindroom.chat', undefined)).toBe(false);
