@@ -40,11 +40,10 @@ import {
   getCompactThreadRootPreviewInfo,
   mergeCompactThreadRootData,
 } from './compactThreadRootData';
-import { useStateEvents } from './useStateEvents';
+import { useScheduledTaskEvents } from './useScheduledTaskEvents';
 import { usePinnedEventIds } from './useThreadPinning';
 import { usePinnedThreadEvents } from './usePinnedThreadEvents';
 import { useRoomThreadList } from './useRoomThreadList';
-import { MINDROOM_SCHEDULED_TASK_EVENT } from './scheduledTaskContract';
 import {
   buildRoomThreadScheduledStatusMap,
   type ThreadScheduledStatus,
@@ -340,7 +339,7 @@ export const useMindroomThreadIndex = ({
         : buildThreadSummaryMap(loadedTimelineEvents),
     [threadId, loadedTimelineEvents]
   );
-  const scheduledTaskEvents = useStateEvents(room, MINDROOM_SCHEDULED_TASK_EVENT);
+  const scheduledTaskEvents = useScheduledTaskEvents(room);
   const scheduledStatusMap = useMemo(
     () =>
       threadId

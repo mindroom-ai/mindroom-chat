@@ -29,6 +29,7 @@ import {
 import { useApprovalActions } from './useApprovalActions';
 import { hydrateThreadApprovalEvents, mergeThreadApprovalEvents } from './threadApprovalEvents';
 import { collectThreadApprovals, ThreadApprovalRecord } from './threadApprovalModel';
+import { isMindroomAgentUserIdForViewer } from '../matrix/agentIdentity';
 
 export type ThreadApprovals = {
   roomId: string;
@@ -106,12 +107,16 @@ function ActiveThreadApprovalProvider({
   const fetching = useRef(false);
   const repairedOrigins = useRef(new Set<string>());
   const decryptionStarted = useRef(new WeakSet<MatrixEvent>());
+  const viewerId = mx.getUserId() ?? undefined;
+  // Only MindRoom sends approval cards; any member can post this event type.
   const records = useMemo(
     () =>
       collectThreadApprovals([...events.values()], room.roomId, threadId, now).filter(
-        (record) => !ignoredUsers.includes(record.sender)
+        (record) =>
+          isMindroomAgentUserIdForViewer(record.sender, viewerId) &&
+          !ignoredUsers.includes(record.sender)
       ),
-    [events, room.roomId, threadId, now, ignoredUsers]
+    [events, room.roomId, threadId, now, ignoredUsers, viewerId]
   );
   // Missing-key failures resolve in the SDK. Retained events own completeness,
   // so late keys and targeted repairs cannot leave a stale or premature success.

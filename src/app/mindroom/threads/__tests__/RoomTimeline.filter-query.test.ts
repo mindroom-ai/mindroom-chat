@@ -32,6 +32,10 @@ const { scheduledEventsByType } = vi.hoisted(() => ({
 vi.mock('../useStateEvents', () => ({
   useStateEvents: (_room: unknown, eventType: string) => scheduledEventsByType.get(eventType) ?? [],
 }));
+// The shared harness mocks Matrix ID parsing, so the hook's sender check cannot run here.
+vi.mock('../useScheduledTaskEvents', () => ({
+  useScheduledTaskEvents: () => scheduledEventsByType.get('com.mindroom.scheduled.task') ?? [],
+}));
 vi.mock('../useThreadLastActivityTs', () => ({
   getThreadLastActivityTs: () => 0,
   useThreadLastActivityTs: () => 0,

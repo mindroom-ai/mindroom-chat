@@ -22,6 +22,51 @@
   - A copy deleted from the room is gone: servers drop it from the relations, so the agent reads the copy before it.
   - Two devices editing the same canvas share their own copies; the agent reads the newest.
 
+### Trust MindRoom metadata only from the accounts that send it (2026-10-05)
+
+- Report: the client read MindRoom metadata from whoever sent it, so any room member could make other members' clients show content MindRoom never sent.
+  - Another sender's `m.replace` of an edited message added its message extras, thread summary, canvas `ui_action` or `m.mentions` to that message: `getEditedEvent` picked the original sender's latest edit, then filled missing keys from every replacement, whoever sent it.
+  - A member could edit their own message with no "(edited)" marker by adding `io.mindroom.stream_status`, `io.mindroom.ai_run`, `io.mindroom.tool_trace` or the router voice-echo flag to it.
+  - `io.mindroom.tool_approval` events from anyone became pending requests, receipts and timed permissions in the approval bar and review dialog, and live cards in the room timeline.
+  - `com.mindroom.scheduled.task` state from any member with state power showed in the Schedules dialog, its badge and the thread scheduled indicators, with any owner.
+- Backend rules: approval cards come from the router account (`approval_transport.py`), scheduled-task state counts only from MindRoom's own bot accounts (`scheduling.py`), and agent stream metadata and voice echoes come from agents and the router.
+- Fix: edit candidates are limited to the original sender before the latest edit is chosen and before its metadata fallbacks are copied.
+  The edited-marker exemption, approval records and cards, and scheduled-task state now require a MindRoom account on the viewer's homeserver (`isMindroomAgentUserIdForViewer`, as for agent canvases and calls).
+  Scheduled-task readers share `useScheduledTaskEvents`.
+- Limits: agents on another homeserver than the viewer, and agents renamed away from the `mindroom_` prefix, now show "(edited)" on finished streams and their approval cards and schedules are not shown; `mindroom_` accounts on the viewer's own homeserver still pass, so operators must keep reserving that namespace.
+- Tests: `room.test.ts` (another sender's edit adds no metadata and leaves the agent's edit unchanged), `RenderMessageContent.test.ts` (a human or foreign-server sender with agent metadata or the voice-echo flag keeps "(edited)"), `renderMindroomMessageContent.test.ts` and `ThreadApprovalProvider.test.tsx` (cards from a member or a foreign-server agent are not cards or records), `useThreadScheduledTasks.test.ts` (tasks from a member or a foreign-server agent are not counted); each fails without its fix.
+  The live approval and schedule specs and the App Store seeder now send those events from a registered `mindroom_` account, and the schedules fixture uses one.
+
+### Match MindRoom homeservers by hostname (2026-10-05)
+
+- Problem: `normalizeHomeserverName` in `src/app/mindroom/auth/authPolicy.ts` only stripped the scheme and trailing slashes, so `isMindroomHomeserver` suffix-matched the host plus the path.
+  A base URL such as `https://example.org/x.matrix.mindroom.chat` counted as a MindRoom tenant, and on iOS the Apple provider then took the native Apple exchange, which posts the Apple credential to that base URL.
+- Fix: `normalizeHomeserverName` parses the server as a URL (adding `https://` to bare server names) and returns its hostname, or an empty string when it does not parse, so the exact `mindroom.chat` match and the dot-bounded `.matrix.mindroom.chat` suffix match apply to the hostname only.
+- Validation: `src/app/mindroom/auth/authPolicy.test.ts` pins that a path ending in the tenant suffix does not match; it fails before the fix and passes after.
+  `npm run typecheck`, `npm run build`, and ESLint and Prettier on the touched files pass; `npm test` fails only in `xcodeCloudPostClone.test.ts`, which needs `/bin/bash`, and one `useRoomInputSendSessionController.test.ts` case, which also fails on `dev`.
+
+### Keep one message from freezing or crashing the client for everyone (2026-10-05)
+
+- Problem: five message render paths could freeze the client, or replace it with the error page, for everyone who viewed one message.
+  - URL previews: `URL_REG` ended in a lookbehind that repeated its punctuation class, so it read a run of punctuation back from every position a URL could end at; `http://` followed by 100,000 dots took 3.4 s.
+  - Reply fallbacks: `trimReplyFromBody` let every `> ` end the quoted sender and, with the `m` flag, every line start a fallback, and each try rescanned the rest; a 40 KB line of `> ` pairs took 1.2 s, and 8,000 quote lines with no closing blank line took 0.8 s.
+    The `m` flag also matched a quote later in the body and then sliced that match's length off the start of the body.
+  - Display math: `tokenizeTextWithLatex` and `findDisplayLatexBlockMatch` rescanned to the end of the text from every line-start `$$` with no closing `$$`; 64 KB of `$$x` lines took about 3 s in each.
+  - Tool markers: `getToolRefPrefixFromElement` ran the marker regex over every prefix of a paragraph's leading children; a 64 KB paragraph took 2 s, and one with 20,000 `<code>` children took 6 s.
+  - File events: `MFile`, `MVideo` and `MAudio` passed `filename`, `body` and `info.mimetype` on unchecked, so a number or object threw in `FileHeader`, `FileContent` or the audio player, and the error page replaced the whole app until the event was redacted.
+- Fix:
+  - `URL_REG` checks only the character before the end: a repeated class ends at a position exactly when that character is in the class.
+  - `trimReplyFromBody` matches only at the start of the body, and the quoted sender ends at the first `> `, the only split that can match; a fallback at the start of the body is trimmed as before.
+  - Each text gets one display-math matcher, which remembers where a scan that reached a backtick or the end of the text stopped; a later opener before that point cannot close either and fails without scanning.
+  - `getToolRefPrefixFromElement` joins the leading children once and runs one anchored marker match; the marker prefixes are exactly those that end between the marker's `]` and the end of that match, so it takes the longest one that ends inside a text child or after another child, as before.
+  - The file renderers use `filename` or `body` only when it is a string, else their existing fallback name, and `MFile` uses `info.mimetype` only when it is a string, else `application/octet-stream`; `MVideo` and `MAudio` already normalized the MIME type.
+  - The URL, reply-fallback and file-field changes are in code inherited from Cinny and stay self-contained, so they can be offered upstream unchanged.
+- Tests: `regex.test.ts` (`URL_REG`), `room.test.ts` (`trimReplyFromBody`, including a quote later in the body that stays), the new `math.test.ts` (both display-math scans, including an opener after a code span), `toolRefDom.test.ts` (`getToolRefPrefixFromElement` on markers with a pending icon, a split `<span>` and a long paragraph), and the new `MsgTypeRenderers.file.test.ts` (file, video and audio events with a numeric `body`, an object `filename` and a numeric MIME type, through the real `FileHeader` and `FileContent`).
+  Each fails on `dev`: the four scans exceed their time limits and the file event throws `mimeType.lastIndexOf is not a function`.
+  Randomized comparisons against the previous implementations (300,000 URL texts, 500,000 reply bodies, 100,000 math texts and 40,000 marker paragraphs) found no difference apart from that quote later in the body.
+- Validation: typecheck, the production build, and ESLint and Prettier on the touched files pass.
+  The full unit suite passes except the four tests that also fail on unchanged `dev` on this host: three `xcodeCloudPostClone` tests (no `/bin/bash`) and the caption send-failure test in `useRoomInputSendSessionController.test.ts`.
+
 ### Keep hearing room members after a gappy sync (2026-10-05)
 
 - Report: found while reviewing PR #399. After a gappy (`limited`) sync, for example when a backgrounded tab or a sleeping phone catches up, the client stopped hearing typing for everyone already in the room until reload; an agent that started typing showed nothing.
