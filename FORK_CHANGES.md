@@ -16,7 +16,7 @@
   Thread links into such a room keep the existing Classic behavior: they open the room timeline at the linked event or thread root.
 - PR: [#426](https://github.com/mindroom-ai/mindroom-chat/pull/426).
 - Tests: `useRoomViewMode.test.ts` (real hook, jotai store and client) covers a direct message between people, an agent invited later, an agent direct room until the agent leaves, a cold agent direct room named in `m.direct` and its `leave` or `ban`, a non-direct room of people, and the shared listener; the people and cold-agent cases fail without the fix.
-  `roomViewMode.test.ts` covers the resolution functions with and without Simple Mode.
+  `roomViewMode.test.ts` covers `getAvailableRoomViewModes` with and without Simple Mode.
   `e2e/live/cinny034-direct-room-timeline.spec.ts` now expects a direct message between two accounts in the Classic timeline with no compact view, overview, or "Open thread" button; against the local Docker homeserver it passes with the fix and fails on `dev`.
 - Validation: typecheck, lint, build and Prettier pass; the full unit suite passes apart from tests that need `/bin/bash`, which this host lacks.
 - Known limit: an agent invited into a direct room whose `m.direct` partner is a person counts only once its member event is loaded; until then the room shows Classic.
