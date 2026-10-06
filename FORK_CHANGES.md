@@ -2,6 +2,16 @@
 
 ## Runbook
 
+### Allow App Store submission of active TestFlight builds (2026-10-05)
+
+- Problem: fastlane's `ready_for_internal_testing?` accepts `READY_FOR_BETA_TESTING` but rejects an otherwise valid build already active in internal TestFlight.
+- Change: the release-target check also accepts `IN_BETA_TESTING`, retaining the existing processing, expiry, and export-compliance checks.
+- Tests: the Ruby release-target suite uses actual Spaceship build models to cover both accepted states, unsupported or missing internal states, invalid processing, and expired builds.
+  All 4 tests and 22 assertions pass.
+- Documentation: corrected the Xcode Cloud workflow description; the current workflow watches `dev` independently of GitHub release tags.
+- Validation after rebasing onto `origin/dev`: all 6,334 tests across 674 files, typecheck, iOS production/PWA build, lint (0 errors, 18 existing warnings), and Fastfile syntax pass.
+- Independent review approved the code and documentation; PR #407 tracks the change.
+
 ### Keep one message from freezing or crashing the client for everyone (2026-10-05)
 
 - Problem: five message render paths could freeze the client, or replace it with the error page, for everyone who viewed one message.
