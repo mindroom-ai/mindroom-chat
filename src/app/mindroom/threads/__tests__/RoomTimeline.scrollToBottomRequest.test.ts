@@ -113,4 +113,39 @@ describe('RoomTimeline scroll-to-bottom request', () => {
     expect(roomTimelineVirtualizerState.scrollToIndexMock).toHaveBeenCalled();
     renderer.unmount();
   });
+
+  it('does not move a reader who scrolled when the window is rebuilt', async () => {
+    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+    const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
+    const room = makeRoom({ liveEvents: [makeEvent('$a', { ts: 1 }), makeEvent('$b', { ts: 2 })] });
+    const scroll = makeScroll();
+    isTimelineAtLiveEndMock.mockReturnValue(false);
+    let renderer: ReturnType<typeof create> | undefined;
+    await act(async () => {
+      renderer = create(
+        React.createElement(ControlledRoomTimeline, { room, initialViewMode: 'classic' }),
+        {
+          createNodeMock: (element: { type: string }) =>
+            element.type === scrollType ? scroll.el : null,
+        }
+      );
+      await flushAsyncWork();
+    });
+    await act(async () => {
+      getClickableByText(renderer!, 'Jump to Latest').props.onClick();
+      await flushAsyncWork();
+    });
+    scroll.fire('wheel');
+    roomTimelineVirtualizerState.scrollToIndexMock.mockClear();
+
+    // A rebuilt window moves the latest row's index; no new request was made.
+    (room.getLiveTimeline().getEvents() as unknown[]).push(makeEvent('$c', { ts: 3 }));
+    await act(async () => {
+      room.__listeners.get('Room.TimelineRefresh')?.(room);
+      await flushAsyncWork();
+    });
+
+    expect(roomTimelineVirtualizerState.scrollToIndexMock).not.toHaveBeenCalled();
+    renderer!.unmount();
+  });
 });
