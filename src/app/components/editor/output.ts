@@ -77,7 +77,7 @@ const elementToCustomHtml = (node: CustomElement, children: string): string => {
     }
     case BlockType.Emoticon:
       return node.key.startsWith('mxc://')
-        ? `<img data-mx-emoticon src="${node.key}" alt="${sanitizeText(
+        ? `<img data-mx-emoticon src="${sanitizeText(node.key)}" alt="${sanitizeText(
             node.shortcode
           )}" title="${sanitizeText(node.shortcode)}" height="32" />`
         : sanitizeText(node.key);

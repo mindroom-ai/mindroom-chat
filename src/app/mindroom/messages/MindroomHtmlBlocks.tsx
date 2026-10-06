@@ -14,6 +14,7 @@ import {
   isDomElementNode,
   isDomTextNode,
   parseToolRefIndexFromTextPrefix,
+  takeLeadingToolRefs,
   trimLeadingToolRefBoundary,
 } from './toolRefDom';
 import { MINDROOM_MESSAGE_EXTRAS_KEY } from './messageExtrasData';
@@ -455,12 +456,9 @@ export const withMindroomToolTraceMarkerParserOptions = (
             traceEvents?.[toolRef.index - 1],
             metadataStatus
           );
-          const clonedTrailingChildren = toolRefPrefix.trailingChildren.map((child) =>
-            cloneDomChildNode(child)
-          );
           const trailingElement =
-            clonedTrailingChildren.length > 0
-              ? new Element(element.name, { ...element.attribs }, clonedTrailingChildren)
+            toolRefPrefix.trailingChildren.length > 0
+              ? new Element(element.name, { ...element.attribs }, toolRefPrefix.trailingChildren)
               : undefined;
 
           return { data, trailingElement };
@@ -528,10 +526,47 @@ export const withMindroomToolTraceMarkerParserOptions = (
           );
           if (trailingElements.length === 0) return toolBlock;
 
+          // Each marker that starts the trailing content gets its own block, as
+          // rendering that content would give it. Take them in one pass, since
+          // rendering it would recurse once per marker.
+          const [trailingElement] = trailingElements;
+          const chainedToolBlocks: ReactNode[] = [];
+          const restChildren = takeLeadingToolRefs(trailingElement, (html) => {
+            const toolRef = parseMindroomToolRefHtml(html);
+            // Leave content that repeats a consumed index to the check above.
+            // The marker starts that content, so its first bracketed number is
+            // in the marker.
+            const textIndex = parseToolRefIndexFromTextPrefix(html);
+            if (!toolRef || (textIndex !== undefined && consumedToolIndexes.has(textIndex))) {
+              return false;
+            }
+
+            consumedToolIndexes.add(toolRef.index);
+            groupRootIndexes.add(toolRef.index);
+            chainedToolBlocks.push(
+              <MindroomToolRefGroupBlock
+                key={`tool-group-${toolRef.index}`}
+                parsedTools={[
+                  buildToolRefRenderData(toolRef, traceEvents?.[toolRef.index - 1], metadataStatus),
+                ]}
+              />
+            );
+            return true;
+          });
+          const restElement =
+            restChildren.length > 0
+              ? new Element(
+                  trailingElement.name,
+                  { ...trailingElement.attribs },
+                  restChildren.map((child) => cloneDomChildNode(child))
+                )
+              : undefined;
+
           return (
             <>
               {toolBlock}
-              {domToReact(trailingElements, nextOpts)}
+              {chainedToolBlocks}
+              {restElement && domToReact([restElement], nextOpts)}
             </>
           );
         }
