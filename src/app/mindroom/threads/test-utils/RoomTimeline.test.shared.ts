@@ -617,6 +617,7 @@ vi.mock('../../../utils/room', () => ({
   getLatestEditableEvt: () => undefined,
   getMemberDisplayName: () => 'Alice',
   getReactionContent: () => undefined,
+  isHiddenReferenceEvent: () => false,
   isMembershipChanged: isMembershipChangedMock,
   logEditDebug: vi.fn(),
   reactionOrEditEvent: reactionOrEditEventMock,

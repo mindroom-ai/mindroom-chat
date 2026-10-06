@@ -9,6 +9,58 @@
 - Validation: `src/app/utils/matrix-uia.test.ts` checks that an `https` URL is returned and that a `javascript:` URL under `en` or another language gives no URL; the two `javascript:` cases fail before the fix and pass after.
   `npm run typecheck`, and ESLint and Prettier on the touched files pass.
 
+### Show messages that carry an `m.reference` relation (2026-10-06)
+
+- Problem: to keep a canvas's shared state copies out of view, PR #408 made the timeline and the room's unread check skip every event with an `m.reference` relation.
+  That also hid ordinary `m.room.message` events carrying one, which any member can send and which MindRoom agents still read as part of the thread, so Chat users could not see them and the room did not turn unread.
+- Fix: `isHiddenReferenceEvent` (`src/app/utils/room.ts`), used by `isRenderableEvent` and `roomHaveUnread`, hides a reference only when it is not an `m.room.message`, is still encrypted, or could not be decrypted.
+  Canvas state copies are `io.mindroom.canvas_state` events, so they stay hidden, also while encrypted or undecryptable.
+- Tests: `roomTimelineEvents.test.ts` (a message that carries a reference shows, an undecryptable reference does not) and `room.test.ts` (another member's message that carries a reference counts as unread); both fail without the fix.
+
+### Render a paragraph of tool markers without recursing per marker (2026-10-05)
+
+- Problem: when a paragraph held several tool markers one after another, for example separated by line breaks, the renderer showed the first and handed a copy of the rest of the paragraph back to `domToReact`, which handled the next marker the same way.
+  Each marker added a level of recursion and copied the rest of the paragraph again, so 1,000 markers took about 0.9 s, and the 2,400 that fit in one 64 KB event overflowed the stack, which replaced the client with the error page whenever the room was opened.
+  Copy followed the same chain recursively in `getRenderedMindroomToolRefs`: 2,400 markers took 0.75 s when the message menu opened, and 10,000 overflowed the stack.
+- Fix: `takeLeadingToolRefs` walks the markers that start a paragraph in one pass.
+  It joins each run of children a marker can span once and matches each marker from where the previous one ended, so the paragraph is scanned once.
+  `getToolRefPrefixFromElement` and copy use it, and the renderer gives each later marker its own block in a loop and renders what follows the last one once.
+  The rendered output and the copy result are unchanged.
+- Tests: `react-custom-html-parser.test.ts` renders and copies a paragraph of 3,000 markers; it fails on `dev` with `RangeError: Maximum call stack size exceeded`.
+  Randomized comparisons against the previous implementation (100,000 messages, about 14,000 with several markers in one paragraph) found no difference in the rendered markup, the copy result, or the first marker and what follows it.
+- Validation: typecheck, and ESLint and Prettier on the touched files pass.
+  2,400 or 50,000 markers in one paragraph now render as fast as the same number in separate paragraphs, and copy reads 50,000 in 0.16 s.
+
+### Escape emote URLs in sent formatted bodies (2026-10-05)
+
+- Problem: the composer's HTML output wrote a custom emote's URL into the `src` attribute of its `<img data-mx-emoticon>` unescaped, while the shortcode in `alt` and `title` was escaped.
+  Emote URLs come from image packs in room state, so a pack URL containing `"` ended the attribute and the rest of the URL went into the sent `formatted_body` as markup.
+- Fix: `elementToCustomHtml` (`src/app/components/editor/output.ts`) escapes the URL with `sanitizeText`, as it already does for the shortcode; ordinary `mxc://` URLs are unchanged.
+- Tests: `emoticon.test.ts` checks that an emote URL containing `"` and tags serializes as one `<img>` with the escaped URL in `src`; it fails without the fix.
+
+### Load power-tag icons only from mxc URLs (2026-10-05)
+
+- Problem: `getPowerTagIconSrc` returned any `icon.key` from `in.cinny.room.power_level_tags` that did not start with `mxc://` unchanged, and `PowerIcon` renders every non-emoji value as `<img src>`.
+  A tag icon set to an `https://` URL in the room state therefore made every viewer's client fetch that URL directly from the other server, wherever the tag showed (messages, profiles, the pin menu, notifications, and the permissions pages).
+  The tag editor only writes `mxc://` uploads or emoji, so such a key can only come from a hand-written state event.
+- Fix: a non-`mxc://` key is returned only when it matches `JUMBO_EMOJI_REG`, the same check `PowerIcon` uses to render it as text; any other key gets no icon.
+- Tests: `useMemberPowerTag.test.ts` checks that an emoji key is kept and an `https://` key gives no icon; it fails without the fix.
+
+### Open only http(s) account management URLs (2026-10-05)
+
+- Problem: the device dashboard and device delete buttons in Settings > Devices, the cross-signing reset in the verification menu, and the provider portal buttons in account deactivation passed the homeserver's `account_management_uri` (or the `issuer` fallback) to `window.open` without checking its scheme.
+  A `javascript:` URL in the auth metadata therefore ran as script on Chat's origin instead of opening a page.
+- Fix: `getAccountManagementUrl` in `src/app/hooks/useAccountManagement.ts` builds the URL for all four call sites and returns `undefined` for a URL that does not start with `http://` or `https://`; the button then does nothing.
+- Validation: `src/app/hooks/useAccountManagement.test.ts` pins that a `javascript:` `account_management_uri` or `issuer` yields no URL; it fails before the fix and passes after.
+  `npm run typecheck`, `npm run build`, and ESLint and Prettier on the touched files pass.
+
+### Open the server chip's homeserver with noopener (2026-10-05)
+
+- Problem: the profile server chip's "Open in Browser" item called `window.open` without window features.
+  Unlike a `target="_blank"` link, `window.open` does not imply `noopener`, so the homeserver page it opened kept a `window.opener` reference to the Chat tab and could navigate that tab to another page.
+- Fix: the item passes `noopener,noreferrer`, as the other `window.open` calls in `ConnectPage` and `LocalMindroom` do.
+- Tests: `UserChips.clipboard.test.tsx` checks that the item opens `https://<server>` in a new tab with `noopener,noreferrer`; it fails without the fix.
+
 ### Type image blobs from an allowlist of raster image types (2026-10-05)
 
 - Problem: `ImageContent` and `ThumbnailContent` load every image, plaintext or encrypted, into a `blob:` URL typed with the event's `info.mimetype`.
