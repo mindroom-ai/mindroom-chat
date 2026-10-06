@@ -123,17 +123,22 @@ const readVisibleAnchor = (page: Page): Promise<AnchorSnapshot | undefined> =>
     if (!candidate) throw new Error('Thread scroller not found.');
     const scroller = candidate;
     const viewport = scroller.getBoundingClientRect();
+    // The reader's view starts below the sticky headers, as in the app's anchor.
+    const readerTop =
+      viewport.top +
+      (Number.parseFloat(window.getComputedStyle(scroller).scrollPaddingTop) || 0) +
+      8;
     const visibleRows = Array.from(scroller.querySelectorAll<HTMLElement>('[data-message-item]'))
       .map((row) => {
         const rect = row.getBoundingClientRect();
-        const visibleTop = Math.max(rect.top, viewport.top + 8);
+        const visibleTop = Math.max(rect.top, readerTop);
         const visibleBottom = Math.min(rect.bottom, viewport.bottom - 8);
         return {
           row,
           rect,
           visibleTop,
           visibleBottom,
-          fullyVisible: rect.top >= viewport.top + 8 && rect.bottom <= viewport.bottom - 8,
+          fullyVisible: rect.top >= readerTop && rect.bottom <= viewport.bottom - 8,
         };
       })
       .filter(({ visibleTop, visibleBottom }) => visibleTop < visibleBottom);
