@@ -168,10 +168,10 @@ const toCanvasAgent = (canvas: CanvasTarget) => ({
   },
 });
 
-/** Accept the page state or the control values this canvas frame saves; both are written back into the page as is. */
 /** What the page saved, and whether the user had clicked or typed in it (undefined where the browser cannot tell). */
 export type CanvasStateMessage = { change: CanvasSaved; user?: boolean };
 
+/** Accept the page state or the control values this canvas frame saves; both are written back into the page as is. */
 export const readCanvasState = (
   event: MessageEvent,
   frame: Window | null | undefined

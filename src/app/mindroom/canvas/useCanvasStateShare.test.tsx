@@ -63,6 +63,7 @@ describe('useCanvasStateShare', () => {
       {
         type: CANVAS_STATE_EVENT_TYPE,
         content: {
+          msgtype: 'm.notice',
           version: 1,
           json: '{"done":["tent"]}',
           inputs: '{"#rate":"7"}',
@@ -119,7 +120,12 @@ describe('useCanvasStateShare', () => {
     expect(sent()).toEqual([
       {
         type: CANVAS_STATE_EVENT_TYPE,
-        content: { version: 1, inputs: '{"#rate":"3"}', 'm.relates_to': reference },
+        content: {
+          msgtype: 'm.notice',
+          version: 1,
+          inputs: '{"#rate":"3"}',
+          'm.relates_to': reference,
+        },
       },
     ]);
   });
@@ -139,8 +145,9 @@ describe('useCanvasStateShare', () => {
     expect(sidecars.upload).toHaveBeenCalledWith(
       mx,
       room,
-      { version: 1, json, 'm.relates_to': reference },
-      { body: 'Canvas state', 'm.relates_to': reference }
+      { msgtype: 'm.notice', version: 1, json, 'm.relates_to': reference },
+      // A notice, inline or as a sidecar, so a room set to notify on every message stays quiet.
+      { msgtype: 'm.notice', body: 'Canvas state', 'm.relates_to': reference }
     );
     expect(sent()).toEqual([
       {

@@ -609,6 +609,7 @@ article{background:var(--mr-surface);border:1px solid var(--mr-border);border-ra
   const [copy] = await stateCopies(sharedId);
   expect(copy.sender).toBe(viewer.user_id);
   expect(copy.content).toEqual({
+    msgtype: 'm.notice',
     version: 1,
     json: '{"tent":true}',
     inputs: '{"#tent":true}',

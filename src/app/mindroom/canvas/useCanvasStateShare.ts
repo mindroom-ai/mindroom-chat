@@ -37,7 +37,10 @@ export function useCanvasStateShare(
       const text = JSON.stringify([saved?.json, saved?.inputs]);
       if (!saved || text === shared) return;
       const relation = { rel_type: 'm.reference', event_id: canvasId };
+      // A notice, so the standard push rule keeps every copy from notifying the room, even under
+      // a room's "All messages" setting.
       const content = {
+        msgtype: 'm.notice',
         version: 1,
         ...(saved.json === undefined ? {} : { json: saved.json }),
         ...(saved.inputs === undefined ? {} : { inputs: saved.inputs }),
@@ -48,6 +51,7 @@ export function useCanvasStateShare(
         contentBytes(content) <= MAX_CANVAS_RESPONSE_CONTENT_BYTES
           ? content
           : await uploadMindroomLongTextSidecar(mx, room, content, {
+              msgtype: 'm.notice',
               body: 'Canvas state',
               'm.relates_to': relation,
             });

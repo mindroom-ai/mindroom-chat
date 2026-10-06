@@ -206,5 +206,6 @@ export function RoomCanvasPanel({ event, ...props }: RoomCanvasPanelProps) {
     if (!valid) onClose();
   }, [valid, onClose]);
   if (action?.action !== 'show_canvas') return null;
+  // One panel per canvas: its saved and shared state hooks rely on the canvas never changing under them.
   return <LoadedCanvasPanel key={action.eventId} {...props} request={request} action={action} />;
 }
