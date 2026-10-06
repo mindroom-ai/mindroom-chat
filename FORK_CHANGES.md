@@ -2,6 +2,12 @@
 
 ## Runbook
 
+### Live test for typing after a gappy sync (2026-10-05)
+
+- Adds `e2e/live/typing-after-gappy-sync.spec.ts` for the SDK fix in PR #402, which its unit test covers only by calling `resetLiveTimeline` directly.
+  The browser goes offline while 30 messages arrive (the sync timeline limit is 20), comes back on a `limited: true` sync, and another member's typing start and stop must still be heard.
+- Validation: passes on `dev` (2 of 2, 43 s); with #402's SDK line reverted it fails 2 of 2 at the typing check after the gap, after typing showed before it.
+
 ### Keep the long-message expand/collapse anchor below the sticky headers (2026-10-05)
 
 - Report: after changing "Expand long messages by default" while reading inside a long message, that message's top landed behind the sticky thread banner (or the room header), so the reader saw its middle instead of its start.
