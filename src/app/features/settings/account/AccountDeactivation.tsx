@@ -22,8 +22,10 @@ import { SequenceCard } from '../../../components/sequence-card';
 import { SequenceCardStyle } from '../styles.css';
 import { SettingTile } from '../../../components/setting-tile';
 import { useAuthMetadata } from '../../../hooks/useAuthMetadata';
-import { useAccountManagementActions } from '../../../hooks/useAccountManagement';
-import { withSearchParam } from '../../../pages/pathUtils';
+import {
+  getAccountManagementUrl,
+  useAccountManagementActions,
+} from '../../../hooks/useAccountManagement';
 import { stopPropagation } from '../../../utils/keyboard';
 import { useMatrixClient } from '../../../hooks/useMatrixClient';
 import { AsyncState, AsyncStatus, useAsync } from '../../../hooks/useAsyncCallback';
@@ -44,15 +46,12 @@ export function AccountDeactivation() {
   });
 
   const openProviderDeactivation = useCallback(() => {
-    const authUrl = authMetadata?.account_management_uri ?? authMetadata?.issuer;
-    if (!authUrl) return;
+    const url = getAccountManagementUrl(authMetadata, {
+      action: accountManagementActions.accountDeactivate,
+    });
+    if (!url) return;
 
-    window.open(
-      withSearchParam(authUrl, {
-        action: accountManagementActions.accountDeactivate,
-      }),
-      '_blank'
-    );
+    window.open(url, '_blank');
   }, [authMetadata, accountManagementActions]);
 
   const deactivateAccount = useAsync(

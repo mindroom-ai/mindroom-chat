@@ -14,8 +14,10 @@ import { DeviceVerificationStatus } from '../../../components/DeviceVerification
 import { VerifyOtherDeviceTile } from './Verification';
 import { VerificationStatus } from '../../../hooks/useDeviceVerificationStatus';
 import { useAuthMetadata } from '../../../hooks/useAuthMetadata';
-import { withSearchParam } from '../../../pages/pathUtils';
-import { useAccountManagementActions } from '../../../hooks/useAccountManagement';
+import {
+  getAccountManagementUrl,
+  useAccountManagementActions,
+} from '../../../hooks/useAccountManagement';
 import { SettingTile } from '../../../components/setting-tile';
 
 type OtherDevicesProps = {
@@ -33,29 +35,23 @@ export function OtherDevices({ devices, refreshDeviceList, showVerification }: O
   const [deleted, setDeleted] = useState<Set<string>>(new Set());
 
   const handleDashboardOIDC = useCallback(() => {
-    const authUrl = authMetadata?.account_management_uri ?? authMetadata?.issuer;
-    if (!authUrl) return;
+    const url = getAccountManagementUrl(authMetadata, {
+      action: accountManagementActions.sessionsList,
+    });
+    if (!url) return;
 
-    window.open(
-      withSearchParam(authUrl, {
-        action: accountManagementActions.sessionsList,
-      }),
-      '_blank'
-    );
+    window.open(url, '_blank');
   }, [authMetadata, accountManagementActions]);
 
   const handleDeleteOIDC = useCallback(
     (deviceId: string) => {
-      const authUrl = authMetadata?.account_management_uri ?? authMetadata?.issuer;
-      if (!authUrl) return;
+      const url = getAccountManagementUrl(authMetadata, {
+        action: accountManagementActions.sessionEnd,
+        device_id: deviceId,
+      });
+      if (!url) return;
 
-      window.open(
-        withSearchParam(authUrl, {
-          action: accountManagementActions.sessionEnd,
-          device_id: deviceId,
-        }),
-        '_blank'
-      );
+      window.open(url, '_blank');
     },
     [authMetadata, accountManagementActions]
   );

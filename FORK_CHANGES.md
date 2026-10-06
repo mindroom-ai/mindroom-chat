@@ -2,6 +2,14 @@
 
 ## Runbook
 
+### Open only http(s) account management URLs (2026-10-05)
+
+- Problem: the device dashboard and device delete buttons in Settings > Devices, the cross-signing reset in the verification menu, and the provider portal buttons in account deactivation passed the homeserver's `account_management_uri` (or the `issuer` fallback) to `window.open` without checking its scheme.
+  A `javascript:` URL in the auth metadata therefore ran as script on Chat's origin instead of opening a page.
+- Fix: `getAccountManagementUrl` in `src/app/hooks/useAccountManagement.ts` builds the URL for all four call sites and returns `undefined` for a URL that does not start with `http://` or `https://`; the button then does nothing.
+- Validation: `src/app/hooks/useAccountManagement.test.ts` pins that a `javascript:` `account_management_uri` or `issuer` yields no URL; it fails before the fix and passes after.
+  `npm run typecheck`, `npm run build`, and ESLint and Prettier on the touched files pass.
+
 ### Type image blobs from an allowlist of raster image types (2026-10-05)
 
 - Problem: `ImageContent` and `ThumbnailContent` load every image, plaintext or encrypted, into a `blob:` URL typed with the event's `info.mimetype`.
