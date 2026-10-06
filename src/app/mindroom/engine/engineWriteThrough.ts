@@ -45,7 +45,7 @@ import {
   persistThreadEventCacheSnapshot,
 } from '../threads/eventRepository';
 import { THREAD_EDIT_COMPACTION_DEBOUNCE_MS } from '../threads/preloadSettings';
-import { forgetRedactedThreadSummary } from '../threads/threadSummaryState';
+import { forgetRedactedThreadSummaries } from '../threads/threadSummaryState';
 import {
   createEditCompactionScheduler,
   type EditCompactionScheduler,
@@ -236,7 +236,7 @@ export const createEngineWriteThrough = (
       fallbackThreadId: undefined,
     });
     if (!cleanupPlan) return;
-    forgetRedactedThreadSummary(sessionId, room.roomId, cleanupPlan.redactedEventId);
+    forgetRedactedThreadSummaries(sessionId, room.roomId, new Set([cleanupPlan.redactedEventId]));
 
     // Room-scoped record for the redacted target (if any) is always
     // cleared for reactions — a reaction can technically exist as a

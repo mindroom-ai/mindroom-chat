@@ -176,14 +176,18 @@ export const storeThreadSummaryInState = (
 };
 
 /**
- * Drop titles taken from a redacted summary notice, so readers fall back to
+ * Drop titles taken from redacted summary notices, so readers fall back to
  * the thread's remaining summaries. The redaction's cache scrub clears disk.
  */
-export const forgetRedactedThreadSummary = (sessionId: string, roomId: string, eventId: string) => {
+export const forgetRedactedThreadSummaries = (
+  sessionId: string,
+  roomId: string,
+  redactedEventIds: ReadonlySet<string>
+) => {
   const state = roomThreadSummaryStates.get(getStateKey(sessionId, roomId));
-  if (!state) return;
+  if (!state || redactedEventIds.size === 0) return;
   const nextSummaryMap = new Map(
-    [...state.summaryMap].filter(([, info]) => info.eventId !== eventId)
+    [...state.summaryMap].filter(([, info]) => !info.eventId || !redactedEventIds.has(info.eventId))
   );
   if (nextSummaryMap.size === state.summaryMap.size) return;
   state.summaryMap = nextSummaryMap;
