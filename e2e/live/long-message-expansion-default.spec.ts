@@ -196,15 +196,21 @@ test.describe('live long-message expansion default', () => {
     const seeded = await seedLongThread(homeserver, session.accessToken);
 
     await installScrollWriteProbe(page);
+    // The sync status bar sits above the app and comes and goes with the sync,
+    // moving the whole app; hide it so anchor measurements compare one layout.
+    await page.addInitScript(() => {
+      document.addEventListener('DOMContentLoaded', () => {
+        const style = document.createElement('style');
+        style.textContent = '[data-testid="client-sync-status"] { display: none !important; }';
+        document.head.append(style);
+      });
+    });
     await loginWithPassword(page, { homeserver, username, password });
     await page.goto(
       `/home/${encodeURIComponent(seeded.roomId)}?threadId=${encodeURIComponent(seeded.rootId)}`
     );
     await page.waitForSelector('[data-message-item]', { timeout: 60_000 });
     await page.waitForTimeout(3_000);
-    // The "Catching up..." bar above the app hides after the second sync and
-    // moves the whole app with it, so measure anchors only once it is gone.
-    await expect(page.getByTestId('client-sync-status')).toHaveCount(0, { timeout: 60_000 });
 
     const showMore = page.locator('[aria-label="Show full message"]');
     const showLess = page.locator('[aria-label="Show less"]');
@@ -275,7 +281,6 @@ test.describe('live long-message expansion default', () => {
     await page.reload();
     await page.waitForSelector('[data-message-item]', { timeout: 60_000 });
     await page.waitForTimeout(3_000);
-    await expect(page.getByTestId('client-sync-status')).toHaveCount(0, { timeout: 60_000 });
     await expect(showMore).toHaveCount(0);
     await expect(showLess.first()).toBeVisible();
 

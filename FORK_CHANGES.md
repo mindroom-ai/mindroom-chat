@@ -2,13 +2,14 @@
 
 ## Runbook
 
-### Measure the long-message expansion anchor after the sync bar settles (2026-10-05)
+### Measure the long-message expansion anchor without the sync bar (2026-10-05)
 
 - Report: after PR #410, the live `long-message-expansion-default` spec still saw the anchored message land 25 px off after a collapse, inside its 40 px budget.
 - Root cause: the spec, not the anchor. The "Catching up..." bar (`client-sync-status`) sits above the whole app and hides only after the second sync, up to a 30 s long-poll later, moving the whole app up 25 px.
   The spec took its anchor snapshot after a reload while the bar showed; the bar hid when the test opened Settings, before the toggle. A frame trace showed the anchor landing exactly on the app's reader line.
-- Fix: the spec waits for the bar to go after each page load, and its drift budget drops from 40 px to 2 px.
-- Validation: collapse drift 25 px in 3 of 3 runs before, 0 px in 3 of 3 after; the expand drift stays 0 px.
+- Fix: the spec hides the bar for every page it loads (as `thread-banner-height-anchor` does), and its drift budget drops from 40 px to 2 px.
+  Waiting for the bar to go was not enough: on a cached load it can appear only after the first network sync.
+- Validation: collapse drift 25 px in 3 of 3 runs before; 0 px in 5 of 5 runs waiting for the bar and 3 of 3 with it hidden; the expand drift stays 0 px.
   The bar's hide still moves the whole app by 25 px for a user; that is `SyncStatus` layout, separate from the anchor.
 
 ### Live test for typing after a gappy sync (2026-10-05)
