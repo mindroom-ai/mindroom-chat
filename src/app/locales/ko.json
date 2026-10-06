@@ -153,6 +153,7 @@
     "home": "홈",
     "directMessages": "다이렉트 메시지",
     "threads": "스레드",
+    "canvases": "대화형 패널",
     "inbox": "받은편지함",
     "exploreCommunity": "커뮤니티 둘러보기",
     "addSpace": "스페이스 추가",
@@ -2965,6 +2966,21 @@
       "receiptData": "에이전트에게 보낸 데이터 보기",
       "unlabeled": "제출됨",
       "notSent": "{{agent}}에게 보내지 못함: {{label}}"
+    },
+    "canvases": {
+      "title": "대화형 패널",
+      "note": "에이전트가 만들어 준 대화형 패널 중 이 브라우저에서 본 패널입니다. 고정한 패널은 모든 기기에 표시됩니다.",
+      "empty": "아직 대화형 패널이 없습니다. 에이전트가 패널을 보여 주면 여기에 표시됩니다.",
+      "pinned": "고정됨",
+      "canvas": "패널",
+      "agent": "에이전트",
+      "room": "방",
+      "updated": "업데이트됨",
+      "created": "생성됨",
+      "pin": "{{title}} 고정",
+      "unpin": "{{title}} 고정 해제",
+      "shared": "에이전트와 공유됨",
+      "saved": "입력한 값 있음"
     }
   },
   "roomSchedules": {

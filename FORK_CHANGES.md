@@ -2,6 +2,25 @@
 
 ## Runbook
 
+### List every canvas on a Canvases page, with pins on all devices (2026-10-06)
+
+- Why: canvases were only reachable from the message that showed them, so a page used every day (a landing page with upcoming meetings, a checklist) had to be found again in its thread; users asked for one place listing them, where they can pin the ones they use.
+- Where canvases are on (`mindroom.canvas.enabled`), the sidebar gets a Canvases button (in Simple Mode too) opening `/canvases/`: a table of the canvases agents made for this user, pinned ones first, then by last update, with the agent, the room, when each was updated and created, and whether it is shared with its agent or holds the user's values here.
+  Its title opens the canvas in its thread, filling the room, at its latest version; the room name opens the conversation without it.
+- The list is kept per session in its own IndexedDB database (`mindroom-canvas-index::<session>`, at most 500 canvases, the ones updated longest ago forgotten first), deleted at logout like the saved canvas state.
+  `useCanvasIndexRecorder` fills it with every canvas this browser receives, on any route: it listens to sync's `ClientEvent.Event` (which also reports an update or deletion of a canvas whose thread is not loaded, events no timeline takes), timelines (history and threads loaded later), decryption and applied edits.
+  An update renames its row only when the canvas's agent sent it and it is newer, and an older copy of a request never rolls a row back; a deletion removes it.
+- Pins are account data, `io.mindroom.pinned_canvases` `{ canvases: [{ room_id, event_id }] }`, with IDs only since account data is not encrypted and titles are.
+  A pinned canvas this browser has not seen is fetched with its newest valid update and listed.
+- Opening leaves a request for the room (`requestCanvasOpen`, forgotten after 30 s) and navigates to the thread; `useCanvasOpenRequest` in the room loads the canvas (the loaded copy, or the server's with its newest update applied) once the thread is ready, opens it through the room's usual UI action path, and expands it.
+  The request lives outside the room because the room remounts while thread routing settles the route, which a history state or component state would not survive (found live).
+- Tests (removing each piece fails its test): `canvasIndexStore.test.ts` (per session, no rollback, updates only from the agent and newer, deletion, listeners only on change, the limit), `canvasIndex.test.tsx` (what is listed and ignored, the shown update, updates and deletions reported only by sync, canvases loaded before the recorder started, off when canvases are, loading at the newest valid update), `useCanvasOpenRequest.test.tsx` (once, only when ready and for its room, after a remount, forgotten when stale or unloadable), `pinnedCanvases.test.ts`, `Canvases.test.tsx` (order, rooms left, cells, navigation, pins in account data, a pin from another device fetched once), `SidebarNav.test.ts` and `Room.test.ts` (the room opens the requested canvas expanded).
+  `e2e/agent-canvas-list.spec.ts`: canvases are listed without opening their room, an update renames and moves its row, a pin moves a row to the top and is stored as IDs, list and pin survive a reload, a title opens its canvas expanded in its thread, a room name opens the conversation, a deletion removes its row, and logout deletes the list.
+- Validation: live with a real agent (GPT-6.1 Sol, backend main `eedafc4ad`): in an encrypted room its canvas was listed as it arrived; in an unencrypted room it showed "Lunch plan", which was listed without its room being opened, its in-place update renamed the row "Dinner plan", and the title opened version 2 of 2 expanded in its thread (the live run found the room remounting while settling the thread route, which is why the open request lives outside the room).
+- Not changed:
+  - Only canvases this browser has received are listed; a new device starts with recent ones and the pinned ones it can read, and old canvases appear once their thread is opened.
+  - A pinned canvas in an encrypted room that this device cannot decrypt is not listed.
+
 ### Let an agent read a canvas page's state without a Send button (2026-10-06)
 
 - Why: for pages whose choices matter later (a checklist ticked over days, a form filled in passing), users asked that the agent see them without an explicit Send; pushing every change into the conversation would cost the agent tokens on every turn, so the agent reads on demand instead.

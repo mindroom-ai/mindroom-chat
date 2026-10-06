@@ -53,7 +53,8 @@ const { mx, navigateRoomMock, navigateRoomThreadMock, removeRecentThreadMock, ro
       getMembers: () => roomState.members,
       getMember: (userId: string) => roomState.members.find((member) => member.userId === userId),
       getThread: () => undefined,
-      findEventById: () => roomState.routedEvent,
+      findEventById: (eventId: string) =>
+        roomState.loadedEvents.get(eventId) ?? roomState.routedEvent,
       on: (name: string, handler: (...args: unknown[]) => void) =>
         roomState.listeners.set(name, handler),
       removeListener: (name: string) => roomState.listeners.delete(name),
@@ -92,6 +93,7 @@ const { mx, navigateRoomMock, navigateRoomThreadMock, removeRecentThreadMock, ro
       eventId: undefined as string | undefined,
       members: [] as Array<{ membership: string; userId: string }>,
       search: '',
+      loadedEvents: new Map<string, MatrixEvent>(),
       roomViewProps: undefined as MockRoomViewProps | undefined,
       setPeopleDrawer: vi.fn(),
     },
@@ -318,6 +320,7 @@ describe('Room', () => {
     roomState.eventId = undefined;
     roomState.members = [];
     roomState.search = '';
+    roomState.loadedEvents.clear();
     roomState.roomViewProps = undefined;
     roomState.setPeopleDrawer.mockReset();
     navigateRoomMock.mockReset();
@@ -652,6 +655,40 @@ describe('Room', () => {
       },
     };
   };
+
+  it('opens the canvas the Canvases page asked for, filling the room', async () => {
+    const canvas = new MatrixEvent({
+      event_id: '$listed',
+      room_id: '!room:example.org',
+      sender: '@mindroom_helper:example.org',
+      type: 'm.room.message',
+      origin_server_ts: 1,
+      content: {
+        msgtype: 'm.notice',
+        body: 'Open this view.',
+        'm.relates_to': { rel_type: 'm.thread', event_id: '$thread' },
+        'io.mindroom.ui_action': {
+          version: 1,
+          action: 'show_canvas',
+          requester_id: '@alice:example.org',
+          agent_user_id: '@mindroom_helper:example.org',
+          room_id: '!room:example.org',
+          thread_id: '$thread',
+          canvas: { title: 'Home', html: '<p></p>' },
+        },
+      },
+    });
+    roomState.loadedEvents.set('$listed', canvas);
+    const { requestCanvasOpen } = await import('../../canvas/useCanvasOpenRequest');
+    requestCanvasOpen('!room:example.org', '$listed');
+    const room = await renderCanvasRoom();
+    await act(async () => undefined);
+    expect(room.canvasOpen()).toBe(true);
+    expect(roomState.canvasPanelProps?.event).toBe(canvas);
+    expect(roomState.canvasPanelProps?.expanded).toBe(true);
+    expect(room.conversationShown()).toBe(false);
+    await room.unmount();
+  });
 
   it('keeps a canvas open across breakpoints and closes it when Members opens', async () => {
     roomState.screenSize = 'Mobile';

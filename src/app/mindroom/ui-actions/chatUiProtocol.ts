@@ -103,7 +103,7 @@ const readCanvasDocument = (value: unknown): ChatUiCanvasDocument | undefined =>
   return isMxc(value.url) ? { mxcUrl: value.url, size: value.size } : undefined;
 };
 
-const readCanvas = (value: unknown): ChatUiCanvas | undefined => {
+export const readCanvas = (value: unknown): ChatUiCanvas | undefined => {
   if (!record(value) || typeof value.title !== 'string') return undefined;
   const title = value.title.trim();
   if (!title || title.length > MAX_CANVAS_TITLE_LENGTH) return undefined;

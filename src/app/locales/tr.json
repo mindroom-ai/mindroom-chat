@@ -153,6 +153,7 @@
     "home": "Ana sayfa",
     "directMessages": "Doğrudan mesajlar",
     "threads": "Konular",
+    "canvases": "Etkileşimli paneller",
     "inbox": "Gelen kutusu",
     "exploreCommunity": "Toplulukları keşfet",
     "addSpace": "Alan ekle",
@@ -2965,6 +2966,21 @@
       "receiptData": "Ajana gönderilen verileri göster",
       "unlabeled": "Gönderildi",
       "notSent": "{{agent}} ajanına gönderilemedi: {{label}}"
+    },
+    "canvases": {
+      "title": "Etkileşimli paneller",
+      "note": "Ajanlarınızın sizin için oluşturduğu ve bu tarayıcının gördüğü etkileşimli paneller. Sabitlenen paneller tüm cihazlarınızda görünür.",
+      "empty": "Henüz etkileşimli panel yok. Bir ajan size bir panel gösterdiğinde burada listelenir.",
+      "pinned": "Sabitlenmiş",
+      "canvas": "Panel",
+      "agent": "Ajan",
+      "room": "Oda",
+      "updated": "Güncellendi",
+      "created": "Oluşturulma",
+      "pin": "{{title}} panelini sabitle",
+      "unpin": "{{title}} panelinin sabitlemesini kaldır",
+      "shared": "Ajanla paylaşılıyor",
+      "saved": "Değerleriniz kayıtlı"
     }
   },
   "roomSchedules": {

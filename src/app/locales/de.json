@@ -153,6 +153,7 @@
     "home": "Startseite",
     "directMessages": "Direktnachrichten",
     "threads": "Threads",
+    "canvases": "Interaktive Panels",
     "inbox": "Posteingang",
     "exploreCommunity": "Community erkunden",
     "addSpace": "Space hinzufügen",
@@ -2965,6 +2966,21 @@
       "receiptData": "An den Agenten gesendete Daten anzeigen",
       "unlabeled": "Abgeschickt",
       "notSent": "Nicht an {{agent}} gesendet: {{label}}"
+    },
+    "canvases": {
+      "title": "Interaktive Panels",
+      "note": "Interaktive Panels, die deine Agenten für dich erstellt haben und die dieser Browser gesehen hat. Angeheftete erscheinen auf all deinen Geräten.",
+      "empty": "Noch keine interaktiven Panels. Wenn dir ein Agent eines zeigt, erscheint es hier.",
+      "pinned": "Angeheftet",
+      "canvas": "Panel",
+      "agent": "Agent",
+      "room": "Raum",
+      "updated": "Aktualisiert",
+      "created": "Erstellt",
+      "pin": "{{title}} anheften",
+      "unpin": "{{title}} lösen",
+      "shared": "Mit Agent geteilt",
+      "saved": "Enthält deine Werte"
     }
   },
   "roomSchedules": {

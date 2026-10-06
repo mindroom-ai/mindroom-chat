@@ -153,6 +153,7 @@
     "home": "Inicio",
     "directMessages": "Mensajes directos",
     "threads": "Hilos",
+    "canvases": "Paneles interactivos",
     "inbox": "Bandeja de entrada",
     "exploreCommunity": "Explorar la comunidad",
     "addSpace": "Añadir espacio",
@@ -3019,6 +3020,21 @@
       "receiptData": "Mostrar los datos enviados al agente",
       "unlabeled": "Enviado",
       "notSent": "No enviado a {{agent}}: {{label}}"
+    },
+    "canvases": {
+      "title": "Paneles interactivos",
+      "note": "Paneles interactivos que tus agentes crearon para ti y que este navegador ha visto. Los fijados aparecen en todos tus dispositivos.",
+      "empty": "Aún no hay paneles interactivos. Cuando un agente te muestre uno, aparecerá aquí.",
+      "pinned": "Fijado",
+      "canvas": "Panel",
+      "agent": "Agente",
+      "room": "Sala",
+      "updated": "Actualizado",
+      "created": "Creado",
+      "pin": "Fijar {{title}}",
+      "unpin": "Desfijar {{title}}",
+      "shared": "Compartido con el agente",
+      "saved": "Tiene tus valores"
     }
   },
   "roomSchedules": {

@@ -153,6 +153,7 @@
     "home": "Home",
     "directMessages": "Directe berichten",
     "threads": "Threads",
+    "canvases": "Interactieve panelen",
     "inbox": "Inbox",
     "exploreCommunity": "Community verkennen",
     "addSpace": "Space toevoegen",
@@ -2965,6 +2966,21 @@
       "receiptData": "Gegevens tonen die naar de agent zijn verstuurd",
       "unlabeled": "Verzonden",
       "notSent": "Niet verzonden naar {{agent}}: {{label}}"
+    },
+    "canvases": {
+      "title": "Interactieve panelen",
+      "note": "Interactieve panelen die je agents voor je hebben gemaakt en die deze browser heeft gezien. Vastgemaakte panelen zie je op al je apparaten.",
+      "empty": "Nog geen interactieve panelen. Als een agent je er een laat zien, verschijnt het hier.",
+      "pinned": "Vastgemaakt",
+      "canvas": "Paneel",
+      "agent": "Agent",
+      "room": "Kamer",
+      "updated": "Bijgewerkt",
+      "created": "Gemaakt",
+      "pin": "{{title}} vastmaken",
+      "unpin": "{{title}} losmaken",
+      "shared": "Gedeeld met agent",
+      "saved": "Bevat je waarden"
     }
   },
   "roomSchedules": {

@@ -153,6 +153,7 @@
     "home": "Accueil",
     "directMessages": "Messages directs",
     "threads": "Fils",
+    "canvases": "Panneaux interactifs",
     "inbox": "Boîte de réception",
     "exploreCommunity": "Explorer la communauté",
     "addSpace": "Ajouter un espace",
@@ -3019,6 +3020,21 @@
       "receiptData": "Afficher les données envoyées à l’agent",
       "unlabeled": "Envoyé",
       "notSent": "Non envoyé à {{agent}} : {{label}}"
+    },
+    "canvases": {
+      "title": "Panneaux interactifs",
+      "note": "Les panneaux interactifs que vos agents ont créés pour vous et que ce navigateur a vus. Les panneaux épinglés apparaissent sur tous vos appareils.",
+      "empty": "Aucun panneau interactif pour l’instant. Quand un agent vous en montre un, il apparaît ici.",
+      "pinned": "Épinglé",
+      "canvas": "Panneau",
+      "agent": "Agent",
+      "room": "Salle",
+      "updated": "Mis à jour",
+      "created": "Créé",
+      "pin": "Épingler {{title}}",
+      "unpin": "Désépingler {{title}}",
+      "shared": "Partagé avec l’agent",
+      "saved": "Contient vos valeurs"
     }
   },
   "roomSchedules": {

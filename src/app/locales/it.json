@@ -153,6 +153,7 @@
     "home": "Home",
     "directMessages": "Messaggi diretti",
     "threads": "Thread",
+    "canvases": "Pannelli interattivi",
     "inbox": "Posta in arrivo",
     "exploreCommunity": "Esplora la comunità",
     "addSpace": "Aggiungi spazio",
@@ -3019,6 +3020,21 @@
       "receiptData": "Mostra i dati inviati all’agente",
       "unlabeled": "Inviato",
       "notSent": "Non inviato a {{agent}}: {{label}}"
+    },
+    "canvases": {
+      "title": "Pannelli interattivi",
+      "note": "I pannelli interattivi che i tuoi agenti hanno creato per te e che questo browser ha visto. Quelli fissati compaiono su tutti i tuoi dispositivi.",
+      "empty": "Ancora nessun pannello interattivo. Quando un agente te ne mostra uno, compare qui.",
+      "pinned": "Fissato",
+      "canvas": "Pannello",
+      "agent": "Agente",
+      "room": "Stanza",
+      "updated": "Aggiornato",
+      "created": "Creato",
+      "pin": "Fissa {{title}}",
+      "unpin": "Rimuovi {{title}} dai fissati",
+      "shared": "Condiviso con l’agente",
+      "saved": "Contiene i tuoi valori"
     }
   },
   "roomSchedules": {

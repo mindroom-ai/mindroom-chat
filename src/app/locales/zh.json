@@ -153,6 +153,7 @@
     "home": "首页",
     "directMessages": "私信",
     "threads": "讨论串",
+    "canvases": "交互式面板",
     "inbox": "收件箱",
     "exploreCommunity": "探索社区",
     "addSpace": "添加空间",
@@ -2965,6 +2966,21 @@
       "receiptData": "显示发送给代理的数据",
       "unlabeled": "已提交",
       "notSent": "未发送给 {{agent}}：{{label}}"
+    },
+    "canvases": {
+      "title": "交互式面板",
+      "note": "智能体为您创建、且此浏览器见过的交互式面板。已置顶的面板会显示在您的所有设备上。",
+      "empty": "还没有交互式面板。当智能体向您展示面板时，它会列在这里。",
+      "pinned": "已置顶",
+      "canvas": "面板",
+      "agent": "智能体",
+      "room": "房间",
+      "updated": "更新时间",
+      "created": "创建时间",
+      "pin": "置顶 {{title}}",
+      "unpin": "取消置顶 {{title}}",
+      "shared": "已与智能体共享",
+      "saved": "包含您的输入"
     }
   },
   "roomSchedules": {

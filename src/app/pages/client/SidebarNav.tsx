@@ -17,6 +17,7 @@ import {
   UnverifiedTab,
   SearchTab,
   ThreadsTab,
+  CanvasesTab,
 } from './sidebar';
 import { CreateTab } from './sidebar/CreateTab';
 import { useClientConfig } from '../../hooks/useClientConfig';
@@ -31,12 +32,14 @@ export function SidebarNav({
   onPageNavSelect?: (selected: boolean) => boolean;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
-  const { sidebar } = useClientConfig();
+  const { sidebar, mindroom } = useClientConfig();
   // Simple mode keeps the essentials: Home, Direct, existing spaces, and the
   // sticky Inbox/Settings stack below.
   const simpleMode = useSimpleMode();
   // Allow deployments to hide optional sidebar entry points.
   const showThreads = !simpleMode && (sidebar?.showThreads ?? true);
+  // Canvases come from agents in any interface mode, so the list follows the deployment's switch.
+  const showCanvases = mindroom?.canvas?.enabled === true;
   const showExploreCommunity = simpleMode
     ? sidebar?.showExploreCommunityInSimpleMode ?? false
     : sidebar?.showExploreCommunity ?? true;
@@ -53,6 +56,7 @@ export function SidebarNav({
               <HomeTab onSelect={onPageNavSelect} />
               <DirectTab onSelect={onPageNavSelect} />
               {showThreads && <ThreadsTab onSelect={onPageNavSelect} />}
+              {showCanvases && <CanvasesTab onSelect={onPageNavSelect} />}
             </SidebarStack>
             <SpaceTabs scrollRef={scrollRef} onSelect={onPageNavSelect} />
             {showSecondStack && (

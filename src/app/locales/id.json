@@ -153,6 +153,7 @@
     "home": "Beranda",
     "directMessages": "Pesan langsung",
     "threads": "Utas",
+    "canvases": "Panel interaktif",
     "inbox": "Kotak masuk",
     "exploreCommunity": "Jelajahi komunitas",
     "addSpace": "Tambahkan space",
@@ -2965,6 +2966,21 @@
       "receiptData": "Tampilkan data yang dikirim ke agen",
       "unlabeled": "Terkirim",
       "notSent": "Tidak terkirim ke {{agent}}: {{label}}"
+    },
+    "canvases": {
+      "title": "Panel interaktif",
+      "note": "Panel interaktif yang dibuat agen Anda untuk Anda dan sudah dilihat browser ini. Panel yang disematkan muncul di semua perangkat Anda.",
+      "empty": "Belum ada panel interaktif. Saat agen menampilkan panel untuk Anda, panel itu muncul di sini.",
+      "pinned": "Disematkan",
+      "canvas": "Panel",
+      "agent": "Agen",
+      "room": "Ruang",
+      "updated": "Diperbarui",
+      "created": "Dibuat",
+      "pin": "Sematkan {{title}}",
+      "unpin": "Lepas sematan {{title}}",
+      "shared": "Dibagikan dengan agen",
+      "saved": "Berisi nilai Anda"
     }
   },
   "roomSchedules": {

@@ -153,6 +153,7 @@
     "home": "Home",
     "directMessages": "Direct Messages",
     "threads": "Threads",
+    "canvases": "Canvases",
     "inbox": "Inbox",
     "exploreCommunity": "Explore Community",
     "addSpace": "Add Space",
@@ -2965,6 +2966,21 @@
       "receiptData": "Show the data sent to the agent",
       "unlabeled": "Submitted",
       "notSent": "Not sent to {{agent}}: {{label}}"
+    },
+    "canvases": {
+      "title": "Canvases",
+      "note": "Canvases your agents made for you that this browser has seen. Pinned ones show on all your devices.",
+      "empty": "No canvases yet. When an agent shows you one, it is listed here.",
+      "pinned": "Pinned",
+      "canvas": "Canvas",
+      "agent": "Agent",
+      "room": "Room",
+      "updated": "Updated",
+      "created": "Created",
+      "pin": "Pin {{title}}",
+      "unpin": "Unpin {{title}}",
+      "shared": "Shared with agent",
+      "saved": "Has your values"
     }
   },
   "roomSchedules": {

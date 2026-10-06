@@ -153,6 +153,7 @@
     "home": "Início",
     "directMessages": "Mensagens diretas",
     "threads": "Tópicos",
+    "canvases": "Painéis interativos",
     "inbox": "Caixa de entrada",
     "exploreCommunity": "Explorar a comunidade",
     "addSpace": "Adicionar espaço",
@@ -3019,6 +3020,21 @@
       "receiptData": "Mostrar os dados enviados ao agente",
       "unlabeled": "Enviado",
       "notSent": "Não enviado para {{agent}}: {{label}}"
+    },
+    "canvases": {
+      "title": "Painéis interativos",
+      "note": "Painéis interativos que seus agentes criaram para você e que este navegador já viu. Os fixados aparecem em todos os seus dispositivos.",
+      "empty": "Ainda não há painéis interativos. Quando um agente mostrar um para você, ele aparecerá aqui.",
+      "pinned": "Fixado",
+      "canvas": "Painel",
+      "agent": "Agente",
+      "room": "Sala",
+      "updated": "Atualizado",
+      "created": "Criado",
+      "pin": "Fixar {{title}}",
+      "unpin": "Desafixar {{title}}",
+      "shared": "Compartilhado com o agente",
+      "saved": "Tem seus valores"
     }
   },
   "roomSchedules": {

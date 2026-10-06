@@ -153,6 +153,7 @@
     "home": "首頁",
     "directMessages": "私訊",
     "threads": "討論串",
+    "canvases": "互動式面板",
     "inbox": "收件匣",
     "exploreCommunity": "探索社群",
     "addSpace": "新增空間",
@@ -2965,6 +2966,21 @@
       "receiptData": "顯示傳送給代理的資料",
       "unlabeled": "已提交",
       "notSent": "未傳送給 {{agent}}：{{label}}"
+    },
+    "canvases": {
+      "title": "互動式面板",
+      "note": "代理程式為您建立、且此瀏覽器看過的互動式面板。已釘選的面板會顯示在您的所有裝置上。",
+      "empty": "還沒有互動式面板。當代理程式向您顯示面板時，它會列在這裡。",
+      "pinned": "已釘選",
+      "canvas": "面板",
+      "agent": "代理程式",
+      "room": "房間",
+      "updated": "更新時間",
+      "created": "建立時間",
+      "pin": "釘選 {{title}}",
+      "unpin": "取消釘選 {{title}}",
+      "shared": "已與代理程式分享",
+      "saved": "包含您的輸入"
     }
   },
   "roomSchedules": {
