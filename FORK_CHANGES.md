@@ -2,6 +2,14 @@
 
 ## Runbook
 
+### Load power-tag icons only from mxc URLs (2026-10-05)
+
+- Problem: `getPowerTagIconSrc` returned any `icon.key` from `in.cinny.room.power_level_tags` that did not start with `mxc://` unchanged, and `PowerIcon` renders every non-emoji value as `<img src>`.
+  A tag icon set to an `https://` URL in the room state therefore made every viewer's client fetch that URL directly from the other server, wherever the tag showed (messages, profiles, the pin menu, notifications, and the permissions pages).
+  The tag editor only writes `mxc://` uploads or emoji, so such a key can only come from a hand-written state event.
+- Fix: a non-`mxc://` key is returned only when it matches `JUMBO_EMOJI_REG`, the same check `PowerIcon` uses to render it as text; any other key gets no icon.
+- Tests: `useMemberPowerTag.test.ts` checks that an emoji key is kept and an `https://` key gives no icon; it fails without the fix.
+
 ### Open only http(s) account management URLs (2026-10-05)
 
 - Problem: the device dashboard and device delete buttons in Settings > Devices, the cross-signing reset in the verification menu, and the provider portal buttons in account deactivation passed the homeserver's `account_management_uri` (or the `issuer` fallback) to `window.open` without checking its scheme.
