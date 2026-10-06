@@ -9,11 +9,12 @@
   The same flicks over a static HTML page with no app code gave blank frames in 4 of 4 runs (5-41 frames each, up to 100% blank), as the 2026-09-20 entry found.
 - Fix: blank pixels are still captured, logged and attached, but no longer asserted. The ride sampler adds `leadGapPx`: the gap at each frame's scroll offset over the rows of the frame before, the least the compositor shows before React mounts more rows; frames where the app wrote the offset (a ledger settle, recorded by `installScrollWriteProbe`) are skipped. The test asserts it stays under the 120 px gap budget over every sampled frame, including the 2.5 s after the last flick, and that at least 90% of them were measured.
   `gapPx` cannot see this: the virtualizer re-renders inside the scroll event, before the sampler reads the frame.
-  Both gaps count only content that `checkVisibility` reports visible (not hidden by its own or an ancestor's visibility, opacity or display), so rows that are mounted but hidden still fail the test, as they failed the pixel check.
+  Both gaps count a row only if `checkVisibility` reports its message element (the row itself when it has none) visible, and the banner and other content above the list only if their content element is. Rows that stay mounted but are hidden at or above the row's message element, by visibility, opacity or display, therefore still fail the test, as they failed the pixel check; hiding deeper inside a message is not checked.
 - Tests: with the thread range buffer cut from two view heights to 0.2, `gapPx` stayed at 0-10 px while `leadGapPx` reached 159 px and failed the test (1 of 3 runs); with the buffer at 0 it failed 3 of 3 runs at 338-531 px.
   With the thread list set to `visibility: hidden` after the first page loaded during the ride, the test failed 2 of 2 runs (gap 440 and 531 px); the sampler without the visibility check passed both, with 364-409 blank frames on screen.
+  With `opacity: 0` on every `[data-message-item]`, the test failed 2 of 2 runs (gap 531 px); a check on the row wrapper alone passed, with 101 blank frames on screen.
   Same `dev` build, runs interleaved: the old test failed 5 of 8 runs (1-6 blank frames each), the new one 0 of 8; four of its passing runs still captured 2-3 blank frames, with `leadGapPx` 0 in each.
-  With the tail and the visibility check included, the unchanged app passed 6 of 6 runs with `leadGapPx` at most 92 px (at the thread top) and `gapPx` at most 8 px.
+  With the tail and the visibility check included, the unchanged app passed 9 of 9 runs with `leadGapPx` at most 92 px (at the thread top) and `gapPx` at most 8 px.
 
 ### Hide "Catching up..." once the client has caught up (2026-10-06)
 

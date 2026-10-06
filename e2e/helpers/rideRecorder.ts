@@ -510,13 +510,15 @@ export const startRideSampling = (
           .threadCount ?? -1
       );
     type Span = { top: number; bottom: number };
-    // Content hidden by its own or an ancestor's visibility, opacity or
-    // display paints nothing, so it covers nothing.
+    // A row covers only if its message element (or the row, if it has
+    // none) is not hidden there or above by visibility, opacity or display;
+    // the banner and the other content above the list are judged on their
+    // first child, the banner's content element.
     const shown = (el: Element) =>
       el.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true });
     const readCovering = (): Span[] => {
       const covering = Array.from(scroller.querySelectorAll('[data-index]'))
-        .filter(shown)
+        .filter((tile) => shown(tile.querySelector('[data-message-item]') ?? tile))
         .map((tile) => tile.getBoundingClientRect());
       // Content laid out above the virtual list (at the top of a thread: its
       // banner and the "Loading..." divider) is not a blank band. Only content
@@ -527,7 +529,8 @@ export const startRideSampling = (
         const listTop = list.getBoundingClientRect().top;
         Array.from(list.parentElement.children).forEach((child) => {
           const r = child.getBoundingClientRect();
-          if (child !== list && r.bottom <= listTop + 0.5 && shown(child)) covering.push(r);
+          const content = child.firstElementChild ?? child;
+          if (child !== list && r.bottom <= listTop + 0.5 && shown(content)) covering.push(r);
         });
       }
       return covering.map(({ top, bottom }) => ({ top, bottom }));
