@@ -1,5 +1,8 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { createClient, Room } from 'matrix-js-sdk';
 import { RelationType } from 'matrix-js-sdk/lib/@types/event';
+import { Direction } from 'matrix-js-sdk/lib/models/event-timeline';
+import { FeatureSupport, Thread } from 'matrix-js-sdk/lib/models/thread';
 import {
   buildThreadParticipantMap,
   buildThreadReplyCountMap,
@@ -247,6 +250,101 @@ describe('getVisibleThreadMessageCount', () => {
   it('falls back to sdk or bundled counts when replies are not loaded yet', () => {
     expect(getVisibleThreadMessageCount({ length: 3 })).toBe(3);
     expect(getVisibleThreadMessageCount(undefined, 2)).toBe(2);
+  });
+
+  const makeSdkThread = (
+    events: ReturnType<typeof makeEvent>[],
+    { length, initialEventsFetched = true }: { length: number; initialEventsFetched?: boolean }
+  ) =>
+    ({
+      id: '$root',
+      events,
+      timeline: events,
+      length,
+      initialEventsFetched,
+    } as unknown as Parameters<typeof getVisibleThreadMessageCount>[0]);
+
+  it('does not let a partly loaded thread hide its total count', () => {
+    const replies = [
+      makeEvent('$reply-1', '$root', RelationType.Thread),
+      makeEvent('$reply-2', '$root', RelationType.Thread),
+    ];
+
+    expect(getVisibleThreadMessageCount(makeSdkThread(replies, { length: 24 }))).toBe(24);
+    expect(
+      getVisibleThreadMessageCount(
+        makeSdkThread([makeEvent('$root'), ...replies], { length: 24, initialEventsFetched: false })
+      )
+    ).toBe(24);
+    expect(getVisibleThreadMessageCount({ events: replies, timeline: replies }, 24)).toBe(24);
+  });
+
+  it('counts a fully loaded thread exactly, so a redacted reply lowers the count', () => {
+    const redactedReply = {
+      ...makeEvent('$reply-2', '$root', RelationType.Thread),
+      isRedacted: () => true,
+    };
+    const thread = makeSdkThread(
+      [makeEvent('$root'), makeEvent('$reply-1', '$root', RelationType.Thread), redactedReply],
+      { length: 2 }
+    );
+
+    expect(getVisibleThreadMessageCount(thread, 2)).toBe(1);
+  });
+
+  describe('with an SDK thread', () => {
+    let serverSideSupport: FeatureSupport;
+    beforeEach(() => {
+      serverSideSupport = Thread.hasServerSideSupport;
+      Thread.hasServerSideSupport = FeatureSupport.Stable;
+    });
+    afterEach(() => {
+      Thread.hasServerSideSupport = serverSideSupport;
+      vi.restoreAllMocks();
+    });
+
+    it('counts the loaded replies exactly only once back-pagination reaches the root', async () => {
+      const roomId = '!room:example.org';
+      const message = (eventId: string, ts: number, content = {}) => ({
+        event_id: eventId,
+        room_id: roomId,
+        sender: '@agent:example.org',
+        type: 'm.room.message',
+        origin_server_ts: ts,
+        content: { msgtype: 'm.text', body: eventId, ...content },
+      });
+      const reply = (index: number) =>
+        message(`$reply-${index}`, index, {
+          'm.relates_to': { rel_type: RelationType.Thread, event_id: '$root' },
+        });
+      const root = {
+        ...message('$root', 0),
+        unsigned: { 'm.relations': { 'm.thread': { count: 3, latest_event: reply(3) } } },
+      };
+      const mx = createClient({ baseUrl: 'https://example.org', userId: '@alice:example.org' });
+      vi.spyOn(mx, 'supportsThreads').mockReturnValue(true);
+      vi.spyOn(mx, 'fetchRoomEvent').mockResolvedValue(root as never);
+      vi.spyOn(mx, 'fetchRelations')
+        .mockResolvedValueOnce({ chunk: [reply(3)], next_batch: 'older' } as never)
+        .mockResolvedValueOnce({ chunk: [reply(2), reply(1)] } as never);
+      const room = new Room(roomId, mx, '@alice:example.org', { timelineSupport: true });
+      mx.store.storeRoom(room);
+      room.processThreadRoots([mx.getEventMapper()(root)], true);
+      const thread = room.getThread('$root')!;
+
+      await thread.initialize();
+      expect(thread.events.map((event) => event.getId())).toEqual(['$reply-3']);
+      expect(getVisibleThreadMessageCount(thread)).toBe(3);
+      // The app sets the token from its cache, whose replies are not in the SDK timeline.
+      thread.liveTimeline.setPaginationToken(null, Direction.Backward);
+      expect(getVisibleThreadMessageCount(thread)).toBe(3);
+
+      thread.liveTimeline.setPaginationToken('older', Direction.Backward);
+      await mx.paginateEventTimeline(thread.liveTimeline, { backwards: true });
+      vi.spyOn(thread.findEventById('$reply-2')!, 'isRedacted').mockReturnValue(true);
+      expect(thread.events[0].getId()).toBe('$root');
+      expect(getVisibleThreadMessageCount(thread)).toBe(2);
+    });
   });
 });
 

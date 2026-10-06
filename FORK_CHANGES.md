@@ -2,6 +2,28 @@
 
 ## Runbook
 
+### Show a thread card's total message count, not only its loaded replies (2026-10-06)
+
+- Report: a thread card in the compact room overview showed "13 msgs" while the thread had at least 22 replies; opening it showed more replies and still offered older messages.
+- Root cause: `getVisibleThreadMessageCount` returned the number of loaded visible replies whenever there was one, before it looked at the SDK thread's `length` (from the server's `m.thread` count) or the caller's count.
+  `getThreadReplyCount`, which gives the room timeline's thread badge its "N replies", preferred the loaded replies the same way, and `buildThreadRecord` gave the card the cached count (from at most 32 cached events) instead of the root's server count whenever the cache had one.
+- Fix: loaded replies are counted exactly only when they are the whole thread, so redacting a reply in a fully loaded thread still lowers the count.
+  That is when the SDK has loaded the thread's first page (`hasLoadedFirstThreadPage`) and the root is the first event of its live timeline, which the SDK places there only once back-pagination reaches the thread's start.
+  The backward pagination token cannot decide it, because the app sets that token from its own cache, whose replies are not in the SDK timeline.
+  Otherwise the largest of the loaded replies, the SDK's count and the caller's count is shown.
+  `getThreadReplyCount` now uses `getVisibleThreadMessageCount` with the root's server count, and `buildThreadRecord` gives the card the larger of the cached count and that reply count, so the compact card, the thread badge, the recent threads list and the command palette get the count through one function.
+  This replaces PR #206, closed as overengineered; it keeps that PR's first idea (the larger of the loaded and the cached count) without persisted reply IDs or redaction markers.
+- Tests: `threadUtils.test.ts` checks that a partly loaded thread and an unopened one keep the SDK's count, and that a fully loaded thread leaves a redacted reply out.
+  Its SDK thread case uses a real SDK `Thread`: after its first page it shows the server's count, also once the token is cleared as the app does from its cache, and after back-pagination reaches the root it counts the loaded replies exactly.
+  `threadRecord.test.ts` checks that a partly loaded thread shows its total on the card and the badge, that a cached count does not hide the root's server count before the SDK has the thread, and that a fully loaded thread is exact on both after a redaction.
+  The partly loaded, cached-count and SDK thread cases fail on `dev`; the fully loaded cases pass on both and keep the exact count.
+  The "merges canonical presentation and status data" test in `threadRecord.test.ts` loads 2 replies of an SDK thread of 99; it expected a count of 8 (from the summary) and an expected reply count of 2, which was this bug, and now expects 99 for both.
+- Validation: VALIDATION_PLACEHOLDER
+- Not changed:
+  - Until a thread is fully loaded, its count can run high: the server's `m.thread` count also counts tool approval responses (`io.mindroom.tool_approval_response`), which are thread events but not shown.
+  - It also runs high after a reply is redacted on a server whose `m.thread` count keeps counting redacted replies (Tuwunel before its `mindroom-tuwunel` fix; see "Stop the thread reconcile from repairing a cached thread on every open (2026-10-03)").
+  - The overview cache hydration still counts at most 32 cached events; that count is now only one of the counts the largest is taken from.
+
 ### Reproduce Rivera household App Store screenshots (2026-10-01)
 
 - Status: Rivera screenshot fixture implemented and independently reviewed.
