@@ -131,6 +131,7 @@ export const saveThreadSummary = async (
   // notice through the same state/cache used by the overview and thread banner.
   storeThreadSummaryInState(sessionId, room.roomId, threadId, {
     ...getMindroomThreadSummaryInfo(content),
+    eventId,
     ...(eventTs !== undefined && isSupportedThreadSummaryTimestamp(eventTs) ? { eventTs } : {}),
   });
 };

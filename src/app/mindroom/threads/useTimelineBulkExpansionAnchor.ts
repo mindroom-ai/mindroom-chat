@@ -19,6 +19,9 @@ const findVisibleMessageAnchor = (
   scrollElement: HTMLDivElement
 ): { messageId: string; top: number } | undefined => {
   const viewport = scrollElement.getBoundingClientRect();
+  // The reader's view starts below the sticky headers (scroll-padding-top), as for explicit jumps.
+  const readerTop =
+    viewport.top + (Number.parseFloat(getComputedStyle(scrollElement).scrollPaddingTop) || 0) + 8;
   const center = viewport.top + viewport.height / 2;
   let best: { messageId: string; top: number; distance: number } | undefined;
   let partialBest: { messageId: string; top: number; distance: number } | undefined;
@@ -27,11 +30,11 @@ const findVisibleMessageAnchor = (
     const messageId = candidate.dataset.messageId;
     if (!messageId) return;
     const rect = candidate.getBoundingClientRect();
-    const visibleTop = Math.max(rect.top, viewport.top + 8);
+    const visibleTop = Math.max(rect.top, readerTop);
     const visibleBottom = Math.min(rect.bottom, viewport.bottom - 8);
     if (visibleTop >= visibleBottom) return;
     const distance = Math.abs((rect.top + rect.bottom) / 2 - center);
-    if (rect.top >= viewport.top + 8 && rect.bottom <= viewport.bottom - 8) {
+    if (rect.top >= readerTop && rect.bottom <= viewport.bottom - 8) {
       if (!best || distance < best.distance) {
         best = { messageId, top: rect.top, distance };
       }

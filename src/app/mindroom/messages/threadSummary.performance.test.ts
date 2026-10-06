@@ -58,6 +58,7 @@ it('refreshes cached summary fields after metadata and body change in place', ()
     summaryText: 'Human title',
     generatedTs: 2000,
     eventTs: 1000,
+    eventId: '$summary',
     isManual: true,
     messageCount: 25,
   });

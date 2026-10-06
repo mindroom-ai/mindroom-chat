@@ -427,6 +427,36 @@ describe('room edit helpers', () => {
     expect(resolvedContent['io.mindroom.stream_status']).toBe('streaming');
     expect(resolvedContent['io.mindroom.tool_trace']).toEqual(traceMetadata);
   });
+
+  it("never takes MindRoom metadata from another sender's edit", () => {
+    const targetEvent = makeMessageEvent('$target', 1000, '@mindroom_research:example.org');
+    const agentEdit = makeEditEvent(
+      '$agent-edit',
+      2000,
+      '$target',
+      '@mindroom_research:example.org'
+    );
+    const foreignEdit = makeEditEvent('$foreign-edit', 3000, '$target', '@mallory:example.org');
+    foreignEdit.getContent()['m.new_content']['com.mindroom.message_extras'] = {
+      version: 1,
+      sections: [{ title: 'Sign in', content_type: 'text/plain', content: 'https://evil' }],
+    };
+    const timelineSet = {
+      relations: {
+        getChildEventsForEvent: vi.fn().mockReturnValue({
+          getRelations: () => [agentEdit, foreignEdit],
+        }),
+      },
+    } as any;
+
+    const editedEvent = getEditedEvent('$target', targetEvent, timelineSet);
+    const resolvedContent = getLatestMessageContent(targetEvent, editedEvent);
+
+    expect(editedEvent).toBe(agentEdit);
+    expect(resolvedContent.body).toBe('$agent-edit');
+    expect(resolvedContent['com.mindroom.message_extras']).toBeUndefined();
+    expect(agentEdit.getContent()['m.new_content']['com.mindroom.message_extras']).toBeUndefined();
+  });
 });
 
 describe('roomHaveUnread', () => {
@@ -444,6 +474,56 @@ describe('roomHaveUnread', () => {
     } as any;
 
     expect(roomHaveUnread(mx, room)).toBe(false);
+  });
+
+  it("ignores another member's reference, such as a canvas's shared state, even when its target is not loaded", () => {
+    const sharedState = new MatrixEvent({
+      content: { version: 1, 'm.relates_to': { rel_type: 'm.reference', event_id: '$canvas' } },
+      event_id: '$copy',
+      origin_server_ts: 1000,
+      room_id: '!room:example.org',
+      sender: '@bob:example.org',
+      type: 'io.mindroom.canvas_state',
+    });
+    const room = {
+      findEventById: vi.fn(() => undefined),
+      getEventReadUpTo: vi.fn(() => '$older'),
+      getLiveTimeline: vi.fn(() => ({
+        getEvents: () => [sharedState],
+      })),
+    } as any;
+    const mx = {
+      getUserId: vi.fn(() => '@alice:example.org'),
+    } as any;
+
+    expect(roomHaveUnread(mx, room)).toBe(false);
+  });
+
+  it("counts another member's message that carries a reference as unread", () => {
+    const message = new MatrixEvent({
+      content: {
+        body: 'hello',
+        msgtype: 'm.text',
+        'm.relates_to': { rel_type: 'm.reference', event_id: '$target' },
+      },
+      event_id: '$message',
+      origin_server_ts: 1000,
+      room_id: '!room:example.org',
+      sender: '@bob:example.org',
+      type: 'm.room.message',
+    });
+    const room = {
+      findEventById: vi.fn(() => undefined),
+      getEventReadUpTo: vi.fn(() => '$older'),
+      getLiveTimeline: vi.fn(() => ({
+        getEvents: () => [message],
+      })),
+    } as any;
+    const mx = {
+      getUserId: vi.fn(() => '@alice:example.org'),
+    } as any;
+
+    expect(roomHaveUnread(mx, room)).toBe(true);
   });
 
   it('keeps the unread fallback when the loaded main-timeline slice still contains visible activity', () => {

@@ -110,4 +110,20 @@ describe('ThumbnailContent blob URL ownership', () => {
     expect(URL.revokeObjectURL).toHaveBeenCalledOnce();
     expect(outstandingUrls).toHaveLength(0);
   });
+
+  it('loads a thumbnail declared as SVG into an untyped blob', async () => {
+    const svgThumbnail = { ...encryptedThumbnail, thumbnail_info: { mimetype: 'image/svg+xml' } };
+    await act(async () => {
+      renderer = create(
+        <ThumbnailContent info={svgThumbnail} renderImage={() => <span>thumbnail</span>} />
+      );
+      await Promise.resolve();
+    });
+
+    expect(mocks.downloadEncryptedMedia).toHaveBeenCalledWith(
+      mocks.matrixClient,
+      expect.objectContaining({ mimeType: 'application/octet-stream' }),
+      false
+    );
+  });
 });

@@ -502,6 +502,27 @@ describe('kept inputs', () => {
     expect(page.$('#shown').textContent).toBe('7');
   });
 
+  it('tells Chat whether the user has clicked or typed in the page', async () => {
+    const { window } = new JSDOM(buildCanvasPage(RATE, 'light'), {
+      runScripts: 'dangerously',
+      beforeParse(win) {
+        Object.defineProperty(win.navigator, 'userActivation', { value: { hasBeenActive: false } });
+      },
+    });
+    const sent: Array<Record<string, unknown>> = [];
+    window.addEventListener('message', (event) => sent.push(event.data));
+    await settle();
+    (window.document.querySelector('#rate') as HTMLInputElement).value = '7';
+    window.document
+      .querySelector('#rate')
+      ?.dispatchEvent(new window.Event('input', { bubbles: true }));
+    (window as unknown as { mindroom: { saveState: (value: unknown) => void } }).mindroom.saveState(
+      1
+    );
+    await settle();
+    expect(sent.map((message) => message.user)).toEqual([false, false]);
+  });
+
   it("ignores the page's own events until the kept values are back", async () => {
     const page = open(
       `${RATE}<script>document.addEventListener('DOMContentLoaded', () => rate.dispatchEvent(new Event('input', { bubbles: true })));</script>`,

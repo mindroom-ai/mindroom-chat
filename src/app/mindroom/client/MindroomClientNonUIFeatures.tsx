@@ -29,6 +29,7 @@ import {
 } from '../native/iosPush';
 import { useIOSPushEnabled } from '../native/useIOSPushEnabled';
 import { useCrossRoomThreadIndex } from '../cross-room-threads/useCrossRoomThreadIndex';
+import { useCanvasIndexRecorder } from '../canvas/canvasIndex';
 import { useModelControllerLifetime } from '../models/useModelPicker';
 import { BugReportAutoJoinFeature } from '../bug-reports/BugReportAutoJoinFeature';
 
@@ -62,6 +63,12 @@ function MindroomFaviconUpdater() {
 
 function CrossRoomThreadIndexFeature() {
   useCrossRoomThreadIndex();
+  return null;
+}
+
+function CanvasIndexFeature() {
+  const enabled = useClientConfig().mindroom?.canvas?.enabled === true;
+  useCanvasIndexRecorder(useMatrixClient(), enabled);
   return null;
 }
 
@@ -265,6 +272,7 @@ export function MindroomClientNonUIFeatures() {
   return (
     <>
       <CrossRoomThreadIndexFeature />
+      <CanvasIndexFeature />
       <MindroomFaviconUpdater />
       <MindroomInviteNotifications />
       <MindroomNativeIOSPushFeature />

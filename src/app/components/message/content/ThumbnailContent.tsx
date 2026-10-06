@@ -6,7 +6,7 @@ import { AsyncStatus, useAsyncCallback } from '../../../hooks/useAsyncCallback';
 import { revokeBlobUrl, useBlobUrlCleanup } from '../../../hooks/useBlobUrlCleanup';
 import { downloadCachedAttachment } from '../../../mindroom/messages/attachmentRepository';
 import { useMediaAuthentication } from '../../../hooks/useMediaAuthentication';
-import { FALLBACK_MIMETYPE } from '../../../utils/mimeTypes';
+import { getImageBlobSafeMimeType } from '../../../utils/mimeTypes';
 
 export type ThumbnailContentProps = {
   owner?: EventAttachmentOwner;
@@ -31,7 +31,7 @@ export function ThumbnailContent({ owner, info, renderImage }: ThumbnailContentP
         {
           owner,
           mxcUri: thumbMxcUrl,
-          mimeType: thumbInfo.mimetype ?? FALLBACK_MIMETYPE,
+          mimeType: getImageBlobSafeMimeType(thumbInfo.mimetype),
           encryptedFile: encInfo ? { ...encInfo, url: thumbMxcUrl } : undefined,
         },
         useAuthentication

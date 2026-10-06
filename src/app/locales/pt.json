@@ -68,6 +68,8 @@
         "simpleModeDescription": "Oculta funcionalidades avançadas, como a paleta de comandos e os filtros de tópicos. É sincronizado entre os seus dispositivos.",
         "expandLongMessagesByDefault": "Expandir mensagens longas por predefinição",
         "expandLongMessagesByDefaultDescription": "Mostra as mensagens longas por inteiro em vez de as recolher atrás de Mostrar mensagem completa. É sincronizado entre os seus dispositivos.",
+        "showCanvasesInSidebar": "Mostrar painéis interativos na barra lateral",
+        "showCanvasesInSidebarDescription": "Mostra um botão para os painéis interativos dos seus agentes assim que tiver um. É sincronizado entre os seus dispositivos.",
         "saveFailed": "Não foi possível guardar a alteração. Verifique a sua ligação e tente novamente."
       },
       "language": {
@@ -153,6 +155,7 @@
     "home": "Início",
     "directMessages": "Mensagens diretas",
     "threads": "Tópicos",
+    "canvases": "Painéis interativos",
     "inbox": "Caixa de entrada",
     "exploreCommunity": "Explorar a comunidade",
     "addSpace": "Adicionar espaço",
@@ -3012,12 +3015,29 @@
       "send": "Enviar",
       "discard": "Descartar",
       "disclosure": "Criado por {{agent}}. Não tem acesso à sua conta; o que você digitar aqui pode sair deste painel.",
+      "sharedNotice": "Salvo nesta sala: {{agent}} e outras pessoas aqui podem ler o que você digitar.",
       "sending": "A enviar para {{agent}}…",
       "sent": "Enviado para {{agent}}: {{label}}",
       "sendFailed": "Não foi possível enviar sua resposta. Tente novamente.",
       "receiptData": "Mostrar os dados enviados ao agente",
       "unlabeled": "Enviado",
       "notSent": "Não enviado para {{agent}}: {{label}}"
+    },
+    "canvases": {
+      "title": "Painéis interativos",
+      "note": "Painéis interativos que seus agentes criaram para você e que este navegador já viu. Os fixados aparecem em todos os seus dispositivos.",
+      "empty": "Ainda não há painéis interativos. Quando um agente mostrar um para você, ele aparecerá aqui.",
+      "pinned": "Fixado",
+      "canvas": "Painel",
+      "thread": "Tópico",
+      "agent": "Agente",
+      "room": "Sala",
+      "updated": "Atualizado",
+      "created": "Criado",
+      "pin": "Fixar {{title}}",
+      "unpin": "Desafixar {{title}}",
+      "shared": "Compartilhado com o agente",
+      "saved": "Tem seus valores"
     }
   },
   "roomSchedules": {

@@ -35,6 +35,8 @@ import { CanvasResponseSidecarReceipt } from '../canvas/CanvasResponseSidecarRec
 
 export type RenderMindroomMessageContentOptions = {
   mEvent?: MatrixEvent;
+  /** Whether the sender is a MindRoom account on the viewer's homeserver. */
+  fromMindroomAgent?: boolean;
   displayName: string;
   eventType?: string;
   roomId?: string;
@@ -71,6 +73,7 @@ function MindroomMessageExtrasRenderNotice({
 
 export const renderMindroomMessageContent = ({
   mEvent,
+  fromMindroomAgent = false,
   displayName,
   eventType,
   roomId,
@@ -238,7 +241,8 @@ export const renderMindroomMessageContent = ({
   }
 
   if (eventType === MINDROOM_TOOL_APPROVAL_EVENT) {
-    const approval = parseToolApprovalContent(eventType, content);
+    // Only MindRoom sends approval cards; any member can post this event type.
+    const approval = fromMindroomAgent ? parseToolApprovalContent(eventType, content) : null;
     return approval ? (
       <MindroomToolApprovalCard
         approval={approval}

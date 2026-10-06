@@ -12,6 +12,197 @@
 - Validation after rebasing onto `origin/dev`: all 6,334 tests across 674 files, typecheck, iOS production/PWA build, lint (0 errors, 18 existing warnings), and Fastfile syntax pass.
 - Independent review approved the code and documentation; PR #407 tracks the change.
 
+### Hide "Catching up..." once the client has caught up (2026-10-06)
+
+- Report: on a cached load the app painted without the sync bar, then "Catching up..." appeared (the whole app moved down 25 px) and stayed about 30 s before it hid (the app moved back up), although the client had long caught up. After a reconnect it also lingered about 30 s, and a search over the default rooms opened mid-session waited for the next sync before it ran.
+- Root cause: the catch-up rule (`isInitialClientCatchupInProgress`, copied in `SyncStatus` and `messageSearchScope`) waited for a sync whose previous state was already `Syncing`. The first sync after startup or a reconnect returns everything queued; the next is a full 30 s long-poll on a quiet account, so the rule ended one long-poll late.
+  `SyncStatus` and `useInitialClientCatchup` also started from no state, ignoring the state the client was already in: the bar was missing after a cached load until the next sync event, and a room opened after startup deferred its empty overview until the next sync.
+- Fix: the client is caught up once a `Syncing` state's SDK data says `catchingUp: false`. The SDK keeps it true while the server still has to-device messages queued, so an encrypted account with a key backlog now stays "catching up" until the backlog is drained (each of those polls returns at once); before, the second sync ended it.
+  One hook, `useClientSyncStateData`, reads the client's current state on mount and follows `ClientEvent.Sync`; `SyncStatus`, `ClientRoot`, `useInitialClientCatchup` and `MessageSearch` share it and the rule, and the search copy of the rule is deleted.
+- Tests: `SyncStatus.test.tsx` (the bar ends on the first caught-up sync after startup, stays while to-device messages are queued, ends after a reconnect's catch-up, and shows the state the client is in at mount; all but the queued case fail on `dev`).
+  `RoomTimeline.cache.test.ts`: an already caught-up client shows the empty overview at once (fails on `dev`); the deferred-overview tests now set the client in catch-up explicitly instead of relying on the hook ignoring its state.
+- Validation: live, cached reload: the bar showed 30 020 ms with 2 layout moves on `dev`, 157 ms with 1 move with the fix; fresh login unchanged.
+
+### List every canvas on a Canvases page, with pins on all devices (2026-10-06)
+
+- Why: canvases were only reachable from the message that showed them, so a page used every day (a landing page with upcoming meetings, a checklist) had to be found again in its thread; users asked for one place listing them, where they can pin the ones they use.
+- Where canvases are on (`mindroom.canvas.enabled`), the sidebar gets a Canvases button (in Simple Mode too) once there is a canvas to find: one listed here or one pinned, and it stays while its page is open. Settings → General → Interface has "Show Canvases in the sidebar" (`showCanvasesInSidebar` in `io.mindroom.settings`, on by default, synced across devices; offered only where canvases are on) to turn it off.
+  The button opens `/canvases/`: a table of the canvases agents made for this user, pinned ones first, then by last update, with the thread (named as the sidebar's Threads list names it: its summary, or its first message), the room, the agent, when each was updated and created, and whether it is shared with its agent or holds the user's values here.
+  Its title opens the canvas in its thread, filling the room, at its latest version; the thread name opens that thread and the room name the room, both without the canvas.
+- The list is kept per session in its own IndexedDB database (`mindroom-canvas-index::<session>`), deleted at logout like the saved canvas state.
+  It is not bounded: an entry is a few hundred bytes, and a bound would drop old pinned canvases (fetched again, then dropped again).
+  Every write tells the page to re-read the list, also one that changed nothing, since another tab of the session may have written the change first.
+  `useCanvasIndexRecorder` fills it with every canvas this browser receives, on any route: it listens to sync's `ClientEvent.Event` (which also reports an update or deletion of a canvas whose thread is not loaded, events no timeline takes), timelines (history and threads loaded later), decryption and applied edits.
+  An update renames its row only when it is newer and the panel would accept it (`readCanvasEdit`, held against the authority the listed request carries: its agent, room, thread, requester and sharing), and an older copy of a request never rolls a row back; a deletion removes it, as does a copy that turns up already deleted (history loaded after a missed deletion).
+  Each row keeps the event its shown version comes from (`revisionId`); when that update is deleted (Element's edit history can remove one version), the row is rebuilt from the canvas's surviving version, loaded or fetched.
+- Pins are account data, `io.mindroom.pinned_canvases` `{ canvases: [{ room_id, event_id }] }`, with IDs only since account data is not encrypted and titles are.
+  A pinned canvas this browser has not seen is fetched with its newest valid update and listed.
+  Pin changes are queued per client (`setCanvasPinned`) and each is written from the pins the client holds once the one before has echoed back, because the SDK settles a write only then and skips one equal to what it holds; overlapping writes lost or undid pins, also across leaving and reopening the page. The page shows each change at once.
+- Opening leaves a request for the room (`requestCanvasOpen`, forgotten after 30 s, and cancelled when the user comes back to the page or chooses only a conversation) and navigates to the thread; `useCanvasOpenRequest` in the room loads the canvas (the loaded copy, or the server's with its newest update applied) once the thread is ready, opens it through the room's usual UI action path, and expands it; a canvas that cannot open then (during a call) is not expanded when it opens later.
+  The request lives outside the room because the room remounts while thread routing settles the route, which a history state or component state would not survive (found live).
+- Tests (removing each piece fails its test): `canvasIndexStore.test.ts` (per session, no rollback, updates only when accepted and newer, deletion, listeners on every write), `canvasIndex.test.tsx` (what is listed and ignored, a copy that is already deleted, the shown update deleted, the shown update, updates the panel would reject, updates and deletions reported only by sync, canvases loaded before the recorder started, off when canvases are, loading at the newest valid update), `useCanvasOpenRequest.test.tsx` (once, only when ready and for its room, after a remount, cancelled, forgotten when stale or unloadable), `pinnedCanvases.test.ts` (IDs only, one change at a time from the latest pins, after a failure), `Canvases.test.tsx` (order, rooms left, cells with the thread's name, navigation and cancelling, a pin change shown at once and written after the one before, a pin from another device fetched once), `CanvasesTab.test.tsx` (hidden until a canvas is listed or pinned, kept while its page is open), `mindroomAccountSettings.test.ts` and `MindroomInterfaceSettings.test.tsx` (the setting and its switch, only where canvases are on), `SidebarNav.test.ts` (also turned off) and `Room.test.ts` (the room opens the requested canvas expanded, but not one that could not open during a call).
+  `e2e/agent-canvas-list.spec.ts`: no Canvases button before the first canvas, canvases are listed without opening their room, an update renames and moves its row, a pin moves a row to the top and is stored as IDs, list and pin survive a reload, a title opens its canvas expanded in its thread, the thread's name opens the thread, a room name opens the conversation, a deletion removes its row, and logout deletes the list.
+- Validation: live with a real agent (GPT-6.1 Sol, backend main `eedafc4ad`): in an encrypted room its canvas was listed as it arrived; in an unencrypted room it showed "Lunch plan", which was listed without its room being opened, its in-place update renamed the row "Dinner plan", and the title opened version 2 of 2 expanded in its thread (the live run found the room remounting while settling the thread route, which is why the open request lives outside the room).
+- Not changed:
+  - Only canvases this browser has received are listed; a new device starts with recent ones and the pinned ones it can read, and old canvases appear once their thread is opened.
+  - A pinned canvas in an encrypted room that this device cannot decrypt is not listed.
+
+### Link only http(s) registration terms URLs (2026-10-05)
+
+- Problem: the "Terms and Conditions" link on the registration form used the homeserver's `m.login.terms` privacy policy URL as-is, without checking its scheme.
+- Fix: `getLoginTermUrl` in `src/app/utils/matrix-uia.ts` returns only URLs that start with `http://` or `https://`, for both the `en` policy and the first-language fallback; any other value gives no URL, so the form shows no terms link, as for a server without terms.
+- Validation: `src/app/utils/matrix-uia.test.ts` checks that an `https` URL is returned and that a `javascript:` URL under `en` or another language gives no URL; the two `javascript:` cases fail before the fix and pass after.
+  `npm run typecheck`, and ESLint and Prettier on the touched files pass.
+
+### Show messages that carry an `m.reference` relation (2026-10-06)
+
+- Problem: to keep a canvas's shared state copies out of view, PR #408 made the timeline and the room's unread check skip every event with an `m.reference` relation.
+  That also hid ordinary `m.room.message` events carrying one, which any member can send and which MindRoom agents still read as part of the thread, so Chat users could not see them and the room did not turn unread.
+- Fix: `isHiddenReferenceEvent` (`src/app/utils/room.ts`), used by `isRenderableEvent` and `roomHaveUnread`, hides a reference only when it is not an `m.room.message`, is still encrypted, or could not be decrypted.
+  Canvas state copies are `io.mindroom.canvas_state` events, so they stay hidden, also while encrypted or undecryptable.
+- Tests: `roomTimelineEvents.test.ts` (a message that carries a reference shows, an undecryptable reference does not) and `room.test.ts` (another member's message that carries a reference counts as unread); both fail without the fix.
+
+### Render a paragraph of tool markers without recursing per marker (2026-10-05)
+
+- Problem: when a paragraph held several tool markers one after another, for example separated by line breaks, the renderer showed the first and handed a copy of the rest of the paragraph back to `domToReact`, which handled the next marker the same way.
+  Each marker added a level of recursion and copied the rest of the paragraph again, so 1,000 markers took about 0.9 s, and the 2,400 that fit in one 64 KB event overflowed the stack, which replaced the client with the error page whenever the room was opened.
+  Copy followed the same chain recursively in `getRenderedMindroomToolRefs`: 2,400 markers took 0.75 s when the message menu opened, and 10,000 overflowed the stack.
+- Fix: `takeLeadingToolRefs` walks the markers that start a paragraph in one pass.
+  It joins each run of children a marker can span once and matches each marker from where the previous one ended, so the paragraph is scanned once.
+  `getToolRefPrefixFromElement` and copy use it, and the renderer gives each later marker its own block in a loop and renders what follows the last one once.
+  The rendered output and the copy result are unchanged.
+- Tests: `react-custom-html-parser.test.ts` renders and copies a paragraph of 3,000 markers; it fails on `dev` with `RangeError: Maximum call stack size exceeded`.
+  Randomized comparisons against the previous implementation (100,000 messages, about 14,000 with several markers in one paragraph) found no difference in the rendered markup, the copy result, or the first marker and what follows it.
+- Validation: typecheck, and ESLint and Prettier on the touched files pass.
+  2,400 or 50,000 markers in one paragraph now render as fast as the same number in separate paragraphs, and copy reads 50,000 in 0.16 s.
+
+### Escape emote URLs in sent formatted bodies (2026-10-05)
+
+- Problem: the composer's HTML output wrote a custom emote's URL into the `src` attribute of its `<img data-mx-emoticon>` unescaped, while the shortcode in `alt` and `title` was escaped.
+  Emote URLs come from image packs in room state, so a pack URL containing `"` ended the attribute and the rest of the URL went into the sent `formatted_body` as markup.
+- Fix: `elementToCustomHtml` (`src/app/components/editor/output.ts`) escapes the URL with `sanitizeText`, as it already does for the shortcode; ordinary `mxc://` URLs are unchanged.
+- Tests: `emoticon.test.ts` checks that an emote URL containing `"` and tags serializes as one `<img>` with the escaped URL in `src`; it fails without the fix.
+
+### Load power-tag icons only from mxc URLs (2026-10-05)
+
+- Problem: `getPowerTagIconSrc` returned any `icon.key` from `in.cinny.room.power_level_tags` that did not start with `mxc://` unchanged, and `PowerIcon` renders every non-emoji value as `<img src>`.
+  A tag icon set to an `https://` URL in the room state therefore made every viewer's client fetch that URL directly from the other server, wherever the tag showed (messages, profiles, the pin menu, notifications, and the permissions pages).
+  The tag editor only writes `mxc://` uploads or emoji, so such a key can only come from a hand-written state event.
+- Fix: a non-`mxc://` key is returned only when it matches `JUMBO_EMOJI_REG`, the same check `PowerIcon` uses to render it as text; any other key gets no icon.
+- Tests: `useMemberPowerTag.test.ts` checks that an emoji key is kept and an `https://` key gives no icon; it fails without the fix.
+
+### Open only http(s) account management URLs (2026-10-05)
+
+- Problem: the device dashboard and device delete buttons in Settings > Devices, the cross-signing reset in the verification menu, and the provider portal buttons in account deactivation passed the homeserver's `account_management_uri` (or the `issuer` fallback) to `window.open` without checking its scheme.
+  A `javascript:` URL in the auth metadata therefore ran as script on Chat's origin instead of opening a page.
+- Fix: `getAccountManagementUrl` in `src/app/hooks/useAccountManagement.ts` builds the URL for all four call sites and returns `undefined` for a URL that does not start with `http://` or `https://`; the button then does nothing.
+- Validation: `src/app/hooks/useAccountManagement.test.ts` pins that a `javascript:` `account_management_uri` or `issuer` yields no URL; it fails before the fix and passes after.
+  `npm run typecheck`, `npm run build`, and ESLint and Prettier on the touched files pass.
+
+### Open the server chip's homeserver with noopener (2026-10-05)
+
+- Problem: the profile server chip's "Open in Browser" item called `window.open` without window features.
+  Unlike a `target="_blank"` link, `window.open` does not imply `noopener`, so the homeserver page it opened kept a `window.opener` reference to the Chat tab and could navigate that tab to another page.
+- Fix: the item passes `noopener,noreferrer`, as the other `window.open` calls in `ConnectPage` and `LocalMindroom` do.
+- Tests: `UserChips.clipboard.test.tsx` checks that the item opens `https://<server>` in a new tab with `noopener,noreferrer`; it fails without the fix.
+
+### Type image blobs from an allowlist of raster image types (2026-10-05)
+
+- Problem: `ImageContent` and `ThumbnailContent` load every image, plaintext or encrypted, into a `blob:` URL typed with the event's `info.mimetype`.
+  An image declared as `image/svg+xml` therefore opened in a new tab as an SVG document on Chat's origin, not as an image.
+- Fix: `getImageBlobSafeMimeType` keeps the declared type only when it is in `IMAGE_MIME_TYPES` (JPEG, GIF, PNG, APNG, WebP, AVIF) and uses `application/octet-stream` otherwise.
+  Browsers sniff raster images in `<img>`, so images with a missing or nonstandard type still render, and opening one in a new tab downloads it.
+  Browsers do not sniff SVG in `<img>`, so `MImage` shows an `image/svg+xml` image as a file tile with a download button, as `MVideo` and `MAudio` do for media they cannot play.
+  `RenderMessageContent` passes `MImage` a tile without the caption, because the image branch already renders the caption after it.
+- Tests: `ImageContent.test.tsx` (an `image/svg+xml` image loads as `application/octet-stream`, a PNG keeps its type), `ThumbnailContent.test.tsx` (an SVG thumbnail loads as `application/octet-stream`), `MsgTypeRenderers.file.test.ts` (an `image/svg+xml` image renders as a file, a PNG as an image), and `RenderMessageContent.test.ts` (a captioned SVG image shows its caption once); each SVG case fails without its fix.
+
+### Measure the long-message expansion anchor without the sync bar (2026-10-05)
+
+- Report: after PR #410, the live `long-message-expansion-default` spec still saw the anchored message land 25 px off after a collapse, inside its 40 px budget.
+- Root cause: the spec, not the anchor. The "Catching up..." bar (`client-sync-status`) sits above the whole app and hides only after the second sync, up to a 30 s long-poll later, moving the whole app up 25 px.
+  The spec took its anchor snapshot after a reload while the bar showed; the bar hid when the test opened Settings, before the toggle. A frame trace showed the anchor landing exactly on the app's reader line.
+- Fix: the spec hides the bar for every page it loads (as `thread-banner-height-anchor` does), and its drift budget drops from 40 px to 2 px.
+  Waiting for the bar to go was not enough: on a cached load it can appear only after the first network sync.
+- Validation: collapse drift 25 px in 3 of 3 runs before; 0 px in 5 of 5 runs waiting for the bar and 3 of 3 with it hidden; the expand drift stays 0 px.
+  The bar's hide still moves the whole app by 25 px for a user; that is `SyncStatus` layout, separate from the anchor.
+
+### Tighten the README's configuration and push notes (2026-10-06)
+
+- Status: implementation, review, and publication on `docs/readme-follow-ups`; follows the README rewrite in PR #397.
+- Problem: the Docker configuration example copied `config.mindroom.json` from a checkout, which someone running only the published image does not have; the push section read as if push were off, though the bundled config already enables it for MindRoom's own app and gateway; and the "App Store submission docs" list also held `ios-panels.md`, which is not a submission document.
+- Change: copy the starting configuration out of the image with `docker run --rm --entrypoint cat`, say the bundled config already enables push and that a fork sets its own bundle ID and gateway, show a placeholder bundle ID in the example, say `appId` must be the app's bundle ID (as the preflight checks) and must match a gateway app entry for the build's APNs environment with `convert_device_token_to_hex: false`, since the app registers hex tokens, relabel the list "iOS docs", and replace the stale push section of `.docs/ios-build.md` (root `config.json`, no rebuild) with a link to the README.
+- Validation: the image is `nginx:alpine` with the built `dist/` at `/app`, so `/app/config.json` is the bundled file; `config.mindroom.json` enables `push.ios` for `chat.mindroom.app`; review by Opus 5.5, GPT-6.1 Sol, and GPT-6 Astra.
+
+### Live test for typing after a gappy sync (2026-10-05)
+
+- Adds `e2e/live/typing-after-gappy-sync.spec.ts` for the SDK fix in PR #402, which its unit test covers only by calling `resetLiveTimeline` directly.
+  The browser goes offline while 30 messages arrive (the sync timeline limit is 20), comes back on a `limited: true` sync, and another member's typing start and stop must still be heard.
+- Validation: passes on `dev` (2 of 2, 43 s); with #402's SDK line reverted it fails 2 of 2 at the typing check after the gap, after typing showed before it.
+
+### Keep the long-message expand/collapse anchor below the sticky headers (2026-10-05)
+
+- Report: after changing "Expand long messages by default" while reading inside a long message, that message's top landed behind the sticky thread banner (or the room header), so the reader saw its middle instead of its start.
+- Root cause: `useTimelineBulkExpansionAnchor` took the reader's top as 8 px below the scroller's top and ignored the sticky header and banner over it (the scroller's `scroll-padding-top`).
+  For a message that fills the view, the anchor is its visible top, so the restore put the message's top on that line, under the glass. A message hidden under the headers also counted as visible.
+- Fix: the reader's top is 8 px below `scroll-padding-top`, the line the scroll ledger and explicit jumps already use.
+- Tests: `useTimelineBulkExpansionAnchor.test.ts` (a message filling the view under a 150 px header is restored below it, and a message whose top is under the header is not the anchor; each fails without its half of the fix).
+  `long-message-expansion-default` measures its anchor from the same line; its collapse-from-a-tall-message check fails on `dev` (the message lands 175 px off, behind the banner) and passes with the fix (25 px, the same residual `dev` shows against its old line, inside the 40 px budget).
+
+### Let an agent read a canvas page's state without a Send button (2026-10-06)
+
+- Why: for pages whose choices matter later (a checklist ticked over days, a form filled in passing), users asked that the agent see them without an explicit Send; pushing every change into the conversation would cost the agent tokens on every turn, so the agent reads on demand instead.
+- A canvas request may carry `share_state: true` (backend `show_canvas(share_state=True)`). It is an authority field like `requester_id`, so an edit cannot start or stop sharing.
+  The panel shows, whatever its footer says, "Saved in this room: *agent* and others here can read what you enter.", and keeps the usual disclosure.
+- `useCanvasStateShare` keeps a copy of what the page saved (its `saveState` JSON and kept inputs) in the room once the user pauses for 2 s, and when the panel closes or the tab is hidden (a closing tab never unmounts).
+  Only saves after the user has clicked or typed in the page are shared: the bridge adds `navigator.userActivation.hasBeenActive`, which a page's own `focus()` cannot fake, to each state message, and `CanvasPanel` falls back to whether the frame took focus where a browser lacks it; so a page's defaults on another device, or its saves while loading, never replace the agent's copy.
+  Copies go one at a time through a queue per canvas that outlives the panel, so a slow sidecar upload cannot land after a newer copy, even across closing and reopening; an unchanged copy is not sent again, a failed one is sent with the next save, and its unsent local echo is discarded.
+  The copy is an `io.mindroom.canvas_state` event with an `m.reference` relation to the canvas, so the agent's `read_canvas_state` finds the newest with one `/relations` call; a copy too large for one event goes as a long-text sidecar, like a large answer.
+  It is not a message, so it starts no agent turn and stays out of the agent's conversation; in an encrypted room it is encrypted like any event, and it stays in the room's history.
+  Each copy is marked `msgtype: "m.notice"` (inline and as a sidecar preview), so the standard push rule keeps it from notifying the room, even under a room's "All messages" setting.
+  The timeline and the room's unread check now skip every `m.reference` relation, so a copy never shows (not even as an undecrypted placeholder) and never marks the room unread for other members, also when the canvas it refers to is not loaded.
+- Tests (removing each piece fails its test): `useCanvasStateShare.test.tsx` (waits for a pause, each save restarts the wait, nothing for an unshared canvas or the same state twice, shares on close and when the tab is hidden, one copy at a time behind a slow upload, sidecar keeps the reference, retry after a failed send), `CanvasPanel.test.tsx` (the notice, `byUser` before and after the user worked in the page), `RoomCanvasPanel.test.tsx` (only the user's saves shared, whole), `chatUiProtocol.test.ts` (parsed, kept through edits, an edit cannot start it), `roomTimelineEvents.test.ts` and `room.test.ts` (a reference is neither shown nor unread), and the backend contract's new `show_canvas/shared` case.
+  `e2e/agent-canvas.spec.ts`: ticking a box in a shared canvas leaves one copy referencing it, with the page's state and kept inputs, while an unshared canvas leaves none.
+- Validation: live with a real agent (GPT-6.1 Sol, backend mindroom-ai/mindroom#2709): asked for a camping checklist it could check without a Send button, it chose `share_state=True`; after three ticks it called `read_canvas_state` and answered "3 of 6 packed" with the right items, and the LLM request before the tool call held no state.
+- Not changed:
+  - A change made less than 2 s before logging out may not be shared, since logout stops the client first; one made just before closing the tab is sent when the tab hides, which the browser may cut short.
+  - A copy deleted from the room is gone: servers drop it from the relations, so the agent reads the copy before it.
+  - Two devices editing the same canvas share their own copies; the agent reads the newest.
+
+### Drop a redacted thread summary from the thread title (2026-10-05)
+
+- Problem: after an `io.mindroom.thread_summary` notice was redacted, clients that had received it kept showing its text as the thread title in the overview and the thread banner, and kept it in the IndexedDB `thread_summaries` store across reloads until a newer summary replaced it.
+- Root cause: the shared summary state and its `thread_summaries` records did not know which event a title came from, so neither the live redaction handler nor the redaction scrub could clear them, and the stored title kept winning over the thread's remaining summaries.
+  In an open thread the banner also read matrix-js-sdk's latest reply, an unredacted copy until the SDK re-fetches the root, and nothing re-rendered the banner when it did.
+- Fix: a summary taken from a Matrix event (or a manual save) records its `eventId` in the shared state and the cache record.
+  The engine's live redaction handler drops matching titles from the shared state (`forgetRedactedThreadSummaries`), and the redaction scrub deletes matching `thread_summaries` records, so readers fall back to the thread's remaining summaries or the root preview.
+  The room and thread snapshot writers in `eventRepository.ts` drop them too when they persist redaction evidence, because a redaction that fell in a sync gap reaches the client only through gap fill or a thread fetch, never through the live handler.
+  `ThreadContextBanner` re-renders on its thread's `ThreadEvent.Update`.
+- Tests: `threadSummaryPersistence.test.tsx` caches a summary, redacts it through the engine write-through and the real cache scrub, and checks that memory and disk drop it and that the older summary then becomes the title (fails on `dev` and without either the state or the scrub change), and checks that a redacted copy of the notice persisted through the room or the thread snapshot writer drops the loaded title (each case fails without its writer's call); `ThreadContextBanner.test.ts` swaps the SDK's latest reply and emits `ThreadEvent.Update` (fails without the subscription); `threadSummaryActions.test.ts` checks that a manual save records its event id.
+  A local live check against Tuwunel (Chromium) redacted the newest of two summaries with the thread open and with the client closed: the banner, the overview card, and the stored record fell back to the older summary, also after a reload; on `dev` the redacted text stayed in the card and the stored record in both cases, and in the open thread's banner.
+
+### Trust MindRoom metadata only from the accounts that send it (2026-10-05)
+
+- Report: the client read MindRoom metadata from whoever sent it, so any room member could make other members' clients show content MindRoom never sent.
+  - Another sender's `m.replace` of an edited message added its message extras, thread summary, canvas `ui_action` or `m.mentions` to that message: `getEditedEvent` picked the original sender's latest edit, then filled missing keys from every replacement, whoever sent it.
+  - A member could edit their own message with no "(edited)" marker by adding `io.mindroom.stream_status`, `io.mindroom.ai_run`, `io.mindroom.tool_trace` or the router voice-echo flag to it.
+  - `io.mindroom.tool_approval` events from anyone became pending requests, receipts and timed permissions in the approval bar and review dialog, and live cards in the room timeline.
+  - `com.mindroom.scheduled.task` state from any member with state power showed in the Schedules dialog, its badge and the thread scheduled indicators, with any owner.
+- Backend rules: approval cards come from the router account (`approval_transport.py`), scheduled-task state counts only from MindRoom's own bot accounts (`scheduling.py`), and agent stream metadata and voice echoes come from agents and the router.
+- Fix: edit candidates are limited to the original sender before the latest edit is chosen and before its metadata fallbacks are copied.
+  The edited-marker exemption, approval records and cards, and scheduled-task state now require a MindRoom account on the viewer's homeserver (`isMindroomAgentUserIdForViewer`, as for agent canvases and calls).
+  Scheduled-task readers share `useScheduledTaskEvents`.
+- Limits: agents on another homeserver than the viewer, and agents renamed away from the `mindroom_` prefix, now show "(edited)" on finished streams and their approval cards and schedules are not shown; `mindroom_` accounts on the viewer's own homeserver still pass, so operators must keep reserving that namespace.
+- Tests: `room.test.ts` (another sender's edit adds no metadata and leaves the agent's edit unchanged), `RenderMessageContent.test.ts` (a human or foreign-server sender with agent metadata or the voice-echo flag keeps "(edited)"), `renderMindroomMessageContent.test.ts` and `ThreadApprovalProvider.test.tsx` (cards from a member or a foreign-server agent are not cards or records), `useThreadScheduledTasks.test.ts` (tasks from a member or a foreign-server agent are not counted); each fails without its fix.
+  The live approval and schedule specs and the App Store seeder now send those events from a registered `mindroom_` account, and the schedules fixture uses one.
+
+### Match MindRoom homeservers by hostname (2026-10-05)
+
+- Problem: `normalizeHomeserverName` in `src/app/mindroom/auth/authPolicy.ts` only stripped the scheme and trailing slashes, so `isMindroomHomeserver` suffix-matched the host plus the path.
+  A base URL such as `https://example.org/x.matrix.mindroom.chat` counted as a MindRoom tenant, and on iOS the Apple provider then took the native Apple exchange, which posts the Apple credential to that base URL.
+- Fix: `normalizeHomeserverName` parses the server as a URL (adding `https://` to bare server names) and returns its hostname, or an empty string when it does not parse, so the exact `mindroom.chat` match and the dot-bounded `.matrix.mindroom.chat` suffix match apply to the hostname only.
+- Validation: `src/app/mindroom/auth/authPolicy.test.ts` pins that a path ending in the tenant suffix does not match; it fails before the fix and passes after.
+  `npm run typecheck`, `npm run build`, and ESLint and Prettier on the touched files pass; `npm test` fails only in `xcodeCloudPostClone.test.ts`, which needs `/bin/bash`, and one `useRoomInputSendSessionController.test.ts` case, which also fails on `dev`.
+
 ### Keep one message from freezing or crashing the client for everyone (2026-10-05)
 
 - Problem: five message render paths could freeze the client, or replace it with the error page, for everyone who viewed one message.

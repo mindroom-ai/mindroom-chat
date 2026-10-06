@@ -3,6 +3,7 @@ import { Box, color, Switch, Text } from 'folds';
 import { useTranslation } from 'react-i18next';
 import { SequenceCard } from '../../components/sequence-card';
 import { SettingTile } from '../../components/setting-tile';
+import { useClientConfig } from '../../hooks/useClientConfig';
 import {
   useMindroomAccountSettings,
   useSetMindroomAccountSettings,
@@ -15,7 +16,7 @@ type MindroomInterfaceSettingsProps = {
 
 type MindroomBooleanSetting = keyof Pick<
   MindroomAccountSettings,
-  'simpleMode' | 'expandLongMessagesByDefault'
+  'simpleMode' | 'expandLongMessagesByDefault' | 'showCanvasesInSidebar'
 >;
 
 type MindroomAccountSwitchProps = {
@@ -75,6 +76,7 @@ function MindroomAccountSwitch({ setting, title, description }: MindroomAccountS
  */
 export function MindroomInterfaceSettings({ className }: MindroomInterfaceSettingsProps) {
   const { t } = useTranslation();
+  const canvasesEnabled = useClientConfig().mindroom?.canvas?.enabled === true;
 
   return (
     <Box direction="Column" gap="100">
@@ -90,6 +92,13 @@ export function MindroomInterfaceSettings({ className }: MindroomInterfaceSettin
           title={t('settings.general.interface.expandLongMessagesByDefault')}
           description={t('settings.general.interface.expandLongMessagesByDefaultDescription')}
         />
+        {canvasesEnabled && (
+          <MindroomAccountSwitch
+            setting="showCanvasesInSidebar"
+            title={t('settings.general.interface.showCanvasesInSidebar')}
+            description={t('settings.general.interface.showCanvasesInSidebarDescription')}
+          />
+        )}
       </SequenceCard>
     </Box>
   );

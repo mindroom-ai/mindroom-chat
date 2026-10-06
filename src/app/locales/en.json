@@ -79,6 +79,8 @@
         "simpleModeDescription": "Hide advanced features like the command palette and thread filters. Synced across your devices.",
         "expandLongMessagesByDefault": "Expand long messages by default",
         "expandLongMessagesByDefaultDescription": "Show long messages in full instead of folding them behind Show full message. Synced across your devices.",
+        "showCanvasesInSidebar": "Show Canvases in the sidebar",
+        "showCanvasesInSidebarDescription": "Show a Canvases button for the pages your agents made, once you have one. Synced across your devices.",
         "saveFailed": "Could not save the change. Check your connection and try again."
       },
       "language": {
@@ -153,6 +155,7 @@
     "home": "Home",
     "directMessages": "Direct Messages",
     "threads": "Threads",
+    "canvases": "Canvases",
     "inbox": "Inbox",
     "exploreCommunity": "Explore Community",
     "addSpace": "Add Space",
@@ -2958,12 +2961,29 @@
       "send": "Send",
       "discard": "Discard",
       "disclosure": "Made by {{agent}}. It cannot access your account; what you enter here may leave this panel.",
+      "sharedNotice": "Saved in this room: {{agent}} and others here can read what you enter.",
       "sending": "Sending to {{agent}}…",
       "sent": "Sent to {{agent}}: {{label}}",
       "sendFailed": "Could not send your response. Try again.",
       "receiptData": "Show the data sent to the agent",
       "unlabeled": "Submitted",
       "notSent": "Not sent to {{agent}}: {{label}}"
+    },
+    "canvases": {
+      "title": "Canvases",
+      "note": "Canvases your agents made for you that this browser has seen. Pinned ones show on all your devices.",
+      "empty": "No canvases yet. When an agent shows you one, it is listed here.",
+      "pinned": "Pinned",
+      "canvas": "Canvas",
+      "thread": "Thread",
+      "agent": "Agent",
+      "room": "Room",
+      "updated": "Updated",
+      "created": "Created",
+      "pin": "Pin {{title}}",
+      "unpin": "Unpin {{title}}",
+      "shared": "Shared with agent",
+      "saved": "Has your values"
     }
   },
   "roomSchedules": {

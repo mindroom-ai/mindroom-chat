@@ -68,6 +68,8 @@
         "simpleModeDescription": "Komut paleti ve konu filtreleri gibi gelişmiş özellikleri gizler. Cihazlarınız arasında eşitlenir.",
         "expandLongMessagesByDefault": "Uzun mesajları varsayılan olarak genişlet",
         "expandLongMessagesByDefaultDescription": "Uzun mesajları Tam mesajı göster düğmesinin arkasına katlamak yerine bütünüyle gösterir. Cihazlarınız arasında eşitlenir.",
+        "showCanvasesInSidebar": "Etkileşimli panelleri kenar çubuğunda göster",
+        "showCanvasesInSidebarDescription": "Ajanlarınızın oluşturduğu etkileşimli paneller için, en az bir tane olduğunda bir düğme gösterir. Cihazlarınız arasında eşitlenir.",
         "saveFailed": "Değişiklik kaydedilemedi. Bağlantınızı kontrol edip tekrar deneyin."
       },
       "language": {
@@ -153,6 +155,7 @@
     "home": "Ana sayfa",
     "directMessages": "Doğrudan mesajlar",
     "threads": "Konular",
+    "canvases": "Etkileşimli paneller",
     "inbox": "Gelen kutusu",
     "exploreCommunity": "Toplulukları keşfet",
     "addSpace": "Alan ekle",
@@ -2958,12 +2961,29 @@
       "send": "Gönder",
       "discard": "Sil",
       "disclosure": "{{agent}} tarafından oluşturuldu. Hesabınıza erişemez; buraya girdikleriniz bu panelin dışına çıkabilir.",
+      "sharedNotice": "Bu odaya kaydedilir: {{agent}} ve buradaki diğer kişiler girdiklerinizi okuyabilir.",
       "sending": "{{agent}} ajanına gönderiliyor…",
       "sent": "{{agent}} ajanına gönderildi: {{label}}",
       "sendFailed": "Yanıtınız gönderilemedi. Tekrar deneyin.",
       "receiptData": "Ajana gönderilen verileri göster",
       "unlabeled": "Gönderildi",
       "notSent": "{{agent}} ajanına gönderilemedi: {{label}}"
+    },
+    "canvases": {
+      "title": "Etkileşimli paneller",
+      "note": "Ajanlarınızın sizin için oluşturduğu ve bu tarayıcının gördüğü etkileşimli paneller. Sabitlenen paneller tüm cihazlarınızda görünür.",
+      "empty": "Henüz etkileşimli panel yok. Bir ajan size bir panel gösterdiğinde burada listelenir.",
+      "pinned": "Sabitlenmiş",
+      "canvas": "Panel",
+      "thread": "Konu",
+      "agent": "Ajan",
+      "room": "Oda",
+      "updated": "Güncellendi",
+      "created": "Oluşturulma",
+      "pin": "{{title}} panelini sabitle",
+      "unpin": "{{title}} panelinin sabitlemesini kaldır",
+      "shared": "Ajanla paylaşılıyor",
+      "saved": "Değerleriniz kayıtlı"
     }
   },
   "roomSchedules": {

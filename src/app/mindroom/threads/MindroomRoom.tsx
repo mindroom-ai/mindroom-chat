@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Box, Line } from 'folds';
-import { KnownMembership } from 'matrix-js-sdk';
+import { KnownMembership, type MatrixEvent } from 'matrix-js-sdk';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAtomValue, useSetAtom } from 'jotai';
@@ -31,6 +31,7 @@ import { ComputerPanel } from '../computer/ComputerPanel';
 import { useRoomComputerState } from '../computer/useRoomComputerState';
 import { RoomCanvasPanel } from '../canvas/RoomCanvasPanel';
 import { useRoomCanvasState } from '../canvas/useRoomCanvasState';
+import { useCanvasOpenRequest } from '../canvas/useCanvasOpenRequest';
 import type { ComputerAgent } from '../computer/types';
 import { ResizableMembersPanel } from '../sidebar/ResizableMembersPanel';
 import { useMembersDrawer } from '../sidebar/useMembersDrawer';
@@ -242,6 +243,29 @@ export function Room() {
     unavailable: uiUnavailable,
     navigate: navigateUiAction,
   });
+  // A canvas opened from the Canvases page fills the room once it shows.
+  const [expandCanvasId, setExpandCanvasId] = useState<string>();
+  const openRequestedCanvas = useCallback(
+    (event: MatrixEvent) => {
+      const action = uiActions.read(event);
+      // A canvas that cannot open now (during a call) must not expand when opened later.
+      if (!action || uiActions.unavailable(action)) return;
+      setExpandCanvasId(event.getId());
+      uiActions.activate(event);
+    },
+    [uiActions]
+  );
+  useCanvasOpenRequest(
+    mx,
+    room,
+    canvasEnabled && !callView && continuationReady,
+    openRequestedCanvas
+  );
+  useEffect(() => {
+    if (!expandCanvasId || canvasEvent?.getId() !== expandCanvasId) return;
+    setCanvasExpanded(true);
+    setExpandCanvasId(undefined);
+  }, [canvasEvent, expandCanvasId]);
 
   return (
     <ChatUiActionContext.Provider value={uiActions}>
