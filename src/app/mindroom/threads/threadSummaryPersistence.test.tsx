@@ -10,7 +10,6 @@ import {
   getThreadSummaryInfosFromEventSources,
 } from '../messages/threadSummary';
 import {
-  captureCacheStoreWriteLease,
   loadCachedThreadSummaries,
   revokeRoomCacheStoreWrites,
   saveCachedThreadSummary,
@@ -20,6 +19,7 @@ import {
   loadLatestCachedThreadEventsBatch,
   persistRoomChunkWithPreferLive,
   persistRoomEventCacheSnapshot,
+  persistThreadEventCacheSnapshot,
   persistThreadEventCacheSnapshotCommitted,
 } from './eventRepository';
 import { useThreadSummaryPublishController } from './threadSummaryPublishController';
@@ -395,12 +395,12 @@ it.each(['live sync', 'fetched history'])(
       expect(tail.get('$root')?.events.map((event) => event.event_id)).not.toContain('$summary');
     }
 
-    // The overview and the thread banner both read this state.
-    expect(getThreadSummaryStateSnapshot(sessionId, roomId).get('$root')?.summaryText).toBe(
-      'Cached title'
-    );
-    // After a reload it comes from the summary store.
     await vi.waitFor(async () => {
+      // The overview and the thread banner both read this state,
+      expect(getThreadSummaryStateSnapshot(sessionId, roomId).get('$root')?.summaryText).toBe(
+        'Cached title'
+      );
+      // and after a reload it comes from the summary store.
       expect((await loadCachedThreadSummaries(sessionId, roomId)).get('$root')?.summaryText).toBe(
         'Cached title'
       );
@@ -435,22 +435,23 @@ it('does no summary work for a cached batch without summary notices', async () =
   }
 });
 
-it('records no summary for a write whose cache lease was revoked', async () => {
+it('records no summary once its cache lease is revoked', async () => {
   const sessionId = 'summary-revoked-lease';
   const roomId = '!summary-revoked-lease:test';
   const mx = createClient({ baseUrl: 'https://matrix.example', userId: '@reader:example' });
   const room = new Room(roomId, mx, mx.getSafeUserId());
-  const writeLease = captureCacheStoreWriteLease(sessionId, roomId);
-  // For example, the room's offline content was cleared during a repair.
-  revokeRoomCacheStoreWrites(sessionId, roomId);
   const { write } = persistThreadEventCacheSnapshotCommitted({
     sessionId,
     room,
     threadId: '$root',
     events: [summaryNotice(roomId, '$summary', 'Cleared title', 1000)],
-    writeLease,
   });
-  expect(await write).toBe(false);
+  expect(await write).toBe(true);
+  // For example, the room's offline content is cleared before the title is published.
+  revokeRoomCacheStoreWrites(sessionId, roomId);
+  await new Promise((resolve) => {
+    setTimeout(resolve, 50);
+  });
   expect(getThreadSummaryStateSnapshot(sessionId, roomId).has('$root')).toBe(false);
   clearThreadSummarySharedState(sessionId);
 });
@@ -488,10 +489,10 @@ it.each(['thread history', 'reconciler repair'])(
           }),
     });
     expect(await write).toBe(true);
-    expect(getThreadSummaryStateSnapshot(sessionId, roomId).get('$root')?.summaryText).toBe(
-      'Older title'
-    );
     await vi.waitFor(async () => {
+      expect(getThreadSummaryStateSnapshot(sessionId, roomId).get('$root')?.summaryText).toBe(
+        'Older title'
+      );
       expect((await loadCachedThreadSummaries(sessionId, roomId)).get('$root')?.summaryText).toBe(
         'Older title'
       );
@@ -499,3 +500,66 @@ it.each(['thread history', 'reconciler repair'])(
     clearThreadSummarySharedState(sessionId);
   }
 );
+
+it('keeps a redacted summary out when a later write brings a stale copy of its notice', async () => {
+  const sessionId = 'summary-stale-copy-later';
+  const roomId = '!summary-stale-copy-later:test';
+  const mx = createClient({ baseUrl: 'https://matrix.example', userId: '@reader:example' });
+  const room = new Room(roomId, mx, mx.getSafeUserId());
+  const redaction = new MatrixEvent({
+    event_id: '$redaction',
+    room_id: roomId,
+    type: 'm.room.redaction',
+    origin_server_ts: 3000,
+    redacts: '$leaked',
+    content: { redacts: '$leaked' },
+  });
+  // The redaction is cached first, for example from live sync.
+  const redactionWrite = persistThreadEventCacheSnapshotCommitted({
+    sessionId,
+    room,
+    threadId: '$root',
+    events: [redaction],
+  });
+  expect(await redactionWrite.write).toBe(true);
+  // A later history fetch serves an unpruned copy of the redacted notice.
+  const { write } = persistThreadEventCacheSnapshotCommitted({
+    sessionId,
+    room,
+    threadId: '$root',
+    events: [
+      summaryNotice(roomId, '$older', 'Older title', 1000),
+      summaryNotice(roomId, '$leaked', 'Leaked secret', 2000),
+    ],
+  });
+  expect(await write).toBe(true);
+  await vi.waitFor(async () => {
+    expect(getThreadSummaryStateSnapshot(sessionId, roomId).get('$root')?.summaryText).toBe(
+      'Older title'
+    );
+    expect((await loadCachedThreadSummaries(sessionId, roomId)).get('$root')?.summaryText).toBe(
+      'Older title'
+    );
+  });
+  clearThreadSummarySharedState(sessionId);
+});
+
+it('publishes no summary when the event write does not commit', async () => {
+  const sessionId = 'summary-uncommitted-write';
+  const roomId = '!summary-uncommitted-write:test';
+  const mx = createClient({ baseUrl: 'https://matrix.example', userId: '@reader:example' });
+  const room = new Room(roomId, mx, mx.getSafeUserId());
+  const { write } = persistThreadEventCacheSnapshot({
+    sessionId,
+    room,
+    threadId: '$root',
+    events: [summaryNotice(roomId, '$summary', 'Uncached title', 1000)],
+    save: async () => false,
+  });
+  expect(await write).toBe(false);
+  await new Promise((resolve) => {
+    setTimeout(resolve, 0);
+  });
+  expect(getThreadSummaryStateSnapshot(sessionId, roomId).has('$root')).toBe(false);
+  clearThreadSummarySharedState(sessionId);
+});

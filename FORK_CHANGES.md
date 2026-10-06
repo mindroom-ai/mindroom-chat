@@ -8,27 +8,29 @@
 - Root cause: only room view code and the manual summary action wrote the shared summary state and its `thread_summaries` store (overview cache hydration, the live render controller, the open-thread publish controller and prefetch), and the overview reads only the newest 32 cached events of each thread (`OVERVIEW_CACHE_EVENT_LIMIT`).
   A summary notice that reached the cache through engine write-through while its room was not open, or through a history fetch, got no summary record, so once 32 newer replies followed it nothing showed it on the card.
   Opening the thread published it from the thread's loaded events, which is why that fixed it.
-- Fix: `persistThreadEventCacheSnapshot`, which every thread cache write goes through (live write-through, thread fetches, reconciler repairs, and room history batches grouped by thread root), passes the summary notices it persists to `storeThreadSummaryInState`.
+- Fix: `persistThreadEventCacheSnapshot`, which every thread cache write goes through (live write-through, thread fetches, reconciler repairs, and room history batches grouped by thread root), publishes the batch's summary notices through `storeThreadSummaryInState` once the batch's cache write has committed.
+  It first reads each notice back from the thread cache (`loadCachedThreadEvent`) and publishes only those stored unredacted, because the save refuses a copy of a notice whose redaction it recorded, in the same batch or in an earlier write.
+  A write that does not commit publishes nothing, and nothing is published once the write's cache lease is revoked, for example when a room's offline content is cleared.
   The existing selection rules pick the title, and the shared state saves it to `thread_summaries`, so the overview card and the thread banner read it from the same place with no room view mounted.
-  It runs only when the batch holds a summary notice, so a batch without one does no summary work, and it runs after the batch's cache write has started, so it cannot stop that write.
-  Notices that the same batch shows as redacted are skipped, so redactions persisted with the batch still clear the title as in #405.
-  It is skipped when the write's cache lease was already revoked when the write starts, so a repair that started before a room's offline content was cleared records no summary; unlike the event write, it does not check the lease again later.
+  The event write does not wait for any of this, and a batch without a summary notice does no summary work.
   Room cache writes need no change, because they leave out thread replies, which reach the thread writer.
 - This replaces the closed PR #323, which moved summary ownership into the cache store across 28 files and added a background repair cursor.
 - Tests: `threadSummaryPersistence.test.tsx`: a summary notice cached the way the sync engine writes a live event, or by a fetched history chunk that puts it outside the 32-event tail, reaches the shared state and the summary store with no room view mounted (both fail on `dev`).
-  A batch without summary notices opens no `thread_summaries` transaction, and a write with a revoked lease records no summary.
-  A stale unredacted copy of a notice next to its redaction does not become the title, in thread history and in a reconciler repair (the repair case fails without the redaction check).
+  A batch without summary notices opens no `thread_summaries` transaction.
+  A stale unredacted copy of a notice does not become the title when its redaction is in the same batch (thread history and a reconciler repair) or was cached by an earlier write; the earlier-write case failed before the read-back.
+  A write that does not commit, or whose lease is revoked before the title is published, publishes no summary; the uncommitted case failed before the change to publish after the commit.
   `e2e/live/thread-summary-background-cache.spec.ts`: a summary sent while another room is open, followed by 60 replies, shows on the overview card and the thread banner after an offline reload whose saved SDK sync no longer holds the notice.
   It failed 3 of 3 runs on a `dev` build (the card showed the root and latest reply) and passed 3 of 3 with the fix, on a local Tuwunel stack in Chromium.
-- Validation: 6,431 of 6,435 unit tests pass; the 3 `xcodeCloudPostClone.test.ts` failures come from a shell script that needs `bash` in `/usr/bin` or `/bin`, which this NixOS host lacks, and one `canvasDocument.test.ts` case failed under a load average near 90 and passes with its file alone.
+  After the change to publish only after the commit, it passed 3 of 3 runs again.
+- Validation: 6,434 of 6,437 unit tests pass; the 3 `xcodeCloudPostClone.test.ts` failures come from a shell script that needs `bash` in `/usr/bin` or `/bin`, which this NixOS host lacks.
   Typecheck, lint (0 errors, 18 existing warnings), production build, and Prettier on the touched files pass.
-  The live specs `cinny060-thread-summary-consistency`, `cinny061-thread-summary-cache-upgrade`, `cinny207-stop-emoji-redaction` and `offline-thread-overview` pass in Chromium; WebKit cannot start on this host.
-- Review: an independent review found no blockers; its findings added the lease check and the skip for notices without text, and named the two redaction gaps below.
+  The live specs `cinny060-thread-summary-consistency`, `cinny061-thread-summary-cache-upgrade` and `cinny207-stop-emoji-redaction` pass in Chromium, and `offline-thread-overview` passed in Chromium before that change; WebKit cannot start on this host.
+- Review: an independent review found no blockers; its findings added the lease check and the skip for notices without text.
+  Qodo then found that a title was published before its write committed, and that a stale copy of a notice redacted in an earlier write could bring its title back; publishing after the commit, only what the cache stored, fixes both.
 - Not changed:
   - Caches written before this change are not repaired, and there is no background scan; opening a thread still publishes its summary, and summary notices cached from now on are recorded.
-  - The room view's own summary publishers are unchanged.
-  - Two redaction gaps that predate this change remain: a stale unredacted copy fetched after its redaction was already saved, and a redaction that arrives while a room's first summary read is pending, can bring a redacted title back.
-    Room view writers could already hit both; background writes now can too, so the first can now also bring a title back for a room that was never opened (it needs a fetched copy from before the redaction that matrix-js-sdk does not hold).
+  - The room view's own summary publishers are unchanged; prefetch can still publish a fetched stale copy of a notice whose redaction was already saved, as before this change.
+  - A redaction that arrives while a room's first summary read is pending, or while a just-cached notice is being read back, can still bring its title back; each window lasts one IndexedDB read, and room view writers could already hit the first.
 
 ### Reproduce Rivera household App Store screenshots (2026-10-01)
 
