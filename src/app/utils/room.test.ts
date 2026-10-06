@@ -499,6 +499,33 @@ describe('roomHaveUnread', () => {
     expect(roomHaveUnread(mx, room)).toBe(false);
   });
 
+  it("counts another member's message that carries a reference as unread", () => {
+    const message = new MatrixEvent({
+      content: {
+        body: 'hello',
+        msgtype: 'm.text',
+        'm.relates_to': { rel_type: 'm.reference', event_id: '$target' },
+      },
+      event_id: '$message',
+      origin_server_ts: 1000,
+      room_id: '!room:example.org',
+      sender: '@bob:example.org',
+      type: 'm.room.message',
+    });
+    const room = {
+      findEventById: vi.fn(() => undefined),
+      getEventReadUpTo: vi.fn(() => '$older'),
+      getLiveTimeline: vi.fn(() => ({
+        getEvents: () => [message],
+      })),
+    } as any;
+    const mx = {
+      getUserId: vi.fn(() => '@alice:example.org'),
+    } as any;
+
+    expect(roomHaveUnread(mx, room)).toBe(true);
+  });
+
   it('keeps the unread fallback when the loaded main-timeline slice still contains visible activity', () => {
     const mainEvent = makeMessageEvent('$main', 1000, '@bob:example.org');
     const room = {

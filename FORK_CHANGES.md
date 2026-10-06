@@ -2,6 +2,14 @@
 
 ## Runbook
 
+### Show messages that carry an `m.reference` relation (2026-10-06)
+
+- Problem: to keep a canvas's shared state copies out of view, PR #408 made the timeline and the room's unread check skip every event with an `m.reference` relation.
+  That also hid ordinary `m.room.message` events carrying one, which any member can send and which MindRoom agents still read as part of the thread, so Chat users could not see them and the room did not turn unread.
+- Fix: `isHiddenReferenceEvent` (`src/app/utils/room.ts`), used by `isRenderableEvent` and `roomHaveUnread`, hides a reference only when it is not an `m.room.message`, is still encrypted, or could not be decrypted.
+  Canvas state copies are `io.mindroom.canvas_state` events, so they stay hidden, also while encrypted or undecryptable.
+- Tests: `roomTimelineEvents.test.ts` (a message that carries a reference shows, an undecryptable reference does not) and `room.test.ts` (another member's message that carries a reference counts as unread); both fail without the fix.
+
 ### Render a paragraph of tool markers without recursing per marker (2026-10-05)
 
 - Problem: when a paragraph held several tool markers one after another, for example separated by line breaks, the renderer showed the first and handed a copy of the rest of the paragraph back to `domToReact`, which handled the next marker the same way.
