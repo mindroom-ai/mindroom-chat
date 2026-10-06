@@ -35,8 +35,8 @@
   - Caches written before this change are not repaired, and there is no background scan; opening a thread still publishes its summary, and summary notices cached from now on are recorded.
   - The room view's own summary publishers are unchanged; prefetch can still publish a fetched stale copy of a notice whose redaction was already saved, as before this change.
   - A redaction that arrives while a room's first summary read is pending can still bring its title back; room view writers could already hit this.
-  - A redaction that arrives while a just-cached notice is being read back can also bring its title back.
-    A redaction that arrives during the save creates its scrub transaction before the read-back's read, so the read-back sees it; the window is that single read.
+  - A redaction that arrives just before or during the read-back of a just-cached notice can also bring its title back.
+    The window is the few IndexedDB steps (offline progress, cached target and marker lookups) before the redaction's scrub transaction starts, so it only matters when a notice is redacted within milliseconds of being cached.
   - A stale fetched copy of a notice that carries an edit redacted earlier can still publish the edit's text, because the read-back checks the notice, not its edit.
     Servers prune redacted edits, so this needs a copy from the homeserver's short stale-copy window, and encrypted rooms cache ciphertext, so the cached record cannot supply the title instead.
 
