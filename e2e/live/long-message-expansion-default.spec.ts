@@ -31,7 +31,7 @@ const hasDeployedFixtureEnv =
 const DEPLOYED_BASE_URL = process.env.E2E_DEPLOYED_BASE_URL ?? 'http://127.0.0.1:28090';
 const SETTINGS_EVENT_TYPE = 'io.mindroom.settings';
 const REPLY_COUNT = 180;
-const ANCHOR_DRIFT_BUDGET_PX = 40;
+const ANCHOR_DRIFT_BUDGET_PX = 2;
 const MIN_RIDE_TRAVEL_PX = 5_000;
 
 type SeededThread = {
@@ -196,6 +196,15 @@ test.describe('live long-message expansion default', () => {
     const seeded = await seedLongThread(homeserver, session.accessToken);
 
     await installScrollWriteProbe(page);
+    // The sync status bar sits above the app and comes and goes with the sync,
+    // moving the whole app; hide it so anchor measurements compare one layout.
+    await page.addInitScript(() => {
+      document.addEventListener('DOMContentLoaded', () => {
+        const style = document.createElement('style');
+        style.textContent = '[data-testid="client-sync-status"] { display: none !important; }';
+        document.head.append(style);
+      });
+    });
     await loginWithPassword(page, { homeserver, username, password });
     await page.goto(
       `/home/${encodeURIComponent(seeded.roomId)}?threadId=${encodeURIComponent(seeded.rootId)}`

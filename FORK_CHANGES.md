@@ -12,6 +12,23 @@
   `RenderMessageContent` passes `MImage` a tile without the caption, because the image branch already renders the caption after it.
 - Tests: `ImageContent.test.tsx` (an `image/svg+xml` image loads as `application/octet-stream`, a PNG keeps its type), `ThumbnailContent.test.tsx` (an SVG thumbnail loads as `application/octet-stream`), `MsgTypeRenderers.file.test.ts` (an `image/svg+xml` image renders as a file, a PNG as an image), and `RenderMessageContent.test.ts` (a captioned SVG image shows its caption once); each SVG case fails without its fix.
 
+### Measure the long-message expansion anchor without the sync bar (2026-10-05)
+
+- Report: after PR #410, the live `long-message-expansion-default` spec still saw the anchored message land 25 px off after a collapse, inside its 40 px budget.
+- Root cause: the spec, not the anchor. The "Catching up..." bar (`client-sync-status`) sits above the whole app and hides only after the second sync, up to a 30 s long-poll later, moving the whole app up 25 px.
+  The spec took its anchor snapshot after a reload while the bar showed; the bar hid when the test opened Settings, before the toggle. A frame trace showed the anchor landing exactly on the app's reader line.
+- Fix: the spec hides the bar for every page it loads (as `thread-banner-height-anchor` does), and its drift budget drops from 40 px to 2 px.
+  Waiting for the bar to go was not enough: on a cached load it can appear only after the first network sync.
+- Validation: collapse drift 25 px in 3 of 3 runs before; 0 px in 5 of 5 runs waiting for the bar and 3 of 3 with it hidden; the expand drift stays 0 px.
+  The bar's hide still moves the whole app by 25 px for a user; that is `SyncStatus` layout, separate from the anchor.
+
+### Tighten the README's configuration and push notes (2026-10-06)
+
+- Status: implementation, review, and publication on `docs/readme-follow-ups`; follows the README rewrite in PR #397.
+- Problem: the Docker configuration example copied `config.mindroom.json` from a checkout, which someone running only the published image does not have; the push section read as if push were off, though the bundled config already enables it for MindRoom's own app and gateway; and the "App Store submission docs" list also held `ios-panels.md`, which is not a submission document.
+- Change: copy the starting configuration out of the image with `docker run --rm --entrypoint cat`, say the bundled config already enables push and that a fork sets its own bundle ID and gateway, show a placeholder bundle ID in the example, say `appId` must be the app's bundle ID (as the preflight checks) and must match a gateway app entry for the build's APNs environment with `convert_device_token_to_hex: false`, since the app registers hex tokens, relabel the list "iOS docs", and replace the stale push section of `.docs/ios-build.md` (root `config.json`, no rebuild) with a link to the README.
+- Validation: the image is `nginx:alpine` with the built `dist/` at `/app`, so `/app/config.json` is the bundled file; `config.mindroom.json` enables `push.ios` for `chat.mindroom.app`; review by Opus 5.5, GPT-6.1 Sol, and GPT-6 Astra.
+
 ### Live test for typing after a gappy sync (2026-10-05)
 
 - Adds `e2e/live/typing-after-gappy-sync.spec.ts` for the SDK fix in PR #402, which its unit test covers only by calling `resetLiveTimeline` directly.
