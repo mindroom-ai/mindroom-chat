@@ -2973,6 +2973,7 @@
       "empty": "No canvases yet. When an agent shows you one, it is listed here.",
       "pinned": "Pinned",
       "canvas": "Canvas",
+      "thread": "Thread",
       "agent": "Agent",
       "room": "Room",
       "updated": "Updated",

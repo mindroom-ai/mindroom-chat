@@ -2973,6 +2973,7 @@
       "empty": "Noch keine interaktiven Panels. Wenn dir ein Agent eines zeigt, erscheint es hier.",
       "pinned": "Angeheftet",
       "canvas": "Panel",
+      "thread": "Thread",
       "agent": "Agent",
       "room": "Raum",
       "updated": "Aktualisiert",

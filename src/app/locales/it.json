@@ -3027,6 +3027,7 @@
       "empty": "Ancora nessun pannello interattivo. Quando un agente te ne mostra uno, compare qui.",
       "pinned": "Fissato",
       "canvas": "Pannello",
+      "thread": "Thread",
       "agent": "Agente",
       "room": "Stanza",
       "updated": "Aggiornato",

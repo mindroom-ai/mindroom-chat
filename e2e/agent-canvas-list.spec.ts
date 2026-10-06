@@ -133,8 +133,20 @@ test('the Canvases page lists canvases, keeps pins in account data, and opens on
   await expect(page.getByText(fixture.replyBody, { exact: true })).toBeHidden();
   await page.screenshot({ path: testInfo.outputPath('canvas-opened.png') });
 
-  // The room name opens the conversation without a canvas.
+  // The thread column names the thread (its summary, here its first message) and opens it.
   await page.getByRole('button', { name: 'Canvases', exact: true }).click();
+  const tripRow = list.locator('tbody tr', { hasText: 'Trip checklist for Lisbon' });
+  await tripRow.getByRole('button', { name: fixture.rootBody, exact: true }).click();
+  await expect(page).toHaveURL(new RegExp(`threadId=${encodeURIComponent(fixture.rootId)}`));
+  await expect(page.getByText(fixture.replyBody, { exact: true })).toBeVisible();
+  await expect(panel).toBeHidden();
+  // A canvas shown in the room itself has no thread to name.
+  await page.getByRole('button', { name: 'Canvases', exact: true }).click();
+  await expect(
+    list.locator('tbody tr', { hasText: 'Morning briefing' }).locator('td').nth(2)
+  ).toHaveText('');
+
+  // The room name opens the conversation without a canvas.
   await list
     .locator('tbody tr', { hasText: 'Morning briefing' })
     .getByRole('button', { name: 'Canvas list' })

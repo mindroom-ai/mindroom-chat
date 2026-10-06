@@ -35,7 +35,7 @@ globalStyle(`${Table} th`, {
 });
 
 // The dates stay on one line; titles and room names wrap.
-globalStyle(`${Table} td:nth-child(n + 5)`, {
+globalStyle(`${Table} td:nth-child(n + 6)`, {
   whiteSpace: 'nowrap',
 });
 

@@ -3027,6 +3027,7 @@
       "empty": "Aucun panneau interactif pour l’instant. Quand un agent vous en montre un, il apparaît ici.",
       "pinned": "Épinglé",
       "canvas": "Panneau",
+      "thread": "Fil",
       "agent": "Agent",
       "room": "Salle",
       "updated": "Mis à jour",

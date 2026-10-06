@@ -79,6 +79,12 @@ vi.mock('../../../mindroom/canvas/canvasIndex', async (importOriginal) => ({
   loadCanvasEvent: mocks.load,
   recordCanvasEvent: mocks.recordEvent,
 }));
+// The sidebar's thread names: the thread's summary, or its first message.
+vi.mock('../../../mindroom/threads/recentThreadViewModel', () => ({
+  useRecentThreadViewModel: (_room: unknown, threadId: string) => ({
+    summaryText: `Summary of ${threadId}`,
+  }),
+}));
 vi.mock('../../../mindroom/canvas/useCanvasOpenRequest', () => ({
   requestCanvasOpen: mocks.requestOpen,
   cancelCanvasOpen: mocks.cancelOpen,
@@ -178,21 +184,30 @@ describe('Canvases', () => {
     expect(pinned?.getAttribute('aria-label')).toBe('Unpin Home');
   });
 
-  it('shows the agent, room, dates, sharing and saved values of a canvas', async () => {
+  it('shows the thread, room, agent, dates, sharing and saved values of a canvas', async () => {
     await recordCanvas(SESSION, entry({ shared: true }));
+    await recordCanvas(SESSION, entry({ canvasId: '$main', title: 'Main', threadId: undefined }));
     await saveCanvasState(SESSION, '$canvas', { json: '{}' });
     await render();
-    const cells = [...container.querySelectorAll('tbody td')].map((cell) => cell.textContent);
-    expect(cells.slice(1)).toEqual([
+    const cells = (title: string) =>
+      [
+        ...[...container.querySelectorAll('tbody tr')]
+          .find((tr) => tr.textContent?.includes(title))!
+          .querySelectorAll('td'),
+      ].map((cell) => cell.textContent);
+    expect(cells('Plans').slice(1)).toEqual([
       'PlansShared with agentHas your values',
-      'Planner',
+      'Summary of $thread',
       'Planning',
+      'Planner',
       expect.stringContaining('2026'),
       expect.stringContaining('2026'),
     ]);
+    // A canvas shown in the room itself has no thread.
+    expect(cells('Main')[2]).toBe('');
   });
 
-  it('opens a canvas in its thread, or just the conversation from the room', async () => {
+  it('opens a canvas in its thread, or just its thread or room', async () => {
     await recordCanvas(SESSION, entry({}));
     await recordCanvas(SESSION, entry({ canvasId: '$main', title: 'Main', threadId: undefined }));
     await render();
@@ -206,16 +221,22 @@ describe('Canvases', () => {
     expect(mocks.requestOpen).toHaveBeenCalledWith('!room:example.org', '$canvas');
     expect(mocks.navigateRoomThread).toHaveBeenCalledWith('!room:example.org', '$thread');
     act(() =>
-      (row('Plans').querySelectorAll('td')[3].querySelector('button') as HTMLElement).click()
+      (row('Plans').querySelectorAll('td')[2].querySelector('button') as HTMLElement).click()
     );
     expect(mocks.requestOpen).toHaveBeenCalledTimes(1);
     expect(mocks.cancelOpen).toHaveBeenCalledTimes(2);
     expect(mocks.navigateRoomThread).toHaveBeenCalledTimes(2);
+    expect(mocks.navigateRoomThread).toHaveBeenLastCalledWith('!room:example.org', '$thread');
+    act(() =>
+      (row('Plans').querySelectorAll('td')[3].querySelector('button') as HTMLElement).click()
+    );
+    expect(mocks.cancelOpen).toHaveBeenCalledTimes(3);
+    expect(mocks.navigateRoom).toHaveBeenCalledWith('!room:example.org');
     act(() =>
       (row('Main').querySelectorAll('td')[1].querySelector('button') as HTMLElement).click()
     );
     expect(mocks.requestOpen).toHaveBeenLastCalledWith('!room:example.org', '$main');
-    expect(mocks.navigateRoom).toHaveBeenCalledWith('!room:example.org');
+    expect(mocks.navigateRoom).toHaveBeenCalledTimes(2);
   });
 
   it('shows a pin change at once and writes it as room and event IDs, one after another', async () => {

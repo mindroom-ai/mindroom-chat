@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Badge, Box, Icon, IconButton, Icons, Text } from 'folds';
-import { KnownMembership } from 'matrix-js-sdk';
+import { KnownMembership, type Room } from 'matrix-js-sdk';
 import { Page, PageContent, PageHeader, PageScroll } from '../../../components/page';
 import { useAccountData } from '../../../hooks/useAccountData';
 import { useAppLanguageCode } from '../../../hooks/useAppLanguageCode';
@@ -27,6 +27,7 @@ import {
   type PinnedCanvas,
 } from '../../../mindroom/canvas/pinnedCanvases';
 import { cancelCanvasOpen, requestCanvasOpen } from '../../../mindroom/canvas/useCanvasOpenRequest';
+import { useRecentThreadViewModel } from '../../../mindroom/threads/recentThreadViewModel';
 import * as css from './Canvases.css';
 
 type CanvasList = { entries?: CanvasListEntry[]; savedIds: Set<string> };
@@ -97,6 +98,11 @@ const usePinnedCanvases = () => {
   return { pins, toggle };
 };
 
+/** The thread's name as the sidebar's Threads list shows it: its summary, or its first message. */
+function ThreadName({ room, threadId }: { room: Room; threadId: string }) {
+  return <>{useRecentThreadViewModel(room, threadId, 0).summaryText}</>;
+}
+
 export function Canvases() {
   const { t } = useTranslation();
   const language = useAppLanguageCode();
@@ -137,10 +143,10 @@ export function Canvases() {
     () => new Intl.DateTimeFormat(language, { dateStyle: 'medium', timeStyle: 'short' }),
     [language]
   );
-  const open = (entry: CanvasListEntry, canvas: boolean) => {
-    if (canvas) requestCanvasOpen(entry.roomId, entry.canvasId);
+  const open = (entry: CanvasListEntry, target: 'canvas' | 'thread' | 'room') => {
+    if (target === 'canvas') requestCanvasOpen(entry.roomId, entry.canvasId);
     else cancelCanvasOpen();
-    if (entry.threadId) navigateRoomThread(entry.roomId, entry.threadId);
+    if (target !== 'room' && entry.threadId) navigateRoomThread(entry.roomId, entry.threadId);
     else navigateRoom(entry.roomId);
   };
 
@@ -171,8 +177,9 @@ export function Canvases() {
                   <tr>
                     <th aria-label={t('mindroomUi.canvases.pinned')} />
                     <th>{t('mindroomUi.canvases.canvas')}</th>
-                    <th>{t('mindroomUi.canvases.agent')}</th>
+                    <th>{t('mindroomUi.canvases.thread')}</th>
                     <th>{t('mindroomUi.canvases.room')}</th>
+                    <th>{t('mindroomUi.canvases.agent')}</th>
                     <th>{t('mindroomUi.canvases.updated')}</th>
                     <th>{t('mindroomUi.canvases.created')}</th>
                   </tr>
@@ -207,7 +214,7 @@ export function Canvases() {
                             <button
                               type="button"
                               className={css.Link}
-                              onClick={() => open(entry, true)}
+                              onClick={() => open(entry, 'canvas')}
                             >
                               <Text size="T300" as="span">
                                 <b>{entry.title}</b>
@@ -230,18 +237,31 @@ export function Canvases() {
                           </Box>
                         </td>
                         <td>
-                          <Text size="T300">{agent}</Text>
+                          {room && entry.threadId && (
+                            <button
+                              type="button"
+                              className={css.Link}
+                              onClick={() => open(entry, 'thread')}
+                            >
+                              <Text size="T300" as="span">
+                                <ThreadName room={room} threadId={entry.threadId} />
+                              </Text>
+                            </button>
+                          )}
                         </td>
                         <td>
                           <button
                             type="button"
                             className={css.Link}
-                            onClick={() => open(entry, false)}
+                            onClick={() => open(entry, 'room')}
                           >
                             <Text size="T300" as="span">
                               {room?.name ?? entry.roomId}
                             </Text>
                           </button>
+                        </td>
+                        <td>
+                          <Text size="T300">{agent}</Text>
                         </td>
                         <td>
                           <Text size="T300">{date.format(entry.updatedTs)}</Text>
