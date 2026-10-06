@@ -2,6 +2,17 @@
 
 ## Runbook
 
+### Keep a reader at the top of a short room while its older rows load (2026-10-06)
+
+- Report: the live `composer-glass` spec started failing after PR #422 (5 of 8 runs; 0 of 4 before it): a 180 px wheel right after opening a short room never showed "Jump to Latest". #422 removed the 30 s "Catching up..." wait that had let the room finish loading first. Probing found a reader who scrolls to the top of a short room is sent back to the bottom when its older rows load.
+- Root cause, two parts:
+  - The room's scroll-to-bottom layout effect (`MindroomRoomTimeline.tsx`) depends on the latest row's index in the rendered window, so it ran again whenever that index moved. In a short room the whole history fits the window, so rows loaded above move the latest row's index and the effect pulled the reader back down, even when nothing new had asked for the bottom (it only needs one earlier request, such as opening the room or following a new message).
+  - The measurement-correction hook (`threadRenderUtils.ts`) let virtual-core apply a correction for rows folded above the reader as a scroll write even when it would scroll above the top. The browser clamps that write, so the correction was lost while the ledger still held the rows' estimated height, and the settle overshot (a write of 786 px for 314 px of rows, found by tracing every scroll write).
+- Fix: a scroll-to-bottom request keeps the latest row in view while rows load, until the reader scrolls (wheel, touch, pointer or key on the scroller, as the thread settle loop and room auto-fill already stop); then only a new request moves them. A correction that would scroll above the top is ledgered instead of written.
+  A new view (mode, overview order, thread replies in the room, a thread filter) counts as a fresh request, as it did when the effect re-ran on every index change.
+  `composer-glass` keeps wheeling until "Jump to Latest" shows. Known residual: a wheel in the first ~1.5 s after opening a short room, while its older rows are still measured, can lose part of its distance, because virtual-core's applied corrections cancel the wheel's own scroll; the reader is no longer sent to the bottom.
+- Tests: `RoomTimeline.scrollToBottomRequest.test.ts` (a view switch, or a return from compact view, still lands on the latest row after the reader scrolled, a regression the first version of this fix had; a rebuilt window does not move a reader who scrolled; a view switch that React renders but never commits leaves the reader in place, so the reset runs in a layout effect, not during render). `e2e/live/room-load-older-keeps-reader.spec.ts` (follow a new message, scroll to the top, older rows load: the reader stays up and "Jump to Latest" shows; fails 2 of 2 on `dev`, passes 2 of 2). `virtualizerIOSScrollContract.test.ts`: a correction that would scroll above the top is ledgered (fails without the hook change). `composer-glass` passes 6 of 6 with the fix.
+
 ### Assert row coverage, not raster speed, in the compositor ride (2026-10-06)
 
 - Report: `compositor momentum flicks under latency` in `e2e/live/thread-ride-under-latency.spec.ts` failed most runs at `expect(blankFrames).toBe(0)` with one or a few blank screencast frames (3 of 4 runs on `dev` `e7a62ad1`, 1 of 2 before #422).
