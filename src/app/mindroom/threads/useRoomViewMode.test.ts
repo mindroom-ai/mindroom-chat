@@ -47,13 +47,21 @@ describe('useRoomViewMode', () => {
 
   type Member = { roomId: string; userId: string; membership: string };
   const roomMembers = new Map<string, Member[]>();
+  let directContent: Record<string, string[]> = {};
   const createClient = () =>
     Object.assign(new EventEmitter(), {
       getHomeserverUrl: () => 'https://example.org',
       getSafeUserId: () => userId,
+      getAccountData: (type: string) =>
+        type === 'm.direct' ? { getContent: () => directContent } : undefined,
       getRoom: (roomId: string) => {
         const members = roomMembers.get(roomId);
-        return members ? { getMembers: () => members } : null;
+        return members
+          ? {
+              getMembers: () => members,
+              getMember: (memberId: string) => members.find((m) => m.userId === memberId) ?? null,
+            }
+          : null;
       },
     });
   const addRoom = (roomId: string, memberIds: string[]) =>
@@ -82,26 +90,32 @@ describe('useRoomViewMode', () => {
     return null;
   }
 
-  const render = (roomIds: string[], directRoomIds: string[]) => {
-    const store = createStore();
+  let store: ReturnType<typeof createStore>;
+  // A probe is a room ID, optionally with a `#name` suffix to mount a second hook for the room.
+  const tree = (probes: string[]) =>
+    React.createElement(
+      Provider,
+      { store },
+      React.createElement(
+        MatrixClientProvider,
+        { value: mx as unknown as MatrixClient },
+        probes.map((probe) =>
+          React.createElement(Probe, { key: probe, roomId: probe.split('#')[0] })
+        )
+      )
+    );
+  const render = (probes: string[], directRoomIds: string[]) => {
+    store = createStore();
     store.set(mDirectAtom, { type: 'INITIALIZE', rooms: new Set(directRoomIds) });
     act(() => {
-      renderer = create(
-        React.createElement(
-          Provider,
-          { store },
-          React.createElement(
-            MatrixClientProvider,
-            { value: mx as unknown as MatrixClient },
-            roomIds.map((roomId) => React.createElement(Probe, { key: roomId, roomId }))
-          )
-        )
-      );
+      renderer = create(tree(probes));
     });
   };
+  const rerender = (probes: string[]) => act(() => renderer?.update(tree(probes)));
 
   beforeEach(() => {
     simpleModeState.value = true;
+    directContent = {};
     mx = createClient();
     vi.stubGlobal('localStorage', {
       get length() {
@@ -190,5 +204,52 @@ describe('useRoomViewMode', () => {
 
     expect(results.get(firstRoomId)?.viewMode).toBe('compact');
     expect(results.get(secondRoomId)?.viewMode).toBe('classic');
+  });
+
+  it('keeps the stored mode in a direct message whose m.direct partner is an agent not loaded yet', () => {
+    const roomId = '!cold-agent-dm:example.org';
+    addRoom(roomId, [userId]);
+    directContent = { [agentId]: [roomId] };
+    storeMode(roomId, 'threaded');
+
+    render([roomId], [roomId]);
+
+    expect(results.get(roomId)?.viewMode).toBe('threaded');
+    expect(results.get(roomId)?.availableViewModes).toEqual(['compact', 'threaded']);
+  });
+
+  it('shows Classic once the m.direct agent partner has left or is banned', () => {
+    const roomId = '!agent-dm-ended:example.org';
+    addRoom(roomId, [userId]);
+    directContent = { [agentId]: [roomId], '@bob:example.org': ['!other-dm:example.org'] };
+    storeMode(roomId, 'threaded');
+    render([roomId], [roomId]);
+
+    setMembership(roomId, agentId, 'leave');
+    expect(results.get(roomId)?.viewMode).toBe('classic');
+
+    setMembership(roomId, agentId, 'invite');
+    expect(results.get(roomId)?.viewMode).toBe('threaded');
+
+    setMembership(roomId, agentId, 'ban');
+    expect(results.get(roomId)?.viewMode).toBe('classic');
+    expect(storedMode(roomId)).toBe('"threaded"');
+  });
+
+  it('keeps a room in the shared listener until its last hook unmounts', () => {
+    const roomId = '!people-dm-unmount:example.org';
+    addRoom(roomId, [userId, '@bob:example.org']);
+    storeMode(roomId, 'threaded');
+    render([roomId, `${roomId}#second`], [roomId]);
+    const deleteSpy = vi.spyOn(Map.prototype, 'delete');
+
+    rerender([roomId]);
+    expect(deleteSpy).not.toHaveBeenCalledWith(roomId);
+    setMembership(roomId, agentId, 'invite');
+    expect(results.get(roomId)?.viewMode).toBe('threaded');
+
+    rerender([]);
+    expect(deleteSpy).toHaveBeenCalledWith(roomId);
+    deleteSpy.mockRestore();
   });
 });

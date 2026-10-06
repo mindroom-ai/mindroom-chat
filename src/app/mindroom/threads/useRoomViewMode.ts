@@ -1,10 +1,12 @@
 import { useAtom, useAtomValue } from 'jotai';
-import { RoomMemberEvent, type MatrixClient } from 'matrix-js-sdk';
+import { KnownMembership, RoomMemberEvent, type MatrixClient } from 'matrix-js-sdk';
 import { useCallback, useMemo, useSyncExternalStore } from 'react';
+import { AccountDataEvent, type MDirectContent } from '../../../types/matrix/accountData';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { mDirectAtom } from '../../state/mDirectList';
 import { createSessionId } from '../../state/sessions';
-import { hasActiveMindroomAgent } from '../matrix/agentIdentity';
+import { getAccountData } from '../../utils/room';
+import { hasActiveMindroomAgent, isMindroomAgentUserId } from '../matrix/agentIdentity';
 import { useSimpleMode } from '../settings/useMindroomAccountSettings';
 import {
   DEFAULT_ROOM_VIEW_MODE,
@@ -20,7 +22,7 @@ export const resolveEffectiveRoomViewMode = (
   humanDirectRoom: boolean
 ): RoomViewMode => {
   if (humanDirectRoom) return 'classic';
-  return isRoomViewModeAvailable(storedViewMode, simpleMode, humanDirectRoom)
+  return isRoomViewModeAvailable(storedViewMode, simpleMode)
     ? storedViewMode
     : DEFAULT_ROOM_VIEW_MODE;
 };
@@ -47,7 +49,24 @@ const subscribeRoomMembership = (mx: MatrixClient, roomId: string, onChange: () 
   };
 };
 
-/** A direct room (in `m.direct`) with no MindRoom agent joined or invited. */
+/**
+ * Whether a MindRoom agent is in the room: joined or invited, or named as the room's partner in `m.direct`.
+ * Members are lazy loaded, so an agent direct room may not have its agent loaded yet; only a loaded `leave` or `ban` ends the partner.
+ */
+const hasMindroomAgent = (mx: MatrixClient, roomId: string): boolean => {
+  const room = mx.getRoom(roomId);
+  if (hasActiveMindroomAgent(room?.getMembers() ?? [])) return true;
+  const directs = getAccountData(mx, AccountDataEvent.Direct)?.getContent<MDirectContent>() ?? {};
+  return Object.entries(directs).some(([userId, roomIds]) => {
+    if (!isMindroomAgentUserId(userId) || !Array.isArray(roomIds) || !roomIds.includes(roomId)) {
+      return false;
+    }
+    const membership = room?.getMember(userId)?.membership;
+    return membership !== KnownMembership.Leave && membership !== KnownMembership.Ban;
+  });
+};
+
+/** A direct room (in `m.direct`) with no MindRoom agent. */
 const useIsHumanDirectRoom = (roomId: string): boolean => {
   const mx = useMatrixClient();
   const direct = useAtomValue(mDirectAtom).has(roomId);
@@ -57,10 +76,8 @@ const useIsHumanDirectRoom = (roomId: string): boolean => {
     [direct, mx, roomId]
   );
 
-  return useSyncExternalStore(
-    subscribe,
-    () => direct && !hasActiveMindroomAgent(mx.getRoom(roomId)?.getMembers() ?? [])
-  );
+  // `mDirectAtom` changes on every `m.direct` update, which re-reads the partners.
+  return useSyncExternalStore(subscribe, () => direct && !hasMindroomAgent(mx, roomId));
 };
 
 /** One account-scoped source for persisted and effective room view modes. */

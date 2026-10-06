@@ -28,11 +28,8 @@ export const getAvailableRoomViewModes = (
   return simpleMode ? SIMPLE_ROOM_VIEW_MODES : ROOM_VIEW_MODES;
 };
 
-export const isRoomViewModeAvailable = (
-  mode: RoomViewMode,
-  simpleMode: boolean,
-  humanDirectRoom: boolean
-): boolean => getAvailableRoomViewModes(simpleMode, humanDirectRoom).includes(mode);
+export const isRoomViewModeAvailable = (mode: RoomViewMode, simpleMode: boolean): boolean =>
+  getAvailableRoomViewModes(simpleMode, false).includes(mode);
 
 export const sanitizeRoomViewMode = (value: unknown): RoomViewMode => {
   // Legacy 'normal' (pre 2026-05-10 rename) intentionally falls through to the
