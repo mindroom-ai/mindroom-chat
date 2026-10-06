@@ -14,6 +14,75 @@
 - Not changed: Chromium animates as before wherever it does not report the caveat. Firefox (by default, `webgl.disable-fail-if-major-performance-caveat`) and Safari ignore the attribute and animate as before, also when they render in software.
 - Side effect: headless screenshots of the auth and splash pages (`e2e/live/style-preview.spec.ts`) now show the static gradient.
 
+### Keep a reader at the top of a short room while its older rows load (2026-10-06)
+
+- Report: the live `composer-glass` spec started failing after PR #422 (5 of 8 runs; 0 of 4 before it): a 180 px wheel right after opening a short room never showed "Jump to Latest". #422 removed the 30 s "Catching up..." wait that had let the room finish loading first. Probing found a reader who scrolls to the top of a short room is sent back to the bottom when its older rows load.
+- Root cause, two parts:
+  - The room's scroll-to-bottom layout effect (`MindroomRoomTimeline.tsx`) depends on the latest row's index in the rendered window, so it ran again whenever that index moved. In a short room the whole history fits the window, so rows loaded above move the latest row's index and the effect pulled the reader back down, even when nothing new had asked for the bottom (it only needs one earlier request, such as opening the room or following a new message).
+  - The measurement-correction hook (`threadRenderUtils.ts`) let virtual-core apply a correction for rows folded above the reader as a scroll write even when it would scroll above the top. The browser clamps that write, so the correction was lost while the ledger still held the rows' estimated height, and the settle overshot (a write of 786 px for 314 px of rows, found by tracing every scroll write).
+- Fix: a scroll-to-bottom request keeps the latest row in view while rows load, until the reader scrolls (wheel, touch, pointer or key on the scroller, as the thread settle loop and room auto-fill already stop); then only a new request moves them. A correction that would scroll above the top is ledgered instead of written.
+  A new view (mode, overview order, thread replies in the room, a thread filter) counts as a fresh request, as it did when the effect re-ran on every index change.
+  `composer-glass` keeps wheeling until "Jump to Latest" shows. Known residual: a wheel in the first ~1.5 s after opening a short room, while its older rows are still measured, can lose part of its distance, because virtual-core's applied corrections cancel the wheel's own scroll; the reader is no longer sent to the bottom.
+- Tests: `RoomTimeline.scrollToBottomRequest.test.ts` (a view switch, or a return from compact view, still lands on the latest row after the reader scrolled, a regression the first version of this fix had; a rebuilt window does not move a reader who scrolled; a view switch that React renders but never commits leaves the reader in place, so the reset runs in a layout effect, not during render). `e2e/live/room-load-older-keeps-reader.spec.ts` (follow a new message, scroll to the top, older rows load: the reader stays up and "Jump to Latest" shows; fails 2 of 2 on `dev`, passes 2 of 2). `virtualizerIOSScrollContract.test.ts`: a correction that would scroll above the top is ledgered (fails without the hook change). `composer-glass` passes 6 of 6 with the fix.
+
+### Assert row coverage, not raster speed, in the compositor ride (2026-10-06)
+
+- Report: `compositor momentum flicks under latency` in `e2e/live/thread-ride-under-latency.spec.ts` failed most runs at `expect(blankFrames).toBe(0)` with one or a few blank screencast frames (3 of 4 runs on `dev` `e7a62ad1`, 1 of 2 before #422).
+- Root cause: the test, not the app. Each blank frame comes right after the fling moved 650-1,740 px in one frame (the harness's 4,500 px/s flicks build up to flings of 40,000-60,000 px/s; a ride travels 29,000-43,000 px for 7,000 px of finger travel). The rows there were mounted and laid out: around each blank frame the first mounted row started 1,600-2,600 px above the view, the blank band can stop mid-row (lines 0-17 of one reply blank, line 18 painted), and 16-33 ms later the same rows are painted. The software rasterizer had not painted them yet.
+  The same flicks over a static HTML page with no app code gave blank frames in 4 of 4 runs (5-41 frames each, up to 100% blank), as the 2026-09-20 entry found.
+- Fix: blank pixels are still captured, logged and attached, but no longer asserted. The ride sampler adds `leadGapPx`: the gap at each frame's scroll offset over the rows of the frame before, the least the compositor shows before React mounts more rows; frames where the app wrote the offset (a ledger settle, recorded by `installScrollWriteProbe`) are skipped. The test asserts it stays under the 120 px gap budget over every sampled frame, including the 2.5 s after the last flick, and that at least 90% of them were measured.
+  `gapPx` cannot see this: the virtualizer re-renders inside the scroll event, before the sampler reads the frame.
+  Both gaps count a row only if `checkVisibility` reports its message element (the row itself when it has none) visible, and the banner and other content above the list only if their content element is. Rows that stay mounted but are hidden at or above the row's message element, by visibility, opacity or display, therefore still fail the test, as they failed the pixel check; hiding deeper inside a message is not checked.
+- Tests: with the thread range buffer cut from two view heights to 0.2, `gapPx` stayed at 0-10 px while `leadGapPx` reached 159 px and failed the test (1 of 3 runs); with the buffer at 0 it failed 3 of 3 runs at 338-531 px.
+  With the thread list set to `visibility: hidden` after the first page loaded during the ride, the test failed 2 of 2 runs (gap 440 and 531 px); the sampler without the visibility check passed both, with 364-409 blank frames on screen.
+  With `opacity: 0` on every `[data-message-item]`, the test failed 2 of 2 runs (gap 531 px); a check on the row wrapper alone passed, with 101 blank frames on screen.
+  Same `dev` build, runs interleaved: the old test failed 5 of 8 runs (1-6 blank frames each), the new one 0 of 8; four of its passing runs still captured 2-3 blank frames, with `leadGapPx` 0 in each.
+  With the tail and the visibility check included, the unchanged app passed 9 of 9 runs with `leadGapPx` at most 92 px (at the thread top) and `gapPx` at most 8 px.
+
+### Reproduce Rivera household App Store screenshots (2026-10-01)
+
+- Status: Rivera screenshot fixture implemented and independently reviewed.
+- Bundle Sam Rivera, Hearth, Pantry, and Atlas avatars from `mindroom-ai/demo` commit `fc39fb8a9e4af01c3c848e191f32c25b7da694a2` under `scripts/fixtures/appstore/avatars/`.
+- Capture five family scenes per device: workspace overview, meal planning, home tools, Lisbon trip, and a reminder.
+- Capture and scheduled fixtures use UTC so tomorrow at four always displays 4:00 PM, including DST boundaries.
+- Preserve existing release filenames, count actual seeded messages, require agent setup, wait for all visible avatars, and stop on setup errors.
+- Validation: full unit suite passes (620 files / 5,674 tests), fixture tests pass (24), and browser validation passes (missing-avatar regression plus both device captures).
+- Typecheck, production/PWA build, App Store preflight, parallel-runner tests, changed-file formatting, shell syntax, and lint pass; full lint retains 17 existing warnings.
+- Independent review caught avatars disappearing after a failed image request; capture now requires each expected demo profile, and a browser regression proves a missing agent cannot pass.
+- Qodo review caught obsolete optional-agent fallback paths; agent registration failures now propagate directly, with an executable failure regression.
+- After merging `dev`, #406 lists only scheduled tasks a MindRoom account wrote, and the seeder wrote them from the removed `router` agent, so seeding failed with `Cannot read properties of undefined (reading 'accessToken')`.
+  The seeder now writes the reminder's task from the agent that answered its thread and gives every agent state power; capture passes again (3 Playwright tests, ten PNGs at the required sizes, reminder chip `4:00 PM`).
+- PR: [#356](https://github.com/mindroom-ai/mindroom-chat/pull/356).
+
+### App Store update 4.12.320 (2026-10-01)
+
+- Status: Apple accepted `4.12.320 (314)` for App Review on October 1, 2026 at 4:41 PM PDT; the confirmed status at submission was `Waiting for Review`.
+- Submission ID: `365d186d-8c3e-453a-bc2b-3b7ba1abb66e`; release remains manual after approval.
+- Ten screenshots used fictional Rivera household scenes and avatars from `mindroom-ai/demo`, captured with the real client at build commit `25426642175c011b4e068635464e4519aa0ffdc1`.
+- Updated release notes and reviewer instructions were saved, and the existing reviewer account was retained.
+- Apple API verified the exact build and reviewer fields; screenshot upload and Fastlane metadata/URL precheck succeeded.
+- Release validation passed: 620 files / 5,673 tests, typecheck, production/PWA build, App Store preflight, both device captures, and independent screenshot review.
+- Node 26 validation required `NODE_OPTIONS=--no-experimental-webstorage` to avoid native StorageEvent conflicts with jsdom.
+- Next: await Apple's decision, address any reviewer request, then manually release the approved version.
+- [Submission record](https://appstoreconnect.apple.com/apps/6760272172/distribution/reviewsubmissions/details/365d186d-8c3e-453a-bc2b-3b7ba1abb66e).
+
+### Xcode Cloud agreement gate (2026-10-01)
+
+- Build 313 on `dev`, commit `25426642175c011b4e068635464e4519aa0ffdc1`, failed archive preparation because an Apple program agreement required acceptance (GitHub check `110506381365`).
+- The account holder accepted the updated program agreement, and App Store Connect confirmed the Free Apps Agreement active from October 1, 2026.
+- Clean rebuild 314 (`5e0311df-20ed-4d51-acb3-bb0d9dc140e5`) archived, exported, uploaded, and finished TestFlight processing as `4.12.320 (314)`, ready for submission.
+- No application, signing-key, or CI change was needed to clear the agreement gate.
+
+### Allow App Store submission of active TestFlight builds (2026-10-05)
+
+- Problem: fastlane's `ready_for_internal_testing?` accepts `READY_FOR_BETA_TESTING` but rejects an otherwise valid build already active in internal TestFlight.
+- Change: the release-target check also accepts `IN_BETA_TESTING`, retaining the existing processing, expiry, and export-compliance checks.
+- Tests: the Ruby release-target suite uses actual Spaceship build models to cover both accepted states, unsupported or missing internal states, invalid processing, and expired builds.
+  All 4 tests and 22 assertions pass.
+- Documentation: corrected the Xcode Cloud workflow description; the current workflow watches `dev` independently of GitHub release tags.
+- Validation after rebasing onto `origin/dev`: all 6,334 tests across 674 files, typecheck, iOS production/PWA build, lint (0 errors, 18 existing warnings), and Fastfile syntax pass.
+- Independent review approved the code and documentation; PR #407 tracks the change.
+
 ### Hide "Catching up..." once the client has caught up (2026-10-06)
 
 - Report: on a cached load the app painted without the sync bar, then "Catching up..." appeared (the whole app moved down 25 px) and stayed about 30 s before it hid (the app moved back up), although the client had long caught up. After a reconnect it also lingered about 30 s, and a search over the default rooms opened mid-session waited for the next sync before it ran.

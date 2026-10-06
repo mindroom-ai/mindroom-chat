@@ -207,8 +207,11 @@ export const buildMeasurementScrollCorrectionHook =
     const itemFullyAboveViewport =
       item.end <= (viewportTopOffset?.(renderedOffset) ?? renderedOffset);
     const automaticFillPredecessor = shouldDeferAutomaticFillCorrection?.(item) ?? false;
+    // Scrolling cannot go above the top: the browser would clamp the write and
+    // lose the correction, so the ledger takes it instead.
     const apply =
       !automaticFillPredecessor &&
+      scrollOffset + delta >= 0 &&
       shouldApplyMeasurementScrollCorrection({
         itemFullyAboveViewport,
         isIOSWebKitDevice: isIOSWebKitDevice(),

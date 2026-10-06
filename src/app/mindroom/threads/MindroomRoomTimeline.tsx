@@ -1169,8 +1169,32 @@ export function RoomTimeline({
     return latestVirtualIndex;
   }, [roomOverviewOrderActive, threadFilteredEventEntries, timelineItems]);
   const roomScrollToBottomCount = scrollToBottomRef.current.count;
+  // A request keeps the latest row in view while rows load around it, until
+  // the reader scrolls; then only a new request moves them (rows loaded above
+  // a reader at the top must not send them back to the bottom).
+  const roomScrollToBottomLeftRef = useRef(0);
+  // A new view starts from its latest rows again, as a fresh request would.
+  // Reset on commit, before the effect below: an abandoned render must not.
+  const roomScrollToBottomViewKey = `${showCompactRoomView}|${roomOverviewOrderActive}|${showThreadRepliesInRoom}|${roomThreadFilterActive}`;
+  const roomScrollToBottomViewKeyRef = useRef(roomScrollToBottomViewKey);
+  useLayoutEffect(() => {
+    if (roomScrollToBottomViewKeyRef.current === roomScrollToBottomViewKey) return;
+    roomScrollToBottomViewKeyRef.current = roomScrollToBottomViewKey;
+    roomScrollToBottomLeftRef.current = 0;
+  }, [roomScrollToBottomViewKey]);
+  useEffect(() => {
+    const scrollElement = getScrollElement();
+    if (threadId || !scrollElement) return undefined;
+    const leave = () => {
+      roomScrollToBottomLeftRef.current = scrollToBottomRef.current.count;
+    };
+    const events = ['wheel', 'touchstart', 'touchmove', 'pointerdown', 'keydown'] as const;
+    events.forEach((event) => scrollElement.addEventListener(event, leave, { passive: true }));
+    return () => events.forEach((event) => scrollElement.removeEventListener(event, leave));
+  }, [getScrollElement, scrollToBottomRef, threadId]);
   useLayoutEffect(() => {
     if (threadId || roomScrollToBottomCount <= 0 || roomTimelineLatestVirtualIndex < 0) return;
+    if (roomScrollToBottomLeftRef.current === roomScrollToBottomCount) return;
 
     // Smooth scrolling to an unmounted target is unsupported with dynamic row
     // measurement (it can stop short of the target); keep smooth only for the
