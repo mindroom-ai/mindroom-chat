@@ -1,10 +1,23 @@
 import 'fake-indexeddb/auto';
 import React from 'react';
 import { act, create } from 'react-test-renderer';
-import { MatrixEvent, type Thread } from 'matrix-js-sdk';
+import { createClient, MatrixEvent, Room, type Thread } from 'matrix-js-sdk';
 import { expect, it, vi } from 'vitest';
-import { getMindroomThreadSummaryInfo } from '../messages/threadSummary';
-import { loadCachedThreadSummaries, saveCachedThreadSummary } from './cacheStore';
+import { createEngineWriteThrough } from '../engine/engineWriteThrough';
+import {
+  getMindroomThreadSummaryInfo,
+  getThreadSummaryEventInfo,
+  getThreadSummaryInfosFromEventSources,
+} from '../messages/threadSummary';
+import {
+  loadCachedThreadSummaries,
+  saveCachedThreadSummary,
+  saveRoomEventsToCacheCommitted,
+} from './cacheStore';
+import {
+  persistRoomEventCacheSnapshot,
+  persistThreadEventCacheSnapshotCommitted,
+} from './eventRepository';
 import { useThreadSummaryPublishController } from './threadSummaryPublishController';
 import {
   clearThreadSummarySharedState,
@@ -219,5 +232,112 @@ it.each([
     expect(getThreadSummaryStateSnapshot(sessionId, roomId).get('$root')?.summaryText).toBe(
       'Accepted human title'
     );
+  }
+);
+
+const summaryNotice = (roomId: string, id: string, summary: string, timestamp: number) =>
+  new MatrixEvent({
+    event_id: id,
+    room_id: roomId,
+    type: 'm.room.message',
+    origin_server_ts: timestamp,
+    content: {
+      msgtype: 'm.notice',
+      body: summary,
+      'm.relates_to': { rel_type: 'm.thread', event_id: '$root' },
+      'io.mindroom.thread_summary': {
+        version: 1,
+        summary,
+        generated_at: new Date(timestamp).toISOString(),
+      },
+    },
+  });
+
+/** Cache and load `$leaked` as the thread's title, then redact it in a reader's room. */
+const loadThenRedactSummary = async (sessionId: string, roomId: string) => {
+  const leaked = summaryNotice(roomId, '$leaked', 'Leaked secret', 2000);
+  await saveCachedThreadSummary(sessionId, roomId, '$root', getThreadSummaryEventInfo(leaked)!);
+  await ensureThreadSummaryStateLoaded(sessionId, roomId);
+  expect(getThreadSummaryStateSnapshot(sessionId, roomId).get('$root')?.summaryText).toBe(
+    'Leaked secret'
+  );
+
+  const mx = createClient({ baseUrl: 'https://matrix.example', userId: '@reader:example' });
+  const room = new Room(roomId, mx, mx.getSafeUserId());
+  const redaction = new MatrixEvent({
+    event_id: '$redaction',
+    room_id: roomId,
+    type: 'm.room.redaction',
+    origin_server_ts: 3000,
+    redacts: '$leaked',
+    content: { redacts: '$leaked' },
+  });
+  leaked.makeRedacted(redaction, room);
+  return { leaked, redaction, room };
+};
+
+it('drops a redacted summary title from memory and disk so the thread falls back', async () => {
+  const sessionId = 'summary-redacted';
+  const roomId = '!summary-redacted:test';
+  const older = summaryNotice(roomId, '$older', 'Older title', 1000);
+  const { leaked, redaction, room } = await loadThenRedactSummary(sessionId, roomId);
+  let persisted: Promise<boolean> | undefined;
+  createEngineWriteThrough({
+    sessionId,
+    persist: (_room, events) => {
+      persisted = saveRoomEventsToCacheCommitted(
+        sessionId,
+        roomId,
+        events.map((event) => event.event)
+      );
+    },
+  }).handleLiveEvent(redaction, room, {
+    kind: 'redaction',
+    roomId,
+    liveEvent: true,
+    toStartOfTimeline: false,
+  });
+  expect(await persisted).toBe(true);
+  expect(getThreadSummaryStateSnapshot(sessionId, roomId).has('$root')).toBe(false);
+  expect((await loadCachedThreadSummaries(sessionId, roomId)).has('$root')).toBe(false);
+
+  // Readers republish the thread's remaining summaries.
+  storeThreadSummaryInState(
+    sessionId,
+    roomId,
+    '$root',
+    ...getThreadSummaryInfosFromEventSources([older, leaked])
+  );
+  expect(getThreadSummaryStateSnapshot(sessionId, roomId).get('$root')?.summaryText).toBe(
+    'Older title'
+  );
+  clearThreadSummarySharedState(sessionId);
+});
+
+it.each(['thread history', 'room backfill'])(
+  'drops a loaded summary title when %s brings an already redacted copy of its notice',
+  async (seam) => {
+    const sessionId = `summary-fetched-redacted-${seam}`;
+    const roomId = '!summary-fetched-redacted:test';
+    // The redaction itself fell in a sync gap; only fetched history shows the pruned notice.
+    const { leaked, room } = await loadThenRedactSummary(sessionId, roomId);
+    const { write } =
+      seam === 'thread history'
+        ? persistThreadEventCacheSnapshotCommitted({
+            sessionId,
+            room,
+            threadId: '$root',
+            events: [leaked],
+          })
+        : persistRoomEventCacheSnapshot({
+            sessionId,
+            room,
+            events: [leaked],
+            save: saveRoomEventsToCacheCommitted,
+          });
+    expect(await write).toBe(true);
+    expect(getThreadSummaryStateSnapshot(sessionId, roomId).has('$root')).toBe(false);
+    expect((await loadCachedThreadSummaries(sessionId, roomId)).has('$root')).toBe(false);
+    clearThreadSummarySharedState(sessionId);
   }
 );

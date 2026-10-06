@@ -1,7 +1,10 @@
+import { EventEmitter } from 'node:events';
 import React from 'react';
 import { act, create } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { MatrixEvent } from 'matrix-js-sdk';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
+import { ThreadEvent } from 'matrix-js-sdk/lib/models/thread';
 import {
   collectAvailableTags,
   getDisplayTags,
@@ -342,6 +345,8 @@ describe('ThreadContextBanner rendering', () => {
               ? { rawDisplayName: 'Alice', name: 'Alice' }
               : undefined,
           hasEncryptionStateEvent: () => false,
+          on: vi.fn(),
+          removeListener: vi.fn(),
         } as unknown as Room,
         threadId: '$root',
         summaryInfo: summaryText ? { summaryText } : undefined,
@@ -680,6 +685,66 @@ describe('ThreadContextBanner rendering', () => {
     expect(renderer.root.findByProps({ title: 'A concise thread summary' })).toBeTruthy();
     expect(renderer.root.findByProps({ 'data-thread-context-summary': 'true' })).toBeTruthy();
     expect(tree).not.toContain('Next task');
+  });
+
+  it('shows the next summary once the SDK replaces a redacted latest summary', () => {
+    const notice = (eventId: string, summary: string, timestamp: number) =>
+      new MatrixEvent({
+        event_id: eventId,
+        type: 'm.room.message',
+        origin_server_ts: timestamp,
+        content: {
+          msgtype: 'm.notice',
+          body: summary,
+          'm.relates_to': { rel_type: 'm.thread', event_id: '$root' },
+          'io.mindroom.thread_summary': {
+            version: 1,
+            summary,
+            generated_at: new Date(timestamp).toISOString(),
+          },
+        },
+      });
+    const older = notice('$older', 'Older title', 1000);
+    // Until it re-fetches the root, the SDK's latest reply is an unredacted copy.
+    const thread = {
+      id: '$root',
+      replyToEvent: notice('$leaked', 'Leaked title', 2000),
+      lastReply: () => null,
+      getUnfilteredTimelineSet: () => ({
+        getLiveTimeline: () => ({ getEvents: () => [], getNeighbouringTimeline: () => null }),
+        relations: { getChildEventsForEvent: () => undefined },
+      }),
+    };
+    const emitter = new EventEmitter();
+    const room = {
+      roomId: '!room:example.org',
+      getThread: () => thread,
+      findEventById: () => undefined,
+      getMember: () => undefined,
+      hasEncryptionStateEvent: () => false,
+      on: emitter.on.bind(emitter),
+      removeListener: emitter.removeListener.bind(emitter),
+    } as unknown as Room;
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(ThreadContextBanner, {
+          room,
+          threadId: '$root',
+          summaryInfo: { summaryText: 'Older title', eventTs: 1000, eventId: '$older' },
+          onExitThread: vi.fn(),
+        })
+      );
+    });
+    const summaryText = () =>
+      renderer.root.findByProps({ 'data-thread-context-summary': 'true' }).props.title;
+    expect(summaryText()).toBe('Leaked title');
+
+    thread.replyToEvent = older;
+    act(() => {
+      emitter.emit(ThreadEvent.Update, thread);
+    });
+    expect(summaryText()).toBe('Older title');
   });
 
   it('does not render the summary node when summary text is empty or undefined', () => {
