@@ -2,6 +2,13 @@
 
 ## Runbook
 
+### Link only http(s) registration terms URLs (2026-10-05)
+
+- Problem: the "Terms and Conditions" link on the registration form used the homeserver's `m.login.terms` privacy policy URL as-is, without checking its scheme.
+- Fix: `getLoginTermUrl` in `src/app/utils/matrix-uia.ts` returns only URLs that start with `http://` or `https://`, for both the `en` policy and the first-language fallback; any other value gives no URL, so the form shows no terms link, as for a server without terms.
+- Validation: `src/app/utils/matrix-uia.test.ts` checks that an `https` URL is returned and that a `javascript:` URL under `en` or another language gives no URL; the two `javascript:` cases fail before the fix and pass after.
+  `npm run typecheck`, and ESLint and Prettier on the touched files pass.
+
 ### Type image blobs from an allowlist of raster image types (2026-10-05)
 
 - Problem: `ImageContent` and `ThumbnailContent` load every image, plaintext or encrypted, into a `blob:` URL typed with the event's `info.mimetype`.
