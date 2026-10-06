@@ -13,6 +13,8 @@
 - Typecheck, production/PWA build, App Store preflight, parallel-runner tests, changed-file formatting, shell syntax, and lint pass; full lint retains 17 existing warnings.
 - Independent review caught avatars disappearing after a failed image request; capture now requires each expected demo profile, and a browser regression proves a missing agent cannot pass.
 - Qodo review caught obsolete optional-agent fallback paths; agent registration failures now propagate directly, with an executable failure regression.
+- After merging `dev`, #406 lists only scheduled tasks a MindRoom account wrote, and the seeder wrote them from the removed `router` agent, so seeding failed with `Cannot read properties of undefined (reading 'accessToken')`.
+  The seeder now writes the reminder's task from the agent that answered its thread and gives every agent state power; capture passes again (3 Playwright tests, ten PNGs at the required sizes, reminder chip `4:00 PM`).
 - PR: [#356](https://github.com/mindroom-ai/mindroom-chat/pull/356).
 
 ### App Store update 4.12.320 (2026-10-01)
