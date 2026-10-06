@@ -2,6 +2,22 @@
 
 ## Runbook
 
+### Keep a room's other Spaces when one Space removes it (2026-10-06)
+
+- Problem: when a Space removed a room (its `m.space.child` event became invalid), `useBindRoomToParentsAtom` dispatched `DELETE` for the room, the action meant for a Space the user left.
+  That deleted all of the room's parents and also removed the room as a parent of every other room.
+  So a room in two Spaces that one Space removed lost both, until reload: outside Simple Mode it showed in Home as a room in no Space, opening it from search or a notification went to Home instead of the other Space, and its unread count stopped counting toward that Space.
+  A subspace removed from its parent Space did the same to its own rooms.
+  The Space's own room list in the sidebar reads `m.space.child` state directly, so it still listed the room.
+- Fix: a new `REMOVE_PARENT` action in `src/app/state/room/roomToParents.ts` removes only the link from that Space to that room, and deletes the room's entry only when no parent is left; an invalidated `m.space.child` event now dispatches it.
+  `DELETE` is still used when the user leaves a Space or the room is deleted.
+  Salvaged from closed PR #135 and re-derived against `dev`.
+- Tests: `src/app/state/room/roomToParents.test.ts` binds the hook to a real `MatrixClient`, Spaces and jotai store and sends real `m.space.child` and membership changes.
+  A room removed from one of two Spaces keeps the other, and a subspace removed from its parent stays the parent of its own rooms; both fail on `dev`.
+  A room removed from its last Space loses its entry, and leaving a Space still removes it as a parent of every room; both pass before and after.
+- Validation: typecheck, production/PWA build, Prettier on the touched files, and lint (0 errors, 18 existing warnings) pass.
+  Full unit suite: 6,428 of 6,433 tests pass; the other 5 fail on this host without the change too: 3 `xcodeCloudPostClone` tests need `/bin/bash`, which this NixOS host lacks, and 2 `RoomTimeline` tests timed out under a load average above 100 and pass when run alone (all 170 tests in the affected files pass).
+
 ### Reproduce Rivera household App Store screenshots (2026-10-01)
 
 - Status: Rivera screenshot fixture implemented and independently reviewed.
