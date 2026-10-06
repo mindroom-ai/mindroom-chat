@@ -260,6 +260,11 @@ describe('CanvasPanel', () => {
     expect(container.textContent).toContain('what you enter here may leave this panel');
   });
 
+  it('tells the user when the agent can read what they enter', () => {
+    render({ shared: true });
+    expect(container.textContent).toContain('Made by Planner, which can read what you enter here.');
+  });
+
   it('lets the page load libraries only when the deployment turns them on', () => {
     render();
     expect(frame().getAttribute('srcdoc')).not.toContain(CANVAS_LIBRARY_SOURCE);

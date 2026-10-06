@@ -59,6 +59,8 @@ export type CanvasPanelProps = {
   /** The canvas's saved state, read whenever a page loads, so it holds what the previous page saved. */
   savedState?: () => CanvasSaved;
   onSaveState?: (change: CanvasSaved) => void;
+  /** The agent can read what the user does in the page, so the panel says so. */
+  shared?: boolean;
   onSelectVersion?: (current: number) => void;
 };
 
@@ -147,6 +149,7 @@ export function CanvasPanel({
   onSelectVersion,
   savedState,
   onSaveState,
+  shared = false,
 }: CanvasPanelProps) {
   const { t } = useTranslation();
   const frameRef = useRef<HTMLIFrameElement>(null);
@@ -709,7 +712,9 @@ export function CanvasPanel({
                 lastAnswer &&
                 t('mindroomUi.canvas.sent', { agent: agentName, label: lastAnswer.label })}
               {(footer === 'idle' || footer === 'cancelled') &&
-                t('mindroomUi.canvas.disclosure', { agent: agentName })}
+                t(shared ? 'mindroomUi.canvas.disclosureShared' : 'mindroomUi.canvas.disclosure', {
+                  agent: agentName,
+                })}
             </Text>
           )}
         </div>

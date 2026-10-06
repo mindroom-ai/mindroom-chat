@@ -40,7 +40,14 @@ export type ChatUiAction = ChatUiTarget &
     | { action: 'open_settings'; section: ChatUiSettingsSection }
     | { action: 'open_panel'; panel: 'members' }
     // The panel follows later edits of this request, so it keeps the event itself.
-    | { action: 'show_canvas'; canvas: ChatUiCanvas; revisionEventId: string; event: MatrixEvent }
+    | {
+        action: 'show_canvas';
+        canvas: ChatUiCanvas;
+        revisionEventId: string;
+        event: MatrixEvent;
+        /** The agent may read what the user does in the page; fixed by the request, so edits keep it. */
+        shareState?: true;
+      }
   );
 
 const MAX_CANVAS_TITLE_LENGTH = 200;
@@ -116,6 +123,7 @@ const AUTHORITY_FIELDS = [
   'agent_user_id',
   'room_id',
   'thread_id',
+  'share_state',
 ];
 
 export type LatestCanvas = {
@@ -251,7 +259,9 @@ export const readChatUiAction = (
   }
   if (data.action === 'show_canvas') {
     const latest = readLatestCanvas(event, eventId, sender, data);
-    return latest ? { ...target, action: 'show_canvas', ...latest, event } : undefined;
+    if (!latest) return undefined;
+    const shared = data.share_state === true ? { shareState: true as const } : {};
+    return { ...target, action: 'show_canvas', ...latest, event, ...shared };
   }
   return undefined;
 };

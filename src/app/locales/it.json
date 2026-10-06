@@ -3012,6 +3012,7 @@
       "send": "Invia",
       "discard": "Scarta",
       "disclosure": "Creato da {{agent}}. Non può accedere al tuo account; ciò che inserisci qui può uscire dal pannello.",
+      "disclosureShared": "Creato da {{agent}}, che può leggere ciò che inserisci qui. Non può accedere al tuo account.",
       "sending": "Invio a {{agent}}…",
       "sent": "Inviato a {{agent}}: {{label}}",
       "sendFailed": "Impossibile inviare la risposta. Riprova.",

@@ -42,6 +42,14 @@ vi.mock('./useCanvasSavedState', () => ({
     },
   }),
 }));
+// Sharing sends Matrix events; these tests check what the panel asks it to share.
+const shares = vi.hoisted(() => ({ enabled: [] as boolean[], saves: [] as CanvasSaved[] }));
+vi.mock('./useCanvasStateShare', () => ({
+  useCanvasStateShare: (_mx: unknown, _room: unknown, _canvasId: string, enabled: boolean) => {
+    shares.enabled.push(enabled);
+    return (record: CanvasSaved) => shares.saves.push(record);
+  },
+}));
 vi.mock('../sidebar/ResizablePanel', () => ({
   ResizablePanel: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }));
@@ -77,7 +85,7 @@ const metadata = (html: string) => ({
   canvas: { title: 'Plans', html },
 });
 
-const request = () =>
+const request = (extra: Record<string, unknown> = {}) =>
   new MatrixEvent({
     event_id: '$canvas',
     room_id: ROOM_ID,
@@ -88,7 +96,7 @@ const request = () =>
       msgtype: 'm.notice',
       body: 'Interactive panel: Plans.',
       'm.relates_to': { rel_type: 'm.thread', event_id: '$thread' },
-      'io.mindroom.ui_action': metadata('<p>Step 1</p>'),
+      'io.mindroom.ui_action': { ...metadata('<p>Step 1</p>'), ...extra },
     },
   });
 
@@ -137,6 +145,8 @@ beforeEach(() => {
   panels.props = undefined;
   saved.ready = true;
   saved.value = {};
+  shares.enabled = [];
+  shares.saves = [];
   mx = Object.assign(new EventEmitter(), {
     getSafeUserId: () => VIEWER,
   }) as unknown as MatrixClient;
@@ -315,6 +325,21 @@ describe('RoomCanvasPanel', () => {
     expect(panels.props?.version).toEqual({ current: 2, total: 2 });
     act(() => panels.props?.onSelectVersion?.(1));
     expect(panels.props?.canvas.html).toBe('<p>Step 1</p>');
+  });
+
+  it('shares each save of a canvas whose request shares its state, whole, and tells the panel', () => {
+    render(request({ share_state: true }));
+    expect(shares.enabled.at(-1)).toBe(true);
+    expect(panels.props?.shared).toBe(true);
+    panels.props?.onSaveState?.({ json: '{"done":["tent"]}' });
+    panels.props?.onSaveState?.({ inputs: '{"#rate":"7"}' });
+    expect(shares.saves.at(-1)).toEqual({ json: '{"done":["tent"]}', inputs: '{"#rate":"7"}' });
+
+    act(() => root.unmount());
+    root = createRoot(container);
+    render(request());
+    expect(shares.enabled.at(-1)).toBe(false);
+    expect(panels.props?.shared).toBe(false);
   });
 
   it('starts the page only once its saved state is read', () => {

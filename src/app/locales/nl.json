@@ -2958,6 +2958,7 @@
       "send": "Versturen",
       "discard": "Verwijderen",
       "disclosure": "Gemaakt door {{agent}}. Het paneel heeft geen toegang tot je account, maar wat je hier invoert, kan het paneel verlaten.",
+      "disclosureShared": "Gemaakt door {{agent}}, dat kan lezen wat je hier invoert. Het paneel heeft geen toegang tot je account.",
       "sending": "Wordt verstuurd naar {{agent}}…",
       "sent": "Verstuurd naar {{agent}}: {{label}}",
       "sendFailed": "Je antwoord kon niet worden verstuurd. Probeer het opnieuw.",

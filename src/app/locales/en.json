@@ -2958,6 +2958,7 @@
       "send": "Send",
       "discard": "Discard",
       "disclosure": "Made by {{agent}}. It cannot access your account; what you enter here may leave this panel.",
+      "disclosureShared": "Made by {{agent}}, which can read what you enter here. It cannot access your account.",
       "sending": "Sending to {{agent}}…",
       "sent": "Sent to {{agent}}: {{label}}",
       "sendFailed": "Could not send your response. Try again.",

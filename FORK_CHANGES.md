@@ -2,6 +2,18 @@
 
 ## Runbook
 
+### Let an agent read a canvas page's state without a Send button (2026-10-06)
+
+- Why: for pages whose choices matter later (a checklist ticked over days, a form filled in passing), users asked that the agent see them without an explicit Send; pushing every change into the conversation would cost the agent tokens on every turn, so the agent reads on demand instead.
+- A canvas request may carry `share_state: true` (backend `show_canvas(share_state=True)`). It is an authority field like `requester_id`, so an edit cannot start or stop sharing, and the panel says so from the start: "Made by *agent*, which can read what you enter here."
+- `useCanvasStateShare` keeps a copy of what the page saved (its `saveState` JSON and kept inputs) in the room once the user pauses for 5 s, and when the panel closes; an unchanged copy is not sent again, and a failed send is retried with the next save.
+  The copy is an `io.mindroom.canvas_state` event with an `m.reference` relation to the canvas, so the agent's `read_canvas_state` finds the newest with one `/relations` call; a copy too large for one event goes as a long-text sidecar, like a large answer.
+  It is not a message, so it starts no agent turn and stays out of the agent's conversation; in an encrypted room it is encrypted like any event.
+- Tests: `useCanvasStateShare.test.tsx` (waits for a pause, each save restarts the wait, nothing for an unshared canvas or the same state twice, shares on close, sidecar keeps the reference, retry after a failed send), `chatUiProtocol.test.ts` (parsed, kept through edits, an edit cannot start it), `CanvasPanel.test.tsx` (the notice), `RoomCanvasPanel.test.tsx` (each save shared whole), and the backend contract's new `show_canvas/shared` case.
+  `e2e/agent-canvas.spec.ts`: ticking a box in a shared canvas leaves one copy referencing it, with the page's state and kept inputs, while an unshared canvas leaves none.
+  Removing each piece of the share hook fails its test.
+- Not changed: the copy reflects the device that shared it last; two devices editing the same canvas share their own copies, and the agent reads the newest.
+
 ### Keep hearing room members after a gappy sync (2026-10-05)
 
 - Report: found while reviewing PR #399. After a gappy (`limited`) sync, for example when a backgrounded tab or a sleeping phone catches up, the client stopped hearing typing for everyone already in the room until reload; an agent that started typing showed nothing.

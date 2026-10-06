@@ -3012,6 +3012,7 @@
       "send": "Enviar",
       "discard": "Descartar",
       "disclosure": "Criado por {{agent}}. Não tem acesso à sua conta; o que você digitar aqui pode sair deste painel.",
+      "disclosureShared": "Criado por {{agent}}, que pode ler o que você digitar aqui. Não tem acesso à sua conta.",
       "sending": "A enviar para {{agent}}…",
       "sent": "Enviado para {{agent}}: {{label}}",
       "sendFailed": "Não foi possível enviar sua resposta. Tente novamente.",

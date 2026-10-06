@@ -2958,6 +2958,7 @@
       "send": "Gönder",
       "discard": "Sil",
       "disclosure": "{{agent}} tarafından oluşturuldu. Hesabınıza erişemez; buraya girdikleriniz bu panelin dışına çıkabilir.",
+      "disclosureShared": "{{agent}} tarafından oluşturuldu; buraya girdiklerinizi okuyabilir. Hesabınıza erişemez.",
       "sending": "{{agent}} ajanına gönderiliyor…",
       "sent": "{{agent}} ajanına gönderildi: {{label}}",
       "sendFailed": "Yanıtınız gönderilemedi. Tekrar deneyin.",

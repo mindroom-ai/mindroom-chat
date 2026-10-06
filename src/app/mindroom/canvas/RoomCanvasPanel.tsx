@@ -12,6 +12,7 @@ import { readCanvasTheme } from './canvasTheme';
 import { useCanvasPage } from './useCanvasPage';
 import { useCanvasVersions } from './useCanvasVersions';
 import { useCanvasSavedState } from './useCanvasSavedState';
+import { useCanvasStateShare } from './useCanvasStateShare';
 
 type RoomCanvasPanelProps = {
   mx: MatrixClient;
@@ -29,6 +30,7 @@ type ShowCanvas = {
   agentUserId: string;
   threadId?: string;
   canvas: ChatUiCanvas;
+  shareState?: true;
 };
 
 // Dashboards need room: the panel may grow wide while the conversation keeps a usable column.
@@ -68,6 +70,7 @@ function LoadedCanvasPanel({
   );
   const page = useCanvasPage(mx, room.roomId, shown.revisionEventId, shown.canvas, attempt);
   const saved = useCanvasSavedState(mx, action.eventId);
+  const share = useCanvasStateShare(mx, room, action.eventId, !!action.shareState);
   // The page waits until its saved state is read, so it starts from it.
   const loaded = page.status === 'ready' && saved.ready ? page : undefined;
   const mobile = useScreenSizeContext() === ScreenSize.Mobile;
@@ -102,7 +105,11 @@ function LoadedCanvasPanel({
           : undefined
       }
       savedState={saved.read}
-      onSaveState={saved.save}
+      onSaveState={(change) => {
+        saved.save(change);
+        share(saved.read());
+      }}
+      shared={!!action.shareState}
       onSelectVersion={(number) => {
         const picked = versions[number - 1]?.revisionEventId;
         setChosen(picked === action.revisionEventId ? undefined : picked);

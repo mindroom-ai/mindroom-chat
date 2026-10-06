@@ -476,6 +476,77 @@
     {
       "event": {
         "content": {
+          "body": "Interactive panel: Choose a plan. Open it in MindRoom Chat to respond.",
+          "format": "org.matrix.custom.html",
+          "formatted_body": "Interactive panel: Choose a plan. Open it in MindRoom Chat to respond.",
+          "io.mindroom.ui_action": {
+            "action": "show_canvas",
+            "agent_user_id": "@mindroom_researcher:localhost",
+            "canvas": {
+              "html": "<form data-mindroom-label=\"Plan chosen\"><label><input type=\"radio\" name=\"plan\" value=\"pro\" checked> Pro</label><button>Choose</button></form>",
+              "title": "Choose a plan"
+            },
+            "requester_id": "@alice:localhost",
+            "room_id": "!room:localhost",
+            "share_state": true,
+            "thread_id": "$thread",
+            "version": 1
+          },
+          "m.relates_to": {
+            "event_id": "$thread",
+            "is_falling_back": false,
+            "m.in_reply_to": {
+              "event_id": "$request"
+            },
+            "rel_type": "m.thread"
+          },
+          "msgtype": "m.notice"
+        },
+        "event_id": "$chat-ui-contract-thread-show_canvas-shared",
+        "origin_server_ts": 100000,
+        "room_id": "!room:localhost",
+        "sender": "@mindroom_researcher:localhost",
+        "type": "m.room.message"
+      },
+      "id": "thread/show_canvas/shared",
+      "replacement": {
+        "content": {
+          "body": "* Interactive panel: Choose a plan. Open it in MindRoom Chat to respond.",
+          "m.new_content": {
+            "body": "Interactive panel: Choose a plan. Open it in MindRoom Chat to respond.",
+            "format": "org.matrix.custom.html",
+            "formatted_body": "Interactive panel: Choose a plan. Open it in MindRoom Chat to respond.",
+            "io.mindroom.ui_action": {
+              "action": "show_canvas",
+              "agent_user_id": "@mindroom_researcher:localhost",
+              "canvas": {
+                "html": "<form data-mindroom-label=\"Seats chosen\"><input name=\"seats\" value=\"3\"><button>Continue</button></form>",
+                "title": "Choose a plan"
+              },
+              "requester_id": "@alice:localhost",
+              "room_id": "!room:localhost",
+              "share_state": true,
+              "thread_id": "$thread",
+              "version": 1
+            },
+            "msgtype": "m.notice"
+          },
+          "m.relates_to": {
+            "event_id": "$chat-ui-contract-thread-show_canvas-shared",
+            "rel_type": "m.replace"
+          },
+          "msgtype": "m.notice"
+        },
+        "event_id": "$chat-ui-contract-thread-show_canvas-shared-edit",
+        "origin_server_ts": 100000,
+        "room_id": "!room:localhost",
+        "sender": "@mindroom_researcher:localhost",
+        "type": "m.room.message"
+      }
+    },
+    {
+      "event": {
+        "content": {
           "body": "Open this agent's worker computer in MindRoom Chat.",
           "format": "org.matrix.custom.html",
           "formatted_body": "<p>Open this agent&#x27;s worker computer in MindRoom Chat.</p>\n",
@@ -841,6 +912,69 @@
         "type": "m.room.message"
       },
       "id": "room/show_canvas/document"
+    },
+    {
+      "event": {
+        "content": {
+          "body": "Interactive panel: Choose a plan. Open it in MindRoom Chat to respond.",
+          "format": "org.matrix.custom.html",
+          "formatted_body": "Interactive panel: Choose a plan. Open it in MindRoom Chat to respond.",
+          "io.mindroom.ui_action": {
+            "action": "show_canvas",
+            "agent_user_id": "@mindroom_researcher:localhost",
+            "canvas": {
+              "html": "<form data-mindroom-label=\"Plan chosen\"><label><input type=\"radio\" name=\"plan\" value=\"pro\" checked> Pro</label><button>Choose</button></form>",
+              "title": "Choose a plan"
+            },
+            "requester_id": "@alice:localhost",
+            "room_id": "!room:localhost",
+            "share_state": true,
+            "thread_id": null,
+            "version": 1
+          },
+          "msgtype": "m.notice"
+        },
+        "event_id": "$chat-ui-contract-room-show_canvas-shared",
+        "origin_server_ts": 100000,
+        "room_id": "!room:localhost",
+        "sender": "@mindroom_researcher:localhost",
+        "type": "m.room.message"
+      },
+      "id": "room/show_canvas/shared",
+      "replacement": {
+        "content": {
+          "body": "* Interactive panel: Choose a plan. Open it in MindRoom Chat to respond.",
+          "m.new_content": {
+            "body": "Interactive panel: Choose a plan. Open it in MindRoom Chat to respond.",
+            "format": "org.matrix.custom.html",
+            "formatted_body": "Interactive panel: Choose a plan. Open it in MindRoom Chat to respond.",
+            "io.mindroom.ui_action": {
+              "action": "show_canvas",
+              "agent_user_id": "@mindroom_researcher:localhost",
+              "canvas": {
+                "html": "<form data-mindroom-label=\"Seats chosen\"><input name=\"seats\" value=\"3\"><button>Continue</button></form>",
+                "title": "Choose a plan"
+              },
+              "requester_id": "@alice:localhost",
+              "room_id": "!room:localhost",
+              "share_state": true,
+              "thread_id": null,
+              "version": 1
+            },
+            "msgtype": "m.notice"
+          },
+          "m.relates_to": {
+            "event_id": "$chat-ui-contract-room-show_canvas-shared",
+            "rel_type": "m.replace"
+          },
+          "msgtype": "m.notice"
+        },
+        "event_id": "$chat-ui-contract-room-show_canvas-shared-edit",
+        "origin_server_ts": 100000,
+        "room_id": "!room:localhost",
+        "sender": "@mindroom_researcher:localhost",
+        "type": "m.room.message"
+      }
     }
   ],
   "room_id": "!room:localhost",

@@ -2958,6 +2958,7 @@
       "send": "Kirim",
       "discard": "Buang",
       "disclosure": "Dibuat oleh {{agent}}. Panel ini tidak dapat mengakses akun Anda; apa yang Anda masukkan di sini dapat keluar dari panel ini.",
+      "disclosureShared": "Dibuat oleh {{agent}}, yang dapat membaca apa yang Anda masukkan di sini. Panel ini tidak dapat mengakses akun Anda.",
       "sending": "Mengirim ke {{agent}}…",
       "sent": "Terkirim ke {{agent}}: {{label}}",
       "sendFailed": "Tidak dapat mengirim respons Anda. Coba lagi.",
