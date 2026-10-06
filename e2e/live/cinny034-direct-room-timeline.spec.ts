@@ -96,6 +96,15 @@ test.describe('live cinny-034 direct room timeline', () => {
     await expect(page.getByRole('button', { name: /Open thread: CINNY-034 direct/ })).toHaveCount(
       0
     );
+    // The stored mode is kept for when an agent joins.
+    const storedViewModes = await page.evaluate(
+      (roomId) =>
+        Object.keys(localStorage)
+          .filter((key) => key.startsWith('roomViewMode:') && key.endsWith(`:${roomId}`))
+          .map((key) => localStorage.getItem(key)),
+      directRoomId
+    );
+    expect(storedViewModes).toEqual(['"compact"']);
 
     await expectNoUnexpectedBrowserDiagnostics(diagnostics, 'cinny-034-direct-room-classic');
   });

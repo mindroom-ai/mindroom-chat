@@ -45,30 +45,44 @@ describe('useRoomViewMode', () => {
   const sessionId = createSessionId('https://example.org', userId);
   const storage = new Map<string, string>();
 
-  type Member = { userId: string; membership: string };
+  type Member = { roomId: string; userId: string; membership: string };
   const roomMembers = new Map<string, Member[]>();
-  const mx = Object.assign(new EventEmitter(), {
-    getHomeserverUrl: () => 'https://example.org',
-    getSafeUserId: () => userId,
-    getRoom: (roomId: string) => {
-      const members = roomMembers.get(roomId);
-      return members ? { getMembers: () => members } : null;
-    },
-  });
-  const joined = (memberId: string): Member => ({ userId: memberId, membership: 'join' });
+  const createClient = () =>
+    Object.assign(new EventEmitter(), {
+      getHomeserverUrl: () => 'https://example.org',
+      getSafeUserId: () => userId,
+      getRoom: (roomId: string) => {
+        const members = roomMembers.get(roomId);
+        return members ? { getMembers: () => members } : null;
+      },
+    });
+  const addRoom = (roomId: string, memberIds: string[]) =>
+    roomMembers.set(
+      roomId,
+      memberIds.map((memberId) => ({ roomId, userId: memberId, membership: 'join' }))
+    );
+  const setMembership = (roomId: string, memberId: string, membership: string) => {
+    const members = roomMembers.get(roomId) ?? [];
+    const member = { roomId, userId: memberId, membership };
+    roomMembers.set(roomId, [...members.filter((m) => m.userId !== memberId), member]);
+    act(() => {
+      mx.emit(RoomMemberEvent.Membership, {} as MatrixEvent, member, undefined);
+    });
+  };
   const storedMode = (roomId: string) => storage.get(getRoomViewModeStorageKey(sessionId, roomId));
   const storeMode = (roomId: string, mode: RoomViewMode) =>
     storage.set(getRoomViewModeStorageKey(sessionId, roomId), JSON.stringify(mode));
 
+  let mx: ReturnType<typeof createClient>;
   let renderer: ReactTestRenderer | undefined;
-  let result: ReturnType<typeof useRoomViewMode> | undefined;
+  const results = new Map<string, ReturnType<typeof useRoomViewMode>>();
 
   function Probe({ roomId }: { roomId: string }) {
-    result = useRoomViewMode(roomId);
+    results.set(roomId, useRoomViewMode(roomId));
     return null;
   }
 
-  const render = (roomId: string, directRoomIds: string[]) => {
+  const render = (roomIds: string[], directRoomIds: string[]) => {
     const store = createStore();
     store.set(mDirectAtom, { type: 'INITIALIZE', rooms: new Set(directRoomIds) });
     act(() => {
@@ -79,7 +93,7 @@ describe('useRoomViewMode', () => {
           React.createElement(
             MatrixClientProvider,
             { value: mx as unknown as MatrixClient },
-            React.createElement(Probe, { roomId })
+            roomIds.map((roomId) => React.createElement(Probe, { key: roomId, roomId }))
           )
         )
       );
@@ -88,6 +102,7 @@ describe('useRoomViewMode', () => {
 
   beforeEach(() => {
     simpleModeState.value = true;
+    mx = createClient();
     vi.stubGlobal('localStorage', {
       get length() {
         return storage.size;
@@ -103,63 +118,77 @@ describe('useRoomViewMode', () => {
   afterEach(() => {
     act(() => renderer?.unmount());
     renderer = undefined;
-    result = undefined;
+    results.clear();
     storage.clear();
     roomMembers.clear();
-    mx.removeAllListeners();
     vi.unstubAllGlobals();
   });
 
   it('shows a direct message between people in Classic and offers no other mode', () => {
     const roomId = '!people-dm:example.org';
-    roomMembers.set(roomId, [joined(userId), joined('@bob:example.org')]);
+    addRoom(roomId, [userId, '@bob:example.org']);
     storeMode(roomId, 'threaded');
 
-    render(roomId, [roomId]);
+    render([roomId], [roomId]);
 
-    expect(result?.viewMode).toBe('classic');
-    expect(result?.availableViewModes).toEqual([]);
-    expect(result?.storedViewMode).toBe('threaded');
+    expect(results.get(roomId)?.viewMode).toBe('classic');
+    expect(results.get(roomId)?.availableViewModes).toEqual([]);
+    expect(results.get(roomId)?.storedViewMode).toBe('threaded');
     expect(storedMode(roomId)).toBe('"threaded"');
   });
 
   it('returns to the stored mode once an agent is invited to the direct message', () => {
     const roomId = '!people-dm-invite:example.org';
-    roomMembers.set(roomId, [joined(userId), joined('@bob:example.org')]);
+    addRoom(roomId, [userId, '@bob:example.org']);
     storeMode(roomId, 'threaded');
-    render(roomId, [roomId]);
-    expect(result?.viewMode).toBe('classic');
+    render([roomId], [roomId]);
+    expect(results.get(roomId)?.viewMode).toBe('classic');
 
-    const invite = { userId: agentId, membership: 'invite' };
-    roomMembers.get(roomId)?.push(invite);
-    act(() => {
-      mx.emit(RoomMemberEvent.Membership, {} as MatrixEvent, invite, undefined);
-    });
+    setMembership(roomId, agentId, 'invite');
 
-    expect(result?.viewMode).toBe('threaded');
-    expect(result?.availableViewModes).toEqual(['compact', 'threaded']);
+    expect(results.get(roomId)?.viewMode).toBe('threaded');
+    expect(results.get(roomId)?.availableViewModes).toEqual(['compact', 'threaded']);
     expect(storedMode(roomId)).toBe('"threaded"');
   });
 
-  it('keeps the stored mode in a direct message with an agent', () => {
+  it('keeps the stored mode in a direct message with an agent until the agent leaves', () => {
     const roomId = '!agent-dm:example.org';
-    roomMembers.set(roomId, [joined(userId), joined(agentId)]);
+    addRoom(roomId, [userId, agentId]);
+    storeMode(roomId, 'threaded');
+    render([roomId], [roomId]);
+    expect(results.get(roomId)?.viewMode).toBe('threaded');
+    expect(results.get(roomId)?.availableViewModes).toEqual(['compact', 'threaded']);
 
-    render(roomId, [roomId]);
+    setMembership(roomId, agentId, 'leave');
 
-    expect(result?.viewMode).toBe('compact');
-    expect(result?.availableViewModes).toEqual(['compact', 'threaded']);
+    expect(results.get(roomId)?.viewMode).toBe('classic');
+    expect(storedMode(roomId)).toBe('"threaded"');
   });
 
   it('keeps the stored mode in a room of people that is not a direct message', () => {
     const roomId = '!people-room:example.org';
-    roomMembers.set(roomId, [joined(userId), joined('@bob:example.org')]);
+    addRoom(roomId, [userId, '@bob:example.org']);
     simpleModeState.value = false;
     storeMode(roomId, 'threaded');
 
-    render(roomId, []);
+    render([roomId], []);
 
-    expect(result?.viewMode).toBe('threaded');
-    expect(result?.availableViewModes).toEqual(['compact', 'threaded', 'classic']);
+    expect(results.get(roomId)?.viewMode).toBe('threaded');
+    expect(results.get(roomId)?.availableViewModes).toEqual(['compact', 'threaded', 'classic']);
+    expect(mx.listenerCount(RoomMemberEvent.Membership)).toBe(0);
+  });
+
+  it('serves every direct room from one client listener', () => {
+    const firstRoomId = '!people-dm-first:example.org';
+    const secondRoomId = '!people-dm-second:example.org';
+    addRoom(firstRoomId, [userId, '@bob:example.org']);
+    addRoom(secondRoomId, [userId, '@carol:example.org']);
+    render([firstRoomId, secondRoomId], [firstRoomId, secondRoomId]);
+    expect(mx.listenerCount(RoomMemberEvent.Membership)).toBe(1);
+
+    setMembership(firstRoomId, agentId, 'join');
+
+    expect(results.get(firstRoomId)?.viewMode).toBe('compact');
+    expect(results.get(secondRoomId)?.viewMode).toBe('classic');
   });
 });

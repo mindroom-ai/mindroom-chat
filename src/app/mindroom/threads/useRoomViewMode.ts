@@ -1,5 +1,5 @@
 import { useAtom, useAtomValue } from 'jotai';
-import { RoomMemberEvent } from 'matrix-js-sdk';
+import { RoomMemberEvent, type MatrixClient } from 'matrix-js-sdk';
 import { useCallback, useMemo, useSyncExternalStore } from 'react';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { mDirectAtom } from '../../state/mDirectList';
@@ -19,24 +19,42 @@ export const resolveEffectiveRoomViewMode = (
   simpleMode: boolean,
   humanDirectRoom: boolean
 ): RoomViewMode => {
-  if (isRoomViewModeAvailable(storedViewMode, simpleMode, humanDirectRoom)) return storedViewMode;
-  return humanDirectRoom ? 'classic' : DEFAULT_ROOM_VIEW_MODE;
+  if (humanDirectRoom) return 'classic';
+  return isRoomViewModeAvailable(storedViewMode, simpleMode, humanDirectRoom)
+    ? storedViewMode
+    : DEFAULT_ROOM_VIEW_MODE;
+};
+
+// Thread lists render a card per thread, so one client listener serves every direct room's hooks.
+const membershipListeners = new WeakMap<MatrixClient, Map<string, Set<() => void>>>();
+
+const subscribeRoomMembership = (mx: MatrixClient, roomId: string, onChange: () => void) => {
+  let rooms = membershipListeners.get(mx);
+  if (!rooms) {
+    const created = new Map<string, Set<() => void>>();
+    mx.on(RoomMemberEvent.Membership, (_event, member) => {
+      created.get(member.roomId)?.forEach((listener) => listener());
+    });
+    membershipListeners.set(mx, created);
+    rooms = created;
+  }
+  const listeners = rooms.get(roomId) ?? new Set();
+  rooms.set(roomId, listeners);
+  listeners.add(onChange);
+  return () => {
+    listeners.delete(onChange);
+    if (listeners.size === 0) rooms.delete(roomId);
+  };
 };
 
 /** A direct room (in `m.direct`) with no MindRoom agent joined or invited. */
 const useIsHumanDirectRoom = (roomId: string): boolean => {
   const mx = useMatrixClient();
   const direct = useAtomValue(mDirectAtom).has(roomId);
-  // Only direct rooms follow membership, so other rooms add no client listener.
   const subscribe = useCallback(
-    (onMembershipChange: () => void) => {
-      if (!direct) return () => undefined;
-      mx.on(RoomMemberEvent.Membership, onMembershipChange);
-      return () => {
-        mx.removeListener(RoomMemberEvent.Membership, onMembershipChange);
-      };
-    },
-    [direct, mx]
+    (onChange: () => void) =>
+      direct ? subscribeRoomMembership(mx, roomId, onChange) : () => undefined,
+    [direct, mx, roomId]
   );
 
   return useSyncExternalStore(

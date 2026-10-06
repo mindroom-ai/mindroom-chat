@@ -7,7 +7,7 @@ import {
 } from './roomTimelineViewState';
 
 describe('resolveRoomTimelineViewState', () => {
-  it('preserves compact mode and overview controls in a direct room with an agent', () => {
+  it('preserves compact mode and overview controls for direct rooms', () => {
     const requested = createDefaultThreadFilterState();
 
     expect(
